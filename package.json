@@ -14,9 +14,7 @@
   "author": "OmniZap Team",
   "license": "MIT",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js",
-    "setup": "./start.sh"
+    "start": "node index.js"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
