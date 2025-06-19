@@ -1,5 +1,5 @@
 {
-  "name": "omnizap",
+  "name": "omnizap-system",
   "version": "1.0.1",
   "description": "Sistema profissional de automação WhatsApp com tecnologia Baileys",
   "main": "index.js",
@@ -31,10 +31,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/omnizap/omnizap.git"
+    "url": "https://github.com/Kaikygr/omnizap-system.git"
   },
   "bugs": {
-    "url": "https://github.com/omnizap/omnizap/issues"
+    "url": "https://github.com/Kaikygr/omnizap-system/issues"
   },
-  "homepage": "https://github.com/omnizap/omnizap#readme"
+  "homepage": "https://github.com/Kaikygr/omnizap-system#readme"
 }

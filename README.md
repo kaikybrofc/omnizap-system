@@ -60,8 +60,8 @@ COMMAND_PREFIX=/
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/omnizap/omnizap.git
-cd omnizap
+git clone https://github.com/Kaikygr/omnizap-system.git
+cd omnizap-system
 ```
 
 2. Instale as dependências:
@@ -145,8 +145,8 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 Para suporte e dúvidas:
 
 - 📧 Email: kaikygomesribeiroof@gmail.com
-- 🐛 Issues: [GitHub Issues](https://github.com/omnizap/omnizap/issues)
-- 📖 Documentação: [Wiki](https://github.com/omnizap/omnizap/wiki)
+- 🐛 Issues: [GitHub Issues](https://github.com/Kaikygr/omnizap-system/issues)
+- 📖 Documentação: [Wiki](https://github.com/Kaikygr/omnizap-system/wiki)
 
 
 **OmniZap** - Sistema Profissional de Automação WhatsApp © 2025
