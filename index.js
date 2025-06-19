@@ -4,7 +4,7 @@
  * Sistema profissional para automação e gerenciamento de mensagens WhatsApp
  * Desenvolvido com tecnologia Baileys para máxima compatibilidade
  *
- * @version 1.0.1
+ * @version 1.0.2
  * @author OmniZap Team
  * @license MIT
  */
