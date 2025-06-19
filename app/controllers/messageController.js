@@ -11,18 +11,9 @@
 
 require('dotenv').config();
 
-// Importar funções de cache do socketController
-const {
-  getCacheStats,
-  searchMessagesInCache,
-  getRecentMessages,
-  clearMessagesCache,
-  messagesCache,
-  eventsCache,
-  groupMetadataCache,
-  contactsCache,
-  chatsCache,
-} = require('../connection/socketController');
+// Importar os novos módulos
+const { cacheManager } = require('../cache/cacheManager');
+const { eventHandler } = require('../events/eventHandler');
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
@@ -144,14 +135,15 @@ const processOmniZapCommand = async (messageText, messageInfo, omniZapClient) =>
     switch (command.toLowerCase()) {
       case 'help':
       case 'ajuda':
-        await omniZapClient.sendMessage(senderJid, { text: 'olá' });
-        await omniZapClient.sendMessage(senderJid, {
-          text: JSON.stringify(messageInfo, null, 2),
-        });
+        await sendHelpMessage(omniZapClient, senderJid);
         break;
 
       case 'status':
         await sendStatusMessage(omniZapClient, senderJid);
+        break;
+
+      case 'cache':
+        await sendCacheDetailsMessage(omniZapClient, senderJid);
         break;
 
       default:
@@ -165,11 +157,53 @@ const processOmniZapCommand = async (messageText, messageInfo, omniZapClient) =>
 };
 
 /**
+ * Envia mensagem de ajuda com todos os comandos disponíveis
+ */
+const sendHelpMessage = async (omniZapClient, senderJid) => {
+  try {
+    const helpText = `🤖 *OmniZap - Central de Ajuda*
+
+📋 *COMANDOS DISPONÍVEIS:*
+
+${COMMAND_PREFIX}*help* ou ${COMMAND_PREFIX}*ajuda*
+• Mostra esta mensagem de ajuda
+
+${COMMAND_PREFIX}*status*
+• Exibe status completo do sistema
+• Informações de cache, memória e arquitetura
+
+${COMMAND_PREFIX}*cache*
+• Detalhes avançados do sistema de cache
+• Estatísticas de hits/misses por módulo
+• Informações de TTL (tempo de vida)
+
+━━━━━━━━━━━━━━━━━━━━━
+
+🏗️ *ARQUITETURA MODULAR:*
+• Socket Controller - Gerencia conexões
+• Cache Manager - Sistema de cache avançado
+• Event Handler - Processamento de eventos
+• Message Controller - Lógica de negócios
+
+⚡ *OmniZap v1.0.1*
+🔧 Sistema Profissional de Automação WhatsApp`;
+
+    await omniZapClient.sendMessage(senderJid, { text: helpText });
+    console.log(`OmniZap: Ajuda enviada para ${senderJid}`);
+  } catch (error) {
+    console.error('OmniZap: Erro ao enviar ajuda:', error);
+    await omniZapClient.sendMessage(senderJid, {
+      text: '❌ *Erro interno*\n\nOcorreu um erro ao exibir a ajuda.',
+    });
+  }
+};
+
+/**
  * Envia mensagem com status detalhado do sistema OmniZap
  */
 const sendStatusMessage = async (omniZapClient, senderJid) => {
   try {
-    const stats = getCacheStats();
+    const stats = cacheManager.getStats();
 
     if (!stats) {
       await omniZapClient.sendMessage(senderJid, {
@@ -231,81 +265,74 @@ const sendStatusMessage = async (omniZapClient, senderJid) => {
     )}
 
 💬 *CACHE DE MENSAGENS*
-• 📨 Total Mensagens: ${stats.messages.totalMessages.toLocaleString()}
-• 📝 Listas Recentes: ${stats.messages.recentLists}
-• 🔢 Contadores: ${stats.messages.counters}
-• 👥 JIDs Únicos: ${stats.messages.uniqueJids}
+• 📨 Total Chaves: ${stats.messages.keys.toLocaleString()}
+• ✅ Hits: ${stats.messages.hits.toLocaleString()}
+• ❌ Misses: ${stats.messages.misses.toLocaleString()}
 • 📈 Taxa Acerto: ${formatHitRate(stats.messages.hitRate)}
 
 🔄 *CACHE DE EVENTOS*
-• 🎯 Total Eventos: ${stats.events.totalEvents.toLocaleString()}
-• 📈 Taxa Acerto: ${formatHitRate(stats.events.hitRate)}
-• 🏆 Principais Tipos:`;
+• 🎯 Total Chaves: ${stats.events.keys.toLocaleString()}
+• ✅ Hits: ${stats.events.hits.toLocaleString()}
+• ❌ Misses: ${stats.events.misses.toLocaleString()}
+• 📈 Taxa Acerto: ${formatHitRate(stats.events.hitRate)}`;
 
-    // Adicionar top tipos de eventos
-    let eventTypesText = '';
-    if (stats.events.topEventTypes && stats.events.topEventTypes.length > 0) {
-      stats.events.topEventTypes.slice(0, 3).forEach(([type, count], index) => {
-        eventTypesText += `\n  ${index + 1}. ${type}: ${count}`;
-      });
-    } else {
-      eventTypesText = '\n  Nenhum evento registrado';
-    }
+    const statusText2 = `
 
-    const statusText2 = `${eventTypesText}
+👥 *CACHE DE GRUPOS*
+• 🏷️ Total Chaves: ${stats.groups.keys.toLocaleString()}
+• ✅ Hits: ${stats.groups.hits.toLocaleString()}
+• ❌ Misses: ${stats.groups.misses.toLocaleString()}
+• 📈 Taxa Acerto: ${formatHitRate(stats.groups.hitRate)}
 
-👥 *GRUPOS & CONTATOS*
-• 👥 Total Grupos: ${stats.groups.totalGroups}
-• 📈 Taxa Grupos: ${formatHitRate(stats.groups.hitRate)}
-• 👤 Total Contatos: ${stats.contacts.totalContacts}
-• 📈 Taxa Contatos: ${formatHitRate(stats.contacts.hitRate)}
-• 💬 Total Chats: ${stats.chats.totalChats}
-• 📈 Taxa Chats: ${formatHitRate(stats.chats.hitRate)}
+👤 *CACHE DE CONTATOS*
+• 📇 Total Chaves: ${stats.contacts.keys.toLocaleString()}
+• ✅ Hits: ${stats.contacts.hits.toLocaleString()}
+• ❌ Misses: ${stats.contacts.misses.toLocaleString()}
+• 📈 Taxa Acerto: ${formatHitRate(stats.contacts.hitRate)}
+
+💬 *CACHE DE CHATS*
+• 💭 Total Chaves: ${stats.chats.keys.toLocaleString()}
+• ✅ Hits: ${stats.chats.hits.toLocaleString()}
+• ❌ Misses: ${stats.chats.misses.toLocaleString()}
+• 📈 Taxa Acerto: ${formatHitRate(stats.chats.hitRate)}
 
 🖥️ *SISTEMA*
 • 💾 Memória Usada: ${formatMemory(memoryUsage.heapUsed)}
 • 📊 Memória Total: ${formatMemory(memoryUsage.heapTotal)}
 • 🔄 RSS: ${formatMemory(memoryUsage.rss)}
-• 📈 Memória Externa: ${formatMemory(memoryUsage.external)}`;
+• 📈 Memória Externa: ${formatMemory(memoryUsage.external)}
 
-    // Adicionar top JIDs se disponível
-    let topJidsText = '';
-    if (stats.messages.topJids && stats.messages.topJids.length > 0) {
-      topJidsText = '\n\n🏆 *TOP JIDs (MENSAGENS)*';
-      stats.messages.topJids.slice(0, 3).forEach(([jid, count], index) => {
-        const jidFormatted = jid.includes('@g.us')
-          ? `👥 ${jid.substring(0, 15)}...`
-          : `👤 ${jid.substring(0, 15)}...`;
-        topJidsText += `\n${index + 1}. ${jidFormatted} (${count})`;
-      });
-    }
+🏗️ *ARQUITETURA MODULAR*
+• 🔗 Socket Controller: ✅ Ativo
+• 🔄 Cache Manager: ✅ Ativo  
+• 🎯 Event Handler: ✅ Ativo
+• 💬 Message Controller: ✅ Ativo`;
 
     const finalStatusText =
       statusText +
       statusText2 +
-      topJidsText +
       `
 
 ━━━━━━━━━━━━━━━━━━━━━
 ⚡ *OmniZap v1.0.1*
-🔧 Sistema de Cache Avançado`;
+🔧 Sistema de Cache Avançado
+🏗️ Arquitetura Modular`;
 
     // Enviar mensagem dividida se for muito longa
     if (finalStatusText.length > 4096) {
-      // Dividir em partes
-      const part1 = statusText + statusText2.substring(0, 1000);
-      const part2 =
-        statusText2.substring(1000) +
-        topJidsText +
-        `
+      // Dividir em duas partes
+      await omniZapClient.sendMessage(senderJid, { text: statusText });
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Delay de 1 segundo
+      await omniZapClient.sendMessage(senderJid, {
+        text:
+          statusText2 +
+          `
 
 ━━━━━━━━━━━━━━━━━━━━━
 ⚡ *OmniZap v1.0.1*
-🔧 Sistema de Cache Avançado`;
-
-      await omniZapClient.sendMessage(senderJid, { text: part1 });
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Delay de 1 segundo
-      await omniZapClient.sendMessage(senderJid, { text: part2 });
+🔧 Sistema de Cache Avançado
+🏗️ Arquitetura Modular`,
+      });
     } else {
       await omniZapClient.sendMessage(senderJid, { text: finalStatusText });
     }
@@ -315,6 +342,91 @@ const sendStatusMessage = async (omniZapClient, senderJid) => {
     console.error('OmniZap: Erro ao enviar status:', error);
     await omniZapClient.sendMessage(senderJid, {
       text: '❌ *Erro interno*\n\nOcorreu um erro ao obter o status do sistema.',
+    });
+  }
+};
+
+/**
+ * Envia mensagem com detalhes avançados do cache
+ */
+const sendCacheDetailsMessage = async (omniZapClient, senderJid) => {
+  try {
+    const stats = cacheManager.getStats();
+
+    if (!stats) {
+      await omniZapClient.sendMessage(senderJid, {
+        text: '❌ *Erro ao obter detalhes do cache*\n\nNão foi possível recuperar os dados.',
+      });
+      return;
+    }
+
+    // Formatação de taxa de acerto
+    const formatHitRate = (rate) => {
+      const numRate = parseFloat(rate);
+      if (numRate >= 80) return `🟢 ${rate}%`;
+      if (numRate >= 60) return `🟡 ${rate}%`;
+      return `🔴 ${rate}%`;
+    };
+
+    const cacheDetailsText = `🔄 *Detalhes do Cache OmniZap*
+
+📊 *RESUMO GERAL*
+• 🔑 Total de Chaves: ${stats.totals.allKeys.toLocaleString()}
+• ✅ Total de Hits: ${stats.totals.allHits.toLocaleString()}
+• ❌ Total de Misses: ${stats.totals.allMisses.toLocaleString()}
+• 📈 Taxa Geral: ${formatHitRate(
+      stats.totals.allHits > 0
+        ? ((stats.totals.allHits / (stats.totals.allHits + stats.totals.allMisses)) * 100).toFixed(
+            2,
+          )
+        : '0',
+    )}
+
+💬 *MENSAGENS (TTL: 1h)*
+• 🔑 Chaves: ${stats.messages.keys.toLocaleString()}
+• ✅ Hits: ${stats.messages.hits.toLocaleString()}
+• ❌ Misses: ${stats.messages.misses.toLocaleString()}
+• 📈 Taxa: ${formatHitRate(stats.messages.hitRate)}
+
+🎯 *EVENTOS (TTL: 30min)*
+• 🔑 Chaves: ${stats.events.keys.toLocaleString()}
+• ✅ Hits: ${stats.events.hits.toLocaleString()}
+• ❌ Misses: ${stats.events.misses.toLocaleString()}
+• 📈 Taxa: ${formatHitRate(stats.events.hitRate)}
+
+👥 *GRUPOS (TTL: 2h)*
+• 🔑 Chaves: ${stats.groups.keys.toLocaleString()}
+• ✅ Hits: ${stats.groups.hits.toLocaleString()}
+• ❌ Misses: ${stats.groups.misses.toLocaleString()}
+• 📈 Taxa: ${formatHitRate(stats.groups.hitRate)}
+
+👤 *CONTATOS (TTL: 4h)*
+• 🔑 Chaves: ${stats.contacts.keys.toLocaleString()}
+• ✅ Hits: ${stats.contacts.hits.toLocaleString()}
+• ❌ Misses: ${stats.contacts.misses.toLocaleString()}
+• 📈 Taxa: ${formatHitRate(stats.contacts.hitRate)}
+
+💬 *CHATS (TTL: 1h)*
+• 🔑 Chaves: ${stats.chats.keys.toLocaleString()}
+• ✅ Hits: ${stats.chats.hits.toLocaleString()}
+• ❌ Misses: ${stats.chats.misses.toLocaleString()}
+• 📈 Taxa: ${formatHitRate(stats.chats.hitRate)}
+
+━━━━━━━━━━━━━━━━━━━━━
+📋 *Legenda:*
+• TTL = Time To Live (tempo de vida)
+• Hits = Acessos com sucesso
+• Misses = Acessos sem sucesso
+• Taxa = Eficiência do cache
+
+🔄 *Cache Manager Ativo*`;
+
+    await omniZapClient.sendMessage(senderJid, { text: cacheDetailsText });
+    console.log(`OmniZap: Detalhes do cache enviados para ${senderJid}`);
+  } catch (error) {
+    console.error('OmniZap: Erro ao enviar detalhes do cache:', error);
+    await omniZapClient.sendMessage(senderJid, {
+      text: '❌ *Erro interno*\n\nOcorreu um erro ao obter os detalhes do cache.',
     });
   }
 };
