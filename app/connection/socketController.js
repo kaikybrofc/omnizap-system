@@ -4,7 +4,7 @@
  * Controlador responsável pela conexão e gerenciamento do socket WhatsApp
  * Utiliza Baileys para comunicação com a API WhatsApp Web
  *
- * @version 1.0.0
+ * @version 1.0.1
  * @author OmniZap Team
  * @license MIT
  */
@@ -174,7 +174,9 @@ async function initializeOmniZapConnection() {
                 break;
               default:
                 console.log(
-                  `${OmniZapColors.error('[CONEXÃO FECHADA]')} OmniZap: Conexão fechada por erro: ${lastDisconnect?.error}`,
+                  `${OmniZapColors.error('[CONEXÃO FECHADA]')} OmniZap: Conexão fechada por erro: ${
+                    lastDisconnect?.error
+                  }`,
                 );
             }
             initializeOmniZapConnection();
