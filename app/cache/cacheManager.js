@@ -4,7 +4,7 @@
  * Módulo responsável pelo gerenciamento avançado de cache
  * Funciona de forma independente e assíncrona
  *
- * @version 1.0.0
+ * @version 1.0.2
  * @author OmniZap Team
  * @license MIT
  */

@@ -4,7 +4,7 @@
  * Módulo responsável pelo processamento independente de eventos
  * Recebe eventos do socketController e os processa de forma assíncrona
  *
- * @version 1.0.0
+ * @version 1.0.2
  * @author OmniZap Team
  * @license MIT
  */

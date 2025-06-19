@@ -4,7 +4,7 @@
  * Controlador responsável pela conexão e gerenciamento do socket WhatsApp
  * Utiliza Baileys para comunicação com a API WhatsApp Web
  *
- * @version 1.0.1
+ * @version 1.0.2
  * @author OmniZap Team
  * @license MIT
  */
