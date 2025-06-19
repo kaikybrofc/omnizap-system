@@ -16,13 +16,22 @@ const {
   makeCacheableSignalKeyStore,
 } = require('@whiskeysockets/baileys');
 const dotenv = require('dotenv');
+const { cleanEnv, str } = require('envalid');
 const fs = require('fs');
+const path = require('path');
 const NodeCache = require('node-cache');
 const chalk = require('chalk');
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 
 dotenv.config();
+
+const env = cleanEnv(process.env, {
+  QR_CODE_PATH: str({
+    default: path.join(__dirname, 'qr-code'),
+    desc: 'Caminho para armazenar os arquivos de QR Code e autenticação',
+  }),
+});
 
 const OmniZapColors = {
   primary: (text) => chalk.cyan(text),
@@ -51,7 +60,12 @@ const moment = require('moment-timezone');
 const getCurrentDate = () => moment().format('DD/MM/YY');
 const getCurrentTime = () => moment().format('HH:mm:ss');
 
-const QR_CODE_PATH = process.env.QR_CODE_PATH || './qr-code';
+const QR_CODE_PATH = env.QR_CODE_PATH;
+
+if (!fs.existsSync(QR_CODE_PATH)) {
+  fs.mkdirSync(QR_CODE_PATH, { recursive: true });
+  console.log(OmniZapColors.info(`OmniZap: Diretório criado para QR Code: ${QR_CODE_PATH}`));
+}
 
 if (!fs.existsSync(`${QR_CODE_PATH}/creds.json`)) {
   console.log(
