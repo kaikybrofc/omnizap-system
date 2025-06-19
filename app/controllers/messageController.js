@@ -11,6 +11,19 @@
 
 require('dotenv').config();
 
+// Importar funções de cache do socketController
+const {
+  getCacheStats,
+  searchMessagesInCache,
+  getRecentMessages,
+  clearMessagesCache,
+  messagesCache,
+  eventsCache,
+  groupMetadataCache,
+  contactsCache,
+  chatsCache,
+} = require('../connection/socketController');
+
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
 /**
@@ -132,6 +145,13 @@ const processOmniZapCommand = async (messageText, messageInfo, omniZapClient) =>
       case 'help':
       case 'ajuda':
         await omniZapClient.sendMessage(senderJid, { text: 'olá' });
+        await omniZapClient.sendMessage(senderJid, {
+          text: JSON.stringify(messageInfo, null, 2),
+        });
+        break;
+
+      case 'status':
+        await sendStatusMessage(omniZapClient, senderJid);
         break;
 
       default:
@@ -141,6 +161,161 @@ const processOmniZapCommand = async (messageText, messageInfo, omniZapClient) =>
   } catch (error) {
     console.error('OmniZap: Erro ao processar comando:', error);
     await sendErrorMessage(omniZapClient, messageInfo.key.remoteJid);
+  }
+};
+
+/**
+ * Envia mensagem com status detalhado do sistema OmniZap
+ */
+const sendStatusMessage = async (omniZapClient, senderJid) => {
+  try {
+    const stats = getCacheStats();
+
+    if (!stats) {
+      await omniZapClient.sendMessage(senderJid, {
+        text: '❌ *Erro ao obter estatísticas*\n\nNão foi possível recuperar os dados do sistema.',
+      });
+      return;
+    }
+
+    // Obter informações do sistema
+    const uptime = process.uptime();
+    const memoryUsage = process.memoryUsage();
+    const currentDate = new Date().toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    // Formatação de tempo de atividade
+    const formatUptime = (seconds) => {
+      const days = Math.floor(seconds / 86400);
+      const hours = Math.floor((seconds % 86400) / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${days}d ${hours}h ${minutes}m ${secs}s`;
+    };
+
+    // Formatação de memória
+    const formatMemory = (bytes) => {
+      const mb = (bytes / 1024 / 1024).toFixed(2);
+      return `${mb} MB`;
+    };
+
+    // Formatação de taxa de acerto
+    const formatHitRate = (rate) => {
+      const numRate = parseFloat(rate);
+      if (numRate >= 80) return `🟢 ${rate}%`;
+      if (numRate >= 60) return `🟡 ${rate}%`;
+      return `🔴 ${rate}%`;
+    };
+
+    const statusText = `🚀 *OmniZap - Status do Sistema*
+
+📊 *ESTATÍSTICAS GERAIS*
+• ⏰ Data/Hora: ${currentDate}
+• 🔄 Tempo Ativo: ${formatUptime(uptime)}
+• 🗝️ Total de Chaves: ${stats.totals.allKeys.toLocaleString()}
+• ✅ Total Hits: ${stats.totals.allHits.toLocaleString()}
+• ❌ Total Misses: ${stats.totals.allMisses.toLocaleString()}
+• 📈 Taxa Geral: ${formatHitRate(
+      stats.totals.allHits > 0
+        ? ((stats.totals.allHits / (stats.totals.allHits + stats.totals.allMisses)) * 100).toFixed(
+            2,
+          )
+        : '0',
+    )}
+
+💬 *CACHE DE MENSAGENS*
+• 📨 Total Mensagens: ${stats.messages.totalMessages.toLocaleString()}
+• 📝 Listas Recentes: ${stats.messages.recentLists}
+• 🔢 Contadores: ${stats.messages.counters}
+• 👥 JIDs Únicos: ${stats.messages.uniqueJids}
+• 📈 Taxa Acerto: ${formatHitRate(stats.messages.hitRate)}
+
+🔄 *CACHE DE EVENTOS*
+• 🎯 Total Eventos: ${stats.events.totalEvents.toLocaleString()}
+• 📈 Taxa Acerto: ${formatHitRate(stats.events.hitRate)}
+• 🏆 Principais Tipos:`;
+
+    // Adicionar top tipos de eventos
+    let eventTypesText = '';
+    if (stats.events.topEventTypes && stats.events.topEventTypes.length > 0) {
+      stats.events.topEventTypes.slice(0, 3).forEach(([type, count], index) => {
+        eventTypesText += `\n  ${index + 1}. ${type}: ${count}`;
+      });
+    } else {
+      eventTypesText = '\n  Nenhum evento registrado';
+    }
+
+    const statusText2 = `${eventTypesText}
+
+👥 *GRUPOS & CONTATOS*
+• 👥 Total Grupos: ${stats.groups.totalGroups}
+• 📈 Taxa Grupos: ${formatHitRate(stats.groups.hitRate)}
+• 👤 Total Contatos: ${stats.contacts.totalContacts}
+• 📈 Taxa Contatos: ${formatHitRate(stats.contacts.hitRate)}
+• 💬 Total Chats: ${stats.chats.totalChats}
+• 📈 Taxa Chats: ${formatHitRate(stats.chats.hitRate)}
+
+🖥️ *SISTEMA*
+• 💾 Memória Usada: ${formatMemory(memoryUsage.heapUsed)}
+• 📊 Memória Total: ${formatMemory(memoryUsage.heapTotal)}
+• 🔄 RSS: ${formatMemory(memoryUsage.rss)}
+• 📈 Memória Externa: ${formatMemory(memoryUsage.external)}`;
+
+    // Adicionar top JIDs se disponível
+    let topJidsText = '';
+    if (stats.messages.topJids && stats.messages.topJids.length > 0) {
+      topJidsText = '\n\n🏆 *TOP JIDs (MENSAGENS)*';
+      stats.messages.topJids.slice(0, 3).forEach(([jid, count], index) => {
+        const jidFormatted = jid.includes('@g.us')
+          ? `👥 ${jid.substring(0, 15)}...`
+          : `👤 ${jid.substring(0, 15)}...`;
+        topJidsText += `\n${index + 1}. ${jidFormatted} (${count})`;
+      });
+    }
+
+    const finalStatusText =
+      statusText +
+      statusText2 +
+      topJidsText +
+      `
+
+━━━━━━━━━━━━━━━━━━━━━
+⚡ *OmniZap v1.0.1*
+🔧 Sistema de Cache Avançado`;
+
+    // Enviar mensagem dividida se for muito longa
+    if (finalStatusText.length > 4096) {
+      // Dividir em partes
+      const part1 = statusText + statusText2.substring(0, 1000);
+      const part2 =
+        statusText2.substring(1000) +
+        topJidsText +
+        `
+
+━━━━━━━━━━━━━━━━━━━━━
+⚡ *OmniZap v1.0.1*
+🔧 Sistema de Cache Avançado`;
+
+      await omniZapClient.sendMessage(senderJid, { text: part1 });
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Delay de 1 segundo
+      await omniZapClient.sendMessage(senderJid, { text: part2 });
+    } else {
+      await omniZapClient.sendMessage(senderJid, { text: finalStatusText });
+    }
+
+    console.log(`OmniZap: Status enviado para ${senderJid}`);
+  } catch (error) {
+    console.error('OmniZap: Erro ao enviar status:', error);
+    await omniZapClient.sendMessage(senderJid, {
+      text: '❌ *Erro interno*\n\nOcorreu um erro ao obter o status do sistema.',
+    });
   }
 };
 
