@@ -1,10 +1,10 @@
-# OmniZap
+# OmniZap v1.0.3
 
 Sistema profissional de automação WhatsApp com tecnologia Baileys e arquitetura modular avançada
 
 ## 📋 Descrição
 
-OmniZap é um sistema robusto e profissional para automação de mensagens WhatsApp, desenvolvido com a mais avançada tecnologia Baileys para máxima compatibilidade e estabilidade. Agora com **arquitetura modular**, **sistema de cache avançado** e **processamento de eventos independente** para máxima performance e escalabilidade.
+OmniZap é um sistema robusto e profissional para automação de mensagens WhatsApp, desenvolvido com a mais avançada tecnologia Baileys para máxima compatibilidade e estabilidade. Com **arquitetura modular**, **sistema de cache avançado** e **processamento de eventos independente** para máxima performance e escalabilidade. A versão 1.0.3 traz melhorias significativas na estabilidade e no sistema de logging colorido.
 
 ## ✨ Características
 
@@ -20,16 +20,8 @@ OmniZap é um sistema robusto e profissional para automação de mensagens Whats
 - 💾 **Cache Avançado**: Sistema de cache inteligente com TTL configurável
 - 🎯 **Processamento de Eventos**: Handler independente para todos os eventos WhatsApp
 - 📈 **Estatísticas Detalhadas**: Monitoramento completo do sistema e cache
-
-## 🤖 Sistema de Comandos
-
-O OmniZap possui um sistema avançado de processamento de comandos baseado em prefixos configuráveis:
-
-### 📝 Comandos Disponíveis
-
-- `/help` ou `/ajuda` - Lista de comandos disponíveis e ajuda completa
-- `/status` - Status detalhado do sistema com estatísticas de cache e memória
-- `/cache` - Detalhes avançados do sistema de cache com métricas de performance
+- 🔄 **Processamento Assíncrono**: Execução assíncrona para melhor desempenho
+- 📝 **Logging Colorido**: Sistema de logs com cores para fácil visualização
 
 ### ⚙️ Configuração de Comandos
 
@@ -55,7 +47,7 @@ COMMAND_PREFIX=/
 
 ## 🏗️ Arquitetura Modular
 
-O OmniZap v1.0.2 introduz uma **arquitetura modular avançada** que separa responsabilidades e melhora a manutenibilidade:
+O OmniZap v1.0.3 aprimora a **arquitetura modular avançada** que separa responsabilidades e melhora a manutenibilidade:
 
 ### 📦 Módulos Principais
 
@@ -66,6 +58,8 @@ O OmniZap v1.0.2 introduz uma **arquitetura modular avançada** que separa respo
   - Processamento de QR Code
   - Distribuição de eventos para outros módulos
   - Tratamento de diferentes tipos de conexão
+  - Suporte a múltiplas sessões
+  - Logging detalhado com cores
 
 #### 🔄 Cache Manager (`app/cache/cacheManager.js`)
 - **Responsabilidade**: Sistema de cache inteligente
@@ -83,30 +77,53 @@ O OmniZap v1.0.2 introduz uma **arquitetura modular avançada** que separa respo
 - **Funcionalidades**:
   - Processamento assíncrono de todos os eventos WhatsApp
   - Integração com o Cache Manager
-  - Logging detalhado de atividades
+  - Logging detalhado de atividades com sistema de cores
   - Tratamento especializado para cada tipo de evento
+  - Pré-carregamento inteligente de dados de grupo
 
 #### 💬 Message Controller (`app/controllers/messageController.js`)
 - **Responsabilidade**: Lógica de negócios e processamento de comandos
 - **Funcionalidades**:
   - Processamento de mensagens recebidas
   - Sistema de comandos com switch/case
+  - Extração inteligente de conteúdo de diferentes tipos de mensagens
   - Respostas inteligentes e contextuais
   - Tratamento de erros e validações
+  - Suporte a mensagens de grupo
 
-### 🔄 Fluxo de Dados
+### � Atualizações da v1.0.3
+
+- **🔧 Melhorias técnicas:**
+  - Atualização da biblioteca @whiskeysockets/baileys para a versão 6.7.0
+  - Melhorias na estabilidade de conexão e reconexão
+  - Otimização do processamento assíncrono com setImmediate
+  - Melhoria no sistema de logging com cores mais intuitivas
+
+- **✨ Novos recursos:**
+  - Script de inicialização rápida `start.sh`
+  - Suporte aprimorado a mensagens de grupo
+  - Extração inteligente de conteúdo para diferentes tipos de mensagens
+  - Pré-carregamento de metadados de grupo para melhor desempenho
+  
+- **🐛 Correções:**
+  - Tratamento adequado para erros de rede e timeout
+  - Melhor gerenciamento de memória no sistema de cache
+  - Melhorias na documentação e comentários no código
+
+## �🔄 Fluxo de Eventos
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │  Socket Controller  │ -> │   Event Handler   │ -> │  Cache Manager  │
 │  (Conexão)         │    │  (Processamento)  │    │  (Armazenamento)│
 └─────────────────┘     └──────────────────┘    └─────────────────┘
-         │                                              │
-         v                                              │
-┌─────────────────┐                                     │
-│ Message Controller │ <-----------------------------------┘
-│ (Lógica Negócio) │
-└─────────────────┘
+         │                        │                      │
+         │                        │                      │
+         v                        v                      v
+┌─────────────────┐     ┌──────────────────┐
+│ Message Controller │ <-│     OmniZap Main    │
+│ (Lógica Negócio) │    │   (Coordenação)    │
+└─────────────────┘     └──────────────────┘
 ```
 
 ### ⚡ Vantagens da Arquitetura Modular
@@ -116,19 +133,21 @@ O OmniZap v1.0.2 introduz uma **arquitetura modular avançada** que separa respo
 - **Performance**: Processamento assíncrono e cache inteligente
 - **Flexibilidade**: Fácil adição de novos recursos
 - **Monitoramento**: Logs detalhados para cada módulo
+- **Resiliente**: Tratamento avançado de erros e reconexão automática
+- **Eficiente**: Uso de setImmediate para processamento em segundo plano
 
 ## 🛠️ Tecnologias
 
 - **Node.js** >= 16.0.0
-- **Baileys** - API WhatsApp Web
-- **Chalk** - Formatação colorida de console
-- **Moment.js** - Manipulação de datas
-- **Node Cache** - Sistema de cache avançado
-- **Pino** - Logger de alta performance
-- **Dotenv** - Gerenciamento de variáveis de ambiente
-- **Envalid** - Validação de variáveis de ambiente
-- **@hapi/boom** - Tratamento de erros HTTP
-- **QRCode Terminal** - Geração de QR Code no terminal
+- **@whiskeysockets/baileys** ^6.7.0 - API WhatsApp Web de alta performance
+- **Chalk** ^4.1.2 - Formatação colorida de console
+- **Moment.js** ^0.5.48 - Manipulação de datas e timezones
+- **Node Cache** ^5.1.2 - Sistema de cache avançado
+- **Pino** ^7.11.0 - Logger de alta performance
+- **Dotenv** ^16.5.0 - Gerenciamento de variáveis de ambiente
+- **Envalid** ^8.0.0 - Validação de variáveis de ambiente
+- **@hapi/boom** ^10.0.1 - Tratamento de erros HTTP
+- **QRCode Terminal** ^0.12.0 - Geração de QR Code no terminal
 
 ## 💾 Sistema de Cache Avançado
 
@@ -177,37 +196,16 @@ npm start
 
 ## 🚀 Uso
 
-1. Execute o comando `npm start`
+1. Execute o sistema usando o script de inicialização:
+```bash
+npm start
+# ou
+./start.sh
+```
+
 2. Escaneie o QR Code que aparecerá no terminal com seu WhatsApp
 3. Aguarde a mensagem de conexão bem-sucedida
 4. O sistema está pronto para processar mensagens e comandos!
-
-### 💬 Interagindo com o Bot
-
-Após a conexão, você pode enviar comandos para o bot usando o prefixo configurado (padrão `/`):
-
-```
-/help - Ver todos os comandos disponíveis
-/status - Status completo do sistema
-/cache - Detalhes do sistema de cache
-```
-
-### 📊 Monitoramento do Sistema
-
-O OmniZap oferece comandos avançados para monitoramento:
-
-- **`/status`**: Mostra estatísticas completas do sistema, incluindo:
-  - Tempo de atividade
-  - Uso de memória
-  - Estatísticas de cache por módulo
-  - Taxa de hits/misses
-  - Arquitetura modular ativa
-
-- **`/cache`**: Exibe detalhes avançados do cache:
-  - TTL por tipo de cache
-  - Número de chaves por categoria
-  - Performance detalhada
-  - Taxa de eficiência
 
 ## 📁 Estrutura do Projeto
 
@@ -325,17 +323,6 @@ npm start
 chmod +x start.sh && ./start.sh
 ```
 
-#### 🧪 Testando Módulos
-
-Cada módulo pode ser testado independentemente:
-
-```bash
-# Testar Cache Manager
-node -e "const { cacheManager } = require('./app/cache/cacheManager'); console.log(cacheManager.getStats());"
-
-# Testar Event Handler
-node -e "const { eventHandler } = require('./app/events/eventHandler'); console.log('Event Handler carregado!');"
-```
 
 ### 📁 Estrutura de Desenvolvimento
 
@@ -350,17 +337,6 @@ node -e "const { eventHandler } = require('./app/events/eventHandler'); console.
 2. Adicione o novo processador de evento
 3. Integre com o Cache Manager se necessário
 4. Adicione logs apropriados
-
-### 🎯 Roadmap de Desenvolvimento
-
-- [ ] **Interface Web**: Painel de controle via web
-- [ ] **API REST**: Endpoints para integração externa
-- [ ] **Banco de Dados**: Persistência de dados
-- [ ] **Webhooks**: Integração com sistemas externos
-- [ ] **Scheduled Messages**: Mensagens agendadas
-- [ ] **Group Management**: Gerenciamento avançado de grupos
-- [ ] **Media Processing**: Processamento avançado de mídia
-- [ ] **Analytics Dashboard**: Dashboard de análises
 
 ### Contribuindo
 
@@ -390,46 +366,5 @@ Para suporte e dúvidas:
 - 🐛 Issues: [GitHub Issues](https://github.com/Kaikygr/omnizap-system/issues)
 - 📖 Documentação: [Wiki](https://github.com/Kaikygr/omnizap-system/wiki)
 
-## 📈 Changelog
 
-### v1.0.2 (Atual)
-- ✅ **Arquitetura Modular**: Sistema dividido em módulos independentes
-- ✅ **Cache Manager**: Sistema de cache avançado com TTL configurável
-- ✅ **Event Handler**: Processamento independente de eventos
-- ✅ **Comandos Avançados**: `/status` e `/cache` para monitoramento
-- ✅ **Performance**: Otimizações significativas de performance
-- ✅ **Logs Melhorados**: Sistema de logging mais detalhado e colorido
-
-### v1.0.1
-- ✅ Sistema de comandos com switch/case
-- ✅ Processamento inteligente de mensagens
-- ✅ Comando `/help` básico
-
-### v1.0.0
-- ✅ Conexão básica com WhatsApp
-- ✅ Sistema de QR Code
-- ✅ Reconexão automática
-
-## 🌟 Recursos em Destaque
-
-### 🏗️ Arquitetura Modular v1.0.2
-- **4 módulos independentes** trabalhando em harmonia
-- **Processamento assíncrono** para máxima performance
-- **Cache inteligente** com estatísticas detalhadas
-- **Sistema de eventos** completamente independente
-
-### 📊 Sistema de Monitoramento
-- **Estatísticas em tempo real** via comando `/status`
-- **Métricas de cache** detalhadas via comando `/cache`
-- **Monitoramento de memória** e performance
-- **Logs coloridos** para facilitar debugging
-
-### ⚡ Performance Otimizada
-- **TTL configurável** para diferentes tipos de dados
-- **Limpeza automática** de cache expirado
-- **Processamento não-bloqueante** de eventos
-- **Gerenciamento eficiente** de recursos
-
----
-
-**OmniZap v1.0.2** - Sistema Profissional de Automação WhatsApp com Arquitetura Modular © 2025
+**OmniZap v1.0.3** - Sistema Profissional de Automação WhatsApp com Arquitetura Modular © 2025
