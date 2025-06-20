@@ -99,7 +99,6 @@ class CacheManager {
     );
 
     this.initialized = true;
-    this.startMaintenanceTasks();
   }
 
   /**
