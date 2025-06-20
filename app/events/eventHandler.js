@@ -29,7 +29,17 @@ const OmniZapColors = {
 class EventHandler {
   constructor() {
     this.initialized = false;
+    this.omniZapClient = null;
     this.init();
+  }
+
+  /**
+   * Define o cliente WhatsApp para uso nos eventos
+   * @param {Object} client - Cliente WhatsApp
+   */
+  setWhatsAppClient(client) {
+    this.omniZapClient = client;
+    console.log(OmniZapColors.success('🎯 Events: Cliente WhatsApp configurado'));
   }
 
   /**
@@ -44,7 +54,6 @@ class EventHandler {
    * Processa eventos de mensagens (messages.upsert)
    */
   async processMessagesUpsert(messageUpdate) {
-    // Processamento assíncrono - não bloqueia
     setImmediate(async () => {
       try {
         console.log(
@@ -55,41 +64,67 @@ class EventHandler {
           ),
         );
 
-        // Salva evento no cache
         await cacheManager.saveEvent('messages.upsert', messageUpdate, `upsert_${Date.now()}`);
 
-        // Processa cada mensagem individualmente
+        const groupJids = new Set();
+
         if (messageUpdate.messages && Array.isArray(messageUpdate.messages)) {
           let processedCount = 0;
 
           for (const messageInfo of messageUpdate.messages) {
             try {
-              // Adiciona informações de contexto
+              const isGroupMessage = messageInfo.key?.remoteJid?.endsWith('@g.us');
+              if (isGroupMessage && messageInfo.key.remoteJid) {
+                groupJids.add(messageInfo.key.remoteJid);
+              }
+
               const enhancedMessageInfo = {
                 ...messageInfo,
                 _receivedAt: Date.now(),
                 _updateType: messageUpdate.type || 'notify',
                 _batchId: Date.now().toString(),
+                _isGroupMessage: isGroupMessage,
+                _groupJid: isGroupMessage ? messageInfo.key.remoteJid : null,
+                _senderJid: isGroupMessage
+                  ? messageInfo.key.participant || messageInfo.key.remoteJid
+                  : messageInfo.key.remoteJid,
               };
 
-              // Salva no cache de forma assíncrona
               await cacheManager.saveMessage(enhancedMessageInfo);
               processedCount++;
 
-              // Log detalhado da mensagem processada
               const jid = messageInfo.key?.remoteJid?.substring(0, 20) || 'N/A';
               const messageType = messageInfo.message
                 ? Object.keys(messageInfo.message)[0]
                 : 'unknown';
-              console.log(
-                OmniZapColors.gray(`   ✓ Msg ${processedCount}: ${messageType} | ${jid}...`),
-              );
+
+              if (isGroupMessage) {
+                console.log(
+                  OmniZapColors.gray(
+                    `   ✓ Msg ${processedCount}: ${messageType} | GRUPO ${jid}...`,
+                  ),
+                );
+              } else {
+                console.log(
+                  OmniZapColors.gray(`   ✓ Msg ${processedCount}: ${messageType} | ${jid}...`),
+                );
+              }
             } catch (error) {
               console.error(
                 OmniZapColors.error('Events: Erro ao processar mensagem individual:'),
                 error,
               );
             }
+          }
+
+          if (groupJids.size > 0 && this.omniZapClient) {
+            console.log(
+              OmniZapColors.info(
+                `Events: Carregando metadados de ${groupJids.size} grupo(s) detectado(s)`,
+              ),
+            );
+
+            await this.loadGroupsMetadata(Array.from(groupJids));
           }
 
           console.log(
@@ -268,7 +303,13 @@ class EventHandler {
           console.log(OmniZapColors.gray(`   Grupo atualizado: ${jid}...`));
 
           if (update.id) {
+            const cachedGroup = await cacheManager.getGroupMetadata(update.id);
+
             await cacheManager.saveGroupMetadata(update.id, update);
+
+            if (cachedGroup) {
+              console.log(OmniZapColors.info(`   Cache hit para grupo: ${jid}...`));
+            }
           }
         }
       } catch (error) {
@@ -304,6 +345,16 @@ class EventHandler {
           console.log(OmniZapColors.gray(`   ${subject} | JID: ${jid}...`));
 
           await cacheManager.saveGroupMetadata(group.id, group);
+          if (this.omniZapClient && group.id) {
+            try {
+              await cacheManager.getOrFetchGroupMetadata(group.id, this.omniZapClient);
+            } catch (error) {
+              console.error(
+                OmniZapColors.error(`Events: Erro ao buscar metadados do grupo ${subject}:`),
+                error,
+              );
+            }
+          }
         }
       } catch (error) {
         console.error(
@@ -362,7 +413,12 @@ class EventHandler {
           const name = chat.name || 'Sem nome';
           console.log(OmniZapColors.gray(`   ${name} | JID: ${jid}...`));
 
+          const cachedChat = await cacheManager.getChat(chat.id);
           await cacheManager.saveChat(chat);
+
+          if (cachedChat) {
+            console.log(OmniZapColors.info(`   Cache hit para chat: ${name}`));
+          }
         }
       } catch (error) {
         console.error(OmniZapColors.error('Events: Erro no processamento de chats.upsert:'), error);
@@ -388,7 +444,13 @@ class EventHandler {
           const jid = update.id?.substring(0, 30) || 'N/A';
           console.log(OmniZapColors.gray(`   Chat atualizado: ${jid}...`));
 
+          const cachedChat = await cacheManager.getChat(update.id);
+
           await cacheManager.saveChat(update);
+
+          if (cachedChat) {
+            console.log(OmniZapColors.info(`   Cache hit para chat: ${jid}...`));
+          }
         }
       } catch (error) {
         console.error(OmniZapColors.error('Events: Erro no processamento de chats.update:'), error);
@@ -440,7 +502,13 @@ class EventHandler {
           const name = contact.name || contact.notify || 'Sem nome';
           console.log(OmniZapColors.gray(`   ${name} | JID: ${jid}...`));
 
+          const cachedContact = await cacheManager.getContact(contact.id);
+
           await cacheManager.saveContact(contact);
+
+          if (cachedContact) {
+            console.log(OmniZapColors.info(`   Cache hit para contato: ${name}`));
+          }
         }
       } catch (error) {
         console.error(
@@ -470,7 +538,13 @@ class EventHandler {
           const name = update.name || update.notify || 'Sem nome';
           console.log(OmniZapColors.gray(`   ${name} | JID: ${jid}...`));
 
+          const cachedContact = await cacheManager.getContact(update.id);
+
           await cacheManager.saveContact(update);
+
+          if (cachedContact) {
+            console.log(OmniZapColors.info(`   Cache hit para contato: ${name}`));
+          }
         }
       } catch (error) {
         console.error(
@@ -479,6 +553,89 @@ class EventHandler {
         );
       }
     });
+  }
+
+  /**
+   * Carrega metadados de grupos em lote
+   * @param {Array} groupJids - Array de JIDs de grupos
+   */
+  async loadGroupsMetadata(groupJids) {
+    if (!Array.isArray(groupJids) || groupJids.length === 0) {
+      return;
+    }
+
+    if (!this.omniZapClient) {
+      console.warn(
+        OmniZapColors.warning('Events: Cliente WhatsApp não disponível para carregar metadados'),
+      );
+      return;
+    }
+
+    try {
+      console.log(
+        OmniZapColors.info(
+          `Events: Iniciando carregamento de metadados para ${groupJids.length} grupo(s)`,
+        ),
+      );
+
+      const promises = groupJids.map(async (groupJid, index) => {
+        try {
+          await new Promise((resolve) => setTimeout(resolve, index * 100));
+
+          const metadata = await cacheManager.getOrFetchGroupMetadata(groupJid, this.omniZapClient);
+
+          if (metadata) {
+            console.log(
+              OmniZapColors.success(
+                `Events: Metadados carregados para "${metadata.subject}" (${
+                  metadata._participantCount || 0
+                } participantes)`,
+              ),
+            );
+            return { success: true, groupJid, metadata };
+          } else {
+            console.warn(
+              OmniZapColors.warning(
+                `Events: Não foi possível carregar metadados do grupo ${groupJid}`,
+              ),
+            );
+            return { success: false, groupJid, error: 'Metadados não encontrados' };
+          }
+        } catch (error) {
+          console.error(
+            OmniZapColors.error(`Events: Erro ao carregar metadados do grupo ${groupJid}:`),
+            error,
+          );
+          return { success: false, groupJid, error: error.message };
+        }
+      });
+
+      const results = await Promise.allSettled(promises);
+
+      const successful = results.filter(
+        (result) => result.status === 'fulfilled' && result.value.success,
+      ).length;
+
+      const failed = results.length - successful;
+
+      if (successful > 0) {
+        console.log(
+          OmniZapColors.success(
+            `Events: ✅ Carregamento concluído - ${successful} sucessos, ${failed} falhas`,
+          ),
+        );
+      }
+
+      if (failed > 0) {
+        console.log(
+          OmniZapColors.warning(
+            `Events: ⚠️ ${failed} grupo(s) não puderam ter metadados carregados`,
+          ),
+        );
+      }
+    } catch (error) {
+      console.error(OmniZapColors.error('Events: Erro geral no carregamento de metadados:'), error);
+    }
   }
 
   /**
@@ -497,11 +654,8 @@ class EventHandler {
   }
 }
 
-// Instância singleton
 const eventHandler = new EventHandler();
 
 module.exports = {
   eventHandler,
 };
-
-console.log(OmniZapColors.success('🎯 OmniZap Event Handler: Módulo inicializado!'));

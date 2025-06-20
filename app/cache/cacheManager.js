@@ -12,7 +12,6 @@
 const NodeCache = require('node-cache');
 const chalk = require('chalk');
 
-// Configuração de cores
 const OmniZapColors = {
   primary: (text) => chalk.cyan(text),
   error: (text) => chalk.red(text),
@@ -23,7 +22,6 @@ const OmniZapColors = {
   white: (text) => chalk.white(text),
 };
 
-// Inicialização dos caches
 const messagesCache = new NodeCache({
   stdTTL: 3600,
   checkperiod: 600,
@@ -54,7 +52,6 @@ const chatsCache = new NodeCache({
   useClones: false,
 });
 
-// Event listeners para os caches
 messagesCache.on('expired', (key, value) => {
   console.log(OmniZapColors.gray(`OmniZap Cache: Mensagem expirada: ${key}`));
 });
@@ -109,7 +106,6 @@ class CacheManager {
    * Salva uma mensagem no cache (processamento assíncrono)
    */
   async saveMessage(messageInfo) {
-    // Processo assíncrono - não bloqueia
     setImmediate(() => {
       try {
         if (!messageInfo || !messageInfo.key || !messageInfo.key.remoteJid || !messageInfo.key.id) {
@@ -130,7 +126,6 @@ class CacheManager {
 
         messagesCache.set(cacheKey, enhancedMessage);
 
-        // Gerencia mensagens recentes
         const recentMessagesKey = `recent_${remoteJid}`;
         let recentMessages = messagesCache.get(recentMessagesKey) || [];
         recentMessages.unshift(enhancedMessage);
@@ -140,8 +135,6 @@ class CacheManager {
         }
 
         messagesCache.set(recentMessagesKey, recentMessages, 7200);
-
-        // Contador de mensagens
         const counterKey = `count_${remoteJid}`;
         const currentCount = messagesCache.get(counterKey) || 0;
         messagesCache.set(counterKey, currentCount + 1, 86400);
@@ -181,7 +174,6 @@ class CacheManager {
 
         eventsCache.set(cacheKey, enhancedEvent);
 
-        // Gerencia eventos recentes
         const recentEventsKey = `recent_events_${eventType}`;
         let recentEvents = eventsCache.get(recentEventsKey) || [];
         recentEvents.unshift(enhancedEvent);
@@ -305,7 +297,6 @@ class CacheManager {
         return cachedMessage;
       }
 
-      // Busca em mensagens recentes
       const recentMessagesKey = `recent_${key.remoteJid}`;
       const recentMessages = messagesCache.get(recentMessagesKey) || [];
       const foundMessage = recentMessages.find((msg) => msg && msg.key && msg.key.id === key.id);
@@ -322,6 +313,304 @@ class CacheManager {
     } catch (error) {
       console.error(OmniZapColors.error('Cache: Erro ao recuperar mensagem:'), error);
       return undefined;
+    }
+  }
+
+  /**
+   * Recupera metadados de grupo do cache
+   */
+  async getGroupMetadata(jid) {
+    try {
+      if (!jid) {
+        return undefined;
+      }
+
+      const cacheKey = `group_metadata_${jid}`;
+      const cachedGroup = groupMetadataCache.get(cacheKey);
+
+      if (cachedGroup) {
+        console.log(OmniZapColors.success(`Cache: Grupo recuperado (${jid.substring(0, 30)}...)`));
+        cachedGroup._lastAccessed = Date.now();
+        groupMetadataCache.set(cacheKey, cachedGroup);
+        return cachedGroup;
+      }
+
+      return undefined;
+    } catch (error) {
+      console.error(OmniZapColors.error('Cache: Erro ao recuperar grupo:'), error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Busca metadados de grupo com cache inteligente
+   * Se não estiver no cache ou estiver expirado, busca do cliente WhatsApp
+   *
+   * @param {String} groupJid - JID do grupo
+   * @param {Object} omniZapClient - Cliente WhatsApp para buscar metadados
+   * @returns {Promise<Object|null>} Metadados do grupo ou null em caso de erro
+   */
+  async getOrFetchGroupMetadata(groupJid, omniZapClient) {
+    try {
+      if (!groupJid || !groupJid.endsWith('@g.us')) {
+        console.warn(OmniZapColors.warning('Cache: JID de grupo inválido'));
+        return null;
+      }
+
+      if (!omniZapClient) {
+        console.warn(OmniZapColors.warning('Cache: Cliente WhatsApp não fornecido'));
+        return null;
+      }
+
+      const cachedMetadata = await this.getGroupMetadata(groupJid);
+
+      if (cachedMetadata) {
+        const cacheAge = Date.now() - (cachedMetadata._cacheTimestamp || 0);
+        const maxAge = 30 * 60 * 1000;
+
+        if (cacheAge < maxAge) {
+          console.log(
+            OmniZapColors.info(
+              `Cache: Metadados de grupo válidos (idade: ${Math.round(cacheAge / 60000)}min)`,
+            ),
+          );
+          return cachedMetadata;
+        } else {
+          console.log(
+            OmniZapColors.warning(
+              `Cache: Metadados de grupo expirados (idade: ${Math.round(cacheAge / 60000)}min)`,
+            ),
+          );
+        }
+      }
+
+      console.log(
+        OmniZapColors.info(
+          `Cache: Buscando metadados do grupo ${groupJid.substring(0, 30)}... do cliente WhatsApp`,
+        ),
+      );
+
+      const freshMetadata = await omniZapClient.groupMetadata(groupJid);
+
+      if (freshMetadata) {
+        const enhancedMetadata = {
+          ...freshMetadata,
+          _cached: true,
+          _cacheTimestamp: Date.now(),
+          _lastAccessed: Date.now(),
+          _fetchedFromClient: true,
+          _participantCount: freshMetadata.participants?.length || 0,
+        };
+
+        await this.saveGroupMetadata(groupJid, enhancedMetadata);
+
+        console.log(
+          OmniZapColors.success(
+            `Cache: Metadados de grupo "${freshMetadata.subject}" salvos (${enhancedMetadata._participantCount} participantes)`,
+          ),
+        );
+
+        return enhancedMetadata;
+      } else {
+        console.warn(OmniZapColors.warning('Cache: Não foi possível obter metadados do grupo'));
+        return null;
+      }
+    } catch (error) {
+      console.error(OmniZapColors.error('Cache: Erro ao buscar metadados de grupo:'), error);
+      const fallbackMetadata = await this.getGroupMetadata(groupJid);
+      if (fallbackMetadata) {
+        console.log(OmniZapColors.warning('Cache: Usando metadados expirados como fallback'));
+        return fallbackMetadata;
+      }
+
+      return null;
+    }
+  }
+
+  /**
+   * Recupera contato do cache
+   */
+  async getContact(contactId) {
+    try {
+      if (!contactId) {
+        return undefined;
+      }
+
+      const cacheKey = `contact_${contactId}`;
+      const cachedContact = contactsCache.get(cacheKey);
+
+      if (cachedContact) {
+        console.log(
+          OmniZapColors.success(`Cache: Contato recuperado (${contactId.substring(0, 30)}...)`),
+        );
+        cachedContact._lastAccessed = Date.now();
+        contactsCache.set(cacheKey, cachedContact);
+        return cachedContact;
+      }
+
+      return undefined;
+    } catch (error) {
+      console.error(OmniZapColors.error('Cache: Erro ao recuperar contato:'), error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Recupera chat do cache
+   */
+  async getChat(chatId) {
+    try {
+      if (!chatId) {
+        return undefined;
+      }
+
+      const cacheKey = `chat_${chatId}`;
+      const cachedChat = chatsCache.get(cacheKey);
+
+      if (cachedChat) {
+        console.log(
+          OmniZapColors.success(`Cache: Chat recuperado (${chatId.substring(0, 30)}...)`),
+        );
+        cachedChat._lastAccessed = Date.now();
+        chatsCache.set(cacheKey, cachedChat);
+        return cachedChat;
+      }
+
+      return undefined;
+    } catch (error) {
+      console.error(OmniZapColors.error('Cache: Erro ao recuperar chat:'), error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Verifica se metadados de grupo existem no cache e se são válidos
+   *
+   * @param {String} groupJid - JID do grupo
+   * @returns {Boolean} True se existir e for válido, false caso contrário
+   */
+  hasValidGroupMetadata(groupJid) {
+    try {
+      if (!groupJid || !groupJid.endsWith('@g.us')) {
+        return false;
+      }
+
+      const cacheKey = `group_metadata_${groupJid}`;
+      const cachedGroup = groupMetadataCache.get(cacheKey);
+
+      if (!cachedGroup) {
+        return false;
+      }
+
+      const cacheAge = Date.now() - (cachedGroup._cacheTimestamp || 0);
+      const maxAge = 30 * 60 * 1000;
+
+      return cacheAge < maxAge;
+    } catch (error) {
+      console.error(OmniZapColors.error('Cache: Erro ao verificar grupo:'), error);
+      return false;
+    }
+  }
+
+  /**
+   * Pré-carrega metadados de grupos em lote
+   *
+   * @param {Array} groupJids - Array de JIDs de grupos
+   * @param {Object} omniZapClient - Cliente WhatsApp
+   */
+  async preloadGroupsMetadata(groupJids, omniZapClient) {
+    if (!Array.isArray(groupJids) || groupJids.length === 0) {
+      return;
+    }
+
+    console.log(
+      OmniZapColors.info(`Cache: Pré-carregando metadados de ${groupJids.length} grupos`),
+    );
+
+    const promises = groupJids
+      .filter((jid) => jid && jid.endsWith('@g.us'))
+      .map(async (groupJid) => {
+        try {
+          if (!this.hasValidGroupMetadata(groupJid)) {
+            await this.getOrFetchGroupMetadata(groupJid, omniZapClient);
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+        } catch (error) {
+          console.error(
+            OmniZapColors.error(`Cache: Erro ao pré-carregar grupo ${groupJid}:`),
+            error,
+          );
+        }
+      });
+
+    await Promise.allSettled(promises);
+    console.log(OmniZapColors.success('Cache: Pré-carregamento de grupos concluído'));
+  }
+  async listGroups() {
+    try {
+      const groupKeys = groupMetadataCache
+        .keys()
+        .filter((key) => key.startsWith('group_metadata_'));
+      const groups = [];
+
+      for (const key of groupKeys) {
+        const group = groupMetadataCache.get(key);
+        if (group) {
+          groups.push(group);
+        }
+      }
+
+      console.log(OmniZapColors.info(`Cache: ${groups.length} grupos listados`));
+      return groups;
+    } catch (error) {
+      console.error(OmniZapColors.error('Cache: Erro ao listar grupos:'), error);
+      return [];
+    }
+  }
+
+  /**
+   * Lista todos os contatos em cache
+   */
+  async listContacts() {
+    try {
+      const contactKeys = contactsCache.keys().filter((key) => key.startsWith('contact_'));
+      const contacts = [];
+
+      for (const key of contactKeys) {
+        const contact = contactsCache.get(key);
+        if (contact) {
+          contacts.push(contact);
+        }
+      }
+
+      console.log(OmniZapColors.info(`Cache: ${contacts.length} contatos listados`));
+      return contacts;
+    } catch (error) {
+      console.error(OmniZapColors.error('Cache: Erro ao listar contatos:'), error);
+      return [];
+    }
+  }
+
+  /**
+   * Lista todos os chats em cache
+   */
+  async listChats() {
+    try {
+      const chatKeys = chatsCache.keys().filter((key) => key.startsWith('chat_'));
+      const chats = [];
+
+      for (const key of chatKeys) {
+        const chat = chatsCache.get(key);
+        if (chat) {
+          chats.push(chat);
+        }
+      }
+
+      console.log(OmniZapColors.info(`Cache: ${chats.length} chats listados`));
+      return chats;
+    } catch (error) {
+      console.error(OmniZapColors.error('Cache: Erro ao listar chats:'), error);
+      return [];
     }
   }
 
@@ -429,7 +718,6 @@ class CacheManager {
 
           let totalRemoved = 0;
 
-          // Limpa mensagens antigas
           const messageKeys = messagesCache.keys().filter((k) => k.startsWith('msg_'));
           if (messageKeys.length > 500) {
             const messagesToRemove = messageKeys.slice(500);
@@ -439,7 +727,6 @@ class CacheManager {
             });
           }
 
-          // Limpa eventos antigos
           const eventKeys = eventsCache.keys();
           if (eventKeys.length > 200) {
             const eventsToRemove = eventKeys.slice(200);
@@ -458,51 +745,8 @@ class CacheManager {
       }
     });
   }
-
-  /**
-   * Inicia tarefas de manutenção automática
-   */
-  startMaintenanceTasks() {
-    // Estatísticas a cada 30 minutos
-    setInterval(() => {
-      const stats = this.getStats();
-      if (stats) {
-        console.log(OmniZapColors.primary('📊 Cache Stats:'));
-        console.log(
-          OmniZapColors.info(
-            `   Mensagens: ${stats.messages.keys} (${stats.messages.hitRate}% hit)`,
-          ),
-        );
-        console.log(
-          OmniZapColors.info(`   Eventos: ${stats.events.keys} (${stats.events.hitRate}% hit)`),
-        );
-        console.log(OmniZapColors.info(`   Total: ${stats.totals.allKeys} chaves`));
-      }
-    }, 30 * 60 * 1000);
-
-    // Limpeza a cada 2 horas
-    setInterval(() => {
-      this.performMaintenance();
-    }, 2 * 60 * 60 * 1000);
-
-    // Backup a cada hora
-    setInterval(() => {
-      const stats = this.getStats();
-      if (stats) {
-        const backup = {
-          timestamp: new Date().toISOString(),
-          stats: stats,
-          uptime: process.uptime(),
-          memoryUsage: process.memoryUsage(),
-        };
-        messagesCache.set('omnizap_stats_backup', backup, 86400);
-        console.log(OmniZapColors.gray('Cache: Backup de estatísticas salvo'));
-      }
-    }, 60 * 60 * 1000);
-  }
 }
 
-// Instância singleton
 const cacheManager = new CacheManager();
 
 module.exports = {
@@ -513,5 +757,3 @@ module.exports = {
   contactsCache,
   chatsCache,
 };
-
-console.log(OmniZapColors.success('🚀 OmniZap Cache Manager: Módulo inicializado!'));
