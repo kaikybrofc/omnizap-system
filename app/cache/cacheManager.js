@@ -9,38 +9,92 @@
  * @license MIT
  */
 
+require('dotenv').config();
 const NodeCache = require('node-cache');
-const chalk = require('chalk');
 const logger = require('../utils/logger/loggerModule');
+const { cleanEnv, num, bool } = require('envalid');
+
+const env = cleanEnv(process.env, {
+  CACHE_MESSAGES_TTL: num({
+    default: 3600,
+    desc: 'Tempo de vida do cache de mensagens em segundos',
+  }),
+  CACHE_EVENTS_TTL: num({ default: 1800, desc: 'Tempo de vida do cache de eventos em segundos' }),
+  CACHE_GROUPS_TTL: num({ default: 7200, desc: 'Tempo de vida do cache de grupos em segundos' }),
+  CACHE_CONTACTS_TTL: num({
+    default: 14400,
+    desc: 'Tempo de vida do cache de contatos em segundos',
+  }),
+  CACHE_CHATS_TTL: num({ default: 3600, desc: 'Tempo de vida do cache de chats em segundos' }),
+
+  CACHE_MESSAGES_CHECK: num({
+    default: 600,
+    desc: 'Período de verificação do cache de mensagens em segundos',
+  }),
+  CACHE_EVENTS_CHECK: num({
+    default: 300,
+    desc: 'Período de verificação do cache de eventos em segundos',
+  }),
+  CACHE_GROUPS_CHECK: num({
+    default: 600,
+    desc: 'Período de verificação do cache de grupos em segundos',
+  }),
+  CACHE_CONTACTS_CHECK: num({
+    default: 600,
+    desc: 'Período de verificação do cache de contatos em segundos',
+  }),
+  CACHE_CHATS_CHECK: num({
+    default: 600,
+    desc: 'Período de verificação do cache de chats em segundos',
+  }),
+
+  CACHE_USE_CLONES: bool({ default: false, desc: 'Usar clones para objetos no cache' }),
+
+  CACHE_AUTO_CLEAN: bool({ default: true, desc: 'Ativar limpeza automática do cache' }),
+  CACHE_MAX_TOTAL_KEYS: num({
+    default: 3000,
+    desc: 'Número máximo de chaves no cache antes da limpeza',
+  }),
+  CACHE_MAX_MESSAGES: num({
+    default: 1500,
+    desc: 'Número máximo de mensagens no cache antes da limpeza',
+  }),
+  CACHE_MAX_EVENTS: num({
+    default: 1000,
+    desc: 'Número máximo de eventos no cache antes da limpeza',
+  }),
+  CACHE_MESSAGES_KEEP: num({ default: 500, desc: 'Número de mensagens a manter após limpeza' }),
+  CACHE_EVENTS_KEEP: num({ default: 200, desc: 'Número de eventos a manter após limpeza' }),
+});
 
 const messagesCache = new NodeCache({
-  stdTTL: 3600,
-  checkperiod: 600,
-  useClones: false,
+  stdTTL: env.CACHE_MESSAGES_TTL,
+  checkperiod: env.CACHE_MESSAGES_CHECK,
+  useClones: env.CACHE_USE_CLONES,
 });
 
 const eventsCache = new NodeCache({
-  stdTTL: 1800,
-  checkperiod: 300,
-  useClones: false,
+  stdTTL: env.CACHE_EVENTS_TTL,
+  checkperiod: env.CACHE_EVENTS_CHECK,
+  useClones: env.CACHE_USE_CLONES,
 });
 
 const groupMetadataCache = new NodeCache({
-  stdTTL: 7200,
-  checkperiod: 600,
-  useClones: false,
+  stdTTL: env.CACHE_GROUPS_TTL,
+  checkperiod: env.CACHE_GROUPS_CHECK,
+  useClones: env.CACHE_USE_CLONES,
 });
 
 const contactsCache = new NodeCache({
-  stdTTL: 14400,
-  checkperiod: 600,
-  useClones: false,
+  stdTTL: env.CACHE_CONTACTS_TTL,
+  checkperiod: env.CACHE_CONTACTS_CHECK,
+  useClones: env.CACHE_USE_CLONES,
 });
 
 const chatsCache = new NodeCache({
-  stdTTL: 3600,
-  checkperiod: 600,
-  useClones: false,
+  stdTTL: env.CACHE_CHATS_TTL,
+  checkperiod: env.CACHE_CHATS_CHECK,
+  useClones: env.CACHE_USE_CLONES,
 });
 
 messagesCache.on('expired', (key, value) => {
@@ -85,7 +139,25 @@ class CacheManager {
    */
   init() {
     logger.info('🔄 OmniZap Cache: Sistema inicializado');
-    logger.debug('🔄 TTL: Msgs=1h | Eventos=30min | Grupos=2h | Contatos=4h | Chats=1h');
+    logger.info('📊 Configurações de cache carregadas das variáveis de ambiente');
+
+    logger.debug(
+      `🔄 TTL (segundos): Msgs=${env.CACHE_MESSAGES_TTL} | Eventos=${env.CACHE_EVENTS_TTL} | Grupos=${env.CACHE_GROUPS_TTL} | Contatos=${env.CACHE_CONTACTS_TTL} | Chats=${env.CACHE_CHATS_TTL}`,
+    );
+
+    logger.debug(
+      `🔄 Verificação (segundos): Msgs=${env.CACHE_MESSAGES_CHECK} | Eventos=${env.CACHE_EVENTS_CHECK} | Grupos=${env.CACHE_GROUPS_CHECK} | Contatos=${env.CACHE_CONTACTS_CHECK} | Chats=${env.CACHE_CHATS_CHECK}`,
+    );
+
+    logger.debug(`🔄 Limpeza automática: ${env.CACHE_AUTO_CLEAN ? 'Ativada' : 'Desativada'}`);
+    if (env.CACHE_AUTO_CLEAN) {
+      logger.debug(
+        `🔄 Limites de limpeza: Total=${env.CACHE_MAX_TOTAL_KEYS} | Msgs=${env.CACHE_MAX_MESSAGES} | Eventos=${env.CACHE_MAX_EVENTS}`,
+      );
+      logger.debug(
+        `🔄 Manter após limpeza: Msgs=${env.CACHE_MESSAGES_KEEP} | Eventos=${env.CACHE_EVENTS_KEEP}`,
+      );
+    }
 
     this.initialized = true;
   }
@@ -688,12 +760,18 @@ class CacheManager {
    * Limpeza automática do cache
    */
   performMaintenance() {
+    if (!env.CACHE_AUTO_CLEAN) {
+      return;
+    }
+
     setImmediate(() => {
       try {
         const stats = this.getStats();
         const shouldClean =
           stats &&
-          (stats.totals.allKeys > 3000 || stats.messages.keys > 1500 || stats.events.keys > 1000);
+          (stats.totals.allKeys > env.CACHE_MAX_TOTAL_KEYS ||
+            stats.messages.keys > env.CACHE_MAX_MESSAGES ||
+            stats.events.keys > env.CACHE_MAX_EVENTS);
 
         if (shouldClean) {
           logger.warn('Cache: Iniciando limpeza automática...');
@@ -701,8 +779,8 @@ class CacheManager {
           let totalRemoved = 0;
 
           const messageKeys = messagesCache.keys().filter((k) => k.startsWith('msg_'));
-          if (messageKeys.length > 500) {
-            const messagesToRemove = messageKeys.slice(500);
+          if (messageKeys.length > env.CACHE_MESSAGES_KEEP) {
+            const messagesToRemove = messageKeys.slice(env.CACHE_MESSAGES_KEEP);
             messagesToRemove.forEach((key) => {
               messagesCache.del(key);
               totalRemoved++;
@@ -710,8 +788,8 @@ class CacheManager {
           }
 
           const eventKeys = eventsCache.keys();
-          if (eventKeys.length > 200) {
-            const eventsToRemove = eventKeys.slice(200);
+          if (eventKeys.length > env.CACHE_EVENTS_KEEP) {
+            const eventsToRemove = eventKeys.slice(env.CACHE_EVENTS_KEEP);
             eventsToRemove.forEach((key) => {
               eventsCache.del(key);
               totalRemoved++;
