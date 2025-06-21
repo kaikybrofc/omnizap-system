@@ -46,7 +46,6 @@ const OmniZapColors = {
 };
 
 const logger = require('../utils/logger/loggerModule');
-// Logger do Baileys (precisa ser Pino)
 const baileysLogger = require('pino')().child({}).child({ level: 'silent' });
 
 const OmniZapMessages = {
