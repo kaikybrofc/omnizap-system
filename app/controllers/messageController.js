@@ -13,6 +13,7 @@ require('dotenv').config();
 const { str, cleanEnv } = require('envalid');
 const { cacheManager } = require('../cache/cacheManager');
 const { preProcessMessage, isCommand } = require('../utils/messageHelper');
+const logger = require('../utils/logger/loggerModule');
 
 // Validação das variáveis de ambiente usando envalid
 const env = cleanEnv(process.env, {
@@ -33,6 +34,10 @@ const COMMAND_PREFIX = env.COMMAND_PREFIX;
  * @returns {Promise<void>}
  */
 const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
+  logger.info('Iniciando processamento de mensagens', {
+    messageCount: messageUpdate?.messages?.length || 0,
+  });
+
   try {
     for (const messageInfo of messageUpdate?.messages || []) {
       const isGroupMessage = messageInfo.key.remoteJid.endsWith('@g.us');
@@ -46,7 +51,7 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
         : messageInfo.key.remoteJid;
 
       if (messageInfo.key.fromMe) {
-        console.log('OmniZap: Mensagem própria ignorada');
+        logger.debug('Mensagem própria ignorada', { messageType: 'own-message' });
         continue;
       }
 
@@ -64,7 +69,11 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
 
                 return await cacheManager.getGroupMetadata(groupJid);
               } catch (error) {
-                console.error('OmniZap: Erro ao obter informações do grupo:', error);
+                logger.error('Erro ao obter informações do grupo', {
+                  error: error.message,
+                  stack: error.stack,
+                  groupJid,
+                });
                 return null;
               }
             };
@@ -77,14 +86,25 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                     await omniZapClient.sendMessage(targetJid, {
                       text: JSON.stringify([messageInfo, groupInfo, commandInfo], null, 2),
                     });
+                    logger.info('Comando teste executado com sucesso em grupo', {
+                      groupJid,
+                      senderJid,
+                    });
                   } else {
                     await omniZapClient.sendMessage(targetJid, {
                       text: '❌ Dados do grupo não encontrados no cache',
+                    });
+                    logger.warn('Comando teste: dados do grupo não encontrados', {
+                      groupJid,
+                      senderJid,
                     });
                   }
                 } else {
                   await omniZapClient.sendMessage(targetJid, {
                     text: '⚠️ Este comando funciona apenas em grupos',
+                  });
+                  logger.info('Comando teste: tentativa de uso fora de grupo', {
+                    senderJid,
                   });
                 }
                 break;
@@ -101,10 +121,23 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
 💡 **Dica:** Use ${COMMAND_PREFIX}help para ver todos os comandos disponíveis${contextInfo}`;
 
                 await omniZapClient.sendMessage(targetJid, { text: unknownText });
+                logger.info('Comando desconhecido recebido', {
+                  command,
+                  args,
+                  senderJid,
+                  isGroupMessage: isGroupMessage ? 'true' : 'false',
+                });
                 break;
             }
           } catch (error) {
-            console.error('OmniZap: Erro ao processar comando:', error);
+            logger.error('Erro ao processar comando', {
+              error: error.message,
+              stack: error.stack,
+              command: commandInfo.command,
+              args: commandInfo.args,
+              senderJid,
+              isGroupMessage,
+            });
             const targetJid = isGroupMessage ? groupJid : senderJid;
 
             const contextInfo = isGroupMessage
@@ -117,26 +150,52 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
           }
         } else {
           if (isGroupMessage) {
-            console.log(
-              `OmniZap: Mensagem normal de grupo processada (sem comando) - Grupo: ${groupJid}`,
-            );
+            logger.info('Mensagem normal de grupo processada', {
+              type: 'group-message',
+              messageType: type,
+              isMedia,
+              groupJid,
+            });
           } else {
-            console.log('OmniZap: Mensagem normal processada (sem comando)');
+            logger.info('Mensagem normal processada', {
+              type: 'private-message',
+              messageType: type,
+              isMedia,
+              senderJid,
+            });
           }
         }
       } catch (error) {
-        console.error(`OmniZap: Erro ao processar mensagem individual:`, error);
+        logger.error('Erro ao processar mensagem individual', {
+          error: error.message,
+          stack: error.stack,
+          senderJid,
+          isGroupMessage: isGroupMessage ? 'true' : 'false',
+        });
       }
     }
   } catch (error) {
     if (error.message && error.message.includes('network')) {
-      console.error('OmniZap: Erro de rede detectado:', error.message);
+      logger.error('Erro de rede detectado', {
+        error: error.message,
+        stack: error.stack,
+        type: 'network',
+      });
     } else if (error.message && error.message.includes('timeout')) {
-      console.error('OmniZap: Timeout detectado:', error.message);
+      logger.error('Timeout detectado', {
+        error: error.message,
+        stack: error.stack,
+        type: 'timeout',
+      });
     } else {
-      console.error('OmniZap: Erro geral no processamento:', error);
+      logger.error('Erro geral no processamento', {
+        error: error.message,
+        stack: error.stack,
+      });
     }
   }
+
+  logger.info('Processamento de mensagens concluído');
 };
 
 module.exports = OmniZapMessageProcessor;
