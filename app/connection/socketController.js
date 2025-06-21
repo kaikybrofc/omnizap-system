@@ -15,11 +15,11 @@ const {
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
 } = require('@whiskeysockets/baileys');
+
 const dotenv = require('dotenv');
 const { cleanEnv, str } = require('envalid');
 const fs = require('fs');
 const path = require('path');
-const chalk = require('chalk');
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 
@@ -34,16 +34,6 @@ const env = cleanEnv(process.env, {
     desc: 'Caminho para armazenar os arquivos de QR Code e autenticação',
   }),
 });
-
-const OmniZapColors = {
-  primary: (text) => chalk.cyan(text),
-  error: (text) => chalk.red(text),
-  warning: (text) => chalk.yellow(text),
-  success: (text) => chalk.green(text),
-  info: (text) => chalk.blue(text),
-  gray: (text) => chalk.gray(text),
-  white: (text) => chalk.white(text),
-};
 
 const logger = require('../utils/logger/loggerModule');
 const baileysLogger = require('pino')().child({}).child({ level: 'silent' });
@@ -74,9 +64,7 @@ if (!fs.existsSync(QR_CODE_PATH)) {
 
 if (!fs.existsSync(`${QR_CODE_PATH}/creds.json`)) {
   logger.info(
-    OmniZapColors.primary(
-      `OmniZap: Certifique-se de ter outro dispositivo para escanear o QR Code.\nCaminho QR: ${QR_CODE_PATH}\n`,
-    ) + '–',
+    `OmniZap: Certifique-se de ter outro dispositivo para escanear o QR Code.\nCaminho QR: ${QR_CODE_PATH}\n–`,
   );
 }
 
@@ -134,9 +122,9 @@ async function initializeOmniZapConnection() {
 
       if (qr) {
         logger.info('\n📱 QR Code gerado! Escaneie com seu WhatsApp:');
-        console.log(OmniZapColors.gray('═══════════════════════════════════════════════════'));
+        logger.info('═══════════════════════════════════════════════════');
         qrcode.generate(qr, { small: true });
-        console.log(OmniZapColors.gray('═══════════════════════════════════════════════════'));
+        logger.info('═══════════════════════════════════════════════════');
         logger.info('💡 Abra o WhatsApp → Dispositivos vinculados → Vincular dispositivo');
         logger.warn('⏰ O QR Code expira em 60 segundos\n');
       }
