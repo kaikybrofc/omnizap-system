@@ -10,6 +10,7 @@
  */
 
 const OmniZapMessageProcessor = require('./app/controllers/messageController');
+const logger = require('./app/utils/logger/loggerModule');
 
 /**
  * Processador principal de mensagens do OmniZap
@@ -23,14 +24,17 @@ const OmniZapMainHandler = async (messageUpdate, whatsappClient, qrCodePath) => 
   try {
     await OmniZapMessageProcessor(messageUpdate, whatsappClient, qrCodePath);
   } catch (error) {
-    console.error('❌ OmniZap: Erro no processamento principal:', error);
+    logger.error('❌ OmniZap: Erro no processamento principal:', {
+      error: error.message,
+      stack: error.stack,
+    });
 
     throw error;
   }
 };
 
 if (require.main === module) {
-  console.log('🔌 Iniciando controlador de conexão...');
+  logger.info('🔌 Iniciando controlador de conexão...');
   require('./app/connection/socketController');
 }
 
