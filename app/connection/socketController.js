@@ -45,7 +45,8 @@ const OmniZapColors = {
   white: (text) => chalk.white(text),
 };
 
-const logger = require('pino')().child({}).child({ level: 'silent' });
+const logger = require('../utils/logger/loggerModule');
+const baileysLogger = require('pino')().child({}).child({ level: 'silent' });
 
 const OmniZapMessages = {
   auth_error: () => 'OmniZap: Erro de autenticação. Escaneie o QR Code novamente.',
@@ -68,19 +69,19 @@ const messageRetryCache = new NodeCache();
 
 if (!fs.existsSync(QR_CODE_PATH)) {
   fs.mkdirSync(QR_CODE_PATH, { recursive: true });
-  console.log(OmniZapColors.info(`OmniZap: Diretório criado para QR Code: ${QR_CODE_PATH}`));
+  logger.info(`OmniZap: Diretório criado para QR Code: ${QR_CODE_PATH}`);
 }
 
 if (!fs.existsSync(`${QR_CODE_PATH}/creds.json`)) {
-  console.log(
+  logger.info(
     OmniZapColors.primary(
       `OmniZap: Certifique-se de ter outro dispositivo para escanear o QR Code.\nCaminho QR: ${QR_CODE_PATH}\n`,
     ) + '–',
   );
 }
 
-console.log(OmniZapColors.info('🔗 OmniZap Socket: Sistema de conexão inicializado'));
-console.log(OmniZapColors.gray('🔗 Módulos de cache e eventos carregados independentemente'));
+logger.info('🔗 OmniZap Socket: Sistema de conexão inicializado');
+logger.debug('🔗 Módulos de cache e eventos carregados independentemente');
 /**
  * Inicializa a conexão WhatsApp do OmniZap
  *
@@ -92,10 +93,10 @@ async function initializeOmniZapConnection() {
 
   const omniZapClient = makeWASocket({
     version,
-    logger,
+    logger: baileysLogger,
     auth: {
       creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, logger),
+      keys: makeCacheableSignalKeyStore(state.keys, baileysLogger),
     },
     browser: ['OmniZap', 'Chrome', '120.0.0.0'],
     msgRetryCounterCache: messageRetryCache,
@@ -129,17 +130,15 @@ async function initializeOmniZapConnection() {
 
       eventHandler.processGenericEvent('connection.update', update);
 
-      console.log(OmniZapColors.info(`🔗 Socket: Connection update - Status: ${connection}`));
+      logger.info(`🔗 Socket: Connection update - Status: ${connection}`);
 
       if (qr) {
-        console.log(OmniZapColors.primary('\n📱 QR Code gerado! Escaneie com seu WhatsApp:'));
+        logger.info('\n📱 QR Code gerado! Escaneie com seu WhatsApp:');
         console.log(OmniZapColors.gray('═══════════════════════════════════════════════════'));
         qrcode.generate(qr, { small: true });
         console.log(OmniZapColors.gray('═══════════════════════════════════════════════════'));
-        console.log(
-          OmniZapColors.info('💡 Abra o WhatsApp → Dispositivos vinculados → Vincular dispositivo'),
-        );
-        console.log(OmniZapColors.warning('⏰ O QR Code expira em 60 segundos\n'));
+        logger.info('💡 Abra o WhatsApp → Dispositivos vinculados → Vincular dispositivo');
+        logger.warn('⏰ O QR Code expira em 60 segundos\n');
       }
 
       const statusCode = new Boom(lastDisconnect?.error)?.output.statusCode;
@@ -149,34 +148,32 @@ async function initializeOmniZapConnection() {
           if (statusCode) {
             switch (statusCode) {
               case 401:
-                console.log(OmniZapColors.error(OmniZapMessages.auth_error()));
+                logger.error(OmniZapMessages.auth_error());
                 break;
               case 408:
-                console.log(OmniZapColors.warning(OmniZapMessages.timeout()));
+                logger.warn(OmniZapMessages.timeout());
                 break;
               case 411:
-                console.log(OmniZapColors.warning(OmniZapMessages.rate_limit()));
+                logger.warn(OmniZapMessages.rate_limit());
                 break;
               case 428:
-                console.log(OmniZapColors.warning(OmniZapMessages.connection_closed()));
+                logger.warn(OmniZapMessages.connection_closed());
                 break;
               case 440:
-                console.log(OmniZapColors.gray(OmniZapMessages.connection_timeout()));
+                logger.debug(OmniZapMessages.connection_timeout());
                 break;
               case 500:
-                console.log(OmniZapColors.gray(OmniZapMessages.server_error()));
+                logger.error(OmniZapMessages.server_error());
                 break;
               case 503:
-                console.log(OmniZapColors.gray('OmniZap: Erro desconhecido 503.'));
+                logger.error('OmniZap: Erro desconhecido 503.');
                 break;
               case 515:
-                console.log(OmniZapColors.gray(OmniZapMessages.version_error()));
+                logger.warn(OmniZapMessages.version_error());
                 break;
               default:
-                console.log(
-                  `${OmniZapColors.error('[CONEXÃO FECHADA]')} Socket: Conexão fechada por erro: ${
-                    lastDisconnect?.error
-                  }`,
+                logger.error(
+                  `[CONEXÃO FECHADA] Socket: Conexão fechada por erro: ${lastDisconnect?.error}`,
                 );
             }
             initializeOmniZapConnection();
@@ -184,15 +181,13 @@ async function initializeOmniZapConnection() {
           break;
 
         case 'connecting':
-          console.log(
-            OmniZapColors.primary(
-              `〔 Socket 〕Reconectando/Iniciando - ${getCurrentDate()} ${getCurrentTime()}`,
-            ),
+          logger.info(
+            `〔 Socket 〕Reconectando/Iniciando - ${getCurrentDate()} ${getCurrentTime()}`,
           );
           break;
 
         case 'open':
-          console.log(OmniZapColors.success(OmniZapMessages.connected()));
+          logger.info(OmniZapMessages.connected());
           await omniZapClient.sendPresenceUpdate('available');
           eventHandler.setWhatsAppClient(omniZapClient);
           break;
@@ -204,169 +199,143 @@ async function initializeOmniZapConnection() {
 
     if (events['messages.upsert']) {
       const messageUpdate = events['messages.upsert'];
-      console.log(
-        OmniZapColors.info(
-          `📨 Socket: Messages upsert - ${messageUpdate.messages?.length || 0} mensagem(ns)`,
-        ),
+      logger.info(
+        `📨 Socket: Messages upsert - ${messageUpdate.messages?.length || 0} mensagem(ns)`,
       );
       eventHandler.processMessagesUpsert(messageUpdate);
 
       const omniZapMainHandler = require('../../index.js');
       omniZapMainHandler(messageUpdate, omniZapClient, QR_CODE_PATH)
         .then(() => {
-          console.log(OmniZapColors.gray('Socket: 🎯 Handler principal executado'));
+          logger.debug('Socket: 🎯 Handler principal executado');
         })
         .catch((error) => {
-          console.error(
-            OmniZapColors.error('Socket: ❌ Erro no handler principal:'),
-            String(error),
-          );
+          logger.error('Socket: ❌ Erro no handler principal:', {
+            error: error.message,
+            stack: error.stack,
+          });
         });
     }
 
     if (events['messages.update']) {
       const updates = events['messages.update'];
-      console.log(
-        OmniZapColors.info(`📝 Socket: Messages update - ${updates?.length || 0} atualização(ões)`),
-      );
+      logger.info(`📝 Socket: Messages update - ${updates?.length || 0} atualização(ões)`);
       eventHandler.processMessagesUpdate(updates);
     }
 
     if (events['messages.delete']) {
       const deletion = events['messages.delete'];
-      console.log(OmniZapColors.warning('🗑️ Socket: Messages delete'));
+      logger.warn('🗑️ Socket: Messages delete');
       eventHandler.processMessagesDelete(deletion);
     }
 
     if (events['messages.reaction']) {
       const reactions = events['messages.reaction'];
-      console.log(
-        OmniZapColors.info(`😀 Socket: Messages reaction - ${reactions?.length || 0} reação(ões)`),
-      );
+      logger.info(`😀 Socket: Messages reaction - ${reactions?.length || 0} reação(ões)`);
 
       eventHandler.processMessagesReaction(reactions);
     }
 
     if (events['message-receipt.update']) {
       const receipts = events['message-receipt.update'];
-      console.log(
-        OmniZapColors.info(`📬 Socket: Message receipt - ${receipts?.length || 0} recibo(s)`),
-      );
+      logger.info(`📬 Socket: Message receipt - ${receipts?.length || 0} recibo(s)`);
 
       eventHandler.processMessageReceipt(receipts);
     }
 
     if (events['messaging-history.set']) {
       const historyData = events['messaging-history.set'];
-      console.log(OmniZapColors.info('📚 Socket: Messaging history set'));
+      logger.info('📚 Socket: Messaging history set');
 
       eventHandler.processMessagingHistory(historyData);
     }
 
     if (events['groups.update']) {
       const updates = events['groups.update'];
-      console.log(
-        OmniZapColors.info(`👥 Socket: Groups update - ${updates?.length || 0} atualização(ões)`),
-      );
+      logger.info(`👥 Socket: Groups update - ${updates?.length || 0} atualização(ões)`);
 
       eventHandler.processGroupsUpdate(updates);
     }
 
     if (events['groups.upsert']) {
       const groupsMetadata = events['groups.upsert'];
-      console.log(
-        OmniZapColors.info(`👥 Socket: Groups upsert - ${groupsMetadata?.length || 0} grupo(s)`),
-      );
+      logger.info(`👥 Socket: Groups upsert - ${groupsMetadata?.length || 0} grupo(s)`);
 
       eventHandler.processGroupsUpsert(groupsMetadata);
     }
 
     if (events['group-participants.update']) {
       const event = events['group-participants.update'];
-      console.log(OmniZapColors.info('👥 Socket: Group participants update'));
+      logger.info('👥 Socket: Group participants update');
 
       eventHandler.processGroupParticipants(event);
     }
 
     if (events['chats.upsert']) {
       const chats = events['chats.upsert'];
-      console.log(OmniZapColors.info(`💬 Socket: Chats upsert - ${chats?.length || 0} chat(s)`));
+      logger.info(`💬 Socket: Chats upsert - ${chats?.length || 0} chat(s)`);
 
       eventHandler.processChatsUpsert(chats);
     }
 
     if (events['chats.update']) {
       const updates = events['chats.update'];
-      console.log(
-        OmniZapColors.info(`💬 Socket: Chats update - ${updates?.length || 0} atualização(ões)`),
-      );
+      logger.info(`💬 Socket: Chats update - ${updates?.length || 0} atualização(ões)`);
 
       eventHandler.processChatsUpdate(updates);
     }
 
     if (events['chats.delete']) {
       const jids = events['chats.delete'];
-      console.log(
-        OmniZapColors.warning(`💬 Socket: Chats delete - ${jids?.length || 0} chat(s) deletado(s)`),
-      );
+      logger.warn(`💬 Socket: Chats delete - ${jids?.length || 0} chat(s) deletado(s)`);
 
       eventHandler.processChatsDelete(jids);
     }
 
     if (events['contacts.upsert']) {
       const contacts = events['contacts.upsert'];
-      console.log(
-        OmniZapColors.info(`👤 Socket: Contacts upsert - ${contacts?.length || 0} contato(s)`),
-      );
+      logger.info(`👤 Socket: Contacts upsert - ${contacts?.length || 0} contato(s)`);
 
       eventHandler.processContactsUpsert(contacts);
     }
 
     if (events['contacts.update']) {
       const updates = events['contacts.update'];
-      console.log(
-        OmniZapColors.info(`👤 Socket: Contacts update - ${updates?.length || 0} atualização(ões)`),
-      );
+      logger.info(`👤 Socket: Contacts update - ${updates?.length || 0} atualização(ões)`);
 
       eventHandler.processContactsUpdate(updates);
     }
 
     if (events['blocklist.set']) {
       const data = events['blocklist.set'];
-      console.log(
-        OmniZapColors.warning(
-          `🚫 Socket: Blocklist set - ${data.blocklist?.length || 0} bloqueio(s)`,
-        ),
-      );
+      logger.warn(`🚫 Socket: Blocklist set - ${data.blocklist?.length || 0} bloqueio(s)`);
 
       eventHandler.processGenericEvent('blocklist.set', data);
     }
 
     if (events['blocklist.update']) {
       const data = events['blocklist.update'];
-      console.log(OmniZapColors.warning(`🚫 Socket: Blocklist update - Ação: ${data.action}`));
+      logger.warn(`🚫 Socket: Blocklist update - Ação: ${data.action}`);
 
       eventHandler.processGenericEvent('blocklist.update', data);
     }
 
     if (events['call']) {
       const callEvents = events['call'];
-      console.log(
-        OmniZapColors.info(`📞 Socket: Call events - ${callEvents?.length || 0} chamada(s)`),
-      );
+      logger.info(`📞 Socket: Call events - ${callEvents?.length || 0} chamada(s)`);
 
       eventHandler.processGenericEvent('call', callEvents);
     }
 
     if (events['presence.update']) {
       const data = events['presence.update'];
-      console.log(OmniZapColors.info('👁️ Socket: Presence update'));
+      logger.debug('👁️ Socket: Presence update');
 
       eventHandler.processGenericEvent('presence.update', data);
     }
 
     if (events['creds.update']) {
-      console.log(OmniZapColors.info('🔐 Socket: Credentials update - Salvando credenciais'));
+      logger.info('🔐 Socket: Credentials update - Salvando credenciais');
 
       eventHandler.processGenericEvent('creds.update', { timestamp: Date.now() });
 
@@ -375,7 +344,10 @@ async function initializeOmniZapConnection() {
   });
 }
 initializeOmniZapConnection().catch(async (error) => {
-  return console.log(OmniZapColors.error('Socket: Erro ao inicializar o sistema: ' + error));
+  logger.error('Socket: Erro ao inicializar o sistema', {
+    error: error.message,
+    stack: error.stack,
+  });
 });
 
 module.exports = {
