@@ -12,7 +12,7 @@
 require('dotenv').config();
 const { str, cleanEnv } = require('envalid');
 const { cacheManager } = require('../cache/cacheManager');
-const { preProcessMessage, isCommand } = require('../utils/messageHelper');
+const { preProcessMessage, isCommand } = require('../utils/baileys/messageHelper');
 const logger = require('../utils/logger/loggerModule');
 
 const env = cleanEnv(process.env, {

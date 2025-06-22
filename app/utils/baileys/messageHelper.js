@@ -11,7 +11,7 @@
 
 require('dotenv').config();
 const { str, cleanEnv } = require('envalid');
-const logger = require('./logger/loggerModule');
+const logger = require('../logger/loggerModule');
 
 // Validação das variáveis de ambiente usando envalid
 const env = cleanEnv(process.env, {

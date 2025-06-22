@@ -10,7 +10,7 @@
  */
 
 const { downloadContentFromMessage } = require('baileys');
-const logger = require('./logger/loggerModule');
+const logger = require('../logger/loggerModule');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
