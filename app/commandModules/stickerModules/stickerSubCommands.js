@@ -8,11 +8,11 @@
  * @license MIT
  */
 
-const logger = require('../utils/logger/loggerModule');
+const logger = require('../../utils/logger/loggerModule');
 const { listUserPacks, getPackDetails, deletePack, renamePack, getUserStats, getUserId, STICKERS_PER_PACK } = require('./stickerPackManager');
-const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, formatErrorMessage, formatSuccessMessage, formatHelpMessage } = require('../utils/messageUtils');
-const { sendStickerPackIndividually } = require('../utils/stickerPackSender');
-const { COMMAND_PREFIX, RATE_LIMIT_CONFIG, EMOJIS } = require('../utils/constants');
+const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, formatErrorMessage, formatSuccessMessage, formatHelpMessage } = require('../../utils/messageUtils');
+const { sendStickerPackIndividually } = require('./stickerPackManager');
+const { COMMAND_PREFIX, RATE_LIMIT_CONFIG, EMOJIS } = require('../../utils/constants');
 
 /**
  * Processa sub-comandos do sticker

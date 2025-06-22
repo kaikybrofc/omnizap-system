@@ -73,8 +73,8 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
               case 'sticker':
               case 's':
                 try {
-                  const { processSticker, extractMediaDetails } = require('../commandModules/stickerCommand');
-                  const { processStickerSubCommand } = require('../commandModules/stickerSubCommands');
+                  const { processSticker, extractMediaDetails } = require('../commandModules/stickerModules/stickerCommand');
+                  const { processStickerSubCommand } = require('../commandModules/stickerModules/stickerSubCommands');
 
                   logger.info('Comando sticker executado', {
                     command,

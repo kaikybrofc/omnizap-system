@@ -14,11 +14,11 @@ const path = require('path');
 const util = require('util');
 const { exec } = require('child_process');
 const execProm = util.promisify(exec);
-const logger = require('../utils/logger/loggerModule');
-const { getFileBuffer } = require('../utils/baileys/mediaHelper');
+const logger = require('../../utils/logger/loggerModule');
+const { getFileBuffer } = require('../../utils/baileys/mediaHelper');
 const { addStickerToPack, getUserId } = require('./stickerPackManager');
-const { COMMAND_PREFIX, STICKER_CONSTANTS } = require('../utils/constants');
-const { formatErrorMessage, formatSuccessMessage } = require('../utils/messageUtils');
+const { COMMAND_PREFIX, STICKER_CONSTANTS } = require('../../utils/constants');
+const { formatErrorMessage, formatSuccessMessage } = require('../../utils/messageUtils');
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const STICKER_PREFS_DIR = path.join(process.cwd(), 'temp', 'prefs');
