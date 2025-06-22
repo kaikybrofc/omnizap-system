@@ -11,6 +11,7 @@
 const logger = require('../utils/logger/loggerModule');
 const { listUserPacks, getPackDetails, deletePack, renamePack, getUserStats, generateWhatsAppPack, getUserId, STICKERS_PER_PACK } = require('./stickerPackManager');
 const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, formatErrorMessage, formatSuccessMessage, formatHelpMessage } = require('../utils/messageUtils');
+const { sendStickerPackWithRelay } = require('../utils/stickerPackSender');
 const { COMMAND_PREFIX, RATE_LIMIT_CONFIG, EMOJIS } = require('../utils/constants');
 
 /**
@@ -504,15 +505,19 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
       deliveryTarget: 'privado do usuário',
     });
 
-    // Enviar pack de stickers
+    // Envia pack de stickers usando o novo sistema
     try {
       // Se comando foi executado em grupo, notifica no grupo antes de enviar no privado
       if (isGroupCommand) {
         await sendTextMessage(omniZapClient, targetJid, `${EMOJIS.PACK} *Enviando pack "${pack.name}" para seu chat privado...*\n\n✨ Aguarde alguns segundos para receber todos os stickers em seu chat privado!`, { originalMessage: messageInfo });
       }
 
-      // Envia pack de stickers no privado do usuário
-      await sendStickerPack(omniZapClient, userJid, pack, messageInfo);
+      // Envia pack usando o novo sistema com relayMessage
+      await sendStickerPackWithRelay(omniZapClient, userJid, pack, {
+        batchSize: RATE_LIMIT_CONFIG.BATCH_SIZE,
+        delayBetweenStickers: RATE_LIMIT_CONFIG.DELAY_BETWEEN_STICKERS,
+        delayBetweenBatches: RATE_LIMIT_CONFIG.DELAY_BETWEEN_BATCHES,
+      });
 
       return {
         success: true,
@@ -526,7 +531,7 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
 
       return {
         success: false,
-        message: `❌ *Erro ao enviar pack*\n\n⚠️ Não foi possível enviar o pack "${pack.name}" em seu chat privado.\n\n🔧 **Possíveis causas:**\n• Arquivos de sticker corrompidos\n• Problemas de conectividade\n• Pack muito grande\n\n💡 **Soluções:**\n• Tente novamente em alguns minutos\n• Verifique se todos os stickers estão válidos\n• Considere recriar o pack se o problema persistir`,
+        message: `❌ *Erro ao enviar pack*\n\n⚠️ Não foi possível enviar o pack "${pack.name}" em seu chat privado.\n\n🔧 **Possíveis causas:**\n• Arquivos de sticker corrompidos\n• Problemas de conectividade\n• Pack muito grande\n• Limitações da API do WhatsApp\n\n💡 **Soluções:**\n• Tente novamente em alguns minutos\n• Verifique se todos os stickers estão válidos\n• Considere recriar o pack se o problema persistir\n\n🆕 **Novo sistema de envio:** Agora usando relayMessage com proto para melhor compatibilidade!`,
       };
     }
   } catch (error) {
