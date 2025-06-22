@@ -12,7 +12,7 @@
 require('dotenv').config();
 const { str, cleanEnv } = require('envalid');
 const { cacheManager } = require('../cache/cacheManager');
-const { preProcessMessage, isCommand } = require('../utils/baileys/messageHelper');
+const { preProcessMessage, isCommand, getExpiration } = require('../utils/baileys/messageHelper');
 const logger = require('../utils/logger/loggerModule');
 
 const env = cleanEnv(process.env, {
@@ -20,6 +20,16 @@ const env = cleanEnv(process.env, {
 });
 
 const COMMAND_PREFIX = env.COMMAND_PREFIX;
+
+/**
+ * Função utilitária para obter informações de expiração de mensagens
+ *
+ * @param {Object} messageInfo - Informações da mensagem
+ * @returns {*} Configuração de expiração ou undefined
+ */
+const getMessageExpiration = (messageInfo) => {
+  return getExpiration(messageInfo);
+};
 
 /**
  * Processador de mensagens WhatsApp do OmniZap
@@ -79,35 +89,29 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
 
             switch (command.toLowerCase()) {
               case 'teste':
-                if (isGroupMessage) {
-                  const groupInfo = await getGroupInfo(groupJid);
-                  if (groupInfo) {
-                    await omniZapClient.sendMessage(targetJid, {
-                      text: JSON.stringify([messageInfo, groupInfo, commandInfo], null, 2),
-                    });
-                    logger.info('Comando teste executado com sucesso em grupo', {
-                      groupJid,
-                      senderJid,
-                    });
-                  } else {
-                    await omniZapClient.sendMessage(targetJid, {
-                      text: '❌ Dados do grupo não encontrados no cache',
-                    });
-                    logger.warn('Comando teste: dados do grupo não encontrados', {
-                      groupJid,
-                      senderJid,
-                    });
-                  }
-                } else {
-                  await omniZapClient.sendMessage(targetJid, {
-                    text: '⚠️ Este comando funciona apenas em grupos',
-                  });
-                  logger.info('Comando teste: tentativa de uso fora de grupo', {
+                try {
+                  await omniZapClient.sendMessage(
+                    targetJid,
+                    {
+                      text: `✅ *Comando de Teste Executado com Sucesso*\n\n👤 *Solicitante:* ${senderJid}`,
+                    },
+                    { quoted: messageInfo, ephemeralExpiration: getMessageExpiration(messageInfo) },
+                  );
+                } catch (error) {
+                  logger.error('Erro ao executar comando de teste', {
+                    error: error.message,
+                    stack: error.stack,
+                    command: 'teste',
+                    args,
                     senderJid,
+                    isGroupMessage,
+                  });
+                  await omniZapClient.sendMessage(targetJid, {
+                    text: `❌ *Erro ao executar comando de teste*\n\nOcorreu um erro ao processar seu comando. Tente novamente.\n\n👤 *Solicitante:* ${senderJid}`,
                   });
                 }
                 break;
-
+                break;
               default:
                 const contextInfo = isGroupMessage
                   ? `\n\n👥 *Contexto:* Grupo\n👤 *Solicitante:* ${senderJid}`
