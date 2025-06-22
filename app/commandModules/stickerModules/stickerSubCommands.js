@@ -9,7 +9,7 @@
  */
 
 const logger = require('../../utils/logger/loggerModule');
-const { listUserPacks, getPackDetails, deletePack, renamePack, getUserStats, getUserId, STICKERS_PER_PACK } = require('./stickerPackManager');
+const { listUserPacks, getPackDetails, deletePack, renamePack, getUserStats, getUserId, getUserPreferences, updateUserPreferences, STICKERS_PER_PACK } = require('./stickerPackManager');
 const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, formatErrorMessage, formatSuccessMessage, formatHelpMessage } = require('../../utils/messageUtils');
 const { sendStickerPackIndividually } = require('./stickerPackManager');
 const { COMMAND_PREFIX, RATE_LIMIT_CONFIG, EMOJIS } = require('../../utils/constants');
@@ -42,6 +42,10 @@ async function processStickerSubCommand(subCommand, args, omniZapClient, message
     case 'send':
     case 'share':
       return await sendPackCommand(userId, args, omniZapClient, targetJid, messageInfo, senderJid);
+
+    case 'prefs':
+    case 'preferences':
+      return await managePreferences(userId, args);
 
     case 'help':
       return showStickerHelp();
@@ -104,6 +108,7 @@ async function listPacks(userId) {
 async function showStats(userId) {
   try {
     const stats = await getUserStats(userId);
+    const prefs = await getUserPreferences(userId);
 
     const createdDate = new Date(stats.createdAt).toLocaleDateString('pt-BR');
     const updatedDate = new Date(stats.lastUpdated).toLocaleDateString('pt-BR');
@@ -120,8 +125,16 @@ async function showStats(userId) {
       message += `🎯 **Restam:** ${stats.stickerSlotsRemaining} slots\n\n`;
     }
 
+    message += `⚙️ **Preferências Atuais:**\n`;
+    message += `📛 Nome padrão: ${prefs.defaultPackName}\n`;
+    message += `👤 Autor padrão: ${prefs.defaultPackAuthor}\n\n`;
+
     message += `📅 **Criado em:** ${createdDate}\n`;
-    message += `🔄 **Atualizado em:** ${updatedDate}`;
+    message += `🔄 **Atualizado em:** ${updatedDate}\n\n`;
+
+    message += `💡 **Comandos úteis:**\n`;
+    message += `• \`${COMMAND_PREFIX}s prefs\` - Gerenciar preferências\n`;
+    message += `• \`${COMMAND_PREFIX}s packs\` - Ver todos os packs`;
 
     return {
       success: true,
@@ -363,20 +376,15 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
       };
     }
 
-    // Determinar status do pack
     const isComplete = pack.isComplete;
     const stickerCount = pack.stickers.length;
     const statusMsg = isComplete ? `✅ Pack completo (${stickerCount}/${STICKERS_PER_PACK} stickers)` : `⏳ Pack incompleto (${stickerCount}/${STICKERS_PER_PACK} stickers)`;
 
-    // Determina o JID do usuário (sempre envia no privado)
     let userJid = senderJid;
 
-    // Se o comando foi executado em grupo, extrai o JID do participante
     if (senderJid.endsWith('@g.us')) {
-      // Verifica múltiplas fontes para encontrar o JID do usuário
       userJid = messageInfo?.key?.participant || messageInfo?.participant || messageInfo?.sender || messageInfo?.from;
 
-      // Se ainda não encontrou, tenta extrair do pushName ou outras propriedades
       if (!userJid || userJid.endsWith('@g.us')) {
         logger.warn('[StickerSubCommands] Não foi possível extrair JID do usuário do grupo', {
           senderJid,
@@ -389,7 +397,6 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
       }
     }
 
-    // Validação final do JID
     if (!userJid || !userJid.includes('@')) {
       logger.error('[StickerSubCommands] JID do usuário inválido', {
         senderJid,
@@ -402,7 +409,6 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
       };
     }
 
-    // Se o comando foi executado em grupo, informa que será enviado no privado
     const isGroupCommand = targetJid.endsWith('@g.us');
     const privateNotification = isGroupCommand ? '\n\n📱 *Nota:* O pack foi enviado em seu chat privado para melhor experiência!' : '';
 
@@ -418,14 +424,11 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
       deliveryTarget: 'privado do usuário',
     });
 
-    // Envia pack de stickers usando o método individual
     try {
-      // Se comando foi executado em grupo, notifica no grupo antes de enviar no privado
       if (isGroupCommand) {
         await sendTextMessage(omniZapClient, targetJid, `${EMOJIS.PACK} *Enviando pack "${pack.name}" para seu chat privado...*\n\n✨ Aguarde alguns segundos para receber todos os stickers em seu chat privado!`, { originalMessage: messageInfo });
       }
 
-      // Envia pack usando método individual
       await sendStickerPackIndividually(omniZapClient, userJid, pack, messageInfo);
 
       return {
@@ -448,6 +451,89 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
     return {
       success: false,
       message: '❌ Erro ao enviar pack. Tente novamente.',
+    };
+  }
+}
+
+/**
+ * Gerencia as preferências do usuário
+ */
+async function managePreferences(userId, args) {
+  try {
+    if (!args || !args.trim()) {
+      const prefs = await getUserPreferences(userId);
+
+      let message = `⚙️ *Suas Preferências de Sticker*\n\n`;
+      message += `📛 **Nome padrão:** ${prefs.defaultPackName}\n`;
+      message += `👤 **Autor padrão:** ${prefs.defaultPackAuthor}\n\n`;
+
+      if (prefs.lastUsedPackName || prefs.lastUsedPackAuthor) {
+        message += `🔄 **Últimos usados:**\n`;
+        if (prefs.lastUsedPackName) message += `📛 Nome: ${prefs.lastUsedPackName}\n`;
+        if (prefs.lastUsedPackAuthor) message += `👤 Autor: ${prefs.lastUsedPackAuthor}\n\n`;
+      }
+
+      const updatedDate = new Date(prefs.lastUpdated).toLocaleString('pt-BR');
+      message += `📅 **Atualizado em:** ${updatedDate}\n\n`;
+
+      message += `💡 **Como alterar:**\n`;
+      message += `• \`${COMMAND_PREFIX}s prefs [nome] | [autor]\` - Definir padrões\n`;
+      message += `• \`${COMMAND_PREFIX}s prefs reset\` - Resetar para padrão\n\n`;
+      message += `**Variáveis disponíveis:**\n`;
+      message += `• \`#nome\` - Seu nome no WhatsApp\n`;
+      message += `• \`#id\` - Seu ID do WhatsApp\n`;
+      message += `• \`#data\` - Data atual`;
+
+      return {
+        success: true,
+        message: message,
+      };
+    }
+
+    const command = args.trim().toLowerCase();
+
+    if (command === 'reset') {
+      await updateUserPreferences(userId, null, null);
+
+      return {
+        success: true,
+        message: `✅ *Preferências resetadas!*\n\n📛 **Nome padrão:** 🤖 OmniZap Pack\n👤 **Autor padrão:** 👤 [Seu Nome]\n\n💡 *Suas próximas criações usarão os valores padrão.*`,
+      };
+    }
+
+    const parts = args
+      .trim()
+      .split('|')
+      .map((part) => part.trim());
+
+    const newPackName = parts[0] || null;
+    const newPackAuthor = parts[1] || null;
+
+    if (!newPackName) {
+      return {
+        success: false,
+        message: `❌ *Nome do pack não informado*\n\nUso: \`${COMMAND_PREFIX}s prefs [nome] | [autor]\`\n\nExemplo: \`${COMMAND_PREFIX}s prefs Meus Stickers | João Silva\``,
+      };
+    }
+
+    await updateUserPreferences(userId, newPackName, newPackAuthor);
+
+    let message = `✅ *Preferências atualizadas!*\n\n`;
+    message += `📛 **Novo nome padrão:** ${newPackName}\n`;
+    if (newPackAuthor) {
+      message += `👤 **Novo autor padrão:** ${newPackAuthor}\n`;
+    }
+    message += `\n💡 *Suas próximas criações usarão essas configurações.*`;
+
+    return {
+      success: true,
+      message: message,
+    };
+  } catch (error) {
+    logger.error('[StickerSubCommands] Erro ao gerenciar preferências:', error);
+    return {
+      success: false,
+      message: '❌ Erro ao gerenciar preferências. Tente novamente.',
     };
   }
 }
@@ -492,9 +578,14 @@ function showStickerHelp() {
       description: 'Enviar pack (completo ou não)',
       example: 's send 1',
     },
+    {
+      name: 's prefs [nome] | [autor]',
+      description: 'Gerenciar preferências',
+      example: 's prefs Meus Stickers | João',
+    },
   ];
 
-  const footer = `**ℹ️ Informações:**\n• Cada pack comporta até ${STICKERS_PER_PACK} stickers\n• Packs são criados automaticamente\n• Packs podem ser enviados mesmo incompletos\n• Novos packs são criados ao atingir ${STICKERS_PER_PACK} stickers\n\n**💡 Exemplo completo:**\n1. Envie mídia: \`${COMMAND_PREFIX}s Meu Pack | João\`\n2. Continue adicionando stickers\n3. Envie quando quiser: \`${COMMAND_PREFIX}s send 1\``;
+  const footer = `**ℹ️ Informações:**\n• Cada pack comporta até ${STICKERS_PER_PACK} stickers\n• Packs são criados automaticamente\n• Packs podem ser enviados mesmo incompletos\n• Novos packs são criados ao atingir ${STICKERS_PER_PACK} stickers\n• Preferências são salvas automaticamente\n\n**💡 Exemplo completo:**\n1. Configure preferências: \`${COMMAND_PREFIX}s prefs Meu Pack | João\`\n2. Envie mídia: \`${COMMAND_PREFIX}s\`\n3. Continue adicionando stickers\n4. Envie quando quiser: \`${COMMAND_PREFIX}s send 1\``;
 
   const message = formatHelpMessage('Comandos de Sticker Packs', commands, footer);
 

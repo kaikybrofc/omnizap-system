@@ -16,12 +16,11 @@ const { exec } = require('child_process');
 const execProm = util.promisify(exec);
 const logger = require('../../utils/logger/loggerModule');
 const { getFileBuffer } = require('../../utils/baileys/mediaHelper');
-const { addStickerToPack, getUserId } = require('./stickerPackManager');
+const { addStickerToPack, getUserId, getUserPreferences, updateUserPreferences } = require('./stickerPackManager');
 const { COMMAND_PREFIX, STICKER_CONSTANTS } = require('../../utils/constants');
 const { formatErrorMessage, formatSuccessMessage } = require('../../utils/messageUtils');
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
-const STICKER_PREFS_DIR = path.join(process.cwd(), 'temp', 'prefs');
 const MAX_FILE_SIZE = STICKER_CONSTANTS.MAX_FILE_SIZE;
 
 /**
@@ -31,7 +30,6 @@ const MAX_FILE_SIZE = STICKER_CONSTANTS.MAX_FILE_SIZE;
 async function ensureDirectories() {
   try {
     await fs.mkdir(TEMP_DIR, { recursive: true });
-    await fs.mkdir(STICKER_PREFS_DIR, { recursive: true });
     return true;
   } catch (error) {
     logger.error(`[StickerCommand.ensureDirectories] Erro ao criar diretórios necessários: ${error.message}`, {
@@ -104,30 +102,10 @@ async function getStickerPackInfo(text, sender, pushName, message) {
   }
 
   const formattedSender = userId.split('@')[0] || 'unknown';
-  const prefsPath = path.join(STICKER_PREFS_DIR, `${formattedSender}.json`);
+  const userPrefs = await getUserPreferences(formattedSender);
 
-  let defaultPackName = STICKER_CONSTANTS.DEFAULT_PACK_NAME;
-  let defaultPackAuthor = `👤 ${pushName || formattedSender}`;
-
-  let savedPrefs = null;
-  try {
-    const prefsExists = await fs
-      .access(prefsPath)
-      .then(() => true)
-      .catch(() => false);
-    if (prefsExists) {
-      const prefsData = await fs.readFile(prefsPath, 'utf-8');
-      savedPrefs = JSON.parse(prefsData);
-      logger.debug(`[StickerCommand] Preferências carregadas para ${formattedSender}`);
-    }
-  } catch (error) {
-    logger.warn(`[StickerCommand] Erro ao carregar preferências: ${error.message}`);
-  }
-
-  if (savedPrefs) {
-    defaultPackName = savedPrefs.packName || defaultPackName;
-    defaultPackAuthor = savedPrefs.packAuthor || defaultPackAuthor;
-  }
+  let defaultPackName = userPrefs.lastUsedPackName || userPrefs.defaultPackName || STICKER_CONSTANTS.DEFAULT_PACK_NAME;
+  let defaultPackAuthor = userPrefs.lastUsedPackAuthor || userPrefs.defaultPackAuthor || `👤 ${pushName || formattedSender}`;
 
   let packName = defaultPackName;
   let packAuthor = defaultPackAuthor;
@@ -160,13 +138,13 @@ async function getStickerPackInfo(text, sender, pushName, message) {
     }
 
     try {
-      await fs.writeFile(prefsPath, JSON.stringify({ packName, packAuthor }, null, 2));
-      logger.info(`[StickerCommand] Novas preferências salvas para ${formattedSender}`);
+      await updateUserPreferences(formattedSender, packName, packAuthor);
+      logger.info(`[StickerCommand] Novas preferências salvas centralizadamente para ${formattedSender}`);
     } catch (error) {
-      logger.error(`[StickerCommand] Erro ao salvar preferências: ${error.message}`);
+      logger.error(`[StickerCommand] Erro ao salvar preferências centralizadas: ${error.message}`);
     }
   } else {
-    logger.debug(`[StickerCommand] Usando preferências padrão: Nome: "${packName}", Autor: "${packAuthor}"`);
+    logger.debug(`[StickerCommand] Usando preferências centralizadas: Nome: "${packName}", Autor: "${packAuthor}"`);
   }
 
   packName = packName
@@ -400,13 +378,11 @@ async function processSticker(baileysClient, message, sender, from, text, option
     const userId = getUserId(sender, message);
     const packResult = await addStickerToPack(userId, finalStickerPath, packName, packAuthor, message);
 
-    // Construir detalhes do pack
     let packDetails = `📦 **Pack:** ${packResult.packName}\n`;
     packDetails += `🎯 **Progresso:** ${packResult.stickerCount}/${STICKER_CONSTANTS.STICKERS_PER_PACK} stickers\n`;
     packDetails += `📊 **Total seus stickers:** ${packResult.totalStickers}\n`;
     packDetails += `📚 **Total seus packs:** ${packResult.totalPacks}`;
 
-    // Determinar status e dica
     let statusInfo = '';
     let tip = `Use \`${COMMAND_PREFIX}s packs\` para ver todos os seus packs`;
 

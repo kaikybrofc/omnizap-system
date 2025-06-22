@@ -57,13 +57,24 @@ async function loadUserData(userId) {
 
   try {
     const data = await fs.readFile(userDataPath, 'utf-8');
-    return JSON.parse(data);
+    const userData = JSON.parse(data);
+    return await validateAndFixUserData(userId);
   } catch (error) {
+    logger.info(`[StickerPackManager] Criando nova estrutura de dados para usuário ${userId}`);
+
     const initialData = {
       userId: userId,
       totalStickers: 0,
       packs: [],
       currentPackIndex: 0,
+      preferences: {
+        defaultPackName: STICKER_CONSTANTS.DEFAULT_PACK_NAME,
+        defaultPackAuthor: STICKER_CONSTANTS.DEFAULT_AUTHOR,
+        lastUsedPackName: null,
+        lastUsedPackAuthor: null,
+        createdAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+      },
       createdAt: new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
     };
@@ -79,6 +90,8 @@ async function loadUserData(userId) {
 async function saveUserData(userId, data) {
   const userDataPath = getUserDataPath(userId);
   data.lastUpdated = new Date().toISOString();
+
+  await ensurePackDirectories();
 
   await fs.writeFile(userDataPath, JSON.stringify(data, null, 2));
   logger.debug(`[StickerPackManager] Dados salvos para usuário ${userId}`);
@@ -280,6 +293,133 @@ async function getUserStats(userId) {
 }
 
 /**
+ * Obtém as preferências do usuário
+ */
+async function getUserPreferences(userId) {
+  const userData = await validateAndFixUserData(userId);
+  return userData.preferences;
+}
+
+/**
+ * Atualiza as preferências do usuário
+ */
+async function updateUserPreferences(userId, packName = null, packAuthor = null) {
+  const userData = await loadUserData(userId);
+
+  if (!userData.preferences) {
+    userData.preferences = {
+      defaultPackName: STICKER_CONSTANTS.DEFAULT_PACK_NAME,
+      defaultPackAuthor: STICKER_CONSTANTS.DEFAULT_AUTHOR,
+      lastUsedPackName: null,
+      lastUsedPackAuthor: null,
+      createdAt: new Date().toISOString(),
+      lastUpdated: new Date().toISOString(),
+    };
+  }
+
+  if (packName) {
+    userData.preferences.lastUsedPackName = packName;
+    userData.preferences.defaultPackName = packName;
+  }
+
+  if (packAuthor) {
+    userData.preferences.lastUsedPackAuthor = packAuthor;
+    userData.preferences.defaultPackAuthor = packAuthor;
+  }
+
+  userData.preferences.lastUpdated = new Date().toISOString();
+
+  await saveUserData(userId, userData);
+  logger.info(`[StickerPackManager] Preferências atualizadas para usuário ${userId}`);
+
+  return userData.preferences;
+}
+
+/**
+ * Verifica e corrige a integridade dos dados do usuário
+ */
+async function validateAndFixUserData(userId) {
+  try {
+    const userDataPath = getUserDataPath(userId);
+
+    // Verifica se o arquivo existe
+    const fileExists = await fs
+      .access(userDataPath)
+      .then(() => true)
+      .catch(() => false);
+
+    if (!fileExists) {
+      logger.warn(`[StickerPackManager] Arquivo de dados não encontrado para usuário ${userId}, criando novo`);
+      return await loadUserData(userId);
+    }
+
+    const data = await fs.readFile(userDataPath, 'utf-8');
+    let userData;
+
+    try {
+      userData = JSON.parse(data);
+    } catch (error) {
+      logger.error(`[StickerPackManager] Arquivo JSON corrompido para usuário ${userId}, recriando`);
+      return await loadUserData(userId);
+    }
+
+    if (!userData.preferences) {
+      logger.info(`[StickerPackManager] Adicionando estrutura de preferências para usuário ${userId}`);
+      userData.preferences = {
+        defaultPackName: STICKER_CONSTANTS.DEFAULT_PACK_NAME,
+        defaultPackAuthor: STICKER_CONSTANTS.DEFAULT_AUTHOR,
+        lastUsedPackName: null,
+        lastUsedPackAuthor: null,
+        createdAt: userData.createdAt || new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+      };
+      await saveUserData(userId, userData);
+    }
+
+    const requiredFields = ['userId', 'totalStickers', 'packs', 'currentPackIndex', 'createdAt', 'lastUpdated'];
+    let needsUpdate = false;
+
+    for (const field of requiredFields) {
+      if (userData[field] === undefined) {
+        logger.warn(`[StickerPackManager] Campo obrigatório ${field} ausente, corrigindo`);
+        needsUpdate = true;
+
+        switch (field) {
+          case 'userId':
+            userData.userId = userId;
+            break;
+          case 'totalStickers':
+            userData.totalStickers = 0;
+            break;
+          case 'packs':
+            userData.packs = [];
+            break;
+          case 'currentPackIndex':
+            userData.currentPackIndex = 0;
+            break;
+          case 'createdAt':
+            userData.createdAt = new Date().toISOString();
+            break;
+          case 'lastUpdated':
+            userData.lastUpdated = new Date().toISOString();
+            break;
+        }
+      }
+    }
+
+    if (needsUpdate) {
+      await saveUserData(userId, userData);
+      logger.info(`[StickerPackManager] Dados corrigidos para usuário ${userId}`);
+    }
+
+    return userData;
+  } catch (error) {
+    logger.error(`[StickerPackManager] Erro ao validar dados do usuário ${userId}: ${error.message}`);
+    return await loadUserData(userId);
+  }
+}
+
+/**
  * Envia um pack de stickers individualmente
  *
  * @param {Object} omniZapClient - Cliente WhatsApp
@@ -297,7 +437,6 @@ async function sendStickerPackIndividually(omniZapClient, targetJid, pack, messa
       targetJid: targetJid,
     });
 
-    // Validações básicas
     if (!omniZapClient || !targetJid || !pack) {
       throw new Error('Parâmetros obrigatórios não fornecidos');
     }
@@ -306,11 +445,9 @@ async function sendStickerPackIndividually(omniZapClient, targetJid, pack, messa
       throw new Error('Pack não possui stickers');
     }
 
-    // Prepara os stickers válidos
     const validStickers = [];
     for (const sticker of pack.stickers) {
       try {
-        // Verifica se o arquivo existe
         await fs.access(sticker.filePath);
         validStickers.push(sticker);
       } catch (error) {
@@ -322,14 +459,12 @@ async function sendStickerPackIndividually(omniZapClient, targetJid, pack, messa
       throw new Error('Nenhum sticker válido encontrado no pack');
     }
 
-    // Envia mensagem introdutória
     const introMessage = `${EMOJIS.PACK} *${pack.name}*\n👤 Por: ${pack.author}\n🎯 ${validStickers.length} stickers\n\n✨ *Enviando stickers...*`;
 
     await sendTextMessage(omniZapClient, targetJid, introMessage, {
       originalMessage: messageInfo,
     });
 
-    // Envia stickers individualmente
     await sendStickersIndividually(omniZapClient, targetJid, validStickers, pack, messageInfo);
 
     logger.info(`[StickerPackManager] Pack enviado com sucesso`);
@@ -361,10 +496,8 @@ async function sendStickersIndividually(omniZapClient, targetJid, validStickers,
 
     for (const sticker of batch) {
       try {
-        // Verifica se o sticker ainda existe
         await fs.access(sticker.filePath);
 
-        // Envia o sticker usando sendStickerMessage
         await sendStickerMessage(omniZapClient, targetJid, sticker.filePath, {
           originalMessage: messageInfo,
           packname: pack.name,
@@ -374,7 +507,6 @@ async function sendStickersIndividually(omniZapClient, targetJid, validStickers,
         sentCount++;
         logger.debug(`[StickerPackManager] Sticker enviado: ${sticker.fileName} (${sentCount}/${validStickers.length})`);
 
-        // Delay entre stickers
         if (sentCount < validStickers.length) {
           await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_STICKERS));
         }
@@ -383,13 +515,11 @@ async function sendStickersIndividually(omniZapClient, targetJid, validStickers,
       }
     }
 
-    // Delay entre lotes
     if (i + BATCH_SIZE < validStickers.length) {
       await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
     }
   }
 
-  // Mensagem final de conclusão
   const successMessage = formatSuccessMessage('Pack enviado com sucesso!', `${EMOJIS.PACK} **${pack.name}**\n📨 ${sentCount}/${validStickers.length} stickers entregues`, 'Adicione os stickers aos seus favoritos para acesso rápido!');
 
   await sendTextMessage(omniZapClient, targetJid, successMessage, {
@@ -413,5 +543,8 @@ module.exports = {
   getUserStats,
   getUserId,
   sendStickerPackIndividually,
+  getUserPreferences,
+  updateUserPreferences,
   STICKERS_PER_PACK,
+  validateAndFixUserData,
 };
