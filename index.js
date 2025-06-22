@@ -4,12 +4,13 @@
  * Sistema profissional para automação e gerenciamento de mensagens WhatsApp
  * Desenvolvido com tecnologia Baileys para máxima compatibilidade
  *
- * @version 1.0.3
+ * @version 1.0.4
  * @author OmniZap Team
  * @license MIT
  */
 
 const OmniZapMessageProcessor = require('./app/controllers/messageController');
+const logger = require('./app/utils/logger/loggerModule');
 
 /**
  * Processador principal de mensagens do OmniZap
@@ -23,14 +24,17 @@ const OmniZapMainHandler = async (messageUpdate, whatsappClient, qrCodePath) => 
   try {
     await OmniZapMessageProcessor(messageUpdate, whatsappClient, qrCodePath);
   } catch (error) {
-    console.error('❌ OmniZap: Erro no processamento principal:', error);
+    logger.error('❌ OmniZap: Erro no processamento principal:', {
+      error: error.message,
+      stack: error.stack,
+    });
 
     throw error;
   }
 };
 
 if (require.main === module) {
-  console.log('🔌 Iniciando controlador de conexão...');
+  logger.info('🔌 Iniciando controlador de conexão...');
   require('./app/connection/socketController');
 }
 

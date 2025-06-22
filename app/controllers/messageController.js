@@ -4,16 +4,22 @@
  * Controlador responsável pelo processamento e tratamento de mensagens
  * recebidas através do WhatsApp via tecnologia Baileys
  *
- * @version 1.0.3
+ * @version 1.0.4
  * @author OmniZap Team
  * @license MIT
  */
 
 require('dotenv').config();
-
+const { str, cleanEnv } = require('envalid');
 const { cacheManager } = require('../cache/cacheManager');
+const { preProcessMessage, isCommand } = require('../utils/baileys/messageHelper');
+const logger = require('../utils/logger/loggerModule');
 
-const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
+const env = cleanEnv(process.env, {
+  COMMAND_PREFIX: str({ default: '/', desc: 'Prefixo para comandos no chat' }),
+});
+
+const COMMAND_PREFIX = env.COMMAND_PREFIX;
 
 /**
  * Processador de mensagens WhatsApp do OmniZap
@@ -27,98 +33,33 @@ const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
  * @returns {Promise<void>}
  */
 const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
+  logger.info('Iniciando processamento de mensagens', {
+    messageCount: messageUpdate?.messages?.length || 0,
+  });
+
   try {
     for (const messageInfo of messageUpdate?.messages || []) {
       const isGroupMessage = messageInfo.key.remoteJid.endsWith('@g.us');
+      const { type, body: messageText, isMedia } = preProcessMessage(messageInfo);
+
+      const commandInfo = isCommand(messageText);
       const groupJid = isGroupMessage ? messageInfo.key.remoteJid : null;
+
       const senderJid = isGroupMessage
         ? messageInfo.key.participant || messageInfo.key.remoteJid
         : messageInfo.key.remoteJid;
 
-      if (!messageInfo.message) {
-        console.log('OmniZap: Mensagem sem conteúdo ignorada');
-        continue;
-      }
-
-      if (messageUpdate.type === 'append') {
-        console.log('OmniZap: Mensagem histórica ignorada');
-        continue;
-      }
-
       if (messageInfo.key.fromMe) {
-        console.log('OmniZap: Mensagem própria ignorada');
+        logger.debug('Mensagem própria ignorada', { messageType: 'own-message' });
         continue;
-      }
-
-      if (isGroupMessage) {
-        console.log(
-          `OmniZap: Processando mensagem de GRUPO - Grupo: ${groupJid}, Remetente: ${senderJid}`,
-        );
-      } else {
-        console.log(`OmniZap: Processando mensagem DIRETA de ${senderJid}`);
       }
 
       try {
-        console.log(JSON.stringify(messageInfo, null, 2));
-        const messageContent = messageInfo.message;
-        const messageId = messageInfo.key.id;
-
-        if (isGroupMessage) {
-          console.log(
-            `OmniZap: Nova mensagem de GRUPO [${messageId}] - Grupo: ${groupJid}, Remetente: ${senderJid}`,
-          );
-        } else {
-          console.log(`OmniZap: Nova mensagem DIRETA [${messageId}] - Remetente: ${senderJid}`);
-        }
-
-        // Extrair texto da mensagem
-        const messageText = (() => {
-          if (messageContent.conversation) {
-            return messageContent.conversation;
-          }
-
-          if (messageContent.extendedTextMessage?.text) {
-            return messageContent.extendedTextMessage.text;
-          }
-
-          if (messageContent.imageMessage?.caption) {
-            return messageContent.imageMessage.caption;
-          }
-
-          if (messageContent.videoMessage?.caption) {
-            return messageContent.videoMessage.caption;
-          }
-
-          return null;
-        })();
-
-        if (!messageText) {
-          console.log('OmniZap: Mensagem sem texto ignorada');
-          continue;
-        }
-
-        // Verificar se é um comando
-        if (messageText.startsWith(COMMAND_PREFIX)) {
+        if (commandInfo.isCommand) {
           try {
-            const commandText = messageText.slice(COMMAND_PREFIX.length).trim();
-            const [command, ...args] = commandText.split(' ');
-            const targetJid = isGroupMessage ? groupJid : senderJid; // Para onde enviar a resposta
+            const { command, args } = commandInfo;
+            const targetJid = isGroupMessage ? groupJid : senderJid;
 
-            if (isGroupMessage) {
-              console.log(
-                `OmniZap: Comando detectado em GRUPO: ${command} com argumentos:`,
-                args,
-                `- Grupo: ${groupJid}, Remetente: ${senderJid}`,
-              );
-            } else {
-              console.log(
-                `OmniZap: Comando detectado: ${command} com argumentos:`,
-                args,
-                `- Remetente: ${senderJid}`,
-              );
-            }
-
-            // Função auxiliar para obter informações do grupo
             const getGroupInfo = async (groupJid) => {
               try {
                 if (!groupJid || !groupJid.endsWith('@g.us')) {
@@ -127,37 +68,42 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
 
                 return await cacheManager.getGroupMetadata(groupJid);
               } catch (error) {
-                console.error('OmniZap: Erro ao obter informações do grupo:', error);
+                logger.error('Erro ao obter informações do grupo', {
+                  error: error.message,
+                  stack: error.stack,
+                  groupJid,
+                });
                 return null;
               }
             };
 
-            // Processar comandos
             switch (command.toLowerCase()) {
               case 'teste':
                 if (isGroupMessage) {
                   const groupInfo = await getGroupInfo(groupJid);
                   if (groupInfo) {
                     await omniZapClient.sendMessage(targetJid, {
-                      text:
-                        `📋 *Teste - Dados do Cache*\n\n` +
-                        `🏷️ *Nome:* ${groupInfo.subject}\n` +
-                        `👥 *Participantes:* ${groupInfo._participantCount}\n` +
-                        `📅 *Cache:* ${new Date(groupInfo._cacheTimestamp).toLocaleString(
-                          'pt-BR',
-                        )}\n` +
-                        `🔄 *Último Acesso:* ${new Date(groupInfo._lastAccessed).toLocaleString(
-                          'pt-BR',
-                        )}`,
+                      text: JSON.stringify([messageInfo, groupInfo, commandInfo], null, 2),
+                    });
+                    logger.info('Comando teste executado com sucesso em grupo', {
+                      groupJid,
+                      senderJid,
                     });
                   } else {
                     await omniZapClient.sendMessage(targetJid, {
                       text: '❌ Dados do grupo não encontrados no cache',
                     });
+                    logger.warn('Comando teste: dados do grupo não encontrados', {
+                      groupJid,
+                      senderJid,
+                    });
                   }
                 } else {
                   await omniZapClient.sendMessage(targetJid, {
                     text: '⚠️ Este comando funciona apenas em grupos',
+                  });
+                  logger.info('Comando teste: tentativa de uso fora de grupo', {
+                    senderJid,
                   });
                 }
                 break;
@@ -174,10 +120,23 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
 💡 **Dica:** Use ${COMMAND_PREFIX}help para ver todos os comandos disponíveis${contextInfo}`;
 
                 await omniZapClient.sendMessage(targetJid, { text: unknownText });
+                logger.info('Comando desconhecido recebido', {
+                  command,
+                  args,
+                  senderJid,
+                  isGroupMessage: isGroupMessage ? 'true' : 'false',
+                });
                 break;
             }
           } catch (error) {
-            console.error('OmniZap: Erro ao processar comando:', error);
+            logger.error('Erro ao processar comando', {
+              error: error.message,
+              stack: error.stack,
+              command: commandInfo.command,
+              args: commandInfo.args,
+              senderJid,
+              isGroupMessage,
+            });
             const targetJid = isGroupMessage ? groupJid : senderJid;
 
             const contextInfo = isGroupMessage
@@ -190,26 +149,52 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
           }
         } else {
           if (isGroupMessage) {
-            console.log(
-              `OmniZap: Mensagem normal de grupo processada (sem comando) - Grupo: ${groupJid}`,
-            );
+            logger.info('Mensagem normal de grupo processada', {
+              type: 'group-message',
+              messageType: type,
+              isMedia,
+              groupJid,
+            });
           } else {
-            console.log('OmniZap: Mensagem normal processada (sem comando)');
+            logger.info('Mensagem normal processada', {
+              type: 'private-message',
+              messageType: type,
+              isMedia,
+              senderJid,
+            });
           }
         }
       } catch (error) {
-        console.error(`OmniZap: Erro ao processar mensagem individual:`, error);
+        logger.error('Erro ao processar mensagem individual', {
+          error: error.message,
+          stack: error.stack,
+          senderJid,
+          isGroupMessage: isGroupMessage ? 'true' : 'false',
+        });
       }
     }
   } catch (error) {
     if (error.message && error.message.includes('network')) {
-      console.error('OmniZap: Erro de rede detectado:', error.message);
+      logger.error('Erro de rede detectado', {
+        error: error.message,
+        stack: error.stack,
+        type: 'network',
+      });
     } else if (error.message && error.message.includes('timeout')) {
-      console.error('OmniZap: Timeout detectado:', error.message);
+      logger.error('Timeout detectado', {
+        error: error.message,
+        stack: error.stack,
+        type: 'timeout',
+      });
     } else {
-      console.error('OmniZap: Erro geral no processamento:', error);
+      logger.error('Erro geral no processamento', {
+        error: error.message,
+        stack: error.stack,
+      });
     }
   }
+
+  logger.info('Processamento de mensagens concluído');
 };
 
 module.exports = OmniZapMessageProcessor;

@@ -1,6 +1,6 @@
 {
   "name": "omnizap-system",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Sistema profissional de automação WhatsApp com tecnologia Baileys",
   "main": "index.js",
   "keywords": [
@@ -25,7 +25,9 @@
     "moment-timezone": "^0.5.48",
     "node-cache": "^5.1.2",
     "pino": "^7.11.0",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode-terminal": "^0.12.0",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0"
   },
   "engines": {
     "node": ">=16.0.0"
