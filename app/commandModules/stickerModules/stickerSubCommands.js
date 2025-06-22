@@ -3,7 +3,7 @@
  *
  * Módulo responsável pelos sub-comandos de gerenciamento de sticker packs
  *
- * @version 1.0.5
+ * @version 1.0.4
  * @author OmniZap Team
  * @license MIT
  */

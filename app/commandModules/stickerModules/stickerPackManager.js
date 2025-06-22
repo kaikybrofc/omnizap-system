@@ -4,7 +4,7 @@
  * Módulo responsável pelo gerenciamento e envio de packs de stickers
  * organizados por usuário com limite configurável de stickers por pack
  *
- * @version 2.0.0
+ * @version 1.0.4
  * @author OmniZap Team
  * @license MIT
  */

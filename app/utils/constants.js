@@ -3,7 +3,7 @@
  *
  * Módulo centralizado para constantes e configurações do sistema
  *
- * @version 1.0.0
+ * @version 1.0.4
  * @author OmniZap Team
  * @license MIT
  */
