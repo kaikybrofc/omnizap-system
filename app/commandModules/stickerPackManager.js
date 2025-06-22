@@ -58,7 +58,6 @@ async function loadUserData(userId) {
     const data = await fs.readFile(userDataPath, 'utf-8');
     return JSON.parse(data);
   } catch (error) {
-    // Se não existe, cria estrutura inicial
     const initialData = {
       userId: userId,
       totalStickers: 0,
@@ -110,7 +109,6 @@ async function addStickerToPack(userId, stickerPath, packName = null, packAuthor
 
   const userData = await loadUserData(userId);
 
-  // Se não há packs, cria o primeiro
   if (userData.packs.length === 0) {
     const newPack = createNewPack(0, packName || `${STICKER_CONSTANTS.DEFAULT_PACK_NAME} 1`, packAuthor || STICKER_CONSTANTS.DEFAULT_AUTHOR);
     userData.packs.push(newPack);
@@ -118,7 +116,6 @@ async function addStickerToPack(userId, stickerPath, packName = null, packAuthor
     logger.info(`[StickerPackManager] Primeiro pack criado para usuário ${userId}: Pack 1`);
   }
 
-  // Verifica se o pack atual existe e se está cheio, cria um novo
   let currentPack = userData.packs[userData.currentPackIndex];
   if (!currentPack || currentPack.stickers.length >= STICKERS_PER_PACK) {
     const newPackIndex = userData.packs.length;
@@ -126,22 +123,18 @@ async function addStickerToPack(userId, stickerPath, packName = null, packAuthor
 
     userData.packs.push(newPack);
     userData.currentPackIndex = newPackIndex;
-    currentPack = newPack; // Atualiza a referência para o novo pack
+    currentPack = newPack;
 
     logger.info(`[StickerPackManager] Novo pack criado para usuário ${userId}: Pack ${newPackIndex + 1} (pack anterior ${currentPack !== newPack && userData.packs[newPackIndex - 1] ? 'completo com ' + userData.packs[newPackIndex - 1].stickers.length + ' stickers' : 'não encontrado'})`);
   }
 
-  // Copia o sticker para o diretório do pack
   const stickerFileName = `sticker_${Date.now()}_${crypto.randomBytes(STICKER_CONSTANTS.STICKER_FILENAME_HASH_SIZE).toString('hex')}${STICKER_CONSTANTS.STICKER_EXTENSION}`;
   const packStickerPath = path.join(STICKER_PACKS_DIR, userId, `pack_${userData.currentPackIndex}`, stickerFileName);
 
-  // Cria diretório do pack se não existir
   await fs.mkdir(path.dirname(packStickerPath), { recursive: true });
 
-  // Copia o arquivo
   await fs.copyFile(stickerPath, packStickerPath);
 
-  // Adiciona informações do sticker ao pack
   const stickerInfo = {
     fileName: stickerFileName,
     filePath: packStickerPath,
@@ -156,11 +149,9 @@ async function addStickerToPack(userId, stickerPath, packName = null, packAuthor
   currentPack.stickers.push(stickerInfo);
   userData.totalStickers++;
 
-  // Se o pack atingiu o limite, marca como completo
   if (currentPack.stickers.length >= STICKERS_PER_PACK) {
     currentPack.isComplete = true;
 
-    // Define thumbnail (primeiro sticker do pack)
     if (!currentPack.thumbnailPath && currentPack.stickers.length > 0) {
       currentPack.thumbnailPath = currentPack.stickers[0].filePath;
     }
@@ -222,7 +213,6 @@ async function deletePack(userId, packIndex) {
 
   const pack = userData.packs[packIndex];
 
-  // Remove arquivos físicos do pack
   try {
     const packDir = path.join(STICKER_PACKS_DIR, userId, `pack_${packIndex}`);
     await fs.rm(packDir, { recursive: true, force: true });
@@ -230,16 +220,13 @@ async function deletePack(userId, packIndex) {
     logger.warn(`[StickerPackManager] Erro ao remover diretório do pack: ${error.message}`);
   }
 
-  // Remove o pack da lista
   userData.packs.splice(packIndex, 1);
   userData.totalStickers -= pack.stickers.length;
 
-  // Reajusta índices dos packs restantes
   userData.packs.forEach((p, index) => {
     p.packIndex = index;
   });
 
-  // Ajusta currentPackIndex se necessário
   if (userData.currentPackIndex >= userData.packs.length) {
     userData.currentPackIndex = Math.max(0, userData.packs.length - 1);
   }
@@ -301,7 +288,6 @@ async function generateWhatsAppPack(userId, packIndex) {
     return null;
   }
 
-  // Gera estrutura do pack no formato WhatsApp
   const whatsappPack = {
     stickerPackId: pack.packId,
     name: pack.name,
