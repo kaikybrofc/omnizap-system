@@ -4,7 +4,7 @@
  * Utilitário para processamento e download de mensagens de mídia do WhatsApp,
  * com gestão de timeouts, limites de tamanho e tratamento de erros.
  *
- * @version 1.0.3
+ * @version 1.0.4
  * @author OmniZap Team
  * @license MIT
  */

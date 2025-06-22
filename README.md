@@ -1,10 +1,10 @@
-# OmniZap v1.0.3
+# OmniZap v1.0.4
 
 Sistema profissional de automação WhatsApp com tecnologia Baileys e arquitetura modular avançada
 
 ## 📋 Descrição
 
-OmniZap é um sistema robusto e profissional para automação de mensagens WhatsApp, desenvolvido com a mais avançada tecnologia Baileys para máxima compatibilidade e estabilidade. Com **arquitetura modular**, **sistema de cache avançado** e **processamento de eventos independente** para máxima performance e escalabilidade. A versão 1.0.3 traz melhorias significativas na estabilidade e no sistema de logging colorido.
+OmniZap é um sistema robusto e profissional para automação de mensagens WhatsApp, desenvolvido com a mais avançada tecnologia Baileys para máxima compatibilidade e estabilidade. Com **arquitetura modular**, **sistema de cache avançado** e **processamento de eventos independente** para máxima performance e escalabilidade. A versão 1.0.4 introduz um sistema centralizado de logging baseado em Winston com rotação de arquivos, substituindo completamente o uso de console.log em toda a aplicação.
 
 ## ✨ Características
 
@@ -12,7 +12,7 @@ OmniZap é um sistema robusto e profissional para automação de mensagens Whats
 - 🔒 **Seguro**: Implementação segura com autenticação robusta
 - 📱 **Compatível**: Totalmente compatível com WhatsApp Web
 - 🔄 **Reconexão Automática**: Sistema inteligente de reconexão
-- 📊 **Logs Detalhados**: Sistema completo de logging para monitoramento
+- 📊 **Logs Centralizados**: Sistema completo de logging com Winston para monitoramento e diagnóstico
 - 🤖 **Sistema de Comandos**: Processamento inteligente de comandos com prefixos configuráveis
 - ⚡ **Switch Case**: Arquitetura otimizada para processamento de comandos
 - 🎯 **Respostas Inteligentes**: Sistema de respostas automáticas e contextuais
@@ -21,7 +21,7 @@ OmniZap é um sistema robusto e profissional para automação de mensagens Whats
 - 🎯 **Processamento de Eventos**: Handler independente para todos os eventos WhatsApp
 - 📈 **Estatísticas Detalhadas**: Monitoramento completo do sistema e cache
 - 🔄 **Processamento Assíncrono**: Execução assíncrona para melhor desempenho
-- 📝 **Logging Colorido**: Sistema de logs com cores para fácil visualização
+- 📝 **Rotação de Logs**: Sistema automatizado de rotação e compressão de logs
 
 ### ⚙️ Configuração de Comandos
 
@@ -47,7 +47,7 @@ COMMAND_PREFIX=/
 
 ## 🏗️ Arquitetura Modular
 
-O OmniZap v1.0.3 aprimora a **arquitetura modular avançada** que separa responsabilidades e melhora a manutenibilidade:
+O OmniZap v1.0.4 aprimora a **arquitetura modular avançada** que separa responsabilidades e melhora a manutenibilidade:
 
 ### 📦 Módulos Principais
 
@@ -59,7 +59,7 @@ O OmniZap v1.0.3 aprimora a **arquitetura modular avançada** que separa respons
   - Distribuição de eventos para outros módulos
   - Tratamento de diferentes tipos de conexão
   - Suporte a múltiplas sessões
-  - Logging detalhado com cores
+  - Integração com sistema centralizado de logging
 
 #### 🔄 Cache Manager (`app/cache/cacheManager.js`)
 - **Responsabilidade**: Sistema de cache inteligente
@@ -77,7 +77,7 @@ O OmniZap v1.0.3 aprimora a **arquitetura modular avançada** que separa respons
 - **Funcionalidades**:
   - Processamento assíncrono de todos os eventos WhatsApp
   - Integração com o Cache Manager
-  - Logging detalhado de atividades com sistema de cores
+  - Logging detalhado de atividades através do sistema centralizado
   - Tratamento especializado para cada tipo de evento
   - Pré-carregamento inteligente de dados de grupo
 
@@ -91,28 +91,69 @@ O OmniZap v1.0.3 aprimora a **arquitetura modular avançada** que separa respons
   - Tratamento de erros e validações
   - Suporte a mensagens de grupo
 
-### � Atualizações da v1.0.3
+#### 📝 Logger Module (`app/utils/logger/loggerModule.js`)
+- **Responsabilidade**: Sistema centralizado de logging
+- **Funcionalidades**:
+  - Logs em múltiplos níveis (error, warn, info, debug)
+  - Rotação automática de arquivos de log
+  - Compressão automática de logs antigos
+  - Logs separados por tipo (aplicação, erro, aviso)
+  - Formatação avançada para console e arquivos
+  - Captura de exceções não tratadas
+
+### � Atualizações da v1.0.4
 
 - **🔧 Melhorias técnicas:**
-  - Atualização da biblioteca @whiskeysockets/baileys para a versão 6.7.0
-  - Melhorias na estabilidade de conexão e reconexão
-  - Otimização do processamento assíncrono com setImmediate
-  - Melhoria no sistema de logging com cores mais intuitivas
+  - Implementação de sistema centralizado de logging baseado em Winston
+  - Padronização de todos os arquivos com cabeçalhos de documentação
+  - Substituição completa de console.log/error por logger estruturado
+  - Melhor tratamento e captura de erros em todos os módulos
+  - Rotação e compressão automática de arquivos de log
 
 - **✨ Novos recursos:**
-  - Script de inicialização rápida `start.sh`
-  - Suporte aprimorado a mensagens de grupo
-  - Extração inteligente de conteúdo para diferentes tipos de mensagens
-  - Pré-carregamento de metadados de grupo para melhor desempenho
+  - Sistema de logging em múltiplos níveis (error, warn, info, debug)
+  - Logs separados por tipo (aplicação, erro, aviso)
+  - Cabeçalhos padronizados em todos os módulos com versão e autoria
+  - Mensagens de erro mais detalhadas com stack traces
   
 - **🐛 Correções:**
-  - Tratamento adequado para erros de rede e timeout
-  - Melhor gerenciamento de memória no sistema de cache
-  - Melhorias na documentação e comentários no código
+  - Melhorias na captura e log de exceções não tratadas
+  - Padronização do formato de logs em todos os módulos
+  - Melhor rastreabilidade de erros através do sistema centralizado
 
-## �🔄 Fluxo de Eventos
+## 📝 Sistema de Logging Centralizado
+
+O OmniZap v1.0.4 introduz um sistema avançado de logging centralizado com Winston:
+
+### 📊 Níveis de Log
+
+| Nível | Descrição | Uso Típico |
+|------|-----|-----------|
+| **error** | Erros críticos | Falhas de conexão, exceções não tratadas |
+| **warn** | Avisos importantes | Reconexões, timeouts, problemas não críticos |
+| **info** | Informações operacionais | Conexões, desconexões, eventos importantes |
+| **debug** | Informações detalhadas | Detalhes de processamento, útil para desenvolvimento |
+
+### 🔧 Funcionalidades do Logger
+
+- **Rotação de Arquivos**: Logs são divididos por data (formato YYYY-MM-DD)
+- **Compressão Automática**: Arquivos antigos são comprimidos em .gz
+- **Logs Separados**: Arquivos independentes para erros, avisos e logs gerais
+- **Formatação Rica**: Logs coloridos no console, formato JSON em arquivos
+- **Captura de Exceções**: Registra automaticamente exceções não tratadas
+- **Metadados**: Inclui informações de serviço, instância e ambiente
+- **Configurável**: Ajuste de nível de log por ambiente (development/production)
+
+## 🔄 Fluxo de Eventos
 
 ```
+                                    ┌─────────────────┐
+                                    │   Logger Module  │
+                                    │     (Logging)    │
+                                    └─────────────────┘
+                                            ▲
+                                            │
+                                            │
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │  Socket Controller  │ -> │   Event Handler   │ -> │  Cache Manager  │
 │  (Conexão)         │    │  (Processamento)  │    │  (Armazenamento)│
@@ -148,6 +189,7 @@ O OmniZap v1.0.3 aprimora a **arquitetura modular avançada** que separa respons
 - **Envalid** ^8.0.0 - Validação de variáveis de ambiente
 - **@hapi/boom** ^10.0.1 - Tratamento de erros HTTP
 - **QRCode Terminal** ^0.12.0 - Geração de QR Code no terminal
+- **Winston** ^3.3.3 - Logger versátil com suporte a múltiplos transportes
 
 ## 💾 Sistema de Cache Avançado
 
@@ -196,11 +238,9 @@ npm start
 
 ## 🚀 Uso
 
-1. Execute o sistema usando o script de inicialização:
+1. Execute o sistema:
 ```bash
 npm start
-# ou
-./start.sh
 ```
 
 2. Escaneie o QR Code que aparecerá no terminal com seu WhatsApp
@@ -226,7 +266,6 @@ omnizap-system/
 ├── .gitignore                    # Arquivos ignorados pelo Git
 ├── index.js                      # Arquivo principal
 ├── package.json                  # Dependências e scripts
-├── start.sh                      # Script de inicialização
 ├── LICENSE                       # Licença MIT
 └── README.md                     # Documentação
 ```
@@ -235,7 +274,6 @@ omnizap-system/
 
 #### Core System
 - **`index.js`**: Arquivo principal que inicializa o sistema
-- **`start.sh`**: Script bash para inicialização com verificações
 
 #### Módulos da Aplicação
 - **`app/cache/cacheManager.js`**: Gerenciador de cache com TTL e estatísticas
@@ -301,7 +339,6 @@ O sistema monitora automaticamente:
 ### Scripts Disponíveis
 
 - `npm start`: Inicia o sistema em modo produção
-- `./start.sh`: Script bash alternativo com verificações automáticas
 
 ### 🛠️ Desenvolvimento Local
 
@@ -319,8 +356,6 @@ cp .env.example .env
 
 # Execute o sistema
 npm start
-# ou
-chmod +x start.sh && ./start.sh
 ```
 
 
@@ -367,4 +402,4 @@ Para suporte e dúvidas:
 - 📖 Documentação: [Wiki](https://github.com/Kaikygr/omnizap-system/wiki)
 
 
-**OmniZap v1.0.3** - Sistema Profissional de Automação WhatsApp com Arquitetura Modular © 2025
+**OmniZap v1.0.4** - Sistema Profissional de Automação WhatsApp com Arquitetura Modular © 2025

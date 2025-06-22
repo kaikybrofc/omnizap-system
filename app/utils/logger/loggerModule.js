@@ -1,3 +1,14 @@
+/**
+ * OmniZap Logger Module
+ *
+ * Sistema de logs centralizado e configurável para o OmniZap,
+ * com suporte a múltiplos níveis, rotação de arquivos e formatação.
+ *
+ * @version 1.0.4
+ * @author OmniZap Team
+ * @license MIT
+ */
+
 require('dotenv').config();
 const winston = require('winston');
 const DailyRotateFile = require('winston-daily-rotate-file');
