@@ -4,7 +4,7 @@
  * Módulo responsável por processar comandos de criação de stickers
  * a partir de imagens e vídeos enviados pelos usuários
  *
- * @version 1.0.0
+ * @version 1.0.4
  * @author OmniZap Team
  * @license MIT
  */
@@ -395,8 +395,6 @@ async function processSticker(baileysClient, message, sender, from, text, option
     const { packName, packAuthor } = await getStickerPackInfo(text, sender, message.pushName || 'Usuário', message);
 
     finalStickerPath = await addStickerMetadata(stickerPath, packName, packAuthor);
-
-    // Adiciona o sticker ao pack do usuário
     const userId = getUserId(sender, message);
     const packResult = await addStickerToPack(userId, finalStickerPath, packName, packAuthor, message);
 

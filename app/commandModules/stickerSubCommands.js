@@ -3,7 +3,7 @@
  *
  * Módulo responsável pelos sub-comandos de gerenciamento de sticker packs
  *
- * @version 1.0.0
+ * @version 1.0.4
  * @author OmniZap Team
  * @license MIT
  */
@@ -332,7 +332,6 @@ async function sendStickerPackNative(omniZapClient, targetJid, pack, messageInfo
     const fs = require('fs').promises;
     const crypto = require('crypto');
 
-    // Processa stickers válidos
     const validStickers = [];
     let totalSize = 0;
 
@@ -360,7 +359,6 @@ async function sendStickerPackNative(omniZapClient, targetJid, pack, messageInfo
       throw new Error('Nenhum sticker válido encontrado');
     }
 
-    // Gera dados do protocolo
     const packData = {
       stickerPackId: pack.packId,
       name: pack.name,
@@ -390,9 +388,7 @@ async function sendStickerPackNative(omniZapClient, targetJid, pack, messageInfo
       stickerPackOrigin: 'OMNIZAP',
     };
 
-    // Tenta enviar usando estrutura interna
     try {
-      // Método 1: Tentar enviar como mensagem raw
       await omniZapClient.sendMessage(
         targetJid,
         {

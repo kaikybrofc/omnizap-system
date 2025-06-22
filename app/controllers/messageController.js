@@ -68,23 +68,6 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
             const { command, args } = commandInfo;
             const targetJid = isGroupMessage ? groupJid : senderJid;
 
-            const getGroupInfo = async (groupJid) => {
-              try {
-                if (!groupJid || !groupJid.endsWith('@g.us')) {
-                  return null;
-                }
-
-                return await cacheManager.getGroupMetadata(groupJid);
-              } catch (error) {
-                logger.error('Erro ao obter informações do grupo', {
-                  error: error.message,
-                  stack: error.stack,
-                  groupJid,
-                });
-                return null;
-              }
-            };
-
             switch (command.toLowerCase()) {
               case 't':
                 await omniZapClient.sendMessage(targetJid, {
@@ -105,12 +88,10 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                     isGroupMessage,
                   });
 
-                  // Verifica se é um sub-comando
                   const subCommandList = ['packs', 'list', 'stats', 'status', 'info', 'delete', 'del', 'rename', 'send', 'share', 'help'];
                   const firstArg = args.split(' ')[0]?.toLowerCase();
 
                   if (firstArg && subCommandList.includes(firstArg)) {
-                    // Processa sub-comando
                     const subCommandArgs = args.split(' ').slice(1).join(' ');
                     const result = await processStickerSubCommand(firstArg, subCommandArgs, omniZapClient, messageInfo, senderJid, targetJid);
 
@@ -130,7 +111,6 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                     break;
                   }
 
-                  // Processamento normal de criação de sticker
                   const mediaDetails = extractMediaDetails(messageInfo);
 
                   if (!mediaDetails) {
@@ -173,7 +153,6 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                       },
                     );
 
-                    // Envia mensagem de status do pack
                     await omniZapClient.sendMessage(
                       targetJid,
                       { text: result.message },
@@ -239,13 +218,13 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
 
 💡 **Dica:** Use ${COMMAND_PREFIX}help para ver todos os comandos disponíveis${contextInfo}`;
 
-                await omniZapClient.sendMessage(targetJid, { text: unknownText });
-                logger.info('Comando desconhecido recebido', {
-                  command,
-                  args,
-                  senderJid,
-                  isGroupMessage: isGroupMessage ? 'true' : 'false',
-                });
+                //   await omniZapClient.sendMessage(targetJid, { text: unknownText });
+                //      logger.info('Comando desconhecido recebido', {
+                //       command,
+                //       args,
+                //       senderJid,
+                //      isGroupMessage: isGroupMessage ? 'true' : 'false',
+                //   });
                 break;
             }
           } catch (error) {
