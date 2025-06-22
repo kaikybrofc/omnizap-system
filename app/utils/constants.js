@@ -29,6 +29,12 @@ const STICKER_CONSTANTS = {
   SUPPORTED_FORMATS: ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'],
   DEFAULT_PACK_NAME: '🤖 OmniZap Pack',
   DEFAULT_AUTHOR: '👤 OmniZap User',
+  STICKER_MIMETYPE: 'image/webp',
+  STICKER_EXTENSION: '.webp',
+  PACK_ID_PREFIX: 'com.omnizap',
+  PACK_ORIGIN: 'OMNIZAP',
+  PACK_ID_HASH_SIZE: 8,
+  STICKER_FILENAME_HASH_SIZE: 4,
 };
 
 /**
@@ -56,6 +62,7 @@ const EMOJIS = {
   DELETE: '🗑️',
   EDIT: '✏️',
   HELP: '❓',
+  STICKER_DEFAULT: '😊',
 };
 
 module.exports = {

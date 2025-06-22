@@ -2,9 +2,9 @@
  * OmniZap Sticker Pack Manager
  *
  * Módulo responsável pelo gerenciamento de packs de stickers
- * organizados por usuário com limite de 30 stickers por pack
+ * organizados por usuário com limite configurável de stickers por pack
  *
- * @version 1.0.1
+ * @version 1.1.0
  * @author OmniZap Team
  * @license MIT
  */
@@ -13,7 +13,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 const logger = require('../utils/logger/loggerModule');
-const { STICKER_CONSTANTS } = require('../utils/constants');
+const { STICKER_CONSTANTS, EMOJIS } = require('../utils/constants');
 
 const STICKER_PACKS_DIR = path.join(process.cwd(), 'temp', 'stickerPacks');
 const STICKERS_PER_PACK = STICKER_CONSTANTS.STICKERS_PER_PACK;
@@ -88,7 +88,7 @@ async function saveUserData(userId, data) {
  * Cria um novo pack de stickers
  */
 function createNewPack(packIndex, packName, packAuthor) {
-  const packId = `com.omnizap.${Date.now()}.${crypto.randomBytes(8).toString('hex')}`;
+  const packId = `${STICKER_CONSTANTS.PACK_ID_PREFIX}.${Date.now()}.${crypto.randomBytes(STICKER_CONSTANTS.PACK_ID_HASH_SIZE).toString('hex')}`;
 
   return {
     packId: packId,
@@ -132,7 +132,7 @@ async function addStickerToPack(userId, stickerPath, packName = null, packAuthor
   }
 
   // Copia o sticker para o diretório do pack
-  const stickerFileName = `sticker_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.webp`;
+  const stickerFileName = `sticker_${Date.now()}_${crypto.randomBytes(STICKER_CONSTANTS.STICKER_FILENAME_HASH_SIZE).toString('hex')}${STICKER_CONSTANTS.STICKER_EXTENSION}`;
   const packStickerPath = path.join(STICKER_PACKS_DIR, userId, `pack_${userData.currentPackIndex}`, stickerFileName);
 
   // Cria diretório do pack se não existir
@@ -147,10 +147,10 @@ async function addStickerToPack(userId, stickerPath, packName = null, packAuthor
     filePath: packStickerPath,
     addedAt: new Date().toISOString(),
     isAnimated: false,
-    emojis: ['😊'],
+    emojis: [EMOJIS.STICKER_DEFAULT],
     accessibilityLabel: `Sticker ${currentPack.stickers.length + 1}`,
     isLottie: false,
-    mimetype: 'image/webp',
+    mimetype: STICKER_CONSTANTS.STICKER_MIMETYPE,
   };
 
   currentPack.stickers.push(stickerInfo);
@@ -225,7 +225,7 @@ async function deletePack(userId, packIndex) {
   // Remove arquivos físicos do pack
   try {
     const packDir = path.join(STICKER_PACKS_DIR, userId, `pack_${packIndex}`);
-    await fs.rmdir(packDir, { recursive: true });
+    await fs.rm(packDir, { recursive: true, force: true });
   } catch (error) {
     logger.warn(`[StickerPackManager] Erro ao remover diretório do pack: ${error.message}`);
   }
@@ -317,7 +317,7 @@ async function generateWhatsAppPack(userId, packIndex) {
     fileLength: '0', // Será calculado durante o envio
     trayIconFileName: `${pack.packId}.png`,
     stickerPackSize: '0', // Será calculado durante o envio
-    stickerPackOrigin: 'OMNIZAP',
+    stickerPackOrigin: STICKER_CONSTANTS.PACK_ORIGIN,
   };
 
   return whatsappPack;

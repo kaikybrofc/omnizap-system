@@ -17,11 +17,12 @@ const execProm = util.promisify(exec);
 const logger = require('../utils/logger/loggerModule');
 const { getFileBuffer } = require('../utils/baileys/mediaHelper');
 const { addStickerToPack, getUserId } = require('./stickerPackManager');
-const { COMMAND_PREFIX } = require('../utils/constants');
+const { COMMAND_PREFIX, STICKER_CONSTANTS } = require('../utils/constants');
+const { formatErrorMessage, formatSuccessMessage } = require('../utils/messageUtils');
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const STICKER_PREFS_DIR = path.join(process.cwd(), 'temp', 'prefs');
-const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const MAX_FILE_SIZE = STICKER_CONSTANTS.MAX_FILE_SIZE;
 
 /**
  * Garante que os diretórios necessários existam
@@ -105,7 +106,7 @@ async function getStickerPackInfo(text, sender, pushName, message) {
   const formattedSender = userId.split('@')[0] || 'unknown';
   const prefsPath = path.join(STICKER_PREFS_DIR, `${formattedSender}.json`);
 
-  let defaultPackName = `🤖 OmniZap`;
+  let defaultPackName = STICKER_CONSTANTS.DEFAULT_PACK_NAME;
   let defaultPackAuthor = `👤 ${pushName || formattedSender}`;
 
   let savedPrefs = null;
@@ -356,7 +357,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
     if (!dirsOk) {
       return {
         success: false,
-        message: '❌ Erro interno: Não foi possível criar os diretórios necessários para o processamento do sticker. Por favor, tente novamente mais tarde ou entre em contato com o suporte.',
+        message: formatErrorMessage('Erro interno', null, 'Não foi possível criar os diretórios necessários para o processamento do sticker. Por favor, tente novamente mais tarde ou entre em contato com o suporte.'),
       };
     }
 
@@ -364,7 +365,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
     if (!mediaDetails) {
       return {
         success: false,
-        message: '❌ Nenhuma mídia foi encontrada. Para criar um sticker, por favor:\n\n1. Envie uma imagem ou vídeo junto com o comando, ou\n2. Responda a uma mensagem que contenha mídia usando o comando.\n\nFormatos suportados: imagem, vídeo curto, documento de imagem.',
+        message: formatErrorMessage('Nenhuma mídia encontrada', `s Nome do Pack | Autor`, 'Para criar um sticker, envie uma imagem ou vídeo junto com o comando, ou responda a uma mensagem que contenha mídia.\n\nFormatos suportados: imagem, vídeo curto, documento de imagem.'),
       };
     }
 
@@ -373,20 +374,20 @@ async function processSticker(baileysClient, message, sender, from, text, option
     if (!checkMediaSize(mediaKey, mediaType)) {
       return {
         success: false,
-        message: '❌ A mídia selecionada excede o limite de tamanho de 2MB. Para reduzir o tamanho, você pode:\n\n1. Compactar a mídia antes de enviar\n2. Enviar a mídia sem a opção de alta definição (HD)\n3. Cortar a mídia ou reduzir sua resolução\n\nIsso ajudará a deixar a mídia mais leve e adequada para criação de stickers.',
+        message: formatErrorMessage('Mídia muito grande', null, `A mídia excede o limite de ${(STICKER_CONSTANTS.MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)}MB. Para reduzir o tamanho:\n\n• Compacte a mídia antes de enviar\n• Envie sem alta definição (HD)\n• Corte ou reduza a resolução`),
       };
     }
 
     logger.info(`[StickerCommand] Baixando mídia do tipo ${mediaType}...`);
     const buffer = await getFileBuffer(mediaKey, mediaType, {
-      maxSize: 5 * 1024 * 1024,
+      maxSize: STICKER_CONSTANTS.MAX_FILE_SIZE,
       timeoutMs: 60000,
     });
 
     if (!buffer) {
       return {
         success: false,
-        message: '❌ Não foi possível baixar a mídia. Isso pode ocorrer devido a problemas de conexão ou porque o arquivo expirou. Por favor, tente novamente com outra mídia ou mais tarde.',
+        message: formatErrorMessage('Erro ao baixar mídia', null, 'Não foi possível baixar a mídia. Isso pode ocorrer devido a problemas de conexão ou porque o arquivo expirou. Tente novamente com outra mídia ou mais tarde.'),
       };
     }
 
@@ -399,20 +400,24 @@ async function processSticker(baileysClient, message, sender, from, text, option
     const userId = getUserId(sender, message);
     const packResult = await addStickerToPack(userId, finalStickerPath, packName, packAuthor, message);
 
-    let successMessage = `✅ *Sticker criado com sucesso!*\n\n`;
-    successMessage += `📦 **Pack:** ${packResult.packName}\n`;
-    successMessage += `🎯 **Progresso:** ${packResult.stickerCount}/30 stickers\n`;
-    successMessage += `📊 **Total seus stickers:** ${packResult.totalStickers}\n`;
-    successMessage += `📚 **Total seus packs:** ${packResult.totalPacks}\n\n`;
+    // Construir detalhes do pack
+    let packDetails = `📦 **Pack:** ${packResult.packName}\n`;
+    packDetails += `🎯 **Progresso:** ${packResult.stickerCount}/${STICKER_CONSTANTS.STICKERS_PER_PACK} stickers\n`;
+    packDetails += `📊 **Total seus stickers:** ${packResult.totalStickers}\n`;
+    packDetails += `📚 **Total seus packs:** ${packResult.totalPacks}`;
+
+    // Determinar status e dica
+    let statusInfo = '';
+    let tip = `Use \`${COMMAND_PREFIX}s packs\` para ver todos os seus packs`;
 
     if (packResult.isPackComplete) {
-      successMessage += `🎉 **Pack completo!** Use \`${COMMAND_PREFIX}s send ${packResult.packIndex + 1}\` para compartilhar!\n\n`;
+      statusInfo = `🎉 **Pack completo!** Use \`${COMMAND_PREFIX}s send ${packResult.packIndex + 1}\` para compartilhar!`;
     } else {
-      const remaining = 30 - packResult.stickerCount;
-      successMessage += `⏳ **Faltam ${remaining} stickers** para completar este pack\n\n`;
+      const remaining = STICKER_CONSTANTS.STICKERS_PER_PACK - packResult.stickerCount;
+      statusInfo = `⏳ **Faltam ${remaining} stickers** para completar este pack`;
     }
 
-    successMessage += `💡 **Dica:** Use \`${COMMAND_PREFIX}s packs\` para ver todos os seus packs`;
+    const successMessage = formatSuccessMessage('Sticker criado com sucesso!', `${packDetails}\n\n${statusInfo}`, tip);
 
     return {
       success: true,
@@ -427,7 +432,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
 
     return {
       success: false,
-      message: `❌ Ocorreu um erro durante a criação do sticker: ${error.message}. Por favor, verifique se a mídia está em um formato suportado e tente novamente.`,
+      message: formatErrorMessage('Erro ao criar sticker', 'Verifique se a mídia está em um formato suportado e tente novamente', error.message),
     };
   } finally {
     try {
