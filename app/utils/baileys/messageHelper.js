@@ -4,7 +4,7 @@
  * Utilitário para processamento de mensagens do WhatsApp,
  * facilitando a extração de dados e verificação de tipos de conteúdo.
  *
- * @version 1.0.0
+ * @version 1.0.3
  * @author OmniZap Team
  * @license MIT
  */
