@@ -342,7 +342,6 @@ async function validateAndFixUserData(userId) {
   try {
     const userDataPath = getUserDataPath(userId);
 
-    // Verifica se o arquivo existe
     const fileExists = await fs
       .access(userDataPath)
       .then(() => true)
