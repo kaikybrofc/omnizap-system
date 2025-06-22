@@ -16,6 +16,7 @@ const { exec } = require('child_process');
 const execProm = util.promisify(exec);
 const logger = require('../utils/logger/loggerModule');
 const { getFileBuffer } = require('../utils/baileys/mediaHelper');
+const { addStickerToPack, getUserId } = require('./stickerPackManager');
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const STICKER_PREFS_DIR = path.join(process.cwd(), 'temp', 'prefs');
@@ -31,13 +32,10 @@ async function ensureDirectories() {
     await fs.mkdir(STICKER_PREFS_DIR, { recursive: true });
     return true;
   } catch (error) {
-    logger.error(
-      `[StickerCommand.ensureDirectories] Erro ao criar diretórios necessários: ${error.message}`,
-      {
-        label: 'StickerCommand.ensureDirectories',
-        error: error.stack,
-      },
-    );
+    logger.error(`[StickerCommand.ensureDirectories] Erro ao criar diretórios necessários: ${error.message}`, {
+      label: 'StickerCommand.ensureDirectories',
+      error: error.stack,
+    });
     return false;
   }
 }
@@ -65,10 +63,7 @@ function extractMediaDetails(message) {
 
   const media = findMedia(messageContent) || findMedia(quotedMessage, true);
 
-  if (!media)
-    logger.debug(
-      '[StickerCommand.extractMediaDetails] Nenhuma mídia encontrada na mensagem ou citada.',
-    );
+  if (!media) logger.debug('[StickerCommand.extractMediaDetails] Nenhuma mídia encontrada na mensagem ou citada.');
 
   return media;
 }
@@ -78,18 +73,10 @@ function checkMediaSize(mediaKey, mediaType, maxFileSize = MAX_FILE_SIZE) {
 
   const formatBytes = (bytes) => (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 
-  logger.debug(
-    `[StickerCommand.checkMediaSize] Verificando tamanho da mídia. Tipo: ${mediaType}, Tamanho: ${formatBytes(
-      fileLength,
-    )}`,
-  );
+  logger.debug(`[StickerCommand.checkMediaSize] Verificando tamanho da mídia. Tipo: ${mediaType}, Tamanho: ${formatBytes(fileLength)}`);
 
   if (fileLength > maxFileSize) {
-    logger.warn(
-      `[StickerCommand.checkMediaSize] Mídia muito grande. Tipo: ${mediaType}, Tamanho: ${formatBytes(
-        fileLength,
-      )}`,
-    );
+    logger.warn(`[StickerCommand.checkMediaSize] Mídia muito grande. Tipo: ${mediaType}, Tamanho: ${formatBytes(fileLength)}`);
     return false;
   }
 
@@ -111,9 +98,7 @@ async function getStickerPackInfo(text, sender, pushName, message) {
 
   if (sender.endsWith('@g.us') && message?.key?.participant) {
     userId = message.key.participant;
-    logger.debug(
-      `[StickerCommand] Mensagem de grupo detectada. Usando ID do participante: ${userId} em vez do ID do grupo: ${sender}`,
-    );
+    logger.debug(`[StickerCommand] Mensagem de grupo detectada. Usando ID do participante: ${userId} em vez do ID do grupo: ${sender}`);
   }
 
   const formattedSender = userId.split('@')[0] || 'unknown';
@@ -164,9 +149,7 @@ async function getStickerPackInfo(text, sender, pushName, message) {
 
     if (parts.length >= 1 && parts[0]) {
       packName = parts[0];
-      logger.debug(
-        `[StickerCommand] Definindo nome do pacote: "${packName}" (texto original: "${text}")`,
-      );
+      logger.debug(`[StickerCommand] Definindo nome do pacote: "${packName}" (texto original: "${text}")`);
     }
 
     if (parts.length >= 2 && parts[1]) {
@@ -181,9 +164,7 @@ async function getStickerPackInfo(text, sender, pushName, message) {
       logger.error(`[StickerCommand] Erro ao salvar preferências: ${error.message}`);
     }
   } else {
-    logger.debug(
-      `[StickerCommand] Usando preferências padrão: Nome: "${packName}", Autor: "${packAuthor}"`,
-    );
+    logger.debug(`[StickerCommand] Usando preferências padrão: Nome: "${packName}", Autor: "${packAuthor}"`);
   }
 
   packName = packName
@@ -261,17 +242,11 @@ async function convertToWebp(inputPath, mediaType) {
       await fs.access(outputPath);
 
       try {
-        const { stdout } = await execProm(
-          `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${outputPath}"`,
-        );
+        const { stdout } = await execProm(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${outputPath}"`);
         const finalDimensions = stdout.trim().split(',').map(Number);
-        logger.info(
-          `[StickerCommand] Conversão bem-sucedida. Sticker salvo em: ${outputPath} (Dimensões finais: ${finalDimensions[0]}x${finalDimensions[1]})`,
-        );
+        logger.info(`[StickerCommand] Conversão bem-sucedida. Sticker salvo em: ${outputPath} (Dimensões finais: ${finalDimensions[0]}x${finalDimensions[1]})`);
       } catch (error) {
-        logger.info(
-          `[StickerCommand] Conversão bem-sucedida. Sticker salvo em: ${outputPath} (Não foi possível obter dimensões finais)`,
-        );
+        logger.info(`[StickerCommand] Conversão bem-sucedida. Sticker salvo em: ${outputPath} (Não foi possível obter dimensões finais)`);
       }
 
       return outputPath;
@@ -295,9 +270,7 @@ async function convertToWebp(inputPath, mediaType) {
  * @returns {Promise<string>} - Caminho do sticker com metadados
  */
 async function addStickerMetadata(stickerPath, packName, packAuthor) {
-  logger.info(
-    `[StickerCommand] Adicionando metadados ao sticker. Nome: "${packName}", Autor: "${packAuthor}"`,
-  );
+  logger.info(`[StickerCommand] Adicionando metadados ao sticker. Nome: "${packName}", Autor: "${packAuthor}"`);
 
   try {
     const exifData = {
@@ -308,10 +281,7 @@ async function addStickerMetadata(stickerPath, packName, packAuthor) {
 
     const exifPath = path.join(TEMP_DIR, `exif_${Date.now()}.exif`);
 
-    const exifAttr = Buffer.from([
-      0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00,
-    ]);
+    const exifAttr = Buffer.from([0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00]);
     const jsonBuffer = Buffer.from(JSON.stringify(exifData), 'utf8');
     const exifBuffer = Buffer.concat([exifAttr, jsonBuffer]);
     exifBuffer.writeUIntLE(jsonBuffer.length, 14, 4);
@@ -385,8 +355,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
     if (!dirsOk) {
       return {
         success: false,
-        message:
-          '❌ Erro interno: Não foi possível criar os diretórios necessários para o processamento do sticker. Por favor, tente novamente mais tarde ou entre em contato com o suporte.',
+        message: '❌ Erro interno: Não foi possível criar os diretórios necessários para o processamento do sticker. Por favor, tente novamente mais tarde ou entre em contato com o suporte.',
       };
     }
 
@@ -394,8 +363,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
     if (!mediaDetails) {
       return {
         success: false,
-        message:
-          '❌ Nenhuma mídia foi encontrada. Para criar um sticker, por favor:\n\n1. Envie uma imagem ou vídeo junto com o comando, ou\n2. Responda a uma mensagem que contenha mídia usando o comando.\n\nFormatos suportados: imagem, vídeo curto, documento de imagem.',
+        message: '❌ Nenhuma mídia foi encontrada. Para criar um sticker, por favor:\n\n1. Envie uma imagem ou vídeo junto com o comando, ou\n2. Responda a uma mensagem que contenha mídia usando o comando.\n\nFormatos suportados: imagem, vídeo curto, documento de imagem.',
       };
     }
 
@@ -404,8 +372,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
     if (!checkMediaSize(mediaKey, mediaType)) {
       return {
         success: false,
-        message:
-          '❌ A mídia selecionada excede o limite de tamanho de 2MB. Para reduzir o tamanho, você pode:\n\n1. Compactar a mídia antes de enviar\n2. Enviar a mídia sem a opção de alta definição (HD)\n3. Cortar a mídia ou reduzir sua resolução\n\nIsso ajudará a deixar a mídia mais leve e adequada para criação de stickers.',
+        message: '❌ A mídia selecionada excede o limite de tamanho de 2MB. Para reduzir o tamanho, você pode:\n\n1. Compactar a mídia antes de enviar\n2. Enviar a mídia sem a opção de alta definição (HD)\n3. Cortar a mídia ou reduzir sua resolução\n\nIsso ajudará a deixar a mídia mais leve e adequada para criação de stickers.',
       };
     }
 
@@ -418,31 +385,39 @@ async function processSticker(baileysClient, message, sender, from, text, option
     if (!buffer) {
       return {
         success: false,
-        message:
-          '❌ Não foi possível baixar a mídia. Isso pode ocorrer devido a problemas de conexão ou porque o arquivo expirou. Por favor, tente novamente com outra mídia ou mais tarde.',
+        message: '❌ Não foi possível baixar a mídia. Isso pode ocorrer devido a problemas de conexão ou porque o arquivo expirou. Por favor, tente novamente com outra mídia ou mais tarde.',
       };
     }
 
     tempMediaPath = await saveTempMedia(buffer, mediaType);
     stickerPath = await convertToWebp(tempMediaPath, mediaType);
 
-    const { packName, packAuthor } = await getStickerPackInfo(
-      text,
-      sender,
-      message.pushName || 'Usuário',
-      message,
-    );
+    const { packName, packAuthor } = await getStickerPackInfo(text, sender, message.pushName || 'Usuário', message);
 
     finalStickerPath = await addStickerMetadata(stickerPath, packName, packAuthor);
 
+    // Adiciona o sticker ao pack do usuário
+    const userId = getUserId(sender, message);
+    const packResult = await addStickerToPack(userId, finalStickerPath, packName, packAuthor, message);
+
+    let successMessage = `✅ *Sticker criado com sucesso!*\n\n`;
+    successMessage += `📦 **Pack:** ${packResult.packName}\n`;
+    successMessage += `🎯 **Progresso:** ${packResult.stickerCount}/30 stickers\n`;
+    successMessage += `📊 **Total seus stickers:** ${packResult.totalStickers}\n`;
+    successMessage += `📚 **Total seus packs:** ${packResult.totalPacks}\n\n`;
+
+    if (packResult.isPackComplete) {
+      successMessage += `🎉 **Pack completo!** Use \`/s send ${packResult.packIndex + 1}\` para compartilhar!\n\n`;
+    } else {
+      const remaining = 30 - packResult.stickerCount;
+      successMessage += `⏳ **Faltam ${remaining} stickers** para completar este pack\n\n`;
+    }
+
+    successMessage += `💡 **Dica:** Use \`/s packs\` para ver todos os seus packs`;
+
     return {
       success: true,
-      message:
-        '✅ Sticker criado com sucesso! O sticker foi adicionado ao pacote "' +
-        packName +
-        '" por "' +
-        packAuthor +
-        '". Para personalizar o nome do pacote e autor, use: "nome do pacote | nome do autor".',
+      message: successMessage,
       stickerPath: finalStickerPath,
     };
   } catch (error) {
@@ -457,9 +432,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
     };
   } finally {
     try {
-      const filesToDelete = [tempMediaPath, stickerPath].filter(
-        (file) => file && file !== finalStickerPath,
-      );
+      const filesToDelete = [tempMediaPath, stickerPath].filter((file) => file && file !== finalStickerPath);
 
       for (const file of filesToDelete) {
         if (file) {

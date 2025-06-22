@@ -96,6 +96,7 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
               case 's':
                 try {
                   const { processSticker, extractMediaDetails } = require('../commandModules/stickerCommand');
+                  const { processStickerSubCommand } = require('../commandModules/stickerSubCommands');
 
                   logger.info('Comando sticker executado', {
                     command,
@@ -104,6 +105,32 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                     isGroupMessage,
                   });
 
+                  // Verifica se é um sub-comando
+                  const subCommandList = ['packs', 'list', 'stats', 'status', 'info', 'delete', 'del', 'rename', 'send', 'share', 'help'];
+                  const firstArg = args.split(' ')[0]?.toLowerCase();
+
+                  if (firstArg && subCommandList.includes(firstArg)) {
+                    // Processa sub-comando
+                    const subCommandArgs = args.split(' ').slice(1).join(' ');
+                    const result = await processStickerSubCommand(firstArg, subCommandArgs, omniZapClient, messageInfo, senderJid, targetJid);
+
+                    const reactionEmoji = result.success ? '✅' : '❌';
+                    await omniZapClient.sendMessage(targetJid, {
+                      react: { text: reactionEmoji, key: messageInfo.key },
+                    });
+
+                    await omniZapClient.sendMessage(
+                      targetJid,
+                      { text: result.message },
+                      {
+                        quoted: messageInfo,
+                        ephemeralExpiration: getMessageExpiration(messageInfo),
+                      },
+                    );
+                    break;
+                  }
+
+                  // Processamento normal de criação de sticker
                   const mediaDetails = extractMediaDetails(messageInfo);
 
                   if (!mediaDetails) {
@@ -114,7 +141,7 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                     await omniZapClient.sendMessage(
                       targetJid,
                       {
-                        text: `❌ *Nenhuma mídia encontrada*\n\n📋 *Como usar o comando sticker:*\n\n1️⃣ *Envie uma imagem/vídeo com legenda:*\n   ${COMMAND_PREFIX}s Nome do Pacote | Nome do Autor\n\n2️⃣ *Ou responda a uma mídia com:*\n   ${COMMAND_PREFIX}s Nome do Pacote | Nome do Autor\n\n📝 *Personalização avançada:*\nVocê pode usar as seguintes variáveis nos nomes:\n• #nome - Será substituído pelo seu nome\n• #id - Será substituído pelo seu número\n• #data - Será substituído pela data atual\n\nExemplo: ${COMMAND_PREFIX}s Stickers de #nome | Criado em #data`,
+                        text: `❌ *Nenhuma mídia encontrada*\n\n📋 *Como usar o comando sticker:*\n\n1️⃣ *Envie uma imagem/vídeo com legenda:*\n   ${COMMAND_PREFIX}s Nome do Pacote | Nome do Autor\n\n2️⃣ *Ou responda a uma mídia com:*\n   ${COMMAND_PREFIX}s Nome do Pacote | Nome do Autor\n\n📝 *Comandos de gerenciamento:*\n• ${COMMAND_PREFIX}s packs - Ver seus packs\n• ${COMMAND_PREFIX}s stats - Estatísticas\n• ${COMMAND_PREFIX}s help - Ajuda completa\n\n📦 *Sistema de Packs:*\nCada 30 stickers formam um pack completo!\n\nExemplo: ${COMMAND_PREFIX}s Stickers de #nome | Criado em #data`,
                       },
                       {
                         quoted: messageInfo,
@@ -140,6 +167,16 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                       {
                         sticker: { url: result.stickerPath },
                       },
+                      {
+                        quoted: messageInfo,
+                        ephemeralExpiration: getMessageExpiration(messageInfo),
+                      },
+                    );
+
+                    // Envia mensagem de status do pack
+                    await omniZapClient.sendMessage(
+                      targetJid,
+                      { text: result.message },
                       {
                         quoted: messageInfo,
                         ephemeralExpiration: getMessageExpiration(messageInfo),
