@@ -3,13 +3,15 @@
  *
  * Módulo responsável pelos sub-comandos de gerenciamento de sticker packs
  *
- * @version 1.0.4
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */
 
 const logger = require('../utils/logger/loggerModule');
 const { listUserPacks, getPackDetails, deletePack, renamePack, getUserStats, generateWhatsAppPack, getUserId, STICKERS_PER_PACK } = require('./stickerPackManager');
+const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, formatErrorMessage, formatSuccessMessage, formatHelpMessage } = require('../utils/messageUtils');
+const { COMMAND_PREFIX, RATE_LIMIT_CONFIG, EMOJIS } = require('../utils/constants');
 
 /**
  * Processa sub-comandos do sticker
@@ -46,7 +48,7 @@ async function processStickerSubCommand(subCommand, args, omniZapClient, message
     default:
       return {
         success: false,
-        message: `❓ *Sub-comando desconhecido: ${subCommand}*\n\nUse \`/s help\` para ver todos os comandos disponíveis.`,
+        message: `❓ *Sub-comando desconhecido: ${subCommand}*\n\nUse \`${COMMAND_PREFIX}s help\` para ver todos os comandos disponíveis.`,
       };
   }
 }
@@ -78,9 +80,9 @@ async function listPacks(userId) {
     });
 
     message += `💡 *Comandos úteis:*\n`;
-    message += `• \`/s info [número]\` - Ver detalhes\n`;
-    message += `• \`/s send [número]\` - Enviar pack\n`;
-    message += `• \`/s stats\` - Ver estatísticas`;
+    message += `• \`${COMMAND_PREFIX}s info [número]\` - Ver detalhes\n`;
+    message += `• \`${COMMAND_PREFIX}s send [número]\` - Enviar pack\n`;
+    message += `• \`${COMMAND_PREFIX}s stats\` - Ver estatísticas`;
 
     return {
       success: true,
@@ -140,7 +142,7 @@ async function showPackInfo(userId, args) {
   if (!args || !args.trim()) {
     return {
       success: false,
-      message: '❌ *Número do pack não informado*\n\nUso: `/s info [número]`\n\nExemplo: `/s info 1`',
+      message: `❌ *Número do pack não informado*\n\nUso: \`${COMMAND_PREFIX}s info [número]\`\n\nExemplo: \`${COMMAND_PREFIX}s info 1\``,
     };
   }
 
@@ -149,7 +151,7 @@ async function showPackInfo(userId, args) {
   if (isNaN(packNumber) || packNumber < 0) {
     return {
       success: false,
-      message: '❌ *Número inválido*\n\nInforme um número válido do pack.\n\nUse `/s packs` para ver todos os seus packs.',
+      message: `❌ *Número inválido*\n\nInforme um número válido do pack.\n\nUse \`${COMMAND_PREFIX}s packs\` para ver todos os seus packs.`,
     };
   }
 
@@ -159,7 +161,7 @@ async function showPackInfo(userId, args) {
     if (!pack) {
       return {
         success: false,
-        message: `❌ *Pack ${packNumber + 1} não encontrado*\n\nUse \`/s packs\` para ver seus packs disponíveis.`,
+        message: `❌ *Pack ${packNumber + 1} não encontrado*\n\nUse \`${COMMAND_PREFIX}s packs\` para ver seus packs disponíveis.`,
       };
     }
 
@@ -176,7 +178,7 @@ async function showPackInfo(userId, args) {
 
     if (pack.isComplete) {
       message += `✅ **Pack completo e pronto!**\n`;
-      message += `Use \`/s send ${packNumber + 1}\` para compartilhar\n\n`;
+      message += `Use \`${COMMAND_PREFIX}s send ${packNumber + 1}\` para compartilhar\n\n`;
     } else {
       const remaining = STICKERS_PER_PACK - pack.stickers.length;
       message += `⏳ **Pack em progresso (${remaining} slots livres)**\n`;
@@ -184,9 +186,9 @@ async function showPackInfo(userId, args) {
     }
 
     message += `🛠️ **Comandos úteis:**\n`;
-    message += `• \`/s send ${packNumber + 1}\` - Enviar pack ${pack.isComplete ? '(completo)' : '(incompleto)'}\n`;
-    message += `• \`/s rename ${packNumber + 1} [novo nome]\` - Renomear\n`;
-    message += `• \`/s delete ${packNumber + 1}\` - Deletar pack`;
+    message += `• \`${COMMAND_PREFIX}s send ${packNumber + 1}\` - Enviar pack ${pack.isComplete ? '(completo)' : '(incompleto)'}\n`;
+    message += `• \`${COMMAND_PREFIX}s rename ${packNumber + 1} [novo nome]\` - Renomear\n`;
+    message += `• \`${COMMAND_PREFIX}s delete ${packNumber + 1}\` - Deletar pack`;
 
     return {
       success: true,
@@ -208,7 +210,7 @@ async function deletePackCommand(userId, args) {
   if (!args || !args.trim()) {
     return {
       success: false,
-      message: '❌ *Número do pack não informado*\n\nUso: `/s delete [número]`\n\nExemplo: `/s delete 2`',
+      message: `❌ *Número do pack não informado*\n\nUso: \`${COMMAND_PREFIX}s delete [número]\`\n\nExemplo: \`${COMMAND_PREFIX}s delete 2\``,
     };
   }
 
@@ -260,7 +262,7 @@ async function renamePackCommand(userId, args) {
   if (!args || !args.trim()) {
     return {
       success: false,
-      message: '❌ *Parâmetros não informados*\n\nUso: `/s rename [número] [novo nome] | [novo autor]`\n\nExemplo: `/s rename 1 Meus Stickers | João Silva`',
+      message: `❌ *Parâmetros não informados*\n\nUso: \`${COMMAND_PREFIX}s rename [número] [novo nome] | [novo autor]\`\n\nExemplo: \`${COMMAND_PREFIX}s rename 1 Meus Stickers | João Silva\``,
     };
   }
 
@@ -280,7 +282,7 @@ async function renamePackCommand(userId, args) {
   if (!newName) {
     return {
       success: false,
-      message: '❌ *Novo nome não informado*\n\nUso: `/s rename [número] [novo nome] | [novo autor]`',
+      message: `❌ *Novo nome não informado*\n\nUso: \`${COMMAND_PREFIX}s rename [número] [novo nome] | [novo autor]\``,
     };
   }
 
@@ -349,41 +351,31 @@ async function sendStickerPack(omniZapClient, userJid, pack, messageInfo) {
     logger.info(`[StickerSubCommands] Enviando ${validStickers.length} stickers individualmente`);
 
     // Envia notificação inicial
-    const packIntro = `📦 *${pack.name}*\n👤 Por: ${pack.author}\n🎯 ${validStickers.length} stickers\n\n✨ *Enviando stickers...*`;
+    const packIntro = `${EMOJIS.PACK} *${pack.name}*\n👤 Por: ${pack.author}\n🎯 ${validStickers.length} stickers\n\n✨ *Enviando stickers...*`;
 
-    await omniZapClient.sendMessage(
-      userJid,
-      {
-        text: packIntro,
-      },
-      {
-        quoted: messageInfo,
-      },
-    );
+    await sendTextMessage(omniZapClient, userJid, packIntro, {
+      originalMessage: messageInfo,
+    });
 
-    // Configurações de envio
+    // Configurações de envio usando constantes
     let sentCount = 0;
-    const batchSize = 3; // Lotes de 3 stickers
-    const delayBetweenStickers = 600; // Delay entre stickers
-    const delayBetweenBatches = 1800; // Delay entre lotes
+    const { BATCH_SIZE, DELAY_BETWEEN_STICKERS, DELAY_BETWEEN_BATCHES } = RATE_LIMIT_CONFIG;
 
-    for (let i = 0; i < validStickers.length; i += batchSize) {
-      const batch = validStickers.slice(i, i + batchSize);
+    for (let i = 0; i < validStickers.length; i += BATCH_SIZE) {
+      const batch = validStickers.slice(i, i + BATCH_SIZE);
 
-      logger.debug(`[StickerSubCommands] Enviando lote ${Math.floor(i / batchSize) + 1}/${Math.ceil(validStickers.length / batchSize)}`);
+      logger.debug(`[StickerSubCommands] Enviando lote ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(validStickers.length / BATCH_SIZE)}`);
 
       for (const sticker of batch) {
         try {
-          await omniZapClient.sendMessage(userJid, {
-            sticker: { url: sticker.filePath },
-          });
+          await sendStickerMessage(omniZapClient, userJid, sticker.filePath);
           sentCount++;
 
           logger.debug(`[StickerSubCommands] Sticker enviado: ${sticker.fileName} (${sentCount}/${validStickers.length})`);
 
           // Delay entre stickers
           if (sentCount < validStickers.length) {
-            await new Promise((resolve) => setTimeout(resolve, delayBetweenStickers));
+            await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_STICKERS));
           }
         } catch (stickerError) {
           logger.warn(`[StickerSubCommands] Falha no envio: ${sticker.fileName} - ${stickerError.message}`);
@@ -391,17 +383,15 @@ async function sendStickerPack(omniZapClient, userJid, pack, messageInfo) {
       }
 
       // Delay entre lotes
-      if (i + batchSize < validStickers.length) {
-        await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
+      if (i + BATCH_SIZE < validStickers.length) {
+        await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
       }
     }
 
-    // Mensagem final
-    const successMsg = `✅ *Pack enviado com sucesso!*\n\n📦 **${pack.name}**\n📨 ${sentCount}/${validStickers.length} stickers entregues\n\n💡 *Dica:* Adicione os stickers aos seus favoritos para acesso rápido!`;
+    // Mensagem final usando utilitário
+    const successMsg = formatSuccessMessage('Pack enviado com sucesso!', `${EMOJIS.PACK} **${pack.name}**\n📨 ${sentCount}/${validStickers.length} stickers entregues`, 'Adicione os stickers aos seus favoritos para acesso rápido!');
 
-    await omniZapClient.sendMessage(userJid, {
-      text: successMsg,
-    });
+    await sendTextMessage(omniZapClient, userJid, successMsg);
 
     logger.info(`[StickerSubCommands] Pack enviado com sucesso: ${pack.name}`, {
       packId: pack.packId,
@@ -429,7 +419,7 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
   if (!args || !args.trim()) {
     return {
       success: false,
-      message: '❌ *Número do pack não informado*\n\nUso: `/s send [número]`\n\nExemplo: `/s send 1`',
+      message: `❌ *Número do pack não informado*\n\nUso: \`${COMMAND_PREFIX}s send [número]\`\n\nExemplo: \`${COMMAND_PREFIX}s send 1\``,
     };
   }
 
@@ -518,15 +508,7 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
     try {
       // Se comando foi executado em grupo, notifica no grupo antes de enviar no privado
       if (isGroupCommand) {
-        await omniZapClient.sendMessage(
-          targetJid,
-          {
-            text: `📦 *Enviando pack "${pack.name}" para seu chat privado...*\n\n✨ Aguarde alguns segundos para receber todos os stickers em seu chat privado!`,
-          },
-          {
-            quoted: messageInfo,
-          },
-        );
+        await sendTextMessage(omniZapClient, targetJid, `${EMOJIS.PACK} *Enviando pack "${pack.name}" para seu chat privado...*\n\n✨ Aguarde alguns segundos para receber todos os stickers em seu chat privado!`, { originalMessage: messageInfo });
       }
 
       // Envia pack de stickers no privado do usuário
@@ -534,7 +516,7 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
 
       return {
         success: true,
-        message: `📦 *Pack compartilhado com sucesso!*\n\n📛 **${pack.name}**\n👤 ${pack.author}\n${statusMsg}\n\n✅ Os stickers foram enviados em seu chat privado e estão prontos para uso!\n\n💡 *Dica:* Você pode adicionar os stickers à sua coleção de favoritos para acesso rápido.${privateNotification}`,
+        message: formatSuccessMessage('Pack compartilhado com sucesso!', `📛 **${pack.name}**\n👤 ${pack.author}\n${statusMsg}\n\n${EMOJIS.SUCCESS} Os stickers foram enviados em seu chat privado e estão prontos para uso!`, `Você pode adicionar os stickers à sua coleção de favoritos para acesso rápido.${privateNotification}`),
       };
     } catch (sendError) {
       logger.error(`[StickerSubCommands] Erro específico no envio do pack: ${sendError.message}`, {
@@ -560,7 +542,47 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
  * Mostra ajuda dos comandos de sticker
  */
 function showStickerHelp() {
-  const message = `🎯 *Comandos de Sticker Packs*\n\n` + `**📦 Gerenciar Packs:**\n` + `• \`/s\` - Criar sticker da mídia\n` + `• \`/s packs\` - Listar seus packs\n` + `• \`/s stats\` - Ver estatísticas\n` + `• \`/s info [número]\` - Detalhes do pack\n\n` + `**🛠️ Editar Packs:**\n` + `• \`/s rename [nº] [nome] | [autor]\` - Renomear\n` + `• \`/s delete [número]\` - Deletar pack\n\n` + `**📤 Compartilhar:**\n` + `• \`/s send [número]\` - Enviar pack (completo ou não)\n\n` + `**ℹ️ Informações:**\n` + `• Cada pack comporta até ${STICKERS_PER_PACK} stickers\n` + `• Packs são criados automaticamente\n` + `• Packs podem ser enviados mesmo incompletos\n` + `• Novos packs são criados ao atingir ${STICKERS_PER_PACK} stickers\n\n` + `**💡 Exemplo de uso:**\n` + `1. Envie mídia: \`/s Meu Pack | João\`\n` + `2. Continue adicionando stickers\n` + `3. Envie quando quiser: \`/s send 1\``;
+  const commands = [
+    {
+      name: 's',
+      description: 'Criar sticker da mídia',
+      example: 's Meu Pack | João',
+    },
+    {
+      name: 's packs',
+      description: 'Listar seus packs',
+      example: 's packs',
+    },
+    {
+      name: 's stats',
+      description: 'Ver estatísticas',
+      example: 's stats',
+    },
+    {
+      name: 's info [número]',
+      description: 'Detalhes do pack',
+      example: 's info 1',
+    },
+    {
+      name: 's rename [nº] [nome] | [autor]',
+      description: 'Renomear pack',
+      example: 's rename 1 Meus Stickers | João Silva',
+    },
+    {
+      name: 's delete [número]',
+      description: 'Deletar pack',
+      example: 's delete 2',
+    },
+    {
+      name: 's send [número]',
+      description: 'Enviar pack (completo ou não)',
+      example: 's send 1',
+    },
+  ];
+
+  const footer = `**ℹ️ Informações:**\n• Cada pack comporta até ${STICKERS_PER_PACK} stickers\n• Packs são criados automaticamente\n• Packs podem ser enviados mesmo incompletos\n• Novos packs são criados ao atingir ${STICKERS_PER_PACK} stickers\n\n**💡 Exemplo completo:**\n1. Envie mídia: \`${COMMAND_PREFIX}s Meu Pack | João\`\n2. Continue adicionando stickers\n3. Envie quando quiser: \`${COMMAND_PREFIX}s send 1\``;
+
+  const message = formatHelpMessage('Comandos de Sticker Packs', commands, footer);
 
   return {
     success: true,

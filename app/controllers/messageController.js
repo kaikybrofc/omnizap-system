@@ -4,22 +4,17 @@
  * Controlador responsável pelo processamento e tratamento de mensagens
  * recebidas através do WhatsApp via tecnologia Baileys
  *
- * @version 1.0.4
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */
 
 require('dotenv').config();
-const { str, cleanEnv } = require('envalid');
 const { cacheManager } = require('../cache/cacheManager');
 const { preProcessMessage, isCommand, getExpiration } = require('../utils/baileys/messageHelper');
+const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, formatErrorMessage } = require('../utils/messageUtils');
+const { COMMAND_PREFIX } = require('../utils/constants');
 const logger = require('../utils/logger/loggerModule');
-
-const env = cleanEnv(process.env, {
-  COMMAND_PREFIX: str({ default: '/', desc: 'Prefixo para comandos no chat' }),
-});
-
-const COMMAND_PREFIX = env.COMMAND_PREFIX;
 
 /**
  * Função utilitária para obter informações de expiração de mensagens
@@ -70,8 +65,8 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
 
             switch (command.toLowerCase()) {
               case 't':
-                await omniZapClient.sendMessage(targetJid, {
-                  text: JSON.stringify(messageInfo, null, 2),
+                await sendTextMessage(omniZapClient, targetJid, JSON.stringify(messageInfo, null, 2), {
+                  originalMessage: messageInfo,
                 });
                 break;
 
@@ -96,71 +91,41 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                     const result = await processStickerSubCommand(firstArg, subCommandArgs, omniZapClient, messageInfo, senderJid, targetJid);
 
                     const reactionEmoji = result.success ? '✅' : '❌';
-                    await omniZapClient.sendMessage(targetJid, {
-                      react: { text: reactionEmoji, key: messageInfo.key },
-                    });
+                    await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
 
-                    await omniZapClient.sendMessage(
-                      targetJid,
-                      { text: result.message },
-                      {
-                        quoted: messageInfo,
-                        ephemeralExpiration: getMessageExpiration(messageInfo),
-                      },
-                    );
+                    await sendTextMessage(omniZapClient, targetJid, result.message, {
+                      originalMessage: messageInfo,
+                    });
                     break;
                   }
 
                   const mediaDetails = extractMediaDetails(messageInfo);
 
                   if (!mediaDetails) {
-                    await omniZapClient.sendMessage(targetJid, {
-                      react: { text: '❌', key: messageInfo.key },
-                    });
+                    await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
 
-                    await omniZapClient.sendMessage(
-                      targetJid,
-                      {
-                        text: `❌ *Nenhuma mídia encontrada*\n\n📋 *Como usar o comando sticker:*\n\n1️⃣ *Envie uma imagem/vídeo com legenda:*\n   ${COMMAND_PREFIX}s Nome do Pacote | Nome do Autor\n\n2️⃣ *Ou responda a uma mídia com:*\n   ${COMMAND_PREFIX}s Nome do Pacote | Nome do Autor\n\n📝 *Comandos de gerenciamento:*\n• ${COMMAND_PREFIX}s packs - Ver seus packs\n• ${COMMAND_PREFIX}s stats - Estatísticas\n• ${COMMAND_PREFIX}s help - Ajuda completa\n\n📦 *Sistema de Packs:*\nCada 30 stickers formam um pack completo!\n\nExemplo: ${COMMAND_PREFIX}s Stickers de #nome | Criado em #data`,
-                      },
-                      {
-                        quoted: messageInfo,
-                        ephemeralExpiration: getMessageExpiration(messageInfo),
-                      },
-                    );
+                    const errorMsg = formatErrorMessage('Nenhuma mídia encontrada', null, `📋 *Como usar o comando sticker:*\n\n1️⃣ *Envie uma imagem/vídeo com legenda:*\n   ${COMMAND_PREFIX}s Nome do Pacote | Nome do Autor\n\n2️⃣ *Ou responda a uma mídia com:*\n   ${COMMAND_PREFIX}s Nome do Pacote | Nome do Autor\n\n📝 *Comandos de gerenciamento:*\n• ${COMMAND_PREFIX}s packs - Ver seus packs\n• ${COMMAND_PREFIX}s stats - Estatísticas\n• ${COMMAND_PREFIX}s help - Ajuda completa\n\n📦 *Sistema de Packs:*\nCada 30 stickers formam um pack completo!\n\nExemplo: ${COMMAND_PREFIX}s Stickers de #nome | Criado em #data`);
+
+                    await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                      originalMessage: messageInfo,
+                    });
                     break;
                   }
 
-                  await omniZapClient.sendMessage(targetJid, {
-                    react: { text: '⏳', key: messageInfo.key },
-                  });
+                  await sendReaction(omniZapClient, targetJid, '⏳', messageInfo.key);
 
                   const result = await processSticker(omniZapClient, messageInfo, senderJid, targetJid, args);
 
                   if (result.success) {
-                    await omniZapClient.sendMessage(targetJid, {
-                      react: { text: '✅', key: messageInfo.key },
+                    await sendReaction(omniZapClient, targetJid, '✅', messageInfo.key);
+
+                    await sendStickerMessage(omniZapClient, targetJid, result.stickerPath, {
+                      originalMessage: messageInfo,
                     });
 
-                    await omniZapClient.sendMessage(
-                      targetJid,
-                      {
-                        sticker: { url: result.stickerPath },
-                      },
-                      {
-                        quoted: messageInfo,
-                        ephemeralExpiration: getMessageExpiration(messageInfo),
-                      },
-                    );
-
-                    await omniZapClient.sendMessage(
-                      targetJid,
-                      { text: result.message },
-                      {
-                        quoted: messageInfo,
-                        ephemeralExpiration: getMessageExpiration(messageInfo),
-                      },
-                    );
+                    await sendTextMessage(omniZapClient, targetJid, result.message, {
+                      originalMessage: messageInfo,
+                    });
 
                     try {
                       const fs = require('fs').promises;
@@ -171,25 +136,14 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                       });
                     }
                   } else {
-                    await omniZapClient.sendMessage(targetJid, {
-                      react: { text: '❌', key: messageInfo.key },
-                    });
+                    await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
 
-                    await omniZapClient.sendMessage(
-                      targetJid,
-                      {
-                        text: result.message,
-                      },
-                      {
-                        quoted: messageInfo,
-                        ephemeralExpiration: getMessageExpiration(messageInfo),
-                      },
-                    );
+                    await sendTextMessage(omniZapClient, targetJid, result.message, {
+                      originalMessage: messageInfo,
+                    });
                   }
                 } catch (error) {
-                  await omniZapClient.sendMessage(targetJid, {
-                    react: { text: '❌', key: messageInfo.key },
-                  });
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
 
                   logger.error('Erro ao executar comando sticker', {
                     error: error.message,
@@ -200,13 +154,11 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                     isGroupMessage,
                   });
 
-                  await omniZapClient.sendMessage(
-                    targetJid,
-                    {
-                      text: `❌ *Erro ao criar sticker*\n\nOcorreu um problema durante o processamento: ${error.message}\n\n📋 *Possíveis soluções:*\n• Verifique se a mídia é uma imagem ou vídeo válido\n• Tente enviar a mídia novamente com tamanho menor\n• Tente com outro formato de arquivo\n• Se o erro persistir, tente mais tarde`,
-                    },
-                    { quoted: messageInfo },
-                  );
+                  const errorMsg = formatErrorMessage('Erro ao criar sticker', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se a mídia é uma imagem ou vídeo válido\n• Tente enviar a mídia novamente com tamanho menor\n• Tente com outro formato de arquivo\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
                 }
                 break;
               default:
@@ -240,9 +192,9 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
 
             const contextInfo = isGroupMessage ? `\n\n👥 *Contexto:* Grupo\n👤 *Solicitante:* ${senderJid}` : `\n\n👤 *Contexto:* Mensagem direta`;
 
-            await omniZapClient.sendMessage(targetJid, {
-              text: `❌ *Erro interno*\n\nOcorreu um erro ao processar seu comando. Tente novamente.${contextInfo}`,
-            });
+            const errorMsg = formatErrorMessage('Erro interno', `Ocorreu um erro ao processar seu comando. Tente novamente.${contextInfo}`);
+
+            await sendTextMessage(omniZapClient, targetJid, errorMsg);
           }
         } else {
           if (isGroupMessage) {

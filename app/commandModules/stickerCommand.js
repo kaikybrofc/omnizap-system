@@ -17,6 +17,7 @@ const execProm = util.promisify(exec);
 const logger = require('../utils/logger/loggerModule');
 const { getFileBuffer } = require('../utils/baileys/mediaHelper');
 const { addStickerToPack, getUserId } = require('./stickerPackManager');
+const { COMMAND_PREFIX } = require('../utils/constants');
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const STICKER_PREFS_DIR = path.join(process.cwd(), 'temp', 'prefs');
@@ -405,13 +406,13 @@ async function processSticker(baileysClient, message, sender, from, text, option
     successMessage += `📚 **Total seus packs:** ${packResult.totalPacks}\n\n`;
 
     if (packResult.isPackComplete) {
-      successMessage += `🎉 **Pack completo!** Use \`/s send ${packResult.packIndex + 1}\` para compartilhar!\n\n`;
+      successMessage += `🎉 **Pack completo!** Use \`${COMMAND_PREFIX}s send ${packResult.packIndex + 1}\` para compartilhar!\n\n`;
     } else {
       const remaining = 30 - packResult.stickerCount;
       successMessage += `⏳ **Faltam ${remaining} stickers** para completar este pack\n\n`;
     }
 
-    successMessage += `💡 **Dica:** Use \`/s packs\` para ver todos os seus packs`;
+    successMessage += `💡 **Dica:** Use \`${COMMAND_PREFIX}s packs\` para ver todos os seus packs`;
 
     return {
       success: true,

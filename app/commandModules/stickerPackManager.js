@@ -4,7 +4,7 @@
  * Módulo responsável pelo gerenciamento de packs de stickers
  * organizados por usuário com limite de 30 stickers por pack
  *
- * @version 1.0.0
+ * @version 1.0.1
  * @author OmniZap Team
  * @license MIT
  */
@@ -13,9 +13,10 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 const logger = require('../utils/logger/loggerModule');
+const { STICKER_CONSTANTS } = require('../utils/constants');
 
 const STICKER_PACKS_DIR = path.join(process.cwd(), 'temp', 'stickerPacks');
-const STICKERS_PER_PACK = 30;
+const STICKERS_PER_PACK = STICKER_CONSTANTS.STICKERS_PER_PACK;
 
 /**
  * Garante que os diretórios necessários existam
@@ -92,8 +93,8 @@ function createNewPack(packIndex, packName, packAuthor) {
   return {
     packId: packId,
     packIndex: packIndex,
-    name: packName || `🤖 OmniZap Pack ${packIndex + 1}`,
-    author: packAuthor || '👤 OmniZap User',
+    name: packName || `${STICKER_CONSTANTS.DEFAULT_PACK_NAME} ${packIndex + 1}`,
+    author: packAuthor || STICKER_CONSTANTS.DEFAULT_AUTHOR,
     stickers: [],
     createdAt: new Date().toISOString(),
     isComplete: false,
@@ -111,7 +112,7 @@ async function addStickerToPack(userId, stickerPath, packName = null, packAuthor
 
   // Se não há packs, cria o primeiro
   if (userData.packs.length === 0) {
-    const newPack = createNewPack(0, packName || `🤖 OmniZap Pack 1`, packAuthor || '👤 OmniZap User');
+    const newPack = createNewPack(0, packName || `${STICKER_CONSTANTS.DEFAULT_PACK_NAME} 1`, packAuthor || STICKER_CONSTANTS.DEFAULT_AUTHOR);
     userData.packs.push(newPack);
     userData.currentPackIndex = 0;
     logger.info(`[StickerPackManager] Primeiro pack criado para usuário ${userId}: Pack 1`);
@@ -121,7 +122,7 @@ async function addStickerToPack(userId, stickerPath, packName = null, packAuthor
   let currentPack = userData.packs[userData.currentPackIndex];
   if (!currentPack || currentPack.stickers.length >= STICKERS_PER_PACK) {
     const newPackIndex = userData.packs.length;
-    const newPack = createNewPack(newPackIndex, packName || `🤖 OmniZap Pack ${newPackIndex + 1}`, packAuthor || '👤 OmniZap User');
+    const newPack = createNewPack(newPackIndex, packName || `${STICKER_CONSTANTS.DEFAULT_PACK_NAME} ${newPackIndex + 1}`, packAuthor || STICKER_CONSTANTS.DEFAULT_AUTHOR);
 
     userData.packs.push(newPack);
     userData.currentPackIndex = newPackIndex;
