@@ -15,7 +15,6 @@ const { cacheManager } = require('../cache/cacheManager');
 const { preProcessMessage, isCommand } = require('../utils/messageHelper');
 const logger = require('../utils/logger/loggerModule');
 
-// Validação das variáveis de ambiente usando envalid
 const env = cleanEnv(process.env, {
   COMMAND_PREFIX: str({ default: '/', desc: 'Prefixo para comandos no chat' }),
 });
