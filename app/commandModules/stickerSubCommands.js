@@ -9,9 +9,9 @@
  */
 
 const logger = require('../utils/logger/loggerModule');
-const { listUserPacks, getPackDetails, deletePack, renamePack, getUserStats, generateWhatsAppPack, getUserId, STICKERS_PER_PACK } = require('./stickerPackManager');
+const { listUserPacks, getPackDetails, deletePack, renamePack, getUserStats, getUserId, STICKERS_PER_PACK } = require('./stickerPackManager');
 const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, formatErrorMessage, formatSuccessMessage, formatHelpMessage } = require('../utils/messageUtils');
-const { sendStickerPackWithRelay } = require('../utils/stickerPackSender');
+const { sendStickerPackIndividually } = require('../utils/stickerPackSender');
 const { COMMAND_PREFIX, RATE_LIMIT_CONFIG, EMOJIS } = require('../utils/constants');
 
 /**
@@ -327,94 +327,7 @@ async function renamePackCommand(userId, args) {
 }
 
 /**
- * Envia stickers do pack individualmente
- */
-async function sendStickerPack(omniZapClient, userJid, pack, messageInfo) {
-  try {
-    const fs = require('fs').promises;
-
-    // Valida stickers disponíveis
-    const validStickers = [];
-    for (const sticker of pack.stickers) {
-      try {
-        await fs.access(sticker.filePath);
-        validStickers.push(sticker);
-        logger.debug(`[StickerSubCommands] Sticker validado: ${sticker.fileName}`);
-      } catch (error) {
-        logger.warn(`[StickerSubCommands] Sticker inacessível: ${sticker.fileName}`);
-      }
-    }
-
-    if (validStickers.length === 0) {
-      throw new Error('Nenhum sticker válido encontrado no pack');
-    }
-
-    logger.info(`[StickerSubCommands] Enviando ${validStickers.length} stickers individualmente`);
-
-    // Envia notificação inicial
-    const packIntro = `${EMOJIS.PACK} *${pack.name}*\n👤 Por: ${pack.author}\n🎯 ${validStickers.length} stickers\n\n✨ *Enviando stickers...*`;
-
-    await sendTextMessage(omniZapClient, userJid, packIntro, {
-      originalMessage: messageInfo,
-    });
-
-    // Configurações de envio usando constantes
-    let sentCount = 0;
-    const { BATCH_SIZE, DELAY_BETWEEN_STICKERS, DELAY_BETWEEN_BATCHES } = RATE_LIMIT_CONFIG;
-
-    for (let i = 0; i < validStickers.length; i += BATCH_SIZE) {
-      const batch = validStickers.slice(i, i + BATCH_SIZE);
-
-      logger.debug(`[StickerSubCommands] Enviando lote ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(validStickers.length / BATCH_SIZE)}`);
-
-      for (const sticker of batch) {
-        try {
-          await sendStickerMessage(omniZapClient, userJid, sticker.filePath);
-          sentCount++;
-
-          logger.debug(`[StickerSubCommands] Sticker enviado: ${sticker.fileName} (${sentCount}/${validStickers.length})`);
-
-          // Delay entre stickers
-          if (sentCount < validStickers.length) {
-            await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_STICKERS));
-          }
-        } catch (stickerError) {
-          logger.warn(`[StickerSubCommands] Falha no envio: ${sticker.fileName} - ${stickerError.message}`);
-        }
-      }
-
-      // Delay entre lotes
-      if (i + BATCH_SIZE < validStickers.length) {
-        await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
-      }
-    }
-
-    // Mensagem final usando utilitário
-    const successMsg = formatSuccessMessage('Pack enviado com sucesso!', `${EMOJIS.PACK} **${pack.name}**\n📨 ${sentCount}/${validStickers.length} stickers entregues`, 'Adicione os stickers aos seus favoritos para acesso rápido!');
-
-    await sendTextMessage(omniZapClient, userJid, successMsg);
-
-    logger.info(`[StickerSubCommands] Pack enviado com sucesso: ${pack.name}`, {
-      packId: pack.packId,
-      totalStickers: validStickers.length,
-      sentStickers: sentCount,
-      targetJid: userJid,
-      successRate: `${((sentCount / validStickers.length) * 100).toFixed(1)}%`,
-    });
-
-    return true;
-  } catch (error) {
-    logger.error(`[StickerSubCommands] Erro ao enviar pack: ${error.message}`, {
-      error: error.stack,
-      packId: pack?.packId || 'unknown',
-      targetJid: userJid,
-    });
-    throw error;
-  }
-}
-
-/**
- * Envia um pack como sticker pack do WhatsApp
+ * Envia um pack de stickers para o usuário
  */
 async function sendPackCommand(userId, args, omniZapClient, targetJid, messageInfo, senderJid) {
   if (!args || !args.trim()) {
@@ -505,19 +418,15 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
       deliveryTarget: 'privado do usuário',
     });
 
-    // Envia pack de stickers usando o novo sistema
+    // Envia pack de stickers usando o método individual
     try {
       // Se comando foi executado em grupo, notifica no grupo antes de enviar no privado
       if (isGroupCommand) {
         await sendTextMessage(omniZapClient, targetJid, `${EMOJIS.PACK} *Enviando pack "${pack.name}" para seu chat privado...*\n\n✨ Aguarde alguns segundos para receber todos os stickers em seu chat privado!`, { originalMessage: messageInfo });
       }
 
-      // Envia pack usando o novo sistema com relayMessage
-      await sendStickerPackWithRelay(omniZapClient, userJid, pack, {
-        batchSize: RATE_LIMIT_CONFIG.BATCH_SIZE,
-        delayBetweenStickers: RATE_LIMIT_CONFIG.DELAY_BETWEEN_STICKERS,
-        delayBetweenBatches: RATE_LIMIT_CONFIG.DELAY_BETWEEN_BATCHES,
-      });
+      // Envia pack usando método individual
+      await sendStickerPackIndividually(omniZapClient, userJid, pack, messageInfo);
 
       return {
         success: true,
@@ -531,7 +440,7 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
 
       return {
         success: false,
-        message: `❌ *Erro ao enviar pack*\n\n⚠️ Não foi possível enviar o pack "${pack.name}" em seu chat privado.\n\n🔧 **Possíveis causas:**\n• Arquivos de sticker corrompidos\n• Problemas de conectividade\n• Pack muito grande\n• Limitações da API do WhatsApp\n\n💡 **Soluções:**\n• Tente novamente em alguns minutos\n• Verifique se todos os stickers estão válidos\n• Considere recriar o pack se o problema persistir\n\n🆕 **Novo sistema de envio:** Agora usando relayMessage com proto para melhor compatibilidade!`,
+        message: `❌ *Erro ao enviar pack*\n\n⚠️ Não foi possível enviar o pack "${pack.name}" em seu chat privado.\n\n🔧 **Possíveis causas:**\n• Arquivos de sticker corrompidos\n• Problemas de conectividade\n• Pack muito grande\n• Limitações da API do WhatsApp\n\n💡 **Soluções:**\n• Tente novamente em alguns minutos\n• Verifique se todos os stickers estão válidos\n• Considere recriar o pack se o problema persistir\n\n🆕 **Sistema de envio individual:** Cada sticker é enviado separadamente para melhor compatibilidade!`,
       };
     }
   } catch (error) {

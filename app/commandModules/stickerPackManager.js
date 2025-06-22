@@ -278,37 +278,6 @@ async function getUserStats(userId) {
   };
 }
 
-/**
- * Gera pack de stickers no formato WhatsApp
- */
-async function generateWhatsAppPack(userId, packIndex) {
-  const pack = await getPackDetails(userId, packIndex);
-
-  if (!pack || pack.stickers.length === 0) {
-    return null;
-  }
-
-  const whatsappPack = {
-    stickerPackId: pack.packId,
-    name: pack.name,
-    publisher: pack.author,
-    stickers: pack.stickers.map((sticker) => ({
-      fileName: sticker.fileName,
-      isAnimated: sticker.isAnimated,
-      emojis: sticker.emojis,
-      accessibilityLabel: sticker.accessibilityLabel,
-      isLottie: sticker.isLottie,
-      mimetype: sticker.mimetype,
-    })),
-    fileLength: '0', // Será calculado durante o envio
-    trayIconFileName: `${pack.packId}.png`,
-    stickerPackSize: '0', // Será calculado durante o envio
-    stickerPackOrigin: STICKER_CONSTANTS.PACK_ORIGIN,
-  };
-
-  return whatsappPack;
-}
-
 module.exports = {
   addStickerToPack,
   listUserPacks,
@@ -316,7 +285,6 @@ module.exports = {
   deletePack,
   renamePack,
   getUserStats,
-  generateWhatsAppPack,
   getUserId,
   STICKERS_PER_PACK,
 };
