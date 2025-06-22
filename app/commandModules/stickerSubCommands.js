@@ -38,7 +38,7 @@ async function processStickerSubCommand(subCommand, args, omniZapClient, message
 
     case 'send':
     case 'share':
-      return await sendPackCommand(userId, args, omniZapClient, targetJid, messageInfo);
+      return await sendPackCommand(userId, args, omniZapClient, targetJid, messageInfo, senderJid);
 
     case 'help':
       return showStickerHelp();
@@ -324,9 +324,206 @@ async function renamePackCommand(userId, args) {
 }
 
 /**
+ * Tentativa de envio via protocolo nativo (experimental)
+ * Esta função tenta enviar usando estruturas internas do protocolo
+ */
+async function sendStickerPackNative(omniZapClient, targetJid, pack, messageInfo) {
+  try {
+    const fs = require('fs').promises;
+    const crypto = require('crypto');
+
+    // Processa stickers válidos
+    const validStickers = [];
+    let totalSize = 0;
+
+    for (const sticker of pack.stickers) {
+      try {
+        const stats = await fs.stat(sticker.filePath);
+        const fileContent = await fs.readFile(sticker.filePath);
+
+        totalSize += stats.size;
+        validStickers.push({
+          fileName: crypto.createHash('sha256').update(fileContent).digest('base64').replace(/[/+=]/g, '').substring(0, 43) + '.webp',
+          isAnimated: sticker.isAnimated || false,
+          emojis: sticker.emojis || ['😊'],
+          accessibilityLabel: sticker.accessibilityLabel || '',
+          isLottie: sticker.isLottie || false,
+          mimetype: 'image/webp',
+          fileData: fileContent,
+        });
+      } catch (error) {
+        logger.warn(`[StickerSubCommands] Erro ao processar sticker: ${error.message}`);
+      }
+    }
+
+    if (validStickers.length === 0) {
+      throw new Error('Nenhum sticker válido encontrado');
+    }
+
+    // Gera dados do protocolo
+    const packData = {
+      stickerPackId: pack.packId,
+      name: pack.name,
+      publisher: pack.author,
+      stickers: validStickers.map((s) => ({
+        fileName: s.fileName,
+        isAnimated: s.isAnimated,
+        emojis: s.emojis,
+        accessibilityLabel: s.accessibilityLabel,
+        isLottie: s.isLottie,
+        mimetype: s.mimetype,
+      })),
+      fileLength: totalSize.toString(),
+      fileSha256: crypto
+        .createHash('sha256')
+        .update(Buffer.concat(validStickers.map((s) => s.fileData)))
+        .digest('base64'),
+      fileEncSha256: crypto
+        .createHash('sha256')
+        .update(Buffer.concat(validStickers.map((s) => s.fileData)) + 'enc')
+        .digest('base64'),
+      mediaKey: crypto.randomBytes(32).toString('base64'),
+      directPath: `/v/t62.15575-24/omnizap_${Date.now()}.enc?ccb=11-4`,
+      mediaKeyTimestamp: Math.floor(Date.now() / 1000).toString(),
+      trayIconFileName: `${pack.packId.replace(/[^a-zA-Z0-9]/g, '_')}.png`,
+      stickerPackSize: (totalSize * 0.95).toString(),
+      stickerPackOrigin: 'OMNIZAP',
+    };
+
+    // Tenta enviar usando estrutura interna
+    try {
+      // Método 1: Tentar enviar como mensagem raw
+      await omniZapClient.sendMessage(
+        targetJid,
+        {
+          message: {
+            stickerPackMessage: packData,
+          },
+        },
+        {
+          quoted: messageInfo,
+        },
+      );
+
+      logger.info(`[StickerSubCommands] Pack enviado via protocolo nativo: ${pack.name}`);
+      return true;
+    } catch (nativeError) {
+      logger.warn(`[StickerSubCommands] Protocolo nativo falhou, usando método alternativo: ${nativeError.message}`);
+
+      // Fallback: enviar stickers individualmente
+      return await sendStickerPack(omniZapClient, targetJid, pack, messageInfo);
+    }
+  } catch (error) {
+    logger.error(`[StickerSubCommands] Erro na implementação nativa: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Envia stickers do pack individualmente ou como coleção
+ */
+async function sendStickerPack(omniZapClient, userJid, pack, messageInfo) {
+  try {
+    const fs = require('fs').promises;
+
+    // Valida stickers válidos
+    const validStickers = [];
+    for (let i = 0; i < pack.stickers.length; i++) {
+      const sticker = pack.stickers[i];
+
+      try {
+        // Verifica se o arquivo existe
+        await fs.access(sticker.filePath);
+        validStickers.push(sticker);
+        logger.debug(`[StickerSubCommands] Sticker válido: ${sticker.fileName}`);
+      } catch (error) {
+        logger.warn(`[StickerSubCommands] Sticker inválido ou não encontrado: ${sticker.fileName}`);
+      }
+    }
+
+    if (validStickers.length === 0) {
+      throw new Error('Nenhum sticker válido encontrado no pack');
+    }
+
+    // Envia mensagem de apresentação do pack
+    const packIntro = `📦 *${pack.name}*\n👤 ${pack.author}\n🎯 ${validStickers.length} stickers\n\n✨ *Recebendo pack de stickers em seu chat privado...*`;
+
+    await omniZapClient.sendMessage(
+      userJid,
+      {
+        text: packIntro,
+        contextInfo: {
+          forwardingScore: 100000,
+          isForwarded: true,
+          forwardedNewsletterMessageInfo: {
+            newsletterJid: '120363298695038212@newsletter',
+            newsletterName: 'OMNIZAP STICKER SYSTEM',
+          },
+        },
+      },
+      {
+        quoted: messageInfo,
+      },
+    );
+
+    // Método 1: Envia stickers individualmente (mais compatível)
+    logger.info(`[StickerSubCommands] Enviando ${validStickers.length} stickers individualmente para ${userJid}`);
+
+    let sentCount = 0;
+    const batchSize = 5; // Envia em lotes para evitar spam
+
+    for (let i = 0; i < validStickers.length; i += batchSize) {
+      const batch = validStickers.slice(i, i + batchSize);
+
+      // Envia lote atual
+      for (const sticker of batch) {
+        try {
+          await omniZapClient.sendMessage(userJid, {
+            sticker: { url: sticker.filePath },
+          });
+          sentCount++;
+
+          // Pequeno delay para não sobrecarregar
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        } catch (stickerError) {
+          logger.warn(`[StickerSubCommands] Erro ao enviar sticker individual: ${stickerError.message}`);
+        }
+      }
+
+      // Delay entre lotes
+      if (i + batchSize < validStickers.length) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+
+    // Envia mensagem de conclusão
+    const conclusionMsg = `✅ *Pack enviado com sucesso!*\n\n📦 **${pack.name}**\n📨 ${sentCount}/${validStickers.length} stickers enviados\n\n💡 *Dica:* Adicione-os à sua coleção de stickers favoritos!`;
+
+    await omniZapClient.sendMessage(userJid, {
+      text: conclusionMsg,
+    });
+
+    logger.info(`[StickerSubCommands] Pack enviado com sucesso: ${pack.name}`, {
+      packId: pack.packId,
+      totalStickers: validStickers.length,
+      sentStickers: sentCount,
+      targetJid: userJid,
+    });
+
+    return true;
+  } catch (error) {
+    logger.error(`[StickerSubCommands] Erro ao enviar sticker pack: ${error.message}`, {
+      error: error.stack,
+      packId: pack?.packId || 'unknown',
+    });
+    throw error;
+  }
+}
+
+/**
  * Envia um pack como sticker pack do WhatsApp
  */
-async function sendPackCommand(userId, args, omniZapClient, targetJid, messageInfo) {
+async function sendPackCommand(userId, args, omniZapClient, targetJid, messageInfo, senderJid) {
   if (!args || !args.trim()) {
     return {
       success: false,
@@ -365,12 +562,89 @@ async function sendPackCommand(userId, args, omniZapClient, targetJid, messageIn
     const stickerCount = pack.stickers.length;
     const statusMsg = isComplete ? `✅ Pack completo (${stickerCount}/${STICKERS_PER_PACK} stickers)` : `⏳ Pack incompleto (${stickerCount}/${STICKERS_PER_PACK} stickers)`;
 
-    // TODO: Implementar envio do pack como stickerPackMessage
-    // Por enquanto, retorna sucesso com informação
-    return {
-      success: true,
-      message: `📦 *Enviando Pack: ${pack.name}*\n\n${statusMsg}\n\n🚧 **Funcionalidade em desenvolvimento**\n\nEm breve você poderá enviar packs diretamente pelo WhatsApp!\n\n📊 **Pack Info:**\n• ${stickerCount} stickers\n• Criado por: ${pack.author}\n• ID: ${pack.packId}`,
-    };
+    // Determina o JID do usuário (sempre envia no privado)
+    let userJid = senderJid;
+
+    // Se o comando foi executado em grupo, extrai o JID do participante
+    if (senderJid.endsWith('@g.us')) {
+      // Verifica múltiplas fontes para encontrar o JID do usuário
+      userJid = messageInfo?.key?.participant || messageInfo?.participant || messageInfo?.sender || messageInfo?.from;
+
+      // Se ainda não encontrou, tenta extrair do pushName ou outras propriedades
+      if (!userJid || userJid.endsWith('@g.us')) {
+        logger.warn('[StickerSubCommands] Não foi possível extrair JID do usuário do grupo', {
+          senderJid,
+          messageInfo: messageInfo?.key,
+        });
+        return {
+          success: false,
+          message: '❌ *Erro interno*\n\nNão foi possível identificar seu número para envio do pack. Tente usar o comando em seu chat privado com o bot.',
+        };
+      }
+    }
+
+    // Validação final do JID
+    if (!userJid || !userJid.includes('@')) {
+      logger.error('[StickerSubCommands] JID do usuário inválido', {
+        senderJid,
+        extractedJid: userJid,
+        messageInfo: messageInfo?.key,
+      });
+      return {
+        success: false,
+        message: '❌ *Erro interno*\n\nNão foi possível identificar seu número. Tente usar o comando em seu chat privado com o bot.',
+      };
+    }
+
+    // Se o comando foi executado em grupo, informa que será enviado no privado
+    const isGroupCommand = targetJid.endsWith('@g.us');
+    const privateNotification = isGroupCommand ? '\n\n📱 *Nota:* O pack foi enviado em seu chat privado para melhor experiência!' : '';
+
+    logger.info(`[StickerSubCommands] Enviando pack ${packNumber + 1} para usuário`, {
+      packName: pack.name,
+      stickerCount: pack.stickers.length,
+      isComplete: pack.isComplete,
+      originalSender: senderJid,
+      originalTarget: targetJid,
+      finalUserTarget: userJid,
+      isGroupCommand: isGroupCommand,
+      commandSource: isGroupCommand ? 'grupo' : 'privado',
+      deliveryTarget: 'privado do usuário',
+    });
+
+    // Enviar pack como stickerPack (tenta nativo primeiro, depois individual)
+    try {
+      // Se comando foi executado em grupo, notifica no grupo antes de enviar no privado
+      if (isGroupCommand) {
+        await omniZapClient.sendMessage(
+          targetJid,
+          {
+            text: `📦 *Enviando pack "${pack.name}" para seu chat privado...*\n\n✨ Aguarde alguns segundos para receber todos os stickers em seu chat privado!`,
+          },
+          {
+            quoted: messageInfo,
+          },
+        );
+      }
+
+      // Primeira tentativa: protocolo nativo - sempre no privado do usuário
+      await sendStickerPackNative(omniZapClient, userJid, pack, messageInfo);
+
+      return {
+        success: true,
+        message: `📦 *Pack compartilhado com sucesso!*\n\n📛 **${pack.name}**\n👤 ${pack.author}\n${statusMsg}\n\n✅ Os stickers foram enviados em seu chat privado e estão prontos para uso!\n\n💡 *Dica:* Você pode adicionar os stickers à sua coleção de favoritos para acesso rápido.${privateNotification}`,
+      };
+    } catch (sendError) {
+      logger.error(`[StickerSubCommands] Erro específico no envio do pack: ${sendError.message}`, {
+        packId: pack.packId,
+        error: sendError.stack,
+      });
+
+      return {
+        success: false,
+        message: `❌ *Erro ao enviar pack*\n\n⚠️ Não foi possível enviar o pack "${pack.name}" em seu chat privado.\n\n🔧 **Possíveis causas:**\n• Arquivos de sticker corrompidos\n• Problemas de conectividade\n• Pack muito grande\n\n💡 **Soluções:**\n• Tente novamente em alguns minutos\n• Verifique se todos os stickers estão válidos\n• Considere recriar o pack se o problema persistir`,
+      };
+    }
   } catch (error) {
     logger.error('[StickerSubCommands] Erro ao enviar pack:', error);
     return {
