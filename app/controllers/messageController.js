@@ -64,12 +64,6 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
             const targetJid = isGroupMessage ? groupJid : senderJid;
 
             switch (command.toLowerCase()) {
-              case 't':
-                await sendTextMessage(omniZapClient, targetJid, JSON.stringify(messageInfo, null, 2), {
-                  originalMessage: messageInfo,
-                });
-                break;
-
               case 'sticker':
               case 's':
                 try {
