@@ -75,14 +75,6 @@ O OmniZap v1.0.4 apresenta um sistema completo de comandos com funcionalidades a
 - 🏷️ **Sistema de preferências** personalizadas
 - ⚡ **Processamento assíncrono** para melhor performance
 
-### 🔧 Comandos de Desenvolvimento e Debug
-
-#### Comando de Debug
-- **`/t`** - Exibe informações técnicas da mensagem em formato JSON
-  - Mostra estrutura completa da mensagem
-  - Útil para desenvolvimento e debug
-  - Informações de metadados, tipo de mídia e contexto
-
 ### 📝 Exemplos Práticos de Uso
 
 #### Criação de Sticker Pack
