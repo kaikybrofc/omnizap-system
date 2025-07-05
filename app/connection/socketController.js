@@ -28,15 +28,13 @@ const env = cleanEnv(process.env, {
     default: path.join(__dirname, 'qr-code'),
     desc: 'Caminho para armazenar os arquivos de QR Code e autenticação',
   }),
-  PAIRING_CODE: bool({ default: false, desc: 'Usar pareamento por código' }),
-  PHONE_NUMBER: str({ default: '', desc: 'Número de telefone para pareamento' }),
 });
 
 const logger = require('../utils/logger/loggerModule');
 const baileysLogger = require('pino')().child({}).child({ level: 'silent' });
 
 const OmniZapMessages = {
-  auth_error: () => 'OmniZap: Erro de autenticação. Escaneie o QR Code ou use o código de pareamento novamente.',
+  auth_error: () => 'OmniZap: Erro de autenticação. Escaneie o QR Code novamente.',
   timeout: () => 'OmniZap: Timeout de conexão. Tentando reconectar...',
   rate_limit: () => 'OmniZap: Muitas requisições. Tente novamente em alguns momentos.',
   connection_closed: () => 'OmniZap: Conexão fechada inesperadamente. Reconectando...',
@@ -60,15 +58,11 @@ if (!fs.existsSync(QR_CODE_PATH)) {
 }
 
 if (!fs.existsSync(`${QR_CODE_PATH}/creds.json`)) {
-  if (env.PAIRING_CODE) {
-    logger.info('OmniZap: Usando modo de pareamento por código. Nenhum QR Code será gerado.');
-  } else {
-    logger.info(
-      `OmniZap: Certifique-se de ter outro dispositivo para escanear o QR Code.
+  logger.info(
+    `OmniZap: Certifique-se de ter outro dispositivo para escanear o QR Code.
 Caminho QR: ${QR_CODE_PATH}
 –`,
-    );
-  }
+  );
 }
 
 logger.info('🔗 OmniZap Socket: Sistema de conexão inicializado');
@@ -117,23 +111,6 @@ async function initializeOmniZapConnection() {
     shouldIgnoreJid: (jid) => jid.includes('broadcast'),
   });
 
-  if (env.PAIRING_CODE && !omniZapClient.authState.creds.registered) {
-    if (!env.PHONE_NUMBER) {
-      logger.error('Erro: O número de telefone (PHONE_NUMBER) é obrigatório para o pareamento por código.');
-      process.exit(1);
-    }
-
-    setTimeout(async () => {
-      try {
-        const code = await omniZapClient.requestPairingCode(env.PHONE_NUMBER);
-        logger.info(`📱 Seu código de pareamento: ${code}`);
-        logger.info('💡 Abra o WhatsApp → Dispositivos vinculados → Vincular com número de telefone');
-      } catch (error) {
-        logger.error('Falha ao solicitar código de pareamento:', error);
-      }
-    }, 3000);
-  }
-
   omniZapClient.ev.process(async (events) => {
     if (events['connection.update']) {
       const update = events['connection.update'];
@@ -143,7 +120,7 @@ async function initializeOmniZapConnection() {
 
       logger.info(`🔗 Socket: Connection update - Status: ${connection}`);
 
-      if (qr && !env.PAIRING_CODE) {
+      if (qr) {
         logger.info(`📱 QR Code gerado! Escaneie com seu WhatsApp:`);
         logger.info('═══════════════════════════════════════════════════');
         qrcode.generate(qr, { small: true });
@@ -160,6 +137,7 @@ async function initializeOmniZapConnection() {
             switch (statusCode) {
               case 401:
                 logger.error(OmniZapMessages.auth_error());
+                fs.unlinkSync(`${QR_CODE_PATH}/creds.json`);
                 break;
               case 408:
                 logger.warn(OmniZapMessages.timeout());
