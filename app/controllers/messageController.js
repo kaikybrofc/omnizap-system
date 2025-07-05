@@ -52,11 +52,6 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
 
       const senderJid = isGroupMessage ? messageInfo.key.participant || messageInfo.key.remoteJid : messageInfo.key.remoteJid;
 
-      if (messageInfo.key.fromMe) {
-        logger.debug('Mensagem própria ignorada', { messageType: 'own-message' });
-        continue;
-      }
-
       try {
         if (commandInfo.isCommand) {
           try {
