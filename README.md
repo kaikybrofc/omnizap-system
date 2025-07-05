@@ -1,4 +1,4 @@
-# OmniZap v1.0.4
+# OmniZap v1.0.5
 
 Sistema profissional de automação WhatsApp com tecnologia Baileys e arquitetura modular avançada
 
@@ -386,7 +386,7 @@ npm start
 npm start
 ```
 
-2. Escaneie o QR Code que aparecerá no terminal com seu WhatsApp
+2. Escaneie o QR Code que aparecerá no terminal com seu WhatsApp ou, se preferir, use o método de pareamento por código.
 3. Aguarde a mensagem de conexão bem-sucedida
 4. O sistema está pronto para processar mensagens e comandos!
 
@@ -478,6 +478,12 @@ omnizap-system/
 # Configurações do OmniZap
 QR_CODE_PATH=./app/connection/qr-code
 COMMAND_PREFIX=/
+
+# Configurações de autenticação
+# Defina PAIRING_CODE como true para usar o método de pareamento por código
+PAIRING_CODE=false
+# Insira o número de telefone com o código do país (ex: 5511999999999)
+PHONE_NUMBER=
 
 # Configurações de logging
 NODE_ENV=development
@@ -658,9 +664,10 @@ Para suporte e dúvidas:
 - **Erro de permissão**: Verifique as permissões da pasta `temp/`
 
 #### Conexão WhatsApp
-- **QR Code não aparece**: Verifique se a pasta `qr-code/` existe e tem permissões
+- **QR Code não aparece**: Verifique se a pasta `qr-code/` existe e tem permissões. Se estiver usando o modo de pareamento por código, o QR Code não será exibido.
+- **Código de pareamento não funciona**: Certifique-se de que o `PHONE_NUMBER` está correto no arquivo `.env` e que a variável `PAIRING_CODE` está definida como `true`.
 - **Desconexões frequentes**: Pode ser rate limiting do WhatsApp, aguarde um tempo
-- **Erro de autenticação**: Delete a pasta `qr-code/` e escaneie novamente
+- **Erro de autenticação**: Delete a pasta `qr-code/` e escaneie novamente o QR Code ou use o código de pareamento.
 
 #### Logs e Monitoramento
 - **Logs não aparecem**: Verifique as permissões da pasta `logs/`

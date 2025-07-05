@@ -4,20 +4,15 @@
  * Controlador responsável pela conexão e gerenciamento do socket WhatsApp
  * Utiliza Baileys para comunicação com a API WhatsApp Web
  *
- * @version 1.0.4
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */
 
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore,
-} = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
 
 const dotenv = require('dotenv');
-const { cleanEnv, str } = require('envalid');
+const { cleanEnv, str, bool } = require('envalid');
 const fs = require('fs');
 const path = require('path');
 const { Boom } = require('@hapi/boom');
@@ -33,13 +28,15 @@ const env = cleanEnv(process.env, {
     default: path.join(__dirname, 'qr-code'),
     desc: 'Caminho para armazenar os arquivos de QR Code e autenticação',
   }),
+  PAIRING_CODE: bool({ default: false, desc: 'Usar pareamento por código' }),
+  PHONE_NUMBER: str({ default: '', desc: 'Número de telefone para pareamento' }),
 });
 
 const logger = require('../utils/logger/loggerModule');
 const baileysLogger = require('pino')().child({}).child({ level: 'silent' });
 
 const OmniZapMessages = {
-  auth_error: () => 'OmniZap: Erro de autenticação. Escaneie o QR Code novamente.',
+  auth_error: () => 'OmniZap: Erro de autenticação. Escaneie o QR Code ou use o código de pareamento novamente.',
   timeout: () => 'OmniZap: Timeout de conexão. Tentando reconectar...',
   rate_limit: () => 'OmniZap: Muitas requisições. Tente novamente em alguns momentos.',
   connection_closed: () => 'OmniZap: Conexão fechada inesperadamente. Reconectando...',
@@ -63,13 +60,20 @@ if (!fs.existsSync(QR_CODE_PATH)) {
 }
 
 if (!fs.existsSync(`${QR_CODE_PATH}/creds.json`)) {
-  logger.info(
-    `OmniZap: Certifique-se de ter outro dispositivo para escanear o QR Code.\nCaminho QR: ${QR_CODE_PATH}\n–`,
-  );
+  if (env.PAIRING_CODE) {
+    logger.info('OmniZap: Usando modo de pareamento por código. Nenhum QR Code será gerado.');
+  } else {
+    logger.info(
+      `OmniZap: Certifique-se de ter outro dispositivo para escanear o QR Code.
+Caminho QR: ${QR_CODE_PATH}
+–`,
+    );
+  }
 }
 
 logger.info('🔗 OmniZap Socket: Sistema de conexão inicializado');
 logger.debug('🔗 Módulos de cache e eventos carregados independentemente');
+
 /**
  * Inicializa a conexão WhatsApp do OmniZap
  *
@@ -109,7 +113,26 @@ async function initializeOmniZapConnection() {
     getMessage: async (key) => {
       return await cacheManager.getMessage(key);
     },
+    shouldSyncHistoryMessage: () => false,
+    shouldIgnoreJid: (jid) => jid.includes('broadcast'),
   });
+
+  if (env.PAIRING_CODE && !omniZapClient.authState.creds.registered) {
+    if (!env.PHONE_NUMBER) {
+      logger.error('Erro: O número de telefone (PHONE_NUMBER) é obrigatório para o pareamento por código.');
+      process.exit(1);
+    }
+
+    setTimeout(async () => {
+      try {
+        const code = await omniZapClient.requestPairingCode(env.PHONE_NUMBER);
+        logger.info(`📱 Seu código de pareamento: ${code}`);
+        logger.info('💡 Abra o WhatsApp → Dispositivos vinculados → Vincular com número de telefone');
+      } catch (error) {
+        logger.error('Falha ao solicitar código de pareamento:', error);
+      }
+    }, 3000);
+  }
 
   omniZapClient.ev.process(async (events) => {
     if (events['connection.update']) {
@@ -120,13 +143,13 @@ async function initializeOmniZapConnection() {
 
       logger.info(`🔗 Socket: Connection update - Status: ${connection}`);
 
-      if (qr) {
-        logger.info('\n📱 QR Code gerado! Escaneie com seu WhatsApp:');
+      if (qr && !env.PAIRING_CODE) {
+        logger.info(`📱 QR Code gerado! Escaneie com seu WhatsApp:`);
         logger.info('═══════════════════════════════════════════════════');
         qrcode.generate(qr, { small: true });
         logger.info('═══════════════════════════════════════════════════');
         logger.info('💡 Abra o WhatsApp → Dispositivos vinculados → Vincular dispositivo');
-        logger.warn('⏰ O QR Code expira em 60 segundos\n');
+        logger.warn('⏰ O QR Code expira em 60 segundos');
       }
 
       const statusCode = new Boom(lastDisconnect?.error)?.output.statusCode;
@@ -160,18 +183,14 @@ async function initializeOmniZapConnection() {
                 logger.warn(OmniZapMessages.version_error());
                 break;
               default:
-                logger.error(
-                  `[CONEXÃO FECHADA] Socket: Conexão fechada por erro: ${lastDisconnect?.error}`,
-                );
+                logger.error(`[CONEXÃO FECHADA] Socket: Conexão fechada por erro: ${lastDisconnect?.error}`);
             }
-            initializeOmniZapConnection();
+            await initializeOmniZapConnection();
           }
           break;
 
         case 'connecting':
-          logger.info(
-            `〔 Socket 〕Reconectando/Iniciando - ${getCurrentDate()} ${getCurrentTime()}`,
-          );
+          logger.info(`〔 Socket 〕Reconectando/Iniciando - ${getCurrentDate()} ${getCurrentTime()}`);
           break;
 
         case 'open':
@@ -187,9 +206,7 @@ async function initializeOmniZapConnection() {
 
     if (events['messages.upsert']) {
       const messageUpdate = events['messages.upsert'];
-      logger.info(
-        `📨 Socket: Messages upsert - ${messageUpdate.messages?.length || 0} mensagem(ns)`,
-      );
+      logger.info(`📨 Socket: Messages upsert - ${messageUpdate.messages?.length || 0} mensagem(ns)`);
       eventHandler.processMessagesUpsert(messageUpdate);
 
       const omniZapMainHandler = require('../../index.js');
@@ -343,3 +360,4 @@ module.exports = {
   cacheManager,
   eventHandler,
 };
+('');
