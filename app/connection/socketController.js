@@ -12,7 +12,7 @@
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
 
 const dotenv = require('dotenv');
-const { cleanEnv, str, bool } = require('envalid');
+const { cleanEnv, str } = require('envalid');
 const fs = require('fs');
 const path = require('path');
 const { Boom } = require('@hapi/boom');
