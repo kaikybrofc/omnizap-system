@@ -205,6 +205,7 @@ class CacheManager {
    */
   async saveMessage(messageInfo) {
     setImmediate(() => {
+      console.log(JSON.stringify(messageInfo, null, 2));
       try {
         if (!messageInfo || !messageInfo.key || !messageInfo.key.remoteJid || !messageInfo.key.id) {
           logger.warn('Cache: Dados de mensagem inválidos');
