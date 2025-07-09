@@ -4,22 +4,27 @@
  * Controlador responsável pelo processamento e tratamento de mensagens
  * recebidas através do WhatsApp via tecnologia Baileys
  *
- * @version 1.0.4
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */
 
 require('dotenv').config();
-const { str, cleanEnv } = require('envalid');
-const { cacheManager } = require('../cache/cacheManager');
-const { preProcessMessage, isCommand } = require('../utils/baileys/messageHelper');
+const { databaseManager } = require('../database/databaseManager');
+const { preProcessMessage, isCommand, getExpiration } = require('../utils/baileys/messageHelper');
+const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, formatErrorMessage } = require('../utils/messageUtils');
+const { COMMAND_PREFIX } = require('../utils/constants');
 const logger = require('../utils/logger/loggerModule');
 
-const env = cleanEnv(process.env, {
-  COMMAND_PREFIX: str({ default: '/', desc: 'Prefixo para comandos no chat' }),
-});
-
-const COMMAND_PREFIX = env.COMMAND_PREFIX;
+/**
+ * Função utilitária para obter informações de expiração de mensagens
+ *
+ * @param {Object} messageInfo - Informações da mensagem
+ * @returns {*} Configuração de expiração ou undefined
+ */
+const getMessageExpiration = (messageInfo) => {
+  return getExpiration(messageInfo);
+};
 
 /**
  * Processador de mensagens WhatsApp do OmniZap
@@ -45,14 +50,7 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
       const commandInfo = isCommand(messageText);
       const groupJid = isGroupMessage ? messageInfo.key.remoteJid : null;
 
-      const senderJid = isGroupMessage
-        ? messageInfo.key.participant || messageInfo.key.remoteJid
-        : messageInfo.key.remoteJid;
-
-      if (messageInfo.key.fromMe) {
-        logger.debug('Mensagem própria ignorada', { messageType: 'own-message' });
-        continue;
-      }
+      const senderJid = isGroupMessage ? messageInfo.key.participant || messageInfo.key.remoteJid : messageInfo.key.remoteJid;
 
       try {
         if (commandInfo.isCommand) {
@@ -60,58 +58,100 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
             const { command, args } = commandInfo;
             const targetJid = isGroupMessage ? groupJid : senderJid;
 
-            const getGroupInfo = async (groupJid) => {
-              try {
-                if (!groupJid || !groupJid.endsWith('@g.us')) {
-                  return null;
-                }
-
-                return await cacheManager.getGroupMetadata(groupJid);
-              } catch (error) {
-                logger.error('Erro ao obter informações do grupo', {
-                  error: error.message,
-                  stack: error.stack,
-                  groupJid,
-                });
-                return null;
-              }
-            };
-
             switch (command.toLowerCase()) {
-              case 'teste':
-                if (isGroupMessage) {
-                  const groupInfo = await getGroupInfo(groupJid);
-                  if (groupInfo) {
-                    await omniZapClient.sendMessage(targetJid, {
-                      text: JSON.stringify([messageInfo, groupInfo, commandInfo], null, 2),
+              case 'sticker':
+              case 's':
+                try {
+                  const { processSticker, extractMediaDetails } = require('../commandModules/stickerModules/stickerCommand');
+                  const { processStickerSubCommand } = require('../commandModules/stickerModules/stickerSubCommands');
+
+                  logger.info('Comando sticker executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                  });
+
+                  const subCommandList = ['packs', 'list', 'stats', 'status', 'info', 'delete', 'del', 'rename', 'send', 'share', 'help'];
+                  const firstArg = args.split(' ')[0]?.toLowerCase();
+
+                  if (firstArg && subCommandList.includes(firstArg)) {
+                    const subCommandArgs = args.split(' ').slice(1).join(' ');
+                    const result = await processStickerSubCommand(firstArg, subCommandArgs, omniZapClient, messageInfo, senderJid, targetJid);
+
+                    const reactionEmoji = result.success ? '✅' : '❌';
+                    await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                    await sendTextMessage(omniZapClient, targetJid, result.message, {
+                      originalMessage: messageInfo,
                     });
-                    logger.info('Comando teste executado com sucesso em grupo', {
-                      groupJid,
-                      senderJid,
+                    break;
+                  }
+
+                  const mediaDetails = extractMediaDetails(messageInfo);
+
+                  if (!mediaDetails) {
+                    await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                    const errorMsg = formatErrorMessage('Nenhuma mídia encontrada', null, `📋 *Como usar o comando sticker:*\n\n1️⃣ *Envie uma imagem/vídeo com legenda:*\n   ${COMMAND_PREFIX}s Nome do Pacote | Nome do Autor\n\n2️⃣ *Ou responda a uma mídia com:*\n   ${COMMAND_PREFIX}s Nome do Pacote | Nome do Autor\n\n📝 *Comandos de gerenciamento:*\n• ${COMMAND_PREFIX}s packs - Ver seus packs\n• ${COMMAND_PREFIX}s stats - Estatísticas\n• ${COMMAND_PREFIX}s help - Ajuda completa\n\n📦 *Sistema de Packs:*\nCada 30 stickers formam um pack completo!\n\nExemplo: ${COMMAND_PREFIX}s Stickers de #nome | Criado em #data`);
+
+                    await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                      originalMessage: messageInfo,
                     });
+                    break;
+                  }
+
+                  await sendReaction(omniZapClient, targetJid, '⏳', messageInfo.key);
+
+                  const result = await processSticker(omniZapClient, messageInfo, senderJid, targetJid, args);
+
+                  if (result.success) {
+                    await sendReaction(omniZapClient, targetJid, '✅', messageInfo.key);
+
+                    await sendStickerMessage(omniZapClient, targetJid, result.stickerPath, {
+                      originalMessage: messageInfo,
+                    });
+
+                    await sendTextMessage(omniZapClient, targetJid, result.message, {
+                      originalMessage: messageInfo,
+                    });
+
+                    try {
+                      const fs = require('fs').promises;
+                      await fs.unlink(result.stickerPath);
+                    } catch (cleanupError) {
+                      logger.warn('Erro ao limpar arquivo de sticker', {
+                        error: cleanupError.message,
+                      });
+                    }
                   } else {
-                    await omniZapClient.sendMessage(targetJid, {
-                      text: '❌ Dados do grupo não encontrados no cache',
-                    });
-                    logger.warn('Comando teste: dados do grupo não encontrados', {
-                      groupJid,
-                      senderJid,
+                    await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                    await sendTextMessage(omniZapClient, targetJid, result.message, {
+                      originalMessage: messageInfo,
                     });
                   }
-                } else {
-                  await omniZapClient.sendMessage(targetJid, {
-                    text: '⚠️ Este comando funciona apenas em grupos',
-                  });
-                  logger.info('Comando teste: tentativa de uso fora de grupo', {
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando sticker', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
                     senderJid,
+                    isGroupMessage,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao criar sticker', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se a mídia é uma imagem ou vídeo válido\n• Tente enviar a mídia novamente com tamanho menor\n• Tente com outro formato de arquivo\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
                   });
                 }
                 break;
-
               default:
-                const contextInfo = isGroupMessage
-                  ? `\n\n👥 *Contexto:* Grupo\n👤 *Solicitante:* ${senderJid}`
-                  : `\n\n👤 *Contexto:* Mensagem direta`;
+                const contextInfo = isGroupMessage ? `\n\n👥 *Contexto:* Grupo\n👤 *Solicitante:* ${senderJid}` : `\n\n👤 *Contexto:* Mensagem direta`;
 
                 const unknownText = `❓ *Comando Desconhecido*
 
@@ -119,13 +159,13 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
 
 💡 **Dica:** Use ${COMMAND_PREFIX}help para ver todos os comandos disponíveis${contextInfo}`;
 
-                await omniZapClient.sendMessage(targetJid, { text: unknownText });
-                logger.info('Comando desconhecido recebido', {
-                  command,
-                  args,
-                  senderJid,
-                  isGroupMessage: isGroupMessage ? 'true' : 'false',
-                });
+                //   await omniZapClient.sendMessage(targetJid, { text: unknownText });
+                //      logger.info('Comando desconhecido recebido', {
+                //       command,
+                //       args,
+                //       senderJid,
+                //      isGroupMessage: isGroupMessage ? 'true' : 'false',
+                //   });
                 break;
             }
           } catch (error) {
@@ -139,13 +179,11 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
             });
             const targetJid = isGroupMessage ? groupJid : senderJid;
 
-            const contextInfo = isGroupMessage
-              ? `\n\n👥 *Contexto:* Grupo\n👤 *Solicitante:* ${senderJid}`
-              : `\n\n👤 *Contexto:* Mensagem direta`;
+            const contextInfo = isGroupMessage ? `\n\n👥 *Contexto:* Grupo\n👤 *Solicitante:* ${senderJid}` : `\n\n👤 *Contexto:* Mensagem direta`;
 
-            await omniZapClient.sendMessage(targetJid, {
-              text: `❌ *Erro interno*\n\nOcorreu um erro ao processar seu comando. Tente novamente.${contextInfo}`,
-            });
+            const errorMsg = formatErrorMessage('Erro interno', `Ocorreu um erro ao processar seu comando. Tente novamente.${contextInfo}`);
+
+            await sendTextMessage(omniZapClient, targetJid, errorMsg);
           }
         } else {
           if (isGroupMessage) {

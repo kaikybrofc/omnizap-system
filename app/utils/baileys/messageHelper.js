@@ -12,11 +12,7 @@
 require('dotenv').config();
 const { str, cleanEnv } = require('envalid');
 const logger = require('../logger/loggerModule');
-
-// Validação das variáveis de ambiente usando envalid
-const env = cleanEnv(process.env, {
-  COMMAND_PREFIX: str({ default: '/', desc: 'Prefixo para comandos no chat' }),
-});
+const { COMMAND_PREFIX } = require('../constants');
 
 /**
  * Pré-processa uma mensagem do WhatsApp, extraindo tipo, corpo e verificando se é mídia
@@ -30,49 +26,16 @@ function preProcessMessage(info) {
     const type = getContentType(info.message);
 
     // Extrai o corpo da mensagem de vários formatos possíveis
-    const body =
-      info.message?.conversation ||
-      info.viewOnceMessage?.message ||
-      info.message?.viewOnceMessage?.message?.imageMessage?.caption ||
-      info.message?.viewOnceMessageV2?.message?.videoMessage?.caption ||
-      info.message?.imageMessage?.caption ||
-      info.message?.videoMessage?.caption ||
-      info.message?.extendedTextMessage?.text ||
-      info.message?.viewOnceMessage?.message?.videoMessage?.caption ||
-      info.message?.viewOnceMessage?.message?.imageMessage?.caption ||
-      info.message?.documentWithCaptionMessage?.message?.documentMessage?.caption ||
-      info.message?.buttonsMessage?.imageMessage?.caption ||
-      info.message?.buttonsResponseMessage?.selectedButtonId ||
-      info.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
-      info.message?.templateButtonReplyMessage?.selectedId ||
-      (info.message?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson
-        ? JSON.parse(
-            info.message?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson,
-          )?.id
-        : null) ||
-      info?.text;
+    const body = info.message?.conversation || info.viewOnceMessage?.message || info.message?.viewOnceMessage?.message?.imageMessage?.caption || info.message?.viewOnceMessageV2?.message?.videoMessage?.caption || info.message?.imageMessage?.caption || info.message?.videoMessage?.caption || info.message?.extendedTextMessage?.text || info.message?.viewOnceMessage?.message?.videoMessage?.caption || info.message?.viewOnceMessage?.message?.imageMessage?.caption || info.message?.documentWithCaptionMessage?.message?.documentMessage?.caption || info.message?.buttonsMessage?.imageMessage?.caption || info.message?.buttonsResponseMessage?.selectedButtonId || info.message?.listResponseMessage?.singleSelectReply?.selectedRowId || info.message?.templateButtonReplyMessage?.selectedId || (info.message?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson ? JSON.parse(info.message?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson)?.id : null) || info?.text;
 
     const finalBody = body === undefined ? false : body;
 
     // Verifica se a mensagem é um tipo de mídia
-    const mediaTypes = [
-      'imageMessage',
-      'videoMessage',
-      'audioMessage',
-      'documentMessage',
-      'stickerMessage',
-      'contactMessage',
-      'locationMessage',
-      'productMessage',
-    ];
+    const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage', 'contactMessage', 'locationMessage', 'productMessage'];
 
     const isMedia = mediaTypes.includes(type);
 
-    logger.debug(
-      `[ preProcessMessage ] Mensagem processada: Tipo=${type}, isMedia=${isMedia}, Corpo=${
-        finalBody ? 'presente' : 'ausente'
-      }`,
-    );
+    logger.debug(`[ preProcessMessage ] Mensagem processada: Tipo=${type}, isMedia=${isMedia}, Corpo=${finalBody ? 'presente' : 'ausente'}`);
 
     return { type, body: finalBody, isMedia };
   } catch (error) {
@@ -97,26 +60,7 @@ function getContentType(message) {
       return null;
     }
 
-    const messageTypes = [
-      'conversation',
-      'imageMessage',
-      'videoMessage',
-      'audioMessage',
-      'stickerMessage',
-      'documentMessage',
-      'viewOnceMessage',
-      'viewOnceMessageV2',
-      'contactMessage',
-      'locationMessage',
-      'liveLocationMessage',
-      'extendedTextMessage',
-      'documentWithCaptionMessage',
-      'buttonsMessage',
-      'listMessage',
-      'product',
-      'orderMessage',
-      'interactiveMessage',
-    ];
+    const messageTypes = ['conversation', 'imageMessage', 'videoMessage', 'audioMessage', 'stickerMessage', 'documentMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'contactMessage', 'locationMessage', 'liveLocationMessage', 'extendedTextMessage', 'documentWithCaptionMessage', 'buttonsMessage', 'listMessage', 'product', 'orderMessage', 'interactiveMessage'];
 
     for (const type of messageTypes) {
       if (message[type]) {
@@ -125,20 +69,12 @@ function getContentType(message) {
       }
 
       // Verifica tipos aninhados em estruturas complexas
-      if (
-        message.viewOnceMessage &&
-        message.viewOnceMessage.message &&
-        message.viewOnceMessage.message[type]
-      ) {
+      if (message.viewOnceMessage && message.viewOnceMessage.message && message.viewOnceMessage.message[type]) {
         logger.debug(`[ getContentType ] Tipo de mensagem aninhado (viewOnceMessage): ${type}`);
         return type;
       }
 
-      if (
-        message.viewOnceMessageV2 &&
-        message.viewOnceMessageV2.message &&
-        message.viewOnceMessageV2.message[type]
-      ) {
+      if (message.viewOnceMessageV2 && message.viewOnceMessageV2.message && message.viewOnceMessageV2.message[type]) {
         logger.debug(`[ getContentType ] Tipo de mensagem aninhado (viewOnceMessageV2): ${type}`);
         return type;
       }
@@ -163,12 +99,10 @@ function getContentType(message) {
  */
 function isCommand(body) {
   try {
-    const prefix = env.COMMAND_PREFIX;
+    const prefix = COMMAND_PREFIX;
 
     if (!body || !body.startsWith(prefix)) {
-      logger.debug(
-        `[ isCommand ] Não é um comando: ${body ? 'Texto não começa com prefixo' : 'Corpo vazio'}`,
-      );
+      logger.debug(`[ isCommand ] Não é um comando: ${body ? 'Texto não começa com prefixo' : 'Corpo vazio'}`);
       return { isCommand: false };
     }
 
@@ -237,9 +171,7 @@ function processQuotedChecks(type, content) {
     }
 
     if (type === 'extendedTextMessage' && !foundQuoted) {
-      logger.debug(
-        `[ processQuotedChecks ] Mensagem é extendedTextMessage mas não contém mensagem citada`,
-      );
+      logger.debug(`[ processQuotedChecks ] Mensagem é extendedTextMessage mas não contém mensagem citada`);
     } else if (type !== 'extendedTextMessage') {
       logger.debug(`[ processQuotedChecks ] Não é mensagem com citação, tipo: ${type}`);
     }
@@ -288,26 +220,11 @@ function getExpiration(info) {
     const DEFAULT_EXPIRATION_SECONDS = 24 * 60 * 60; // 24 horas
 
     if (!info || typeof info !== 'object' || !info.message) {
-      logger.debug(
-        `[ getExpiration ] Usando expiração padrão (${DEFAULT_EXPIRATION_SECONDS}s): mensagem inválida ou ausente`,
-      );
+      logger.debug(`[ getExpiration ] Usando expiração padrão (${DEFAULT_EXPIRATION_SECONDS}s): mensagem inválida ou ausente`);
       return DEFAULT_EXPIRATION_SECONDS;
     }
 
-    const messageTypes = [
-      'conversation',
-      'viewOnceMessageV2',
-      'imageMessage',
-      'videoMessage',
-      'extendedTextMessage',
-      'viewOnceMessage',
-      'documentWithCaptionMessage',
-      'buttonsMessage',
-      'buttonsResponseMessage',
-      'listResponseMessage',
-      'templateButtonReplyMessage',
-      'interactiveResponseMessage',
-    ];
+    const messageTypes = ['conversation', 'viewOnceMessageV2', 'imageMessage', 'videoMessage', 'extendedTextMessage', 'viewOnceMessage', 'documentWithCaptionMessage', 'buttonsMessage', 'buttonsResponseMessage', 'listResponseMessage', 'templateButtonReplyMessage', 'interactiveResponseMessage'];
 
     // Verifica diretamente nos tipos de mensagem listados
     for (const type of messageTypes) {
@@ -344,9 +261,7 @@ function getExpiration(info) {
       logger.debug(`[ getExpiration ] Expiração encontrada (${found}s) na busca profunda`);
       return found;
     } else {
-      logger.debug(
-        `[ getExpiration ] Usando expiração padrão (${DEFAULT_EXPIRATION_SECONDS}s): não encontrada na mensagem`,
-      );
+      logger.debug(`[ getExpiration ] Usando expiração padrão (${DEFAULT_EXPIRATION_SECONDS}s): não encontrada na mensagem`);
       return DEFAULT_EXPIRATION_SECONDS;
     }
   } catch (error) {

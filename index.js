@@ -4,13 +4,14 @@
  * Sistema profissional para automação e gerenciamento de mensagens WhatsApp
  * Desenvolvido com tecnologia Baileys para máxima compatibilidade
  *
- * @version 1.0.4
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */
 
 const OmniZapMessageProcessor = require('./app/controllers/messageController');
 const logger = require('./app/utils/logger/loggerModule');
+const db = require('./app/database/mysql');
 
 /**
  * Processador principal de mensagens do OmniZap
@@ -34,8 +35,27 @@ const OmniZapMainHandler = async (messageUpdate, whatsappClient, qrCodePath) => 
 };
 
 if (require.main === module) {
-  logger.info('🔌 Iniciando controlador de conexão...');
-  require('./app/connection/socketController');
+  logger.info('🔌 Iniciando OmniZap...');
+
+  db.init()
+    .then((initialized) => {
+      if (initialized) {
+        logger.info('💾 Banco de dados MySQL inicializado com sucesso');
+      } else {
+        logger.warn('⚠️ Banco de dados MySQL não inicializado. Apenas armazenamento em memória disponível.');
+      }
+
+      require('./app/connection/socketController');
+    })
+    .catch((error) => {
+      logger.error('❌ Erro ao inicializar banco de dados:', {
+        error: error.message,
+        stack: error.stack,
+      });
+
+      logger.info('🔄 Iniciando sem banco de dados...');
+      require('./app/connection/socketController');
+    });
 }
 
 module.exports = OmniZapMainHandler;

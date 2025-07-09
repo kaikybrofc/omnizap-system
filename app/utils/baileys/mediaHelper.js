@@ -9,7 +9,7 @@
  * @license MIT
  */
 
-const { downloadContentFromMessage } = require('baileys');
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const logger = require('../logger/loggerModule');
 const fs = require('fs').promises;
 const path = require('path');
