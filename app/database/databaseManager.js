@@ -9,14 +9,14 @@
  * - Manutenção automática de dados antigos
  * - Compatibilidade com APIs do antigo sistema de cache
  *
- * @version 2.0.0
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */
 
 require('dotenv').config();
 const logger = require('../utils/logger/loggerModule');
-const { cleanEnv, num, bool, str } = require('envalid');
+const { cleanEnv, num, bool } = require('envalid');
 const fs = require('fs').promises;
 const path = require('path');
 const db = require('./mysql');
@@ -61,20 +61,17 @@ class DatabaseManager {
     logger.debug(`🔄 Limpeza automática: ${env.DB_ENABLE_AUTO_CLEANUP ? 'Ativada' : 'Desativada'}`);
 
     try {
-      // Inicializar banco de dados MySQL
       logger.info('🔄 OmniZap Database Manager: Inicializando banco de dados MySQL');
       const dbInitialized = await db.initDatabase();
 
       if (dbInitialized) {
         logger.info('✅ OmniZap Database Manager: Banco de dados MySQL inicializado com sucesso');
 
-        // Configurar limpeza automática de dados antigos
         if (env.DB_ENABLE_AUTO_CLEANUP) {
           const cleanupIntervalMs = env.DB_CLEANUP_INTERVAL_HOURS * 60 * 60 * 1000;
           this.cleanupInterval = setInterval(() => this.cleanupOldData(), cleanupIntervalMs);
           logger.info(`🧹 OmniZap Database Manager: Limpeza automática configurada a cada ${env.DB_CLEANUP_INTERVAL_HOURS} horas`);
 
-          // Executar limpeza inicial
           this.cleanupOldData();
         }
       } else {
@@ -82,7 +79,6 @@ class DatabaseManager {
         throw new Error('Falha ao inicializar banco de dados MySQL');
       }
 
-      // Manter suporte ao arquivo de metadados para compatibilidade
       await fs.mkdir(TEMP_DIR, { recursive: true });
 
       try {
@@ -164,7 +160,6 @@ class DatabaseManager {
 
         const messageType = messageInfo.message ? Object.keys(messageInfo.message)[0] : 'unknown';
 
-        // Salvar diretamente no banco de dados
         await db.query(
           `INSERT INTO messages 
           (id, remote_jid, from_me, push_name, timestamp, message_type, message_text, participant, quoted_message_id, raw_data) 
@@ -199,7 +194,6 @@ class DatabaseManager {
         const timestamp = Date.now();
         const generatedId = `${eventType}_${timestamp}_${Math.random().toString(36).substring(2, 10)}`;
 
-        // Salvar diretamente no banco de dados
         try {
           await db.query(
             `INSERT INTO events 
@@ -241,14 +235,11 @@ class DatabaseManager {
         _jid: jid,
       };
 
-      // Salvar no arquivo para compatibilidade
       const allMetadata = await this._readGroupMetadataFile();
       allMetadata[jid] = { ...(allMetadata[jid] || {}), ...enhancedMetadata };
       await this._writeGroupMetadataFile(allMetadata);
 
-      // Salvar no banco de dados
       try {
-        // 1. Inserir/atualizar informações do grupo
         await db.query(
           `INSERT INTO \`groups\` 
           (jid, subject, creation_timestamp, owner, description, participant_count, metadata, last_updated) 
@@ -263,19 +254,15 @@ class DatabaseManager {
           [jid, metadata.subject || '', metadata.creation || 0, metadata.owner || null, metadata.desc || '', metadata.participants?.length || 0, JSON.stringify(metadata), Date.now()],
         );
 
-        // 2. Atualizar participantes (usar INSERT IGNORE para evitar duplicatas)
         if (metadata.participants && metadata.participants.length > 0) {
-          // A cada hora, atualizar todos os participantes usando o método updateGroupParticipants
           const currentHour = Math.floor(Date.now() / 3600000);
           const lastUpdate = parseInt(metadata._lastParticipantFullUpdate || 0);
 
           if (currentHour > lastUpdate) {
-            // Atualização completa de participantes a cada hora
             enhancedMetadata._lastParticipantFullUpdate = currentHour;
             await this.updateGroupParticipants(jid, metadata.participants);
             logger.info(`Database Manager: Atualização completa de participantes para o grupo ${jid.substring(0, 15)}...`);
           } else {
-            // Inserção com IGNORE para novos participantes
             for (const participant of metadata.participants) {
               await db.query(
                 `INSERT IGNORE INTO group_participants 
@@ -312,7 +299,6 @@ class DatabaseManager {
         return;
       }
 
-      // Usar ON DUPLICATE KEY UPDATE para atualizar os status de admin
       for (const participant of participants) {
         await db.query(
           `INSERT INTO group_participants 
@@ -351,7 +337,6 @@ class DatabaseManager {
           _timestamp: Date.now(),
         };
 
-        // Salvar no banco de dados
         try {
           await db.query(
             `INSERT INTO contacts 
@@ -405,7 +390,6 @@ class DatabaseManager {
           _timestamp: Date.now(),
         };
 
-        // Salvar no banco de dados
         try {
           await db.query(
             `INSERT INTO chats 
@@ -448,13 +432,11 @@ class DatabaseManager {
         return undefined;
       }
 
-      // Buscar mensagem diretamente no banco de dados
       const results = await db.query('SELECT * FROM messages WHERE id = ? AND remote_jid = ?', [key.id, key.remoteJid]);
 
       if (results && results.length > 0) {
         logger.debug(`Database Manager: Mensagem recuperada do banco de dados (${key.id})`);
 
-        // Converter o JSON para objeto
         try {
           const rawData = results[0].raw_data;
           if (rawData) {
@@ -487,7 +469,6 @@ class DatabaseManager {
         return undefined;
       }
 
-      // Primeiro tentar recuperar do banco de dados
       const results = await db.query('SELECT * FROM `groups` WHERE jid = ?', [jid]);
 
       if (results && results.length > 0) {
@@ -510,7 +491,6 @@ class DatabaseManager {
         }
       }
 
-      // Se não encontrou no banco, tenta recuperar do arquivo (para compatibilidade)
       const allMetadata = await this._readGroupMetadataFile();
       const cachedGroup = allMetadata[jid];
 
@@ -553,7 +533,7 @@ class DatabaseManager {
 
       if (cachedMetadata) {
         const dataAge = Date.now() - (cachedMetadata._timestamp || 0);
-        const maxAge = 30 * 60 * 1000; // 30 minutos
+        const maxAge = 30 * 60 * 1000;
 
         if (dataAge < maxAge) {
           logger.debug(`Database Manager: Metadados de grupo válidos (idade: ${Math.round(dataAge / 60000)}min)`);
@@ -608,7 +588,6 @@ class DatabaseManager {
         return undefined;
       }
 
-      // Buscar contato diretamente do banco de dados
       const results = await db.query('SELECT * FROM contacts WHERE jid = ?', [contactId]);
 
       if (results && results.length > 0) {
@@ -650,7 +629,6 @@ class DatabaseManager {
         return undefined;
       }
 
-      // Buscar chat diretamente do banco de dados
       const results = await db.query('SELECT * FROM chats WHERE jid = ?', [chatId]);
 
       if (results && results.length > 0) {
@@ -692,7 +670,6 @@ class DatabaseManager {
         return false;
       }
 
-      // Verificar no banco de dados
       const results = await db.query('SELECT last_updated FROM `groups` WHERE jid = ?', [groupJid]);
 
       if (!results || results.length === 0) {
@@ -700,7 +677,7 @@ class DatabaseManager {
       }
 
       const dataAge = Date.now() - (results[0].last_updated || 0);
-      const maxAge = 30 * 60 * 1000; // 30 minutos
+      const maxAge = 30 * 60 * 1000;
 
       return dataAge < maxAge;
     } catch (error) {
@@ -746,10 +723,8 @@ class DatabaseManager {
   }
   async listGroups() {
     try {
-      // Buscar grupos do banco de dados
       const results = await db.query('SELECT * FROM `groups`');
 
-      // Processar resultados
       const groups = results.map((group) => {
         try {
           const metadata = typeof group.metadata === 'string' ? JSON.parse(group.metadata) : group.metadata;
@@ -776,7 +751,6 @@ class DatabaseManager {
 
       logger.info(`Database Manager: ${groups.length} grupos listados do banco de dados`);
 
-      // Se não encontrou nada no banco, tentar do arquivo como fallback
       if (groups.length === 0) {
         const allMetadata = await this._readGroupMetadataFile();
         const fileGroups = Object.values(allMetadata);
@@ -791,7 +765,6 @@ class DatabaseManager {
         stack: error.stack,
       });
 
-      // Tentar fallback com arquivo
       try {
         const allMetadata = await this._readGroupMetadataFile();
         const groups = Object.values(allMetadata);
@@ -808,10 +781,8 @@ class DatabaseManager {
    */
   async listContacts() {
     try {
-      // Buscar contatos do banco de dados
       const results = await db.query('SELECT * FROM contacts');
 
-      // Processar resultados
       const contacts = results.map((contact) => {
         try {
           const contactData = typeof contact.metadata === 'string' ? JSON.parse(contact.metadata) : contact.metadata;
@@ -854,10 +825,8 @@ class DatabaseManager {
    */
   async listChats() {
     try {
-      // Buscar chats do banco de dados
       const results = await db.query('SELECT * FROM chats');
 
-      // Processar resultados
       const chats = results.map((chat) => {
         try {
           const chatData = typeof chat.metadata === 'string' ? JSON.parse(chat.metadata) : chat.metadata;
@@ -902,7 +871,6 @@ class DatabaseManager {
    */
   async getStats() {
     try {
-      // Contar registros nas tabelas
       const messagesCount = await db.query('SELECT COUNT(*) as count FROM messages');
       const eventsCount = await db.query('SELECT COUNT(*) as count FROM events');
       const groupsCount = await db.query('SELECT COUNT(*) as count FROM `groups`');
@@ -910,7 +878,6 @@ class DatabaseManager {
       const chatsCount = await db.query('SELECT COUNT(*) as count FROM chats');
       const participantsCount = await db.query('SELECT COUNT(*) as count FROM group_participants');
 
-      // Obter estatísticas de tamanho das tabelas
       const tableStats = await db.query(`
         SELECT 
           table_name AS 'table',
@@ -920,17 +887,13 @@ class DatabaseManager {
         ORDER BY (data_length + index_length) DESC
       `);
 
-      // Obter informações sobre o grupo mais antigo e mais recente
       const oldestGroup = await db.query('SELECT jid, subject, creation_timestamp FROM `groups` ORDER BY creation_timestamp ASC LIMIT 1');
       const newestGroup = await db.query('SELECT jid, subject, last_updated FROM `groups` ORDER BY last_updated DESC LIMIT 1');
 
-      // Obter quantidade de mensagens por tipo
       const messageTypes = await db.query('SELECT message_type, COUNT(*) as count FROM messages GROUP BY message_type ORDER BY count DESC');
 
-      // Obter quantidade de eventos por tipo
       const eventTypes = await db.query('SELECT event_type, COUNT(*) as count FROM events GROUP BY event_type ORDER BY count DESC');
 
-      // Informações do arquivo de grupos para compatibilidade
       let fileGroupsCount = 0;
       try {
         const allMetadata = await this._readGroupMetadataFile();
@@ -990,10 +953,8 @@ class DatabaseManager {
       const retentionDays = env.DB_DATA_RETENTION_DAYS;
       const retentionTimestamp = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
 
-      // Limpar mensagens antigas
       const deletedMessages = await db.query('DELETE FROM messages WHERE timestamp < ?', [Math.floor(retentionTimestamp / 1000)]);
 
-      // Limpar eventos antigos
       const deletedEvents = await db.query('DELETE FROM events WHERE event_timestamp < ?', [retentionTimestamp]);
 
       logger.info(`🧹 OmniZap Database Manager: Limpeza concluída. Removidos ${deletedMessages.affectedRows || 0} mensagens e ${deletedEvents.affectedRows || 0} eventos com mais de ${retentionDays} dias`);
@@ -1021,7 +982,6 @@ class DatabaseManager {
     try {
       const { remoteJid, messageType, text, limit = 100, offset = 0, startDate, endDate, fromMe } = options;
 
-      // Construir a query SQL com condições dinâmicas
       let query = 'SELECT * FROM messages WHERE 1=1';
       const params = [];
 
@@ -1057,14 +1017,11 @@ class DatabaseManager {
         params.push(endTimestamp);
       }
 
-      // Ordenar por timestamp descendente e aplicar limite/offset
       query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
       params.push(limit, offset);
 
-      // Executar a query
       const messages = await db.query(query, params);
 
-      // Converter os dados JSON de volta para objetos
       return messages.map((msg) => ({
         ...JSON.parse(msg.raw_data),
         _fromDatabase: true,
@@ -1093,7 +1050,6 @@ class DatabaseManager {
     try {
       const { eventType, eventId, limit = 100, offset = 0, startDate, endDate } = options;
 
-      // Construir a query SQL com condições dinâmicas
       let query = 'SELECT * FROM events WHERE 1=1';
       const params = [];
 
@@ -1119,14 +1075,11 @@ class DatabaseManager {
         params.push(endTimestamp);
       }
 
-      // Ordenar por timestamp descendente e aplicar limite/offset
       query += ' ORDER BY event_timestamp DESC LIMIT ? OFFSET ?';
       params.push(limit, offset);
 
-      // Executar a query
       const events = await db.query(query, params);
 
-      // Converter os dados JSON de volta para objetos
       return events.map((event) => ({
         ...JSON.parse(event.event_data),
         _eventType: event.event_type,
@@ -1156,7 +1109,6 @@ class DatabaseManager {
     try {
       const { subject, minParticipants, limit = 50, offset = 0 } = options;
 
-      // Construir a query SQL com condições dinâmicas
       let query = 'SELECT * FROM `groups` WHERE 1=1';
       const params = [];
 
@@ -1170,14 +1122,11 @@ class DatabaseManager {
         params.push(minParticipants);
       }
 
-      // Ordenar por último acesso e aplicar limite/offset
       query += ' ORDER BY last_updated DESC LIMIT ? OFFSET ?';
       params.push(limit, offset);
 
-      // Executar a query
       const groups = await db.query(query, params);
 
-      // Converter os dados JSON de volta para objetos
       return groups.map((group) => ({
         ...JSON.parse(group.metadata),
         _fromDatabase: true,
