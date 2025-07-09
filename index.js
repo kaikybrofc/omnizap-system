@@ -37,7 +37,6 @@ const OmniZapMainHandler = async (messageUpdate, whatsappClient, qrCodePath) => 
 if (require.main === module) {
   logger.info('🔌 Iniciando OmniZap...');
 
-  // Inicializar banco de dados
   db.init()
     .then((initialized) => {
       if (initialized) {
@@ -46,7 +45,7 @@ if (require.main === module) {
         logger.warn('⚠️ Banco de dados MySQL não inicializado. Apenas armazenamento em memória disponível.');
       }
 
-      // Iniciar controlador de conexão
+      // Inicia o controlador de socket do WhatsApp
       require('./app/connection/socketController');
     })
     .catch((error) => {
@@ -55,8 +54,8 @@ if (require.main === module) {
         stack: error.stack,
       });
 
-      // Iniciar mesmo com erro no banco
       logger.info('🔄 Iniciando sem banco de dados...');
+      // Mesmo com erro, continua a inicialização do controlador de socket
       require('./app/connection/socketController');
     });
 }
