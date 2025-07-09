@@ -383,7 +383,7 @@ class CacheManager {
       try {
         // 1. Inserir/atualizar informações do grupo
         await db.query(
-          `INSERT INTO groups 
+          `INSERT INTO \`groups\` 
           (jid, subject, creation_timestamp, owner, description, participant_count, metadata, last_updated) 
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE 
@@ -396,19 +396,27 @@ class CacheManager {
           [jid, metadata.subject || '', metadata.creation || 0, metadata.owner || null, metadata.desc || '', metadata.participants?.length || 0, JSON.stringify(metadata), Date.now()],
         );
 
-        // 2. Atualizar participantes (deletar e inserir novos)
+        // 2. Atualizar participantes (usar INSERT IGNORE para evitar duplicatas)
         if (metadata.participants && metadata.participants.length > 0) {
-          // Deletar participantes existentes
-          await db.query('DELETE FROM group_participants WHERE group_jid = ?', [jid]);
+          // A cada hora, atualizar todos os participantes usando o método updateGroupParticipants
+          const currentHour = Math.floor(Date.now() / 3600000);
+          const lastUpdate = parseInt(metadata._lastParticipantFullUpdate || 0);
 
-          // Inserir novos participantes
-          for (const participant of metadata.participants) {
-            await db.query(
-              `INSERT INTO group_participants 
-              (group_jid, participant_jid, is_admin, is_super_admin) 
-              VALUES (?, ?, ?, ?)`,
-              [jid, participant.id, participant.admin === 'admin' ? 1 : 0, participant.admin === 'superadmin' ? 1 : 0],
-            );
+          if (currentHour > lastUpdate) {
+            // Atualização completa de participantes a cada hora
+            enhancedMetadata._lastParticipantFullUpdate = currentHour;
+            await this.updateGroupParticipants(jid, metadata.participants);
+            logger.info(`Cache: Atualização completa de participantes para o grupo ${jid.substring(0, 15)}...`);
+          } else {
+            // Inserção com IGNORE para novos participantes
+            for (const participant of metadata.participants) {
+              await db.query(
+                `INSERT IGNORE INTO group_participants 
+                (group_jid, participant_jid, is_admin, is_super_admin) 
+                VALUES (?, ?, ?, ?)`,
+                [jid, participant.id, participant.admin === 'admin' ? 1 : 0, participant.admin === 'superadmin' ? 1 : 0],
+              );
+            }
           }
         }
 
@@ -423,6 +431,40 @@ class CacheManager {
       logger.debug(`Cache: Grupo salvo em arquivo (${jid.substring(0, 30)}...)`);
     } catch (error) {
       logger.error('Cache: Erro ao salvar grupo:', { error: error.message, stack: error.stack });
+    }
+  }
+
+  /**
+   * Atualiza o status dos participantes de um grupo no banco de dados
+   * @param {string} jid - ID do grupo
+   * @param {Array} participants - Lista de participantes
+   */
+  async updateGroupParticipants(jid, participants) {
+    try {
+      if (!jid || !participants || !Array.isArray(participants)) {
+        return;
+      }
+
+      // Usar ON DUPLICATE KEY UPDATE para atualizar os status de admin
+      for (const participant of participants) {
+        await db.query(
+          `INSERT INTO group_participants 
+          (group_jid, participant_jid, is_admin, is_super_admin, joined_timestamp) 
+          VALUES (?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE 
+          is_admin = VALUES(is_admin),
+          is_super_admin = VALUES(is_super_admin)`,
+          [jid, participant.id, participant.admin === 'admin' ? 1 : 0, participant.admin === 'superadmin' ? 1 : 0, Date.now()],
+        );
+      }
+
+      logger.debug(`Cache: Status de participantes atualizados para o grupo ${jid.substring(0, 15)}...`);
+    } catch (error) {
+      logger.error('Cache: Erro ao atualizar participantes do grupo:', {
+        error: error.message,
+        stack: error.stack,
+        groupJid: jid,
+      });
     }
   }
 
@@ -1127,7 +1169,7 @@ class CacheManager {
       const { subject, minParticipants, limit = 50, offset = 0 } = options;
 
       // Construir a query SQL com condições dinâmicas
-      let query = 'SELECT * FROM groups WHERE 1=1';
+      let query = 'SELECT * FROM `groups` WHERE 1=1';
       const params = [];
 
       if (subject) {

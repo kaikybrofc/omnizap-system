@@ -83,7 +83,7 @@ async function initializeDatabase() {
 
     logger.info('Criando tabela de grupos...');
     await connection.query(`
-      CREATE TABLE IF NOT EXISTS groups (
+      CREATE TABLE IF NOT EXISTS \`groups\` (
         jid VARCHAR(255) PRIMARY KEY,
         subject VARCHAR(255),
         creation_timestamp BIGINT,
@@ -114,7 +114,7 @@ async function initializeDatabase() {
         UNIQUE KEY unique_participant (group_jid, participant_jid),
         INDEX idx_group_jid (group_jid),
         INDEX idx_participant_jid (participant_jid),
-        FOREIGN KEY (group_jid) REFERENCES groups(jid) ON DELETE CASCADE
+        FOREIGN KEY (group_jid) REFERENCES \`groups\`(jid) ON DELETE CASCADE
       )
     `);
 

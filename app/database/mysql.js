@@ -22,6 +22,39 @@ const env = cleanEnv(process.env, {
 });
 
 /**
+ * Sanitiza valores para evitar erros de tipo ao salvar no MySQL
+ * @param {*} value Valor a ser sanitizado
+ * @returns {*} Valor sanitizado
+ */
+function sanitizeValue(value) {
+  // Se for null ou undefined, retorna null
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  // Verifica se é um objeto Long do protobufjs ou similar
+  if (typeof value === 'object' && value !== null && typeof value.toString === 'function' && (value.constructor?.name === 'Long' || value.constructor?.name === 'BigInt' || (typeof value.low === 'number' && typeof value.high === 'number'))) {
+    return String(value.toString());
+  }
+
+  // Se for um objeto normal, transforma em JSON
+  if (typeof value === 'object' && value !== null && !(value instanceof Date) && !(value instanceof Buffer)) {
+    // Sanitiza valores internos do objeto recursivamente
+    if (Array.isArray(value)) {
+      return value.map((item) => sanitizeValue(item));
+    } else {
+      const sanitized = {};
+      Object.keys(value).forEach((key) => {
+        sanitized[key] = sanitizeValue(value[key]);
+      });
+      return sanitized;
+    }
+  }
+
+  return value;
+}
+
+/**
  * Cria pool de conexões com o banco de dados
  */
 const pool = mysql.createPool({
@@ -80,7 +113,7 @@ const initDatabase = async () => {
 
     // Criar tabela de grupos
     await pool.execute(`
-      CREATE TABLE IF NOT EXISTS groups (
+      CREATE TABLE IF NOT EXISTS \`groups\` (
         jid VARCHAR(255) PRIMARY KEY,
         subject VARCHAR(255),
         creation_timestamp BIGINT,
@@ -111,7 +144,7 @@ const initDatabase = async () => {
         UNIQUE KEY unique_participant (group_jid, participant_jid),
         INDEX idx_group_jid (group_jid),
         INDEX idx_participant_jid (participant_jid),
-        FOREIGN KEY (group_jid) REFERENCES groups(jid) ON DELETE CASCADE
+        FOREIGN KEY (group_jid) REFERENCES \`groups\`(jid) ON DELETE CASCADE
       )
     `);
 
@@ -177,8 +210,11 @@ const initDatabase = async () => {
  * @returns {Promise} - Resultado da query
  */
 const query = async (query, params = []) => {
+  // Sanitiza os parâmetros para evitar erros de tipo
+  const sanitizedParams = params.map((param) => sanitizeValue(param));
+
   try {
-    const [rows] = await pool.execute(query, params);
+    const [rows] = await pool.execute(query, sanitizedParams);
     return rows;
   } catch (error) {
     logger.error('Database: Erro ao executar query:', {
@@ -206,9 +242,28 @@ const closeConnection = async () => {
   }
 };
 
+/**
+ * Inicializa o banco de dados
+ * Wrapper para inicialização, para uso no arquivo principal
+ * @returns {Promise<boolean>} - True se inicializado com sucesso
+ */
+const init = async () => {
+  try {
+    return await initDatabase();
+  } catch (error) {
+    logger.error('Erro ao inicializar banco de dados:', {
+      error: error.message,
+      stack: error.stack,
+    });
+    return false;
+  }
+};
+
 module.exports = {
   pool,
   query,
   initDatabase,
   closeConnection,
+  sanitizeValue,
+  init,
 };
