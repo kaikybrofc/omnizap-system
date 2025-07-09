@@ -9,10 +9,10 @@
  * @license MIT
  */
 
-const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, Browsers } = require('@whiskeysockets/baileys');
 
 const dotenv = require('dotenv');
-const { cleanEnv, str } = require('envalid');
+const { cleanEnv, str, bool } = require('envalid');
 const fs = require('fs');
 const path = require('path');
 const { Boom } = require('@hapi/boom');
@@ -27,6 +27,14 @@ const env = cleanEnv(process.env, {
   QR_CODE_PATH: str({
     default: path.join(__dirname, 'qr-code'),
     desc: 'Caminho para armazenar os arquivos de QR Code e autenticação',
+  }),
+  PAIRING_CODE: bool({
+    default: false,
+    desc: 'Usar código de pareamento em vez de QR Code',
+  }),
+  PHONE_NUMBER: str({
+    default: '',
+    desc: 'Número de telefone para o código de pareamento (somente números, com código do país)',
   }),
 });
 
@@ -77,6 +85,18 @@ async function initializeOmniZapConnection() {
   const { state, saveCreds } = await useMultiFileAuthState(QR_CODE_PATH);
   const { version } = await fetchLatestBaileysVersion();
 
+  if (env.PAIRING_CODE && !state.creds.registered) {
+    if (!env.PHONE_NUMBER) {
+      logger.error('❌ PAIRING_CODE está ativado, mas PHONE_NUMBER não foi definido no .env');
+      throw new Error('Número de telefone para pareamento não fornecido.');
+    }
+
+    logger.info('📱 Iniciando conexão com código de pareamento...');
+    logger.warn('[!IMPORTANTE] O pareamento por código é um método para conectar o WhatsApp Web sem QR Code.');
+    logger.warn('Você só pode conectar um dispositivo por vez com este método.');
+    logger.info(`O número de telefone deve conter apenas números, incluindo o código do país. Ex: 5511999999999`);
+  }
+
   const omniZapClient = makeWASocket({
     version,
     logger: baileysLogger,
@@ -84,7 +104,7 @@ async function initializeOmniZapConnection() {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, baileysLogger),
     },
-    browser: ['Chrome'],
+    browser: Browsers.appropriate('Chrome'),
     msgRetryCounterCache: messageRetryCache,
     generateHighQualityLinkPreview: true,
     patchMessageBeforeSending: (message) => {
@@ -111,6 +131,26 @@ async function initializeOmniZapConnection() {
     shouldIgnoreJid: (jid) => jid.includes('broadcast'),
   });
 
+  // Lida com o código de pareamento se ativado e não houver credenciais salvas
+  if (env.PAIRING_CODE && !omniZapClient.authState.creds.registered) {
+    const phoneNumber = env.PHONE_NUMBER.replace(/[^0-9]/g, '');
+    logger.info(`📞 Solicitando código de pareamento para o número: ${phoneNumber}`);
+
+    // Aguarda um pouco para garantir que o socket esteja pronto para a requisição
+    setTimeout(async () => {
+      try {
+        const code = await omniZapClient.requestPairingCode(phoneNumber);
+        logger.info('═══════════════════════════════════════════════════');
+        logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
+        logger.info(`\n          > ${code.match(/.{1,4}/g).join('-')} <\n`);
+        logger.info('💡 Abra o WhatsApp → Dispositivos vinculados → Vincular com número de telefone');
+        logger.info('═══════════════════════════════════════════════════');
+      } catch (error) {
+        logger.error('❌ Falha ao solicitar o código de pareamento:', { error: error.message, stack: error.stack });
+      }
+    }, 3000);
+  }
+
   omniZapClient.ev.process(async (events) => {
     if (events['connection.update']) {
       const update = events['connection.update'];
@@ -120,7 +160,7 @@ async function initializeOmniZapConnection() {
 
       logger.info(`🔗 Socket: Connection update - Status: ${connection}`);
 
-      if (qr) {
+      if (qr && !env.PAIRING_CODE) {
         logger.info(`📱 QR Code gerado! Escaneie com seu WhatsApp:`);
         logger.info('═══════════════════════════════════════════════════');
         qrcode.generate(qr, { small: true });
