@@ -143,7 +143,6 @@ class DatabaseManager {
           return;
         }
 
-        // Extrair texto da mensagem para pesquisa
         let messageText = '';
         if (messageInfo.message) {
           const messageType = Object.keys(messageInfo.message)[0];

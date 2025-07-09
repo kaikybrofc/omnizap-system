@@ -50,7 +50,6 @@ function sanitizeValue(value) {
   return value;
 }
 
-// Variável global para armazenar o pool de conexões
 let pool = null;
 
 /**
@@ -100,10 +99,8 @@ const connectPool = async () => {
       queueLimit: 0,
     });
 
-    // Testar pool com uma query simples
     await pool.query('SELECT 1');
 
-    // Validar pool tentando fazer uma conexão de teste
     const connection = await pool.getConnection();
     connection.release();
 
@@ -129,10 +126,8 @@ const ensurePool = async () => {
   }
 
   try {
-    // Testar a conexão com uma query simples
     await pool.query('SELECT 1');
 
-    // Verificar se o pool ainda está conectado
     const connection = await pool.getConnection();
     connection.release();
     return true;
@@ -153,7 +148,6 @@ const initDatabase = async () => {
   try {
     logger.info('🔄 OmniZap Database: Iniciando configuração do banco de dados MySQL');
 
-    // Usar a função getTemporaryConnection
     connection = await getTemporaryConnection();
 
     logger.info(`🔄 OmniZap Database: Criando banco de dados '${env.DB_NAME}' se não existir...`);
@@ -162,7 +156,6 @@ const initDatabase = async () => {
     await connection.query(`USE \`${env.DB_NAME}\``);
     await connection.end();
 
-    // Criar pool de conexões após garantir que o banco existe
     const poolCreated = await connectPool();
     if (!poolCreated) {
       throw new Error('Falha ao criar pool de conexões MySQL');
@@ -308,13 +301,11 @@ const query = async (query, params = []) => {
   const sanitizedParams = params.map((param) => sanitizeValue(param));
 
   try {
-    // Verificar se o pool está disponível antes de executar a query
     const isPoolAvailable = await ensurePool();
     if (!isPoolAvailable) {
       throw new Error('Pool de conexões MySQL não está disponível');
     }
 
-    // Verificação rápida da conexão antes de executar a query
     try {
       await pool.query('SELECT 1');
     } catch (pingError) {
@@ -322,7 +313,6 @@ const query = async (query, params = []) => {
         error: pingError.message,
       });
 
-      // Tentar reconectar uma última vez
       const reconnected = await connectPool();
       if (!reconnected) {
         throw new Error('Não foi possível reconectar ao MySQL após falha de ping');
