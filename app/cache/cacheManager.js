@@ -4,7 +4,7 @@
  * Módulo responsável pelo gerenciamento avançado de cache
  * Funciona de forma independente e assíncrona
  *
- * @version 1.0.5
+ * @version 1.0.6
  * @author OmniZap Team
  * @license MIT
  */
@@ -12,9 +12,10 @@
 require('dotenv').config();
 const NodeCache = require('node-cache');
 const logger = require('../utils/logger/loggerModule');
-const { cleanEnv, num, bool } = require('envalid');
+const { cleanEnv, num, bool, str } = require('envalid');
 const fs = require('fs').promises;
 const path = require('path');
+const db = require('../database/mysql');
 
 const env = cleanEnv(process.env, {
   CACHE_MESSAGES_TTL: num({
@@ -147,6 +148,17 @@ class CacheManager {
     }
 
     try {
+      // Inicializar banco de dados MySQL
+      logger.info('🔄 OmniZap Cache: Inicializando banco de dados MySQL');
+      const dbInitialized = await db.initDatabase();
+
+      if (dbInitialized) {
+        logger.info('✅ OmniZap Cache: Banco de dados MySQL inicializado com sucesso');
+      } else {
+        logger.warn('⚠️ OmniZap Cache: Erro na inicialização do MySQL, usando apenas cache em memória');
+      }
+
+      // Manter suporte ao arquivo de metadados para compatibilidade
       await fs.mkdir(TEMP_DIR, { recursive: true });
 
       try {
@@ -201,11 +213,10 @@ class CacheManager {
   }
 
   /**
-   * Salva uma mensagem no cache (processamento assíncrono)
+   * Salva uma mensagem no cache e no banco de dados (processamento assíncrono)
    */
   async saveMessage(messageInfo) {
-    setImmediate(() => {
-      console.log(JSON.stringify(messageInfo, null, 2));
+    setImmediate(async () => {
       try {
         if (!messageInfo || !messageInfo.key || !messageInfo.key.remoteJid || !messageInfo.key.id) {
           logger.warn('Cache: Dados de mensagem inválidos');
@@ -223,6 +234,7 @@ class CacheManager {
           _messageType: messageInfo.message ? Object.keys(messageInfo.message)[0] : 'unknown',
         };
 
+        // Salvar no cache em memória para acesso rápido
         messagesCache.set(cacheKey, enhancedMessage);
 
         const recentMessagesKey = `recent_${remoteJid}`;
@@ -238,6 +250,41 @@ class CacheManager {
         const currentCount = messagesCache.get(counterKey) || 0;
         messagesCache.set(counterKey, currentCount + 1, 86400);
 
+        // Extrair texto da mensagem para pesquisa
+        let messageText = '';
+        if (messageInfo.message) {
+          const messageType = Object.keys(messageInfo.message)[0];
+          if (messageType === 'conversation') {
+            messageText = messageInfo.message.conversation || '';
+          } else if (messageType === 'extendedTextMessage') {
+            messageText = messageInfo.message.extendedTextMessage?.text || '';
+          } else if (messageType === 'imageMessage') {
+            messageText = messageInfo.message.imageMessage?.caption || '';
+          } else if (messageType === 'videoMessage') {
+            messageText = messageInfo.message.videoMessage?.caption || '';
+          }
+        }
+
+        // Salvar no banco de dados para persistência
+        try {
+          await db.query(
+            `INSERT INTO messages 
+            (id, remote_jid, from_me, push_name, timestamp, message_type, message_text, participant, quoted_message_id, raw_data) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            raw_data = VALUES(raw_data),
+            updated_at = CURRENT_TIMESTAMP`,
+            [messageInfo.key.id, messageInfo.key.remoteJid, messageInfo.key.fromMe ? 1 : 0, messageInfo.pushName || null, messageInfo.messageTimestamp || Date.now() / 1000, enhancedMessage._messageType, messageText, messageInfo.key.participant || null, messageInfo.message?.extendedTextMessage?.contextInfo?.stanzaId || null, JSON.stringify(messageInfo)],
+          );
+
+          logger.debug(`Cache: Mensagem salva no banco de dados (${messageInfo.key.id})`);
+        } catch (dbError) {
+          logger.error('Cache: Erro ao salvar mensagem no banco de dados:', {
+            error: dbError.message,
+            stack: dbError.stack,
+          });
+        }
+
         logger.debug(`Cache: Mensagem salva (${cacheKey.substring(0, 50)}...)`);
       } catch (error) {
         logger.error('Cache: Erro ao salvar mensagem:', {
@@ -249,10 +296,10 @@ class CacheManager {
   }
 
   /**
-   * Salva evento no cache (processamento assíncrono)
+   * Salva evento no cache e no banco de dados (processamento assíncrono)
    */
   async saveEvent(eventType, eventData, eventId = null) {
-    setImmediate(() => {
+    setImmediate(async () => {
       try {
         if (!eventType || !eventData) {
           logger.warn('Cache: Dados de evento inválidos');
@@ -260,6 +307,7 @@ class CacheManager {
         }
 
         const timestamp = Date.now();
+        const generatedId = `${eventType}_${timestamp}_${Math.random().toString(36).substring(2, 10)}`;
         const cacheKey = eventId ? `event_${eventType}_${eventId}_${timestamp}` : `event_${eventType}_${timestamp}`;
 
         const enhancedEvent = {
@@ -267,9 +315,10 @@ class CacheManager {
           _eventType: eventType,
           _cached: true,
           _cacheTimestamp: timestamp,
-          _eventId: eventId,
+          _eventId: eventId || generatedId,
         };
 
+        // Salvar no cache em memória
         eventsCache.set(cacheKey, enhancedEvent);
 
         const recentEventsKey = `recent_events_${eventType}`;
@@ -282,6 +331,25 @@ class CacheManager {
 
         eventsCache.set(recentEventsKey, recentEvents, 3600);
 
+        // Salvar no banco de dados para persistência
+        try {
+          await db.query(
+            `INSERT INTO events 
+            (id, event_type, event_id, event_timestamp, event_data) 
+            VALUES (?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            event_data = VALUES(event_data)`,
+            [eventId || generatedId, eventType, eventId, timestamp, JSON.stringify(eventData)],
+          );
+
+          logger.debug(`Cache: Evento salvo no banco de dados (${eventType})`);
+        } catch (dbError) {
+          logger.error('Cache: Erro ao salvar evento no banco de dados:', {
+            error: dbError.message,
+            stack: dbError.stack,
+          });
+        }
+
         logger.debug(`Cache: Evento ${eventType} salvo (${cacheKey.substring(0, 50)}...)`);
       } catch (error) {
         logger.error('Cache: Erro ao salvar evento:', { error: error.message, stack: error.stack });
@@ -290,7 +358,7 @@ class CacheManager {
   }
 
   /**
-   * Salva metadados de grupo no cache persistente em arquivo
+   * Salva metadados de grupo no cache persistente (arquivo e banco de dados)
    */
   async saveGroupMetadata(jid, metadata) {
     try {
@@ -306,11 +374,59 @@ class CacheManager {
         _jid: jid,
       };
 
+      // Salvar no arquivo para compatibilidade
       const allMetadata = await this._readGroupMetadataFile();
-
       allMetadata[jid] = { ...(allMetadata[jid] || {}), ...enhancedMetadata };
-
       await this._writeGroupMetadataFile(allMetadata);
+
+      // Salvar no banco de dados
+      try {
+        // 1. Inserir/atualizar informações do grupo
+        await db.query(
+          `INSERT INTO \`groups\` 
+          (jid, subject, creation_timestamp, owner, description, participant_count, metadata, last_updated) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE 
+          subject = VALUES(subject),
+          owner = VALUES(owner),
+          description = VALUES(description),
+          participant_count = VALUES(participant_count),
+          metadata = VALUES(metadata),
+          last_updated = VALUES(last_updated)`,
+          [jid, metadata.subject || '', metadata.creation || 0, metadata.owner || null, metadata.desc || '', metadata.participants?.length || 0, JSON.stringify(metadata), Date.now()],
+        );
+
+        // 2. Atualizar participantes (usar INSERT IGNORE para evitar duplicatas)
+        if (metadata.participants && metadata.participants.length > 0) {
+          // A cada hora, atualizar todos os participantes usando o método updateGroupParticipants
+          const currentHour = Math.floor(Date.now() / 3600000);
+          const lastUpdate = parseInt(metadata._lastParticipantFullUpdate || 0);
+
+          if (currentHour > lastUpdate) {
+            // Atualização completa de participantes a cada hora
+            enhancedMetadata._lastParticipantFullUpdate = currentHour;
+            await this.updateGroupParticipants(jid, metadata.participants);
+            logger.info(`Cache: Atualização completa de participantes para o grupo ${jid.substring(0, 15)}...`);
+          } else {
+            // Inserção com IGNORE para novos participantes
+            for (const participant of metadata.participants) {
+              await db.query(
+                `INSERT IGNORE INTO group_participants 
+                (group_jid, participant_jid, is_admin, is_super_admin) 
+                VALUES (?, ?, ?, ?)`,
+                [jid, participant.id, participant.admin === 'admin' ? 1 : 0, participant.admin === 'superadmin' ? 1 : 0],
+              );
+            }
+          }
+        }
+
+        logger.debug(`Cache: Grupo salvo no banco de dados (${jid})`);
+      } catch (dbError) {
+        logger.error('Cache: Erro ao salvar grupo no banco de dados:', {
+          error: dbError.message,
+          stack: dbError.stack,
+        });
+      }
 
       logger.debug(`Cache: Grupo salvo em arquivo (${jid.substring(0, 30)}...)`);
     } catch (error) {
@@ -319,10 +435,44 @@ class CacheManager {
   }
 
   /**
-   * Salva contato no cache
+   * Atualiza o status dos participantes de um grupo no banco de dados
+   * @param {string} jid - ID do grupo
+   * @param {Array} participants - Lista de participantes
+   */
+  async updateGroupParticipants(jid, participants) {
+    try {
+      if (!jid || !participants || !Array.isArray(participants)) {
+        return;
+      }
+
+      // Usar ON DUPLICATE KEY UPDATE para atualizar os status de admin
+      for (const participant of participants) {
+        await db.query(
+          `INSERT INTO group_participants 
+          (group_jid, participant_jid, is_admin, is_super_admin, joined_timestamp) 
+          VALUES (?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE 
+          is_admin = VALUES(is_admin),
+          is_super_admin = VALUES(is_super_admin)`,
+          [jid, participant.id, participant.admin === 'admin' ? 1 : 0, participant.admin === 'superadmin' ? 1 : 0, Date.now()],
+        );
+      }
+
+      logger.debug(`Cache: Status de participantes atualizados para o grupo ${jid.substring(0, 15)}...`);
+    } catch (error) {
+      logger.error('Cache: Erro ao atualizar participantes do grupo:', {
+        error: error.message,
+        stack: error.stack,
+        groupJid: jid,
+      });
+    }
+  }
+
+  /**
+   * Salva contato no cache e no banco de dados
    */
   async saveContact(contact) {
-    setImmediate(() => {
+    setImmediate(async () => {
       try {
         if (!contact || !contact.id) {
           logger.warn('Cache: Dados de contato inválidos');
@@ -336,7 +486,37 @@ class CacheManager {
           _cacheTimestamp: Date.now(),
         };
 
+        // Salvar no cache em memória
         contactsCache.set(cacheKey, enhancedContact);
+
+        // Salvar no banco de dados
+        try {
+          await db.query(
+            `INSERT INTO contacts 
+            (jid, name, notify, verify, short_name, push_name, status, is_business, is_enterprise, metadata, last_updated) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            name = COALESCE(VALUES(name), name),
+            notify = COALESCE(VALUES(notify), notify),
+            verify = COALESCE(VALUES(verify), verify),
+            short_name = COALESCE(VALUES(short_name), short_name),
+            push_name = COALESCE(VALUES(push_name), push_name),
+            status = COALESCE(VALUES(status), status),
+            is_business = VALUES(is_business),
+            is_enterprise = VALUES(is_enterprise),
+            metadata = VALUES(metadata),
+            last_updated = VALUES(last_updated)`,
+            [contact.id, contact.name || null, contact.notify || null, contact.verify || null, contact.shortName || null, contact.pushName || null, contact.status || null, contact.isBusiness ? 1 : 0, contact.isEnterprise ? 1 : 0, JSON.stringify(contact), Date.now()],
+          );
+
+          logger.debug(`Cache: Contato salvo no banco de dados (${contact.id})`);
+        } catch (dbError) {
+          logger.error('Cache: Erro ao salvar contato no banco de dados:', {
+            error: dbError.message,
+            stack: dbError.stack,
+          });
+        }
+
         logger.debug(`Cache: Contato salvo (${contact.id.substring(0, 30)}...)`);
       } catch (error) {
         logger.error('Cache: Erro ao salvar contato:', {
@@ -348,10 +528,10 @@ class CacheManager {
   }
 
   /**
-   * Salva chat no cache
+   * Salva chat no cache e no banco de dados
    */
   async saveChat(chat) {
-    setImmediate(() => {
+    setImmediate(async () => {
       try {
         if (!chat || !chat.id) {
           logger.warn('Cache: Dados de chat inválidos');
@@ -365,7 +545,36 @@ class CacheManager {
           _cacheTimestamp: Date.now(),
         };
 
+        // Salvar no cache em memória
         chatsCache.set(cacheKey, enhancedChat);
+
+        // Salvar no banco de dados
+        try {
+          await db.query(
+            `INSERT INTO chats 
+            (jid, name, unread_count, timestamp, archived, pinned, is_muted, is_group, metadata, last_updated) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            name = COALESCE(VALUES(name), name),
+            unread_count = VALUES(unread_count),
+            timestamp = VALUES(timestamp),
+            archived = VALUES(archived),
+            pinned = VALUES(pinned),
+            is_muted = VALUES(is_muted),
+            is_group = VALUES(is_group),
+            metadata = VALUES(metadata),
+            last_updated = VALUES(last_updated)`,
+            [chat.id, chat.name || null, chat.unreadCount || 0, chat.conversationTimestamp || Date.now(), chat.archived ? 1 : 0, chat.pinned ? 1 : 0, chat.mute > 0 ? 1 : 0, chat.id.endsWith('@g.us') ? 1 : 0, JSON.stringify(chat), Date.now()],
+          );
+
+          logger.debug(`Cache: Chat salvo no banco de dados (${chat.id})`);
+        } catch (dbError) {
+          logger.error('Cache: Erro ao salvar chat no banco de dados:', {
+            error: dbError.message,
+            stack: dbError.stack,
+          });
+        }
+
         logger.debug(`Cache: Chat salvo (${chat.id.substring(0, 30)}...)`);
       } catch (error) {
         logger.error('Cache: Erro ao salvar chat:', { error: error.message, stack: error.stack });
@@ -807,6 +1016,192 @@ class CacheManager {
       }
     });
   }
+
+  /**
+   * Busca mensagens no banco de dados
+   * @param {Object} options - Opções de busca
+   * @param {String} options.remoteJid - JID do chat para filtrar
+   * @param {String} options.messageType - Tipo de mensagem
+   * @param {String} options.text - Texto para buscar
+   * @param {Number} options.limit - Número máximo de resultados
+   * @param {Number} options.offset - Offset para paginação
+   * @param {Date} options.startDate - Data inicial
+   * @param {Date} options.endDate - Data final
+   * @returns {Promise<Array>} Array de mensagens
+   */
+  async searchMessages(options = {}) {
+    try {
+      const { remoteJid, messageType, text, limit = 100, offset = 0, startDate, endDate, fromMe } = options;
+
+      // Construir a query SQL com condições dinâmicas
+      let query = 'SELECT * FROM messages WHERE 1=1';
+      const params = [];
+
+      if (remoteJid) {
+        query += ' AND remote_jid = ?';
+        params.push(remoteJid);
+      }
+
+      if (messageType) {
+        query += ' AND message_type = ?';
+        params.push(messageType);
+      }
+
+      if (text) {
+        query += ' AND message_text LIKE ?';
+        params.push(`%${text}%`);
+      }
+
+      if (fromMe !== undefined) {
+        query += ' AND from_me = ?';
+        params.push(fromMe ? 1 : 0);
+      }
+
+      if (startDate) {
+        const startTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
+        query += ' AND timestamp >= ?';
+        params.push(startTimestamp);
+      }
+
+      if (endDate) {
+        const endTimestamp = Math.floor(new Date(endDate).getTime() / 1000);
+        query += ' AND timestamp <= ?';
+        params.push(endTimestamp);
+      }
+
+      // Ordenar por timestamp descendente e aplicar limite/offset
+      query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
+      params.push(limit, offset);
+
+      // Executar a query
+      const messages = await db.query(query, params);
+
+      // Converter os dados JSON de volta para objetos
+      return messages.map((msg) => ({
+        ...JSON.parse(msg.raw_data),
+        _fromDatabase: true,
+      }));
+    } catch (error) {
+      logger.error('Cache: Erro ao buscar mensagens no banco de dados:', {
+        error: error.message,
+        stack: error.stack,
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Busca eventos no banco de dados
+   * @param {Object} options - Opções de busca
+   * @param {String} options.eventType - Tipo de evento
+   * @param {String} options.eventId - ID do evento
+   * @param {Number} options.limit - Número máximo de resultados
+   * @param {Number} options.offset - Offset para paginação
+   * @param {Date} options.startDate - Data inicial
+   * @param {Date} options.endDate - Data final
+   * @returns {Promise<Array>} Array de eventos
+   */
+  async searchEvents(options = {}) {
+    try {
+      const { eventType, eventId, limit = 100, offset = 0, startDate, endDate } = options;
+
+      // Construir a query SQL com condições dinâmicas
+      let query = 'SELECT * FROM events WHERE 1=1';
+      const params = [];
+
+      if (eventType) {
+        query += ' AND event_type = ?';
+        params.push(eventType);
+      }
+
+      if (eventId) {
+        query += ' AND event_id = ?';
+        params.push(eventId);
+      }
+
+      if (startDate) {
+        const startTimestamp = new Date(startDate).getTime();
+        query += ' AND event_timestamp >= ?';
+        params.push(startTimestamp);
+      }
+
+      if (endDate) {
+        const endTimestamp = new Date(endDate).getTime();
+        query += ' AND event_timestamp <= ?';
+        params.push(endTimestamp);
+      }
+
+      // Ordenar por timestamp descendente e aplicar limite/offset
+      query += ' ORDER BY event_timestamp DESC LIMIT ? OFFSET ?';
+      params.push(limit, offset);
+
+      // Executar a query
+      const events = await db.query(query, params);
+
+      // Converter os dados JSON de volta para objetos
+      return events.map((event) => ({
+        ...JSON.parse(event.event_data),
+        _eventType: event.event_type,
+        _eventId: event.event_id,
+        _timestamp: event.event_timestamp,
+        _fromDatabase: true,
+      }));
+    } catch (error) {
+      logger.error('Cache: Erro ao buscar eventos no banco de dados:', {
+        error: error.message,
+        stack: error.stack,
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Busca grupos no banco de dados
+   * @param {Object} options - Opções de busca
+   * @param {String} options.subject - Nome do grupo para filtrar
+   * @param {Number} options.minParticipants - Número mínimo de participantes
+   * @param {Number} options.limit - Número máximo de resultados
+   * @param {Number} options.offset - Offset para paginação
+   * @returns {Promise<Array>} Array de grupos
+   */
+  async searchGroups(options = {}) {
+    try {
+      const { subject, minParticipants, limit = 50, offset = 0 } = options;
+
+      // Construir a query SQL com condições dinâmicas
+      let query = 'SELECT * FROM `groups` WHERE 1=1';
+      const params = [];
+
+      if (subject) {
+        query += ' AND subject LIKE ?';
+        params.push(`%${subject}%`);
+      }
+
+      if (minParticipants) {
+        query += ' AND participant_count >= ?';
+        params.push(minParticipants);
+      }
+
+      // Ordenar por último acesso e aplicar limite/offset
+      query += ' ORDER BY last_updated DESC LIMIT ? OFFSET ?';
+      params.push(limit, offset);
+
+      // Executar a query
+      const groups = await db.query(query, params);
+
+      // Converter os dados JSON de volta para objetos
+      return groups.map((group) => ({
+        ...JSON.parse(group.metadata),
+        _fromDatabase: true,
+      }));
+    } catch (error) {
+      logger.error('Cache: Erro ao buscar grupos no banco de dados:', {
+        error: error.message,
+        stack: error.stack,
+      });
+      return [];
+    }
+  }
 }
 
 const cacheManager = new CacheManager();
@@ -818,4 +1213,7 @@ module.exports = {
   contactsCache,
   chatsCache,
   GROUP_METADATA_FILE,
+  searchMessages: (...args) => cacheManager.searchMessages(...args),
+  searchEvents: (...args) => cacheManager.searchEvents(...args),
+  searchGroups: (...args) => cacheManager.searchGroups(...args),
 };
