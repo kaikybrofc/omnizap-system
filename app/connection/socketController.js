@@ -84,7 +84,7 @@ async function initializeOmniZapConnection() {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, baileysLogger),
     },
-    browser: ['OmniZap', 'Chrome', '120.0.0.0'],
+    browser: ['Chrome'],
     msgRetryCounterCache: messageRetryCache,
     generateHighQualityLinkPreview: true,
     patchMessageBeforeSending: (message) => {
@@ -168,7 +168,7 @@ async function initializeOmniZapConnection() {
           break;
 
         case 'connecting':
-          logger.info(`〔 Socket 〕Reconectando/Iniciando - ${getCurrentDate()} ${getCurrentTime()}`);
+          logger.info(`〔 Socket 〕 Reconectando/Iniciando - ${getCurrentDate()} ${getCurrentTime()}`);
           break;
 
         case 'open':
