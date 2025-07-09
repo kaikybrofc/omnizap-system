@@ -41,17 +41,6 @@ const env = cleanEnv(process.env, {
 const logger = require('../utils/logger/loggerModule');
 const baileysLogger = require('pino')().child({}).child({ level: 'silent' });
 
-const OmniZapMessages = {
-  auth_error: () => 'OmniZap: Erro de autenticação. Escaneie o QR Code novamente.',
-  timeout: () => 'OmniZap: Timeout de conexão. Tentando reconectar...',
-  rate_limit: () => 'OmniZap: Muitas requisições. Tente novamente em alguns momentos.',
-  connection_closed: () => 'OmniZap: Conexão fechada inesperadamente. Reconectando...',
-  connection_timeout: () => 'OmniZap: Timeout de conexão. Reconectando...',
-  server_error: () => 'OmniZap: Erro interno do servidor. Reconectando...',
-  version_error: () => 'OmniZap: Falha na versão. Atualize a aplicação.',
-  connected: () => 'OmniZap: Conectado com sucesso!',
-};
-
 const moment = require('moment-timezone');
 const getCurrentDate = () => moment().format('DD/MM/YY');
 const getCurrentTime = () => moment().format('HH:mm:ss');
@@ -75,6 +64,71 @@ Caminho QR: ${QR_CODE_PATH}
 
 logger.info('🔗 OmniZap Socket: Sistema de conexão inicializado');
 logger.debug('🔗 Módulos de cache e eventos carregados independentemente');
+
+/**
+ * Lida com o fechamento da conexão, logando o erro e decidindo se deve reconectar.
+ * @param {object} lastDisconnect - O objeto de desconexão do Baileys.
+ */
+async function handleConnectionClose(lastDisconnect) {
+  const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
+  let shouldReconnect = true;
+  let userMessage = '🔌 Conexão perdida. Tentando reconectar...';
+
+  logger.debug('A conexão foi fechada.', {
+    error: lastDisconnect.error,
+    statusCode,
+  });
+
+  switch (statusCode) {
+    case 401: // Unauthorized: credenciais inválidas ou usuário desconectado
+      userMessage = '🚫 Erro de autenticação. A sessão é inválida.';
+      logger.error(`${userMessage} Removendo credenciais e encerrando.`);
+      try {
+        fs.unlinkSync(path.join(QR_CODE_PATH, 'creds.json'));
+        logger.info('Arquivo de sessão removido. Por favor, reinicie a aplicação para gerar um novo QR Code.');
+      } catch (e) {
+        logger.error('Não foi possível remover o arquivo de sessão.', { error: e.message });
+      }
+      shouldReconnect = false;
+      break;
+    case 408: // Connection Lost
+      userMessage = '🌐 Conexão com o servidor perdida. Reconectando...';
+      logger.warn(userMessage);
+      break;
+    case 411: // Multi-device Mismatch
+      userMessage = '⚠️ Sincronização entre dispositivos falhou. Pode ser necessário escanear o QR Code novamente.';
+      logger.warn(userMessage);
+      break;
+    case 428: // Connection Closed
+      userMessage = '🔌 Conexão fechada. Reconectando...';
+      logger.warn(userMessage);
+      break;
+    case 440: // Connection Replaced
+      userMessage = '🔄 Nova sessão iniciada em outro local. Esta sessão foi encerrada.';
+      logger.warn(userMessage);
+      shouldReconnect = false;
+      break;
+    case 500: // Internal Server Error
+      userMessage = '🔥 Erro interno no servidor do WhatsApp. Reconectando...';
+      logger.error(userMessage);
+      break;
+    case 515: // Restart Required
+      userMessage = '🔄 O servidor do WhatsApp exige uma reinicialização. Reconectando...';
+      logger.warn(userMessage);
+      break;
+    default:
+      userMessage = `🔌 Conexão fechada por motivo desconhecido. Reconectando...`;
+      logger.error(`Erro não tratado: ${statusCode}`, { error: lastDisconnect.error });
+  }
+
+  if (shouldReconnect) {
+    const delay = 5000;
+    logger.info(`${userMessage} Tentando novamente em ${delay / 1000} segundos.`);
+    setTimeout(() => initializeOmniZapConnection().catch((err) => logger.error('Falha crítica na tentativa de reconexão.', { error: err.message, stack: err.stack })), delay);
+  } else {
+    logger.info(userMessage);
+  }
+}
 
 /**
  * Inicializa a conexão WhatsApp do OmniZap
@@ -176,50 +230,17 @@ async function initializeOmniZapConnection() {
         logger.warn('⏰ O QR Code expira em 60 segundos');
       }
 
-      const statusCode = new Boom(lastDisconnect?.error)?.output.statusCode;
-
       switch (connection) {
         case 'close':
-          if (statusCode) {
-            switch (statusCode) {
-              case 401:
-                logger.error(OmniZapMessages.auth_error());
-                fs.unlinkSync(`${QR_CODE_PATH}/creds.json`);
-                break;
-              case 408:
-                logger.warn(OmniZapMessages.timeout());
-                break;
-              case 411:
-                logger.warn(OmniZapMessages.rate_limit());
-                break;
-              case 428:
-                logger.warn(OmniZapMessages.connection_closed());
-                break;
-              case 440:
-                logger.debug(OmniZapMessages.connection_timeout());
-                break;
-              case 500:
-                logger.error(OmniZapMessages.server_error());
-                break;
-              case 503:
-                logger.error('OmniZap: Erro desconhecido 503.');
-                break;
-              case 515:
-                logger.warn(OmniZapMessages.version_error());
-                break;
-              default:
-                logger.error(`[CONEXÃO FECHADA] Socket: Conexão fechada por erro: ${lastDisconnect?.error}`);
-            }
-            await initializeOmniZapConnection();
-          }
+          await handleConnectionClose(lastDisconnect);
           break;
 
         case 'connecting':
-          logger.info(`〔 Socket 〕 Reconectando/Iniciando - ${getCurrentDate()} ${getCurrentTime()}`);
+          logger.info(`〔 Socket 〕 Conectando... - ${getCurrentDate()} ${getCurrentTime()}`);
           break;
 
         case 'open':
-          logger.info(OmniZapMessages.connected());
+          logger.info('✅ OmniZap: Conectado com sucesso!');
           await omniZapClient.sendPresenceUpdate('available');
           eventHandler.setWhatsAppClient(omniZapClient);
           break;
