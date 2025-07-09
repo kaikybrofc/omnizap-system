@@ -4,22 +4,24 @@ Sistema profissional de automação WhatsApp com tecnologia Baileys e arquitetur
 
 ## 📋 Descrição
 
-OmniZap é um sistema robusto e profissional para automação de mensagens WhatsApp, desenvolvido com a mais avançada tecnologia Baileys para máxima compatibilidade e estabilidade. Com **arquitetura modular**, **sistema de cache avançado** e **processamento de eventos independente** para máxima performance e escalabilidade. A versão 1.0.4 introduz um **sistema completo de sticker packs**, **logging centralizado baseado em Winston** com rotação de arquivos, e **sub-comandos avançados** para gerenciamento inteligente de conteúdo.
+OmniZap é um sistema robusto e profissional para automação de mensagens WhatsApp, desenvolvido com a mais avançada tecnologia Baileys para máxima compatibilidade e estabilidade. Com **arquitetura modular**, **banco de dados MySQL integrado** e **processamento de eventos independente** para máxima performance e escalabilidade. A versão 1.0.5 introduz **persistência completa de dados** com banco de dados MySQL, **sistema aprimorado de sticker packs** com suporte a múltiplos pacotes por usuário, **logging centralizado com rotação de arquivos** baseado em Winston, e **sistema avançado de sub-comandos** para gerenciamento inteligente de conteúdo.
 
 ## ✨ Características
 
 - 🚀 **Alta Performance**: Otimizado para processamento eficiente de mensagens
 - 🔒 **Seguro**: Implementação segura com autenticação robusta
-- 📱 **Compatível**: Totalmente compatível com WhatsApp Web
-- 🔄 **Reconexão Automática**: Sistema inteligente de reconexão
+- 📱 **Compatível**: Totalmente compatível com WhatsApp Web e multi-dispositivo
+- 🔄 **Reconexão Automática**: Sistema inteligente de reconexão e recuperação de sessão
 - 📊 **Logs Centralizados**: Sistema completo de logging com Winston para monitoramento e diagnóstico
 - 🤖 **Sistema de Comandos**: Processamento inteligente de comandos com prefixos configuráveis
 - ⚡ **Switch Case**: Arquitetura otimizada para processamento de comandos
 - 🎯 **Respostas Inteligentes**: Sistema de respostas automáticas e contextuais
 - 🏗️ **Arquitetura Modular**: Sistema dividido em módulos independentes
-- 💾 **Cache Avançado**: Sistema de cache inteligente com TTL configurável
+- 💾 **Persistência de Dados**: Banco de dados MySQL para armazenamento confiável
 - 🎯 **Processamento de Eventos**: Handler independente para todos os eventos WhatsApp
-- 📈 **Estatísticas Detalhadas**: Monitoramento completo do sistema e cache
+- 📈 **Estatísticas Detalhadas**: Monitoramento completo do sistema e armazenamento
+- 🖼️ **Sticker Packs**: Sistema completo de criação e gerenciamento de pacotes de stickers
+- 🔁 **Rotação de Logs**: Sistema automático de rotação e compressão de arquivos de log
 - 🔄 **Processamento Assíncrono**: Execução assíncrona para melhor desempenho
 - 📝 **Rotação de Logs**: Sistema automatizado de rotação e compressão de logs
 
@@ -289,74 +291,38 @@ logs/
 - **Resiliente**: Tratamento avançado de erros e reconexão automática
 - **Eficiente**: Uso de setImmediate para processamento em segundo plano
 
-## 🛠️ Tecnologias
+## 🛠️ Tecnologias Utilizadas
 
-### 📋 Principais Dependências
-- **Node.js** >= 16.0.0
-- **@whiskeysockets/baileys** ^6.7.0 - API WhatsApp Web de alta performance
-- **Winston** ^3.17.0 - Sistema de logging centralizado
-- **Winston Daily Rotate File** ^5.0.0 - Rotação automática de logs
-- **Chalk** ^4.1.2 - Formatação colorida de console
-- **Moment.js** ^0.5.48 - Manipulação de datas e timezones
-- **Node Cache** ^5.1.2 - Sistema de cache avançado
-- **Pino** ^7.11.0 - Logger de alta performance
-- **Dotenv** ^16.5.0 - Gerenciamento de variáveis de ambiente
-- **Envalid** ^8.0.0 - Validação de variáveis de ambiente
-- **@hapi/boom** ^10.0.1 - Tratamento de erros HTTP
-- **QRCode Terminal** ^0.12.0 - Geração de QR Code no terminal
-- **FFmpeg** ^0.0.4 - Processamento de mídia para stickers
+- [Baileys](https://github.com/whiskeysockets/baileys): Framework de comunicação com WhatsApp Web
+- [Node.js](https://nodejs.org/): Ambiente de execução JavaScript
+- [MySQL](https://www.mysql.com/): Banco de dados relacional para persistência
+- [Winston](https://github.com/winstonjs/winston): Sistema avançado de logging
+- [FFmpeg](https://ffmpeg.org/): Processamento de mídia para stickers
 
-### 🎨 Sistema de Stickers - Dependências
-- **webpmux** - Adiciona metadados EXIF aos stickers
-- **ffmpeg** - Conversão de mídia (imagem/vídeo → WebP)
-- **sharp** (opcional) - Processamento de imagem otimizado
-- Sistema de arquivos nativo para persistência de dados
+## 📦 Estrutura do Projeto
 
-### 🔧 Instalação de Dependências do Sistema de Stickers
-
-Para que o sistema de stickers funcione completamente, é necessário instalar algumas dependências do sistema:
-
-#### Ubuntu/Debian:
-```bash
-sudo apt-get update
-sudo apt-get install -y webp ffmpeg
+```
+omnizap-system/
+├── app/                          # Diretório principal da aplicação
+│   ├── commandModules/           # Módulos de comandos do sistema
+│   │   └── stickerModules/       # Sistema completo de stickers
+│   ├── connection/               # Controlador de conexão WhatsApp
+│   │   └── qr-code/              # Armazenamento de QR e credenciais
+│   ├── controllers/              # Controladores da aplicação
+│   ├── database/                 # Gerenciamento de banco de dados
+│   ├── events/                   # Handler de eventos do WhatsApp
+│   └── utils/                    # Utilitários do sistema
+│       ├── baileys/              # Helpers para a API Baileys
+│       └── logger/               # Sistema de logging
+├── logs/                         # Diretório de logs rotacionados
+├── temp/                         # Arquivos temporários
+│   ├── stickerPacks/             # Pacotes de stickers por usuário
+│   └── stickers/                 # Stickers temporários
+├── index.js                      # Ponto de entrada da aplicação
+└── package.json                  # Dependências e configurações
 ```
 
-#### CentOS/RHEL/Fedora:
-```bash
-sudo yum install -y libwebp-tools ffmpeg
-# ou para Fedora:
-sudo dnf install -y libwebp-tools ffmpeg
-```
-
-#### Windows:
-1. Baixe o FFmpeg de https://ffmpeg.org/download.html
-2. Baixe o WebP tools de https://developers.google.com/speed/webp/download
-3. Adicione ambos ao PATH do sistema
-
-## 💾 Sistema de Cache Avançado
-
-O OmniZap utiliza um sistema de cache inteligente com múltiplas camadas:
-
-### 📊 Tipos de Cache
-
-| Tipo | TTL | Descrição |
-|------|-----|-----------|
-| **Mensagens** | 1 hora | Cache de mensagens recebidas e enviadas |
-| **Eventos** | 30 min | Cache de eventos do WhatsApp |
-| **Grupos** | 2 horas | Metadados de grupos |
-| **Contatos** | 4 horas | Informações de contatos |
-| **Chats** | 1 hora | Dados de conversas |
-
-### 🔧 Funcionalidades do Cache
-
-- **Hit/Miss Tracking**: Estatísticas detalhadas de performance
-- **TTL Configurável**: Tempo de vida personalizado por tipo
-- **Limpeza Automática**: Remoção inteligente de dados expirados
-- **Backup Automático**: Backup periódico das estatísticas
-- **Otimização de Memória**: Gerenciamento eficiente de recursos
-
-## 📦 Instalação
+## ⚙️ Instalação
 
 1. Clone o repositório:
 ```bash
@@ -369,309 +335,101 @@ cd omnizap-system
 npm install
 ```
 
-3. Configure as variáveis de ambiente:
+3. Configure o ambiente:
 ```bash
 cp .env.example .env
+# Edite o arquivo .env com suas configurações
 ```
 
-4. Execute o sistema:
+4. Instale FFmpeg (necessário para criação de stickers):
+```bash
+# Ubuntu/Debian
+sudo apt-get install ffmpeg
+
+# macOS
+brew install ffmpeg
+
+# Windows
+# Baixe do site oficial e adicione ao PATH
+```
+
+5. Inicie o sistema:
 ```bash
 npm start
 ```
 
-## 🚀 Uso
+6. Escaneie o QR Code que aparecerá no terminal ou use o código de pareamento (se configurado).
 
-1. Execute o sistema:
-```bash
-npm start
-```
+## 🚀 Principais Recursos
 
-2. Escaneie o QR Code que aparecerá no terminal com seu WhatsApp ou, se preferir, use o método de pareamento por código.
-3. Aguarde a mensagem de conexão bem-sucedida
-4. O sistema está pronto para processar mensagens e comandos!
+### Sistema de Stickers
 
-## 📁 Estrutura do Projeto
+O OmniZap conta com um sistema completo de criação e gerenciamento de stickers:
 
-```
-omnizap-system/
-├── app/
-│   ├── cache/
-│   │   └── cacheManager.js        # Sistema de cache avançado
-│   ├── commandModules/
-│   │   └── stickerModules/        # Módulos de sticker
-│   │       ├── stickerCommand.js      # Criação de stickers
-│   │       ├── stickerPackManager.js  # Gerenciamento de packs
-│   │       └── stickerSubCommands.js  # Sub-comandos de admin
-│   ├── connection/
-│   │   └── socketController.js    # Controle de conexão WhatsApp
-│   ├── controllers/
-│   │   └── messageController.js   # Processamento de mensagens e comandos
-│   ├── events/
-│   │   └── eventHandler.js        # Processamento independente de eventos
-│   └── utils/
-│       ├── baileys/               # Utilitários do Baileys
-│       │   ├── mediaHelper.js         # Manipulação de mídia
-│       │   └── messageHelper.js       # Processamento de mensagens
-│       ├── logger/                # Sistema de logging
-│       │   └── loggerModule.js        # Logger centralizado Winston
-│       ├── constants.js           # Constantes globais
-│       └── messageUtils.js        # Utilitários de mensagem
-├── logs/                          # Logs do sistema (auto-gerado)
-├── temp/                          # Arquivos temporários
-│   ├── stickers/                  # Stickers temporários
-│   ├── stickerPacks/             # Packs de usuários
-│   └── prefs/                    # Preferências de usuário
-├── qr-code/                       # Dados de autenticação (auto-gerado)
-├── .env                          # Configurações do ambiente
-├── .env.example                  # Template de configurações
-├── .gitignore                    # Arquivos ignorados pelo Git
-├── index.js                      # Arquivo principal
-├── package.json                  # Dependências e scripts
-├── LICENSE                       # Licença MIT
-└── README.md                     # Documentação
-```
+- **Criação de Stickers**: Converte imagens e vídeos em stickers WhatsApp
+- **Gerenciamento de Pacotes**: Organize stickers em pacotes personalizados
+- **Customização**: Configure nome e autor para cada pacote
+- **Compartilhamento**: Envie pacotes completos para outros usuários
 
-### 📦 Descrição dos Módulos
+Comandos disponíveis:
+- `/sticker` - Cria um sticker a partir de mídia
+- `/sticker list` - Lista todos os pacotes disponíveis
+- `/sticker info [número]` - Mostra detalhes de um pacote
+- `/sticker send [número]` - Envia um pacote de stickers
+- `/sticker rename [número] [nome]|[autor]` - Renomeia um pacote
+- `/sticker delete [número]` - Exclui um pacote
 
-#### Core System
-- **`index.js`**: Arquivo principal que inicializa o sistema
+### Banco de Dados Integrado
 
-#### Módulos da Aplicação
-- **`app/cache/cacheManager.js`**: Gerenciador de cache com TTL e estatísticas
-- **`app/connection/socketController.js`**: Controlador de conexão WhatsApp
-- **`app/controllers/messageController.js`**: Processador de mensagens e comandos
-- **`app/events/eventHandler.js`**: Processador independente de eventos
+A partir da versão 1.0.5, o OmniZap utiliza MySQL para persistência completa de dados:
 
-#### Módulos de Comando
-- **`app/commandModules/stickerModules/`**: Sistema completo de sticker packs
-  - **`stickerCommand.js`**: Processamento e criação de stickers
-  - **`stickerPackManager.js`**: Gerenciamento de packs por usuário
-  - **`stickerSubCommands.js`**: Sub-comandos de administração
+- **Mensagens**: Armazenamento completo de histórico de mensagens
+- **Eventos**: Registro de todos os eventos do WhatsApp
+- **Grupos**: Metadados de grupos e participantes
+- **Contatos**: Informações de contatos
 
-#### Utilitários
-- **`app/utils/baileys/`**: Helpers específicos do Baileys
-  - **`mediaHelper.js`**: Manipulação de mídia
-  - **`messageHelper.js`**: Processamento de mensagens
-- **`app/utils/logger/loggerModule.js`**: Sistema de logging centralizado
-- **`app/utils/constants.js`**: Constantes globais do sistema
-- **`app/utils/messageUtils.js`**: Utilitários de envio de mensagens
+### Sistema de Logging Avançado
 
-#### Configuração e Dados
-- **`logs/`**: Sistema de logs com rotação automática
-- **`temp/`**: Diretórios de arquivos temporários
-  - **`stickers/`**: Stickers em processamento
-  - **`stickerPacks/`**: Packs organizados por usuário
-  - **`prefs/`**: Preferências personalizadas
-- **`qr-code/`**: Diretório para dados de autenticação (criado automaticamente)
-- **`.env`**: Variáveis de ambiente do sistema
+Sistema centralizado de logging baseado em Winston:
 
-## ⚙️ Configuração
+- **Níveis de Log**: Suporte a múltiplos níveis (error, warn, info, debug)
+- **Rotação de Arquivos**: Compressão e rotação automática por data
+- **Formatação Personalizada**: Formato rico com timestamp e contexto
+- **Separação por Categoria**: Arquivos separados para erros, alertas e informações
 
-### Variáveis de Ambiente
+## 🧩 Arquitetura Modular
 
-#### Configurações Principais
-- `QR_CODE_PATH`: Caminho para armazenar dados de autenticação (padrão: `./app/connection/qr-code`)
-- `COMMAND_PREFIX`: Prefixo dos comandos do bot (padrão: `/`)
+O OmniZap foi construído com uma arquitetura modular para facilitar a manutenção e expansão:
 
-#### Exemplo de Configuração (.env)
-```bash
-# Configurações do OmniZap
-QR_CODE_PATH=./app/connection/qr-code
-COMMAND_PREFIX=/
+- **Event Handler**: Processamento independente de eventos do WhatsApp
+- **Command Modules**: Sistema modular para processamento de comandos
+- **Database Manager**: Camada de abstração para acesso ao banco de dados
+- **Media Helper**: Utilitários para processamento de mídia
+- **Message Utils**: Ferramentas para formatação e envio de mensagens
 
-# Configurações de autenticação
-# Defina PAIRING_CODE como true para usar o método de pareamento por código
-PAIRING_CODE=false
-# Insira o número de telefone com o código do país (ex: 5511999999999)
-PHONE_NUMBER=
+## 🔒 Ambiente e Configuração
 
-# Configurações de logging
-NODE_ENV=development
-LOG_LEVEL=debug
-ECOSYSTEM_NAME=omnizap-system
+O OmniZap utiliza variáveis de ambiente para configuração:
 
-# Configurações opcionais de cache (implementação futura)
-# CACHE_TTL_MESSAGES=3600
-# CACHE_TTL_EVENTS=1800
-# CACHE_TTL_GROUPS=7200
-# CACHE_TTL_CONTACTS=14400
-# CACHE_TTL_CHATS=3600
-```
+- `COMMAND_PREFIX`: Prefixo para comandos (padrão: "/")
+- `DB_HOST`: Host do banco de dados MySQL
+- `DB_USER`: Usuário do banco de dados
+- `DB_PASSWORD`: Senha do banco de dados
+- `DB_NAME`: Nome do banco de dados
+- `LOG_LEVEL`: Nível de detalhamento dos logs
+- `QR_CODE_PATH`: Caminho para salvar QR Code e credenciais
+- `PAIRING_CODE`: Usar código de pareamento em vez de QR Code
+- `PHONE_NUMBER`: Número para código de pareamento
 
-### 🎨 Configurações do Sistema de Stickers
+## 📜 Licença
 
-O sistema de stickers possui configurações avançadas definidas em `app/utils/constants.js`:
+Este projeto está licenciado sob a licença MIT - veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
-```javascript
-// Configurações de Sticker Packs
-STICKERS_PER_PACK: 30          // Stickers por pack
-MAX_FILE_SIZE: 10 * 1024 * 1024 // 10MB limite de arquivo
-DEFAULT_PACK_NAME: '🤖 OmniZap Pack'
-DEFAULT_AUTHOR: '👤 OmniZap User'
+## 🤝 Contribuição
 
-// Rate Limiting para envio
-BATCH_SIZE: 5                   // Stickers por lote
-DELAY_BETWEEN_STICKERS: 1000    // 1s entre stickers
-DELAY_BETWEEN_BATCHES: 3000     // 3s entre lotes
+Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou enviar pull requests.
 
-// Formatos suportados
-SUPPORTED_FORMATS: ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm']
-```
+## 📞 Contato
 
-### 📁 Estrutura de Arquivos de Stickers
-
-```
-temp/
-├── stickers/                  # Stickers temporários durante processamento
-├── stickerPacks/             # Packs organizados por usuário
-│   ├── [userID].json         # Dados do usuário (packs, estatísticas)
-│   └── [userID]/             # Diretório do usuário
-│       ├── pack_0/           # Pack 1
-│       ├── pack_1/           # Pack 2
-│       └── ...
-└── prefs/                    # Preferências de usuário
-    └── [userID].json         # Nomes e autores preferidos
-```
-
-Veja o arquivo `.env.example` para mais detalhes sobre todas as configurações disponíveis.
-
-## 🚀 Performance e Otimizações
-
-### ⚡ Melhorias de Performance
-
-- **Processamento Assíncrono**: Todos os eventos são processados de forma não-bloqueante
-- **Cache Inteligente**: Sistema de cache com diferentes TTLs para otimizar acesso a dados
-- **Modularização**: Separação de responsabilidades reduz overhead
-- **Logging Otimizado**: Sistema de logs colorido e estruturado
-- **Rate Limiting**: Controle de envio para evitar bloqueios do WhatsApp
-- **Processamento de Mídia**: Conversão otimizada com FFmpeg
-- **Persistência Eficiente**: Sistema de arquivos JSON estruturado por usuário
-
-### 🎨 Otimizações do Sistema de Stickers
-
-- **Metadados EXIF**: Inserção automática de informações de pack
-- **Compressão Inteligente**: Otimização de tamanho mantendo qualidade
-- **Cache de Preferências**: Memorização de nomes e autores por usuário
-- **Limpeza Automática**: Remoção de arquivos temporários
-- **Envio Escalonado**: Prevenção de rate limiting com delays configuráveis
-- **Validação de Mídia**: Verificação de formato e tamanho antes do processamento
-
-### 📊 Métricas de Sistema
-
-O sistema monitora automaticamente:
-- Taxa de hits/misses do cache
-- Uso de memória por módulo
-- Tempo de resposta dos comandos
-- Estatísticas de stickers por usuário (total, packs, completos/incompletos)
-- Taxa de sucesso no envio de stickers
-- Quantidade de eventos processados
-- Status de conexão em tempo real
-
-### 🔧 Otimizações Implementadas
-
-- **Lazy Loading**: Módulos carregados sob demanda
-- **Memory Management**: Limpeza automática de cache
-- **Event Batching**: Processamento em lote de eventos similares
-- **Connection Pooling**: Reutilização eficiente de conexões
-
-## 🔧 Desenvolvimento
-
-### Scripts Disponíveis
-
-- `npm start`: Inicia o sistema em modo produção
-
-### 🛠️ Desenvolvimento Local
-
-#### Configuração do Ambiente
-```bash
-# Clone o repositório
-git clone https://github.com/Kaikygr/omnizap-system.git
-cd omnizap-system
-
-# Instale as dependências
-npm install
-
-# Configure as variáveis de ambiente
-cp .env.example .env
-
-# Execute o sistema
-npm start
-```
-
-
-### 📁 Estrutura de Desenvolvimento
-
-#### Adicionando Novos Comandos
-1. **Para comandos simples:**
-   - Edite `app/controllers/messageController.js`
-   - Adicione o novo case no switch statement
-   - Implemente a lógica correspondente
-   
-2. **Para comandos complexos (como stickers):**
-   - Crie um novo módulo em `app/commandModules/`
-   - Implemente os sub-comandos necessários
-   - Integre com o Message Controller
-   - Adicione testes e documentação
-
-#### Adicionando Novos Módulos de Comando
-1. Crie diretório em `app/commandModules/[nomeModulo]/`
-2. Implemente arquivos principais:
-   - `[nomeModulo]Command.js` - Lógica principal
-   - `[nomeModulo]Manager.js` - Gerenciamento de dados
-   - `[nomeModulo]SubCommands.js` - Sub-comandos (se aplicável)
-3. Integre com `messageController.js`
-4. Adicione logging apropriado
-
-#### Adicionando Novos Eventos
-1. Edite `app/events/eventHandler.js`
-2. Adicione o novo processador de evento
-3. Integre com o Cache Manager se necessário
-4. Adicione logs estruturados com o logger Winston
-
-### Contribuindo
-
-1. Faça um fork do projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
-
-#### 📋 Guidelines de Contribuição
-
-- **Código**: Siga o padrão de nomenclatura existente
-- **Commits**: Use mensagens descritivas em português
-- **Testes**: Teste todas as funcionalidades antes do PR
-- **Documentação**: Atualize a documentação quando necessário
-- **Modularidade**: Mantenha a arquitetura modular
-
-## 📝 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
-
-## 🤝 Suporte
-
-Para suporte e dúvidas:
-
-- 📧 Email: kaikygomesribeiroof@gmail.com
-- 🐛 Issues: [GitHub Issues](https://github.com/Kaikygr/omnizap-system/issues)
-- 📖 Documentação: [Wiki](https://github.com/Kaikygr/omnizap-system/wiki)
-
-### 🆘 Problemas Comuns
-
-#### Sistema de Stickers
-- **Erro "webpmux não encontrado"**: Instale as dependências do sistema (ver seção de instalação)
-- **Stickers muito grandes**: Reduza o tamanho da mídia antes de enviar
-- **Erro de permissão**: Verifique as permissões da pasta `temp/`
-
-#### Conexão WhatsApp
-- **QR Code não aparece**: Verifique se a pasta `qr-code/` existe e tem permissões. Se estiver usando o modo de pareamento por código, o QR Code não será exibido.
-- **Código de pareamento não funciona**: Certifique-se de que o `PHONE_NUMBER` está correto no arquivo `.env` e que a variável `PAIRING_CODE` está definida como `true`.
-- **Desconexões frequentes**: Pode ser rate limiting do WhatsApp, aguarde um tempo
-- **Erro de autenticação**: Delete a pasta `qr-code/` e escaneie novamente o QR Code ou use o código de pareamento.
-
-#### Logs e Monitoramento
-- **Logs não aparecem**: Verifique as permissões da pasta `logs/`
-- **Arquivos de log muito grandes**: O sistema roda rotação automática, mas você pode ajustar em `loggerModule.js`
-
-
-**OmniZap v1.0.4** - Sistema Profissional de Automação WhatsApp com Arquitetura Modular © 2025
+- GitHub: [Kaikygr](https://github.com/Kaikygr)
+- Repositório: [omnizap-system](https://github.com/Kaikygr/omnizap-system)
