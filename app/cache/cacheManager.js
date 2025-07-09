@@ -4,7 +4,7 @@
  * Módulo responsável pelo gerenciamento avançado de cache
  * Funciona de forma independente e assíncrona
  *
- * @version 1.0.4
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */
@@ -13,6 +13,8 @@ require('dotenv').config();
 const NodeCache = require('node-cache');
 const logger = require('../utils/logger/loggerModule');
 const { cleanEnv, num, bool } = require('envalid');
+const fs = require('fs').promises;
+const path = require('path');
 
 const env = cleanEnv(process.env, {
   CACHE_MESSAGES_TTL: num({
@@ -67,6 +69,9 @@ const env = cleanEnv(process.env, {
   CACHE_EVENTS_KEEP: num({ default: 200, desc: 'Número de eventos a manter após limpeza' }),
 });
 
+const TEMP_DIR = path.join(process.cwd(), 'temp');
+const GROUP_METADATA_FILE = path.join(TEMP_DIR, 'groupMetadata.json');
+
 const messagesCache = new NodeCache({
   stdTTL: env.CACHE_MESSAGES_TTL,
   checkperiod: env.CACHE_MESSAGES_CHECK,
@@ -76,12 +81,6 @@ const messagesCache = new NodeCache({
 const eventsCache = new NodeCache({
   stdTTL: env.CACHE_EVENTS_TTL,
   checkperiod: env.CACHE_EVENTS_CHECK,
-  useClones: env.CACHE_USE_CLONES,
-});
-
-const groupMetadataCache = new NodeCache({
-  stdTTL: env.CACHE_GROUPS_TTL,
-  checkperiod: env.CACHE_GROUPS_CHECK,
   useClones: env.CACHE_USE_CLONES,
 });
 
@@ -113,10 +112,6 @@ eventsCache.on('flush', () => {
   logger.warn('OmniZap Cache: Cache de eventos foi limpo');
 });
 
-groupMetadataCache.on('expired', (key, value) => {
-  logger.debug(`OmniZap Cache: Metadados de grupo expirados: ${key}`);
-});
-
 contactsCache.on('expired', (key, value) => {
   logger.debug(`OmniZap Cache: Contato expirado: ${key}`);
 });
@@ -137,29 +132,72 @@ class CacheManager {
   /**
    * Inicializa o gerenciador de cache
    */
-  init() {
+  async init() {
     logger.info('🔄 OmniZap Cache: Sistema inicializado');
     logger.info('📊 Configurações de cache carregadas das variáveis de ambiente');
 
-    logger.debug(
-      `🔄 TTL (segundos): Msgs=${env.CACHE_MESSAGES_TTL} | Eventos=${env.CACHE_EVENTS_TTL} | Grupos=${env.CACHE_GROUPS_TTL} | Contatos=${env.CACHE_CONTACTS_TTL} | Chats=${env.CACHE_CHATS_TTL}`,
-    );
+    logger.debug(`🔄 TTL (segundos): Msgs=${env.CACHE_MESSAGES_TTL} | Eventos=${env.CACHE_EVENTS_TTL} | Grupos=${env.CACHE_GROUPS_TTL} | Contatos=${env.CACHE_CONTACTS_TTL} | Chats=${env.CACHE_CHATS_TTL}`);
 
-    logger.debug(
-      `🔄 Verificação (segundos): Msgs=${env.CACHE_MESSAGES_CHECK} | Eventos=${env.CACHE_EVENTS_CHECK} | Grupos=${env.CACHE_GROUPS_CHECK} | Contatos=${env.CACHE_CONTACTS_CHECK} | Chats=${env.CACHE_CHATS_CHECK}`,
-    );
+    logger.debug(`🔄 Verificação (segundos): Msgs=${env.CACHE_MESSAGES_CHECK} | Eventos=${env.CACHE_EVENTS_CHECK} | Grupos=${env.CACHE_GROUPS_CHECK} | Contatos=${env.CACHE_CONTACTS_CHECK} | Chats=${env.CACHE_CHATS_CHECK}`);
 
     logger.debug(`🔄 Limpeza automática: ${env.CACHE_AUTO_CLEAN ? 'Ativada' : 'Desativada'}`);
     if (env.CACHE_AUTO_CLEAN) {
-      logger.debug(
-        `🔄 Limites de limpeza: Total=${env.CACHE_MAX_TOTAL_KEYS} | Msgs=${env.CACHE_MAX_MESSAGES} | Eventos=${env.CACHE_MAX_EVENTS}`,
-      );
-      logger.debug(
-        `🔄 Manter após limpeza: Msgs=${env.CACHE_MESSAGES_KEEP} | Eventos=${env.CACHE_EVENTS_KEEP}`,
-      );
+      logger.debug(`🔄 Limites de limpeza: Total=${env.CACHE_MAX_TOTAL_KEYS} | Msgs=${env.CACHE_MAX_MESSAGES} | Eventos=${env.CACHE_MAX_EVENTS}`);
+      logger.debug(`🔄 Manter após limpeza: Msgs=${env.CACHE_MESSAGES_KEEP} | Eventos=${env.CACHE_EVENTS_KEEP}`);
+    }
+
+    try {
+      await fs.mkdir(TEMP_DIR, { recursive: true });
+
+      try {
+        await fs.access(GROUP_METADATA_FILE);
+        logger.info('Cache: Arquivo de metadados de grupos encontrado');
+      } catch (error) {
+        await fs.writeFile(GROUP_METADATA_FILE, JSON.stringify({}, null, 2));
+        logger.info('Cache: Arquivo de metadados de grupos criado');
+      }
+    } catch (error) {
+      logger.error('Cache: Erro ao verificar diretórios e arquivos:', {
+        error: error.message,
+        stack: error.stack,
+      });
     }
 
     this.initialized = true;
+  }
+
+  /**
+   * Lê o arquivo de metadados de grupos
+   * @private
+   * @returns {Promise<Object>} Objeto com todos os metadados de grupos
+   */
+  async _readGroupMetadataFile() {
+    try {
+      const data = await fs.readFile(GROUP_METADATA_FILE, 'utf-8');
+      return JSON.parse(data);
+    } catch (error) {
+      logger.error('Cache: Erro ao ler arquivo de metadados de grupos:', {
+        error: error.message,
+        stack: error.stack,
+      });
+      return {};
+    }
+  }
+
+  /**
+   * Escreve no arquivo de metadados de grupos
+   * @private
+   * @param {Object} data - Dados a serem escritos
+   */
+  async _writeGroupMetadataFile(data) {
+    try {
+      await fs.writeFile(GROUP_METADATA_FILE, JSON.stringify(data, null, 2));
+    } catch (error) {
+      logger.error('Cache: Erro ao escrever no arquivo de metadados de grupos:', {
+        error: error.message,
+        stack: error.stack,
+      });
+    }
   }
 
   /**
@@ -221,9 +259,7 @@ class CacheManager {
         }
 
         const timestamp = Date.now();
-        const cacheKey = eventId
-          ? `event_${eventType}_${eventId}_${timestamp}`
-          : `event_${eventType}_${timestamp}`;
+        const cacheKey = eventId ? `event_${eventType}_${eventId}_${timestamp}` : `event_${eventType}_${timestamp}`;
 
         const enhancedEvent = {
           ...eventData,
@@ -253,30 +289,32 @@ class CacheManager {
   }
 
   /**
-   * Salva metadados de grupo no cache
+   * Salva metadados de grupo no cache persistente em arquivo
    */
   async saveGroupMetadata(jid, metadata) {
-    setImmediate(() => {
-      try {
-        if (!jid || !metadata) {
-          logger.warn('Cache: Dados de grupo inválidos');
-          return;
-        }
-
-        const cacheKey = `group_metadata_${jid}`;
-        const enhancedMetadata = {
-          ...metadata,
-          _cached: true,
-          _cacheTimestamp: Date.now(),
-          _jid: jid,
-        };
-
-        groupMetadataCache.set(cacheKey, enhancedMetadata);
-        logger.debug(`Cache: Grupo salvo (${jid.substring(0, 30)}...)`);
-      } catch (error) {
-        logger.error('Cache: Erro ao salvar grupo:', { error: error.message, stack: error.stack });
+    try {
+      if (!jid || !metadata) {
+        logger.warn('Cache: Dados de grupo inválidos');
+        return;
       }
-    });
+
+      const enhancedMetadata = {
+        ...metadata,
+        _cached: true,
+        _cacheTimestamp: Date.now(),
+        _jid: jid,
+      };
+
+      const allMetadata = await this._readGroupMetadataFile();
+
+      allMetadata[jid] = { ...(allMetadata[jid] || {}), ...enhancedMetadata };
+
+      await this._writeGroupMetadataFile(allMetadata);
+
+      logger.debug(`Cache: Grupo salvo em arquivo (${jid.substring(0, 30)}...)`);
+    } catch (error) {
+      logger.error('Cache: Erro ao salvar grupo:', { error: error.message, stack: error.stack });
+    }
   }
 
   /**
@@ -376,7 +414,7 @@ class CacheManager {
   }
 
   /**
-   * Recupera metadados de grupo do cache
+   * Recupera metadados de grupo do cache persistente
    */
   async getGroupMetadata(jid) {
     try {
@@ -384,19 +422,24 @@ class CacheManager {
         return undefined;
       }
 
-      const cacheKey = `group_metadata_${jid}`;
-      const cachedGroup = groupMetadataCache.get(cacheKey);
+      const allMetadata = await this._readGroupMetadataFile();
+      const cachedGroup = allMetadata[jid];
 
       if (cachedGroup) {
-        logger.debug(`Cache: Grupo recuperado (${jid.substring(0, 30)}...)`);
+        logger.debug(`Cache: Grupo recuperado do arquivo (${jid.substring(0, 30)}...)`);
+
         cachedGroup._lastAccessed = Date.now();
-        groupMetadataCache.set(cacheKey, cachedGroup);
+        allMetadata[jid] = cachedGroup;
+
         return cachedGroup;
       }
 
       return undefined;
     } catch (error) {
-      logger.error('Cache: Erro ao recuperar grupo:', { error: error.message, stack: error.stack });
+      logger.error('Cache: Erro ao recuperar grupo de arquivo:', {
+        error: error.message,
+        stack: error.stack,
+      });
       return undefined;
     }
   }
@@ -428,20 +471,14 @@ class CacheManager {
         const maxAge = 30 * 60 * 1000;
 
         if (cacheAge < maxAge) {
-          logger.debug(
-            `Cache: Metadados de grupo válidos (idade: ${Math.round(cacheAge / 60000)}min)`,
-          );
+          logger.debug(`Cache: Metadados de grupo válidos (idade: ${Math.round(cacheAge / 60000)}min)`);
           return cachedMetadata;
         } else {
-          logger.warn(
-            `Cache: Metadados de grupo expirados (idade: ${Math.round(cacheAge / 60000)}min)`,
-          );
+          logger.warn(`Cache: Metadados de grupo expirados (idade: ${Math.round(cacheAge / 60000)}min)`);
         }
       }
 
-      logger.info(
-        `Cache: Buscando metadados do grupo ${groupJid.substring(0, 30)}... do cliente WhatsApp`,
-      );
+      logger.info(`Cache: Buscando metadados do grupo ${groupJid.substring(0, 30)}... do cliente WhatsApp`);
 
       const freshMetadata = await omniZapClient.groupMetadata(groupJid);
 
@@ -457,9 +494,7 @@ class CacheManager {
 
         await this.saveGroupMetadata(groupJid, enhancedMetadata);
 
-        logger.info(
-          `Cache: Metadados de grupo "${freshMetadata.subject}" salvos (${enhancedMetadata._participantCount} participantes)`,
-        );
+        logger.info(`Cache: Metadados de grupo "${freshMetadata.subject}" salvos (${enhancedMetadata._participantCount} participantes)`);
 
         return enhancedMetadata;
       } else {
@@ -540,16 +575,16 @@ class CacheManager {
    * Verifica se metadados de grupo existem no cache e se são válidos
    *
    * @param {String} groupJid - JID do grupo
-   * @returns {Boolean} True se existir e for válido, false caso contrário
+   * @returns {Promise<Boolean>} True se existir e for válido, false caso contrário
    */
-  hasValidGroupMetadata(groupJid) {
+  async hasValidGroupMetadata(groupJid) {
     try {
       if (!groupJid || !groupJid.endsWith('@g.us')) {
         return false;
       }
 
-      const cacheKey = `group_metadata_${groupJid}`;
-      const cachedGroup = groupMetadataCache.get(cacheKey);
+      const allMetadata = await this._readGroupMetadataFile();
+      const cachedGroup = allMetadata[groupJid];
 
       if (!cachedGroup) {
         return false;
@@ -560,7 +595,10 @@ class CacheManager {
 
       return cacheAge < maxAge;
     } catch (error) {
-      logger.error('Cache: Erro ao verificar grupo:', { error: error.message, stack: error.stack });
+      logger.error('Cache: Erro ao verificar grupo em arquivo:', {
+        error: error.message,
+        stack: error.stack,
+      });
       return false;
     }
   }
@@ -582,7 +620,7 @@ class CacheManager {
       .filter((jid) => jid && jid.endsWith('@g.us'))
       .map(async (groupJid) => {
         try {
-          if (!this.hasValidGroupMetadata(groupJid)) {
+          if (!(await this.hasValidGroupMetadata(groupJid))) {
             await this.getOrFetchGroupMetadata(groupJid, omniZapClient);
             await new Promise((resolve) => setTimeout(resolve, 100));
           }
@@ -599,22 +637,16 @@ class CacheManager {
   }
   async listGroups() {
     try {
-      const groupKeys = groupMetadataCache
-        .keys()
-        .filter((key) => key.startsWith('group_metadata_'));
-      const groups = [];
+      const allMetadata = await this._readGroupMetadataFile();
+      const groups = Object.values(allMetadata);
 
-      for (const key of groupKeys) {
-        const group = groupMetadataCache.get(key);
-        if (group) {
-          groups.push(group);
-        }
-      }
-
-      logger.info(`Cache: ${groups.length} grupos listados`);
+      logger.info(`Cache: ${groups.length} grupos listados do arquivo`);
       return groups;
     } catch (error) {
-      logger.error('Cache: Erro ao listar grupos:', { error: error.message, stack: error.stack });
+      logger.error('Cache: Erro ao listar grupos do arquivo:', {
+        error: error.message,
+        stack: error.stack,
+      });
       return [];
     }
   }
@@ -668,83 +700,58 @@ class CacheManager {
   /**
    * Obtém estatísticas do cache
    */
-  getStats() {
+  async getStats() {
     try {
       const messagesStats = messagesCache.getStats();
       const eventsStats = eventsCache.getStats();
-      const groupsStats = groupMetadataCache.getStats();
       const contactsStats = contactsCache.getStats();
       const chatsStats = chatsCache.getStats();
+
+      let groupsCount = 0;
+      try {
+        const allMetadata = await this._readGroupMetadataFile();
+        groupsCount = Object.keys(allMetadata).length;
+      } catch (error) {
+        logger.error('Cache: Erro ao ler estatísticas de grupos:', {
+          error: error.message,
+          stack: error.stack,
+        });
+      }
 
       return {
         messages: {
           keys: messagesCache.keys().length,
           hits: messagesStats.hits,
           misses: messagesStats.misses,
-          hitRate:
-            messagesStats.hits > 0
-              ? ((messagesStats.hits / (messagesStats.hits + messagesStats.misses)) * 100).toFixed(
-                  2,
-                )
-              : 0,
+          hitRate: messagesStats.hits > 0 ? ((messagesStats.hits / (messagesStats.hits + messagesStats.misses)) * 100).toFixed(2) : 0,
         },
         events: {
           keys: eventsCache.keys().length,
           hits: eventsStats.hits,
           misses: eventsStats.misses,
-          hitRate:
-            eventsStats.hits > 0
-              ? ((eventsStats.hits / (eventsStats.hits + eventsStats.misses)) * 100).toFixed(2)
-              : 0,
+          hitRate: eventsStats.hits > 0 ? ((eventsStats.hits / (eventsStats.hits + eventsStats.misses)) * 100).toFixed(2) : 0,
         },
         groups: {
-          keys: groupMetadataCache.keys().length,
-          hits: groupsStats.hits,
-          misses: groupsStats.misses,
-          hitRate:
-            groupsStats.hits > 0
-              ? ((groupsStats.hits / (groupsStats.hits + groupsStats.misses)) * 100).toFixed(2)
-              : 0,
+          keys: groupsCount,
+          storage: 'file',
+          path: GROUP_METADATA_FILE,
         },
         contacts: {
           keys: contactsCache.keys().length,
           hits: contactsStats.hits,
           misses: contactsStats.misses,
-          hitRate:
-            contactsStats.hits > 0
-              ? ((contactsStats.hits / (contactsStats.hits + contactsStats.misses)) * 100).toFixed(
-                  2,
-                )
-              : 0,
+          hitRate: contactsStats.hits > 0 ? ((contactsStats.hits / (contactsStats.hits + contactsStats.misses)) * 100).toFixed(2) : 0,
         },
         chats: {
           keys: chatsCache.keys().length,
           hits: chatsStats.hits,
           misses: chatsStats.misses,
-          hitRate:
-            chatsStats.hits > 0
-              ? ((chatsStats.hits / (chatsStats.hits + chatsStats.misses)) * 100).toFixed(2)
-              : 0,
+          hitRate: chatsStats.hits > 0 ? ((chatsStats.hits / (chatsStats.hits + chatsStats.misses)) * 100).toFixed(2) : 0,
         },
         totals: {
-          allKeys:
-            messagesCache.keys().length +
-            eventsCache.keys().length +
-            groupMetadataCache.keys().length +
-            contactsCache.keys().length +
-            chatsCache.keys().length,
-          allHits:
-            messagesStats.hits +
-            eventsStats.hits +
-            groupsStats.hits +
-            contactsStats.hits +
-            chatsStats.hits,
-          allMisses:
-            messagesStats.misses +
-            eventsStats.misses +
-            groupsStats.misses +
-            contactsStats.misses +
-            chatsStats.misses,
+          allKeys: messagesCache.keys().length + eventsCache.keys().length + groupsCount + contactsCache.keys().length + chatsCache.keys().length,
+          allHits: messagesStats.hits + eventsStats.hits + contactsStats.hits + chatsStats.hits,
+          allMisses: messagesStats.misses + eventsStats.misses + contactsStats.misses + chatsStats.misses,
         },
       };
     } catch (error) {
@@ -767,11 +774,7 @@ class CacheManager {
     setImmediate(() => {
       try {
         const stats = this.getStats();
-        const shouldClean =
-          stats &&
-          (stats.totals.allKeys > env.CACHE_MAX_TOTAL_KEYS ||
-            stats.messages.keys > env.CACHE_MAX_MESSAGES ||
-            stats.events.keys > env.CACHE_MAX_EVENTS);
+        const shouldClean = stats && (stats.totals.allKeys > env.CACHE_MAX_TOTAL_KEYS || stats.messages.keys > env.CACHE_MAX_MESSAGES || stats.events.keys > env.CACHE_MAX_EVENTS);
 
         if (shouldClean) {
           logger.warn('Cache: Iniciando limpeza automática...');
@@ -811,7 +814,7 @@ module.exports = {
   cacheManager,
   messagesCache,
   eventsCache,
-  groupMetadataCache,
   contactsCache,
   chatsCache,
+  GROUP_METADATA_FILE,
 };
