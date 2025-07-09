@@ -4,7 +4,7 @@
  * Módulo responsável pelo gerenciamento avançado de cache
  * Funciona de forma independente e assíncrona
  *
- * @version 1.0.5
+ * @version 1.0.6
  * @author OmniZap Team
  * @license MIT
  */
@@ -12,9 +12,10 @@
 require('dotenv').config();
 const NodeCache = require('node-cache');
 const logger = require('../utils/logger/loggerModule');
-const { cleanEnv, num, bool } = require('envalid');
+const { cleanEnv, num, bool, str } = require('envalid');
 const fs = require('fs').promises;
 const path = require('path');
+const db = require('../database/mysql');
 
 const env = cleanEnv(process.env, {
   CACHE_MESSAGES_TTL: num({
@@ -69,11 +70,8 @@ const env = cleanEnv(process.env, {
   CACHE_EVENTS_KEEP: num({ default: 200, desc: 'Número de eventos a manter após limpeza' }),
 });
 
-// Definir caminhos para arquivo de cache persistente de grupos
 const TEMP_DIR = path.join(process.cwd(), 'temp');
 const GROUP_METADATA_FILE = path.join(TEMP_DIR, 'groupMetadata.json');
-const MESSAGES_CACHE_FILE = path.join(TEMP_DIR, 'messagesCache.json');
-const EVENTS_CACHE_FILE = path.join(TEMP_DIR, 'eventsCache.json');
 
 const messagesCache = new NodeCache({
   stdTTL: env.CACHE_MESSAGES_TTL,
@@ -129,9 +127,6 @@ chatsCache.on('expired', (key, value) => {
 class CacheManager {
   constructor() {
     this.initialized = false;
-    this.messagesWriteQueue = Promise.resolve();
-    this.eventsWriteQueue = Promise.resolve();
-    this.groupMetadataWriteQueue = Promise.resolve();
     this.init();
   }
 
@@ -153,54 +148,25 @@ class CacheManager {
     }
 
     try {
+      // Inicializar banco de dados MySQL
+      logger.info('🔄 OmniZap Cache: Inicializando banco de dados MySQL');
+      const dbInitialized = await db.initDatabase();
+
+      if (dbInitialized) {
+        logger.info('✅ OmniZap Cache: Banco de dados MySQL inicializado com sucesso');
+      } else {
+        logger.warn('⚠️ OmniZap Cache: Erro na inicialização do MySQL, usando apenas cache em memória');
+      }
+
+      // Manter suporte ao arquivo de metadados para compatibilidade
       await fs.mkdir(TEMP_DIR, { recursive: true });
 
-      // Verifica e cria o arquivo de metadados de grupos
       try {
         await fs.access(GROUP_METADATA_FILE);
         logger.info('Cache: Arquivo de metadados de grupos encontrado');
       } catch (error) {
         await fs.writeFile(GROUP_METADATA_FILE, JSON.stringify({}, null, 2));
         logger.info('Cache: Arquivo de metadados de grupos criado');
-      }
-
-      // Verifica e cria o arquivo de cache de mensagens
-      try {
-        await fs.access(MESSAGES_CACHE_FILE);
-        logger.info('Cache: Arquivo de cache de mensagens encontrado');
-      } catch (error) {
-        await fs.writeFile(
-          MESSAGES_CACHE_FILE,
-          JSON.stringify(
-            {
-              messages: {},
-              recentByChat: {},
-              counters: {},
-            },
-            null,
-            2,
-          ),
-        );
-        logger.info('Cache: Arquivo de cache de mensagens criado');
-      }
-
-      // Verifica e cria o arquivo de cache de eventos
-      try {
-        await fs.access(EVENTS_CACHE_FILE);
-        logger.info('Cache: Arquivo de cache de eventos encontrado');
-      } catch (error) {
-        await fs.writeFile(
-          EVENTS_CACHE_FILE,
-          JSON.stringify(
-            {
-              events: {},
-              recentByType: {},
-            },
-            null,
-            2,
-          ),
-        );
-        logger.info('Cache: Arquivo de cache de eventos criado');
       }
     } catch (error) {
       logger.error('Cache: Erro ao verificar diretórios e arquivos:', {
@@ -247,276 +213,224 @@ class CacheManager {
   }
 
   /**
-   * Lê o arquivo de cache de mensagens
-   * @private
-   * @returns {Promise<Object>} Objeto com todas as mensagens em cache
+   * Salva uma mensagem no cache e no banco de dados (processamento assíncrono)
    */
-  async _readMessagesCacheFile() {
-    try {
-      const data = await fs.readFile(MESSAGES_CACHE_FILE, 'utf-8');
-      return JSON.parse(data);
-    } catch (error) {
-      logger.error('Cache: Erro ao ler arquivo de cache de mensagens:', {
-        error: error.message,
-        stack: error.stack,
-      });
-      return { messages: {}, recentByChat: {}, counters: {} };
-    }
-  }
-
-  /**
-   * Escreve no arquivo de cache de mensagens
-   * @private
-   * @param {Object} data - Dados a serem escritos
-   */
-  async _writeMessagesCacheFile(data) {
-    try {
-      await fs.writeFile(MESSAGES_CACHE_FILE, JSON.stringify(data, null, 2));
-    } catch (error) {
-      logger.error('Cache: Erro ao escrever no arquivo de cache de mensagens:', {
-        error: error.message,
-        stack: error.stack,
-      });
-    }
-  }
-
-  /**
-   * Lê o arquivo de cache de eventos
-   * @private
-   * @returns {Promise<Object>} Objeto com todos os eventos em cache
-   */
-  async _readEventsCacheFile() {
-    try {
-      const data = await fs.readFile(EVENTS_CACHE_FILE, 'utf-8');
-      return JSON.parse(data);
-    } catch (error) {
-      logger.error('Cache: Erro ao ler arquivo de cache de eventos:', {
-        error: error.message,
-        stack: error.stack,
-      });
-      return { events: {}, recentByType: {} };
-    }
-  }
-
-  /**
-   * Escreve no arquivo de cache de eventos
-   * @private
-   * @param {Object} data - Dados a serem escritos
-   */
-  async _writeEventsCacheFile(data) {
-    try {
-      await fs.writeFile(EVENTS_CACHE_FILE, JSON.stringify(data, null, 2));
-    } catch (error) {
-      logger.error('Cache: Erro ao escrever no arquivo de cache de eventos:', {
-        error: error.message,
-        stack: error.stack,
-      });
-    }
-  }
-
-  /**
-   * Salva uma mensagem no cache e em arquivo para persistência
-   */
-  saveMessage(messageInfo) {
-    try {
-      if (!messageInfo || !messageInfo.key || !messageInfo.key.remoteJid || !messageInfo.key.id) {
-        logger.warn('Cache: Dados de mensagem inválidos');
-        return;
-      }
-
-      const cacheKey = `msg_${messageInfo.key.remoteJid}_${messageInfo.key.id}`;
-      const remoteJid = messageInfo.key.remoteJid;
-
-      const enhancedMessage = {
-        ...messageInfo,
-        _cached: true,
-        _cacheTimestamp: Date.now(),
-        _lastAccessed: Date.now(),
-        _messageType: messageInfo.message ? Object.keys(messageInfo.message)[0] : 'unknown',
-      };
-
-      // Salvar no cache em memória
-      messagesCache.set(cacheKey, enhancedMessage);
-
-      const recentMessagesKey = `recent_${remoteJid}`;
-      let recentMessages = messagesCache.get(recentMessagesKey) || [];
-      recentMessages.unshift(enhancedMessage);
-
-      if (recentMessages.length > 100) {
-        recentMessages = recentMessages.slice(0, 100);
-      }
-
-      messagesCache.set(recentMessagesKey, recentMessages, 7200);
-      const counterKey = `count_${remoteJid}`;
-      const currentCount = messagesCache.get(counterKey) || 0;
-      messagesCache.set(counterKey, currentCount + 1, 86400);
-
-      // Salvar em arquivo para persistência
-      this.messagesWriteQueue = this.messagesWriteQueue.then(async () => {
-        try {
-          // Ler o arquivo atual
-          const allMessages = await this._readMessagesCacheFile();
-
-          // Adicionar a nova mensagem
-          allMessages.messages[cacheKey] = enhancedMessage;
-
-          // Atualizar mensagens recentes para este chat
-          if (!allMessages.recentByChat[remoteJid]) {
-            allMessages.recentByChat[remoteJid] = [];
-          }
-
-          allMessages.recentByChat[remoteJid].unshift({
-            id: messageInfo.key.id,
-            timestamp: enhancedMessage._cacheTimestamp,
-            messageType: enhancedMessage._messageType,
-            key: cacheKey,
-          });
-
-          // Manter apenas as 100 mensagens mais recentes por chat
-          if (allMessages.recentByChat[remoteJid].length > 100) {
-            allMessages.recentByChat[remoteJid] = allMessages.recentByChat[remoteJid].slice(0, 100);
-          }
-
-          // Atualizar contadores
-          if (!allMessages.counters[remoteJid]) {
-            allMessages.counters[remoteJid] = 0;
-          }
-          allMessages.counters[remoteJid]++;
-
-          // Salvar de volta no arquivo
-          await this._writeMessagesCacheFile(allMessages);
-
-          logger.debug(`Cache: Mensagem salva em arquivo (${cacheKey.substring(0, 50)}...)`);
-        } catch (error) {
-          logger.error('Cache: Erro ao salvar mensagem em arquivo:', {
-            error: error.message,
-            stack: error.stack,
-          });
-        }
-      });
-
-      logger.debug(`Cache: Mensagem salva (${cacheKey.substring(0, 50)}...)`);
-    } catch (error) {
-      logger.error('Cache: Erro ao salvar mensagem:', {
-        error: error.message,
-        stack: error.stack,
-      });
-    }
-  }
-
-  /**
-   * Salva evento no cache e em arquivo para persistência
-   */
-  saveEvent(eventType, eventData, eventId = null) {
-    try {
-      if (!eventType || !eventData) {
-        logger.warn('Cache: Dados de evento inválidos');
-        return;
-      }
-
-      const timestamp = Date.now();
-      const cacheKey = eventId ? `event_${eventType}_${eventId}_${timestamp}` : `event_${eventType}_${timestamp}`;
-
-      const enhancedEvent = {
-        ...eventData,
-        _eventType: eventType,
-        _cached: true,
-        _cacheTimestamp: timestamp,
-        _eventId: eventId,
-      };
-
-      // Salvar no cache em memória
-      eventsCache.set(cacheKey, enhancedEvent);
-
-      const recentEventsKey = `recent_events_${eventType}`;
-      let recentEvents = eventsCache.get(recentEventsKey) || [];
-      recentEvents.unshift(enhancedEvent);
-
-      if (recentEvents.length > 50) {
-        recentEvents = recentEvents.slice(0, 50);
-      }
-
-      eventsCache.set(recentEventsKey, recentEvents, 3600);
-
-      // Salvar em arquivo para persistência
-      this.eventsWriteQueue = this.eventsWriteQueue.then(async () => {
-        try {
-          // Ler o arquivo atual
-          const allEvents = await this._readEventsCacheFile();
-
-          // Adicionar o novo evento
-          allEvents.events[cacheKey] = enhancedEvent;
-
-          // Atualizar eventos recentes para este tipo
-          if (!allEvents.recentByType[eventType]) {
-            allEvents.recentByType[eventType] = [];
-          }
-
-          allEvents.recentByType[eventType].unshift({
-            id: eventId || timestamp.toString(),
-            timestamp: timestamp,
-            key: cacheKey,
-          });
-
-          // Manter apenas os 50 eventos mais recentes por tipo
-          if (allEvents.recentByType[eventType].length > 50) {
-            allEvents.recentByType[eventType] = allEvents.recentByType[eventType].slice(0, 50);
-          }
-
-          // Salvar de volta no arquivo
-          await this._writeEventsCacheFile(allEvents);
-
-          logger.debug(`Cache: Evento ${eventType} salvo em arquivo (${cacheKey.substring(0, 50)}...)`);
-        } catch (error) {
-          logger.error('Cache: Erro ao salvar evento em arquivo:', {
-            error: error.message,
-            stack: error.stack,
-          });
-        }
-      });
-
-      logger.debug(`Cache: Evento ${eventType} salvo (${cacheKey.substring(0, 50)}...)`);
-    } catch (error) {
-      logger.error('Cache: Erro ao salvar evento:', { error: error.message, stack: error.stack });
-    }
-  }
-
-  /**
-   * Salva metadados de grupo no cache persistente em arquivo
-   */
-  saveGroupMetadata(jid, metadata) {
-    this.groupMetadataWriteQueue = this.groupMetadataWriteQueue.then(async () => {
+  async saveMessage(messageInfo) {
+    setImmediate(async () => {
       try {
-        if (!jid || !metadata) {
-          logger.warn('Cache: Dados de grupo inválidos');
+        if (!messageInfo || !messageInfo.key || !messageInfo.key.remoteJid || !messageInfo.key.id) {
+          logger.warn('Cache: Dados de mensagem inválidos');
           return;
         }
 
-        const enhancedMetadata = {
-          ...metadata,
+        const cacheKey = `msg_${messageInfo.key.remoteJid}_${messageInfo.key.id}`;
+        const remoteJid = messageInfo.key.remoteJid;
+
+        const enhancedMessage = {
+          ...messageInfo,
           _cached: true,
           _cacheTimestamp: Date.now(),
-          _jid: jid,
+          _lastAccessed: Date.now(),
+          _messageType: messageInfo.message ? Object.keys(messageInfo.message)[0] : 'unknown',
         };
 
-        const allMetadata = await this._readGroupMetadataFile();
+        // Salvar no cache em memória para acesso rápido
+        messagesCache.set(cacheKey, enhancedMessage);
 
-        allMetadata[jid] = { ...(allMetadata[jid] || {}), ...enhancedMetadata };
+        const recentMessagesKey = `recent_${remoteJid}`;
+        let recentMessages = messagesCache.get(recentMessagesKey) || [];
+        recentMessages.unshift(enhancedMessage);
 
-        await this._writeGroupMetadataFile(allMetadata);
+        if (recentMessages.length > 100) {
+          recentMessages = recentMessages.slice(0, 100);
+        }
 
-        logger.debug(`Cache: Grupo salvo em arquivo (${jid.substring(0, 30)}...)`);
+        messagesCache.set(recentMessagesKey, recentMessages, 7200);
+        const counterKey = `count_${remoteJid}`;
+        const currentCount = messagesCache.get(counterKey) || 0;
+        messagesCache.set(counterKey, currentCount + 1, 86400);
+
+        // Extrair texto da mensagem para pesquisa
+        let messageText = '';
+        if (messageInfo.message) {
+          const messageType = Object.keys(messageInfo.message)[0];
+          if (messageType === 'conversation') {
+            messageText = messageInfo.message.conversation || '';
+          } else if (messageType === 'extendedTextMessage') {
+            messageText = messageInfo.message.extendedTextMessage?.text || '';
+          } else if (messageType === 'imageMessage') {
+            messageText = messageInfo.message.imageMessage?.caption || '';
+          } else if (messageType === 'videoMessage') {
+            messageText = messageInfo.message.videoMessage?.caption || '';
+          }
+        }
+
+        // Salvar no banco de dados para persistência
+        try {
+          await db.query(
+            `INSERT INTO messages 
+            (id, remote_jid, from_me, push_name, timestamp, message_type, message_text, participant, quoted_message_id, raw_data) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            raw_data = VALUES(raw_data),
+            updated_at = CURRENT_TIMESTAMP`,
+            [messageInfo.key.id, messageInfo.key.remoteJid, messageInfo.key.fromMe ? 1 : 0, messageInfo.pushName || null, messageInfo.messageTimestamp || Date.now() / 1000, enhancedMessage._messageType, messageText, messageInfo.key.participant || null, messageInfo.message?.extendedTextMessage?.contextInfo?.stanzaId || null, JSON.stringify(messageInfo)],
+          );
+
+          logger.debug(`Cache: Mensagem salva no banco de dados (${messageInfo.key.id})`);
+        } catch (dbError) {
+          logger.error('Cache: Erro ao salvar mensagem no banco de dados:', {
+            error: dbError.message,
+            stack: dbError.stack,
+          });
+        }
+
+        logger.debug(`Cache: Mensagem salva (${cacheKey.substring(0, 50)}...)`);
       } catch (error) {
-        logger.error('Cache: Erro ao salvar grupo:', { error: error.message, stack: error.stack });
+        logger.error('Cache: Erro ao salvar mensagem:', {
+          error: error.message,
+          stack: error.stack,
+        });
       }
     });
   }
 
   /**
-   * Salva contato no cache
+   * Salva evento no cache e no banco de dados (processamento assíncrono)
+   */
+  async saveEvent(eventType, eventData, eventId = null) {
+    setImmediate(async () => {
+      try {
+        if (!eventType || !eventData) {
+          logger.warn('Cache: Dados de evento inválidos');
+          return;
+        }
+
+        const timestamp = Date.now();
+        const generatedId = `${eventType}_${timestamp}_${Math.random().toString(36).substring(2, 10)}`;
+        const cacheKey = eventId ? `event_${eventType}_${eventId}_${timestamp}` : `event_${eventType}_${timestamp}`;
+
+        const enhancedEvent = {
+          ...eventData,
+          _eventType: eventType,
+          _cached: true,
+          _cacheTimestamp: timestamp,
+          _eventId: eventId || generatedId,
+        };
+
+        // Salvar no cache em memória
+        eventsCache.set(cacheKey, enhancedEvent);
+
+        const recentEventsKey = `recent_events_${eventType}`;
+        let recentEvents = eventsCache.get(recentEventsKey) || [];
+        recentEvents.unshift(enhancedEvent);
+
+        if (recentEvents.length > 50) {
+          recentEvents = recentEvents.slice(0, 50);
+        }
+
+        eventsCache.set(recentEventsKey, recentEvents, 3600);
+
+        // Salvar no banco de dados para persistência
+        try {
+          await db.query(
+            `INSERT INTO events 
+            (id, event_type, event_id, event_timestamp, event_data) 
+            VALUES (?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            event_data = VALUES(event_data)`,
+            [eventId || generatedId, eventType, eventId, timestamp, JSON.stringify(eventData)],
+          );
+
+          logger.debug(`Cache: Evento salvo no banco de dados (${eventType})`);
+        } catch (dbError) {
+          logger.error('Cache: Erro ao salvar evento no banco de dados:', {
+            error: dbError.message,
+            stack: dbError.stack,
+          });
+        }
+
+        logger.debug(`Cache: Evento ${eventType} salvo (${cacheKey.substring(0, 50)}...)`);
+      } catch (error) {
+        logger.error('Cache: Erro ao salvar evento:', { error: error.message, stack: error.stack });
+      }
+    });
+  }
+
+  /**
+   * Salva metadados de grupo no cache persistente (arquivo e banco de dados)
+   */
+  async saveGroupMetadata(jid, metadata) {
+    try {
+      if (!jid || !metadata) {
+        logger.warn('Cache: Dados de grupo inválidos');
+        return;
+      }
+
+      const enhancedMetadata = {
+        ...metadata,
+        _cached: true,
+        _cacheTimestamp: Date.now(),
+        _jid: jid,
+      };
+
+      // Salvar no arquivo para compatibilidade
+      const allMetadata = await this._readGroupMetadataFile();
+      allMetadata[jid] = { ...(allMetadata[jid] || {}), ...enhancedMetadata };
+      await this._writeGroupMetadataFile(allMetadata);
+
+      // Salvar no banco de dados
+      try {
+        // 1. Inserir/atualizar informações do grupo
+        await db.query(
+          `INSERT INTO groups 
+          (jid, subject, creation_timestamp, owner, description, participant_count, metadata, last_updated) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE 
+          subject = VALUES(subject),
+          owner = VALUES(owner),
+          description = VALUES(description),
+          participant_count = VALUES(participant_count),
+          metadata = VALUES(metadata),
+          last_updated = VALUES(last_updated)`,
+          [jid, metadata.subject || '', metadata.creation || 0, metadata.owner || null, metadata.desc || '', metadata.participants?.length || 0, JSON.stringify(metadata), Date.now()],
+        );
+
+        // 2. Atualizar participantes (deletar e inserir novos)
+        if (metadata.participants && metadata.participants.length > 0) {
+          // Deletar participantes existentes
+          await db.query('DELETE FROM group_participants WHERE group_jid = ?', [jid]);
+
+          // Inserir novos participantes
+          for (const participant of metadata.participants) {
+            await db.query(
+              `INSERT INTO group_participants 
+              (group_jid, participant_jid, is_admin, is_super_admin) 
+              VALUES (?, ?, ?, ?)`,
+              [jid, participant.id, participant.admin === 'admin' ? 1 : 0, participant.admin === 'superadmin' ? 1 : 0],
+            );
+          }
+        }
+
+        logger.debug(`Cache: Grupo salvo no banco de dados (${jid})`);
+      } catch (dbError) {
+        logger.error('Cache: Erro ao salvar grupo no banco de dados:', {
+          error: dbError.message,
+          stack: dbError.stack,
+        });
+      }
+
+      logger.debug(`Cache: Grupo salvo em arquivo (${jid.substring(0, 30)}...)`);
+    } catch (error) {
+      logger.error('Cache: Erro ao salvar grupo:', { error: error.message, stack: error.stack });
+    }
+  }
+
+  /**
+   * Salva contato no cache e no banco de dados
    */
   async saveContact(contact) {
-    setImmediate(() => {
+    setImmediate(async () => {
       try {
         if (!contact || !contact.id) {
           logger.warn('Cache: Dados de contato inválidos');
@@ -530,7 +444,37 @@ class CacheManager {
           _cacheTimestamp: Date.now(),
         };
 
+        // Salvar no cache em memória
         contactsCache.set(cacheKey, enhancedContact);
+
+        // Salvar no banco de dados
+        try {
+          await db.query(
+            `INSERT INTO contacts 
+            (jid, name, notify, verify, short_name, push_name, status, is_business, is_enterprise, metadata, last_updated) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            name = COALESCE(VALUES(name), name),
+            notify = COALESCE(VALUES(notify), notify),
+            verify = COALESCE(VALUES(verify), verify),
+            short_name = COALESCE(VALUES(short_name), short_name),
+            push_name = COALESCE(VALUES(push_name), push_name),
+            status = COALESCE(VALUES(status), status),
+            is_business = VALUES(is_business),
+            is_enterprise = VALUES(is_enterprise),
+            metadata = VALUES(metadata),
+            last_updated = VALUES(last_updated)`,
+            [contact.id, contact.name || null, contact.notify || null, contact.verify || null, contact.shortName || null, contact.pushName || null, contact.status || null, contact.isBusiness ? 1 : 0, contact.isEnterprise ? 1 : 0, JSON.stringify(contact), Date.now()],
+          );
+
+          logger.debug(`Cache: Contato salvo no banco de dados (${contact.id})`);
+        } catch (dbError) {
+          logger.error('Cache: Erro ao salvar contato no banco de dados:', {
+            error: dbError.message,
+            stack: dbError.stack,
+          });
+        }
+
         logger.debug(`Cache: Contato salvo (${contact.id.substring(0, 30)}...)`);
       } catch (error) {
         logger.error('Cache: Erro ao salvar contato:', {
@@ -542,10 +486,10 @@ class CacheManager {
   }
 
   /**
-   * Salva chat no cache
+   * Salva chat no cache e no banco de dados
    */
   async saveChat(chat) {
-    setImmediate(() => {
+    setImmediate(async () => {
       try {
         if (!chat || !chat.id) {
           logger.warn('Cache: Dados de chat inválidos');
@@ -559,7 +503,36 @@ class CacheManager {
           _cacheTimestamp: Date.now(),
         };
 
+        // Salvar no cache em memória
         chatsCache.set(cacheKey, enhancedChat);
+
+        // Salvar no banco de dados
+        try {
+          await db.query(
+            `INSERT INTO chats 
+            (jid, name, unread_count, timestamp, archived, pinned, is_muted, is_group, metadata, last_updated) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            name = COALESCE(VALUES(name), name),
+            unread_count = VALUES(unread_count),
+            timestamp = VALUES(timestamp),
+            archived = VALUES(archived),
+            pinned = VALUES(pinned),
+            is_muted = VALUES(is_muted),
+            is_group = VALUES(is_group),
+            metadata = VALUES(metadata),
+            last_updated = VALUES(last_updated)`,
+            [chat.id, chat.name || null, chat.unreadCount || 0, chat.conversationTimestamp || Date.now(), chat.archived ? 1 : 0, chat.pinned ? 1 : 0, chat.mute > 0 ? 1 : 0, chat.id.endsWith('@g.us') ? 1 : 0, JSON.stringify(chat), Date.now()],
+          );
+
+          logger.debug(`Cache: Chat salvo no banco de dados (${chat.id})`);
+        } catch (dbError) {
+          logger.error('Cache: Erro ao salvar chat no banco de dados:', {
+            error: dbError.message,
+            stack: dbError.stack,
+          });
+        }
+
         logger.debug(`Cache: Chat salvo (${chat.id.substring(0, 30)}...)`);
       } catch (error) {
         logger.error('Cache: Erro ao salvar chat:', { error: error.message, stack: error.stack });
@@ -568,7 +541,7 @@ class CacheManager {
   }
 
   /**
-   * Recupera mensagem do cache com fallback para arquivo persistente
+   * Recupera mensagem do cache
    */
   async getMessage(key) {
     try {
@@ -580,7 +553,7 @@ class CacheManager {
       const cachedMessage = messagesCache.get(cacheKey);
 
       if (cachedMessage) {
-        logger.debug(`Cache: Mensagem recuperada da memória (${cacheKey.substring(0, 50)}...)`);
+        logger.debug(`Cache: Mensagem recuperada (${cacheKey.substring(0, 50)}...)`);
         cachedMessage._lastAccessed = Date.now();
         messagesCache.set(cacheKey, cachedMessage);
         return cachedMessage;
@@ -591,23 +564,11 @@ class CacheManager {
       const foundMessage = recentMessages.find((msg) => msg && msg.key && msg.key.id === key.id);
 
       if (foundMessage) {
-        logger.debug('Cache: Mensagem encontrada em recentes (memória)');
+        logger.debug('Cache: Mensagem encontrada em recentes');
         foundMessage._lastAccessed = Date.now();
         foundMessage._foundInRecent = true;
         messagesCache.set(cacheKey, foundMessage);
         return foundMessage;
-      }
-
-      // Se não estiver na memória, tentar recuperar do arquivo
-      logger.debug(`Cache: Mensagem não encontrada na memória, verificando arquivo...`);
-      const fileMessage = await this.getMessageFromFile(key);
-
-      if (fileMessage) {
-        fileMessage._loadedFromFile = true;
-        fileMessage._lastAccessed = Date.now();
-        // Atualizar o cache em memória
-        messagesCache.set(cacheKey, fileMessage);
-        return fileMessage;
       }
 
       return undefined;
@@ -779,152 +740,6 @@ class CacheManager {
   }
 
   /**
-   * Recupera mensagem do arquivo de cache persistente
-   */
-  async getMessageFromFile(key) {
-    try {
-      if (!key || !key.remoteJid || !key.id) {
-        return undefined;
-      }
-
-      const cacheKey = `msg_${key.remoteJid}_${key.id}`;
-      const allMessages = await this._readMessagesCacheFile();
-      const cachedMessage = allMessages.messages[cacheKey];
-
-      if (cachedMessage) {
-        logger.debug(`Cache: Mensagem recuperada do arquivo (${cacheKey.substring(0, 50)}...)`);
-
-        // Atualizar o cache em memória para acesso mais rápido
-        messagesCache.set(cacheKey, cachedMessage);
-
-        return cachedMessage;
-      }
-
-      return undefined;
-    } catch (error) {
-      logger.error('Cache: Erro ao recuperar mensagem do arquivo:', {
-        error: error.message,
-        stack: error.stack,
-      });
-      return undefined;
-    }
-  }
-
-  /**
-   * Recupera mensagens recentes de um chat do arquivo
-   *
-   * @param {String} chatJid - JID do chat
-   * @param {Number} limit - Número máximo de mensagens a retornar
-   * @returns {Promise<Array>} Array com mensagens recentes
-   */
-  async getRecentMessagesFromFile(chatJid, limit = 50) {
-    try {
-      if (!chatJid) {
-        return [];
-      }
-
-      const allMessages = await this._readMessagesCacheFile();
-      const recentKeys = allMessages.recentByChat[chatJid] || [];
-
-      // Obter apenas as mensagens mais recentes, limitado pelo parâmetro
-      const limitedKeys = recentKeys.slice(0, limit);
-      const messages = [];
-
-      for (const entry of limitedKeys) {
-        const message = allMessages.messages[entry.key];
-        if (message) {
-          messages.push(message);
-        }
-      }
-
-      logger.debug(`Cache: ${messages.length} mensagens recentes recuperadas do arquivo para ${chatJid}`);
-      return messages;
-    } catch (error) {
-      logger.error('Cache: Erro ao recuperar mensagens recentes do arquivo:', {
-        error: error.message,
-        stack: error.stack,
-      });
-      return [];
-    }
-  }
-
-  /**
-   * Recupera evento do arquivo de cache persistente
-   */
-  async getEventFromFile(eventType, eventId) {
-    try {
-      if (!eventType || !eventId) {
-        return undefined;
-      }
-
-      const allEvents = await this._readEventsCacheFile();
-
-      // Procurar em todos os eventos deste tipo
-      const recentKeys = allEvents.recentByType[eventType] || [];
-      const matchingEntry = recentKeys.find((entry) => entry.id === eventId);
-
-      if (matchingEntry && matchingEntry.key) {
-        const cachedEvent = allEvents.events[matchingEntry.key];
-
-        if (cachedEvent) {
-          logger.debug(`Cache: Evento ${eventType} recuperado do arquivo`);
-
-          // Atualizar o cache em memória para acesso mais rápido
-          eventsCache.set(matchingEntry.key, cachedEvent);
-
-          return cachedEvent;
-        }
-      }
-
-      return undefined;
-    } catch (error) {
-      logger.error('Cache: Erro ao recuperar evento do arquivo:', {
-        error: error.message,
-        stack: error.stack,
-      });
-      return undefined;
-    }
-  }
-
-  /**
-   * Recupera eventos recentes de um tipo do arquivo
-   *
-   * @param {String} eventType - Tipo de evento
-   * @param {Number} limit - Número máximo de eventos a retornar
-   * @returns {Promise<Array>} Array com eventos recentes
-   */
-  async getRecentEventsFromFile(eventType, limit = 20) {
-    try {
-      if (!eventType) {
-        return [];
-      }
-
-      const allEvents = await this._readEventsCacheFile();
-      const recentKeys = allEvents.recentByType[eventType] || [];
-
-      // Obter apenas os eventos mais recentes, limitado pelo parâmetro
-      const limitedKeys = recentKeys.slice(0, limit);
-      const events = [];
-
-      for (const entry of limitedKeys) {
-        const event = allEvents.events[entry.key];
-        if (event) {
-          events.push(event);
-        }
-      }
-
-      logger.debug(`Cache: ${events.length} eventos recentes do tipo ${eventType} recuperados do arquivo`);
-      return events;
-    } catch (error) {
-      logger.error('Cache: Erro ao recuperar eventos recentes do arquivo:', {
-        error: error.message,
-        stack: error.stack,
-      });
-      return [];
-    }
-  }
-
-  /**
    * Verifica se metadados de grupo existem no cache e se são válidos
    *
    * @param {String} groupJid - JID do grupo
@@ -1060,26 +875,12 @@ class CacheManager {
       const contactsStats = contactsCache.getStats();
       const chatsStats = chatsCache.getStats();
 
-      // Estatísticas para os caches baseados em arquivo
       let groupsCount = 0;
-      let messagesFileCount = 0;
-      let eventsFileCount = 0;
-      let messagesRecentCount = 0;
-      let eventsRecentCount = 0;
-
       try {
         const allMetadata = await this._readGroupMetadataFile();
         groupsCount = Object.keys(allMetadata).length;
-
-        const allMessages = await this._readMessagesCacheFile();
-        messagesFileCount = Object.keys(allMessages.messages).length;
-        messagesRecentCount = Object.keys(allMessages.recentByChat).reduce((total, chat) => total + allMessages.recentByChat[chat].length, 0);
-
-        const allEvents = await this._readEventsCacheFile();
-        eventsFileCount = Object.keys(allEvents.events).length;
-        eventsRecentCount = Object.keys(allEvents.recentByType).reduce((total, type) => total + allEvents.recentByType[type].length, 0);
       } catch (error) {
-        logger.error('Cache: Erro ao ler estatísticas de arquivos:', {
+        logger.error('Cache: Erro ao ler estatísticas de grupos:', {
           error: error.message,
           stack: error.stack,
         });
@@ -1091,24 +892,12 @@ class CacheManager {
           hits: messagesStats.hits,
           misses: messagesStats.misses,
           hitRate: messagesStats.hits > 0 ? ((messagesStats.hits / (messagesStats.hits + messagesStats.misses)) * 100).toFixed(2) : 0,
-          file: {
-            storage: 'file',
-            path: MESSAGES_CACHE_FILE,
-            count: messagesFileCount,
-            recentEntriesCount: messagesRecentCount,
-          },
         },
         events: {
           keys: eventsCache.keys().length,
           hits: eventsStats.hits,
           misses: eventsStats.misses,
           hitRate: eventsStats.hits > 0 ? ((eventsStats.hits / (eventsStats.hits + eventsStats.misses)) * 100).toFixed(2) : 0,
-          file: {
-            storage: 'file',
-            path: EVENTS_CACHE_FILE,
-            count: eventsFileCount,
-            recentEntriesCount: eventsRecentCount,
-          },
         },
         groups: {
           keys: groupsCount,
@@ -1128,17 +917,9 @@ class CacheManager {
           hitRate: chatsStats.hits > 0 ? ((chatsStats.hits / (chatsStats.hits + chatsStats.misses)) * 100).toFixed(2) : 0,
         },
         totals: {
-          memory: {
-            keys: messagesCache.keys().length + eventsCache.keys().length + contactsCache.keys().length + chatsCache.keys().length,
-            hits: messagesStats.hits + eventsStats.hits + contactsStats.hits + chatsStats.hits,
-            misses: messagesStats.misses + eventsStats.misses + contactsStats.misses + chatsStats.misses,
-          },
-          file: {
-            keys: groupsCount + messagesFileCount + eventsFileCount,
-          },
-          all: {
-            keys: messagesCache.keys().length + eventsCache.keys().length + contactsCache.keys().length + chatsCache.keys().length + groupsCount + messagesFileCount + eventsFileCount,
-          },
+          allKeys: messagesCache.keys().length + eventsCache.keys().length + groupsCount + contactsCache.keys().length + chatsCache.keys().length,
+          allHits: messagesStats.hits + eventsStats.hits + contactsStats.hits + chatsStats.hits,
+          allMisses: messagesStats.misses + eventsStats.misses + contactsStats.misses + chatsStats.misses,
         },
       };
     } catch (error) {
@@ -1153,118 +934,113 @@ class CacheManager {
   /**
    * Limpeza automática do cache
    */
-  async performMaintenance() {
+  performMaintenance() {
     if (!env.CACHE_AUTO_CLEAN) {
       return;
     }
 
-    try {
-      const stats = await this.getStats();
-      const shouldClean = stats && (stats.totals.memory.keys > env.CACHE_MAX_TOTAL_KEYS || stats.messages.keys > env.CACHE_MAX_MESSAGES || stats.events.keys > env.CACHE_MAX_EVENTS);
+    setImmediate(() => {
+      try {
+        const stats = this.getStats();
+        const shouldClean = stats && (stats.totals.allKeys > env.CACHE_MAX_TOTAL_KEYS || stats.messages.keys > env.CACHE_MAX_MESSAGES || stats.events.keys > env.CACHE_MAX_EVENTS);
 
-      if (shouldClean) {
-        logger.warn('Cache: Iniciando limpeza automática...');
+        if (shouldClean) {
+          logger.warn('Cache: Iniciando limpeza automática...');
 
-        let totalRemoved = 0;
+          let totalRemoved = 0;
 
-        const messageKeys = messagesCache.keys().filter((k) => k.startsWith('msg_'));
-        if (messageKeys.length > env.CACHE_MESSAGES_KEEP) {
-          const messagesToRemove = messageKeys.slice(env.CACHE_MESSAGES_KEEP);
-          messagesToRemove.forEach((key) => {
-            messagesCache.del(key);
-            totalRemoved++;
-          });
+          const messageKeys = messagesCache.keys().filter((k) => k.startsWith('msg_'));
+          if (messageKeys.length > env.CACHE_MESSAGES_KEEP) {
+            const messagesToRemove = messageKeys.slice(env.CACHE_MESSAGES_KEEP);
+            messagesToRemove.forEach((key) => {
+              messagesCache.del(key);
+              totalRemoved++;
+            });
+          }
+
+          const eventKeys = eventsCache.keys();
+          if (eventKeys.length > env.CACHE_EVENTS_KEEP) {
+            const eventsToRemove = eventKeys.slice(env.CACHE_EVENTS_KEEP);
+            eventsToRemove.forEach((key) => {
+              eventsCache.del(key);
+              totalRemoved++;
+            });
+          }
+
+          logger.info(`Cache: Limpeza concluída - ${totalRemoved} itens removidos`);
         }
-
-        const eventKeys = eventsCache.keys();
-        if (eventKeys.length > env.CACHE_EVENTS_KEEP) {
-          const eventsToRemove = eventKeys.slice(env.CACHE_EVENTS_KEEP);
-          eventsToRemove.forEach((key) => {
-            eventsCache.del(key);
-            totalRemoved++;
-          });
-        }
-
-        logger.info(`Cache: Limpeza em memória concluída - ${totalRemoved} itens removidos`);
-
-        // Limpar também os caches em arquivo a cada 24 horas
-        const now = Date.now();
-        const lastFileCacheCleanup = this._lastFileCacheCleanup || 0;
-
-        if (now - lastFileCacheCleanup > 24 * 60 * 60 * 1000) {
-          logger.info('Cache: Iniciando limpeza de caches em arquivo...');
-
-          const fileCleanupStats = await this.cleanFileCaches({
-            maxMessagesAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
-            maxEventsAge: 14 * 24 * 60 * 60 * 1000, // 14 dias
-            maxMessagesCount: 10000,
-            maxEventsCount: 5000,
-          });
-
-          this._lastFileCacheCleanup = now;
-
-          logger.info(`Cache: Limpeza de arquivos concluída - ${fileCleanupStats.messagesRemoved} mensagens e ${fileCleanupStats.eventsRemoved} eventos removidos`);
-        }
+      } catch (error) {
+        logger.error('Cache: Erro na manutenção:', { error: error.message, stack: error.stack });
       }
-    } catch (error) {
-      logger.error('Cache: Erro na manutenção:', { error: error.message, stack: error.stack });
-    }
+    });
   }
 
   /**
-   * Busca mensagens por critérios específicos nos arquivos de cache
-   * Útil para análises históricas
-   *
-   * @param {Object} criteria - Critérios de busca
-   * @param {String} criteria.chatJid - JID do chat (opcional)
-   * @param {String} criteria.messageType - Tipo de mensagem (opcional)
-   * @param {Number} criteria.startTime - Timestamp inicial (opcional)
-   * @param {Number} criteria.endTime - Timestamp final (opcional)
-   * @param {Number} criteria.limit - Limite de resultados (opcional, default: 100)
-   * @returns {Promise<Array>} - Mensagens encontradas
+   * Busca mensagens no banco de dados
+   * @param {Object} options - Opções de busca
+   * @param {String} options.remoteJid - JID do chat para filtrar
+   * @param {String} options.messageType - Tipo de mensagem
+   * @param {String} options.text - Texto para buscar
+   * @param {Number} options.limit - Número máximo de resultados
+   * @param {Number} options.offset - Offset para paginação
+   * @param {Date} options.startDate - Data inicial
+   * @param {Date} options.endDate - Data final
+   * @returns {Promise<Array>} Array de mensagens
    */
-  async searchMessages(criteria = {}) {
+  async searchMessages(options = {}) {
     try {
-      const { chatJid, messageType, startTime, endTime, limit = 100 } = criteria;
-      const allMessages = await this._readMessagesCacheFile();
-      const results = [];
+      const { remoteJid, messageType, text, limit = 100, offset = 0, startDate, endDate, fromMe } = options;
 
-      // Converter todas as mensagens em array
-      const messagesArray = Object.values(allMessages.messages);
+      // Construir a query SQL com condições dinâmicas
+      let query = 'SELECT * FROM messages WHERE 1=1';
+      const params = [];
 
-      // Filtrar mensagens de acordo com os critérios
-      for (const message of messagesArray) {
-        let match = true;
-
-        if (chatJid && message.key.remoteJid !== chatJid) {
-          match = false;
-        }
-
-        if (messageType && message._messageType !== messageType) {
-          match = false;
-        }
-
-        if (startTime && message._cacheTimestamp < startTime) {
-          match = false;
-        }
-
-        if (endTime && message._cacheTimestamp > endTime) {
-          match = false;
-        }
-
-        if (match) {
-          results.push(message);
-
-          if (results.length >= limit) {
-            break;
-          }
-        }
+      if (remoteJid) {
+        query += ' AND remote_jid = ?';
+        params.push(remoteJid);
       }
 
-      logger.info(`Cache: Busca de mensagens retornou ${results.length} resultados`);
-      return results;
+      if (messageType) {
+        query += ' AND message_type = ?';
+        params.push(messageType);
+      }
+
+      if (text) {
+        query += ' AND message_text LIKE ?';
+        params.push(`%${text}%`);
+      }
+
+      if (fromMe !== undefined) {
+        query += ' AND from_me = ?';
+        params.push(fromMe ? 1 : 0);
+      }
+
+      if (startDate) {
+        const startTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
+        query += ' AND timestamp >= ?';
+        params.push(startTimestamp);
+      }
+
+      if (endDate) {
+        const endTimestamp = Math.floor(new Date(endDate).getTime() / 1000);
+        query += ' AND timestamp <= ?';
+        params.push(endTimestamp);
+      }
+
+      // Ordenar por timestamp descendente e aplicar limite/offset
+      query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
+      params.push(limit, offset);
+
+      // Executar a query
+      const messages = await db.query(query, params);
+
+      // Converter os dados JSON de volta para objetos
+      return messages.map((msg) => ({
+        ...JSON.parse(msg.raw_data),
+        _fromDatabase: true,
+      }));
     } catch (error) {
-      logger.error('Cache: Erro ao buscar mensagens:', {
+      logger.error('Cache: Erro ao buscar mensagens no banco de dados:', {
         error: error.message,
         stack: error.stack,
       });
@@ -1273,54 +1049,63 @@ class CacheManager {
   }
 
   /**
-   * Busca eventos por critérios específicos nos arquivos de cache
-   * Útil para análises históricas
-   *
-   * @param {Object} criteria - Critérios de busca
-   * @param {String} criteria.eventType - Tipo de evento (opcional)
-   * @param {Number} criteria.startTime - Timestamp inicial (opcional)
-   * @param {Number} criteria.endTime - Timestamp final (opcional)
-   * @param {Number} criteria.limit - Limite de resultados (opcional, default: 100)
-   * @returns {Promise<Array>} - Eventos encontrados
+   * Busca eventos no banco de dados
+   * @param {Object} options - Opções de busca
+   * @param {String} options.eventType - Tipo de evento
+   * @param {String} options.eventId - ID do evento
+   * @param {Number} options.limit - Número máximo de resultados
+   * @param {Number} options.offset - Offset para paginação
+   * @param {Date} options.startDate - Data inicial
+   * @param {Date} options.endDate - Data final
+   * @returns {Promise<Array>} Array de eventos
    */
-  async searchEvents(criteria = {}) {
+  async searchEvents(options = {}) {
     try {
-      const { eventType, startTime, endTime, limit = 100 } = criteria;
-      const allEvents = await this._readEventsCacheFile();
-      const results = [];
+      const { eventType, eventId, limit = 100, offset = 0, startDate, endDate } = options;
 
-      // Converter todos os eventos em array
-      const eventsArray = Object.values(allEvents.events);
+      // Construir a query SQL com condições dinâmicas
+      let query = 'SELECT * FROM events WHERE 1=1';
+      const params = [];
 
-      // Filtrar eventos de acordo com os critérios
-      for (const event of eventsArray) {
-        let match = true;
-
-        if (eventType && event._eventType !== eventType) {
-          match = false;
-        }
-
-        if (startTime && event._cacheTimestamp < startTime) {
-          match = false;
-        }
-
-        if (endTime && event._cacheTimestamp > endTime) {
-          match = false;
-        }
-
-        if (match) {
-          results.push(event);
-
-          if (results.length >= limit) {
-            break;
-          }
-        }
+      if (eventType) {
+        query += ' AND event_type = ?';
+        params.push(eventType);
       }
 
-      logger.info(`Cache: Busca de eventos retornou ${results.length} resultados`);
-      return results;
+      if (eventId) {
+        query += ' AND event_id = ?';
+        params.push(eventId);
+      }
+
+      if (startDate) {
+        const startTimestamp = new Date(startDate).getTime();
+        query += ' AND event_timestamp >= ?';
+        params.push(startTimestamp);
+      }
+
+      if (endDate) {
+        const endTimestamp = new Date(endDate).getTime();
+        query += ' AND event_timestamp <= ?';
+        params.push(endTimestamp);
+      }
+
+      // Ordenar por timestamp descendente e aplicar limite/offset
+      query += ' ORDER BY event_timestamp DESC LIMIT ? OFFSET ?';
+      params.push(limit, offset);
+
+      // Executar a query
+      const events = await db.query(query, params);
+
+      // Converter os dados JSON de volta para objetos
+      return events.map((event) => ({
+        ...JSON.parse(event.event_data),
+        _eventType: event.event_type,
+        _eventId: event.event_id,
+        _timestamp: event.event_timestamp,
+        _fromDatabase: true,
+      }));
     } catch (error) {
-      logger.error('Cache: Erro ao buscar eventos:', {
+      logger.error('Cache: Erro ao buscar eventos no banco de dados:', {
         error: error.message,
         stack: error.stack,
       });
@@ -1329,113 +1114,50 @@ class CacheManager {
   }
 
   /**
-   * Limpa arquivos de cache antigos para economizar espaço
-   *
-   * @param {Object} options - Opções de limpeza
-   * @param {Number} options.maxMessagesAge - Idade máxima em milissegundos para mensagens (opcional)
-   * @param {Number} options.maxEventsAge - Idade máxima em milissegundos para eventos (opcional)
-   * @param {Number} options.maxMessagesCount - Número máximo de mensagens a manter (opcional)
-   * @param {Number} options.maxEventsCount - Número máximo de eventos a manter (opcional)
-   * @returns {Promise<Object>} - Estatísticas da limpeza
+   * Busca grupos no banco de dados
+   * @param {Object} options - Opções de busca
+   * @param {String} options.subject - Nome do grupo para filtrar
+   * @param {Number} options.minParticipants - Número mínimo de participantes
+   * @param {Number} options.limit - Número máximo de resultados
+   * @param {Number} options.offset - Offset para paginação
+   * @returns {Promise<Array>} Array de grupos
    */
-  async cleanFileCaches(options = {}) {
-    const {
-      maxMessagesAge = 7 * 24 * 60 * 60 * 1000, // 7 dias por padrão
-      maxEventsAge = 14 * 24 * 60 * 60 * 1000, // 14 dias por padrão
-      maxMessagesCount = 10000, // 10000 mensagens por padrão
-      maxEventsCount = 5000, // 5000 eventos por padrão
-    } = options;
-
-    const now = Date.now();
-    const stats = { messagesRemoved: 0, eventsRemoved: 0 };
-
+  async searchGroups(options = {}) {
     try {
-      // Limpar mensagens antigas
-      const allMessages = await this._readMessagesCacheFile();
-      const messageKeys = Object.keys(allMessages.messages);
+      const { subject, minParticipants, limit = 50, offset = 0 } = options;
 
-      // Se temos mais mensagens que o limite, precisamos limpar
-      if (messageKeys.length > maxMessagesCount) {
-        // Ordenar mensagens por timestamp
-        const messagesWithTimestamp = messageKeys.map((key) => ({
-          key,
-          timestamp: allMessages.messages[key]._cacheTimestamp || 0,
-        }));
+      // Construir a query SQL com condições dinâmicas
+      let query = 'SELECT * FROM groups WHERE 1=1';
+      const params = [];
 
-        messagesWithTimestamp.sort((a, b) => a.timestamp - b.timestamp);
-
-        // Remover as mensagens mais antigas
-        const keysToRemove = messagesWithTimestamp.slice(0, messagesWithTimestamp.length - maxMessagesCount).map((item) => item.key);
-
-        for (const key of keysToRemove) {
-          delete allMessages.messages[key];
-          stats.messagesRemoved++;
-        }
+      if (subject) {
+        query += ' AND subject LIKE ?';
+        params.push(`%${subject}%`);
       }
 
-      // Remover mensagens mais antigas que maxMessagesAge
-      for (const key of Object.keys(allMessages.messages)) {
-        const message = allMessages.messages[key];
-        if (now - (message._cacheTimestamp || 0) > maxMessagesAge) {
-          delete allMessages.messages[key];
-          stats.messagesRemoved++;
-        }
+      if (minParticipants) {
+        query += ' AND participant_count >= ?';
+        params.push(minParticipants);
       }
 
-      // Atualizar referências de recentes
-      for (const chatJid of Object.keys(allMessages.recentByChat)) {
-        allMessages.recentByChat[chatJid] = allMessages.recentByChat[chatJid].filter((item) => allMessages.messages[item.key]);
-      }
+      // Ordenar por último acesso e aplicar limite/offset
+      query += ' ORDER BY last_updated DESC LIMIT ? OFFSET ?';
+      params.push(limit, offset);
 
-      await this._writeMessagesCacheFile(allMessages);
+      // Executar a query
+      const groups = await db.query(query, params);
 
-      // Limpar eventos antigos
-      const allEvents = await this._readEventsCacheFile();
-      const eventKeys = Object.keys(allEvents.events);
-
-      // Se temos mais eventos que o limite, precisamos limpar
-      if (eventKeys.length > maxEventsCount) {
-        // Ordenar eventos por timestamp
-        const eventsWithTimestamp = eventKeys.map((key) => ({
-          key,
-          timestamp: allEvents.events[key]._cacheTimestamp || 0,
-        }));
-
-        eventsWithTimestamp.sort((a, b) => a.timestamp - b.timestamp);
-
-        // Remover os eventos mais antigos
-        const keysToRemove = eventsWithTimestamp.slice(0, eventsWithTimestamp.length - maxEventsCount).map((item) => item.key);
-
-        for (const key of keysToRemove) {
-          delete allEvents.events[key];
-          stats.eventsRemoved++;
-        }
-      }
-
-      // Remover eventos mais antigos que maxEventsAge
-      for (const key of Object.keys(allEvents.events)) {
-        const event = allEvents.events[key];
-        if (now - (event._cacheTimestamp || 0) > maxEventsAge) {
-          delete allEvents.events[key];
-          stats.eventsRemoved++;
-        }
-      }
-
-      // Atualizar referências de recentes
-      for (const eventType of Object.keys(allEvents.recentByType)) {
-        allEvents.recentByType[eventType] = allEvents.recentByType[eventType].filter((item) => allEvents.events[item.key]);
-      }
-
-      await this._writeEventsCacheFile(allEvents);
-
-      logger.info(`Cache: Limpeza concluída - Removidas ${stats.messagesRemoved} mensagens e ${stats.eventsRemoved} eventos`);
-      return stats;
+      // Converter os dados JSON de volta para objetos
+      return groups.map((group) => ({
+        ...JSON.parse(group.metadata),
+        _fromDatabase: true,
+      }));
     } catch (error) {
-      logger.error('Cache: Erro ao limpar caches em arquivo:', {
+      logger.error('Cache: Erro ao buscar grupos no banco de dados:', {
         error: error.message,
         stack: error.stack,
       });
-      return stats;
+      return [];
     }
   }
 }
@@ -1449,6 +1171,7 @@ module.exports = {
   contactsCache,
   chatsCache,
   GROUP_METADATA_FILE,
-  MESSAGES_CACHE_FILE,
-  EVENTS_CACHE_FILE,
+  searchMessages: (...args) => cacheManager.searchMessages(...args),
+  searchEvents: (...args) => cacheManager.searchEvents(...args),
+  searchGroups: (...args) => cacheManager.searchGroups(...args),
 };
