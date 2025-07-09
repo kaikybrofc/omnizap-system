@@ -18,7 +18,7 @@ const path = require('path');
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 
-const { cacheManager } = require('../cache/databaseManager');
+const { databaseManager } = require('../cache/databaseManager');
 const { eventHandler } = require('../events/eventHandler');
 
 dotenv.config();
@@ -188,7 +188,7 @@ async function initializeOmniZapConnection() {
       return message;
     },
     getMessage: async (key) => {
-      return await cacheManager.getMessage(key);
+      return await databaseManager.getMessage(key);
     },
     shouldSyncHistoryMessage: () => false,
     shouldIgnoreJid: (jid) => typeof jid === 'string' && jid.includes('broadcast'),

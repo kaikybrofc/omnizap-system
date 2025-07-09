@@ -40,9 +40,9 @@ const TEMP_DIR = path.join(process.cwd(), 'temp');
 const GROUP_METADATA_FILE = path.join(TEMP_DIR, 'groupMetadata.json');
 
 /**
- * Classe principal do gerenciador de dados
+ * Classe principal do gerenciador de banco de dados
  */
-class CacheManager {
+class DatabaseManager {
   constructor() {
     this.initialized = false;
     this.cleanupInterval = null;
@@ -186,7 +186,7 @@ class CacheManager {
   }
 
   /**
-   * Salva evento no cache e no banco de dados (processamento assíncrono)
+   * Salva evento no banco de dados (processamento assíncrono)
    */
   async saveEvent(eventType, eventData, eventId = null) {
     setImmediate(async () => {
@@ -218,9 +218,9 @@ class CacheManager {
           });
         }
 
-        logger.debug(`Cache: Evento ${eventType} salvo (${cacheKey.substring(0, 50)}...)`);
+        logger.debug(`Database Manager: Evento ${eventType} salvo no banco de dados`);
       } catch (error) {
-        logger.error('Cache: Erro ao salvar evento:', { error: error.message, stack: error.stack });
+        logger.error('Database Manager: Erro ao salvar evento:', { error: error.message, stack: error.stack });
       }
     });
   }
@@ -336,25 +336,20 @@ class CacheManager {
   }
 
   /**
-   * Salva contato no cache e no banco de dados
+   * Salva contato no banco de dados
    */
   async saveContact(contact) {
     setImmediate(async () => {
       try {
         if (!contact || !contact.id) {
-          logger.warn('Cache: Dados de contato inválidos');
+          logger.warn('Database Manager: Dados de contato inválidos');
           return;
         }
 
-        const cacheKey = `contact_${contact.id}`;
         const enhancedContact = {
           ...contact,
-          _cached: true,
-          _cacheTimestamp: Date.now(),
+          _timestamp: Date.now(),
         };
-
-        // Salvar no cache em memória
-        contactsCache.set(cacheKey, enhancedContact);
 
         // Salvar no banco de dados
         try {
@@ -373,20 +368,20 @@ class CacheManager {
             is_enterprise = VALUES(is_enterprise),
             metadata = VALUES(metadata),
             last_updated = VALUES(last_updated)`,
-            [contact.id, contact.name || null, contact.notify || null, contact.verify || null, contact.shortName || null, contact.pushName || null, contact.status || null, contact.isBusiness ? 1 : 0, contact.isEnterprise ? 1 : 0, JSON.stringify(contact), Date.now()],
+            [contact.id, contact.name || null, contact.notify || null, contact.verify || null, contact.shortName || null, contact.pushName || null, contact.status || null, contact.isBusiness ? 1 : 0, contact.isEnterprise ? 1 : 0, JSON.stringify(enhancedContact), Date.now()],
           );
 
-          logger.debug(`Cache: Contato salvo no banco de dados (${contact.id})`);
+          logger.debug(`Database Manager: Contato salvo no banco de dados (${contact.id})`);
         } catch (dbError) {
-          logger.error('Cache: Erro ao salvar contato no banco de dados:', {
+          logger.error('Database Manager: Erro ao salvar contato no banco de dados:', {
             error: dbError.message,
             stack: dbError.stack,
           });
         }
 
-        logger.debug(`Cache: Contato salvo (${contact.id.substring(0, 30)}...)`);
+        logger.debug(`Database Manager: Contato salvo (${contact.id.substring(0, 30)}...)`);
       } catch (error) {
-        logger.error('Cache: Erro ao salvar contato:', {
+        logger.error('Database Manager: Erro ao salvar contato:', {
           error: error.message,
           stack: error.stack,
         });
@@ -395,25 +390,20 @@ class CacheManager {
   }
 
   /**
-   * Salva chat no cache e no banco de dados
+   * Salva chat no banco de dados
    */
   async saveChat(chat) {
     setImmediate(async () => {
       try {
         if (!chat || !chat.id) {
-          logger.warn('Cache: Dados de chat inválidos');
+          logger.warn('Database Manager: Dados de chat inválidos');
           return;
         }
 
-        const cacheKey = `chat_${chat.id}`;
         const enhancedChat = {
           ...chat,
-          _cached: true,
-          _cacheTimestamp: Date.now(),
+          _timestamp: Date.now(),
         };
-
-        // Salvar no cache em memória
-        chatsCache.set(cacheKey, enhancedChat);
 
         // Salvar no banco de dados
         try {
@@ -431,20 +421,20 @@ class CacheManager {
             is_group = VALUES(is_group),
             metadata = VALUES(metadata),
             last_updated = VALUES(last_updated)`,
-            [chat.id, chat.name || null, chat.unreadCount || 0, chat.conversationTimestamp || Date.now(), chat.archived ? 1 : 0, chat.pinned ? 1 : 0, chat.mute > 0 ? 1 : 0, chat.id.endsWith('@g.us') ? 1 : 0, JSON.stringify(chat), Date.now()],
+            [chat.id, chat.name || null, chat.unreadCount || 0, chat.conversationTimestamp || Date.now(), chat.archived ? 1 : 0, chat.pinned ? 1 : 0, chat.mute > 0 ? 1 : 0, chat.id.endsWith('@g.us') ? 1 : 0, JSON.stringify(enhancedChat), Date.now()],
           );
 
-          logger.debug(`Cache: Chat salvo no banco de dados (${chat.id})`);
+          logger.debug(`Database Manager: Chat salvo no banco de dados (${chat.id})`);
         } catch (dbError) {
-          logger.error('Cache: Erro ao salvar chat no banco de dados:', {
+          logger.error('Database Manager: Erro ao salvar chat no banco de dados:', {
             error: dbError.message,
             stack: dbError.stack,
           });
         }
 
-        logger.debug(`Cache: Chat salvo (${chat.id.substring(0, 30)}...)`);
+        logger.debug(`Database Manager: Chat salvo (${chat.id.substring(0, 30)}...)`);
       } catch (error) {
-        logger.error('Cache: Erro ao salvar chat:', { error: error.message, stack: error.stack });
+        logger.error('Database Manager: Erro ao salvar chat:', { error: error.message, stack: error.stack });
       }
     });
   }
@@ -540,7 +530,7 @@ class CacheManager {
   }
 
   /**
-   * Busca metadados de grupo com lógica de cache
+   * Busca metadados de grupo com lógica de atualização automática
    * Se não estiver no banco ou estiver expirado, busca do cliente WhatsApp
    *
    * @param {String} groupJid - JID do grupo
@@ -1202,12 +1192,12 @@ class CacheManager {
   }
 }
 
-const cacheManager = new CacheManager();
+const databaseManager = new DatabaseManager();
 
 module.exports = {
-  cacheManager,
+  databaseManager,
   GROUP_METADATA_FILE,
-  searchMessages: (...args) => cacheManager.searchMessages(...args),
-  searchEvents: (...args) => cacheManager.searchEvents(...args),
-  searchGroups: (...args) => cacheManager.searchGroups(...args),
+  searchMessages: (...args) => databaseManager.searchMessages(...args),
+  searchEvents: (...args) => databaseManager.searchEvents(...args),
+  searchGroups: (...args) => databaseManager.searchGroups(...args),
 };

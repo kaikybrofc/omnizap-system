@@ -10,7 +10,7 @@
  */
 
 const chalk = require('chalk');
-const { cacheManager } = require('../cache/databaseManager');
+const { databaseManager } = require('../cache/databaseManager');
 const logger = require('../utils/logger/loggerModule');
 
 /**
@@ -48,7 +48,7 @@ class EventHandler {
       try {
         logger.info(`📨 Events: Processando messages.upsert - ${messageUpdate.messages?.length || 0} mensagem(ns)`);
 
-        await cacheManager.saveEvent('messages.upsert', messageUpdate, `upsert_${Date.now()}`);
+        await databaseManager.saveEvent('messages.upsert', messageUpdate, `upsert_${Date.now()}`);
 
         const groupJids = new Set();
 
@@ -72,7 +72,7 @@ class EventHandler {
                 _senderJid: isGroupMessage ? messageInfo.key.participant || messageInfo.key.remoteJid : messageInfo.key.remoteJid,
               };
 
-              await cacheManager.saveMessage(enhancedMessageInfo);
+              await databaseManager.saveMessage(enhancedMessageInfo);
               processedCount++;
 
               const jid = messageInfo.key?.remoteJid?.substring(0, 20) || 'N/A';
@@ -116,7 +116,7 @@ class EventHandler {
       try {
         logger.info(`📝 Events: Processando messages.update - ${updates?.length || 0} atualização(ões)`);
 
-        await cacheManager.saveEvent('messages.update', updates, `update_${Date.now()}`);
+        await databaseManager.saveEvent('messages.update', updates, `update_${Date.now()}`);
 
         updates?.forEach((update, index) => {
           const status = update.update?.status || 'N/A';
@@ -140,7 +140,7 @@ class EventHandler {
       try {
         logger.warn('🗑️ Events: Processando messages.delete');
 
-        await cacheManager.saveEvent('messages.delete', deletion, `delete_${Date.now()}`);
+        await databaseManager.saveEvent('messages.delete', deletion, `delete_${Date.now()}`);
 
         if (deletion.keys) {
           logger.debug(`   Mensagens deletadas: ${deletion.keys.length}`);
@@ -167,7 +167,7 @@ class EventHandler {
       try {
         logger.info(`😀 Events: Processando messages.reaction - ${reactions?.length || 0} reação(ões)`);
 
-        await cacheManager.saveEvent('messages.reaction', reactions, `reaction_${Date.now()}`);
+        await databaseManager.saveEvent('messages.reaction', reactions, `reaction_${Date.now()}`);
 
         reactions?.forEach((reaction, index) => {
           const emoji = reaction.reaction?.text || '❓';
@@ -191,7 +191,7 @@ class EventHandler {
       try {
         logger.info(`📬 Events: Processando message-receipt.update - ${receipts?.length || 0} recibo(s)`);
 
-        await cacheManager.saveEvent('message-receipt.update', receipts, `receipt_${Date.now()}`);
+        await databaseManager.saveEvent('message-receipt.update', receipts, `receipt_${Date.now()}`);
 
         receipts?.forEach((receipt, index) => {
           const status = receipt.receipt?.readTimestamp ? '✓✓ Lida' : receipt.receipt?.receiptTimestamp ? '✓✓ Entregue' : '✓ Enviada';
@@ -215,7 +215,7 @@ class EventHandler {
       try {
         logger.info('📚 Events: Processando messaging-history.set');
 
-        await cacheManager.saveEvent('messaging-history.set', historyData, `history_${Date.now()}`);
+        await databaseManager.saveEvent('messaging-history.set', historyData, `history_${Date.now()}`);
 
         if (historyData.messages) {
           logger.debug(`   Mensagens no histórico: ${historyData.messages.length}`);
@@ -240,16 +240,16 @@ class EventHandler {
       try {
         logger.info(`👥 Events: Processando groups.update - ${updates?.length || 0} atualização(ões)`);
 
-        await cacheManager.saveEvent('groups.update', updates, `groups_update_${Date.now()}`);
+        await databaseManager.saveEvent('groups.update', updates, `groups_update_${Date.now()}`);
 
         for (const update of updates || []) {
           const jid = update.id?.substring(0, 30) || 'N/A';
           logger.debug(`   Grupo atualizado: ${jid}...`);
 
           if (update.id) {
-            const cachedGroup = await cacheManager.getGroupMetadata(update.id);
+            const cachedGroup = await databaseManager.getGroupMetadata(update.id);
 
-            await cacheManager.saveGroupMetadata(update.id, update);
+            await databaseManager.saveGroupMetadata(update.id, update);
 
             if (cachedGroup) {
               logger.info(`   Cache hit para grupo: ${jid}...`);
@@ -273,17 +273,17 @@ class EventHandler {
       try {
         logger.info(`👥 Events: Processando groups.upsert - ${groupsMetadata?.length || 0} grupo(s)`);
 
-        await cacheManager.saveEvent('groups.upsert', groupsMetadata, `groups_upsert_${Date.now()}`);
+        await databaseManager.saveEvent('groups.upsert', groupsMetadata, `groups_upsert_${Date.now()}`);
 
         for (const group of groupsMetadata || []) {
           const jid = group.id?.substring(0, 30) || 'N/A';
           const subject = group.subject || 'Sem nome';
           logger.debug(`   ${subject} | JID: ${jid}...`);
 
-          await cacheManager.saveGroupMetadata(group.id, group);
+          await databaseManager.saveGroupMetadata(group.id, group);
           if (this.omniZapClient && group.id) {
             try {
-              await cacheManager.getOrFetchGroupMetadata(group.id, this.omniZapClient);
+              await databaseManager.getOrFetchGroupMetadata(group.id, this.omniZapClient);
             } catch (error) {
               logger.error(`Events: Erro ao buscar metadados do grupo ${subject}:`, {
                 error: error.message,
@@ -309,7 +309,7 @@ class EventHandler {
       try {
         logger.info('👥 Events: Processando group-participants.update');
 
-        await cacheManager.saveEvent('group-participants.update', event, `participants_${Date.now()}`);
+        await databaseManager.saveEvent('group-participants.update', event, `participants_${Date.now()}`);
 
         const jid = event.id?.substring(0, 30) || 'N/A';
         const action = event.action || 'N/A';
@@ -332,15 +332,15 @@ class EventHandler {
       try {
         logger.info(`💬 Events: Processando chats.upsert - ${chats?.length || 0} chat(s)`);
 
-        await cacheManager.saveEvent('chats.upsert', chats, `chats_upsert_${Date.now()}`);
+        await databaseManager.saveEvent('chats.upsert', chats, `chats_upsert_${Date.now()}`);
 
         for (const chat of chats || []) {
           const jid = chat.id?.substring(0, 30) || 'N/A';
           const name = chat.name || 'Sem nome';
           logger.debug(`   ${name} | JID: ${jid}...`);
 
-          const cachedChat = await cacheManager.getChat(chat.id);
-          await cacheManager.saveChat(chat);
+          const cachedChat = await databaseManager.getChat(chat.id);
+          await databaseManager.saveChat(chat);
 
           if (cachedChat) {
             logger.info(`   Cache hit para chat: ${name}`);
@@ -363,15 +363,15 @@ class EventHandler {
       try {
         logger.info(`💬 Events: Processando chats.update - ${updates?.length || 0} atualização(ões)`);
 
-        await cacheManager.saveEvent('chats.update', updates, `chats_update_${Date.now()}`);
+        await databaseManager.saveEvent('chats.update', updates, `chats_update_${Date.now()}`);
 
         for (const update of updates || []) {
           const jid = update.id?.substring(0, 30) || 'N/A';
           logger.debug(`   Chat atualizado: ${jid}...`);
 
-          const cachedChat = await cacheManager.getChat(update.id);
+          const cachedChat = await databaseManager.getChat(update.id);
 
-          await cacheManager.saveChat(update);
+          await databaseManager.saveChat(update);
 
           if (cachedChat) {
             logger.info(`   Cache hit para chat: ${jid}...`);
@@ -394,7 +394,7 @@ class EventHandler {
       try {
         logger.warn(`💬 Events: Processando chats.delete - ${jids?.length || 0} chat(s) deletado(s)`);
 
-        await cacheManager.saveEvent('chats.delete', jids, `chats_delete_${Date.now()}`);
+        await databaseManager.saveEvent('chats.delete', jids, `chats_delete_${Date.now()}`);
 
         jids?.forEach((jid, index) => {
           logger.debug(`   ${index + 1}. JID deletado: ${jid.substring(0, 30)}...`);
@@ -416,16 +416,16 @@ class EventHandler {
       try {
         logger.info(`👤 Events: Processando contacts.upsert - ${contacts?.length || 0} contato(s)`);
 
-        await cacheManager.saveEvent('contacts.upsert', contacts, `contacts_upsert_${Date.now()}`);
+        await databaseManager.saveEvent('contacts.upsert', contacts, `contacts_upsert_${Date.now()}`);
 
         for (const contact of contacts || []) {
           const jid = contact.id?.substring(0, 30) || 'N/A';
           const name = contact.name || contact.notify || 'Sem nome';
           logger.debug(`   ${name} | JID: ${jid}...`);
 
-          const cachedContact = await cacheManager.getContact(contact.id);
+          const cachedContact = await databaseManager.getContact(contact.id);
 
-          await cacheManager.saveContact(contact);
+          await databaseManager.saveContact(contact);
 
           if (cachedContact) {
             logger.info(`   Cache hit para contato: ${name}`);
@@ -448,16 +448,16 @@ class EventHandler {
       try {
         logger.info(`👤 Events: Processando contacts.update - ${updates?.length || 0} atualização(ões)`);
 
-        await cacheManager.saveEvent('contacts.update', updates, `contacts_update_${Date.now()}`);
+        await databaseManager.saveEvent('contacts.update', updates, `contacts_update_${Date.now()}`);
 
         for (const update of updates || []) {
           const jid = update.id?.substring(0, 30) || 'N/A';
           const name = update.name || update.notify || 'Sem nome';
           logger.debug(`   ${name} | JID: ${jid}...`);
 
-          const cachedContact = await cacheManager.getContact(update.id);
+          const cachedContact = await databaseManager.getContact(update.id);
 
-          await cacheManager.saveContact(update);
+          await databaseManager.saveContact(update);
 
           if (cachedContact) {
             logger.info(`   Cache hit para contato: ${name}`);
@@ -493,7 +493,7 @@ class EventHandler {
         try {
           await new Promise((resolve) => setTimeout(resolve, index * 100));
 
-          const metadata = await cacheManager.getOrFetchGroupMetadata(groupJid, this.omniZapClient);
+          const metadata = await databaseManager.getOrFetchGroupMetadata(groupJid, this.omniZapClient);
 
           if (metadata) {
             logger.info(`Events: Metadados carregados para "${metadata.subject}" (${metadata._participantCount || 0} participantes)`);
@@ -540,7 +540,7 @@ class EventHandler {
       try {
         logger.info(`🔄 Events: Processando ${eventType}`);
 
-        await cacheManager.saveEvent(eventType, eventData, `${eventType}_${Date.now()}`);
+        await databaseManager.saveEvent(eventType, eventData, `${eventType}_${Date.now()}`);
       } catch (error) {
         logger.error(`Events: Erro no processamento de ${eventType}:`, {
           error: error.message,
