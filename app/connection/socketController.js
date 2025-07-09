@@ -18,7 +18,7 @@ const path = require('path');
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 
-const { databaseManager } = require('../cache/databaseManager');
+const { databaseManager } = require('../database/databaseManager.js');
 const { eventHandler } = require('../events/eventHandler');
 
 dotenv.config();
@@ -403,6 +403,6 @@ initializeOmniZapConnection().catch(async (error) => {
 
 module.exports = {
   initializeOmniZapConnection,
-  cacheManager,
+  databaseManager,
   eventHandler,
 };

@@ -10,7 +10,7 @@
  */
 
 const chalk = require('chalk');
-const { databaseManager } = require('../cache/databaseManager');
+const { databaseManager } = require('../database/databaseManager');
 const logger = require('../utils/logger/loggerModule');
 
 /**

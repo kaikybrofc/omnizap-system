@@ -19,7 +19,7 @@ const logger = require('../utils/logger/loggerModule');
 const { cleanEnv, num, bool, str } = require('envalid');
 const fs = require('fs').promises;
 const path = require('path');
-const db = require('../database/mysql');
+const db = require('./mysql');
 
 const env = cleanEnv(process.env, {
   DB_DATA_RETENTION_DAYS: num({
