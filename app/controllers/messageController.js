@@ -10,7 +10,7 @@
  */
 
 require('dotenv').config();
-const { cacheManager } = require('../cache/cacheManager');
+const { cacheManager } = require('../cache/databaseManager');
 const { preProcessMessage, isCommand, getExpiration } = require('../utils/baileys/messageHelper');
 const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, formatErrorMessage } = require('../utils/messageUtils');
 const { COMMAND_PREFIX } = require('../utils/constants');

@@ -18,7 +18,7 @@ const path = require('path');
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 
-const { cacheManager } = require('../cache/cacheManager');
+const { cacheManager } = require('../cache/databaseManager');
 const { eventHandler } = require('../events/eventHandler');
 
 dotenv.config();

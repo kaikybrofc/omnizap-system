@@ -10,7 +10,7 @@
  */
 
 const chalk = require('chalk');
-const { cacheManager } = require('../cache/cacheManager');
+const { cacheManager } = require('../cache/databaseManager');
 const logger = require('../utils/logger/loggerModule');
 
 /**
@@ -46,11 +46,7 @@ class EventHandler {
   async processMessagesUpsert(messageUpdate) {
     setImmediate(async () => {
       try {
-        logger.info(
-          `📨 Events: Processando messages.upsert - ${
-            messageUpdate.messages?.length || 0
-          } mensagem(ns)`,
-        );
+        logger.info(`📨 Events: Processando messages.upsert - ${messageUpdate.messages?.length || 0} mensagem(ns)`);
 
         await cacheManager.saveEvent('messages.upsert', messageUpdate, `upsert_${Date.now()}`);
 
@@ -73,18 +69,14 @@ class EventHandler {
                 _batchId: Date.now().toString(),
                 _isGroupMessage: isGroupMessage,
                 _groupJid: isGroupMessage ? messageInfo.key.remoteJid : null,
-                _senderJid: isGroupMessage
-                  ? messageInfo.key.participant || messageInfo.key.remoteJid
-                  : messageInfo.key.remoteJid,
+                _senderJid: isGroupMessage ? messageInfo.key.participant || messageInfo.key.remoteJid : messageInfo.key.remoteJid,
               };
 
               await cacheManager.saveMessage(enhancedMessageInfo);
               processedCount++;
 
               const jid = messageInfo.key?.remoteJid?.substring(0, 20) || 'N/A';
-              const messageType = messageInfo.message
-                ? Object.keys(messageInfo.message)[0]
-                : 'unknown';
+              const messageType = messageInfo.message ? Object.keys(messageInfo.message)[0] : 'unknown';
 
               if (isGroupMessage) {
                 logger.debug(`   ✓ Msg ${processedCount}: ${messageType} | GRUPO ${jid}...`);
@@ -105,9 +97,7 @@ class EventHandler {
             await this.loadGroupsMetadata(Array.from(groupJids));
           }
 
-          logger.info(
-            `Events: ✅ ${processedCount}/${messageUpdate.messages.length} mensagens processadas`,
-          );
+          logger.info(`Events: ✅ ${processedCount}/${messageUpdate.messages.length} mensagens processadas`);
         }
       } catch (error) {
         logger.error('Events: Erro no processamento de messages.upsert:', {
@@ -124,9 +114,7 @@ class EventHandler {
   async processMessagesUpdate(updates) {
     setImmediate(async () => {
       try {
-        logger.info(
-          `📝 Events: Processando messages.update - ${updates?.length || 0} atualização(ões)`,
-        );
+        logger.info(`📝 Events: Processando messages.update - ${updates?.length || 0} atualização(ões)`);
 
         await cacheManager.saveEvent('messages.update', updates, `update_${Date.now()}`);
 
@@ -177,9 +165,7 @@ class EventHandler {
   async processMessagesReaction(reactions) {
     setImmediate(async () => {
       try {
-        logger.info(
-          `😀 Events: Processando messages.reaction - ${reactions?.length || 0} reação(ões)`,
-        );
+        logger.info(`😀 Events: Processando messages.reaction - ${reactions?.length || 0} reação(ões)`);
 
         await cacheManager.saveEvent('messages.reaction', reactions, `reaction_${Date.now()}`);
 
@@ -203,18 +189,12 @@ class EventHandler {
   async processMessageReceipt(receipts) {
     setImmediate(async () => {
       try {
-        logger.info(
-          `📬 Events: Processando message-receipt.update - ${receipts?.length || 0} recibo(s)`,
-        );
+        logger.info(`📬 Events: Processando message-receipt.update - ${receipts?.length || 0} recibo(s)`);
 
         await cacheManager.saveEvent('message-receipt.update', receipts, `receipt_${Date.now()}`);
 
         receipts?.forEach((receipt, index) => {
-          const status = receipt.receipt?.readTimestamp
-            ? '✓✓ Lida'
-            : receipt.receipt?.receiptTimestamp
-            ? '✓✓ Entregue'
-            : '✓ Enviada';
+          const status = receipt.receipt?.readTimestamp ? '✓✓ Lida' : receipt.receipt?.receiptTimestamp ? '✓✓ Entregue' : '✓ Enviada';
           const jid = receipt.key?.remoteJid?.substring(0, 20) || 'N/A';
           logger.debug(`   ${index + 1}. ${status} | JID: ${jid}...`);
         });
@@ -258,9 +238,7 @@ class EventHandler {
   async processGroupsUpdate(updates) {
     setImmediate(async () => {
       try {
-        logger.info(
-          `👥 Events: Processando groups.update - ${updates?.length || 0} atualização(ões)`,
-        );
+        logger.info(`👥 Events: Processando groups.update - ${updates?.length || 0} atualização(ões)`);
 
         await cacheManager.saveEvent('groups.update', updates, `groups_update_${Date.now()}`);
 
@@ -293,15 +271,9 @@ class EventHandler {
   async processGroupsUpsert(groupsMetadata) {
     setImmediate(async () => {
       try {
-        logger.info(
-          `👥 Events: Processando groups.upsert - ${groupsMetadata?.length || 0} grupo(s)`,
-        );
+        logger.info(`👥 Events: Processando groups.upsert - ${groupsMetadata?.length || 0} grupo(s)`);
 
-        await cacheManager.saveEvent(
-          'groups.upsert',
-          groupsMetadata,
-          `groups_upsert_${Date.now()}`,
-        );
+        await cacheManager.saveEvent('groups.upsert', groupsMetadata, `groups_upsert_${Date.now()}`);
 
         for (const group of groupsMetadata || []) {
           const jid = group.id?.substring(0, 30) || 'N/A';
@@ -337,11 +309,7 @@ class EventHandler {
       try {
         logger.info('👥 Events: Processando group-participants.update');
 
-        await cacheManager.saveEvent(
-          'group-participants.update',
-          event,
-          `participants_${Date.now()}`,
-        );
+        await cacheManager.saveEvent('group-participants.update', event, `participants_${Date.now()}`);
 
         const jid = event.id?.substring(0, 30) || 'N/A';
         const action = event.action || 'N/A';
@@ -393,9 +361,7 @@ class EventHandler {
   async processChatsUpdate(updates) {
     setImmediate(async () => {
       try {
-        logger.info(
-          `💬 Events: Processando chats.update - ${updates?.length || 0} atualização(ões)`,
-        );
+        logger.info(`💬 Events: Processando chats.update - ${updates?.length || 0} atualização(ões)`);
 
         await cacheManager.saveEvent('chats.update', updates, `chats_update_${Date.now()}`);
 
@@ -426,9 +392,7 @@ class EventHandler {
   async processChatsDelete(jids) {
     setImmediate(async () => {
       try {
-        logger.warn(
-          `💬 Events: Processando chats.delete - ${jids?.length || 0} chat(s) deletado(s)`,
-        );
+        logger.warn(`💬 Events: Processando chats.delete - ${jids?.length || 0} chat(s) deletado(s)`);
 
         await cacheManager.saveEvent('chats.delete', jids, `chats_delete_${Date.now()}`);
 
@@ -482,9 +446,7 @@ class EventHandler {
   async processContactsUpdate(updates) {
     setImmediate(async () => {
       try {
-        logger.info(
-          `👤 Events: Processando contacts.update - ${updates?.length || 0} atualização(ões)`,
-        );
+        logger.info(`👤 Events: Processando contacts.update - ${updates?.length || 0} atualização(ões)`);
 
         await cacheManager.saveEvent('contacts.update', updates, `contacts_update_${Date.now()}`);
 
@@ -534,11 +496,7 @@ class EventHandler {
           const metadata = await cacheManager.getOrFetchGroupMetadata(groupJid, this.omniZapClient);
 
           if (metadata) {
-            logger.info(
-              `Events: Metadados carregados para "${metadata.subject}" (${
-                metadata._participantCount || 0
-              } participantes)`,
-            );
+            logger.info(`Events: Metadados carregados para "${metadata.subject}" (${metadata._participantCount || 0} participantes)`);
             return { success: true, groupJid, metadata };
           } else {
             logger.warn(`Events: Não foi possível carregar metadados do grupo ${groupJid}`);
@@ -555,9 +513,7 @@ class EventHandler {
 
       const results = await Promise.allSettled(promises);
 
-      const successful = results.filter(
-        (result) => result.status === 'fulfilled' && result.value.success,
-      ).length;
+      const successful = results.filter((result) => result.status === 'fulfilled' && result.value.success).length;
 
       const failed = results.length - successful;
 

@@ -1,8 +1,13 @@
 /**
  * OmniZap Database Manager
  *
- * Módulo responsável pelo gerenciamento avançado do banco de dados
- * Funciona de forma independente e assíncrona
+ * Módulo responsável pelo gerenciamento do banco de dados
+ * Substitui o antigo sistema de cache em memória por armazenamento persistente
+ *
+ * Principais recursos:
+ * - Armazenamento de mensagens, eventos, grupos, contatos e chats no MySQL
+ * - Manutenção automática de dados antigos
+ * - Compatibilidade com APIs do antigo sistema de cache
  *
  * @version 2.0.0
  * @author OmniZap Team
