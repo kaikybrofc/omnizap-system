@@ -59,6 +59,46 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
             const targetJid = isGroupMessage ? groupJid : senderJid;
 
             switch (command.toLowerCase()) {
+              case 'ban':
+                try {
+                  const { processBanCommand } = require('../commandModules/adminModules/banCommand');
+
+                  logger.info('Comando ban executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processBanCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando ban', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao banir usuário', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se o bot é administrador do grupo\n• Verifique se você é administrador do grupo\n• Verifique se o número/usuário existe\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
               case 'sticker':
               case 's':
                 try {
@@ -151,22 +191,6 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                 }
                 break;
               default:
-                const contextInfo = isGroupMessage ? `\n\n👥 *Contexto:* Grupo\n👤 *Solicitante:* ${senderJid}` : `\n\n👤 *Contexto:* Mensagem direta`;
-
-                const unknownText = `❓ *Comando Desconhecido*
-
-🚫 **Comando:** ${COMMAND_PREFIX}${command}
-
-💡 **Dica:** Use ${COMMAND_PREFIX}help para ver todos os comandos disponíveis${contextInfo}`;
-
-                //   await omniZapClient.sendMessage(targetJid, { text: unknownText });
-                //      logger.info('Comando desconhecido recebido', {
-                //       command,
-                //       args,
-                //       senderJid,
-                //      isGroupMessage: isGroupMessage ? 'true' : 'false',
-                //   });
-                break;
             }
           } catch (error) {
             logger.error('Erro ao processar comando', {
