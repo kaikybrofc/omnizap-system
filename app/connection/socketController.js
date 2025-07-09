@@ -191,7 +191,7 @@ async function initializeOmniZapConnection() {
       return await cacheManager.getMessage(key);
     },
     shouldSyncHistoryMessage: () => false,
-    shouldIgnoreJid: (jid) => jid.includes('broadcast'),
+    shouldIgnoreJid: (jid) => typeof jid === 'string' && jid.includes('broadcast'),
   });
 
   if (env.PAIRING_CODE && !omniZapClient.authState.creds.registered) {

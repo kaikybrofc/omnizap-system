@@ -129,6 +129,9 @@ chatsCache.on('expired', (key, value) => {
 class CacheManager {
   constructor() {
     this.initialized = false;
+    this.messagesWriteQueue = Promise.resolve();
+    this.eventsWriteQueue = Promise.resolve();
+    this.groupMetadataWriteQueue = Promise.resolve();
     this.init();
   }
 
@@ -314,7 +317,7 @@ class CacheManager {
   /**
    * Salva uma mensagem no cache e em arquivo para persistência
    */
-  async saveMessage(messageInfo) {
+  saveMessage(messageInfo) {
     try {
       if (!messageInfo || !messageInfo.key || !messageInfo.key.remoteJid || !messageInfo.key.id) {
         logger.warn('Cache: Dados de mensagem inválidos');
@@ -349,7 +352,7 @@ class CacheManager {
       messagesCache.set(counterKey, currentCount + 1, 86400);
 
       // Salvar em arquivo para persistência
-      setImmediate(async () => {
+      this.messagesWriteQueue = this.messagesWriteQueue.then(async () => {
         try {
           // Ler o arquivo atual
           const allMessages = await this._readMessagesCacheFile();
@@ -404,7 +407,7 @@ class CacheManager {
   /**
    * Salva evento no cache e em arquivo para persistência
    */
-  async saveEvent(eventType, eventData, eventId = null) {
+  saveEvent(eventType, eventData, eventId = null) {
     try {
       if (!eventType || !eventData) {
         logger.warn('Cache: Dados de evento inválidos');
@@ -436,7 +439,7 @@ class CacheManager {
       eventsCache.set(recentEventsKey, recentEvents, 3600);
 
       // Salvar em arquivo para persistência
-      setImmediate(async () => {
+      this.eventsWriteQueue = this.eventsWriteQueue.then(async () => {
         try {
           // Ler o arquivo atual
           const allEvents = await this._readEventsCacheFile();
@@ -481,30 +484,32 @@ class CacheManager {
   /**
    * Salva metadados de grupo no cache persistente em arquivo
    */
-  async saveGroupMetadata(jid, metadata) {
-    try {
-      if (!jid || !metadata) {
-        logger.warn('Cache: Dados de grupo inválidos');
-        return;
+  saveGroupMetadata(jid, metadata) {
+    this.groupMetadataWriteQueue = this.groupMetadataWriteQueue.then(async () => {
+      try {
+        if (!jid || !metadata) {
+          logger.warn('Cache: Dados de grupo inválidos');
+          return;
+        }
+
+        const enhancedMetadata = {
+          ...metadata,
+          _cached: true,
+          _cacheTimestamp: Date.now(),
+          _jid: jid,
+        };
+
+        const allMetadata = await this._readGroupMetadataFile();
+
+        allMetadata[jid] = { ...(allMetadata[jid] || {}), ...enhancedMetadata };
+
+        await this._writeGroupMetadataFile(allMetadata);
+
+        logger.debug(`Cache: Grupo salvo em arquivo (${jid.substring(0, 30)}...)`);
+      } catch (error) {
+        logger.error('Cache: Erro ao salvar grupo:', { error: error.message, stack: error.stack });
       }
-
-      const enhancedMetadata = {
-        ...metadata,
-        _cached: true,
-        _cacheTimestamp: Date.now(),
-        _jid: jid,
-      };
-
-      const allMetadata = await this._readGroupMetadataFile();
-
-      allMetadata[jid] = { ...(allMetadata[jid] || {}), ...enhancedMetadata };
-
-      await this._writeGroupMetadataFile(allMetadata);
-
-      logger.debug(`Cache: Grupo salvo em arquivo (${jid.substring(0, 30)}...)`);
-    } catch (error) {
-      logger.error('Cache: Erro ao salvar grupo:', { error: error.message, stack: error.stack });
-    }
+    });
   }
 
   /**
