@@ -87,8 +87,17 @@ async function initializeOmniZapConnection() {
 
   if (env.PAIRING_CODE && !state.creds.registered) {
     if (!env.PHONE_NUMBER) {
-      logger.error('❌ PAIRING_CODE está ativado, mas PHONE_NUMBER não foi definido no .env');
-      throw new Error('Número de telefone para pareamento não fornecido.');
+      logger.error('═══════════════════════════════════════════════════');
+      logger.error('❌ ERRO DE CONFIGURAÇÃO: NÚMERO DE TELEFONE AUSENTE');
+      logger.error('O modo de pareamento por código está ativado (PAIRING_CODE=true),');
+      logger.error('mas a variável PHONE_NUMBER não foi definida no seu arquivo .env');
+      logger.error('');
+      logger.error('👉 AÇÃO NECESSÁRIA:');
+      logger.error('   1. Abra o arquivo `.env` na raiz do projeto.');
+      logger.error('   2. Adicione ou edite a linha: PHONE_NUMBER=SEUNUMERO');
+      logger.error('   3. Substitua "SEUNUMERO" pelo seu número de WhatsApp com código do país (ex: 5511999999999).');
+      logger.error('═══════════════════════════════════════════════════');
+      throw new Error('Configuração de pareamento incompleta: PHONE_NUMBER ausente.');
     }
 
     logger.info('📱 Iniciando conexão com código de pareamento...');
@@ -131,12 +140,10 @@ async function initializeOmniZapConnection() {
     shouldIgnoreJid: (jid) => jid.includes('broadcast'),
   });
 
-  // Lida com o código de pareamento se ativado e não houver credenciais salvas
   if (env.PAIRING_CODE && !omniZapClient.authState.creds.registered) {
     const phoneNumber = env.PHONE_NUMBER.replace(/[^0-9]/g, '');
     logger.info(`📞 Solicitando código de pareamento para o número: ${phoneNumber}`);
 
-    // Aguarda um pouco para garantir que o socket esteja pronto para a requisição
     setTimeout(async () => {
       try {
         const code = await omniZapClient.requestPairingCode(phoneNumber);
@@ -378,4 +385,3 @@ module.exports = {
   cacheManager,
   eventHandler,
 };
-('');
