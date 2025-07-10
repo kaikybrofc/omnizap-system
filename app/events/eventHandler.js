@@ -1,10 +1,11 @@
 /**
- * OmniZap Event Handler
+ * OmniZap Event Handler - Versão Melhorada
  *
  * Módulo responsável pelo processamento independente de eventos
  * Usa cache local centralizado e persistência em JSON
+ * Integração bidirecional com socketController
  *
- * @version 2.0.0
+ * @version 2.1.0
  * @author OmniZap Team
  * @license MIT
  */
@@ -21,6 +22,7 @@ class EventHandler {
   constructor() {
     this.initialized = false;
     this.omniZapClient = null;
+    this.socketController = null;
     this.cacheDir = path.join(__dirname, '../../temp/cache');
     this.dataDir = path.join(__dirname, '../../temp/data');
 
@@ -30,6 +32,23 @@ class EventHandler {
     this.contactCache = new NodeCache({ stdTTL: 7200, checkperiod: 600 }); // 2 horas
     this.chatCache = new NodeCache({ stdTTL: 3600, checkperiod: 600 }); // 1 hora
     this.eventCache = new NodeCache({ stdTTL: 1800, checkperiod: 300 }); // 30 minutos
+
+    // Sistema de callbacks para comunicação bidirecional
+    this.eventCallbacks = new Map();
+    this.connectionState = {
+      isConnected: false,
+      lastConnection: null,
+      connectionCount: 0,
+      lastDisconnection: null,
+    };
+
+    // Estatísticas de performance
+    this.stats = {
+      cacheHits: 0,
+      cacheMisses: 0,
+      processedEvents: 0,
+      lastReset: Date.now(),
+    };
 
     this.init();
   }
@@ -53,11 +72,102 @@ class EventHandler {
       // Configura auto-save
       this.setupAutoSave();
 
-      logger.info('🎯 OmniZap Events: Cache local inicializado');
+      logger.info('🎯 OmniZap Events: Cache local inicializado com integração bidirecional');
       this.initialized = true;
     } catch (error) {
       logger.error('❌ Erro ao inicializar cache:', error.message);
     }
+  }
+
+  /**
+   * Define o controlador de socket para comunicação bidirecional
+   * @param {Object} controller - Referência ao socketController
+   */
+  setSocketController(controller) {
+    this.socketController = controller;
+    logger.info('🔗 Events: SocketController configurado para comunicação bidirecional');
+  }
+
+  /**
+   * Registra callback para eventos específicos
+   * @param {string} eventType - Tipo do evento
+   * @param {Function} callback - Função callback
+   */
+  registerCallback(eventType, callback) {
+    if (!this.eventCallbacks.has(eventType)) {
+      this.eventCallbacks.set(eventType, []);
+    }
+    this.eventCallbacks.get(eventType).push(callback);
+    logger.debug(`📞 Events: Callback registrado para ${eventType}`);
+  }
+
+  /**
+   * Executa callbacks registrados para um evento
+   * @param {string} eventType - Tipo do evento
+   * @param {*} data - Dados do evento
+   */
+  async executeCallbacks(eventType, data) {
+    const callbacks = this.eventCallbacks.get(eventType) || [];
+    if (callbacks.length > 0) {
+      logger.debug(`📞 Events: Executando ${callbacks.length} callback(s) para ${eventType}`);
+
+      for (const callback of callbacks) {
+        try {
+          await callback(data, this);
+        } catch (error) {
+          logger.error(`❌ Erro no callback para ${eventType}:`, error.message);
+        }
+      }
+    }
+  }
+
+  /**
+   * Atualiza estado de conexão
+   * @param {boolean} isConnected - Estado da conexão
+   * @param {Object} metadata - Metadados da conexão
+   */
+  updateConnectionState(isConnected, metadata = {}) {
+    const previousState = this.connectionState.isConnected;
+    this.connectionState.isConnected = isConnected;
+
+    if (isConnected && !previousState) {
+      this.connectionState.lastConnection = Date.now();
+      this.connectionState.connectionCount++;
+      logger.info('🟢 Events: Estado de conexão atualizado - CONECTADO');
+    } else if (!isConnected && previousState) {
+      this.connectionState.lastDisconnection = Date.now();
+      logger.info('🔴 Events: Estado de conexão atualizado - DESCONECTADO');
+    }
+
+    // Salva estado atualizado
+    this.eventCache.set('connection_state', {
+      ...this.connectionState,
+      ...metadata,
+      _lastUpdate: Date.now(),
+    });
+
+    // Executa callbacks de mudança de estado
+    this.executeCallbacks('connection.state.change', {
+      isConnected,
+      previousState,
+      metadata,
+      connectionState: this.connectionState,
+    });
+  }
+
+  /**
+   * Obtém cliente WhatsApp através do socketController
+   */
+  getWhatsAppClient() {
+    if (this.omniZapClient) {
+      return this.omniZapClient;
+    }
+
+    if (this.socketController && typeof this.socketController.getActiveSocket === 'function') {
+      return this.socketController.getActiveSocket();
+    }
+
+    return null;
   }
 
   /**
@@ -124,38 +234,44 @@ class EventHandler {
    * Salva dados persistentes em arquivos JSON
    */
   savePersistedData() {
-    const dataToSave = {
-      groups: this.groupCache.keys().reduce((acc, key) => {
-        acc[key] = this.groupCache.get(key);
-        return acc;
-      }, {}),
-      contacts: this.contactCache.keys().reduce((acc, key) => {
-        acc[key] = this.contactCache.get(key);
-        return acc;
-      }, {}),
-      chats: this.chatCache.keys().reduce((acc, key) => {
-        acc[key] = this.chatCache.get(key);
-        return acc;
-      }, {}),
-      metadata: {
-        lastSave: Date.now(),
-        totalMessages: this.messageCache.keys().length,
-        totalGroups: this.groupCache.keys().length,
-        totalContacts: this.contactCache.keys().length,
-        totalChats: this.chatCache.keys().length,
-      },
-    };
+    try {
+      const dataToSave = {
+        groups: this.groupCache.keys().reduce((acc, key) => {
+          acc[key] = this.groupCache.get(key);
+          return acc;
+        }, {}),
+        contacts: this.contactCache.keys().reduce((acc, key) => {
+          acc[key] = this.contactCache.get(key);
+          return acc;
+        }, {}),
+        chats: this.chatCache.keys().reduce((acc, key) => {
+          acc[key] = this.chatCache.get(key);
+          return acc;
+        }, {}),
+        metadata: {
+          lastSave: Date.now(),
+          totalMessages: this.messageCache.keys().length,
+          totalGroups: this.groupCache.keys().length,
+          totalContacts: this.contactCache.keys().length,
+          totalChats: this.chatCache.keys().length,
+          stats: this.stats,
+          connectionState: this.connectionState,
+        },
+      };
 
-    Object.entries(dataToSave).forEach(([type, data]) => {
-      try {
-        const filePath = path.join(this.dataDir, `${type}.json`);
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-      } catch (error) {
-        logger.error(`❌ Erro ao salvar ${type}:`, error.message);
-      }
-    });
+      Object.entries(dataToSave).forEach(([type, data]) => {
+        try {
+          const filePath = path.join(this.dataDir, `${type}.json`);
+          fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+        } catch (error) {
+          logger.error(`❌ Erro ao salvar ${type}:`, error.message);
+        }
+      });
 
-    logger.debug('💾 Cache: Dados salvos em arquivos JSON');
+      logger.debug('💾 Cache: Dados salvos em arquivos JSON');
+    } catch (error) {
+      logger.error('❌ Erro geral ao salvar dados:', error.message);
+    }
   }
 
   /**
@@ -173,12 +289,124 @@ class EventHandler {
   }
 
   /**
+   * Incrementa estatísticas de cache
+   */
+  incrementCacheStats(type = 'hit') {
+    this.stats[type === 'hit' ? 'cacheHits' : 'cacheMisses']++;
+  }
+
+  /**
+   * Calcula taxa de acerto do cache
+   */
+  calculateCacheHitRate() {
+    const total = this.stats.cacheHits + this.stats.cacheMisses;
+    return total > 0 ? ((this.stats.cacheHits / total) * 100).toFixed(2) : 0;
+  }
+
+  /**
+   * Métodos públicos para acessar cache com estatísticas
+   */
+  getMessage(remoteJid, messageId) {
+    const key = `${remoteJid}_${messageId}`;
+    const message = this.messageCache.get(key);
+
+    this.incrementCacheStats(message ? 'hit' : 'miss');
+
+    if (message) {
+      logger.debug(`📱 Cache hit para mensagem: ${messageId.substring(0, 10)}...`);
+    }
+
+    return message;
+  }
+
+  getGroup(groupJid) {
+    const group = this.groupCache.get(groupJid);
+    this.incrementCacheStats(group ? 'hit' : 'miss');
+    return group;
+  }
+
+  getContact(contactJid) {
+    const contact = this.contactCache.get(contactJid);
+    this.incrementCacheStats(contact ? 'hit' : 'miss');
+    return contact;
+  }
+
+  getChat(chatJid) {
+    const chat = this.chatCache.get(chatJid);
+    this.incrementCacheStats(chat ? 'hit' : 'miss');
+    return chat;
+  }
+
+  /**
+   * Estatísticas do cache
+   */
+  getCacheStats() {
+    return {
+      messages: this.messageCache.keys().length,
+      groups: this.groupCache.keys().length,
+      contacts: this.contactCache.keys().length,
+      chats: this.chatCache.keys().length,
+      events: this.eventCache.keys().length,
+      cacheHitRate: this.calculateCacheHitRate(),
+      performance: this.stats,
+      connectionState: this.connectionState,
+      memoryUsage: process.memoryUsage(),
+    };
+  }
+
+  /**
+   * Obtém estatísticas de conexão completas
+   */
+  getConnectionStats() {
+    const baseStats = this.getCacheStats();
+    const connectionStats = this.socketController ? (typeof this.socketController.getConnectionStats === 'function' ? this.socketController.getConnectionStats() : {}) : {};
+
+    return {
+      ...baseStats,
+      ...connectionStats,
+      integrationEnabled: this.socketController !== null,
+    };
+  }
+
+  /**
+   * Envia mensagem através do socketController
+   * @param {string} jid - JID do destinatário
+   * @param {*} content - Conteúdo da mensagem
+   * @param {Object} options - Opções da mensagem
+   */
+  async sendMessage(jid, content, options = {}) {
+    if (!this.socketController) {
+      throw new Error('SocketController não configurado');
+    }
+
+    if (typeof this.socketController.sendMessage === 'function') {
+      return await this.socketController.sendMessage(jid, content, options);
+    }
+
+    throw new Error('Método sendMessage não disponível no socketController');
+  }
+
+  /**
+   * Força reconexão através do socketController
+   */
+  async forceReconnect() {
+    if (this.socketController && typeof this.socketController.forceReconnect === 'function') {
+      logger.info('🔄 Events: Solicitando reconexão através do socketController');
+      return await this.socketController.forceReconnect();
+    }
+
+    logger.warn('⚠️ Events: Método forceReconnect não disponível no socketController');
+  }
+
+  /**
    * Processa eventos de mensagens (messages.upsert)
    */
   async processMessagesUpsert(messageUpdate) {
     setImmediate(async () => {
       try {
-        logger.info(`📨 Events: Processando messages.upsert - ${messageUpdate.messages?.length || 0} mensagem(ns)`);
+        this.stats.processedEvents++;
+        const messageCount = messageUpdate.messages?.length || 0;
+        logger.info(`📨 Events: Processando messages.upsert - ${messageCount} mensagem(ns)`);
 
         // Salva evento no cache
         const eventId = `upsert_${Date.now()}`;
@@ -224,510 +452,27 @@ class EventHandler {
                 logger.debug(`   ✓ Msg ${processedCount}: ${messageType} | ${jid}...`);
               }
             } catch (error) {
-              logger.error('Events: Erro ao processar mensagem individual:', {
-                error: error.message,
-                stack: error.stack,
-              });
+              logger.error('Events: Erro ao processar mensagem individual:', error.message);
             }
           }
 
-          if (groupJids.size > 0 && this.omniZapClient) {
+          // Carrega metadados dos grupos detectados
+          if (groupJids.size > 0) {
             logger.info(`Events: Carregando metadados de ${groupJids.size} grupo(s) detectado(s)`);
             await this.loadGroupsMetadata(Array.from(groupJids));
           }
 
           logger.info(`Events: ✅ ${processedCount}/${messageUpdate.messages.length} mensagens processadas`);
         }
-      } catch (error) {
-        logger.error('Events: Erro no processamento de messages.upsert:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
 
-  /**
-   * Processa eventos de atualização de mensagens (messages.update)
-   */
-  async processMessagesUpdate(updates) {
-    setImmediate(async () => {
-      try {
-        logger.info(`📝 Events: Processando messages.update - ${updates?.length || 0} atualização(ões)`);
-
-        const eventId = `update_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'messages.update',
-          data: updates,
-          timestamp: Date.now(),
-        });
-
-        updates?.forEach((update, index) => {
-          const status = update.update?.status || 'N/A';
-          const jid = update.key?.remoteJid?.substring(0, 20) || 'N/A';
-          logger.debug(`   ${index + 1}. Status: ${status} | JID: ${jid}...`);
-
-          // Atualiza mensagem no cache se existir
-          const messageKey = `${update.key.remoteJid}_${update.key.id}`;
-          const existingMessage = this.messageCache.get(messageKey);
-          if (existingMessage) {
-            this.messageCache.set(messageKey, { ...existingMessage, ...update.update });
-          }
+        // Executa callbacks para novas mensagens
+        await this.executeCallbacks('messages.received', {
+          messages: messageUpdate.messages,
+          groupJids: Array.from(groupJids),
+          processedCount: messageUpdate.messages?.length || 0,
         });
       } catch (error) {
-        logger.error('Events: Erro no processamento de messages.update:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de exclusão de mensagens (messages.delete)
-   */
-  async processMessagesDelete(deletion) {
-    setImmediate(async () => {
-      try {
-        logger.warn('🗑️ Events: Processando messages.delete');
-
-        const eventId = `delete_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'messages.delete',
-          data: deletion,
-          timestamp: Date.now(),
-        });
-
-        if (deletion.keys) {
-          logger.debug(`   Mensagens deletadas: ${deletion.keys.length}`);
-          deletion.keys.forEach((key, index) => {
-            const jid = key.remoteJid?.substring(0, 20) || 'N/A';
-            const id = key.id?.substring(0, 10) || 'N/A';
-            logger.debug(`   ${index + 1}. JID: ${jid}... | ID: ${id}...`);
-
-            // Remove mensagem do cache
-            const messageKey = `${key.remoteJid}_${key.id}`;
-            this.messageCache.del(messageKey);
-          });
-        }
-      } catch (error) {
-        logger.error('Events: Erro no processamento de messages.delete:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de reações (messages.reaction)
-   */
-  async processMessagesReaction(reactions) {
-    setImmediate(async () => {
-      try {
-        logger.info(`😀 Events: Processando messages.reaction - ${reactions?.length || 0} reação(ões)`);
-
-        const eventId = `reaction_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'messages.reaction',
-          data: reactions,
-          timestamp: Date.now(),
-        });
-
-        reactions?.forEach((reaction, index) => {
-          const emoji = reaction.reaction?.text || '❓';
-          const jid = reaction.key?.remoteJid?.substring(0, 20) || 'N/A';
-          logger.debug(`   ${index + 1}. ${emoji} | JID: ${jid}...`);
-        });
-      } catch (error) {
-        logger.error('Events: Erro no processamento de messages.reaction:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de recibo de mensagem (message-receipt.update)
-   */
-  async processMessageReceipt(receipts) {
-    setImmediate(async () => {
-      try {
-        logger.info(`📬 Events: Processando message-receipt.update - ${receipts?.length || 0} recibo(s)`);
-
-        const eventId = `receipt_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'message-receipt.update',
-          data: receipts,
-          timestamp: Date.now(),
-        });
-
-        receipts?.forEach((receipt, index) => {
-          const status = receipt.receipt?.readTimestamp ? '✓✓ Lida' : receipt.receipt?.receiptTimestamp ? '✓✓ Entregue' : '✓ Enviada';
-          const jid = receipt.key?.remoteJid?.substring(0, 20) || 'N/A';
-          logger.debug(`   ${index + 1}. ${status} | JID: ${jid}...`);
-        });
-      } catch (error) {
-        logger.error('Events: Erro no processamento de message-receipt.update:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de histórico de mensagens (messaging-history.set)
-   */
-  async processMessagingHistory(historyData) {
-    setImmediate(async () => {
-      try {
-        logger.info('📚 Events: Processando messaging-history.set');
-
-        const eventId = `history_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'messaging-history.set',
-          data: historyData,
-          timestamp: Date.now(),
-        });
-
-        if (historyData.messages) {
-          logger.debug(`   Mensagens no histórico: ${historyData.messages.length}`);
-        }
-        if (historyData.chats) {
-          logger.debug(`   Chats no histórico: ${historyData.chats.length}`);
-        }
-      } catch (error) {
-        logger.error('Events: Erro no processamento de messaging-history.set:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de grupos (groups.update)
-   */
-  async processGroupsUpdate(updates) {
-    setImmediate(async () => {
-      try {
-        logger.info(`👥 Events: Processando groups.update - ${updates?.length || 0} atualização(ões)`);
-
-        const eventId = `groups_update_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'groups.update',
-          data: updates,
-          timestamp: Date.now(),
-        });
-
-        for (const update of updates || []) {
-          const jid = update.id?.substring(0, 30) || 'N/A';
-          logger.debug(`   Grupo atualizado: ${jid}...`);
-
-          if (update.id) {
-            // Verifica cache local primeiro
-            const cachedGroup = this.groupCache.get(update.id);
-
-            // Atualiza cache com novos dados
-            const updatedGroup = cachedGroup ? { ...cachedGroup, ...update } : update;
-            this.groupCache.set(update.id, updatedGroup);
-
-            if (cachedGroup) {
-              logger.info(`   Cache hit para grupo: ${jid}...`);
-            }
-          }
-        }
-      } catch (error) {
-        logger.error('Events: Erro no processamento de groups.update:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de grupos (groups.upsert)
-   */
-  async processGroupsUpsert(groupsMetadata) {
-    setImmediate(async () => {
-      try {
-        logger.info(`👥 Events: Processando groups.upsert - ${groupsMetadata?.length || 0} grupo(s)`);
-
-        const eventId = `groups_upsert_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'groups.upsert',
-          data: groupsMetadata,
-          timestamp: Date.now(),
-        });
-
-        for (const group of groupsMetadata || []) {
-          const jid = group.id?.substring(0, 30) || 'N/A';
-          const subject = group.subject || 'Sem nome';
-          logger.debug(`   ${subject} | JID: ${jid}...`);
-
-          // Salva no cache de grupos
-          this.groupCache.set(group.id, {
-            ...group,
-            _cachedAt: Date.now(),
-            _participantCount: group.participants?.length || 0,
-          });
-
-          // Busca metadados completos se cliente disponível
-          if (this.omniZapClient && group.id) {
-            try {
-              await this.getOrFetchGroupMetadata(group.id);
-            } catch (error) {
-              logger.error(`Events: Erro ao buscar metadados do grupo ${subject}:`, error.message);
-            }
-          }
-        }
-      } catch (error) {
-        logger.error('Events: Erro no processamento de groups.upsert:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de participantes de grupo (group-participants.update)
-   */
-  async processGroupParticipants(event) {
-    setImmediate(async () => {
-      try {
-        logger.info('👥 Events: Processando group-participants.update');
-
-        const eventId = `participants_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'group-participants.update',
-          data: event,
-          timestamp: Date.now(),
-        });
-
-        const jid = event.id?.substring(0, 30) || 'N/A';
-        const action = event.action || 'N/A';
-        const participants = event.participants?.length || 0;
-        logger.debug(`   Grupo: ${jid}... | Ação: ${action} | Participantes: ${participants}`);
-
-        // Atualiza cache do grupo se existir
-        if (event.id) {
-          const cachedGroup = this.groupCache.get(event.id);
-          if (cachedGroup) {
-            const updatedGroup = { ...cachedGroup };
-            if (event.action === 'add') {
-              updatedGroup.participants = [...(updatedGroup.participants || []), ...event.participants];
-            } else if (event.action === 'remove') {
-              updatedGroup.participants = (updatedGroup.participants || []).filter((p) => !event.participants.includes(p));
-            }
-            updatedGroup._participantCount = updatedGroup.participants?.length || 0;
-            updatedGroup._lastUpdate = Date.now();
-            this.groupCache.set(event.id, updatedGroup);
-          }
-        }
-      } catch (error) {
-        logger.error('Events: Erro no processamento de group-participants.update:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de chats (chats.upsert)
-   */
-  async processChatsUpsert(chats) {
-    setImmediate(async () => {
-      try {
-        logger.info(`💬 Events: Processando chats.upsert - ${chats?.length || 0} chat(s)`);
-
-        const eventId = `chats_upsert_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'chats.upsert',
-          data: chats,
-          timestamp: Date.now(),
-        });
-
-        for (const chat of chats || []) {
-          const jid = chat.id?.substring(0, 30) || 'N/A';
-          const name = chat.name || 'Sem nome';
-          logger.debug(`   ${name} | JID: ${jid}...`);
-
-          // Verifica cache local
-          const cachedChat = this.chatCache.get(chat.id);
-
-          // Salva no cache
-          this.chatCache.set(chat.id, {
-            ...chat,
-            _cachedAt: Date.now(),
-          });
-
-          if (cachedChat) {
-            logger.info(`   Cache hit para chat: ${name}`);
-          }
-        }
-      } catch (error) {
-        logger.error('Events: Erro no processamento de chats.upsert:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de chats (chats.update)
-   */
-  async processChatsUpdate(updates) {
-    setImmediate(async () => {
-      try {
-        logger.info(`💬 Events: Processando chats.update - ${updates?.length || 0} atualização(ões)`);
-
-        const eventId = `chats_update_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'chats.update',
-          data: updates,
-          timestamp: Date.now(),
-        });
-
-        for (const update of updates || []) {
-          const jid = update.id?.substring(0, 30) || 'N/A';
-          logger.debug(`   Chat atualizado: ${jid}...`);
-
-          // Verifica cache local
-          const cachedChat = this.chatCache.get(update.id);
-
-          // Atualiza cache
-          const updatedChat = cachedChat ? { ...cachedChat, ...update } : update;
-          updatedChat._lastUpdate = Date.now();
-          this.chatCache.set(update.id, updatedChat);
-
-          if (cachedChat) {
-            logger.info(`   Cache hit para chat: ${jid}...`);
-          }
-        }
-      } catch (error) {
-        logger.error('Events: Erro no processamento de chats.update:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de chats deletados (chats.delete)
-   */
-  async processChatsDelete(jids) {
-    setImmediate(async () => {
-      try {
-        logger.warn(`💬 Events: Processando chats.delete - ${jids?.length || 0} chat(s) deletado(s)`);
-
-        const eventId = `chats_delete_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'chats.delete',
-          data: jids,
-          timestamp: Date.now(),
-        });
-
-        jids?.forEach((jid, index) => {
-          logger.debug(`   ${index + 1}. JID deletado: ${jid.substring(0, 30)}...`);
-
-          // Remove do cache
-          this.chatCache.del(jid);
-        });
-      } catch (error) {
-        logger.error('Events: Erro no processamento de chats.delete:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de contatos (contacts.upsert)
-   */
-  async processContactsUpsert(contacts) {
-    setImmediate(async () => {
-      try {
-        logger.info(`👤 Events: Processando contacts.upsert - ${contacts?.length || 0} contato(s)`);
-
-        const eventId = `contacts_upsert_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'contacts.upsert',
-          data: contacts,
-          timestamp: Date.now(),
-        });
-
-        for (const contact of contacts || []) {
-          const jid = contact.id?.substring(0, 30) || 'N/A';
-          const name = contact.name || contact.notify || 'Sem nome';
-          logger.debug(`   ${name} | JID: ${jid}...`);
-
-          // Verifica cache local
-          const cachedContact = this.contactCache.get(contact.id);
-
-          // Salva no cache
-          this.contactCache.set(contact.id, {
-            ...contact,
-            _cachedAt: Date.now(),
-          });
-
-          if (cachedContact) {
-            logger.info(`   Cache hit para contato: ${name}`);
-          }
-        }
-      } catch (error) {
-        logger.error('Events: Erro no processamento de contacts.upsert:', {
-          error: error.message,
-          stack: error.stack,
-        });
-      }
-    });
-  }
-
-  /**
-   * Processa eventos de contatos (contacts.update)
-   */
-  async processContactsUpdate(updates) {
-    setImmediate(async () => {
-      try {
-        logger.info(`👤 Events: Processando contacts.update - ${updates?.length || 0} atualização(ões)`);
-
-        const eventId = `contacts_update_${Date.now()}`;
-        this.eventCache.set(eventId, {
-          type: 'contacts.update',
-          data: updates,
-          timestamp: Date.now(),
-        });
-
-        for (const update of updates || []) {
-          const jid = update.id?.substring(0, 30) || 'N/A';
-          const name = update.name || update.notify || 'Sem nome';
-          logger.debug(`   ${name} | JID: ${jid}...`);
-
-          // Verifica cache local
-          const cachedContact = this.contactCache.get(update.id);
-
-          // Atualiza cache
-          const updatedContact = cachedContact ? { ...cachedContact, ...update } : update;
-          updatedContact._lastUpdate = Date.now();
-          this.contactCache.set(update.id, updatedContact);
-
-          if (cachedContact) {
-            logger.info(`   Cache hit para contato: ${name}`);
-          }
-        }
-      } catch (error) {
-        logger.error('Events: Erro no processamento de contacts.update:', {
-          error: error.message,
-          stack: error.stack,
-        });
+        logger.error('Events: Erro no processamento de messages.upsert:', error.message);
       }
     });
   }
@@ -741,7 +486,8 @@ class EventHandler {
       return;
     }
 
-    if (!this.omniZapClient) {
+    const client = this.getWhatsAppClient();
+    if (!client) {
       logger.warn('Events: Cliente WhatsApp não disponível para carregar metadados');
       return;
     }
@@ -769,7 +515,6 @@ class EventHandler {
       });
 
       const results = await Promise.allSettled(promises);
-
       const successful = results.filter((result) => result.status === 'fulfilled' && result.value.success).length;
       const failed = results.length - successful;
 
@@ -796,44 +541,59 @@ class EventHandler {
       let metadata = this.groupCache.get(groupJid);
 
       if (metadata && metadata._cachedAt && Date.now() - metadata._cachedAt < 3600000) {
-        // 1 hora
         logger.debug(`Cache hit para grupo: ${groupJid.substring(0, 30)}...`);
         return metadata;
       }
 
-      // Busca da API se cliente disponível
-      if (this.omniZapClient) {
-        try {
-          const freshMetadata = await this.omniZapClient.groupMetadata(groupJid);
-          const enhancedMetadata = {
-            ...freshMetadata,
-            _cachedAt: Date.now(),
-            _participantCount: freshMetadata.participants?.length || 0,
-            _fetchedFromAPI: true,
-          };
-
-          this.groupCache.set(groupJid, enhancedMetadata);
-          logger.debug(`Metadados atualizados da API para: ${freshMetadata.subject}`);
-          return enhancedMetadata;
-        } catch (apiError) {
-          logger.warn(`Erro ao buscar da API, usando cache: ${apiError.message}`);
-          return metadata; // Retorna cache mesmo expirado se API falhar
-        }
+      // Busca da API se não estiver em cache ou estiver expirado
+      const client = this.getWhatsAppClient();
+      if (!client) {
+        logger.warn(`Events: Cliente não disponível para buscar metadados do grupo ${groupJid}`);
+        return metadata || null;
       }
 
-      return metadata;
+      logger.debug(`Buscando metadados do grupo via API: ${groupJid.substring(0, 30)}...`);
+
+      const fetchedMetadata = await client.groupMetadata(groupJid);
+      if (fetchedMetadata) {
+        // Enriquece com dados calculados
+        const enrichedMetadata = {
+          ...fetchedMetadata,
+          _cachedAt: Date.now(),
+          _participantCount: fetchedMetadata.participants?.length || 0,
+          _adminCount: fetchedMetadata.participants?.filter((p) => p.admin === 'admin' || p.admin === 'superadmin').length || 0,
+          _lastFetch: Date.now(),
+        };
+
+        // Salva no cache
+        this.groupCache.set(groupJid, enrichedMetadata);
+        logger.info(`Cache atualizado para grupo: ${enrichedMetadata.subject || 'Sem nome'}`);
+
+        // Executa callbacks de metadados atualizados
+        await this.executeCallbacks('group.metadata.updated', {
+          groupJid,
+          metadata: enrichedMetadata,
+          wasFromCache: false,
+        });
+
+        return enrichedMetadata;
+      }
+
+      logger.warn(`Events: Não foi possível buscar metadados para ${groupJid}`);
+      return metadata || null;
     } catch (error) {
-      logger.error(`Erro ao obter metadados do grupo ${groupJid}:`, error.message);
-      return null;
+      logger.error(`Events: Erro ao buscar metadados do grupo ${groupJid}:`, error.message);
+      return this.groupCache.get(groupJid) || null;
     }
   }
 
   /**
-   * Processa outros eventos genéricos
+   * Processa eventos genéricos
    */
   async processGenericEvent(eventType, eventData) {
     setImmediate(async () => {
       try {
+        this.stats.processedEvents++;
         logger.info(`🔄 Events: Processando ${eventType}`);
 
         const eventId = `${eventType}_${Date.now()}`;
@@ -842,45 +602,13 @@ class EventHandler {
           data: eventData,
           timestamp: Date.now(),
         });
+
+        // Executa callbacks para eventos genéricos
+        await this.executeCallbacks(eventType, eventData);
       } catch (error) {
         logger.error(`Events: Erro no processamento de ${eventType}:`, error.message);
       }
     });
-  }
-
-  /**
-   * Métodos públicos para acessar cache
-   */
-
-  getMessage(remoteJid, messageId) {
-    const key = `${remoteJid}_${messageId}`;
-    return this.messageCache.get(key);
-  }
-
-  getGroup(groupJid) {
-    return this.groupCache.get(groupJid);
-  }
-
-  getContact(contactJid) {
-    return this.contactCache.get(contactJid);
-  }
-
-  getChat(chatJid) {
-    return this.chatCache.get(chatJid);
-  }
-
-  /**
-   * Estatísticas do cache
-   */
-  getCacheStats() {
-    return {
-      messages: this.messageCache.keys().length,
-      groups: this.groupCache.keys().length,
-      contacts: this.contactCache.keys().length,
-      chats: this.chatCache.keys().length,
-      events: this.eventCache.keys().length,
-      memoryUsage: process.memoryUsage(),
-    };
   }
 
   /**
@@ -913,10 +641,87 @@ class EventHandler {
     }
     logger.info(`🧹 Cache ${type} limpo`);
   }
+
+  /**
+   * Valida se um JID está em cache
+   */
+  isJidKnown(jid) {
+    return this.contactCache.has(jid) || this.groupCache.has(jid) || this.chatCache.has(jid);
+  }
+
+  /**
+   * Limpa dados antigos baseado em timestamp
+   */
+  cleanOldData(maxAge = 24 * 60 * 60 * 1000) {
+    try {
+      const now = Date.now();
+      let cleaned = 0;
+
+      // Limpa mensagens antigas
+      this.messageCache.keys().forEach((key) => {
+        const message = this.messageCache.get(key);
+        if (message && message._receivedAt && now - message._receivedAt > maxAge) {
+          this.messageCache.del(key);
+          cleaned++;
+        }
+      });
+
+      // Limpa eventos antigos
+      this.eventCache.keys().forEach((key) => {
+        const event = this.eventCache.get(key);
+        if (event && event.timestamp && now - event.timestamp > maxAge) {
+          this.eventCache.del(key);
+          cleaned++;
+        }
+      });
+
+      if (cleaned > 0) {
+        logger.info(`🧹 Limpeza: ${cleaned} itens antigos removidos`);
+      }
+
+      return cleaned;
+    } catch (error) {
+      logger.error('Erro na limpeza de dados antigos:', error.message);
+      return 0;
+    }
+  }
+
+  /**
+   * Exporta dados do cache para backup
+   */
+  exportCacheData() {
+    try {
+      return {
+        timestamp: Date.now(),
+        version: '2.1.0',
+        data: {
+          messages: this.messageCache.keys().length,
+          groups: this.groupCache.keys().reduce((acc, key) => {
+            acc[key] = this.groupCache.get(key);
+            return acc;
+          }, {}),
+          contacts: this.contactCache.keys().reduce((acc, key) => {
+            acc[key] = this.contactCache.get(key);
+            return acc;
+          }, {}),
+          chats: this.chatCache.keys().reduce((acc, key) => {
+            acc[key] = this.chatCache.get(key);
+            return acc;
+          }, {}),
+          stats: this.getCacheStats(),
+        },
+      };
+    } catch (error) {
+      logger.error('Erro ao exportar dados:', error.message);
+      return null;
+    }
+  }
 }
 
+// Instância única do EventHandler
 const eventHandler = new EventHandler();
 
 module.exports = {
   eventHandler,
+  EventHandler,
 };
