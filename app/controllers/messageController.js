@@ -99,6 +99,408 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                   });
                 }
                 break;
+              case 'add':
+                try {
+                  const { processAddCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  logger.info('Comando add executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processAddCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando add', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao adicionar participantes', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se o bot é administrador do grupo\n• Verifique se você é administrador do grupo\n• Verifique se os números são válidos\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
+              case 'promote':
+                try {
+                  const { processPromoteCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  logger.info('Comando promote executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processPromoteCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando promote', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao promover participante', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se o bot é administrador do grupo\n• Verifique se você é administrador do grupo\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
+              case 'demote':
+                try {
+                  const { processDemoteCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  logger.info('Comando demote executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processDemoteCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando demote', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao rebaixar participante', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se o bot é administrador do grupo\n• Verifique se você é administrador do grupo\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
+              case 'setname':
+                try {
+                  const { processSetNameCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  logger.info('Comando setname executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processSetNameCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando setname', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao alterar nome do grupo', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se o bot é administrador do grupo\n• Verifique se você é administrador do grupo\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
+              case 'setdesc':
+                try {
+                  const { processSetDescCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  logger.info('Comando setdesc executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processSetDescCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando setdesc', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao alterar descrição do grupo', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se o bot é administrador do grupo\n• Verifique se você é administrador do grupo\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
+              case 'group':
+                try {
+                  const { processGroupSettingCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  logger.info('Comando group executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processGroupSettingCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando group', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao alterar configurações do grupo', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se o bot é administrador do grupo\n• Verifique se você é administrador do grupo\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
+              case 'link':
+                try {
+                  const { processLinkCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  logger.info('Comando link executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processLinkCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando link', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao obter link do grupo', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se o bot é administrador do grupo\n• Verifique se você é administrador do grupo\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
+              case 'ephemeral':
+              case 'temp':
+                try {
+                  const { processEphemeralCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  logger.info('Comando ephemeral executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processEphemeralCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando ephemeral', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao configurar mensagens temporárias', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se o bot é administrador do grupo\n• Verifique se você é administrador do grupo\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
+              case 'addmode':
+                try {
+                  const { processAddModeCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  logger.info('Comando addmode executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processAddModeCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando addmode', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao configurar modo de adição', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se o bot é administrador do grupo\n• Verifique se você é administrador do grupo\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
+              case 'groupinfo':
+              case 'infogrupo':
+                try {
+                  const { processGroupInfoCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  logger.info('Comando groupinfo executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processGroupInfoCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando groupinfo', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao obter informações do grupo', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
               case 'banlist':
                 try {
                   const { processBanListCommand } = require('../commandModules/adminModules/banListCommand');
@@ -224,6 +626,46 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                   });
 
                   const errorMsg = formatErrorMessage('Erro ao criar sticker', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique se a mídia é uma imagem ou vídeo válido\n• Tente enviar a mídia novamente com tamanho menor\n• Tente com outro formato de arquivo\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
+              case 'menu':
+                try {
+                  const { processMenuCommand } = require('../commandModules/menuCommand');
+
+                  logger.info('Comando menu executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processMenuCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando menu', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao exibir menu', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Tente novamente mais tarde\n• Se o erro persistir, contate o administrador`);
 
                   await sendTextMessage(omniZapClient, targetJid, errorMsg, {
                     originalMessage: messageInfo,
