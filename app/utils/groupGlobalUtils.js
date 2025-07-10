@@ -226,6 +226,17 @@ const saveGroupsCache = async (cache) => {
  */
 const getGroupMetadata = async (omniZapClient, groupJid, forceRefresh = false) => {
   try {
+    // Validar entrada
+    if (!omniZapClient) {
+      logger.warn('Cliente WhatsApp não fornecido para getGroupMetadata', { groupJid });
+      return null;
+    }
+
+    if (!groupJid) {
+      logger.warn('JID do grupo não fornecido para getGroupMetadata');
+      return null;
+    }
+
     const cache = await loadGroupsCache();
     const now = Date.now();
 
@@ -445,6 +456,9 @@ const updateGlobalStats = async (stats) => {
 /**
  * Registra uma atividade em um grupo
  *
+ * Esta função apenas registra a atividade no arquivo de logs.
+ * Para atualizar estatísticas, use updateGroupStats() separadamente.
+ *
  * @param {String} groupJid - ID do grupo
  * @param {String} activityType - Tipo de atividade
  * @param {Object} activityData - Dados da atividade
@@ -501,21 +515,56 @@ const logGroupActivity = async (groupJid, activityType, activityData = {}) => {
       activityType,
       totalActivities: groupActivities.totalActivities,
     });
-
-    // Atualizar estatísticas do grupo
-    const groupMetadata = await getGroupMetadata(null, groupJid);
-    if (groupMetadata) {
-      await updateGroupStats(groupJid, groupMetadata, {
-        activityType,
-        data: activityData,
-      });
-    }
   } catch (error) {
     logger.error('Erro ao registrar atividade do grupo', {
       error: error.message,
       groupJid,
       activityType,
     });
+  }
+};
+
+/**
+ * Registra uma atividade e atualiza estatísticas do grupo em uma única operação
+ *
+ * @param {Object} omniZapClient - Cliente WhatsApp
+ * @param {String} groupJid - ID do grupo
+ * @param {String} activityType - Tipo de atividade
+ * @param {Object} activityData - Dados da atividade
+ * @returns {Promise<Boolean>} - True se bem-sucedido
+ */
+const logGroupActivityWithStats = async (omniZapClient, groupJid, activityType, activityData = {}) => {
+  try {
+    // Registrar atividade
+    await logGroupActivity(groupJid, activityType, activityData);
+
+    // Atualizar estatísticas se cliente fornecido
+    if (omniZapClient) {
+      try {
+        const groupMetadata = await getGroupMetadata(omniZapClient, groupJid);
+        if (groupMetadata) {
+          await updateGroupStats(groupJid, groupMetadata, {
+            activityType,
+            data: activityData,
+          });
+        }
+      } catch (statsError) {
+        logger.warn('Erro ao atualizar estatísticas durante log de atividade', {
+          error: statsError.message,
+          groupJid,
+          activityType,
+        });
+      }
+    }
+
+    return true;
+  } catch (error) {
+    logger.error('Erro ao registrar atividade com estatísticas', {
+      error: error.message,
+      groupJid,
+      activityType,
+    });
+    return false;
   }
 };
 
@@ -957,6 +1006,7 @@ module.exports = {
 
   // Funções de atividade e logs
   logGroupActivity,
+  logGroupActivityWithStats,
   cleanupOldActivities,
 
   // Funções utilitárias

@@ -17,7 +17,7 @@ const { COMMAND_PREFIX } = require('../utils/constants');
 const logger = require('../utils/logger/loggerModule');
 
 // Importar funções do groupGlobalUtils
-const { isGroupJid, isUserAdmin, isBotAdmin, isUserInGroup, isUserBanned, getGroupMetadata, updateGroupStats, logGroupActivity, cleanJid, getBotJid, initializeDirectories } = require('../utils/groupGlobalUtils');
+const { isGroupJid, isUserAdmin, isBotAdmin, isUserInGroup, isUserBanned, getGroupMetadata, updateGroupStats, logGroupActivity, logGroupActivityWithStats, cleanJid, getBotJid, initializeDirectories } = require('../utils/groupGlobalUtils');
 
 /**
  * Função utilitária para obter informações de expiração de mensagens
@@ -164,30 +164,14 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
             const { command, args } = commandInfo;
             const targetJid = isGroupMessage ? groupJid : senderJid;
 
-            // Log da atividade de comando em grupos
+            // Log da atividade de comando em grupos com atualização de estatísticas
             if (isGroupMessage) {
-              await logGroupActivity(groupJid, 'command_executed', {
+              await logGroupActivityWithStats(omniZapClient, groupJid, 'command_executed', {
                 executorJid: senderJid,
                 command,
                 args,
                 timestamp: Date.now(),
               });
-
-              // Atualizar estatísticas do grupo
-              try {
-                const groupMetadata = await getGroupMetadata(omniZapClient, groupJid);
-                if (groupMetadata) {
-                  await updateGroupStats(groupJid, groupMetadata, {
-                    activityType: 'command',
-                    command,
-                  });
-                }
-              } catch (statsError) {
-                logger.warn('Erro ao atualizar estatísticas do grupo', {
-                  error: statsError.message,
-                  groupJid,
-                });
-              }
             }
 
             // Validar contexto de grupo para comandos que exigem
@@ -880,30 +864,14 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
         } else {
           // Processamento de mensagens não-comando
           if (isGroupMessage) {
-            // Log de atividade do grupo para mensagens normais
+            // Log de atividade do grupo para mensagens normais com estatísticas
             try {
-              await logGroupActivity(groupJid, 'message_received', {
+              await logGroupActivityWithStats(omniZapClient, groupJid, 'message_received', {
                 senderJid,
                 messageType: type,
                 isMedia,
                 timestamp: Date.now(),
               });
-
-              // Atualizar estatísticas do grupo periodicamente
-              try {
-                const groupMetadata = await getGroupMetadata(omniZapClient, groupJid);
-                if (groupMetadata) {
-                  await updateGroupStats(groupJid, groupMetadata, {
-                    activityType: 'message',
-                    messageType: type,
-                  });
-                }
-              } catch (statsError) {
-                logger.warn('Erro ao atualizar estatísticas do grupo para mensagem normal', {
-                  error: statsError.message,
-                  groupJid,
-                });
-              }
             } catch (logError) {
               logger.warn('Erro ao registrar atividade do grupo', {
                 error: logError.message,
