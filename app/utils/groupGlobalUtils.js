@@ -23,6 +23,13 @@ const GROUP_ACTIVITY_FILE = path.join(GROUP_DATA_DIR, 'groupsActivity.json');
 const BANNED_USERS_DIR = path.join(process.cwd(), 'temp', 'bannedUsers');
 const BANNED_USERS_FILE = path.join(BANNED_USERS_DIR, 'bannedUsers.json');
 
+// === NOVOS CAMINHOS PARA DADOS DO SOCKET ===
+const SOCKET_DATA_DIR = path.join(process.cwd(), 'temp', 'data');
+const SOCKET_GROUPS_FILE = path.join(SOCKET_DATA_DIR, 'groups.json');
+const SOCKET_CONTACTS_FILE = path.join(SOCKET_DATA_DIR, 'contacts.json');
+const SOCKET_CHATS_FILE = path.join(SOCKET_DATA_DIR, 'chats.json');
+const SOCKET_METADATA_FILE = path.join(SOCKET_DATA_DIR, 'metadata.json');
+
 // === CONFIGURAÇÕES GLOBAIS ===
 const CONFIG = {
   CACHE_DURATION: 5 * 60 * 1000, // 5 minutos em ms
@@ -42,7 +49,8 @@ const initializeDirectories = async () => {
   try {
     await fs.mkdir(GROUP_DATA_DIR, { recursive: true });
     await fs.mkdir(BANNED_USERS_DIR, { recursive: true });
-    logger.info('Diretórios de grupos inicializados com sucesso');
+    await fs.mkdir(SOCKET_DATA_DIR, { recursive: true });
+    logger.info('Diretórios de grupos e dados do socket inicializados com sucesso');
   } catch (error) {
     logger.error('Erro ao inicializar diretórios', { error: error.message });
     throw error;
@@ -167,6 +175,75 @@ const isUserInGroup = async (omniZapClient, groupJid, userJid) => {
  */
 
 /**
+ * Carrega dados de grupos salvos pelo socket
+ *
+ * @returns {Promise<Object>} - Dados de grupos do socket
+ */
+const loadSocketGroupsData = async () => {
+  try {
+    await initializeDirectories();
+
+    try {
+      const data = await fs.readFile(SOCKET_GROUPS_FILE, 'utf8');
+      const socketGroups = JSON.parse(data);
+
+      logger.debug(`Carregados ${Object.keys(socketGroups).length} grupos dos dados do socket`);
+      return socketGroups;
+    } catch (readError) {
+      logger.debug('Arquivo de grupos do socket não encontrado, retornando objeto vazio');
+      return {};
+    }
+  } catch (error) {
+    logger.error('Erro ao carregar dados de grupos do socket', { error: error.message });
+    return {};
+  }
+};
+
+/**
+ * Carrega dados de contatos salvos pelo socket
+ *
+ * @returns {Promise<Object>} - Dados de contatos do socket
+ */
+const loadSocketContactsData = async () => {
+  try {
+    await initializeDirectories();
+
+    try {
+      const data = await fs.readFile(SOCKET_CONTACTS_FILE, 'utf8');
+      const socketContacts = JSON.parse(data);
+
+      logger.debug(`Carregados ${Object.keys(socketContacts).length} contatos dos dados do socket`);
+      return socketContacts;
+    } catch (readError) {
+      logger.debug('Arquivo de contatos do socket não encontrado, retornando objeto vazio');
+      return {};
+    }
+  } catch (error) {
+    logger.error('Erro ao carregar dados de contatos do socket', { error: error.message });
+    return {};
+  }
+};
+
+/**
+ * Verifica se os dados do socket estão atualizados
+ *
+ * @returns {Promise<Boolean>} - True se os dados estão atualizados
+ */
+const isSocketDataRecent = async () => {
+  try {
+    const data = await fs.readFile(SOCKET_METADATA_FILE, 'utf8');
+    const metadata = JSON.parse(data);
+
+    // Considera os dados recentes se foram salvos nas últimas 2 horas
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+    return metadata.lastSave && metadata.lastSave > twoHoursAgo;
+  } catch (error) {
+    logger.debug('Arquivo de metadata do socket não encontrado ou inválido');
+    return false;
+  }
+};
+
+/**
  * Carrega o cache de grupos do arquivo
  *
  * @returns {Promise<Object>} - Cache de grupos
@@ -217,7 +294,7 @@ const saveGroupsCache = async (cache) => {
 };
 
 /**
- * Obtém metadados de um grupo com cache inteligente
+ * Obtém metadados de um grupo com cache inteligente que prioriza dados do socket
  *
  * @param {Object} omniZapClient - Cliente WhatsApp
  * @param {String} groupJid - ID do grupo
@@ -227,31 +304,64 @@ const saveGroupsCache = async (cache) => {
 const getGroupMetadata = async (omniZapClient, groupJid, forceRefresh = false) => {
   try {
     // Validar entrada
-    if (!omniZapClient) {
-      logger.warn('Cliente WhatsApp não fornecido para getGroupMetadata', { groupJid });
-      return null;
-    }
-
     if (!groupJid) {
       logger.warn('JID do grupo não fornecido para getGroupMetadata');
       return null;
     }
 
-    const cache = await loadGroupsCache();
     const now = Date.now();
 
-    // Verificar se o cache é válido
-    const cachedGroup = cache.groups[groupJid];
-    const isCacheValid = cachedGroup && !forceRefresh && now - cachedGroup.lastUpdate < CONFIG.CACHE_DURATION;
+    // 1. Primeiro, tentar carregar dos dados do socket se estão atualizados
+    if (!forceRefresh) {
+      const socketDataRecent = await isSocketDataRecent();
+      if (socketDataRecent) {
+        const socketGroups = await loadSocketGroupsData();
+        if (socketGroups[groupJid]) {
+          logger.debug('Usando metadados dos dados do socket', { groupJid });
 
-    if (isCacheValid) {
-      logger.debug('Usando metadados do cache', { groupJid });
-      return cachedGroup.metadata;
+          // Enriquecer com informações adicionais se necessário
+          const socketMetadata = {
+            ...socketGroups[groupJid],
+            participantCount: socketGroups[groupJid].participants?.length || 0,
+            adminCount: socketGroups[groupJid].participants?.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length || 0,
+            lastUpdated: now,
+            source: 'socket_data',
+          };
+
+          return socketMetadata;
+        }
+      }
+    }
+
+    // 2. Se não encontrou nos dados do socket, verificar cache local
+    if (!forceRefresh) {
+      const cache = await loadGroupsCache();
+      const cachedGroup = cache.groups[groupJid];
+      const isCacheValid = cachedGroup && now - cachedGroup.lastUpdate < CONFIG.CACHE_DURATION;
+
+      if (isCacheValid) {
+        logger.debug('Usando metadados do cache local', { groupJid });
+        return {
+          ...cachedGroup.metadata,
+          source: 'local_cache',
+        };
+      }
+    }
+
+    // 3. Como último recurso, buscar da API se o cliente estiver disponível
+    if (!omniZapClient) {
+      logger.warn('Cliente WhatsApp não fornecido e dados não encontrados em cache', { groupJid });
+      return null;
     }
 
     // Buscar metadados frescos da API
     logger.debug('Buscando metadados frescos da API', { groupJid });
     const metadata = await omniZapClient.groupMetadata(groupJid);
+
+    if (!metadata) {
+      logger.warn('Metadados não retornados pela API', { groupJid });
+      return null;
+    }
 
     // Enriquecer metadados com informações adicionais
     const enrichedMetadata = {
@@ -259,9 +369,11 @@ const getGroupMetadata = async (omniZapClient, groupJid, forceRefresh = false) =
       participantCount: metadata.participants?.length || 0,
       adminCount: metadata.participants?.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length || 0,
       lastUpdated: now,
+      source: 'api_fresh',
     };
 
-    // Salvar no cache
+    // Salvar no cache local
+    const cache = await loadGroupsCache();
     cache.groups[groupJid] = {
       metadata: enrichedMetadata,
       lastUpdate: now,
@@ -269,10 +381,11 @@ const getGroupMetadata = async (omniZapClient, groupJid, forceRefresh = false) =
 
     await saveGroupsCache(cache);
 
-    logger.info('Metadados do grupo atualizados', {
+    logger.info('Metadados do grupo atualizados via API', {
       groupJid,
       participantCount: enrichedMetadata.participantCount,
       adminCount: enrichedMetadata.adminCount,
+      source: enrichedMetadata.source,
     });
 
     return enrichedMetadata;
@@ -282,6 +395,24 @@ const getGroupMetadata = async (omniZapClient, groupJid, forceRefresh = false) =
       stack: error.stack,
       groupJid,
     });
+
+    // Como fallback, tentar dados do socket mesmo se não estão recentes
+    try {
+      const socketGroups = await loadSocketGroupsData();
+      if (socketGroups[groupJid]) {
+        logger.info('Usando dados do socket como fallback', { groupJid });
+        return {
+          ...socketGroups[groupJid],
+          participantCount: socketGroups[groupJid].participants?.length || 0,
+          adminCount: socketGroups[groupJid].participants?.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length || 0,
+          lastUpdated: Date.now(),
+          source: 'socket_fallback',
+        };
+      }
+    } catch (fallbackError) {
+      logger.error('Erro no fallback dos dados do socket', { error: fallbackError.message });
+    }
+
     return null;
   }
 };
@@ -981,6 +1112,109 @@ const generateGroupsReport = async (omniZapClient, options = {}) => {
 };
 
 /**
+ * Sincroniza dados do socket com o cache local para melhor performance
+ *
+ * @returns {Promise<Object>} - Resultado da sincronização
+ */
+const syncSocketDataToCache = async () => {
+  try {
+    logger.info('Iniciando sincronização dos dados do socket com cache local');
+
+    const socketGroups = await loadSocketGroupsData();
+    const cache = await loadGroupsCache();
+    const now = Date.now();
+
+    let syncedCount = 0;
+    let updatedCount = 0;
+
+    // Sincronizar cada grupo dos dados do socket
+    for (const [groupJid, socketGroupData] of Object.entries(socketGroups)) {
+      try {
+        const cachedGroup = cache.groups[groupJid];
+
+        // Verificar se precisa atualizar (dados do socket são mais recentes ou cache não existe)
+        const shouldUpdate = !cachedGroup || !cachedGroup.lastUpdate || socketGroupData.subjectTime > cachedGroup.lastUpdate / 1000; // subjectTime está em segundos
+
+        if (shouldUpdate) {
+          // Enriquecer dados do socket com informações adicionais
+          const enrichedMetadata = {
+            ...socketGroupData,
+            participantCount: socketGroupData.participants?.length || 0,
+            adminCount: socketGroupData.participants?.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length || 0,
+            lastUpdated: now,
+            source: 'socket_sync',
+          };
+
+          cache.groups[groupJid] = {
+            metadata: enrichedMetadata,
+            lastUpdate: now,
+            syncedFromSocket: true,
+          };
+
+          updatedCount++;
+        }
+
+        syncedCount++;
+      } catch (groupError) {
+        logger.error(`Erro ao sincronizar grupo ${groupJid}`, { error: groupError.message });
+      }
+    }
+
+    // Salvar cache atualizado
+    if (updatedCount > 0) {
+      await saveGroupsCache(cache);
+    }
+
+    const result = {
+      success: true,
+      totalGroups: Object.keys(socketGroups).length,
+      syncedCount,
+      updatedCount,
+      timestamp: now,
+    };
+
+    logger.info('Sincronização concluída', result);
+    return result;
+  } catch (error) {
+    logger.error('Erro na sincronização dos dados do socket', { error: error.message });
+    return {
+      success: false,
+      error: error.message,
+      timestamp: Date.now(),
+    };
+  }
+};
+
+/**
+ * Obtém informações de contato usando dados do socket
+ *
+ * @param {String} contactJid - JID do contato
+ * @returns {Promise<Object|null>} - Dados do contato
+ */
+const getContactInfo = async (contactJid) => {
+  try {
+    const socketContacts = await loadSocketContactsData();
+
+    if (socketContacts[contactJid]) {
+      logger.debug('Informações de contato encontradas nos dados do socket', { contactJid });
+      return {
+        ...socketContacts[contactJid],
+        source: 'socket_data',
+      };
+    }
+
+    logger.debug('Contato não encontrado nos dados do socket', { contactJid });
+    return null;
+  } catch (error) {
+    logger.error('Erro ao obter informações de contato', {
+      error: error.message,
+      contactJid,
+    });
+    return null;
+  }
+};
+
+/**
  * === EXPORTAÇÕES ===
  */
 
@@ -997,6 +1231,13 @@ module.exports = {
   loadGroupsCache,
   saveGroupsCache,
   getGroupMetadata,
+
+  // Funções específicas para dados do socket
+  loadSocketGroupsData,
+  loadSocketContactsData,
+  isSocketDataRecent,
+  syncSocketDataToCache,
+  getContactInfo,
 
   // Funções de estatísticas
   loadGroupStats,
@@ -1033,5 +1274,10 @@ module.exports = {
   GROUP_ACTIVITY_FILE,
   BANNED_USERS_DIR,
   BANNED_USERS_FILE,
+  SOCKET_DATA_DIR,
+  SOCKET_GROUPS_FILE,
+  SOCKET_CONTACTS_FILE,
+  SOCKET_CHATS_FILE,
+  SOCKET_METADATA_FILE,
   CONFIG,
 };
