@@ -274,9 +274,13 @@ async function connectToWhatsApp() {
 
       // Chama o handler principal se disponível
       try {
+        // Integração melhorada com o index.js - usando a nova estrutura
         const omniZapMainHandler = require('../../index.js');
 
-        // Passa uma referência do socketController para melhor integração
+        // Verifica se é a nova estrutura exportada ou a antiga
+        const handlerFunction = omniZapMainHandler.OmniZapMainHandler || omniZapMainHandler.default || omniZapMainHandler;
+
+        // Passa uma referência completa do socketController para melhor integração
         const socketControllerRef = {
           getActiveSocket: () => activeSocket,
           getConnectionStats: getConnectionStats,
@@ -285,9 +289,20 @@ async function connectToWhatsApp() {
           forceReconnect: reconnectToWhatsApp,
           getGroupInfo: getGroupInfo,
           sendPresence: sendPresence,
+          // Adiciona método para registrar-se no sistema principal
+          registerWithMainSystem: () => {
+            if (omniZapMainHandler.registerSocketController) {
+              omniZapMainHandler.registerSocketController(socketControllerRef);
+            }
+          },
         };
 
-        await omniZapMainHandler(messageUpdate, sock, env.QR_CODE_PATH, socketControllerRef);
+        // Registra o socketController no sistema principal se disponível
+        if (omniZapMainHandler.registerSocketController) {
+          omniZapMainHandler.registerSocketController(socketControllerRef);
+        }
+
+        await handlerFunction(messageUpdate, sock, env.QR_CODE_PATH, socketControllerRef);
         logger.debug('🎯 Handler principal executado com sucesso');
       } catch (error) {
         logger.error('❌ Erro no handler principal:', error.message);
@@ -565,3 +580,50 @@ module.exports = {
   sendPresence,
   env,
 };
+
+// Validação da integração com o sistema principal
+setTimeout(() => {
+  try {
+    const mainSystem = require('../../index.js');
+
+    if (mainSystem.registerSocketController) {
+      const socketControllerInterface = {
+        getActiveSocket,
+        getConnectionStats,
+        sendMessage,
+        forceDisconnect,
+        forceReconnect: reconnectToWhatsApp,
+        getGroupInfo,
+        sendPresence,
+      };
+
+      // Registra o socketController no sistema principal
+      mainSystem.registerSocketController(socketControllerInterface);
+
+      logger.info('🤝 Integração bidirecional com sistema principal estabelecida');
+
+      // Registra evento de integração bem-sucedida
+      if (eventHandler) {
+        eventHandler.processGenericEvent('socketController.integration.success', {
+          timestamp: Date.now(),
+          mainSystemVersion: mainSystem.version || 'unknown',
+          hasSystemStats: !!mainSystem.getSystemStats,
+          hasValidation: !!mainSystem.validateSystemReadiness,
+        });
+      }
+    } else {
+      logger.warn('⚠️ Sistema principal não suporta registro de socketController');
+    }
+  } catch (error) {
+    logger.warn('⚠️ Não foi possível estabelecer integração com sistema principal:', error.message);
+
+    // Registra evento de falha na integração
+    if (eventHandler) {
+      eventHandler.processGenericEvent('socketController.integration.failed', {
+        timestamp: Date.now(),
+        error: error.message,
+        reason: 'main_system_unavailable',
+      });
+    }
+  }
+}, 1000); // Aguarda 1 segundo para garantir que o sistema principal foi carregado
