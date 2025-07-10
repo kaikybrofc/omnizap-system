@@ -18,7 +18,6 @@ const path = require('path');
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 
-const { databaseManager } = require('../database/databaseManager.js');
 const { eventHandler } = require('../events/eventHandler');
 
 dotenv.config();
@@ -188,7 +187,8 @@ async function initializeOmniZapConnection() {
       return message;
     },
     getMessage: async (key) => {
-      return await databaseManager.getMessage(key);
+      // Função removida - databaseManager não é mais usado
+      return null;
     },
     shouldSyncHistoryMessage: () => false,
     shouldIgnoreJid: (jid) => typeof jid === 'string' && jid.includes('broadcast'),
@@ -403,6 +403,5 @@ initializeOmniZapConnection().catch(async (error) => {
 
 module.exports = {
   initializeOmniZapConnection,
-  databaseManager,
   eventHandler,
 };
