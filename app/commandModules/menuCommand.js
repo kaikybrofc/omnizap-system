@@ -11,6 +11,7 @@
 const logger = require('../../app/utils/logger/loggerModule');
 const { formatSuccessMessage } = require('../../app/utils/messageUtils');
 const { COMMAND_PREFIX, EMOJIS } = require('../../app/utils/constants');
+const { STICKERS_PER_PACK } = require('../commandModules/stickerModules/stickerPackManager');
 
 /**
  * Processa o comando de menu, exibindo todos os comandos disponíveis
@@ -88,9 +89,12 @@ const buildMainMenu = () => {
 • \`${prefix}groupinfo\` - Informações do grupo
 
 *🎭 Comandos de Stickers:*
-• \`${prefix}sticker\` - Cria sticker de imagem/vídeo
-• \`${prefix}pack\` - Gerencia pacotes de stickers
-• \`${prefix}s\` - Atalho para criar sticker
+• \`${prefix}sticker\` ou \`${prefix}s\` - Cria sticker de imagem/vídeo
+• \`${prefix}s <nome> | <autor>\` - Personaliza nome e autor do sticker
+• \`${prefix}s packs\` - Lista seus pacotes de stickers
+• \`${prefix}s info <número>\` - Ver detalhes de um pack
+• \`${prefix}s send <número>\` - Envia pack completo
+• \`${prefix}s help\` - Instruções detalhadas
 
 *🔧 Outros Comandos:*
 • \`${prefix}menu admin\` - Menu de comandos admin
@@ -147,31 +151,51 @@ const buildStickerMenu = () => {
   const prefix = COMMAND_PREFIX;
 
   return formatSuccessMessage(
-    '🎭 Menu de Comandos de Stickers',
-    'Comandos para criação e gerenciamento de stickers:',
-    `*Criar Stickers:*
-• \`${prefix}sticker\` - Cria sticker da imagem/vídeo enviado ou respondido
-• \`${prefix}s\` - Atalho para criar sticker
-• \`${prefix}sticker crop\` - Cria sticker recortado (quadrado)
-• \`${prefix}sticker full\` - Cria sticker sem recorte
+    '🎭 Menu Completo de Comandos de Stickers',
+    'Guia detalhado para criação e gerenciamento de stickers personalizados:',
+    `*📸 Criação de Stickers:*
+• \`${prefix}sticker\` ou \`${prefix}s\` - Cria sticker da imagem/vídeo enviado ou respondido
+• \`${prefix}s <nome> | <autor>\` - Cria sticker com nome de pacote e autor personalizados
+  _Exemplo: \`${prefix}s Meus Stickers | João Silva\`_
+• Para criar um sticker, envie uma imagem/vídeo e digite \`${prefix}s\` na legenda ou responda com \`${prefix}s\`
+• Para criar vários stickers em sequência, envie mídias e use \`${prefix}s\` para cada uma
 
-*Gerenciar Pacotes:*
-• \`${prefix}pack list\` - Lista seus pacotes de stickers
-• \`${prefix}pack create <nome>\` - Cria um novo pacote
-• \`${prefix}pack info <id>\` - Mostra informações do pacote
-• \`${prefix}pack rename <id> <nome>\` - Renomeia um pacote
-• \`${prefix}pack delete <id>\` - Exclui um pacote
-• \`${prefix}pack author <nome>\` - Define seu nome de autor
+*📦 Gerenciamento de Pacotes:*
+• \`${prefix}s packs\` ou \`${prefix}s list\` - Lista todos os seus pacotes de stickers
+• \`${prefix}s info <número>\` - Mostra detalhes completos do pacote específico
+  _Exemplo: \`${prefix}s info 1\` mostra detalhes do seu primeiro pack_
+• \`${prefix}s rename <número> <nome> | <autor>\` - Renomeia um pacote e seu autor
+  _Exemplo: \`${prefix}s rename 2 Animais | Coleção 2025\`_
+• \`${prefix}s delete <número>\` - Exclui permanentemente um pacote de stickers
+  _Exemplo: \`${prefix}s delete 3\` exclui seu terceiro pack_
+• \`${prefix}s stats\` ou \`${prefix}s status\` - Exibe estatísticas detalhadas dos seus stickers
+• \`${prefix}s prefs <nome> | <autor>\` - Define preferências padrão para novos stickers
+  _Exemplo: \`${prefix}s prefs Meus Stickers | João\` define modelo para novos packs_
 
-*Enviar Stickers:*
-• \`${prefix}pack send <id>\` - Envia todos os stickers do pacote
+*🔄 Compartilhamento de Stickers:*
+• \`${prefix}s send <número>\` ou \`${prefix}s share <número>\` - Envia todos os stickers do pacote
+  _Exemplo: \`${prefix}s send 1\` envia todos os stickers do primeiro pack_
+• Stickers são enviados um a um, em sequência, preservando a qualidade original
+• Você pode enviar packs completos ou incompletos para qualquer conversa
 
-*Observações:*
-• Tamanho máximo de arquivo: 10MB
-• Formatos suportados: JPEG, PNG, MP4, WEBM
-• Vídeos serão convertidos para stickers animados
+*ℹ️ Informações Importantes:*
+• Cada pacote comporta até ${STICKERS_PER_PACK} stickers
+• Os pacotes são criados e organizados automaticamente
+• Quando um pack atinge ${STICKERS_PER_PACK} stickers, um novo é criado automaticamente
+• Formatos suportados: JPG, PNG, WEBP para imagens e MP4, GIF para animados
+• Para melhor qualidade, envie imagens com resolução adequada
+• Stickers de vídeo serão limitados a alguns segundos
+• Suas preferências de nome/autor são salvas automaticamente
 
-_Use \`${prefix}menu\` para ver todos os comandos disponíveis_`,
+*🔍 Recursos Avançados:*
+• Ao criar stickers, você pode personalizar texto com variáveis especiais:
+  → \`#nome\` será substituído pelo seu nome no WhatsApp
+  → \`#id\` será substituído pelo seu número
+  → \`#data\` será substituído pela data atual
+• Os pacotes são salvos individualmente e podem ser recuperados mesmo após reiniciar o bot
+• Use \`${prefix}s prefs\` sem argumentos para ver suas configurações atuais
+
+_Para instruções passo a passo, envie \`${prefix}s help\`_`,
   );
 };
 
