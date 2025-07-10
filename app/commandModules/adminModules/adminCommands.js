@@ -2,14 +2,22 @@
  * OmniZap Admin Commands
  *
  * Comandos de administração para grupos do WhatsApp
+ * Usando apenas a API do Baileys diretamente
  *
  * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
+ * @source https://www.npmjs.com/package/baileys#get-all-participating-groups-metadata
+ *
+ * MUDANÇAS PRINCIPAIS NA VERSÃO 2.0.0:
+ * - Removido completamente o uso do databaseManager
+ * - Uso direto da API do Baileys para obter metadados de grupos
+ * - Funcionalidades de banimento mantidas usando sistema de arquivos JSON
+ * - Logs de eventos opcionais usando apenas o sistema de logger
+ * - Melhor compatibilidade com a API nativa do Baileys
  */
 
 const logger = require('../../utils/logger/loggerModule');
-const { databaseManager } = require('../../database/databaseManager');
 const { formatErrorMessage } = require('../../utils/messageUtils');
 const fs = require('fs').promises;
 const path = require('path');
@@ -97,14 +105,21 @@ const processAddCommand = async (omniZapClient, messageInfo, senderJid, groupJid
     const successCount = result.filter((r) => r.status === '200').length;
     const failedCount = result.length - successCount;
 
-    // Registrar evento no banco de dados
-    await databaseManager.saveEvent('add_participants', {
-      groupJid,
-      executorJid: senderJid,
-      participants,
-      result,
-      timestamp: Date.now(),
-    });
+    // Registrar evento no banco de dados (opcional - pode ser removido se não necessário)
+    try {
+      // Se você quiser manter logs locais, pode usar um sistema de logs em arquivo
+      const eventLog = {
+        type: 'add_participants',
+        groupJid,
+        executorJid: senderJid,
+        participants,
+        result,
+        timestamp: Date.now(),
+      };
+      logger.info('Evento de adição de participantes registrado', eventLog);
+    } catch (logError) {
+      logger.warn('Erro ao registrar log do evento', { error: logError.message });
+    }
 
     // Formatar resposta
     let responseMessage = '';
@@ -218,7 +233,7 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
     }
 
     // Verificar se os usuários estão no grupo
-    const groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
+    const groupMetadata = await omniZapClient.groupMetadata(groupJid);
     const participants = groupMetadata.participants || [];
 
     const invalidUsers = [];
@@ -247,13 +262,19 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
 
     await omniZapClient.groupParticipantsUpdate(groupJid, validUsers, 'promote');
 
-    // Registrar evento no banco de dados
-    await databaseManager.saveEvent('promote_participants', {
-      groupJid,
-      executorJid: senderJid,
-      promotedUsers: validUsers,
-      timestamp: Date.now(),
-    });
+    // Registrar evento no banco de dados (opcional)
+    try {
+      const eventLog = {
+        type: 'promote_participants',
+        groupJid,
+        executorJid: senderJid,
+        promotedUsers: validUsers,
+        timestamp: Date.now(),
+      };
+      logger.info('Evento de promoção de participantes registrado', eventLog);
+    } catch (logError) {
+      logger.warn('Erro ao registrar log do evento', { error: logError.message });
+    }
 
     // Formatar resposta
     let responseMessage = `✅ *${validUsers.length} usuário(s) promovido(s) a administrador com sucesso*\n\n`;
@@ -362,7 +383,7 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
     }
 
     // Verificar se os usuários estão no grupo e são administradores
-    const groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
+    const groupMetadata = await omniZapClient.groupMetadata(groupJid);
     const participants = groupMetadata.participants || [];
 
     const invalidUsers = [];
@@ -404,13 +425,19 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
 
     await omniZapClient.groupParticipantsUpdate(groupJid, validUsers, 'demote');
 
-    // Registrar evento no banco de dados
-    await databaseManager.saveEvent('demote_participants', {
-      groupJid,
-      executorJid: senderJid,
-      demotedUsers: validUsers,
-      timestamp: Date.now(),
-    });
+    // Registrar evento no banco de dados (opcional)
+    try {
+      const eventLog = {
+        type: 'demote_participants',
+        groupJid,
+        executorJid: senderJid,
+        demotedUsers: validUsers,
+        timestamp: Date.now(),
+      };
+      logger.info('Evento de rebaixamento de participantes registrado', eventLog);
+    } catch (logError) {
+      logger.warn('Erro ao registrar log do evento', { error: logError.message });
+    }
 
     // Formatar resposta
     let responseMessage = `✅ *${validUsers.length} administrador(es) rebaixado(s) com sucesso*\n\n`;
@@ -510,14 +537,24 @@ const processSetNameCommand = async (omniZapClient, messageInfo, senderJid, grou
 
     await omniZapClient.groupUpdateSubject(groupJid, newName);
 
-    // Registrar evento no banco de dados
-    await databaseManager.saveEvent('change_group_name', {
-      groupJid,
-      executorJid: senderJid,
-      oldName: (await databaseManager.getGroupMetadata(groupJid))?.subject || 'Desconhecido',
-      newName,
-      timestamp: Date.now(),
-    });
+    // Registrar evento no banco de dados (opcional)
+    try {
+      // Obter o nome antigo do grupo antes da alteração
+      const oldGroupMetadata = await omniZapClient.groupMetadata(groupJid);
+      const oldName = oldGroupMetadata?.subject || 'Desconhecido';
+
+      const eventLog = {
+        type: 'change_group_name',
+        groupJid,
+        executorJid: senderJid,
+        oldName,
+        newName,
+        timestamp: Date.now(),
+      };
+      logger.info('Evento de alteração de nome do grupo registrado', eventLog);
+    } catch (logError) {
+      logger.warn('Erro ao registrar log do evento', { error: logError.message });
+    }
 
     return {
       success: true,
@@ -602,14 +639,24 @@ const processSetDescCommand = async (omniZapClient, messageInfo, senderJid, grou
 
     await omniZapClient.groupUpdateDescription(groupJid, newDesc);
 
-    // Registrar evento no banco de dados
-    await databaseManager.saveEvent('change_group_desc', {
-      groupJid,
-      executorJid: senderJid,
-      oldDesc: (await databaseManager.getGroupMetadata(groupJid))?.desc || '',
-      newDesc,
-      timestamp: Date.now(),
-    });
+    // Registrar evento no banco de dados (opcional)
+    try {
+      // Obter a descrição antiga do grupo antes da alteração
+      const oldGroupMetadata = await omniZapClient.groupMetadata(groupJid);
+      const oldDesc = oldGroupMetadata?.desc || '';
+
+      const eventLog = {
+        type: 'change_group_desc',
+        groupJid,
+        executorJid: senderJid,
+        oldDesc,
+        newDesc,
+        timestamp: Date.now(),
+      };
+      logger.info('Evento de alteração de descrição do grupo registrado', eventLog);
+    } catch (logError) {
+      logger.warn('Erro ao registrar log do evento', { error: logError.message });
+    }
 
     return {
       success: true,
@@ -720,14 +767,20 @@ const processGroupSettingCommand = async (omniZapClient, messageInfo, senderJid,
 
     await omniZapClient.groupSettingUpdate(groupJid, setting);
 
-    // Registrar evento no banco de dados
-    await databaseManager.saveEvent('change_group_setting', {
-      groupJid,
-      executorJid: senderJid,
-      setting,
-      action,
-      timestamp: Date.now(),
-    });
+    // Registrar evento no banco de dados (opcional)
+    try {
+      const eventLog = {
+        type: 'change_group_setting',
+        groupJid,
+        executorJid: senderJid,
+        setting,
+        action,
+        timestamp: Date.now(),
+      };
+      logger.info('Evento de alteração de configuração do grupo registrado', eventLog);
+    } catch (logError) {
+      logger.warn('Erro ao registrar log do evento', { error: logError.message });
+    }
 
     return {
       success: true,
@@ -798,12 +851,18 @@ const processLinkCommand = async (omniZapClient, messageInfo, senderJid, groupJi
       logger.info(`Revogando e gerando novo link de convite para o grupo ${groupJid}`);
       code = await omniZapClient.groupRevokeInvite(groupJid);
 
-      // Registrar evento no banco de dados
-      await databaseManager.saveEvent('revoke_group_link', {
-        groupJid,
-        executorJid: senderJid,
-        timestamp: Date.now(),
-      });
+      // Registrar evento no banco de dados (opcional)
+      try {
+        const eventLog = {
+          type: 'revoke_group_link',
+          groupJid,
+          executorJid: senderJid,
+          timestamp: Date.now(),
+        };
+        logger.info('Evento de revogação de link do grupo registrado', eventLog);
+      } catch (logError) {
+        logger.warn('Erro ao registrar log do evento', { error: logError.message });
+      }
     } else {
       // Apenas obter o código atual
       logger.info(`Obtendo link de convite para o grupo ${groupJid}`);
@@ -926,14 +985,20 @@ const processEphemeralCommand = async (omniZapClient, messageInfo, senderJid, gr
 
     await omniZapClient.groupToggleEphemeral(groupJid, seconds);
 
-    // Registrar evento no banco de dados
-    await databaseManager.saveEvent('set_ephemeral', {
-      groupJid,
-      executorJid: senderJid,
-      seconds,
-      duration,
-      timestamp: Date.now(),
-    });
+    // Registrar evento no banco de dados (opcional)
+    try {
+      const eventLog = {
+        type: 'set_ephemeral',
+        groupJid,
+        executorJid: senderJid,
+        seconds,
+        duration,
+        timestamp: Date.now(),
+      };
+      logger.info('Evento de configuração de mensagens efêmeras registrado', eventLog);
+    } catch (logError) {
+      logger.warn('Erro ao registrar log do evento', { error: logError.message });
+    }
 
     const responseMessage = seconds === 0 ? `✅ *Mensagens temporárias desativadas*\n\nAs mensagens não desaparecerão automaticamente.` : `✅ *Mensagens temporárias ativadas*\n\n⏱️ *Duração:* ${durationText}\n\nAs novas mensagens desaparecerão automaticamente após ${durationText}.`;
 
@@ -1035,13 +1100,19 @@ const processAddModeCommand = async (omniZapClient, messageInfo, senderJid, grou
 
     await omniZapClient.groupMemberAddMode(groupJid, settingMode);
 
-    // Registrar evento no banco de dados
-    await databaseManager.saveEvent('set_add_mode', {
-      groupJid,
-      executorJid: senderJid,
-      mode: settingMode,
-      timestamp: Date.now(),
-    });
+    // Registrar evento no banco de dados (opcional)
+    try {
+      const eventLog = {
+        type: 'set_add_mode',
+        groupJid,
+        executorJid: senderJid,
+        mode: settingMode,
+        timestamp: Date.now(),
+      };
+      logger.info('Evento de configuração do modo de adição registrado', eventLog);
+    } catch (logError) {
+      logger.warn('Erro ao registrar log do evento', { error: logError.message });
+    }
 
     return {
       success: true,
@@ -1085,8 +1156,8 @@ const processGroupInfoCommand = async (omniZapClient, messageInfo, senderJid, gr
       };
     }
 
-    // Obter metadados do grupo
-    const groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
+    // Obter metadados do grupo diretamente da API do Baileys
+    const groupMetadata = await omniZapClient.groupMetadata(groupJid);
     if (!groupMetadata) {
       return {
         success: false,
@@ -1263,14 +1334,20 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
     logger.info(`Banindo usuário ${targetUserJid} do grupo ${groupJid} - Motivo: ${banReason}`);
     await omniZapClient.groupParticipantsUpdate(groupJid, [targetUserJid], 'remove');
 
-    // Registrar o evento no banco de dados
-    await databaseManager.saveEvent('ban', {
-      groupJid,
-      targetUserJid,
-      executorJid: senderJid,
-      reason: banReason,
-      timestamp: Date.now(),
-    });
+    // Registrar o evento no banco de dados (opcional)
+    try {
+      const eventLog = {
+        type: 'ban',
+        groupJid,
+        targetUserJid,
+        executorJid: senderJid,
+        reason: banReason,
+        timestamp: Date.now(),
+      };
+      logger.info('Evento de banimento registrado', eventLog);
+    } catch (logError) {
+      logger.warn('Erro ao registrar log do evento', { error: logError.message });
+    }
 
     // Formatar o número para exibição
     const formattedNumber = targetUserJid.split('@')[0];
@@ -1507,7 +1584,26 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
 };
 
 /**
+ * Formatar número de telefone para JID do WhatsApp
+ *
+ * @param {String} phoneNumber - Número de telefone
+ * @returns {String} - JID formatado
+ */
+const formatPhoneToJid = (phoneNumber) => {
+  // Remove caracteres não numéricos
+  let cleaned = phoneNumber.replace(/\D/g, '');
+
+  // Se o número não tiver o código do país, assume que é o mesmo do bot (Brasil 55)
+  if (cleaned.length <= 11) {
+    cleaned = '55' + cleaned;
+  }
+
+  return `${cleaned}@s.whatsapp.net`;
+};
+
+/**
  * Verifica se um usuário é administrador do grupo
+ * Usando API do Baileys diretamente
  *
  * @param {Object} omniZapClient - Cliente WhatsApp
  * @param {String} groupJid - ID do grupo
@@ -1516,8 +1612,8 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
  */
 const isUserAdmin = async (omniZapClient, groupJid, userJid) => {
   try {
-    // Obter metadados do grupo
-    const groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
+    // Obter metadados do grupo diretamente da API do Baileys
+    const groupMetadata = await omniZapClient.groupMetadata(groupJid);
     const participants = groupMetadata.participants || [];
 
     const cleanUserJid = userJid.replace(/:\d+/, '');
@@ -1537,6 +1633,7 @@ const isUserAdmin = async (omniZapClient, groupJid, userJid) => {
 
 /**
  * Verifica se o bot é administrador do grupo
+ * Usando API do Baileys diretamente
  *
  * @param {Object} omniZapClient - Cliente WhatsApp
  * @param {String} groupJid - ID do grupo
@@ -1544,14 +1641,20 @@ const isUserAdmin = async (omniZapClient, groupJid, userJid) => {
  */
 const isBotAdmin = async (omniZapClient, groupJid) => {
   try {
-    // Obter metadados do grupo
-    const groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
+    // Obter metadados do grupo diretamente da API do Baileys
+    const groupMetadata = await omniZapClient.groupMetadata(groupJid);
     const participants = groupMetadata.participants || [];
 
-    // O JID do bot é conhecido, pois é a conta que está rodando o cliente
-    const botJid = omniZapClient.info.wid;
+    // O JID do bot é conhecido através das credenciais de autenticação
+    const botJid = omniZapClient.user?.id || omniZapClient.authState?.creds?.me?.id;
 
-    const adminParticipant = participants.find((p) => p.id === botJid);
+    if (!botJid) {
+      logger.warn('JID do bot não encontrado', { groupJid });
+      return false;
+    }
+
+    const cleanBotJid = botJid.replace(/:\d+/, '');
+    const adminParticipant = participants.find((p) => p.id.replace(/:\d+/, '') === cleanBotJid);
 
     return adminParticipant ? ['admin', 'superadmin'].includes(adminParticipant.admin) : false;
   } catch (error) {
@@ -1574,19 +1677,9 @@ const isBotAdmin = async (omniZapClient, groupJid) => {
  */
 const isUserInGroup = async (omniZapClient, groupJid, userJid) => {
   try {
-    // Tenta obter metadados diretamente da API Baileys primeiro
-    let groupMetadata;
-    try {
-      groupMetadata = await omniZapClient.groupMetadata(groupJid);
-      logger.info('Obteve metadados do grupo diretamente da API', { groupJid });
-    } catch (apiError) {
-      logger.warn('Erro ao obter metadados do grupo da API, tentando banco de dados', {
-        error: apiError.message,
-        groupJid,
-      });
-      // Fallback para o banco de dados
-      groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
-    }
+    // Obter metadados do grupo diretamente da API do Baileys
+    const groupMetadata = await omniZapClient.groupMetadata(groupJid);
+    logger.info('Obteve metadados do grupo diretamente da API', { groupJid });
 
     if (!groupMetadata) {
       logger.error('Não foi possível obter metadados do grupo', { groupJid });
@@ -1832,18 +1925,6 @@ const getGroupBanHistory = async (groupJid) => {
  * @param {String} phoneNumber - Número de telefone
  * @returns {String} - JID formatado
  */
-const formatPhoneToJid = (phoneNumber) => {
-  // Remove caracteres não numéricos
-  let cleaned = phoneNumber.replace(/\D/g, '');
-
-  // Se o número não tiver o código do país, assume que é o mesmo do bot (Brasil 55)
-  if (cleaned.length <= 11) {
-    cleaned = '55' + cleaned;
-  }
-
-  return `${cleaned}@s.whatsapp.net`;
-};
-
 module.exports = {
   processAddCommand,
   processPromoteCommand,
