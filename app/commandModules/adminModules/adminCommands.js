@@ -1435,22 +1435,6 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
   }
 };
 
-/**
- * Formatar número de telefone para JID do WhatsApp
- *
- * @param {String} phoneNumber - Número de telefone
- * @returns {String} - JID formatado
- */
-const formatPhoneToJid = (phoneNumber) => {
-  let cleaned = phoneNumber.replace(/\D/g, '');
-
-  if (cleaned.length <= 11) {
-    cleaned = '55' + cleaned;
-  }
-
-  return `${cleaned}@s.whatsapp.net`;
-};
-
 module.exports = {
   processAddCommand,
   processPromoteCommand,
