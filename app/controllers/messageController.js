@@ -16,6 +16,9 @@ const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, f
 const { COMMAND_PREFIX } = require('../utils/constants');
 const logger = require('../utils/logger/loggerModule');
 
+// Importar funções do groupGlobalUtils
+const { isGroupJid, isUserAdmin, isBotAdmin, isUserInGroup, isUserBanned, getGroupMetadata, updateGroupStats, logGroupActivity, cleanJid, getBotJid, initializeDirectories } = require('../utils/groupGlobalUtils');
+
 /**
  * Função utilitária para obter informações de expiração de mensagens
  *
@@ -24,6 +27,81 @@ const logger = require('../utils/logger/loggerModule');
  */
 const getMessageExpiration = (messageInfo) => {
   return getExpiration(messageInfo);
+};
+
+/**
+ * Valida se o usuário e o bot têm permissões administrativas
+ *
+ * @param {Object} omniZapClient - Cliente WhatsApp
+ * @param {String} groupJid - JID do grupo
+ * @param {String} senderJid - JID do remetente
+ * @param {String} targetJid - JID de destino para resposta
+ * @param {Object} messageInfo - Informações da mensagem
+ * @param {String} actionName - Nome da ação (para mensagens de erro)
+ * @returns {Promise<Object>} - Resultado da validação
+ */
+const validateAdminPermissions = async (omniZapClient, groupJid, senderJid, targetJid, messageInfo, actionName = 'executar esta ação') => {
+  try {
+    const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
+    const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
+
+    if (!senderIsAdmin) {
+      await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+      await sendTextMessage(omniZapClient, targetJid, formatErrorMessage('Permissão negada', 'Apenas administradores do grupo podem usar este comando.', '👮‍♂️ *Status:* Você não é administrador deste grupo'), {
+        originalMessage: messageInfo,
+      });
+      return { valid: false, reason: 'user_not_admin' };
+    }
+
+    if (!botIsAdmin) {
+      await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+      await sendTextMessage(omniZapClient, targetJid, formatErrorMessage('Bot sem permissão', `O bot precisa ser administrador do grupo para ${actionName}.`, '🤖 *Status:* Bot não é administrador deste grupo'), {
+        originalMessage: messageInfo,
+      });
+      return { valid: false, reason: 'bot_not_admin' };
+    }
+
+    return { valid: true };
+  } catch (error) {
+    logger.error('Erro ao validar permissões administrativas', {
+      error: error.message,
+      groupJid,
+      senderJid,
+    });
+    return { valid: false, reason: 'validation_error', error: error.message };
+  }
+};
+
+/**
+ * Verifica se um comando requer contexto de grupo
+ *
+ * @param {String} command - Nome do comando
+ * @returns {Boolean} - True se o comando requer grupo
+ */
+const isGroupOnlyCommand = (command) => {
+  const groupOnlyCommands = ['ban', 'add', 'promote', 'demote', 'setname', 'setdesc', 'group', 'link', 'ephemeral', 'temp', 'addmode', 'groupinfo', 'infogrupo', 'banlist'];
+  return groupOnlyCommands.includes(command.toLowerCase());
+};
+
+/**
+ * Valida contexto de grupo para comandos específicos
+ *
+ * @param {String} command - Nome do comando
+ * @param {Boolean} isGroupMessage - Se a mensagem é de grupo
+ * @param {String} targetJid - JID de destino para resposta
+ * @param {Object} messageInfo - Informações da mensagem
+ * @param {Object} omniZapClient - Cliente WhatsApp
+ * @returns {Promise<Boolean>} - True se o contexto é válido
+ */
+const validateGroupContext = async (command, isGroupMessage, targetJid, messageInfo, omniZapClient) => {
+  if (isGroupOnlyCommand(command) && !isGroupMessage) {
+    await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+    await sendTextMessage(omniZapClient, targetJid, formatErrorMessage('Comando apenas para grupos', `O comando \`${command}\` só pode ser usado em grupos do WhatsApp.`, '👥 *Contexto necessário:* Este comando requer que você esteja em um grupo'), {
+      originalMessage: messageInfo,
+    });
+    return false;
+  }
+  return true;
 };
 
 /**
@@ -40,17 +118,45 @@ const getMessageExpiration = (messageInfo) => {
 const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
   logger.info('Iniciando processamento de mensagens', {
     messageCount: messageUpdate?.messages?.length || 0,
+    botJid: cleanJid(getBotJid(omniZapClient)),
   });
 
   try {
+    // Inicializar diretórios necessários na primeira execução
+    await initializeDirectories();
+    logger.debug('Diretórios do sistema inicializados');
+
     for (const messageInfo of messageUpdate?.messages || []) {
-      const isGroupMessage = messageInfo.key.remoteJid.endsWith('@g.us');
+      const isGroupMessage = isGroupJid(messageInfo.key.remoteJid);
       const { type, body: messageText, isMedia } = preProcessMessage(messageInfo);
 
       const commandInfo = isCommand(messageText);
       const groupJid = isGroupMessage ? messageInfo.key.remoteJid : null;
+      const senderJid = cleanJid(isGroupMessage ? messageInfo.key.participant || messageInfo.key.remoteJid : messageInfo.key.remoteJid);
 
-      const senderJid = isGroupMessage ? messageInfo.key.participant || messageInfo.key.remoteJid : messageInfo.key.remoteJid;
+      // Verificar se o usuário está banido antes de processar qualquer comando
+      if (commandInfo.isCommand) {
+        const userBanned = await isUserBanned(senderJid, groupJid);
+        if (userBanned) {
+          logger.warn('Usuário banido tentou executar comando', {
+            senderJid,
+            groupJid,
+            command: commandInfo.command,
+          });
+
+          // Log da tentativa de uso por usuário banido
+          if (isGroupMessage) {
+            await logGroupActivity(groupJid, 'banned_user_attempt', {
+              userJid: senderJid,
+              command: commandInfo.command,
+              timestamp: Date.now(),
+            });
+          }
+
+          // Não processar o comando, apenas continuar para a próxima mensagem
+          continue;
+        }
+      }
 
       try {
         if (commandInfo.isCommand) {
@@ -58,10 +164,50 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
             const { command, args } = commandInfo;
             const targetJid = isGroupMessage ? groupJid : senderJid;
 
+            // Log da atividade de comando em grupos
+            if (isGroupMessage) {
+              await logGroupActivity(groupJid, 'command_executed', {
+                executorJid: senderJid,
+                command,
+                args,
+                timestamp: Date.now(),
+              });
+
+              // Atualizar estatísticas do grupo
+              try {
+                const groupMetadata = await getGroupMetadata(omniZapClient, groupJid);
+                if (groupMetadata) {
+                  await updateGroupStats(groupJid, groupMetadata, {
+                    activityType: 'command',
+                    command,
+                  });
+                }
+              } catch (statsError) {
+                logger.warn('Erro ao atualizar estatísticas do grupo', {
+                  error: statsError.message,
+                  groupJid,
+                });
+              }
+            }
+
+            // Validar contexto de grupo para comandos que exigem
+            const isValidContext = await validateGroupContext(command, isGroupMessage, targetJid, messageInfo, omniZapClient);
+            if (!isValidContext) {
+              continue; // Se o contexto não for válido, pular para a próxima mensagem
+            }
+
             switch (command.toLowerCase()) {
               case 'ban':
                 try {
-                  const { processBanCommand } = require('../commandModules/adminModules/banCommand');
+                  const { processBanCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  // Verificações adicionais usando groupGlobalUtils
+                  if (isGroupMessage) {
+                    const validation = await validateAdminPermissions(omniZapClient, groupJid, senderJid, targetJid, messageInfo, 'banir usuários');
+                    if (!validation.valid) {
+                      continue;
+                    }
+                  }
 
                   logger.info('Comando ban executado', {
                     command,
@@ -103,6 +249,14 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                 try {
                   const { processAddCommand } = require('../commandModules/adminModules/adminCommands');
 
+                  // Verificações adicionais usando groupGlobalUtils
+                  if (isGroupMessage) {
+                    const validation = await validateAdminPermissions(omniZapClient, groupJid, senderJid, targetJid, messageInfo, 'adicionar usuários');
+                    if (!validation.valid) {
+                      continue;
+                    }
+                  }
+
                   logger.info('Comando add executado', {
                     command,
                     args,
@@ -142,6 +296,14 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
               case 'promote':
                 try {
                   const { processPromoteCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  // Verificações adicionais usando groupGlobalUtils
+                  if (isGroupMessage) {
+                    const validation = await validateAdminPermissions(omniZapClient, groupJid, senderJid, targetJid, messageInfo, 'promover usuários');
+                    if (!validation.valid) {
+                      continue;
+                    }
+                  }
 
                   logger.info('Comando promote executado', {
                     command,
@@ -183,6 +345,14 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                 try {
                   const { processDemoteCommand } = require('../commandModules/adminModules/adminCommands');
 
+                  // Verificações adicionais usando groupGlobalUtils
+                  if (isGroupMessage) {
+                    const validation = await validateAdminPermissions(omniZapClient, groupJid, senderJid, targetJid, messageInfo, 'rebaixar usuários');
+                    if (!validation.valid) {
+                      continue;
+                    }
+                  }
+
                   logger.info('Comando demote executado', {
                     command,
                     args,
@@ -223,6 +393,14 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                 try {
                   const { processSetNameCommand } = require('../commandModules/adminModules/adminCommands');
 
+                  // Verificações adicionais usando groupGlobalUtils
+                  if (isGroupMessage) {
+                    const validation = await validateAdminPermissions(omniZapClient, groupJid, senderJid, targetJid, messageInfo, 'alterar nome do grupo');
+                    if (!validation.valid) {
+                      continue;
+                    }
+                  }
+
                   logger.info('Comando setname executado', {
                     command,
                     args,
@@ -262,6 +440,14 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
               case 'setdesc':
                 try {
                   const { processSetDescCommand } = require('../commandModules/adminModules/adminCommands');
+
+                  // Verificações adicionais usando groupGlobalUtils
+                  if (isGroupMessage) {
+                    const validation = await validateAdminPermissions(omniZapClient, groupJid, senderJid, targetJid, messageInfo, 'alterar descrição do grupo');
+                    if (!validation.valid) {
+                      continue;
+                    }
+                  }
 
                   logger.info('Comando setdesc executado', {
                     command,
@@ -692,19 +878,53 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
             await sendTextMessage(omniZapClient, targetJid, errorMsg);
           }
         } else {
+          // Processamento de mensagens não-comando
           if (isGroupMessage) {
+            // Log de atividade do grupo para mensagens normais
+            try {
+              await logGroupActivity(groupJid, 'message_received', {
+                senderJid,
+                messageType: type,
+                isMedia,
+                timestamp: Date.now(),
+              });
+
+              // Atualizar estatísticas do grupo periodicamente
+              try {
+                const groupMetadata = await getGroupMetadata(omniZapClient, groupJid);
+                if (groupMetadata) {
+                  await updateGroupStats(groupJid, groupMetadata, {
+                    activityType: 'message',
+                    messageType: type,
+                  });
+                }
+              } catch (statsError) {
+                logger.warn('Erro ao atualizar estatísticas do grupo para mensagem normal', {
+                  error: statsError.message,
+                  groupJid,
+                });
+              }
+            } catch (logError) {
+              logger.warn('Erro ao registrar atividade do grupo', {
+                error: logError.message,
+                groupJid,
+                senderJid,
+              });
+            }
+
             logger.info('Mensagem normal de grupo processada', {
               type: 'group-message',
               messageType: type,
               isMedia,
               groupJid,
+              senderJid: cleanJid(senderJid),
             });
           } else {
-            logger.info('Mensagem normal processada', {
+            logger.info('Mensagem privada processada', {
               type: 'private-message',
               messageType: type,
               isMedia,
-              senderJid,
+              senderJid: cleanJid(senderJid),
             });
           }
         }
@@ -738,7 +958,11 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
     }
   }
 
-  logger.info('Processamento de mensagens concluído');
+  logger.info('Processamento de mensagens concluído', {
+    messageCount: messageUpdate?.messages?.length || 0,
+    botJid: cleanJid(getBotJid(omniZapClient)),
+    timestamp: Date.now(),
+  });
 };
 
 module.exports = OmniZapMessageProcessor;
