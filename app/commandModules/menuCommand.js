@@ -157,45 +157,45 @@ const buildStickerMenu = () => {
 • \`${prefix}sticker\` ou \`${prefix}s\` - Cria sticker da imagem/vídeo enviado ou respondido
 • \`${prefix}s <nome> | <autor>\` - Cria sticker com nome de pacote e autor personalizados
   _Exemplo: \`${prefix}s Meus Stickers | João Silva\`_
-• Para criar um sticker, envie uma imagem/vídeo e digite \`${prefix}s\` na legenda ou responda com \`${prefix}s\`
-• Para criar vários stickers em sequência, envie mídias e use \`${prefix}s\` para cada uma
+• Para criar um sticker, envie uma imagem/vídeo e digite \`${prefix}s\` na legenda
+• Você também pode responder a uma mídia com \`${prefix}s\` para criar sticker
 
 *📦 Gerenciamento de Pacotes:*
-• \`${prefix}s packs\` ou \`${prefix}s list\` - Lista todos os seus pacotes de stickers
-• \`${prefix}s info <número>\` - Mostra detalhes completos do pacote específico
-  _Exemplo: \`${prefix}s info 1\` mostra detalhes do seu primeiro pack_
+• \`${prefix}s packs\` ou \`${prefix}s list\` - Lista todos os seus pacotes de stickers com status
+  _Mostra: nome, autor, progresso (✅ Completo ou ⏳ Em progresso) e data de criação_
+• \`${prefix}s info <número>\` - Mostra detalhes completos de um pacote específico
+  _Exemplo: \`${prefix}s info 1\` mostra detalhes como nome, autor, ID, status, quantidade de stickers e comandos úteis_
 • \`${prefix}s rename <número> <nome> | <autor>\` - Renomeia um pacote e seu autor
   _Exemplo: \`${prefix}s rename 2 Animais | Coleção 2025\`_
-• \`${prefix}s delete <número>\` - Exclui permanentemente um pacote de stickers
-  _Exemplo: \`${prefix}s delete 3\` exclui seu terceiro pack_
+• \`${prefix}s delete <número>\` ou \`${prefix}s del <número>\` - Exclui permanentemente um pacote
+  _Exemplo: \`${prefix}s delete 3\` remove completamente o terceiro pack e seus stickers_
 • \`${prefix}s stats\` ou \`${prefix}s status\` - Exibe estatísticas detalhadas dos seus stickers
+  _Mostra: total de stickers, total de packs, packs completos/incompletos, progresso atual e preferências_
 • \`${prefix}s prefs <nome> | <autor>\` - Define preferências padrão para novos stickers
-  _Exemplo: \`${prefix}s prefs Meus Stickers | João\` define modelo para novos packs_
+  _Exemplo: \`${prefix}s prefs Meus Stickers | João\` define o padrão para todos os novos stickers_
 
 *🔄 Compartilhamento de Stickers:*
 • \`${prefix}s send <número>\` ou \`${prefix}s share <número>\` - Envia todos os stickers do pacote
   _Exemplo: \`${prefix}s send 1\` envia todos os stickers do primeiro pack_
-• Stickers são enviados um a um, em sequência, preservando a qualidade original
-• Você pode enviar packs completos ou incompletos para qualquer conversa
+• Se estiver em um grupo, os stickers serão enviados para seu chat privado para evitar spam
+• Você pode compartilhar packs completos ou incompletos sem restrições
 
 *ℹ️ Informações Importantes:*
 • Cada pacote comporta até ${STICKERS_PER_PACK} stickers
-• Os pacotes são criados e organizados automaticamente
+• Os pacotes são criados automaticamente quando você cria seu primeiro sticker
 • Quando um pack atinge ${STICKERS_PER_PACK} stickers, um novo é criado automaticamente
-• Formatos suportados: JPG, PNG, WEBP para imagens e MP4, GIF para animados
-• Para melhor qualidade, envie imagens com resolução adequada
-• Stickers de vídeo serão limitados a alguns segundos
-• Suas preferências de nome/autor são salvas automaticamente
+• Seus packs são armazenados individualmente e podem ser acessados pelo seu número
+• Stickers de vídeo terão duração limitada de acordo com as restrições do WhatsApp
 
 *🔍 Recursos Avançados:*
-• Ao criar stickers, você pode personalizar texto com variáveis especiais:
-  → \`#nome\` será substituído pelo seu nome no WhatsApp
-  → \`#id\` será substituído pelo seu número
-  → \`#data\` será substituído pela data atual
-• Os pacotes são salvos individualmente e podem ser recuperados mesmo após reiniciar o bot
-• Use \`${prefix}s prefs\` sem argumentos para ver suas configurações atuais
+• Variáveis especiais nos nomes dos packs e autores:
+  → \`#nome\` - Substitui pelo seu nome de exibição no WhatsApp
+  → \`#id\` - Substitui pelo seu número de telefone
+  → \`#data\` - Substitui pela data atual (formato brasileiro)
+• Seus packs e preferências ficam salvos mesmo após reiniciar o bot
+• Se você não definir um nome/autor, serão usados os valores padrão das suas preferências
 
-_Para instruções passo a passo, envie \`${prefix}s help\`_`,
+_Para um tutorial completo passo a passo, envie \`${prefix}s help\`_`,
   );
 };
 
