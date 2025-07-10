@@ -19,6 +19,9 @@ const logger = require('../utils/logger/loggerModule');
 // Importar funções do groupGlobalUtils
 const { isGroupJid, isUserAdmin, isBotAdmin, isUserInGroup, isUserBanned, getGroupMetadata, updateGroupStats, logGroupActivity, logGroupActivityWithStats, cleanJid, getBotJid, initializeDirectories } = require('../utils/groupGlobalUtils');
 
+// Importar eventHandler para integração bidirecional
+const { eventHandler } = require('../events/eventHandler');
+
 /**
  * Função utilitária para obter informações de expiração de mensagens
  *
@@ -105,6 +108,30 @@ const validateGroupContext = async (command, isGroupMessage, targetJid, messageI
 };
 
 /**
+ * Obtém estatísticas de processamento integradas
+ *
+ * @returns {Object} Estatísticas do sistema
+ */
+const getProcessingStats = () => {
+  const baseStats = {
+    timestamp: Date.now(),
+    version: '1.1.0',
+    hasEventHandler: !!eventHandler,
+  };
+
+  if (eventHandler) {
+    const eventStats = eventHandler.getCacheStats();
+    return {
+      ...baseStats,
+      cache: eventStats,
+      hitRate: eventHandler.calculateCacheHitRate(),
+    };
+  }
+
+  return baseStats;
+};
+
+/**
  * Processador de mensagens WhatsApp do OmniZap
  *
  * Processa todas as mensagens recebidas através da conexão WhatsApp,
@@ -112,19 +139,36 @@ const validateGroupContext = async (command, isGroupMessage, targetJid, messageI
  *
  * @param {Object} messageUpdate - Objeto contendo as mensagens recebidas
  * @param {Object} omniZapClient - Cliente WhatsApp ativo para interação
- * @param {String} qrCodePath - Caminho para o QR Code se necessário
+ * @param {Object} socketController - Referência ao controlador de socket (opcional)
  * @returns {Promise<void>}
  */
-const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
+const OmniZapMessageProcessor = async (messageUpdate, omniZapClient, socketController = null) => {
   logger.info('Iniciando processamento de mensagens', {
     messageCount: messageUpdate?.messages?.length || 0,
     botJid: cleanJid(getBotJid(omniZapClient)),
+    hasSocketController: !!socketController,
+    hasEventHandler: !!eventHandler,
   });
 
   try {
+    // Garantir que o eventHandler tenha referência ao cliente
+    if (eventHandler && !eventHandler.getWhatsAppClient()) {
+      eventHandler.setWhatsAppClient(omniZapClient);
+      logger.debug('Cliente WhatsApp configurado no EventHandler');
+    }
+
     // Inicializar diretórios necessários na primeira execução
     await initializeDirectories();
     logger.debug('Diretórios do sistema inicializados');
+
+    // Registrar processamento no eventHandler
+    if (eventHandler) {
+      eventHandler.processGenericEvent('message.processing.started', {
+        messageCount: messageUpdate?.messages?.length || 0,
+        timestamp: Date.now(),
+        _processorVersion: '1.1.0',
+      });
+    }
 
     for (const messageInfo of messageUpdate?.messages || []) {
       const isGroupMessage = isGroupJid(messageInfo.key.remoteJid);
@@ -133,6 +177,20 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
       const commandInfo = isCommand(messageText);
       const groupJid = isGroupMessage ? messageInfo.key.remoteJid : null;
       const senderJid = cleanJid(isGroupMessage ? messageInfo.key.participant || messageInfo.key.remoteJid : messageInfo.key.remoteJid);
+
+      // Tentar obter informações do cache primeiro
+      let groupMetadata = null;
+      if (isGroupMessage && eventHandler) {
+        groupMetadata = eventHandler.getGroup(groupJid);
+        if (!groupMetadata) {
+          // Se não estiver em cache, obter e armazenar
+          try {
+            groupMetadata = await eventHandler.getOrFetchGroupMetadata(groupJid);
+          } catch (error) {
+            logger.warn('Erro ao obter metadados do grupo', { groupJid, error: error.message });
+          }
+        }
+      }
 
       // Verificar se o usuário está banido antes de processar qualquer comando
       if (commandInfo.isCommand) {
@@ -144,7 +202,17 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
             command: commandInfo.command,
           });
 
-          // Log da tentativa de uso por usuário banido
+          // Log da tentativa de uso por usuário banido via eventHandler
+          if (isGroupMessage && eventHandler) {
+            eventHandler.processGenericEvent('banned_user_attempt', {
+              groupJid,
+              userJid: senderJid,
+              command: commandInfo.command,
+              timestamp: Date.now(),
+            });
+          }
+
+          // Log tradicional para compatibilidade
           if (isGroupMessage) {
             await logGroupActivity(groupJid, 'banned_user_attempt', {
               userJid: senderJid,
@@ -164,8 +232,22 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
             const { command, args } = commandInfo;
             const targetJid = isGroupMessage ? groupJid : senderJid;
 
-            // Log da atividade de comando em grupos com atualização de estatísticas
+            // Log da atividade de comando em grupos com integração eventHandler
             if (isGroupMessage) {
+              // Log via eventHandler para cache e estatísticas
+              if (eventHandler) {
+                eventHandler.processGenericEvent('command_executed', {
+                  groupJid,
+                  executorJid: senderJid,
+                  command,
+                  args,
+                  timestamp: Date.now(),
+                  messageId: messageInfo.key.id,
+                  groupMetadata: groupMetadata?.subject || 'Nome não disponível',
+                });
+              }
+
+              // Log tradicional para compatibilidade
               await logGroupActivityWithStats(omniZapClient, groupJid, 'command_executed', {
                 executorJid: senderJid,
                 command,
@@ -864,7 +946,20 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
         } else {
           // Processamento de mensagens não-comando
           if (isGroupMessage) {
-            // Log de atividade do grupo para mensagens normais com estatísticas
+            // Log via eventHandler para cache e estatísticas
+            if (eventHandler) {
+              eventHandler.processGenericEvent('message_received', {
+                groupJid,
+                senderJid,
+                messageType: type,
+                isMedia,
+                timestamp: Date.now(),
+                messageId: messageInfo.key.id,
+                groupMetadata: groupMetadata?.subject || 'Nome não disponível',
+              });
+            }
+
+            // Log de atividade do grupo para mensagens normais com estatísticas (compatibilidade)
             try {
               await logGroupActivityWithStats(omniZapClient, groupJid, 'message_received', {
                 senderJid,
@@ -886,8 +981,20 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
               isMedia,
               groupJid,
               senderJid: cleanJid(senderJid),
+              cached: !!groupMetadata,
             });
           } else {
+            // Log para mensagens privadas via eventHandler
+            if (eventHandler) {
+              eventHandler.processGenericEvent('private_message_received', {
+                senderJid,
+                messageType: type,
+                isMedia,
+                timestamp: Date.now(),
+                messageId: messageInfo.key.id,
+              });
+            }
+
             logger.info('Mensagem privada processada', {
               type: 'private-message',
               messageType: type,
@@ -924,13 +1031,35 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
         stack: error.stack,
       });
     }
+
+    // Registrar erro no eventHandler
+    if (eventHandler) {
+      eventHandler.processGenericEvent('message.processing.error', {
+        error: error.message,
+        type: error.message.includes('network') ? 'network' : error.message.includes('timeout') ? 'timeout' : 'general',
+        timestamp: Date.now(),
+        messageCount: messageUpdate?.messages?.length || 0,
+      });
+    }
   }
 
-  logger.info('Processamento de mensagens concluído', {
+  const processingStats = {
     messageCount: messageUpdate?.messages?.length || 0,
     botJid: cleanJid(getBotJid(omniZapClient)),
     timestamp: Date.now(),
-  });
+    hasEventHandler: !!eventHandler,
+  };
+
+  // Registrar conclusão do processamento no eventHandler
+  if (eventHandler) {
+    eventHandler.processGenericEvent('message.processing.completed', processingStats);
+  }
+
+  logger.info('Processamento de mensagens concluído', processingStats);
 };
 
 module.exports = OmniZapMessageProcessor;
+module.exports.getProcessingStats = getProcessingStats;
+module.exports.validateAdminPermissions = validateAdminPermissions;
+module.exports.validateGroupContext = validateGroupContext;
+module.exports.isGroupOnlyCommand = isGroupOnlyCommand;

@@ -275,10 +275,29 @@ async function connectToWhatsApp() {
       // Chama o handler principal se disponível
       try {
         const omniZapMainHandler = require('../../index.js');
-        await omniZapMainHandler(messageUpdate, sock, env.QR_CODE_PATH);
+
+        // Passa uma referência do socketController para melhor integração
+        const socketControllerRef = {
+          getActiveSocket: () => activeSocket,
+          getConnectionStats: getConnectionStats,
+          sendMessage: sendMessage,
+          forceDisconnect: forceDisconnect,
+          forceReconnect: reconnectToWhatsApp,
+          getGroupInfo: getGroupInfo,
+          sendPresence: sendPresence,
+        };
+
+        await omniZapMainHandler(messageUpdate, sock, env.QR_CODE_PATH, socketControllerRef);
         logger.debug('🎯 Handler principal executado com sucesso');
       } catch (error) {
         logger.error('❌ Erro no handler principal:', error.message);
+
+        // Registra erro no eventHandler
+        eventHandler.processGenericEvent('socket.handler.error', {
+          error: error.message,
+          timestamp: Date.now(),
+          messageCount: messageUpdate?.messages?.length || 0,
+        });
       }
     });
 
