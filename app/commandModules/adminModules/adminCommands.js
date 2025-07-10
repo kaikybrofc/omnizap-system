@@ -681,13 +681,11 @@ const processGroupSettingCommand = async (omniZapClient, messageInfo, senderJid,
     switch (action) {
       case 'close':
       case 'fechar':
-      case 'close':
         setting = 'announcement';
         description = 'Somente administradores podem enviar mensagens';
         break;
       case 'open':
       case 'abrir':
-      case 'open':
         setting = 'not_announcement';
         description = 'Todos os participantes podem enviar mensagens';
         break;
@@ -713,7 +711,16 @@ const processGroupSettingCommand = async (omniZapClient, messageInfo, senderJid,
     // Alterar configuração do grupo
     logger.info(`Alterando configurações do grupo ${groupJid} para "${setting}"`, { action });
 
-    await omniZapClient.groupSettingUpdate(groupJid, setting);
+    // Correção: usar os métodos corretos da API Baileys
+    if (action === 'close' || action === 'fechar') {
+      await omniZapClient.groupSettingUpdate(groupJid, 'announcement');
+    } else if (action === 'open' || action === 'abrir') {
+      await omniZapClient.groupSettingUpdate(groupJid, 'not_announcement');
+    } else if (action === 'lock' || action === 'trancar' || action === 'bloquear') {
+      await omniZapClient.groupSettingUpdate(groupJid, 'locked');
+    } else if (action === 'unlock' || action === 'destrancar' || action === 'desbloquear') {
+      await omniZapClient.groupSettingUpdate(groupJid, 'unlocked');
+    }
 
     // Registrar evento no banco de dados
     await databaseManager.saveEvent('change_group_setting', {
@@ -784,34 +791,49 @@ const processLinkCommand = async (omniZapClient, messageInfo, senderJid, groupJi
       };
     }
 
-    // Verificar se o argumento é "reset" para redefnir o link
+    // Verificar se o argumento é "reset" para redefinir o link
     const shouldReset = args && ['reset', 'revoke', 'new', 'novo', 'resetar', 'revogar'].includes(args.trim().toLowerCase());
 
     let code;
-    if (shouldReset) {
-      // Revogar e obter novo código
-      logger.info(`Revogando e gerando novo link de convite para o grupo ${groupJid}`);
-      code = await omniZapClient.groupRevokeInvite(groupJid);
+    try {
+      if (shouldReset) {
+        // Revogar e obter novo código
+        logger.info(`Revogando e gerando novo link de convite para o grupo ${groupJid}`);
+        await omniZapClient.groupRevokeInvite(groupJid);
+        code = await omniZapClient.groupInviteCode(groupJid);
 
-      // Registrar evento no banco de dados
-      await databaseManager.saveEvent('revoke_group_link', {
+        // Registrar evento no banco de dados
+        await databaseManager.saveEvent('revoke_group_link', {
+          groupJid,
+          executorJid: senderJid,
+          timestamp: Date.now(),
+        });
+      } else {
+        // Apenas obter o código atual
+        logger.info(`Obtendo link de convite para o grupo ${groupJid}`);
+        code = await omniZapClient.groupInviteCode(groupJid);
+      }
+
+      // Formar a URL completa
+      const inviteLink = `https://chat.whatsapp.com/${code}`;
+
+      return {
+        success: true,
+        message: shouldReset ? `🔄 *Link do grupo foi redefinido*\n\n🔗 *Novo link:*\n${inviteLink}` : `🔗 *Link do grupo:*\n${inviteLink}${senderIsAdmin ? '\n\n_Use !link reset para gerar um novo link_' : ''}`,
+      };
+    } catch (error) {
+      logger.error('Erro ao processar operação de link do grupo', {
+        error: error.message,
+        stack: error.stack,
+        shouldReset,
         groupJid,
-        executorJid: senderJid,
-        timestamp: Date.now(),
       });
-    } else {
-      // Apenas obter o código atual
-      logger.info(`Obtendo link de convite para o grupo ${groupJid}`);
-      code = await omniZapClient.groupInviteCode(groupJid);
+
+      return {
+        success: false,
+        message: formatErrorMessage('Erro ao obter link do grupo', `Ocorreu um erro ao processar a operação: ${error.message}`, null),
+      };
     }
-
-    // Formar a URL completa
-    const inviteLink = `https://chat.whatsapp.com/${code}`;
-
-    return {
-      success: true,
-      message: shouldReset ? `🔄 *Link do grupo foi redefinido*\n\n🔗 *Novo link:*\n${inviteLink}` : `🔗 *Link do grupo:*\n${inviteLink}${senderIsAdmin ? '\n\n_Use !link reset para gerar um novo link_' : ''}`,
-    };
   } catch (error) {
     logger.error('Erro ao processar comando link', {
       error: error.message,
@@ -919,7 +941,8 @@ const processEphemeralCommand = async (omniZapClient, messageInfo, senderJid, gr
     // Configurar modo efêmero
     logger.info(`Configurando mensagens efêmeras no grupo ${groupJid} para ${seconds} segundos`);
 
-    await omniZapClient.groupToggleEphemeral(groupJid, seconds);
+    // Correção: usar o método correto da API Baileys
+    await omniZapClient.sendMessage(groupJid, { disappearingMessagesInChat: seconds });
 
     // Registrar evento no banco de dados
     await databaseManager.saveEvent('set_ephemeral', {
@@ -1028,7 +1051,12 @@ const processAddModeCommand = async (omniZapClient, messageInfo, senderJid, grou
     // Configurar modo de adição
     logger.info(`Configurando modo de adição de participantes no grupo ${groupJid} para ${settingMode}`);
 
-    await omniZapClient.groupMemberAddMode(groupJid, settingMode);
+    // Correção: usar o método correto da API Baileys
+    if (settingMode === 'all_member_add') {
+      await omniZapClient.groupSettingUpdate(groupJid, 'unlocked');
+    } else {
+      await omniZapClient.groupSettingUpdate(groupJid, 'locked');
+    }
 
     // Registrar evento no banco de dados
     await databaseManager.saveEvent('set_add_mode', {

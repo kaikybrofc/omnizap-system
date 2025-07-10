@@ -27,7 +27,20 @@ const BANNED_USERS_LIST_FILE = path.join(BANNED_USERS_DIR, 'bannedUsers.json');
  */
 const isBotAdmin = async (omniZapClient, groupJid) => {
   try {
-    const groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
+    // Tenta obter metadados diretamente da API Baileys primeiro
+    let groupMetadata;
+    try {
+      groupMetadata = await omniZapClient.groupMetadata(groupJid);
+      logger.info('Obteve metadados do grupo diretamente da API', { groupJid });
+    } catch (apiError) {
+      logger.warn('Erro ao obter metadados do grupo da API, tentando banco de dados', { 
+        error: apiError.message, 
+        groupJid 
+      });
+      // Fallback para o banco de dados
+      groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
+    }
+    
     if (!groupMetadata) {
       logger.error('Não foi possível obter metadados do grupo', { groupJid });
       return false;
@@ -59,7 +72,20 @@ const isBotAdmin = async (omniZapClient, groupJid) => {
  */
 const isUserAdmin = async (omniZapClient, groupJid, userJid) => {
   try {
-    const groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
+    // Tenta obter metadados diretamente da API Baileys primeiro
+    let groupMetadata;
+    try {
+      groupMetadata = await omniZapClient.groupMetadata(groupJid);
+      logger.info('Obteve metadados do grupo diretamente da API', { groupJid });
+    } catch (apiError) {
+      logger.warn('Erro ao obter metadados do grupo da API, tentando banco de dados', { 
+        error: apiError.message, 
+        groupJid 
+      });
+      // Fallback para o banco de dados
+      groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
+    }
+    
     if (!groupMetadata) {
       logger.error('Não foi possível obter metadados do grupo', { groupJid });
       return false;
@@ -92,7 +118,20 @@ const isUserAdmin = async (omniZapClient, groupJid, userJid) => {
  */
 const isUserInGroup = async (omniZapClient, groupJid, userJid) => {
   try {
-    const groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
+    // Tenta obter metadados diretamente da API Baileys primeiro
+    let groupMetadata;
+    try {
+      groupMetadata = await omniZapClient.groupMetadata(groupJid);
+      logger.info('Obteve metadados do grupo diretamente da API', { groupJid });
+    } catch (apiError) {
+      logger.warn('Erro ao obter metadados do grupo da API, tentando banco de dados', { 
+        error: apiError.message, 
+        groupJid 
+      });
+      // Fallback para o banco de dados
+      groupMetadata = await databaseManager.getOrFetchGroupMetadata(groupJid, omniZapClient);
+    }
+    
     if (!groupMetadata) {
       logger.error('Não foi possível obter metadados do grupo', { groupJid });
       return false;
