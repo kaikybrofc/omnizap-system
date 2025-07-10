@@ -10,7 +10,6 @@
  */
 
 require('dotenv').config();
-const { databaseManager } = require('../database/databaseManager');
 const { preProcessMessage, isCommand, getExpiration } = require('../utils/baileys/messageHelper');
 const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, formatErrorMessage } = require('../utils/messageUtils');
 const { COMMAND_PREFIX } = require('../utils/constants');
