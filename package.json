@@ -3,6 +3,7 @@
   "version": "1.0.5",
   "description": "Sistema profissional de automação WhatsApp com tecnologia Baileys",
   "main": "index.js",
+  "type": "commonjs",
   "keywords": [
     "whatsapp",
     "automation",

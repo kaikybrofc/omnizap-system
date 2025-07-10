@@ -258,84 +258,88 @@ const OmniZapMainHandler = async (messageUpdate, whatsappClient, qrCodePath = nu
 };
 
 if (require.main === module) {
-  logger.info('🔌 Iniciando OmniZap System...');
+  const start = async () => {
+    logger.info('🔌 Iniciando OmniZap System...');
 
-  // Marcar início da inicialização
-  const initStartTime = Date.now();
+    // Marcar início da inicialização
+    const initStartTime = Date.now();
 
-  // Registrar início da aplicação no eventHandler com mais detalhes
-  if (eventHandler) {
-    eventHandler.processGenericEvent('application.startup', {
-      timestamp: initStartTime,
-      version: '1.0.6',
-      nodeVersion: process.version,
-      platform: process.platform,
-      architecture: process.arch,
-      pid: process.pid,
-      memoryUsage: process.memoryUsage(),
-      uptime: 0,
-    });
-  }
-
-  try {
-    // Inicializar diretórios centralizados de dados
-    logger.info('📁 Inicializando estrutura de dados centralizada...');
-    await initializeDirectories();
-
-    // Inicializar socketController
-    logger.info('🔗 Iniciando controlador de conexão...');
-
-    // Importar e configurar socketController
-    const socketControllerModule = require('./app/connection/socketController');
-
-    // Registrar o socketController se ele exporta as funções necessárias
-    if (socketControllerModule && typeof socketControllerModule === 'object') {
-      registerSocketController(socketControllerModule);
+    // Registrar início da aplicação no eventHandler com mais detalhes
+    if (eventHandler) {
+      eventHandler.processGenericEvent('application.startup', {
+        timestamp: initStartTime,
+        version: '1.0.6',
+        nodeVersion: process.version,
+        platform: process.platform,
+        architecture: process.arch,
+        pid: process.pid,
+        memoryUsage: process.memoryUsage(),
+        uptime: 0,
+      });
     }
 
-    // Marcar sistema como inicializado
-    systemInitialized = true;
-    const initDuration = Date.now() - initStartTime;
+    try {
+      // Inicializar diretórios centralizados de dados
+      logger.info('📁 Inicializando estrutura de dados centralizada...');
+      await initializeDirectories();
 
-    logger.info('✅ OmniZap System inicializado com sucesso', {
-      duration: `${initDuration}ms`,
-      timestamp: Date.now(),
-      hasSocketController: !!activeSocketController,
-      systemStats: getSystemStats(),
-    });
+      // Inicializar socketController
+      logger.info('🔗 Iniciando controlador de conexão...');
 
-    // Registrar sucesso da inicialização
-    if (eventHandler) {
-      eventHandler.processGenericEvent('application.initialization.success', {
-        initDuration,
+      // Importar e configurar socketController
+      const socketControllerModule = require('./app/connection/socketController');
+
+      // Registrar o socketController se ele exporta as funções necessárias
+      if (socketControllerModule && typeof socketControllerModule === 'object') {
+        registerSocketController(socketControllerModule);
+      }
+
+      // Marcar sistema como inicializado
+      systemInitialized = true;
+      const initDuration = Date.now() - initStartTime;
+
+      logger.info('✅ OmniZap System inicializado com sucesso', {
+        duration: `${initDuration}ms`,
         timestamp: Date.now(),
-        version: '1.0.6',
+        hasSocketController: !!activeSocketController,
         systemStats: getSystemStats(),
       });
-    }
-  } catch (error) {
-    const initDuration = Date.now() - initStartTime;
 
-    logger.error('❌ Erro na inicialização do sistema:', {
-      error: error.message,
-      stack: error.stack,
-      duration: `${initDuration}ms`,
-      timestamp: Date.now(),
-    });
+      // Registrar sucesso da inicialização
+      if (eventHandler) {
+        eventHandler.processGenericEvent('application.initialization.success', {
+          initDuration,
+          timestamp: Date.now(),
+          version: '1.0.6',
+          systemStats: getSystemStats(),
+        });
+      }
+    } catch (error) {
+      const initDuration = Date.now() - initStartTime;
 
-    // Registrar erro crítico no eventHandler
-    if (eventHandler) {
-      eventHandler.processGenericEvent('application.initialization.error', {
+      logger.error('❌ Erro na inicialização do sistema:', {
         error: error.message,
         stack: error.stack,
-        initDuration,
+        duration: `${initDuration}ms`,
         timestamp: Date.now(),
       });
-    }
 
-    // Não encerrar o processo, apenas log do erro
-    systemInitialized = false;
-  }
+      // Registrar erro crítico no eventHandler
+      if (eventHandler) {
+        eventHandler.processGenericEvent('application.initialization.error', {
+          error: error.message,
+          stack: error.stack,
+          initDuration,
+          timestamp: Date.now(),
+        });
+      }
+
+      // Não encerrar o processo, apenas log do erro
+      systemInitialized = false;
+    }
+  };
+
+  start();
 }
 
 // Manipuladores de encerramento gracioso
