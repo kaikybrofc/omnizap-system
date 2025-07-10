@@ -2,24 +2,22 @@
  * OmniZap Admin Commands
  *
  * Comandos de administração para grupos do WhatsApp
- * Usando apenas a API do Baileys diretamente
+ * Usando dados centralizados do socket na pasta data
  *
- * @version 2.0.0
+ * @version 3.0.0
  * @author OmniZap Team
  * @license MIT
  * @source https://www.npmjs.com/package/baileys
  *
- * MUDANÇAS NA VERSÃO 2.0.0:
- * - Refatorado para usar groupUtils.js com funções centralizadas
- * - Melhor sistema de cache e estatísticas globais
- * - Funções auxiliares movidas para módulo dedicado
+ * MUDANÇAS NA VERSÃO 3.0.0:
+ * - Refatorado para usar apenas dados do socket centralizados
+ * - Todos os dados agora ficam na pasta temp/data
+ * - Funções simplificadas para melhor performance
  */
 
 const logger = require('../../utils/logger/loggerModule');
 const { formatErrorMessage } = require('../../utils/messageUtils');
 const { isUserAdmin, isBotAdmin, isUserInGroup, formatPhoneToJid, getGroupMetadata, updateGroupStats, logGroupActivity, loadBannedUsersList, saveBannedUsersList, addUserToBannedList, removeUserFromBanList, isUserBanned, cleanJid, initializeDirectories, generateGroupsReport } = require('../../utils/groupGlobalUtils');
-const fs = require('fs').promises;
-const path = require('path');
 
 /**
  * Processa comando para adicionar participantes ao grupo

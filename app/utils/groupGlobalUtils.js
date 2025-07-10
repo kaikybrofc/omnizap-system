@@ -2,10 +2,10 @@
  * OmniZap Group Global Utils
  *
  * Utilitários globais centralizados para operações com grupos do WhatsApp
- * Sistema completo de cache, estatísticas e funções auxiliares
+ * Sistema centralizado usando apenas dados do socket na pasta data
  * Usando apenas a API do Baileys diretamente
  *
- * @version 2.0.0
+ * @version 3.0.0
  * @author OmniZap Team
  * @license MIT
  * @source https://www.npmjs.com/package/baileys#groups
@@ -15,24 +15,19 @@ const logger = require('./logger/loggerModule');
 const fs = require('fs').promises;
 const path = require('path');
 
-// === CONSTANTES GLOBAIS ===
-const GROUP_DATA_DIR = path.join(process.cwd(), 'temp', 'groupsData');
-const GROUP_CACHE_FILE = path.join(GROUP_DATA_DIR, 'groupsCache.json');
-const GROUP_STATS_FILE = path.join(GROUP_DATA_DIR, 'groupsStats.json');
-const GROUP_ACTIVITY_FILE = path.join(GROUP_DATA_DIR, 'groupsActivity.json');
-const BANNED_USERS_DIR = path.join(process.cwd(), 'temp', 'bannedUsers');
-const BANNED_USERS_FILE = path.join(BANNED_USERS_DIR, 'bannedUsers.json');
-
-// === NOVOS CAMINHOS PARA DADOS DO SOCKET ===
-const SOCKET_DATA_DIR = path.join(process.cwd(), 'temp', 'data');
-const SOCKET_GROUPS_FILE = path.join(SOCKET_DATA_DIR, 'groups.json');
-const SOCKET_CONTACTS_FILE = path.join(SOCKET_DATA_DIR, 'contacts.json');
-const SOCKET_CHATS_FILE = path.join(SOCKET_DATA_DIR, 'chats.json');
-const SOCKET_METADATA_FILE = path.join(SOCKET_DATA_DIR, 'metadata.json');
+// === CONSTANTES GLOBAIS - CENTRALIZADAS NA PASTA DATA ===
+const DATA_DIR = path.join(process.cwd(), 'temp', 'data');
+const GROUPS_FILE = path.join(DATA_DIR, 'groups.json');
+const CONTACTS_FILE = path.join(DATA_DIR, 'contacts.json');
+const CHATS_FILE = path.join(DATA_DIR, 'chats.json');
+const METADATA_FILE = path.join(DATA_DIR, 'metadata.json');
+const STATS_FILE = path.join(DATA_DIR, 'stats.json');
+const ACTIVITY_FILE = path.join(DATA_DIR, 'activity.json');
+const BANNED_USERS_FILE = path.join(DATA_DIR, 'bannedUsers.json');
 
 // === CONFIGURAÇÕES GLOBAIS ===
 const CONFIG = {
-  CACHE_DURATION: 5 * 60 * 1000, // 5 minutos em ms
+  DATA_REFRESH_INTERVAL: 30 * 1000, // 30 segundos para verificar dados do socket
   MAX_ACTIVITY_LOGS: 1000, // Máximo de logs de atividade por grupo
   AUTO_CLEANUP_DAYS: 30, // Dias para limpeza automática de logs antigos
   STATS_UPDATE_INTERVAL: 15 * 60 * 1000, // 15 minutos para atualização de stats
@@ -43,16 +38,14 @@ const CONFIG = {
  */
 
 /**
- * Inicializa os diretórios necessários para o sistema
+ * Inicializa o diretório centralizado de dados
  */
 const initializeDirectories = async () => {
   try {
-    await fs.mkdir(GROUP_DATA_DIR, { recursive: true });
-    await fs.mkdir(BANNED_USERS_DIR, { recursive: true });
-    await fs.mkdir(SOCKET_DATA_DIR, { recursive: true });
-    logger.info('Diretórios de grupos e dados do socket inicializados com sucesso');
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    logger.info('Diretório de dados centralizado inicializado com sucesso', { dataDir: DATA_DIR });
   } catch (error) {
-    logger.error('Erro ao inicializar diretórios', { error: error.message });
+    logger.error('Erro ao inicializar diretório de dados', { error: error.message });
     throw error;
   }
 };
@@ -171,134 +164,84 @@ const isUserInGroup = async (omniZapClient, groupJid, userJid) => {
 };
 
 /**
- * === FUNÇÕES DE CACHE E METADADOS ===
+ * === FUNÇÕES DE DADOS DO SOCKET ===
  */
 
 /**
- * Carrega dados de grupos salvos pelo socket
+ * Carrega dados de grupos do socket
  *
  * @returns {Promise<Object>} - Dados de grupos do socket
  */
-const loadSocketGroupsData = async () => {
+const loadGroupsData = async () => {
   try {
     await initializeDirectories();
 
     try {
-      const data = await fs.readFile(SOCKET_GROUPS_FILE, 'utf8');
-      const socketGroups = JSON.parse(data);
+      const data = await fs.readFile(GROUPS_FILE, 'utf8');
+      const groups = JSON.parse(data);
 
-      logger.debug(`Carregados ${Object.keys(socketGroups).length} grupos dos dados do socket`);
-      return socketGroups;
+      logger.debug(`Carregados ${Object.keys(groups).length} grupos dos dados`);
+      return groups;
     } catch (readError) {
-      logger.debug('Arquivo de grupos do socket não encontrado, retornando objeto vazio');
+      logger.debug('Arquivo de grupos não encontrado, retornando objeto vazio');
       return {};
     }
   } catch (error) {
-    logger.error('Erro ao carregar dados de grupos do socket', { error: error.message });
+    logger.error('Erro ao carregar dados de grupos', { error: error.message });
     return {};
   }
 };
 
 /**
- * Carrega dados de contatos salvos pelo socket
+ * Carrega dados de contatos do socket
  *
  * @returns {Promise<Object>} - Dados de contatos do socket
  */
-const loadSocketContactsData = async () => {
+const loadContactsData = async () => {
   try {
     await initializeDirectories();
 
     try {
-      const data = await fs.readFile(SOCKET_CONTACTS_FILE, 'utf8');
-      const socketContacts = JSON.parse(data);
+      const data = await fs.readFile(CONTACTS_FILE, 'utf8');
+      const contacts = JSON.parse(data);
 
-      logger.debug(`Carregados ${Object.keys(socketContacts).length} contatos dos dados do socket`);
-      return socketContacts;
+      logger.debug(`Carregados ${Object.keys(contacts).length} contatos dos dados`);
+      return contacts;
     } catch (readError) {
-      logger.debug('Arquivo de contatos do socket não encontrado, retornando objeto vazio');
+      logger.debug('Arquivo de contatos não encontrado, retornando objeto vazio');
       return {};
     }
   } catch (error) {
-    logger.error('Erro ao carregar dados de contatos do socket', { error: error.message });
+    logger.error('Erro ao carregar dados de contatos', { error: error.message });
     return {};
   }
 };
 
 /**
- * Verifica se os dados do socket estão atualizados
+ * Verifica se os dados estão atualizados
  *
  * @returns {Promise<Boolean>} - True se os dados estão atualizados
  */
-const isSocketDataRecent = async () => {
+const isDataRecent = async () => {
   try {
-    const data = await fs.readFile(SOCKET_METADATA_FILE, 'utf8');
+    const data = await fs.readFile(METADATA_FILE, 'utf8');
     const metadata = JSON.parse(data);
 
-    // Considera os dados recentes se foram salvos nas últimas 2 horas
-    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
-    return metadata.lastSave && metadata.lastSave > twoHoursAgo;
+    // Considera os dados recentes se foram salvos no último intervalo configurado
+    const recentThreshold = Date.now() - CONFIG.DATA_REFRESH_INTERVAL;
+    return metadata.lastSave && metadata.lastSave > recentThreshold;
   } catch (error) {
-    logger.debug('Arquivo de metadata do socket não encontrado ou inválido');
+    logger.debug('Arquivo de metadata não encontrado ou inválido');
     return false;
   }
 };
 
 /**
- * Carrega o cache de grupos do arquivo
+ * Obtém metadados de um grupo usando apenas dados do socket
  *
- * @returns {Promise<Object>} - Cache de grupos
- */
-const loadGroupsCache = async () => {
-  try {
-    await initializeDirectories();
-
-    try {
-      const data = await fs.readFile(GROUP_CACHE_FILE, 'utf8');
-      const cache = JSON.parse(data);
-
-      // Validar estrutura do cache
-      if (!cache.groups) cache.groups = {};
-      if (!cache.lastUpdate) cache.lastUpdate = 0;
-
-      return cache;
-    } catch (readError) {
-      // Arquivo não existe ou está corrompido, criar novo cache
-      const newCache = {
-        groups: {},
-        lastUpdate: Date.now(),
-        version: '2.0.0',
-      };
-      await saveGroupsCache(newCache);
-      return newCache;
-    }
-  } catch (error) {
-    logger.error('Erro ao carregar cache de grupos', { error: error.message });
-    return { groups: {}, lastUpdate: 0, version: '2.0.0' };
-  }
-};
-
-/**
- * Salva o cache de grupos no arquivo
- *
- * @param {Object} cache - Cache de grupos
- */
-const saveGroupsCache = async (cache) => {
-  try {
-    await initializeDirectories();
-    cache.lastUpdate = Date.now();
-    await fs.writeFile(GROUP_CACHE_FILE, JSON.stringify(cache, null, 2));
-    logger.debug('Cache de grupos salvo com sucesso');
-  } catch (error) {
-    logger.error('Erro ao salvar cache de grupos', { error: error.message });
-  }
-};
-
-/**
- * Obtém metadados de um grupo com cache inteligente que prioriza dados do socket
- *
- * @param {Object} omniZapClient - Cliente WhatsApp
+ * @param {Object} omniZapClient - Cliente WhatsApp (opcional, usado apenas como fallback)
  * @param {String} groupJid - ID do grupo
- * @param {Boolean} forceRefresh - Forçar atualização do cache
+ * @param {Boolean} forceRefresh - Forçar busca na API (usar com cuidado)
  * @returns {Promise<Object>} - Metadados do grupo
  */
 const getGroupMetadata = async (omniZapClient, groupJid, forceRefresh = false) => {
@@ -311,108 +254,59 @@ const getGroupMetadata = async (omniZapClient, groupJid, forceRefresh = false) =
 
     const now = Date.now();
 
-    // 1. Primeiro, tentar carregar dos dados do socket se estão atualizados
-    if (!forceRefresh) {
-      const socketDataRecent = await isSocketDataRecent();
-      if (socketDataRecent) {
-        const socketGroups = await loadSocketGroupsData();
-        if (socketGroups[groupJid]) {
-          logger.debug('Usando metadados dos dados do socket', { groupJid });
+    // Se forceRefresh for true e cliente estiver disponível, buscar da API
+    if (forceRefresh && omniZapClient) {
+      try {
+        logger.debug('Buscando metadados frescos da API (forceRefresh)', { groupJid });
+        const metadata = await omniZapClient.groupMetadata(groupJid);
 
-          // Enriquecer com informações adicionais se necessário
-          const socketMetadata = {
-            ...socketGroups[groupJid],
-            participantCount: socketGroups[groupJid].participants?.length || 0,
-            adminCount: socketGroups[groupJid].participants?.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length || 0,
+        if (metadata) {
+          const enrichedMetadata = {
+            ...metadata,
+            participantCount: metadata.participants?.length || 0,
+            adminCount: metadata.participants?.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length || 0,
             lastUpdated: now,
-            source: 'socket_data',
+            source: 'api_fresh',
           };
 
-          return socketMetadata;
+          logger.info('Metadados do grupo atualizados via API', {
+            groupJid,
+            participantCount: enrichedMetadata.participantCount,
+            adminCount: enrichedMetadata.adminCount,
+          });
+
+          return enrichedMetadata;
         }
+      } catch (apiError) {
+        logger.warn('Erro ao buscar da API, usando dados do socket', { error: apiError.message });
       }
     }
 
-    // 2. Se não encontrou nos dados do socket, verificar cache local
-    if (!forceRefresh) {
-      const cache = await loadGroupsCache();
-      const cachedGroup = cache.groups[groupJid];
-      const isCacheValid = cachedGroup && now - cachedGroup.lastUpdate < CONFIG.CACHE_DURATION;
+    // Carregar dados do socket (prioridade principal)
+    const groupsData = await loadGroupsData();
 
-      if (isCacheValid) {
-        logger.debug('Usando metadados do cache local', { groupJid });
-        return {
-          ...cachedGroup.metadata,
-          source: 'local_cache',
-        };
-      }
+    if (groupsData[groupJid]) {
+      logger.debug('Usando metadados dos dados do socket', { groupJid });
+
+      const socketMetadata = {
+        ...groupsData[groupJid],
+        participantCount: groupsData[groupJid].participants?.length || 0,
+        adminCount: groupsData[groupJid].participants?.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length || 0,
+        lastUpdated: now,
+        source: 'socket_data',
+      };
+
+      return socketMetadata;
     }
 
-    // 3. Como último recurso, buscar da API se o cliente estiver disponível
-    if (!omniZapClient) {
-      logger.warn('Cliente WhatsApp não fornecido e dados não encontrados em cache', { groupJid });
-      return null;
-    }
-
-    // Buscar metadados frescos da API
-    logger.debug('Buscando metadados frescos da API', { groupJid });
-    const metadata = await omniZapClient.groupMetadata(groupJid);
-
-    if (!metadata) {
-      logger.warn('Metadados não retornados pela API', { groupJid });
-      return null;
-    }
-
-    // Enriquecer metadados com informações adicionais
-    const enrichedMetadata = {
-      ...metadata,
-      participantCount: metadata.participants?.length || 0,
-      adminCount: metadata.participants?.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length || 0,
-      lastUpdated: now,
-      source: 'api_fresh',
-    };
-
-    // Salvar no cache local
-    const cache = await loadGroupsCache();
-    cache.groups[groupJid] = {
-      metadata: enrichedMetadata,
-      lastUpdate: now,
-    };
-
-    await saveGroupsCache(cache);
-
-    logger.info('Metadados do grupo atualizados via API', {
-      groupJid,
-      participantCount: enrichedMetadata.participantCount,
-      adminCount: enrichedMetadata.adminCount,
-      source: enrichedMetadata.source,
-    });
-
-    return enrichedMetadata;
+    logger.warn('Grupo não encontrado nos dados do socket', { groupJid });
+    return null;
   } catch (error) {
     logger.error('Erro ao obter metadados do grupo', {
       error: error.message,
       stack: error.stack,
       groupJid,
     });
-
-    // Como fallback, tentar dados do socket mesmo se não estão recentes
-    try {
-      const socketGroups = await loadSocketGroupsData();
-      if (socketGroups[groupJid]) {
-        logger.info('Usando dados do socket como fallback', { groupJid });
-        return {
-          ...socketGroups[groupJid],
-          participantCount: socketGroups[groupJid].participants?.length || 0,
-          adminCount: socketGroups[groupJid].participants?.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length || 0,
-          lastUpdated: Date.now(),
-          source: 'socket_fallback',
-        };
-      }
-    } catch (fallbackError) {
-      logger.error('Erro no fallback dos dados do socket', { error: fallbackError.message });
-    }
-
     return null;
   }
 };
@@ -422,16 +316,16 @@ const getGroupMetadata = async (omniZapClient, groupJid, forceRefresh = false) =
  */
 
 /**
- * Carrega as estatísticas globais de grupos
+ * Carrega as estatísticas globais baseadas nos dados do socket
  *
  * @returns {Promise<Object>} - Estatísticas de grupos
  */
-const loadGroupStats = async () => {
+const loadStats = async () => {
   try {
     await initializeDirectories();
 
     try {
-      const data = await fs.readFile(GROUP_STATS_FILE, 'utf8');
+      const data = await fs.readFile(STATS_FILE, 'utf8');
       const stats = JSON.parse(data);
 
       // Validar estrutura das estatísticas
@@ -453,43 +347,52 @@ const loadGroupStats = async () => {
         },
         groups: {},
         lastUpdate: Date.now(),
-        version: '2.0.0',
+        version: '3.0.0',
       };
-      await saveGroupStats(newStats);
+      await saveStats(newStats);
       return newStats;
     }
   } catch (error) {
-    logger.error('Erro ao carregar estatísticas de grupos', { error: error.message });
-    return { global: {}, groups: {}, lastUpdate: 0, version: '2.0.0' };
+    logger.error('Erro ao carregar estatísticas', { error: error.message });
+    return { global: {}, groups: {}, lastUpdate: 0, version: '3.0.0' };
   }
 };
 
 /**
- * Salva as estatísticas de grupos
+ * Salva as estatísticas
  *
  * @param {Object} stats - Estatísticas de grupos
  */
-const saveGroupStats = async (stats) => {
+const saveStats = async (stats) => {
   try {
     await initializeDirectories();
     stats.lastUpdate = Date.now();
-    await fs.writeFile(GROUP_STATS_FILE, JSON.stringify(stats, null, 2));
-    logger.debug('Estatísticas de grupos salvas com sucesso');
+    await fs.writeFile(STATS_FILE, JSON.stringify(stats, null, 2));
+    logger.debug('Estatísticas salvas com sucesso');
   } catch (error) {
-    logger.error('Erro ao salvar estatísticas de grupos', { error: error.message });
+    logger.error('Erro ao salvar estatísticas', { error: error.message });
   }
 };
 
 /**
- * Atualiza as estatísticas de um grupo específico
+ * Atualiza as estatísticas de um grupo específico baseado nos dados do socket
  *
  * @param {String} groupJid - ID do grupo
- * @param {Object} groupMetadata - Metadados do grupo
+ * @param {Object} groupMetadata - Metadados do grupo (opcional, será buscado se não fornecido)
  * @param {Object} additionalData - Dados adicionais para estatísticas
  */
-const updateGroupStats = async (groupJid, groupMetadata, additionalData = {}) => {
+const updateGroupStats = async (groupJid, groupMetadata = null, additionalData = {}) => {
   try {
-    const stats = await loadGroupStats();
+    // Se metadados não foram fornecidos, buscar dos dados do socket
+    if (!groupMetadata) {
+      groupMetadata = await getGroupMetadata(null, groupJid);
+      if (!groupMetadata) {
+        logger.warn('Não foi possível obter metadados para atualizar estatísticas', { groupJid });
+        return;
+      }
+    }
+
+    const stats = await loadStats();
     const now = Date.now();
 
     // Atualizar estatísticas do grupo específico
@@ -508,7 +411,7 @@ const updateGroupStats = async (groupJid, groupMetadata, additionalData = {}) =>
 
     const groupStats = stats.groups[groupJid];
 
-    // Atualizar contadores
+    // Atualizar contadores baseados nos dados do socket
     groupStats.name = groupMetadata.subject || groupStats.name;
     groupStats.participantCount = groupMetadata.participants?.length || 0;
     groupStats.adminCount = groupMetadata.participants?.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length || 0;
@@ -536,7 +439,7 @@ const updateGroupStats = async (groupJid, groupMetadata, additionalData = {}) =>
     // Atualizar estatísticas globais
     await updateGlobalStats(stats);
 
-    await saveGroupStats(stats);
+    await saveStats(stats);
 
     logger.debug('Estatísticas do grupo atualizadas', {
       groupJid,
@@ -585,10 +488,7 @@ const updateGlobalStats = async (stats) => {
  */
 
 /**
- * Registra uma atividade em um grupo
- *
- * Esta função apenas registra a atividade no arquivo de logs.
- * Para atualizar estatísticas, use updateGroupStats() separadamente.
+ * Registra uma atividade em um grupo no arquivo centralizado
  *
  * @param {String} groupJid - ID do grupo
  * @param {String} activityType - Tipo de atividade
@@ -600,11 +500,16 @@ const logGroupActivity = async (groupJid, activityType, activityData = {}) => {
 
     let activities = {};
     try {
-      const data = await fs.readFile(GROUP_ACTIVITY_FILE, 'utf8');
+      const data = await fs.readFile(ACTIVITY_FILE, 'utf8');
       activities = JSON.parse(data);
     } catch (readError) {
       // Arquivo não existe, criar novo
-      activities = { groups: {}, lastCleanup: Date.now() };
+      activities = {
+        global: { totalActivities: 0, lastActivity: Date.now() },
+        groups: {},
+        lastCleanup: Date.now(),
+        version: '3.0.0',
+      };
     }
 
     // Inicializar grupo se necessário
@@ -631,6 +536,10 @@ const logGroupActivity = async (groupJid, activityType, activityData = {}) => {
       groupActivities.logs = groupActivities.logs.slice(-CONFIG.MAX_ACTIVITY_LOGS);
     }
 
+    // Atualizar estatísticas globais
+    activities.global.totalActivities = Object.values(activities.groups).reduce((sum, group) => sum + (group.totalActivities || 0), 0);
+    activities.global.lastActivity = newActivity.timestamp;
+
     // Limpeza automática se necessário
     const now = Date.now();
     if (now - (activities.lastCleanup || 0) > CONFIG.AUTO_CLEANUP_DAYS * 24 * 60 * 60 * 1000) {
@@ -639,7 +548,7 @@ const logGroupActivity = async (groupJid, activityType, activityData = {}) => {
     }
 
     activities.lastUpdate = now;
-    await fs.writeFile(GROUP_ACTIVITY_FILE, JSON.stringify(activities, null, 2));
+    await fs.writeFile(ACTIVITY_FILE, JSON.stringify(activities, null, 2));
 
     logger.debug('Atividade registrada', {
       groupJid,
@@ -804,7 +713,7 @@ const getAllBotGroups = async (omniZapClient) => {
  */
 
 /**
- * Carrega a lista de usuários banidos
+ * Carrega a lista de usuários banidos do arquivo centralizado
  *
  * @returns {Promise<Object>} - Lista de usuários banidos
  */
@@ -829,7 +738,7 @@ const loadBannedUsersList = async () => {
         groupBans: {},
         globalBans: [],
         lastUpdate: Date.now(),
-        version: '2.0.0',
+        version: '3.0.0',
       };
       await saveBannedUsersList(newList);
       return newList;
@@ -1112,98 +1021,24 @@ const generateGroupsReport = async (omniZapClient, options = {}) => {
 };
 
 /**
- * Sincroniza dados do socket com o cache local para melhor performance
- *
- * @returns {Promise<Object>} - Resultado da sincronização
- */
-const syncSocketDataToCache = async () => {
-  try {
-    logger.info('Iniciando sincronização dos dados do socket com cache local');
-
-    const socketGroups = await loadSocketGroupsData();
-    const cache = await loadGroupsCache();
-    const now = Date.now();
-
-    let syncedCount = 0;
-    let updatedCount = 0;
-
-    // Sincronizar cada grupo dos dados do socket
-    for (const [groupJid, socketGroupData] of Object.entries(socketGroups)) {
-      try {
-        const cachedGroup = cache.groups[groupJid];
-
-        // Verificar se precisa atualizar (dados do socket são mais recentes ou cache não existe)
-        const shouldUpdate = !cachedGroup || !cachedGroup.lastUpdate || socketGroupData.subjectTime > cachedGroup.lastUpdate / 1000; // subjectTime está em segundos
-
-        if (shouldUpdate) {
-          // Enriquecer dados do socket com informações adicionais
-          const enrichedMetadata = {
-            ...socketGroupData,
-            participantCount: socketGroupData.participants?.length || 0,
-            adminCount: socketGroupData.participants?.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length || 0,
-            lastUpdated: now,
-            source: 'socket_sync',
-          };
-
-          cache.groups[groupJid] = {
-            metadata: enrichedMetadata,
-            lastUpdate: now,
-            syncedFromSocket: true,
-          };
-
-          updatedCount++;
-        }
-
-        syncedCount++;
-      } catch (groupError) {
-        logger.error(`Erro ao sincronizar grupo ${groupJid}`, { error: groupError.message });
-      }
-    }
-
-    // Salvar cache atualizado
-    if (updatedCount > 0) {
-      await saveGroupsCache(cache);
-    }
-
-    const result = {
-      success: true,
-      totalGroups: Object.keys(socketGroups).length,
-      syncedCount,
-      updatedCount,
-      timestamp: now,
-    };
-
-    logger.info('Sincronização concluída', result);
-    return result;
-  } catch (error) {
-    logger.error('Erro na sincronização dos dados do socket', { error: error.message });
-    return {
-      success: false,
-      error: error.message,
-      timestamp: Date.now(),
-    };
-  }
-};
-
-/**
- * Obtém informações de contato usando dados do socket
+ * Obtém informações de contato usando dados centralizados
  *
  * @param {String} contactJid - JID do contato
  * @returns {Promise<Object|null>} - Dados do contato
  */
 const getContactInfo = async (contactJid) => {
   try {
-    const socketContacts = await loadSocketContactsData();
+    const contacts = await loadContactsData();
 
-    if (socketContacts[contactJid]) {
-      logger.debug('Informações de contato encontradas nos dados do socket', { contactJid });
+    if (contacts[contactJid]) {
+      logger.debug('Informações de contato encontradas nos dados', { contactJid });
       return {
-        ...socketContacts[contactJid],
-        source: 'socket_data',
+        ...contacts[contactJid],
+        source: 'data_centralized',
       };
     }
 
-    logger.debug('Contato não encontrado nos dados do socket', { contactJid });
+    logger.debug('Contato não encontrado nos dados', { contactJid });
     return null;
   } catch (error) {
     logger.error('Erro ao obter informações de contato', {
@@ -1227,21 +1062,16 @@ module.exports = {
   isBotAdmin,
   isUserInGroup,
 
-  // Funções de cache e metadados
-  loadGroupsCache,
-  saveGroupsCache,
+  // Funções de dados centralizados
+  loadGroupsData,
+  loadContactsData,
+  isDataRecent,
   getGroupMetadata,
-
-  // Funções específicas para dados do socket
-  loadSocketGroupsData,
-  loadSocketContactsData,
-  isSocketDataRecent,
-  syncSocketDataToCache,
   getContactInfo,
 
   // Funções de estatísticas
-  loadGroupStats,
-  saveGroupStats,
+  loadStats,
+  saveStats,
   updateGroupStats,
   updateGlobalStats,
 
@@ -1267,17 +1097,14 @@ module.exports = {
   // Funções de relatórios
   generateGroupsReport,
 
-  // Constantes
-  GROUP_DATA_DIR,
-  GROUP_CACHE_FILE,
-  GROUP_STATS_FILE,
-  GROUP_ACTIVITY_FILE,
-  BANNED_USERS_DIR,
+  // Constantes centralizadas
+  DATA_DIR,
+  GROUPS_FILE,
+  CONTACTS_FILE,
+  CHATS_FILE,
+  METADATA_FILE,
+  STATS_FILE,
+  ACTIVITY_FILE,
   BANNED_USERS_FILE,
-  SOCKET_DATA_DIR,
-  SOCKET_GROUPS_FILE,
-  SOCKET_CONTACTS_FILE,
-  SOCKET_CHATS_FILE,
-  SOCKET_METADATA_FILE,
   CONFIG,
 };

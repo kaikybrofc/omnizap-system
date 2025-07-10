@@ -12,6 +12,7 @@
 const OmniZapMessageProcessor = require('./app/controllers/messageController');
 const { eventHandler } = require('./app/events/eventHandler');
 const logger = require('./app/utils/logger/loggerModule');
+const { initializeDirectories } = require('./app/utils/groupGlobalUtils');
 
 // Variáveis globais para controle de estado
 let activeSocketController = null;
@@ -277,6 +278,10 @@ if (require.main === module) {
   }
 
   try {
+    // Inicializar diretórios centralizados de dados
+    logger.info('📁 Inicializando estrutura de dados centralizada...');
+    await initializeDirectories();
+
     // Inicializar socketController
     logger.info('🔗 Iniciando controlador de conexão...');
 
