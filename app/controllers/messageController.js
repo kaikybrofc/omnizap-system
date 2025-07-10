@@ -503,7 +503,7 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                 break;
               case 'banlist':
                 try {
-                  const { processBanListCommand } = require('../commandModules/adminModules/banListCommand');
+                  const { processBanListCommand } = require('../commandModules/adminModules/adminCommands');
 
                   logger.info('Comando banlist executado', {
                     command,
