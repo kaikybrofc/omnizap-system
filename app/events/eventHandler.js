@@ -2,25 +2,62 @@
  * OmniZap Event Handler
  *
  * Módulo responsável pelo processamento independente de eventos
- * Recebe eventos do socketController e os processa de forma assíncrona
+ * Usa cache local centralizado e persistência em JSON
  *
- * @version 1.0.5
+ * @version 2.0.0
  * @author OmniZap Team
  * @license MIT
  */
 
-const chalk = require('chalk');
-const { databaseManager } = require('../database/databaseManager');
+const fs = require('fs');
+const path = require('path');
+const NodeCache = require('node-cache');
 const logger = require('../utils/logger/loggerModule');
 
 /**
- * Classe principal do processador de eventos
+ * Classe principal do processador de eventos com cache local
  */
 class EventHandler {
   constructor() {
     this.initialized = false;
     this.omniZapClient = null;
+    this.cacheDir = path.join(__dirname, '../../temp/cache');
+    this.dataDir = path.join(__dirname, '../../temp/data');
+
+    // Cache instances com TTL diferenciados
+    this.messageCache = new NodeCache({ stdTTL: 3600, checkperiod: 600 }); // 1 hora
+    this.groupCache = new NodeCache({ stdTTL: 7200, checkperiod: 600 }); // 2 horas
+    this.contactCache = new NodeCache({ stdTTL: 7200, checkperiod: 600 }); // 2 horas
+    this.chatCache = new NodeCache({ stdTTL: 3600, checkperiod: 600 }); // 1 hora
+    this.eventCache = new NodeCache({ stdTTL: 1800, checkperiod: 300 }); // 30 minutos
+
     this.init();
+  }
+
+  /**
+   * Inicializa o processador de eventos e cache
+   */
+  init() {
+    try {
+      // Cria diretórios se não existirem
+      [this.cacheDir, this.dataDir].forEach((dir) => {
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+          logger.info(`📁 Cache: Diretório criado: ${dir}`);
+        }
+      });
+
+      // Carrega dados persistentes
+      this.loadPersistedData();
+
+      // Configura auto-save
+      this.setupAutoSave();
+
+      logger.info('🎯 OmniZap Events: Cache local inicializado');
+      this.initialized = true;
+    } catch (error) {
+      logger.error('❌ Erro ao inicializar cache:', error.message);
+    }
   }
 
   /**
@@ -33,11 +70,106 @@ class EventHandler {
   }
 
   /**
-   * Inicializa o processador de eventos
+   * Carrega dados persistentes dos arquivos JSON
    */
-  init() {
-    logger.info('🎯 OmniZap Events: Processador inicializado');
-    this.initialized = true;
+  loadPersistedData() {
+    const dataFiles = {
+      groups: path.join(this.dataDir, 'groups.json'),
+      contacts: path.join(this.dataDir, 'contacts.json'),
+      chats: path.join(this.dataDir, 'chats.json'),
+      metadata: path.join(this.dataDir, 'metadata.json'),
+    };
+
+    Object.entries(dataFiles).forEach(([type, filePath]) => {
+      try {
+        if (fs.existsSync(filePath)) {
+          const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+          const cache = this.getCacheByType(type);
+
+          Object.entries(data).forEach(([key, value]) => {
+            cache.set(key, value);
+          });
+
+          logger.info(`📂 Cache: ${Object.keys(data).length} ${type} carregados do arquivo`);
+        }
+      } catch (error) {
+        logger.error(`❌ Erro ao carregar ${type}:`, error.message);
+      }
+    });
+  }
+
+  /**
+   * Configura salvamento automático periódico
+   */
+  setupAutoSave() {
+    // Salva dados a cada 5 minutos
+    setInterval(() => {
+      this.savePersistedData();
+    }, 5 * 60 * 1000);
+
+    // Salva dados ao encerrar aplicação
+    process.on('SIGINT', () => {
+      logger.info('🔄 Salvando dados antes de encerrar...');
+      this.savePersistedData();
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', () => {
+      this.savePersistedData();
+      process.exit(0);
+    });
+  }
+
+  /**
+   * Salva dados persistentes em arquivos JSON
+   */
+  savePersistedData() {
+    const dataToSave = {
+      groups: this.groupCache.keys().reduce((acc, key) => {
+        acc[key] = this.groupCache.get(key);
+        return acc;
+      }, {}),
+      contacts: this.contactCache.keys().reduce((acc, key) => {
+        acc[key] = this.contactCache.get(key);
+        return acc;
+      }, {}),
+      chats: this.chatCache.keys().reduce((acc, key) => {
+        acc[key] = this.chatCache.get(key);
+        return acc;
+      }, {}),
+      metadata: {
+        lastSave: Date.now(),
+        totalMessages: this.messageCache.keys().length,
+        totalGroups: this.groupCache.keys().length,
+        totalContacts: this.contactCache.keys().length,
+        totalChats: this.chatCache.keys().length,
+      },
+    };
+
+    Object.entries(dataToSave).forEach(([type, data]) => {
+      try {
+        const filePath = path.join(this.dataDir, `${type}.json`);
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+      } catch (error) {
+        logger.error(`❌ Erro ao salvar ${type}:`, error.message);
+      }
+    });
+
+    logger.debug('💾 Cache: Dados salvos em arquivos JSON');
+  }
+
+  /**
+   * Retorna o cache apropriado baseado no tipo
+   */
+  getCacheByType(type) {
+    const cacheMap = {
+      groups: this.groupCache,
+      contacts: this.contactCache,
+      chats: this.chatCache,
+      messages: this.messageCache,
+      events: this.eventCache,
+    };
+    return cacheMap[type] || this.eventCache;
   }
 
   /**
@@ -48,7 +180,13 @@ class EventHandler {
       try {
         logger.info(`📨 Events: Processando messages.upsert - ${messageUpdate.messages?.length || 0} mensagem(ns)`);
 
-        await databaseManager.saveEvent('messages.upsert', messageUpdate, `upsert_${Date.now()}`);
+        // Salva evento no cache
+        const eventId = `upsert_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'messages.upsert',
+          data: messageUpdate,
+          timestamp: Date.now(),
+        });
 
         const groupJids = new Set();
 
@@ -72,7 +210,9 @@ class EventHandler {
                 _senderJid: isGroupMessage ? messageInfo.key.participant || messageInfo.key.remoteJid : messageInfo.key.remoteJid,
               };
 
-              await databaseManager.saveMessage(enhancedMessageInfo);
+              // Salva mensagem no cache
+              const messageKey = `${messageInfo.key.remoteJid}_${messageInfo.key.id}`;
+              this.messageCache.set(messageKey, enhancedMessageInfo);
               processedCount++;
 
               const jid = messageInfo.key?.remoteJid?.substring(0, 20) || 'N/A';
@@ -93,7 +233,6 @@ class EventHandler {
 
           if (groupJids.size > 0 && this.omniZapClient) {
             logger.info(`Events: Carregando metadados de ${groupJids.size} grupo(s) detectado(s)`);
-
             await this.loadGroupsMetadata(Array.from(groupJids));
           }
 
@@ -116,12 +255,24 @@ class EventHandler {
       try {
         logger.info(`📝 Events: Processando messages.update - ${updates?.length || 0} atualização(ões)`);
 
-        await databaseManager.saveEvent('messages.update', updates, `update_${Date.now()}`);
+        const eventId = `update_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'messages.update',
+          data: updates,
+          timestamp: Date.now(),
+        });
 
         updates?.forEach((update, index) => {
           const status = update.update?.status || 'N/A';
           const jid = update.key?.remoteJid?.substring(0, 20) || 'N/A';
           logger.debug(`   ${index + 1}. Status: ${status} | JID: ${jid}...`);
+
+          // Atualiza mensagem no cache se existir
+          const messageKey = `${update.key.remoteJid}_${update.key.id}`;
+          const existingMessage = this.messageCache.get(messageKey);
+          if (existingMessage) {
+            this.messageCache.set(messageKey, { ...existingMessage, ...update.update });
+          }
         });
       } catch (error) {
         logger.error('Events: Erro no processamento de messages.update:', {
@@ -140,7 +291,12 @@ class EventHandler {
       try {
         logger.warn('🗑️ Events: Processando messages.delete');
 
-        await databaseManager.saveEvent('messages.delete', deletion, `delete_${Date.now()}`);
+        const eventId = `delete_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'messages.delete',
+          data: deletion,
+          timestamp: Date.now(),
+        });
 
         if (deletion.keys) {
           logger.debug(`   Mensagens deletadas: ${deletion.keys.length}`);
@@ -148,6 +304,10 @@ class EventHandler {
             const jid = key.remoteJid?.substring(0, 20) || 'N/A';
             const id = key.id?.substring(0, 10) || 'N/A';
             logger.debug(`   ${index + 1}. JID: ${jid}... | ID: ${id}...`);
+
+            // Remove mensagem do cache
+            const messageKey = `${key.remoteJid}_${key.id}`;
+            this.messageCache.del(messageKey);
           });
         }
       } catch (error) {
@@ -167,7 +327,12 @@ class EventHandler {
       try {
         logger.info(`😀 Events: Processando messages.reaction - ${reactions?.length || 0} reação(ões)`);
 
-        await databaseManager.saveEvent('messages.reaction', reactions, `reaction_${Date.now()}`);
+        const eventId = `reaction_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'messages.reaction',
+          data: reactions,
+          timestamp: Date.now(),
+        });
 
         reactions?.forEach((reaction, index) => {
           const emoji = reaction.reaction?.text || '❓';
@@ -191,7 +356,12 @@ class EventHandler {
       try {
         logger.info(`📬 Events: Processando message-receipt.update - ${receipts?.length || 0} recibo(s)`);
 
-        await databaseManager.saveEvent('message-receipt.update', receipts, `receipt_${Date.now()}`);
+        const eventId = `receipt_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'message-receipt.update',
+          data: receipts,
+          timestamp: Date.now(),
+        });
 
         receipts?.forEach((receipt, index) => {
           const status = receipt.receipt?.readTimestamp ? '✓✓ Lida' : receipt.receipt?.receiptTimestamp ? '✓✓ Entregue' : '✓ Enviada';
@@ -215,7 +385,12 @@ class EventHandler {
       try {
         logger.info('📚 Events: Processando messaging-history.set');
 
-        await databaseManager.saveEvent('messaging-history.set', historyData, `history_${Date.now()}`);
+        const eventId = `history_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'messaging-history.set',
+          data: historyData,
+          timestamp: Date.now(),
+        });
 
         if (historyData.messages) {
           logger.debug(`   Mensagens no histórico: ${historyData.messages.length}`);
@@ -240,16 +415,24 @@ class EventHandler {
       try {
         logger.info(`👥 Events: Processando groups.update - ${updates?.length || 0} atualização(ões)`);
 
-        await databaseManager.saveEvent('groups.update', updates, `groups_update_${Date.now()}`);
+        const eventId = `groups_update_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'groups.update',
+          data: updates,
+          timestamp: Date.now(),
+        });
 
         for (const update of updates || []) {
           const jid = update.id?.substring(0, 30) || 'N/A';
           logger.debug(`   Grupo atualizado: ${jid}...`);
 
           if (update.id) {
-            const cachedGroup = await databaseManager.getGroupMetadata(update.id);
+            // Verifica cache local primeiro
+            const cachedGroup = this.groupCache.get(update.id);
 
-            await databaseManager.saveGroupMetadata(update.id, update);
+            // Atualiza cache com novos dados
+            const updatedGroup = cachedGroup ? { ...cachedGroup, ...update } : update;
+            this.groupCache.set(update.id, updatedGroup);
 
             if (cachedGroup) {
               logger.info(`   Cache hit para grupo: ${jid}...`);
@@ -273,22 +456,31 @@ class EventHandler {
       try {
         logger.info(`👥 Events: Processando groups.upsert - ${groupsMetadata?.length || 0} grupo(s)`);
 
-        await databaseManager.saveEvent('groups.upsert', groupsMetadata, `groups_upsert_${Date.now()}`);
+        const eventId = `groups_upsert_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'groups.upsert',
+          data: groupsMetadata,
+          timestamp: Date.now(),
+        });
 
         for (const group of groupsMetadata || []) {
           const jid = group.id?.substring(0, 30) || 'N/A';
           const subject = group.subject || 'Sem nome';
           logger.debug(`   ${subject} | JID: ${jid}...`);
 
-          await databaseManager.saveGroupMetadata(group.id, group);
+          // Salva no cache de grupos
+          this.groupCache.set(group.id, {
+            ...group,
+            _cachedAt: Date.now(),
+            _participantCount: group.participants?.length || 0,
+          });
+
+          // Busca metadados completos se cliente disponível
           if (this.omniZapClient && group.id) {
             try {
-              await databaseManager.getOrFetchGroupMetadata(group.id, this.omniZapClient);
+              await this.getOrFetchGroupMetadata(group.id);
             } catch (error) {
-              logger.error(`Events: Erro ao buscar metadados do grupo ${subject}:`, {
-                error: error.message,
-                stack: error.stack,
-              });
+              logger.error(`Events: Erro ao buscar metadados do grupo ${subject}:`, error.message);
             }
           }
         }
@@ -309,12 +501,33 @@ class EventHandler {
       try {
         logger.info('👥 Events: Processando group-participants.update');
 
-        await databaseManager.saveEvent('group-participants.update', event, `participants_${Date.now()}`);
+        const eventId = `participants_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'group-participants.update',
+          data: event,
+          timestamp: Date.now(),
+        });
 
         const jid = event.id?.substring(0, 30) || 'N/A';
         const action = event.action || 'N/A';
         const participants = event.participants?.length || 0;
         logger.debug(`   Grupo: ${jid}... | Ação: ${action} | Participantes: ${participants}`);
+
+        // Atualiza cache do grupo se existir
+        if (event.id) {
+          const cachedGroup = this.groupCache.get(event.id);
+          if (cachedGroup) {
+            const updatedGroup = { ...cachedGroup };
+            if (event.action === 'add') {
+              updatedGroup.participants = [...(updatedGroup.participants || []), ...event.participants];
+            } else if (event.action === 'remove') {
+              updatedGroup.participants = (updatedGroup.participants || []).filter((p) => !event.participants.includes(p));
+            }
+            updatedGroup._participantCount = updatedGroup.participants?.length || 0;
+            updatedGroup._lastUpdate = Date.now();
+            this.groupCache.set(event.id, updatedGroup);
+          }
+        }
       } catch (error) {
         logger.error('Events: Erro no processamento de group-participants.update:', {
           error: error.message,
@@ -332,15 +545,26 @@ class EventHandler {
       try {
         logger.info(`💬 Events: Processando chats.upsert - ${chats?.length || 0} chat(s)`);
 
-        await databaseManager.saveEvent('chats.upsert', chats, `chats_upsert_${Date.now()}`);
+        const eventId = `chats_upsert_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'chats.upsert',
+          data: chats,
+          timestamp: Date.now(),
+        });
 
         for (const chat of chats || []) {
           const jid = chat.id?.substring(0, 30) || 'N/A';
           const name = chat.name || 'Sem nome';
           logger.debug(`   ${name} | JID: ${jid}...`);
 
-          const cachedChat = await databaseManager.getChat(chat.id);
-          await databaseManager.saveChat(chat);
+          // Verifica cache local
+          const cachedChat = this.chatCache.get(chat.id);
+
+          // Salva no cache
+          this.chatCache.set(chat.id, {
+            ...chat,
+            _cachedAt: Date.now(),
+          });
 
           if (cachedChat) {
             logger.info(`   Cache hit para chat: ${name}`);
@@ -363,15 +587,24 @@ class EventHandler {
       try {
         logger.info(`💬 Events: Processando chats.update - ${updates?.length || 0} atualização(ões)`);
 
-        await databaseManager.saveEvent('chats.update', updates, `chats_update_${Date.now()}`);
+        const eventId = `chats_update_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'chats.update',
+          data: updates,
+          timestamp: Date.now(),
+        });
 
         for (const update of updates || []) {
           const jid = update.id?.substring(0, 30) || 'N/A';
           logger.debug(`   Chat atualizado: ${jid}...`);
 
-          const cachedChat = await databaseManager.getChat(update.id);
+          // Verifica cache local
+          const cachedChat = this.chatCache.get(update.id);
 
-          await databaseManager.saveChat(update);
+          // Atualiza cache
+          const updatedChat = cachedChat ? { ...cachedChat, ...update } : update;
+          updatedChat._lastUpdate = Date.now();
+          this.chatCache.set(update.id, updatedChat);
 
           if (cachedChat) {
             logger.info(`   Cache hit para chat: ${jid}...`);
@@ -394,10 +627,18 @@ class EventHandler {
       try {
         logger.warn(`💬 Events: Processando chats.delete - ${jids?.length || 0} chat(s) deletado(s)`);
 
-        await databaseManager.saveEvent('chats.delete', jids, `chats_delete_${Date.now()}`);
+        const eventId = `chats_delete_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'chats.delete',
+          data: jids,
+          timestamp: Date.now(),
+        });
 
         jids?.forEach((jid, index) => {
           logger.debug(`   ${index + 1}. JID deletado: ${jid.substring(0, 30)}...`);
+
+          // Remove do cache
+          this.chatCache.del(jid);
         });
       } catch (error) {
         logger.error('Events: Erro no processamento de chats.delete:', {
@@ -416,16 +657,26 @@ class EventHandler {
       try {
         logger.info(`👤 Events: Processando contacts.upsert - ${contacts?.length || 0} contato(s)`);
 
-        await databaseManager.saveEvent('contacts.upsert', contacts, `contacts_upsert_${Date.now()}`);
+        const eventId = `contacts_upsert_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'contacts.upsert',
+          data: contacts,
+          timestamp: Date.now(),
+        });
 
         for (const contact of contacts || []) {
           const jid = contact.id?.substring(0, 30) || 'N/A';
           const name = contact.name || contact.notify || 'Sem nome';
           logger.debug(`   ${name} | JID: ${jid}...`);
 
-          const cachedContact = await databaseManager.getContact(contact.id);
+          // Verifica cache local
+          const cachedContact = this.contactCache.get(contact.id);
 
-          await databaseManager.saveContact(contact);
+          // Salva no cache
+          this.contactCache.set(contact.id, {
+            ...contact,
+            _cachedAt: Date.now(),
+          });
 
           if (cachedContact) {
             logger.info(`   Cache hit para contato: ${name}`);
@@ -448,16 +699,25 @@ class EventHandler {
       try {
         logger.info(`👤 Events: Processando contacts.update - ${updates?.length || 0} atualização(ões)`);
 
-        await databaseManager.saveEvent('contacts.update', updates, `contacts_update_${Date.now()}`);
+        const eventId = `contacts_update_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: 'contacts.update',
+          data: updates,
+          timestamp: Date.now(),
+        });
 
         for (const update of updates || []) {
           const jid = update.id?.substring(0, 30) || 'N/A';
           const name = update.name || update.notify || 'Sem nome';
           logger.debug(`   ${name} | JID: ${jid}...`);
 
-          const cachedContact = await databaseManager.getContact(update.id);
+          // Verifica cache local
+          const cachedContact = this.contactCache.get(update.id);
 
-          await databaseManager.saveContact(update);
+          // Atualiza cache
+          const updatedContact = cachedContact ? { ...cachedContact, ...update } : update;
+          updatedContact._lastUpdate = Date.now();
+          this.contactCache.set(update.id, updatedContact);
 
           if (cachedContact) {
             logger.info(`   Cache hit para contato: ${name}`);
@@ -493,7 +753,7 @@ class EventHandler {
         try {
           await new Promise((resolve) => setTimeout(resolve, index * 100));
 
-          const metadata = await databaseManager.getOrFetchGroupMetadata(groupJid, this.omniZapClient);
+          const metadata = await this.getOrFetchGroupMetadata(groupJid);
 
           if (metadata) {
             logger.info(`Events: Metadados carregados para "${metadata.subject}" (${metadata._participantCount || 0} participantes)`);
@@ -503,10 +763,7 @@ class EventHandler {
             return { success: false, groupJid, error: 'Metadados não encontrados' };
           }
         } catch (error) {
-          logger.error(`Events: Erro ao carregar metadados do grupo ${groupJid}:`, {
-            error: error.message,
-            stack: error.stack,
-          });
+          logger.error(`Events: Erro ao carregar metadados do grupo ${groupJid}:`, error.message);
           return { success: false, groupJid, error: error.message };
         }
       });
@@ -514,7 +771,6 @@ class EventHandler {
       const results = await Promise.allSettled(promises);
 
       const successful = results.filter((result) => result.status === 'fulfilled' && result.value.success).length;
-
       const failed = results.length - successful;
 
       if (successful > 0) {
@@ -525,10 +781,50 @@ class EventHandler {
         logger.warn(`Events: ⚠️ ${failed} grupo(s) não puderam ter metadados carregados`);
       }
     } catch (error) {
-      logger.error('Events: Erro geral no carregamento de metadados:', {
-        error: error.message,
-        stack: error.stack,
-      });
+      logger.error('Events: Erro geral no carregamento de metadados:', error.message);
+    }
+  }
+
+  /**
+   * Busca ou obtém metadados de grupo do cache/API
+   * @param {string} groupJid - JID do grupo
+   * @returns {Object|null} Metadados do grupo
+   */
+  async getOrFetchGroupMetadata(groupJid) {
+    try {
+      // Verifica cache primeiro
+      let metadata = this.groupCache.get(groupJid);
+
+      if (metadata && metadata._cachedAt && Date.now() - metadata._cachedAt < 3600000) {
+        // 1 hora
+        logger.debug(`Cache hit para grupo: ${groupJid.substring(0, 30)}...`);
+        return metadata;
+      }
+
+      // Busca da API se cliente disponível
+      if (this.omniZapClient) {
+        try {
+          const freshMetadata = await this.omniZapClient.groupMetadata(groupJid);
+          const enhancedMetadata = {
+            ...freshMetadata,
+            _cachedAt: Date.now(),
+            _participantCount: freshMetadata.participants?.length || 0,
+            _fetchedFromAPI: true,
+          };
+
+          this.groupCache.set(groupJid, enhancedMetadata);
+          logger.debug(`Metadados atualizados da API para: ${freshMetadata.subject}`);
+          return enhancedMetadata;
+        } catch (apiError) {
+          logger.warn(`Erro ao buscar da API, usando cache: ${apiError.message}`);
+          return metadata; // Retorna cache mesmo expirado se API falhar
+        }
+      }
+
+      return metadata;
+    } catch (error) {
+      logger.error(`Erro ao obter metadados do grupo ${groupJid}:`, error.message);
+      return null;
     }
   }
 
@@ -540,14 +836,82 @@ class EventHandler {
       try {
         logger.info(`🔄 Events: Processando ${eventType}`);
 
-        await databaseManager.saveEvent(eventType, eventData, `${eventType}_${Date.now()}`);
-      } catch (error) {
-        logger.error(`Events: Erro no processamento de ${eventType}:`, {
-          error: error.message,
-          stack: error.stack,
+        const eventId = `${eventType}_${Date.now()}`;
+        this.eventCache.set(eventId, {
+          type: eventType,
+          data: eventData,
+          timestamp: Date.now(),
         });
+      } catch (error) {
+        logger.error(`Events: Erro no processamento de ${eventType}:`, error.message);
       }
     });
+  }
+
+  /**
+   * Métodos públicos para acessar cache
+   */
+
+  getMessage(remoteJid, messageId) {
+    const key = `${remoteJid}_${messageId}`;
+    return this.messageCache.get(key);
+  }
+
+  getGroup(groupJid) {
+    return this.groupCache.get(groupJid);
+  }
+
+  getContact(contactJid) {
+    return this.contactCache.get(contactJid);
+  }
+
+  getChat(chatJid) {
+    return this.chatCache.get(chatJid);
+  }
+
+  /**
+   * Estatísticas do cache
+   */
+  getCacheStats() {
+    return {
+      messages: this.messageCache.keys().length,
+      groups: this.groupCache.keys().length,
+      contacts: this.contactCache.keys().length,
+      chats: this.chatCache.keys().length,
+      events: this.eventCache.keys().length,
+      memoryUsage: process.memoryUsage(),
+    };
+  }
+
+  /**
+   * Limpa cache específico
+   */
+  clearCache(type = 'all') {
+    switch (type) {
+      case 'messages':
+        this.messageCache.flushAll();
+        break;
+      case 'groups':
+        this.groupCache.flushAll();
+        break;
+      case 'contacts':
+        this.contactCache.flushAll();
+        break;
+      case 'chats':
+        this.chatCache.flushAll();
+        break;
+      case 'events':
+        this.eventCache.flushAll();
+        break;
+      case 'all':
+        this.messageCache.flushAll();
+        this.groupCache.flushAll();
+        this.contactCache.flushAll();
+        this.chatCache.flushAll();
+        this.eventCache.flushAll();
+        break;
+    }
+    logger.info(`🧹 Cache ${type} limpo`);
   }
 }
 

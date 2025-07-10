@@ -5,7 +5,7 @@
  * Utiliza Baileys para comunicação com a API WhatsApp Web
  * Baseado no exemplo oficial do Baileys
  *
- * @version 2.0.0
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */
