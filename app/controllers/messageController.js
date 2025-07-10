@@ -99,6 +99,46 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient) => {
                   });
                 }
                 break;
+              case 'banlist':
+                try {
+                  const { processBanListCommand } = require('../commandModules/adminModules/banListCommand');
+
+                  logger.info('Comando banlist executado', {
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const result = await processBanListCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
+
+                  const reactionEmoji = result.success ? '✅' : '❌';
+                  await sendReaction(omniZapClient, targetJid, reactionEmoji, messageInfo.key);
+
+                  await sendTextMessage(omniZapClient, targetJid, result.message, {
+                    originalMessage: messageInfo,
+                  });
+                } catch (error) {
+                  await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
+
+                  logger.error('Erro ao executar comando banlist', {
+                    error: error.message,
+                    stack: error.stack,
+                    command,
+                    args,
+                    senderJid,
+                    isGroupMessage,
+                    groupJid,
+                  });
+
+                  const errorMsg = formatErrorMessage('Erro ao listar banimentos', `Ocorreu um problema durante o processamento: ${error.message}`, `📋 *Possíveis soluções:*\n• Verifique a sintaxe do comando\n• Se o erro persistir, tente mais tarde`);
+
+                  await sendTextMessage(omniZapClient, targetJid, errorMsg, {
+                    originalMessage: messageInfo,
+                  });
+                }
+                break;
               case 'sticker':
               case 's':
                 try {

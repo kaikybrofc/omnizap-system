@@ -11,6 +11,12 @@
 const logger = require('../../utils/logger/loggerModule');
 const { databaseManager } = require('../../database/databaseManager');
 const { formatErrorMessage } = require('../../utils/messageUtils');
+const fs = require('fs').promises;
+const path = require('path');
+
+// Diretório para armazenar a lista de usuários banidos
+const BANNED_USERS_DIR = path.join(process.cwd(), 'temp', 'bannedUsers');
+const BANNED_USERS_LIST_FILE = path.join(BANNED_USERS_DIR, 'bannedUsers.json');
 
 /**
  * Verifica se o bot é administrador no grupo
@@ -104,6 +110,232 @@ const isUserInGroup = async (omniZapClient, groupJid, userJid) => {
       userJid,
     });
     return false;
+  }
+};
+
+/**
+ * Carrega a lista de usuários banidos
+ *
+ * @returns {Promise<Object>} - Lista de usuários banidos
+ */
+const loadBannedUsersList = async () => {
+  try {
+    // Garantir que o diretório existe
+    await fs.mkdir(BANNED_USERS_DIR, { recursive: true });
+
+    try {
+      const data = await fs.readFile(BANNED_USERS_LIST_FILE, 'utf-8');
+      return JSON.parse(data);
+    } catch (error) {
+      // Se o arquivo não existir, retorna um objeto vazio
+      if (error.code === 'ENOENT') {
+        return {
+          users: [],
+          groupBans: {},
+        };
+      }
+      throw error;
+    }
+  } catch (error) {
+    logger.error('Erro ao carregar lista de usuários banidos', {
+      error: error.message,
+      stack: error.stack,
+    });
+    return {
+      users: [],
+      groupBans: {},
+    };
+  }
+};
+
+/**
+ * Salva a lista de usuários banidos
+ *
+ * @param {Object} bannedList - Lista de usuários banidos
+ * @returns {Promise<void>}
+ */
+const saveBannedUsersList = async (bannedList) => {
+  try {
+    await fs.mkdir(BANNED_USERS_DIR, { recursive: true });
+    await fs.writeFile(BANNED_USERS_LIST_FILE, JSON.stringify(bannedList, null, 2), 'utf-8');
+  } catch (error) {
+    logger.error('Erro ao salvar lista de usuários banidos', {
+      error: error.message,
+      stack: error.stack,
+    });
+  }
+};
+
+/**
+ * Adiciona um usuário à lista de banidos
+ *
+ * @param {String} userJid - JID do usuário banido
+ * @param {String} groupJid - JID do grupo onde foi banido
+ * @param {String} executorJid - JID do administrador que executou o banimento
+ * @param {String} reason - Motivo do banimento
+ * @returns {Promise<void>}
+ */
+const addUserToBannedList = async (userJid, groupJid, executorJid, reason) => {
+  try {
+    const bannedList = await loadBannedUsersList();
+    const cleanUserJid = userJid.replace(/:\d+/, '');
+
+    // Informações do banimento
+    const banInfo = {
+      groupJid: groupJid,
+      executorJid: executorJid,
+      reason: reason,
+      timestamp: Date.now(),
+      formattedDate: new Date().toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    };
+
+    // Atualiza ou cria o usuário na lista global
+    let userEntry = bannedList.users.find((u) => u.userJid.replace(/:\d+/, '') === cleanUserJid);
+    if (!userEntry) {
+      userEntry = {
+        userJid: cleanUserJid,
+        bans: [banInfo],
+      };
+      bannedList.users.push(userEntry);
+    } else {
+      // Evita duplicidade de banimento no mesmo grupo e motivo no mesmo timestamp
+      const alreadyBanned = userEntry.bans.some((b) => b.groupJid === groupJid && b.timestamp === banInfo.timestamp);
+      if (!alreadyBanned) {
+        userEntry.bans.push(banInfo);
+      }
+    }
+
+    // Adiciona à lista específica do grupo
+    if (!bannedList.groupBans[groupJid]) {
+      bannedList.groupBans[groupJid] = [];
+    }
+    bannedList.groupBans[groupJid].push({
+      userJid: cleanUserJid,
+      ...banInfo,
+    });
+
+    await saveBannedUsersList(bannedList);
+
+    logger.info('Usuário adicionado à lista de banidos', {
+      userJid: cleanUserJid,
+      groupJid,
+      executorJid,
+      reason,
+    });
+  } catch (error) {
+    logger.error('Erro ao adicionar usuário à lista de banidos', {
+      error: error.message,
+      stack: error.stack,
+      userJid,
+      groupJid,
+    });
+  }
+};
+
+/**
+ * Remove um usuário da lista de banidos
+ *
+ * @param {String} userJid - JID do usuário a ser removido da lista de banidos
+ * @returns {Promise<void>}
+ */
+const removeUserFromBanList = async (userJid) => {
+  try {
+    // Ler a lista de banidos existente
+    let bannedUsers = [];
+    try {
+      const data = await fs.readFile(BANNED_USERS_LIST_FILE, 'utf8');
+      bannedUsers = JSON.parse(data);
+    } catch (readError) {
+      logger.warn('Erro ao ler a lista de usuários banidos', { error: readError.message });
+    }
+
+    // Filtrar o usuário a ser removido
+    const updatedBannedUsers = bannedUsers.filter((user) => user.jid !== userJid);
+
+    // Salvar a lista atualizada
+    await fs.writeFile(BANNED_USERS_LIST_FILE, JSON.stringify(updatedBannedUsers, null, 2));
+    logger.info(`Usuário ${userJid} removido da lista de banidos com sucesso`);
+  } catch (error) {
+    logger.error('Erro ao remover usuário da lista de banidos', {
+      error: error.message,
+      stack: error.stack,
+      userJid,
+    });
+  }
+};
+
+/**
+ * Obtém a lista de usuários banidos
+ *
+ * @returns {Promise<Array>} - Lista de usuários banidos
+ */
+const getBannedUsersList = async () => {
+  try {
+    // Ler a lista de banidos existente
+    let bannedUsers = [];
+    try {
+      const data = await fs.readFile(BANNED_USERS_LIST_FILE, 'utf8');
+      bannedUsers = JSON.parse(data);
+    } catch (readError) {
+      logger.warn('Erro ao ler a lista de usuários banidos', { error: readError.message });
+    }
+
+    return bannedUsers;
+  } catch (error) {
+    logger.error('Erro ao obter a lista de usuários banidos', {
+      error: error.message,
+      stack: error.stack,
+    });
+    return [];
+  }
+};
+
+/**
+ * Busca o histórico de banimento de um usuário
+ *
+ * @param {String} userJid - JID do usuário
+ * @returns {Promise<Array>} - Histórico de banimentos
+ */
+const getUserBanHistory = async (userJid) => {
+  try {
+    const bannedList = await loadBannedUsersList();
+    const cleanUserJid = userJid.replace(/:\d+/, '');
+
+    return bannedList.users.filter((ban) => ban.userJid.replace(/:\d+/, '') === cleanUserJid);
+  } catch (error) {
+    logger.error('Erro ao buscar histórico de banimento', {
+      error: error.message,
+      stack: error.stack,
+      userJid,
+    });
+    return [];
+  }
+};
+
+/**
+ * Busca o histórico de banimentos em um grupo
+ *
+ * @param {String} groupJid - JID do grupo
+ * @returns {Promise<Array>} - Histórico de banimentos no grupo
+ */
+const getGroupBanHistory = async (groupJid) => {
+  try {
+    const bannedList = await loadBannedUsersList();
+    return bannedList.groupBans[groupJid] || [];
+  } catch (error) {
+    logger.error('Erro ao buscar histórico de banimento do grupo', {
+      error: error.message,
+      stack: error.stack,
+      groupJid,
+    });
+    return [];
   }
 };
 
@@ -247,8 +479,14 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       timestamp: Date.now(),
     });
 
+    // Adicionar à lista de usuários banidos
+    await addUserToBannedList(targetUserJid, groupJid, senderJid, banReason);
+
     // Formatar o número para exibição
     const formattedNumber = targetUserJid.split('@')[0];
+
+    // Adicionar o usuário à lista de banidos
+    await addUserToBannedList(targetUserJid, groupJid, senderJid, banReason);
 
     return {
       success: true,
@@ -276,4 +514,11 @@ module.exports = {
   isUserAdmin,
   isUserInGroup,
   formatPhoneToJid,
+  addUserToBannedList,
+  removeUserFromBanList,
+  getBannedUsersList,
+  loadBannedUsersList,
+  saveBannedUsersList,
+  getUserBanHistory,
+  getGroupBanHistory,
 };
