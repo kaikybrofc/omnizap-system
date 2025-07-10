@@ -4,21 +4,22 @@
  * Comandos de administração para grupos do WhatsApp
  * Usando apenas a API do Baileys diretamente
  *
- * @version 1.0.5
+ * @version 2.0.0
  * @author OmniZap Team
  * @license MIT
  * @source https://www.npmjs.com/package/baileys
  *
+ * MUDANÇAS NA VERSÃO 2.0.0:
+ * - Refatorado para usar groupUtils.js com funções centralizadas
+ * - Melhor sistema de cache e estatísticas globais
+ * - Funções auxiliares movidas para módulo dedicado
  */
 
 const logger = require('../../utils/logger/loggerModule');
 const { formatErrorMessage } = require('../../utils/messageUtils');
+const { isUserAdmin, isBotAdmin, isUserInGroup, formatPhoneToJid, getGroupMetadata, updateGroupStats, logGroupActivity, loadBannedUsersList, saveBannedUsersList, addUserToBannedList, removeUserFromBanList, isUserBanned, cleanJid, initializeDirectories, generateGroupsReport } = require('../../utils/groupGlobalUtils');
 const fs = require('fs').promises;
 const path = require('path');
-
-// Diretório para armazenar a lista de usuários banidos
-const BANNED_USERS_DIR = path.join(process.cwd(), 'temp', 'bannedUsers');
-const BANNED_USERS_LIST_FILE = path.join(BANNED_USERS_DIR, 'bannedUsers.json');
 
 /**
  * Processa comando para adicionar participantes ao grupo
@@ -72,15 +73,7 @@ const processAddCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       };
     }
 
-    const participants = numbers.map((number) => {
-      let cleaned = number.replace(/\D/g, '');
-
-      if (cleaned.length <= 11) {
-        cleaned = '55' + cleaned;
-      }
-
-      return `${cleaned}@s.whatsapp.net`;
-    });
+    const participants = numbers.map((number) => formatPhoneToJid(number));
 
     logger.info(`Adicionando participantes ao grupo ${groupJid}`, { participants });
 
@@ -192,26 +185,21 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
         };
       }
 
-      targetUsers = numbers.map((number) => {
-        let cleaned = number.replace(/\D/g, '');
-
-        if (cleaned.length <= 11) {
-          cleaned = '55' + cleaned;
-        }
-
-        return `${cleaned}@s.whatsapp.net`;
-      });
+      targetUsers = numbers.map((number) => formatPhoneToJid(number));
     }
 
-    const groupMetadata = await omniZapClient.groupMetadata(groupJid);
+    const groupMetadata = await getGroupMetadata(omniZapClient, groupJid);
     const participants = groupMetadata.participants || [];
+
+    // Atualizar estatísticas do grupo
+    await updateGroupStats(groupJid, groupMetadata);
 
     const invalidUsers = [];
     const validUsers = [];
 
     for (const user of targetUsers) {
-      const cleanUserJid = user.replace(/:\d+/, '');
-      const isInGroup = participants.some((p) => p.id.replace(/:\d+/, '') === cleanUserJid);
+      const cleanUserJid = cleanJid(user);
+      const isInGroup = participants.some((p) => cleanJid(p.id) === cleanUserJid);
 
       if (isInGroup) {
         validUsers.push(user);
@@ -230,6 +218,13 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
     logger.info(`Promovendo usuários a administradores no grupo ${groupJid}`, { validUsers });
 
     await omniZapClient.groupParticipantsUpdate(groupJid, validUsers, 'promote');
+
+    // Registrar atividade no sistema global
+    await logGroupActivity(groupJid, 'promote_action', {
+      executorJid: senderJid,
+      targetUsers: validUsers,
+      count: validUsers.length,
+    });
 
     try {
       const eventLog = {
@@ -328,15 +323,7 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
         };
       }
 
-      targetUsers = numbers.map((number) => {
-        let cleaned = number.replace(/\D/g, '');
-
-        if (cleaned.length <= 11) {
-          cleaned = '55' + cleaned;
-        }
-
-        return `${cleaned}@s.whatsapp.net`;
-      });
+      targetUsers = numbers.map((number) => formatPhoneToJid(number));
     }
 
     const groupMetadata = await omniZapClient.groupMetadata(groupJid);
@@ -347,8 +334,8 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
     const validUsers = [];
 
     for (const user of targetUsers) {
-      const cleanUserJid = user.replace(/:\d+/, '');
-      const participant = participants.find((p) => p.id.replace(/:\d+/, '') === cleanUserJid);
+      const cleanUserJid = cleanJid(user);
+      const participant = participants.find((p) => cleanJid(p.id) === cleanUserJid);
 
       if (!participant) {
         invalidUsers.push(user);
@@ -1464,311 +1451,6 @@ const formatPhoneToJid = (phoneNumber) => {
   return `${cleaned}@s.whatsapp.net`;
 };
 
-/**
- * Verifica se um usuário é administrador do grupo
- * Usando API do Baileys diretamente
- *
- * @param {Object} omniZapClient - Cliente WhatsApp
- * @param {String} groupJid - ID do grupo
- * @param {String} userJid - ID do usuário
- * @returns {Promise<Boolean>} - True se o usuário for administrador
- */
-const isUserAdmin = async (omniZapClient, groupJid, userJid) => {
-  try {
-    const groupMetadata = await omniZapClient.groupMetadata(groupJid);
-    const participants = groupMetadata.participants || [];
-
-    const cleanUserJid = userJid.replace(/:\d+/, '');
-    const member = participants.find((p) => p.id.replace(/:\d+/, '') === cleanUserJid);
-
-    return member ? ['admin', 'superadmin'].includes(member.admin) : false;
-  } catch (error) {
-    logger.error('Erro ao verificar administrador', {
-      error: error.message,
-      stack: error.stack,
-      groupJid,
-      userJid,
-    });
-    return false;
-  }
-};
-
-/**
- * Verifica se o bot é administrador do grupo
- * Usando API do Baileys diretamente
- *
- * @param {Object} omniZapClient - Cliente WhatsApp
- * @param {String} groupJid - ID do grupo
- * @returns {Promise<Boolean>} - True se o bot for administrador
- */
-const isBotAdmin = async (omniZapClient, groupJid) => {
-  try {
-    const groupMetadata = await omniZapClient.groupMetadata(groupJid);
-    const participants = groupMetadata.participants || [];
-
-    const botJid = omniZapClient.user?.id || omniZapClient.authState?.creds?.me?.id;
-
-    if (!botJid) {
-      logger.warn('JID do bot não encontrado', { groupJid });
-      return false;
-    }
-
-    const cleanBotJid = botJid.replace(/:\d+/, '');
-    const adminParticipant = participants.find((p) => p.id.replace(/:\d+/, '') === cleanBotJid);
-
-    return adminParticipant ? ['admin', 'superadmin'].includes(adminParticipant.admin) : false;
-  } catch (error) {
-    logger.error('Erro ao verificar administrador do bot', {
-      error: error.message,
-      stack: error.stack,
-      groupJid,
-    });
-    return false;
-  }
-};
-
-/**
- * Verifica se um usuário está em um grupo
- *
- * @param {Object} omniZapClient - Cliente WhatsApp
- * @param {String} groupJid - ID do grupo
- * @param {String} userJid - ID do usuário
- * @returns {Promise<Boolean>} - True se o usuário estiver no grupo
- */
-const isUserInGroup = async (omniZapClient, groupJid, userJid) => {
-  try {
-    const groupMetadata = await omniZapClient.groupMetadata(groupJid);
-    logger.info('Obteve metadados do grupo diretamente da API', { groupJid });
-
-    if (!groupMetadata) {
-      logger.error('Não foi possível obter metadados do grupo', { groupJid });
-      return false;
-    }
-
-    const cleanUserJid = userJid.replace(/:\d+/, '');
-    const participants = groupMetadata.participants || [];
-
-    return participants.some((participant) => participant.id.replace(/:\d+/, '') === cleanUserJid);
-  } catch (error) {
-    logger.error('Erro ao verificar se usuário está no grupo', {
-      error: error.message,
-      stack: error.stack,
-      groupJid,
-      userJid,
-    });
-    return false;
-  }
-};
-
-/**
- * Carrega a lista de usuários banidos do arquivo
- *
- * @returns {Promise<Object>} - Lista de usuários banidos
- */
-const loadBannedUsersList = async () => {
-  try {
-    try {
-      await fs.mkdir(BANNED_USERS_DIR, { recursive: true });
-    } catch (mkdirError) {
-      logger.error('Erro ao criar diretório de usuários banidos', {
-        error: mkdirError.message,
-        stack: mkdirError.stack,
-        dir: BANNED_USERS_DIR,
-      });
-    }
-
-    const fileData = await fs.readFile(BANNED_USERS_LIST_FILE, 'utf8');
-    return JSON.parse(fileData);
-  } catch (error) {
-    logger.info('Criando nova lista de usuários banidos', { error: error.message });
-    return {
-      users: [],
-      groupBans: {},
-    };
-  }
-};
-
-/**
- * Salva a lista de usuários banidos no arquivo
- *
- * @param {Object} bannedList - Lista de usuários banidos
- * @returns {Promise<void>}
- */
-const saveBannedUsersList = async (bannedList) => {
-  try {
-    await fs.mkdir(BANNED_USERS_DIR, { recursive: true });
-
-    await fs.writeFile(BANNED_USERS_LIST_FILE, JSON.stringify(bannedList, null, 2), 'utf8');
-    logger.info('Lista de usuários banidos salva com sucesso', {
-      filePath: BANNED_USERS_LIST_FILE,
-      userCount: bannedList.users.length,
-    });
-  } catch (error) {
-    logger.error('Erro ao salvar lista de usuários banidos', {
-      error: error.message,
-      stack: error.stack,
-      filePath: BANNED_USERS_LIST_FILE,
-    });
-  }
-};
-
-/**
- * Adiciona um usuário à lista de banidos
- *
- * @param {String} userJid - JID do usuário banido
- * @param {String} groupJid - JID do grupo onde ocorreu o banimento
- * @param {String} executorJid - JID do administrador que executou o ban
- * @param {String} reason - Motivo do banimento
- * @returns {Promise<void>}
- */
-const addUserToBannedList = async (userJid, groupJid, executorJid, reason) => {
-  try {
-    const bannedList = await loadBannedUsersList();
-
-    const now = new Date();
-    const formattedDate = now.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    const banEntry = {
-      userJid,
-      groupJid,
-      executorJid,
-      reason,
-      timestamp: Date.now(),
-      formattedDate,
-    };
-
-    bannedList.users.push(banEntry);
-
-    if (!bannedList.groupBans[groupJid]) {
-      bannedList.groupBans[groupJid] = [];
-    }
-    bannedList.groupBans[groupJid].push(banEntry);
-
-    await saveBannedUsersList(bannedList);
-
-    logger.info('Usuário adicionado à lista de banidos', {
-      userJid,
-      groupJid,
-      executorJid,
-      reason,
-    });
-  } catch (error) {
-    logger.error('Erro ao adicionar usuário à lista de banidos', {
-      error: error.message,
-      stack: error.stack,
-      userJid,
-      groupJid,
-    });
-  }
-};
-
-/**
- * Remove um usuário da lista de banidos
- *
- * @param {String} userJid - JID do usuário a ser removido
- * @returns {Promise<Boolean>} - True se removido com sucesso
- */
-const removeUserFromBanList = async (userJid) => {
-  try {
-    const bannedList = await loadBannedUsersList();
-
-    const userIndex = bannedList.users.findIndex((ban) => ban.userJid === userJid);
-    if (userIndex === -1) {
-      logger.warn('Tentativa de remover usuário não banido', { userJid });
-      return false;
-    }
-
-    bannedList.users.splice(userIndex, 1);
-
-    for (const groupJid in bannedList.groupBans) {
-      bannedList.groupBans[groupJid] = bannedList.groupBans[groupJid].filter((ban) => ban.userJid !== userJid);
-    }
-
-    await saveBannedUsersList(bannedList);
-
-    logger.info('Usuário removido da lista de banidos', { userJid });
-    return true;
-  } catch (error) {
-    logger.error('Erro ao remover usuário da lista de banidos', {
-      error: error.message,
-      stack: error.stack,
-      userJid,
-    });
-    return false;
-  }
-};
-
-/**
- * Obtém a lista completa de usuários banidos
- *
- * @returns {Promise<Array>} - Lista de usuários banidos
- */
-const getBannedUsersList = async () => {
-  try {
-    const bannedList = await loadBannedUsersList();
-    return bannedList.users;
-  } catch (error) {
-    logger.error('Erro ao obter lista de usuários banidos', {
-      error: error.message,
-      stack: error.stack,
-    });
-    return [];
-  }
-};
-
-/**
- * Obtém o histórico de banimentos de um usuário específico
- *
- * @param {String} userJid - JID do usuário
- * @returns {Promise<Array>} - Histórico de banimentos
- */
-const getUserBanHistory = async (userJid) => {
-  try {
-    const bannedList = await loadBannedUsersList();
-    const cleanUserJid = userJid.replace(/:\d+/, '');
-    return bannedList.users.filter((ban) => ban.userJid.replace(/:\d+/, '') === cleanUserJid);
-  } catch (error) {
-    logger.error('Erro ao obter histórico de banimentos do usuário', {
-      error: error.message,
-      stack: error.stack,
-      userJid,
-    });
-    return [];
-  }
-};
-
-/**
- * Obtém a lista de banimentos de um grupo específico
- *
- * @param {String} groupJid - JID do grupo
- * @returns {Promise<Array>} - Lista de banimentos do grupo
- */
-const getGroupBanHistory = async (groupJid) => {
-  try {
-    const bannedList = await loadBannedUsersList();
-    return bannedList.groupBans[groupJid] || [];
-  } catch (error) {
-    logger.error('Erro ao obter lista de banimentos do grupo', {
-      error: error.message,
-      stack: error.stack,
-      groupJid,
-    });
-    return [];
-  }
-};
-
-/**
- * Formata um número de telefone para o formato JID
- *
- * @param {String} phoneNumber - Número de telefone
- * @returns {String} - JID formatado
- */
 module.exports = {
   processAddCommand,
   processPromoteCommand,
@@ -1782,15 +1464,4 @@ module.exports = {
   processGroupInfoCommand,
   processBanCommand,
   processBanListCommand,
-  isBotAdmin,
-  isUserAdmin,
-  isUserInGroup,
-  formatPhoneToJid,
-  addUserToBannedList,
-  removeUserFromBanList,
-  getBannedUsersList,
-  loadBannedUsersList,
-  saveBannedUsersList,
-  getUserBanHistory,
-  getGroupBanHistory,
 };
