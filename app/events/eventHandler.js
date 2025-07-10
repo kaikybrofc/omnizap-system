@@ -1,16 +1,16 @@
 /**
- * OmniZap Event Handler - Versão Melhorada
+ * OmniZap Event Handler - Versão Otimizada
  *
  * Módulo responsável pelo processamento independente de eventos
- * Usa cache local centralizado e persistência em JSON
+ * Usa cache local centralizado e persistência em JSON assíncrona
  * Integração bidirecional com socketController
  *
- * @version 2.1.0
+ * @version 2.2.0
  * @author OmniZap Team
  * @license MIT
  */
 
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 const NodeCache = require('node-cache');
 const logger = require('../utils/logger/loggerModule');
@@ -25,6 +25,7 @@ class EventHandler {
     this.socketController = null;
     this.cacheDir = path.join(__dirname, '../../temp/cache');
     this.dataDir = path.join(__dirname, '../../temp/data');
+    this.isSaving = false; // Lock para escrita concorrente
 
     // Cache instances com TTL diferenciados
     this.messageCache = new NodeCache({ stdTTL: 3600, checkperiod: 600 }); // 1 hora
@@ -58,16 +59,19 @@ class EventHandler {
    */
   init() {
     try {
-      // Cria diretórios se não existirem
+      // Cria diretórios se não existirem (síncrono, pois é parte da inicialização)
+      const { mkdirSync, existsSync } = require('fs');
       [this.cacheDir, this.dataDir].forEach((dir) => {
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
+        if (!existsSync(dir)) {
+          mkdirSync(dir, { recursive: true });
           logger.info(`📁 Cache: Diretório criado: ${dir}`);
         }
       });
 
-      // Carrega dados persistentes
-      this.loadPersistedData();
+      // Carrega dados persistentes de forma assíncrona, sem bloquear a inicialização
+      this.loadPersistedData().catch(error => {
+        logger.error('❌ Erro inicial ao carregar dados persistentes:', error.message);
+      });
 
       // Configura auto-save
       this.setupAutoSave();
@@ -180,36 +184,38 @@ class EventHandler {
   }
 
   /**
-   * Carrega dados persistentes dos arquivos JSON
+   * Carrega dados persistentes dos arquivos JSON de forma assíncrona.
    */
-  loadPersistedData() {
+  async loadPersistedData() {
     const dataFiles = {
       groups: path.join(this.dataDir, 'groups.json'),
       contacts: path.join(this.dataDir, 'contacts.json'),
       chats: path.join(this.dataDir, 'chats.json'),
-      metadata: path.join(this.dataDir, 'metadata.json'),
     };
 
-    Object.entries(dataFiles).forEach(([type, filePath]) => {
+    for (const [type, filePath] of Object.entries(dataFiles)) {
       try {
-        if (fs.existsSync(filePath)) {
-          const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-          const cache = this.getCacheByType(type);
+        const fileContent = await fs.readFile(filePath, 'utf8');
+        const data = JSON.parse(fileContent);
+        const cache = this.getCacheByType(type);
 
-          Object.entries(data).forEach(([key, value]) => {
-            cache.set(key, value);
-          });
-
-          logger.info(`📂 Cache: ${Object.keys(data).length} ${type} carregados do arquivo`);
+        if (cache && data) {
+          const keys = Object.keys(data);
+          for (const key of keys) {
+            cache.set(key, data[key]);
+          }
+          logger.info(`📂 Cache: ${keys.length} ${type} carregados do arquivo ${path.basename(filePath)}`);
         }
       } catch (error) {
-        logger.error(`❌ Erro ao carregar ${type}:`, error.message);
+        if (error.code !== 'ENOENT') { // Ignora erro se o arquivo não existir
+          logger.error(`❌ Erro ao carregar ${type} de ${path.basename(filePath)}:`, error.message);
+        }
       }
-    });
+    }
   }
 
   /**
-   * Configura salvamento automático periódico
+   * Configura salvamento automático periódico e graceful shutdown.
    */
   setupAutoSave() {
     // Salva dados a cada 5 minutos
@@ -217,37 +223,44 @@ class EventHandler {
       this.savePersistedData();
     }, 5 * 60 * 1000);
 
-    // Salva dados ao encerrar aplicação
-    process.on('SIGINT', () => {
-      logger.info('🔄 Salvando dados antes de encerrar...');
-      this.savePersistedData();
+    const gracefulShutdown = async (signal) => {
+      logger.info(`🔄 Recebido ${signal}. Salvando dados antes de encerrar...`);
+      await this.savePersistedData();
       process.exit(0);
-    });
+    };
 
-    process.on('SIGTERM', () => {
-      this.savePersistedData();
-      process.exit(0);
-    });
+    // Salva dados ao encerrar aplicação
+    process.on('SIGINT', gracefulShutdown);
+    process.on('SIGTERM', gracefulShutdown);
   }
 
   /**
-   * Salva dados persistentes em arquivos JSON
+   * Helper para extrair todos os dados de uma instância de cache.
+   * @param {NodeCache} cache - A instância do NodeCache.
+   * @returns {Object} - Um objeto com os dados do cache.
    */
-  savePersistedData() {
+  _getCacheDataAsObject(cache) {
+    const keys = cache.keys();
+    return cache.mget(keys);
+  }
+
+  /**
+   * Salva dados persistentes em arquivos JSON de forma assíncrona.
+   */
+  async savePersistedData() {
+    if (this.isSaving) {
+      logger.warn('💾 Cache: Salvamento já está em progresso. Ignorando nova solicitação.');
+      return;
+    }
+
+    this.isSaving = true;
+    logger.debug('💾 Cache: Iniciando salvamento de dados em arquivos JSON...');
+
     try {
       const dataToSave = {
-        groups: this.groupCache.keys().reduce((acc, key) => {
-          acc[key] = this.groupCache.get(key);
-          return acc;
-        }, {}),
-        contacts: this.contactCache.keys().reduce((acc, key) => {
-          acc[key] = this.contactCache.get(key);
-          return acc;
-        }, {}),
-        chats: this.chatCache.keys().reduce((acc, key) => {
-          acc[key] = this.chatCache.get(key);
-          return acc;
-        }, {}),
+        groups: this._getCacheDataAsObject(this.groupCache),
+        contacts: this._getCacheDataAsObject(this.contactCache),
+        chats: this._getCacheDataAsObject(this.chatCache),
         metadata: {
           lastSave: Date.now(),
           totalMessages: this.messageCache.keys().length,
@@ -259,18 +272,22 @@ class EventHandler {
         },
       };
 
-      Object.entries(dataToSave).forEach(([type, data]) => {
+      const savePromises = Object.entries(dataToSave).map(async ([type, data]) => {
+        const filePath = path.join(this.dataDir, `${type}.json`);
         try {
-          const filePath = path.join(this.dataDir, `${type}.json`);
-          fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-        } catch (error) {
-          logger.error(`❌ Erro ao salvar ${type}:`, error.message);
+          await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+        } catch (err) {
+          logger.error(`❌ Erro ao salvar ${type} em ${path.basename(filePath)}:`, err.message);
         }
       });
 
-      logger.debug('💾 Cache: Dados salvos em arquivos JSON');
+      await Promise.all(savePromises);
+
+      logger.debug('💾 Cache: Dados salvos em arquivos JSON.');
     } catch (error) {
       logger.error('❌ Erro geral ao salvar dados:', error.message);
+    } finally {
+      this.isSaving = false;
     }
   }
 
@@ -285,7 +302,7 @@ class EventHandler {
       messages: this.messageCache,
       events: this.eventCache,
     };
-    return cacheMap[type] || this.eventCache;
+    return cacheMap[type];
   }
 
   /**
@@ -693,21 +710,12 @@ class EventHandler {
     try {
       return {
         timestamp: Date.now(),
-        version: '2.1.0',
+        version: '2.2.0',
         data: {
           messages: this.messageCache.keys().length,
-          groups: this.groupCache.keys().reduce((acc, key) => {
-            acc[key] = this.groupCache.get(key);
-            return acc;
-          }, {}),
-          contacts: this.contactCache.keys().reduce((acc, key) => {
-            acc[key] = this.contactCache.get(key);
-            return acc;
-          }, {}),
-          chats: this.chatCache.keys().reduce((acc, key) => {
-            acc[key] = this.chatCache.get(key);
-            return acc;
-          }, {}),
+          groups: this._getCacheDataAsObject(this.groupCache),
+          contacts: this._getCacheDataAsObject(this.contactCache),
+          chats: this._getCacheDataAsObject(this.chatCache),
           stats: this.getCacheStats(),
         },
       };
