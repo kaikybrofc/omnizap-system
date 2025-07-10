@@ -7,14 +7,8 @@
  * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
- * @source https://www.npmjs.com/package/baileys#get-all-participating-groups-metadata
+ * @source https://www.npmjs.com/package/baileys
  *
- * MUDANÇAS PRINCIPAIS NA VERSÃO 2.0.0:
- * - Removido completamente o uso do databaseManager
- * - Uso direto da API do Baileys para obter metadados de grupos
- * - Funcionalidades de banimento mantidas usando sistema de arquivos JSON
- * - Logs de eventos opcionais usando apenas o sistema de logger
- * - Melhor compatibilidade com a API nativa do Baileys
  */
 
 const logger = require('../../utils/logger/loggerModule');
@@ -40,7 +34,6 @@ const processAddCommand = async (omniZapClient, messageInfo, senderJid, groupJid
   logger.info('Processando comando add', { senderJid, groupJid, args });
 
   try {
-    // Verificar se a mensagem é de um grupo
     if (!groupJid) {
       return {
         success: false,
@@ -48,7 +41,6 @@ const processAddCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       };
     }
 
-    // Verificar se o bot é administrador
     const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
     if (!botIsAdmin) {
       return {
@@ -57,7 +49,6 @@ const processAddCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       };
     }
 
-    // Verificar se o usuário que enviou o comando é administrador
     const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
     if (!senderIsAdmin) {
       return {
@@ -66,7 +57,6 @@ const processAddCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       };
     }
 
-    // Validar os números fornecidos
     if (!args || !args.trim()) {
       return {
         success: false,
@@ -74,7 +64,6 @@ const processAddCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       };
     }
 
-    // Processar os números
     const numbers = args.split(/[\s,;]+/).filter((n) => n.trim());
     if (numbers.length === 0) {
       return {
@@ -83,12 +72,9 @@ const processAddCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       };
     }
 
-    // Formatar os números para o formato JID
     const participants = numbers.map((number) => {
-      // Remove caracteres não numéricos
       let cleaned = number.replace(/\D/g, '');
 
-      // Se o número não tiver o código do país, assume que é o mesmo do bot (Brasil 55)
       if (cleaned.length <= 11) {
         cleaned = '55' + cleaned;
       }
@@ -96,18 +82,14 @@ const processAddCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       return `${cleaned}@s.whatsapp.net`;
     });
 
-    // Adicionar os participantes ao grupo
     logger.info(`Adicionando participantes ao grupo ${groupJid}`, { participants });
 
     const result = await omniZapClient.groupParticipantsUpdate(groupJid, participants, 'add');
 
-    // Processar resultados
     const successCount = result.filter((r) => r.status === '200').length;
     const failedCount = result.length - successCount;
 
-    // Registrar evento no banco de dados (opcional - pode ser removido se não necessário)
     try {
-      // Se você quiser manter logs locais, pode usar um sistema de logs em arquivo
       const eventLog = {
         type: 'add_participants',
         groupJid,
@@ -121,7 +103,6 @@ const processAddCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       logger.warn('Erro ao registrar log do evento', { error: logError.message });
     }
 
-    // Formatar resposta
     let responseMessage = '';
     if (successCount > 0) {
       responseMessage += `✅ *${successCount} participante(s) adicionado(s) com sucesso*\n\n`;
@@ -167,7 +148,6 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
   logger.info('Processando comando promote', { senderJid, groupJid, args });
 
   try {
-    // Verificar se a mensagem é de um grupo
     if (!groupJid) {
       return {
         success: false,
@@ -175,7 +155,6 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Verificar se o bot é administrador
     const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
     if (!botIsAdmin) {
       return {
@@ -184,7 +163,6 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Verificar se o usuário que enviou o comando é administrador
     const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
     if (!senderIsAdmin) {
       return {
@@ -193,15 +171,12 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Definir o alvo (usuário a ser promovido)
     let targetUsers = [];
 
-    // Verificar se é uma mensagem marcada
     if (messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
       const quotedParticipant = messageInfo.message.extendedTextMessage.contextInfo.participant;
       targetUsers.push(quotedParticipant);
     } else {
-      // Não é uma mensagem marcada, procura por números nos argumentos
       if (!args || !args.trim()) {
         return {
           success: false,
@@ -209,7 +184,6 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
         };
       }
 
-      // Processar os números
       const numbers = args.split(/[\s,;]+/).filter((n) => n.trim());
       if (numbers.length === 0) {
         return {
@@ -218,12 +192,9 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
         };
       }
 
-      // Formatar os números para o formato JID
       targetUsers = numbers.map((number) => {
-        // Remove caracteres não numéricos
         let cleaned = number.replace(/\D/g, '');
 
-        // Se o número não tiver o código do país, assume que é o mesmo do bot (Brasil 55)
         if (cleaned.length <= 11) {
           cleaned = '55' + cleaned;
         }
@@ -232,7 +203,6 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
       });
     }
 
-    // Verificar se os usuários estão no grupo
     const groupMetadata = await omniZapClient.groupMetadata(groupJid);
     const participants = groupMetadata.participants || [];
 
@@ -257,12 +227,10 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Promover os usuários
     logger.info(`Promovendo usuários a administradores no grupo ${groupJid}`, { validUsers });
 
     await omniZapClient.groupParticipantsUpdate(groupJid, validUsers, 'promote');
 
-    // Registrar evento no banco de dados (opcional)
     try {
       const eventLog = {
         type: 'promote_participants',
@@ -276,7 +244,6 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
       logger.warn('Erro ao registrar log do evento', { error: logError.message });
     }
 
-    // Formatar resposta
     let responseMessage = `✅ *${validUsers.length} usuário(s) promovido(s) a administrador com sucesso*\n\n`;
 
     if (invalidUsers.length > 0) {
@@ -317,7 +284,6 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
   logger.info('Processando comando demote', { senderJid, groupJid, args });
 
   try {
-    // Verificar se a mensagem é de um grupo
     if (!groupJid) {
       return {
         success: false,
@@ -325,7 +291,6 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
       };
     }
 
-    // Verificar se o bot é administrador
     const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
     if (!botIsAdmin) {
       return {
@@ -334,7 +299,6 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
       };
     }
 
-    // Verificar se o usuário que enviou o comando é administrador
     const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
     if (!senderIsAdmin) {
       return {
@@ -343,15 +307,12 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
       };
     }
 
-    // Definir o alvo (usuário a ser rebaixado)
     let targetUsers = [];
 
-    // Verificar se é uma mensagem marcada
     if (messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
       const quotedParticipant = messageInfo.message.extendedTextMessage.contextInfo.participant;
       targetUsers.push(quotedParticipant);
     } else {
-      // Não é uma mensagem marcada, procura por números nos argumentos
       if (!args || !args.trim()) {
         return {
           success: false,
@@ -359,7 +320,6 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
         };
       }
 
-      // Processar os números
       const numbers = args.split(/[\s,;]+/).filter((n) => n.trim());
       if (numbers.length === 0) {
         return {
@@ -368,12 +328,9 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
         };
       }
 
-      // Formatar os números para o formato JID
       targetUsers = numbers.map((number) => {
-        // Remove caracteres não numéricos
         let cleaned = number.replace(/\D/g, '');
 
-        // Se o número não tiver o código do país, assume que é o mesmo do bot (Brasil 55)
         if (cleaned.length <= 11) {
           cleaned = '55' + cleaned;
         }
@@ -382,7 +339,6 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
       });
     }
 
-    // Verificar se os usuários estão no grupo e são administradores
     const groupMetadata = await omniZapClient.groupMetadata(groupJid);
     const participants = groupMetadata.participants || [];
 
@@ -420,12 +376,10 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
       };
     }
 
-    // Rebaixar os usuários
     logger.info(`Rebaixando administradores no grupo ${groupJid}`, { validUsers });
 
     await omniZapClient.groupParticipantsUpdate(groupJid, validUsers, 'demote');
 
-    // Registrar evento no banco de dados (opcional)
     try {
       const eventLog = {
         type: 'demote_participants',
@@ -439,7 +393,6 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
       logger.warn('Erro ao registrar log do evento', { error: logError.message });
     }
 
-    // Formatar resposta
     let responseMessage = `✅ *${validUsers.length} administrador(es) rebaixado(s) com sucesso*\n\n`;
 
     if (invalidUsers.length > 0 || notAdminUsers.length > 0) {
@@ -488,7 +441,6 @@ const processSetNameCommand = async (omniZapClient, messageInfo, senderJid, grou
   logger.info('Processando comando setname', { senderJid, groupJid, args });
 
   try {
-    // Verificar se a mensagem é de um grupo
     if (!groupJid) {
       return {
         success: false,
@@ -496,7 +448,6 @@ const processSetNameCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Verificar se o bot é administrador
     const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
     if (!botIsAdmin) {
       return {
@@ -505,7 +456,6 @@ const processSetNameCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Verificar se o usuário que enviou o comando é administrador
     const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
     if (!senderIsAdmin) {
       return {
@@ -514,7 +464,6 @@ const processSetNameCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Validar o novo nome
     if (!args || !args.trim()) {
       return {
         success: false,
@@ -524,7 +473,6 @@ const processSetNameCommand = async (omniZapClient, messageInfo, senderJid, grou
 
     const newName = args.trim();
 
-    // Verificar tamanho do nome (WhatsApp tem limites)
     if (newName.length > 128) {
       return {
         success: false,
@@ -532,14 +480,11 @@ const processSetNameCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Alterar o nome do grupo
     logger.info(`Alterando nome do grupo ${groupJid} para "${newName}"`, { oldGroupJid: groupJid });
 
     await omniZapClient.groupUpdateSubject(groupJid, newName);
 
-    // Registrar evento no banco de dados (opcional)
     try {
-      // Obter o nome antigo do grupo antes da alteração
       const oldGroupMetadata = await omniZapClient.groupMetadata(groupJid);
       const oldName = oldGroupMetadata?.subject || 'Desconhecido';
 
@@ -590,7 +535,6 @@ const processSetDescCommand = async (omniZapClient, messageInfo, senderJid, grou
   logger.info('Processando comando setdesc', { senderJid, groupJid, args });
 
   try {
-    // Verificar se a mensagem é de um grupo
     if (!groupJid) {
       return {
         success: false,
@@ -598,7 +542,6 @@ const processSetDescCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Verificar se o bot é administrador
     const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
     if (!botIsAdmin) {
       return {
@@ -607,7 +550,6 @@ const processSetDescCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Verificar se o usuário que enviou o comando é administrador
     const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
     if (!senderIsAdmin) {
       return {
@@ -616,7 +558,6 @@ const processSetDescCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Validar a nova descrição
     if (!args) {
       return {
         success: false,
@@ -626,7 +567,6 @@ const processSetDescCommand = async (omniZapClient, messageInfo, senderJid, grou
 
     const newDesc = args.trim();
 
-    // Verificar tamanho da descrição (WhatsApp tem limites)
     if (newDesc.length > 512) {
       return {
         success: false,
@@ -634,14 +574,11 @@ const processSetDescCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Alterar a descrição do grupo
     logger.info(`Alterando descrição do grupo ${groupJid}`, { descLength: newDesc.length });
 
     await omniZapClient.groupUpdateDescription(groupJid, newDesc);
 
-    // Registrar evento no banco de dados (opcional)
     try {
-      // Obter a descrição antiga do grupo antes da alteração
       const oldGroupMetadata = await omniZapClient.groupMetadata(groupJid);
       const oldDesc = oldGroupMetadata?.desc || '';
 
@@ -692,7 +629,6 @@ const processGroupSettingCommand = async (omniZapClient, messageInfo, senderJid,
   logger.info('Processando comando group', { senderJid, groupJid, args });
 
   try {
-    // Verificar se a mensagem é de um grupo
     if (!groupJid) {
       return {
         success: false,
@@ -700,7 +636,6 @@ const processGroupSettingCommand = async (omniZapClient, messageInfo, senderJid,
       };
     }
 
-    // Verificar se o bot é administrador
     const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
     if (!botIsAdmin) {
       return {
@@ -709,7 +644,6 @@ const processGroupSettingCommand = async (omniZapClient, messageInfo, senderJid,
       };
     }
 
-    // Verificar se o usuário que enviou o comando é administrador
     const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
     if (!senderIsAdmin) {
       return {
@@ -718,7 +652,6 @@ const processGroupSettingCommand = async (omniZapClient, messageInfo, senderJid,
       };
     }
 
-    // Verificar argumentos
     if (!args || !args.trim()) {
       return {
         success: false,
@@ -762,12 +695,10 @@ const processGroupSettingCommand = async (omniZapClient, messageInfo, senderJid,
         };
     }
 
-    // Alterar configuração do grupo
     logger.info(`Alterando configurações do grupo ${groupJid} para "${setting}"`, { action });
 
     await omniZapClient.groupSettingUpdate(groupJid, setting);
 
-    // Registrar evento no banco de dados (opcional)
     try {
       const eventLog = {
         type: 'change_group_setting',
@@ -816,15 +747,12 @@ const processLinkCommand = async (omniZapClient, messageInfo, senderJid, groupJi
   logger.info('Processando comando link', { senderJid, groupJid, args });
 
   try {
-    // Verificar se a mensagem é de um grupo
     if (!groupJid) {
       return {
         success: false,
         message: formatErrorMessage('Comando só disponível em grupos', 'Este comando só pode ser utilizado dentro de grupos.', null),
       };
     }
-
-    // Verificar se o bot é administrador
     const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
     if (!botIsAdmin) {
       return {
@@ -832,8 +760,6 @@ const processLinkCommand = async (omniZapClient, messageInfo, senderJid, groupJi
         message: formatErrorMessage('Permissão negada', 'O bot precisa ser administrador do grupo para executar esta ação.', null),
       };
     }
-
-    // Verificar se o usuário que enviou o comando é administrador
     const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
     if (!senderIsAdmin) {
       return {
@@ -842,16 +768,13 @@ const processLinkCommand = async (omniZapClient, messageInfo, senderJid, groupJi
       };
     }
 
-    // Verificar se o argumento é "reset" para redefnir o link
     const shouldReset = args && ['reset', 'revoke', 'new', 'novo', 'resetar', 'revogar'].includes(args.trim().toLowerCase());
 
     let code;
     if (shouldReset) {
-      // Revogar e obter novo código
       logger.info(`Revogando e gerando novo link de convite para o grupo ${groupJid}`);
       code = await omniZapClient.groupRevokeInvite(groupJid);
 
-      // Registrar evento no banco de dados (opcional)
       try {
         const eventLog = {
           type: 'revoke_group_link',
@@ -864,12 +787,10 @@ const processLinkCommand = async (omniZapClient, messageInfo, senderJid, groupJi
         logger.warn('Erro ao registrar log do evento', { error: logError.message });
       }
     } else {
-      // Apenas obter o código atual
       logger.info(`Obtendo link de convite para o grupo ${groupJid}`);
       code = await omniZapClient.groupInviteCode(groupJid);
     }
 
-    // Formar a URL completa
     const inviteLink = `https://chat.whatsapp.com/${code}`;
 
     return {
@@ -906,7 +827,6 @@ const processEphemeralCommand = async (omniZapClient, messageInfo, senderJid, gr
   logger.info('Processando comando ephemeral', { senderJid, groupJid, args });
 
   try {
-    // Verificar se a mensagem é de um grupo
     if (!groupJid) {
       return {
         success: false,
@@ -914,7 +834,6 @@ const processEphemeralCommand = async (omniZapClient, messageInfo, senderJid, gr
       };
     }
 
-    // Verificar se o bot é administrador
     const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
     if (!botIsAdmin) {
       return {
@@ -923,7 +842,6 @@ const processEphemeralCommand = async (omniZapClient, messageInfo, senderJid, gr
       };
     }
 
-    // Verificar se o usuário que enviou o comando é administrador
     const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
     if (!senderIsAdmin) {
       return {
@@ -932,7 +850,6 @@ const processEphemeralCommand = async (omniZapClient, messageInfo, senderJid, gr
       };
     }
 
-    // Verificar argumentos
     if (!args || !args.trim()) {
       return {
         success: false,
@@ -980,12 +897,10 @@ const processEphemeralCommand = async (omniZapClient, messageInfo, senderJid, gr
         };
     }
 
-    // Configurar modo efêmero
     logger.info(`Configurando mensagens efêmeras no grupo ${groupJid} para ${seconds} segundos`);
 
     await omniZapClient.groupToggleEphemeral(groupJid, seconds);
 
-    // Registrar evento no banco de dados (opcional)
     try {
       const eventLog = {
         type: 'set_ephemeral',
@@ -1036,7 +951,6 @@ const processAddModeCommand = async (omniZapClient, messageInfo, senderJid, grou
   logger.info('Processando comando addmode', { senderJid, groupJid, args });
 
   try {
-    // Verificar se a mensagem é de um grupo
     if (!groupJid) {
       return {
         success: false,
@@ -1044,7 +958,6 @@ const processAddModeCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Verificar se o bot é administrador
     const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
     if (!botIsAdmin) {
       return {
@@ -1053,7 +966,6 @@ const processAddModeCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Verificar se o usuário que enviou o comando é administrador
     const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
     if (!senderIsAdmin) {
       return {
@@ -1062,7 +974,6 @@ const processAddModeCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Verificar argumentos
     if (!args || !args.trim()) {
       return {
         success: false,
@@ -1095,12 +1006,10 @@ const processAddModeCommand = async (omniZapClient, messageInfo, senderJid, grou
         };
     }
 
-    // Configurar modo de adição
     logger.info(`Configurando modo de adição de participantes no grupo ${groupJid} para ${settingMode}`);
 
     await omniZapClient.groupMemberAddMode(groupJid, settingMode);
 
-    // Registrar evento no banco de dados (opcional)
     try {
       const eventLog = {
         type: 'set_add_mode',
@@ -1148,7 +1057,6 @@ const processGroupInfoCommand = async (omniZapClient, messageInfo, senderJid, gr
   logger.info('Processando comando groupinfo', { senderJid, groupJid, args });
 
   try {
-    // Verificar se a mensagem é de um grupo
     if (!groupJid) {
       return {
         success: false,
@@ -1156,7 +1064,6 @@ const processGroupInfoCommand = async (omniZapClient, messageInfo, senderJid, gr
       };
     }
 
-    // Obter metadados do grupo diretamente da API do Baileys
     const groupMetadata = await omniZapClient.groupMetadata(groupJid);
     if (!groupMetadata) {
       return {
@@ -1167,14 +1074,11 @@ const processGroupInfoCommand = async (omniZapClient, messageInfo, senderJid, gr
 
     const { subject, desc, owner, participants = [], creation, restrict, announce, ephemeralDuration } = groupMetadata;
 
-    // Contar participantes por tipo
     const adminCount = participants.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length;
     const memberCount = participants.length - adminCount;
 
-    // Formatar data de criação
     const creationDate = creation ? new Date(creation * 1000).toLocaleString('pt-BR') : 'Desconhecido';
 
-    // Formatar duração das mensagens efêmeras
     let ephemeralText = 'Desativado';
     if (ephemeralDuration) {
       if (ephemeralDuration === 86400) ephemeralText = '24 horas';
@@ -1183,11 +1087,9 @@ const processGroupInfoCommand = async (omniZapClient, messageInfo, senderJid, gr
       else ephemeralText = `${ephemeralDuration} segundos`;
     }
 
-    // Formatar configurações
     const restrictText = restrict ? 'Somente admins podem editar' : 'Todos podem editar';
     const announceText = announce ? 'Somente admins podem enviar mensagens' : 'Todos podem enviar mensagens';
 
-    // Obter link do grupo (se bot for admin)
     let inviteLink = '';
     try {
       if (await isBotAdmin(omniZapClient, groupJid)) {
@@ -1198,7 +1100,6 @@ const processGroupInfoCommand = async (omniZapClient, messageInfo, senderJid, gr
       logger.warn('Erro ao obter link do grupo', { error: error.message, groupJid });
     }
 
-    // Formatar resposta
     const infoMessage = `📊 *INFORMAÇÕES DO GRUPO*\n\n` + `📝 *Nome:* ${subject}\n` + `👥 *Participantes:* ${participants.length} (${adminCount} admins, ${memberCount} membros)\n` + `👑 *Criador:* ${owner ? '+' + owner.split('@')[0] : 'Desconhecido'}\n` + `📅 *Criado em:* ${creationDate}\n` + `⚙️ *Configurações:*\n` + `  • ${restrictText}\n` + `  • ${announceText}\n` + `⏱️ *Mensagens temporárias:* ${ephemeralText}` + `${inviteLink}\n\n` + `📄 *Descrição:*\n${desc || 'Sem descrição'}`;
 
     return {
@@ -1239,7 +1140,6 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
   });
 
   try {
-    // Verificar se a mensagem é de um grupo
     if (!groupJid) {
       return {
         success: false,
@@ -1247,7 +1147,6 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       };
     }
 
-    // Verificar se o bot é administrador
     const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
     if (!botIsAdmin) {
       return {
@@ -1256,7 +1155,6 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       };
     }
 
-    // Verificar se o usuário que enviou o comando é administrador
     const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
     if (!senderIsAdmin) {
       return {
@@ -1265,20 +1163,16 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       };
     }
 
-    // Definir variáveis para o usuário a ser banido e o motivo
     let targetUserJid = null;
     let banReason = 'Banido por um administrador';
 
-    // Verificar se é uma mensagem marcada
     if (messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
       targetUserJid = messageInfo.message.extendedTextMessage.contextInfo.participant;
 
-      // Extrair o motivo (tudo após o comando)
       if (args && args.trim()) {
         banReason = args.trim();
       }
 
-      // Tentar apagar a mensagem marcada
       try {
         const quotedMessage = {
           id: messageInfo.message.extendedTextMessage.contextInfo.stanzaId,
@@ -1293,10 +1187,8 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
           error: deleteError.message,
           stack: deleteError.stack,
         });
-        // Continua com o banimento mesmo se falhar em apagar a mensagem
       }
     } else {
-      // Não é uma mensagem marcada, procura por um número nos argumentos
       const argParts = args.split(' ');
       if (!argParts[0]) {
         return {
@@ -1305,14 +1197,12 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
         };
       }
 
-      // O primeiro argumento é o número/menção, o resto é o motivo
       targetUserJid = formatPhoneToJid(argParts[0]);
       if (argParts.length > 1) {
         banReason = argParts.slice(1).join(' ');
       }
     }
 
-    // Verificar se o alvo é um administrador
     const targetIsAdmin = await isUserAdmin(omniZapClient, groupJid, targetUserJid);
     if (targetIsAdmin) {
       return {
@@ -1321,7 +1211,6 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       };
     }
 
-    // Verificar se o usuário está no grupo
     const userInGroup = await isUserInGroup(omniZapClient, groupJid, targetUserJid);
     if (!userInGroup) {
       return {
@@ -1330,11 +1219,9 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       };
     }
 
-    // Executar o banimento
     logger.info(`Banindo usuário ${targetUserJid} do grupo ${groupJid} - Motivo: ${banReason}`);
     await omniZapClient.groupParticipantsUpdate(groupJid, [targetUserJid], 'remove');
 
-    // Registrar o evento no banco de dados (opcional)
     try {
       const eventLog = {
         type: 'ban',
@@ -1349,10 +1236,8 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       logger.warn('Erro ao registrar log do evento', { error: logError.message });
     }
 
-    // Formatar o número para exibição
     const formattedNumber = targetUserJid.split('@')[0];
 
-    // Adicionar o usuário à lista de banidos
     await addUserToBannedList(targetUserJid, groupJid, senderJid, banReason);
 
     return {
@@ -1393,7 +1278,6 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
   });
 
   try {
-    // Se for um grupo, verificar se o usuário é administrador
     if (groupJid) {
       const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
       if (!senderIsAdmin) {
@@ -1404,11 +1288,9 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
       }
     }
 
-    // Processar argumentos
     const argParts = args.split(' ');
     const subCommand = argParts[0]?.toLowerCase();
 
-    // Se não houver subcomando, mostrar ajuda
     if (!subCommand) {
       return {
         success: true,
@@ -1416,11 +1298,9 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
       };
     }
 
-    // Processar subcomandos
     switch (subCommand) {
       case 'grupo':
       case 'group':
-        // Verificar se está em um grupo
         if (!groupJid) {
           return {
             success: false,
@@ -1428,7 +1308,6 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
           };
         }
 
-        // Buscar histórico de banimentos do grupo
         const groupBans = await getGroupBanHistory(groupJid);
 
         if (groupBans.length === 0) {
@@ -1438,10 +1317,8 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
           };
         }
 
-        // Formatar a lista de banimentos
         let banList = `📋 *Lista de Banimentos do Grupo*\n\n*Total:* ${groupBans.length} banimento(s)\n\n`;
 
-        // Limitar a 10 banimentos para não exceder o limite de mensagem
         const recentBans = groupBans.slice(-10).reverse();
 
         for (const ban of recentBans) {
@@ -1463,7 +1340,6 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
       case 'user':
       case 'usuario':
       case 'usuário':
-        // Verificar se foi fornecido um número
         const phoneNumber = argParts[1];
         if (!phoneNumber) {
           return {
@@ -1472,13 +1348,10 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
           };
         }
 
-        // Formatar o número para JID
         let userJid = phoneNumber;
         if (!userJid.includes('@')) {
-          // Remove caracteres não numéricos
           let cleaned = phoneNumber.replace(/\D/g, '');
 
-          // Se o número não tiver o código do país, assume que é o mesmo do bot (Brasil 55)
           if (cleaned.length <= 11) {
             cleaned = '55' + cleaned;
           }
@@ -1486,7 +1359,6 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
           userJid = `${cleaned}@s.whatsapp.net`;
         }
 
-        // Buscar histórico do usuário
         const userBans = await getUserBanHistory(userJid);
 
         if (userBans.length === 0) {
@@ -1496,10 +1368,8 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
           };
         }
 
-        // Formatar o histórico
         let userBanList = `📋 *Histórico de Banimentos*\n\n👤 *Usuário:* ${phoneNumber}\n*Total:* ${userBans.length} banimento(s)\n\n`;
 
-        // Limitar a 5 banimentos para não exceder o limite de mensagem
         const recentUserBans = userBans.slice(-5).reverse();
 
         for (const ban of recentUserBans) {
@@ -1521,17 +1391,13 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
       case 'stats':
       case 'estatisticas':
       case 'estatísticas':
-        // Carregar todos os banimentos
         const allBans = await loadBannedUsersList();
         const totalBans = allBans.users.length;
 
-        // Contar grupos únicos
         const uniqueGroups = Object.keys(allBans.groupBans).length;
 
-        // Contar usuários únicos
         const uniqueUsers = new Set(allBans.users.map((ban) => ban.userJid.replace(/:\d+/, ''))).size;
 
-        // Encontrar usuário mais banido
         const userBanCount = {};
         for (const ban of allBans.users) {
           const userJid = ban.userJid.replace(/:\d+/, '');
@@ -1545,7 +1411,6 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
           }
         }
 
-        // Formatar estatísticas
         let statsMessage = `📊 *Estatísticas de Banimentos*\n\n`;
         statsMessage += `📋 *Total de banimentos:* ${totalBans}\n`;
         statsMessage += `👥 *Grupos com banimentos:* ${uniqueGroups}\n`;
@@ -1590,10 +1455,8 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
  * @returns {String} - JID formatado
  */
 const formatPhoneToJid = (phoneNumber) => {
-  // Remove caracteres não numéricos
   let cleaned = phoneNumber.replace(/\D/g, '');
 
-  // Se o número não tiver o código do país, assume que é o mesmo do bot (Brasil 55)
   if (cleaned.length <= 11) {
     cleaned = '55' + cleaned;
   }
@@ -1612,7 +1475,6 @@ const formatPhoneToJid = (phoneNumber) => {
  */
 const isUserAdmin = async (omniZapClient, groupJid, userJid) => {
   try {
-    // Obter metadados do grupo diretamente da API do Baileys
     const groupMetadata = await omniZapClient.groupMetadata(groupJid);
     const participants = groupMetadata.participants || [];
 
@@ -1641,11 +1503,9 @@ const isUserAdmin = async (omniZapClient, groupJid, userJid) => {
  */
 const isBotAdmin = async (omniZapClient, groupJid) => {
   try {
-    // Obter metadados do grupo diretamente da API do Baileys
     const groupMetadata = await omniZapClient.groupMetadata(groupJid);
     const participants = groupMetadata.participants || [];
 
-    // O JID do bot é conhecido através das credenciais de autenticação
     const botJid = omniZapClient.user?.id || omniZapClient.authState?.creds?.me?.id;
 
     if (!botJid) {
@@ -1677,7 +1537,6 @@ const isBotAdmin = async (omniZapClient, groupJid) => {
  */
 const isUserInGroup = async (omniZapClient, groupJid, userJid) => {
   try {
-    // Obter metadados do grupo diretamente da API do Baileys
     const groupMetadata = await omniZapClient.groupMetadata(groupJid);
     logger.info('Obteve metadados do grupo diretamente da API', { groupJid });
 
@@ -1708,7 +1567,6 @@ const isUserInGroup = async (omniZapClient, groupJid, userJid) => {
  */
 const loadBannedUsersList = async () => {
   try {
-    // Criar diretório se não existir
     try {
       await fs.mkdir(BANNED_USERS_DIR, { recursive: true });
     } catch (mkdirError) {
@@ -1719,11 +1577,9 @@ const loadBannedUsersList = async () => {
       });
     }
 
-    // Ler arquivo
     const fileData = await fs.readFile(BANNED_USERS_LIST_FILE, 'utf8');
     return JSON.parse(fileData);
   } catch (error) {
-    // Se o arquivo não existir, retorna estrutura padrão
     logger.info('Criando nova lista de usuários banidos', { error: error.message });
     return {
       users: [],
@@ -1740,10 +1596,8 @@ const loadBannedUsersList = async () => {
  */
 const saveBannedUsersList = async (bannedList) => {
   try {
-    // Criar diretório se não existir
     await fs.mkdir(BANNED_USERS_DIR, { recursive: true });
 
-    // Salvar arquivo
     await fs.writeFile(BANNED_USERS_LIST_FILE, JSON.stringify(bannedList, null, 2), 'utf8');
     logger.info('Lista de usuários banidos salva com sucesso', {
       filePath: BANNED_USERS_LIST_FILE,
@@ -1769,10 +1623,8 @@ const saveBannedUsersList = async (bannedList) => {
  */
 const addUserToBannedList = async (userJid, groupJid, executorJid, reason) => {
   try {
-    // Carregar lista atual
     const bannedList = await loadBannedUsersList();
 
-    // Data formatada
     const now = new Date();
     const formattedDate = now.toLocaleString('pt-BR', {
       day: '2-digit',
@@ -1782,7 +1634,6 @@ const addUserToBannedList = async (userJid, groupJid, executorJid, reason) => {
       minute: '2-digit',
     });
 
-    // Adicionar entrada à lista geral
     const banEntry = {
       userJid,
       groupJid,
@@ -1794,13 +1645,11 @@ const addUserToBannedList = async (userJid, groupJid, executorJid, reason) => {
 
     bannedList.users.push(banEntry);
 
-    // Adicionar entrada ao grupo específico
     if (!bannedList.groupBans[groupJid]) {
       bannedList.groupBans[groupJid] = [];
     }
     bannedList.groupBans[groupJid].push(banEntry);
 
-    // Salvar lista atualizada
     await saveBannedUsersList(bannedList);
 
     logger.info('Usuário adicionado à lista de banidos', {
@@ -1827,25 +1676,20 @@ const addUserToBannedList = async (userJid, groupJid, executorJid, reason) => {
  */
 const removeUserFromBanList = async (userJid) => {
   try {
-    // Carregar lista atual
     const bannedList = await loadBannedUsersList();
 
-    // Verificar se o usuário está na lista
     const userIndex = bannedList.users.findIndex((ban) => ban.userJid === userJid);
     if (userIndex === -1) {
       logger.warn('Tentativa de remover usuário não banido', { userJid });
       return false;
     }
 
-    // Remover da lista geral
     bannedList.users.splice(userIndex, 1);
 
-    // Remover de todos os grupos
     for (const groupJid in bannedList.groupBans) {
       bannedList.groupBans[groupJid] = bannedList.groupBans[groupJid].filter((ban) => ban.userJid !== userJid);
     }
 
-    // Salvar lista atualizada
     await saveBannedUsersList(bannedList);
 
     logger.info('Usuário removido da lista de banidos', { userJid });
