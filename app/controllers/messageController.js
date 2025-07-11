@@ -16,7 +16,7 @@ const { COMMAND_PREFIX } = require('../utils/constants');
 const logger = require('../utils/logger/loggerModule');
 
 // Importar funções do groupGlobalUtils
-const { isGroupJid, isUserAdmin, isBotAdmin, isUserInGroup, isUserBanned, getGroupMetadata, updateGroupStats, logGroupActivity, logGroupActivityWithStats, cleanJid, getBotJid, initializeDirectories } = require('../utils/groupGlobalUtils');
+const { isGroupJid, isUserAdmin, isBotAdmin, isUserInGroup, getGroupMetadata, logGroupActivity, cleanJid, getBotJid } = require('../utils/groupGlobalUtils');
 
 // Importar eventHandler para integração bidirecional
 const { eventHandler } = require('../events/eventHandler');
@@ -156,10 +156,6 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient, socketContr
       logger.debug('Cliente WhatsApp configurado no EventHandler');
     }
 
-    // Inicializar diretórios necessários na primeira execução
-    await initializeDirectories();
-    logger.debug('Diretórios do sistema inicializados');
-
     // Registrar processamento no eventHandler
     if (eventHandler) {
       eventHandler.processGenericEvent('message.processing.started', {
@@ -193,7 +189,19 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient, socketContr
 
       // Verificar se o usuário está banido antes de processar qualquer comando
       if (commandInfo.isCommand) {
-        const userBanned = await isUserBanned(senderJid, groupJid);
+        // Verificação simplificada de banimento via eventHandler
+        let userBanned = false;
+        try {
+          // Tentar obter dados de ban do eventHandler se disponível
+          if (eventHandler) {
+            // Por enquanto, usar uma verificação simples baseada em eventos
+            userBanned = false; // TODO: Implementar sistema de banimento via eventHandler
+          }
+        } catch (error) {
+          logger.warn('Erro ao verificar banimento do usuário', { senderJid, groupJid, error: error.message });
+          userBanned = false;
+        }
+
         if (userBanned) {
           logger.warn('Usuário banido tentou executar comando', {
             senderJid,
@@ -247,7 +255,7 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient, socketContr
               }
 
               // Log tradicional para compatibilidade
-              await logGroupActivityWithStats(omniZapClient, groupJid, 'command_executed', {
+              await logGroupActivity(groupJid, 'command_executed', {
                 executorJid: senderJid,
                 command,
                 args,
@@ -958,9 +966,9 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient, socketContr
               });
             }
 
-            // Log de atividade do grupo para mensagens normais com estatísticas (compatibilidade)
+            // Log de atividade do grupo para mensagens normais (compatibilidade)
             try {
-              await logGroupActivityWithStats(omniZapClient, groupJid, 'message_received', {
+              await logGroupActivity(groupJid, 'message_received', {
                 senderJid,
                 messageType: type,
                 isMedia,

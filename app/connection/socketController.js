@@ -501,7 +501,6 @@ function getActiveSocket() {
 async function forceDisconnect() {
   if (activeSocket) {
     try {
-      await activeSocket.logout();
       activeSocket = null;
       lastConnectionTime = null;
       isReconnecting = false;

@@ -17,7 +17,7 @@
 
 const logger = require('../../utils/logger/loggerModule');
 const { formatErrorMessage } = require('../../utils/messageUtils');
-const { isUserAdmin, isBotAdmin, isUserInGroup, formatPhoneToJid, getGroupMetadata, updateGroupStats, logGroupActivity, loadBannedUsersList, saveBannedUsersList, addUserToBannedList, removeUserFromBanList, isUserBanned, cleanJid, initializeDirectories, generateGroupsReport } = require('../../utils/groupGlobalUtils');
+const { isUserAdmin, isBotAdmin, isUserInGroup, formatPhoneToJid, getGroupMetadata, logGroupActivity, cleanJid, banUser, unbanUser } = require('../../utils/groupGlobalUtils');
 
 /**
  * Processa comando para adicionar participantes ao grupo
