@@ -1,11 +1,11 @@
 /**
- * OmniZap Event Handler - Versão Otimizada
+ * OmniZap Event Handler - Versão com Dados Permanentes
  *
  * Módulo responsável pelo processamento independente de eventos
- * Usa cache local centralizado e persistência em JSON assíncrona
+ * Usa persistência direta em JSON com dados permanentes
  * Integração bidirecional com socketController
  *
- * @version 2.2.0
+ * @version 2.3.0
  * @author OmniZap Team
  * @license MIT
  */
@@ -13,7 +13,6 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../utils/logger/loggerModule');
-const { autoCleanIfNeeded } = require('../utils/fixGroupsData');
 
 /**
  * Função local para validar participantes (evita importação circular)
@@ -82,17 +81,6 @@ class EventHandler {
       this.loadPersistedData().catch((error) => {
         logger.error('❌ Erro inicial ao carregar dados persistentes:', error.message);
       });
-
-      // Executa limpeza automática dos dados de grupos se necessário
-      autoCleanIfNeeded()
-        .then((result) => {
-          if (result.success && !result.alreadyClean) {
-            logger.info(`🧹 Limpeza automática executada: ${result.totalParticipantsCleaned} participantes inválidos removidos`);
-          }
-        })
-        .catch((error) => {
-          logger.warn('⚠️ Erro na limpeza automática dos grupos:', error.message);
-        });
 
       // Configura auto-save periódico
       this.setupAutoSave();
@@ -164,8 +152,9 @@ class EventHandler {
       logger.info('🔴 Events: Estado de conexão atualizado - DESCONECTADO');
     }
 
-    // Salva estado atualizado
-    this.eventCache.set('connection_state', {
+    // Salva estado atualizado nos dados permanentes
+    const eventId = `connection_state_${Date.now()}`;
+    this.setEvent(eventId, {
       ...this.connectionState,
       ...metadata,
       _lastUpdate: Date.now(),
