@@ -3,23 +3,29 @@
  *
  * Controlador responsável pela conexão e gerenciamento do socket WhatsApp
  * Utiliza Baileys para comunicação com a API WhatsApp Web
+ * Integração bidirecional com EventHandler para dados permanentes
  *
  * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
+ *
+ * ATUALIZAÇÃO v2.0.0:
+ * - Integração completa com o novo modelo de dados permanentes do EventHandler
+ * - Persistência direta de grupos, contatos, chats e mensagens
+ * - Remoção de cache temporário em favor de armazenamento permanente
+ * - Operações atômicas para garantir integridade dos dados
  */
 
-const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, Browsers } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 
-const dotenv = require('dotenv');
-const { cleanEnv, str, bool } = require('envalid');
-const fs = require('fs');
-const path = require('path');
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
+const dotenv = require('dotenv');
+const { cleanEnv, str, bool } = require('envalid');
+const path = require('path');
 
-const { databaseManager } = require('../database/databaseManager.js');
 const { eventHandler } = require('../events/eventHandler');
+const logger = require('../utils/logger/loggerModule');
 
 dotenv.config();
 
@@ -38,371 +44,758 @@ const env = cleanEnv(process.env, {
   }),
 });
 
-const logger = require('../utils/logger/loggerModule');
-const baileysLogger = require('pino')().child({}).child({ level: 'silent' });
+const baileysLogger = require('pino')({ level: 'silent' });
 
-const moment = require('moment-timezone');
-const getCurrentDate = () => moment().format('DD/MM/YY');
-const getCurrentTime = () => moment().format('HH:mm:ss');
-
-const QR_CODE_PATH = env.QR_CODE_PATH;
-const NodeCache = require('node-cache');
-const messageRetryCache = new NodeCache();
-
-if (!fs.existsSync(QR_CODE_PATH)) {
-  fs.mkdirSync(QR_CODE_PATH, { recursive: true });
-  logger.info(`OmniZap: Diretório criado para QR Code: ${QR_CODE_PATH}`);
-}
-
-if (!fs.existsSync(`${QR_CODE_PATH}/creds.json`)) {
-  logger.info(
-    `OmniZap: Certifique-se de ter outro dispositivo para escanear o QR Code.
-Caminho QR: ${QR_CODE_PATH}
-–`,
-  );
-}
-
-logger.info('🔗 OmniZap Socket: Sistema de conexão inicializado');
-logger.debug('🔗 Módulos de cache e eventos carregados independentemente');
+let activeSocket = null;
+let connectionAttempts = 0;
+let lastConnectionTime = null;
+let isReconnecting = false;
 
 /**
- * Lida com o fechamento da conexão, logando o erro e decidindo se deve reconectar.
- * @param {object} lastDisconnect - O objeto de desconexão do Baileys.
+ * Configuração do EventHandler com comunicação bidirecional
  */
-async function handleConnectionClose(lastDisconnect) {
-  const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
-  let shouldReconnect = true;
-  let userMessage = '🔌 Conexão perdida. Tentando reconectar...';
-
-  logger.debug('A conexão foi fechada.', {
-    error: lastDisconnect.error,
-    statusCode,
+function setupEventHandlerIntegration() {
+  eventHandler.setSocketController({
+    getActiveSocket: () => activeSocket,
+    getConnectionStats: getConnectionStats,
+    sendMessage: sendMessage,
+    forceDisconnect: forceDisconnect,
+    forceReconnect: reconnectToWhatsApp,
+    getGroupInfo: getGroupInfo,
+    sendPresence: sendPresence,
   });
 
-  switch (statusCode) {
-    case 401: // Unauthorized: credenciais inválidas ou usuário desconectado
-      userMessage = '🚫 Erro de autenticação. A sessão é inválida.';
-      logger.error(`${userMessage} Removendo credenciais e encerrando.`);
-      try {
-        fs.unlinkSync(path.join(QR_CODE_PATH, 'creds.json'));
-        logger.info('Arquivo de sessão removido. Por favor, reinicie a aplicação para gerar um novo QR Code.');
-      } catch (e) {
-        logger.error('Não foi possível remover o arquivo de sessão.', { error: e.message });
-      }
-      shouldReconnect = false;
-      break;
-    case 408: // Connection Lost
-      userMessage = '🌐 Conexão com o servidor perdida. Reconectando...';
-      logger.warn(userMessage);
-      break;
-    case 411: // Multi-device Mismatch
-      userMessage = '⚠️ Sincronização entre dispositivos falhou. Pode ser necessário escanear o QR Code novamente.';
-      logger.warn(userMessage);
-      break;
-    case 428: // Connection Closed
-      userMessage = '🔌 Conexão fechada. Reconectando...';
-      logger.warn(userMessage);
-      break;
-    case 440: // Connection Replaced
-      userMessage = '🔄 Nova sessão iniciada em outro local. Esta sessão foi encerrada.';
-      logger.warn(userMessage);
-      shouldReconnect = false;
-      break;
-    case 500: // Internal Server Error
-      userMessage = '🔥 Erro interno no servidor do WhatsApp. Reconectando...';
-      logger.error(userMessage);
-      break;
-    case 515: // Restart Required
-      userMessage = '🔄 O servidor do WhatsApp exige uma reinicialização. Reconectando...';
-      logger.warn(userMessage);
-      break;
-    default:
-      userMessage = `🔌 Conexão fechada por motivo desconhecido. Reconectando...`;
-      logger.error(`Erro não tratado: ${statusCode}`, { error: lastDisconnect.error });
-  }
+  // Registra callbacks importantes
+  eventHandler.registerCallback('connection.state.change', async (data) => {
+    logger.info(`🔄 Callback: Mudança de estado de conexão: ${data.isConnected ? 'CONECTADO' : 'DESCONECTADO'}`);
 
-  if (shouldReconnect) {
-    const delay = 5000;
-    logger.info(`${userMessage} Tentando novamente em ${delay / 1000} segundos.`);
-    setTimeout(() => initializeOmniZapConnection().catch((err) => logger.error('Falha crítica na tentativa de reconexão.', { error: err.message, stack: err.stack })), delay);
-  } else {
-    logger.info(userMessage);
-  }
+    if (!data.isConnected && !isReconnecting && connectionAttempts < 5) {
+      logger.info('🔄 Agendando reconexão automática...');
+      setTimeout(() => {
+        if (!activeSocket && !isReconnecting) {
+          reconnectToWhatsApp();
+        }
+      }, 10000);
+    }
+  });
+
+  eventHandler.registerCallback('group.metadata.updated', async (data) => {
+    logger.debug(`👥 Callback: Metadados atualizados para grupo: ${data.metadata.subject || 'Sem nome'}`);
+  });
+
+  eventHandler.registerCallback('messages.received', async (data) => {
+    logger.debug(`📨 Callback: ${data.processedCount} mensagens processadas, ${data.groupJids.length} grupos detectados`);
+  });
+
+  logger.info('🤝 SocketController: Integração bidirecional com EventHandler configurada');
 }
 
 /**
- * Inicializa a conexão WhatsApp do OmniZap
- *
- * @returns {Promise<void>}
+ * Obtém estatísticas de conexão
  */
-async function initializeOmniZapConnection() {
-  const { state, saveCreds } = await useMultiFileAuthState(QR_CODE_PATH);
-  const { version } = await fetchLatestBaileysVersion();
+function getConnectionStats() {
+  const eventStats = eventHandler.getDataStats();
+  return {
+    ...eventStats,
+    isConnected: activeSocket !== null && activeSocket.ws?.readyState === 1,
+    connectionState: activeSocket?.ws?.readyState || 'disconnected',
+    lastConnection: lastConnectionTime,
+    connectionAttempts: connectionAttempts,
+    socketId: activeSocket?.user?.id || null,
+    userPhone: activeSocket?.user?.name || null,
+    uptime: lastConnectionTime ? Date.now() - lastConnectionTime : 0,
+    isReconnecting: isReconnecting,
+  };
+}
 
-  if (env.PAIRING_CODE && !state.creds.registered) {
-    if (!env.PHONE_NUMBER) {
-      logger.error('═══════════════════════════════════════════════════');
-      logger.error('❌ ERRO DE CONFIGURAÇÃO: NÚMERO DE TELEFONE AUSENTE');
-      logger.error('O modo de pareamento por código está ativado (PAIRING_CODE=true),');
-      logger.error('mas a variável PHONE_NUMBER não foi definida no seu arquivo .env');
-      logger.error('');
-      logger.error('👉 AÇÃO NECESSÁRIA:');
-      logger.error('   1. Abra o arquivo `.env` na raiz do projeto.');
-      logger.error('   2. Adicione ou edite a linha: PHONE_NUMBER=SEUNUMERO');
-      logger.error('   3. Substitua "SEUNUMERO" pelo seu número de WhatsApp com código do país (ex: 5511999999999).');
-      logger.error('═══════════════════════════════════════════════════');
-      throw new Error('Configuração de pareamento incompleta: PHONE_NUMBER ausente.');
+/**
+ * Conecta ao WhatsApp usando Baileys
+ * Implementação baseada no exemplo oficial com integração EventHandler
+ */
+async function connectToWhatsApp() {
+  if (isReconnecting) {
+    logger.warn('🔄 Já está em processo de reconexão, aguarde...');
+    return;
+  }
+
+  try {
+    isReconnecting = true;
+    connectionAttempts++;
+    logger.info(`🔗 OmniZap: Tentativa de conexão #${connectionAttempts}`);
+
+    // Configura o estado de autenticação
+    const { state, saveCreds } = await useMultiFileAuthState(env.QR_CODE_PATH);
+    const { version } = await fetchLatestBaileysVersion();
+
+    logger.info('🔗 OmniZap: Iniciando conexão com WhatsApp...');
+    logger.info(`📊 Cache Stats: ${JSON.stringify(eventHandler.getCacheStats())}`);
+
+    // Cria o socket do WhatsApp com configurações otimizadas
+    const sock = makeWASocket({
+      version,
+      auth: state,
+      logger: baileysLogger,
+      browser: Browsers.ubuntu('OmniZap'),
+      printQRInTerminal: !env.PAIRING_CODE,
+      generateHighQualityLinkPreview: true,
+      shouldSyncHistoryMessage: () => false,
+      shouldIgnoreJid: (jid) => typeof jid === 'string' && jid.includes('broadcast'),
+      getMessage: async (key) => {
+        const cached = eventHandler.getMessage(key.remoteJid, key.id);
+        if (cached) {
+          logger.debug(`📱 Cache hit para getMessage: ${key.id.substring(0, 10)}...`);
+        }
+        return cached?.message || null;
+      },
+    });
+
+    // Configura integração bidirecional uma vez por sessão
+    if (connectionAttempts === 1) {
+      setupEventHandlerIntegration();
     }
 
-    logger.info('📱 Iniciando conexão com código de pareamento...');
-    logger.warn('[!IMPORTANTE] O pareamento por código é um método para conectar o WhatsApp Web sem QR Code.');
-    logger.warn('Você só pode conectar um dispositivo por vez com este método.');
-    logger.info(`O número de telefone deve conter apenas números, incluindo o código do país. Ex: 5511999999999`);
-  }
-
-  const omniZapClient = makeWASocket({
-    version,
-    logger: baileysLogger,
-    auth: {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, baileysLogger),
-    },
-    browser: Browsers.appropriate('Chrome'),
-    msgRetryCounterCache: messageRetryCache,
-    generateHighQualityLinkPreview: true,
-    patchMessageBeforeSending: (message) => {
-      const requiresPatch = !!message?.interactiveMessage;
-      if (requiresPatch) {
-        message = {
-          viewOnceMessage: {
-            message: {
-              messageContextInfo: {
-                deviceListMetadataVersion: 2,
-                deviceListMetadata: {},
-              },
-              ...message,
-            },
-          },
-        };
+    // Gerencia código de pareamento se necessário
+    if (env.PAIRING_CODE && !sock.authState.creds.registered) {
+      if (!env.PHONE_NUMBER) {
+        logger.error('❌ Número de telefone necessário para o modo de pareamento');
+        throw new Error('PHONE_NUMBER é obrigatório quando PAIRING_CODE=true');
       }
-      return message;
-    },
-    getMessage: async (key) => {
-      return await databaseManager.getMessage(key);
-    },
-    shouldSyncHistoryMessage: () => false,
-    shouldIgnoreJid: (jid) => typeof jid === 'string' && jid.includes('broadcast'),
-  });
 
-  if (env.PAIRING_CODE && !omniZapClient.authState.creds.registered) {
-    const phoneNumber = env.PHONE_NUMBER.replace(/[^0-9]/g, '');
-    logger.info(`📞 Solicitando código de pareamento para o número: ${phoneNumber}`);
+      const phoneNumber = env.PHONE_NUMBER.replace(/[^0-9]/g, '');
+      logger.info(`📞 Solicitando código de pareamento para: ${phoneNumber}`);
 
-    setTimeout(async () => {
-      try {
-        const code = await omniZapClient.requestPairingCode(phoneNumber);
-        logger.info('═══════════════════════════════════════════════════');
-        logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
-        logger.info(`\n          > ${code.match(/.{1,4}/g).join('-')} <\n`);
-        logger.info('💡 Abra o WhatsApp → Dispositivos vinculados → Vincular com número de telefone');
-        logger.info('═══════════════════════════════════════════════════');
-      } catch (error) {
-        logger.error('❌ Falha ao solicitar o código de pareamento:', { error: error.message, stack: error.stack });
-      }
-    }, 3000);
-  }
+      setTimeout(async () => {
+        try {
+          const code = await sock.requestPairingCode(phoneNumber);
+          logger.info('═══════════════════════════════════════════════════');
+          logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
+          logger.info(`\n          > ${code.match(/.{1,4}/g).join('-')} <\n`);
+          logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular com número');
+          logger.info('═══════════════════════════════════════════════════');
+        } catch (error) {
+          logger.error('❌ Erro ao solicitar código de pareamento:', error.message);
+        }
+      }, 3000);
+    }
 
-  omniZapClient.ev.process(async (events) => {
-    if (events['connection.update']) {
-      const update = events['connection.update'];
+    // Event handlers com melhor integração
+    sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
-      eventHandler.processGenericEvent('connection.update', update);
-
-      logger.info(`🔗 Socket: Connection update - Status: ${connection}`);
+      logger.info(`🔗 Status da conexão: ${connection}`);
 
       if (qr && !env.PAIRING_CODE) {
-        logger.info(`📱 QR Code gerado! Escaneie com seu WhatsApp:`);
+        logger.info('📱 QR Code gerado! Escaneie com seu WhatsApp:');
         logger.info('═══════════════════════════════════════════════════');
         qrcode.generate(qr, { small: true });
         logger.info('═══════════════════════════════════════════════════');
-        logger.info('💡 Abra o WhatsApp → Dispositivos vinculados → Vincular dispositivo');
-        logger.warn('⏰ O QR Code expira em 60 segundos');
+        logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular dispositivo');
+        logger.warn('⏰ QR Code expira em 60 segundos');
       }
 
-      switch (connection) {
-        case 'close':
-          await handleConnectionClose(lastDisconnect);
-          break;
+      if (connection === 'close') {
+        activeSocket = null;
+        lastConnectionTime = null;
+        isReconnecting = false;
 
-        case 'connecting':
-          logger.info(`〔 Socket 〕 Conectando... - ${getCurrentDate()} ${getCurrentTime()}`);
-          break;
+        const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
 
-        case 'open':
-          logger.info('✅ OmniZap: Conectado com sucesso!');
-          await omniZapClient.sendPresenceUpdate('available');
-          eventHandler.setWhatsAppClient(omniZapClient);
-          break;
+        logger.warn(`🔌 Conexão fechada. Motivo: ${reason}, Reconectar: ${shouldReconnect}`);
 
-        default:
-          break;
-      }
-    }
+        // Atualiza estado no eventHandler
+        eventHandler.updateConnectionState(false, { reason, shouldReconnect, connectionAttempts });
 
-    if (events['messages.upsert']) {
-      const messageUpdate = events['messages.upsert'];
-      logger.info(`📨 Socket: Messages upsert - ${messageUpdate.messages?.length || 0} mensagem(ns)`);
-      eventHandler.processMessagesUpsert(messageUpdate);
+        if (shouldReconnect && connectionAttempts < 5) {
+          logger.info(`🔄 Reconectando em 10 segundos... (Tentativa ${connectionAttempts + 1}/5)`);
+          setTimeout(() => {
+            if (!activeSocket) {
+              connectToWhatsApp();
+            }
+          }, 10000);
+        } else if (!shouldReconnect) {
+          logger.error('❌ Sessão encerrada. Reinicie a aplicação para reconectar.');
+          connectionAttempts = 0;
+          eventHandler.savePersistedData();
+        } else {
+          logger.error('❌ Máximo de tentativas de reconexão atingido.');
+          eventHandler.savePersistedData();
+        }
+      } else if (connection === 'open') {
+        activeSocket = sock;
+        lastConnectionTime = Date.now();
+        connectionAttempts = 0;
+        isReconnecting = false;
 
-      const omniZapMainHandler = require('../../index.js');
-      omniZapMainHandler(messageUpdate, omniZapClient, QR_CODE_PATH)
-        .then(() => {
-          logger.debug('Socket: 🎯 Handler principal executado');
-        })
-        .catch((error) => {
-          logger.error('Socket: ❌ Erro no handler principal:', {
-            error: error.message,
-            stack: error.stack,
-          });
+        logger.info('✅ OmniZap: Conectado com sucesso ao WhatsApp!');
+        await sock.sendPresenceUpdate('available');
+
+        // Atualiza estado no eventHandler
+        eventHandler.updateConnectionState(true, {
+          userId: sock.user?.id,
+          userPhone: sock.user?.name,
+          connectionTime: lastConnectionTime,
+          version: version,
         });
-    }
 
-    if (events['messages.update']) {
-      const updates = events['messages.update'];
-      logger.info(`📝 Socket: Messages update - ${updates?.length || 0} atualização(ões)`);
-      eventHandler.processMessagesUpdate(updates);
-    }
+        // Configura o cliente no event handler
+        eventHandler.setWhatsAppClient(sock);
 
-    if (events['messages.delete']) {
-      const deletion = events['messages.delete'];
-      logger.warn('🗑️ Socket: Messages delete');
-      eventHandler.processMessagesDelete(deletion);
-    }
+        // Log informações do usuário e estatísticas
+        logger.info(`👤 Conectado como: ${sock.user?.name || 'Usuário'} (${sock.user?.id || 'ID não disponível'})`);
+        const stats = eventHandler.getDataStats();
+        logger.info(`📊 Dados: ${stats.groups} grupos, ${stats.contacts} contatos, ${stats.chats} chats, ${stats.messages} mensagens`);
+      } else if (connection === 'connecting') {
+        logger.info('🔄 Conectando ao WhatsApp...');
+        eventHandler.updateConnectionState(false, { status: 'connecting' });
+      }
 
-    if (events['messages.reaction']) {
-      const reactions = events['messages.reaction'];
-      logger.info(`😀 Socket: Messages reaction - ${reactions?.length || 0} reação(ões)`);
+      // Processa evento com contexto adicional
+      eventHandler.processGenericEvent('connection.update', {
+        ...update,
+        _timestamp: Date.now(),
+        _version: version,
+        _browser: 'OmniZap-Ubuntu',
+        _connectionAttempts: connectionAttempts,
+        _lastConnectionTime: lastConnectionTime,
+        _isReconnecting: isReconnecting,
+      });
+    });
 
-      eventHandler.processMessagesReaction(reactions);
-    }
+    // Manipulador de mensagens aprimorado
+    sock.ev.on('messages.upsert', async (messageUpdate) => {
+      const messageCount = messageUpdate.messages?.length || 0;
+      logger.info(`📨 Novas mensagens: ${messageCount}`);
 
-    if (events['message-receipt.update']) {
-      const receipts = events['message-receipt.update'];
-      logger.info(`📬 Socket: Message receipt - ${receipts?.length || 0} recibo(s)`);
+      // Processa no event handler com contexto melhorado
+      eventHandler.processMessagesUpsert({
+        ...messageUpdate,
+        _receivedAt: Date.now(),
+        _socketId: sock.user?.id,
+      });
 
-      eventHandler.processMessageReceipt(receipts);
-    }
+      // Chama o handler principal se disponível
+      try {
+        // Integração melhorada com o index.js - usando a nova estrutura
+        const omniZapMainHandler = require('../../index.js');
 
-    if (events['messaging-history.set']) {
-      const historyData = events['messaging-history.set'];
-      logger.info('📚 Socket: Messaging history set');
+        // Verifica se é a nova estrutura exportada ou a antiga
+        const handlerFunction = omniZapMainHandler.OmniZapMainHandler || omniZapMainHandler.default || omniZapMainHandler;
 
-      eventHandler.processMessagingHistory(historyData);
-    }
+        // Passa uma referência completa do socketController para melhor integração
+        const socketControllerRef = {
+          getActiveSocket: () => activeSocket,
+          getConnectionStats: getConnectionStats,
+          sendMessage: sendMessage,
+          forceDisconnect: forceDisconnect,
+          forceReconnect: reconnectToWhatsApp,
+          getGroupInfo: getGroupInfo,
+          sendPresence: sendPresence,
+          // Adiciona método para registrar-se no sistema principal
+          registerWithMainSystem: () => {
+            if (omniZapMainHandler.registerSocketController) {
+              omniZapMainHandler.registerSocketController(socketControllerRef);
+            }
+          },
+        };
 
-    if (events['groups.update']) {
-      const updates = events['groups.update'];
-      logger.info(`👥 Socket: Groups update - ${updates?.length || 0} atualização(ões)`);
+        // Registra o socketController no sistema principal se disponível
+        if (omniZapMainHandler.registerSocketController) {
+          omniZapMainHandler.registerSocketController(socketControllerRef);
+        }
 
-      eventHandler.processGroupsUpdate(updates);
-    }
+        await handlerFunction(messageUpdate, sock, env.QR_CODE_PATH, socketControllerRef);
+        logger.debug('🎯 Handler principal executado com sucesso');
+      } catch (error) {
+        logger.error('❌ Erro no handler principal:', error.message);
 
-    if (events['groups.upsert']) {
-      const groupsMetadata = events['groups.upsert'];
-      logger.info(`👥 Socket: Groups upsert - ${groupsMetadata?.length || 0} grupo(s)`);
+        // Registra erro no eventHandler
+        eventHandler.processGenericEvent('socket.handler.error', {
+          error: error.message,
+          timestamp: Date.now(),
+          messageCount: messageUpdate?.messages?.length || 0,
+        });
+      }
+    });
 
-      eventHandler.processGroupsUpsert(groupsMetadata);
-    }
+    // Outros eventos importantes com melhor logging e persistência
+    sock.ev.on('messages.update', (updates) => {
+      logger.debug(`📝 Atualizações de mensagens: ${updates?.length || 0}`);
+      // Atualiza mensagens existentes com novos dados
+      if (updates && Array.isArray(updates)) {
+        updates.forEach(async (messageUpdate) => {
+          if (messageUpdate.key && messageUpdate.key.remoteJid && messageUpdate.key.id) {
+            const existingMessage = eventHandler.getMessage(messageUpdate.key.remoteJid, messageUpdate.key.id);
+            if (existingMessage) {
+              const mergedData = {
+                ...existingMessage,
+                update: messageUpdate.update,
+                _lastUpdate: Date.now(),
+                _source: 'messages.update',
+              };
+              await eventHandler.setMessage(messageUpdate.key.remoteJid, messageUpdate.key.id, mergedData);
+            }
+          }
+        });
+      }
+      eventHandler.processGenericEvent('messages.update', updates);
+    });
 
-    if (events['group-participants.update']) {
-      const event = events['group-participants.update'];
-      logger.info('👥 Socket: Group participants update');
+    sock.ev.on('messages.delete', (deletion) => {
+      logger.warn('🗑️ Mensagens deletadas');
+      eventHandler.processGenericEvent('messages.delete', deletion);
+    });
 
-      eventHandler.processGroupParticipants(event);
-    }
+    sock.ev.on('messages.reaction', (reactions) => {
+      logger.debug(`😀 Reações: ${reactions?.length || 0}`);
+      eventHandler.processGenericEvent('messages.reaction', reactions);
+    });
 
-    if (events['chats.upsert']) {
-      const chats = events['chats.upsert'];
-      logger.info(`💬 Socket: Chats upsert - ${chats?.length || 0} chat(s)`);
+    sock.ev.on('message-receipt.update', (receipts) => {
+      logger.debug(`📬 Recibos: ${receipts?.length || 0}`);
+      eventHandler.processGenericEvent('message-receipt.update', receipts);
+    });
 
-      eventHandler.processChatsUpsert(chats);
-    }
+    // Eventos de grupos com melhor integração e persistência direta
+    sock.ev.on('groups.update', (updates) => {
+      logger.info(`👥 Atualizações de grupos: ${updates?.length || 0}`);
+      // Processa e salva dados de grupos atualizados
+      if (updates && Array.isArray(updates)) {
+        updates.forEach(async (groupUpdate) => {
+          if (groupUpdate.id) {
+            const existingGroup = eventHandler.getGroup(groupUpdate.id);
+            const mergedData = {
+              ...existingGroup,
+              ...groupUpdate,
+              _lastUpdate: Date.now(),
+              _source: 'groups.update',
+            };
+            await eventHandler.setGroup(groupUpdate.id, mergedData);
+          }
+        });
+      }
+      eventHandler.processGenericEvent('groups.update', updates);
+    });
 
-    if (events['chats.update']) {
-      const updates = events['chats.update'];
-      logger.info(`💬 Socket: Chats update - ${updates?.length || 0} atualização(ões)`);
+    sock.ev.on('groups.upsert', (groupsMetadata) => {
+      logger.info(`👥 Novos grupos: ${groupsMetadata?.length || 0}`);
+      // Salva metadados de novos grupos diretamente
+      if (groupsMetadata && Array.isArray(groupsMetadata)) {
+        groupsMetadata.forEach(async (metadata) => {
+          if (metadata.id) {
+            await eventHandler.setGroup(metadata.id, {
+              ...metadata,
+              _createdAt: Date.now(),
+              _source: 'groups.upsert',
+            });
+          }
+        });
+      }
+      eventHandler.processGenericEvent('groups.upsert', groupsMetadata);
+    });
 
-      eventHandler.processChatsUpdate(updates);
-    }
+    sock.ev.on('group-participants.update', (event) => {
+      logger.info(`👥 Participantes atualizados no grupo: ${event.id?.substring(0, 20)}...`);
+      // Atualiza dados do grupo com mudanças de participantes
+      if (event.id) {
+        setImmediate(async () => {
+          try {
+            const existingGroup = eventHandler.getGroup(event.id);
+            if (existingGroup) {
+              const updatedGroup = {
+                ...existingGroup,
+                _lastParticipantUpdate: Date.now(),
+                _participantChangeType: event.action,
+                _participantChangeCount: event.participants?.length || 0,
+              };
+              await eventHandler.setGroup(event.id, updatedGroup);
+            }
+          } catch (error) {
+            logger.error('❌ Erro ao atualizar grupo com mudança de participantes:', error.message);
+          }
+        });
+      }
+      eventHandler.processGenericEvent('group-participants.update', event);
+    });
 
-    if (events['chats.delete']) {
-      const jids = events['chats.delete'];
-      logger.warn(`💬 Socket: Chats delete - ${jids?.length || 0} chat(s) deletado(s)`);
+    // Eventos de chats com persistência direta
+    sock.ev.on('chats.upsert', (chats) => {
+      logger.debug(`💬 Novos chats: ${chats?.length || 0}`);
+      // Salva novos chats diretamente
+      if (chats && Array.isArray(chats)) {
+        chats.forEach(async (chat) => {
+          if (chat.id) {
+            await eventHandler.setChat(chat.id, {
+              ...chat,
+              _createdAt: Date.now(),
+              _source: 'chats.upsert',
+            });
+          }
+        });
+      }
+      eventHandler.processGenericEvent('chats.upsert', chats);
+    });
 
-      eventHandler.processChatsDelete(jids);
-    }
+    sock.ev.on('chats.update', (updates) => {
+      logger.debug(`💬 Chats atualizados: ${updates?.length || 0}`);
+      // Atualiza chats existentes
+      if (updates && Array.isArray(updates)) {
+        updates.forEach(async (chatUpdate) => {
+          if (chatUpdate.id) {
+            const existingChat = eventHandler.getChat(chatUpdate.id);
+            const mergedData = {
+              ...existingChat,
+              ...chatUpdate,
+              _lastUpdate: Date.now(),
+              _source: 'chats.update',
+            };
+            await eventHandler.setChat(chatUpdate.id, mergedData);
+          }
+        });
+      }
+      eventHandler.processGenericEvent('chats.update', updates);
+    });
 
-    if (events['contacts.upsert']) {
-      const contacts = events['contacts.upsert'];
-      logger.info(`👤 Socket: Contacts upsert - ${contacts?.length || 0} contato(s)`);
+    sock.ev.on('chats.delete', (jids) => {
+      logger.warn(`💬 Chats deletados: ${jids?.length || 0}`);
+      // Marca chats como deletados em vez de remover completamente
+      if (jids && Array.isArray(jids)) {
+        jids.forEach(async (jid) => {
+          const existingChat = eventHandler.getChat(jid);
+          if (existingChat) {
+            await eventHandler.setChat(jid, {
+              ...existingChat,
+              _deleted: true,
+              _deletedAt: Date.now(),
+              _source: 'chats.delete',
+            });
+          }
+        });
+      }
+      eventHandler.processGenericEvent('chats.delete', jids);
+    });
 
-      eventHandler.processContactsUpsert(contacts);
-    }
+    // Eventos de contatos com persistência direta
+    sock.ev.on('contacts.upsert', (contacts) => {
+      logger.debug(`👤 Novos contatos: ${contacts?.length || 0}`);
+      // Salva novos contatos diretamente
+      if (contacts && Array.isArray(contacts)) {
+        contacts.forEach(async (contact) => {
+          if (contact.id) {
+            await eventHandler.setContact(contact.id, {
+              ...contact,
+              _createdAt: Date.now(),
+              _source: 'contacts.upsert',
+            });
+          }
+        });
+      }
+      eventHandler.processGenericEvent('contacts.upsert', contacts);
+    });
 
-    if (events['contacts.update']) {
-      const updates = events['contacts.update'];
-      logger.info(`👤 Socket: Contacts update - ${updates?.length || 0} atualização(ões)`);
+    sock.ev.on('contacts.update', (updates) => {
+      logger.debug(`👤 Contatos atualizados: ${updates?.length || 0}`);
+      // Atualiza contatos existentes
+      if (updates && Array.isArray(updates)) {
+        updates.forEach(async (contactUpdate) => {
+          if (contactUpdate.id) {
+            const existingContact = eventHandler.getContact(contactUpdate.id);
+            const mergedData = {
+              ...existingContact,
+              ...contactUpdate,
+              _lastUpdate: Date.now(),
+              _source: 'contacts.update',
+            };
+            await eventHandler.setContact(contactUpdate.id, mergedData);
+          }
+        });
+      }
+      eventHandler.processGenericEvent('contacts.update', updates);
+    });
 
-      eventHandler.processContactsUpdate(updates);
-    }
+    // Histórico de mensagens
+    sock.ev.on('messaging-history.set', (historyData) => {
+      logger.info('📚 Histórico de mensagens carregado');
+      eventHandler.processGenericEvent('messaging-history.set', historyData);
+    });
 
-    if (events['blocklist.set']) {
-      const data = events['blocklist.set'];
-      logger.warn(`🚫 Socket: Blocklist set - ${data.blocklist?.length || 0} bloqueio(s)`);
-
-      eventHandler.processGenericEvent('blocklist.set', data);
-    }
-
-    if (events['blocklist.update']) {
-      const data = events['blocklist.update'];
-      logger.warn(`🚫 Socket: Blocklist update - Ação: ${data.action}`);
-
-      eventHandler.processGenericEvent('blocklist.update', data);
-    }
-
-    if (events['call']) {
-      const callEvents = events['call'];
-      logger.info(`📞 Socket: Call events - ${callEvents?.length || 0} chamada(s)`);
-
-      eventHandler.processGenericEvent('call', callEvents);
-    }
-
-    if (events['presence.update']) {
-      const data = events['presence.update'];
-      logger.debug('👁️ Socket: Presence update');
-
-      eventHandler.processGenericEvent('presence.update', data);
-    }
-
-    if (events['creds.update']) {
-      logger.info('🔐 Socket: Credentials update - Salvando credenciais');
-
-      eventHandler.processGenericEvent('creds.update', { timestamp: Date.now() });
-
+    // Salva credenciais quando atualizadas
+    sock.ev.on('creds.update', async () => {
+      logger.debug('🔐 Credenciais atualizadas - Salvando...');
       await saveCreds();
-    }
-  });
+      eventHandler.processGenericEvent('creds.update', {
+        timestamp: Date.now(),
+        _autoSaved: true,
+      });
+    });
+
+    return sock;
+  } catch (error) {
+    isReconnecting = false;
+    logger.error('❌ Erro ao conectar ao WhatsApp:', error.message);
+
+    // Salva dados mesmo em caso de erro
+    eventHandler.savePersistedData();
+    throw error;
+  }
 }
-initializeOmniZapConnection().catch(async (error) => {
-  logger.error('Socket: Erro ao inicializar o sistema', {
-    error: error.message,
-    stack: error.stack,
+
+/**
+ * Força reconexão do WhatsApp
+ */
+async function reconnectToWhatsApp() {
+  try {
+    logger.info('🔄 Iniciando processo de reconexão...');
+
+    if (activeSocket) {
+      logger.info('🔌 Desconectando socket atual...');
+      await forceDisconnect();
+    }
+
+    // Aguarda um pouco antes de reconectar
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    logger.info('🔄 Iniciando nova conexão...');
+    return await connectToWhatsApp();
+  } catch (error) {
+    isReconnecting = false;
+    logger.error('❌ Erro na reconexão:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Obtém informações detalhadas de um grupo
+ */
+async function getGroupInfo(groupJid, forceRefresh = false) {
+  try {
+    if (!forceRefresh) {
+      const cached = eventHandler.getGroup(groupJid);
+      if (cached && cached._cachedAt && Date.now() - cached._cachedAt < 60000) {
+        // 1 min
+        return cached;
+      }
+    }
+
+    if (!activeSocket) {
+      throw new Error('Socket não conectado');
+    }
+
+    const metadata = await activeSocket.groupMetadata(groupJid);
+
+    if (metadata) {
+      eventHandler.setGroup(groupJid, {
+        ...metadata,
+        _cachedAt: Date.now(),
+        _fetchedViaController: true,
+      });
+    }
+
+    return metadata;
+  } catch (error) {
+    logger.error(`❌ Erro ao obter info do grupo ${groupJid}:`, error.message);
+    throw error;
+  }
+}
+
+/**
+ * Envia presença (online/offline/typing)
+ */
+async function sendPresence(presence, jid = null) {
+  if (!activeSocket) {
+    throw new Error('Socket não conectado');
+  }
+
+  try {
+    if (jid) {
+      await activeSocket.sendPresenceUpdate(presence, jid);
+    } else {
+      await activeSocket.sendPresenceUpdate(presence);
+    }
+
+    logger.debug(`👁️ Presença enviada: ${presence}${jid ? ` para ${jid.substring(0, 20)}...` : ' globalmente'}`);
+  } catch (error) {
+    logger.error('❌ Erro ao enviar presença:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Obtém o socket ativo atual
+ */
+function getActiveSocket() {
+  return activeSocket;
+}
+
+/**
+ * Força desconexão e limpeza
+ */
+async function forceDisconnect() {
+  if (activeSocket) {
+    try {
+      logger.info('🔌 Iniciando desconexão manual...');
+
+      // Salva todos os dados pendentes antes de desconectar
+      await eventHandler.savePersistedData();
+      logger.debug('💾 Dados salvos antes da desconexão');
+
+      activeSocket = null;
+      lastConnectionTime = null;
+      isReconnecting = false;
+
+      logger.info('🔌 Desconectado manualmente');
+    } catch (error) {
+      logger.error('❌ Erro ao desconectar:', error.message);
+    }
+  } else {
+    logger.warn('⚠️ Socket já estava desconectado');
+  }
+
+  // Garantir que os dados são salvos mesmo em caso de erro
+  try {
+    await eventHandler.savePersistedData();
+  } catch (saveError) {
+    logger.error('❌ Erro ao salvar dados durante desconexão:', saveError.message);
+  }
+}
+
+/**
+ * Envia mensagem usando o socket ativo
+ */
+async function sendMessage(jid, content, options = {}) {
+  if (!activeSocket) {
+    throw new Error('Socket não conectado');
+  }
+
+  try {
+    const result = await activeSocket.sendMessage(jid, content, options);
+    logger.debug(`📤 Mensagem enviada para ${jid.substring(0, 20)}...`);
+
+    // Salva a mensagem enviada nos dados permanentes
+    if (result && result.key) {
+      const sentMessageData = {
+        key: result.key,
+        message: content,
+        messageTimestamp: Date.now(),
+        _sentAt: Date.now(),
+        _sentViaController: true,
+        _status: 'sent',
+        _options: options,
+      };
+
+      // Salva usando o método do eventHandler
+      await eventHandler.setMessage(result.key.remoteJid, result.key.id, sentMessageData);
+      logger.debug(`💾 Mensagem enviada salva: ${result.key.id.substring(0, 10)}...`);
+    }
+
+    // Processa evento de mensagem enviada
+    eventHandler.processGenericEvent('message.sent', {
+      jid,
+      content: typeof content,
+      options,
+      timestamp: Date.now(),
+      messageKey: result?.key,
+      _sentViaController: true,
+    });
+
+    return result;
+  } catch (error) {
+    logger.error(`❌ Erro ao enviar mensagem para ${jid}:`, error.message);
+
+    // Registra erro de envio
+    eventHandler.processGenericEvent('message.send.error', {
+      jid,
+      content: typeof content,
+      error: error.message,
+      timestamp: Date.now(),
+      _sentViaController: true,
+    });
+
+    throw error;
+  }
+}
+
+connectToWhatsApp().catch((error) => {
+  logger.error('💥 Falha crítica na inicialização:', error.message);
+
+  // Salva dados mesmo em caso de falha crítica
+  eventHandler.savePersistedData().catch((saveError) => {
+    logger.error('❌ Erro ao salvar dados após falha crítica:', saveError.message);
   });
+
+  setTimeout(() => {
+    logger.info('🔄 Tentando reinicialização após falha crítica...');
+    connectToWhatsApp().catch(() => {
+      logger.error('💥 Falha definitiva na inicialização');
+      process.exit(1);
+    });
+  }, 30000);
+});
+
+process.on('SIGINT', async () => {
+  logger.info('🛑 Encerrando aplicação graciosamente...');
+  await forceDisconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  logger.info('🛑 Encerrando aplicação graciosamente...');
+  await forceDisconnect();
+  process.exit(0);
 });
 
 module.exports = {
-  initializeOmniZapConnection,
-  databaseManager,
+  connectToWhatsApp,
+  reconnectToWhatsApp,
   eventHandler,
+  getActiveSocket,
+  getConnectionStats,
+  getGroupInfo,
+  forceDisconnect,
+  sendMessage,
+  sendPresence,
+  env,
 };
+
+setTimeout(() => {
+  try {
+    const mainSystem = require('../../index.js');
+
+    if (mainSystem.registerSocketController) {
+      const socketControllerInterface = {
+        getActiveSocket,
+        getConnectionStats,
+        sendMessage,
+        forceDisconnect,
+        forceReconnect: reconnectToWhatsApp,
+        getGroupInfo,
+        sendPresence,
+      };
+
+      mainSystem.registerSocketController(socketControllerInterface);
+
+      logger.info('🤝 Integração bidirecional com sistema principal estabelecida');
+
+      if (eventHandler) {
+        eventHandler.processGenericEvent('socketController.integration.success', {
+          timestamp: Date.now(),
+          mainSystemVersion: mainSystem.version || 'unknown',
+          hasSystemStats: !!mainSystem.getSystemStats,
+          hasValidation: !!mainSystem.validateSystemReadiness,
+        });
+      }
+    } else {
+      logger.warn('⚠️ Sistema principal não suporta registro de socketController');
+    }
+  } catch (error) {
+    logger.warn('⚠️ Não foi possível estabelecer integração com sistema principal:', error.message);
+
+    if (eventHandler) {
+      eventHandler.processGenericEvent('socketController.integration.failed', {
+        timestamp: Date.now(),
+        error: error.message,
+        reason: 'main_system_unavailable',
+      });
+    }
+  }
+}, 1000);

@@ -3,7 +3,7 @@
  *
  * Utilitários centralizados para manipulação de mensagens
  *
- * @version 1.0.4
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */
@@ -93,49 +93,48 @@ async function sendReaction(omniZapClient, targetJid, emoji, messageKey) {
     react: { text: emoji, key: messageKey },
   });
 }
-
 /**
- * Gera mensagem de erro padrão com prefixo do comando
+ * Gera mensagem de erro padronizada
  *
- * @param {string} errorMessage - Mensagem de erro
- * @param {string} commandExample - Exemplo de uso do comando
- * @param {string} context - Contexto adicional
+ * @param {string} errorMessage - Mensagem principal de erro
+ * @param {string|null} commandExample - Exemplo de uso do comando (sem o prefixo)
+ * @param {string|null} context - Contexto adicional explicativo
  * @returns {string} Mensagem formatada
  */
 function formatErrorMessage(errorMessage, commandExample = null, context = null) {
-  let message = `❌ *${errorMessage}*\n\n`;
+  const lines = [`❌ *${errorMessage}*`];
 
   if (commandExample) {
-    message += `💡 *Exemplo de uso:*\n${COMMAND_PREFIX}${commandExample}\n\n`;
+    lines.push(`💡 *Exemplo de uso:*\n${COMMAND_PREFIX}${commandExample}`);
   }
 
   if (context) {
-    message += `📋 *Contexto:* ${context}`;
+    lines.push(`📋 *Contexto:*\n${context}`);
   }
 
-  return message;
+  return lines.join('\n\n');
 }
 
 /**
- * Gera mensagem de sucesso padrão
+ * Gera mensagem de sucesso padronizada
  *
- * @param {string} successMessage - Mensagem de sucesso
- * @param {string} details - Detalhes adicionais
- * @param {string} tip - Dica para o usuário
+ * @param {string} successMessage - Mensagem principal de sucesso
+ * @param {string|null} details - Detalhes adicionais ou complementares
+ * @param {string|null} tip - Dica extra para o usuário
  * @returns {string} Mensagem formatada
  */
 function formatSuccessMessage(successMessage, details = null, tip = null) {
-  let message = `✅ *${successMessage}*\n\n`;
+  const lines = [`✅ *${successMessage}*`];
 
   if (details) {
-    message += `${details}\n\n`;
+    lines.push(details);
   }
 
   if (tip) {
-    message += `💡 *Dica:* ${tip}`;
+    lines.push(`💡 *Dica:*\n${tip}`);
   }
 
-  return message;
+  return lines.join('\n\n');
 }
 
 /**
@@ -165,6 +164,7 @@ function formatHelpMessage(title, commands = [], footer = null) {
 }
 
 module.exports = {
+  COMMAND_PREFIX,
   sendOmniZapMessage,
   sendTextMessage,
   sendStickerMessage,

@@ -4,7 +4,7 @@
  * Utilitário para processamento e download de mensagens de mídia do WhatsApp,
  * com gestão de timeouts, limites de tamanho e tratamento de erros.
  *
- * @version 1.0.4
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */
@@ -31,54 +31,36 @@ const DEFAULT_DOWNLOAD_TIMEOUT_MS = 30 * 1000; // 30 segundos
  * @returns {Promise<Buffer|null>} Buffer da mídia ou null em caso de erro
  */
 const getFileBuffer = async (mediaKey, mediaType, options = {}) => {
-  const {
-    allowUnknownType = false,
-    maxSize = DEFAULT_MAX_ALLOWED_SIZE_BYTES,
-    timeoutMs = DEFAULT_DOWNLOAD_TIMEOUT_MS,
-  } = options;
+  const { allowUnknownType = false, maxSize = DEFAULT_MAX_ALLOWED_SIZE_BYTES, timeoutMs = DEFAULT_DOWNLOAD_TIMEOUT_MS } = options;
 
   if (!mediaKey || typeof mediaKey !== 'object') {
-    logger.warn(
-      `[ getFileBuffer ] Parâmetro 'mediaKey' inválido ou ausente. Esperado um objeto, recebido: ${typeof mediaKey}`,
-    );
+    logger.warn(`[ getFileBuffer ] Parâmetro 'mediaKey' inválido ou ausente. Esperado um objeto, recebido: ${typeof mediaKey}`);
     return null;
   }
 
   if (!mediaType || typeof mediaType !== 'string') {
-    logger.warn(
-      `[ getFileBuffer ] Parâmetro 'mediaType' inválido ou ausente. Esperado uma string, recebido: ${typeof mediaType}`,
-    );
+    logger.warn(`[ getFileBuffer ] Parâmetro 'mediaType' inválido ou ausente. Esperado uma string, recebido: ${typeof mediaType}`);
     return null;
   }
 
   if (!VALID_MEDIA_TYPES.has(mediaType)) {
     if (!allowUnknownType) {
-      logger.warn(
-        `[ getFileBuffer ] Tipo de mídia inválido: '${mediaType}'. Deve ser um dos seguintes: ${[
-          ...VALID_MEDIA_TYPES,
-        ].join(', ')}. Configure options.allowUnknownType=true para tentar o download mesmo assim.`,
-      );
+      logger.warn(`[ getFileBuffer ] Tipo de mídia inválido: '${mediaType}'. Deve ser um dos seguintes: ${[...VALID_MEDIA_TYPES].join(', ')}. Configure options.allowUnknownType=true para tentar o download mesmo assim.`);
       return null;
     } else {
-      logger.info(
-        `[ getFileBuffer ] Tipo de mídia desconhecido: '${mediaType}'. Prosseguindo com a tentativa de download, pois allowUnknownType está ativado.`,
-      );
+      logger.info(`[ getFileBuffer ] Tipo de mídia desconhecido: '${mediaType}'. Prosseguindo com a tentativa de download, pois allowUnknownType está ativado.`);
     }
   }
 
   let stream;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
-    logger.warn(
-      `[ getFileBuffer ] Download atingiu o timeout após ${timeoutMs}ms para o tipo '${mediaType}'. Abortando.`,
-    );
+    logger.warn(`[ getFileBuffer ] Download atingiu o timeout após ${timeoutMs}ms para o tipo '${mediaType}'. Abortando.`);
     controller.abort();
   }, timeoutMs);
 
   try {
-    logger.debug(
-      `[ getFileBuffer ] Tentando baixar mídia do tipo '${mediaType}' (Limite: ${maxSize.toLocaleString()} bytes, Timeout: ${timeoutMs}ms)...`,
-    );
+    logger.debug(`[ getFileBuffer ] Tentando baixar mídia do tipo '${mediaType}' (Limite: ${maxSize.toLocaleString()} bytes, Timeout: ${timeoutMs}ms)...`);
 
     stream = await downloadContentFromMessage(mediaKey, mediaType);
 
@@ -99,17 +81,13 @@ const getFileBuffer = async (mediaKey, mediaType, options = {}) => {
       totalSize += chunk.length;
 
       if (totalSize > maxSize) {
-        logger.warn(
-          `[ getFileBuffer ] Download abortado para o tipo '${mediaType}' - excedeu o tamanho máximo (${maxSize.toLocaleString()} bytes). Recebido ${totalSize.toLocaleString()} bytes.`,
-        );
+        logger.warn(`[ getFileBuffer ] Download abortado para o tipo '${mediaType}' - excedeu o tamanho máximo (${maxSize.toLocaleString()} bytes). Recebido ${totalSize.toLocaleString()} bytes.`);
         if (typeof stream.destroy === 'function') {
           stream.destroy();
         } else if (typeof stream.cancel === 'function') {
           stream.cancel();
         } else {
-          logger.warn(
-            `[ getFileBuffer ] Não foi possível abortar o stream por limite de tamanho - nenhum método destroy() ou cancel() encontrado.`,
-          );
+          logger.warn(`[ getFileBuffer ] Não foi possível abortar o stream por limite de tamanho - nenhum método destroy() ou cancel() encontrado.`);
         }
         clearTimeout(timeoutId);
         return null;
@@ -120,42 +98,26 @@ const getFileBuffer = async (mediaKey, mediaType, options = {}) => {
     clearTimeout(timeoutId);
 
     if (controller.signal.aborted) {
-      logger.debug(
-        `[ getFileBuffer ] Download abortado imediatamente após o término do stream para o tipo '${mediaType}'.`,
-      );
+      logger.debug(`[ getFileBuffer ] Download abortado imediatamente após o término do stream para o tipo '${mediaType}'.`);
       return null;
     }
 
     if (chunks.length === 0 && totalSize === 0) {
-      logger.warn(
-        `[ getFileBuffer ] Nenhum dado recebido do stream para o tipo de mídia '${mediaType}'. A mídia pode estar vazia ou inacessível.`,
-      );
+      logger.warn(`[ getFileBuffer ] Nenhum dado recebido do stream para o tipo de mídia '${mediaType}'. A mídia pode estar vazia ou inacessível.`);
       return null;
     }
 
     const buffer = Buffer.concat(chunks);
 
     if (buffer.length === 0 && totalSize > 0) {
-      logger.warn(
-        `[ getFileBuffer ] Download resultou em um buffer vazio para o tipo de mídia '${mediaType}' após concatenação, apesar de receber ${totalSize} bytes.`,
-      );
+      logger.warn(`[ getFileBuffer ] Download resultou em um buffer vazio para o tipo de mídia '${mediaType}' após concatenação, apesar de receber ${totalSize} bytes.`);
       return null;
     } else if (buffer.length === 0 && totalSize === 0) {
-      logger.warn(
-        `[ getFileBuffer ] Download resultou em um buffer vazio e zero bytes recebidos para o tipo de mídia '${mediaType}'.`,
-      );
+      logger.warn(`[ getFileBuffer ] Download resultou em um buffer vazio e zero bytes recebidos para o tipo de mídia '${mediaType}'.`);
       return null;
     }
 
-    logger.info(
-      `[ getFileBuffer ] Download bem-sucedido: ${buffer.length.toLocaleString()} bytes (${(
-        buffer.length /
-        1024 /
-        1024
-      ).toFixed(
-        2,
-      )} MB) baixados para o tipo de mídia '${mediaType}'. Limite: ${maxSize.toLocaleString()} bytes.`,
-    );
+    logger.info(`[ getFileBuffer ] Download bem-sucedido: ${buffer.length.toLocaleString()} bytes (${(buffer.length / 1024 / 1024).toFixed(2)} MB) baixados para o tipo de mídia '${mediaType}'. Limite: ${maxSize.toLocaleString()} bytes.`);
     return buffer;
   } catch (error) {
     clearTimeout(timeoutId);
@@ -169,18 +131,13 @@ const getFileBuffer = async (mediaKey, mediaType, options = {}) => {
       return null;
     }
 
-    logger.error(
-      `[ getFileBuffer ] Falha ao baixar ou processar o tipo de mídia '${mediaType}'. Erro: ${
-        error?.message || error
-      }`,
-      {
-        message: error?.message,
-        name: error?.name,
-        stack: error?.stack,
-        mediaType: mediaType,
-        mediaKey: mediaKey,
-      },
-    );
+    logger.error(`[ getFileBuffer ] Falha ao baixar ou processar o tipo de mídia '${mediaType}'. Erro: ${error?.message || error}`, {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+      mediaType: mediaType,
+      mediaKey: mediaKey,
+    });
 
     if (stream) {
       if (typeof stream.destroy === 'function') {
@@ -265,9 +222,7 @@ async function saveMediaToFile(mediaBuffer, mimeType, originalFilename = '', out
     // Salvar o buffer no arquivo
     await fs.writeFile(filePath, mediaBuffer);
 
-    logger.info(
-      `[ saveMediaToFile ] Mídia salva em ${filePath} (${mediaBuffer.length.toLocaleString()} bytes)`,
-    );
+    logger.info(`[ saveMediaToFile ] Mídia salva em ${filePath} (${mediaBuffer.length.toLocaleString()} bytes)`);
     return filePath;
   } catch (error) {
     logger.error(`[ saveMediaToFile ] Erro ao salvar mídia:`, {
@@ -313,15 +268,7 @@ function extractMediaInfo(message) {
     const type = Object.keys(message.message)[0];
 
     // Verifica se é uma mídia direta
-    if (
-      [
-        'imageMessage',
-        'videoMessage',
-        'audioMessage',
-        'documentMessage',
-        'stickerMessage',
-      ].includes(type)
-    ) {
+    if (['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'].includes(type)) {
       const mediaObject = message.message[type];
       return {
         type: mapMediaType(type),
@@ -336,22 +283,11 @@ function extractMediaInfo(message) {
     }
 
     // Verifica se é uma mídia citada (quoted)
-    if (
-      type === 'extendedTextMessage' &&
-      message.message.extendedTextMessage.contextInfo?.quotedMessage
-    ) {
+    if (type === 'extendedTextMessage' && message.message.extendedTextMessage.contextInfo?.quotedMessage) {
       const quotedMessage = message.message.extendedTextMessage.contextInfo.quotedMessage;
       const quotedType = Object.keys(quotedMessage)[0];
 
-      if (
-        [
-          'imageMessage',
-          'videoMessage',
-          'audioMessage',
-          'documentMessage',
-          'stickerMessage',
-        ].includes(quotedType)
-      ) {
+      if (['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'].includes(quotedType)) {
         const mediaObject = quotedMessage[quotedType];
         return {
           type: mapMediaType(quotedType),
