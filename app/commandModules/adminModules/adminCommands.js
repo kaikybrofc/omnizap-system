@@ -169,6 +169,46 @@ const isUserBanned = async (userJid, groupJid) => {
 };
 
 /**
+ * === FUNÇÕES AUXILIARES ===
+ */
+
+/**
+ * Valida se o comando pode ser executado (permissões de grupo e admin)
+ * @param {string} groupJid - JID do grupo
+ * @param {string} senderJid - JID do remetente
+ * @param {boolean} requiresBotAdmin - Se o bot precisa ser admin (padrão: true)
+ * @returns {Promise<Object|null>} - Retorna erro se inválido, null se válido
+ */
+const validateAdminCommand = async (groupJid, senderJid, requiresBotAdmin = true) => {
+  if (!groupJid) {
+    return {
+      success: false,
+      message: formatErrorMessage('Comando só disponível em grupos', 'Este comando só pode ser utilizado dentro de grupos.', null),
+    };
+  }
+
+  if (requiresBotAdmin) {
+    const botIsAdmin = await isBotAdmin(groupJid);
+    if (!botIsAdmin) {
+      return {
+        success: false,
+        message: formatErrorMessage('Permissão negada', 'O bot precisa ser administrador do grupo para executar esta ação.', null),
+      };
+    }
+  }
+
+  const senderIsAdmin = await isUserAdmin(groupJid, senderJid);
+  if (!senderIsAdmin) {
+    return {
+      success: false,
+      message: formatErrorMessage('Permissão negada', 'Apenas administradores podem usar este comando.', null),
+    };
+  }
+
+  return null;
+};
+
+/**
  * Processa comando para adicionar participantes ao grupo
  *
  * @param {Object} omniZapClient - Cliente WhatsApp
@@ -182,33 +222,15 @@ const processAddCommand = async (omniZapClient, messageInfo, senderJid, groupJid
   logger.info('Processando comando add', { senderJid, groupJid, args });
 
   try {
-    if (!groupJid) {
-      return {
-        success: false,
-        message: formatErrorMessage('Comando só disponível em grupos', 'Este comando só pode ser utilizado dentro de grupos.', null),
-      };
-    }
-
-    const botIsAdmin = await isBotAdmin(groupJid);
-    if (!botIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'O bot precisa ser administrador do grupo para executar esta ação.', null),
-      };
-    }
-
-    const senderIsAdmin = await isUserAdmin(groupJid, senderJid);
-    if (!senderIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'Apenas administradores podem usar este comando.', null),
-      };
+    const adminValidation = await validateAdminCommand(groupJid, senderJid);
+    if (adminValidation) {
+      return adminValidation;
     }
 
     if (!args || !args.trim()) {
       return {
         success: false,
-        message: formatErrorMessage('Parâmetros insuficientes', 'Você deve fornecer pelo menos um número para adicionar ao grupo.', '📋 *Como usar:*\n!add número1 número2 número3...'),
+        message: formatErrorMessage('Parâmetros insuficientes', 'Você deve fornecer pelo menos um número para adicionar ao grupo.', null),
       };
     }
 
@@ -288,27 +310,9 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
   logger.info('Processando comando promote', { senderJid, groupJid, args });
 
   try {
-    if (!groupJid) {
-      return {
-        success: false,
-        message: formatErrorMessage('Comando só disponível em grupos', 'Este comando só pode ser utilizado dentro de grupos.', null),
-      };
-    }
-
-    const botIsAdmin = await isBotAdmin(groupJid);
-    if (!botIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'O bot precisa ser administrador do grupo para executar esta ação.', null),
-      };
-    }
-
-    const senderIsAdmin = await isUserAdmin(groupJid, senderJid);
-    if (!senderIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'Apenas administradores podem usar este comando.', null),
-      };
+    const adminValidation = await validateAdminCommand(groupJid, senderJid);
+    if (adminValidation) {
+      return adminValidation;
     }
 
     let targetUsers = [];
@@ -423,27 +427,9 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
   logger.info('Processando comando demote', { senderJid, groupJid, args });
 
   try {
-    if (!groupJid) {
-      return {
-        success: false,
-        message: formatErrorMessage('Comando só disponível em grupos', 'Este comando só pode ser utilizado dentro de grupos.', null),
-      };
-    }
-
-    const botIsAdmin = await isBotAdmin(groupJid);
-    if (!botIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'O bot precisa ser administrador do grupo para executar esta ação.', null),
-      };
-    }
-
-    const senderIsAdmin = await isUserAdmin(groupJid, senderJid);
-    if (!senderIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'Apenas administradores podem usar este comando.', null),
-      };
+    const adminValidation = await validateAdminCommand(groupJid, senderJid);
+    if (adminValidation) {
+      return adminValidation;
     }
 
     let targetUsers = [];
@@ -470,7 +456,7 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
       targetUsers = numbers.map((number) => formatPhoneToJid(number));
     }
 
-    const groupMetadata = await getGroupMetadata(omniZapClient, groupJid);
+    const groupMetadata = await getGroupMetadata(groupJid);
     const participants = groupMetadata?.participants || [];
 
     const invalidUsers = [];
@@ -573,27 +559,9 @@ const processSetNameCommand = async (omniZapClient, messageInfo, senderJid, grou
   logger.info('Processando comando setname', { senderJid, groupJid, args });
 
   try {
-    if (!groupJid) {
-      return {
-        success: false,
-        message: formatErrorMessage('Comando só disponível em grupos', 'Este comando só pode ser utilizado dentro de grupos.', null),
-      };
-    }
-
-    const botIsAdmin = await isBotAdmin(groupJid);
-    if (!botIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'O bot precisa ser administrador do grupo para executar esta ação.', null),
-      };
-    }
-
-    const senderIsAdmin = await isUserAdmin(groupJid, senderJid);
-    if (!senderIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'Apenas administradores podem usar este comando.', null),
-      };
+    const adminValidation = await validateAdminCommand(groupJid, senderJid);
+    if (adminValidation) {
+      return adminValidation;
     }
 
     if (!args || !args.trim()) {
@@ -667,27 +635,9 @@ const processSetDescCommand = async (omniZapClient, messageInfo, senderJid, grou
   logger.info('Processando comando setdesc', { senderJid, groupJid, args });
 
   try {
-    if (!groupJid) {
-      return {
-        success: false,
-        message: formatErrorMessage('Comando só disponível em grupos', 'Este comando só pode ser utilizado dentro de grupos.', null),
-      };
-    }
-
-    const botIsAdmin = await isBotAdmin(groupJid);
-    if (!botIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'O bot precisa ser administrador do grupo para executar esta ação.', null),
-      };
-    }
-
-    const senderIsAdmin = await isUserAdmin(groupJid, senderJid);
-    if (!senderIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'Apenas administradores podem usar este comando.', null),
-      };
+    const adminValidation = await validateAdminCommand(groupJid, senderJid);
+    if (adminValidation) {
+      return adminValidation;
     }
 
     if (!args) {
@@ -761,27 +711,9 @@ const processGroupSettingCommand = async (omniZapClient, messageInfo, senderJid,
   logger.info('Processando comando group', { senderJid, groupJid, args });
 
   try {
-    if (!groupJid) {
-      return {
-        success: false,
-        message: formatErrorMessage('Comando só disponível em grupos', 'Este comando só pode ser utilizado dentro de grupos.', null),
-      };
-    }
-
-    const botIsAdmin = await isBotAdmin(groupJid);
-    if (!botIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'O bot precisa ser administrador do grupo para executar esta ação.', null),
-      };
-    }
-
-    const senderIsAdmin = await isUserAdmin(groupJid, senderJid);
-    if (!senderIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'Apenas administradores podem usar este comando.', null),
-      };
+    const adminValidation = await validateAdminCommand(groupJid, senderJid);
+    if (adminValidation) {
+      return adminValidation;
     }
 
     if (!args || !args.trim()) {
@@ -798,13 +730,11 @@ const processGroupSettingCommand = async (omniZapClient, messageInfo, senderJid,
     switch (action) {
       case 'close':
       case 'fechar':
-      case 'close':
         setting = 'announcement';
         description = 'Somente administradores podem enviar mensagens';
         break;
       case 'open':
       case 'abrir':
-      case 'open':
         setting = 'not_announcement';
         description = 'Todos os participantes podem enviar mensagens';
         break;
@@ -959,27 +889,9 @@ const processEphemeralCommand = async (omniZapClient, messageInfo, senderJid, gr
   logger.info('Processando comando ephemeral', { senderJid, groupJid, args });
 
   try {
-    if (!groupJid) {
-      return {
-        success: false,
-        message: formatErrorMessage('Comando só disponível em grupos', 'Este comando só pode ser utilizado dentro de grupos.', null),
-      };
-    }
-
-    const botIsAdmin = await isBotAdmin(groupJid);
-    if (!botIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'O bot precisa ser administrador do grupo para executar esta ação.', null),
-      };
-    }
-
-    const senderIsAdmin = await isUserAdmin(groupJid, senderJid);
-    if (!senderIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'Apenas administradores podem usar este comando.', null),
-      };
+    const adminValidation = await validateAdminCommand(groupJid, senderJid);
+    if (adminValidation) {
+      return adminValidation;
     }
 
     if (!args || !args.trim()) {
@@ -1083,27 +995,9 @@ const processAddModeCommand = async (omniZapClient, messageInfo, senderJid, grou
   logger.info('Processando comando addmode', { senderJid, groupJid, args });
 
   try {
-    if (!groupJid) {
-      return {
-        success: false,
-        message: formatErrorMessage('Comando só disponível em grupos', 'Este comando só pode ser utilizado dentro de grupos.', null),
-      };
-    }
-
-    const botIsAdmin = await isBotAdmin(groupJid);
-    if (!botIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'O bot precisa ser administrador do grupo para executar esta ação.', null),
-      };
-    }
-
-    const senderIsAdmin = await isUserAdmin(groupJid, senderJid);
-    if (!senderIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'Apenas administradores podem usar este comando.', null),
-      };
+    const adminValidation = await validateAdminCommand(groupJid, senderJid);
+    if (adminValidation) {
+      return adminValidation;
     }
 
     if (!args || !args.trim()) {
@@ -1272,27 +1166,9 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
   });
 
   try {
-    if (!groupJid) {
-      return {
-        success: false,
-        message: formatErrorMessage('Comando só disponível em grupos', 'Este comando só pode ser utilizado dentro de grupos.', null),
-      };
-    }
-
-    const botIsAdmin = await isBotAdmin(groupJid);
-    if (!botIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'O bot precisa ser administrador do grupo para executar esta ação.', null),
-      };
-    }
-
-    const senderIsAdmin = await isUserAdmin(groupJid, senderJid);
-    if (!senderIsAdmin) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'Apenas administradores podem usar este comando.', null),
-      };
+    const adminValidation = await validateAdminCommand(groupJid, senderJid);
+    if (adminValidation) {
+      return adminValidation;
     }
 
     let targetUserJid = null;
@@ -1321,6 +1197,13 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
         });
       }
     } else {
+      if (!args || !args.trim()) {
+        return {
+          success: false,
+          message: formatErrorMessage('Usuário não especificado', 'Você deve mencionar um usuário ou responder a uma mensagem dele, ou fornecer o número.', '📋 *Como usar:*\n• Responda a uma mensagem com: !ban motivo\n• Ou envie: !ban número motivo'),
+        };
+      }
+
       const argParts = args.split(' ');
       if (!argParts[0]) {
         return {
