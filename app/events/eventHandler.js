@@ -14,6 +14,8 @@ const fs = require('fs').promises;
 const path = require('path');
 const NodeCache = require('node-cache');
 const logger = require('../utils/logger/loggerModule');
+const { getValidParticipants } = require('../utils/groupGlobalUtils');
+const { autoCleanIfNeeded } = require('../utils/fixGroupsData');
 
 /**
  * Classe principal do processador de eventos com cache local
@@ -69,9 +71,20 @@ class EventHandler {
       });
 
       // Carrega dados persistentes de forma assíncrona, sem bloquear a inicialização
-      this.loadPersistedData().catch(error => {
+      this.loadPersistedData().catch((error) => {
         logger.error('❌ Erro inicial ao carregar dados persistentes:', error.message);
       });
+
+      // Executa limpeza automática dos dados de grupos se necessário
+      autoCleanIfNeeded()
+        .then((result) => {
+          if (result.success && !result.alreadyClean) {
+            logger.info(`🧹 Limpeza automática executada: ${result.totalParticipantsCleaned} participantes inválidos removidos`);
+          }
+        })
+        .catch((error) => {
+          logger.warn('⚠️ Erro na limpeza automática dos grupos:', error.message);
+        });
 
       // Configura auto-save
       this.setupAutoSave();
@@ -207,7 +220,8 @@ class EventHandler {
           logger.info(`📂 Cache: ${keys.length} ${type} carregados do arquivo ${path.basename(filePath)}`);
         }
       } catch (error) {
-        if (error.code !== 'ENOENT') { // Ignora erro se o arquivo não existir
+        if (error.code !== 'ENOENT') {
+          // Ignora erro se o arquivo não existir
           logger.error(`❌ Erro ao carregar ${type} de ${path.basename(filePath)}:`, error.message);
         }
       }
@@ -573,12 +587,15 @@ class EventHandler {
 
       const fetchedMetadata = await client.groupMetadata(groupJid);
       if (fetchedMetadata) {
+        // Usa função utilitária para filtrar participantes válidos
+        const validParticipants = getValidParticipants(fetchedMetadata.participants || []);
+
         // Enriquece com dados calculados
         const enrichedMetadata = {
           ...fetchedMetadata,
           _cachedAt: Date.now(),
-          _participantCount: fetchedMetadata.participants?.length || 0,
-          _adminCount: fetchedMetadata.participants?.filter((p) => p.admin === 'admin' || p.admin === 'superadmin').length || 0,
+          _participantCount: validParticipants.length,
+          _adminCount: validParticipants.filter((p) => p.admin === 'admin' || p.admin === 'superadmin').length,
           _lastFetch: Date.now(),
         };
 

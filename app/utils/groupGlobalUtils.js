@@ -28,7 +28,10 @@ const isUserAdmin = async (groupJid, userJid) => {
     if (!groupMetadata || !groupMetadata.participants) return false;
 
     const cleanUserJid = cleanJid(userJid);
-    const member = groupMetadata.participants.find((p) => cleanJid(p.id) === cleanUserJid);
+
+    // Usa função utilitária para filtrar participantes válidos
+    const validParticipants = getValidParticipants(groupMetadata.participants);
+    const member = validParticipants.find((p) => cleanJid(p.id) === cleanUserJid);
 
     return member ? ['admin', 'superadmin'].includes(member.admin) : false;
   } catch (error) {
@@ -68,7 +71,10 @@ const isUserInGroup = async (groupJid, userJid) => {
     if (!groupMetadata || !groupMetadata.participants) return false;
 
     const cleanUserJid = cleanJid(userJid);
-    return groupMetadata.participants.some((p) => cleanJid(p.id) === cleanUserJid);
+
+    // Usa função utilitária para filtrar participantes válidos
+    const validParticipants = getValidParticipants(groupMetadata.participants);
+    return validParticipants.some((p) => cleanJid(p.id) === cleanUserJid);
   } catch (error) {
     logger.error('Erro ao verificar se usuário está no grupo', { groupJid, userJid, error: error.message });
     return false;
@@ -104,7 +110,6 @@ const getGroupMetadata = async (groupJid, forceRefresh = false) => {
     // Se não estiver no cache ou se for forçado, busca via API.
     logger.debug('Buscando metadados do grupo via API.', { groupJid, forceRefresh });
     return await eventHandler.getOrFetchGroupMetadata(groupJid);
-
   } catch (error) {
     logger.error('Erro ao obter metadados do grupo', { groupJid, error: error.message });
     return null;
@@ -157,6 +162,16 @@ const logGroupActivity = (groupJid, activityType, activityData = {}) => {
 /**
  * === FUNÇÕES UTILITÁRIAS ===
  */
+
+/**
+ * Filtra participantes válidos de um grupo (que possuem ID).
+ * @param {Array} participants - Array de participantes do grupo.
+ * @returns {Array} - Array com apenas participantes válidos.
+ */
+const getValidParticipants = (participants) => {
+  if (!Array.isArray(participants)) return [];
+  return participants.filter((p) => p && p.id && typeof p.id === 'string');
+};
 
 /**
  * Limpa um JID removendo sufixos.
@@ -266,6 +281,7 @@ module.exports = {
   logGroupActivity,
 
   // Funções utilitárias
+  getValidParticipants,
   cleanJid,
   formatPhoneToJid,
   isGroupJid,

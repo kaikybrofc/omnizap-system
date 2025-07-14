@@ -17,7 +17,8 @@
 
 const logger = require('../../utils/logger/loggerModule');
 const { formatErrorMessage } = require('../../utils/messageUtils');
-const { isUserAdmin, isBotAdmin, isUserInGroup, formatPhoneToJid, getGroupMetadata, logGroupActivity, cleanJid, banUser, unbanUser } = require('../../utils/groupGlobalUtils');
+const { isUserAdmin, isBotAdmin, isUserInGroup, formatPhoneToJid, getGroupMetadata, logGroupActivity, cleanJid, banUser, unbanUser, getValidParticipants } = require('../../utils/groupGlobalUtils');
+const { cleanGroupsData } = require('../../utils/fixGroupsData');
 
 /**
  * Processa comando para adicionar participantes ao grupo
@@ -189,15 +190,17 @@ const processPromoteCommand = async (omniZapClient, messageInfo, senderJid, grou
     const groupMetadata = await getGroupMetadata(omniZapClient, groupJid);
     const participants = groupMetadata.participants || [];
 
-    // Atualizar estatísticas do grupo
-    await updateGroupStats(groupJid, groupMetadata);
+    // Atualizar estatísticas do grupo - função comentada pois não existe
+    // await updateGroupStats(groupJid, groupMetadata);
 
     const invalidUsers = [];
     const validUsers = [];
 
     for (const user of targetUsers) {
       const cleanUserJid = cleanJid(user);
-      const isInGroup = participants.some((p) => cleanJid(p.id) === cleanUserJid);
+      // Usa função utilitária para filtrar participantes válidos
+      const validParticipants = getValidParticipants(participants);
+      const isInGroup = validParticipants.some((p) => cleanJid(p.id) === cleanUserJid);
 
       if (isInGroup) {
         validUsers.push(user);
@@ -333,7 +336,9 @@ const processDemoteCommand = async (omniZapClient, messageInfo, senderJid, group
 
     for (const user of targetUsers) {
       const cleanUserJid = cleanJid(user);
-      const participant = participants.find((p) => cleanJid(p.id) === cleanUserJid);
+      // Usa função utilitária para filtrar participantes válidos
+      const validParticipants = getValidParticipants(participants);
+      const participant = validParticipants.find((p) => cleanJid(p.id) === cleanUserJid);
 
       if (!participant) {
         invalidUsers.push(user);
@@ -1059,8 +1064,10 @@ const processGroupInfoCommand = async (omniZapClient, messageInfo, senderJid, gr
 
     const { subject, desc, owner, participants = [], creation, restrict, announce, ephemeralDuration } = groupMetadata;
 
-    const adminCount = participants.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length;
-    const memberCount = participants.length - adminCount;
+    // Usa função utilitária para filtrar participantes válidos
+    const validParticipants = getValidParticipants(participants);
+    const adminCount = validParticipants.filter((p) => ['admin', 'superadmin'].includes(p.admin)).length;
+    const memberCount = validParticipants.length - adminCount;
 
     const creationDate = creation ? new Date(creation * 1000).toLocaleString('pt-BR') : 'Desconhecido';
 
@@ -1085,7 +1092,7 @@ const processGroupInfoCommand = async (omniZapClient, messageInfo, senderJid, gr
       logger.warn('Erro ao obter link do grupo', { error: error.message, groupJid });
     }
 
-    const infoMessage = `📊 *INFORMAÇÕES DO GRUPO*\n\n` + `📝 *Nome:* ${subject}\n` + `👥 *Participantes:* ${participants.length} (${adminCount} admins, ${memberCount} membros)\n` + `👑 *Criador:* ${owner ? '+' + owner.split('@')[0] : 'Desconhecido'}\n` + `📅 *Criado em:* ${creationDate}\n` + `⚙️ *Configurações:*\n` + `  • ${restrictText}\n` + `  • ${announceText}\n` + `⏱️ *Mensagens temporárias:* ${ephemeralText}` + `${inviteLink}\n\n` + `📄 *Descrição:*\n${desc || 'Sem descrição'}`;
+    const infoMessage = `📊 *INFORMAÇÕES DO GRUPO*\n\n` + `📝 *Nome:* ${subject}\n` + `👥 *Participantes:* ${validParticipants.length} (${adminCount} admins, ${memberCount} membros)\n` + `👑 *Criador:* ${owner ? '+' + owner.split('@')[0] : 'Desconhecido'}\n` + `📅 *Criado em:* ${creationDate}\n` + `⚙️ *Configurações:*\n` + `  • ${restrictText}\n` + `  • ${announceText}\n` + `⏱️ *Mensagens temporárias:* ${ephemeralText}` + `${inviteLink}\n\n` + `📄 *Descrição:*\n${desc || 'Sem descrição'}`;
 
     return {
       success: true,
@@ -1433,6 +1440,68 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
   }
 };
 
+/**
+ * Processa comando para limpar dados inválidos dos grupos
+ *
+ * @param {Object} omniZapClient - Cliente WhatsApp
+ * @param {Object} messageInfo - Informações da mensagem
+ * @param {String} senderJid - JID do remetente
+ * @param {String} groupJid - JID do grupo
+ * @param {String} args - Argumentos do comando
+ * @returns {Promise<Object>} - Resultado da operação
+ */
+const processCleanDataCommand = async (omniZapClient, messageInfo, senderJid, groupJid, args) => {
+  logger.info('Processando comando cleandata', { senderJid, groupJid, args });
+
+  try {
+    // Verificar se o usuário é administrador global (pode ser expandido com uma lista de usuários autorizados)
+    const authorizedUsers = ['559591122954@s.whatsapp.net']; // Adicione JIDs de usuários autorizados
+    const cleanUserJid = cleanJid(senderJid);
+
+    if (!authorizedUsers.includes(cleanUserJid)) {
+      return {
+        success: false,
+        message: formatErrorMessage('Permissão negada', 'Apenas administradores globais podem executar este comando.', null),
+      };
+    }
+
+    const result = await cleanGroupsData();
+
+    if (result.success) {
+      let message = '✅ *Limpeza de dados concluída!*\n\n';
+      message += `📊 *Grupos processados:* ${result.totalGroupsProcessed || 0}\n`;
+      message += `🧹 *Participantes inválidos removidos:* ${result.totalParticipantsCleaned || 0}`;
+
+      if (result.alreadyClean) {
+        message = '✅ *Dados já estão limpos!*\n\nNenhuma limpeza foi necessária.';
+      }
+
+      return {
+        success: true,
+        message: message,
+      };
+    } else {
+      return {
+        success: false,
+        message: formatErrorMessage('Erro na limpeza', `Não foi possível limpar os dados: ${result.error}`, null),
+      };
+    }
+  } catch (error) {
+    logger.error('Erro ao processar comando cleandata', {
+      error: error.message,
+      stack: error.stack,
+      senderJid,
+      groupJid,
+      args,
+    });
+
+    return {
+      success: false,
+      message: formatErrorMessage('Erro na limpeza de dados', `Ocorreu um erro ao processar o comando: ${error.message}`, null),
+    };
+  }
+};
+
 module.exports = {
   processAddCommand,
   processPromoteCommand,
@@ -1446,4 +1515,5 @@ module.exports = {
   processGroupInfoCommand,
   processBanCommand,
   processBanListCommand,
+  processCleanDataCommand,
 };
