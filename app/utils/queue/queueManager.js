@@ -7,7 +7,7 @@
  * Implementa as melhores práticas do BullMQ para alta performance,
  * confiabilidade e observabilidade
  *
- * @version 2.0.0
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */

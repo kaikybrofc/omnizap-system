@@ -4,7 +4,7 @@
  * Configurações centralizadas para o sistema de filas BullMQ
  * Utiliza as melhores práticas do BullMQ para alta performance e confiabilidade
  *
- * @version 2.0.0
+ * @version 1.0.5
  * @author OmniZap Team
  */
 

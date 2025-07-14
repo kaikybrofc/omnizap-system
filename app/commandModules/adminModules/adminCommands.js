@@ -4,7 +4,7 @@
  * Comandos de administração para grupos do WhatsApp
  * Usando dados centralizados do socket na pasta data
  *
- * @version 1.5.0
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  * @source https://www.npmjs.com/package/baileys

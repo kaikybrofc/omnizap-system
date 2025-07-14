@@ -5,7 +5,7 @@
  * Usa persistência direta em JSON com dados permanentes
  * Integração bidirecional com socketController
  *
- * @version 2.3.0
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */

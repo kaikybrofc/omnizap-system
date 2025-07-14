@@ -3,7 +3,7 @@
  *
  * Comando para exibir o menu de comandos disponíveis no sistema OmniZap
  *
- * @version 1.0.0
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */

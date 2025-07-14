@@ -4,7 +4,7 @@ Sistema profissional de automação WhatsApp com tecnologia Baileys e arquitetur
 
 ## 📋 Descrição
 
-OmniZap é um sistema robusto e profissional para automação de mensagens WhatsApp, desenvolvido com a mais avançada tecnologia Baileys para máxima compatibilidade e estabilidade. Com **arquitetura modular**, **banco de dados MySQL integrado** e **processamento de eventos independente** para máxima performance e escalabilidade. A versão 1.0.5 introduz **persistência completa de dados** com banco de dados MySQL, **sistema aprimorado de sticker packs** com suporte a múltiplos pacotes por usuário, **logging centralizado com rotação de arquivos** baseado em Winston, e **sistema avançado de sub-comandos** para gerenciamento inteligente de conteúdo.
+OmniZap é um sistema robusto e profissional para automação de mensagens WhatsApp, desenvolvido com a mais avançada tecnologia Baileys para máxima compatibilidade e estabilidade. Com **arquitetura modular**, **sistema de filas com BullMQ e Redis** e **processamento de eventos independente** para máxima performance e escalabilidade. A versão 1.0.6 introduz **gerenciamento de filas com BullMQ**, **logging centralizado com rotação de arquivos** baseado em Winston, e **sistema avançado de sub-comandos** para gerenciamento inteligente de conteúdo.
 
 ## ✨ Características
 
@@ -17,7 +17,7 @@ OmniZap é um sistema robusto e profissional para automação de mensagens Whats
 - ⚡ **Switch Case**: Arquitetura otimizada para processamento de comandos
 - 🎯 **Respostas Inteligentes**: Sistema de respostas automáticas e contextuais
 - 🏗️ **Arquitetura Modular**: Sistema dividido em módulos independentes
-- 💾 **Persistência de Dados**: Banco de dados MySQL para armazenamento confiável
+- 💾 **Persistência de Dados**: Banco de dados Redis para armazenamento confiável
 - 🎯 **Processamento de Eventos**: Handler independente para todos os eventos WhatsApp
 - 📈 **Estatísticas Detalhadas**: Monitoramento completo do sistema e armazenamento
 - 🖼️ **Sticker Packs**: Sistema completo de criação e gerenciamento de pacotes de stickers
@@ -49,7 +49,7 @@ COMMAND_PREFIX=/
 
 ## 🤖 Sistema de Comandos Avançado
 
-O OmniZap v1.0.4 apresenta um sistema completo de comandos com funcionalidades avançadas:
+O OmniZap v1.0.5 apresenta um sistema completo de comandos com funcionalidades avançadas:
 
 ### 🎨 Comandos de Sticker Packs
 
@@ -114,7 +114,7 @@ Exemplo: `/s Pack do #nome | Criado em #data`
 
 ## 🏗️ Arquitetura Modular
 
-O OmniZap v1.0.4 aprimora a **arquitetura modular avançada** que separa responsabilidades e melhora a manutenibilidade:
+O OmniZap v1.0.5 aprimora a **arquitetura modular avançada** que separa responsabilidades e melhora a manutenibilidade:
 
 ### 📦 Módulos Principais
 
@@ -128,22 +128,19 @@ O OmniZap v1.0.4 aprimora a **arquitetura modular avançada** que separa respons
   - Suporte a múltiplas sessões
   - Integração com sistema centralizado de logging
 
-#### 🔄 Cache Manager (`app/cache/cacheManager.js`)
-- **Responsabilidade**: Sistema de cache inteligente
+#### 🔄 Queue Manager (`app/utils/queue/queueManager.js`)
+- **Responsabilidade**: Sistema de filas com BullMQ e Redis
 - **Funcionalidades**:
-  - Cache de mensagens (TTL: 1 hora)
-  - Cache de eventos (TTL: 30 minutos)
-  - Cache de grupos (TTL: 2 horas)
-  - Cache de contatos (TTL: 4 horas)
-  - Cache de chats (TTL: 1 hora)
-  - Limpeza automática e otimização
-  - Estatísticas detalhadas de performance
+  - Gerenciamento de filas de mensagens
+  - Processamento de eventos em background
+  - Retentativas automáticas em caso de falha
+  - Monitoramento e estatísticas de filas
 
 #### 🎯 Event Handler (`app/events/eventHandler.js`)
 - **Responsabilidade**: Processamento independente de eventos
 - **Funcionalidades**:
   - Processamento assíncrono de todos os eventos WhatsApp
-  - Integração com o Cache Manager
+  - Integração com o Queue Manager
   - Logging detalhado de atividades através do sistema centralizado
   - Tratamento especializado para cada tipo de evento
   - Pré-carregamento inteligente de dados de grupo
@@ -178,6 +175,7 @@ O OmniZap v1.0.4 aprimora a **arquitetura modular avançada** que separa respons
   - `constants.js` - Constantes globais do sistema
   - `messageUtils.js` - Utilitários de envio de mensagens
   - **logger/**: Sistema de logging centralizado
+  - **queue/**: Sistema de filas com BullMQ e Redis
   - Tratamento de erros e validações
   - Suporte a mensagens de grupo
 
@@ -191,10 +189,10 @@ O OmniZap v1.0.4 aprimora a **arquitetura modular avançada** que separa respons
   - Formatação avançada para console e arquivos
   - Captura de exceções não tratadas
 
-### � Atualizações da v1.0.4
+###  Atualizações da v1.0.5
 
 - **🔧 Melhorias técnicas:**
-  - Implementação de sistema centralizado de logging baseado em Winston
+  - Implementação de sistema de filas com BullMQ e Redis
   - Padronização de todos os arquivos com cabeçalhos de documentação
   - Substituição completa de console.log/error por logger estruturado
   - Melhor tratamento e captura de erros em todos os módulos
@@ -220,7 +218,7 @@ O OmniZap v1.0.4 aprimora a **arquitetura modular avançada** que separa respons
 
 ## 📝 Sistema de Logging Centralizado
 
-O OmniZap v1.0.4 introduz um sistema avançado de logging centralizado com Winston:
+O OmniZap v1.0.5 introduz um sistema avançado de logging centralizado com Winston:
 
 ### 📊 Níveis de Log
 
@@ -262,8 +260,8 @@ logs/
                                    ▲
                                    │
       ┌─────────────────┐         │         ┌─────────────────┐
-      │  Socket Controller │ ─────┼─────── │  Cache Manager  │
-      │   (Conexão)        │         │         │ (Armazenamento) │
+      │  Socket Controller │ ─────┼─────── │  Queue Manager  │
+      │   (Conexão)        │         │         │ (Filas)         │
       └─────────────────┘         │         └─────────────────┘
                │                     │                     │
                │                     │                     │
@@ -285,7 +283,7 @@ logs/
 
 - **Escalabilidade**: Cada módulo pode ser otimizado independentemente
 - **Manutenibilidade**: Código organizado e fácil de manter
-- **Performance**: Processamento assíncrono e cache inteligente
+- **Performance**: Processamento assíncrono e filas inteligentes
 - **Flexibilidade**: Fácil adição de novos recursos
 - **Monitoramento**: Logs detalhados para cada módulo
 - **Resiliente**: Tratamento avançado de erros e reconexão automática
@@ -295,7 +293,8 @@ logs/
 
 - [Baileys](https://github.com/whiskeysockets/baileys): Framework de comunicação com WhatsApp Web
 - [Node.js](https://nodejs.org/): Ambiente de execução JavaScript
-- [MySQL](https://www.mysql.com/): Banco de dados relacional para persistência
+- [Redis](https://redis.io/): Banco de dados em memória para filas e cache
+- [BullMQ](https://bullmq.io/): Sistema de filas para Node.js
 - [Winston](https://github.com/winstonjs/winston): Sistema avançado de logging
 - [FFmpeg](https://ffmpeg.org/): Processamento de mídia para stickers
 
@@ -309,11 +308,11 @@ omnizap-system/
 │   ├── connection/               # Controlador de conexão WhatsApp
 │   │   └── qr-code/              # Armazenamento de QR e credenciais
 │   ├── controllers/              # Controladores da aplicação
-│   ├── database/                 # Gerenciamento de banco de dados
 │   ├── events/                   # Handler de eventos do WhatsApp
 │   └── utils/                    # Utilitários do sistema
 │       ├── baileys/              # Helpers para a API Baileys
-│       └── logger/               # Sistema de logging
+│       ├── logger/               # Sistema de logging
+│       └── queue/                # Sistema de filas com BullMQ
 ├── logs/                         # Diretório de logs rotacionados
 ├── temp/                         # Arquivos temporários
 │   ├── stickerPacks/             # Pacotes de stickers por usuário
@@ -379,14 +378,14 @@ Comandos disponíveis:
 - `/sticker rename [número] [nome]|[autor]` - Renomeia um pacote
 - `/sticker delete [número]` - Exclui um pacote
 
-### Banco de Dados Integrado
+### Sistema de Filas com BullMQ
 
-A partir da versão 1.0.5, o OmniZap utiliza MySQL para persistência completa de dados:
+A partir da versão 1.0.6, o OmniZap utiliza BullMQ para gerenciamento de filas:
 
-- **Mensagens**: Armazenamento completo de histórico de mensagens
-- **Eventos**: Registro de todos os eventos do WhatsApp
-- **Grupos**: Metadados de grupos e participantes
-- **Contatos**: Informações de contatos
+- **Mensagens**: Processamento de mensagens em filas
+- **Eventos**: Registro de todos os eventos do WhatsApp em filas
+- **Retentativas**: Retentativas automáticas em caso de falha
+- **Prioridades**: Suporte a diferentes níveis de prioridade
 
 ### Sistema de Logging Avançado
 
@@ -403,7 +402,7 @@ O OmniZap foi construído com uma arquitetura modular para facilitar a manutenç
 
 - **Event Handler**: Processamento independente de eventos do WhatsApp
 - **Command Modules**: Sistema modular para processamento de comandos
-- **Database Manager**: Camada de abstração para acesso ao banco de dados
+- **Queue Manager**: Camada de abstração para acesso ao sistema de filas
 - **Media Helper**: Utilitários para processamento de mídia
 - **Message Utils**: Ferramentas para formatação e envio de mensagens
 
@@ -412,10 +411,9 @@ O OmniZap foi construído com uma arquitetura modular para facilitar a manutenç
 O OmniZap utiliza variáveis de ambiente para configuração:
 
 - `COMMAND_PREFIX`: Prefixo para comandos (padrão: "/")
-- `DB_HOST`: Host do banco de dados MySQL
-- `DB_USER`: Usuário do banco de dados
-- `DB_PASSWORD`: Senha do banco de dados
-- `DB_NAME`: Nome do banco de dados
+- `REDIS_HOST`: Host do Redis
+- `REDIS_PORT`: Porta do Redis
+- `REDIS_PASSWORD`: Senha do Redis
 - `LOG_LEVEL`: Nível de detalhamento dos logs
 - `QR_CODE_PATH`: Caminho para salvar QR Code e credenciais
 - `PAIRING_CODE`: Usar código de pareamento em vez de QR Code

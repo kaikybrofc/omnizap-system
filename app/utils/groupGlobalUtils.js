@@ -4,7 +4,7 @@
  * Utilitários globais para operações com grupos, otimizados para baixo consumo de memória e alta performance.
  * Utiliza o eventHandler como fonte central de dados, evitando I/O de arquivo direto.
  *
- * @version 4.0.0
+ * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
  */
