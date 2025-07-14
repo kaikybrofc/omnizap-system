@@ -48,7 +48,7 @@ function getSystemStats() {
     systemInitialized,
     lastProcessingTime,
     hasActiveSocketController: !!activeSocketController,
-    version: '1.0.6',
+    version: '1.0.5',
     uptime: process.uptime(),
     memoryUsage: process.memoryUsage(),
     timestamp: Date.now(),
