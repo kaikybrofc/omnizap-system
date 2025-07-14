@@ -29,20 +29,19 @@ const createRedisConnection = () => {
     maxRetriesPerRequest: null, // Importante para BullMQ
     retryDelayOnFailover: queueConfig.REDIS.RETRY_DELAY_ON_FAILOVER || 100,
     enableReadyCheck: queueConfig.REDIS.ENABLE_READY_CHECK || true,
-    lazyConnect: queueConfig.REDIS.LAZY_CONNECT || false,
-    connectTimeout: queueConfig.REDIS.CONNECT_TIMEOUT || 15000,
+    lazyConnect: queueConfig.REDIS.LAZY_CONNECT || true,
+    connectTimeout: queueConfig.REDIS.CONNECT_TIMEOUT || 30000,
     keepAlive: queueConfig.REDIS.KEEP_ALIVE || 30000,
     family: queueConfig.REDIS.FAMILY || 4,
     enableOfflineQueue: queueConfig.REDIS.ENABLE_OFFLINE_QUEUE || true,
     autoResubscribe: queueConfig.REDIS.AUTO_RESUBSCRIBE || true,
     autoResendUnfulfilledCommands: queueConfig.REDIS.AUTO_RESEND_UNFULFILLED_COMMANDS || true,
+    commandTimeout: queueConfig.REDIS.COMMAND_TIMEOUT || 30000, // Usar configuração do config
     // Configurações de reconexão
     reconnectOnError: (err) => {
       const targetError = 'READONLY';
       return err.message.includes(targetError);
     },
-    // Configurações de timeout
-    commandTimeout: 5000,
     // Configurações de retry
     retryDelayOnClusterDown: 300,
     retryDelayOnFailover: 100,
@@ -177,11 +176,11 @@ class QueueManager {
         this.stats.connectionStatus = 'ended';
       });
 
-      // Aguardar conexão estar pronta com timeout
+      // Aguardar conexão estar pronta com timeout aumentado
       await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
-          reject(new Error('Timeout ao conectar com Redis após 15 segundos'));
-        }, 15000);
+          reject(new Error('Timeout ao conectar com Redis após 30 segundos'));
+        }, 30000); // Aumentado para 30 segundos
 
         this.connection.once('ready', () => {
           clearTimeout(timeout);
@@ -307,8 +306,19 @@ class QueueManager {
     });
 
     worker.on('error', (err) => {
-      logger.error(`❌ QueueManager: Erro no worker ${queueType}:`, err.message);
-      this.handleCircuitBreaker();
+      // Filtrar erros que não devem acionar o circuit breaker
+      const isTimeoutError = err.message && err.message.includes('Command timed out');
+      const isConnectionError = err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND';
+
+      if (isTimeoutError) {
+        logger.warn(`⚠️ QueueManager: Timeout no worker ${queueType}:`, err.message);
+        // Para timeouts, não acionar circuit breaker imediatamente
+      } else {
+        logger.error(`❌ QueueManager: Erro no worker ${queueType}:`, err.message);
+        if (isConnectionError) {
+          this.handleCircuitBreaker();
+        }
+      }
     });
 
     this.workers.set(queueType, worker);
