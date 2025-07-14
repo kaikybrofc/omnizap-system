@@ -1,11 +1,11 @@
 /**
- * OmniZap WhatsApp Connection Controller - Versão Melhorada
+ * OmniZap WhatsApp Connection Controller
  *
  * Controlador responsável pela conexão e gerenciamento do socket WhatsApp
  * Utiliza Baileys para comunicação com a API WhatsApp Web
  * Integração bidirecional com EventHandler para cache centralizado
  *
- * @version 2.1.0
+ * @version 1.5.0
  * @author OmniZap Team
  * @license MIT
  */
@@ -38,10 +38,8 @@ const env = cleanEnv(process.env, {
   }),
 });
 
-// Logger silencioso para Baileys
 const baileysLogger = require('pino')({ level: 'silent' });
 
-// Variáveis globais para gerenciamento de conexão
 let activeSocket = null;
 let connectionAttempts = 0;
 let lastConnectionTime = null;
@@ -51,7 +49,6 @@ let isReconnecting = false;
  * Configuração do EventHandler com comunicação bidirecional
  */
 function setupEventHandlerIntegration() {
-  // Define o socketController no eventHandler para comunicação bidirecional
   eventHandler.setSocketController({
     getActiveSocket: () => activeSocket,
     getConnectionStats: getConnectionStats,
@@ -72,7 +69,7 @@ function setupEventHandlerIntegration() {
         if (!activeSocket && !isReconnecting) {
           reconnectToWhatsApp();
         }
-      }, 10000); // 10 segundos de delay
+      }, 10000);
     }
   });
 
@@ -137,7 +134,6 @@ async function connectToWhatsApp() {
       generateHighQualityLinkPreview: true,
       shouldSyncHistoryMessage: () => false,
       shouldIgnoreJid: (jid) => typeof jid === 'string' && jid.includes('broadcast'),
-      // Melhora a performance com cache integrado
       getMessage: async (key) => {
         const cached = eventHandler.getMessage(key.remoteJid, key.id);
         if (cached) {
@@ -438,8 +434,8 @@ async function getGroupInfo(groupJid, forceRefresh = false) {
   try {
     if (!forceRefresh) {
       const cached = eventHandler.getGroup(groupJid);
-      if (cached && cached._cachedAt && Date.now() - cached._cachedAt < 1800000) {
-        // 30 min
+      if (cached && cached._cachedAt && Date.now() - cached._cachedAt < 60000) {
+        // 1 min
         return cached;
       }
     }
@@ -450,7 +446,6 @@ async function getGroupInfo(groupJid, forceRefresh = false) {
 
     const metadata = await activeSocket.groupMetadata(groupJid);
 
-    // Atualiza cache através do eventHandler
     if (metadata) {
       eventHandler.groupCache.set(groupJid, {
         ...metadata,
@@ -524,7 +519,6 @@ async function sendMessage(jid, content, options = {}) {
     const result = await activeSocket.sendMessage(jid, content, options);
     logger.debug(`📤 Mensagem enviada para ${jid.substring(0, 20)}...`);
 
-    // Registra no eventHandler para estatísticas
     eventHandler.processGenericEvent('message.sent', {
       jid,
       content: typeof content,
@@ -540,11 +534,9 @@ async function sendMessage(jid, content, options = {}) {
   }
 }
 
-// Inicia a conexão automaticamente
 connectToWhatsApp().catch((error) => {
   logger.error('💥 Falha crítica na inicialização:', error.message);
-
-  // Tenta novamente após 30 segundos
+  s;
   setTimeout(() => {
     logger.info('🔄 Tentando reinicialização após falha crítica...');
     connectToWhatsApp().catch(() => {
@@ -554,7 +546,6 @@ connectToWhatsApp().catch((error) => {
   }, 30000);
 });
 
-// Graceful shutdown
 process.on('SIGINT', async () => {
   logger.info('🛑 Encerrando aplicação graciosamente...');
   await forceDisconnect();
@@ -580,7 +571,6 @@ module.exports = {
   env,
 };
 
-// Validação da integração com o sistema principal
 setTimeout(() => {
   try {
     const mainSystem = require('../../index.js');
@@ -596,12 +586,10 @@ setTimeout(() => {
         sendPresence,
       };
 
-      // Registra o socketController no sistema principal
       mainSystem.registerSocketController(socketControllerInterface);
 
       logger.info('🤝 Integração bidirecional com sistema principal estabelecida');
 
-      // Registra evento de integração bem-sucedida
       if (eventHandler) {
         eventHandler.processGenericEvent('socketController.integration.success', {
           timestamp: Date.now(),
@@ -616,7 +604,6 @@ setTimeout(() => {
   } catch (error) {
     logger.warn('⚠️ Não foi possível estabelecer integração com sistema principal:', error.message);
 
-    // Registra evento de falha na integração
     if (eventHandler) {
       eventHandler.processGenericEvent('socketController.integration.failed', {
         timestamp: Date.now(),
@@ -625,4 +612,4 @@ setTimeout(() => {
       });
     }
   }
-}, 1000); // Aguarda 1 segundo para garantir que o sistema principal foi carregado
+}, 1000);
