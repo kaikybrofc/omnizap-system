@@ -9,8 +9,15 @@
  * @license MIT
  */
 
+const fs = require('fs').promises;
+const path = require('path');
 const logger = require('./logger/loggerModule');
-const { eventHandler } = require('../events/eventHandler');
+
+// Caminhos para os arquivos de dados
+const DATA_DIR = path.join(__dirname, '../../temp/data');
+const GROUPS_FILE = path.join(DATA_DIR, 'groups.json');
+const CONTACTS_FILE = path.join(DATA_DIR, 'contacts.json');
+const METADATA_FILE = path.join(DATA_DIR, 'metadata.json');
 
 /**
  * === FUNÇÕES DE VERIFICAÇÃO DE PERMISSÕES ===
@@ -47,7 +54,7 @@ const isUserAdmin = async (groupJid, userJid) => {
  */
 const isBotAdmin = async (groupJid) => {
   try {
-    const botJid = getBotJid();
+    const botJid = await getBotJid();
     if (!botJid) {
       logger.warn('JID do bot não encontrado para verificar admin.', { groupJid });
       return false;
@@ -86,9 +93,9 @@ const isUserInGroup = async (groupJid, userJid) => {
  */
 
 /**
- * Obtém metadados de um grupo do cache do eventHandler.
+ * Obtém metadados de um grupo diretamente do arquivo groups.json.
  * @param {string} groupJid - ID do grupo.
- * @param {boolean} forceRefresh - Forçar busca na API (usar com cuidado).
+ * @param {boolean} forceRefresh - Parâmetro mantido para compatibilidade (não usado).
  * @returns {Promise<Object|null>} - Metadados do grupo.
  */
 const getGroupMetadata = async (groupJid, forceRefresh = false) => {
@@ -98,18 +105,17 @@ const getGroupMetadata = async (groupJid, forceRefresh = false) => {
       return null;
     }
 
-    // Prioriza o cache, a menos que a atualização seja forçada.
-    if (!forceRefresh) {
-      const cachedMetadata = eventHandler.getGroup(groupJid);
-      if (cachedMetadata) {
-        logger.debug('Metadados do grupo obtidos do cache.', { groupJid });
-        return cachedMetadata;
-      }
-    }
+    // Lê os dados do arquivo groups.json
+    const groupsData = await readGroupsData();
+    const groupMetadata = groupsData[groupJid];
 
-    // Se não estiver no cache ou se for forçado, busca via API.
-    logger.debug('Buscando metadados do grupo via API.', { groupJid, forceRefresh });
-    return await eventHandler.getOrFetchGroupMetadata(groupJid);
+    if (groupMetadata) {
+      logger.debug('Metadados do grupo obtidos do arquivo.', { groupJid });
+      return groupMetadata;
+    } else {
+      logger.debug('Grupo não encontrado nos dados locais.', { groupJid });
+      return null;
+    }
   } catch (error) {
     logger.error('Erro ao obter metadados do grupo', { groupJid, error: error.message });
     return null;
@@ -117,17 +123,23 @@ const getGroupMetadata = async (groupJid, forceRefresh = false) => {
 };
 
 /**
- * Obtém informações de um contato do cache do eventHandler.
+ * Obtém informações de um contato diretamente do arquivo contacts.json.
  * @param {string} contactJid - JID do contato.
  * @returns {Promise<Object|null>} - Dados do contato.
  */
 const getContactInfo = async (contactJid) => {
   try {
-    const contactInfo = eventHandler.getContact(contactJid);
+    // Lê os dados do arquivo contacts.json
+    const contactsData = await readContactsData();
+    const contactInfo = contactsData[contactJid];
+
     if (contactInfo) {
-      logger.debug('Informações de contato obtidas do cache.', { contactJid });
+      logger.debug('Informações de contato obtidas do arquivo.', { contactJid });
+      return contactInfo;
+    } else {
+      logger.debug('Contato não encontrado nos dados locais.', { contactJid });
+      return null;
     }
-    return contactInfo;
   } catch (error) {
     logger.error('Erro ao obter informações de contato', { contactJid, error: error.message });
     return null;
@@ -139,16 +151,14 @@ const getContactInfo = async (contactJid) => {
  */
 
 /**
- * Registra uma atividade de grupo.
- * Esta função agora é um wrapper para o sistema de eventos, que pode ser usado para estatísticas.
+ * Registra uma atividade de grupo (versão simplificada).
  * @param {string} groupJid - ID do grupo.
  * @param {string} activityType - Tipo de atividade.
  * @param {Object} activityData - Dados da atividade.
  */
 const logGroupActivity = (groupJid, activityType, activityData = {}) => {
   try {
-    logger.debug('Registrando atividade de grupo via eventHandler.', { groupJid, activityType });
-    eventHandler.executeCallbacks('group.activity', {
+    logger.info('Atividade de grupo registrada.', {
       groupJid,
       activityType,
       ...activityData,
@@ -207,13 +217,43 @@ const isGroupJid = (jid) => {
 };
 
 /**
- * Obtém o JID do bot a partir do cliente WhatsApp gerenciado pelo eventHandler.
- * @returns {string|null} - JID do bot.
+ * Obtém o JID do bot através da análise dos grupos onde ele está presente.
+ * Como fallback, retorna um JID padrão ou null.
+ * @returns {Promise<string|null>} - JID do bot.
  */
-const getBotJid = () => {
+const getBotJid = async () => {
   try {
-    const client = eventHandler.getWhatsAppClient();
-    return client?.user?.id || null;
+    // Primeiro tenta ler de metadata se estiver disponível
+    const metadata = await readMetadata();
+    if (metadata?.botJid) {
+      return metadata.botJid;
+    }
+
+    // Como fallback, analisa os grupos para encontrar um padrão comum de bot
+    const groupsData = await readGroupsData();
+
+    // Procura por padrões de JID de bot nos grupos
+    for (const [groupJid, groupData] of Object.entries(groupsData)) {
+      if (groupData.participants && Array.isArray(groupData.participants)) {
+        // Procura por participantes que podem ser bots (normalmente têm números específicos)
+        const possibleBots = groupData.participants.filter(
+          (p) =>
+            p.id &&
+            (p.id.includes('bot') ||
+              p.id.includes('559591122954') || // JID específico que pode ser o bot
+              p.admin === 'admin' ||
+              p.admin === 'superadmin'),
+        );
+
+        if (possibleBots.length > 0) {
+          // Retorna o primeiro bot encontrado
+          return possibleBots[0].id;
+        }
+      }
+    }
+
+    logger.warn('JID do bot não encontrado nos dados disponíveis');
+    return null;
   } catch (error) {
     logger.error('Erro ao obter JID do bot', { error: error.message });
     return null;
@@ -221,15 +261,33 @@ const getBotJid = () => {
 };
 
 /**
- * Obtém todos os grupos dos quais o bot participa, usando o cache.
+ * Define/salva o JID do bot nos metadados (função auxiliar).
+ * @param {string} botJid - JID do bot.
+ * @returns {Promise<void>}
+ */
+const setBotJid = async (botJid) => {
+  try {
+    const metadata = await readMetadata();
+    metadata.botJid = botJid;
+
+    await fs.writeFile(METADATA_FILE, JSON.stringify(metadata, null, 2), 'utf8');
+    logger.info('JID do bot salvo nos metadados', { botJid });
+  } catch (error) {
+    logger.error('Erro ao salvar JID do bot', { botJid, error: error.message });
+  }
+};
+
+/**
+ * Obtém todos os grupos dos quais o bot participa, lendo do arquivo groups.json.
  * @returns {Promise<string[]>} - Lista de JIDs de grupos.
  */
 const getAllBotGroups = async () => {
   try {
-    const groups = eventHandler.groupCache.keys();
-    return groups.filter(isGroupJid);
+    const groupsData = await readGroupsData();
+    const groupJids = Object.keys(groupsData).filter(isGroupJid);
+    return groupJids;
   } catch (error) {
-    logger.error('Erro ao obter grupos do bot do cache', { error: error.message });
+    logger.error('Erro ao obter grupos do bot', { error: error.message });
     return [];
   }
 };
@@ -242,25 +300,79 @@ const getAllBotGroups = async () => {
 // ou através de um sistema de callbacks no eventHandler para manter este módulo leve.
 
 /**
- * Adiciona um usuário à lista de banidos (exemplo de implementação).
- * A gestão de estado (lista de banidos) deve ser feita externamente.
+ * Adiciona um usuário à lista de banidos (versão simplificada).
  * @param {string} userJid - JID do usuário.
  * @param {string} groupJid - JID do grupo (opcional).
  */
 const banUser = (userJid, groupJid = null) => {
-  logger.info('Banimento de usuário solicitado.', { userJid, groupJid });
-  // Exemplo: Disparar um evento que será tratado por outro módulo
-  eventHandler.executeCallbacks('user.ban', { userJid, groupJid, timestamp: Date.now() });
+  logger.info('Banimento de usuário solicitado.', { userJid, groupJid, timestamp: Date.now() });
 };
 
 /**
- * Remove um usuário da lista de banidos (exemplo).
+ * Remove um usuário da lista de banidos (versão simplificada).
  * @param {string} userJid - JID do usuário.
  * @param {string} groupJid - JID do grupo (opcional).
  */
 const unbanUser = (userJid, groupJid = null) => {
-  logger.info('Remoção de banimento de usuário solicitada.', { userJid, groupJid });
-  eventHandler.executeCallbacks('user.unban', { userJid, groupJid, timestamp: Date.now() });
+  logger.info('Remoção de banimento de usuário solicitada.', { userJid, groupJid, timestamp: Date.now() });
+};
+
+/**
+ * === FUNÇÕES AUXILIARES PARA LEITURA DE DADOS ===
+ */
+
+/**
+ * Lê os dados dos grupos do arquivo groups.json.
+ * @returns {Promise<Object>} - Dados dos grupos.
+ */
+const readGroupsData = async () => {
+  try {
+    const data = await fs.readFile(GROUPS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      logger.warn('Arquivo groups.json não encontrado, retornando objeto vazio');
+      return {};
+    }
+    logger.error('Erro ao ler dados dos grupos', { error: error.message });
+    return {};
+  }
+};
+
+/**
+ * Lê os dados dos contatos do arquivo contacts.json.
+ * @returns {Promise<Object>} - Dados dos contatos.
+ */
+const readContactsData = async () => {
+  try {
+    const data = await fs.readFile(CONTACTS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      logger.warn('Arquivo contacts.json não encontrado, retornando objeto vazio');
+      return {};
+    }
+    logger.error('Erro ao ler dados dos contatos', { error: error.message });
+    return {};
+  }
+};
+
+/**
+ * Lê os metadados do arquivo metadata.json.
+ * @returns {Promise<Object>} - Metadados.
+ */
+const readMetadata = async () => {
+  try {
+    const data = await fs.readFile(METADATA_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      logger.warn('Arquivo metadata.json não encontrado, retornando objeto vazio');
+      return {};
+    }
+    logger.error('Erro ao ler metadados', { error: error.message });
+    return {};
+  }
 };
 
 /**
@@ -286,9 +398,15 @@ module.exports = {
   formatPhoneToJid,
   isGroupJid,
   getBotJid,
+  setBotJid,
   getAllBotGroups,
 
   // Funções de banimento (simplificadas)
   banUser,
   unbanUser,
+
+  // Funções auxiliares de leitura de dados
+  readGroupsData,
+  readContactsData,
+  readMetadata,
 };
