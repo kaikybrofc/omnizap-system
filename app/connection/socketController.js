@@ -8,12 +8,7 @@
  * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
- *
- * ATUALIZAÇÃO v2.0.0:
- * - Integração completa com o novo modelo de dados permanentes do EventHandler
- * - Persistência direta de grupos, contatos, chats e mensagens
- * - Remoção de cache temporário em favor de armazenamento permanente
- * - Operações atômicas para garantir integridade dos dados
+ * @source https://www.npmjs.com/package/baileys
  */
 
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
@@ -122,15 +117,12 @@ async function connectToWhatsApp() {
     isReconnecting = true;
     connectionAttempts++;
     logger.info(`🔗 OmniZap: Tentativa de conexão #${connectionAttempts}`);
-
-    // Configura o estado de autenticação
     const { state, saveCreds } = await useMultiFileAuthState(env.QR_CODE_PATH);
     const { version } = await fetchLatestBaileysVersion();
 
     logger.info('🔗 OmniZap: Iniciando conexão com WhatsApp...');
     logger.info(`📊 Cache Stats: ${JSON.stringify(eventHandler.getCacheStats())}`);
 
-    // Cria o socket do WhatsApp com configurações otimizadas
     const sock = makeWASocket({
       version,
       auth: state,
@@ -149,12 +141,10 @@ async function connectToWhatsApp() {
       },
     });
 
-    // Configura integração bidirecional uma vez por sessão
     if (connectionAttempts === 1) {
       setupEventHandlerIntegration();
     }
 
-    // Gerencia código de pareamento se necessário
     if (env.PAIRING_CODE && !sock.authState.creds.registered) {
       if (!env.PHONE_NUMBER) {
         logger.error('❌ Número de telefone necessário para o modo de pareamento');
@@ -178,7 +168,6 @@ async function connectToWhatsApp() {
       }, 3000);
     }
 
-    // Event handlers com melhor integração
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
@@ -203,7 +192,6 @@ async function connectToWhatsApp() {
 
         logger.warn(`🔌 Conexão fechada. Motivo: ${reason}, Reconectar: ${shouldReconnect}`);
 
-        // Atualiza estado no eventHandler
         eventHandler.updateConnectionState(false, { reason, shouldReconnect, connectionAttempts });
 
         if (shouldReconnect && connectionAttempts < 5) {
@@ -230,7 +218,6 @@ async function connectToWhatsApp() {
         logger.info('✅ OmniZap: Conectado com sucesso ao WhatsApp!');
         await sock.sendPresenceUpdate('available');
 
-        // Atualiza estado no eventHandler
         eventHandler.updateConnectionState(true, {
           userId: sock.user?.id,
           userPhone: sock.user?.name,
@@ -238,10 +225,8 @@ async function connectToWhatsApp() {
           version: version,
         });
 
-        // Configura o cliente no event handler
         eventHandler.setWhatsAppClient(sock);
 
-        // Log informações do usuário e estatísticas
         logger.info(`👤 Conectado como: ${sock.user?.name || 'Usuário'} (${sock.user?.id || 'ID não disponível'})`);
         const stats = eventHandler.getDataStats();
         logger.info(`📊 Dados: ${stats.groups} grupos, ${stats.contacts} contatos, ${stats.chats} chats, ${stats.messages} mensagens`);
@@ -250,7 +235,6 @@ async function connectToWhatsApp() {
         eventHandler.updateConnectionState(false, { status: 'connecting' });
       }
 
-      // Processa evento com contexto adicional
       eventHandler.processGenericEvent('connection.update', {
         ...update,
         _timestamp: Date.now(),
@@ -262,27 +246,21 @@ async function connectToWhatsApp() {
       });
     });
 
-    // Manipulador de mensagens aprimorado
     sock.ev.on('messages.upsert', async (messageUpdate) => {
       const messageCount = messageUpdate.messages?.length || 0;
       logger.info(`📨 Novas mensagens: ${messageCount}`);
 
-      // Processa no event handler com contexto melhorado
       eventHandler.processMessagesUpsert({
         ...messageUpdate,
         _receivedAt: Date.now(),
         _socketId: sock.user?.id,
       });
 
-      // Chama o handler principal se disponível
       try {
-        // Integração melhorada com o index.js - usando a nova estrutura
         const omniZapMainHandler = require('../../index.js');
 
-        // Verifica se é a nova estrutura exportada ou a antiga
         const handlerFunction = omniZapMainHandler.OmniZapMainHandler || omniZapMainHandler.default || omniZapMainHandler;
 
-        // Passa uma referência completa do socketController para melhor integração
         const socketControllerRef = {
           getActiveSocket: () => activeSocket,
           getConnectionStats: getConnectionStats,
@@ -291,7 +269,6 @@ async function connectToWhatsApp() {
           forceReconnect: reconnectToWhatsApp,
           getGroupInfo: getGroupInfo,
           sendPresence: sendPresence,
-          // Adiciona método para registrar-se no sistema principal
           registerWithMainSystem: () => {
             if (omniZapMainHandler.registerSocketController) {
               omniZapMainHandler.registerSocketController(socketControllerRef);
@@ -299,7 +276,6 @@ async function connectToWhatsApp() {
           },
         };
 
-        // Registra o socketController no sistema principal se disponível
         if (omniZapMainHandler.registerSocketController) {
           omniZapMainHandler.registerSocketController(socketControllerRef);
         }
@@ -309,7 +285,6 @@ async function connectToWhatsApp() {
       } catch (error) {
         logger.error('❌ Erro no handler principal:', error.message);
 
-        // Registra erro no eventHandler
         eventHandler.processGenericEvent('socket.handler.error', {
           error: error.message,
           timestamp: Date.now(),
@@ -318,10 +293,8 @@ async function connectToWhatsApp() {
       }
     });
 
-    // Outros eventos importantes com melhor logging e persistência
     sock.ev.on('messages.update', (updates) => {
       logger.debug(`📝 Atualizações de mensagens: ${updates?.length || 0}`);
-      // Atualiza mensagens existentes com novos dados
       if (updates && Array.isArray(updates)) {
         updates.forEach(async (messageUpdate) => {
           if (messageUpdate.key && messageUpdate.key.remoteJid && messageUpdate.key.id) {
@@ -356,10 +329,8 @@ async function connectToWhatsApp() {
       eventHandler.processGenericEvent('message-receipt.update', receipts);
     });
 
-    // Eventos de grupos com melhor integração e persistência direta
     sock.ev.on('groups.update', (updates) => {
       logger.info(`👥 Atualizações de grupos: ${updates?.length || 0}`);
-      // Processa e salva dados de grupos atualizados
       if (updates && Array.isArray(updates)) {
         updates.forEach(async (groupUpdate) => {
           if (groupUpdate.id) {
@@ -379,7 +350,6 @@ async function connectToWhatsApp() {
 
     sock.ev.on('groups.upsert', (groupsMetadata) => {
       logger.info(`👥 Novos grupos: ${groupsMetadata?.length || 0}`);
-      // Salva metadados de novos grupos diretamente
       if (groupsMetadata && Array.isArray(groupsMetadata)) {
         groupsMetadata.forEach(async (metadata) => {
           if (metadata.id) {
@@ -396,7 +366,6 @@ async function connectToWhatsApp() {
 
     sock.ev.on('group-participants.update', (event) => {
       logger.info(`👥 Participantes atualizados no grupo: ${event.id?.substring(0, 20)}...`);
-      // Atualiza dados do grupo com mudanças de participantes
       if (event.id) {
         setImmediate(async () => {
           try {
@@ -418,10 +387,8 @@ async function connectToWhatsApp() {
       eventHandler.processGenericEvent('group-participants.update', event);
     });
 
-    // Eventos de chats com persistência direta
     sock.ev.on('chats.upsert', (chats) => {
       logger.debug(`💬 Novos chats: ${chats?.length || 0}`);
-      // Salva novos chats diretamente
       if (chats && Array.isArray(chats)) {
         chats.forEach(async (chat) => {
           if (chat.id) {
@@ -438,7 +405,6 @@ async function connectToWhatsApp() {
 
     sock.ev.on('chats.update', (updates) => {
       logger.debug(`💬 Chats atualizados: ${updates?.length || 0}`);
-      // Atualiza chats existentes
       if (updates && Array.isArray(updates)) {
         updates.forEach(async (chatUpdate) => {
           if (chatUpdate.id) {
@@ -458,7 +424,6 @@ async function connectToWhatsApp() {
 
     sock.ev.on('chats.delete', (jids) => {
       logger.warn(`💬 Chats deletados: ${jids?.length || 0}`);
-      // Marca chats como deletados em vez de remover completamente
       if (jids && Array.isArray(jids)) {
         jids.forEach(async (jid) => {
           const existingChat = eventHandler.getChat(jid);
@@ -475,10 +440,8 @@ async function connectToWhatsApp() {
       eventHandler.processGenericEvent('chats.delete', jids);
     });
 
-    // Eventos de contatos com persistência direta
     sock.ev.on('contacts.upsert', (contacts) => {
       logger.debug(`👤 Novos contatos: ${contacts?.length || 0}`);
-      // Salva novos contatos diretamente
       if (contacts && Array.isArray(contacts)) {
         contacts.forEach(async (contact) => {
           if (contact.id) {
@@ -495,7 +458,6 @@ async function connectToWhatsApp() {
 
     sock.ev.on('contacts.update', (updates) => {
       logger.debug(`👤 Contatos atualizados: ${updates?.length || 0}`);
-      // Atualiza contatos existentes
       if (updates && Array.isArray(updates)) {
         updates.forEach(async (contactUpdate) => {
           if (contactUpdate.id) {
@@ -513,13 +475,11 @@ async function connectToWhatsApp() {
       eventHandler.processGenericEvent('contacts.update', updates);
     });
 
-    // Histórico de mensagens
     sock.ev.on('messaging-history.set', (historyData) => {
       logger.info('📚 Histórico de mensagens carregado');
       eventHandler.processGenericEvent('messaging-history.set', historyData);
     });
 
-    // Salva credenciais quando atualizadas
     sock.ev.on('creds.update', async () => {
       logger.debug('🔐 Credenciais atualizadas - Salvando...');
       await saveCreds();
@@ -534,7 +494,6 @@ async function connectToWhatsApp() {
     isReconnecting = false;
     logger.error('❌ Erro ao conectar ao WhatsApp:', error.message);
 
-    // Salva dados mesmo em caso de erro
     eventHandler.savePersistedData();
     throw error;
   }
@@ -552,7 +511,6 @@ async function reconnectToWhatsApp() {
       await forceDisconnect();
     }
 
-    // Aguarda um pouco antes de reconectar
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     logger.info('🔄 Iniciando nova conexão...');
@@ -572,7 +530,6 @@ async function getGroupInfo(groupJid, forceRefresh = false) {
     if (!forceRefresh) {
       const cached = eventHandler.getGroup(groupJid);
       if (cached && cached._cachedAt && Date.now() - cached._cachedAt < 60000) {
-        // 1 min
         return cached;
       }
     }
@@ -635,7 +592,6 @@ async function forceDisconnect() {
     try {
       logger.info('🔌 Iniciando desconexão manual...');
 
-      // Salva todos os dados pendentes antes de desconectar
       await eventHandler.savePersistedData();
       logger.debug('💾 Dados salvos antes da desconexão');
 
@@ -651,7 +607,6 @@ async function forceDisconnect() {
     logger.warn('⚠️ Socket já estava desconectado');
   }
 
-  // Garantir que os dados são salvos mesmo em caso de erro
   try {
     await eventHandler.savePersistedData();
   } catch (saveError) {
@@ -671,7 +626,6 @@ async function sendMessage(jid, content, options = {}) {
     const result = await activeSocket.sendMessage(jid, content, options);
     logger.debug(`📤 Mensagem enviada para ${jid.substring(0, 20)}...`);
 
-    // Salva a mensagem enviada nos dados permanentes
     if (result && result.key) {
       const sentMessageData = {
         key: result.key,
@@ -683,12 +637,10 @@ async function sendMessage(jid, content, options = {}) {
         _options: options,
       };
 
-      // Salva usando o método do eventHandler
       await eventHandler.setMessage(result.key.remoteJid, result.key.id, sentMessageData);
       logger.debug(`💾 Mensagem enviada salva: ${result.key.id.substring(0, 10)}...`);
     }
 
-    // Processa evento de mensagem enviada
     eventHandler.processGenericEvent('message.sent', {
       jid,
       content: typeof content,
@@ -702,7 +654,6 @@ async function sendMessage(jid, content, options = {}) {
   } catch (error) {
     logger.error(`❌ Erro ao enviar mensagem para ${jid}:`, error.message);
 
-    // Registra erro de envio
     eventHandler.processGenericEvent('message.send.error', {
       jid,
       content: typeof content,
@@ -718,7 +669,6 @@ async function sendMessage(jid, content, options = {}) {
 connectToWhatsApp().catch((error) => {
   logger.error('💥 Falha crítica na inicialização:', error.message);
 
-  // Salva dados mesmo em caso de falha crítica
   eventHandler.savePersistedData().catch((saveError) => {
     logger.error('❌ Erro ao salvar dados após falha crítica:', saveError.message);
   });
