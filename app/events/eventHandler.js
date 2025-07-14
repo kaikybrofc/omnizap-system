@@ -13,6 +13,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../utils/logger/loggerModule');
+const { queueManager } = require('../utils/queue/queueManager');
 
 /**
  * Função local para validar participantes (evita importação circular)
@@ -34,6 +35,7 @@ class EventHandler {
     this.socketController = null;
     this.dataDir = path.join(__dirname, '../../temp/data');
     this.isSaving = false; // Lock para escrita concorrente
+    this.useQueue = process.env.USE_QUEUE !== 'false'; // Flag para ativar/desativar filas
 
     // Dados em memória para acesso rápido
     this.messageData = new Map();
@@ -68,11 +70,11 @@ class EventHandler {
   /**
    * Inicializa o processador de eventos e dados permanentes
    */
-  init() {
+  async init() {
     try {
       // Cria diretório se não existir (síncrono, pois é parte da inicialização)
       const { mkdirSync, existsSync, accessSync, constants } = require('fs');
-      
+
       if (!existsSync(this.dataDir)) {
         mkdirSync(this.dataDir, { recursive: true });
         logger.info(`📁 Dados: Diretório criado: ${this.dataDir}`);
@@ -85,6 +87,18 @@ class EventHandler {
       } catch (permError) {
         logger.error(`❌ Sem permissão de escrita no diretório: ${this.dataDir}`);
         throw new Error(`Permissão negada: ${this.dataDir}`);
+      }
+
+      // Inicializar sistema de filas se habilitado
+      if (this.useQueue) {
+        try {
+          await queueManager.init();
+          queueManager.setEventHandler(this);
+          logger.info('🚀 EventHandler: Sistema de filas BullMQ inicializado');
+        } catch (error) {
+          logger.warn('⚠️ EventHandler: Erro ao inicializar filas, usando salvamento direto:', error.message);
+          this.useQueue = false;
+        }
       }
 
       // Carrega dados persistentes de forma assíncrona
@@ -440,23 +454,23 @@ class EventHandler {
 
       const data = this._getMapDataAsObject(dataMap);
       const jsonContent = JSON.stringify(data, null, 2);
-      
+
       // Escreve no arquivo temporário primeiro
       await fs.writeFile(tempFilePath, jsonContent, 'utf8');
-      
+
       // Verifica se o arquivo foi escrito corretamente
       const stats = await fs.stat(tempFilePath);
       if (stats.size === 0) {
         throw new Error(`Arquivo temporário ${tempFilePath} está vazio`);
       }
-      
+
       // Move o arquivo temporário para o definitivo
       await fs.rename(tempFilePath, filePath);
-      
+
       logger.debug(`✅ Arquivo ${type}.json salvo com sucesso (${stats.size} bytes)`);
     } catch (error) {
       logger.error(`❌ Erro ao salvar ${type}:`, error.message);
-      
+
       // Tenta remover arquivo temporário se existir
       try {
         await fs.unlink(tempFilePath);
@@ -467,7 +481,7 @@ class EventHandler {
           logger.warn(`⚠️ Erro ao remover arquivo temporário: ${unlinkError.message}`);
         }
       }
-      
+
       throw error; // Re-lança o erro para que seja tratado no nível superior
     }
   }
@@ -488,7 +502,23 @@ class EventHandler {
 
   async setMessage(remoteJid, messageId, messageData) {
     const key = `${remoteJid}_${messageId}`;
-    await this.saveDataImmediately('messages', key, messageData);
+
+    // Atualizar cache em memória imediatamente
+    this.messageData.set(key, messageData);
+    this.stats.totalMessages = this.messageData.size;
+
+    // Usar fila para persistência se disponível
+    if (this.useQueue && queueManager.initialized) {
+      try {
+        await queueManager.addDataSaveJob('message', { remoteJid, messageId }, messageData);
+        logger.debug(`💾 EventHandler: Mensagem ${messageId} adicionada à fila de salvamento`);
+      } catch (error) {
+        logger.warn('⚠️ EventHandler: Erro ao usar fila, salvando diretamente:', error.message);
+        await this.saveDataImmediately('messages', key, messageData);
+      }
+    } else {
+      await this.saveDataImmediately('messages', key, messageData);
+    }
   }
 
   getGroup(groupJid) {
@@ -497,7 +527,22 @@ class EventHandler {
   }
 
   async setGroup(groupJid, groupData) {
-    await this.saveDataImmediately('groups', groupJid, groupData);
+    // Atualizar cache em memória imediatamente
+    this.groupData.set(groupJid, groupData);
+    this.stats.totalGroups = this.groupData.size;
+
+    // Usar fila para persistência se disponível
+    if (this.useQueue && queueManager.initialized) {
+      try {
+        await queueManager.addDataSaveJob('group', groupJid, groupData);
+        logger.debug(`💾 EventHandler: Grupo ${groupJid} adicionado à fila de salvamento`);
+      } catch (error) {
+        logger.warn('⚠️ EventHandler: Erro ao usar fila, salvando diretamente:', error.message);
+        await this.saveDataImmediately('groups', groupJid, groupData);
+      }
+    } else {
+      await this.saveDataImmediately('groups', groupJid, groupData);
+    }
   }
 
   getContact(contactJid) {
@@ -506,7 +551,22 @@ class EventHandler {
   }
 
   async setContact(contactJid, contactData) {
-    await this.saveDataImmediately('contacts', contactJid, contactData);
+    // Atualizar cache em memória imediatamente
+    this.contactData.set(contactJid, contactData);
+    this.stats.totalContacts = this.contactData.size;
+
+    // Usar fila para persistência se disponível
+    if (this.useQueue && queueManager.initialized) {
+      try {
+        await queueManager.addDataSaveJob('contact', contactJid, contactData);
+        logger.debug(`💾 EventHandler: Contato ${contactJid} adicionado à fila de salvamento`);
+      } catch (error) {
+        logger.warn('⚠️ EventHandler: Erro ao usar fila, salvando diretamente:', error.message);
+        await this.saveDataImmediately('contacts', contactJid, contactData);
+      }
+    } else {
+      await this.saveDataImmediately('contacts', contactJid, contactData);
+    }
   }
 
   getChat(chatJid) {
@@ -515,18 +575,48 @@ class EventHandler {
   }
 
   async setChat(chatJid, chatData) {
-    await this.saveDataImmediately('chats', chatJid, chatData);
+    // Atualizar cache em memória imediatamente
+    this.chatData.set(chatJid, chatData);
+    this.stats.totalChats = this.chatData.size;
+
+    // Usar fila para persistência se disponível
+    if (this.useQueue && queueManager.initialized) {
+      try {
+        await queueManager.addDataSaveJob('chat', chatJid, chatData);
+        logger.debug(`💾 EventHandler: Chat ${chatJid} adicionado à fila de salvamento`);
+      } catch (error) {
+        logger.warn('⚠️ EventHandler: Erro ao usar fila, salvando diretamente:', error.message);
+        await this.saveDataImmediately('chats', chatJid, chatData);
+      }
+    } else {
+      await this.saveDataImmediately('chats', chatJid, chatData);
+    }
   }
 
   async setEvent(eventId, eventData) {
-    await this.saveDataImmediately('events', eventId, eventData);
+    // Atualizar cache em memória imediatamente
+    this.eventData.set(eventId, eventData);
+    this.stats.totalEvents = this.eventData.size;
+
+    // Usar fila para persistência se disponível
+    if (this.useQueue && queueManager.initialized) {
+      try {
+        await queueManager.addDataSaveJob('event', eventId, eventData, 1); // Prioridade alta para eventos
+        logger.debug(`💾 EventHandler: Evento ${eventId} adicionado à fila de salvamento`);
+      } catch (error) {
+        logger.warn('⚠️ EventHandler: Erro ao usar fila, salvando diretamente:', error.message);
+        await this.saveDataImmediately('events', eventId, eventData);
+      }
+    } else {
+      await this.saveDataImmediately('events', eventId, eventData);
+    }
   }
 
   /**
-   * Estatísticas dos dados
+   * Estatísticas dos dados incluindo filas
    */
-  getCacheStats() {
-    return {
+  async getCacheStats() {
+    const baseStats = {
       messages: this.messageData.size,
       groups: this.groupData.size,
       contacts: this.contactData.size,
@@ -534,8 +624,21 @@ class EventHandler {
       events: this.eventData.size,
       performance: this.stats,
       connectionState: this.connectionState,
-      memoryUsage: process.memoryUsage(),
+      usingQueue: this.useQueue,
     };
+
+    // Adicionar estatísticas das filas se disponível
+    if (this.useQueue && queueManager.initialized) {
+      try {
+        const queueStats = await queueManager.getStats();
+        baseStats.queueStats = queueStats;
+      } catch (error) {
+        logger.warn('⚠️ EventHandler: Erro ao obter estatísticas das filas:', error.message);
+        baseStats.queueStats = { error: error.message };
+      }
+    }
+
+    return baseStats;
   }
 
   /**
@@ -785,7 +888,7 @@ class EventHandler {
             _processingError: validationError.message,
           };
 
-          await this.setGroup(groupJid, basicMetadata);
+          await this.setGroup(groupJId, basicMetadata);
           return basicMetadata;
         }
       }
@@ -887,56 +990,66 @@ class EventHandler {
    */
   async cleanCorruptedData() {
     try {
-      logger.info('🧹 Iniciando limpeza de dados corrompidos...');
+      logger.info('🧹 Events: Iniciando limpeza de dados corrompidos...');
 
-      const dataFiles = {
-        groups: path.join(this.dataDir, 'groups.json'),
-        contacts: path.join(this.dataDir, 'contacts.json'),
-        chats: path.join(this.dataDir, 'chats.json'),
-      };
+      // Parar auto-save temporariamente
+      if (this.autoSaveInterval) {
+        clearInterval(this.autoSaveInterval);
+      }
 
-      let cleanedFiles = 0;
+      // Limpar dados da memória
+      this.clearDataFromMemory('all');
 
-      for (const [type, filePath] of Object.entries(dataFiles)) {
+      // Tentar recriar arquivos
+      await this.savePersistedData();
+
+      // Reiniciar auto-save
+      this.setupAutoSave();
+
+      logger.info('✅ Events: Limpeza de dados corrompidos concluída');
+      return { success: true, message: 'Dados corrompidos limpos e arquivos reinicializados' };
+    } catch (error) {
+      logger.error('❌ Events: Erro ao limpar dados corrompidos:', error.message);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Shutdown graceful do EventHandler
+   */
+  async shutdown() {
+    try {
+      logger.info('🛑 EventHandler: Iniciando shutdown graceful...');
+
+      // Parar auto-save
+      if (this.autoSaveInterval) {
+        clearInterval(this.autoSaveInterval);
+        logger.debug('⏰ EventHandler: Auto-save parado');
+      }
+
+      // Salvar dados pendentes
+      await this.savePersistedData();
+      logger.debug('💾 EventHandler: Dados finais salvos');
+
+      // Shutdown do sistema de filas
+      if (this.useQueue && queueManager.initialized) {
         try {
-          const fileContent = await fs.readFile(filePath, 'utf8');
-
-          // Tenta fazer parse para verificar se está válido
-          JSON.parse(fileContent);
-          logger.debug(`✅ ${path.basename(filePath)} está válido`);
+          await queueManager.shutdown();
+          logger.debug('📦 EventHandler: Sistema de filas fechado');
         } catch (error) {
-          if (error.code !== 'ENOENT') {
-            logger.warn(`🔧 Recriando arquivo corrompido: ${path.basename(filePath)}`);
-
-            // Backup se o arquivo existir mas estiver corrompido
-            if (error.code !== 'ENOENT') {
-              const backupPath = `${filePath}.corrupted.${Date.now()}`;
-              try {
-                await fs.rename(filePath, backupPath);
-                logger.info(`📦 Backup criado: ${path.basename(backupPath)}`);
-              } catch (backupError) {
-                logger.warn(`⚠️ Não foi possível criar backup: ${backupError.message}`);
-              }
-            }
-
-            // Cria arquivo novo
-            await fs.writeFile(filePath, JSON.stringify({}, null, 2));
-            cleanedFiles++;
-          }
+          logger.warn('⚠️ EventHandler: Erro ao fechar filas:', error.message);
         }
       }
 
-      if (cleanedFiles > 0) {
-        logger.info(`🧹 Limpeza concluída: ${cleanedFiles} arquivo(s) recriado(s)`);
-        // Limpa dados da memória após recriar arquivos
-        this.clearDataFromMemory('all');
-      } else {
-        logger.info(`✅ Nenhum arquivo corrompido encontrado`);
-      }
+      // Limpar callbacks
+      this.eventCallbacks.clear();
 
-      return { success: true, cleanedFiles };
+      this.initialized = false;
+      logger.info('✅ EventHandler: Shutdown concluído');
+
+      return { success: true };
     } catch (error) {
-      logger.error('❌ Erro durante limpeza de dados corrompidos:', error.message);
+      logger.error('❌ EventHandler: Erro durante shutdown:', error.message);
       return { success: false, error: error.message };
     }
   }
