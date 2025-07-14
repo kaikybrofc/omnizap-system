@@ -54,7 +54,7 @@ const isUserAdmin = async (groupJid, userJid) => {
  */
 const isBotAdmin = async (groupJid) => {
   try {
-    const botJid = await getBotJid();
+    const botJid = getBotJid();
     if (!botJid) {
       logger.warn('JID do bot não encontrado para verificar admin.', { groupJid });
       return false;
@@ -236,20 +236,38 @@ const isGroupJid = (jid) => {
 };
 
 /**
- * Obtém o JID do bot através da análise dos grupos onde ele está presente.
- * Como fallback, retorna um JID padrão ou null.
- * @returns {Promise<string|null>} - JID do bot.
+ * Obtém o JID do bot usando a abordagem do socket ativo, com fallbacks robustos.
+ * Prioriza o socket ativo do WhatsApp, depois metadados salvos, e por último análise de grupos.
+ * @returns {string|null} - JID do bot.
  */
-const getBotJid = async () => {
+const getBotJid = () => {
   try {
-    // Primeiro tenta ler de metadata se estiver disponível
-    const metadata = await readMetadata();
+    // MÉTODO PRIMÁRIO: Obtém JID diretamente do socket ativo (mais confiável)
+    try {
+      const { getActiveSocket } = require('../connection/socketController');
+      const activeSocket = getActiveSocket();
+
+      if (activeSocket && activeSocket.user && activeSocket.user.id) {
+        const botJid = activeSocket.user.id;
+        logger.debug('🤖 JID do bot obtido do socket ativo.', { botJid });
+
+        // Salva o JID nos metadados para uso futuro (sem await para manter função síncrona)
+        setBotJid(botJid).catch((err) => logger.debug('Erro ao salvar JID do bot nos metadados:', err.message));
+        return botJid;
+      }
+    } catch (socketError) {
+      logger.debug('⚠️ Socket não disponível, tentando métodos alternativos', { error: socketError.message });
+    }
+
+    // MÉTODO SECUNDÁRIO: Tenta ler de metadata se estiver disponível
+    const metadata = readMetadataSync();
     if (metadata?.botJid) {
+      logger.debug('🤖 JID do bot obtido dos metadados.', { botJid: metadata.botJid });
       return metadata.botJid;
     }
 
-    // Como fallback, analisa os grupos para encontrar um padrão comum de bot
-    const groupsData = await readGroupsData();
+    // MÉTODO TERCIÁRIO: Como fallback, analisa os grupos para encontrar um padrão comum de bot
+    const groupsData = readGroupsData();
 
     // Procura por padrões de JID de bot nos grupos
     for (const [groupJid, groupData] of Object.entries(groupsData)) {
@@ -265,16 +283,19 @@ const getBotJid = async () => {
         );
 
         if (possibleBots.length > 0) {
-          // Retorna o primeiro bot encontrado
-          return possibleBots[0].id;
+          // Retorna o primeiro bot encontrado e salva nos metadados
+          const botJid = possibleBots[0].id;
+          logger.debug('🤖 JID do bot obtido por análise de grupos.', { botJid });
+          setBotJid(botJid).catch((err) => logger.debug('Erro ao salvar JID do bot nos metadados:', err.message));
+          return botJid;
         }
       }
     }
 
-    logger.warn('JID do bot não encontrado nos dados disponíveis');
+    logger.warn('⚠️ JID do bot não encontrado em nenhum método disponível');
     return null;
   } catch (error) {
-    logger.error('Erro ao obter JID do bot', { error: error.message });
+    logger.error('❌ Erro ao obter JID do bot', { error: error.message });
     return null;
   }
 };
@@ -395,6 +416,24 @@ const readMetadata = async () => {
 };
 
 /**
+ * Lê os metadados do arquivo metadata.json de forma síncrona.
+ * @returns {Object} - Metadados.
+ */
+const readMetadataSync = () => {
+  try {
+    const data = fs.readFileSync(METADATA_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      logger.debug('Arquivo metadata.json não encontrado, retornando objeto vazio');
+      return {};
+    }
+    logger.debug('Erro ao ler metadados sincronamente', { error: error.message });
+    return {};
+  }
+};
+
+/**
  * === EXPORTAÇÕES ===
  */
 
@@ -428,4 +467,5 @@ module.exports = {
   readGroupsData,
   readContactsData,
   readMetadata,
+  readMetadataSync,
 };
