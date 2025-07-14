@@ -44,8 +44,8 @@ const getMessageExpiration = (messageInfo) => {
  */
 const validateAdminPermissions = async (omniZapClient, groupJid, senderJid, targetJid, messageInfo, actionName = 'executar esta ação') => {
   try {
-    const senderIsAdmin = await isUserAdmin(omniZapClient, groupJid, senderJid);
-    const botIsAdmin = await isBotAdmin(omniZapClient, groupJid);
+    const senderIsAdmin = await isUserAdmin(groupJid, senderJid);
+    const botIsAdmin = await isBotAdmin(groupJid);
 
     if (!senderIsAdmin) {
       await sendReaction(omniZapClient, targetJid, '❌', messageInfo.key);
