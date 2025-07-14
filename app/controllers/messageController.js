@@ -7,6 +7,7 @@
  * @version 1.0.5
  * @author OmniZap Team
  * @license MIT
+ * @source https://www.npmjs.com/package/baileys
  */
 
 require('dotenv').config();
