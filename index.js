@@ -267,7 +267,7 @@ if (require.main === module) {
     if (eventHandler) {
       eventHandler.processGenericEvent('application.startup', {
         timestamp: initStartTime,
-        version: '1.0.6',
+        version: '1.0.5',
         nodeVersion: process.version,
         platform: process.platform,
         architecture: process.arch,
@@ -304,7 +304,7 @@ if (require.main === module) {
         eventHandler.processGenericEvent('application.initialization.success', {
           initDuration,
           timestamp: Date.now(),
-          version: '1.0.6',
+          version: '1.0.5',
           systemStats: getSystemStats(),
         });
       }
