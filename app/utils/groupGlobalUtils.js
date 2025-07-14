@@ -10,6 +10,7 @@
  */
 
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 const logger = require('./logger/loggerModule');
 
@@ -267,7 +268,7 @@ const getBotJid = () => {
     }
 
     // MÉTODO TERCIÁRIO: Como fallback, analisa os grupos para encontrar um padrão comum de bot
-    const groupsData = readGroupsData();
+    const groupsData = readGroupsDataSync();
 
     // Procura por padrões de JID de bot nos grupos
     for (const [groupJid, groupData] of Object.entries(groupsData)) {
@@ -380,6 +381,24 @@ const readGroupsData = async () => {
 };
 
 /**
+ * Lê os dados dos grupos do arquivo groups.json de forma síncrona.
+ * @returns {Object} - Dados dos grupos.
+ */
+const readGroupsDataSync = () => {
+  try {
+    const data = fsSync.readFileSync(GROUPS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      logger.debug('Arquivo groups.json não encontrado, retornando objeto vazio');
+      return {};
+    }
+    logger.debug('Erro ao ler dados dos grupos sincronamente', { error: error.message });
+    return {};
+  }
+};
+
+/**
  * Lê os dados dos contatos do arquivo contacts.json.
  * @returns {Promise<Object>} - Dados dos contatos.
  */
@@ -421,7 +440,7 @@ const readMetadata = async () => {
  */
 const readMetadataSync = () => {
   try {
-    const data = fs.readFileSync(METADATA_FILE, 'utf8');
+    const data = fsSync.readFileSync(METADATA_FILE, 'utf8');
     return JSON.parse(data);
   } catch (error) {
     if (error.code === 'ENOENT') {
@@ -465,6 +484,7 @@ module.exports = {
 
   // Funções auxiliares de leitura de dados
   readGroupsData,
+  readGroupsDataSync,
   readContactsData,
   readMetadata,
   readMetadataSync,
