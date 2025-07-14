@@ -486,8 +486,17 @@ class QueueManager {
 
       // Fallback para salvamento direto
       if (queueConfig.FALLBACK.ENABLE_DIRECT_SAVE && queueType === 'DATA_SAVE') {
-        await this.processDataSaveJob({ data: jobData });
-        return { id: 'fallback', data: jobData };
+        // Usar salvamento direto sem passar pela fila para evitar recursão
+        if (this.eventHandler) {
+          const { type, key, data } = jobData;
+          try {
+            await this.eventHandler.saveDataImmediately(this.getDataType(type), this.formatKey(type, key), data);
+            logger.debug(`💾 QueueManager: Fallback - dados salvos diretamente para ${type}`);
+            return { id: 'fallback', data: jobData };
+          } catch (fallbackError) {
+            logger.error('❌ QueueManager: Falha no fallback de salvamento:', fallbackError.message);
+          }
+        }
       }
 
       throw error;
@@ -709,6 +718,30 @@ class QueueManager {
       logger.error('❌ QueueManager: Erro durante shutdown:', error.message);
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * Converte tipo de dados para formato esperado pelo saveDataImmediately
+   */
+  getDataType(type) {
+    const typeMap = {
+      message: 'messages',
+      group: 'groups',
+      contact: 'contacts',
+      chat: 'chats',
+      event: 'events',
+    };
+    return typeMap[type] || type;
+  }
+
+  /**
+   * Formata a chave baseada no tipo de dados
+   */
+  formatKey(type, key) {
+    if (type === 'message' && typeof key === 'object') {
+      return `${key.remoteJid}:${key.messageId}`;
+    }
+    return key;
   }
 }
 
