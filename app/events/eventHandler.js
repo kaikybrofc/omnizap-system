@@ -14,8 +14,17 @@ const fs = require('fs').promises;
 const path = require('path');
 const NodeCache = require('node-cache');
 const logger = require('../utils/logger/loggerModule');
-const { getValidParticipants } = require('../utils/groupGlobalUtils');
 const { autoCleanIfNeeded } = require('../utils/fixGroupsData');
+
+/**
+ * Função local para validar participantes (evita importação circular)
+ * @param {Array} participants - Array de participantes
+ * @returns {Array} - Array de participantes válidos
+ */
+function getValidParticipants(participants) {
+  if (!Array.isArray(participants)) return [];
+  return participants.filter((p) => p && p.id && typeof p.id === 'string');
+}
 
 /**
  * Classe principal do processador de eventos com cache local
@@ -587,30 +596,47 @@ class EventHandler {
 
       const fetchedMetadata = await client.groupMetadata(groupJid);
       if (fetchedMetadata) {
-        // Usa função utilitária para filtrar participantes válidos
-        const validParticipants = getValidParticipants(fetchedMetadata.participants || []);
+        try {
+          // Usa função local para filtrar participantes válidos
+          const validParticipants = getValidParticipants(fetchedMetadata.participants || []);
 
-        // Enriquece com dados calculados
-        const enrichedMetadata = {
-          ...fetchedMetadata,
-          _cachedAt: Date.now(),
-          _participantCount: validParticipants.length,
-          _adminCount: validParticipants.filter((p) => p.admin === 'admin' || p.admin === 'superadmin').length,
-          _lastFetch: Date.now(),
-        };
+          // Enriquece com dados calculados
+          const enrichedMetadata = {
+            ...fetchedMetadata,
+            _cachedAt: Date.now(),
+            _participantCount: validParticipants.length,
+            _adminCount: validParticipants.filter((p) => p.admin === 'admin' || p.admin === 'superadmin').length,
+            _lastFetch: Date.now(),
+          };
 
-        // Salva no cache
-        this.groupCache.set(groupJid, enrichedMetadata);
-        logger.info(`Cache atualizado para grupo: ${enrichedMetadata.subject || 'Sem nome'}`);
+          // Salva no cache
+          this.groupCache.set(groupJid, enrichedMetadata);
+          logger.info(`Cache atualizado para grupo: ${enrichedMetadata.subject || 'Sem nome'}`);
 
-        // Executa callbacks de metadados atualizados
-        await this.executeCallbacks('group.metadata.updated', {
-          groupJid,
-          metadata: enrichedMetadata,
-          wasFromCache: false,
-        });
+          // Executa callbacks de metadados atualizados
+          await this.executeCallbacks('group.metadata.updated', {
+            groupJid,
+            metadata: enrichedMetadata,
+            wasFromCache: false,
+          });
 
-        return enrichedMetadata;
+          return enrichedMetadata;
+        } catch (validationError) {
+          logger.error(`Events: Erro ao processar participantes do grupo ${groupJid}:`, validationError.message);
+
+          // Retorna metadados básicos sem processamento de participantes
+          const basicMetadata = {
+            ...fetchedMetadata,
+            _cachedAt: Date.now(),
+            _participantCount: 0,
+            _adminCount: 0,
+            _lastFetch: Date.now(),
+            _processingError: validationError.message,
+          };
+
+          this.groupCache.set(groupJid, basicMetadata);
+          return basicMetadata;
+        }
       }
 
       logger.warn(`Events: Não foi possível buscar metadados para ${groupJid}`);
