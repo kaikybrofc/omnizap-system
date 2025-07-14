@@ -12,7 +12,6 @@
 
 const fs = require('fs').promises;
 const path = require('path');
-const NodeCache = require('node-cache');
 const logger = require('../utils/logger/loggerModule');
 const { autoCleanIfNeeded } = require('../utils/fixGroupsData');
 
@@ -27,23 +26,22 @@ function getValidParticipants(participants) {
 }
 
 /**
- * Classe principal do processador de eventos com cache local
+ * Classe principal do processador de eventos com persistência direta
  */
 class EventHandler {
   constructor() {
     this.initialized = false;
     this.omniZapClient = null;
     this.socketController = null;
-    this.cacheDir = path.join(__dirname, '../../temp/cache');
     this.dataDir = path.join(__dirname, '../../temp/data');
     this.isSaving = false; // Lock para escrita concorrente
 
-    // Cache instances com TTL diferenciados
-    this.messageCache = new NodeCache({ stdTTL: 3600, checkperiod: 600 }); // 1 hora
-    this.groupCache = new NodeCache({ stdTTL: 7200, checkperiod: 600 }); // 2 horas
-    this.contactCache = new NodeCache({ stdTTL: 7200, checkperiod: 600 }); // 2 horas
-    this.chatCache = new NodeCache({ stdTTL: 3600, checkperiod: 600 }); // 1 hora
-    this.eventCache = new NodeCache({ stdTTL: 1800, checkperiod: 300 }); // 30 minutos
+    // Dados em memória para acesso rápido
+    this.messageData = new Map();
+    this.groupData = new Map();
+    this.contactData = new Map();
+    this.chatData = new Map();
+    this.eventData = new Map();
 
     // Sistema de callbacks para comunicação bidirecional
     this.eventCallbacks = new Map();
@@ -56,8 +54,11 @@ class EventHandler {
 
     // Estatísticas de performance
     this.stats = {
-      cacheHits: 0,
-      cacheMisses: 0,
+      totalMessages: 0,
+      totalGroups: 0,
+      totalContacts: 0,
+      totalChats: 0,
+      totalEvents: 0,
       processedEvents: 0,
       lastReset: Date.now(),
     };
@@ -66,20 +67,18 @@ class EventHandler {
   }
 
   /**
-   * Inicializa o processador de eventos e cache
+   * Inicializa o processador de eventos e dados permanentes
    */
   init() {
     try {
-      // Cria diretórios se não existirem (síncrono, pois é parte da inicialização)
+      // Cria diretório se não existir (síncrono, pois é parte da inicialização)
       const { mkdirSync, existsSync } = require('fs');
-      [this.cacheDir, this.dataDir].forEach((dir) => {
-        if (!existsSync(dir)) {
-          mkdirSync(dir, { recursive: true });
-          logger.info(`📁 Cache: Diretório criado: ${dir}`);
-        }
-      });
+      if (!existsSync(this.dataDir)) {
+        mkdirSync(this.dataDir, { recursive: true });
+        logger.info(`📁 Dados: Diretório criado: ${this.dataDir}`);
+      }
 
-      // Carrega dados persistentes de forma assíncrona, sem bloquear a inicialização
+      // Carrega dados persistentes de forma assíncrona
       this.loadPersistedData().catch((error) => {
         logger.error('❌ Erro inicial ao carregar dados persistentes:', error.message);
       });
@@ -95,13 +94,13 @@ class EventHandler {
           logger.warn('⚠️ Erro na limpeza automática dos grupos:', error.message);
         });
 
-      // Configura auto-save
+      // Configura auto-save periódico
       this.setupAutoSave();
 
-      logger.info('🎯 OmniZap Events: Cache local inicializado com integração bidirecional');
+      logger.info('🎯 OmniZap Events: Sistema de dados permanentes inicializado');
       this.initialized = true;
     } catch (error) {
-      logger.error('❌ Erro ao inicializar cache:', error.message);
+      logger.error('❌ Erro ao inicializar sistema de dados:', error.message);
     }
   }
 
@@ -213,6 +212,8 @@ class EventHandler {
       groups: path.join(this.dataDir, 'groups.json'),
       contacts: path.join(this.dataDir, 'contacts.json'),
       chats: path.join(this.dataDir, 'chats.json'),
+      messages: path.join(this.dataDir, 'messages.json'),
+      events: path.join(this.dataDir, 'events.json'),
     };
 
     for (const [type, filePath] of Object.entries(dataFiles)) {
@@ -221,7 +222,7 @@ class EventHandler {
 
         // Verifica se o conteúdo é válido antes de fazer parse
         if (!fileContent || fileContent.trim() === '') {
-          logger.warn(`⚠️ Arquivo ${path.basename(filePath)} está vazio, inicializando cache vazio`);
+          logger.warn(`⚠️ Arquivo ${path.basename(filePath)} está vazio, inicializando dados vazios`);
           continue;
         }
 
@@ -242,13 +243,14 @@ class EventHandler {
           logger.info(`✅ Arquivo ${path.basename(filePath)} recriado com dados vazios`);
         }
 
-        const cache = this.getCacheByType(type);
-        if (cache && data) {
+        const dataMap = this.getDataMapByType(type);
+        if (dataMap && data) {
           const keys = Object.keys(data);
           for (const key of keys) {
-            cache.set(key, data[key]);
+            dataMap.set(key, data[key]);
           }
-          logger.info(`📂 Cache: ${keys.length} ${type} carregados do arquivo ${path.basename(filePath)}`);
+          this.stats[`total${type.charAt(0).toUpperCase() + type.slice(1)}`] = keys.length;
+          logger.info(`📂 Dados: ${keys.length} ${type} carregados do arquivo ${path.basename(filePath)}`);
         }
       } catch (error) {
         if (error.code !== 'ENOENT') {
@@ -268,13 +270,13 @@ class EventHandler {
   }
 
   /**
-   * Configura salvamento automático periódico e graceful shutdown.
+   * Configura salvamento automático periódico mais frequente.
    */
   setupAutoSave() {
-    // Salva dados a cada 5 minutos
+    // Salva dados a cada 2 minutos para garantir persistência
     setInterval(() => {
       this.savePersistedData();
-    }, 5 * 60 * 1000);
+    }, 2 * 60 * 1000);
 
     const gracefulShutdown = async (signal) => {
       logger.info(`🔄 Recebido ${signal}. Salvando dados antes de encerrar...`);
@@ -288,13 +290,16 @@ class EventHandler {
   }
 
   /**
-   * Helper para extrair todos os dados de uma instância de cache.
-   * @param {NodeCache} cache - A instância do NodeCache.
-   * @returns {Object} - Um objeto com os dados do cache.
+   * Helper para extrair todos os dados de um Map.
+   * @param {Map} dataMap - O Map com os dados.
+   * @returns {Object} - Um objeto com os dados do Map.
    */
-  _getCacheDataAsObject(cache) {
-    const keys = cache.keys();
-    return cache.mget(keys);
+  _getMapDataAsObject(dataMap) {
+    const obj = {};
+    for (const [key, value] of dataMap.entries()) {
+      obj[key] = value;
+    }
+    return obj;
   }
 
   /**
@@ -302,24 +307,27 @@ class EventHandler {
    */
   async savePersistedData() {
     if (this.isSaving) {
-      logger.warn('💾 Cache: Salvamento já está em progresso. Ignorando nova solicitação.');
+      logger.warn('💾 Dados: Salvamento já está em progresso. Ignorando nova solicitação.');
       return;
     }
 
     this.isSaving = true;
-    logger.debug('💾 Cache: Iniciando salvamento de dados em arquivos JSON...');
+    logger.debug('💾 Dados: Iniciando salvamento em arquivos JSON...');
 
     try {
       const dataToSave = {
-        groups: this._getCacheDataAsObject(this.groupCache),
-        contacts: this._getCacheDataAsObject(this.contactCache),
-        chats: this._getCacheDataAsObject(this.chatCache),
+        groups: this._getMapDataAsObject(this.groupData),
+        contacts: this._getMapDataAsObject(this.contactData),
+        chats: this._getMapDataAsObject(this.chatData),
+        messages: this._getMapDataAsObject(this.messageData),
+        events: this._getMapDataAsObject(this.eventData),
         metadata: {
           lastSave: Date.now(),
-          totalMessages: this.messageCache.keys().length,
-          totalGroups: this.groupCache.keys().length,
-          totalContacts: this.contactCache.keys().length,
-          totalChats: this.chatCache.keys().length,
+          totalMessages: this.messageData.size,
+          totalGroups: this.groupData.size,
+          totalContacts: this.contactData.size,
+          totalChats: this.chatData.size,
+          totalEvents: this.eventData.size,
           stats: this.stats,
           connectionState: this.connectionState,
         },
@@ -352,7 +360,7 @@ class EventHandler {
 
       await Promise.all(savePromises);
 
-      logger.debug('💾 Cache: Dados salvos em arquivos JSON.');
+      logger.debug('💾 Dados: Salvamento concluído.');
     } catch (error) {
       logger.error('❌ Erro geral ao salvar dados:', error.message);
     } finally {
@@ -361,79 +369,128 @@ class EventHandler {
   }
 
   /**
-   * Retorna o cache apropriado baseado no tipo
+   * Retorna o Map apropriado baseado no tipo
    */
-  getCacheByType(type) {
-    const cacheMap = {
-      groups: this.groupCache,
-      contacts: this.contactCache,
-      chats: this.chatCache,
-      messages: this.messageCache,
-      events: this.eventCache,
+  getDataMapByType(type) {
+    const dataMap = {
+      groups: this.groupData,
+      contacts: this.contactData,
+      chats: this.chatData,
+      messages: this.messageData,
+      events: this.eventData,
     };
-    return cacheMap[type];
+    return dataMap[type];
   }
 
   /**
-   * Incrementa estatísticas de cache
+   * Salva dados imediatamente em arquivo
    */
-  incrementCacheStats(type = 'hit') {
-    this.stats[type === 'hit' ? 'cacheHits' : 'cacheMisses']++;
+  async saveDataImmediately(type, key, data) {
+    try {
+      const dataMap = this.getDataMapByType(type);
+      if (dataMap) {
+        dataMap.set(key, {
+          ...data,
+          _savedAt: Date.now(),
+        });
+
+        // Atualiza estatísticas
+        this.stats[`total${type.charAt(0).toUpperCase() + type.slice(1)}`] = dataMap.size;
+
+        // Salva imediatamente
+        await this.saveSpecificData(type);
+
+        logger.debug(`💾 ${type} salvo imediatamente: ${key.substring(0, 20)}...`);
+      }
+    } catch (error) {
+      logger.error(`❌ Erro ao salvar ${type} imediatamente:`, error.message);
+    }
   }
 
   /**
-   * Calcula taxa de acerto do cache
+   * Salva um tipo específico de dados
    */
-  calculateCacheHitRate() {
-    const total = this.stats.cacheHits + this.stats.cacheMisses;
-    return total > 0 ? ((this.stats.cacheHits / total) * 100).toFixed(2) : 0;
+  async saveSpecificData(type) {
+    const filePath = path.join(this.dataDir, `${type}.json`);
+    const tempFilePath = `${filePath}.tmp`;
+
+    try {
+      const dataMap = this.getDataMapByType(type);
+      const data = this._getMapDataAsObject(dataMap);
+
+      const jsonContent = JSON.stringify(data, null, 2);
+      await fs.writeFile(tempFilePath, jsonContent);
+      await fs.rename(tempFilePath, filePath);
+    } catch (error) {
+      logger.error(`❌ Erro ao salvar ${type}:`, error.message);
+      try {
+        await fs.unlink(tempFilePath);
+      } catch (unlinkError) {
+        // Ignora erro se arquivo temporário não existir
+      }
+    }
   }
 
   /**
-   * Métodos públicos para acessar cache com estatísticas
+   * Métodos públicos para acessar dados permanentes
    */
   getMessage(remoteJid, messageId) {
     const key = `${remoteJid}_${messageId}`;
-    const message = this.messageCache.get(key);
-
-    this.incrementCacheStats(message ? 'hit' : 'miss');
+    const message = this.messageData.get(key);
 
     if (message) {
-      logger.debug(`📱 Cache hit para mensagem: ${messageId.substring(0, 10)}...`);
+      logger.debug(`📱 Dados encontrados para mensagem: ${messageId.substring(0, 10)}...`);
     }
 
     return message;
   }
 
+  async setMessage(remoteJid, messageId, messageData) {
+    const key = `${remoteJid}_${messageId}`;
+    await this.saveDataImmediately('messages', key, messageData);
+  }
+
   getGroup(groupJid) {
-    const group = this.groupCache.get(groupJid);
-    this.incrementCacheStats(group ? 'hit' : 'miss');
+    const group = this.groupData.get(groupJid);
     return group;
   }
 
+  async setGroup(groupJid, groupData) {
+    await this.saveDataImmediately('groups', groupJid, groupData);
+  }
+
   getContact(contactJid) {
-    const contact = this.contactCache.get(contactJid);
-    this.incrementCacheStats(contact ? 'hit' : 'miss');
+    const contact = this.contactData.get(contactJid);
     return contact;
   }
 
+  async setContact(contactJid, contactData) {
+    await this.saveDataImmediately('contacts', contactJid, contactData);
+  }
+
   getChat(chatJid) {
-    const chat = this.chatCache.get(chatJid);
-    this.incrementCacheStats(chat ? 'hit' : 'miss');
+    const chat = this.chatData.get(chatJid);
     return chat;
   }
 
+  async setChat(chatJid, chatData) {
+    await this.saveDataImmediately('chats', chatJid, chatData);
+  }
+
+  async setEvent(eventId, eventData) {
+    await this.saveDataImmediately('events', eventId, eventData);
+  }
+
   /**
-   * Estatísticas do cache
+   * Estatísticas dos dados
    */
   getCacheStats() {
     return {
-      messages: this.messageCache.keys().length,
-      groups: this.groupCache.keys().length,
-      contacts: this.contactCache.keys().length,
-      chats: this.chatCache.keys().length,
-      events: this.eventCache.keys().length,
-      cacheHitRate: this.calculateCacheHitRate(),
+      messages: this.messageData.size,
+      groups: this.groupData.size,
+      contacts: this.contactData.size,
+      chats: this.chatData.size,
+      events: this.eventData.size,
       performance: this.stats,
       connectionState: this.connectionState,
       memoryUsage: process.memoryUsage(),
@@ -494,9 +551,9 @@ class EventHandler {
         const messageCount = messageUpdate.messages?.length || 0;
         logger.info(`📨 Events: Processando messages.upsert - ${messageCount} mensagem(ns)`);
 
-        // Salva evento no cache
+        // Salva evento nos dados permanentes
         const eventId = `upsert_${Date.now()}`;
-        this.eventCache.set(eventId, {
+        await this.setEvent(eventId, {
           type: 'messages.upsert',
           data: messageUpdate,
           timestamp: Date.now(),
@@ -524,9 +581,9 @@ class EventHandler {
                 _senderJid: isGroupMessage ? messageInfo.key.participant || messageInfo.key.remoteJid : messageInfo.key.remoteJid,
               };
 
-              // Salva mensagem no cache
+              // Salva mensagem nos dados permanentes
               const messageKey = `${messageInfo.key.remoteJid}_${messageInfo.key.id}`;
-              this.messageCache.set(messageKey, enhancedMessageInfo);
+              await this.setMessage(messageInfo.key.remoteJid, messageInfo.key.id, enhancedMessageInfo);
               processedCount++;
 
               const jid = messageInfo.key?.remoteJid?.substring(0, 20) || 'N/A';
@@ -617,21 +674,21 @@ class EventHandler {
   }
 
   /**
-   * Busca ou obtém metadados de grupo do cache/API
+   * Busca ou obtém metadados de grupo dos dados permanentes
    * @param {string} groupJid - JID do grupo
    * @returns {Object|null} Metadados do grupo
    */
   async getOrFetchGroupMetadata(groupJid) {
     try {
-      // Verifica cache primeiro
-      let metadata = this.groupCache.get(groupJid);
+      // Verifica dados primeiro
+      let metadata = this.groupData.get(groupJid);
 
       if (metadata && metadata._cachedAt && Date.now() - metadata._cachedAt < 3600000) {
-        logger.debug(`Cache hit para grupo: ${groupJid.substring(0, 30)}...`);
+        logger.debug(`Dados encontrados para grupo: ${groupJid.substring(0, 30)}...`);
         return metadata;
       }
 
-      // Busca da API se não estiver em cache ou estiver expirado
+      // Busca da API se não estiver em dados ou estiver expirado
       const client = this.getWhatsAppClient();
       if (!client) {
         logger.warn(`Events: Cliente não disponível para buscar metadados do grupo ${groupJid}`);
@@ -655,9 +712,9 @@ class EventHandler {
             _lastFetch: Date.now(),
           };
 
-          // Salva no cache
-          this.groupCache.set(groupJid, enrichedMetadata);
-          logger.info(`Cache atualizado para grupo: ${enrichedMetadata.subject || 'Sem nome'}`);
+          // Salva nos dados permanentes
+          await this.setGroup(groupJid, enrichedMetadata);
+          logger.info(`Dados atualizados para grupo: ${enrichedMetadata.subject || 'Sem nome'}`);
 
           // Executa callbacks de metadados atualizados
           await this.executeCallbacks('group.metadata.updated', {
@@ -680,7 +737,7 @@ class EventHandler {
             _processingError: validationError.message,
           };
 
-          this.groupCache.set(groupJid, basicMetadata);
+          await this.setGroup(groupJid, basicMetadata);
           return basicMetadata;
         }
       }
@@ -689,7 +746,7 @@ class EventHandler {
       return metadata || null;
     } catch (error) {
       logger.error(`Events: Erro ao buscar metadados do grupo ${groupJid}:`, error.message);
-      return this.groupCache.get(groupJid) || null;
+      return this.groupData.get(groupJid) || null;
     }
   }
 
@@ -703,7 +760,7 @@ class EventHandler {
         logger.info(`🔄 Events: Processando ${eventType}`);
 
         const eventId = `${eventType}_${Date.now()}`;
-        this.eventCache.set(eventId, {
+        await this.setEvent(eventId, {
           type: eventType,
           data: eventData,
           timestamp: Date.now(),
@@ -718,93 +775,56 @@ class EventHandler {
   }
 
   /**
-   * Limpa cache específico
+   * Limpa dados específicos (apenas da memória, arquivos permanecem)
    */
-  clearCache(type = 'all') {
+  clearDataFromMemory(type = 'all') {
     switch (type) {
       case 'messages':
-        this.messageCache.flushAll();
+        this.messageData.clear();
         break;
       case 'groups':
-        this.groupCache.flushAll();
+        this.groupData.clear();
         break;
       case 'contacts':
-        this.contactCache.flushAll();
+        this.contactData.clear();
         break;
       case 'chats':
-        this.chatCache.flushAll();
+        this.chatData.clear();
         break;
       case 'events':
-        this.eventCache.flushAll();
+        this.eventData.clear();
         break;
       case 'all':
-        this.messageCache.flushAll();
-        this.groupCache.flushAll();
-        this.contactCache.flushAll();
-        this.chatCache.flushAll();
-        this.eventCache.flushAll();
+        this.messageData.clear();
+        this.groupData.clear();
+        this.contactData.clear();
+        this.chatData.clear();
+        this.eventData.clear();
         break;
     }
-    logger.info(`🧹 Cache ${type} limpo`);
+    logger.info(`🧹 Dados ${type} removidos da memória (arquivos preservados)`);
   }
 
   /**
-   * Valida se um JID está em cache
+   * Valida se um JID está nos dados
    */
   isJidKnown(jid) {
-    return this.contactCache.has(jid) || this.groupCache.has(jid) || this.chatCache.has(jid);
+    return this.contactData.has(jid) || this.groupData.has(jid) || this.chatData.has(jid);
   }
 
   /**
-   * Limpa dados antigos baseado em timestamp
+   * Exporta dados para backup
    */
-  cleanOldData(maxAge = 24 * 60 * 60 * 1000) {
-    try {
-      const now = Date.now();
-      let cleaned = 0;
-
-      // Limpa mensagens antigas
-      this.messageCache.keys().forEach((key) => {
-        const message = this.messageCache.get(key);
-        if (message && message._receivedAt && now - message._receivedAt > maxAge) {
-          this.messageCache.del(key);
-          cleaned++;
-        }
-      });
-
-      // Limpa eventos antigos
-      this.eventCache.keys().forEach((key) => {
-        const event = this.eventCache.get(key);
-        if (event && event.timestamp && now - event.timestamp > maxAge) {
-          this.eventCache.del(key);
-          cleaned++;
-        }
-      });
-
-      if (cleaned > 0) {
-        logger.info(`🧹 Limpeza: ${cleaned} itens antigos removidos`);
-      }
-
-      return cleaned;
-    } catch (error) {
-      logger.error('Erro na limpeza de dados antigos:', error.message);
-      return 0;
-    }
-  }
-
-  /**
-   * Exporta dados do cache para backup
-   */
-  exportCacheData() {
+  exportData() {
     try {
       return {
         timestamp: Date.now(),
         version: '2.2.0',
         data: {
-          messages: this.messageCache.keys().length,
-          groups: this._getCacheDataAsObject(this.groupCache),
-          contacts: this._getCacheDataAsObject(this.contactCache),
-          chats: this._getCacheDataAsObject(this.chatCache),
+          messages: this.messageData.size,
+          groups: this._getMapDataAsObject(this.groupData),
+          contacts: this._getMapDataAsObject(this.contactData),
+          chats: this._getMapDataAsObject(this.chatData),
           stats: this.getCacheStats(),
         },
       };
@@ -860,8 +880,8 @@ class EventHandler {
 
       if (cleanedFiles > 0) {
         logger.info(`🧹 Limpeza concluída: ${cleanedFiles} arquivo(s) recriado(s)`);
-        // Limpa cache após recriar arquivos
-        this.clearCache('all');
+        // Limpa dados da memória após recriar arquivos
+        this.clearDataFromMemory('all');
       } else {
         logger.info(`✅ Nenhum arquivo corrompido encontrado`);
       }
