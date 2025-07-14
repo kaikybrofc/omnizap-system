@@ -71,10 +71,20 @@ class EventHandler {
   init() {
     try {
       // Cria diretório se não existir (síncrono, pois é parte da inicialização)
-      const { mkdirSync, existsSync } = require('fs');
+      const { mkdirSync, existsSync, accessSync, constants } = require('fs');
+      
       if (!existsSync(this.dataDir)) {
         mkdirSync(this.dataDir, { recursive: true });
         logger.info(`📁 Dados: Diretório criado: ${this.dataDir}`);
+      }
+
+      // Verifica permissões de escrita
+      try {
+        accessSync(this.dataDir, constants.W_OK);
+        logger.debug(`✅ Permissões de escrita confirmadas para: ${this.dataDir}`);
+      } catch (permError) {
+        logger.error(`❌ Sem permissão de escrita no diretório: ${this.dataDir}`);
+        throw new Error(`Permissão negada: ${this.dataDir}`);
       }
 
       // Carrega dados persistentes de forma assíncrona
@@ -89,6 +99,7 @@ class EventHandler {
       this.initialized = true;
     } catch (error) {
       logger.error('❌ Erro ao inicializar sistema de dados:', error.message);
+      throw error;
     }
   }
 
@@ -324,17 +335,23 @@ class EventHandler {
 
       const savePromises = Object.entries(dataToSave).map(async ([type, data]) => {
         const filePath = path.join(this.dataDir, `${type}.json`);
-        const tempFilePath = `${filePath}.tmp`;
+        const tempFilePath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).substr(2, 9)}`;
 
         try {
           // Salva primeiro em arquivo temporário
           const jsonContent = JSON.stringify(data, null, 2);
-          await fs.writeFile(tempFilePath, jsonContent);
+          await fs.writeFile(tempFilePath, jsonContent, 'utf8');
+
+          // Verifica se o arquivo foi escrito corretamente
+          const stats = await fs.stat(tempFilePath);
+          if (stats.size === 0) {
+            throw new Error(`Arquivo temporário ${tempFilePath} está vazio`);
+          }
 
           // Move arquivo temporário para o definitivo (operação atômica)
           await fs.rename(tempFilePath, filePath);
 
-          logger.debug(`💾 ${type}.json salvo com sucesso`);
+          logger.debug(`💾 ${type}.json salvo com sucesso (${stats.size} bytes)`);
         } catch (err) {
           logger.error(`❌ Erro ao salvar ${type} em ${path.basename(filePath)}:`, err.message);
 
@@ -377,22 +394,33 @@ class EventHandler {
   async saveDataImmediately(type, key, data) {
     try {
       const dataMap = this.getDataMapByType(type);
-      if (dataMap) {
-        dataMap.set(key, {
-          ...data,
-          _savedAt: Date.now(),
-        });
-
-        // Atualiza estatísticas
-        this.stats[`total${type.charAt(0).toUpperCase() + type.slice(1)}`] = dataMap.size;
-
-        // Salva imediatamente
-        await this.saveSpecificData(type);
-
-        logger.debug(`💾 ${type} salvo imediatamente: ${key.substring(0, 20)}...`);
+      if (!dataMap) {
+        logger.error(`❌ DataMap não encontrado para tipo: ${type}`);
+        return;
       }
+
+      // Verifica se key é válida
+      if (!key || typeof key !== 'string') {
+        logger.error(`❌ Chave inválida para ${type}: ${key}`);
+        return;
+      }
+
+      // Adiciona dados ao Map com timestamp
+      dataMap.set(key, {
+        ...data,
+        _savedAt: Date.now(),
+      });
+
+      // Atualiza estatísticas
+      this.stats[`total${type.charAt(0).toUpperCase() + type.slice(1)}`] = dataMap.size;
+
+      // Salva imediatamente no arquivo
+      await this.saveSpecificData(type);
+
+      logger.debug(`💾 ${type} salvo imediatamente: ${key.substring(0, 20)}...`);
     } catch (error) {
       logger.error(`❌ Erro ao salvar ${type} imediatamente:`, error.message);
+      logger.error(`❌ Detalhes do erro: tipo=${type}, key=${key}, data=${JSON.stringify(data).substring(0, 100)}...`);
     }
   }
 
@@ -401,22 +429,46 @@ class EventHandler {
    */
   async saveSpecificData(type) {
     const filePath = path.join(this.dataDir, `${type}.json`);
-    const tempFilePath = `${filePath}.tmp`;
+    const tempFilePath = `${filePath}.tmp.${Date.now()}`;
 
     try {
       const dataMap = this.getDataMapByType(type);
-      const data = this._getMapDataAsObject(dataMap);
+      if (!dataMap) {
+        logger.error(`❌ DataMap não encontrado para tipo: ${type}`);
+        return;
+      }
 
+      const data = this._getMapDataAsObject(dataMap);
       const jsonContent = JSON.stringify(data, null, 2);
-      await fs.writeFile(tempFilePath, jsonContent);
+      
+      // Escreve no arquivo temporário primeiro
+      await fs.writeFile(tempFilePath, jsonContent, 'utf8');
+      
+      // Verifica se o arquivo foi escrito corretamente
+      const stats = await fs.stat(tempFilePath);
+      if (stats.size === 0) {
+        throw new Error(`Arquivo temporário ${tempFilePath} está vazio`);
+      }
+      
+      // Move o arquivo temporário para o definitivo
       await fs.rename(tempFilePath, filePath);
+      
+      logger.debug(`✅ Arquivo ${type}.json salvo com sucesso (${stats.size} bytes)`);
     } catch (error) {
       logger.error(`❌ Erro ao salvar ${type}:`, error.message);
+      
+      // Tenta remover arquivo temporário se existir
       try {
         await fs.unlink(tempFilePath);
+        logger.debug(`🗑️ Arquivo temporário ${path.basename(tempFilePath)} removido`);
       } catch (unlinkError) {
         // Ignora erro se arquivo temporário não existir
+        if (unlinkError.code !== 'ENOENT') {
+          logger.warn(`⚠️ Erro ao remover arquivo temporário: ${unlinkError.message}`);
+        }
       }
+      
+      throw error; // Re-lança o erro para que seja tratado no nível superior
     }
   }
 
@@ -468,6 +520,22 @@ class EventHandler {
 
   async setEvent(eventId, eventData) {
     await this.saveDataImmediately('events', eventId, eventData);
+  }
+
+  /**
+   * Estatísticas dos dados
+   */
+  getCacheStats() {
+    return {
+      messages: this.messageData.size,
+      groups: this.groupData.size,
+      contacts: this.contactData.size,
+      chats: this.chatData.size,
+      events: this.eventData.size,
+      performance: this.stats,
+      connectionState: this.connectionState,
+      memoryUsage: process.memoryUsage(),
+    };
   }
 
   /**
