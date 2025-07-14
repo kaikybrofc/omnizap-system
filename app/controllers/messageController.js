@@ -142,9 +142,12 @@ const getProcessingStats = () => {
  * @returns {Promise<void>}
  */
 const OmniZapMessageProcessor = async (messageUpdate, omniZapClient, socketController = null) => {
+  // Primeiro obtemos o botJid de forma assíncrona
+  const botJid = await getBotJid();
+
   logger.info('Iniciando processamento de mensagens', {
     messageCount: messageUpdate?.messages?.length || 0,
-    botJid: cleanJid(getBotJid(omniZapClient)),
+    botJid: cleanJid(botJid),
     hasSocketController: !!socketController,
     hasEventHandler: !!eventHandler,
   });
@@ -1050,9 +1053,12 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient, socketContr
     }
   }
 
+  // Obter botJid de forma assíncrona para as estatísticas
+  const botJidForStats = await getBotJid();
+
   const processingStats = {
     messageCount: messageUpdate?.messages?.length || 0,
-    botJid: cleanJid(getBotJid(omniZapClient)),
+    botJid: cleanJid(botJidForStats),
     timestamp: Date.now(),
     hasEventHandler: !!eventHandler,
   };

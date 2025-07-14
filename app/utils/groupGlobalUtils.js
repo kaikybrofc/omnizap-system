@@ -189,8 +189,16 @@ const getValidParticipants = (participants) => {
  * @returns {string} - JID limpo.
  */
 const cleanJid = (jid) => {
-  if (!jid) return '';
-  return jid.split(':')[0].split('@')[0] + (jid.includes('@g.us') ? '@g.us' : '@s.whatsapp.net');
+  if (!jid || typeof jid !== 'string') {
+    logger.warn('cleanJid recebeu valor inválido:', { jid, type: typeof jid });
+    return '';
+  }
+  try {
+    return jid.split(':')[0].split('@')[0] + (jid.includes('@g.us') ? '@g.us' : '@s.whatsapp.net');
+  } catch (error) {
+    logger.error('Erro ao limpar JID', { jid, error: error.message });
+    return '';
+  }
 };
 
 /**
@@ -199,12 +207,20 @@ const cleanJid = (jid) => {
  * @returns {string} - JID formatado.
  */
 const formatPhoneToJid = (phoneNumber) => {
-  if (!phoneNumber) return '';
-  let cleaned = phoneNumber.replace(/\D/g, '');
-  if (cleaned.length <= 11) {
-    cleaned = '55' + cleaned;
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    logger.warn('formatPhoneToJid recebeu valor inválido:', { phoneNumber, type: typeof phoneNumber });
+    return '';
   }
-  return `${cleaned}@s.whatsapp.net`;
+  try {
+    let cleaned = phoneNumber.replace(/\D/g, '');
+    if (cleaned.length <= 11) {
+      cleaned = '55' + cleaned;
+    }
+    return `${cleaned}@s.whatsapp.net`;
+  } catch (error) {
+    logger.error('Erro ao formatar telefone para JID', { phoneNumber, error: error.message });
+    return '';
+  }
 };
 
 /**
@@ -213,7 +229,10 @@ const formatPhoneToJid = (phoneNumber) => {
  * @returns {boolean} - True se for JID de grupo.
  */
 const isGroupJid = (jid) => {
-  return jid && jid.endsWith('@g.us');
+  if (!jid || typeof jid !== 'string') {
+    return false;
+  }
+  return jid.endsWith('@g.us');
 };
 
 /**
