@@ -3,11 +3,17 @@
  *
  * Controlador responsável pela conexão e gerenciamento do socket WhatsApp
  * Utiliza Baileys para comunicação com a API WhatsApp Web
- * Integração bidirecional com EventHandler para cache centralizado
+ * Integração bidirecional com EventHandler para dados permanentes
  *
- * @version 1.5.0
+ * @version 2.0.0
  * @author OmniZap Team
  * @license MIT
+ *
+ * ATUALIZAÇÃO v2.0.0:
+ * - Integração completa com o novo modelo de dados permanentes do EventHandler
+ * - Persistência direta de grupos, contatos, chats e mensagens
+ * - Remoção de cache temporário em favor de armazenamento permanente
+ * - Operações atômicas para garantir integridade dos dados
  */
 
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
@@ -88,7 +94,7 @@ function setupEventHandlerIntegration() {
  * Obtém estatísticas de conexão
  */
 function getConnectionStats() {
-  const eventStats = eventHandler.getCacheStats();
+  const eventStats = eventHandler.getDataStats();
   return {
     ...eventStats,
     isConnected: activeSocket !== null && activeSocket.ws?.readyState === 1,
@@ -237,8 +243,8 @@ async function connectToWhatsApp() {
 
         // Log informações do usuário e estatísticas
         logger.info(`👤 Conectado como: ${sock.user?.name || 'Usuário'} (${sock.user?.id || 'ID não disponível'})`);
-        const stats = eventHandler.getCacheStats();
-        logger.info(`📊 Cache: ${stats.groups} grupos, ${stats.contacts} contatos, ${stats.chats} chats, Hit Rate: ${stats.cacheHitRate}%`);
+        const stats = eventHandler.getDataStats();
+        logger.info(`📊 Dados: ${stats.groups} grupos, ${stats.contacts} contatos, ${stats.chats} chats, ${stats.messages} mensagens`);
       } else if (connection === 'connecting') {
         logger.info('🔄 Conectando ao WhatsApp...');
         eventHandler.updateConnectionState(false, { status: 'connecting' });
@@ -312,9 +318,26 @@ async function connectToWhatsApp() {
       }
     });
 
-    // Outros eventos importantes com melhor logging
+    // Outros eventos importantes com melhor logging e persistência
     sock.ev.on('messages.update', (updates) => {
       logger.debug(`📝 Atualizações de mensagens: ${updates?.length || 0}`);
+      // Atualiza mensagens existentes com novos dados
+      if (updates && Array.isArray(updates)) {
+        updates.forEach(async (messageUpdate) => {
+          if (messageUpdate.key && messageUpdate.key.remoteJid && messageUpdate.key.id) {
+            const existingMessage = eventHandler.getMessage(messageUpdate.key.remoteJid, messageUpdate.key.id);
+            if (existingMessage) {
+              const mergedData = {
+                ...existingMessage,
+                update: messageUpdate.update,
+                _lastUpdate: Date.now(),
+                _source: 'messages.update',
+              };
+              await eventHandler.setMessage(messageUpdate.key.remoteJid, messageUpdate.key.id, mergedData);
+            }
+          }
+        });
+      }
       eventHandler.processGenericEvent('messages.update', updates);
     });
 
@@ -333,46 +356,160 @@ async function connectToWhatsApp() {
       eventHandler.processGenericEvent('message-receipt.update', receipts);
     });
 
-    // Eventos de grupos com melhor integração
+    // Eventos de grupos com melhor integração e persistência direta
     sock.ev.on('groups.update', (updates) => {
       logger.info(`👥 Atualizações de grupos: ${updates?.length || 0}`);
+      // Processa e salva dados de grupos atualizados
+      if (updates && Array.isArray(updates)) {
+        updates.forEach(async (groupUpdate) => {
+          if (groupUpdate.id) {
+            const existingGroup = eventHandler.getGroup(groupUpdate.id);
+            const mergedData = {
+              ...existingGroup,
+              ...groupUpdate,
+              _lastUpdate: Date.now(),
+              _source: 'groups.update',
+            };
+            await eventHandler.setGroup(groupUpdate.id, mergedData);
+          }
+        });
+      }
       eventHandler.processGenericEvent('groups.update', updates);
     });
 
     sock.ev.on('groups.upsert', (groupsMetadata) => {
       logger.info(`👥 Novos grupos: ${groupsMetadata?.length || 0}`);
+      // Salva metadados de novos grupos diretamente
+      if (groupsMetadata && Array.isArray(groupsMetadata)) {
+        groupsMetadata.forEach(async (metadata) => {
+          if (metadata.id) {
+            await eventHandler.setGroup(metadata.id, {
+              ...metadata,
+              _createdAt: Date.now(),
+              _source: 'groups.upsert',
+            });
+          }
+        });
+      }
       eventHandler.processGenericEvent('groups.upsert', groupsMetadata);
     });
 
     sock.ev.on('group-participants.update', (event) => {
       logger.info(`👥 Participantes atualizados no grupo: ${event.id?.substring(0, 20)}...`);
+      // Atualiza dados do grupo com mudanças de participantes
+      if (event.id) {
+        setImmediate(async () => {
+          try {
+            const existingGroup = eventHandler.getGroup(event.id);
+            if (existingGroup) {
+              const updatedGroup = {
+                ...existingGroup,
+                _lastParticipantUpdate: Date.now(),
+                _participantChangeType: event.action,
+                _participantChangeCount: event.participants?.length || 0,
+              };
+              await eventHandler.setGroup(event.id, updatedGroup);
+            }
+          } catch (error) {
+            logger.error('❌ Erro ao atualizar grupo com mudança de participantes:', error.message);
+          }
+        });
+      }
       eventHandler.processGenericEvent('group-participants.update', event);
     });
 
-    // Eventos de chats
+    // Eventos de chats com persistência direta
     sock.ev.on('chats.upsert', (chats) => {
       logger.debug(`💬 Novos chats: ${chats?.length || 0}`);
+      // Salva novos chats diretamente
+      if (chats && Array.isArray(chats)) {
+        chats.forEach(async (chat) => {
+          if (chat.id) {
+            await eventHandler.setChat(chat.id, {
+              ...chat,
+              _createdAt: Date.now(),
+              _source: 'chats.upsert',
+            });
+          }
+        });
+      }
       eventHandler.processGenericEvent('chats.upsert', chats);
     });
 
     sock.ev.on('chats.update', (updates) => {
       logger.debug(`💬 Chats atualizados: ${updates?.length || 0}`);
+      // Atualiza chats existentes
+      if (updates && Array.isArray(updates)) {
+        updates.forEach(async (chatUpdate) => {
+          if (chatUpdate.id) {
+            const existingChat = eventHandler.getChat(chatUpdate.id);
+            const mergedData = {
+              ...existingChat,
+              ...chatUpdate,
+              _lastUpdate: Date.now(),
+              _source: 'chats.update',
+            };
+            await eventHandler.setChat(chatUpdate.id, mergedData);
+          }
+        });
+      }
       eventHandler.processGenericEvent('chats.update', updates);
     });
 
     sock.ev.on('chats.delete', (jids) => {
       logger.warn(`💬 Chats deletados: ${jids?.length || 0}`);
+      // Marca chats como deletados em vez de remover completamente
+      if (jids && Array.isArray(jids)) {
+        jids.forEach(async (jid) => {
+          const existingChat = eventHandler.getChat(jid);
+          if (existingChat) {
+            await eventHandler.setChat(jid, {
+              ...existingChat,
+              _deleted: true,
+              _deletedAt: Date.now(),
+              _source: 'chats.delete',
+            });
+          }
+        });
+      }
       eventHandler.processGenericEvent('chats.delete', jids);
     });
 
-    // Eventos de contatos
+    // Eventos de contatos com persistência direta
     sock.ev.on('contacts.upsert', (contacts) => {
       logger.debug(`👤 Novos contatos: ${contacts?.length || 0}`);
+      // Salva novos contatos diretamente
+      if (contacts && Array.isArray(contacts)) {
+        contacts.forEach(async (contact) => {
+          if (contact.id) {
+            await eventHandler.setContact(contact.id, {
+              ...contact,
+              _createdAt: Date.now(),
+              _source: 'contacts.upsert',
+            });
+          }
+        });
+      }
       eventHandler.processGenericEvent('contacts.upsert', contacts);
     });
 
     sock.ev.on('contacts.update', (updates) => {
       logger.debug(`👤 Contatos atualizados: ${updates?.length || 0}`);
+      // Atualiza contatos existentes
+      if (updates && Array.isArray(updates)) {
+        updates.forEach(async (contactUpdate) => {
+          if (contactUpdate.id) {
+            const existingContact = eventHandler.getContact(contactUpdate.id);
+            const mergedData = {
+              ...existingContact,
+              ...contactUpdate,
+              _lastUpdate: Date.now(),
+              _source: 'contacts.update',
+            };
+            await eventHandler.setContact(contactUpdate.id, mergedData);
+          }
+        });
+      }
       eventHandler.processGenericEvent('contacts.update', updates);
     });
 
@@ -447,7 +584,7 @@ async function getGroupInfo(groupJid, forceRefresh = false) {
     const metadata = await activeSocket.groupMetadata(groupJid);
 
     if (metadata) {
-      eventHandler.groupCache.set(groupJid, {
+      eventHandler.setGroup(groupJid, {
         ...metadata,
         _cachedAt: Date.now(),
         _fetchedViaController: true,
@@ -496,15 +633,30 @@ function getActiveSocket() {
 async function forceDisconnect() {
   if (activeSocket) {
     try {
+      logger.info('🔌 Iniciando desconexão manual...');
+
+      // Salva todos os dados pendentes antes de desconectar
+      await eventHandler.savePersistedData();
+      logger.debug('💾 Dados salvos antes da desconexão');
+
       activeSocket = null;
       lastConnectionTime = null;
       isReconnecting = false;
+
       logger.info('🔌 Desconectado manualmente');
     } catch (error) {
       logger.error('❌ Erro ao desconectar:', error.message);
     }
+  } else {
+    logger.warn('⚠️ Socket já estava desconectado');
   }
-  eventHandler.savePersistedData();
+
+  // Garantir que os dados são salvos mesmo em caso de erro
+  try {
+    await eventHandler.savePersistedData();
+  } catch (saveError) {
+    logger.error('❌ Erro ao salvar dados durante desconexão:', saveError.message);
+  }
 }
 
 /**
@@ -519,24 +671,58 @@ async function sendMessage(jid, content, options = {}) {
     const result = await activeSocket.sendMessage(jid, content, options);
     logger.debug(`📤 Mensagem enviada para ${jid.substring(0, 20)}...`);
 
+    // Salva a mensagem enviada nos dados permanentes
+    if (result && result.key) {
+      const sentMessageData = {
+        key: result.key,
+        message: content,
+        messageTimestamp: Date.now(),
+        _sentAt: Date.now(),
+        _sentViaController: true,
+        _status: 'sent',
+        _options: options,
+      };
+
+      // Salva usando o método do eventHandler
+      await eventHandler.setMessage(result.key.remoteJid, result.key.id, sentMessageData);
+      logger.debug(`💾 Mensagem enviada salva: ${result.key.id.substring(0, 10)}...`);
+    }
+
+    // Processa evento de mensagem enviada
     eventHandler.processGenericEvent('message.sent', {
       jid,
       content: typeof content,
       options,
       timestamp: Date.now(),
+      messageKey: result?.key,
       _sentViaController: true,
     });
 
     return result;
   } catch (error) {
     logger.error(`❌ Erro ao enviar mensagem para ${jid}:`, error.message);
+
+    // Registra erro de envio
+    eventHandler.processGenericEvent('message.send.error', {
+      jid,
+      content: typeof content,
+      error: error.message,
+      timestamp: Date.now(),
+      _sentViaController: true,
+    });
+
     throw error;
   }
 }
 
 connectToWhatsApp().catch((error) => {
   logger.error('💥 Falha crítica na inicialização:', error.message);
-  s;
+
+  // Salva dados mesmo em caso de falha crítica
+  eventHandler.savePersistedData().catch((saveError) => {
+    logger.error('❌ Erro ao salvar dados após falha crítica:', saveError.message);
+  });
+
   setTimeout(() => {
     logger.info('🔄 Tentando reinicialização após falha crítica...');
     connectToWhatsApp().catch(() => {

@@ -471,19 +471,10 @@ class EventHandler {
   }
 
   /**
-   * Estatísticas dos dados
+   * Estatísticas dos dados (alias para getCacheStats)
    */
-  getCacheStats() {
-    return {
-      messages: this.messageData.size,
-      groups: this.groupData.size,
-      contacts: this.contactData.size,
-      chats: this.chatData.size,
-      events: this.eventData.size,
-      performance: this.stats,
-      connectionState: this.connectionState,
-      memoryUsage: process.memoryUsage(),
-    };
+  getDataStats() {
+    return this.getCacheStats();
   }
 
   /**
