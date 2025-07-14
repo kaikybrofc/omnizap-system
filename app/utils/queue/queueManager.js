@@ -28,12 +28,25 @@ const createRedisConnection = () => {
     db: queueConfig.REDIS.DB,
     maxRetriesPerRequest: null, // Importante para BullMQ
     retryDelayOnFailover: queueConfig.REDIS.RETRY_DELAY_ON_FAILOVER || 100,
-    enableReadyCheck: queueConfig.REDIS.ENABLE_READY_CHECK || false,
-    lazyConnect: queueConfig.REDIS.LAZY_CONNECT || true,
-    connectTimeout: queueConfig.REDIS.CONNECT_TIMEOUT || 10000,
+    enableReadyCheck: queueConfig.REDIS.ENABLE_READY_CHECK || true,
+    lazyConnect: queueConfig.REDIS.LAZY_CONNECT || false,
+    connectTimeout: queueConfig.REDIS.CONNECT_TIMEOUT || 15000,
     keepAlive: queueConfig.REDIS.KEEP_ALIVE || 30000,
     family: queueConfig.REDIS.FAMILY || 4,
-    enableOfflineQueue: false,
+    enableOfflineQueue: queueConfig.REDIS.ENABLE_OFFLINE_QUEUE || true,
+    autoResubscribe: queueConfig.REDIS.AUTO_RESUBSCRIBE || true,
+    autoResendUnfulfilledCommands: queueConfig.REDIS.AUTO_RESEND_UNFULFILLED_COMMANDS || true,
+    // Configurações de reconexão
+    reconnectOnError: (err) => {
+      const targetError = 'READONLY';
+      return err.message.includes(targetError);
+    },
+    // Configurações de timeout
+    commandTimeout: 5000,
+    // Configurações de retry
+    retryDelayOnClusterDown: 300,
+    retryDelayOnFailover: 100,
+    maxRetriesPerRequest: 3,
   });
 };
 
@@ -136,10 +149,18 @@ class QueueManager {
         this.resetCircuitBreaker();
       });
 
+      this.connection.on('ready', () => {
+        logger.info('✅ QueueManager: Redis pronto para uso');
+        this.stats.connectionStatus = 'ready';
+      });
+
       this.connection.on('error', (error) => {
         logger.error('❌ QueueManager: Erro na conexão Redis:', error.message);
         this.stats.connectionStatus = 'error';
-        this.handleCircuitBreaker();
+        // Não chamar handleCircuitBreaker para todos os erros, apenas para falhas críticas
+        if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+          this.handleCircuitBreaker();
+        }
       });
 
       this.connection.on('close', () => {
@@ -147,16 +168,42 @@ class QueueManager {
         this.stats.connectionStatus = 'closed';
       });
 
-      this.connection.on('reconnecting', () => {
-        logger.info('🔄 QueueManager: Reconectando ao Redis...');
+      this.connection.on('reconnecting', (delay) => {
+        logger.info(`🔄 QueueManager: Reconectando ao Redis em ${delay}ms...`);
         this.stats.connectionStatus = 'reconnecting';
+      });
+
+      this.connection.on('end', () => {
+        logger.warn('🔚 QueueManager: Conexão Redis finalizada');
+        this.stats.connectionStatus = 'ended';
+      });
+
+      // Aguardar conexão estar pronta com timeout
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Timeout ao conectar com Redis após 15 segundos'));
+        }, 15000);
+
+        this.connection.once('ready', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+
+        this.connection.once('error', (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
       });
 
       // Testar conexão
       await this.connection.ping();
       logger.debug('✅ QueueManager: Teste de ping Redis bem-sucedido');
     } catch (error) {
-      logger.error('❌ QueueManager: Falha ao criar conexão Redis:', error.message);
+      logger.error('❌ QueueManager: Falha ao criar conexão Redis:', {
+        error: error.message,
+        code: error.code,
+        stack: error.stack,
+      });
       throw new Error(`Conexão Redis falhou: ${error.message}`);
     }
   }

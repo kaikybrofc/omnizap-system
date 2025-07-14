@@ -45,13 +45,17 @@ module.exports = {
     MAX_RETRIES: env.REDIS_MAX_RETRIES,
     RETRY_DELAY: env.REDIS_RETRY_DELAY,
     // Configurações específicas do BullMQ
-    CONNECT_TIMEOUT: 10000,
-    LAZY_CONNECT: true,
-    ENABLE_READY_CHECK: false,
+    CONNECT_TIMEOUT: 15000, // Aumentado para 15 segundos
+    LAZY_CONNECT: false, // Conectar imediatamente
+    ENABLE_READY_CHECK: true, // Habilitado para melhor detecção de estado
     MAX_RETRIES_PER_REQUEST: 3,
     RETRY_DELAY_ON_FAILOVER: 100,
     FAMILY: 4, // IPv4
     KEEP_ALIVE: 30000,
+    // Configurações adicionais para estabilidade
+    ENABLE_OFFLINE_QUEUE: true,
+    AUTO_RESUBSCRIBE: true,
+    AUTO_RESEND_UNFULFILLED_COMMANDS: true,
   },
 
   // Configurações das filas otimizadas
