@@ -46,7 +46,6 @@ const createRedisConnection = () => {
     // Configurações de retry
     retryDelayOnClusterDown: 300,
     retryDelayOnFailover: 100,
-    maxRetriesPerRequest: 3,
   });
 };
 

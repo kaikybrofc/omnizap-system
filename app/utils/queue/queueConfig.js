@@ -48,7 +48,6 @@ module.exports = {
     CONNECT_TIMEOUT: 15000, // Aumentado para 15 segundos
     LAZY_CONNECT: false, // Conectar imediatamente
     ENABLE_READY_CHECK: true, // Habilitado para melhor detecção de estado
-    MAX_RETRIES_PER_REQUEST: 3,
     RETRY_DELAY_ON_FAILOVER: 100,
     FAMILY: 4, // IPv4
     KEEP_ALIVE: 30000,
