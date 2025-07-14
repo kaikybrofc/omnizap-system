@@ -28,24 +28,28 @@ const createRedisConnection = () => {
     db: queueConfig.REDIS.DB,
     maxRetriesPerRequest: null, // Importante para BullMQ
     retryDelayOnFailover: queueConfig.REDIS.RETRY_DELAY_ON_FAILOVER || 100,
-    enableReadyCheck: queueConfig.REDIS.ENABLE_READY_CHECK || true,
-    lazyConnect: false, // Conectar imediatamente para evitar problemas
-    connectTimeout: queueConfig.REDIS.CONNECT_TIMEOUT || 10000, // Reduzir para 10 segundos
+    enableReadyCheck: queueConfig.REDIS.ENABLE_READY_CHECK || false,
+    lazyConnect: queueConfig.REDIS.LAZY_CONNECT || false,
+    connectTimeout: queueConfig.REDIS.CONNECT_TIMEOUT || 30000,
     keepAlive: queueConfig.REDIS.KEEP_ALIVE || 30000,
     family: queueConfig.REDIS.FAMILY || 4,
     enableOfflineQueue: queueConfig.REDIS.ENABLE_OFFLINE_QUEUE || true,
     autoResubscribe: queueConfig.REDIS.AUTO_RESUBSCRIBE || true,
     autoResendUnfulfilledCommands: queueConfig.REDIS.AUTO_RESEND_UNFULFILLED_COMMANDS || true,
-    commandTimeout: queueConfig.REDIS.COMMAND_TIMEOUT || 10000, // Reduzir timeout de comando
-    // Configurações de reconexão
+    commandTimeout: queueConfig.REDIS.COMMAND_TIMEOUT || 30000,
+    // Configurações de reconexão mais robustas
     reconnectOnError: (err) => {
-      const targetError = 'READONLY';
-      return err.message.includes(targetError);
+      logger.warn('🔄 QueueManager: Tentando reconectar Redis devido ao erro:', err.message);
+      return true; // Sempre tentar reconectar
     },
-    // Configurações de retry
+    // Configurações de retry mais conservadoras
     retryDelayOnClusterDown: 300,
     retryDelayOnFailover: 100,
-    maxRetriesPerRequest: null, // Garantir que está null
+    // Configurações adicionais para estabilidade
+    maxRetriesPerRequest: null,
+    retryConnectOnFailover: true,
+    enableAutoPipelining: false, // Desabilitar para reduzir complexidade
+    lazyConnect: false,
   });
 };
 
@@ -140,7 +144,7 @@ class QueueManager {
   async createRedisConnection() {
     try {
       logger.info('🔗 QueueManager: Criando conexão Redis...');
-      
+
       this.connection = createRedisConnection();
 
       // Event listeners para monitoramento da conexão
@@ -159,7 +163,7 @@ class QueueManager {
         logger.error('❌ QueueManager: Erro na conexão Redis:', {
           message: error.message,
           code: error.code,
-          errno: error.errno
+          errno: error.errno,
         });
         this.stats.connectionStatus = 'error';
         // Não chamar handleCircuitBreaker para todos os erros, apenas para falhas críticas
@@ -187,8 +191,8 @@ class QueueManager {
       const connectionPromise = new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           logger.error('❌ QueueManager: Timeout na conexão Redis');
-          reject(new Error('Timeout ao conectar com Redis após 10 segundos'));
-        }, 10000);
+          reject(new Error('Timeout ao conectar com Redis após 30 segundos'));
+        }, 30000);
 
         const onReady = () => {
           clearTimeout(timeout);
@@ -214,11 +218,10 @@ class QueueManager {
       logger.debug('🏓 QueueManager: Testando conexão com ping...');
       const pong = await this.connection.ping();
       logger.debug(`✅ QueueManager: Ping bem-sucedido: ${pong}`);
-      
+
       // Testar seleção do database
       await this.connection.select(queueConfig.REDIS.DB);
       logger.debug(`✅ QueueManager: Database ${queueConfig.REDIS.DB} selecionado`);
-      
     } catch (error) {
       logger.error('❌ QueueManager: Falha ao criar conexão Redis:', {
         error: error.message,
@@ -228,10 +231,10 @@ class QueueManager {
           host: queueConfig.REDIS.HOST,
           port: queueConfig.REDIS.PORT,
           db: queueConfig.REDIS.DB,
-          hasPassword: !!queueConfig.REDIS.PASSWORD
-        }
+          hasPassword: !!queueConfig.REDIS.PASSWORD,
+        },
       });
-      
+
       // Limpar conexão em caso de erro
       if (this.connection) {
         try {
@@ -241,7 +244,7 @@ class QueueManager {
         }
         this.connection = null;
       }
-      
+
       throw new Error(`Conexão Redis falhou: ${error.message}`);
     }
   }
@@ -284,24 +287,36 @@ class QueueManager {
    */
   async initializeWorkers() {
     try {
-      logger.info('👷 QueueManager: Inicializando workers...');
+      logger.info('👷 QueueManager: Inicializando workers essenciais...');
 
-      // Worker para salvamento de dados
+      // Inicializar apenas o worker mais importante primeiro
       await this.createWorker('DATA_SAVE', this.processDataSaveJob.bind(this));
+
+      // Aguardar um pouco antes de criar o próximo
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Worker para processamento de mensagens
       await this.createWorker('MESSAGE_PROCESS', this.processMessageJob.bind(this));
 
-      // Worker para metadados de grupos
-      await this.createWorker('GROUP_METADATA', this.processGroupMetadataJob.bind(this));
+      logger.info(`✅ QueueManager: ${this.workers.size} workers essenciais inicializados`);
 
-      // Worker para processamento de eventos
-      await this.createWorker('EVENT_PROCESS', this.processEventJob.bind(this));
+      // Inicializar outros workers em background
+      setImmediate(async () => {
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          await this.createWorker('EVENT_PROCESS', this.processEventJob.bind(this));
 
-      // Worker para limpeza
-      await this.createWorker('CLEANUP', this.processCleanupJob.bind(this));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await this.createWorker('GROUP_METADATA', this.processGroupMetadataJob.bind(this));
 
-      logger.info(`✅ QueueManager: ${this.workers.size} workers inicializados`);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await this.createWorker('CLEANUP', this.processCleanupJob.bind(this));
+
+          logger.info(`✅ QueueManager: Todos os ${this.workers.size} workers inicializados`);
+        } catch (error) {
+          logger.warn('⚠️ QueueManager: Erro ao inicializar workers secundários:', error.message);
+        }
+      });
     } catch (error) {
       logger.error('❌ QueueManager: Erro ao inicializar workers:', error.message);
       throw error;
