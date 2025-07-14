@@ -17,6 +17,7 @@ const { isUserAdmin, isBotAdmin, isUserInGroup, formatPhoneToJid, getGroupMetada
 const fs = require('fs').promises;
 const path = require('path');
 const BANNED_USERS_FILE = path.join(__dirname, '../../../temp/data/banned_users.json');
+const COMANDO_PREFIX = require('../../utils/constants');
 
 /**
  * === FUNÇÕES DE SISTEMA DE BANIMENTO ===
@@ -1159,11 +1160,7 @@ const processGroupInfoCommand = async (omniZapClient, messageInfo, senderJid, gr
  * @returns {Promise<Object>} - Resultado da operação
  */
 const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid, args) => {
-  logger.info('Processando comando de banimento', {
-    senderJid,
-    groupJid,
-    args,
-  });
+  logger.info('Processando comando de banimento', { senderJid, groupJid, args });
 
   try {
     const adminValidation = await validateAdminCommand(groupJid, senderJid);
@@ -1200,7 +1197,7 @@ const processBanCommand = async (omniZapClient, messageInfo, senderJid, groupJid
       if (!args || !args.trim()) {
         return {
           success: false,
-          message: formatErrorMessage('Usuário não especificado', 'Você deve mencionar um usuário ou responder a uma mensagem dele, ou fornecer o número.', '📋 *Como usar:*\n• Responda a uma mensagem com: !ban motivo\n• Ou envie: !ban número motivo'),
+          message: formatErrorMessage('Usuário não especificado', 'Você deve mencionar um usuário ou responder a uma mensagem dele, ou fornecer o número.', '📋 *Como usar:*\n• Responda a uma mensagem com: ${COMANDO_PREFIX}ban motivo\n• Ou envie: ${COMANDO_PREFIX}ban número motivo'),
         };
       }
 

@@ -16,21 +16,8 @@ const { sendOmniZapMessage, sendTextMessage, sendStickerMessage, sendReaction, f
 const { COMMAND_PREFIX } = require('../utils/constants');
 const logger = require('../utils/logger/loggerModule');
 
-// Importar funções do groupGlobalUtils
 const { isGroupJid, isUserAdmin, isBotAdmin, isUserInGroup, getGroupMetadata, logGroupActivity, cleanJid, getBotJid } = require('../utils/groupGlobalUtils');
-
-// Importar eventHandler para integração bidirecional
 const { eventHandler } = require('../events/eventHandler');
-
-/**
- * Função utilitária para obter informações de expiração de mensagens
- *
- * @param {Object} messageInfo - Informações da mensagem
- * @returns {*} Configuração de expiração ou undefined
- */
-const getMessageExpiration = (messageInfo) => {
-  return getExpiration(messageInfo);
-};
 
 /**
  * Valida se o usuário e o bot têm permissões administrativas
@@ -115,7 +102,7 @@ const validateGroupContext = async (command, isGroupMessage, targetJid, messageI
 const getProcessingStats = () => {
   const baseStats = {
     timestamp: Date.now(),
-    version: '1.1.0',
+    version: '1.5.0',
     hasEventHandler: !!eventHandler,
   };
 
@@ -143,7 +130,6 @@ const getProcessingStats = () => {
  * @returns {Promise<void>}
  */
 const OmniZapMessageProcessor = async (messageUpdate, omniZapClient, socketController = null) => {
-  // Primeiro obtemos o botJid de forma assíncrona
   const botJid = getBotJid();
 
   logger.info('Iniciando processamento de mensagens', {
@@ -154,13 +140,10 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient, socketContr
   });
 
   try {
-    // Garantir que o eventHandler tenha referência ao cliente
     if (eventHandler && !eventHandler.getWhatsAppClient()) {
       eventHandler.setWhatsAppClient(omniZapClient);
       logger.debug('Cliente WhatsApp configurado no EventHandler');
     }
-
-    // Registrar processamento no eventHandler
     if (eventHandler) {
       eventHandler.processGenericEvent('message.processing.started', {
         messageCount: messageUpdate?.messages?.length || 0,
@@ -277,8 +260,6 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient, socketContr
               case 'ban':
                 try {
                   const { processBanCommand } = require('../commandModules/adminModules/adminCommands');
-
-                  // Verificações adicionais usando groupGlobalUtils
                   if (isGroupMessage) {
                     const validation = await validateAdminPermissions(omniZapClient, groupJid, senderJid, targetJid, messageInfo, 'banir usuários');
                     if (!validation.valid) {
@@ -286,13 +267,7 @@ const OmniZapMessageProcessor = async (messageUpdate, omniZapClient, socketContr
                     }
                   }
 
-                  logger.info('Comando ban executado', {
-                    command,
-                    args,
-                    senderJid,
-                    isGroupMessage,
-                    groupJid,
-                  });
+                  logger.info('Comando ban executado', { command, args, senderJid, isGroupMessage, groupJid });
 
                   const result = await processBanCommand(omniZapClient, messageInfo, senderJid, groupJid, args);
 
