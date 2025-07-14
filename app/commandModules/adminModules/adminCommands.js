@@ -18,7 +18,6 @@
 const logger = require('../../utils/logger/loggerModule');
 const { formatErrorMessage } = require('../../utils/messageUtils');
 const { isUserAdmin, isBotAdmin, isUserInGroup, formatPhoneToJid, getGroupMetadata, logGroupActivity, cleanJid, banUser, unbanUser, getValidParticipants } = require('../../utils/groupGlobalUtils');
-const { cleanGroupsData } = require('../../utils/fixGroupsData');
 
 /**
  * Processa comando para adicionar participantes ao grupo
@@ -1440,68 +1439,6 @@ const processBanListCommand = async (omniZapClient, messageInfo, senderJid, grou
   }
 };
 
-/**
- * Processa comando para limpar dados inválidos dos grupos
- *
- * @param {Object} omniZapClient - Cliente WhatsApp
- * @param {Object} messageInfo - Informações da mensagem
- * @param {String} senderJid - JID do remetente
- * @param {String} groupJid - JID do grupo
- * @param {String} args - Argumentos do comando
- * @returns {Promise<Object>} - Resultado da operação
- */
-const processCleanDataCommand = async (omniZapClient, messageInfo, senderJid, groupJid, args) => {
-  logger.info('Processando comando cleandata', { senderJid, groupJid, args });
-
-  try {
-    // Verificar se o usuário é administrador global (pode ser expandido com uma lista de usuários autorizados)
-    const authorizedUsers = ['559591122954@s.whatsapp.net']; // Adicione JIDs de usuários autorizados
-    const cleanUserJid = cleanJid(senderJid);
-
-    if (!authorizedUsers.includes(cleanUserJid)) {
-      return {
-        success: false,
-        message: formatErrorMessage('Permissão negada', 'Apenas administradores globais podem executar este comando.', null),
-      };
-    }
-
-    const result = await cleanGroupsData();
-
-    if (result.success) {
-      let message = '✅ *Limpeza de dados concluída!*\n\n';
-      message += `📊 *Grupos processados:* ${result.totalGroupsProcessed || 0}\n`;
-      message += `🧹 *Participantes inválidos removidos:* ${result.totalParticipantsCleaned || 0}`;
-
-      if (result.alreadyClean) {
-        message = '✅ *Dados já estão limpos!*\n\nNenhuma limpeza foi necessária.';
-      }
-
-      return {
-        success: true,
-        message: message,
-      };
-    } else {
-      return {
-        success: false,
-        message: formatErrorMessage('Erro na limpeza', `Não foi possível limpar os dados: ${result.error}`, null),
-      };
-    }
-  } catch (error) {
-    logger.error('Erro ao processar comando cleandata', {
-      error: error.message,
-      stack: error.stack,
-      senderJid,
-      groupJid,
-      args,
-    });
-
-    return {
-      success: false,
-      message: formatErrorMessage('Erro na limpeza de dados', `Ocorreu um erro ao processar o comando: ${error.message}`, null),
-    };
-  }
-};
-
 module.exports = {
   processAddCommand,
   processPromoteCommand,
@@ -1515,5 +1452,4 @@ module.exports = {
   processGroupInfoCommand,
   processBanCommand,
   processBanListCommand,
-  processCleanDataCommand,
 };
