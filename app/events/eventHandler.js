@@ -218,9 +218,31 @@ class EventHandler {
     for (const [type, filePath] of Object.entries(dataFiles)) {
       try {
         const fileContent = await fs.readFile(filePath, 'utf8');
-        const data = JSON.parse(fileContent);
-        const cache = this.getCacheByType(type);
 
+        // Verifica se o conteúdo é válido antes de fazer parse
+        if (!fileContent || fileContent.trim() === '') {
+          logger.warn(`⚠️ Arquivo ${path.basename(filePath)} está vazio, inicializando cache vazio`);
+          continue;
+        }
+
+        let data;
+        try {
+          data = JSON.parse(fileContent);
+        } catch (parseError) {
+          logger.error(`❌ JSON inválido em ${path.basename(filePath)}, recriando arquivo:`, parseError.message);
+
+          // Backup do arquivo corrompido
+          const backupPath = `${filePath}.backup.${Date.now()}`;
+          await fs.writeFile(backupPath, fileContent);
+          logger.info(`🔄 Backup do arquivo corrompido salvo em: ${path.basename(backupPath)}`);
+
+          // Inicializa com objeto vazio
+          data = {};
+          await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+          logger.info(`✅ Arquivo ${path.basename(filePath)} recriado com dados vazios`);
+        }
+
+        const cache = this.getCacheByType(type);
         if (cache && data) {
           const keys = Object.keys(data);
           for (const key of keys) {
@@ -232,6 +254,14 @@ class EventHandler {
         if (error.code !== 'ENOENT') {
           // Ignora erro se o arquivo não existir
           logger.error(`❌ Erro ao carregar ${type} de ${path.basename(filePath)}:`, error.message);
+
+          // Tenta criar um arquivo vazio se houver erro de acesso
+          try {
+            await fs.writeFile(filePath, JSON.stringify({}, null, 2));
+            logger.info(`✅ Arquivo ${path.basename(filePath)} criado com dados vazios após erro`);
+          } catch (createError) {
+            logger.error(`❌ Não foi possível criar ${path.basename(filePath)}:`, createError.message);
+          }
         }
       }
     }
@@ -297,10 +327,26 @@ class EventHandler {
 
       const savePromises = Object.entries(dataToSave).map(async ([type, data]) => {
         const filePath = path.join(this.dataDir, `${type}.json`);
+        const tempFilePath = `${filePath}.tmp`;
+
         try {
-          await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+          // Salva primeiro em arquivo temporário
+          const jsonContent = JSON.stringify(data, null, 2);
+          await fs.writeFile(tempFilePath, jsonContent);
+
+          // Move arquivo temporário para o definitivo (operação atômica)
+          await fs.rename(tempFilePath, filePath);
+
+          logger.debug(`💾 ${type}.json salvo com sucesso`);
         } catch (err) {
           logger.error(`❌ Erro ao salvar ${type} em ${path.basename(filePath)}:`, err.message);
+
+          // Remove arquivo temporário se existir
+          try {
+            await fs.unlink(tempFilePath);
+          } catch (unlinkError) {
+            // Ignora erro se arquivo temporário não existir
+          }
         }
       });
 
@@ -765,6 +811,65 @@ class EventHandler {
     } catch (error) {
       logger.error('Erro ao exportar dados:', error.message);
       return null;
+    }
+  }
+
+  /**
+   * Limpa dados corrompidos e reinicializa arquivos
+   */
+  async cleanCorruptedData() {
+    try {
+      logger.info('🧹 Iniciando limpeza de dados corrompidos...');
+
+      const dataFiles = {
+        groups: path.join(this.dataDir, 'groups.json'),
+        contacts: path.join(this.dataDir, 'contacts.json'),
+        chats: path.join(this.dataDir, 'chats.json'),
+      };
+
+      let cleanedFiles = 0;
+
+      for (const [type, filePath] of Object.entries(dataFiles)) {
+        try {
+          const fileContent = await fs.readFile(filePath, 'utf8');
+
+          // Tenta fazer parse para verificar se está válido
+          JSON.parse(fileContent);
+          logger.debug(`✅ ${path.basename(filePath)} está válido`);
+        } catch (error) {
+          if (error.code !== 'ENOENT') {
+            logger.warn(`🔧 Recriando arquivo corrompido: ${path.basename(filePath)}`);
+
+            // Backup se o arquivo existir mas estiver corrompido
+            if (error.code !== 'ENOENT') {
+              const backupPath = `${filePath}.corrupted.${Date.now()}`;
+              try {
+                await fs.rename(filePath, backupPath);
+                logger.info(`📦 Backup criado: ${path.basename(backupPath)}`);
+              } catch (backupError) {
+                logger.warn(`⚠️ Não foi possível criar backup: ${backupError.message}`);
+              }
+            }
+
+            // Cria arquivo novo
+            await fs.writeFile(filePath, JSON.stringify({}, null, 2));
+            cleanedFiles++;
+          }
+        }
+      }
+
+      if (cleanedFiles > 0) {
+        logger.info(`🧹 Limpeza concluída: ${cleanedFiles} arquivo(s) recriado(s)`);
+        // Limpa cache após recriar arquivos
+        this.clearCache('all');
+      } else {
+        logger.info(`✅ Nenhum arquivo corrompido encontrado`);
+      }
+
+      return { success: true, cleanedFiles };
+    } catch (error) {
+      logger.error('❌ Erro durante limpeza de dados corrompidos:', error.message);
+      return { success: false, error: error.message };
     }
   }
 }
