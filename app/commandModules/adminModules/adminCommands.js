@@ -13,7 +13,7 @@
 
 const logger = require('../../utils/logger/loggerModule');
 const { formatErrorMessage } = require('../../utils/messageUtils');
-const { isUserAdmin, isBotAdmin, isUserInGroup, formatPhoneToJid, getGroupMetadata, logGroupActivity, cleanJid, banUser, unbanUser, getValidParticipants } = require('../../utils/groupGlobalUtils');
+const { isUserAdmin, isBotAdmin, isUserInGroup, formatPhoneToJid, getGroupMetadata, logGroupActivity, cleanJid, getValidParticipants } = require('../../utils/groupGlobalUtils');
 const fs = require('fs').promises;
 const path = require('path');
 const BANNED_USERS_FILE = path.join(__dirname, '../../../temp/data/banned_users.json');
