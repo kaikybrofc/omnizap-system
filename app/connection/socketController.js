@@ -26,7 +26,7 @@ const { getSystemMetrics } = require('../utils/systemMetrics/systemMetricsModule
 let activeSocket = null;
 let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 5;
-const RECONNECT_INTERVAL = 10000;
+const INITIAL_RECONNECT_DELAY = 3000; // 3 segundos
 
 async function connectToWhatsApp() {
   logger.info('Iniciando conexão com o WhatsApp...', {
@@ -140,13 +140,15 @@ async function handleConnectionUpdate(update, sock) {
 
     if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       connectionAttempts++;
-      logger.warn(`Conexão perdida. Tentando reconectar em ${RECONNECT_INTERVAL / 1000}s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`, {
+      const reconnectDelay = INITIAL_RECONNECT_DELAY * Math.pow(2, connectionAttempts - 1);
+      logger.warn(`Conexão perdida. Tentando reconectar em ${reconnectDelay / 1000}s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`, {
         action: 'reconnect_attempt',
         attempt: connectionAttempts,
         maxAttempts: MAX_CONNECTION_ATTEMPTS,
+        delay: reconnectDelay,
         reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
       });
-      setTimeout(connectToWhatsApp, RECONNECT_INTERVAL);
+      setTimeout(connectToWhatsApp, reconnectDelay);
     } else if (shouldReconnect) {
       logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.', {
         action: 'reconnect_failed',
