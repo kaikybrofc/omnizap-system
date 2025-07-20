@@ -12,6 +12,7 @@
 require('dotenv').config();
 const logger = require('../utils/logger/loggerModule');
 const groupUtils = require('../utils/groupUtils');
+const dataStore = require('../store/dataStore');
 
 
 
@@ -89,6 +90,7 @@ const extractMessageContent = (messageInfo) => {
  */
 const handleWhatsAppUpdate = async (update, sock) => {
   if (update.messages && Array.isArray(update.messages)) {
+    dataStore.saveIncomingRawMessages(update.messages); // Salva as mensagens raw no dataStore
     logger.info('📨 Processando mensagens recebidas', {
       messageCount: update.messages.length,
       info: update.messages.map((messageInfo) => {

@@ -96,20 +96,27 @@ const store = {
     }
   },
 
+  /**
+   * Salva mensagens raw recebidas no armazenamento.
+   * @param {Array<object>} incomingMessages - Array de mensagens raw a serem salvas.
+   */
+  saveIncomingRawMessages: function (incomingMessages) {
+    for (const msg of incomingMessages) {
+      if (!this.rawMessages[msg.key.remoteJid]) {
+        this.rawMessages[msg.key.remoteJid] = [];
+      }
+      this.rawMessages[msg.key.remoteJid].push(msg);
+      // Limita o número de mensagens raw por chat
+      if (this.rawMessages[msg.key.remoteJid].length > MAX_RAW_MESSAGES_PER_CHAT) {
+        this.rawMessages[msg.key.remoteJid].shift(); // Remove a mensagem raw mais antiga
+      }
+    }
+    this.debouncedWrite('rawMessages');
+  },
+
   bind: function (ev) {
     ev.on('messages.upsert', ({ messages: incomingMessages, type }) => {
-      // Salva todas as mensagens raw, independentemente do tipo (append ou notify)
-      for (const msg of incomingMessages) {
-        if (!this.rawMessages[msg.key.remoteJid]) {
-          this.rawMessages[msg.key.remoteJid] = [];
-        }
-        this.rawMessages[msg.key.remoteJid].push(msg);
-        // Limita o número de mensagens raw por chat
-        if (this.rawMessages[msg.key.remoteJid].length > MAX_RAW_MESSAGES_PER_CHAT) {
-          this.rawMessages[msg.key.remoteJid].shift(); // Remove a mensagem raw mais antiga
-        }
-      }
-      this.debouncedWrite('rawMessages');
+      // A lógica de salvamento de rawMessages foi movida para saveIncomingRawMessages
 
       // Lógica existente para salvar apenas mensagens de chat (type === 'append')
       if (type === 'append') {
