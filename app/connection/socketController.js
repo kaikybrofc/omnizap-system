@@ -36,7 +36,7 @@ const store = {
             this.messages[msg.key.remoteJid].shift();
           }
         }
-        this.writeToFile('messages');
+        this.debouncedWrite('messages');
       }
     });
     ev.on('chats.upsert', (newChats) => {
@@ -48,13 +48,13 @@ const store = {
           this.chats.push(chat);
         }
       }
-      this.writeToFile('chats');
+      this.debouncedWrite('chats');
     });
     ev.on('contacts.upsert', (newContacts) => {
       for (const contact of newContacts) {
         this.contacts[contact.id] = contact;
       }
-      this.writeToFile('contacts');
+      this.debouncedWrite('contacts');
     });
   },
   readFromFile: function (dataType) {
@@ -79,6 +79,16 @@ const store = {
     } catch (error) {
       logger.error(`Error writing store for ${dataType} to ${filePath}:`, error);
     }
+  },
+  debouncedWrites: {},
+  debouncedWrite: function (dataType, delay = 1000) {
+    if (this.debouncedWrites[dataType]) {
+      clearTimeout(this.debouncedWrites[dataType]);
+    }
+    this.debouncedWrites[dataType] = setTimeout(() => {
+      this.writeToFile(dataType);
+      delete this.debouncedWrites[dataType];
+    }, delay);
   },
 };
 
