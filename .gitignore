@@ -3,35 +3,7 @@ logs/
 
 # Dependencies
 node_modules/
-
-# Temp files
-.DS_Store
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# IDE and editor files
-.idea/
-.vscode/
-*.sublime-project
-*.sublime-workspace
-
-# Build artifacts
-build/
-dist/
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Other
-*.tgz
-.pnp.js
-.pnp.cjs
-.yarn/
-
-/temp/
+qr-code/
+logs/
+app/connection/auth_info_baileys/
+app/connection/store/

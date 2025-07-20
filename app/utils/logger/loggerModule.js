@@ -32,6 +32,7 @@ const env = cleanEnv(process.env, {
     desc: 'Logging level',
   }),
   ECOSYSTEM_NAME: str({ default: 'system', desc: 'Service name for logs' }),
+  PM2_NAME: str({ default: undefined, desc: 'PM2 application name' }),
   PM2_INSTANCE_ID: str({ default: undefined, desc: 'PM2 instance ID (standard)' }),
   NODE_APP_INSTANCE: str({ default: undefined, desc: 'PM2 instance ID (alternative)' }),
   pm_id: str({ default: undefined, desc: 'PM2 instance ID (legacy)' }),
@@ -40,7 +41,7 @@ const env = cleanEnv(process.env, {
 const IS_PRODUCTION = env.NODE_ENV === 'production';
 const DEFAULT_LOG_LEVEL = env.LOG_LEVEL;
 const INSTANCE_ID = env.PM2_INSTANCE_ID ?? env.NODE_APP_INSTANCE ?? env.pm_id ?? 'local';
-const ECOSYSTEM_NAME = env.ECOSYSTEM_NAME;
+const ECOSYSTEM_NAME = env.PM2_NAME ?? env.ECOSYSTEM_NAME ?? 'system';
 const NODE_ENV = env.NODE_ENV;
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');

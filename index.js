@@ -7,6 +7,9 @@ async function startApp() {
     logger.info('Iniciando OmniZap System...');
     await connectToWhatsApp();
     logger.info('OmniZap System iniciado com sucesso.');
+    if (process.send) {
+      process.send('ready');
+    }
   } catch (err) {
     logger.error('Falha ao iniciar o OmniZap System:', { error: err.message, stack: err.stack });
     process.exit(1);
