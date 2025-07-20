@@ -13,47 +13,39 @@ require('dotenv').config();
 const logger = require('../utils/logger/loggerModule');
 
 /**
- * Lida com mensagens recebidas
+ * Lida com atualizações do WhatsApp, sejam mensagens ou eventos genéricos.
  *
- * @param {Object} messageUpdate - Objeto contendo as mensagens recebidas
+ * @param {Object} update - Objeto contendo a atualização do WhatsApp.
  */
-const processMessages = async (messageUpdate) => {
-  logger.info('📨 Processando mensagens recebidas', {
-    messageCount: messageUpdate?.messages?.length || 0,
-    action: 'process_incoming_messages',
-  });
-
-  try {
-    for (const messageInfo of messageUpdate?.messages || []) {
-      logger.info(
-        `📨 Mensagem de ${messageInfo.key.remoteJid}: ${
+const handleWhatsAppUpdate = async (update) => {
+  // Verifica se é uma atualização de mensagem
+  if (update.messages && Array.isArray(update.messages)) {
+    logger.info('📨 Processando mensagens recebidas', {
+      messageCount: update.messages.length,
+      info: update.messages.map((messageInfo) => {
+        return `📨 Mensagem de ${messageInfo.key.remoteJid}: ${
           messageInfo.message?.conversation || 'Sem conteúdo'
-        }`,
-        {
-          remoteJid: messageInfo.key.remoteJid,
-          messageId: messageInfo.key.id,
-          hasContent: !!messageInfo.message?.conversation,
-        },
-      );
+        }`;
+      }),
+
+      action: 'process_incoming_messages',
+    });
+
+    try {
+      for (const messageInfo of update.messages) {
+        logger.info(JSON.stringify(messageInfo, null, 2));
+      }
+    } catch (error) {
+      logger.error('Erro ao processar mensagens:', error.message);
     }
-  } catch (error) {
-    logger.error('Erro ao processar mensagens:', error.message);
+  } else {
+    logger.info('🔄 Processando evento recebido:', {
+      eventType: update?.type || 'unknown',
+      eventData: update,
+    });
   }
 };
 
-/**
- * Lida com eventos genéricos do WhatsApp
- *
- * @param {Object} event - Evento recebido do socket
- */
-const processEvent = (event) => {
-  logger.info('🔄 Processando evento recebido:', {
-    eventType: event?.type || 'unknown',
-    eventData: event,
-  });
-};
-
 module.exports = {
-  processMessages,
-  processEvent,
+  handleWhatsAppUpdate,
 };
