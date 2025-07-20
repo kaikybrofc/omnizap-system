@@ -9,7 +9,17 @@ async function readFromFile(dataType) {
   try {
     const data = await fs.readFile(filePath, 'utf8');
     logger.info(`Store for ${dataType} read from ${filePath}`);
-    return JSON.parse(data);
+    try {
+      const parsedData = JSON.parse(data);
+      if (typeof parsedData !== 'object' || parsedData === null) {
+        logger.warn(`Invalid data format for ${dataType}. Expected an object.`);
+        return null;
+      }
+      return parsedData;
+    } catch (parseError) {
+      logger.error(`Error parsing JSON for ${dataType} from ${filePath}:`, parseError);
+      return null;
+    }
   } catch (error) {
     if (error.code === 'ENOENT') {
       logger.warn(`Store file for ${dataType} not found at ${filePath}. Starting with empty data.`);
@@ -22,6 +32,10 @@ async function readFromFile(dataType) {
 }
 
 async function writeToFile(dataType, data) {
+  if (data === null || data === undefined) {
+    logger.warn(`Attempted to write null or undefined data for ${dataType}. Aborting.`);
+    return;
+  }
   const filePath = path.join(storePath, `${dataType}.json`);
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
