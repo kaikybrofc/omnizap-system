@@ -1,6 +1,11 @@
 const { readFromFile, writeToFile } = require('./persistence');
 const logger = require('../utils/logger/loggerModule');
 
+// Configurações de ambiente para o armazenamento de mensagens
+const MAX_MESSAGES_PER_CHAT = parseInt(process.env.OMNIZAP_MAX_MESSAGES_PER_CHAT || '1000', 10); // Limite de mensagens por chat
+const MESSAGE_RETENTION_DAYS = parseInt(process.env.OMNIZAP_MESSAGE_RETENTION_DAYS || '30', 10); // Dias para reter mensagens
+const CLEANUP_INTERVAL_MS = parseInt(process.env.OMNIZAP_CLEANUP_INTERVAL_MS || '86400000', 10); // Intervalo de limpeza (24 horas por padrão)
+
 const store = {
   chats: [],
   contacts: {},
@@ -35,17 +40,41 @@ const store = {
     }, delay);
   },
 
+  /**
+   * Limpa mensagens antigas com base na data de retenção.
+   */
+  cleanOldMessages: function () {
+    const cutoffTime = Date.now() - MESSAGE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    let cleanedCount = 0;
+
+    for (const jid in this.messages) {
+      const originalLength = this.messages[jid].length;
+      this.messages[jid] = this.messages[jid].filter((msg) => {
+        // Baileys messages have a 'messageTimestamp' field
+        return msg.messageTimestamp * 1000 >= cutoffTime;
+      });
+      cleanedCount += originalLength - this.messages[jid].length;
+    }
+
+    if (cleanedCount > 0) {
+      logger.info(`Limpeza de mensagens concluída. ${cleanedCount} mensagens antigas removidas.`);
+      this.debouncedWrite('messages');
+    } else {
+      logger.info('Nenhuma mensagem antiga para remover na limpeza.');
+    }
+  },
+
   bind: function (ev) {
     ev.on('messages.upsert', ({ messages: incomingMessages, type }) => {
-      const MAX_MESSAGES_PER_CHAT = 100;
       if (type === 'append') {
         for (const msg of incomingMessages) {
           if (!this.messages[msg.key.remoteJid]) {
             this.messages[msg.key.remoteJid] = [];
           }
           this.messages[msg.key.remoteJid].push(msg);
+          // Limita o número de mensagens por chat
           if (this.messages[msg.key.remoteJid].length > MAX_MESSAGES_PER_CHAT) {
-            this.messages[msg.key.remoteJid].shift();
+            this.messages[msg.key.remoteJid].shift(); // Remove a mensagem mais antiga
           }
         }
         this.debouncedWrite('messages');
@@ -371,7 +400,7 @@ const store = {
     ev.on('messages.reaction', (reactions) => {
       for (const { key, reaction } of reactions) {
         if (this.messages[key.remoteJid]) {
-          const idx = this.messages[key.remoteJid].findIndex((msg) => msg.key.id === key.id);
+          const idx = this.messages[key.key.remoteJid].findIndex((msg) => msg.key.id === key.id);
           if (idx !== -1) {
             const message = this.messages[key.remoteJid][idx];
             if (!message.reactions) {
@@ -400,6 +429,9 @@ const store = {
       }
       this.debouncedWrite('contacts');
     });
+
+    // Agendar a limpeza periódica de mensagens antigas
+    setInterval(() => this.cleanOldMessages(), CLEANUP_INTERVAL_MS);
   },
 };
 
