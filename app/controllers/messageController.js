@@ -5,15 +5,12 @@
  * recebidas através do WhatsApp via tecnologia Baileys
  *
  * @version 2.0.0
- * @author OmniZap Team
  * @license MIT
- * @source https://www.npmjs.com/package/baileys
+ * @source https://github.com/Kaikygr/omnizap-system
  */
 
 require('dotenv').config();
 const logger = require('../utils/logger/loggerModule');
-
-
 
 /**
  * Lida com mensagens recebidas
@@ -23,14 +20,20 @@ const logger = require('../utils/logger/loggerModule');
 const processMessages = async (messageUpdate) => {
   logger.info('📨 Processando mensagens recebidas', {
     messageCount: messageUpdate?.messages?.length || 0,
-    action: 'process_incoming_messages'
+    action: 'process_incoming_messages',
   });
 
   try {
     for (const messageInfo of messageUpdate?.messages || []) {
       logger.info(
-        `📨 Mensagem de ${messageInfo.key.remoteJid}: ${messageInfo.message?.conversation || 'Sem conteúdo'}`,
-        { remoteJid: messageInfo.key.remoteJid, messageId: messageInfo.key.id, hasContent: !!messageInfo.message?.conversation }
+        `📨 Mensagem de ${messageInfo.key.remoteJid}: ${
+          messageInfo.message?.conversation || 'Sem conteúdo'
+        }`,
+        {
+          remoteJid: messageInfo.key.remoteJid,
+          messageId: messageInfo.key.id,
+          hasContent: !!messageInfo.message?.conversation,
+        },
       );
     }
   } catch (error) {
@@ -44,7 +47,10 @@ const processMessages = async (messageUpdate) => {
  * @param {Object} event - Evento recebido do socket
  */
 const processEvent = (event) => {
-  logger.info('🔄 Processando evento recebido:', { eventType: event?.type || 'unknown', eventData: event });
+  logger.info('🔄 Processando evento recebido:', {
+    eventType: event?.type || 'unknown',
+    eventData: event,
+  });
 };
 
 module.exports = {
