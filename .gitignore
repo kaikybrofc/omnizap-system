@@ -3,3 +3,4 @@ node_modules/
 qr-code/
 logs/
 app/connection/auth_info_baileys/
+app/connection/baileys_store.json

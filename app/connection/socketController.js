@@ -23,13 +23,18 @@ const store = {
   contacts: {},
   messages: {},
   bind: function (ev) {
-    ev.on('messages.upsert', ({ messages, type }) => {
+    ev.on('messages.upsert', ({ messages: incomingMessages, type }) => {
+      const MAX_MESSAGES_PER_CHAT = 100; // Define o limite de mensagens por chat
       if (type === 'append') {
-        for (const msg of messages) {
+        for (const msg of incomingMessages) {
           if (!this.messages[msg.key.remoteJid]) {
             this.messages[msg.key.remoteJid] = [];
           }
           this.messages[msg.key.remoteJid].push(msg);
+          // Remove a mensagem mais antiga se o limite for excedido
+          if (this.messages[msg.key.remoteJid].length > MAX_MESSAGES_PER_CHAT) {
+            this.messages[msg.key.remoteJid].shift();
+          }
         }
       }
     });
@@ -50,19 +55,38 @@ const store = {
     });
   },
   readFromFile: function (filePath) {
-    logger.info(`Attempting to read store from ${filePath} (not implemented)`);
+    try {
+      if (fs.existsSync(filePath)) {
+        const data = fs.readFileSync(filePath, 'utf8');
+        const parsedData = JSON.parse(data);
+        Object.assign(this, parsedData);
+        logger.info(`Store read from ${filePath}`);
+      } else {
+        logger.warn(`Store file not found at ${filePath}. Starting with empty store.`);
+      }
+    } catch (error) {
+      logger.error(`Error reading store from ${filePath}:`, error);
+    }
   },
   writeToFile: function (filePath) {
-    logger.info(`Attempting to write store to ${filePath} (not implemented)`);
+    try {
+      fs.writeFileSync(filePath, JSON.stringify(this, null, 2));
+      logger.info(`Store written to ${filePath}`);
+    } catch (error) {
+      logger.error(`Error writing store to ${filePath}:`, error);
+    }
   },
 };
 
+const fs = require('fs');
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
 const NodeCache = require('node-cache');
 const logger = require('../utils/logger/loggerModule');
 const { processMessages, processEvent } = require('../controllers/messageController');
+
+const STORE_FILE_PATH = path.join(__dirname, 'baileys_store.json');
 
 let activeSocket = null;
 let connectionAttempts = 0;
@@ -77,6 +101,7 @@ async function connectToWhatsApp() {
 
   const authPath = path.join(__dirname, 'auth_info_baileys');
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
+  store.readFromFile(STORE_FILE_PATH);
   const { version } = await fetchLatestBaileysVersion();
 
   const usePairingCode = process.env.PAIRING_CODE === 'true';
@@ -118,7 +143,10 @@ async function connectToWhatsApp() {
   }
 
   activeSocket = sock;
-  sock.ev.on('creds.update', saveCreds);
+  sock.ev.on('creds.update', async () => {
+    await saveCreds();
+    store.writeToFile(STORE_FILE_PATH);
+  });
   sock.ev.on('connection.update', (update) => handleConnectionUpdate(update, sock));
   sock.ev.on('messages.upsert', (messageUpdate) => processMessages(messageUpdate, sock));
   sock.ev.on('messages.update', (update) => handleMessageUpdate(update, sock));
