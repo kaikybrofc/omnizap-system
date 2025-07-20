@@ -127,7 +127,7 @@ async function connectToWhatsApp() {
     auth: state,
     logger: require('pino')({ level: 'silent' }),
     browser: Browsers.macOS('Desktop'),
-    printQRInTerminal: !usePairingCode,
+    
     qrTimeout: 30000,
     syncFullHistory: true,
     markOnlineOnConnect: false,
