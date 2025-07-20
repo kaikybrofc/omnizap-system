@@ -163,15 +163,55 @@ async function connectToWhatsApp() {
     await saveCreds();
   });
   sock.ev.on('connection.update', (update) => handleConnectionUpdate(update, sock));
-  sock.ev.on('messages.upsert', (messageUpdate) => processMessages(messageUpdate, sock));
-  sock.ev.on('messages.update', (update) => handleMessageUpdate(update, sock));
-  sock.ev.on('groups.update', (updates) => handleGroupUpdate(updates, sock));
-  sock.ev.on('group-participants.update', (update) => handleGroupParticipantsUpdate(update, sock));
-  sock.ev.on('chats.upsert', () => logger.info('Chats atualizados:', store.chats.all()));
-  sock.ev.on('contacts.upsert', () =>
-    logger.info('Contatos atualizados:', Object.values(store.contacts)),
-  );
-  sock.ev.on('all', (event) => processEvent(event));
+  sock.ev.on('messages.upsert', (messageUpdate) => {
+    try {
+      processMessages(messageUpdate, sock);
+    } catch (err) {
+      logger.error('Error in messages.upsert event:', err);
+    }
+  });
+  sock.ev.on('messages.update', (update) => {
+    try {
+      handleMessageUpdate(update, sock);
+    } catch (err) {
+      logger.error('Error in messages.update event:', err);
+    }
+  });
+  sock.ev.on('groups.update', (updates) => {
+    try {
+      handleGroupUpdate(updates, sock);
+    } catch (err) {
+      logger.error('Error in groups.update event:', err);
+    }
+  });
+  sock.ev.on('group-participants.update', (update) => {
+    try {
+      handleGroupParticipantsUpdate(update, sock);
+    } catch (err) {
+      logger.error('Error in group-participants.update event:', err);
+    }
+  });
+  sock.ev.on('chats.upsert', () => {
+    try {
+      logger.info('Chats atualizados:', store.chats.all());
+    } catch (err) {
+      logger.error('Error in chats.upsert event:', err);
+    }
+  });
+  sock.ev.on('contacts.upsert', () => {
+    try {
+      logger.info('Contatos atualizados:', Object.values(store.contacts));
+    } catch (err) {
+      logger.error('Error in contacts.upsert event:', err);
+    }
+  });
+  sock.ev.on('all', (event) => {
+    try {
+      processEvent(event);
+    } catch (err) {
+      logger.error('Error in all event:', err);
+    }
+  });
 }
 
 async function handleConnectionUpdate(update, sock) {
