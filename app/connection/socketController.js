@@ -264,6 +264,11 @@ async function handleConnectionUpdate(update, sock) {
   if (connection === 'open') {
     logger.info('✅ Conectado com sucesso ao WhatsApp!', { action: 'connection_open' });
     connectionAttempts = 0;
+    // Sinaliza ao PM2 que a aplicação está pronta
+    if (process.send) {
+      process.send('ready');
+      logger.info('Sinal de "ready" enviado ao PM2.');
+    }
     setInterval(() => {
       const metrics = getSystemMetrics();
       logger.info('System Metrics', metrics);
