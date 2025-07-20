@@ -401,11 +401,11 @@ const store = {
       logger.error(`Error reading store for ${dataType} from ${filePath}:`, error);
     }
   },
-  writeToFile: function (dataType) {
+  writeToFile: async function (dataType) {
     const filePath = path.join(__dirname, 'store', `${dataType}.json`);
     try {
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      writeFileAtomic(filePath, JSON.stringify(this[dataType], null, 2));
+      await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.promises.writeFile(filePath, JSON.stringify(this[dataType], null, 2));
       logger.info(`Store for ${dataType} written to ${filePath}`);
     } catch (error) {
       logger.error(`Error writing store for ${dataType} to ${filePath}:`, error);
@@ -416,15 +416,15 @@ const store = {
     if (this.debouncedWrites[dataType]) {
       clearTimeout(this.debouncedWrites[dataType]);
     }
-    this.debouncedWrites[dataType] = setTimeout(() => {
-      this.writeToFile(dataType);
+    this.debouncedWrites[dataType] = setTimeout(async () => {
+      await this.writeToFile(dataType);
       delete this.debouncedWrites[dataType];
     }, delay);
   },
 };
 
 const fs = require('fs');
-const writeFileAtomic = require('write-file-atomically');
+
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 const path = require('path');

@@ -28,7 +28,7 @@ O OmniZap System é uma solução robusta e escalável para automação de mensa
 *   **Node-Cache**: Para cache de dados em memória.
 *   **Moment-Timezone**: Para manipulação de datas e fusos horários.
 *   **Qrcode-terminal**: Para exibição do QR Code no terminal.
-*   **Write-File-Atomically**: Para escrita segura de arquivos.
+*   **fs.promises**: Para escrita segura de arquivos.
 *   **@hapi/boom**: Para tratamento de erros HTTP.
 
 ## ⚙️ Instalação
