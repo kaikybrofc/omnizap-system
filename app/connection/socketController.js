@@ -512,7 +512,7 @@ async function connectToWhatsApp() {
   store.readFromFile('presences');
   store.readFromFile('calls');
   store.readFromFile('newsletters');
-  const version = "6.7.0";
+  const version = [6, 7, 0];
 
   const usePairingCode = process.env.PAIRING_CODE === "true";
 
