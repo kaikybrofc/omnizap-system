@@ -36,6 +36,7 @@ const store = {
             this.messages[msg.key.remoteJid].shift();
           }
         }
+        this.writeToFile('messages');
       }
     });
     ev.on('chats.upsert', (newChats) => {
@@ -47,33 +48,36 @@ const store = {
           this.chats.push(chat);
         }
       }
+      this.writeToFile('chats');
     });
     ev.on('contacts.upsert', (newContacts) => {
       for (const contact of newContacts) {
         this.contacts[contact.id] = contact;
       }
+      this.writeToFile('contacts');
     });
   },
-  readFromFile: function (filePath) {
+  readFromFile: function (dataType) {
+    const filePath = path.join(__dirname, 'store', `${dataType}.json`);
     try {
       if (fs.existsSync(filePath)) {
         const data = fs.readFileSync(filePath, 'utf8');
-        const parsedData = JSON.parse(data);
-        Object.assign(this, parsedData);
-        logger.info(`Store read from ${filePath}`);
+        this[dataType] = JSON.parse(data);
+        logger.info(`Store for ${dataType} read from ${filePath}`);
       } else {
-        logger.warn(`Store file not found at ${filePath}. Starting with empty store.`);
+        logger.warn(`Store file for ${dataType} not found at ${filePath}. Starting with empty data.`);
       }
     } catch (error) {
-      logger.error(`Error reading store from ${filePath}:`, error);
+      logger.error(`Error reading store for ${dataType} from ${filePath}:`, error);
     }
   },
-  writeToFile: function (filePath) {
+  writeToFile: function (dataType) {
+    const filePath = path.join(__dirname, 'store', `${dataType}.json`);
     try {
-      fs.writeFileSync(filePath, JSON.stringify(this, null, 2));
-      logger.info(`Store written to ${filePath}`);
+      fs.writeFileSync(filePath, JSON.stringify(this[dataType], null, 2));
+      logger.info(`Store for ${dataType} written to ${filePath}`);
     } catch (error) {
-      logger.error(`Error writing store to ${filePath}:`, error);
+      logger.error(`Error writing store for ${dataType} to ${filePath}:`, error);
     }
   },
 };
@@ -86,7 +90,7 @@ const NodeCache = require('node-cache');
 const logger = require('../utils/logger/loggerModule');
 const { processMessages, processEvent } = require('../controllers/messageController');
 
-const STORE_FILE_PATH = path.join(__dirname, 'baileys_store.json');
+
 
 let activeSocket = null;
 let connectionAttempts = 0;
@@ -101,7 +105,9 @@ async function connectToWhatsApp() {
 
   const authPath = path.join(__dirname, 'auth_info_baileys');
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
-  store.readFromFile(STORE_FILE_PATH);
+  store.readFromFile('chats');
+  store.readFromFile('contacts');
+  store.readFromFile('messages');
   const { version } = await fetchLatestBaileysVersion();
 
   const usePairingCode = process.env.PAIRING_CODE === 'true';
@@ -145,7 +151,6 @@ async function connectToWhatsApp() {
   activeSocket = sock;
   sock.ev.on('creds.update', async () => {
     await saveCreds();
-    store.writeToFile(STORE_FILE_PATH);
   });
   sock.ev.on('connection.update', (update) => handleConnectionUpdate(update, sock));
   sock.ev.on('messages.upsert', (messageUpdate) => processMessages(messageUpdate, sock));
