@@ -1,7 +1,5 @@
 # OmniZap System
 
-![OmniZap Logo](https://via.placeholder.com/150) <!-- Placeholder for a logo, replace with actual logo if available -->
-
 Sistema profissional de automação WhatsApp com tecnologia Baileys.
 
 ## 🚀 Visão Geral
