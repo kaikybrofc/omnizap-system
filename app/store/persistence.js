@@ -3,6 +3,30 @@ const path = require('path');
 const logger = require('../utils/logger/loggerModule');
 
 const storePath = path.join(__dirname, '../connection/store');
+const lockfilePath = path.join(storePath, 'write.lock');
+
+async function acquireLock() {
+  try {
+    await fs.mkdir(lockfilePath);
+    logger.info('Lock acquired.');
+    return true;
+  } catch (error) {
+    if (error.code === 'EEXIST') {
+      logger.warn('Write operation already in progress. Waiting for lock release...');
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function releaseLock() {
+  try {
+    await fs.rmdir(lockfilePath);
+    logger.info('Lock released.');
+  } catch (error) {
+    logger.error('Error releasing lock:', error);
+  }
+}
 
 async function readFromFile(dataType) {
   const filePath = path.join(storePath, `${dataType}.json`);
@@ -36,6 +60,13 @@ async function writeToFile(dataType, data) {
     logger.warn(`Attempted to write null or undefined data for ${dataType}. Aborting.`);
     return;
   }
+
+  if (!(await acquireLock())) {
+    // If lock is not acquired, wait and retry
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return writeToFile(dataType, data); // Retry the write operation
+  }
+
   const filePath = path.join(storePath, `${dataType}.json`);
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -44,6 +75,8 @@ async function writeToFile(dataType, data) {
   } catch (error) {
     logger.error(`Error writing store for ${dataType} to ${filePath}:`, error);
     throw error;
+  } finally {
+    await releaseLock();
   }
 }
 
