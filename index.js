@@ -13,10 +13,8 @@ async function startApp() {
   }
 }
 
-// Inicia a aplicação
 startApp();
 
-// Tratamento de sinais para desligamento gracioso
 process.on('SIGINT', async () => {
   logger.warn('SIGINT recebido. Iniciando desligamento gracioso...');
   const sock = getActiveSocket();
@@ -47,15 +45,12 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-// Tratamento de exceções não capturadas
 process.on('uncaughtException', (err) => {
   logger.error('Exceção não capturada:', { error: err.message, stack: err.stack });
-  // Opcional: Forçar o encerramento após um erro grave
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Rejeição de promessa não tratada:', { reason: reason, promise: promise });
-  // Opcional: Forçar o encerramento após um erro grave
   process.exit(1);
 });
