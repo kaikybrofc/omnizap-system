@@ -21,6 +21,7 @@ const path = require('path');
 
 const logger = require('../utils/logger/loggerModule');
 const { handleWhatsAppUpdate } = require('../controllers/messageController');
+const { handleGenericUpdate } = require('../controllers/eventHandler');
 const { getSystemMetrics } = require('../utils/systemMetrics/systemMetricsModule');
 
 let activeSocket = null;
@@ -118,7 +119,7 @@ async function connectToWhatsApp() {
 
   sock.ev.on('all', (event) => {
     try {
-      handleWhatsAppUpdate(event);
+      handleGenericUpdate(event);
     } catch (err) {
       logger.error('Error in all event:', err);
     }
