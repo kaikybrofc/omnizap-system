@@ -72,8 +72,23 @@ async function connectToWhatsApp() {
       auth: state,
       logger: require('pino')({ level: 'silent' }),
       browser: Browsers.ubuntu('OmniZap'),
-      printQRInTerminal: true,
+      printQRInTerminal: !process.env.PAIRING_CODE,
     });
+
+    if (process.env.PAIRING_CODE && !sock.authState.creds.registered) {
+      const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
+      if (!phoneNumber) {
+        throw new Error('Número de telefone é obrigatório para o modo de pareamento.');
+      }
+
+      logger.info(`📞 Solicitando código de pareamento para: ${phoneNumber}`);
+      const code = await sock.requestPairingCode(phoneNumber);
+      logger.info('═══════════════════════════════════════════════════');
+      logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
+      logger.info(`\n          > ${code.match(/.{1,4}/g).join('-')} <\n`);
+      logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular com número');
+      logger.info('═══════════════════════════════════════════════════');
+    }
 
     handleAllEvents(sock);
 
