@@ -4,7 +4,7 @@
  * Controlador responsável pelo processamento e tratamento de mensagens
  * recebidas através do WhatsApp via tecnologia Baileys
  *
- * @version 1.0.5
+ * @version 2.0.-
  * @author OmniZap Team
  * @license MIT
  * @source https://www.npmjs.com/package/baileys
@@ -21,8 +21,6 @@ const OmniZapMessageProcessor = async (messageUpdate) => {
   try {
     for (const messageInfo of messageUpdate?.messages || []) {
       logger.info(`📨 Mensagem recebida de ${messageInfo.key.remoteJid}: ${messageText || 'Sem conteúdo'}`);
-
-      // Aqui você pode adicionar lógica para processar mensagens específicas
     }
   } catch (error) {
     logger.error('Erro ao processar mensagens:', error.message);
@@ -43,8 +41,6 @@ const processMessages = async (messageUpdate, omniZapClient) => {
   try {
     for (const messageInfo of messageUpdate?.messages || []) {
       logger.info(`📨 Mensagem de ${messageInfo.key.remoteJid}: ${messageInfo.message?.conversation || 'Sem conteúdo'}`);
-
-      // Adicione lógica específica para processar mensagens aqui
     }
   } catch (error) {
     logger.error('Erro ao processar mensagens:', error.message);
@@ -58,8 +54,6 @@ const processMessages = async (messageUpdate, omniZapClient) => {
  */
 const processEvent = (event) => {
   logger.info('🔄 Processando evento recebido:', event);
-
-  // Adicione lógica específica para lidar com eventos aqui
 };
 
 module.exports = {

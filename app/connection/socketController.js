@@ -6,6 +6,7 @@
  *
  * @version 2.0.0
  * @license MIT
+ * @source https://github.com/Kaikygr/omnizap-system
  */
 
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
@@ -28,16 +29,18 @@ async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
   const { version } = await fetchLatestBaileysVersion();
 
+  const usePairingCode = process.env.PAIRING_CODE === 'true';
+
   const sock = makeWASocket({
     version,
     auth: state,
     logger: require('pino')({ level: 'silent' }),
     browser: Browsers.ubuntu('OmniZap'),
-    printQRInTerminal: !process.env.PAIRING_CODE,
+    printQRInTerminal: !usePairingCode,
     qrTimeout: 30000,
   });
 
-  if (process.env.PAIRING_CODE && !sock.authState.creds.registered) {
+  if (usePairingCode && !sock.authState.creds.registered) {
     const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
     if (!phoneNumber) {
       logger.error('Número de telefone é obrigatório para o modo de pareamento.');
@@ -105,10 +108,8 @@ async function reconnectToWhatsApp() {
   if (activeSocket) {
     logger.info('Forçando o fechamento do socket para acionar a lógica de reconexão...');
     activeSocket.ws.close();
-    // O evento 'connection.update' com 'close' cuidará da reconexão.
   } else {
     logger.warn('Tentativa de reconectar sem um socket ativo. Iniciando uma nova conexão.');
-    // Se não há socket, não há como "reconectar", então iniciamos do zero.
     await connectToWhatsApp();
   }
 }
