@@ -530,11 +530,40 @@ const store = {
     });
     ev.on('message-receipt.update', (updates) => {
       for (const { key, receipt } of updates) {
-        if (this.contacts[update.id]) {
-          Object.assign(this.contacts[update.id], update);
+        if (this.messages[key.remoteJid]) {
+          const idx = this.messages[key.remoteJid].findIndex((msg) => msg.key.id === key.id);
+          if (idx !== -1) {
+            const message = this.messages[key.remoteJid][idx];
+            if (!message.userReceipt) {
+              message.userReceipt = [];
+            }
+            const existingReceiptIdx = message.userReceipt.findIndex((r) => r.userJid === receipt.userJid);
+            if (existingReceiptIdx !== -1) {
+              Object.assign(message.userReceipt[existingReceiptIdx], receipt);
+            } else {
+              message.userReceipt.push(receipt);
+            }
+          }
+        }
+        // Atualiza também as mensagens raw se existirem
+        if (this.rawMessages[key.remoteJid]) {
+          const idx = this.rawMessages[key.remoteJid].findIndex((msg) => msg.key.id === key.id);
+          if (idx !== -1) {
+            const message = this.rawMessages[key.remoteJid][idx];
+            if (!message.userReceipt) {
+              message.userReceipt = [];
+            }
+            const existingReceiptIdx = message.userReceipt.findIndex((r) => r.userJid === receipt.userJid);
+            if (existingReceiptIdx !== -1) {
+              Object.assign(message.userReceipt[existingReceiptIdx], receipt);
+            } else {
+              message.userReceipt.push(receipt);
+            }
+          }
         }
       }
-      this.debouncedWrite('contacts');
+      this.debouncedWrite('messages');
+      this.debouncedWrite('rawMessages');
     });
 
     // Agendar a limpeza periódica de mensagens antigas
