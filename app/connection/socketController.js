@@ -77,7 +77,7 @@ const store = {
     const filePath = path.join(__dirname, 'store', `${dataType}.json`);
     try {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, JSON.stringify(this[dataType], null, 2));
+      writeFileAtomic(filePath, JSON.stringify(this[dataType], null, 2));
       logger.info(`Store for ${dataType} written to ${filePath}`);
     } catch (error) {
       logger.error(`Error writing store for ${dataType} to ${filePath}:`, error);
@@ -96,6 +96,7 @@ const store = {
 };
 
 const fs = require('fs');
+const writeFileAtomic = require('write-file-atomically');
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
