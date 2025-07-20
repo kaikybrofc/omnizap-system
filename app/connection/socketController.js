@@ -12,7 +12,6 @@
 const {
   default: makeWASocket,
   useMultiFileAuthState,
-  fetchLatestBaileysVersion,
   DisconnectReason,
   Browsers,
   getAggregateVotesInPollMessage,
@@ -119,7 +118,7 @@ async function connectToWhatsApp() {
   store.readFromFile('contacts');
   store.readFromFile('messages');
   store.readFromFile('groups');
-  const { version } = await fetchLatestBaileysVersion();
+  const version = '6.7.0';
 
   const usePairingCode = process.env.PAIRING_CODE === 'true';
 
