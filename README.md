@@ -1,433 +1,133 @@
-# OmniZap v1.0.5
+# OmniZap System
 
-Sistema profissional de automação WhatsApp com tecnologia Baileys e arquitetura modular avançada
+![OmniZap Logo](https://via.placeholder.com/150) <!-- Placeholder for a logo, replace with actual logo if available -->
 
-## 📋 Descrição
+Sistema profissional de automação WhatsApp com tecnologia Baileys.
 
-OmniZap é um sistema robusto e profissional para automação de mensagens WhatsApp, desenvolvido com a mais avançada tecnologia Baileys para máxima compatibilidade e estabilidade. Com **arquitetura modular**, **sistema de filas com BullMQ e Redis** e **processamento de eventos independente** para máxima performance e escalabilidade. A versão 1.0.6 introduz **gerenciamento de filas com BullMQ**, **logging centralizado com rotação de arquivos** baseado em Winston, e **sistema avançado de sub-comandos** para gerenciamento inteligente de conteúdo.
+## 🚀 Visão Geral
 
-## ✨ Características
+O OmniZap System é uma solução robusta e escalável para automação de mensagens no WhatsApp, construída sobre a poderosa biblioteca Baileys. Ele oferece funcionalidades essenciais para gerenciar conexões, processar mensagens, lidar com grupos e monitorar o desempenho do sistema, ideal para empresas e desenvolvedores que buscam integrar o WhatsApp em seus fluxos de trabalho.
 
-- 🚀 **Alta Performance**: Otimizado para processamento eficiente de mensagens
-- 🔒 **Seguro**: Implementação segura com autenticação robusta
-- 📱 **Compatível**: Totalmente compatível com WhatsApp Web e multi-dispositivo
-- 🔄 **Reconexão Automática**: Sistema inteligente de reconexão e recuperação de sessão
-- 📊 **Logs Centralizados**: Sistema completo de logging com Winston para monitoramento e diagnóstico
-- 🤖 **Sistema de Comandos**: Processamento inteligente de comandos com prefixos configuráveis
-- ⚡ **Switch Case**: Arquitetura otimizada para processamento de comandos
-- 🎯 **Respostas Inteligentes**: Sistema de respostas automáticas e contextuais
-- 🏗️ **Arquitetura Modular**: Sistema dividido em módulos independentes
-- 💾 **Persistência de Dados**: Banco de dados Redis para armazenamento confiável
-- 🎯 **Processamento de Eventos**: Handler independente para todos os eventos WhatsApp
-- 📈 **Estatísticas Detalhadas**: Monitoramento completo do sistema e armazenamento
-- 🖼️ **Sticker Packs**: Sistema completo de criação e gerenciamento de pacotes de stickers
-- 🔁 **Rotação de Logs**: Sistema automático de rotação e compressão de arquivos de log
-- 🔄 **Processamento Assíncrono**: Execução assíncrona para melhor desempenho
-- 📝 **Rotação de Logs**: Sistema automatizado de rotação e compressão de logs
+## ✨ Funcionalidades Principais
 
-### ⚙️ Configuração de Comandos
-
-O prefixo dos comandos é configurável através da variável `COMMAND_PREFIX` no arquivo `.env`:
-
-```bash
-# Prefixo padrão: /
-COMMAND_PREFIX=/
-
-# Exemplos de outros prefixos:
-# COMMAND_PREFIX=!
-# COMMAND_PREFIX=.
-# COMMAND_PREFIX=#
-```
-
-### 🔧 Arquitetura de Comandos
-
-- **Switch Case**: Processamento otimizado com estrutura switch/case
-- **Extração Inteligente**: Suporte a diferentes tipos de mensagem (texto, legendas de mídia)
-- **Validação**: Sistema robusto de validação de comandos
-- **Tratamento de Erros**: Respostas amigáveis para erros e comandos inválidos
-- **Respostas Modulares**: Sistema modular para diferentes tipos de resposta
-
-## 🤖 Sistema de Comandos Avançado
-
-O OmniZap v1.0.5 apresenta um sistema completo de comandos com funcionalidades avançadas:
-
-### 🎨 Comandos de Sticker Packs
-
-#### Criação de Stickers
-- **`/s Nome do Pack | Autor`** - Cria sticker a partir de mídia
-- Suporte a imagens, vídeos e documentos
-- Sistema de metadados EXIF automático  
-- Formatação inteligente de nomes com variáveis (#nome, #id, #data)
-
-#### Gerenciamento de Packs
-- **`/s packs`** - Lista todos os seus packs
-- **`/s stats`** - Exibe estatísticas detalhadas
-- **`/s info [número]`** - Mostra detalhes de um pack específico
-- **`/s send [número]`** - Envia pack completo (funciona mesmo com packs incompletos)
-- **`/s rename [nº] [nome] | [autor]`** - Renomeia pack e/ou autor
-- **`/s delete [número]`** - Remove pack completamente
-- **`/s help`** - Ajuda completa do sistema
-
-#### Características do Sistema de Stickers
-- 📦 **30 stickers por pack** (configurável)
-- 🔄 **Criação automática** de novos packs
-- 💾 **Persistência de dados** por usuário
-- 🎯 **Envio individual** otimizado com rate limiting
-- 📊 **Estatísticas detalhadas** de uso
-- 🏷️ **Sistema de preferências** personalizadas
-- ⚡ **Processamento assíncrono** para melhor performance
-
-### 📝 Exemplos Práticos de Uso
-
-#### Criação de Sticker Pack
-```
-1. Envie uma imagem com: /s Meus Emojis | João Silva
-2. Continue adicionando stickers até completar 30
-3. Use /s send 1 para compartilhar o pack completo
-```
-
-#### Gerenciamento de Packs
-```
-# Ver todos os packs
-/s packs
-
-# Ver estatísticas
-/s stats
-
-# Ver detalhes de um pack específico
-/s info 1
-
-# Renomear um pack
-/s rename 1 Novo Nome | Novo Autor
-
-# Deletar um pack
-/s delete 2
-```
-
-#### Variáveis Dinâmicas
-Use variáveis especiais nos nomes:
-- `#nome` - Nome do usuário
-- `#id` - ID do usuário  
-- `#data` - Data atual
-
-Exemplo: `/s Pack do #nome | Criado em #data`
-
-## 🏗️ Arquitetura Modular
-
-O OmniZap v1.0.5 aprimora a **arquitetura modular avançada** que separa responsabilidades e melhora a manutenibilidade:
-
-### 📦 Módulos Principais
-
-#### 🔗 Socket Controller (`app/connection/socketController.js`)
-- **Responsabilidade**: Gerenciamento da conexão WhatsApp
-- **Funcionalidades**: 
-  - Conexão e reconexão automática
-  - Processamento de QR Code
-  - Distribuição de eventos para outros módulos
-  - Tratamento de diferentes tipos de conexão
-  - Suporte a múltiplas sessões
-  - Integração com sistema centralizado de logging
-
-#### 🔄 Queue Manager (`app/utils/queue/queueManager.js`)
-- **Responsabilidade**: Sistema de filas com BullMQ e Redis
-- **Funcionalidades**:
-  - Gerenciamento de filas de mensagens
-  - Processamento de eventos em background
-  - Retentativas automáticas em caso de falha
-  - Monitoramento e estatísticas de filas
-
-#### 🎯 Event Handler (`app/events/eventHandler.js`)
-- **Responsabilidade**: Processamento independente de eventos
-- **Funcionalidades**:
-  - Processamento assíncrono de todos os eventos WhatsApp
-  - Integração com o Queue Manager
-  - Logging detalhado de atividades através do sistema centralizado
-  - Tratamento especializado para cada tipo de evento
-  - Pré-carregamento inteligente de dados de grupo
-
-#### 💬 Message Controller (`app/controllers/messageController.js`)
-- **Responsabilidade**: Lógica de negócios e processamento de comandos
-- **Funcionalidades**:
-  - Processamento de mensagens recebidas
-  - Sistema de comandos com switch/case
-  - Extração inteligente de conteúdo de diferentes tipos de mensagens
-  - Respostas inteligentes e contextuais
-  - Integração com módulos de comando
-  - Tratamento de erros e validações
-  - Suporte a mensagens de grupo
-
-#### 🎨 Command Modules (`app/commandModules/`)
-- **Responsabilidade**: Módulos especializados de comandos
-- **Estrutura Modular**:
-  - **StickerModules**: Sistema completo de stickers
-    - `stickerCommand.js` - Processamento e criação de stickers
-    - `stickerPackManager.js` - Gerenciamento de packs por usuário
-    - `stickerSubCommands.js` - Sub-comandos de administração
-  - Arquitetura extensível para novos comandos
-  - Isolamento de funcionalidades específicas
-
-#### 🛠️ Utils Modules (`app/utils/`)
-- **Responsabilidade**: Utilitários e helpers do sistema
-- **Componentes**:
-  - **baileys/**: Helpers específicos do Baileys
-    - `messageHelper.js` - Processamento de mensagens
-    - `mediaHelper.js` - Manipulação de mídia
-  - `constants.js` - Constantes globais do sistema
-  - `messageUtils.js` - Utilitários de envio de mensagens
-  - **logger/**: Sistema de logging centralizado
-  - **queue/**: Sistema de filas com BullMQ e Redis
-  - Tratamento de erros e validações
-  - Suporte a mensagens de grupo
-
-#### 📝 Logger Module (`app/utils/logger/loggerModule.js`)
-- **Responsabilidade**: Sistema centralizado de logging
-- **Funcionalidades**:
-  - Logs em múltiplos níveis (error, warn, info, debug)
-  - Rotação automática de arquivos de log
-  - Compressão automática de logs antigos
-  - Logs separados por tipo (aplicação, erro, aviso)
-  - Formatação avançada para console e arquivos
-  - Captura de exceções não tratadas
-
-###  Atualizações da v1.0.5
-
-- **🔧 Melhorias técnicas:**
-  - Implementação de sistema de filas com BullMQ e Redis
-  - Padronização de todos os arquivos com cabeçalhos de documentação
-  - Substituição completa de console.log/error por logger estruturado
-  - Melhor tratamento e captura de erros em todos os módulos
-  - Rotação e compressão automática de arquivos de log
-
-- **✨ Novos recursos:**
-  - Sistema completo de sticker packs com 30 stickers por pack
-  - Sub-comandos avançados para gerenciamento de stickers
-  - Sistema de preferências personalizadas por usuário
-  - Metadados EXIF automáticos em stickers
-  - Rate limiting inteligente para envio de packs
-  - Sistema de logging em múltiplos níveis (error, warn, info, debug)
-  - Logs separados por tipo (aplicação, erro, aviso)
-  - Cabeçalhos padronizados em todos os módulos com versão e autoria
-  - Mensagens de erro mais detalhadas com stack traces
-  
-- **🐛 Correções:**
-  - Melhorias na captura e log de exceções não tratadas
-  - Padronização do formato de logs em todos os módulos
-  - Melhor rastreabilidade de erros através do sistema centralizado
-  - Otimizações no processamento de mídia para stickers
-  - Melhor validação de comandos e tratamento de erros
-
-## 📝 Sistema de Logging Centralizado
-
-O OmniZap v1.0.5 introduz um sistema avançado de logging centralizado com Winston:
-
-### 📊 Níveis de Log
-
-| Nível | Descrição | Uso Típico |
-|------|-----|-----------|
-| **error** | Erros críticos | Falhas de conexão, exceções não tratadas |
-| **warn** | Avisos importantes | Reconexões, timeouts, problemas não críticos |
-| **info** | Informações operacionais | Conexões, desconexões, eventos importantes |
-| **debug** | Informações detalhadas | Detalhes de processamento, útil para desenvolvimento |
-
-### 🔧 Funcionalidades do Logger
-
-- **Rotação de Arquivos**: Logs são divididos por data (formato YYYY-MM-DD)
-- **Compressão Automática**: Arquivos antigos são comprimidos em .gz
-- **Logs Separados**: Arquivos independentes para erros, avisos e logs gerais
-- **Formatação Rica**: Logs coloridos no console, formato JSON em arquivos
-- **Captura de Exceções**: Registra automaticamente exceções não tratadas
-- **Metadados**: Inclui informações de serviço, instância e ambiente
-- **Configurável**: Ajuste de nível de log por ambiente (development/production)
-
-### 📁 Estrutura de Logs
-
-```
-logs/
-├── application-YYYY-MM-DD.log     # Logs gerais da aplicação
-├── error-YYYY-MM-DD.log           # Logs de erro específicos
-├── warn-YYYY-MM-DD.log            # Logs de avisos
-├── *.log.gz                       # Arquivos comprimidos automaticamente
-└── *.log.[1-30]                   # Rotação de arquivos por número
-```
-
-## 🔄 Fluxo de Eventos
-
-```
-                           ┌─────────────────┐
-                           │   Logger Module  │
-                           │     (Logging)    │
-                           └─────────────────┘
-                                   ▲
-                                   │
-      ┌─────────────────┐         │         ┌─────────────────┐
-      │  Socket Controller │ ─────┼─────── │  Queue Manager  │
-      │   (Conexão)        │         │         │ (Filas)         │
-      └─────────────────┘         │         └─────────────────┘
-               │                     │                     │
-               │                     │                     │
-               v                     v                     v
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│ Event Handler   │ <-> │     OmniZap Main    │ <-> │ Message Controller │
-│(Processamento)  │     │   (Coordenação)    │     │ (Lógica Negócio) │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-                                 │
-                                 │
-                                 v
-                    ┌─────────────────┐
-                    │ Command Modules │
-                    │  (Sticker Packs) │
-                    └─────────────────┘
-```
-
-### ⚡ Vantagens da Arquitetura Modular
-
-- **Escalabilidade**: Cada módulo pode ser otimizado independentemente
-- **Manutenibilidade**: Código organizado e fácil de manter
-- **Performance**: Processamento assíncrono e filas inteligentes
-- **Flexibilidade**: Fácil adição de novos recursos
-- **Monitoramento**: Logs detalhados para cada módulo
-- **Resiliente**: Tratamento avançado de erros e reconexão automática
-- **Eficiente**: Uso de setImmediate para processamento em segundo plano
+*   **Conexão Flexível:** Suporte para conexão via QR Code e Código de Pareamento (Pairing Code) para maior conveniência e segurança.
+*   **Gerenciamento de Sessão:** Persistência automática das credenciais de autenticação para reconexões rápidas e sem interrupções.
+*   **Processamento de Mensagens:** Lida com o recebimento e atualização de mensagens, incluindo suporte a enquetes.
+*   **Gerenciamento de Grupos:** Atualização e persistência de metadados de grupos e participantes.
+*   **Sistema de Logs Avançado:** Logs detalhados com rotação diária de arquivos, múltiplos níveis de log (info, warn, error, debug, etc.) e formatação colorida para fácil depuração.
+*   **Monitoramento de Métricas:** Coleta e log de métricas de uso de CPU e memória do sistema para acompanhamento de desempenho.
+*   **Reconexão Automática:** Lógica de reconexão robusta com tentativas limitadas em caso de desconexões inesperadas.
 
 ## 🛠️ Tecnologias Utilizadas
 
-- [Baileys](https://github.com/whiskeysockets/baileys): Framework de comunicação com WhatsApp Web
-- [Node.js](https://nodejs.org/): Ambiente de execução JavaScript
-- [Redis](https://redis.io/): Banco de dados em memória para filas e cache
-- [BullMQ](https://bullmq.io/): Sistema de filas para Node.js
-- [Winston](https://github.com/winstonjs/winston): Sistema avançado de logging
-- [FFmpeg](https://ffmpeg.org/): Processamento de mídia para stickers
-
-## 📦 Estrutura do Projeto
-
-```
-omnizap-system/
-├── app/                          # Diretório principal da aplicação
-│   ├── commandModules/           # Módulos de comandos do sistema
-│   │   └── stickerModules/       # Sistema completo de stickers
-│   ├── connection/               # Controlador de conexão WhatsApp
-│   │   └── qr-code/              # Armazenamento de QR e credenciais
-│   ├── controllers/              # Controladores da aplicação
-│   ├── events/                   # Handler de eventos do WhatsApp
-│   └── utils/                    # Utilitários do sistema
-│       ├── baileys/              # Helpers para a API Baileys
-│       ├── logger/               # Sistema de logging
-│       └── queue/                # Sistema de filas com BullMQ
-├── logs/                         # Diretório de logs rotacionados
-├── temp/                         # Arquivos temporários
-│   ├── stickerPacks/             # Pacotes de stickers por usuário
-│   └── stickers/                 # Stickers temporários
-├── index.js                      # Ponto de entrada da aplicação
-└── package.json                  # Dependências e configurações
-```
+*   **Node.js** (>=16.0.0)
+*   **Baileys** (`@whiskeysockets/baileys`): Biblioteca principal para interação com o WhatsApp.
+*   **Winston**: Para um sistema de logging configurável e eficiente.
+*   **Winston Daily Rotate File**: Para rotação automática de arquivos de log.
+*   **Dotenv**: Para carregamento de variáveis de ambiente.
+*   **Envalid**: Para validação de variáveis de ambiente.
+*   **Chalk**: Para estilização de saída de terminal.
+*   **Node-Cache**: Para cache de dados em memória.
+*   **Moment-Timezone**: Para manipulação de datas e fusos horários.
+*   **Qrcode-terminal**: Para exibição do QR Code no terminal.
+*   **Write-File-Atomically**: Para escrita segura de arquivos.
+*   **@hapi/boom**: Para tratamento de erros HTTP.
 
 ## ⚙️ Instalação
 
-1. Clone o repositório:
+Siga os passos abaixo para configurar e executar o OmniZap System em sua máquina local.
+
+### Pré-requisitos
+
+Certifique-se de ter o Node.js (versão 16 ou superior) e o npm (gerenciador de pacotes do Node.js) instalados em seu sistema.
+
+### 1. Clonar o Repositório
+
 ```bash
 git clone https://github.com/Kaikygr/omnizap-system.git
 cd omnizap-system
 ```
 
-2. Instale as dependências:
+### 2. Instalar Dependências
+
 ```bash
 npm install
 ```
 
-3. Configure o ambiente:
-```bash
-cp .env.example .env
-# Edite o arquivo .env com suas configurações
+### 3. Configurar Variáveis de Ambiente
+
+Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
+
+```dotenv
+# Nível de log (development, production, test)
+NODE_ENV=development
+# Nível mínimo de log a ser exibido (error, warn, info, debug, etc.)
+LOG_LEVEL=debug
+# Nome do serviço para logs (opcional)
+ECOSYSTEM_NAME=omnizap-system
+
+# Configurações para conexão via Código de Pareamento (opcional)
+# Defina como 'true' para usar o código de pareamento.
+# PAIRING_CODE=true
+# Se PAIRING_CODE for true, forneça o número de telefone com código do país (ex: 55119xxxxxxxx)
+# PHONE_NUMBER=
 ```
 
-4. Instale FFmpeg (necessário para criação de stickers):
+## ▶️ Como Usar
+
+Para iniciar o OmniZap System, utilize o script `start_socket.sh`. Este script oferece opções para iniciar uma nova sessão ou reconectar a uma sessão existente.
+
 ```bash
-# Ubuntu/Debian
-sudo apt-get install ffmpeg
-
-# macOS
-brew install ffmpeg
-
-# Windows
-# Baixe do site oficial e adicione ao PATH
+./start_socket.sh
 ```
 
-5. Inicie o sistema:
-```bash
-npm start
-```
+Ao executar o script, você será solicitado a escolher um método de conexão:
 
-6. Escaneie o QR Code que aparecerá no terminal ou use o código de pareamento (se configurado).
+1.  **Reconectar com a sessão salva:** Tenta usar as credenciais de sessão salvas anteriormente em `./app/connection/auth_info_baileys`.
+2.  **Iniciar nova sessão com QR Code:** Limpa qualquer sessão anterior e gera um novo QR Code no terminal para você escanear com seu WhatsApp.
+3.  **Iniciar nova sessão com Código de Pareamento:** Limpa qualquer sessão anterior e solicita um número de telefone para gerar um código de pareamento. Você deve inserir este código no seu WhatsApp (WhatsApp > Aparelhos Conectados > Conectar um Aparelho > Conectar com número de telefone).
 
-## 🚀 Principais Recursos
+### Estrutura de Pastas
 
-### Sistema de Stickers
+*   `app/`: Contém a lógica principal da aplicação.
+    *   `connection/`: Gerencia a conexão com o WhatsApp (Baileys).
+        *   `socketController.js`: Lógica de conexão, eventos e persistência de sessão.
+        *   `auth_info_baileys/`: Diretório onde as credenciais de autenticação do Baileys são salvas.
+        *   `store/`: Armazenamento de dados como chats, contatos, mensagens e grupos.
+    *   `controllers/`: Lida com a lógica de negócios, como o processamento de mensagens.
+        *   `messageController.js`: Processa mensagens e eventos do WhatsApp.
+    *   `utils/`: Utilitários e módulos auxiliares.
+        *   `logger/`: Módulo de logging configurável.
+        *   `systemMetrics/`: Módulo para coletar métricas do sistema.
+*   `logs/`: Diretório onde os arquivos de log são armazenados.
+*   `index.js`: Ponto de entrada da aplicação.
+*   `start_socket.sh`: Script shell para iniciar a aplicação e gerenciar opções de conexão.
 
-O OmniZap conta com um sistema completo de criação e gerenciamento de stickers:
+## 📝 Logs
 
-- **Criação de Stickers**: Converte imagens e vídeos em stickers WhatsApp
-- **Gerenciamento de Pacotes**: Organize stickers em pacotes personalizados
-- **Customização**: Configure nome e autor para cada pacote
-- **Compartilhamento**: Envie pacotes completos para outros usuários
+O sistema de logs é configurado com `winston` e `winston-daily-rotate-file` para garantir logs detalhados e organizados.
 
-Comandos disponíveis:
-- `/sticker` - Cria um sticker a partir de mídia
-- `/sticker list` - Lista todos os pacotes disponíveis
-- `/sticker info [número]` - Mostra detalhes de um pacote
-- `/sticker send [número]` - Envia um pacote de stickers
-- `/sticker rename [número] [nome]|[autor]` - Renomeia um pacote
-- `/sticker delete [número]` - Exclui um pacote
-
-### Sistema de Filas com BullMQ
-
-A partir da versão 1.0.6, o OmniZap utiliza BullMQ para gerenciamento de filas:
-
-- **Mensagens**: Processamento de mensagens em filas
-- **Eventos**: Registro de todos os eventos do WhatsApp em filas
-- **Retentativas**: Retentativas automáticas em caso de falha
-- **Prioridades**: Suporte a diferentes níveis de prioridade
-
-### Sistema de Logging Avançado
-
-Sistema centralizado de logging baseado em Winston:
-
-- **Níveis de Log**: Suporte a múltiplos níveis (error, warn, info, debug)
-- **Rotação de Arquivos**: Compressão e rotação automática por data
-- **Formatação Personalizada**: Formato rico com timestamp e contexto
-- **Separação por Categoria**: Arquivos separados para erros, alertas e informações
-
-## 🧩 Arquitetura Modular
-
-O OmniZap foi construído com uma arquitetura modular para facilitar a manutenção e expansão:
-
-- **Event Handler**: Processamento independente de eventos do WhatsApp
-- **Command Modules**: Sistema modular para processamento de comandos
-- **Queue Manager**: Camada de abstração para acesso ao sistema de filas
-- **Media Helper**: Utilitários para processamento de mídia
-- **Message Utils**: Ferramentas para formatação e envio de mensagens
-
-## 🔒 Ambiente e Configuração
-
-O OmniZap utiliza variáveis de ambiente para configuração:
-
-- `COMMAND_PREFIX`: Prefixo para comandos (padrão: "/")
-- `REDIS_HOST`: Host do Redis
-- `REDIS_PORT`: Porta do Redis
-- `REDIS_PASSWORD`: Senha do Redis
-- `LOG_LEVEL`: Nível de detalhamento dos logs
-- `QR_CODE_PATH`: Caminho para salvar QR Code e credenciais
-- `PAIRING_CODE`: Usar código de pareamento em vez de QR Code
-- `PHONE_NUMBER`: Número para código de pareamento
-
-## 📜 Licença
-
-Este projeto está licenciado sob a licença MIT - veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+*   Os logs são salvos no diretório `logs/`.
+*   Arquivos de log são rotacionados diariamente.
+*   Níveis de log configuráveis via variável de ambiente `LOG_LEVEL`.
+*   Logs de erro e aviso são separados em arquivos dedicados.
 
 ## 🤝 Contribuição
 
-Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou enviar pull requests.
+Contribuições são bem-vindas! Se você deseja contribuir, por favor, siga estas diretrizes:
 
-## 📞 Contato
+1.  Faça um fork do repositório.
+2.  Crie uma nova branch (`git checkout -b feature/sua-feature`).
+3.  Faça suas alterações e adicione testes, se aplicável.
+4.  Commit suas alterações (`git commit -m 'feat: Adiciona nova funcionalidade'`).
+5.  Envie para a branch (`git push origin feature/sua-feature`).
+6.  Abra um Pull Request.
 
-- GitHub: [Kaikygr](https://github.com/Kaikygr)
-- Repositório: [omnizap-system](https://github.com/Kaikygr/omnizap-system)
+## 📄 Licença
+
+Este projeto está licenciado sob a Licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+## 📧 Contato
+
+Para dúvidas ou suporte, por favor, abra uma issue no repositório do GitHub:
+[https://github.com/Kaikygr/omnizap-system/issues](https://github.com/Kaikygr/omnizap-system/issues)
