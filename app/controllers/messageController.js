@@ -18,7 +18,6 @@ const logger = require('../utils/logger/loggerModule');
  * @param {Object} update - Objeto contendo a atualização do WhatsApp.
  */
 const handleWhatsAppUpdate = async (update) => {
-  // Verifica se é uma atualização de mensagem
   if (update.messages && Array.isArray(update.messages)) {
     logger.info('📨 Processando mensagens recebidas', {
       messageCount: update.messages.length,
