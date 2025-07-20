@@ -128,7 +128,7 @@ async function connectToWhatsApp() {
     auth: state,
     logger: require('pino')({ level: 'silent' }),
     browser: Browsers.macOS('Desktop'),
-    
+
     qrTimeout: 30000,
     syncFullHistory: true,
     markOnlineOnConnect: false,
@@ -141,7 +141,10 @@ async function connectToWhatsApp() {
   if (usePairingCode && !sock.authState.creds.registered) {
     const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
     if (!phoneNumber) {
-      logger.error('Número de telefone é obrigatório para o modo de pareamento.', { errorType: 'config_error', field: 'PHONE_NUMBER' });
+      logger.error('Número de telefone é obrigatório para o modo de pareamento.', {
+        errorType: 'config_error',
+        field: 'PHONE_NUMBER',
+      });
       return;
     }
     setTimeout(async () => {
@@ -153,7 +156,11 @@ async function connectToWhatsApp() {
         logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular com número');
         logger.info('═══════════════════════════════════════════════════');
       } catch (error) {
-        logger.error('❌ Erro ao solicitar o código de pareamento:', { error: error.message, stack: error.stack, action: 'request_pairing_code' });
+        logger.error('❌ Erro ao solicitar o código de pareamento:', {
+          error: error.message,
+          stack: error.stack,
+          action: 'request_pairing_code',
+        });
       }
     }, 3000);
   }
@@ -230,35 +237,54 @@ async function handleConnectionUpdate(update, sock) {
     if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       connectionAttempts++;
       logger.warn(
-        `Conexão perdida. Tentando reconectar em ${RECONNECT_INTERVAL / 1000}s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`,
-        { action: 'reconnect_attempt', attempt: connectionAttempts, maxAttempts: MAX_CONNECTION_ATTEMPTS, reason: lastDisconnect?.error?.output?.statusCode || 'unknown' }
+        `Conexão perdida. Tentando reconectar em ${
+          RECONNECT_INTERVAL / 1000
+        }s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`,
+        {
+          action: 'reconnect_attempt',
+          attempt: connectionAttempts,
+          maxAttempts: MAX_CONNECTION_ATTEMPTS,
+          reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
+        },
       );
       setTimeout(connectToWhatsApp, RECONNECT_INTERVAL);
     } else if (shouldReconnect) {
-      logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.', { action: 'reconnect_failed', reason: lastDisconnect?.error?.output?.statusCode || 'unknown' });
+      logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.', {
+        action: 'reconnect_failed',
+        reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
+      });
     } else {
-      logger.error('❌ Conexão fechada. Motivo:', { action: 'connection_closed', reason: lastDisconnect?.error?.output?.statusCode || 'unknown', error: lastDisconnect?.error?.message });
+      logger.error('❌ Conexão fechada. Motivo:', {
+        action: 'connection_closed',
+        reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
+        error: lastDisconnect?.error?.message,
+      });
     }
   }
   if (connection === 'open') {
     logger.info('✅ Conectado com sucesso ao WhatsApp!', { action: 'connection_open' });
     connectionAttempts = 0;
-    // Start logging system metrics periodically
     setInterval(() => {
       const metrics = getSystemMetrics();
       logger.info('System Metrics', metrics);
-    }, 60000); // Log every 60 seconds
+    }, 60000);
 
-    // Fetch and save all participating groups metadata on successful connection
     try {
       const allGroups = await sock.groupFetchAllParticipating();
       for (const group of Object.values(allGroups)) {
         store.groups[group.id] = group;
       }
       store.debouncedWrite('groups');
-      logger.info(`Metadados de ${Object.keys(allGroups).length} grupos carregados e salvos.`, { action: 'groups_loaded', count: Object.keys(allGroups).length });
+      logger.info(`Metadados de ${Object.keys(allGroups).length} grupos carregados e salvos.`, {
+        action: 'groups_loaded',
+        count: Object.keys(allGroups).length,
+      });
     } catch (error) {
-      logger.error('Erro ao carregar metadados de grupos na conexão:', { error: error.message, stack: error.stack, action: 'groups_load_error' });
+      logger.error('Erro ao carregar metadados de grupos na conexão:', {
+        error: error.message,
+        stack: error.stack,
+        action: 'groups_load_error',
+      });
     }
   }
 }
@@ -272,7 +298,11 @@ async function handleMessageUpdate(updates, sock) {
           message: pollCreation,
           pollUpdates: update.pollUpdates,
         });
-        logger.info('Votos da enquete atualizados:', { action: 'poll_votes_updated', key: key, aggregatedVotes: aggregatedVotes });
+        logger.info('Votos da enquete atualizados:', {
+          action: 'poll_votes_updated',
+          key: key,
+          aggregatedVotes: aggregatedVotes,
+        });
       }
     }
   }
@@ -286,7 +316,10 @@ async function handleGroupUpdate(updates, sock) {
       store.groups[event.id] = event;
     }
     store.debouncedWrite('groups');
-    logger.info(`Metadados do grupo ${event.id} atualizados.`, { action: 'group_metadata_updated', groupId: event.id });
+    logger.info(`Metadados do grupo ${event.id} atualizados.`, {
+      action: 'group_metadata_updated',
+      groupId: event.id,
+    });
   }
 }
 
@@ -322,15 +355,25 @@ async function handleGroupParticipantsUpdate(update, sock) {
         }
       }
       store.debouncedWrite('groups');
-      logger.info(`Participantes do grupo ${groupId} atualizados.`, { action: 'group_participants_updated', groupId: groupId, participants: participants, actionType: action });
+      logger.info(`Participantes do grupo ${groupId} atualizados.`, {
+        action: 'group_participants_updated',
+        groupId: groupId,
+        participants: participants,
+        actionType: action,
+      });
     } else {
-      logger.warn(`Metadados do grupo ${groupId} não encontrados no armazenamento durante a atualização de participantes.`, { action: 'group_participants_update_missing_metadata', groupId: groupId });
+      logger.warn(
+        `Metadados do grupo ${groupId} não encontrados no armazenamento durante a atualização de participantes.`,
+        { action: 'group_participants_update_missing_metadata', groupId: groupId },
+      );
     }
   } catch (error) {
-    logger.error(
-      `Erro ao processar atualização de participantes do grupo ${update.id}:`,
-      { error: error.message, stack: error.stack, groupId: update.id, action: 'group_participants_update_error' }
-    );
+    logger.error(`Erro ao processar atualização de participantes do grupo ${update.id}:`, {
+      error: error.message,
+      stack: error.stack,
+      groupId: update.id,
+      action: 'group_participants_update_error',
+    });
   }
 }
 
