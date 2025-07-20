@@ -13,21 +13,7 @@
 require('dotenv').config();
 const logger = require('../utils/logger/loggerModule');
 
-const OmniZapMessageProcessor = async (messageUpdate) => {
-  logger.info('Iniciando processamento de mensagens', {
-    messageCount: messageUpdate?.messages?.length || 0,
-  });
 
-  try {
-    for (const messageInfo of messageUpdate?.messages || []) {
-      logger.info(
-        `📨 Mensagem recebida de ${messageInfo.key.remoteJid}: ${messageText || 'Sem conteúdo'}`,
-      );
-    }
-  } catch (error) {
-    logger.error('Erro ao processar mensagens:', error.message);
-  }
-};
 
 /**
  * Lida com mensagens recebidas
@@ -37,14 +23,14 @@ const OmniZapMessageProcessor = async (messageUpdate) => {
 const processMessages = async (messageUpdate) => {
   logger.info('📨 Processando mensagens recebidas', {
     messageCount: messageUpdate?.messages?.length || 0,
+    action: 'process_incoming_messages'
   });
 
   try {
     for (const messageInfo of messageUpdate?.messages || []) {
       logger.info(
-        `📨 Mensagem de ${messageInfo.key.remoteJid}: ${
-          messageInfo.message?.conversation || 'Sem conteúdo'
-        }`,
+        `📨 Mensagem de ${messageInfo.key.remoteJid}: ${messageInfo.message?.conversation || 'Sem conteúdo'}`,
+        { remoteJid: messageInfo.key.remoteJid, messageId: messageInfo.key.id, hasContent: !!messageInfo.message?.conversation }
       );
     }
   } catch (error) {
@@ -58,11 +44,10 @@ const processMessages = async (messageUpdate) => {
  * @param {Object} event - Evento recebido do socket
  */
 const processEvent = (event) => {
-  logger.info('🔄 Processando evento recebido:', event);
+  logger.info('🔄 Processando evento recebido:', { eventType: event?.type || 'unknown', eventData: event });
 };
 
 module.exports = {
-  OmniZapMessageProcessor,
   processMessages,
   processEvent,
 };
