@@ -13,6 +13,7 @@ const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
 const logger = require('../utils/logger/loggerModule');
+const { OmniZapMessageProcessor, handleWhatsAppEvent } = require('../controllers/messageController');
 
 let activeSocket = null;
 let connectionAttempts = 0;
@@ -25,10 +26,12 @@ let isReconnecting = false;
 function handleAllEvents(sock) {
   sock.ev.on('connection.update', (update) => {
     logger.info('🔄 Evento de conexão:', update);
+    handleWhatsAppEvent(update);
   });
 
   sock.ev.on('messages.upsert', (messageUpdate) => {
     logger.info('📨 Evento de mensagens:', messageUpdate);
+    OmniZapMessageProcessor(messageUpdate, sock);
   });
 
   sock.ev.on('creds.update', () => {
@@ -37,14 +40,17 @@ function handleAllEvents(sock) {
 
   sock.ev.on('chats.upsert', (chats) => {
     logger.info('💬 Novos chats:', chats);
+    handleWhatsAppEvent(chats);
   });
 
   sock.ev.on('groups.update', (groups) => {
     logger.info('👥 Atualizações de grupos:', groups);
+    handleWhatsAppEvent(groups);
   });
 
   sock.ev.on('contacts.upsert', (contacts) => {
     logger.info('👤 Novos contatos:', contacts);
+    handleWhatsAppEvent(contacts);
   });
 
   // Adicione outros eventos conforme necessário
