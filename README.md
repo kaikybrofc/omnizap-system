@@ -4,6 +4,7 @@ Sistema profissional de automação WhatsApp com tecnologia Baileys.
 
 ## 🚀 Visão Geral
 
+
 O OmniZap System é uma solução robusta e escalável para automação de mensagens no WhatsApp, construída sobre a poderosa biblioteca Baileys. Ele oferece funcionalidades essenciais para gerenciar conexões, processar mensagens, lidar com grupos e monitorar o desempenho do sistema, ideal para empresas e desenvolvedores que buscam integrar o WhatsApp em seus fluxos de trabalho.
 
 ## ✨ Funcionalidades Principais
