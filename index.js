@@ -283,6 +283,9 @@ if (require.main === module) {
       // Importar e configurar socketController
       const socketControllerModule = require('./app/connection/socketController');
 
+      // Iniciar a conexão com o WhatsApp
+      socketControllerModule.connectToWhatsApp();
+
       // Registrar o socketController se ele exporta as funções necessárias
       if (socketControllerModule && typeof socketControllerModule === 'object') {
         registerSocketController(socketControllerModule);

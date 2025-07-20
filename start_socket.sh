@@ -2,41 +2,58 @@
 
 # Script para inicializar o Socket Controller do OmniZap
 
-# Função para exibir o menu de escolha do método de início
-function choose_start_method() {
-  echo "Escolha o método de início para a conexão com o WhatsApp:"
-  echo "1) QR Code"
-  echo "2) Código de Pareamento"
-  read -p "Digite o número da sua escolha: " choice
+AUTH_DIR="./app/connection/auth_info_baileys"
 
-  case $choice in
-    1)
-      export PAIRING_CODE=false
-      echo "Método escolhido: QR Code"
-      ;;
-    2)
-      export PAIRING_CODE=true
-      read -p "Digite o número de telefone (apenas números, com código do país): " phone_number
-      export PHONE_NUMBER=$phone_number
-      echo "Método escolhido: Código de Pareamento"
-      ;;
-    *)
-      echo "Escolha inválida. Tente novamente."
-      choose_start_method
-      ;;
-  esac
+# Função para limpar a sessão anterior
+function clear_session() {
+  if [ -d "$AUTH_DIR" ]; then
+    echo "Limpando sessão anterior..."
+    rm -rf "$AUTH_DIR"
+    echo "Sessão anterior removida."
+  fi
 }
 
-# Verificar se é a primeira conexão
-if [ ! -d "./app/connection/auth_info_baileys" ]; then
-  echo "Primeira conexão detectada."
-  choose_start_method
-else
-  echo "Conexão existente detectada. Usando configurações salvas."
-fi
+# Função para exibir o menu de escolha do método de início
+function choose_start_method() {
+  echo "Escolha o método de conexão com o WhatsApp:"
 
-# Inicializar o Socket Controller
-node ./app/connection/socketController.js
+  local options=()
+  if [ -d "$AUTH_DIR" ]; then
+    options+=("Reconectar com a sessão salva")
+  fi
+  options+=("Iniciar nova sessão com QR Code")
+  options+=("Iniciar nova sessão com Código de Pareamento")
 
-# Chamar o método connectToWhatsApp para inicializar a conexão
-node -e "require('./app/connection/socketController').connectToWhatsApp();"
+  select opt in "${options[@]}"; do
+    case $opt in
+      "Reconectar com a sessão salva")
+        echo "Tentando reconectar com a sessão salva."
+        # Não define variáveis, o socketController usará a sessão existente
+        break
+        ;;
+      "Iniciar nova sessão com QR Code")
+        clear_session
+        export PAIRING_CODE=false
+        echo "Método escolhido: QR Code (Nova Sessão)"
+        break
+        ;;
+      "Iniciar nova sessão com Código de Pareamento")
+        clear_session
+        export PAIRING_CODE=true
+        read -p "Digite o número de telefone (com código do país, ex: 55119...): " phone_number
+        export PHONE_NUMBER=$phone_number
+        echo "Método escolhido: Código de Pareamento (Nova Sessão)"
+        break
+        ;;
+      *) echo "Opção inválida $REPLY";;
+    esac
+  done
+}
+
+# Exibe o menu para o usuário
+choose_start_method
+
+# Inicializar o OmniZap System
+# As variáveis de ambiente PAIRING_CODE e PHONE_NUMBER serão usadas pelo script node.
+echo "Iniciando o OmniZap System..."
+node app/connection/socketController.js
