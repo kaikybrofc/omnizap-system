@@ -198,20 +198,7 @@ async function connectToWhatsApp() {
       logger.error('Error in group-participants.update event:', err);
     }
   });
-  sock.ev.on('chats.upsert', () => {
-    try {
-      logger.info('Chats atualizados:', store.chats.all());
-    } catch (err) {
-      logger.error('Error in chats.upsert event:', err);
-    }
-  });
-  sock.ev.on('contacts.upsert', () => {
-    try {
-      logger.info('Contatos atualizados:', Object.values(store.contacts));
-    } catch (err) {
-      logger.error('Error in contacts.upsert event:', err);
-    }
-  });
+  
   sock.ev.on('all', (event) => {
     try {
       processEvent(event);
