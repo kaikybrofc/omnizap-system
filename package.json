@@ -15,7 +15,9 @@
   "author": "OmniZap Team",
   "license": "MIT",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "pm2:dev": "pm2 start ecosystem.config.js --env development",
+    "pm2:prod": "pm2 start ecosystem.config.js --env production"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
