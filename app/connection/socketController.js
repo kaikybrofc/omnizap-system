@@ -9,12 +9,20 @@
  * @source https://github.com/Kaikygr/omnizap-system
  */
 
-const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason, Browsers, getAggregateVotesInPollMessage } = require('@whiskeysockets/baileys');
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+  DisconnectReason,
+  Browsers,
+  getAggregateVotesInPollMessage,
+} = require('@whiskeysockets/baileys');
+
 const store = {
   chats: [],
   contacts: {},
   messages: {},
-  bind: function(ev) {
+  bind: function (ev) {
     ev.on('messages.upsert', ({ messages, type }) => {
       if (type === 'append') {
         for (const msg of messages) {
@@ -27,7 +35,7 @@ const store = {
     });
     ev.on('chats.upsert', (newChats) => {
       for (const chat of newChats) {
-        const existingChat = this.chats.find(c => c.id === chat.id);
+        const existingChat = this.chats.find((c) => c.id === chat.id);
         if (existingChat) {
           Object.assign(existingChat, chat);
         } else {
@@ -41,17 +49,14 @@ const store = {
       }
     });
   },
-  readFromFile: function(filePath) {
-    // This is a placeholder. In a real scenario, you'd read from a JSON file.
-    // For now, we'll just log a message.
+  readFromFile: function (filePath) {
     logger.info(`Attempting to read store from ${filePath} (not implemented)`);
   },
-  writeToFile: function(filePath) {
-    // This is a placeholder. In a real scenario, you'd write to a JSON file.
-    // For now, we'll just log a message.
+  writeToFile: function (filePath) {
     logger.info(`Attempting to write store to ${filePath} (not implemented)`);
-  }
+  },
 };
+
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
@@ -64,12 +69,7 @@ let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 5;
 const RECONNECT_INTERVAL = 10000;
 
-// Cache para metadados de grupos
 const groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false });
-
-// Armazenamento em memória para dados da conexão
-
-
 
 async function connectToWhatsApp() {
   logger.info('Iniciando conexão com o WhatsApp...');
@@ -91,7 +91,8 @@ async function connectToWhatsApp() {
     syncFullHistory: true,
     markOnlineOnConnect: false,
     cachedGroupMetadata: (jid) => groupCache.get(jid),
-    getMessage: async (key) => (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
+    getMessage: async (key) =>
+      (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
   });
 
   store.bind(sock.ev);
@@ -124,7 +125,9 @@ async function connectToWhatsApp() {
   sock.ev.on('groups.update', (updates) => handleGroupUpdate(updates, sock));
   sock.ev.on('group-participants.update', (update) => handleGroupParticipantsUpdate(update, sock));
   sock.ev.on('chats.upsert', () => logger.info('Chats atualizados:', store.chats.all()));
-  sock.ev.on('contacts.upsert', () => logger.info('Contatos atualizados:', Object.values(store.contacts)));
+  sock.ev.on('contacts.upsert', () =>
+    logger.info('Contatos atualizados:', Object.values(store.contacts)),
+  );
   sock.ev.on('all', (event) => processEvent(event));
 }
 
@@ -137,11 +140,17 @@ function handleConnectionUpdate(update, sock) {
   }
 
   if (connection === 'close') {
-    const shouldReconnect = lastDisconnect?.error instanceof Boom && lastDisconnect.error.output?.statusCode !== DisconnectReason.loggedOut;
+    const shouldReconnect =
+      lastDisconnect?.error instanceof Boom &&
+      lastDisconnect.error.output?.statusCode !== DisconnectReason.loggedOut;
 
     if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       connectionAttempts++;
-      logger.warn(`Conexão perdida. Tentando reconectar em ${RECONNECT_INTERVAL / 1000}s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`);
+      logger.warn(
+        `Conexão perdida. Tentando reconectar em ${
+          RECONNECT_INTERVAL / 1000
+        }s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`,
+      );
       setTimeout(() => connectToWhatsApp(sock), RECONNECT_INTERVAL);
     } else if (shouldReconnect) {
       logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.');
@@ -187,7 +196,10 @@ async function handleGroupParticipantsUpdate(update, sock) {
     groupCache.set(update.id, metadata);
     logger.info(`Participantes do grupo ${update.id} atualizados e metadados cacheados.`);
   } catch (error) {
-    logger.error(`Erro ao buscar metadados do grupo ${update.id} após atualização de participantes:`, error);
+    logger.error(
+      `Erro ao buscar metadados do grupo ${update.id} após atualização de participantes:`,
+      error,
+    );
   }
 }
 
