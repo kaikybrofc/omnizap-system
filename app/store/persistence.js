@@ -7,7 +7,6 @@ const lockfilePath = path.join(storePath, 'write.lock');
 
 async function acquireLock() {
   try {
-    // Ensure the base store directory exists
     await fs.mkdir(storePath, { recursive: true });
     await fs.mkdir(lockfilePath);
     logger.info('Lock acquired.');
