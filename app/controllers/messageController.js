@@ -4,7 +4,7 @@
  * Controlador responsável pelo processamento e tratamento de mensagens
  * recebidas através do WhatsApp via tecnologia Baileys
  *
- * @version 2.0.-
+ * @version 2.0.0
  * @author OmniZap Team
  * @license MIT
  * @source https://www.npmjs.com/package/baileys
