@@ -62,9 +62,8 @@ async function writeToFile(dataType, data) {
   }
 
   if (!(await acquireLock())) {
-    // If lock is not acquired, wait and retry
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return writeToFile(dataType, data); // Retry the write operation
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    return writeToFile(dataType, data);
   }
 
   const filePath = path.join(storePath, `${dataType}.json`);
