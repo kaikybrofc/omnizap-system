@@ -234,26 +234,58 @@ async function handleMessageUpdate(updates, sock) {
 
 async function handleGroupUpdate(updates, sock) {
   for (const event of updates) {
-    try {
-      const metadata = await sock.groupMetadata(event.id);
-      store.groups[event.id] = metadata;
-      store.debouncedWrite('groups');
-      logger.info(`Metadados do grupo ${event.id} atualizados e cacheados.`);
-    } catch (error) {
-      logger.error(`Erro ao buscar metadados do grupo ${event.id}:`, error);
+    // Update existing group metadata or add new group
+    if (store.groups[event.id]) {
+      Object.assign(store.groups[event.id], event);
+    } else {
+      store.groups[event.id] = event;
     }
+    store.debouncedWrite('groups');
+    logger.info(`Metadados do grupo ${event.id} atualizados.`);
   }
 }
 
 async function handleGroupParticipantsUpdate(update, sock) {
   try {
-    const metadata = await sock.groupMetadata(update.id);
-    store.groups[update.id] = metadata;
-    store.debouncedWrite('groups');
-    logger.info(`Participantes do grupo ${update.id} atualizados e metadados cacheados.`);
+    const groupId = update.id;
+    const participants = update.participants;
+    const action = update.action;
+
+    if (store.groups[groupId]) {
+      // Ensure the participants array exists and is an array of objects
+      if (!Array.isArray(store.groups[groupId].participants)) {
+        store.groups[groupId].participants = [];
+      }
+
+      if (action === 'add') {
+        for (const participantJid of participants) {
+          // Add participant if not already present
+          if (!store.groups[groupId].participants.some(p => p.id === participantJid)) {
+            store.groups[groupId].participants.push({ id: participantJid });
+          }
+        }
+      } else if (action === 'remove') {
+        // Remove participants
+        store.groups[groupId].participants = store.groups[groupId].participants.filter(
+          (p) => !participants.includes(p.id)
+        );
+      } else if (action === 'promote' || action === 'demote') {
+        // For promote/demote, update the admin status of existing participants
+        for (const participantJid of participants) {
+          const participantObj = store.groups[groupId].participants.find(p => p.id === participantJid);
+          if (participantObj) {
+            participantObj.admin = (action === 'promote') ? 'admin' : null; // Assuming 'admin' or null
+          }
+        }
+      }
+      store.debouncedWrite('groups');
+      logger.info(`Participantes do grupo ${groupId} atualizados.`);
+    } else {
+      logger.warn(`Metadados do grupo ${groupId} não encontrados no armazenamento durante a atualização de participantes.`);
+    }
   } catch (error) {
     logger.error(
-      `Erro ao buscar metadados do grupo ${update.id} após atualização de participantes:`,
+      `Erro ao processar atualização de participantes do grupo ${update.id}:`,
       error,
     );
   }
