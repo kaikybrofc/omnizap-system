@@ -17,154 +17,78 @@ const { processMessages, processEvent } = require('../controllers/messageControl
 
 let activeSocket = null;
 let connectionAttempts = 0;
-let lastConnectionTime = null;
-let isReconnecting = false;
+const MAX_CONNECTION_ATTEMPTS = 5;
+const RECONNECT_INTERVAL = 10000;
 
-/**
- * Lida com todos os eventos do Baileys
- */
-function handleAllEvents(sock) {
-  sock.ev.on('connection.update', (update) => {
-    logger.info('🔄 Evento de conexão:', update);
-    processEvent(update);
-  });
-
-  sock.ev.on('messages.upsert', (messageUpdate) => {
-    logger.info('📨 Evento de mensagens:', messageUpdate);
-    processMessages(messageUpdate, sock);
-  });
-
-  sock.ev.on('creds.update', () => {
-    logger.info('🔐 Credenciais atualizadas');
-  });
-
-  sock.ev.on('chats.upsert', (chats) => {
-    logger.info('💬 Novos chats:', chats);
-    processEvent(chats);
-  });
-
-  sock.ev.on('groups.update', (groups) => {
-    logger.info('👥 Atualizações de grupos:', groups);
-    processEvent(groups);
-  });
-
-  sock.ev.on('contacts.upsert', (contacts) => {
-    logger.info('👤 Novos contatos:', contacts);
-    processEvent(contacts);
-  });
-
-  // Adicione outros eventos conforme necessário
-}
-
-/**
- * Configura e retorna o socket do Baileys
- */
 async function connectToWhatsApp() {
-  if (isReconnecting) {
-    logger.warn('🔄 Já está em processo de reconexão, aguarde...');
-    return;
-  }
-
-  try {
-    isReconnecting = true;
-    connectionAttempts++;
-    logger.info(`🔗 Tentativa de conexão #${connectionAttempts}`);
+    logger.info('Iniciando conexão com o WhatsApp...');
+    connectionAttempts = 0;
 
     const authPath = path.join(__dirname, 'auth_info_baileys');
     const { state, saveCreds } = await useMultiFileAuthState(authPath);
     const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
-      version,
-      auth: state,
-      logger: require('pino')({ level: 'silent' }),
-      browser: Browsers.ubuntu('OmniZap'),
-      printQRInTerminal: !process.env.PAIRING_CODE,
+        version,
+        auth: state,
+        logger: require('pino')({ level: 'silent' }),
+        browser: Browsers.ubuntu('OmniZap'),
+        printQRInTerminal: !process.env.PAIRING_CODE,
+        qrTimeout: 30000,
     });
 
-    if (!sock.authState.creds.registered && !process.env.PAIRING_CODE) {
-      logger.warn('⚠️ Nenhuma credencial encontrada. Certifique-se de escanear o QR Code ou usar o código de pareamento.');
-    }
-
     if (process.env.PAIRING_CODE && !sock.authState.creds.registered) {
-      const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
-      if (!phoneNumber) {
-        throw new Error('Número de telefone é obrigatório para o modo de pareamento.');
-      }
-
-      if (sock.ws.readyState !== sock.ws.OPEN) {
-        logger.warn('⚠️ Aguardando conexão ser estabelecida antes de solicitar o código de pareamento.');
-        await new Promise((resolve) => {
-          const interval = setInterval(() => {
-            if (sock.ws.readyState === sock.ws.OPEN) {
-              clearInterval(interval);
-              resolve();
+        const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
+        if (!phoneNumber) {
+            logger.error('Número de telefone é obrigatório para o modo de pareamento.');
+            return;
+        }
+        setTimeout(async () => {
+            try {
+                const code = await sock.requestPairingCode(phoneNumber);
+                logger.info('═══════════════════════════════════════════════════');
+                logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
+                logger.info('\n          > ' + code.match(/.{1,4}/g).join('-') + ' <\n');
+                logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular com número');
+                logger.info('═══════════════════════════════════════════════════');
+            } catch (error) {
+                logger.error('❌ Erro ao solicitar o código de pareamento:', error);
             }
-          }, 1000);
-        });
-      }
-
-      try {
-        logger.info(`📞 Solicitando código de pareamento para: ${phoneNumber}`);
-        const code = await sock.requestPairingCode(phoneNumber);
-        logger.info('═══════════════════════════════════════════════════');
-        logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
-        logger.info(`\n          > ${code.match(/.{1,4}/g).join('-')} <\n`);
-        logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular com número');
-        logger.info('═══════════════════════════════════════════════════');
-      } catch (error) {
-        logger.error('❌ Erro ao solicitar o código de pareamento:', error.message);
-        throw error;
-      }
+        }, 3000);
     }
-
-    handleAllEvents(sock);
 
     activeSocket = sock;
     sock.ev.on('creds.update', saveCreds);
-    return sock;
-  } catch (error) {
-    isReconnecting = false;
-    logger.error('❌ Erro ao conectar ao WhatsApp:', error.message);
-    throw error;
-  }
+    sock.ev.on('connection.update', (update) => handleConnectionUpdate(update, sock));
+    sock.ev.on('messages.upsert', (messageUpdate) => processMessages(messageUpdate, sock));
+    sock.ev.on('all', (event) => processEvent(event));
 }
 
-/**
- * Lida com atualizações de conexão
- */
-function handleConnectionUpdate(update, sock, saveCreds) {
-  const { connection, lastDisconnect, qr } = update;
+function handleConnectionUpdate(update, sock) {
+    const { connection, lastDisconnect, qr } = update;
 
-  if (qr) {
-    logger.info('📱 QR Code gerado! Escaneie com seu WhatsApp:');
-    qrcode.generate(qr, { small: true });
-  }
-
-  if (connection === 'close') {
-    const shouldReconnect = (lastDisconnect?.error?.output?.statusCode || 0) !== DisconnectReason.loggedOut;
-    if (shouldReconnect && connectionAttempts < 5) {
-      setTimeout(connectToWhatsApp, 10000);
-    } else {
-      logger.error('❌ Sessão encerrada. Reinicie a aplicação para reconectar.');
+    if (qr) {
+        logger.info('📱 QR Code gerado! Escaneie com seu WhatsApp:');
+        qrcode.generate(qr, { small: true });
     }
-  } else if (connection === 'open') {
-    logger.info('✅ Conectado com sucesso ao WhatsApp!');
-    lastConnectionTime = Date.now();
-    connectionAttempts = 0;
-    isReconnecting = false;
-  }
 
-  sock.ev.on('creds.update', saveCreds);
-}
+    if (connection === 'close') {
+        const shouldReconnect = (lastDisconnect?.error instanceof Boom) &&
+                                (lastDisconnect.error.output?.statusCode !== DisconnectReason.loggedOut);
 
-/**
- * Lida com novas mensagens
- */
-function handleMessagesUpsert({ messages }) {
-  for (const message of messages) {
-    logger.info(`📨 Nova mensagem de ${message.key.remoteJid}: ${message.message?.conversation || 'Sem conteúdo'}`);
-  }
+        if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
+            connectionAttempts++;
+            logger.warn(`Conexão perdida. Tentando reconectar em ${RECONNECT_INTERVAL / 1000}s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`);
+            setTimeout(connectToWhatsApp, RECONNECT_INTERVAL);
+        } else if (shouldReconnect) {
+            logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.');
+        } else {
+            logger.error('❌ Conexão fechada. Motivo:', lastDisconnect?.error);
+        }
+    } else if (connection === 'open') {
+        logger.info('✅ Conectado com sucesso ao WhatsApp!');
+        connectionAttempts = 0;
+    }
 }
 
 /**
@@ -179,5 +103,4 @@ async function reconnectToWhatsApp() {
 
 module.exports = {
   connectToWhatsApp,
-  reconnectToWhatsApp,
 };

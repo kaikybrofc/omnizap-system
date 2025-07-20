@@ -3,3 +3,4 @@ node_modules/
 qr-code/
 logs/
 temp/
+app/connection/auth_info_baileys/
