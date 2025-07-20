@@ -234,7 +234,7 @@ async function handleConnectionUpdate(update, sock) {
           RECONNECT_INTERVAL / 1000
         }s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`,
       );
-      setTimeout(() => connectToWhatsApp(sock), RECONNECT_INTERVAL);
+      setTimeout(connectToWhatsApp, RECONNECT_INTERVAL);
     } else if (shouldReconnect) {
       logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.');
     } else {
