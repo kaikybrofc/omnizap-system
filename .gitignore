@@ -4,3 +4,4 @@ qr-code/
 logs/
 app/connection/auth_info_baileys/
 app/connection/baileys_store.json
+app/connection/store/messages.json
