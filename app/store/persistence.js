@@ -2,7 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../utils/logger/loggerModule');
 
-const storePath = path.join(__dirname, '../connection/store');
+const storePath = process.env.STORE_PATH || path.join(__dirname, '../connection/store');
 const lockfilePath = path.join(storePath, 'write.lock');
 
 async function acquireLock() {
