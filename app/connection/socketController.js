@@ -70,7 +70,8 @@ async function connectToWhatsApp() {
     connectionAttempts++;
     logger.info(`🔗 Tentativa de conexão #${connectionAttempts}`);
 
-    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth_info_baileys'));
+    const authPath = path.join(__dirname, 'auth_info_baileys');
+    const { state, saveCreds } = await useMultiFileAuthState(authPath);
     const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
@@ -81,24 +82,46 @@ async function connectToWhatsApp() {
       printQRInTerminal: !process.env.PAIRING_CODE,
     });
 
+    if (!sock.authState.creds.registered && !process.env.PAIRING_CODE) {
+      logger.warn('⚠️ Nenhuma credencial encontrada. Certifique-se de escanear o QR Code ou usar o código de pareamento.');
+    }
+
     if (process.env.PAIRING_CODE && !sock.authState.creds.registered) {
       const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
       if (!phoneNumber) {
         throw new Error('Número de telefone é obrigatório para o modo de pareamento.');
       }
 
-      logger.info(`📞 Solicitando código de pareamento para: ${phoneNumber}`);
-      const code = await sock.requestPairingCode(phoneNumber);
-      logger.info('═══════════════════════════════════════════════════');
-      logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
-      logger.info(`\n          > ${code.match(/.{1,4}/g).join('-')} <\n`);
-      logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular com número');
-      logger.info('═══════════════════════════════════════════════════');
+      if (sock.ws.readyState !== sock.ws.OPEN) {
+        logger.warn('⚠️ Aguardando conexão ser estabelecida antes de solicitar o código de pareamento.');
+        await new Promise((resolve) => {
+          const interval = setInterval(() => {
+            if (sock.ws.readyState === sock.ws.OPEN) {
+              clearInterval(interval);
+              resolve();
+            }
+          }, 1000);
+        });
+      }
+
+      try {
+        logger.info(`📞 Solicitando código de pareamento para: ${phoneNumber}`);
+        const code = await sock.requestPairingCode(phoneNumber);
+        logger.info('═══════════════════════════════════════════════════');
+        logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
+        logger.info(`\n          > ${code.match(/.{1,4}/g).join('-')} <\n`);
+        logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular com número');
+        logger.info('═══════════════════════════════════════════════════');
+      } catch (error) {
+        logger.error('❌ Erro ao solicitar o código de pareamento:', error.message);
+        throw error;
+      }
     }
 
     handleAllEvents(sock);
 
     activeSocket = sock;
+    sock.ev.on('creds.update', saveCreds);
     return sock;
   } catch (error) {
     isReconnecting = false;

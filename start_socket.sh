@@ -37,3 +37,6 @@ fi
 
 # Inicializar o Socket Controller
 node ./app/connection/socketController.js
+
+# Chamar o método connectToWhatsApp para inicializar a conexão
+node -e "require('./app/connection/socketController').connectToWhatsApp();"
