@@ -22,6 +22,7 @@ const store = {
   chats: [],
   contacts: {},
   messages: {},
+  groups: {},
   bind: function (ev) {
     ev.on('messages.upsert', ({ messages: incomingMessages, type }) => {
       const MAX_MESSAGES_PER_CHAT = 100; // Define o limite de mensagens por chat
@@ -65,7 +66,9 @@ const store = {
         this[dataType] = JSON.parse(data);
         logger.info(`Store for ${dataType} read from ${filePath}`);
       } else {
-        logger.warn(`Store file for ${dataType} not found at ${filePath}. Starting with empty data.`);
+        logger.warn(
+          `Store file for ${dataType} not found at ${filePath}. Starting with empty data.`,
+        );
       }
     } catch (error) {
       logger.error(`Error reading store for ${dataType} from ${filePath}:`, error);
@@ -96,18 +99,14 @@ const fs = require('fs');
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
-const NodeCache = require('node-cache');
+
 const logger = require('../utils/logger/loggerModule');
 const { processMessages, processEvent } = require('../controllers/messageController');
-
-
 
 let activeSocket = null;
 let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 5;
 const RECONNECT_INTERVAL = 10000;
-
-const groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false });
 
 async function connectToWhatsApp() {
   logger.info('Iniciando conexão com o WhatsApp...');
@@ -118,6 +117,7 @@ async function connectToWhatsApp() {
   store.readFromFile('chats');
   store.readFromFile('contacts');
   store.readFromFile('messages');
+  store.readFromFile('groups');
   const { version } = await fetchLatestBaileysVersion();
 
   const usePairingCode = process.env.PAIRING_CODE === 'true';
@@ -131,7 +131,6 @@ async function connectToWhatsApp() {
     qrTimeout: 30000,
     syncFullHistory: true,
     markOnlineOnConnect: false,
-    cachedGroupMetadata: (jid) => groupCache.get(jid),
     getMessage: async (key) =>
       (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
   });
@@ -174,7 +173,7 @@ async function connectToWhatsApp() {
   sock.ev.on('all', (event) => processEvent(event));
 }
 
-function handleConnectionUpdate(update, sock) {
+async function handleConnectionUpdate(update, sock) {
   const { connection, lastDisconnect, qr } = update;
 
   if (qr) {
@@ -200,9 +199,21 @@ function handleConnectionUpdate(update, sock) {
     } else {
       logger.error('❌ Conexão fechada. Motivo:', lastDisconnect?.error);
     }
-  } else if (connection === 'open') {
+  }
+  if (connection === 'open') {
     logger.info('✅ Conectado com sucesso ao WhatsApp!');
     connectionAttempts = 0;
+    // Fetch and save all participating groups metadata on successful connection
+    try {
+      const allGroups = await sock.groupFetchAllParticipating();
+      for (const group of Object.values(allGroups)) {
+        store.groups[group.id] = group;
+      }
+      store.debouncedWrite('groups');
+      logger.info(`Metadados de ${Object.keys(allGroups).length} grupos carregados e salvos.`);
+    } catch (error) {
+      logger.error('Erro ao carregar metadados de grupos na conexão:', error);
+    }
   }
 }
 
@@ -225,7 +236,8 @@ async function handleGroupUpdate(updates, sock) {
   for (const event of updates) {
     try {
       const metadata = await sock.groupMetadata(event.id);
-      groupCache.set(event.id, metadata);
+      store.groups[event.id] = metadata;
+      store.debouncedWrite('groups');
       logger.info(`Metadados do grupo ${event.id} atualizados e cacheados.`);
     } catch (error) {
       logger.error(`Erro ao buscar metadados do grupo ${event.id}:`, error);
@@ -236,7 +248,8 @@ async function handleGroupUpdate(updates, sock) {
 async function handleGroupParticipantsUpdate(update, sock) {
   try {
     const metadata = await sock.groupMetadata(update.id);
-    groupCache.set(update.id, metadata);
+    store.groups[update.id] = metadata;
+    store.debouncedWrite('groups');
     logger.info(`Participantes do grupo ${update.id} atualizados e metadados cacheados.`);
   } catch (error) {
     logger.error(
