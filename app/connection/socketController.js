@@ -77,6 +77,8 @@ const store = {
   writeToFile: function (dataType) {
     const filePath = path.join(__dirname, 'store', `${dataType}.json`);
     try {
+      // Ensure the directory exists
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, JSON.stringify(this[dataType], null, 2));
       logger.info(`Store for ${dataType} written to ${filePath}`);
     } catch (error) {
