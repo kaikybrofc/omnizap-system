@@ -13,7 +13,6 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../utils/logger/loggerModule');
-const { queueManager } = require('../utils/queue/queueManager');
 
 /**
  * Função local para validar participantes (evita importação circular)
@@ -36,7 +35,6 @@ class EventHandler {
     this.dataDir = path.join(__dirname, '../../temp/data');
     this.isSaving = false; // Lock para escrita concorrente
     this.useQueue = process.env.USE_QUEUE !== 'false'; // Flag para ativar/desativar filas
-
     // Dados em memória para acesso rápido
     this.messageData = new Map();
     this.groupData = new Map();
@@ -83,18 +81,6 @@ class EventHandler {
       // Verifica permissões de escrita
       try {
         accessSync(this.dataDir, constants.W_OK);
-        logger.debug(`✅ Permissões de escrita confirmadas para: ${this.dataDir}`);
-      } catch (permError) {
-        logger.error(`❌ Sem permissão de escrita no diretório: ${this.dataDir}`);
-        throw new Error(`Permissão negada: ${this.dataDir}`);
-      }
-
-      // Inicializar sistema de filas se habilitado
-      if (this.useQueue) {
-        try {
-          await queueManager.init();
-          queueManager.setEventHandler(this);
-          logger.info('🚀 EventHandler: Sistema de filas BullMQ inicializado');
         } catch (error) {
           logger.warn('⚠️ EventHandler: Erro ao inicializar filas, usando salvamento direto:', error.message);
           this.useQueue = false;
@@ -388,106 +374,7 @@ class EventHandler {
     }
   }
 
-  /**
-   * Retorna o Map apropriado baseado no tipo
-   */
-  getDataMapByType(type) {
-    const dataMap = {
-      groups: this.groupData,
-      contacts: this.contactData,
-      chats: this.chatData,
-      messages: this.messageData,
-      events: this.eventData,
-    };
-    return dataMap[type];
-  }
-
-  /**
-   * Salva dados imediatamente em arquivo
-   */
-  async saveDataImmediately(type, key, data) {
-    try {
-      const dataMap = this.getDataMapByType(type);
-      if (!dataMap) {
-        logger.error(`❌ DataMap não encontrado para tipo: ${type}`);
-        return;
-      }
-
-      // Verifica se key é válida
-      if (!key || typeof key !== 'string') {
-        logger.error(`❌ Chave inválida para ${type}: ${key}`);
-        return;
-      }
-
-      // Adiciona dados ao Map com timestamp
-      dataMap.set(key, {
-        ...data,
-        _savedAt: Date.now(),
-      });
-
-      // Atualiza estatísticas
-      this.stats[`total${type.charAt(0).toUpperCase() + type.slice(1)}`] = dataMap.size;
-
-      // Salva imediatamente no arquivo
-      await this.saveSpecificData(type);
-
-      logger.debug(`💾 ${type} salvo imediatamente: ${key.substring(0, 20)}...`);
-    } catch (error) {
-      logger.error(`❌ Erro ao salvar ${type} imediatamente:`, error.message);
-      logger.error(`❌ Detalhes do erro: tipo=${type}, key=${key}, data=${JSON.stringify(data).substring(0, 100)}...`);
-    }
-  }
-
-  /**
-   * Salva um tipo específico de dados
-   */
-  async saveSpecificData(type) {
-    const filePath = path.join(this.dataDir, `${type}.json`);
-    const tempFilePath = `${filePath}.tmp.${Date.now()}`;
-
-    try {
-      const dataMap = this.getDataMapByType(type);
-      if (!dataMap) {
-        logger.error(`❌ DataMap não encontrado para tipo: ${type}`);
-        return;
-      }
-
-      const data = this._getMapDataAsObject(dataMap);
-      const jsonContent = JSON.stringify(data, null, 2);
-
-      // Escreve no arquivo temporário primeiro
-      await fs.writeFile(tempFilePath, jsonContent, 'utf8');
-
-      // Verifica se o arquivo foi escrito corretamente
-      const stats = await fs.stat(tempFilePath);
-      if (stats.size === 0) {
-        throw new Error(`Arquivo temporário ${tempFilePath} está vazio`);
-      }
-
-      // Move o arquivo temporário para o definitivo
-      await fs.rename(tempFilePath, filePath);
-
-      logger.debug(`✅ Arquivo ${type}.json salvo com sucesso (${stats.size} bytes)`);
-    } catch (error) {
-      logger.error(`❌ Erro ao salvar ${type}:`, error.message);
-
-      // Tenta remover arquivo temporário se existir
-      try {
-        await fs.unlink(tempFilePath);
-        logger.debug(`🗑️ Arquivo temporário ${path.basename(tempFilePath)} removido`);
-      } catch (unlinkError) {
-        // Ignora erro se arquivo temporário não existir
-        if (unlinkError.code !== 'ENOENT') {
-          logger.warn(`⚠️ Erro ao remover arquivo temporário: ${unlinkError.message}`);
-        }
-      }
-
-      throw error; // Re-lança o erro para que seja tratado no nível superior
-    }
-  }
-
-  /**
-   * Métodos públicos para acessar dados permanentes
+  /**  * Métodos públicos para acessar dados permanentes
    */
   getMessage(remoteJid, messageId) {
     const key = `${remoteJid}_${messageId}`;
@@ -500,24 +387,8 @@ class EventHandler {
     return message;
   }
 
-  async setMessage(remoteJid, messageId, messageData) {
-    const key = `${remoteJid}_${messageId}`;
-
-    // Atualizar cache em memória imediatamente
-    this.messageData.set(key, messageData);
-    this.stats.totalMessages = this.messageData.size;
-
-    // Usar fila para persistência se disponível
-    if (this.useQueue && queueManager.initialized) {
-      try {
-        await queueManager.addDataSaveJob('message', { remoteJid, messageId }, messageData);
-        logger.debug(`💾 EventHandler: Mensagem ${messageId} adicionada à fila de salvamento`);
-      } catch (error) {
-        logger.warn('⚠️ EventHandler: Erro ao usar fila, salvando diretamente:', error.message);
-        await this.saveDataImmediately('messages', key, messageData);
-      }
-    } else {
-      await this.saveDataImmediately('messages', key, messageData);
+  setMessage(remoteJid, messageId, messageData) {
+    logger.info(`Salvando mensagem: ${messageId}`);
     }
   }
 
@@ -526,24 +397,8 @@ class EventHandler {
     return group;
   }
 
-  async setGroup(groupJid, groupData) {
-    // Atualizar cache em memória imediatamente
-    this.groupData.set(groupJid, groupData);
-    this.stats.totalGroups = this.groupData.size;
-
-    // Usar fila para persistência se disponível
-    if (this.useQueue && queueManager.initialized) {
-      try {
-        await queueManager.addDataSaveJob('group', groupJid, groupData);
-        logger.debug(`💾 EventHandler: Grupo ${groupJid} adicionado à fila de salvamento`);
-      } catch (error) {
-        logger.warn('⚠️ EventHandler: Erro ao usar fila, salvando diretamente:', error.message);
-        await this.saveDataImmediately('groups', groupJid, groupData);
-      }
-    } else {
-      await this.saveDataImmediately('groups', groupJid, groupData);
-    }
-  }
+  setGroup(groupJid, groupData) {
+    logger.info(`Salvando grupo: ${groupJid}`);  }
 
   getContact(contactJid) {
     const contact = this.contactData.get(contactJid);
@@ -551,23 +406,8 @@ class EventHandler {
   }
 
   async setContact(contactJid, contactData) {
-    // Atualizar cache em memória imediatamente
-    this.contactData.set(contactJid, contactData);
-    this.stats.totalContacts = this.contactData.size;
-
-    // Usar fila para persistência se disponível
-    if (this.useQueue && queueManager.initialized) {
-      try {
-        await queueManager.addDataSaveJob('contact', contactJid, contactData);
-        logger.debug(`💾 EventHandler: Contato ${contactJid} adicionado à fila de salvamento`);
-      } catch (error) {
-        logger.warn('⚠️ EventHandler: Erro ao usar fila, salvando diretamente:', error.message);
-        await this.saveDataImmediately('contacts', contactJid, contactData);
-      }
-    } else {
-      await this.saveDataImmediately('contacts', contactJid, contactData);
+    logger.info(`Salvando contato: ${contactJid}`);
     }
-  }
 
   getChat(chatJid) {
     const chat = this.chatData.get(chatJid);
@@ -575,23 +415,8 @@ class EventHandler {
   }
 
   async setChat(chatJid, chatData) {
-    // Atualizar cache em memória imediatamente
-    this.chatData.set(chatJid, chatData);
-    this.stats.totalChats = this.chatData.size;
-
-    // Usar fila para persistência se disponível
-    if (this.useQueue && queueManager.initialized) {
-      try {
-        await queueManager.addDataSaveJob('chat', chatJid, chatData);
-        logger.debug(`💾 EventHandler: Chat ${chatJid} adicionado à fila de salvamento`);
-      } catch (error) {
-        logger.warn('⚠️ EventHandler: Erro ao usar fila, salvando diretamente:', error.message);
-        await this.saveDataImmediately('chats', chatJid, chatData);
-      }
-    } else {
-      await this.saveDataImmediately('chats', chatJid, chatData);
+    logger.info(`Salvando chat: ${chatJid}`);
     }
-  }
 
   async setEvent(eventId, eventData) {
     // Atualizar cache em memória imediatamente
@@ -599,16 +424,7 @@ class EventHandler {
     this.stats.totalEvents = this.eventData.size;
 
     // Usar fila para persistência se disponível
-    if (this.useQueue && queueManager.initialized) {
-      try {
-        await queueManager.addDataSaveJob('event', eventId, eventData, 1); // Prioridade alta para eventos
-        logger.debug(`💾 EventHandler: Evento ${eventId} adicionado à fila de salvamento`);
-      } catch (error) {
-        logger.warn('⚠️ EventHandler: Erro ao usar fila, salvando diretamente:', error.message);
-        await this.saveDataImmediately('events', eventId, eventData);
-      }
-    } else {
-      await this.saveDataImmediately('events', eventId, eventData);
+     {
     }
   }
 
@@ -1030,16 +846,6 @@ class EventHandler {
       // Salvar dados pendentes
       await this.savePersistedData();
       logger.debug('💾 EventHandler: Dados finais salvos');
-
-      // Shutdown do sistema de filas
-      if (this.useQueue && queueManager.initialized) {
-        try {
-          await queueManager.shutdown();
-          logger.debug('📦 EventHandler: Sistema de filas fechado');
-        } catch (error) {
-          logger.warn('⚠️ EventHandler: Erro ao fechar filas:', error.message);
-        }
-      }
 
       // Limpar callbacks
       this.eventCallbacks.clear();

@@ -212,7 +212,7 @@ async function convertToWebp(inputPath, mediaType) {
       return outputPath;
     }
 
-    const filtro = mediaType === 'video' ? 'fps=10,scale=512:512' : 'scale=512:512';
+    const filtro = mediaType === 'video' ? 'fps=15,scale=512:512' : 'scale=512:512';
     const ffmpegCommand = `ffmpeg -i "${inputPath}" -vcodec libwebp -lossless 1 -loop 0 -preset default -an -vf "${filtro}" "${outputPath}"`;
 
     logger.debug(`[StickerCommand] Comando ffmpeg para criação de sticker: ${ffmpegCommand}`);
@@ -378,19 +378,19 @@ async function processSticker(baileysClient, message, sender, from, text, option
     const userId = getUserId(sender, message);
     const packResult = await addStickerToPack(userId, finalStickerPath, packName, packAuthor, message);
 
-    let packDetails = `📦 **Pack:** ${packResult.packName}\n`;
-    packDetails += `🎯 **Progresso:** ${packResult.stickerCount}/${STICKER_CONSTANTS.STICKERS_PER_PACK} stickers\n`;
-    packDetails += `📊 **Total seus stickers:** ${packResult.totalStickers}\n`;
-    packDetails += `📚 **Total seus packs:** ${packResult.totalPacks}`;
+    let packDetails = `📦 *Pack:* ${packResult.packName}\n`;
+    packDetails += `🎯 *Progresso:* ${packResult.stickerCount}/${STICKER_CONSTANTS.STICKERS_PER_PACK} stickers\n`;
+    packDetails += `📊 *Total seus stickers:* ${packResult.totalStickers}\n`;
+    packDetails += `📚 *Total seus packs:* ${packResult.totalPacks}`;
 
     let statusInfo = '';
     let tip = `Use \`${COMMAND_PREFIX}s packs\` para ver todos os seus packs`;
 
     if (packResult.isPackComplete) {
-      statusInfo = `🎉 **Pack completo!** Use \`${COMMAND_PREFIX}s send ${packResult.packIndex + 1}\` para compartilhar!`;
+      statusInfo = `🎉 *Pack completo!* Use \`${COMMAND_PREFIX}s send ${packResult.packIndex + 1}\` para compartilhar!`;
     } else {
       const remaining = STICKER_CONSTANTS.STICKERS_PER_PACK - packResult.stickerCount;
-      statusInfo = `⏳ **Faltam ${remaining} stickers** para completar este pack`;
+      statusInfo = `⏳ *Faltam ${remaining} stickers* para completar este pack`;
     }
 
     const successMessage = formatSuccessMessage('Sticker criado com sucesso!', `${packDetails}\n\n${statusInfo}`, tip);
