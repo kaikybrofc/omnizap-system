@@ -30,17 +30,40 @@ const OmniZapMessageProcessor = async (messageUpdate) => {
 };
 
 /**
- * Lida com eventos do WhatsApp
+ * Lida com mensagens recebidas
+ *
+ * @param {Object} messageUpdate - Objeto contendo as mensagens recebidas
+ * @param {Object} omniZapClient - Cliente WhatsApp ativo para interação
+ */
+const processMessages = async (messageUpdate, omniZapClient) => {
+  logger.info('📨 Processando mensagens recebidas', {
+    messageCount: messageUpdate?.messages?.length || 0,
+  });
+
+  try {
+    for (const messageInfo of messageUpdate?.messages || []) {
+      logger.info(`📨 Mensagem de ${messageInfo.key.remoteJid}: ${messageInfo.message?.conversation || 'Sem conteúdo'}`);
+
+      // Adicione lógica específica para processar mensagens aqui
+    }
+  } catch (error) {
+    logger.error('Erro ao processar mensagens:', error.message);
+  }
+};
+
+/**
+ * Lida com eventos genéricos do WhatsApp
  *
  * @param {Object} event - Evento recebido do socket
  */
-const handleWhatsAppEvent = (event) => {
-  logger.info('🔄 Evento recebido:', event);
+const processEvent = (event) => {
+  logger.info('🔄 Processando evento recebido:', event);
 
-  // Adicione lógica para lidar com eventos específicos, se necessário
+  // Adicione lógica específica para lidar com eventos aqui
 };
 
 module.exports = {
   OmniZapMessageProcessor,
-  handleWhatsAppEvent,
+  processMessages,
+  processEvent,
 };
