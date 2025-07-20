@@ -484,8 +484,7 @@ const path = require("path");
 
 const logger = require("../utils/logger/loggerModule");
 const {
-  processMessages,
-  processEvent,
+  handleWhatsAppUpdate,
 } = require("../controllers/messageController");
 const {
   getSystemMetrics,
@@ -574,9 +573,9 @@ async function connectToWhatsApp() {
   sock.ev.on("connection.update", (update) =>
     handleConnectionUpdate(update, sock)
   );
-  sock.ev.on("messages.upsert", (messageUpdate) => {
+  sock.ev.on("messages.upsert", (update) => {
     try {
-      processMessages(messageUpdate, sock);
+      handleWhatsAppUpdate(update);
     }
     catch (err) {
       logger.error("Error in messages.upsert event:", err);
@@ -609,7 +608,7 @@ async function connectToWhatsApp() {
 
   sock.ev.on("all", (event) => {
     try {
-      processEvent(event);
+      handleWhatsAppUpdate(event);
     }
     catch (err) {
       logger.error("Error in all event:", err);
