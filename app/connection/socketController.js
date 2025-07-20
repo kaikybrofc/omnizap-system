@@ -25,14 +25,13 @@ const store = {
   groups: {},
   bind: function (ev) {
     ev.on('messages.upsert', ({ messages: incomingMessages, type }) => {
-      const MAX_MESSAGES_PER_CHAT = 100; // Define o limite de mensagens por chat
+      const MAX_MESSAGES_PER_CHAT = 100;
       if (type === 'append') {
         for (const msg of incomingMessages) {
           if (!this.messages[msg.key.remoteJid]) {
             this.messages[msg.key.remoteJid] = [];
           }
           this.messages[msg.key.remoteJid].push(msg);
-          // Remove a mensagem mais antiga se o limite for excedido
           if (this.messages[msg.key.remoteJid].length > MAX_MESSAGES_PER_CHAT) {
             this.messages[msg.key.remoteJid].shift();
           }
@@ -77,7 +76,6 @@ const store = {
   writeToFile: function (dataType) {
     const filePath = path.join(__dirname, 'store', `${dataType}.json`);
     try {
-      // Ensure the directory exists
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, JSON.stringify(this[dataType], null, 2));
       logger.info(`Store for ${dataType} written to ${filePath}`);
@@ -205,7 +203,6 @@ async function handleConnectionUpdate(update, sock) {
   if (connection === 'open') {
     logger.info('✅ Conectado com sucesso ao WhatsApp!');
     connectionAttempts = 0;
-    // Fetch and save all participating groups metadata on successful connection
     try {
       const allGroups = await sock.groupFetchAllParticipating();
       for (const group of Object.values(allGroups)) {
@@ -236,7 +233,6 @@ async function handleMessageUpdate(updates, sock) {
 
 async function handleGroupUpdate(updates, sock) {
   for (const event of updates) {
-    // Update existing group metadata or add new group
     if (store.groups[event.id]) {
       Object.assign(store.groups[event.id], event);
     } else {
@@ -254,42 +250,39 @@ async function handleGroupParticipantsUpdate(update, sock) {
     const action = update.action;
 
     if (store.groups[groupId]) {
-      // Ensure the participants array exists and is an array of objects
       if (!Array.isArray(store.groups[groupId].participants)) {
         store.groups[groupId].participants = [];
       }
 
       if (action === 'add') {
         for (const participantJid of participants) {
-          // Add participant if not already present
-          if (!store.groups[groupId].participants.some(p => p.id === participantJid)) {
+          if (!store.groups[groupId].participants.some((p) => p.id === participantJid)) {
             store.groups[groupId].participants.push({ id: participantJid });
           }
         }
       } else if (action === 'remove') {
-        // Remove participants
         store.groups[groupId].participants = store.groups[groupId].participants.filter(
-          (p) => !participants.includes(p.id)
+          (p) => !participants.includes(p.id),
         );
       } else if (action === 'promote' || action === 'demote') {
-        // For promote/demote, update the admin status of existing participants
         for (const participantJid of participants) {
-          const participantObj = store.groups[groupId].participants.find(p => p.id === participantJid);
+          const participantObj = store.groups[groupId].participants.find(
+            (p) => p.id === participantJid,
+          );
           if (participantObj) {
-            participantObj.admin = (action === 'promote') ? 'admin' : null; // Assuming 'admin' or null
+            participantObj.admin = action === 'promote' ? 'admin' : null;
           }
         }
       }
       store.debouncedWrite('groups');
       logger.info(`Participantes do grupo ${groupId} atualizados.`);
     } else {
-      logger.warn(`Metadados do grupo ${groupId} não encontrados no armazenamento durante a atualização de participantes.`);
+      logger.warn(
+        `Metadados do grupo ${groupId} não encontrados no armazenamento durante a atualização de participantes.`,
+      );
     }
   } catch (error) {
-    logger.error(
-      `Erro ao processar atualização de participantes do grupo ${update.id}:`,
-      error,
-    );
+    logger.error(`Erro ao processar atualização de participantes do grupo ${update.id}:`, error);
   }
 }
 
