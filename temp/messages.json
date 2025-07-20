@@ -1,0 +1,114 @@
+{
+  "status@broadcast": [
+    {
+      "key": {
+        "remoteJid": "status@broadcast",
+        "fromMe": false,
+        "id": "CFA6C9BE91F481CE05FF5D95E3A4B278",
+        "participant": "5512988582919@s.whatsapp.net"
+      },
+      "messageTimestamp": 1753040830,
+      "pushName": "デビッド・マンドレイク🤬",
+      "broadcast": true,
+      "message": {
+        "senderKeyDistributionMessage": {
+          "groupId": "status@broadcast",
+          "axolotlSenderKeyDistributionMessage": "Mwjdg+S3BBAAGiDUSoSg3H/GRWUlF5PShJQG0slsMFMdlNBaUS93zNvIlSIhBQdAWajp1hdwHGrUZThLD6CRkRVyXntg8r/zqN/V/1du"
+        },
+        "videoMessage": {
+          "url": "https://mmg.whatsapp.net/v/t62.7161-24/19457209_2263585207435628_877285410302510076_n.enc?ccb=11-4&oh=01_Q5Aa2AHN_-1ei-flBbSD1CkrZO18PJ3c53e9WxP2K6IJgcy-FQ&oe=68A4A722&_nc_sid=5e03e0&mms3=true",
+          "mimetype": "video/mp4",
+          "fileSha256": "BGLls+gKK0ngBDlVCTLt5C/nl0DS/Gw3PozrXmQrktQ=",
+          "fileLength": "2176521",
+          "seconds": 7,
+          "mediaKey": "3U28FxycPxR4G7VYZZVmhfFNRl6axD4hu3EKF0UoS8k=",
+          "height": 1280,
+          "width": 720,
+          "fileEncSha256": "yC/8WXHTQIKdkOSIygw/le9uF0fmyEjV+3CggxvxFa8=",
+          "directPath": "/v/t62.7161-24/19457209_2263585207435628_877285410302510076_n.enc?ccb=11-4&oh=01_Q5Aa2AHN_-1ei-flBbSD1CkrZO18PJ3c53e9WxP2K6IJgcy-FQ&oe=68A4A722&_nc_sid=5e03e0",
+          "mediaKeyTimestamp": "1753039713",
+          "jpegThumbnail": "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",
+          "contextInfo": {
+            "isSampled": true,
+            "pairedMediaType": "NOT_PAIRED_MEDIA",
+            "statusSourceType": "VIDEO"
+          },
+          "streamingSidecar": "Rba5KXRPM179d0Fnoyd+V0YKTYRgOW5PIgItdpsfTkrSHEgi24HfukYJNz6ZxFZfUhUTp/Rf1+bMR6R4FUgyQGaqwRJAas0IRRwV1y9iZoC+ivrftI1p1hbNn43kx1uxQM6jChRW4IFymT4gaPV8wqAlOj8wNhkjr862XhyzsecsD8wIp1ZXgvV/8IYPqH+B8PdjCTpCAXAaR81jFi2aOAuPIfTIuqGmwGZb+cDx2Wk+EypCqDSokbV4lOdG6yDIpvn+EugPkLZZYrG/RpQt+VaswgRZ2XDw8QOUi4pWPh4jswOplTH9Q3HT4FK+6PVafFyS1NeBxc2FeYgQA/l9Ne2opCEpdcoqvBg3m7sHB5RcOJVX2xFTsHrDJhXhiceC3ynGV7/2yxquRaRvHBoqDhsdaj8Y07c84ssRKo80NYB7jNO5LJBZgL9HCheaLa5KM6aG/g==",
+          "thumbnailDirectPath": "/v/t62.36147-24/32605220_1075697557392390_844877513560193502_n.enc?ccb=11-4&oh=01_Q5Aa2AFHutxsUX-xxxJcdCxSwTfcdZ7-Yh5IN5YEvhFfXvSh6g&oe=68A4C930&_nc_sid=5e03e0",
+          "thumbnailSha256": "ACGYLju2Y6CUVBPF3CMzEzGITMMywqt4jn6g7PDR5Yc=",
+          "thumbnailEncSha256": "43t0uViGTf8rWjxmXKVUNnwtujPV7TdhWZQeizlebC8=",
+          "externalShareFullVideoDurationInSeconds": 0
+        },
+        "messageContextInfo": {
+          "messageSecret": "0nYFdTPCF5DcAmJLWYPTHeHLyC+Tqjf8pJob/NKTf6o="
+        }
+      }
+    }
+  ],
+  "5511940482990-1624921663@g.us": [
+    {
+      "key": {
+        "remoteJid": "5511940482990-1624921663@g.us",
+        "fromMe": false,
+        "id": "43ACABF4C3E232B052DFF95F55ECF032",
+        "participant": "5513996111127@s.whatsapp.net"
+      },
+      "messageTimestamp": 1753040832,
+      "pushName": "Vi💫",
+      "broadcast": false,
+      "message": {
+        "extendedTextMessage": {
+          "text": "Nubank n deixa tirar print de nada",
+          "previewType": "NONE",
+          "contextInfo": {
+            "stanzaId": "2A46BF99752638C4B0AE6DA26408F5B1",
+            "participant": "557597118909@s.whatsapp.net",
+            "quotedMessage": {
+              "conversation": "Porq n nubank?"
+            },
+            "expiration": 604800,
+            "disappearingMode": {
+              "initiator": "CHANGED_IN_CHAT",
+              "trigger": "UNKNOWN"
+            }
+          },
+          "inviteLinkGroupTypeV2": "DEFAULT",
+          "linkPreviewMetadata": {}
+        },
+        "messageContextInfo": {
+          "messageSecret": "0e4lRQ1Zoa/qfFBKW2IkE1UUjG7/k0p6IbxORkrPXH0="
+        }
+      }
+    }
+  ],
+  "120363221315019288@newsletter": [
+    {
+      "key": {
+        "remoteJid": "120363221315019288@newsletter",
+        "fromMe": false,
+        "id": "E824E4811330F149AD3844D3ED082E8F"
+      },
+      "messageTimestamp": 1753040831,
+      "broadcast": false,
+      "message": {
+        "conversation": "Nunu falou que vai começar a assistir One Piece"
+      }
+    }
+  ],
+  "120363400485030695@g.us": [
+    {
+      "key": {
+        "remoteJid": "120363400485030695@g.us",
+        "fromMe": false,
+        "id": "276538321",
+        "participant": "558192069145@s.whatsapp.net"
+      },
+      "messageTimestamp": "1753041133",
+      "participant": "558192069145@s.whatsapp.net",
+      "messageStubType": "GROUP_PARTICIPANT_LEAVE",
+      "messageStubParameters": [
+        "558192069145@s.whatsapp.net"
+      ]
+    }
+  ]
+}
