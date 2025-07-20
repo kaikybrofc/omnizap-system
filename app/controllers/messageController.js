@@ -20,7 +20,9 @@ const OmniZapMessageProcessor = async (messageUpdate) => {
 
   try {
     for (const messageInfo of messageUpdate?.messages || []) {
-      logger.info(`📨 Mensagem recebida de ${messageInfo.key.remoteJid}: ${messageText || 'Sem conteúdo'}`);
+      logger.info(
+        `📨 Mensagem recebida de ${messageInfo.key.remoteJid}: ${messageText || 'Sem conteúdo'}`,
+      );
     }
   } catch (error) {
     logger.error('Erro ao processar mensagens:', error.message);
@@ -31,16 +33,19 @@ const OmniZapMessageProcessor = async (messageUpdate) => {
  * Lida com mensagens recebidas
  *
  * @param {Object} messageUpdate - Objeto contendo as mensagens recebidas
- * @param {Object} omniZapClient - Cliente WhatsApp ativo para interação
  */
-const processMessages = async (messageUpdate, omniZapClient) => {
+const processMessages = async (messageUpdate) => {
   logger.info('📨 Processando mensagens recebidas', {
     messageCount: messageUpdate?.messages?.length || 0,
   });
 
   try {
     for (const messageInfo of messageUpdate?.messages || []) {
-      logger.info(`📨 Mensagem de ${messageInfo.key.remoteJid}: ${messageInfo.message?.conversation || 'Sem conteúdo'}`);
+      logger.info(
+        `📨 Mensagem de ${messageInfo.key.remoteJid}: ${
+          messageInfo.message?.conversation || 'Sem conteúdo'
+        }`,
+      );
     }
   } catch (error) {
     logger.error('Erro ao processar mensagens:', error.message);
