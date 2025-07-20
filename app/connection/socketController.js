@@ -89,7 +89,7 @@ async function connectToWhatsApp() {
   sock.ev.on('connection.update', (update) => handleConnectionUpdate(update, sock));
   sock.ev.on('messages.upsert', (update) => {
     try {
-      handleWhatsAppUpdate(update);
+      handleWhatsAppUpdate(update, sock);
     } catch (err) {
       logger.error('Error in messages.upsert event:', err);
     }
