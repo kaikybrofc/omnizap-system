@@ -1,45 +1,18 @@
 /**
  * OmniZap WhatsApp Connection Controller
  *
- * Controlador responsável pela conexão e gerenciamento do socket WhatsApp
- * Utiliza Baileys para comunicação com a API WhatsApp Web
- * Integração bidirecional com EventHandler para dados permanentes
+ * Refatorado para seguir o padrão do Baileys
+ * Utiliza eventos globais para comunicação
  *
- * @version 1.0.5
- * @author OmniZap Team
+ * @version 2.0.0
  * @license MIT
- * @source https://www.npmjs.com/package/baileys
  */
 
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
-
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
-const dotenv = require('dotenv');
-const { cleanEnv, str, bool } = require('envalid');
 const path = require('path');
-
-const { eventHandler } = require('../events/eventHandler');
 const logger = require('../utils/logger/loggerModule');
-
-dotenv.config();
-
-const env = cleanEnv(process.env, {
-  QR_CODE_PATH: str({
-    default: path.join(__dirname, 'qr-code'),
-    desc: 'Caminho para armazenar os arquivos de QR Code e autenticação',
-  }),
-  PAIRING_CODE: bool({
-    default: false,
-    desc: 'Usar código de pareamento em vez de QR Code',
-  }),
-  PHONE_NUMBER: str({
-    default: '',
-    desc: 'Número de telefone para o código de pareamento (somente números, com código do país)',
-  }),
-});
-
-const baileysLogger = require('pino')({ level: 'silent' });
 
 let activeSocket = null;
 let connectionAttempts = 0;
@@ -47,65 +20,38 @@ let lastConnectionTime = null;
 let isReconnecting = false;
 
 /**
- * Configuração do EventHandler com comunicação bidirecional
+ * Lida com todos os eventos do Baileys
  */
-function setupEventHandlerIntegration() {
-  eventHandler.setSocketController({
-    getActiveSocket: () => activeSocket,
-    getConnectionStats: getConnectionStats,
-    sendMessage: sendMessage,
-    forceDisconnect: forceDisconnect,
-    forceReconnect: reconnectToWhatsApp,
-    getGroupInfo: getGroupInfo,
-    sendPresence: sendPresence,
+function handleAllEvents(sock) {
+  sock.ev.on('connection.update', (update) => {
+    logger.info('🔄 Evento de conexão:', update);
   });
 
-  // Registra callbacks importantes
-  eventHandler.registerCallback('connection.state.change', async (data) => {
-    logger.info(`🔄 Callback: Mudança de estado de conexão: ${data.isConnected ? 'CONECTADO' : 'DESCONECTADO'}`);
-
-    if (!data.isConnected && !isReconnecting && connectionAttempts < 5) {
-      logger.info('🔄 Agendando reconexão automática...');
-      setTimeout(() => {
-        if (!activeSocket && !isReconnecting) {
-          reconnectToWhatsApp();
-        }
-      }, 10000);
-    }
+  sock.ev.on('messages.upsert', (messageUpdate) => {
+    logger.info('📨 Evento de mensagens:', messageUpdate);
   });
 
-  eventHandler.registerCallback('group.metadata.updated', async (data) => {
-    logger.debug(`👥 Callback: Metadados atualizados para grupo: ${data.metadata.subject || 'Sem nome'}`);
+  sock.ev.on('creds.update', () => {
+    logger.info('🔐 Credenciais atualizadas');
   });
 
-  eventHandler.registerCallback('messages.received', async (data) => {
-    logger.debug(`📨 Callback: ${data.processedCount} mensagens processadas, ${data.groupJids.length} grupos detectados`);
+  sock.ev.on('chats.upsert', (chats) => {
+    logger.info('💬 Novos chats:', chats);
   });
 
-  logger.info('🤝 SocketController: Integração bidirecional com EventHandler configurada');
+  sock.ev.on('groups.update', (groups) => {
+    logger.info('👥 Atualizações de grupos:', groups);
+  });
+
+  sock.ev.on('contacts.upsert', (contacts) => {
+    logger.info('👤 Novos contatos:', contacts);
+  });
+
+  // Adicione outros eventos conforme necessário
 }
 
 /**
- * Obtém estatísticas de conexão
- */
-function getConnectionStats() {
-  const eventStats = eventHandler.getDataStats();
-  return {
-    ...eventStats,
-    isConnected: activeSocket !== null && activeSocket.ws?.readyState === 1,
-    connectionState: activeSocket?.ws?.readyState || 'disconnected',
-    lastConnection: lastConnectionTime,
-    connectionAttempts: connectionAttempts,
-    socketId: activeSocket?.user?.id || null,
-    userPhone: activeSocket?.user?.name || null,
-    uptime: lastConnectionTime ? Date.now() - lastConnectionTime : 0,
-    isReconnecting: isReconnecting,
-  };
-}
-
-/**
- * Conecta ao WhatsApp usando Baileys
- * Implementação baseada no exemplo oficial com integração EventHandler
+ * Configura e retorna o socket do Baileys
  */
 async function connectToWhatsApp() {
   if (isReconnecting) {
@@ -116,636 +62,78 @@ async function connectToWhatsApp() {
   try {
     isReconnecting = true;
     connectionAttempts++;
-    logger.info(`🔗 OmniZap: Tentativa de conexão #${connectionAttempts}`);
-    const { state, saveCreds } = await useMultiFileAuthState(env.QR_CODE_PATH);
-    const { version } = await fetchLatestBaileysVersion();
+    logger.info(`🔗 Tentativa de conexão #${connectionAttempts}`);
 
-    logger.info('🔗 OmniZap: Iniciando conexão com WhatsApp...');
-    logger.info(`📊 Cache Stats: ${JSON.stringify(eventHandler.getCacheStats())}`);
+    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth_info_baileys'));
+    const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
       version,
       auth: state,
-      logger: baileysLogger,
+      logger: require('pino')({ level: 'silent' }),
       browser: Browsers.ubuntu('OmniZap'),
-      printQRInTerminal: !env.PAIRING_CODE,
-      generateHighQualityLinkPreview: true,
-      shouldSyncHistoryMessage: () => false,
-      shouldIgnoreJid: (jid) => typeof jid === 'string' && jid.includes('broadcast'),
-      getMessage: async (key) => {
-        const cached = eventHandler.getMessage(key.remoteJid, key.id);
-        if (cached) {
-          logger.debug(`📱 Cache hit para getMessage: ${key.id.substring(0, 10)}...`);
-        }
-        return cached?.message || null;
-      },
+      printQRInTerminal: true,
     });
 
-    if (connectionAttempts === 1) {
-      setupEventHandlerIntegration();
-    }
+    handleAllEvents(sock);
 
-    if (env.PAIRING_CODE && !sock.authState.creds.registered) {
-      if (!env.PHONE_NUMBER) {
-        logger.error('❌ Número de telefone necessário para o modo de pareamento');
-        throw new Error('PHONE_NUMBER é obrigatório quando PAIRING_CODE=true');
-      }
-
-      const phoneNumber = env.PHONE_NUMBER.replace(/[^0-9]/g, '');
-      logger.info(`📞 Solicitando código de pareamento para: ${phoneNumber}`);
-
-      setTimeout(async () => {
-        try {
-          const code = await sock.requestPairingCode(phoneNumber);
-          logger.info('═══════════════════════════════════════════════════');
-          logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
-          logger.info(`\n          > ${code.match(/.{1,4}/g).join('-')} <\n`);
-          logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular com número');
-          logger.info('═══════════════════════════════════════════════════');
-        } catch (error) {
-          logger.error('❌ Erro ao solicitar código de pareamento:', error.message);
-        }
-      }, 3000);
-    }
-
-    sock.ev.on('connection.update', async (update) => {
-      const { connection, lastDisconnect, qr } = update;
-
-      logger.info(`🔗 Status da conexão: ${connection}`);
-
-      if (qr && !env.PAIRING_CODE) {
-        logger.info('📱 QR Code gerado! Escaneie com seu WhatsApp:');
-        logger.info('═══════════════════════════════════════════════════');
-        qrcode.generate(qr, { small: true });
-        logger.info('═══════════════════════════════════════════════════');
-        logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular dispositivo');
-        logger.warn('⏰ QR Code expira em 60 segundos');
-      }
-
-      if (connection === 'close') {
-        activeSocket = null;
-        lastConnectionTime = null;
-        isReconnecting = false;
-
-        const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-
-        logger.warn(`🔌 Conexão fechada. Motivo: ${reason}, Reconectar: ${shouldReconnect}`);
-
-        eventHandler.updateConnectionState(false, { reason, shouldReconnect, connectionAttempts });
-
-        if (shouldReconnect && connectionAttempts < 5) {
-          logger.info(`🔄 Reconectando em 10 segundos... (Tentativa ${connectionAttempts + 1}/5)`);
-          setTimeout(() => {
-            if (!activeSocket) {
-              connectToWhatsApp();
-            }
-          }, 10000);
-        } else if (!shouldReconnect) {
-          logger.error('❌ Sessão encerrada. Reinicie a aplicação para reconectar.');
-          connectionAttempts = 0;
-          eventHandler.savePersistedData();
-        } else {
-          logger.error('❌ Máximo de tentativas de reconexão atingido.');
-          eventHandler.savePersistedData();
-        }
-      } else if (connection === 'open') {
-        activeSocket = sock;
-        lastConnectionTime = Date.now();
-        connectionAttempts = 0;
-        isReconnecting = false;
-
-        logger.info('✅ OmniZap: Conectado com sucesso ao WhatsApp!');
-        await sock.sendPresenceUpdate('available');
-
-        eventHandler.updateConnectionState(true, {
-          userId: sock.user?.id,
-          userPhone: sock.user?.name,
-          connectionTime: lastConnectionTime,
-          version: version,
-        });
-
-        eventHandler.setWhatsAppClient(sock);
-
-        logger.info(`👤 Conectado como: ${sock.user?.name || 'Usuário'} (${sock.user?.id || 'ID não disponível'})`);
-        const stats = eventHandler.getDataStats();
-        logger.info(`📊 Dados: ${stats.groups} grupos, ${stats.contacts} contatos, ${stats.chats} chats, ${stats.messages} mensagens`);
-      } else if (connection === 'connecting') {
-        logger.info('🔄 Conectando ao WhatsApp...');
-        eventHandler.updateConnectionState(false, { status: 'connecting' });
-      }
-
-      eventHandler.processGenericEvent('connection.update', {
-        ...update,
-        _timestamp: Date.now(),
-        _version: version,
-        _browser: 'OmniZap-Ubuntu',
-        _connectionAttempts: connectionAttempts,
-        _lastConnectionTime: lastConnectionTime,
-        _isReconnecting: isReconnecting,
-      });
-    });
-
-    sock.ev.on('messages.upsert', async (messageUpdate) => {
-      const messageCount = messageUpdate.messages?.length || 0;
-      logger.info(`📨 Novas mensagens: ${messageCount}`);
-
-      eventHandler.processMessagesUpsert({
-        ...messageUpdate,
-        _receivedAt: Date.now(),
-        _socketId: sock.user?.id,
-      });
-
-      try {
-        const omniZapMainHandler = require('../../index.js');
-
-        const handlerFunction = omniZapMainHandler.OmniZapMainHandler || omniZapMainHandler.default || omniZapMainHandler;
-
-        const socketControllerRef = {
-          getActiveSocket: () => activeSocket,
-          getConnectionStats: getConnectionStats,
-          sendMessage: sendMessage,
-          forceDisconnect: forceDisconnect,
-          forceReconnect: reconnectToWhatsApp,
-          getGroupInfo: getGroupInfo,
-          sendPresence: sendPresence,
-          registerWithMainSystem: () => {
-            if (omniZapMainHandler.registerSocketController) {
-              omniZapMainHandler.registerSocketController(socketControllerRef);
-            }
-          },
-        };
-
-        if (omniZapMainHandler.registerSocketController) {
-          omniZapMainHandler.registerSocketController(socketControllerRef);
-        }
-
-        await handlerFunction(messageUpdate, sock, env.QR_CODE_PATH, socketControllerRef);
-        logger.debug('🎯 Handler principal executado com sucesso');
-      } catch (error) {
-        logger.error('❌ Erro no handler principal:', error.message);
-
-        eventHandler.processGenericEvent('socket.handler.error', {
-          error: error.message,
-          timestamp: Date.now(),
-          messageCount: messageUpdate?.messages?.length || 0,
-        });
-      }
-    });
-
-    sock.ev.on('messages.update', (updates) => {
-      logger.debug(`📝 Atualizações de mensagens: ${updates?.length || 0}`);
-      if (updates && Array.isArray(updates)) {
-        updates.forEach(async (messageUpdate) => {
-          if (messageUpdate.key && messageUpdate.key.remoteJid && messageUpdate.key.id) {
-            const existingMessage = eventHandler.getMessage(messageUpdate.key.remoteJid, messageUpdate.key.id);
-            if (existingMessage) {
-              const mergedData = {
-                ...existingMessage,
-                update: messageUpdate.update,
-                _lastUpdate: Date.now(),
-                _source: 'messages.update',
-              };
-              await eventHandler.setMessage(messageUpdate.key.remoteJid, messageUpdate.key.id, mergedData);
-            }
-          }
-        });
-      }
-      eventHandler.processGenericEvent('messages.update', updates);
-    });
-
-    sock.ev.on('messages.delete', (deletion) => {
-      logger.warn('🗑️ Mensagens deletadas');
-      eventHandler.processGenericEvent('messages.delete', deletion);
-    });
-
-    sock.ev.on('messages.reaction', (reactions) => {
-      logger.debug(`😀 Reações: ${reactions?.length || 0}`);
-      eventHandler.processGenericEvent('messages.reaction', reactions);
-    });
-
-    sock.ev.on('message-receipt.update', (receipts) => {
-      logger.debug(`📬 Recibos: ${receipts?.length || 0}`);
-      eventHandler.processGenericEvent('message-receipt.update', receipts);
-    });
-
-    sock.ev.on('groups.update', (updates) => {
-      logger.info(`👥 Atualizações de grupos: ${updates?.length || 0}`);
-      if (updates && Array.isArray(updates)) {
-        updates.forEach(async (groupUpdate) => {
-          if (groupUpdate.id) {
-            const existingGroup = eventHandler.getGroup(groupUpdate.id);
-            const mergedData = {
-              ...existingGroup,
-              ...groupUpdate,
-              _lastUpdate: Date.now(),
-              _source: 'groups.update',
-            };
-            await eventHandler.setGroup(groupUpdate.id, mergedData);
-          }
-        });
-      }
-      eventHandler.processGenericEvent('groups.update', updates);
-    });
-
-    sock.ev.on('groups.upsert', (groupsMetadata) => {
-      logger.info(`👥 Novos grupos: ${groupsMetadata?.length || 0}`);
-      if (groupsMetadata && Array.isArray(groupsMetadata)) {
-        groupsMetadata.forEach(async (metadata) => {
-          if (metadata.id) {
-            await eventHandler.setGroup(metadata.id, {
-              ...metadata,
-              _createdAt: Date.now(),
-              _source: 'groups.upsert',
-            });
-          }
-        });
-      }
-      eventHandler.processGenericEvent('groups.upsert', groupsMetadata);
-    });
-
-    sock.ev.on('group-participants.update', (event) => {
-      logger.info(`👥 Participantes atualizados no grupo: ${event.id?.substring(0, 20)}...`);
-      if (event.id) {
-        setImmediate(async () => {
-          try {
-            const existingGroup = eventHandler.getGroup(event.id);
-            if (existingGroup) {
-              const updatedGroup = {
-                ...existingGroup,
-                _lastParticipantUpdate: Date.now(),
-                _participantChangeType: event.action,
-                _participantChangeCount: event.participants?.length || 0,
-              };
-              await eventHandler.setGroup(event.id, updatedGroup);
-            }
-          } catch (error) {
-            logger.error('❌ Erro ao atualizar grupo com mudança de participantes:', error.message);
-          }
-        });
-      }
-      eventHandler.processGenericEvent('group-participants.update', event);
-    });
-
-    sock.ev.on('chats.upsert', (chats) => {
-      logger.debug(`💬 Novos chats: ${chats?.length || 0}`);
-      if (chats && Array.isArray(chats)) {
-        chats.forEach(async (chat) => {
-          if (chat.id) {
-            await eventHandler.setChat(chat.id, {
-              ...chat,
-              _createdAt: Date.now(),
-              _source: 'chats.upsert',
-            });
-          }
-        });
-      }
-      eventHandler.processGenericEvent('chats.upsert', chats);
-    });
-
-    sock.ev.on('chats.update', (updates) => {
-      logger.debug(`💬 Chats atualizados: ${updates?.length || 0}`);
-      if (updates && Array.isArray(updates)) {
-        updates.forEach(async (chatUpdate) => {
-          if (chatUpdate.id) {
-            const existingChat = eventHandler.getChat(chatUpdate.id);
-            const mergedData = {
-              ...existingChat,
-              ...chatUpdate,
-              _lastUpdate: Date.now(),
-              _source: 'chats.update',
-            };
-            await eventHandler.setChat(chatUpdate.id, mergedData);
-          }
-        });
-      }
-      eventHandler.processGenericEvent('chats.update', updates);
-    });
-
-    sock.ev.on('chats.delete', (jids) => {
-      logger.warn(`💬 Chats deletados: ${jids?.length || 0}`);
-      if (jids && Array.isArray(jids)) {
-        jids.forEach(async (jid) => {
-          const existingChat = eventHandler.getChat(jid);
-          if (existingChat) {
-            await eventHandler.setChat(jid, {
-              ...existingChat,
-              _deleted: true,
-              _deletedAt: Date.now(),
-              _source: 'chats.delete',
-            });
-          }
-        });
-      }
-      eventHandler.processGenericEvent('chats.delete', jids);
-    });
-
-    sock.ev.on('contacts.upsert', (contacts) => {
-      logger.debug(`👤 Novos contatos: ${contacts?.length || 0}`);
-      if (contacts && Array.isArray(contacts)) {
-        contacts.forEach(async (contact) => {
-          if (contact.id) {
-            await eventHandler.setContact(contact.id, {
-              ...contact,
-              _createdAt: Date.now(),
-              _source: 'contacts.upsert',
-            });
-          }
-        });
-      }
-      eventHandler.processGenericEvent('contacts.upsert', contacts);
-    });
-
-    sock.ev.on('contacts.update', (updates) => {
-      logger.debug(`👤 Contatos atualizados: ${updates?.length || 0}`);
-      if (updates && Array.isArray(updates)) {
-        updates.forEach(async (contactUpdate) => {
-          if (contactUpdate.id) {
-            const existingContact = eventHandler.getContact(contactUpdate.id);
-            const mergedData = {
-              ...existingContact,
-              ...contactUpdate,
-              _lastUpdate: Date.now(),
-              _source: 'contacts.update',
-            };
-            await eventHandler.setContact(contactUpdate.id, mergedData);
-          }
-        });
-      }
-      eventHandler.processGenericEvent('contacts.update', updates);
-    });
-
-    sock.ev.on('messaging-history.set', (historyData) => {
-      logger.info('📚 Histórico de mensagens carregado');
-      eventHandler.processGenericEvent('messaging-history.set', historyData);
-    });
-
-    sock.ev.on('creds.update', async () => {
-      logger.debug('🔐 Credenciais atualizadas - Salvando...');
-      await saveCreds();
-      eventHandler.processGenericEvent('creds.update', {
-        timestamp: Date.now(),
-        _autoSaved: true,
-      });
-    });
-
+    activeSocket = sock;
     return sock;
   } catch (error) {
     isReconnecting = false;
     logger.error('❌ Erro ao conectar ao WhatsApp:', error.message);
-
-    eventHandler.savePersistedData();
     throw error;
   }
 }
 
 /**
- * Força reconexão do WhatsApp
+ * Lida com atualizações de conexão
+ */
+function handleConnectionUpdate(update, sock, saveCreds) {
+  const { connection, lastDisconnect, qr } = update;
+
+  if (qr) {
+    logger.info('📱 QR Code gerado! Escaneie com seu WhatsApp:');
+    qrcode.generate(qr, { small: true });
+  }
+
+  if (connection === 'close') {
+    const shouldReconnect = (lastDisconnect?.error?.output?.statusCode || 0) !== DisconnectReason.loggedOut;
+    if (shouldReconnect && connectionAttempts < 5) {
+      setTimeout(connectToWhatsApp, 10000);
+    } else {
+      logger.error('❌ Sessão encerrada. Reinicie a aplicação para reconectar.');
+    }
+  } else if (connection === 'open') {
+    logger.info('✅ Conectado com sucesso ao WhatsApp!');
+    lastConnectionTime = Date.now();
+    connectionAttempts = 0;
+    isReconnecting = false;
+  }
+
+  sock.ev.on('creds.update', saveCreds);
+}
+
+/**
+ * Lida com novas mensagens
+ */
+function handleMessagesUpsert({ messages }) {
+  for (const message of messages) {
+    logger.info(`📨 Nova mensagem de ${message.key.remoteJid}: ${message.message?.conversation || 'Sem conteúdo'}`);
+  }
+}
+
+/**
+ * Força reconexão ao WhatsApp
  */
 async function reconnectToWhatsApp() {
-  try {
-    logger.info('🔄 Iniciando processo de reconexão...');
-
-    if (activeSocket) {
-      logger.info('🔌 Desconectando socket atual...');
-      await forceDisconnect();
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    logger.info('🔄 Iniciando nova conexão...');
-    return await connectToWhatsApp();
-  } catch (error) {
-    isReconnecting = false;
-    logger.error('❌ Erro na reconexão:', error.message);
-    throw error;
-  }
-}
-
-/**
- * Obtém informações detalhadas de um grupo
- */
-async function getGroupInfo(groupJid, forceRefresh = false) {
-  try {
-    if (!forceRefresh) {
-      const cached = eventHandler.getGroup(groupJid);
-      if (cached && cached._cachedAt && Date.now() - cached._cachedAt < 60000) {
-        return cached;
-      }
-    }
-
-    if (!activeSocket) {
-      throw new Error('Socket não conectado');
-    }
-
-    const metadata = await activeSocket.groupMetadata(groupJid);
-
-    if (metadata) {
-      eventHandler.setGroup(groupJid, {
-        ...metadata,
-        _cachedAt: Date.now(),
-        _fetchedViaController: true,
-      });
-    }
-
-    return metadata;
-  } catch (error) {
-    logger.error(`❌ Erro ao obter info do grupo ${groupJid}:`, error.message);
-    throw error;
-  }
-}
-
-/**
- * Envia presença (online/offline/typing)
- */
-async function sendPresence(presence, jid = null) {
-  if (!activeSocket) {
-    throw new Error('Socket não conectado');
-  }
-
-  try {
-    if (jid) {
-      await activeSocket.sendPresenceUpdate(presence, jid);
-    } else {
-      await activeSocket.sendPresenceUpdate(presence);
-    }
-
-    logger.debug(`👁️ Presença enviada: ${presence}${jid ? ` para ${jid.substring(0, 20)}...` : ' globalmente'}`);
-  } catch (error) {
-    logger.error('❌ Erro ao enviar presença:', error.message);
-    throw error;
-  }
-}
-
-/**
- * Obtém o socket ativo atual
- */
-function getActiveSocket() {
-  return activeSocket;
-}
-
-/**
- * Força desconexão e limpeza
- */
-async function forceDisconnect() {
   if (activeSocket) {
-    try {
-      logger.info('🔌 Iniciando desconexão manual...');
-
-      await eventHandler.savePersistedData();
-      logger.debug('💾 Dados salvos antes da desconexão');
-
-      activeSocket = null;
-      lastConnectionTime = null;
-      isReconnecting = false;
-
-      logger.info('🔌 Desconectado manualmente');
-    } catch (error) {
-      logger.error('❌ Erro ao desconectar:', error.message);
-    }
-  } else {
-    logger.warn('⚠️ Socket já estava desconectado');
+    activeSocket.ws.close();
   }
-
-  try {
-    await eventHandler.savePersistedData();
-  } catch (saveError) {
-    logger.error('❌ Erro ao salvar dados durante desconexão:', saveError.message);
-  }
+  await connectToWhatsApp();
 }
-
-/**
- * Envia mensagem usando o socket ativo
- */
-async function sendMessage(jid, content, options = {}) {
-  if (!activeSocket) {
-    throw new Error('Socket não conectado');
-  }
-
-  try {
-    const result = await activeSocket.sendMessage(jid, content, options);
-    logger.debug(`📤 Mensagem enviada para ${jid.substring(0, 20)}...`);
-
-    if (result && result.key) {
-      const sentMessageData = {
-        key: result.key,
-        message: content,
-        messageTimestamp: Date.now(),
-        _sentAt: Date.now(),
-        _sentViaController: true,
-        _status: 'sent',
-        _options: options,
-      };
-
-      await eventHandler.setMessage(result.key.remoteJid, result.key.id, sentMessageData);
-      logger.debug(`💾 Mensagem enviada salva: ${result.key.id.substring(0, 10)}...`);
-    }
-
-    eventHandler.processGenericEvent('message.sent', {
-      jid,
-      content: typeof content,
-      options,
-      timestamp: Date.now(),
-      messageKey: result?.key,
-      _sentViaController: true,
-    });
-
-    return result;
-  } catch (error) {
-    logger.error(`❌ Erro ao enviar mensagem para ${jid}:`, error.message);
-
-    eventHandler.processGenericEvent('message.send.error', {
-      jid,
-      content: typeof content,
-      error: error.message,
-      timestamp: Date.now(),
-      _sentViaController: true,
-    });
-
-    throw error;
-  }
-}
-
-connectToWhatsApp().catch((error) => {
-  logger.error('💥 Falha crítica na inicialização:', error.message);
-
-  eventHandler.savePersistedData().catch((saveError) => {
-    logger.error('❌ Erro ao salvar dados após falha crítica:', saveError.message);
-  });
-
-  setTimeout(() => {
-    logger.info('🔄 Tentando reinicialização após falha crítica...');
-    connectToWhatsApp().catch(() => {
-      logger.error('💥 Falha definitiva na inicialização');
-      process.exit(1);
-    });
-  }, 30000);
-});
-
-process.on('SIGINT', async () => {
-  logger.info('🛑 Encerrando aplicação graciosamente...');
-  await forceDisconnect();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  logger.info('🛑 Encerrando aplicação graciosamente...');
-  await forceDisconnect();
-  process.exit(0);
-});
 
 module.exports = {
   connectToWhatsApp,
   reconnectToWhatsApp,
-  eventHandler,
-  getActiveSocket,
-  getConnectionStats,
-  getGroupInfo,
-  forceDisconnect,
-  sendMessage,
-  sendPresence,
-  env,
 };
-
-setTimeout(() => {
-  try {
-    const mainSystem = require('../../index.js');
-
-    if (mainSystem.registerSocketController) {
-      const socketControllerInterface = {
-        getActiveSocket,
-        getConnectionStats,
-        sendMessage,
-        forceDisconnect,
-        forceReconnect: reconnectToWhatsApp,
-        getGroupInfo,
-        sendPresence,
-      };
-
-      mainSystem.registerSocketController(socketControllerInterface);
-
-      logger.info('🤝 Integração bidirecional com sistema principal estabelecida');
-
-      if (eventHandler) {
-        eventHandler.processGenericEvent('socketController.integration.success', {
-          timestamp: Date.now(),
-          mainSystemVersion: mainSystem.version || 'unknown',
-          hasSystemStats: !!mainSystem.getSystemStats,
-          hasValidation: !!mainSystem.validateSystemReadiness,
-        });
-      }
-    } else {
-      logger.warn('⚠️ Sistema principal não suporta registro de socketController');
-    }
-  } catch (error) {
-    logger.warn('⚠️ Não foi possível estabelecer integração com sistema principal:', error.message);
-
-    if (eventHandler) {
-      eventHandler.processGenericEvent('socketController.integration.failed', {
-        timestamp: Date.now(),
-        error: error.message,
-        reason: 'main_system_unavailable',
-      });
-    }
-  }
-}, 1000);
