@@ -12,6 +12,8 @@
 require('dotenv').config();
 const logger = require('../utils/logger/loggerModule');
 
+const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/'; // Default to '/' if not set
+
 /**
  * Extrai o conteúdo de texto de uma mensagem do WhatsApp.
  *
@@ -53,7 +55,7 @@ const extractMessageContent = (messageInfo) => {
     return `[Contato] ${message.contactMessage.displayName}`;
   }
   if (message.contactsArrayMessage) {
-    return `[Contatos] ${message.contactsArrayMessage.contacts.map((c) => c.displayName).join(', ')}`;
+    return `[Contatos] ${message.contactsArrayArrayMessage.contacts.map((c) => c.displayName).join(', ')}`;
   }
   if (message.listMessage) {
     return message.listMessage.description || '[Mensagem de Lista]';
@@ -87,7 +89,7 @@ const handleWhatsAppUpdate = async (update) => {
     logger.info('📨 Processando mensagens recebidas', {
       messageCount: update.messages.length,
       info: update.messages.map((messageInfo) => {
-        return `📨 Mensagem de ${messageInfo.key.remoteJid}: ${extractMessageContent(messageInfo)}}`;
+        return `📨 Mensagem de ${messageInfo.key.remoteJid}: ${extractMessageContent(messageInfo)}`;
       }),
 
       action: 'process_incoming_messages',
@@ -97,7 +99,20 @@ const handleWhatsAppUpdate = async (update) => {
       for (const messageInfo of update.messages) {
         const extractedText = extractMessageContent(messageInfo);
         logger.info(`Mensagem de ${messageInfo.key.remoteJid}: ${extractedText}`);
-        //logger.info(JSON.stringify(messageInfo, null, 2));
+
+        if (extractedText.startsWith(COMMAND_PREFIX)) {
+          const command = extractedText.substring(COMMAND_PREFIX.length).split(' ')[0];
+          logger.info(`Comando recebido: ${command}`);
+
+          switch (command) {
+            case 'menu':
+              logger.info('Processando comando /menu');
+              break;
+            default:
+              logger.info(`Comando desconhecido: ${command}`);
+              break;
+          }
+        }
       }
     } catch (error) {
       logger.error('Erro ao processar mensagens:', error.message);
