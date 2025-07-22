@@ -3,41 +3,70 @@ const path = require('path');
 const lockfile = require('proper-lockfile');
 const logger = require('../utils/logger/loggerModule');
 
-const storePath = process.env.STORE_PATH || path.join(__dirname, '../connection/store');
+const storePath = path.resolve(process.cwd(), process.env.STORE_PATH || './temp');
+
+async function ensureStoreDirectory() {
+  try {
+    await fs.mkdir(storePath, { recursive: true, mode: 0o777 });
+    logger.info(`Diretório de armazenamento garantido: '${storePath}'`);
+  } catch (error) {
+    logger.error(`Erro ao criar diretório de armazenamento: ${error.message}`);
+    throw error;
+  }
+}
 
 async function readFromFile(dataType) {
+  await ensureStoreDirectory();
   const filePath = path.join(storePath, `${dataType}.json`);
+
   try {
-    await lockfile.lock(storePath, { 
-      retries: { retries: 5, factor: 1, minTimeout: 200 },
-      onCompromised: (err) => {
-        logger.error('Lock file compromised:', err);
-        throw err;
-      }
-    });
-    const data = await fs.readFile(filePath, 'utf8');
-    logger.info(`Store for ${dataType} read from ${filePath}`);
+    // Verifica se o arquivo existe
     try {
-      const parsedData = JSON.parse(data);
+      await fs.access(filePath);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        // Se o arquivo não existe, cria um vazio
+        await fs.writeFile(filePath, '{}', { mode: 0o666 });
+        logger.warn(`Arquivo ${dataType}.json não encontrado. Criando novo arquivo vazio.`);
+      }
+    }
+
+    // Tenta obter o lock
+    try {
+      await lockfile.lock(filePath, {
+        retries: { retries: 5, factor: 1, minTimeout: 200 },
+        onCompromised: (err) => {
+          logger.error('Lock file compromised:', err);
+        },
+      });
+    } catch (lockError) {
+      logger.warn(`Não foi possível obter lock para ${dataType}.json: ${lockError.message}`);
+      // Continua mesmo sem o lock neste caso
+    }
+
+    const data = await fs.readFile(filePath, 'utf8');
+    logger.info(`Store para ${dataType} lido de ${filePath}`);
+
+    try {
+      const parsedData = JSON.parse(data || '{}');
       if (typeof parsedData !== 'object' || parsedData === null) {
-        logger.warn(`Invalid data format for ${dataType}. Expected an object.`);
-        return null;
+        logger.warn(`Formato de dados inválido para ${dataType}. Esperava um objeto.`);
+        return {};
       }
       return parsedData;
     } catch (parseError) {
-      logger.error(`Error parsing JSON for ${dataType} from ${filePath}:`, parseError);
-      return null;
+      logger.error(`Erro ao fazer parse do JSON para ${dataType} de ${filePath}:`, parseError);
+      return {};
     }
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      logger.warn(`Store file for ${dataType} not found at ${filePath}. Starting with empty data.`);
-      return null;
-    } else {
-      logger.error(`Error reading store for ${dataType} from ${filePath}:`, error);
-      throw error;
-    }
+    logger.error(`Erro ao ler store para ${dataType} de ${filePath}:`, error);
+    return {};
   } finally {
-    await lockfile.unlock(storePath);
+    try {
+      await lockfile.unlock(filePath).catch(() => {});
+    } catch (unlockError) {
+      logger.warn(`Erro ao liberar lock de ${dataType}.json: ${unlockError.message}`);
+    }
   }
 }
 
@@ -50,12 +79,12 @@ async function writeToFile(dataType, data) {
   const filePath = path.join(storePath, `${dataType}.json`);
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await lockfile.lock(storePath, { 
+    await lockfile.lock(filePath, {
       retries: { retries: 5, factor: 1, minTimeout: 200 },
       onCompromised: (err) => {
         logger.error('Lock file compromised:', err);
         throw err;
-      }
+      },
     });
     await fs.writeFile(filePath, JSON.stringify(data, null, 2));
     logger.info(`Store for ${dataType} written to ${filePath}`);
@@ -63,7 +92,7 @@ async function writeToFile(dataType, data) {
     logger.error(`Error writing store for ${dataType} to ${filePath}:`, error);
     throw error;
   } finally {
-    await lockfile.unlock(storePath);
+    await lockfile.unlock(filePath);
   }
 }
 

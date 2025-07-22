@@ -24,16 +24,30 @@ const store = {
   newsletters: {},
 
   async loadData() {
-    this.chats = (await readFromFile('chats')) || [];
-    this.contacts = (await readFromFile('contacts')) || {};
-    this.messages = (await readFromFile('messages')) || {};
-    this.rawMessages = (await readFromFile('rawMessages')) || {};
-    this.groups = (await readFromFile('groups')) || {};
-    this.blocklist = (await readFromFile('blocklist')) || [];
-    this.labels = (await readFromFile('labels')) || {};
-    this.presences = (await readFromFile('presences')) || {};
-    this.calls = (await readFromFile('calls')) || [];
-    this.newsletters = (await readFromFile('newsletters')) || {};
+    try {
+      // Garante que todos os arquivos existam com um objeto vazio
+      const dataTypes = ['chats', 'contacts', 'messages', 'rawMessages', 'groups', 'blocklist', 'labels', 'presences', 'calls', 'newsletters'];
+
+      for (const type of dataTypes) {
+        const data = await readFromFile(type);
+        this[type] = Array.isArray(this[type]) ? data || [] : data || {};
+      }
+
+      logger.info('Dados do store carregados com sucesso');
+    } catch (error) {
+      logger.error('Erro ao carregar dados do store:', error);
+      // Inicializa com valores padrão em caso de erro
+      this.chats = [];
+      this.contacts = {};
+      this.messages = {};
+      this.rawMessages = {};
+      this.groups = {};
+      this.blocklist = [];
+      this.labels = {};
+      this.presences = {};
+      this.calls = [];
+      this.newsletters = {};
+    }
   },
 
   debouncedWrites: {},
