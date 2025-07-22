@@ -14,9 +14,7 @@ const logger = require('../utils/logger/loggerModule');
 const groupUtils = require('../utils/groupUtils');
 const dataStore = require('../store/dataStore');
 
-
-
-const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/'; // Default to '/' if not set
+const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
 /**
  * Extrai o conteúdo de texto de uma mensagem do WhatsApp.
@@ -96,15 +94,12 @@ const handleWhatsAppUpdate = async (update, sock) => {
       info: update.messages.map((messageInfo) => {
         return `📨 Mensagem de ${messageInfo.key.remoteJid}: ${extractMessageContent(messageInfo)}`;
       }),
-
       action: 'process_incoming_messages',
     });
 
     try {
       for (const messageInfo of update.messages) {
         const extractedText = extractMessageContent(messageInfo);
-        logger.info(`Mensagem de ${messageInfo.key.remoteJid}: ${extractedText}`);
-
         if (extractedText.startsWith(COMMAND_PREFIX)) {
           const commandArgs = extractedText.substring(COMMAND_PREFIX.length).split(' ');
           const command = commandArgs[0];
