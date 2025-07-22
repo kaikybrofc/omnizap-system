@@ -14,7 +14,7 @@ const CHUNK_SIZE = 64 * 1024;
 
 async function ensureStoreDirectory() {
   try {
-    await fs.mkdir(storePath, { recursive: true, mode: 0o777 });
+    await fsp.mkdir(storePath, { recursive: true, mode: 0o777 });
     logger.info(`Diretório de armazenamento garantido: '${storePath}'`);
   } catch (error) {
     logger.error(`Erro ao criar diretório de armazenamento: ${error.message}`);
@@ -99,7 +99,17 @@ async function readFromFile(dataType) {
     return {};
   } finally {
     try {
-      await lockfile.unlock(filePath).catch(() => {});
+      // Só tenta desbloquear se o arquivo existir
+      await fsp
+        .access(filePath)
+        .then(() => {
+          return lockfile.unlock(filePath).catch(() => {
+            // Ignora erros de unlock se o arquivo não estiver lockado
+          });
+        })
+        .catch(() => {
+          // Ignora erros se o arquivo não existir
+        });
     } catch (unlockError) {
       logger.warn(`Erro ao liberar lock de ${dataType}.json: ${unlockError.message}`);
     }
@@ -119,13 +129,18 @@ async function writeToFile(dataType, data) {
     await fsp.mkdir(path.dirname(filePath), { recursive: true });
 
     // Obtém o lock do arquivo
-    releaseLock = await lockfile.lock(filePath, {
-      retries: { retries: 5, factor: 1, minTimeout: 200 },
-      onCompromised: (err) => {
-        logger.error('Lock file compromised:', err);
-        throw err;
-      },
-    });
+    try {
+      releaseLock = await lockfile.lock(filePath, {
+        retries: { retries: 5, factor: 1, minTimeout: 200 },
+        onCompromised: (err) => {
+          logger.error('Lock file compromised:', err);
+          throw err;
+        },
+      });
+    } catch (lockError) {
+      logger.error(`Não foi possível obter lock para ${dataType}.json: ${lockError.message}`);
+      throw lockError;
+    }
 
     // Cria um stream de transformação para chunking do JSON
     const jsonStringifier = new Transform({
