@@ -112,79 +112,33 @@ const handleWhatsAppUpdate = async (update, sock) => {
           logger.info(`Comando recebido: ${command} (de ${isGroupMessage ? 'grupo' : 'privado'})`);
 
           switch (command) {
-            case 'grupoinfo':
-              let targetGroupId = args[0];
+            case 'grupoinfo': {
+              let targetGroupId = args[0] || (isGroupMessage ? remoteJid : null);
 
               if (!targetGroupId) {
-                if (isGroupMessage) {
-                  targetGroupId = remoteJid;
-                  logger.info(`Usando o ID do grupo atual para /grupoinfo: ${targetGroupId}`);
-                } else {
-                  logger.warn('ID do grupo não fornecido para /grupoinfo em chat privado.');
-                  await sock.sendMessage(remoteJid, { text: 'Por favor, forneça o ID do grupo. Ex: /grupoinfo 1234567890@g.us' });
-                  break;
-                }
-              }
-
-              if (!targetGroupId) {
-                if (isGroupMessage) {
-                  targetGroupId = remoteJid;
-                  logger.info(`Usando o ID do grupo atual para /grupoinfo: ${targetGroupId}`);
-                } else {
-                  logger.warn('ID do grupo não fornecido para /grupoinfo em chat privado.');
-                  await sock.sendMessage(remoteJid, { text: 'Por favor, forneça o ID do grupo. Ex: /grupoinfo 1234567890@g.us' });
-                  break;
-                }
+                logger.warn('ID do grupo não fornecido para /grupoinfo em chat privado.');
+                await sock.sendMessage(remoteJid, {
+                  text: '⚠️ *Por favor, forneça o ID do grupo!*\n\nExemplo: `/grupoinfo 1234567890@g.us`',
+                });
+                break;
               }
 
               const groupInfo = groupUtils.getGroupInfo(targetGroupId);
 
-              if (groupInfo) {
-                let reply = `*Informações do Grupo:*
-`;
-                reply += `*ID:* ${groupInfo.id}
-`;
-                reply += `*Assunto:* ${groupInfo.subject || 'N/A'}
-`;
-                reply += `*Proprietário:* ${groupUtils.getGroupOwner(targetGroupId) || 'N/A'}
-`;
-                reply += `*Criado em:* ${groupUtils.getGroupCreationTime(targetGroupId) ? new Date(groupUtils.getGroupCreationTime(targetGroupId) * 1000).toLocaleString() : 'N/A'}
-`;
-                reply += `*Tamanho:* ${groupUtils.getGroupSize(targetGroupId) || 'N/A'}
-`;
-                reply += `*Restrito:* ${groupUtils.isGroupRestricted(targetGroupId) ? 'Sim' : 'Não'}
-`;
-                reply += `*Apenas Anúncios:* ${groupUtils.isGroupAnnounceOnly(targetGroupId) ? 'Sim' : 'Não'}
-`;
-                reply += `*Comunidade:* ${groupUtils.isGroupCommunity(targetGroupId) ? 'Sim' : 'Não'}
-`;
-                reply += `*Descrição:* ${groupUtils.getGroupDescription(targetGroupId) || 'N/A'}
-`;
-
-                const admins = groupUtils.getGroupAdmins(targetGroupId);
-                if (admins.length > 0) {
-                  reply += `*Administradores:* ${admins.join(', ')}
-`;
-                } else {
-                  reply += `*Administradores:* Nenhum
-`;
-                }
-
-                const participants = groupUtils.getGroupParticipants(targetGroupId);
-                if (participants && participants.length > 0) {
-                  reply += `*Total de Participantes:* ${participants.length}
-`;
-                } else {
-                  reply += `*Participantes:* Nenhum
-`;
-                }
-
-                await sock.sendMessage(remoteJid, { text: reply });
-              } else {
+              if (!groupInfo) {
                 logger.info(`Grupo com ID ${targetGroupId} não encontrado.`);
-                await sock.sendMessage(remoteJid, { text: `Grupo com ID ${targetGroupId} não encontrado.` });
+                await sock.sendMessage(remoteJid, {
+                  text: `❌ *Grupo com ID ${targetGroupId} não encontrado.*`,
+                });
+                break;
               }
+
+              const reply = `📋 *Informações do Grupo:*\n\n` + `🆔 *ID:* ${groupInfo.id}\n` + `📝 *Assunto:* ${groupInfo.subject || 'N/A'}\n` + `👑 *Proprietário:* ${groupUtils.getGroupOwner(targetGroupId) || 'N/A'}\n` + `📅 *Criado em:* ${groupUtils.getGroupCreationTime(targetGroupId) ? new Date(groupUtils.getGroupCreationTime(targetGroupId) * 1000).toLocaleString() : 'N/A'}\n` + `👥 *Tamanho:* ${groupUtils.getGroupSize(targetGroupId) || 'N/A'}\n` + `🔒 *Restrito:* ${groupUtils.isGroupRestricted(targetGroupId) ? 'Sim' : 'Não'}\n` + `📢 *Somente anúncios:* ${groupUtils.isGroupAnnounceOnly(targetGroupId) ? 'Sim' : 'Não'}\n` + `🏘️ *Comunidade:* ${groupUtils.isGroupCommunity(targetGroupId) ? 'Sim' : 'Não'}\n` + `🗣️ *Descrição:* ${groupUtils.getGroupDescription(targetGroupId) || 'N/A'}\n` + `🛡️ *Administradores:* ${groupUtils.getGroupAdmins(targetGroupId).join(', ') || 'Nenhum'}\n` + `👤 *Total de Participantes:* ${groupUtils.getGroupParticipants(targetGroupId)?.length || 'Nenhum'}`;
+
+              await sock.sendMessage(remoteJid, { text: reply });
               break;
+            }
+
             default:
               logger.info(`Comando desconhecido: ${command}`);
               break;
