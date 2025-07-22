@@ -19,6 +19,17 @@ const writeBuffer = {
   flushTimeout: null,
 };
 
+// Função auxiliar para garantir o tipo correto dos dados
+function ensureDataType(data, expectedType) {
+  if (expectedType === 'array') {
+    return Array.isArray(data) ? data : [];
+  }
+  if (expectedType === 'object') {
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+  }
+  return data;
+}
+
 const store = {
   chats: [],
   contacts: {},
@@ -33,12 +44,34 @@ const store = {
 
   async loadData() {
     try {
-      // Garante que todos os arquivos existam com um objeto vazio
-      const dataTypes = ['chats', 'contacts', 'messages', 'rawMessages', 'groups', 'blocklist', 'labels', 'presences', 'calls', 'newsletters'];
+      // Define quais tipos devem ser arrays e quais devem ser objetos
+      const typeDefinitions = {
+        chats: [],
+        contacts: {},
+        messages: {},
+        rawMessages: {},
+        groups: {},
+        blocklist: [],
+        labels: {},
+        presences: {},
+        calls: [],
+        newsletters: {},
+      };
 
-      for (const type of dataTypes) {
-        const data = await readFromFile(type);
-        this[type] = Array.isArray(this[type]) ? data || [] : data || {};
+      // Carrega os dados mantendo o tipo correto
+      for (const [type, defaultValue] of Object.entries(typeDefinitions)) {
+        try {
+          const data = await readFromFile(type);
+          // Garante que o tipo de dado seja mantido (array ou objeto)
+          if (Array.isArray(defaultValue)) {
+            this[type] = Array.isArray(data) ? data : [];
+          } else {
+            this[type] = data && typeof data === 'object' ? data : {};
+          }
+        } catch (loadError) {
+          logger.error(`Erro ao carregar ${type}:`, loadError);
+          this[type] = defaultValue;
+        }
       }
 
       logger.info('Dados do store carregados com sucesso');
@@ -501,6 +534,9 @@ const store = {
       this.debouncedWrite('messages');
     });
     ev.on('chats.upsert', (newChats) => {
+      // Garante que this.chats seja um array
+      this.chats = ensureDataType(this.chats, 'array');
+
       for (const chat of newChats) {
         const existingChat = this.chats.find((c) => c.id === chat.id);
         if (existingChat) {
