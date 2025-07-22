@@ -82,6 +82,52 @@ const extractMessageContent = (messageInfo) => {
 };
 
 /**
+ * Extrai o valor de expiração de uma mensagem do WhatsApp, ou retorna 24 horas (em segundos) por padrão.
+ * @param {object} info - Objeto da mensagem recebido via Baileys.
+ * @returns {number} Timestamp de expiração (em segundos).
+ */
+function getExpiration(sock) {
+  const DEFAULT_EXPIRATION_SECONDS = 24 * 60 * 60; // 24 horas
+
+  if (!sock || typeof sock !== 'object' || !sock.message) {
+    return DEFAULT_EXPIRATION_SECONDS;
+  }
+
+  const messageTypes = ['conversation', 'viewOnceMessageV2', 'imageMessage', 'videoMessage', 'extendedTextMessage', 'viewOnceMessage', 'documentWithCaptionMessage', 'buttonsMessage', 'buttonsResponseMessage', 'listResponseMessage', 'templateButtonReplyMessage', 'interactiveResponseMessage'];
+
+  // Verifica diretamente nos tipos de mensagem listados
+  for (const type of messageTypes) {
+    const rawMessage = sock.message[type];
+    const messageContent = rawMessage?.message ?? rawMessage;
+
+    const expiration = messageContent?.contextInfo?.expiration;
+    if (typeof expiration === 'number') {
+      return expiration;
+    }
+  }
+
+  // Busca profunda para garantir cobertura de todos os casos
+  const deepSearch = (obj) => {
+    if (typeof obj !== 'object' || obj === null) return null;
+
+    if (obj.contextInfo?.expiration && typeof obj.contextInfo.expiration === 'number') {
+      return obj.contextInfo.expiration;
+    }
+
+    for (const key of Object.keys(obj)) {
+      const value = obj[key];
+      const result = deepSearch(value);
+      if (result !== null) return result;
+    }
+
+    return null;
+  };
+
+  const found = deepSearch(sock.message);
+  return typeof found === 'number' ? found : null;
+}
+
+/**
  * Lida com atualizações do WhatsApp, sejam mensagens ou eventos genéricos.
  *
  * @param {Object} update - Objeto contendo a atualização do WhatsApp.
@@ -108,6 +154,7 @@ const handleWhatsAppUpdate = async (update, sock) => {
           const isGroupMessage = messageInfo.key.remoteJid.endsWith('@g.us');
           const remoteJid = messageInfo.key.remoteJid;
           const senderJid = isGroupMessage ? messageInfo.key.participant : remoteJid;
+          const expirationMessage = getExpiration(messageInfo);
 
           logger.info(`Comando recebido: ${command} (de ${isGroupMessage ? 'grupo' : 'privado'})`);
 
@@ -117,9 +164,13 @@ const handleWhatsAppUpdate = async (update, sock) => {
 
               if (!targetGroupId) {
                 logger.warn('ID do grupo não fornecido para /grupoinfo em chat privado.');
-                await sock.sendMessage(remoteJid, {
-                  text: '⚠️ *Por favor, forneça o ID do grupo!*\n\nExemplo: `/grupoinfo 1234567890@g.us`',
-                });
+                await sock.sendMessage(
+                  remoteJid,
+                  {
+                    text: '⚠️ *Por favor, forneça o ID do grupo!*\n\nExemplo: `/grupoinfo 1234567890@g.us`',
+                  },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
                 break;
               }
 
@@ -127,20 +178,25 @@ const handleWhatsAppUpdate = async (update, sock) => {
 
               if (!groupInfo) {
                 logger.info(`Grupo com ID ${targetGroupId} não encontrado.`);
-                await sock.sendMessage(remoteJid, {
-                  text: `❌ *Grupo com ID ${targetGroupId} não encontrado.*`,
-                });
+                await sock.sendMessage(
+                  remoteJid,
+                  {
+                    text: `❌ *Grupo com ID ${targetGroupId} não encontrado.*`,
+                  },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
                 break;
               }
 
               const reply = `📋 *Informações do Grupo:*\n\n` + `🆔 *ID:* ${groupInfo.id}\n` + `📝 *Assunto:* ${groupInfo.subject || 'N/A'}\n` + `👑 *Proprietário:* ${groupUtils.getGroupOwner(targetGroupId) || 'N/A'}\n` + `📅 *Criado em:* ${groupUtils.getGroupCreationTime(targetGroupId) ? new Date(groupUtils.getGroupCreationTime(targetGroupId) * 1000).toLocaleString() : 'N/A'}\n` + `👥 *Tamanho:* ${groupUtils.getGroupSize(targetGroupId) || 'N/A'}\n` + `🔒 *Restrito:* ${groupUtils.isGroupRestricted(targetGroupId) ? 'Sim' : 'Não'}\n` + `📢 *Somente anúncios:* ${groupUtils.isGroupAnnounceOnly(targetGroupId) ? 'Sim' : 'Não'}\n` + `🏘️ *Comunidade:* ${groupUtils.isGroupCommunity(targetGroupId) ? 'Sim' : 'Não'}\n` + `🗣️ *Descrição:* ${groupUtils.getGroupDescription(targetGroupId) || 'N/A'}\n` + `🛡️ *Administradores:* ${groupUtils.getGroupAdmins(targetGroupId).join(', ') || 'Nenhum'}\n` + `👤 *Total de Participantes:* ${groupUtils.getGroupParticipants(targetGroupId)?.length || 'Nenhum'}`;
 
-              await sock.sendMessage(remoteJid, { text: reply });
+              await sock.sendMessage(remoteJid, { text: reply }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
               break;
             }
 
             default:
               logger.info(`Comando desconhecido: ${command}`);
+              //await sock.sendMessage(remoteJid, { text: 'ℹ️ Nenhum comando configurado encontrado.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
               break;
           }
         }
