@@ -11,6 +11,14 @@ const RAW_MESSAGE_RETENTION_DAYS = parseInt(process.env.OMNIZAP_RAW_MESSAGE_RETE
 
 const CLEANUP_INTERVAL_MS = parseInt(process.env.OMNIZAP_CLEANUP_INTERVAL_MS || '86400000', 10); // Intervalo de limpeza (24 horas por padrão)
 
+// Buffer para acumular dados antes de escrever no disco
+const writeBuffer = {
+  size: 0,
+  maxSize: process.env.OMNIZAP_WRITE_BUFFER_SIZE || 5 * 1024 * 1024, // 5MB por padrão
+  data: {},
+  flushTimeout: null,
+};
+
 const store = {
   chats: [],
   contacts: {},
@@ -50,13 +58,53 @@ const store = {
     }
   },
 
+  // Novo sistema de buffer e escrita otimizada
+  bufferWrite: function (dataType, data) {
+    // Adiciona os dados ao buffer
+    writeBuffer.data[dataType] = data;
+    writeBuffer.size += JSON.stringify(data).length;
+
+    // Se o buffer atingir o tamanho máximo, força um flush
+    if (writeBuffer.size >= writeBuffer.maxSize) {
+      this.flushBuffer();
+      return;
+    }
+
+    // Agenda um flush se ainda não estiver agendado
+    if (!writeBuffer.flushTimeout) {
+      writeBuffer.flushTimeout = setTimeout(() => this.flushBuffer(), 1000);
+    }
+  },
+
+  flushBuffer: async function () {
+    if (writeBuffer.flushTimeout) {
+      clearTimeout(writeBuffer.flushTimeout);
+      writeBuffer.flushTimeout = null;
+    }
+
+    const dataToWrite = { ...writeBuffer.data };
+    writeBuffer.data = {};
+    writeBuffer.size = 0;
+
+    // Processa cada tipo de dado em paralelo
+    const writePromises = Object.entries(dataToWrite).map(async ([dataType, data]) => {
+      try {
+        await writeToFile(dataType, data);
+      } catch (error) {
+        logger.error(`Erro ao fazer flush do buffer para ${dataType}:`, error);
+      }
+    });
+
+    await Promise.all(writePromises);
+  },
+
   debouncedWrites: {},
   debouncedWrite: function (dataType, delay = 1000) {
     if (this.debouncedWrites[dataType]) {
       clearTimeout(this.debouncedWrites[dataType]);
     }
-    this.debouncedWrites[dataType] = setTimeout(async () => {
-      await writeToFile(dataType, this[dataType]);
+    this.debouncedWrites[dataType] = setTimeout(() => {
+      this.bufferWrite(dataType, this[dataType]);
       delete this.debouncedWrites[dataType];
     }, delay);
   },

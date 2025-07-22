@@ -1,9 +1,16 @@
-const fs = require('fs').promises;
+const fs = require('fs');
+const fsp = fs.promises;
 const path = require('path');
 const lockfile = require('proper-lockfile');
 const logger = require('../utils/logger/loggerModule');
+const { Transform, pipeline } = require('stream');
+const { promisify } = require('util');
 
+const pipelineAsync = promisify(pipeline);
 const storePath = path.resolve(process.cwd(), process.env.STORE_PATH || './temp');
+
+// Tamanho do chunk para streaming (64KB)
+const CHUNK_SIZE = 64 * 1024;
 
 async function ensureStoreDirectory() {
   try {
@@ -22,12 +29,12 @@ async function readFromFile(dataType) {
   try {
     // Verifica se o arquivo existe
     try {
-      await fs.access(filePath);
+      await fsp.access(filePath);
     } catch (error) {
       if (error.code === 'ENOENT') {
-        // Se o arquivo não existe, cria um vazio
-        await fs.writeFile(filePath, '{}', { mode: 0o666 });
+        await fsp.writeFile(filePath, '{}', { mode: 0o666 });
         logger.warn(`Arquivo ${dataType}.json não encontrado. Criando novo arquivo vazio.`);
+        return {};
       }
     }
 
@@ -41,23 +48,52 @@ async function readFromFile(dataType) {
       });
     } catch (lockError) {
       logger.warn(`Não foi possível obter lock para ${dataType}.json: ${lockError.message}`);
-      // Continua mesmo sem o lock neste caso
     }
 
-    const data = await fs.readFile(filePath, 'utf8');
+    // Criando stream de transformação para processar chunks JSON
+    let jsonBuffer = '';
+    const jsonParser = new Transform({
+      readableObjectMode: true,
+      transform(chunk, encoding, callback) {
+        try {
+          jsonBuffer += chunk.toString();
+          callback();
+        } catch (err) {
+          callback(err);
+        }
+      },
+      flush(callback) {
+        try {
+          const parsedData = JSON.parse(jsonBuffer || '{}');
+          if (typeof parsedData !== 'object' || parsedData === null) {
+            callback(new Error(`Formato de dados inválido para ${dataType}. Esperava um objeto.`));
+            return;
+          }
+          this.push(parsedData);
+          callback();
+        } catch (err) {
+          callback(err);
+        }
+      },
+    });
+
+    const result = await new Promise((resolve, reject) => {
+      const chunks = [];
+      pipelineAsync(fs.createReadStream(filePath, { highWaterMark: CHUNK_SIZE }), jsonParser)
+        .then(() => {
+          const parsedData = chunks.length ? chunks[0] : {};
+          resolve(parsedData);
+        })
+        .catch((err) => {
+          logger.error(`Erro ao processar stream para ${dataType}:`, err);
+          resolve({});
+        });
+
+      jsonParser.on('data', (chunk) => chunks.push(chunk));
+    });
+
     logger.info(`Store para ${dataType} lido de ${filePath}`);
-
-    try {
-      const parsedData = JSON.parse(data || '{}');
-      if (typeof parsedData !== 'object' || parsedData === null) {
-        logger.warn(`Formato de dados inválido para ${dataType}. Esperava um objeto.`);
-        return {};
-      }
-      return parsedData;
-    } catch (parseError) {
-      logger.error(`Erro ao fazer parse do JSON para ${dataType} de ${filePath}:`, parseError);
-      return {};
-    }
+    return result;
   } catch (error) {
     logger.error(`Erro ao ler store para ${dataType} de ${filePath}:`, error);
     return {};
@@ -77,22 +113,63 @@ async function writeToFile(dataType, data) {
   }
 
   const filePath = path.join(storePath, `${dataType}.json`);
+  let releaseLock = null;
+
   try {
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await lockfile.lock(filePath, {
+    await fsp.mkdir(path.dirname(filePath), { recursive: true });
+
+    // Obtém o lock do arquivo
+    releaseLock = await lockfile.lock(filePath, {
       retries: { retries: 5, factor: 1, minTimeout: 200 },
       onCompromised: (err) => {
         logger.error('Lock file compromised:', err);
         throw err;
       },
     });
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
-    logger.info(`Store for ${dataType} written to ${filePath}`);
+
+    // Cria um stream de transformação para chunking do JSON
+    const jsonStringifier = new Transform({
+      transform(chunk, encoding, callback) {
+        try {
+          const jsonChunk = JSON.stringify(chunk, null, 2);
+          callback(null, jsonChunk);
+        } catch (err) {
+          callback(err);
+        }
+      },
+    });
+
+    // Cria uma Promise que resolverá quando o pipeline terminar
+    await new Promise((resolve, reject) => {
+      // Cria um stream de escrita
+      const writeStream = fs.createWriteStream(filePath, {
+        flags: 'w',
+        encoding: 'utf8',
+        highWaterMark: CHUNK_SIZE,
+      });
+
+      // Configura os handlers de evento
+      writeStream.on('error', reject);
+      writeStream.on('finish', resolve);
+
+      // Escreve os dados usando o pipeline
+      jsonStringifier.pipe(writeStream);
+      jsonStringifier.write(data);
+      jsonStringifier.end();
+    });
+
+    logger.info(`Store para ${dataType} escrito em ${filePath}`);
   } catch (error) {
-    logger.error(`Error writing store for ${dataType} to ${filePath}:`, error);
+    logger.error(`Erro ao escrever store para ${dataType} em ${filePath}:`, error);
     throw error;
   } finally {
-    await lockfile.unlock(filePath);
+    if (releaseLock) {
+      try {
+        await releaseLock();
+      } catch (unlockError) {
+        logger.warn(`Erro ao liberar lock de ${dataType}.json: ${unlockError.message}`);
+      }
+    }
   }
 }
 
