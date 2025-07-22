@@ -107,15 +107,12 @@ const handleWhatsAppUpdate = async (update, sock) => {
 
           const isGroupMessage = messageInfo.key.remoteJid.endsWith('@g.us');
           const remoteJid = messageInfo.key.remoteJid;
+          const senderJid = isGroupMessage ? messageInfo.key.participant : remoteJid;
 
           logger.info(`Comando recebido: ${command} (de ${isGroupMessage ? 'grupo' : 'privado'})`);
 
           switch (command) {
-            case 'menu':
-              logger.info('Processando comando /menu');
-              break;
             case 'grupoinfo':
-              logger.info('Processando comando /grupoinfo');
               let targetGroupId = args[0];
 
               if (!targetGroupId) {
