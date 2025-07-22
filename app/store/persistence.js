@@ -142,35 +142,22 @@ async function writeToFile(dataType, data) {
       throw lockError;
     }
 
-    // Cria um stream de transformação para chunking do JSON
-    const jsonStringifier = new Transform({
-      transform(chunk, encoding, callback) {
-        try {
-          const jsonChunk = JSON.stringify(chunk, null, 2);
-          callback(null, jsonChunk);
-        } catch (err) {
-          callback(err);
-        }
-      },
-    });
+    const jsonString = JSON.stringify(data, null, 2);
 
-    // Cria uma Promise que resolverá quando o pipeline terminar
+    // Cria uma Promise que resolverá quando a escrita terminar
     await new Promise((resolve, reject) => {
-      // Cria um stream de escrita
       const writeStream = fs.createWriteStream(filePath, {
         flags: 'w',
         encoding: 'utf8',
         highWaterMark: CHUNK_SIZE,
       });
 
-      // Configura os handlers de evento
       writeStream.on('error', reject);
       writeStream.on('finish', resolve);
 
-      // Escreve os dados usando o pipeline
-      jsonStringifier.pipe(writeStream);
-      jsonStringifier.write(data);
-      jsonStringifier.end();
+      // Escreve a string JSON no stream
+      writeStream.write(jsonString);
+      writeStream.end();
     });
 
     logger.info(`Store para ${dataType} escrito em ${filePath}`);
