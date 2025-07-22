@@ -1,37 +1,20 @@
 const fs = require('fs').promises;
 const path = require('path');
+const lockfile = require('proper-lockfile');
 const logger = require('../utils/logger/loggerModule');
 
 const storePath = process.env.STORE_PATH || path.join(__dirname, '../connection/store');
-const lockfilePath = path.join(storePath, 'write.lock');
-
-async function acquireLock() {
-  try {
-    await fs.mkdir(storePath, { recursive: true });
-    await fs.mkdir(lockfilePath);
-    logger.info('Lock acquired.');
-    return true;
-  } catch (error) {
-    if (error.code === 'EEXIST') {
-      logger.warn('Write operation already in progress. Waiting for lock release...');
-      return false;
-    }
-    throw error;
-  }
-}
-
-async function releaseLock() {
-  try {
-    await fs.rmdir(lockfilePath);
-    logger.info('Lock released.');
-  } catch (error) {
-    logger.error('Error releasing lock:', error);
-  }
-}
 
 async function readFromFile(dataType) {
   const filePath = path.join(storePath, `${dataType}.json`);
   try {
+    await lockfile.lock(storePath, { 
+      retries: { retries: 5, factor: 1, minTimeout: 200 },
+      onCompromised: (err) => {
+        logger.error('Lock file compromised:', err);
+        throw err;
+      }
+    });
     const data = await fs.readFile(filePath, 'utf8');
     logger.info(`Store for ${dataType} read from ${filePath}`);
     try {
@@ -53,6 +36,8 @@ async function readFromFile(dataType) {
       logger.error(`Error reading store for ${dataType} from ${filePath}:`, error);
       throw error;
     }
+  } finally {
+    await lockfile.unlock(storePath);
   }
 }
 
@@ -62,21 +47,23 @@ async function writeToFile(dataType, data) {
     return;
   }
 
-  if (!(await acquireLock())) {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    return writeToFile(dataType, data);
-  }
-
   const filePath = path.join(storePath, `${dataType}.json`);
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await lockfile.lock(storePath, { 
+      retries: { retries: 5, factor: 1, minTimeout: 200 },
+      onCompromised: (err) => {
+        logger.error('Lock file compromised:', err);
+        throw err;
+      }
+    });
     await fs.writeFile(filePath, JSON.stringify(data, null, 2));
     logger.info(`Store for ${dataType} written to ${filePath}`);
   } catch (error) {
     logger.error(`Error writing store for ${dataType} to ${filePath}:`, error);
     throw error;
   } finally {
-    await releaseLock();
+    await lockfile.unlock(storePath);
   }
 }
 
