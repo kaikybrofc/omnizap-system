@@ -134,15 +134,7 @@ function getExpiration(sock) {
  */
 const handleWhatsAppUpdate = async (update, sock) => {
   if (update.messages && Array.isArray(update.messages)) {
-    dataStore.saveIncomingRawMessages(update.messages); // Salva as mensagens raw no dataStore
-    logger.info('📨 Processando mensagens recebidas', {
-      messageCount: update.messages.length,
-      info: update.messages.map((messageInfo) => {
-        return `📨 Mensagem de ${messageInfo.key.remoteJid}: ${extractMessageContent(messageInfo)}`;
-      }),
-      action: 'process_incoming_messages',
-    });
-
+    dataStore.saveIncomingRawMessages(update.messages);
     try {
       for (const messageInfo of update.messages) {
         const extractedText = extractMessageContent(messageInfo);
@@ -155,8 +147,6 @@ const handleWhatsAppUpdate = async (update, sock) => {
           const remoteJid = messageInfo.key.remoteJid;
           const senderJid = isGroupMessage ? messageInfo.key.participant : remoteJid;
           const expirationMessage = getExpiration(messageInfo);
-
-          logger.info(`Comando recebido: ${command} (de ${isGroupMessage ? 'grupo' : 'privado'})`);
 
           switch (command) {
             case 'grupoinfo': {
