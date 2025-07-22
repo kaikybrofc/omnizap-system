@@ -13,8 +13,6 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers
 
 const store = require('../store/dataStore');
 
-
-
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
@@ -27,7 +25,7 @@ const { getSystemMetrics } = require('../utils/systemMetrics/systemMetricsModule
 let activeSocket = null;
 let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 5;
-const INITIAL_RECONNECT_DELAY = 3000; // 3 segundos
+const INITIAL_RECONNECT_DELAY = 3000;
 
 async function connectToWhatsApp() {
   logger.info('Iniciando conexão com o WhatsApp...', {
@@ -47,7 +45,6 @@ async function connectToWhatsApp() {
     auth: state,
     logger: require('pino')({ level: 'silent' }),
     browser: Browsers.macOS('Desktop'),
-
     qrTimeout: 30000,
     syncFullHistory: true,
     markOnlineOnConnect: false,
