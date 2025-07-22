@@ -87,7 +87,7 @@ const extractMessageContent = (messageInfo) => {
  * @returns {number} Timestamp de expiração (em segundos).
  */
 function getExpiration(sock) {
-  const DEFAULT_EXPIRATION_SECONDS = 24 * 60 * 60; // 24 horas
+  const DEFAULT_EXPIRATION_SECONDS = 24 * 60 * 60;
 
   if (!sock || typeof sock !== 'object' || !sock.message) {
     return DEFAULT_EXPIRATION_SECONDS;
@@ -95,7 +95,6 @@ function getExpiration(sock) {
 
   const messageTypes = ['conversation', 'viewOnceMessageV2', 'imageMessage', 'videoMessage', 'extendedTextMessage', 'viewOnceMessage', 'documentWithCaptionMessage', 'buttonsMessage', 'buttonsResponseMessage', 'listResponseMessage', 'templateButtonReplyMessage', 'interactiveResponseMessage'];
 
-  // Verifica diretamente nos tipos de mensagem listados
   for (const type of messageTypes) {
     const rawMessage = sock.message[type];
     const messageContent = rawMessage?.message ?? rawMessage;
@@ -106,7 +105,6 @@ function getExpiration(sock) {
     }
   }
 
-  // Busca profunda para garantir cobertura de todos os casos
   const deepSearch = (obj) => {
     if (typeof obj !== 'object' || obj === null) return null;
 

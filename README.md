@@ -11,7 +11,7 @@ O OmniZap System é uma solução robusta e escalável para automação de mensa
 
 *   **Conexão Flexível:** Suporte para conexão via QR Code e Código de Pareamento (Pairing Code) para maior conveniência e segurança.
 *   **Gerenciamento de Sessão:** Persistência automática das credenciais de autenticação para reconexões rápidas e sem interrupções.
-*   **Processamento de Mensagens:** Lida com o recebimento e atualização de mensagens, incluindo suporte a enquetes.
+*   **Processamento Inteligente de Mensagens:** Responde diretamente às mensagens do usuário (citando-as) e respeita as configurações de mensagens efêmeras (temporárias). Inclui uma resposta padrão para comandos não reconhecidos, garantindo uma interação mais fluida.
 *   **Gerenciamento Avançado de Grupos:** Funções globais para acessar informações detalhadas de grupos (assunto, participantes, administradores, descrição, etc.) e comando `/grupoinfo` para consulta direta.
 *   **Armazenamento Detalhado de Mensagens:** Persistência de mensagens de chat e de mensagens raw (objetos completos do Baileys) com limites e retenção configuráveis via variáveis de ambiente.
 *   **Sistema de Logs Avançado:** Logs detalhados com rotação diária de arquivos, múltiplos níveis de log (info, warn, error, debug, etc.) e formatação colorida para fácil depuração. Eventos genéricos e mensagens são logados separadamente.
