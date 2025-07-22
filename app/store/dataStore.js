@@ -11,6 +11,25 @@ const RAW_MESSAGE_RETENTION_DAYS = parseInt(process.env.OMNIZAP_RAW_MESSAGE_RETE
 
 const CLEANUP_INTERVAL_MS = parseInt(process.env.OMNIZAP_CLEANUP_INTERVAL_MS || '86400000', 10); // Intervalo de limpeza (24 horas por padrão)
 
+// Buffer para acumular dados antes de escrever no disco
+const writeBuffer = {
+  size: 0,
+  maxSize: process.env.OMNIZAP_WRITE_BUFFER_SIZE || 5 * 1024 * 1024, // 5MB por padrão
+  data: {},
+  flushTimeout: null,
+};
+
+// Função auxiliar para garantir o tipo correto dos dados
+function ensureDataType(data, expectedType) {
+  if (expectedType === 'array') {
+    return Array.isArray(data) ? data : [];
+  }
+  if (expectedType === 'object') {
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+  }
+  return data;
+}
+
 const store = {
   chats: [],
   contacts: {},
@@ -24,16 +43,92 @@ const store = {
   newsletters: {},
 
   async loadData() {
-    this.chats = (await readFromFile('chats')) || [];
-    this.contacts = (await readFromFile('contacts')) || {};
-    this.messages = (await readFromFile('messages')) || {};
-    this.rawMessages = (await readFromFile('rawMessages')) || {};
-    this.groups = (await readFromFile('groups')) || {};
-    this.blocklist = (await readFromFile('blocklist')) || [];
-    this.labels = (await readFromFile('labels')) || {};
-    this.presences = (await readFromFile('presences')) || {};
-    this.calls = (await readFromFile('calls')) || [];
-    this.newsletters = (await readFromFile('newsletters')) || {};
+    try {
+      // Define quais tipos devem ser arrays e quais devem ser objetos
+      const typeDefinitions = {
+        chats: [],
+        contacts: {},
+        messages: {},
+        rawMessages: {},
+        groups: {},
+        blocklist: [],
+        labels: {},
+        presences: {},
+        calls: [],
+        newsletters: {},
+      };
+
+      // Carrega os dados mantendo o tipo correto
+      for (const [type, defaultValue] of Object.entries(typeDefinitions)) {
+        try {
+          const data = await readFromFile(type);
+          // Garante que o tipo de dado seja mantido (array ou objeto)
+          if (Array.isArray(defaultValue)) {
+            this[type] = Array.isArray(data) ? data : [];
+          } else {
+            this[type] = data && typeof data === 'object' ? data : {};
+          }
+        } catch (loadError) {
+          logger.error(`Erro ao carregar ${type}:`, loadError);
+          this[type] = defaultValue;
+        }
+      }
+
+      logger.info('Dados do store carregados com sucesso');
+    } catch (error) {
+      logger.error('Erro ao carregar dados do store:', error);
+      // Inicializa com valores padrão em caso de erro
+      this.chats = [];
+      this.contacts = {};
+      this.messages = {};
+      this.rawMessages = {};
+      this.groups = {};
+      this.blocklist = [];
+      this.labels = {};
+      this.presences = {};
+      this.calls = [];
+      this.newsletters = {};
+    }
+  },
+
+  // Novo sistema de buffer e escrita otimizada
+  bufferWrite: function (dataType, data) {
+    // Adiciona os dados ao buffer
+    writeBuffer.data[dataType] = data;
+    writeBuffer.size += JSON.stringify(data).length;
+
+    // Se o buffer atingir o tamanho máximo, força um flush
+    if (writeBuffer.size >= writeBuffer.maxSize) {
+      this.flushBuffer();
+      return;
+    }
+
+    // Agenda um flush se ainda não estiver agendado
+    if (!writeBuffer.flushTimeout) {
+      writeBuffer.flushTimeout = setTimeout(() => this.flushBuffer(), 1000);
+    }
+  },
+
+  flushBuffer: async function () {
+    if (writeBuffer.flushTimeout) {
+      clearTimeout(writeBuffer.flushTimeout);
+      writeBuffer.flushTimeout = null;
+    }
+
+    const dataToWrite = { ...writeBuffer.data };
+    writeBuffer.data = {};
+    writeBuffer.size = 0;
+
+    // Processa cada tipo de dado em paralelo
+    const writePromises = Object.entries(dataToWrite).map(async ([dataType, data]) => {
+      try {
+        await writeToFile(dataType, data);
+      } catch (error) {
+        logger.error(`Erro ao fazer flush do buffer para ${dataType}:`, error);
+      }
+    });
+
+    await Promise.all(writePromises);
   },
 
   debouncedWrites: {},
@@ -41,8 +136,8 @@ const store = {
     if (this.debouncedWrites[dataType]) {
       clearTimeout(this.debouncedWrites[dataType]);
     }
-    this.debouncedWrites[dataType] = setTimeout(async () => {
-      await writeToFile(dataType, this[dataType]);
+    this.debouncedWrites[dataType] = setTimeout(() => {
+      this.bufferWrite(dataType, this[dataType]);
       delete this.debouncedWrites[dataType];
     }, delay);
   },
@@ -439,6 +534,9 @@ const store = {
       this.debouncedWrite('messages');
     });
     ev.on('chats.upsert', (newChats) => {
+      // Garante que this.chats seja um array
+      this.chats = ensureDataType(this.chats, 'array');
+
       for (const chat of newChats) {
         const existingChat = this.chats.find((c) => c.id === chat.id);
         if (existingChat) {
