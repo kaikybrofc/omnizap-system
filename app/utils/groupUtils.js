@@ -191,6 +191,189 @@ function getGroupsBySubjectKeyword(keyword) {
   return matchingGroupIds;
 }
 
+async function createGroup(sock, title, participants) {
+  try {
+    const group = await sock.groupCreate(title, participants);
+    logger.info(`Grupo criado com o ID: ${group.gid}`);
+    await sock.sendMessage(group.id, { text: 'Olá a todos no grupo!' });
+    return group;
+  } catch (error) {
+    logger.error(`Erro ao criar o grupo: ${error.message}`);
+    throw error;
+  }
+}
+
+async function updateGroupParticipants(sock, groupId, participants, action) {
+  try {
+    const result = await sock.groupParticipantsUpdate(groupId, participants, action);
+    logger.info(`Participantes do grupo ${groupId} atualizados:`, result);
+    return result;
+  } catch (error) {
+    logger.error(`Erro ao atualizar os participantes do grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+async function updateGroupSubject(sock, groupId, subject) {
+  try {
+    await sock.groupUpdateSubject(groupId, subject);
+    logger.info(`Assunto do grupo ${groupId} atualizado para: ${subject}`);
+  } catch (error) {
+    logger.error(`Erro ao atualizar o assunto do grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+async function updateGroupDescription(sock, groupId, description) {
+  try {
+    await sock.groupUpdateDescription(groupId, description);
+    logger.info(`Descrição do grupo ${groupId} atualizada.`);
+  } catch (error) {
+    logger.error(`Erro ao atualizar a descrição do grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+async function updateGroupSettings(sock, groupId, setting) {
+  try {
+    await sock.groupSettingUpdate(groupId, setting);
+    logger.info(`Configurações do grupo ${groupId} atualizadas para: ${setting}`);
+  } catch (error) {
+    logger.error(`Erro ao atualizar as configurações do grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+async function leaveGroup(sock, groupId) {
+  try {
+    await sock.groupLeave(groupId);
+    logger.info(`Saiu do grupo ${groupId}`);
+  } catch (error) {
+    logger.error(`Erro ao sair do grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+async function getGroupInviteCode(sock, groupId) {
+  try {
+    const code = await sock.groupInviteCode(groupId);
+    logger.info(`Código de convite para o grupo ${groupId}: ${code}`);
+    return code;
+  } catch (error) {
+    logger.error(`Erro ao obter o código de convite para o grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+async function revokeGroupInviteCode(sock, groupId) {
+  try {
+    const code = await sock.groupRevokeInvite(groupId);
+    logger.info(`Código de convite para o grupo ${groupId} revogado. Novo código: ${code}`);
+    return code;
+  } catch (error) {
+    logger.error(`Erro ao revogar o código de convite para o grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+async function acceptGroupInvite(sock, code) {
+  try {
+    const response = await sock.groupAcceptInvite(code);
+    logger.info(`Entrou no grupo usando o código de convite: ${response}`);
+    return response;
+  } catch (error) {
+    logger.error(`Erro ao aceitar o convite do grupo: ${error.message}`);
+    throw error;
+  }
+}
+
+async function getGroupInfoFromInvite(sock, code) {
+  try {
+    const response = await sock.groupGetInviteInfo(code);
+    logger.info(`Informações do grupo obtidas a partir do código de convite:`, response);
+    return response;
+  } catch (error) {
+    logger.error(`Erro ao obter informações do grupo a partir do código de convite: ${error.message}`);
+    throw error;
+  }
+}
+
+async function getGroupMetadata(sock, groupId) {
+  try {
+    const metadata = await sock.groupMetadata(groupId);
+    logger.info(`Metadados do grupo ${groupId}:`, metadata);
+    return metadata;
+  } catch (error) {
+    logger.error(`Erro ao obter metadados do grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+async function acceptGroupInviteV4(sock, groupId, groupInviteMessage) {
+  try {
+    const response = await sock.groupAcceptInviteV4(groupId, groupInviteMessage);
+    logger.info(`Entrou no grupo ${groupId} usando groupInviteMessage: ${response}`);
+    return response;
+  } catch (error) {
+    logger.error(`Erro ao aceitar o convite do grupo ${groupId} usando groupInviteMessage: ${error.message}`);
+    throw error;
+  }
+}
+
+async function getGroupRequestParticipantsList(sock, groupId) {
+  try {
+    const response = await sock.groupRequestParticipantsList(groupId);
+    logger.info(`Lista de solicitações de participação para o grupo ${groupId}:`, response);
+    return response;
+  } catch (error) {
+    logger.error(`Erro ao obter a lista de solicitações de participação para o grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+async function updateGroupRequestParticipants(sock, groupId, participants, action) {
+  try {
+    const response = await sock.groupRequestParticipantsUpdate(groupId, participants, action);
+    logger.info(`Solicitações de participação para o grupo ${groupId} atualizadas:`, response);
+    return response;
+  } catch (error) {
+    logger.error(`Erro ao atualizar as solicitações de participação para o grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+async function getAllParticipatingGroups(sock) {
+  try {
+    const response = await sock.groupFetchAllParticipating();
+    logger.info('Metadados de todos os grupos participantes obtidos:', response);
+    return response;
+  } catch (error) {
+    logger.error(`Erro ao obter os metadados de todos os grupos participantes: ${error.message}`);
+    throw error;
+  }
+}
+
+async function toggleEphemeral(sock, groupId, duration) {
+  try {
+    await sock.groupToggleEphemeral(groupId, duration);
+    logger.info(`Duração efêmera do grupo ${groupId} atualizada para: ${duration}`);
+  } catch (error) {
+    logger.error(`Erro ao atualizar a duração efêmera do grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+async function updateGroupAddMode(sock, groupId, mode) {
+  try {
+    await sock.groupMemberAddMode(groupId, mode);
+    logger.info(`Modo de adição de membros do grupo ${groupId} atualizado para: ${mode}`);
+  } catch (error) {
+    logger.error(`Erro ao atualizar o modo de adição de membros do grupo ${groupId}: ${error.message}`);
+    throw error;
+  }
+}
+
+
 module.exports = {
   getGroupInfo,
   getGroupSubject,
@@ -207,4 +390,21 @@ module.exports = {
   getGroupAdmins,
   getGroupsByParticipant,
   getGroupsBySubjectKeyword,
+  createGroup,
+  updateGroupParticipants,
+  updateGroupSubject,
+  updateGroupDescription,
+  updateGroupSettings,
+  leaveGroup,
+  getGroupInviteCode,
+  revokeGroupInviteCode,
+  acceptGroupInvite,
+  getGroupInfoFromInvite,
+  getGroupMetadata,
+  acceptGroupInviteV4,
+  getGroupRequestParticipantsList,
+  updateGroupRequestParticipants,
+  getAllParticipatingGroups,
+  toggleEphemeral,
+  updateGroupAddMode,
 };
