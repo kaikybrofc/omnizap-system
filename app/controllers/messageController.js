@@ -150,18 +150,18 @@ const handleWhatsAppUpdate = async (update, sock) => {
           const getParticipantJids = (messageInfo, args) => {
             const mentionedJids = messageInfo.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
             if (mentionedJids.length > 0) {
-                return mentionedJids;
+              return mentionedJids;
             }
             const repliedTo = messageInfo.message?.extendedTextMessage?.contextInfo?.participant;
             if (repliedTo && args.length === 0) {
-                return [repliedTo];
+              return [repliedTo];
             }
-            return args.filter(arg => arg.includes('@s.whatsapp.net'));
+            return args.filter((arg) => arg.includes('@s.whatsapp.net'));
           };
 
           const isUserAdmin = async (groupId, userId) => {
             const groupMetadata = await sock.groupMetadata(groupId);
-            const participant = groupMetadata.participants.find(p => p.id === userId);
+            const participant = groupMetadata.participants.find((p) => p.id === userId);
             return participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
           };
 
@@ -208,7 +208,7 @@ const handleWhatsAppUpdate = async (update, sock) => {
                 await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
                 break;
               }
-              if (!await isUserAdmin(remoteJid, senderJid)) {
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
                 await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
                 break;
               }
@@ -234,177 +234,438 @@ const handleWhatsAppUpdate = async (update, sock) => {
             }
 
             case 'add': {
-                if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                const participants = getParticipantJids(messageInfo, args);
-                if (participants.length === 0) { await sock.sendMessage(remoteJid, { text: 'Uso: /add @participante1 @participante2... ou forneça os JIDs.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                try { await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'add'); await sock.sendMessage(remoteJid, { text: 'Participantes adicionados com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao adicionar participantes: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
                 break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              const participants = getParticipantJids(messageInfo, args);
+              if (participants.length === 0) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /add @participante1 @participante2... ou forneça os JIDs.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              try {
+                await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'add');
+                await sock.sendMessage(remoteJid, { text: 'Participantes adicionados com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao adicionar participantes: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
+              break;
             }
 
             case 'ban': {
-                if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                const participants = getParticipantJids(messageInfo, args);
-                if (participants.length === 0) { await sock.sendMessage(remoteJid, { text: 'Uso: /ban @participante1 @participante2... ou responda a uma mensagem.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                if (participants.includes(botJid)) { await sock.sendMessage(remoteJid, { text: 'O bot não pode remover a si mesmo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                try {
-                    await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'remove');
-                    await sock.sendMessage(remoteJid, { text: 'Participantes removidos com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
-                    const repliedTo = messageInfo.message?.extendedTextMessage?.contextInfo;
-                    if (repliedTo) {
-                        const key = {
-                            remoteJid: remoteJid,
-                            fromMe: false,
-                            id: repliedTo.stanzaId,
-                            participant: repliedTo.participant
-                        };
-                        await sock.sendMessage(remoteJid, { delete: key });
-                    }
-                } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao remover participantes: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
                 break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              const participants = getParticipantJids(messageInfo, args);
+              if (participants.length === 0) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /ban @participante1 @participante2... ou responda a uma mensagem.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (participants.includes(botJid)) {
+                await sock.sendMessage(remoteJid, { text: 'O bot não pode remover a si mesmo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              try {
+                await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'remove');
+                await sock.sendMessage(remoteJid, { text: 'Participantes removidos com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                const repliedTo = messageInfo.message?.extendedTextMessage?.contextInfo;
+                if (repliedTo) {
+                  const key = {
+                    remoteJid: remoteJid,
+                    fromMe: false,
+                    id: repliedTo.stanzaId,
+                    participant: repliedTo.participant,
+                  };
+                  await sock.sendMessage(remoteJid, { delete: key });
+                }
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao remover participantes: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
+              break;
             }
 
             case 'up': {
-                if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                const participants = getParticipantJids(messageInfo, args);
-                if (participants.length === 0) { await sock.sendMessage(remoteJid, { text: 'Uso: /up @participante1 @participante2... ou forneça os JIDs.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                if (participants.includes(botJid)) { await sock.sendMessage(remoteJid, { text: 'O bot não pode promover a si mesmo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                try { await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'promote'); await sock.sendMessage(remoteJid, { text: 'Participantes promovidos a administradores com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao promover participantes: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
                 break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              const participants = getParticipantJids(messageInfo, args);
+              if (participants.length === 0) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /up @participante1 @participante2... ou forneça os JIDs.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (participants.includes(botJid)) {
+                await sock.sendMessage(remoteJid, { text: 'O bot não pode promover a si mesmo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              try {
+                await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'promote');
+                await sock.sendMessage(remoteJid, { text: 'Participantes promovidos a administradores com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao promover participantes: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
+              break;
             }
 
             case 'down': {
-                if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                const participants = getParticipantJids(messageInfo, args);
-                if (participants.length === 0) { await sock.sendMessage(remoteJid, { text: 'Uso: /down @participante1 @participante2... ou forneça os JIDs.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                if (participants.includes(botJid)) { await sock.sendMessage(remoteJid, { text: 'O bot não pode rebaixar a si mesmo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-                try { await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'demote'); await sock.sendMessage(remoteJid, { text: 'Administradores demovidos a participantes com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao demoter administradores: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
                 break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              const participants = getParticipantJids(messageInfo, args);
+              if (participants.length === 0) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /down @participante1 @participante2... ou forneça os JIDs.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (participants.includes(botJid)) {
+                await sock.sendMessage(remoteJid, { text: 'O bot não pode rebaixar a si mesmo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              try {
+                await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'demote');
+                await sock.sendMessage(remoteJid, { text: 'Administradores demovidos a participantes com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao demoter administradores: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
+              break;
             }
 
             case 'setsubject': {
-              if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (args.length < 1) { await sock.sendMessage(remoteJid, { text: 'Uso: /setsubject <novo_assunto>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (args.length < 1) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /setsubject <novo_assunto>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
               const newSubject = args.join(' ');
-              try { await groupUtils.updateGroupSubject(sock, remoteJid, newSubject); await sock.sendMessage(remoteJid, { text: `Assunto do grupo alterado para "${newSubject}" com sucesso!` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao alterar o assunto do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              try {
+                await groupUtils.updateGroupSubject(sock, remoteJid, newSubject);
+                await sock.sendMessage(remoteJid, { text: `Assunto do grupo alterado para "${newSubject}" com sucesso!` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao alterar o assunto do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'setdesc': {
-              if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (args.length < 1) { await sock.sendMessage(remoteJid, { text: 'Uso: /setdesc <nova_descrição>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (args.length < 1) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /setdesc <nova_descrição>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
               const newDescription = args.join(' ');
-              try { await groupUtils.updateGroupDescription(sock, remoteJid, newDescription); await sock.sendMessage(remoteJid, { text: 'Descrição do grupo alterada com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao alterar a descrição do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              try {
+                await groupUtils.updateGroupDescription(sock, remoteJid, newDescription);
+                await sock.sendMessage(remoteJid, { text: 'Descrição do grupo alterada com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao alterar a descrição do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'setgroup': {
-              if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (args.length < 1 || !['announcement', 'not_announcement', 'locked', 'unlocked'].includes(args[0])) { await sock.sendMessage(remoteJid, { text: 'Uso: /setgroup <announcement|not_announcement|locked|unlocked>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (args.length < 1 || !['announcement', 'not_announcement', 'locked', 'unlocked'].includes(args[0])) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /setgroup <announcement|not_announcement|locked|unlocked>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
               const setting = args[0];
-              try { await groupUtils.updateGroupSettings(sock, remoteJid, setting); await sock.sendMessage(remoteJid, { text: `Configuração do grupo alterada para "${setting}" com sucesso!` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao alterar a configuração do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              try {
+                await groupUtils.updateGroupSettings(sock, remoteJid, setting);
+                await sock.sendMessage(remoteJid, { text: `Configuração do grupo alterada para "${setting}" com sucesso!` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao alterar a configuração do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'leave': {
-              if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              try { await groupUtils.leaveGroup(sock, remoteJid); await sock.sendMessage(remoteJid, { text: `Saí do grupo ${remoteJid} com sucesso.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao sair do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              try {
+                await groupUtils.leaveGroup(sock, remoteJid);
+                await sock.sendMessage(remoteJid, { text: `Saí do grupo ${remoteJid} com sucesso.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao sair do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'invite': {
-              if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              try { const code = await groupUtils.getGroupInviteCode(sock, remoteJid); await sock.sendMessage(remoteJid, { text: `Código de convite para o grupo: ${code}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao obter o código de convite: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              try {
+                const code = await groupUtils.getGroupInviteCode(sock, remoteJid);
+                await sock.sendMessage(remoteJid, { text: `Código de convite para o grupo: ${code}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao obter o código de convite: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'revoke': {
-              if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              try { const code = await groupUtils.revokeGroupInviteCode(sock, remoteJid); await sock.sendMessage(remoteJid, { text: `Código de convite revogado. Novo código: ${code}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao revogar o código de convite: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              try {
+                const code = await groupUtils.revokeGroupInviteCode(sock, remoteJid);
+                await sock.sendMessage(remoteJid, { text: `Código de convite revogado. Novo código: ${code}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao revogar o código de convite: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'join': {
-              if (args.length < 1) { await sock.sendMessage(remoteJid, { text: 'Uso: /join <código_de_convite>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
+              if (args.length < 1) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /join <código_de_convite>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
               const code = args[0];
-              try { const response = await groupUtils.acceptGroupInvite(sock, code); await sock.sendMessage(remoteJid, { text: `Entrou no grupo: ${response}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao entrar no grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              try {
+                const response = await groupUtils.acceptGroupInvite(sock, code);
+                await sock.sendMessage(remoteJid, { text: `Entrou no grupo: ${response}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao entrar no grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'infofrominvite': {
-              if (args.length < 1) { await sock.sendMessage(remoteJid, { text: 'Uso: /infofrominvite <código_de_convite>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
+              if (args.length < 1) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /infofrominvite <código_de_convite>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
               const code = args[0];
-              try { const response = await groupUtils.getGroupInfoFromInvite(sock, code); await sock.sendMessage(remoteJid, { text: `Informações do grupo: ${JSON.stringify(response, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao obter informações do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              try {
+                const response = await groupUtils.getGroupInfoFromInvite(sock, code);
+                await sock.sendMessage(remoteJid, { text: `Informações do grupo: ${JSON.stringify(response, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao obter informações do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'metadata': {
               let groupId = args[0] || remoteJid;
-              if (!await isUserAdmin(groupId, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              try { const metadata = await groupUtils.getGroupMetadata(sock, groupId); await sock.sendMessage(remoteJid, { text: `Metadados do grupo: ${JSON.stringify(metadata, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao obter metadados do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              if (!(await isUserAdmin(groupId, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              try {
+                const metadata = await groupUtils.getGroupMetadata(sock, groupId);
+                await sock.sendMessage(remoteJid, { text: `Metadados do grupo: ${JSON.stringify(metadata, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao obter metadados do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'requests': {
-              if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              try { const response = await groupUtils.getGroupRequestParticipantsList(sock, remoteJid); await sock.sendMessage(remoteJid, { text: `Solicitações de entrada: ${JSON.stringify(response, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao listar solicitações de entrada: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              try {
+                const response = await groupUtils.getGroupRequestParticipantsList(sock, remoteJid);
+                await sock.sendMessage(remoteJid, { text: `Solicitações de entrada: ${JSON.stringify(response, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao listar solicitações de entrada: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'updaterequests': {
-              if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (args.length < 1 || !['approve', 'reject'].includes(args[0])) { await sock.sendMessage(remoteJid, { text: 'Uso: /updaterequests <approve|reject> @participante1...' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (args.length < 1 || !['approve', 'reject'].includes(args[0])) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /updaterequests <approve|reject> @participante1...' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
               const action = args[0];
               const participants = getParticipantJids(messageInfo, args.slice(1));
-              if (participants.length === 0) { await sock.sendMessage(remoteJid, { text: 'Uso: /updaterequests <approve|reject> @participante1... (mencione os usuários)' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              try { const response = await groupUtils.updateGroupRequestParticipants(sock, remoteJid, participants, action); await sock.sendMessage(remoteJid, { text: `Solicitações de entrada atualizadas: ${JSON.stringify(response, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao atualizar solicitações de entrada: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              if (participants.length === 0) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /updaterequests <approve|reject> @participante1... (mencione os usuários)' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              try {
+                const response = await groupUtils.updateGroupRequestParticipants(sock, remoteJid, participants, action);
+                await sock.sendMessage(remoteJid, { text: `Solicitações de entrada atualizadas: ${JSON.stringify(response, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao atualizar solicitações de entrada: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'groups': {
-              try { const response = await groupUtils.getAllParticipatingGroups(sock); await sock.sendMessage(remoteJid, { text: `Grupos participantes: ${JSON.stringify(response, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao listar os grupos: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              try {
+                const response = await groupUtils.getAllParticipatingGroups(sock);
+                await sock.sendMessage(remoteJid, { text: `Grupos participantes: ${JSON.stringify(response, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao listar os grupos: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'temp': {
-              if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (args.length < 1) { await sock.sendMessage(remoteJid, { text: 'Uso: /temp <duração_em_segundos>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (args.length < 1) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /temp <duração_em_segundos>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
               const duration = parseInt(args[0]);
-              try { await groupUtils.toggleEphemeral(sock, remoteJid, duration); await sock.sendMessage(remoteJid, { text: `Mensagens efêmeras atualizadas para ${duration} segundos.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao atualizar mensagens efêmeras: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              try {
+                await groupUtils.toggleEphemeral(sock, remoteJid, duration);
+                await sock.sendMessage(remoteJid, { text: `Mensagens efêmeras atualizadas para ${duration} segundos.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao atualizar mensagens efêmeras: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
             case 'addmode': {
-              if (!isGroupMessage) { await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!await isUserAdmin(remoteJid, senderJid)) { await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (!isBotAdmin) { await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
-              if (args.length < 1 || !['all_member_add', 'admin_add'].includes(args[0])) { await sock.sendMessage(remoteJid, { text: 'Uso: /addmode <all_member_add|admin_add>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); break; }
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!isBotAdmin) {
+                await sock.sendMessage(remoteJid, { text: 'O bot precisa ser administrador para executar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (args.length < 1 || !['all_member_add', 'admin_add'].includes(args[0])) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /addmode <all_member_add|admin_add>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
               const mode = args[0];
-              try { await groupUtils.updateGroupAddMode(sock, remoteJid, mode); await sock.sendMessage(remoteJid, { text: `Modo de adição de membros atualizado para ${mode}.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); } catch (error) { await sock.sendMessage(remoteJid, { text: `Erro ao atualizar o modo de adição de membros: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }); }
+              try {
+                await groupUtils.updateGroupAddMode(sock, remoteJid, mode);
+                await sock.sendMessage(remoteJid, { text: `Modo de adição de membros atualizado para ${mode}.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao atualizar o modo de adição de membros: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
               break;
             }
 
