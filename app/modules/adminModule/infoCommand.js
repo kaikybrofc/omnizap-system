@@ -10,8 +10,44 @@ const handleInfoCommand = async (
   remoteJid,
   expirationMessage,
 ) => {
-  let targetGroupId = args[0] || (isGroupMessage ? remoteJid : null);
+  let targetGroupId;
+  let messageLimit = NaN; // Initialize messageLimit
 
+  const inactiveIndex = args.indexOf('--inativos');
+
+  if (inactiveIndex !== -1) {
+    // --inativos is present
+    // Try to get targetGroupId from argument before --inativos
+    if (inactiveIndex > 0 && args[inactiveIndex - 1].includes('@g.us')) {
+      targetGroupId = args[inactiveIndex - 1];
+    } else if (isGroupMessage) {
+      // If in a group chat, use current group ID
+      targetGroupId = remoteJid;
+    }
+
+    // Get messageLimit from argument after --inativos
+    if (args.length > inactiveIndex + 1) {
+      messageLimit = parseInt(args[inactiveIndex + 1]);
+    }
+
+    // If targetGroupId is still not set and it's a private chat, prompt for it
+    if (!targetGroupId) {
+      logger.warn('ID do grupo não fornecido para /info --inativos em chat privado.');
+      await sock.sendMessage(
+        remoteJid,
+        {
+          text: '⚠️ *Por favor, forneça o ID do grupo para usar `--inativos` em chat privado!\n\nExemplo: `/info 1234567890@g.us --inativos 10`',
+        },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+      return;
+    }
+  } else {
+    // --inativos is NOT present (original /info command behavior)
+    targetGroupId = args[0] || (isGroupMessage ? remoteJid : null);
+  }
+
+  // Final check for targetGroupId if it wasn't handled by --inativos logic
   if (!targetGroupId) {
     logger.warn('ID do grupo não fornecido para /info em chat privado.');
     await sock.sendMessage(
@@ -220,6 +256,32 @@ const handleInfoCommand = async (
     temporalActivity += '\n\n⏳ *Atividade Temporal* 📈\n';
     temporalActivity += calculateTemporalActivity(messagesLast12Hours, 'Últimas 12 Horas 🕛');
     temporalActivity += calculateTemporalActivity(messagesLast7Days, 'Últimos 7 Dias 🗓️');
+
+    const inactiveIndex = args.indexOf('--inativos');
+    if (inactiveIndex !== -1 && args.length > inactiveIndex + 1) {
+      const messageLimit = parseInt(args[inactiveIndex + 1]);
+      if (!isNaN(messageLimit)) {
+        const inactiveUsers = Object.entries(participantCounts).filter(
+          ([jid, count]) => count < messageLimit
+        );
+
+        if (inactiveUsers.length > 0) {
+          let inactiveUsersText = `\n\n😴 *Usuários Inativos (menos de ${messageLimit} mensagens):* 📉\n`;
+          inactiveUsers.forEach(([jid, count]) => {
+            if (!mentions.includes(jid)) {
+              mentions.push(jid);
+            }
+            const name = `@${jid.split('@')[0]}`;
+            inactiveUsersText += `- ${name} (${count} mensagens)\n`;
+          });
+          reply += inactiveUsersText;
+        } else {
+          reply += `\n\n🎉 *Nenhum usuário inativo encontrado com menos de ${messageLimit} mensagens.*`;
+        }
+      } else {
+        reply += `\n\n⚠️ *Uso incorreto do comando --inativos. Por favor, forneça um número válido.*`;
+      }
+    }
   } else {
     messageRanking = '\n\n📊 *Ranking de Mensagens:* Nenhuma mensagem encontrada no histórico. 😔';
   }
