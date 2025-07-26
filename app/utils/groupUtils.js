@@ -2,28 +2,54 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('./logger/loggerModule');
 
-const GROUPS_FILE_PATH = path.join(process.cwd(), process.env.STORE_PATH || './temp/', 'groups.json');
+const GROUPS_FILE_PATH = path.join(
+  process.cwd(),
+  process.env.STORE_PATH || './temp/',
+  'groups.json',
+);
 
 /**
- * Carrega os dados do arquivo groups.json.
- * @returns {object} Os dados dos grupos ou um objeto vazio se houver erro.
+ * Carrega os dados do arquivo groups.json de forma segura.
+ * @returns {object} Os dados dos grupos ou um objeto vazio se o arquivo não existir ou ocorrer um erro.
  */
 function _loadGroupsData() {
+  if (!fs.existsSync(GROUPS_FILE_PATH)) {
+    logger.warn(`Arquivo de grupos não encontrado em: ${GROUPS_FILE_PATH}`);
+    return {};
+  }
   try {
     const groupsContent = fs.readFileSync(GROUPS_FILE_PATH, 'utf8');
     return JSON.parse(groupsContent);
   } catch (error) {
-    logger.error(`Erro ao carregar groups.json: ${error.message}`);
+    logger.error(`Erro ao carregar ou analisar o arquivo groups.json: ${error.message}`, {
+      path: GROUPS_FILE_PATH,
+      error,
+    });
     return {};
   }
 }
 
 /**
+ * Valida um ID de grupo ou usuário.
+ * @param {string} id - O ID a ser validado.
+ * @param {string} type - O tipo de ID ('Grupo' ou 'Usuário').
+ * @returns {boolean} True se o ID for válido, false caso contrário.
+ */
+function _isValidId(id, type = 'ID') {
+  if (typeof id !== 'string' || id.trim() === '') {
+    logger.warn(`Tentativa de operação com ${type} inválido.`, { id });
+    return false;
+  }
+  return true;
+}
+
+/**
  * Retorna todos os dados de um grupo específico.
  * @param {string} groupId - O ID do grupo.
- * @returns {object|null} Os dados do grupo ou null se não encontrado.
+ * @returns {object|null} Os dados do grupo ou null se não encontrado ou se o ID for inválido.
  */
 function getGroupInfo(groupId) {
+  if (!_isValidId(groupId, 'Grupo')) return null;
   const groupsData = _loadGroupsData();
   return groupsData[groupId] || null;
 }
@@ -35,17 +61,17 @@ function getGroupInfo(groupId) {
  */
 function getGroupSubject(groupId) {
   const group = getGroupInfo(groupId);
-  return group ? group.subject : null;
+  return group?.subject || null;
 }
 
 /**
  * Retorna a lista de participantes de um grupo específico.
  * @param {string} groupId - O ID do grupo.
- * @returns {Array<object>|null} A lista de participantes do grupo ou null se não encontrado.
+ * @returns {Array<object>|null} A lista de participantes ou null se não encontrado.
  */
 function getGroupParticipants(groupId) {
   const group = getGroupInfo(groupId);
-  return group ? group.participants : null;
+  return group?.participants || null;
 }
 
 /**
@@ -55,12 +81,11 @@ function getGroupParticipants(groupId) {
  * @returns {boolean} True se o usuário for admin, false caso contrário.
  */
 function isUserAdmin(groupId, userId) {
+  if (!_isValidId(groupId, 'Grupo') || !_isValidId(userId, 'Usuário')) return false;
   const participants = getGroupParticipants(groupId);
-  if (!participants) {
-    return false;
-  }
+  if (!participants) return false;
   const participant = participants.find((p) => p.id === userId);
-  return participant ? participant.admin === 'admin' || participant.admin === 'superadmin' : false;
+  return !!participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
 }
 
 /**
@@ -79,7 +104,7 @@ function getAllGroupIds() {
  */
 function getGroupOwner(groupId) {
   const group = getGroupInfo(groupId);
-  return group ? group.owner : null;
+  return group?.owner || null;
 }
 
 /**
@@ -89,7 +114,7 @@ function getGroupOwner(groupId) {
  */
 function getGroupCreationTime(groupId) {
   const group = getGroupInfo(groupId);
-  return group ? group.creation : null;
+  return group?.creation || null;
 }
 
 /**
@@ -99,7 +124,7 @@ function getGroupCreationTime(groupId) {
  */
 function getGroupDescription(groupId) {
   const group = getGroupInfo(groupId);
-  return group ? group.desc : null;
+  return group?.desc || null;
 }
 
 /**
@@ -109,7 +134,7 @@ function getGroupDescription(groupId) {
  */
 function getGroupSize(groupId) {
   const group = getGroupInfo(groupId);
-  return group ? group.size : null;
+  return group?.size || null;
 }
 
 /**
@@ -119,7 +144,7 @@ function getGroupSize(groupId) {
  */
 function isGroupRestricted(groupId) {
   const group = getGroupInfo(groupId);
-  return group ? group.restrict : false;
+  return !!group?.restrict;
 }
 
 /**
@@ -129,7 +154,7 @@ function isGroupRestricted(groupId) {
  */
 function isGroupAnnounceOnly(groupId) {
   const group = getGroupInfo(groupId);
-  return group ? group.announce : false;
+  return !!group?.announce;
 }
 
 /**
@@ -139,7 +164,7 @@ function isGroupAnnounceOnly(groupId) {
  */
 function isGroupCommunity(groupId) {
   const group = getGroupInfo(groupId);
-  return group ? group.isCommunity : false;
+  return !!group?.isCommunity;
 }
 
 /**
@@ -149,230 +174,224 @@ function isGroupCommunity(groupId) {
  */
 function getGroupAdmins(groupId) {
   const participants = getGroupParticipants(groupId);
-  if (!participants) {
-    return [];
-  }
-  return participants.filter((p) => p.admin === 'admin' || p.admin === 'superadmin').map((p) => p.id);
+  if (!participants) return [];
+  return participants
+    .filter((p) => p.admin === 'admin' || p.admin === 'superadmin')
+    .map((p) => p.id);
 }
 
-/**
- * Retorna uma lista de IDs de grupos que um usuário específico participa.
- * @param {string} userId - O ID do usuário.
- * @returns {Array<string>} Uma lista de IDs de grupos que o usuário participa.
- */
-function getGroupsByParticipant(userId) {
-  const groupsData = _loadGroupsData();
-  const groupIds = [];
-  for (const groupId in groupsData) {
-    const participants = groupsData[groupId].participants;
-    if (participants && participants.some((p) => p.id === userId)) {
-      groupIds.push(groupId);
-    }
-  }
-  return groupIds;
-}
+// Funções que interagem com a API (sock)
 
 /**
- * Retorna uma lista de IDs de grupos cujo assunto contém uma palavra-chave.
- * A pesquisa não diferencia maiúsculas de minúsculas.
- * @param {string} keyword - A palavra-chave a ser pesquisada no assunto do grupo.
- * @returns {Array<string>} Uma lista de IDs de grupos que correspondem à palavra-chave.
+ * Executa uma função de grupo de forma segura, validando os parâmetros e tratando erros.
+ * @param {object} sock - A instância do socket Baileys.
+ * @param {string} functionName - O nome da função a ser executada.
+ * @param {Array} args - Os argumentos para a função.
+ * @param {string} errorMessage - A mensagem de erro a ser registrada.
  */
-function getGroupsBySubjectKeyword(keyword) {
-  const groupsData = _loadGroupsData();
-  const matchingGroupIds = [];
-  const lowerCaseKeyword = keyword.toLowerCase();
-  for (const groupId in groupsData) {
-    const subject = groupsData[groupId].subject;
-    if (subject && subject.toLowerCase().includes(lowerCaseKeyword)) {
-      matchingGroupIds.push(groupId);
-    }
+async function _safeGroupApiCall(sock, functionName, args, errorMessage) {
+  if (!sock || typeof sock[functionName] !== 'function') {
+    logger.error(`Objeto de socket inválido ou função ${functionName} não encontrada.`);
+    throw new Error(`Socket inválido para a operação ${functionName}.`);
   }
-  return matchingGroupIds;
+  try {
+    return await sock[functionName](...args);
+  } catch (error) {
+    logger.error(errorMessage, {
+      function: functionName,
+      args,
+      error: error.message,
+      stack: error.stack,
+    });
+    throw error;
+  }
 }
 
 async function createGroup(sock, title, participants) {
-  try {
-    const group = await sock.groupCreate(title, participants);
-    logger.info(`Grupo criado com o ID: ${group.gid}`);
-    await sock.sendMessage(group.id, { text: 'Olá a todos no grupo!' });
-    return group;
-  } catch (error) {
-    logger.error(`Erro ao criar o grupo: ${error.message}`);
-    throw error;
+  if (typeof title !== 'string' || title.trim() === '' || !Array.isArray(participants)) {
+    throw new Error('Título ou participantes inválidos.');
   }
+  const result = await _safeGroupApiCall(
+    sock,
+    'groupCreate',
+    [title, participants],
+    'Erro ao criar grupo',
+  );
+  logger.info(`Grupo "${title}" criado com sucesso.`, { id: result.id });
+  return result;
 }
 
 async function updateGroupParticipants(sock, groupId, participants, action) {
-  try {
-    const result = await sock.groupParticipantsUpdate(groupId, participants, action);
-    logger.info(`Participantes do grupo ${groupId} atualizados:`, result);
-    return result;
-  } catch (error) {
-    logger.error(`Erro ao atualizar os participantes do grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo') || !Array.isArray(participants) || !action) {
+    throw new Error('Argumentos inválidos para atualizar participantes.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupParticipantsUpdate',
+    [groupId, participants, action],
+    `Erro ao ${action} participantes no grupo ${groupId}`,
+  );
 }
 
 async function updateGroupSubject(sock, groupId, subject) {
-  try {
-    await sock.groupUpdateSubject(groupId, subject);
-    logger.info(`Assunto do grupo ${groupId} atualizado para: ${subject}`);
-  } catch (error) {
-    logger.error(`Erro ao atualizar o assunto do grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo') || typeof subject !== 'string') {
+    throw new Error('Argumentos inválidos para atualizar assunto do grupo.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupUpdateSubject',
+    [groupId, subject],
+    `Erro ao atualizar assunto do grupo ${groupId}`,
+  );
 }
 
 async function updateGroupDescription(sock, groupId, description) {
-  try {
-    await sock.groupUpdateDescription(groupId, description);
-    logger.info(`Descrição do grupo ${groupId} atualizada.`);
-  } catch (error) {
-    logger.error(`Erro ao atualizar a descrição do grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo')) {
+    throw new Error('ID de grupo inválido.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupUpdateDescription',
+    [groupId, description],
+    `Erro ao atualizar descrição do grupo ${groupId}`,
+  );
 }
 
 async function updateGroupSettings(sock, groupId, setting) {
-  try {
-    await sock.groupSettingUpdate(groupId, setting);
-    logger.info(`Configurações do grupo ${groupId} atualizadas para: ${setting}`);
-  } catch (error) {
-    logger.error(`Erro ao atualizar as configurações do grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo') || !setting) {
+    throw new Error('Argumentos inválidos para atualizar configurações do grupo.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupSettingUpdate',
+    [groupId, setting],
+    `Erro ao atualizar configurações do grupo ${groupId}`,
+  );
 }
 
 async function leaveGroup(sock, groupId) {
-  try {
-    await sock.groupLeave(groupId);
-    logger.info(`Saiu do grupo ${groupId}`);
-  } catch (error) {
-    logger.error(`Erro ao sair do grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo')) {
+    throw new Error('ID de grupo inválido.');
   }
+  return _safeGroupApiCall(sock, 'groupLeave', [groupId], `Erro ao sair do grupo ${groupId}`);
 }
 
 async function getGroupInviteCode(sock, groupId) {
-  try {
-    const code = await sock.groupInviteCode(groupId);
-    logger.info(`Código de convite para o grupo ${groupId}: ${code}`);
-    return code;
-  } catch (error) {
-    logger.error(`Erro ao obter o código de convite para o grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo')) {
+    throw new Error('ID de grupo inválido.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupInviteCode',
+    [groupId],
+    `Erro ao obter código de convite do grupo ${groupId}`,
+  );
 }
 
 async function revokeGroupInviteCode(sock, groupId) {
-  try {
-    const code = await sock.groupRevokeInvite(groupId);
-    logger.info(`Código de convite para o grupo ${groupId} revogado. Novo código: ${code}`);
-    return code;
-  } catch (error) {
-    logger.error(`Erro ao revogar o código de convite para o grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo')) {
+    throw new Error('ID de grupo inválido.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupRevokeInvite',
+    [groupId],
+    `Erro ao revogar código de convite do grupo ${groupId}`,
+  );
 }
 
 async function acceptGroupInvite(sock, code) {
-  try {
-    const response = await sock.groupAcceptInvite(code);
-    logger.info(`Entrou no grupo usando o código de convite: ${response}`);
-    return response;
-  } catch (error) {
-    logger.error(`Erro ao aceitar o convite do grupo: ${error.message}`);
-    throw error;
+  if (typeof code !== 'string' || code.trim() === '') {
+    throw new Error('Código de convite inválido.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupAcceptInvite',
+    [code],
+    'Erro ao aceitar convite de grupo',
+  );
 }
 
 async function getGroupInfoFromInvite(sock, code) {
-  try {
-    const response = await sock.groupGetInviteInfo(code);
-    logger.info(`Informações do grupo obtidas a partir do código de convite:`, response);
-    return response;
-  } catch (error) {
-    logger.error(`Erro ao obter informações do grupo a partir do código de convite: ${error.message}`);
-    throw error;
+  if (typeof code !== 'string' || code.trim() === '') {
+    throw new Error('Código de convite inválido.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupGetInviteInfo',
+    [code],
+    'Erro ao obter informações do convite',
+  );
 }
 
 async function getGroupMetadata(sock, groupId) {
-  try {
-    const metadata = await sock.groupMetadata(groupId);
-    logger.info(`Metadados do grupo ${groupId}:`, metadata);
-    return metadata;
-  } catch (error) {
-    logger.error(`Erro ao obter metadados do grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo')) {
+    throw new Error('ID de grupo inválido.');
   }
-}
-
-async function acceptGroupInviteV4(sock, groupId, groupInviteMessage) {
-  try {
-    const response = await sock.groupAcceptInviteV4(groupId, groupInviteMessage);
-    logger.info(`Entrou no grupo ${groupId} usando groupInviteMessage: ${response}`);
-    return response;
-  } catch (error) {
-    logger.error(`Erro ao aceitar o convite do grupo ${groupId} usando groupInviteMessage: ${error.message}`);
-    throw error;
-  }
+  return _safeGroupApiCall(
+    sock,
+    'groupMetadata',
+    [groupId],
+    `Erro ao obter metadados do grupo ${groupId}`,
+  );
 }
 
 async function getGroupRequestParticipantsList(sock, groupId) {
-  try {
-    const response = await sock.groupRequestParticipantsList(groupId);
-    logger.info(`Lista de solicitações de participação para o grupo ${groupId}:`, response);
-    return response;
-  } catch (error) {
-    logger.error(`Erro ao obter a lista de solicitações de participação para o grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo')) {
+    throw new Error('ID de grupo inválido.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupRequestParticipantsList',
+    [groupId],
+    `Erro ao listar solicitações de entrada no grupo ${groupId}`,
+  );
 }
 
 async function updateGroupRequestParticipants(sock, groupId, participants, action) {
-  try {
-    const response = await sock.groupRequestParticipantsUpdate(groupId, participants, action);
-    logger.info(`Solicitações de participação para o grupo ${groupId} atualizadas:`, response);
-    return response;
-  } catch (error) {
-    logger.error(`Erro ao atualizar as solicitações de participação para o grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo') || !Array.isArray(participants) || !action) {
+    throw new Error('Argumentos inválidos para atualizar solicitações de entrada.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupRequestParticipantsUpdate',
+    [groupId, participants, action],
+    `Erro ao atualizar solicitações de entrada no grupo ${groupId}`,
+  );
 }
 
 async function getAllParticipatingGroups(sock) {
-  try {
-    const response = await sock.groupFetchAllParticipating();
-    logger.info('Metadados de todos os grupos participantes obtidos:', response);
-    return response;
-  } catch (error) {
-    logger.error(`Erro ao obter os metadados de todos os grupos participantes: ${error.message}`);
-    throw error;
-  }
+  return _safeGroupApiCall(
+    sock,
+    'groupFetchAllParticipating',
+    [],
+    'Erro ao obter todos os grupos participantes',
+  );
 }
 
 async function toggleEphemeral(sock, groupId, duration) {
-  try {
-    await sock.groupToggleEphemeral(groupId, duration);
-    logger.info(`Duração efêmera do grupo ${groupId} atualizada para: ${duration}`);
-  } catch (error) {
-    logger.error(`Erro ao atualizar a duração efêmera do grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo') || typeof duration !== 'number') {
+    throw new Error('Argumentos inválidos para alternar mensagens efêmeras.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupToggleEphemeral',
+    [groupId, duration],
+    `Erro ao alternar mensagens efêmeras no grupo ${groupId}`,
+  );
 }
 
 async function updateGroupAddMode(sock, groupId, mode) {
-  try {
-    await sock.groupMemberAddMode(groupId, mode);
-    logger.info(`Modo de adição de membros do grupo ${groupId} atualizado para: ${mode}`);
-  } catch (error) {
-    logger.error(`Erro ao atualizar o modo de adição de membros do grupo ${groupId}: ${error.message}`);
-    throw error;
+  if (!_isValidId(groupId, 'Grupo') || !mode) {
+    throw new Error('Argumentos inválidos para atualizar modo de adição.');
   }
+  return _safeGroupApiCall(
+    sock,
+    'groupMemberAddMode',
+    [groupId, mode],
+    `Erro ao atualizar modo de adição no grupo ${groupId}`,
+  );
 }
-
 
 module.exports = {
   getGroupInfo,
@@ -388,8 +407,6 @@ module.exports = {
   isGroupAnnounceOnly,
   isGroupCommunity,
   getGroupAdmins,
-  getGroupsByParticipant,
-  getGroupsBySubjectKeyword,
   createGroup,
   updateGroupParticipants,
   updateGroupSubject,
@@ -401,7 +418,6 @@ module.exports = {
   acceptGroupInvite,
   getGroupInfoFromInvite,
   getGroupMetadata,
-  acceptGroupInviteV4,
   getGroupRequestParticipantsList,
   updateGroupRequestParticipants,
   getAllParticipatingGroups,
