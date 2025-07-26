@@ -1,5 +1,6 @@
 const groupUtils = require('../../utils/groupUtils');
 const logger = require('../../utils/logger/loggerModule');
+const store = require('../../store/dataStore');
 
 const handleInfoCommand = async (sock, messageInfo, args, isGroupMessage, remoteJid, expirationMessage) => {
     let targetGroupId = args[0] || (isGroupMessage ? remoteJid : null);
@@ -30,7 +31,7 @@ const handleInfoCommand = async (sock, messageInfo, args, isGroupMessage, remote
         return;
     }
 
-    const reply =
+    let reply =
         `📋 *Informações do Grupo:*\n\n` +
         `🆔 *ID:* ${groupInfo.id}\n` +
         `📝 *Assunto:* ${groupInfo.subject || 'N/A'}\n` +
@@ -51,6 +52,64 @@ const handleInfoCommand = async (sock, messageInfo, args, isGroupMessage, remote
         }\n` +
         `👤 *Total de Participantes:* ${groupUtils.getGroupParticipants(targetGroupId)?.length || 'Nenhum'
         }`;
+
+    const messages = store.rawMessages[targetGroupId] || [];
+    let messageRanking = '';
+
+    if (messages.length > 0) {
+        const participantCounts = {};
+        let firstMessageTimestamp = Infinity;
+        let lastMessageTimestamp = -Infinity;
+
+        messages.forEach(msg => {
+            const participant = msg.key.fromMe ? sock.user.id.split(':')[0] + '@s.whatsapp.net' : msg.key.participant || msg.participant;
+
+            if (participant) {
+                if (!participantCounts[participant]) {
+                    participantCounts[participant] = 0;
+                }
+                participantCounts[participant]++;
+            }
+
+            const timestamp = msg.messageTimestamp;
+            if (timestamp < firstMessageTimestamp) {
+                firstMessageTimestamp = timestamp;
+            }
+            if (timestamp > lastMessageTimestamp) {
+                lastMessageTimestamp = timestamp;
+            }
+        });
+
+        const sortedParticipants = Object.entries(participantCounts).sort((a, b) => b[1] - a[1]);
+
+        messageRanking += '\n\n📊 *Ranking de Mensagens por Participante*\n';
+        sortedParticipants.forEach(([jid, count], index) => {
+            const contact = store.contacts[jid];
+            const name = contact?.name || contact?.notify || jid.split('@')[0];
+            messageRanking += `${index + 1}. ${name}: ${count} mensagens\n`;
+        });
+
+        const totalMessages = messages.length;
+        messageRanking += `\n*Total de mensagens enviadas:* ${totalMessages}\n`;
+
+        const durationInSeconds = lastMessageTimestamp - firstMessageTimestamp;
+        if (durationInSeconds > 0) {
+            const durationInHours = durationInSeconds / 3600;
+            const durationInDays = durationInHours / 24;
+
+            if (durationInDays >= 1) {
+                const avgPerDay = (totalMessages / durationInDays).toFixed(2);
+                messageRanking += `*Média de mensagens por dia:* ${avgPerDay}\n`;
+            } else {
+                const avgPerHour = (totalMessages / durationInHours).toFixed(2);
+                messageRanking += `*Média de mensagens por hora:* ${avgPerHour}\n`;
+            }
+        }
+    } else {
+        messageRanking = '\n\n📊 *Ranking de Mensagens:* Nenhuma mensagem encontrada no histórico.';
+    }
+
+    reply += messageRanking;
 
     await sock.sendMessage(
         remoteJid,
