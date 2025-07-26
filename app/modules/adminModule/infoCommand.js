@@ -71,9 +71,11 @@ const handleInfoCommand = async (sock, messageInfo, args, isGroupMessage, remote
 
     const messages = store.rawMessages[targetGroupId] || [];
     let messageRanking = '';
+    let mediaRanking = '';
 
     if (messages.length > 0) {
         const participantCounts = {};
+        const mediaCounts = {};
         let firstMessageTimestamp = Infinity;
         let lastMessageTimestamp = -Infinity;
 
@@ -85,6 +87,25 @@ const handleInfoCommand = async (sock, messageInfo, args, isGroupMessage, remote
                     participantCounts[participant] = 0;
                 }
                 participantCounts[participant]++;
+
+                if (!mediaCounts[participant]) {
+                    mediaCounts[participant] = { total: 0, image: 0, video: 0, audio: 0, sticker: 0 };
+                }
+
+                const messageType = Object.keys(msg.message || {})[0];
+                if (messageType === 'imageMessage') {
+                    mediaCounts[participant].image++;
+                    mediaCounts[participant].total++;
+                } else if (messageType === 'videoMessage') {
+                    mediaCounts[participant].video++;
+                    mediaCounts[participant].total++;
+                } else if (messageType === 'audioMessage') {
+                    mediaCounts[participant].audio++;
+                    mediaCounts[participant].total++;
+                } else if (messageType === 'stickerMessage') {
+                    mediaCounts[participant].sticker++;
+                    mediaCounts[participant].total++;
+                }
             }
 
             const timestamp = msg.messageTimestamp;
@@ -97,15 +118,28 @@ const handleInfoCommand = async (sock, messageInfo, args, isGroupMessage, remote
         });
 
         const sortedParticipants = Object.entries(participantCounts).sort((a, b) => b[1] - a[1]);
+        const sortedMedia = Object.entries(mediaCounts).sort((a, b) => b[1].total - a[1].total);
 
-        messageRanking += '\n\n📊 *Ranking de Mensagens por Participante*\n';
-        sortedParticipants.forEach(([jid, count], index) => {
+        messageRanking += '\n\n📊 *Top 20 - Ranking de Mensagens por Participante*\n';
+        sortedParticipants.slice(0, 20).forEach(([jid, count], index) => {
             if (!mentions.includes(jid)) {
                 mentions.push(jid);
             }
             const name = `@${jid.split('@')[0]}`;
             messageRanking += `${index + 1}. ${name}: ${count} mensagens\n`;
         });
+
+        if (sortedMedia.length > 0) {
+            mediaRanking += '\n\n🖼️ *Top 20 - Mídia Compartilhada por Participante*\n';
+            sortedMedia.slice(0, 20).forEach(([jid, counts], index) => {
+                if (!mentions.includes(jid)) {
+                    mentions.push(jid);
+                }
+                const name = `@${jid.split('@')[0]}`;
+                const details = `(🖼️: ${counts.image}, 📹: ${counts.video}, 🎤: ${counts.audio}, 🎨: ${counts.sticker})`;
+                mediaRanking += `${index + 1}. ${name}: ${counts.total} mídias ${details}\n`;
+            });
+        }
 
         const totalMessages = messages.length;
         messageRanking += `\n*Total de mensagens enviadas:* ${totalMessages}\n`;
@@ -127,7 +161,7 @@ const handleInfoCommand = async (sock, messageInfo, args, isGroupMessage, remote
         messageRanking = '\n\n📊 *Ranking de Mensagens:* Nenhuma mensagem encontrada no histórico.';
     }
 
-    reply += messageRanking;
+    reply += messageRanking + mediaRanking;
 
     await sock.sendMessage(
         remoteJid,
