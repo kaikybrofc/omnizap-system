@@ -9,7 +9,13 @@
  * @source https://github.com/Kaikygr/omnizap-system
  */
 
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage } = require('@whiskeysockets/baileys');
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  Browsers,
+  getAggregateVotesInPollMessage,
+} = require('@whiskeysockets/baileys');
 
 const store = require('../store/dataStore');
 
@@ -48,7 +54,8 @@ async function connectToWhatsApp() {
     qrTimeout: 30000,
     syncFullHistory: true,
     markOnlineOnConnect: false,
-    getMessage: async (key) => (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
+    getMessage: async (key) =>
+      (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
   });
 
   store.bind(sock.ev);
@@ -81,10 +88,21 @@ async function connectToWhatsApp() {
   }
 
   activeSocket = sock;
+
   sock.ev.on('creds.update', async () => {
+    logger.debug('Atualizando credenciais...', {
+      action: 'creds_update',
+    });
     await saveCreds();
   });
-  sock.ev.on('connection.update', (update) => handleConnectionUpdate(update, sock));
+
+  sock.ev.on('connection.update', (update) => {
+    handleConnectionUpdate(update, sock);
+    logger.debug('Atualizando conexão...', {
+      action: 'connection_update',
+    });
+  });
+
   sock.ev.on('messages.upsert', (update) => {
     try {
       handleWhatsAppUpdate(update, sock);
@@ -92,6 +110,7 @@ async function connectToWhatsApp() {
       logger.error('Error in messages.upsert event:', err);
     }
   });
+
   sock.ev.on('messages.update', (update) => {
     try {
       handleMessageUpdate(update, sock);
@@ -99,6 +118,7 @@ async function connectToWhatsApp() {
       logger.error('Error in messages.update event:', err);
     }
   });
+
   sock.ev.on('groups.update', (updates) => {
     try {
       handleGroupUpdate(updates, sock);
@@ -106,6 +126,7 @@ async function connectToWhatsApp() {
       logger.error('Error in groups.update event:', err);
     }
   });
+
   sock.ev.on('group-participants.update', (update) => {
     try {
       handleGroupParticipantsUpdate(update, sock);
@@ -134,18 +155,25 @@ async function handleConnectionUpdate(update, sock) {
   }
 
   if (connection === 'close') {
-    const shouldReconnect = lastDisconnect?.error instanceof Boom && lastDisconnect.error.output?.statusCode !== DisconnectReason.loggedOut;
+    const shouldReconnect =
+      lastDisconnect?.error instanceof Boom &&
+      lastDisconnect.error.output?.statusCode !== DisconnectReason.loggedOut;
 
     if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       connectionAttempts++;
       const reconnectDelay = INITIAL_RECONNECT_DELAY * Math.pow(2, connectionAttempts - 1);
-      logger.warn(`Conexão perdida. Tentando reconectar em ${reconnectDelay / 1000}s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`, {
-        action: 'reconnect_attempt',
-        attempt: connectionAttempts,
-        maxAttempts: MAX_CONNECTION_ATTEMPTS,
-        delay: reconnectDelay,
-        reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
-      });
+      logger.warn(
+        `Conexão perdida. Tentando reconectar em ${
+          reconnectDelay / 1000
+        }s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`,
+        {
+          action: 'reconnect_attempt',
+          attempt: connectionAttempts,
+          maxAttempts: MAX_CONNECTION_ATTEMPTS,
+          delay: reconnectDelay,
+          reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
+        },
+      );
       setTimeout(connectToWhatsApp, reconnectDelay);
     } else if (shouldReconnect) {
       logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.', {
@@ -246,10 +274,14 @@ async function handleGroupParticipantsUpdate(update, sock) {
           }
         }
       } else if (action === 'remove') {
-        store.groups[groupId].participants = store.groups[groupId].participants.filter((p) => !participants.includes(p.id));
+        store.groups[groupId].participants = store.groups[groupId].participants.filter(
+          (p) => !participants.includes(p.id),
+        );
       } else if (action === 'promote' || action === 'demote') {
         for (const participantJid of participants) {
-          const participantObj = store.groups[groupId].participants.find((p) => p.id === participantJid);
+          const participantObj = store.groups[groupId].participants.find(
+            (p) => p.id === participantJid,
+          );
           if (participantObj) {
             participantObj.admin = action === 'promote' ? 'admin' : null;
           }
@@ -263,10 +295,13 @@ async function handleGroupParticipantsUpdate(update, sock) {
         actionType: action,
       });
     } else {
-      logger.warn(`Metadados do grupo ${groupId} não encontrados no armazenamento durante a atualização de participantes.`, {
-        action: 'group_participants_update_missing_metadata',
-        groupId: groupId,
-      });
+      logger.warn(
+        `Metadados do grupo ${groupId} não encontrados no armazenamento durante a atualização de participantes.`,
+        {
+          action: 'group_participants_update_missing_metadata',
+          groupId: groupId,
+        },
+      );
     }
   } catch (error) {
     logger.error(`Erro ao processar atualização de participantes do grupo ${update.id}:`, {
