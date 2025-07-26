@@ -106,16 +106,16 @@ async function connectToWhatsApp() {
   sock.ev.on('messages.upsert', (update) => {
     try {
       handleWhatsAppUpdate(update, sock);
-    } catch (err) {
-      logger.error('Error in messages.upsert event:', err);
+    } catch (error) {
+      logger.error('Error em messages.upsert:', error);
     }
   });
 
   sock.ev.on('messages.update', (update) => {
     try {
       handleMessageUpdate(update, sock);
-    } catch (err) {
-      logger.error('Error in messages.update event:', err);
+    } catch (error) {
+      logger.error('Error in messages.update event:', error);
     }
   });
 
