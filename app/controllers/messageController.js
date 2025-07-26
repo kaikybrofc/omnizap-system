@@ -1011,6 +1011,7 @@ const handleWhatsAppUpdate = async (update, sock) => {
               break;
             }
 
+            /*   
             case 'groups': {
               try {
                 const response = groupUtils.getAllGroupIds();
@@ -1028,6 +1029,7 @@ const handleWhatsAppUpdate = async (update, sock) => {
               }
               break;
             }
+              */
 
             case 'temp': {
               if (!isGroupMessage) {
