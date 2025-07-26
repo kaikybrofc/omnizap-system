@@ -31,11 +31,28 @@ const handleInfoCommand = async (sock, messageInfo, args, isGroupMessage, remote
         return;
     }
 
+    const mentions = [];
+    let ownerText = 'N/A';
+    const ownerJid = groupUtils.getGroupOwner(targetGroupId);
+    if (ownerJid) {
+        ownerText = `@${ownerJid.split('@')[0]}`;
+        mentions.push(ownerJid);
+    }
+
+    let adminsText = 'Nenhum';
+    const adminJids = groupUtils.getGroupAdmins(targetGroupId);
+    if (adminJids && adminJids.length > 0) {
+        adminsText = adminJids.map(jid => {
+            mentions.push(jid);
+            return `@${jid.split('@')[0]}`;
+        }).join(', ');
+    }
+
     let reply =
         `📋 *Informações do Grupo:*\n\n` +
-        `🆔 *ID:* ${groupInfo.id}\n` +
+        `🆔 *ID:* ${groupInfo.id.split('@')[0]}\n` +
         `📝 *Assunto:* ${groupInfo.subject || 'N/A'}\n` +
-        `👑 *Proprietário:* ${groupUtils.getGroupOwner(targetGroupId) || 'N/A'}\n` +
+        `👑 *Proprietário:* ${ownerText}\n` +
         `📅 *Criado em:* ${groupUtils.getGroupCreationTime(targetGroupId)
             ? new Date(
                 groupUtils.getGroupCreationTime(targetGroupId) * 1000,
@@ -48,8 +65,7 @@ const handleInfoCommand = async (sock, messageInfo, args, isGroupMessage, remote
         }\n` +
         `🏘️ *Comunidade:* ${groupUtils.isGroupCommunity(targetGroupId) ? 'Sim' : 'Não'}\n` +
         `🗣️ *Descrição:* ${groupUtils.getGroupDescription(targetGroupId) || 'N/A'}\n` +
-        `🛡️ *Administradores:* ${groupUtils.getGroupAdmins(targetGroupId).join(', ') || 'Nenhum'
-        }\n` +
+        `🛡️ *Administradores:* ${adminsText}\n` +
         `👤 *Total de Participantes:* ${groupUtils.getGroupParticipants(targetGroupId)?.length || 'Nenhum'
         }`;
 
@@ -84,8 +100,10 @@ const handleInfoCommand = async (sock, messageInfo, args, isGroupMessage, remote
 
         messageRanking += '\n\n📊 *Ranking de Mensagens por Participante*\n';
         sortedParticipants.forEach(([jid, count], index) => {
-            const contact = store.contacts[jid];
-            const name = contact?.name || contact?.notify || jid.split('@')[0];
+            if (!mentions.includes(jid)) {
+                mentions.push(jid);
+            }
+            const name = `@${jid.split('@')[0]}`;
             messageRanking += `${index + 1}. ${name}: ${count} mensagens\n`;
         });
 
@@ -113,7 +131,7 @@ const handleInfoCommand = async (sock, messageInfo, args, isGroupMessage, remote
 
     await sock.sendMessage(
         remoteJid,
-        { text: reply },
+        { text: reply, mentions: mentions },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
 };
