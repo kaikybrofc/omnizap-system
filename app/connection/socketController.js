@@ -34,7 +34,7 @@ const MAX_CONNECTION_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 3000;
 
 async function connectToWhatsApp() {
-  logger.info('Iniciando conexão com o WhatsApp...', {
+  logger.info('Iniciando conexão com o serviço WhatsApp...', {
     action: 'connect_init',
   });
   connectionAttempts = 0;
@@ -63,22 +63,27 @@ async function connectToWhatsApp() {
   if (usePairingCode && !sock.authState.creds.registered) {
     const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
     if (!phoneNumber) {
-      logger.error('Número de telefone é obrigatório para o modo de pareamento.', {
-        errorType: 'config_error',
-        field: 'PHONE_NUMBER',
-      });
+      logger.error(
+        'O número de telefone é um requisito obrigatório para o modo de pareamento.',
+        {
+          errorType: 'config_error',
+          field: 'PHONE_NUMBER',
+        },
+      );
       return;
     }
     setTimeout(async () => {
       try {
         const code = await sock.requestPairingCode(phoneNumber);
         logger.info('═══════════════════════════════════════════════════');
-        logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
+        logger.info('📱 CÓDIGO DE PAREAMENTO 📱');
         logger.info('\n          > ' + code.match(/.{1,4}/g).join('-') + ' <\n');
-        logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular com número');
+        logger.info(
+          '💡 Instruções: Abra o WhatsApp → Dispositivos Conectados → Conectar com número de telefone',
+        );
         logger.info('═══════════════════════════════════════════════════');
       } catch (error) {
-        logger.error('❌ Erro ao solicitar o código de pareamento:', {
+        logger.error('❌ Ocorreu um erro ao solicitar o código de pareamento:', {
           error: error.message,
           stack: error.stack,
           action: 'request_pairing_code',
@@ -90,7 +95,7 @@ async function connectToWhatsApp() {
   activeSocket = sock;
 
   sock.ev.on('creds.update', async () => {
-    logger.debug('Atualizando credenciais...', {
+    logger.debug('Realizando atualização das credenciais...', {
       action: 'creds_update',
     });
     await saveCreds();
@@ -98,7 +103,7 @@ async function connectToWhatsApp() {
 
   sock.ev.on('connection.update', (update) => {
     handleConnectionUpdate(update, sock);
-    logger.debug('Atualizando conexão...', {
+    logger.debug('Realizando atualização da conexão...', {
       action: 'connection_update',
     });
   });
@@ -107,7 +112,7 @@ async function connectToWhatsApp() {
     try {
       handleWhatsAppUpdate(update, sock);
     } catch (error) {
-      logger.error('Error em messages.upsert:', error);
+      logger.error('Ocorreu um erro no evento "messages.upsert":', error);
     }
   });
 
@@ -115,7 +120,7 @@ async function connectToWhatsApp() {
     try {
       handleMessageUpdate(update, sock);
     } catch (error) {
-      logger.error('Error in messages.update event:', error);
+      logger.error('Ocorreu um erro no evento "messages.update":', error);
     }
   });
 
@@ -123,7 +128,7 @@ async function connectToWhatsApp() {
     try {
       handleGroupUpdate(updates, sock);
     } catch (err) {
-      logger.error('Error in groups.update event:', err);
+      logger.error('Ocorreu um erro no evento "groups.update":', err);
     }
   });
 
@@ -131,7 +136,7 @@ async function connectToWhatsApp() {
     try {
       handleGroupParticipantsUpdate(update, sock);
     } catch (err) {
-      logger.error('Error in group-participants.update event:', err);
+      logger.error('Ocorreu um erro no evento "group-participants.update":', err);
     }
   });
 
@@ -139,7 +144,7 @@ async function connectToWhatsApp() {
     try {
       handleGenericUpdate(event);
     } catch (err) {
-      logger.error('Error in all event:', err);
+      logger.error('Ocorreu um erro no evento "all":', err);
     }
   });
 }
@@ -148,9 +153,12 @@ async function handleConnectionUpdate(update, sock) {
   const { connection, lastDisconnect, qr } = update;
 
   if (qr) {
-    logger.info('📱 QR Code gerado! Escaneie com seu WhatsApp:', {
-      action: 'qr_code_generated',
-    });
+    logger.info(
+      '📱 QR Code gerado com sucesso. Por favor, escaneie-o utilizando o seu aplicativo WhatsApp:',
+      {
+        action: 'qr_code_generated',
+      },
+    );
     qrcode.generate(qr, { small: true });
   }
 
@@ -161,11 +169,10 @@ async function handleConnectionUpdate(update, sock) {
 
     if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       connectionAttempts++;
-      const reconnectDelay = INITIAL_RECONNECT_DELAY * Math.pow(2, connectionAttempts - 1);
+      const reconnectDelay =
+        INITIAL_RECONNECT_DELAY * Math.pow(2, connectionAttempts - 1);
       logger.warn(
-        `Conexão perdida. Tentando reconectar em ${
-          reconnectDelay / 1000
-        }s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`,
+        `A conexão foi perdida. Tentando reconectar em ${reconnectDelay / 1000} segundos... (Tentativa ${connectionAttempts} de ${MAX_CONNECTION_ATTEMPTS})`,
         {
           action: 'reconnect_attempt',
           attempt: connectionAttempts,
@@ -176,12 +183,15 @@ async function handleConnectionUpdate(update, sock) {
       );
       setTimeout(connectToWhatsApp, reconnectDelay);
     } else if (shouldReconnect) {
-      logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.', {
-        action: 'reconnect_failed',
-        reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
-      });
+      logger.error(
+        '❌ Falha ao restabelecer a conexão após o número máximo de tentativas. É recomendado reiniciar a aplicação.',
+        {
+          action: 'reconnect_failed',
+          reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
+        },
+      );
     } else {
-      logger.error('❌ Conexão fechada. Motivo:', {
+      logger.error('❌ A conexão foi encerrada. Motivo:', {
         action: 'connection_closed',
         reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
         error: lastDisconnect?.error?.message,
@@ -189,17 +199,17 @@ async function handleConnectionUpdate(update, sock) {
     }
   }
   if (connection === 'open') {
-    logger.info('✅ Conectado com sucesso ao WhatsApp!', {
+    logger.info('✅ Conexão com o WhatsApp estabelecida com sucesso!', {
       action: 'connection_open',
     });
     connectionAttempts = 0;
     if (process.send) {
       process.send('ready');
-      logger.info('Sinal de "ready" enviado ao PM2.');
+      logger.info('Sinal de prontidão ("ready") foi enviado com sucesso para o PM2.');
     }
     setInterval(() => {
       const metrics = getSystemMetrics();
-      logger.info('System Metrics', metrics);
+      logger.info('Métricas do Sistema', metrics);
     }, 60000);
 
     try {
@@ -208,16 +218,22 @@ async function handleConnectionUpdate(update, sock) {
         store.groups[group.id] = group;
       }
       store.debouncedWrite('groups');
-      logger.info(`Metadados de ${Object.keys(allGroups).length} grupos carregados e salvos.`, {
-        action: 'groups_loaded',
-        count: Object.keys(allGroups).length,
-      });
+      logger.info(
+        `Os metadados de ${Object.keys(allGroups).length} grupos foram carregados e salvos com sucesso.`,
+        {
+          action: 'groups_loaded',
+          count: Object.keys(allGroups).length,
+        },
+      );
     } catch (error) {
-      logger.error('Erro ao carregar metadados de grupos na conexão:', {
-        error: error.message,
-        stack: error.stack,
-        action: 'groups_load_error',
-      });
+      logger.error(
+        'Ocorreu um erro ao carregar os metadados dos grupos durante a conexão:',
+        {
+          error: error.message,
+          stack: error.stack,
+          action: 'groups_load_error',
+        },
+      );
     }
   }
 }
@@ -231,7 +247,7 @@ async function handleMessageUpdate(updates, sock) {
           message: pollCreation,
           pollUpdates: update.pollUpdates,
         });
-        logger.info('Votos da enquete atualizados:', {
+        logger.info('Os votos da enquete foram atualizados:', {
           action: 'poll_votes_updated',
           key: key,
           aggregatedVotes: aggregatedVotes,
@@ -249,7 +265,7 @@ async function handleGroupUpdate(updates, sock) {
       store.groups[event.id] = event;
     }
     store.debouncedWrite('groups');
-    logger.info(`Metadados do grupo ${event.id} atualizados.`, {
+    logger.info(`Os metadados do grupo ${event.id} foram atualizados com sucesso.`, {
       action: 'group_metadata_updated',
       groupId: event.id,
     });
@@ -288,7 +304,7 @@ async function handleGroupParticipantsUpdate(update, sock) {
         }
       }
       store.debouncedWrite('groups');
-      logger.info(`Participantes do grupo ${groupId} atualizados.`, {
+      logger.info(`A lista de participantes do grupo ${groupId} foi atualizada.`, {
         action: 'group_participants_updated',
         groupId: groupId,
         participants: participants,
@@ -296,7 +312,7 @@ async function handleGroupParticipantsUpdate(update, sock) {
       });
     } else {
       logger.warn(
-        `Metadados do grupo ${groupId} não encontrados no armazenamento durante a atualização de participantes.`,
+        `Os metadados para o grupo ${groupId} não foram localizados no armazenamento durante a atualização da lista de participantes.`,
         {
           action: 'group_participants_update_missing_metadata',
           groupId: groupId,
@@ -304,12 +320,15 @@ async function handleGroupParticipantsUpdate(update, sock) {
       );
     }
   } catch (error) {
-    logger.error(`Erro ao processar atualização de participantes do grupo ${update.id}:`, {
-      error: error.message,
-      stack: error.stack,
-      groupId: update.id,
-      action: 'group_participants_update_error',
-    });
+    logger.error(
+      `Ocorreu um erro ao processar a atualização de participantes para o grupo ${update.id}:`,
+      {
+        error: error.message,
+        stack: error.stack,
+        groupId: update.id,
+        action: 'group_participants_update_error',
+      },
+    );
   }
 }
 
@@ -326,10 +345,14 @@ function getActiveSocket() {
  */
 async function reconnectToWhatsApp() {
   if (activeSocket) {
-    logger.info('Forçando o fechamento do socket para acionar a lógica de reconexão...');
+    logger.info(
+      'Forçando o encerramento do socket para iniciar o processo de reconexão...',
+    );
     activeSocket.ws.close();
   } else {
-    logger.warn('Tentativa de reconectar sem um socket ativo. Iniciando uma nova conexão.');
+    logger.warn(
+      'Tentativa de reconexão sem um socket ativo. Uma nova conexão será iniciada.',
+    );
     await connectToWhatsApp();
   }
 }
@@ -341,12 +364,17 @@ module.exports = {
 };
 
 if (require.main === module) {
-  logger.info('🔌 Socket Controller executado diretamente. Iniciando conexão...');
+  logger.info(
+    '🔌 O Socket Controller foi executado diretamente. Iniciando o processo de conexão...', 
+  );
   connectToWhatsApp().catch((err) => {
-    logger.error('❌ Falha catastrófica ao iniciar a conexão diretamente do Socket Controller.', {
-      error: err.message,
-      stack: err.stack,
-    });
+    logger.error(
+      '❌ Ocorreu uma falha crítica ao tentar iniciar a conexão diretamente a partir do Socket Controller.',
+      {
+        error: err.message,
+        stack: err.stack,
+      },
+    );
     process.exit(1);
   });
 }
