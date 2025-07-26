@@ -176,11 +176,7 @@ const handleWhatsAppUpdate = async (update, sock) => {
           };
 
           const isUserAdmin = async (groupId, userId) => {
-            const groupMetadata = await sock.groupMetadata(groupId);
-            const participant = groupMetadata.participants.find((p) => p.id === userId);
-            return (
-              participant && (participant.admin === 'admin' || participant.admin === 'superadmin')
-            );
+            return groupUtils.isUserAdmin(groupId, userId);
           };
 
           const isBotAdmin = isGroupMessage ? await isUserAdmin(remoteJid, botJid) : false;
@@ -884,7 +880,7 @@ const handleWhatsAppUpdate = async (update, sock) => {
                 break;
               }
               try {
-                const metadata = await groupUtils.getGroupMetadata(sock, groupId);
+                const metadata = groupUtils.getGroupInfo(groupId);
                 await sock.sendMessage(
                   remoteJid,
                   { text: `Metadados do grupo: ${JSON.stringify(metadata, null, 2)}` },
@@ -1017,7 +1013,7 @@ const handleWhatsAppUpdate = async (update, sock) => {
 
             case 'groups': {
               try {
-                const response = await groupUtils.getAllParticipatingGroups(sock);
+                const response = groupUtils.getAllGroupIds();
                 await sock.sendMessage(
                   remoteJid,
                   { text: `Grupos participantes: ${JSON.stringify(response, null, 2)}` },
