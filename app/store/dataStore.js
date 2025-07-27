@@ -20,7 +20,7 @@ const CLEANUP_INTERVAL_MS = parseInt(process.env.OMNIZAP_CLEANUP_INTERVAL_MS || 
 // Buffer para acumular dados antes de escrever no disco
 const writeBuffer = {
   size: 0,
-  maxSize: process.env.OMNIZAP_WRITE_BUFFER_SIZE || 1 * 1024 * 1024, // 5MB por padrão
+  maxSize: process.env.OMNIZAP_WRITE_BUFFER_SIZE || 1 * 1024 * 1024,
   data: {},
   flushTimeout: null,
 };
@@ -186,9 +186,6 @@ const store = {
     for (const jid in this.rawMessages) {
       const originalLength = this.rawMessages[jid].length;
       this.rawMessages[jid] = this.rawMessages[jid].filter((msg) => {
-        // Assumindo que o objeto raw da mensagem também tem um timestamp ou algo similar
-        // Se não tiver, precisaremos ajustar como o timestamp é obtido ou adicionado.
-        // Para mensagens do Baileys, `messageTimestamp` é comum.
         return (
           msg.message?.messageTimestamp * 1000 >= cutoffTimestamp ||
           msg.messageTimestamp * 1000 >= cutoffTimestamp
@@ -619,7 +616,6 @@ const store = {
       }
       this.debouncedWrite('contacts');
     });
-    
 
     // Agendar a limpeza periódica de mensagens antigas
     setInterval(() => this.cleanOldMessages(), CLEANUP_INTERVAL_MS);
