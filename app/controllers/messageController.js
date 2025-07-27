@@ -183,7 +183,22 @@ const handleWhatsAppUpdate = async (update, sock) => {
 
           switch (command) {
             case 'info':
-              await handleInfoCommand(sock, messageInfo, args, isGroupMessage, remoteJid, expirationMessage);
+              if (!isGroupMessage || (await isUserAdmin(remoteJid, senderJid))) {
+                await handleInfoCommand(
+                  sock,
+                  messageInfo,
+                  args,
+                  isGroupMessage,
+                  remoteJid,
+                  expirationMessage,
+                );
+              } else {
+                await sock.sendMessage(
+                  remoteJid,
+                  { text: 'Você não tem permissão para usar este comando.' },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
+              }
               break;
 
             case 'menuadm': {
