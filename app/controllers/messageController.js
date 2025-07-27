@@ -1153,8 +1153,25 @@ const handleWhatsAppUpdate = async (update, sock) => {
                     break;
                   }
 
-                  // Check if it's a media path (simple check for now, can be improved)
-                  if (messageOrPath.startsWith('/') || messageOrPath.startsWith('.') || messageOrPath.startsWith('~')) {
+                  // If the message is a media message, download it
+                  if (messageInfo.message.imageMessage || messageInfo.message.videoMessage) {
+                    const mediaType = messageInfo.message.imageMessage ? 'image' : 'video';
+                    const downloadedMediaPath = await downloadMediaMessage(messageInfo.message, mediaType, './temp');
+                    if (downloadedMediaPath) {
+                      groupConfigStore.updateGroupConfig(remoteJid, { welcomeMedia: downloadedMediaPath, welcomeMessage: null });
+                      await sock.sendMessage(
+                        remoteJid,
+                        { text: `Mídia de boas-vindas definida para: ${downloadedMediaPath}` },
+                        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                      );
+                    } else {
+                      await sock.sendMessage(
+                        remoteJid,
+                        { text: 'Erro ao baixar a mídia. Por favor, tente novamente.' },
+                        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                      );
+                    }
+                  } else if (messageOrPath.startsWith('/') || messageOrPath.startsWith('.') || messageOrPath.startsWith('~')) {
                     groupConfigStore.updateGroupConfig(remoteJid, { welcomeMedia: messageOrPath, welcomeMessage: null });
                     await sock.sendMessage(
                       remoteJid,
@@ -1235,8 +1252,25 @@ const handleWhatsAppUpdate = async (update, sock) => {
                     break;
                   }
 
-                  // Check if it's a media path (simple check for now, can be improved)
-                  if (messageOrPath.startsWith('/') || messageOrPath.startsWith('.') || messageOrPath.startsWith('~')) {
+                  // If the message is a media message, download it
+                  if (messageInfo.message.imageMessage || messageInfo.message.videoMessage) {
+                    const mediaType = messageInfo.message.imageMessage ? 'image' : 'video';
+                    const downloadedMediaPath = await downloadMediaMessage(messageInfo.message, mediaType, './temp');
+                    if (downloadedMediaPath) {
+                      groupConfigStore.updateGroupConfig(remoteJid, { farewellMedia: downloadedMediaPath, farewellMessage: null });
+                      await sock.sendMessage(
+                        remoteJid,
+                        { text: `Mídia de saída definida para: ${downloadedMediaPath}` },
+                        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                      );
+                    } else {
+                      await sock.sendMessage(
+                        remoteJid,
+                        { text: 'Erro ao baixar a mídia. Por favor, tente novamente.' },
+                        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                      );
+                    }
+                  } else if (messageOrPath.startsWith('/') || messageOrPath.startsWith('.') || messageOrPath.startsWith('~')) {
                     groupConfigStore.updateGroupConfig(remoteJid, { farewellMedia: messageOrPath, farewellMessage: null });
                     await sock.sendMessage(
                       remoteJid,
