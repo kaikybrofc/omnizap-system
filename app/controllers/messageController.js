@@ -1186,7 +1186,6 @@ const handleWhatsAppUpdate = async (update, sock) => {
                     if (downloadedMediaPath) {
                       groupConfigStore.updateGroupConfig(remoteJid, {
                         welcomeMedia: downloadedMediaPath,
-                        welcomeMessage: null,
                       });
                       await sock.sendMessage(
                         remoteJid,
@@ -1207,7 +1206,6 @@ const handleWhatsAppUpdate = async (update, sock) => {
                   ) {
                     groupConfigStore.updateGroupConfig(remoteJid, {
                       welcomeMedia: messageOrPath,
-                      welcomeMessage: null,
                     });
                     await sock.sendMessage(
                       remoteJid,
@@ -1217,7 +1215,6 @@ const handleWhatsAppUpdate = async (update, sock) => {
                   } else {
                     groupConfigStore.updateGroupConfig(remoteJid, {
                       welcomeMessage: messageOrPath,
-                      welcomeMedia: null,
                     });
                     await sock.sendMessage(
                       remoteJid,
@@ -1325,7 +1322,6 @@ const handleWhatsAppUpdate = async (update, sock) => {
                     if (downloadedMediaPath) {
                       groupConfigStore.updateGroupConfig(remoteJid, {
                         farewellMedia: downloadedMediaPath,
-                        farewellMessage: null,
                       });
                       await sock.sendMessage(
                         remoteJid,
@@ -1346,7 +1342,6 @@ const handleWhatsAppUpdate = async (update, sock) => {
                   ) {
                     groupConfigStore.updateGroupConfig(remoteJid, {
                       farewellMedia: messageOrPath,
-                      farewellMessage: null,
                     });
                     await sock.sendMessage(
                       remoteJid,
@@ -1356,7 +1351,6 @@ const handleWhatsAppUpdate = async (update, sock) => {
                   } else {
                     groupConfigStore.updateGroupConfig(remoteJid, {
                       farewellMessage: messageOrPath,
-                      farewellMedia: null,
                     });
                     await sock.sendMessage(
                       remoteJid,
