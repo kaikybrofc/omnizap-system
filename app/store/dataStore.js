@@ -50,40 +50,58 @@ const store = {
 
   async loadData() {
     try {
-      // Define quais tipos devem ser arrays e quais devem ser objetos
       const typeDefinitions = {
-        chats: [],
-        contacts: {},
-        messages: {},
-        rawMessages: {},
-        groups: {},
-        blocklist: [],
-        labels: {},
-        presences: {},
-        calls: [],
-        newsletters: {},
+        chats: 'array',
+        contacts: 'object',
+        messages: 'object',
+        rawMessages: 'object',
+        groups: 'object',
+        blocklist: 'array',
+        labels: 'object',
+        presences: 'object',
+        calls: 'array',
+        newsletters: 'object',
       };
 
-      // Carrega os dados mantendo o tipo correto
-      for (const [type, defaultValue] of Object.entries(typeDefinitions)) {
-        try {
-          const data = await readFromFile(type);
-          // Garante que o tipo de dado seja mantido (array ou objeto)
-          if (Array.isArray(defaultValue)) {
-            this[type] = Array.isArray(data) ? data : [];
-          } else {
-            this[type] = data && typeof data === 'object' ? data : {};
-          }
-        } catch (loadError) {
-          logger.error(`Erro ao carregar ${type}:`, loadError);
-          this[type] = defaultValue;
-        }
-      }
+      const loadPromises = Object.entries(typeDefinitions).map(([type, expectedType]) => {
+        return new Promise(async (resolve, reject) => {
+          try {
+            const stream = await readFromFile(type, expectedType);
+            this[type] = expectedType === 'array' ? [] : {};
 
-      logger.info('Dados do store carregados com sucesso');
+            stream.on('data', (item) => {
+              if (expectedType === 'array') {
+                this[type].push(item.value);
+              } else {
+                this[type][item.key] = item.value;
+              }
+            });
+
+            stream.on('end', () => {
+              logger.info(`Dados para ${type} carregados via stream.`);
+              resolve();
+            });
+
+            stream.on('error', (err) => {
+              logger.error(`Erro no stream ao carregar ${type}:`, err);
+              // Em caso de erro no stream, inicializa com valor padrão
+              this[type] = expectedType === 'array' ? [] : {};
+              resolve(); // Resolve para não bloquear o carregamento de outros dados
+            });
+          } catch (loadError) {
+            logger.error(`Erro ao iniciar o carregamento de ${type}:`, loadError);
+            this[type] = expectedType === 'array' ? [] : {};
+            resolve(); // Resolve mesmo em caso de erro inicial
+          }
+        });
+      });
+
+      await Promise.all(loadPromises);
+
+      logger.info('Todos os dados do store foram carregados com sucesso.');
     } catch (error) {
-      logger.error('Erro ao carregar dados do store:', error);
-      // Inicializa com valores padrão em caso de erro
+      logger.error('Erro catastrófico ao carregar dados do store:', error);
+      // Inicializa todos os stores com valores padrão em caso de erro grave
       this.chats = [];
       this.contacts = {};
       this.messages = {};
