@@ -17,7 +17,6 @@ const groupConfigStore = require('../store/groupConfigStore');
 const { downloadMediaMessage } = require('../utils/mediaDownloader/mediaDownloaderModule');
 const fs = require('fs');
 const path = require('path');
-const { downloadMediaMessage } = require('../utils/mediaDownloader/mediaDownloaderModule');
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
@@ -1144,21 +1143,32 @@ const handleWhatsAppUpdate = async (update, sock) => {
                   );
                 } else if (subCommand === 'set') {
                   const messageOrPath = args.slice(1).join(' ');
-                  if (!messageOrPath) {
+                  if (
+                    !messageOrPath &&
+                    !(messageInfo.message.imageMessage || messageInfo.message.videoMessage)
+                  ) {
                     await sock.sendMessage(
                       remoteJid,
-                      { text: 'Uso: /welcome set <mensagem ou caminho da mídia>' },
+                      {
+                        text: 'Uso: /welcome set <mensagem ou caminho da mídia> ou envie uma mídia com o comando.',
+                      },
                       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
                     );
                     break;
                   }
 
-                  // If the message is a media message, download it
                   if (messageInfo.message.imageMessage || messageInfo.message.videoMessage) {
                     const mediaType = messageInfo.message.imageMessage ? 'image' : 'video';
-                    const downloadedMediaPath = await downloadMediaMessage(messageInfo.message, mediaType, './temp');
+                    const downloadedMediaPath = await downloadMediaMessage(
+                      messageInfo.message,
+                      mediaType,
+                      './temp',
+                    ); // Salva em ./temp
                     if (downloadedMediaPath) {
-                      groupConfigStore.updateGroupConfig(remoteJid, { welcomeMedia: downloadedMediaPath, welcomeMessage: null });
+                      groupConfigStore.updateGroupConfig(remoteJid, {
+                        welcomeMedia: downloadedMediaPath,
+                        welcomeMessage: null,
+                      });
                       await sock.sendMessage(
                         remoteJid,
                         { text: `Mídia de boas-vindas definida para: ${downloadedMediaPath}` },
@@ -1171,15 +1181,25 @@ const handleWhatsAppUpdate = async (update, sock) => {
                         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
                       );
                     }
-                  } else if (messageOrPath.startsWith('/') || messageOrPath.startsWith('.') || messageOrPath.startsWith('~')) {
-                    groupConfigStore.updateGroupConfig(remoteJid, { welcomeMedia: messageOrPath, welcomeMessage: null });
+                  } else if (
+                    messageOrPath.startsWith('/') ||
+                    messageOrPath.startsWith('.') ||
+                    messageOrPath.startsWith('~')
+                  ) {
+                    groupConfigStore.updateGroupConfig(remoteJid, {
+                      welcomeMedia: messageOrPath,
+                      welcomeMessage: null,
+                    });
                     await sock.sendMessage(
                       remoteJid,
                       { text: `Mídia de boas-vindas definida para: ${messageOrPath}` },
                       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
                     );
                   } else {
-                    groupConfigStore.updateGroupConfig(remoteJid, { welcomeMessage: messageOrPath, welcomeMedia: null });
+                    groupConfigStore.updateGroupConfig(remoteJid, {
+                      welcomeMessage: messageOrPath,
+                      welcomeMedia: null,
+                    });
                     await sock.sendMessage(
                       remoteJid,
                       { text: `Mensagem de boas-vindas definida para: ${messageOrPath}` },
@@ -1243,21 +1263,32 @@ const handleWhatsAppUpdate = async (update, sock) => {
                   );
                 } else if (subCommand === 'set') {
                   const messageOrPath = args.slice(1).join(' ');
-                  if (!messageOrPath) {
+                  if (
+                    !messageOrPath &&
+                    !(messageInfo.message.imageMessage || messageInfo.message.videoMessage)
+                  ) {
                     await sock.sendMessage(
                       remoteJid,
-                      { text: 'Uso: /farewell set <mensagem ou caminho da mídia>' },
+                      {
+                        text: 'Uso: /farewell set <mensagem ou caminho da mídia> ou envie uma mídia com o comando.',
+                      },
                       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
                     );
                     break;
                   }
 
-                  // If the message is a media message, download it
                   if (messageInfo.message.imageMessage || messageInfo.message.videoMessage) {
                     const mediaType = messageInfo.message.imageMessage ? 'image' : 'video';
-                    const downloadedMediaPath = await downloadMediaMessage(messageInfo.message, mediaType, './temp');
+                    const downloadedMediaPath = await downloadMediaMessage(
+                      messageInfo.message,
+                      mediaType,
+                      './temp',
+                    ); // Salva em ./temp
                     if (downloadedMediaPath) {
-                      groupConfigStore.updateGroupConfig(remoteJid, { farewellMedia: downloadedMediaPath, farewellMessage: null });
+                      groupConfigStore.updateGroupConfig(remoteJid, {
+                        farewellMedia: downloadedMediaPath,
+                        farewellMessage: null,
+                      });
                       await sock.sendMessage(
                         remoteJid,
                         { text: `Mídia de saída definida para: ${downloadedMediaPath}` },
@@ -1270,15 +1301,25 @@ const handleWhatsAppUpdate = async (update, sock) => {
                         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
                       );
                     }
-                  } else if (messageOrPath.startsWith('/') || messageOrPath.startsWith('.') || messageOrPath.startsWith('~')) {
-                    groupConfigStore.updateGroupConfig(remoteJid, { farewellMedia: messageOrPath, farewellMessage: null });
+                  } else if (
+                    messageOrPath.startsWith('/') ||
+                    messageOrPath.startsWith('.') ||
+                    messageOrPath.startsWith('~')
+                  ) {
+                    groupConfigStore.updateGroupConfig(remoteJid, {
+                      farewellMedia: messageOrPath,
+                      farewellMessage: null,
+                    });
                     await sock.sendMessage(
                       remoteJid,
                       { text: `Mídia de saída definida para: ${messageOrPath}` },
                       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
                     );
                   } else {
-                    groupConfigStore.updateGroupConfig(remoteJid, { farewellMessage: messageOrPath, farewellMedia: null });
+                    groupConfigStore.updateGroupConfig(remoteJid, {
+                      farewellMessage: messageOrPath,
+                      farewellMedia: null,
+                    });
                     await sock.sendMessage(
                       remoteJid,
                       { text: `Mensagem de saída definida para: ${messageOrPath}` },
