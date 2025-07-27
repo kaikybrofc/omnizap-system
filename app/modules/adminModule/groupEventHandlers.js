@@ -1,7 +1,7 @@
 // app/modules/adminModule/groupEventHandlers.js
 
 const groupConfigStore = require('../../store/groupConfigStore');
-const { store } = require('../../store/dataStore');
+const store = require('../../store/dataStore');
 const logger = require('../../utils/logger/loggerModule');
 const fs = require('fs');
 const path = require('path');
@@ -20,7 +20,7 @@ const handleGroupUpdate = async (sock, groupId, participants, action) => {
         let message = '';
 
         for (const participantJid of participants) {
-            const participantName = store.contacts[participantJid]?.notify || participantJid.split('@')[0];
+            const participantName = (store.contacts && store.contacts[participantJid]?.notify) || participantJid.split('@')[0];
 
             switch (action) {
                 case 'add':

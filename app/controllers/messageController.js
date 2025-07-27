@@ -1157,13 +1157,32 @@ const handleWhatsAppUpdate = async (update, sock) => {
                     break;
                   }
 
-                  if (messageInfo.message.imageMessage || messageInfo.message.videoMessage) {
-                    const mediaType = messageInfo.message.imageMessage ? 'image' : 'video';
+                  const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                  let mediaToDownload = null;
+                  let mediaType = null;
+
+                  if (messageInfo.message.imageMessage) {
+                    mediaToDownload = messageInfo.message.imageMessage;
+                    mediaType = 'image';
+                  } else if (messageInfo.message.videoMessage) {
+                    mediaToDownload = messageInfo.message.videoMessage;
+                    mediaType = 'video';
+                  } else if (quotedMessage) {
+                    if (quotedMessage.imageMessage) {
+                      mediaToDownload = quotedMessage.imageMessage;
+                      mediaType = 'image';
+                    } else if (quotedMessage.videoMessage) {
+                      mediaToDownload = quotedMessage.videoMessage;
+                      mediaType = 'video';
+                    }
+                  }
+
+                  if (mediaToDownload) {
                     const downloadedMediaPath = await downloadMediaMessage(
-                      messageInfo.message,
+                      mediaToDownload,
                       mediaType,
                       './temp',
-                    ); // Salva em ./temp
+                    );
                     if (downloadedMediaPath) {
                       groupConfigStore.updateGroupConfig(remoteJid, {
                         welcomeMedia: downloadedMediaPath,
@@ -1277,13 +1296,32 @@ const handleWhatsAppUpdate = async (update, sock) => {
                     break;
                   }
 
-                  if (messageInfo.message.imageMessage || messageInfo.message.videoMessage) {
-                    const mediaType = messageInfo.message.imageMessage ? 'image' : 'video';
+                  const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                  let mediaToDownload = null;
+                  let mediaType = null;
+
+                  if (messageInfo.message.imageMessage) {
+                    mediaToDownload = messageInfo.message.imageMessage;
+                    mediaType = 'image';
+                  } else if (messageInfo.message.videoMessage) {
+                    mediaToDownload = messageInfo.message.videoMessage;
+                    mediaType = 'video';
+                  } else if (quotedMessage) {
+                    if (quotedMessage.imageMessage) {
+                      mediaToDownload = quotedMessage.imageMessage;
+                      mediaType = 'image';
+                    } else if (quotedMessage.videoMessage) {
+                      mediaToDownload = quotedMessage.videoMessage;
+                      mediaType = 'video';
+                    }
+                  }
+
+                  if (mediaToDownload) {
                     const downloadedMediaPath = await downloadMediaMessage(
-                      messageInfo.message,
+                      mediaToDownload,
                       mediaType,
                       './temp',
-                    ); // Salva em ./temp
+                    );
                     if (downloadedMediaPath) {
                       groupConfigStore.updateGroupConfig(remoteJid, {
                         farewellMedia: downloadedMediaPath,

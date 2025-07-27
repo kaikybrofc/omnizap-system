@@ -15,13 +15,14 @@ const path = require('path');
 const downloadMediaMessage = async (message, type, outputPath) => {
     try {
         let buffer = Buffer.from([]);
-        const stream = await downloadContentFromMessage(message[type], type);
+        const stream = await downloadContentFromMessage(message, type);
 
         for await (const chunk of stream) {
             buffer = Buffer.concat([buffer, chunk]);
         }
 
-        const fileName = `${Date.now()}-${message.key.id}.${type === 'image' ? 'jpeg' : type === 'video' ? 'mp4' : type === 'audio' ? 'mp3' : 'bin'}`;
+        const fileId = message.key?.id || Date.now();
+        const fileName = `${Date.now()}-${fileId}.${type === 'image' ? 'jpeg' : type === 'video' ? 'mp4' : type === 'audio' ? 'mp3' : 'bin'}`;
         const filePath = path.join(outputPath, fileName);
 
         fs.writeFileSync(filePath, buffer);
