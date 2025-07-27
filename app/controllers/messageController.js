@@ -13,6 +13,11 @@ require('dotenv').config();
 const { handleInfoCommand } = require('../modules/adminModule/infoCommand');
 const groupUtils = require('../utils/groupUtils');
 const dataStore = require('../store/dataStore');
+const groupConfigStore = require('../store/groupConfigStore');
+const { downloadMediaMessage } = require('../utils/mediaDownloader/mediaDownloaderModule');
+const fs = require('fs');
+const path = require('path');
+const { downloadMediaMessage } = require('../utils/mediaDownloader/mediaDownloaderModule');
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
@@ -218,7 +223,11 @@ const handleWhatsAppUpdate = async (update, sock) => {
                 );
                 break;
               }
-              const menuText = `\n👑 *Menu de Administração de Grupos* 👑\n\n*Comandos para Gerenciamento de Membros:*\n\n👤 */add @user1 @user2...* - Adiciona um ou mais participantes ao grupo.\n👋 */ban @user1 @user2...* - Remove um ou mais participantes do grupo.\n⬆️ */up @user1 @user2...* - Promove um ou mais participantes a administradores.\n⬇️ */down @user1 @user2...* - Remove o cargo de administrador de um ou mais participantes.\n\n*Comandos para Gerenciamento do Grupo:*\n\n📝 */setsubject <novo_assunto>* - Altera o nome do grupo.\nℹ️ */setdesc <nova_descrição>* - Altera a descrição do grupo.\n⚙️ */setgroup <announcement|not_announcement|locked|unlocked>* - Altera as configurações de envio de mensagens e edição de dados do grupo.\n🚪 */leave* - O bot sai do grupo.\n🔗 */invite* - Mostra o código de convite do grupo.\n🔄 */revoke* - Revoga o código de convite do grupo.\n\n*Comandos para Gerenciamento de Solicitações:*\n\n📋 */requests* - Lista as solicitações de entrada no grupo.\n✅ */updaterequests <approve|reject> @user1 @user2...* - Aprova ou rejeita solicitações de entrada.\n\n*Comandos Gerais:*\n\n➕ */newgroup <título> <participante1> <participante2>...* - Cria um novo grupo.\n➡️ */join <código_de_convite>* - Entra em um grupo usando um código de convite.\n🔍 */info [id_do_grupo]* - Mostra informações de um grupo. Se nenhum ID for fornecido, mostra as informações do grupo atual.\n📬 */infofrominvite <código_de_convite>* - Mostra informações de um grupo pelo código de convite.\n📄 */metadata [id_do_grupo]* - Obtém os metadados de um grupo. Se nenhum ID for fornecido, obtém os do grupo atual.\n🌐 */groups* - Lista todos os grupos em que o bot está.\n\n*Outros Comandos:*\n\n⏳ */temp <duração_em_segundos>* - Ativa ou desativa as mensagens efêmeras no grupo.\n🔒 */addmode <all_member_add|admin_add>* - Altera quem pode adicionar novos membros ao grupo.\n    `;
+              const menuText = `\n👑 *Menu de Administração de Grupos* 👑\n\n*Comandos para Gerenciamento de Membros:*\n\n👤 */add @user1 @user2...* - Adiciona um ou mais participantes ao grupo.\n👋 */ban @user1 @user2...* - Remove um ou mais participantes do grupo.\n⬆️ */up @user1 @user2...* - Promove um ou mais participantes a administradores.\n⬇️ */down @user1 @user2...* - Remove o cargo de administrador de um ou mais participantes.\n\n*Comandos para Gerenciamento do Grupo:*\n\n📝 */setsubject <novo_assunto>* - Altera o nome do grupo.\nℹ️ */setdesc <nova_descrição>* - Altera a descrição do grupo.\n⚙️ */setgroup <announcement|not_announcement|locked|unlocked>* - Altera as configurações de envio de mensagens e edição de dados do grupo.\n🚪 */leave* - O bot sai do grupo.\n🔗 */invite* - Mostra o código de convite do grupo.\n🔄 */revoke* - Revoga o código de convite do grupo.\n\n*Comandos para Gerenciamento de Solicitações:*\n\n📋 */requests* - Lista as solicitações de entrada no grupo.\n✅ */updaterequests <approve|reject> @user1 @user2...* - Aprova ou rejeita solicitações de entrada.\n\n*Comandos Gerais:*\n\n➕ */newgroup <título> <participante1> <participante2>...* - Cria um novo grupo.\n➡️ */join <código_de_convite>* - Entra em um grupo usando um código de convite.\n🔍 */info [id_do_grupo]* - Mostra informações de um grupo. Se nenhum ID for fornecido, mostra as informações do grupo atual.\n📬 */infofrominvite <código_de_convite>* - Mostra informações de um grupo pelo código de convite.\n📄 */metadata [id_do_grupo]* - Obtém os metadados de um grupo. Se nenhum ID for fornecido, obtém os do grupo atual.\n🌐 */groups* - Lista todos os grupos em que o bot está.\n\n*Outros Comandos:*\n\n⏳ */temp <duração_em_segundos>* - Ativa ou desativa as mensagens efêmeras no grupo.
+🔒 */addmode <all_member_add|admin_add>* - Altera quem pode adicionar novos membros ao grupo.
+👋 */welcome <on|off|set> [mensagem ou caminho da mídia]* - Ativa/desativa ou define a mensagem/mídia de boas-vindas.
+👋 */farewell <on|off|set> [mensagem ou caminho da mídia]* - Ativa/desativa ou define a mensagem/mídia de saída.
+    `;
               await sock.sendMessage(
                 remoteJid,
                 { text: menuText.trim() },
@@ -1083,6 +1092,170 @@ const handleWhatsAppUpdate = async (update, sock) => {
                 await sock.sendMessage(
                   remoteJid,
                   { text: `Erro ao atualizar o modo de adição de membros: ${error.message}` },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
+              }
+              break;
+            }
+
+            case 'welcome': {
+              if (!isGroupMessage) {
+                await sock.sendMessage(
+                  remoteJid,
+                  { text: 'Este comando só pode ser usado em grupos.' },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(
+                  remoteJid,
+                  { text: 'Você não tem permissão para usar este comando.' },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
+                break;
+              }
+              if (args.length < 1 || !['on', 'off', 'set'].includes(args[0])) {
+                await sock.sendMessage(
+                  remoteJid,
+                  { text: 'Uso: /welcome <on|off|set> [mensagem ou caminho da mídia]' },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
+                break;
+              }
+
+              const subCommand = args[0];
+              const currentConfig = groupConfigStore.getGroupConfig(remoteJid);
+
+              try {
+                if (subCommand === 'on') {
+                  groupConfigStore.updateGroupConfig(remoteJid, { welcomeMessageEnabled: true });
+                  await sock.sendMessage(
+                    remoteJid,
+                    { text: 'Mensagens de boas-vindas ativadas para este grupo.' },
+                    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                  );
+                } else if (subCommand === 'off') {
+                  groupConfigStore.updateGroupConfig(remoteJid, { welcomeMessageEnabled: false });
+                  await sock.sendMessage(
+                    remoteJid,
+                    { text: 'Mensagens de boas-vindas desativadas para este grupo.' },
+                    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                  );
+                } else if (subCommand === 'set') {
+                  const messageOrPath = args.slice(1).join(' ');
+                  if (!messageOrPath) {
+                    await sock.sendMessage(
+                      remoteJid,
+                      { text: 'Uso: /welcome set <mensagem ou caminho da mídia>' },
+                      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                    );
+                    break;
+                  }
+
+                  // Check if it's a media path (simple check for now, can be improved)
+                  if (messageOrPath.startsWith('/') || messageOrPath.startsWith('.') || messageOrPath.startsWith('~')) {
+                    groupConfigStore.updateGroupConfig(remoteJid, { welcomeMedia: messageOrPath, welcomeMessage: null });
+                    await sock.sendMessage(
+                      remoteJid,
+                      { text: `Mídia de boas-vindas definida para: ${messageOrPath}` },
+                      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                    );
+                  } else {
+                    groupConfigStore.updateGroupConfig(remoteJid, { welcomeMessage: messageOrPath, welcomeMedia: null });
+                    await sock.sendMessage(
+                      remoteJid,
+                      { text: `Mensagem de boas-vindas definida para: ${messageOrPath}` },
+                      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                    );
+                  }
+                }
+              } catch (error) {
+                await sock.sendMessage(
+                  remoteJid,
+                  { text: `Erro ao configurar mensagens de boas-vindas: ${error.message}` },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
+              }
+              break;
+            }
+
+            case 'farewell': {
+              if (!isGroupMessage) {
+                await sock.sendMessage(
+                  remoteJid,
+                  { text: 'Este comando só pode ser usado em grupos.' },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(
+                  remoteJid,
+                  { text: 'Você não tem permissão para usar este comando.' },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
+                break;
+              }
+              if (args.length < 1 || !['on', 'off', 'set'].includes(args[0])) {
+                await sock.sendMessage(
+                  remoteJid,
+                  { text: 'Uso: /farewell <on|off|set> [mensagem ou caminho da mídia]' },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
+                break;
+              }
+
+              const subCommand = args[0];
+              const currentConfig = groupConfigStore.getGroupConfig(remoteJid);
+
+              try {
+                if (subCommand === 'on') {
+                  groupConfigStore.updateGroupConfig(remoteJid, { farewellMessageEnabled: true });
+                  await sock.sendMessage(
+                    remoteJid,
+                    { text: 'Mensagens de saída ativadas para este grupo.' },
+                    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                  );
+                } else if (subCommand === 'off') {
+                  groupConfigStore.updateGroupConfig(remoteJid, { farewellMessageEnabled: false });
+                  await sock.sendMessage(
+                    remoteJid,
+                    { text: 'Mensagens de saída desativadas para este grupo.' },
+                    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                  );
+                } else if (subCommand === 'set') {
+                  const messageOrPath = args.slice(1).join(' ');
+                  if (!messageOrPath) {
+                    await sock.sendMessage(
+                      remoteJid,
+                      { text: 'Uso: /farewell set <mensagem ou caminho da mídia>' },
+                      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                    );
+                    break;
+                  }
+
+                  // Check if it's a media path (simple check for now, can be improved)
+                  if (messageOrPath.startsWith('/') || messageOrPath.startsWith('.') || messageOrPath.startsWith('~')) {
+                    groupConfigStore.updateGroupConfig(remoteJid, { farewellMedia: messageOrPath, farewellMessage: null });
+                    await sock.sendMessage(
+                      remoteJid,
+                      { text: `Mídia de saída definida para: ${messageOrPath}` },
+                      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                    );
+                  } else {
+                    groupConfigStore.updateGroupConfig(remoteJid, { farewellMessage: messageOrPath, farewellMedia: null });
+                    await sock.sendMessage(
+                      remoteJid,
+                      { text: `Mensagem de saída definida para: ${messageOrPath}` },
+                      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                    );
+                  }
+                }
+              } catch (error) {
+                await sock.sendMessage(
+                  remoteJid,
+                  { text: `Erro ao configurar mensagens de saída: ${error.message}` },
                   { quoted: messageInfo, ephemeralExpiration: expirationMessage },
                 );
               }
