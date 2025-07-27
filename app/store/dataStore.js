@@ -106,7 +106,6 @@ const store = {
     // Se o buffer atingir o tamanho máximo, força um flush
     if (writeBuffer.size >= writeBuffer.maxSize) {
       this.flushBuffer();
-      return;
     }
 
     // Agenda um flush se ainda não estiver agendado
@@ -571,7 +570,7 @@ const store = {
         }
         for (const msg of messages) {
           if (!this.messages[msg.key.remoteJid]) {
-            acc[msg.key.remoteJid] = [];
+            this.messages[msg.key.remoteJid] = [];
           }
           this.messages[msg.key.remoteJid].push(msg);
         }
@@ -620,115 +619,7 @@ const store = {
       }
       this.debouncedWrite('contacts');
     });
-    ev.on('messages.delete', (item) => {
-      if ('all' in item) {
-        this.messages[item.jid] = [];
-      } else {
-        for (const { key } of item.keys) {
-          if (this.messages[key.remoteJid]) {
-            this.messages[key.remoteJid] = this.messages[key.remoteJid].filter(
-              (msg) => msg.key.id !== key.id,
-            );
-          }
-        }
-      }
-      this.debouncedWrite('messages');
-    });
-    ev.on('messages.update', (updates) => {
-      for (const update of updates) {
-        if (this.messages[update.key.remoteJid]) {
-          const idx = this.messages[update.key.remoteJid].findIndex(
-            (msg) => msg.key.id === update.key.id,
-          );
-          if (idx !== -1) {
-            Object.assign(this.messages[update.key.remoteJid][idx], update);
-          }
-        }
-      }
-      this.debouncedWrite('messages');
-    });
-    ev.on('messages.media-update', (updates) => {
-      for (const update of updates) {
-        if (this.messages[update.key.remoteJid]) {
-          const idx = this.messages[update.key.remoteJid].findIndex(
-            (msg) => msg.key.id === update.key.id,
-          );
-          if (idx !== -1) {
-            Object.assign(this.messages[update.key.remoteJid][idx], {
-              media: update.media,
-            });
-          }
-        }
-      }
-      this.debouncedWrite('messages');
-    });
-    ev.on('messages.reaction', (reactions) => {
-      for (const { key, reaction } of reactions) {
-        if (this.messages[key.remoteJid]) {
-          const idx = this.messages[key.remoteJid].findIndex((msg) => msg.key.id === key.id);
-          if (idx !== -1) {
-            const message = this.messages[key.remoteJid][idx];
-            if (!message.reactions) {
-              message.reactions = [];
-            }
-            const existingReactionIdx = message.reactions.findIndex(
-              (r) => r.key.id === reaction.key.id,
-            );
-            if (existingReactionIdx !== -1) {
-              if (reaction.text) {
-                Object.assign(message.reactions[existingReactionIdx], reaction);
-              } else {
-                message.reactions.splice(existingReactionIdx, 1);
-              }
-            } else if (reaction.text) {
-              message.reactions.push(reaction);
-            }
-          }
-        }
-      }
-      this.debouncedWrite('messages');
-    });
-    ev.on('message-receipt.update', (updates) => {
-      for (const { key, receipt } of updates) {
-        if (this.messages[key.remoteJid]) {
-          const idx = this.messages[key.remoteJid].findIndex((msg) => msg.key.id === key.id);
-          if (idx !== -1) {
-            const message = this.messages[key.remoteJid][idx];
-            if (!message.userReceipt) {
-              message.userReceipt = [];
-            }
-            const existingReceiptIdx = message.userReceipt.findIndex(
-              (r) => r.userJid === receipt.userJid,
-            );
-            if (existingReceiptIdx !== -1) {
-              Object.assign(message.userReceipt[existingReceiptIdx], receipt);
-            } else {
-              message.userReceipt.push(receipt);
-            }
-          }
-        }
-        // Atualiza também as mensagens raw se existirem
-        if (this.rawMessages[key.remoteJid]) {
-          const idx = this.rawMessages[key.remoteJid].findIndex((msg) => msg.key.id === key.id);
-          if (idx !== -1) {
-            const message = this.rawMessages[key.remoteJid][idx];
-            if (!message.userReceipt) {
-              message.userReceipt = [];
-            }
-            const existingReceiptIdx = message.userReceipt.findIndex(
-              (r) => r.userJid === receipt.userJid,
-            );
-            if (existingReceiptIdx !== -1) {
-              Object.assign(message.userReceipt[existingReceiptIdx], receipt);
-            } else {
-              message.userReceipt.push(receipt);
-            }
-          }
-        }
-      }
-      this.debouncedWrite('messages');
-      this.debouncedWrite('rawMessages');
-    });
+    
 
     // Agendar a limpeza periódica de mensagens antigas
     setInterval(() => this.cleanOldMessages(), CLEANUP_INTERVAL_MS);
