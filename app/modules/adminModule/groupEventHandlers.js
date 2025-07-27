@@ -47,9 +47,9 @@ const handleGroupUpdate = async (sock, groupId, participants, action) => {
         }
 
         if (message) {
-            const messageOptions = { text: message.trim() };
-
+            let messageOptions = {};
             let mediaPath = null;
+
             if (action === 'add' && groupConfig.welcomeMedia) {
                 mediaPath = groupConfig.welcomeMedia;
             } else if (action === 'remove' && groupConfig.farewellMedia) {
@@ -57,21 +57,26 @@ const handleGroupUpdate = async (sock, groupId, participants, action) => {
             }
 
             if (mediaPath) {
+                logger.info(`Attempting to send media. Configured mediaPath: ${mediaPath}`);
                 const absoluteMediaPath = path.resolve(mediaPath);
+                logger.info(`Resolved absoluteMediaPath: ${absoluteMediaPath}`);
+
                 if (fs.existsSync(absoluteMediaPath)) {
+                    logger.info(`Media file found at ${absoluteMediaPath}. Preparing to send.`);
                     const mediaType = absoluteMediaPath.endsWith('.mp4') ? 'video' : 'image';
                     const mediaBuffer = fs.readFileSync(absoluteMediaPath);
 
                     if (mediaType === 'image') {
-                        messageOptions.image = mediaBuffer;
-                        messageOptions.caption = message.trim();
+                        messageOptions = { image: mediaBuffer, caption: message.trim() };
                     } else if (mediaType === 'video') {
-                        messageOptions.video = mediaBuffer;
-                        messageOptions.caption = message.trim();
+                        messageOptions = { video: mediaBuffer, caption: message.trim() };
                     }
                 } else {
-                    logger.warn(`Media file not found at ${absoluteMediaPath} for group ${groupId}, action ${action}`);
+                    logger.warn(`Media file not found at ${absoluteMediaPath} for group ${groupId}, action ${action}. Sending text message instead.`);
+                    messageOptions = { text: message.trim() };
                 }
+            } else {
+                messageOptions = { text: message.trim() };
             }
             await sock.sendMessage(groupId, messageOptions);
             logger.info(`Sent group update message for group ${groupId}, action: ${action}`);
