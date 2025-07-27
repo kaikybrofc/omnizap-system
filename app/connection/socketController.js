@@ -18,6 +18,7 @@ const {
 } = require('@whiskeysockets/baileys');
 
 const store = require('../store/dataStore');
+const groupConfigStore = require('../store/groupConfigStore');
 
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
@@ -27,6 +28,7 @@ const pino = require('pino');
 const logger = require('../utils/logger/loggerModule');
 const { handleWhatsAppUpdate } = require('../controllers/messageController');
 const { handleGenericUpdate } = require('../controllers/eventHandler');
+const { handleGroupUpdate: handleGroupParticipantsEvent } = require('../modules/adminModule/groupEventHandlers');
 const { getSystemMetrics } = require('../utils/systemMetrics/systemMetricsModule');
 
 let activeSocket = null;
@@ -43,6 +45,7 @@ async function connectToWhatsApp() {
   const authPath = path.join(__dirname, 'auth_info_baileys');
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
   await store.loadData();
+  await groupConfigStore.loadData();
   const version = [6, 7, 0];
 
   const usePairingCode = process.env.PAIRING_CODE === 'true';
@@ -130,7 +133,7 @@ async function connectToWhatsApp() {
 
   sock.ev.on('group-participants.update', (update) => {
     try {
-      handleGroupParticipantsUpdate(update, sock);
+      handleGroupParticipantsEvent(sock, update.id, update.participants, update.action);
     } catch (err) {
       logger.error('Error in group-participants.update event:', err);
     }
@@ -257,62 +260,7 @@ async function handleGroupUpdate(updates, sock) {
   }
 }
 
-async function handleGroupParticipantsUpdate(update, sock) {
-  try {
-    const groupId = update.id;
-    const participants = update.participants;
-    const action = update.action;
 
-    if (store.groups[groupId]) {
-      if (!Array.isArray(store.groups[groupId].participants)) {
-        store.groups[groupId].participants = [];
-      }
-
-      if (action === 'add') {
-        for (const participantJid of participants) {
-          if (!store.groups[groupId].participants.some((p) => p.id === participantJid)) {
-            store.groups[groupId].participants.push({ id: participantJid });
-          }
-        }
-      } else if (action === 'remove') {
-        store.groups[groupId].participants = store.groups[groupId].participants.filter(
-          (p) => !participants.includes(p.id),
-        );
-      } else if (action === 'promote' || action === 'demote') {
-        for (const participantJid of participants) {
-          const participantObj = store.groups[groupId].participants.find(
-            (p) => p.id === participantJid,
-          );
-          if (participantObj) {
-            participantObj.admin = action === 'promote' ? 'admin' : null;
-          }
-        }
-      }
-      store.debouncedWrite('groups');
-      logger.info(`Participantes do grupo ${groupId} atualizados.`, {
-        action: 'group_participants_updated',
-        groupId: groupId,
-        participants: participants,
-        actionType: action,
-      });
-    } else {
-      logger.warn(
-        `Metadados do grupo ${groupId} não encontrados no armazenamento durante a atualização de participantes.`,
-        {
-          action: 'group_participants_update_missing_metadata',
-          groupId: groupId,
-        },
-      );
-    }
-  } catch (error) {
-    logger.error(`Erro ao processar atualização de participantes do grupo ${update.id}:`, {
-      error: error.message,
-      stack: error.stack,
-      groupId: update.id,
-      action: 'group_participants_update_error',
-    });
-  }
-}
 
 /**
  * Retorna a instância do socket ativo.
