@@ -2,6 +2,7 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const lockfile = require('proper-lockfile');
+const { mergeWith, isArray, unionBy } = require('lodash');
 const logger = require('../utils/logger/loggerModule');
 
 const storePath = path.resolve(process.cwd(), process.env.STORE_PATH || './temp');
@@ -55,7 +56,7 @@ async function readFromFile(dataType, expectedType = 'object') {
 
 async function writeToFile(dataType, data) {
   if (data === null || data === undefined) {
-    logger.warn(`Attempted to write null or undefined data for ${dataType}. Aborting.`);
+    logger.warn(`Tentativa de escrever dados nulos ou indefinidos para ${dataType}. Abortando.`);
     return;
   }
 
@@ -69,7 +70,7 @@ async function writeToFile(dataType, data) {
       releaseLock = await lockfile.lock(filePath, {
         retries: { retries: 5, factor: 1, minTimeout: 200 },
         onCompromised: (err) => {
-          logger.error('Lock file compromised:', err);
+          logger.error('Lock do arquivo comprometido:', err);
           throw err;
         },
       });
@@ -78,7 +79,21 @@ async function writeToFile(dataType, data) {
       throw lockError;
     }
 
-    const jsonString = JSON.stringify(data, null, 2);
+    let finalData = data;
+    try {
+      const existingData = await readFromFile(dataType, Array.isArray(data) ? 'array' : 'object');
+      if (existingData) {
+        finalData = mergeWith({}, existingData, data, (objValue, srcValue) => {
+          if (isArray(objValue) && isArray(srcValue)) {
+            return unionBy(objValue, srcValue, 'id');
+          }
+        });
+      }
+    } catch (readError) {
+      logger.warn(`Não foi possível ler os dados existentes para ${dataType} antes de escrever. Continuando com os novos dados. Erro: ${readError.message}`);
+    }
+
+    const jsonString = JSON.stringify(finalData, null, 2);
 
     await new Promise((resolve, reject) => {
       const writeStream = fs.createWriteStream(filePath, {
