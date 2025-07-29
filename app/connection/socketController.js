@@ -28,7 +28,9 @@ const pino = require('pino');
 const logger = require('../utils/logger/loggerModule');
 const { handleWhatsAppUpdate } = require('../controllers/messageController');
 const { handleGenericUpdate } = require('../controllers/eventHandler');
-const { handleGroupUpdate: handleGroupParticipantsEvent } = require('../modules/adminModule/groupEventHandlers');
+const {
+  handleGroupUpdate: handleGroupParticipantsEvent,
+} = require('../modules/adminModule/groupEventHandlers');
 const { getSystemMetrics } = require('../utils/systemMetrics/systemMetricsModule');
 
 let activeSocket = null;
@@ -39,7 +41,9 @@ const INITIAL_RECONNECT_DELAY = 3000;
 async function connectToWhatsApp() {
   logger.info('Iniciando conexão com o WhatsApp...', {
     action: 'connect_init',
+    timestamp: new Date().toISOString(),
   });
+
   connectionAttempts = 0;
 
   const authPath = path.join(__dirname, 'auth_info_baileys');
@@ -48,13 +52,18 @@ async function connectToWhatsApp() {
   await groupConfigStore.loadData();
   const version = [6, 7, 0];
 
+  logger.debug('Dados de autenticação carregados com sucesso.', {
+    authPath,
+    version,
+  });
+
   const sock = makeWASocket({
     version,
     auth: state,
     logger: pino({ level: 'silent' }),
     browser: Browsers.macOS('Desktop'),
     qrTimeout: 30000,
-    syncFullHistory: true,
+    syncFullHistory: false,
     markOnlineOnConnect: false,
     getMessage: async (key) =>
       (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
@@ -65,57 +74,112 @@ async function connectToWhatsApp() {
   activeSocket = sock;
 
   sock.ev.on('creds.update', async () => {
-    logger.debug('Atualizando credenciais...', {
+    logger.debug('Atualizando credenciais de autenticação...', {
       action: 'creds_update',
+      timestamp: new Date().toISOString(),
     });
     await saveCreds();
   });
 
   sock.ev.on('connection.update', (update) => {
     handleConnectionUpdate(update, sock);
-    logger.debug('Atualizando conexão...', {
+    logger.debug('Estado da conexão atualizado.', {
       action: 'connection_update',
+      status: update.connection,
+      lastDisconnect: update.lastDisconnect?.error?.message || null,
+      isNewLogin: update.isNewLogin || false,
+      timestamp: new Date().toISOString(),
     });
   });
 
   sock.ev.on('messages.upsert', (update) => {
     try {
+      logger.debug('Novo(s) evento(s) em messages.upsert', {
+        action: 'messages_upsert',
+        type: update.type,
+        messagesCount: update.messages.length,
+        remoteJid: update.messages[0]?.key.remoteJid || null,
+      });
       handleWhatsAppUpdate(update, sock);
     } catch (error) {
-      logger.error('Error em messages.upsert:', error);
+      logger.error('Erro no evento messages.upsert:', {
+        error: error.message,
+        stack: error.stack,
+        action: 'messages_upsert_error',
+      });
     }
   });
 
   sock.ev.on('messages.update', (update) => {
     try {
+      logger.debug('Atualização de mensagens recebida.', {
+        action: 'messages_update',
+        updatesCount: update.length,
+      });
       handleMessageUpdate(update, sock);
     } catch (error) {
-      logger.error('Error in messages.update event:', error);
+      logger.error('Erro no evento messages.update:', {
+        error: error.message,
+        stack: error.stack,
+        action: 'messages_update_error',
+      });
     }
   });
 
   sock.ev.on('groups.update', (updates) => {
     try {
+      logger.debug('Grupo(s) atualizado(s).', {
+        action: 'groups_update',
+        groupCount: updates.length,
+        groupIds: updates.map((u) => u.id),
+      });
       handleGroupUpdate(updates, sock);
     } catch (err) {
-      logger.error('Error in groups.update event:', err);
+      logger.error('Erro no evento groups.update:', {
+        error: err.message,
+        stack: err.stack,
+        action: 'groups_update_error',
+      });
     }
   });
 
   sock.ev.on('group-participants.update', (update) => {
     try {
+      logger.debug('Participantes do grupo atualizados.', {
+        action: 'group_participants_update',
+        groupId: update.id,
+        actionType: update.action,
+        participants: update.participants,
+      });
       handleGroupParticipantsEvent(sock, update.id, update.participants, update.action);
     } catch (err) {
-      logger.error('Error in group-participants.update event:', err);
+      logger.error('Erro no evento group-participants.update:', {
+        error: err.message,
+        stack: err.stack,
+        action: 'group_participants_update_error',
+      });
     }
   });
 
   sock.ev.on('all', (event) => {
     try {
+      logger.debug('Evento genérico recebido.', {
+        action: 'generic_event',
+        eventType: event.event,
+      });
       handleGenericUpdate(event);
     } catch (err) {
-      logger.error('Error in all event:', err);
+      logger.error('Erro no evento genérico (all):', {
+        error: err.message,
+        stack: err.stack,
+        action: 'generic_event_error',
+      });
     }
+  });
+
+  logger.info('Conexão com o WhatsApp estabelecida com sucesso.', {
+    action: 'connect_success',
+    timestamp: new Date().toISOString(),
   });
 }
 
@@ -230,8 +294,6 @@ async function handleGroupUpdate(updates, sock) {
     });
   }
 }
-
-
 
 /**
  * Retorna a instância do socket ativo.
