@@ -283,16 +283,38 @@ async function handleConnectionUpdate(update, sock) {
 async function handleMessageUpdate(updates, sock) {
   for (const { key, update } of updates) {
     if (update.pollUpdates) {
-      const pollCreation = await sock.getMessage(key);
-      if (pollCreation) {
-        const aggregatedVotes = getAggregateVotesInPollMessage({
-          message: pollCreation,
-          pollUpdates: update.pollUpdates,
-        });
-        logger.info('Votos da enquete atualizados:', {
-          action: 'poll_votes_updated',
-          key: key,
-          aggregatedVotes: aggregatedVotes,
+      try {
+        const pollCreation = await sock.getMessage(key);
+
+        if (pollCreation) {
+          const aggregatedVotes = getAggregateVotesInPollMessage({
+            message: pollCreation,
+            pollUpdates: update.pollUpdates,
+          });
+
+          logger.info('📊 Votos da enquete atualizados.', {
+            action: 'poll_votes_updated',
+            remoteJid: key.remoteJid,
+            messageId: key.id,
+            participant: key.participant || null,
+            votesCount: Object.values(aggregatedVotes || {}).reduce((a, b) => a + b, 0),
+            votes: aggregatedVotes,
+            timestamp: new Date().toISOString(),
+          });
+        } else {
+          logger.warn('⚠️ Mensagem da enquete não encontrada.', {
+            action: 'poll_message_not_found',
+            key,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        logger.error('❌ Erro ao processar atualização de votos da enquete.', {
+          action: 'poll_update_error',
+          errorMessage: error.message,
+          stack: error.stack,
+          key,
+          timestamp: new Date().toISOString(),
         });
       }
     }
@@ -301,36 +323,62 @@ async function handleMessageUpdate(updates, sock) {
 
 async function handleGroupUpdate(updates, sock) {
   for (const event of updates) {
-    if (store.groups[event.id]) {
-      Object.assign(store.groups[event.id], event);
-    } else {
-      store.groups[event.id] = event;
+    try {
+      const groupId = event.id;
+      const oldData = store.groups[groupId] || {};
+      const updatedData = { ...oldData, ...event };
+
+      store.groups[groupId] = updatedData;
+      store.debouncedWrite('groups');
+
+      logger.info(`📦 Metadados do grupo atualizados.`, {
+        action: 'group_metadata_updated',
+        groupId,
+        groupName: updatedData.subject || 'Desconhecido',
+        changes: Object.keys(event), // mostra o que mudou
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      logger.error('❌ Erro ao atualizar metadados do grupo.', {
+        action: 'group_metadata_update_error',
+        errorMessage: error.message,
+        stack: error.stack,
+        event,
+        timestamp: new Date().toISOString(),
+      });
     }
-    store.debouncedWrite('groups');
-    logger.info(`Metadados do grupo ${event.id} atualizados.`, {
-      action: 'group_metadata_updated',
-      groupId: event.id,
-    });
   }
 }
 
 /**
- * Retorna a instância do socket ativo.
+ * 🔌 Retorna a instância atual do socket ativo do WhatsApp.
  * @returns {import('@whiskeysockets/baileys').WASocket | null}
  */
 function getActiveSocket() {
+  logger.debug('🔍 Recuperando instância do socket ativo.', {
+    action: 'get_active_socket',
+    socketExists: !!activeSocket,
+    timestamp: new Date().toISOString(),
+  });
   return activeSocket;
 }
 
 /**
- * Força reconexão ao WhatsApp
+ * ♻️ Força uma nova tentativa de conexão ao WhatsApp.
+ * Encerra o socket atual (se existir) para disparar a lógica de reconexão.
  */
 async function reconnectToWhatsApp() {
-  if (activeSocket) {
-    logger.info('Forçando o fechamento do socket para acionar a lógica de reconexão...');
+  if (activeSocket && activeSocket.ws?.readyState === WebSocket.OPEN) {
+    logger.info('♻️ Forçando fechamento do socket para reconectar...', {
+      action: 'force_reconnect',
+      timestamp: new Date().toISOString(),
+    });
     activeSocket.ws.close();
   } else {
-    logger.warn('Tentativa de reconectar sem um socket ativo. Iniciando uma nova conexão.');
+    logger.warn('⚠️ Nenhum socket ativo detectado. Iniciando nova conexão manualmente.', {
+      action: 'reconnect_no_active_socket',
+      timestamp: new Date().toISOString(),
+    });
     await connectToWhatsApp();
   }
 }
@@ -342,11 +390,17 @@ module.exports = {
 };
 
 if (require.main === module) {
-  logger.info('🔌 Socket Controller executado diretamente. Iniciando conexão...');
+  logger.info('🚀 Socket Controller iniciado diretamente via CLI.', {
+    action: 'module_direct_execution',
+    timestamp: new Date().toISOString(),
+  });
+
   connectToWhatsApp().catch((err) => {
-    logger.error('❌ Falha catastrófica ao iniciar a conexão diretamente do Socket Controller.', {
-      error: err.message,
+    logger.error('❌ Falha crítica ao tentar iniciar conexão via execução direta.', {
+      action: 'direct_connection_failure',
+      errorMessage: err.message,
       stack: err.stack,
+      timestamp: new Date().toISOString(),
     });
     process.exit(1);
   });
