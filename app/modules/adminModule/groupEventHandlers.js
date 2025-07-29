@@ -136,17 +136,13 @@ const handleGroupUpdate = async (sock, groupId, participants, action) => {
           }
           break;
         case 'promote':
-          if (groupConfig.promoteMessageEnabled && groupConfig.promoteMessage) {
-            let msg = groupConfig.promoteMessage.replace('{participant}', `@${participantName}`);
-            msg = msg.replace(/@user/g, `@${participantName}`);
-            message += `${msg}\n`;
+          if (groupConfig.welcomeMessageEnabled) {
+            message += `O usuário @${participantName} foi promovido a administrador do grupo. 🎉\n`;
           }
           break;
         case 'demote':
-          if (groupConfig.demoteMessageEnabled && groupConfig.demoteMessage) {
-            let msg = groupConfig.demoteMessage.replace('{participant}', `@${participantName}`);
-            msg = msg.replace(/@user/g, `@${participantName}`);
-            message += `${msg}\n`;
+          if (groupConfig.welcomeMessageEnabled) {
+            message += `O usuário @${participantName} não é mais um administrador do grupo. ⬇️\n`;
           }
           break;
       }
