@@ -38,7 +38,7 @@ async function readFromFile(dataType, expectedType = 'object') {
       logger.error(`Erro ao acessar o arquivo ${filePath}: ${error.message}`);
       const stream = require('stream');
       const readable = new stream.Readable({ objectMode: true });
-      readable._read = () => {}; // No-op
+      readable._read = () => {};
       process.nextTick(() => readable.emit('error', error));
       return readable;
     }
