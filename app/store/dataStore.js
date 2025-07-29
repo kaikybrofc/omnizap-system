@@ -1,23 +1,6 @@
 const { readFromFile, writeToFile } = require('./persistence');
 const logger = require('../utils/logger/loggerModule');
 
-// Configurações de ambiente para o armazenamento de mensagens de chat
-const MAX_MESSAGES_PER_CHAT = parseInt(process.env.OMNIZAP_MAX_MESSAGES_PER_CHAT || '1000000', 10); // Limite de mensagens por chat
-const MESSAGE_RETENTION_MONTHS = parseInt(process.env.OMNIZAP_MESSAGE_RETENTION_MONTHS || '3', 10); // Meses para reter mensagens de chat
-
-// Configurações de ambiente para o armazenamento de mensagens raw
-const MAX_RAW_MESSAGES_PER_CHAT = parseInt(
-  process.env.OMNIZAP_MAX_RAW_MESSAGES_PER_CHAT || '5000000',
-  10,
-); // Limite de mensagens raw por chat
-const RAW_MESSAGE_RETENTION_MONTHS = parseInt(
-  process.env.OMNIZAP_RAW_MESSAGE_RETENTION_MONTHS || '3',
-  10,
-); // Meses para reter mensagens raw
-
-const CLEANUP_INTERVAL_MS = parseInt(process.env.OMNIZAP_CLEANUP_INTERVAL_MS || '86400000', 10); // Intervalo de limpeza (24 horas por padrão)
-
-// Buffer para acumular dados antes de escrever no disco
 const writeBuffer = {
   size: 0,
   maxSize: process.env.OMNIZAP_WRITE_BUFFER_SIZE || 1 * 1024 * 1024,
@@ -25,7 +8,6 @@ const writeBuffer = {
   flushTimeout: null,
 };
 
-// Função auxiliar para garantir o tipo correto dos dados
 function ensureDataType(data, expectedType) {
   if (expectedType === 'array') {
     return Array.isArray(data) ? data : [];
@@ -84,14 +66,12 @@ const store = {
 
             stream.on('error', (err) => {
               logger.error(`Erro no stream ao carregar ${type}:`, err);
-              // Em caso de erro no stream, inicializa com valor padrão
               this[type] = expectedType === 'array' ? [] : {};
-              resolve(); // Resolve para não bloquear o carregamento de outros dados
             });
           } catch (loadError) {
             logger.error(`Erro ao iniciar o carregamento de ${type}:`, loadError);
             this[type] = expectedType === 'array' ? [] : {};
-            resolve(); // Resolve mesmo em caso de erro inicial
+            resolve();
           }
         });
       });
@@ -101,7 +81,6 @@ const store = {
       logger.info('Todos os dados do store foram carregados com sucesso.');
     } catch (error) {
       logger.error('Erro catastrófico ao carregar dados do store:', error);
-      // Inicializa todos os stores com valores padrão em caso de erro grave
       this.chats = [];
       this.contacts = {};
       this.messages = {};
@@ -115,18 +94,14 @@ const store = {
     }
   },
 
-  // Novo sistema de buffer e escrita otimizada
   bufferWrite: function (dataType, data) {
-    // Adiciona os dados ao buffer
     writeBuffer.data[dataType] = data;
     writeBuffer.size += JSON.stringify(data).length;
 
-    // Se o buffer atingir o tamanho máximo, força um flush
     if (writeBuffer.size >= writeBuffer.maxSize) {
       this.flushBuffer();
     }
 
-    // Agenda um flush se ainda não estiver agendado
     if (!writeBuffer.flushTimeout) {
       writeBuffer.flushTimeout = setTimeout(() => this.flushBuffer(), 1000);
     }
@@ -142,7 +117,6 @@ const store = {
     writeBuffer.data = {};
     writeBuffer.size = 0;
 
-    // Processa cada tipo de dado em paralelo
     const writePromises = Object.entries(dataToWrite).map(async ([dataType, data]) => {
       try {
         await writeToFile(dataType, data);
@@ -166,63 +140,6 @@ const store = {
   },
 
   /**
-   * Limpa mensagens de chat antigas com base na data de retenção.
-   */
-  cleanOldMessages: function () {
-    const cutoffDate = new Date();
-    cutoffDate.setMonth(cutoffDate.getMonth() - MESSAGE_RETENTION_MONTHS);
-    const cutoffTimestamp = cutoffDate.getTime();
-    let cleanedCount = 0;
-
-    for (const jid in this.messages) {
-      const originalLength = this.messages[jid].length;
-      this.messages[jid] = this.messages[jid].filter((msg) => {
-        return msg.messageTimestamp * 1000 >= cutoffTimestamp;
-      });
-      cleanedCount += originalLength - this.messages[jid].length;
-    }
-
-    if (cleanedCount > 0) {
-      logger.info(
-        `Limpeza de mensagens de chat concluída. ${cleanedCount} mensagens antigas removidas.`,
-      );
-      this.debouncedWrite('messages');
-    } else {
-      logger.info('Nenhuma mensagem de chat antiga para remover na limpeza.');
-    }
-  },
-
-  /**
-   * Limpa mensagens raw antigas com base na data de retenção.
-   */
-  cleanOldRawMessages: function () {
-    const cutoffDate = new Date();
-    cutoffDate.setMonth(cutoffDate.getMonth() - RAW_MESSAGE_RETENTION_MONTHS);
-    const cutoffTimestamp = cutoffDate.getTime();
-    let cleanedCount = 0;
-
-    for (const jid in this.rawMessages) {
-      const originalLength = this.rawMessages[jid].length;
-      this.rawMessages[jid] = this.rawMessages[jid].filter((msg) => {
-        return (
-          msg.message?.messageTimestamp * 1000 >= cutoffTimestamp ||
-          msg.messageTimestamp * 1000 >= cutoffTimestamp
-        );
-      });
-      cleanedCount += originalLength - this.rawMessages[jid].length;
-    }
-
-    if (cleanedCount > 0) {
-      logger.info(
-        `Limpeza de mensagens raw concluída. ${cleanedCount} mensagens raw antigas removidas.`,
-      );
-      this.debouncedWrite('rawMessages');
-    } else {
-      logger.info('Nenhuma mensagem raw antiga para remover na limpeza.');
-    }
-  },
-
-  /**
    * Salva mensagens raw recebidas no armazenamento.
    * @param {Array<object>} incomingMessages - Array de mensagens raw a serem salvas.
    */
@@ -232,29 +149,18 @@ const store = {
         this.rawMessages[msg.key.remoteJid] = [];
       }
       this.rawMessages[msg.key.remoteJid].push(msg);
-      // Limita o número de mensagens raw por chat
-      if (this.rawMessages[msg.key.remoteJid].length > MAX_RAW_MESSAGES_PER_CHAT) {
-        this.rawMessages[msg.key.remoteJid].shift(); // Remove a mensagem raw mais antiga
-      }
     }
     this.debouncedWrite('rawMessages');
   },
 
   bind: function (ev) {
     ev.on('messages.upsert', ({ messages: incomingMessages, type }) => {
-      // A lógica de salvamento de rawMessages foi movida para saveIncomingRawMessages
-
-      // Lógica existente para salvar apenas mensagens de chat (type === 'append')
       if (type === 'append') {
         for (const msg of incomingMessages) {
           if (!this.messages[msg.key.remoteJid]) {
             this.messages[msg.key.remoteJid] = [];
           }
           this.messages[msg.key.remoteJid].push(msg);
-          // Limita o número de mensagens por chat
-          if (this.messages[msg.key.remoteJid].length > MAX_MESSAGES_PER_CHAT) {
-            this.messages[msg.key.remoteJid].shift(); // Remove a mensagem mais antiga
-          }
         }
         this.debouncedWrite('messages');
       }
@@ -262,7 +168,7 @@ const store = {
     ev.on('messages.delete', (item) => {
       if ('all' in item) {
         this.messages[item.jid] = [];
-        this.rawMessages[item.jid] = []; // Limpa raw messages também
+        this.rawMessages[item.jid] = [];
       } else {
         for (const { key } of item.keys) {
           if (this.messages[key.remoteJid]) {
@@ -290,7 +196,6 @@ const store = {
             Object.assign(this.messages[update.key.remoteJid][idx], update);
           }
         }
-        // Atualiza também as mensagens raw se existirem
         if (this.rawMessages[update.key.remoteJid]) {
           const idx = this.rawMessages[update.key.remoteJid].findIndex(
             (msg) => msg.key.id === update.key.id,
@@ -315,7 +220,6 @@ const store = {
             });
           }
         }
-        // Atualiza também as mensagens raw se existirem
         if (this.rawMessages[update.key.remoteJid]) {
           const idx = this.rawMessages[update.key.remoteJid].findIndex(
             (msg) => msg.key.id === update.key.id,
@@ -353,7 +257,6 @@ const store = {
             }
           }
         }
-        // Atualiza também as mensagens raw se existirem
         if (this.rawMessages[key.remoteJid]) {
           const idx = this.rawMessages[key.remoteJid].findIndex((msg) => msg.key.id === key.id);
           if (idx !== -1) {
@@ -398,7 +301,6 @@ const store = {
             }
           }
         }
-        // Atualiza também as mensagens raw se existirem
         if (this.rawMessages[key.remoteJid]) {
           const idx = this.rawMessages[key.remoteJid].findIndex((msg) => msg.key.id === key.id);
           if (idx !== -1) {
@@ -595,7 +497,6 @@ const store = {
       this.debouncedWrite('messages');
     });
     ev.on('chats.upsert', (newChats) => {
-      // Garante que this.chats seja um array
       this.chats = ensureDataType(this.chats, 'array');
 
       for (const chat of newChats) {
@@ -634,10 +535,6 @@ const store = {
       }
       this.debouncedWrite('contacts');
     });
-
-    // Agendar a limpeza periódica de mensagens antigas
-    setInterval(() => this.cleanOldMessages(), CLEANUP_INTERVAL_MS);
-    setInterval(() => this.cleanOldRawMessages(), CLEANUP_INTERVAL_MS);
   },
 };
 
