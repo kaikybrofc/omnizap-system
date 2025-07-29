@@ -6,23 +6,11 @@ const groupConfigStore = {
 
   async loadData() {
     try {
-      const stream = await readFromFile('groupConfigs', 'object');
-      this.configs = {};
-
-      stream.on('data', (item) => {
-        this.configs[item.key] = item.value;
-      });
-
-      stream.on('end', () => {
-        logger.info('Group configurations loaded via stream.');
-      });
-
-      stream.on('error', (err) => {
-        logger.error('Error in stream while loading group configurations:', err);
-        this.configs = {};
-      });
+      const data = await readFromFile('groupConfigs', 'object');
+      this.configs = data || {};
+      logger.info('Group configurations loaded.');
     } catch (loadError) {
-      logger.error('Error starting group configurations load:', loadError);
+      logger.error('Error loading group configurations:', loadError);
       this.configs = {};
     }
   },
