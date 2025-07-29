@@ -238,10 +238,13 @@ const createLoggerInstance = (overrideOptions = {}) => {
 
   const defaultMeta = { ...baseDefaultMeta, ...(overrideOptions.defaultMeta || {}) };
 
+  const loggerFormat =
+    overrideOptions.format || winston.format.combine(winston.format.errors({ stack: true }));
+
   const loggerInstance = winston.createLogger({
     level: effectiveLevel,
     levels: LOG_LEVELS,
-    format: winston.format.combine(winston.format.errors({ stack: true })),
+    format: loggerFormat,
     defaultMeta: defaultMeta,
     transports: configuredTransports,
     exitOnError: false,
