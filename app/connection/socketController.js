@@ -187,58 +187,74 @@ async function handleConnectionUpdate(update, sock) {
   const { connection, lastDisconnect, qr } = update;
 
   if (qr) {
-    logger.info('📱 QR Code gerado! Escaneie com seu WhatsApp:', {
+    logger.info('📱 QR Code gerado! Escaneie com seu WhatsApp.', {
       action: 'qr_code_generated',
+      timestamp: new Date().toISOString(),
     });
     qrcode.generate(qr, { small: true });
   }
 
   if (connection === 'close') {
+    const disconnectCode = lastDisconnect?.error?.output?.statusCode || 'unknown';
+    const errorMessage = lastDisconnect?.error?.message || 'Sem mensagem de erro';
+
     const shouldReconnect =
-      lastDisconnect?.error instanceof Boom &&
-      lastDisconnect.error.output?.statusCode !== DisconnectReason.loggedOut;
+      lastDisconnect?.error instanceof Boom && disconnectCode !== DisconnectReason.loggedOut;
 
     if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       connectionAttempts++;
       const reconnectDelay = INITIAL_RECONNECT_DELAY * Math.pow(2, connectionAttempts - 1);
-      logger.warn(
-        `Conexão perdida. Tentando reconectar em ${
-          reconnectDelay / 1000
-        }s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`,
-        {
-          action: 'reconnect_attempt',
-          attempt: connectionAttempts,
-          maxAttempts: MAX_CONNECTION_ATTEMPTS,
-          delay: reconnectDelay,
-          reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
-        },
-      );
+      logger.warn(`⚠️ Conexão perdida. Tentando reconectar...`, {
+        action: 'reconnect_attempt',
+        attempt: connectionAttempts,
+        maxAttempts: MAX_CONNECTION_ATTEMPTS,
+        delay: reconnectDelay,
+        reasonCode: disconnectCode,
+        errorMessage,
+        timestamp: new Date().toISOString(),
+      });
       setTimeout(connectToWhatsApp, reconnectDelay);
     } else if (shouldReconnect) {
       logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.', {
         action: 'reconnect_failed',
-        reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
+        totalAttempts: connectionAttempts,
+        reasonCode: disconnectCode,
+        errorMessage,
+        timestamp: new Date().toISOString(),
       });
     } else {
-      logger.error('❌ Conexão fechada. Motivo:', {
+      logger.error('❌ Conexão fechada definitivamente.', {
         action: 'connection_closed',
-        reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
-        error: lastDisconnect?.error?.message,
+        reasonCode: disconnectCode,
+        errorMessage,
+        timestamp: new Date().toISOString(),
       });
     }
   }
+
   if (connection === 'open') {
     logger.info('✅ Conectado com sucesso ao WhatsApp!', {
       action: 'connection_open',
+      timestamp: new Date().toISOString(),
     });
+
     connectionAttempts = 0;
+
     if (process.send) {
       process.send('ready');
-      logger.info('Sinal de "ready" enviado ao PM2.');
+      logger.info('🟢 Sinal de "ready" enviado ao PM2.', {
+        action: 'pm2_ready_signal',
+        timestamp: new Date().toISOString(),
+      });
     }
+
     setInterval(() => {
       const metrics = getSystemMetrics();
-      logger.info('System Metrics', metrics);
+      logger.info('📊 System Metrics coletadas', {
+        action: 'system_metrics',
+        ...metrics,
+        timestamp: new Date().toISOString(),
+      });
     }, 60000);
 
     try {
@@ -247,15 +263,18 @@ async function handleConnectionUpdate(update, sock) {
         store.groups[group.id] = group;
       }
       store.debouncedWrite('groups');
-      logger.info(`Metadados de ${Object.keys(allGroups).length} grupos carregados e salvos.`, {
+      logger.info(`📁 Metadados de ${Object.keys(allGroups).length} grupos carregados e salvos.`, {
         action: 'groups_loaded',
         count: Object.keys(allGroups).length,
+        groupIds: Object.keys(allGroups),
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      logger.error('Erro ao carregar metadados de grupos na conexão:', {
-        error: error.message,
-        stack: error.stack,
+      logger.error('❌ Erro ao carregar metadados de grupos na conexão.', {
         action: 'groups_load_error',
+        errorMessage: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
       });
     }
   }
