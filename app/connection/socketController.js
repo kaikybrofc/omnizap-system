@@ -48,8 +48,6 @@ async function connectToWhatsApp() {
   await groupConfigStore.loadData();
   const version = [6, 7, 0];
 
-  const usePairingCode = process.env.PAIRING_CODE === 'true';
-
   const sock = makeWASocket({
     version,
     auth: state,
@@ -63,33 +61,6 @@ async function connectToWhatsApp() {
   });
 
   store.bind(sock.ev);
-
-  if (usePairingCode && !sock.authState.creds.registered) {
-    const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
-    if (!phoneNumber) {
-      logger.error('Número de telefone é obrigatório para o modo de pareamento.', {
-        errorType: 'config_error',
-        field: 'PHONE_NUMBER',
-      });
-      return;
-    }
-    setTimeout(async () => {
-      try {
-        const code = await sock.requestPairingCode(phoneNumber);
-        logger.info('═══════════════════════════════════════════════════');
-        logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
-        logger.info('\n          > ' + code.match(/.{1,4}/g).join('-') + ' <\n');
-        logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular com número');
-        logger.info('═══════════════════════════════════════════════════');
-      } catch (error) {
-        logger.error('❌ Erro ao solicitar o código de pareamento:', {
-          error: error.message,
-          stack: error.stack,
-          action: 'request_pairing_code',
-        });
-      }
-    }, 3000);
-  }
 
   activeSocket = sock;
 
