@@ -1,10 +1,5 @@
-# Logs
-logs/
-
-# Dependencies
 node_modules/
-qr-code/
 logs/
 temp/
 app/connection/auth_info_baileys/
-app/connection/store/
+.env

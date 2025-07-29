@@ -18,8 +18,8 @@ async function startApp() {
 
 startApp();
 
-process.on('SIGINT', async () => {
-  logger.warn('SIGINT recebido. Iniciando desligamento gracioso...');
+async function shutdown(signal) {
+  logger.warn(`${signal} recebido. Iniciando desligamento gracioso...`);
   const sock = getActiveSocket();
   if (sock) {
     try {
@@ -31,22 +31,10 @@ process.on('SIGINT', async () => {
   }
   logger.info('OmniZap System desligado.');
   process.exit(0);
-});
+}
 
-process.on('SIGTERM', async () => {
-  logger.warn('SIGTERM recebido. Iniciando desligamento gracioso...');
-  const sock = getActiveSocket();
-  if (sock) {
-    try {
-      await sock.end();
-      logger.info('Conexão do WhatsApp encerrada.');
-    } catch (e) {
-      logger.error('Erro ao encerrar a conexão do WhatsApp:', { error: e.message, stack: e.stack });
-    }
-  }
-  logger.info('OmniZap System desligado.');
-  process.exit(0);
-});
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 process.on('uncaughtException', (err) => {
   logger.error('Exceção não capturada:', { error: err.message, stack: err.stack });

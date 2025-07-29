@@ -2,19 +2,25 @@ const { readFromFile, writeToFile } = require('./persistence');
 const logger = require('../utils/logger/loggerModule');
 
 // Configurações de ambiente para o armazenamento de mensagens de chat
-const MAX_MESSAGES_PER_CHAT = parseInt(process.env.OMNIZAP_MAX_MESSAGES_PER_CHAT || '1000', 10); // Limite de mensagens por chat
-const MESSAGE_RETENTION_DAYS = parseInt(process.env.OMNIZAP_MESSAGE_RETENTION_DAYS || '30', 10); // Dias para reter mensagens de chat
+const MAX_MESSAGES_PER_CHAT = parseInt(process.env.OMNIZAP_MAX_MESSAGES_PER_CHAT || '1000000', 10); // Limite de mensagens por chat
+const MESSAGE_RETENTION_MONTHS = parseInt(process.env.OMNIZAP_MESSAGE_RETENTION_MONTHS || '3', 10); // Meses para reter mensagens de chat
 
 // Configurações de ambiente para o armazenamento de mensagens raw
-const MAX_RAW_MESSAGES_PER_CHAT = parseInt(process.env.OMNIZAP_MAX_RAW_MESSAGES_PER_CHAT || '5000', 10); // Limite de mensagens raw por chat
-const RAW_MESSAGE_RETENTION_DAYS = parseInt(process.env.OMNIZAP_RAW_MESSAGE_RETENTION_DAYS || '90', 10); // Dias para reter mensagens raw
+const MAX_RAW_MESSAGES_PER_CHAT = parseInt(
+  process.env.OMNIZAP_MAX_RAW_MESSAGES_PER_CHAT || '5000000',
+  10,
+); // Limite de mensagens raw por chat
+const RAW_MESSAGE_RETENTION_MONTHS = parseInt(
+  process.env.OMNIZAP_RAW_MESSAGE_RETENTION_MONTHS || '3',
+  10,
+); // Meses para reter mensagens raw
 
 const CLEANUP_INTERVAL_MS = parseInt(process.env.OMNIZAP_CLEANUP_INTERVAL_MS || '86400000', 10); // Intervalo de limpeza (24 horas por padrão)
 
 // Buffer para acumular dados antes de escrever no disco
 const writeBuffer = {
   size: 0,
-  maxSize: process.env.OMNIZAP_WRITE_BUFFER_SIZE || 5 * 1024 * 1024, // 5MB por padrão
+  maxSize: process.env.OMNIZAP_WRITE_BUFFER_SIZE || 1 * 1024 * 1024,
   data: {},
   flushTimeout: null,
 };
@@ -44,40 +50,58 @@ const store = {
 
   async loadData() {
     try {
-      // Define quais tipos devem ser arrays e quais devem ser objetos
       const typeDefinitions = {
-        chats: [],
-        contacts: {},
-        messages: {},
-        rawMessages: {},
-        groups: {},
-        blocklist: [],
-        labels: {},
-        presences: {},
-        calls: [],
-        newsletters: {},
+        chats: 'array',
+        contacts: 'object',
+        messages: 'object',
+        rawMessages: 'object',
+        groups: 'object',
+        blocklist: 'array',
+        labels: 'object',
+        presences: 'object',
+        calls: 'array',
+        newsletters: 'object',
       };
 
-      // Carrega os dados mantendo o tipo correto
-      for (const [type, defaultValue] of Object.entries(typeDefinitions)) {
-        try {
-          const data = await readFromFile(type);
-          // Garante que o tipo de dado seja mantido (array ou objeto)
-          if (Array.isArray(defaultValue)) {
-            this[type] = Array.isArray(data) ? data : [];
-          } else {
-            this[type] = data && typeof data === 'object' ? data : {};
-          }
-        } catch (loadError) {
-          logger.error(`Erro ao carregar ${type}:`, loadError);
-          this[type] = defaultValue;
-        }
-      }
+      const loadPromises = Object.entries(typeDefinitions).map(([type, expectedType]) => {
+        return new Promise(async (resolve, reject) => {
+          try {
+            const stream = await readFromFile(type, expectedType);
+            this[type] = expectedType === 'array' ? [] : {};
 
-      logger.info('Dados do store carregados com sucesso');
+            stream.on('data', (item) => {
+              if (expectedType === 'array') {
+                this[type].push(item.value);
+              } else {
+                this[type][item.key] = item.value;
+              }
+            });
+
+            stream.on('end', () => {
+              logger.info(`Dados para ${type} carregados via stream.`);
+              resolve();
+            });
+
+            stream.on('error', (err) => {
+              logger.error(`Erro no stream ao carregar ${type}:`, err);
+              // Em caso de erro no stream, inicializa com valor padrão
+              this[type] = expectedType === 'array' ? [] : {};
+              resolve(); // Resolve para não bloquear o carregamento de outros dados
+            });
+          } catch (loadError) {
+            logger.error(`Erro ao iniciar o carregamento de ${type}:`, loadError);
+            this[type] = expectedType === 'array' ? [] : {};
+            resolve(); // Resolve mesmo em caso de erro inicial
+          }
+        });
+      });
+
+      await Promise.all(loadPromises);
+
+      logger.info('Todos os dados do store foram carregados com sucesso.');
     } catch (error) {
-      logger.error('Erro ao carregar dados do store:', error);
-      // Inicializa com valores padrão em caso de erro
+      logger.error('Erro catastrófico ao carregar dados do store:', error);
+      // Inicializa todos os stores com valores padrão em caso de erro grave
       this.chats = [];
       this.contacts = {};
       this.messages = {};
@@ -100,7 +124,6 @@ const store = {
     // Se o buffer atingir o tamanho máximo, força um flush
     if (writeBuffer.size >= writeBuffer.maxSize) {
       this.flushBuffer();
-      return;
     }
 
     // Agenda um flush se ainda não estiver agendado
@@ -146,19 +169,23 @@ const store = {
    * Limpa mensagens de chat antigas com base na data de retenção.
    */
   cleanOldMessages: function () {
-    const cutoffTime = Date.now() - MESSAGE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - MESSAGE_RETENTION_MONTHS);
+    const cutoffTimestamp = cutoffDate.getTime();
     let cleanedCount = 0;
 
     for (const jid in this.messages) {
       const originalLength = this.messages[jid].length;
       this.messages[jid] = this.messages[jid].filter((msg) => {
-        return msg.messageTimestamp * 1000 >= cutoffTime;
+        return msg.messageTimestamp * 1000 >= cutoffTimestamp;
       });
       cleanedCount += originalLength - this.messages[jid].length;
     }
 
     if (cleanedCount > 0) {
-      logger.info(`Limpeza de mensagens de chat concluída. ${cleanedCount} mensagens antigas removidas.`);
+      logger.info(
+        `Limpeza de mensagens de chat concluída. ${cleanedCount} mensagens antigas removidas.`,
+      );
       this.debouncedWrite('messages');
     } else {
       logger.info('Nenhuma mensagem de chat antiga para remover na limpeza.');
@@ -169,22 +196,26 @@ const store = {
    * Limpa mensagens raw antigas com base na data de retenção.
    */
   cleanOldRawMessages: function () {
-    const cutoffTime = Date.now() - RAW_MESSAGE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - RAW_MESSAGE_RETENTION_MONTHS);
+    const cutoffTimestamp = cutoffDate.getTime();
     let cleanedCount = 0;
 
     for (const jid in this.rawMessages) {
       const originalLength = this.rawMessages[jid].length;
       this.rawMessages[jid] = this.rawMessages[jid].filter((msg) => {
-        // Assumindo que o objeto raw da mensagem também tem um timestamp ou algo similar
-        // Se não tiver, precisaremos ajustar como o timestamp é obtido ou adicionado.
-        // Para mensagens do Baileys, `messageTimestamp` é comum.
-        return msg.message?.messageTimestamp * 1000 >= cutoffTime || msg.messageTimestamp * 1000 >= cutoffTime;
+        return (
+          msg.message?.messageTimestamp * 1000 >= cutoffTimestamp ||
+          msg.messageTimestamp * 1000 >= cutoffTimestamp
+        );
       });
       cleanedCount += originalLength - this.rawMessages[jid].length;
     }
 
     if (cleanedCount > 0) {
-      logger.info(`Limpeza de mensagens raw concluída. ${cleanedCount} mensagens raw antigas removidas.`);
+      logger.info(
+        `Limpeza de mensagens raw concluída. ${cleanedCount} mensagens raw antigas removidas.`,
+      );
       this.debouncedWrite('rawMessages');
     } else {
       logger.info('Nenhuma mensagem raw antiga para remover na limpeza.');
@@ -235,10 +266,14 @@ const store = {
       } else {
         for (const { key } of item.keys) {
           if (this.messages[key.remoteJid]) {
-            this.messages[key.remoteJid] = this.messages[key.remoteJid].filter((msg) => msg.key.id !== key.id);
+            this.messages[key.remoteJid] = this.messages[key.remoteJid].filter(
+              (msg) => msg.key.id !== key.id,
+            );
           }
           if (this.rawMessages[key.remoteJid]) {
-            this.rawMessages[key.remoteJid] = this.rawMessages[key.remoteJid].filter((msg) => msg.key.id !== key.id);
+            this.rawMessages[key.remoteJid] = this.rawMessages[key.remoteJid].filter(
+              (msg) => msg.key.id !== key.id,
+            );
           }
         }
       }
@@ -248,14 +283,18 @@ const store = {
     ev.on('messages.update', (updates) => {
       for (const update of updates) {
         if (this.messages[update.key.remoteJid]) {
-          const idx = this.messages[update.key.remoteJid].findIndex((msg) => msg.key.id === update.key.id);
+          const idx = this.messages[update.key.remoteJid].findIndex(
+            (msg) => msg.key.id === update.key.id,
+          );
           if (idx !== -1) {
             Object.assign(this.messages[update.key.remoteJid][idx], update);
           }
         }
         // Atualiza também as mensagens raw se existirem
         if (this.rawMessages[update.key.remoteJid]) {
-          const idx = this.rawMessages[update.key.remoteJid].findIndex((msg) => msg.key.id === update.key.id);
+          const idx = this.rawMessages[update.key.remoteJid].findIndex(
+            (msg) => msg.key.id === update.key.id,
+          );
           if (idx !== -1) {
             Object.assign(this.rawMessages[update.key.remoteJid][idx], update);
           }
@@ -267,7 +306,9 @@ const store = {
     ev.on('messages.media-update', (updates) => {
       for (const update of updates) {
         if (this.messages[update.key.remoteJid]) {
-          const idx = this.messages[update.key.remoteJid].findIndex((msg) => msg.key.id === update.key.id);
+          const idx = this.messages[update.key.remoteJid].findIndex(
+            (msg) => msg.key.id === update.key.id,
+          );
           if (idx !== -1) {
             Object.assign(this.messages[update.key.remoteJid][idx], {
               media: update.media,
@@ -276,7 +317,9 @@ const store = {
         }
         // Atualiza também as mensagens raw se existirem
         if (this.rawMessages[update.key.remoteJid]) {
-          const idx = this.rawMessages[update.key.remoteJid].findIndex((msg) => msg.key.id === update.key.id);
+          const idx = this.rawMessages[update.key.remoteJid].findIndex(
+            (msg) => msg.key.id === update.key.id,
+          );
           if (idx !== -1) {
             Object.assign(this.rawMessages[update.key.remoteJid][idx], {
               media: update.media,
@@ -296,7 +339,9 @@ const store = {
             if (!message.reactions) {
               message.reactions = [];
             }
-            const existingReactionIdx = message.reactions.findIndex((r) => r.key.id === reaction.key.id);
+            const existingReactionIdx = message.reactions.findIndex(
+              (r) => r.key.id === reaction.key.id,
+            );
             if (existingReactionIdx !== -1) {
               if (reaction.text) {
                 Object.assign(message.reactions[existingReactionIdx], reaction);
@@ -316,7 +361,9 @@ const store = {
             if (!message.reactions) {
               message.reactions = [];
             }
-            const existingReactionIdx = message.reactions.findIndex((r) => r.key.id === reaction.key.id);
+            const existingReactionIdx = message.reactions.findIndex(
+              (r) => r.key.id === reaction.key.id,
+            );
             if (existingReactionIdx !== -1) {
               if (reaction.text) {
                 Object.assign(message.reactions[existingReactionIdx], reaction);
@@ -341,7 +388,9 @@ const store = {
             if (!message.userReceipt) {
               message.userReceipt = [];
             }
-            const existingReceiptIdx = message.userReceipt.findIndex((r) => r.userJid === receipt.userJid);
+            const existingReceiptIdx = message.userReceipt.findIndex(
+              (r) => r.userJid === receipt.userJid,
+            );
             if (existingReceiptIdx !== -1) {
               Object.assign(message.userReceipt[existingReceiptIdx], receipt);
             } else {
@@ -357,7 +406,9 @@ const store = {
             if (!message.userReceipt) {
               message.userReceipt = [];
             }
-            const existingReceiptIdx = message.userReceipt.findIndex((r) => r.userJid === receipt.userJid);
+            const existingReceiptIdx = message.userReceipt.findIndex(
+              (r) => r.userJid === receipt.userJid,
+            );
             if (existingReceiptIdx !== -1) {
               Object.assign(message.userReceipt[existingReceiptIdx], receipt);
             } else {
@@ -397,10 +448,14 @@ const store = {
             }
           }
         } else if (action === 'remove') {
-          this.groups[id].participants = this.groups[id].participants.filter((p) => !participants.includes(p.id));
+          this.groups[id].participants = this.groups[id].participants.filter(
+            (p) => !participants.includes(p.id),
+          );
         } else if (action === 'promote' || action === 'demote') {
           for (const participantJid of participants) {
-            const participantObj = this.groups[id].participants.find((p) => p.id === participantJid);
+            const participantObj = this.groups[id].participants.find(
+              (p) => p.id === participantJid,
+            );
             if (participantObj) {
               participantObj.admin = action === 'promote' ? 'admin' : null;
             }
@@ -447,7 +502,9 @@ const store = {
         this.labels[association.labelId].associations.push(association);
       } else if (type === 'remove') {
         if (this.labels[association.labelId].associations) {
-          this.labels[association.labelId].associations = this.labels[association.labelId].associations.filter((assoc) => assoc.jid !== association.jid);
+          this.labels[association.labelId].associations = this.labels[
+            association.labelId
+          ].associations.filter((assoc) => assoc.jid !== association.jid);
         }
       }
       this.debouncedWrite('labels');
@@ -459,7 +516,9 @@ const store = {
       if (!this.newsletters[reaction.id].reactions) {
         this.newsletters[reaction.id].reactions = [];
       }
-      const existingReactionIdx = this.newsletters[reaction.id].reactions.findIndex((r) => r.server_id === reaction.server_id);
+      const existingReactionIdx = this.newsletters[reaction.id].reactions.findIndex(
+        (r) => r.server_id === reaction.server_id,
+      );
       if (existingReactionIdx !== -1) {
         Object.assign(this.newsletters[reaction.id].reactions[existingReactionIdx], reaction);
       } else {
@@ -481,7 +540,9 @@ const store = {
       if (!this.newsletters[update.id].participants) {
         this.newsletters[update.id].participants = [];
       }
-      const existingParticipantIdx = this.newsletters[update.id].participants.findIndex((p) => p.user === update.user);
+      const existingParticipantIdx = this.newsletters[update.id].participants.findIndex(
+        (p) => p.user === update.user,
+      );
       if (existingParticipantIdx !== -1) {
         Object.assign(this.newsletters[update.id].participants[existingParticipantIdx], update);
       } else {
@@ -572,103 +633,6 @@ const store = {
         this.contacts[contact.id] = contact;
       }
       this.debouncedWrite('contacts');
-    });
-    ev.on('messages.delete', (item) => {
-      if ('all' in item) {
-        this.messages[item.jid] = [];
-      } else {
-        for (const { key } of item.keys) {
-          if (this.messages[key.remoteJid]) {
-            this.messages[key.remoteJid] = this.messages[key.remoteJid].filter((msg) => msg.key.id !== key.id);
-          }
-        }
-      }
-      this.debouncedWrite('messages');
-    });
-    ev.on('messages.update', (updates) => {
-      for (const update of updates) {
-        if (this.messages[update.key.remoteJid]) {
-          const idx = this.messages[update.key.remoteJid].findIndex((msg) => msg.key.id === update.key.id);
-          if (idx !== -1) {
-            Object.assign(this.messages[update.key.remoteJid][idx], update);
-          }
-        }
-      }
-      this.debouncedWrite('messages');
-    });
-    ev.on('messages.media-update', (updates) => {
-      for (const update of updates) {
-        if (this.messages[update.key.remoteJid]) {
-          const idx = this.messages[update.key.remoteJid].findIndex((msg) => msg.key.id === update.key.id);
-          if (idx !== -1) {
-            Object.assign(this.messages[update.key.remoteJid][idx], {
-              media: update.media,
-            });
-          }
-        }
-      }
-      this.debouncedWrite('messages');
-    });
-    ev.on('messages.reaction', (reactions) => {
-      for (const { key, reaction } of reactions) {
-        if (this.messages[key.remoteJid]) {
-          const idx = this.messages[key.remoteJid].findIndex((msg) => msg.key.id === key.id);
-          if (idx !== -1) {
-            const message = this.messages[key.remoteJid][idx];
-            if (!message.reactions) {
-              message.reactions = [];
-            }
-            const existingReactionIdx = message.reactions.findIndex((r) => r.key.id === reaction.key.id);
-            if (existingReactionIdx !== -1) {
-              if (reaction.text) {
-                Object.assign(message.reactions[existingReactionIdx], reaction);
-              } else {
-                message.reactions.splice(existingReactionIdx, 1);
-              }
-            } else if (reaction.text) {
-              message.reactions.push(reaction);
-            }
-          }
-        }
-      }
-      this.debouncedWrite('messages');
-    });
-    ev.on('message-receipt.update', (updates) => {
-      for (const { key, receipt } of updates) {
-        if (this.messages[key.remoteJid]) {
-          const idx = this.messages[key.remoteJid].findIndex((msg) => msg.key.id === key.id);
-          if (idx !== -1) {
-            const message = this.messages[key.remoteJid][idx];
-            if (!message.userReceipt) {
-              message.userReceipt = [];
-            }
-            const existingReceiptIdx = message.userReceipt.findIndex((r) => r.userJid === receipt.userJid);
-            if (existingReceiptIdx !== -1) {
-              Object.assign(message.userReceipt[existingReceiptIdx], receipt);
-            } else {
-              message.userReceipt.push(receipt);
-            }
-          }
-        }
-        // Atualiza também as mensagens raw se existirem
-        if (this.rawMessages[key.remoteJid]) {
-          const idx = this.rawMessages[key.remoteJid].findIndex((msg) => msg.key.id === key.id);
-          if (idx !== -1) {
-            const message = this.rawMessages[key.remoteJid][idx];
-            if (!message.userReceipt) {
-              message.userReceipt = [];
-            }
-            const existingReceiptIdx = message.userReceipt.findIndex((r) => r.userJid === receipt.userJid);
-            if (existingReceiptIdx !== -1) {
-              Object.assign(message.userReceipt[existingReceiptIdx], receipt);
-            } else {
-              message.userReceipt.push(receipt);
-            }
-          }
-        }
-      }
-      this.debouncedWrite('messages');
-      this.debouncedWrite('rawMessages');
     });
 
     // Agendar a limpeza periódica de mensagens antigas

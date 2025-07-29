@@ -1,45 +1,42 @@
 # OmniZap System
 
-Sistema profissional de automação WhatsApp com tecnologia Baileys.
+Sistema profissional de automação para WhatsApp, construído com a poderosa biblioteca Baileys.
 
 ## 🚀 Visão Geral
 
-
-O OmniZap System é uma solução robusta e escalável para automação de mensagens no WhatsApp, construída sobre a poderosa biblioteca Baileys. Ele oferece funcionalidades essenciais para gerenciar conexões, processar mensagens, lidar com grupos e monitorar o desempenho do sistema, ideal para empresas e desenvolvedores que buscam integrar o WhatsApp em seus fluxos de trabalho.
+O OmniZap System é uma solução de automação para WhatsApp robusta e escalável. Desenvolvido sobre a biblioteca Baileys, ele oferece um conjunto completo de funcionalidades para gerenciamento de grupos, processamento de mensagens, e monitoramento de sistema. É a ferramenta ideal para empresas e desenvolvedores que buscam integrar o WhatsApp em seus fluxos de trabalho de forma eficiente e controlada.
 
 ## ✨ Funcionalidades Principais
 
-*   **Conexão Flexível:** Suporte para conexão via QR Code e Código de Pareamento (Pairing Code) para maior conveniência e segurança.
-*   **Gerenciamento de Sessão:** Persistência automática das credenciais de autenticação para reconexões rápidas e sem interrupções.
-*   **Processamento Inteligente de Mensagens:** Responde diretamente às mensagens do usuário (citando-as) e respeita as configurações de mensagens efêmeras (temporárias). Inclui uma resposta padrão para comandos não reconhecidos, garantindo uma interação mais fluida.
-*   **Gerenciamento Avançado de Grupos:** Funções globais para acessar informações detalhadas de grupos (assunto, participantes, administradores, descrição, etc.) e comando `/grupoinfo` para consulta direta.
-*   **Armazenamento Detalhado de Mensagens:** Persistência de mensagens de chat e de mensagens raw (objetos completos do Baileys) com limites e retenção configuráveis via variáveis de ambiente.
-*   **Sistema de Logs Avançado:** Logs detalhados com rotação diária de arquivos, múltiplos níveis de log (info, warn, error, debug, etc.) e formatação colorida para fácil depuração. Eventos genéricos e mensagens são logados separadamente.
-*   **Monitoramento de Métricas:** Coleta e log de métricas de uso de CPU e memória do sistema para acompanhamento de desempenho.
+*   **Gerenciamento de Sessão:** Persistência automática de credenciais de autenticação para reconexões rápidas e estáveis.
+*   **Processamento Inteligente de Mensagens:** Responde a mensagens citando-as e respeita as configurações de mensagens efêmeras.
+*   **Gerenciamento Completo de Grupos:** Um conjunto extenso de comandos de administração para controle total sobre os grupos.
+*   **Mensagens de Boas-Vindas e Saída:** Configure mensagens automáticas e personalizadas (com texto, imagem ou vídeo) para novos membros e para aqueles que saem. Suporta placeholders dinâmicos para criar mensagens mais ricas.
+*   **Análise Avançada de Grupos:** O comando `/info` oferece estatísticas detalhadas, incluindo ranking de mensagens, uso de mídia, horários de pico de atividade e identificação de membros inativos.
+*   **Armazenamento de Dados Robusto:** Utiliza streaming para ler e escrever arquivos de dados (JSON), garantindo baixo consumo de memória. Inclui um sistema de lock de arquivos para prevenir corrupção de dados.
+*   **Sistema de Logs de Produção:** Logs detalhados com rotação diária de arquivos, múltiplos níveis (info, warn, error), e formato JSON estruturado para fácil análise. Integrado ao PM2 para capturar logs por instância.
+*   **Monitoramento de Métricas:** Coleta e loga métricas de uso de CPU e memória para acompanhamento de desempenho.
 *   **Reconexão Automática:** Lógica de reconexão robusta com tentativas limitadas em caso de desconexões inesperadas.
+*   **Integração com PM2:** Pronto para produção com arquivos de configuração para o gerenciador de processos PM2.
 
 ## 🛠️ Tecnologias Utilizadas
 
 *   **Node.js** (>=16.0.0)
-*   **Baileys** (`@whiskeysockets/baileys`): Biblioteca principal para interação com o WhatsApp.
-*   **Winston**: Para um sistema de logging configurável e eficiente.
-*   **Winston Daily Rotate File**: Para rotação automática de arquivos de log.
-*   **Dotenv**: Para carregamento de variáveis de ambiente.
-*   **Envalid**: Para validação de variáveis de ambiente.
-*   **Chalk**: Para estilização de saída de terminal.
-*   **Node-Cache**: Para cache de dados em memória.
-*   **Moment-Timezone**: Para manipulação de datas e fusos horários.
-*   **Qrcode-terminal**: Para exibição do QR Code no terminal.
-*   **fs.promises**: Para escrita segura de arquivos.
-*   **@hapi/boom**: Para tratamento de erros HTTP.
+*   **@whiskeysockets/baileys**: Biblioteca principal para interação com o WhatsApp.
+*   **PM2**: Gerenciador de processos para produção.
+*   **Winston** & **Winston Daily Rotate File**: Para um sistema de logging configurável e eficiente.
+*   **Dotenv** & **Envalid**: Para gerenciamento e validação de variáveis de ambiente.
+*   **stream-json**: Para parsing de grandes arquivos JSON com baixo uso de memória.
+*   **proper-lockfile**: Para prevenir condições de corrida na escrita de arquivos.
+*   E outras bibliotecas de suporte como `pino`, `chalk`, e `moment-timezone`.
 
 ## ⚙️ Instalação
 
-Siga os passos abaixo para configurar e executar o OmniZap System em sua máquina local.
+Siga os passos abaixo para configurar e executar o OmniZap System.
 
 ### Pré-requisitos
 
-Certifique-se de ter o Node.js (versão 16 ou superior) e o npm (gerenciador de pacotes do Node.js) instalados em seu sistema.
+Certifique-se de ter o **Node.js (versão 16 ou superior)** e o **npm** instalados.
 
 ### 1. Clonar o Repositório
 
@@ -56,109 +53,155 @@ npm install
 
 ### 3. Configurar Variáveis de Ambiente
 
-Crie um arquivo `.env` na raiz do projeto, copiando o conteúdo de `.env.example` e preenchendo as variáveis conforme suas necessidades. As variáveis de ambiente controlam o comportamento da conexão, do bot e do armazenamento de dados.
+Crie um arquivo `.env` na raiz do projeto (você pode copiar de `.env.example`) e preencha as variáveis.
 
 ```dotenv
-# Configurações de Conexão do WhatsApp
-PAIRING_CODE=true # Defina como 'true' para usar o código de pareamento, 'false' para QR Code
-PHONE_NUMBER=55XXYYYYYYYYY # Seu número de telefone com código do país (ex: 5511987654321) - Necessário se PAIRING_CODE=true
+# =======================================
+# CONFIGURAÇÕES GERAIS
+# =======================================
+# Prefixo para comandos do bot (ex: /, !, #)
+COMMAND_PREFIX=/
 
-# Configurações do Bot
-COMMAND_PREFIX=/ # Prefixo para comandos do bot (ex: /, !, #)
+# Caminho para a pasta onde os arquivos de dados serão salvos (ex: ./temp/)
+# O sistema criará o diretório se ele não existir.
+STORE_PATH=./temp/
 
-# Configurações de Armazenamento de Dados
-STORE_PATH=./temp/ # Caminho relativo para a pasta onde os arquivos de dados serão salvos (ex: ./temp/)
-
-# Configurações de Retenção de Mensagens de Chat (messages.json)
-OMNIZAP_MAX_MESSAGES_PER_CHAT=1000 # Número máximo de mensagens de chat a serem salvas por conversa
-OMNIZAP_MESSAGE_RETENTION_DAYS=30 # Número de dias para reter mensagens de chat
-
-# Configurações de Retenção de Mensagens Raw (rawMessages.json)
-OMNIZAP_MAX_RAW_MESSAGES_PER_CHAT=5000 # Número máximo de mensagens raw a serem salvas por conversa
-OMNIZAP_RAW_MESSAGE_RETENTION_DAYS=90 # Número de dias para reter mensagens raw
-
-# Configurações de Limpeza Periódica
-OMNIZAP_CLEANUP_INTERVAL_MS=86400000 # Intervalo em milissegundos para a execução da rotina de limpeza (86400000 ms = 24 horas)
-
-# Nível de log (development, production, test)
+# =======================================
+# CONFIGURAÇÕES DE LOG
+# =======================================
+# Ambiente de execução (development, production, test)
 NODE_ENV=development
-# Nível mínimo de log a ser exibido (error, warn, info, debug, etc.)
+# Nível mínimo de log a ser exibido (error, warn, info, debug)
 LOG_LEVEL=debug
-# Nome do serviço para logs (opcional)
+# Nome do serviço para os logs (útil ao usar PM2)
 ECOSYSTEM_NAME=omnizap-system
-```
 
-### 4. Criar o Diretório de Armazenamento
+# =======================================
+# CONFIGURAÇÕES DE RETENÇÃO DE DADOS
+# =======================================
+# Intervalo em milissegundos para a limpeza de mensagens antigas (padrão: 24 horas)
+OMNIZAP_CLEANUP_INTERVAL_MS=86400000
 
-Certifique-se de que o diretório especificado em `STORE_PATH` (por padrão `./temp/`) exista. Se não existir, crie-o manualmente ou execute o comando:
+# --- Mensagens de Chat (messages.json) ---
+# Número máximo de mensagens a serem salvas por conversa
+OMNIZAP_MAX_MESSAGES_PER_CHAT=1000
+# Número de meses para reter mensagens de chat
+OMNIZAP_MESSAGE_RETENTION_MONTHS=3
 
-```bash
-mkdir -p ./temp
+# --- Mensagens Raw (rawMessages.json) ---
+# Número máximo de mensagens "raw" (objeto completo do Baileys) a serem salvas por conversa
+OMNIZAP_MAX_RAW_MESSAGES_PER_CHAT=5000
+# Número de meses para reter mensagens raw
+OMNIZAP_RAW_MESSAGE_RETENTION_MONTHS=3
 ```
 
 ## ▶️ Como Usar
 
-Para iniciar o OmniZap System, utilize o script `start_socket.sh`. Este script oferece opções para iniciar uma nova sessão ou reconectar a uma sessão existente.
+### Para Desenvolvimento
+
+Inicie a aplicação com o script padrão do npm. Na primeira execução, um QR Code será exibido no terminal para ser escaneado com seu WhatsApp.
 
 ```bash
-./start_socket.sh
+npm start
 ```
 
-Ao executar o script, você será solicitado a escolher um método de conexão:
+### Para Produção com PM2
 
-1.  **Reconectar com a sessão salva:** Tenta usar as credenciais de sessão salvas anteriormente em `./app/connection/auth_info_baileys`.
-2.  **Iniciar nova sessão com QR Code:** Limpa qualquer sessão anterior e gera um novo QR Code no terminal para você escanear com seu WhatsApp.
-3.  **Iniciar nova sessão com Código de Pareamento:** Limpa qualquer sessão anterior e solicita um número de telefone para gerar um código de pareamento. Você deve inserir este código no seu WhatsApp (WhatsApp > Aparelhos Conectados > Conectar um Aparelho > Conectar com número de telefone).
+O sistema está configurado para ser gerenciado pelo PM2. Utilize os scripts abaixo para iniciar a aplicação em modo de produção ou desenvolvimento.
 
-### Estrutura de Pastas
+```bash
+# Iniciar em modo de desenvolvimento com PM2
+npm run pm2:dev
+
+# Iniciar em modo de produção com PM2
+npm run pm2:prod
+
+# Para monitorar os logs
+pm2 logs omnizap-system
+
+# Para parar a aplicação
+pm2 stop omnizap-system
+```
+
+## 🤖 Comandos do Bot
+
+A seguir, a lista de comandos de administração disponíveis. A maioria dos comandos requer que o bot e o usuário que executa o comando sejam administradores do grupo.
+
+### Menu de Administração
+| Comando | Descrição |
+| :--- | :--- |
+| **/menuadm** | Exibe a lista completa de comandos de administração. |
+
+### Gerenciamento de Membros
+| Comando | Descrição |
+| :--- | :--- |
+| **/add @user** | Adiciona um ou mais participantes ao grupo. |
+| **/ban @user** | Remove um ou mais participantes do grupo. |
+| **/up @user** | Promove um ou mais participantes a administradores. |
+| **/down @user** | Remove o cargo de administrador de um ou mais participantes. |
+
+### Gerenciamento de Grupo
+| Comando | Descrição |
+| :--- | :--- |
+| **/setsubject <texto>** | Altera o nome do grupo. |
+| **/setdesc <texto>** | Altera a descrição do grupo. |
+| **/setgroup <opt>** | `announcement`: Fecha o grupo.<br>`not_announcement`: Abre o grupo.<br>`locked`: Restringe a edição de dados.<br>`unlocked`: Libera a edição de dados. |
+| **/addmode <opt>** | `all_member_add`: Todos podem adicionar.<br>`admin_add`: Apenas admins podem adicionar. |
+| **/temp <segundos>** | Ativa/desativa mensagens efêmeras. Use `0` para desativar. |
+| **/invite** | Mostra o código de convite do grupo. |
+| **/revoke** | Revoga e cria um novo código de convite. |
+| **/leave** | O bot sai do grupo. |
+
+### Informações e Análise
+| Comando | Descrição |
+| :--- | :--- |
+| **/info [id_do_grupo]** | Mostra informações e estatísticas detalhadas do grupo atual ou do grupo especificado. |
+| **/info --inativos <N>** | Mostra uma lista de membros com menos de `N` mensagens, além das estatísticas completas. |
+| **/metadata [id_do_grupo]**| Obtém os metadados brutos de um grupo. |
+
+### Mensagens Automáticas
+| Comando | Descrição |
+| :--- | :--- |
+| **/welcome <on\|off>** | Ativa ou desativa a mensagem de boas-vindas. |
+| **/welcome set <msg>** | Define a mensagem de boas-vindas. Pode ser texto, ou uma mídia (imagem/vídeo) enviada com o comando na legenda. |
+| **/farewell <on\|off>** | Ativa ou desativa a mensagem de saída. |
+| **/farewell set <msg>** | Define a mensagem de saída (texto ou mídia). |
+
+#### Placeholders para Mensagens Automáticas
+Você pode usar as seguintes variáveis em suas mensagens de boas-vindas/saída para torná-las dinâmicas:
+*   `@user`: Menciona o usuário que entrou/saiu.
+*   `@groupname`: Nome do grupo.
+*   `@desc`: Descrição do grupo.
+*   `@membercount`: Número total de membros.
+
+## 📂 Estrutura de Pastas
 
 *   `app/`: Contém a lógica principal da aplicação.
     *   `connection/`: Gerencia a conexão com o WhatsApp (Baileys).
-        *   `socketController.js`: Lógica de conexão, eventos e persistência de sessão.
-        *   `auth_info_baileys/`: Diretório onde as credenciais de autenticação do Baileys são salvas.
-    *   `controllers/`: Lida com a lógica de negócios.
-        *   `messageController.js`: Processa mensagens e comandos do bot.
-        *   `eventHandler.js`: Lida com eventos genéricos do WhatsApp que não são mensagens.
-    *   `store/`: Gerencia o armazenamento e persistência de dados.
-        *   `dataStore.js`: Objeto central para gerenciar dados como chats, contatos, mensagens (chat e raw), grupos, etc.
-        *   `persistence.js`: Funções de baixo nível para leitura e escrita de arquivos JSON, incluindo gerenciamento de locks.
-    *   `utils/`: Utilitários e módulos auxiliares.
-        *   `logger/`: Módulo de logging configurável.
-        *   `systemMetrics/`: Módulo para coletar métricas do sistema.
-        *   `groupUtils.js`: Funções utilitárias para interagir com os dados de grupos.
-*   `logs/`: Diretório onde os arquivos de log são armazenados (incluindo `raw_messages.log`).
+    *   `controllers/`: Lida com o processamento de mensagens e eventos.
+    *   `modules/`: Contém módulos de funcionalidades específicas, como os comandos de admin.
+    *   `store/`: Gerencia o armazenamento e a persistência de dados (mensagens, grupos, etc.).
+    *   `utils/`: Utilitários como o logger, métricas de sistema e download de mídia.
+*   `logs/`: Diretório onde os arquivos de log são armazenados.
+*   `temp/`: Diretório padrão para armazenar os arquivos de estado da sessão e dados.
 *   `index.js`: Ponto de entrada da aplicação.
-*   `start_socket.sh`: Script shell para iniciar a aplicação e gerenciar opções de conexão.
-*   `.env.example`: Exemplo de arquivo de configuração de variáveis de ambiente.
+*   `ecosystem.config.js`: Arquivo de configuração para o PM2.
 
-## 📝 Logs
+## 🗺️ Roadmap
 
-O sistema de logs é configurado com `winston` e `winston-daily-rotate-file` para garantir logs detalhados e organizados.
-
-*   Os logs são salvos no diretório `logs/`.
-*   Arquivos de log são rotacionados diariamente.
-*   Níveis de log configuráveis via variável de ambiente `LOG_LEVEL`.
-*   Logs de erro e aviso são separados em arquivos dedicados.
-*   Mensagens raw são salvas em `logs/raw_messages.log`.
-
-## 🗺️ Roadmap (Planos Futuros)
-
-Estamos constantemente trabalhando para melhorar o OmniZap System. Abaixo estão algumas das funcionalidades e melhorias planejadas para o futuro:
-
-*   **Expansão de Comandos do Bot:** Adicionar mais comandos interativos e personalizáveis para diversas funcionalidades.
-*   **Integração com Banco de Dados:** Implementar opções de persistência de dados em bancos de dados (SQL/NoSQL) para maior escalabilidade e consulta.
-*   **Interface de Usuário (Web UI):** Desenvolver uma interface web intuitiva para gerenciar o bot, visualizar logs e interagir com as funcionalidades.
-*   **Suporte a Múltiplos Usuários/Instâncias:** Permitir que o sistema gerencie múltiplas contas WhatsApp simultaneamente.
-*   **Melhorias na Modularidade e Extensibilidade:** Refatorar e otimizar a arquitetura para facilitar a adição de novos módulos e funcionalidades por parte da comunidade.
-*   **Testes Automatizados:** Aumentar a cobertura de testes para garantir a estabilidade e confiabilidade do sistema.
+*   **Expansão de Comandos:** Adicionar mais comandos interativos.
+*   **Integração com Banco de Dados:** Suporte opcional a bancos de dados como PostgreSQL ou MongoDB.
+*   **Interface Web:** Uma UI para gerenciar o bot, visualizar estatísticas e logs.
+*   **Melhorar Modularidade:** Refatorar a arquitetura para facilitar a criação de novos módulos pela comunidade.
+*   **Testes Automatizados:** Aumentar a cobertura de testes para garantir a estabilidade.
 
 ## 🤝 Contribuição
 
-Contribuições são bem-vindas! Se você deseja contribuir, por favor, siga estas diretrizes:
+Contribuições são muito bem-vindas! Se você deseja contribuir, por favor, siga estas diretrizes:
 
 1.  Faça um fork do repositório.
 2.  Crie uma nova branch (`git checkout -b feature/sua-feature`).
-3.  Faça suas alterações e adicione testes, se aplicável.
+3.  Faça suas alterações.
 4.  Commit suas alterações (`git commit -m 'feat: Adiciona nova funcionalidade'`).
 5.  Envie para a branch (`git push origin feature/sua-feature`).
 6.  Abra um Pull Request.
@@ -169,5 +212,5 @@ Este projeto está licenciado sob a Licença MIT. Veja o arquivo [LICENSE](LICEN
 
 ## 📧 Contato
 
-Para dúvidas ou suporte, por favor, abra uma issue no repositório do GitHub:
+Para dúvidas ou suporte, abra uma issue no repositório do GitHub:
 [https://github.com/Kaikygr/omnizap-system/issues](https://github.com/Kaikygr/omnizap-system/issues)

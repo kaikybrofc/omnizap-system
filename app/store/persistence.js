@@ -3,13 +3,14 @@ const fsp = fs.promises;
 const path = require('path');
 const lockfile = require('proper-lockfile');
 const logger = require('../utils/logger/loggerModule');
-const { Transform, pipeline } = require('stream');
+const { pipeline } = require('stream');
 const { promisify } = require('util');
+const { parser } = require('stream-json');
+const { streamObject } = require('stream-json/streamers/StreamObject');
+const { streamArray } = require('stream-json/streamers/StreamArray');
 
 const pipelineAsync = promisify(pipeline);
 const storePath = path.resolve(process.cwd(), process.env.STORE_PATH || './temp');
-
-// Tamanho do chunk para streaming (64KB)
 const CHUNK_SIZE = 64 * 1024;
 
 async function ensureStoreDirectory() {
@@ -22,98 +23,44 @@ async function ensureStoreDirectory() {
   }
 }
 
-async function readFromFile(dataType) {
+async function readFromFile(dataType, expectedType = 'object') {
   await ensureStoreDirectory();
   const filePath = path.join(storePath, `${dataType}.json`);
 
   try {
-    // Verifica se o arquivo existe
-    try {
-      await fsp.access(filePath);
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        await fsp.writeFile(filePath, '{}', { mode: 0o666 });
-        logger.warn(`Arquivo ${dataType}.json não encontrado. Criando novo arquivo vazio.`);
-        return {};
-      }
-    }
-
-    // Tenta obter o lock
-    try {
-      await lockfile.lock(filePath, {
-        retries: { retries: 5, factor: 1, minTimeout: 200 },
-        onCompromised: (err) => {
-          logger.error('Lock file compromised:', err);
-        },
-      });
-    } catch (lockError) {
-      logger.warn(`Não foi possível obter lock para ${dataType}.json: ${lockError.message}`);
-    }
-
-    // Criando stream de transformação para processar chunks JSON
-    let jsonBuffer = '';
-    const jsonParser = new Transform({
-      readableObjectMode: true,
-      transform(chunk, encoding, callback) {
-        try {
-          jsonBuffer += chunk.toString();
-          callback();
-        } catch (err) {
-          callback(err);
-        }
-      },
-      flush(callback) {
-        try {
-          const parsedData = JSON.parse(jsonBuffer || '{}');
-          if (typeof parsedData !== 'object' || parsedData === null) {
-            callback(new Error(`Formato de dados inválido para ${dataType}. Esperava um objeto.`));
-            return;
-          }
-          this.push(parsedData);
-          callback();
-        } catch (err) {
-          callback(err);
-        }
-      },
-    });
-
-    const result = await new Promise((resolve, reject) => {
-      const chunks = [];
-      pipelineAsync(fs.createReadStream(filePath, { highWaterMark: CHUNK_SIZE }), jsonParser)
-        .then(() => {
-          const parsedData = chunks.length ? chunks[0] : {};
-          resolve(parsedData);
-        })
-        .catch((err) => {
-          logger.error(`Erro ao processar stream para ${dataType}:`, err);
-          resolve({});
-        });
-
-      jsonParser.on('data', (chunk) => chunks.push(chunk));
-    });
-
-    logger.info(`Store para ${dataType} lido de ${filePath}`);
-    return result;
+    await fsp.access(filePath);
   } catch (error) {
-    logger.error(`Erro ao ler store para ${dataType} de ${filePath}:`, error);
-    return {};
-  } finally {
-    try {
-      // Só tenta desbloquear se o arquivo existir
-      await fsp
-        .access(filePath)
-        .then(() => {
-          return lockfile.unlock(filePath).catch(() => {
-            // Ignora erros de unlock se o arquivo não estiver lockado
-          });
-        })
-        .catch(() => {
-          // Ignora erros se o arquivo não existir
-        });
-    } catch (unlockError) {
-      logger.warn(`Erro ao liberar lock de ${dataType}.json: ${unlockError.message}`);
+    if (error.code === 'ENOENT') {
+      const emptyContent = expectedType === 'array' ? '[]' : '{}';
+      await fsp.writeFile(filePath, emptyContent, { mode: 0o666 });
+      logger.warn(`Arquivo ${dataType}.json não encontrado. Criando novo arquivo vazio.`);
+    } else {
+      logger.error(`Erro ao acessar o arquivo ${filePath}: ${error.message}`);
+      const stream = require('stream');
+      const readable = new stream.Readable({ objectMode: true });
+      readable._read = () => {}; // No-op
+      process.nextTick(() => readable.emit('error', error));
+      return readable;
     }
   }
+
+  const stream = fs.createReadStream(filePath, { highWaterMark: CHUNK_SIZE });
+  const jsonParser = parser();
+  const jsonStream = expectedType === 'array' ? streamArray() : streamObject();
+
+  pipeline(stream, jsonParser, jsonStream, (err) => {
+    if (err) {
+      if (err.message.includes('JSON')) {
+        logger.warn(`Arquivo JSON malformado ou vazio para ${dataType}: ${filePath}.`);
+      } else {
+        logger.error(`Erro no pipeline de stream para ${dataType}:`, err);
+      }
+    } else {
+      logger.info(`Store para ${dataType} lido de ${filePath}`);
+    }
+  });
+
+  return jsonStream;
 }
 
 async function writeToFile(dataType, data) {

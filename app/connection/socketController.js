@@ -9,120 +9,177 @@
  * @source https://github.com/Kaikygr/omnizap-system
  */
 
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage } = require('@whiskeysockets/baileys');
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  Browsers,
+  getAggregateVotesInPollMessage,
+} = require('@whiskeysockets/baileys');
 
 const store = require('../store/dataStore');
-
-
+const groupConfigStore = require('../store/groupConfigStore');
 
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
 
+const pino = require('pino');
 const logger = require('../utils/logger/loggerModule');
 const { handleWhatsAppUpdate } = require('../controllers/messageController');
 const { handleGenericUpdate } = require('../controllers/eventHandler');
+const {
+  handleGroupUpdate: handleGroupParticipantsEvent,
+} = require('../modules/adminModule/groupEventHandlers');
 const { getSystemMetrics } = require('../utils/systemMetrics/systemMetricsModule');
 
 let activeSocket = null;
 let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 5;
-const INITIAL_RECONNECT_DELAY = 3000; // 3 segundos
+const INITIAL_RECONNECT_DELAY = 3000;
 
 async function connectToWhatsApp() {
   logger.info('Iniciando conexão com o WhatsApp...', {
     action: 'connect_init',
+    timestamp: new Date().toISOString(),
   });
+
   connectionAttempts = 0;
 
   const authPath = path.join(__dirname, 'auth_info_baileys');
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
   await store.loadData();
+  await groupConfigStore.loadData();
   const version = [6, 7, 0];
 
-  const usePairingCode = process.env.PAIRING_CODE === 'true';
+  logger.debug('Dados de autenticação carregados com sucesso.', {
+    authPath,
+    version,
+  });
 
   const sock = makeWASocket({
     version,
     auth: state,
-    logger: require('pino')({ level: 'silent' }),
+    logger: pino({ level: 'silent' }),
     browser: Browsers.macOS('Desktop'),
-
     qrTimeout: 30000,
-    syncFullHistory: true,
+    syncFullHistory: false,
     markOnlineOnConnect: false,
-    getMessage: async (key) => (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
+    getMessage: async (key) =>
+      (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
   });
 
   store.bind(sock.ev);
 
-  if (usePairingCode && !sock.authState.creds.registered) {
-    const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
-    if (!phoneNumber) {
-      logger.error('Número de telefone é obrigatório para o modo de pareamento.', {
-        errorType: 'config_error',
-        field: 'PHONE_NUMBER',
-      });
-      return;
-    }
-    setTimeout(async () => {
-      try {
-        const code = await sock.requestPairingCode(phoneNumber);
-        logger.info('═══════════════════════════════════════════════════');
-        logger.info('📱 SEU CÓDIGO DE PAREAMENTO 📱');
-        logger.info('\n          > ' + code.match(/.{1,4}/g).join('-') + ' <\n');
-        logger.info('💡 WhatsApp → Dispositivos vinculados → Vincular com número');
-        logger.info('═══════════════════════════════════════════════════');
-      } catch (error) {
-        logger.error('❌ Erro ao solicitar o código de pareamento:', {
-          error: error.message,
-          stack: error.stack,
-          action: 'request_pairing_code',
-        });
-      }
-    }, 3000);
-  }
-
   activeSocket = sock;
+
   sock.ev.on('creds.update', async () => {
+    logger.debug('Atualizando credenciais de autenticação...', {
+      action: 'creds_update',
+      timestamp: new Date().toISOString(),
+    });
     await saveCreds();
   });
-  sock.ev.on('connection.update', (update) => handleConnectionUpdate(update, sock));
+
+  sock.ev.on('connection.update', (update) => {
+    handleConnectionUpdate(update, sock);
+    logger.debug('Estado da conexão atualizado.', {
+      action: 'connection_update',
+      status: update.connection,
+      lastDisconnect: update.lastDisconnect?.error?.message || null,
+      isNewLogin: update.isNewLogin || false,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   sock.ev.on('messages.upsert', (update) => {
     try {
+      logger.debug('Novo(s) evento(s) em messages.upsert', {
+        action: 'messages_upsert',
+        type: update.type,
+        messagesCount: update.messages.length,
+        remoteJid: update.messages[0]?.key.remoteJid || null,
+      });
       handleWhatsAppUpdate(update, sock);
-    } catch (err) {
-      logger.error('Error in messages.upsert event:', err);
+    } catch (error) {
+      logger.error('Erro no evento messages.upsert:', {
+        error: error.message,
+        stack: error.stack,
+        action: 'messages_upsert_error',
+      });
     }
   });
+
   sock.ev.on('messages.update', (update) => {
     try {
+      logger.debug('Atualização de mensagens recebida.', {
+        action: 'messages_update',
+        updatesCount: update.length,
+      });
       handleMessageUpdate(update, sock);
-    } catch (err) {
-      logger.error('Error in messages.update event:', err);
+    } catch (error) {
+      logger.error('Erro no evento messages.update:', {
+        error: error.message,
+        stack: error.stack,
+        action: 'messages_update_error',
+      });
     }
   });
+
   sock.ev.on('groups.update', (updates) => {
     try {
+      logger.debug('Grupo(s) atualizado(s).', {
+        action: 'groups_update',
+        groupCount: updates.length,
+        groupIds: updates.map((u) => u.id),
+      });
       handleGroupUpdate(updates, sock);
     } catch (err) {
-      logger.error('Error in groups.update event:', err);
+      logger.error('Erro no evento groups.update:', {
+        error: err.message,
+        stack: err.stack,
+        action: 'groups_update_error',
+      });
     }
   });
+
   sock.ev.on('group-participants.update', (update) => {
     try {
-      handleGroupParticipantsUpdate(update, sock);
+      logger.debug('Participantes do grupo atualizados.', {
+        action: 'group_participants_update',
+        groupId: update.id,
+        actionType: update.action,
+        participants: update.participants,
+      });
+      handleGroupParticipantsEvent(sock, update.id, update.participants, update.action);
     } catch (err) {
-      logger.error('Error in group-participants.update event:', err);
+      logger.error('Erro no evento group-participants.update:', {
+        error: err.message,
+        stack: err.stack,
+        action: 'group_participants_update_error',
+      });
     }
   });
 
   sock.ev.on('all', (event) => {
     try {
+      logger.debug('Evento genérico recebido.', {
+        action: 'generic_event',
+        eventType: event.event,
+      });
       handleGenericUpdate(event);
     } catch (err) {
-      logger.error('Error in all event:', err);
+      logger.error('Erro no evento genérico (all):', {
+        error: err.message,
+        stack: err.stack,
+        action: 'generic_event_error',
+      });
     }
+  });
+
+  logger.info('Conexão com o WhatsApp estabelecida com sucesso.', {
+    action: 'connect_success',
+    timestamp: new Date().toISOString(),
   });
 }
 
@@ -130,51 +187,74 @@ async function handleConnectionUpdate(update, sock) {
   const { connection, lastDisconnect, qr } = update;
 
   if (qr) {
-    logger.info('📱 QR Code gerado! Escaneie com seu WhatsApp:', {
+    logger.info('📱 QR Code gerado! Escaneie com seu WhatsApp.', {
       action: 'qr_code_generated',
+      timestamp: new Date().toISOString(),
     });
     qrcode.generate(qr, { small: true });
   }
 
   if (connection === 'close') {
-    const shouldReconnect = lastDisconnect?.error instanceof Boom && lastDisconnect.error.output?.statusCode !== DisconnectReason.loggedOut;
+    const disconnectCode = lastDisconnect?.error?.output?.statusCode || 'unknown';
+    const errorMessage = lastDisconnect?.error?.message || 'Sem mensagem de erro';
+
+    const shouldReconnect =
+      lastDisconnect?.error instanceof Boom && disconnectCode !== DisconnectReason.loggedOut;
 
     if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       connectionAttempts++;
       const reconnectDelay = INITIAL_RECONNECT_DELAY * Math.pow(2, connectionAttempts - 1);
-      logger.warn(`Conexão perdida. Tentando reconectar em ${reconnectDelay / 1000}s... (Tentativa ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})`, {
+      logger.warn(`⚠️ Conexão perdida. Tentando reconectar...`, {
         action: 'reconnect_attempt',
         attempt: connectionAttempts,
         maxAttempts: MAX_CONNECTION_ATTEMPTS,
         delay: reconnectDelay,
-        reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
+        reasonCode: disconnectCode,
+        errorMessage,
+        timestamp: new Date().toISOString(),
       });
       setTimeout(connectToWhatsApp, reconnectDelay);
     } else if (shouldReconnect) {
       logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.', {
         action: 'reconnect_failed',
-        reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
+        totalAttempts: connectionAttempts,
+        reasonCode: disconnectCode,
+        errorMessage,
+        timestamp: new Date().toISOString(),
       });
     } else {
-      logger.error('❌ Conexão fechada. Motivo:', {
+      logger.error('❌ Conexão fechada definitivamente.', {
         action: 'connection_closed',
-        reason: lastDisconnect?.error?.output?.statusCode || 'unknown',
-        error: lastDisconnect?.error?.message,
+        reasonCode: disconnectCode,
+        errorMessage,
+        timestamp: new Date().toISOString(),
       });
     }
   }
+
   if (connection === 'open') {
     logger.info('✅ Conectado com sucesso ao WhatsApp!', {
       action: 'connection_open',
+      timestamp: new Date().toISOString(),
     });
+
     connectionAttempts = 0;
+
     if (process.send) {
       process.send('ready');
-      logger.info('Sinal de "ready" enviado ao PM2.');
+      logger.info('🟢 Sinal de "ready" enviado ao PM2.', {
+        action: 'pm2_ready_signal',
+        timestamp: new Date().toISOString(),
+      });
     }
+
     setInterval(() => {
       const metrics = getSystemMetrics();
-      logger.info('System Metrics', metrics);
+      logger.info('📊 System Metrics coletadas', {
+        action: 'system_metrics',
+        ...metrics,
+        timestamp: new Date().toISOString(),
+      });
     }, 60000);
 
     try {
@@ -183,15 +263,18 @@ async function handleConnectionUpdate(update, sock) {
         store.groups[group.id] = group;
       }
       store.debouncedWrite('groups');
-      logger.info(`Metadados de ${Object.keys(allGroups).length} grupos carregados e salvos.`, {
+      logger.info(`📁 Metadados de ${Object.keys(allGroups).length} grupos carregados e salvos.`, {
         action: 'groups_loaded',
         count: Object.keys(allGroups).length,
+        groupIds: Object.keys(allGroups),
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      logger.error('Erro ao carregar metadados de grupos na conexão:', {
-        error: error.message,
-        stack: error.stack,
+      logger.error('❌ Erro ao carregar metadados de grupos na conexão.', {
         action: 'groups_load_error',
+        errorMessage: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
       });
     }
   }
@@ -200,16 +283,38 @@ async function handleConnectionUpdate(update, sock) {
 async function handleMessageUpdate(updates, sock) {
   for (const { key, update } of updates) {
     if (update.pollUpdates) {
-      const pollCreation = await sock.getMessage(key);
-      if (pollCreation) {
-        const aggregatedVotes = getAggregateVotesInPollMessage({
-          message: pollCreation,
-          pollUpdates: update.pollUpdates,
-        });
-        logger.info('Votos da enquete atualizados:', {
-          action: 'poll_votes_updated',
-          key: key,
-          aggregatedVotes: aggregatedVotes,
+      try {
+        const pollCreation = await sock.getMessage(key);
+
+        if (pollCreation) {
+          const aggregatedVotes = getAggregateVotesInPollMessage({
+            message: pollCreation,
+            pollUpdates: update.pollUpdates,
+          });
+
+          logger.info('📊 Votos da enquete atualizados.', {
+            action: 'poll_votes_updated',
+            remoteJid: key.remoteJid,
+            messageId: key.id,
+            participant: key.participant || null,
+            votesCount: Object.values(aggregatedVotes || {}).reduce((a, b) => a + b, 0),
+            votes: aggregatedVotes,
+            timestamp: new Date().toISOString(),
+          });
+        } else {
+          logger.warn('⚠️ Mensagem da enquete não encontrada.', {
+            action: 'poll_message_not_found',
+            key,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        logger.error('❌ Erro ao processar atualização de votos da enquete.', {
+          action: 'poll_update_error',
+          errorMessage: error.message,
+          stack: error.stack,
+          key,
+          timestamp: new Date().toISOString(),
         });
       }
     }
@@ -218,86 +323,62 @@ async function handleMessageUpdate(updates, sock) {
 
 async function handleGroupUpdate(updates, sock) {
   for (const event of updates) {
-    if (store.groups[event.id]) {
-      Object.assign(store.groups[event.id], event);
-    } else {
-      store.groups[event.id] = event;
-    }
-    store.debouncedWrite('groups');
-    logger.info(`Metadados do grupo ${event.id} atualizados.`, {
-      action: 'group_metadata_updated',
-      groupId: event.id,
-    });
-  }
-}
+    try {
+      const groupId = event.id;
+      const oldData = store.groups[groupId] || {};
+      const updatedData = { ...oldData, ...event };
 
-async function handleGroupParticipantsUpdate(update, sock) {
-  try {
-    const groupId = update.id;
-    const participants = update.participants;
-    const action = update.action;
-
-    if (store.groups[groupId]) {
-      if (!Array.isArray(store.groups[groupId].participants)) {
-        store.groups[groupId].participants = [];
-      }
-
-      if (action === 'add') {
-        for (const participantJid of participants) {
-          if (!store.groups[groupId].participants.some((p) => p.id === participantJid)) {
-            store.groups[groupId].participants.push({ id: participantJid });
-          }
-        }
-      } else if (action === 'remove') {
-        store.groups[groupId].participants = store.groups[groupId].participants.filter((p) => !participants.includes(p.id));
-      } else if (action === 'promote' || action === 'demote') {
-        for (const participantJid of participants) {
-          const participantObj = store.groups[groupId].participants.find((p) => p.id === participantJid);
-          if (participantObj) {
-            participantObj.admin = action === 'promote' ? 'admin' : null;
-          }
-        }
-      }
+      store.groups[groupId] = updatedData;
       store.debouncedWrite('groups');
-      logger.info(`Participantes do grupo ${groupId} atualizados.`, {
-        action: 'group_participants_updated',
-        groupId: groupId,
-        participants: participants,
-        actionType: action,
+
+      logger.info(`📦 Metadados do grupo atualizados.`, {
+        action: 'group_metadata_updated',
+        groupId,
+        groupName: updatedData.subject || 'Desconhecido',
+        changes: Object.keys(event), // mostra o que mudou
+        timestamp: new Date().toISOString(),
       });
-    } else {
-      logger.warn(`Metadados do grupo ${groupId} não encontrados no armazenamento durante a atualização de participantes.`, {
-        action: 'group_participants_update_missing_metadata',
-        groupId: groupId,
+    } catch (error) {
+      logger.error('❌ Erro ao atualizar metadados do grupo.', {
+        action: 'group_metadata_update_error',
+        errorMessage: error.message,
+        stack: error.stack,
+        event,
+        timestamp: new Date().toISOString(),
       });
     }
-  } catch (error) {
-    logger.error(`Erro ao processar atualização de participantes do grupo ${update.id}:`, {
-      error: error.message,
-      stack: error.stack,
-      groupId: update.id,
-      action: 'group_participants_update_error',
-    });
   }
 }
 
 /**
- * Retorna a instância do socket ativo.
+ * 🔌 Retorna a instância atual do socket ativo do WhatsApp.
  * @returns {import('@whiskeysockets/baileys').WASocket | null}
  */
 function getActiveSocket() {
+  logger.debug('🔍 Recuperando instância do socket ativo.', {
+    action: 'get_active_socket',
+    socketExists: !!activeSocket,
+    timestamp: new Date().toISOString(),
+  });
   return activeSocket;
 }
 
 /**
- * Força reconexão ao WhatsApp
+ * ♻️ Força uma nova tentativa de conexão ao WhatsApp.
+ * Encerra o socket atual (se existir) para disparar a lógica de reconexão.
  */
 async function reconnectToWhatsApp() {
-  if (activeSocket) {
-    logger.info('Forçando o fechamento do socket para acionar a lógica de reconexão...');
+  if (activeSocket && activeSocket.ws?.readyState === WebSocket.OPEN) {
+    logger.info('♻️ Forçando fechamento do socket para reconectar...', {
+      action: 'force_reconnect',
+      timestamp: new Date().toISOString(),
+    });
     activeSocket.ws.close();
   } else {
-    logger.warn('Tentativa de reconectar sem um socket ativo. Iniciando uma nova conexão.');
+    logger.warn('⚠️ Nenhum socket ativo detectado. Iniciando nova conexão manualmente.', {
+      action: 'reconnect_no_active_socket',
+      timestamp: new Date().toISOString(),
+    });
     await connectToWhatsApp();
   }
 }
@@ -309,11 +390,17 @@ module.exports = {
 };
 
 if (require.main === module) {
-  logger.info('🔌 Socket Controller executado diretamente. Iniciando conexão...');
+  logger.info('🚀 Socket Controller iniciado diretamente via CLI.', {
+    action: 'module_direct_execution',
+    timestamp: new Date().toISOString(),
+  });
+
   connectToWhatsApp().catch((err) => {
-    logger.error('❌ Falha catastrófica ao iniciar a conexão diretamente do Socket Controller.', {
-      error: err.message,
+    logger.error('❌ Falha crítica ao tentar iniciar conexão via execução direta.', {
+      action: 'direct_connection_failure',
+      errorMessage: err.message,
       stack: err.stack,
+      timestamp: new Date().toISOString(),
     });
     process.exit(1);
   });
