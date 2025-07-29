@@ -122,15 +122,18 @@ const handleGroupUpdate = async (sock, groupId, participants, action) => {
 
       switch (action) {
         case 'add':
-          if (groupConfig.welcomeMessageEnabled && groupConfig.welcomeMessage) {
-            let msg = groupConfig.welcomeMessage.replace('{participant}', `@${participantName}`);
+          if (groupConfig.welcomeMessageEnabled) {
+            const welcomeMsg =
+              groupConfig.welcomeMessage || '👋 Bem-vindo(a) ao grupo @groupname, @user! 🎉';
+            let msg = welcomeMsg.replace('{participant}', `@${participantName}`);
             msg = msg.replace(/@user/g, `@${participantName}`);
             message += `${msg}\n`;
           }
           break;
         case 'remove':
-          if (groupConfig.farewellMessageEnabled && groupConfig.farewellMessage) {
-            let msg = groupConfig.farewellMessage.replace('{participant}', `@${participantName}`);
+          if (groupConfig.farewellMessageEnabled) {
+            const farewellMsg = groupConfig.farewellMessage || '😥 Adeus, @user! Sentiremos sua falta.';
+            let msg = farewellMsg.replace('{participant}', `@${participantName}`);
             msg = msg.replace(/@user/g, `@${participantName}`);
             message += `${msg}\n`;
           }
