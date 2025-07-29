@@ -15,8 +15,6 @@ const groupUtils = require('../utils/groupUtils');
 const dataStore = require('../store/dataStore');
 const groupConfigStore = require('../store/groupConfigStore');
 const { downloadMediaMessage } = require('../utils/mediaDownloader/mediaDownloaderModule');
-const fs = require('fs');
-const path = require('path');
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
@@ -1161,7 +1159,8 @@ const handleWhatsAppUpdate = async (update, sock) => {
                     break;
                   }
 
-                  const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                  const quotedMessage =
+                    messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                   let mediaToDownload = null;
                   let mediaType = null;
 
@@ -1297,7 +1296,8 @@ const handleWhatsAppUpdate = async (update, sock) => {
                     break;
                   }
 
-                  const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                  const quotedMessage =
+                    messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                   let mediaToDownload = null;
                   let mediaType = null;
 
