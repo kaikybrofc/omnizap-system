@@ -1,15 +1,16 @@
-# OmniZap System
+# OmniZap System v2.0.0
 
 Sistema profissional de automação para WhatsApp, construído com a poderosa biblioteca Baileys.
 
 ## 🚀 Visão Geral
 
-O OmniZap System é uma solução de automação para WhatsApp robusta e escalável. Desenvolvido sobre a biblioteca Baileys, ele oferece um conjunto completo de funcionalidades para gerenciamento de grupos, processamento de mensagens, e monitoramento de sistema. É a ferramenta ideal para empresas e desenvolvedores que buscam integrar o WhatsApp em seus fluxos de trabalho de forma eficiente e controlada.
+O OmniZap System é uma solução de automação para WhatsApp robusta e escalável. Desenvolvido sobre a biblioteca Baileys, ele oferece um conjunto completo de funcionalidades para gerenciamento de grupos, processamento de mensagens, criação de stickers e monitoramento de sistema. É a ferramenta ideal para empresas e desenvolvedores que buscam integrar o WhatsApp em seus fluxos de trabalho de forma eficiente e controlada.
 
 ## ✨ Funcionalidades Principais
 
 *   **Gerenciamento de Sessão:** Persistência automática de credenciais de autenticação para reconexões rápidas e estáveis.
 *   **Processamento Inteligente de Mensagens:** Responde a mensagens citando-as e respeita as configurações de mensagens efêmeras.
+*   **Criação de Stickers:** Crie stickers a partir de imagens enviadas no chat com um simples comando.
 *   **Gerenciamento Completo de Grupos:** Um conjunto extenso de comandos de administração para controle total sobre os grupos.
 *   **Mensagens de Boas-Vindas e Saída:** Configure mensagens automáticas e personalizadas (com texto, imagem ou vídeo) para novos membros e para aqueles que saem. Suporta placeholders dinâmicos para criar mensagens mais ricas.
 *   **Análise Avançada de Grupos:** O comando `/info` oferece estatísticas detalhadas, incluindo ranking de mensagens, uso de mídia, horários de pico de atividade e identificação de membros inativos.
@@ -89,7 +90,7 @@ OMNIZAP_MAX_MESSAGES_PER_CHAT=1000
 OMNIZAP_MESSAGE_RETENTION_MONTHS=3
 
 # --- Mensagens Raw (rawMessages.json) ---
-# Número máximo de mensagens "raw" (objeto completo do Baileys) a serem salvas por conversa
+# Número máximo de mensagens '''raw''' (objeto completo do Baileys) a serem salvas por conversa
 OMNIZAP_MAX_RAW_MESSAGES_PER_CHAT=5000
 # Número de meses para reter mensagens raw
 OMNIZAP_RAW_MESSAGE_RETENTION_MONTHS=3
@@ -125,12 +126,17 @@ pm2 stop omnizap-system
 
 ## 🤖 Comandos do Bot
 
-A seguir, a lista de comandos de administração disponíveis. A maioria dos comandos requer que o bot e o usuário que executa o comando sejam administradores do grupo.
+A seguir, a lista de comandos disponíveis. A maioria dos comandos de administração requer que o bot e o usuário que executa o comando sejam administradores do grupo.
 
 ### Menu de Administração
 | Comando | Descrição |
 | :--- | :--- |
 | **/menuadm** | Exibe a lista completa de comandos de administração. |
+
+### Criação de Stickers
+| Comando | Descrição |
+| :--- | :--- |
+| **/sticker** | Responda a uma imagem com este comando para criá-la como um sticker. |
 
 ### Gerenciamento de Membros
 | Comando | Descrição |
@@ -179,7 +185,7 @@ Você pode usar as seguintes variáveis em suas mensagens de boas-vindas/saída 
 *   `app/`: Contém a lógica principal da aplicação.
     *   `connection/`: Gerencia a conexão com o WhatsApp (Baileys).
     *   `controllers/`: Lida com o processamento de mensagens e eventos.
-    *   `modules/`: Contém módulos de funcionalidades específicas, como os comandos de admin.
+    *   `modules/`: Contém módulos de funcionalidades específicas, como os comandos de admin e stickers.
     *   `store/`: Gerencia o armazenamento e a persistência de dados (mensagens, grupos, etc.).
     *   `utils/`: Utilitários como o logger, métricas de sistema e download de mídia.
 *   `logs/`: Diretório onde os arquivos de log são armazenados.
@@ -189,11 +195,11 @@ Você pode usar as seguintes variáveis em suas mensagens de boas-vindas/saída 
 
 ## 🗺️ Roadmap
 
-*   **Expansão de Comandos:** Adicionar mais comandos interativos.
-*   **Integração com Banco de Dados:** Suporte opcional a bancos de dados como PostgreSQL ou MongoDB.
-*   **Interface Web:** Uma UI para gerenciar o bot, visualizar estatísticas e logs.
+*   **Expansão de Comandos:** Adicionar mais comandos interativos e de entretenimento.
+*   **Integração com Banco de Dados:** Suporte opcional a bancos de dados como PostgreSQL ou MongoDB para escalabilidade.
+*   **Interface Web:** Uma UI para gerenciar o bot, visualizar estatísticas e logs em tempo real.
 *   **Melhorar Modularidade:** Refatorar a arquitetura para facilitar a criação de novos módulos pela comunidade.
-*   **Testes Automatizados:** Aumentar a cobertura de testes para garantir a estabilidade.
+*   **Testes Automatizados:** Aumentar a cobertura de testes para garantir a estabilidade e a confiabilidade.
 
 ## 🤝 Contribuição
 
