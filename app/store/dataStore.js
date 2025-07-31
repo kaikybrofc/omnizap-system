@@ -45,35 +45,15 @@ const store = {
         newsletters: 'object',
       };
 
-      const loadPromises = Object.entries(typeDefinitions).map(([type, expectedType]) => {
-        return new Promise(async (resolve, reject) => {
-          try {
-            const stream = await readFromFile(type, expectedType);
-            this[type] = expectedType === 'array' ? [] : {};
-
-            stream.on('data', (item) => {
-              if (expectedType === 'array') {
-                this[type].push(item.value);
-              } else {
-                this[type][item.key] = item.value;
-              }
-            });
-
-            stream.on('end', () => {
-              logger.info(`Dados para ${type} carregados via stream.`);
-              resolve();
-            });
-
-            stream.on('error', (err) => {
-              logger.error(`Erro no stream ao carregar ${type}:`, err);
-              this[type] = expectedType === 'array' ? [] : {};
-            });
-          } catch (loadError) {
-            logger.error(`Erro ao iniciar o carregamento de ${type}:`, loadError);
-            this[type] = expectedType === 'array' ? [] : {};
-            resolve();
-          }
-        });
+      const loadPromises = Object.entries(typeDefinitions).map(async ([type, expectedType]) => {
+        try {
+          const data = await readFromFile(type, expectedType);
+          this[type] = ensureDataType(data, expectedType);
+          logger.info(`Dados para ${type} carregados.`);
+        } catch (loadError) {
+          logger.error(`Erro ao carregar dados para ${type}:`, loadError);
+          this[type] = expectedType === 'array' ? [] : {};
+        }
       });
 
       await Promise.all(loadPromises);

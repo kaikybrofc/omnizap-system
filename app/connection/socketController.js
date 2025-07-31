@@ -26,7 +26,7 @@ const path = require('path');
 
 const pino = require('pino');
 const logger = require('../utils/logger/loggerModule');
-const { handleWhatsAppUpdate } = require('../controllers/messageController');
+const { handleMessages } = require('../controllers/messageController');
 const { handleGenericUpdate } = require('../controllers/eventHandler');
 const {
   handleGroupUpdate: handleGroupParticipantsEvent,
@@ -100,7 +100,7 @@ async function connectToWhatsApp() {
         messagesCount: update.messages.length,
         remoteJid: update.messages[0]?.key.remoteJid || null,
       });
-      handleWhatsAppUpdate(update, sock);
+      handleMessages(update, sock);
     } catch (error) {
       logger.error('Erro no evento messages.upsert:', {
         error: error.message,
