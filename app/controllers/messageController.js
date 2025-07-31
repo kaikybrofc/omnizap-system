@@ -186,6 +186,7 @@ const handleWhatsAppUpdate = async (update, sock) => {
 
           switch (command) {
             case 'sticker':
+            case 's':
               const stickerResult = await processSticker(
                 sock,
                 messageInfo,

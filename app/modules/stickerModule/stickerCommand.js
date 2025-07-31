@@ -4,7 +4,7 @@ const util = require('util');
 const { exec } = require('child_process');
 const execProm = util.promisify(exec);
 const logger = require('../../utils/logger/loggerModule');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadMediaMessage } = require('../../utils/mediaDownloader/mediaDownloaderModule');
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const STICKER_PREFS_DIR = path.join(process.cwd(), 'temp', 'prefs');
@@ -171,39 +171,7 @@ async function getStickerPackInfo(text, sender, pushName, message) {
 
 
 
-/**
- * Salva a mídia baixada como arquivo temporário
- * @param {Buffer} buffer - Buffer da mídia
- * @param {string} mediaType - Tipo de mídia
- * @returns {Promise<string>} - Caminho do arquivo salvo
- */
-async function saveTempMedia(buffer, mediaType) {
-  if (!buffer || !Buffer.isBuffer(buffer)) {
-    throw new Error('Buffer inválido ou não fornecido');
-  }
 
-  let extension = '.bin';
-  switch (mediaType) {
-    case 'image':
-      extension = '.jpg';
-      break;
-    case 'video':
-      extension = '.mp4';
-      break;
-    case 'sticker':
-      extension = '.webp';
-      break;
-    case 'document':
-      extension = '.bin';
-      break;
-  }
-
-  const tempPath = path.join(TEMP_DIR, `media_${Date.now()}${extension}`);
-  await fs.writeFile(tempPath, buffer);
-
-  logger.debug(`[StickerCommand] Mídia salva em arquivo temporário: ${tempPath}`);
-  return tempPath;
-}
 
 /**
  * Converte a mídia para o formato webp (sticker)
@@ -367,19 +335,14 @@ async function processSticker(baileysClient, message, sender, from, text, option
     }
 
     logger.info(`[StickerCommand] Baixando mídia do tipo ${mediaType}...`);
-    const stream = await downloadContentFromMessage(mediaKey, mediaType);
-    let buffer = Buffer.from([]);
-    for await(const chunk of stream) {
-        buffer = Buffer.concat([buffer, chunk])
-    }
+    tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, TEMP_DIR);
 
-    if (!buffer) {
+    if (!tempMediaPath) {
       return {
         success: false,
         message: '❌ Não foi possível baixar a mídia. Isso pode ocorrer devido a problemas de conexão ou porque o arquivo expirou. Por favor, tente novamente com outra mídia ou mais tarde.',
       };
     }
-    tempMediaPath = await saveTempMedia(buffer, mediaType);
     let stickerPath = await convertToWebp(tempMediaPath, mediaType);
 
     const { packName, packAuthor } = await getStickerPackInfo(text, sender, message.pushName || 'Usuário', message);
