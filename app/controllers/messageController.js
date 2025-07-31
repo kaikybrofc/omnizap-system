@@ -11,11 +11,12 @@
 
 require('dotenv').config();
 const { handleInfoCommand } = require('../modules/adminModule/infoCommand');
+const { processSticker } = require('../modules/stickerModule/stickerCommand');
 const groupUtils = require('../utils/groupUtils');
 const dataStore = require('../store/dataStore');
 const groupConfigStore = require('../store/groupConfigStore');
 const { downloadMediaMessage } = require('../utils/mediaDownloader/mediaDownloaderModule');
-
+const logger = require('../utils/logger/loggerModule');
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
 /**
@@ -184,6 +185,29 @@ const handleWhatsAppUpdate = async (update, sock) => {
           const isBotAdmin = isGroupMessage ? await isUserAdmin(remoteJid, botJid) : false;
 
           switch (command) {
+            case 'sticker':
+              const stickerResult = await processSticker(
+                sock,
+                messageInfo,
+                senderJid,
+                remoteJid,
+                args.join(' '),
+              );
+              if (stickerResult.stickerPath) {
+                await sock.sendMessage(
+                  remoteJid,
+                  { sticker: { url: stickerResult.stickerPath } },
+                  { quoted: messageInfo },
+                );
+              } else {
+                await sock.sendMessage(
+                  remoteJid,
+                  { text: stickerResult.message },
+                  { quoted: messageInfo },
+                );
+              }
+              break;
+
             case 'info':
               if (!isGroupMessage || (await isUserAdmin(remoteJid, senderJid))) {
                 await handleInfoCommand(
