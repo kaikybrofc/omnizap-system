@@ -335,7 +335,7 @@ async function handleGroupUpdate(updates, sock) {
         action: 'group_metadata_updated',
         groupId,
         groupName: updatedData.subject || 'Desconhecido',
-        changes: Object.keys(event), // mostra o que mudou
+        changes: Object.keys(event),
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
