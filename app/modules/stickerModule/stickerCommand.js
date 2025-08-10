@@ -11,17 +11,26 @@ const STICKER_PREFS_DIR = path.join(process.cwd(), 'temp', 'prefs');
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
 /**
- * Garante que os diretórios necessários existam
- * @returns {Promise<boolean>} true se os diretórios existem ou foram criados com sucesso
+ * Garante que os diretórios necessários para um usuário específico existam.
+ * @param {string} userId - O ID do usuário para o qual criar os diretórios.
+ * @returns {Promise<boolean>} true se os diretórios existem ou foram criados com sucesso.
  */
-async function ensureDirectories() {
+async function ensureDirectories(userId) {
+  if (!userId) {
+    logger.error('[StickerCommand.ensureDirectories] User ID is required but was not provided.');
+    return false;
+  }
   try {
-    await fs.mkdir(TEMP_DIR, { recursive: true });
-    await fs.mkdir(STICKER_PREFS_DIR, { recursive: true });
+    const userStickerDir = path.join(TEMP_DIR, userId);
+    const userPrefsDir = path.join(STICKER_PREFS_DIR, userId);
+
+    await fs.mkdir(userStickerDir, { recursive: true });
+    await fs.mkdir(userPrefsDir, { recursive: true });
     return true;
   } catch (error) {
-    logger.error(`[StickerCommand.ensureDirectories] Erro ao criar diretórios necessários: ${error.message}`, {
+    logger.error(`[StickerCommand.ensureDirectories] Erro ao criar diretórios para o usuário ${userId}: ${error.message}`, {
       label: 'StickerCommand.ensureDirectories',
+      userId: userId,
       error: error.stack,
     });
     return false;
@@ -89,8 +98,9 @@ async function getStickerPackInfo(text, sender, pushName, message) {
     logger.debug(`[StickerCommand] Mensagem de grupo detectada. Usando ID do participante: ${userId} em vez do ID do grupo: ${sender}`);
   }
 
-  const formattedSender = userId.split(' @')[0] || 'unknown';
-  const prefsPath = path.join(STICKER_PREFS_DIR, `${formattedSender}.json`);
+  const formattedSender = userId.split('@')[0] || 'unknown';
+  const userPrefsDir = path.join(STICKER_PREFS_DIR, formattedSender);
+  const prefsPath = path.join(userPrefsDir, 'prefs.json');
 
   let defaultPackName = ` OmniZap`;
   let defaultPackAuthor = ` ${pushName || formattedSender}`;
@@ -177,12 +187,14 @@ async function getStickerPackInfo(text, sender, pushName, message) {
  * Converte a mídia para o formato webp (sticker)
  * @param {string} inputPath - Caminho do arquivo de entrada
  * @param {string} mediaType - Tipo de mídia
+ * @param {string} userId - ID do usuário
  * @returns {Promise<string>} - Caminho do sticker
  */
-async function convertToWebp(inputPath, mediaType) {
+async function convertToWebp(inputPath, mediaType, userId) {
   logger.info(`[StickerCommand] Convertendo mídia para webp. Tipo: ${mediaType}`);
 
-  const outputPath = path.join(TEMP_DIR, `sticker_${Date.now()}.webp`);
+  const userStickerDir = path.join(TEMP_DIR, userId);
+  const outputPath = path.join(userStickerDir, `sticker_${Date.now()}.webp`);
 
   try {
     if (mediaType === 'sticker') {
@@ -225,9 +237,10 @@ async function convertToWebp(inputPath, mediaType) {
  * @param {string} stickerPath - Caminho do arquivo de sticker
  * @param {string} packName - Nome do pacote
  * @param {string} packAuthor - Autor do pacote
+ * @param {string} userId - ID do usuário
  * @returns {Promise<string>} - Caminho do sticker com metadados
  */
-async function addStickerMetadata(stickerPath, packName, packAuthor) {
+async function addStickerMetadata(stickerPath, packName, packAuthor, userId) {
   logger.info(`[StickerCommand] Adicionando metadados ao sticker. Nome: "${packName}", Autor: "${packAuthor}"`);
 
   try {
@@ -237,7 +250,8 @@ async function addStickerMetadata(stickerPath, packName, packAuthor) {
       'sticker-pack-publisher': packAuthor,
     };
 
-    const exifPath = path.join(TEMP_DIR, `exif_${Date.now()}.exif`);
+    const userStickerDir = path.join(TEMP_DIR, userId);
+    const exifPath = path.join(userStickerDir, `exif_${Date.now()}.exif`);
 
     const exifAttr = Buffer.from([0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00]);
     const jsonBuffer = Buffer.from(JSON.stringify(exifData), 'utf8');
@@ -258,7 +272,7 @@ async function addStickerMetadata(stickerPath, packName, packAuthor) {
       }
     }
 
-    const outputPath = path.join(TEMP_DIR, `final_${Date.now()}.webp`);
+    const outputPath = path.join(userStickerDir, `final_${Date.now()}.webp`);
     await execProm(`webpmux -set exif "${exifPath}" "${stickerPath}" -o "${outputPath}"`);
 
     await fs.unlink(exifPath);
@@ -309,7 +323,13 @@ async function processSticker(baileysClient, message, sender, from, text, option
   let finalStickerPath = null;
 
   try {
-    const dirsOk = await ensureDirectories();
+    let userId = sender;
+    if (sender.endsWith(' @g.us') && message?.key?.participant) {
+      userId = message.key.participant;
+    }
+    const formattedUser = userId.split('@')[0];
+
+    const dirsOk = await ensureDirectories(formattedUser);
     if (!dirsOk) {
       return {
         success: false,
@@ -335,7 +355,8 @@ async function processSticker(baileysClient, message, sender, from, text, option
     }
 
     logger.info(`[StickerCommand] Baixando mídia do tipo ${mediaType}...`);
-    tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, TEMP_DIR);
+    const userStickerDir = path.join(TEMP_DIR, formattedUser);
+    tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, userStickerDir);
 
     if (!tempMediaPath) {
       return {
@@ -343,11 +364,11 @@ async function processSticker(baileysClient, message, sender, from, text, option
         message: '❌ Não foi possível baixar a mídia. Isso pode ocorrer devido a problemas de conexão ou porque o arquivo expirou. Por favor, tente novamente com outra mídia ou mais tarde.',
       };
     }
-    let stickerPath = await convertToWebp(tempMediaPath, mediaType);
+    stickerPath = await convertToWebp(tempMediaPath, mediaType, formattedUser);
 
     const { packName, packAuthor } = await getStickerPackInfo(text, sender, message.pushName || 'Usuário', message);
 
-    finalStickerPath = await addStickerMetadata(stickerPath, packName, packAuthor);
+    finalStickerPath = await addStickerMetadata(stickerPath, packName, packAuthor, formattedUser);
 
     return {
       success: true,
@@ -362,7 +383,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
 
     return {
       success: false,
-      message: `❌ Ocorreu um erro durante a criação do sticker: ${error.message}. Por favor, verifique se a mídia está em um formato suportado e tente novamente.`,
+      message: `❌ Ocorreu um erro durante a criação do sticker: ${error.message}. Por favor, verifique se a mídia está em um formato suportado e tente novamente.`, 
     };
   } finally {
     try {
