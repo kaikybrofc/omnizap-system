@@ -46,7 +46,7 @@ async function connectToWhatsApp() {
 
   connectionAttempts = 0;
 
-  const authPath = path.join(__dirname, 'auth_info_baileys');
+  const authPath = path.join(__dirname, 'auth');
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
   await store.loadData();
   await groupConfigStore.loadData();

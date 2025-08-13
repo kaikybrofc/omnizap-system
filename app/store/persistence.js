@@ -11,9 +11,9 @@ const CHUNK_SIZE = 64 * 1024;
 async function ensureStoreDirectory() {
   try {
     await fsp.mkdir(storePath, { recursive: true, mode: 0o777 });
-    logger.info(`Diretório de armazenamento garantido: '${storePath}'`);
+    logger.debug(`Diretório de armazenamento garantido: '${storePath}'`);
   } catch (error) {
-    logger.error(`Erro ao criar diretório de armazenamento: ${error.message}`);
+    logger.error('Erro ao criar diretório de armazenamento:', error);
     throw error;
   }
 }
@@ -90,7 +90,9 @@ async function writeToFile(dataType, data) {
         });
       }
     } catch (readError) {
-      logger.warn(`Não foi possível ler os dados existentes para ${dataType} antes de escrever. Continuando com os novos dados. Erro: ${readError.message}`);
+      logger.warn(
+        `Não foi possível ler os dados existentes para ${dataType} antes de escrever. Continuando com os novos dados. Erro: ${readError.message}`,
+      );
     }
 
     const jsonString = JSON.stringify(finalData, null, 2);

@@ -3,7 +3,7 @@ const logger = require('../utils/logger/loggerModule');
 
 const writeBuffer = {
   size: 0,
-  maxSize: process.env.OMNIZAP_WRITE_BUFFER_SIZE || 1 * 1024 * 1024,
+  maxSize: 1 * 1024 * 1024,
   data: {},
   flushTimeout: null,
 };
