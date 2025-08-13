@@ -1,5 +1,5 @@
 node_modules/
 logs/
 temp/
-app/connection/auth_info_baileys/
+app/connection/auth
 .env

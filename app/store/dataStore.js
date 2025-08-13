@@ -1,13 +1,22 @@
+// Importa as funções de persistência para leitura e escrita de dados em arquivos.
 const { readFromFile, writeToFile } = require('./persistence');
+// Importa o módulo de logging para registrar informações e erros.
 const logger = require('../utils/logger/loggerModule');
 
+// Buffer de escrita para otimizar as operações de I/O, agrupando múltiplas escritas em uma só.
 const writeBuffer = {
-  size: 0,
-  maxSize: process.env.OMNIZAP_WRITE_BUFFER_SIZE || 1 * 1024 * 1024,
-  data: {},
-  flushTimeout: null,
+  size: 0, // Tamanho atual do buffer em bytes.
+  maxSize: 1 * 1024 * 1024, // Tamanho máximo do buffer (1MB). Ao atingir, o buffer é descarregado.
+  data: {}, // Os dados a serem escritos, organizados por tipo.
+  flushTimeout: null, // ID do timeout para descarregar o buffer automaticamente após um período.
 };
 
+/**
+ * Garante que os dados estejam no formato esperado (array ou objeto).
+ * @param {*} data - Os dados a serem verificados.
+ * @param {string} expectedType - O tipo esperado ('array' or 'object').
+ * @returns {*} - Os dados no formato correto ou um valor padrão.
+ */
 function ensureDataType(data, expectedType) {
   if (expectedType === 'array') {
     return Array.isArray(data) ? data : [];
@@ -18,6 +27,7 @@ function ensureDataType(data, expectedType) {
   return data;
 }
 
+// Objeto principal que armazena todos os dados da aplicação em memória.
 const store = {
   chats: [],
   contacts: {},
@@ -30,8 +40,12 @@ const store = {
   calls: [],
   newsletters: {},
 
+  /**
+   * Carrega todos os dados do armazenamento persistente (arquivos JSON) para a memória.
+   */
   async loadData() {
     try {
+      // Define os tipos de dados e seus formatos esperados.
       const typeDefinitions = {
         chats: 'array',
         contacts: 'object',
@@ -45,6 +59,7 @@ const store = {
         newsletters: 'object',
       };
 
+      // Carrega todos os tipos de dados em paralelo para maior eficiência.
       const loadPromises = Object.entries(typeDefinitions).map(async ([type, expectedType]) => {
         try {
           const data = await readFromFile(type, expectedType);
@@ -52,6 +67,7 @@ const store = {
           logger.info(`Dados para ${type} carregados.`);
         } catch (loadError) {
           logger.error(`Erro ao carregar dados para ${type}:`, loadError);
+          // Em caso de erro, inicializa com um valor padrão para evitar inconsistências.
           this[type] = expectedType === 'array' ? [] : {};
         }
       });
@@ -61,6 +77,7 @@ const store = {
       logger.info('Todos os dados do store foram carregados com sucesso.');
     } catch (error) {
       logger.error('Erro catastrófico ao carregar dados do store:', error);
+      // Em caso de falha crítica, reinicializa todo o store para um estado seguro.
       this.chats = [];
       this.contacts = {};
       this.messages = {};
@@ -74,19 +91,29 @@ const store = {
     }
   },
 
+  /**
+   * Adiciona dados ao buffer de escrita.
+   * @param {string} dataType - O tipo de dado a ser escrito (ex: 'chats', 'contacts').
+   * @param {*} data - Os dados a serem adicionados ao buffer.
+   */
   bufferWrite: function (dataType, data) {
     writeBuffer.data[dataType] = data;
     writeBuffer.size += JSON.stringify(data).length;
 
+    // Se o buffer atingir o tamanho máximo, descarrega-o imediatamente.
     if (writeBuffer.size >= writeBuffer.maxSize) {
       this.flushBuffer();
     }
 
+    // Garante que o buffer seja descarregado após um curto período de inatividade.
     if (!writeBuffer.flushTimeout) {
       writeBuffer.flushTimeout = setTimeout(() => this.flushBuffer(), 1000);
     }
   },
 
+  /**
+   * Escreve os dados do buffer no armazenamento persistente.
+   */
   flushBuffer: async function () {
     if (writeBuffer.flushTimeout) {
       clearTimeout(writeBuffer.flushTimeout);
@@ -97,6 +124,7 @@ const store = {
     writeBuffer.data = {};
     writeBuffer.size = 0;
 
+    // Escreve todos os dados pendentes em paralelo.
     const writePromises = Object.entries(dataToWrite).map(async ([dataType, data]) => {
       try {
         await writeToFile(dataType, data);
@@ -108,7 +136,14 @@ const store = {
     await Promise.all(writePromises);
   },
 
+  // Armazena os timeouts para as escritas com debounce.
   debouncedWrites: {},
+  /**
+   * Agenda uma escrita no buffer após um período de tempo (debounce).
+   * Isso evita escritas excessivas em curtos intervalos de tempo.
+   * @param {string} dataType - O tipo de dado a ser escrito.
+   * @param {number} [delay=1000] - O tempo de espera em milissegundos.
+   */
   debouncedWrite: function (dataType, delay = 1000) {
     if (this.debouncedWrites[dataType]) {
       clearTimeout(this.debouncedWrites[dataType]);
@@ -120,7 +155,7 @@ const store = {
   },
 
   /**
-   * Salva mensagens raw recebidas no armazenamento.
+   * Salva mensagens raw (brutas) recebidas no armazenamento.
    * @param {Array<object>} incomingMessages - Array de mensagens raw a serem salvas.
    */
   saveIncomingRawMessages: function (incomingMessages) {
@@ -133,7 +168,15 @@ const store = {
     this.debouncedWrite('rawMessages');
   },
 
+  /**
+   * Vincula o store aos eventos do cliente de WhatsApp (ev).
+   * Atualiza o estado interno com base nos eventos recebidos.
+   * @param {EventEmitter} ev - O emissor de eventos do cliente.
+   */
   bind: function (ev) {
+    // A seguir, uma série de listeners para os eventos do WhatsApp.
+    // Cada listener atualiza a parte correspondente do 'store' e agenda uma escrita.
+
     ev.on('messages.upsert', ({ messages: incomingMessages, type }) => {
       if (type === 'append') {
         for (const msg of incomingMessages) {
@@ -145,6 +188,7 @@ const store = {
         this.debouncedWrite('messages');
       }
     });
+
     ev.on('messages.delete', (item) => {
       if ('all' in item) {
         this.messages[item.jid] = [];
@@ -166,6 +210,7 @@ const store = {
       this.debouncedWrite('messages');
       this.debouncedWrite('rawMessages');
     });
+
     ev.on('messages.update', (updates) => {
       for (const update of updates) {
         if (this.messages[update.key.remoteJid]) {
@@ -188,6 +233,7 @@ const store = {
       this.debouncedWrite('messages');
       this.debouncedWrite('rawMessages');
     });
+
     ev.on('messages.media-update', (updates) => {
       for (const update of updates) {
         if (this.messages[update.key.remoteJid]) {
@@ -214,6 +260,7 @@ const store = {
       this.debouncedWrite('messages');
       this.debouncedWrite('rawMessages');
     });
+
     ev.on('messages.reaction', (reactions) => {
       for (const { key, reaction } of reactions) {
         if (this.messages[key.remoteJid]) {
@@ -262,6 +309,7 @@ const store = {
       this.debouncedWrite('messages');
       this.debouncedWrite('rawMessages');
     });
+
     ev.on('message-receipt.update', (updates) => {
       for (const { key, receipt } of updates) {
         if (this.messages[key.remoteJid]) {
@@ -302,12 +350,14 @@ const store = {
       this.debouncedWrite('messages');
       this.debouncedWrite('rawMessages');
     });
+
     ev.on('groups.upsert', (newGroups) => {
       for (const group of newGroups) {
         this.groups[group.id] = group;
       }
       this.debouncedWrite('groups');
     });
+
     ev.on('groups.update', (updates) => {
       for (const update of updates) {
         if (this.groups[update.id]) {
@@ -318,6 +368,7 @@ const store = {
       }
       this.debouncedWrite('groups');
     });
+
     ev.on('group-participants.update', ({ id, participants, action }) => {
       if (this.groups[id]) {
         if (!Array.isArray(this.groups[id].participants)) {
@@ -346,13 +397,16 @@ const store = {
       }
       this.debouncedWrite('groups');
     });
+
     ev.on('group.join-request', (update) => {
       logger.info('Group join request:', update);
     });
+
     ev.on('blocklist.set', ({ blocklist }) => {
       this.blocklist = blocklist;
       this.debouncedWrite('blocklist');
     });
+
     ev.on('blocklist.update', ({ blocklist, type }) => {
       if (type === 'add') {
         this.blocklist.push(...blocklist);
@@ -361,6 +415,7 @@ const store = {
       }
       this.debouncedWrite('blocklist');
     });
+
     ev.on('call', (calls) => {
       for (const call of calls) {
         const existingCall = this.calls.find((c) => c.id === call.id);
@@ -372,10 +427,12 @@ const store = {
       }
       this.debouncedWrite('calls');
     });
+
     ev.on('labels.edit', (label) => {
       this.labels[label.id] = label;
       this.debouncedWrite('labels');
     });
+
     ev.on('labels.association', ({ association, type }) => {
       if (type === 'add') {
         if (!this.labels[association.labelId].associations) {
@@ -391,6 +448,7 @@ const store = {
       }
       this.debouncedWrite('labels');
     });
+
     ev.on('newsletter.reaction', (reaction) => {
       if (!this.newsletters[reaction.id]) {
         this.newsletters[reaction.id] = {};
@@ -408,6 +466,7 @@ const store = {
       }
       this.debouncedWrite('newsletters');
     });
+
     ev.on('newsletter.view', (view) => {
       if (!this.newsletters[view.id]) {
         this.newsletters[view.id] = {};
@@ -415,6 +474,7 @@ const store = {
       this.newsletters[view.id].view = view;
       this.debouncedWrite('newsletters');
     });
+
     ev.on('newsletter-participants.update', (update) => {
       if (!this.newsletters[update.id]) {
         this.newsletters[update.id] = {};
@@ -432,6 +492,7 @@ const store = {
       }
       this.debouncedWrite('newsletters');
     });
+
     ev.on('newsletter-settings.update', (update) => {
       if (!this.newsletters[update.id]) {
         this.newsletters[update.id] = {};
@@ -439,6 +500,7 @@ const store = {
       Object.assign(this.newsletters[update.id], update);
       this.debouncedWrite('newsletters');
     });
+
     ev.on('messaging-history.set', ({ chats, contacts, messages, isLatest }) => {
       if (isLatest) {
         this.chats = chats;
@@ -476,6 +538,7 @@ const store = {
       this.debouncedWrite('contacts');
       this.debouncedWrite('messages');
     });
+
     ev.on('chats.upsert', (newChats) => {
       this.chats = ensureDataType(this.chats, 'array');
 
@@ -489,6 +552,7 @@ const store = {
       }
       this.debouncedWrite('chats');
     });
+
     ev.on('chats.update', (updates) => {
       for (const update of updates) {
         const existingChat = this.chats.find((c) => c.id === update.id);
@@ -498,17 +562,21 @@ const store = {
       }
       this.debouncedWrite('chats');
     });
+
     ev.on('chats.phoneNumberShare', ({ lid, jid }) => {
       logger.info(`Phone number shared for chat ${jid} (LID: ${lid})`);
     });
+
     ev.on('chats.delete', (deletions) => {
       this.chats = this.chats.filter((c) => !deletions.includes(c.id));
       this.debouncedWrite('chats');
     });
+
     ev.on('presence.update', ({ id, presences }) => {
       this.presences[id] = presences;
       this.debouncedWrite('presences');
     });
+
     ev.on('contacts.upsert', (newContacts) => {
       for (const contact of newContacts) {
         this.contacts[contact.id] = contact;
@@ -518,4 +586,5 @@ const store = {
   },
 };
 
+// Exporta o objeto store para ser usado em outras partes da aplicação.
 module.exports = store;

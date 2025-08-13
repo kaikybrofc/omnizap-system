@@ -27,7 +27,7 @@ const path = require('path');
 const pino = require('pino');
 const logger = require('../utils/logger/loggerModule');
 const { handleMessages } = require('../controllers/messageController');
-const { handleGenericUpdate } = require('../controllers/eventHandler');
+
 const {
   handleGroupUpdate: handleGroupParticipantsEvent,
 } = require('../modules/adminModule/groupEventHandlers');
@@ -46,7 +46,7 @@ async function connectToWhatsApp() {
 
   connectionAttempts = 0;
 
-  const authPath = path.join(__dirname, 'auth_info_baileys');
+  const authPath = path.join(__dirname, 'auth');
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
   await store.loadData();
   await groupConfigStore.loadData();
@@ -69,6 +69,9 @@ async function connectToWhatsApp() {
       (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
   });
 
+  // Vincula o store aos eventos do socket. 
+  // Isso garante que todos os eventos recebidos (mensagens, status, etc.) 
+  // sejam processados e salvos no armazenamento de dados (dataStore).
   store.bind(sock.ev);
 
   activeSocket = sock;
@@ -161,21 +164,7 @@ async function connectToWhatsApp() {
     }
   });
 
-  sock.ev.on('all', (event) => {
-    try {
-      logger.debug('Evento genérico recebido.', {
-        action: 'generic_event',
-        eventType: event.event,
-      });
-      handleGenericUpdate(event);
-    } catch (err) {
-      logger.error('Erro no evento genérico (all):', {
-        error: err.message,
-        stack: err.stack,
-        action: 'generic_event_error',
-      });
-    }
-  });
+  
 
   logger.info('Conexão com o WhatsApp estabelecida com sucesso.', {
     action: 'connect_success',
@@ -335,7 +324,7 @@ async function handleGroupUpdate(updates, sock) {
         action: 'group_metadata_updated',
         groupId,
         groupName: updatedData.subject || 'Desconhecido',
-        changes: Object.keys(event), // mostra o que mudou
+        changes: Object.keys(event),
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
