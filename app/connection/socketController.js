@@ -6,7 +6,8 @@
  *
  * @version 2.0.0
  * @license MIT
- * @source https://github.com/Kaikygr/omnizap-system
+ * @source https://github.com/Kaikygr/omnizap-[system]
+ *
  */
 
 const {
@@ -69,8 +70,8 @@ async function connectToWhatsApp() {
       (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
   });
 
-  // Vincula o store aos eventos do socket. 
-  // Isso garante que todos os eventos recebidos (mensagens, status, etc.) 
+  // Vincula o store aos eventos do socket.
+  // Isso garante que todos os eventos recebidos (mensagens, status, etc.)
   // sejam processados e salvos no armazenamento de dados (dataStore).
   store.bind(sock.ev);
 
@@ -163,8 +164,6 @@ async function connectToWhatsApp() {
       });
     }
   });
-
-  
 
   logger.info('Conexão com o WhatsApp estabelecida com sucesso.', {
     action: 'connect_success',
