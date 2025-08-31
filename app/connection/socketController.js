@@ -70,9 +70,6 @@ async function connectToWhatsApp() {
       (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
   });
 
-  // Vincula o store aos eventos do socket.
-  // Isso garante que todos os eventos recebidos (mensagens, status, etc.)
-  // sejam processados e salvos no armazenamento de dados (dataStore).
   store.bind(sock.ev);
 
   activeSocket = sock;
