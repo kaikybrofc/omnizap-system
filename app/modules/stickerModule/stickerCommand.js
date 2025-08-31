@@ -101,10 +101,10 @@ async function saveUserPrefs(userId, prefs) {
   }
 }
 
-async function convertToWebp(inputPath, mediaType, userId, stickerNumber) {
-  logger.info(`StickerCommand Convertendo mídia #${stickerNumber} para webp. Tipo: ${mediaType}`);
+async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
+  logger.info(`StickerCommand Convertendo mídia para webp. ID: ${uniqueId}, Tipo: ${mediaType}`);
   const userStickerDir = path.join(TEMP_DIR, userId);
-  const outputPath = path.join(userStickerDir, `sticker_${stickerNumber}.webp`);
+  const outputPath = path.join(userStickerDir, `sticker_${uniqueId}.webp`);
 
   try {
     if (mediaType === 'sticker') {
@@ -125,11 +125,11 @@ async function convertToWebp(inputPath, mediaType, userId, stickerNumber) {
   }
 }
 
-async function addStickerMetadata(stickerPath, packName, packAuthor, userId, stickerNumber) {
-  logger.info(`[StickerCommand] Adicionando metadados ao sticker #${stickerNumber}`);
+async function addStickerMetadata(stickerPath, packName, packAuthor, userId, uniqueId) {
+  logger.info(`[StickerCommand] Adicionando metadados ao sticker. ID: ${uniqueId}`);
   const userStickerDir = path.join(TEMP_DIR, userId);
-  const outputPath = path.join(userStickerDir, `final_sticker_${stickerNumber}.webp`);
-  const exifPath = path.join(userStickerDir, `exif_${stickerNumber}.exif`);
+  const outputPath = path.join(userStickerDir, `final_sticker_${uniqueId}.webp`);
+  const exifPath = path.join(userStickerDir, `exif_${uniqueId}.exif`);
 
   try {
     const exifData = {
@@ -139,7 +139,7 @@ async function addStickerMetadata(stickerPath, packName, packAuthor, userId, sti
     };
     const exifAttr = Buffer.from([
       0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 16, 0x00, 0x00, 0x00,
     ]);
     const jsonBuffer = Buffer.from(JSON.stringify(exifData), 'utf8');
     const exifBuffer = Buffer.concat([exifAttr, jsonBuffer]);
@@ -161,7 +161,7 @@ async function addStickerMetadata(stickerPath, packName, packAuthor, userId, sti
       try {
         await execProm('apt install -y webp');
         logger.info('StickerCommand webpmux instalado com sucesso.');
-        return addStickerMetadata(stickerPath, packName, packAuthor, userId, stickerNumber);
+        return addStickerMetadata(stickerPath, packName, packAuthor, userId, uniqueId);
       } catch (installError) {
         logger.error(`StickerCommand Falha ao instalar webpmux: ${installError.message}`);
         throw new Error('webpmux não está instalado e a instalação automática falhou.');
@@ -177,8 +177,9 @@ async function addStickerMetadata(stickerPath, packName, packAuthor, userId, sti
 
 async function processSticker(baileysClient, message, sender, from, text, options = {}) {
   logger.info(`StickerCommand Iniciando processamento de sticker para ${sender}`);
+  const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   let tempMediaPath = null,
-    numberedMediaPath = null,
+    processingMediaPath = null,
     stickerPath = null,
     finalStickerPath = null;
 
@@ -208,15 +209,15 @@ async function processSticker(baileysClient, message, sender, from, text, option
     }
 
     const userStickerDir = path.join(TEMP_DIR, formattedUser);
-    tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, userStickerDir);
+    tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, userStickerDir, uniqueId);
     if (!tempMediaPath) return { success: false, message: '❌ Falha no download da mídia.' };
 
     const mediaExtension = path.extname(tempMediaPath);
-    numberedMediaPath = path.join(userStickerDir, `media_${stickerNumber}${mediaExtension}`);
-    await fs.rename(tempMediaPath, numberedMediaPath);
-    logger.info(`StickerCommand Mídia original renomeada para: ${numberedMediaPath}`);
+    processingMediaPath = path.join(userStickerDir, `media_${uniqueId}${mediaExtension}`);
+    await fs.rename(tempMediaPath, processingMediaPath);
+    logger.info(`StickerCommand Mídia original renomeada para: ${processingMediaPath}`);
 
-    stickerPath = await convertToWebp(numberedMediaPath, mediaType, formattedUser, stickerNumber);
+    stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
 
     const finalPackName = prefs.packName
       .replace(/#nome/g, message.pushName || 'Usuário')
@@ -232,7 +233,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
       finalPackName,
       finalPackAuthor,
       formattedUser,
-      stickerNumber,
+      uniqueId,
     );
 
     prefs.stickerCount = stickerNumber;
@@ -241,7 +242,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
       id: stickerNumber,
       createdAt: new Date().toISOString(),
       mediaType: mediaType,
-      originalMediaPath: numberedMediaPath,
+      originalMediaPath: processingMediaPath,
       stickerPath: finalStickerPath,
     });
     await saveUserPrefs(formattedUser, prefs);
@@ -257,7 +258,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
     });
     return { success: false, message: `❌ Erro na criação do sticker: ${error.message}.` };
   } finally {
-    const filesToClean = [tempMediaPath, numberedMediaPath, stickerPath].filter(
+    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter(
       (f) => f && f !== finalStickerPath,
     );
     for (const file of filesToClean) {
