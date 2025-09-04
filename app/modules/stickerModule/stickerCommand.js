@@ -194,7 +194,8 @@ async function processSticker(baileysClient, message, sender, from, text, option
     if (!mediaDetails) return { success: false, message: '❌ Nenhuma mídia encontrada.' };
 
     const { mediaType, mediaKey } = mediaDetails;
-    if (!checkMediaSize(mediaKey, mediaType)) return { success: false, message: '❌ Mídia > 2MB.' };
+    if (!checkMediaSize(mediaKey, mediaType))
+      return { success: false, message: '❌ Mídia maior que 2MB.' };
 
     let prefs = await loadUserPrefs(formattedUser, message.pushName);
     const stickerNumber = (prefs.stickerCount || 0) + 1;
