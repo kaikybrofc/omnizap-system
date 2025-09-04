@@ -8,37 +8,42 @@ const { downloadMediaMessage } = require('../../utils/mediaDownloader/mediaDownl
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const STICKER_PREFS_DIR = path.join(process.cwd(), 'temp', 'prefs');
-const MAX_FILE_SIZE = 2 * 1024 * 1024;
+const MAX_FILE_SIZE = 3 * 1024 * 1024;
 
 async function ensureDirectories(userId) {
   if (!userId) {
-    logger.error(
-      'StickerCommand.ensureDirectories O ID do usuário é obrigatório, mas não foi fornecido.',
-    );
-    return false;
+    logger.error('ensureDirectories: o ID do usuário é obrigatório, mas não foi fornecido.');
+    return { success: false, error: 'ID do usuário é obrigatório.' };
   }
+
+  const onlyDigits = /^\d+$/;
+  if (!onlyDigits.test(userId)) {
+    const errorMsg = 'ID inválido: deve consistir apenas de números.';
+    logger.error(`ensureDirectories: ${errorMsg} (userId fornecido: "${userId}")`);
+    return { success: false, error: errorMsg };
+  }
+
   try {
     const userStickerDir = path.join(TEMP_DIR, userId);
     const userPrefsDir = path.join(STICKER_PREFS_DIR, userId);
 
     await fs.mkdir(userStickerDir, { recursive: true });
     await fs.mkdir(userPrefsDir, { recursive: true });
-    return true;
+
+    return { success: true };
   } catch (error) {
-    logger.error(
-      `StickerCommand.ensureDirectories Erro ao criar diretórios para o usuário ${userId}: ${error.message}`,
-      {
-        label: 'StickerCommand.ensureDirectories',
-        userId: userId,
-        error: error.stack,
-      },
-    );
-    return false;
+    const errorMsg = `Erro ao criar diretórios para o usuário ${userId}: ${error.message}`;
+    logger.error(errorMsg, {
+      label: 'ensureDirectories',
+      userId,
+      error,
+    });
+    return { success: false, error: errorMsg };
   }
 }
 
 function extractMediaDetails(message) {
-  logger.debug('StickerCommand.extractMediaDetails Extraindo detalhes da mídia');
+  logger.debug('StickerCommand.extractMediaDetails Extraindo detalhes da mídia...');
   const messageContent = message.message;
   const quotedMessage = messageContent?.extendedTextMessage?.contextInfo?.quotedMessage;
   const mediaTypes = ['imageMessage', 'videoMessage', 'stickerMessage', 'documentMessage'];
@@ -82,9 +87,7 @@ async function loadUserPrefs(userId, pushName) {
     const savedPrefs = JSON.parse(prefsData);
     return { ...defaultPrefs, ...savedPrefs };
   } catch (error) {
-    logger.warn(
-      `StickerCommand.loadUserPrefs Erro ao carregar prefs para ${userId}. Usando padrões.`,
-    );
+    logger.warn(`StickerCommand.loadUserPrefs Erro ao carregar prefs para ${userId}. Usando padrões.`);
     return defaultPrefs;
   }
 }
@@ -95,9 +98,7 @@ async function saveUserPrefs(userId, prefs) {
     await fs.writeFile(prefsPath, JSON.stringify(prefs, null, 2));
     logger.info(`StickerCommand.saveUserPrefs Preferências salvas para ${userId}.`);
   } catch (error) {
-    logger.error(
-      `StickerCommand.saveUserPrefs Erro ao salvar preferências para ${userId}: ${error.message}`,
-    );
+    logger.error(`StickerCommand.saveUserPrefs Erro ao salvar preferências para ${userId}: ${error.message}`);
   }
 }
 
@@ -137,10 +138,7 @@ async function addStickerMetadata(stickerPath, packName, packAuthor, userId, uni
       'sticker-pack-name': packName,
       'sticker-pack-publisher': packAuthor,
     };
-    const exifAttr = Buffer.from([
-      0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00,
-      0x00, 0x00, 0x00, 16, 0x00, 0x00, 0x00,
-    ]);
+    const exifAttr = Buffer.from([0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 16, 0x00, 0x00, 0x00]);
     const jsonBuffer = Buffer.from(JSON.stringify(exifData), 'utf8');
     const exifBuffer = Buffer.concat([exifAttr, jsonBuffer]);
     exifBuffer.writeUIntLE(jsonBuffer.length, 14, 4);
@@ -150,10 +148,7 @@ async function addStickerMetadata(stickerPath, packName, packAuthor, userId, uni
     logger.info(`StickerCommand Metadados adicionados. Sticker final: ${outputPath}`);
     return outputPath;
   } catch (error) {
-    logger.error(
-      `StickerCommand.addStickerMetadata Erro ao adicionar metadados: ${error.message}`,
-      { error: error.stack },
-    );
+    logger.error(`StickerCommand.addStickerMetadata Erro ao adicionar metadados: ${error.message}`, { error: error.stack });
     try {
       await execProm('which webpmux');
     } catch (checkError) {
@@ -169,14 +164,12 @@ async function addStickerMetadata(stickerPath, packName, packAuthor, userId, uni
     }
     return stickerPath;
   } finally {
-    await fs
-      .unlink(exifPath)
-      .catch((err) => logger.warn(`Falha ao limpar arquivo exif: ${err.message}`));
+    await fs.unlink(exifPath).catch((err) => logger.warn(`Falha ao limpar arquivo exif: ${err.message}`));
   }
 }
 
 async function processSticker(baileysClient, message, sender, from, text, options = {}) {
-  logger.info(`StickerCommand Iniciando processamento de sticker para ${sender}`);
+  logger.info(`StickerCommand Iniciando processamento de sticker para ${sender}...`);
   const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   let tempMediaPath = null,
     processingMediaPath = null,
@@ -184,18 +177,20 @@ async function processSticker(baileysClient, message, sender, from, text, option
     finalStickerPath = null;
 
   try {
-    let userId =
-      sender.endsWith(' @g.us') && message?.key?.participant ? message.key.participant : sender;
-    const formattedUser = userId.split('@')[0];
+    const userId = message?.key?.participant || (sender.endsWith('@g.us') ? sender : null);
+    const formattedUser = userId?.split('@')[0] ?? null;
 
     await ensureDirectories(formattedUser);
 
     const mediaDetails = extractMediaDetails(message);
-    if (!mediaDetails) return { success: false, message: '❌ Nenhuma mídia encontrada.' };
+    if (!mediaDetails)
+      return {
+        success: false,
+        message: `*❌ Falha no processamento:* nenhuma mídia foi detectada.\n` + `Por gentileza, envie um arquivo de mídia com *tamanho máximo de 3 MB*.\n\n` + `_*Dica útil*:_ _desativar o modo HD antes de enviar pode reduzir o tamanho do arquivo e facilitar o envio._`,
+      };
 
     const { mediaType, mediaKey } = mediaDetails;
-    if (!checkMediaSize(mediaKey, mediaType))
-      return { success: false, message: '❌ Mídia maior que 2MB.' };
+    if (!checkMediaSize(mediaKey, mediaType)) return { success: false, message: '❌ Mídia maior que 2MB.' };
 
     let prefs = await loadUserPrefs(formattedUser, message.pushName);
     const stickerNumber = (prefs.stickerCount || 0) + 1;
@@ -229,13 +224,7 @@ async function processSticker(baileysClient, message, sender, from, text, option
       .replace(/#id/g, formattedUser)
       .replace(/#data/g, new Date().toLocaleDateString('pt-BR'));
 
-    finalStickerPath = await addStickerMetadata(
-      stickerPath,
-      finalPackName,
-      finalPackAuthor,
-      formattedUser,
-      uniqueId,
-    );
+    finalStickerPath = await addStickerMetadata(stickerPath, finalPackName, finalPackAuthor, formattedUser, uniqueId);
 
     prefs.stickerCount = stickerNumber;
     if (!Array.isArray(prefs.stickers)) prefs.stickers = [];
@@ -259,15 +248,9 @@ async function processSticker(baileysClient, message, sender, from, text, option
     });
     return { success: false, message: `❌ Erro na criação do sticker: ${error.message}.` };
   } finally {
-    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter(
-      (f) => f && f !== finalStickerPath,
-    );
+    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter((f) => f && f !== finalStickerPath);
     for (const file of filesToClean) {
-      await fs
-        .unlink(file)
-        .catch((err) =>
-          logger.warn(`StickerCommand Falha ao limpar arquivo temporário ${file}: ${err.message}`),
-        );
+      await fs.unlink(file).catch((err) => logger.warn(`StickerCommand Falha ao limpar arquivo temporário ${file}: ${err.message}`));
     }
   }
 }
