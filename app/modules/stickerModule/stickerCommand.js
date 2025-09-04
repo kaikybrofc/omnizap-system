@@ -180,7 +180,14 @@ async function processSticker(baileysClient, message, sender, from, text, option
     const userId = message?.key?.participant || (sender.endsWith('@g.us') ? sender : null);
     const formattedUser = userId?.split('@')[0] ?? null;
 
-    await ensureDirectories(formattedUser);
+    const dirResult = await ensureDirectories(formattedUser);
+    if (!dirResult.success) {
+      logger.error(`StickerCommand Erro ao garantir diretórios: ${dirResult.error}`);
+      return {
+        success: false,
+        message: `❌ Erro ao preparar diretórios do usuário: ${dirResult.error}`,
+      };
+    }
 
     const mediaDetails = extractMediaDetails(message);
     if (!mediaDetails)
