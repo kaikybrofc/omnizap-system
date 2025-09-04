@@ -176,10 +176,6 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
     stickerPath = null,
     finalStickerPath = null;
 
-  const sendMessage = async (message) => {
-    await sock.sendMessage(from, message, { quoted: message });
-  };
-
   try {
     const userId = message?.key?.participant || (sender.endsWith('@g.us') ? sender : null);
     const formattedUser = userId?.split('@')[0] ?? null;
@@ -187,27 +183,31 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
     const dirResult = await ensureDirectories(formattedUser);
     if (!dirResult.success) {
       logger.error(`StickerCommand Erro ao garantir diretórios: ${dirResult.error}`);
-      await sendMessage({ text: `❌ Erro ao preparar diretórios do usuário: ${dirResult.error}` });
+      await sock.sendMessage(from, { text: `❌ Erro ao preparar diretórios do usuário: ${dirResult.error}` }, { quoted: message });
       return;
     }
 
     const mediaDetails = extractMediaDetails(message);
     if (!mediaDetails) {
-      await sendMessage({
-        text:
-          `*❌ Falha no processamento:* nenhuma mídia foi detectada.
+      await sock.sendMessage(
+        from,
+        {
+          text:
+            `*❌ Falha no processamento:* nenhuma mídia foi detectada.
 ` +
-          `Por gentileza, envie um arquivo de mídia com *tamanho máximo de 3 MB*.
+            `Por gentileza, envie um arquivo de mídia com *tamanho máximo de 3 MB*.
 
 ` +
-          `_*Dica útil*:_ _desativar o modo HD antes de enviar pode reduzir o tamanho do arquivo e facilitar o envio._`,
-      });
+            `_*Dica útil*:_ _desativar o modo HD antes de enviar pode reduzir o tamanho do arquivo e facilitar o envio._`,
+        },
+        { quoted: message },
+      );
       return;
     }
 
     const { mediaType, mediaKey } = mediaDetails;
     if (!checkMediaSize(mediaKey, mediaType)) {
-      await sendMessage({ text: '❌ Mídia maior que 2MB.' });
+      await sock.sendMessage(from, { text: '❌ Mídia maior que 2MB.' }, { quoted: message });
       return;
     }
 
@@ -226,7 +226,7 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
     const userStickerDir = path.join(TEMP_DIR, formattedUser);
     tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, userStickerDir, uniqueId);
     if (!tempMediaPath) {
-      await sendMessage({ text: '❌ Falha no download da mídia.' });
+      await sock.sendMessage(from, { text: '❌ Falha no download da mídia.' }, { quoted: message });
       return;
     }
 
@@ -264,7 +264,7 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
     logger.error(`StickerCommand Erro ao processar sticker: ${error.message}`, {
       error: error.stack,
     });
-    await sendMessage({ text: `❌ Erro na criação do sticker: ${error.message}.` });
+    await sock.sendMessage(from, { text: `❌ Erro na criação do sticker: ${error.message}.` }, { quoted: message });
   } finally {
     const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter((f) => f && f !== finalStickerPath);
     for (const file of filesToClean) {
