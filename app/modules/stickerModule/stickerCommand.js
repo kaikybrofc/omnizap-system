@@ -234,6 +234,7 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
     processingMediaPath = path.join(userStickerDir, `media_${uniqueId}${mediaExtension}`);
     await fs.rename(tempMediaPath, processingMediaPath);
     logger.info(`StickerCommand Mídia original renomeada para: ${processingMediaPath}`);
+    tempMediaPath = null;
 
     stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
 
