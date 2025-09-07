@@ -260,7 +260,20 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
     });
     await saveUserPrefs(formattedUser, prefs);
 
-    await sock.sendMessage(from, { sticker: { url: finalStickerPath } }, { quoted: message });
+    let stickerBuffer = null;
+    try {
+      stickerBuffer = await fs.readFile(finalStickerPath);
+    } catch (bufferErr) {
+      logger.error(`StickerCommand Erro ao ler buffer do sticker: ${bufferErr.message}`);
+      await sock.sendMessage(from, { text: `❌ Erro ao ler o sticker: ${bufferErr.message}.` }, { quoted: message });
+      return;
+    }
+    try {
+      await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: message });
+    } catch (sendErr) {
+      logger.error(`StickerCommand Erro ao enviar o sticker: ${sendErr.message}`);
+      await sock.sendMessage(from, { text: `❌ Erro ao enviar o sticker: ${sendErr.message}.` }, { quoted: message });
+    }
   } catch (error) {
     logger.error(`StickerCommand Erro ao processar sticker: ${error.message}`, {
       error: error.stack,

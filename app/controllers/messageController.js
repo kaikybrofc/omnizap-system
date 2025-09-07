@@ -190,6 +190,17 @@ const handleMessages = async (update, sock) => {
               break;
             }
 
+            case 'b': {
+              try {
+                const webpPath = require('path').join(__dirname, '../controllers/a.webp');
+                const webpBuffer = fs.readFileSync(webpPath);
+                await sock.sendMessage(remoteJid, { sticker: webpBuffer }, { quoted: messageInfo });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: 'Erro ao enviar o sticker: ' + error.message }, { quoted: messageInfo });
+              }
+              break;
+            }
+
             case 'sticker':
             case 's':
               await processSticker(sock, messageInfo, senderJid, remoteJid, args.join(' '));
