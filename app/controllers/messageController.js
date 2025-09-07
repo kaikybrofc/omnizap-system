@@ -19,6 +19,7 @@ const { extractMediaDetails } = require('../utils/mediaUtils');
 const { downloadMediaMessage } = require('../utils/mediaDownloader/mediaDownloaderModule');
 const logger = require('../utils/logger/loggerModule');
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
+const fs = require('fs');
 
 /**
  * Extrai o conteúdo de texto de uma mensagem do WhatsApp.
@@ -171,9 +172,23 @@ const handleMessages = async (update, sock) => {
           const isBotAdmin = isGroupMessage ? await isUserAdmin(remoteJid, botJid) : false;
 
           switch (command) {
-            case 'a':
-              await sock.sendMessage(remoteJid, { text: senderName }, { quoted: messageInfo });
+            case 'a': {
+              const axios = require('axios');
+              try {
+                // Faz o download da imagem e converte em buffer
+                const response = await axios.get('https://raw.githubusercontent.com/WhiskeySockets/Baileys/refs/heads/master/Media/logo.png', { responseType: 'arraybuffer' });
+
+                const buffer = Buffer.from(response.data, 'binary');
+
+                // Envia a imagem como buffer
+                await sock.sendMessage(remoteJid, { image: buffer, caption: 'Logo via buffer 😎' }, { quoted: messageInfo });
+              } catch (error) {
+                console.error('Erro ao baixar/enviar imagem:', error);
+              }
+
+              await sock.sendMessage(remoteJid, { sticker: { url: fs.readFileSync('webp file path local') } }, { quoted: messageInfo });
               break;
+            }
 
             case 'sticker':
             case 's':
