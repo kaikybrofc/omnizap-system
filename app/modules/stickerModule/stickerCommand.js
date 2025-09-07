@@ -7,7 +7,6 @@ const logger = require('../../utils/logger/loggerModule');
 const { downloadMediaMessage } = require('../../utils/mediaDownloader/mediaDownloaderModule');
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
-const STICKER_PREFS_DIR = path.join(process.cwd(), 'temp', 'prefs');
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
 
 async function ensureDirectories(userId) {
@@ -25,11 +24,7 @@ async function ensureDirectories(userId) {
 
   try {
     const userStickerDir = path.join(TEMP_DIR, userId);
-    const userPrefsDir = path.join(STICKER_PREFS_DIR, userId);
-
     await fs.mkdir(userStickerDir, { recursive: true });
-    await fs.mkdir(userPrefsDir, { recursive: true });
-
     return { success: true };
   } catch (error) {
     const errorMsg = `Erro ao criar diretórios para o usuário ${userId}: ${error.message}`;
@@ -73,35 +68,6 @@ function checkMediaSize(mediaKey, mediaType, maxFileSize = MAX_FILE_SIZE) {
   return true;
 }
 
-async function loadUserPrefs(userId, pushName) {
-  const prefsPath = path.join(STICKER_PREFS_DIR, userId, 'prefs.json');
-  const defaultPrefs = {
-    packName: `OmniZap-Sticker`,
-    packAuthor: `${pushName || userId}`,
-    stickerCount: 0,
-    stickers: [],
-  };
-
-  try {
-    const prefsData = await fs.readFile(prefsPath, 'utf-8');
-    const savedPrefs = JSON.parse(prefsData);
-    return { ...defaultPrefs, ...savedPrefs };
-  } catch (error) {
-    logger.warn(`StickerCommand.loadUserPrefs Erro ao carregar prefs para ${userId}. Usando padrões.`);
-    return defaultPrefs;
-  }
-}
-
-async function saveUserPrefs(userId, prefs) {
-  const prefsPath = path.join(STICKER_PREFS_DIR, userId, 'prefs.json');
-  try {
-    await fs.writeFile(prefsPath, JSON.stringify(prefs, null, 2));
-    logger.info(`StickerCommand.saveUserPrefs Preferências salvas para ${userId}.`);
-  } catch (error) {
-    logger.error(`StickerCommand.saveUserPrefs Erro ao salvar preferências para ${userId}: ${error.message}`);
-  }
-}
-
 async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
   logger.info(`StickerCommand Convertendo mídia para webp. ID: ${uniqueId}, Tipo: ${mediaType}`);
   const userStickerDir = path.join(TEMP_DIR, userId);
@@ -126,67 +92,12 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
   }
 }
 
-async function addStickerMetadata(stickerPath, packName, packAuthor, userId, uniqueId) {
-  logger.info(`[StickerCommand] Adicionando metadados ao sticker. ID: ${uniqueId}`);
-  const userStickerDir = path.join(TEMP_DIR, userId);
-  const outputPath = path.join(userStickerDir, `final_sticker_${uniqueId}.webp`);
-  const exifPath = path.join(userStickerDir, `exif_${uniqueId}.exif`);
-
-  try {
-    const exifData = {
-      'sticker-pack-id': `com.omnizap.${userId}.${Date.now()}`,
-      'sticker-pack-name': packName,
-      'sticker-pack-publisher': packAuthor,
-    };
-    const exifAttr = Buffer.from([0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00]);
-    const jsonBuffer = Buffer.from(JSON.stringify(exifData), 'utf8');
-    // Corrigir o tamanho do JSON no offset 14 (4 bytes, little endian)
-    exifAttr.writeUInt32LE(jsonBuffer.length, 14);
-    const exifBuffer = Buffer.concat([exifAttr, jsonBuffer]);
-    await fs.writeFile(exifPath, exifBuffer);
-
-    await execProm(`webpmux -set exif "${exifPath}" "${stickerPath}" -o "${outputPath}"`);
-    // Verifica se o arquivo final existe e tem tamanho válido
-    try {
-      await fs.access(outputPath);
-      const stats = await fs.stat(outputPath);
-      if (stats.size < 1000) {
-        throw new Error('Arquivo final do sticker muito pequeno, possível erro de EXIF.');
-      }
-    } catch (verErr) {
-      logger.error(`StickerCommand.addStickerMetadata Falha ao validar sticker final: ${verErr.message}`);
-      throw verErr;
-    }
-    logger.info(`StickerCommand Metadados adicionados. Sticker final: ${outputPath}`);
-    return outputPath;
-  } catch (error) {
-    logger.error(`StickerCommand.addStickerMetadata Erro ao adicionar metadados: ${error.message}`, { error: error.stack });
-    try {
-      await execProm('which webpmux');
-    } catch (checkError) {
-      logger.warn('StickerCommand webpmux não encontrado. Tentando instalar...');
-      try {
-        await execProm('apt install -y webp');
-        logger.info('StickerCommand webpmux instalado com sucesso.');
-        return addStickerMetadata(stickerPath, packName, packAuthor, userId, uniqueId);
-      } catch (installError) {
-        logger.error(`StickerCommand Falha ao instalar webpmux: ${installError.message}`);
-        throw new Error('webpmux não está instalado e a instalação automática falhou.');
-      }
-    }
-    return stickerPath;
-  } finally {
-    await fs.unlink(exifPath).catch((err) => logger.warn(`Falha ao limpar arquivo exif: ${err.message}`));
-  }
-}
-
 async function processSticker(sock, message, sender, from, text, options = {}) {
   logger.info(`StickerCommand Iniciando processamento de sticker para ${sender}...`);
   const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  let tempMediaPath = null,
-    processingMediaPath = null,
-    stickerPath = null,
-    finalStickerPath = null;
+  let tempMediaPath = null;
+  let processingMediaPath = null;
+  let stickerPath = null;
 
   try {
     const userId = message?.key?.participant || (sender.endsWith('@g.us') ? sender : null);
@@ -223,18 +134,6 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
       return;
     }
 
-    let prefs = await loadUserPrefs(formattedUser, message.pushName);
-    const stickerNumber = (prefs.stickerCount || 0) + 1;
-
-    if (text && text.trim()) {
-      const parts = text
-        .trim()
-        .split('|')
-        .map((part) => part.trim());
-      if (parts[0]) prefs.packName = parts[0];
-      if (parts[1]) prefs.packAuthor = parts[1];
-    }
-
     const userStickerDir = path.join(TEMP_DIR, formattedUser);
     tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, userStickerDir, uniqueId);
     if (!tempMediaPath) {
@@ -250,31 +149,9 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
 
     stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
 
-    const finalPackName = prefs.packName
-      .replace(/#nome/g, message.pushName || 'Usuário')
-      .replace(/#id/g, formattedUser)
-      .replace(/#data/g, new Date().toLocaleDateString('pt-BR'));
-    const finalPackAuthor = prefs.packAuthor
-      .replace(/#nome/g, message.pushName || 'Usuário')
-      .replace(/#id/g, formattedUser)
-      .replace(/#data/g, new Date().toLocaleDateString('pt-BR'));
-
-    finalStickerPath = await addStickerMetadata(stickerPath, finalPackName, finalPackAuthor, formattedUser, uniqueId);
-
-    prefs.stickerCount = stickerNumber;
-    if (!Array.isArray(prefs.stickers)) prefs.stickers = [];
-    prefs.stickers.push({
-      id: stickerNumber,
-      createdAt: new Date().toISOString(),
-      mediaType: mediaType,
-      originalMediaPath: processingMediaPath,
-      stickerPath: finalStickerPath,
-    });
-    await saveUserPrefs(formattedUser, prefs);
-
     let stickerBuffer = null;
     try {
-      stickerBuffer = await fs.readFile(finalStickerPath);
+      stickerBuffer = await fs.readFile(stickerPath);
     } catch (bufferErr) {
       logger.error(`StickerCommand Erro ao ler buffer do sticker: ${bufferErr.message}`);
       await sock.sendMessage(from, { text: `❌ Erro ao ler o sticker: ${bufferErr.message}.` }, { quoted: message });
@@ -292,7 +169,7 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
     });
     await sock.sendMessage(from, { text: `❌ Erro na criação do sticker: ${error.message}.` }, { quoted: message });
   } finally {
-    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter((f) => f && f !== finalStickerPath);
+    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter(Boolean);
     for (const file of filesToClean) {
       await fs.unlink(file).catch((err) => logger.warn(`StickerCommand Falha ao limpar arquivo temporário ${file}: ${err.message}`));
     }
