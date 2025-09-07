@@ -11,7 +11,7 @@ const MAX_FILE_SIZE = 3 * 1024 * 1024;
 
 async function ensureDirectories(userId) {
   if (!userId) {
-    logger.error('ensureDirectories: o ID do usuário é obrigatório, mas não foi fornecido.');
+    logger.error('ensureDirectories: o ID do usuário é obrigatório.');
     return { success: false, error: 'ID do usuário é obrigatório.' };
   }
 
@@ -94,6 +94,7 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
 
 async function processSticker(sock, message, sender, from, text, options = {}) {
   logger.info(`StickerCommand Iniciando processamento de sticker para ${sender}...`);
+
   const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   let tempMediaPath = null;
   let processingMediaPath = null;
