@@ -101,7 +101,6 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid) {
   let stickerPath = null;
 
   try {
-    // messageInfo é o objeto da mensagem
     const message = messageInfo;
     const from = remoteJid;
     const sender = senderJid;
