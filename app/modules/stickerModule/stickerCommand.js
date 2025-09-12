@@ -1,3 +1,10 @@
+/**
+ * Módulo responsável pelo processamento de stickers a partir de mídias recebidas.
+ * Inclui funções para garantir diretórios temporários, extrair detalhes de mídia,
+ * verificar tamanho, converter para webp e enviar stickers via WhatsApp.
+ *
+ * @module stickerCommand
+ */
 const fs = require('fs').promises;
 const path = require('path');
 const util = require('util');
@@ -9,6 +16,12 @@ const { downloadMediaMessage } = require('../../utils/mediaDownloader/mediaDownl
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
 
+/**
+ * Garante que o diretório temporário do usuário para stickers existe.
+ *
+ * @param {string} userId - ID numérico do usuário (apenas dígitos).
+ * @returns {Promise<{success: boolean, error?: string}>} Resultado da operação.
+ */
 async function ensureDirectories(userId) {
   if (!userId) {
     logger.error('ensureDirectories: o ID do usuário é obrigatório.');
@@ -37,6 +50,13 @@ async function ensureDirectories(userId) {
   }
 }
 
+/**
+ * Extrai detalhes da mídia de uma mensagem, incluindo tipo e chave da mídia.
+ * Suporta mensagens diretas e citadas.
+ *
+ * @param {object} message - Objeto da mensagem recebida.
+ * @returns {{mediaType: string, mediaKey: object, isQuoted: boolean}|null} Detalhes da mídia ou null se não encontrado.
+ */
 function extractMediaDetails(message) {
   logger.debug('StickerCommand.extractMediaDetails Extraindo detalhes da mídia...');
   const messageContent = message.message;
@@ -57,6 +77,14 @@ function extractMediaDetails(message) {
   return media;
 }
 
+/**
+ * Verifica se o tamanho da mídia está dentro do limite permitido.
+ *
+ * @param {object} mediaKey - Objeto da mídia contendo fileLength.
+ * @param {string} mediaType - Tipo da mídia (image, video, sticker, document).
+ * @param {number} [maxFileSize=MAX_FILE_SIZE] - Tamanho máximo permitido em bytes.
+ * @returns {boolean} True se o tamanho for permitido, false caso contrário.
+ */
 function checkMediaSize(mediaKey, mediaType, maxFileSize = MAX_FILE_SIZE) {
   const fileLength = mediaKey?.fileLength || 0;
   const formatBytes = (bytes) => (bytes / (1024 * 1024)).toFixed(2) + ' MB';
@@ -68,6 +96,16 @@ function checkMediaSize(mediaKey, mediaType, maxFileSize = MAX_FILE_SIZE) {
   return true;
 }
 
+/**
+ * Converte um arquivo de mídia para o formato webp, pronto para sticker.
+ *
+ * @param {string} inputPath - Caminho do arquivo de mídia de entrada.
+ * @param {string} mediaType - Tipo da mídia (image, video, sticker).
+ * @param {string} userId - ID do usuário.
+ * @param {string} uniqueId - Identificador único para o sticker.
+ * @returns {Promise<string>} Caminho do arquivo webp gerado.
+ * @throws {Error} Se a conversão falhar.
+ */
 async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
   logger.info(`StickerCommand Convertendo mídia para webp. ID: ${uniqueId}, Tipo: ${mediaType}`);
   const userStickerDir = path.join(TEMP_DIR, userId);
@@ -92,6 +130,15 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
   }
 }
 
+/**
+ * Processa uma mensagem para criar e enviar um sticker a partir de uma mídia recebida.
+ *
+ * @param {object} sock - Instância do socket de conexão WhatsApp.
+ * @param {object} messageInfo - Objeto da mensagem recebida.
+ * @param {string} senderJid - JID do remetente.
+ * @param {string} remoteJid - JID do chat remoto.
+ * @returns {Promise<void>}
+ */
 async function processSticker(sock, messageInfo, senderJid, remoteJid) {
   logger.info(`StickerCommand Iniciando processamento de sticker para ${senderJid}...`);
 
@@ -174,6 +221,10 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid) {
   }
 }
 
+/**
+ * Exporta a função principal de processamento de sticker.
+ * @type {{ processSticker: function }}
+ */
 module.exports = {
   processSticker,
 };
