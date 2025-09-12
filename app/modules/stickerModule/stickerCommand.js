@@ -92,8 +92,8 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
   }
 }
 
-async function processSticker(sock, message, sender, from, text, options = {}) {
-  logger.info(`StickerCommand Iniciando processamento de sticker para ${sender}...`);
+async function processSticker(sock, messageInfo, senderJid, remoteJid) {
+  logger.info(`StickerCommand Iniciando processamento de sticker para ${senderJid}...`);
 
   const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   let tempMediaPath = null;
@@ -101,8 +101,12 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
   let stickerPath = null;
 
   try {
-    const userId = message?.key?.participant || (sender.endsWith('@g.us') ? sender : null);
-    const formattedUser = userId?.split('@')[0] ?? null;
+    // messageInfo é o objeto da mensagem
+    const message = messageInfo;
+    const from = remoteJid;
+    const sender = senderJid;
+    const userId = sender?.split('@')[0] ?? null;
+    const formattedUser = userId;
 
     const dirResult = await ensureDirectories(formattedUser);
     if (!dirResult.success) {
@@ -116,13 +120,7 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
       await sock.sendMessage(
         from,
         {
-          text:
-            `*❌ Falha no processamento:* nenhuma mídia foi detectada.
-` +
-            `Por gentileza, envie um arquivo de mídia com *tamanho máximo de 3 MB*.
-
-` +
-            `_*Dica útil*:_ _desativar o modo HD antes de enviar pode reduzir o tamanho do arquivo e facilitar o envio._`,
+          text: '*❌ Falha no processamento:* nenhuma mídia foi detectada.\n' + 'Por gentileza, envie um arquivo de mídia com *tamanho máximo de 3 MB*.\n\n' + '_*Dica útil*:_ _desativar o modo HD antes de enviar pode reduzir o tamanho do arquivo e facilitar o envio._',
         },
         { quoted: message },
       );
@@ -168,7 +166,7 @@ async function processSticker(sock, message, sender, from, text, options = {}) {
     logger.error(`StickerCommand Erro ao processar sticker: ${error.message}`, {
       error: error.stack,
     });
-    await sock.sendMessage(from, { text: `❌ Erro na criação do sticker: ${error.message}.` }, { quoted: message });
+    await sock.sendMessage(remoteJid, { text: `❌ Erro na criação do sticker: ${error.message}.` }, { quoted: messageInfo });
   } finally {
     const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter(Boolean);
     for (const file of filesToClean) {
