@@ -171,10 +171,39 @@ const handleMessages = async (update, sock) => {
 
           const isBotAdmin = isGroupMessage ? await isUserAdmin(remoteJid, botJid) : false;
 
+          // Verifica se o senderJid é igual ao USER_ADMIN definido no .env
+          const isUserMod = (senderJid) => {
+            const adminJid = process.env.USER_ADMIN;
+            return senderJid === adminJid;
+          };
+
           switch (command) {
+            case 'eval': {
+              if (!isUserMod(senderJid)) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              const code = args.join(' ');
+              if (!code) {
+                await sock.sendMessage(remoteJid, { text: 'Uso: /eval <código JavaScript>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              try {
+                // eslint-disable-next-line no-eval
+                let result = eval(code);
+                if (typeof result === 'object') {
+                  result = JSON.stringify(result, null, 2);
+                }
+                await sock.sendMessage(remoteJid, { text: `Resultado:\n${result}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                await sock.sendMessage(remoteJid, { text: `Erro ao executar eval: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
+              break;
+            }
             case 'sticker':
             case 's':
               await processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName);
+
               break;
 
             case 'info':

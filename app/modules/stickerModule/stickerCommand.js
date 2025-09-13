@@ -12,6 +12,7 @@ const { exec } = require('child_process');
 const execProm = util.promisify(exec);
 const logger = require('../../utils/logger/loggerModule');
 const { downloadMediaMessage } = require('../../utils/mediaDownloader/mediaDownloaderModule');
+const adminJid = process.env.USER_ADMIN;
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
@@ -139,10 +140,12 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
  * @param {string} remoteJid - JID do chat remoto.
  * @returns {Promise<void>}
  */
-async function processSticker(sock, messageInfo, senderJid, remoteJid) {
+async function processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName) {
   logger.info(`StickerCommand Iniciando processamento de sticker para ${senderJid}...`);
 
-  const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const { v4: uuidv4 } = require('uuid');
+  const uniqueId = uuidv4();
+
   let tempMediaPath = null;
   let processingMediaPath = null;
   let stickerPath = null;
@@ -157,7 +160,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid) {
     const dirResult = await ensureDirectories(formattedUser);
     if (!dirResult.success) {
       logger.error(`StickerCommand Erro ao garantir diretórios: ${dirResult.error}`);
-      await sock.sendMessage(from, { text: `❌ Erro ao preparar diretórios do usuário: ${dirResult.error}` }, { quoted: message });
+      await sock.sendMessage(adminJid, { text: `❌ Erro ao preparar diretórios do usuário: ${dirResult.error}` }, { quoted: message });
       return;
     }
 
@@ -216,7 +219,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid) {
   } finally {
     const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter(Boolean);
     for (const file of filesToClean) {
-      await fs.unlink(file).catch((err) => logger.warn(`StickerCommand Falha ao limpar arquivo temporário ${file}: ${err.message}`));
+      //  await fs.unlink(file).catch((err) => logger.warn(`StickerCommand Falha ao limpar arquivo temporário ${file}: ${err.message}`));
     }
   }
 }
