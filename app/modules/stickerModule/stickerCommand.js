@@ -129,7 +129,19 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
     }
     const filtro = mediaType === 'video' ? 'fps=10,scale=512:512' : 'scale=512:512';
     const ffmpegCommand = `ffmpeg -i "${inputPath}" -vcodec libwebp -lossless 1 -loop 0 -preset default -an -vf "${filtro}" "${outputPath}"`;
-    await execProm(ffmpegCommand);
+    let ffmpegResult;
+    try {
+      ffmpegResult = await execProm(ffmpegCommand);
+    } catch (ffmpegErr) {
+      logger.error(`Erro na execução do FFmpeg: ${ffmpegErr.message}`);
+      if (ffmpegErr.stderr) {
+        logger.error(`FFmpeg stderr: ${ffmpegErr.stderr}`);
+      }
+      throw new Error(`Falha ao converter mídia para sticker (FFmpeg): ${ffmpegErr.message}`);
+    }
+    if (ffmpegResult && ffmpegResult.stderr) {
+      logger.debug(`FFmpeg stderr: ${ffmpegResult.stderr}`);
+    }
     await fs.access(outputPath);
     logger.info(`StickerCommand Conversão bem-sucedida para: ${outputPath}`);
     return outputPath;
