@@ -10,13 +10,7 @@
  *
  */
 
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  Browsers,
-  getAggregateVotesInPollMessage,
-} = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage } = require('@whiskeysockets/baileys');
 
 const store = require('../store/dataStore');
 const groupConfigStore = require('../store/groupConfigStore');
@@ -29,9 +23,7 @@ const pino = require('pino');
 const logger = require('../utils/logger/loggerModule');
 const { handleMessages } = require('../controllers/messageController');
 
-const {
-  handleGroupUpdate: handleGroupParticipantsEvent,
-} = require('../modules/adminModule/groupEventHandlers');
+const { handleGroupUpdate: handleGroupParticipantsEvent } = require('../modules/adminModule/groupEventHandlers');
 const { getSystemMetrics } = require('../utils/systemMetrics/systemMetricsModule');
 
 let activeSocket = null;
@@ -66,8 +58,7 @@ async function connectToWhatsApp() {
     qrTimeout: 30000,
     syncFullHistory: false,
     markOnlineOnConnect: false,
-    getMessage: async (key) =>
-      (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
+    getMessage: async (key) => (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
   });
 
   store.bind(sock.ev);
@@ -183,8 +174,7 @@ async function handleConnectionUpdate(update, sock) {
     const disconnectCode = lastDisconnect?.error?.output?.statusCode || 'unknown';
     const errorMessage = lastDisconnect?.error?.message || 'Sem mensagem de erro';
 
-    const shouldReconnect =
-      lastDisconnect?.error instanceof Boom && disconnectCode !== DisconnectReason.loggedOut;
+    const shouldReconnect = lastDisconnect?.error instanceof Boom && disconnectCode !== DisconnectReason.loggedOut;
 
     if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       connectionAttempts++;
