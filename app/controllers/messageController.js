@@ -202,8 +202,8 @@ const handleMessages = async (update, sock) => {
             }
             case 'sticker':
             case 's':
-              await processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName);
-
+              // Envia o texto do comando (args) para o módulo de sticker
+              await processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '));
               break;
 
             case 'info':

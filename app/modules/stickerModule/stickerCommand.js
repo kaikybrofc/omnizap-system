@@ -1,3 +1,29 @@
+/**
+ * Faz o parsing do texto recebido para packName e packAuthor.
+ * Se o texto contiver '/', separa em dois: packName/packAuthor.
+ * Caso contrário, usa o texto como packName e o senderName como autor.
+ * @param {string} text
+ * @param {string} senderName
+ * @returns {{ packName: string, packAuthor: string }}
+ */
+function parseStickerMetaText(text, senderName) {
+  let packName = 'OmniZap';
+  let packAuthor = senderName || 'OmniZap';
+  if (text) {
+    // Normaliza para garantir que '/' em nova linha também seja reconhecido
+    const normalized = text.replace(/\r?\n/g, ' ');
+    const idx = normalized.indexOf('/');
+    if (idx !== -1) {
+      const name = normalized.slice(0, idx).trim();
+      const author = normalized.slice(idx + 1).trim();
+      if (name) packName = name;
+      if (author) packAuthor = author;
+    } else if (normalized.trim()) {
+      packName = normalized.trim();
+    }
+  }
+  return { packName, packAuthor };
+}
 const { addStickerMetadata } = require('./addStickerMetadata');
 /**
  * Módulo responsável pelo processamento de stickers a partir de mídias recebidas.
@@ -168,7 +194,8 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
  * @param {string} remoteJid - JID do chat remoto.
  * @returns {Promise<void>}
  */
-async function processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName) {
+// O parâmetro extraText pode ser usado para packName/packAuthor ou outros metadados
+async function processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, extraText = '') {
   logger.info(`StickerCommand Iniciando processamento de sticker para ${senderJid}...`);
 
   const { v4: uuidv4 } = require('uuid');
@@ -226,8 +253,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
 
     // Adiciona metadados ao sticker
-    const packName = 'OmniZap';
-    const packAuthor = senderName || 'OmniZap';
+    const { packName, packAuthor } = parseStickerMetaText(extraText, senderName);
     stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor);
 
     let stickerBuffer = null;
