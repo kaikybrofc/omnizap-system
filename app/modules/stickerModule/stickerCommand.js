@@ -10,16 +10,15 @@ function parseStickerMetaText(text, senderName) {
   let packName = 'OmniZap';
   let packAuthor = senderName || 'OmniZap';
   if (text) {
-    // Normaliza para garantir que '/' em nova linha também seja reconhecido
-    const normalized = text.replace(/\r?\n/g, ' ');
-    const idx = normalized.indexOf('/');
+    // Preserva quebras de linha e separa na primeira barra encontrada
+    const idx = text.indexOf('/');
     if (idx !== -1) {
-      const name = normalized.slice(0, idx).trim();
-      const author = normalized.slice(idx + 1).trim();
+      const name = text.slice(0, idx).trim();
+      const author = text.slice(idx + 1).trim();
       if (name) packName = name;
       if (author) packAuthor = author;
-    } else if (normalized.trim()) {
-      packName = normalized.trim();
+    } else if (text.trim()) {
+      packName = text.trim();
     }
   }
   return { packName, packAuthor };

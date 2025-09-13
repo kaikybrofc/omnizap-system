@@ -142,9 +142,12 @@ const handleMessages = async (update, sock) => {
       for (const messageInfo of update.messages) {
         const extractedText = extractMessageContent(messageInfo);
         if (extractedText.startsWith(COMMAND_PREFIX)) {
-          const commandArgs = extractedText.substring(COMMAND_PREFIX.length).split(' ');
-          const command = commandArgs[0];
-          const args = commandArgs.slice(1);
+          // Extrai o comando e o restante como um único argumento (preserva quebras de linha e espaços)
+          const commandBody = extractedText.substring(COMMAND_PREFIX.length);
+          const match = commandBody.match(/^(\S+)([\s\S]*)$/);
+          const command = match ? match[1] : '';
+          // args[0] contém todo o texto após o comando, incluindo quebras de linha
+          const args = match && match[2] !== undefined ? [match[2].trimStart()] : [];
 
           const isGroupMessage = messageInfo.key.remoteJid.endsWith('@g.us');
           const remoteJid = messageInfo.key.remoteJid;
@@ -202,6 +205,7 @@ const handleMessages = async (update, sock) => {
             }
             case 'sticker':
             case 's':
+              console.log(args);
               // Envia o texto do comando (args) para o módulo de sticker
               await processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '));
               break;
