@@ -116,6 +116,13 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
     // Garante que o diretório de destino existe
     await fs.mkdir(userStickerDir, { recursive: true });
 
+    // Validação explícita do tipo de mídia
+    const allowedTypes = ['image', 'video', 'sticker'];
+    if (!allowedTypes.includes(mediaType)) {
+      logger.error(`Tipo de mídia não suportado para conversão: ${mediaType}`);
+      throw new Error(`Tipo de mídia não suportado: ${mediaType}`);
+    }
+
     if (mediaType === 'sticker') {
       await fs.copyFile(inputPath, outputPath);
       return outputPath;
