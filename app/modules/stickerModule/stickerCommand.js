@@ -113,6 +113,9 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
   const outputPath = path.join(userStickerDir, `sticker_${uniqueId}.webp`);
 
   try {
+    // Garante que o diretório de destino existe
+    await fs.mkdir(userStickerDir, { recursive: true });
+
     if (mediaType === 'sticker') {
       await fs.copyFile(inputPath, outputPath);
       return outputPath;
