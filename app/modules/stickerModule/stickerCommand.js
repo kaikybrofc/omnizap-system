@@ -1,28 +1,3 @@
-/**
- * Faz o parsing do texto recebido para packName e packAuthor.
- * Se o texto contiver '/', separa em dois: packName/packAuthor.
- * Caso contrário, usa o texto como packName e o senderName como autor.
- * @param {string} text
- * @param {string} senderName
- * @returns {{ packName: string, packAuthor: string }}
- */
-function parseStickerMetaText(text, senderName) {
-  let packName = 'OmniZap';
-  let packAuthor = senderName || 'OmniZap';
-  if (text) {
-    // Preserva quebras de linha e separa na primeira barra encontrada
-    const idx = text.indexOf('/');
-    if (idx !== -1) {
-      const name = text.slice(0, idx).trim();
-      const author = text.slice(idx + 1).trim();
-      if (name) packName = name;
-      if (author) packAuthor = author;
-    } else if (text.trim()) {
-      packName = text.trim();
-    }
-  }
-  return { packName, packAuthor };
-}
 const { addStickerMetadata } = require('./addStickerMetadata');
 /**
  * Módulo responsável pelo processamento de stickers a partir de mídias recebidas.
@@ -182,6 +157,31 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
     });
     throw new Error(`Erro na conversão para webp: ${error.message}`);
   }
+}
+
+/**
+ * Faz o parsing do texto recebido para packName e packAuthor.
+ * Se o texto contiver '/', separa em dois: packName/packAuthor.
+ * Caso contrário, usa o texto como packName e o senderName como autor.
+ * @param {string} text
+ * @param {string} senderName
+ * @returns {{ packName: string, packAuthor: string }}
+ */
+function parseStickerMetaText(text, senderName) {
+  let packName = 'OmniZap';
+  let packAuthor = senderName || 'OmniZap';
+  if (text) {
+    const idx = text.indexOf('/');
+    if (idx !== -1) {
+      const name = text.slice(0, idx).trim();
+      const author = text.slice(idx + 1).trim();
+      if (name) packName = name;
+      if (author) packAuthor = author;
+    } else if (text.trim()) {
+      packName = text.trim();
+    }
+  }
+  return { packName, packAuthor };
 }
 
 /**
