@@ -1,3 +1,4 @@
+const { addStickerMetadata } = require('./addStickerMetadata');
 /**
  * Módulo responsável pelo processamento de stickers a partir de mídias recebidas.
  * Inclui funções para garantir diretórios temporários, extrair detalhes de mídia,
@@ -12,6 +13,7 @@ const { exec } = require('child_process');
 const execProm = util.promisify(exec);
 const logger = require('../../utils/logger/loggerModule');
 const { downloadMediaMessage } = require('../../utils/mediaDownloader/mediaDownloaderModule');
+const adminJid = process.env.USER_ADMIN;
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
@@ -112,13 +114,40 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
   const outputPath = path.join(userStickerDir, `sticker_${uniqueId}.webp`);
 
   try {
+    // Garante que o diretório de destino existe
+    await fs.mkdir(userStickerDir, { recursive: true });
+
+    // Validação explícita do tipo de mídia
+    const allowedTypes = ['image', 'video', 'sticker'];
+    if (!allowedTypes.includes(mediaType)) {
+      logger.error(`Tipo de mídia não suportado para conversão: ${mediaType}`);
+      throw new Error(`Tipo de mídia não suportado: ${mediaType}`);
+    }
+
     if (mediaType === 'sticker') {
       await fs.copyFile(inputPath, outputPath);
       return outputPath;
     }
     const filtro = mediaType === 'video' ? 'fps=10,scale=512:512' : 'scale=512:512';
     const ffmpegCommand = `ffmpeg -i "${inputPath}" -vcodec libwebp -lossless 1 -loop 0 -preset default -an -vf "${filtro}" "${outputPath}"`;
-    await execProm(ffmpegCommand);
+    let ffmpegResult;
+    try {
+      // Timeout de 20 segundos para evitar travamentos indefinidos
+      ffmpegResult = await execProm(ffmpegCommand, { timeout: 20000 });
+    } catch (ffmpegErr) {
+      if (ffmpegErr.killed || ffmpegErr.signal === 'SIGTERM' || ffmpegErr.code === 'ETIMEDOUT') {
+        logger.error('FFmpeg finalizado por timeout.');
+        throw new Error('Conversão cancelada: tempo limite excedido (timeout).');
+      }
+      logger.error(`Erro na execução do FFmpeg: ${ffmpegErr.message}`);
+      if (ffmpegErr.stderr) {
+        logger.error(`FFmpeg stderr: ${ffmpegErr.stderr}`);
+      }
+      throw new Error(`Falha ao converter mídia para sticker (FFmpeg): ${ffmpegErr.message}`);
+    }
+    if (ffmpegResult && ffmpegResult.stderr) {
+      logger.debug(`FFmpeg stderr: ${ffmpegResult.stderr}`);
+    }
     await fs.access(outputPath);
     logger.info(`StickerCommand Conversão bem-sucedida para: ${outputPath}`);
     return outputPath;
@@ -131,6 +160,31 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
 }
 
 /**
+ * Faz o parsing do texto recebido para packName e packAuthor.
+ * Se o texto contiver '/', separa em dois: packName/packAuthor.
+ * Caso contrário, usa o texto como packName e o senderName como autor.
+ * @param {string} text
+ * @param {string} senderName
+ * @returns {{ packName: string, packAuthor: string }}
+ */
+function parseStickerMetaText(text, senderName) {
+  let packName = 'OmniZap';
+  let packAuthor = senderName || 'OmniZap';
+  if (text) {
+    const idx = text.indexOf('/');
+    if (idx !== -1) {
+      const name = text.slice(0, idx).trim();
+      const author = text.slice(idx + 1).trim();
+      if (name) packName = name;
+      if (author) packAuthor = author;
+    } else if (text.trim()) {
+      packName = text.trim();
+    }
+  }
+  return { packName, packAuthor };
+}
+
+/**
  * Processa uma mensagem para criar e enviar um sticker a partir de uma mídia recebida.
  *
  * @param {object} sock - Instância do socket de conexão WhatsApp.
@@ -139,10 +193,13 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
  * @param {string} remoteJid - JID do chat remoto.
  * @returns {Promise<void>}
  */
-async function processSticker(sock, messageInfo, senderJid, remoteJid) {
+// O parâmetro extraText pode ser usado para packName/packAuthor ou outros metadados
+async function processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, extraText = '') {
   logger.info(`StickerCommand Iniciando processamento de sticker para ${senderJid}...`);
 
-  const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const { v4: uuidv4 } = require('uuid');
+  const uniqueId = uuidv4();
+
   let tempMediaPath = null;
   let processingMediaPath = null;
   let stickerPath = null;
@@ -157,7 +214,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid) {
     const dirResult = await ensureDirectories(formattedUser);
     if (!dirResult.success) {
       logger.error(`StickerCommand Erro ao garantir diretórios: ${dirResult.error}`);
-      await sock.sendMessage(from, { text: `❌ Erro ao preparar diretórios do usuário: ${dirResult.error}` }, { quoted: message });
+      await sock.sendMessage(adminJid, { text: `❌ Erro ao preparar diretórios do usuário: ${dirResult.error}` }, { quoted: message });
       return;
     }
 
@@ -194,6 +251,10 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid) {
 
     stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
 
+    // Adiciona metadados ao sticker
+    const { packName, packAuthor } = parseStickerMetaText(extraText, senderName);
+    stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor);
+
     let stickerBuffer = null;
     try {
       stickerBuffer = await fs.readFile(stickerPath);
@@ -216,7 +277,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid) {
   } finally {
     const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter(Boolean);
     for (const file of filesToClean) {
-      await fs.unlink(file).catch((err) => logger.warn(`StickerCommand Falha ao limpar arquivo temporário ${file}: ${err.message}`));
+      //  await fs.unlink(file).catch((err) => logger.warn(`StickerCommand Falha ao limpar arquivo temporário ${file}: ${err.message}`));
     }
   }
 }
