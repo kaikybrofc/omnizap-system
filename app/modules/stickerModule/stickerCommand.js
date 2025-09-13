@@ -131,8 +131,13 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
     const ffmpegCommand = `ffmpeg -i "${inputPath}" -vcodec libwebp -lossless 1 -loop 0 -preset default -an -vf "${filtro}" "${outputPath}"`;
     let ffmpegResult;
     try {
-      ffmpegResult = await execProm(ffmpegCommand);
+      // Timeout de 20 segundos para evitar travamentos indefinidos
+      ffmpegResult = await execProm(ffmpegCommand, { timeout: 20000 });
     } catch (ffmpegErr) {
+      if (ffmpegErr.killed || ffmpegErr.signal === 'SIGTERM' || ffmpegErr.code === 'ETIMEDOUT') {
+        logger.error('FFmpeg finalizado por timeout.');
+        throw new Error('Conversão cancelada: tempo limite excedido (timeout).');
+      }
       logger.error(`Erro na execução do FFmpeg: ${ffmpegErr.message}`);
       if (ffmpegErr.stderr) {
         logger.error(`FFmpeg stderr: ${ffmpegErr.stderr}`);
