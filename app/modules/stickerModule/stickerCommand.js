@@ -115,6 +115,38 @@ function parseStickerMetaText(text, senderName) {
 }
 
 /**
+ * Salva o último metadata usado pelo usuário em um arquivo JSON na pasta do usuário.
+ * @param {string} userDir - Caminho da pasta do usuário.
+ * @param {object} meta - Objeto { packName, packAuthor }
+ */
+async function saveUserStickerMeta(userDir, meta) {
+  try {
+    const metaPath = path.join(userDir, 'last_sticker_meta.json');
+    await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+    logger.debug(`saveUserStickerMeta Metadata salvo em ${metaPath}`);
+  } catch (err) {
+    logger.warn(`saveUserStickerMeta Falha ao salvar metadata: ${err.message}`);
+  }
+}
+
+/**
+ * Lê o último metadata salvo do usuário, se existir.
+ * @param {string} userDir - Caminho da pasta do usuário.
+ * @returns {Promise<{ packName: string, packAuthor: string }|null>}
+ */
+async function readUserStickerMeta(userDir) {
+  try {
+    const metaPath = path.join(userDir, 'last_sticker_meta.json');
+    const data = await fs.readFile(metaPath, 'utf8');
+    const meta = JSON.parse(data);
+    if (meta.packName && meta.packAuthor) return meta;
+    return null;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
  * Processa uma mensagem para criar e enviar um sticker a partir de uma mídia recebida.
  *
  * @param {object} sock - Instância do socket de conexão WhatsApp.
@@ -209,7 +241,25 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
 
     stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
 
-    const { packName, packAuthor } = parseStickerMetaText(extraText, senderName);
+    let packName, packAuthor;
+    let metaFromText = parseStickerMetaText(extraText, senderName);
+    // Se o usuário não enviou texto (extraText vazio ou só espaços), tenta ler o último metadata salvo
+    if (!extraText || !extraText.trim() || (metaFromText.packName === 'OmniZap' && (!senderName || metaFromText.packAuthor === 'OmniZap'))) {
+      const lastMeta = await readUserStickerMeta(userStickerDir);
+      if (lastMeta) {
+        packName = lastMeta.packName;
+        packAuthor = lastMeta.packAuthor;
+        logger.info(`processSticker Usando metadata salvo: ${packName} / ${packAuthor}`);
+      } else {
+        packName = metaFromText.packName;
+        packAuthor = metaFromText.packAuthor;
+      }
+    } else {
+      packName = metaFromText.packName;
+      packAuthor = metaFromText.packAuthor;
+      // Salva o novo metadata usado
+      await saveUserStickerMeta(userStickerDir, { packName, packAuthor });
+    }
     stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor, { senderName, userId: formattedUser });
 
     let stickerBuffer = null;
