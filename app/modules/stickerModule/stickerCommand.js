@@ -130,6 +130,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
   let tempMediaPath = null;
   let processingMediaPath = null;
   let stickerPath = null;
+  let finalStickerPath = null;
 
   try {
     await sock.sendMessage(senderJid, { react: { text: '🎨', key: messageInfo.key } });
@@ -209,7 +210,6 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
 
     const { packName, packAuthor } = parseStickerMetaText(extraText, senderName);
-    // Passa contexto para replaces: senderName e userId
     stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor, { senderName, userId: formattedUser });
 
     let stickerBuffer = null;
@@ -225,6 +225,20 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
         });
       }
       return;
+    }
+    try {
+      const userStickerDir = path.join(TEMP_DIR, formattedUser);
+      const permanentDir = path.join(userStickerDir, 'final');
+      await fs.mkdir(permanentDir, { recursive: true });
+      const files = await fs.readdir(permanentDir);
+      const nums = files.map((f) => parseInt(f.split('.')[0])).filter((n) => !isNaN(n));
+      const nextNum = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+      const stickerFileName = `${nextNum}.webp`;
+      finalStickerPath = path.join(permanentDir, stickerFileName);
+      await fs.copyFile(stickerPath, finalStickerPath);
+      logger.info(`processSticker Sticker final salvo em: ${finalStickerPath}`);
+    } catch (saveErr) {
+      logger.error(`processSticker Falha ao salvar sticker final: ${saveErr.message}`);
     }
     try {
       await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: message });
@@ -250,7 +264,8 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       });
     }
   } finally {
-    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter(Boolean);
+    // Não apaga o sticker final salvo
+    const filesToClean = [tempMediaPath, processingMediaPath].filter(Boolean);
     for (const file of filesToClean) {
       await fs.unlink(file).catch((err) => logger.warn(`processSticker Falha ao limpar arquivo temporário ${file}: ${err.message}`));
     }
