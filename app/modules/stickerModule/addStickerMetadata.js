@@ -62,5 +62,6 @@ async function addStickerMetadata(stickerPath, packName, packAuthor) {
     return stickerPath;
   }
 }
+//
 
 module.exports = { addStickerMetadata };
