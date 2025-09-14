@@ -114,10 +114,8 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
   const outputPath = path.join(userStickerDir, `sticker_${uniqueId}.webp`);
 
   try {
-    // Garante que o diretório de destino existe
     await fs.mkdir(userStickerDir, { recursive: true });
 
-    // Validação explícita do tipo de mídia
     const allowedTypes = ['image', 'video', 'sticker'];
     if (!allowedTypes.includes(mediaType)) {
       logger.error(`Tipo de mídia não suportado para conversão: ${mediaType}`);
@@ -132,7 +130,6 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
     const ffmpegCommand = `ffmpeg -i "${inputPath}" -vcodec libwebp -lossless 1 -loop 0 -preset default -an -vf "${filtro}" "${outputPath}"`;
     let ffmpegResult;
     try {
-      // Timeout de 20 segundos para evitar travamentos indefinidos
       ffmpegResult = await execProm(ffmpegCommand, { timeout: 20000 });
     } catch (ffmpegErr) {
       if (ffmpegErr.killed || ffmpegErr.signal === 'SIGTERM' || ffmpegErr.code === 'ETIMEDOUT') {
@@ -193,9 +190,19 @@ function parseStickerMetaText(text, senderName) {
  * @param {string} remoteJid - JID do chat remoto.
  * @returns {Promise<void>}
  */
-// O parâmetro extraText pode ser usado para packName/packAuthor ou outros metadados
 async function processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, extraText = '') {
   logger.info(`StickerCommand Iniciando processamento de sticker para ${senderJid}...`);
+
+  try {
+    await sock.sendMessage(senderJid, {
+      react: {
+        text: '🎨',
+        key: messageInfo.key,
+      },
+    });
+  } catch (reactErr) {
+    logger.warn(`StickerCommand Falha ao reagir à mensagem: ${reactErr.message}`);
+  }
 
   const { v4: uuidv4 } = require('uuid');
   const uniqueId = uuidv4();
@@ -251,7 +258,6 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
 
     stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
 
-    // Adiciona metadados ao sticker
     const { packName, packAuthor } = parseStickerMetaText(extraText, senderName);
     stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor);
 
@@ -277,7 +283,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
   } finally {
     const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter(Boolean);
     for (const file of filesToClean) {
-      //  await fs.unlink(file).catch((err) => logger.warn(`StickerCommand Falha ao limpar arquivo temporário ${file}: ${err.message}`));
+      await fs.unlink(file).catch((err) => logger.warn(`StickerCommand Falha ao limpar arquivo temporário ${file}: ${err.message}`));
     }
   }
 }
