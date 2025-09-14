@@ -1,222 +1,118 @@
-# OmniZap System v2.0.0
+# OmniZap System
 
-Sistema profissional de automação para WhatsApp, construído com a poderosa biblioteca Baileys.
+O **OmniZap System** é um sistema profissional de automação para WhatsApp desenvolvido com Node.js e a biblioteca Baileys. Ele oferece uma plataforma robusta para gerenciar grupos, automatizar interações e estender as funcionalidades do WhatsApp com comandos personalizados.
 
-## 🚀 Visão Geral
+## 🌟 Funcionalidades
 
-O OmniZap System é uma solução de automação para WhatsApp robusta e escalável. Desenvolvido sobre a biblioteca Baileys, ele oferece um conjunto completo de funcionalidades para gerenciamento de grupos, processamento de mensagens, criação de stickers e monitoramento de sistema. É a ferramenta ideal para empresas e desenvolvedores que buscam integrar o WhatsApp em seus fluxos de trabalho de forma eficiente e controlada.
+- **Gerenciamento de Grupos:** Adicione, remova, promova e rebaixe membros.
+- **Boas-vindas/Despedida Personalizáveis:** Configure mensagens e mídias personalizadas para novos membros e para aqueles que saíram.
+- **Criação de Stickers:** Crie figurinhas rapidamente a partir de imagens e vídeos.
+- **Informações do Grupo:** Obtenha estatísticas detalhadas e rankings de atividade para seus grupos.
+- **Controles Administrativos:** Controle refinado sobre as configurações do grupo, incluindo nome, descrição e mensagens efêmeras.
+- **Prefixo de Comando:** Prefixo de comando personalizável (o padrão é `/`).
 
-## ✨ Funcionalidades Principais
+## 🚀 Instalação
 
-*   **Gerenciamento de Sessão:** Persistência automática de credenciais de autenticação para reconexões rápidas e estáveis.
-*   **Processamento Inteligente de Mensagens:** Responde a mensagens citando-as e respeita as configurações de mensagens efêmeras.
-*   **Criação de Stickers:** Crie stickers a partir de imagens enviadas no chat com um simples comando.
-*   **Gerenciamento Completo de Grupos:** Um conjunto extenso de comandos de administração para controle total sobre os grupos.
-*   **Mensagens de Boas-Vindas e Saída:** Configure mensagens automáticas e personalizadas (com texto, imagem ou vídeo) para novos membros e para aqueles que saem. Suporta placeholders dinâmicos para criar mensagens mais ricas.
-*   **Análise Avançada de Grupos:** O comando `/info` oferece estatísticas detalhadas, incluindo ranking de mensagens, uso de mídia, horários de pico de atividade e identificação de membros inativos.
-*   **Armazenamento de Dados Robusto:** Utiliza streaming para ler e escrever arquivos de dados (JSON), garantindo baixo consumo de memória. Inclui um sistema de lock de arquivos para prevenir corrupção de dados.
-*   **Sistema de Logs de Produção:** Logs detalhados com rotação diária de arquivos, múltiplos níveis (info, warn, error), e formato JSON estruturado para fácil análise. Integrado ao PM2 para capturar logs por instância.
-*   **Monitoramento de Métricas:** Coleta e loga métricas de uso de CPU e memória para acompanhamento de desempenho.
-*   **Reconexão Automática:** Lógica de reconexão robusta com tentativas limitadas em caso de desconexões inesperadas.
-*   **Integração com PM2:** Pronto para produção com arquivos de configuração para o gerenciador de processos PM2.
+1.  **Clone o repositório:**
+    ```bash
+    git clone https://github.com/Kaikygr/omnizap-system.git
+    cd omnizap-system
+    ```
 
-## 🛠️ Tecnologias Utilizadas
+2.  **Instale as dependências:**
+    ```bash
+    npm install
+    ```
 
-*   **Node.js** (>=16.0.0)
-*   **@whiskeysockets/baileys**: Biblioteca principal para interação com o WhatsApp.
-*   **PM2**: Gerenciador de processos para produção.
-*   **Winston** & **Winston Daily Rotate File**: Para um sistema de logging configurável e eficiente.
-*   **Dotenv** & **Envalid**: Para gerenciamento e validação de variáveis de ambiente.
-*   **stream-json**: Para parsing de grandes arquivos JSON com baixo uso de memória.
-*   **proper-lockfile**: Para prevenir condições de corrida na escrita de arquivos.
-*   E outras bibliotecas de suporte como `pino`, `chalk`, e `moment-timezone`.
+3.  **Configure as variáveis de ambiente:**
+    Crie um arquivo `.env` no diretório raiz e adicione as seguintes variáveis:
+    ```env
+    COMMAND_PREFIX=/
+    USER_ADMIN=seu_jid_de_admin@s.whatsapp.net
+    ```
+    *   `COMMAND_PREFIX`: O prefixo para todos os comandos (ex: `/`, `!`, `.`).
+    *   `USER_ADMIN`: O JID do usuário com privilégios administrativos para o bot.
 
-## ⚙️ Instalação
+## ⚡️ Uso
 
-Siga os passos abaixo para configurar e executar o OmniZap System.
+### Desenvolvimento
 
-### Pré-requisitos
-
-Certifique-se de ter o **Node.js (versão 16 ou superior)** e o **npm** instalados.
-
-### 1. Clonar o Repositório
+Para iniciar o bot em modo de desenvolvimento usando `pm2`:
 
 ```bash
-git clone https://github.com/Kaikygr/omnizap-system.git
-cd omnizap-system
+npm run pm2:dev
 ```
 
-### 2. Instalar Dependências
+### Produção
+
+Para iniciar o bot em modo de produção usando `pm2`:
 
 ```bash
-npm install
+npm run pm2:prod
 ```
 
-### 3. Configurar Variáveis de Ambiente
+### Início Padrão
 
-Crie um arquivo `.env` na raiz do projeto (você pode copiar de `.env.example`) e preencha as variáveis.
-
-```dotenv
-# =======================================
-# CONFIGURAÇÕES GERAIS
-# =======================================
-# Prefixo para comandos do bot (ex: /, !, #)
-COMMAND_PREFIX=/
-
-# Caminho para a pasta onde os arquivos de dados serão salvos (ex: ./temp/)
-# O sistema criará o diretório se ele não existir.
-STORE_PATH=./temp/
-
-# =======================================
-# CONFIGURAÇÕES DE LOG
-# =======================================
-# Ambiente de execução (development, production, test)
-NODE_ENV=development
-# Nível mínimo de log a ser exibido (error, warn, info, debug)
-LOG_LEVEL=debug
-# Nome do serviço para os logs (útil ao usar PM2)
-ECOSYSTEM_NAME=omnizap-system
-
-# =======================================
-# CONFIGURAÇÕES DE RETENÇÃO DE DADOS
-# =======================================
-# Intervalo em milissegundos para a limpeza de mensagens antigas (padrão: 24 horas)
-OMNIZAP_CLEANUP_INTERVAL_MS=86400000
-
-# --- Mensagens de Chat (messages.json) ---
-# Número máximo de mensagens a serem salvas por conversa
-OMNIZAP_MAX_MESSAGES_PER_CHAT=1000
-# Número de meses para reter mensagens de chat
-OMNIZAP_MESSAGE_RETENTION_MONTHS=3
-
-# --- Mensagens Raw (rawMessages.json) ---
-# Número máximo de mensagens '''raw''' (objeto completo do Baileys) a serem salvas por conversa
-OMNIZAP_MAX_RAW_MESSAGES_PER_CHAT=5000
-# Número de meses para reter mensagens raw
-OMNIZAP_RAW_MESSAGE_RETENTION_MONTHS=3
-```
-
-## ▶️ Como Usar
-
-### Para Desenvolvimento
-
-Inicie a aplicação com o script padrão do npm. Na primeira execução, um QR Code será exibido no terminal para ser escaneado com seu WhatsApp.
+Para iniciar o bot sem `pm2`:
 
 ```bash
 npm start
 ```
 
-### Para Produção com PM2
+## 🤖 Comandos
 
-O sistema está configurado para ser gerenciado pelo PM2. Utilize os scripts abaixo para iniciar a aplicação em modo de produção ou desenvolvimento.
+Aqui está uma lista dos comandos disponíveis. Comandos administrativos exigem que o usuário seja um administrador do grupo.
 
-```bash
-# Iniciar em modo de desenvolvimento com PM2
-npm run pm2:dev
+### Comandos Gerais
 
-# Iniciar em modo de produção com PM2
-npm run pm2:prod
+| Comando         | Atalho | Descrição                                                                                             | Uso                                                  |
+| --------------- | ------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `/sticker`      | `/s`   | Cria uma figurinha a partir de uma imagem ou vídeo. Você também pode responder a uma mídia com o comando. | `/sticker [pacote/autor]`                              |
+| `/info`         |        | Exibe informações detalhadas sobre o grupo atual, incluindo estatísticas e atividade dos membros.       | `/info` ou `/info [id_do_grupo]`                       |
+| `/info --inativos` |      | Mostra uma lista de usuários inativos no grupo com base em um limite de mensagens.                      | `/info --inativos [limite_de_mensagens]`               |
 
-# Para monitorar os logs
-pm2 logs omnizap-system
+### Comandos de Administração de Grupo
 
-# Para parar a aplicação
-pm2 stop omnizap-system
-```
+| Comando           | Descrição                                                              | Uso                                                              |
+| ----------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `/menuadm`        | Exibe o menu de administração do grupo.                                  | `/menuadm`                                                         |
+| `/add`            | Adiciona um ou mais participantes ao grupo.                              | `/add @usuario1 @usuario2...`                                      |
+| `/ban`            | Remove um ou mais participantes do grupo.                                | `/ban @usuario1 @usuario2...`                                      |
+| `/up`             | Promove um ou mais participantes a administradores.                      | `/up @usuario1 @usuario2...`                                       |
+| `/down`           | Rebaixa um ou mais administradores a participantes.                      | `/down @usuario1 @usuario2...`                                     |
+| `/setsubject`     | Altera o nome do grupo.                                                  | `/setsubject <novo_nome>`                                          |
+| `/setdesc`        | Altera a descrição do grupo.                                             | `/setdesc <nova_descrição>`                                        |
+| `/setgroup`       | Altera as configurações do grupo (ex: quem pode enviar mensagens).       | `/setgroup <announcement\|not_announcement\|locked\|unlocked>`      |
+| `/leave`          | O bot sai do grupo.                                                      | `/leave`                                                           |
+| `/invite`         | Mostra o código de convite do grupo.                                     | `/invite`                                                          |
+| `/revoke`         | Revoga o código de convite do grupo e gera um novo.                      | `/revoke`                                                          |
+| `/requests`       | Lista as solicitações de entrada pendentes para o grupo.                 | `/requests`                                                        |
+| `/updaterequests` | Aprova ou rejeita solicitações de entrada pendentes.                     | `/updaterequests <approve\|reject> @usuario1 @usuario2...`         |
+| `/temp`           | Ativa ou desativa as mensagens efêmeras no grupo.                        | `/temp <duração_em_segundos>`                                      |
+| `/addmode`        | Define quem pode adicionar novos membros ao grupo.                       | `/addmode <all_member_add\|admin_add>`                             |
+| `/welcome`        | Gerencia as mensagens de boas-vindas para novos membros.                 | `/welcome <on\|off\|set> [mensagem ou mídia]`                      |
+| `/farewell`       | Gerencia as mensagens de despedida para membros que saem.                | `/farewell <on\|off\|set> [mensagem ou mídia]`                     |
 
-## 🤖 Comandos do Bot
+### Comandos do Dono do Bot
 
-A seguir, a lista de comandos disponíveis. A maioria dos comandos de administração requer que o bot e o usuário que executa o comando sejam administradores do grupo.
+| Comando  | Descrição                                             | Uso                    |
+| -------- | ----------------------------------------------------- | ---------------------- |
+| `/eval`  | Executa um trecho de código JavaScript (apenas dono). | `/eval <código_js>`    |
 
-### Menu de Administração
-| Comando | Descrição |
-| :--- | :--- |
-| **/menuadm** | Exibe a lista completa de comandos de administração. |
+## 📦 Dependências Principais
 
-### Criação de Stickers
-| Comando | Descrição |
-| :--- | :--- |
-| **/sticker** | Responda a uma imagem com este comando para criá-la como um sticker. |
-
-### Gerenciamento de Membros
-| Comando | Descrição |
-| :--- | :--- |
-| **/add @user** | Adiciona um ou mais participantes ao grupo. |
-| **/ban @user** | Remove um ou mais participantes do grupo. |
-| **/up @user** | Promove um ou mais participantes a administradores. |
-| **/down @user** | Remove o cargo de administrador de um ou mais participantes. |
-
-### Gerenciamento de Grupo
-| Comando | Descrição |
-| :--- | :--- |
-| **/setsubject <texto>** | Altera o nome do grupo. |
-| **/setdesc <texto>** | Altera a descrição do grupo. |
-| **/setgroup <opt>** | `announcement`: Fecha o grupo.<br>`not_announcement`: Abre o grupo.<br>`locked`: Restringe a edição de dados.<br>`unlocked`: Libera a edição de dados. |
-| **/addmode <opt>** | `all_member_add`: Todos podem adicionar.<br>`admin_add`: Apenas admins podem adicionar. |
-| **/temp <segundos>** | Ativa/desativa mensagens efêmeras. Use `0` para desativar. |
-| **/invite** | Mostra o código de convite do grupo. |
-| **/revoke** | Revoga e cria um novo código de convite. |
-| **/leave** | O bot sai do grupo. |
-
-### Informações e Análise
-| Comando | Descrição |
-| :--- | :--- |
-| **/info [id_do_grupo]** | Mostra informações e estatísticas detalhadas do grupo atual ou do grupo especificado. |
-| **/info --inativos <N>** | Mostra uma lista de membros com menos de `N` mensagens, além das estatísticas completas. |
-| **/metadata [id_do_grupo]**| Obtém os metadados brutos de um grupo. |
-
-### Mensagens Automáticas
-| Comando | Descrição |
-| :--- | :--- |
-| **/welcome <on\|off>** | Ativa ou desativa a mensagem de boas-vindas. |
-| **/welcome set <msg>** | Define a mensagem de boas-vindas. Pode ser texto, ou uma mídia (imagem/vídeo) enviada com o comando na legenda. |
-| **/farewell <on\|off>** | Ativa ou desativa a mensagem de saída. |
-| **/farewell set <msg>** | Define a mensagem de saída (texto ou mídia). |
-
-#### Placeholders para Mensagens Automáticas
-Você pode usar as seguintes variáveis em suas mensagens de boas-vindas/saída para torná-las dinâmicas:
-*   `@user`: Menciona o usuário que entrou/saiu.
-*   `@groupname`: Nome do grupo.
-*   `@desc`: Descrição do grupo.
-*   `@membercount`: Número total de membros.
-
-## 📂 Estrutura de Pastas
-
-*   `app/`: Contém a lógica principal da aplicação.
-    *   `connection/`: Gerencia a conexão com o WhatsApp (Baileys).
-    *   `controllers/`: Lida com o processamento de mensagens e eventos.
-    *   `modules/`: Contém módulos de funcionalidades específicas, como os comandos de admin e stickers.
-    *   `store/`: Gerencia o armazenamento e a persistência de dados (mensagens, grupos, etc.).
-    *   `utils/`: Utilitários como o logger, métricas de sistema e download de mídia.
-*   `logs/`: Diretório onde os arquivos de log são armazenados.
-*   `temp/`: Diretório padrão para armazenar os arquivos de estado da sessão e dados.
-*   `index.js`: Ponto de entrada da aplicação.
-*   `ecosystem.config.js`: Arquivo de configuração para o PM2.
-
-## 🗺️ Roadmap
-
-*   **Expansão de Comandos:** Adicionar mais comandos interativos e de entretenimento.
-*   **Integração com Banco de Dados:** Suporte opcional a bancos de dados como PostgreSQL ou MongoDB para escalabilidade.
-*   **Interface Web:** Uma UI para gerenciar o bot, visualizar estatísticas e logs em tempo real.
-*   **Melhorar Modularidade:** Refatorar a arquitetura para facilitar a criação de novos módulos pela comunidade.
-*   **Testes Automatizados:** Aumentar a cobertura de testes para garantir a estabilidade e a confiabilidade.
-
-## 🤝 Contribuição
-
-Contribuições são muito bem-vindas! Se você deseja contribuir, por favor, siga estas diretrizes:
-
-1.  Faça um fork do repositório.
-2.  Crie uma nova branch (`git checkout -b feature/sua-feature`).
-3.  Faça suas alterações.
-4.  Commit suas alterações (`git commit -m 'feat: Adiciona nova funcionalidade'`).
-5.  Envie para a branch (`git push origin feature/sua-feature`).
-6.  Abra um Pull Request.
+- **@whiskeysockets/baileys:** A biblioteca principal para a API do WhatsApp Web.
+- **pino:** Para logs.
+- **dotenv:** Para gerenciamento de variáveis de ambiente.
+- **ffmpeg:** Para processamento de mídia (criação de figurinhas).
 
 ## 📄 Licença
 
 Este projeto está licenciado sob a Licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
-## 📧 Contato
+## 🔗 Repositório
 
-Para dúvidas ou suporte, abra uma issue no repositório do GitHub:
-[https://github.com/Kaikygr/omnizap-system/issues](https://github.com/Kaikygr/omnizap-system/issues)
+- **GitHub:** [https://github.com/Kaikygr/omnizap-system](https://github.com/Kaikygr/omnizap-system)
+
+---
+*Este README foi gerado pelo Gemini.*
