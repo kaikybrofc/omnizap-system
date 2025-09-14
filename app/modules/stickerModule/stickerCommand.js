@@ -209,7 +209,8 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
 
     const { packName, packAuthor } = parseStickerMetaText(extraText, senderName);
-    stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor);
+    // Passa contexto para replaces: senderName e userId
+    stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor, { senderName, userId: formattedUser });
 
     let stickerBuffer = null;
     try {

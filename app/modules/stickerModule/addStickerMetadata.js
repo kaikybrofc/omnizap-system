@@ -15,16 +15,38 @@ async function ensureDirectories(dir) {
   }
 }
 
-async function addStickerMetadata(stickerPath, packName, packAuthor) {
-  logger.info(`addStickerMetadata Adicionando metadados ao sticker. Nome: "${packName}", Autor: "${packAuthor}"`);
+/**
+ * Adiciona metadados ao sticker, realizando replaces especiais em packName e packAuthor.
+ * @param {string} stickerPath Caminho do sticker
+ * @param {string} packName Nome do pack (pode conter #nome, #data, #hora, #id)
+ * @param {string} packAuthor Autor do pack (pode conter #nome, #data, #hora, #id)
+ * @param {object} [replaceContext] Contexto para replaces: { senderName, userId }
+ * @returns {Promise<string>} Caminho do sticker final
+ */
+async function addStickerMetadata(stickerPath, packName, packAuthor, replaceContext = {}) {
+  // Contexto para replaces
+  const { senderName = '', userId = '' } = replaceContext;
+  const now = new Date();
+  const pad = (n) => n.toString().padStart(2, '0');
+  const dataAtual = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
+  const horaAtual = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  function doReplaces(str) {
+    return str.replace(/#nome/gi, senderName).replace(/#data/gi, dataAtual).replace(/#hora/gi, horaAtual).replace(/#id/gi, userId);
+  }
+
+  const finalPackName = doReplaces(packName);
+  const finalPackAuthor = doReplaces(packAuthor);
+
+  logger.info(`addStickerMetadata Adicionando metadados ao sticker. Nome: "${finalPackName}", Autor: "${finalPackAuthor}"`);
 
   try {
     await ensureDirectories(TEMP_DIR);
 
     const exifData = {
       'sticker-pack-id': `com.omnizap.${Date.now()}`,
-      'sticker-pack-name': packName,
-      'sticker-pack-publisher': packAuthor,
+      'sticker-pack-name': finalPackName,
+      'sticker-pack-publisher': finalPackAuthor,
     };
 
     const exifPath = path.join(TEMP_DIR, `exif_${Date.now()}.exif`);
@@ -62,6 +84,5 @@ async function addStickerMetadata(stickerPath, packName, packAuthor) {
     return stickerPath;
   }
 }
-//
 
 module.exports = { addStickerMetadata };
