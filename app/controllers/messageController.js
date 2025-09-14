@@ -142,11 +142,9 @@ const handleMessages = async (update, sock) => {
       for (const messageInfo of update.messages) {
         const extractedText = extractMessageContent(messageInfo);
         if (extractedText.startsWith(COMMAND_PREFIX)) {
-          // Extrai o comando e o restante como um único argumento (preserva quebras de linha e espaços)
           const commandBody = extractedText.substring(COMMAND_PREFIX.length);
           const match = commandBody.match(/^(\S+)([\s\S]*)$/);
           const command = match ? match[1] : '';
-          // args[0] contém todo o texto após o comando, incluindo quebras de linha
           const args = match && match[2] !== undefined ? [match[2].trimStart()] : [];
 
           const isGroupMessage = messageInfo.key.remoteJid.endsWith('@g.us');
@@ -174,7 +172,6 @@ const handleMessages = async (update, sock) => {
 
           const isBotAdmin = isGroupMessage ? await isUserAdmin(remoteJid, botJid) : false;
 
-          // Verifica se o senderJid é igual ao USER_ADMIN definido no .env
           const isUserMod = (senderJid) => {
             const adminJid = process.env.USER_ADMIN;
             return senderJid === adminJid;
