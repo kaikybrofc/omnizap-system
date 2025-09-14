@@ -4,12 +4,23 @@ const util = require('util');
 const { exec } = require('child_process');
 const execProm = util.promisify(exec);
 const logger = require('../../utils/logger/loggerModule');
+
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
+
+async function ensureDirectories(dir) {
+  try {
+    await fs.mkdir(dir, { recursive: true });
+  } catch (err) {
+    if (err.code !== 'EEXIST') throw err;
+  }
+}
 
 async function addStickerMetadata(stickerPath, packName, packAuthor) {
   logger.info(`addStickerMetadata Adicionando metadados ao sticker. Nome: "${packName}", Autor: "${packAuthor}"`);
 
   try {
+    await ensureDirectories(TEMP_DIR);
+
     const exifData = {
       'sticker-pack-id': `com.omnizap.${Date.now()}`,
       'sticker-pack-name': packName,
