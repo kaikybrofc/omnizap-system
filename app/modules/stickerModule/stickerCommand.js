@@ -66,7 +66,7 @@ function extractMediaDetails(message) {
   };
 
   const media = findMedia(messageContent) || findMedia(quotedMessage, true);
-  if (!media) logger.debug('StickerCommand.extractMediaDetails Nenhuma mídia encontrada.');
+  if (!media) logger.debug('extractMediaDetails Nenhuma mídia encontrada.');
   return media;
 }
 
@@ -81,9 +81,9 @@ function extractMediaDetails(message) {
 function checkMediaSize(mediaKey, mediaType, maxFileSize = MAX_FILE_SIZE) {
   const fileLength = mediaKey?.fileLength || 0;
   const formatBytes = (bytes) => (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  logger.debug(`StickerCommand.checkMediaSize Verificando tamanho: ${formatBytes(fileLength)}`);
+  logger.debug(`checkMediaSize Verificando tamanho: ${formatBytes(fileLength)}`);
   if (fileLength > maxFileSize) {
-    logger.warn(`StickerCommand.checkMediaSize Mídia muito grande: ${formatBytes(fileLength)}`);
+    logger.warn(`checkMediaSize Mídia muito grande: ${formatBytes(fileLength)}`);
     return false;
   }
   return true;
@@ -146,7 +146,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
 
     const dirResult = await ensureDirectories(formattedUser);
     if (!dirResult.success) {
-      logger.error(`StickerCommand Erro ao garantir diretórios: ${dirResult.error}`);
+      logger.error(`processSticker Erro ao garantir diretórios: ${dirResult.error}`);
       await sock.sendMessage(adminJid, { text: `❌ Erro ao preparar diretórios do usuário: ${dirResult.error}` });
       return;
     }
@@ -203,7 +203,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     const mediaExtension = path.extname(tempMediaPath);
     processingMediaPath = path.join(userStickerDir, `media_${uniqueId}${mediaExtension}`);
     await fs.rename(tempMediaPath, processingMediaPath);
-    logger.info(`StickerCommand Mídia original renomeada para: ${processingMediaPath}`);
+    logger.info(`processSticker Mídia original renomeada para: ${processingMediaPath}`);
     tempMediaPath = null;
 
     stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
@@ -215,7 +215,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     try {
       stickerBuffer = await fs.readFile(stickerPath);
     } catch (bufferErr) {
-      logger.error(`StickerCommand Erro ao ler buffer do sticker: ${bufferErr.message}`);
+      logger.error(`processSticker Erro ao ler buffer do sticker: ${bufferErr.message}`);
       const msgErro = '*❌ Não foi possível finalizar o sticker.*\n\n- Ocorreu um erro ao acessar o arquivo temporário do sticker.\n- Tente reenviar a mídia ou envie outro arquivo.';
       await sock.sendMessage(from, { text: msgErro }, { quoted: message });
       if (adminJid) {
@@ -228,7 +228,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     try {
       await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: message });
     } catch (sendErr) {
-      logger.error(`StickerCommand Erro ao enviar o sticker: ${sendErr.message}`);
+      logger.error(`processSticker Erro ao enviar o sticker: ${sendErr.message}`);
       const msgErro = '*❌ Não foi possível enviar o sticker ao chat.*\n\n- Ocorreu um erro inesperado ao tentar enviar o arquivo.\n- Tente novamente ou envie outra mídia.';
       await sock.sendMessage(from, { text: msgErro }, { quoted: message });
       if (adminJid) {
@@ -238,7 +238,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       }
     }
   } catch (error) {
-    logger.error(`StickerCommand Erro ao processar sticker: ${error.message}`, {
+    logger.error(`processSticker Erro ao processar sticker: ${error.message}`, {
       error: error.stack,
     });
     const msgErro = '*❌ Não foi possível criar o sticker.*\n\n- Ocorreu um erro inesperado durante o processamento.\n- Tente novamente ou envie outra mídia.';
@@ -251,7 +251,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
   } finally {
     const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter(Boolean);
     for (const file of filesToClean) {
-      await fs.unlink(file).catch((err) => logger.warn(`StickerCommand Falha ao limpar arquivo temporário ${file}: ${err.message}`));
+      await fs.unlink(file).catch((err) => logger.warn(`processSticker Falha ao limpar arquivo temporário ${file}: ${err.message}`));
     }
   }
 }
