@@ -12,7 +12,10 @@ const createMessagesTableSQL = `
     content TEXT,
     raw_message JSON,
     timestamp DATETIME,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_chat_timestamp (chat_id, timestamp),
+    INDEX idx_sender (sender_id),
+    INDEX idx_timestamp (timestamp)
   );
 `;
 
