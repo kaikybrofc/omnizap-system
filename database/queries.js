@@ -1,4 +1,5 @@
-const pool = require('./connection');
+const { pool } = require('./connection');
+const mysql = require('mysql2/promise');
 const logger = require('../app/utils/logger/loggerModule');
 
 const VALID_TABLES = ['chats', 'groups_metadata', 'messages'];
@@ -19,16 +20,20 @@ function validateTableName(tableName) {
 }
 
 /**
+ * Converte undefined para null nos parâmetros SQL
+ */
+function sanitizeParams(params) {
+  return params.map((param) => (param === undefined ? null : param));
+}
+
+/**
  * Função genérica para executar consultas SQL.
  */
 async function executeQuery(sql, params = []) {
   try {
-    if (params.length > 0 && typeof params[0] === 'string') {
-      validateTableName(params[0]);
-    }
-
-    logger.debug('Executando SQL:', { sql: sql, params: params });
-    const [results] = await pool.query(sql, params);
+    const sanitizedParams = sanitizeParams(params);
+    logger.debug('Executando SQL:', { sql: sql, params: sanitizedParams });
+    const [results] = await pool.execute(sql, sanitizedParams);
     return results;
   } catch (error) {
     logger.error('Erro na consulta SQL:', {
@@ -44,16 +49,18 @@ async function executeQuery(sql, params = []) {
  * Busca todos os registros de uma tabela.
  */
 async function findAll(tableName) {
-  const sql = `SELECT * FROM ??`;
-  return await executeQuery(sql, [tableName]);
+  validateTableName(tableName);
+  const sql = `SELECT * FROM ${mysql.escapeId(tableName)}`;
+  return await executeQuery(sql, []);
 }
 
 /**
  * Busca um registro em uma tabela pelo ID.
  */
 async function findById(tableName, id) {
-  const sql = `SELECT * FROM ?? WHERE id = ?`;
-  const results = await executeQuery(sql, [tableName, id]);
+  validateTableName(tableName);
+  const sql = `SELECT * FROM ${mysql.escapeId(tableName)} WHERE id = ?`;
+  const results = await executeQuery(sql, [id]);
   return results[0] || null;
 }
 
@@ -61,8 +68,11 @@ async function findById(tableName, id) {
  * Cria um novo registro em uma tabela.
  */
 async function create(tableName, data) {
-  const sql = `INSERT INTO ?? SET ?`;
-  const result = await executeQuery(sql, [tableName, data]);
+  validateTableName(tableName);
+  const keys = Object.keys(data);
+  const values = Object.values(data);
+  const sql = `INSERT INTO ${mysql.escapeId(tableName)} (${keys.map((k) => mysql.escapeId(k)).join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`;
+  const result = await executeQuery(sql, values);
   return { id: result.insertId, ...data };
 }
 
@@ -70,8 +80,12 @@ async function create(tableName, data) {
  * Atualiza um registro em uma tabela pelo ID.
  */
 async function update(tableName, id, data) {
-  const sql = `UPDATE ?? SET ? WHERE id = ?`;
-  const result = await executeQuery(sql, [tableName, data, id]);
+  validateTableName(tableName);
+  const sets = Object.entries(data)
+    .map(([key]) => `${mysql.escapeId(key)} = ?`)
+    .join(', ');
+  const sql = `UPDATE ${mysql.escapeId(tableName)} SET ${sets} WHERE id = ?`;
+  const result = await executeQuery(sql, [...Object.values(data), id]);
   return result.affectedRows > 0;
 }
 
@@ -79,8 +93,9 @@ async function update(tableName, id, data) {
  * Deleta um registro de uma tabela pelo ID.
  */
 async function remove(tableName, id) {
-  const sql = `DELETE FROM ?? WHERE id = ?`;
-  const result = await executeQuery(sql, [tableName, id]);
+  validateTableName(tableName);
+  const sql = `DELETE FROM ${mysql.escapeId(tableName)} WHERE id = ?`;
+  const result = await executeQuery(sql, [id]);
   return result.affectedRows > 0;
 }
 
@@ -88,11 +103,21 @@ async function remove(tableName, id) {
  * Insere um registro se não existir, ou o atualiza se já existir (baseado na PRIMARY KEY).
  */
 async function upsert(tableName, data) {
+  validateTableName(tableName);
   const updateData = { ...data };
   delete updateData.id;
 
-  const sql = `INSERT INTO ?? SET ? ON DUPLICATE KEY UPDATE ?`;
-  const params = [tableName, data, updateData];
+  const keys = Object.keys(data);
+  const values = Object.values(data);
+  const updateSets = Object.entries(updateData)
+    .map(([key]) => `${mysql.escapeId(key)} = ?`)
+    .join(', ');
+
+  const sql = `INSERT INTO ${mysql.escapeId(tableName)} (${keys.map((k) => mysql.escapeId(k)).join(', ')}) 
+               VALUES (${keys.map(() => '?').join(', ')}) 
+               ON DUPLICATE KEY UPDATE ${updateSets}`;
+
+  const params = [...values, ...Object.values(updateData)];
 
   return await executeQuery(sql, params);
 }
