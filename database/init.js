@@ -34,4 +34,9 @@ ${DB_NAME}
   }
 }
 
-initializeDatabase();
+module.exports = initializeDatabase;
+
+// Executa a função apenas se o script for chamado diretamente (ex: node database/init.js)
+if (require.main === module) {
+  initializeDatabase();
+}
