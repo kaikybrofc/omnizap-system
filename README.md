@@ -1,8 +1,17 @@
-# OmniZap System
+# OmniZap System v2.0.1
 
 O **OmniZap System** é um sistema profissional de automação para WhatsApp desenvolvido com Node.js e a biblioteca Baileys. Ele oferece uma plataforma robusta para gerenciar grupos, automatizar interações e estender as funcionalidades do WhatsApp com comandos personalizados.
 
-## 🌟 Funcionalidades
+## 🌟 Novidades da Versão 2.0.1
+
+Esta versão traz melhorias significativas de desempenho, novos recursos e maior estabilidade.
+
+- **Refatoração do Módulo de Comandos:** O sistema de comandos foi totalmente reescrito para maior modularidade e extensibilidade.
+- **Melhorias no Desempenho:** Otimização do uso de memória e CPU para uma operação mais eficiente.
+- **Novos Comandos Administrativos:** Adicionados novos comandos para gerenciamento avançado de grupos.
+- **Correções de Bugs:** Diversas correções de bugs para aumentar a estabilidade do sistema.
+
+## ✨ Funcionalidades
 
 - **Gerenciamento de Grupos:** Adicione, remova, promova e rebaixe membros.
 - **Boas-vindas/Despedida Personalizáveis:** Configure mensagens e mídias personalizadas para novos membros e para aqueles que saíram.
@@ -61,7 +70,7 @@ npm start
 
 ## 🤖 Comandos
 
-Aqui está uma lista dos comandos disponíveis. Comandos administrativos exigem que o usuário seja um administrador do grupo.
+A aqui está uma lista dos comandos disponíveis. Comandos administrativos exigem que o usuário seja um administrador do grupo.
 
 ### Comandos Gerais
 
@@ -99,12 +108,23 @@ Aqui está uma lista dos comandos disponíveis. Comandos administrativos exigem 
 | -------- | ----------------------------------------------------- | ---------------------- |
 | `/eval`  | Executa um trecho de código JavaScript (apenas dono). | `/eval <código_js>`    |
 
-## 📦 Dependências Principais
+## 🛠️ Tecnologias Utilizadas
 
+- **Node.js:** Ambiente de execução JavaScript.
 - **@whiskeysockets/baileys:** A biblioteca principal para a API do WhatsApp Web.
-- **pino:** Para logs.
-- **dotenv:** Para gerenciamento de variáveis de ambiente.
-- **ffmpeg:** Para processamento de mídia (criação de figurinhas).
+- **Pino:** Para logs de alta performance.
+- **FFmpeg:** Para processamento de mídia (criação de figurinhas).
+- **Dotenv:** Para gerenciamento de variáveis de ambiente.
+
+## 🤝 Contribuições
+
+Contribuições são bem-vindas! Se você deseja contribuir com o projeto, siga estas etapas:
+
+1.  Faça um fork do repositório.
+2.  Crie uma nova branch para sua feature (`git checkout -b feature/nova-feature`).
+3.  Faça commit de suas alterações (`git commit -m 'Adiciona nova feature'`).
+4.  Faça push para a branch (`git push origin feature/nova-feature`).
+5.  Abra um Pull Request.
 
 ## 📄 Licença
 
@@ -115,4 +135,4 @@ Este projeto está licenciado sob a Licença MIT. Veja o arquivo [LICENSE](LICEN
 - **GitHub:** [https://github.com/Kaikygr/omnizap-system](https://github.com/Kaikygr/omnizap-system)
 
 ---
-*Este README foi gerado pelo Gemini.*
+*Este README foi gerado e atualizado pelo Gemini.*
