@@ -24,7 +24,6 @@ async function ensureDirectories(dir) {
  * @returns {Promise<string>} Caminho do sticker final
  */
 async function addStickerMetadata(stickerPath, packName, packAuthor, replaceContext = {}) {
-  // Contexto para replaces
   const { senderName = '', userId = '' } = replaceContext;
   const now = new Date();
   const pad = (n) => n.toString().padStart(2, '0');
@@ -60,13 +59,8 @@ async function addStickerMetadata(stickerPath, packName, packAuthor, replaceCont
     try {
       await execProm('which webpmux');
     } catch (error) {
-      logger.warn('addStickerMetadata webpmux não encontrado, tentando instalar...');
-      try {
-        await execProm('apt-get update && apt install -y webp');
-      } catch (installError) {
-        logger.error(`addStickerMetadata Falha ao instalar webpmux: ${installError.message}`);
-        throw new Error('webpmux não está instalado e não foi possível instalá-lo');
-      }
+      logger.error('addStickerMetadata webpmux não encontrado. Instale o pacote "webp" manualmente.');
+      throw new Error('webpmux não está instalado. Processo encerrado.');
     }
 
     const outputPath = path.join(TEMP_DIR, `final_${Date.now()}.webp`);
