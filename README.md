@@ -2,7 +2,7 @@
 
 O **OmniZap System** é um sistema profissional de automação para WhatsApp desenvolvido com Node.js e a biblioteca Baileys. Ele oferece uma plataforma robusta para gerenciar grupos, automatizar interações e estender as funcionalidades do WhatsApp com comandos personalizados, agora com suporte completo a banco de dados MySQL.
 
-## 🌟 Novidades da Versão 2.1.0
+## 🌟 Novidades da Versão 2.0.2
 
 Esta versão traz melhorias significativas na arquitetura e persistência de dados:
 
