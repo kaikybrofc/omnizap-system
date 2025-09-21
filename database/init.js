@@ -40,26 +40,27 @@ const createGroupsMetadataTableSQL = `
 async function initializeDatabase() {
   let connection;
   try {
-    // 1. Conecta ao servidor MySQL para garantir que o banco de dados exista
+    // Primeira conexão para criar o banco de dados
     connection = await mysql.createConnection({ host: DB_HOST, user: DB_USER, password: DB_PASSWORD });
-    await connection.query(`CREATE DATABASE IF NOT EXISTS 
-${DB_NAME}
-;`);
+    await connection.query(`CREATE DATABASE IF NOT EXISTS ${DB_NAME};`);
     await connection.end();
     console.log(`Banco de dados '${DB_NAME}' verificado/criado com sucesso.`);
 
-    // 2. Conecta-se ao banco de dados específico para criar as tabelas
-    connection = await mysql.createConnection({ host: DB_HOST, user: DB_USER, password: DB_PASSWORD, database: DB_NAME });
-    await connection.query(createMessagesTableSQL);
-    console.log('Tabela messages verificada/criada com sucesso.');
-    await connection.query(createChatsTableSQL);
-    console.log('Tabela chats verificada/criada com sucesso.');
-    await connection.query(createGroupsMetadataTableSQL);
-    console.log('Tabela groups_metadata verificada/criada com sucesso.');
+    // Nova conexão para criar as tabelas
+    connection = await mysql.createConnection({
+      host: DB_HOST,
+      user: DB_USER,
+      password: DB_PASSWORD,
+      database: DB_NAME,
+    });
 
+    // Executa todas as queries de criação de tabelas em paralelo
+    await Promise.all([connection.query(createMessagesTableSQL), connection.query(createChatsTableSQL), connection.query(createGroupsMetadataTableSQL)]);
+
+    console.log('Todas as tabelas foram verificadas/criadas com sucesso.');
   } catch (error) {
     console.error('Erro ao inicializar o banco de dados ou tabelas:', error);
-    process.exit(1); // Encerra o script com um código de erro
+    process.exit(1);
   } finally {
     if (connection) {
       await connection.end();
@@ -70,7 +71,6 @@ ${DB_NAME}
 
 module.exports = initializeDatabase;
 
-// Executa a função apenas se o script for chamado diretamente
 if (require.main === module) {
   initializeDatabase();
 }
