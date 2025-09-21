@@ -135,7 +135,6 @@ function getExpiration(sock) {
  */
 const handleMessages = async (update, sock) => {
   if (update.messages && Array.isArray(update.messages)) {
-    dataStore.saveIncomingRawMessages(update.messages);
     try {
       for (const messageInfo of update.messages) {
         const extractedText = extractMessageContent(messageInfo);

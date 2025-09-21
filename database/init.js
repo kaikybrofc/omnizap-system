@@ -16,6 +16,27 @@ const createMessagesTableSQL = `
   );
 `;
 
+const createChatsTableSQL = `
+  CREATE TABLE IF NOT EXISTS chats (
+    id VARCHAR(255) PRIMARY KEY NOT NULL,
+    name VARCHAR(255),
+    raw_chat JSON,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  );
+`;
+
+const createGroupsMetadataTableSQL = `
+  CREATE TABLE IF NOT EXISTS groups_metadata (
+    id VARCHAR(255) PRIMARY KEY NOT NULL,
+    subject VARCHAR(255),
+    description TEXT,
+    owner_jid VARCHAR(255),
+    creation BIGINT,
+    participants JSON,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  );
+`;
+
 async function initializeDatabase() {
   let connection;
   try {
@@ -31,6 +52,11 @@ ${DB_NAME}
     connection = await mysql.createConnection({ host: DB_HOST, user: DB_USER, password: DB_PASSWORD, database: DB_NAME });
     await connection.query(createMessagesTableSQL);
     console.log('Tabela messages verificada/criada com sucesso.');
+    await connection.query(createChatsTableSQL);
+    console.log('Tabela chats verificada/criada com sucesso.');
+    await connection.query(createGroupsMetadataTableSQL);
+    console.log('Tabela groups_metadata verificada/criada com sucesso.');
+
   } catch (error) {
     console.error('Erro ao inicializar o banco de dados ou tabelas:', error);
     process.exit(1); // Encerra o script com um código de erro

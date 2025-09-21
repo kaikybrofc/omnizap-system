@@ -292,7 +292,6 @@ async function handleGroupUpdate(updates, sock) {
       const updatedData = { ...oldData, ...event };
 
       store.groups[groupId] = updatedData;
-      store.debouncedWrite('groups');
 
       logger.info(`📦 Metadados do grupo atualizados.`, {
         action: 'group_metadata_updated',
