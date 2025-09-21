@@ -142,7 +142,7 @@ const handleMessages = async (update, sock) => {
         if (extractedText.startsWith(COMMAND_PREFIX)) {
           const commandBody = extractedText.substring(COMMAND_PREFIX.length);
           const match = commandBody.match(/^(\S+)([\s\S]*)$/);
-          const command = match ? match[1] : '';
+          const command = match ? match[1].toLowerCase() : '';
           const args = match && match[2] !== undefined ? [match[2].trimStart()] : [];
 
           const isGroupMessage = messageInfo.key.remoteJid.endsWith('@g.us');
