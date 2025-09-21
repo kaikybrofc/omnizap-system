@@ -29,7 +29,48 @@ async function connectToWhatsApp() {
 
   const authPath = path.join(__dirname, 'auth');
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
-  await store.loadData();
+
+  // Carrega dados do MySQL para o cache em memória
+  logger.info('Carregando dados do MySQL para o cache em memória...', {
+    action: 'mysql_cache_load',
+    timestamp: new Date().toISOString(),
+  });
+
+  try {
+    const { findAll } = require('../../database/queries');
+    const groups = await findAll('groups_metadata');
+    for (const group of groups) {
+      let parsedParticipants = [];
+      try {
+        // Verifica se participants é uma string JSON válida
+        if (typeof group.participants === 'string') {
+          parsedParticipants = JSON.parse(group.participants);
+        } else if (Array.isArray(group.participants)) {
+          // Se já for um array, usa diretamente
+          parsedParticipants = group.participants;
+        }
+      } catch (parseError) {
+        logger.warn(`Erro ao fazer parse dos participantes do grupo ${group.id}:`, {
+          error: parseError.message,
+          participants: group.participants,
+        });
+      }
+
+      store.groups[group.id] = {
+        ...group,
+        participants: parsedParticipants,
+      };
+    }
+    logger.info(`Cache de grupos carregado com sucesso (${groups.length} grupos)`, {
+      action: 'mysql_cache_load_success',
+      groupCount: groups.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error('Erro catastrófico ao carregar dados do MySQL para o store:', error);
+    throw error;
+  }
+
   await groupConfigStore.loadData();
   const version = [6, 7, 0];
 
@@ -222,12 +263,32 @@ async function handleConnectionUpdate(update, sock) {
 
     try {
       const allGroups = await sock.groupFetchAllParticipating();
+      const { upsert } = require('../../database/queries');
+
       for (const group of Object.values(allGroups)) {
-        store.groups[group.id] = group;
+        const participantsData = Array.isArray(group.participants)
+          ? group.participants.map((p) => ({
+              id: p.id,
+              jid: p.id,
+              lid: p.lid || null,
+              admin: p.admin,
+            }))
+          : [];
+
+        await upsert('groups_metadata', {
+          id: group.id,
+          subject: group.subject,
+          description: group.desc,
+          owner_jid: group.owner,
+          creation: group.creation,
+          participants: JSON.stringify(participantsData),
+        });
+
+        store.groups[group.id] = group; // Mantém em memória também
       }
-      store.debouncedWrite('groups');
-      logger.info(`📁 Metadados de ${Object.keys(allGroups).length} grupos carregados e salvos.`, {
-        action: 'groups_loaded',
+
+      logger.info(`📁 Metadados de ${Object.keys(allGroups).length} grupos sincronizados com MySQL.`, {
+        action: 'groups_synced',
         count: Object.keys(allGroups).length,
         groupIds: Object.keys(allGroups),
         timestamp: new Date().toISOString(),
@@ -285,16 +346,54 @@ async function handleMessageUpdate(updates, sock) {
 }
 
 async function handleGroupUpdate(updates, sock) {
+  const { upsert, findById } = require('../../database/queries');
+
   for (const event of updates) {
     try {
       const groupId = event.id;
-      const oldData = store.groups[groupId] || {};
-      const updatedData = { ...oldData, ...event };
+      const oldData = (await findById('groups_metadata', groupId)) || {};
+      const currentData = store.groups[groupId] || {};
+      let currentParticipants = [];
+      try {
+        if (typeof currentData.participants === 'string') {
+          currentParticipants = JSON.parse(currentData.participants);
+        } else if (Array.isArray(currentData.participants)) {
+          currentParticipants = currentData.participants;
+        }
+      } catch (parseError) {
+        logger.warn(`Erro ao fazer parse dos participantes existentes do grupo ${groupId}:`, {
+          error: parseError.message,
+        });
+      }
 
+      const participantsData = (event.participants || currentParticipants || []).map((p) => ({
+        id: p.id,
+        jid: p.id,
+        lid: p.lid || null,
+        admin: p.admin,
+      }));
+
+      const updatedData = {
+        ...oldData,
+        ...currentData,
+        ...event,
+        participants: participantsData,
+      };
+
+      // Atualiza no MySQL
+      await upsert('groups_metadata', {
+        id: groupId,
+        subject: updatedData.subject,
+        description: updatedData.desc,
+        owner_jid: updatedData.owner,
+        creation: updatedData.creation,
+        participants: updatedData.participants,
+      });
+
+      // Mantém atualizado em memória
       store.groups[groupId] = updatedData;
-      store.debouncedWrite('groups');
 
-      logger.info(`📦 Metadados do grupo atualizados.`, {
+      logger.info(`📦 Metadados do grupo atualizados no MySQL e cache.`, {
         action: 'group_metadata_updated',
         groupId,
         groupName: updatedData.subject || 'Desconhecido',

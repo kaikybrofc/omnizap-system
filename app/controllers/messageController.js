@@ -4,7 +4,7 @@
  * Controlador responsável pelo processamento e tratamento de mensagens
  * recebidas através do WhatsApp via tecnologia Baileys
  *
- * @version 2.0.1
+ * @version 2.0.2
  * @license MIT
  * @source https://github.com/kaikybrofc/omnizap-system
  */
@@ -135,7 +135,6 @@ function getExpiration(sock) {
  */
 const handleMessages = async (update, sock) => {
   if (update.messages && Array.isArray(update.messages)) {
-    dataStore.saveIncomingRawMessages(update.messages);
     try {
       for (const messageInfo of update.messages) {
         const extractedText = extractMessageContent(messageInfo);
