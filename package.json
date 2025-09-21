@@ -16,6 +16,7 @@
   "license": "MIT",
   "scripts": {
     "start": "node index.js",
+    "db:init": "node database/init.js",
     "pm2:dev": "pm2 start ecosystem.config.js --env development",
     "pm2:prod": "pm2 start ecosystem.config.js --env production"
   },
@@ -28,6 +29,7 @@
     "ffmpeg": "^0.0.4",
     "lodash": "^4.17.21",
     "moment-timezone": "^0.5.48",
+    "mysql2": "^3.15.0",
     "node-cache": "^5.1.2",
     "pino": "^7.11.0",
     "pino-pretty": "^13.0.0",
