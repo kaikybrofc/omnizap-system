@@ -1,21 +1,42 @@
 const pool = require('./connection');
 const logger = require('../app/utils/logger/loggerModule');
 
+const VALID_TABLES = ['chats', 'groups_metadata', 'messages'];
+
+/**
+ * Valida se o nome da tabela é permitido
+ * @throws {Error} Se a tabela não for válida
+ */
+function validateTableName(tableName) {
+  if (!VALID_TABLES.includes(tableName)) {
+    const error = new Error(`Tabela inválida: ${tableName}`);
+    logger.error('Erro de validação de tabela:', {
+      tableName: tableName,
+      error: error.message,
+    });
+    throw error;
+  }
+}
+
 /**
  * Função genérica para executar consultas SQL.
  */
 async function executeQuery(sql, params = []) {
   try {
+    if (params.length > 0 && typeof params[0] === 'string') {
+      validateTableName(params[0]);
+    }
+
     logger.debug('Executando SQL:', { sql: sql, params: params });
     const [results] = await pool.query(sql, params);
     return results;
   } catch (error) {
-    logger.error('Erro na consulta SQL:', { 
-      sql: sql, 
-      params: params, 
-      error: error.message 
+    logger.error('Erro na consulta SQL:', {
+      sql: sql,
+      params: params,
+      error: error.message,
     });
-    throw error; 
+    throw error;
   }
 }
 
@@ -67,18 +88,14 @@ async function remove(tableName, id) {
  * Insere um registro se não existir, ou o atualiza se já existir (baseado na PRIMARY KEY).
  */
 async function upsert(tableName, data) {
-  // A cláusula ON DUPLICATE KEY UPDATE precisa de um objeto para a parte de UPDATE.
-  // Criamos uma cópia dos dados para garantir que não modificamos o objeto original.
   const updateData = { ...data };
-  // É uma boa prática remover a chave primária da cláusula UPDATE, pois ela não deve ser alterada.
   delete updateData.id;
 
   const sql = `INSERT INTO ?? SET ? ON DUPLICATE KEY UPDATE ?`;
   const params = [tableName, data, updateData];
-  
+
   return await executeQuery(sql, params);
 }
-
 
 module.exports = {
   executeQuery,
@@ -87,5 +104,5 @@ module.exports = {
   create,
   update,
   remove,
-  upsert
+  upsert,
 };
