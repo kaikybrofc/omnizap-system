@@ -1,5 +1,3 @@
-// app/utils/mediaDownloader/mediaDownloaderModule.js
-
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const logger = require('../logger/loggerModule');
 const fs = require('fs');
@@ -13,27 +11,27 @@ const path = require('path');
  * @returns {Promise<string|null>} The path to the downloaded file, or null if download fails.
  */
 const downloadMediaMessage = async (message, type, outputPath) => {
-    try {
-        let buffer = Buffer.from([]);
-        const stream = await downloadContentFromMessage(message, type);
+  try {
+    let buffer = Buffer.from([]);
+    const stream = await downloadContentFromMessage(message, type);
 
-        for await (const chunk of stream) {
-            buffer = Buffer.concat([buffer, chunk]);
-        }
-
-        const fileId = message.key?.id || Date.now();
-        const fileName = `${Date.now()}-${fileId}.${type === 'image' ? 'jpeg' : type === 'video' ? 'mp4' : type === 'audio' ? 'mp3' : 'bin'}`;
-        const filePath = path.join(outputPath, fileName);
-
-        fs.writeFileSync(filePath, buffer);
-        logger.info(`Media downloaded successfully to ${filePath}`);
-        return filePath;
-    } catch (error) {
-        logger.error(`Error downloading media: ${error.message}`, error);
-        return null;
+    for await (const chunk of stream) {
+      buffer = Buffer.concat([buffer, chunk]);
     }
+
+    const fileId = message.key?.id || Date.now();
+    const fileName = `${Date.now()}-${fileId}.${type === 'image' ? 'jpeg' : type === 'video' ? 'mp4' : type === 'audio' ? 'mp3' : 'bin'}`;
+    const filePath = path.join(outputPath, fileName);
+
+    fs.writeFileSync(filePath, buffer);
+    logger.info(`Media downloaded successfully to ${filePath}`);
+    return filePath;
+  } catch (error) {
+    logger.error(`Error downloading media: ${error.message}`, error);
+    return null;
+  }
 };
 
 module.exports = {
-    downloadMediaMessage,
+  downloadMediaMessage,
 };
