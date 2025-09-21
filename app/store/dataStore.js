@@ -2,6 +2,8 @@
 const { readFromFile, writeToFile } = require('./persistence');
 // Importa o módulo de logging para registrar informações e erros.
 const logger = require('../utils/logger/loggerModule');
+// Importa a função para criar registros no banco de dados.
+// A importação de dbQueries foi movida para dentro do evento messages.upsert para evitar dependência circular.
 
 // Buffer de escrita para otimizar as operações de I/O, agrupando múltiplas escritas em uma só.
 const writeBuffer = {
@@ -178,6 +180,34 @@ const store = {
     // Cada listener atualiza a parte correspondente do 'store' e agenda uma escrita.
 
     ev.on('messages.upsert', ({ messages: incomingMessages, type }) => {
+      const dbQueries = require('../../database/queries'); // Importação local para quebrar ciclo de dependência
+      console.log('DEBUG: Conteúdo de dbQueries:', dbQueries);
+
+      // LÓGICA ADICIONADA PARA SALVAR NO MYSQL
+      if (type === 'append' || type === 'notify') {
+        for (const msg of incomingMessages) {
+          if (!msg.message || msg.key.remoteJid === 'status@broadcast') continue;
+
+          const messageData = {
+            message_id: msg.key.id,
+            chat_id: msg.key.remoteJid,
+            sender_id: msg.key.participant || msg.key.remoteJid,
+            content: msg.message.conversation || msg.message.extendedTextMessage?.text || null,
+            raw_message: JSON.stringify(msg), // O driver mysql2 lida com a serialização de objetos para JSON
+            timestamp: new Date(Number(msg.messageTimestamp) * 1000),
+          };
+
+          dbQueries.create('messages', messageData)
+            .then(() => logger.info(`Mensagem ${msg.key.id} salva no banco de dados.`))
+            .catch(err => {
+              if (err.code !== 'ER_DUP_ENTRY') {
+                logger.error(`Erro ao salvar mensagem ${msg.key.id} no banco de dados:`, err);
+              }
+            });
+        }
+      }
+
+      // LÓGICA ORIGINAL (MANTIDA)
       if (type === 'append') {
         for (const msg of incomingMessages) {
           if (!this.messages[msg.key.remoteJid]) {
@@ -196,14 +226,10 @@ const store = {
       } else {
         for (const { key } of item.keys) {
           if (this.messages[key.remoteJid]) {
-            this.messages[key.remoteJid] = this.messages[key.remoteJid].filter(
-              (msg) => msg.key.id !== key.id,
-            );
+            this.messages[key.remoteJid] = this.messages[key.remoteJid].filter((msg) => msg.key.id !== key.id);
           }
           if (this.rawMessages[key.remoteJid]) {
-            this.rawMessages[key.remoteJid] = this.rawMessages[key.remoteJid].filter(
-              (msg) => msg.key.id !== key.id,
-            );
+            this.rawMessages[key.remoteJid] = this.rawMessages[key.remoteJid].filter((msg) => msg.key.id !== key.id);
           }
         }
       }
@@ -214,17 +240,13 @@ const store = {
     ev.on('messages.update', (updates) => {
       for (const update of updates) {
         if (this.messages[update.key.remoteJid]) {
-          const idx = this.messages[update.key.remoteJid].findIndex(
-            (msg) => msg.key.id === update.key.id,
-          );
+          const idx = this.messages[update.key.remoteJid].findIndex((msg) => msg.key.id === update.key.id);
           if (idx !== -1) {
             Object.assign(this.messages[update.key.remoteJid][idx], update);
           }
         }
         if (this.rawMessages[update.key.remoteJid]) {
-          const idx = this.rawMessages[update.key.remoteJid].findIndex(
-            (msg) => msg.key.id === update.key.id,
-          );
+          const idx = this.rawMessages[update.key.remoteJid].findIndex((msg) => msg.key.id === update.key.id);
           if (idx !== -1) {
             Object.assign(this.rawMessages[update.key.remoteJid][idx], update);
           }
@@ -237,9 +259,7 @@ const store = {
     ev.on('messages.media-update', (updates) => {
       for (const update of updates) {
         if (this.messages[update.key.remoteJid]) {
-          const idx = this.messages[update.key.remoteJid].findIndex(
-            (msg) => msg.key.id === update.key.id,
-          );
+          const idx = this.messages[update.key.remoteJid].findIndex((msg) => msg.key.id === update.key.id);
           if (idx !== -1) {
             Object.assign(this.messages[update.key.remoteJid][idx], {
               media: update.media,
@@ -247,9 +267,7 @@ const store = {
           }
         }
         if (this.rawMessages[update.key.remoteJid]) {
-          const idx = this.rawMessages[update.key.remoteJid].findIndex(
-            (msg) => msg.key.id === update.key.id,
-          );
+          const idx = this.rawMessages[update.key.remoteJid].findIndex((msg) => msg.key.id === update.key.id);
           if (idx !== -1) {
             Object.assign(this.rawMessages[update.key.remoteJid][idx], {
               media: update.media,
@@ -270,9 +288,7 @@ const store = {
             if (!message.reactions) {
               message.reactions = [];
             }
-            const existingReactionIdx = message.reactions.findIndex(
-              (r) => r.key.id === reaction.key.id,
-            );
+            const existingReactionIdx = message.reactions.findIndex((r) => r.key.id === reaction.key.id);
             if (existingReactionIdx !== -1) {
               if (reaction.text) {
                 Object.assign(message.reactions[existingReactionIdx], reaction);
@@ -291,9 +307,7 @@ const store = {
             if (!message.reactions) {
               message.reactions = [];
             }
-            const existingReactionIdx = message.reactions.findIndex(
-              (r) => r.key.id === reaction.key.id,
-            );
+            const existingReactionIdx = message.reactions.findIndex((r) => r.key.id === reaction.key.id);
             if (existingReactionIdx !== -1) {
               if (reaction.text) {
                 Object.assign(message.reactions[existingReactionIdx], reaction);
@@ -319,9 +333,7 @@ const store = {
             if (!message.userReceipt) {
               message.userReceipt = [];
             }
-            const existingReceiptIdx = message.userReceipt.findIndex(
-              (r) => r.userJid === receipt.userJid,
-            );
+            const existingReceiptIdx = message.userReceipt.findIndex((r) => r.userJid === receipt.userJid);
             if (existingReceiptIdx !== -1) {
               Object.assign(message.userReceipt[existingReceiptIdx], receipt);
             } else {
@@ -336,9 +348,7 @@ const store = {
             if (!message.userReceipt) {
               message.userReceipt = [];
             }
-            const existingReceiptIdx = message.userReceipt.findIndex(
-              (r) => r.userJid === receipt.userJid,
-            );
+            const existingReceiptIdx = message.userReceipt.findIndex((r) => r.userJid === receipt.userJid);
             if (existingReceiptIdx !== -1) {
               Object.assign(message.userReceipt[existingReceiptIdx], receipt);
             } else {
@@ -381,14 +391,10 @@ const store = {
             }
           }
         } else if (action === 'remove') {
-          this.groups[id].participants = this.groups[id].participants.filter(
-            (p) => !participants.includes(p.id),
-          );
+          this.groups[id].participants = this.groups[id].participants.filter((p) => !participants.includes(p.id));
         } else if (action === 'promote' || action === 'demote') {
           for (const participantJid of participants) {
-            const participantObj = this.groups[id].participants.find(
-              (p) => p.id === participantJid,
-            );
+            const participantObj = this.groups[id].participants.find((p) => p.id === participantJid);
             if (participantObj) {
               participantObj.admin = action === 'promote' ? 'admin' : null;
             }
@@ -441,9 +447,7 @@ const store = {
         this.labels[association.labelId].associations.push(association);
       } else if (type === 'remove') {
         if (this.labels[association.labelId].associations) {
-          this.labels[association.labelId].associations = this.labels[
-            association.labelId
-          ].associations.filter((assoc) => assoc.jid !== association.jid);
+          this.labels[association.labelId].associations = this.labels[association.labelId].associations.filter((assoc) => assoc.jid !== association.jid);
         }
       }
       this.debouncedWrite('labels');
@@ -456,9 +460,7 @@ const store = {
       if (!this.newsletters[reaction.id].reactions) {
         this.newsletters[reaction.id].reactions = [];
       }
-      const existingReactionIdx = this.newsletters[reaction.id].reactions.findIndex(
-        (r) => r.server_id === reaction.server_id,
-      );
+      const existingReactionIdx = this.newsletters[reaction.id].reactions.findIndex((r) => r.server_id === reaction.server_id);
       if (existingReactionIdx !== -1) {
         Object.assign(this.newsletters[reaction.id].reactions[existingReactionIdx], reaction);
       } else {
@@ -482,9 +484,7 @@ const store = {
       if (!this.newsletters[update.id].participants) {
         this.newsletters[update.id].participants = [];
       }
-      const existingParticipantIdx = this.newsletters[update.id].participants.findIndex(
-        (p) => p.user === update.user,
-      );
+      const existingParticipantIdx = this.newsletters[update.id].participants.findIndex((p) => p.user === update.user);
       if (existingParticipantIdx !== -1) {
         Object.assign(this.newsletters[update.id].participants[existingParticipantIdx], update);
       } else {
