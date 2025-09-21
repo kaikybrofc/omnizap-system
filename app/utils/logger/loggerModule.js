@@ -4,7 +4,7 @@
  * Sistema de logs centralizado e configurável para o OmniZap,
  * com suporte a múltiplos níveis, rotação de arquivos e formatação.
  *
- * @version 2.0.0
+ * @version 2.0.1
  * @license MIT
  * @source https://github.com/Kaikygr/omnizap-system
  */
@@ -80,16 +80,7 @@ const consoleFormat = winston.format.combine(
   winston.format.colorize({ all: true }),
   winston.format.splat(),
   winston.format.metadata({
-    fillExcept: [
-      'message',
-      'level',
-      'timestamp',
-      'label',
-      'service',
-      'instanceId',
-      'environment',
-      'stack',
-    ],
+    fillExcept: ['message', 'level', 'timestamp', 'label', 'service', 'instanceId', 'environment', 'stack'],
   }),
   winston.format.printf((info) => {
     const { timestamp, level, message, metadata, stack } = info;
@@ -100,10 +91,7 @@ const consoleFormat = winston.format.combine(
       delete metaToPrint.label;
     }
 
-    const metaPart =
-      Object.keys(metaToPrint).length > 0
-        ? ` ${util.inspect(metaToPrint, { colors: true, depth: 2 })}`
-        : '';
+    const metaPart = Object.keys(metaToPrint).length > 0 ? ` ${util.inspect(metaToPrint, { colors: true, depth: 2 })}` : '';
 
     const servicePart = info.service ? ` [${info.service}]` : '';
     const instancePart = info.instanceId ? ` [${info.instanceId}]` : '';
@@ -184,13 +172,9 @@ function ensureLogDirectoryExists() {
   try {
     fs.mkdirSync(logDir, { recursive: true, mode: dirMode });
 
-    console.log(
-      `[ LoggerSetup ] Diretório de log garantido: '${logDir}' (modo ${dirMode.toString(8)})`,
-    );
+    console.log(`[ LoggerSetup ] Diretório de log garantido: '${logDir}' (modo ${dirMode.toString(8)})`);
   } catch (error) {
-    throw new Error(
-      `Falha na configuração do Logger: Não foi possível acessar/criar o diretório de log '${logDir}'. Erro original: ${error.message}`,
-    );
+    throw new Error(`Falha na configuração do Logger: Não foi possível acessar/criar o diretório de log '${logDir}'. Erro original: ${error.message}`);
   }
 }
 
@@ -203,8 +187,7 @@ const createLoggerInstance = (overrideOptions = {}) => {
   if (overrideOptions.transports) {
     configuredTransports = overrideOptions.transports;
   } else {
-    const transportDefinitions =
-      overrideOptions.transportDefinitions || getDefaultTransportDefinitions(effectiveLevel);
+    const transportDefinitions = overrideOptions.transportDefinitions || getDefaultTransportDefinitions(effectiveLevel);
     configuredTransports = transportDefinitions
       .map((def) => {
         try {
@@ -214,16 +197,11 @@ const createLoggerInstance = (overrideOptions = {}) => {
             case 'dailyRotateFile':
               return new DailyRotateFile(def.options);
             default:
-              console.warn(
-                `[ LoggerSetup ] Tipo de transporte desconhecido: ${def.type}. Pulando.`,
-              );
+              console.warn(`[ LoggerSetup ] Tipo de transporte desconhecido: ${def.type}. Pulando.`);
               return null;
           }
         } catch (error) {
-          console.error(
-            `[ LoggerSetup ] Falha ao criar transporte tipo ${def.type}: ${error.message}`,
-            error,
-          );
+          console.error(`[ LoggerSetup ] Falha ao criar transporte tipo ${def.type}: ${error.message}`, error);
           return null;
         }
       })
@@ -238,8 +216,7 @@ const createLoggerInstance = (overrideOptions = {}) => {
 
   const defaultMeta = { ...baseDefaultMeta, ...(overrideOptions.defaultMeta || {}) };
 
-  const loggerFormat =
-    overrideOptions.format || winston.format.combine(winston.format.errors({ stack: true }));
+  const loggerFormat = overrideOptions.format || winston.format.combine(winston.format.errors({ stack: true }));
 
   const loggerInstance = winston.createLogger({
     level: effectiveLevel,
@@ -254,9 +231,7 @@ const createLoggerInstance = (overrideOptions = {}) => {
     console.error('Erro ocorrido dentro do Winston Logger:', error);
   });
 
-  console.log(
-    `[ LoggerSetup ] Instância do Logger criada. Nível: ${effectiveLevel}, Env: ${NODE_ENV}, Instância: ${INSTANCE_ID}, Serviço: ${ECOSYSTEM_NAME}`,
-  );
+  console.log(`[ LoggerSetup ] Instância do Logger criada. Nível: ${effectiveLevel}, Env: ${NODE_ENV}, Instância: ${INSTANCE_ID}, Serviço: ${ECOSYSTEM_NAME}`);
 
   return loggerInstance;
 };

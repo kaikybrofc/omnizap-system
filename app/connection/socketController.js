@@ -1,15 +1,3 @@
-/**
- * OmniZap WhatsApp Connection Controller
- *
- * Refatorado para seguir o padrão do Baileys
- * Utiliza eventos globais para comunicação
- *
- * @version 2.0.0
- * @license MIT
- * @source https://github.com/Kaikygr/omnizap-[system]
- *
- */
-
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage } = require('@whiskeysockets/baileys');
 
 const store = require('../store/dataStore');
