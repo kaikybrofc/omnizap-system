@@ -20,6 +20,9 @@ const pool = mysql.createPool({
   waitForConnections: true, // Espera por uma conexão disponível se todas estiverem em uso
   connectionLimit: 10, // Número máximo de conexões no pool
   queueLimit: 0, // Fila de espera ilimitada
+  timezone: 'Z', // UTC
+  charset: 'utf8mb4', // Suporte completo a Unicode/emojis
+  collation: 'utf8mb4_unicode_ci',
 });
 
 // Testa a conexão imediatamente
@@ -38,4 +41,22 @@ async function validateConnection() {
 // Executa a validação
 validateConnection();
 
-module.exports = pool;
+// Tratamento de encerramento gracioso
+async function closePool() {
+  try {
+    await pool.end();
+    console.log('Pool de conexões MySQL encerrado com sucesso.');
+  } catch (error) {
+    console.error('Erro ao encerrar pool de conexões:', error.message);
+    process.exit(1);
+  }
+}
+
+// Registra handlers para sinais de término
+process.on('SIGTERM', () => closePool());
+process.on('SIGINT', () => closePool());
+
+module.exports = {
+  pool,
+  closePool, // Exporta a função de encerramento para uso em scripts CLI
+};
