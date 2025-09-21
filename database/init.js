@@ -5,7 +5,7 @@ const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME } = process.env;
 
 const createMessagesTableSQL = `
   CREATE TABLE IF NOT EXISTS messages (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
     message_id VARCHAR(255) UNIQUE NOT NULL,
     chat_id VARCHAR(255) NOT NULL,
     sender_id VARCHAR(255),
