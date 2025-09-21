@@ -1,15 +1,17 @@
-# OmniZap System v2.0.1
+# OmniZap System v2.1.0
 
-O **OmniZap System** é um sistema profissional de automação para WhatsApp desenvolvido com Node.js e a biblioteca Baileys. Ele oferece uma plataforma robusta para gerenciar grupos, automatizar interações e estender as funcionalidades do WhatsApp com comandos personalizados.
+O **OmniZap System** é um sistema profissional de automação para WhatsApp desenvolvido com Node.js e a biblioteca Baileys. Ele oferece uma plataforma robusta para gerenciar grupos, automatizar interações e estender as funcionalidades do WhatsApp com comandos personalizados, agora com suporte completo a banco de dados MySQL.
 
-## 🌟 Novidades da Versão 2.0.1
+## 🌟 Novidades da Versão 2.1.0
 
-Esta versão traz melhorias significativas de desempenho, novos recursos e maior estabilidade.
+Esta versão traz melhorias significativas na arquitetura e persistência de dados:
 
-- **Refatoração do Módulo de Comandos:** O sistema de comandos foi totalmente reescrito para maior modularidade e extensibilidade.
-- **Melhorias no Desempenho:** Otimização do uso de memória e CPU para uma operação mais eficiente.
-- **Novos Comandos Administrativos:** Adicionados novos comandos para gerenciamento avançado de grupos.
-- **Correções de Bugs:** Diversas correções de bugs para aumentar a estabilidade do sistema.
+- **Suporte a MySQL:** Sistema totalmente integrado com MySQL para persistência robusta de dados.
+- **Camada de Abstração de Dados:** Interface unificada para acesso ao banco de dados com validações e sanitização.
+- **Cache Híbrido:** Sistema inteligente que combina cache em memória com persistência MySQL.
+- **Tratamento de Erros:** Sistema robusto de tratamento de erros e logging.
+- **Segurança Aprimorada:** Melhor proteção contra SQL injection e validação de dados.
+- **Performance Otimizada:** Queries SQL otimizadas e índices adequados para melhor desempenho.
 
 ## ✨ Funcionalidades
 
@@ -36,13 +38,38 @@ Esta versão traz melhorias significativas de desempenho, novos recursos e maior
 3.  **Configure as variáveis de ambiente:**
     Crie um arquivo `.env` no diretório raiz e adicione as seguintes variáveis:
     ```env
+    # Configurações do Bot
     COMMAND_PREFIX=/
     USER_ADMIN=seu_jid_de_admin@s.whatsapp.net
+
+    # Configurações do MySQL
+    DB_HOST=localhost
+    DB_USER=seu_usuario
+    DB_PASSWORD=sua_senha
+    DB_NAME=omnizap
     ```
     *   `COMMAND_PREFIX`: O prefixo para todos os comandos (ex: `/`, `!`, `.`).
     *   `USER_ADMIN`: O JID do usuário com privilégios administrativos para o bot.
+    *   `DB_HOST`: Host do servidor MySQL.
+    *   `DB_USER`: Usuário do MySQL.
+    *   `DB_PASSWORD`: Senha do MySQL.
+    *   `DB_NAME`: Nome do banco de dados.
 
 ## ⚡️ Uso
+
+### Inicialização do Banco
+
+Antes de iniciar o bot, certifique-se de que o MySQL está configurado corretamente:
+
+```bash
+# Inicia o serviço MySQL (se necessário)
+sudo service mysql start
+
+# Verifica status do MySQL
+sudo service mysql status
+```
+
+O sistema criará automaticamente o banco de dados e as tabelas necessárias na primeira execução.
 
 ### Desenvolvimento
 
@@ -66,6 +93,18 @@ Para iniciar o bot sem `pm2`:
 
 ```bash
 npm start
+```
+
+### Monitoramento
+
+Para monitorar os logs e performance:
+
+```bash
+# Visualizar logs do PM2
+pm2 logs omnizap
+
+# Monitorar recursos
+pm2 monit
 ```
 
 ## 🤖 Comandos
@@ -110,11 +149,33 @@ A aqui está uma lista dos comandos disponíveis. Comandos administrativos exige
 
 ## 🛠️ Tecnologias Utilizadas
 
-- **Node.js:** Ambiente de execução JavaScript.
-- **@whiskeysockets/baileys:** A biblioteca principal para a API do WhatsApp Web.
-- **Pino:** Para logs de alta performance.
-- **FFmpeg:** Para processamento de mídia (criação de figurinhas).
-- **Dotenv:** Para gerenciamento de variáveis de ambiente.
+- **Node.js:** Ambiente de execução JavaScript
+- **MySQL:** Sistema de gerenciamento de banco de dados robusto
+- **@whiskeysockets/baileys:** Biblioteca principal para a API do WhatsApp Web
+- **mysql2/promise:** Driver MySQL com suporte a promises e prepared statements
+- **Pino:** Sistema de logging de alta performance
+- **FFmpeg:** Processamento de mídia (criação de figurinhas)
+- **PM2:** Gerenciador de processos para Node.js
+- **Dotenv:** Gerenciamento de variáveis de ambiente
+
+### 📊 Estrutura do Banco de Dados
+
+O sistema utiliza as seguintes tabelas principais:
+
+- **messages:** Armazena histórico de mensagens com suporte a JSON
+  - Campos otimizados com índices para consultas frequentes
+  - Suporte a mensagens de mídia via JSON
+  - Tracking de timestamps para análises
+
+- **groups_metadata:** Gerencia metadados dos grupos
+  - Informações como nome, descrição, dono
+  - Lista de participantes em formato JSON
+  - Tracking de alterações com timestamps
+
+- **chats:** Mantém informações sobre conversas
+  - Dados de configuração por chat
+  - Suporte a dados extras via JSON
+  - Atualização automática de timestamps
 
 ## 🤝 Contribuições
 
