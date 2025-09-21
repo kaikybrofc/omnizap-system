@@ -45,7 +45,7 @@ async function initializeDatabase() {
   try {
     // Cria a conexão inicial
     connection = await mysql.createConnection({ host: DB_HOST, user: DB_USER, password: DB_PASSWORD });
-    await connection.query(`CREATE DATABASE IF NOT EXISTS ${DB_NAME};`);
+    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;`);
     console.log(`Banco de dados '${DB_NAME}' verificado/criado com sucesso.`);
 
     // Muda para o banco de dados criado
