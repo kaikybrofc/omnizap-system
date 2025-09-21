@@ -6,7 +6,7 @@
  *
  * @version 2.0.0
  * @license MIT
- * @source https://github.com/Kaikygr/omnizap-system
+ * @source https://github.com/kaikybrofc/omnizap-system
  */
 
 require('dotenv').config();
@@ -15,11 +15,9 @@ const { processSticker } = require('../modules/stickerModule/stickerCommand');
 const groupUtils = require('../utils/groupUtils');
 const dataStore = require('../store/dataStore');
 const groupConfigStore = require('../store/groupConfigStore');
-const { extractMediaDetails } = require('../utils/mediaUtils');
 const { downloadMediaMessage } = require('../utils/mediaDownloader/mediaDownloaderModule');
 const logger = require('../utils/logger/loggerModule');
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
-const fs = require('fs');
 
 /**
  * Extrai o conteúdo de texto de uma mensagem do WhatsApp.
@@ -189,7 +187,6 @@ const handleMessages = async (update, sock) => {
                 break;
               }
               try {
-                // eslint-disable-next-line no-eval
                 let result = eval(code);
                 if (typeof result === 'object') {
                   result = JSON.stringify(result, null, 2);
