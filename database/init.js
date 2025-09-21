@@ -43,19 +43,13 @@ const createGroupsMetadataTableSQL = `
 async function initializeDatabase() {
   let connection;
   try {
-    // Primeira conexão para criar o banco de dados
+    // Cria a conexão inicial
     connection = await mysql.createConnection({ host: DB_HOST, user: DB_USER, password: DB_PASSWORD });
     await connection.query(`CREATE DATABASE IF NOT EXISTS ${DB_NAME};`);
-    await connection.end();
     console.log(`Banco de dados '${DB_NAME}' verificado/criado com sucesso.`);
 
-    // Nova conexão para criar as tabelas
-    connection = await mysql.createConnection({
-      host: DB_HOST,
-      user: DB_USER,
-      password: DB_PASSWORD,
-      database: DB_NAME,
-    });
+    // Muda para o banco de dados criado
+    await connection.changeUser({ database: DB_NAME });
 
     // Executa todas as queries de criação de tabelas em paralelo
     await Promise.all([connection.query(createMessagesTableSQL), connection.query(createChatsTableSQL), connection.query(createGroupsMetadataTableSQL)]);
