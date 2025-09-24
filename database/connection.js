@@ -1,6 +1,6 @@
 require('dotenv').config();
 const mysql = require('mysql2/promise');
-const logger = require('../utils/logger/loggerModule'); // usar logger padrão
+const logger = require('../app/utils/logger/loggerModule'); // usar logger padrão
 
 // Validação das variáveis de ambiente necessárias
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
