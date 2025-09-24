@@ -4,6 +4,11 @@ const logger = require('../app/utils/logger/loggerModule');
 
 const VALID_TABLES = ['chats', 'groups_metadata', 'messages'];
 
+/**
+ * Valida se o nome da tabela está na lista de tabelas permitidas
+ * @param {string} tableName - Nome da tabela a ser validada
+ * @throws {Error} Se a tabela não estiver na lista de tabelas válidas
+ */
 function validateTableName(tableName) {
   if (!VALID_TABLES.includes(tableName)) {
     const error = new Error(`Tabela inválida: ${tableName}`);
@@ -12,10 +17,23 @@ function validateTableName(tableName) {
   }
 }
 
+/**
+ * Sanitiza os parâmetros da consulta SQL, convertendo undefined para null
+ * @param {Array<any>} params - Array de parâmetros a serem sanitizados
+ * @returns {Array<any>} Array de parâmetros sanitizados
+ */
 function sanitizeParams(params) {
   return params.map((param) => (param === undefined ? null : param));
 }
 
+/**
+ * Executa uma consulta SQL com parâmetros sanitizados
+ * @param {string} sql - Consulta SQL a ser executada
+ * @param {Array<any>} [params=[]] - Parâmetros da consulta
+ * @param {object} [connection=null] - Conexão opcional do banco de dados
+ * @returns {Promise<Array>} Resultado da consulta
+ * @throws {Error} Se houver erro na execução da consulta
+ */
 async function executeQuery(sql, params = [], connection = null) {
   try {
     const sanitizedParams = sanitizeParams(params);
@@ -32,7 +50,12 @@ async function executeQuery(sql, params = [], connection = null) {
 }
 
 /**
- * Busca todos os registros de uma tabela (com paginação).
+ * Busca todos os registros de uma tabela com suporte a paginação
+ * @param {string} tableName - Nome da tabela
+ * @param {number} [limit=100] - Limite de registros por página
+ * @param {number} [offset=0] - Número de registros para pular
+ * @returns {Promise<Array>} Lista de registros encontrados
+ * @throws {Error} Se a tabela for inválida ou houver erro na consulta
  */
 async function findAll(tableName, limit = 100, offset = 0) {
   validateTableName(tableName);
@@ -41,7 +64,11 @@ async function findAll(tableName, limit = 100, offset = 0) {
 }
 
 /**
- * Busca um registro em uma tabela pelo ID.
+ * Busca um registro específico em uma tabela pelo seu ID
+ * @param {string} tableName - Nome da tabela
+ * @param {number|string} id - ID do registro
+ * @returns {Promise<object|null>} Registro encontrado ou null se não existir
+ * @throws {Error} Se a tabela for inválida ou houver erro na consulta
  */
 async function findById(tableName, id) {
   validateTableName(tableName);
@@ -51,7 +78,11 @@ async function findById(tableName, id) {
 }
 
 /**
- * Cria um novo registro em uma tabela.
+ * Cria um novo registro em uma tabela
+ * @param {string} tableName - Nome da tabela
+ * @param {object} data - Dados a serem inseridos
+ * @returns {Promise<object>} Objeto criado com o ID gerado
+ * @throws {Error} Se a tabela for inválida ou houver erro na inserção
  */
 async function create(tableName, data) {
   validateTableName(tableName);
@@ -63,7 +94,11 @@ async function create(tableName, data) {
 }
 
 /**
- * Bulk insert (múltiplos registros de uma vez).
+ * Insere múltiplos registros de uma vez em uma tabela
+ * @param {string} tableName - Nome da tabela
+ * @param {Array<object>} records - Array de objetos a serem inseridos
+ * @returns {Promise<number>} Número de registros inseridos
+ * @throws {Error} Se a tabela for inválida ou houver erro na inserção em lote
  */
 async function bulkInsert(tableName, records) {
   validateTableName(tableName);
@@ -78,7 +113,12 @@ async function bulkInsert(tableName, records) {
 }
 
 /**
- * Atualiza um registro em uma tabela pelo ID.
+ * Atualiza um registro existente em uma tabela pelo seu ID
+ * @param {string} tableName - Nome da tabela
+ * @param {number|string} id - ID do registro a ser atualizado
+ * @param {object} data - Dados a serem atualizados
+ * @returns {Promise<boolean>} true se o registro foi atualizado, false caso contrário
+ * @throws {Error} Se a tabela for inválida ou houver erro na atualização
  */
 async function update(tableName, id, data) {
   validateTableName(tableName);
@@ -91,7 +131,11 @@ async function update(tableName, id, data) {
 }
 
 /**
- * Deleta um registro de uma tabela pelo ID.
+ * Remove um registro de uma tabela pelo seu ID
+ * @param {string} tableName - Nome da tabela
+ * @param {number|string} id - ID do registro a ser removido
+ * @returns {Promise<boolean>} true se o registro foi removido, false caso contrário
+ * @throws {Error} Se a tabela for inválida ou houver erro na remoção
  */
 async function remove(tableName, id) {
   validateTableName(tableName);
@@ -101,7 +145,11 @@ async function remove(tableName, id) {
 }
 
 /**
- * Insere um registro se não existir, ou atualiza se já existir.
+ * Insere um novo registro ou atualiza se já existir (upsert)
+ * @param {string} tableName - Nome da tabela
+ * @param {object} data - Dados a serem inseridos ou atualizados
+ * @returns {Promise<object>} Resultado da operação
+ * @throws {Error} Se a tabela for inválida ou houver erro na operação
  */
 async function upsert(tableName, data) {
   validateTableName(tableName);
@@ -123,7 +171,10 @@ async function upsert(tableName, data) {
 }
 
 /**
- * Executa operações dentro de uma transação.
+ * Executa operações dentro de uma transação SQL
+ * @param {Function} callback - Função de callback que recebe a conexão e executa as operações
+ * @returns {Promise<any>} Resultado do callback
+ * @throws {Error} Se houver erro durante a transação, realiza rollback automático
  */
 async function withTransaction(callback) {
   const connection = await pool.getConnection();
