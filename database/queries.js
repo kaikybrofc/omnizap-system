@@ -37,15 +37,35 @@ function sanitizeParams(params) {
 async function executeQuery(sql, params = [], connection = null) {
   try {
     const sanitizedParams = sanitizeParams(params);
-    logger.debug('Executando SQL:', { sql, params: sanitizedParams });
+
+    // Log mais detalhado incluindo tipos dos parâmetros
+    logger.debug('Executando SQL:', {
+      sql,
+      params: sanitizedParams,
+      paramTypes: sanitizedParams.map((p) => typeof p),
+    });
 
     const executor = connection || pool;
     const [results] = await executor.execute(sql, sanitizedParams);
 
     return results;
   } catch (error) {
-    logger.error('Erro na consulta SQL:', { sql, params, error: error.message });
-    throw error;
+    // Log mais detalhado do erro
+    logger.error('Erro na consulta SQL:', {
+      sql,
+      params,
+      errorCode: error.code,
+      errorNumber: error.errno,
+      sqlState: error.sqlState,
+      message: error.message,
+    });
+
+    // Reempacota o erro com mais contexto
+    const enhancedError = new Error(`Erro na execução da consulta SQL: ${error.message}`);
+    enhancedError.originalError = error;
+    enhancedError.sql = sql;
+    enhancedError.params = params;
+    throw enhancedError;
   }
 }
 
@@ -59,8 +79,29 @@ async function executeQuery(sql, params = [], connection = null) {
  */
 async function findAll(tableName, limit = 100, offset = 0) {
   validateTableName(tableName);
-  const sql = `SELECT * FROM ${mysql.escapeId(tableName)} LIMIT ? OFFSET ?`;
-  return await executeQuery(sql, [limit, offset]);
+  // Converte limit e offset para números inteiros
+  const safeLimit = parseInt(limit, 10);
+  const safeOffset = parseInt(offset, 10);
+
+  // Valida se os valores são números válidos
+  if (isNaN(safeLimit) || isNaN(safeOffset)) {
+    throw new Error('Limit e offset devem ser números válidos');
+  }
+
+  try {
+    // Usando query diretamente com o pool para consultas com LIMIT/OFFSET
+    const [results] = await pool.query(`SELECT * FROM ${mysql.escapeId(tableName)} LIMIT ? OFFSET ?`, [safeLimit, safeOffset]);
+    return results;
+  } catch (error) {
+    logger.error('Erro ao buscar registros:', {
+      tableName,
+      limit: safeLimit,
+      offset: safeOffset,
+      error: error.message,
+      stack: error.stack,
+    });
+    throw error;
+  }
 }
 
 /**
