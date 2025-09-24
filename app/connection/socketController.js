@@ -29,7 +29,6 @@ async function connectToWhatsApp() {
   const authPath = path.join(__dirname, 'auth');
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
-  // Carrega dados do MySQL para o cache em memória
   logger.info('Carregando dados do MySQL para o cache em memória...', {
     action: 'mysql_cache_load',
     timestamp: new Date().toISOString(),
@@ -41,11 +40,9 @@ async function connectToWhatsApp() {
     for (const group of groups) {
       let parsedParticipants = [];
       try {
-        // Verifica se participants é uma string JSON válida
         if (typeof group.participants === 'string') {
           parsedParticipants = JSON.parse(group.participants);
         } else if (Array.isArray(group.participants)) {
-          // Se já for um array, usa diretamente
           parsedParticipants = group.participants;
         }
       } catch (parseError) {
@@ -274,7 +271,7 @@ async function handleConnectionUpdate(update, sock) {
           participants: JSON.stringify(participantsData),
         });
 
-        store.groups[group.id] = group; // Mantém em memória também
+        store.groups[group.id] = group;
       }
 
       logger.info(`📁 Metadados de ${Object.keys(allGroups).length} grupos sincronizados com MySQL.`, {
