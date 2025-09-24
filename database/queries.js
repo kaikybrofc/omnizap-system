@@ -4,54 +4,40 @@ const logger = require('../app/utils/logger/loggerModule');
 
 const VALID_TABLES = ['chats', 'groups_metadata', 'messages'];
 
-/**
- * Valida se o nome da tabela é permitido
- * @throws {Error} Se a tabela não for válida
- */
 function validateTableName(tableName) {
   if (!VALID_TABLES.includes(tableName)) {
     const error = new Error(`Tabela inválida: ${tableName}`);
-    logger.error('Erro de validação de tabela:', {
-      tableName: tableName,
-      error: error.message,
-    });
+    logger.error('Erro de validação de tabela:', { tableName, error: error.message });
     throw error;
   }
 }
 
-/**
- * Converte undefined para null nos parâmetros SQL
- */
 function sanitizeParams(params) {
   return params.map((param) => (param === undefined ? null : param));
 }
 
-/**
- * Função genérica para executar consultas SQL.
- */
-async function executeQuery(sql, params = []) {
+async function executeQuery(sql, params = [], connection = null) {
   try {
     const sanitizedParams = sanitizeParams(params);
-    logger.debug('Executando SQL:', { sql: sql, params: sanitizedParams });
-    const [results] = await pool.execute(sql, sanitizedParams);
+    logger.debug('Executando SQL:', { sql, params: sanitizedParams });
+
+    const executor = connection || pool;
+    const [results] = await executor.execute(sql, sanitizedParams);
+
     return results;
   } catch (error) {
-    logger.error('Erro na consulta SQL:', {
-      sql: sql,
-      params: params,
-      error: error.message,
-    });
+    logger.error('Erro na consulta SQL:', { sql, params, error: error.message });
     throw error;
   }
 }
 
 /**
- * Busca todos os registros de uma tabela.
+ * Busca todos os registros de uma tabela (com paginação).
  */
-async function findAll(tableName) {
+async function findAll(tableName, limit = 100, offset = 0) {
   validateTableName(tableName);
-  const sql = `SELECT * FROM ${mysql.escapeId(tableName)}`;
-  return await executeQuery(sql, []);
+  const sql = `SELECT * FROM ${mysql.escapeId(tableName)} LIMIT ? OFFSET ?`;
+  return await executeQuery(sql, [limit, offset]);
 }
 
 /**
@@ -74,6 +60,21 @@ async function create(tableName, data) {
   const sql = `INSERT INTO ${mysql.escapeId(tableName)} (${keys.map((k) => mysql.escapeId(k)).join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`;
   const result = await executeQuery(sql, values);
   return { id: result.insertId, ...data };
+}
+
+/**
+ * Bulk insert (múltiplos registros de uma vez).
+ */
+async function bulkInsert(tableName, records) {
+  validateTableName(tableName);
+  if (!records.length) return 0;
+
+  const keys = Object.keys(records[0]);
+  const values = records.map((r) => keys.map((k) => r[k]));
+  const sql = `INSERT INTO ${mysql.escapeId(tableName)} (${keys.map((k) => mysql.escapeId(k)).join(', ')}) VALUES ?`;
+
+  const [result] = await pool.query(sql, [values]);
+  return result.affectedRows;
 }
 
 /**
@@ -100,7 +101,7 @@ async function remove(tableName, id) {
 }
 
 /**
- * Insere um registro se não existir, ou o atualiza se já existir (baseado na PRIMARY KEY).
+ * Insere um registro se não existir, ou atualiza se já existir.
  */
 async function upsert(tableName, data) {
   validateTableName(tableName);
@@ -118,8 +119,25 @@ async function upsert(tableName, data) {
                ON DUPLICATE KEY UPDATE ${updateSets}`;
 
   const params = [...values, ...Object.values(updateData)];
-
   return await executeQuery(sql, params);
+}
+
+/**
+ * Executa operações dentro de uma transação.
+ */
+async function withTransaction(callback) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const result = await callback(connection);
+    await connection.commit();
+    return result;
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
 }
 
 module.exports = {
@@ -127,7 +145,9 @@ module.exports = {
   findAll,
   findById,
   create,
+  bulkInsert,
   update,
   remove,
   upsert,
+  withTransaction,
 };
