@@ -292,7 +292,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       logger.error(`processSticker Falha ao salvar sticker final: ${saveErr.message}`);
     }
     try {
-      await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: message });
+      await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: message, ephemeralExpiration: expirationMessage });
     } catch (sendErr) {
       logger.error(`processSticker Erro ao enviar o sticker: ${sendErr.message}`);
       const msgErro = '*❌ Não foi possível enviar o sticker ao chat.*\n\n- Ocorreu um erro inesperado ao tentar enviar o arquivo.\n- Tente novamente ou envie outra mídia.';
