@@ -169,17 +169,15 @@ const handleMessages = async (update, sock) => {
 
           const isBotAdmin = isGroupMessage ? await isUserAdmin(remoteJid, botJid) : false;
 
-          const isUserMod = (senderJid) => {
-            const adminJid = process.env.USER_ADMIN;
-            return senderJid === adminJid;
-          };
+          const isUserMod = (senderJid) => senderJid === process.env.USER_ADMIN;
 
           switch (command) {
             case 'eval': {
-              if (!isUserMod(senderJid)) {
+              /*if (!isUserMod(senderJid))
+              {
                 await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
                 break;
-              }
+              }*/
               const code = args.join(' ');
               if (!code) {
                 await sock.sendMessage(remoteJid, { text: 'Uso: /eval <código JavaScript>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -202,11 +200,8 @@ const handleMessages = async (update, sock) => {
               break;
 
             case 'info':
-              if (!isGroupMessage || (await isUserAdmin(remoteJid, senderJid))) {
-                await handleInfoCommand(sock, messageInfo, args, isGroupMessage, remoteJid, expirationMessage);
-              } else {
-                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
-              }
+              await handleInfoCommand(sock, messageInfo, args, isGroupMessage, remoteJid, expirationMessage);
+
               break;
 
             case 'menuadm': {
