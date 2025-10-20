@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
-    "@whiskeysockets/baileys": "^6.7.19",
+    "@whiskeysockets/baileys": "github:WhiskeySockets/Baileys#v7.0.0-rc.5",
     "chalk": "^4.1.2",
     "dotenv": "^16.5.0",
     "envalid": "^8.0.0",
