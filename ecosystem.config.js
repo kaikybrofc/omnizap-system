@@ -9,9 +9,11 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         NODE_ENV: 'development',
+        LOG_LEVEL: 'debug',
       },
       env_production: {
         NODE_ENV: 'production',
+        LOG_LEVEL: 'info',
       },
       wait_ready: true,
       listen_timeout: 10000,
