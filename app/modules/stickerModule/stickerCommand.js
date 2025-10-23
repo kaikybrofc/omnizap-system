@@ -21,15 +21,9 @@ async function ensureDirectories(userId) {
     return { success: false, error: 'ID do usuário é obrigatório.' };
   }
 
-  const onlyDigits = /^\d+$/;
-  if (!onlyDigits.test(userId)) {
-    const errorMsg = 'ID inválido: deve consistir apenas de números.';
-    logger.error(`ensureDirectories: ${errorMsg} (userId fornecido: "${userId}")`);
-    return { success: false, error: errorMsg };
-  }
-
   try {
-    const userStickerDir = path.join(TEMP_DIR, userId);
+    const sanitizedUserId = userId.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
     await fs.mkdir(userStickerDir, { recursive: true });
     return { success: true };
   } catch (error) {
@@ -176,9 +170,9 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     const from = remoteJid;
     const sender = senderJid;
     const userId = sender?.split('@')[0] ?? null;
-    const formattedUser = userId;
+    const sanitizedUserId = userId.replace(/[^a-zA-Z0-9.-]/g, '_');
 
-    const dirResult = await ensureDirectories(formattedUser);
+    const dirResult = await ensureDirectories(sanitizedUserId);
     if (!dirResult.success) {
       logger.error(`processSticker Erro ao garantir diretórios: ${dirResult.error}`);
       await sock.sendMessage(adminJid, { text: `❌ Erro ao preparar diretórios do usuário: ${dirResult.error}` });
@@ -191,7 +185,12 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       await sock.sendMessage(
         from,
         {
-          text: '*❌ Não foi possível processar sua solicitação.*\n\n' + '> Você não enviou nem marcou nenhuma mídia.\n\n' + '📌 Por favor, envie ou marque um arquivo de mídia com *tamanho máximo de 2 MB*.\n\n' + '> _*💡 Dica: desative o modo HD antes de enviar para reduzir o tamanho do arquivo e evitar falhas.*_',
+          text:
+            `olá ${sanitizedUserId}
+          *❌ Não foi possível processar sua solicitação.*\n\n` +
+            '> Você não enviou nem marcou nenhuma mídia.\n\n' +
+            '📌 Por favor, envie ou marque um arquivo de mídia com *tamanho máximo de 2 MB*.\n\n' +
+            '> _*💡 Dica: desative o modo HD antes de enviar para reduzir o tamanho do arquivo e evitar falhas.*_',
         },
         { quoted: message, ephemeralExpiration: expirationMessage },
       );
@@ -221,7 +220,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       return;
     }
 
-    const userStickerDir = path.join(TEMP_DIR, formattedUser);
+    const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
     tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, userStickerDir, uniqueId);
     if (!tempMediaPath) {
       const msgErro = '*❌ Não foi possível baixar a mídia enviada.*\n\n- Isso pode ocorrer por instabilidade na rede, mídia expirada ou formato não suportado.\n- Por favor, tente reenviar a mídia ou envie outro arquivo.';
@@ -240,7 +239,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     logger.info(`processSticker Mídia original renomeada para: ${processingMediaPath}`);
     tempMediaPath = null;
 
-    stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
+    stickerPath = await convertToWebp(processingMediaPath, mediaType, sanitizedUserId, uniqueId);
 
     let packName, packAuthor;
     let metaFromText = parseStickerMetaText(extraText, senderName);
@@ -261,7 +260,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       // Salva o novo metadata usado
       await saveUserStickerMeta(userStickerDir, { packName, packAuthor });
     }
-    stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor, { senderName, userId: formattedUser });
+    stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor, { senderName, userId });
 
     let stickerBuffer = null;
     try {
@@ -278,7 +277,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       return;
     }
     try {
-      const userStickerDir = path.join(TEMP_DIR, formattedUser);
+      const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
       const permanentDir = path.join(userStickerDir, 'final');
       await fs.mkdir(permanentDir, { recursive: true });
       const files = await fs.readdir(permanentDir);

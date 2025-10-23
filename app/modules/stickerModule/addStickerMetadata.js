@@ -31,7 +31,8 @@ async function addStickerMetadata(stickerPath, packName, packAuthor, replaceCont
   const horaAtual = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
   function doReplaces(str) {
-    return str.replace(/#nome/gi, senderName).replace(/#data/gi, dataAtual).replace(/#hora/gi, horaAtual).replace(/#id/gi, userId);
+    const sanitizedUserId = userId.split('@')[0];
+    return str.replace(/#nome/gi, senderName).replace(/#data/gi, dataAtual).replace(/#hora/gi, horaAtual).replace(/#id/gi, sanitizedUserId);
   }
 
   const finalPackName = doReplaces(packName);
