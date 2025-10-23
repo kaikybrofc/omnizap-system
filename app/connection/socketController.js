@@ -256,7 +256,7 @@ async function handleConnectionUpdate(update, sock) {
         const participantsData = Array.isArray(group.participants)
           ? group.participants.map((p) => ({
               id: p.id,
-              jid: p.id,
+              jid: p.jid || p.id,
               lid: p.lid || null,
               admin: p.admin,
             }))
@@ -371,7 +371,7 @@ async function handleGroupUpdate(updates, sock) {
         const currentParticipants = parseParticipants(currentData.participants);
         const participantsData = (event.participants || currentParticipants).map((p) => ({
           id: p.id || null,
-          jid: p.id || null,
+          jid: p.jid || p.id || null,
           lid: p.lid || null,
           admin: p.admin || null,
         }));
