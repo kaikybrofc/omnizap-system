@@ -68,7 +68,7 @@ async function connectToWhatsApp() {
   }
 
   await groupConfigStore.loadData();
-  const version = [6, 7, 0];
+  const version = [7, 0, 0];
 
   logger.debug('Dados de autenticação carregados com sucesso.', {
     authPath,
