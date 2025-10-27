@@ -1,6 +1,7 @@
 require('dotenv').config();
 const logger = require('../app/utils/logger/loggerModule');
 
+const { NODE_ENV } = process.env;
 const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_POOL_LIMIT = 10 } = process.env;
 
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
@@ -11,13 +12,18 @@ if (missingEnvVars.length > 0) {
   process.exit(1);
 }
 
+const environment = NODE_ENV || 'development';
+const dbName = `${DB_NAME}_${environment === 'production' ? 'prod' : 'dev'}`;
+
 const dbConfig = {
   host: DB_HOST,
   user: DB_USER,
   password: DB_PASSWORD,
-  database: DB_NAME,
+  database: dbName,
   poolLimit: Number(DB_POOL_LIMIT),
 };
+
+logger.info(`Configuração de banco de dados carregada para o ambiente: ${environment}`);
 
 const TABLES = {
   MESSAGES: 'messages',
