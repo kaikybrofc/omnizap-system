@@ -27,7 +27,7 @@ module.exports = {
       script: 'index.js',
       instances: 1,
       autorestart: true,
-      watch: true,
+      watch: false,
       ignore_watch: ['node_modules', 'logs', 'sessions'],
       max_memory_restart: '1G',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
