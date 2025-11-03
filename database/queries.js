@@ -68,8 +68,8 @@ async function findAll(tableName, limit = 100, offset = 0) {
     throw new Error('Limit e offset devem ser números válidos.');
   }
 
-  const sql = `SELECT * FROM ${mysql.escapeId(tableName)} LIMIT ? OFFSET ?`;
-  return executeQuery(sql, [safeLimit, safeOffset]);
+  const sql = `SELECT * FROM ${mysql.escapeId(tableName)} LIMIT ${safeLimit} OFFSET ${safeOffset}`;
+  return executeQuery(sql);
 }
 
 /**
@@ -114,13 +114,11 @@ async function findBy(tableName, criteria, options = {}) {
   }
 
   if (options.limit !== undefined) {
-    sql += ' LIMIT ?';
-    params.push(parseInt(options.limit, 10));
+    sql += ` LIMIT ${parseInt(options.limit, 10)}`;
   }
 
   if (options.offset !== undefined) {
-    sql += ' OFFSET ?';
-    params.push(parseInt(options.offset, 10));
+    sql += ` OFFSET ${parseInt(options.offset, 10)}`;
   }
 
   return executeQuery(sql, params);
