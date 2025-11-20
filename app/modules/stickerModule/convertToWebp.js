@@ -19,7 +19,8 @@ const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
  */
 async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
   logger.info(`StickerCommand Convertendo mídia para webp. ID: ${uniqueId}, Tipo: ${mediaType}`);
-  const userStickerDir = path.join(TEMP_DIR, userId);
+  const sanitizedUserId = userId.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
   const outputPath = path.join(userStickerDir, `sticker_${uniqueId}.webp`);
 
   try {

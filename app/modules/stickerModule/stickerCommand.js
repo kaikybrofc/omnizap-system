@@ -21,15 +21,9 @@ async function ensureDirectories(userId) {
     return { success: false, error: 'ID do usuário é obrigatório.' };
   }
 
-  const onlyDigits = /^\d+$/;
-  if (!onlyDigits.test(userId)) {
-    const errorMsg = 'ID inválido: deve consistir apenas de números.';
-    logger.error(`ensureDirectories: ${errorMsg} (userId fornecido: "${userId}")`);
-    return { success: false, error: errorMsg };
-  }
-
   try {
-    const userStickerDir = path.join(TEMP_DIR, userId);
+    const sanitizedUserId = userId.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
     await fs.mkdir(userStickerDir, { recursive: true });
     return { success: true };
   } catch (error) {
@@ -166,6 +160,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
 
   try {
     await sock.sendMessage(senderJid, { react: { text: '🎨', key: messageInfo.key } });
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   } catch (reactErr) {
     logger.warn(`processSticker Falha ao reagir à mensagem: ${reactErr.message}`);
   }
@@ -175,9 +170,9 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     const from = remoteJid;
     const sender = senderJid;
     const userId = sender?.split('@')[0] ?? null;
-    const formattedUser = userId;
+    const sanitizedUserId = userId.replace(/[^a-zA-Z0-9.-]/g, '_');
 
-    const dirResult = await ensureDirectories(formattedUser);
+    const dirResult = await ensureDirectories(sanitizedUserId);
     if (!dirResult.success) {
       logger.error(`processSticker Erro ao garantir diretórios: ${dirResult.error}`);
       await sock.sendMessage(adminJid, { text: `❌ Erro ao preparar diretórios do usuário: ${dirResult.error}` });
@@ -190,9 +185,14 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       await sock.sendMessage(
         from,
         {
-          text: '*❌ Não foi possível processar sua solicitação.*\n\n' + '> Você não enviou nem marcou nenhuma mídia.\n\n' + '📌 Por favor, envie ou marque um arquivo de mídia com *tamanho máximo de 2 MB*.\n\n' + '> _*💡 Dica: desative o modo HD antes de enviar para reduzir o tamanho do arquivo e evitar falhas.*_',
+          text:
+            `olá ${sanitizedUserId}
+          *❌ Não foi possível processar sua solicitação.*\n\n` +
+            '> Você não enviou nem marcou nenhuma mídia.\n\n' +
+            '📌 Por favor, envie ou marque um arquivo de mídia com *tamanho máximo de 2 MB*.\n\n' +
+            '> _*💡 Dica: desative o modo HD antes de enviar para reduzir o tamanho do arquivo e evitar falhas.*_',
         },
-        { quoted: message },
+        { quoted: message, ephemeralExpiration: expirationMessage },
       );
       return;
     }
@@ -215,16 +215,16 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
         {
           text: '*❌ Não foi possível processar a mídia.*' + `\n\n- O arquivo enviado tem *${enviado}* e o limite permitido é de *${limite}*.` + '\n\n- 📌 Por favor, envie um arquivo menor ou reduza a qualidade antes de reenviar.' + sugestaoTempo,
         },
-        { quoted: message },
+        { quoted: message, ephemeralExpiration: expirationMessage },
       );
       return;
     }
 
-    const userStickerDir = path.join(TEMP_DIR, formattedUser);
+    const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
     tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, userStickerDir, uniqueId);
     if (!tempMediaPath) {
       const msgErro = '*❌ Não foi possível baixar a mídia enviada.*\n\n- Isso pode ocorrer por instabilidade na rede, mídia expirada ou formato não suportado.\n- Por favor, tente reenviar a mídia ou envie outro arquivo.';
-      await sock.sendMessage(from, { text: msgErro }, { quoted: message });
+      await sock.sendMessage(from, { text: msgErro }, { quoted: message, ephemeralExpiration: expirationMessage });
       if (adminJid) {
         await sock.sendMessage(adminJid, {
           text: `🚨 Falha no download da mídia para sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nTipo: ${mediaType}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
@@ -239,7 +239,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     logger.info(`processSticker Mídia original renomeada para: ${processingMediaPath}`);
     tempMediaPath = null;
 
-    stickerPath = await convertToWebp(processingMediaPath, mediaType, formattedUser, uniqueId);
+    stickerPath = await convertToWebp(processingMediaPath, mediaType, sanitizedUserId, uniqueId);
 
     let packName, packAuthor;
     let metaFromText = parseStickerMetaText(extraText, senderName);
@@ -260,7 +260,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       // Salva o novo metadata usado
       await saveUserStickerMeta(userStickerDir, { packName, packAuthor });
     }
-    stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor, { senderName, userId: formattedUser });
+    stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor, { senderName, userId });
 
     let stickerBuffer = null;
     try {
@@ -268,7 +268,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     } catch (bufferErr) {
       logger.error(`processSticker Erro ao ler buffer do sticker: ${bufferErr.message}`);
       const msgErro = '*❌ Não foi possível finalizar o sticker.*\n\n- Ocorreu um erro ao acessar o arquivo temporário do sticker.\n- Tente reenviar a mídia ou envie outro arquivo.';
-      await sock.sendMessage(from, { text: msgErro }, { quoted: message });
+      await sock.sendMessage(from, { text: msgErro }, { quoted: message, ephemeralExpiration: expirationMessage });
       if (adminJid) {
         await sock.sendMessage(adminJid, {
           text: `🚨 Erro ao ler buffer do sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nErro: ${bufferErr.message}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
@@ -277,7 +277,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       return;
     }
     try {
-      const userStickerDir = path.join(TEMP_DIR, formattedUser);
+      const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
       const permanentDir = path.join(userStickerDir, 'final');
       await fs.mkdir(permanentDir, { recursive: true });
       const files = await fs.readdir(permanentDir);
@@ -291,11 +291,11 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       logger.error(`processSticker Falha ao salvar sticker final: ${saveErr.message}`);
     }
     try {
-      await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: message });
+      await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: message, ephemeralExpiration: expirationMessage });
     } catch (sendErr) {
       logger.error(`processSticker Erro ao enviar o sticker: ${sendErr.message}`);
       const msgErro = '*❌ Não foi possível enviar o sticker ao chat.*\n\n- Ocorreu um erro inesperado ao tentar enviar o arquivo.\n- Tente novamente ou envie outra mídia.';
-      await sock.sendMessage(from, { text: msgErro }, { quoted: message });
+      await sock.sendMessage(from, { text: msgErro }, { quoted: message, ephemeralExpiration: expirationMessage });
       if (adminJid) {
         await sock.sendMessage(adminJid, {
           text: `🚨 Erro ao enviar sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nErro: ${sendErr.message}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
@@ -307,7 +307,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       error: error.stack,
     });
     const msgErro = '*❌ Não foi possível criar o sticker.*\n\n- Ocorreu um erro inesperado durante o processamento.\n- Tente novamente ou envie outra mídia.';
-    await sock.sendMessage(remoteJid, { text: msgErro }, { quoted: messageInfo });
+    await sock.sendMessage(remoteJid, { text: msgErro }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     if (adminJid) {
       await sock.sendMessage(adminJid, {
         text: `🚨 Erro fatal ao processar sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nErro: ${error.message}\nStack: ${error.stack}\nMensagem: ${JSON.stringify(messageInfo)}\n`,

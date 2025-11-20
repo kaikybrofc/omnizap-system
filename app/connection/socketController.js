@@ -18,6 +18,12 @@ let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 3000;
 
+/**
+ * Inicia e gerencia a conexão com o WhatsApp.
+ * Configura autenticação, carrega dados, cria o socket e registra os handlers de eventos.
+ * @async
+ * @throws {Error} Lança um erro se a carga inicial de dados do MySQL falhar.
+ */
 async function connectToWhatsApp() {
   logger.info('Iniciando conexão com o WhatsApp...', {
     action: 'connect_init',
@@ -68,7 +74,7 @@ async function connectToWhatsApp() {
   }
 
   await groupConfigStore.loadData();
-  const version = [6, 7, 0];
+  const version = [7, 0, 0];
 
   logger.debug('Dados de autenticação carregados com sucesso.', {
     authPath,
@@ -184,6 +190,13 @@ async function connectToWhatsApp() {
   });
 }
 
+/**
+ * Gerencia as atualizações de estado da conexão com o WhatsApp.
+ * Lida com a geração de QR code, reconexão automática e ações pós-conexão.
+ * @async
+ * @param {import('@whiskeysockets/baileys').ConnectionState} update - O objeto de atualização da conexão.
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - A instância do socket do WhatsApp.
+ */
 async function handleConnectionUpdate(update, sock) {
   const { connection, lastDisconnect, qr } = update;
 
@@ -256,7 +269,7 @@ async function handleConnectionUpdate(update, sock) {
         const participantsData = Array.isArray(group.participants)
           ? group.participants.map((p) => ({
               id: p.id,
-              jid: p.id,
+              jid: p.jid || p.id,
               lid: p.lid || null,
               admin: p.admin,
             }))
@@ -291,6 +304,12 @@ async function handleConnectionUpdate(update, sock) {
   }
 }
 
+/**
+ * Processa atualizações em mensagens existentes, como votos em enquetes.
+ * @async
+ * @param {Array<import('@whiskeysockets/baileys').MessageUpdate>} updates - Um array de atualizações de mensagens.
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - A instância do socket do WhatsApp.
+ */
 async function handleMessageUpdate(updates, sock) {
   for (const { key, update } of updates) {
     if (update.pollUpdates) {
@@ -332,6 +351,11 @@ async function handleMessageUpdate(updates, sock) {
   }
 }
 
+/**
+ * Converte a lista de participantes de uma string JSON para um array.
+ * @param {string | Array<Object>} participants - Os participantes em formato de string JSON ou array.
+ * @returns {Array<Object>} Um array de objetos de participantes.
+ */
 function parseParticipants(participants) {
   if (!participants) return [];
   try {
@@ -347,9 +371,8 @@ function parseParticipants(participants) {
  * Atualiza os metadados de grupos no banco de dados MySQL e no cache em memória.
  *
  * @async
- * @param {Array<Object>} updates - Array de eventos de atualização de grupos contendo as mudanças
- * @param {import('@whiskeysockets/baileys').WASocket} sock - Instância do socket do WhatsApp
- * @throws {Error} Se houver erro ao atualizar os metadados no banco de dados
+ * @param {Array<import('@whiskeysockets/baileys').GroupUpdate>} updates - Array de eventos de atualização de grupos.
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - Instância do socket do WhatsApp.
  * @description
  * Esta função processa atualizações de grupos, como:
  * - Mudanças no título do grupo
@@ -371,7 +394,7 @@ async function handleGroupUpdate(updates, sock) {
         const currentParticipants = parseParticipants(currentData.participants);
         const participantsData = (event.participants || currentParticipants).map((p) => ({
           id: p.id || null,
-          jid: p.id || null,
+          jid: p.jid || p.id || null,
           lid: p.lid || null,
           admin: p.admin || null,
         }));
@@ -423,8 +446,9 @@ function getActiveSocket() {
 }
 
 /**
- * ♻️ Força uma nova tentativa de conexão ao WhatsApp.
+ * Força uma nova tentativa de conexão ao WhatsApp.
  * Encerra o socket atual (se existir) para disparar a lógica de reconexão.
+ * @async
  */
 async function reconnectToWhatsApp() {
   if (activeSocket && activeSocket.ws?.readyState === WebSocket.OPEN) {

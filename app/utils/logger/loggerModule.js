@@ -1,14 +1,3 @@
-/**
- * OmniZap Logger Module
- *
- * Sistema de logs centralizado e configurável para o OmniZap,
- * com suporte a múltiplos níveis, rotação de arquivos e formatação.
- *
- * @version 2.0.1
- * @license MIT
- * @source https://github.com/Kaikygr/omnizap-system
- */
-
 require('dotenv').config();
 const winston = require('winston');
 const DailyRotateFile = require('winston-daily-rotate-file');
@@ -32,7 +21,7 @@ const env = cleanEnv(process.env, {
     desc: 'Logging level',
   }),
   ECOSYSTEM_NAME: str({ default: 'system', desc: 'Service name for logs' }),
-  PM2_NAME: str({ default: undefined, desc: 'PM2 application name' }),
+  name: str({ default: undefined, desc: 'PM2 application name (standard)' }),
   PM2_INSTANCE_ID: str({ default: undefined, desc: 'PM2 instance ID (standard)' }),
   NODE_APP_INSTANCE: str({ default: undefined, desc: 'PM2 instance ID (alternative)' }),
   pm_id: str({ default: undefined, desc: 'PM2 instance ID (legacy)' }),
@@ -41,7 +30,7 @@ const env = cleanEnv(process.env, {
 const IS_PRODUCTION = env.NODE_ENV === 'production';
 const DEFAULT_LOG_LEVEL = env.LOG_LEVEL;
 const INSTANCE_ID = env.PM2_INSTANCE_ID ?? env.NODE_APP_INSTANCE ?? env.pm_id ?? 'local';
-const ECOSYSTEM_NAME = env.PM2_NAME ?? env.ECOSYSTEM_NAME ?? 'system';
+const ECOSYSTEM_NAME = env.name ?? env.ECOSYSTEM_NAME ?? 'system';
 const NODE_ENV = env.NODE_ENV;
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');

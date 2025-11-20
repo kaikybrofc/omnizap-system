@@ -1,22 +1,15 @@
-require('dotenv').config();
 const mysql = require('mysql2/promise');
-const logger = require('../app/utils/logger/loggerModule'); // manter padrão do projeto
-
-const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME } = process.env;
-
-if (!DB_HOST || !DB_USER || !DB_PASSWORD || !DB_NAME) {
-  logger.error('Erro: variáveis de ambiente DB_HOST, DB_USER, DB_PASSWORD e DB_NAME são obrigatórias.');
-  process.exit(1);
-}
+const logger = require('../app/utils/logger/loggerModule');
+const { dbConfig, TABLES } = require('./config');
 
 const createDatabaseSQL = `
-  CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`
+  CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\`
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
 `;
 
 const createMessagesTableSQL = `
-  CREATE TABLE IF NOT EXISTS messages (
+  CREATE TABLE IF NOT EXISTS ${TABLES.MESSAGES} (
     id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
     message_id VARCHAR(255) UNIQUE NOT NULL,
     chat_id VARCHAR(255) NOT NULL,
@@ -32,7 +25,7 @@ const createMessagesTableSQL = `
 `;
 
 const createChatsTableSQL = `
-  CREATE TABLE IF NOT EXISTS chats (
+  CREATE TABLE IF NOT EXISTS ${TABLES.CHATS} (
     id VARCHAR(255) PRIMARY KEY NOT NULL,
     name VARCHAR(255),
     raw_chat JSON,
@@ -41,7 +34,7 @@ const createChatsTableSQL = `
 `;
 
 const createGroupsMetadataTableSQL = `
-  CREATE TABLE IF NOT EXISTS groups_metadata (
+  CREATE TABLE IF NOT EXISTS ${TABLES.GROUPS_METADATA} (
     id VARCHAR(255) PRIMARY KEY NOT NULL,
     subject VARCHAR(255),
     description TEXT,
@@ -55,12 +48,16 @@ const createGroupsMetadataTableSQL = `
 async function initializeDatabase() {
   let connection;
   try {
-    connection = await mysql.createConnection({ host: DB_HOST, user: DB_USER, password: DB_PASSWORD });
+    connection = await mysql.createConnection({
+      host: dbConfig.host,
+      user: dbConfig.user,
+      password: dbConfig.password,
+    });
 
     await connection.query(createDatabaseSQL);
-    logger.info(`Banco de dados '${DB_NAME}' verificado/criado com sucesso.`);
+    logger.info(`Banco de dados '${dbConfig.database}' verificado/criado com sucesso.`);
 
-    await connection.changeUser({ database: DB_NAME });
+    await connection.changeUser({ database: dbConfig.database });
 
     await Promise.all([connection.query(createMessagesTableSQL), connection.query(createChatsTableSQL), connection.query(createGroupsMetadataTableSQL)]);
 
