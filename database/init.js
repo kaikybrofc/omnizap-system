@@ -2,8 +2,11 @@ const mysql = require('mysql2/promise');
 const logger = require('../app/utils/logger/loggerModule');
 const { dbConfig, TABLES } = require('./config');
 
+// Use the composed DB name from config so created DB matches what the app will try to connect to
+const dbToCreate = dbConfig.database;
+
 const createDatabaseSQL = `
-  CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\`
+  CREATE DATABASE IF NOT EXISTS \`${dbToCreate}\`
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
 `;
@@ -55,9 +58,10 @@ async function initializeDatabase() {
     });
 
     await connection.query(createDatabaseSQL);
-    logger.info(`Banco de dados '${dbConfig.database}' verificado/criado com sucesso.`);
+    logger.info(`Banco de dados '${dbToCreate}' verificado/criado com sucesso.`);
 
-    await connection.changeUser({ database: dbConfig.database });
+    // Use the newly created DB for subsequent table creation. Prefer the env name when present.
+    await connection.changeUser({ database: dbToCreate });
 
     await Promise.all([connection.query(createMessagesTableSQL), connection.query(createChatsTableSQL), connection.query(createGroupsMetadataTableSQL)]);
 
