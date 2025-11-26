@@ -15,11 +15,19 @@
   "author": "OmniZap Team",
   "license": "MIT",
   "scripts": {
-    "start": "pm2 start ecosystem.config.js --env production",
-    "dev": "pm2 start ecosystem.config.js --env development",
-    "stop": "pm2 stop omnizap-system",
-    "restart": "pm2 restart omnizap-system",
-    "logs": "pm2 logs omnizap-system",
+    "start": "pm2 start ecosystem.prod.config.js",
+    "pm2:dev": "pm2 start ecosystem.dev.config.js",
+    "pm2:prod": "pm2 start ecosystem.prod.config.js",
+    "dev": "pm2 start ecosystem.dev.config.js",
+    "stop:prod": "pm2 stop omnizap-system-prod",
+    "stop:dev": "pm2 stop omnizap-system-dev",
+    "stop": "pm2 stop omnizap-system-prod; pm2 stop omnizap-system-dev",
+    "restart:prod": "pm2 restart omnizap-system-prod",
+    "restart:dev": "pm2 restart omnizap-system-dev",
+    "restart": "pm2 restart omnizap-system-prod; pm2 restart omnizap-system-dev",
+    "logs:prod": "pm2 logs omnizap-system-prod",
+    "logs:dev": "pm2 logs omnizap-system-dev",
+    "logs": "pm2 logs",
     "db:init": "node database/init.js"
   },
   "dependencies": {
@@ -43,7 +51,7 @@
     "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
-    "pm2": "^5.4.2"
+    "pm2": "^6.0.11"
   },
   "engines": {
     "node": ">=16.0.0"
