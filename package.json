@@ -16,6 +16,8 @@
   "license": "MIT",
   "scripts": {
     "start": "pm2 start ecosystem.prod.config.js",
+    "pm2:dev": "pm2 start ecosystem.dev.config.js",
+    "pm2:prod": "pm2 start ecosystem.prod.config.js",
     "dev": "pm2 start ecosystem.dev.config.js",
     "stop:prod": "pm2 stop omnizap-system-prod",
     "stop:dev": "pm2 stop omnizap-system-dev",

@@ -71,6 +71,20 @@ sudo service mysql status
 
 O sistema criará automaticamente o banco de dados e as tabelas necessárias na primeira execução.
 
+> ✅ Observação: As configurações de `ecosystem` do PM2 foram atualizadas para garantir que o comando de inicialização do banco (`database/init.js`) seja executado **antes** do `index.js`. Isso evita que a aplicação tente se conectar ao banco antes de o banco estar disponível.
+
+O nome do banco é composto a partir da variável `DB_NAME` adicionada com um sufixo baseado em `NODE_ENV`:
+
+| NODE_ENV | DB name example |
+|---|---|
+| development | omnizap_dev |
+| production  | omnizap_prod |
+
+Se preferir rodar a inicialização do banco manualmente, use:
+```bash
+npm run db:init
+```
+
 ### Desenvolvimento
 
 Para iniciar o bot em modo de desenvolvimento usando `pm2`:

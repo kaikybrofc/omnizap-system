@@ -6,7 +6,9 @@ module.exports = {
   apps: [
     {
       name: `${appName}-prod`,
-      script: 'index.js',
+      // Run DB initialization before starting the app (ensures DB exists and tables created
+      // based on NODE_ENV). Use a shell command so both steps run sequentially under PM2.
+      script: 'bash -lc "node database/init.js && node index.js"',
       instances: 1,
       autorestart: true,
       watch: false,
