@@ -195,46 +195,6 @@ pm2 logs omnizap
 pm2 monit
 ```
 
-## 🤖 Comandos
-
-A aqui está uma lista dos comandos disponíveis. Comandos administrativos exigem que o usuário seja um administrador do grupo.
-
-### Comandos Gerais
-
-| Comando         | Atalho | Descrição                                                                                             | Uso                                                  |
-| --------------- | ------ | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `/sticker`      | `/s`   | Cria uma figurinha a partir de uma imagem ou vídeo. Você também pode responder a uma mídia com o comando. | `/sticker [pacote/autor]`                              |
-| `/info`         |        | Exibe informações detalhadas sobre o grupo atual, incluindo estatísticas e atividade dos membros.       | `/info` ou `/info [id_do_grupo]`                       |
-| `/info --inativos` |      | Mostra uma lista de usuários inativos no grupo com base em um limite de mensagens.                      | `/info --inativos [limite_de_mensagens]`               |
-
-### Comandos de Administração de Grupo
-
-| Comando           | Descrição                                                              | Uso                                                              |
-| ----------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| `/menuadm`        | Exibe o menu de administração do grupo.                                  | `/menuadm`                                                         |
-| `/add`            | Adiciona um ou mais participantes ao grupo.                              | `/add @usuario1 @usuario2...`                                      |
-| `/ban`            | Remove um ou mais participantes do grupo.                                | `/ban @usuario1 @usuario2...`                                      |
-| `/up`             | Promove um ou mais participantes a administradores.                      | `/up @usuario1 @usuario2...`                                       |
-| `/down`           | Rebaixa um ou mais administradores a participantes.                      | `/down @usuario1 @usuario2...`                                     |
-| `/setsubject`     | Altera o nome do grupo.                                                  | `/setsubject <novo_nome>`                                          |
-| `/setdesc`        | Altera a descrição do grupo.                                             | `/setdesc <nova_descrição>`                                        |
-| `/setgroup`       | Altera as configurações do grupo (ex: quem pode enviar mensagens).       | `/setgroup <announcement\|not_announcement\|locked\|unlocked>`      |
-| `/leave`          | O bot sai do grupo.                                                      | `/leave`                                                           |
-| `/invite`         | Mostra o código de convite do grupo.                                     | `/invite`                                                          |
-| `/revoke`         | Revoga o código de convite do grupo e gera um novo.                      | `/revoke`                                                          |
-| `/requests`       | Lista as solicitações de entrada pendentes para o grupo.                 | `/requests`                                                        |
-| `/updaterequests` | Aprova ou rejeita solicitações de entrada pendentes.                     | `/updaterequests <approve\|reject> @usuario1 @usuario2...`         |
-| `/temp`           | Ativa ou desativa as mensagens efêmeras no grupo.                        | `/temp <duração_em_segundos>`                                      |
-| `/addmode`        | Define quem pode adicionar novos membros ao grupo.                       | `/addmode <all_member_add\|admin_add>`                             |
-| `/welcome`        | Gerencia as mensagens de boas-vindas para novos membros.                 | `/welcome <on\|off\|set> [mensagem ou mídia]`                      |
-| `/farewell`       | Gerencia as mensagens de despedida para membros que saem.                | `/farewell <on\|off\|set> [mensagem ou mídia]`                     |
-
-### Comandos do Dono do Bot
-
-| Comando  | Descrição                                             | Uso                    |
-| -------- | ----------------------------------------------------- | ---------------------- |
-| `/eval`  | Executa um trecho de código JavaScript (apenas dono). | `/eval <código_js>`    |
-
 ## 🛠️ Tecnologias Utilizadas
 
 - **Node.js:** Ambiente de execução JavaScript
