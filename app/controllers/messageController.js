@@ -211,40 +211,6 @@ const handleMessages = async (update, sock) => {
           const isUserMod = (senderJid) => senderJid === process.env.USER_ADMIN;
 
           switch (command) {
-            case 'eval': {
-              /*if (!isUserMod(senderJid))
-              {
-                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
-                break;
-              }*/
-              const code = args.join(' ');
-              if (!code) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'Uso: /eval <código JavaScript>' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
-              try {
-                let result = eval(code);
-                if (typeof result === 'object') {
-                  result = JSON.stringify(result, null, 2);
-                }
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: `Resultado:\n${result}` },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-              } catch (error) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: `Erro ao executar eval: ${error.message}` },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-              }
-              break;
-            }
             case 'sticker':
             case 's':
               await processSticker(
@@ -1168,14 +1134,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!(await isUserAdmin(remoteJid, senderJid))) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'Você não tem permissão para usar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               if (args.length < 1 || !['on', 'off', 'set'].includes(args[0])) {
                 await sock.sendMessage(
                   remoteJid,
@@ -1185,6 +1144,14 @@ const handleMessages = async (update, sock) => {
                 break;
               }
 
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(
+                  remoteJid,
+                  { text: 'Você não tem permissão para usar este comando.' },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
+                break;
+              }
               const subCommand = args[0];
               const currentConfig = groupConfigStore.getGroupConfig(remoteJid);
 
