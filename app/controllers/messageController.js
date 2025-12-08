@@ -28,60 +28,85 @@ const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const extractMessageContent = (messageInfo) => {
   const message = messageInfo.message;
 
-  if (!message) {
-    return 'Mensagem vazia';
-  }
+  if (!message) return 'Mensagem vazia';
 
-  if (message.conversation) {
+  // Texto direto
+  if (message.conversation && message.conversation.trim() !== '') {
     return message.conversation;
   }
+
+  // Texto estendido
   if (message.extendedTextMessage?.text) {
     return message.extendedTextMessage.text;
   }
+
+  // Mídia
   if (message.imageMessage) {
     return message.imageMessage.caption || '[Imagem]';
   }
+
   if (message.videoMessage) {
     return message.videoMessage.caption || '[Vídeo]';
   }
+
   if (message.documentMessage) {
     return message.documentMessage.fileName || '[Documento]';
   }
+
   if (message.audioMessage) {
     return '[Áudio]';
   }
+
   if (message.stickerMessage) {
     return '[Figurinha]';
   }
+
+  // Localização
   if (message.locationMessage) {
-    return `[Localização] Latitude: ${message.locationMessage.degreesLatitude}, Longitude: ${message.locationMessage.degreesLongitude}`;
+    const loc = message.locationMessage;
+    return `[Localização] Latitude: ${loc.degreesLatitude}, Longitude: ${loc.degreesLongitude}`;
   }
+
+  // Contato único
   if (message.contactMessage) {
     return `[Contato] ${message.contactMessage.displayName}`;
   }
+
+  // Lista de contatos
   if (message.contactsArrayMessage) {
-    return `[Contatos] ${message.contactsArrayArrayMessage.contacts.map((c) => c.displayName).join(', ')}`;
+    const nomes = message.contactsArrayMessage.contacts.map((c) => c.displayName).join(', ');
+    return `[Contatos] ${nomes}`;
   }
+
+  // Listas e botões
   if (message.listMessage) {
     return message.listMessage.description || '[Mensagem de Lista]';
   }
+
   if (message.buttonsMessage) {
     return message.buttonsMessage.contentText || '[Mensagem de Botões]';
   }
+
   if (message.templateButtonReplyMessage) {
-    return `[Resposta de Botão de Modelo] ${message.templateButtonReplyMessage.selectedDisplayText}`;
+    return `[Resposta de Botão] ${message.templateButtonReplyMessage.selectedDisplayText}`;
   }
+
+  // Produto
   if (message.productMessage) {
     return message.productMessage.product?.title || '[Mensagem de Produto]';
   }
+
+  // Reação
   if (message.reactionMessage) {
     return `[Reação] ${message.reactionMessage.text}`;
   }
+
+  // Enquete
   if (message.pollCreationMessage) {
     return `[Enquete] ${message.pollCreationMessage.name}`;
   }
 
-  return 'Tipo de mensagem não suportado ou sem conteúdo de texto.';
+  return 'Tipo de mensagem não suportado ou sem conteúdo.';
 };
 
 /**
@@ -138,6 +163,9 @@ const handleMessages = async (update, sock) => {
     try {
       for (const messageInfo of update.messages) {
         const extractedText = extractMessageContent(messageInfo);
+
+        logger.error(JSON.stringify(messageInfo, null, 2));
+
         if (extractedText.startsWith(COMMAND_PREFIX)) {
           const commandBody = extractedText.substring(COMMAND_PREFIX.length);
           const match = commandBody.match(/^(\S+)([\s\S]*)$/);
