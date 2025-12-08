@@ -22,15 +22,12 @@ async function ensureDirectories(userId) {
   }
 
   try {
-    // Permite apenas números ou substitui qualquer caractere inválido
     const sanitizedUserId = String(userId).replace(/[^\w.-]/g, '_');
 
     const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
 
-    // Garante que o TEMP_DIR exista
     await fs.mkdir(TEMP_DIR, { recursive: true });
 
-    // Cria diretório do usuário
     await fs.mkdir(userStickerDir, { recursive: true });
 
     return { success: true };
@@ -164,6 +161,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
   let tempMediaPath = null;
   let processingMediaPath = null;
   let stickerPath = null;
+  let convertedPath = null;
   let finalStickerPath = null;
 
   try {
@@ -242,7 +240,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     logger.info(`processSticker Mídia original renomeada para: ${processingMediaPath}`);
     tempMediaPath = null;
 
-    stickerPath = await convertToWebp(processingMediaPath, mediaType, sanitizedUserId, uniqueId);
+    convertedPath = await convertToWebp(processingMediaPath, mediaType, sanitizedUserId, uniqueId);
 
     let packName, packAuthor;
     let metaFromText = parseStickerMetaText(extraText, senderName);
@@ -261,7 +259,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       packAuthor = metaFromText.packAuthor;
       await saveUserStickerMeta(userStickerDir, { packName, packAuthor });
     }
-    stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor, { senderName, userId });
+    stickerPath = await addStickerMetadata(convertedPath, packName, packAuthor, { senderName, userId });
 
     let stickerBuffer = null;
     try {
@@ -279,7 +277,6 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     }
     try {
       const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
-      // Salvar diretamente na pasta do usuário com sequência numerada (1.webp, 2.webp, ...)
       const targetDir = userStickerDir;
       await fs.mkdir(targetDir, { recursive: true });
       const files = await fs.readdir(targetDir);
@@ -294,6 +291,18 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       finalStickerPath = path.join(targetDir, stickerFileName);
       await fs.copyFile(stickerPath, finalStickerPath);
       logger.info(`processSticker Sticker final salvo em: ${finalStickerPath}`);
+      try {
+        if (stickerPath) {
+          await fs.unlink(stickerPath).catch(() => {});
+          logger.debug(`processSticker Arquivo temporário do sticker removido: ${stickerPath}`);
+        }
+        if (convertedPath && convertedPath !== stickerPath) {
+          await fs.unlink(convertedPath).catch(() => {});
+          logger.debug(`processSticker Arquivo convertido removido: ${convertedPath}`);
+        }
+      } catch (unlinkErr) {
+        logger.warn(`processSticker Falha ao remover arquivo temporário do sticker: ${unlinkErr.message}`);
+      }
     } catch (saveErr) {
       logger.error(`processSticker Falha ao salvar sticker final: ${saveErr.message}`);
     }
@@ -321,7 +330,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       });
     }
   } finally {
-    const filesToClean = [tempMediaPath, processingMediaPath].filter(Boolean);
+    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter(Boolean);
     for (const file of filesToClean) {
       await fs.unlink(file).catch((err) => logger.warn(`processSticker Falha ao limpar arquivo temporário ${file}: ${err.message}`));
     }
