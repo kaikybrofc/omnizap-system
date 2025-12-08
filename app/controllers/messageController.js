@@ -308,14 +308,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               const participants = getParticipantJids(messageInfo, args);
               if (participants.length === 0) {
                 await sock.sendMessage(
@@ -359,14 +352,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               const participants = getParticipantJids(messageInfo, args);
               if (participants.length === 0) {
                 await sock.sendMessage(
@@ -432,14 +418,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               const participants = getParticipantJids(messageInfo, args);
               if (participants.length === 0) {
                 await sock.sendMessage(
@@ -491,14 +470,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               const participants = getParticipantJids(messageInfo, args);
               if (participants.length === 0) {
                 await sock.sendMessage(
@@ -550,14 +522,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               if (args.length < 1) {
                 await sock.sendMessage(
                   remoteJid,
@@ -601,14 +566,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               if (args.length < 1) {
                 await sock.sendMessage(
                   remoteJid,
@@ -652,14 +610,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               if (
                 args.length < 1 ||
                 !['announcement', 'not_announcement', 'locked', 'unlocked'].includes(args[0])
@@ -740,14 +691,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               try {
                 const code = await groupUtils.getGroupInviteCode(sock, remoteJid);
                 await sock.sendMessage(
@@ -782,14 +726,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               try {
                 const code = await groupUtils.revokeGroupInviteCode(sock, remoteJid);
                 await sock.sendMessage(
@@ -905,14 +842,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               try {
                 const response = await groupUtils.getGroupRequestParticipantsList(sock, remoteJid);
                 await sock.sendMessage(
@@ -947,14 +877,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               if (args.length < 1 || !['approve', 'reject'].includes(args[0])) {
                 await sock.sendMessage(
                   remoteJid,
@@ -1040,14 +963,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               if (args.length < 1) {
                 await sock.sendMessage(
                   remoteJid,
@@ -1091,14 +1007,7 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (!isBotAdmin) {
-                await sock.sendMessage(
-                  remoteJid,
-                  { text: 'O bot precisa ser administrador para executar este comando.' },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                );
-                break;
-              }
+
               if (args.length < 1 || !['all_member_add', 'admin_add'].includes(args[0])) {
                 await sock.sendMessage(
                   remoteJid,
