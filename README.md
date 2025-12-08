@@ -35,31 +35,6 @@ O **OmniZap System** é um sistema profissional de automação para WhatsApp des
     *   `DB_PASSWORD`: Senha do MySQL.
     *   `DB_NAME`: Nome do banco de dados.
 
-## ⚡️ Uso
-
-### Inicialização do Banco
-
-Antes de iniciar o bot, certifique-se de que o MySQL está configurado corretamente:
-
-```bash
-# Inicia o serviço MySQL (se necessário)
-sudo service mysql start
-
-# Verifica status do MySQL
-sudo service mysql status
-```
-
-O sistema criará automaticamente o banco de dados e as tabelas necessárias na primeira execução.
-
-> ✅ Observação: As configurações de `ecosystem` do PM2 foram atualizadas para garantir que o comando de inicialização do banco (`database/init.js`) seja executado **antes** do `index.js`. Isso evita que a aplicação tente se conectar ao banco antes de o banco estar disponível.
-
-O nome do banco é composto a partir da variável `DB_NAME` adicionada com um sufixo baseado em `NODE_ENV`:
-
-| NODE_ENV | DB name example |
-|---|---|
-| development | omnizap_dev |
-| production  | omnizap_prod |
-
 ## 🛠️ Tecnologias Utilizadas
 
 - **Node.js:** Ambiente de execução JavaScript
@@ -68,27 +43,10 @@ O nome do banco é composto a partir da variável `DB_NAME` adicionada com um su
 - **mysql2/promise:** Driver MySQL com suporte a promises e prepared statements
 - **Pino:** Sistema de logging de alta performance
 - **FFmpeg:** Processamento de mídia (criação de figurinhas)
+- **WebP:** Formato de imagem eficiente usado para figurinhas e otimização de mídia
 - **PM2:** Gerenciador de processos para Node.js
 - **Dotenv:** Gerenciamento de variáveis de ambiente
 
-### 📊 Estrutura do Banco de Dados
-
-O sistema utiliza as seguintes tabelas principais:
-
-- **messages:** Armazena histórico de mensagens com suporte a JSON
-  - Campos otimizados com índices para consultas frequentes
-  - Suporte a mensagens de mídia via JSON
-  - Tracking de timestamps para análises
-
-- **groups_metadata:** Gerencia metadados dos grupos
-  - Informações como nome, descrição, dono
-  - Lista de participantes em formato JSON
-  - Tracking de alterações com timestamps
-
-- **chats:** Mantém informações sobre conversas
-  - Dados de configuração por chat
-  - Suporte a dados extras via JSON
-  - Atualização automática de timestamps
 
 ## 🤝 Contribuições
 
