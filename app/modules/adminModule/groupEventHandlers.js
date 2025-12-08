@@ -115,10 +115,17 @@ const handleGroupUpdate = async (sock, groupId, participants, action) => {
     let message = '';
     const allMentions = [];
 
-    for (const participantJid of participants) {
+    for (const participant of participants) {
+      const jid =
+        typeof participant === 'string'
+          ? participant
+          : participant?.id || participant?.jid || participant?.phoneNumber || '';
+
       const participantName =
-        (store.contacts && store.contacts[participantJid]?.notify) || participantJid.split('@')[0];
-      allMentions.push(participantJid);
+        (store.contacts && store.contacts[jid]?.notify) ||
+        (jid ? jid.split('@')[0] : participant?.phoneNumber || 'user');
+
+      if (jid) allMentions.push(jid);
 
       switch (action) {
         case 'add':
@@ -132,7 +139,8 @@ const handleGroupUpdate = async (sock, groupId, participants, action) => {
           break;
         case 'remove':
           if (groupConfig.farewellMessageEnabled) {
-            const farewellMsg = groupConfig.farewellMessage || '😥 Adeus, @user! Sentiremos sua falta.';
+            const farewellMsg =
+              groupConfig.farewellMessage || '😥 Adeus, @user! Sentiremos sua falta.';
             let msg = farewellMsg.replace('{participant}', `@${participantName}`);
             msg = msg.replace(/@user/g, `@${participantName}`);
             message += `${msg}\n`;
