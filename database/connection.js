@@ -1,6 +1,6 @@
 const { dbConfig } = require('./config');
 const mysql = require('mysql2/promise');
-const logger = require('../app/utils/logger/loggerModule'); // usar logger padrão
+const logger = require('../app/utils/logger/loggerModule');
 
 const pool = mysql.createPool({
   host: dbConfig.host,
