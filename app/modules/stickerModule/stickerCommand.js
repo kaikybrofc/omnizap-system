@@ -22,18 +22,26 @@ async function ensureDirectories(userId) {
   }
 
   try {
-    const sanitizedUserId = userId.replace(/[^a-zA-Z0-9.-]/g, '_');
+    // Permite apenas números ou substitui qualquer caractere inválido
+    const sanitizedUserId = String(userId).replace(/[^\w.-]/g, '_');
+
     const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
+
+    // Garante que o TEMP_DIR exista
+    await fs.mkdir(TEMP_DIR, { recursive: true });
+
+    // Cria diretório do usuário
     await fs.mkdir(userStickerDir, { recursive: true });
+
     return { success: true };
   } catch (error) {
-    const errorMsg = `Erro ao criar diretórios para o usuário ${userId}: ${error.message}`;
-    logger.error(errorMsg, {
+    logger.error(`Erro ao criar diretórios para o usuário ${userId}: ${error.message}`, {
       label: 'ensureDirectories',
       userId,
       error,
     });
-    return { success: false, error: errorMsg };
+
+    return { success: false, error: 'Erro ao preparar diretório do usuário.' };
   }
 }
 
