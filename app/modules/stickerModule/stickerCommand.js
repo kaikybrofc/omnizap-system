@@ -185,12 +185,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       await sock.sendMessage(
         from,
         {
-          text:
-            `olá ${sanitizedUserId}
-          *❌ Não foi possível processar sua solicitação.*\n\n` +
-            '> Você não enviou nem marcou nenhuma mídia.\n\n' +
-            '📌 Por favor, envie ou marque um arquivo de mídia com *tamanho máximo de 2 MB*.\n\n' +
-            '> _*💡 Dica: desative o modo HD antes de enviar para reduzir o tamanho do arquivo e evitar falhas.*_',
+          text: `Olá ${senderName} \n\n*❌ Não foi possível processar sua solicitação.*\n\n` + '> Você não enviou nem marcou nenhuma mídia.\n\n' + '📌 Por favor, envie ou marque um arquivo de mídia com *tamanho máximo de 2 MB*.\n\n' + '> _*💡 Dica: desative o modo HD antes de enviar para reduzir o tamanho do arquivo e evitar falhas.*_',
         },
         { quoted: message, ephemeralExpiration: expirationMessage },
       );
@@ -243,7 +238,6 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
 
     let packName, packAuthor;
     let metaFromText = parseStickerMetaText(extraText, senderName);
-    // Se o usuário não enviou texto (extraText vazio ou só espaços), tenta ler o último metadata salvo
     if (!extraText || !extraText.trim() || (metaFromText.packName === 'OmniZap' && (!senderName || metaFromText.packAuthor === 'OmniZap'))) {
       const lastMeta = await readUserStickerMeta(userStickerDir);
       if (lastMeta) {
@@ -257,7 +251,6 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     } else {
       packName = metaFromText.packName;
       packAuthor = metaFromText.packAuthor;
-      // Salva o novo metadata usado
       await saveUserStickerMeta(userStickerDir, { packName, packAuthor });
     }
     stickerPath = await addStickerMetadata(stickerPath, packName, packAuthor, { senderName, userId });
@@ -314,7 +307,6 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       });
     }
   } finally {
-    // Não apaga o sticker final salvo
     const filesToClean = [tempMediaPath, processingMediaPath].filter(Boolean);
     for (const file of filesToClean) {
       await fs.unlink(file).catch((err) => logger.warn(`processSticker Falha ao limpar arquivo temporário ${file}: ${err.message}`));
