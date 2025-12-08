@@ -279,13 +279,19 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     }
     try {
       const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
-      const permanentDir = path.join(userStickerDir, 'final');
-      await fs.mkdir(permanentDir, { recursive: true });
-      const files = await fs.readdir(permanentDir);
-      const nums = files.map((f) => parseInt(f.split('.')[0])).filter((n) => !isNaN(n));
+      // Salvar diretamente na pasta do usuário com sequência numerada (1.webp, 2.webp, ...)
+      const targetDir = userStickerDir;
+      await fs.mkdir(targetDir, { recursive: true });
+      const files = await fs.readdir(targetDir);
+      const nums = files
+        .map((f) => {
+          const m = f.match(/^(\d+)\.webp$/);
+          return m ? parseInt(m[1], 10) : NaN;
+        })
+        .filter((n) => !isNaN(n));
       const nextNum = nums.length > 0 ? Math.max(...nums) + 1 : 1;
       const stickerFileName = `${nextNum}.webp`;
-      finalStickerPath = path.join(permanentDir, stickerFileName);
+      finalStickerPath = path.join(targetDir, stickerFileName);
       await fs.copyFile(stickerPath, finalStickerPath);
       logger.info(`processSticker Sticker final salvo em: ${finalStickerPath}`);
     } catch (saveErr) {
