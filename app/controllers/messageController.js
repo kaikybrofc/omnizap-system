@@ -182,6 +182,10 @@ const handleMessages = async (update, sock) => {
           const command = match ? match[1].toLowerCase() : '';
           const args = match && match[2] !== undefined ? [match[2].trimStart()] : [];
 
+          // Texto puro enviado após o comando (sem prefixo)
+          // Por exemplo: para "/welcome Olá turma" => text = "Olá turma"
+          const text = match && match[2] !== undefined ? match[2] : '';
+
           const isGroupMessage = messageInfo.key.remoteJid.endsWith('@g.us');
           const remoteJid = messageInfo.key.remoteJid;
           const senderJid = isGroupMessage ? messageInfo.key.participant : remoteJid;
@@ -1044,7 +1048,12 @@ const handleMessages = async (update, sock) => {
                 break;
               }
 
-              if (args.length < 1 || !['on', 'off', 'set'].includes(args[0])) {
+              // determina subcomando e texto após o subcomando a partir de `text`
+              const subCommandMatch = text.trimStart().match(/^(\S+)([\s\S]*)$/);
+              const subCommand = subCommandMatch ? subCommandMatch[1].toLowerCase() : '';
+              const messageOrPath = subCommandMatch ? subCommandMatch[2].trimStart() : '';
+
+              if (!subCommand || !['on', 'off', 'set'].includes(subCommand)) {
                 await sock.sendMessage(
                   remoteJid,
                   { text: 'Uso: /welcome <on|off|set> [mensagem ou caminho da mídia]' },
@@ -1061,7 +1070,6 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              const subCommand = args[0];
               const currentConfig = groupConfigStore.getGroupConfig(remoteJid);
 
               try {
@@ -1080,7 +1088,6 @@ const handleMessages = async (update, sock) => {
                     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
                   );
                 } else if (subCommand === 'set') {
-                  const messageOrPath = args.slice(1).join(' ');
                   if (
                     !messageOrPath &&
                     !(messageInfo.message.imageMessage || messageInfo.message.videoMessage)
@@ -1189,7 +1196,13 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-              if (args.length < 1 || !['on', 'off', 'set'].includes(args[0])) {
+              // determina subcomando e texto após o subcomando a partir de `text`
+              const subCommandMatch = text.trimStart().match(/^(\S+)([\s\S]*)$/);
+              const subCommand = subCommandMatch ? subCommandMatch[1].toLowerCase() : '';
+              const messageOrPath = subCommandMatch ? subCommandMatch[2].trimStart() : '';
+              const currentConfig = groupConfigStore.getGroupConfig(remoteJid);
+
+              if (!subCommand || !['on', 'off', 'set'].includes(subCommand)) {
                 await sock.sendMessage(
                   remoteJid,
                   { text: 'Uso: /farewell <on|off|set> [mensagem ou caminho da mídia]' },
@@ -1197,9 +1210,6 @@ const handleMessages = async (update, sock) => {
                 );
                 break;
               }
-
-              const subCommand = args[0];
-              const currentConfig = groupConfigStore.getGroupConfig(remoteJid);
 
               try {
                 if (subCommand === 'on') {
@@ -1217,7 +1227,6 @@ const handleMessages = async (update, sock) => {
                     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
                   );
                 } else if (subCommand === 'set') {
-                  const messageOrPath = args.slice(1).join(' ');
                   if (
                     !messageOrPath &&
                     !(messageInfo.message.imageMessage || messageInfo.message.videoMessage)
