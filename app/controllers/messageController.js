@@ -163,9 +163,6 @@ const handleMessages = async (update, sock) => {
     try {
       for (const messageInfo of update.messages) {
         const extractedText = extractMessageContent(messageInfo);
-
-        logger.error(JSON.stringify(messageInfo, null, 2));
-
         if (extractedText.startsWith(COMMAND_PREFIX)) {
           const commandBody = extractedText.substring(COMMAND_PREFIX.length);
           const match = commandBody.match(/^(\S+)([\s\S]*)$/);
