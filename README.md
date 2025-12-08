@@ -85,6 +85,80 @@ Se preferir rodar a inicialização do banco manualmente, use:
 npm run db:init
 ```
 
+**Pré-requisitos e Configuração Antes do Início**
+
+- **Node.js**: : `>=16.0.0` (verifique com `node -v`).
+- **NPM/Yarn**: para instalar dependências (`npm install`).
+- **FFmpeg**: obrigatório para conversão de mídia; instale via `apt`, `brew` ou gerenciador de sua distro. Verifique com `ffmpeg -version` e `ffprobe -version`.
+- **MySQL**: serviço ativo e com um usuário dedicado ao sistema. Crie o banco de dados e conceda privilégios ao usuário antes de rodar `npm run db:init` (o script também tenta criar o banco automaticamente quando possível).
+- **PM2 (opcional)**: recomendado em produção; instale globalmente com `npm i -g pm2`.
+
+- **Variáveis de ambiente obrigatórias**: crie um arquivo `.env` na raiz com pelo menos as variáveis abaixo (exemplo):
+
+```env
+# Configurações do Bot
+COMMAND_PREFIX=/
+USER_ADMIN=seu_jid_de_admin@s.whatsapp.net
+
+# Configurações do MySQL
+DB_HOST=localhost
+DB_USER=seu_usuario
+DB_PASSWORD=sua_senha
+DB_NAME=omnizap
+
+# Opcional
+PM2_APP_NAME=omnizap
+# NODE_ENV=development
+```
+
+- **Diretórios necessários**: garanta que a aplicação tenha permissão para criar/escrever em:
+  - `logs/` — logs da aplicação
+  - `temp/stickers/` — diretório temporário e de armazenamento de stickers por usuário
+  - `sessions/` — (usado pela biblioteca/baileys para armazenar sessão)
+
+- **Credenciais e sessões do WhatsApp**: se estiver migrando de outro servidor, restaure a pasta `sessions/` com os arquivos de sessão; caso contrário, a sessão será criada na primeira execução.
+
+- **Binaries e permissões**: o processo precisa do binário `ffmpeg` disponível no PATH e permissões para criar arquivos em `temp/` e `logs/`.
+
+- **Verificações pré-execução** (execute antes do primeiro start):
+  - `node -v` — confirma versão do Node.
+  - `npm install` — instala dependências.
+  - `ffmpeg -version` — confirma FFmpeg instalado.
+  - `sudo service mysql status` — MySQL ativo.
+  - `cat .env` — revisar variáveis essenciais.
+
+- **Inicialização sugerida (desenvolvimento)**:
+
+```bash
+# instalar dependências
+npm install
+
+# inicializar banco (opcional se não usar PM2)
+npm run db:init
+
+# iniciar com pm2 (modo dev)
+npm run pm2:dev
+```
+
+- **Inicialização sugerida (produção)**:
+
+```bash
+# instalar dependências
+npm install --production
+
+# inicializar banco
+npm run db:init
+
+# iniciar com pm2 (modo prod)
+npm run pm2:prod
+```
+
+- **Testes rápidos após start**:
+  - Verifique logs via `pm2 logs` ou `tail -f logs/omnizap-out.log`.
+  - Envie uma imagem pequena para o bot e execute `/sticker` para validar pipeline de stickers.
+
+Se quiser, eu posso adicionar um arquivo `env.example` na raiz com o template acima — quer que eu crie esse arquivo? 
+
 ### Desenvolvimento
 
 Para iniciar o bot em modo de desenvolvimento usando `pm2`:
