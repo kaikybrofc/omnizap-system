@@ -1,33 +1,6 @@
-const fs = require('fs');
-const path = require('path');
 const logger = require('./logger/loggerModule');
-
-const GROUPS_FILE_PATH = path.join(
-  process.cwd(),
-  process.env.STORE_PATH || './temp/',
-  'groups.json',
-);
-
-/**
- * Carrega os dados do arquivo groups.json de forma segura.
- * @returns {object} Os dados dos grupos ou um objeto vazio se o arquivo não existir ou ocorrer um erro.
- */
-function _loadGroupsData() {
-  if (!fs.existsSync(GROUPS_FILE_PATH)) {
-    logger.warn(`Arquivo de grupos não encontrado em: ${GROUPS_FILE_PATH}`);
-    return {};
-  }
-  try {
-    const groupsContent = fs.readFileSync(GROUPS_FILE_PATH, 'utf8');
-    return JSON.parse(groupsContent);
-  } catch (error) {
-    logger.error(`Erro ao carregar ou analisar o arquivo groups.json: ${error.message}`, {
-      path: GROUPS_FILE_PATH,
-      error,
-    });
-    return {};
-  }
-}
+const { findById, findAll } = require('../../database/queries');
+const { TABLES } = require('../../database/config');
 
 /**
  * Valida um ID de grupo ou usuário.
@@ -48,10 +21,8 @@ function _isValidId(id, type = 'ID') {
  * @param {string} groupId - O ID do grupo.
  * @returns {object|null} Os dados do grupo ou null se não encontrado ou se o ID for inválido.
  */
-function getGroupInfo(groupId) {
-  if (!_isValidId(groupId, 'Grupo')) return null;
-  const groupsData = _loadGroupsData();
-  return groupsData[groupId] || null;
+async function getGroupInfo(groupId) {
+  return await getGroupInfoAsync(groupId);
 }
 
 /**
@@ -59,8 +30,8 @@ function getGroupInfo(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {string|null} O assunto do grupo ou null se não encontrado.
  */
-function getGroupSubject(groupId) {
-  const group = getGroupInfo(groupId);
+async function getGroupSubject(groupId) {
+  const group = await getGroupInfoAsync(groupId);
   return group?.subject || null;
 }
 
@@ -69,32 +40,141 @@ function getGroupSubject(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {Array<object>|null} A lista de participantes ou null se não encontrado.
  */
-function getGroupParticipants(groupId) {
-  const group = getGroupInfo(groupId);
-  return group?.participants || null;
+async function getGroupParticipants(groupId) {
+  return await getGroupParticipantsAsync(groupId);
+}
+
+/**
+ * Extrai o ID do usuário priorizando o campo 'lid' se existir.
+ * @param {object|string} userObj - Objeto de mensagem ou string do ID.
+ * @returns {string|null} O ID do usuário ou null se não encontrado.
+ */
+function extractUserId(userObj) {
+  if (typeof userObj === 'string') return userObj;
+  if (userObj && typeof userObj === 'object') {
+    // Prioriza lid se existir
+    if (userObj.lid) return userObj.lid;
+    if (userObj.participantAlt) return userObj.participantAlt;
+    if (userObj.participant) return userObj.participant;
+    if (userObj.id) return userObj.id;
+  }
+  return null;
 }
 
 /**
  * Verifica se um usuário é administrador em um grupo específico.
+ * Aceita tanto string quanto objeto de mensagem para userId.
  * @param {string} groupId - O ID do grupo.
- * @param {string} userId - O ID do usuário.
+ * @param {string|object} userIdOrObj - O ID do usuário ou objeto de mensagem.
  * @returns {boolean} True se o usuário for admin, false caso contrário.
  */
-function isUserAdmin(groupId, userId) {
+async function isUserAdmin(groupId, userIdOrObj) {
+  return await isUserAdminAsync(groupId, userIdOrObj);
+}
+
+function _normalizeDigits(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/\D/g, '');
+}
+
+function _matchesParticipantId(participant, userId) {
+  if (!participant || !userId) return false;
+  if (participant.id && participant.id === userId) return true;
+  if (participant.lid && participant.lid === userId) return true;
+  if (participant.jid && participant.jid === userId) return true;
+
+  const pDigits = _normalizeDigits(participant.id || participant.lid || participant.jid || '');
+  const uDigits = _normalizeDigits(userId);
+  if (
+    pDigits &&
+    uDigits &&
+    (pDigits === uDigits || pDigits.endsWith(uDigits) || uDigits.endsWith(pDigits))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Busca as informações do grupo no banco de dados.
+ * @param {string} groupId
+ * @returns {Promise<object|null>} objeto do grupo ou null
+ */
+async function getGroupInfoAsync(groupId) {
+  if (!_isValidId(groupId, 'Grupo')) return null;
+  try {
+    const row = await findById(TABLES.GROUPS_METADATA, groupId);
+    if (!row) return null;
+    const data = Array.isArray(row) ? row[0] : row;
+    if (!data) return null;
+
+    let participants = data.participants || data.participants_json || null;
+    if (typeof participants === 'string') {
+      try {
+        participants = JSON.parse(participants);
+      } catch (e) {
+        participants = null;
+      }
+    }
+
+    const group = {
+      id: data.id,
+      subject: data.subject || data.name || null,
+      desc: data.description || data.desc || null,
+      owner: data.owner_jid || data.owner || null,
+      creation: data.creation || null,
+      participants: Array.isArray(participants) ? participants : [],
+    };
+    group.size = group.participants.length;
+    return group;
+  } catch (error) {
+    logger.error(`Erro ao buscar grupo do DB ${groupId}: ${error.message}`, { error });
+    return null;
+  }
+}
+
+async function getGroupParticipantsAsync(groupId) {
+  const group = await getGroupInfoAsync(groupId);
+  return group ? group.participants : null;
+}
+
+async function isUserAdminAsync(groupId, userIdOrObj) {
+  const userId = extractUserId(userIdOrObj);
   if (!_isValidId(groupId, 'Grupo') || !_isValidId(userId, 'Usuário')) return false;
-  const participants = getGroupParticipants(groupId);
+  const participants = await getGroupParticipantsAsync(groupId);
   if (!participants) return false;
-  const participant = participants.find((p) => p.id === userId);
-  return !!participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
+  const participant = participants.find((p) => _matchesParticipantId(p, userId));
+  return (
+    !!participant &&
+    (participant.admin === 'admin' ||
+      participant.admin === 'superadmin' ||
+      participant.isAdmin === true)
+  );
+}
+
+async function getGroupAdminsAsync(groupId) {
+  const participants = await getGroupParticipantsAsync(groupId);
+  if (!participants) return [];
+  return participants
+    .filter((p) => p.admin === 'admin' || p.admin === 'superadmin' || p.isAdmin === true)
+    .map((p) => p.id || p.lid || p.jid || null)
+    .filter(Boolean);
 }
 
 /**
  * Retorna todos os IDs de grupo disponíveis.
  * @returns {Array<string>} Uma lista de IDs de grupo.
  */
-function getAllGroupIds() {
-  const groupsData = _loadGroupsData();
-  return Object.keys(groupsData);
+async function getAllGroupIds() {
+  try {
+    const rows = await findAll(TABLES.GROUPS_METADATA, 10000, 0);
+    if (!rows || !Array.isArray(rows)) return [];
+    return rows.map((r) => r.id || r[Object.keys(r)[0]]).filter(Boolean);
+  } catch (error) {
+    logger.error('Erro ao buscar todos os IDs de grupos do DB', { error });
+    return [];
+  }
 }
 
 /**
@@ -102,8 +182,8 @@ function getAllGroupIds() {
  * @param {string} groupId - O ID do grupo.
  * @returns {string|null} O ID do proprietário do grupo ou null se não encontrado.
  */
-function getGroupOwner(groupId) {
-  const group = getGroupInfo(groupId);
+async function getGroupOwner(groupId) {
+  const group = await getGroupInfoAsync(groupId);
   return group?.owner || null;
 }
 
@@ -112,8 +192,8 @@ function getGroupOwner(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {number|null} O timestamp de criação do grupo ou null se não encontrado.
  */
-function getGroupCreationTime(groupId) {
-  const group = getGroupInfo(groupId);
+async function getGroupCreationTime(groupId) {
+  const group = await getGroupInfoAsync(groupId);
   return group?.creation || null;
 }
 
@@ -122,8 +202,8 @@ function getGroupCreationTime(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {string|null} A descrição do grupo ou null se não encontrado.
  */
-function getGroupDescription(groupId) {
-  const group = getGroupInfo(groupId);
+async function getGroupDescription(groupId) {
+  const group = await getGroupInfoAsync(groupId);
   return group?.desc || null;
 }
 
@@ -132,8 +212,8 @@ function getGroupDescription(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {number|null} O número de participantes do grupo ou null se não encontrado.
  */
-function getGroupSize(groupId) {
-  const group = getGroupInfo(groupId);
+async function getGroupSize(groupId) {
+  const group = await getGroupInfoAsync(groupId);
   return group?.size || null;
 }
 
@@ -142,8 +222,8 @@ function getGroupSize(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {boolean} True se o grupo for restrito, false caso contrário.
  */
-function isGroupRestricted(groupId) {
-  const group = getGroupInfo(groupId);
+async function isGroupRestricted(groupId) {
+  const group = await getGroupInfoAsync(groupId);
   return !!group?.restrict;
 }
 
@@ -152,8 +232,8 @@ function isGroupRestricted(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {boolean} True se o grupo for apenas para anúncios, false caso contrário.
  */
-function isGroupAnnounceOnly(groupId) {
-  const group = getGroupInfo(groupId);
+async function isGroupAnnounceOnly(groupId) {
+  const group = await getGroupInfoAsync(groupId);
   return !!group?.announce;
 }
 
@@ -162,8 +242,8 @@ function isGroupAnnounceOnly(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {boolean} True se o grupo for uma comunidade, false caso contrário.
  */
-function isGroupCommunity(groupId) {
-  const group = getGroupInfo(groupId);
+async function isGroupCommunity(groupId) {
+  const group = await getGroupInfoAsync(groupId);
   return !!group?.isCommunity;
 }
 
@@ -172,15 +252,9 @@ function isGroupCommunity(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {Array<string>} Uma lista de IDs dos administradores do grupo.
  */
-function getGroupAdmins(groupId) {
-  const participants = getGroupParticipants(groupId);
-  if (!participants) return [];
-  return participants
-    .filter((p) => p.admin === 'admin' || p.admin === 'superadmin')
-    .map((p) => p.id);
+async function getGroupAdmins(groupId) {
+  return await getGroupAdminsAsync(groupId);
 }
-
-// Funções que interagem com a API (sock)
 
 /**
  * Executa uma função de grupo de forma segura, validando os parâmetros e tratando erros.
@@ -304,12 +378,7 @@ async function acceptGroupInvite(sock, code) {
   if (typeof code !== 'string' || code.trim() === '') {
     throw new Error('Código de convite inválido.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupAcceptInvite',
-    [code],
-    'Erro ao aceitar convite de grupo',
-  );
+  return _safeGroupApiCall(sock, 'groupAcceptInvite', [code], 'Erro ao aceitar convite de grupo');
 }
 
 async function getGroupInfoFromInvite(sock, code) {
@@ -398,6 +467,11 @@ module.exports = {
   getGroupSubject,
   getGroupParticipants,
   isUserAdmin,
+  extractUserId,
+  getGroupInfoAsync,
+  getGroupParticipantsAsync,
+  isUserAdminAsync,
+  getGroupAdminsAsync,
   getAllGroupIds,
   getGroupOwner,
   getGroupCreationTime,
