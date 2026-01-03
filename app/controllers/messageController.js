@@ -21,89 +21,35 @@ const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
 /**
  * Extrai o conteúdo de texto de uma mensagem do WhatsApp.
- *
- * @param {Object} messageInfo - Objeto da mensagem do WhatsApp.
- * @returns {string} O conteúdo de texto da mensagem ou uma string indicando o tipo de mídia.
+ * @param {Object} messageInfo
+ * @returns {string}
  */
-const extractMessageContent = (messageInfo) => {
-  const message = messageInfo.message;
-
+const extractMessageContent = ({ message }) => {
   if (!message) return 'Mensagem vazia';
 
-  // Texto direto
-  if (message.conversation && message.conversation.trim() !== '') {
-    return message.conversation;
-  }
+  const text = message.conversation?.trim() || message.extendedTextMessage?.text;
 
-  // Texto estendido
-  if (message.extendedTextMessage?.text) {
-    return message.extendedTextMessage.text;
-  }
+  if (text) return text;
 
-  // Mídia
-  if (message.imageMessage) {
-    return message.imageMessage.caption || '[Imagem]';
-  }
+  const handlers = [
+    [message.imageMessage, (m) => m.caption || '[Imagem]'],
+    [message.videoMessage, (m) => m.caption || '[Vídeo]'],
+    [message.documentMessage, (m) => m.fileName || '[Documento]'],
+    [message.audioMessage, () => '[Áudio]'],
+    [message.stickerMessage, () => '[Figurinha]'],
+    [message.locationMessage, (m) => `[Localização] Lat: ${m.degreesLatitude}, Long: ${m.degreesLongitude}`],
+    [message.contactMessage, (m) => `[Contato] ${m.displayName}`],
+    [message.contactsArrayMessage, (m) => `[Contatos] ${m.contacts.map((c) => c.displayName).join(', ')}`],
+    [message.listMessage, (m) => m.description || '[Mensagem de Lista]'],
+    [message.buttonsMessage, (m) => m.contentText || '[Mensagem de Botões]'],
+    [message.templateButtonReplyMessage, (m) => `[Resposta de Botão] ${m.selectedDisplayText}`],
+    [message.productMessage, (m) => m.product?.title || '[Mensagem de Produto]'],
+    [message.reactionMessage, (m) => `[Reação] ${m.text}`],
+    [message.pollCreationMessage, (m) => `[Enquete] ${m.name}`],
+  ];
 
-  if (message.videoMessage) {
-    return message.videoMessage.caption || '[Vídeo]';
-  }
-
-  if (message.documentMessage) {
-    return message.documentMessage.fileName || '[Documento]';
-  }
-
-  if (message.audioMessage) {
-    return '[Áudio]';
-  }
-
-  if (message.stickerMessage) {
-    return '[Figurinha]';
-  }
-
-  // Localização
-  if (message.locationMessage) {
-    const loc = message.locationMessage;
-    return `[Localização] Latitude: ${loc.degreesLatitude}, Longitude: ${loc.degreesLongitude}`;
-  }
-
-  // Contato único
-  if (message.contactMessage) {
-    return `[Contato] ${message.contactMessage.displayName}`;
-  }
-
-  // Lista de contatos
-  if (message.contactsArrayMessage) {
-    const nomes = message.contactsArrayMessage.contacts.map((c) => c.displayName).join(', ');
-    return `[Contatos] ${nomes}`;
-  }
-
-  // Listas e botões
-  if (message.listMessage) {
-    return message.listMessage.description || '[Mensagem de Lista]';
-  }
-
-  if (message.buttonsMessage) {
-    return message.buttonsMessage.contentText || '[Mensagem de Botões]';
-  }
-
-  if (message.templateButtonReplyMessage) {
-    return `[Resposta de Botão] ${message.templateButtonReplyMessage.selectedDisplayText}`;
-  }
-
-  // Produto
-  if (message.productMessage) {
-    return message.productMessage.product?.title || '[Mensagem de Produto]';
-  }
-
-  // Reação
-  if (message.reactionMessage) {
-    return `[Reação] ${message.reactionMessage.text}`;
-  }
-
-  // Enquete
-  if (message.pollCreationMessage) {
-    return `[Enquete] ${message.pollCreationMessage.name}`;
+  for (const [msg, fn] of handlers) {
+    if (msg) return fn(msg);
   }
 
   return 'Tipo de mensagem não suportado ou sem conteúdo.';
@@ -672,7 +618,6 @@ const handleMessages = async (update, sock) => {
                 break;
               }
 
-              // determina subcomando e texto após o subcomando a partir de `text`
               const subCommandMatch = text.trimStart().match(/^(\S+)([\s\S]*)$/);
               const subCommand = subCommandMatch ? subCommandMatch[1].toLowerCase() : '';
               const messageOrPath = subCommandMatch ? subCommandMatch[2].trimStart() : '';
@@ -764,7 +709,6 @@ const handleMessages = async (update, sock) => {
                 await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
                 break;
               }
-              // determina subcomando e texto após o subcomando a partir de `text`
               const subCommandMatch = text.trimStart().match(/^(\S+)([\s\S]*)$/);
               const subCommand = subCommandMatch ? subCommandMatch[1].toLowerCase() : '';
               const messageOrPath = subCommandMatch ? subCommandMatch[2].trimStart() : '';
@@ -844,7 +788,7 @@ const handleMessages = async (update, sock) => {
 
             default:
               logger.info(`Comando desconhecido: ${command}`);
-              //await sock.sendMessage(remoteJid, { text: 'ℹ️ Nenhum comando configurado encontrado.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              await sock.sendMessage(remoteJid, { text: 'ℹ️ Nenhum comando configurado encontrado.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
               break;
           }
         }
