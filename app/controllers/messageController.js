@@ -200,7 +200,7 @@ const handleMessages = async (update, sock) => {
           switch (command) {
             case 'sticker':
             case 's':
-              await processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '));
+              processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '));
               break;
 
             case 'info':

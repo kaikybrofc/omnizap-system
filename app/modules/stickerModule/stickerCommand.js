@@ -4,6 +4,7 @@ const logger = require('../../utils/logger/loggerModule');
 const { downloadMediaMessage } = require('../../utils/mediaDownloader/mediaDownloaderModule');
 const { addStickerMetadata } = require('./addStickerMetadata');
 const { convertToWebp } = require('./convertToWebp');
+const { v4: uuidv4 } = require('uuid');
 const adminJid = process.env.USER_ADMIN;
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
@@ -114,38 +115,6 @@ function parseStickerMetaText(text, senderName) {
 }
 
 /**
- * Salva o último metadata usado pelo usuário em um arquivo JSON na pasta do usuário.
- * @param {string} userDir - Caminho da pasta do usuário.
- * @param {object} meta - Objeto { packName, packAuthor }
- */
-async function saveUserStickerMeta(userDir, meta) {
-  try {
-    const metaPath = path.join(userDir, 'last_sticker_meta.json');
-    await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf8');
-    logger.debug(`saveUserStickerMeta Metadata salvo em ${metaPath}`);
-  } catch (err) {
-    logger.warn(`saveUserStickerMeta Falha ao salvar metadata: ${err.message}`);
-  }
-}
-
-/**
- * Lê o último metadata salvo do usuário, se existir.
- * @param {string} userDir - Caminho da pasta do usuário.
- * @returns {Promise<{ packName: string, packAuthor: string }|null>}
- */
-async function readUserStickerMeta(userDir) {
-  try {
-    const metaPath = path.join(userDir, 'last_sticker_meta.json');
-    const data = await fs.readFile(metaPath, 'utf8');
-    const meta = JSON.parse(data);
-    if (meta.packName && meta.packAuthor) return meta;
-    return null;
-  } catch (err) {
-    return null;
-  }
-}
-
-/**
  * Processa uma mensagem para criar e enviar um sticker a partir de uma mídia recebida.
  *
  * @param {object} sock - Instância do socket de conexão WhatsApp.
@@ -155,21 +124,12 @@ async function readUserStickerMeta(userDir) {
  * @returns {Promise<void>}
  */
 async function processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, extraText = '') {
-  const { v4: uuidv4 } = require('uuid');
   const uniqueId = uuidv4();
 
   let tempMediaPath = null;
   let processingMediaPath = null;
   let stickerPath = null;
   let convertedPath = null;
-  let finalStickerPath = null;
-
-  try {
-    await sock.sendMessage(senderJid, { react: { text: '🎨', key: messageInfo.key } });
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-  } catch (reactErr) {
-    logger.warn(`processSticker Falha ao reagir à mensagem: ${reactErr.message}`);
-  }
 
   try {
     const message = messageInfo;
@@ -242,25 +202,8 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
 
     convertedPath = await convertToWebp(processingMediaPath, mediaType, sanitizedUserId, uniqueId);
 
-    let packName, packAuthor;
-    let metaFromText = parseStickerMetaText(extraText, senderName);
-    if (!extraText || !extraText.trim() || (metaFromText.packName === 'OmniZap' && (!senderName || metaFromText.packAuthor === 'OmniZap'))) {
-      const lastMeta = await readUserStickerMeta(userStickerDir);
-      if (lastMeta) {
-        packName = lastMeta.packName;
-        packAuthor = lastMeta.packAuthor;
-        logger.info(`processSticker Usando metadata salvo: ${packName} / ${packAuthor}`);
-      } else {
-        packName = metaFromText.packName;
-        packAuthor = metaFromText.packAuthor;
-      }
-    } else {
-      packName = metaFromText.packName;
-      packAuthor = metaFromText.packAuthor;
-      await saveUserStickerMeta(userStickerDir, { packName, packAuthor });
-    }
+    const { packName, packAuthor } = parseStickerMetaText(extraText, senderName);
     stickerPath = await addStickerMetadata(convertedPath, packName, packAuthor, { senderName, userId });
-
     let stickerBuffer = null;
     try {
       stickerBuffer = await fs.readFile(stickerPath);
@@ -275,37 +218,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       }
       return;
     }
-    try {
-      const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
-      const targetDir = userStickerDir;
-      await fs.mkdir(targetDir, { recursive: true });
-      const files = await fs.readdir(targetDir);
-      const nums = files
-        .map((f) => {
-          const m = f.match(/^(\d+)\.webp$/);
-          return m ? parseInt(m[1], 10) : NaN;
-        })
-        .filter((n) => !isNaN(n));
-      const nextNum = nums.length > 0 ? Math.max(...nums) + 1 : 1;
-      const stickerFileName = `${nextNum}.webp`;
-      finalStickerPath = path.join(targetDir, stickerFileName);
-      await fs.copyFile(stickerPath, finalStickerPath);
-      logger.info(`processSticker Sticker final salvo em: ${finalStickerPath}`);
-      try {
-        if (stickerPath) {
-          await fs.unlink(stickerPath).catch(() => {});
-          logger.debug(`processSticker Arquivo temporário do sticker removido: ${stickerPath}`);
-        }
-        if (convertedPath && convertedPath !== stickerPath) {
-          await fs.unlink(convertedPath).catch(() => {});
-          logger.debug(`processSticker Arquivo convertido removido: ${convertedPath}`);
-        }
-      } catch (unlinkErr) {
-        logger.warn(`processSticker Falha ao remover arquivo temporário do sticker: ${unlinkErr.message}`);
-      }
-    } catch (saveErr) {
-      logger.error(`processSticker Falha ao salvar sticker final: ${saveErr.message}`);
-    }
+
     try {
       await sock.sendMessage(from, { sticker: stickerBuffer }, { quoted: message, ephemeralExpiration: expirationMessage });
     } catch (sendErr) {
@@ -330,7 +243,7 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
       });
     }
   } finally {
-    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath].filter(Boolean);
+    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath, convertedPath].filter(Boolean);
     for (const file of filesToClean) {
       await fs.unlink(file).catch((err) => logger.warn(`processSticker Falha ao limpar arquivo temporário ${file}: ${err.message}`));
     }
