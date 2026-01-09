@@ -87,7 +87,7 @@ async function connectToWhatsApp() {
     logger: pino({ level: 'silent' }),
     browser: Browsers.macOS('Desktop'),
     qrTimeout: 30000,
-    syncFullHistory: true,
+    syncFullHistory: false,
     markOnlineOnConnect: true,
     getMessage: async (key) => (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
   });
