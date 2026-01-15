@@ -144,6 +144,31 @@ const handleMessages = async (update, sock) => {
           const isUserMod = (senderJid) => senderJid === process.env.USER_ADMIN;
 
           switch (command) {
+            case 'menu': {
+              const stickerMenuImage = './temp/sticker-menu.png';
+
+              const stickerCaption = `🌟 *Guia do Comando* 🌟
+
+Para transformar uma imagem ou GIF em figurinha:
+
+1.  *Responda a uma imagem/GIF:* Envie ${COMMAND_PREFIX}sticker ou ${COMMAND_PREFIX}s respondendo à mídia.
+2.  *Envie com legenda:* Envie a imagem/GIF com a legenda ${COMMAND_PREFIX}sticker ou ${COMMAND_PREFIX}s.
+
+
+Divirta-se criando suas figurinhas!
+`;
+
+              await sock.sendMessage(
+                remoteJid,
+                {
+                  image: { url: stickerMenuImage },
+                  caption: stickerCaption,
+                },
+                { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+              );
+              break;
+            }
+
             case 'sticker':
             case 's':
               processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '));
