@@ -857,8 +857,31 @@ Divirta-se! 😄
             }
 
             default:
-              logger.info(`Comando desconhecido: ${command}`);
-              await sock.sendMessage(remoteJid, { text: 'ℹ️ Nenhum comando configurado encontrado.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              logger.info(`Comando desconhecido recebido: ${command}`);
+
+              await sock.sendMessage(
+                remoteJid,
+                {
+                  text: `❌ *Comando não reconhecido*
+
+O comando *${command}* não está configurado ou ainda não existe.
+
+ℹ️ *Dica:*  
+Digite *${COMMAND_PREFIX}menu* para ver a lista de comandos disponíveis.
+
+🚧 *Fase Beta*  
+O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.
+
+📩 *Contato do Desenvolvedor*  
+• Instagram: *@kaikybrofc*  
+• WhatsApp: +55 95 99112-2954`,
+                },
+                {
+                  quoted: messageInfo,
+                  ephemeralExpiration: expirationMessage,
+                },
+              );
+
               break;
           }
         }
