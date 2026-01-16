@@ -99,19 +99,86 @@ const handleMessages = async (update, sock) => {
     try {
       for (const messageInfo of update.messages) {
         const extractedText = extractMessageContent(messageInfo);
+        const remoteJid = messageInfo.key.remoteJid;
+        const isGroupMessage = remoteJid.endsWith('@g.us');
+        const senderJid = isGroupMessage ? messageInfo.key.participant : remoteJid;
+        const senderName = messageInfo.pushName;
+        const expirationMessage = getExpiration(messageInfo);
+        const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+
+        // Antilink Feature
+        if (isGroupMessage) {
+          const groupConfig = groupConfigStore.getGroupConfig(remoteJid);
+          if (groupConfig && groupConfig.antilinkEnabled) {
+            let linkFound = false;
+
+            // Primary verification (Regex for common patterns)
+            const primaryRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|(chat\.whatsapp\.com\/[A-Za-z0-9]+)/gi;
+            if (primaryRegex.test(extractedText)) {
+              linkFound = true;
+            }
+
+            // Secondary verification for domain-like words (e.g., example.com)
+            if (!linkFound) {
+              const tlds = ['com', 'net', 'org', 'gov', 'edu', 'biz', 'info', 'io', 'co', 'app', 'xyz', 'br', 'pt', 'us', 'uk', 'de', 'jp', 'fr', 'au', 'ca', 'cn', 'ru', 'in'];
+              const secondaryRegex = new RegExp(`\\b[a-zA-Z0-9-]+\\.(${tlds.join('|')})\\b`, 'i');
+              if (secondaryRegex.test(extractedText)) {
+                linkFound = true;
+              }
+            }
+
+            if (linkFound) {
+              const isAdmin = await groupUtils.isUserAdmin(remoteJid, senderJid);
+              const senderIsBot = senderJid === botJid;
+
+              if (!isAdmin && !senderIsBot) {
+                try {
+                  await groupUtils.updateGroupParticipants(sock, remoteJid, [senderJid], 'remove');
+                  await sock.sendMessage(remoteJid, { text: `🚫 @${senderJid.split('@')[0]} foi removido por enviar um link.`, mentions: [senderJid] });
+                  await sock.sendMessage(remoteJid, { delete: messageInfo.key });
+
+                  logger.info(`Usuário ${senderJid} removido do grupo ${remoteJid} por enviar link.`, {
+                    action: 'antilink_remove',
+                    groupId: remoteJid,
+                    userId: senderJid,
+                  });
+
+                  continue; // Skip further processing
+                } catch (error) {
+                  logger.error(`Falha ao remover usuário com antilink: ${error.message}`, {
+                    action: 'antilink_error',
+                    groupId: remoteJid,
+                    userId: senderJid,
+                    error: error.stack,
+                  });
+                }
+              } else if (isAdmin && !senderIsBot) {
+                try {
+                  await sock.sendMessage(remoteJid, { text: `ⓘ @${senderJid.split('@')[0]} (admin) enviou um link.`, mentions: [senderJid] });
+                  logger.info(`Admin ${senderJid} enviou um link no grupo ${remoteJid} (aviso enviado).`, {
+                    action: 'antilink_admin_link_detected',
+                    groupId: remoteJid,
+                    userId: senderJid,
+                  });
+                } catch (error) {
+                  logger.error(`Falha ao enviar aviso de link de admin: ${error.message}`, {
+                    action: 'antilink_admin_warning_error',
+                    groupId: remoteJid,
+                    userId: senderJid,
+                    error: error.stack,
+                  });
+                }
+              }
+            }
+          }
+        }
+
         if (extractedText.startsWith(COMMAND_PREFIX)) {
           const commandBody = extractedText.substring(COMMAND_PREFIX.length);
           const match = commandBody.match(/^(\S+)([\s\S]*)$/);
           const command = match ? match[1].toLowerCase() : '';
           const args = match && match[2] !== undefined ? [match[2].trimStart()] : [];
           const text = match && match[2] !== undefined ? match[2] : '';
-
-          const isGroupMessage = messageInfo.key.remoteJid.endsWith('@g.us');
-          const remoteJid = messageInfo.key.remoteJid;
-          const senderJid = isGroupMessage ? messageInfo.key.participant : remoteJid;
-          const senderName = messageInfo.pushName;
-          const expirationMessage = getExpiration(messageInfo);
-          const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
           const getParticipantJids = (messageInfo, args) => {
             const mentionedJids = messageInfo.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
@@ -841,6 +908,36 @@ Divirta-se! 😄
                 }
               } catch (error) {
                 await sock.sendMessage(remoteJid, { text: `Erro ao configurar mensagens de saída: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
+              break;
+            }
+
+            case 'antilink': {
+              if (!isGroupMessage) {
+                await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+              if (!(await isUserAdmin(remoteJid, senderJid))) {
+                await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+
+              const subCommand = args[0] ? args[0].toLowerCase() : '';
+
+              if (!['on', 'off'].includes(subCommand)) {
+                const currentConfig = groupConfigStore.getGroupConfig(remoteJid);
+                const status = currentConfig.antilinkEnabled ? 'ativado' : 'desativado';
+                await sock.sendMessage(remoteJid, { text: `Uso: /antilink <on|off>\n\nO antilink está atualmente ${status}.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+
+              try {
+                const isEnabled = subCommand === 'on';
+                groupConfigStore.updateGroupConfig(remoteJid, { antilinkEnabled: isEnabled });
+                await sock.sendMessage(remoteJid, { text: `✅ Antilink foi ${isEnabled ? 'ativado' : 'desativado'} para este grupo.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              } catch (error) {
+                logger.error('Erro ao configurar o antilink:', { error: error.message, groupId: remoteJid });
+                await sock.sendMessage(remoteJid, { text: `Erro ao configurar o antilink: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
               }
               break;
             }

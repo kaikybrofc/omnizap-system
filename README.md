@@ -1,18 +1,19 @@
-[![fSNGag2.md.png](https://iili.io/fSNGag2.md.png)](https://freeimage.host/i/fSNGag2)
+![fSNGag2](https://iili.io/fSNGag2.png)
 
-O **OmniZap System** é uma plataforma profissional de automação para WhatsApp, desenvolvida em Node.js e utilizando a biblioteca Baileys. Ele oferece funcionalidades robustas para gerenciamento de grupos, automação de interações e extensão do WhatsApp com comandos personalizados, incluindo suporte completo a banco de dados MySQL.
+
+O **OmniZap System** é uma plataforma de automação para WhatsApp em Node.js com Baileys, oferecendo gerenciamento de grupos, automação de interações e comandos personalizados com suporte a MySQL.
 
 ## ✨ Recursos Principais
 
-*   **Automação de WhatsApp:** Gerencie interações e grupos de forma eficiente.
-*   **Comandos Personalizados:** Estenda as funcionalidades do WhatsApp com comandos definidos pelo usuário.
-*   **Integração com MySQL:** Suporte completo a banco de dados para armazenamento persistente.
-*   **Gerenciamento de Mídia:** Processamento de mídia para figurinhas e otimização.
-*   **Gerenciamento de Processos:** Utilização do PM2 para monitoramento e manutenção da aplicação.
+*   Automação e Gerenciamento de WhatsApp
+*   Comandos Personalizados
+*   Integração com MySQL
+*   Gerenciamento de Mídia (figurinhas)
+*   Monitoramento com PM2
 
 ## 🚀 Instalação
 
-Para configurar e executar o OmniZap System, siga os passos abaixo:
+Siga os passos para configurar e executar:
 
 1.  **Clone o repositório:**
     ```bash
@@ -25,8 +26,7 @@ Para configurar e executar o OmniZap System, siga os passos abaixo:
     npm install
     ```
 
-3.  **Configure as variáveis de ambiente:**
-    Crie um arquivo `.env` no diretório raiz do projeto com as seguintes variáveis:
+3.  **Configure as variáveis de ambiente:** Crie um arquivo `.env` na raiz do projeto:
 
     ```env
     # Configurações do Bot
@@ -50,53 +50,37 @@ Para configurar e executar o OmniZap System, siga os passos abaixo:
     # FFMPEG_PATH=/usr/bin/ffmpeg
     ```
 
-    | Variável         | Descrição                                                                      | Exemplo/Padrão                                   |
-    | :--------------- | :----------------------------------------------------------------------------- | :----------------------------------------------- |
-    | `COMMAND_PREFIX` | Prefixo para todos os comandos do bot.                                         | `/`                                              |
-    | `USER_ADMIN`     | JID do usuário com privilégios administrativos.                                | `seu_jid_de_admin@s.whatsapp.net`                |
-    | `PM2_APP_NAME`   | Nome da aplicação para o PM2.                                                  | `omnizap-system`                                 |
-    | `LOG_LEVEL`      | Nível de detalhe dos logs (`debug`, `info`, `warn`, `error`).                  | `info`                                           |
-    | `NODE_ENV`       | Ambiente da aplicação (`development` ou `production`).                         | `development`                                    |
-    | `DB_HOST`        | Host do servidor MySQL.                                                        | `localhost`                                      |
-    | `DB_USER`        | Usuário do MySQL.                                                              | `seu_usuario`                                    |
-    | `DB_PASSWORD`    | Senha do MySQL.                                                                | `sua_senha`                                      |
-    | `DB_NAME`        | Nome base do banco de dados (o sistema adiciona sufixo `_dev` ou `_prod`).    | `omnizap`                                        |
-    | `DB_POOL_LIMIT`  | Limite de conexões do pool MySQL.                                              | `10`                                             |
-    | `STORE_PATH`     | Caminho relativo para armazenar arquivos temporários e stores.                 | `./temp`                                         |
-    | `FFMPEG_PATH`    | Caminho para o binário do FFmpeg (opcional, se não estiver no `PATH`).         | `/usr/bin/ffmpeg`                                |
-
 ## ▶️ Como Executar
 
-Para iniciar o sistema, utilize o PM2:
+Para iniciar, use PM2:
 
 ```bash
-pm2 start ecosystem.dev.config.js # Para ambiente de desenvolvimento
+pm2 start ecosystem.dev.config.js # Desenvolvimento
 # ou
-pm2 start ecosystem.prod.config.js # Para ambiente de produção
+pm2 start ecosystem.prod.config.js # Produção
 ```
 
 ## 🛠️ Tecnologias Utilizadas
 
-*   **Node.js:** Ambiente de execução JavaScript.
-*   **MySQL:** Sistema de gerenciamento de banco de dados robusto.
-*   **@whiskeysockets/baileys:** Biblioteca principal para a API do WhatsApp Web.
-*   **mysql2/promise:** Driver MySQL com suporte a promises.
-*   **Pino:** Sistema de logging de alta performance.
-*   **FFmpeg:** Processamento de mídia (criação de figurinhas).
-*   **WebP:** Formato de imagem eficiente.
-*   **PM2:** Gerenciador de processos para Node.js.
-*   **Dotenv:** Gerenciamento de variáveis de ambiente.
+*   Node.js
+*   MySQL
+*   @whiskeysockets/baileys
+*   mysql2/promise
+*   Pino
+*   FFmpeg
+*   WebP
+*   PM2
+*   Dotenv
 
 ## 🤝 Contribuições
 
-Contribuições são bem-vindas! Se você deseja contribuir com o projeto, siga estas etapas:
-
-1.  Faça um fork do repositório.
-2.  Crie uma nova branch para sua feature (`git checkout -b feature/nova-feature`).
-3.  Faça commit de suas alterações (`git commit -m 'Adiciona nova feature'`).
-4.  Faça push para a branch (`git push origin feature/nova-feature`).
+Para contribuir:
+1.  Fork o repositório.
+2.  Crie sua branch (`git checkout -b feature/sua-feature`).
+3.  Commit suas alterações (`git commit -m 'Adiciona nova feature'`).
+4.  Push para a branch (`git push origin feature/sua-feature`).
 5.  Abra um Pull Request.
 
 ## 📄 Licença
 
-Este projeto está licenciado sob a Licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+Este projeto está licenciado sob a Licença MIT. Veja [LICENSE](LICENSE) para mais detalhes.
