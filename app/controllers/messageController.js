@@ -110,11 +110,13 @@ const handleMessages = async (update, sock) => {
         if (isGroupMessage) {
           const groupConfig = groupConfigStore.getGroupConfig(remoteJid);
           if (groupConfig && groupConfig.antilinkEnabled) {
-            const linkRegex = /\b((?:https?:\/\/|ftp:\/\/|www\.)[a-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+)\b/gi;
+           const linkRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|(chat\.whatsapp\.com\/[A-Za-z0-9]+)/gi;
 
             if (linkRegex.test(extractedText)) {
               const isAdmin = await groupUtils.isUserAdmin(remoteJid, senderJid);
-              if (!isAdmin && senderJid && senderJid !== botJid) {
+              const senderIsBot = senderJid === botJid;
+
+              if (!isAdmin && !senderIsBot) {
                 try {
                   await groupUtils.updateGroupParticipants(sock, remoteJid, [senderJid], 'remove');
                   await sock.sendMessage(remoteJid, { text: `🚫 @${senderJid.split('@')[0]} foi removido por enviar um link.`, mentions: [senderJid] });
@@ -130,6 +132,22 @@ const handleMessages = async (update, sock) => {
                 } catch (error) {
                   logger.error(`Falha ao remover usuário com antilink: ${error.message}`, {
                     action: 'antilink_error',
+                    groupId: remoteJid,
+                    userId: senderJid,
+                    error: error.stack,
+                  });
+                }
+              } else if (isAdmin && !senderIsBot) {
+                try {
+                  await sock.sendMessage(remoteJid, { text: `ⓘ @${senderJid.split('@')[0]} (admin) enviou um link.`, mentions: [senderJid] });
+                  logger.info(`Admin ${senderJid} enviou um link no grupo ${remoteJid} (aviso enviado).`, {
+                    action: 'antilink_admin_link_detected',
+                    groupId: remoteJid,
+                    userId: senderJid,
+                  });
+                } catch (error) {
+                  logger.error(`Falha ao enviar aviso de link de admin: ${error.message}`, {
+                    action: 'antilink_admin_warning_error',
                     groupId: remoteJid,
                     userId: senderJid,
                     error: error.stack,
