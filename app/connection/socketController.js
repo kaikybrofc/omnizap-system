@@ -84,7 +84,7 @@ async function connectToWhatsApp() {
   const sock = makeWASocket({
     version,
     auth: state,
-    logger: pino(),
+    logger: pino({ level: process.env.NODE_ENV === 'production' ? 'silent' : 'trace' }),
     browser: Browsers.macOS('Desktop'),
     qrTimeout: 30000,
     syncFullHistory: false,
