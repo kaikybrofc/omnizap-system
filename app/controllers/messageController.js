@@ -110,9 +110,24 @@ const handleMessages = async (update, sock) => {
         if (isGroupMessage) {
           const groupConfig = groupConfigStore.getGroupConfig(remoteJid);
           if (groupConfig && groupConfig.antilinkEnabled) {
-           const linkRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|(chat\.whatsapp\.com\/[A-Za-z0-9]+)/gi;
+            let linkFound = false;
 
-            if (linkRegex.test(extractedText)) {
+            // Primary verification (Regex for common patterns)
+            const primaryRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|(chat\.whatsapp\.com\/[A-Za-z0-9]+)/gi;
+            if (primaryRegex.test(extractedText)) {
+              linkFound = true;
+            }
+
+            // Secondary verification for domain-like words (e.g., example.com)
+            if (!linkFound) {
+              const tlds = ['com', 'net', 'org', 'gov', 'edu', 'biz', 'info', 'io', 'co', 'app', 'xyz', 'br', 'pt', 'us', 'uk', 'de', 'jp', 'fr', 'au', 'ca', 'cn', 'ru', 'in'];
+              const secondaryRegex = new RegExp(`\\b[a-zA-Z0-9-]+\\.(${tlds.join('|')})\\b`, 'i');
+              if (secondaryRegex.test(extractedText)) {
+                linkFound = true;
+              }
+            }
+
+            if (linkFound) {
               const isAdmin = await groupUtils.isUserAdmin(remoteJid, senderJid);
               const senderIsBot = senderJid === botJid;
 
