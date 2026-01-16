@@ -10,6 +10,7 @@
  */
 
 require('dotenv').config();
+const https = require('https');
 const { handleInfoCommand } = require('../modules/adminModule/infoCommand');
 const { processSticker } = require('../modules/stickerModule/stickerCommand');
 const groupUtils = require('../utils/groupUtils');
@@ -143,7 +144,76 @@ const handleMessages = async (update, sock) => {
 
           const isUserMod = (senderJid) => senderJid === process.env.USER_ADMIN;
 
+          const getImageBuffer = (url) => {
+            return new Promise((resolve, reject) => {
+              https
+                .get(url, (response) => {
+                  if (response.statusCode !== 200) {
+                    reject(new Error(`Failed to get image, status code: ${response.statusCode}`));
+                    return;
+                  }
+                  const chunks = [];
+                  response.on('data', (chunk) => chunks.push(chunk));
+                  response.on('end', () => resolve(Buffer.concat(chunks)));
+                })
+                .on('error', (err) => reject(err));
+            });
+          };
+
           switch (command) {
+            case 'menu': {
+              const imageUrl = process.env.IMAGE_MENU;
+              if (!imageUrl) {
+                logger.error('IMAGE_MENU environment variable not set.');
+                await sock.sendMessage(remoteJid, { text: 'Ocorreu um erro ao carregar o menu.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+                break;
+              }
+
+              const stickerCaption = `Olá ${senderName}! 👋
+
+🌟 *Guia de Comandos do omnizap-system* 🌟
+
+Quer transformar uma imagem ou GIF em figurinha? É bem simples:
+
+1️⃣ *Responder uma mídia*  
+Responda a uma imagem ou GIF com:  
+➡️ ${COMMAND_PREFIX}sticker ou ${COMMAND_PREFIX}s
+
+2️⃣ *Enviar com legenda*  
+Envie a imagem ou GIF já com a legenda:  
+➡️ ${COMMAND_PREFIX}sticker ou ${COMMAND_PREFIX}s
+
+✨ Pronto! Sua figurinha será criada automaticamente.
+
+🚧 *Fase Beta*  
+O omnizap-system ainda está em fase de desenvolvimento, então novos comandos estão sendo implementados aos poucos.
+
+🧑‍💻 *Projeto Open Source*  
+Acompanhe o desenvolvimento, envie sugestões ou contribua com o projeto no GitHub:  
+🔗 https://github.com/kaikybrofc/omnizap-system
+
+❓ Em caso de dúvidas ou sugestões, fale com o dono no Instagram:  
+👉 *@kaikybrofc*
+
+Divirta-se! 😄
+`;
+              try {
+                const imageBuffer = await getImageBuffer(imageUrl);
+                await sock.sendMessage(
+                  remoteJid,
+                  {
+                    image: imageBuffer,
+                    caption: stickerCaption,
+                  },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                );
+              } catch (error) {
+                logger.error('Error fetching menu image:', error);
+                await sock.sendMessage(remoteJid, { text: 'Ocorreu um erro ao carregar a imagem do menu.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              }
+              break;
+            }
+
             case 'sticker':
             case 's':
               processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '));
@@ -787,8 +857,31 @@ const handleMessages = async (update, sock) => {
             }
 
             default:
-              logger.info(`Comando desconhecido: ${command}`);
-              await sock.sendMessage(remoteJid, { text: 'ℹ️ Nenhum comando configurado encontrado.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              logger.info(`Comando desconhecido recebido: ${command}`);
+
+              await sock.sendMessage(
+                remoteJid,
+                {
+                  text: `❌ *Comando não reconhecido*
+
+O comando *${command}* não está configurado ou ainda não existe.
+
+ℹ️ *Dica:*  
+Digite *${COMMAND_PREFIX}menu* para ver a lista de comandos disponíveis.
+
+🚧 *Fase Beta*  
+O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.
+
+📩 *Contato do Desenvolvedor*  
+• Instagram: *@kaikybrofc*  
+• WhatsApp: +55 95 99112-2954`,
+                },
+                {
+                  quoted: messageInfo,
+                  ephemeralExpiration: expirationMessage,
+                },
+              );
+
               break;
           }
         }
