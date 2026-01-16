@@ -1,14 +1,3 @@
-/**
- * OmniZap Message Controller
- *
- * Controlador responsável pelo processamento e tratamento de mensagens
- * recebidas através do WhatsApp via tecnologia Baileys
- *
- * @version 2.0.3
- * @license MIT
- * @source https://github.com/kaikybrofc/omnizap-system
- */
-
 require('dotenv').config();
 const https = require('https');
 const { handleInfoCommand } = require('../modules/adminModule/infoCommand');
