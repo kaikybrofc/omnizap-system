@@ -1,0 +1,9 @@
+<svg width="1200" height="360" viewBox="0 0 1200 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="360" fill="#0F172A"/>
+  <rect x="60" y="60" width="1080" height="240" rx="32" fill="#111827" stroke="#1F2937" stroke-width="4"/>
+  <text x="120" y="170" fill="#38BDF8" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="700">OmniZap System</text>
+  <text x="120" y="230" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="28">Automação de WhatsApp com comandos personalizados</text>
+  <circle cx="1000" cy="180" r="70" fill="#22C55E" opacity="0.15"/>
+  <circle cx="1000" cy="180" r="46" fill="#22C55E" opacity="0.3"/>
+  <path d="M980 180c0-11 9-20 20-20s20 9 20 20-9 20-20 20-20-9-20-20z" fill="#22C55E"/>
+</svg>
