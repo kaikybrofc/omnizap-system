@@ -1,4 +1,4 @@
-![fSNGag2](https://iili.io/fSNGag2.png)
+![OmniZap System](assets/omnizap-banner.svg)
 
 
 O **OmniZap System** é uma plataforma de automação para WhatsApp em Node.js com Baileys, oferecendo gerenciamento de grupos, automação de interações e comandos personalizados com suporte a MySQL.
@@ -14,6 +14,13 @@ O **OmniZap System** é uma plataforma de automação para WhatsApp em Node.js c
 ## 🚀 Instalação
 
 Siga os passos para configurar e executar:
+
+## ✅ Pré-requisitos
+
+*   Node.js 18+ (recomendado)
+*   MySQL 8+
+*   PM2 instalado globalmente (`npm i -g pm2`)
+*   FFmpeg instalado no sistema para recursos de mídia (figurinhas)
 
 1.  **Clone o repositório:**
     ```bash
@@ -50,6 +57,10 @@ Siga os passos para configurar e executar:
     # FFMPEG_PATH=/usr/bin/ffmpeg
     ```
 
+4.  **Prepare o banco de dados:**
+    *   Crie o banco indicado em `DB_NAME`.
+    *   Garanta que o usuário tenha permissões de leitura e escrita.
+
 ## ▶️ Como Executar
 
 Para iniciar, use PM2:
@@ -58,6 +69,13 @@ Para iniciar, use PM2:
 pm2 start ecosystem.dev.config.js # Desenvolvimento
 # ou
 pm2 start ecosystem.prod.config.js # Produção
+```
+
+## 📦 Scripts úteis
+
+```bash
+npm run dev
+npm run start
 ```
 
 ## 🛠️ Tecnologias Utilizadas
