@@ -75,10 +75,10 @@ node index.js
 Para iniciar com PM2:
 
 ```bash
-pm2 start ecosystem.dev.config.js # Desenvolvimento
-# ou
 pm2 start ecosystem.prod.config.js # Produção
 ```
+
+Alerta: use o PM2 somente depois de conectar o QR code no modo normal, pois o PM2 não exibe o QR de conexão.
 
 ## 📦 Scripts úteis
 
