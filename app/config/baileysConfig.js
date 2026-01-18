@@ -45,6 +45,51 @@ async function resolveBaileysVersion() {
   return DEFAULT_BAILEYS_VERSION;
 }
 
+/**
+ * Extrai o valor de expiração de uma mensagem do WhatsApp, ou retorna 24 horas (em segundos) por padrão.
+ * @param {object} info - Objeto da mensagem recebido via Baileys.
+ * @returns {number} Timestamp de expiração (em segundos).
+ */
+function getExpiration(sock) {
+  const DEFAULT_EXPIRATION_SECONDS = 24 * 60 * 60;
+
+  if (!sock || typeof sock !== 'object' || !sock.message) {
+    return DEFAULT_EXPIRATION_SECONDS;
+  }
+
+  const messageTypes = ['conversation', 'viewOnceMessageV2', 'imageMessage', 'videoMessage', 'extendedTextMessage', 'viewOnceMessage', 'documentWithCaptionMessage', 'buttonsMessage', 'buttonsResponseMessage', 'listResponseMessage', 'templateButtonReplyMessage', 'interactiveResponseMessage'];
+
+  for (const type of messageTypes) {
+    const rawMessage = sock.message[type];
+    const messageContent = rawMessage?.message ?? rawMessage;
+
+    const expiration = messageContent?.contextInfo?.expiration;
+    if (typeof expiration === 'number') {
+      return expiration;
+    }
+  }
+
+  const deepSearch = (obj) => {
+    if (typeof obj !== 'object' || obj === null) return null;
+
+    if (obj.contextInfo?.expiration && typeof obj.contextInfo.expiration === 'number') {
+      return obj.contextInfo.expiration;
+    }
+
+    for (const key of Object.keys(obj)) {
+      const value = obj[key];
+      const result = deepSearch(value);
+      if (result !== null) return result;
+    }
+
+    return null;
+  };
+
+  const found = deepSearch(sock.message);
+  return typeof found === 'number' ? found : null;
+}
+
 module.exports = {
+  getExpiration,
   resolveBaileysVersion,
 };
