@@ -3,10 +3,9 @@ const { handleMenuCommand } = require('../modules/menuModule/menus');
 const { handleAdminCommand, isAdminCommand } = require('../modules/adminModule/groupCommandHandlers');
 const { processSticker } = require('../modules/stickerModule/stickerCommand');
 const { getExpiration } = require('../config/baileysConfig');
-const groupUtils = require('../config/groupUtils');
 const dataStore = require('../store/dataStore');
-const groupConfigStore = require('../store/groupConfigStore');
 const logger = require('../utils/logger/loggerModule');
+const { handleAntiLink } = require('../utils/antiLink/antiLinkModule');
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
 /**
@@ -62,70 +61,18 @@ const handleMessages = async (update, sock) => {
         const expirationMessage = getExpiration(messageInfo);
         const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
-        // Antilink Feature
         if (isGroupMessage) {
-          const groupConfig = groupConfigStore.getGroupConfig(remoteJid);
-          if (groupConfig && groupConfig.antilinkEnabled) {
-            let linkFound = false;
+          const shouldSkip = await handleAntiLink({
+            sock,
+            messageInfo,
+            extractedText,
+            remoteJid,
+            senderJid,
+            botJid,
+          });
 
-            // Primary verification (Regex for common patterns)
-            const primaryRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|(chat\.whatsapp\.com\/[A-Za-z0-9]+)/gi;
-            if (primaryRegex.test(extractedText)) {
-              linkFound = true;
-            }
-
-            // Secondary verification for domain-like words (e.g., example.com)
-            if (!linkFound) {
-              const tlds = ['com', 'net', 'org', 'gov', 'edu', 'biz', 'info', 'io', 'co', 'app', 'xyz', 'br', 'pt', 'us', 'uk', 'de', 'jp', 'fr', 'au', 'ca', 'cn', 'ru', 'in'];
-              const secondaryRegex = new RegExp(`\\b[a-zA-Z0-9-]+\\.(${tlds.join('|')})\\b`, 'i');
-              if (secondaryRegex.test(extractedText)) {
-                linkFound = true;
-              }
-            }
-
-            if (linkFound) {
-              const isAdmin = await groupUtils.isUserAdmin(remoteJid, senderJid);
-              const senderIsBot = senderJid === botJid;
-
-              if (!isAdmin && !senderIsBot) {
-                try {
-                  await groupUtils.updateGroupParticipants(sock, remoteJid, [senderJid], 'remove');
-                  await sock.sendMessage(remoteJid, { text: `🚫 @${senderJid.split('@')[0]} foi removido por enviar um link.`, mentions: [senderJid] });
-                  await sock.sendMessage(remoteJid, { delete: messageInfo.key });
-
-                  logger.info(`Usuário ${senderJid} removido do grupo ${remoteJid} por enviar link.`, {
-                    action: 'antilink_remove',
-                    groupId: remoteJid,
-                    userId: senderJid,
-                  });
-
-                  continue; // Skip further processing
-                } catch (error) {
-                  logger.error(`Falha ao remover usuário com antilink: ${error.message}`, {
-                    action: 'antilink_error',
-                    groupId: remoteJid,
-                    userId: senderJid,
-                    error: error.stack,
-                  });
-                }
-              } else if (isAdmin && !senderIsBot) {
-                try {
-                  await sock.sendMessage(remoteJid, { text: `ⓘ @${senderJid.split('@')[0]} (admin) enviou um link.`, mentions: [senderJid] });
-                  logger.info(`Admin ${senderJid} enviou um link no grupo ${remoteJid} (aviso enviado).`, {
-                    action: 'antilink_admin_link_detected',
-                    groupId: remoteJid,
-                    userId: senderJid,
-                  });
-                } catch (error) {
-                  logger.error(`Falha ao enviar aviso de link de admin: ${error.message}`, {
-                    action: 'antilink_admin_warning_error',
-                    groupId: remoteJid,
-                    userId: senderJid,
-                    error: error.stack,
-                  });
-                }
-              }
-            }
+          if (shouldSkip) {
+            continue;
           }
         }
 
