@@ -34,6 +34,10 @@ Envie a imagem ou GIF já com a legenda:
 
 ✨ Pronto! Sua figurinha será criada automaticamente.
 
+🔐 *Comandos de Administração*  
+Para ver a lista de comandos de admin, use:  
+➡️ ${commandPrefix}menuadm
+
 🚧 *Fase Beta*  
 O omnizap-system ainda está em fase de desenvolvimento, então novos comandos estão sendo implementados aos poucos.
 
