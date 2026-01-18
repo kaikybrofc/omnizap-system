@@ -63,7 +63,15 @@ Siga os passos para configurar e executar:
 
 ## ▶️ Como Executar
 
-Para iniciar, use PM2:
+Para iniciar direto via Node:
+
+```bash
+npm run start
+# ou
+node index.js
+```
+
+Para iniciar com PM2:
 
 ```bash
 pm2 start ecosystem.dev.config.js # Desenvolvimento
@@ -74,8 +82,10 @@ pm2 start ecosystem.prod.config.js # Produção
 ## 📦 Scripts úteis
 
 ```bash
-npm run dev
-npm run start
+npm run start   # node index.js
+npm run dev     # node index.js
+npm run pm2:dev
+npm run pm2:prod
 ```
 
 ## 🛠️ Tecnologias Utilizadas

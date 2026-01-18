@@ -1,7 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../../utils/logger/loggerModule');
-const { downloadMediaMessage } = require('../../utils/mediaDownloader/mediaDownloaderModule');
+const { downloadMediaMessage } = require('../../config/baileysConfig');
 const { addStickerMetadata } = require('./addStickerMetadata');
 const { convertToWebp } = require('./convertToWebp');
 const { v4: uuidv4 } = require('uuid');
