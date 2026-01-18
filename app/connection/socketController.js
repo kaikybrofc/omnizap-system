@@ -2,6 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers
 
 const store = require('../store/dataStore');
 const groupConfigStore = require('../store/groupConfigStore');
+const { resolveBaileysVersion } = require('../config/baileysConfig');
 
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
@@ -74,7 +75,7 @@ async function connectToWhatsApp() {
   }
 
   await groupConfigStore.loadData();
-  const version = [7, 0, 0];
+  const version = await resolveBaileysVersion();
 
   logger.debug('Dados de autenticação carregados com sucesso.', {
     authPath,
