@@ -1,11 +1,10 @@
 require('dotenv').config();
 const { handleMenuCommand, handleMenuAdmCommand } = require('../modules/menuModule/menus');
 const { processSticker } = require('../modules/stickerModule/stickerCommand');
-const { getExpiration } = require('../config/baileysConfig');
+const { downloadMediaMessage, getExpiration } = require('../config/baileysConfig');
 const groupUtils = require('../utils/groupUtils');
 const dataStore = require('../store/dataStore');
 const groupConfigStore = require('../store/groupConfigStore');
-const { downloadMediaMessage } = require('../utils/mediaDownloader/mediaDownloaderModule');
 const logger = require('../utils/logger/loggerModule');
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
