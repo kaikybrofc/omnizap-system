@@ -1,4 +1,4 @@
-const logger = require('./logger/loggerModule');
+const logger = require('../utils/logger/loggerModule');
 const { findById, findAll } = require('../../database/queries');
 const { TABLES } = require('../../database/config');
 
