@@ -2,7 +2,7 @@ require('dotenv').config();
 const { handleMenuCommand, handleMenuAdmCommand } = require('../modules/menuModule/menus');
 const { processSticker } = require('../modules/stickerModule/stickerCommand');
 const { downloadMediaMessage, getExpiration } = require('../config/baileysConfig');
-const groupUtils = require('../utils/groupUtils');
+const groupUtils = require('../config/groupUtils');
 const dataStore = require('../store/dataStore');
 const groupConfigStore = require('../store/groupConfigStore');
 const logger = require('../utils/logger/loggerModule');
