@@ -55,6 +55,7 @@ Siga os passos para configurar e executar:
 
     # FFmpeg (opcional) - se o binário não estiver no PATH do sistema
     # FFMPEG_PATH=/usr/bin/ffmpeg
+    # IMAGE_MENU=https://example.com/assets/omnizap-banner.png
     ```
 
 4.  **Prepare o banco de dados:**
