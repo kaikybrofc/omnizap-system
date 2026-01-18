@@ -1,5 +1,4 @@
 require('dotenv').config();
-const { handleInfoCommand } = require('../modules/adminModule/infoCommand');
 const { handleMenuCommand, handleMenuAdmCommand } = require('../modules/menuModule/menus');
 const { processSticker } = require('../modules/stickerModule/stickerCommand');
 const groupUtils = require('../utils/groupUtils');
@@ -209,11 +208,6 @@ const handleMessages = async (update, sock) => {
             case 'sticker':
             case 's':
               processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '));
-              break;
-
-            case 'info':
-              await handleInfoCommand(sock, messageInfo, args, isGroupMessage, remoteJid, expirationMessage);
-
               break;
 
             case 'menuadm': {
