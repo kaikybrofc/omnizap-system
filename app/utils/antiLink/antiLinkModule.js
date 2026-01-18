@@ -2,6 +2,7 @@ const groupUtils = require('../../config/groupUtils');
 const groupConfigStore = require('../../store/groupConfigStore');
 const logger = require('../logger/loggerModule');
 
+// Base de redes conhecidas e seus domínios oficiais para permitir por categoria.
 const KNOWN_NETWORKS = {
   youtube: ['youtube.com', 'youtu.be', 'music.youtube.com', 'm.youtube.com', 'shorts.youtube.com', 'youtube-nocookie.com'],
   instagram: ['instagram.com', 'instagr.am'],
@@ -101,6 +102,7 @@ const KNOWN_NETWORKS = {
   csgo: ['counter-strike.net'],
 };
 
+// Extrai domínios (sem protocolo/www) de um texto livre.
 const extractDomains = (text) => {
   if (!text) return [];
   const domainRegex = /(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+\.[a-z]{2,})(?:\/[^\s]*)?/gi;
@@ -115,8 +117,10 @@ const extractDomains = (text) => {
   return Array.from(domains);
 };
 
+// Aceita o domínio exato ou subdomínios de um permitido.
 const isDomainAllowed = (domain, allowedDomains) => allowedDomains.some((allowed) => domain === allowed || domain.endsWith(`.${allowed}`));
 
+// Monta a lista final de domínios permitidos (redes conhecidas + personalizados).
 const getAllowedDomains = (allowedNetworks = [], allowedCustomDomains = []) => {
   const domains = [];
   for (const network of allowedNetworks) {
@@ -127,6 +131,7 @@ const getAllowedDomains = (allowedNetworks = [], allowedCustomDomains = []) => {
   return [...domains, ...allowedCustomDomains];
 };
 
+// Retorna true quando existir um link que não esteja na lista permitida.
 const isLinkDetected = (text, allowedDomains = []) => {
   const domains = extractDomains(text);
   if (domains.length === 0) return false;
@@ -134,6 +139,7 @@ const isLinkDetected = (text, allowedDomains = []) => {
   return domains.some((domain) => !isDomainAllowed(domain, allowedDomains));
 };
 
+// Aplica a regra de antilink do grupo. Retorna true quando removeu e deve pular o restante.
 const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, senderJid, botJid }) => {
   const groupConfig = groupConfigStore.getGroupConfig(remoteJid);
   if (!groupConfig || !groupConfig.antilinkEnabled) return false;
