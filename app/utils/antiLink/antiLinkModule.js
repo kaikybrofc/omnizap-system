@@ -1,7 +1,7 @@
 const groupUtils = require('../../config/groupUtils');
 const groupConfigStore = require('../../store/groupConfigStore');
 const logger = require('../logger/loggerModule');
-//
+
 const KNOWN_NETWORKS = {
   youtube: ['youtube.com', 'youtu.be', 'music.youtube.com', 'm.youtube.com', 'shorts.youtube.com', 'youtube-nocookie.com'],
   instagram: ['instagram.com', 'instagr.am'],

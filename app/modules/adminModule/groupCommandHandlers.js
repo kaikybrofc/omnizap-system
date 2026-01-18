@@ -694,7 +694,12 @@ async function handleAdminCommand({
           await sock.sendMessage(
             remoteJid,
             {
-              text: `Antilink: ${status}\nPermitidos (redes): ${formatNetworkList(allowedNetworks)}\nPermitidos (domínios): ${formatNetworkList(allowedDomains)}\nDisponíveis: ${availableNetworks.join(', ')}`,
+              text:
+                `📋 *Antilink - Lista*\n` +
+                `Status: *${status}*\n\n` +
+                `✅ *Redes permitidas*\n${formatNetworkList(allowedNetworks)}\n\n` +
+                `✅ *Domínios permitidos*\n${formatNetworkList(allowedDomains)}\n\n` +
+                `🧭 *Redes disponíveis*\n${availableNetworks.join(', ')}`,
             },
             { quoted: messageInfo, ephemeralExpiration: expirationMessage },
           );
