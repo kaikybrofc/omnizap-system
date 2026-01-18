@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { handleInfoCommand } = require('../modules/adminModule/infoCommand');
-const { handleMenuCommand } = require('../modules/menuModule/menus');
+const { handleMenuCommand, handleMenuAdmCommand } = require('../modules/menuModule/menus');
 const { processSticker } = require('../modules/stickerModule/stickerCommand');
 const groupUtils = require('../utils/groupUtils');
 const dataStore = require('../store/dataStore');
@@ -225,9 +225,7 @@ const handleMessages = async (update, sock) => {
                 await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
                 break;
               }
-              const menuText = `\n👑 *Menu de Administração de Grupos* 👑\n\n*Comandos para Gerenciamento de Membros:*\n\n👤 */add @user1 @user2...* - Adiciona um ou mais participantes ao grupo.\n👋 */ban @user1 @user2...* - Remove um ou mais participantes do grupo.\n⬆️ */up @user1 @user2...* - Promove um ou mais participantes a administradores.\n⬇️ */down @user1 @user2...* - Remove o cargo de administrador de um ou mais participantes.\n\n*Comandos para Gerenciamento do Grupo:*\n\n📝 */setsubject <novo_assunto>* - Altera o nome do grupo.\nℹ️ */setdesc <nova_descrição>* - Altera a descrição do grupo.\n⚙️ */setgroup <announcement|not_announcement|locked|unlocked>* - Altera as configurações de envio de mensagens e edição de dados do grupo.\n🚪 */leave* - O bot sai do grupo.\n🔗 */invite* - Mostra o código de convite do grupo.\n🔄 */revoke* - Revoga o código de convite do grupo.\n\n*Comandos para Gerenciamento de Solicitações:*\n\n📋 */requests* - Lista as solicitações de entrada no grupo.\n✅ */updaterequests <approve|reject> @user1 @user2...* - Aprova ou rejeita solicitações de entrada.\n\n*Comandos Gerais:*\n\n➕ */newgroup <título> <participante1> <participante2>...* - Cria um novo grupo.\n➡️ */join <código_de_convite>* - Entra em um grupo usando um código de convite.\n🔍 */info [id_do_grupo]* - Mostra informações de um grupo. Se nenhum ID for fornecido, mostra as informações do grupo atual.\n📬 */infofrominvite <código_de_convite>* - Mostra informações de um grupo pelo código de convite.\n📄 */metadata [id_do_grupo]* - Obtém os metadados de um grupo. Se nenhum ID for fornecido, obtém os do grupo atual.\n🌐 */groups* - Lista todos os grupos em que o bot está.\n\n*Outros Comandos:*\n\n⏳ */temp <duração_em_segundos>* - Ativa ou desativa as mensagens efêmeras no grupo.\n🔒 */addmode <all_member_add|admin_add>* - Altera quem pode adicionar novos membros ao grupo.\n👋 */welcome <on|off|set> [mensagem ou mídia]* - Ativa/desativa ou define a mensagem/mídia de boas-vindas.\n    *   Use */welcome on* para ativar as mensagens de boas-vindas.\n    *   Use */welcome off* para desativar as mensagens de boas-vindas.\n    *   Use */welcome set <sua mensagem>* para definir uma mensagem de texto.\n    *   Para definir uma mídia (imagem/vídeo), envie a mídia com a legenda */welcome set* ou responda a uma mídia existente com */welcome set*.
-👋 */farewell <on|off|set> [mensagem ou caminho da mídia]* - Ativa/desativa ou define a mensagem/mídia de saída.\n    `;
-              await sock.sendMessage(remoteJid, { text: menuText.trim() }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+              await handleMenuAdmCommand(sock, remoteJid, messageInfo, expirationMessage);
               break;
             }
 
