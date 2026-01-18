@@ -3,6 +3,7 @@ const { downloadMediaMessage } = require('../../config/baileysConfig');
 const groupUtils = require('../../config/groupUtils');
 const groupConfigStore = require('../../store/groupConfigStore');
 const logger = require('../../utils/logger/loggerModule');
+const { KNOWN_NETWORKS } = require('../../utils/antiLink/antiLinkModule');
 
 const ADMIN_COMMANDS = new Set([
   'menuadm',
@@ -675,11 +676,110 @@ async function handleAdminCommand({
       }
 
       const subCommand = args[0] ? args[0].toLowerCase() : '';
+      const currentConfig = groupConfigStore.getGroupConfig(remoteJid);
+      const allowedNetworks = currentConfig.antilinkAllowedNetworks || [];
+      const allowedDomains = currentConfig.antilinkAllowedDomains || [];
+      const availableNetworks = Object.keys(KNOWN_NETWORKS).sort();
+
+      const parseNetworks = (inputArgs) => {
+        const raw = inputArgs.flatMap((value) => value.split(','));
+        return raw.map((value) => value.trim().toLowerCase()).filter(Boolean);
+      };
+
+      const formatNetworkList = (networks) => (networks.length ? networks.join(', ') : 'nenhuma');
 
       if (!['on', 'off'].includes(subCommand)) {
-        const currentConfig = groupConfigStore.getGroupConfig(remoteJid);
+        if (subCommand === 'list') {
+          const status = currentConfig.antilinkEnabled ? 'ativado' : 'desativado';
+          await sock.sendMessage(
+            remoteJid,
+            {
+              text: `Antilink: ${status}\nPermitidos (redes): ${formatNetworkList(allowedNetworks)}\nPermitidos (domínios): ${formatNetworkList(allowedDomains)}\nDisponíveis: ${availableNetworks.join(', ')}`,
+            },
+            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+          );
+          break;
+        }
+
+        if (subCommand === 'allow' || subCommand === 'disallow') {
+          const requestedNetworks = parseNetworks(args.slice(1));
+          const validNetworks = requestedNetworks.filter((name) => KNOWN_NETWORKS[name]);
+          const invalidNetworks = requestedNetworks.filter((name) => !KNOWN_NETWORKS[name]);
+
+          if (validNetworks.length === 0) {
+            await sock.sendMessage(
+              remoteJid,
+              { text: `Uso: /antilink ${subCommand} <rede>\nDisponíveis: ${availableNetworks.join(', ')}` },
+              { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+            );
+            break;
+          }
+
+          let updatedNetworks = allowedNetworks;
+          if (subCommand === 'allow') {
+            updatedNetworks = Array.from(new Set([...allowedNetworks, ...validNetworks]));
+          } else {
+            updatedNetworks = allowedNetworks.filter((name) => !validNetworks.includes(name));
+          }
+
+          groupConfigStore.updateGroupConfig(remoteJid, { antilinkAllowedNetworks: updatedNetworks });
+
+          const invalidNote = invalidNetworks.length ? `\nIgnorados: ${invalidNetworks.join(', ')}` : '';
+          await sock.sendMessage(
+            remoteJid,
+            { text: `Permitidos agora: ${formatNetworkList(updatedNetworks)}${invalidNote}` },
+            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+          );
+          break;
+        }
+
+        if (subCommand === 'add' || subCommand === 'remove') {
+          const requestedDomains = parseNetworks(args.slice(1));
+          const normalizedDomains = requestedDomains.map((domain) => domain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, ''));
+
+          if (normalizedDomains.length === 0) {
+            await sock.sendMessage(
+              remoteJid,
+              { text: `Uso: /antilink ${subCommand} <dominio>` },
+              { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+            );
+            break;
+          }
+
+          let updatedDomains = allowedDomains;
+          if (subCommand === 'add') {
+            updatedDomains = Array.from(new Set([...allowedDomains, ...normalizedDomains]));
+          } else {
+            updatedDomains = allowedDomains.filter((domain) => !normalizedDomains.includes(domain));
+          }
+
+          groupConfigStore.updateGroupConfig(remoteJid, { antilinkAllowedDomains: updatedDomains });
+          await sock.sendMessage(
+            remoteJid,
+            { text: `Permitidos (domínios) agora: ${formatNetworkList(updatedDomains)}` },
+            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+          );
+          break;
+        }
+
         const status = currentConfig.antilinkEnabled ? 'ativado' : 'desativado';
-        await sock.sendMessage(remoteJid, { text: `Uso: /antilink <on|off>\n\nO antilink está atualmente ${status}.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+        await sock.sendMessage(
+          remoteJid,
+          {
+            text:
+              `📌 *Como usar o Antilink*\n` +
+              `Status atual: *${status}*\n\n` +
+              `✅ */antilink on*\nAtiva o bloqueio de links no grupo.\n\n` +
+              `⛔ */antilink off*\nDesativa o bloqueio de links no grupo.\n\n` +
+              `📋 */antilink list*\nMostra as redes e dominios permitidos.\n\n` +
+              `➕ */antilink allow <rede>*\nPermite uma rede conhecida (ex: youtube, instagram).\n\n` +
+              `➖ */antilink disallow <rede>*\nRemove uma rede conhecida da lista permitida.\n\n` +
+              `🌐 */antilink add <dominio>*\nPermite um dominio especifico (ex: exemplo.com).\n\n` +
+              `🗑️ */antilink remove <dominio>*\nRemove um dominio especifico da lista.\n\n` +
+              `ℹ️ Dica: use */antilink list* para ver as redes disponiveis.`,
+          },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
         break;
       }
 

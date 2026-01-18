@@ -80,7 +80,8 @@ const handleMessages = async (update, sock) => {
           const commandBody = extractedText.substring(COMMAND_PREFIX.length);
           const match = commandBody.match(/^(\S+)([\s\S]*)$/);
           const command = match ? match[1].toLowerCase() : '';
-          const args = match && match[2] !== undefined ? [match[2].trimStart()] : [];
+          const rawArgs = match && match[2] !== undefined ? match[2].trim() : '';
+          const args = rawArgs ? rawArgs.split(/\s+/) : [];
           const text = match && match[2] !== undefined ? match[2] : '';
 
           switch (command) {

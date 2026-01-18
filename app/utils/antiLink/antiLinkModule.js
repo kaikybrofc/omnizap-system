@@ -2,21 +2,147 @@ const groupUtils = require('../../config/groupUtils');
 const groupConfigStore = require('../../store/groupConfigStore');
 const logger = require('../logger/loggerModule');
 
-const primaryRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|(chat\.whatsapp\.com\/[A-Za-z0-9]+)/i;
-const tlds = ['com', 'net', 'org', 'gov', 'edu', 'biz', 'info', 'io', 'co', 'app', 'xyz', 'br', 'pt', 'us', 'uk', 'de', 'jp', 'fr', 'au', 'ca', 'cn', 'ru', 'in'];
-const secondaryRegex = new RegExp(`\\b[a-zA-Z0-9-]+\\.(${tlds.join('|')})\\b`, 'i');
+const KNOWN_NETWORKS = {
+  youtube: ['youtube.com', 'youtu.be', 'music.youtube.com', 'm.youtube.com', 'shorts.youtube.com', 'youtube-nocookie.com'],
+  instagram: ['instagram.com', 'instagr.am'],
+  facebook: ['facebook.com', 'fb.com', 'fb.watch', 'm.facebook.com', 'l.facebook.com'],
+  tiktok: ['tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com'],
+  twitter: ['twitter.com', 'x.com', 't.co', 'mobile.twitter.com'],
+  linkedin: ['linkedin.com', 'lnkd.in'],
+  twitch: ['twitch.tv', 'clips.twitch.tv'],
+  discord: ['discord.com', 'discord.gg', 'discordapp.com', 'discordapp.net'],
+  whatsapp: ['chat.whatsapp.com', 'wa.me'],
+  telegram: ['t.me', 'telegram.me', 'telesco.pe'],
+  reddit: ['reddit.com', 'redd.it'],
+  pinterest: ['pinterest.com', 'pin.it'],
+  snapchat: ['snapchat.com', 'snap.com'],
+  kwai: ['kwai.com', 'kw.ai'],
+  likee: ['likee.video'],
+  vimeo: ['vimeo.com', 'player.vimeo.com'],
+  dailymotion: ['dailymotion.com', 'dai.ly'],
+  rumble: ['rumble.com'],
+  kick: ['kick.com'],
+  soundcloud: ['soundcloud.com'],
+  spotify: ['spotify.com', 'open.spotify.com'],
+  deezer: ['deezer.com', 'deezer.page.link'],
+  applemusic: ['music.apple.com'],
+  shazam: ['shazam.com'],
+  bandcamp: ['bandcamp.com'],
+  amazonmusic: ['music.amazon.com'],
+  imdb: ['imdb.com'],
+  letterboxd: ['letterboxd.com'],
+  goodreads: ['goodreads.com'],
+  medium: ['medium.com'],
+  substack: ['substack.com'],
+  behance: ['behance.net'],
+  dribbble: ['dribbble.com'],
+  deviantart: ['deviantart.com'],
+  artstation: ['artstation.com'],
+  figma: ['figma.com', 'figma.io'],
+  github: ['github.com', 'gist.github.com', 'github.io'],
+  gitlab: ['gitlab.com'],
+  bitbucket: ['bitbucket.org'],
+  npm: ['npmjs.com'],
+  pypi: ['pypi.org'],
+  stackoverflow: ['stackoverflow.com', 'stackexchange.com'],
+  quora: ['quora.com'],
+  stackshare: ['stackshare.io'],
+  producthunt: ['producthunt.com'],
+  hackernews: ['news.ycombinator.com'],
+  google: ['google.com', 'goo.gl', 'g.co', 'maps.google.com'],
+  maps: ['google.com', 'maps.google.com', 'goo.gl', 'g.page'],
+  playstore: ['play.google.com'],
+  appstore: ['apps.apple.com'],
+  steam: ['steamcommunity.com', 'store.steampowered.com', 'steamdb.info'],
+  epicgames: ['epicgames.com'],
+  discordbots: ['top.gg', 'discords.com', 'discordbotlist.com'],
+  cloudflare: ['cloudflare.com', 'pages.dev', 'workers.dev'],
+  heroku: ['heroku.com', 'herokuapp.com'],
+  vercel: ['vercel.app', 'vercel.com'],
+  netlify: ['netlify.app', 'netlify.com'],
+  firebase: ['firebase.google.com', 'web.app'],
+  hostinger: ['hostinger.com'],
+  wix: ['wix.com', 'wixsite.com'],
+  squarespace: ['squarespace.com'],
+  wordpress: ['wordpress.com', 'wordpress.org'],
+  blogger: ['blogger.com', 'blogspot.com'],
+  tumblr: ['tumblr.com'],
+  weibo: ['weibo.com'],
+  vk: ['vk.com'],
+  okru: ['ok.ru'],
+  line: ['line.me'],
+  wechat: ['wechat.com', 'weixin.qq.com', 'we.chat'],
+  qq: ['qq.com'],
+  signal: ['signal.org'],
+  skype: ['skype.com'],
+  slack: ['slack.com'],
+  zoom: ['zoom.us', 'zoom.com'],
+  meet: ['meet.google.com'],
+  teams: ['microsoft.com', 'teams.microsoft.com'],
+  canva: ['canva.com'],
+  notion: ['notion.so', 'notion.site'],
+  trello: ['trello.com'],
+  asana: ['asana.com'],
+  monday: ['monday.com'],
+  clickup: ['clickup.com'],
+  airtable: ['airtable.com'],
+  coursera: ['coursera.org'],
+  udemy: ['udemy.com'],
+  udacity: ['udacity.com'],
+  edx: ['edx.org'],
+  khanacademy: ['khanacademy.org'],
+  duolingo: ['duolingo.com'],
+  roblox: ['roblox.com'],
+  minecraft: ['minecraft.net', 'minecraft.net.br'],
+  valorant: ['valorant.com'],
+  riot: ['riotgames.com'],
+  leagueoflegends: ['leagueoflegends.com'],
+  dota2: ['dota2.com'],
+  csgo: ['counter-strike.net'],
+};
 
-const isLinkDetected = (text) => {
-  if (!text) return false;
-  if (primaryRegex.test(text)) return true;
-  return secondaryRegex.test(text);
+const extractDomains = (text) => {
+  if (!text) return [];
+  const domainRegex = /(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+\.[a-z]{2,})(?:\/[^\s]*)?/gi;
+  const domains = new Set();
+  let match;
+
+  while ((match = domainRegex.exec(text)) !== null) {
+    const domain = match[1].toLowerCase().replace(/\.$/, '');
+    domains.add(domain);
+  }
+
+  return Array.from(domains);
+};
+
+const isDomainAllowed = (domain, allowedDomains) => allowedDomains.some((allowed) => domain === allowed || domain.endsWith(`.${allowed}`));
+
+const getAllowedDomains = (allowedNetworks = [], allowedCustomDomains = []) => {
+  const domains = [];
+  for (const network of allowedNetworks) {
+    if (KNOWN_NETWORKS[network]) {
+      domains.push(...KNOWN_NETWORKS[network]);
+    }
+  }
+  return [...domains, ...allowedCustomDomains];
+};
+
+const isLinkDetected = (text, allowedDomains = []) => {
+  const domains = extractDomains(text);
+  if (domains.length === 0) return false;
+  if (allowedDomains.length === 0) return true;
+  return domains.some((domain) => !isDomainAllowed(domain, allowedDomains));
 };
 
 const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, senderJid, botJid }) => {
   const groupConfig = groupConfigStore.getGroupConfig(remoteJid);
   if (!groupConfig || !groupConfig.antilinkEnabled) return false;
 
-  if (!isLinkDetected(extractedText)) return false;
+  const allowedDomains = getAllowedDomains(
+    groupConfig.antilinkAllowedNetworks || [],
+    groupConfig.antilinkAllowedDomains || [],
+  );
+  if (!isLinkDetected(extractedText, allowedDomains)) return false;
 
   const isAdmin = await groupUtils.isUserAdmin(remoteJid, senderJid);
   const senderIsBot = senderJid === botJid;
@@ -66,4 +192,5 @@ const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, sen
 module.exports = {
   handleAntiLink,
   isLinkDetected,
+  KNOWN_NETWORKS,
 };
