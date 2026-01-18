@@ -15,19 +15,8 @@
   "author": "OmniZap Team",
   "license": "MIT",
   "scripts": {
-    "start": "pm2 start ecosystem.prod.config.js",
-    "pm2:dev": "pm2 start ecosystem.dev.config.js",
-    "pm2:prod": "pm2 start ecosystem.prod.config.js",
-    "dev": "pm2 start ecosystem.dev.config.js",
-    "stop:prod": "pm2 stop omnizap-system-prod",
-    "stop:dev": "pm2 stop omnizap-system-dev",
-    "stop": "pm2 stop omnizap-system-prod; pm2 stop omnizap-system-dev",
-    "restart:prod": "pm2 restart omnizap-system-prod",
-    "restart:dev": "pm2 restart omnizap-system-dev",
-    "restart": "pm2 restart omnizap-system-prod; pm2 restart omnizap-system-dev",
-    "logs:prod": "pm2 logs omnizap-system-prod",
-    "logs:dev": "pm2 logs omnizap-system-dev",
-    "logs": "pm2 logs",
+    "start": "node index.js",
+    "dev": "node index.js",
     "db:init": "node database/init.js"
   },
   "dependencies": {
