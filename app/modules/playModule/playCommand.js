@@ -1,6 +1,7 @@
 import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
 import path from 'node:path';
 import { URL } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -208,7 +209,7 @@ const normalizeStreamUrl = (streamUrl, baseUrl) => {
   }
 };
 
-const downloadBinary = (url, maxBytes = MAX_MEDIA_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS) =>
+const downloadToFile = (url, destinationPath, maxBytes = MAX_MEDIA_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS) =>
   new Promise((resolve, reject) => {
     const urlObj = new URL(url);
     const httpModule = urlObj.protocol === 'https:' ? https : http;
@@ -229,24 +230,25 @@ const downloadBinary = (url, maxBytes = MAX_MEDIA_BYTES, timeoutMs = DEFAULT_TIM
           return;
         }
 
-        const chunks = [];
+        const contentType = res.headers['content-type'] || '';
+        const disposition = res.headers['content-disposition'] || '';
+        const fileNameMatch = /filename="([^"]+)"/i.exec(disposition);
+        const fileName = fileNameMatch ? fileNameMatch[1] : '';
+        const fileStream = createWriteStream(destinationPath);
         let total = 0;
+
         res.on('data', (chunk) => {
           total += chunk.length;
           if (total > maxBytes) {
-            reject(new Error('Arquivo excede o limite de tamanho permitido.'));
-            req.destroy();
+            req.destroy(new Error('Arquivo excede o limite de tamanho permitido.'));
             return;
           }
-          chunks.push(chunk);
         });
-        res.on('end', () => {
-          const contentType = res.headers['content-type'] || '';
-          const disposition = res.headers['content-disposition'] || '';
-          const fileNameMatch = /filename="([^"]+)"/i.exec(disposition);
-          const fileName = fileNameMatch ? fileNameMatch[1] : '';
-          resolve({ buffer: Buffer.concat(chunks), contentType, fileName });
-        });
+
+        res.pipe(fileStream);
+
+        fileStream.on('finish', () => resolve({ contentType, fileName }));
+        fileStream.on('error', reject);
       },
     );
 
@@ -256,10 +258,6 @@ const downloadBinary = (url, maxBytes = MAX_MEDIA_BYTES, timeoutMs = DEFAULT_TIM
     });
     req.end();
   });
-
-const ensureTempDir = async () => {
-  await fs.mkdir(TEMP_DIR, { recursive: true });
-};
 
 const getExtensionFromType = (contentType) => {
   const lower = (contentType || '').toLowerCase();
@@ -273,16 +271,6 @@ const getExtensionFromType = (contentType) => {
   return '.bin';
 };
 
-const writeTempFile = async (buffer, ext, baseDir) => {
-  await ensureTempDir();
-  const targetDir = baseDir || TEMP_DIR;
-  const safeExt = ext && ext.startsWith('.') ? ext : '.bin';
-  const fileName = `input_${Date.now()}_${Math.random().toString(16).slice(2)}${safeExt}`;
-  const filePath = path.join(targetDir, fileName);
-  await fs.writeFile(filePath, buffer);
-  return filePath;
-};
-
 const readAndValidateOutput = async (filePath) => {
   const stat = await fs.stat(filePath);
   if (stat.size > MAX_MEDIA_BYTES) {
@@ -291,10 +279,8 @@ const readAndValidateOutput = async (filePath) => {
   return fs.readFile(filePath);
 };
 
-const convertToMp3Buffer = async (buffer, contentType, fileName, requestDir) =>
+const convertToMp3Buffer = async (inputPath, requestDir) =>
   ffmpegSemaphore.run(async () => {
-    const ext = fileName ? path.extname(fileName).toLowerCase() : getExtensionFromType(contentType);
-    const inputPath = await writeTempFile(buffer, ext, requestDir);
     const outputPath = path.join(requestDir || TEMP_DIR, `audio_${Date.now()}_${Math.random().toString(16).slice(2)}.mp3`);
     try {
       const args = ['-y', '-i', inputPath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-ar', '44100', '-ac', '2', outputPath];
@@ -308,10 +294,8 @@ const convertToMp3Buffer = async (buffer, contentType, fileName, requestDir) =>
     }
   });
 
-const convertToMp4Buffer = async (buffer, contentType, fileName, requestDir) =>
+const convertToMp4Buffer = async (inputPath, requestDir) =>
   ffmpegSemaphore.run(async () => {
-    const ext = fileName ? path.extname(fileName).toLowerCase() : getExtensionFromType(contentType);
-    const inputPath = await writeTempFile(buffer, ext, requestDir);
     const outputPath = path.join(requestDir || TEMP_DIR, `video_${Date.now()}_${Math.random().toString(16).slice(2)}.mp4`);
     try {
       const args = [
@@ -413,11 +397,17 @@ const fetchMediaWithCache = async (link, type) => {
     await fs.mkdir(requestDir, { recursive: true });
     try {
       const { streamUrl, videoInfo } = await requestDownload(link, type, requestId);
-      const { buffer, contentType, fileName } = await downloadSemaphore.run(() => downloadBinary(streamUrl));
+      const inputBasePath = path.join(requestDir, 'input');
+      const downloadMeta = await downloadSemaphore.run(() => downloadToFile(streamUrl, inputBasePath));
+      const guessedExt = downloadMeta.fileName ? path.extname(downloadMeta.fileName) : getExtensionFromType(downloadMeta.contentType);
+      const inputPath = guessedExt && guessedExt !== '.bin' ? `${inputBasePath}${guessedExt}` : inputBasePath;
+      if (inputPath !== inputBasePath) {
+        await fs.rename(inputBasePath, inputPath);
+      }
       const converted =
         type === 'audio'
-          ? await convertToMp3Buffer(buffer, contentType, fileName, requestDir)
-          : await convertToMp4Buffer(buffer, contentType, fileName, requestDir);
+          ? await convertToMp3Buffer(inputPath, requestDir)
+          : await convertToMp4Buffer(inputPath, requestDir);
       await writeCache(cacheKey, type, converted, videoInfo);
       return { buffer: converted, videoInfo };
     } finally {
