@@ -1,5 +1,5 @@
 import logger from '../../utils/logger/loggerModule.js';
-import { buildMenuCaption, MENU_ADM_TEXT } from '../core/common.js';
+import { buildMenuCaption, MENU_ADM_TEXT } from './common.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 
 const MENU_IMAGE_ENV = 'IMAGE_MENU';
