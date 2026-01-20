@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { handleMenuCommand } from '../modules/menuModule/menus.js';
 import { handleAdminCommand, isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
 import { processSticker } from '../modules/stickerModule/stickerCommand.js';
+import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/playCommand.js';
 import { getExpiration } from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
@@ -94,6 +95,14 @@ export const handleMessages = async (update, sock) => {
             case 'sticker':
             case 's':
               processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '));
+              break;
+
+            case 'play':
+              await handlePlayCommand(sock, remoteJid, messageInfo, expirationMessage, text);
+              break;
+
+            case 'playvid':
+              await handlePlayVidCommand(sock, remoteJid, messageInfo, expirationMessage, text);
               break;
 
             default: {
