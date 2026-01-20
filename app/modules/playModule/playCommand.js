@@ -11,8 +11,8 @@ const adminJid = process.env.USER_ADMIN;
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const YTDLS_BASE_URL = (process.env.YTDLS_BASE_URL || process.env.YT_DLS_BASE_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
 const DEFAULT_TIMEOUT_MS = 60000;
-const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '40', 10);
-const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB * 1024 * 1024 : 40 * 1024 * 1024;
+const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '100', 10);
+const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB * 1024 * 1024 : 100 * 1024 * 1024;
 const CONVERT_TIMEOUT_MS = 300000;
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'play');
 const execProm = promisify(exec);
@@ -220,7 +220,6 @@ const formatVideoInfo = (videoInfo) => {
   if (!videoInfo || typeof videoInfo !== 'object') return null;
   const lines = [];
   if (videoInfo.title) lines.push(`Titulo: ${videoInfo.title}`);
-  if (videoInfo.uploader) lines.push(`Canal: ${videoInfo.uploader}`);
   if (videoInfo.channel) lines.push(`Canal: ${videoInfo.channel}`);
   if (videoInfo.views) lines.push(`Views: ${Number(videoInfo.views).toLocaleString('pt-BR')}`);
   if (videoInfo.like_count) lines.push(`Likes: ${Number(videoInfo.like_count).toLocaleString('pt-BR')}`);
@@ -246,7 +245,7 @@ const notifyFailure = async (sock, remoteJid, messageInfo, expirationMessage, er
   const errorMessage = error?.message || 'Erro inesperado ao processar sua solicitacao.';
   await sock.sendMessage(
     remoteJid,
-    { text: `❌ ${errorMessage}` },
+    { text: `❌ Erro: ${errorMessage}` },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 
@@ -262,7 +261,7 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
     if (!text?.trim()) {
       await sock.sendMessage(
         remoteJid,
-        { text: `Uso: ${COMMAND_PREFIX}play <link do YouTube ou termo de busca>` },
+        { text: `🎵 Uso: ${COMMAND_PREFIX}play <link do YouTube ou termo de busca>` },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );
       return;
@@ -270,7 +269,7 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
 
     await sock.sendMessage(
       remoteJid,
-      { text: 'Aguarde, estamos baixando o audio...' },
+      { text: '⏳ Aguarde, estamos preparando o audio...' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
 
@@ -278,7 +277,7 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
     const { streamUrl, videoInfo } = await requestDownload(link, 'audio');
     const { buffer: audioBuffer, contentType, fileName } = await downloadBinary(streamUrl);
     const convertedAudio = await convertToMp3Buffer(audioBuffer, contentType, fileName);
-    const infoText = formatVideoInfo(videoInfo) || 'Informacoes do audio indisponiveis.';
+    const infoText = formatVideoInfo(videoInfo) || '🎵 Informacoes do audio indisponiveis.';
     const infoMessage = await sock.sendMessage(
       remoteJid,
       { text: infoText },
@@ -307,7 +306,7 @@ export const handlePlayVidCommand = async (sock, remoteJid, messageInfo, expirat
     if (!text?.trim()) {
       await sock.sendMessage(
         remoteJid,
-        { text: `Uso: ${COMMAND_PREFIX}playvid <link do YouTube ou termo de busca>` },
+        { text: `🎬 Uso: ${COMMAND_PREFIX}playvid <link do YouTube ou termo de busca>` },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );
       return;
@@ -315,7 +314,7 @@ export const handlePlayVidCommand = async (sock, remoteJid, messageInfo, expirat
 
     await sock.sendMessage(
       remoteJid,
-      { text: 'Aguarde, estamos baixando o video...' },
+      { text: '⏳ Aguarde, estamos preparando o video...' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
 
@@ -324,7 +323,7 @@ export const handlePlayVidCommand = async (sock, remoteJid, messageInfo, expirat
     const { buffer: videoBuffer, contentType, fileName } = await downloadBinary(streamUrl);
     const convertedVideo = await convertToMp4Buffer(videoBuffer, contentType, fileName);
     const infoText = formatVideoInfo(videoInfo);
-    const caption = infoText ? `Video pronto.\n${infoText}` : 'Video pronto.';
+    const caption = infoText ? `🎬 Video pronto!\n${infoText}` : '🎬 Video pronto!';
     await sock.sendMessage(
       remoteJid,
       {
