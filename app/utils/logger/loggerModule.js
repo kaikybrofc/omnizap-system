@@ -1,10 +1,17 @@
-require('dotenv').config();
-const winston = require('winston');
-const DailyRotateFile = require('winston-daily-rotate-file');
-const { cleanEnv, str } = require('envalid');
-const util = require('util');
-const fs = require('fs');
-const path = require('path');
+import 'dotenv/config';
+
+import winston from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
+import { cleanEnv, str } from 'envalid';
+
+import util from 'node:util';
+import fs from 'node:fs';
+
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const LOG_LEVELS = { error: 0, warn: 1, info: 2, http: 3, verbose: 4, debug: 5, silly: 6 };
 const LOG_LEVEL_NAMES = Object.keys(LOG_LEVELS);
@@ -227,4 +234,4 @@ const createLoggerInstance = (overrideOptions = {}) => {
 
 const logger = createLoggerInstance();
 
-module.exports = logger;
+export default logger;

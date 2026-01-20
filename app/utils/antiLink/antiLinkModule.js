@@ -1,12 +1,12 @@
-const groupUtils = require('../../config/groupUtils');
-const groupConfigStore = require('../../store/groupConfigStore');
-const logger = require('../logger/loggerModule');
+import { isUserAdmin, updateGroupParticipants } from '../../config/groupUtils.js';
+import groupConfigStore from '../../store/groupConfigStore.js';
+import logger from '../logger/loggerModule.js';
 
 /**
  * Base de redes conhecidas e seus domínios oficiais para permitir por categoria.
  * @type {Record<string, string[]>}
  */
-const KNOWN_NETWORKS = {
+export const KNOWN_NETWORKS = {
   youtube: ['youtube.com', 'youtu.be', 'music.youtube.com', 'm.youtube.com', 'shorts.youtube.com', 'youtube-nocookie.com'],
   instagram: ['instagram.com', 'instagr.am'],
   facebook: ['facebook.com', 'fb.com', 'fb.watch', 'm.facebook.com', 'l.facebook.com'],
@@ -154,7 +154,7 @@ const getAllowedDomains = (allowedNetworks = [], allowedCustomDomains = []) => {
  * @param {string[]} allowedDomains
  * @returns {boolean}
  */
-const isLinkDetected = (text, allowedDomains = []) => {
+export const isLinkDetected = (text, allowedDomains = []) => {
   const domains = extractDomains(text);
   if (domains.length === 0) return false;
   if (allowedDomains.length === 0) return true;
@@ -172,7 +172,7 @@ const isLinkDetected = (text, allowedDomains = []) => {
  * @param {string} params.botJid
  * @returns {Promise<boolean>}
  */
-const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, senderJid, botJid }) => {
+export const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, senderJid, botJid }) => {
   const groupConfig = groupConfigStore.getGroupConfig(remoteJid);
   if (!groupConfig || !groupConfig.antilinkEnabled) return false;
 
@@ -182,12 +182,12 @@ const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, sen
   );
   if (!isLinkDetected(extractedText, allowedDomains)) return false;
 
-  const isAdmin = await groupUtils.isUserAdmin(remoteJid, senderJid);
+  const isAdmin = await isUserAdmin(remoteJid, senderJid);
   const senderIsBot = senderJid === botJid;
 
   if (!isAdmin && !senderIsBot) {
     try {
-      await groupUtils.updateGroupParticipants(sock, remoteJid, [senderJid], 'remove');
+      await updateGroupParticipants(sock, remoteJid, [senderJid], 'remove');
       await sock.sendMessage(remoteJid, { text: `🚫 @${senderJid.split('@')[0]} foi removido por enviar um link.`, mentions: [senderJid] });
       await sock.sendMessage(remoteJid, { delete: messageInfo.key });
 
@@ -225,10 +225,4 @@ const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, sen
   }
 
   return false;
-};
-
-module.exports = {
-  handleAntiLink,
-  isLinkDetected,
-  KNOWN_NETWORKS,
 };

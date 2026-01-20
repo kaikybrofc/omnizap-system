@@ -1,7 +1,7 @@
-const os = require('os');
-const process = require('process');
+import os from 'node:os';
+import process from 'node:process';
 
-const getSystemMetrics = () => {
+export const getSystemMetrics = () => {
   // Métricas de Memória
   const totalMemory = os.totalmem();
   const freeMemory = os.freemem();
@@ -59,8 +59,4 @@ const getSystemMetrics = () => {
       velocidade: cpu.speed,
     })),
   };
-};
-
-module.exports = {
-  getSystemMetrics,
 };

@@ -1,9 +1,12 @@
-const { handleMenuAdmCommand } = require('../menuModule/menus');
-const { downloadMediaMessage } = require('../../config/baileysConfig');
-const groupUtils = require('../../config/groupUtils');
-const groupConfigStore = require('../../store/groupConfigStore');
-const logger = require('../../utils/logger/loggerModule');
-const { KNOWN_NETWORKS } = require('../../utils/antiLink/antiLinkModule');
+import { handleMenuAdmCommand } from '../menuModule/menus.js';
+import { downloadMediaMessage } from '../../config/baileysConfig.js';
+import { isUserAdmin, createGroup,
+    acceptGroupInvite, getGroupInfo, getGroupRequestParticipantsList, updateGroupAddMode,
+   updateGroupSettings, leaveGroup, getGroupInviteCode, revokeGroupInviteCode, getGroupInfoFromInvite, updateGroupRequestParticipants,
+ updateGroupSubject, updateGroupDescription, toggleEphemeral } from '../../config/groupUtils.js';
+import groupConfigStore from '../../store/groupConfigStore.js';
+import logger from '../../utils/logger/loggerModule.js';
+import { KNOWN_NETWORKS } from '../../utils/antiLink/antiLinkModule.js';
 
 const ADMIN_COMMANDS = new Set([
   'menuadm',
@@ -42,11 +45,9 @@ const getParticipantJids = (messageInfo, args) => {
   return args.filter((arg) => arg.includes('@s.whatsapp.net'));
 };
 
-const isUserAdmin = async (groupId, userId) => groupUtils.isUserAdmin(groupId, userId);
+export const isAdminCommand = (command) => ADMIN_COMMANDS.has(command);
 
-const isAdminCommand = (command) => ADMIN_COMMANDS.has(command);
-
-async function handleAdminCommand({
+export async function handleAdminCommand({
   command,
   args,
   text,
@@ -84,7 +85,7 @@ async function handleAdminCommand({
       const title = args[0];
       const participants = args.slice(1);
       try {
-        const group = await groupUtils.createGroup(sock, title, participants);
+        const group = await createGroup(sock, title, participants);
         await sock.sendMessage(remoteJid, { text: `Grupo \"${group.subject}\" criado com sucesso!` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao criar o grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -108,7 +109,7 @@ async function handleAdminCommand({
         break;
       }
       try {
-        await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'add');
+        await updateGroupParticipants(sock, remoteJid, participants, 'add');
         await sock.sendMessage(remoteJid, { text: 'Participantes adicionados com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao adicionar participantes: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -142,7 +143,7 @@ async function handleAdminCommand({
         break;
       }
       try {
-        await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'remove');
+        await updateGroupParticipants(sock, remoteJid, participants, 'remove');
         await sock.sendMessage(remoteJid, { text: 'Participantes removidos com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         const repliedTo = messageInfo.message?.extendedTextMessage?.contextInfo;
         if (repliedTo && participants.includes(repliedTo.participant)) {
@@ -176,7 +177,7 @@ async function handleAdminCommand({
         break;
       }
       try {
-        await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'promote');
+        await updateGroupParticipants(sock, remoteJid, participants, 'promote');
         await sock.sendMessage(remoteJid, { text: 'Participantes promovidos a administradores com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao promover participantes: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -204,7 +205,7 @@ async function handleAdminCommand({
         break;
       }
       try {
-        await groupUtils.updateGroupParticipants(sock, remoteJid, participants, 'demote');
+        await updateGroupParticipants(sock, remoteJid, participants, 'demote');
         await sock.sendMessage(remoteJid, { text: 'Administradores demovidos a participantes com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao demoter administradores: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -228,7 +229,7 @@ async function handleAdminCommand({
       }
       const newSubject = args.join(' ');
       try {
-        await groupUtils.updateGroupSubject(sock, remoteJid, newSubject);
+        await updateGroupSubject(sock, remoteJid, newSubject);
         await sock.sendMessage(remoteJid, { text: `Assunto do grupo alterado para \"${newSubject}\" com sucesso!` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao alterar o assunto do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -252,7 +253,7 @@ async function handleAdminCommand({
       }
       const newDescription = args.join(' ');
       try {
-        await groupUtils.updateGroupDescription(sock, remoteJid, newDescription);
+        await updateGroupDescription(sock, remoteJid, newDescription);
         await sock.sendMessage(remoteJid, { text: 'Descrição do grupo alterada com sucesso!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao alterar a descrição do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -276,7 +277,7 @@ async function handleAdminCommand({
       }
       const setting = args[0];
       try {
-        await groupUtils.updateGroupSettings(sock, remoteJid, setting);
+        await updateGroupSettings(sock, remoteJid, setting);
         await sock.sendMessage(remoteJid, { text: `Configuração do grupo alterada para \"${setting}\" com sucesso!` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao alterar a configuração do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -294,7 +295,7 @@ async function handleAdminCommand({
         break;
       }
       try {
-        await groupUtils.leaveGroup(sock, remoteJid);
+        await leaveGroup(sock, remoteJid);
         await sock.sendMessage(remoteJid, { text: `Saí do grupo ${remoteJid} com sucesso.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao sair do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -313,7 +314,7 @@ async function handleAdminCommand({
       }
 
       try {
-        const code = await groupUtils.getGroupInviteCode(sock, remoteJid);
+        const code = await getGroupInviteCode(sock, remoteJid);
         await sock.sendMessage(remoteJid, { text: `Código de convite para o grupo: ${code}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao obter o código de convite: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -332,7 +333,7 @@ async function handleAdminCommand({
       }
 
       try {
-        const code = await groupUtils.revokeGroupInviteCode(sock, remoteJid);
+        const code = await revokeGroupInviteCode(sock, remoteJid);
         await sock.sendMessage(remoteJid, { text: `Código de convite revogado. Novo código: ${code}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao revogar o código de convite: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -347,7 +348,7 @@ async function handleAdminCommand({
       }
       const code = args[0];
       try {
-        const response = await groupUtils.acceptGroupInvite(sock, code);
+        const response = await acceptGroupInvite(sock, code);
         await sock.sendMessage(remoteJid, { text: `Entrou no grupo: ${response}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao entrar no grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -362,7 +363,7 @@ async function handleAdminCommand({
       }
       const code = args[0];
       try {
-        const response = await groupUtils.getGroupInfoFromInvite(sock, code);
+        const response = await getGroupInfoFromInvite(sock, code);
         await sock.sendMessage(remoteJid, { text: `Informações do grupo: ${JSON.stringify(response, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao obter informações do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -377,7 +378,7 @@ async function handleAdminCommand({
         break;
       }
       try {
-        const metadata = groupUtils.getGroupInfo(groupId);
+        const metadata = getGroupInfo(groupId);
         await sock.sendMessage(remoteJid, { text: `Metadados do grupo: ${JSON.stringify(metadata, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao obter metadados do grupo: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -396,7 +397,7 @@ async function handleAdminCommand({
       }
 
       try {
-        const response = await groupUtils.getGroupRequestParticipantsList(sock, remoteJid);
+        const response = await getGroupRequestParticipantsList(sock, remoteJid);
         await sock.sendMessage(remoteJid, { text: `Solicitações de entrada: ${JSON.stringify(response, null, 2)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao listar solicitações de entrada: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -431,7 +432,7 @@ async function handleAdminCommand({
         break;
       }
       try {
-        const response = await groupUtils.updateGroupRequestParticipants(sock, remoteJid, participants, action);
+        const response = await updateGroupRequestParticipants(sock, remoteJid, participants, action);
         await sock.sendMessage(
           remoteJid,
           {
@@ -461,7 +462,7 @@ async function handleAdminCommand({
       }
       const duration = parseInt(args[0]);
       try {
-        await groupUtils.toggleEphemeral(sock, remoteJid, duration);
+        await toggleEphemeral(sock, remoteJid, duration);
         await sock.sendMessage(remoteJid, { text: `Mensagens efêmeras atualizadas para ${duration} segundos.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao atualizar mensagens efêmeras: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -485,7 +486,7 @@ async function handleAdminCommand({
       }
       const mode = args[0];
       try {
-        await groupUtils.updateGroupAddMode(sock, remoteJid, mode);
+        await updateGroupAddMode(sock, remoteJid, mode);
         await sock.sendMessage(remoteJid, { text: `Modo de adição de membros atualizado para ${mode}.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         await sock.sendMessage(remoteJid, { text: `Erro ao atualizar o modo de adição de membros: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -805,8 +806,3 @@ async function handleAdminCommand({
 
   return true;
 }
-
-module.exports = {
-  handleAdminCommand,
-  isAdminCommand,
-};

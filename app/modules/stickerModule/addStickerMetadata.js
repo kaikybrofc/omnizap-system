@@ -1,9 +1,10 @@
-const fs = require('fs').promises;
-const path = require('path');
-const util = require('util');
-const { exec } = require('child_process');
-const execProm = util.promisify(exec);
-const logger = require('../../utils/logger/loggerModule');
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import { exec } from 'node:child_process';
+import logger from '../../utils/logger/loggerModule.js';
+
+const execProm = promisify(exec);
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 
@@ -23,7 +24,7 @@ async function ensureDirectories(dir) {
  * @param {object} [replaceContext] Contexto para replaces: { senderName, userId }
  * @returns {Promise<string>} Caminho do sticker final
  */
-async function addStickerMetadata(stickerPath, packName, packAuthor, replaceContext = {}) {
+export async function addStickerMetadata(stickerPath, packName, packAuthor, replaceContext = {}) {
   const { senderName = '', userId = '' } = replaceContext;
   const now = new Date();
   const pad = (n) => n.toString().padStart(2, '0');
@@ -79,5 +80,3 @@ async function addStickerMetadata(stickerPath, packName, packAuthor, replaceCont
     return stickerPath;
   }
 }
-
-module.exports = { addStickerMetadata };

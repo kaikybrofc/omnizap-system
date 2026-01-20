@@ -1,9 +1,11 @@
-const fs = require('fs').promises;
-const path = require('path');
-const util = require('util');
-const { exec } = require('child_process');
-const execProm = util.promisify(exec);
-const logger = require('../../utils/logger/loggerModule');
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import { exec } from 'node:child_process';
+import logger from '../../utils/logger/loggerModule.js';
+
+const execProm = promisify(exec);
+
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 
@@ -17,7 +19,7 @@ const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
  * @returns {Promise<string>} Caminho do arquivo webp gerado.
  * @throws {Error} Se a conversão falhar.
  */
-async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
+export async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
   logger.info(`StickerCommand Convertendo mídia para webp. ID: ${uniqueId}, Tipo: ${mediaType}`);
   const sanitizedUserId = userId.replace(/[^a-zA-Z0-9.-]/g, '_');
   const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
@@ -65,5 +67,3 @@ async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
     throw new Error(`Erro na conversão para webp: ${error.message}`);
   }
 }
-
-module.exports = { convertToWebp };

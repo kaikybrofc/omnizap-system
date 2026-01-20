@@ -1,5 +1,5 @@
-require('dotenv').config();
-const logger = require('../app/utils/logger/loggerModule');
+import 'dotenv/config';
+import logger from '../app/utils/logger/loggerModule.js';
 
 const { NODE_ENV } = process.env;
 const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_POOL_LIMIT = 10 } = process.env;
@@ -19,7 +19,7 @@ if (missingEnvVars.length > 0) {
 const environment = NODE_ENV || 'development';
 const dbName = `${DB_NAME}_${environment === 'production' ? 'prod' : 'dev'}`;
 
-const dbConfig = {
+export const dbConfig = {
   host: DB_HOST,
   user: DB_USER,
   password: DB_PASSWORD,
@@ -29,13 +29,8 @@ const dbConfig = {
 
 logger.info(`Configuração de banco de dados carregada para o ambiente: ${environment}`);
 
-const TABLES = {
+export const TABLES = {
   MESSAGES: 'messages',
   CHATS: 'chats',
   GROUPS_METADATA: 'groups_metadata',
-};
-
-module.exports = {
-  dbConfig,
-  TABLES,
 };

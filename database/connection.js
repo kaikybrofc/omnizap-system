@@ -1,8 +1,8 @@
-const { dbConfig } = require('./config');
-const mysql = require('mysql2/promise');
-const logger = require('../app/utils/logger/loggerModule');
+import { dbConfig } from './config.js';
+import mysql from 'mysql2/promise';
+import logger from '../app/utils/logger/loggerModule.js';
 
-const pool = mysql.createPool({
+export const pool = mysql.createPool({
   host: dbConfig.host,
   user: dbConfig.user,
   password: dbConfig.password,
@@ -31,7 +31,7 @@ async function validateConnection() {
 validateConnection();
 
 // Tratamento de encerramento gracioso
-async function closePool() {
+export async function closePool() {
   try {
     await pool.end();
     logger.info('Pool de conexões MySQL encerrado com sucesso.');
@@ -44,5 +44,3 @@ async function closePool() {
 // Registra handlers para sinais de término
 process.on('SIGTERM', () => closePool());
 process.on('SIGINT', () => closePool());
-
-module.exports = { pool, closePool };

@@ -1,6 +1,9 @@
-const mysql = require('mysql2/promise');
-const logger = require('../app/utils/logger/loggerModule');
-const { dbConfig, TABLES } = require('./config');
+import mysql from 'mysql2/promise';
+import logger from '../app/utils/logger/loggerModule.js';
+import { dbConfig, TABLES } from './config.js';
+
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 // Use the composed DB name from config so created DB matches what the app will try to connect to
 const dbToCreate = dbConfig.database;
@@ -48,7 +51,7 @@ const createGroupsMetadataTableSQL = `
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
-async function initializeDatabase() {
+export default async function initializeDatabase() {
   let connection;
   try {
     connection = await mysql.createConnection({
@@ -77,8 +80,8 @@ async function initializeDatabase() {
   }
 }
 
-module.exports = initializeDatabase;
+const __filename = fileURLToPath(import.meta.url);
 
-if (require.main === module) {
+if (process.argv[1] === __filename) {
   initializeDatabase();
 }
