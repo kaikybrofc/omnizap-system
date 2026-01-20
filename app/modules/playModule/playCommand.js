@@ -219,12 +219,12 @@ const resolveYoutubeLink = async (query) => {
 const formatVideoInfo = (videoInfo) => {
   if (!videoInfo || typeof videoInfo !== 'object') return null;
   const lines = [];
-  if (videoInfo.title) lines.push(`Titulo: ${videoInfo.title}`);
-  if (videoInfo.channel) lines.push(`Canal: ${videoInfo.channel}`);
-  if (videoInfo.views) lines.push(`Views: ${Number(videoInfo.views).toLocaleString('pt-BR')}`);
-  if (videoInfo.like_count) lines.push(`Likes: ${Number(videoInfo.like_count).toLocaleString('pt-BR')}`);
-  if (videoInfo.duration) lines.push(`Duracao: ${videoInfo.duration}s`);
-  if (videoInfo.id) lines.push(`ID: ${videoInfo.id}`);
+  if (videoInfo.title) lines.push(`🎵 Titulo: ${videoInfo.title}`);
+  if (videoInfo.channel) lines.push(`👤 Canal: ${videoInfo.channel}`);
+  if (videoInfo.views) lines.push(`👁️ Views: ${Number(videoInfo.views).toLocaleString('pt-BR')}`);
+  if (videoInfo.like_count) lines.push(`👍 Likes: ${Number(videoInfo.like_count).toLocaleString('pt-BR')}`);
+  if (videoInfo.duration) lines.push(`⏱️ Duracao: ${videoInfo.duration}s`);
+  if (videoInfo.id) lines.push(`🆔 ID: ${videoInfo.id}`);
   return lines.length ? lines.join('\n') : null;
 };
 
