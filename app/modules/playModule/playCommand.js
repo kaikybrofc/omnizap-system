@@ -1,10 +1,10 @@
 import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
 import path from 'node:path';
 import { URL } from 'node:url';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import logger from '../../utils/logger/loggerModule.js';
 
@@ -16,7 +16,13 @@ const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '100', 10);
 const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB * 1024 * 1024 : 100 * 1024 * 1024;
 const CONVERT_TIMEOUT_MS = 300000;
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'play');
-const execProm = promisify(exec);
+const REQUESTS_DIR = path.join(TEMP_DIR, 'requests');
+const CACHE_TTL_MIN = Number.parseInt(process.env.PLAY_CACHE_TTL_MIN || '60', 10);
+const CACHE_TTL_MS = Number.isFinite(CACHE_TTL_MIN) ? CACHE_TTL_MIN * 60 * 1000 : 60 * 60 * 1000;
+const MAX_DOWNLOADS = Number.parseInt(process.env.PLAY_MAX_DOWNLOADS || '2', 10);
+const MAX_FFMPEG = Number.parseInt(process.env.PLAY_MAX_FFMPEG || '1', 10);
+const CACHE_DIR = path.join(TEMP_DIR, 'cache');
+const inFlightCache = new Map();
 
 const requestJson = (method, url, body, timeoutMs = DEFAULT_TIMEOUT_MS) =>
   new Promise((resolve, reject) => {
@@ -65,12 +71,129 @@ const requestJson = (method, url, body, timeoutMs = DEFAULT_TIMEOUT_MS) =>
     req.end();
   });
 
+class Semaphore {
+  constructor(limit) {
+    this.limit = Math.max(1, Number.isFinite(limit) ? limit : 1);
+    this.active = 0;
+    this.queue = [];
+  }
+
+  run(task) {
+    return new Promise((resolve, reject) => {
+      const execute = async () => {
+        this.active += 1;
+        try {
+          resolve(await task());
+        } catch (error) {
+          reject(error);
+        } finally {
+          this.active -= 1;
+          const next = this.queue.shift();
+          if (next) next();
+        }
+      };
+
+      if (this.active < this.limit) {
+        execute();
+      } else {
+        this.queue.push(execute);
+      }
+    });
+  }
+}
+
+const downloadSemaphore = new Semaphore(MAX_DOWNLOADS);
+const ffmpegSemaphore = new Semaphore(MAX_FFMPEG);
+
 const buildRequestId = () => {
   if (typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
+
+const buildCacheKey = (type, link) => {
+  const hash = crypto.createHash('sha1');
+  hash.update(`${type}:${link}`);
+  return hash.digest('hex');
+};
+
+const ensureCacheDir = async () => {
+  await fs.mkdir(CACHE_DIR, { recursive: true });
+};
+
+const readCache = async (cacheKey, type) => {
+  if (!CACHE_TTL_MS || CACHE_TTL_MS <= 0) return null;
+  await ensureCacheDir();
+  const ext = type === 'audio' ? '.mp3' : '.mp4';
+  const mediaPath = path.join(CACHE_DIR, `${cacheKey}${ext}`);
+  const metaPath = path.join(CACHE_DIR, `${cacheKey}.json`);
+  try {
+    const metaRaw = await fs.readFile(metaPath, 'utf-8');
+    const meta = JSON.parse(metaRaw);
+    if (!meta?.createdAt || Date.now() - meta.createdAt > CACHE_TTL_MS) {
+      await Promise.allSettled([fs.rm(mediaPath, { force: true }), fs.rm(metaPath, { force: true })]);
+      return null;
+    }
+    const buffer = await fs.readFile(mediaPath);
+    return { buffer, videoInfo: meta.videoInfo || null };
+  } catch {
+    return null;
+  }
+};
+
+const writeCache = async (cacheKey, type, buffer, videoInfo) => {
+  if (!CACHE_TTL_MS || CACHE_TTL_MS <= 0) return;
+  await ensureCacheDir();
+  const ext = type === 'audio' ? '.mp3' : '.mp4';
+  const mediaPath = path.join(CACHE_DIR, `${cacheKey}${ext}`);
+  const metaPath = path.join(CACHE_DIR, `${cacheKey}.json`);
+  const meta = { createdAt: Date.now(), videoInfo: videoInfo || null };
+  await fs.writeFile(mediaPath, buffer);
+  await fs.writeFile(metaPath, JSON.stringify(meta));
+};
+
+const runFfmpeg = async (args, timeoutMs = CONVERT_TIMEOUT_MS) =>
+  new Promise((resolve, reject) => {
+    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    let finished = false;
+
+    const timer = setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      proc.kill('SIGKILL');
+      const error = new Error('FFmpeg excedeu o tempo limite.');
+      error.stderr = stderr;
+      reject(error);
+    }, timeoutMs);
+
+    proc.stderr.on('data', (chunk) => {
+      if (stderr.length < 8000) {
+        stderr += chunk.toString();
+      }
+    });
+
+    proc.on('error', (error) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+
+    proc.on('close', (code) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve();
+      } else {
+        const error = new Error(`FFmpeg saiu com codigo ${code}.`);
+        error.stderr = stderr;
+        reject(error);
+      }
+    });
+  });
 
 const normalizeStreamUrl = (streamUrl, baseUrl) => {
   if (!streamUrl) return null;
@@ -86,7 +209,7 @@ const normalizeStreamUrl = (streamUrl, baseUrl) => {
   }
 };
 
-const downloadBinary = (url, maxBytes = MAX_MEDIA_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS) =>
+const downloadToFile = (url, destinationPath, maxBytes = MAX_MEDIA_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS) =>
   new Promise((resolve, reject) => {
     const urlObj = new URL(url);
     const httpModule = urlObj.protocol === 'https:' ? https : http;
@@ -107,24 +230,25 @@ const downloadBinary = (url, maxBytes = MAX_MEDIA_BYTES, timeoutMs = DEFAULT_TIM
           return;
         }
 
-        const chunks = [];
+        const contentType = res.headers['content-type'] || '';
+        const disposition = res.headers['content-disposition'] || '';
+        const fileNameMatch = /filename="([^"]+)"/i.exec(disposition);
+        const fileName = fileNameMatch ? fileNameMatch[1] : '';
+        const fileStream = createWriteStream(destinationPath);
         let total = 0;
+
         res.on('data', (chunk) => {
           total += chunk.length;
           if (total > maxBytes) {
-            reject(new Error('Arquivo excede o limite de tamanho permitido.'));
-            req.destroy();
+            req.destroy(new Error('Arquivo excede o limite de tamanho permitido.'));
             return;
           }
-          chunks.push(chunk);
         });
-        res.on('end', () => {
-          const contentType = res.headers['content-type'] || '';
-          const disposition = res.headers['content-disposition'] || '';
-          const fileNameMatch = /filename="([^"]+)"/i.exec(disposition);
-          const fileName = fileNameMatch ? fileNameMatch[1] : '';
-          resolve({ buffer: Buffer.concat(chunks), contentType, fileName });
-        });
+
+        res.pipe(fileStream);
+
+        fileStream.on('finish', () => resolve({ contentType, fileName }));
+        fileStream.on('error', reject);
       },
     );
 
@@ -134,10 +258,6 @@ const downloadBinary = (url, maxBytes = MAX_MEDIA_BYTES, timeoutMs = DEFAULT_TIM
     });
     req.end();
   });
-
-const ensureTempDir = async () => {
-  await fs.mkdir(TEMP_DIR, { recursive: true });
-};
 
 const getExtensionFromType = (contentType) => {
   const lower = (contentType || '').toLowerCase();
@@ -151,15 +271,6 @@ const getExtensionFromType = (contentType) => {
   return '.bin';
 };
 
-const writeTempFile = async (buffer, ext) => {
-  await ensureTempDir();
-  const safeExt = ext && ext.startsWith('.') ? ext : '.bin';
-  const fileName = `input_${Date.now()}_${Math.random().toString(16).slice(2)}${safeExt}`;
-  const filePath = path.join(TEMP_DIR, fileName);
-  await fs.writeFile(filePath, buffer);
-  return filePath;
-};
-
 const readAndValidateOutput = async (filePath) => {
   const stat = await fs.stat(filePath);
   if (stat.size > MAX_MEDIA_BYTES) {
@@ -168,40 +279,60 @@ const readAndValidateOutput = async (filePath) => {
   return fs.readFile(filePath);
 };
 
-const convertToMp3Buffer = async (buffer, contentType, fileName) => {
-  const ext = fileName ? path.extname(fileName).toLowerCase() : getExtensionFromType(contentType);
-  const inputPath = await writeTempFile(buffer, ext);
-  const outputPath = path.join(TEMP_DIR, `audio_${Date.now()}_${Math.random().toString(16).slice(2)}.mp3`);
-  try {
-    const cmd = `ffmpeg -y -i "${inputPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 "${outputPath}"`;
-    await execProm(cmd, { timeout: CONVERT_TIMEOUT_MS });
-    return await readAndValidateOutput(outputPath);
-  } catch (error) {
-    logger.error('Erro ao converter audio:', error);
-    throw new Error('Falha ao converter audio para MP3.');
-  } finally {
-    await Promise.allSettled([fs.unlink(inputPath), fs.unlink(outputPath)]);
-  }
-};
+const convertToMp3Buffer = async (inputPath, requestDir) =>
+  ffmpegSemaphore.run(async () => {
+    const outputPath = path.join(requestDir || TEMP_DIR, `audio_${Date.now()}_${Math.random().toString(16).slice(2)}.mp3`);
+    try {
+      const args = ['-y', '-i', inputPath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-ar', '44100', '-ac', '2', outputPath];
+      await runFfmpeg(args);
+      return await readAndValidateOutput(outputPath);
+    } catch (error) {
+      logger.error('Erro ao converter audio:', error?.stderr || error);
+      throw new Error('Falha ao converter audio para MP3.');
+    } finally {
+      await Promise.allSettled([fs.unlink(inputPath), fs.unlink(outputPath)]);
+    }
+  });
 
-const convertToMp4Buffer = async (buffer, contentType, fileName) => {
-  const ext = fileName ? path.extname(fileName).toLowerCase() : getExtensionFromType(contentType);
-  const inputPath = await writeTempFile(buffer, ext);
-  const outputPath = path.join(TEMP_DIR, `video_${Date.now()}_${Math.random().toString(16).slice(2)}.mp4`);
-  try {
-    const cmd =
-      `ffmpeg -y -i "${inputPath}" -vf "scale='min(1280,iw)':-2" -preset veryfast -crf 28 ` +
-      `-c:v libx264 -profile:v baseline -level 3.1 -pix_fmt yuv420p -c:a aac -b:a 128k ` +
-      `-movflags +faststart "${outputPath}"`;
-    await execProm(cmd, { timeout: CONVERT_TIMEOUT_MS });
-    return await readAndValidateOutput(outputPath);
-  } catch (error) {
-    logger.error('Erro ao converter video:', error?.stderr || error);
-    throw new Error('Falha ao converter video para MP4.');
-  } finally {
-    await Promise.allSettled([fs.unlink(inputPath), fs.unlink(outputPath)]);
-  }
-};
+const convertToMp4Buffer = async (inputPath, requestDir) =>
+  ffmpegSemaphore.run(async () => {
+    const outputPath = path.join(requestDir || TEMP_DIR, `video_${Date.now()}_${Math.random().toString(16).slice(2)}.mp4`);
+    try {
+      const args = [
+        '-y',
+        '-i',
+        inputPath,
+        '-vf',
+        "scale='min(1280,iw)':-2",
+        '-preset',
+        'veryfast',
+        '-crf',
+        '28',
+        '-c:v',
+        'libx264',
+        '-profile:v',
+        'baseline',
+        '-level',
+        '3.1',
+        '-pix_fmt',
+        'yuv420p',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-movflags',
+        '+faststart',
+        outputPath,
+      ];
+      await runFfmpeg(args);
+      return await readAndValidateOutput(outputPath);
+    } catch (error) {
+      logger.error('Erro ao converter video:', error?.stderr || error);
+      throw new Error('Falha ao converter video para MP4.');
+    } finally {
+      await Promise.allSettled([fs.unlink(inputPath), fs.unlink(outputPath)]);
+    }
+  });
 
 const resolveYoutubeLink = async (query) => {
   const normalized = query ? query.trim() : '';
@@ -249,6 +380,49 @@ const requestDownload = async (link, type, requestId) => {
   return { streamUrl, videoInfo: downloadResult.video_info };
 };
 
+const fetchMediaWithCache = async (link, type) => {
+  const cacheKey = buildCacheKey(type, link);
+  const cached = await readCache(cacheKey, type);
+  if (cached) {
+    return cached;
+  }
+
+  if (inFlightCache.has(cacheKey)) {
+    return inFlightCache.get(cacheKey);
+  }
+
+  const promise = (async () => {
+    const requestId = buildRequestId();
+    const requestDir = path.join(REQUESTS_DIR, requestId);
+    await fs.mkdir(requestDir, { recursive: true });
+    try {
+      const { streamUrl, videoInfo } = await requestDownload(link, type, requestId);
+      const inputBasePath = path.join(requestDir, 'input');
+      const downloadMeta = await downloadSemaphore.run(() => downloadToFile(streamUrl, inputBasePath));
+      const guessedExt = downloadMeta.fileName ? path.extname(downloadMeta.fileName) : getExtensionFromType(downloadMeta.contentType);
+      const inputPath = guessedExt && guessedExt !== '.bin' ? `${inputBasePath}${guessedExt}` : inputBasePath;
+      if (inputPath !== inputBasePath) {
+        await fs.rename(inputBasePath, inputPath);
+      }
+      const converted =
+        type === 'audio'
+          ? await convertToMp3Buffer(inputPath, requestDir)
+          : await convertToMp4Buffer(inputPath, requestDir);
+      await writeCache(cacheKey, type, converted, videoInfo);
+      return { buffer: converted, videoInfo };
+    } finally {
+      await fs.rm(requestDir, { recursive: true, force: true });
+    }
+  })();
+
+  inFlightCache.set(cacheKey, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightCache.delete(cacheKey);
+  }
+};
+
 const notifyFailure = async (sock, remoteJid, messageInfo, expirationMessage, error) => {
   const errorMessage = error?.message || 'Erro inesperado ao processar sua solicitacao.';
   await sock.sendMessage(
@@ -281,11 +455,8 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
 
-    const requestId = buildRequestId();
     const link = await resolveYoutubeLink(text);
-    const { streamUrl, videoInfo } = await requestDownload(link, 'audio', requestId);
-    const { buffer: audioBuffer, contentType, fileName } = await downloadBinary(streamUrl);
-    const convertedAudio = await convertToMp3Buffer(audioBuffer, contentType, fileName);
+    const { buffer: convertedAudio, videoInfo } = await fetchMediaWithCache(link, 'audio');
     const infoText = formatVideoInfo(videoInfo) || '🎵 Informacoes do audio indisponiveis.';
     const infoMessage = await sock.sendMessage(
       remoteJid,
@@ -327,11 +498,8 @@ export const handlePlayVidCommand = async (sock, remoteJid, messageInfo, expirat
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
 
-    const requestId = buildRequestId();
     const link = await resolveYoutubeLink(text);
-    const { streamUrl, videoInfo } = await requestDownload(link, 'video', requestId);
-    const { buffer: videoBuffer, contentType, fileName } = await downloadBinary(streamUrl);
-    const convertedVideo = await convertToMp4Buffer(videoBuffer, contentType, fileName);
+    const { buffer: convertedVideo, videoInfo } = await fetchMediaWithCache(link, 'video');
     const infoText = formatVideoInfo(videoInfo);
     const caption = infoText ? `🎬 Video pronto!\n${infoText}` : '🎬 Video pronto!';
     await sock.sendMessage(
