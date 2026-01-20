@@ -1,5 +1,11 @@
-const logger = require('../utils/logger/loggerModule');
-const { findAll, upsert, create } = require('../../database/queries');
+import logger from '../utils/logger/loggerModule.js';
+
+import {
+  findAll,
+  upsert
+} from '../../database/queries.js';
+
+import {create} from '../../database/queries.js';
 
 /**
  * Realiza o parse seguro de JSON com logging de erros
@@ -54,7 +60,6 @@ const store = {
   bind: function (ev) {
     ev.on('messages.upsert', ({ messages: incomingMessages, type }) => {
       if (type === 'append' || type === 'notify') {
-        const dbQueries = require('../../database/queries');
 
         for (const msg of incomingMessages) {
           if (!msg.message || msg.key.remoteJid === 'status@broadcast') continue;
@@ -68,7 +73,7 @@ const store = {
             timestamp: new Date(Number(msg.messageTimestamp) * 1000),
           };
 
-          dbQueries.create('messages', messageData).catch((err) => {
+          create('messages', messageData).catch((err) => {
             if (err.code !== 'ER_DUP_ENTRY') {
               logger.error(`Erro ao salvar mensagem ${msg.key.id} no banco de dados:`, err);
             }
@@ -157,4 +162,5 @@ const store = {
   },
 };
 
-module.exports = store;
+
+export default store;

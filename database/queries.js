@@ -1,8 +1,8 @@
-const { pool } = require('./connection');
-const mysql = require('mysql2/promise');
-const logger = require('../app/utils/logger/loggerModule');
-const { TABLES } = require('./config');
-const { DatabaseError } = require('./errors');
+import { pool } from './connection.js';
+import mysql from 'mysql2/promise';
+import logger from '../app/utils/logger/loggerModule.js';
+import { TABLES } from './config.js';
+import { DatabaseError } from './errors.js';
 
 const VALID_TABLES = Object.values(TABLES);
 
@@ -11,7 +11,7 @@ const VALID_TABLES = Object.values(TABLES);
  * @param {string} tableName - Nome da tabela a ser validada.
  * @throws {Error} Se a tabela não estiver na lista de tabelas válidas.
  */
-function validateTableName(tableName) {
+export function validateTableName(tableName) {
   if (!VALID_TABLES.includes(tableName)) {
     throw new Error(`Tabela inválida: ${tableName}`);
   }
@@ -22,7 +22,7 @@ function validateTableName(tableName) {
  * @param {Array<any>} params - Array de parâmetros a serem sanitizados.
  * @returns {Array<any>} Array de parâmetros sanitizados.
  */
-function sanitizeParams(params) {
+export function sanitizeParams(params) {
   return params.map((param) => (param === undefined ? null : param));
 }
 
@@ -34,7 +34,7 @@ function sanitizeParams(params) {
  * @returns {Promise<Array>} Resultado da consulta.
  * @throws {DatabaseError} Se houver erro na execução da consulta.
  */
-async function executeQuery(sql, params = [], connection = null) {
+export async function executeQuery(sql, params = [], connection = null) {
   const executor = connection || pool;
   try {
     const sanitizedParams = sanitizeParams(params);
@@ -59,7 +59,7 @@ async function executeQuery(sql, params = [], connection = null) {
  * @param {number} [offset=0] - Número de registros para pular.
  * @returns {Promise<Array>} Lista de registros encontrados.
  */
-async function findAll(tableName, limit = 100, offset = 0) {
+export async function findAll(tableName, limit = 100, offset = 0) {
   validateTableName(tableName);
   const safeLimit = parseInt(limit, 10);
   const safeOffset = parseInt(offset, 10);
@@ -78,7 +78,7 @@ async function findAll(tableName, limit = 100, offset = 0) {
  * @param {number|string} id - ID do registro.
  * @returns {Promise<object|null>} Registro encontrado ou null se não existir.
  */
-async function findById(tableName, id) {
+export async function findById(tableName, id) {
   validateTableName(tableName);
   const sql = `SELECT * FROM ${mysql.escapeId(tableName)} WHERE id = ?`;
   const results = await executeQuery(sql, [id]);
@@ -96,7 +96,7 @@ async function findById(tableName, id) {
  * @param {'ASC'|'DESC'} [options.orderDirection='ASC'] - Direção da ordenação.
  * @returns {Promise<Array>} Lista de registros encontrados.
  */
-async function findBy(tableName, criteria, options = {}) {
+export async function findBy(tableName, criteria, options = {}) {
   validateTableName(tableName);
   const keys = Object.keys(criteria);
   if (keys.length === 0) {
@@ -130,7 +130,7 @@ async function findBy(tableName, criteria, options = {}) {
  * @param {object} [criteria] - Critérios de contagem.
  * @returns {Promise<number>} O número de registros.
  */
-async function count(tableName, criteria = {}) {
+export async function count(tableName, criteria = {}) {
   validateTableName(tableName);
   const keys = Object.keys(criteria);
   let sql = `SELECT COUNT(*) as count FROM ${mysql.escapeId(tableName)}`;
@@ -152,7 +152,7 @@ async function count(tableName, criteria = {}) {
  * @param {object} data - Dados a serem inseridos.
  * @returns {Promise<object>} Objeto criado com o ID gerado.
  */
-async function create(tableName, data) {
+export async function create(tableName, data) {
   validateTableName(tableName);
   const keys = Object.keys(data);
   if (keys.length === 0) {
@@ -170,7 +170,7 @@ async function create(tableName, data) {
  * @param {Array<object>} records - Array de objetos a serem inseridos.
  * @returns {Promise<number>} Número de registros inseridos.
  */
-async function bulkInsert(tableName, records) {
+export async function bulkInsert(tableName, records) {
   validateTableName(tableName);
   if (!records || records.length === 0) {
     return 0;
@@ -191,7 +191,7 @@ async function bulkInsert(tableName, records) {
  * @param {object} data - Dados a serem atualizados.
  * @returns {Promise<boolean>} true se o registro foi atualizado, false caso contrário.
  */
-async function update(tableName, id, data) {
+export async function update(tableName, id, data) {
   validateTableName(tableName);
   const keys = Object.keys(data);
   if (keys.length === 0) {
@@ -209,7 +209,7 @@ async function update(tableName, id, data) {
  * @param {number|string} id - ID do registro a ser removido.
  * @returns {Promise<boolean>} true se o registro foi removido, false caso contrário.
  */
-async function remove(tableName, id) {
+export async function remove(tableName, id) {
   validateTableName(tableName);
   const sql = `DELETE FROM ${mysql.escapeId(tableName)} WHERE id = ?`;
   const result = await executeQuery(sql, [id]);
@@ -222,7 +222,7 @@ async function remove(tableName, id) {
  * @param {object} data - Dados a serem inseridos ou atualizados. O ID deve estar em `data.id`.
  * @returns {Promise<object>} Resultado da operação.
  */
-async function upsert(tableName, data) {
+export async function upsert(tableName, data) {
   validateTableName(tableName);
   const keys = Object.keys(data);
   if (keys.length === 0) {
@@ -270,17 +270,3 @@ async function withTransaction(callback) {
     connection.release();
   }
 }
-
-module.exports = {
-  executeQuery,
-  findAll,
-  findById,
-  findBy,
-  count,
-  create,
-  bulkInsert,
-  update,
-  remove,
-  upsert,
-  withTransaction,
-};

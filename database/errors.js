@@ -1,4 +1,4 @@
-class DatabaseError extends Error {
+export class DatabaseError extends Error {
   constructor(message, originalError, sql, params) {
     super(message);
     this.name = 'DatabaseError';
@@ -10,5 +10,3 @@ class DatabaseError extends Error {
     this.sqlState = originalError?.sqlState;
   }
 }
-
-module.exports = { DatabaseError };

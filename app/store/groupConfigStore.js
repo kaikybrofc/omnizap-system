@@ -1,5 +1,5 @@
-const { readFromFile, writeToFile } = require('./persistence');
-const logger = require('../utils/logger/loggerModule');
+import { readFromFile, writeToFile } from './persistence.js';
+import logger from '../utils/logger/loggerModule.js';
 
 const groupConfigStore = {
   configs: {},
@@ -48,4 +48,4 @@ const groupConfigStore = {
   },
 };
 
-module.exports = groupConfigStore;
+export default groupConfigStore;

@@ -1,6 +1,6 @@
-const logger = require('../utils/logger/loggerModule');
-const { findById, findAll } = require('../../database/queries');
-const { TABLES } = require('../../database/config');
+import logger from '../utils/logger/loggerModule.js';
+import { findById, findAll } from '../../database/queries.js';
+import { TABLES } from '../../database/config.js';
 
 /**
  * Valida um ID de grupo ou usuário.
@@ -8,7 +8,7 @@ const { TABLES } = require('../../database/config');
  * @param {string} type - O tipo de ID ('Grupo' ou 'Usuário').
  * @returns {boolean} True se o ID for válido, false caso contrário.
  */
-function _isValidId(id, type = 'ID') {
+export function _isValidId(id, type = 'ID') {
   if (typeof id !== 'string' || id.trim() === '') {
     logger.warn(`Tentativa de operação com ${type} inválido.`, { id });
     return false;
@@ -21,7 +21,7 @@ function _isValidId(id, type = 'ID') {
  * @param {string} groupId - O ID do grupo.
  * @returns {object|null} Os dados do grupo ou null se não encontrado ou se o ID for inválido.
  */
-async function getGroupInfo(groupId) {
+export async function getGroupInfo(groupId) {
   return await getGroupInfoAsync(groupId);
 }
 
@@ -30,7 +30,7 @@ async function getGroupInfo(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {string|null} O assunto do grupo ou null se não encontrado.
  */
-async function getGroupSubject(groupId) {
+export async function getGroupSubject(groupId) {
   const group = await getGroupInfoAsync(groupId);
   return group?.subject || null;
 }
@@ -40,7 +40,7 @@ async function getGroupSubject(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {Array<object>|null} A lista de participantes ou null se não encontrado.
  */
-async function getGroupParticipants(groupId) {
+export async function getGroupParticipants(groupId) {
   return await getGroupParticipantsAsync(groupId);
 }
 
@@ -49,7 +49,7 @@ async function getGroupParticipants(groupId) {
  * @param {object|string} userObj - Objeto de mensagem ou string do ID.
  * @returns {string|null} O ID do usuário ou null se não encontrado.
  */
-function extractUserId(userObj) {
+export function extractUserId(userObj) {
   if (typeof userObj === 'string') return userObj;
   if (userObj && typeof userObj === 'object') {
     // Prioriza lid se existir
@@ -68,16 +68,16 @@ function extractUserId(userObj) {
  * @param {string|object} userIdOrObj - O ID do usuário ou objeto de mensagem.
  * @returns {boolean} True se o usuário for admin, false caso contrário.
  */
-async function isUserAdmin(groupId, userIdOrObj) {
+export async function isUserAdmin(groupId, userIdOrObj) {
   return await isUserAdminAsync(groupId, userIdOrObj);
 }
 
-function _normalizeDigits(str) {
+export function _normalizeDigits(str) {
   if (!str || typeof str !== 'string') return '';
   return str.replace(/\D/g, '');
 }
 
-function _matchesParticipantId(participant, userId) {
+export function _matchesParticipantId(participant, userId) {
   if (!participant || !userId) return false;
   if (participant.id && participant.id === userId) return true;
   if (participant.lid && participant.lid === userId) return true;
@@ -101,7 +101,7 @@ function _matchesParticipantId(participant, userId) {
  * @param {string} groupId
  * @returns {Promise<object|null>} objeto do grupo ou null
  */
-async function getGroupInfoAsync(groupId) {
+export async function getGroupInfoAsync(groupId) {
   if (!_isValidId(groupId, 'Grupo')) return null;
   try {
     const row = await findById(TABLES.GROUPS_METADATA, groupId);
@@ -134,12 +134,12 @@ async function getGroupInfoAsync(groupId) {
   }
 }
 
-async function getGroupParticipantsAsync(groupId) {
+export async function getGroupParticipantsAsync(groupId) {
   const group = await getGroupInfoAsync(groupId);
   return group ? group.participants : null;
 }
 
-async function isUserAdminAsync(groupId, userIdOrObj) {
+export async function isUserAdminAsync(groupId, userIdOrObj) {
   const userId = extractUserId(userIdOrObj);
   if (!_isValidId(groupId, 'Grupo') || !_isValidId(userId, 'Usuário')) return false;
   const participants = await getGroupParticipantsAsync(groupId);
@@ -153,7 +153,7 @@ async function isUserAdminAsync(groupId, userIdOrObj) {
   );
 }
 
-async function getGroupAdminsAsync(groupId) {
+export async function getGroupAdminsAsync(groupId) {
   const participants = await getGroupParticipantsAsync(groupId);
   if (!participants) return [];
   return participants
@@ -166,7 +166,7 @@ async function getGroupAdminsAsync(groupId) {
  * Retorna todos os IDs de grupo disponíveis.
  * @returns {Array<string>} Uma lista de IDs de grupo.
  */
-async function getAllGroupIds() {
+export async function getAllGroupIds() {
   try {
     const rows = await findAll(TABLES.GROUPS_METADATA, 10000, 0);
     if (!rows || !Array.isArray(rows)) return [];
@@ -182,7 +182,7 @@ async function getAllGroupIds() {
  * @param {string} groupId - O ID do grupo.
  * @returns {string|null} O ID do proprietário do grupo ou null se não encontrado.
  */
-async function getGroupOwner(groupId) {
+export async function getGroupOwner(groupId) {
   const group = await getGroupInfoAsync(groupId);
   return group?.owner || null;
 }
@@ -192,7 +192,7 @@ async function getGroupOwner(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {number|null} O timestamp de criação do grupo ou null se não encontrado.
  */
-async function getGroupCreationTime(groupId) {
+export async function getGroupCreationTime(groupId) {
   const group = await getGroupInfoAsync(groupId);
   return group?.creation || null;
 }
@@ -202,7 +202,7 @@ async function getGroupCreationTime(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {string|null} A descrição do grupo ou null se não encontrado.
  */
-async function getGroupDescription(groupId) {
+export async function getGroupDescription(groupId) {
   const group = await getGroupInfoAsync(groupId);
   return group?.desc || null;
 }
@@ -212,7 +212,7 @@ async function getGroupDescription(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {number|null} O número de participantes do grupo ou null se não encontrado.
  */
-async function getGroupSize(groupId) {
+export async function getGroupSize(groupId) {
   const group = await getGroupInfoAsync(groupId);
   return group?.size || null;
 }
@@ -222,7 +222,7 @@ async function getGroupSize(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {boolean} True se o grupo for restrito, false caso contrário.
  */
-async function isGroupRestricted(groupId) {
+export async function isGroupRestricted(groupId) {
   const group = await getGroupInfoAsync(groupId);
   return !!group?.restrict;
 }
@@ -232,7 +232,7 @@ async function isGroupRestricted(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {boolean} True se o grupo for apenas para anúncios, false caso contrário.
  */
-async function isGroupAnnounceOnly(groupId) {
+export async function isGroupAnnounceOnly(groupId) {
   const group = await getGroupInfoAsync(groupId);
   return !!group?.announce;
 }
@@ -242,7 +242,7 @@ async function isGroupAnnounceOnly(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {boolean} True se o grupo for uma comunidade, false caso contrário.
  */
-async function isGroupCommunity(groupId) {
+export async function isGroupCommunity(groupId) {
   const group = await getGroupInfoAsync(groupId);
   return !!group?.isCommunity;
 }
@@ -252,7 +252,7 @@ async function isGroupCommunity(groupId) {
  * @param {string} groupId - O ID do grupo.
  * @returns {Array<string>} Uma lista de IDs dos administradores do grupo.
  */
-async function getGroupAdmins(groupId) {
+export async function getGroupAdmins(groupId) {
   return await getGroupAdminsAsync(groupId);
 }
 
@@ -263,7 +263,7 @@ async function getGroupAdmins(groupId) {
  * @param {Array} args - Os argumentos para a função.
  * @param {string} errorMessage - A mensagem de erro a ser registrada.
  */
-async function _safeGroupApiCall(sock, functionName, args, errorMessage) {
+export async function _safeGroupApiCall(sock, functionName, args, errorMessage) {
   if (!sock || typeof sock[functionName] !== 'function') {
     logger.error(`Objeto de socket inválido ou função ${functionName} não encontrada.`);
     throw new Error(`Socket inválido para a operação ${functionName}.`);
@@ -281,7 +281,7 @@ async function _safeGroupApiCall(sock, functionName, args, errorMessage) {
   }
 }
 
-async function createGroup(sock, title, participants) {
+export async function createGroup(sock, title, participants) {
   if (typeof title !== 'string' || title.trim() === '' || !Array.isArray(participants)) {
     throw new Error('Título ou participantes inválidos.');
   }
@@ -295,7 +295,7 @@ async function createGroup(sock, title, participants) {
   return result;
 }
 
-async function updateGroupParticipants(sock, groupId, participants, action) {
+export async function updateGroupParticipants(sock, groupId, participants, action) {
   if (!_isValidId(groupId, 'Grupo') || !Array.isArray(participants) || !action) {
     throw new Error('Argumentos inválidos para atualizar participantes.');
   }
@@ -307,7 +307,7 @@ async function updateGroupParticipants(sock, groupId, participants, action) {
   );
 }
 
-async function updateGroupSubject(sock, groupId, subject) {
+export async function updateGroupSubject(sock, groupId, subject) {
   if (!_isValidId(groupId, 'Grupo') || typeof subject !== 'string') {
     throw new Error('Argumentos inválidos para atualizar assunto do grupo.');
   }
@@ -319,7 +319,7 @@ async function updateGroupSubject(sock, groupId, subject) {
   );
 }
 
-async function updateGroupDescription(sock, groupId, description) {
+export async function updateGroupDescription(sock, groupId, description) {
   if (!_isValidId(groupId, 'Grupo')) {
     throw new Error('ID de grupo inválido.');
   }
@@ -331,7 +331,7 @@ async function updateGroupDescription(sock, groupId, description) {
   );
 }
 
-async function updateGroupSettings(sock, groupId, setting) {
+export async function updateGroupSettings(sock, groupId, setting) {
   if (!_isValidId(groupId, 'Grupo') || !setting) {
     throw new Error('Argumentos inválidos para atualizar configurações do grupo.');
   }
@@ -343,14 +343,14 @@ async function updateGroupSettings(sock, groupId, setting) {
   );
 }
 
-async function leaveGroup(sock, groupId) {
+export async function leaveGroup(sock, groupId) {
   if (!_isValidId(groupId, 'Grupo')) {
     throw new Error('ID de grupo inválido.');
   }
   return _safeGroupApiCall(sock, 'groupLeave', [groupId], `Erro ao sair do grupo ${groupId}`);
 }
 
-async function getGroupInviteCode(sock, groupId) {
+export async function getGroupInviteCode(sock, groupId) {
   if (!_isValidId(groupId, 'Grupo')) {
     throw new Error('ID de grupo inválido.');
   }
@@ -362,7 +362,7 @@ async function getGroupInviteCode(sock, groupId) {
   );
 }
 
-async function revokeGroupInviteCode(sock, groupId) {
+export async function revokeGroupInviteCode(sock, groupId) {
   if (!_isValidId(groupId, 'Grupo')) {
     throw new Error('ID de grupo inválido.');
   }
@@ -374,14 +374,14 @@ async function revokeGroupInviteCode(sock, groupId) {
   );
 }
 
-async function acceptGroupInvite(sock, code) {
+export async function acceptGroupInvite(sock, code) {
   if (typeof code !== 'string' || code.trim() === '') {
     throw new Error('Código de convite inválido.');
   }
   return _safeGroupApiCall(sock, 'groupAcceptInvite', [code], 'Erro ao aceitar convite de grupo');
 }
 
-async function getGroupInfoFromInvite(sock, code) {
+export async function getGroupInfoFromInvite(sock, code) {
   if (typeof code !== 'string' || code.trim() === '') {
     throw new Error('Código de convite inválido.');
   }
@@ -393,7 +393,7 @@ async function getGroupInfoFromInvite(sock, code) {
   );
 }
 
-async function getGroupMetadata(sock, groupId) {
+export async function getGroupMetadata(sock, groupId) {
   if (!_isValidId(groupId, 'Grupo')) {
     throw new Error('ID de grupo inválido.');
   }
@@ -405,7 +405,7 @@ async function getGroupMetadata(sock, groupId) {
   );
 }
 
-async function getGroupRequestParticipantsList(sock, groupId) {
+export async function getGroupRequestParticipantsList(sock, groupId) {
   if (!_isValidId(groupId, 'Grupo')) {
     throw new Error('ID de grupo inválido.');
   }
@@ -417,7 +417,7 @@ async function getGroupRequestParticipantsList(sock, groupId) {
   );
 }
 
-async function updateGroupRequestParticipants(sock, groupId, participants, action) {
+export async function updateGroupRequestParticipants(sock, groupId, participants, action) {
   if (!_isValidId(groupId, 'Grupo') || !Array.isArray(participants) || !action) {
     throw new Error('Argumentos inválidos para atualizar solicitações de entrada.');
   }
@@ -429,7 +429,7 @@ async function updateGroupRequestParticipants(sock, groupId, participants, actio
   );
 }
 
-async function getAllParticipatingGroups(sock) {
+export async function getAllParticipatingGroups(sock) {
   return _safeGroupApiCall(
     sock,
     'groupFetchAllParticipating',
@@ -438,7 +438,7 @@ async function getAllParticipatingGroups(sock) {
   );
 }
 
-async function toggleEphemeral(sock, groupId, duration) {
+export async function toggleEphemeral(sock, groupId, duration) {
   if (!_isValidId(groupId, 'Grupo') || typeof duration !== 'number') {
     throw new Error('Argumentos inválidos para alternar mensagens efêmeras.');
   }
@@ -450,7 +450,7 @@ async function toggleEphemeral(sock, groupId, duration) {
   );
 }
 
-async function updateGroupAddMode(sock, groupId, mode) {
+export async function updateGroupAddMode(sock, groupId, mode) {
   if (!_isValidId(groupId, 'Grupo') || !mode) {
     throw new Error('Argumentos inválidos para atualizar modo de adição.');
   }
@@ -461,40 +461,3 @@ async function updateGroupAddMode(sock, groupId, mode) {
     `Erro ao atualizar modo de adição no grupo ${groupId}`,
   );
 }
-
-module.exports = {
-  getGroupInfo,
-  getGroupSubject,
-  getGroupParticipants,
-  isUserAdmin,
-  extractUserId,
-  getGroupInfoAsync,
-  getGroupParticipantsAsync,
-  isUserAdminAsync,
-  getGroupAdminsAsync,
-  getAllGroupIds,
-  getGroupOwner,
-  getGroupCreationTime,
-  getGroupDescription,
-  getGroupSize,
-  isGroupRestricted,
-  isGroupAnnounceOnly,
-  isGroupCommunity,
-  getGroupAdmins,
-  createGroup,
-  updateGroupParticipants,
-  updateGroupSubject,
-  updateGroupDescription,
-  updateGroupSettings,
-  leaveGroup,
-  getGroupInviteCode,
-  revokeGroupInviteCode,
-  acceptGroupInvite,
-  getGroupInfoFromInvite,
-  getGroupMetadata,
-  getGroupRequestParticipantsList,
-  updateGroupRequestParticipants,
-  getAllParticipatingGroups,
-  toggleEphemeral,
-  updateGroupAddMode,
-};

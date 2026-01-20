@@ -1,18 +1,38 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage } = require('@whiskeysockets/baileys');
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  Browsers,
+  getAggregateVotesInPollMessage
+} from '@whiskeysockets/baileys';
 
-const store = require('../store/dataStore');
-const groupConfigStore = require('../store/groupConfigStore');
-const { resolveBaileysVersion } = require('../config/baileysConfig');
+import store from '../store/dataStore.js';
+import groupConfigStore from '../store/groupConfigStore.js';
+import { resolveBaileysVersion } from '../config/baileysConfig.js';
 
-const { Boom } = require('@hapi/boom');
-const qrcode = require('qrcode-terminal');
-const path = require('path');
+import { Boom } from '@hapi/boom';
+import qrcode from 'qrcode-terminal';
+import path from 'node:path';
 
-const pino = require('pino');
-const logger = require('../utils/logger/loggerModule');
-const { handleMessages } = require('../controllers/messageController');
+import pino from 'pino';
+import logger from '../utils/logger/loggerModule.js';
+import { handleMessages } from '../controllers/messageController.js';
 
-const { handleGroupUpdate: handleGroupParticipantsEvent } = require('../modules/adminModule/groupEventHandlers');
+import {
+  handleGroupUpdate as handleGroupParticipantsEvent
+} from '../modules/adminModule/groupEventHandlers.js';
+
+import {
+  findAll,
+  upsert,
+  findById
+} from '../../database/queries.js';
+
+import { fileURLToPath } from 'node:url';
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 let activeSocket = null;
 let connectionAttempts = 0;
@@ -25,7 +45,7 @@ const INITIAL_RECONNECT_DELAY = 3000;
  * @async
  * @throws {Error} Lança um erro se a carga inicial de dados do MySQL falhar.
  */
-async function connectToWhatsApp() {
+export async function connectToWhatsApp() {
   logger.info('Iniciando conexão com o WhatsApp...', {
     action: 'connect_init',
     timestamp: new Date().toISOString(),
@@ -42,7 +62,7 @@ async function connectToWhatsApp() {
   });
 
   try {
-    const { findAll } = require('../../database/queries');
+    
     const groups = await findAll('groups_metadata');
     for (const group of groups) {
       let parsedParticipants = [];
@@ -264,7 +284,7 @@ async function handleConnectionUpdate(update, sock) {
 
     try {
       const allGroups = await sock.groupFetchAllParticipating();
-      const { upsert } = require('../../database/queries');
+      
 
       for (const group of Object.values(allGroups)) {
         const participantsData = Array.isArray(group.participants)
@@ -387,7 +407,6 @@ async function handleGroupUpdate(updates, sock) {
   await Promise.all(
     updates.map(async (event) => {
       try {
-        const { upsert, findById } = require('../../database/queries');
         const groupId = event.id;
         const oldData = (await findById('groups_metadata', groupId)) || {};
         const currentData = store.groups[groupId] || {};
@@ -437,7 +456,7 @@ async function handleGroupUpdate(updates, sock) {
  * 🔌 Retorna a instância atual do socket ativo do WhatsApp.
  * @returns {import('@whiskeysockets/baileys').WASocket | null}
  */
-function getActiveSocket() {
+export function getActiveSocket() {
   logger.debug('🔍 Recuperando instância do socket ativo.', {
     action: 'get_active_socket',
     socketExists: !!activeSocket,
@@ -451,7 +470,7 @@ function getActiveSocket() {
  * Encerra o socket atual (se existir) para disparar a lógica de reconexão.
  * @async
  */
-async function reconnectToWhatsApp() {
+export async function reconnectToWhatsApp() {
   if (activeSocket && activeSocket.ws?.readyState === WebSocket.OPEN) {
     logger.info('♻️ Forçando fechamento do socket para reconectar...', {
       action: 'force_reconnect',
@@ -467,13 +486,7 @@ async function reconnectToWhatsApp() {
   }
 }
 
-module.exports = {
-  connectToWhatsApp,
-  reconnectToWhatsApp,
-  getActiveSocket,
-};
-
-if (require.main === module) {
+if (process.argv[1] === __filename) {
   logger.info('🚀 Socket Controller iniciado diretamente via CLI.', {
     action: 'module_direct_execution',
     timestamp: new Date().toISOString(),

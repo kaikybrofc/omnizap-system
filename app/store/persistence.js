@@ -1,9 +1,13 @@
-const fs = require('fs');
+import fs from 'node:fs';
+import path from 'node:path';
+import lockfile from 'proper-lockfile';
+import logger from '../utils/logger/loggerModule.js';
+
+import lodash from 'lodash';
+
+const { mergeWith, isArray, unionBy } = lodash;
+
 const fsp = fs.promises;
-const path = require('path');
-const lockfile = require('proper-lockfile');
-const { mergeWith, isArray, unionBy } = require('lodash');
-const logger = require('../utils/logger/loggerModule');
 
 const storePath = path.resolve(process.cwd(), process.env.STORE_PATH || './temp');
 const CHUNK_SIZE = 64 * 1024;
@@ -18,7 +22,7 @@ async function ensureStoreDirectory() {
   }
 }
 
-async function readFromFile(dataType, expectedType = 'object') {
+export async function readFromFile(dataType, expectedType = 'object') {
   await ensureStoreDirectory();
   const filePath = path.join(storePath, `${dataType}.json`);
 
@@ -54,7 +58,7 @@ async function readFromFile(dataType, expectedType = 'object') {
   }
 }
 
-async function writeToFile(dataType, data) {
+export async function writeToFile(dataType, data) {
   if (data === null || data === undefined) {
     logger.warn(`Tentativa de escrever dados nulos ou indefinidos para ${dataType}. Abortando.`);
     return;
@@ -122,5 +126,3 @@ async function writeToFile(dataType, data) {
     }
   }
 }
-
-module.exports = { readFromFile, writeToFile };

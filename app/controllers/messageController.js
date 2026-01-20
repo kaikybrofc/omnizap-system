@@ -1,11 +1,12 @@
-require('dotenv').config();
-const { handleMenuCommand } = require('../modules/menuModule/menus');
-const { handleAdminCommand, isAdminCommand } = require('../modules/adminModule/groupCommandHandlers');
-const { processSticker } = require('../modules/stickerModule/stickerCommand');
-const { getExpiration } = require('../config/baileysConfig');
-const dataStore = require('../store/dataStore');
-const logger = require('../utils/logger/loggerModule');
-const { handleAntiLink } = require('../utils/antiLink/antiLinkModule');
+import 'dotenv/config';
+
+import { handleMenuCommand } from '../modules/menuModule/menus.js';
+import { handleAdminCommand, isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
+import { processSticker } from '../modules/stickerModule/stickerCommand.js';
+import { getExpiration } from '../config/baileysConfig.js';
+import logger from '../utils/logger/loggerModule.js';
+import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
+
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
 /**
@@ -13,7 +14,7 @@ const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
  * @param {Object} messageInfo
  * @returns {string}
  */
-const extractMessageContent = ({ message }) => {
+export const extractMessageContent = ({ message }) => {
   if (!message) return 'Mensagem vazia';
 
   const text = message.conversation?.trim() || message.extendedTextMessage?.text;
@@ -49,7 +50,7 @@ const extractMessageContent = ({ message }) => {
  *
  * @param {Object} update - Objeto contendo a atualização do WhatsApp.
  */
-const handleMessages = async (update, sock) => {
+export const handleMessages = async (update, sock) => {
   if (update.messages && Array.isArray(update.messages)) {
     try {
       for (const messageInfo of update.messages) {
@@ -150,9 +151,4 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
       eventData: update,
     });
   }
-};
-
-module.exports = {
-  handleMessages,
-  extractMessageContent,
 };

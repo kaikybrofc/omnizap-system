@@ -1,14 +1,15 @@
-const fs = require('fs').promises;
-const path = require('path');
-const logger = require('../../utils/logger/loggerModule');
-const { downloadMediaMessage } = require('../../config/baileysConfig');
-const { addStickerMetadata } = require('./addStickerMetadata');
-const { convertToWebp } = require('./convertToWebp');
-const { v4: uuidv4 } = require('uuid');
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import logger from '../../utils/logger/loggerModule.js';
+import { downloadMediaMessage } from '../../config/baileysConfig.js';
+import { addStickerMetadata } from './addStickerMetadata.js';
+import { convertToWebp } from './convertToWebp.js';
+import { v4 as uuidv4 } from 'uuid';
+
 const adminJid = process.env.USER_ADMIN;
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
-const MAX_FILE_SIZE = 2 * 1024 * 1024;
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
 /**
  * Garante que o diretório temporário do usuário para stickers existe.
@@ -123,7 +124,7 @@ function parseStickerMetaText(text, senderName) {
  * @param {string} remoteJid - JID do chat remoto.
  * @returns {Promise<void>}
  */
-async function processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, extraText = '') {
+export async function processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, extraText = '') {
   const uniqueId = uuidv4();
 
   let tempMediaPath = null;
@@ -249,11 +250,3 @@ async function processSticker(sock, messageInfo, senderJid, remoteJid, expiratio
     }
   }
 }
-
-/**
- * Exporta a função principal de processamento de sticker.
- * @type {{ processSticker: function }}
- */
-module.exports = {
-  processSticker,
-};

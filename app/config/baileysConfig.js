@@ -1,8 +1,12 @@
-const { fetchLatestBaileysVersion, downloadContentFromMessage } = require('@whiskeysockets/baileys');
+import {
+  fetchLatestBaileysVersion,
+  downloadContentFromMessage
+} from '@whiskeysockets/baileys';
 
-const logger = require('../utils/logger/loggerModule');
-const fs = require('fs');
-const path = require('path');
+import logger from '../utils/logger/loggerModule.js';
+import fs from 'node:fs';
+import path from 'node:path';
+
 
 const DEFAULT_BAILEYS_VERSION = [7, 0, 0];
 
@@ -10,7 +14,7 @@ const DEFAULT_BAILEYS_VERSION = [7, 0, 0];
  * Tipos de midia conhecidos do Baileys
  * Mapeamento de sufixos de mensagem para tipos de midia
  */
-const MEDIA_TYPE_MAPPING = {
+export const MEDIA_TYPE_MAPPING = {
   imageMessage: 'image',
   videoMessage: 'video',
   audioMessage: 'audio',
@@ -51,7 +55,7 @@ const MEDIA_TYPE_MAPPING = {
 /**
  * Tipos de midia que contem conteudo binario/arquivo
  */
-const BINARY_MEDIA_TYPES = new Set(['image', 'video', 'audio', 'voice', 'document', 'sticker']);
+export const BINARY_MEDIA_TYPES = new Set(['image', 'video', 'audio', 'voice', 'document', 'sticker']);
 
 function parseBaileysVersion(rawVersion) {
   if (!rawVersion) {
@@ -68,7 +72,7 @@ function parseBaileysVersion(rawVersion) {
   return parts.slice(0, 3);
 }
 
-async function resolveBaileysVersion() {
+export async function resolveBaileysVersion() {
   const envVersion = parseBaileysVersion(process.env.BAILEYS_VERSION);
   if (envVersion) {
     return envVersion;
@@ -99,7 +103,7 @@ async function resolveBaileysVersion() {
  * @param {object} info - Objeto da mensagem recebido via Baileys.
  * @returns {number} Timestamp de expiração (em segundos).
  */
-function getExpiration(sock) {
+export function getExpiration(sock) {
   const DEFAULT_EXPIRATION_SECONDS = 24 * 60 * 60;
 
   if (!sock || typeof sock !== 'object' || !sock.message) {
@@ -145,7 +149,7 @@ function getExpiration(sock) {
  * @param {string} outputPath - The directory where the media should be saved.
  * @returns {Promise<string|null>} The path to the downloaded file, or null if download fails.
  */
-const downloadMediaMessage = async (message, type, outputPath) => {
+export const downloadMediaMessage = async (message, type, outputPath) => {
   try {
     let buffer = Buffer.from([]);
     const stream = await downloadContentFromMessage(message, type);
@@ -173,7 +177,7 @@ const downloadMediaMessage = async (message, type, outputPath) => {
  * @param {boolean} isQuoted - Se e de uma mensagem citada
  * @returns {Array} Array de objetos com detalhes da midia encontrada
  */
-function detectAllMediaTypes(messageContent, isQuoted = false) {
+export function detectAllMediaTypes(messageContent, isQuoted = false) {
   if (!messageContent || typeof messageContent !== 'object') {
     return [];
   }
@@ -233,7 +237,7 @@ function detectAllMediaTypes(messageContent, isQuoted = false) {
  * @param {boolean} options.includeUnknown - Se deve incluir tipos desconhecidos
  * @returns {{mediaType: string, mediaKey: object, details: object}|null} - Detalhes da midia ou null se nao encontrada
  */
-function extractMediaDetails(message, options = {}) {
+export function extractMediaDetails(message, options = {}) {
   const { includeAllTypes = false, includeQuoted = true, includeUnknown = false } = options;
 
   if (!message || !message.message) {
@@ -292,7 +296,7 @@ function extractMediaDetails(message, options = {}) {
  * @param {object} options - Opcoes de configuracao
  * @returns {Array} Array com todos os tipos de midia encontrados
  */
-function extractAllMediaDetails(message, options = {}) {
+export function extractAllMediaDetails(message, options = {}) {
   const { includeAllTypes = true, includeQuoted = true, includeUnknown = true } = options;
 
   if (!message || !message.message) {
@@ -330,7 +334,7 @@ function extractAllMediaDetails(message, options = {}) {
  * @param {string} specificType - Tipo especifico para verificar (opcional)
  * @returns {boolean} True se contem midia
  */
-function hasMedia(message, specificType = null) {
+export function hasMedia(message, specificType = null) {
   const mediaDetails = extractMediaDetails(message, { includeAllTypes: true, includeUnknown: true });
 
   if (!mediaDetails) {
@@ -349,7 +353,7 @@ function hasMedia(message, specificType = null) {
  * Obtem informacoes sobre os tipos de midia suportados
  * @returns {object} Informacoes sobre tipos de midia
  */
-function getMediaTypeInfo() {
+export function getMediaTypeInfo() {
   return {
     knownTypes: Object.values(MEDIA_TYPE_MAPPING),
     binaryTypes: Array.from(BINARY_MEDIA_TYPES),
@@ -357,16 +361,3 @@ function getMediaTypeInfo() {
     totalKnownTypes: Object.keys(MEDIA_TYPE_MAPPING).length,
   };
 }
-
-module.exports = {
-  downloadMediaMessage,
-  extractAllMediaDetails,
-  extractMediaDetails,
-  detectAllMediaTypes,
-  getMediaTypeInfo,
-  getExpiration,
-  hasMedia,
-  MEDIA_TYPE_MAPPING,
-  BINARY_MEDIA_TYPES,
-  resolveBaileysVersion,
-};

@@ -1,10 +1,11 @@
-const groupConfigStore = require('../../store/groupConfigStore');
-const store = require('../../store/dataStore');
-const logger = require('../../utils/logger/loggerModule');
-const groupUtils = require('../../config/groupUtils');
-const fs = require('fs');
-const path = require('path');
-const moment = require('moment-timezone');
+import groupConfigStore from '../../store/groupConfigStore.js';
+import store from '../../store/dataStore.js';
+import logger from '../../utils/logger/loggerModule.js';
+import {getGroupMetadata, getGroupInviteCode} from '../../config/groupUtils.js';
+
+import fs from 'node:fs';
+import path from 'node:path';
+import moment from 'moment-timezone';
 
 const replacePlaceholders = async (message, sock, groupId) => {
   logger.debug('Iniciando substituição de placeholders para a mensagem.', { groupId });
@@ -12,7 +13,7 @@ const replacePlaceholders = async (message, sock, groupId) => {
   const mentions = [];
 
   try {
-    const metadata = await groupUtils.getGroupMetadata(sock, groupId);
+    const metadata = await getGroupMetadata(sock, groupId);
     logger.debug('Metadados do grupo obtidos para substituição de placeholders.', {
       groupId,
       subject: metadata.subject,
@@ -67,7 +68,7 @@ const replacePlaceholders = async (message, sock, groupId) => {
 
     if (updatedMessage.includes('@invitecode')) {
       try {
-        const inviteCode = await groupUtils.getGroupInviteCode(sock, groupId);
+        const inviteCode = await getGroupInviteCode(sock, groupId);
         updatedMessage = updatedMessage.replace(/@invitecode/g, inviteCode);
       } catch (e) {
         logger.warn(
@@ -101,7 +102,7 @@ const replacePlaceholders = async (message, sock, groupId) => {
   return { updatedMessage, mentions };
 };
 
-const handleGroupUpdate = async (sock, groupId, participants, action) => {
+export const handleGroupUpdate = async (sock, groupId, participants, action) => {
   logger.debug('Iniciando tratamento de evento de atualização de grupo.', {
     groupId,
     participants,
@@ -239,8 +240,4 @@ const handleGroupUpdate = async (sock, groupId, participants, action) => {
       error,
     });
   }
-};
-
-module.exports = {
-  handleGroupUpdate,
 };

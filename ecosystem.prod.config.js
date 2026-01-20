@@ -1,8 +1,8 @@
-require('dotenv').config();
+import 'dotenv/config';
 
 const appName = process.env.PM2_APP_NAME || 'omnizap-system';
 
-module.exports = {
+export default {
   apps: [
     {
       name: `${appName}-prod`,

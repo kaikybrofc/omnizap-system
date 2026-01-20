@@ -1,7 +1,8 @@
-require('dotenv').config();
-const logger = require('./app/utils/logger/loggerModule');
-const { connectToWhatsApp, getActiveSocket } = require('./app/connection/socketController');
-const initializeDatabase = require('./database/init');
+import 'dotenv/config';
+
+import logger from './app/utils/logger/loggerModule.js';
+import { connectToWhatsApp, getActiveSocket } from './app/connection/socketController.js';
+import initializeDatabase from './database/init.js';
 
 async function startApp() {
   try {
