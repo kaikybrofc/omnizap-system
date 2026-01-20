@@ -1,10 +1,6 @@
 import http from 'node:http';
 import https from 'node:https';
-import fs from 'node:fs/promises';
-import { createWriteStream } from 'node:fs';
-import path from 'node:path';
 import { URL } from 'node:url';
-import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import logger from '../../utils/logger/loggerModule.js';
 
@@ -24,40 +20,10 @@ const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '100', 10);
 const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB)
   ? MAX_MEDIA_MB * 1024 * 1024
   : 100 * 1024 * 1024;
-const CONVERT_TIMEOUT_MS = 300000;
-const TEMP_DIR = path.join(process.cwd(), 'temp', 'play');
-const REQUESTS_DIR = path.join(TEMP_DIR, 'requests');
-const CACHE_TTL_MIN = Number.parseInt(process.env.PLAY_CACHE_TTL_MIN || '60', 10);
-const CACHE_TTL_MS = Number.isFinite(CACHE_TTL_MIN) ? CACHE_TTL_MIN * 60 * 1000 : 60 * 60 * 1000;
-const MAX_DOWNLOADS = Number.parseInt(process.env.PLAY_MAX_DOWNLOADS || '2', 10);
-const MAX_FFMPEG = Number.parseInt(process.env.PLAY_MAX_FFMPEG || '1', 10);
-const DOWNLOAD_DELAY_MS = Number.parseInt(process.env.PLAY_DOWNLOAD_DELAY_MS || '0', 10);
-const CACHE_DIR = path.join(TEMP_DIR, 'cache');
-const inFlightCache = new Map();
-let nextDownloadAt = 0;
-let downloadDelayChain = Promise.resolve();
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const waitForDownloadDelay = async () => {
-  if (!DOWNLOAD_DELAY_MS || DOWNLOAD_DELAY_MS <= 0) return;
-  let release;
-  const previous = downloadDelayChain;
-  downloadDelayChain = new Promise((resolve) => {
-    release = resolve;
-  });
-  await previous;
-  try {
-    const now = Date.now();
-    const waitMs = Math.max(0, nextDownloadAt - now);
-    if (waitMs > 0) {
-      await sleep(waitMs);
-    }
-    nextDownloadAt = Date.now() + DOWNLOAD_DELAY_MS;
-  } finally {
-    release();
-  }
-};
+const QUEUE_STATUS_TIMEOUT_MS = Number.parseInt(
+  process.env.PLAY_QUEUE_STATUS_TIMEOUT_MS || '8000',
+  10,
+);
 
 /**
  * Faz requisicao HTTP e retorna JSON parseado.
@@ -117,49 +83,6 @@ const requestJson = (method, url, body, timeoutMs = DEFAULT_TIMEOUT_MS) =>
   });
 
 /**
- * Controle simples de concorrencia para execucao de tarefas.
- */
-class Semaphore {
-  constructor(limit) {
-    this.limit = Math.max(1, Number.isFinite(limit) ? limit : 1);
-    this.active = 0;
-    this.queue = [];
-  }
-
-  /**
-   * Executa a tarefa respeitando o limite de concorrencia.
-   * @template T
-   * @param {() => Promise<T>} task
-   * @returns {Promise<T>}
-   */
-  run(task) {
-    return new Promise((resolve, reject) => {
-      const execute = async () => {
-        this.active += 1;
-        try {
-          resolve(await task());
-        } catch (error) {
-          reject(error);
-        } finally {
-          this.active -= 1;
-          const next = this.queue.shift();
-          if (next) next();
-        }
-      };
-
-      if (this.active < this.limit) {
-        execute();
-      } else {
-        this.queue.push(execute);
-      }
-    });
-  }
-}
-
-const downloadSemaphore = new Semaphore(MAX_DOWNLOADS);
-const ffmpegSemaphore = new Semaphore(MAX_FFMPEG);
-
-/**
  * Gera um identificador unico para requests.
  * @returns {string}
  */
@@ -169,318 +92,6 @@ const buildRequestId = () => {
   }
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
-
-/**
- * Cria chave de cache baseada no tipo e link.
- * @param {string} type
- * @param {string} link
- * @returns {string}
- */
-const buildCacheKey = (type, link) => {
-  const hash = crypto.createHash('sha1');
-  hash.update(`${type}:${link}`);
-  return hash.digest('hex');
-};
-
-/**
- * Garante que o diretorio de cache exista.
- * @returns {Promise<void>}
- */
-const ensureCacheDir = async () => {
-  await fs.mkdir(CACHE_DIR, { recursive: true });
-};
-
-/**
- * Le um item do cache, se valido.
- * @param {string} cacheKey
- * @param {'audio'|'video'} type
- * @returns {Promise<{buffer: Buffer, videoInfo: object|null} | null>}
- */
-const readCache = async (cacheKey, type) => {
-  if (!CACHE_TTL_MS || CACHE_TTL_MS <= 0) return null;
-  await ensureCacheDir();
-  const ext = type === 'audio' ? '.mp3' : '.mp4';
-  const mediaPath = path.join(CACHE_DIR, `${cacheKey}${ext}`);
-  const metaPath = path.join(CACHE_DIR, `${cacheKey}.json`);
-  try {
-    const metaRaw = await fs.readFile(metaPath, 'utf-8');
-    const meta = JSON.parse(metaRaw);
-    if (!meta?.createdAt || Date.now() - meta.createdAt > CACHE_TTL_MS) {
-      await Promise.allSettled([
-        fs.rm(mediaPath, { force: true }),
-        fs.rm(metaPath, { force: true }),
-      ]);
-      return null;
-    }
-    const buffer = await fs.readFile(mediaPath);
-    return { buffer, videoInfo: meta.videoInfo || null };
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Grava midia e metadados no cache.
- * @param {string} cacheKey
- * @param {'audio'|'video'} type
- * @param {Buffer} buffer
- * @param {object|null} videoInfo
- * @returns {Promise<void>}
- */
-const writeCache = async (cacheKey, type, buffer, videoInfo) => {
-  if (!CACHE_TTL_MS || CACHE_TTL_MS <= 0) return;
-  await ensureCacheDir();
-  const ext = type === 'audio' ? '.mp3' : '.mp4';
-  const mediaPath = path.join(CACHE_DIR, `${cacheKey}${ext}`);
-  const metaPath = path.join(CACHE_DIR, `${cacheKey}.json`);
-  const meta = { createdAt: Date.now(), videoInfo: videoInfo || null };
-  await fs.writeFile(mediaPath, buffer);
-  await fs.writeFile(metaPath, JSON.stringify(meta));
-};
-
-/**
- * Executa o FFmpeg com timeout.
- * @param {string[]} args
- * @param {number} [timeoutMs]
- * @returns {Promise<void>}
- */
-const runFfmpeg = async (args, timeoutMs = CONVERT_TIMEOUT_MS) =>
-  new Promise((resolve, reject) => {
-    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
-    let stderr = '';
-    let finished = false;
-
-    const timer = setTimeout(() => {
-      if (finished) return;
-      finished = true;
-      proc.kill('SIGKILL');
-      const error = new Error('FFmpeg excedeu o tempo limite.');
-      error.stderr = stderr;
-      reject(error);
-    }, timeoutMs);
-
-    proc.stderr.on('data', (chunk) => {
-      if (stderr.length < 8000) {
-        stderr += chunk.toString();
-      }
-    });
-
-    proc.on('error', (error) => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      reject(error);
-    });
-
-    proc.on('close', (code) => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      if (code === 0) {
-        resolve();
-      } else {
-        const error = new Error(`FFmpeg saiu com codigo ${code}.`);
-        error.stderr = stderr;
-        reject(error);
-      }
-    });
-  });
-
-/**
- * Normaliza URL de streaming com base no host da API.
- * @param {string|null} streamUrl
- * @param {string} baseUrl
- * @returns {string|null}
- */
-const normalizeStreamUrl = (streamUrl, baseUrl) => {
-  if (!streamUrl) return null;
-  if (!baseUrl) return streamUrl;
-  try {
-    const original = new URL(streamUrl, baseUrl);
-    const base = new URL(baseUrl);
-    original.protocol = base.protocol;
-    original.host = base.host;
-    return original.toString();
-  } catch {
-    return streamUrl;
-  }
-};
-
-/**
- * Faz download de um arquivo para disco com limite de tamanho.
- * @param {string} url
- * @param {string} destinationPath
- * @param {number} [maxBytes]
- * @param {number} [timeoutMs]
- * @returns {Promise<{contentType: string, fileName: string}>}
- */
-const downloadToFile = (
-  url,
-  destinationPath,
-  maxBytes = MAX_MEDIA_BYTES,
-  timeoutMs = DEFAULT_TIMEOUT_MS,
-) =>
-  new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    const httpModule = urlObj.protocol === 'https:' ? https : http;
-    const req = httpModule.request(urlObj, { method: 'GET', timeout: timeoutMs }, (res) => {
-      if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
-        reject(new Error(`Falha ao baixar o arquivo (HTTP ${res.statusCode}).`));
-        res.resume();
-        return;
-      }
-
-      const contentLength = Number(res.headers['content-length']);
-      if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-        reject(new Error('Arquivo excede o limite de tamanho permitido.'));
-        res.resume();
-        return;
-      }
-
-      const contentType = res.headers['content-type'] || '';
-      const disposition = res.headers['content-disposition'] || '';
-      const fileNameMatch = /filename="([^"]+)"/i.exec(disposition);
-      const fileName = fileNameMatch ? fileNameMatch[1] : '';
-      const fileStream = createWriteStream(destinationPath);
-      let total = 0;
-
-      res.on('data', (chunk) => {
-        total += chunk.length;
-        if (total > maxBytes) {
-          req.destroy(new Error('Arquivo excede o limite de tamanho permitido.'));
-          return;
-        }
-      });
-
-      res.pipe(fileStream);
-
-      fileStream.on('finish', () => resolve({ contentType, fileName }));
-      fileStream.on('error', reject);
-    });
-
-    req.on('error', reject);
-    req.on('timeout', () => {
-      req.destroy(new Error('Timeout ao baixar o arquivo.'));
-    });
-    req.end();
-  });
-
-/**
- * Resolve extensao de arquivo pelo content-type.
- * @param {string} contentType
- * @returns {string}
- */
-const getExtensionFromType = (contentType) => {
-  const lower = (contentType || '').toLowerCase();
-  if (lower.includes('audio/mpeg') || lower.includes('audio/mp3')) return '.mp3';
-  if (lower.includes('audio/mp4') || lower.includes('audio/x-m4a')) return '.m4a';
-  if (lower.includes('audio/ogg')) return '.ogg';
-  if (lower.includes('audio/aac')) return '.aac';
-  if (lower.includes('video/mp4')) return '.mp4';
-  if (lower.includes('video/webm')) return '.webm';
-  if (lower.includes('video/quicktime')) return '.mov';
-  return '.bin';
-};
-
-/**
- * Le arquivo convertido e valida o tamanho.
- * @param {string} filePath
- * @returns {Promise<Buffer>}
- */
-const readAndValidateOutput = async (filePath) => {
-  const stat = await fs.stat(filePath);
-  if (stat.size > MAX_MEDIA_BYTES) {
-    throw new Error('Arquivo convertido excede o limite de tamanho permitido.');
-  }
-  return fs.readFile(filePath);
-};
-
-/**
- * Converte um arquivo para MP3 e retorna o buffer.
- * @param {string} inputPath
- * @param {string} requestDir
- * @returns {Promise<Buffer>}
- */
-const convertToMp3Buffer = async (inputPath, requestDir) =>
-  ffmpegSemaphore.run(async () => {
-    const outputPath = path.join(
-      requestDir || TEMP_DIR,
-      `audio_${Date.now()}_${Math.random().toString(16).slice(2)}.mp3`,
-    );
-    try {
-      const args = [
-        '-y',
-        '-i',
-        inputPath,
-        '-vn',
-        '-acodec',
-        'libmp3lame',
-        '-b:a',
-        '128k',
-        '-ar',
-        '44100',
-        '-ac',
-        '2',
-        outputPath,
-      ];
-      await runFfmpeg(args);
-      return await readAndValidateOutput(outputPath);
-    } catch (error) {
-      logger.error('Erro ao converter audio:', error?.stderr || error);
-      throw new Error('Falha ao converter audio para MP3.');
-    } finally {
-      await Promise.allSettled([fs.unlink(inputPath), fs.unlink(outputPath)]);
-    }
-  });
-
-/**
- * Converte um arquivo para MP4 e retorna o buffer.
- * @param {string} inputPath
- * @param {string} requestDir
- * @returns {Promise<Buffer>}
- */
-const convertToMp4Buffer = async (inputPath, requestDir) =>
-  ffmpegSemaphore.run(async () => {
-    const outputPath = path.join(
-      requestDir || TEMP_DIR,
-      `video_${Date.now()}_${Math.random().toString(16).slice(2)}.mp4`,
-    );
-    try {
-      const args = [
-        '-y',
-        '-i',
-        inputPath,
-        '-vf',
-        "scale='min(1280,iw)':-2",
-        '-preset',
-        'veryfast',
-        '-crf',
-        '28',
-        '-c:v',
-        'libx264',
-        '-profile:v',
-        'baseline',
-        '-level',
-        '3.1',
-        '-pix_fmt',
-        'yuv420p',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '128k',
-        '-movflags',
-        '+faststart',
-        outputPath,
-      ];
-      await runFfmpeg(args);
-      return await readAndValidateOutput(outputPath);
-    } catch (error) {
-      logger.error('Erro ao converter video:', error?.stderr || error);
-      throw new Error('Falha ao converter video para MP4.');
-    } finally {
-      await Promise.allSettled([fs.unlink(inputPath), fs.unlink(outputPath)]);
-    }
-  });
 
 /**
  * Resolve um termo de busca para URL do YouTube.
@@ -509,6 +120,33 @@ const resolveYoutubeLink = async (query) => {
 };
 
 /**
+ * Busca metadados basicos do video pela API de busca.
+ * @param {string} query
+ * @param {string} fallback
+ * @returns {Promise<object|null>}
+ */
+const fetchVideoInfo = async (query, fallback) => {
+  const tryQuery = async (value) => {
+    if (!value) return null;
+    const searchUrl = `${YTDLS_BASE_URL}/search?q=${encodeURIComponent(value)}`;
+    const result = await requestJson('GET', searchUrl);
+    if (!result?.sucesso || !result?.resultado) return null;
+    return result.resultado;
+  };
+
+  try {
+    const first = await tryQuery(query);
+    if (first) return first;
+  } catch {}
+
+  try {
+    return await tryQuery(fallback);
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Formata informacoes do video para exibir ao usuario.
  * @param {object|null} videoInfo
  * @returns {string|null}
@@ -527,83 +165,127 @@ const formatVideoInfo = (videoInfo) => {
 };
 
 /**
- * Solicita download para a API yt-dls.
- * @param {string} link
- * @param {'audio'|'video'} type
+ * Busca status da fila para um requestId.
  * @param {string} requestId
- * @returns {Promise<{streamUrl: string, videoInfo: object|null}>}
+ * @returns {Promise<object|null>}
  */
-const requestDownload = async (link, type, requestId) => {
-  const downloadUrl = `${YTDLS_BASE_URL}/download`;
-  const downloadResult = await requestJson('POST', downloadUrl, {
-    link,
-    type,
-    request_id: requestId,
-  }, DOWNLOAD_API_TIMEOUT_MS);
-  if (!downloadResult?.sucesso) {
-    throw new Error(downloadResult?.mensagem || 'Falha ao baixar a midia.');
+const fetchQueueStatus = async (requestId) => {
+  if (!requestId) return null;
+  const queueUrl = `${YTDLS_BASE_URL}/download/queue-status/${encodeURIComponent(requestId)}`;
+  try {
+    const result = await requestJson('GET', queueUrl, null, QUEUE_STATUS_TIMEOUT_MS);
+    if (!result?.sucesso || !result?.fila) return null;
+    return result;
+  } catch {
+    return null;
   }
-  const streamUrl = normalizeStreamUrl(downloadResult.stream_url, YTDLS_BASE_URL);
-  if (!streamUrl) {
-    throw new Error('URL de streaming nao retornada pela API.');
-  }
-  return { streamUrl, videoInfo: downloadResult.video_info };
 };
 
 /**
- * Busca midia usando cache e controle de concorrencia.
+ * Formata a mensagem de fila quando disponivel.
+ * @param {object|null} status
+ * @returns {string|null}
+ */
+const buildQueueStatusText = (status) => {
+  if (!status?.fila) return;
+
+  const fila = status.fila;
+  const downloadsAhead = Number.isFinite(fila.downloads_a_frente)
+    ? fila.downloads_a_frente
+    : null;
+  const position = Number.isFinite(fila.posicao_na_fila) ? fila.posicao_na_fila : null;
+  const totalQueued = Number.isFinite(fila.enfileirados) ? fila.enfileirados : null;
+
+  if (downloadsAhead === null && position === null && totalQueued === null) return null;
+
+  const parts = [];
+  if (position !== null) parts.push(`posicao na fila: ${position}`);
+  if (downloadsAhead !== null) parts.push(`downloads a frente: ${downloadsAhead}`);
+  if (totalQueued !== null) parts.push(`na fila: ${totalQueued}`);
+
+  if (!parts.length) return null;
+  return parts.join(' | ');
+};
+
+/**
+ * Faz o download direto na API yt-dls e retorna o buffer.
  * @param {string} link
  * @param {'audio'|'video'} type
- * @returns {Promise<{buffer: Buffer, videoInfo: object|null}>}
+ * @param {string} requestId
+ * @returns {Promise<{buffer: Buffer, contentType: string}>}
  */
-const fetchMediaWithCache = async (link, type) => {
-  const cacheKey = buildCacheKey(type, link);
-  const cached = await readCache(cacheKey, type);
-  if (cached) {
-    return cached;
-  }
+const requestDownloadBuffer = (link, type, requestId) =>
+  new Promise((resolve, reject) => {
+    const downloadUrl = `${YTDLS_BASE_URL}/download`;
+    const urlObj = new URL(downloadUrl);
+    const payload = JSON.stringify({ link, type, request_id: requestId });
+    const httpModule = urlObj.protocol === 'https:' ? https : http;
+    const headers = {
+      Accept: '*/*',
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+    };
 
-  if (inFlightCache.has(cacheKey)) {
-    return inFlightCache.get(cacheKey);
-  }
+    const req = httpModule.request(
+      urlObj,
+      {
+        method: 'POST',
+        headers,
+        timeout: DOWNLOAD_API_TIMEOUT_MS,
+      },
+      (res) => {
+        const status = res.statusCode || 0;
+        const contentType = res.headers['content-type'] || '';
+        const contentLength = Number(res.headers['content-length']);
 
-  const promise = (async () => {
-    const requestId = buildRequestId();
-    const requestDir = path.join(REQUESTS_DIR, requestId);
-    await fs.mkdir(requestDir, { recursive: true });
-    try {
-      const { streamUrl, videoInfo } = await requestDownload(link, type, requestId);
-      const inputBasePath = path.join(requestDir, 'input');
-      const downloadMeta = await downloadSemaphore.run(async () => {
-        await waitForDownloadDelay();
-        return downloadToFile(streamUrl, inputBasePath);
-      });
-      const guessedExt = downloadMeta.fileName
-        ? path.extname(downloadMeta.fileName)
-        : getExtensionFromType(downloadMeta.contentType);
-      const inputPath =
-        guessedExt && guessedExt !== '.bin' ? `${inputBasePath}${guessedExt}` : inputBasePath;
-      if (inputPath !== inputBasePath) {
-        await fs.rename(inputBasePath, inputPath);
-      }
-      const converted =
-        type === 'audio'
-          ? await convertToMp3Buffer(inputPath, requestDir)
-          : await convertToMp4Buffer(inputPath, requestDir);
-      await writeCache(cacheKey, type, converted, videoInfo);
-      return { buffer: converted, videoInfo };
-    } finally {
-      await fs.rm(requestDir, { recursive: true, force: true });
-    }
-  })();
+        if (Number.isFinite(contentLength) && contentLength > MAX_MEDIA_BYTES) {
+          req.destroy(new Error('Arquivo excede o limite de tamanho permitido.'));
+          res.resume();
+          return;
+        }
 
-  inFlightCache.set(cacheKey, promise);
-  try {
-    return await promise;
-  } finally {
-    inFlightCache.delete(cacheKey);
-  }
-};
+        if (status < 200 || status >= 300) {
+          const chunks = [];
+          res.on('data', (chunk) => chunks.push(chunk));
+          res.on('end', () => {
+            const raw = Buffer.concat(chunks).toString('utf-8');
+            try {
+              const parsed = raw ? JSON.parse(raw) : null;
+              reject(new Error(parsed?.mensagem || `Falha na API yt-dls (HTTP ${status}).`));
+            } catch {
+              reject(new Error(`Falha na API yt-dls (HTTP ${status}).`));
+            }
+          });
+          return;
+        }
+
+        const chunks = [];
+        let total = 0;
+        res.on('data', (chunk) => {
+          total += chunk.length;
+          if (total > MAX_MEDIA_BYTES) {
+            req.destroy(new Error('Arquivo excede o limite de tamanho permitido.'));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        res.on('end', () => {
+          resolve({
+            buffer: Buffer.concat(chunks),
+            contentType: contentType || (type === 'audio' ? 'audio/mpeg' : 'video/mp4'),
+          });
+        });
+      },
+    );
+
+    req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy(new Error('Timeout ao comunicar com a API yt-dls.'));
+    });
+
+    req.write(payload);
+    req.end();
+  });
 
 /**
  * Notifica o usuario e o admin sobre falhas do comando.
@@ -649,30 +331,42 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
       return;
     }
 
+    const link = await resolveYoutubeLink(text);
+    const requestId = buildRequestId();
+    const downloadPromise = requestDownloadBuffer(link, 'audio', requestId);
+    const queueStatus = await fetchQueueStatus(requestId);
+    const queueText = buildQueueStatusText(queueStatus);
+    const waitText = queueText
+      ? `⏳ Aguarde, estamos preparando o audio... (${queueText})`
+      : '⏳ Aguarde, estamos preparando o audio...';
     await sock.sendMessage(
       remoteJid,
-      { text: '⏳ Aguarde, estamos preparando o audio...' },
+      { text: waitText },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
 
-    const link = await resolveYoutubeLink(text);
-    const { buffer: convertedAudio, videoInfo } = await fetchMediaWithCache(link, 'audio');
-    const infoText = formatVideoInfo(videoInfo) || '🎵 Informacoes do audio indisponiveis.';
-    const infoMessage = await sock.sendMessage(
-      remoteJid,
-      { text: infoText },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
-    const quotedInfo = infoMessage?.message ? infoMessage : messageInfo;
+    const [downloadResult, videoInfo] = await Promise.all([
+      downloadPromise,
+      fetchVideoInfo(text, link),
+    ]);
+    const { buffer: convertedAudio, contentType } = downloadResult;
+    const infoText = formatVideoInfo(videoInfo);
+    if (infoText) {
+      await sock.sendMessage(
+        remoteJid,
+        { text: infoText },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+    }
 
     await sock.sendMessage(
       remoteJid,
       {
         audio: convertedAudio,
-        mimetype: 'audio/mpeg',
+        mimetype: contentType || 'audio/mpeg',
         ptt: false,
       },
-      { quoted: quotedInfo, ephemeralExpiration: expirationMessage },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
     logger.error('Erro ao processar comando /play:', error);
@@ -706,21 +400,33 @@ export const handlePlayVidCommand = async (
       return;
     }
 
+    const link = await resolveYoutubeLink(text);
+    const requestId = buildRequestId();
+    const downloadPromise = requestDownloadBuffer(link, 'video', requestId);
+    const queueStatus = await fetchQueueStatus(requestId);
+    const queueText = buildQueueStatusText(queueStatus);
+    const waitText = queueText
+      ? `⏳ Aguarde, estamos preparando o video... (${queueText})`
+      : '⏳ Aguarde, estamos preparando o video...';
     await sock.sendMessage(
       remoteJid,
-      { text: '⏳ Aguarde, estamos preparando o video...' },
+      { text: waitText },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
 
-    const link = await resolveYoutubeLink(text);
-    const { buffer: convertedVideo, videoInfo } = await fetchMediaWithCache(link, 'video');
+    const [downloadResult, videoInfo] = await Promise.all([
+      downloadPromise,
+      fetchVideoInfo(text, link),
+    ]);
+    const { buffer: convertedVideo, contentType } = downloadResult;
     const infoText = formatVideoInfo(videoInfo);
     const caption = infoText ? `🎬 Video pronto!\n${infoText}` : '🎬 Video pronto!';
+
     await sock.sendMessage(
       remoteJid,
       {
         video: convertedVideo,
-        mimetype: 'video/mp4',
+        mimetype: contentType || 'video/mp4',
         caption,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
