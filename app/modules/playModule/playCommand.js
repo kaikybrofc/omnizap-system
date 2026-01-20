@@ -3,8 +3,7 @@ import https from 'node:https';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URL } from 'node:url';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import logger from '../../utils/logger/loggerModule.js';
 
@@ -16,7 +15,6 @@ const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '100', 10);
 const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB * 1024 * 1024 : 100 * 1024 * 1024;
 const CONVERT_TIMEOUT_MS = 300000;
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'play');
-const execProm = promisify(exec);
 const CACHE_TTL_MIN = Number.parseInt(process.env.PLAY_CACHE_TTL_MIN || '60', 10);
 const CACHE_TTL_MS = Number.isFinite(CACHE_TTL_MIN) ? CACHE_TTL_MIN * 60 * 1000 : 60 * 60 * 1000;
 const MAX_DOWNLOADS = Number.parseInt(process.env.PLAY_MAX_DOWNLOADS || '2', 10);
@@ -153,6 +151,48 @@ const writeCache = async (cacheKey, type, buffer, videoInfo) => {
   await fs.writeFile(metaPath, JSON.stringify(meta));
 };
 
+const runFfmpeg = async (args, timeoutMs = CONVERT_TIMEOUT_MS) =>
+  new Promise((resolve, reject) => {
+    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    let finished = false;
+
+    const timer = setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      proc.kill('SIGKILL');
+      const error = new Error('FFmpeg excedeu o tempo limite.');
+      error.stderr = stderr;
+      reject(error);
+    }, timeoutMs);
+
+    proc.stderr.on('data', (chunk) => {
+      if (stderr.length < 8000) {
+        stderr += chunk.toString();
+      }
+    });
+
+    proc.on('error', (error) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+
+    proc.on('close', (code) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve();
+      } else {
+        const error = new Error(`FFmpeg saiu com codigo ${code}.`);
+        error.stderr = stderr;
+        reject(error);
+      }
+    });
+  });
+
 const normalizeStreamUrl = (streamUrl, baseUrl) => {
   if (!streamUrl) return null;
   if (!baseUrl) return streamUrl;
@@ -255,8 +295,8 @@ const convertToMp3Buffer = async (buffer, contentType, fileName) =>
     const inputPath = await writeTempFile(buffer, ext);
     const outputPath = path.join(TEMP_DIR, `audio_${Date.now()}_${Math.random().toString(16).slice(2)}.mp3`);
     try {
-      const cmd = `ffmpeg -y -i "${inputPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 "${outputPath}"`;
-      await execProm(cmd, { timeout: CONVERT_TIMEOUT_MS });
+      const args = ['-y', '-i', inputPath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-ar', '44100', '-ac', '2', outputPath];
+      await runFfmpeg(args);
       return await readAndValidateOutput(outputPath);
     } catch (error) {
       logger.error('Erro ao converter audio:', error?.stderr || error);
@@ -272,11 +312,33 @@ const convertToMp4Buffer = async (buffer, contentType, fileName) =>
     const inputPath = await writeTempFile(buffer, ext);
     const outputPath = path.join(TEMP_DIR, `video_${Date.now()}_${Math.random().toString(16).slice(2)}.mp4`);
     try {
-      const cmd =
-        `ffmpeg -y -i "${inputPath}" -vf "scale='min(1280,iw)':-2" -preset veryfast -crf 28 ` +
-        `-c:v libx264 -profile:v baseline -level 3.1 -pix_fmt yuv420p -c:a aac -b:a 128k ` +
-        `-movflags +faststart "${outputPath}"`;
-      await execProm(cmd, { timeout: CONVERT_TIMEOUT_MS });
+      const args = [
+        '-y',
+        '-i',
+        inputPath,
+        '-vf',
+        "scale='min(1280,iw)':-2",
+        '-preset',
+        'veryfast',
+        '-crf',
+        '28',
+        '-c:v',
+        'libx264',
+        '-profile:v',
+        'baseline',
+        '-level',
+        '3.1',
+        '-pix_fmt',
+        'yuv420p',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-movflags',
+        '+faststart',
+        outputPath,
+      ];
+      await runFfmpeg(args);
       return await readAndValidateOutput(outputPath);
     } catch (error) {
       logger.error('Erro ao converter video:', error?.stderr || error);
