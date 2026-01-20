@@ -7,9 +7,10 @@ Como criar figurinha:
 2) Envie com legenda:
 ➡️ ${commandPrefix}sticker ou ${commandPrefix}s
 
-🎵 *Mídia*
-➡️ ${commandPrefix}play <link ou termo>
-➡️ ${commandPrefix}playvid <link ou termo>
+🎵 *Midia*
+➡️ ${commandPrefix}play <link ou termo> (audio)
+➡️ ${commandPrefix}playvid <link ou termo> (video)
+Exemplo: ${commandPrefix}play Coldplay Yellow
 
 🛡️ *Administração*
 ➡️ ${commandPrefix}menuadm
