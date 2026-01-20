@@ -15,7 +15,11 @@ const YTDLS_BASE_URL = (
   process.env.YT_DLS_BASE_URL ||
   'http://127.0.0.1:3000'
 ).replace(/\/$/, '');
-const DEFAULT_TIMEOUT_MS = 300000;
+const DEFAULT_TIMEOUT_MS = Number.parseInt(process.env.PLAY_API_TIMEOUT_MS || '900000', 10);
+const DOWNLOAD_API_TIMEOUT_MS = Number.parseInt(
+  process.env.PLAY_API_DOWNLOAD_TIMEOUT_MS || '1800000',
+  10,
+);
 const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '100', 10);
 const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB)
   ? MAX_MEDIA_MB * 1024 * 1024
@@ -27,8 +31,33 @@ const CACHE_TTL_MIN = Number.parseInt(process.env.PLAY_CACHE_TTL_MIN || '60', 10
 const CACHE_TTL_MS = Number.isFinite(CACHE_TTL_MIN) ? CACHE_TTL_MIN * 60 * 1000 : 60 * 60 * 1000;
 const MAX_DOWNLOADS = Number.parseInt(process.env.PLAY_MAX_DOWNLOADS || '2', 10);
 const MAX_FFMPEG = Number.parseInt(process.env.PLAY_MAX_FFMPEG || '1', 10);
+const DOWNLOAD_DELAY_MS = Number.parseInt(process.env.PLAY_DOWNLOAD_DELAY_MS || '0', 10);
 const CACHE_DIR = path.join(TEMP_DIR, 'cache');
 const inFlightCache = new Map();
+let nextDownloadAt = 0;
+let downloadDelayChain = Promise.resolve();
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForDownloadDelay = async () => {
+  if (!DOWNLOAD_DELAY_MS || DOWNLOAD_DELAY_MS <= 0) return;
+  let release;
+  const previous = downloadDelayChain;
+  downloadDelayChain = new Promise((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    const now = Date.now();
+    const waitMs = Math.max(0, nextDownloadAt - now);
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+    nextDownloadAt = Date.now() + DOWNLOAD_DELAY_MS;
+  } finally {
+    release();
+  }
+};
 
 /**
  * Faz requisicao HTTP e retorna JSON parseado.
@@ -510,7 +539,7 @@ const requestDownload = async (link, type, requestId) => {
     link,
     type,
     request_id: requestId,
-  });
+  }, DOWNLOAD_API_TIMEOUT_MS);
   if (!downloadResult?.sucesso) {
     throw new Error(downloadResult?.mensagem || 'Falha ao baixar a midia.');
   }
@@ -545,9 +574,10 @@ const fetchMediaWithCache = async (link, type) => {
     try {
       const { streamUrl, videoInfo } = await requestDownload(link, type, requestId);
       const inputBasePath = path.join(requestDir, 'input');
-      const downloadMeta = await downloadSemaphore.run(() =>
-        downloadToFile(streamUrl, inputBasePath),
-      );
+      const downloadMeta = await downloadSemaphore.run(async () => {
+        await waitForDownloadDelay();
+        return downloadToFile(streamUrl, inputBasePath);
+      });
       const guessedExt = downloadMeta.fileName
         ? path.extname(downloadMeta.fileName)
         : getExtensionFromType(downloadMeta.contentType);
