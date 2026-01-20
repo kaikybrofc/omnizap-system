@@ -1,11 +1,10 @@
 import logger from '../utils/logger/loggerModule.js';
 
 import {
+  create,
   findAll,
   upsert
-} from '../../database/queries.js';
-
-import {create} from '../../database/queries.js';
+} from '../../database/index.js';
 
 /**
  * Realiza o parse seguro de JSON com logging de erros

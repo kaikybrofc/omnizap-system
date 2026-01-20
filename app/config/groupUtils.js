@@ -1,6 +1,5 @@
 import logger from '../utils/logger/loggerModule.js';
-import { findById, findAll } from '../../database/queries.js';
-import { TABLES } from '../../database/config.js';
+import { findById, findAll, TABLES } from '../../database/index.js';
 
 /**
  * Valida um ID de grupo ou usuário.

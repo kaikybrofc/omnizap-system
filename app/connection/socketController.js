@@ -25,7 +25,7 @@ import {
   findAll,
   upsert,
   findById
-} from '../../database/queries.js';
+} from '../../database/index.js';
 
 import { fileURLToPath } from 'node:url';
 

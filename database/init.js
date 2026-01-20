@@ -1,11 +1,10 @@
 import mysql from 'mysql2/promise';
 import logger from '../app/utils/logger/loggerModule.js';
-import { dbConfig, TABLES } from './config.js';
+import { dbConfig, TABLES } from './index.js';
 
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-// Use the composed DB name from config so created DB matches what the app will try to connect to
 const dbToCreate = dbConfig.database;
 
 const createDatabaseSQL = `
@@ -51,6 +50,10 @@ const createGroupsMetadataTableSQL = `
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
+/**
+ * Inicializa o banco de dados e garante a existência das tabelas.
+ * @returns {Promise<void>} Conclui após criar banco e tabelas.
+ */
 export default async function initializeDatabase() {
   let connection;
   try {
@@ -63,7 +66,6 @@ export default async function initializeDatabase() {
     await connection.query(createDatabaseSQL);
     logger.info(`Banco de dados '${dbToCreate}' verificado/criado com sucesso.`);
 
-    // Use the newly created DB for subsequent table creation. Prefer the env name when present.
     await connection.changeUser({ database: dbToCreate });
 
     await Promise.all([connection.query(createMessagesTableSQL), connection.query(createChatsTableSQL), connection.query(createGroupsMetadataTableSQL)]);

@@ -1,15 +1,129 @@
-import { pool } from './connection.js';
+import 'dotenv/config';
 import mysql from 'mysql2/promise';
+import path from 'node:path';
 import logger from '../app/utils/logger/loggerModule.js';
-import { TABLES } from './config.js';
-import { DatabaseError } from './errors.js';
+
+const { NODE_ENV } = process.env;
+const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_POOL_LIMIT = 10 } = process.env;
+
+const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
+const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+  logger.error(
+    `Variáveis de ambiente de banco de dados necessárias não encontradas: ${missingEnvVars.join(
+      ', ',
+    )}`,
+  );
+  process.exit(1);
+}
+
+const environment = NODE_ENV || 'development';
+const resolveDbName = (baseName, env) => {
+  const suffix = env === 'production' ? 'prod' : 'dev';
+  if (baseName.endsWith('_dev') || baseName.endsWith('_prod')) {
+    return baseName;
+  }
+  return `${baseName}_${suffix}`;
+};
+const dbName = resolveDbName(DB_NAME, environment);
+
+/**
+ * Configuracao do banco de dados baseada nas variaveis de ambiente.
+ * @type {{host: string, user: string, password: string, database: string, poolLimit: number}}
+ */
+export const dbConfig = {
+  host: DB_HOST,
+  user: DB_USER,
+  password: DB_PASSWORD,
+  database: dbName,
+  poolLimit: Number(DB_POOL_LIMIT),
+};
+
+logger.info(`Configuração de banco de dados carregada para o ambiente: ${environment}`);
+
+/**
+ * Nomes das tabelas suportadas pelo sistema.
+ * @type {{MESSAGES: string, CHATS: string, GROUPS_METADATA: string}}
+ */
+export const TABLES = {
+  MESSAGES: 'messages',
+  CHATS: 'chats',
+  GROUPS_METADATA: 'groups_metadata',
+};
+
+/**
+ * Pool de conexoes com o MySQL.
+ * @type {import('mysql2/promise').Pool}
+ */
+export const pool = mysql.createPool({
+  host: dbConfig.host,
+  user: dbConfig.user,
+  password: dbConfig.password,
+  database: dbConfig.database,
+  waitForConnections: true,
+  connectionLimit: dbConfig.poolLimit,
+  queueLimit: 0,
+  timezone: 'Z',
+  charset: 'utf8mb4',
+});
+
+async function validateConnection() {
+  try {
+    const connection = await pool.getConnection();
+    await connection.ping();
+    connection.release();
+    logger.info('Pool de conexões com o MySQL criado e testado com sucesso.');
+  } catch (error) {
+    logger.error('Erro ao conectar ao MySQL:', error.message);
+    process.exit(1);
+  }
+}
+
+const isInitScript = process.argv[1]?.endsWith(`${path.sep}database${path.sep}init.js`);
+if (!isInitScript) {
+  validateConnection();
+}
+
+/**
+ * Encerra o pool de conexoes do MySQL.
+ * @returns {Promise<void>}
+ */
+export async function closePool() {
+  try {
+    await pool.end();
+    logger.info('Pool de conexões MySQL encerrado com sucesso.');
+  } catch (error) {
+    logger.error('Erro ao encerrar pool de conexões:', error.message);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => closePool());
+process.on('SIGINT', () => closePool());
+
+/**
+ * Erro padrao para operacoes de banco de dados.
+ */
+export class DatabaseError extends Error {
+  constructor(message, originalError, sql, params) {
+    super(message);
+    this.name = 'DatabaseError';
+    this.originalError = originalError;
+    this.sql = sql;
+    this.params = params;
+    this.errorCode = originalError?.code;
+    this.errorNumber = originalError?.errno;
+    this.sqlState = originalError?.sqlState;
+  }
+}
 
 const VALID_TABLES = Object.values(TABLES);
 
 /**
- * Valida se o nome da tabela está na lista de tabelas permitidas.
- * @param {string} tableName - Nome da tabela a ser validada.
- * @throws {Error} Se a tabela não estiver na lista de tabelas válidas.
+ * Valida se o nome da tabela esta na lista permitida.
+ * @param {string} tableName
+ * @throws {Error} Se a tabela nao for valida.
  */
 export function validateTableName(tableName) {
   if (!VALID_TABLES.includes(tableName)) {
@@ -18,21 +132,20 @@ export function validateTableName(tableName) {
 }
 
 /**
- * Sanitiza os parâmetros da consulta SQL, convertendo undefined para null.
- * @param {Array<any>} params - Array de parâmetros a serem sanitizados.
- * @returns {Array<any>} Array de parâmetros sanitizados.
+ * Converte undefined em null para parametros SQL.
+ * @param {Array<any>} params
+ * @returns {Array<any>}
  */
 export function sanitizeParams(params) {
   return params.map((param) => (param === undefined ? null : param));
 }
 
 /**
- * Executa uma consulta SQL com parâmetros sanitizados.
- * @param {string} sql - Consulta SQL a ser executada.
- * @param {Array<any>} [params=[]] - Parâmetros da consulta.
- * @param {object} [connection=null] - Conexão opcional do banco de dados.
- * @returns {Promise<Array>} Resultado da consulta.
- * @throws {DatabaseError} Se houver erro na execução da consulta.
+ * Executa uma consulta SQL com parametros sanitizados.
+ * @param {string} sql
+ * @param {Array<any>} [params=[]]
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null]
+ * @returns {Promise<Array<any>>}
  */
 export async function executeQuery(sql, params = [], connection = null) {
   const executor = connection || pool;
@@ -53,11 +166,11 @@ export async function executeQuery(sql, params = [], connection = null) {
 }
 
 /**
- * Busca todos os registros de uma tabela com suporte a paginação.
- * @param {string} tableName - Nome da tabela.
- * @param {number} [limit=100] - Limite de registros por página.
- * @param {number} [offset=0] - Número de registros para pular.
- * @returns {Promise<Array>} Lista de registros encontrados.
+ * Busca todos os registros de uma tabela com paginacao.
+ * @param {string} tableName
+ * @param {number} [limit=100]
+ * @param {number} [offset=0]
+ * @returns {Promise<Array<any>>}
  */
 export async function findAll(tableName, limit = 100, offset = 0) {
   validateTableName(tableName);
@@ -73,10 +186,10 @@ export async function findAll(tableName, limit = 100, offset = 0) {
 }
 
 /**
- * Busca um registro específico em uma tabela pelo seu ID.
- * @param {string} tableName - Nome da tabela.
- * @param {number|string} id - ID do registro.
- * @returns {Promise<object|null>} Registro encontrado ou null se não existir.
+ * Busca um registro por ID em uma tabela.
+ * @param {string} tableName
+ * @param {number|string} id
+ * @returns {Promise<any|null>}
  */
 export async function findById(tableName, id) {
   validateTableName(tableName);
@@ -86,15 +199,15 @@ export async function findById(tableName, id) {
 }
 
 /**
- * Busca registros com base em um conjunto de condições.
- * @param {string} tableName - Nome da tabela.
- * @param {object} criteria - Objeto com os critérios de busca (ex: { name: 'John', age: 30 }).
- * @param {object} [options] - Opções de consulta.
- * @param {number} [options.limit] - Limite de registros.
- * @param {number} [options.offset] - Deslocamento de registros.
- * @param {string} [options.orderBy] - Campo para ordenação.
- * @param {'ASC'|'DESC'} [options.orderDirection='ASC'] - Direção da ordenação.
- * @returns {Promise<Array>} Lista de registros encontrados.
+ * Busca registros com base em criterios.
+ * @param {string} tableName
+ * @param {object} criteria
+ * @param {object} [options]
+ * @param {number} [options.limit]
+ * @param {number} [options.offset]
+ * @param {string} [options.orderBy]
+ * @param {'ASC'|'DESC'} [options.orderDirection='ASC']
+ * @returns {Promise<Array<any>>}
  */
 export async function findBy(tableName, criteria, options = {}) {
   validateTableName(tableName);
@@ -125,10 +238,10 @@ export async function findBy(tableName, criteria, options = {}) {
 }
 
 /**
- * Conta o número de registros em uma tabela, opcionalmente com um filtro.
- * @param {string} tableName - Nome da tabela.
- * @param {object} [criteria] - Critérios de contagem.
- * @returns {Promise<number>} O número de registros.
+ * Conta registros de uma tabela com filtro opcional.
+ * @param {string} tableName
+ * @param {object} [criteria]
+ * @returns {Promise<number>}
  */
 export async function count(tableName, criteria = {}) {
   validateTableName(tableName);
@@ -148,9 +261,9 @@ export async function count(tableName, criteria = {}) {
 
 /**
  * Cria um novo registro em uma tabela.
- * @param {string} tableName - Nome da tabela.
- * @param {object} data - Dados a serem inseridos.
- * @returns {Promise<object>} Objeto criado com o ID gerado.
+ * @param {string} tableName
+ * @param {object} data
+ * @returns {Promise<object>}
  */
 export async function create(tableName, data) {
   validateTableName(tableName);
@@ -165,10 +278,10 @@ export async function create(tableName, data) {
 }
 
 /**
- * Insere múltiplos registros de uma vez em uma tabela.
- * @param {string} tableName - Nome da tabela.
- * @param {Array<object>} records - Array de objetos a serem inseridos.
- * @returns {Promise<number>} Número de registros inseridos.
+ * Insere multiplos registros em uma tabela.
+ * @param {string} tableName
+ * @param {Array<object>} records
+ * @returns {Promise<number>}
  */
 export async function bulkInsert(tableName, records) {
   validateTableName(tableName);
@@ -185,11 +298,11 @@ export async function bulkInsert(tableName, records) {
 }
 
 /**
- * Atualiza um registro existente em uma tabela pelo seu ID.
- * @param {string} tableName - Nome da tabela.
- * @param {number|string} id - ID do registro a ser atualizado.
- * @param {object} data - Dados a serem atualizados.
- * @returns {Promise<boolean>} true se o registro foi atualizado, false caso contrário.
+ * Atualiza um registro existente em uma tabela pelo ID.
+ * @param {string} tableName
+ * @param {number|string} id
+ * @param {object} data
+ * @returns {Promise<boolean>}
  */
 export async function update(tableName, id, data) {
   validateTableName(tableName);
@@ -204,10 +317,10 @@ export async function update(tableName, id, data) {
 }
 
 /**
- * Remove um registro de uma tabela pelo seu ID.
- * @param {string} tableName - Nome da tabela.
- * @param {number|string} id - ID do registro a ser removido.
- * @returns {Promise<boolean>} true se o registro foi removido, false caso contrário.
+ * Remove um registro de uma tabela pelo ID.
+ * @param {string} tableName
+ * @param {number|string} id
+ * @returns {Promise<boolean>}
  */
 export async function remove(tableName, id) {
   validateTableName(tableName);
@@ -217,10 +330,10 @@ export async function remove(tableName, id) {
 }
 
 /**
- * Insere um novo registro ou atualiza se já existir (upsert).
- * @param {string} tableName - Nome da tabela.
- * @param {object} data - Dados a serem inseridos ou atualizados. O ID deve estar em `data.id`.
- * @returns {Promise<object>} Resultado da operação.
+ * Insere ou atualiza um registro em uma tabela.
+ * @param {string} tableName
+ * @param {object} data
+ * @returns {Promise<any>}
  */
 export async function upsert(tableName, data) {
   validateTableName(tableName);
@@ -230,7 +343,6 @@ export async function upsert(tableName, data) {
   }
 
   const updateData = { ...data };
-  // O ID não deve ser atualizado no ON DUPLICATE KEY UPDATE
   if (updateData.id) {
     delete updateData.id;
   }
@@ -250,10 +362,9 @@ export async function upsert(tableName, data) {
 }
 
 /**
- * Executa operações dentro de uma transação SQL.
- * @param {Function} callback - Função de callback que recebe a conexão e executa as operações.
- * @returns {Promise<any>} Resultado do callback.
- * @throws {Error} Se houver erro durante a transação, realiza rollback automático.
+ * Executa operacoes dentro de uma transacao.
+ * @param {(connection: import('mysql2/promise').PoolConnection) => Promise<any>} callback
+ * @returns {Promise<any>}
  */
 async function withTransaction(callback) {
   const connection = await pool.getConnection();
@@ -265,7 +376,7 @@ async function withTransaction(callback) {
   } catch (err) {
     await connection.rollback();
     logger.error('Transação revertida devido a um erro:', err);
-    throw err; // Re-lança o erro original após o rollback
+    throw err;
   } finally {
     connection.release();
   }
