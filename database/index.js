@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
+import path from 'node:path';
 import logger from '../app/utils/logger/loggerModule.js';
 
 const { NODE_ENV } = process.env;
@@ -18,7 +19,14 @@ if (missingEnvVars.length > 0) {
 }
 
 const environment = NODE_ENV || 'development';
-const dbName = `${DB_NAME}_${environment === 'production' ? 'prod' : 'dev'}`;
+const resolveDbName = (baseName, env) => {
+  const suffix = env === 'production' ? 'prod' : 'dev';
+  if (baseName.endsWith('_dev') || baseName.endsWith('_prod')) {
+    return baseName;
+  }
+  return `${baseName}_${suffix}`;
+};
+const dbName = resolveDbName(DB_NAME, environment);
 
 /**
  * Configuracao do banco de dados baseada nas variaveis de ambiente.
@@ -58,7 +66,6 @@ export const pool = mysql.createPool({
   queueLimit: 0,
   timezone: 'Z',
   charset: 'utf8mb4',
-  collation: 'utf8mb4_unicode_ci',
 });
 
 async function validateConnection() {
@@ -73,7 +80,10 @@ async function validateConnection() {
   }
 }
 
-validateConnection();
+const isInitScript = process.argv[1]?.endsWith(`${path.sep}database${path.sep}init.js`);
+if (!isInitScript) {
+  validateConnection();
+}
 
 /**
  * Encerra o pool de conexoes do MySQL.
