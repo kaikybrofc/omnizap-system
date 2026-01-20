@@ -15,6 +15,7 @@ const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '100', 10);
 const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB * 1024 * 1024 : 100 * 1024 * 1024;
 const CONVERT_TIMEOUT_MS = 300000;
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'play');
+const REQUESTS_DIR = path.join(TEMP_DIR, 'requests');
 const CACHE_TTL_MIN = Number.parseInt(process.env.PLAY_CACHE_TTL_MIN || '60', 10);
 const CACHE_TTL_MS = Number.isFinite(CACHE_TTL_MIN) ? CACHE_TTL_MIN * 60 * 1000 : 60 * 60 * 1000;
 const MAX_DOWNLOADS = Number.parseInt(process.env.PLAY_MAX_DOWNLOADS || '2', 10);
@@ -272,11 +273,12 @@ const getExtensionFromType = (contentType) => {
   return '.bin';
 };
 
-const writeTempFile = async (buffer, ext) => {
+const writeTempFile = async (buffer, ext, baseDir) => {
   await ensureTempDir();
+  const targetDir = baseDir || TEMP_DIR;
   const safeExt = ext && ext.startsWith('.') ? ext : '.bin';
   const fileName = `input_${Date.now()}_${Math.random().toString(16).slice(2)}${safeExt}`;
-  const filePath = path.join(TEMP_DIR, fileName);
+  const filePath = path.join(targetDir, fileName);
   await fs.writeFile(filePath, buffer);
   return filePath;
 };
@@ -289,11 +291,11 @@ const readAndValidateOutput = async (filePath) => {
   return fs.readFile(filePath);
 };
 
-const convertToMp3Buffer = async (buffer, contentType, fileName) =>
+const convertToMp3Buffer = async (buffer, contentType, fileName, requestDir) =>
   ffmpegSemaphore.run(async () => {
     const ext = fileName ? path.extname(fileName).toLowerCase() : getExtensionFromType(contentType);
-    const inputPath = await writeTempFile(buffer, ext);
-    const outputPath = path.join(TEMP_DIR, `audio_${Date.now()}_${Math.random().toString(16).slice(2)}.mp3`);
+    const inputPath = await writeTempFile(buffer, ext, requestDir);
+    const outputPath = path.join(requestDir || TEMP_DIR, `audio_${Date.now()}_${Math.random().toString(16).slice(2)}.mp3`);
     try {
       const args = ['-y', '-i', inputPath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-ar', '44100', '-ac', '2', outputPath];
       await runFfmpeg(args);
@@ -306,11 +308,11 @@ const convertToMp3Buffer = async (buffer, contentType, fileName) =>
     }
   });
 
-const convertToMp4Buffer = async (buffer, contentType, fileName) =>
+const convertToMp4Buffer = async (buffer, contentType, fileName, requestDir) =>
   ffmpegSemaphore.run(async () => {
     const ext = fileName ? path.extname(fileName).toLowerCase() : getExtensionFromType(contentType);
-    const inputPath = await writeTempFile(buffer, ext);
-    const outputPath = path.join(TEMP_DIR, `video_${Date.now()}_${Math.random().toString(16).slice(2)}.mp4`);
+    const inputPath = await writeTempFile(buffer, ext, requestDir);
+    const outputPath = path.join(requestDir || TEMP_DIR, `video_${Date.now()}_${Math.random().toString(16).slice(2)}.mp4`);
     try {
       const args = [
         '-y',
@@ -407,14 +409,20 @@ const fetchMediaWithCache = async (link, type) => {
 
   const promise = (async () => {
     const requestId = buildRequestId();
-    const { streamUrl, videoInfo } = await requestDownload(link, type, requestId);
-    const { buffer, contentType, fileName } = await downloadSemaphore.run(() => downloadBinary(streamUrl));
-    const converted =
-      type === 'audio'
-        ? await convertToMp3Buffer(buffer, contentType, fileName)
-        : await convertToMp4Buffer(buffer, contentType, fileName);
-    await writeCache(cacheKey, type, converted, videoInfo);
-    return { buffer: converted, videoInfo };
+    const requestDir = path.join(REQUESTS_DIR, requestId);
+    await fs.mkdir(requestDir, { recursive: true });
+    try {
+      const { streamUrl, videoInfo } = await requestDownload(link, type, requestId);
+      const { buffer, contentType, fileName } = await downloadSemaphore.run(() => downloadBinary(streamUrl));
+      const converted =
+        type === 'audio'
+          ? await convertToMp3Buffer(buffer, contentType, fileName, requestDir)
+          : await convertToMp4Buffer(buffer, contentType, fileName, requestDir);
+      await writeCache(cacheKey, type, converted, videoInfo);
+      return { buffer: converted, videoInfo };
+    } finally {
+      await fs.rm(requestDir, { recursive: true, force: true });
+    }
   })();
 
   inFlightCache.set(cacheKey, promise);
