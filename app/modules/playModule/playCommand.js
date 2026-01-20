@@ -5,6 +5,7 @@ import path from 'node:path';
 import { URL } from 'node:url';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import crypto from 'node:crypto';
 import logger from '../../utils/logger/loggerModule.js';
 
 const adminJid = process.env.USER_ADMIN;
@@ -63,6 +64,13 @@ const requestJson = (method, url, body, timeoutMs = DEFAULT_TIMEOUT_MS) =>
     }
     req.end();
   });
+
+const buildRequestId = () => {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
 
 const normalizeStreamUrl = (streamUrl, baseUrl) => {
   if (!streamUrl) return null;
@@ -228,9 +236,9 @@ const formatVideoInfo = (videoInfo) => {
   return lines.length ? lines.join('\n') : null;
 };
 
-const requestDownload = async (link, type) => {
+const requestDownload = async (link, type, requestId) => {
   const downloadUrl = `${YTDLS_BASE_URL}/download`;
-  const downloadResult = await requestJson('POST', downloadUrl, { link, type });
+  const downloadResult = await requestJson('POST', downloadUrl, { link, type, request_id: requestId });
   if (!downloadResult?.sucesso) {
     throw new Error(downloadResult?.mensagem || 'Falha ao baixar a midia.');
   }
@@ -273,8 +281,9 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
 
+    const requestId = buildRequestId();
     const link = await resolveYoutubeLink(text);
-    const { streamUrl, videoInfo } = await requestDownload(link, 'audio');
+    const { streamUrl, videoInfo } = await requestDownload(link, 'audio', requestId);
     const { buffer: audioBuffer, contentType, fileName } = await downloadBinary(streamUrl);
     const convertedAudio = await convertToMp3Buffer(audioBuffer, contentType, fileName);
     const infoText = formatVideoInfo(videoInfo) || '🎵 Informacoes do audio indisponiveis.';
@@ -318,8 +327,9 @@ export const handlePlayVidCommand = async (sock, remoteJid, messageInfo, expirat
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
 
+    const requestId = buildRequestId();
     const link = await resolveYoutubeLink(text);
-    const { streamUrl, videoInfo } = await requestDownload(link, 'video');
+    const { streamUrl, videoInfo } = await requestDownload(link, 'video', requestId);
     const { buffer: videoBuffer, contentType, fileName } = await downloadBinary(streamUrl);
     const convertedVideo = await convertToMp4Buffer(videoBuffer, contentType, fileName);
     const infoText = formatVideoInfo(videoInfo);
