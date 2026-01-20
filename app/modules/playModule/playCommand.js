@@ -10,10 +10,16 @@ import logger from '../../utils/logger/loggerModule.js';
 
 const adminJid = process.env.USER_ADMIN;
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
-const YTDLS_BASE_URL = (process.env.YTDLS_BASE_URL || process.env.YT_DLS_BASE_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
+const YTDLS_BASE_URL = (
+  process.env.YTDLS_BASE_URL ||
+  process.env.YT_DLS_BASE_URL ||
+  'http://127.0.0.1:3000'
+).replace(/\/$/, '');
 const DEFAULT_TIMEOUT_MS = 60000;
 const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '100', 10);
-const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB * 1024 * 1024 : 100 * 1024 * 1024;
+const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB)
+  ? MAX_MEDIA_MB * 1024 * 1024
+  : 100 * 1024 * 1024;
 const CONVERT_TIMEOUT_MS = 300000;
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'play');
 const REQUESTS_DIR = path.join(TEMP_DIR, 'requests');
@@ -24,6 +30,14 @@ const MAX_FFMPEG = Number.parseInt(process.env.PLAY_MAX_FFMPEG || '1', 10);
 const CACHE_DIR = path.join(TEMP_DIR, 'cache');
 const inFlightCache = new Map();
 
+/**
+ * Faz requisicao HTTP e retorna JSON parseado.
+ * @param {string} method
+ * @param {string} url
+ * @param {object|null} body
+ * @param {number} [timeoutMs]
+ * @returns {Promise<object>}
+ */
 const requestJson = (method, url, body, timeoutMs = DEFAULT_TIMEOUT_MS) =>
   new Promise((resolve, reject) => {
     const urlObj = new URL(url);
@@ -48,7 +62,9 @@ const requestJson = (method, url, body, timeoutMs = DEFAULT_TIMEOUT_MS) =>
         res.on('end', () => {
           const raw = Buffer.concat(chunks).toString('utf-8');
           if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
-            reject(new Error(`Falha na API yt-dls (HTTP ${res.statusCode}): ${raw || 'sem resposta'}`));
+            reject(
+              new Error(`Falha na API yt-dls (HTTP ${res.statusCode}): ${raw || 'sem resposta'}`),
+            );
             return;
           }
           try {
@@ -71,6 +87,9 @@ const requestJson = (method, url, body, timeoutMs = DEFAULT_TIMEOUT_MS) =>
     req.end();
   });
 
+/**
+ * Controle simples de concorrencia para execucao de tarefas.
+ */
 class Semaphore {
   constructor(limit) {
     this.limit = Math.max(1, Number.isFinite(limit) ? limit : 1);
@@ -78,6 +97,12 @@ class Semaphore {
     this.queue = [];
   }
 
+  /**
+   * Executa a tarefa respeitando o limite de concorrencia.
+   * @template T
+   * @param {() => Promise<T>} task
+   * @returns {Promise<T>}
+   */
   run(task) {
     return new Promise((resolve, reject) => {
       const execute = async () => {
@@ -105,6 +130,10 @@ class Semaphore {
 const downloadSemaphore = new Semaphore(MAX_DOWNLOADS);
 const ffmpegSemaphore = new Semaphore(MAX_FFMPEG);
 
+/**
+ * Gera um identificador unico para requests.
+ * @returns {string}
+ */
 const buildRequestId = () => {
   if (typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -112,16 +141,32 @@ const buildRequestId = () => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
+/**
+ * Cria chave de cache baseada no tipo e link.
+ * @param {string} type
+ * @param {string} link
+ * @returns {string}
+ */
 const buildCacheKey = (type, link) => {
   const hash = crypto.createHash('sha1');
   hash.update(`${type}:${link}`);
   return hash.digest('hex');
 };
 
+/**
+ * Garante que o diretorio de cache exista.
+ * @returns {Promise<void>}
+ */
 const ensureCacheDir = async () => {
   await fs.mkdir(CACHE_DIR, { recursive: true });
 };
 
+/**
+ * Le um item do cache, se valido.
+ * @param {string} cacheKey
+ * @param {'audio'|'video'} type
+ * @returns {Promise<{buffer: Buffer, videoInfo: object|null} | null>}
+ */
 const readCache = async (cacheKey, type) => {
   if (!CACHE_TTL_MS || CACHE_TTL_MS <= 0) return null;
   await ensureCacheDir();
@@ -132,7 +177,10 @@ const readCache = async (cacheKey, type) => {
     const metaRaw = await fs.readFile(metaPath, 'utf-8');
     const meta = JSON.parse(metaRaw);
     if (!meta?.createdAt || Date.now() - meta.createdAt > CACHE_TTL_MS) {
-      await Promise.allSettled([fs.rm(mediaPath, { force: true }), fs.rm(metaPath, { force: true })]);
+      await Promise.allSettled([
+        fs.rm(mediaPath, { force: true }),
+        fs.rm(metaPath, { force: true }),
+      ]);
       return null;
     }
     const buffer = await fs.readFile(mediaPath);
@@ -142,6 +190,14 @@ const readCache = async (cacheKey, type) => {
   }
 };
 
+/**
+ * Grava midia e metadados no cache.
+ * @param {string} cacheKey
+ * @param {'audio'|'video'} type
+ * @param {Buffer} buffer
+ * @param {object|null} videoInfo
+ * @returns {Promise<void>}
+ */
 const writeCache = async (cacheKey, type, buffer, videoInfo) => {
   if (!CACHE_TTL_MS || CACHE_TTL_MS <= 0) return;
   await ensureCacheDir();
@@ -153,6 +209,12 @@ const writeCache = async (cacheKey, type, buffer, videoInfo) => {
   await fs.writeFile(metaPath, JSON.stringify(meta));
 };
 
+/**
+ * Executa o FFmpeg com timeout.
+ * @param {string[]} args
+ * @param {number} [timeoutMs]
+ * @returns {Promise<void>}
+ */
 const runFfmpeg = async (args, timeoutMs = CONVERT_TIMEOUT_MS) =>
   new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -195,6 +257,12 @@ const runFfmpeg = async (args, timeoutMs = CONVERT_TIMEOUT_MS) =>
     });
   });
 
+/**
+ * Normaliza URL de streaming com base no host da API.
+ * @param {string|null} streamUrl
+ * @param {string} baseUrl
+ * @returns {string|null}
+ */
 const normalizeStreamUrl = (streamUrl, baseUrl) => {
   if (!streamUrl) return null;
   if (!baseUrl) return streamUrl;
@@ -209,48 +277,57 @@ const normalizeStreamUrl = (streamUrl, baseUrl) => {
   }
 };
 
-const downloadToFile = (url, destinationPath, maxBytes = MAX_MEDIA_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS) =>
+/**
+ * Faz download de um arquivo para disco com limite de tamanho.
+ * @param {string} url
+ * @param {string} destinationPath
+ * @param {number} [maxBytes]
+ * @param {number} [timeoutMs]
+ * @returns {Promise<{contentType: string, fileName: string}>}
+ */
+const downloadToFile = (
+  url,
+  destinationPath,
+  maxBytes = MAX_MEDIA_BYTES,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+) =>
   new Promise((resolve, reject) => {
     const urlObj = new URL(url);
     const httpModule = urlObj.protocol === 'https:' ? https : http;
-    const req = httpModule.request(
-      urlObj,
-      { method: 'GET', timeout: timeoutMs },
-      (res) => {
-        if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
-          reject(new Error(`Falha ao baixar o arquivo (HTTP ${res.statusCode}).`));
-          res.resume();
+    const req = httpModule.request(urlObj, { method: 'GET', timeout: timeoutMs }, (res) => {
+      if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+        reject(new Error(`Falha ao baixar o arquivo (HTTP ${res.statusCode}).`));
+        res.resume();
+        return;
+      }
+
+      const contentLength = Number(res.headers['content-length']);
+      if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+        reject(new Error('Arquivo excede o limite de tamanho permitido.'));
+        res.resume();
+        return;
+      }
+
+      const contentType = res.headers['content-type'] || '';
+      const disposition = res.headers['content-disposition'] || '';
+      const fileNameMatch = /filename="([^"]+)"/i.exec(disposition);
+      const fileName = fileNameMatch ? fileNameMatch[1] : '';
+      const fileStream = createWriteStream(destinationPath);
+      let total = 0;
+
+      res.on('data', (chunk) => {
+        total += chunk.length;
+        if (total > maxBytes) {
+          req.destroy(new Error('Arquivo excede o limite de tamanho permitido.'));
           return;
         }
+      });
 
-        const contentLength = Number(res.headers['content-length']);
-        if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-          reject(new Error('Arquivo excede o limite de tamanho permitido.'));
-          res.resume();
-          return;
-        }
+      res.pipe(fileStream);
 
-        const contentType = res.headers['content-type'] || '';
-        const disposition = res.headers['content-disposition'] || '';
-        const fileNameMatch = /filename="([^"]+)"/i.exec(disposition);
-        const fileName = fileNameMatch ? fileNameMatch[1] : '';
-        const fileStream = createWriteStream(destinationPath);
-        let total = 0;
-
-        res.on('data', (chunk) => {
-          total += chunk.length;
-          if (total > maxBytes) {
-            req.destroy(new Error('Arquivo excede o limite de tamanho permitido.'));
-            return;
-          }
-        });
-
-        res.pipe(fileStream);
-
-        fileStream.on('finish', () => resolve({ contentType, fileName }));
-        fileStream.on('error', reject);
-      },
-    );
+      fileStream.on('finish', () => resolve({ contentType, fileName }));
+      fileStream.on('error', reject);
+    });
 
     req.on('error', reject);
     req.on('timeout', () => {
@@ -259,6 +336,11 @@ const downloadToFile = (url, destinationPath, maxBytes = MAX_MEDIA_BYTES, timeou
     req.end();
   });
 
+/**
+ * Resolve extensao de arquivo pelo content-type.
+ * @param {string} contentType
+ * @returns {string}
+ */
 const getExtensionFromType = (contentType) => {
   const lower = (contentType || '').toLowerCase();
   if (lower.includes('audio/mpeg') || lower.includes('audio/mp3')) return '.mp3';
@@ -271,6 +353,11 @@ const getExtensionFromType = (contentType) => {
   return '.bin';
 };
 
+/**
+ * Le arquivo convertido e valida o tamanho.
+ * @param {string} filePath
+ * @returns {Promise<Buffer>}
+ */
 const readAndValidateOutput = async (filePath) => {
   const stat = await fs.stat(filePath);
   if (stat.size > MAX_MEDIA_BYTES) {
@@ -279,11 +366,34 @@ const readAndValidateOutput = async (filePath) => {
   return fs.readFile(filePath);
 };
 
+/**
+ * Converte um arquivo para MP3 e retorna o buffer.
+ * @param {string} inputPath
+ * @param {string} requestDir
+ * @returns {Promise<Buffer>}
+ */
 const convertToMp3Buffer = async (inputPath, requestDir) =>
   ffmpegSemaphore.run(async () => {
-    const outputPath = path.join(requestDir || TEMP_DIR, `audio_${Date.now()}_${Math.random().toString(16).slice(2)}.mp3`);
+    const outputPath = path.join(
+      requestDir || TEMP_DIR,
+      `audio_${Date.now()}_${Math.random().toString(16).slice(2)}.mp3`,
+    );
     try {
-      const args = ['-y', '-i', inputPath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-ar', '44100', '-ac', '2', outputPath];
+      const args = [
+        '-y',
+        '-i',
+        inputPath,
+        '-vn',
+        '-acodec',
+        'libmp3lame',
+        '-b:a',
+        '128k',
+        '-ar',
+        '44100',
+        '-ac',
+        '2',
+        outputPath,
+      ];
       await runFfmpeg(args);
       return await readAndValidateOutput(outputPath);
     } catch (error) {
@@ -294,9 +404,18 @@ const convertToMp3Buffer = async (inputPath, requestDir) =>
     }
   });
 
+/**
+ * Converte um arquivo para MP4 e retorna o buffer.
+ * @param {string} inputPath
+ * @param {string} requestDir
+ * @returns {Promise<Buffer>}
+ */
 const convertToMp4Buffer = async (inputPath, requestDir) =>
   ffmpegSemaphore.run(async () => {
-    const outputPath = path.join(requestDir || TEMP_DIR, `video_${Date.now()}_${Math.random().toString(16).slice(2)}.mp4`);
+    const outputPath = path.join(
+      requestDir || TEMP_DIR,
+      `video_${Date.now()}_${Math.random().toString(16).slice(2)}.mp4`,
+    );
     try {
       const args = [
         '-y',
@@ -334,6 +453,11 @@ const convertToMp4Buffer = async (inputPath, requestDir) =>
     }
   });
 
+/**
+ * Resolve um termo de busca para URL do YouTube.
+ * @param {string} query
+ * @returns {Promise<string>}
+ */
 const resolveYoutubeLink = async (query) => {
   const normalized = query ? query.trim() : '';
   if (!normalized) {
@@ -355,21 +479,38 @@ const resolveYoutubeLink = async (query) => {
   return searchResult.resultado.url;
 };
 
+/**
+ * Formata informacoes do video para exibir ao usuario.
+ * @param {object|null} videoInfo
+ * @returns {string|null}
+ */
 const formatVideoInfo = (videoInfo) => {
   if (!videoInfo || typeof videoInfo !== 'object') return null;
   const lines = [];
   if (videoInfo.title) lines.push(`🎵 Titulo: ${videoInfo.title}`);
   if (videoInfo.channel) lines.push(`👤 Canal: ${videoInfo.channel}`);
   if (videoInfo.views) lines.push(`👁️ Views: ${Number(videoInfo.views).toLocaleString('pt-BR')}`);
-  if (videoInfo.like_count) lines.push(`👍 Likes: ${Number(videoInfo.like_count).toLocaleString('pt-BR')}`);
+  if (videoInfo.like_count)
+    lines.push(`👍 Likes: ${Number(videoInfo.like_count).toLocaleString('pt-BR')}`);
   if (videoInfo.duration) lines.push(`⏱️ Duracao: ${videoInfo.duration}s`);
   if (videoInfo.id) lines.push(`🆔 ID: ${videoInfo.id}`);
   return lines.length ? lines.join('\n') : null;
 };
 
+/**
+ * Solicita download para a API yt-dls.
+ * @param {string} link
+ * @param {'audio'|'video'} type
+ * @param {string} requestId
+ * @returns {Promise<{streamUrl: string, videoInfo: object|null}>}
+ */
 const requestDownload = async (link, type, requestId) => {
   const downloadUrl = `${YTDLS_BASE_URL}/download`;
-  const downloadResult = await requestJson('POST', downloadUrl, { link, type, request_id: requestId });
+  const downloadResult = await requestJson('POST', downloadUrl, {
+    link,
+    type,
+    request_id: requestId,
+  });
   if (!downloadResult?.sucesso) {
     throw new Error(downloadResult?.mensagem || 'Falha ao baixar a midia.');
   }
@@ -380,6 +521,12 @@ const requestDownload = async (link, type, requestId) => {
   return { streamUrl, videoInfo: downloadResult.video_info };
 };
 
+/**
+ * Busca midia usando cache e controle de concorrencia.
+ * @param {string} link
+ * @param {'audio'|'video'} type
+ * @returns {Promise<{buffer: Buffer, videoInfo: object|null}>}
+ */
 const fetchMediaWithCache = async (link, type) => {
   const cacheKey = buildCacheKey(type, link);
   const cached = await readCache(cacheKey, type);
@@ -398,9 +545,14 @@ const fetchMediaWithCache = async (link, type) => {
     try {
       const { streamUrl, videoInfo } = await requestDownload(link, type, requestId);
       const inputBasePath = path.join(requestDir, 'input');
-      const downloadMeta = await downloadSemaphore.run(() => downloadToFile(streamUrl, inputBasePath));
-      const guessedExt = downloadMeta.fileName ? path.extname(downloadMeta.fileName) : getExtensionFromType(downloadMeta.contentType);
-      const inputPath = guessedExt && guessedExt !== '.bin' ? `${inputBasePath}${guessedExt}` : inputBasePath;
+      const downloadMeta = await downloadSemaphore.run(() =>
+        downloadToFile(streamUrl, inputBasePath),
+      );
+      const guessedExt = downloadMeta.fileName
+        ? path.extname(downloadMeta.fileName)
+        : getExtensionFromType(downloadMeta.contentType);
+      const inputPath =
+        guessedExt && guessedExt !== '.bin' ? `${inputBasePath}${guessedExt}` : inputBasePath;
       if (inputPath !== inputBasePath) {
         await fs.rename(inputBasePath, inputPath);
       }
@@ -423,6 +575,15 @@ const fetchMediaWithCache = async (link, type) => {
   }
 };
 
+/**
+ * Notifica o usuario e o admin sobre falhas do comando.
+ * @param {object} sock
+ * @param {string} remoteJid
+ * @param {object} messageInfo
+ * @param {number} expirationMessage
+ * @param {Error} error
+ * @returns {Promise<void>}
+ */
 const notifyFailure = async (sock, remoteJid, messageInfo, expirationMessage, error) => {
   const errorMessage = error?.message || 'Erro inesperado ao processar sua solicitacao.';
   await sock.sendMessage(
@@ -438,6 +599,15 @@ const notifyFailure = async (sock, remoteJid, messageInfo, expirationMessage, er
   }
 };
 
+/**
+ * Handler do comando /play (audio).
+ * @param {object} sock
+ * @param {string} remoteJid
+ * @param {object} messageInfo
+ * @param {number} expirationMessage
+ * @param {string} text
+ * @returns {Promise<void>}
+ */
 export const handlePlayCommand = async (sock, remoteJid, messageInfo, expirationMessage, text) => {
   try {
     if (!text?.trim()) {
@@ -474,14 +644,28 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
       },
       { quoted: quotedInfo, ephemeralExpiration: expirationMessage },
     );
-
   } catch (error) {
     logger.error('Erro ao processar comando /play:', error);
     await notifyFailure(sock, remoteJid, messageInfo, expirationMessage, error);
   }
 };
 
-export const handlePlayVidCommand = async (sock, remoteJid, messageInfo, expirationMessage, text) => {
+/**
+ * Handler do comando /playvid (video).
+ * @param {object} sock
+ * @param {string} remoteJid
+ * @param {object} messageInfo
+ * @param {number} expirationMessage
+ * @param {string} text
+ * @returns {Promise<void>}
+ */
+export const handlePlayVidCommand = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  text,
+) => {
   try {
     if (!text?.trim()) {
       await sock.sendMessage(
@@ -511,7 +695,6 @@ export const handlePlayVidCommand = async (sock, remoteJid, messageInfo, expirat
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
-
   } catch (error) {
     logger.error('Erro ao processar comando /playvid:', error);
     await notifyFailure(sock, remoteJid, messageInfo, expirationMessage, error);
