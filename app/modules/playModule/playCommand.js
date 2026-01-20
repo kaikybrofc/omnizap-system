@@ -15,7 +15,7 @@ const YTDLS_BASE_URL = (
   process.env.YT_DLS_BASE_URL ||
   'http://127.0.0.1:3000'
 ).replace(/\/$/, '');
-const DEFAULT_TIMEOUT_MS = 60000;
+const DEFAULT_TIMEOUT_MS = 300000;
 const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '100', 10);
 const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB)
   ? MAX_MEDIA_MB * 1024 * 1024
@@ -600,7 +600,7 @@ const notifyFailure = async (sock, remoteJid, messageInfo, expirationMessage, er
 };
 
 /**
- * Handler do comando /play (audio).
+ * Handler do comando play (audio).
  * @param {object} sock
  * @param {string} remoteJid
  * @param {object} messageInfo
@@ -651,7 +651,7 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
 };
 
 /**
- * Handler do comando /playvid (video).
+ * Handler do comando playvid (video).
  * @param {object} sock
  * @param {string} remoteJid
  * @param {object} messageInfo
