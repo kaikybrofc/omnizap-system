@@ -1,22 +1,8 @@
-import https from 'node:https';
 import logger from '../../utils/logger/loggerModule.js';
 import { buildMenuCaption, MENU_ADM_TEXT } from '../core/common.js';
+import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 
 const MENU_IMAGE_ENV = 'IMAGE_MENU';
-
-const getImageBuffer = (url) => new Promise((resolve, reject) => {
-  https
-    .get(url, (response) => {
-      if (response.statusCode !== 200) {
-        reject(new Error(`Failed to get image, status code: ${response.statusCode}`));
-        return;
-      }
-      const chunks = [];
-      response.on('data', (chunk) => chunks.push(chunk));
-      response.on('end', () => resolve(Buffer.concat(chunks)));
-    })
-    .on('error', (err) => reject(err));
-});
 
 export async function handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, commandPrefix) {
   const imageUrl = process.env[MENU_IMAGE_ENV];
