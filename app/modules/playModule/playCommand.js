@@ -13,7 +13,7 @@ const YTDLS_BASE_URL = (process.env.YTDLS_BASE_URL || process.env.YT_DLS_BASE_UR
 const DEFAULT_TIMEOUT_MS = 60000;
 const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '40', 10);
 const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB * 1024 * 1024 : 40 * 1024 * 1024;
-const CONVERT_TIMEOUT_MS = 120000;
+const CONVERT_TIMEOUT_MS = 300000;
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'play');
 const execProm = promisify(exec);
 
@@ -182,12 +182,13 @@ const convertToMp4Buffer = async (buffer, contentType, fileName) => {
   const outputPath = path.join(TEMP_DIR, `video_${Date.now()}_${Math.random().toString(16).slice(2)}.mp4`);
   try {
     const cmd =
-      `ffmpeg -y -i "${inputPath}" -c:v libx264 -profile:v baseline -level 3.1 -pix_fmt yuv420p ` +
-      `-c:a aac -b:a 128k -movflags +faststart "${outputPath}"`;
+      `ffmpeg -y -i "${inputPath}" -vf "scale='min(1280,iw)':-2" -preset veryfast -crf 28 ` +
+      `-c:v libx264 -profile:v baseline -level 3.1 -pix_fmt yuv420p -c:a aac -b:a 128k ` +
+      `-movflags +faststart "${outputPath}"`;
     await execProm(cmd, { timeout: CONVERT_TIMEOUT_MS });
     return await readAndValidateOutput(outputPath);
   } catch (error) {
-    logger.error('Erro ao converter video:', error);
+    logger.error('Erro ao converter video:', error?.stderr || error);
     throw new Error('Falha ao converter video para MP4.');
   } finally {
     await Promise.allSettled([fs.unlink(inputPath), fs.unlink(outputPath)]);
