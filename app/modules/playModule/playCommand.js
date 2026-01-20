@@ -1,6 +1,10 @@
 import http from 'node:http';
 import https from 'node:https';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { URL } from 'node:url';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 import logger from '../../utils/logger/loggerModule.js';
 
 const adminJid = process.env.USER_ADMIN;
@@ -9,6 +13,9 @@ const YTDLS_BASE_URL = (process.env.YTDLS_BASE_URL || process.env.YT_DLS_BASE_UR
 const DEFAULT_TIMEOUT_MS = 60000;
 const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '40', 10);
 const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB * 1024 * 1024 : 40 * 1024 * 1024;
+const CONVERT_TIMEOUT_MS = 120000;
+const TEMP_DIR = path.join(process.cwd(), 'temp', 'play');
+const execProm = promisify(exec);
 
 const requestJson = (method, url, body, timeoutMs = DEFAULT_TIMEOUT_MS) =>
   new Promise((resolve, reject) => {
@@ -103,7 +110,13 @@ const downloadBinary = (url, maxBytes = MAX_MEDIA_BYTES, timeoutMs = DEFAULT_TIM
           }
           chunks.push(chunk);
         });
-        res.on('end', () => resolve(Buffer.concat(chunks)));
+        res.on('end', () => {
+          const contentType = res.headers['content-type'] || '';
+          const disposition = res.headers['content-disposition'] || '';
+          const fileNameMatch = /filename="([^"]+)"/i.exec(disposition);
+          const fileName = fileNameMatch ? fileNameMatch[1] : '';
+          resolve({ buffer: Buffer.concat(chunks), contentType, fileName });
+        });
       },
     );
 
@@ -113,6 +126,73 @@ const downloadBinary = (url, maxBytes = MAX_MEDIA_BYTES, timeoutMs = DEFAULT_TIM
     });
     req.end();
   });
+
+const ensureTempDir = async () => {
+  await fs.mkdir(TEMP_DIR, { recursive: true });
+};
+
+const getExtensionFromType = (contentType) => {
+  const lower = (contentType || '').toLowerCase();
+  if (lower.includes('audio/mpeg') || lower.includes('audio/mp3')) return '.mp3';
+  if (lower.includes('audio/mp4') || lower.includes('audio/x-m4a')) return '.m4a';
+  if (lower.includes('audio/ogg')) return '.ogg';
+  if (lower.includes('audio/aac')) return '.aac';
+  if (lower.includes('video/mp4')) return '.mp4';
+  if (lower.includes('video/webm')) return '.webm';
+  if (lower.includes('video/quicktime')) return '.mov';
+  return '.bin';
+};
+
+const writeTempFile = async (buffer, ext) => {
+  await ensureTempDir();
+  const safeExt = ext && ext.startsWith('.') ? ext : '.bin';
+  const fileName = `input_${Date.now()}_${Math.random().toString(16).slice(2)}${safeExt}`;
+  const filePath = path.join(TEMP_DIR, fileName);
+  await fs.writeFile(filePath, buffer);
+  return filePath;
+};
+
+const readAndValidateOutput = async (filePath) => {
+  const stat = await fs.stat(filePath);
+  if (stat.size > MAX_MEDIA_BYTES) {
+    throw new Error('Arquivo convertido excede o limite de tamanho permitido.');
+  }
+  return fs.readFile(filePath);
+};
+
+const convertToMp3Buffer = async (buffer, contentType, fileName) => {
+  const ext = fileName ? path.extname(fileName).toLowerCase() : getExtensionFromType(contentType);
+  const inputPath = await writeTempFile(buffer, ext);
+  const outputPath = path.join(TEMP_DIR, `audio_${Date.now()}_${Math.random().toString(16).slice(2)}.mp3`);
+  try {
+    const cmd = `ffmpeg -y -i "${inputPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 "${outputPath}"`;
+    await execProm(cmd, { timeout: CONVERT_TIMEOUT_MS });
+    return await readAndValidateOutput(outputPath);
+  } catch (error) {
+    logger.error('Erro ao converter audio:', error);
+    throw new Error('Falha ao converter audio para MP3.');
+  } finally {
+    await Promise.allSettled([fs.unlink(inputPath), fs.unlink(outputPath)]);
+  }
+};
+
+const convertToMp4Buffer = async (buffer, contentType, fileName) => {
+  const ext = fileName ? path.extname(fileName).toLowerCase() : getExtensionFromType(contentType);
+  const inputPath = await writeTempFile(buffer, ext);
+  const outputPath = path.join(TEMP_DIR, `video_${Date.now()}_${Math.random().toString(16).slice(2)}.mp4`);
+  try {
+    const cmd =
+      `ffmpeg -y -i "${inputPath}" -c:v libx264 -profile:v baseline -level 3.1 -pix_fmt yuv420p ` +
+      `-c:a aac -b:a 128k -movflags +faststart "${outputPath}"`;
+    await execProm(cmd, { timeout: CONVERT_TIMEOUT_MS });
+    return await readAndValidateOutput(outputPath);
+  } catch (error) {
+    logger.error('Erro ao converter video:', error);
+    throw new Error('Falha ao converter video para MP4.');
+  } finally {
+    await Promise.allSettled([fs.unlink(inputPath), fs.unlink(outputPath)]);
+  }
+};
 
 const resolveYoutubeLink = async (query) => {
   const normalized = query ? query.trim() : '';
@@ -133,6 +213,19 @@ const resolveYoutubeLink = async (query) => {
     throw new Error('Nenhum resultado encontrado para a busca.');
   }
   return searchResult.resultado.url;
+};
+
+const formatVideoInfo = (videoInfo) => {
+  if (!videoInfo || typeof videoInfo !== 'object') return null;
+  const lines = [];
+  if (videoInfo.title) lines.push(`Titulo: ${videoInfo.title}`);
+  if (videoInfo.uploader) lines.push(`Canal: ${videoInfo.uploader}`);
+  if (videoInfo.channel) lines.push(`Canal: ${videoInfo.channel}`);
+  if (videoInfo.views) lines.push(`Views: ${Number(videoInfo.views).toLocaleString('pt-BR')}`);
+  if (videoInfo.like_count) lines.push(`Likes: ${Number(videoInfo.like_count).toLocaleString('pt-BR')}`);
+  if (videoInfo.duration) lines.push(`Duracao: ${videoInfo.duration}s`);
+  if (videoInfo.id) lines.push(`ID: ${videoInfo.id}`);
+  return lines.length ? lines.join('\n') : null;
 };
 
 const requestDownload = async (link, type) => {
@@ -174,26 +267,32 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
       return;
     }
 
+    await sock.sendMessage(
+      remoteJid,
+      { text: 'Aguarde, estamos baixando o audio...' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+
     const link = await resolveYoutubeLink(text);
     const { streamUrl, videoInfo } = await requestDownload(link, 'audio');
-    const audioBuffer = await downloadBinary(streamUrl);
-    const title = videoInfo?.title ? `Audio: ${videoInfo.title}` : null;
-    if (title) {
-      await sock.sendMessage(
-        remoteJid,
-        { text: title },
-        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-      );
-    }
+    const { buffer: audioBuffer, contentType, fileName } = await downloadBinary(streamUrl);
+    const convertedAudio = await convertToMp3Buffer(audioBuffer, contentType, fileName);
+    const infoText = formatVideoInfo(videoInfo) || 'Informacoes do audio indisponiveis.';
+    const infoMessage = await sock.sendMessage(
+      remoteJid,
+      { text: infoText },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+    const quotedInfo = infoMessage?.message ? infoMessage : messageInfo;
 
     await sock.sendMessage(
       remoteJid,
       {
-        audio: audioBuffer,
+        audio: convertedAudio,
         mimetype: 'audio/mpeg',
         ptt: false,
       },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      { quoted: quotedInfo, ephemeralExpiration: expirationMessage },
     );
 
   } catch (error) {
@@ -213,15 +312,22 @@ export const handlePlayVidCommand = async (sock, remoteJid, messageInfo, expirat
       return;
     }
 
+    await sock.sendMessage(
+      remoteJid,
+      { text: 'Aguarde, estamos baixando o video...' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+
     const link = await resolveYoutubeLink(text);
     const { streamUrl, videoInfo } = await requestDownload(link, 'video');
-    const videoBuffer = await downloadBinary(streamUrl);
-    const caption = videoInfo?.title ? `Video: ${videoInfo.title}` : 'Video pronto.';
-
+    const { buffer: videoBuffer, contentType, fileName } = await downloadBinary(streamUrl);
+    const convertedVideo = await convertToMp4Buffer(videoBuffer, contentType, fileName);
+    const infoText = formatVideoInfo(videoInfo);
+    const caption = infoText ? `Video pronto.\n${infoText}` : 'Video pronto.';
     await sock.sendMessage(
       remoteJid,
       {
-        video: videoBuffer,
+        video: convertedVideo,
         mimetype: 'video/mp4',
         caption,
       },
