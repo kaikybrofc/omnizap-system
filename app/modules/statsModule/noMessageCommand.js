@@ -1,6 +1,6 @@
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
-import { getGroupParticipants, _matchesParticipantId } from '../../config/groupUtils.js';
+import { getGroupParticipants, isUserAdmin, _matchesParticipantId } from '../../config/groupUtils.js';
 
 const getParticipantJid = (participant) => participant?.id || participant?.jid || participant?.lid || null;
 
@@ -18,9 +18,13 @@ const buildNoMessageText = (members) => {
   return lines.join('\n');
 };
 
-export async function handleNoMessageCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }) {
+export async function handleNoMessageCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, senderJid }) {
   if (!isGroupMessage) {
     await sock.sendMessage(remoteJid, { text: 'Este comando so pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    return;
+  }
+  if (!(await isUserAdmin(remoteJid, senderJid))) {
+    await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
