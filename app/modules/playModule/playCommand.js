@@ -182,29 +182,50 @@ const fetchQueueStatus = async (requestId) => {
 };
 
 /**
- * Formata a mensagem de fila quando disponivel.
- * @param {object|null} status
- * @returns {string|null}
+ * Monta uma mensagem amigável com o status atual da fila de processamento.
+ * Essa informação ajuda o usuário a entender quanto tempo pode levar
+ * até que o download dele seja iniciado.
+ *
+ * @param {object|null} status - Objeto retornado pelo serviço com informações da fila
+ * @returns {string|null} Texto formatado para exibição ou null se não houver dados úteis
  */
 const buildQueueStatusText = (status) => {
-  if (!status?.fila) return;
+  if (!status?.fila) return null;
 
   const fila = status.fila;
+
   const downloadsAhead = Number.isFinite(fila.downloads_a_frente)
     ? fila.downloads_a_frente
     : null;
-  const position = Number.isFinite(fila.posicao_na_fila) ? fila.posicao_na_fila : null;
-  const totalQueued = Number.isFinite(fila.enfileirados) ? fila.enfileirados : null;
 
-  if (downloadsAhead === null && position === null && totalQueued === null) return null;
+  const position = Number.isFinite(fila.posicao_na_fila)
+    ? fila.posicao_na_fila
+    : null;
 
-  const parts = [];
-  if (position !== null) parts.push(`posicao na fila: ${position}`);
-  if (downloadsAhead !== null) parts.push(`downloads a frente: ${downloadsAhead}`);
-  if (totalQueued !== null) parts.push(`na fila: ${totalQueued}`);
+  const totalQueued = Number.isFinite(fila.enfileirados)
+    ? fila.enfileirados
+    : null;
 
-  if (!parts.length) return null;
-  return parts.join(' | ');
+  if (downloadsAhead === null && position === null && totalQueued === null) {
+    return null;
+  }
+
+  const lines = [];
+
+
+  if (position !== null) {
+    lines.push(`\n📍 Você está na *posição ${position}*`);
+  }
+
+  if (downloadsAhead !== null) {
+    lines.push(`🚀 Existem *${downloadsAhead} download(s)* à sua frente`);
+  }
+
+   if (totalQueued !== null) {
+     lines.push(`📦 Total na fila: *${totalQueued}*\n`);
+   }
+
+  return lines.join('\n');
 };
 
 /**
@@ -337,7 +358,7 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
     const queueStatus = await fetchQueueStatus(requestId);
     const queueText = buildQueueStatusText(queueStatus);
     const waitText = queueText
-      ? `⏳ Aguarde, estamos preparando o audio... (${queueText})`
+      ? `⏳ Aguarde, estamos preparando o audio... ${queueText}`
       : '⏳ Aguarde, estamos preparando o audio...';
     await sock.sendMessage(
       remoteJid,
@@ -406,7 +427,7 @@ export const handlePlayVidCommand = async (
     const queueStatus = await fetchQueueStatus(requestId);
     const queueText = buildQueueStatusText(queueStatus);
     const waitText = queueText
-      ? `⏳ Aguarde, estamos preparando o video... (${queueText})`
+      ? `⏳ Aguarde, estamos preparando o video... ${queueText}`
       : '⏳ Aguarde, estamos preparando o video...';
     await sock.sendMessage(
       remoteJid,
