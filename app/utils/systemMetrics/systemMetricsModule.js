@@ -54,7 +54,7 @@ export const getSystemMetrics = () => {
     tipo: os.type(),
     release: os.release(),
     versaoNode: process.version,
-    cpus: cpus.map(cpu => ({
+    cpus: cpus.map((cpu) => ({
       modelo: cpu.model,
       velocidade: cpu.speed,
     })),

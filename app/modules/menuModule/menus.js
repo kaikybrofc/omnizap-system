@@ -8,11 +8,7 @@ const sendMenuImage = async (sock, remoteJid, messageInfo, expirationMessage, ca
   const imageUrl = process.env[MENU_IMAGE_ENV];
   if (!imageUrl) {
     logger.error('IMAGE_MENU environment variable not set.');
-    await sock.sendMessage(
-      remoteJid,
-      { text: 'Ocorreu um erro ao carregar o menu.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text: 'Ocorreu um erro ao carregar o menu.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
@@ -28,11 +24,7 @@ const sendMenuImage = async (sock, remoteJid, messageInfo, expirationMessage, ca
     );
   } catch (error) {
     logger.error('Error fetching menu image:', error);
-    await sock.sendMessage(
-      remoteJid,
-      { text: 'Ocorreu um erro ao carregar a imagem do menu.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text: 'Ocorreu um erro ao carregar a imagem do menu.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   }
 };
 

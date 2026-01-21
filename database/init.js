@@ -76,12 +76,7 @@ export default async function initializeDatabase() {
 
     await connection.changeUser({ database: dbToCreate });
 
-    await Promise.all([
-      connection.query(createMessagesTableSQL),
-      connection.query(createChatsTableSQL),
-      connection.query(createGroupsMetadataTableSQL),
-      connection.query(createGroupConfigsTableSQL),
-    ]);
+    await Promise.all([connection.query(createMessagesTableSQL), connection.query(createChatsTableSQL), connection.query(createGroupsMetadataTableSQL), connection.query(createGroupConfigsTableSQL)]);
 
     logger.info('Todas as tabelas foram verificadas/criadas com sucesso.');
   } catch (error) {

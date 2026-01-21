@@ -10,11 +10,7 @@ const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
-  logger.error(
-    `Variáveis de ambiente de banco de dados necessárias não encontradas: ${missingEnvVars.join(
-      ', ',
-    )}`,
-  );
+  logger.error(`Variáveis de ambiente de banco de dados necessárias não encontradas: ${missingEnvVars.join(', ')}`);
   process.exit(1);
 }
 

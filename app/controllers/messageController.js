@@ -32,15 +32,9 @@ export const extractMessageContent = ({ message }) => {
     [message.documentMessage, (m) => m.fileName || '[Documento]'],
     [message.audioMessage, () => '[Áudio]'],
     [message.stickerMessage, () => '[Figurinha]'],
-    [
-      message.locationMessage,
-      (m) => `[Localização] Lat: ${m.degreesLatitude}, Long: ${m.degreesLongitude}`,
-    ],
+    [message.locationMessage, (m) => `[Localização] Lat: ${m.degreesLatitude}, Long: ${m.degreesLongitude}`],
     [message.contactMessage, (m) => `[Contato] ${m.displayName}`],
-    [
-      message.contactsArrayMessage,
-      (m) => `[Contatos] ${m.contacts.map((c) => c.displayName).join(', ')}`,
-    ],
+    [message.contactsArrayMessage, (m) => `[Contatos] ${m.contacts.map((c) => c.displayName).join(', ')}`],
     [message.listMessage, (m) => m.description || '[Mensagem de Lista]'],
     [message.buttonsMessage, (m) => m.contentText || '[Mensagem de Botões]'],
     [message.templateButtonReplyMessage, (m) => `[Resposta de Botão] ${m.selectedDisplayText}`],
@@ -98,28 +92,13 @@ export const handleMessages = async (update, sock) => {
 
           switch (command) {
             case 'menu': {
-              await handleMenuCommand(
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                senderName,
-                COMMAND_PREFIX,
-              );
+              await handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, COMMAND_PREFIX);
               break;
             }
 
             case 'sticker':
             case 's':
-              processSticker(
-                sock,
-                messageInfo,
-                senderJid,
-                remoteJid,
-                expirationMessage,
-                senderName,
-                args.join(' '),
-              );
+              processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '));
               break;
 
             case 'play':
@@ -131,33 +110,33 @@ export const handleMessages = async (update, sock) => {
               break;
 
             case 'stickertext':
-              case 'st':
-                await processTextSticker({
-                  sock,
-                  messageInfo,
-                  remoteJid,
-                  senderJid,
-                  senderName,
-                  text,
-                  extraText: 'PackZoeira',
-                  expirationMessage,
-                  color: 'black'
-                });
+            case 'st':
+              await processTextSticker({
+                sock,
+                messageInfo,
+                remoteJid,
+                senderJid,
+                senderName,
+                text,
+                extraText: 'PackZoeira',
+                expirationMessage,
+                color: 'black',
+              });
               break;
 
             case 'stickertextwhite':
-              case 'stw':
-                await processTextSticker({
-                  sock,
-                  messageInfo,
-                  remoteJid,
-                  senderJid,
-                  senderName,
-                  text,
-                  extraText: 'PackZoeira',
-                  expirationMessage,
-                  color: 'white'
-                });
+            case 'stw':
+              await processTextSticker({
+                sock,
+                messageInfo,
+                remoteJid,
+                senderJid,
+                senderName,
+                text,
+                extraText: 'PackZoeira',
+                expirationMessage,
+                color: 'white',
+              });
               break;
 
             case 'ranking':
@@ -175,7 +154,7 @@ export const handleMessages = async (update, sock) => {
             case 'semmsg':
             case 'zeromsg':
             case 'nomsg':
-              case "inativos":
+            case 'inativos':
               await handleNoMessageCommand({
                 sock,
                 remoteJid,

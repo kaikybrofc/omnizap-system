@@ -84,35 +84,17 @@ export async function generateTextImage(text, outputDir, fileName, color) {
   }
 }
 
-export async function processTextSticker({
-  sock,
-  messageInfo,
-  remoteJid,
-  senderJid,
-  senderName,
-  text,
-  expirationMessage,
-  extraText = '',
-  color = 'black'
-}) {
+export async function processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, expirationMessage, extraText = '', color = 'black' }) {
   const stickerText = text.trim();
 
   if (!stickerText) {
-    await sock.sendMessage(
-      remoteJid,
-      { text: '❌ Você precisa informar um texto para virar figurinha.\n\nExemplo:\n/st bom dia seus lindos' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text: '❌ Você precisa informar um texto para virar figurinha.\n\nExemplo:\n/st bom dia seus lindos' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
 
     return;
   }
 
   if (stickerText.length > MAX_CHARACTERS) {
-    await sock.sendMessage(
-      remoteJid,
-      { text: '❌ Limite de caracteres excedido!' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text: '❌ Limite de caracteres excedido!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
 
     return;
   }
@@ -120,13 +102,9 @@ export async function processTextSticker({
   const stickerLines = stickerText.split(/\r?\n/);
 
   if (stickerLines.length > MAX_LINES) {
-    await sock.sendMessage(
-      remoteJid,
-      { text: '❌ Limite de linhas excedido!' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text: '❌ Limite de linhas excedido!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
 
-     return;
+    return;
   }
 
   const uniqueId = uuidv4();
@@ -149,7 +127,7 @@ export async function processTextSticker({
       if (!extraText) {
         return { packName: 'OmniZap Text', packAuthor: senderName };
       }
-      
+
       const idx = extraText.indexOf('/');
       return idx !== -1
         ? {
@@ -166,11 +144,7 @@ export async function processTextSticker({
 
     const stickerBuffer = await fs.readFile(stickerPath);
 
-    await sock.sendMessage(
-      remoteJid,
-      { sticker: stickerBuffer },
-      { ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { ephemeralExpiration: expirationMessage });
   } catch (error) {
     logger.error(`processTextSticker Erro: ${error.message}`, { error });
     await sock.sendMessage(remoteJid, {

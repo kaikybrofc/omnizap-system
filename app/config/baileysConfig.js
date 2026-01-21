@@ -1,12 +1,8 @@
-import {
-  fetchLatestBaileysVersion,
-  downloadContentFromMessage
-} from '@whiskeysockets/baileys';
+import { fetchLatestBaileysVersion, downloadContentFromMessage } from '@whiskeysockets/baileys';
 
 import logger from '../utils/logger/loggerModule.js';
 import fs from 'node:fs';
 import path from 'node:path';
-
 
 const DEFAULT_BAILEYS_VERSION = [7, 0, 0];
 
@@ -63,7 +59,10 @@ function parseBaileysVersion(rawVersion) {
   }
 
   const cleaned = String(rawVersion).replace(/[\[\]\s]/g, '');
-  const parts = cleaned.split(/[.,]/).filter(Boolean).map((value) => Number(value));
+  const parts = cleaned
+    .split(/[.,]/)
+    .filter(Boolean)
+    .map((value) => Number(value));
 
   if (parts.length < 3 || parts.some((value) => Number.isNaN(value))) {
     return null;
@@ -342,8 +341,7 @@ export function hasMedia(message, specificType = null) {
   }
 
   if (specificType) {
-    return mediaDetails.mediaType === specificType
-      || (mediaDetails.details.allMediaFound && mediaDetails.details.allMediaFound.some((media) => media.mediaType === specificType));
+    return mediaDetails.mediaType === specificType || (mediaDetails.details.allMediaFound && mediaDetails.details.allMediaFound.some((media) => media.mediaType === specificType));
   }
 
   return true;

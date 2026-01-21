@@ -25,32 +25,16 @@ const buildRankingMessage = (rows, dbStart) => {
     const first = formatDate(row.first_message);
     const last = formatDate(row.last_message);
     const position = `${index + 1}`.padStart(2, '0');
-    lines.push(
-      `${position}. ${handle}`,
-      `   💬 ${total} msg(s)`,
-      `   📅 primeira: ${first}`,
-      `   🕘 ultima: ${last}`,
-      '',
-    );
+    lines.push(`${position}. ${handle}`, `   💬 ${total} msg(s)`, `   📅 primeira: ${first}`, `   🕘 ultima: ${last}`, '');
   });
 
   lines.push(`Inicio do banco (primeira mensagem): ${formatDate(dbStart)}`);
   return lines.join('\n');
 };
 
-export async function handleRankingCommand({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  isGroupMessage,
-}) {
+export async function handleRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }) {
   if (!isGroupMessage) {
-    await sock.sendMessage(
-      remoteJid,
-      { text: 'Este comando so pode ser usado em grupos.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text: 'Este comando so pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
@@ -68,27 +52,15 @@ export async function handleRankingCommand({
       [remoteJid],
     );
 
-    const dbStartRows = await executeQuery(
-      'SELECT MIN(timestamp) AS db_start FROM messages',
-    );
+    const dbStartRows = await executeQuery('SELECT MIN(timestamp) AS db_start FROM messages');
     const dbStart = dbStartRows[0]?.db_start || null;
 
-    const mentions = rankingRows
-      .map((row) => row.sender_id)
-      .filter((jid) => typeof jid === 'string' && jid.includes('@'));
+    const mentions = rankingRows.map((row) => row.sender_id).filter((jid) => typeof jid === 'string' && jid.includes('@'));
 
     const text = buildRankingMessage(rankingRows, dbStart);
-    await sock.sendMessage(
-      remoteJid,
-      { text, mentions },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text, mentions }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   } catch (error) {
     logger.error('Erro ao gerar ranking do grupo:', { error: error.message });
-    await sock.sendMessage(
-      remoteJid,
-      { text: `Erro ao gerar ranking: ${error.message}` },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text: `Erro ao gerar ranking: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   }
 }

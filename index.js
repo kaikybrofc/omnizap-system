@@ -7,7 +7,7 @@ import initializeDatabase from './database/init.js';
 async function startApp() {
   try {
     logger.info('Iniciando OmniZap System...');
-    
+
     logger.info('Verificando e inicializando o banco de dados...');
     await initializeDatabase();
 

@@ -33,30 +33,8 @@ const resolveRoleLabel = (participant) => {
   return 'membro';
 };
 
-const buildProfileText = ({
-  handle,
-  totalMessages,
-  firstMessage,
-  lastMessage,
-  activeDays,
-  avgPerDay,
-  percentOfGroup,
-  rank,
-  role,
-  dbStart,
-}) => {
-  const lines = [
-    '👤 *Perfil no grupo*',
-    '',
-    `🔹 *Usuário:* ${handle}`,
-    `🔸 *Cargo:* ${role}`,
-    `💬 *Mensagens:* ${totalMessages}`,
-    `📅 *Primeira:* ${formatDate(firstMessage)}`,
-    `🕘 *Última:* ${formatDate(lastMessage)}`,
-    `📆 *Dias ativos:* ${activeDays}`,
-    `📈 *Média/dia:* ${avgPerDay}`,
-    `📊 *Participação:* ${percentOfGroup}`,
-  ];
+const buildProfileText = ({ handle, totalMessages, firstMessage, lastMessage, activeDays, avgPerDay, percentOfGroup, rank, role, dbStart }) => {
+  const lines = ['👤 *Perfil no grupo*', '', `🔹 *Usuário:* ${handle}`, `🔸 *Cargo:* ${role}`, `💬 *Mensagens:* ${totalMessages}`, `📅 *Primeira:* ${formatDate(firstMessage)}`, `🕘 *Última:* ${formatDate(lastMessage)}`, `📆 *Dias ativos:* ${activeDays}`, `📈 *Média/dia:* ${avgPerDay}`, `📊 *Participação:* ${percentOfGroup}`];
 
   if (rank !== null) {
     lines.push(`🏆 *Ranking:* #${rank}`);
@@ -66,31 +44,15 @@ const buildProfileText = ({
   return lines.join('\n');
 };
 
-export async function handleProfileCommand({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  isGroupMessage,
-  senderJid,
-  args,
-}) {
+export async function handleProfileCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, senderJid, args }) {
   if (!isGroupMessage) {
-    await sock.sendMessage(
-      remoteJid,
-      { text: 'Este comando só pode ser usado em grupos.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   const targetJid = getTargetJid(messageInfo, args, senderJid);
   if (!targetJid) {
-    await sock.sendMessage(
-      remoteJid,
-      { text: 'Não foi possível identificar o usuário.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text: 'Não foi possível identificar o usuário.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
@@ -106,19 +68,13 @@ export async function handleProfileCommand({
       [remoteJid, targetJid],
     );
 
-    const [groupStats] = await executeQuery(
-      'SELECT COUNT(*) AS total_messages FROM messages WHERE chat_id = ?',
-      [remoteJid],
-    );
+    const [groupStats] = await executeQuery('SELECT COUNT(*) AS total_messages FROM messages WHERE chat_id = ?', [remoteJid]);
 
-    const [dbStartRow] = await executeQuery(
-      'SELECT MIN(timestamp) AS db_start FROM messages',
-    );
+    const [dbStartRow] = await executeQuery('SELECT MIN(timestamp) AS db_start FROM messages');
 
     const totalMessages = Number(userStats?.total_messages || 0);
     const groupTotal = Number(groupStats?.total_messages || 0);
-    const percentOfGroup =
-      groupTotal > 0 ? `${((totalMessages / groupTotal) * 100).toFixed(2)}%` : '0%';
+    const percentOfGroup = groupTotal > 0 ? `${((totalMessages / groupTotal) * 100).toFixed(2)}%` : '0%';
 
     let rank = null;
     if (totalMessages > 0) {
@@ -165,17 +121,9 @@ export async function handleProfileCommand({
       dbStart: dbStartRow?.db_start || null,
     });
 
-    await sock.sendMessage(
-      remoteJid,
-      { text, mentions: [targetJid] },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text, mentions: [targetJid] }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   } catch (error) {
     logger.error('Erro ao gerar perfil do usuário:', { error: error.message });
-    await sock.sendMessage(
-      remoteJid,
-      { text: `Erro ao gerar perfil: ${error.message}` },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sock.sendMessage(remoteJid, { text: `Erro ao gerar perfil: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   }
 }

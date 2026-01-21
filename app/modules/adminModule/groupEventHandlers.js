@@ -1,6 +1,6 @@
 import groupConfigStore from '../../store/groupConfigStore.js';
 import logger from '../../utils/logger/loggerModule.js';
-import {getGroupMetadata, getGroupInviteCode} from '../../config/groupUtils.js';
+import { getGroupMetadata, getGroupInviteCode } from '../../config/groupUtils.js';
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,9 +27,7 @@ const replacePlaceholders = async (message, sock, groupId) => {
     }
 
     if (updatedMessage.includes('@admins') && metadata.participants) {
-      const adminJids = metadata.participants
-        .filter((p) => p.admin === 'admin' || p.admin === 'superadmin')
-        .map((p) => p.id);
+      const adminJids = metadata.participants.filter((p) => p.admin === 'admin' || p.admin === 'superadmin').map((p) => p.id);
 
       const adminNames = adminJids.map((jid) => {
         mentions.push(jid);
@@ -43,10 +41,7 @@ const replacePlaceholders = async (message, sock, groupId) => {
     }
 
     if (updatedMessage.includes('@membercount') && metadata.participants) {
-      updatedMessage = updatedMessage.replace(
-        /@membercount/g,
-        metadata.participants.length.toString(),
-      );
+      updatedMessage = updatedMessage.replace(/@membercount/g, metadata.participants.length.toString());
     }
 
     if (updatedMessage.includes('@owner') && metadata.owner) {
@@ -57,10 +52,7 @@ const replacePlaceholders = async (message, sock, groupId) => {
     }
 
     if (updatedMessage.includes('@creationtime') && metadata.creation) {
-      updatedMessage = updatedMessage.replace(
-        /@creationtime/g,
-        moment.unix(metadata.creation).format('DD/MM/YYYY HH:mm:ss'),
-      );
+      updatedMessage = updatedMessage.replace(/@creationtime/g, moment.unix(metadata.creation).format('DD/MM/YYYY HH:mm:ss'));
     }
 
     if (updatedMessage.includes('@invitecode')) {
@@ -68,14 +60,8 @@ const replacePlaceholders = async (message, sock, groupId) => {
         const inviteCode = await getGroupInviteCode(sock, groupId);
         updatedMessage = updatedMessage.replace(/@invitecode/g, inviteCode);
       } catch (e) {
-        logger.warn(
-          `Não foi possível obter o código de convite para o grupo ${groupId}. O placeholder não será substituído.`,
-          { error: e.message },
-        );
-        updatedMessage = updatedMessage.replace(
-          /@invitecode/g,
-          '[Código de convite não disponível]',
-        );
+        logger.warn(`Não foi possível obter o código de convite para o grupo ${groupId}. O placeholder não será substituído.`, { error: e.message });
+        updatedMessage = updatedMessage.replace(/@invitecode/g, '[Código de convite não disponível]');
       }
     }
 
@@ -84,10 +70,7 @@ const replacePlaceholders = async (message, sock, groupId) => {
     }
 
     if (updatedMessage.includes('@isannounceonly')) {
-      updatedMessage = updatedMessage.replace(
-        /@isannounceonly/g,
-        metadata.announce ? 'Sim' : 'Não',
-      );
+      updatedMessage = updatedMessage.replace(/@isannounceonly/g, metadata.announce ? 'Sim' : 'Não');
     }
   } catch (error) {
     logger.error(`Erro ao substituir placeholders para o grupo ${groupId}.`, {
@@ -114,10 +97,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
     const allMentions = [];
 
     for (const participant of participants) {
-      const jid =
-        typeof participant === 'string'
-          ? participant
-          : participant?.id || participant?.jid || participant?.phoneNumber || '';
+      const jid = typeof participant === 'string' ? participant : participant?.id || participant?.jid || participant?.phoneNumber || '';
 
       const participantName = jid ? jid.split('@')[0] : participant?.phoneNumber || 'user';
 
@@ -126,8 +106,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
       switch (action) {
         case 'add':
           if (groupConfig.welcomeMessageEnabled) {
-            const welcomeMsg =
-              groupConfig.welcomeMessage || '👋 Bem-vindo(a) ao grupo @groupname, @user! 🎉';
+            const welcomeMsg = groupConfig.welcomeMessage || '👋 Bem-vindo(a) ao grupo @groupname, @user! 🎉';
             let msg = welcomeMsg.replace('{participant}', `@${participantName}`);
             msg = msg.replace(/@user/g, `@${participantName}`);
             message += `${msg}\n`;
@@ -135,8 +114,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
           break;
         case 'remove':
           if (groupConfig.farewellMessageEnabled) {
-            const farewellMsg =
-              groupConfig.farewellMessage || '😥 Adeus, @user! Sentiremos sua falta.';
+            const farewellMsg = groupConfig.farewellMessage || '😥 Adeus, @user! Sentiremos sua falta.';
             let msg = farewellMsg.replace('{participant}', `@${participantName}`);
             msg = msg.replace(/@user/g, `@${participantName}`);
             message += `${msg}\n`;
@@ -160,11 +138,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
       let messageOptions = {};
       let mediaPath = null;
 
-      const { updatedMessage, mentions: groupMentions } = await replacePlaceholders(
-        message,
-        sock,
-        groupId,
-      );
+      const { updatedMessage, mentions: groupMentions } = await replacePlaceholders(message, sock, groupId);
       message = updatedMessage;
 
       const finalMentions = [...new Set([...allMentions, ...groupMentions])];
@@ -188,9 +162,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
         logger.debug(`Caminho absoluto da mídia resolvido: ${absoluteMediaPath}`);
 
         if (fs.existsSync(absoluteMediaPath)) {
-          logger.info(
-            `Arquivo de mídia encontrado em ${absoluteMediaPath}. Preparando para enviar.`,
-          );
+          logger.info(`Arquivo de mídia encontrado em ${absoluteMediaPath}. Preparando para enviar.`);
           const mediaType = absoluteMediaPath.endsWith('.mp4') ? 'video' : 'image';
           const mediaBuffer = fs.readFileSync(absoluteMediaPath);
 
@@ -208,9 +180,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
             };
           }
         } else {
-          logger.warn(
-            `Arquivo de mídia não encontrado em ${absoluteMediaPath} para o grupo ${groupId}. Ação: ${action}. Enviando apenas a mensagem de texto.`,
-          );
+          logger.warn(`Arquivo de mídia não encontrado em ${absoluteMediaPath} para o grupo ${groupId}. Ação: ${action}. Enviando apenas a mensagem de texto.`);
           messageOptions = { text: message.trim(), mentions: finalMentions };
         }
       } else {
