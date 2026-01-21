@@ -275,6 +275,27 @@ export async function create(tableName, data) {
 }
 
 /**
+ * Cria um novo registro ignorando duplicidade.
+ * @param {string} tableName
+ * @param {object} data
+ * @returns {Promise<object|null>}
+ */
+export async function createIgnore(tableName, data) {
+  validateTableName(tableName);
+  const keys = Object.keys(data);
+  if (keys.length === 0) {
+    throw new Error('Não é possível criar um registro com dados vazios.');
+  }
+  const values = Object.values(data);
+  const sql = `INSERT IGNORE INTO ${mysql.escapeId(tableName)} (${keys.map(mysql.escapeId).join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`;
+  const result = await executeQuery(sql, values);
+  if (!result.insertId) {
+    return null;
+  }
+  return { id: result.insertId, ...data };
+}
+
+/**
  * Insere multiplos registros em uma tabela.
  * @param {string} tableName
  * @param {Array<object>} records

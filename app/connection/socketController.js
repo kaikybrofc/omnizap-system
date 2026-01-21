@@ -12,7 +12,7 @@ import { handleMessages } from '../controllers/messageController.js';
 
 import { handleGroupUpdate as handleGroupParticipantsEvent } from '../modules/adminModule/groupEventHandlers.js';
 
-import { create, findBy, findById, remove, upsert } from '../../database/index.js';
+import { createIgnore, findBy, findById, remove, upsert } from '../../database/index.js';
 
 import { fileURLToPath } from 'node:url';
 
@@ -58,7 +58,7 @@ async function persistIncomingMessages(incomingMessages, type) {
 
     const messageData = buildMessageData(msg);
     try {
-      await create('messages', messageData);
+      await createIgnore('messages', messageData);
     } catch (err) {
       const errorCode = err.code || err.errorCode;
       if (errorCode !== 'ER_DUP_ENTRY') {
