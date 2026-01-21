@@ -1,5 +1,4 @@
-![OmniZap System](assets/omnizap-banner.svg)
-
+<img width="1318" height="352" alt="image" src="https://github.com/user-attachments/assets/d44835e7-021a-4c67-a0e7-5b858d51eb91" />
 
 O **OmniZap System** é uma plataforma de automação para WhatsApp em Node.js com Baileys, oferecendo gerenciamento de grupos, automação de interações e comandos personalizados com suporte a MySQL.
 
