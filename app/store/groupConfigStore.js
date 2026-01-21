@@ -3,9 +3,9 @@ import { findById, upsert } from '../../database/index.js';
 
 const groupConfigStore = {
   /**
-   * Retrieves the configuration for a specific group.
-   * @param {string} groupId - The JID of the group.
-   * @returns {object} The group configuration, or an empty object if not found.
+   * Recupera a configuracao de um grupo especifico.
+   * @param {string} groupId - O JID do grupo.
+   * @returns {object} A configuracao do grupo, ou um objeto vazio se nao encontrado.
    */
   getGroupConfig: async function (groupId) {
     try {
@@ -30,11 +30,11 @@ const groupConfigStore = {
   },
 
   /**
-   * Updates the configuration for a specific group.
-   * @param {string} groupId - The JID of the group.
-   * @param {object} newConfig - The new configuration object to merge.
-   * @param {string} [newConfig.welcomeMedia] - Optional path to media for welcome messages.
-   * @param {string} [newConfig.farewellMedia] - Optional path to media for farewell messages.
+   * Atualiza a configuracao de um grupo especifico.
+   * @param {string} groupId - O JID do grupo.
+   * @param {object} newConfig - O novo objeto de configuracao para mesclar.
+   * @param {string} [newConfig.welcomeMedia] - Caminho opcional para midia de boas-vindas.
+   * @param {string} [newConfig.farewellMedia] - Caminho opcional para midia de despedida.
    */
   updateGroupConfig: async function (groupId, newConfig) {
     const currentConfig = await this.getGroupConfig(groupId);
