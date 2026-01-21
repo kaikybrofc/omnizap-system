@@ -218,7 +218,7 @@ const buildQueueStatusText = (status) => {
   }
 
   if (downloadsAhead !== null) {
-    lines.push(`🚀 Existem *${downloadsAhead} download(s)* à sua frente`);
+    lines.push(`\n🚀 Existem *${downloadsAhead} download(s)* à sua frente`);
   }
 
    if (totalQueued !== null) {
