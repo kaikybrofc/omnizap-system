@@ -5,6 +5,9 @@ import { handleAdminCommand, isAdminCommand } from '../modules/adminModule/group
 import { processSticker } from '../modules/stickerModule/stickerCommand.js';
 import { processTextSticker } from '../modules/stickerModule/stickerTextCommand.js';
 import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/playCommand.js';
+import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
+import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
+import { handleProfileCommand } from '../modules/statsModule/profileCommand.js';
 import { getExpiration } from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
@@ -155,6 +158,44 @@ export const handleMessages = async (update, sock) => {
                   expirationMessage,
                   color: 'white'
                 });
+              break;
+
+            case 'ranking':
+            case 'rank':
+            case 'top5':
+              await handleRankingCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                isGroupMessage,
+              });
+              break;
+
+            case 'semmsg':
+            case 'zeromsg':
+            case 'nomsg':
+              case "inativos":
+              await handleNoMessageCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                isGroupMessage,
+              });
+              break;
+
+            case 'perfil':
+            case 'profile':
+              await handleProfileCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                isGroupMessage,
+                senderJid,
+                args,
+              });
               break;
 
             default: {

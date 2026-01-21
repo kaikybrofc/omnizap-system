@@ -18,7 +18,7 @@
     "start": "node index.js",
     "dev": "node index.js",
     "db:init": "node database/init.js",
-    "pm2:prod": "pm2 start ecosystem.prod.config.js"
+    "pm2:prod": "pm2 start ecosystem.prod.config.cjs"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",

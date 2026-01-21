@@ -34,6 +34,13 @@ Olá, ${senderName}! 👋
 ➡️ *${commandPrefix}play Coldplay Yellow*  
 
 ━━━━━━━━━━━━━━━  
+📊 *Estatísticas*  
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}ranking* *(top 5 do grupo)*  
+➡️ *${commandPrefix}semmsg* *(membros sem mensagens)*  
+➡️ *${commandPrefix}perfil* *(estatísticas do usuário)*  
+
+━━━━━━━━━━━━━━━  
 🛡️ *Administração*  
 ━━━━━━━━━━━━━━━  
 ➡️ *${commandPrefix}menuadm*  
