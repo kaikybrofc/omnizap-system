@@ -1,27 +1,57 @@
-export const buildMenuCaption = (senderName, commandPrefix) => `Olá ${senderName}! 👋
+export const buildMenuCaption = (senderName, commandPrefix) => `
+Olá, ${senderName}! 👋  
 
-🧭 *Menu Principal*
-Como criar figurinha:
-1) Responda uma imagem/GIF com:
-➡️ ${commandPrefix}sticker ou ${commandPrefix}s
-2) Envie com legenda:
-➡️ ${commandPrefix}sticker ou ${commandPrefix}s
+🧭 *MENU PRINCIPAL*  
 
-🎵 *Midia*
-➡️ ${commandPrefix}play <link ou termo> (audio)
-➡️ ${commandPrefix}playvid <link ou termo> (video)
-Exemplo: ${commandPrefix}play Coldplay Yellow
+━━━━━━━━━━━━━━━  
+🖼️ *Figurinhas (Imagem / GIF)*  
+━━━━━━━━━━━━━━━  
+▫️ Responda uma imagem ou GIF com:  
+➡️ *${commandPrefix}sticker* ou *${commandPrefix}s*  
 
-🛡️ *Administração*
-➡️ ${commandPrefix}menuadm
+▫️ Ou envie a imagem/GIF com legenda:  
+➡️ *${commandPrefix}sticker* ou *${commandPrefix}s*  
 
-📌 *Status*
-Em evolução (beta).
+━━━━━━━━━━━━━━━  
+📝 *Figurinhas (Texto)*  
+━━━━━━━━━━━━━━━  
+▫️ Texto em preto:  
+➡️ *${commandPrefix}stickertext* ou *${commandPrefix}st*  
 
-🌐 *Open Source*
-GitHub: https://github.com/kaikybrofc/omnizap-system
-Contato: @kaikybrofc
+▫️ Texto em branco:  
+➡️ *${commandPrefix}stickertextwhite* ou *${commandPrefix}stw*  
+
+📌 *Exemplo:*  
+➡️ *${commandPrefix}stw Bom dia povo lindo*  
+
+━━━━━━━━━━━━━━━  
+🎵 *Mídia*  
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}play* <link ou termo> *(áudio)*  
+➡️ *${commandPrefix}playvid* <link ou termo> *(vídeo)*  
+
+📌 *Exemplo:*  
+➡️ *${commandPrefix}play Coldplay Yellow*  
+
+━━━━━━━━━━━━━━━  
+🛡️ *Administração*  
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}menuadm*  
+
+━━━━━━━━━━━━━━━  
+📌 *Status do Bot*  
+━━━━━━━━━━━━━━━  
+🚧 Em evolução *(beta)*  
+
+━━━━━━━━━━━━━━━  
+🌐 *Open Source*  
+━━━━━━━━━━━━━━━  
+🔗 GitHub:  
+https://github.com/kaikybrofc/omnizap-system  
+
+📩 Contato: *@kaikybrofc*
 `;
+
 
 export const MENU_ADM_TEXT = `
 🛡️ *Menu de Administração*

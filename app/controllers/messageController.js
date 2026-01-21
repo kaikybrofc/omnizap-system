@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { handleMenuCommand } from '../modules/menuModule/menus.js';
 import { handleAdminCommand, isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
 import { processSticker } from '../modules/stickerModule/stickerCommand.js';
+import { processTextSticker } from '../modules/stickerModule/stickerTextCommand.js';
 import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/playCommand.js';
 import { getExpiration } from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
@@ -124,6 +125,36 @@ export const handleMessages = async (update, sock) => {
 
             case 'playvid':
               await handlePlayVidCommand(sock, remoteJid, messageInfo, expirationMessage, text);
+              break;
+
+            case 'stickertext':
+              case 'st':
+                await processTextSticker({
+                  sock,
+                  messageInfo,
+                  remoteJid,
+                  senderJid,
+                  senderName,
+                  text,
+                  extraText: 'PackZoeira',
+                  expirationMessage,
+                  color: 'black'
+                });
+              break;
+
+            case 'stickertextwhite':
+              case 'stw':
+                await processTextSticker({
+                  sock,
+                  messageInfo,
+                  remoteJid,
+                  senderJid,
+                  senderName,
+                  text,
+                  extraText: 'PackZoeira',
+                  expirationMessage,
+                  color: 'white'
+                });
               break;
 
             default: {
