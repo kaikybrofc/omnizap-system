@@ -1,5 +1,4 @@
 import groupConfigStore from '../../store/groupConfigStore.js';
-import store from '../../store/dataStore.js';
 import logger from '../../utils/logger/loggerModule.js';
 import {getGroupMetadata, getGroupInviteCode} from '../../config/groupUtils.js';
 
@@ -33,7 +32,6 @@ const replacePlaceholders = async (message, sock, groupId) => {
         .map((p) => p.id);
 
       const adminNames = adminJids.map((jid) => {
-        const contact = store.contacts && store.contacts[jid];
         mentions.push(jid);
         return `@${jid.split('@')[0]}`;
       });
@@ -53,8 +51,7 @@ const replacePlaceholders = async (message, sock, groupId) => {
 
     if (updatedMessage.includes('@owner') && metadata.owner) {
       const ownerJid = metadata.owner;
-      const ownerName =
-        (store.contacts && store.contacts[ownerJid]?.notify) || ownerJid.split('@')[0];
+      const ownerName = ownerJid.split('@')[0];
       mentions.push(ownerJid);
       updatedMessage = updatedMessage.replace(/@owner/g, `@${ownerName}`);
     }
@@ -110,7 +107,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
   });
 
   try {
-    const groupConfig = groupConfigStore.getGroupConfig(groupId);
+    const groupConfig = await groupConfigStore.getGroupConfig(groupId);
     logger.debug('Configurações do grupo carregadas.', { groupId, config: groupConfig });
 
     let message = '';
@@ -122,9 +119,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
           ? participant
           : participant?.id || participant?.jid || participant?.phoneNumber || '';
 
-      const participantName =
-        (store.contacts && store.contacts[jid]?.notify) ||
-        (jid ? jid.split('@')[0] : participant?.phoneNumber || 'user');
+      const participantName = jid ? jid.split('@')[0] : participant?.phoneNumber || 'user';
 
       if (jid) allMentions.push(jid);
 

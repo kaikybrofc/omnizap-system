@@ -50,6 +50,14 @@ const createGroupsMetadataTableSQL = `
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
+const createGroupConfigsTableSQL = `
+  CREATE TABLE IF NOT EXISTS ${TABLES.GROUP_CONFIGS} (
+    id VARCHAR(255) PRIMARY KEY NOT NULL,
+    config JSON,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+`;
+
 /**
  * Inicializa o banco de dados e garante a existência das tabelas.
  * @returns {Promise<void>} Conclui após criar banco e tabelas.
@@ -68,7 +76,12 @@ export default async function initializeDatabase() {
 
     await connection.changeUser({ database: dbToCreate });
 
-    await Promise.all([connection.query(createMessagesTableSQL), connection.query(createChatsTableSQL), connection.query(createGroupsMetadataTableSQL)]);
+    await Promise.all([
+      connection.query(createMessagesTableSQL),
+      connection.query(createChatsTableSQL),
+      connection.query(createGroupsMetadataTableSQL),
+      connection.query(createGroupConfigsTableSQL),
+    ]);
 
     logger.info('Todas as tabelas foram verificadas/criadas com sucesso.');
   } catch (error) {

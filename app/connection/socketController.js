@@ -5,8 +5,6 @@ import makeWASocket, {
   getAggregateVotesInPollMessage
 } from '@whiskeysockets/baileys';
 
-import store from '../store/dataStore.js';
-import groupConfigStore from '../store/groupConfigStore.js';
 import { resolveBaileysVersion } from '../config/baileysConfig.js';
 
 import { Boom } from '@hapi/boom';
@@ -22,9 +20,11 @@ import {
 } from '../modules/adminModule/groupEventHandlers.js';
 
 import {
-  findAll,
+  create,
+  findBy,
+  findById,
+  remove,
   upsert,
-  findById
 } from '../../database/index.js';
 
 import { fileURLToPath } from 'node:url';
@@ -38,6 +38,64 @@ let activeSocket = null;
 let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 3000;
+
+const safeJsonParse = (value, fallback) => {
+  if (value === null || value === undefined) return fallback;
+  if (Buffer.isBuffer(value)) {
+    return safeJsonParse(value.toString('utf8'), fallback);
+  }
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return fallback;
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    logger.warn('Falha ao fazer parse de JSON armazenado.', {
+      error: error.message,
+    });
+    return fallback;
+  }
+};
+
+const buildMessageData = (msg) => ({
+  message_id: msg.key.id,
+  chat_id: msg.key.remoteJid,
+  sender_id: msg.key.participant || msg.key.remoteJid,
+  content: msg.message.conversation || msg.message.extendedTextMessage?.text || null,
+  raw_message: JSON.stringify(msg || {}),
+  timestamp: new Date(Number(msg.messageTimestamp) * 1000),
+});
+
+async function persistIncomingMessages(incomingMessages, type) {
+  if (type !== 'append' && type !== 'notify') return;
+
+  for (const msg of incomingMessages) {
+    if (!msg.message || msg.key.remoteJid === 'status@broadcast') continue;
+
+    const messageData = buildMessageData(msg);
+    try {
+      await create('messages', messageData);
+    } catch (err) {
+      const errorCode = err.code || err.errorCode;
+      if (errorCode !== 'ER_DUP_ENTRY') {
+        logger.error(`Erro ao salvar mensagem ${msg.key.id} no banco de dados:`, err);
+      }
+    }
+  }
+}
+
+async function getStoredMessage(key) {
+  try {
+    const results = await findBy('messages', { message_id: key.id }, { limit: 1 });
+    const record = results?.[0];
+    return safeJsonParse(record?.raw_message, null);
+  } catch (error) {
+    logger.error('Erro ao buscar mensagem armazenada no banco:', {
+      error: error.message,
+      messageId: key.id,
+    });
+    return null;
+  }
+}
 
 /**
  * Inicia e gerencia a conexão com o WhatsApp.
@@ -56,45 +114,6 @@ export async function connectToWhatsApp() {
   const authPath = path.join(__dirname, 'auth');
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
-  logger.info('Carregando dados do MySQL para o cache em memória...', {
-    action: 'mysql_cache_load',
-    timestamp: new Date().toISOString(),
-  });
-
-  try {
-    
-    const groups = await findAll('groups_metadata');
-    for (const group of groups) {
-      let parsedParticipants = [];
-      try {
-        if (typeof group.participants === 'string') {
-          parsedParticipants = JSON.parse(group.participants);
-        } else if (Array.isArray(group.participants)) {
-          parsedParticipants = group.participants;
-        }
-      } catch (parseError) {
-        logger.warn(`Erro ao fazer parse dos participantes do grupo ${group.id}:`, {
-          error: parseError.message,
-          participants: group.participants,
-        });
-      }
-
-      store.groups[group.id] = {
-        ...group,
-        participants: parsedParticipants,
-      };
-    }
-    logger.info(`Cache de grupos carregado com sucesso (${groups.length} grupos)`, {
-      action: 'mysql_cache_load_success',
-      groupCount: groups.length,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    logger.error('Erro catastrófico ao carregar dados do MySQL para o store:', error);
-    throw error;
-  }
-
-  await groupConfigStore.loadData();
   const version = await resolveBaileysVersion();
 
   logger.debug('Dados de autenticação carregados com sucesso.', {
@@ -110,10 +129,8 @@ export async function connectToWhatsApp() {
     qrTimeout: 30000,
     syncFullHistory: false,
     markOnlineOnConnect: true,
-    getMessage: async (key) => (store.messages[key.remoteJid] || []).find((m) => m.key.id === key.id),
+    getMessage: getStoredMessage,
   });
-
-  store.bind(sock.ev);
 
   activeSocket = sock;
 
@@ -144,6 +161,11 @@ export async function connectToWhatsApp() {
         messagesCount: update.messages.length,
         remoteJid: update.messages[0]?.key.remoteJid || null,
       });
+      persistIncomingMessages(update.messages, update.type).catch((error) => {
+        logger.error('Erro ao persistir mensagens no banco de dados:', {
+          error: error.message,
+        });
+      });
       handleMessages(update, sock);
     } catch (error) {
       logger.error('Erro no evento messages.upsert:', {
@@ -151,6 +173,103 @@ export async function connectToWhatsApp() {
         stack: error.stack,
         action: 'messages_upsert_error',
       });
+    }
+  });
+
+  sock.ev.on('chats.upsert', async (newChats) => {
+    for (const chat of newChats) {
+      const chatDataForDb = {
+        id: chat.id,
+        name: chat.name || chat.id,
+        raw_chat: JSON.stringify(chat),
+      };
+      try {
+        await upsert('chats', chatDataForDb);
+      } catch (error) {
+        logger.error('Erro no upsert do chat:', {
+          error: error.message,
+          chatId: chat.id,
+        });
+      }
+    }
+  });
+
+  sock.ev.on('chats.update', async (updates) => {
+    for (const update of updates) {
+      try {
+        const existingChat = await findById('chats', update.id);
+        const existingRaw = safeJsonParse(existingChat?.raw_chat, {});
+        const mergedChat = { ...existingRaw, ...update };
+        const chatDataForDb = {
+          id: update.id,
+          name: update.name || existingChat?.name || update.id,
+          raw_chat: JSON.stringify(mergedChat),
+        };
+        await upsert('chats', chatDataForDb);
+      } catch (error) {
+        logger.error('Erro no upsert do chat (update):', {
+          error: error.message,
+          chatId: update.id,
+        });
+      }
+    }
+  });
+
+  sock.ev.on('chats.delete', async (deletions) => {
+    for (const chatId of deletions) {
+      try {
+        await remove('chats', chatId);
+      } catch (error) {
+        logger.error('Erro ao remover chat do banco:', {
+          error: error.message,
+          chatId,
+        });
+      }
+    }
+  });
+
+  sock.ev.on('groups.upsert', async (newGroups) => {
+    for (const group of newGroups) {
+      const groupDataForDb = {
+        id: group.id,
+        subject: group.subject,
+        owner_jid: group.owner,
+        creation: group.creation,
+        description: group.desc,
+        participants: JSON.stringify(group.participants || []),
+      };
+      try {
+        await upsert('groups_metadata', groupDataForDb);
+      } catch (error) {
+        logger.error('Erro no upsert do grupo:', {
+          error: error.message,
+          groupId: group.id,
+        });
+      }
+    }
+  });
+
+  sock.ev.on('groups.update', async (updates) => {
+    for (const update of updates) {
+      try {
+        const existingGroup = await findById('groups_metadata', update.id);
+        const currentParticipants = parseParticipants(existingGroup?.participants);
+        const participants = update.participants || currentParticipants;
+        const groupDataForDb = {
+          id: update.id,
+          subject: update.subject ?? existingGroup?.subject,
+          owner_jid: update.owner ?? existingGroup?.owner_jid,
+          creation: update.creation ?? existingGroup?.creation,
+          description: update.desc ?? existingGroup?.description,
+          participants: JSON.stringify(participants || []),
+        };
+        await upsert('groups_metadata', groupDataForDb);
+      } catch (error) {
+        logger.error('Erro no upsert do grupo (update):', {
+          error: error.message,
+          groupId: update.id,
+        });
+      }
     }
   });
 
@@ -304,8 +423,6 @@ async function handleConnectionUpdate(update, sock) {
           creation: group.creation,
           participants: JSON.stringify(participantsData),
         });
-
-        store.groups[group.id] = group;
       }
 
       logger.info(`📁 Metadados de ${Object.keys(allGroups).length} grupos sincronizados com MySQL.`, {
@@ -401,7 +518,7 @@ function parseParticipants(participants) {
  * - Mudanças no proprietário
  * - Atualizações nos participantes
  *
- * Os dados são persistidos no MySQL e também atualizados no cache em memória (store.groups)
+ * Os dados são persistidos no MySQL e lidos diretamente do banco quando necessário.
  */
 async function handleGroupUpdate(updates, sock) {
   await Promise.all(
@@ -409,9 +526,7 @@ async function handleGroupUpdate(updates, sock) {
       try {
         const groupId = event.id;
         const oldData = (await findById('groups_metadata', groupId)) || {};
-        const currentData = store.groups[groupId] || {};
-
-        const currentParticipants = parseParticipants(currentData.participants);
+        const currentParticipants = parseParticipants(oldData.participants);
         const participantsData = (event.participants || currentParticipants).map((p) => ({
           id: p.id || null,
           jid: p.jid || p.id || null,
@@ -421,15 +536,14 @@ async function handleGroupUpdate(updates, sock) {
 
         const updatedData = {
           id: groupId,
-          subject: event.subject ?? currentData.subject ?? oldData.subject,
-          description: event.desc ?? currentData.desc ?? oldData.description,
-          owner_jid: event.owner ?? currentData.owner ?? oldData.owner_jid,
-          creation: event.creation ?? currentData.creation ?? oldData.creation,
-          participants: participantsData,
+          subject: event.subject ?? oldData.subject,
+          description: event.desc ?? oldData.description,
+          owner_jid: event.owner ?? oldData.owner_jid,
+          creation: event.creation ?? oldData.creation,
+          participants: JSON.stringify(participantsData),
         };
 
         await upsert('groups_metadata', updatedData);
-        store.groups[groupId] = updatedData;
 
         const changedFields = Object.keys(event).filter((k) => event[k] !== oldData[k]);
         logger.info('📦 Metadados do grupo atualizados', {

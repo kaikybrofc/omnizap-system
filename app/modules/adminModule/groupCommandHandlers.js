@@ -479,10 +479,10 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
 
       try {
         if (subCommand === 'on') {
-          groupConfigStore.updateGroupConfig(remoteJid, { welcomeMessageEnabled: true });
+          await groupConfigStore.updateGroupConfig(remoteJid, { welcomeMessageEnabled: true });
           await sock.sendMessage(remoteJid, { text: 'Mensagens de boas-vindas ativadas para este grupo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         } else if (subCommand === 'off') {
-          groupConfigStore.updateGroupConfig(remoteJid, { welcomeMessageEnabled: false });
+          await groupConfigStore.updateGroupConfig(remoteJid, { welcomeMessageEnabled: false });
           await sock.sendMessage(remoteJid, { text: 'Mensagens de boas-vindas desativadas para este grupo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         } else if (subCommand === 'set') {
           if (!messageOrPath && !(messageInfo.message.imageMessage || messageInfo.message.videoMessage)) {
@@ -519,7 +519,7 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
           if (mediaToDownload) {
             const downloadedMediaPath = await downloadMediaMessage(mediaToDownload, mediaType, './temp');
             if (downloadedMediaPath) {
-              groupConfigStore.updateGroupConfig(remoteJid, {
+              await groupConfigStore.updateGroupConfig(remoteJid, {
                 welcomeMedia: downloadedMediaPath,
               });
               await sock.sendMessage(remoteJid, { text: `Mídia de boas-vindas definida para: ${downloadedMediaPath}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -527,12 +527,12 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
               await sock.sendMessage(remoteJid, { text: 'Erro ao baixar a mídia. Por favor, tente novamente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
             }
           } else if (messageOrPath.startsWith('/') || messageOrPath.startsWith('.') || messageOrPath.startsWith('~')) {
-            groupConfigStore.updateGroupConfig(remoteJid, {
+            await groupConfigStore.updateGroupConfig(remoteJid, {
               welcomeMedia: messageOrPath,
             });
             await sock.sendMessage(remoteJid, { text: `Mídia de boas-vindas definida para: ${messageOrPath}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
           } else {
-            groupConfigStore.updateGroupConfig(remoteJid, {
+            await groupConfigStore.updateGroupConfig(remoteJid, {
               welcomeMessage: messageOrPath,
             });
             await sock.sendMessage(remoteJid, { text: `Mensagem de boas-vindas definida para: ${messageOrPath}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -564,10 +564,10 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
 
       try {
         if (subCommand === 'on') {
-          groupConfigStore.updateGroupConfig(remoteJid, { farewellMessageEnabled: true });
+          await groupConfigStore.updateGroupConfig(remoteJid, { farewellMessageEnabled: true });
           await sock.sendMessage(remoteJid, { text: 'Mensagens de saída ativadas para este grupo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         } else if (subCommand === 'off') {
-          groupConfigStore.updateGroupConfig(remoteJid, { farewellMessageEnabled: false });
+          await groupConfigStore.updateGroupConfig(remoteJid, { farewellMessageEnabled: false });
           await sock.sendMessage(remoteJid, { text: 'Mensagens de saída desativadas para este grupo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         } else if (subCommand === 'set') {
           if (!messageOrPath && !(messageInfo.message.imageMessage || messageInfo.message.videoMessage)) {
@@ -604,7 +604,7 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
           if (mediaToDownload) {
             const downloadedMediaPath = await downloadMediaMessage(mediaToDownload, mediaType, './temp');
             if (downloadedMediaPath) {
-              groupConfigStore.updateGroupConfig(remoteJid, {
+              await groupConfigStore.updateGroupConfig(remoteJid, {
                 farewellMedia: downloadedMediaPath,
               });
               await sock.sendMessage(remoteJid, { text: `Mídia de saída definida para: ${downloadedMediaPath}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -612,12 +612,12 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
               await sock.sendMessage(remoteJid, { text: 'Erro ao baixar a mídia. Por favor, tente novamente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
             }
           } else if (messageOrPath.startsWith('/') || messageOrPath.startsWith('.') || messageOrPath.startsWith('~')) {
-            groupConfigStore.updateGroupConfig(remoteJid, {
+            await groupConfigStore.updateGroupConfig(remoteJid, {
               farewellMedia: messageOrPath,
             });
             await sock.sendMessage(remoteJid, { text: `Mídia de saída definida para: ${messageOrPath}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
           } else {
-            groupConfigStore.updateGroupConfig(remoteJid, {
+            await groupConfigStore.updateGroupConfig(remoteJid, {
               farewellMessage: messageOrPath,
             });
             await sock.sendMessage(remoteJid, { text: `Mensagem de saída definida para: ${messageOrPath}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
@@ -640,7 +640,7 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
       }
 
       const subCommand = args[0] ? args[0].toLowerCase() : '';
-      const currentConfig = groupConfigStore.getGroupConfig(remoteJid);
+      const currentConfig = await groupConfigStore.getGroupConfig(remoteJid);
       const allowedNetworks = currentConfig.antilinkAllowedNetworks || [];
       const allowedDomains = currentConfig.antilinkAllowedDomains || [];
       const availableNetworks = Object.keys(KNOWN_NETWORKS).sort();
@@ -688,7 +688,7 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
             updatedNetworks = allowedNetworks.filter((name) => !validNetworks.includes(name));
           }
 
-          groupConfigStore.updateGroupConfig(remoteJid, {
+          await groupConfigStore.updateGroupConfig(remoteJid, {
             antilinkAllowedNetworks: updatedNetworks,
           });
 
@@ -718,7 +718,7 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
             updatedDomains = allowedDomains.filter((domain) => !normalizedDomains.includes(domain));
           }
 
-          groupConfigStore.updateGroupConfig(remoteJid, { antilinkAllowedDomains: updatedDomains });
+          await groupConfigStore.updateGroupConfig(remoteJid, { antilinkAllowedDomains: updatedDomains });
           await sock.sendMessage(remoteJid, { text: `Permitidos (domínios) agora: ${formatNetworkList(updatedDomains)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
           break;
         }
@@ -736,7 +736,7 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
 
       try {
         const isEnabled = subCommand === 'on';
-        groupConfigStore.updateGroupConfig(remoteJid, { antilinkEnabled: isEnabled });
+        await groupConfigStore.updateGroupConfig(remoteJid, { antilinkEnabled: isEnabled });
         await sock.sendMessage(remoteJid, { text: `✅ Antilink foi ${isEnabled ? 'ativado' : 'desativado'} para este grupo.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } catch (error) {
         logger.error('Erro ao configurar o antilink:', {
