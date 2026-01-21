@@ -59,7 +59,6 @@ https://github.com/kaikybrofc/omnizap-system
 📩 Contato: *@kaikybrofc*
 `;
 
-
 export const MENU_ADM_TEXT = `
 🛡️ *Menu de Administração*
 

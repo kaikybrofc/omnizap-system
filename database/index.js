@@ -10,11 +10,7 @@ const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
-  logger.error(
-    `Variáveis de ambiente de banco de dados necessárias não encontradas: ${missingEnvVars.join(
-      ', ',
-    )}`,
-  );
+  logger.error(`Variáveis de ambiente de banco de dados necessárias não encontradas: ${missingEnvVars.join(', ')}`);
   process.exit(1);
 }
 
@@ -50,6 +46,7 @@ export const TABLES = {
   MESSAGES: 'messages',
   CHATS: 'chats',
   GROUPS_METADATA: 'groups_metadata',
+  GROUP_CONFIGS: 'group_configs',
 };
 
 /**
@@ -274,6 +271,27 @@ export async function create(tableName, data) {
   const values = Object.values(data);
   const sql = `INSERT INTO ${mysql.escapeId(tableName)} (${keys.map(mysql.escapeId).join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`;
   const result = await executeQuery(sql, values);
+  return { id: result.insertId, ...data };
+}
+
+/**
+ * Cria um novo registro ignorando duplicidade.
+ * @param {string} tableName
+ * @param {object} data
+ * @returns {Promise<object|null>}
+ */
+export async function createIgnore(tableName, data) {
+  validateTableName(tableName);
+  const keys = Object.keys(data);
+  if (keys.length === 0) {
+    throw new Error('Não é possível criar um registro com dados vazios.');
+  }
+  const values = Object.values(data);
+  const sql = `INSERT IGNORE INTO ${mysql.escapeId(tableName)} (${keys.map(mysql.escapeId).join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`;
+  const result = await executeQuery(sql, values);
+  if (!result.insertId) {
+    return null;
+  }
   return { id: result.insertId, ...data };
 }
 

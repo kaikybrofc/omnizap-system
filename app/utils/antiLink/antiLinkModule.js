@@ -173,13 +173,10 @@ export const isLinkDetected = (text, allowedDomains = []) => {
  * @returns {Promise<boolean>}
  */
 export const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, senderJid, botJid }) => {
-  const groupConfig = groupConfigStore.getGroupConfig(remoteJid);
+  const groupConfig = await groupConfigStore.getGroupConfig(remoteJid);
   if (!groupConfig || !groupConfig.antilinkEnabled) return false;
 
-  const allowedDomains = getAllowedDomains(
-    groupConfig.antilinkAllowedNetworks || [],
-    groupConfig.antilinkAllowedDomains || [],
-  );
+  const allowedDomains = getAllowedDomains(groupConfig.antilinkAllowedNetworks || [], groupConfig.antilinkAllowedDomains || []);
   if (!isLinkDetected(extractedText, allowedDomains)) return false;
 
   const isAdmin = await isUserAdmin(remoteJid, senderJid);

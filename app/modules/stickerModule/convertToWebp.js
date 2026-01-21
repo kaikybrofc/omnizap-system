@@ -6,7 +6,6 @@ import logger from '../../utils/logger/loggerModule.js';
 
 const execProm = promisify(exec);
 
-
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 
 /**

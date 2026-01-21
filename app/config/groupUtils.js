@@ -84,11 +84,7 @@ export function _matchesParticipantId(participant, userId) {
 
   const pDigits = _normalizeDigits(participant.id || participant.lid || participant.jid || '');
   const uDigits = _normalizeDigits(userId);
-  if (
-    pDigits &&
-    uDigits &&
-    (pDigits === uDigits || pDigits.endsWith(uDigits) || uDigits.endsWith(pDigits))
-  ) {
+  if (pDigits && uDigits && (pDigits === uDigits || pDigits.endsWith(uDigits) || uDigits.endsWith(pDigits))) {
     return true;
   }
 
@@ -144,12 +140,7 @@ export async function isUserAdminAsync(groupId, userIdOrObj) {
   const participants = await getGroupParticipantsAsync(groupId);
   if (!participants) return false;
   const participant = participants.find((p) => _matchesParticipantId(p, userId));
-  return (
-    !!participant &&
-    (participant.admin === 'admin' ||
-      participant.admin === 'superadmin' ||
-      participant.isAdmin === true)
-  );
+  return !!participant && (participant.admin === 'admin' || participant.admin === 'superadmin' || participant.isAdmin === true);
 }
 
 export async function getGroupAdminsAsync(groupId) {
@@ -284,12 +275,7 @@ export async function createGroup(sock, title, participants) {
   if (typeof title !== 'string' || title.trim() === '' || !Array.isArray(participants)) {
     throw new Error('Título ou participantes inválidos.');
   }
-  const result = await _safeGroupApiCall(
-    sock,
-    'groupCreate',
-    [title, participants],
-    'Erro ao criar grupo',
-  );
+  const result = await _safeGroupApiCall(sock, 'groupCreate', [title, participants], 'Erro ao criar grupo');
   logger.info(`Grupo "${title}" criado com sucesso.`, { id: result.id });
   return result;
 }
@@ -298,48 +284,28 @@ export async function updateGroupParticipants(sock, groupId, participants, actio
   if (!_isValidId(groupId, 'Grupo') || !Array.isArray(participants) || !action) {
     throw new Error('Argumentos inválidos para atualizar participantes.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupParticipantsUpdate',
-    [groupId, participants, action],
-    `Erro ao ${action} participantes no grupo ${groupId}`,
-  );
+  return _safeGroupApiCall(sock, 'groupParticipantsUpdate', [groupId, participants, action], `Erro ao ${action} participantes no grupo ${groupId}`);
 }
 
 export async function updateGroupSubject(sock, groupId, subject) {
   if (!_isValidId(groupId, 'Grupo') || typeof subject !== 'string') {
     throw new Error('Argumentos inválidos para atualizar assunto do grupo.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupUpdateSubject',
-    [groupId, subject],
-    `Erro ao atualizar assunto do grupo ${groupId}`,
-  );
+  return _safeGroupApiCall(sock, 'groupUpdateSubject', [groupId, subject], `Erro ao atualizar assunto do grupo ${groupId}`);
 }
 
 export async function updateGroupDescription(sock, groupId, description) {
   if (!_isValidId(groupId, 'Grupo')) {
     throw new Error('ID de grupo inválido.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupUpdateDescription',
-    [groupId, description],
-    `Erro ao atualizar descrição do grupo ${groupId}`,
-  );
+  return _safeGroupApiCall(sock, 'groupUpdateDescription', [groupId, description], `Erro ao atualizar descrição do grupo ${groupId}`);
 }
 
 export async function updateGroupSettings(sock, groupId, setting) {
   if (!_isValidId(groupId, 'Grupo') || !setting) {
     throw new Error('Argumentos inválidos para atualizar configurações do grupo.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupSettingUpdate',
-    [groupId, setting],
-    `Erro ao atualizar configurações do grupo ${groupId}`,
-  );
+  return _safeGroupApiCall(sock, 'groupSettingUpdate', [groupId, setting], `Erro ao atualizar configurações do grupo ${groupId}`);
 }
 
 export async function leaveGroup(sock, groupId) {
@@ -353,24 +319,14 @@ export async function getGroupInviteCode(sock, groupId) {
   if (!_isValidId(groupId, 'Grupo')) {
     throw new Error('ID de grupo inválido.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupInviteCode',
-    [groupId],
-    `Erro ao obter código de convite do grupo ${groupId}`,
-  );
+  return _safeGroupApiCall(sock, 'groupInviteCode', [groupId], `Erro ao obter código de convite do grupo ${groupId}`);
 }
 
 export async function revokeGroupInviteCode(sock, groupId) {
   if (!_isValidId(groupId, 'Grupo')) {
     throw new Error('ID de grupo inválido.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupRevokeInvite',
-    [groupId],
-    `Erro ao revogar código de convite do grupo ${groupId}`,
-  );
+  return _safeGroupApiCall(sock, 'groupRevokeInvite', [groupId], `Erro ao revogar código de convite do grupo ${groupId}`);
 }
 
 export async function acceptGroupInvite(sock, code) {
@@ -384,79 +340,44 @@ export async function getGroupInfoFromInvite(sock, code) {
   if (typeof code !== 'string' || code.trim() === '') {
     throw new Error('Código de convite inválido.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupGetInviteInfo',
-    [code],
-    'Erro ao obter informações do convite',
-  );
+  return _safeGroupApiCall(sock, 'groupGetInviteInfo', [code], 'Erro ao obter informações do convite');
 }
 
 export async function getGroupMetadata(sock, groupId) {
   if (!_isValidId(groupId, 'Grupo')) {
     throw new Error('ID de grupo inválido.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupMetadata',
-    [groupId],
-    `Erro ao obter metadados do grupo ${groupId}`,
-  );
+  return _safeGroupApiCall(sock, 'groupMetadata', [groupId], `Erro ao obter metadados do grupo ${groupId}`);
 }
 
 export async function getGroupRequestParticipantsList(sock, groupId) {
   if (!_isValidId(groupId, 'Grupo')) {
     throw new Error('ID de grupo inválido.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupRequestParticipantsList',
-    [groupId],
-    `Erro ao listar solicitações de entrada no grupo ${groupId}`,
-  );
+  return _safeGroupApiCall(sock, 'groupRequestParticipantsList', [groupId], `Erro ao listar solicitações de entrada no grupo ${groupId}`);
 }
 
 export async function updateGroupRequestParticipants(sock, groupId, participants, action) {
   if (!_isValidId(groupId, 'Grupo') || !Array.isArray(participants) || !action) {
     throw new Error('Argumentos inválidos para atualizar solicitações de entrada.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupRequestParticipantsUpdate',
-    [groupId, participants, action],
-    `Erro ao atualizar solicitações de entrada no grupo ${groupId}`,
-  );
+  return _safeGroupApiCall(sock, 'groupRequestParticipantsUpdate', [groupId, participants, action], `Erro ao atualizar solicitações de entrada no grupo ${groupId}`);
 }
 
 export async function getAllParticipatingGroups(sock) {
-  return _safeGroupApiCall(
-    sock,
-    'groupFetchAllParticipating',
-    [],
-    'Erro ao obter todos os grupos participantes',
-  );
+  return _safeGroupApiCall(sock, 'groupFetchAllParticipating', [], 'Erro ao obter todos os grupos participantes');
 }
 
 export async function toggleEphemeral(sock, groupId, duration) {
   if (!_isValidId(groupId, 'Grupo') || typeof duration !== 'number') {
     throw new Error('Argumentos inválidos para alternar mensagens efêmeras.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupToggleEphemeral',
-    [groupId, duration],
-    `Erro ao alternar mensagens efêmeras no grupo ${groupId}`,
-  );
+  return _safeGroupApiCall(sock, 'groupToggleEphemeral', [groupId, duration], `Erro ao alternar mensagens efêmeras no grupo ${groupId}`);
 }
 
 export async function updateGroupAddMode(sock, groupId, mode) {
   if (!_isValidId(groupId, 'Grupo') || !mode) {
     throw new Error('Argumentos inválidos para atualizar modo de adição.');
   }
-  return _safeGroupApiCall(
-    sock,
-    'groupMemberAddMode',
-    [groupId, mode],
-    `Erro ao atualizar modo de adição no grupo ${groupId}`,
-  );
+  return _safeGroupApiCall(sock, 'groupMemberAddMode', [groupId, mode], `Erro ao atualizar modo de adição no grupo ${groupId}`);
 }
