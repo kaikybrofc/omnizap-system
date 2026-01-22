@@ -1,7 +1,21 @@
 import { createCanvas } from 'canvas';
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
-import { getGroupParticipants, _matchesParticipantId } from '../../config/groupUtils.js';
+
+const CLAN_NAME_LIST = [
+  'Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta',
+  'Iota', 'Kappa', 'Lambda', 'Mu', 'Nu', 'Xi', 'Omicron', 'Pi',
+  'Rho', 'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega',
+];
+
+const assignClanNamesFromList = (clusters, list = CLAN_NAME_LIST) => {
+  if (!clusters || !clusters.length) return clusters || [];
+  return clusters.map((cluster, index) => {
+    const baseName = list[index % list.length] || 'Clan';
+    const suffix = index >= list.length ? ` ${Math.floor(index / list.length) + 1}` : '';
+    return { ...cluster, keyword: `${baseName}${suffix}` };
+  });
+};
 
 const getDisplayLabel = (jid, pushName) => {
   if (!jid || typeof jid !== 'string') return 'Desconhecido';
@@ -18,18 +32,6 @@ const getNameLabel = (jid, pushName) => {
   }
   if (!jid || typeof jid !== 'string') return 'Desconhecido';
   return `@${jid.split('@')[0]}`;
-};
-
-const buildParticipantIndex = (participants) => {
-  const index = new Map();
-  (participants || []).forEach((participant) => {
-    const canonical = participant.phoneNumber || participant.id || participant.jid || participant.lid || null;
-    if (!canonical) return;
-    [participant.id, participant.jid, participant.lid, participant.phoneNumber].forEach((key) => {
-      if (key && !index.has(key)) index.set(key, canonical);
-    });
-  });
-  return index;
 };
 
 const normalizeJidWithParticipants = (value, participantIndex) => {
@@ -94,10 +96,112 @@ const buildSocialRanking = (rows) => {
   return { ranking, totals, partners, names };
 };
 
+const formatDuration = (ms) => {
+  if (!Number.isFinite(ms) || ms <= 0) return 'N/D';
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (ms >= day) return `${(ms / day).toFixed(1)}d`;
+  if (ms >= hour) return `${(ms / hour).toFixed(1)}h`;
+  if (ms >= minute) return `${Math.round(ms / minute)}m`;
+  return `${Math.round(ms / 1000)}s`;
+};
+
+const toMillis = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') {
+    if (value > 1e12) return value;
+    if (value > 1e9) return value * 1000;
+    return value;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const computeReciprocityAndAvg = (rows) => {
+  const reciprocityTotals = rows.reduce(
+    (acc, row) => {
+      const aToB = Number(row.replies_a_para_b || 0);
+      const bToA = Number(row.replies_b_para_a || 0);
+      if (aToB <= 0 && bToA <= 0) return acc;
+      acc.min += Math.min(aToB, bToA);
+      acc.max += Math.max(aToB, bToA);
+      return acc;
+    },
+    { min: 0, max: 0 },
+  );
+  const reciprocity = reciprocityTotals.max > 0
+    ? Math.round((reciprocityTotals.min / reciprocityTotals.max) * 100)
+    : 0;
+
+  const responseTimes = rows.reduce(
+    (acc, row) => {
+      const aCount = Number(row.replies_a_para_b || 0);
+      const bCount = Number(row.replies_b_para_a || 0);
+      const aFirst = toMillis(row.primeira_interacao_a_para_b);
+      const aLast = toMillis(row.ultima_interacao_a_para_b);
+      const bFirst = toMillis(row.primeira_interacao_b_para_a);
+      const bLast = toMillis(row.ultima_interacao_b_para_a);
+      if (aCount > 0 && aFirst !== null && aLast !== null && aLast >= aFirst) {
+        acc.totalMs += (aLast - aFirst);
+        acc.totalCount += aCount;
+      }
+      if (bCount > 0 && bFirst !== null && bLast !== null && bLast >= bFirst) {
+        acc.totalMs += (bLast - bFirst);
+        acc.totalCount += bCount;
+      }
+      return acc;
+    },
+    { totalMs: 0, totalCount: 0 },
+  );
+  const avgResponseMs = responseTimes.totalCount > 0
+    ? responseTimes.totalMs / responseTimes.totalCount
+    : 0;
+  return { reciprocity, avgResponseMs };
+};
+
+const buildInfluenceRanking = ({ nodes, edges, nodeClusters, limit = 5 }) => {
+  if (!nodes || !nodes.length || !edges || !edges.length) return [];
+  const totals = new Map();
+  const neighbors = new Map();
+  const crossClan = new Map();
+  edges.forEach((edge) => {
+    if (!edge.src || !edge.dst) return;
+    totals.set(edge.src, (totals.get(edge.src) || 0) + edge.total);
+    totals.set(edge.dst, (totals.get(edge.dst) || 0) + edge.total);
+    if (!neighbors.has(edge.src)) neighbors.set(edge.src, new Set());
+    if (!neighbors.has(edge.dst)) neighbors.set(edge.dst, new Set());
+    neighbors.get(edge.src).add(edge.dst);
+    neighbors.get(edge.dst).add(edge.src);
+    if (nodeClusters) {
+      const clanA = nodeClusters.get(edge.src);
+      const clanB = nodeClusters.get(edge.dst);
+      if (clanA && clanB && clanA !== clanB) {
+        crossClan.set(edge.src, (crossClan.get(edge.src) || 0) + edge.total);
+        crossClan.set(edge.dst, (crossClan.get(edge.dst) || 0) + edge.total);
+      }
+    }
+  });
+  const ranking = Array.from(totals.entries())
+    .map(([jid, total]) => {
+      const degree = neighbors.get(jid)?.size || 0;
+      const cross = crossClan.get(jid) || 0;
+      const score = total + cross * 1.2 + degree * 3;
+      return { jid, total, cross, degree, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+  return ranking;
+};
+
 const buildInteractionGraphMessage = ({
   rows,
   focusLabel,
+  focusJid,
   runtimeNames,
+  clanByJid,
+  clanColorByJid,
+  influenceRanking,
 }) => {
   if (!rows.length) {
     return { lines: ['Nao ha respostas suficientes para gerar o ranking social.'], names: new Map() };
@@ -118,22 +222,70 @@ const buildInteractionGraphMessage = ({
     });
   }
 
-  const topFifteen = ranking.slice(0, 15);
-  const lines = [
-    focusLabel ? `Foco: ${focusLabel}` : 'Top 15 sociais',
-    '',
-  ];
-  topFifteen.forEach((entry, index) => {
-    const display = getNameLabel(entry.jid, names.get(entry.jid));
-    const partners = entry.topPartners
-      .map((partner) => `${getNameLabel(partner.jid, names.get(partner.jid))} (${partner.count})`)
-      .join(', ');
-    lines.push(
-      `${index + 1}. ${display} — ${entry.total}`,
-      `   com: ${partners || 'N/D'}`,
-      '────────',
-    );
-  });
+  const reciprocityTotals = rows.reduce(
+    (acc, row) => {
+      const aToB = Number(row.replies_a_para_b || 0);
+      const bToA = Number(row.replies_b_para_a || 0);
+      if (aToB <= 0 && bToA <= 0) return acc;
+      acc.min += Math.min(aToB, bToA);
+      acc.max += Math.max(aToB, bToA);
+      acc.sum += aToB + bToA;
+      return acc;
+    },
+    { min: 0, max: 0, sum: 0 },
+  );
+  const reciprocity = reciprocityTotals.max > 0
+    ? Math.round((reciprocityTotals.min / reciprocityTotals.max) * 100)
+    : 0;
+
+  const responseTimes = rows.reduce(
+    (acc, row) => {
+      const aCount = Number(row.replies_a_para_b || 0);
+      const bCount = Number(row.replies_b_para_a || 0);
+      const aFirst = toMillis(row.primeira_interacao_a_para_b);
+      const aLast = toMillis(row.ultima_interacao_a_para_b);
+      const bFirst = toMillis(row.primeira_interacao_b_para_a);
+      const bLast = toMillis(row.ultima_interacao_b_para_a);
+      if (aCount > 0 && aFirst !== null && aLast !== null && aLast >= aFirst) {
+        acc.totalMs += (aLast - aFirst);
+        acc.totalCount += aCount;
+      }
+      if (bCount > 0 && bFirst !== null && bLast !== null && bLast >= bFirst) {
+        acc.totalMs += (bLast - bFirst);
+        acc.totalCount += bCount;
+      }
+      return acc;
+    },
+    { totalMs: 0, totalCount: 0 },
+  );
+  const avgResponseMs = responseTimes.totalCount > 0
+    ? responseTimes.totalMs / responseTimes.totalCount
+    : 0;
+
+  const makeLine = (text, color) => (color ? { text, color } : text);
+  const getNameWithClan = (jid) => {
+    const base = getNameLabel(jid, names.get(jid));
+    const clan = clanByJid?.get(jid);
+    return clan ? `${base} - ${clan}` : base;
+  };
+  const getLineColor = (jid) => clanColorByJid?.get(jid) || null;
+
+  const focusLine = focusJid
+    ? `Foco: ${getNameWithClan(focusJid)}`
+    : (focusLabel ? `Foco: ${focusLabel}` : 'Resumo social');
+  const lines = [focusLine, ''];
+  lines.push('Metricas', '');
+  lines.push(`Reciprocidade: ${reciprocity}%`);
+  lines.push(`Tempo medio de resposta: ${formatDuration(avgResponseMs)}`);
+  lines.push('');
+  if (influenceRanking && influenceRanking.length) {
+    lines.push('Influentes (aprox)', '');
+    influenceRanking.forEach((entry, index) => {
+      const display = getNameWithClan(entry.jid);
+      lines.push(makeLine(`${index + 1}. ${display} — ${Math.round(entry.score)}`, getLineColor(entry.jid)));
+    });
+    lines.push('');
+  }
 
   const connectors = Array.from(partners.entries())
     .map(([jid, map]) => ({ jid, degree: map.size }))
@@ -142,8 +294,8 @@ const buildInteractionGraphMessage = ({
   if (connectors.length) {
     lines.push('Conectores (top 5)', '');
     connectors.forEach((entry, index) => {
-      const display = getNameLabel(entry.jid, names.get(entry.jid));
-      lines.push(`${index + 1}. ${display} — ${entry.degree} pessoas`);
+      const display = getNameWithClan(entry.jid);
+      lines.push(makeLine(`${index + 1}. ${display} — ${entry.degree} pessoas`, getLineColor(entry.jid)));
     });
     lines.push('');
   }
@@ -166,8 +318,8 @@ const buildInteractionGraphMessage = ({
   if (topInitiators.length) {
     lines.push('Iniciadores (top 5)', '');
     topInitiators.forEach((entry, index) => {
-      const display = getNameLabel(entry.jid, names.get(entry.jid));
-      lines.push(`${index + 1}. ${display} — ${entry.total}`);
+      const display = getNameWithClan(entry.jid);
+      lines.push(makeLine(`${index + 1}. ${display} — ${entry.total}`, getLineColor(entry.jid)));
     });
     lines.push('');
   }
@@ -265,45 +417,403 @@ const buildGraphData = (rows, names) => {
   return { nodes, edges, clusters, clusterColors, nodeClusters };
 };
 
-const buildClusterSummaryLines = (clusters, names, limit = 3) => {
+const buildClusterSummaryLines = (clusters, names, clusterColors, clanByJid, limit = 3) => {
   if (!clusters || !clusters.length) return [];
-  const lines = ['Clusters (top 3)', ''];
+  const makeLine = (text, color) => (color ? { text, color } : text);
+  const lines = ['Clans (top 3)', ''];
   clusters.slice(0, limit).forEach((cluster, index) => {
+    const keyword = cluster.keyword || 'nd';
+    const clanColor = clusterColors?.get(cluster.id) || null;
     const members = cluster.members
       .slice(0, 6)
-      .map((jid) => getNameLabel(jid, names.get(jid)))
+      .map((jid) => {
+        const base = getNameLabel(jid, names.get(jid));
+        const clan = clanByJid?.get(jid) || keyword;
+        return `${base} - ${clan}`;
+      })
       .join(', ');
-    lines.push(`${index + 1}. ${members || 'N/D'}`);
+    lines.push(`${index + 1}. ${keyword}`);
+    lines.push(makeLine(`   ${members || 'N/D'}`, clanColor));
     if (cluster.members.length > 6) {
-      lines.push(`   +${cluster.members.length - 6} pessoas`);
+      lines.push(makeLine(`   +${cluster.members.length - 6} pessoas`, clanColor));
     }
     lines.push('');
   });
   return lines;
 };
 
-const renderGraphImage = ({ nodes, edges, summaryLines, clusterColors, nodeClusters, heatmap }) => {
-  const width = 2000;
-  const height = 1400;
-  const panelWidth = 640;
+const buildClanLegendLines = (clusters, clusterColors, limit = 6) => {
+  if (!clusters || !clusters.length) return [];
+  const makeLine = (text, color) => (color ? { text, color } : text);
+  const lines = ['Legenda de clans', ''];
+  clusters.slice(0, limit).forEach((cluster) => {
+    const keyword = cluster.keyword || 'nd';
+    const color = clusterColors?.get(cluster.id) || null;
+    lines.push(makeLine(`• ${keyword} — ${cluster.members.length} pessoas`, color));
+  });
+  lines.push('');
+  return lines;
+};
+
+const buildClanCaptionLines = (clusters, clusterColors, leaderByClanId, names, limit = 10) => {
+  if (!clusters || !clusters.length) return [];
+  const lines = ['🏷️ *Clans*', ''];
+  const hslToColorName = (hsl) => {
+    if (!hsl || typeof hsl !== 'string') return 'sem cor';
+    const match = /hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/i.exec(hsl);
+    if (!match) return 'sem cor';
+    const hue = Number(match[1]);
+    if (Number.isNaN(hue)) return 'sem cor';
+    const h = ((hue % 360) + 360) % 360;
+    if (h < 15 || h >= 345) return 'vermelho';
+    if (h < 45) return 'laranja';
+    if (h < 70) return 'amarelo';
+    if (h < 160) return 'verde';
+    if (h < 200) return 'turquesa';
+    if (h < 250) return 'azul';
+    if (h < 290) return 'roxo';
+    if (h < 330) return 'magenta';
+    return 'rosa';
+  };
+  clusters.slice(0, limit).forEach((cluster) => {
+    const keyword = cluster.keyword || 'nd';
+    const color = hslToColorName(clusterColors?.get(cluster.id));
+    const leaderJid = leaderByClanId?.get(cluster.id);
+    const leaderLabel = leaderJid ? getNameLabel(leaderJid, names?.get(leaderJid)) : 'N/D';
+    lines.push(`• ${keyword} — ${color} — 👑 líder: ${leaderLabel}`);
+  });
+  return lines;
+};
+
+const buildClanBridgeLines = ({ edges, nodeClusters, names, clanByJid, clanColorByJid, limit = 5 }) => {
+  if (!edges || !edges.length || !nodeClusters) return [];
+  const totals = new Map();
+  edges.forEach((edge) => {
+    const clanA = nodeClusters.get(edge.src);
+    const clanB = nodeClusters.get(edge.dst);
+    if (!clanA || !clanB || clanA === clanB) return;
+    totals.set(edge.src, (totals.get(edge.src) || 0) + edge.total);
+    totals.set(edge.dst, (totals.get(edge.dst) || 0) + edge.total);
+  });
+  const ranking = Array.from(totals.entries())
+    .map(([jid, total]) => ({ jid, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+  if (!ranking.length) return [];
+  const makeLine = (text, color) => (color ? { text, color } : text);
+  const lines = ['🌉 *Pontes entre clans*'];
+  ranking.forEach((entry, index) => {
+    const base = getNameLabel(entry.jid, names.get(entry.jid));
+    const clan = clanByJid?.get(entry.jid);
+    const label = clan ? `${base} - ${clan}` : base;
+    const color = clanColorByJid?.get(entry.jid) || null;
+    lines.push(makeLine(`${index + 1}. ${label} — ${entry.total}`, color));
+  });
+  lines.push('');
+  return lines;
+};
+
+const buildClanLeaders = (nodes, nodeClusters) => {
+  const leaders = new Set();
+  if (!nodes || !nodes.length || !nodeClusters) return leaders;
+  const bestByClan = new Map();
+  nodes.forEach((node) => {
+    const clan = nodeClusters.get(node.jid);
+    if (!clan) return;
+    const current = bestByClan.get(clan);
+    if (!current || node.total > current.total) {
+      bestByClan.set(clan, node);
+    }
+  });
+  bestByClan.forEach((node) => leaders.add(node.jid));
+  return leaders;
+};
+
+const buildClanLeaderMap = (nodes, nodeClusters) => {
+  const leaderMap = new Map();
+  if (!nodes || !nodes.length || !nodeClusters) return leaderMap;
+  const bestByClan = new Map();
+  nodes.forEach((node) => {
+    const clan = nodeClusters.get(node.jid);
+    if (!clan) return;
+    const current = bestByClan.get(clan);
+    if (!current || node.total > current.total) {
+      bestByClan.set(clan, node);
+    }
+  });
+  bestByClan.forEach((node, clanId) => leaderMap.set(clanId, node.jid));
+  return leaderMap;
+};
+
+const buildGrowthLines = (rows, names, limit = 5) => {
+  if (!rows || !rows.length) return [];
+  const lines = ['📈 *Crescimento 30d*'];
+  rows.slice(0, limit).forEach((row, index) => {
+    const jid = row.jid;
+    const label = getNameLabel(jid, names.get(jid));
+    const delta = Number(row.delta || 0);
+    const last30 = Number(row.last30 || 0);
+    const prev30 = Number(row.prev30 || 0);
+    const sign = delta >= 0 ? '+' : '';
+    lines.push(`${index + 1}. ${label} — ${sign}${delta} (30d: ${last30}, prev: ${prev30})`);
+  });
+  lines.push('');
+  return lines;
+};
+
+const buildTopMentionsLines = (rows, names, clanByJid, clanColorByJid, limit = 5) => {
+  if (!rows || !rows.length) return [];
+  const totals = new Map();
+  rows.forEach((row) => {
+    if (!row.dst) return;
+    const total = Number(row.replies_total_par || 0);
+    if (total <= 0) return;
+    totals.set(row.dst, (totals.get(row.dst) || 0) + total);
+  });
+  const ranking = Array.from(totals.entries())
+    .map(([jid, total]) => ({ jid, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+  if (!ranking.length) return [];
+  const lines = ['💬 *Top citados*'];
+  ranking.forEach((entry, index) => {
+    const label = getNameLabel(entry.jid, names.get(entry.jid));
+    const clan = clanByJid.get(entry.jid);
+    const color = clanColorByJid.get(entry.jid);
+    const text = `${index + 1}. ${clan ? `${label} - ${clan}` : label} — ${entry.total}`;
+    lines.push(color ? { text, color } : text);
+  });
+  lines.push('');
+  return lines;
+};
+
+const buildTopPairsLines = (rows, names, clanByJid, clanColorByJid, limit = 5) => {
+  if (!rows || !rows.length) return [];
+  const totals = new Map();
+  rows.forEach((row) => {
+    if (!row.src || !row.dst) return;
+    const total = Number(row.replies_total_par || 0);
+    if (total <= 0) return;
+    const pairKey = [row.src, row.dst].sort().join('|');
+    totals.set(pairKey, (totals.get(pairKey) || 0) + total);
+  });
+  const ranking = Array.from(totals.entries())
+    .map(([key, total]) => {
+      const [a, b] = key.split('|');
+      return { a, b, total };
+    })
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+  if (!ranking.length) return [];
+  const lines = ['🤝 *Duplas fortes*'];
+  ranking.forEach((entry, index) => {
+    const aLabel = getNameLabel(entry.a, names.get(entry.a));
+    const bLabel = getNameLabel(entry.b, names.get(entry.b));
+    const aClan = clanByJid.get(entry.a);
+    const bClan = clanByJid.get(entry.b);
+    const aColor = clanColorByJid.get(entry.a);
+    const bColor = clanColorByJid.get(entry.b);
+    const text = `${index + 1}. ${aClan ? `${aLabel} - ${aClan}` : aLabel} ↔ ${bClan ? `${bLabel} - ${bClan}` : bLabel} — ${entry.total}`;
+    const color = aColor || bColor || null;
+    lines.push(color ? { text, color } : text);
+  });
+  lines.push('');
+  return lines;
+};
+
+const buildTopRepliesReceivedLines = (rows, names, clanByJid, clanColorByJid, limit = 5) => {
+  if (!rows || !rows.length) return [];
+  const totals = new Map();
+  rows.forEach((row) => {
+    if (!row.dst) return;
+    const total = Number(row.replies_a_para_b || 0);
+    if (total <= 0) return;
+    totals.set(row.dst, (totals.get(row.dst) || 0) + total);
+  });
+  const ranking = Array.from(totals.entries())
+    .map(([jid, total]) => ({ jid, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+  if (!ranking.length) return [];
+  const lines = ['📥 *Top respostas recebidas*'];
+  ranking.forEach((entry, index) => {
+    const label = getNameLabel(entry.jid, names.get(entry.jid));
+    const clan = clanByJid.get(entry.jid);
+    const color = clanColorByJid.get(entry.jid);
+    const text = `${index + 1}. ${clan ? `${label} - ${clan}` : label} — ${entry.total}`;
+    lines.push(color ? { text, color } : text);
+  });
+  lines.push('');
+  return lines;
+};
+
+const buildTopRepliesSentLines = (rows, names, clanByJid, clanColorByJid, limit = 5) => {
+  if (!rows || !rows.length) return [];
+  const totals = new Map();
+  rows.forEach((row) => {
+    if (!row.src) return;
+    const total = Number(row.replies_a_para_b || 0);
+    if (total <= 0) return;
+    totals.set(row.src, (totals.get(row.src) || 0) + total);
+  });
+  const ranking = Array.from(totals.entries())
+    .map(([jid, total]) => ({ jid, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+  if (!ranking.length) return [];
+  const lines = ['📤 *Top respostas enviadas*'];
+  ranking.forEach((entry, index) => {
+    const label = getNameLabel(entry.jid, names.get(entry.jid));
+    const clan = clanByJid.get(entry.jid);
+    const color = clanColorByJid.get(entry.jid);
+    const text = `${index + 1}. ${clan ? `${label} - ${clan}` : label} — ${entry.total}`;
+    lines.push(color ? { text, color } : text);
+  });
+  lines.push('');
+  return lines;
+};
+
+const buildTopActiveClansLines = (rows, clusters, clusterColors, limit = 5) => {
+  if (!rows || !rows.length || !clusters || !clusters.length) return [];
+  const clanTotals = new Map();
+  const memberClan = new Map();
+  const clanNames = new Map();
+  clusters.forEach((cluster) => {
+    cluster.members.forEach((jid) => memberClan.set(jid, cluster.id));
+    clanNames.set(cluster.id, cluster.keyword || cluster.id);
+  });
+  rows.forEach((row) => {
+    const total = Number(row.replies_total_par || 0);
+    if (total <= 0) return;
+    const clan = memberClan.get(row.src);
+    if (clan) clanTotals.set(clan, (clanTotals.get(clan) || 0) + total);
+  });
+  const ranking = Array.from(clanTotals.entries())
+    .map(([clanId, total]) => ({ clanId, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, limit);
+  if (!ranking.length) return [];
+  const lines = ['🔥 *Clans mais ativos*'];
+  ranking.forEach((entry, index) => {
+    const color = clusterColors.get(entry.clanId);
+    const clanLabel = clanNames.get(entry.clanId) || entry.clanId;
+    lines.push(color ? { text: `${index + 1}. ${clanLabel} — ${entry.total}`, color } : `${index + 1}. ${clanLabel} — ${entry.total}`);
+  });
+  lines.push('');
+  return lines;
+};
+
+const buildGlobalConnectorsLines = (rows, names, clanByJid, clanColorByJid, limit = 5) => {
+  if (!rows || !rows.length) return [];
+  const neighbors = new Map();
+  rows.forEach((row) => {
+    if (!row.src || !row.dst) return;
+    if (!neighbors.has(row.src)) neighbors.set(row.src, new Set());
+    if (!neighbors.has(row.dst)) neighbors.set(row.dst, new Set());
+    neighbors.get(row.src).add(row.dst);
+    neighbors.get(row.dst).add(row.src);
+  });
+  const ranking = Array.from(neighbors.entries())
+    .map(([jid, set]) => ({ jid, degree: set.size }))
+    .sort((a, b) => b.degree - a.degree)
+    .slice(0, limit);
+  if (!ranking.length) return [];
+  const lines = ['🧩 *Conectores globais*'];
+  ranking.forEach((entry, index) => {
+    const label = getNameLabel(entry.jid, names.get(entry.jid));
+    const clan = clanByJid.get(entry.jid);
+    const color = clanColorByJid.get(entry.jid);
+    const text = `${index + 1}. ${clan ? `${label} - ${clan}` : label} — ${entry.degree}`;
+    lines.push(color ? { text, color } : text);
+  });
+  lines.push('');
+  return lines;
+};
+
+const buildSkewLines = (ranking) => {
+  if (!ranking || !ranking.length) return [];
+  const top = Number(ranking[0]?.total || 0);
+  const avg = ranking.reduce((acc, entry) => acc + Number(entry.total || 0), 0) / ranking.length;
+  const skew = avg > 0 ? (top / avg).toFixed(2) : '0.00';
+  return [
+    '📊 *Skew do grafo*',
+    `Top 1 / média: ${skew}x`,
+    '',
+  ];
+};
+
+const filterImageSummaryLines = (lines) => {
+  const blockedHeaders = new Set(['Conectores (top 5)']);
+  const filtered = [];
+  let skipSection = false;
+  const input = lines || [];
+  input.forEach((line) => {
+    const text = typeof line === 'string' ? line : line?.text || '';
+    if (blockedHeaders.has(text)) {
+      skipSection = true;
+      return;
+    }
+    if (skipSection) {
+      if (!text.trim()) {
+        skipSection = false;
+      }
+      return;
+    }
+    filtered.push(line);
+  });
+  return filtered;
+};
+
+const linesToText = (lines) =>
+  (lines || [])
+    .map((line) => (typeof line === 'string' ? line : line?.text || ''))
+    .join('\n')
+    .trim();
+
+const renderGraphImage = ({
+  nodes,
+  edges,
+  directedEdges,
+  summaryLines,
+  clusterColors,
+  nodeClusters,
+  totalMessages,
+  clanLeaders,
+  focusJid,
+}) => {
+  const width = 3200;
+  const height = 2200;
+  const panelWidth = 900;
+  const scale = 2;
   const graphWidth = width - panelWidth;
-  const canvas = createCanvas(width, height);
+  const canvas = createCanvas(width * scale, height * scale);
   const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
 
   ctx.fillStyle = '#0f172a';
   ctx.fillRect(0, 0, width, height);
 
   ctx.fillStyle = '#e2e8f0';
-  ctx.font = 'bold 28px Arial';
+  ctx.font = 'bold 32px Arial';
   ctx.textAlign = 'left';
-  ctx.fillText('Grafo social do grupo', 40, 50);
+  ctx.fillText('Grafo social global', 40, 50);
 
   ctx.fillStyle = '#0b1220';
   ctx.fillRect(graphWidth, 0, panelWidth, height);
 
   ctx.fillStyle = '#e2e8f0';
-  ctx.font = 'bold 22px Arial';
+  ctx.font = 'bold 24px Arial';
   ctx.fillText('Resumo', graphWidth + 24, 50);
+  if (Number.isFinite(totalMessages)) {
+    ctx.font = '16px Arial';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`Total de mensagens: ${Math.round(totalMessages)}`, graphWidth + 24, 80);
+    ctx.fillStyle = '#e2e8f0';
+  }
 
   if (!nodes.length) {
     ctx.font = '16px Arial';
@@ -316,7 +826,8 @@ const renderGraphImage = ({ nodes, edges, summaryLines, clusterColors, nodeClust
   const maxRadius = Math.min(graphWidth, height) / 2 - 140;
 
   const maxNodeValue = Math.max(...nodes.map((n) => n.total));
-  const maxEdgeValue = Math.max(...edges.map((e) => e.total));
+  const drawEdges = directedEdges && directedEdges.length ? directedEdges : edges;
+  const maxEdgeValue = drawEdges && drawEdges.length ? Math.max(...drawEdges.map((e) => e.total)) : 1;
 
   const nodePositions = new Map();
   const nodeRadii = new Map();
@@ -511,16 +1022,16 @@ const renderGraphImage = ({ nodes, edges, summaryLines, clusterColors, nodeClust
     const hash = hashString(key);
     const hue = hash % 360;
     const saturation = 60 + (hash % 30);
-    const light = 50 + (hash % 20);
+    const light = 45 + (hash % 25);
     const dashBase = 6 + (hash % 10);
     const gapBase = 4 + ((hash >> 4) % 8);
     return {
-      color: `hsla(${hue}, ${saturation}%, ${light}%, 0.7)`,
+      color: `hsla(${hue}, ${saturation}%, ${light}%, 0.85)`,
       dash: [dashBase, gapBase],
     };
   };
 
-  edges.forEach((edge) => {
+  drawEdges.forEach((edge) => {
     const from = nodePositions.get(edge.src);
     const to = nodePositions.get(edge.dst);
     if (!from || !to) return;
@@ -528,12 +1039,33 @@ const renderGraphImage = ({ nodes, edges, summaryLines, clusterColors, nodeClust
     const style = edgeStyleFromKey(`${edge.src}->${edge.dst}`);
     ctx.strokeStyle = style.color;
     ctx.setLineDash(style.dash);
-    ctx.lineWidth = 1 + weight * 6;
+    ctx.lineWidth = 1.5 + weight * 7;
+    const fromRadius = nodeRadii.get(edge.src) || 30;
+    const toRadius = nodeRadii.get(edge.dst) || 30;
+    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    const startX = from.x + Math.cos(angle) * fromRadius;
+    const startY = from.y + Math.sin(angle) * fromRadius;
+    const endX = to.x - Math.cos(angle) * toRadius;
+    const endY = to.y - Math.sin(angle) * toRadius;
     ctx.beginPath();
-    ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
     ctx.stroke();
     ctx.setLineDash([]);
+    const arrowSize = 8 + weight * 6;
+    ctx.fillStyle = style.color;
+    ctx.beginPath();
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(
+      endX - Math.cos(angle - Math.PI / 6) * arrowSize,
+      endY - Math.sin(angle - Math.PI / 6) * arrowSize,
+    );
+    ctx.lineTo(
+      endX - Math.cos(angle + Math.PI / 6) * arrowSize,
+      endY - Math.sin(angle + Math.PI / 6) * arrowSize,
+    );
+    ctx.closePath();
+    ctx.fill();
   });
 
   const drawTextInsideBubble = (text, x, y, radius) => {
@@ -558,7 +1090,7 @@ const renderGraphImage = ({ nodes, edges, summaryLines, clusterColors, nodeClust
       return result;
     };
 
-    let fontSize = 14;
+    let fontSize = 16;
     ctx.font = `bold ${fontSize}px Arial`;
     lines = tryWrap();
     while ((lines.length > maxLines || lines.some((line) => ctx.measureText(line).width > maxWidth)) && fontSize > 9) {
@@ -600,19 +1132,35 @@ const renderGraphImage = ({ nodes, edges, summaryLines, clusterColors, nodeClust
     const clusterId = nodeClusters?.get(node.jid);
     const clusterColor = clusterId ? clusterColors?.get(clusterId) : null;
 
-    ctx.fillStyle = '#38bdf8';
+    if (focusJid && node.jid === focusJid) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(position.x, position.y, nodeRadius + 12, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+      ctx.lineWidth = 10;
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = 'rgba(56, 189, 248, 0.55)';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.fillStyle = clusterColor || '#38bdf8';
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = 'rgba(15, 23, 42, 0.35)';
     ctx.beginPath();
     ctx.arc(position.x, position.y, nodeRadius, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
     ctx.strokeStyle = clusterColor || '#0ea5e9';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = clanLeaders?.has(node.jid) ? 6 : 3;
     ctx.stroke();
 
     drawTextInsideBubble(node.label, position.x, position.y, nodeRadius);
 
     ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 13px Arial';
+    ctx.font = 'bold 14px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(`${node.total}`, position.x, position.y + nodeRadius - 12);
@@ -639,85 +1187,97 @@ const renderGraphImage = ({ nodes, edges, summaryLines, clusterColors, nodeClust
   const textX = graphWidth + 24;
   const textMaxWidth = panelWidth - 48;
   let textY = 90;
-  const heatmapHeight = heatmap && heatmap.length ? 180 : 0;
-  const heatmapGap = heatmap && heatmap.length ? 30 : 0;
-  const textBottomLimit = height - heatmapHeight - heatmapGap - 30;
+  const textBottomLimit = height - 30;
   ctx.fillStyle = '#e2e8f0';
   ctx.font = '15px Arial';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
 
-  let printed = 0;
+  const getLineText = (line) => (typeof line === 'string' ? line : line?.text || '');
+  const getLineColor = (line) => (typeof line === 'string' ? '#e2e8f0' : line?.color || '#e2e8f0');
   const maxLines = Math.max(10, Math.floor((textBottomLimit - textY) / 20));
+  const sections = [];
+  let current = [];
+
   (summaryLines || []).forEach((line) => {
-    if (printed >= maxLines) return;
-    if (!line.trim()) {
-      textY += 8;
+    const lineText = getLineText(line);
+    if (!lineText.trim()) {
+      if (current.length) {
+        sections.push(current);
+        current = [];
+      }
       return;
     }
-    const clean = line.replace(/\*/g, '').replace(/•/g, '•').trim();
-    const wrapped = wrapText(clean, textMaxWidth);
-    wrapped.forEach((wrapLine) => {
-      if (printed >= maxLines) return;
-      ctx.fillText(wrapLine, textX, textY);
-      textY += 20;
+    const clean = lineText.replace(/\*/g, '').replace(/•/g, '•').trim();
+    const wrapped = wrapText(clean, textMaxWidth - 24);
+    const color = getLineColor(line);
+    wrapped.forEach((wrapLine) => current.push({ text: wrapLine, color }));
+  });
+  if (current.length) sections.push(current);
+
+  const drawRoundedRect = (x, y, w, h, r) => {
+    const radius = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
+  };
+
+  let printed = 0;
+  sections.forEach((section) => {
+    if (printed >= maxLines) return;
+    const linesToDraw = section.slice(0, Math.max(0, maxLines - printed));
+    if (!linesToDraw.length) return;
+    const boxPaddingY = 10;
+    const boxPaddingX = 12;
+    const lineHeight = 20;
+    const boxHeight = linesToDraw.length * lineHeight + boxPaddingY * 2;
+    if (textY + boxHeight > textBottomLimit) return;
+    drawRoundedRect(textX - 6, textY - 6, textMaxWidth + 12, boxHeight + 12, 12);
+    ctx.fillStyle = '#0f172a';
+    ctx.fill();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    let lineY = textY + boxPaddingY;
+    linesToDraw.forEach((wrapLine) => {
+      ctx.fillStyle = wrapLine.color;
+      ctx.fillText(wrapLine.text, textX + boxPaddingX, lineY);
+      lineY += lineHeight;
       printed += 1;
     });
+    textY += boxHeight + 14;
   });
 
   if (printed >= maxLines) {
     ctx.fillText('…', textX, textY);
   }
 
-  if (heatmap && heatmap.length) {
-    const chartX = textX;
-    const chartY = height - heatmapHeight - 20;
-    const chartWidth = panelWidth - 48;
-    const chartHeight = heatmapHeight - 40;
-    const barWidth = chartWidth / 24;
-    const maxValue = Math.max(...heatmap.map((v) => v.total), 1);
-
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = 'bold 16px Arial';
-    ctx.fillText('Heatmap 24h', chartX, chartY - 24);
-
-    for (let hour = 0; hour < 24; hour += 1) {
-      const value = heatmap[hour]?.total || 0;
-      const barHeight = (value / maxValue) * chartHeight;
-      const x = chartX + hour * barWidth;
-      const y = chartY + chartHeight - barHeight;
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
-      ctx.fillRect(x + 2, y, Math.max(2, barWidth - 4), barHeight);
-    }
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '12px Arial';
-    ctx.fillText('0h', chartX, chartY + chartHeight + 8);
-    ctx.fillText('12h', chartX + chartWidth / 2 - 8, chartY + chartHeight + 8);
-    ctx.fillText('23h', chartX + chartWidth - 24, chartY + chartHeight + 8);
-  }
 
   return canvas.toBuffer('image/png');
 };
 
 export async function handleInteractionGraphCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, args, senderJid }) {
-  if (!isGroupMessage) {
-    await sock.sendMessage(remoteJid, { text: 'Este comando so pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
-    return;
-  }
-
   try {
     const focusJid = getFocusJid(messageInfo, args || [], senderJid);
 
+    const [totalMessagesRow] = await executeQuery(
+      'SELECT COUNT(*) AS total FROM messages',
+      [],
+    );
+    const totalMessages = Number(totalMessagesRow?.total || 0);
+
     const rows = await executeQuery(
       `SELECT
-        e.chat_id,
         e.src,
         (
           SELECT JSON_UNQUOTE(JSON_EXTRACT(m2.raw_message, '$.pushName'))
           FROM messages m2
-          WHERE m2.chat_id = e.chat_id
-            AND m2.sender_id = e.src
+          WHERE m2.sender_id = e.src
             AND m2.raw_message IS NOT NULL
             AND JSON_EXTRACT(m2.raw_message, '$.pushName') IS NOT NULL
           ORDER BY m2.id DESC
@@ -727,8 +1287,7 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
         (
           SELECT JSON_UNQUOTE(JSON_EXTRACT(m3.raw_message, '$.pushName'))
           FROM messages m3
-          WHERE m3.chat_id = e.chat_id
-            AND m3.sender_id = e.dst
+          WHERE m3.sender_id = e.dst
             AND m3.raw_message IS NOT NULL
             AND JSON_EXTRACT(m3.raw_message, '$.pushName') IS NOT NULL
           ORDER BY m3.id DESC
@@ -738,11 +1297,12 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
         IFNULL(r.replies, 0) AS replies_b_para_a,
         (e.replies + IFNULL(r.replies, 0)) AS replies_total_par,
         e.first_ts AS primeira_interacao_a_para_b,
-        e.last_ts  AS ultima_interacao_a_para_b
+        e.last_ts  AS ultima_interacao_a_para_b,
+        r.first_ts AS primeira_interacao_b_para_a,
+        r.last_ts  AS ultima_interacao_b_para_a
       FROM
       (
         SELECT
-          m.chat_id,
           m.sender_id AS src,
           JSON_UNQUOTE(
             COALESCE(
@@ -762,7 +1322,6 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
         FROM messages m
         WHERE m.raw_message IS NOT NULL
           AND m.sender_id IS NOT NULL
-          AND m.chat_id = ?
           AND COALESCE(
             JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
             JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
@@ -773,12 +1332,11 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
             JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.participant'),
             JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
           ) IS NOT NULL
-        GROUP BY m.chat_id, src, dst
+        GROUP BY src, dst
       ) e
       LEFT JOIN
       (
         SELECT
-          m.chat_id,
           m.sender_id AS src,
           JSON_UNQUOTE(
             COALESCE(
@@ -792,11 +1350,12 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
               JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
             )
           ) AS dst,
-          COUNT(*) AS replies
+          COUNT(*) AS replies,
+          MIN(m.timestamp) AS first_ts,
+          MAX(m.timestamp) AS last_ts
         FROM messages m
         WHERE m.raw_message IS NOT NULL
           AND m.sender_id IS NOT NULL
-          AND m.chat_id = ?
         AND COALESCE(
           JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
           JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
@@ -807,21 +1366,19 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
           JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.participant'),
           JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
         ) IS NOT NULL
-        GROUP BY m.chat_id, src, dst
+        GROUP BY src, dst
       ) r
-        ON r.chat_id = e.chat_id
-       AND r.src = e.dst
+        ON r.src = e.dst
        AND r.dst = e.src
       WHERE e.dst IS NOT NULL
         AND e.dst <> ''
         AND e.src <> e.dst
       ORDER BY replies_total_par DESC, e.last_ts DESC
-      LIMIT 500`,
-      [remoteJid, remoteJid],
+      LIMIT 800`,
+      [],
     );
 
-    const participants = await getGroupParticipants(remoteJid);
-    const participantIndex = buildParticipantIndex(participants);
+    const participantIndex = new Map();
     const normalizedRows = rows
       .map((row) => ({
         ...row,
@@ -835,29 +1392,170 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
       ? normalizedRows.filter((row) => row.src === normalizedFocus || row.dst === normalizedFocus)
       : normalizedRows;
 
+    const directedEdges = filteredRows.flatMap((row) => {
+      const aToB = Number(row.replies_a_para_b || 0);
+      const bToA = Number(row.replies_b_para_a || 0);
+      const items = [];
+      if (row.src && row.dst && aToB > 0) items.push({ src: row.src, dst: row.dst, total: aToB });
+      if (row.src && row.dst && bToA > 0) items.push({ src: row.dst, dst: row.src, total: bToA });
+      return items;
+    });
+
     const runtimeNames = new Map();
     if (senderJid && messageInfo?.pushName) {
       const runtimeKey = normalizeJidWithParticipants(senderJid, participantIndex);
       runtimeNames.set(runtimeKey, messageInfo.pushName);
     }
     const focusLabel = normalizedFocus ? getNameLabel(normalizedFocus, runtimeNames.get(normalizedFocus)) : null;
-    const { lines, names } = buildInteractionGraphMessage({
-      rows: filteredRows,
-      focusLabel,
-      runtimeNames,
-    });
+    const { ranking, names } = buildSocialRanking(filteredRows);
+    if (runtimeNames) {
+      runtimeNames.forEach((value, key) => {
+        if (!names.get(key)) names.set(key, value);
+      });
+    }
+
+    const growthRows = await executeQuery(
+      `SELECT sender_id AS jid,
+              SUM(CASE WHEN ts >= NOW() - INTERVAL 30 DAY THEN 1 ELSE 0 END) AS last30,
+              SUM(CASE WHEN ts < NOW() - INTERVAL 30 DAY AND ts >= NOW() - INTERVAL 60 DAY THEN 1 ELSE 0 END) AS prev30,
+              SUM(CASE WHEN ts >= NOW() - INTERVAL 30 DAY THEN 1 ELSE 0 END)
+                - SUM(CASE WHEN ts < NOW() - INTERVAL 30 DAY AND ts >= NOW() - INTERVAL 60 DAY THEN 1 ELSE 0 END) AS delta
+         FROM (
+           SELECT m.sender_id,
+                  CASE
+                    WHEN m.timestamp > 1000000000000 THEN FROM_UNIXTIME(m.timestamp / 1000)
+                    WHEN m.timestamp > 1000000000 THEN FROM_UNIXTIME(m.timestamp)
+                    ELSE m.timestamp
+                  END AS ts
+             FROM messages m
+            WHERE m.sender_id IS NOT NULL
+         ) src
+        GROUP BY sender_id
+        HAVING last30 > 0
+        ORDER BY delta DESC
+        LIMIT 5`,
+      [],
+    );
 
     const graphData = buildGraphData(filteredRows, names);
-    const clusterLines = buildClusterSummaryLines(graphData.clusters, names);
-    const summaryLines = [...lines, ...clusterLines];
+    const clustersWithKeywords = assignClanNamesFromList(graphData.clusters);
+    const clanByJid = new Map();
+    clustersWithKeywords.forEach((cluster) => {
+      cluster.members.forEach((jid) => clanByJid.set(jid, cluster.keyword || 'nd'));
+    });
+    const clanColorByJid = new Map();
+    graphData.nodeClusters.forEach((clusterId, jid) => {
+      const color = graphData.clusterColors.get(clusterId);
+      if (color) clanColorByJid.set(jid, color);
+    });
+    const influenceRanking = buildInfluenceRanking({
+      nodes: graphData.nodes,
+      edges: graphData.edges,
+      nodeClusters: graphData.nodeClusters,
+    });
+    const { reciprocity, avgResponseMs } = computeReciprocityAndAvg(filteredRows);
+    const clanLeaders = buildClanLeaders(graphData.nodes, graphData.nodeClusters);
+    const clanLeaderById = buildClanLeaderMap(graphData.nodes, graphData.nodeClusters);
+    const captionLines = [];
+    const bridgeLines = buildClanBridgeLines({
+      edges: graphData.edges,
+      nodeClusters: graphData.nodeClusters,
+      names,
+      clanByJid,
+      clanColorByJid,
+    });
+    const growthLines = buildGrowthLines(growthRows, names);
+    const detailLines = [...captionLines];
+    const summaryText = linesToText(detailLines);
+    const introText = [
+      '✨ *Social*',
+      'Este gráfico mostra as conexões do grupo inteiro (global):',
+      '• Tamanho da bolha = volume de interações (replies enviadas/recebidas).',
+      '• Arestas e setas indicam direção e intensidade das respostas.',
+      '• Cores indicam o clan de cada pessoa.',
+      '',
+      'Como funcionam os clans:',
+      '• Um clan é um grupo de pessoas que interagem mais entre si do que com o resto.',
+      '• Os nomes dos clans seguem uma lista fixa (Alpha, Beta, Gamma...).',
+      '• O líder do clan é quem mais interage dentro do próprio clan.',
+      '',
+      'Como usar:',
+      '• Digite *social* para ver o panorama.',
+      '• Use *social foco @pessoa* para destacar um usuário.',
+      '• Compare caixas do painel para entender influência, crescimento e pares fortes.',
+    ].join('\n');
+    const captionText = summaryText ? `${introText}\n\n${summaryText}` : introText;
+
+    const totalInteractions = filteredRows.reduce((acc, row) => acc + Number(row.replies_total_par || 0), 0);
+    const makeLine = (text, color) => (color ? { text, color } : text);
+    const clanBoxLines = clustersWithKeywords.slice(0, 8).map((cluster) => {
+      const leaderJid = clanLeaderById.get(cluster.id);
+      const leaderLabel = leaderJid ? getNameLabel(leaderJid, names.get(leaderJid)) : 'N/D';
+      const label = `${cluster.keyword || 'nd'} — líder: ${leaderLabel}`;
+      const color = graphData.clusterColors.get(cluster.id);
+      return makeLine(label, color);
+    });
+
+    const mentionLines = buildTopMentionsLines(filteredRows, names, clanByJid, clanColorByJid);
+    const pairLines = buildTopPairsLines(filteredRows, names, clanByJid, clanColorByJid);
+    const receivedLines = buildTopRepliesReceivedLines(filteredRows, names, clanByJid, clanColorByJid);
+    const sentLines = buildTopRepliesSentLines(filteredRows, names, clanByJid, clanColorByJid);
+    const activeClansLines = buildTopActiveClansLines(filteredRows, clustersWithKeywords, graphData.clusterColors);
+    const connectorLines = buildGlobalConnectorsLines(filteredRows, names, clanByJid, clanColorByJid);
+    const skewLines = buildSkewLines(ranking);
+
+    const summaryLines = [
+      'Resumo geral',
+      `Total de mensagens: ${totalMessages}`,
+      `Total de interacoes: ${totalInteractions}`,
+      '',
+      'Reciprocidade',
+      `Reciprocidade: ${reciprocity}%`,
+      `Tempo medio de resposta: ${formatDuration(avgResponseMs)}`,
+      '',
+      'Influentes (aprox)',
+      ...(influenceRanking || []).map((entry, index) => {
+        const display = getNameLabel(entry.jid, names.get(entry.jid));
+        const clan = clanByJid.get(entry.jid);
+        const color = clanColorByJid.get(entry.jid);
+        return makeLine(`${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${Math.round(entry.score)}`, color);
+      }),
+      '',
+      'Mais interacoes',
+      ...ranking.slice(0, 5).map((entry, index) => {
+        const display = getNameLabel(entry.jid, names.get(entry.jid));
+        const clan = clanByJid.get(entry.jid);
+        const color = clanColorByJid.get(entry.jid);
+        return makeLine(`${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${entry.total}`, color);
+      }),
+      '',
+      'Clans',
+      ...clanBoxLines,
+      '',
+      ...mentionLines,
+      ...pairLines,
+      ...receivedLines,
+      ...sentLines,
+      ...activeClansLines,
+      ...connectorLines,
+      ...skewLines,
+      '',
+      ...bridgeLines,
+      ...growthLines,
+    ];
     const imageBuffer = renderGraphImage({
       ...graphData,
+      directedEdges,
+      clusters: clustersWithKeywords,
       summaryLines,
+      totalMessages,
+      clanLeaders,
+      focusJid: normalizedFocus,
     });
 
     await sock.sendMessage(
       remoteJid,
-      { image: imageBuffer },
+      { image: imageBuffer, caption: captionText },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {

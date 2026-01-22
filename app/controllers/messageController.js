@@ -166,6 +166,7 @@ export const handleMessages = async (update, sock) => {
               });
               break;
 
+            case 'social':
             case 'grafo':
             case 'interacoes':
             case 'interacao':
