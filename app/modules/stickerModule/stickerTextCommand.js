@@ -44,6 +44,13 @@ const COLOR_ALIASES = {
   orange: 'orange',
 };
 
+/**
+ * Extrai uma cor no formato "-cor" no final do texto e retorna o texto limpo.
+ *
+ * @param {string} rawText
+ * @param {string} fallbackColor
+ * @returns {{ text: string, color: string }}
+ */
 function parseColorFlag(rawText, fallbackColor) {
   const trimmed = rawText.trim();
   if (!trimmed) return { text: rawText, color: fallbackColor };
@@ -59,6 +66,14 @@ function parseColorFlag(rawText, fallbackColor) {
   return { text: cleanedText, color: mapped };
 }
 
+/**
+ * Desenha texto centralizado no canvas com quebra de linha e ajuste de fonte.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {string} text
+ * @param {string} color
+ * @param {{ glow?: boolean }} [options]
+ */
 function drawTextOnCanvas(ctx, text, color, { glow = false } = {}) {
   const width = ctx.canvas.width;
   const height = ctx.canvas.height;
@@ -154,6 +169,15 @@ function drawTextOnCanvas(ctx, text, color, { glow = false } = {}) {
  * @param {string} fileName (sem extensão)
  * @returns {Promise<string>} Caminho do PNG gerado
  */
+/**
+ * Gera uma imagem PNG (512x512) a partir de um texto.
+ *
+ * @param {string} text
+ * @param {string} outputDir
+ * @param {string} fileName (sem extensão)
+ * @param {string} color
+ * @returns {Promise<string>} Caminho do PNG gerado
+ */
 export async function generateTextImage(text, outputDir, fileName, color) {
   try {
     const width = 512;
@@ -178,6 +202,15 @@ export async function generateTextImage(text, outputDir, fileName, color) {
   }
 }
 
+/**
+ * Gera um WebP animado com texto piscante.
+ *
+ * @param {string} text
+ * @param {string} outputDir
+ * @param {string} fileName (sem extensão)
+ * @param {string} [color='white']
+ * @returns {Promise<string>} Caminho do WebP gerado
+ */
 async function generateBlinkingTextWebp(text, outputDir, fileName, color = 'white') {
   const width = 512;
   const height = 512;
@@ -228,6 +261,21 @@ async function generateBlinkingTextWebp(text, outputDir, fileName, color = 'whit
   return outputPath;
 }
 
+/**
+ * Processa texto simples e envia sticker de texto estático.
+ *
+ * @param {object} params
+ * @param {object} params.sock
+ * @param {object} params.messageInfo
+ * @param {string} params.remoteJid
+ * @param {string} params.senderJid
+ * @param {string} params.senderName
+ * @param {string} params.text
+ * @param {number} params.expirationMessage
+ * @param {string} [params.extraText]
+ * @param {string} [params.color='black']
+ * @returns {Promise<void>}
+ */
 export async function processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, expirationMessage, extraText = '', color = 'black' }) {
   const stickerText = text.trim();
 
@@ -302,6 +350,21 @@ export async function processTextSticker({ sock, messageInfo, remoteJid, senderJ
   }
 }
 
+/**
+ * Processa texto e envia sticker animado com efeito de pisca-pisca.
+ *
+ * @param {object} params
+ * @param {object} params.sock
+ * @param {object} params.messageInfo
+ * @param {string} params.remoteJid
+ * @param {string} params.senderJid
+ * @param {string} params.senderName
+ * @param {string} params.text
+ * @param {number} params.expirationMessage
+ * @param {string} [params.extraText]
+ * @param {string} [params.color='white']
+ * @returns {Promise<void>}
+ */
 export async function processBlinkingTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, expirationMessage, extraText = '', color = 'white' }) {
   const parsed = parseColorFlag(text, color);
   const stickerText = parsed.text.trim();
