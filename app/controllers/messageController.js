@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { handleMenuCommand } from '../modules/menuModule/menus.js';
 import { handleAdminCommand, isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
 import { processSticker } from '../modules/stickerModule/stickerCommand.js';
-import { processTextSticker } from '../modules/stickerModule/stickerTextCommand.js';
+import { processBlinkingTextSticker, processTextSticker } from '../modules/stickerModule/stickerTextCommand.js';
 import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/playCommand.js';
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
@@ -127,6 +127,21 @@ export const handleMessages = async (update, sock) => {
             case 'stickertextwhite':
             case 'stw':
               await processTextSticker({
+                sock,
+                messageInfo,
+                remoteJid,
+                senderJid,
+                senderName,
+                text,
+                extraText: 'PackZoeira',
+                expirationMessage,
+                color: 'white',
+              });
+              break;
+
+            case 'stickertextblink':
+            case 'stb':
+              await processBlinkingTextSticker({
                 sock,
                 messageInfo,
                 remoteJid,
