@@ -175,6 +175,8 @@ export const handleMessages = async (update, sock) => {
                 messageInfo,
                 expirationMessage,
                 isGroupMessage,
+                args,
+                senderJid,
               });
               break;
 
