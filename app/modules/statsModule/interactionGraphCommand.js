@@ -135,6 +135,43 @@ const buildInteractionGraphMessage = ({
     );
   });
 
+  const connectors = Array.from(partners.entries())
+    .map(([jid, map]) => ({ jid, degree: map.size }))
+    .sort((a, b) => b.degree - a.degree)
+    .slice(0, 5);
+  if (connectors.length) {
+    lines.push('Conectores (top 5)', '');
+    connectors.forEach((entry, index) => {
+      const display = getNameLabel(entry.jid, names.get(entry.jid));
+      lines.push(`${index + 1}. ${display} — ${entry.degree} pessoas`);
+    });
+    lines.push('');
+  }
+
+  const initiators = new Map();
+  rows.forEach((row) => {
+    const aToB = Number(row.replies_a_para_b || 0);
+    const bToA = Number(row.replies_b_para_a || 0);
+    if (row.dst && aToB > 0) {
+      initiators.set(row.dst, (initiators.get(row.dst) || 0) + aToB);
+    }
+    if (row.src && bToA > 0) {
+      initiators.set(row.src, (initiators.get(row.src) || 0) + bToA);
+    }
+  });
+  const topInitiators = Array.from(initiators.entries())
+    .map(([jid, total]) => ({ jid, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+  if (topInitiators.length) {
+    lines.push('Iniciadores (top 5)', '');
+    topInitiators.forEach((entry, index) => {
+      const display = getNameLabel(entry.jid, names.get(entry.jid));
+      lines.push(`${index + 1}. ${display} — ${entry.total}`);
+    });
+    lines.push('');
+  }
+
   return { lines, names };
 };
 
@@ -245,7 +282,7 @@ const buildClusterSummaryLines = (clusters, names, limit = 3) => {
   return lines;
 };
 
-const renderGraphImage = ({ nodes, edges, summaryLines, clusterColors, nodeClusters }) => {
+const renderGraphImage = ({ nodes, edges, summaryLines, clusterColors, nodeClusters, heatmap }) => {
   const width = 2000;
   const height = 1400;
   const panelWidth = 640;
@@ -602,13 +639,16 @@ const renderGraphImage = ({ nodes, edges, summaryLines, clusterColors, nodeClust
   const textX = graphWidth + 24;
   const textMaxWidth = panelWidth - 48;
   let textY = 90;
+  const heatmapHeight = heatmap && heatmap.length ? 180 : 0;
+  const heatmapGap = heatmap && heatmap.length ? 30 : 0;
+  const textBottomLimit = height - heatmapHeight - heatmapGap - 30;
   ctx.fillStyle = '#e2e8f0';
   ctx.font = '15px Arial';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
 
   let printed = 0;
-  const maxLines = 42;
+  const maxLines = Math.max(10, Math.floor((textBottomLimit - textY) / 20));
   (summaryLines || []).forEach((line) => {
     if (printed >= maxLines) return;
     if (!line.trim()) {
@@ -627,6 +667,34 @@ const renderGraphImage = ({ nodes, edges, summaryLines, clusterColors, nodeClust
 
   if (printed >= maxLines) {
     ctx.fillText('…', textX, textY);
+  }
+
+  if (heatmap && heatmap.length) {
+    const chartX = textX;
+    const chartY = height - heatmapHeight - 20;
+    const chartWidth = panelWidth - 48;
+    const chartHeight = heatmapHeight - 40;
+    const barWidth = chartWidth / 24;
+    const maxValue = Math.max(...heatmap.map((v) => v.total), 1);
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText('Heatmap 24h', chartX, chartY - 24);
+
+    for (let hour = 0; hour < 24; hour += 1) {
+      const value = heatmap[hour]?.total || 0;
+      const barHeight = (value / maxValue) * chartHeight;
+      const x = chartX + hour * barWidth;
+      const y = chartY + chartHeight - barHeight;
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
+      ctx.fillRect(x + 2, y, Math.max(2, barWidth - 4), barHeight);
+    }
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px Arial';
+    ctx.fillText('0h', chartX, chartY + chartHeight + 8);
+    ctx.fillText('12h', chartX + chartWidth / 2 - 8, chartY + chartHeight + 8);
+    ctx.fillText('23h', chartX + chartWidth - 24, chartY + chartHeight + 8);
   }
 
   return canvas.toBuffer('image/png');
