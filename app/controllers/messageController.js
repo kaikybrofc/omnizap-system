@@ -7,6 +7,7 @@ import { processTextSticker } from '../modules/stickerModule/stickerTextCommand.
 import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/playCommand.js';
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
+import { handleInteractionGraphCommand } from '../modules/statsModule/interactionGraphCommand.js';
 import { handleProfileCommand } from '../modules/statsModule/profileCommand.js';
 import { getExpiration } from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
@@ -162,6 +163,18 @@ export const handleMessages = async (update, sock) => {
                 expirationMessage,
                 isGroupMessage,
                 senderJid,
+              });
+              break;
+
+            case 'grafo':
+            case 'interacoes':
+            case 'interacao':
+              await handleInteractionGraphCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                isGroupMessage,
               });
               break;
 
