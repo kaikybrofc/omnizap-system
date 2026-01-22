@@ -1,5 +1,5 @@
 import logger from '../../utils/logger/loggerModule.js';
-import { buildMenuCaption, MENU_ADM_TEXT } from './common.js';
+import { buildMenuCaption, buildStickerBlinkCaption, MENU_ADM_TEXT } from './common.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 
 const MENU_IMAGE_ENV = 'IMAGE_MENU';
@@ -29,7 +29,7 @@ const sendMenuImage = async (sock, remoteJid, messageInfo, expirationMessage, ca
 };
 
 export async function handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, commandPrefix) {
-  const stickerCaption = buildMenuCaption(senderName, commandPrefix);
+  const stickerCaption = `${buildMenuCaption(senderName, commandPrefix)}\n${buildStickerBlinkCaption(commandPrefix)}`;
   await sendMenuImage(sock, remoteJid, messageInfo, expirationMessage, stickerCaption);
 }
 

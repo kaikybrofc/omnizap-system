@@ -23,6 +23,42 @@ const BLINK_FREQ_HZ = 5;
 
 const execProm = promisify(exec);
 
+const COLOR_ALIASES = {
+  branco: 'white',
+  white: 'white',
+  preto: 'black',
+  black: 'black',
+  vermelho: 'red',
+  red: 'red',
+  verde: 'green',
+  green: 'green',
+  azul: 'blue',
+  blue: 'blue',
+  amarelo: 'yellow',
+  yellow: 'yellow',
+  rosa: 'pink',
+  pink: 'pink',
+  roxo: 'purple',
+  purple: 'purple',
+  laranja: 'orange',
+  orange: 'orange',
+};
+
+function parseColorFlag(rawText, fallbackColor) {
+  const trimmed = rawText.trim();
+  if (!trimmed) return { text: rawText, color: fallbackColor };
+
+  const match = trimmed.match(/(?:^|\s)-([a-zA-Z]+)\s*$/);
+  if (!match) return { text: rawText, color: fallbackColor };
+
+  const colorKey = match[1].toLowerCase();
+  const mapped = COLOR_ALIASES[colorKey];
+  if (!mapped) return { text: rawText, color: fallbackColor };
+
+  const cleanedText = trimmed.slice(0, match.index).trimEnd();
+  return { text: cleanedText, color: mapped };
+}
+
 function drawTextOnCanvas(ctx, text, color, { glow = false } = {}) {
   const width = ctx.canvas.width;
   const height = ctx.canvas.height;
@@ -267,10 +303,12 @@ export async function processTextSticker({ sock, messageInfo, remoteJid, senderJ
 }
 
 export async function processBlinkingTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, expirationMessage, extraText = '', color = 'white' }) {
-  const stickerText = text.trim();
+  const parsed = parseColorFlag(text, color);
+  const stickerText = parsed.text.trim();
+  const resolvedColor = parsed.color;
 
   if (!stickerText) {
-    await sock.sendMessage(remoteJid, { text: '❌ Você precisa informar um texto para virar figurinha.\n\nExemplo:\n/stb bom dia seus lindos' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(remoteJid, { text: '❌ Você precisa informar um texto para virar figurinha.\n\nExemplo:\n/stb bom dia seus lindos -verde' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
 
     return;
   }
@@ -300,7 +338,7 @@ export async function processBlinkingTextSticker({ sock, messageInfo, remoteJid,
     const userDir = path.join(TEMP_DIR, sanitizedUserId);
     await fs.mkdir(userDir, { recursive: true });
 
-    webpPath = await generateBlinkingTextWebp(text, userDir, `text_blink_${uniqueId}`, color);
+    webpPath = await generateBlinkingTextWebp(stickerText, userDir, `text_blink_${uniqueId}`, resolvedColor);
 
     const { packName, packAuthor } = (() => {
       if (!extraText) {

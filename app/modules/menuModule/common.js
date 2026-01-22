@@ -59,6 +59,19 @@ https://github.com/kaikybrofc/omnizap-system
 📩 Contato: *@kaikybrofc*
 `;
 
+export const buildStickerBlinkCaption = (commandPrefix) => `
+━━━━━━━━━━━━━━━  
+✨ *Figurinhas (Texto Piscante)*  
+━━━━━━━━━━━━━━━  
+▫️ Texto piscante (pisca-pisca):  
+➡️ *${commandPrefix}stickertextblink* ou *${commandPrefix}stb*  
+
+▫️ Cor no final com “-cor”:  
+➡️ *${commandPrefix}stb bom dia -verde*  
+
+🎨 *Cores:* -branco, -preto, -vermelho, -verde, -azul, -amarelo, -rosa, -roxo, -laranja  
+`;
+
 export const MENU_ADM_TEXT = `
 🛡️ *Menu de Administração*
 
