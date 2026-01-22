@@ -254,13 +254,23 @@ const resolveRoleLabel = (participant) => {
  * @returns {*} - Retorno.
  */
 const buildProfileText = ({ handle, totalMessages, firstMessage, lastMessage, activeDays, avgPerDay, percentOfGroup, rank, role, dbStart }) => {
-  const lines = ['👤 *Perfil no grupo*', '', `🔹 *Usuário:* ${handle}`, `🔸 *Cargo:* ${role}`, `💬 *Mensagens:* ${totalMessages}`, `📅 *Primeira:* ${formatDate(firstMessage)}`, `🕘 *Última:* ${formatDate(lastMessage)}`, `📆 *Dias ativos:* ${activeDays}`, `📈 *Média/dia:* ${avgPerDay}`, `📊 *Participação:* ${percentOfGroup}`];
+  const lines = [
+    `🔹 Usuário: ${handle}`,
+    `🔸 Cargo: ${role}`,
+    `💬 Mensagens: ${totalMessages}`,
+    `📅 Primeira: ${formatDate(firstMessage)}`,
+    `🕘 Última: ${formatDate(lastMessage)}`,
+    `📆 Dias ativos: ${activeDays}`,
+    `📈 Média/dia: ${avgPerDay}`,
+    `📊 Participação: ${percentOfGroup}`,
+  ];
 
   if (rank !== null) {
-    lines.push(`🏆 *Ranking:* #${rank}`);
+    lines.push(`🏆 Ranking: #${rank}`);
   }
 
-  lines.push('', `🧾 *Início da contagem:* ${formatDate(dbStart)}`);
+  lines.push('ℹ️ Ranking é do grupo e pode ser visto com /rank.');
+  lines.push(`🧾 Início da contagem: ${formatDate(dbStart)}`);
   return lines.join('\n');
 };
 
@@ -1970,13 +1980,13 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
       const influenceRank = influenceIndex >= 0 ? `#${influenceIndex + 1}` : 'N/D';
 
       const socialLines = [
-        '🌐 *Social global*',
-        `🧩 *Clan:* ${clanName} (${clanColor})`,
-        `🔁 *Interações:* ${totalInteractions}`,
-        `📤 *Respostas enviadas:* ${repliesSent}`,
-        `📥 *Respostas recebidas:* ${repliesReceived}`,
-        `🤝 *Conexões únicas:* ${partners.size}`,
-        `⭐ *Influência (aprox):* ${influenceRank}`,
+        '🌐 Social global',
+        `🧩 Clan: ${clanName} (${clanColor})`,
+        `🔁 Interações: ${totalInteractions}`,
+        `📤 Respostas enviadas: ${repliesSent}`,
+        `📥 Respostas recebidas: ${repliesReceived}`,
+        `🤝 Conexões únicas: ${partners.size}`,
+        `⭐ Influência (aprox): ${influenceRank}`,
       ];
       profileSocialText = socialLines.join('\n');
     }
@@ -1984,12 +1994,13 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
     const focusDisplay = normalizedFocus ? getNameLabel(normalizedFocus, names.get(normalizedFocus)) : null;
     const introLines = normalizedFocus
       ? [
-        '🎯 *Social foco*',
+        '🎯 Social foco',
         `👤 Usuário: ${focusDisplay || 'N/D'}`,
-        '🔗 Mostra apenas a bolha do usuário e suas ligações diretas.',
-        '👥 Dados de todos os usuários do bot.',
-        `🧩 Total de usuários participantes: ${totalParticipants}`,
-        '🛠️ Use *social* para ver o panorama completo.',
+        '🔗 A imagem mostra só a bolha do usuário e suas ligações diretas.',
+        `👥 Total de usuários participantes (geral do bot): ${totalParticipants}`,
+        '🧾 Perfil acima = dados do grupo atual.',
+        '🌐 Social global acima = dados gerais do bot.',
+        '🛠️ Use social para ver o panorama completo do grupo.',
       ]
       : [
         '✨ *Social*',

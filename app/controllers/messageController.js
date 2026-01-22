@@ -8,7 +8,6 @@ import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/p
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
 import { handleInteractionGraphCommand } from '../modules/statsModule/interactionGraphCommand.js';
-import { handleProfileCommand } from '../modules/statsModule/profileCommand.js';
 import { getExpiration } from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
@@ -178,19 +177,6 @@ export const handleMessages = async (update, sock) => {
                 isGroupMessage,
                 args,
                 senderJid,
-              });
-              break;
-
-            case 'perfil':
-            case 'profile':
-              await handleProfileCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                isGroupMessage,
-                senderJid,
-                args,
               });
               break;
 

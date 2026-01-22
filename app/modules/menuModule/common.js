@@ -39,7 +39,6 @@ Olá, ${senderName}! 👋
 ➡️ *${commandPrefix}ranking* *(top 5 do grupo)*  
 ➡️ *${commandPrefix}social* *(ranking de interações)*  
 ➡️ *${commandPrefix}semmsg* *(membros sem mensagens)*  
-➡️ *${commandPrefix}perfil* *(estatísticas do usuário)*  
 
 ━━━━━━━━━━━━━━━  
 🛡️ *Administração*  
