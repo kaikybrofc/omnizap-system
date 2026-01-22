@@ -8,6 +8,47 @@ const CLAN_NAME_LIST = [
   'Rho', 'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega',
 ];
 
+const CACHE_TTL_MS = 15 * 60 * 1000;
+const SOCIAL_CACHE = new Map();
+
+const getCacheKey = (focusJid) => (focusJid ? `focus:${focusJid}` : 'global');
+
+/**
+ * Função getCachedResult.
+ * @param {*} key - Parâmetro.
+ * @returns {*} - Retorno.
+ */
+const getCachedResult = (key) => {
+  const entry = SOCIAL_CACHE.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.createdAt > CACHE_TTL_MS) {
+    SOCIAL_CACHE.delete(key);
+    return null;
+  }
+  return entry;
+};
+
+/**
+ * Função setCachedResult.
+ * @param {*} key - Parâmetro.
+ * @param {*} payload - Parâmetro.
+ * @returns {*} - Retorno.
+ */
+const setCachedResult = (key, payload) => {
+  SOCIAL_CACHE.set(key, { ...payload, createdAt: Date.now() });
+  if (SOCIAL_CACHE.size > 20) {
+    const oldestKey = Array.from(SOCIAL_CACHE.entries())
+      .sort((a, b) => a[1].createdAt - b[1].createdAt)[0]?.[0];
+    if (oldestKey) SOCIAL_CACHE.delete(oldestKey);
+  }
+};
+
+/**
+ * Função assignClanNamesFromList.
+ * @param {*} clusters - Parâmetro.
+ * @param {*} list - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const assignClanNamesFromList = (clusters, list = CLAN_NAME_LIST) => {
   if (!clusters || !clusters.length) return clusters || [];
   return clusters.map((cluster, index) => {
@@ -17,6 +58,12 @@ const assignClanNamesFromList = (clusters, list = CLAN_NAME_LIST) => {
   });
 };
 
+/**
+ * Função getDisplayLabel.
+ * @param {*} jid - Parâmetro.
+ * @param {*} pushName - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const getDisplayLabel = (jid, pushName) => {
   if (!jid || typeof jid !== 'string') return 'Desconhecido';
   const handle = `@${jid.split('@')[0]}`;
@@ -26,6 +73,12 @@ const getDisplayLabel = (jid, pushName) => {
   return handle;
 };
 
+/**
+ * Função getNameLabel.
+ * @param {*} jid - Parâmetro.
+ * @param {*} pushName - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const getNameLabel = (jid, pushName) => {
   if (pushName && typeof pushName === 'string' && pushName.trim() !== '') {
     return pushName.trim();
@@ -34,11 +87,24 @@ const getNameLabel = (jid, pushName) => {
   return `@${jid.split('@')[0]}`;
 };
 
+/**
+ * Função normalizeJidWithParticipants.
+ * @param {*} value - Parâmetro.
+ * @param {*} participantIndex - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const normalizeJidWithParticipants = (value, participantIndex) => {
   if (!value || !participantIndex) return value;
   return participantIndex.get(value) || value;
 };
 
+/**
+ * Função getFocusJid.
+ * @param {*} messageInfo - Parâmetro.
+ * @param {*} args - Parâmetro.
+ * @param {*} senderJid - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const getFocusJid = (messageInfo, args, senderJid) => {
   const mentioned = messageInfo.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
   if (mentioned.length > 0) return mentioned[0];
@@ -60,6 +126,11 @@ const getFocusJid = (messageInfo, args, senderJid) => {
   return null;
 };
 
+/**
+ * Função buildSocialRanking.
+ * @param {*} rows - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildSocialRanking = (rows) => {
   const totals = new Map();
   const partners = new Map();
@@ -96,6 +167,11 @@ const buildSocialRanking = (rows) => {
   return { ranking, totals, partners, names };
 };
 
+/**
+ * Função formatDuration.
+ * @param {*} ms - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const formatDuration = (ms) => {
   if (!Number.isFinite(ms) || ms <= 0) return 'N/D';
   const minute = 60 * 1000;
@@ -107,6 +183,11 @@ const formatDuration = (ms) => {
   return `${Math.round(ms / 1000)}s`;
 };
 
+/**
+ * Função toMillis.
+ * @param {*} value - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const toMillis = (value) => {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number') {
@@ -118,6 +199,11 @@ const toMillis = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
+/**
+ * Função computeReciprocityAndAvg.
+ * @param {*} rows - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const computeReciprocityAndAvg = (rows) => {
   const reciprocityTotals = rows.reduce(
     (acc, row) => {
@@ -160,6 +246,14 @@ const computeReciprocityAndAvg = (rows) => {
   return { reciprocity, avgResponseMs };
 };
 
+/**
+ * Função buildInfluenceRanking.
+ * @param {*} nodes - Parâmetro.
+ * @param {*} edges - Parâmetro.
+ * @param {*} nodeClusters - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildInfluenceRanking = ({ nodes, edges, nodeClusters, limit = 5 }) => {
   if (!nodes || !nodes.length || !edges || !edges.length) return [];
   const totals = new Map();
@@ -263,6 +357,11 @@ const buildInteractionGraphMessage = ({
     : 0;
 
   const makeLine = (text, color) => (color ? { text, color } : text);
+  /**
+   * Função getNameWithClan.
+   * @param {*} jid - Parâmetro.
+   * @returns {*} - Retorno.
+   */
   const getNameWithClan = (jid) => {
     const base = getNameLabel(jid, names.get(jid));
     const clan = clanByJid?.get(jid);
@@ -327,6 +426,12 @@ const buildInteractionGraphMessage = ({
   return { lines, names };
 };
 
+/**
+ * Função buildGraphData.
+ * @param {*} rows - Parâmetro.
+ * @param {*} names - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildGraphData = (rows, names) => {
   const edges = rows
     .filter((row) => Number(row.replies_total_par || 0) > 0)
@@ -417,6 +522,15 @@ const buildGraphData = (rows, names) => {
   return { nodes, edges, clusters, clusterColors, nodeClusters };
 };
 
+/**
+ * Função buildClusterSummaryLines.
+ * @param {*} clusters - Parâmetro.
+ * @param {*} names - Parâmetro.
+ * @param {*} clusterColors - Parâmetro.
+ * @param {*} clanByJid - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildClusterSummaryLines = (clusters, names, clusterColors, clanByJid, limit = 3) => {
   if (!clusters || !clusters.length) return [];
   const makeLine = (text, color) => (color ? { text, color } : text);
@@ -442,6 +556,13 @@ const buildClusterSummaryLines = (clusters, names, clusterColors, clanByJid, lim
   return lines;
 };
 
+/**
+ * Função buildClanLegendLines.
+ * @param {*} clusters - Parâmetro.
+ * @param {*} clusterColors - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildClanLegendLines = (clusters, clusterColors, limit = 6) => {
   if (!clusters || !clusters.length) return [];
   const makeLine = (text, color) => (color ? { text, color } : text);
@@ -455,9 +576,23 @@ const buildClanLegendLines = (clusters, clusterColors, limit = 6) => {
   return lines;
 };
 
+/**
+ * Função buildClanCaptionLines.
+ * @param {*} clusters - Parâmetro.
+ * @param {*} clusterColors - Parâmetro.
+ * @param {*} leaderByClanId - Parâmetro.
+ * @param {*} names - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildClanCaptionLines = (clusters, clusterColors, leaderByClanId, names, limit = 10) => {
   if (!clusters || !clusters.length) return [];
   const lines = ['🏷️ *Clans*', ''];
+  /**
+   * Função hslToColorName.
+   * @param {*} hsl - Parâmetro.
+   * @returns {*} - Retorno.
+   */
   const hslToColorName = (hsl) => {
     if (!hsl || typeof hsl !== 'string') return 'sem cor';
     const match = /hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/i.exec(hsl);
@@ -485,6 +620,16 @@ const buildClanCaptionLines = (clusters, clusterColors, leaderByClanId, names, l
   return lines;
 };
 
+/**
+ * Função buildClanBridgeLines.
+ * @param {*} edges - Parâmetro.
+ * @param {*} nodeClusters - Parâmetro.
+ * @param {*} names - Parâmetro.
+ * @param {*} clanByJid - Parâmetro.
+ * @param {*} clanColorByJid - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildClanBridgeLines = ({ edges, nodeClusters, names, clanByJid, clanColorByJid, limit = 5 }) => {
   if (!edges || !edges.length || !nodeClusters) return [];
   const totals = new Map();
@@ -513,6 +658,12 @@ const buildClanBridgeLines = ({ edges, nodeClusters, names, clanByJid, clanColor
   return lines;
 };
 
+/**
+ * Função buildClanLeaders.
+ * @param {*} nodes - Parâmetro.
+ * @param {*} nodeClusters - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildClanLeaders = (nodes, nodeClusters) => {
   const leaders = new Set();
   if (!nodes || !nodes.length || !nodeClusters) return leaders;
@@ -529,6 +680,12 @@ const buildClanLeaders = (nodes, nodeClusters) => {
   return leaders;
 };
 
+/**
+ * Função buildClanLeaderMap.
+ * @param {*} nodes - Parâmetro.
+ * @param {*} nodeClusters - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildClanLeaderMap = (nodes, nodeClusters) => {
   const leaderMap = new Map();
   if (!nodes || !nodes.length || !nodeClusters) return leaderMap;
@@ -545,6 +702,13 @@ const buildClanLeaderMap = (nodes, nodeClusters) => {
   return leaderMap;
 };
 
+/**
+ * Função buildGrowthLines.
+ * @param {*} rows - Parâmetro.
+ * @param {*} names - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildGrowthLines = (rows, names, limit = 5) => {
   if (!rows || !rows.length) return [];
   const lines = ['📈 *Crescimento 30d*'];
@@ -561,6 +725,15 @@ const buildGrowthLines = (rows, names, limit = 5) => {
   return lines;
 };
 
+/**
+ * Função buildTopMentionsLines.
+ * @param {*} rows - Parâmetro.
+ * @param {*} names - Parâmetro.
+ * @param {*} clanByJid - Parâmetro.
+ * @param {*} clanColorByJid - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildTopMentionsLines = (rows, names, clanByJid, clanColorByJid, limit = 5) => {
   if (!rows || !rows.length) return [];
   const totals = new Map();
@@ -587,6 +760,15 @@ const buildTopMentionsLines = (rows, names, clanByJid, clanColorByJid, limit = 5
   return lines;
 };
 
+/**
+ * Função buildTopPairsLines.
+ * @param {*} rows - Parâmetro.
+ * @param {*} names - Parâmetro.
+ * @param {*} clanByJid - Parâmetro.
+ * @param {*} clanColorByJid - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildTopPairsLines = (rows, names, clanByJid, clanColorByJid, limit = 5) => {
   if (!rows || !rows.length) return [];
   const totals = new Map();
@@ -621,6 +803,15 @@ const buildTopPairsLines = (rows, names, clanByJid, clanColorByJid, limit = 5) =
   return lines;
 };
 
+/**
+ * Função buildTopRepliesReceivedLines.
+ * @param {*} rows - Parâmetro.
+ * @param {*} names - Parâmetro.
+ * @param {*} clanByJid - Parâmetro.
+ * @param {*} clanColorByJid - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildTopRepliesReceivedLines = (rows, names, clanByJid, clanColorByJid, limit = 5) => {
   if (!rows || !rows.length) return [];
   const totals = new Map();
@@ -647,6 +838,15 @@ const buildTopRepliesReceivedLines = (rows, names, clanByJid, clanColorByJid, li
   return lines;
 };
 
+/**
+ * Função buildTopRepliesSentLines.
+ * @param {*} rows - Parâmetro.
+ * @param {*} names - Parâmetro.
+ * @param {*} clanByJid - Parâmetro.
+ * @param {*} clanColorByJid - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildTopRepliesSentLines = (rows, names, clanByJid, clanColorByJid, limit = 5) => {
   if (!rows || !rows.length) return [];
   const totals = new Map();
@@ -673,6 +873,14 @@ const buildTopRepliesSentLines = (rows, names, clanByJid, clanColorByJid, limit 
   return lines;
 };
 
+/**
+ * Função buildTopActiveClansLines.
+ * @param {*} rows - Parâmetro.
+ * @param {*} clusters - Parâmetro.
+ * @param {*} clusterColors - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildTopActiveClansLines = (rows, clusters, clusterColors, limit = 5) => {
   if (!rows || !rows.length || !clusters || !clusters.length) return [];
   const clanTotals = new Map();
@@ -703,6 +911,15 @@ const buildTopActiveClansLines = (rows, clusters, clusterColors, limit = 5) => {
   return lines;
 };
 
+/**
+ * Função buildGlobalConnectorsLines.
+ * @param {*} rows - Parâmetro.
+ * @param {*} names - Parâmetro.
+ * @param {*} clanByJid - Parâmetro.
+ * @param {*} clanColorByJid - Parâmetro.
+ * @param {*} limit - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildGlobalConnectorsLines = (rows, names, clanByJid, clanColorByJid, limit = 5) => {
   if (!rows || !rows.length) return [];
   const neighbors = new Map();
@@ -730,6 +947,11 @@ const buildGlobalConnectorsLines = (rows, names, clanByJid, clanColorByJid, limi
   return lines;
 };
 
+/**
+ * Função buildSkewLines.
+ * @param {*} ranking - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const buildSkewLines = (ranking) => {
   if (!ranking || !ranking.length) return [];
   const top = Number(ranking[0]?.total || 0);
@@ -742,6 +964,11 @@ const buildSkewLines = (ranking) => {
   ];
 };
 
+/**
+ * Função filterImageSummaryLines.
+ * @param {*} lines - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 const filterImageSummaryLines = (lines) => {
   const blockedHeaders = new Set(['Conectores (top 5)']);
   const filtered = [];
@@ -840,6 +1067,11 @@ const renderGraphImage = ({
 
   const minGap = 39;
   const maxAttempts = 400;
+  /**
+   * Função rand.
+   * @param {*} seed - Parâmetro.
+   * @returns {*} - Retorno.
+   */
   const rand = (seed) => {
     let x = seed;
     return () => {
@@ -900,6 +1132,12 @@ const renderGraphImage = ({
     return { x: pos?.x || centerX, y: pos?.y || centerY };
   });
 
+  /**
+   * Função clampPosition.
+   * @param {*} pos - Parâmetro.
+   * @param {*} radius - Parâmetro.
+   * @returns {*} - Retorno.
+   */
   const clampPosition = (pos, radius) => {
     const minX = 20 + radius;
     const maxX = graphWidth - 20 - radius;
@@ -1010,6 +1248,11 @@ const renderGraphImage = ({
     nodePositions.set(node.jid, positions[index]);
   });
 
+  /**
+   * Função hashString.
+   * @param {*} value - Parâmetro.
+   * @returns {*} - Retorno.
+   */
   const hashString = (value) => {
     let hash = 0;
     for (let i = 0; i < value.length; i += 1) {
@@ -1018,6 +1261,11 @@ const renderGraphImage = ({
     return hash;
   };
 
+  /**
+   * Função edgeStyleFromKey.
+   * @param {*} key - Parâmetro.
+   * @returns {*} - Retorno.
+   */
   const edgeStyleFromKey = (key) => {
     const hash = hashString(key);
     const hue = hash % 360;
@@ -1068,12 +1316,24 @@ const renderGraphImage = ({
     ctx.fill();
   });
 
+  /**
+   * Função drawTextInsideBubble.
+   * @param {*} text - Parâmetro.
+   * @param {*} x - Parâmetro.
+   * @param {*} y - Parâmetro.
+   * @param {*} radius - Parâmetro.
+   * @returns {*} - Retorno.
+   */
   const drawTextInsideBubble = (text, x, y, radius) => {
     const maxWidth = radius * 1.6;
     const maxLines = 2;
     const words = text.split(' ');
     let lines = [text];
 
+    /**
+     * Função tryWrap.
+     * @returns {*} - Retorno.
+     */
     const tryWrap = () => {
       const result = [];
       let current = '';
@@ -1166,6 +1426,12 @@ const renderGraphImage = ({
     ctx.fillText(`${node.total}`, position.x, position.y + nodeRadius - 12);
   });
 
+  /**
+   * Função wrapText.
+   * @param {*} text - Parâmetro.
+   * @param {*} maxWidth - Parâmetro.
+   * @returns {*} - Retorno.
+   */
   const wrapText = (text, maxWidth) => {
     if (!text) return [''];
     const words = text.split(' ');
@@ -1215,6 +1481,15 @@ const renderGraphImage = ({
   });
   if (current.length) sections.push(current);
 
+  /**
+   * Função drawRoundedRect.
+   * @param {*} x - Parâmetro.
+   * @param {*} y - Parâmetro.
+   * @param {*} w - Parâmetro.
+   * @param {*} h - Parâmetro.
+   * @param {*} r - Parâmetro.
+   * @returns {*} - Retorno.
+   */
   const drawRoundedRect = (x, y, w, h, r) => {
     const radius = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
@@ -1261,9 +1536,30 @@ const renderGraphImage = ({
   return canvas.toBuffer('image/png');
 };
 
+/**
+ * Função handleInteractionGraphCommand.
+ * @param {*} sock - Parâmetro.
+ * @param {*} remoteJid - Parâmetro.
+ * @param {*} messageInfo - Parâmetro.
+ * @param {*} expirationMessage - Parâmetro.
+ * @param {*} isGroupMessage - Parâmetro.
+ * @param {*} args - Parâmetro.
+ * @param {*} senderJid - Parâmetro.
+ * @returns {*} - Retorno.
+ */
 export async function handleInteractionGraphCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, args, senderJid }) {
   try {
     const focusJid = getFocusJid(messageInfo, args || [], senderJid);
+    const cacheKey = getCacheKey(focusJid);
+    const cached = getCachedResult(cacheKey);
+    if (cached) {
+      await sock.sendMessage(
+        remoteJid,
+        { image: cached.imageBuffer, caption: cached.captionText },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+      return;
+    }
 
     const [totalMessagesRow] = await executeQuery(
       'SELECT COUNT(*) AS total FROM messages',
@@ -1374,7 +1670,7 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
         AND e.dst <> ''
         AND e.src <> e.dst
       ORDER BY replies_total_par DESC, e.last_ts DESC
-      LIMIT 800`,
+      LIMIT 80000`,
       [],
     );
 
@@ -1553,6 +1849,7 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
       focusJid: normalizedFocus,
     });
 
+    setCachedResult(cacheKey, { imageBuffer, captionText });
     await sock.sendMessage(
       remoteJid,
       { image: imageBuffer, caption: captionText },
@@ -1563,3 +1860,10 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
     await sock.sendMessage(remoteJid, { text: `Erro ao gerar ranking de interacoes: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   }
 }
+
+export {
+  assignClanNamesFromList,
+  buildGraphData,
+  buildInfluenceRanking,
+  buildSocialRanking,
+};
