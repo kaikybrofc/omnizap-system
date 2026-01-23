@@ -1,7 +1,8 @@
-import { createCanvas } from 'canvas';
+import { createCanvas, loadImage } from 'canvas';
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getGroupParticipants, _matchesParticipantId } from '../../config/groupUtils.js';
+import { getProfilePicBuffer } from '../../config/baileysConfig.js';
 
 const CLAN_NAME_LIST = [
   'Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta',
@@ -11,6 +12,10 @@ const CLAN_NAME_LIST = [
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const SOCIAL_CACHE = new Map();
+
+const PROFILE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const PROFILE_CACHE_LIMIT = 300;
+const PROFILE_PIC_CACHE = new Map();
 
 const getCacheKey = (focusJid, remoteJid) => (focusJid ? `focus:${remoteJid || 'global'}:${focusJid}` : 'global');
 
@@ -53,6 +58,60 @@ const setCachedResult = (key, payload) => {
       .sort((a, b) => a[1].createdAt - b[1].createdAt)[0]?.[0];
     if (oldestKey) SOCIAL_CACHE.delete(oldestKey);
   }
+};
+
+const getCachedProfilePic = (jid) => {
+  const entry = PROFILE_PIC_CACHE.get(jid);
+  if (!entry) return null;
+  if (Date.now() - entry.createdAt > PROFILE_CACHE_TTL_MS) {
+    PROFILE_PIC_CACHE.delete(jid);
+    return null;
+  }
+  return entry.buffer || null;
+};
+
+const setCachedProfilePic = (jid, buffer) => {
+  if (!jid || !buffer) return;
+  PROFILE_PIC_CACHE.set(jid, { buffer, createdAt: Date.now() });
+  if (PROFILE_PIC_CACHE.size > PROFILE_CACHE_LIMIT) {
+    const oldestKey = Array.from(PROFILE_PIC_CACHE.entries())
+      .sort((a, b) => a[1].createdAt - b[1].createdAt)[0]?.[0];
+    if (oldestKey) PROFILE_PIC_CACHE.delete(oldestKey);
+  }
+};
+
+const fetchProfileBuffer = async (sock, jid, remoteJid) => {
+  const cached = getCachedProfilePic(jid);
+  if (cached) return cached;
+  const buffer = await getProfilePicBuffer(sock, { key: { participant: jid, remoteJid } });
+  if (buffer) setCachedProfilePic(jid, buffer);
+  return buffer;
+};
+
+const loadProfileImages = async ({ sock, jids, remoteJid, concurrency = 6 }) => {
+  const results = new Map();
+  const queue = Array.from(new Set((jids || []).filter(Boolean)));
+  let index = 0;
+
+  const worker = async () => {
+    while (index < queue.length) {
+      const jid = queue[index];
+      index += 1;
+      if (results.has(jid)) continue;
+      try {
+        const buffer = await fetchProfileBuffer(sock, jid, remoteJid);
+        if (!buffer) continue;
+        const image = await loadImage(buffer);
+        results.set(jid, image);
+      } catch (error) {
+        logger.warn('Falha ao carregar imagem de perfil para o social.', { error: error.message });
+      }
+    }
+  };
+
+  const workers = Array.from({ length: concurrency }, () => worker());
+  await Promise.all(workers);
+  return results;
 };
 
 /**
@@ -1162,6 +1221,7 @@ const renderGraphImage = ({
   totalMessages,
   clanLeaders,
   focusJid,
+  avatarImages,
   showPanel = true,
 }) => {
   const width = 3200;
@@ -1482,7 +1542,8 @@ const renderGraphImage = ({
    * @param {*} radius - Parâmetro.
    * @returns {*} - Retorno.
    */
-  const drawTextInsideBubble = (text, x, y, radius) => {
+  const drawTextInsideBubble = (text, x, y, radius, options = {}) => {
+    const { color = '#f8fafc', shadow = false } = options;
     const maxWidth = radius * 1.6;
     const maxLines = 2;
     const words = text.split(' ');
@@ -1531,9 +1592,13 @@ const renderGraphImage = ({
     ctx.arc(x, y, radius - 2, 0, Math.PI * 2);
     ctx.clip();
 
-    ctx.fillStyle = '#f8fafc';
+    ctx.fillStyle = color;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    if (shadow) {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+      ctx.shadowBlur = 6;
+    }
     const lineHeight = fontSize + 2;
     const totalHeight = lineHeight * lines.length;
     lines.forEach((line, index) => {
@@ -1549,6 +1614,7 @@ const renderGraphImage = ({
     const nodeRadius = nodeRadii.get(node.jid) || 30;
     const clusterId = nodeClusters?.get(node.jid);
     const clusterColor = clusterId ? clusterColors?.get(clusterId) : null;
+    const avatarImage = avatarImages?.get(node.jid) || null;
 
     if (focusJid && node.jid === focusJid) {
       ctx.save();
@@ -1562,26 +1628,43 @@ const renderGraphImage = ({
       ctx.restore();
     }
 
-    ctx.save();
-    ctx.fillStyle = clusterColor || '#38bdf8';
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = 'rgba(15, 23, 42, 0.35)';
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, nodeRadius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    if (avatarImage) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(position.x, position.y, nodeRadius, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(avatarImage, position.x - nodeRadius, position.y - nodeRadius, nodeRadius * 2, nodeRadius * 2);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.fillStyle = clusterColor || '#38bdf8';
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = 'rgba(15, 23, 42, 0.35)';
+      ctx.beginPath();
+      ctx.arc(position.x, position.y, nodeRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
 
     ctx.strokeStyle = clusterColor || '#0ea5e9';
     ctx.lineWidth = clanLeaders?.has(node.jid) ? 6 : 3;
     ctx.stroke();
 
-    drawTextInsideBubble(node.label, position.x, position.y, nodeRadius);
+    drawTextInsideBubble(node.label, position.x, position.y, nodeRadius, avatarImage ? { shadow: true } : undefined);
 
-    ctx.fillStyle = '#0f172a';
+    ctx.save();
+    if (avatarImage) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+      ctx.shadowBlur = 6;
+    } else {
+      ctx.fillStyle = '#0f172a';
+    }
     ctx.font = 'bold 14px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(`${node.total}`, position.x, position.y + nodeRadius - 12);
+    ctx.restore();
   });
 
   /**
@@ -2088,6 +2171,11 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
       ...bridgeLines,
       ...growthLines,
     ];
+    const avatarImages = await loadProfileImages({
+      sock,
+      jids: graphData.nodes.map((node) => node.jid),
+      remoteJid,
+    });
     const imageBuffer = renderGraphImage({
       ...graphData,
       directedEdges,
@@ -2096,6 +2184,7 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
       totalMessages,
       clanLeaders,
       focusJid: normalizedFocus,
+      avatarImages,
       showPanel: !normalizedFocus,
     });
 
