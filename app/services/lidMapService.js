@@ -13,10 +13,31 @@ const lidCache = new Map();
 
 let backfillPromise = null;
 
+/**
+ * Retorna timestamp atual em ms.
+ * @returns {number}
+ */
 const now = () => Date.now();
+
+/**
+ * Verifica se o JID e do tipo LID.
+ * @param {string|null|undefined} jid
+ * @returns {boolean}
+ */
 const isLidJid = (jid) => getJidServer(jid) === 'lid';
+
+/**
+ * Verifica se o JID e do WhatsApp (s.whatsapp.net).
+ * @param {string|null|undefined} jid
+ * @returns {boolean}
+ */
 const isWhatsAppJid = (jid) => getJidServer(jid) === 's.whatsapp.net';
 
+/**
+ * Mascara um JID para logs.
+ * @param {string|null|undefined} jid
+ * @returns {string|null}
+ */
 const maskJid = (jid) => {
   if (!jid || typeof jid !== 'string') return null;
   const [user, server] = jid.split('@');
@@ -26,6 +47,11 @@ const maskJid = (jid) => {
   return `${head}***${tail}@${server}`;
 };
 
+/**
+ * Busca entrada do cache (com expiração).
+ * @param {string|null|undefined} lid
+ * @returns {{jid: string|null, expiresAt: number, lastStoredAt: number|null}|null}
+ */
 const getCacheEntry = (lid) => {
   if (!lid) return null;
   const entry = lidCache.get(lid);
@@ -37,6 +63,14 @@ const getCacheEntry = (lid) => {
   return entry;
 };
 
+/**
+ * Atualiza cache local do LID.
+ * @param {string} lid
+ * @param {string|null} jid
+ * @param {number} ttlMs
+ * @param {number|null} lastStoredAt
+ * @returns {void}
+ */
 const setCacheEntry = (lid, jid, ttlMs, lastStoredAt) => {
   if (!lid) return;
   lidCache.set(lid, {
@@ -46,12 +80,23 @@ const setCacheEntry = (lid, jid, ttlMs, lastStoredAt) => {
   });
 };
 
+/**
+ * Retorna JID do cache para um LID.
+ * @param {string|null|undefined} lid
+ * @returns {string|null|undefined} undefined quando nao cacheado.
+ */
 export const getCachedJidForLid = (lid) => {
   const entry = getCacheEntry(lid);
   if (!entry) return undefined;
   return entry.jid ?? null;
 };
 
+/**
+ * Divide lista em batches.
+ * @param {Array<any>} items
+ * @param {number} [limit=BATCH_LIMIT]
+ * @returns {Array<Array<any>>}
+ */
 const buildChunks = (items, limit = BATCH_LIMIT) => {
   const chunks = [];
   for (let i = 0; i < items.length; i += limit) {
@@ -60,6 +105,11 @@ const buildChunks = (items, limit = BATCH_LIMIT) => {
   return chunks;
 };
 
+/**
+ * Pré-carrega cache a partir do banco.
+ * @param {Array<string>} [lids=[]]
+ * @returns {Promise<Map<string, string|null>>}
+ */
 export const primeLidCache = async (lids = []) => {
   const uniqueLids = Array.from(new Set((lids || []).filter(Boolean)));
   if (!uniqueLids.length) return new Map();
@@ -106,6 +156,11 @@ export const primeLidCache = async (lids = []) => {
   return results;
 };
 
+/**
+ * Retorna o primeiro JID valido do WhatsApp.
+ * @param {...string} candidates
+ * @returns {string|null}
+ */
 const pickWhatsAppJid = (...candidates) => {
   for (const candidate of candidates) {
     if (!candidate || typeof candidate !== 'string') continue;
@@ -114,6 +169,11 @@ const pickWhatsAppJid = (...candidates) => {
   return null;
 };
 
+/**
+ * Retorna o primeiro LID valido.
+ * @param {...string} candidates
+ * @returns {string|null}
+ */
 const pickLid = (...candidates) => {
   for (const candidate of candidates) {
     if (!candidate || typeof candidate !== 'string') continue;
@@ -122,6 +182,11 @@ const pickLid = (...candidates) => {
   return null;
 };
 
+/**
+ * Resolve ID canônico usando apenas cache.
+ * @param {{lid?: string|null, jid?: string|null, participantAlt?: string|null}} [params]
+ * @returns {string|null}
+ */
 export const resolveUserIdCached = ({ lid, jid, participantAlt } = {}) => {
   const directJid = pickWhatsAppJid(jid, participantAlt, lid);
   if (directJid) return directJid;
@@ -134,6 +199,11 @@ export const resolveUserIdCached = ({ lid, jid, participantAlt } = {}) => {
   return lidValue;
 };
 
+/**
+ * Busca JID para um LID no banco e atualiza cache.
+ * @param {string} lid
+ * @returns {Promise<string|null>}
+ */
 const fetchJidByLid = async (lid) => {
   const cached = getCachedJidForLid(lid);
   if (cached !== undefined) return cached || null;
@@ -147,6 +217,11 @@ const fetchJidByLid = async (lid) => {
   return jid;
 };
 
+/**
+ * Resolve ID canônico consultando banco se necessário.
+ * @param {{lid?: string|null, jid?: string|null, participantAlt?: string|null}} [params]
+ * @returns {Promise<string|null>}
+ */
 export const resolveUserId = async ({ lid, jid, participantAlt } = {}) => {
   const directJid = pickWhatsAppJid(jid, participantAlt, lid);
   if (directJid) return directJid;
@@ -158,6 +233,11 @@ export const resolveUserId = async ({ lid, jid, participantAlt } = {}) => {
   return mapped || lidValue;
 };
 
+/**
+ * Reconcilia mensagens antigas do LID para o JID real.
+ * @param {{lid?: string|null, jid?: string|null, source?: string}} [params]
+ * @returns {Promise<{updated: number}>}
+ */
 export const reconcileLidToJid = async ({ lid, jid, source = 'map' } = {}) => {
   if (!lid || !jid) return { updated: 0 };
   const result = await executeQuery(
@@ -176,6 +256,13 @@ export const reconcileLidToJid = async ({ lid, jid, source = 'map' } = {}) => {
   return { updated };
 };
 
+/**
+ * Persiste mapeamento LID->JID (com cooldown e reconciliação).
+ * @param {string} lid
+ * @param {string|null} jid
+ * @param {string} [source='message']
+ * @returns {Promise<{stored: boolean, reconciled: boolean}>}
+ */
 export const maybeStoreLidMap = async (lid, jid, source = 'message') => {
   if (!lid || !isLidJid(lid)) return { stored: false, reconciled: false };
 
@@ -213,6 +300,11 @@ export const maybeStoreLidMap = async (lid, jid, source = 'message') => {
   return { stored, reconciled: shouldReconcile };
 };
 
+/**
+ * Extrai lid/jid/participantAlt de um objeto ou string.
+ * @param {object|string|null|undefined} value
+ * @returns {{lid: string|null, jid: string|null, participantAlt: string|null, raw: string|null}}
+ */
 export const extractUserIdInfo = (value) => {
   if (!value) return { lid: null, jid: null, participantAlt: null, raw: null };
   if (typeof value === 'string') {
@@ -237,11 +329,31 @@ export const extractUserIdInfo = (value) => {
   };
 };
 
+/**
+ * Alias: verifica se valor e LID.
+ * @param {string|null|undefined} value
+ * @returns {boolean}
+ */
 export const isLidUserId = (value) => isLidJid(value);
+
+/**
+ * Alias: verifica se valor e JID do WhatsApp.
+ * @param {string|null|undefined} value
+ * @returns {boolean}
+ */
 export const isWhatsAppUserId = (value) => isWhatsAppJid(value);
 
+/**
+ * Sleep utilitario.
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Retorna o range de IDs da tabela messages.
+ * @returns {Promise<{minId: number, maxId: number}>}
+ */
 const getMessageIdRange = async () => {
   const rows = await executeQuery(
     `SELECT MIN(id) AS min_id, MAX(id) AS max_id FROM ${TABLES.MESSAGES}`,
@@ -251,6 +363,12 @@ const getMessageIdRange = async () => {
   return { minId, maxId };
 };
 
+/**
+ * Executa um batch do backfill lid_map.
+ * @param {number} fromId
+ * @param {number} toId
+ * @returns {Promise<any>}
+ */
 const runBackfillBatch = async (fromId, toId) => {
   const sql = `
     INSERT INTO ${TABLES.LID_MAP} (lid, jid, first_seen, last_seen, source)
@@ -282,6 +400,11 @@ const runBackfillBatch = async (fromId, toId) => {
   return executeQuery(sql, [BACKFILL_SOURCE, fromId, toId]);
 };
 
+/**
+ * Backfill do lid_map a partir de messages.raw_message.
+ * @param {{batchSize?: number, sleepMs?: number, maxBatches?: number|null}} [options]
+ * @returns {Promise<{batches: number, minId?: number, maxId?: number}>}
+ */
 export const backfillLidMapFromMessages = async ({
   batchSize = BACKFILL_DEFAULT_BATCH,
   sleepMs = 50,
@@ -306,6 +429,11 @@ export const backfillLidMapFromMessages = async ({
   return { batches, minId, maxId };
 };
 
+/**
+ * Garante que o backfill rode apenas uma vez por processo.
+ * @param {{batchSize?: number, sleepMs?: number, maxBatches?: number|null}} [options]
+ * @returns {Promise<{batches: number, minId?: number, maxId?: number}>}
+ */
 export const backfillLidMapFromMessagesOnce = async (options = {}) => {
   if (!backfillPromise) {
     backfillPromise = backfillLidMapFromMessages(options).catch((error) => {
