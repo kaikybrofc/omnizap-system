@@ -1,4 +1,9 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage } from '@whiskeysockets/baileys';
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  Browsers,
+  getAggregateVotesInPollMessage,
+} from '@whiskeysockets/baileys';
 
 import { resolveBaileysVersion } from '../config/baileysConfig.js';
 
@@ -13,6 +18,11 @@ import { handleMessages } from '../controllers/messageController.js';
 import { handleGroupUpdate as handleGroupParticipantsEvent } from '../modules/adminModule/groupEventHandlers.js';
 
 import { createIgnore, findBy, findById, remove, upsert } from '../../database/index.js';
+import {
+  buildGroupMetadataFromGroup,
+  buildGroupMetadataFromUpdate,
+  upsertGroupMetadata,
+} from '../services/groupMetadataService.js';
 
 import { fileURLToPath } from 'node:url';
 
@@ -240,44 +250,14 @@ export async function connectToWhatsApp() {
 
   sock.ev.on('groups.upsert', async (newGroups) => {
     for (const group of newGroups) {
-      const groupDataForDb = {
-        id: group.id,
-        subject: group.subject,
-        owner_jid: group.owner,
-        creation: group.creation,
-        description: group.desc,
-        participants: JSON.stringify(group.participants || []),
-      };
       try {
-        await upsert('groups_metadata', groupDataForDb);
+        await upsertGroupMetadata(group.id, buildGroupMetadataFromGroup(group), {
+          mergeExisting: false,
+        });
       } catch (error) {
         logger.error('Erro no upsert do grupo:', {
           error: error.message,
           groupId: group.id,
-        });
-      }
-    }
-  });
-
-  sock.ev.on('groups.update', async (updates) => {
-    for (const update of updates) {
-      try {
-        const existingGroup = await findById('groups_metadata', update.id);
-        const currentParticipants = parseParticipants(existingGroup?.participants);
-        const participants = update.participants || currentParticipants;
-        const groupDataForDb = {
-          id: update.id,
-          subject: update.subject ?? existingGroup?.subject,
-          owner_jid: update.owner ?? existingGroup?.owner_jid,
-          creation: update.creation ?? existingGroup?.creation,
-          description: update.desc ?? existingGroup?.description,
-          participants: JSON.stringify(participants || []),
-        };
-        await upsert('groups_metadata', groupDataForDb);
-      } catch (error) {
-        logger.error('Erro no upsert do grupo (update):', {
-          error: error.message,
-          groupId: update.id,
         });
       }
     }
@@ -363,7 +343,8 @@ async function handleConnectionUpdate(update, sock) {
     const disconnectCode = lastDisconnect?.error?.output?.statusCode || 'unknown';
     const errorMessage = lastDisconnect?.error?.message || 'Sem mensagem de erro';
 
-    const shouldReconnect = lastDisconnect?.error instanceof Boom && disconnectCode !== DisconnectReason.loggedOut;
+    const shouldReconnect =
+      lastDisconnect?.error instanceof Boom && disconnectCode !== DisconnectReason.loggedOut;
 
     if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       connectionAttempts++;
@@ -416,31 +397,20 @@ async function handleConnectionUpdate(update, sock) {
       const allGroups = await sock.groupFetchAllParticipating();
 
       for (const group of Object.values(allGroups)) {
-        const participantsData = Array.isArray(group.participants)
-          ? group.participants.map((p) => ({
-              id: p.id,
-              jid: p.jid || p.id,
-              lid: p.lid || null,
-              admin: p.admin,
-            }))
-          : [];
-
-        await upsert('groups_metadata', {
-          id: group.id,
-          subject: group.subject,
-          description: group.desc,
-          owner_jid: group.owner,
-          creation: group.creation,
-          participants: JSON.stringify(participantsData),
+        await upsertGroupMetadata(group.id, buildGroupMetadataFromGroup(group), {
+          mergeExisting: false,
         });
       }
 
-      logger.info(`📁 Metadados de ${Object.keys(allGroups).length} grupos sincronizados com MySQL.`, {
-        action: 'groups_synced',
-        count: Object.keys(allGroups).length,
-        groupIds: Object.keys(allGroups),
-        timestamp: new Date().toISOString(),
-      });
+      logger.info(
+        `📁 Metadados de ${Object.keys(allGroups).length} grupos sincronizados com MySQL.`,
+        {
+          action: 'groups_synced',
+          count: Object.keys(allGroups).length,
+          groupIds: Object.keys(allGroups),
+          timestamp: new Date().toISOString(),
+        },
+      );
     } catch (error) {
       logger.error('❌ Erro ao carregar metadados de grupos na conexão.', {
         action: 'groups_load_error',
@@ -501,22 +471,6 @@ async function handleMessageUpdate(updates, sock) {
 }
 
 /**
- * Converte a lista de participantes armazenada em JSON para um array normalizado.
- * @param {string | Array<Object> | null | undefined} participants - Participantes em JSON ou array.
- * @returns {Array<Object>} Array de participantes ou vazio.
- */
-function parseParticipants(participants) {
-  if (!participants) return [];
-  try {
-    if (typeof participants === 'string') return JSON.parse(participants);
-    if (Array.isArray(participants)) return participants;
-  } catch (err) {
-    logger.warn('Erro ao fazer parse dos participantes:', { error: err.message });
-  }
-  return [];
-}
-
-/**
  * Atualiza metadados de grupos no banco MySQL a partir dos eventos do Baileys.
  * @async
  * @param {Array<import('@whiskeysockets/baileys').GroupUpdate>} updates - Eventos de atualização de grupos.
@@ -532,30 +486,15 @@ async function handleGroupUpdate(updates, sock) {
       try {
         const groupId = event.id;
         const oldData = (await findById('groups_metadata', groupId)) || {};
-        const currentParticipants = parseParticipants(oldData.participants);
-        const participantsData = (event.participants || currentParticipants).map((p) => ({
-          id: p.id || null,
-          jid: p.jid || p.id || null,
-          lid: p.lid || null,
-          admin: p.admin || null,
-        }));
+        const updatedData = buildGroupMetadataFromUpdate(event, oldData);
 
-        const updatedData = {
-          id: groupId,
-          subject: event.subject ?? oldData.subject,
-          description: event.desc ?? oldData.description,
-          owner_jid: event.owner ?? oldData.owner_jid,
-          creation: event.creation ?? oldData.creation,
-          participants: JSON.stringify(participantsData),
-        };
-
-        await upsert('groups_metadata', updatedData);
+        await upsertGroupMetadata(groupId, updatedData, { mergeExisting: false });
 
         const changedFields = Object.keys(event).filter((k) => event[k] !== oldData[k]);
         logger.info('📦 Metadados do grupo atualizados', {
           action: 'group_metadata_updated',
           groupId,
-          groupName: updatedData.subject || 'Desconhecido',
+          groupName: updatedData.subject || oldData.subject || 'Desconhecido',
           changedFields,
           timestamp: new Date().toISOString(),
         });
