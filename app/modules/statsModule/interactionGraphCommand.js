@@ -272,25 +272,36 @@ const collectJidsForNames = (rows, limit = NAME_LOOKUP_LIMIT) => {
 
 const fetchLatestPushNames = async (jids) => {
   if (!jids || !jids.length) return new Map();
-  const placeholders = jids.map(() => '?').join(',');
+  const unique = Array.from(new Set(jids.filter(Boolean)));
+  if (!unique.length) return new Map();
+  const placeholders = unique.map(() => '?').join(',');
+  const params = [...unique, ...unique];
   const rows = await executeQuery(
-    `SELECT t.sender_id,
+    `SELECT latest.canonical_id,
             JSON_UNQUOTE(JSON_EXTRACT(m.raw_message, '$.pushName')) AS pushName
        FROM (
-         SELECT sender_id, MAX(id) AS max_id
-           FROM messages
-          WHERE sender_id IN (${placeholders})
-            AND raw_message IS NOT NULL
-            AND JSON_EXTRACT(raw_message, '$.pushName') IS NOT NULL
-          GROUP BY sender_id
-       ) t
-       JOIN messages m ON m.id = t.max_id`,
-    jids,
+         SELECT s.canonical_id, MAX(s.id) AS max_id
+           FROM (
+             SELECT
+               COALESCE(lm.jid, msg.sender_id) AS canonical_id,
+               msg.id
+             FROM messages msg
+             LEFT JOIN lid_map lm
+               ON lm.lid = msg.sender_id
+              AND lm.jid IS NOT NULL
+             WHERE msg.raw_message IS NOT NULL
+               AND JSON_EXTRACT(msg.raw_message, '$.pushName') IS NOT NULL
+               AND (msg.sender_id IN (${placeholders}) OR lm.jid IN (${placeholders}))
+           ) s
+          GROUP BY s.canonical_id
+       ) latest
+       JOIN messages m ON m.id = latest.max_id`,
+    params,
   );
   const map = new Map();
   (rows || []).forEach((row) => {
-    if (row?.sender_id && row?.pushName) {
-      map.set(row.sender_id, row.pushName);
+    if (row?.canonical_id && row?.pushName) {
+      map.set(row.canonical_id, row.pushName);
     }
   });
   return map;
