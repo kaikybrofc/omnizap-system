@@ -606,45 +606,7 @@ const buildInteractionGraphMessage = ({
     });
   }
 
-  const reciprocityTotals = rows.reduce(
-    (acc, row) => {
-      const aToB = Number(row.replies_a_para_b || 0);
-      const bToA = Number(row.replies_b_para_a || 0);
-      if (aToB <= 0 && bToA <= 0) return acc;
-      acc.min += Math.min(aToB, bToA);
-      acc.max += Math.max(aToB, bToA);
-      acc.sum += aToB + bToA;
-      return acc;
-    },
-    { min: 0, max: 0, sum: 0 },
-  );
-  const reciprocity =
-    reciprocityTotals.max > 0
-      ? Math.round((reciprocityTotals.min / reciprocityTotals.max) * 100)
-      : 0;
-
-  const responseTimes = rows.reduce(
-    (acc, row) => {
-      const aCount = Number(row.replies_a_para_b || 0);
-      const bCount = Number(row.replies_b_para_a || 0);
-      const aFirst = toMillis(row.primeira_interacao_a_para_b);
-      const aLast = toMillis(row.ultima_interacao_a_para_b);
-      const bFirst = toMillis(row.primeira_interacao_b_para_a);
-      const bLast = toMillis(row.ultima_interacao_b_para_a);
-      if (aCount > 0 && aFirst !== null && aLast !== null && aLast >= aFirst) {
-        acc.totalMs += aLast - aFirst;
-        acc.totalCount += aCount;
-      }
-      if (bCount > 0 && bFirst !== null && bLast !== null && bLast >= bFirst) {
-        acc.totalMs += bLast - bFirst;
-        acc.totalCount += bCount;
-      }
-      return acc;
-    },
-    { totalMs: 0, totalCount: 0 },
-  );
-  const avgResponseMs =
-    responseTimes.totalCount > 0 ? responseTimes.totalMs / responseTimes.totalCount : 0;
+  const { reciprocity, avgResponseMs } = computeReciprocityAndAvg(rows);
 
   const makeLine = (text, color) => (color ? { text, color } : text);
   /**
