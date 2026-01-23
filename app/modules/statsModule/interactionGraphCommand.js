@@ -656,6 +656,59 @@ const computeReciprocityAndAvg = (rows) => {
   return { reciprocity, avgResponseMs };
 };
 
+const minMs = (current, next) => {
+  if (current === null || current === undefined) return next ?? null;
+  if (next === null || next === undefined) return current;
+  return Math.min(current, next);
+};
+
+const maxMs = (current, next) => {
+  if (current === null || current === undefined) return next ?? null;
+  if (next === null || next === undefined) return current;
+  return Math.max(current, next);
+};
+
+const aggregateRowsByPair = (rows) => {
+  const map = new Map();
+  (rows || []).forEach((row) => {
+    if (!row?.src || !row?.dst) return;
+    if (row.src === row.dst) return;
+    const key = `${row.src}||${row.dst}`;
+    let entry = map.get(key);
+    if (!entry) {
+      entry = {
+        src: row.src,
+        dst: row.dst,
+        replies_a_para_b: 0,
+        replies_b_para_a: 0,
+        replies_total_par: 0,
+        primeira_interacao_a_para_b: null,
+        ultima_interacao_a_para_b: null,
+        primeira_interacao_b_para_a: null,
+        ultima_interacao_b_para_a: null,
+      };
+      map.set(key, entry);
+    }
+
+    const aToB = Number(row.replies_a_para_b || 0);
+    const bToA = Number(row.replies_b_para_a || 0);
+    entry.replies_a_para_b += aToB;
+    entry.replies_b_para_a += bToA;
+    entry.replies_total_par = entry.replies_a_para_b + entry.replies_b_para_a;
+
+    const aFirst = toMillis(row.primeira_interacao_a_para_b);
+    const aLast = toMillis(row.ultima_interacao_a_para_b);
+    const bFirst = toMillis(row.primeira_interacao_b_para_a);
+    const bLast = toMillis(row.ultima_interacao_b_para_a);
+
+    entry.primeira_interacao_a_para_b = minMs(entry.primeira_interacao_a_para_b, aFirst);
+    entry.ultima_interacao_a_para_b = maxMs(entry.ultima_interacao_a_para_b, aLast);
+    entry.primeira_interacao_b_para_a = minMs(entry.primeira_interacao_b_para_a, bFirst);
+    entry.ultima_interacao_b_para_a = maxMs(entry.ultima_interacao_b_para_a, bLast);
+  });
+  return Array.from(map.values());
+};
+
 /**
  * Função buildInfluenceRanking.
  * @param {*} nodes - Parâmetro.
@@ -2139,12 +2192,13 @@ export async function handleInteractionGraphCommand({
         dst: normalizeJidWithParticipants(row.dst, participantIndex),
       }));
 
+    const aggregatedRows = aggregateRowsByPair(normalizedRows);
     const normalizedFocus = focusJid
       ? normalizeJidWithParticipants(focusJid, participantIndex)
       : null;
     const filteredRows = normalizedFocus
-      ? normalizedRows.filter((row) => row.src === normalizedFocus || row.dst === normalizedFocus)
-      : normalizedRows;
+      ? aggregatedRows.filter((row) => row.src === normalizedFocus || row.dst === normalizedFocus)
+      : aggregatedRows;
 
     const nameCandidates = collectJidsForNames(filteredRows);
     const latestNames = await fetchLatestPushNames(nameCandidates);
