@@ -1,7 +1,7 @@
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
-import { getGroupParticipants, _normalizeDigits } from '../../config/groupUtils.js';
-import { getJidServer, resolveBotJid, encodeJid } from '../../config/baileysConfig.js';
+import { getGroupParticipants, _normalizeDigits, _matchesParticipantId } from '../../config/groupUtils.js';
+import { getJidServer, resolveBotJid, encodeJid, getJidUser, normalizeJid } from '../../config/baileysConfig.js';
 
 const RANKING_LIMIT = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -115,19 +115,40 @@ const buildParticipantIndex = (participants) => {
 };
 
 /**
+ * Resolve JID real (chip) usando participantes do grupo.
+ * @param {string} rawJid
+ * @param {Array<object>|null|undefined} participants
+ * @returns {string|null}
+ */
+const resolveWhatsAppJidFromParticipants = (rawJid, participants) => {
+  if (!rawJid || !participants || !participants.length) return null;
+  const match = participants.find((participant) => _matchesParticipantId(participant, rawJid));
+  if (!match) return null;
+  if (getJidServer(match?.jid) === 's.whatsapp.net') return match.jid;
+  if (getJidServer(match?.id) === 's.whatsapp.net') return match.id;
+  const digits = _normalizeDigits(match?.phoneNumber || '');
+  return digits ? encodeJid(digits, 's.whatsapp.net') : null;
+};
+
+/**
  * Resolve ids do remetente para display/mention/agrupamento global.
  * @param {string} rawJid
  * @param {Map<string,string>|null|undefined} participantIndex
+ * @param {Array<object>|null|undefined} participants
  * @returns {{displayId: string|null, mentionId: string|null, key: string|null}}
  */
-const resolveSenderIdsGlobal = (rawJid, participantIndex) => {
+const resolveSenderIdsGlobal = (rawJid, participantIndex, participants) => {
   if (!rawJid) return { displayId: null, mentionId: null, key: null };
   const normalized = participantIndex ? normalizeJidWithParticipants(rawJid, participantIndex) : null;
   const resolvedJid = normalized || rawJid;
-  const mentionId = isWhatsAppJid(resolvedJid) ? resolvedJid : null;
-  const keyDigits = mentionId ? _normalizeDigits(mentionId) : null;
-  const key = keyDigits || resolvedJid;
-  const displayId = mentionId || rawJid;
+  const normalizedJid = normalizeJid(resolvedJid);
+  const participantResolved = resolveWhatsAppJidFromParticipants(rawJid, participants);
+  const mentionId = isWhatsAppJid(normalizedJid)
+    ? normalizedJid
+    : participantResolved;
+  const keyDigits = mentionId ? _normalizeDigits(mentionId) : _normalizeDigits(normalizedJid);
+  const key = keyDigits || normalizedJid;
+  const displayId = mentionId || normalizedJid || rawJid;
   return { displayId, mentionId, key };
 };
 
@@ -136,11 +157,14 @@ const resolveSenderIdsGlobal = (rawJid, participantIndex) => {
  * @param {string|null|undefined} pushName
  * @returns {string}
  */
-const getDisplayName = (pushName) => {
+const getDisplayName = (pushName, mentionId) => {
+  const mentionUser = getJidUser(mentionId);
+  const base = mentionUser ? `@${mentionUser}` : null;
   if (pushName && typeof pushName === 'string' && pushName.trim() !== '') {
-    return pushName.trim();
+    const clean = pushName.trim();
+    return base ? `${base} (${clean})` : clean;
   }
-  return 'Desconhecido';
+  return base || 'Desconhecido';
 };
 
 /**
@@ -168,7 +192,7 @@ const buildGlobalRankingMessage = (rows, dbStart, totalMessages, top5Total, topT
     '',
   ];
   rows.forEach((row, index) => {
-    const handle = getDisplayName(row.display_name);
+    const handle = getDisplayName(row.display_name, row.mention_id);
     const total = row.total_messages || 0;
     const percent = totalLabel > 0 ? ((Number(total || 0) / totalLabel) * 100).toFixed(2) : '0.00';
     const first = formatDate(row.first_message);
@@ -278,7 +302,11 @@ export async function handleGlobalRankingCommand({ sock, remoteJid, messageInfo,
     rankingRows.forEach((row) => {
       const rawJid = row.sender_id || '';
       if (!rawJid) return;
-      const { displayId, mentionId, key } = resolveSenderIdsGlobal(rawJid, participantIndex);
+      const { displayId, mentionId, key } = resolveSenderIdsGlobal(
+        rawJid,
+        participantIndex,
+        participants,
+      );
       if (!displayId || !key) return;
       const total = Number(row.total_messages || 0);
       const firstMs = toMillis(row.first_message);
@@ -396,7 +424,14 @@ export async function handleGlobalRankingCommand({ sock, remoteJid, messageInfo,
       top5Total,
       topTypeRow ? { label: topTypeRow.message_type, count: topTypeRow.total } : null,
     );
-    await sock.sendMessage(remoteJid, { text }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    const mentions = topRows
+      .map((row) => row.mention_id)
+      .filter((jid) => isWhatsAppJid(jid));
+    await sock.sendMessage(
+      remoteJid,
+      { text, ...(mentions.length ? { mentions } : {}) },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   } catch (error) {
     logger.error('Erro ao gerar ranking global:', { error: error.message });
     await sock.sendMessage(remoteJid, { text: `Erro ao gerar ranking global: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });

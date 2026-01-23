@@ -26,11 +26,11 @@ const toMillis = (value) => {
 };
 
 const getDisplayName = (pushName, jid) => {
+  const mentionUser = getJidUser(jid);
   if (pushName && typeof pushName === 'string' && pushName.trim() !== '') {
-    return pushName.trim();
+    return mentionUser ? `@${mentionUser} (${pushName.trim()})` : pushName.trim();
   }
-  const user = getJidUser(jid);
-  return user ? `@${user}` : 'Desconhecido';
+  return mentionUser ? `@${mentionUser}` : 'Desconhecido';
 };
 
 const isLidJid = (jid) => getJidServer(jid) === 'lid';

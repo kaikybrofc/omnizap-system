@@ -10,6 +10,8 @@ const GROUP_METADATA_FIELDS = [
   'participants',
 ];
 
+const PARTICIPANT_ACTIONS = new Set(['add', 'remove', 'promote', 'demote']);
+
 /**
  * Normaliza o campo `participants` para o formato persistido no banco.
  * @param {unknown} value - Valor bruto de participantes.
@@ -20,7 +22,12 @@ const normalizeParticipantsValue = (value) => {
   if (value === null) return null;
   if (Array.isArray(value)) return JSON.stringify(value);
   if (typeof value === 'string') return value;
-  return JSON.stringify(value);
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    logger.warn('Erro ao serializar participantes para persistência.', { error: error.message });
+    return null;
+  }
 };
 
 /**
@@ -34,7 +41,11 @@ export const parseParticipantsFromDb = (participants) => {
     if (typeof participants === 'string') return JSON.parse(participants);
     if (Array.isArray(participants)) return participants;
   } catch (error) {
-    logger.warn('Erro ao fazer parse dos participantes salvos no banco.', { error: error.message });
+    const preview = typeof participants === 'string' ? participants.slice(0, 200) : null;
+    logger.warn('Erro ao fazer parse dos participantes salvos no banco.', {
+      error: error.message,
+      preview,
+    });
   }
   return [];
 };
@@ -55,7 +66,7 @@ export const normalizeParticipant = (participant) => {
     };
   }
 
-  const id = participant.id || participant.jid || participant.phoneNumber || null;
+  const id = participant.id || participant.jid || null;
   const jid = participant.jid || participant.id || null;
 
   if (!id && !jid) return null;
@@ -66,6 +77,16 @@ export const normalizeParticipant = (participant) => {
     lid: participant.lid || null,
     admin: participant.admin || null,
   };
+};
+
+/**
+ * Gera chave canônica para dedupe.
+ * @param {Object | null} participant - Participante normalizado.
+ * @returns {string | null} Chave canônica ou null.
+ */
+export const getParticipantKey = (participant) => {
+  if (!participant) return null;
+  return participant.jid || participant.id || null;
 };
 
 /**
@@ -153,34 +174,41 @@ export const upsertGroupMetadata = async (groupId, updates, options = {}) => {
  * @returns {Array<Object>} Lista atualizada.
  */
 export const applyParticipantAction = (currentParticipants, participants, action) => {
+  if (!PARTICIPANT_ACTIONS.has(action)) {
+    logger.warn('Ação de participante inválida.', { action });
+    return currentParticipants || [];
+  }
+
   const currentMap = new Map(
     (currentParticipants || [])
       .map(normalizeParticipant)
       .filter(Boolean)
-      .map((participant) => [participant.jid || participant.id, participant]),
+      .map((participant) => [getParticipantKey(participant), participant])
+      .filter(([key]) => !!key),
   );
 
   const incoming = Array.isArray(participants) ? participants : [];
 
   for (const participant of incoming) {
     const normalized = normalizeParticipant(participant);
-    if (!normalized || !normalized.jid) continue;
+    const key = getParticipantKey(normalized);
+    if (!normalized || !key) continue;
 
     if (action === 'add') {
-      if (!currentMap.has(normalized.jid)) currentMap.set(normalized.jid, normalized);
+      if (!currentMap.has(key)) currentMap.set(key, normalized);
     } else if (action === 'remove') {
-      currentMap.delete(normalized.jid);
+      currentMap.delete(key);
     } else if (action === 'promote') {
-      const entry = currentMap.get(normalized.jid) || normalized;
+      const entry = currentMap.get(key) || normalized;
       if (entry.admin !== 'superadmin') {
         entry.admin = 'admin';
       }
-      currentMap.set(normalized.jid, entry);
+      currentMap.set(key, entry);
     } else if (action === 'demote') {
-      const entry = currentMap.get(normalized.jid);
+      const entry = currentMap.get(key);
       if (entry) {
         entry.admin = null;
-        currentMap.set(normalized.jid, entry);
+        currentMap.set(key, entry);
       }
     }
   }
@@ -208,7 +236,7 @@ export const updateGroupParticipantsFromAction = async (groupId, participants, a
     {
       participants: updatedParticipants,
     },
-    { mergeExisting: false },
+    { mergeExisting: true },
   );
 
   logger.debug('Participantes do grupo atualizados no banco.', {
