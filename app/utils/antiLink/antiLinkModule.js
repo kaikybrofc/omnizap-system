@@ -1,4 +1,5 @@
 import { isUserAdmin, updateGroupParticipants } from '../../config/groupUtils.js';
+import { getJidUser } from '../../config/baileysConfig.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import logger from '../logger/loggerModule.js';
 
@@ -187,7 +188,11 @@ export const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJ
   if (!isAdmin && !senderIsBot) {
     try {
       await updateGroupParticipants(sock, remoteJid, [senderJid], 'remove');
-      await sock.sendMessage(remoteJid, { text: `🚫 @${senderJid.split('@')[0]} foi removido por enviar um link.`, mentions: [senderJid] });
+      const senderUser = getJidUser(senderJid);
+      await sock.sendMessage(remoteJid, {
+        text: `🚫 @${senderUser || 'usuario'} foi removido por enviar um link.`,
+        mentions: senderUser ? [senderJid] : [],
+      });
       await sock.sendMessage(remoteJid, { delete: messageInfo.key });
 
       logger.info(`Usuário ${senderJid} removido do grupo ${remoteJid} por enviar link.`, {
@@ -207,7 +212,11 @@ export const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJ
     }
   } else if (isAdmin && !senderIsBot) {
     try {
-      await sock.sendMessage(remoteJid, { text: `ⓘ @${senderJid.split('@')[0]} (admin) enviou um link.`, mentions: [senderJid] });
+      const senderUser = getJidUser(senderJid);
+      await sock.sendMessage(remoteJid, {
+        text: `ⓘ @${senderUser || 'admin'} (admin) enviou um link.`,
+        mentions: senderUser ? [senderJid] : [],
+      });
       logger.info(`Admin ${senderJid} enviou um link no grupo ${remoteJid} (aviso enviado).`, {
         action: 'antilink_admin_link_detected',
         groupId: remoteJid,

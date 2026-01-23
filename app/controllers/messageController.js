@@ -12,7 +12,7 @@ import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleGlobalRankingCommand } from '../modules/statsModule/globalRankingCommand.js';
 import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
 import { handleInteractionGraphCommand } from '../modules/statsModule/interactionGraphCommand.js';
-import { getExpiration } from '../config/baileysConfig.js';
+import { getExpiration, isGroupJid, resolveBotJid } from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js';
@@ -72,11 +72,11 @@ export const handleMessages = async (update, sock) => {
       for (const messageInfo of update.messages) {
         const extractedText = extractMessageContent(messageInfo);
         const remoteJid = messageInfo.key.remoteJid;
-        const isGroupMessage = remoteJid.endsWith('@g.us');
+        const isGroupMessage = isGroupJid(remoteJid);
         const senderJid = isGroupMessage ? messageInfo.key.participant : remoteJid;
         const senderName = messageInfo.pushName;
         const expirationMessage = getExpiration(messageInfo);
-        const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+        const botJid = resolveBotJid(sock?.user?.id);
 
         if (isGroupMessage) {
           const shouldSkip = await handleAntiLink({

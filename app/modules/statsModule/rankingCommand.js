@@ -1,6 +1,7 @@
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getGroupParticipants, _normalizeDigits } from '../../config/groupUtils.js';
+import { getJidServer, getJidUser, resolveBotJid, encodeJid } from '../../config/baileysConfig.js';
 
 const formatDate = (value) => {
   if (!value) return 'N/D';
@@ -28,12 +29,12 @@ const getDisplayName = (pushName, jid) => {
   if (pushName && typeof pushName === 'string' && pushName.trim() !== '') {
     return pushName.trim();
   }
-  if (!jid || typeof jid !== 'string') return 'Desconhecido';
-  return `@${jid.split('@')[0]}`;
+  const user = getJidUser(jid);
+  return user ? `@${user}` : 'Desconhecido';
 };
 
-const isLidJid = (jid) => typeof jid === 'string' && jid.endsWith('@lid');
-const isWhatsAppJid = (jid) => typeof jid === 'string' && jid.endsWith('@s.whatsapp.net');
+const isLidJid = (jid) => getJidServer(jid) === 'lid';
+const isWhatsAppJid = (jid) => getJidServer(jid) === 's.whatsapp.net';
 
 const resolveSenderIds = (rawJid, participantIndex) => {
   if (!rawJid) return { displayId: null, mentionId: null, key: null };
@@ -45,7 +46,7 @@ const resolveSenderIds = (rawJid, participantIndex) => {
     : isWhatsAppJid(canonical)
       ? canonical
       : digits
-        ? `${digits}@s.whatsapp.net`
+        ? encodeJid(digits, 's.whatsapp.net')
         : null;
   const mentionId = mentionCandidate && !isLidJid(mentionCandidate) ? mentionCandidate : null;
   const key = digits || displayId || rawJid;
@@ -105,7 +106,7 @@ export async function handleRankingCommand({ sock, remoteJid, messageInfo, expir
   }
 
   try {
-    const botJid = sock?.user?.id ? `${sock.user.id.split(':')[0]}@s.whatsapp.net` : null;
+    const botJid = resolveBotJid(sock?.user?.id);
     const participants = await getGroupParticipants(remoteJid);
     const participantIndex = buildParticipantIndex(participants);
 

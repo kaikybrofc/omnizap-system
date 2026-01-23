@@ -1,6 +1,7 @@
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getGroupParticipants, _normalizeDigits } from '../../config/groupUtils.js';
+import { getJidServer, resolveBotJid, encodeJid } from '../../config/baileysConfig.js';
 
 const RANKING_LIMIT = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -64,17 +65,11 @@ const toMillis = (value) => {
 };
 
 /**
- * Verifica se o JID e do tipo LID.
- * @param {string} jid
- * @returns {boolean}
- */
-const isLidJid = (jid) => typeof jid === 'string' && jid.endsWith('@lid');
-/**
  * Verifica se o JID e do WhatsApp (telefone).
  * @param {string} jid
  * @returns {boolean}
  */
-const isWhatsAppJid = (jid) => typeof jid === 'string' && jid.endsWith('@s.whatsapp.net');
+const isWhatsAppJid = (jid) => getJidServer(jid) === 's.whatsapp.net';
 
 /**
  * Normaliza JID usando indice de participantes do grupo.
@@ -100,7 +95,7 @@ const buildParticipantIndex = (participants) => {
   const index = new Map();
   (participants || []).forEach((participant) => {
     const phoneDigits = _normalizeDigits(participant?.phoneNumber || '') || null;
-    const phoneJid = phoneDigits ? `${phoneDigits}@s.whatsapp.net` : null;
+    const phoneJid = phoneDigits ? encodeJid(phoneDigits, 's.whatsapp.net') : null;
     const jidCandidate = isWhatsAppJid(participant?.jid)
       ? participant.jid
       : isWhatsAppJid(participant?.id)
@@ -213,7 +208,7 @@ const buildGlobalRankingMessage = (rows, dbStart, totalMessages, top5Total, topT
  */
 export async function handleGlobalRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }) {
   try {
-    const botJid = sock?.user?.id ? `${sock.user.id.split(':')[0]}@s.whatsapp.net` : null;
+    const botJid = resolveBotJid(sock?.user?.id);
     const participants = isGroupMessage ? await getGroupParticipants(remoteJid) : null;
     const participantIndex = participants ? buildParticipantIndex(participants) : null;
 

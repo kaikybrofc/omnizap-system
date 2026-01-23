@@ -1,6 +1,7 @@
 import groupConfigStore from '../../store/groupConfigStore.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getGroupMetadata, getGroupInviteCode } from '../../config/groupUtils.js';
+import { getJidUser } from '../../config/baileysConfig.js';
 import { updateGroupParticipantsFromAction } from '../../services/groupMetadataService.js';
 
 import fs from 'node:fs';
@@ -33,8 +34,9 @@ const replacePlaceholders = async (message, sock, groupId) => {
         .map((p) => p.id);
 
       const adminNames = adminJids.map((jid) => {
-        mentions.push(jid);
-        return `@${jid.split('@')[0]}`;
+        const user = getJidUser(jid);
+        if (user) mentions.push(jid);
+        return user ? `@${user}` : 'Desconhecido';
       });
       updatedMessage = updatedMessage.replace(/@admins/g, adminNames.join(', '));
     }
@@ -52,9 +54,13 @@ const replacePlaceholders = async (message, sock, groupId) => {
 
     if (updatedMessage.includes('@owner') && metadata.owner) {
       const ownerJid = metadata.owner;
-      const ownerName = ownerJid.split('@')[0];
-      mentions.push(ownerJid);
-      updatedMessage = updatedMessage.replace(/@owner/g, `@${ownerName}`);
+      const ownerUser = getJidUser(ownerJid);
+      if (ownerUser) {
+        mentions.push(ownerJid);
+        updatedMessage = updatedMessage.replace(/@owner/g, `@${ownerUser}`);
+      } else {
+        updatedMessage = updatedMessage.replace(/@owner/g, 'Desconhecido');
+      }
     }
 
     if (updatedMessage.includes('@creationtime') && metadata.creation) {
@@ -131,7 +137,8 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
           ? participant
           : participant?.id || participant?.jid || participant?.phoneNumber || '';
 
-      const participantName = jid ? jid.split('@')[0] : participant?.phoneNumber || 'user';
+      const participantName =
+        getJidUser(jid) || participant?.phoneNumber || 'user';
 
       if (jid) allMentions.push(jid);
 

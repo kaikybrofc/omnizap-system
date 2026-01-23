@@ -1,20 +1,12 @@
 import logger from '../../utils/logger/loggerModule.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 import { getAllParticipatingGroups } from '../../config/groupUtils.js';
+import { normalizeJid, encodeJid } from '../../config/baileysConfig.js';
 
 const MENU_IMAGE_ENV = 'IMAGE_MENU';
 const OWNER_JID_ENV = 'USER_ADMIN';
 
-/**
- * Normaliza o JID para o formato esperado pelo WhatsApp.
- *
- * @param {string} jid
- * @returns {string}
- */
-const normalizeJid = (jid) => {
-  if (!jid) return '';
-  return jid.includes('@') ? jid : `${jid}@s.whatsapp.net`;
-};
+const toWhatsAppJid = (jid) => (jid && jid.includes('@') ? jid : encodeJid(jid, 's.whatsapp.net'));
 
 /**
  * Aguarda um tempo em milissegundos.
@@ -57,7 +49,7 @@ export async function handleNoticeCommand({ sock, remoteJid, messageInfo, expira
     return;
   }
 
-  if (normalizeJid(ownerJid) !== normalizeJid(senderJid)) {
+  if (normalizeJid(toWhatsAppJid(ownerJid)) !== normalizeJid(toWhatsAppJid(senderJid))) {
     await sock.sendMessage(remoteJid, { text: '❌ Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }

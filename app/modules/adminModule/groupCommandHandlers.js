@@ -1,5 +1,5 @@
 import { handleMenuAdmCommand } from '../menuModule/menus.js';
-import { downloadMediaMessage } from '../../config/baileysConfig.js';
+import { downloadMediaMessage, getJidServer } from '../../config/baileysConfig.js';
 import { isUserAdmin, createGroup, acceptGroupInvite, getGroupInfo, getGroupRequestParticipantsList, updateGroupAddMode, updateGroupSettings, updateGroupParticipants, leaveGroup, getGroupInviteCode, revokeGroupInviteCode, getGroupInfoFromInvite, updateGroupRequestParticipants, updateGroupSubject, updateGroupDescription, toggleEphemeral } from '../../config/groupUtils.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import logger from '../../utils/logger/loggerModule.js';
@@ -16,7 +16,7 @@ const getParticipantJids = (messageInfo, args) => {
   if (repliedTo && args.length === 0) {
     return [repliedTo];
   }
-  return args.filter((arg) => arg.includes('@s.whatsapp.net'));
+  return args.filter((arg) => getJidServer(arg) === 's.whatsapp.net');
 };
 
 export const isAdminCommand = (command) => ADMIN_COMMANDS.has(command);

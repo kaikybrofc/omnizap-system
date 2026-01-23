@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import logger from '../../utils/logger/loggerModule.js';
+import { getJidUser } from '../../config/baileysConfig.js';
 import { downloadMediaMessage } from '../../config/baileysConfig.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
 import { convertToWebp } from './convertToWebp.js';
@@ -136,8 +137,8 @@ export async function processSticker(sock, messageInfo, senderJid, remoteJid, ex
     const message = messageInfo;
     const from = remoteJid;
     const sender = senderJid;
-    const userId = sender?.split('@')[0] ?? null;
-    const sanitizedUserId = userId.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const userId = getJidUser(sender);
+    const sanitizedUserId = (userId || 'anon').replace(/[^a-zA-Z0-9.-]/g, '_');
 
     const dirResult = await ensureDirectories(sanitizedUserId);
     if (!dirResult.success) {

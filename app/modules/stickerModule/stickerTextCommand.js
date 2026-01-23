@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { convertToWebp } from './convertToWebp.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
+import { getJidUser } from '../../config/baileysConfig.js';
 
 /**
  * Constantes limitadoras
@@ -300,8 +301,8 @@ export async function processTextSticker({ sock, messageInfo, remoteJid, senderJ
   }
 
   const uniqueId = uuidv4();
-  const userId = senderJid?.split('@')[0];
-  const sanitizedUserId = userId.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const userId = getJidUser(senderJid);
+  const sanitizedUserId = (userId || 'anon').replace(/[^a-zA-Z0-9.-]/g, '_');
 
   let imagePath = null;
   let webpPath = null;
@@ -391,8 +392,8 @@ export async function processBlinkingTextSticker({ sock, messageInfo, remoteJid,
   }
 
   const uniqueId = uuidv4();
-  const userId = senderJid?.split('@')[0];
-  const sanitizedUserId = userId.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const userId = getJidUser(senderJid);
+  const sanitizedUserId = (userId || 'anon').replace(/[^a-zA-Z0-9.-]/g, '_');
 
   let webpPath = null;
   let stickerPath = null;

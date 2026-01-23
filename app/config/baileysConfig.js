@@ -1,4 +1,25 @@
-import { fetchLatestBaileysVersion, downloadContentFromMessage, jidNormalizedUser } from '@whiskeysockets/baileys';
+import {
+  fetchLatestBaileysVersion,
+  downloadContentFromMessage,
+  jidNormalizedUser,
+  jidEncode,
+  jidDecode,
+  areJidsSameUser,
+  isJidMetaAI,
+  isPnUser,
+  isLidUser,
+  isJidBroadcast,
+  isJidGroup,
+  isJidStatusBroadcast,
+  isJidNewsletter,
+  isHostedPnUser,
+  isHostedLidUser,
+  isJidBot,
+  SERVER_JID,
+  PSA_WID,
+  STORIES_JID,
+  META_AI_JID,
+} from '@whiskeysockets/baileys';
 
 import logger from '../utils/logger/loggerModule.js';
 import fs from 'node:fs';
@@ -6,6 +27,82 @@ import path from 'node:path';
 import axios from 'axios';
 
 const DEFAULT_BAILEYS_VERSION = [7, 0, 0];
+
+export const JID_CONSTANTS = {
+  SERVER_JID,
+  PSA_WID,
+  STORIES_JID,
+  META_AI_JID,
+};
+
+export function encodeJid(user, server = 'c.us', device) {
+  if (user === null || user === undefined) return null;
+  return jidEncode(user, server, device);
+}
+
+export function decodeJid(jid) {
+  if (!jid) return null;
+  return jidDecode(jid) || null;
+}
+
+export function normalizeJid(jid) {
+  if (!jid) return '';
+  return jidNormalizedUser(jid);
+}
+
+export function getJidUser(jid) {
+  return decodeJid(jid)?.user || null;
+}
+
+export function getJidServer(jid) {
+  return decodeJid(jid)?.server || null;
+}
+
+export function isSameJidUser(jid1, jid2) {
+  return areJidsSameUser(jid1, jid2);
+}
+
+export function isUserJid(jid) {
+  return Boolean(
+    jid &&
+      (isPnUser(jid) ||
+        isHostedPnUser(jid) ||
+        isLidUser(jid) ||
+        isHostedLidUser(jid))
+  );
+}
+
+export function isGroupJid(jid) {
+  return Boolean(jid && isJidGroup(jid));
+}
+
+export function isBroadcastJid(jid) {
+  return Boolean(jid && isJidBroadcast(jid));
+}
+
+export function isStatusJid(jid) {
+  return Boolean(jid && isJidStatusBroadcast(jid));
+}
+
+export function isNewsletterJid(jid) {
+  return Boolean(jid && isJidNewsletter(jid));
+}
+
+export function isMetaAiJid(jid) {
+  return Boolean(jid && isJidMetaAI(jid));
+}
+
+export function isBotJid(jid) {
+  return Boolean(jid && isJidBot(jid));
+}
+
+export function resolveBotJid(sockUserId) {
+  const normalized = normalizeJid(sockUserId);
+  if (normalized) return normalized;
+  if (!sockUserId || typeof sockUserId !== 'string') return null;
+  const rawUser = sockUserId.split(':')[0];
+  return encodeJid(rawUser, 's.whatsapp.net');
+}
 
 /**
  * Tipos de midia conhecidos do Baileys

@@ -1,6 +1,7 @@
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getGroupParticipants, isUserAdmin, _matchesParticipantId } from '../../config/groupUtils.js';
+import { getJidServer, getJidUser } from '../../config/baileysConfig.js';
 
 const getParticipantJid = (participant) => participant?.id || participant?.jid || participant?.lid || null;
 
@@ -11,7 +12,8 @@ const buildNoMessageText = (members) => {
 
   const lines = ['🔇 *Membros sem mensagens no grupo*', ''];
   members.forEach((jid, index) => {
-    const handle = jid ? `@${jid.split('@')[0]}` : 'Desconhecido';
+    const user = getJidUser(jid);
+    const handle = user ? `@${user}` : 'Desconhecido';
     lines.push(`${index + 1}. ${handle}`);
   });
   lines.push('', `Total sem mensagens: ${members.length}`);
@@ -43,7 +45,7 @@ export async function handleNoMessageCommand({ sock, remoteJid, messageInfo, exp
       .map((participant) => getParticipantJid(participant))
       .filter(Boolean);
 
-    const mentions = membersWithoutMessages.filter((jid) => jid.includes('@'));
+    const mentions = membersWithoutMessages.filter((jid) => getJidServer(jid) === 's.whatsapp.net');
     const text = buildNoMessageText(membersWithoutMessages);
     await sock.sendMessage(remoteJid, { text, mentions }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   } catch (error) {

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { exec } from 'node:child_process';
 import logger from '../../utils/logger/loggerModule.js';
+import { getJidUser } from '../../config/baileysConfig.js';
 
 const execProm = promisify(exec);
 
@@ -32,7 +33,7 @@ export async function addStickerMetadata(stickerPath, packName, packAuthor, repl
   const horaAtual = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
   function doReplaces(str) {
-    const sanitizedUserId = userId.split('@')[0];
+    const sanitizedUserId = getJidUser(userId) || userId;
     return str.replace(/#nome/gi, senderName).replace(/#data/gi, dataAtual).replace(/#hora/gi, horaAtual).replace(/#id/gi, sanitizedUserId);
   }
 
