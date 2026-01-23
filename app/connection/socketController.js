@@ -5,7 +5,7 @@ import makeWASocket, {
   getAggregateVotesInPollMessage,
 } from '@whiskeysockets/baileys';
 
-import { resolveBaileysVersion } from '../config/baileysConfig.js';
+import { resolveBaileysVersion, isGroupJid } from '../config/baileysConfig.js';
 
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
@@ -18,6 +18,13 @@ import { handleMessages } from '../controllers/messageController.js';
 import { handleGroupUpdate as handleGroupParticipantsEvent } from '../modules/adminModule/groupEventHandlers.js';
 
 import { createIgnore, findBy, findById, remove, upsert } from '../../database/index.js';
+import {
+  maybeStoreLidMap,
+  primeLidCache,
+  resolveUserIdCached,
+  isLidUserId,
+  isWhatsAppUserId,
+} from '../services/lidMapService.js';
 import {
   buildGroupMetadataFromGroup,
   buildGroupMetadataFromUpdate,
@@ -62,14 +69,36 @@ const safeJsonParse = (value, fallback) => {
  * @param {import('@whiskeysockets/baileys').WAMessage} msg - Mensagem recebida.
  * @returns {Object} Objeto com dados prontos para persistência.
  */
-const buildMessageData = (msg) => ({
+const buildMessageData = (msg, senderId) => ({
   message_id: msg.key.id,
   chat_id: msg.key.remoteJid,
-  sender_id: msg.key.participant || msg.key.remoteJid,
+  sender_id: senderId || msg.key.participant || msg.key.remoteJid,
   content: msg.message.conversation || msg.message.extendedTextMessage?.text || null,
   raw_message: JSON.stringify(msg || {}),
   timestamp: new Date(Number(msg.messageTimestamp) * 1000),
 });
+
+const extractSenderInfo = (msg) => {
+  const remoteJid = msg.key.remoteJid;
+  const participant = msg.key.participant || null;
+  const participantAlt = msg.key.participantAlt || null;
+  const groupMessage = isGroupJid(remoteJid);
+
+  let lid = null;
+  let jid = null;
+
+  if (groupMessage) {
+    if (isWhatsAppUserId(participant)) jid = participant;
+    if (isLidUserId(participant)) lid = participant;
+    if (isWhatsAppUserId(participantAlt)) jid = participantAlt;
+    if (!lid && isLidUserId(participantAlt)) lid = participantAlt;
+  } else {
+    if (isWhatsAppUserId(remoteJid)) jid = remoteJid;
+    if (!jid && isWhatsAppUserId(participant)) jid = participant;
+  }
+
+  return { lid, jid, participantAlt, remoteJid, groupMessage };
+};
 
 /**
  * Persiste mensagens recebidas quando o tipo do upsert permite salvamento.
@@ -81,10 +110,37 @@ const buildMessageData = (msg) => ({
 async function persistIncomingMessages(incomingMessages, type) {
   if (type !== 'append' && type !== 'notify') return;
 
+  const entries = [];
+  const lidsToPrime = new Set();
+
   for (const msg of incomingMessages) {
     if (!msg.message || msg.key.remoteJid === 'status@broadcast') continue;
+    const senderInfo = extractSenderInfo(msg);
+    if (senderInfo.lid) lidsToPrime.add(senderInfo.lid);
+    entries.push({ msg, senderInfo });
+  }
 
-    const messageData = buildMessageData(msg);
+  if (lidsToPrime.size > 0) {
+    try {
+      await primeLidCache(Array.from(lidsToPrime));
+    } catch (error) {
+      logger.warn('Falha ao aquecer cache de LID.', { error: error.message });
+    }
+  }
+
+  for (const { msg, senderInfo } of entries) {
+    if (senderInfo.lid) {
+      try {
+        await maybeStoreLidMap(senderInfo.lid, senderInfo.jid, 'message');
+      } catch (error) {
+        logger.warn('Falha ao persistir lid_map (message).', { error: error.message });
+      }
+    }
+
+    const canonicalSenderId =
+      resolveUserIdCached(senderInfo) || msg.key.participant || msg.key.remoteJid;
+
+    const messageData = buildMessageData(msg, canonicalSenderId);
     try {
       await createIgnore('messages', messageData);
     } catch (err) {
@@ -259,6 +315,23 @@ export async function connectToWhatsApp() {
           error: error.message,
           groupId: group.id,
         });
+      }
+    }
+  });
+
+  sock.ev.on('contacts.update', async (updates) => {
+    if (!Array.isArray(updates)) return;
+    for (const update of updates) {
+      try {
+        const jidCandidate = update?.id || update?.jid || null;
+        const lidCandidate = update?.lid || null;
+        const jid = isWhatsAppUserId(jidCandidate) ? jidCandidate : null;
+        const lid = isLidUserId(lidCandidate) ? lidCandidate : isLidUserId(jidCandidate) ? jidCandidate : null;
+        if (lid) {
+          await maybeStoreLidMap(lid, jid, 'contacts');
+        }
+      } catch (error) {
+        logger.warn('Falha ao processar contacts.update para lid_map.', { error: error.message });
       }
     }
   });

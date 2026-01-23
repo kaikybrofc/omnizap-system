@@ -1,7 +1,8 @@
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
-import { getGroupParticipants, isUserAdmin, _matchesParticipantId } from '../../config/groupUtils.js';
-import { getJidServer, getJidUser } from '../../config/baileysConfig.js';
+import { getGroupParticipants, isUserAdmin } from '../../config/groupUtils.js';
+import { getJidUser } from '../../config/baileysConfig.js';
+import { primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../../services/lidMapService.js';
 
 const getParticipantJid = (participant) => participant?.id || participant?.jid || participant?.lid || null;
 
@@ -40,12 +41,38 @@ export async function handleNoMessageCommand({ sock, remoteJid, messageInfo, exp
     const senderRows = await executeQuery('SELECT DISTINCT sender_id FROM messages WHERE chat_id = ?', [remoteJid]);
     const senderIds = senderRows.map((row) => row.sender_id).filter(Boolean);
 
-    const membersWithoutMessages = participants
-      .filter((participant) => senderIds.every((senderId) => !_matchesParticipantId(participant, senderId)))
-      .map((participant) => getParticipantJid(participant))
-      .filter(Boolean);
+    const lidsToPrime = new Set();
+    senderIds.forEach((id) => {
+      if (isLidUserId(id)) lidsToPrime.add(id);
+    });
+    participants.forEach((participant) => {
+      const rawId = getParticipantJid(participant);
+      if (isLidUserId(rawId)) lidsToPrime.add(rawId);
+    });
+    if (lidsToPrime.size > 0) {
+      await primeLidCache(Array.from(lidsToPrime));
+    }
 
-    const mentions = membersWithoutMessages.filter((jid) => getJidServer(jid) === 's.whatsapp.net');
+    const canonicalSenders = new Set(
+      senderIds
+        .map((id) => resolveUserIdCached({ lid: id, jid: id }))
+        .filter(Boolean),
+    );
+
+    const membersWithoutMessages = participants
+      .map((participant) => {
+        const rawId = getParticipantJid(participant);
+        const canonical = resolveUserIdCached({
+          lid: rawId,
+          jid: rawId,
+          participantAlt: participant?.jid || participant?.id || null,
+        });
+        return { rawId, canonical: canonical || rawId || null };
+      })
+      .filter((entry) => entry.canonical && !canonicalSenders.has(entry.canonical))
+      .map((entry) => entry.canonical);
+
+    const mentions = membersWithoutMessages.filter((jid) => isWhatsAppUserId(jid));
     const text = buildNoMessageText(membersWithoutMessages);
     await sock.sendMessage(remoteJid, { text, mentions }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   } catch (error) {

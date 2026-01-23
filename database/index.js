@@ -47,6 +47,7 @@ export const TABLES = {
   CHATS: 'chats',
   GROUPS_METADATA: 'groups_metadata',
   GROUP_CONFIGS: 'group_configs',
+  LID_MAP: 'lid_map',
 };
 
 /**

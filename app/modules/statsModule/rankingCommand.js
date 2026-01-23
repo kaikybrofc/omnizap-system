@@ -1,7 +1,7 @@
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
-import { getGroupParticipants, _normalizeDigits } from '../../config/groupUtils.js';
-import { getJidServer, getJidUser, resolveBotJid, encodeJid } from '../../config/baileysConfig.js';
+import { getJidUser, resolveBotJid } from '../../config/baileysConfig.js';
+import { primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../../services/lidMapService.js';
 
 const formatDate = (value) => {
   if (!value) return 'N/D';
@@ -33,50 +33,13 @@ const getDisplayName = (pushName, jid) => {
   return mentionUser ? `@${mentionUser}` : 'Desconhecido';
 };
 
-const isLidJid = (jid) => getJidServer(jid) === 'lid';
-const isWhatsAppJid = (jid) => getJidServer(jid) === 's.whatsapp.net';
-
-const resolveSenderIds = (rawJid, participantIndex) => {
+const resolveSenderIds = (rawJid) => {
   if (!rawJid) return { displayId: null, mentionId: null, key: null };
-  const canonical = normalizeJidWithParticipants(rawJid, participantIndex);
-  const displayId = !isLidJid(rawJid) ? rawJid : canonical || rawJid;
-  const digits = _normalizeDigits(displayId) || _normalizeDigits(rawJid) || null;
-  const mentionCandidate = isWhatsAppJid(rawJid)
-    ? rawJid
-    : isWhatsAppJid(canonical)
-      ? canonical
-      : digits
-        ? encodeJid(digits, 's.whatsapp.net')
-        : null;
-  const mentionId = mentionCandidate && !isLidJid(mentionCandidate) ? mentionCandidate : null;
-  const key = digits || displayId || rawJid;
+  const canonical = resolveUserIdCached({ lid: rawJid, jid: rawJid, participantAlt: null });
+  const displayId = canonical || rawJid;
+  const mentionId = isWhatsAppUserId(canonical) ? canonical : null;
+  const key = canonical || rawJid;
   return { displayId, mentionId, key };
-};
-
-const normalizeJidWithParticipants = (value, participantIndex) => {
-  if (!value || !participantIndex) return value;
-  const direct = participantIndex.get(value);
-  if (direct) return direct;
-  const digits = _normalizeDigits(value);
-  if (digits && participantIndex.has(digits)) return participantIndex.get(digits);
-  return value;
-};
-
-const buildParticipantIndex = (participants) => {
-  const index = new Map();
-  (participants || []).forEach((participant) => {
-    const canonical = participant?.jid || participant?.id || participant?.lid || null;
-    if (!canonical) return;
-    const keys = [participant?.jid, participant?.id, participant?.lid, participant?.phoneNumber].filter(Boolean);
-    keys.forEach((key) => {
-      index.set(key, canonical);
-      const digits = _normalizeDigits(key);
-      if (digits) index.set(digits, canonical);
-    });
-    const canonicalDigits = _normalizeDigits(canonical);
-    if (canonicalDigits) index.set(canonicalDigits, canonical);
-  });
-  return index;
 };
 
 const buildRankingMessage = (rows, dbStart) => {
@@ -107,8 +70,6 @@ export async function handleRankingCommand({ sock, remoteJid, messageInfo, expir
 
   try {
     const botJid = resolveBotJid(sock?.user?.id);
-    const participants = await getGroupParticipants(remoteJid);
-    const participantIndex = buildParticipantIndex(participants);
 
     const rankingRows = await executeQuery(
       `SELECT
@@ -134,11 +95,18 @@ export async function handleRankingCommand({ sock, remoteJid, messageInfo, expir
       botJid ? [remoteJid, botJid] : [remoteJid],
     );
 
+    const lidsToPrime = rankingRows
+      .map((row) => row.sender_id)
+      .filter((id) => isLidUserId(id));
+    if (lidsToPrime.length > 0) {
+      await primeLidCache(lidsToPrime);
+    }
+
     const normalizedTotals = new Map();
     rankingRows.forEach((row) => {
       const rawJid = row.sender_id || '';
       if (!rawJid) return;
-      const { displayId, mentionId, key } = resolveSenderIds(rawJid, participantIndex);
+      const { displayId, mentionId, key } = resolveSenderIds(rawJid);
       if (!displayId || !key) return;
       const total = Number(row.total_messages || 0);
       const firstMs = toMillis(row.first_message);
@@ -161,7 +129,7 @@ export async function handleRankingCommand({ sock, remoteJid, messageInfo, expir
       if (!current.mention_id && mentionId) {
         current.mention_id = mentionId;
       }
-      if (isWhatsAppJid(rawJid)) {
+      if (isWhatsAppUserId(rawJid)) {
         current.mention_id = rawJid;
       }
       if (!current.display_name && row.sender_pushName) {
@@ -184,7 +152,7 @@ export async function handleRankingCommand({ sock, remoteJid, messageInfo, expir
 
     const mentions = topRows
       .map((row) => row.mention_id)
-      .filter((jid) => isWhatsAppJid(jid));
+      .filter((jid) => isWhatsAppUserId(jid));
 
     const text = buildRankingMessage(topRows, dbStart);
     await sock.sendMessage(remoteJid, { text, mentions }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });

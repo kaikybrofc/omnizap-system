@@ -58,6 +58,18 @@ const createGroupConfigsTableSQL = `
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
+const createLidMapTableSQL = `
+  CREATE TABLE IF NOT EXISTS ${TABLES.LID_MAP} (
+    lid VARCHAR(64) PRIMARY KEY,
+    jid VARCHAR(64) NULL,
+    first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    source VARCHAR(32),
+    INDEX idx_lid_map_jid (jid),
+    INDEX idx_lid_map_last_seen (last_seen)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+`;
+
 /**
  * Inicializa o banco de dados e garante a existência das tabelas.
  * @returns {Promise<void>} Conclui após criar banco e tabelas.
@@ -76,7 +88,13 @@ export default async function initializeDatabase() {
 
     await connection.changeUser({ database: dbToCreate });
 
-    await Promise.all([connection.query(createMessagesTableSQL), connection.query(createChatsTableSQL), connection.query(createGroupsMetadataTableSQL), connection.query(createGroupConfigsTableSQL)]);
+    await Promise.all([
+      connection.query(createMessagesTableSQL),
+      connection.query(createChatsTableSQL),
+      connection.query(createGroupsMetadataTableSQL),
+      connection.query(createGroupConfigsTableSQL),
+      connection.query(createLidMapTableSQL),
+    ]);
 
     logger.info('Todas as tabelas foram verificadas/criadas com sucesso.');
   } catch (error) {

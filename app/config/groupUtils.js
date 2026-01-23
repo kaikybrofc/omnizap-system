@@ -1,5 +1,6 @@
 import logger from '../utils/logger/loggerModule.js';
 import { findById, findAll, TABLES } from '../../database/index.js';
+import { extractUserIdInfo, resolveUserIdCached } from '../services/lidMapService.js';
 
 /**
  * Valida um ID de grupo ou usuário.
@@ -44,20 +45,15 @@ export async function getGroupParticipants(groupId) {
 }
 
 /**
- * Extrai o ID do usuário priorizando o campo 'lid' se existir.
+ * Extrai o ID do usuário (canônico quando possível).
  * @param {object|string} userObj - Objeto de mensagem ou string do ID.
  * @returns {string|null} O ID do usuário ou null se não encontrado.
  */
 export function extractUserId(userObj) {
-  if (typeof userObj === 'string') return userObj;
-  if (userObj && typeof userObj === 'object') {
-    // Prioriza lid se existir
-    if (userObj.lid) return userObj.lid;
-    if (userObj.participantAlt) return userObj.participantAlt;
-    if (userObj.participant) return userObj.participant;
-    if (userObj.id) return userObj.id;
-  }
-  return null;
+  if (!userObj) return null;
+  const info = extractUserIdInfo(userObj);
+  const canonical = resolveUserIdCached(info);
+  return canonical || info.raw || null;
 }
 
 /**
@@ -81,6 +77,14 @@ export function _matchesParticipantId(participant, userId) {
   if (participant.id && participant.id === userId) return true;
   if (participant.lid && participant.lid === userId) return true;
   if (participant.jid && participant.jid === userId) return true;
+
+  const participantCanonical = resolveUserIdCached({
+    lid: participant.lid || participant.id || null,
+    jid: participant.jid || participant.id || null,
+    participantAlt: null,
+  });
+  const userCanonical = resolveUserIdCached({ lid: userId, jid: userId, participantAlt: null });
+  if (participantCanonical && userCanonical && participantCanonical === userCanonical) return true;
 
   const pDigits = _normalizeDigits(participant.id || participant.lid || participant.jid || '');
   const uDigits = _normalizeDigits(userId);

@@ -3,6 +3,7 @@ import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getGroupParticipants, _matchesParticipantId, _normalizeDigits } from '../../config/groupUtils.js';
 import { getProfilePicBuffer, getJidServer, getJidUser, resolveBotJid, encodeJid } from '../../config/baileysConfig.js';
+import { primeLidCache, resolveUserIdCached, isLidUserId } from '../../services/lidMapService.js';
 
 const CLAN_NAME_LIST = [
   'Alpha',
@@ -302,12 +303,17 @@ const fetchLatestPushNames = async (jids) => {
  * @returns {*} - Retorno.
  */
 const normalizeJidWithParticipants = (value, participantIndex) => {
-  if (!value || !participantIndex) return value;
-  const direct = participantIndex.get(value);
-  if (direct) return direct;
-  const digits = _normalizeDigits(value);
-  if (digits && participantIndex.has(digits)) return participantIndex.get(digits);
-  return value;
+  if (!value) return value;
+  let normalized = value;
+  if (participantIndex) {
+    const direct = participantIndex.get(value);
+    if (direct) normalized = direct;
+    else {
+      const digits = _normalizeDigits(value);
+      if (digits && participantIndex.has(digits)) normalized = participantIndex.get(digits);
+    }
+  }
+  return resolveUserIdCached({ lid: normalized, jid: normalized, participantAlt: null }) || normalized;
 };
 
 const buildParticipantIndex = (participants) => {
@@ -321,17 +327,23 @@ const buildParticipantIndex = (participants) => {
         : getJidServer(participant?.id) === 's.whatsapp.net'
           ? participant.id
           : phoneJid;
-    if (!jidCandidate) return;
+    const resolvedCanonical = resolveUserIdCached({
+      lid: participant?.lid || participant?.id || null,
+      jid: participant?.jid || participant?.id || null,
+      participantAlt: null,
+    });
+    const canonical = resolvedCanonical || jidCandidate || participant?.jid || participant?.id || participant?.lid || null;
+    if (!canonical) return;
 
-    const keys = [participant?.jid, participant?.id, participant?.lid, participant?.phoneNumber]
+    const keys = [participant?.jid, participant?.id, participant?.lid, participant?.phoneNumber, canonical]
       .filter(Boolean);
     keys.forEach((key) => {
-      index.set(key, jidCandidate);
+      index.set(key, canonical);
       const digits = _normalizeDigits(key);
-      if (digits) index.set(digits, jidCandidate);
+      if (digits) index.set(digits, canonical);
     });
-    const canonicalDigits = _normalizeDigits(jidCandidate);
-    if (canonicalDigits) index.set(canonicalDigits, jidCandidate);
+    const canonicalDigits = _normalizeDigits(canonical);
+    if (canonicalDigits) index.set(canonicalDigits, canonical);
   });
   return index;
 };
@@ -2109,6 +2121,21 @@ export async function handleInteractionGraphCommand({
     );
 
     const participants = isGroupMessage ? await getGroupParticipants(remoteJid) : null;
+    const lidsToPrime = new Set();
+    rows.forEach((row) => {
+      if (isLidUserId(row?.src)) lidsToPrime.add(row.src);
+      if (isLidUserId(row?.dst)) lidsToPrime.add(row.dst);
+    });
+    if (isLidUserId(focusJid)) lidsToPrime.add(focusJid);
+    if (isLidUserId(senderJid)) lidsToPrime.add(senderJid);
+    (participants || []).forEach((participant) => {
+      const rawId = participant?.lid || participant?.id || participant?.jid || null;
+      if (isLidUserId(rawId)) lidsToPrime.add(rawId);
+    });
+    if (lidsToPrime.size > 0) {
+      await primeLidCache(Array.from(lidsToPrime));
+    }
+
     const participantIndex = participants ? buildParticipantIndex(participants) : new Map();
     const normalizedRows = filterRowsWithoutBot(rows, botJid)
       .map((row) => ({

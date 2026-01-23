@@ -8,6 +8,7 @@ O **OmniZap System** é uma plataforma de automação para WhatsApp em Node.js c
 *   Comandos Personalizados
 *   Integração com MySQL
 *   Gerenciamento de Mídia (figurinhas)
+*   Normalização de IDs LID/JID (Baileys) com reconciliação automática
 *   Monitoramento com PM2
 
 ## 🚀 Instalação
@@ -60,6 +61,24 @@ Siga os passos para configurar e executar:
 4.  **Prepare o banco de dados:**
     *   Crie o banco indicado em `DB_NAME`.
     *   Garanta que o usuário tenha permissões de leitura e escrita.
+    *   Execute a migração de LID (produção/ambientes existentes):
+        ```bash
+        mysql -u <usuario> -p <seu_db> < database/migrations/2026-01-23_add_lid_map.sql
+        ```
+
+## 🧩 Suporte a LID/JID (Baileys)
+
+O WhatsApp (Baileys) pode retornar participantes em formato `@lid`. O OmniZap agora resolve um **sender_id canônico** para manter rankings, logs e análises consistentes:
+
+*   Sempre que possível, usa o JID real (`xxx@s.whatsapp.net`).
+*   Quando não há JID real, usa o LID (`xxx@lid`) temporariamente.
+*   Quando o JID real aparece depois, ocorre **reconciliação automática** (migrando mensagens antigas do LID para o JID).
+
+Banco de dados:
+
+*   Nova tabela `lid_map` (LID → JID) com `first_seen`, `last_seen` e `source`.
+*   Cache em memória com TTL para evitar consultas por mensagem.
+*   Captura de `participantAlt` em `messages.upsert` e `contacts.update` quando disponível.
 
 ## ▶️ Como Executar
 
