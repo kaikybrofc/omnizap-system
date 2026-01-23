@@ -2080,108 +2080,69 @@ export async function handleInteractionGraphCommand({
     const totalMessages = Number(totalMessagesRow?.total || 0);
 
     const rows = await executeQuery(
-      `SELECT
-        e.src,
-        e.dst,
-        e.replies AS replies_a_para_b,
-        IFNULL(r.replies, 0) AS replies_b_para_a,
-        (e.replies + IFNULL(r.replies, 0)) AS replies_total_par,
-        e.first_ts AS primeira_interacao_a_para_b,
-        e.last_ts  AS ultima_interacao_a_para_b,
-        r.first_ts AS primeira_interacao_b_para_a,
-        r.last_ts  AS ultima_interacao_b_para_a
-      FROM
-      (
-        SELECT
-          m.sender_id AS src,
-          JSON_UNQUOTE(
-            COALESCE(
-              JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
-              JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
-              JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.participant'),
-              JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.mentionedJid[0]'),
-              JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.participant'),
-              JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.mentionedJid[0]'),
-              JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.participant'),
-              JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
-            )
-          ) AS dst,
-          COUNT(*) AS replies,
-          MIN(m.timestamp) AS first_ts,
-          MAX(m.timestamp) AS last_ts
-        FROM messages m
-        WHERE m.raw_message IS NOT NULL
-          AND m.sender_id IS NOT NULL
-          ${botJid ? 'AND m.sender_id <> ?' : ''}
-          AND (
-            CASE
-              WHEN m.timestamp > 1000000000000 THEN FROM_UNIXTIME(m.timestamp / 1000)
-              WHEN m.timestamp > 1000000000 THEN FROM_UNIXTIME(m.timestamp)
-              ELSE m.timestamp
-            END
-          ) >= NOW() - INTERVAL ${SOCIAL_RECENT_DAYS} DAY
-          AND COALESCE(
-            JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
-            JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
-            JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.participant'),
-            JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.mentionedJid[0]'),
-            JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.participant'),
-            JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.mentionedJid[0]'),
-            JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.participant'),
-            JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
-          ) IS NOT NULL
-        GROUP BY src, dst
-      ) e
-      LEFT JOIN
-      (
-        SELECT
-          m.sender_id AS src,
-          JSON_UNQUOTE(
-            COALESCE(
-              JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
-              JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
-              JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.participant'),
-              JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.mentionedJid[0]'),
-              JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.participant'),
-              JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.mentionedJid[0]'),
-              JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.participant'),
-              JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
-            )
-          ) AS dst,
-          COUNT(*) AS replies,
-          MIN(m.timestamp) AS first_ts,
-          MAX(m.timestamp) AS last_ts
-        FROM messages m
-        WHERE m.raw_message IS NOT NULL
-          AND m.sender_id IS NOT NULL
-          ${botJid ? 'AND m.sender_id <> ?' : ''}
-          AND (
-            CASE
-              WHEN m.timestamp > 1000000000000 THEN FROM_UNIXTIME(m.timestamp / 1000)
-              WHEN m.timestamp > 1000000000 THEN FROM_UNIXTIME(m.timestamp)
-              ELSE m.timestamp
-            END
-          ) >= NOW() - INTERVAL ${SOCIAL_RECENT_DAYS} DAY
-        AND COALESCE(
-          JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
-          JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
-          JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.participant'),
-          JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.mentionedJid[0]'),
-          JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.participant'),
-          JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.mentionedJid[0]'),
-          JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.participant'),
-          JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
-        ) IS NOT NULL
-        GROUP BY src, dst
-      ) r
-        ON r.src = e.dst
-       AND r.dst = e.src
-      WHERE e.dst IS NOT NULL
-        AND e.dst <> ''
-        AND e.src <> e.dst
-      ORDER BY replies_total_par DESC, e.last_ts DESC
-      LIMIT ${SOCIAL_GRAPH_LIMIT}`,
-      botJid ? [botJid, botJid] : [],
+      `WITH base AS (
+         SELECT
+           m.sender_id AS src,
+           JSON_UNQUOTE(
+             COALESCE(
+               JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
+               JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
+               JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.participant'),
+               JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.mentionedJid[0]'),
+               JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.participant'),
+               JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.mentionedJid[0]'),
+               JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.participant'),
+               JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
+             )
+           ) AS dst,
+           m.timestamp AS ts
+         FROM messages m
+         WHERE m.raw_message IS NOT NULL
+           AND m.sender_id IS NOT NULL
+           ${botJid ? 'AND m.sender_id <> ?' : ''}
+           AND m.timestamp IS NOT NULL
+           AND m.timestamp >= NOW() - INTERVAL ${SOCIAL_RECENT_DAYS} DAY
+           AND COALESCE(
+             JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
+             JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
+             JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.participant'),
+             JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.mentionedJid[0]'),
+             JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.participant'),
+             JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.mentionedJid[0]'),
+             JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.participant'),
+             JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
+           ) IS NOT NULL
+       ),
+       agg AS (
+         SELECT
+           src,
+           dst,
+           COUNT(*) AS replies,
+           MIN(ts) AS first_ts,
+           MAX(ts) AS last_ts
+         FROM base
+         GROUP BY src, dst
+       )
+       SELECT
+         a.src,
+         a.dst,
+         a.replies AS replies_a_para_b,
+         IFNULL(b.replies, 0) AS replies_b_para_a,
+         (a.replies + IFNULL(b.replies, 0)) AS replies_total_par,
+         a.first_ts AS primeira_interacao_a_para_b,
+         a.last_ts  AS ultima_interacao_a_para_b,
+         b.first_ts AS primeira_interacao_b_para_a,
+         b.last_ts  AS ultima_interacao_b_para_a
+       FROM agg a
+       LEFT JOIN agg b
+         ON b.src = a.dst
+        AND b.dst = a.src
+       WHERE a.dst IS NOT NULL
+         AND a.dst <> ''
+         AND a.src <> a.dst
+       ORDER BY replies_total_par DESC, a.last_ts DESC
+       LIMIT ${SOCIAL_GRAPH_LIMIT}`,
+      botJid ? [botJid] : [],
     );
 
     const lidsToPrime = new Set();
