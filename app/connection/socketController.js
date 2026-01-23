@@ -24,6 +24,12 @@ let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 3000;
 
+/**
+ * Faz parse seguro de JSON com suporte a Buffer e retorna fallback em caso de erro.
+ * @param {unknown} value - Valor a ser interpretado.
+ * @param {any} fallback - Valor retornado quando o parse falha ou o valor é inválido.
+ * @returns {any} Objeto parseado ou fallback.
+ */
 const safeJsonParse = (value, fallback) => {
   if (value === null || value === undefined) return fallback;
   if (Buffer.isBuffer(value)) {
@@ -41,6 +47,11 @@ const safeJsonParse = (value, fallback) => {
   }
 };
 
+/**
+ * Normaliza uma mensagem do Baileys para o formato persistido no banco.
+ * @param {import('@whiskeysockets/baileys').WAMessage} msg - Mensagem recebida.
+ * @returns {Object} Objeto com dados prontos para persistência.
+ */
 const buildMessageData = (msg) => ({
   message_id: msg.key.id,
   chat_id: msg.key.remoteJid,
@@ -50,6 +61,13 @@ const buildMessageData = (msg) => ({
   timestamp: new Date(Number(msg.messageTimestamp) * 1000),
 });
 
+/**
+ * Persiste mensagens recebidas quando o tipo do upsert permite salvamento.
+ * @async
+ * @param {Array<import('@whiskeysockets/baileys').WAMessage>} incomingMessages - Mensagens recebidas.
+ * @param {'append' | 'notify' | string} type - Tipo do evento de upsert.
+ * @returns {Promise<void>} Conclusão da persistência.
+ */
 async function persistIncomingMessages(incomingMessages, type) {
   if (type !== 'append' && type !== 'notify') return;
 
@@ -68,6 +86,12 @@ async function persistIncomingMessages(incomingMessages, type) {
   }
 }
 
+/**
+ * Recupera mensagem armazenada para suporte a recursos (ex.: enquetes) do Baileys.
+ * @async
+ * @param {import('@whiskeysockets/baileys').WAMessageKey} key - Chave da mensagem.
+ * @returns {Promise<Object | null>} Mensagem armazenada ou null.
+ */
 async function getStoredMessage(key) {
   try {
     const results = await findBy('messages', { message_id: key.id }, { limit: 1 });
@@ -83,10 +107,11 @@ async function getStoredMessage(key) {
 }
 
 /**
- * Inicia e gerencia a conexao com o WhatsApp.
- * Configura autenticacao, cria o socket e registra os handlers de eventos.
+ * Inicia e gerencia a conexão com o WhatsApp usando o Baileys.
+ * Configura autenticação, cria o socket e registra handlers de eventos.
  * @async
- * @throws {Error} Lanca um erro se a conexao inicial falhar.
+ * @returns {Promise<void>} Conclusão da inicialização e do registro de handlers.
+ * @throws {Error} Lança erro se a conexão inicial falhar.
  */
 export async function connectToWhatsApp() {
   logger.info('Iniciando conexão com o WhatsApp...', {
@@ -316,11 +341,12 @@ export async function connectToWhatsApp() {
 }
 
 /**
- * Gerencia as atualizacoes de estado da conexao com o WhatsApp.
- * Lida com a geracao de QR code, reconexao automatica e acoes pos-conexao.
+ * Gerencia atualizações de estado da conexão com o WhatsApp.
+ * Lida com QR code, reconexão automática e ações pós-conexão (sync de grupos).
  * @async
- * @param {import('@whiskeysockets/baileys').ConnectionState} update - O objeto de atualizacao da conexao.
- * @param {import('@whiskeysockets/baileys').WASocket} sock - A instancia do socket do WhatsApp.
+ * @param {import('@whiskeysockets/baileys').ConnectionState} update - Estado da conexão.
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - Instância do socket do WhatsApp.
+ * @returns {Promise<void>} Conclusão do processamento do estado.
  */
 async function handleConnectionUpdate(update, sock) {
   const { connection, lastDisconnect, qr } = update;
@@ -427,10 +453,11 @@ async function handleConnectionUpdate(update, sock) {
 }
 
 /**
- * Processa atualizacoes em mensagens existentes, como votos em enquetes.
+ * Processa atualizações em mensagens existentes, como votos em enquetes.
  * @async
- * @param {Array<import('@whiskeysockets/baileys').MessageUpdate>} updates - Um array de atualizacoes de mensagens.
- * @param {import('@whiskeysockets/baileys').WASocket} sock - A instancia do socket do WhatsApp.
+ * @param {Array<import('@whiskeysockets/baileys').MessageUpdate>} updates - Atualizações de mensagens.
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - Instância do socket do WhatsApp.
+ * @returns {Promise<void>} Conclusão do processamento das atualizações.
  */
 async function handleMessageUpdate(updates, sock) {
   for (const { key, update } of updates) {
@@ -474,9 +501,9 @@ async function handleMessageUpdate(updates, sock) {
 }
 
 /**
- * Converte a lista de participantes de uma string JSON para um array.
- * @param {string | Array<Object>} participants - Os participantes em formato de string JSON ou array.
- * @returns {Array<Object>} Um array de objetos de participantes.
+ * Converte a lista de participantes armazenada em JSON para um array normalizado.
+ * @param {string | Array<Object> | null | undefined} participants - Participantes em JSON ou array.
+ * @returns {Array<Object>} Array de participantes ou vazio.
  */
 function parseParticipants(participants) {
   if (!participants) return [];
@@ -490,19 +517,14 @@ function parseParticipants(participants) {
 }
 
 /**
- * Atualiza os metadados de grupos no banco de dados MySQL.
- *
+ * Atualiza metadados de grupos no banco MySQL a partir dos eventos do Baileys.
  * @async
- * @param {Array<import('@whiskeysockets/baileys').GroupUpdate>} updates - Array de eventos de atualizacao de grupos.
- * @param {import('@whiskeysockets/baileys').WASocket} sock - Instancia do socket do WhatsApp.
+ * @param {Array<import('@whiskeysockets/baileys').GroupUpdate>} updates - Eventos de atualização de grupos.
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - Instância do socket do WhatsApp.
+ * @returns {Promise<void>} Conclusão das atualizações em lote.
  * @description
- * Esta funcao processa atualizacoes de grupos, como:
- * - Mudancas no titulo do grupo
- * - Alteracoes na descricao
- * - Mudancas no proprietario
- * - Atualizacoes nos participantes
- *
- * Os dados sao persistidos no MySQL e lidos diretamente do banco quando necessario.
+ * Processa alterações de grupo (título, descrição, proprietário e participantes)
+ * persistindo a versão consolidada no MySQL.
  */
 async function handleGroupUpdate(updates, sock) {
   await Promise.all(
@@ -551,8 +573,8 @@ async function handleGroupUpdate(updates, sock) {
 }
 
 /**
- * 🔌 Retorna a instancia atual do socket ativo do WhatsApp.
- * @returns {import('@whiskeysockets/baileys').WASocket | null}
+ * Retorna a instância atual do socket ativo do WhatsApp.
+ * @returns {import('@whiskeysockets/baileys').WASocket | null} Socket ativo ou null.
  */
 export function getActiveSocket() {
   logger.debug('🔍 Recuperando instância do socket ativo.', {
@@ -564,9 +586,10 @@ export function getActiveSocket() {
 }
 
 /**
- * Forca uma nova tentativa de conexao ao WhatsApp.
- * Encerra o socket atual (se existir) para disparar a logica de reconexao.
+ * Força uma nova tentativa de conexão ao WhatsApp.
+ * Encerra o socket atual (se existir) para disparar a lógica de reconexão.
  * @async
+ * @returns {Promise<void>} Conclusão do fluxo de reconexão.
  */
 export async function reconnectToWhatsApp() {
   if (activeSocket && activeSocket.ws?.readyState === WebSocket.OPEN) {
