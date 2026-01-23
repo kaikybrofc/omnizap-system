@@ -79,6 +79,17 @@ Banco de dados:
 *   Nova tabela `lid_map` (LID → JID) com `first_seen`, `last_seen` e `source`.
 *   Cache em memória com TTL para evitar consultas por mensagem.
 *   Captura de `participantAlt` em `messages.upsert` e `contacts.update` quando disponível.
+*   Backfill automático no boot usando mensagens salvas (`participantAlt`).
+
+Configurações opcionais:
+
+```env
+# Backfill do lid_map ao iniciar (default: true)
+LID_BACKFILL_ON_START=true
+
+# Tamanho do batch do backfill (default: 50000)
+LID_BACKFILL_BATCH=50000
+```
 
 ## ▶️ Como Executar
 

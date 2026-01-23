@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 import logger from './app/utils/logger/loggerModule.js';
 import { connectToWhatsApp, getActiveSocket } from './app/connection/socketController.js';
+import { backfillLidMapFromMessagesOnce } from './app/services/lidMapService.js';
 import initializeDatabase from './database/init.js';
 
 async function startApp() {
@@ -10,6 +11,14 @@ async function startApp() {
 
     logger.info('Verificando e inicializando o banco de dados...');
     await initializeDatabase();
+
+    const shouldBackfill = process.env.LID_BACKFILL_ON_START !== 'false';
+    if (shouldBackfill) {
+      const batchSize = Number(process.env.LID_BACKFILL_BATCH) || undefined;
+      backfillLidMapFromMessagesOnce({ batchSize }).catch((error) => {
+        logger.warn('Backfill lid_map nao concluido.', { error: error.message });
+      });
+    }
 
     await connectToWhatsApp();
     logger.info('OmniZap System iniciado com sucesso.');

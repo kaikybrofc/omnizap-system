@@ -6,8 +6,12 @@ const CACHE_TTL_MS = 20 * 60 * 1000;
 const NEGATIVE_TTL_MS = 5 * 60 * 1000;
 const STORE_COOLDOWN_MS = 5 * 60 * 1000;
 const BATCH_LIMIT = 800;
+const BACKFILL_DEFAULT_BATCH = 50000;
+const BACKFILL_SOURCE = 'backfill';
 
 const lidCache = new Map();
+
+let backfillPromise = null;
 
 const now = () => Date.now();
 const isLidJid = (jid) => getJidServer(jid) === 'lid';
@@ -235,3 +239,79 @@ export const extractUserIdInfo = (value) => {
 
 export const isLidUserId = (value) => isLidJid(value);
 export const isWhatsAppUserId = (value) => isWhatsAppJid(value);
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getMessageIdRange = async () => {
+  const rows = await executeQuery(
+    `SELECT MIN(id) AS min_id, MAX(id) AS max_id FROM ${TABLES.MESSAGES}`,
+  );
+  const minId = Number(rows?.[0]?.min_id || 0);
+  const maxId = Number(rows?.[0]?.max_id || 0);
+  return { minId, maxId };
+};
+
+const runBackfillBatch = async (fromId, toId) => {
+  const sql = `
+    INSERT INTO ${TABLES.LID_MAP} (lid, jid, first_seen, last_seen, source)
+    SELECT
+      s.lid,
+      s.jid,
+      MIN(s.ts) AS first_seen,
+      MAX(s.ts) AS last_seen,
+      ?
+    FROM (
+      SELECT
+        JSON_UNQUOTE(JSON_EXTRACT(m.raw_message, '$.key.participant')) AS lid,
+        JSON_UNQUOTE(JSON_EXTRACT(m.raw_message, '$.key.participantAlt')) AS jid,
+        m.timestamp AS ts
+      FROM ${TABLES.MESSAGES} m
+      WHERE m.id BETWEEN ? AND ?
+        AND m.raw_message IS NOT NULL
+        AND m.timestamp IS NOT NULL
+    ) s
+    WHERE s.lid LIKE '%@lid'
+      AND s.jid LIKE '%@s.whatsapp.net'
+    GROUP BY s.lid, s.jid
+    ON DUPLICATE KEY UPDATE
+      jid = COALESCE(VALUES(jid), ${TABLES.LID_MAP}.jid),
+      last_seen = GREATEST(${TABLES.LID_MAP}.last_seen, VALUES(last_seen)),
+      source = VALUES(source)
+  `;
+
+  return executeQuery(sql, [BACKFILL_SOURCE, fromId, toId]);
+};
+
+export const backfillLidMapFromMessages = async ({
+  batchSize = BACKFILL_DEFAULT_BATCH,
+  sleepMs = 50,
+  maxBatches = null,
+} = {}) => {
+  const { minId, maxId } = await getMessageIdRange();
+  if (!minId || !maxId || maxId < minId) {
+    logger.info('Backfill lid_map ignorado: tabela messages vazia.');
+    return { batches: 0 };
+  }
+
+  let batches = 0;
+  for (let start = minId; start <= maxId; start += batchSize) {
+    const end = Math.min(start + batchSize - 1, maxId);
+    await runBackfillBatch(start, end);
+    batches += 1;
+    if (maxBatches && batches >= maxBatches) break;
+    if (sleepMs > 0) await sleep(sleepMs);
+  }
+
+  logger.info('Backfill lid_map finalizado.', { batches, minId, maxId });
+  return { batches, minId, maxId };
+};
+
+export const backfillLidMapFromMessagesOnce = async (options = {}) => {
+  if (!backfillPromise) {
+    backfillPromise = backfillLidMapFromMessages(options).catch((error) => {
+      logger.warn('Falha no backfill lid_map.', { error: error.message });
+      throw error;
+    });
+  }
+  return backfillPromise;
+};

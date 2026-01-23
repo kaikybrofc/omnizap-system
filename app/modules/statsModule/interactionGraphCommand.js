@@ -2120,7 +2120,6 @@ export async function handleInteractionGraphCommand({
       botJid ? [botJid, botJid] : [],
     );
 
-    const participants = isGroupMessage ? await getGroupParticipants(remoteJid) : null;
     const lidsToPrime = new Set();
     rows.forEach((row) => {
       if (isLidUserId(row?.src)) lidsToPrime.add(row.src);
@@ -2128,26 +2127,17 @@ export async function handleInteractionGraphCommand({
     });
     if (isLidUserId(focusJid)) lidsToPrime.add(focusJid);
     if (isLidUserId(senderJid)) lidsToPrime.add(senderJid);
-    (participants || []).forEach((participant) => {
-      const rawId = participant?.lid || participant?.id || participant?.jid || null;
-      if (isLidUserId(rawId)) lidsToPrime.add(rawId);
-    });
     if (lidsToPrime.size > 0) {
       await primeLidCache(Array.from(lidsToPrime));
     }
 
-    const participantIndex = participants ? buildParticipantIndex(participants) : new Map();
+    const participantIndex = null;
     const normalizedRows = filterRowsWithoutBot(rows, botJid)
       .map((row) => ({
         ...row,
         src: normalizeJidWithParticipants(row.src, participantIndex),
         dst: normalizeJidWithParticipants(row.dst, participantIndex),
-      }))
-      .filter(
-        (row) =>
-          !participantIndex.size ||
-          (participantIndex.has(row.src) && participantIndex.has(row.dst)),
-      );
+      }));
 
     const normalizedFocus = focusJid
       ? normalizeJidWithParticipants(focusJid, participantIndex)
@@ -2331,7 +2321,7 @@ export async function handleInteractionGraphCommand({
           `👥 Total de usuários participantes (${SOCIAL_SCOPE_GLOBAL}): ${totalParticipants}`,
           `🧾 Perfil acima = dados do ${SOCIAL_SCOPE_GROUP}.`,
           `🌐 Social global acima = dados ${SOCIAL_SCOPE_GLOBAL}.`,
-          '🛠️ Use social para ver o panorama completo do grupo.',
+          '🛠️ Use social para ver o panorama completo do sistema.',
         ]
       : [
           '✨ *Social*',
