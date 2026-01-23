@@ -37,6 +37,8 @@ const SOCIAL_CACHE = new Map();
 const SOCIAL_RECENT_DAYS = 60;
 const SOCIAL_GRAPH_LIMIT = 20000;
 const SOCIAL_NODE_LIMIT = 180;
+const SOCIAL_SCOPE_GROUP = 'grupo atual';
+const SOCIAL_SCOPE_GLOBAL = 'global do bot';
 
 const PROFILE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PROFILE_CACHE_LIMIT = 300;
@@ -2077,6 +2079,7 @@ export async function handleInteractionGraphCommand({
     );
     const dbStartLabel = formatDate(dbStartRow?.db_start || null);
 
+    // "global": dados agregados de todos os chats do bot (sem filtro por chat_id)
     const globalGraphData = buildGraphData(normalizedRows, globalNames);
     const graphData = limitGraphData(buildGraphData(filteredRows, names), SOCIAL_NODE_LIMIT);
     const allowedJids = new Set(graphData.nodes.map((node) => node.jid));
@@ -2112,6 +2115,7 @@ export async function handleInteractionGraphCommand({
     const detailLines = [...captionLines];
     const summaryText = linesToText(detailLines);
 
+    // "grupo": dados restritos ao chat_id atual
     let profileText = null;
     let profileSocialText = null;
     if (normalizedFocus) {
@@ -2180,16 +2184,16 @@ export async function handleInteractionGraphCommand({
           '🎯 Social foco',
           `👤 Usuário: ${focusDisplay || 'N/D'}`,
           '🔗 A imagem mostra só a bolha do usuário e suas ligações diretas.',
-          `👥 Total de usuários participantes (geral do bot): ${totalParticipants}`,
-          '🧾 Perfil acima = dados do grupo atual.',
-          '🌐 Social global acima = dados gerais do bot.',
+          `👥 Total de usuários participantes (${SOCIAL_SCOPE_GLOBAL}): ${totalParticipants}`,
+          `🧾 Perfil acima = dados do ${SOCIAL_SCOPE_GROUP}.`,
+          `🌐 Social global acima = dados ${SOCIAL_SCOPE_GLOBAL}.`,
           '🛠️ Use social para ver o panorama completo do grupo.',
         ]
       : [
           '✨ *Social*',
           '🌍 Este gráfico mostra as conexões do sistema inteiro.',
-          '👥 Dados de todos os usuários do bot.',
-          `🧩 Total de usuários participantes: ${totalParticipants}`,
+          `👥 Dados ${SOCIAL_SCOPE_GLOBAL}.`,
+          `🧩 Total de usuários participantes (${SOCIAL_SCOPE_GLOBAL}): ${totalParticipants}`,
           `🧾 Início da contagem: ${dbStartLabel}`,
           '🫧 Tamanho da bolha = volume de interações (replies enviadas/recebidas).',
           '🧭 Arestas e setas indicam direção e intensidade das respostas.',
