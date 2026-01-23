@@ -38,6 +38,8 @@ const SOCIAL_CACHE = new Map();
 const SOCIAL_RECENT_DAYS = 60;
 const SOCIAL_GRAPH_LIMIT = 20000;
 const SOCIAL_NODE_LIMIT = 180;
+const SOCIAL_AVATAR_LIMIT = 36;
+const SOCIAL_AVATAR_FOCUS_LIMIT = 20;
 const SOCIAL_SCOPE_GROUP = 'grupo atual';
 const SOCIAL_SCOPE_GLOBAL = 'global do bot';
 
@@ -148,6 +150,18 @@ const loadProfileImages = async ({ sock, jids, remoteJid, concurrency = 6 }) => 
   const workers = Array.from({ length: concurrency }, () => worker());
   await Promise.all(workers);
   return results;
+};
+
+const pickAvatarJids = ({ nodes, focusJid, limit }) => {
+  if (!nodes || !nodes.length || limit <= 0) return [];
+  const sorted = [...nodes].sort((a, b) => b.total - a.total);
+  const chosen = new Set();
+  if (focusJid) chosen.add(focusJid);
+  for (const node of sorted) {
+    if (chosen.size >= limit) break;
+    chosen.add(node.jid);
+  }
+  return Array.from(chosen);
 };
 
 const limitGraphData = (graphData, limit) => {
@@ -2689,9 +2703,15 @@ export async function handleInteractionGraphCommand({
       ...bridgeLines,
       ...growthLines,
     ];
+    const avatarLimit = normalizedFocus ? SOCIAL_AVATAR_FOCUS_LIMIT : SOCIAL_AVATAR_LIMIT;
+    const avatarJids = pickAvatarJids({
+      nodes: graphData.nodes,
+      focusJid: normalizedFocus,
+      limit: avatarLimit,
+    });
     const avatarImages = await loadProfileImages({
       sock,
-      jids: graphData.nodes.map((node) => node.jid),
+      jids: avatarJids,
       remoteJid,
     });
     const imageBuffer = renderGraphImage({
