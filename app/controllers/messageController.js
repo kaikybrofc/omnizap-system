@@ -11,6 +11,7 @@ import { handleInteractionGraphCommand } from '../modules/statsModule/interactio
 import { getExpiration } from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
+import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js';
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
@@ -107,6 +108,17 @@ export const handleMessages = async (update, sock) => {
 
             case 'playvid':
               await handlePlayVidCommand(sock, remoteJid, messageInfo, expirationMessage, text);
+              break;
+
+            case 'aviso':
+              await handleNoticeCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                senderJid,
+                text,
+              });
               break;
 
             case 'stickertext':
