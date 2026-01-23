@@ -5,19 +5,44 @@ import { getGroupParticipants, _matchesParticipantId } from '../../config/groupU
 import { getProfilePicBuffer } from '../../config/baileysConfig.js';
 
 const CLAN_NAME_LIST = [
-  'Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta',
-  'Iota', 'Kappa', 'Lambda', 'Mu', 'Nu', 'Xi', 'Omicron', 'Pi',
-  'Rho', 'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega',
+  'Alpha',
+  'Beta',
+  'Gamma',
+  'Delta',
+  'Epsilon',
+  'Zeta',
+  'Eta',
+  'Theta',
+  'Iota',
+  'Kappa',
+  'Lambda',
+  'Mu',
+  'Nu',
+  'Xi',
+  'Omicron',
+  'Pi',
+  'Rho',
+  'Sigma',
+  'Tau',
+  'Upsilon',
+  'Phi',
+  'Chi',
+  'Psi',
+  'Omega',
 ];
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const SOCIAL_CACHE = new Map();
 
+const SOCIAL_RECENT_DAYS = 60;
+const SOCIAL_GRAPH_LIMIT = 20000;
+
 const PROFILE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PROFILE_CACHE_LIMIT = 300;
 const PROFILE_PIC_CACHE = new Map();
 
-const getCacheKey = (focusJid, remoteJid) => (focusJid ? `focus:${remoteJid || 'global'}:${focusJid}` : 'global');
+const getCacheKey = (focusJid, remoteJid) =>
+  focusJid ? `focus:${remoteJid || 'global'}:${focusJid}` : 'global';
 
 /**
  * Função filterRowsWithoutBot.
@@ -54,8 +79,9 @@ const getCachedResult = (key) => {
 const setCachedResult = (key, payload) => {
   SOCIAL_CACHE.set(key, { ...payload, createdAt: Date.now() });
   if (SOCIAL_CACHE.size > 20) {
-    const oldestKey = Array.from(SOCIAL_CACHE.entries())
-      .sort((a, b) => a[1].createdAt - b[1].createdAt)[0]?.[0];
+    const oldestKey = Array.from(SOCIAL_CACHE.entries()).sort(
+      (a, b) => a[1].createdAt - b[1].createdAt,
+    )[0]?.[0];
     if (oldestKey) SOCIAL_CACHE.delete(oldestKey);
   }
 };
@@ -74,8 +100,9 @@ const setCachedProfilePic = (jid, buffer) => {
   if (!jid || !buffer) return;
   PROFILE_PIC_CACHE.set(jid, { buffer, createdAt: Date.now() });
   if (PROFILE_PIC_CACHE.size > PROFILE_CACHE_LIMIT) {
-    const oldestKey = Array.from(PROFILE_PIC_CACHE.entries())
-      .sort((a, b) => a[1].createdAt - b[1].createdAt)[0]?.[0];
+    const oldestKey = Array.from(PROFILE_PIC_CACHE.entries()).sort(
+      (a, b) => a[1].createdAt - b[1].createdAt,
+    )[0]?.[0];
     if (oldestKey) PROFILE_PIC_CACHE.delete(oldestKey);
   }
 };
@@ -312,7 +339,18 @@ const resolveRoleLabel = (participant) => {
  * @param {*} dbStart - Parâmetro.
  * @returns {*} - Retorno.
  */
-const buildProfileText = ({ handle, totalMessages, firstMessage, lastMessage, activeDays, avgPerDay, percentOfGroup, rank, role, dbStart }) => {
+const buildProfileText = ({
+  handle,
+  totalMessages,
+  firstMessage,
+  lastMessage,
+  activeDays,
+  avgPerDay,
+  percentOfGroup,
+  rank,
+  role,
+  dbStart,
+}) => {
   const lines = [
     `🔹 Usuário: ${handle}`,
     `🔸 Cargo: ${role}`,
@@ -369,7 +407,8 @@ const buildProfileSection = async ({ remoteJid, focusJid, isGroupMessage, botJid
 
   const totalMessages = Number(userStats?.total_messages || 0);
   const groupTotal = Number(groupStats?.total_messages || 0);
-  const percentOfGroup = groupTotal > 0 ? `${((totalMessages / groupTotal) * 100).toFixed(2)}%` : '0%';
+  const percentOfGroup =
+    groupTotal > 0 ? `${((totalMessages / groupTotal) * 100).toFixed(2)}%` : '0%';
 
   let rank = null;
   if (totalMessages > 0) {
@@ -434,9 +473,10 @@ const computeReciprocityAndAvg = (rows) => {
     },
     { min: 0, max: 0 },
   );
-  const reciprocity = reciprocityTotals.max > 0
-    ? Math.round((reciprocityTotals.min / reciprocityTotals.max) * 100)
-    : 0;
+  const reciprocity =
+    reciprocityTotals.max > 0
+      ? Math.round((reciprocityTotals.min / reciprocityTotals.max) * 100)
+      : 0;
 
   const responseTimes = rows.reduce(
     (acc, row) => {
@@ -447,20 +487,19 @@ const computeReciprocityAndAvg = (rows) => {
       const bFirst = toMillis(row.primeira_interacao_b_para_a);
       const bLast = toMillis(row.ultima_interacao_b_para_a);
       if (aCount > 0 && aFirst !== null && aLast !== null && aLast >= aFirst) {
-        acc.totalMs += (aLast - aFirst);
+        acc.totalMs += aLast - aFirst;
         acc.totalCount += aCount;
       }
       if (bCount > 0 && bFirst !== null && bLast !== null && bLast >= bFirst) {
-        acc.totalMs += (bLast - bFirst);
+        acc.totalMs += bLast - bFirst;
         acc.totalCount += bCount;
       }
       return acc;
     },
     { totalMs: 0, totalCount: 0 },
   );
-  const avgResponseMs = responseTimes.totalCount > 0
-    ? responseTimes.totalMs / responseTimes.totalCount
-    : 0;
+  const avgResponseMs =
+    responseTimes.totalCount > 0 ? responseTimes.totalMs / responseTimes.totalCount : 0;
   return { reciprocity, avgResponseMs };
 };
 
@@ -516,14 +555,13 @@ const buildInteractionGraphMessage = ({
   influenceRanking,
 }) => {
   if (!rows.length) {
-    return { lines: ['Nao ha respostas suficientes para gerar o ranking social.'], names: new Map() };
+    return {
+      lines: ['Nao ha respostas suficientes para gerar o ranking social.'],
+      names: new Map(),
+    };
   }
 
-  const {
-    ranking,
-    partners,
-    names,
-  } = buildSocialRanking(rows);
+  const { ranking, partners, names } = buildSocialRanking(rows);
   if (!ranking.length) {
     return { lines: ['Nao ha respostas suficientes para gerar o ranking social.'], names };
   }
@@ -546,9 +584,10 @@ const buildInteractionGraphMessage = ({
     },
     { min: 0, max: 0, sum: 0 },
   );
-  const reciprocity = reciprocityTotals.max > 0
-    ? Math.round((reciprocityTotals.min / reciprocityTotals.max) * 100)
-    : 0;
+  const reciprocity =
+    reciprocityTotals.max > 0
+      ? Math.round((reciprocityTotals.min / reciprocityTotals.max) * 100)
+      : 0;
 
   const responseTimes = rows.reduce(
     (acc, row) => {
@@ -559,20 +598,19 @@ const buildInteractionGraphMessage = ({
       const bFirst = toMillis(row.primeira_interacao_b_para_a);
       const bLast = toMillis(row.ultima_interacao_b_para_a);
       if (aCount > 0 && aFirst !== null && aLast !== null && aLast >= aFirst) {
-        acc.totalMs += (aLast - aFirst);
+        acc.totalMs += aLast - aFirst;
         acc.totalCount += aCount;
       }
       if (bCount > 0 && bFirst !== null && bLast !== null && bLast >= bFirst) {
-        acc.totalMs += (bLast - bFirst);
+        acc.totalMs += bLast - bFirst;
         acc.totalCount += bCount;
       }
       return acc;
     },
     { totalMs: 0, totalCount: 0 },
   );
-  const avgResponseMs = responseTimes.totalCount > 0
-    ? responseTimes.totalMs / responseTimes.totalCount
-    : 0;
+  const avgResponseMs =
+    responseTimes.totalCount > 0 ? responseTimes.totalMs / responseTimes.totalCount : 0;
 
   const makeLine = (text, color) => (color ? { text, color } : text);
   /**
@@ -589,7 +627,9 @@ const buildInteractionGraphMessage = ({
 
   const focusLine = focusJid
     ? `Foco: ${getNameWithClan(focusJid)}`
-    : (focusLabel ? `Foco: ${focusLabel}` : 'Resumo social');
+    : focusLabel
+      ? `Foco: ${focusLabel}`
+      : 'Resumo social';
   const lines = [focusLine, ''];
   lines.push('Metricas', '');
   lines.push(`Reciprocidade: ${reciprocity}%`);
@@ -599,7 +639,9 @@ const buildInteractionGraphMessage = ({
     lines.push('Influentes (aprox)', '');
     influenceRanking.forEach((entry, index) => {
       const display = getNameWithClan(entry.jid);
-      lines.push(makeLine(`${index + 1}. ${display} — ${Math.round(entry.score)}`, getLineColor(entry.jid)));
+      lines.push(
+        makeLine(`${index + 1}. ${display} — ${Math.round(entry.score)}`, getLineColor(entry.jid)),
+      );
     });
     lines.push('');
   }
@@ -612,7 +654,9 @@ const buildInteractionGraphMessage = ({
     lines.push('Conectores (top 5)', '');
     connectors.forEach((entry, index) => {
       const display = getNameWithClan(entry.jid);
-      lines.push(makeLine(`${index + 1}. ${display} — ${entry.degree} pessoas`, getLineColor(entry.jid)));
+      lines.push(
+        makeLine(`${index + 1}. ${display} — ${entry.degree} pessoas`, getLineColor(entry.jid)),
+      );
     });
     lines.push('');
   }
@@ -679,8 +723,12 @@ const buildGraphData = (rows, names) => {
   });
   edges.forEach((edge) => {
     if (!adjacency.has(edge.src) || !adjacency.has(edge.dst)) return;
-    adjacency.get(edge.src).set(edge.dst, (adjacency.get(edge.src).get(edge.dst) || 0) + edge.total);
-    adjacency.get(edge.dst).set(edge.src, (adjacency.get(edge.dst).get(edge.src) || 0) + edge.total);
+    adjacency
+      .get(edge.src)
+      .set(edge.dst, (adjacency.get(edge.src).get(edge.dst) || 0) + edge.total);
+    adjacency
+      .get(edge.dst)
+      .set(edge.src, (adjacency.get(edge.dst).get(edge.src) || 0) + edge.total);
   });
 
   const labels = new Map();
@@ -844,7 +892,14 @@ const buildClanCaptionLines = (clusters, clusterColors, leaderByClanId, names, l
  * @param {*} limit - Parâmetro.
  * @returns {*} - Retorno.
  */
-const buildClanBridgeLines = ({ edges, nodeClusters, names, clanByJid, clanColorByJid, limit = 5 }) => {
+const buildClanBridgeLines = ({
+  edges,
+  nodeClusters,
+  names,
+  clanByJid,
+  clanColorByJid,
+  limit = 5,
+}) => {
   if (!edges || !edges.length || !nodeClusters) return [];
   const totals = new Map();
   edges.forEach((edge) => {
@@ -1119,7 +1174,11 @@ const buildTopActiveClansLines = (rows, clusters, clusterColors, limit = 5) => {
   ranking.forEach((entry, index) => {
     const color = clusterColors.get(entry.clanId);
     const clanLabel = clanNames.get(entry.clanId) || entry.clanId;
-    lines.push(color ? { text: `${index + 1}. ${clanLabel} — ${entry.total}`, color } : `${index + 1}. ${clanLabel} — ${entry.total}`);
+    lines.push(
+      color
+        ? { text: `${index + 1}. ${clanLabel} — ${entry.total}`, color }
+        : `${index + 1}. ${clanLabel} — ${entry.total}`,
+    );
   });
   lines.push('');
   return lines;
@@ -1171,11 +1230,7 @@ const buildSkewLines = (ranking) => {
   const top = Number(ranking[0]?.total || 0);
   const avg = ranking.reduce((acc, entry) => acc + Number(entry.total || 0), 0) / ranking.length;
   const skew = avg > 0 ? (top / avg).toFixed(2) : '0.00';
-  return [
-    '📊 *Skew do grafo*',
-    `Top 1 / média: ${skew}x`,
-    '',
-  ];
+  return ['📊 *Skew do grafo*', `Top 1 / média: ${skew}x`, ''];
 };
 
 /**
@@ -1272,7 +1327,8 @@ const renderGraphImage = ({
 
   const maxNodeValue = Math.max(...nodes.map((n) => n.total));
   const drawEdges = directedEdges && directedEdges.length ? directedEdges : edges;
-  const maxEdgeValue = drawEdges && drawEdges.length ? Math.max(...drawEdges.map((e) => e.total)) : 1;
+  const maxEdgeValue =
+    drawEdges && drawEdges.length ? Math.max(...drawEdges.map((e) => e.total)) : 1;
 
   const nodePositions = new Map();
   const nodeRadii = new Map();
@@ -1407,9 +1463,10 @@ const renderGraphImage = ({
           const dx = positions[b].x - positions[a].x;
           const dy = positions[b].y - positions[a].y;
           const dist = Math.max(1, Math.hypot(dx, dy));
-          const desired = (nodeRadii.get(sortedNodes[a].jid) || 30)
-            + (nodeRadii.get(sortedNodes[b].jid) || 30)
-            + minGap;
+          const desired =
+            (nodeRadii.get(sortedNodes[a].jid) || 30) +
+            (nodeRadii.get(sortedNodes[b].jid) || 30) +
+            minGap;
           if (dist < desired) {
             const push = (desired - dist) * 0.02;
             const fx = (dx / dist) * push;
@@ -1442,9 +1499,10 @@ const renderGraphImage = ({
         const dx = positions[b].x - positions[a].x;
         const dy = positions[b].y - positions[a].y;
         const dist = Math.max(1, Math.hypot(dx, dy));
-        const desired = (nodeRadii.get(sortedNodes[a].jid) || 30)
-          + (nodeRadii.get(sortedNodes[b].jid) || 30)
-          + minGap;
+        const desired =
+          (nodeRadii.get(sortedNodes[a].jid) || 30) +
+          (nodeRadii.get(sortedNodes[b].jid) || 30) +
+          minGap;
         if (dist < desired) {
           const overlap = (desired - dist) / 2;
           const fx = (dx / dist) * overlap;
@@ -1572,7 +1630,10 @@ const renderGraphImage = ({
     let fontSize = 16;
     ctx.font = `bold ${fontSize}px Arial`;
     lines = tryWrap();
-    while ((lines.length > maxLines || lines.some((line) => ctx.measureText(line).width > maxWidth)) && fontSize > 9) {
+    while (
+      (lines.length > maxLines || lines.some((line) => ctx.measureText(line).width > maxWidth)) &&
+      fontSize > 9
+    ) {
       fontSize -= 1;
       ctx.font = `bold ${fontSize}px Arial`;
       lines = tryWrap();
@@ -1633,7 +1694,13 @@ const renderGraphImage = ({
       ctx.beginPath();
       ctx.arc(position.x, position.y, nodeRadius, 0, Math.PI * 2);
       ctx.clip();
-      ctx.drawImage(avatarImage, position.x - nodeRadius, position.y - nodeRadius, nodeRadius * 2, nodeRadius * 2);
+      ctx.drawImage(
+        avatarImage,
+        position.x - nodeRadius,
+        position.y - nodeRadius,
+        nodeRadius * 2,
+        nodeRadius * 2,
+      );
       ctx.restore();
     } else {
       ctx.save();
@@ -1650,7 +1717,13 @@ const renderGraphImage = ({
     ctx.lineWidth = clanLeaders?.has(node.jid) ? 6 : 3;
     ctx.stroke();
 
-    drawTextInsideBubble(node.label, position.x, position.y, nodeRadius, avatarImage ? { shadow: true } : undefined);
+    drawTextInsideBubble(
+      node.label,
+      position.x,
+      position.y,
+      nodeRadius,
+      avatarImage ? { shadow: true } : undefined,
+    );
 
     ctx.save();
     if (avatarImage) {
@@ -1702,7 +1775,8 @@ const renderGraphImage = ({
     ctx.textBaseline = 'top';
 
     const getLineText = (line) => (typeof line === 'string' ? line : line?.text || '');
-    const getLineColor = (line) => (typeof line === 'string' ? '#e2e8f0' : line?.color || '#e2e8f0');
+    const getLineColor = (line) =>
+      typeof line === 'string' ? '#e2e8f0' : line?.color || '#e2e8f0';
     const maxLines = Math.max(10, Math.floor((textBottomLimit - textY) / 20));
     const sections = [];
     let current = [];
@@ -1723,25 +1797,25 @@ const renderGraphImage = ({
     });
     if (current.length) sections.push(current);
 
-  /**
-   * Função drawRoundedRect.
-   * @param {*} x - Parâmetro.
-   * @param {*} y - Parâmetro.
-   * @param {*} w - Parâmetro.
-   * @param {*} h - Parâmetro.
-   * @param {*} r - Parâmetro.
-   * @returns {*} - Retorno.
-   */
-  const drawRoundedRect = (x, y, w, h, r) => {
-    const radius = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.arcTo(x + w, y, x + w, y + h, radius);
-    ctx.arcTo(x + w, y + h, x, y + h, radius);
-    ctx.arcTo(x, y + h, x, y, radius);
-    ctx.arcTo(x, y, x + w, y, radius);
-    ctx.closePath();
-  };
+    /**
+     * Função drawRoundedRect.
+     * @param {*} x - Parâmetro.
+     * @param {*} y - Parâmetro.
+     * @param {*} w - Parâmetro.
+     * @param {*} h - Parâmetro.
+     * @param {*} r - Parâmetro.
+     * @returns {*} - Retorno.
+     */
+    const drawRoundedRect = (x, y, w, h, r) => {
+      const radius = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + w, y, x + w, y + h, radius);
+      ctx.arcTo(x + w, y + h, x, y + h, radius);
+      ctx.arcTo(x, y + h, x, y, radius);
+      ctx.arcTo(x, y, x + w, y, radius);
+      ctx.closePath();
+    };
 
     let printed = 0;
     sections.forEach((section) => {
@@ -1775,7 +1849,6 @@ const renderGraphImage = ({
     }
   }
 
-
   return canvas.toBuffer('image/png');
 };
 
@@ -1790,7 +1863,15 @@ const renderGraphImage = ({
  * @param {*} senderJid - Parâmetro.
  * @returns {*} - Retorno.
  */
-export async function handleInteractionGraphCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, args, senderJid }) {
+export async function handleInteractionGraphCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  isGroupMessage,
+  args,
+  senderJid,
+}) {
   try {
     const botJid = sock?.user?.id ? `${sock.user.id.split(':')[0]}@s.whatsapp.net` : null;
     const focusJid = getFocusJid(messageInfo, args || [], senderJid);
@@ -1799,7 +1880,11 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
     if (cached) {
       await sock.sendMessage(
         remoteJid,
-        { image: cached.imageBuffer, caption: cached.captionText, ...(cached.mentions?.length ? { mentions: cached.mentions } : {}) },
+        {
+          image: cached.imageBuffer,
+          caption: cached.captionText,
+          ...(cached.mentions?.length ? { mentions: cached.mentions } : {}),
+        },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );
       return;
@@ -1816,25 +1901,7 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
     const rows = await executeQuery(
       `SELECT
         e.src,
-        (
-          SELECT JSON_UNQUOTE(JSON_EXTRACT(m2.raw_message, '$.pushName'))
-          FROM messages m2
-          WHERE m2.sender_id = e.src
-            AND m2.raw_message IS NOT NULL
-            AND JSON_EXTRACT(m2.raw_message, '$.pushName') IS NOT NULL
-          ORDER BY m2.id DESC
-          LIMIT 1
-        ) AS src_pushName,
         e.dst,
-        (
-          SELECT JSON_UNQUOTE(JSON_EXTRACT(m3.raw_message, '$.pushName'))
-          FROM messages m3
-          WHERE m3.sender_id = e.dst
-            AND m3.raw_message IS NOT NULL
-            AND JSON_EXTRACT(m3.raw_message, '$.pushName') IS NOT NULL
-          ORDER BY m3.id DESC
-          LIMIT 1
-        ) AS dst_pushName,
         e.replies AS replies_a_para_b,
         IFNULL(r.replies, 0) AS replies_b_para_a,
         (e.replies + IFNULL(r.replies, 0)) AS replies_total_par,
@@ -1865,6 +1932,13 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
         WHERE m.raw_message IS NOT NULL
           AND m.sender_id IS NOT NULL
           ${botJid ? 'AND m.sender_id <> ?' : ''}
+          AND (
+            CASE
+              WHEN m.timestamp > 1000000000000 THEN FROM_UNIXTIME(m.timestamp / 1000)
+              WHEN m.timestamp > 1000000000 THEN FROM_UNIXTIME(m.timestamp)
+              ELSE m.timestamp
+            END
+          ) >= NOW() - INTERVAL ${SOCIAL_RECENT_DAYS} DAY
           AND COALESCE(
             JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
             JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
@@ -1900,6 +1974,13 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
         WHERE m.raw_message IS NOT NULL
           AND m.sender_id IS NOT NULL
           ${botJid ? 'AND m.sender_id <> ?' : ''}
+          AND (
+            CASE
+              WHEN m.timestamp > 1000000000000 THEN FROM_UNIXTIME(m.timestamp / 1000)
+              WHEN m.timestamp > 1000000000 THEN FROM_UNIXTIME(m.timestamp)
+              ELSE m.timestamp
+            END
+          ) >= NOW() - INTERVAL ${SOCIAL_RECENT_DAYS} DAY
         AND COALESCE(
           JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
           JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
@@ -1918,7 +1999,7 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
         AND e.dst <> ''
         AND e.src <> e.dst
       ORDER BY replies_total_par DESC, e.last_ts DESC
-      LIMIT 80000`,
+      LIMIT ${SOCIAL_GRAPH_LIMIT}`,
       botJid ? [botJid, botJid] : [],
     );
 
@@ -1929,9 +2010,15 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
         src: normalizeJidWithParticipants(row.src, participantIndex),
         dst: normalizeJidWithParticipants(row.dst, participantIndex),
       }))
-      .filter((row) => !participantIndex.size || (participantIndex.has(row.src) && participantIndex.has(row.dst)));
+      .filter(
+        (row) =>
+          !participantIndex.size ||
+          (participantIndex.has(row.src) && participantIndex.has(row.dst)),
+      );
 
-    const normalizedFocus = focusJid ? normalizeJidWithParticipants(focusJid, participantIndex) : null;
+    const normalizedFocus = focusJid
+      ? normalizeJidWithParticipants(focusJid, participantIndex)
+      : null;
     const filteredRows = normalizedFocus
       ? normalizedRows.filter((row) => row.src === normalizedFocus || row.dst === normalizedFocus)
       : normalizedRows;
@@ -2030,7 +2117,12 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
     let profileText = null;
     let profileSocialText = null;
     if (normalizedFocus) {
-      profileText = await buildProfileSection({ remoteJid, focusJid: normalizedFocus, isGroupMessage, botJid });
+      profileText = await buildProfileSection({
+        remoteJid,
+        focusJid: normalizedFocus,
+        isGroupMessage,
+        botJid,
+      });
 
       const globalClustersWithKeywords = assignClanNamesFromList(globalGraphData.clusters);
       const globalClanByJid = new Map();
@@ -2050,8 +2142,14 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
 
       const userNode = globalGraphData.nodes.find((node) => node.jid === normalizedFocus);
       const totalInteractions = Number(userNode?.total || 0);
-      const repliesSent = normalizedRows.reduce((acc, row) => acc + (row.src === normalizedFocus ? Number(row.replies_a_para_b || 0) : 0), 0);
-      const repliesReceived = normalizedRows.reduce((acc, row) => acc + (row.dst === normalizedFocus ? Number(row.replies_a_para_b || 0) : 0), 0);
+      const repliesSent = normalizedRows.reduce(
+        (acc, row) => acc + (row.src === normalizedFocus ? Number(row.replies_a_para_b || 0) : 0),
+        0,
+      );
+      const repliesReceived = normalizedRows.reduce(
+        (acc, row) => acc + (row.dst === normalizedFocus ? Number(row.replies_a_para_b || 0) : 0),
+        0,
+      );
       const partners = new Set();
       normalizedRows.forEach((row) => {
         if (row.src === normalizedFocus && row.dst) partners.add(row.dst);
@@ -2059,7 +2157,9 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
       });
       const clanName = globalClanByJid.get(normalizedFocus) || 'N/D';
       const clanColor = hslToColorName(globalClanColorByJid.get(normalizedFocus));
-      const influenceIndex = globalInfluenceRanking.findIndex((entry) => entry.jid === normalizedFocus);
+      const influenceIndex = globalInfluenceRanking.findIndex(
+        (entry) => entry.jid === normalizedFocus,
+      );
       const influenceRank = influenceIndex >= 0 ? `#${influenceIndex + 1}` : 'N/D';
 
       const socialLines = [
@@ -2074,47 +2174,52 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
       profileSocialText = socialLines.join('\n');
     }
 
-    const focusDisplay = normalizedFocus ? getNameLabel(normalizedFocus, names.get(normalizedFocus)) : null;
+    const focusDisplay = normalizedFocus
+      ? getNameLabel(normalizedFocus, names.get(normalizedFocus))
+      : null;
     const introLines = normalizedFocus
       ? [
-        '🎯 Social foco',
-        `👤 Usuário: ${focusDisplay || 'N/D'}`,
-        '🔗 A imagem mostra só a bolha do usuário e suas ligações diretas.',
-        `👥 Total de usuários participantes (geral do bot): ${totalParticipants}`,
-        '🧾 Perfil acima = dados do grupo atual.',
-        '🌐 Social global acima = dados gerais do bot.',
-        '🛠️ Use social para ver o panorama completo do grupo.',
-      ]
+          '🎯 Social foco',
+          `👤 Usuário: ${focusDisplay || 'N/D'}`,
+          '🔗 A imagem mostra só a bolha do usuário e suas ligações diretas.',
+          `👥 Total de usuários participantes (geral do bot): ${totalParticipants}`,
+          '🧾 Perfil acima = dados do grupo atual.',
+          '🌐 Social global acima = dados gerais do bot.',
+          '🛠️ Use social para ver o panorama completo do grupo.',
+        ]
       : [
-        '✨ *Social*',
-        '🌍 Este gráfico mostra as conexões do sistema inteiro.',
-        '👥 Dados de todos os usuários do bot.',
-        `🧩 Total de usuários participantes: ${totalParticipants}`,
-        `🧾 Início da contagem: ${dbStartLabel}`,
-        '🫧 Tamanho da bolha = volume de interações (replies enviadas/recebidas).',
-        '🧭 Arestas e setas indicam direção e intensidade das respostas.',
-        '🎨 Cores indicam o clan de cada pessoa.',
-        '',
-        '🧠 Para que serve:',
-        '• Identificar quem mais conversa e com quem interage.',
-        '• Visualizar subgrupos (clans) e líderes naturais.',
-        '• Entender conexões fortes, influentes e pontes entre pessoas.',
-        '',
-        '🧩 Como funcionam os clans:',
-        '• Um clan é um grupo de pessoas que interagem mais entre si do que com o resto.',
-        '• Os nomes dos clans seguem uma lista fixa (Alpha, Beta, Gamma...).',
-        '• O líder do clan é quem mais interage dentro do próprio clan.',
-        '',
-        '🛠️ Como usar o comando:',
-        '• Digite *social* para ver o panorama completo.',
-        '• Use *social foco @pessoa* para destacar um usuário específico e ver o perfil.',
-        '• Compare as caixas do painel para entender influência, crescimento e pares fortes.',
-      ];
+          '✨ *Social*',
+          '🌍 Este gráfico mostra as conexões do sistema inteiro.',
+          '👥 Dados de todos os usuários do bot.',
+          `🧩 Total de usuários participantes: ${totalParticipants}`,
+          `🧾 Início da contagem: ${dbStartLabel}`,
+          '🫧 Tamanho da bolha = volume de interações (replies enviadas/recebidas).',
+          '🧭 Arestas e setas indicam direção e intensidade das respostas.',
+          '🎨 Cores indicam o clan de cada pessoa.',
+          '',
+          '🧠 Para que serve:',
+          '• Identificar quem mais conversa e com quem interage.',
+          '• Visualizar subgrupos (clans) e líderes naturais.',
+          '• Entender conexões fortes, influentes e pontes entre pessoas.',
+          '',
+          '🧩 Como funcionam os clans:',
+          '• Um clan é um grupo de pessoas que interagem mais entre si do que com o resto.',
+          '• Os nomes dos clans seguem uma lista fixa (Alpha, Beta, Gamma...).',
+          '• O líder do clan é quem mais interage dentro do próprio clan.',
+          '',
+          '🛠️ Como usar o comando:',
+          '• Digite *social* para ver o panorama completo.',
+          '• Use *social foco @pessoa* para destacar um usuário específico e ver o perfil.',
+          '• Compare as caixas do painel para entender influência, crescimento e pares fortes.',
+        ];
     const introBlocks = [profileText, profileSocialText, introLines.join('\n')].filter(Boolean);
     const introText = introBlocks.join('\n\n');
     const captionText = summaryText ? `${introText}\n\n${summaryText}` : introText;
 
-    const totalInteractions = filteredRows.reduce((acc, row) => acc + Number(row.replies_total_par || 0), 0);
+    const totalInteractions = filteredRows.reduce(
+      (acc, row) => acc + Number(row.replies_total_par || 0),
+      0,
+    );
     const makeLine = (text, color) => (color ? { text, color } : text);
     const clanBoxLines = clustersWithKeywords.slice(0, 8).map((cluster) => {
       const leaderJid = clanLeaderById.get(cluster.id);
@@ -2126,10 +2231,24 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
 
     const mentionLines = buildTopMentionsLines(filteredRows, names, clanByJid, clanColorByJid);
     const pairLines = buildTopPairsLines(filteredRows, names, clanByJid, clanColorByJid);
-    const receivedLines = buildTopRepliesReceivedLines(filteredRows, names, clanByJid, clanColorByJid);
+    const receivedLines = buildTopRepliesReceivedLines(
+      filteredRows,
+      names,
+      clanByJid,
+      clanColorByJid,
+    );
     const sentLines = buildTopRepliesSentLines(filteredRows, names, clanByJid, clanColorByJid);
-    const activeClansLines = buildTopActiveClansLines(filteredRows, clustersWithKeywords, graphData.clusterColors);
-    const connectorLines = buildGlobalConnectorsLines(filteredRows, names, clanByJid, clanColorByJid);
+    const activeClansLines = buildTopActiveClansLines(
+      filteredRows,
+      clustersWithKeywords,
+      graphData.clusterColors,
+    );
+    const connectorLines = buildGlobalConnectorsLines(
+      filteredRows,
+      names,
+      clanByJid,
+      clanColorByJid,
+    );
     const skewLines = buildSkewLines(ranking);
 
     const summaryLines = [
@@ -2146,7 +2265,10 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
         const display = getNameLabel(entry.jid, names.get(entry.jid));
         const clan = clanByJid.get(entry.jid);
         const color = clanColorByJid.get(entry.jid);
-        return makeLine(`${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${Math.round(entry.score)}`, color);
+        return makeLine(
+          `${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${Math.round(entry.score)}`,
+          color,
+        );
       }),
       '',
       'Mais interacoes',
@@ -2154,7 +2276,10 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
         const display = getNameLabel(entry.jid, names.get(entry.jid));
         const clan = clanByJid.get(entry.jid);
         const color = clanColorByJid.get(entry.jid);
-        return makeLine(`${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${entry.total}`, color);
+        return makeLine(
+          `${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${entry.total}`,
+          color,
+        );
       }),
       '',
       'Clans',
@@ -2197,13 +2322,12 @@ export async function handleInteractionGraphCommand({ sock, remoteJid, messageIn
     );
   } catch (error) {
     logger.error('Erro ao gerar ranking de interacoes:', { error: error.message });
-    await sock.sendMessage(remoteJid, { text: `Erro ao gerar ranking de interacoes: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: `Erro ao gerar ranking de interacoes: ${error.message}` },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   }
 }
 
-export {
-  assignClanNamesFromList,
-  buildGraphData,
-  buildInfluenceRanking,
-  buildSocialRanking,
-};
+export { assignClanNamesFromList, buildGraphData, buildInfluenceRanking, buildSocialRanking };
