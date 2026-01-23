@@ -9,6 +9,7 @@ import {
 } from '../modules/stickerModule/stickerTextCommand.js';
 import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/playCommand.js';
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
+import { handleGlobalRankingCommand } from '../modules/statsModule/globalRankingCommand.js';
 import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
 import { handleInteractionGraphCommand } from '../modules/statsModule/interactionGraphCommand.js';
 import { getExpiration } from '../config/baileysConfig.js';
@@ -194,6 +195,18 @@ export const handleMessages = async (update, sock) => {
             case 'rank':
             case 'top5':
               await handleRankingCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                isGroupMessage,
+              });
+              break;
+
+            case 'rankingglobal':
+            case 'rankglobal':
+            case 'globalrank':
+              await handleGlobalRankingCommand({
                 sock,
                 remoteJid,
                 messageInfo,

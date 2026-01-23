@@ -37,6 +37,7 @@ Olá, ${senderName}! 👋
 📊 *Estatísticas*  
 ━━━━━━━━━━━━━━━  
 ➡️ *${commandPrefix}ranking* *(top 5 do grupo)*  
+➡️ *${commandPrefix}rankingglobal* *(top 5 do bot)*  
 ➡️ *${commandPrefix}social* *(ranking de interações)*  
 ➡️ *${commandPrefix}semmsg* *(membros sem mensagens)*  
 
