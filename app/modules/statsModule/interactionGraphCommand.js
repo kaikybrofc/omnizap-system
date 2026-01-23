@@ -36,6 +36,7 @@ const SOCIAL_CACHE = new Map();
 
 const SOCIAL_RECENT_DAYS = 60;
 const SOCIAL_GRAPH_LIMIT = 20000;
+const SOCIAL_NODE_LIMIT = 180;
 
 const PROFILE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PROFILE_CACHE_LIMIT = 300;
@@ -139,6 +140,39 @@ const loadProfileImages = async ({ sock, jids, remoteJid, concurrency = 6 }) => 
   const workers = Array.from({ length: concurrency }, () => worker());
   await Promise.all(workers);
   return results;
+};
+
+const limitGraphData = (graphData, limit) => {
+  if (!graphData || !Array.isArray(graphData.nodes) || graphData.nodes.length <= limit) {
+    return graphData;
+  }
+
+  const nodes = graphData.nodes.slice(0, limit);
+  const allowed = new Set(nodes.map((node) => node.jid));
+  const edges = (graphData.edges || []).filter((edge) => allowed.has(edge.src) && allowed.has(edge.dst));
+
+  const nodeClusters = new Map();
+  (graphData.nodeClusters || new Map()).forEach((clusterId, jid) => {
+    if (allowed.has(jid)) nodeClusters.set(jid, clusterId);
+  });
+
+  const clusterMap = new Map();
+  nodeClusters.forEach((clusterId, jid) => {
+    if (!clusterMap.has(clusterId)) clusterMap.set(clusterId, []);
+    clusterMap.get(clusterId).push(jid);
+  });
+
+  const clusters = Array.from(clusterMap.entries())
+    .map(([id, members]) => ({ id, members }))
+    .sort((a, b) => b.members.length - a.members.length);
+
+  return {
+    nodes,
+    edges,
+    clusters,
+    clusterColors: graphData.clusterColors,
+    nodeClusters,
+  };
 };
 
 /**
@@ -2023,7 +2057,7 @@ export async function handleInteractionGraphCommand({
       ? normalizedRows.filter((row) => row.src === normalizedFocus || row.dst === normalizedFocus)
       : normalizedRows;
 
-    const directedEdges = filteredRows.flatMap((row) => {
+    let directedEdges = filteredRows.flatMap((row) => {
       const aToB = Number(row.replies_a_para_b || 0);
       const bToA = Number(row.replies_b_para_a || 0);
       const items = [];
@@ -2082,7 +2116,9 @@ export async function handleInteractionGraphCommand({
     const dbStartLabel = formatDate(dbStartRow?.db_start || null);
 
     const globalGraphData = buildGraphData(normalizedRows, globalNames);
-    const graphData = buildGraphData(filteredRows, names);
+    const graphData = limitGraphData(buildGraphData(filteredRows, names), SOCIAL_NODE_LIMIT);
+    const allowedJids = new Set(graphData.nodes.map((node) => node.jid));
+    directedEdges = directedEdges.filter((edge) => allowedJids.has(edge.src) && allowedJids.has(edge.dst));
     const clustersWithKeywords = assignClanNamesFromList(graphData.clusters);
     const clanByJid = new Map();
     clustersWithKeywords.forEach((cluster) => {
