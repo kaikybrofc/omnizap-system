@@ -519,22 +519,22 @@ const buildProfileText = ({
   dbStart,
 }) => {
   const lines = [
-    `🔹 Usuário: ${handle}`,
-    `🔸 Cargo: ${role}`,
+    `👤 Usuário: ${handle}`,
+    `🛡️ Cargo: ${role}`,
+    '',
+    '📊 Atividade no grupo',
     `💬 Mensagens: ${totalMessages}`,
-    `📅 Primeira: ${formatDate(firstMessage)}`,
-    `🕘 Última: ${formatDate(lastMessage)}`,
-    `📆 Dias ativos: ${activeDays}`,
     `📈 Média/dia: ${avgPerDay}`,
     `📊 Participação: ${percentOfGroup}`,
+    `🏆 Ranking no grupo: ${rank !== null ? `#${rank}` : 'N/D'}`,
+    '',
+    `📅 Primeira mensagem: ${formatDate(firstMessage)}`,
+    `🕘 Última mensagem: ${formatDate(lastMessage)}`,
+    `📆 Dias ativos: ${activeDays}`,
+    '',
+    `🧾 Início da contagem: ${formatDate(dbStart)}`,
   ];
 
-  if (rank !== null) {
-    lines.push(`🏆 Ranking: #${rank}`);
-  }
-
-  lines.push('ℹ️ Ranking é do grupo e pode ser visto com /rank.');
-  lines.push(`🧾 Início da contagem: ${formatDate(dbStart)}`);
   return lines.join('\n');
 };
 
@@ -610,7 +610,7 @@ const buildProfileSection = async ({ remoteJid, focusJid, isGroupMessage, botJid
 
   const handleUser = getJidUser(focusJid);
   const handle = handleUser ? `@${handleUser}` : 'Desconhecido';
-  return buildProfileText({
+  const text = buildProfileText({
     handle,
     totalMessages,
     firstMessage,
@@ -622,6 +622,20 @@ const buildProfileSection = async ({ remoteJid, focusJid, isGroupMessage, botJid
     role,
     dbStart: dbStartRow?.db_start || null,
   });
+
+  return {
+    text,
+    meta: {
+      totalMessages,
+      firstMessage,
+      lastMessage,
+      activeDays,
+      avgPerDay,
+      percentOfGroup,
+      rank,
+      role,
+    },
+  };
 };
 
 /**
@@ -1458,6 +1472,9 @@ const renderGraphImage = ({
   nodeClusters,
   totalMessages,
   clanLeaders,
+  highlightInfluence,
+  highlightConnectors,
+  focusBadges,
   focusJid,
   avatarImages,
   showPanel = true,
@@ -1474,6 +1491,18 @@ const renderGraphImage = ({
   ctx.imageSmoothingQuality = 'high';
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
+  const isFocusView = Boolean(focusJid);
+
+  const drawRoundedRect = (x, y, w, h, r) => {
+    const radius = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
+  };
 
   ctx.fillStyle = '#0f172a';
   ctx.fillRect(0, 0, width, height);
@@ -1518,7 +1547,12 @@ const renderGraphImage = ({
   const sortedNodes = [...nodes].sort((a, b) => b.total - a.total);
   sortedNodes.forEach((node) => {
     const weight = maxNodeValue ? node.total / maxNodeValue : 0.2;
-    const nodeRadius = 36 + weight * 36;
+    const minRadius = isFocusView ? 24 : 36;
+    const extraRadius = isFocusView ? 46 : 36;
+    let nodeRadius = minRadius + weight * extraRadius;
+    if (isFocusView && focusJid && node.jid === focusJid) {
+      nodeRadius *= 1.12;
+    }
     nodeRadii.set(node.jid, nodeRadius);
   });
 
@@ -1707,6 +1741,14 @@ const renderGraphImage = ({
     nodePositions.set(node.jid, positions[index]);
   });
 
+  const topAnchors = sortedNodes.slice(0, 2).map((node) => node.jid);
+  topAnchors.forEach((jid) => {
+    const pos = nodePositions.get(jid);
+    if (!pos) return;
+    pos.x = pos.x * 0.88 + centerX * 0.12;
+    pos.y = pos.y * 0.88 + centerY * 0.12;
+  });
+
   /**
    * Função hashString.
    * @param {*} value - Parâmetro.
@@ -1733,10 +1775,53 @@ const renderGraphImage = ({
     const dashBase = 6 + (hash % 10);
     const gapBase = 4 + ((hash >> 4) % 8);
     return {
-      color: `hsla(${hue}, ${saturation}%, ${light}%, 0.85)`,
+      hue,
+      saturation,
+      light,
       dash: [dashBase, gapBase],
     };
   };
+
+  if (nodeClusters && clusterColors) {
+    const clusterPoints = new Map();
+    nodes.forEach((node) => {
+      const clusterId = nodeClusters.get(node.jid);
+      if (!clusterId) return;
+      const pos = nodePositions.get(node.jid);
+      if (!pos) return;
+      if (!clusterPoints.has(clusterId)) {
+        clusterPoints.set(clusterId, { sumX: 0, sumY: 0, count: 0, points: [] });
+      }
+      const entry = clusterPoints.get(clusterId);
+      entry.sumX += pos.x;
+      entry.sumY += pos.y;
+      entry.count += 1;
+      entry.points.push({ x: pos.x, y: pos.y, r: nodeRadii.get(node.jid) || 30 });
+    });
+
+    clusterPoints.forEach((entry, clusterId) => {
+      if (!entry.count) return;
+      const cx = entry.sumX / entry.count;
+      const cy = entry.sumY / entry.count;
+      let radius = 0;
+      entry.points.forEach((pt) => {
+        const dist = Math.hypot(pt.x - cx, pt.y - cy);
+        radius = Math.max(radius, dist + pt.r + 28);
+      });
+      radius = Math.min(radius, Math.min(graphWidth, height) * 0.35);
+      const color = clusterColors.get(clusterId);
+      if (!color) return;
+      ctx.save();
+      ctx.globalAlpha = 0.08;
+      ctx.fillStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 60;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
 
   drawEdges.forEach((edge) => {
     const from = nodePositions.get(edge.src);
@@ -1744,9 +1829,16 @@ const renderGraphImage = ({
     if (!from || !to) return;
     const weight = maxEdgeValue ? edge.total / maxEdgeValue : 0.2;
     const style = edgeStyleFromKey(`${edge.src}->${edge.dst}`);
-    ctx.strokeStyle = style.color;
-    ctx.setLineDash(style.dash);
-    ctx.lineWidth = 1.5 + weight * 7;
+    const isWeak = weight < 0.25;
+    const isStrong = weight > 0.65;
+    let alpha = 0.18 + weight * 0.45;
+    if (isWeak) alpha = Math.min(alpha, 0.28);
+    if (isFocusView && focusJid && (edge.src === focusJid || edge.dst === focusJid)) {
+      alpha = Math.min(0.7, alpha + 0.08);
+    }
+    ctx.strokeStyle = `hsla(${style.hue}, ${style.saturation}%, ${style.light}%, ${alpha})`;
+    ctx.setLineDash(isWeak ? [6, 9] : []);
+    ctx.lineWidth = (isStrong ? 1.2 : 0.6) + weight * 5.2;
     const fromRadius = nodeRadii.get(edge.src) || 30;
     const toRadius = nodeRadii.get(edge.dst) || 30;
     const angle = Math.atan2(to.y - from.y, to.x - from.x);
@@ -1759,8 +1851,8 @@ const renderGraphImage = ({
     ctx.lineTo(endX, endY);
     ctx.stroke();
     ctx.setLineDash([]);
-    const arrowSize = 8 + weight * 6;
-    ctx.fillStyle = style.color;
+    const arrowSize = 5 + weight * 4.5;
+    ctx.fillStyle = `hsla(${style.hue}, ${style.saturation}%, ${style.light}%, ${Math.min(0.55, alpha + 0.12)})`;
     ctx.beginPath();
     ctx.moveTo(endX, endY);
     ctx.lineTo(
@@ -1859,6 +1951,29 @@ const renderGraphImage = ({
     const clusterId = nodeClusters?.get(node.jid);
     const clusterColor = clusterId ? clusterColors?.get(clusterId) : null;
     const avatarImage = avatarImages?.get(node.jid) || null;
+    const weight = maxNodeValue ? node.total / maxNodeValue : 0.2;
+    const nodeAlpha = isFocusView ? 0.35 + weight * 0.65 : 1;
+    const isInfluence = highlightInfluence?.has(node.jid);
+    const isConnector = highlightConnectors?.has(node.jid);
+    const isLeader = clanLeaders?.has(node.jid);
+    let badge = null;
+    if (isLeader) badge = { icon: '👑', color: '#facc15' };
+    else if (isInfluence) badge = { icon: '🔥', color: '#f97316' };
+    else if (isConnector) badge = { icon: '🔗', color: '#38bdf8' };
+
+    if (isInfluence || isLeader) {
+      const glowColor = badge?.color || clusterColor || '#38bdf8';
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(position.x, position.y, nodeRadius + 10, 0, Math.PI * 2);
+      ctx.strokeStyle = glowColor;
+      ctx.lineWidth = 6;
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = glowColor;
+      ctx.globalAlpha = 0.45;
+      ctx.stroke();
+      ctx.restore();
+    }
 
     if (focusJid && node.jid === focusJid) {
       ctx.save();
@@ -1874,6 +1989,13 @@ const renderGraphImage = ({
 
     if (avatarImage) {
       ctx.save();
+      ctx.globalAlpha = nodeAlpha;
+      ctx.beginPath();
+      ctx.arc(position.x, position.y, nodeRadius + 4, 0, Math.PI * 2);
+      ctx.fillStyle = clusterColor || '#38bdf8';
+      ctx.globalAlpha = nodeAlpha * 0.25;
+      ctx.fill();
+      ctx.globalAlpha = nodeAlpha;
       ctx.beginPath();
       ctx.arc(position.x, position.y, nodeRadius, 0, Math.PI * 2);
       ctx.clip();
@@ -1887,6 +2009,7 @@ const renderGraphImage = ({
       ctx.restore();
     } else {
       ctx.save();
+      ctx.globalAlpha = nodeAlpha;
       ctx.fillStyle = clusterColor || '#38bdf8';
       ctx.shadowBlur = 12;
       ctx.shadowColor = 'rgba(15, 23, 42, 0.35)';
@@ -1896,11 +2019,14 @@ const renderGraphImage = ({
       ctx.restore();
     }
 
+    ctx.save();
+    ctx.globalAlpha = nodeAlpha;
     ctx.strokeStyle = clusterColor || '#0ea5e9';
     ctx.lineWidth = clanLeaders?.has(node.jid) ? 6 : 3;
     ctx.beginPath();
     ctx.arc(position.x, position.y, nodeRadius, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.restore();
 
     drawTextInsideBubble(
       node.label,
@@ -1923,6 +2049,49 @@ const renderGraphImage = ({
     ctx.textBaseline = 'middle';
     ctx.fillText(`${node.total}`, position.x, position.y + nodeRadius - 12);
     ctx.restore();
+
+    if (badge) {
+      ctx.save();
+      const badgeRadius = 12;
+      const bx = position.x + nodeRadius - 6;
+      const by = position.y - nodeRadius + 8;
+      ctx.beginPath();
+      ctx.arc(bx, by, badgeRadius, 0, Math.PI * 2);
+      ctx.fillStyle = badge.color;
+      ctx.shadowColor = badge.color;
+      ctx.shadowBlur = 8;
+      ctx.fill();
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(badge.icon, bx, by + 1);
+      ctx.restore();
+    }
+
+    if (focusBadges && focusJid && node.jid === focusJid && focusBadges.length) {
+      ctx.save();
+      const badgeText = focusBadges.join(' • ');
+      ctx.font = 'bold 14px Arial';
+      const textWidth = ctx.measureText(badgeText).width;
+      const padX = 12;
+      const padY = 6;
+      const badgeWidth = textWidth + padX * 2;
+      const badgeHeight = 24;
+      const bx = position.x - badgeWidth / 2;
+      const by = position.y - nodeRadius - badgeHeight - 10;
+      drawRoundedRect(bx, by, badgeWidth, badgeHeight, 12);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.75)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#f8fafc';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(badgeText, position.x, by + badgeHeight / 2 + 1);
+      ctx.restore();
+    }
   });
 
   /**
@@ -1978,29 +2147,11 @@ const renderGraphImage = ({
       const clean = lineText.replace(/\*/g, '').replace(/•/g, '•').trim();
       const wrapped = wrapText(clean, textMaxWidth - 24);
       const color = getLineColor(line);
-      wrapped.forEach((wrapLine) => current.push({ text: wrapLine, color }));
+      wrapped.forEach((wrapLine, index) =>
+        current.push({ text: wrapLine, color, isHeader: current.length === 0 && index === 0 }),
+      );
     });
     if (current.length) sections.push(current);
-
-    /**
-     * Função drawRoundedRect.
-     * @param {*} x - Parâmetro.
-     * @param {*} y - Parâmetro.
-     * @param {*} w - Parâmetro.
-     * @param {*} h - Parâmetro.
-     * @param {*} r - Parâmetro.
-     * @returns {*} - Retorno.
-     */
-    const drawRoundedRect = (x, y, w, h, r) => {
-      const radius = Math.min(r, w / 2, h / 2);
-      ctx.beginPath();
-      ctx.moveTo(x + radius, y);
-      ctx.arcTo(x + w, y, x + w, y + h, radius);
-      ctx.arcTo(x + w, y + h, x, y + h, radius);
-      ctx.arcTo(x, y + h, x, y, radius);
-      ctx.arcTo(x, y, x + w, y, radius);
-      ctx.closePath();
-    };
 
     let printed = 0;
     sections.forEach((section) => {
@@ -2021,8 +2172,21 @@ const renderGraphImage = ({
 
       let lineY = textY + boxPaddingY;
       linesToDraw.forEach((wrapLine) => {
-        ctx.fillStyle = wrapLine.color;
-        ctx.fillText(wrapLine.text, textX + boxPaddingX, lineY);
+        if (wrapLine.isHeader) {
+          ctx.font = 'bold 16px Arial';
+          ctx.fillStyle = wrapLine.color;
+          ctx.fillText(wrapLine.text, textX + boxPaddingX, lineY);
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(textX + boxPaddingX, lineY + 18);
+          ctx.lineTo(textX + textMaxWidth - 12, lineY + 18);
+          ctx.stroke();
+        } else {
+          ctx.font = '14px Arial';
+          ctx.fillStyle = wrapLine.color;
+          ctx.fillText(wrapLine.text, textX + boxPaddingX, lineY);
+        }
         lineY += lineHeight;
         printed += 1;
       });
@@ -2032,6 +2196,32 @@ const renderGraphImage = ({
     if (printed >= maxLines) {
       ctx.fillText('…', textX, textY);
     }
+  }
+
+  if (isFocusView) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const legendX = 40;
+    const legendY = height - 70;
+    ctx.fillText('● Tamanho = interações', legendX, legendY);
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(legendX, legendY + 20);
+    ctx.lineTo(legendX + 28, legendY + 20);
+    ctx.stroke();
+    ctx.setLineDash([6, 9]);
+    ctx.beginPath();
+    ctx.moveTo(legendX + 90, legendY + 20);
+    ctx.lineTo(legendX + 118, legendY + 20);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillText('Linha sólida = forte   Linha pontilhada = fraca', legendX + 130, legendY + 20);
+    ctx.restore();
   }
 
   return canvas.toBuffer('image/png');
@@ -2193,7 +2383,7 @@ export async function handleInteractionGraphCommand({
       const runtimeKey = normalizeJidWithParticipants(senderJid, participantIndex);
       runtimeNames.set(runtimeKey, messageInfo.pushName);
     }
-    const { ranking, names } = buildSocialRanking(filteredRows);
+    const { ranking, partners, names } = buildSocialRanking(filteredRows);
     if (runtimeNames) {
       runtimeNames.forEach((value, key) => {
         if (!names.get(key)) names.set(key, value);
@@ -2211,6 +2401,11 @@ export async function handleInteractionGraphCommand({
     latestNames.forEach((value, key) => {
       if (!globalNames.get(key)) globalNames.set(key, value);
     });
+
+    const connectorRanking = Array.from(partners.entries())
+      .map(([jid, map]) => ({ jid, degree: map.size }))
+      .sort((a, b) => b.degree - a.degree)
+      .slice(0, 5);
 
     const growthRows = await executeQuery(
       `SELECT sender_id AS jid,
@@ -2263,6 +2458,8 @@ export async function handleInteractionGraphCommand({
       edges: graphData.edges,
       nodeClusters: graphData.nodeClusters,
     });
+    const highlightInfluence = new Set((influenceRanking || []).slice(0, 5).map((entry) => entry.jid));
+    const highlightConnectors = new Set(connectorRanking.map((entry) => entry.jid));
     const { reciprocity, avgResponseMs } = computeReciprocityAndAvg(filteredRows);
     const clanLeaders = buildClanLeaders(graphData.nodes, graphData.nodeClusters);
     const clanLeaderById = buildClanLeaderMap(graphData.nodes, graphData.nodeClusters);
@@ -2281,14 +2478,18 @@ export async function handleInteractionGraphCommand({
 
     // "grupo": dados restritos ao chat_id atual
     let profileText = null;
+    let profileMeta = null;
     let profileSocialText = null;
+    let focusBadges = [];
     if (normalizedFocus) {
-      profileText = await buildProfileSection({
+      const profileSection = await buildProfileSection({
         remoteJid,
         focusJid: normalizedFocus,
         isGroupMessage,
         botJid,
       });
+      profileText = profileSection?.text || null;
+      profileMeta = profileSection?.meta || null;
 
       const globalClustersWithKeywords = assignClanNamesFromList(globalGraphData.clusters);
       const globalClanByJid = new Map();
@@ -2329,54 +2530,80 @@ export async function handleInteractionGraphCommand({
       const influenceRank = influenceIndex >= 0 ? `#${influenceIndex + 1}` : 'N/D';
 
       const socialLines = [
-        '🌐 Social global',
+        '🌐 Social global (bot inteiro)',
         `🧩 Clan: ${clanName} (${clanColor})`,
         `🔁 Interações: ${totalInteractions}`,
         `📤 Respostas enviadas: ${repliesSent}`,
         `📥 Respostas recebidas: ${repliesReceived}`,
         `🤝 Conexões únicas: ${partners.size}`,
-        `⭐ Influência (aprox): ${influenceRank}`,
+        `⭐ Influência (aprox.): ${influenceRank} global`,
       ];
       profileSocialText = socialLines.join('\n');
+
+      if (profileMeta?.rank) {
+        if (profileMeta.rank === 1) focusBadges.push('👑 #1');
+        else focusBadges.push(`🏆 #${profileMeta.rank}`);
+      }
+      if (profileMeta?.role && profileMeta.role !== 'membro') {
+        focusBadges.push('🛡️ Admin');
+      }
+      if (influenceIndex >= 0) {
+        focusBadges.push(`⭐ #${influenceIndex + 1}`);
+      }
+      focusBadges = focusBadges.slice(0, 2);
     }
 
-    const focusDisplay = normalizedFocus
-      ? getSummaryLabel(normalizedFocus, names.get(normalizedFocus))
-      : null;
     const introLines = normalizedFocus
       ? [
-          '🎯 Social foco',
-          `👤 Usuário: ${focusDisplay || 'N/D'}`,
-          '🔗 A imagem mostra só a bolha do usuário e suas ligações diretas.',
-          `👥 Total de usuários participantes (${SOCIAL_SCOPE_GLOBAL}): ${totalParticipants}`,
-          `🧾 Perfil acima = dados do ${SOCIAL_SCOPE_GROUP}.`,
-          `🌐 Social global acima = dados ${SOCIAL_SCOPE_GLOBAL}.`,
-          '🛠️ Use social para ver o panorama completo do sistema.',
+          '🎯 Modo Social Foco',
+          '👤 Visualização centrada no usuário',
+          '🔗 Mostra apenas ligações diretas',
+          `👥 Usuários globais analisados: ${totalParticipants}`,
+          '',
+          `ℹ️ Perfil acima = dados do ${SOCIAL_SCOPE_GROUP}`,
+          `🌐 Social global = dados do ${SOCIAL_SCOPE_GLOBAL}`,
+          '',
+          '🛠️ Use /social para ver o panorama completo',
+          '🏆 Use /rank para ranking do grupo',
         ]
       : [
-          '✨ *Social*',
-          '🌍 Este gráfico mostra as conexões do sistema inteiro.',
-          `👥 Dados ${SOCIAL_SCOPE_GLOBAL}.`,
-          `🧩 Total de usuários participantes (${SOCIAL_SCOPE_GLOBAL}): ${totalParticipants}`,
+          '🌐 Social – Grafo Global',
+          '',
+          '🌍 Este gráfico representa as conexões sociais de todo o sistema.',
+          '👥 Os dados são globais, considerando todos os grupos onde o bot atua.',
+          '',
+          `🧩 Total de usuários analisados: ${totalParticipants}`,
           `🧾 Início da contagem: ${dbStartLabel}`,
-          '🫧 Tamanho da bolha = volume de interações (replies enviadas/recebidas).',
-          '🧭 Arestas e setas indicam direção e intensidade das respostas.',
-          '🎨 Cores indicam o clan de cada pessoa.',
           '',
-          '🧠 Para que serve:',
-          '• Identificar quem mais conversa e com quem interage.',
-          '• Visualizar subgrupos (clans) e líderes naturais.',
-          '• Entender conexões fortes, influentes e pontes entre pessoas.',
+          '🔎 Como interpretar o gráfico',
           '',
-          '🧩 Como funcionam os clans:',
-          '• Um clan é um grupo de pessoas que interagem mais entre si do que com o resto.',
-          '• Os nomes dos clans seguem uma lista fixa (Alpha, Beta, Gamma...).',
-          '• O líder do clan é quem mais interage dentro do próprio clan.',
+          '🫧 Tamanho da bolha',
+          '→ Volume de interações (respostas enviadas e recebidas)',
           '',
-          '🛠️ Como usar o comando:',
-          '• Digite *social* para ver o panorama completo.',
-          '• Use *social foco @pessoa* para destacar um usuário específico e ver o perfil.',
-          '• Compare as caixas do painel para entender influência, crescimento e pares fortes.',
+          '🧭 Linhas e setas',
+          '→ Mostram quem responde quem e a intensidade das interações',
+          '',
+          '🎨 Cores',
+          '→ Indicam o clan ao qual cada pessoa pertence',
+          '',
+          '🧠 Para que serve',
+          '',
+          '• Identificar quem mais conversa no sistema',
+          '• Ver com quem cada pessoa mais interage',
+          '• Visualizar subgrupos (clans) e líderes naturais',
+          '• Detectar conexões fortes, influentes e pontes entre grupos',
+          '',
+          '🧩 Como funcionam os clans',
+          '',
+          '• Um clan é formado por pessoas que interagem mais entre si',
+          '• Os nomes seguem uma lista fixa (Alpha, Beta, Gamma, etc.)',
+          '• O líder do clan é quem possui mais interações dentro do próprio grupo',
+          '',
+          '🛠️ Como usar o comando',
+          '',
+          '• Digite social para ver o panorama completo do sistema',
+          '• Use social foco @pessoa para destacar um usuário específico',
+          '• Compare os painéis para entender influência, crescimento e pares fortes',
         ];
     const introBlocks = [profileText, profileSocialText, introLines.join('\n')].filter(Boolean);
     const introText = introBlocks.join('\n\n');
@@ -2474,6 +2701,9 @@ export async function handleInteractionGraphCommand({
       summaryLines,
       totalMessages,
       clanLeaders,
+      highlightInfluence,
+      highlightConnectors,
+      focusBadges,
       focusJid: normalizedFocus,
       avatarImages,
       showPanel: !normalizedFocus,
