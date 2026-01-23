@@ -24,6 +24,34 @@ const toMillis = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
+const getDisplayName = (pushName, jid) => {
+  if (pushName && typeof pushName === 'string' && pushName.trim() !== '') {
+    return pushName.trim();
+  }
+  if (!jid || typeof jid !== 'string') return 'Desconhecido';
+  return `@${jid.split('@')[0]}`;
+};
+
+const isLidJid = (jid) => typeof jid === 'string' && jid.endsWith('@lid');
+const isWhatsAppJid = (jid) => typeof jid === 'string' && jid.endsWith('@s.whatsapp.net');
+
+const resolveSenderIds = (rawJid, participantIndex) => {
+  if (!rawJid) return { displayId: null, mentionId: null, key: null };
+  const canonical = normalizeJidWithParticipants(rawJid, participantIndex);
+  const displayId = !isLidJid(rawJid) ? rawJid : canonical || rawJid;
+  const digits = _normalizeDigits(displayId) || _normalizeDigits(rawJid) || null;
+  const mentionCandidate = isWhatsAppJid(rawJid)
+    ? rawJid
+    : isWhatsAppJid(canonical)
+      ? canonical
+      : digits
+        ? `${digits}@s.whatsapp.net`
+        : null;
+  const mentionId = mentionCandidate && !isLidJid(mentionCandidate) ? mentionCandidate : null;
+  const key = digits || displayId || rawJid;
+  return { displayId, mentionId, key };
+};
+
 const normalizeJidWithParticipants = (value, participantIndex) => {
   if (!value || !participantIndex) return value;
   const direct = participantIndex.get(value);
@@ -57,8 +85,8 @@ const buildRankingMessage = (rows, dbStart) => {
 
   const lines = ['🏆 *Ranking Top 5 (mensagens)*', ''];
   rows.forEach((row, index) => {
-    const jid = row.sender_id || '';
-    const handle = jid ? `@${jid.split('@')[0]}` : 'Desconhecido';
+    const jid = row.mention_id || row.sender_id || '';
+    const handle = getDisplayName(row.display_name, jid);
     const total = row.total_messages || 0;
     const first = formatDate(row.first_message);
     const last = formatDate(row.last_message);
@@ -82,15 +110,25 @@ export async function handleRankingCommand({ sock, remoteJid, messageInfo, expir
     const participantIndex = buildParticipantIndex(participants);
 
     const rankingRows = await executeQuery(
-      `SELECT sender_id,
-              COUNT(*) AS total_messages,
-              MIN(timestamp) AS first_message,
-              MAX(timestamp) AS last_message
-         FROM messages
-        WHERE chat_id = ?
-          AND sender_id IS NOT NULL
-          ${botJid ? 'AND sender_id <> ?' : ''}
-        GROUP BY sender_id
+      `SELECT
+          m.sender_id,
+          COUNT(*) AS total_messages,
+          MIN(m.timestamp) AS first_message,
+          MAX(m.timestamp) AS last_message,
+          (
+            SELECT JSON_UNQUOTE(JSON_EXTRACT(m2.raw_message, '$.pushName'))
+            FROM messages m2
+            WHERE m2.sender_id = m.sender_id
+              AND m2.raw_message IS NOT NULL
+              AND JSON_EXTRACT(m2.raw_message, '$.pushName') IS NOT NULL
+            ORDER BY m2.id DESC
+            LIMIT 1
+          ) AS sender_pushName
+        FROM messages m
+        WHERE m.chat_id = ?
+          AND m.sender_id IS NOT NULL
+          ${botJid ? 'AND m.sender_id <> ?' : ''}
+        GROUP BY m.sender_id
         ORDER BY total_messages DESC`,
       botJid ? [remoteJid, botJid] : [remoteJid],
     );
@@ -99,13 +137,15 @@ export async function handleRankingCommand({ sock, remoteJid, messageInfo, expir
     rankingRows.forEach((row) => {
       const rawJid = row.sender_id || '';
       if (!rawJid) return;
-      const normalizedJid = normalizeJidWithParticipants(rawJid, participantIndex);
-      if (!normalizedJid) return;
+      const { displayId, mentionId, key } = resolveSenderIds(rawJid, participantIndex);
+      if (!displayId || !key) return;
       const total = Number(row.total_messages || 0);
       const firstMs = toMillis(row.first_message);
       const lastMs = toMillis(row.last_message);
-      const current = normalizedTotals.get(normalizedJid) || {
-        sender_id: normalizedJid,
+      const current = normalizedTotals.get(key) || {
+        sender_id: displayId,
+        mention_id: mentionId,
+        display_name: null,
         total_messages: 0,
         first_message: null,
         last_message: null,
@@ -117,7 +157,16 @@ export async function handleRankingCommand({ sock, remoteJid, messageInfo, expir
       if (lastMs !== null) {
         current.last_message = current.last_message === null ? lastMs : Math.max(current.last_message, lastMs);
       }
-      normalizedTotals.set(normalizedJid, current);
+      if (!current.mention_id && mentionId) {
+        current.mention_id = mentionId;
+      }
+      if (isWhatsAppJid(rawJid)) {
+        current.mention_id = rawJid;
+      }
+      if (!current.display_name && row.sender_pushName) {
+        current.display_name = row.sender_pushName;
+      }
+      normalizedTotals.set(key, current);
     });
 
     const topRows = Array.from(normalizedTotals.values())
@@ -133,8 +182,8 @@ export async function handleRankingCommand({ sock, remoteJid, messageInfo, expir
     const dbStart = dbStartRows[0]?.db_start || null;
 
     const mentions = topRows
-      .map((row) => row.sender_id)
-      .filter((jid) => typeof jid === 'string' && jid.includes('@'));
+      .map((row) => row.mention_id)
+      .filter((jid) => isWhatsAppJid(jid));
 
     const text = buildRankingMessage(topRows, dbStart);
     await sock.sendMessage(remoteJid, { text, mentions }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });

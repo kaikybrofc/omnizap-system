@@ -1,8 +1,9 @@
-import { fetchLatestBaileysVersion, downloadContentFromMessage } from '@whiskeysockets/baileys';
+import { fetchLatestBaileysVersion, downloadContentFromMessage, jidNormalizedUser } from '@whiskeysockets/baileys';
 
 import logger from '../utils/logger/loggerModule.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import axios from 'axios';
 
 const DEFAULT_BAILEYS_VERSION = [7, 0, 0];
 
@@ -95,6 +96,21 @@ export async function resolveBaileysVersion() {
   }
 
   return DEFAULT_BAILEYS_VERSION;
+}
+
+export async function getProfilePicBuffer(sock, msg) {
+  const rawJid = msg.key.participant || msg.key.remoteJid;
+  const jid = jidNormalizedUser(rawJid);
+
+  try {
+    const url = await sock.profilePictureUrl(jid, 'image');
+    if (!url) return null;
+
+    const res = await axios.get(url, { responseType: 'arraybuffer' });
+    return Buffer.from(res.data);
+  } catch (error) {
+    return null;
+  }
 }
 
 /**
