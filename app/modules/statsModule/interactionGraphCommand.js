@@ -1713,6 +1713,8 @@ const renderGraphImage = ({
 
     ctx.strokeStyle = clusterColor || '#0ea5e9';
     ctx.lineWidth = clanLeaders?.has(node.jid) ? 6 : 3;
+    ctx.beginPath();
+    ctx.arc(position.x, position.y, nodeRadius, 0, Math.PI * 2);
     ctx.stroke();
 
     drawTextInsideBubble(
