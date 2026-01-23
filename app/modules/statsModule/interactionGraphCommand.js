@@ -41,9 +41,11 @@ const SOCIAL_NODE_LIMIT = 180;
 const SOCIAL_SCOPE_GROUP = 'grupo atual';
 const SOCIAL_SCOPE_GLOBAL = 'global do bot';
 
-const PROFILE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const PROFILE_CACHE_LIMIT = 300;
-const PROFILE_PIC_CACHE = new Map();
+const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const PROFILE_CACHE_LIMIT = 2000;
+const PROFILE_PIC_CACHE =
+  globalThis.__omnizapProfilePicCache || new Map();
+globalThis.__omnizapProfilePicCache = PROFILE_PIC_CACHE;
 const NAME_LOOKUP_LIMIT = 400;
 
 const getCacheKey = (focusJid, remoteJid) =>
@@ -94,19 +96,21 @@ const setCachedResult = (key, payload) => {
 const getCachedProfilePic = (jid) => {
   const entry = PROFILE_PIC_CACHE.get(jid);
   if (!entry) return null;
-  if (Date.now() - entry.createdAt > PROFILE_CACHE_TTL_MS) {
+  const lastAccess = entry.lastAccess || entry.createdAt || 0;
+  if (Date.now() - lastAccess > PROFILE_CACHE_TTL_MS) {
     PROFILE_PIC_CACHE.delete(jid);
     return null;
   }
+  entry.lastAccess = Date.now();
   return entry.buffer || null;
 };
 
 const setCachedProfilePic = (jid, buffer) => {
   if (!jid || !buffer) return;
-  PROFILE_PIC_CACHE.set(jid, { buffer, createdAt: Date.now() });
+  PROFILE_PIC_CACHE.set(jid, { buffer, createdAt: Date.now(), lastAccess: Date.now() });
   if (PROFILE_PIC_CACHE.size > PROFILE_CACHE_LIMIT) {
     const oldestKey = Array.from(PROFILE_PIC_CACHE.entries()).sort(
-      (a, b) => a[1].createdAt - b[1].createdAt,
+      (a, b) => (a[1].lastAccess || a[1].createdAt || 0) - (b[1].lastAccess || b[1].createdAt || 0),
     )[0]?.[0];
     if (oldestKey) PROFILE_PIC_CACHE.delete(oldestKey);
   }
