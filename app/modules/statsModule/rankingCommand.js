@@ -1,7 +1,7 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { resolveBotJid } from '../../config/baileysConfig.js';
 import { isWhatsAppUserId } from '../../services/lidMapService.js';
-import { buildRankingMessage, getRankingReport } from './rankingCommon.js';
+import { buildRankingMessage, getRankingReport, renderRankingImage } from './rankingCommon.js';
 
 const RANKING_LIMIT = 5;
 
@@ -23,7 +23,21 @@ export async function handleRankingCommand({ sock, remoteJid, messageInfo, expir
     const mentions = report.rows
       .map((row) => row.mention_id)
       .filter((jid) => isWhatsAppUserId(jid));
-    await sock.sendMessage(remoteJid, { text, mentions }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+
+    const imageBuffer = await renderRankingImage({
+      sock,
+      remoteJid,
+      rows: report.rows,
+      totalMessages: report.totalMessages,
+      topType: report.topType,
+      scope: 'group',
+      limit: RANKING_LIMIT,
+    });
+    await sock.sendMessage(
+      remoteJid,
+      { image: imageBuffer, caption: text, ...(mentions.length ? { mentions } : {}) },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   } catch (error) {
     logger.error('Erro ao gerar ranking do grupo:', { error: error.message });
     await sock.sendMessage(remoteJid, { text: `Erro ao gerar ranking: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });

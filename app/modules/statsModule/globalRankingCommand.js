@@ -1,7 +1,7 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { resolveBotJid } from '../../config/baileysConfig.js';
 import { isWhatsAppUserId } from '../../services/lidMapService.js';
-import { buildRankingMessage, getRankingReport } from './rankingCommon.js';
+import { buildRankingMessage, getRankingReport, renderRankingImage } from './rankingCommon.js';
 
 const RANKING_LIMIT = 5;
 
@@ -27,9 +27,19 @@ export async function handleGlobalRankingCommand({ sock, remoteJid, messageInfo,
     const mentions = report.rows
       .map((row) => row.mention_id)
       .filter((jid) => isWhatsAppUserId(jid));
+
+    const imageBuffer = await renderRankingImage({
+      sock,
+      remoteJid,
+      rows: report.rows,
+      totalMessages: report.totalMessages,
+      topType: report.topType,
+      scope: 'global',
+      limit: RANKING_LIMIT,
+    });
     await sock.sendMessage(
       remoteJid,
-      { text, ...(mentions.length ? { mentions } : {}) },
+      { image: imageBuffer, caption: text, ...(mentions.length ? { mentions } : {}) },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
