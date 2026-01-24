@@ -2,15 +2,13 @@ import { createCanvas, loadImage } from 'canvas';
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import * as groupUtils from '../../config/groupUtils.js';
-import { getProfilePicBuffer, getJidServer, getJidUser, resolveBotJid, encodeJid } from '../../config/baileysConfig.js';
+import { getProfilePicBuffer, getJidUser, resolveBotJid } from '../../config/baileysConfig.js';
 import {
   primeLidCache,
-  resolveUserId,
   resolveUserIdCached,
   isLidUserId,
 } from '../../services/lidMapService.js';
 
-const { getGroupParticipants, _matchesParticipantId } = groupUtils;
 const normalizeDigits = (value) => {
   if (typeof groupUtils._normalizeDigits === 'function') {
     return groupUtils._normalizeDigits(value);
@@ -51,13 +49,8 @@ const SOCIAL_CACHE = new Map();
 
 const SOCIAL_RECENT_DAYS = 60;
 const SOCIAL_GRAPH_LIMIT = 20000;
-const SOCIAL_GRAPH_FOCUS_LIMIT = 6000;
 const SOCIAL_NODE_LIMIT = 180;
-const SOCIAL_NODE_FOCUS_LIMIT = 90;
 const SOCIAL_AVATAR_LIMIT = 36;
-const SOCIAL_AVATAR_FOCUS_LIMIT = 12;
-const SOCIAL_SCOPE_GROUP = 'grupo atual';
-const SOCIAL_SCOPE_GLOBAL = 'global do bot';
 
 const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const PROFILE_CACHE_LIMIT = 2000;
@@ -66,8 +59,7 @@ const PROFILE_PIC_CACHE =
 globalThis.__omnizapProfilePicCache = PROFILE_PIC_CACHE;
 const NAME_LOOKUP_LIMIT = 400;
 
-const getCacheKey = (focusJid, remoteJid) =>
-  focusJid ? `focus:${remoteJid || 'global'}:${focusJid}` : 'global';
+const getCacheKey = (remoteJid) => `global:${remoteJid || 'global'}`;
 
 /**
  * Função filterRowsWithoutBot.
@@ -168,11 +160,10 @@ const loadProfileImages = async ({ sock, jids, remoteJid, concurrency = 6 }) => 
   return results;
 };
 
-const pickAvatarJids = ({ nodes, focusJid, limit }) => {
+const pickAvatarJids = ({ nodes, limit }) => {
   if (!nodes || !nodes.length || limit <= 0) return [];
   const sorted = [...nodes].sort((a, b) => b.total - a.total);
   const chosen = new Set();
-  if (focusJid) chosen.add(focusJid);
   for (const node of sorted) {
     if (chosen.size >= limit) break;
     chosen.add(node.jid);
@@ -211,15 +202,6 @@ const limitGraphData = (graphData, limit) => {
     clusterColors: graphData.clusterColors,
     nodeClusters,
   };
-};
-
-const countUniqueParticipants = (rows) => {
-  const unique = new Set();
-  (rows || []).forEach((row) => {
-    if (row?.src) unique.add(row.src);
-    if (row?.dst) unique.add(row.dst);
-  });
-  return unique.size;
 };
 
 /**
@@ -370,48 +352,7 @@ const normalizeJidWithParticipants = (value, participantIndex) => {
   return resolveUserIdCached({ lid: normalized, jid: normalized, participantAlt: null }) || normalized;
 };
 
-const buildParticipantIndex = (participants) => {
-  const index = new Map();
-  (participants || []).forEach((participant) => {
-    const phoneDigits = normalizeDigits(participant?.phoneNumber || '') || null;
-    const phoneJid = phoneDigits ? encodeJid(phoneDigits, 's.whatsapp.net') : null;
-    const jidCandidate =
-      getJidServer(participant?.jid) === 's.whatsapp.net'
-        ? participant.jid
-        : getJidServer(participant?.id) === 's.whatsapp.net'
-          ? participant.id
-          : phoneJid;
-    const resolvedCanonical = resolveUserIdCached({
-      lid: participant?.lid || participant?.id || null,
-      jid: participant?.jid || participant?.id || null,
-      participantAlt: null,
-    });
-    const canonical = resolvedCanonical || jidCandidate || participant?.jid || participant?.id || participant?.lid || null;
-    if (!canonical) return;
-
-    const keys = [participant?.jid, participant?.id, participant?.lid, participant?.phoneNumber, canonical]
-      .filter(Boolean);
-    keys.forEach((key) => {
-      index.set(key, canonical);
-      const digits = normalizeDigits(key);
-      if (digits) index.set(digits, canonical);
-    });
-    const canonicalDigits = normalizeDigits(canonical);
-    if (canonicalDigits) index.set(canonicalDigits, canonical);
-  });
-  return index;
-};
-
-/**
- * Função getFocusJid.
- * @param {*} messageInfo - Parâmetro.
- * @param {*} args - Parâmetro.
- * @param {*} senderJid - Parâmetro.
- * @returns {*} - Retorno.
- */
-const getFocusJid = (messageInfo, args, senderJid) => {
-  return null;
-};
+ 
 
 /**
  * Função buildSocialRanking.
@@ -502,163 +443,7 @@ const formatDate = (value) => {
   }).format(date);
 };
 
-/**
- * Função resolveRoleLabel.
- * @param {*} participant - Parâmetro.
- * @returns {*} - Retorno.
- */
-const resolveRoleLabel = (participant) => {
-  if (!participant) return 'membro';
-  if (participant.admin === 'superadmin') return 'superadmin';
-  if (participant.admin === 'admin' || participant.isAdmin === true) return 'admin';
-  return 'membro';
-};
-
-/**
- * Função buildProfileText.
- * @param {*} handle - Parâmetro.
- * @param {*} totalMessages - Parâmetro.
- * @param {*} firstMessage - Parâmetro.
- * @param {*} lastMessage - Parâmetro.
- * @param {*} activeDays - Parâmetro.
- * @param {*} avgPerDay - Parâmetro.
- * @param {*} percentOfGroup - Parâmetro.
- * @param {*} rank - Parâmetro.
- * @param {*} role - Parâmetro.
- * @param {*} dbStart - Parâmetro.
- * @returns {*} - Retorno.
- */
-const buildProfileText = ({
-  handle,
-  totalMessages,
-  firstMessage,
-  lastMessage,
-  activeDays,
-  avgPerDay,
-  percentOfGroup,
-  rank,
-  role,
-  dbStart,
-}) => {
-  const lines = [
-    `👤 Usuário: ${handle}`,
-    `🛡️ Cargo: ${role}`,
-    '',
-    '📊 Atividade no grupo',
-    `💬 Mensagens: ${totalMessages}`,
-    `📈 Média/dia: ${avgPerDay}`,
-    `📊 Participação: ${percentOfGroup}`,
-    `🏆 Ranking no grupo: ${rank !== null ? `#${rank}` : 'N/D'}`,
-    '',
-    `📅 Primeira mensagem: ${formatDate(firstMessage)}`,
-    `🕘 Última mensagem: ${formatDate(lastMessage)}`,
-    `📆 Dias ativos: ${activeDays}`,
-    '',
-    `🧾 Início da contagem: ${formatDate(dbStart)}`,
-  ];
-
-  return lines.join('\n');
-};
-
-/**
- * Função buildProfileSection.
- * @param {*} remoteJid - Parâmetro.
- * @param {*} focusJid - Parâmetro.
- * @param {*} isGroupMessage - Parâmetro.
- * @param {*} botJid - Parâmetro.
- * @returns {*} - Retorno.
- */
-const buildProfileSection = async ({ remoteJid, focusJid, isGroupMessage, botJid }) => {
-  if (!focusJid || !isGroupMessage) return null;
-  const [userStats] = await executeQuery(
-    `SELECT COUNT(*) AS total_messages,
-            MIN(timestamp) AS first_message,
-            MAX(timestamp) AS last_message,
-            COUNT(DISTINCT DATE(timestamp)) AS active_days
-       FROM messages
-      WHERE chat_id = ?
-        AND sender_id = ?`,
-    [remoteJid, focusJid],
-  );
-
-  const [groupStats] = await executeQuery(
-    botJid
-      ? 'SELECT COUNT(*) AS total_messages FROM messages WHERE chat_id = ? AND sender_id <> ?'
-      : 'SELECT COUNT(*) AS total_messages FROM messages WHERE chat_id = ?',
-    botJid ? [remoteJid, botJid] : [remoteJid],
-  );
-  const [dbStartRow] = await executeQuery(
-    botJid
-      ? 'SELECT MIN(timestamp) AS db_start FROM messages WHERE sender_id <> ?'
-      : 'SELECT MIN(timestamp) AS db_start FROM messages',
-    botJid ? [botJid] : [],
-  );
-
-  const totalMessages = Number(userStats?.total_messages || 0);
-  const groupTotal = Number(groupStats?.total_messages || 0);
-  const percentOfGroup =
-    groupTotal > 0 ? `${((totalMessages / groupTotal) * 100).toFixed(2)}%` : '0%';
-
-  let rank = null;
-  if (totalMessages > 0) {
-    const [rankRow] = await executeQuery(
-      `SELECT COUNT(*) AS higher_count
-         FROM (
-           SELECT sender_id, COUNT(*) AS total
-             FROM messages
-            WHERE chat_id = ?
-            GROUP BY sender_id
-         ) totals
-        WHERE totals.total > ?`,
-      [remoteJid, totalMessages],
-    );
-    rank = Number(rankRow?.higher_count || 0) + 1;
-  }
-
-  const firstMessage = userStats?.first_message || null;
-  const lastMessage = userStats?.last_message || null;
-  const activeDays = Number(userStats?.active_days || 0);
-
-  let avgPerDay = '0';
-  if (firstMessage && lastMessage && totalMessages > 0) {
-    const diffMs = new Date(lastMessage).getTime() - new Date(firstMessage).getTime();
-    const rangeDays = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1);
-    avgPerDay = (totalMessages / rangeDays).toFixed(2);
-  }
-
-  const participants = await getGroupParticipants(remoteJid);
-  const participant = participants?.find((p) => _matchesParticipantId(p, focusJid));
-  const role = resolveRoleLabel(participant);
-
-  const handleUser = getJidUser(focusJid);
-  const handle = handleUser ? `@${handleUser}` : 'Desconhecido';
-  const text = buildProfileText({
-    handle,
-    totalMessages,
-    firstMessage,
-    lastMessage,
-    activeDays,
-    avgPerDay,
-    percentOfGroup,
-    rank,
-    role,
-    dbStart: dbStartRow?.db_start || null,
-  });
-
-  return {
-    text,
-    meta: {
-      totalMessages,
-      firstMessage,
-      lastMessage,
-      activeDays,
-      avgPerDay,
-      percentOfGroup,
-      rank,
-      role,
-    },
-  };
-};
+ 
 
 /**
  * Função computeReciprocityAndAvg.
@@ -800,111 +585,6 @@ const buildInfluenceRanking = ({ nodes, edges, nodeClusters, limit = 5 }) => {
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
   return ranking;
-};
-
-const buildInteractionGraphMessage = ({
-  rows,
-  focusLabel,
-  focusJid,
-  runtimeNames,
-  clanByJid,
-  clanColorByJid,
-  influenceRanking,
-}) => {
-  if (!rows.length) {
-    return {
-      lines: ['Nao ha respostas suficientes para gerar o ranking social.'],
-      names: new Map(),
-    };
-  }
-
-  const { ranking, partners, names } = buildSocialRanking(rows);
-  if (!ranking.length) {
-    return { lines: ['Nao ha respostas suficientes para gerar o ranking social.'], names };
-  }
-
-  if (runtimeNames) {
-    runtimeNames.forEach((value, key) => {
-      if (!names.get(key)) names.set(key, value);
-    });
-  }
-
-  const { reciprocity, avgResponseMs } = computeReciprocityAndAvg(rows);
-
-  const makeLine = (text, color) => (color ? { text, color } : text);
-  /**
-   * Função getNameWithClan.
-   * @param {*} jid - Parâmetro.
-   * @returns {*} - Retorno.
-   */
-  const getNameWithClan = (jid) => {
-    const base = getSummaryLabel(jid, names.get(jid));
-    const clan = clanByJid?.get(jid);
-    return clan ? `${base} - ${clan}` : base;
-  };
-  const getLineColor = (jid) => clanColorByJid?.get(jid) || null;
-
-  const focusLine = focusJid
-    ? `Foco: ${getNameWithClan(focusJid)}`
-    : focusLabel
-      ? `Foco: ${focusLabel}`
-      : 'Resumo social';
-  const lines = [focusLine, ''];
-  lines.push('Metricas', '');
-  lines.push(`Reciprocidade: ${reciprocity}%`);
-  lines.push(`Tempo medio de resposta: ${formatDuration(avgResponseMs)}`);
-  lines.push('');
-  if (influenceRanking && influenceRanking.length) {
-    lines.push('Influentes (aprox)', '');
-    influenceRanking.forEach((entry, index) => {
-      const display = getNameWithClan(entry.jid);
-      lines.push(
-        makeLine(`${index + 1}. ${display} — ${Math.round(entry.score)}`, getLineColor(entry.jid)),
-      );
-    });
-    lines.push('');
-  }
-
-  const connectors = Array.from(partners.entries())
-    .map(([jid, map]) => ({ jid, degree: map.size }))
-    .sort((a, b) => b.degree - a.degree)
-    .slice(0, 5);
-  if (connectors.length) {
-    lines.push('Conectores (top 5)', '');
-    connectors.forEach((entry, index) => {
-      const display = getNameWithClan(entry.jid);
-      lines.push(
-        makeLine(`${index + 1}. ${display} — ${entry.degree} pessoas`, getLineColor(entry.jid)),
-      );
-    });
-    lines.push('');
-  }
-
-  const initiators = new Map();
-  rows.forEach((row) => {
-    const aToB = Number(row.replies_a_para_b || 0);
-    const bToA = Number(row.replies_b_para_a || 0);
-    if (row.dst && aToB > 0) {
-      initiators.set(row.dst, (initiators.get(row.dst) || 0) + aToB);
-    }
-    if (row.src && bToA > 0) {
-      initiators.set(row.src, (initiators.get(row.src) || 0) + bToA);
-    }
-  });
-  const topInitiators = Array.from(initiators.entries())
-    .map(([jid, total]) => ({ jid, total }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 5);
-  if (topInitiators.length) {
-    lines.push('Iniciadores (top 5)', '');
-    topInitiators.forEach((entry, index) => {
-      const display = getNameWithClan(entry.jid);
-      lines.push(makeLine(`${index + 1}. ${display} — ${entry.total}`, getLineColor(entry.jid)));
-    });
-    lines.push('');
-  }
-
-  return { lines, names };
 };
 
 /**
@@ -1496,22 +1176,19 @@ const renderGraphImage = ({
   clanLeaders,
   highlightInfluence,
   highlightConnectors,
-  focusBadges,
-  focusJid,
   avatarImages,
   showPanel = true,
 }) => {
-  const isFocusView = Boolean(focusJid);
-  const width = isFocusView ? 1600 : 3200;
-  const height = isFocusView ? 1100 : 2200;
-  const panelWidth = showPanel && !isFocusView ? 900 : 0;
-  const scale = isFocusView ? 1 : 2;
+  const width = 3200;
+  const height = 2200;
+  const panelWidth = showPanel ? 900 : 0;
+  const scale = 2;
   const graphWidth = width - panelWidth;
   const canvas = createCanvas(width * scale, height * scale);
   const ctx = canvas.getContext('2d');
   ctx.scale(scale, scale);
   ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = isFocusView ? 'medium' : 'high';
+  ctx.imageSmoothingQuality = 'high';
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
@@ -1552,9 +1229,6 @@ const renderGraphImage = ({
   if (!nodes.length) {
     ctx.font = '16px Arial';
     ctx.fillText('Sem dados suficientes para desenhar o grafo.', 40, 90);
-    if (isFocusView) {
-      return canvas.toBuffer('image/jpeg', { quality: 0.82, chromaSubsampling: true });
-    }
     return canvas.toBuffer('image/png', { compressionLevel: 6 });
   }
 
@@ -1572,12 +1246,9 @@ const renderGraphImage = ({
   const sortedNodes = [...nodes].sort((a, b) => b.total - a.total);
   sortedNodes.forEach((node) => {
     const weight = maxNodeValue ? node.total / maxNodeValue : 0.2;
-    const minRadius = isFocusView ? 24 : 36;
-    const extraRadius = isFocusView ? 46 : 36;
+    const minRadius = 36;
+    const extraRadius = 36;
     let nodeRadius = minRadius + weight * extraRadius;
-    if (isFocusView && focusJid && node.jid === focusJid) {
-      nodeRadius *= 1.12;
-    }
     nodeRadii.set(node.jid, nodeRadius);
   });
 
@@ -1671,7 +1342,7 @@ const renderGraphImage = ({
     }))
     .filter((edge) => edge.srcIndex !== undefined && edge.dstIndex !== undefined);
 
-  const attractionIters = isFocusView ? 30 : 60;
+  const attractionIters = 60;
   const minEdgeDistStrong = 50;
   const minEdgeDistWeak = 198;
   const repulsionEnabled = true;
@@ -1734,7 +1405,7 @@ const renderGraphImage = ({
   });
 
   // Final overlap resolution pass
-  for (let iter = 0; iter < (isFocusView ? 20 : 40); iter += 1) {
+  for (let iter = 0; iter < 40; iter += 1) {
     let moved = false;
     for (let a = 0; a < positions.length; a += 1) {
       for (let b = a + 1; b < positions.length; b += 1) {
@@ -1858,9 +1529,6 @@ const renderGraphImage = ({
     const isStrong = weight > 0.65;
     let alpha = 0.18 + weight * 0.45;
     if (isWeak) alpha = Math.min(alpha, 0.28);
-    if (isFocusView && focusJid && (edge.src === focusJid || edge.dst === focusJid)) {
-      alpha = Math.min(0.7, alpha + 0.08);
-    }
     ctx.strokeStyle = `hsla(${style.hue}, ${style.saturation}%, ${style.light}%, ${alpha})`;
     ctx.setLineDash(isWeak ? [6, 9] : []);
     ctx.lineWidth = (isStrong ? 1.2 : 0.6) + weight * 5.2;
@@ -1977,7 +1645,7 @@ const renderGraphImage = ({
     const clusterColor = clusterId ? clusterColors?.get(clusterId) : null;
     const avatarImage = avatarImages?.get(node.jid) || null;
     const weight = maxNodeValue ? node.total / maxNodeValue : 0.2;
-    const nodeAlpha = isFocusView ? 0.35 + weight * 0.65 : 1;
+    const nodeAlpha = 1;
     const isInfluence = highlightInfluence?.has(node.jid);
     const isConnector = highlightConnectors?.has(node.jid);
     const isLeader = clanLeaders?.has(node.jid);
@@ -2000,17 +1668,6 @@ const renderGraphImage = ({
       ctx.restore();
     }
 
-    if (focusJid && node.jid === focusJid) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(position.x, position.y, nodeRadius + 12, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
-      ctx.lineWidth = 10;
-      ctx.shadowBlur = 20;
-      ctx.shadowColor = 'rgba(56, 189, 248, 0.55)';
-      ctx.stroke();
-      ctx.restore();
-    }
 
     if (avatarImage) {
       ctx.save();
@@ -2094,29 +1751,6 @@ const renderGraphImage = ({
       ctx.restore();
     }
 
-    if (focusBadges && focusJid && node.jid === focusJid && focusBadges.length) {
-      ctx.save();
-      const badgeText = focusBadges.join(' • ');
-      ctx.font = 'bold 14px Arial';
-      const textWidth = ctx.measureText(badgeText).width;
-      const padX = 12;
-      const padY = 6;
-      const badgeWidth = textWidth + padX * 2;
-      const badgeHeight = 24;
-      const bx = position.x - badgeWidth / 2;
-      const by = position.y - nodeRadius - badgeHeight - 10;
-      drawRoundedRect(bx, by, badgeWidth, badgeHeight, 12);
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(250, 204, 21, 0.75)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = '#f8fafc';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(badgeText, position.x, by + badgeHeight / 2 + 1);
-      ctx.restore();
-    }
   });
 
   /**
@@ -2223,35 +1857,6 @@ const renderGraphImage = ({
     }
   }
 
-  if (isFocusView) {
-    ctx.save();
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
-    ctx.font = '14px Arial';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    const legendX = 40;
-    const legendY = height - 70;
-    ctx.fillText('● Tamanho = interações', legendX, legendY);
-    ctx.setLineDash([]);
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.7)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(legendX, legendY + 20);
-    ctx.lineTo(legendX + 28, legendY + 20);
-    ctx.stroke();
-    ctx.setLineDash([6, 9]);
-    ctx.beginPath();
-    ctx.moveTo(legendX + 90, legendY + 20);
-    ctx.lineTo(legendX + 118, legendY + 20);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillText('Linha sólida = forte   Linha pontilhada = fraca', legendX + 130, legendY + 20);
-    ctx.restore();
-  }
-
-  if (isFocusView) {
-    return canvas.toBuffer('image/jpeg', { quality: 0.82, chromaSubsampling: true });
-  }
   return canvas.toBuffer('image/png', { compressionLevel: 6 });
 };
 
@@ -2277,19 +1882,7 @@ export async function handleInteractionGraphCommand({
 }) {
   try {
     const botJid = resolveBotJid(sock?.user?.id);
-    const focusJid = getFocusJid(messageInfo, args || [], senderJid);
-    const focusCandidates = new Set();
-    if (focusJid) {
-      focusCandidates.add(focusJid);
-      const cachedFocus = resolveUserIdCached({ lid: focusJid, jid: focusJid, participantAlt: null });
-      if (cachedFocus) focusCandidates.add(cachedFocus);
-      if (isLidUserId(focusJid) && cachedFocus === focusJid) {
-        const resolvedFocus = await resolveUserId({ lid: focusJid, jid: focusJid, participantAlt: null });
-        if (resolvedFocus) focusCandidates.add(resolvedFocus);
-      }
-    }
-    const focusList = Array.from(focusCandidates).filter(Boolean);
-    const cacheKey = getCacheKey(focusJid, remoteJid);
+    const cacheKey = getCacheKey(remoteJid);
     const cached = getCachedResult(cacheKey);
     if (cached) {
       await sock.sendMessage(
@@ -2324,15 +1917,8 @@ export async function handleInteractionGraphCommand({
                JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
              )
            )`;
-    const focusPlaceholders = focusList.map(() => '?').join(', ');
-    const focusFilter = focusList.length
-      ? `AND (m.sender_id IN (${focusPlaceholders}) OR ${dstExpr} IN (${focusPlaceholders}))`
-      : '';
-    const graphLimit = focusList.length ? SOCIAL_GRAPH_FOCUS_LIMIT : SOCIAL_GRAPH_LIMIT;
+    const graphLimit = SOCIAL_GRAPH_LIMIT;
     const queryParams = botJid ? [botJid] : [];
-    if (focusList.length) {
-      queryParams.push(...focusList, ...focusList);
-    }
 
     const rows = await executeQuery(
       `WITH base AS (
@@ -2347,7 +1933,7 @@ export async function handleInteractionGraphCommand({
            AND m.timestamp IS NOT NULL
            AND m.timestamp >= NOW() - INTERVAL ${SOCIAL_RECENT_DAYS} DAY
            AND ${dstExpr} IS NOT NULL
-           ${focusFilter}
+           
        ),
        agg AS (
          SELECT
@@ -2386,7 +1972,6 @@ export async function handleInteractionGraphCommand({
       if (isLidUserId(row?.src)) lidsToPrime.add(row.src);
       if (isLidUserId(row?.dst)) lidsToPrime.add(row.dst);
     });
-    if (isLidUserId(focusJid)) lidsToPrime.add(focusJid);
     if (isLidUserId(senderJid)) lidsToPrime.add(senderJid);
     if (lidsToPrime.size > 0) {
       await primeLidCache(Array.from(lidsToPrime));
@@ -2401,14 +1986,8 @@ export async function handleInteractionGraphCommand({
       }));
 
     const aggregatedRows = aggregateRowsByPair(normalizedRows);
-    const normalizedFocus = focusJid
-      ? normalizeJidWithParticipants(focusJid, participantIndex)
-      : null;
-    const filteredRows = normalizedFocus
-      ? aggregatedRows.filter((row) => row.src === normalizedFocus || row.dst === normalizedFocus)
-      : aggregatedRows;
-    const isFocusView = Boolean(normalizedFocus);
-    const showPanel = !isFocusView;
+    const filteredRows = aggregatedRows;
+    const showPanel = true;
 
     const nameCandidates = collectJidsForNames(filteredRows);
     const latestNames = await fetchLatestPushNames(nameCandidates);
@@ -2436,18 +2015,6 @@ export async function handleInteractionGraphCommand({
     latestNames.forEach((value, key) => {
       if (!names.get(key)) names.set(key, value);
     });
-    const globalNames = showPanel ? buildSocialRanking(normalizedRows).names : new Map();
-    if (showPanel && runtimeNames) {
-      runtimeNames.forEach((value, key) => {
-        if (!globalNames.get(key)) globalNames.set(key, value);
-      });
-    }
-    if (showPanel) {
-      latestNames.forEach((value, key) => {
-        if (!globalNames.get(key)) globalNames.set(key, value);
-      });
-    }
-
     const connectorRanking = Array.from(partners.entries())
       .map(([jid, map]) => ({ jid, degree: map.size }))
       .sort((a, b) => b.degree - a.degree)
@@ -2489,10 +2056,8 @@ export async function handleInteractionGraphCommand({
       dbStartLabel = formatDate(dbStartRow?.db_start || null);
     }
 
-    // "global": dados agregados de todos os chats do bot (sem filtro por chat_id)
-    const globalGraphData = showPanel ? buildGraphData(normalizedRows, globalNames) : null;
-    const nodeLimit = isFocusView ? SOCIAL_NODE_FOCUS_LIMIT : SOCIAL_NODE_LIMIT;
-    const graphData = limitGraphData(buildGraphData(filteredRows, names), nodeLimit);
+    const fullGraphData = buildGraphData(filteredRows, names);
+    const graphData = limitGraphData(fullGraphData, SOCIAL_NODE_LIMIT);
     const allowedJids = new Set(graphData.nodes.map((node) => node.jid));
     directedEdges = directedEdges.filter((edge) => allowedJids.has(edge.src) && allowedJids.has(edge.dst));
     const clustersWithKeywords = assignClanNamesFromList(graphData.clusters);
@@ -2505,182 +2070,66 @@ export async function handleInteractionGraphCommand({
       const color = graphData.clusterColors.get(clusterId);
       if (color) clanColorByJid.set(jid, color);
     });
-    const influenceRanking = showPanel
-      ? buildInfluenceRanking({
-          nodes: graphData.nodes,
-          edges: graphData.edges,
-          nodeClusters: graphData.nodeClusters,
-        })
-      : [];
+    const influenceRanking = buildInfluenceRanking({
+      nodes: graphData.nodes,
+      edges: graphData.edges,
+      nodeClusters: graphData.nodeClusters,
+    });
     const highlightInfluence = new Set((influenceRanking || []).slice(0, 5).map((entry) => entry.jid));
-    const highlightConnectors = showPanel
-      ? new Set(connectorRanking.map((entry) => entry.jid))
-      : new Set();
-    const { reciprocity, avgResponseMs } = showPanel
-      ? computeReciprocityAndAvg(filteredRows)
-      : { reciprocity: 0, avgResponseMs: 0 };
-    const clanLeaders = showPanel ? buildClanLeaders(graphData.nodes, graphData.nodeClusters) : new Set();
-    const clanLeaderById = showPanel
-      ? buildClanLeaderMap(graphData.nodes, graphData.nodeClusters)
-      : new Map();
-    const captionLines = [];
-    const totalParticipants = showPanel
-      ? globalGraphData.nodes.length
-      : countUniqueParticipants(normalizedRows);
-    const bridgeLines = showPanel
-      ? buildClanBridgeLines({
-          edges: graphData.edges,
-          nodeClusters: graphData.nodeClusters,
-          names,
-          clanByJid,
-          clanColorByJid,
-        })
-      : [];
-    const growthLines = showPanel ? buildGrowthLines(growthRows, names) : [];
-    const detailLines = showPanel ? [...captionLines] : [];
-    const summaryText = showPanel ? linesToText(detailLines) : '';
+    const highlightConnectors = new Set(connectorRanking.map((entry) => entry.jid));
+    const { reciprocity, avgResponseMs } = computeReciprocityAndAvg(filteredRows);
+    const clanLeaders = buildClanLeaders(graphData.nodes, graphData.nodeClusters);
+    const clanLeaderById = buildClanLeaderMap(graphData.nodes, graphData.nodeClusters);
+    const totalParticipants = fullGraphData.nodes.length;
+    const bridgeLines = buildClanBridgeLines({
+      edges: graphData.edges,
+      nodeClusters: graphData.nodeClusters,
+      names,
+      clanByJid,
+      clanColorByJid,
+    });
+    const growthLines = buildGrowthLines(growthRows, names);
+    const summaryText = '';
 
-    // "grupo": dados restritos ao chat_id atual
-    let profileText = null;
-    let profileMeta = null;
-    let profileSocialText = null;
-    let focusBadges = [];
-    if (normalizedFocus) {
-      const profileSection = await buildProfileSection({
-        remoteJid,
-        focusJid: normalizedFocus,
-        isGroupMessage,
-        botJid,
-      });
-      profileText = profileSection?.text || null;
-      profileMeta = profileSection?.meta || null;
-      const focusTotals = filteredRows.reduce(
-        (acc, row) => {
-          if (row.src === normalizedFocus) {
-            acc.sent += Number(row.replies_a_para_b || 0);
-            acc.received += Number(row.replies_b_para_a || 0);
-            acc.interactions += Number(row.replies_total_par || 0);
-          } else if (row.dst === normalizedFocus) {
-            acc.sent += Number(row.replies_b_para_a || 0);
-            acc.received += Number(row.replies_a_para_b || 0);
-            acc.interactions += Number(row.replies_total_par || 0);
-          }
-          return acc;
-        },
-        { sent: 0, received: 0, interactions: 0 },
-      );
-      const totalInteractions = focusTotals.interactions;
-      const repliesSent = focusTotals.sent;
-      const repliesReceived = focusTotals.received;
-      const partners = new Set();
-      filteredRows.forEach((row) => {
-        if (row.src === normalizedFocus && row.dst) partners.add(row.dst);
-        if (row.dst === normalizedFocus && row.src) partners.add(row.src);
-      });
-
-      let clanName = 'N/D';
-      let clanColor = 'N/D';
-      let influenceIndex = -1;
-      let influenceRank = 'N/D';
-      if (globalGraphData) {
-        const globalClustersWithKeywords = assignClanNamesFromList(globalGraphData.clusters);
-        const globalClanByJid = new Map();
-        globalClustersWithKeywords.forEach((cluster) => {
-          cluster.members.forEach((jid) => globalClanByJid.set(jid, cluster.keyword || 'nd'));
-        });
-        const globalClanColorByJid = new Map();
-        globalGraphData.nodeClusters.forEach((clusterId, jid) => {
-          const color = globalGraphData.clusterColors.get(clusterId);
-          if (color) globalClanColorByJid.set(jid, color);
-        });
-        const globalInfluenceRanking = buildInfluenceRanking({
-          nodes: globalGraphData.nodes,
-          edges: globalGraphData.edges,
-          nodeClusters: globalGraphData.nodeClusters,
-        });
-        clanName = globalClanByJid.get(normalizedFocus) || 'N/D';
-        clanColor = hslToColorName(globalClanColorByJid.get(normalizedFocus));
-        influenceIndex = globalInfluenceRanking.findIndex((entry) => entry.jid === normalizedFocus);
-        influenceRank = influenceIndex >= 0 ? `#${influenceIndex + 1}` : 'N/D';
-      }
-
-      const socialLines = [
-        '🌐 Social global (bot inteiro)',
-        ...(globalGraphData ? [`🧩 Clan: ${clanName} (${clanColor})`] : []),
-        `🔁 Interações: ${totalInteractions}`,
-        `📤 Respostas enviadas: ${repliesSent}`,
-        `📥 Respostas recebidas: ${repliesReceived}`,
-        `🤝 Conexões únicas: ${partners.size}`,
-        ...(globalGraphData ? [`⭐ Influência (aprox.): ${influenceRank} global`] : []),
-      ];
-      profileSocialText = socialLines.join('\n');
-
-      if (profileMeta?.rank) {
-        if (profileMeta.rank === 1) focusBadges.push('👑 #1');
-        else focusBadges.push(`🏆 #${profileMeta.rank}`);
-      }
-      if (profileMeta?.role && profileMeta.role !== 'membro') {
-        focusBadges.push('🛡️ Admin');
-      }
-      if (influenceIndex >= 0) {
-        focusBadges.push(`⭐ #${influenceIndex + 1}`);
-      }
-      focusBadges = focusBadges.slice(0, 2);
-    }
-
-    const introLines = normalizedFocus
-      ? [
-          '🎯 Modo Social Foco',
-          '👤 Visualização centrada no usuário',
-          '🔗 Mostra apenas ligações diretas',
-          `👥 Usuários globais analisados: ${totalParticipants}`,
-          '',
-          `ℹ️ Perfil acima = dados do ${SOCIAL_SCOPE_GROUP}`,
-          `🌐 Social global = dados do ${SOCIAL_SCOPE_GLOBAL}`,
-          '',
-          '🛠️ Use /social para ver o panorama completo',
-          '🏆 Use /rank para ranking do grupo',
-        ]
-      : [
-          '🌐 Social – Grafo Global',
-          '',
-          '🌍 Este gráfico representa as conexões sociais de todo o sistema.',
-          '👥 Os dados são globais, considerando todos os grupos onde o bot atua.',
-          '',
-          `🧩 Total de usuários analisados: ${totalParticipants}`,
-          `🧾 Início da contagem: ${dbStartLabel}`,
-          '',
-          '🔎 Como interpretar o gráfico',
-          '',
-          '🫧 Tamanho da bolha',
-          '→ Volume de interações (respostas enviadas e recebidas)',
-          '',
-          '🧭 Linhas e setas',
-          '→ Mostram quem responde quem e a intensidade das interações',
-          '',
-          '🎨 Cores',
-          '→ Indicam o clan ao qual cada pessoa pertence',
-          '',
-          '🧠 Para que serve',
-          '',
-          '• Identificar quem mais conversa no sistema',
-          '• Ver com quem cada pessoa mais interage',
-          '• Visualizar subgrupos (clans) e líderes naturais',
-          '• Detectar conexões fortes, influentes e pontes entre grupos',
-          '',
-          '🧩 Como funcionam os clans',
-          '',
-          '• Um clan é formado por pessoas que interagem mais entre si',
-          '• Os nomes seguem uma lista fixa (Alpha, Beta, Gamma, etc.)',
-          '• O líder do clan é quem possui mais interações dentro do próprio grupo',
-          '',
-          '🛠️ Como usar o comando',
-          '',
-          '• Digite social para ver o panorama completo do sistema',
-          '• Compare os painéis para entender influência, crescimento e pares fortes',
-        ];
-    const introBlocks = [profileText, profileSocialText, introLines.join('\n')].filter(Boolean);
-    const introText = introBlocks.join('\n\n');
+    const introLines = [
+      '🌐 Social – Grafo Global',
+      '',
+      '🌍 Este gráfico representa as conexões sociais de todo o sistema.',
+      '👥 Os dados são globais, considerando todos os grupos onde o bot atua.',
+      '',
+      `🧩 Total de usuários analisados: ${totalParticipants}`,
+      `🧾 Início da contagem: ${dbStartLabel}`,
+      '',
+      '🔎 Como interpretar o gráfico',
+      '',
+      '🫧 Tamanho da bolha',
+      '→ Volume de interações (respostas enviadas e recebidas)',
+      '',
+      '🧭 Linhas e setas',
+      '→ Mostram quem responde quem e a intensidade das interações',
+      '',
+      '🎨 Cores',
+      '→ Indicam o clan ao qual cada pessoa pertence',
+      '',
+      '🧠 Para que serve',
+      '',
+      '• Identificar quem mais conversa no sistema',
+      '• Ver com quem cada pessoa mais interage',
+      '• Visualizar subgrupos (clans) e líderes naturais',
+      '• Detectar conexões fortes, influentes e pontes entre grupos',
+      '',
+      '🧩 Como funcionam os clans',
+      '',
+      '• Um clan é formado por pessoas que interagem mais entre si',
+      '• Os nomes seguem uma lista fixa (Alpha, Beta, Gamma, etc.)',
+      '• O líder do clan é quem possui mais interações dentro do próprio grupo',
+      '',
+      '🛠️ Como usar o comando',
+      '',
+      '• Digite social para ver o panorama completo do sistema',
+      '• Compare os painéis para entender influência, crescimento e pares fortes',
+    ];
+    const introText = introLines.join('\n');
     const captionText = summaryText ? `${introText}\n\n${summaryText}` : introText;
 
     const totalInteractions = filteredRows.reduce(
@@ -2716,64 +2165,59 @@ export async function handleInteractionGraphCommand({
       : [];
     const skewLines = showPanel ? buildSkewLines(ranking) : [];
 
-    const summaryLines = showPanel
-      ? [
-          'Resumo geral',
-          `Total de mensagens: ${totalMessages}`,
-          `Total de interacoes: ${totalInteractions}`,
-          '',
-          'Reciprocidade',
-          `Reciprocidade: ${reciprocity}%`,
-          `Tempo medio de resposta: ${formatDuration(avgResponseMs)}`,
-          '',
-          'Influentes (aprox)',
-          ...(influenceRanking || []).map((entry, index) => {
-            const display = getSummaryLabel(entry.jid, names.get(entry.jid));
-            const clan = clanByJid.get(entry.jid);
-            const color = clanColorByJid.get(entry.jid);
-            return makeLine(
-              `${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${Math.round(entry.score)}`,
-              color,
-            );
-          }),
-          '',
-          'Mais interacoes',
-          ...ranking.slice(0, 5).map((entry, index) => {
-            const display = getSummaryLabel(entry.jid, names.get(entry.jid));
-            const clan = clanByJid.get(entry.jid);
-            const color = clanColorByJid.get(entry.jid);
-            return makeLine(
-              `${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${entry.total}`,
-              color,
-            );
-          }),
-          '',
-          'Clans',
-          ...clanBoxLines,
-          '',
-          ...mentionLines,
-          ...pairLines,
-          ...receivedLines,
-          ...sentLines,
-          ...activeClansLines,
-          ...connectorLines,
-          ...skewLines,
-          '',
-          ...bridgeLines,
-          ...growthLines,
-        ]
-      : [];
-    const avatarImages = showPanel
-      ? await loadProfileImages({
-          sock,
-          jids: pickAvatarJids({
-            nodes: graphData.nodes,
-            focusJid: normalizedFocus,
-            limit: normalizedFocus ? SOCIAL_AVATAR_FOCUS_LIMIT : SOCIAL_AVATAR_LIMIT,
-          }),
-          remoteJid,
-        })
-      : new Map();
+    const summaryLines = [
+      'Resumo geral',
+      `Total de mensagens: ${totalMessages}`,
+      `Total de interacoes: ${totalInteractions}`,
+      '',
+      'Reciprocidade',
+      `Reciprocidade: ${reciprocity}%`,
+      `Tempo medio de resposta: ${formatDuration(avgResponseMs)}`,
+      '',
+      'Influentes (aprox)',
+      ...(influenceRanking || []).map((entry, index) => {
+        const display = getSummaryLabel(entry.jid, names.get(entry.jid));
+        const clan = clanByJid.get(entry.jid);
+        const color = clanColorByJid.get(entry.jid);
+        return makeLine(
+          `${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${Math.round(entry.score)}`,
+          color,
+        );
+      }),
+      '',
+      'Mais interacoes',
+      ...ranking.slice(0, 5).map((entry, index) => {
+        const display = getSummaryLabel(entry.jid, names.get(entry.jid));
+        const clan = clanByJid.get(entry.jid);
+        const color = clanColorByJid.get(entry.jid);
+        return makeLine(
+          `${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${entry.total}`,
+          color,
+        );
+      }),
+      '',
+      'Clans',
+      ...clanBoxLines,
+      '',
+      ...mentionLines,
+      ...pairLines,
+      ...receivedLines,
+      ...sentLines,
+      ...activeClansLines,
+      ...connectorLines,
+      ...skewLines,
+      '',
+      ...bridgeLines,
+      ...growthLines,
+    ];
+    const avatarImages = await loadProfileImages({
+      sock,
+      jids: pickAvatarJids({
+        nodes: graphData.nodes,
+        limit: SOCIAL_AVATAR_LIMIT,
+      }),
+      remoteJid,
+    });
     const imageBuffer = renderGraphImage({
       ...graphData,
       directedEdges,
@@ -2783,17 +2227,14 @@ export async function handleInteractionGraphCommand({
       clanLeaders,
       highlightInfluence,
       highlightConnectors,
-      focusBadges,
-      focusJid: normalizedFocus,
       avatarImages,
       showPanel,
     });
 
-    const mentions = normalizedFocus ? [normalizedFocus] : [];
-    setCachedResult(cacheKey, { imageBuffer, captionText, mentions });
+    setCachedResult(cacheKey, { imageBuffer, captionText, mentions: [] });
     await sock.sendMessage(
       remoteJid,
-      { image: imageBuffer, caption: captionText, ...(mentions.length ? { mentions } : {}) },
+      { image: imageBuffer, caption: captionText },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
