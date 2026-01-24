@@ -1,9 +1,23 @@
 import { createCanvas, loadImage } from 'canvas';
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
-import { getGroupParticipants, _matchesParticipantId, _normalizeDigits } from '../../config/groupUtils.js';
+import * as groupUtils from '../../config/groupUtils.js';
 import { getProfilePicBuffer, getJidServer, getJidUser, resolveBotJid, encodeJid } from '../../config/baileysConfig.js';
-import { primeLidCache, resolveUserIdCached, isLidUserId } from '../../services/lidMapService.js';
+import {
+  primeLidCache,
+  resolveUserId,
+  resolveUserIdCached,
+  isLidUserId,
+} from '../../services/lidMapService.js';
+
+const { getGroupParticipants, _matchesParticipantId } = groupUtils;
+const normalizeDigits = (value) => {
+  if (typeof groupUtils._normalizeDigits === 'function') {
+    return groupUtils._normalizeDigits(value);
+  }
+  if (!value || typeof value !== 'string') return '';
+  return value.replace(/\D/g, '');
+};
 
 const CLAN_NAME_LIST = [
   'Alpha',
@@ -37,9 +51,11 @@ const SOCIAL_CACHE = new Map();
 
 const SOCIAL_RECENT_DAYS = 60;
 const SOCIAL_GRAPH_LIMIT = 20000;
+const SOCIAL_GRAPH_FOCUS_LIMIT = 6000;
 const SOCIAL_NODE_LIMIT = 180;
+const SOCIAL_NODE_FOCUS_LIMIT = 90;
 const SOCIAL_AVATAR_LIMIT = 36;
-const SOCIAL_AVATAR_FOCUS_LIMIT = 20;
+const SOCIAL_AVATAR_FOCUS_LIMIT = 12;
 const SOCIAL_SCOPE_GROUP = 'grupo atual';
 const SOCIAL_SCOPE_GLOBAL = 'global do bot';
 
@@ -197,6 +213,15 @@ const limitGraphData = (graphData, limit) => {
   };
 };
 
+const countUniqueParticipants = (rows) => {
+  const unique = new Set();
+  (rows || []).forEach((row) => {
+    if (row?.src) unique.add(row.src);
+    if (row?.dst) unique.add(row.dst);
+  });
+  return unique.size;
+};
+
 /**
  * Função assignClanNamesFromList.
  * @param {*} clusters - Parâmetro.
@@ -335,10 +360,10 @@ const normalizeJidWithParticipants = (value, participantIndex) => {
   if (!value) return value;
   let normalized = value;
   if (participantIndex) {
-    const direct = participantIndex.get(value);
-    if (direct) normalized = direct;
+      const direct = participantIndex.get(value);
+      if (direct) normalized = direct;
     else {
-      const digits = _normalizeDigits(value);
+      const digits = normalizeDigits(value);
       if (digits && participantIndex.has(digits)) normalized = participantIndex.get(digits);
     }
   }
@@ -348,7 +373,7 @@ const normalizeJidWithParticipants = (value, participantIndex) => {
 const buildParticipantIndex = (participants) => {
   const index = new Map();
   (participants || []).forEach((participant) => {
-    const phoneDigits = _normalizeDigits(participant?.phoneNumber || '') || null;
+    const phoneDigits = normalizeDigits(participant?.phoneNumber || '') || null;
     const phoneJid = phoneDigits ? encodeJid(phoneDigits, 's.whatsapp.net') : null;
     const jidCandidate =
       getJidServer(participant?.jid) === 's.whatsapp.net'
@@ -368,10 +393,10 @@ const buildParticipantIndex = (participants) => {
       .filter(Boolean);
     keys.forEach((key) => {
       index.set(key, canonical);
-      const digits = _normalizeDigits(key);
+      const digits = normalizeDigits(key);
       if (digits) index.set(digits, canonical);
     });
-    const canonicalDigits = _normalizeDigits(canonical);
+    const canonicalDigits = normalizeDigits(canonical);
     if (canonicalDigits) index.set(canonicalDigits, canonical);
   });
   return index;
@@ -385,23 +410,6 @@ const buildParticipantIndex = (participants) => {
  * @returns {*} - Retorno.
  */
 const getFocusJid = (messageInfo, args, senderJid) => {
-  const mentioned = messageInfo.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-  if (mentioned.length > 0) return mentioned[0];
-
-  const repliedTo = messageInfo.message?.extendedTextMessage?.contextInfo?.participant;
-  if (repliedTo) return repliedTo;
-
-  const focusIndex = args.findIndex((arg) => ['foco', 'focus'].includes(arg.toLowerCase()));
-  if (focusIndex >= 0) {
-    if (args[focusIndex + 1] && args[focusIndex + 1].includes('@')) {
-      return args[focusIndex + 1];
-    }
-    return senderJid || null;
-  }
-
-  const argJid = args.find((arg) => getJidServer(arg) === 's.whatsapp.net');
-  if (argJid) return argJid;
-
   return null;
 };
 
@@ -1493,19 +1501,19 @@ const renderGraphImage = ({
   avatarImages,
   showPanel = true,
 }) => {
-  const width = 3200;
-  const height = 2200;
-  const panelWidth = showPanel ? 900 : 0;
-  const scale = 2;
+  const isFocusView = Boolean(focusJid);
+  const width = isFocusView ? 1600 : 3200;
+  const height = isFocusView ? 1100 : 2200;
+  const panelWidth = showPanel && !isFocusView ? 900 : 0;
+  const scale = isFocusView ? 1 : 2;
   const graphWidth = width - panelWidth;
   const canvas = createCanvas(width * scale, height * scale);
   const ctx = canvas.getContext('2d');
   ctx.scale(scale, scale);
   ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingQuality = isFocusView ? 'medium' : 'high';
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const isFocusView = Boolean(focusJid);
 
   const drawRoundedRect = (x, y, w, h, r) => {
     const radius = Math.min(r, w / 2, h / 2);
@@ -1544,7 +1552,10 @@ const renderGraphImage = ({
   if (!nodes.length) {
     ctx.font = '16px Arial';
     ctx.fillText('Sem dados suficientes para desenhar o grafo.', 40, 90);
-    return canvas.toBuffer('image/png');
+    if (isFocusView) {
+      return canvas.toBuffer('image/jpeg', { quality: 0.82, chromaSubsampling: true });
+    }
+    return canvas.toBuffer('image/png', { compressionLevel: 6 });
   }
 
   const centerX = graphWidth / 2;
@@ -1660,7 +1671,7 @@ const renderGraphImage = ({
     }))
     .filter((edge) => edge.srcIndex !== undefined && edge.dstIndex !== undefined);
 
-  const attractionIters = 60;
+  const attractionIters = isFocusView ? 30 : 60;
   const minEdgeDistStrong = 50;
   const minEdgeDistWeak = 198;
   const repulsionEnabled = true;
@@ -1723,7 +1734,7 @@ const renderGraphImage = ({
   });
 
   // Final overlap resolution pass
-  for (let iter = 0; iter < 40; iter += 1) {
+  for (let iter = 0; iter < (isFocusView ? 20 : 40); iter += 1) {
     let moved = false;
     for (let a = 0; a < positions.length; a += 1) {
       for (let b = a + 1; b < positions.length; b += 1) {
@@ -2238,7 +2249,10 @@ const renderGraphImage = ({
     ctx.restore();
   }
 
-  return canvas.toBuffer('image/png');
+  if (isFocusView) {
+    return canvas.toBuffer('image/jpeg', { quality: 0.82, chromaSubsampling: true });
+  }
+  return canvas.toBuffer('image/png', { compressionLevel: 6 });
 };
 
 /**
@@ -2264,6 +2278,17 @@ export async function handleInteractionGraphCommand({
   try {
     const botJid = resolveBotJid(sock?.user?.id);
     const focusJid = getFocusJid(messageInfo, args || [], senderJid);
+    const focusCandidates = new Set();
+    if (focusJid) {
+      focusCandidates.add(focusJid);
+      const cachedFocus = resolveUserIdCached({ lid: focusJid, jid: focusJid, participantAlt: null });
+      if (cachedFocus) focusCandidates.add(cachedFocus);
+      if (isLidUserId(focusJid) && cachedFocus === focusJid) {
+        const resolvedFocus = await resolveUserId({ lid: focusJid, jid: focusJid, participantAlt: null });
+        if (resolvedFocus) focusCandidates.add(resolvedFocus);
+      }
+    }
+    const focusList = Array.from(focusCandidates).filter(Boolean);
     const cacheKey = getCacheKey(focusJid, remoteJid);
     const cached = getCachedResult(cacheKey);
     if (cached) {
@@ -2287,11 +2312,7 @@ export async function handleInteractionGraphCommand({
     );
     const totalMessages = Number(totalMessagesRow?.total || 0);
 
-    const rows = await executeQuery(
-      `WITH base AS (
-         SELECT
-           m.sender_id AS src,
-           JSON_UNQUOTE(
+    const dstExpr = `JSON_UNQUOTE(
              COALESCE(
                JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
                JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
@@ -2302,7 +2323,22 @@ export async function handleInteractionGraphCommand({
                JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.participant'),
                JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
              )
-           ) AS dst,
+           )`;
+    const focusPlaceholders = focusList.map(() => '?').join(', ');
+    const focusFilter = focusList.length
+      ? `AND (m.sender_id IN (${focusPlaceholders}) OR ${dstExpr} IN (${focusPlaceholders}))`
+      : '';
+    const graphLimit = focusList.length ? SOCIAL_GRAPH_FOCUS_LIMIT : SOCIAL_GRAPH_LIMIT;
+    const queryParams = botJid ? [botJid] : [];
+    if (focusList.length) {
+      queryParams.push(...focusList, ...focusList);
+    }
+
+    const rows = await executeQuery(
+      `WITH base AS (
+         SELECT
+           m.sender_id AS src,
+           ${dstExpr} AS dst,
            m.timestamp AS ts
          FROM messages m
          WHERE m.raw_message IS NOT NULL
@@ -2310,16 +2346,8 @@ export async function handleInteractionGraphCommand({
            ${botJid ? 'AND m.sender_id <> ?' : ''}
            AND m.timestamp IS NOT NULL
            AND m.timestamp >= NOW() - INTERVAL ${SOCIAL_RECENT_DAYS} DAY
-           AND COALESCE(
-             JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
-             JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
-             JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.participant'),
-             JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.mentionedJid[0]'),
-             JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.participant'),
-             JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.mentionedJid[0]'),
-             JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.participant'),
-             JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
-           ) IS NOT NULL
+           AND ${dstExpr} IS NOT NULL
+           ${focusFilter}
        ),
        agg AS (
          SELECT
@@ -2349,8 +2377,8 @@ export async function handleInteractionGraphCommand({
          AND a.dst <> ''
          AND a.src <> a.dst
        ORDER BY replies_total_par DESC, a.last_ts DESC
-       LIMIT ${SOCIAL_GRAPH_LIMIT}`,
-      botJid ? [botJid] : [],
+       LIMIT ${graphLimit}`,
+      queryParams,
     );
 
     const lidsToPrime = new Set();
@@ -2379,6 +2407,8 @@ export async function handleInteractionGraphCommand({
     const filteredRows = normalizedFocus
       ? aggregatedRows.filter((row) => row.src === normalizedFocus || row.dst === normalizedFocus)
       : aggregatedRows;
+    const isFocusView = Boolean(normalizedFocus);
+    const showPanel = !isFocusView;
 
     const nameCandidates = collectJidsForNames(filteredRows);
     const latestNames = await fetchLatestPushNames(nameCandidates);
@@ -2406,55 +2436,63 @@ export async function handleInteractionGraphCommand({
     latestNames.forEach((value, key) => {
       if (!names.get(key)) names.set(key, value);
     });
-    const { names: globalNames } = buildSocialRanking(normalizedRows);
-    if (runtimeNames) {
+    const globalNames = showPanel ? buildSocialRanking(normalizedRows).names : new Map();
+    if (showPanel && runtimeNames) {
       runtimeNames.forEach((value, key) => {
         if (!globalNames.get(key)) globalNames.set(key, value);
       });
     }
-    latestNames.forEach((value, key) => {
-      if (!globalNames.get(key)) globalNames.set(key, value);
-    });
+    if (showPanel) {
+      latestNames.forEach((value, key) => {
+        if (!globalNames.get(key)) globalNames.set(key, value);
+      });
+    }
 
     const connectorRanking = Array.from(partners.entries())
       .map(([jid, map]) => ({ jid, degree: map.size }))
       .sort((a, b) => b.degree - a.degree)
       .slice(0, 5);
 
-    const growthRows = await executeQuery(
-      `SELECT sender_id AS jid,
-              SUM(CASE WHEN ts >= NOW() - INTERVAL 30 DAY THEN 1 ELSE 0 END) AS last30,
-              SUM(CASE WHEN ts < NOW() - INTERVAL 30 DAY AND ts >= NOW() - INTERVAL 60 DAY THEN 1 ELSE 0 END) AS prev30,
-              SUM(CASE WHEN ts >= NOW() - INTERVAL 30 DAY THEN 1 ELSE 0 END)
-                - SUM(CASE WHEN ts < NOW() - INTERVAL 30 DAY AND ts >= NOW() - INTERVAL 60 DAY THEN 1 ELSE 0 END) AS delta
-         FROM (
-           SELECT m.sender_id,
-                  CASE
-                    WHEN m.timestamp > 1000000000000 THEN FROM_UNIXTIME(m.timestamp / 1000)
-                    WHEN m.timestamp > 1000000000 THEN FROM_UNIXTIME(m.timestamp)
-                    ELSE m.timestamp
-                  END AS ts
-             FROM messages m
-            WHERE m.sender_id IS NOT NULL
-            ${botJid ? 'AND m.sender_id <> ?' : ''}
-         ) src
-        GROUP BY sender_id
-        HAVING last30 > 0
-        ORDER BY delta DESC
-        LIMIT 5`,
-      botJid ? [botJid] : [],
-    );
-    const [dbStartRow] = await executeQuery(
-      botJid
-        ? 'SELECT MIN(timestamp) AS db_start FROM messages WHERE sender_id <> ?'
-        : 'SELECT MIN(timestamp) AS db_start FROM messages',
-      botJid ? [botJid] : [],
-    );
-    const dbStartLabel = formatDate(dbStartRow?.db_start || null);
+    const growthRows = showPanel
+      ? await executeQuery(
+          `SELECT sender_id AS jid,
+                  SUM(CASE WHEN ts >= NOW() - INTERVAL 30 DAY THEN 1 ELSE 0 END) AS last30,
+                  SUM(CASE WHEN ts < NOW() - INTERVAL 30 DAY AND ts >= NOW() - INTERVAL 60 DAY THEN 1 ELSE 0 END) AS prev30,
+                  SUM(CASE WHEN ts >= NOW() - INTERVAL 30 DAY THEN 1 ELSE 0 END)
+                    - SUM(CASE WHEN ts < NOW() - INTERVAL 30 DAY AND ts >= NOW() - INTERVAL 60 DAY THEN 1 ELSE 0 END) AS delta
+             FROM (
+               SELECT m.sender_id,
+                      CASE
+                        WHEN m.timestamp > 1000000000000 THEN FROM_UNIXTIME(m.timestamp / 1000)
+                        WHEN m.timestamp > 1000000000 THEN FROM_UNIXTIME(m.timestamp)
+                        ELSE m.timestamp
+                      END AS ts
+                 FROM messages m
+                WHERE m.sender_id IS NOT NULL
+                ${botJid ? 'AND m.sender_id <> ?' : ''}
+             ) src
+            GROUP BY sender_id
+            HAVING last30 > 0
+            ORDER BY delta DESC
+            LIMIT 5`,
+          botJid ? [botJid] : [],
+        )
+      : [];
+    let dbStartLabel = null;
+    if (showPanel) {
+      const [dbStartRow] = await executeQuery(
+        botJid
+          ? 'SELECT MIN(timestamp) AS db_start FROM messages WHERE sender_id <> ?'
+          : 'SELECT MIN(timestamp) AS db_start FROM messages',
+        botJid ? [botJid] : [],
+      );
+      dbStartLabel = formatDate(dbStartRow?.db_start || null);
+    }
 
     // "global": dados agregados de todos os chats do bot (sem filtro por chat_id)
-    const globalGraphData = buildGraphData(normalizedRows, globalNames);
-    const graphData = limitGraphData(buildGraphData(filteredRows, names), SOCIAL_NODE_LIMIT);
+    const globalGraphData = showPanel ? buildGraphData(normalizedRows, globalNames) : null;
+    const nodeLimit = isFocusView ? SOCIAL_NODE_FOCUS_LIMIT : SOCIAL_NODE_LIMIT;
+    const graphData = limitGraphData(buildGraphData(filteredRows, names), nodeLimit);
     const allowedJids = new Set(graphData.nodes.map((node) => node.jid));
     directedEdges = directedEdges.filter((edge) => allowedJids.has(edge.src) && allowedJids.has(edge.dst));
     const clustersWithKeywords = assignClanNamesFromList(graphData.clusters);
@@ -2467,28 +2505,40 @@ export async function handleInteractionGraphCommand({
       const color = graphData.clusterColors.get(clusterId);
       if (color) clanColorByJid.set(jid, color);
     });
-    const influenceRanking = buildInfluenceRanking({
-      nodes: graphData.nodes,
-      edges: graphData.edges,
-      nodeClusters: graphData.nodeClusters,
-    });
+    const influenceRanking = showPanel
+      ? buildInfluenceRanking({
+          nodes: graphData.nodes,
+          edges: graphData.edges,
+          nodeClusters: graphData.nodeClusters,
+        })
+      : [];
     const highlightInfluence = new Set((influenceRanking || []).slice(0, 5).map((entry) => entry.jid));
-    const highlightConnectors = new Set(connectorRanking.map((entry) => entry.jid));
-    const { reciprocity, avgResponseMs } = computeReciprocityAndAvg(filteredRows);
-    const clanLeaders = buildClanLeaders(graphData.nodes, graphData.nodeClusters);
-    const clanLeaderById = buildClanLeaderMap(graphData.nodes, graphData.nodeClusters);
+    const highlightConnectors = showPanel
+      ? new Set(connectorRanking.map((entry) => entry.jid))
+      : new Set();
+    const { reciprocity, avgResponseMs } = showPanel
+      ? computeReciprocityAndAvg(filteredRows)
+      : { reciprocity: 0, avgResponseMs: 0 };
+    const clanLeaders = showPanel ? buildClanLeaders(graphData.nodes, graphData.nodeClusters) : new Set();
+    const clanLeaderById = showPanel
+      ? buildClanLeaderMap(graphData.nodes, graphData.nodeClusters)
+      : new Map();
     const captionLines = [];
-    const totalParticipants = globalGraphData.nodes.length;
-    const bridgeLines = buildClanBridgeLines({
-      edges: graphData.edges,
-      nodeClusters: graphData.nodeClusters,
-      names,
-      clanByJid,
-      clanColorByJid,
-    });
-    const growthLines = buildGrowthLines(growthRows, names);
-    const detailLines = [...captionLines];
-    const summaryText = linesToText(detailLines);
+    const totalParticipants = showPanel
+      ? globalGraphData.nodes.length
+      : countUniqueParticipants(normalizedRows);
+    const bridgeLines = showPanel
+      ? buildClanBridgeLines({
+          edges: graphData.edges,
+          nodeClusters: graphData.nodeClusters,
+          names,
+          clanByJid,
+          clanColorByJid,
+        })
+      : [];
+    const growthLines = showPanel ? buildGrowthLines(growthRows, names) : [];
+    const detailLines = showPanel ? [...captionLines] : [];
+    const summaryText = showPanel ? linesToText(detailLines) : '';
 
     // "grupo": dados restritos ao chat_id atual
     let profileText = null;
@@ -2504,53 +2554,64 @@ export async function handleInteractionGraphCommand({
       });
       profileText = profileSection?.text || null;
       profileMeta = profileSection?.meta || null;
-
-      const globalClustersWithKeywords = assignClanNamesFromList(globalGraphData.clusters);
-      const globalClanByJid = new Map();
-      globalClustersWithKeywords.forEach((cluster) => {
-        cluster.members.forEach((jid) => globalClanByJid.set(jid, cluster.keyword || 'nd'));
-      });
-      const globalClanColorByJid = new Map();
-      globalGraphData.nodeClusters.forEach((clusterId, jid) => {
-        const color = globalGraphData.clusterColors.get(clusterId);
-        if (color) globalClanColorByJid.set(jid, color);
-      });
-      const globalInfluenceRanking = buildInfluenceRanking({
-        nodes: globalGraphData.nodes,
-        edges: globalGraphData.edges,
-        nodeClusters: globalGraphData.nodeClusters,
-      });
-
-      const userNode = globalGraphData.nodes.find((node) => node.jid === normalizedFocus);
-      const totalInteractions = Number(userNode?.total || 0);
-      const repliesSent = normalizedRows.reduce(
-        (acc, row) => acc + (row.src === normalizedFocus ? Number(row.replies_a_para_b || 0) : 0),
-        0,
+      const focusTotals = filteredRows.reduce(
+        (acc, row) => {
+          if (row.src === normalizedFocus) {
+            acc.sent += Number(row.replies_a_para_b || 0);
+            acc.received += Number(row.replies_b_para_a || 0);
+            acc.interactions += Number(row.replies_total_par || 0);
+          } else if (row.dst === normalizedFocus) {
+            acc.sent += Number(row.replies_b_para_a || 0);
+            acc.received += Number(row.replies_a_para_b || 0);
+            acc.interactions += Number(row.replies_total_par || 0);
+          }
+          return acc;
+        },
+        { sent: 0, received: 0, interactions: 0 },
       );
-      const repliesReceived = normalizedRows.reduce(
-        (acc, row) => acc + (row.dst === normalizedFocus ? Number(row.replies_a_para_b || 0) : 0),
-        0,
-      );
+      const totalInteractions = focusTotals.interactions;
+      const repliesSent = focusTotals.sent;
+      const repliesReceived = focusTotals.received;
       const partners = new Set();
-      normalizedRows.forEach((row) => {
+      filteredRows.forEach((row) => {
         if (row.src === normalizedFocus && row.dst) partners.add(row.dst);
         if (row.dst === normalizedFocus && row.src) partners.add(row.src);
       });
-      const clanName = globalClanByJid.get(normalizedFocus) || 'N/D';
-      const clanColor = hslToColorName(globalClanColorByJid.get(normalizedFocus));
-      const influenceIndex = globalInfluenceRanking.findIndex(
-        (entry) => entry.jid === normalizedFocus,
-      );
-      const influenceRank = influenceIndex >= 0 ? `#${influenceIndex + 1}` : 'N/D';
+
+      let clanName = 'N/D';
+      let clanColor = 'N/D';
+      let influenceIndex = -1;
+      let influenceRank = 'N/D';
+      if (globalGraphData) {
+        const globalClustersWithKeywords = assignClanNamesFromList(globalGraphData.clusters);
+        const globalClanByJid = new Map();
+        globalClustersWithKeywords.forEach((cluster) => {
+          cluster.members.forEach((jid) => globalClanByJid.set(jid, cluster.keyword || 'nd'));
+        });
+        const globalClanColorByJid = new Map();
+        globalGraphData.nodeClusters.forEach((clusterId, jid) => {
+          const color = globalGraphData.clusterColors.get(clusterId);
+          if (color) globalClanColorByJid.set(jid, color);
+        });
+        const globalInfluenceRanking = buildInfluenceRanking({
+          nodes: globalGraphData.nodes,
+          edges: globalGraphData.edges,
+          nodeClusters: globalGraphData.nodeClusters,
+        });
+        clanName = globalClanByJid.get(normalizedFocus) || 'N/D';
+        clanColor = hslToColorName(globalClanColorByJid.get(normalizedFocus));
+        influenceIndex = globalInfluenceRanking.findIndex((entry) => entry.jid === normalizedFocus);
+        influenceRank = influenceIndex >= 0 ? `#${influenceIndex + 1}` : 'N/D';
+      }
 
       const socialLines = [
         '🌐 Social global (bot inteiro)',
-        `🧩 Clan: ${clanName} (${clanColor})`,
+        ...(globalGraphData ? [`🧩 Clan: ${clanName} (${clanColor})`] : []),
         `🔁 Interações: ${totalInteractions}`,
         `📤 Respostas enviadas: ${repliesSent}`,
         `📥 Respostas recebidas: ${repliesReceived}`,
         `🤝 Conexões únicas: ${partners.size}`,
-        `⭐ Influência (aprox.): ${influenceRank} global`,
+        ...(globalGraphData ? [`⭐ Influência (aprox.): ${influenceRank} global`] : []),
       ];
       profileSocialText = socialLines.join('\n');
 
@@ -2616,7 +2677,6 @@ export async function handleInteractionGraphCommand({
           '🛠️ Como usar o comando',
           '',
           '• Digite social para ver o panorama completo do sistema',
-          '• Use social foco @pessoa para destacar um usuário específico',
           '• Compare os painéis para entender influência, crescimento e pares fortes',
         ];
     const introBlocks = [profileText, profileSocialText, introLines.join('\n')].filter(Boolean);
@@ -2636,84 +2696,84 @@ export async function handleInteractionGraphCommand({
       return makeLine(label, color);
     });
 
-    const mentionLines = buildTopMentionsLines(filteredRows, names, clanByJid, clanColorByJid);
-    const pairLines = buildTopPairsLines(filteredRows, names, clanByJid, clanColorByJid);
-    const receivedLines = buildTopRepliesReceivedLines(
-      filteredRows,
-      names,
-      clanByJid,
-      clanColorByJid,
-    );
-    const sentLines = buildTopRepliesSentLines(filteredRows, names, clanByJid, clanColorByJid);
-    const activeClansLines = buildTopActiveClansLines(
-      filteredRows,
-      clustersWithKeywords,
-      graphData.clusterColors,
-    );
-    const connectorLines = buildGlobalConnectorsLines(
-      filteredRows,
-      names,
-      clanByJid,
-      clanColorByJid,
-    );
-    const skewLines = buildSkewLines(ranking);
+    const mentionLines = showPanel
+      ? buildTopMentionsLines(filteredRows, names, clanByJid, clanColorByJid)
+      : [];
+    const pairLines = showPanel
+      ? buildTopPairsLines(filteredRows, names, clanByJid, clanColorByJid)
+      : [];
+    const receivedLines = showPanel
+      ? buildTopRepliesReceivedLines(filteredRows, names, clanByJid, clanColorByJid)
+      : [];
+    const sentLines = showPanel
+      ? buildTopRepliesSentLines(filteredRows, names, clanByJid, clanColorByJid)
+      : [];
+    const activeClansLines = showPanel
+      ? buildTopActiveClansLines(filteredRows, clustersWithKeywords, graphData.clusterColors)
+      : [];
+    const connectorLines = showPanel
+      ? buildGlobalConnectorsLines(filteredRows, names, clanByJid, clanColorByJid)
+      : [];
+    const skewLines = showPanel ? buildSkewLines(ranking) : [];
 
-    const summaryLines = [
-      'Resumo geral',
-      `Total de mensagens: ${totalMessages}`,
-      `Total de interacoes: ${totalInteractions}`,
-      '',
-      'Reciprocidade',
-      `Reciprocidade: ${reciprocity}%`,
-      `Tempo medio de resposta: ${formatDuration(avgResponseMs)}`,
-      '',
-      'Influentes (aprox)',
-      ...(influenceRanking || []).map((entry, index) => {
-        const display = getSummaryLabel(entry.jid, names.get(entry.jid));
-        const clan = clanByJid.get(entry.jid);
-        const color = clanColorByJid.get(entry.jid);
-        return makeLine(
-          `${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${Math.round(entry.score)}`,
-          color,
-        );
-      }),
-      '',
-      'Mais interacoes',
-      ...ranking.slice(0, 5).map((entry, index) => {
-        const display = getSummaryLabel(entry.jid, names.get(entry.jid));
-        const clan = clanByJid.get(entry.jid);
-        const color = clanColorByJid.get(entry.jid);
-        return makeLine(
-          `${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${entry.total}`,
-          color,
-        );
-      }),
-      '',
-      'Clans',
-      ...clanBoxLines,
-      '',
-      ...mentionLines,
-      ...pairLines,
-      ...receivedLines,
-      ...sentLines,
-      ...activeClansLines,
-      ...connectorLines,
-      ...skewLines,
-      '',
-      ...bridgeLines,
-      ...growthLines,
-    ];
-    const avatarLimit = normalizedFocus ? SOCIAL_AVATAR_FOCUS_LIMIT : SOCIAL_AVATAR_LIMIT;
-    const avatarJids = pickAvatarJids({
-      nodes: graphData.nodes,
-      focusJid: normalizedFocus,
-      limit: avatarLimit,
-    });
-    const avatarImages = await loadProfileImages({
-      sock,
-      jids: avatarJids,
-      remoteJid,
-    });
+    const summaryLines = showPanel
+      ? [
+          'Resumo geral',
+          `Total de mensagens: ${totalMessages}`,
+          `Total de interacoes: ${totalInteractions}`,
+          '',
+          'Reciprocidade',
+          `Reciprocidade: ${reciprocity}%`,
+          `Tempo medio de resposta: ${formatDuration(avgResponseMs)}`,
+          '',
+          'Influentes (aprox)',
+          ...(influenceRanking || []).map((entry, index) => {
+            const display = getSummaryLabel(entry.jid, names.get(entry.jid));
+            const clan = clanByJid.get(entry.jid);
+            const color = clanColorByJid.get(entry.jid);
+            return makeLine(
+              `${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${Math.round(entry.score)}`,
+              color,
+            );
+          }),
+          '',
+          'Mais interacoes',
+          ...ranking.slice(0, 5).map((entry, index) => {
+            const display = getSummaryLabel(entry.jid, names.get(entry.jid));
+            const clan = clanByJid.get(entry.jid);
+            const color = clanColorByJid.get(entry.jid);
+            return makeLine(
+              `${index + 1}. ${clan ? `${display} - ${clan}` : display} — ${entry.total}`,
+              color,
+            );
+          }),
+          '',
+          'Clans',
+          ...clanBoxLines,
+          '',
+          ...mentionLines,
+          ...pairLines,
+          ...receivedLines,
+          ...sentLines,
+          ...activeClansLines,
+          ...connectorLines,
+          ...skewLines,
+          '',
+          ...bridgeLines,
+          ...growthLines,
+        ]
+      : [];
+    const avatarImages = showPanel
+      ? await loadProfileImages({
+          sock,
+          jids: pickAvatarJids({
+            nodes: graphData.nodes,
+            focusJid: normalizedFocus,
+            limit: normalizedFocus ? SOCIAL_AVATAR_FOCUS_LIMIT : SOCIAL_AVATAR_LIMIT,
+          }),
+          remoteJid,
+        })
+      : new Map();
     const imageBuffer = renderGraphImage({
       ...graphData,
       directedEdges,
@@ -2726,7 +2786,7 @@ export async function handleInteractionGraphCommand({
       focusBadges,
       focusJid: normalizedFocus,
       avatarImages,
-      showPanel: !normalizedFocus,
+      showPanel,
     });
 
     const mentions = normalizedFocus ? [normalizedFocus] : [];
