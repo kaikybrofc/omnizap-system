@@ -2,10 +2,12 @@ import { handleMenuAdmCommand } from '../menuModule/menus.js';
 import { downloadMediaMessage, getJidServer } from '../../config/baileysConfig.js';
 import { isUserAdmin, createGroup, acceptGroupInvite, getGroupInfo, getGroupRequestParticipantsList, updateGroupAddMode, updateGroupSettings, updateGroupParticipants, leaveGroup, getGroupInviteCode, revokeGroupInviteCode, getGroupInfoFromInvite, updateGroupRequestParticipants, updateGroupSubject, updateGroupDescription, toggleEphemeral } from '../../config/groupUtils.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
+import premiumUserStore from '../../store/premiumUserStore.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { KNOWN_NETWORKS } from '../../utils/antiLink/antiLinkModule.js';
 
-const ADMIN_COMMANDS = new Set(['menuadm', 'newgroup', 'add', 'ban', 'up', 'down', 'setsubject', 'setdesc', 'setgroup', 'leave', 'invite', 'revoke', 'join', 'infofrominvite', 'metadata', 'requests', 'updaterequests', 'temp', 'addmode', 'welcome', 'farewell', 'antilink']);
+const ADMIN_COMMANDS = new Set(['menuadm', 'newgroup', 'add', 'ban', 'up', 'down', 'setsubject', 'setdesc', 'setgroup', 'leave', 'invite', 'revoke', 'join', 'infofrominvite', 'metadata', 'requests', 'updaterequests', 'temp', 'addmode', 'welcome', 'farewell', 'antilink', 'premium']);
+const OWNER_JID = process.env.USER_ADMIN;
 
 const getParticipantJids = (messageInfo, args) => {
   const mentionedJids = messageInfo.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
@@ -37,6 +39,58 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
         break;
       }
       await handleMenuAdmCommand(sock, remoteJid, messageInfo, expirationMessage);
+      break;
+    }
+
+    case 'premium': {
+      if (!OWNER_JID || senderJid !== OWNER_JID) {
+        await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+        break;
+      }
+
+      const action = args[0]?.toLowerCase();
+      const actionArgs = args.slice(1);
+      if (!action || !['add', 'remove', 'list'].includes(action)) {
+        await sock.sendMessage(
+          remoteJid,
+          { text: 'Uso: /premium <add|remove|list> @user1 @user2...' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (action === 'list') {
+        const premiumUsers = await premiumUserStore.getPremiumUsers();
+        const listText = premiumUsers.length > 0 ? premiumUsers.map((jid) => `• ${jid}`).join('\n') : 'Nenhum usuário premium cadastrado.';
+        await sock.sendMessage(
+          remoteJid,
+          { text: `⭐ *Lista Premium*\n\n${listText}` },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      const participants = getParticipantJids(messageInfo, actionArgs);
+      if (participants.length === 0) {
+        await sock.sendMessage(remoteJid, { text: 'Uso: /premium <add|remove> @user1 @user2... ou responda a uma mensagem.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+        break;
+      }
+
+      if (action === 'add') {
+        const updated = await premiumUserStore.addPremiumUsers(participants);
+        await sock.sendMessage(
+          remoteJid,
+          { text: `✅ Usuários adicionados à lista premium.\nTotal: ${updated.length}` },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+      } else {
+        const updated = await premiumUserStore.removePremiumUsers(participants);
+        await sock.sendMessage(
+          remoteJid,
+          { text: `✅ Usuários removidos da lista premium.\nTotal: ${updated.length}` },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+      }
       break;
     }
 

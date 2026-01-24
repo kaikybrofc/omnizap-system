@@ -33,6 +33,7 @@
     "moment-timezone": "^0.5.48",
     "mysql2": "^3.15.0",
     "node-cache": "^5.1.2",
+    "openai": "^5.23.2",
     "pino": "^10.0.0",
     "pino-pretty": "^13.0.0",
     "proper-lockfile": "^4.1.2",

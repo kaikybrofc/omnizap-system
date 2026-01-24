@@ -34,6 +34,11 @@ Olá, ${senderName}! 👋
 ➡️ *${commandPrefix}play Coldplay Yellow*  
 
 ━━━━━━━━━━━━━━━  
+🤖 *IA*  
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}cat* <mensagem ou pergunta>  
+
+━━━━━━━━━━━━━━━  
 📊 *Estatísticas*  
 ━━━━━━━━━━━━━━━  
 ➡️ *${commandPrefix}ranking* *(top 5 do grupo)*  
@@ -112,4 +117,5 @@ export const MENU_ADM_TEXT = `
 🔒 */addmode <all_member_add|admin_add>* - Define quem pode adicionar membros.
 👋 */welcome <on|off|set> [mensagem ou mídia]* - Boas-vindas.
 👋 */farewell <on|off|set> [mensagem ou caminho da mídia]* - Mensagem de saída.
+⭐ */premium <add|remove|list> @user1 @user2...* - Gerencia acesso premium da IA.
 `;
