@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 import logger from '../../utils/logger/loggerModule.js';
+import groupConfigStore from '../../store/groupConfigStore.js';
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const WAIFU_PICS_BASE = (process.env.WAIFU_PICS_BASE || 'https://api.waifu.pics').replace(/\/$/, '');
@@ -83,6 +84,18 @@ export async function handleWaifuPicsCommand({
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return;
+  }
+
+  if (type === 'nsfw') {
+    const config = await groupConfigStore.getGroupConfig(remoteJid);
+    if (!config?.nsfwEnabled) {
+      await sock.sendMessage(
+        remoteJid,
+        { text: '🔞 NSFW está desativado neste grupo. Um admin pode ativar com /nsfw on.' },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+      return;
+    }
   }
 
   const allowed = type === 'nsfw' ? NSFW_CATEGORIES : SFW_CATEGORIES;

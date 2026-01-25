@@ -6,7 +6,7 @@ import premiumUserStore from '../../store/premiumUserStore.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { KNOWN_NETWORKS } from '../../utils/antiLink/antiLinkModule.js';
 
-const ADMIN_COMMANDS = new Set(['menuadm', 'newgroup', 'add', 'ban', 'up', 'down', 'setsubject', 'setdesc', 'setgroup', 'leave', 'invite', 'revoke', 'join', 'infofrominvite', 'metadata', 'requests', 'updaterequests', 'temp', 'addmode', 'welcome', 'farewell', 'antilink', 'premium']);
+const ADMIN_COMMANDS = new Set(['menuadm', 'newgroup', 'add', 'ban', 'up', 'down', 'setsubject', 'setdesc', 'setgroup', 'leave', 'invite', 'revoke', 'join', 'infofrominvite', 'metadata', 'requests', 'updaterequests', 'temp', 'addmode', 'welcome', 'farewell', 'antilink', 'premium', 'nsfw']);
 const OWNER_JID = process.env.USER_ADMIN;
 
 const getParticipantJids = (messageInfo, args) => {
@@ -91,6 +91,47 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
+      break;
+    }
+
+    case 'nsfw': {
+      if (!isGroupMessage) {
+        await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+        break;
+      }
+      if (!(await isUserAdmin(remoteJid, senderJid))) {
+        await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+        break;
+      }
+
+      const action = args[0]?.toLowerCase();
+      if (!action || !['on', 'off', 'status'].includes(action)) {
+        await sock.sendMessage(
+          remoteJid,
+          { text: 'Uso: /nsfw <on|off|status>' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (action === 'status') {
+        const config = await groupConfigStore.getGroupConfig(remoteJid);
+        const enabled = Boolean(config.nsfwEnabled);
+        await sock.sendMessage(
+          remoteJid,
+          { text: `🔞 NSFW está ${enabled ? 'ATIVADO' : 'DESATIVADO'} neste grupo.` },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      const enabled = action === 'on';
+      await groupConfigStore.updateGroupConfig(remoteJid, { nsfwEnabled: enabled });
+      await sock.sendMessage(
+        remoteJid,
+        { text: `🔞 NSFW ${enabled ? 'ATIVADO' : 'DESATIVADO'} para este grupo.` },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       break;
     }
 
