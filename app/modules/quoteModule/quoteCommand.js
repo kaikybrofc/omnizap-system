@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import logger from '../../utils/logger/loggerModule.js';
 import { getJidUser } from '../../config/baileysConfig.js';
+import { resolveUserId } from '../../services/lidMapService.js';
 import { convertToWebp } from '../stickerModule/convertToWebp.js';
 import { addStickerMetadata } from '../stickerModule/addStickerMetadata.js';
 import { fetchLatestPushNames } from '../statsModule/rankingCommon.js';
@@ -16,6 +17,11 @@ const QUOTE_BG_COLOR = process.env.QUOTE_BG_COLOR || '#0b141a';
 const QUOTE_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_TIMEOUT_MS || '20000', 10);
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'quotes');
+
+const isValidJid = (jid) => typeof jid === 'string' && jid.includes('@');
+const isLidJid = (jid) => typeof jid === 'string' && jid.endsWith('@lid');
+const normalizeMentionedJids = (mentionedJids) =>
+  Array.isArray(mentionedJids) ? mentionedJids.filter(Boolean) : [];
 
 const extractTextFromMessage = (message = {}) => {
   const text = message.conversation?.trim() || message.extendedTextMessage?.text;
@@ -45,6 +51,54 @@ const resolveDisplayName = async (sock, jid) => {
 
 const buildFallbackAvatarUrl = (seed) =>
   `https://api.dicebear.com/7.x/avataaars/png?seed=${encodeURIComponent(seed || 'OmniZap')}`;
+
+const parseLeadingMention = (text) => {
+  const trimmed = text?.trim() || '';
+  if (!trimmed) return { mention: null, rest: '' };
+  const parts = trimmed.split(/\s+/);
+  const first = parts[0];
+  if (first && first.startsWith('@') && first.length > 1) {
+    return { mention: first.slice(1), rest: parts.slice(1).join(' ').trim() };
+  }
+  return { mention: null, rest: trimmed };
+};
+
+const buildJidFromMention = (mention) => {
+  if (!mention) return null;
+  const digits = mention.replace(/\D/g, '');
+  if (!digits) return null;
+  return `${digits}@s.whatsapp.net`;
+};
+
+const resolveQuotedTarget = (contextInfo = {}) => {
+  const participant = contextInfo?.participant || null;
+  const participantAlt = contextInfo?.participantAlt || null;
+  const quotedKey =
+    contextInfo?.quotedMessageKey ||
+    contextInfo?.quotedMessage?.key ||
+    contextInfo?.quotedMessage?.contextInfo?.quotedMessageKey ||
+    null;
+  const keyParticipant = quotedKey?.participant || null;
+  const keyParticipantAlt = quotedKey?.participantAlt || null;
+  return {
+    participant,
+    participantAlt,
+    keyParticipant,
+    keyParticipantAlt,
+  };
+};
+
+const resolveTargetJids = async ({ primaryJid, altJid }) => {
+  const primary = isValidJid(primaryJid) ? primaryJid : null;
+  const alt = isValidJid(altJid) ? altJid : null;
+  try {
+    const resolved = await resolveUserId({ jid: primary, participantAlt: alt, lid: primary });
+    return { targetJid: primary || alt || null, resolvedJid: resolved || alt || primary || null };
+  } catch (error) {
+    logger.warn('quote: falha ao resolver LID', { error: error.message });
+    return { targetJid: primary || alt || null, resolvedJid: alt || primary || null };
+  }
+};
 
 const resolveAvatarUrl = async (sock, jid, fallbackSeed) => {
   try {
@@ -110,22 +164,55 @@ export async function handleQuoteCommand({
 }) {
   const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
   const quotedMessage = contextInfo?.quotedMessage;
-  const quotedParticipant = contextInfo?.participant;
-  const mentionedJids = contextInfo?.mentionedJid || [];
+  const hasQuoted = Boolean(quotedMessage || contextInfo?.stanzaId);
+  const mentionedJids = normalizeMentionedJids(contextInfo?.mentionedJid);
 
-  const targetJid = quotedParticipant || mentionedJids[0] || senderJid;
+  let targetJid = null;
+  let targetAltJid = null;
+  let quoteText = '';
 
-  const quoteText = quotedMessage ? extractTextFromMessage(quotedMessage) : text?.trim();
+  if (hasQuoted) {
+    const quotedInfo = resolveQuotedTarget(contextInfo);
+    targetJid = quotedInfo.participant || quotedInfo.keyParticipant || null;
+    targetAltJid = quotedInfo.participantAlt || quotedInfo.keyParticipantAlt || null;
+    quoteText = extractTextFromMessage(quotedMessage);
+    if (!targetJid && targetAltJid) {
+      targetJid = targetAltJid;
+    }
+  } else {
+    const { mention, rest } = parseLeadingMention(text);
+    const mentionFromContext = mentionedJids[0] || null;
+    const mentionFromText = buildJidFromMention(mention);
+    const mentionTarget = mentionFromContext || mentionFromText;
+    if (mentionTarget) {
+      targetJid = mentionTarget;
+      quoteText = rest;
+    } else {
+      targetJid = senderJid;
+      quoteText = text?.trim();
+    }
+  }
+
+  if (!targetJid) {
+    targetJid = senderJid;
+  }
   if (!quoteText) {
     await sendUsage(sock, remoteJid, messageInfo, expirationMessage);
     return;
   }
 
-  const resolvedName = await resolveDisplayName(sock, targetJid);
-  const fallbackName = `@${getJidUser(targetJid) || 'user'}`;
-  const authorName = resolvedName || senderName || fallbackName;
+  const { targetJid: finalTargetJid, resolvedJid } = await resolveTargetJids({
+    primaryJid: targetJid,
+    altJid: targetAltJid,
+  });
+  const jidForProfile = resolvedJid || finalTargetJid || targetJid;
 
-  const avatarUrl = await resolveAvatarDataUrl(sock, targetJid, authorName);
+  const resolvedName = await resolveDisplayName(sock, jidForProfile);
+  const fallbackName = `@${getJidUser(jidForProfile || targetJid) || 'user'}`;
+  const senderNameFallback = jidForProfile === senderJid ? senderName : null;
+  const authorName = resolvedName || senderNameFallback || fallbackName;
+
+  const avatarUrl = await resolveAvatarDataUrl(sock, jidForProfile, authorName);
 
   const payload = {
     type: 'quote',
