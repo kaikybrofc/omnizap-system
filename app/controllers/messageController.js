@@ -31,6 +31,7 @@ import {
 } from '../modules/waifuPicsModule/waifuPicsCommand.js';
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
+const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
 
 /**
  * Extrai o conteúdo de texto de uma mensagem do WhatsApp.
@@ -107,6 +108,19 @@ export const handleMessages = async (update, sock) => {
         }
 
         if (extractedText.startsWith(COMMAND_PREFIX)) {
+          if (COMMAND_REACT_EMOJI) {
+            try {
+              await sock.sendMessage(remoteJid, {
+                react: {
+                  text: COMMAND_REACT_EMOJI,
+                  key: messageInfo.key,
+                },
+              });
+            } catch (error) {
+              logger.warn('Falha ao enviar reação de comando:', error.message);
+            }
+          }
+
           const commandBody = extractedText.substring(COMMAND_PREFIX.length);
           const match = commandBody.match(/^(\S+)([\s\S]*)$/);
           const command = match ? match[1].toLowerCase() : '';

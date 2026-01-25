@@ -46,6 +46,7 @@ Siga os passos para configurar e executar:
     ```env
     # Configurações do Bot
     COMMAND_PREFIX=#
+    COMMAND_REACT_EMOJI=🤖
     USER_ADMIN=seu_jid_de_admin@s.whatsapp.net
     PM2_APP_NAME=omnizap-system
     LOG_LEVEL=info
