@@ -17,6 +17,7 @@ import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js';
 import { handleCatCommand } from '../modules/aiModule/catCommand.js';
+import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
@@ -143,6 +144,19 @@ export const handleMessages = async (update, sock) => {
                 messageInfo,
                 expirationMessage,
                 senderJid,
+                text,
+              });
+              break;
+
+            case 'quote':
+            case 'qc':
+              await handleQuoteCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                senderJid,
+                senderName,
                 text,
               });
               break;

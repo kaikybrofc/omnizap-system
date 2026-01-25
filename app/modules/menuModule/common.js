@@ -34,6 +34,11 @@ Olá, ${senderName}! 👋
 ➡️ *${commandPrefix}play Coldplay Yellow*  
 
 ━━━━━━━━━━━━━━━  
+🖼️ *Quotes*  
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}quote* *(responda uma mensagem ou envie um texto)*  
+
+━━━━━━━━━━━━━━━  
 🤖 *IA*  
 ━━━━━━━━━━━━━━━  
 ➡️ *${commandPrefix}cat* <mensagem ou pergunta>  
