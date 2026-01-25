@@ -174,7 +174,7 @@ export async function handleQuoteCommand({
     let stickerPath;
 
     try {
-      const webpPath = await convertToWebp(pngPath, 'image', userId, uuidv4());
+      const webpPath = await convertToWebp(pngPath, 'image', userId, uuidv4(), { stretch: false });
       stickerPath = await addStickerMetadata(webpPath, 'OmniZap Quotes', senderName || 'OmniZap', {
         senderName,
         userId: senderJid,

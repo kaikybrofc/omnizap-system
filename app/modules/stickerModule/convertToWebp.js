@@ -15,14 +15,17 @@ const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
  * @param {string} mediaType - Tipo da mídia (image, video, sticker).
  * @param {string} userId - ID do usuário.
  * @param {string} uniqueId - Identificador único para o sticker.
+ * @param {object} [options] - Opcoes de conversao.
+ * @param {boolean} [options.stretch=true] - Se true, estica para 512x512 sem preservar aspecto.
  * @returns {Promise<string>} Caminho do arquivo webp gerado.
  * @throws {Error} Se a conversão falhar.
  */
-export async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
+export async function convertToWebp(inputPath, mediaType, userId, uniqueId, options = {}) {
   logger.info(`StickerCommand Convertendo mídia para webp. ID: ${uniqueId}, Tipo: ${mediaType}`);
   const sanitizedUserId = userId.replace(/[^a-zA-Z0-9.-]/g, '_');
   const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
   const outputPath = path.join(userStickerDir, `sticker_${uniqueId}.webp`);
+  const { stretch = true } = options;
 
   try {
     await fs.mkdir(userStickerDir, { recursive: true });
@@ -37,11 +40,13 @@ export async function convertToWebp(inputPath, mediaType, userId, uniqueId) {
       await fs.copyFile(inputPath, outputPath);
       return outputPath;
     }
+    const stretchFilter = 'scale=512:512';
     const scaleFilter = 'scale=512:512:force_original_aspect_ratio=decrease';
     const padFilter = 'pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000';
+    const imageFilter = stretch ? stretchFilter : `${scaleFilter},${padFilter}`;
     const filtro = mediaType === 'video'
-      ? `fps=10,${scaleFilter},${padFilter}`
-      : `${scaleFilter},${padFilter}`;
+      ? `fps=10,${imageFilter}`
+      : imageFilter;
     const ffmpegCommand = `ffmpeg -i "${inputPath}" -vcodec libwebp -lossless 1 -loop 0 -preset default -an -vf "${filtro}" "${outputPath}"`;
     let ffmpegResult;
     try {
