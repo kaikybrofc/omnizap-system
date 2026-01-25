@@ -1,5 +1,6 @@
 import logger from '../../utils/logger/loggerModule.js';
 import {
+  buildAnimeMenu,
   buildAiMenu,
   buildMediaMenu,
   buildMenuCaption,
@@ -51,6 +52,9 @@ export async function handleMenuCommand(sock, remoteJid, messageInfo, expiration
     ['stats', (prefix) => buildStatsMenu(prefix)],
     ['estatisticas', (prefix) => buildStatsMenu(prefix)],
     ['estatistica', (prefix) => buildStatsMenu(prefix)],
+    ['anime', (prefix) => buildAnimeMenu(prefix)],
+    ['waifu', (prefix) => buildAnimeMenu(prefix)],
+    ['husbando', (prefix) => buildAnimeMenu(prefix)],
   ]);
 
   const buildCategory = categoryMap.get(category);

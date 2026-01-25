@@ -18,6 +18,16 @@ import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js';
 import { handleCatCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
 import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
+import {
+  handleWaifuFactCommand,
+  handleWaifuImageCommand,
+  handleWaifuQuoteCommand,
+  getWaifuUsageText,
+} from '../modules/waifuModule/waifuCommand.js';
+import {
+  handleWaifuPicsCommand,
+  getWaifuPicsUsageText,
+} from '../modules/waifuPicsModule/waifuPicsCommand.js';
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
@@ -173,6 +183,89 @@ export const handleMessages = async (update, sock) => {
                 senderName,
                 text,
               });
+              break;
+
+            case 'waifu':
+              await handleWaifuImageCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                text,
+                endpoint: 'waifu',
+              });
+              break;
+
+            case 'husbando':
+              await handleWaifuImageCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                text,
+                endpoint: 'husbando',
+              });
+              break;
+
+            case 'animefact':
+            case 'wfact':
+              await handleWaifuFactCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+              });
+              break;
+
+            case 'animequote':
+            case 'wquote':
+              await handleWaifuQuoteCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                text,
+              });
+              break;
+
+            case 'waifuhelp':
+              await sock.sendMessage(
+                remoteJid,
+                { text: getWaifuUsageText() },
+                { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+              );
+              break;
+
+            case 'wp':
+            case 'waifupics':
+              await handleWaifuPicsCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                text,
+                type: 'sfw',
+              });
+              break;
+
+            case 'wpnsfw':
+            case 'waifupicsnsfw':
+              await handleWaifuPicsCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                text,
+                type: 'nsfw',
+              });
+              break;
+
+            case 'wppicshelp':
+              await sock.sendMessage(
+                remoteJid,
+                { text: getWaifuPicsUsageText() },
+                { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+              );
               break;
 
             case 'aviso':

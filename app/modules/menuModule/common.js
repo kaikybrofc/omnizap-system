@@ -21,6 +21,9 @@ Escolha uma categoria para ver os comandos:
 📊 *Estatísticas*  
 ➡️ *${commandPrefix}menu stats*  
 
+🌸 *Waifu.it*  
+➡️ *${commandPrefix}menu anime*  
+
 🛡️ *Administração*  
 ➡️ *${commandPrefix}menuadm*  
 
@@ -87,6 +90,22 @@ export const buildQuoteMenu = (commandPrefix) => `
 
 ━━━━━━━━━━━━━━━  
 ➡️ *${commandPrefix}quote* *(responda uma mensagem ou envie um texto)*  
+`;
+
+export const buildAnimeMenu = (commandPrefix) => `
+🌸 *Waifu.it*  
+
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}waifu* [nome|anime:Nome]  
+➡️ *${commandPrefix}husbando* [nome|anime:Nome]  
+➡️ *${commandPrefix}animefact*  
+➡️ *${commandPrefix}animequote* [character:Nome|anime:Nome]  
+
+━━━━━━━━━━━━━━━  
+🖼️ *Waifu.pics*  
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}wp* <categoria> *(SFW)*  
+➡️ *${commandPrefix}wpnsfw* <categoria> *(NSFW)*  
 `;
 
 export const buildAiMenu = (commandPrefix) => `
