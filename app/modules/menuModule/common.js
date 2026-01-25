@@ -72,6 +72,16 @@ export const buildStickerMenu = (commandPrefix) => `
 
 📌 *Exemplo:*  
 ➡️ *${commandPrefix}stb bom dia -verde*  
+
+━━━━━━━━━━━━━━━  
+🔁 *Converter figurinha*  
+━━━━━━━━━━━━━━━  
+▫️ Responda uma figurinha com:  
+➡️ *${commandPrefix}toimg*  
+
+📌 *Resultado:*  
+➡️ Figurinha estática vira imagem  
+➡️ Figurinha animada vira vídeo  
 `;
 
 export const buildMediaMenu = (commandPrefix) => `

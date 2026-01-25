@@ -40,6 +40,7 @@
     "qrcode-terminal": "^0.12.0",
     "stream-json": "^1.9.1",
     "uuid": "^13.0.0",
+    "webp-conv": "github:kaikybrofc/webp-conv",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0"
   },

@@ -18,6 +18,7 @@ import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js';
 import { handleCatCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
 import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
+import { handleStickerConvertCommand } from '../modules/stickerModule/stickerConvertCommand.js';
 import {
   handleWaifuFactCommand,
   handleWaifuImageCommand,
@@ -138,6 +139,18 @@ export const handleMessages = async (update, sock) => {
                 senderName,
                 args.join(' '),
               );
+              break;
+
+            case 'toimg':
+            case 'tovideo':
+            case 'tovid':
+              await handleStickerConvertCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                senderJid,
+              });
               break;
 
             case 'play':
