@@ -1,5 +1,13 @@
 <img width="1318" height="352" alt="image" src="https://github.com/user-attachments/assets/d44835e7-021a-4c67-a0e7-5b858d51eb91" />
 
+![Node.js](https://img.shields.io/badge/Node.js-18%2B-3C873A?logo=node.js&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-F7DF1E?logo=javascript&logoColor=000)
+![MySQL](https://img.shields.io/badge/MySQL-8%2B-4479A1?logo=mysql&logoColor=white)
+![Baileys](https://img.shields.io/badge/Baileys-WhatsApp%20SDK-25D366?logo=whatsapp&logoColor=white)
+![PM2](https://img.shields.io/badge/PM2-Process%20Manager-2B037A?logo=pm2&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-SDK-111111?logo=openai&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-0B6E4F?logo=opensourceinitiative&logoColor=white)
+
 O **OmniZap System** é uma plataforma de automação para WhatsApp em Node.js com Baileys, oferecendo gerenciamento de grupos, automação de interações e comandos personalizados com suporte a MySQL.
 
 ## ✨ Recursos Principais
@@ -37,25 +45,61 @@ Siga os passos para configurar e executar:
 
     ```env
     # Configurações do Bot
-    COMMAND_PREFIX=/
+    COMMAND_PREFIX=#
     USER_ADMIN=seu_jid_de_admin@s.whatsapp.net
     PM2_APP_NAME=omnizap-system
     LOG_LEVEL=info
     NODE_ENV=development
+    IMAGE_MENU=https://example.com/assets/omnizap-banner.png
+    BAILEYS_VERSION=
 
     # Configurações do MySQL
     DB_HOST=localhost
-    DB_USER=seu_usuario
-    DB_PASSWORD=sua_senha
+    DB_USER=user1
+    DB_PASSWORD=1234
     DB_NAME=omnizap
     DB_POOL_LIMIT=10
 
     # Paths e armazenamento
     STORE_PATH=./temp
 
+    # Backfill do lid_map ao iniciar (default: true)
+    LID_BACKFILL_ON_START=true
+
+    # Tamanho do batch do backfill (default: 50000)
+    LID_BACKFILL_BATCH=5000000
+
+    # OpenAI
+    OPENAI_API_KEY=
+    OPENAI_MODEL=gpt-5-nano
+    OPENAI_SYSTEM_PROMPT=
+    OPENAI_SESSION_TTL_SECONDS=21600
+
+    # Quote API
+    QUOTE_API_URL=https://bot.lyo.su/quote/generate.png
+    QUOTE_BG_COLOR=#0b141a
+    QUOTE_TIMEOUT_MS=20000
+
+    # Waifu.it
+    WAIFU_API_TOKEN=
+    WAIFU_API_BASE=https://waifu.it/api/v4
+    WAIFU_TIMEOUT_MS=15000
+
+    # Waifu.pics
+    WAIFU_PICS_BASE=https://api.waifu.pics
+    WAIFU_PICS_TIMEOUT_MS=15000
+    WAIFU_PICS_ALLOW_NSFW=false
+
+    # YT-DL/Play
+    YTDLS_BASE_URL=http://127.0.0.1:3000
+    YT_DLS_BASE_URL=
+    PLAY_API_TIMEOUT_MS=900000
+    PLAY_API_DOWNLOAD_TIMEOUT_MS=1800000
+    PLAY_MAX_MB=100
+    PLAY_QUEUE_STATUS_TIMEOUT_MS=8000
+
     # FFmpeg (opcional) - se o binário não estiver no PATH do sistema
     # FFMPEG_PATH=/usr/bin/ffmpeg
-    # IMAGE_MENU=https://example.com/assets/omnizap-banner.png
     ```
 
 4.  **Prepare o banco de dados:**
@@ -118,17 +162,43 @@ npm run pm2:dev
 npm run pm2:prod
 ```
 
+## 🧰 Troubleshooting
+
+**QR não aparece no PM2**
+
+*   Inicie primeiro sem PM2 para escanear o QR: `npm run start` ou `node index.js`.
+*   Depois de conectar, finalize o processo e inicie via PM2.
+*   Se necessário, apague a sessão salva e reconecte.
+
+**Erro de MySQL**
+
+*   Verifique `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
+*   Garanta que o banco existe e o usuário tem permissão de leitura/escrita.
+*   Confirme se o MySQL está rodando e acessível na porta correta.
+
+**FFmpeg não encontrado**
+
+*   Instale o FFmpeg no sistema e certifique-se de que está no `PATH`.
+*   Alternativamente, configure `FFMPEG_PATH` no `.env`.
+
 ## 🛠️ Tecnologias Utilizadas
 
 *   Node.js
 *   MySQL
 *   @whiskeysockets/baileys
-*   mysql2/promise
-*   Pino
-*   FFmpeg
-*   WebP
+*   mysql2
+*   Pino + Winston (logs)
+*   OpenAI SDK
+*   Axios
+*   Canvas
+*   FFmpeg + WebP (webp-conv)
 *   PM2
-*   Dotenv
+*   Dotenv + Envalid
+
+## 🤝 Créditos e links úteis
+
+*   Baileys (WhatsApp Web API): https://github.com/WhiskeySockets/Baileys
+*   WhatsApp: https://www.whatsapp.com
 
 ## 🤝 Contribuições
 
