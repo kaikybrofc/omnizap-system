@@ -11,7 +11,8 @@ import { fetchLatestPushNames } from '../statsModule/rankingCommon.js';
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const QUOTE_API_URL = process.env.QUOTE_API_URL || 'https://bot.lyo.su/quote/generate.png';
-const QUOTE_BG_COLOR = process.env.QUOTE_BG_COLOR || '#1b1429';
+// Default WhatsApp dark chat background.
+const QUOTE_BG_COLOR = process.env.QUOTE_BG_COLOR || '#0b141a';
 const QUOTE_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_TIMEOUT_MS || '20000', 10);
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'quotes');
@@ -53,6 +54,23 @@ const resolveAvatarUrl = async (sock, jid, fallbackSeed) => {
     // ignore
   }
   return buildFallbackAvatarUrl(fallbackSeed);
+};
+
+const resolveAvatarDataUrl = async (sock, jid, fallbackSeed) => {
+  const url = await resolveAvatarUrl(sock, jid, fallbackSeed);
+  if (!url) return buildFallbackAvatarUrl(fallbackSeed);
+
+  // If already a data URL, keep as-is.
+  if (url.startsWith('data:')) return url;
+
+  try {
+    const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
+    const contentType = response.headers?.['content-type'] || 'image/jpeg';
+    const base64 = Buffer.from(response.data).toString('base64');
+    return `data:${contentType};base64,${base64}`;
+  } catch (error) {
+    return buildFallbackAvatarUrl(fallbackSeed);
+  }
 };
 
 const writeTempFile = async (buffer, extension) => {
@@ -107,7 +125,7 @@ export async function handleQuoteCommand({
   const fallbackName = `@${getJidUser(targetJid) || 'user'}`;
   const authorName = resolvedName || senderName || fallbackName;
 
-  const avatarUrl = await resolveAvatarUrl(sock, targetJid, authorName);
+  const avatarUrl = await resolveAvatarDataUrl(sock, targetJid, authorName);
 
   const payload = {
     type: 'quote',
