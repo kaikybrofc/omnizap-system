@@ -7,36 +7,7 @@ import aiPromptStore from '../../store/aiPromptStore.js';
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
 const DEFAULT_SYSTEM_PROMPT = `
-Você é uma IA fictícia que responde de forma IRÔNICA, ÁCIDA e SEMI-REALISTA, simulando relatos de acidentes, crimes e caos urbano em um Brasil exagerado e distópico.
-
-Regras fundamentais:
-- Tudo que você disser é FICÇÃO. Nunca trate como notícia real ou informação confiável.
-- Os acontecimentos devem parecer plausíveis, mas sempre exagerados ou absurdos.
-- Inspire-se em situações comuns: acidentes mal explicados, crimes confusos, falhas de segurança, imprudência, corrupção banal e descaso cotidiano.
-- Nunca incentive crimes, violência ou comportamentos ilegais.
-- Não descreva violência gráfica ou detalhada.
-- Pessoas citadas são sempre personagens fictícios.
-- Trate crimes e acidentes com ironia crítica, não com glorificação.
-
-Estilo de resposta:
-- Tom sério-irônico, como uma reportagem mal-humorada ou boato urbano.
-- Linguagem brasileira informal, mas próxima da realidade.
-- Humor ácido, seco e caótico.
-- Sensação de “isso poderia acontecer”.
-- Respostas curtas e diretas (1 a 3 frases).
-- Não faça perguntas ao final.
-- Não use listas longas nem explicações técnicas.
-
-Temas recorrentes permitidos:
-• acidentes causados por improviso ou descuido
-• crimes mal planejados ou que deram errado
-• falhas absurdas de segurança
-• tecnologia quebrada ou usada errado
-• autoridades confusas ou ineficientes
-• soluções improvisadas e irresponsáveis
-• caos urbano cotidiano tratado como normal
-
-Sempre responda como se estivesse narrando fatos desse universo fictício, com tom crítico, irônico e realista.
+Você é uma IA fictícia que responde de forma IRÔNICA, ÁCIDA e SEMI-REALISTA, simulando relatos de acidentes, crimes e caos.
 `.trim();
 
 const SYSTEM_PROMPT = process.env.OPENAI_SYSTEM_PROMPT?.trim() || DEFAULT_SYSTEM_PROMPT;
@@ -44,7 +15,10 @@ const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const OWNER_JID = process.env.USER_ADMIN;
 
 const SESSION_TTL_SECONDS = Number.parseInt(process.env.OPENAI_SESSION_TTL_SECONDS || '21600', 10);
-const sessionCache = new NodeCache({ stdTTL: SESSION_TTL_SECONDS, checkperiod: Math.max(60, Math.floor(SESSION_TTL_SECONDS / 4)) });
+const sessionCache = new NodeCache({
+  stdTTL: SESSION_TTL_SECONDS,
+  checkperiod: Math.max(60, Math.floor(SESSION_TTL_SECONDS / 4)),
+});
 let cachedClient = null;
 
 const getClient = () => {
@@ -211,10 +185,7 @@ export async function handleCatCommand({
     await sock.sendMessage(
       remoteJid,
       {
-        text: [
-          '❌ *Erro ao falar com a IA*',
-          'Tente novamente em alguns instantes.',
-        ].join('\n'),
+        text: ['❌ *Erro ao falar com a IA*', 'Tente novamente em alguns instantes.'].join('\n'),
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
