@@ -3,57 +3,25 @@ Olá, ${senderName}! 👋
 
 🧭 *MENU PRINCIPAL*  
 
-━━━━━━━━━━━━━━━  
-🖼️ *Figurinhas (Imagem / GIF)*  
-━━━━━━━━━━━━━━━  
-▫️ Responda uma imagem ou GIF com:  
-➡️ *${commandPrefix}sticker* ou *${commandPrefix}s*  
-
-▫️ Ou envie a imagem/GIF com legenda:  
-➡️ *${commandPrefix}sticker* ou *${commandPrefix}s*  
+Escolha uma categoria para ver os comandos:
 
 ━━━━━━━━━━━━━━━  
-📝 *Figurinhas (Texto)*  
-━━━━━━━━━━━━━━━  
-▫️ Texto em preto:  
-➡️ *${commandPrefix}stickertext* ou *${commandPrefix}st*  
+🖼️ *Figurinhas*  
+➡️ *${commandPrefix}menu figurinhas*  
 
-▫️ Texto em branco:  
-➡️ *${commandPrefix}stickertextwhite* ou *${commandPrefix}stw*  
-
-📌 *Exemplo:*  
-➡️ *${commandPrefix}stw Bom dia povo lindo*  
-
-━━━━━━━━━━━━━━━  
 🎵 *Mídia*  
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}play* <link ou termo> *(áudio)*  
-➡️ *${commandPrefix}playvid* <link ou termo> *(vídeo)*  
+➡️ *${commandPrefix}menu midia*  
 
-📌 *Exemplo:*  
-➡️ *${commandPrefix}play Coldplay Yellow*  
-
-━━━━━━━━━━━━━━━  
 🖼️ *Quotes*  
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}quote* *(responda uma mensagem ou envie um texto)*  
+➡️ *${commandPrefix}menu quote*  
 
-━━━━━━━━━━━━━━━  
 🤖 *IA*  
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}cat* <mensagem ou pergunta>  
+➡️ *${commandPrefix}menu ia*  
 
-━━━━━━━━━━━━━━━  
 📊 *Estatísticas*  
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}ranking* *(top 5 do grupo)*  
-➡️ *${commandPrefix}rankingglobal* *(top 5 do bot)*  
-➡️ *${commandPrefix}social* *(ranking de interações)*  
-➡️ *${commandPrefix}semmsg* *(membros sem mensagens)*  
+➡️ *${commandPrefix}menu stats*  
 
-━━━━━━━━━━━━━━━  
 🛡️ *Administração*  
-━━━━━━━━━━━━━━━  
 ➡️ *${commandPrefix}menuadm*  
 
 ━━━━━━━━━━━━━━━  
@@ -68,6 +36,74 @@ Olá, ${senderName}! 👋
 https://github.com/kaikybrofc/omnizap-system  
 
 📩 Contato: *@kaikybrofc*
+`;
+
+export const buildStickerMenu = (commandPrefix) => `
+🖼️ *Figurinhas*  
+
+━━━━━━━━━━━━━━━  
+🖼️ *Imagem / GIF*  
+━━━━━━━━━━━━━━━  
+▫️ Responda uma imagem ou GIF com:  
+➡️ *${commandPrefix}sticker* ou *${commandPrefix}s*  
+
+▫️ Ou envie a imagem/GIF com legenda:  
+➡️ *${commandPrefix}sticker* ou *${commandPrefix}s*  
+
+━━━━━━━━━━━━━━━  
+📝 *Texto*  
+━━━━━━━━━━━━━━━  
+▫️ Texto em preto:  
+➡️ *${commandPrefix}stickertext* ou *${commandPrefix}st*  
+
+▫️ Texto em branco:  
+➡️ *${commandPrefix}stickertextwhite* ou *${commandPrefix}stw*  
+
+📌 *Exemplo:*  
+➡️ *${commandPrefix}stw Bom dia povo lindo*  
+
+━━━━━━━━━━━━━━━  
+✨ *Texto Piscante*  
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}stickertextblink* ou *${commandPrefix}stb*  
+
+📌 *Exemplo:*  
+➡️ *${commandPrefix}stb bom dia -verde*  
+`;
+
+export const buildMediaMenu = (commandPrefix) => `
+🎵 *Mídia*  
+
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}play* <link ou termo> *(áudio)*  
+➡️ *${commandPrefix}playvid* <link ou termo> *(vídeo)*  
+
+📌 *Exemplo:*  
+➡️ *${commandPrefix}play Coldplay Yellow*  
+`;
+
+export const buildQuoteMenu = (commandPrefix) => `
+🖼️ *Quotes*  
+
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}quote* *(responda uma mensagem ou envie um texto)*  
+`;
+
+export const buildAiMenu = (commandPrefix) => `
+🤖 *IA*  
+
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}cat* <mensagem ou pergunta>  
+`;
+
+export const buildStatsMenu = (commandPrefix) => `
+📊 *Estatísticas*  
+
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}ranking* *(top 5 do grupo)*  
+➡️ *${commandPrefix}rankingglobal* *(top 5 do bot)*  
+➡️ *${commandPrefix}social* *(ranking de interações)*  
+➡️ *${commandPrefix}semmsg* *(membros sem mensagens)*  
 `;
 
 export const buildStickerBlinkCaption = (commandPrefix) => `

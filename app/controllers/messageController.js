@@ -112,6 +112,7 @@ export const handleMessages = async (update, sock) => {
                 expirationMessage,
                 senderName,
                 COMMAND_PREFIX,
+                args,
               );
               break;
             }

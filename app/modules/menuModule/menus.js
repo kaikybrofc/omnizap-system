@@ -1,5 +1,13 @@
 import logger from '../../utils/logger/loggerModule.js';
-import { buildMenuCaption, buildStickerBlinkCaption, MENU_ADM_TEXT } from './common.js';
+import {
+  buildAiMenu,
+  buildMediaMenu,
+  buildMenuCaption,
+  buildQuoteMenu,
+  buildStatsMenu,
+  buildStickerMenu,
+  MENU_ADM_TEXT,
+} from './common.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 
 const MENU_IMAGE_ENV = 'IMAGE_MENU';
@@ -28,9 +36,29 @@ const sendMenuImage = async (sock, remoteJid, messageInfo, expirationMessage, ca
   }
 };
 
-export async function handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, commandPrefix) {
-  const stickerCaption = `${buildMenuCaption(senderName, commandPrefix)}\n${buildStickerBlinkCaption(commandPrefix)}`;
-  await sendMenuImage(sock, remoteJid, messageInfo, expirationMessage, stickerCaption);
+export async function handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, commandPrefix, args = []) {
+  const category = args?.[0]?.toLowerCase();
+  const categoryMap = new Map([
+    ['figurinhas', (prefix) => buildStickerMenu(prefix)],
+    ['sticker', (prefix) => buildStickerMenu(prefix)],
+    ['stickers', (prefix) => buildStickerMenu(prefix)],
+    ['midia', (prefix) => buildMediaMenu(prefix)],
+    ['media', (prefix) => buildMediaMenu(prefix)],
+    ['quote', (prefix) => buildQuoteMenu(prefix)],
+    ['quotes', (prefix) => buildQuoteMenu(prefix)],
+    ['ia', (prefix) => buildAiMenu(prefix)],
+    ['ai', (prefix) => buildAiMenu(prefix)],
+    ['stats', (prefix) => buildStatsMenu(prefix)],
+    ['estatisticas', (prefix) => buildStatsMenu(prefix)],
+    ['estatistica', (prefix) => buildStatsMenu(prefix)],
+  ]);
+
+  const buildCategory = categoryMap.get(category);
+  const caption = buildCategory
+    ? buildCategory(commandPrefix).trim()
+    : buildMenuCaption(senderName, commandPrefix).trim();
+
+  await sendMenuImage(sock, remoteJid, messageInfo, expirationMessage, caption);
 }
 
 export async function handleMenuAdmCommand(sock, remoteJid, messageInfo, expirationMessage) {
