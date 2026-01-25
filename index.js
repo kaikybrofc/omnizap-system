@@ -3,6 +3,7 @@ import 'dotenv/config';
 import logger from './app/utils/logger/loggerModule.js';
 import { connectToWhatsApp, getActiveSocket } from './app/connection/socketController.js';
 import { backfillLidMapFromMessagesOnce } from './app/services/lidMapService.js';
+import { initializeNewsBroadcastService } from './app/services/newsBroadcastService.js';
 import initializeDatabase from './database/init.js';
 
 async function startApp() {
@@ -22,6 +23,7 @@ async function startApp() {
 
     await connectToWhatsApp();
     logger.info('OmniZap System iniciado com sucesso.');
+    initializeNewsBroadcastService();
     if (process.send) {
       process.send('ready');
     }

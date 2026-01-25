@@ -191,4 +191,5 @@ export const MENU_ADM_TEXT = `
 👋 */farewell <on|off|set> [mensagem ou caminho da mídia]* - Mensagem de saída.
 ⭐ */premium <add|remove|list> @user1 @user2...* - Gerencia acesso premium da IA.
 🔞 */nsfw <on|off|status>* - Ativa/desativa NSFW no grupo.
+📰 */noticias <on|off|status>* - Ativa/desativa envio automático de notícias.
 `;

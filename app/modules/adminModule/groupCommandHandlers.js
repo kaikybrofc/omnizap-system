@@ -5,8 +5,9 @@ import groupConfigStore from '../../store/groupConfigStore.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { KNOWN_NETWORKS } from '../../utils/antiLink/antiLinkModule.js';
+import { getNewsStatusForGroup, startNewsBroadcastForGroup, stopNewsBroadcastForGroup } from '../../services/newsBroadcastService.js';
 
-const ADMIN_COMMANDS = new Set(['menuadm', 'newgroup', 'add', 'ban', 'up', 'down', 'setsubject', 'setdesc', 'setgroup', 'leave', 'invite', 'revoke', 'join', 'infofrominvite', 'metadata', 'requests', 'updaterequests', 'temp', 'addmode', 'welcome', 'farewell', 'antilink', 'premium', 'nsfw']);
+const ADMIN_COMMANDS = new Set(['menuadm', 'newgroup', 'add', 'ban', 'up', 'down', 'setsubject', 'setdesc', 'setgroup', 'leave', 'invite', 'revoke', 'join', 'infofrominvite', 'metadata', 'requests', 'updaterequests', 'temp', 'addmode', 'welcome', 'farewell', 'antilink', 'premium', 'nsfw', 'noticias', 'news']);
 const OWNER_JID = process.env.USER_ADMIN;
 
 const getParticipantJids = (messageInfo, args) => {
@@ -839,6 +840,59 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
           groupId: remoteJid,
         });
         await sock.sendMessage(remoteJid, { text: `Erro ao configurar o antilink: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      }
+      break;
+    }
+
+    case 'noticias':
+    case 'news': {
+      if (!isGroupMessage) {
+        await sock.sendMessage(remoteJid, { text: 'Este comando só pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+        break;
+      }
+      if (!(await isUserAdmin(remoteJid, senderJid))) {
+        await sock.sendMessage(remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+        break;
+      }
+
+      const action = args[0]?.toLowerCase();
+      if (!action || !['on', 'off', 'status'].includes(action)) {
+        await sock.sendMessage(
+          remoteJid,
+          { text: 'Uso: /noticias <on|off|status>' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (action === 'status') {
+        const status = await getNewsStatusForGroup(remoteJid);
+        const enabledText = status.enabled ? 'ATIVADO' : 'DESATIVADO';
+        const lastSent = status.lastSentAt ? `\nÚltimo envio: ${status.lastSentAt}` : '';
+        await sock.sendMessage(
+          remoteJid,
+          { text: `📰 Notícias ${enabledText} para este grupo.\nEnviadas: ${status.sentCount}.${lastSent}` },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      const enableNews = action === 'on';
+      await groupConfigStore.updateGroupConfig(remoteJid, { newsEnabled: enableNews });
+      if (enableNews) {
+        startNewsBroadcastForGroup(remoteJid);
+        await sock.sendMessage(
+          remoteJid,
+          { text: '📰 Notícias ativadas. Vou enviar as novidades com intervalo de 1 a 2 minutos.' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+      } else {
+        stopNewsBroadcastForGroup(remoteJid);
+        await sock.sendMessage(
+          remoteJid,
+          { text: '🛑 Notícias desativadas para este grupo.' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
       }
       break;
     }

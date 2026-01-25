@@ -14,6 +14,8 @@ import path from 'node:path';
 import pino from 'pino';
 import logger from '../utils/logger/loggerModule.js';
 import { handleMessages } from '../controllers/messageController.js';
+import { syncNewsBroadcastService } from '../services/newsBroadcastService.js';
+import { setActiveSocket as storeActiveSocket } from '../services/socketState.js';
 
 import { handleGroupUpdate as handleGroupParticipantsEvent } from '../modules/adminModule/groupEventHandlers.js';
 
@@ -209,6 +211,7 @@ export async function connectToWhatsApp() {
   });
 
   activeSocket = sock;
+  storeActiveSocket(sock);
 
   sock.ev.on('creds.update', async () => {
     logger.debug('Atualizando credenciais de autenticação...', {
@@ -220,6 +223,9 @@ export async function connectToWhatsApp() {
 
   sock.ev.on('connection.update', (update) => {
     handleConnectionUpdate(update, sock);
+    if (update.connection === 'open') {
+      syncNewsBroadcastService();
+    }
     logger.debug('Estado da conexão atualizado.', {
       action: 'connection_update',
       status: update.connection,
