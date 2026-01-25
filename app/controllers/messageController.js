@@ -16,7 +16,7 @@ import { getExpiration, isGroupJid, resolveBotJid } from '../config/baileysConfi
 import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js';
-import { handleCatCommand } from '../modules/aiModule/catCommand.js';
+import { handleCatCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
 import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
@@ -140,6 +140,19 @@ export const handleMessages = async (update, sock) => {
 
             case 'cat':
               await handleCatCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                senderJid,
+                text,
+              });
+              break;
+
+            case 'catprompt':
+            case 'iaprompt':
+            case 'promptia':
+              await handleCatPromptCommand({
                 sock,
                 remoteJid,
                 messageInfo,

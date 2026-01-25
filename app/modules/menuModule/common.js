@@ -94,6 +94,8 @@ export const buildAiMenu = (commandPrefix) => `
 
 ━━━━━━━━━━━━━━━  
 ➡️ *${commandPrefix}cat* <mensagem ou pergunta>  
+➡️ *${commandPrefix}catprompt* <novo prompt>  
+↪️ *${commandPrefix}catprompt reset*  
 `;
 
 export const buildStatsMenu = (commandPrefix) => `

@@ -3,6 +3,7 @@ import NodeCache from 'node-cache';
 
 import logger from '../../utils/logger/loggerModule.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
+import aiPromptStore from '../../store/aiPromptStore.js';
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
 const DEFAULT_SYSTEM_PROMPT = `
@@ -86,6 +87,46 @@ const reactToMessage = async (sock, remoteJid, messageInfo) => {
   }
 };
 
+const isPremiumAllowed = async (senderJid) => {
+  if (!OWNER_JID) return true;
+  if (senderJid === OWNER_JID) return true;
+  const premiumUsers = await premiumUserStore.getPremiumUsers();
+  return premiumUsers.includes(senderJid);
+};
+
+const sendPremiumOnly = async (sock, remoteJid, messageInfo, expirationMessage) => {
+  await sock.sendMessage(
+    remoteJid,
+    {
+      text: [
+        '⭐ *Comando Premium*',
+        '',
+        'Este comando é exclusivo para usuários premium.',
+        'Fale com o administrador para liberar o acesso.',
+      ].join('\n'),
+    },
+    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+  );
+};
+
+const sendPromptUsage = async (sock, remoteJid, messageInfo, expirationMessage) => {
+  await sock.sendMessage(
+    remoteJid,
+    {
+      text: [
+        '🧠 *Prompt da IA*',
+        '',
+        'Use assim:',
+        `*${COMMAND_PREFIX}catprompt* seu novo prompt`,
+        '',
+        'Para voltar ao padrão:',
+        `*${COMMAND_PREFIX}catprompt reset*`,
+      ].join('\n'),
+    },
+    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+  );
+};
+
 export async function handleCatCommand({
   sock,
   remoteJid,
@@ -118,35 +159,23 @@ export async function handleCatCommand({
 
   await reactToMessage(sock, remoteJid, messageInfo);
 
-  if (OWNER_JID && senderJid !== OWNER_JID) {
-    const premiumUsers = await premiumUserStore.getPremiumUsers();
-    if (!premiumUsers.includes(senderJid)) {
-      await sock.sendMessage(
-        remoteJid,
-        {
-          text: [
-            '⭐ *Comando Premium*',
-            '',
-            'Este comando é exclusivo para usuários premium.',
-            'Fale com o administrador para liberar o acesso.',
-          ].join('\n'),
-        },
-        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-      );
-      return;
-    }
+  if (!(await isPremiumAllowed(senderJid))) {
+    await sendPremiumOnly(sock, remoteJid, messageInfo, expirationMessage);
+    return;
   }
 
   const sessionKey = buildSessionKey(remoteJid, senderJid);
   const session = sessionCache.get(sessionKey);
+  const userPrompt = await aiPromptStore.getPrompt(senderJid);
+  const effectivePrompt = userPrompt || SYSTEM_PROMPT;
 
   const payload = {
     model: OPENAI_MODEL,
     input: prompt,
   };
 
-  if (SYSTEM_PROMPT) {
-    payload.instructions = SYSTEM_PROMPT;
+  if (effectivePrompt) {
+    payload.instructions = effectivePrompt;
   }
 
   if (session?.previousResponseId) {
@@ -190,4 +219,51 @@ export async function handleCatCommand({
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   }
+}
+
+export async function handleCatPromptCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  senderJid,
+  text,
+}) {
+  const promptText = text?.trim();
+  if (!promptText) {
+    await sendPromptUsage(sock, remoteJid, messageInfo, expirationMessage);
+    return;
+  }
+
+  if (!(await isPremiumAllowed(senderJid))) {
+    await sendPremiumOnly(sock, remoteJid, messageInfo, expirationMessage);
+    return;
+  }
+
+  const lower = promptText.toLowerCase();
+  if (lower === 'reset' || lower === 'default' || lower === 'padrao' || lower === 'padrão') {
+    await aiPromptStore.clearPrompt(senderJid);
+    await sock.sendMessage(
+      remoteJid,
+      { text: '✅ Prompt da IA restaurado para o padrão.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+    return;
+  }
+
+  if (promptText.length > 2000) {
+    await sock.sendMessage(
+      remoteJid,
+      { text: '⚠️ Prompt muito longo. Limite: 2000 caracteres.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+    return;
+  }
+
+  await aiPromptStore.setPrompt(senderJid, promptText);
+  await sock.sendMessage(
+    remoteJid,
+    { text: '✅ Prompt da IA atualizado para você.' },
+    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+  );
 }
