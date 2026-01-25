@@ -1,4 +1,5 @@
 import { createCanvas, loadImage } from 'canvas';
+import { performance, monitorEventLoopDelay } from 'perf_hooks';
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import * as groupUtils from '../../config/groupUtils.js';
@@ -41,20 +42,117 @@ const CLAN_NAME_LIST = [
 ];
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
+const SOCIAL_CACHE_LIMIT = 8;
 const SOCIAL_CACHE = new Map();
 
-const SOCIAL_RECENT_DAYS = 60;
-const SOCIAL_GRAPH_LIMIT = 20000;
-const SOCIAL_NODE_LIMIT = 180;
-const SOCIAL_AVATAR_LIMIT = 36;
+const SOCIAL_RECENT_DAYS = 45;
+const SOCIAL_GRAPH_LIMIT = 12000;
+const SOCIAL_NODE_LIMIT = 140;
+const SOCIAL_AVATAR_LIMIT = 24;
+const MAX_CANVAS_PIXELS = 16_000_000;
+const MAX_RENDER_SCALE = 2;
+const PNG_COMPRESSION = 3;
 
-const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const PROFILE_CACHE_LIMIT = 2000;
+const PROFILE_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const PROFILE_CACHE_LIMIT = 500;
+const PROFILE_MAX_BYTES = 256 * 1024;
 const PROFILE_PIC_CACHE = globalThis.__omnizapProfilePicCache || new Map();
 globalThis.__omnizapProfilePicCache = PROFILE_PIC_CACHE;
-const NAME_LOOKUP_LIMIT = 400;
+const PROFILE_NEGATIVE_TTL_MS = 6 * 60 * 60 * 1000;
+const PROFILE_WARN_THROTTLE_MS = 15 * 1000;
+const PROFILE_FAIL_CACHE = globalThis.__omnizapProfilePicFailCache || new Map();
+globalThis.__omnizapProfilePicFailCache = PROFILE_FAIL_CACHE;
+const NAME_LOOKUP_LIMIT = 200;
+const PROFILE_FETCH_TIMEOUT_MS = 1500;
+const PROFILE_RSS_HIGH_WATER = 800 * 1024 * 1024;
+const SOCIAL_JOB_TIMEOUT_MS = 2 * 60 * 1000;
+const SOCIAL_RATE_WINDOW_MS = 60 * 1000;
+const SOCIAL_RATE_MAX = 1;
+const SOCIAL_RATE = globalThis.__omnizapSocialRate || new Map();
+globalThis.__omnizapSocialRate = SOCIAL_RATE;
+const SOCIAL_INFLIGHT = globalThis.__omnizapSocialInflight || new Map();
+globalThis.__omnizapSocialInflight = SOCIAL_INFLIGHT;
+const SOCIAL_METRICS_ENABLED = process.env.OMNIZAP_SOCIAL_METRICS === '1';
+const SOCIAL_METRICS_SLOW_MS = 800;
+const SOCIAL_EVENT_LOOP_DELAY =
+  SOCIAL_METRICS_ENABLED && typeof monitorEventLoopDelay === 'function'
+    ? globalThis.__omnizapSocialEventLoopDelay ||
+      (() => {
+        const monitor = monitorEventLoopDelay({ resolution: 20 });
+        monitor.enable();
+        globalThis.__omnizapSocialEventLoopDelay = monitor;
+        return monitor;
+      })()
+    : null;
 
 const getCacheKey = (remoteJid) => `global:${remoteJid || 'global'}`;
+const touchCache = (map, key, value) => {
+  if (map.has(key)) map.delete(key);
+  map.set(key, value);
+};
+
+const isProfileFetchBlocked = (jid) => {
+  const blockedUntil = PROFILE_FAIL_CACHE.get(jid);
+  if (!blockedUntil) return false;
+  if (Date.now() > blockedUntil) {
+    PROFILE_FAIL_CACHE.delete(jid);
+    return false;
+  }
+  return true;
+};
+
+const setProfileFetchBlocked = (jid) => {
+  if (!jid) return;
+  PROFILE_FAIL_CACHE.set(jid, Date.now() + PROFILE_NEGATIVE_TTL_MS);
+};
+
+let lastProfileWarnAt = 0;
+const logProfilePicFailure = (error) => {
+  const now = Date.now();
+  if (now - lastProfileWarnAt > PROFILE_WARN_THROTTLE_MS) {
+    lastProfileWarnAt = now;
+    logger.warn('Falha ao carregar imagem de perfil para o social.', { error: error.message });
+  } else {
+    logger.debug('Falha ao carregar imagem de perfil para o social.', { error: error.message });
+  }
+};
+
+const isRateLimited = (key) => {
+  const now = Date.now();
+  const entry = SOCIAL_RATE.get(key) || { count: 0, resetAt: now + SOCIAL_RATE_WINDOW_MS };
+  if (now > entry.resetAt) {
+    entry.count = 0;
+    entry.resetAt = now + SOCIAL_RATE_WINDOW_MS;
+  }
+  entry.count += 1;
+  SOCIAL_RATE.set(key, entry);
+  return entry.count > SOCIAL_RATE_MAX;
+};
+
+const timed = async (label, fn, extra = {}) => {
+  if (!SOCIAL_METRICS_ENABLED) return fn();
+  const start = performance.now();
+  try {
+    return await fn();
+  } finally {
+    const ms = Math.round(performance.now() - start);
+    if (ms >= SOCIAL_METRICS_SLOW_MS || label === 'total') {
+      const mem = process.memoryUsage();
+      const payload = {
+        label,
+        ms,
+        rss: mem.rss,
+        heap: mem.heapUsed,
+        external: mem.external,
+        eldP95ms: SOCIAL_EVENT_LOOP_DELAY
+          ? Math.round(SOCIAL_EVENT_LOOP_DELAY.percentile(95) / 1e6)
+          : null,
+        ...extra,
+      };
+      logger.info('Social perf', payload);
+    }
+  }
+};
 
 /**
  * Função filterRowsWithoutBot.
@@ -79,6 +177,7 @@ const getCachedResult = (key) => {
     SOCIAL_CACHE.delete(key);
     return null;
   }
+  touchCache(SOCIAL_CACHE, key, entry);
   return entry;
 };
 
@@ -89,11 +188,9 @@ const getCachedResult = (key) => {
  * @returns {*} - Retorno.
  */
 const setCachedResult = (key, payload) => {
-  SOCIAL_CACHE.set(key, { ...payload, createdAt: Date.now() });
-  if (SOCIAL_CACHE.size > 20) {
-    const oldestKey = Array.from(SOCIAL_CACHE.entries()).sort(
-      (a, b) => a[1].createdAt - b[1].createdAt,
-    )[0]?.[0];
+  touchCache(SOCIAL_CACHE, key, { ...payload, createdAt: Date.now() });
+  if (SOCIAL_CACHE.size > SOCIAL_CACHE_LIMIT) {
+    const oldestKey = SOCIAL_CACHE.keys().next().value;
     if (oldestKey) SOCIAL_CACHE.delete(oldestKey);
   }
 };
@@ -106,36 +203,64 @@ const getCachedProfilePic = (jid) => {
     PROFILE_PIC_CACHE.delete(jid);
     return null;
   }
-  entry.lastAccess = Date.now();
+  PROFILE_PIC_CACHE.delete(jid);
+  PROFILE_PIC_CACHE.set(jid, { ...entry, lastAccess: Date.now() });
   return entry.buffer || null;
 };
 
 const setCachedProfilePic = (jid, buffer) => {
-  if (!jid || !buffer) return;
+  if (!jid || !buffer || buffer.length > PROFILE_MAX_BYTES) return;
   PROFILE_PIC_CACHE.set(jid, { buffer, createdAt: Date.now(), lastAccess: Date.now() });
   if (PROFILE_PIC_CACHE.size > PROFILE_CACHE_LIMIT) {
-    const oldestKey = Array.from(PROFILE_PIC_CACHE.entries()).sort(
-      (a, b) => (a[1].lastAccess || a[1].createdAt || 0) - (b[1].lastAccess || b[1].createdAt || 0),
-    )[0]?.[0];
+    const oldestKey = PROFILE_PIC_CACHE.keys().next().value;
     if (oldestKey) PROFILE_PIC_CACHE.delete(oldestKey);
   }
+};
+
+const withTimeout = (promise, ms, label) => {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label}_timeout`)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
 };
 
 const fetchProfileBuffer = async (sock, jid, remoteJid) => {
   const cached = getCachedProfilePic(jid);
   if (cached) return cached;
-  const buffer = await getProfilePicBuffer(sock, { key: { participant: jid, remoteJid } });
-  if (buffer) setCachedProfilePic(jid, buffer);
-  return buffer;
+  if (isProfileFetchBlocked(jid)) return null;
+  try {
+    const buffer = await withTimeout(
+      getProfilePicBuffer(sock, { key: { participant: jid, remoteJid } }),
+      PROFILE_FETCH_TIMEOUT_MS,
+      'profile_pic',
+    );
+    if (buffer) setCachedProfilePic(jid, buffer);
+    return buffer;
+  } catch (error) {
+    if (error?.message?.includes('profile_pic')) {
+      setProfileFetchBlocked(jid);
+    }
+    throw error;
+  }
 };
 
-const loadProfileImages = async ({ sock, jids, remoteJid, concurrency = 6 }) => {
+const loadProfileImages = async ({ sock, jids, remoteJid, concurrency = 4 }) => {
   const results = new Map();
   const queue = Array.from(new Set((jids || []).filter(Boolean)));
   let index = 0;
+  let abort = false;
+  let timeoutCount = 0;
+  const timeoutLimit = Math.min(8, Math.ceil(queue.length * 0.4));
+  if (process.memoryUsage().rss > PROFILE_RSS_HIGH_WATER) {
+    concurrency = Math.max(2, Math.floor(concurrency / 2));
+  }
 
   const worker = async () => {
     while (index < queue.length) {
+      if (abort) return;
       const jid = queue[index];
       index += 1;
       if (results.has(jid)) continue;
@@ -145,7 +270,15 @@ const loadProfileImages = async ({ sock, jids, remoteJid, concurrency = 6 }) => 
         const image = await loadImage(buffer);
         results.set(jid, image);
       } catch (error) {
-        logger.warn('Falha ao carregar imagem de perfil para o social.', { error: error.message });
+        if (error?.message === 'profile_pic_timeout') {
+          timeoutCount += 1;
+          logProfilePicFailure(error);
+          if (timeoutCount >= timeoutLimit) {
+            abort = true;
+          }
+        } else {
+          logger.warn('Falha ao carregar imagem de perfil para o social.', { error: error.message });
+        }
       }
     }
   };
@@ -630,7 +763,7 @@ const buildGraphData = (rows, names) => {
     labels.set(node.jid, node.jid);
   });
 
-  const labelIterations = 12;
+  const labelIterations = 10;
   for (let iter = 0; iter < labelIterations; iter += 1) {
     let changed = false;
     nodes.forEach((node) => {
@@ -1160,7 +1293,9 @@ const linesToText = (lines) =>
     .join('\n')
     .trim();
 
-const renderGraphImage = ({
+const yieldToEventLoop = () => new Promise((resolve) => setImmediate(resolve));
+
+const renderGraphImage = async ({
   nodes,
   edges,
   directedEdges,
@@ -1173,13 +1308,17 @@ const renderGraphImage = ({
   highlightConnectors,
   avatarImages,
   showPanel = true,
+  abortSignal,
 }) => {
   const width = 3200;
   const height = 2200;
   const panelWidth = showPanel ? 900 : 0;
-  const scale = 2;
   const graphWidth = width - panelWidth;
-  const canvas = createCanvas(width * scale, height * scale);
+  const scale = Math.min(
+    MAX_RENDER_SCALE,
+    Math.max(1, Math.sqrt(MAX_CANVAS_PIXELS / (width * height))),
+  );
+  const canvas = createCanvas(Math.round(width * scale), Math.round(height * scale));
   const ctx = canvas.getContext('2d');
   ctx.scale(scale, scale);
   ctx.imageSmoothingEnabled = true;
@@ -1248,7 +1387,7 @@ const renderGraphImage = ({
   });
 
   const minGap = 39;
-  const maxAttempts = 400;
+  const maxAttempts = 250;
   /**
    * Função rand.
    * @param {*} seed - Parâmetro.
@@ -1337,12 +1476,13 @@ const renderGraphImage = ({
     }))
     .filter((edge) => edge.srcIndex !== undefined && edge.dstIndex !== undefined);
 
-  const attractionIters = 60;
+  const attractionIters = 45;
   const minEdgeDistStrong = 50;
   const minEdgeDistWeak = 198;
   const repulsionEnabled = true;
 
   for (let iter = 0; iter < attractionIters; iter += 1) {
+    if (abortSignal?.aborted) throw new Error('render_cancelled');
     const velocity = positions.map(() => ({ x: 0, y: 0 }));
 
     edgeList.forEach((edge) => {
@@ -1393,6 +1533,7 @@ const renderGraphImage = ({
       pos.y += velocity[idx].y;
       clampPosition(pos, nodeRadii.get(sortedNodes[idx].jid) || 30);
     });
+    if (iter % 6 === 0) await yieldToEventLoop();
   }
 
   sortedNodes.forEach((node, index) => {
@@ -1400,7 +1541,8 @@ const renderGraphImage = ({
   });
 
   // Final overlap resolution pass
-  for (let iter = 0; iter < 40; iter += 1) {
+  for (let iter = 0; iter < 25; iter += 1) {
+    if (abortSignal?.aborted) throw new Error('render_cancelled');
     let moved = false;
     for (let a = 0; a < positions.length; a += 1) {
       for (let b = a + 1; b < positions.length; b += 1) {
@@ -1426,6 +1568,7 @@ const renderGraphImage = ({
       }
     }
     if (!moved) break;
+    if (iter % 6 === 0) await yieldToEventLoop();
   }
 
   sortedNodes.forEach((node, index) => {
@@ -1850,7 +1993,7 @@ const renderGraphImage = ({
     }
   }
 
-  return canvas.toBuffer('image/png', { compressionLevel: 6 });
+  return canvas.toBuffer('image/png', { compressionLevel: PNG_COMPRESSION });
 };
 
 /**
@@ -1873,6 +2016,28 @@ export async function handleInteractionGraphCommand({
   args,
   senderJid,
 }) {
+  const jobStart = performance.now();
+  const commandStart = SOCIAL_METRICS_ENABLED ? jobStart : null;
+  let renderTimeout = null;
+  let renderAbortController = null;
+  const rateKey = `${remoteJid}:${senderJid || 'anon'}`;
+  if (isRateLimited(rateKey)) {
+    await sock.sendMessage(
+      remoteJid,
+      { text: 'Aguarde alguns segundos para usar o social novamente.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+    return;
+  }
+  if (SOCIAL_INFLIGHT.has(remoteJid)) {
+    await sock.sendMessage(
+      remoteJid,
+      { text: 'Social em andamento. Aguarde finalizar.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+    return;
+  }
+  SOCIAL_INFLIGHT.set(remoteJid, Date.now());
   try {
     const botJid = resolveBotJid(sock?.user?.id);
     const cacheKey = getCacheKey(remoteJid);
@@ -1890,11 +2055,13 @@ export async function handleInteractionGraphCommand({
       return;
     }
 
-    const [totalMessagesRow] = await executeQuery(
-      botJid
-        ? 'SELECT COUNT(*) AS total FROM messages WHERE sender_id <> ?'
-        : 'SELECT COUNT(*) AS total FROM messages',
-      botJid ? [botJid] : [],
+    const [totalMessagesRow] = await timed('query.total', () =>
+      executeQuery(
+        botJid
+          ? 'SELECT COUNT(*) AS total FROM messages WHERE sender_id <> ?'
+          : 'SELECT COUNT(*) AS total FROM messages',
+        botJid ? [botJid] : [],
+      ),
     );
     const totalMessages = Number(totalMessagesRow?.total || 0);
 
@@ -1913,8 +2080,9 @@ export async function handleInteractionGraphCommand({
     const graphLimit = SOCIAL_GRAPH_LIMIT;
     const queryParams = botJid ? [botJid] : [];
 
-    const rows = await executeQuery(
-      `WITH base AS (
+    const rows = await timed('query.graph', () =>
+      executeQuery(
+        `WITH base AS (
          SELECT
            m.sender_id AS src,
            ${dstExpr} AS dst,
@@ -1957,7 +2125,8 @@ export async function handleInteractionGraphCommand({
          AND a.src <> a.dst
        ORDER BY replies_total_par DESC, a.last_ts DESC
        LIMIT ${graphLimit}`,
-      queryParams,
+        queryParams,
+      ),
     );
 
     const lidsToPrime = new Set();
@@ -1984,13 +2153,22 @@ export async function handleInteractionGraphCommand({
     const nameCandidates = collectJidsForNames(filteredRows);
     const latestNames = await fetchLatestPushNames(nameCandidates);
 
-    let directedEdges = filteredRows.flatMap((row) => {
+    const directedEdgesMap = new Map();
+    filteredRows.forEach((row) => {
       const aToB = Number(row.replies_a_para_b || 0);
       const bToA = Number(row.replies_b_para_a || 0);
-      const items = [];
-      if (row.src && row.dst && aToB > 0) items.push({ src: row.src, dst: row.dst, total: aToB });
-      if (row.src && row.dst && bToA > 0) items.push({ src: row.dst, dst: row.src, total: bToA });
-      return items;
+      if (row.src && row.dst && aToB > 0) {
+        const key = `${row.src}->${row.dst}`;
+        directedEdgesMap.set(key, (directedEdgesMap.get(key) || 0) + aToB);
+      }
+      if (row.src && row.dst && bToA > 0) {
+        const key = `${row.dst}->${row.src}`;
+        directedEdgesMap.set(key, (directedEdgesMap.get(key) || 0) + bToA);
+      }
+    });
+    let directedEdges = Array.from(directedEdgesMap.entries()).map(([key, total]) => {
+      const [src, dst] = key.split('->');
+      return { src, dst, total };
     });
 
     const runtimeNames = new Map();
@@ -2013,8 +2191,9 @@ export async function handleInteractionGraphCommand({
       .slice(0, 5);
 
     const growthRows = showPanel
-      ? await executeQuery(
-          `SELECT sender_id AS jid,
+      ? await timed('query.growth', () =>
+          executeQuery(
+            `SELECT sender_id AS jid,
                   SUM(CASE WHEN ts >= NOW() - INTERVAL 30 DAY THEN 1 ELSE 0 END) AS last30,
                   SUM(CASE WHEN ts < NOW() - INTERVAL 30 DAY AND ts >= NOW() - INTERVAL 60 DAY THEN 1 ELSE 0 END) AS prev30,
                   SUM(CASE WHEN ts >= NOW() - INTERVAL 30 DAY THEN 1 ELSE 0 END)
@@ -2034,16 +2213,19 @@ export async function handleInteractionGraphCommand({
             HAVING last30 > 0
             ORDER BY delta DESC
             LIMIT 5`,
-          botJid ? [botJid] : [],
+            botJid ? [botJid] : [],
+          ),
         )
       : [];
     let dbStartLabel = null;
     if (showPanel) {
-      const [dbStartRow] = await executeQuery(
-        botJid
-          ? 'SELECT MIN(timestamp) AS db_start FROM messages WHERE sender_id <> ?'
-          : 'SELECT MIN(timestamp) AS db_start FROM messages',
-        botJid ? [botJid] : [],
+      const [dbStartRow] = await timed('query.dbStart', () =>
+        executeQuery(
+          botJid
+            ? 'SELECT MIN(timestamp) AS db_start FROM messages WHERE sender_id <> ?'
+            : 'SELECT MIN(timestamp) AS db_start FROM messages',
+          botJid ? [botJid] : [],
+        ),
       );
       dbStartLabel = formatDate(dbStartRow?.db_start || null);
     }
@@ -2206,26 +2388,52 @@ export async function handleInteractionGraphCommand({
       ...bridgeLines,
       ...growthLines,
     ];
-    const avatarImages = await loadProfileImages({
-      sock,
-      jids: pickAvatarJids({
-        nodes: graphData.nodes,
-        limit: SOCIAL_AVATAR_LIMIT,
-      }),
-      remoteJid,
-    });
-    const imageBuffer = renderGraphImage({
-      ...graphData,
-      directedEdges,
-      clusters: clustersWithKeywords,
-      summaryLines,
-      totalMessages,
-      clanLeaders,
-      highlightInfluence,
-      highlightConnectors,
-      avatarImages,
-      showPanel,
-    });
+    const avatarImages = await timed(
+      'avatars.load',
+      () =>
+        loadProfileImages({
+          sock,
+          jids: pickAvatarJids({
+            nodes: graphData.nodes,
+            limit: SOCIAL_AVATAR_LIMIT,
+          }),
+          remoteJid,
+        }),
+      { nodes: graphData.nodes.length },
+    );
+    const elapsedMs = performance.now() - jobStart;
+    const timeLeft = SOCIAL_JOB_TIMEOUT_MS - elapsedMs;
+    if (timeLeft <= 0) {
+      await sock.sendMessage(
+        remoteJid,
+        { text: 'Tempo limite atingido para gerar o social. Tente novamente.' },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+      return;
+    }
+    renderAbortController = new AbortController();
+    renderTimeout = setTimeout(
+      () => renderAbortController.abort(),
+      Math.max(1000, Math.floor(timeLeft)),
+    );
+    const imageBuffer = await timed(
+      'render',
+      () =>
+        renderGraphImage({
+          ...graphData,
+          directedEdges,
+          clusters: clustersWithKeywords,
+          summaryLines,
+          totalMessages,
+          clanLeaders,
+          highlightInfluence,
+          highlightConnectors,
+          avatarImages,
+          showPanel,
+          abortSignal: renderAbortController.signal,
+        }),
+      { nodes: graphData.nodes.length, edges: graphData.edges.length },
+    );
 
     setCachedResult(cacheKey, { imageBuffer, captionText, mentions: [] });
     await sock.sendMessage(
@@ -2234,12 +2442,40 @@ export async function handleInteractionGraphCommand({
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
+    if (error?.message === 'render_cancelled') {
+      logger.warn('Social cancelado por tempo limite.', { error: error.message });
+      await sock.sendMessage(
+        remoteJid,
+        { text: 'Tempo limite atingido durante o render do social. Tente novamente.' },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+      return;
+    }
     logger.error('Erro ao gerar ranking de interacoes:', { error: error.message });
     await sock.sendMessage(
       remoteJid,
       { text: `Erro ao gerar ranking de interacoes: ${error.message}` },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
+  } finally {
+    if (SOCIAL_METRICS_ENABLED && commandStart !== null) {
+      const totalMs = Math.round(performance.now() - commandStart);
+      if (totalMs >= SOCIAL_METRICS_SLOW_MS) {
+        const mem = process.memoryUsage();
+        logger.info('Social perf', {
+          label: 'total',
+          ms: totalMs,
+          rss: mem.rss,
+          heap: mem.heapUsed,
+          external: mem.external,
+          eldP95ms: SOCIAL_EVENT_LOOP_DELAY
+            ? Math.round(SOCIAL_EVENT_LOOP_DELAY.percentile(95) / 1e6)
+            : null,
+        });
+      }
+    }
+    if (renderTimeout) clearTimeout(renderTimeout);
+    SOCIAL_INFLIGHT.delete(remoteJid);
   }
 }
 
