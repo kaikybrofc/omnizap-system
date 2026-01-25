@@ -13,6 +13,8 @@ const getParticipantJid = (participant) =>
   participant?.id || participant?.jid || participant?.lid || null;
 
 const MAX_LISTED = null;
+const MAX_MENTIONS_PER_MESSAGE = 80;
+const BATCH_DELAY_MS = 400;
 
 const parseMinMessages = (text = '') => {
   const tokens = text.trim().split(/\s+/).filter(Boolean);
@@ -91,6 +93,9 @@ const buildNoMessageText = ({
   totalParticipants,
   totalListed,
   hiddenCount,
+  batchIndex = 1,
+  batchTotal = 1,
+  batchSize = 0,
 }) => {
   const title =
     minMessages <= 1 ? '🔇 *Membros sem mensagens no grupo*' : '🔇 *Membros abaixo do mínimo*';
@@ -101,6 +106,9 @@ const buildNoMessageText = ({
     `• Período: ${periodLabel}`,
     `• Participantes: ${totalParticipants}`,
     `• Listados: ${totalListed}`,
+    ...(batchTotal > 1
+      ? [`• Parte: ${batchIndex}/${batchTotal}`, `• Nesta mensagem: ${batchSize}`]
+      : []),
     '',
   ];
 
@@ -116,6 +124,29 @@ const buildNoMessageText = ({
   });
 
   return lines.join('\n');
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const splitEntriesByMentions = (entries, maxMentions) => {
+  if (!maxMentions || maxMentions <= 0) return [entries];
+  const batches = [];
+  let current = [];
+  let mentionCount = 0;
+
+  entries.forEach((entry) => {
+    const needsMention = Boolean(entry.mentionJid);
+    if (current.length > 0 && needsMention && mentionCount + 1 > maxMentions) {
+      batches.push(current);
+      current = [];
+      mentionCount = 0;
+    }
+    current.push(entry);
+    if (needsMention) mentionCount += 1;
+  });
+
+  if (current.length) batches.push(current);
+  return batches;
 };
 
 export async function handleNoMessageCommand({
@@ -228,19 +259,49 @@ export async function handleNoMessageCommand({
       new Set(visibleEntries.map((entry) => entry.mentionJid).filter(Boolean)),
     );
 
-    const responseText = buildNoMessageText({
-      members: visibleEntries,
-      minMessages,
-      periodLabel,
-      totalParticipants,
-      totalListed,
-      hiddenCount,
-    });
-    await sock.sendMessage(
-      remoteJid,
-      { text: responseText, mentions },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    const batches = splitEntriesByMentions(visibleEntries, MAX_MENTIONS_PER_MESSAGE);
+    if (!batches.length) {
+      const responseText = buildNoMessageText({
+        members: [],
+        minMessages,
+        periodLabel,
+        totalParticipants,
+        totalListed,
+        hiddenCount,
+      });
+      await sock.sendMessage(
+        remoteJid,
+        { text: responseText },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+      return;
+    }
+
+    for (let index = 0; index < batches.length; index += 1) {
+      const batch = batches[index];
+      const batchMentions = Array.from(
+        new Set(batch.map((entry) => entry.mentionJid).filter(Boolean)),
+      );
+      const responseText = buildNoMessageText({
+        members: batch,
+        minMessages,
+        periodLabel,
+        totalParticipants,
+        totalListed,
+        hiddenCount,
+        batchIndex: index + 1,
+        batchTotal: batches.length,
+        batchSize: batch.length,
+      });
+      await sock.sendMessage(
+        remoteJid,
+        { text: responseText, mentions: batchMentions },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+      if (index < batches.length - 1) {
+        await sleep(BATCH_DELAY_MS);
+      }
+    }
   } catch (error) {
     logger.error('Erro ao buscar membros sem mensagens:', { error: error.message });
     await sock.sendMessage(
