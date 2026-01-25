@@ -109,7 +109,7 @@ export async function handleNoticeCommand({ sock, remoteJid, messageInfo, expira
       }
 
       if (i < groups.length - 1) {
-        const delayMinutes = Math.floor(Math.random() * 5) + 1;
+        const delayMinutes = Math.floor(Math.random() * 2) + 1;
         await sleep(delayMinutes * 60 * 1000);
       }
     }
