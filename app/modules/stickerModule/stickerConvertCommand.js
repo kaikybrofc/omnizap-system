@@ -12,6 +12,30 @@ const execProm = promisify(exec);
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'sticker-convert');
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
+const resolveEvenDimensions = (width, height) => {
+  const safeWidth = Number.isFinite(width) && width > 0 ? width : 512;
+  const safeHeight = Number.isFinite(height) && height > 0 ? height : 512;
+  const evenWidth = safeWidth % 2 === 0 ? safeWidth : safeWidth - 1;
+  const evenHeight = safeHeight % 2 === 0 ? safeHeight : safeHeight - 1;
+  return {
+    width: evenWidth || 512,
+    height: evenHeight || 512,
+  };
+};
+
+const getMediaDimensions = async (inputPath) => {
+  try {
+    const { stdout } = await execProm(
+      `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${inputPath}"`,
+      { timeout: 10000 },
+    );
+    const [rawWidth, rawHeight] = String(stdout || '').trim().split('x').map(Number);
+    return resolveEvenDimensions(rawWidth, rawHeight);
+  } catch (error) {
+    return resolveEvenDimensions(512, 512);
+  }
+};
+
 const resolveStickerMessage = (messageInfo) => {
   const message = messageInfo?.message;
   const directSticker = message?.stickerMessage;
@@ -111,8 +135,9 @@ export async function handleStickerConvertCommand({
       throw new Error(`Saída inesperada na conversão: ${convertedPath}`);
     }
 
+    const { width, height } = await getMediaDimensions(convertedPath);
     mp4Path = path.join(userDir, `sticker_${uniqueId}.mp4`);
-    const ffmpegCommand = `ffmpeg -y -i "${convertedPath}" -movflags +faststart -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" "${mp4Path}"`;
+    const ffmpegCommand = `ffmpeg -y -i "${convertedPath}" -filter_complex "[0:v]scale=${width}:${height}:flags=lanczos,format=rgba[fg];color=black:s=${width}x${height}[bg];[bg][fg]overlay=format=auto,format=yuv420p" -movflags +faststart -pix_fmt yuv420p "${mp4Path}"`;
     await execProm(ffmpegCommand, { timeout: 20000 });
 
     const videoBuffer = await fs.readFile(mp4Path);
