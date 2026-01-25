@@ -3,11 +3,7 @@ import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import * as groupUtils from '../../config/groupUtils.js';
 import { getProfilePicBuffer, getJidUser, resolveBotJid } from '../../config/baileysConfig.js';
-import {
-  primeLidCache,
-  resolveUserIdCached,
-  isLidUserId,
-} from '../../services/lidMapService.js';
+import { primeLidCache, resolveUserIdCached, isLidUserId } from '../../services/lidMapService.js';
 
 const normalizeDigits = (value) => {
   if (typeof groupUtils._normalizeDigits === 'function') {
@@ -54,8 +50,7 @@ const SOCIAL_AVATAR_LIMIT = 36;
 
 const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const PROFILE_CACHE_LIMIT = 2000;
-const PROFILE_PIC_CACHE =
-  globalThis.__omnizapProfilePicCache || new Map();
+const PROFILE_PIC_CACHE = globalThis.__omnizapProfilePicCache || new Map();
 globalThis.__omnizapProfilePicCache = PROFILE_PIC_CACHE;
 const NAME_LOOKUP_LIMIT = 400;
 
@@ -178,7 +173,9 @@ const limitGraphData = (graphData, limit) => {
 
   const nodes = graphData.nodes.slice(0, limit);
   const allowed = new Set(nodes.map((node) => node.jid));
-  const edges = (graphData.edges || []).filter((edge) => allowed.has(edge.src) && allowed.has(edge.dst));
+  const edges = (graphData.edges || []).filter(
+    (edge) => allowed.has(edge.src) && allowed.has(edge.dst),
+  );
 
   const nodeClusters = new Map();
   (graphData.nodeClusters || new Map()).forEach((clusterId, jid) => {
@@ -342,17 +339,17 @@ const normalizeJidWithParticipants = (value, participantIndex) => {
   if (!value) return value;
   let normalized = value;
   if (participantIndex) {
-      const direct = participantIndex.get(value);
-      if (direct) normalized = direct;
+    const direct = participantIndex.get(value);
+    if (direct) normalized = direct;
     else {
       const digits = normalizeDigits(value);
       if (digits && participantIndex.has(digits)) normalized = participantIndex.get(digits);
     }
   }
-  return resolveUserIdCached({ lid: normalized, jid: normalized, participantAlt: null }) || normalized;
+  return (
+    resolveUserIdCached({ lid: normalized, jid: normalized, participantAlt: null }) || normalized
+  );
 };
-
- 
 
 /**
  * Função buildSocialRanking.
@@ -442,8 +439,6 @@ const formatDate = (value) => {
     timeZone: 'America/Sao_Paulo',
   }).format(date);
 };
-
- 
 
 /**
  * Função computeReciprocityAndAvg.
@@ -1668,7 +1663,6 @@ const renderGraphImage = ({
       ctx.restore();
     }
 
-
     if (avatarImage) {
       ctx.save();
       ctx.globalAlpha = nodeAlpha;
@@ -1750,7 +1744,6 @@ const renderGraphImage = ({
       ctx.fillText(badge.icon, bx, by + 1);
       ctx.restore();
     }
-
   });
 
   /**
@@ -1978,12 +1971,11 @@ export async function handleInteractionGraphCommand({
     }
 
     const participantIndex = null;
-    const normalizedRows = filterRowsWithoutBot(rows, botJid)
-      .map((row) => ({
-        ...row,
-        src: normalizeJidWithParticipants(row.src, participantIndex),
-        dst: normalizeJidWithParticipants(row.dst, participantIndex),
-      }));
+    const normalizedRows = filterRowsWithoutBot(rows, botJid).map((row) => ({
+      ...row,
+      src: normalizeJidWithParticipants(row.src, participantIndex),
+      dst: normalizeJidWithParticipants(row.dst, participantIndex),
+    }));
 
     const aggregatedRows = aggregateRowsByPair(normalizedRows);
     const filteredRows = aggregatedRows;
@@ -2059,7 +2051,9 @@ export async function handleInteractionGraphCommand({
     const fullGraphData = buildGraphData(filteredRows, names);
     const graphData = limitGraphData(fullGraphData, SOCIAL_NODE_LIMIT);
     const allowedJids = new Set(graphData.nodes.map((node) => node.jid));
-    directedEdges = directedEdges.filter((edge) => allowedJids.has(edge.src) && allowedJids.has(edge.dst));
+    directedEdges = directedEdges.filter(
+      (edge) => allowedJids.has(edge.src) && allowedJids.has(edge.dst),
+    );
     const clustersWithKeywords = assignClanNamesFromList(graphData.clusters);
     const clanByJid = new Map();
     clustersWithKeywords.forEach((cluster) => {
@@ -2075,7 +2069,9 @@ export async function handleInteractionGraphCommand({
       edges: graphData.edges,
       nodeClusters: graphData.nodeClusters,
     });
-    const highlightInfluence = new Set((influenceRanking || []).slice(0, 5).map((entry) => entry.jid));
+    const highlightInfluence = new Set(
+      (influenceRanking || []).slice(0, 5).map((entry) => entry.jid),
+    );
     const highlightConnectors = new Set(connectorRanking.map((entry) => entry.jid));
     const { reciprocity, avgResponseMs } = computeReciprocityAndAvg(filteredRows);
     const clanLeaders = buildClanLeaders(graphData.nodes, graphData.nodeClusters);

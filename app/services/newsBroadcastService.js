@@ -246,7 +246,8 @@ export const startNewsBroadcastForGroup = (groupId, options = {}) => {
     return;
   }
 
-  const initialDelay = typeof options.initialDelayMs === 'number' ? options.initialDelayMs : LOOP_START_DELAY_MS;
+  const initialDelay =
+    typeof options.initialDelayMs === 'number' ? options.initialDelayMs : LOOP_START_DELAY_MS;
 
   groupLoops.set(groupId, {
     timeoutId: null,

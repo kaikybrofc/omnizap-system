@@ -8,7 +8,14 @@ import logger from '../logger/loggerModule.js';
  * @type {Record<string, string[]>}
  */
 export const KNOWN_NETWORKS = {
-  youtube: ['youtube.com', 'youtu.be', 'music.youtube.com', 'm.youtube.com', 'shorts.youtube.com', 'youtube-nocookie.com'],
+  youtube: [
+    'youtube.com',
+    'youtu.be',
+    'music.youtube.com',
+    'm.youtube.com',
+    'shorts.youtube.com',
+    'youtube-nocookie.com',
+  ],
   instagram: ['instagram.com', 'instagr.am'],
   facebook: ['facebook.com', 'fb.com', 'fb.watch', 'm.facebook.com', 'l.facebook.com'],
   tiktok: ['tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com'],
@@ -131,7 +138,8 @@ const extractDomains = (text) => {
  * @param {string[]} allowedDomains
  * @returns {boolean}
  */
-const isDomainAllowed = (domain, allowedDomains) => allowedDomains.some((allowed) => domain === allowed || domain.endsWith(`.${allowed}`));
+const isDomainAllowed = (domain, allowedDomains) =>
+  allowedDomains.some((allowed) => domain === allowed || domain.endsWith(`.${allowed}`));
 
 /**
  * Monta a lista final de domínios permitidos (redes conhecidas + personalizados).
@@ -173,13 +181,23 @@ export const isLinkDetected = (text, allowedDomains = []) => {
  * @param {string} params.botJid
  * @returns {Promise<boolean>}
  */
-export const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, senderJid, botJid }) => {
+export const handleAntiLink = async ({
+  sock,
+  messageInfo,
+  extractedText,
+  remoteJid,
+  senderJid,
+  botJid,
+}) => {
   if (!senderJid) return false;
   if (senderJid === botJid) return false;
   const groupConfig = await groupConfigStore.getGroupConfig(remoteJid);
   if (!groupConfig || !groupConfig.antilinkEnabled) return false;
 
-  const allowedDomains = getAllowedDomains(groupConfig.antilinkAllowedNetworks || [], groupConfig.antilinkAllowedDomains || []);
+  const allowedDomains = getAllowedDomains(
+    groupConfig.antilinkAllowedNetworks || [],
+    groupConfig.antilinkAllowedDomains || [],
+  );
   if (!isLinkDetected(extractedText, allowedDomains)) return false;
 
   const isAdmin = await isUserAdmin(remoteJid, senderJid);

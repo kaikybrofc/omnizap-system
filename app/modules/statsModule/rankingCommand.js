@@ -5,9 +5,19 @@ import { buildRankingMessage, getRankingReport, renderRankingImage } from './ran
 
 const RANKING_LIMIT = 5;
 
-export async function handleRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }) {
+export async function handleRankingCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  isGroupMessage,
+}) {
   if (!isGroupMessage) {
-    await sock.sendMessage(remoteJid, { text: 'Este comando so pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: 'Este comando so pode ser usado em grupos.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
@@ -40,6 +50,10 @@ export async function handleRankingCommand({ sock, remoteJid, messageInfo, expir
     );
   } catch (error) {
     logger.error('Erro ao gerar ranking do grupo:', { error: error.message });
-    await sock.sendMessage(remoteJid, { text: `Erro ao gerar ranking: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: `Erro ao gerar ranking: ${error.message}` },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   }
 }

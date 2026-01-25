@@ -137,8 +137,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
           ? participant
           : participant?.id || participant?.jid || participant?.phoneNumber || '';
 
-      const participantName =
-        getJidUser(jid) || participant?.phoneNumber || 'user';
+      const participantName = getJidUser(jid) || participant?.phoneNumber || 'user';
 
       if (jid) allMentions.push(jid);
 

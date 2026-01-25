@@ -142,7 +142,10 @@ function drawTextOnCanvas(ctx, text, color, { glow = false } = {}) {
   };
 
   let lines = wrapText();
-  while (lines.length * fontSize > height - 40 || lines.some((line) => ctx.measureText(line).width > maxWidth)) {
+  while (
+    lines.length * fontSize > height - 40 ||
+    lines.some((line) => ctx.measureText(line).width > maxWidth)
+  ) {
     fontSize -= 4;
     ctx.font = `bold ${fontSize}px Arial`;
     lines = wrapText();
@@ -277,17 +280,37 @@ async function generateBlinkingTextWebp(text, outputDir, fileName, color = 'whit
  * @param {string} [params.color='black']
  * @returns {Promise<void>}
  */
-export async function processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, expirationMessage, extraText = '', color = 'black' }) {
+export async function processTextSticker({
+  sock,
+  messageInfo,
+  remoteJid,
+  senderJid,
+  senderName,
+  text,
+  expirationMessage,
+  extraText = '',
+  color = 'black',
+}) {
   const stickerText = text.trim();
 
   if (!stickerText) {
-    await sock.sendMessage(remoteJid, { text: '❌ Você precisa informar um texto para virar figurinha.\n\nExemplo:\n/st bom dia seus lindos' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      {
+        text: '❌ Você precisa informar um texto para virar figurinha.\n\nExemplo:\n/st bom dia seus lindos',
+      },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
 
     return;
   }
 
   if (stickerText.length > MAX_CHARACTERS) {
-    await sock.sendMessage(remoteJid, { text: '❌ Limite de caracteres excedido!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: '❌ Limite de caracteres excedido!' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
 
     return;
   }
@@ -295,7 +318,11 @@ export async function processTextSticker({ sock, messageInfo, remoteJid, senderJ
   const stickerLines = stickerText.split(/\r?\n/);
 
   if (stickerLines.length > MAX_LINES) {
-    await sock.sendMessage(remoteJid, { text: '❌ Limite de linhas excedido!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: '❌ Limite de linhas excedido!' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
 
     return;
   }
@@ -337,7 +364,11 @@ export async function processTextSticker({ sock, messageInfo, remoteJid, senderJ
 
     const stickerBuffer = await fs.readFile(stickerPath);
 
-    await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { sticker: stickerBuffer },
+      { ephemeralExpiration: expirationMessage },
+    );
   } catch (error) {
     logger.error(`processTextSticker Erro: ${error.message}`, { error });
     await sock.sendMessage(remoteJid, {
@@ -366,19 +397,39 @@ export async function processTextSticker({ sock, messageInfo, remoteJid, senderJ
  * @param {string} [params.color='white']
  * @returns {Promise<void>}
  */
-export async function processBlinkingTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, expirationMessage, extraText = '', color = 'white' }) {
+export async function processBlinkingTextSticker({
+  sock,
+  messageInfo,
+  remoteJid,
+  senderJid,
+  senderName,
+  text,
+  expirationMessage,
+  extraText = '',
+  color = 'white',
+}) {
   const parsed = parseColorFlag(text, color);
   const stickerText = parsed.text.trim();
   const resolvedColor = parsed.color;
 
   if (!stickerText) {
-    await sock.sendMessage(remoteJid, { text: '❌ Você precisa informar um texto para virar figurinha.\n\nExemplo:\n/stb bom dia seus lindos -verde' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      {
+        text: '❌ Você precisa informar um texto para virar figurinha.\n\nExemplo:\n/stb bom dia seus lindos -verde',
+      },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
 
     return;
   }
 
   if (stickerText.length > MAX_CHARACTERS) {
-    await sock.sendMessage(remoteJid, { text: '❌ Limite de caracteres excedido!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: '❌ Limite de caracteres excedido!' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
 
     return;
   }
@@ -386,7 +437,11 @@ export async function processBlinkingTextSticker({ sock, messageInfo, remoteJid,
   const stickerLines = stickerText.split(/\r?\n/);
 
   if (stickerLines.length > MAX_LINES) {
-    await sock.sendMessage(remoteJid, { text: '❌ Limite de linhas excedido!' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: '❌ Limite de linhas excedido!' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
 
     return;
   }
@@ -402,7 +457,12 @@ export async function processBlinkingTextSticker({ sock, messageInfo, remoteJid,
     const userDir = path.join(TEMP_DIR, sanitizedUserId);
     await fs.mkdir(userDir, { recursive: true });
 
-    webpPath = await generateBlinkingTextWebp(stickerText, userDir, `text_blink_${uniqueId}`, resolvedColor);
+    webpPath = await generateBlinkingTextWebp(
+      stickerText,
+      userDir,
+      `text_blink_${uniqueId}`,
+      resolvedColor,
+    );
 
     const { packName, packAuthor } = (() => {
       if (!extraText) {
@@ -425,7 +485,11 @@ export async function processBlinkingTextSticker({ sock, messageInfo, remoteJid,
 
     const stickerBuffer = await fs.readFile(stickerPath);
 
-    await sock.sendMessage(remoteJid, { sticker: stickerBuffer }, { ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { sticker: stickerBuffer },
+      { ephemeralExpiration: expirationMessage },
+    );
   } catch (error) {
     logger.error(`processBlinkingTextSticker Erro: ${error.message}`, { error });
     await sock.sendMessage(remoteJid, {

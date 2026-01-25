@@ -3,7 +3,8 @@ import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.
 
 const formatLoadAverage = (values) => values.map((value) => value.toFixed(2)).join(' | ');
 
-const buildPingMessage = (metrics) => `
+const buildPingMessage = (metrics) =>
+  `
 🏓 *Pong! Status do sistema*
 
 🖥️ *Host:* ${metrics.hostname}

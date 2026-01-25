@@ -100,12 +100,7 @@ export async function handleWaifuImageCommand({
   }
 }
 
-export async function handleWaifuFactCommand({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-}) {
+export async function handleWaifuFactCommand({ sock, remoteJid, messageInfo, expirationMessage }) {
   if (!(await ensureToken(sock, remoteJid, messageInfo, expirationMessage))) return;
 
   try {

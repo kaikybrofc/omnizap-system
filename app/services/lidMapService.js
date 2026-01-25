@@ -114,7 +114,9 @@ export const primeLidCache = async (lids = []) => {
   const uniqueLids = Array.from(new Set((lids || []).filter(Boolean)));
   if (!uniqueLids.length) return new Map();
 
-  const pending = uniqueLids.filter((lid) => isLidJid(lid) && getCachedJidForLid(lid) === undefined);
+  const pending = uniqueLids.filter(
+    (lid) => isLidJid(lid) && getCachedJidForLid(lid) === undefined,
+  );
   if (!pending.length) {
     const map = new Map();
     uniqueLids.forEach((lid) => map.set(lid, getCachedJidForLid(lid) ?? null));
@@ -208,10 +210,7 @@ const fetchJidByLid = async (lid) => {
   const cached = getCachedJidForLid(lid);
   if (cached !== undefined) return cached || null;
 
-  const rows = await executeQuery(
-    `SELECT jid FROM ${TABLES.LID_MAP} WHERE lid = ? LIMIT 1`,
-    [lid],
-  );
+  const rows = await executeQuery(`SELECT jid FROM ${TABLES.LID_MAP} WHERE lid = ? LIMIT 1`, [lid]);
   const jid = rows?.[0]?.jid && isWhatsAppJid(rows[0].jid) ? normalizeJid(rows[0].jid) : null;
   setCacheEntry(lid, jid, jid ? CACHE_TTL_MS : NEGATIVE_TTL_MS);
   return jid;
@@ -291,7 +290,9 @@ export const maybeStoreLidMap = async (lid, jid, source = 'message') => {
   const cacheJid = normalizedJid ?? cachedJid ?? null;
   setCacheEntry(lid, cacheJid, CACHE_TTL_MS, nowTs);
 
-  const shouldReconcile = Boolean(normalizedJid && (!cacheEntry || cacheEntry.jid !== normalizedJid));
+  const shouldReconcile = Boolean(
+    normalizedJid && (!cacheEntry || cacheEntry.jid !== normalizedJid),
+  );
   if (shouldReconcile) {
     await reconcileLidToJid({ lid, jid: normalizedJid, source });
   }

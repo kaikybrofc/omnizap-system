@@ -34,13 +34,19 @@ export async function addStickerMetadata(stickerPath, packName, packAuthor, repl
 
   function doReplaces(str) {
     const sanitizedUserId = getJidUser(userId) || userId;
-    return str.replace(/#nome/gi, senderName).replace(/#data/gi, dataAtual).replace(/#hora/gi, horaAtual).replace(/#id/gi, sanitizedUserId);
+    return str
+      .replace(/#nome/gi, senderName)
+      .replace(/#data/gi, dataAtual)
+      .replace(/#hora/gi, horaAtual)
+      .replace(/#id/gi, sanitizedUserId);
   }
 
   const finalPackName = doReplaces(packName);
   const finalPackAuthor = doReplaces(packAuthor);
 
-  logger.info(`addStickerMetadata Adicionando metadados ao sticker. Nome: "${finalPackName}", Autor: "${finalPackAuthor}"`);
+  logger.info(
+    `addStickerMetadata Adicionando metadados ao sticker. Nome: "${finalPackName}", Autor: "${finalPackAuthor}"`,
+  );
 
   try {
     await ensureDirectories(TEMP_DIR);
@@ -52,7 +58,10 @@ export async function addStickerMetadata(stickerPath, packName, packAuthor, repl
     };
 
     const exifPath = path.join(TEMP_DIR, `exif_${Date.now()}.exif`);
-    const exifAttr = Buffer.from([0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00]);
+    const exifAttr = Buffer.from([
+      0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00,
+    ]);
     const jsonBuffer = Buffer.from(JSON.stringify(exifData), 'utf8');
     const exifBuffer = Buffer.concat([exifAttr, jsonBuffer]);
     exifBuffer.writeUIntLE(jsonBuffer.length, 14, 4);
@@ -62,7 +71,9 @@ export async function addStickerMetadata(stickerPath, packName, packAuthor, repl
     try {
       await execProm('which webpmux');
     } catch (error) {
-      logger.error('addStickerMetadata webpmux não encontrado. Instale o pacote "webp" manualmente.');
+      logger.error(
+        'addStickerMetadata webpmux não encontrado. Instale o pacote "webp" manualmente.',
+      );
       throw new Error('webpmux não está instalado. Processo encerrado.');
     }
 
@@ -71,7 +82,9 @@ export async function addStickerMetadata(stickerPath, packName, packAuthor, repl
 
     await fs.unlink(exifPath);
 
-    logger.info(`addStickerMetadata Metadados adicionados com sucesso. Sticker final: ${outputPath}`);
+    logger.info(
+      `addStickerMetadata Metadados adicionados com sucesso. Sticker final: ${outputPath}`,
+    );
     return outputPath;
   } catch (error) {
     logger.error(`addStickerMetadata Erro ao adicionar metadados: ${error.message}`, {

@@ -6,12 +6,24 @@ import logger from '../../utils/logger/loggerModule.js';
 
 const adminJid = process.env.USER_ADMIN;
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
-const YTDLS_BASE_URL = (process.env.YTDLS_BASE_URL || process.env.YT_DLS_BASE_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
+const YTDLS_BASE_URL = (
+  process.env.YTDLS_BASE_URL ||
+  process.env.YT_DLS_BASE_URL ||
+  'http://127.0.0.1:3000'
+).replace(/\/$/, '');
 const DEFAULT_TIMEOUT_MS = Number.parseInt(process.env.PLAY_API_TIMEOUT_MS || '900000', 10);
-const DOWNLOAD_API_TIMEOUT_MS = Number.parseInt(process.env.PLAY_API_DOWNLOAD_TIMEOUT_MS || '1800000', 10);
+const DOWNLOAD_API_TIMEOUT_MS = Number.parseInt(
+  process.env.PLAY_API_DOWNLOAD_TIMEOUT_MS || '1800000',
+  10,
+);
 const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '100', 10);
-const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB * 1024 * 1024 : 100 * 1024 * 1024;
-const QUEUE_STATUS_TIMEOUT_MS = Number.parseInt(process.env.PLAY_QUEUE_STATUS_TIMEOUT_MS || '8000', 10);
+const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB)
+  ? MAX_MEDIA_MB * 1024 * 1024
+  : 100 * 1024 * 1024;
+const QUEUE_STATUS_TIMEOUT_MS = Number.parseInt(
+  process.env.PLAY_QUEUE_STATUS_TIMEOUT_MS || '8000',
+  10,
+);
 
 /**
  * Faz requisicao HTTP e retorna JSON parseado.
@@ -45,7 +57,9 @@ const requestJson = (method, url, body, timeoutMs = DEFAULT_TIMEOUT_MS) =>
         res.on('end', () => {
           const raw = Buffer.concat(chunks).toString('utf-8');
           if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
-            reject(new Error(`Falha na API yt-dls (HTTP ${res.statusCode}): ${raw || 'sem resposta'}`));
+            reject(
+              new Error(`Falha na API yt-dls (HTTP ${res.statusCode}): ${raw || 'sem resposta'}`),
+            );
             return;
           }
           try {
@@ -143,7 +157,8 @@ const formatVideoInfo = (videoInfo) => {
   if (videoInfo.title) lines.push(`🎵 Titulo: ${videoInfo.title}`);
   if (videoInfo.channel) lines.push(`👤 Canal: ${videoInfo.channel}`);
   if (videoInfo.views) lines.push(`👁️ Views: ${Number(videoInfo.views).toLocaleString('pt-BR')}`);
-  if (videoInfo.like_count) lines.push(`👍 Likes: ${Number(videoInfo.like_count).toLocaleString('pt-BR')}`);
+  if (videoInfo.like_count)
+    lines.push(`👍 Likes: ${Number(videoInfo.like_count).toLocaleString('pt-BR')}`);
   if (videoInfo.duration) lines.push(`⏱️ Duracao: ${videoInfo.duration}s`);
   if (videoInfo.id) lines.push(`🆔 ID: ${videoInfo.id}`);
   return lines.length ? lines.join('\n') : null;
@@ -297,7 +312,11 @@ const requestDownloadBuffer = (link, type, requestId) =>
  */
 const notifyFailure = async (sock, remoteJid, messageInfo, expirationMessage, error) => {
   const errorMessage = error?.message || 'Erro inesperado ao processar sua solicitacao.';
-  await sock.sendMessage(remoteJid, { text: `❌ Erro: ${errorMessage}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+  await sock.sendMessage(
+    remoteJid,
+    { text: `❌ Erro: ${errorMessage}` },
+    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+  );
 
   if (adminJid) {
     await sock.sendMessage(adminJid, {
@@ -318,7 +337,11 @@ const notifyFailure = async (sock, remoteJid, messageInfo, expirationMessage, er
 export const handlePlayCommand = async (sock, remoteJid, messageInfo, expirationMessage, text) => {
   try {
     if (!text?.trim()) {
-      await sock.sendMessage(remoteJid, { text: `🎵 Uso: ${COMMAND_PREFIX}play <link do YouTube ou termo de busca>` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sock.sendMessage(
+        remoteJid,
+        { text: `🎵 Uso: ${COMMAND_PREFIX}play <link do YouTube ou termo de busca>` },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       return;
     }
 
@@ -327,14 +350,27 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
     const downloadPromise = requestDownloadBuffer(link, 'audio', requestId);
     const queueStatus = await fetchQueueStatus(requestId);
     const queueText = buildQueueStatusText(queueStatus);
-    const waitText = queueText ? `⏳ Aguarde, estamos preparando o audio... ${queueText}` : '⏳ Aguarde, estamos preparando o audio...';
-    await sock.sendMessage(remoteJid, { text: waitText }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    const waitText = queueText
+      ? `⏳ Aguarde, estamos preparando o audio... ${queueText}`
+      : '⏳ Aguarde, estamos preparando o audio...';
+    await sock.sendMessage(
+      remoteJid,
+      { text: waitText },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
 
-    const [downloadResult, videoInfo] = await Promise.all([downloadPromise, fetchVideoInfo(text, link)]);
+    const [downloadResult, videoInfo] = await Promise.all([
+      downloadPromise,
+      fetchVideoInfo(text, link),
+    ]);
     const { buffer: convertedAudio, contentType } = downloadResult;
     const infoText = formatVideoInfo(videoInfo);
     if (infoText) {
-      await sock.sendMessage(remoteJid, { text: infoText }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sock.sendMessage(
+        remoteJid,
+        { text: infoText },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
     }
 
     await sock.sendMessage(
@@ -361,10 +397,20 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
  * @param {string} text
  * @returns {Promise<void>}
  */
-export const handlePlayVidCommand = async (sock, remoteJid, messageInfo, expirationMessage, text) => {
+export const handlePlayVidCommand = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  text,
+) => {
   try {
     if (!text?.trim()) {
-      await sock.sendMessage(remoteJid, { text: `🎬 Uso: ${COMMAND_PREFIX}playvid <link do YouTube ou termo de busca>` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sock.sendMessage(
+        remoteJid,
+        { text: `🎬 Uso: ${COMMAND_PREFIX}playvid <link do YouTube ou termo de busca>` },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       return;
     }
 
@@ -373,10 +419,19 @@ export const handlePlayVidCommand = async (sock, remoteJid, messageInfo, expirat
     const downloadPromise = requestDownloadBuffer(link, 'video', requestId);
     const queueStatus = await fetchQueueStatus(requestId);
     const queueText = buildQueueStatusText(queueStatus);
-    const waitText = queueText ? `⏳ Aguarde, estamos preparando o video... ${queueText}` : '⏳ Aguarde, estamos preparando o video...';
-    await sock.sendMessage(remoteJid, { text: waitText }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    const waitText = queueText
+      ? `⏳ Aguarde, estamos preparando o video... ${queueText}`
+      : '⏳ Aguarde, estamos preparando o video...';
+    await sock.sendMessage(
+      remoteJid,
+      { text: waitText },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
 
-    const [downloadResult, videoInfo] = await Promise.all([downloadPromise, fetchVideoInfo(text, link)]);
+    const [downloadResult, videoInfo] = await Promise.all([
+      downloadPromise,
+      fetchVideoInfo(text, link),
+    ]);
     const { buffer: convertedVideo, contentType } = downloadResult;
     const infoText = formatVideoInfo(videoInfo);
     const caption = infoText ? `🎬 Video pronto!\n${infoText}` : '🎬 Video pronto!';

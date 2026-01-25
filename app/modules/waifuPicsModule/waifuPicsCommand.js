@@ -4,7 +4,10 @@ import logger from '../../utils/logger/loggerModule.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
-const WAIFU_PICS_BASE = (process.env.WAIFU_PICS_BASE || 'https://api.waifu.pics').replace(/\/$/, '');
+const WAIFU_PICS_BASE = (process.env.WAIFU_PICS_BASE || 'https://api.waifu.pics').replace(
+  /\/$/,
+  '',
+);
 const WAIFU_PICS_TIMEOUT_MS = Number.parseInt(process.env.WAIFU_PICS_TIMEOUT_MS || '15000', 10);
 const WAIFU_PICS_ALLOW_NSFW = process.env.WAIFU_PICS_ALLOW_NSFW === 'true';
 

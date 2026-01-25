@@ -29,7 +29,10 @@ const getMediaDimensions = async (inputPath) => {
       `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${inputPath}"`,
       { timeout: 10000 },
     );
-    const [rawWidth, rawHeight] = String(stdout || '').trim().split('x').map(Number);
+    const [rawWidth, rawHeight] = String(stdout || '')
+      .trim()
+      .split('x')
+      .map(Number);
     return resolveEvenDimensions(rawWidth, rawHeight);
   } catch (error) {
     return resolveEvenDimensions(512, 512);
@@ -158,7 +161,11 @@ export async function handleStickerConvertCommand({
   } finally {
     const cleanupFiles = [downloadedPath, webpPath, convertedPath, mp4Path].filter(Boolean);
     for (const file of cleanupFiles) {
-      await fs.unlink(file).catch((err) => logger.warn(`handleStickerConvertCommand: falha ao limpar ${file}: ${err.message}`));
+      await fs
+        .unlink(file)
+        .catch((err) =>
+          logger.warn(`handleStickerConvertCommand: falha ao limpar ${file}: ${err.message}`),
+        );
     }
   }
 }

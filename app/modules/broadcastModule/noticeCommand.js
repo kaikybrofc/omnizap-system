@@ -42,27 +42,50 @@ const buildGroupList = (groups) =>
  * @param {string} params.text
  * @returns {Promise<void>}
  */
-export async function handleNoticeCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text }) {
+export async function handleNoticeCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  senderJid,
+  text,
+}) {
   const ownerJid = process.env[OWNER_JID_ENV];
   if (!ownerJid) {
-    await sock.sendMessage(remoteJid, { text: '❌ USER_ADMIN não configurado no ambiente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: '❌ USER_ADMIN não configurado no ambiente.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
   if (normalizeJid(toWhatsAppJid(ownerJid)) !== normalizeJid(toWhatsAppJid(senderJid))) {
-    await sock.sendMessage(remoteJid, { text: '❌ Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: '❌ Você não tem permissão para usar este comando.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
   const noticeText = text.trim();
   if (!noticeText) {
-    await sock.sendMessage(remoteJid, { text: 'Uso: /aviso <mensagem>' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: 'Uso: /aviso <mensagem>' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
   const imageUrl = process.env[MENU_IMAGE_ENV];
   if (!imageUrl) {
-    await sock.sendMessage(remoteJid, { text: '❌ IMAGE_MENU não configurado no ambiente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: '❌ IMAGE_MENU não configurado no ambiente.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
@@ -71,13 +94,21 @@ export async function handleNoticeCommand({ sock, remoteJid, messageInfo, expira
     groupsMap = await getAllParticipatingGroups(sock);
   } catch (error) {
     logger.error(`handleNoticeCommand Erro ao obter grupos: ${error.message}`);
-    await sock.sendMessage(remoteJid, { text: '❌ Não foi possível obter a lista de grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: '❌ Não foi possível obter a lista de grupos.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
   const groups = Object.values(groupsMap || {});
   if (groups.length === 0) {
-    await sock.sendMessage(remoteJid, { text: '⚠️ O bot não está em nenhum grupo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: '⚠️ O bot não está em nenhum grupo.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
@@ -95,7 +126,11 @@ export async function handleNoticeCommand({ sock, remoteJid, messageInfo, expira
     imageBuffer = await getImageBuffer(imageUrl);
   } catch (error) {
     logger.error(`handleNoticeCommand Erro ao baixar imagem do menu: ${error.message}`);
-    await sock.sendMessage(remoteJid, { text: '❌ Não foi possível baixar a imagem do menu.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: '❌ Não foi possível baixar a imagem do menu.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
@@ -105,7 +140,9 @@ export async function handleNoticeCommand({ sock, remoteJid, messageInfo, expira
       try {
         await sock.sendMessage(group.id, { image: imageBuffer, caption: noticeText });
       } catch (error) {
-        logger.error(`handleNoticeCommand Falha ao enviar aviso para ${group.id}: ${error.message}`);
+        logger.error(
+          `handleNoticeCommand Falha ao enviar aviso para ${group.id}: ${error.message}`,
+        );
       }
 
       if (i < groups.length - 1) {
@@ -114,7 +151,11 @@ export async function handleNoticeCommand({ sock, remoteJid, messageInfo, expira
       }
     }
 
-    await sock.sendMessage(remoteJid, { text: `✅ Aviso enviado para ${groups.length} grupos.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: `✅ Aviso enviado para ${groups.length} grupos.` },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   };
 
   void sendBroadcast();

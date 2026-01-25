@@ -15,7 +15,13 @@ const RANKING_LIMIT = 5;
  * @param {boolean|undefined} params.isGroupMessage
  * @returns {Promise<void>}
  */
-export async function handleGlobalRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }) {
+export async function handleGlobalRankingCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  isGroupMessage,
+}) {
   try {
     const botJid = resolveBotJid(sock?.user?.id);
     const report = await getRankingReport({
@@ -44,6 +50,10 @@ export async function handleGlobalRankingCommand({ sock, remoteJid, messageInfo,
     );
   } catch (error) {
     logger.error('Erro ao gerar ranking global:', { error: error.message });
-    await sock.sendMessage(remoteJid, { text: `Erro ao gerar ranking global: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sock.sendMessage(
+      remoteJid,
+      { text: `Erro ao gerar ranking global: ${error.message}` },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   }
 }

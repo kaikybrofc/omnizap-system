@@ -44,9 +44,7 @@ export async function convertToWebp(inputPath, mediaType, userId, uniqueId, opti
     const scaleFilter = 'scale=512:512:force_original_aspect_ratio=decrease';
     const padFilter = 'pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000';
     const imageFilter = stretch ? stretchFilter : `${scaleFilter},${padFilter}`;
-    const filtro = mediaType === 'video'
-      ? `fps=10,${imageFilter}`
-      : imageFilter;
+    const filtro = mediaType === 'video' ? `fps=10,${imageFilter}` : imageFilter;
     const ffmpegCommand = `ffmpeg -i "${inputPath}" -vcodec libwebp -lossless 1 -loop 0 -preset default -an -vf "${filtro}" "${outputPath}"`;
     let ffmpegResult;
     try {
