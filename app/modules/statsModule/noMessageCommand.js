@@ -1,7 +1,7 @@
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getGroupParticipants, isUserAdmin } from '../../config/groupUtils.js';
-import { getJidUser } from '../../config/baileysConfig.js';
+import { getJidUser, resolveBotJid } from '../../config/baileysConfig.js';
 import {
   primeLidCache,
   resolveUserIdCached,
@@ -12,18 +12,109 @@ import {
 const getParticipantJid = (participant) =>
   participant?.id || participant?.jid || participant?.lid || null;
 
-const buildNoMessageText = (members) => {
+const MAX_LISTED = null;
+
+const parseMinMessages = (text = '') => {
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  let min = null;
+  tokens.forEach((token) => {
+    const minMatch = /^min=(\d+)$/i.exec(token);
+    if (minMatch) {
+      min = Number(minMatch[1]);
+      return;
+    }
+    if (/^\d+$/.test(token) && min === null) {
+      min = Number(token);
+    }
+  });
+  if (!Number.isFinite(min)) return 1;
+  return Math.max(0, min);
+};
+
+const parsePeriod = (text = '') => {
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  let days = null;
+  let all = false;
+  tokens.forEach((token) => {
+    const lower = token.toLowerCase();
+    if (lower === 'all') all = true;
+    const match = /^(\d+)d$/i.exec(lower);
+    if (match) {
+      days = Number(match[1]);
+    }
+  });
+  if (all || !days || days <= 0) {
+    return { sinceDate: null, label: 'histórico completo' };
+  }
+  const sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return { sinceDate, label: `últimos ${days} dias` };
+};
+
+const fetchMessageCounts = async (remoteJid, sinceDate) => {
+  const params = [remoteJid];
+  let sql = 'SELECT sender_id, COUNT(*) AS total FROM messages WHERE chat_id = ?';
+  if (sinceDate) {
+    sql += ' AND created_at >= ?';
+    params.push(sinceDate);
+  }
+  sql += ' GROUP BY sender_id';
+  return executeQuery(sql, params);
+};
+
+const normalizeParticipant = (participant, sock) => {
+  const rawId = getParticipantJid(participant);
+  const participantAlt = participant?.participantAlt || participant?.jid || participant?.id || null;
+  const canonical = resolveUserIdCached({
+    lid: rawId,
+    jid: rawId,
+    participantAlt,
+  });
+  const contact =
+    (canonical && sock?.contacts?.[canonical]) ||
+    (participantAlt && sock?.contacts?.[participantAlt]) ||
+    (rawId && sock?.contacts?.[rawId]) ||
+    null;
+  const displayName =
+    participant?.notify || participant?.name || contact?.notify || contact?.name || contact?.short;
+  return {
+    rawId,
+    participantAlt,
+    canonical: canonical || rawId || null,
+    displayName: displayName || null,
+  };
+};
+
+const buildNoMessageText = ({
+  members,
+  minMessages,
+  periodLabel,
+  totalParticipants,
+  totalListed,
+  hiddenCount,
+}) => {
+  const title =
+    minMessages <= 1 ? '🔇 *Membros sem mensagens no grupo*' : '🔇 *Membros abaixo do mínimo*';
+  const lines = [
+    title,
+    '',
+    `• Mínimo de mensagens: ${minMessages}`,
+    `• Período: ${periodLabel}`,
+    `• Participantes: ${totalParticipants}`,
+    `• Listados: ${totalListed}`,
+    '',
+  ];
+
   if (!members.length) {
-    return 'Todos os membros ja enviaram mensagem no grupo.';
+    lines.push('✅ Todos os membros atingiram o mínimo.');
+    return lines.join('\n');
   }
 
-  const lines = ['🔇 *Membros sem mensagens no grupo*', ''];
-  members.forEach((jid, index) => {
-    const user = getJidUser(jid);
-    const handle = user ? `@${user}` : 'Desconhecido';
-    lines.push(`${index + 1}. ${handle}`);
+  members.forEach((member, index) => {
+    const handle = member.handle || 'Desconhecido';
+    const label = member.name ? `${handle} — ${member.name}` : handle;
+    lines.push(`${index + 1}. ${label}`);
   });
-  lines.push('', `Total sem mensagens: ${members.length}`);
+
   return lines.join('\n');
 };
 
@@ -34,6 +125,7 @@ export async function handleNoMessageCommand({
   expirationMessage,
   isGroupMessage,
   senderJid,
+  text,
 }) {
   if (!isGroupMessage) {
     await sock.sendMessage(
@@ -63,10 +155,9 @@ export async function handleNoMessageCommand({
       return;
     }
 
-    const senderRows = await executeQuery(
-      'SELECT DISTINCT sender_id FROM messages WHERE chat_id = ?',
-      [remoteJid],
-    );
+    const minMessages = parseMinMessages(text || '');
+    const { sinceDate, label: periodLabel } = parsePeriod(text || '');
+    const senderRows = await fetchMessageCounts(remoteJid, sinceDate);
     const senderIds = senderRows.map((row) => row.sender_id).filter(Boolean);
 
     const lidsToPrime = new Set();
@@ -81,28 +172,73 @@ export async function handleNoMessageCommand({
       await primeLidCache(Array.from(lidsToPrime));
     }
 
-    const canonicalSenders = new Set(
-      senderIds.map((id) => resolveUserIdCached({ lid: id, jid: id })).filter(Boolean),
+    const countsByCanonical = new Map();
+    senderRows.forEach((row) => {
+      const rawId = row.sender_id;
+      if (!rawId) return;
+      const canonical = resolveUserIdCached({ lid: rawId, jid: rawId });
+      if (!canonical) return;
+      const total = Number(row.total || 0);
+      countsByCanonical.set(canonical, (countsByCanonical.get(canonical) || 0) + total);
+    });
+
+    const normalizedParticipants = new Map();
+    participants.forEach((participant) => {
+      const normalized = normalizeParticipant(participant, sock);
+      if (!normalized.canonical && !normalized.rawId) return;
+      const key = normalized.canonical || normalized.rawId;
+      if (!key) return;
+      if (!normalizedParticipants.has(key)) {
+        normalizedParticipants.set(key, normalized);
+      }
+    });
+
+    const botJid = resolveBotJid(sock?.user?.id);
+    const botCanonical = botJid ? resolveUserIdCached({ jid: botJid, lid: botJid }) : null;
+
+    const entries = [];
+    normalizedParticipants.forEach((participant) => {
+      const canonical = participant.canonical || participant.rawId;
+      if (!canonical) return;
+      if (botCanonical && canonical === botCanonical) return;
+      const total = countsByCanonical.get(canonical) || 0;
+      if (total >= minMessages) return;
+      const mentionJid = isWhatsAppUserId(canonical)
+        ? canonical
+        : isWhatsAppUserId(participant.participantAlt)
+        ? participant.participantAlt
+        : null;
+      const displayId = mentionJid || canonical || participant.rawId;
+      const user = displayId ? getJidUser(displayId) : null;
+      const handle = user ? `@${user}` : 'Desconhecido';
+      entries.push({
+        canonical,
+        rawId: participant.rawId,
+        mentionJid,
+        handle,
+        name: participant.displayName,
+      });
+    });
+
+    const totalParticipants = normalizedParticipants.size;
+    const totalListed = entries.length;
+    const visibleEntries = MAX_LISTED ? entries.slice(0, MAX_LISTED) : entries;
+    const hiddenCount = 0;
+    const mentions = Array.from(
+      new Set(visibleEntries.map((entry) => entry.mentionJid).filter(Boolean)),
     );
 
-    const membersWithoutMessages = participants
-      .map((participant) => {
-        const rawId = getParticipantJid(participant);
-        const canonical = resolveUserIdCached({
-          lid: rawId,
-          jid: rawId,
-          participantAlt: participant?.jid || participant?.id || null,
-        });
-        return { rawId, canonical: canonical || rawId || null };
-      })
-      .filter((entry) => entry.canonical && !canonicalSenders.has(entry.canonical))
-      .map((entry) => entry.canonical);
-
-    const mentions = membersWithoutMessages.filter((jid) => isWhatsAppUserId(jid));
-    const text = buildNoMessageText(membersWithoutMessages);
+    const responseText = buildNoMessageText({
+      members: visibleEntries,
+      minMessages,
+      periodLabel,
+      totalParticipants,
+      totalListed,
+      hiddenCount,
+    });
     await sock.sendMessage(
       remoteJid,
-      { text, mentions },
+      { text: responseText, mentions },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {

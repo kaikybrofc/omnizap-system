@@ -387,6 +387,7 @@ export const handleMessages = async (update, sock) => {
                 expirationMessage,
                 isGroupMessage,
                 senderJid,
+                text,
               });
               break;
 
