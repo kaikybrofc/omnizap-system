@@ -12,6 +12,7 @@ import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleGlobalRankingCommand } from '../modules/statsModule/globalRankingCommand.js';
 import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
 import { handleInteractionGraphCommand } from '../modules/statsModule/interactionGraphCommand.js';
+import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js';
 import { getExpiration, isGroupJid, resolveBotJid } from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
@@ -401,6 +402,15 @@ export const handleMessages = async (update, sock) => {
                 isGroupMessage,
                 args,
                 senderJid,
+              });
+              break;
+
+            case 'ping':
+              await handlePingCommand({
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
               });
               break;
 

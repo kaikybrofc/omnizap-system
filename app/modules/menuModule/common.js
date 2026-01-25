@@ -30,6 +30,7 @@ Escolha uma categoria para ver os comandos:
 ━━━━━━━━━━━━━━━  
 📌 *Status do Bot*  
 ━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}ping*  
 🚧 Em evolução *(beta)*  
 
 ━━━━━━━━━━━━━━━  
@@ -135,6 +136,7 @@ export const buildStatsMenu = (commandPrefix) => `
 ➡️ *${commandPrefix}rankingglobal* *(top 5 do bot)*  
 ➡️ *${commandPrefix}social* *(ranking de interações)*  
 ➡️ *${commandPrefix}semmsg* *(membros sem mensagens)*  
+➡️ *${commandPrefix}ping* *(status do sistema)*  
 `;
 
 export const buildStickerBlinkCaption = (commandPrefix) => `
