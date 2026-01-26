@@ -12,7 +12,6 @@ import { fetchLatestPushNames } from '../statsModule/rankingCommon.js';
 
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const QUOTE_API_URL = process.env.QUOTE_API_URL || 'https://bot.lyo.su/quote/generate.png';
-// Default WhatsApp dark chat background.
 const QUOTE_BG_COLOR = process.env.QUOTE_BG_COLOR || '#0b141a';
 const QUOTE_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_TIMEOUT_MS || '20000', 10);
 
