@@ -11,7 +11,7 @@ Você é uma IA fictícia que responde de forma IRÔNICA, ÁCIDA e SEMI-REALISTA
 `.trim();
 
 const SYSTEM_PROMPT = process.env.OPENAI_SYSTEM_PROMPT?.trim() || DEFAULT_SYSTEM_PROMPT;
-const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
+const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const OWNER_JID = process.env.USER_ADMIN;
 
 const SESSION_TTL_SECONDS = Number.parseInt(process.env.OPENAI_SESSION_TTL_SECONDS || '21600', 10);
@@ -29,7 +29,13 @@ const getClient = () => {
 
 const buildSessionKey = (remoteJid, senderJid) => `${remoteJid}:${senderJid}`;
 
-const sendUsage = async (sock, remoteJid, messageInfo, expirationMessage) => {
+const sendUsage = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) => {
   await sock.sendMessage(
     remoteJid,
     {
@@ -37,10 +43,10 @@ const sendUsage = async (sock, remoteJid, messageInfo, expirationMessage) => {
         '🤖 *Comando CAT*',
         '',
         'Use assim:',
-        `*${COMMAND_PREFIX}cat* sua pergunta ou mensagem`,
+        `*${commandPrefix}cat* sua pergunta ou mensagem`,
         '',
         'Exemplo:',
-        `*${COMMAND_PREFIX}cat* Explique como funciona a fotossíntese.`,
+        `*${commandPrefix}cat* Explique como funciona a fotossíntese.`,
       ].join('\n'),
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -83,7 +89,13 @@ const sendPremiumOnly = async (sock, remoteJid, messageInfo, expirationMessage) 
   );
 };
 
-const sendPromptUsage = async (sock, remoteJid, messageInfo, expirationMessage) => {
+const sendPromptUsage = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) => {
   await sock.sendMessage(
     remoteJid,
     {
@@ -91,10 +103,10 @@ const sendPromptUsage = async (sock, remoteJid, messageInfo, expirationMessage) 
         '🧠 *Prompt da IA*',
         '',
         'Use assim:',
-        `*${COMMAND_PREFIX}catprompt* seu novo prompt`,
+        `*${commandPrefix}catprompt* seu novo prompt`,
         '',
         'Para voltar ao padrão:',
-        `*${COMMAND_PREFIX}catprompt reset*`,
+        `*${commandPrefix}catprompt reset*`,
       ].join('\n'),
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -108,10 +120,11 @@ export async function handleCatCommand({
   expirationMessage,
   senderJid,
   text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
   const prompt = text?.trim();
   if (!prompt) {
-    await sendUsage(sock, remoteJid, messageInfo, expirationMessage);
+    await sendUsage(sock, remoteJid, messageInfo, expirationMessage, commandPrefix);
     return;
   }
 
@@ -199,10 +212,11 @@ export async function handleCatPromptCommand({
   expirationMessage,
   senderJid,
   text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
   const promptText = text?.trim();
   if (!promptText) {
-    await sendPromptUsage(sock, remoteJid, messageInfo, expirationMessage);
+    await sendPromptUsage(sock, remoteJid, messageInfo, expirationMessage, commandPrefix);
     return;
   }
 

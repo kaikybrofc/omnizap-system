@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import logger from '../../utils/logger/loggerModule.js';
 
 const adminJid = process.env.USER_ADMIN;
-const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
+const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const YTDLS_BASE_URL = (
   process.env.YTDLS_BASE_URL ||
   process.env.YT_DLS_BASE_URL ||
@@ -334,12 +334,19 @@ const notifyFailure = async (sock, remoteJid, messageInfo, expirationMessage, er
  * @param {string} text
  * @returns {Promise<void>}
  */
-export const handlePlayCommand = async (sock, remoteJid, messageInfo, expirationMessage, text) => {
+export const handlePlayCommand = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) => {
   try {
     if (!text?.trim()) {
       await sock.sendMessage(
         remoteJid,
-        { text: `🎵 Uso: ${COMMAND_PREFIX}play <link do YouTube ou termo de busca>` },
+        { text: `🎵 Uso: ${commandPrefix}play <link do YouTube ou termo de busca>` },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );
       return;
@@ -403,12 +410,13 @@ export const handlePlayVidCommand = async (
   messageInfo,
   expirationMessage,
   text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
 ) => {
   try {
     if (!text?.trim()) {
       await sock.sendMessage(
         remoteJid,
-        { text: `🎬 Uso: ${COMMAND_PREFIX}playvid <link do YouTube ou termo de busca>` },
+        { text: `🎬 Uso: ${commandPrefix}playvid <link do YouTube ou termo de busca>` },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );
       return;

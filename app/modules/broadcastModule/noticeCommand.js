@@ -8,6 +8,7 @@ const OWNER_JID_ENV = 'USER_ADMIN';
 const PROGRESS_EVERY = 10;
 const PROGRESS_INTERVAL_MS = 15 * 1000;
 const MAX_FAILURE_SAMPLE = 10;
+const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
 const MODE_CONFIG = {
   default: {
@@ -169,6 +170,7 @@ export async function handleNoticeCommand({
   expirationMessage,
   senderJid,
   text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
   const ownerJid = process.env[OWNER_JID_ENV];
   if (!ownerJid) {
@@ -193,7 +195,7 @@ export async function handleNoticeCommand({
   if (!noticeText) {
     await sock.sendMessage(
       remoteJid,
-      { text: 'Uso: /aviso [-fast|-safe] <mensagem>' },
+      { text: `Uso: ${commandPrefix}aviso [-fast|-safe] <mensagem>` },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return;

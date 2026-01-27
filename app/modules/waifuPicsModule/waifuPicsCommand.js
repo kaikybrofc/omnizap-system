@@ -3,7 +3,7 @@ import axios from 'axios';
 import logger from '../../utils/logger/loggerModule.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 
-const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
+const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const WAIFU_PICS_BASE = (process.env.WAIFU_PICS_BASE || 'https://api.waifu.pics').replace(
   /\/$/,
   '',
@@ -47,7 +47,14 @@ const SFW_CATEGORIES = [
 
 const NSFW_CATEGORIES = ['waifu', 'neko', 'trap', 'blowjob'];
 
-const sendUsage = async (sock, remoteJid, messageInfo, expirationMessage, type) => {
+const sendUsage = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  type,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) => {
   const list = type === 'nsfw' ? NSFW_CATEGORIES : SFW_CATEGORIES;
   await sock.sendMessage(
     remoteJid,
@@ -55,7 +62,7 @@ const sendUsage = async (sock, remoteJid, messageInfo, expirationMessage, type) 
       text: [
         `🖼️ *Waifu.pics (${type.toUpperCase()})*`,
         '',
-        `Use: *${COMMAND_PREFIX}wp${type === 'nsfw' ? 'nsfw' : ''} <categoria>*`,
+        `Use: *${commandPrefix}wp${type === 'nsfw' ? 'nsfw' : ''} <categoria>*`,
         '',
         `Categorias: ${list.join(', ')}`,
       ].join('\n'),
@@ -77,6 +84,7 @@ export async function handleWaifuPicsCommand({
   expirationMessage,
   text,
   type = 'sfw',
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
   const category = (text || '').trim().toLowerCase() || 'waifu';
 
@@ -94,7 +102,9 @@ export async function handleWaifuPicsCommand({
     if (!config?.nsfwEnabled) {
       await sock.sendMessage(
         remoteJid,
-        { text: '🔞 NSFW está desativado neste grupo. Um admin pode ativar com /nsfw on.' },
+        {
+          text: `🔞 NSFW está desativado neste grupo. Um admin pode ativar com ${commandPrefix}nsfw on.`,
+        },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );
       return;
@@ -103,7 +113,7 @@ export async function handleWaifuPicsCommand({
 
   const allowed = type === 'nsfw' ? NSFW_CATEGORIES : SFW_CATEGORIES;
   if (!allowed.includes(category)) {
-    await sendUsage(sock, remoteJid, messageInfo, expirationMessage, type);
+    await sendUsage(sock, remoteJid, messageInfo, expirationMessage, type, commandPrefix);
     return;
   }
 
@@ -133,12 +143,12 @@ export async function handleWaifuPicsCommand({
   }
 }
 
-export const getWaifuPicsUsageText = () =>
+export const getWaifuPicsUsageText = (commandPrefix = DEFAULT_COMMAND_PREFIX) =>
   [
     '🖼️ *Waifu.pics*',
     '',
-    `*${COMMAND_PREFIX}wp* <categoria>`,
-    `*${COMMAND_PREFIX}wpnsfw* <categoria>`,
+    `*${commandPrefix}wp* <categoria>`,
+    `*${commandPrefix}wpnsfw* <categoria>`,
     '',
     `SFW: ${SFW_CATEGORIES.join(', ')}`,
     `NSFW: ${NSFW_CATEGORIES.join(', ')}`,

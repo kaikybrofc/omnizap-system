@@ -30,9 +30,20 @@ import {
   handleWaifuPicsCommand,
   getWaifuPicsUsageText,
 } from '../modules/waifuPicsModule/waifuPicsCommand.js';
+import groupConfigStore from '../store/groupConfigStore.js';
 
-const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
+const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
+
+const resolveCommandPrefix = async (isGroupMessage, remoteJid) => {
+  if (!isGroupMessage) return DEFAULT_COMMAND_PREFIX;
+  const config = await groupConfigStore.getGroupConfig(remoteJid);
+  if (!config || typeof config.commandPrefix !== 'string') {
+    return DEFAULT_COMMAND_PREFIX;
+  }
+  const prefix = config.commandPrefix.trim();
+  return prefix || DEFAULT_COMMAND_PREFIX;
+};
 
 /**
  * Extrai o conteúdo de texto de uma mensagem do WhatsApp.
@@ -92,6 +103,7 @@ export const handleMessages = async (update, sock) => {
         const senderName = messageInfo.pushName;
         const expirationMessage = getExpiration(messageInfo);
         const botJid = resolveBotJid(sock?.user?.id);
+        let commandPrefix = DEFAULT_COMMAND_PREFIX;
 
         if (isGroupMessage) {
           const shouldSkip = await handleAntiLink({
@@ -106,9 +118,10 @@ export const handleMessages = async (update, sock) => {
           if (shouldSkip) {
             continue;
           }
+          commandPrefix = await resolveCommandPrefix(true, remoteJid);
         }
 
-        if (extractedText.startsWith(COMMAND_PREFIX)) {
+        if (extractedText.startsWith(commandPrefix)) {
           if (COMMAND_REACT_EMOJI) {
             try {
               await sock.sendMessage(remoteJid, {
@@ -122,7 +135,7 @@ export const handleMessages = async (update, sock) => {
             }
           }
 
-          const commandBody = extractedText.substring(COMMAND_PREFIX.length);
+          const commandBody = extractedText.substring(commandPrefix.length);
           const match = commandBody.match(/^(\S+)([\s\S]*)$/);
           const command = match ? match[1].toLowerCase() : '';
           const rawArgs = match && match[2] !== undefined ? match[2].trim() : '';
@@ -137,7 +150,7 @@ export const handleMessages = async (update, sock) => {
                 messageInfo,
                 expirationMessage,
                 senderName,
-                COMMAND_PREFIX,
+                commandPrefix,
                 args,
               );
               break;
@@ -169,11 +182,25 @@ export const handleMessages = async (update, sock) => {
               break;
 
             case 'play':
-              await handlePlayCommand(sock, remoteJid, messageInfo, expirationMessage, text);
+              await handlePlayCommand(
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                text,
+                commandPrefix,
+              );
               break;
 
             case 'playvid':
-              await handlePlayVidCommand(sock, remoteJid, messageInfo, expirationMessage, text);
+              await handlePlayVidCommand(
+                sock,
+                remoteJid,
+                messageInfo,
+                expirationMessage,
+                text,
+                commandPrefix,
+              );
               break;
 
             case 'cat':
@@ -184,6 +211,7 @@ export const handleMessages = async (update, sock) => {
                 expirationMessage,
                 senderJid,
                 text,
+                commandPrefix,
               });
               break;
 
@@ -197,6 +225,7 @@ export const handleMessages = async (update, sock) => {
                 expirationMessage,
                 senderJid,
                 text,
+                commandPrefix,
               });
               break;
 
@@ -210,6 +239,7 @@ export const handleMessages = async (update, sock) => {
                 senderJid,
                 senderName,
                 text,
+                commandPrefix,
               });
               break;
 
@@ -259,7 +289,7 @@ export const handleMessages = async (update, sock) => {
             case 'waifuhelp':
               await sock.sendMessage(
                 remoteJid,
-                { text: getWaifuUsageText() },
+                { text: getWaifuUsageText(commandPrefix) },
                 { quoted: messageInfo, ephemeralExpiration: expirationMessage },
               );
               break;
@@ -273,6 +303,7 @@ export const handleMessages = async (update, sock) => {
                 expirationMessage,
                 text,
                 type: 'sfw',
+                commandPrefix,
               });
               break;
 
@@ -285,13 +316,14 @@ export const handleMessages = async (update, sock) => {
                 expirationMessage,
                 text,
                 type: 'nsfw',
+                commandPrefix,
               });
               break;
 
             case 'wppicshelp':
               await sock.sendMessage(
                 remoteJid,
-                { text: getWaifuPicsUsageText() },
+                { text: getWaifuPicsUsageText(commandPrefix) },
                 { quoted: messageInfo, ephemeralExpiration: expirationMessage },
               );
               break;
@@ -304,6 +336,7 @@ export const handleMessages = async (update, sock) => {
                 expirationMessage,
                 senderJid,
                 text,
+                commandPrefix,
               });
               break;
 
@@ -428,6 +461,7 @@ export const handleMessages = async (update, sock) => {
                   botJid,
                   isGroupMessage,
                   expirationMessage,
+                  commandPrefix,
                 });
                 break;
               }
@@ -441,7 +475,7 @@ export const handleMessages = async (update, sock) => {
 O comando *${command}* não está configurado ou ainda não existe.
 
 ℹ️ *Dica:*  
-Digite *${COMMAND_PREFIX}menu* para ver a lista de comandos disponíveis.
+Digite *${commandPrefix}menu* para ver a lista de comandos disponíveis.
 
 🚧 *Fase Beta*  
 O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.

@@ -7,7 +7,7 @@ import {
   buildQuoteMenu,
   buildStatsMenu,
   buildStickerMenu,
-  MENU_ADM_TEXT,
+  buildAdminMenu,
 } from './common.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 
@@ -81,6 +81,18 @@ export async function handleMenuCommand(
   await sendMenuImage(sock, remoteJid, messageInfo, expirationMessage, caption);
 }
 
-export async function handleMenuAdmCommand(sock, remoteJid, messageInfo, expirationMessage) {
-  await sendMenuImage(sock, remoteJid, messageInfo, expirationMessage, MENU_ADM_TEXT.trim());
+export async function handleMenuAdmCommand(
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  commandPrefix,
+) {
+  await sendMenuImage(
+    sock,
+    remoteJid,
+    messageInfo,
+    expirationMessage,
+    buildAdminMenu(commandPrefix).trim(),
+  );
 }

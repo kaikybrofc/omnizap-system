@@ -2,7 +2,7 @@ import axios from 'axios';
 
 import logger from '../../utils/logger/loggerModule.js';
 
-const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
+const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const WAIFU_API_BASE = process.env.WAIFU_API_BASE || 'https://waifu.it/api/v4';
 const WAIFU_API_TOKEN = process.env.WAIFU_API_TOKEN;
 const WAIFU_TIMEOUT_MS = Number.parseInt(process.env.WAIFU_TIMEOUT_MS || '15000', 10);
@@ -164,12 +164,12 @@ export async function handleWaifuQuoteCommand({
   }
 }
 
-export const getWaifuUsageText = () =>
+export const getWaifuUsageText = (commandPrefix = DEFAULT_COMMAND_PREFIX) =>
   [
     '🌸 *Waifu.it*',
     '',
-    `*${COMMAND_PREFIX}waifu* [nome|anime:Nome]`,
-    `*${COMMAND_PREFIX}husbando* [nome|anime:Nome]`,
-    `*${COMMAND_PREFIX}animefact*`,
-    `*${COMMAND_PREFIX}animequote* [character:Nome|anime:Nome]`,
+    `*${commandPrefix}waifu* [nome|anime:Nome]`,
+    `*${commandPrefix}husbando* [nome|anime:Nome]`,
+    `*${commandPrefix}animefact*`,
+    `*${commandPrefix}animequote* [character:Nome|anime:Nome]`,
   ].join('\n');

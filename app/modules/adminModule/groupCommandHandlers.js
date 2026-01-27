@@ -55,8 +55,10 @@ const ADMIN_COMMANDS = new Set([
   'nsfw',
   'noticias',
   'news',
+  'prefix',
 ]);
 const OWNER_JID = process.env.USER_ADMIN;
+const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
 const getParticipantJids = (messageInfo, args) => {
   const mentionedJids = messageInfo.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
@@ -83,6 +85,7 @@ export async function handleAdminCommand({
   botJid,
   isGroupMessage,
   expirationMessage,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
   if (!isAdminCommand(command)) {
     return false;
@@ -106,7 +109,7 @@ export async function handleAdminCommand({
         );
         break;
       }
-      await handleMenuAdmCommand(sock, remoteJid, messageInfo, expirationMessage);
+      await handleMenuAdmCommand(sock, remoteJid, messageInfo, expirationMessage, commandPrefix);
       break;
     }
 
@@ -125,7 +128,7 @@ export async function handleAdminCommand({
       if (!action || !['add', 'remove', 'list'].includes(action)) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /premium <add|remove|list> @user1 @user2...' },
+          { text: `Uso: ${commandPrefix}premium <add|remove|list> @user1 @user2...` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -149,7 +152,9 @@ export async function handleAdminCommand({
       if (participants.length === 0) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /premium <add|remove> @user1 @user2... ou responda a uma mensagem.' },
+          {
+            text: `Uso: ${commandPrefix}premium <add|remove> @user1 @user2... ou responda a uma mensagem.`,
+          },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -195,7 +200,7 @@ export async function handleAdminCommand({
       if (!action || !['on', 'off', 'status'].includes(action)) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /nsfw <on|off|status>' },
+          { text: `Uso: ${commandPrefix}nsfw <on|off|status>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -226,7 +231,7 @@ export async function handleAdminCommand({
       if (args.length < 2) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /newgroup <título> <participante1> <participante2>...' },
+          { text: `Uso: ${commandPrefix}newgroup <título> <participante1> <participante2>...` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -272,7 +277,9 @@ export async function handleAdminCommand({
       if (participants.length === 0) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /add @participante1 @participante2... ou forneça os JIDs.' },
+          {
+            text: `Uso: ${commandPrefix}add @participante1 @participante2... ou forneça os JIDs.`,
+          },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -317,7 +324,7 @@ export async function handleAdminCommand({
         await sock.sendMessage(
           remoteJid,
           {
-            text: 'Uso: /ban @participante1 @participante2... ou responda a uma mensagem.',
+            text: `Uso: ${commandPrefix}ban @participante1 @participante2... ou responda a uma mensagem.`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -376,7 +383,9 @@ export async function handleAdminCommand({
       if (participants.length === 0) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /up @participante1 @participante2... ou forneça os JIDs.' },
+          {
+            text: `Uso: ${commandPrefix}up @participante1 @participante2... ou forneça os JIDs.`,
+          },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -428,7 +437,9 @@ export async function handleAdminCommand({
       if (participants.length === 0) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /down @participante1 @participante2... ou forneça os JIDs.' },
+          {
+            text: `Uso: ${commandPrefix}down @participante1 @participante2... ou forneça os JIDs.`,
+          },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -479,7 +490,7 @@ export async function handleAdminCommand({
       if (args.length < 1) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /setsubject <novo_assunto>' },
+          { text: `Uso: ${commandPrefix}setsubject <novo_assunto>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -523,7 +534,7 @@ export async function handleAdminCommand({
       if (args.length < 1) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /setdesc <nova_descrição>' },
+          { text: `Uso: ${commandPrefix}setdesc <nova_descrição>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -570,7 +581,7 @@ export async function handleAdminCommand({
       ) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /setgroup <announcement|not_announcement|locked|unlocked>' },
+          { text: `Uso: ${commandPrefix}setgroup <announcement|not_announcement|locked|unlocked>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -701,7 +712,7 @@ export async function handleAdminCommand({
       if (args.length < 1) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /join <código_de_convite>' },
+          { text: `Uso: ${commandPrefix}join <código_de_convite>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -728,7 +739,7 @@ export async function handleAdminCommand({
       if (args.length < 1) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /infofrominvite <código_de_convite>' },
+          { text: `Uso: ${commandPrefix}infofrominvite <código_de_convite>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -834,7 +845,7 @@ export async function handleAdminCommand({
       if (args.length < 1 || !['approve', 'reject'].includes(args[0])) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /updaterequests <approve|reject> @participante1...' },
+          { text: `Uso: ${commandPrefix}updaterequests <approve|reject> @participante1...` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -845,7 +856,7 @@ export async function handleAdminCommand({
         await sock.sendMessage(
           remoteJid,
           {
-            text: 'Uso: /updaterequests <approve|reject> @participante1... (mencione os usuários)',
+            text: `Uso: ${commandPrefix}updaterequests <approve|reject> @participante1... (mencione os usuários)`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -896,7 +907,7 @@ export async function handleAdminCommand({
       if (args.length < 1) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /temp <duração_em_segundos>' },
+          { text: `Uso: ${commandPrefix}temp <duração_em_segundos>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -940,7 +951,7 @@ export async function handleAdminCommand({
       if (args.length < 1 || !['all_member_add', 'admin_add'].includes(args[0])) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /addmode <all_member_add|admin_add>' },
+          { text: `Uso: ${commandPrefix}addmode <all_member_add|admin_add>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -963,6 +974,114 @@ export async function handleAdminCommand({
       break;
     }
 
+    case 'prefix': {
+      if (!isGroupMessage) {
+        await sock.sendMessage(
+          remoteJid,
+          { text: 'Este comando só pode ser usado em grupos.' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+      if (!(await isUserAdmin(remoteJid, senderJid))) {
+        await sock.sendMessage(
+          remoteJid,
+          { text: 'Você não tem permissão para usar este comando.' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      const rawPrefix = args[0]?.trim();
+      const normalizedKeyword = rawPrefix?.toLowerCase();
+      const usageText = [
+        'Uso:',
+        `${commandPrefix}prefix <novo_prefixo>`,
+        `${commandPrefix}prefix status`,
+        `${commandPrefix}prefix reset`,
+      ].join('\n');
+
+      if (!rawPrefix) {
+        await sock.sendMessage(
+          remoteJid,
+          { text: usageText },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (['status', 'info'].includes(normalizedKeyword)) {
+        const config = await groupConfigStore.getGroupConfig(remoteJid);
+        const customPrefix =
+          typeof config.commandPrefix === 'string' ? config.commandPrefix.trim() : '';
+        const currentPrefix = customPrefix || DEFAULT_COMMAND_PREFIX;
+        const isCustom = Boolean(customPrefix && customPrefix !== DEFAULT_COMMAND_PREFIX);
+        await sock.sendMessage(
+          remoteJid,
+          {
+            text: [
+              `🔧 Prefixo atual: *${currentPrefix}*`,
+              `Padrão do bot: *${DEFAULT_COMMAND_PREFIX}*`,
+              isCustom ? '✅ Prefixo personalizado ativo.' : 'ℹ️ Usando prefixo padrão.',
+            ].join('\n'),
+          },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (['reset', 'default', 'padrao', 'padrão'].includes(normalizedKeyword)) {
+        await groupConfigStore.updateGroupConfig(remoteJid, { commandPrefix: null });
+        await sock.sendMessage(
+          remoteJid,
+          {
+            text: `✅ Prefixo restaurado para o padrão: *${DEFAULT_COMMAND_PREFIX}*`,
+          },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (rawPrefix.length > 5) {
+        await sock.sendMessage(
+          remoteJid,
+          { text: '⚠️ Prefixo muito longo. Use no máximo 5 caracteres.' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (/\s/.test(rawPrefix)) {
+        await sock.sendMessage(
+          remoteJid,
+          { text: '⚠️ O prefixo não pode conter espaços.' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      const newPrefix = rawPrefix;
+      if (newPrefix === DEFAULT_COMMAND_PREFIX) {
+        await groupConfigStore.updateGroupConfig(remoteJid, { commandPrefix: null });
+        await sock.sendMessage(
+          remoteJid,
+          {
+            text: `✅ Prefixo atualizado para o padrão: *${DEFAULT_COMMAND_PREFIX}*`,
+          },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      await groupConfigStore.updateGroupConfig(remoteJid, { commandPrefix: newPrefix });
+      await sock.sendMessage(
+        remoteJid,
+        { text: `✅ Prefixo do bot atualizado para: *${newPrefix}*` },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+      break;
+    }
+
     case 'welcome': {
       if (!isGroupMessage) {
         await sock.sendMessage(
@@ -980,7 +1099,7 @@ export async function handleAdminCommand({
       if (!subCommand || !['on', 'off', 'set'].includes(subCommand)) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /welcome <on|off|set> [mensagem ou caminho da mídia]' },
+          { text: `Uso: ${commandPrefix}welcome <on|off|set> [mensagem ou caminho da mídia]` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1018,7 +1137,7 @@ export async function handleAdminCommand({
             await sock.sendMessage(
               remoteJid,
               {
-                text: 'Uso: /welcome set <mensagem ou caminho da mídia> ou envie uma mídia com o comando.',
+                text: `Uso: ${commandPrefix}welcome set <mensagem ou caminho da mídia> ou envie uma mídia com o comando.`,
               },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
@@ -1126,7 +1245,7 @@ export async function handleAdminCommand({
       if (!subCommand || !['on', 'off', 'set'].includes(subCommand)) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /farewell <on|off|set> [mensagem ou caminho da mídia]' },
+          { text: `Uso: ${commandPrefix}farewell <on|off|set> [mensagem ou caminho da mídia]` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1155,7 +1274,7 @@ export async function handleAdminCommand({
             await sock.sendMessage(
               remoteJid,
               {
-                text: 'Uso: /farewell set <mensagem ou caminho da mídia> ou envie uma mídia com o comando.',
+                text: `Uso: ${commandPrefix}farewell set <mensagem ou caminho da mídia> ou envie uma mídia com o comando.`,
               },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
@@ -1297,7 +1416,7 @@ export async function handleAdminCommand({
             await sock.sendMessage(
               remoteJid,
               {
-                text: `Uso: /antilink ${subCommand} <rede>\nDisponíveis: ${availableNetworks.join(', ')}`,
+                text: `Uso: ${commandPrefix}antilink ${subCommand} <rede>\nDisponíveis: ${availableNetworks.join(', ')}`,
               },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
@@ -1338,7 +1457,7 @@ export async function handleAdminCommand({
           if (normalizedDomains.length === 0) {
             await sock.sendMessage(
               remoteJid,
-              { text: `Uso: /antilink ${subCommand} <dominio>` },
+              { text: `Uso: ${commandPrefix}antilink ${subCommand} <dominio>` },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
             break;
@@ -1369,14 +1488,14 @@ export async function handleAdminCommand({
             text:
               `📌 *Como usar o Antilink*\n` +
               `Status atual: *${status}*\n\n` +
-              `✅ */antilink on*\nAtiva o bloqueio de links no grupo.\n\n` +
-              `⛔ */antilink off*\nDesativa o bloqueio de links no grupo.\n\n` +
-              `📋 */antilink list*\nMostra as redes e dominios permitidos.\n\n` +
-              `➕ */antilink allow <rede>*\nPermite uma rede conhecida (ex: youtube, instagram).\n\n` +
-              `➖ */antilink disallow <rede>*\nRemove uma rede conhecida da lista permitida.\n\n` +
-              `🌐 */antilink add <dominio>*\nPermite um dominio especifico (ex: exemplo.com).\n\n` +
-              `🗑️ */antilink remove <dominio>*\nRemove um dominio especifico da lista.\n\n` +
-              `ℹ️ Dica: use */antilink list* para ver as redes disponiveis.`,
+              `✅ *${commandPrefix}antilink on*\nAtiva o bloqueio de links no grupo.\n\n` +
+              `⛔ *${commandPrefix}antilink off*\nDesativa o bloqueio de links no grupo.\n\n` +
+              `📋 *${commandPrefix}antilink list*\nMostra as redes e dominios permitidos.\n\n` +
+              `➕ *${commandPrefix}antilink allow <rede>*\nPermite uma rede conhecida (ex: youtube, instagram).\n\n` +
+              `➖ *${commandPrefix}antilink disallow <rede>*\nRemove uma rede conhecida da lista permitida.\n\n` +
+              `🌐 *${commandPrefix}antilink add <dominio>*\nPermite um dominio especifico (ex: exemplo.com).\n\n` +
+              `🗑️ *${commandPrefix}antilink remove <dominio>*\nRemove um dominio especifico da lista.\n\n` +
+              `ℹ️ Dica: use *${commandPrefix}antilink list* para ver as redes disponiveis.`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1428,7 +1547,7 @@ export async function handleAdminCommand({
       if (!action || !['on', 'off', 'status'].includes(action)) {
         await sock.sendMessage(
           remoteJid,
-          { text: 'Uso: /noticias <on|off|status>' },
+          { text: `Uso: ${commandPrefix}noticias <on|off|status>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;

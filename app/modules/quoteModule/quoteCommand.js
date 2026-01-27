@@ -10,7 +10,7 @@ import { convertToWebp } from '../stickerModule/convertToWebp.js';
 import { addStickerMetadata } from '../stickerModule/addStickerMetadata.js';
 import { fetchLatestPushNames } from '../statsModule/rankingCommon.js';
 
-const COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
+const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const QUOTE_API_URL = process.env.QUOTE_API_URL || 'https://bot.lyo.su/quote/generate.png';
 const QUOTE_BG_COLOR = process.env.QUOTE_BG_COLOR || '#0b141a';
 const QUOTE_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_TIMEOUT_MS || '20000', 10);
@@ -134,7 +134,13 @@ const writeTempFile = async (buffer, extension) => {
   return filePath;
 };
 
-const sendUsage = async (sock, remoteJid, messageInfo, expirationMessage) => {
+const sendUsage = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) => {
   await sock.sendMessage(
     remoteJid,
     {
@@ -142,10 +148,10 @@ const sendUsage = async (sock, remoteJid, messageInfo, expirationMessage) => {
         '🖼️ *Quote*',
         '',
         'Use assim:',
-        `*${COMMAND_PREFIX}quote* sua mensagem`,
+        `*${commandPrefix}quote* sua mensagem`,
         '',
         'Ou responda uma mensagem com:',
-        `*${COMMAND_PREFIX}quote*`,
+        `*${commandPrefix}quote*`,
       ].join('\n'),
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -160,6 +166,7 @@ export async function handleQuoteCommand({
   senderJid,
   senderName,
   text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
   const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
   const quotedMessage = contextInfo?.quotedMessage;
@@ -196,7 +203,7 @@ export async function handleQuoteCommand({
     targetJid = senderJid;
   }
   if (!quoteText) {
-    await sendUsage(sock, remoteJid, messageInfo, expirationMessage);
+    await sendUsage(sock, remoteJid, messageInfo, expirationMessage, commandPrefix);
     return;
   }
 
