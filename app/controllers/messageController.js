@@ -45,6 +45,19 @@ const resolveCommandPrefix = async (isGroupMessage, remoteJid) => {
   return prefix || DEFAULT_COMMAND_PREFIX;
 };
 
+const runCommand = (label, handler) => {
+  try {
+    const result = handler();
+    if (result && typeof result.catch === 'function') {
+      result.catch((error) => {
+        logger.error(`Erro ao executar comando ${label}:`, error.message);
+      });
+    }
+  } catch (error) {
+    logger.error(`Erro ao executar comando ${label}:`, error.message);
+  }
+};
+
 /**
  * Extrai o conteúdo de texto de uma mensagem do WhatsApp.
  * @param {Object} messageInfo
@@ -144,333 +157,386 @@ export const handleMessages = async (update, sock) => {
 
           switch (command) {
             case 'menu': {
-              await handleMenuCommand(
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                senderName,
-                commandPrefix,
-                args,
+              runCommand('menu', () =>
+                handleMenuCommand(
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  senderName,
+                  commandPrefix,
+                  args,
+                ),
               );
               break;
             }
 
             case 'sticker':
             case 's':
-              processSticker(
-                sock,
-                messageInfo,
-                senderJid,
-                remoteJid,
-                expirationMessage,
-                senderName,
-                args.join(' '),
+              runCommand('sticker', () =>
+                processSticker(
+                  sock,
+                  messageInfo,
+                  senderJid,
+                  remoteJid,
+                  expirationMessage,
+                  senderName,
+                  args.join(' '),
+                ),
               );
               break;
 
             case 'toimg':
             case 'tovideo':
             case 'tovid':
-              await handleStickerConvertCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                senderJid,
-              });
+              runCommand('toimg', () =>
+                handleStickerConvertCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  senderJid,
+                }),
+              );
               break;
 
             case 'play':
-              await handlePlayCommand(
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                text,
-                commandPrefix,
+              runCommand('play', () =>
+                handlePlayCommand(
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  text,
+                  commandPrefix,
+                ),
               );
               break;
 
             case 'playvid':
-              await handlePlayVidCommand(
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                text,
-                commandPrefix,
+              runCommand('playvid', () =>
+                handlePlayVidCommand(
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  text,
+                  commandPrefix,
+                ),
               );
               break;
 
             case 'cat':
-              await handleCatCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                senderJid,
-                text,
-                commandPrefix,
-              });
+              runCommand('cat', () =>
+                handleCatCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  senderJid,
+                  text,
+                  commandPrefix,
+                }),
+              );
               break;
 
             case 'catprompt':
             case 'iaprompt':
             case 'promptia':
-              await handleCatPromptCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                senderJid,
-                text,
-                commandPrefix,
-              });
+              runCommand('catprompt', () =>
+                handleCatPromptCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  senderJid,
+                  text,
+                  commandPrefix,
+                }),
+              );
               break;
 
             case 'quote':
             case 'qc':
-              await handleQuoteCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                senderJid,
-                senderName,
-                text,
-                commandPrefix,
-              });
+              runCommand('quote', () =>
+                handleQuoteCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  senderJid,
+                  senderName,
+                  text,
+                  commandPrefix,
+                }),
+              );
               break;
 
             case 'waifu':
-              await handleWaifuImageCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                text,
-                endpoint: 'waifu',
-              });
+              runCommand('waifu', () =>
+                handleWaifuImageCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  text,
+                  endpoint: 'waifu',
+                }),
+              );
               break;
 
             case 'husbando':
-              await handleWaifuImageCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                text,
-                endpoint: 'husbando',
-              });
+              runCommand('husbando', () =>
+                handleWaifuImageCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  text,
+                  endpoint: 'husbando',
+                }),
+              );
               break;
 
             case 'animefact':
             case 'wfact':
-              await handleWaifuFactCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-              });
+              runCommand('animefact', () =>
+                handleWaifuFactCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                }),
+              );
               break;
 
             case 'animequote':
             case 'wquote':
-              await handleWaifuQuoteCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                text,
-              });
+              runCommand('animequote', () =>
+                handleWaifuQuoteCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  text,
+                }),
+              );
               break;
 
             case 'waifuhelp':
-              await sock.sendMessage(
-                remoteJid,
-                { text: getWaifuUsageText(commandPrefix) },
-                { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+              runCommand('waifuhelp', () =>
+                sock.sendMessage(
+                  remoteJid,
+                  { text: getWaifuUsageText(commandPrefix) },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                ),
               );
               break;
 
             case 'wp':
             case 'waifupics':
-              await handleWaifuPicsCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                text,
-                type: 'sfw',
-                commandPrefix,
-              });
+              runCommand('waifupics', () =>
+                handleWaifuPicsCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  text,
+                  type: 'sfw',
+                  commandPrefix,
+                }),
+              );
               break;
 
             case 'wpnsfw':
             case 'waifupicsnsfw':
-              await handleWaifuPicsCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                text,
-                type: 'nsfw',
-                commandPrefix,
-              });
+              runCommand('waifupicsnsfw', () =>
+                handleWaifuPicsCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  text,
+                  type: 'nsfw',
+                  commandPrefix,
+                }),
+              );
               break;
 
             case 'wppicshelp':
-              await sock.sendMessage(
-                remoteJid,
-                { text: getWaifuPicsUsageText(commandPrefix) },
-                { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+              runCommand('wppicshelp', () =>
+                sock.sendMessage(
+                  remoteJid,
+                  { text: getWaifuPicsUsageText(commandPrefix) },
+                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                ),
               );
               break;
 
             case 'aviso':
-              await handleNoticeCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                senderJid,
-                text,
-                commandPrefix,
-              });
+              runCommand('aviso', () =>
+                handleNoticeCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  senderJid,
+                  text,
+                  commandPrefix,
+                }),
+              );
               break;
 
             case 'stickertext':
             case 'st':
-              await processTextSticker({
-                sock,
-                messageInfo,
-                remoteJid,
-                senderJid,
-                senderName,
-                text,
-                extraText: 'PackZoeira',
-                expirationMessage,
-                color: 'black',
-              });
+              runCommand('stickertext', () =>
+                processTextSticker({
+                  sock,
+                  messageInfo,
+                  remoteJid,
+                  senderJid,
+                  senderName,
+                  text,
+                  extraText: 'PackZoeira',
+                  expirationMessage,
+                  color: 'black',
+                }),
+              );
               break;
 
             case 'stickertextwhite':
             case 'stw':
-              await processTextSticker({
-                sock,
-                messageInfo,
-                remoteJid,
-                senderJid,
-                senderName,
-                text,
-                extraText: 'PackZoeira',
-                expirationMessage,
-                color: 'white',
-              });
+              runCommand('stickertextwhite', () =>
+                processTextSticker({
+                  sock,
+                  messageInfo,
+                  remoteJid,
+                  senderJid,
+                  senderName,
+                  text,
+                  extraText: 'PackZoeira',
+                  expirationMessage,
+                  color: 'white',
+                }),
+              );
               break;
 
             case 'stickertextblink':
             case 'stb':
-              await processBlinkingTextSticker({
-                sock,
-                messageInfo,
-                remoteJid,
-                senderJid,
-                senderName,
-                text,
-                extraText: 'PackZoeira',
-                expirationMessage,
-                color: 'white',
-              });
+              runCommand('stickertextblink', () =>
+                processBlinkingTextSticker({
+                  sock,
+                  messageInfo,
+                  remoteJid,
+                  senderJid,
+                  senderName,
+                  text,
+                  extraText: 'PackZoeira',
+                  expirationMessage,
+                  color: 'white',
+                }),
+              );
               break;
 
             case 'ranking':
             case 'rank':
             case 'top5':
-              await handleRankingCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                isGroupMessage,
-              });
+              runCommand('ranking', () =>
+                handleRankingCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  isGroupMessage,
+                }),
+              );
               break;
 
             case 'rankingglobal':
             case 'rankglobal':
             case 'globalrank':
-              await handleGlobalRankingCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                isGroupMessage,
-              });
+              runCommand('rankingglobal', () =>
+                handleGlobalRankingCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  isGroupMessage,
+                }),
+              );
               break;
 
             case 'semmsg':
             case 'zeromsg':
             case 'nomsg':
             case 'inativos':
-              await handleNoMessageCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                isGroupMessage,
-                senderJid,
-                text,
-              });
+              runCommand('semmsg', () =>
+                handleNoMessageCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  isGroupMessage,
+                  senderJid,
+                  text,
+                }),
+              );
               break;
 
             case 'social':
             case 'grafo':
             case 'interacoes':
             case 'interacao':
-              await handleInteractionGraphCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-                isGroupMessage,
-                args,
-                senderJid,
-              });
+              runCommand('social', () =>
+                handleInteractionGraphCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  isGroupMessage,
+                  args,
+                  senderJid,
+                }),
+              );
               break;
 
             case 'ping':
-              await handlePingCommand({
-                sock,
-                remoteJid,
-                messageInfo,
-                expirationMessage,
-              });
+              runCommand('ping', () =>
+                handlePingCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                }),
+              );
               break;
 
             default: {
               if (isAdminCommand(command)) {
-                await handleAdminCommand({
-                  command,
-                  args,
-                  text,
-                  sock,
-                  messageInfo,
-                  remoteJid,
-                  senderJid,
-                  botJid,
-                  isGroupMessage,
-                  expirationMessage,
-                  commandPrefix,
-                });
+                runCommand('admin', () =>
+                  handleAdminCommand({
+                    command,
+                    args,
+                    text,
+                    sock,
+                    messageInfo,
+                    remoteJid,
+                    senderJid,
+                    botJid,
+                    isGroupMessage,
+                    expirationMessage,
+                    commandPrefix,
+                  }),
+                );
                 break;
               }
               logger.info(`Comando desconhecido recebido: ${command}`);
 
-              await sock.sendMessage(
-                remoteJid,
-                {
-                  text: `❌ *Comando não reconhecido*
+              runCommand('unknown', () =>
+                sock.sendMessage(
+                  remoteJid,
+                  {
+                    text: `❌ *Comando não reconhecido*
 
 O comando *${command}* não está configurado ou ainda não existe.
 
@@ -483,11 +549,12 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
 📩 *Contato do Desenvolvedor*  
 • Instagram: *@kaikybrofc*  
 • WhatsApp: +55 95 99112-2954`,
-                },
-                {
-                  quoted: messageInfo,
-                  ephemeralExpiration: expirationMessage,
-                },
+                  },
+                  {
+                    quoted: messageInfo,
+                    ephemeralExpiration: expirationMessage,
+                  },
+                ),
               );
 
               break;
