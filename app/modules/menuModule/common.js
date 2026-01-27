@@ -123,7 +123,8 @@ export const buildAiMenu = (commandPrefix) => `
 🤖 *IA*  
 
 ━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}cat* <mensagem ou pergunta>  
+➡️ *${commandPrefix}cat* <mensagem ou pergunta> [--audio]  
+↪️ Responda ou envie uma imagem com legenda  
 ➡️ *${commandPrefix}catprompt* <novo prompt>  
 ↪️ *${commandPrefix}catprompt reset*  
 `;

@@ -75,6 +75,12 @@ Siga os passos para configurar e executar:
     OPENAI_MODEL=gpt-5-nano
     OPENAI_SYSTEM_PROMPT=
     OPENAI_SESSION_TTL_SECONDS=21600
+    OPENAI_TTS_MODEL=gpt-4o-mini-tts
+    OPENAI_TTS_VOICE=alloy
+    OPENAI_TTS_FORMAT=mp3
+    OPENAI_TTS_PTT=false
+    OPENAI_TTS_MAX_CHARS=4096
+    OPENAI_MAX_IMAGE_MB=50
 
     # Quote API
     QUOTE_API_URL=https://bot.lyo.su/quote/generate.png
