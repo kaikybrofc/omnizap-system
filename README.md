@@ -186,6 +186,28 @@ npm run pm2:prod
 
 O projeto inclui um stack completo de observabilidade com Docker Compose.
 
+### 0) Configurar variáveis do Docker Compose
+
+O `docker-compose.yml` lê variáveis do arquivo `.env` automaticamente (ou do arquivo que você indicar com `--env-file`). Para customizar portas, versões de imagens, caminhos e credenciais, ajuste as variáveis no `.env` (veja `.env.example`).
+
+Exemplo usando um arquivo dedicado:
+
+```bash
+docker compose --env-file .env.docker up -d
+```
+
+Principais variáveis:
+
+*   `STACK_NAME`: prefixo dos volumes (ex.: `omnizap`)
+*   `PROMETHEUS_*`: versão, retenção, paths e porta (`PROMETHEUS_PORT`)
+*   `GRAFANA_*`: admin, root URL, timezone, paths e porta (`GRAFANA_PORT`)
+*   `LOKI_*`: versão, config e porta (`LOKI_PORT`)
+*   `PROMTAIL_*`: versão, config, paths de logs e porta (`PROMTAIL_PORT`)
+*   `MYSQL_EXPORTER_*`: versão, DSN, arquivo `.cnf` e porta (`MYSQL_EXPORTER_PORT`)
+*   `NODE_EXPORTER_*`: versão e porta (`NODE_EXPORTER_PORT`)
+
+> Dica: se o MySQL não estiver em `host.docker.internal:3306`, ajuste `MYSQL_EXPORTER_DSN` e/ou `observability/mysql-exporter.cnf`. Se os logs da aplicação estiverem em outro diretório, atualize `APP_LOGS_PATH`.
+
 ### 1) Subir o stack
 
 ```bash
