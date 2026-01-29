@@ -29,6 +29,7 @@ Siga os passos para configurar e executar:
 *   MySQL 8+
 *   PM2 instalado globalmente (`npm i -g pm2`)
 *   FFmpeg instalado no sistema para recursos de mídia (figurinhas)
+*   Docker + Docker Compose (opcional, para observabilidade)
 
 1.  **Clone o repositório:**
     ```bash
@@ -60,6 +61,18 @@ Siga os passos para configurar e executar:
     DB_PASSWORD=1234
     DB_NAME=omnizap
     DB_POOL_LIMIT=10
+
+    # Observabilidade (Prometheus)
+    METRICS_ENABLED=true
+    METRICS_HOST=0.0.0.0
+    METRICS_PORT=9102
+    METRICS_PATH=/metrics
+
+    # Monitor de DB (logs estruturados)
+    DB_MONITOR_ENABLED=true
+    DB_MONITOR_LOG_PATH=./logs/db-monitor.log
+    DB_SLOW_QUERY_MS=500
+    DB_QUERY_ALERT_THRESHOLDS=500,1000
 
     # Paths e armazenamento
     STORE_PATH=./temp
@@ -169,6 +182,54 @@ npm run pm2:dev
 npm run pm2:prod
 ```
 
+## 📈 Observabilidade (Grafana/Prometheus/Loki)
+
+O projeto inclui um stack completo de observabilidade com Docker Compose.
+
+### 1) Subir o stack
+
+```bash
+docker compose up -d
+```
+
+### 2) MySQL: métricas e slow log
+
+Execute o setup (habilita performance_schema, slow log e cria usuário de métricas):
+
+```bash
+sudo mysql < observability/mysql-setup.sql
+```
+
+Atualize as credenciais do exporter em:
+
+```
+observability/mysql-exporter.cnf
+```
+
+> Dica: esse arquivo está no `.gitignore`. Use uma senha forte que atenda à política do MySQL.
+
+### 3) Acessos rápidos
+
+*   Grafana: `http://localhost:3003`
+*   Prometheus: `http://localhost:9090`
+*   Loki: `http://localhost:3100`
+*   Node /metrics: `http://localhost:9102/metrics`
+
+### 4) Dashboards prontos
+
+Os dashboards são provisionados automaticamente:
+
+*   `observability/grafana/dashboards/omnizap-overview.json`
+*   `observability/grafana/dashboards/omnizap-mysql.json`
+
+### 5) Alertas
+
+Os alertas do Prometheus ficam em:
+
+```
+observability/alert-rules.yml
+```
+
 ## 🧰 Troubleshooting
 
 **QR não aparece no PM2**
@@ -187,6 +248,11 @@ npm run pm2:prod
 
 *   Instale o FFmpeg no sistema e certifique-se de que está no `PATH`.
 *   Alternativamente, configure `FFMPEG_PATH` no `.env`.
+
+**Target omnizap DOWN no Prometheus**
+
+*   Verifique se o app está rodando e se o `/metrics` responde em `http://localhost:9102/metrics`.
+*   Garanta `METRICS_HOST=0.0.0.0` no `.env`.
 
 ## 🛠️ Tecnologias Utilizadas
 
