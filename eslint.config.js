@@ -6,6 +6,9 @@ export default [
       'node_modules/**',
       'logs/**',
       'temp/**',
+      '.eslintcache',
+      '*.log',
+      '**/*.min.js',
       'coverage/**',
       'dist/**',
       'build/**',
@@ -15,25 +18,30 @@ export default [
   {
     files: ['**/*.{js,mjs,cjs}'],
     languageOptions: {
-      ecmaVersion: 2022,
+      ecmaVersion: 'latest',
       sourceType: 'module',
       globals: {
         process: 'readonly',
         Buffer: 'readonly',
-        __dirname: 'readonly',
-        __filename: 'readonly',
-        module: 'readonly',
-        require: 'readonly',
-        exports: 'readonly',
         console: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
         setInterval: 'readonly',
         clearInterval: 'readonly',
+        setImmediate: 'readonly',
+        clearImmediate: 'readonly',
       },
     },
+    linterOptions: {
+      reportUnusedDisableDirectives: 'warn',
+    },
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', ignoreRestSiblings: true }],
+      'no-var': 'error',
+      'prefer-const': 'warn',
+      'no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
       'no-console': 'off',
     },
   },
@@ -41,6 +49,13 @@ export default [
     files: ['**/*.cjs'],
     languageOptions: {
       sourceType: 'commonjs',
+      globals: {
+        module: 'readonly',
+        require: 'readonly',
+        exports: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+      },
     },
   },
 ];
