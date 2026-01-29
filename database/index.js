@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
+import fs from 'node:fs';
+import { once } from 'node:events';
 import path from 'node:path';
+import { promises as fsPromises } from 'node:fs';
 import logger from '../app/utils/logger/loggerModule.js';
 
 const { NODE_ENV } = process.env;
@@ -67,6 +70,1033 @@ export const pool = mysql.createPool({
   timezone: 'Z',
   charset: 'utf8mb4',
 });
+
+const parseEnvBool = (value, fallback) => {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) {
+    return false;
+  }
+  return fallback;
+};
+
+const parseEnvNumber = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const EXECUTE_OPTIONS_KEYS = new Set(['traceId']);
+const isValidExecuteOptions = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const keys = Object.keys(value);
+  if (!keys.length) {
+    return false;
+  }
+  return keys.every((key) => EXECUTE_OPTIONS_KEYS.has(key));
+};
+
+const DB_MONITOR_DEFAULT_ENABLED = environment !== 'production';
+const DB_MONITOR_ENABLED = parseEnvBool(process.env.DB_MONITOR_ENABLED, DB_MONITOR_DEFAULT_ENABLED);
+const DB_SLOW_QUERY_MS = parseEnvNumber(process.env.DB_SLOW_QUERY_MS, 250);
+const DB_LOG_EVERY_QUERY = parseEnvBool(process.env.DB_LOG_EVERY_QUERY, false);
+const DB_STATS_TOP_N = Math.max(1, Math.floor(parseEnvNumber(process.env.DB_STATS_TOP_N, 10)));
+const DB_STATS_SAMPLE_SIZE = Math.max(0, Math.floor(parseEnvNumber(process.env.DB_STATS_SAMPLE_SIZE, 2000)));
+const DB_SLOW_EXPLAIN = parseEnvBool(process.env.DB_SLOW_EXPLAIN, false);
+const rawMonitorLogPath = process.env.DB_MONITOR_LOG_PATH;
+const DB_MONITOR_LOG_PATH =
+  rawMonitorLogPath && rawMonitorLogPath.trim() !== ''
+    ? path.resolve(rawMonitorLogPath)
+    : path.resolve('logs', 'db-monitor.log');
+const DB_MONITOR_LOG_ROTATE_MB = Math.max(0, parseEnvNumber(process.env.DB_MONITOR_LOG_ROTATE_MB, 20));
+const DB_MONITOR_LOG_KEEP = Math.max(0, Math.floor(parseEnvNumber(process.env.DB_MONITOR_LOG_KEEP, 5)));
+const DB_MONITOR_SNAPSHOT_EVERY_MS = Math.max(
+  0,
+  Math.floor(parseEnvNumber(process.env.DB_MONITOR_SNAPSHOT_EVERY_MS, 0)),
+);
+
+const SQL_LOG_MAX = 800;
+const PARAMS_LOG_MAX = 25;
+const DB_MONITOR_LOG_ROTATE_BYTES = Math.max(0, DB_MONITOR_LOG_ROTATE_MB * 1024 * 1024);
+const MAX_FINGERPRINTS = Math.max(DB_STATS_SAMPLE_SIZE, DB_STATS_TOP_N * 20, 500);
+const HISTOGRAM_BUCKETS = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
+const MONITOR_TAG = Symbol('dbMonitorWrapped');
+
+const monitorConfig = {
+  enabled: DB_MONITOR_ENABLED,
+  slowMs: DB_SLOW_QUERY_MS,
+  logEveryQuery: DB_LOG_EVERY_QUERY,
+  topN: DB_STATS_TOP_N,
+  sampleSize: DB_STATS_SAMPLE_SIZE,
+  slowExplain: DB_SLOW_EXPLAIN,
+  logPath: DB_MONITOR_LOG_PATH,
+  logRotateBytes: DB_MONITOR_LOG_ROTATE_BYTES,
+  logKeep: DB_MONITOR_LOG_KEEP,
+  snapshotEveryMs: DB_MONITOR_SNAPSHOT_EVERY_MS,
+};
+
+const EMAIL_REGEX = /([A-Z0-9._%+-]+)@([A-Z0-9.-]+\.[A-Z]{2,})/i;
+const JWT_REGEX = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
+const TOKEN_LIKE_REGEX = /^[A-Za-z0-9-_=+.]{20,}$/;
+
+let dbStats = createEmptyStats();
+
+function createEmptyStats() {
+  return {
+    enabled: monitorConfig.enabled,
+    startedAt: Date.now(),
+    lastResetAt: Date.now(),
+    counters: {
+      total: 0,
+      error: 0,
+      slow: 0,
+    },
+    inFlight: 0,
+    maxInFlight: 0,
+    durationTotal: 0,
+    durationMin: null,
+    durationMax: null,
+    durationCount: 0,
+    samples: [],
+    sampleCursor: 0,
+    histogramBuckets: HISTOGRAM_BUCKETS.slice(),
+    histogramCounts: new Array(HISTOGRAM_BUCKETS.length + 1).fill(0),
+    fingerprints: new Map(),
+  };
+}
+
+function createDbMonitorLogger({ enabled, logPath, rotateBytes, keep }) {
+  if (!enabled) {
+    return {
+      log: () => {},
+    };
+  }
+
+  const dir = path.dirname(logPath);
+  let stream = null;
+  let streamSize = 0;
+  let initializing = null;
+  let processing = false;
+  let rotating = false;
+  const queue = [];
+
+  const safeUnlink = async (target) => {
+    try {
+      await fsPromises.unlink(target);
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+  };
+
+  const safeRename = async (from, to) => {
+    try {
+      await fsPromises.rename(from, to);
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+  };
+
+  const ensureStream = async () => {
+    if (stream) {
+      return;
+    }
+    if (initializing) {
+      await initializing;
+      return;
+    }
+
+    initializing = (async () => {
+      await fsPromises.mkdir(dir, { recursive: true });
+      try {
+        const stat = await fsPromises.stat(logPath);
+        streamSize = stat.size;
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          throw error;
+        }
+        streamSize = 0;
+      }
+      stream = fs.createWriteStream(logPath, { flags: 'a' });
+      stream.on('error', (error) => {
+        logger.error('Erro no stream do monitor de banco.', {
+          errorMessage: error.message,
+        });
+        stream = null;
+      });
+    })();
+
+    try {
+      await initializing;
+    } finally {
+      initializing = null;
+    }
+  };
+
+  const closeStream = async () => {
+    if (!stream) {
+      return;
+    }
+    const current = stream;
+    stream = null;
+    await new Promise((resolve) => current.end(resolve));
+  };
+
+  const rotateLogs = async () => {
+    if (rotating || rotateBytes <= 0) {
+      return;
+    }
+    rotating = true;
+    try {
+      await closeStream();
+      if (keep === 0) {
+        await safeUnlink(logPath);
+      } else {
+        await safeUnlink(`${logPath}.${keep}`);
+        for (let i = keep - 1; i >= 1; i -= 1) {
+          await safeRename(`${logPath}.${i}`, `${logPath}.${i + 1}`);
+        }
+        await safeRename(logPath, `${logPath}.1`);
+      }
+    } catch (error) {
+      logger.error('Erro ao rotacionar log do monitor de banco.', {
+        errorMessage: error.message,
+      });
+    } finally {
+      streamSize = 0;
+      rotating = false;
+    }
+  };
+
+  const writeLine = async (line) => {
+    await ensureStream();
+    if (!stream) {
+      return;
+    }
+    const payload = `${line}\n`;
+    const canWrite = stream.write(payload);
+    streamSize += Buffer.byteLength(payload);
+    if (rotateBytes > 0 && streamSize >= rotateBytes) {
+      await rotateLogs();
+    }
+    if (!canWrite && stream) {
+      await once(stream, 'drain');
+    }
+  };
+
+  const processQueue = async () => {
+    try {
+      while (queue.length > 0) {
+        const line = queue.shift();
+        if (!line) {
+          continue;
+        }
+        await writeLine(line);
+      }
+    } catch (error) {
+      logger.error('Erro ao gravar log do monitor de banco.', {
+        errorMessage: error.message,
+      });
+      queue.length = 0;
+    } finally {
+      processing = false;
+      if (queue.length > 0 && !processing) {
+        processing = true;
+        setImmediate(() => {
+          processQueue().catch(() => {});
+        });
+      }
+    }
+  };
+
+  const enqueue = (entry) => {
+    try {
+      queue.push(JSON.stringify(entry));
+    } catch (error) {
+      queue.push(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          event: 'logger_error',
+          errorMessage: error.message,
+        }),
+      );
+    }
+    if (!processing) {
+      processing = true;
+      setImmediate(() => {
+        processQueue().catch(() => {});
+      });
+    }
+  };
+
+  return {
+    log: enqueue,
+  };
+}
+
+const dbMonitorLogger = createDbMonitorLogger({
+  enabled: monitorConfig.enabled,
+  logPath: monitorConfig.logPath,
+  rotateBytes: monitorConfig.logRotateBytes,
+  keep: monitorConfig.logKeep,
+});
+
+export function resetDbStats() {
+  dbStats = createEmptyStats();
+}
+
+export function getDbStats() {
+  const now = Date.now();
+  const sampleCount = dbStats.samples.length;
+  const percentiles = calculatePercentiles();
+  const histogram = {
+    buckets: dbStats.histogramBuckets.slice(),
+    counts: dbStats.histogramCounts.slice(),
+  };
+  const avgMs = dbStats.durationCount ? dbStats.durationTotal / dbStats.durationCount : null;
+  const fingerprintStats = Array.from(dbStats.fingerprints.values()).map((entry) => ({
+    fingerprint: entry.fingerprint,
+    normalizedSql: entry.normalizedSql,
+    type: entry.type,
+    table: entry.table,
+    count: entry.count,
+    errorCount: entry.errorCount,
+    slowCount: entry.slowCount,
+    avgMs: Number((entry.totalMs / entry.count).toFixed(2)),
+    maxMs: Number(entry.maxMs.toFixed(2)),
+    lastMs: Number(entry.lastMs.toFixed(2)),
+    lastSeenAt: new Date(entry.lastSeenAt).toISOString(),
+  }));
+  const topN = monitorConfig.topN;
+  const topSlow = fingerprintStats
+    .slice()
+    .sort((a, b) => b.maxMs - a.maxMs)
+    .slice(0, topN);
+  const topFrequent = fingerprintStats
+    .slice()
+    .sort((a, b) => b.count - a.count)
+    .slice(0, topN);
+
+  return {
+    enabled: monitorConfig.enabled,
+    config: {
+      slowMs: monitorConfig.slowMs,
+      logEveryQuery: monitorConfig.logEveryQuery,
+      topN: monitorConfig.topN,
+      sampleSize: monitorConfig.sampleSize,
+      slowExplain: monitorConfig.slowExplain,
+    },
+    counters: { ...dbStats.counters },
+    concurrency: {
+      inFlight: dbStats.inFlight,
+      maxInFlight: dbStats.maxInFlight,
+    },
+    latencyMs: {
+      avg: avgMs !== null ? Number(avgMs.toFixed(2)) : null,
+      min: dbStats.durationMin !== null ? Number(dbStats.durationMin.toFixed(2)) : null,
+      max: dbStats.durationMax !== null ? Number(dbStats.durationMax.toFixed(2)) : null,
+      p50: percentiles.p50,
+      p95: percentiles.p95,
+      p99: percentiles.p99,
+      samples: sampleCount,
+    },
+    histogram,
+    topSlow,
+    topFrequent,
+    startedAt: new Date(dbStats.startedAt).toISOString(),
+    lastResetAt: new Date(dbStats.lastResetAt).toISOString(),
+    now: new Date(now).toISOString(),
+  };
+}
+
+if (monitorConfig.enabled && monitorConfig.snapshotEveryMs > 0) {
+  const snapshotTimer = setInterval(() => {
+    const entry = buildMonitorLogEntry({ event: 'snapshot' });
+    entry.stats = getDbStats();
+    dbMonitorLogger.log(entry);
+  }, monitorConfig.snapshotEveryMs);
+  if (typeof snapshotTimer.unref === 'function') {
+    snapshotTimer.unref();
+  }
+}
+
+function calculatePercentiles() {
+  const total = dbStats.durationCount;
+  if (!total) {
+    return { p50: null, p95: null, p99: null };
+  }
+
+  const targets = [
+    { key: 'p50', target: Math.ceil(total * 0.5) },
+    { key: 'p95', target: Math.ceil(total * 0.95) },
+    { key: 'p99', target: Math.ceil(total * 0.99) },
+  ];
+
+  const results = {
+    p50: null,
+    p95: null,
+    p99: null,
+  };
+
+  let cumulative = 0;
+  const buckets = dbStats.histogramBuckets;
+  const counts = dbStats.histogramCounts;
+  for (let i = 0; i < counts.length; i += 1) {
+    const count = counts[i];
+    if (!count) {
+      continue;
+    }
+    cumulative += count;
+    for (const item of targets) {
+      if (results[item.key] !== null) {
+        continue;
+      }
+      if (cumulative >= item.target) {
+        if (i < buckets.length) {
+          results[item.key] = buckets[i];
+        } else {
+          results[item.key] =
+            dbStats.durationMax !== null ? Number(dbStats.durationMax.toFixed(2)) : buckets[buckets.length - 1];
+        }
+      }
+    }
+    if (results.p50 !== null && results.p95 !== null && results.p99 !== null) {
+      break;
+    }
+  }
+
+  return results;
+}
+
+function truncateText(value, maxLength = SQL_LOG_MAX) {
+  const text = String(value ?? '');
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength)}...[${text.length}]`;
+}
+
+function stripSqlComments(sql) {
+  return String(sql ?? '')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/--.*$/gm, ' ')
+    .replace(/#.*$/gm, ' ');
+}
+
+function normalizeSql(sql) {
+  let normalized = stripSqlComments(sql);
+  normalized = normalized.replace(/'(?:\\'|''|[^'])*'/g, '?');
+  normalized = normalized.replace(/"(?:\\"|""|[^"])*"/g, '?');
+  normalized = normalized.replace(/\b0x[0-9a-f]+\b/gi, '?');
+  normalized = normalized.replace(
+    /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
+    '?',
+  );
+  normalized = normalized.replace(/\b\d+(\.\d+)?\b/g, '?');
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+  return normalized.toUpperCase();
+}
+
+function getQueryType(sql) {
+  const cleaned = stripSqlComments(sql).trim().toUpperCase();
+  const [firstWord] = cleaned.split(/\s+/);
+  switch (firstWord) {
+    case 'SELECT':
+    case 'WITH':
+    case 'SHOW':
+    case 'DESC':
+    case 'DESCRIBE':
+    case 'EXPLAIN':
+      return 'SELECT';
+    case 'INSERT':
+    case 'REPLACE':
+      return 'INSERT';
+    case 'UPDATE':
+      return 'UPDATE';
+    case 'DELETE':
+      return 'DELETE';
+    case 'CREATE':
+    case 'ALTER':
+    case 'DROP':
+    case 'TRUNCATE':
+    case 'RENAME':
+      return 'DDL';
+    default:
+      return 'OTHER';
+  }
+}
+
+function extractTableName(sql, queryType) {
+  const cleaned = stripSqlComments(sql).replace(/\s+/g, ' ').trim();
+  let match = null;
+  if (queryType === 'SELECT') {
+    match = /FROM\s+([`"\[]?[\w.-]+[`"\]]?)/i.exec(cleaned);
+  } else if (queryType === 'INSERT') {
+    match = /INTO\s+([`"\[]?[\w.-]+[`"\]]?)/i.exec(cleaned);
+  } else if (queryType === 'UPDATE') {
+    match = /UPDATE\s+([`"\[]?[\w.-]+[`"\]]?)/i.exec(cleaned);
+  } else if (queryType === 'DELETE') {
+    match = /FROM\s+([`"\[]?[\w.-]+[`"\]]?)/i.exec(cleaned);
+  } else if (queryType === 'DDL') {
+    match = /TABLE\s+([`"\[]?[\w.-]+[`"\]]?)/i.exec(cleaned);
+    if (!match) {
+      match = /(DATABASE|SCHEMA)\s+([`"\[]?[\w.-]+[`"\]]?)/i.exec(cleaned);
+    }
+  }
+
+  if (!match) {
+    return null;
+  }
+  const raw = match[2] || match[1];
+  return raw ? raw.replace(/[`"\[\]]/g, '') : null;
+}
+
+function extractSqlAndParams(args) {
+  const first = args[0];
+  if (first && typeof first === 'object' && typeof first.sql === 'string') {
+    const params = first.values ?? args[1] ?? [];
+    return { sql: first.sql, params };
+  }
+  return { sql: first ?? '', params: args[1] ?? [] };
+}
+
+function fnv1aHash(input) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = (hash + (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24)) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+function createFingerprint(normalizedSql) {
+  return `fp:${fnv1aHash(normalizedSql)}`;
+}
+
+function maskString(value) {
+  if (EMAIL_REGEX.test(value)) {
+    return value.replace(EMAIL_REGEX, (_, user, domain) => {
+      const maskedUser = user.length > 1 ? `${user[0]}***` : '*';
+      return `${maskedUser}@${domain}`;
+    });
+  }
+  if (JWT_REGEX.test(value)) {
+    return '[JWT]';
+  }
+  if (value.length > 40 && TOKEN_LIKE_REGEX.test(value) && !value.includes(' ')) {
+    return `[REDACTED:${value.length}]`;
+  }
+  if (value.length > 120) {
+    return `${value.slice(0, 40)}...[${value.length}]`;
+  }
+  return value;
+}
+
+function maskParamValue(value, depth = 0) {
+  if (value === undefined) {
+    return null;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return maskString(value);
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (Buffer.isBuffer(value)) {
+    return `[Buffer:${value.length}]`;
+  }
+  if (Array.isArray(value)) {
+    if (depth > 2) {
+      return `[Array:${value.length}]`;
+    }
+    const truncated = value.slice(0, PARAMS_LOG_MAX).map((item) => maskParamValue(item, depth + 1));
+    if (value.length > PARAMS_LOG_MAX) {
+      truncated.push(`...(+${value.length - PARAMS_LOG_MAX})`);
+    }
+    return truncated;
+  }
+  if (typeof value === 'object') {
+    if (depth > 1) {
+      return '[Object]';
+    }
+    const entries = Object.entries(value);
+    const out = {};
+    const limited = entries.slice(0, PARAMS_LOG_MAX);
+    for (const [key, item] of limited) {
+      out[key] = maskParamValue(item, depth + 1);
+    }
+    if (entries.length > PARAMS_LOG_MAX) {
+      out.__truncated = `+${entries.length - PARAMS_LOG_MAX}`;
+    }
+    return out;
+  }
+  return `[${typeof value}]`;
+}
+
+function maskParams(params) {
+  if (params === undefined) {
+    return undefined;
+  }
+  if (Array.isArray(params)) {
+    return params.map((param) => maskParamValue(param));
+  }
+  if (typeof params === 'object' && params !== null) {
+    return maskParamValue(params);
+  }
+  return maskParamValue(params);
+}
+
+function extractResultStats(result) {
+  if (result === undefined || result === null) {
+    return { rowCount: undefined, affectedRows: undefined };
+  }
+  let rows = result;
+  const looksLikeFields =
+    Array.isArray(result) &&
+    result.length === 2 &&
+    ((Array.isArray(result[1]) &&
+      (result[1].length === 0 || typeof result[1][0] === 'object')) ||
+      result[1] === undefined ||
+      result[1] === null);
+  if (looksLikeFields) {
+    rows = result[0];
+  }
+  let rowCount;
+  let affectedRows;
+  if (Array.isArray(rows)) {
+    rowCount = rows.length;
+  } else if (rows && typeof rows === 'object') {
+    if (typeof rows.affectedRows === 'number') {
+      affectedRows = rows.affectedRows;
+    }
+    if (typeof rows.rowCount === 'number') {
+      rowCount = rows.rowCount;
+    }
+  }
+  return { rowCount, affectedRows };
+}
+
+function recordSample(durationMs) {
+  if (monitorConfig.sampleSize <= 0) {
+    return;
+  }
+  if (dbStats.samples.length < monitorConfig.sampleSize) {
+    dbStats.samples.push(durationMs);
+    return;
+  }
+  const idx = dbStats.sampleCursor % monitorConfig.sampleSize;
+  dbStats.samples[idx] = durationMs;
+  dbStats.sampleCursor += 1;
+}
+
+function recordHistogram(durationMs) {
+  const buckets = dbStats.histogramBuckets;
+  for (let i = 0; i < buckets.length; i += 1) {
+    if (durationMs <= buckets[i]) {
+      dbStats.histogramCounts[i] += 1;
+      return;
+    }
+  }
+  dbStats.histogramCounts[buckets.length] += 1;
+}
+
+function maybePruneFingerprints() {
+  if (dbStats.fingerprints.size <= MAX_FINGERPRINTS) {
+    return;
+  }
+  const entries = Array.from(dbStats.fingerprints.values()).sort(
+    (a, b) => a.lastSeenAt - b.lastSeenAt,
+  );
+  const removeCount = Math.max(1, Math.ceil(entries.length * 0.1));
+  for (let i = 0; i < removeCount; i += 1) {
+    dbStats.fingerprints.delete(entries[i].fingerprint);
+  }
+}
+
+function recordStats({
+  fingerprint,
+  normalizedSql,
+  type,
+  table,
+  durationMs,
+  ok,
+  rowCount,
+  affectedRows,
+  isSlow,
+}) {
+  dbStats.counters.total += 1;
+  if (!ok) {
+    dbStats.counters.error += 1;
+  }
+  if (isSlow) {
+    dbStats.counters.slow += 1;
+  }
+  dbStats.durationCount += 1;
+  dbStats.durationTotal += durationMs;
+  dbStats.durationMin = dbStats.durationMin === null ? durationMs : Math.min(dbStats.durationMin, durationMs);
+  dbStats.durationMax = dbStats.durationMax === null ? durationMs : Math.max(dbStats.durationMax, durationMs);
+  recordSample(durationMs);
+  recordHistogram(durationMs);
+
+  let entry = dbStats.fingerprints.get(fingerprint);
+  if (!entry) {
+    entry = {
+      fingerprint,
+      normalizedSql: truncateText(normalizedSql, 600),
+      type,
+      table,
+      count: 0,
+      errorCount: 0,
+      slowCount: 0,
+      totalMs: 0,
+      maxMs: 0,
+      minMs: null,
+      lastMs: 0,
+      lastSeenAt: 0,
+      lastRowCount: null,
+      lastAffectedRows: null,
+    };
+    dbStats.fingerprints.set(fingerprint, entry);
+    maybePruneFingerprints();
+  }
+
+  entry.count += 1;
+  if (!ok) {
+    entry.errorCount += 1;
+  }
+  if (isSlow) {
+    entry.slowCount += 1;
+  }
+  entry.totalMs += durationMs;
+  entry.maxMs = Math.max(entry.maxMs, durationMs);
+  entry.minMs = entry.minMs === null ? durationMs : Math.min(entry.minMs, durationMs);
+  entry.lastMs = durationMs;
+  entry.lastSeenAt = Date.now();
+  if (rowCount !== undefined) {
+    entry.lastRowCount = rowCount;
+  }
+  if (affectedRows !== undefined) {
+    entry.lastAffectedRows = affectedRows;
+  }
+}
+
+function buildMonitorLogEntry({
+  event,
+  durationMs,
+  type,
+  table,
+  fingerprint,
+  normalizedSql,
+  sql,
+  rowCount,
+  affectedRows,
+  traceId,
+  error,
+  params,
+}) {
+  const entry = {
+    ts: new Date().toISOString(),
+    event,
+    durationMs: durationMs !== undefined && durationMs !== null ? Number(durationMs.toFixed(2)) : null,
+    type: type ?? null,
+    table: table ?? null,
+    fingerprint: fingerprint ?? null,
+    normalizedSql: normalizedSql ? truncateText(normalizedSql, 600) : null,
+    sql: sql ? truncateText(sql) : null,
+    rowCount: rowCount ?? null,
+    affectedRows: affectedRows ?? null,
+    traceId: traceId ?? null,
+    errorCode: error?.code ?? null,
+    errorMessage: error?.message ?? null,
+  };
+  if (params !== undefined) {
+    entry.params = params;
+  }
+  return entry;
+}
+
+function getOriginalExecute(executor) {
+  if (!executor) {
+    return null;
+  }
+  if (executor === pool) {
+    return poolExecuteOriginal;
+  }
+  if (executor[MONITOR_TAG]?.originalExecute) {
+    return executor[MONITOR_TAG].originalExecute;
+  }
+  if (typeof executor.execute === 'function') {
+    return executor.execute.bind(executor);
+  }
+  return null;
+}
+
+function getOriginalQuery(executor) {
+  if (!executor) {
+    return null;
+  }
+  if (executor === pool) {
+    return poolQueryOriginal;
+  }
+  if (executor[MONITOR_TAG]?.originalQuery) {
+    return executor[MONITOR_TAG].originalQuery;
+  }
+  if (typeof executor.query === 'function') {
+    return executor.query.bind(executor);
+  }
+  return null;
+}
+
+async function runExplain({ sql, params, executor, traceId }) {
+  const original = getOriginalExecute(executor) || getOriginalQuery(executor);
+  if (!original) {
+    return;
+  }
+  const explainSql = String(sql ?? '').trim().toUpperCase().startsWith('EXPLAIN')
+    ? sql
+    : `EXPLAIN ${sql}`;
+  try {
+    await original(explainSql, params);
+    logger.debug('EXPLAIN para query lenta executado.', {
+      traceId,
+      normalizedSql: truncateText(normalizeSql(explainSql), 600),
+    });
+  } catch (error) {
+    logger.warn('Falha ao executar EXPLAIN para query lenta.', {
+      traceId,
+      errorCode: error.code,
+      errorMessage: error.message,
+    });
+  }
+}
+
+async function runMonitored({ executor, originalFn, args, traceId, allowExplain = false }) {
+  if (typeof originalFn !== 'function') {
+    throw new Error('Executor inválido para query.');
+  }
+  if (!monitorConfig.enabled) {
+    return originalFn(...args);
+  }
+  const { sql, params } = extractSqlAndParams(args);
+  const sqlText = String(sql ?? '');
+  const start = process.hrtime.bigint();
+  dbStats.inFlight += 1;
+  if (dbStats.inFlight > dbStats.maxInFlight) {
+    dbStats.maxInFlight = dbStats.inFlight;
+  }
+
+  let ok = false;
+  let result;
+  let error;
+
+  try {
+    result = await originalFn(...args);
+    ok = true;
+    return result;
+  } catch (err) {
+    error = err;
+    throw err;
+  } finally {
+    const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+    dbStats.inFlight = Math.max(0, dbStats.inFlight - 1);
+    const type = getQueryType(sqlText);
+    const table = extractTableName(sqlText, type);
+    const normalizedSql = normalizeSql(sqlText);
+    const fingerprint = createFingerprint(normalizedSql);
+    const isSlow = durationMs >= monitorConfig.slowMs;
+    const { rowCount, affectedRows } = extractResultStats(result);
+
+    recordStats({
+      fingerprint,
+      normalizedSql,
+      type,
+      table,
+      durationMs,
+      ok,
+      rowCount,
+      affectedRows,
+      isSlow,
+    });
+
+    const baseLogData = {
+      durationMs,
+      type,
+      table,
+      fingerprint,
+      normalizedSql,
+      sql: sqlText,
+      rowCount,
+      affectedRows,
+      traceId,
+    };
+
+    if (monitorConfig.logEveryQuery && ok && !isSlow) {
+      const maskedParams = maskParams(params);
+      logger.debug('DB query executada.', {
+        durationMs: Number(durationMs.toFixed(2)),
+        type,
+        table,
+        fingerprint,
+        normalizedSql: truncateText(normalizedSql, 600),
+        sql: truncateText(sqlText),
+        params: maskedParams,
+        rowCount,
+        affectedRows,
+        traceId,
+      });
+      dbMonitorLogger.log(
+        buildMonitorLogEntry({
+          event: 'query',
+          ...baseLogData,
+          params: maskedParams,
+        }),
+      );
+    }
+
+    if (isSlow) {
+      logger.warn('DB query lenta detectada.', {
+        durationMs: Number(durationMs.toFixed(2)),
+        type,
+        table,
+        fingerprint,
+        normalizedSql: truncateText(normalizedSql, 600),
+        sql: truncateText(sqlText),
+        rowCount,
+        affectedRows,
+        traceId,
+      });
+      dbMonitorLogger.log(
+        buildMonitorLogEntry({
+          event: 'slow',
+          ...baseLogData,
+        }),
+      );
+      if (allowExplain && monitorConfig.slowExplain && type === 'SELECT') {
+        setImmediate(() => {
+          runExplain({ sql: sqlText, params, executor, traceId });
+        });
+      }
+    }
+
+    if (!ok) {
+      logger.error('Erro na consulta SQL.', {
+        durationMs: Number(durationMs.toFixed(2)),
+        type,
+        table,
+        fingerprint,
+        normalizedSql: truncateText(normalizedSql, 600),
+        sql: truncateText(sqlText),
+        errorCode: error?.code,
+        errorMessage: error?.message,
+        traceId,
+      });
+      dbMonitorLogger.log(
+        buildMonitorLogEntry({
+          event: 'error',
+          ...baseLogData,
+          error,
+        }),
+      );
+    }
+  }
+}
+
+function wrapConnection(connection) {
+  if (!connection || connection[MONITOR_TAG]?.wrapped) {
+    return connection;
+  }
+
+  const originalExecute = connection.execute?.bind(connection);
+  const originalQuery = connection.query?.bind(connection);
+
+  if (typeof originalExecute === 'function') {
+    connection.execute = (...args) =>
+      runMonitored({
+        executor: connection,
+        originalFn: originalExecute,
+        args,
+        traceId: connection.__traceId,
+        allowExplain: true,
+      });
+  }
+  if (typeof originalQuery === 'function') {
+    connection.query = (...args) =>
+      runMonitored({
+        executor: connection,
+        originalFn: originalQuery,
+        args,
+        traceId: connection.__traceId,
+        allowExplain: true,
+      });
+  }
+
+  connection[MONITOR_TAG] = {
+    wrapped: true,
+    originalExecute,
+    originalQuery,
+  };
+
+  return connection;
+}
+
+let poolExecuteOriginal;
+let poolQueryOriginal;
+let poolGetConnectionOriginal;
+const poolMonitorState = pool[MONITOR_TAG];
+
+if (poolMonitorState?.wrapped) {
+  poolExecuteOriginal = poolMonitorState.originalExecute || pool.execute.bind(pool);
+  poolQueryOriginal = poolMonitorState.originalQuery || pool.query.bind(pool);
+  poolGetConnectionOriginal = poolMonitorState.originalGetConnection || pool.getConnection.bind(pool);
+} else {
+  poolExecuteOriginal = pool.execute.bind(pool);
+  poolQueryOriginal = pool.query.bind(pool);
+  poolGetConnectionOriginal = pool.getConnection.bind(pool);
+
+  pool.execute = (...args) =>
+    runMonitored({
+      executor: pool,
+      originalFn: poolExecuteOriginal,
+      args,
+    });
+
+  pool.query = (...args) =>
+    runMonitored({
+      executor: pool,
+      originalFn: poolQueryOriginal,
+      args,
+    });
+
+  pool.getConnection = async (...args) => {
+    const connection = await poolGetConnectionOriginal(...args);
+    return wrapConnection(connection);
+  };
+
+  pool[MONITOR_TAG] = {
+    wrapped: true,
+    originalExecute: poolExecuteOriginal,
+    originalQuery: poolQueryOriginal,
+    originalGetConnection: poolGetConnectionOriginal,
+  };
+}
 
 async function validateConnection() {
   try {
@@ -145,22 +1175,60 @@ export function sanitizeParams(params) {
  * @param {string} sql
  * @param {Array<any>} [params=[]]
  * @param {import('mysql2/promise').PoolConnection|null} [connection=null]
+ * @param {{traceId?: string}|null} [options]
  * @returns {Promise<Array<any>>}
  */
-export async function executeQuery(sql, params = [], connection = null) {
-  const executor = connection || pool;
+export async function executeQuery(sql, params = [], connection = null, options = null) {
+  let executor = pool;
+  let traceId = options && typeof options === 'object' ? options.traceId : undefined;
+  const isConnection =
+    connection && (typeof connection.execute === 'function' || typeof connection.query === 'function');
+
+  if (connection) {
+    if (isConnection) {
+      executor = connection;
+      traceId = traceId || connection.__traceId;
+    } else if (!options && isValidExecuteOptions(connection)) {
+      traceId = connection.traceId;
+    } else {
+      throw new Error(
+        'Parâmetro connection inválido em executeQuery. Informe uma conexão MySQL2 válida ou passe options no 4º parâmetro.',
+      );
+    }
+  }
+
+  const sanitizedParams = sanitizeParams(params);
+  const originalExecute = getOriginalExecute(executor);
+
+  if (!monitorConfig.enabled || typeof originalExecute !== 'function') {
+    try {
+      const [results] = await executor.execute(sql, sanitizedParams);
+      return results;
+    } catch (error) {
+      logger.error('Erro na consulta SQL.', {
+        normalizedSql: truncateText(normalizeSql(sql), 600),
+        sql: truncateText(sql),
+        errorCode: error.code,
+        errorMessage: error.message,
+        traceId,
+      });
+      throw new DatabaseError(`Erro na execução da consulta: ${error.message}`, error, sql, params);
+    }
+  }
+
   try {
-    const sanitizedParams = sanitizeParams(params);
-    logger.debug('Executando SQL:', { sql, params: sanitizedParams });
-    const [results] = await executor.execute(sql, sanitizedParams);
-    return results;
-  } catch (error) {
-    logger.error('Erro na consulta SQL:', {
-      sql,
-      params,
-      errorCode: error.code,
-      errorMessage: error.message,
+    const result = await runMonitored({
+      executor,
+      originalFn: originalExecute,
+      args: [sql, sanitizedParams],
+      traceId,
+      allowExplain: true,
     });
+    if (Array.isArray(result)) {
+      return result[0];
+    }
+    return result;
+  } catch (error) {
     throw new DatabaseError(`Erro na execução da consulta: ${error.message}`, error, sql, params);
   }
 }

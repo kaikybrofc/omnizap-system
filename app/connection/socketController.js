@@ -559,7 +559,7 @@ async function handleMessageUpdate(updates, sock) {
  * Processa alterações de grupo (título, descrição, proprietário e participantes)
  * persistindo a versão consolidada no MySQL.
  */
-async function handleGroupUpdate(updates, sock) {
+async function handleGroupUpdate(updates) {
   await Promise.all(
     updates.map(async (event) => {
       try {
@@ -610,6 +610,7 @@ export function getActiveSocket() {
  * @returns {Promise<void>} Conclusão do fluxo de reconexão.
  */
 export async function reconnectToWhatsApp() {
+  // eslint-disable-next-line no-undef
   if (activeSocket && activeSocket.ws?.readyState === WebSocket.OPEN) {
     logger.info('♻️ Forçando fechamento do socket para reconectar...', {
       action: 'force_reconnect',
