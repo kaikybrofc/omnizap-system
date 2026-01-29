@@ -34,7 +34,7 @@ const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
  */
 const resolveCommandPrefix = async (isGroupMessage, remoteJid) => {
   if (!isGroupMessage) return DEFAULT_COMMAND_PREFIX;
-  const config = groupConfigStore.getGroupConfig(remoteJid);
+  const config = await groupConfigStore.getGroupConfig(remoteJid);
   if (!config || typeof config.commandPrefix !== 'string') {
     return DEFAULT_COMMAND_PREFIX;
   }
