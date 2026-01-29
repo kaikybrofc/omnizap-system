@@ -3,10 +3,7 @@ import 'dotenv/config';
 import { handleMenuCommand } from '../modules/menuModule/menus.js';
 import { handleAdminCommand, isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
 import { processSticker } from '../modules/stickerModule/stickerCommand.js';
-import {
-  processBlinkingTextSticker,
-  processTextSticker,
-} from '../modules/stickerModule/stickerTextCommand.js';
+import { processBlinkingTextSticker, processTextSticker } from '../modules/stickerModule/stickerTextCommand.js';
 import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/playCommand.js';
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleGlobalRankingCommand } from '../modules/statsModule/globalRankingCommand.js';
@@ -20,16 +17,8 @@ import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js
 import { handleCatCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
 import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
 import { handleStickerConvertCommand } from '../modules/stickerModule/stickerConvertCommand.js';
-import {
-  handleWaifuFactCommand,
-  handleWaifuImageCommand,
-  handleWaifuQuoteCommand,
-  getWaifuUsageText,
-} from '../modules/waifuModule/waifuCommand.js';
-import {
-  handleWaifuPicsCommand,
-  getWaifuPicsUsageText,
-} from '../modules/waifuPicsModule/waifuPicsCommand.js';
+import { handleWaifuFactCommand, handleWaifuImageCommand, handleWaifuQuoteCommand, getWaifuUsageText } from '../modules/waifuModule/waifuCommand.js';
+import { handleWaifuPicsCommand, getWaifuPicsUsageText } from '../modules/waifuPicsModule/waifuPicsCommand.js';
 import groupConfigStore from '../store/groupConfigStore.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
@@ -37,7 +26,7 @@ const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
 
 const resolveCommandPrefix = async (isGroupMessage, remoteJid) => {
   if (!isGroupMessage) return DEFAULT_COMMAND_PREFIX;
-  const config = await groupConfigStore.getGroupConfig(remoteJid);
+  const config = groupConfigStore.getGroupConfig(remoteJid);
   if (!config || typeof config.commandPrefix !== 'string') {
     return DEFAULT_COMMAND_PREFIX;
   }
@@ -76,15 +65,9 @@ export const extractMessageContent = ({ message }) => {
     [message.documentMessage, (m) => m.fileName || '[Documento]'],
     [message.audioMessage, () => '[Áudio]'],
     [message.stickerMessage, () => '[Figurinha]'],
-    [
-      message.locationMessage,
-      (m) => `[Localização] Lat: ${m.degreesLatitude}, Long: ${m.degreesLongitude}`,
-    ],
+    [message.locationMessage, (m) => `[Localização] Lat: ${m.degreesLatitude}, Long: ${m.degreesLongitude}`],
     [message.contactMessage, (m) => `[Contato] ${m.displayName}`],
-    [
-      message.contactsArrayMessage,
-      (m) => `[Contatos] ${m.contacts.map((c) => c.displayName).join(', ')}`,
-    ],
+    [message.contactsArrayMessage, (m) => `[Contatos] ${m.contacts.map((c) => c.displayName).join(', ')}`],
     [message.listMessage, (m) => m.description || '[Mensagem de Lista]'],
     [message.buttonsMessage, (m) => m.contentText || '[Mensagem de Botões]'],
     [message.templateButtonReplyMessage, (m) => `[Resposta de Botão] ${m.selectedDisplayText}`],
@@ -157,33 +140,13 @@ export const handleMessages = async (update, sock) => {
 
           switch (command) {
             case 'menu': {
-              runCommand('menu', () =>
-                handleMenuCommand(
-                  sock,
-                  remoteJid,
-                  messageInfo,
-                  expirationMessage,
-                  senderName,
-                  commandPrefix,
-                  args,
-                ),
-              );
+              runCommand('menu', () => handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, commandPrefix, args));
               break;
             }
 
             case 'sticker':
             case 's':
-              runCommand('sticker', () =>
-                processSticker(
-                  sock,
-                  messageInfo,
-                  senderJid,
-                  remoteJid,
-                  expirationMessage,
-                  senderName,
-                  args.join(' '),
-                ),
-              );
+              runCommand('sticker', () => processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' ')));
               break;
 
             case 'toimg':
@@ -201,29 +164,11 @@ export const handleMessages = async (update, sock) => {
               break;
 
             case 'play':
-              runCommand('play', () =>
-                handlePlayCommand(
-                  sock,
-                  remoteJid,
-                  messageInfo,
-                  expirationMessage,
-                  text,
-                  commandPrefix,
-                ),
-              );
+              runCommand('play', () => handlePlayCommand(sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix));
               break;
 
             case 'playvid':
-              runCommand('playvid', () =>
-                handlePlayVidCommand(
-                  sock,
-                  remoteJid,
-                  messageInfo,
-                  expirationMessage,
-                  text,
-                  commandPrefix,
-                ),
-              );
+              runCommand('playvid', () => handlePlayVidCommand(sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix));
               break;
 
             case 'cat':
@@ -324,13 +269,7 @@ export const handleMessages = async (update, sock) => {
               break;
 
             case 'waifuhelp':
-              runCommand('waifuhelp', () =>
-                sock.sendMessage(
-                  remoteJid,
-                  { text: getWaifuUsageText(commandPrefix) },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                ),
-              );
+              runCommand('waifuhelp', () => sock.sendMessage(remoteJid, { text: getWaifuUsageText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }));
               break;
 
             case 'wp':
@@ -364,13 +303,7 @@ export const handleMessages = async (update, sock) => {
               break;
 
             case 'wppicshelp':
-              runCommand('wppicshelp', () =>
-                sock.sendMessage(
-                  remoteJid,
-                  { text: getWaifuPicsUsageText(commandPrefix) },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                ),
-              );
+              runCommand('wppicshelp', () => sock.sendMessage(remoteJid, { text: getWaifuPicsUsageText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }));
               break;
 
             case 'aviso':

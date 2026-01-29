@@ -1,7 +1,7 @@
 import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getGroupParticipants, isUserAdmin } from '../../config/groupUtils.js';
-import { getJidUser, resolveBotJid } from '../../config/baileysConfig.js';
+import { resolveBotJid } from '../../config/baileysConfig.js';
 import {
   primeLidCache,
   resolveUserIdCached,
@@ -12,7 +12,6 @@ import {
 const getParticipantJid = (participant) =>
   participant?.id || participant?.jid || participant?.lid || null;
 
-const MAX_LISTED = null;
 const MAX_MENTIONS_PER_MESSAGE = 80;
 const BATCH_DELAY_MS = 400;
 
@@ -87,12 +86,10 @@ const normalizeParticipant = (participant, sock) => {
 };
 
 const buildNoMessageText = ({
-  members,
   minMessages,
   periodLabel,
   totalParticipants,
   totalListed,
-  hiddenCount,
   batchIndex = 1,
   batchTotal = 1,
   batchSize = 0,
@@ -105,23 +102,15 @@ const buildNoMessageText = ({
     `• Mínimo de mensagens: ${minMessages}`,
     `• Período: ${periodLabel}`,
     `• Participantes: ${totalParticipants}`,
-    `• Listados: ${totalListed}`,
+    `• Abaixo do mínimo: ${totalListed}`,
     ...(batchTotal > 1
-      ? [`• Parte: ${batchIndex}/${batchTotal}`, `• Nesta mensagem: ${batchSize}`]
+      ? [`• Parte: ${batchIndex}/${batchTotal}`, `• Notificados nesta mensagem: ${batchSize}`]
       : []),
-    '',
   ];
 
-  if (!members.length) {
-    lines.push('✅ Todos os membros atingiram o mínimo.');
-    return lines.join('\n');
+  if (!totalListed) {
+    lines.push('', '✅ Todos os membros atingiram o mínimo.');
   }
-
-  members.forEach((member, index) => {
-    const handle = member.handle || 'Desconhecido';
-    const label = member.name ? `${handle} — ${member.name}` : handle;
-    lines.push(`${index + 1}. ${label}`);
-  });
 
   return lines.join('\n');
 };
@@ -239,35 +228,22 @@ export async function handleNoMessageCommand({
         : isWhatsAppUserId(participant.participantAlt)
         ? participant.participantAlt
         : null;
-      const displayId = mentionJid || canonical || participant.rawId;
-      const user = displayId ? getJidUser(displayId) : null;
-      const handle = user ? `@${user}` : 'Desconhecido';
       entries.push({
         canonical,
         rawId: participant.rawId,
         mentionJid,
-        handle,
-        name: participant.displayName,
       });
     });
 
     const totalParticipants = normalizedParticipants.size;
     const totalListed = entries.length;
-    const visibleEntries = MAX_LISTED ? entries.slice(0, MAX_LISTED) : entries;
-    const hiddenCount = 0;
-    const mentions = Array.from(
-      new Set(visibleEntries.map((entry) => entry.mentionJid).filter(Boolean)),
-    );
-
-    const batches = splitEntriesByMentions(visibleEntries, MAX_MENTIONS_PER_MESSAGE);
+    const batches = splitEntriesByMentions(entries, MAX_MENTIONS_PER_MESSAGE);
     if (!batches.length) {
       const responseText = buildNoMessageText({
-        members: [],
         minMessages,
         periodLabel,
         totalParticipants,
         totalListed,
-        hiddenCount,
       });
       await sock.sendMessage(
         remoteJid,
@@ -283,12 +259,10 @@ export async function handleNoMessageCommand({
         new Set(batch.map((entry) => entry.mentionJid).filter(Boolean)),
       );
       const responseText = buildNoMessageText({
-        members: batch,
         minMessages,
         periodLabel,
         totalParticipants,
         totalListed,
-        hiddenCount,
         batchIndex: index + 1,
         batchTotal: batches.length,
         batchSize: batch.length,
