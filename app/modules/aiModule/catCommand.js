@@ -47,12 +47,12 @@ const AUDIO_MIME_BY_FORMAT = {
   pcm: 'audio/pcm',
 };
 const SAFE_TTS_FORMAT = AUDIO_MIME_BY_FORMAT[OPENAI_TTS_FORMAT] ? OPENAI_TTS_FORMAT : 'mp3';
-const TTS_MAX_CHARS = Number.isFinite(OPENAI_TTS_MAX_CHARS) && OPENAI_TTS_MAX_CHARS > 0
-  ? OPENAI_TTS_MAX_CHARS
-  : 4096;
-const MAX_IMAGE_BYTES = Number.isFinite(OPENAI_MAX_IMAGE_MB) && OPENAI_MAX_IMAGE_MB > 0
-  ? OPENAI_MAX_IMAGE_MB * 1024 * 1024
-  : 50 * 1024 * 1024;
+const TTS_MAX_CHARS =
+  Number.isFinite(OPENAI_TTS_MAX_CHARS) && OPENAI_TTS_MAX_CHARS > 0 ? OPENAI_TTS_MAX_CHARS : 4096;
+const MAX_IMAGE_BYTES =
+  Number.isFinite(OPENAI_MAX_IMAGE_MB) && OPENAI_MAX_IMAGE_MB > 0
+    ? OPENAI_MAX_IMAGE_MB * 1024 * 1024
+    : 50 * 1024 * 1024;
 
 const getClient = () => {
   if (cachedClient) return cachedClient;
