@@ -19,14 +19,14 @@ import { setActiveSocket as storeActiveSocket } from '../services/socketState.js
 
 import { handleGroupUpdate as handleGroupParticipantsEvent } from '../modules/adminModule/groupEventHandlers.js';
 
-import { createIgnore, findBy, findById, remove, upsert } from '../../database/index.js';
+import { findBy, findById, remove } from '../../database/index.js';
 import {
-  maybeStoreLidMap,
   primeLidCache,
   resolveUserIdCached,
   isLidUserId,
   isWhatsAppUserId,
 } from '../services/lidMapService.js';
+import { queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
 import {
   buildGroupMetadataFromGroup,
   buildGroupMetadataFromUpdate,
@@ -76,7 +76,7 @@ const buildMessageData = (msg, senderId) => ({
   chat_id: msg.key.remoteJid,
   sender_id: senderId || msg.key.participant || msg.key.remoteJid,
   content: msg.message.conversation || msg.message.extendedTextMessage?.text || null,
-  raw_message: JSON.stringify(msg || {}),
+  raw_message: msg || {},
   timestamp: new Date(Number(msg.messageTimestamp) * 1000),
 });
 
@@ -132,25 +132,14 @@ async function persistIncomingMessages(incomingMessages, type) {
 
   for (const { msg, senderInfo } of entries) {
     if (senderInfo.lid) {
-      try {
-        await maybeStoreLidMap(senderInfo.lid, senderInfo.jid, 'message');
-      } catch (error) {
-        logger.warn('Falha ao persistir lid_map (message).', { error: error.message });
-      }
+      queueLidUpdate(senderInfo.lid, senderInfo.jid, 'message');
     }
 
     const canonicalSenderId =
       resolveUserIdCached(senderInfo) || msg.key.participant || msg.key.remoteJid;
 
     const messageData = buildMessageData(msg, canonicalSenderId);
-    try {
-      await createIgnore('messages', messageData);
-    } catch (err) {
-      const errorCode = err.code || err.errorCode;
-      if (errorCode !== 'ER_DUP_ENTRY') {
-        logger.error(`Erro ao salvar mensagem ${msg.key.id} no banco de dados:`, err);
-      }
-    }
+    queueMessageInsert(messageData);
   }
 }
 
@@ -258,55 +247,26 @@ export async function connectToWhatsApp() {
     }
   });
 
-  sock.ev.on('chats.upsert', async (newChats) => {
+  sock.ev.on('chats.upsert', (newChats) => {
     for (const chat of newChats) {
-      const chatDataForDb = {
-        id: chat.id,
-        name: chat.name || chat.id,
-        raw_chat: JSON.stringify(chat),
-      };
-      try {
-        await upsert('chats', chatDataForDb);
-      } catch (error) {
-        logger.error('Erro no upsert do chat:', {
-          error: error.message,
-          chatId: chat.id,
-        });
-      }
+      queueChatUpdate(chat, { partial: false, forceName: true });
     }
   });
 
-  sock.ev.on('chats.update', async (updates) => {
+  sock.ev.on('chats.update', (updates) => {
     for (const update of updates) {
-      try {
-        const existingChat = await findById('chats', update.id);
-        const existingRaw = safeJsonParse(existingChat?.raw_chat, {});
-        const mergedChat = { ...existingRaw, ...update };
-        const chatDataForDb = {
-          id: update.id,
-          name: update.name || existingChat?.name || update.id,
-          raw_chat: JSON.stringify(mergedChat),
-        };
-        await upsert('chats', chatDataForDb);
-      } catch (error) {
-        logger.error('Erro no upsert do chat (update):', {
-          error: error.message,
-          chatId: update.id,
-        });
-      }
+      queueChatUpdate(update, { partial: true });
     }
   });
 
-  sock.ev.on('chats.delete', async (deletions) => {
+  sock.ev.on('chats.delete', (deletions) => {
     for (const chatId of deletions) {
-      try {
-        await remove('chats', chatId);
-      } catch (error) {
+      remove('chats', chatId).catch((error) => {
         logger.error('Erro ao remover chat do banco:', {
           error: error.message,
           chatId,
         });
-      }
+      });
     }
   });
 
@@ -325,7 +285,7 @@ export async function connectToWhatsApp() {
     }
   });
 
-  sock.ev.on('contacts.update', async (updates) => {
+  sock.ev.on('contacts.update', (updates) => {
     if (!Array.isArray(updates)) return;
     for (const update of updates) {
       try {
@@ -334,7 +294,7 @@ export async function connectToWhatsApp() {
         const jid = isWhatsAppUserId(jidCandidate) ? jidCandidate : null;
         const lid = isLidUserId(lidCandidate) ? lidCandidate : isLidUserId(jidCandidate) ? jidCandidate : null;
         if (lid) {
-          await maybeStoreLidMap(lid, jid, 'contacts');
+          queueLidUpdate(lid, jid, 'contacts');
         }
       } catch (error) {
         logger.warn('Falha ao processar contacts.update para lid_map.', { error: error.message });

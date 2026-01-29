@@ -4,12 +4,15 @@ import { getJidServer, normalizeJid } from '../config/baileysConfig.js';
 
 const CACHE_TTL_MS = 20 * 60 * 1000;
 const NEGATIVE_TTL_MS = 5 * 60 * 1000;
-const STORE_COOLDOWN_MS = 5 * 60 * 1000;
+const STORE_COOLDOWN_MS = 10 * 60 * 1000;
 const BATCH_LIMIT = 800;
 const BACKFILL_DEFAULT_BATCH = 50000;
 const BACKFILL_SOURCE = 'backfill';
 
 const lidCache = new Map();
+const lidWriteBuffer = new Map();
+let lidFlushInProgress = false;
+let lidFlushRequested = false;
 
 let backfillPromise = null;
 
@@ -184,6 +187,58 @@ const pickLid = (...candidates) => {
   return null;
 };
 
+const buildLidUpsertSql = (rows) => {
+  const placeholders = Array.from({ length: rows }, () => '(?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)')
+    .join(', ');
+  return `
+    INSERT INTO ${TABLES.LID_MAP} (lid, jid, first_seen, last_seen, source)
+    VALUES ${placeholders}
+    ON DUPLICATE KEY UPDATE
+      jid = COALESCE(VALUES(jid), jid),
+      last_seen = VALUES(last_seen),
+      source = VALUES(source)
+  `;
+};
+
+/**
+ * Enfileira atualizacao do lid_map (com cooldown e dedupe).
+ * @param {string} lid
+ * @param {string|null} jid
+ * @param {string} [source='message']
+ * @returns {{queued: boolean, reconciled: boolean}}
+ */
+export const queueLidUpdate = (lid, jid, source = 'message') => {
+  if (!lid || !isLidJid(lid)) return { queued: false, reconciled: false };
+
+  const normalizedJid = jid && isWhatsAppJid(jid) ? normalizeJid(jid) : null;
+  const cacheEntry = getCacheEntry(lid);
+  const cachedJid = cacheEntry?.jid ?? null;
+  const lastStoredAt = cacheEntry?.lastStoredAt || 0;
+  const nowTs = now();
+
+  const mappingChanged = Boolean(normalizedJid && normalizedJid !== cachedJid);
+  const mappingSame = normalizedJid === cachedJid;
+
+  if (mappingSame && nowTs - lastStoredAt < STORE_COOLDOWN_MS) {
+    return { queued: false, reconciled: false };
+  }
+
+  const buffered = lidWriteBuffer.get(lid);
+  const effectiveJid = normalizedJid ?? buffered?.jid ?? cachedJid ?? null;
+  const entry = {
+    lid,
+    jid: effectiveJid,
+    source,
+    queuedAt: nowTs,
+    reconcileJid: mappingChanged ? normalizedJid : null,
+  };
+
+  lidWriteBuffer.set(lid, entry);
+  setCacheEntry(lid, effectiveJid, CACHE_TTL_MS, nowTs);
+
+  return { queued: true, reconciled: Boolean(entry.reconcileJid) };
+};
+
 /**
  * Resolve ID canônico usando apenas cache.
  * @param {{lid?: string|null, jid?: string|null, participantAlt?: string|null}} [params]
@@ -256,49 +311,70 @@ export const reconcileLidToJid = async ({ lid, jid, source = 'map' } = {}) => {
 };
 
 /**
- * Persiste mapeamento LID->JID (com cooldown e reconciliação).
- * @param {string} lid
- * @param {string|null} jid
- * @param {string} [source='message']
- * @returns {Promise<{stored: boolean, reconciled: boolean}>}
+ * Executa o flush do buffer lid_map em batch.
+ * @returns {Promise<void>}
  */
-export const maybeStoreLidMap = async (lid, jid, source = 'message') => {
-  if (!lid || !isLidJid(lid)) return { stored: false, reconciled: false };
+export const flushLidQueue = async () => {
+  if (lidFlushInProgress) {
+    lidFlushRequested = true;
+    return;
+  }
+  lidFlushInProgress = true;
+  try {
+    if (lidWriteBuffer.size === 0) return;
+    const entries = Array.from(lidWriteBuffer.values());
+    for (let i = 0; i < entries.length; i += BATCH_LIMIT) {
+      const batch = entries.slice(i, i + BATCH_LIMIT);
+      if (!batch.length) continue;
 
-  const normalizedJid = jid && isWhatsAppJid(jid) ? normalizeJid(jid) : null;
-  const cacheEntry = getCacheEntry(lid);
-  const nowTs = now();
+      const sql = buildLidUpsertSql(batch.length);
+      const params = [];
+      for (const entry of batch) {
+        params.push(entry.lid, entry.jid, entry.source);
+      }
 
-  const cachedJid = cacheEntry?.jid ?? null;
-  if (cachedJid === normalizedJid) {
-    const lastStoredAt = cacheEntry?.lastStoredAt || 0;
-    if (nowTs - lastStoredAt < STORE_COOLDOWN_MS) {
-      return { stored: false, reconciled: false };
+      try {
+        await executeQuery(sql, params);
+      } catch (error) {
+        logger.error('Falha ao persistir batch do lid_map.', { error: error.message });
+        break;
+      }
+
+      const reconcileTargets = [];
+      for (const entry of batch) {
+        const current = lidWriteBuffer.get(entry.lid);
+        if (!current || current.queuedAt === entry.queuedAt) {
+          lidWriteBuffer.delete(entry.lid);
+        }
+        if (entry.reconcileJid) {
+          reconcileTargets.push({ lid: entry.lid, jid: entry.reconcileJid, source: entry.source });
+        }
+      }
+
+      if (reconcileTargets.length > 0) {
+        setImmediate(() => {
+          for (const target of reconcileTargets) {
+            reconcileLidToJid(target).catch((error) => {
+              logger.warn('Falha ao reconciliar lid->jid.', { error: error.message });
+            });
+          }
+        });
+      }
+    }
+  } finally {
+    lidFlushInProgress = false;
+    if (lidFlushRequested) {
+      lidFlushRequested = false;
+      setImmediate(() => {
+        flushLidQueue().catch(() => {});
+      });
     }
   }
+};
 
-  const result = await executeQuery(
-    `INSERT INTO ${TABLES.LID_MAP} (lid, jid, first_seen, last_seen, source)
-     VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-     ON DUPLICATE KEY UPDATE
-       jid = COALESCE(VALUES(jid), jid),
-       last_seen = VALUES(last_seen),
-       source = VALUES(source)`,
-    [lid, normalizedJid, source],
-  );
-
-  const cacheJid = normalizedJid ?? cachedJid ?? null;
-  setCacheEntry(lid, cacheJid, CACHE_TTL_MS, nowTs);
-
-  const shouldReconcile = Boolean(
-    normalizedJid && (!cacheEntry || cacheEntry.jid !== normalizedJid),
-  );
-  if (shouldReconcile) {
-    await reconcileLidToJid({ lid, jid: normalizedJid, source });
-  }
-
-  const stored = Number(result?.affectedRows || 0) > 0;
-  return { stored, reconciled: shouldReconcile };
+export const maybeStoreLidMap = async (lid, jid, source = 'message') => {
+  const result = queueLidUpdate(lid, jid, source);
+  return { stored: result.queued, reconciled: result.reconciled };
 };
 
 /**
