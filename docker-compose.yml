@@ -1,0 +1,103 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: omnizap-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+      - "--storage.tsdb.retention.size=20GB"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: omnizap-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3003:3000"
+    depends_on:
+      - prometheus
+      - loki
+
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: omnizap-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./observability/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: omnizap-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./logs:/var/log/omnizap:ro
+      - /var/log/mysql:/var/log/mysql:ro
+    ports:
+      - "9080:9080"
+    depends_on:
+      - loki
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.15.1
+    container_name: omnizap-mysql-exporter
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_NAME=${MYSQL_EXPORTER_DSN:-exporter:exporter@(host.docker.internal:3306)/}
+    command:
+      - "--config.my-cnf=/etc/mysql-exporter/my.cnf"
+      - "--collect.global_status"
+      - "--collect.global_variables"
+      - "--collect.info_schema.innodb_metrics"
+      - "--collect.info_schema.processlist"
+      - "--collect.info_schema.tables"
+      - "--collect.perf_schema.eventsstatements"
+      - "--collect.perf_schema.tableiowaits"
+      - "--collect.perf_schema.tablelocks"
+    volumes:
+      - ./observability/mysql-exporter.cnf:/etc/mysql-exporter/my.cnf:ro
+    ports:
+      - "9104:9104"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: omnizap-node-exporter
+    restart: unless-stopped
+    pid: "host"
+    command:
+      - "--path.rootfs=/host"
+    volumes:
+      - /:/host:ro,rslave
+    ports:
+      - "9100:9100"
+
+volumes:
+  grafana_data:
+  prometheus_data:
+  loki_data:

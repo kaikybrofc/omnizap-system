@@ -16,6 +16,7 @@ import logger from '../utils/logger/loggerModule.js';
 import { handleMessages } from '../controllers/messageController.js';
 import { syncNewsBroadcastService } from '../services/newsBroadcastService.js';
 import { setActiveSocket as storeActiveSocket } from '../services/socketState.js';
+import { recordError, recordMessagesUpsert } from '../observability/metrics.js';
 
 import { handleGroupUpdate as handleGroupParticipantsEvent } from '../modules/adminModule/groupEventHandlers.js';
 
@@ -225,6 +226,9 @@ export async function connectToWhatsApp() {
   });
 
   sock.ev.on('messages.upsert', (update) => {
+    const start = process.hrtime.bigint();
+    const messagesCount = Array.isArray(update?.messages) ? update.messages.length : 0;
+    const eventType = update?.type || 'unknown';
     try {
       logger.debug('Novo(s) evento(s) em messages.upsert', {
         action: 'messages_upsert',
@@ -232,17 +236,40 @@ export async function connectToWhatsApp() {
         messagesCount: update.messages.length,
         remoteJid: update.messages[0]?.key.remoteJid || null,
       });
-      persistIncomingMessages(update.messages, update.type).catch((error) => {
+      const persistPromise = persistIncomingMessages(update.messages, update.type).catch((error) => {
         logger.error('Erro ao persistir mensagens no banco de dados:', {
           error: error.message,
         });
+        recordError('messages_upsert');
       });
-      handleMessages(update, sock);
+      const handlePromise = handleMessages(update, sock).catch((error) => {
+        recordError('messages_upsert');
+        throw error;
+      });
+
+      Promise.allSettled([persistPromise, handlePromise]).then((results) => {
+        const ok = results.every((result) => result.status === 'fulfilled');
+        const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+        recordMessagesUpsert({
+          durationMs,
+          type: eventType,
+          messagesCount,
+          ok,
+        });
+      });
     } catch (error) {
       logger.error('Erro no evento messages.upsert:', {
         error: error.message,
         stack: error.stack,
         action: 'messages_upsert_error',
+      });
+      recordError('messages_upsert');
+      const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+      recordMessagesUpsert({
+        durationMs,
+        type: eventType,
+        messagesCount,
+        ok: false,
       });
     }
   });

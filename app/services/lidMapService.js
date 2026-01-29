@@ -1,6 +1,7 @@
 import logger from '../utils/logger/loggerModule.js';
 import { executeQuery, TABLES } from '../../database/index.js';
 import { getJidServer, normalizeJid } from '../config/baileysConfig.js';
+import { recordError, setQueueDepth } from '../observability/metrics.js';
 
 const CACHE_TTL_MS = 20 * 60 * 1000;
 const NEGATIVE_TTL_MS = 5 * 60 * 1000;
@@ -15,6 +16,10 @@ let lidFlushInProgress = false;
 let lidFlushRequested = false;
 
 let backfillPromise = null;
+
+const updateLidQueueMetric = () => {
+  setQueueDepth('lid_map', lidWriteBuffer.size);
+};
 
 /**
  * Retorna timestamp atual em ms.
@@ -235,6 +240,7 @@ export const queueLidUpdate = (lid, jid, source = 'message') => {
 
   lidWriteBuffer.set(lid, entry);
   setCacheEntry(lid, effectiveJid, CACHE_TTL_MS, nowTs);
+  updateLidQueueMetric();
 
   return { queued: true, reconciled: Boolean(entry.reconcileJid) };
 };
@@ -337,6 +343,7 @@ export const flushLidQueue = async () => {
         await executeQuery(sql, params);
       } catch (error) {
         logger.error('Falha ao persistir batch do lid_map.', { error: error.message });
+        recordError('lid_map');
         break;
       }
 
@@ -351,11 +358,13 @@ export const flushLidQueue = async () => {
         }
       }
 
+      updateLidQueueMetric();
       if (reconcileTargets.length > 0) {
         setImmediate(() => {
           for (const target of reconcileTargets) {
             reconcileLidToJid(target).catch((error) => {
               logger.warn('Falha ao reconciliar lid->jid.', { error: error.message });
+              recordError('lid_map_reconcile');
             });
           }
         });
@@ -363,6 +372,7 @@ export const flushLidQueue = async () => {
     }
   } finally {
     lidFlushInProgress = false;
+    updateLidQueueMetric();
     if (lidFlushRequested) {
       lidFlushRequested = false;
       setImmediate(() => {
@@ -520,3 +530,5 @@ export const backfillLidMapFromMessagesOnce = async (options = {}) => {
   }
   return backfillPromise;
 };
+
+updateLidQueueMetric();

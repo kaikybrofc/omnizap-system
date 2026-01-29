@@ -1,0 +1,170 @@
+{
+  "uid": "omnizap-overview",
+  "title": "OmniZap Overview",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "tags": ["omnizap", "overview"],
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Messages/sec",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(omnizap_messages_upsert_messages_total[1m])",
+          "legendFormat": "{{type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "messages.upsert P99 (ms)",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(omnizap_messages_upsert_duration_ms_bucket[5m])) by (le))",
+          "legendFormat": "p99",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Queue Depth",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "omnizap_queue_depth",
+          "legendFormat": "{{queue}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "DB Query P99 by Table (ms)",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 9 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(omnizap_db_query_duration_ms_bucket[5m])) by (le, table))",
+          "legendFormat": "{{table}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "DB Errors/s",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 9 },
+      "targets": [
+        {
+          "expr": "rate(omnizap_errors_total{scope=\"db\"}[5m])",
+          "legendFormat": "db",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "DB Slow Queries (>=500ms)",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 9 },
+      "targets": [
+        {
+          "expr": "increase(omnizap_db_query_over_ms_total{threshold=\"500\"}[5m])",
+          "legendFormat": "{{table}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU Usage %",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 0, "y": 17, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "cpu",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory Usage %",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 8, "y": 17, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+          "legendFormat": "memory",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk Usage %",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 16, "y": 17, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "(1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay\"})) * 100",
+          "legendFormat": "{{mountpoint}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Writes/sec by Table",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 0, "y": 25, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(omnizap_db_write_total[5m])",
+          "legendFormat": "{{operation}} {{table}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Inserts/Upserts/sec (messages, chats, lid_map)",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 12, "y": 25, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(omnizap_db_write_total{operation=~\"insert|upsert\",table=~\"messages|chats|lid_map\"}[5m])",
+          "legendFormat": "{{operation}} {{table}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Top Slow Queries (Loki)",
+      "datasource": "Loki",
+      "gridPos": { "x": 0, "y": 33, "w": 24, "h": 10 },
+      "targets": [
+        {
+          "expr": "{job=\"db-monitor\"} |= \"slow\" | json | line_format \"{{.ts}} {{.durationMs}}ms {{.table}} {{.normalizedSql}}\"",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

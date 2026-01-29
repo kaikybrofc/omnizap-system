@@ -5,6 +5,7 @@ import { connectToWhatsApp, getActiveSocket } from './app/connection/socketContr
 import { backfillLidMapFromMessagesOnce } from './app/services/lidMapService.js';
 import { initializeNewsBroadcastService } from './app/services/newsBroadcastService.js';
 import initializeDatabase from './database/init.js';
+import { startMetricsServer } from './app/observability/metrics.js';
 
 async function startApp() {
   try {
@@ -12,6 +13,8 @@ async function startApp() {
 
     logger.info('Verificando e inicializando o banco de dados...');
     await initializeDatabase();
+
+    startMetricsServer();
 
     const shouldBackfill = process.env.LID_BACKFILL_ON_START !== 'false';
     if (shouldBackfill) {

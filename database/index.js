@@ -5,6 +5,13 @@ import { once } from 'node:events';
 import path from 'node:path';
 import { promises as fsPromises } from 'node:fs';
 import logger from '../app/utils/logger/loggerModule.js';
+import {
+  isMetricsEnabled,
+  recordDbQuery,
+  recordDbWrite,
+  recordError,
+  setDbInFlight,
+} from '../app/observability/metrics.js';
 
 const { NODE_ENV } = process.env;
 const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_POOL_LIMIT = 10 } = process.env;
@@ -90,6 +97,8 @@ const parseEnvNumber = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const METRICS_ACTIVE = isMetricsEnabled();
+
 const EXECUTE_OPTIONS_KEYS = new Set(['traceId']);
 const isValidExecuteOptions = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -146,6 +155,7 @@ const JWT_REGEX = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
 const TOKEN_LIKE_REGEX = /^[A-Za-z0-9-_=+.]{20,}$/;
 
 let dbStats = createEmptyStats();
+let dbInFlightMetric = 0;
 
 function createEmptyStats() {
   return {
@@ -535,6 +545,18 @@ function getQueryType(sql) {
   }
 }
 
+function getWriteOperation(normalizedSql, queryType) {
+  if (!normalizedSql) return null;
+  if (queryType === 'INSERT') {
+    if (normalizedSql.startsWith('REPLACE')) return 'replace';
+    if (normalizedSql.includes('ON DUPLICATE KEY UPDATE')) return 'upsert';
+    return 'insert';
+  }
+  if (queryType === 'UPDATE') return 'update';
+  if (queryType === 'DELETE') return 'delete';
+  return null;
+}
+
 function extractTableName(sql, queryType) {
   const cleaned = stripSqlComments(sql).replace(/\s+/g, ' ').trim();
   let match = null;
@@ -892,15 +914,23 @@ async function runMonitored({ executor, originalFn, args, traceId, allowExplain 
   if (typeof originalFn !== 'function') {
     throw new Error('Executor inválido para query.');
   }
-  if (!monitorConfig.enabled) {
+  const shouldMonitor = monitorConfig.enabled;
+  const shouldMeasure = shouldMonitor || METRICS_ACTIVE;
+  if (!shouldMeasure) {
     return originalFn(...args);
   }
   const { sql, params } = extractSqlAndParams(args);
   const sqlText = String(sql ?? '');
   const start = process.hrtime.bigint();
-  dbStats.inFlight += 1;
-  if (dbStats.inFlight > dbStats.maxInFlight) {
-    dbStats.maxInFlight = dbStats.inFlight;
+  if (shouldMonitor) {
+    dbStats.inFlight += 1;
+    if (dbStats.inFlight > dbStats.maxInFlight) {
+      dbStats.maxInFlight = dbStats.inFlight;
+    }
+  }
+  if (METRICS_ACTIVE) {
+    dbInFlightMetric += 1;
+    setDbInFlight(dbInFlightMetric);
   }
 
   let ok = false;
@@ -916,25 +946,44 @@ async function runMonitored({ executor, originalFn, args, traceId, allowExplain 
     throw err;
   } finally {
     const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
-    dbStats.inFlight = Math.max(0, dbStats.inFlight - 1);
+    if (shouldMonitor) {
+      dbStats.inFlight = Math.max(0, dbStats.inFlight - 1);
+    }
+    if (METRICS_ACTIVE) {
+      dbInFlightMetric = Math.max(0, dbInFlightMetric - 1);
+      setDbInFlight(dbInFlightMetric);
+    }
     const type = getQueryType(sqlText);
     const table = extractTableName(sqlText, type);
     const normalizedSql = normalizeSql(sqlText);
     const fingerprint = createFingerprint(normalizedSql);
+    const writeOperation = getWriteOperation(normalizedSql, type);
     const isSlow = durationMs >= monitorConfig.slowMs;
     const { rowCount, affectedRows } = extractResultStats(result);
 
-    recordStats({
-      fingerprint,
-      normalizedSql,
-      type,
-      table,
-      durationMs,
-      ok,
-      rowCount,
-      affectedRows,
-      isSlow,
-    });
+    if (shouldMonitor) {
+      recordStats({
+        fingerprint,
+        normalizedSql,
+        type,
+        table,
+        durationMs,
+        ok,
+        rowCount,
+        affectedRows,
+        isSlow,
+      });
+    }
+
+    if (METRICS_ACTIVE) {
+      recordDbQuery({ durationMs, type, table, ok, isSlow });
+      if (!ok) {
+        recordError('db');
+      }
+      if (ok && writeOperation) {
+        recordDbWrite({ operation: writeOperation, table });
+      }
+    }
 
     const baseLogData = {
       durationMs,
@@ -948,7 +997,7 @@ async function runMonitored({ executor, originalFn, args, traceId, allowExplain 
       traceId,
     };
 
-    if (monitorConfig.logEveryQuery && ok && !isSlow) {
+    if (shouldMonitor && monitorConfig.logEveryQuery && ok && !isSlow) {
       const maskedParams = maskParams(params);
       logger.debug('DB query executada.', {
         durationMs: Number(durationMs.toFixed(2)),
@@ -971,7 +1020,7 @@ async function runMonitored({ executor, originalFn, args, traceId, allowExplain 
       );
     }
 
-    if (isSlow) {
+    if (shouldMonitor && isSlow) {
       logger.warn('DB query lenta detectada.', {
         durationMs: Number(durationMs.toFixed(2)),
         type,
@@ -996,7 +1045,7 @@ async function runMonitored({ executor, originalFn, args, traceId, allowExplain 
       }
     }
 
-    if (!ok) {
+    if (shouldMonitor && !ok) {
       logger.error('Erro na consulta SQL.', {
         durationMs: Number(durationMs.toFixed(2)),
         type,
@@ -1200,7 +1249,26 @@ export async function executeQuery(sql, params = [], connection = null, options 
   const sanitizedParams = sanitizeParams(params);
   const originalExecute = getOriginalExecute(executor);
 
-  if (!monitorConfig.enabled || typeof originalExecute !== 'function') {
+  if (!originalExecute || typeof originalExecute !== 'function') {
+    try {
+      const [results] = await executor.execute(sql, sanitizedParams);
+      return results;
+    } catch (error) {
+      logger.error('Erro na consulta SQL.', {
+        normalizedSql: truncateText(normalizeSql(sql), 600),
+        sql: truncateText(sql),
+        errorCode: error.code,
+        errorMessage: error.message,
+        traceId,
+      });
+      if (METRICS_ACTIVE) {
+        recordError('db');
+      }
+      throw new DatabaseError(`Erro na execução da consulta: ${error.message}`, error, sql, params);
+    }
+  }
+
+  if (!monitorConfig.enabled && !METRICS_ACTIVE) {
     try {
       const [results] = await executor.execute(sql, sanitizedParams);
       return results;

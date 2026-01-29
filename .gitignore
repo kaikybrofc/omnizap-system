@@ -3,3 +3,4 @@ logs/
 temp/
 app/connection/auth
 .env
+observability/mysql-exporter.cnf

@@ -1,0 +1,84 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: omnizap-app
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: omnizap-app
+          __path__: /var/log/omnizap/application-*.log
+      - targets: [localhost]
+        labels:
+          job: omnizap-app
+          __path__: /var/log/omnizap/error-*.log
+      - targets: [localhost]
+        labels:
+          job: omnizap-app
+          __path__: /var/log/omnizap/warn-*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            service: service
+            instanceId: instanceId
+            environment: environment
+            event: event
+            table: table
+            durationMs: durationMs
+      - labels:
+          level:
+          service:
+          environment:
+          event:
+          table:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+
+  - job_name: omnizap-db-monitor
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: db-monitor
+          __path__: /var/log/omnizap/db-monitor.log*
+    pipeline_stages:
+      - json:
+          expressions:
+            ts: ts
+            event: event
+            type: type
+            table: table
+            durationMs: durationMs
+            fingerprint: fingerprint
+      - labels:
+          event:
+          type:
+          table:
+          fingerprint:
+      - timestamp:
+          source: ts
+          format: RFC3339Nano
+
+  - job_name: mysql-slow
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: mysql-slow
+          __path__: /var/log/mysql/mysql-slow.log
+
+  - job_name: mysql-error
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: mysql-error
+          __path__: /var/log/mysql/error.log

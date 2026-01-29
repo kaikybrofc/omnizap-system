@@ -1,0 +1,136 @@
+{
+  "uid": "omnizap-mysql",
+  "title": "OmniZap MySQL",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "tags": ["omnizap", "mysql"],
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Queries/sec",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(mysql_global_status_queries[5m])",
+          "legendFormat": "qps",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Writes/sec",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(mysql_global_status_com_insert[5m]) + rate(mysql_global_status_com_update[5m]) + rate(mysql_global_status_com_delete[5m])",
+          "legendFormat": "writes",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Slow Queries/sec",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(mysql_global_status_slow_queries[5m])",
+          "legendFormat": "slow",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "InnoDB Row Lock Waits/sec",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(mysql_global_status_innodb_row_lock_waits[5m])",
+          "legendFormat": "waits",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "InnoDB Row Lock Time (ms/sec)",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(mysql_global_status_innodb_row_lock_time[5m])",
+          "legendFormat": "lock_time",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Buffer Pool Hit Ratio",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "1 - (rate(mysql_global_status_innodb_buffer_pool_reads[5m]) / rate(mysql_global_status_innodb_buffer_pool_read_requests[5m]))",
+          "legendFormat": "hit_ratio",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "InnoDB IO (bytes/sec)",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(mysql_global_status_innodb_data_read[5m])",
+          "legendFormat": "read",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(mysql_global_status_innodb_data_written[5m])",
+          "legendFormat": "write",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Table Latency P99 (ms)",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(omnizap_db_query_duration_ms_bucket[5m])) by (le, table))",
+          "legendFormat": "{{table}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "MySQL Slow Log",
+      "datasource": "Loki",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 10 },
+      "targets": [
+        {
+          "expr": "{job=\"mysql-slow\"}",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

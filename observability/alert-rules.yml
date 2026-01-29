@@ -1,0 +1,60 @@
+groups:
+  - name: omnizap-db
+    rules:
+      - alert: OmniZapDBQueryOver500ms
+        expr: increase(omnizap_db_query_over_ms_total{threshold="500"}[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Query acima de 500ms detectada"
+          description: "Uma ou mais queries excederam 500ms nos últimos 5 minutos."
+
+      - alert: OmniZapLidMapUpsertOver1000ms
+        expr: increase(omnizap_db_query_over_ms_total{threshold="1000",table="lid_map"}[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "UPSERT lid_map acima de 1000ms"
+          description: "UPSERTs em lid_map excederam 1000ms nos últimos 5 minutos."
+
+      - alert: OmniZapMySQLLockWaitsHigh
+        expr: rate(mysql_global_status_innodb_row_lock_waits[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lock waits elevados no InnoDB"
+          description: "Taxa de lock waits acima de 5/s nos últimos 5 minutos."
+
+  - name: omnizap-queues
+    rules:
+      - alert: OmniZapMessageQueueHigh
+        expr: omnizap_queue_depth{queue="messages"} > 2000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fila de mensagens alta"
+          description: "Backlog da fila de mensagens acima de 2000."
+
+  - name: omnizap-host
+    rules:
+      - alert: OmniZapDiskUsageHigh
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})) > 0.80
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disco acima de 80%"
+          description: "Uso de disco acima de 80% por 10 minutos."
+
+      - alert: OmniZapMemoryUsageHigh
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memória acima de 80%"
+          description: "Uso de memória acima de 80% por 10 minutos."

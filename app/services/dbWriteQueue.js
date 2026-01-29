@@ -1,6 +1,7 @@
 import logger from '../utils/logger/loggerModule.js';
 import { executeQuery, TABLES } from '../../database/index.js';
 import { queueLidUpdate, flushLidQueue } from './lidMapService.js';
+import { recordError, setQueueDepth } from '../observability/metrics.js';
 
 const parseNumber = (value, fallback) => {
   const parsed = Number(value);
@@ -31,6 +32,11 @@ let chatFlushRequested = false;
 
 let flushScheduled = false;
 
+const updateQueueMetrics = () => {
+  setQueueDepth('messages', messageQueue.length);
+  setQueueDepth('chats', chatQueue.size);
+};
+
 const scheduleFlush = () => {
   if (flushScheduled) return;
   flushScheduled = true;
@@ -38,6 +44,7 @@ const scheduleFlush = () => {
     flushScheduled = false;
     flushQueues().catch((error) => {
       logger.error('Falha ao executar flush das filas.', { error: error.message });
+      recordError('db_write_queue');
     });
   });
 };
@@ -94,6 +101,7 @@ export function queueMessageInsert(messageData) {
 
   messagePendingIds.add(messageData.message_id);
   messageQueue.push(messageData);
+  updateQueueMetrics();
 
   if (messageQueue.length >= MESSAGE_BATCH_SIZE) {
     scheduleFlush();
@@ -152,6 +160,7 @@ export function queueChatUpdate(chat, options = {}) {
     pendingName: nameProvided ? name : cache.pendingName,
   });
 
+  updateQueueMetrics();
   scheduleFlush();
   return true;
 }
@@ -188,12 +197,14 @@ async function flushMessageQueue() {
         }
       } catch (error) {
         logger.error('Falha ao inserir batch de mensagens.', { error: error.message });
+        recordError('db_write_queue');
         messageQueue.unshift(...batch);
         break;
       }
     }
   } finally {
     messageFlushInProgress = false;
+    updateQueueMetrics();
     if (messageFlushRequested) {
       messageFlushRequested = false;
       setImmediate(() => {
@@ -262,11 +273,13 @@ async function flushChatQueue() {
         }
       } catch (error) {
         logger.error('Falha ao inserir batch de chats.', { error: error.message });
+        recordError('db_write_queue');
         break;
       }
     }
   } finally {
     chatFlushInProgress = false;
+    updateQueueMetrics();
     if (chatFlushRequested) {
       chatFlushRequested = false;
       setImmediate(() => {
@@ -280,10 +293,13 @@ export async function flushQueues() {
   await Promise.allSettled([flushMessageQueue(), flushChatQueue(), flushLidQueue()]);
 }
 
+updateQueueMetrics();
+
 if (FLUSH_INTERVAL_MS > 0) {
   const timer = setInterval(() => {
     flushQueues().catch((error) => {
       logger.error('Erro ao executar flush periódico das filas.', { error: error.message });
+      recordError('db_write_queue');
     });
   }, FLUSH_INTERVAL_MS);
   if (typeof timer.unref === 'function') {
