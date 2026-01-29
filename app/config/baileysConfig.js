@@ -255,6 +255,42 @@ export function getExpiration(sock) {
 }
 
 /**
+ * Extrai o conteúdo de texto de uma mensagem do WhatsApp.
+ * @param {Object} messageInfo
+ * @returns {string}
+ */
+export const extractMessageContent = ({ message }) => {
+  if (!message) return 'Mensagem vazia';
+
+  const text = message.conversation?.trim() || message.extendedTextMessage?.text;
+
+  if (text) return text;
+
+  const handlers = [
+    [message.imageMessage, (m) => m.caption || '[Imagem]'],
+    [message.videoMessage, (m) => m.caption || '[Vídeo]'],
+    [message.documentMessage, (m) => m.fileName || '[Documento]'],
+    [message.audioMessage, () => '[Áudio]'],
+    [message.stickerMessage, () => '[Figurinha]'],
+    [message.locationMessage, (m) => `[Localização] Lat: ${m.degreesLatitude}, Long: ${m.degreesLongitude}`],
+    [message.contactMessage, (m) => `[Contato] ${m.displayName}`],
+    [message.contactsArrayMessage, (m) => `[Contatos] ${m.contacts.map((c) => c.displayName).join(', ')}`],
+    [message.listMessage, (m) => m.description || '[Mensagem de Lista]'],
+    [message.buttonsMessage, (m) => m.contentText || '[Mensagem de Botões]'],
+    [message.templateButtonReplyMessage, (m) => `[Resposta de Botão] ${m.selectedDisplayText}`],
+    [message.productMessage, (m) => m.product?.title || '[Mensagem de Produto]'],
+    [message.reactionMessage, (m) => `[Reação] ${m.text}`],
+    [message.pollCreationMessage, (m) => `[Enquete] ${m.name}`],
+  ];
+
+  for (const [msg, fn] of handlers) {
+    if (msg) return fn(msg);
+  }
+
+  return 'Tipo de mensagem não suportado ou sem conteúdo.';
+};
+
+/**
  * Downloads media from a Baileys message.
  * @param {import('@whiskeysockets/baileys').WAProto.IMessage} message - The message object containing the media.
  * @param {string} type - The type of media (e.g., 'image', 'video', 'audio', 'document').
