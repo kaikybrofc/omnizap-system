@@ -18,7 +18,9 @@
     "start": "node index.js",
     "dev": "node index.js",
     "db:init": "node database/init.js",
-    "pm2:prod": "pm2 start ecosystem.prod.config.cjs"
+    "pm2:prod": "pm2 start ecosystem.prod.config.cjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
@@ -45,6 +47,7 @@
     "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
+    "eslint": "^9.39.2",
     "pm2": "^6.0.11"
   },
   "engines": {
