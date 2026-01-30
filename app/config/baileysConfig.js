@@ -5,6 +5,7 @@ import {
   jidEncode,
   jidDecode,
   areJidsSameUser,
+  normalizeMessageContent,
   isJidMetaAI,
   isPnUser,
   isLidUser,
@@ -22,9 +23,10 @@ import {
 } from '@whiskeysockets/baileys';
 
 import logger from '../utils/logger/loggerModule.js';
-import fs from 'node:fs';
+import { createWriteStream } from 'node:fs';
 import path from 'node:path';
-import axios from 'axios';
+import { pipeline } from 'node:stream/promises';
+import { Readable } from 'node:stream';
 
 const DEFAULT_BAILEYS_VERSION = [7, 0, 0];
 
@@ -35,6 +37,181 @@ export const JID_CONSTANTS = {
   META_AI_JID,
 };
 
+const decodeJidParts = (() => {
+  let lastJid = null;
+  let lastDecoded = null;
+
+  return (jid) => {
+    if (!jid) return null;
+    if (jid === lastJid) return lastDecoded;
+    const decoded = jidDecode(jid) || null;
+    lastJid = jid;
+    lastDecoded = decoded;
+    return decoded;
+  };
+})();
+
+/**
+ * Tipos de mensagem conhecidos do Baileys
+ * Mapeamento de chaves do proto.Message para tipos normalizados
+ */
+export const MEDIA_TYPE_MAPPING = {
+  conversation: 'text',
+  extendedTextMessage: 'text',
+  imageMessage: 'image',
+  videoMessage: 'video',
+  audioMessage: 'audio',
+  documentMessage: 'document',
+  documentWithCaptionMessage: 'document',
+  stickerMessage: 'sticker',
+  contactMessage: 'contact',
+  contactsArrayMessage: 'contacts',
+  locationMessage: 'location',
+  liveLocationMessage: 'liveLocation',
+  buttonsMessage: 'buttons',
+  buttonsResponseMessage: 'buttonsResponse',
+  templateMessage: 'template',
+  templateButtonReplyMessage: 'buttonReply',
+  listMessage: 'list',
+  listResponseMessage: 'listResponse',
+  ephemeralMessage: 'ephemeral',
+  reactionMessage: 'reaction',
+  pollCreationMessage: 'poll',
+  pollUpdateMessage: 'pollUpdate',
+  pollResultSnapshotMessage: 'pollResult',
+  invoiceMessage: 'invoice',
+  sendPaymentMessage: 'payment',
+  requestPaymentMessage: 'paymentRequest',
+  cancelPaymentRequestMessage: 'paymentCancel',
+  declinePaymentRequestMessage: 'paymentDecline',
+  groupInviteMessage: 'groupInvite',
+  productMessage: 'product',
+  orderMessage: 'order',
+  viewOnceMessage: 'viewOnce',
+  viewOnceMessageV2: 'viewOnceV2',
+  interactiveMessage: 'interactive',
+  interactiveResponseMessage: 'interactiveResponse',
+  newsletterAdminInviteMessage: 'newsletterInvite',
+  eventMessage: 'event',
+  requestPhoneNumberMessage: 'requestPhoneNumber',
+  call: 'call',
+  messageHistoryBundle: 'messageHistoryBundle',
+  messageHistoryNotice: 'messageHistoryNotice',
+  albumMessage: 'album',
+  stickerPackMessage: 'stickerPack',
+  highlyStructuredMessage: 'structured',
+  fastRatchetKeySenderKeyDistributionMessage: 'keyDistribution',
+  deviceSentMessage: 'deviceSent',
+  messageContextInfo: 'contextInfo',
+  botInvokeMessage: 'botInvoke',
+};
+
+/**
+ * Tipos de midia que contem conteudo binario/arquivo
+ */
+export const BINARY_MEDIA_TYPES = new Set(['image', 'video', 'videoNote', 'audio', 'voice', 'document', 'sticker']);
+
+const normalizeMessage = (message) => normalizeMessageContent(message) || message;
+
+const buildMediaEntry = (mediaType, messageKey, value, isQuoted, overrides = {}) => ({
+  mediaType,
+  mediaKey: value,
+  messageKey,
+  isQuoted,
+  isBinary: BINARY_MEDIA_TYPES.has(mediaType),
+  hasUrl: !!value.url,
+  hasDirectPath: !!value.directPath,
+  hasMediaKey: !!value.mediaKey,
+  hasFileEncSha256: !!value.fileEncSha256,
+  mimetype: value.mimetype || null,
+  fileLength: value.fileLength || null,
+  fileName: value.fileName || null,
+  caption: value.caption || null,
+  ...overrides,
+});
+
+const collectMediaFromMessage = (message, { includeQuoted = true } = {}) => {
+  if (!message || !message.message) {
+    return [];
+  }
+
+  const messageContent = message.message;
+  let allMedia = detectAllMediaTypes(messageContent, false);
+
+  if (includeQuoted) {
+    const quotedMessage = messageContent?.extendedTextMessage?.contextInfo?.quotedMessage;
+    if (quotedMessage) {
+      allMedia = allMedia.concat(detectAllMediaTypes(quotedMessage, true));
+    }
+  }
+
+  return allMedia;
+};
+
+const filterMedia = (media, { includeAllTypes = false, includeUnknown = false } = {}) => {
+  let filtered = media;
+
+  if (!includeAllTypes) {
+    filtered = filtered.filter((item) => item.isBinary);
+  }
+
+  if (!includeUnknown) {
+    filtered = filtered.filter((item) => !item.isUnknownType);
+  }
+
+  return filtered;
+};
+
+const findExpiration = (root) => {
+  if (!root || typeof root !== 'object') return null;
+
+  const stack = [root];
+  const visited = new WeakSet();
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object') continue;
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    const expiration = current.contextInfo?.expiration;
+    if (typeof expiration === 'number') return expiration;
+
+    for (const value of Object.values(current)) {
+      if (value && typeof value === 'object') {
+        stack.push(value);
+      }
+    }
+  }
+
+  return null;
+};
+
+const getMediaExtension = (type) => {
+  if (type === 'image') return 'jpeg';
+  if (type === 'video') return 'mp4';
+  if (type === 'audio') return 'mp3';
+  return 'bin';
+};
+
+function parseBaileysVersion(rawVersion) {
+  if (!rawVersion) {
+    return null;
+  }
+
+  const cleaned = String(rawVersion).replace(/[\[\]\s]/g, '');
+  const parts = cleaned
+    .split(/[.,]/)
+    .filter(Boolean)
+    .map((value) => Number(value));
+
+  if (parts.length < 3 || parts.some((value) => Number.isNaN(value))) {
+    return null;
+  }
+
+  return parts.slice(0, 3);
+}
+
 export function encodeJid(user, server = 'c.us', device) {
   if (user === null || user === undefined) return null;
   return jidEncode(user, server, device);
@@ -42,7 +219,7 @@ export function encodeJid(user, server = 'c.us', device) {
 
 export function decodeJid(jid) {
   if (!jid) return null;
-  return jidDecode(jid) || null;
+  return decodeJidParts(jid);
 }
 
 export function normalizeJid(jid) {
@@ -51,11 +228,11 @@ export function normalizeJid(jid) {
 }
 
 export function getJidUser(jid) {
-  return decodeJid(jid)?.user || null;
+  return decodeJidParts(jid)?.user || null;
 }
 
 export function getJidServer(jid) {
-  return decodeJid(jid)?.server || null;
+  return decodeJidParts(jid)?.server || null;
 }
 
 export function isSameJidUser(jid1, jid2) {
@@ -63,13 +240,7 @@ export function isSameJidUser(jid1, jid2) {
 }
 
 export function isUserJid(jid) {
-  return Boolean(
-    jid &&
-      (isPnUser(jid) ||
-        isHostedPnUser(jid) ||
-        isLidUser(jid) ||
-        isHostedLidUser(jid))
-  );
+  return Boolean(jid && (isPnUser(jid) || isHostedPnUser(jid) || isLidUser(jid) || isHostedLidUser(jid)));
 }
 
 export function isGroupJid(jid) {
@@ -104,71 +275,6 @@ export function resolveBotJid(sockUserId) {
   return encodeJid(rawUser, 's.whatsapp.net');
 }
 
-/**
- * Tipos de midia conhecidos do Baileys
- * Mapeamento de sufixos de mensagem para tipos de midia
- */
-export const MEDIA_TYPE_MAPPING = {
-  imageMessage: 'image',
-  videoMessage: 'video',
-  audioMessage: 'audio',
-  documentMessage: 'document',
-  stickerMessage: 'sticker',
-  pttMessage: 'voice',
-  contactMessage: 'contact',
-  contactsArrayMessage: 'contacts',
-  locationMessage: 'location',
-  liveLocationMessage: 'liveLocation',
-  buttonsMessage: 'buttons',
-  templateMessage: 'template',
-  listMessage: 'list',
-  ephemeralMessage: 'ephemeral',
-  reactionMessage: 'reaction',
-  pollCreationMessage: 'poll',
-  pollUpdateMessage: 'pollUpdate',
-  invoiceMessage: 'invoice',
-  sendPaymentMessage: 'payment',
-  requestPaymentMessage: 'paymentRequest',
-  cancelPaymentRequestMessage: 'paymentCancel',
-  declinePaymentRequestMessage: 'paymentDecline',
-  groupInviteMessage: 'groupInvite',
-  productMessage: 'product',
-  orderMessage: 'order',
-  viewOnceMessage: 'viewOnce',
-  viewOnceMessageV2: 'viewOnceV2',
-  interactiveMessage: 'interactive',
-  newsletterAdminInviteMessage: 'newsletterInvite',
-  eventMessage: 'event',
-  highlyStructuredMessage: 'structured',
-  fastRatchetKeySenderKeyDistributionMessage: 'keyDistribution',
-  deviceSentMessage: 'deviceSent',
-  messageContextInfo: 'contextInfo',
-  botInvokeMessage: 'botInvoke',
-};
-
-/**
- * Tipos de midia que contem conteudo binario/arquivo
- */
-export const BINARY_MEDIA_TYPES = new Set(['image', 'video', 'audio', 'voice', 'document', 'sticker']);
-
-function parseBaileysVersion(rawVersion) {
-  if (!rawVersion) {
-    return null;
-  }
-
-  const cleaned = String(rawVersion).replace(/[\[\]\s]/g, '');
-  const parts = cleaned
-    .split(/[.,]/)
-    .filter(Boolean)
-    .map((value) => Number(value));
-
-  if (parts.length < 3 || parts.some((value) => Number.isNaN(value))) {
-    return null;
-  }
-
-  return parts.slice(0, 3);
-}
-
 export async function resolveBaileysVersion() {
   const envVersion = parseBaileysVersion(process.env.BAILEYS_VERSION);
   if (envVersion) {
@@ -196,15 +302,18 @@ export async function resolveBaileysVersion() {
 }
 
 export async function getProfilePicBuffer(sock, msg) {
-  const rawJid = msg.key.participant || msg.key.remoteJid;
+  const rawJid = msg?.key?.participant || msg?.key?.remoteJid;
   const jid = jidNormalizedUser(rawJid);
 
   try {
     const url = await sock.profilePictureUrl(jid, 'image');
     if (!url) return null;
 
-    const res = await axios.get(url, { responseType: 'arraybuffer' });
-    return Buffer.from(res.data);
+    const response = await fetch(url);
+    if (!response.ok) return null;
+
+    const data = await response.arrayBuffer();
+    return Buffer.from(data);
   } catch (error) {
     return null;
   }
@@ -222,36 +331,10 @@ export function getExpiration(sock) {
     return DEFAULT_EXPIRATION_SECONDS;
   }
 
-  const messageTypes = ['conversation', 'viewOnceMessageV2', 'imageMessage', 'videoMessage', 'extendedTextMessage', 'viewOnceMessage', 'documentWithCaptionMessage', 'buttonsMessage', 'buttonsResponseMessage', 'listResponseMessage', 'templateButtonReplyMessage', 'interactiveResponseMessage'];
+  const normalizedMessage = normalizeMessage(sock.message);
+  const expiration = findExpiration(normalizedMessage);
 
-  for (const type of messageTypes) {
-    const rawMessage = sock.message[type];
-    const messageContent = rawMessage?.message ?? rawMessage;
-
-    const expiration = messageContent?.contextInfo?.expiration;
-    if (typeof expiration === 'number') {
-      return expiration;
-    }
-  }
-
-  const deepSearch = (obj) => {
-    if (typeof obj !== 'object' || obj === null) return null;
-
-    if (obj.contextInfo?.expiration && typeof obj.contextInfo.expiration === 'number') {
-      return obj.contextInfo.expiration;
-    }
-
-    for (const key of Object.keys(obj)) {
-      const value = obj[key];
-      const result = deepSearch(value);
-      if (result !== null) return result;
-    }
-
-    return null;
-  };
-
-  const found = deepSearch(sock.message);
-  return typeof found === 'number' ? found : null;
+  return typeof expiration === 'number' ? expiration : DEFAULT_EXPIRATION_SECONDS;
 }
 
 /**
@@ -262,25 +345,50 @@ export function getExpiration(sock) {
 export const extractMessageContent = ({ message }) => {
   if (!message) return 'Mensagem vazia';
 
-  const text = message.conversation?.trim() || message.extendedTextMessage?.text;
+  const normalizedMessage = normalizeMessage(message);
+  if (!normalizedMessage) return 'Mensagem vazia';
+
+  const text = normalizedMessage.conversation?.trim() || normalizedMessage.extendedTextMessage?.text;
 
   if (text) return text;
 
   const handlers = [
-    [message.imageMessage, (m) => m.caption || '[Imagem]'],
-    [message.videoMessage, (m) => m.caption || '[Vídeo]'],
-    [message.documentMessage, (m) => m.fileName || '[Documento]'],
-    [message.audioMessage, () => '[Áudio]'],
-    [message.stickerMessage, () => '[Figurinha]'],
-    [message.locationMessage, (m) => `[Localização] Lat: ${m.degreesLatitude}, Long: ${m.degreesLongitude}`],
-    [message.contactMessage, (m) => `[Contato] ${m.displayName}`],
-    [message.contactsArrayMessage, (m) => `[Contatos] ${m.contacts.map((c) => c.displayName).join(', ')}`],
-    [message.listMessage, (m) => m.description || '[Mensagem de Lista]'],
-    [message.buttonsMessage, (m) => m.contentText || '[Mensagem de Botões]'],
-    [message.templateButtonReplyMessage, (m) => `[Resposta de Botão] ${m.selectedDisplayText}`],
-    [message.productMessage, (m) => m.product?.title || '[Mensagem de Produto]'],
-    [message.reactionMessage, (m) => `[Reação] ${m.text}`],
-    [message.pollCreationMessage, (m) => `[Enquete] ${m.name}`],
+    [normalizedMessage.imageMessage, (m) => m.caption || '[Imagem]'],
+    [normalizedMessage.videoMessage, (m) => m.caption || '[Vídeo]'],
+    [normalizedMessage.documentMessage, (m) => m.fileName || '[Documento]'],
+    [normalizedMessage.audioMessage, (m) => (m.ptt ? '[Áudio] (voz)' : '[Áudio]')],
+    [normalizedMessage.stickerMessage, () => '[Figurinha]'],
+    [normalizedMessage.locationMessage, (m) => `[Localização] Lat: ${m.degreesLatitude}, Long: ${m.degreesLongitude}`],
+    [normalizedMessage.contactMessage, (m) => `[Contato] ${m.displayName}`],
+    [normalizedMessage.contactsArrayMessage, (m) => `[Contatos] ${m.contacts.map((c) => c.displayName).join(', ')}`],
+    [normalizedMessage.listMessage, (m) => m.description || '[Mensagem de Lista]'],
+    [
+      normalizedMessage.listResponseMessage,
+      (m) => `[Lista] ${m.singleSelectReply?.selectedRowId || m.title || ''}`.trim(),
+    ],
+    [normalizedMessage.buttonsMessage, (m) => m.contentText || '[Mensagem de Botões]'],
+    [
+      normalizedMessage.buttonsResponseMessage,
+      (m) => `[Botão] ${m.selectedDisplayText || m.selectedButtonId || ''}`.trim(),
+    ],
+    [normalizedMessage.templateButtonReplyMessage, (m) => `[Resposta de Botão] ${m.selectedDisplayText || ''}`.trim()],
+    [
+      normalizedMessage.interactiveResponseMessage,
+      (m) => `[Interativo] ${m.body?.text || m.nativeFlowResponseMessage?.name || ''}`.trim(),
+    ],
+    [normalizedMessage.productMessage, (m) => m.product?.title || '[Mensagem de Produto]'],
+    [normalizedMessage.reactionMessage, (m) => `[Reação] ${m.text || ''}`.trim()],
+    [normalizedMessage.pollCreationMessage, (m) => `[Enquete] ${m.name}`],
+    [normalizedMessage.pollResultSnapshotMessage, (m) => `[Resultado de Enquete] ${m.name || ''}`.trim()],
+    [normalizedMessage.requestPhoneNumberMessage, () => '[Solicitação de telefone]'],
+    [normalizedMessage.groupInviteMessage, (m) => `[Convite de grupo] ${m.groupName || ''}`.trim()],
+    [normalizedMessage.eventMessage, (m) => `[Evento] ${m.name || ''}`.trim()],
+    [normalizedMessage.newsletterAdminInviteMessage, () => '[Convite de newsletter]'],
+    [normalizedMessage.albumMessage, () => '[Álbum]'],
+    [normalizedMessage.stickerPackMessage, () => '[Pacote de figurinhas]'],
+    [normalizedMessage.messageHistoryBundle, () => '[Histórico de mensagens]'],
+    [normalizedMessage.messageHistoryNotice, () => '[Aviso de histórico de mensagens]'],
+    [normalizedMessage.call, () => '[Chamada]'],
   ];
 
   for (const [msg, fn] of handlers) {
@@ -299,18 +407,14 @@ export const extractMessageContent = ({ message }) => {
  */
 export const downloadMediaMessage = async (message, type, outputPath) => {
   try {
-    let buffer = Buffer.from([]);
     const stream = await downloadContentFromMessage(message, type);
 
-    for await (const chunk of stream) {
-      buffer = Buffer.concat([buffer, chunk]);
-    }
-
     const fileId = message.key?.id || Date.now();
-    const fileName = `${Date.now()}-${fileId}.${type === 'image' ? 'jpeg' : type === 'video' ? 'mp4' : type === 'audio' ? 'mp3' : 'bin'}`;
+    const extension = getMediaExtension(type);
+    const fileName = `${Date.now()}-${fileId}.${extension}`;
     const filePath = path.join(outputPath, fileName);
 
-    fs.writeFileSync(filePath, buffer);
+    await pipeline(Readable.from(stream), createWriteStream(filePath));
     logger.info(`Media downloaded successfully to ${filePath}`);
     return filePath;
   } catch (error) {
@@ -330,46 +434,36 @@ export function detectAllMediaTypes(messageContent, isQuoted = false) {
     return [];
   }
 
+  const normalizedMessage = normalizeMessage(messageContent);
+  if (!normalizedMessage || typeof normalizedMessage !== 'object') {
+    return [];
+  }
+
   const mediaFound = [];
 
-  for (const [key, value] of Object.entries(messageContent)) {
-    if (value && typeof value === 'object') {
-      const mediaType = MEDIA_TYPE_MAPPING[key];
-      if (mediaType) {
-        mediaFound.push({
-          mediaType,
-          mediaKey: value,
-          messageKey: key,
-          isQuoted,
-          isBinary: BINARY_MEDIA_TYPES.has(mediaType),
-          hasUrl: !!value.url,
-          hasDirectPath: !!value.directPath,
-          hasMediaKey: !!value.mediaKey,
-          hasFileEncSha256: !!value.fileEncSha256,
-          mimetype: value.mimetype || null,
-          fileLength: value.fileLength || null,
-          fileName: value.fileName || null,
-          caption: value.caption || null,
-        });
-      } else if (key.toLowerCase().includes('message') && !MEDIA_TYPE_MAPPING[key]) {
-        const inferredType = key.replace(/Message$/, '').toLowerCase();
-        mediaFound.push({
-          mediaType: inferredType,
-          mediaKey: value,
-          messageKey: key,
-          isQuoted,
+  for (const [key, value] of Object.entries(normalizedMessage)) {
+    if (!value || typeof value !== 'object') continue;
+
+    let mediaType = MEDIA_TYPE_MAPPING[key];
+    if (key === 'audioMessage' && value.ptt) {
+      mediaType = 'voice';
+    } else if (key === 'videoMessage' && value.ptv) {
+      mediaType = 'videoNote';
+    }
+
+    if (mediaType) {
+      mediaFound.push(buildMediaEntry(mediaType, key, value, isQuoted));
+      continue;
+    }
+
+    if (key.toLowerCase().includes('message')) {
+      const inferredType = key.replace(/Message$/, '').toLowerCase();
+      mediaFound.push(
+        buildMediaEntry(inferredType, key, value, isQuoted, {
           isBinary: false,
           isUnknownType: true,
-          hasUrl: !!value.url,
-          hasDirectPath: !!value.directPath,
-          hasMediaKey: !!value.mediaKey,
-          hasFileEncSha256: !!value.fileEncSha256,
-          mimetype: value.mimetype || null,
-          fileLength: value.fileLength || null,
-          fileName: value.fileName || null,
-          caption: value.caption || null,
-        });
-      }
+        }),
+      );
     }
   }
 
@@ -388,30 +482,9 @@ export function detectAllMediaTypes(messageContent, isQuoted = false) {
 export function extractMediaDetails(message, options = {}) {
   const { includeAllTypes = false, includeQuoted = true, includeUnknown = false } = options;
 
-  if (!message || !message.message) {
-    return null;
-  }
+  const allMedia = collectMediaFromMessage(message, { includeQuoted });
+  const filteredMedia = filterMedia(allMedia, { includeAllTypes, includeUnknown });
 
-  const messageContent = message.message;
-  let allMedia = detectAllMediaTypes(messageContent, false);
-
-  if (includeQuoted) {
-    const quotedMessage = messageContent?.extendedTextMessage?.contextInfo?.quotedMessage;
-    if (quotedMessage) {
-      const quotedMedia = detectAllMediaTypes(quotedMessage, true);
-      allMedia = allMedia.concat(quotedMedia);
-    }
-  }
-
-  let filteredMedia = allMedia;
-
-  if (!includeAllTypes) {
-    filteredMedia = filteredMedia.filter((media) => media.isBinary);
-  }
-
-  if (!includeUnknown) {
-    filteredMedia = filteredMedia.filter((media) => !media.isUnknownType);
-  }
   if (filteredMedia.length > 0) {
     const primaryMedia = filteredMedia[0];
     return {
@@ -447,33 +520,8 @@ export function extractMediaDetails(message, options = {}) {
 export function extractAllMediaDetails(message, options = {}) {
   const { includeAllTypes = true, includeQuoted = true, includeUnknown = true } = options;
 
-  if (!message || !message.message) {
-    return [];
-  }
-
-  const messageContent = message.message;
-
-  let allMedia = detectAllMediaTypes(messageContent, false);
-
-  if (includeQuoted) {
-    const quotedMessage = messageContent?.extendedTextMessage?.contextInfo?.quotedMessage;
-    if (quotedMessage) {
-      const quotedMedia = detectAllMediaTypes(quotedMessage, true);
-      allMedia = allMedia.concat(quotedMedia);
-    }
-  }
-
-  let filteredMedia = allMedia;
-
-  if (!includeAllTypes) {
-    filteredMedia = filteredMedia.filter((media) => media.isBinary);
-  }
-
-  if (!includeUnknown) {
-    filteredMedia = filteredMedia.filter((media) => !media.isUnknownType);
-  }
-
-  return filteredMedia;
+  const allMedia = collectMediaFromMessage(message, { includeQuoted });
+  return filterMedia(allMedia, { includeAllTypes, includeUnknown });
 }
 
 /**
@@ -483,14 +531,15 @@ export function extractAllMediaDetails(message, options = {}) {
  * @returns {boolean} True se contem midia
  */
 export function hasMedia(message, specificType = null) {
-  const mediaDetails = extractMediaDetails(message, { includeAllTypes: true, includeUnknown: true });
+  const allMedia = collectMediaFromMessage(message, { includeQuoted: true });
+  const filtered = filterMedia(allMedia, { includeAllTypes: true, includeUnknown: true });
 
-  if (!mediaDetails) {
+  if (!filtered.length) {
     return false;
   }
 
   if (specificType) {
-    return mediaDetails.mediaType === specificType || (mediaDetails.details.allMediaFound && mediaDetails.details.allMediaFound.some((media) => media.mediaType === specificType));
+    return filtered.some((media) => media.mediaType === specificType);
   }
 
   return true;

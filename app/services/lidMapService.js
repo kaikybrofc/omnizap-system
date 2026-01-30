@@ -10,6 +10,9 @@ const BATCH_LIMIT = 800;
 const BACKFILL_DEFAULT_BATCH = 50000;
 const BACKFILL_SOURCE = 'backfill';
 
+const LID_SERVERS = new Set(['lid', 'hosted.lid']);
+const PN_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted']);
+
 const lidCache = new Map();
 const lidWriteBuffer = new Map();
 let lidFlushInProgress = false;
@@ -28,18 +31,30 @@ const updateLidQueueMetric = () => {
 const now = () => Date.now();
 
 /**
- * Verifica se o JID e do tipo LID.
+ * Verifica se o JID e do tipo LID (lid/hosted.lid).
  * @param {string|null|undefined} jid
  * @returns {boolean}
  */
-const isLidJid = (jid) => getJidServer(jid) === 'lid';
+const isLidJid = (jid) => LID_SERVERS.has(getJidServer(jid));
 
 /**
- * Verifica se o JID e do WhatsApp (s.whatsapp.net).
+ * Verifica se o JID e do WhatsApp (s.whatsapp.net/c.us/hosted).
  * @param {string|null|undefined} jid
  * @returns {boolean}
  */
-const isWhatsAppJid = (jid) => getJidServer(jid) === 's.whatsapp.net';
+const isWhatsAppJid = (jid) => PN_SERVERS.has(getJidServer(jid));
+
+const normalizeLid = (lid) => {
+  if (!lid || !isLidJid(lid)) return null;
+  const normalized = normalizeJid(lid);
+  return normalized || null;
+};
+
+const normalizeWhatsAppJid = (jid) => {
+  if (!jid || !isWhatsAppJid(jid)) return null;
+  const normalized = normalizeJid(jid);
+  return normalized || null;
+};
 
 /**
  * Mascara um JID para logs.
@@ -62,13 +77,25 @@ const maskJid = (jid) => {
  */
 const getCacheEntry = (lid) => {
   if (!lid) return null;
+  const nowTs = now();
   const entry = lidCache.get(lid);
-  if (!entry) return null;
-  if (entry.expiresAt && entry.expiresAt < now()) {
-    lidCache.delete(lid);
+  if (entry) {
+    if (entry.expiresAt && entry.expiresAt < nowTs) {
+      lidCache.delete(lid);
+    } else {
+      return entry;
+    }
+  }
+
+  const baseLid = normalizeLid(lid);
+  if (!baseLid || baseLid === lid) return null;
+  const baseEntry = lidCache.get(baseLid);
+  if (!baseEntry) return null;
+  if (baseEntry.expiresAt && baseEntry.expiresAt < nowTs) {
+    lidCache.delete(baseLid);
     return null;
   }
-  return entry;
+  return baseEntry;
 };
 
 /**
@@ -81,11 +108,18 @@ const getCacheEntry = (lid) => {
  */
 const setCacheEntry = (lid, jid, ttlMs, lastStoredAt) => {
   if (!lid) return;
-  lidCache.set(lid, {
-    jid: jid ?? null,
+  const normalizedJid = normalizeWhatsAppJid(jid);
+  const baseLid = normalizeLid(lid);
+  const previousEntry = lidCache.get(lid) || (baseLid ? lidCache.get(baseLid) : null);
+  const entry = {
+    jid: normalizedJid ?? null,
     expiresAt: now() + (ttlMs || CACHE_TTL_MS),
-    lastStoredAt: lastStoredAt ?? lidCache.get(lid)?.lastStoredAt ?? null,
-  });
+    lastStoredAt: lastStoredAt ?? previousEntry?.lastStoredAt ?? null,
+  };
+  lidCache.set(lid, entry);
+  if (baseLid && baseLid !== lid) {
+    lidCache.set(baseLid, entry);
+  }
 };
 
 /**
@@ -132,7 +166,18 @@ export const primeLidCache = async (lids = []) => {
   }
 
   const results = new Map();
-  const chunks = buildChunks(pending);
+  const baseByLid = new Map();
+  const lookupSet = new Set();
+  pending.forEach((lid) => {
+    const base = normalizeLid(lid);
+    baseByLid.set(lid, base);
+    lookupSet.add(lid);
+    if (base && base !== lid) lookupSet.add(base);
+  });
+
+  const lookupList = Array.from(lookupSet);
+  const chunks = buildChunks(lookupList);
+  const rowMap = new Map();
 
   for (const chunk of chunks) {
     const placeholders = chunk.map(() => '?').join(', ');
@@ -141,20 +186,21 @@ export const primeLidCache = async (lids = []) => {
       chunk,
     );
 
-    const found = new Map();
     (rows || []).forEach((row) => {
       if (!row?.lid) return;
       const jid = row.jid && isWhatsAppJid(row.jid) ? normalizeJid(row.jid) : null;
-      found.set(row.lid, jid);
-      setCacheEntry(row.lid, jid, CACHE_TTL_MS);
-      results.set(row.lid, jid);
+      rowMap.set(row.lid, jid);
     });
+  }
 
-    chunk.forEach((lid) => {
-      if (found.has(lid)) return;
-      setCacheEntry(lid, null, NEGATIVE_TTL_MS);
-      results.set(lid, null);
-    });
+  for (const lid of pending) {
+    const base = baseByLid.get(lid);
+    const direct = rowMap.has(lid) ? rowMap.get(lid) : undefined;
+    const baseValue =
+      base && base !== lid && rowMap.has(base) ? rowMap.get(base) : undefined;
+    const resolved = direct ?? baseValue ?? null;
+    setCacheEntry(lid, resolved, resolved ? CACHE_TTL_MS : NEGATIVE_TTL_MS);
+    results.set(lid, resolved);
   }
 
   uniqueLids.forEach((lid) => {
@@ -213,36 +259,58 @@ const buildLidUpsertSql = (rows) => {
  * @returns {{queued: boolean, reconciled: boolean}}
  */
 export const queueLidUpdate = (lid, jid, source = 'message') => {
-  if (!lid || !isLidJid(lid)) return { queued: false, reconciled: false };
+  let resolvedLid = lid;
+  let resolvedJid = jid;
 
-  const normalizedJid = jid && isWhatsAppJid(jid) ? normalizeJid(jid) : null;
-  const cacheEntry = getCacheEntry(lid);
-  const cachedJid = cacheEntry?.jid ?? null;
-  const lastStoredAt = cacheEntry?.lastStoredAt || 0;
-  const nowTs = now();
+  if (!isLidJid(resolvedLid) && isLidJid(resolvedJid) && isWhatsAppJid(resolvedLid)) {
+    resolvedLid = jid;
+    resolvedJid = lid;
+  }
 
-  const mappingChanged = Boolean(normalizedJid && normalizedJid !== cachedJid);
-  const mappingSame = normalizedJid === cachedJid;
-
-  if (mappingSame && nowTs - lastStoredAt < STORE_COOLDOWN_MS) {
+  if (!resolvedLid || !isLidJid(resolvedLid)) {
     return { queued: false, reconciled: false };
   }
 
-  const buffered = lidWriteBuffer.get(lid);
-  const effectiveJid = normalizedJid ?? buffered?.jid ?? cachedJid ?? null;
-  const entry = {
-    lid,
-    jid: effectiveJid,
-    source,
-    queuedAt: nowTs,
-    reconcileJid: mappingChanged ? normalizedJid : null,
-  };
+  const normalizedJid = resolvedJid && isWhatsAppJid(resolvedJid) ? normalizeJid(resolvedJid) : null;
+  const lidsToUpdate = new Set([resolvedLid]);
+  const baseLid = normalizeLid(resolvedLid);
+  if (baseLid && baseLid !== resolvedLid) lidsToUpdate.add(baseLid);
 
-  lidWriteBuffer.set(lid, entry);
-  setCacheEntry(lid, effectiveJid, CACHE_TTL_MS, nowTs);
-  updateLidQueueMetric();
+  let queued = false;
+  let reconciled = false;
 
-  return { queued: true, reconciled: Boolean(entry.reconcileJid) };
+  for (const targetLid of lidsToUpdate) {
+    const cacheEntry = getCacheEntry(targetLid);
+    const cachedJid = cacheEntry?.jid ?? null;
+    const lastStoredAt = cacheEntry?.lastStoredAt || 0;
+    const nowTs = now();
+
+    const mappingChanged = Boolean(normalizedJid && normalizedJid !== cachedJid);
+    const mappingSame = normalizedJid === cachedJid;
+
+    if (mappingSame && nowTs - lastStoredAt < STORE_COOLDOWN_MS) {
+      continue;
+    }
+
+    const buffered = lidWriteBuffer.get(targetLid);
+    const effectiveJid = normalizedJid ?? buffered?.jid ?? cachedJid ?? null;
+    const entry = {
+      lid: targetLid,
+      jid: effectiveJid,
+      source,
+      queuedAt: nowTs,
+      reconcileJid: mappingChanged ? normalizedJid : null,
+    };
+
+    lidWriteBuffer.set(targetLid, entry);
+    setCacheEntry(targetLid, effectiveJid, CACHE_TTL_MS, nowTs);
+    queued = true;
+    reconciled = reconciled || Boolean(entry.reconcileJid);
+  }
+
+  if (queued) updateLidQueueMetric();
+
+  return { queued, reconciled };
 };
 
 /**
@@ -271,10 +339,40 @@ const fetchJidByLid = async (lid) => {
   const cached = getCachedJidForLid(lid);
   if (cached !== undefined) return cached || null;
 
-  const rows = await executeQuery(`SELECT jid FROM ${TABLES.LID_MAP} WHERE lid = ? LIMIT 1`, [lid]);
-  const jid = rows?.[0]?.jid && isWhatsAppJid(rows[0].jid) ? normalizeJid(rows[0].jid) : null;
-  setCacheEntry(lid, jid, jid ? CACHE_TTL_MS : NEGATIVE_TTL_MS);
-  return jid;
+  const candidates = [lid];
+  const base = normalizeLid(lid);
+  if (base && base !== lid) candidates.push(base);
+
+  const placeholders = candidates.map(() => '?').join(', ');
+  const rows = await executeQuery(
+    `SELECT lid, jid FROM ${TABLES.LID_MAP} WHERE lid IN (${placeholders})`,
+    candidates,
+  );
+
+  const rowMap = new Map();
+  (rows || []).forEach((row) => {
+    if (!row?.lid) return;
+    const jid = row.jid && isWhatsAppJid(row.jid) ? normalizeJid(row.jid) : null;
+    rowMap.set(row.lid, jid);
+  });
+
+  const direct = rowMap.has(lid) ? rowMap.get(lid) : undefined;
+  const baseValue = base && base !== lid && rowMap.has(base) ? rowMap.get(base) : undefined;
+  const resolved = direct ?? baseValue ?? null;
+  const shouldSeedDerived = Boolean(resolved && direct === undefined && baseValue !== undefined);
+
+  setCacheEntry(
+    lid,
+    resolved,
+    resolved ? CACHE_TTL_MS : NEGATIVE_TTL_MS,
+    shouldSeedDerived ? 0 : undefined,
+  );
+
+  if (shouldSeedDerived) {
+    queueLidUpdate(lid, resolved, 'derived');
+  }
+
+  return resolved;
 };
 
 /**
@@ -475,8 +573,8 @@ const runBackfillBatch = async (fromId, toId) => {
         AND m.raw_message IS NOT NULL
         AND m.timestamp IS NOT NULL
     ) s
-    WHERE s.lid LIKE '%@lid'
-      AND s.jid LIKE '%@s.whatsapp.net'
+    WHERE (s.lid LIKE '%@lid' OR s.lid LIKE '%@hosted.lid')
+      AND (s.jid LIKE '%@s.whatsapp.net' OR s.jid LIKE '%@c.us' OR s.jid LIKE '%@hosted')
     GROUP BY s.lid, s.jid
     ON DUPLICATE KEY UPDATE
       jid = COALESCE(VALUES(jid), ${TABLES.LID_MAP}.jid),
