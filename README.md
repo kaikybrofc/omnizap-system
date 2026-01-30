@@ -125,10 +125,6 @@ Siga os passos para configurar e executar:
 4.  **Prepare o banco de dados:**
     *   Crie o banco indicado em `DB_NAME`.
     *   Garanta que o usuário tenha permissões de leitura e escrita.
-    *   Execute a migração de LID (produção/ambientes existentes):
-        ```bash
-        mysql -u <usuario> -p <seu_db> < database/migrations/2026-01-23_add_lid_map.sql
-        ```
 
 ## 🧩 Suporte a LID/JID (Baileys)
 
@@ -172,15 +168,6 @@ pm2 start ecosystem.prod.config.js # Produção
 ```
 
 Alerta: use o PM2 somente depois de conectar o QR code no modo normal, pois o PM2 não exibe o QR de conexão.
-
-## 📦 Scripts úteis
-
-```bash
-npm run start   # node index.js
-npm run dev     # node index.js
-npm run pm2:dev
-npm run pm2:prod
-```
 
 ## 📈 Observabilidade (Grafana/Prometheus/Loki)
 

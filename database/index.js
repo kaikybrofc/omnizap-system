@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-useless-escape */
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
 import fs from 'node:fs';
@@ -20,9 +22,7 @@ const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
-  logger.error(
-    `Variáveis de ambiente de banco de dados necessárias não encontradas: ${missingEnvVars.join(', ')}`,
-  );
+  logger.error(`Variáveis de ambiente de banco de dados necessárias não encontradas: ${missingEnvVars.join(', ')}`);
   process.exit(1);
 }
 
@@ -507,10 +507,7 @@ function normalizeSql(sql) {
   normalized = normalized.replace(/'(?:\\'|''|[^'])*'/g, '?');
   normalized = normalized.replace(/"(?:\\"|""|[^"])*"/g, '?');
   normalized = normalized.replace(/\b0x[0-9a-f]+\b/gi, '?');
-  normalized = normalized.replace(
-    /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
-    '?',
-  );
+  normalized = normalized.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, '?');
   normalized = normalized.replace(/\b\d+(\.\d+)?\b/g, '?');
   normalized = normalized.replace(/\s+/g, ' ').trim();
   return normalized.toUpperCase();
@@ -694,8 +691,7 @@ function extractResultStats(result) {
   const looksLikeFields =
     Array.isArray(result) &&
     result.length === 2 &&
-    ((Array.isArray(result[1]) &&
-      (result[1].length === 0 || typeof result[1][0] === 'object')) ||
+    ((Array.isArray(result[1]) && (result[1].length === 0 || typeof result[1][0] === 'object')) ||
       result[1] === undefined ||
       result[1] === null);
   if (looksLikeFields) {
@@ -744,26 +740,14 @@ function maybePruneFingerprints() {
   if (dbStats.fingerprints.size <= MAX_FINGERPRINTS) {
     return;
   }
-  const entries = Array.from(dbStats.fingerprints.values()).sort(
-    (a, b) => a.lastSeenAt - b.lastSeenAt,
-  );
+  const entries = Array.from(dbStats.fingerprints.values()).sort((a, b) => a.lastSeenAt - b.lastSeenAt);
   const removeCount = Math.max(1, Math.ceil(entries.length * 0.1));
   for (let i = 0; i < removeCount; i += 1) {
     dbStats.fingerprints.delete(entries[i].fingerprint);
   }
 }
 
-function recordStats({
-  fingerprint,
-  normalizedSql,
-  type,
-  table,
-  durationMs,
-  ok,
-  rowCount,
-  affectedRows,
-  isSlow,
-}) {
+function recordStats({ fingerprint, normalizedSql, type, table, durationMs, ok, rowCount, affectedRows, isSlow }) {
   dbStats.counters.total += 1;
   if (!ok) {
     dbStats.counters.error += 1;
@@ -892,7 +876,10 @@ async function runExplain({ sql, params, executor, traceId }) {
   if (!original) {
     return;
   }
-  const explainSql = String(sql ?? '').trim().toUpperCase().startsWith('EXPLAIN')
+  const explainSql = String(sql ?? '')
+    .trim()
+    .toUpperCase()
+    .startsWith('EXPLAIN')
     ? sql
     : `EXPLAIN ${sql}`;
   try {

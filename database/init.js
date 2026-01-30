@@ -3,7 +3,6 @@ import logger from '../app/utils/logger/loggerModule.js';
 import { dbConfig, TABLES } from './index.js';
 
 import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 
 const dbToCreate = dbConfig.database;
 
