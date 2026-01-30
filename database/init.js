@@ -1,17 +1,44 @@
 import mysql from 'mysql2/promise';
 import logger from '../app/utils/logger/loggerModule.js';
 import { dbConfig, TABLES } from './index.js';
-
 import { fileURLToPath } from 'node:url';
 
+/**
+ * Nome do banco de dados que será criado ou validado.
+ * Já vem resolvido com sufixo _dev ou _prod via dbConfig.
+ * @type {string}
+ */
 const dbToCreate = dbConfig.database;
 
+/**
+ * SQL para criar o banco de dados caso ainda não exista.
+ * Usa:
+ * - utf8mb4: suporte total a emojis e caracteres unicode
+ * - utf8mb4_unicode_ci: collation consistente para buscas
+ */
 const createDatabaseSQL = `
   CREATE DATABASE IF NOT EXISTS \`${dbToCreate}\`
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
 `;
 
+/**
+ * Tabela MESSAGES
+ * Armazena todas as mensagens processadas pelo sistema.
+ *
+ * Campos importantes:
+ * - message_id: ID global do WhatsApp (único)
+ * - chat_id: conversa (grupo ou privado)
+ * - sender_id: remetente da mensagem
+ * - content: texto extraído
+ * - raw_message: JSON original da Baileys
+ * - timestamp: timestamp da mensagem no WhatsApp
+ *
+ * Índices:
+ * - chat_id + timestamp → leitura de histórico por conversa
+ * - sender_id → estatísticas por usuário
+ * - timestamp → ordenação global
+ */
 const createMessagesTableSQL = `
   CREATE TABLE IF NOT EXISTS ${TABLES.MESSAGES} (
     id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -28,6 +55,14 @@ const createMessagesTableSQL = `
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
+/**
+ * Tabela CHATS
+ * Representa uma conversa (grupo ou privado).
+ *
+ * - id → JID do WhatsApp
+ * - name → nome do grupo ou contato
+ * - raw_chat → JSON bruto retornado pela Baileys
+ */
 const createChatsTableSQL = `
   CREATE TABLE IF NOT EXISTS ${TABLES.CHATS} (
     id VARCHAR(255) PRIMARY KEY NOT NULL,
@@ -37,6 +72,18 @@ const createChatsTableSQL = `
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
+/**
+ * Tabela GROUPS_METADATA
+ * Armazena informações normalizadas de grupos.
+ *
+ * Usada para:
+ * - admin commands
+ * - estatísticas
+ * - sincronização de participantes
+ *
+ * participants é JSON para armazenar:
+ * [{ jid, lid, admin }, ...]
+ */
 const createGroupsMetadataTableSQL = `
   CREATE TABLE IF NOT EXISTS ${TABLES.GROUPS_METADATA} (
     id VARCHAR(255) PRIMARY KEY NOT NULL,
@@ -49,6 +96,15 @@ const createGroupsMetadataTableSQL = `
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
+/**
+ * Tabela GROUP_CONFIGS
+ * Configurações específicas por grupo.
+ *
+ * Exemplo:
+ * - prefixo de comandos
+ * - anti-link
+ * - modo restrito
+ */
 const createGroupConfigsTableSQL = `
   CREATE TABLE IF NOT EXISTS ${TABLES.GROUP_CONFIGS} (
     id VARCHAR(255) PRIMARY KEY NOT NULL,
@@ -57,6 +113,21 @@ const createGroupConfigsTableSQL = `
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
+/**
+ * Tabela LID_MAP
+ * Mapeia IDs temporários do WhatsApp (LID) para JIDs reais.
+ *
+ * Isso resolve problemas de:
+ * - mensagens vindo com "xxx@lid"
+ * - alternância entre lid e s.whatsapp.net
+ *
+ * Campos:
+ * - lid → chave primária
+ * - jid → jid real associado
+ * - first_seen → quando apareceu
+ * - last_seen → última vez visto
+ * - source → origem do dado (message, group, etc)
+ */
 const createLidMapTableSQL = `
   CREATE TABLE IF NOT EXISTS ${TABLES.LID_MAP} (
     lid VARCHAR(64) PRIMARY KEY,
@@ -70,11 +141,21 @@ const createLidMapTableSQL = `
 `;
 
 /**
- * Inicializa o banco de dados e garante a existência das tabelas.
- * @returns {Promise<void>} Conclui após criar banco e tabelas.
+ * Inicializa o banco de dados:
+ * 1) Conecta ao MySQL sem database
+ * 2) Cria o banco se não existir
+ * 3) Muda para o database correto
+ * 4) Cria todas as tabelas
+ * 5) Encerra a conexão
+ *
+ * Este script é idempotente:
+ * pode ser rodado várias vezes sem quebrar nada.
+ *
+ * @returns {Promise<void>}
  */
 export default async function initializeDatabase() {
   let connection;
+
   try {
     connection = await mysql.createConnection({
       host: dbConfig.host,
@@ -82,11 +163,14 @@ export default async function initializeDatabase() {
       password: dbConfig.password,
     });
 
+    // Cria/verifica o banco
     await connection.query(createDatabaseSQL);
     logger.info(`Banco de dados '${dbToCreate}' verificado/criado com sucesso.`);
 
+    // Seleciona o banco recém-criado
     await connection.changeUser({ database: dbToCreate });
 
+    // Cria todas as tabelas em paralelo
     await Promise.all([
       connection.query(createMessagesTableSQL),
       connection.query(createChatsTableSQL),
@@ -107,6 +191,10 @@ export default async function initializeDatabase() {
   }
 }
 
+/**
+ * Permite que este arquivo seja executado diretamente:
+ * node database/init.js
+ */
 const __filename = fileURLToPath(import.meta.url);
 
 if (process.argv[1] === __filename) {
