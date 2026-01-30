@@ -21,12 +21,7 @@ import { recordError, recordMessagesUpsert } from '../observability/metrics.js';
 import { handleGroupUpdate as handleGroupParticipantsEvent } from '../modules/adminModule/groupEventHandlers.js';
 
 import { findBy, findById, remove } from '../../database/index.js';
-import {
-  primeLidCache,
-  resolveUserIdCached,
-  isLidUserId,
-  isWhatsAppUserId,
-} from '../services/lidMapService.js';
+import { primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../services/lidMapService.js';
 import { queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
 import {
   buildGroupMetadataFromGroup,
@@ -199,9 +194,7 @@ const summarizeBaileysEventPayload = (eventName, payload) => {
 };
 
 const registerBaileysEventLoggers = (sock) => {
-  const eventsToLog = BAILEYS_EVENT_NAMES.filter(
-    (eventName) => !BAILEYS_EVENTS_WITH_INTERNAL_LOG.has(eventName),
-  );
+  const eventsToLog = BAILEYS_EVENT_NAMES.filter((eventName) => !BAILEYS_EVENTS_WITH_INTERNAL_LOG.has(eventName));
 
   for (const eventName of eventsToLog) {
     sock.ev.on(eventName, (payload) => {
@@ -314,8 +307,7 @@ async function persistIncomingMessages(incomingMessages, type) {
       queueLidUpdate(senderInfo.lid, senderInfo.jid, 'message');
     }
 
-    const canonicalSenderId =
-      resolveUserIdCached(senderInfo) || msg.key.participant || msg.key.remoteJid;
+    const canonicalSenderId = resolveUserIdCached(senderInfo) || msg.key.participant || msg.key.remoteJid;
 
     const messageData = buildMessageData(msg, canonicalSenderId);
     queueMessageInsert(messageData);
@@ -589,8 +581,7 @@ async function handleConnectionUpdate(update, sock) {
     const disconnectCode = lastDisconnect?.error?.output?.statusCode || 'unknown';
     const errorMessage = lastDisconnect?.error?.message || 'Sem mensagem de erro';
 
-    const shouldReconnect =
-      lastDisconnect?.error instanceof Boom && disconnectCode !== DisconnectReason.loggedOut;
+    const shouldReconnect = lastDisconnect?.error instanceof Boom && disconnectCode !== DisconnectReason.loggedOut;
 
     if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       connectionAttempts++;
@@ -648,15 +639,12 @@ async function handleConnectionUpdate(update, sock) {
         });
       }
 
-      logger.info(
-        `📁 Metadados de ${Object.keys(allGroups).length} grupos sincronizados com MySQL.`,
-        {
-          action: 'groups_synced',
-          count: Object.keys(allGroups).length,
-          groupIds: Object.keys(allGroups),
-          timestamp: new Date().toISOString(),
-        },
-      );
+      logger.info(`📁 Metadados de ${Object.keys(allGroups).length} grupos sincronizados com MySQL.`, {
+        action: 'groups_synced',
+        count: Object.keys(allGroups).length,
+        groupIds: Object.keys(allGroups),
+        timestamp: new Date().toISOString(),
+      });
     } catch (error) {
       logger.error('❌ Erro ao carregar metadados de grupos na conexão.', {
         action: 'groups_load_error',

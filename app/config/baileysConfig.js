@@ -1,3 +1,6 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-undef */
+/* eslint-disable no-useless-escape */
 import {
   fetchLatestBaileysVersion,
   downloadContentFromMessage,
