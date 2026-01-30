@@ -43,6 +43,184 @@ let activeSocket = null;
 let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 3000;
+const BAILEYS_EVENT_NAMES = [
+  'connection.update',
+  'creds.update',
+  'messaging-history.set',
+  'chats.upsert',
+  'chats.update',
+  'lid-mapping.update',
+  'chats.delete',
+  'presence.update',
+  'contacts.upsert',
+  'contacts.update',
+  'messages.delete',
+  'messages.update',
+  'messages.media-update',
+  'messages.upsert',
+  'messages.reaction',
+  'message-receipt.update',
+  'groups.upsert',
+  'groups.update',
+  'group-participants.update',
+  'group.join-request',
+  'group.member-tag.update',
+  'blocklist.set',
+  'blocklist.update',
+  'call',
+  'labels.edit',
+  'labels.association',
+  'newsletter.reaction',
+  'newsletter.view',
+  'newsletter-participants.update',
+  'newsletter-settings.update',
+  'chats.lock',
+  'settings.update',
+];
+const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set([
+  'creds.update',
+  'connection.update',
+  'messages.upsert',
+  'messages.update',
+  'groups.update',
+  'group-participants.update',
+]);
+
+const summarizeBaileysEventPayload = (eventName, payload) => {
+  if (payload === null) return { payloadType: 'null' };
+  if (payload === undefined) return { payloadType: 'undefined' };
+  if (Buffer.isBuffer(payload)) {
+    return { payloadType: 'buffer', bytes: payload.length };
+  }
+
+  if (Array.isArray(payload)) {
+    const summary = { payloadType: 'array', items: payload.length };
+    if (payload.length > 0 && payload[0] && typeof payload[0] === 'object') {
+      summary.sampleKeys = Object.keys(payload[0]).slice(0, 6);
+    }
+    return summary;
+  }
+
+  if (typeof payload !== 'object') {
+    if (typeof payload === 'string') {
+      return { payloadType: 'string', length: payload.length };
+    }
+    return { payloadType: typeof payload, value: payload };
+  }
+
+  const summary = { payloadType: 'object', keys: Object.keys(payload).slice(0, 10) };
+
+  switch (eventName) {
+    case 'messaging-history.set':
+      summary.chats = Array.isArray(payload.chats) ? payload.chats.length : 0;
+      summary.contacts = Array.isArray(payload.contacts) ? payload.contacts.length : 0;
+      summary.messages = Array.isArray(payload.messages) ? payload.messages.length : 0;
+      summary.isLatest = payload.isLatest ?? null;
+      summary.progress = payload.progress ?? null;
+      summary.syncType = payload.syncType ?? null;
+      break;
+    case 'presence.update':
+      summary.id = payload.id ?? null;
+      summary.presencesCount = payload.presences ? Object.keys(payload.presences).length : 0;
+      break;
+    case 'chats.lock':
+      summary.id = payload.id ?? null;
+      summary.locked = payload.locked ?? null;
+      break;
+    case 'settings.update':
+      summary.setting = payload.setting ?? null;
+      break;
+    case 'messages.delete':
+      if (payload.all === true) {
+        summary.all = true;
+        summary.jid = payload.jid ?? null;
+      } else if (Array.isArray(payload.keys)) {
+        summary.keysCount = payload.keys.length;
+      }
+      break;
+    case 'blocklist.set':
+      summary.blocklistCount = Array.isArray(payload.blocklist) ? payload.blocklist.length : 0;
+      break;
+    case 'blocklist.update':
+      summary.blocklistCount = Array.isArray(payload.blocklist) ? payload.blocklist.length : 0;
+      summary.type = payload.type ?? null;
+      break;
+    case 'group.join-request':
+      summary.groupId = payload.id ?? null;
+      summary.participant = payload.participant ?? null;
+      summary.action = payload.action ?? null;
+      summary.method = payload.method ?? null;
+      break;
+    case 'group.member-tag.update':
+      summary.groupId = payload.groupId ?? null;
+      summary.participant = payload.participant ?? null;
+      summary.label = payload.label ?? null;
+      break;
+    case 'labels.association':
+      summary.type = payload.type ?? null;
+      summary.labelId = payload.association?.labelId ?? null;
+      summary.chatId = payload.association?.chatId ?? null;
+      break;
+    case 'labels.edit':
+      summary.labelId = payload.id ?? null;
+      summary.labelName = payload.name ?? payload.label ?? null;
+      break;
+    case 'newsletter.reaction':
+      summary.id = payload.id ?? null;
+      summary.serverId = payload.server_id ?? null;
+      summary.reactionCode = payload.reaction?.code ?? null;
+      summary.reactionCount = payload.reaction?.count ?? null;
+      summary.reactionRemoved = payload.reaction?.removed ?? null;
+      break;
+    case 'newsletter.view':
+      summary.id = payload.id ?? null;
+      summary.serverId = payload.server_id ?? null;
+      summary.count = payload.count ?? null;
+      break;
+    case 'newsletter-participants.update':
+      summary.id = payload.id ?? null;
+      summary.user = payload.user ?? null;
+      summary.action = payload.action ?? null;
+      summary.newRole = payload.new_role ?? null;
+      break;
+    case 'newsletter-settings.update':
+      summary.id = payload.id ?? null;
+      summary.updateKeys = payload.update ? Object.keys(payload.update).slice(0, 6) : [];
+      break;
+    case 'lid-mapping.update':
+      summary.lid = payload.lid ?? null;
+      summary.jid = payload.jid ?? null;
+      break;
+    default:
+      break;
+  }
+
+  return summary;
+};
+
+const registerBaileysEventLoggers = (sock) => {
+  const eventsToLog = BAILEYS_EVENT_NAMES.filter(
+    (eventName) => !BAILEYS_EVENTS_WITH_INTERNAL_LOG.has(eventName),
+  );
+
+  for (const eventName of eventsToLog) {
+    sock.ev.on(eventName, (payload) => {
+      const summary = summarizeBaileysEventPayload(eventName, payload);
+      logger.debug('Evento Baileys recebido.', {
+        action: 'baileys_event',
+        event: eventName,
+        ...summary,
+        timestamp: new Date().toISOString(),
+      });
+    });
+  }
+
+  logger.debug('Loggers de eventos Baileys registrados.', {
+    action: 'baileys_event_logger_ready',
+    eventsCount: eventsToLog.length,
+    events: eventsToLog,
+  });
+};
 
 /**
  * Faz parse seguro de JSON com suporte a Buffer e retorna fallback em caso de erro.
@@ -379,6 +557,8 @@ export async function connectToWhatsApp() {
       });
     }
   });
+
+  registerBaileysEventLoggers(sock);
 
   logger.info('Conexão com o WhatsApp estabelecida com sucesso.', {
     action: 'connect_success',
