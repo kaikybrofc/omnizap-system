@@ -14,6 +14,7 @@ import { extractMessageContent, getExpiration, isGroupJid, resolveBotJid } from 
 import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { handleCatCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
+import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js';
 import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
 import { handleStickerConvertCommand } from '../modules/stickerModule/stickerConvertCommand.js';
 import {
@@ -375,6 +376,21 @@ export const handleMessages = async (update, sock) => {
 
             case 'ping':
               runCommand('ping', () => handlePingCommand({ sock, remoteJid, messageInfo, expirationMessage }));
+              break;
+
+            case 'aviso':
+            case 'notice':
+              runCommand('aviso', () =>
+                handleNoticeCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  senderJid,
+                  text,
+                  commandPrefix,
+                }),
+              );
               break;
 
             default: {

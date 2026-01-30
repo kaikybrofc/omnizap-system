@@ -125,16 +125,62 @@ const runWithConcurrency = async (items, limit, workerFn, onProgress) => {
 };
 
 const parseNoticeArgs = (text = '') => {
-  const tokens = text.trim().split(/\s+/).filter(Boolean);
   let mode = 'default';
-  const remaining = [];
-  tokens.forEach((token) => {
-    const lower = token.toLowerCase();
-    if (lower === '-fast') mode = 'fast';
-    else if (lower === '-safe') mode = 'safe';
-    else remaining.push(token);
+  let remaining = text || '';
+  while (true) {
+    const match = remaining.match(/^\s*(-fast|-safe)(?=\s|$)/i);
+    if (!match) break;
+    const flag = match[1].toLowerCase();
+    if (flag === '-fast') mode = 'fast';
+    else if (flag === '-safe') mode = 'safe';
+    remaining = remaining.slice(match[0].length);
+  }
+  return { mode, message: remaining };
+};
+
+const UNICODE_SPACES_REGEX = /[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g;
+const INVISIBLE_TO_SPACE_REGEX = /[\u200B\u2060\u180E\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+const INVISIBLE_REMOVE_REGEX = /[\u00AD\uFEFF]/g;
+
+const countMatches = (value, regex) => {
+  if (!value) return 0;
+  const matches = value.match(regex);
+  return matches ? matches.length : 0;
+};
+
+const getTextStats = (value) => {
+  const text = String(value ?? '');
+  const normalizedLineBreaks = text.replace(/\r\n?/g, '\n').replace(/\u2028|\u2029/g, '\n');
+  return {
+    length: text.length,
+    lines: text ? normalizedLineBreaks.split('\n').length : 0,
+  };
+};
+
+const normalizeWhatsAppText = (input = '') => {
+  let text = String(input ?? '');
+  if (!text) return '';
+  text = text.replace(/\r\n?/g, '\n').replace(/\u2028|\u2029/g, '\n');
+  text = text.replace(UNICODE_SPACES_REGEX, ' ');
+  text = text.replace(/\t/g, ' ');
+  text = text.replace(INVISIBLE_REMOVE_REGEX, '');
+  text = text.replace(INVISIBLE_TO_SPACE_REGEX, ' ');
+
+  const lines = text.split('\n');
+  const normalizedLines = lines.map((line) => {
+    if (!line) return '';
+    const spaceRuns = line.match(/ {2,}/g);
+    const hasMultipleSpaceRuns = spaceRuns && spaceRuns.length >= 2;
+    const isFormatted =
+      /^\s{2,}/.test(line) || /^\s*```/.test(line) || line.includes('|') || hasMultipleSpaceRuns;
+    if (isFormatted) {
+      return line.replace(/ {6,}/g, '  ');
+    }
+    return line.replace(/ {3,}/g, ' ');
   });
-  return { mode, message: remaining.join(' ').trim() };
+
+  const normalized = normalizedLines.join('\n');
+  return /[^\s]/.test(normalized) ? normalized : '';
 };
 
 /**
@@ -191,11 +237,35 @@ export async function handleNoticeCommand({
     return;
   }
 
-  const { mode, message: noticeText } = parseNoticeArgs(text || '');
-  if (!noticeText) {
+  const { mode, message: rawNoticeText } = parseNoticeArgs(text || '');
+  if (!rawNoticeText || !rawNoticeText.replace(/\s/g, '')) {
     await sock.sendMessage(
       remoteJid,
       { text: `Uso: ${commandPrefix}aviso [-fast|-safe] <mensagem>` },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+    return;
+  }
+
+  const noticeStatsBefore = getTextStats(rawNoticeText);
+  const unicodeSpaceCount = countMatches(rawNoticeText, UNICODE_SPACES_REGEX);
+  const invisibleCount =
+    countMatches(rawNoticeText, INVISIBLE_TO_SPACE_REGEX) +
+    countMatches(rawNoticeText, INVISIBLE_REMOVE_REGEX);
+  const normalizedNoticeText = normalizeWhatsAppText(rawNoticeText);
+  const noticeStatsAfter = getTextStats(normalizedNoticeText);
+
+  logger.info(
+    `handleNoticeCommand Normalizacao do aviso: tamanho ${noticeStatsBefore.length}->${noticeStatsAfter.length} | linhas ${noticeStatsBefore.lines}->${noticeStatsAfter.lines} | invisiveis ${invisibleCount} | espacosUnicode ${unicodeSpaceCount}`,
+  );
+
+  if (!normalizedNoticeText) {
+    logger.warn(
+      `handleNoticeCommand Aviso vazio apos normalizacao: tamanho ${noticeStatsBefore.length} | linhas ${noticeStatsBefore.lines}`,
+    );
+    await sock.sendMessage(
+      remoteJid,
+      { text: '❌ A mensagem do aviso ficou vazia após a normalização.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return;
@@ -239,7 +309,7 @@ export async function handleNoticeCommand({
   await sock.sendMessage(
     remoteJid,
     {
-      text: `📋 Grupos (${groups.length}):\n${groupListText}\n\n📣 Aviso:\n${noticeText}\n\n🚀 Iniciando envio (modo ${mode}).\nConcorrência: ${config.concurrency} | Jitter: ${config.jitterMin}-${config.jitterMax}ms | Retries: ${config.retries}`,
+      text: `📋 Grupos (${groups.length}):\n${groupListText}\n\n📣 Aviso:\n${normalizedNoticeText}\n\n🚀 Iniciando envio (modo ${mode}).\nConcorrência: ${config.concurrency} | Jitter: ${config.jitterMin}-${config.jitterMax}ms | Retries: ${config.retries}`,
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
@@ -273,7 +343,7 @@ export async function handleNoticeCommand({
         if (globalBackoffUntil > now) {
           await sleep(globalBackoffUntil - now);
         }
-        await sock.sendMessage(group.id, { image: imageBuffer, caption: noticeText });
+        await sock.sendMessage(group.id, { image: imageBuffer, caption: normalizedNoticeText });
       };
 
       await withRetry(sendOnce, {
