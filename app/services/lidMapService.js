@@ -1,6 +1,7 @@
 import logger from '../utils/logger/loggerModule.js';
 import { executeQuery, TABLES } from '../../database/index.js';
-import { getJidServer, normalizeJid } from '../config/baileysConfig.js';
+import { getJidServer, normalizeJid, isGroupJid } from '../config/baileysConfig.js';
+import { buildRowPlaceholders, createFlushRunner } from './queueUtils.js';
 import { recordError, setQueueDepth } from '../observability/metrics.js';
 
 const CACHE_TTL_MS = 20 * 60 * 1000;
@@ -15,8 +16,6 @@ const PN_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted']);
 
 const lidCache = new Map();
 const lidWriteBuffer = new Map();
-let lidFlushInProgress = false;
-let lidFlushRequested = false;
 
 let backfillPromise = null;
 
@@ -239,8 +238,7 @@ const pickLid = (...candidates) => {
 };
 
 const buildLidUpsertSql = (rows) => {
-  const placeholders = Array.from({ length: rows }, () => '(?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)')
-    .join(', ');
+  const placeholders = buildRowPlaceholders(rows, '(?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)');
   return `
     INSERT INTO ${TABLES.LID_MAP} (lid, jid, first_seen, last_seen, source)
     VALUES ${placeholders}
@@ -331,6 +329,34 @@ export const resolveUserIdCached = ({ lid, jid, participantAlt } = {}) => {
 };
 
 /**
+ * Extrai informacoes do remetente a partir de uma mensagem do Baileys.
+ * @param {import('@whiskeysockets/baileys').WAMessage} msg
+ * @returns {{lid: string|null, jid: string|null, participantAlt: string|null, remoteJid: string|null, groupMessage: boolean}}
+ */
+export const extractSenderInfoFromMessage = (msg) => {
+  const remoteJid = msg?.key?.remoteJid || null;
+  const participant = msg?.key?.participant || null;
+  const participantAlt = msg?.key?.participantAlt || null;
+  const groupMessage = isGroupJid(remoteJid);
+
+  let lid = null;
+  let jid = null;
+
+  if (groupMessage) {
+    if (isWhatsAppJid(participant)) jid = participant;
+    if (isLidJid(participant)) lid = participant;
+    if (isWhatsAppJid(participantAlt)) jid = participantAlt;
+    if (!lid && isLidJid(participantAlt)) lid = participantAlt;
+  } else {
+    if (isWhatsAppJid(remoteJid)) jid = remoteJid;
+    if (!jid && isWhatsAppJid(participant)) jid = participant;
+    if (isLidJid(participant)) lid = participant;
+  }
+
+  return { lid, jid, participantAlt, remoteJid, groupMessage };
+};
+
+/**
  * Busca JID para um LID no banco e atualiza cache.
  * @param {string} lid
  * @returns {Promise<string|null>}
@@ -414,70 +440,69 @@ export const reconcileLidToJid = async ({ lid, jid, source = 'map' } = {}) => {
   return { updated };
 };
 
+const flushLidQueueCore = async () => {
+  if (lidWriteBuffer.size === 0) return;
+  const entries = Array.from(lidWriteBuffer.values());
+  for (let i = 0; i < entries.length; i += BATCH_LIMIT) {
+    const batch = entries.slice(i, i + BATCH_LIMIT);
+    if (!batch.length) continue;
+
+    const sql = buildLidUpsertSql(batch.length);
+    const params = [];
+    for (const entry of batch) {
+      params.push(entry.lid, entry.jid, entry.source);
+    }
+
+    try {
+      await executeQuery(sql, params);
+    } catch (error) {
+      logger.error('Falha ao persistir batch do lid_map.', { error: error.message });
+      recordError('lid_map');
+      break;
+    }
+
+    const reconcileTargets = [];
+    for (const entry of batch) {
+      const current = lidWriteBuffer.get(entry.lid);
+      if (!current || current.queuedAt === entry.queuedAt) {
+        lidWriteBuffer.delete(entry.lid);
+      }
+      if (entry.reconcileJid) {
+        reconcileTargets.push({ lid: entry.lid, jid: entry.reconcileJid, source: entry.source });
+      }
+    }
+
+    updateLidQueueMetric();
+    if (reconcileTargets.length > 0) {
+      setImmediate(() => {
+        for (const target of reconcileTargets) {
+          reconcileLidToJid(target).catch((error) => {
+            logger.warn('Falha ao reconciliar lid->jid.', { error: error.message });
+            recordError('lid_map_reconcile');
+          });
+        }
+      });
+    }
+  }
+};
+
+const lidFlushRunner = createFlushRunner({
+  onFlush: flushLidQueueCore,
+  onError: (error) => {
+    logger.error('Falha ao executar flush do lid_map.', { error: error.message });
+    recordError('lid_map');
+  },
+  onFinally: () => {
+    updateLidQueueMetric();
+  },
+});
+
 /**
  * Executa o flush do buffer lid_map em batch.
  * @returns {Promise<void>}
  */
 export const flushLidQueue = async () => {
-  if (lidFlushInProgress) {
-    lidFlushRequested = true;
-    return;
-  }
-  lidFlushInProgress = true;
-  try {
-    if (lidWriteBuffer.size === 0) return;
-    const entries = Array.from(lidWriteBuffer.values());
-    for (let i = 0; i < entries.length; i += BATCH_LIMIT) {
-      const batch = entries.slice(i, i + BATCH_LIMIT);
-      if (!batch.length) continue;
-
-      const sql = buildLidUpsertSql(batch.length);
-      const params = [];
-      for (const entry of batch) {
-        params.push(entry.lid, entry.jid, entry.source);
-      }
-
-      try {
-        await executeQuery(sql, params);
-      } catch (error) {
-        logger.error('Falha ao persistir batch do lid_map.', { error: error.message });
-        recordError('lid_map');
-        break;
-      }
-
-      const reconcileTargets = [];
-      for (const entry of batch) {
-        const current = lidWriteBuffer.get(entry.lid);
-        if (!current || current.queuedAt === entry.queuedAt) {
-          lidWriteBuffer.delete(entry.lid);
-        }
-        if (entry.reconcileJid) {
-          reconcileTargets.push({ lid: entry.lid, jid: entry.reconcileJid, source: entry.source });
-        }
-      }
-
-      updateLidQueueMetric();
-      if (reconcileTargets.length > 0) {
-        setImmediate(() => {
-          for (const target of reconcileTargets) {
-            reconcileLidToJid(target).catch((error) => {
-              logger.warn('Falha ao reconciliar lid->jid.', { error: error.message });
-              recordError('lid_map_reconcile');
-            });
-          }
-        });
-      }
-    }
-  } finally {
-    lidFlushInProgress = false;
-    updateLidQueueMetric();
-    if (lidFlushRequested) {
-      lidFlushRequested = false;
-      setImmediate(() => {
-        flushLidQueue().catch(() => {});
-      });
-    }
-  }
+  await lidFlushRunner.run();
 };
 
 export const maybeStoreLidMap = async (lid, jid, source = 'message') => {

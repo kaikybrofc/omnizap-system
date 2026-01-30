@@ -1,5 +1,11 @@
 import logger from '../utils/logger/loggerModule.js';
 import { findById, upsert } from '../../database/index.js';
+import {
+  extractUserIdInfo,
+  resolveUserIdCached,
+  isLidUserId,
+  isWhatsAppUserId,
+} from './lidMapService.js';
 
 const GROUP_METADATA_FIELDS = [
   'id',
@@ -57,25 +63,29 @@ export const parseParticipantsFromDb = (participants) => {
  */
 export const normalizeParticipant = (participant) => {
   if (!participant) return null;
-  if (typeof participant === 'string') {
-    return {
-      id: participant,
-      jid: participant,
-      lid: null,
-      admin: null,
-    };
-  }
+  const raw = typeof participant === 'string' ? { id: participant } : participant;
+  const rawId = raw.id || raw.jid || raw.participant || raw.participantAlt || null;
+  const info = extractUserIdInfo({
+    jid: raw.jid || raw.id || null,
+    lid: raw.lid || null,
+    participantAlt: raw.participantAlt || raw.participant || null,
+  });
 
-  const id = participant.id || participant.jid || null;
-  const jid = participant.jid || participant.id || null;
+  const canonical = resolveUserIdCached(info) || info.jid || info.lid || rawId || null;
+  const canonicalIsJid = canonical && isWhatsAppUserId(canonical);
+  const canonicalIsLid = canonical && isLidUserId(canonical);
 
-  if (!id && !jid) return null;
+  const jid = info.jid || (canonicalIsJid ? canonical : null);
+  const lid = info.lid || (canonicalIsLid ? canonical : null);
+  const id = canonical || jid || lid || rawId;
+
+  if (!id && !jid && !lid) return null;
 
   return {
-    id: id || jid,
-    jid: jid || id,
-    lid: participant.lid || null,
-    admin: participant.admin || null,
+    id,
+    jid,
+    lid,
+    admin: raw.admin || null,
   };
 };
 
@@ -86,7 +96,7 @@ export const normalizeParticipant = (participant) => {
  */
 export const getParticipantKey = (participant) => {
   if (!participant) return null;
-  return participant.jid || participant.id || null;
+  return participant.id || participant.jid || null;
 };
 
 /**

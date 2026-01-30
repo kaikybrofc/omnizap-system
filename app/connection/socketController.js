@@ -5,7 +5,7 @@ import makeWASocket, {
   getAggregateVotesInPollMessage,
 } from '@whiskeysockets/baileys';
 
-import { resolveBaileysVersion, isGroupJid } from '../config/baileysConfig.js';
+import { resolveBaileysVersion } from '../config/baileysConfig.js';
 
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
@@ -21,7 +21,13 @@ import { recordError, recordMessagesUpsert } from '../observability/metrics.js';
 import { handleGroupUpdate as handleGroupParticipantsEvent } from '../modules/adminModule/groupEventHandlers.js';
 
 import { findBy, findById, remove } from '../../database/index.js';
-import { primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../services/lidMapService.js';
+import {
+  extractSenderInfoFromMessage,
+  primeLidCache,
+  resolveUserIdCached,
+  isLidUserId,
+  isWhatsAppUserId,
+} from '../services/lidMapService.js';
 import { queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
 import {
   buildGroupMetadataFromGroup,
@@ -252,27 +258,6 @@ const buildMessageData = (msg, senderId) => ({
   timestamp: new Date(Number(msg.messageTimestamp) * 1000),
 });
 
-const extractSenderInfo = (msg) => {
-  const remoteJid = msg.key.remoteJid;
-  const participant = msg.key.participant || null;
-  const participantAlt = msg.key.participantAlt || null;
-  const groupMessage = isGroupJid(remoteJid);
-
-  let lid = null;
-  let jid = null;
-
-  if (groupMessage) {
-    if (isWhatsAppUserId(participant)) jid = participant;
-    if (isLidUserId(participant)) lid = participant;
-    if (isWhatsAppUserId(participantAlt)) jid = participantAlt;
-    if (!lid && isLidUserId(participantAlt)) lid = participantAlt;
-  } else {
-    if (isWhatsAppUserId(remoteJid)) jid = remoteJid;
-    if (!jid && isWhatsAppUserId(participant)) jid = participant;
-  }
-
-  return { lid, jid, participantAlt, remoteJid, groupMessage };
-};
 
 /**
  * Persiste mensagens recebidas quando o tipo do upsert permite salvamento.
@@ -289,7 +274,7 @@ async function persistIncomingMessages(incomingMessages, type) {
 
   for (const msg of incomingMessages) {
     if (!msg.message || msg.key.remoteJid === 'status@broadcast') continue;
-    const senderInfo = extractSenderInfo(msg);
+    const senderInfo = extractSenderInfoFromMessage(msg);
     if (senderInfo.lid) lidsToPrime.add(senderInfo.lid);
     entries.push({ msg, senderInfo });
   }
