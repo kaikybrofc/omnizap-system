@@ -5,6 +5,7 @@ import logger from '../../utils/logger/loggerModule.js';
 import * as groupUtils from '../../config/groupUtils.js';
 import { getProfilePicBuffer, getJidUser, resolveBotJid } from '../../config/baileysConfig.js';
 import { primeLidCache, resolveUserIdCached, isLidUserId } from '../../services/lidMapService.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const normalizeDigits = (value) => {
   if (typeof groupUtils._normalizeDigits === 'function') {
@@ -2022,7 +2023,7 @@ export async function handleInteractionGraphCommand({
   let renderAbortController = null;
   const rateKey = `${remoteJid}:${senderJid || 'anon'}`;
   if (isRateLimited(rateKey)) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: 'Aguarde alguns segundos para usar o social novamente.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -2030,7 +2031,7 @@ export async function handleInteractionGraphCommand({
     return;
   }
   if (SOCIAL_INFLIGHT.has(remoteJid)) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: 'Social em andamento. Aguarde finalizar.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -2043,7 +2044,7 @@ export async function handleInteractionGraphCommand({
     const cacheKey = getCacheKey(remoteJid);
     const cached = getCachedResult(cacheKey);
     if (cached) {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         {
           image: cached.imageBuffer,
@@ -2404,7 +2405,7 @@ export async function handleInteractionGraphCommand({
     const elapsedMs = performance.now() - jobStart;
     const timeLeft = SOCIAL_JOB_TIMEOUT_MS - elapsedMs;
     if (timeLeft <= 0) {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { text: 'Tempo limite atingido para gerar o social. Tente novamente.' },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -2436,7 +2437,7 @@ export async function handleInteractionGraphCommand({
     );
 
     setCachedResult(cacheKey, { imageBuffer, captionText, mentions: [] });
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { image: imageBuffer, caption: captionText },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -2444,7 +2445,7 @@ export async function handleInteractionGraphCommand({
   } catch (error) {
     if (error?.message === 'render_cancelled') {
       logger.warn('Social cancelado por tempo limite.', { error: error.message });
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { text: 'Tempo limite atingido durante o render do social. Tente novamente.' },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -2452,7 +2453,7 @@ export async function handleInteractionGraphCommand({
       return;
     }
     logger.error('Erro ao gerar ranking de interacoes:', { error: error.message });
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: `Erro ao gerar ranking de interacoes: ${error.message}` },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },

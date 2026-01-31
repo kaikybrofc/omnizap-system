@@ -6,6 +6,7 @@ import { downloadMediaMessage } from '../../config/baileysConfig.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
 import { convertToWebp } from './convertToWebp.js';
 import { v4 as uuidv4 } from 'uuid';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const adminJid = process.env.USER_ADMIN;
 
@@ -151,7 +152,7 @@ export async function processSticker(
     const dirResult = await ensureDirectories(sanitizedUserId);
     if (!dirResult.success) {
       logger.error(`processSticker Erro ao garantir diretórios: ${dirResult.error}`);
-      await sock.sendMessage(adminJid, {
+      await sendAndStore(sock, adminJid, {
         text: `❌ Erro ao preparar diretórios do usuário: ${dirResult.error}`,
       });
       return;
@@ -159,8 +160,8 @@ export async function processSticker(
 
     const mediaDetails = extractMediaDetails(message);
     if (!mediaDetails) {
-      await sock.sendMessage(senderJid, { react: { text: '❓', key: messageInfo.key } });
-      await sock.sendMessage(
+      await sendAndStore(sock, senderJid, { react: { text: '❓', key: messageInfo.key } });
+      await sendAndStore(sock, 
         from,
         {
           text:
@@ -176,7 +177,7 @@ export async function processSticker(
 
     const { mediaType, mediaKey } = mediaDetails;
     if (!checkMediaSize(mediaKey, mediaType)) {
-      await sock.sendMessage(senderJid, { react: { text: '❓', key: messageInfo.key } });
+      await sendAndStore(sock, senderJid, { react: { text: '❓', key: messageInfo.key } });
       const fileLength = mediaKey?.fileLength || 0;
       const formatBytes = (bytes) => (bytes / (1024 * 1024)).toFixed(2) + ' MB';
       const enviado = formatBytes(fileLength);
@@ -187,7 +188,7 @@ export async function processSticker(
         const maxSegundos = Math.floor(MAX_FILE_SIZE / taxaBytesPorSegundo);
         sugestaoTempo = `\n\n_*💡 Dica: Para este vídeo, tente cortar para até ${maxSegundos} segundos com a mesma qualidade.*_`;
       }
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         from,
         {
           text:
@@ -206,13 +207,13 @@ export async function processSticker(
     if (!tempMediaPath) {
       const msgErro =
         '*❌ Não foi possível baixar a mídia enviada.*\n\n- Isso pode ocorrer por instabilidade na rede, mídia expirada ou formato não suportado.\n- Por favor, tente reenviar a mídia ou envie outro arquivo.';
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         from,
         { text: msgErro },
         { quoted: message, ephemeralExpiration: expirationMessage },
       );
       if (adminJid) {
-        await sock.sendMessage(adminJid, {
+        await sendAndStore(sock, adminJid, {
           text: `🚨 Falha no download da mídia para sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nTipo: ${mediaType}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
         });
       }
@@ -239,13 +240,13 @@ export async function processSticker(
       logger.error(`processSticker Erro ao ler buffer do sticker: ${bufferErr.message}`);
       const msgErro =
         '*❌ Não foi possível finalizar o sticker.*\n\n- Ocorreu um erro ao acessar o arquivo temporário do sticker.\n- Tente reenviar a mídia ou envie outro arquivo.';
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         from,
         { text: msgErro },
         { quoted: message, ephemeralExpiration: expirationMessage },
       );
       if (adminJid) {
-        await sock.sendMessage(adminJid, {
+        await sendAndStore(sock, adminJid, {
           text: `🚨 Erro ao ler buffer do sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nErro: ${bufferErr.message}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
         });
       }
@@ -253,7 +254,7 @@ export async function processSticker(
     }
 
     try {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         from,
         { sticker: stickerBuffer },
         { quoted: message, ephemeralExpiration: expirationMessage },
@@ -262,13 +263,13 @@ export async function processSticker(
       logger.error(`processSticker Erro ao enviar o sticker: ${sendErr.message}`);
       const msgErro =
         '*❌ Não foi possível enviar o sticker ao chat.*\n\n- Ocorreu um erro inesperado ao tentar enviar o arquivo.\n- Tente novamente ou envie outra mídia.';
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         from,
         { text: msgErro },
         { quoted: message, ephemeralExpiration: expirationMessage },
       );
       if (adminJid) {
-        await sock.sendMessage(adminJid, {
+        await sendAndStore(sock, adminJid, {
           text: `🚨 Erro ao enviar sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nErro: ${sendErr.message}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
         });
       }
@@ -279,13 +280,13 @@ export async function processSticker(
     });
     const msgErro =
       '*❌ Não foi possível criar o sticker.*\n\n- Ocorreu um erro inesperado durante o processamento.\n- Tente novamente ou envie outra mídia.';
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: msgErro },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     if (adminJid) {
-      await sock.sendMessage(adminJid, {
+      await sendAndStore(sock, adminJid, {
         text: `🚨 Erro fatal ao processar sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nErro: ${error.message}\nStack: ${error.stack}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
       });
     }

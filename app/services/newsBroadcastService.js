@@ -4,6 +4,7 @@ import groupConfigStore from '../store/groupConfigStore.js';
 import { TABLES, findAll } from '../../database/index.js';
 import { getActiveSocket } from './socketState.js';
 import getImageBuffer from '../utils/http/getImageBufferModule.js';
+import { sendAndStore } from './messagePersistenceService.js';
 
 const DEFAULT_NEWS_API_URL = 'http://127.0.0.1:3001';
 const NEWS_API_URL = (process.env.NEWS_API_URL || DEFAULT_NEWS_API_URL).replace(/\/+$/, '');
@@ -198,7 +199,7 @@ const processGroupNews = async (groupId) => {
       if (imageUrl && imageUrl.startsWith('https://')) {
         try {
           const imageBuffer = await getImageBuffer(imageUrl);
-          await sock.sendMessage(groupId, { image: imageBuffer, caption });
+          await sendAndStore(sock, groupId, { image: imageBuffer, caption });
           sent = true;
         } catch (error) {
           logger.warn('Falha ao baixar imagem da noticia. Enviando texto.', {
@@ -209,7 +210,7 @@ const processGroupNews = async (groupId) => {
       }
 
       if (!sent) {
-        await sock.sendMessage(groupId, { text: caption });
+        await sendAndStore(sock, groupId, { text: caption });
         sent = true;
       }
 

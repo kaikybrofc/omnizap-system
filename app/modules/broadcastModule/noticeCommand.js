@@ -2,6 +2,7 @@ import logger from '../../utils/logger/loggerModule.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 import { getAllParticipatingGroups } from '../../config/groupUtils.js';
 import { normalizeJid, encodeJid } from '../../config/baileysConfig.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const MENU_IMAGE_ENV = 'IMAGE_MENU';
 const OWNER_JID_ENV = 'USER_ADMIN';
@@ -220,7 +221,7 @@ export async function handleNoticeCommand({
 }) {
   const ownerJid = process.env[OWNER_JID_ENV];
   if (!ownerJid) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ USER_ADMIN não configurado no ambiente.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -229,7 +230,7 @@ export async function handleNoticeCommand({
   }
 
   if (normalizeJid(toWhatsAppJid(ownerJid)) !== normalizeJid(toWhatsAppJid(senderJid))) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Você não tem permissão para usar este comando.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -239,7 +240,7 @@ export async function handleNoticeCommand({
 
   const { mode, message: rawNoticeText } = parseNoticeArgs(text || '');
   if (!rawNoticeText || !rawNoticeText.replace(/\s/g, '')) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: `Uso: ${commandPrefix}aviso [-fast|-safe] <mensagem>` },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -263,7 +264,7 @@ export async function handleNoticeCommand({
     logger.warn(
       `handleNoticeCommand Aviso vazio apos normalizacao: tamanho ${noticeStatsBefore.length} | linhas ${noticeStatsBefore.lines}`,
     );
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ A mensagem do aviso ficou vazia após a normalização.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -273,7 +274,7 @@ export async function handleNoticeCommand({
 
   const imageUrl = process.env[MENU_IMAGE_ENV];
   if (!imageUrl) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ IMAGE_MENU não configurado no ambiente.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -286,7 +287,7 @@ export async function handleNoticeCommand({
     groupsMap = await getAllParticipatingGroups(sock);
   } catch (error) {
     logger.error(`handleNoticeCommand Erro ao obter grupos: ${error.message}`);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Não foi possível obter a lista de grupos.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -296,7 +297,7 @@ export async function handleNoticeCommand({
 
   const groups = Object.values(groupsMap || {});
   if (groups.length === 0) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '⚠️ O bot não está em nenhum grupo.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -306,7 +307,7 @@ export async function handleNoticeCommand({
 
   const groupListText = buildGroupList(groups);
   const config = MODE_CONFIG[mode] || MODE_CONFIG.default;
-  await sock.sendMessage(
+  await sendAndStore(sock, 
     remoteJid,
     {
       text: `📋 Grupos (${groups.length}):\n${groupListText}\n\n📣 Aviso:\n${normalizedNoticeText}\n\n🚀 Iniciando envio (modo ${mode}).\nConcorrência: ${config.concurrency} | Jitter: ${config.jitterMin}-${config.jitterMax}ms | Retries: ${config.retries}`,
@@ -319,7 +320,7 @@ export async function handleNoticeCommand({
     imageBuffer = await getImageBuffer(imageUrl);
   } catch (error) {
     logger.error(`handleNoticeCommand Erro ao baixar imagem do menu: ${error.message}`);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Não foi possível baixar a imagem do menu.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -343,7 +344,7 @@ export async function handleNoticeCommand({
         if (globalBackoffUntil > now) {
           await sleep(globalBackoffUntil - now);
         }
-        await sock.sendMessage(group.id, { image: imageBuffer, caption: normalizedNoticeText });
+        await sendAndStore(sock, group.id, { image: imageBuffer, caption: normalizedNoticeText });
       };
 
       await withRetry(sendOnce, {
@@ -380,7 +381,7 @@ export async function handleNoticeCommand({
         (now - lastProgressAt >= PROGRESS_INTERVAL_MS && processed < groups.length)
       ) {
         lastProgressAt = now;
-        await sock.sendMessage(
+        await sendAndStore(sock, 
           remoteJid,
           {
             text: `📣 Progresso: ${processed}/${groups.length}\n✅ Sucesso: ${successCount}\n❌ Falhas: ${failureCount}`,
@@ -399,7 +400,7 @@ export async function handleNoticeCommand({
       ? `\n⚠️ Rate limit detectado: ${rateLimitHits}x (backoff aplicado)`
       : '';
 
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       {
         text: `✅ Aviso finalizado.\nTotal: ${groups.length}\n✅ Sucesso: ${successCount}\n❌ Falhas: ${failureCount}${failureList}${rateLimitText}`,

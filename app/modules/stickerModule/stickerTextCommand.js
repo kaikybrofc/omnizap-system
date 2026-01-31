@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { convertToWebp } from './convertToWebp.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
 import { getJidUser } from '../../config/baileysConfig.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 /**
  * Constantes limitadoras
@@ -294,7 +295,7 @@ export async function processTextSticker({
   const stickerText = text.trim();
 
   if (!stickerText) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       {
         text: '❌ Você precisa informar um texto para virar figurinha.\n\nExemplo:\n/st bom dia seus lindos',
@@ -306,7 +307,7 @@ export async function processTextSticker({
   }
 
   if (stickerText.length > MAX_CHARACTERS) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Limite de caracteres excedido!' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -318,7 +319,7 @@ export async function processTextSticker({
   const stickerLines = stickerText.split(/\r?\n/);
 
   if (stickerLines.length > MAX_LINES) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Limite de linhas excedido!' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -364,14 +365,14 @@ export async function processTextSticker({
 
     const stickerBuffer = await fs.readFile(stickerPath);
 
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { sticker: stickerBuffer },
       { ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
     logger.error(`processTextSticker Erro: ${error.message}`, { error });
-    await sock.sendMessage(remoteJid, {
+    await sendAndStore(sock, remoteJid, {
       text: '*❌ Não foi possível criar o sticker de texto.*',
     });
   } finally {
@@ -413,7 +414,7 @@ export async function processBlinkingTextSticker({
   const resolvedColor = parsed.color;
 
   if (!stickerText) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       {
         text: '❌ Você precisa informar um texto para virar figurinha.\n\nExemplo:\n/stb bom dia seus lindos -verde',
@@ -425,7 +426,7 @@ export async function processBlinkingTextSticker({
   }
 
   if (stickerText.length > MAX_CHARACTERS) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Limite de caracteres excedido!' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -437,7 +438,7 @@ export async function processBlinkingTextSticker({
   const stickerLines = stickerText.split(/\r?\n/);
 
   if (stickerLines.length > MAX_LINES) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Limite de linhas excedido!' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -485,14 +486,14 @@ export async function processBlinkingTextSticker({
 
     const stickerBuffer = await fs.readFile(stickerPath);
 
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { sticker: stickerBuffer },
       { ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
     logger.error(`processBlinkingTextSticker Erro: ${error.message}`, { error });
-    await sock.sendMessage(remoteJid, {
+    await sendAndStore(sock, remoteJid, {
       text: '*❌ Não foi possível criar o sticker de texto piscante.*',
     });
   } finally {

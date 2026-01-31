@@ -9,6 +9,7 @@ import { resolveUserId } from '../../services/lidMapService.js';
 import { convertToWebp } from '../stickerModule/convertToWebp.js';
 import { addStickerMetadata } from '../stickerModule/addStickerMetadata.js';
 import { fetchLatestPushNames } from '../statsModule/rankingCommon.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const QUOTE_API_URL = process.env.QUOTE_API_URL || 'https://bot.lyo.su/quote/generate.png';
@@ -141,7 +142,7 @@ const sendUsage = async (
   expirationMessage,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 ) => {
-  await sock.sendMessage(
+  await sendAndStore(sock, 
     remoteJid,
     {
       text: [
@@ -278,7 +279,7 @@ export async function handleQuoteCommand({
 
     if (stickerPath) {
       const stickerBuffer = await fs.readFile(stickerPath);
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { sticker: stickerBuffer },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -286,14 +287,14 @@ export async function handleQuoteCommand({
       return;
     }
 
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { image: imageBuffer, caption: '🖼️ Quote' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
     logger.error('handleQuoteCommand: erro ao gerar quote.', error);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Não foi possível gerar o quote agora. Tente novamente.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },

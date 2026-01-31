@@ -5,6 +5,7 @@ import makeWASocket, {
   getAggregateVotesInPollMessage,
 } from '@whiskeysockets/baileys';
 
+import NodeCache from 'node-cache';
 import { resolveBaileysVersion } from '../config/baileysConfig.js';
 
 import { Boom } from '@hapi/boom';
@@ -34,6 +35,7 @@ import {
   buildGroupMetadataFromUpdate,
   upsertGroupMetadata,
 } from '../services/groupMetadataService.js';
+import { buildMessageData } from '../services/messagePersistenceService.js';
 
 import { fileURLToPath } from 'node:url';
 
@@ -42,6 +44,7 @@ const __dirname = path.dirname(__filename);
 
 let activeSocket = null;
 let connectionAttempts = 0;
+const msgRetryCounterCache = new NodeCache();
 const MAX_CONNECTION_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 3000;
 const BAILEYS_EVENT_NAMES = [
@@ -245,21 +248,6 @@ const safeJsonParse = (value, fallback) => {
 };
 
 /**
- * Normaliza uma mensagem do Baileys para o formato persistido no banco.
- * @param {import('@whiskeysockets/baileys').WAMessage} msg - Mensagem recebida.
- * @returns {Object} Objeto com dados prontos para persistência.
- */
-const buildMessageData = (msg, senderId) => ({
-  message_id: msg.key.id,
-  chat_id: msg.key.remoteJid,
-  sender_id: senderId || msg.key.participant || msg.key.remoteJid,
-  content: msg.message.conversation || msg.message.extendedTextMessage?.text || null,
-  raw_message: msg || {},
-  timestamp: new Date(Number(msg.messageTimestamp) * 1000),
-});
-
-
-/**
  * Persiste mensagens recebidas quando o tipo do upsert permite salvamento.
  * @async
  * @param {Array<import('@whiskeysockets/baileys').WAMessage>} incomingMessages - Mensagens recebidas.
@@ -303,19 +291,31 @@ async function persistIncomingMessages(incomingMessages, type) {
  * Recupera mensagem armazenada para suporte a recursos (ex.: enquetes) do Baileys.
  * @async
  * @param {import('@whiskeysockets/baileys').WAMessageKey} key - Chave da mensagem.
- * @returns {Promise<Object | null>} Mensagem armazenada ou null.
+ * @returns {Promise<import('@whiskeysockets/baileys').proto.IMessage | undefined>} Conteúdo da mensagem armazenada.
  */
 async function getStoredMessage(key) {
+  const messageId = key?.id;
+  const remoteJid = key?.remoteJid;
+  if (!messageId || !remoteJid) return undefined;
+
   try {
-    const results = await findBy('messages', { message_id: key.id }, { limit: 1 });
+    const results = await findBy('messages', { message_id: messageId, chat_id: remoteJid }, { limit: 1 });
     const record = results?.[0];
-    return safeJsonParse(record?.raw_message, null);
+    const stored = safeJsonParse(record?.raw_message, null);
+    if (record?.raw_message && !stored) {
+      logger.error('Falha ao interpretar raw_message armazenado.', {
+        messageId,
+        remoteJid,
+      });
+    }
+    return stored?.message ?? undefined;
   } catch (error) {
     logger.error('Erro ao buscar mensagem armazenada no banco:', {
       error: error.message,
-      messageId: key.id,
+      messageId,
+      remoteJid,
     });
-    return null;
+    return undefined;
   }
 }
 
@@ -352,6 +352,9 @@ export async function connectToWhatsApp() {
     qrTimeout: 30000,
     syncFullHistory: false,
     markOnlineOnConnect: true,
+    msgRetryCounterCache,
+    maxMsgRetryCount: 5,
+    retryRequestDelayMs: 250,
     getMessage: getStoredMessage,
   });
 

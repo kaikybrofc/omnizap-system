@@ -11,6 +11,7 @@ import {
   extractAllMediaDetails,
   getJidUser,
 } from '../../config/baileysConfig.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
 const OPENAI_TTS_MODEL = process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts';
@@ -69,7 +70,7 @@ const sendUsage = async (
   expirationMessage,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 ) => {
-  await sock.sendMessage(
+  await sendAndStore(sock, 
     remoteJid,
     {
       text: [
@@ -91,7 +92,7 @@ const sendUsage = async (
 const reactToMessage = async (sock, remoteJid, messageInfo) => {
   try {
     if (!messageInfo?.key) return;
-    await sock.sendMessage(remoteJid, {
+    await sendAndStore(sock, remoteJid, {
       react: {
         text: '🐈‍⬛',
         key: messageInfo.key,
@@ -110,7 +111,7 @@ const isPremiumAllowed = async (senderJid) => {
 };
 
 const sendPremiumOnly = async (sock, remoteJid, messageInfo, expirationMessage) => {
-  await sock.sendMessage(
+  await sendAndStore(sock, 
     remoteJid,
     {
       text: [
@@ -131,7 +132,7 @@ const sendPromptUsage = async (
   expirationMessage,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 ) => {
-  await sock.sendMessage(
+  await sendAndStore(sock, 
     remoteJid,
     {
       text: [
@@ -233,7 +234,7 @@ export async function handleCatCommand({
 
   if (!process.env.OPENAI_API_KEY) {
     logger.warn('handleCatCommand: OPENAI_API_KEY não configurada.');
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       {
         text: [
@@ -258,7 +259,7 @@ export async function handleCatCommand({
   const imageResult = await buildImageDataUrl(imageMedia, senderJid);
   if (imageResult.error === 'too_large') {
     const limitMb = Math.round((MAX_IMAGE_BYTES / (1024 * 1024)) * 10) / 10;
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       {
         text: `⚠️ A imagem enviada ultrapassa o limite de ${limitMb} MB. Envie uma imagem menor.`,
@@ -269,7 +270,7 @@ export async function handleCatCommand({
   }
 
   if (imageResult.error === 'download_failed') {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '⚠️ Não consegui baixar a imagem. Tente reenviar.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -325,7 +326,7 @@ export async function handleCatCommand({
     });
 
     if (!outputText) {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { text: '⚠️ Não consegui gerar uma resposta agora. Tente novamente.' },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -335,7 +336,7 @@ export async function handleCatCommand({
 
     if (wantsAudio) {
       if (outputText.length > TTS_MAX_CHARS) {
-        await sock.sendMessage(
+        await sendAndStore(sock, 
           remoteJid,
           { text: '⚠️ A resposta ficou longa demais para áudio. Enviando em texto.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -349,7 +350,7 @@ export async function handleCatCommand({
             response_format: SAFE_TTS_FORMAT,
           });
           const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-          await sock.sendMessage(
+          await sendAndStore(sock, 
             remoteJid,
             {
               audio: audioBuffer,
@@ -361,7 +362,7 @@ export async function handleCatCommand({
           return;
         } catch (audioError) {
           logger.error('handleCatCommand: erro ao gerar audio.', audioError);
-          await sock.sendMessage(
+          await sendAndStore(sock, 
             remoteJid,
             { text: '⚠️ Não consegui gerar o áudio agora. Enviando texto.' },
             { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -370,14 +371,14 @@ export async function handleCatCommand({
       }
     }
 
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: `🐈‍⬛ ${outputText}` },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
     logger.error('handleCatCommand: erro ao chamar OpenAI.', error);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       {
         text: ['❌ *Erro ao falar com a IA*', 'Tente novamente em alguns instantes.'].join('\n'),
@@ -410,7 +411,7 @@ export async function handleCatPromptCommand({
   const lower = promptText.toLowerCase();
   if (lower === 'reset' || lower === 'default' || lower === 'padrao' || lower === 'padrão') {
     await aiPromptStore.clearPrompt(senderJid);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '✅ Prompt da IA restaurado para o padrão.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -419,7 +420,7 @@ export async function handleCatPromptCommand({
   }
 
   if (promptText.length > 2000) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '⚠️ Prompt muito longo. Limite: 2000 caracteres.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -428,7 +429,7 @@ export async function handleCatPromptCommand({
   }
 
   await aiPromptStore.setPrompt(senderJid, promptText);
-  await sock.sendMessage(
+  await sendAndStore(sock, 
     remoteJid,
     { text: '✅ Prompt da IA atualizado para você.' },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },

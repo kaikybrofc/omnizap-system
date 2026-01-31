@@ -2,6 +2,7 @@ import axios from 'axios';
 
 import logger from '../../utils/logger/loggerModule.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const WAIFU_PICS_BASE = (process.env.WAIFU_PICS_BASE || 'https://api.waifu.pics').replace(
@@ -56,7 +57,7 @@ const sendUsage = async (
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 ) => {
   const list = type === 'nsfw' ? NSFW_CATEGORIES : SFW_CATEGORIES;
-  await sock.sendMessage(
+  await sendAndStore(sock, 
     remoteJid,
     {
       text: [
@@ -89,7 +90,7 @@ export async function handleWaifuPicsCommand({
   const category = (text || '').trim().toLowerCase() || 'waifu';
 
   if (type === 'nsfw' && !WAIFU_PICS_ALLOW_NSFW) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '⚠️ Conteúdo NSFW desativado. Habilite WAIFU_PICS_ALLOW_NSFW=true no .env.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -100,7 +101,7 @@ export async function handleWaifuPicsCommand({
   if (type === 'nsfw') {
     const config = await groupConfigStore.getGroupConfig(remoteJid);
     if (!config?.nsfwEnabled) {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         {
           text: `🔞 NSFW está desativado neste grupo. Um admin pode ativar com ${commandPrefix}nsfw on.`,
@@ -120,7 +121,7 @@ export async function handleWaifuPicsCommand({
   try {
     const imageUrl = await fetchWaifuPics(type, category);
     if (!imageUrl) {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { text: '❌ Não foi possível obter a imagem agora. Tente novamente.' },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -128,14 +129,14 @@ export async function handleWaifuPicsCommand({
       return;
     }
 
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { image: { url: imageUrl }, caption: `🖼️ ${type.toUpperCase()} • ${category}` },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
     logger.error('handleWaifuPicsCommand: erro na Waifu.pics.', error);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Erro ao consultar a Waifu.pics. Tente novamente.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },

@@ -25,6 +25,7 @@ import {
 } from '../modules/waifuModule/waifuCommand.js';
 import { handleWaifuPicsCommand, getWaifuPicsUsageText } from '../modules/waifuPicsModule/waifuPicsCommand.js';
 import groupConfigStore from '../store/groupConfigStore.js';
+import { sendAndStore } from '../services/messagePersistenceService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
@@ -99,7 +100,7 @@ export const handleMessages = async (update, sock) => {
         if (extractedText.startsWith(commandPrefix)) {
           if (COMMAND_REACT_EMOJI) {
             try {
-              await sock.sendMessage(remoteJid, {
+              await sendAndStore(sock, remoteJid, {
                 react: {
                   text: COMMAND_REACT_EMOJI,
                   key: messageInfo.key,
@@ -225,7 +226,7 @@ export const handleMessages = async (update, sock) => {
 
             case 'waifuhelp':
               runCommand('waifuhelp', () =>
-                sock.sendMessage(
+                sendAndStore(sock, 
                   remoteJid,
                   { text: getWaifuUsageText(commandPrefix) },
                   { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -265,7 +266,7 @@ export const handleMessages = async (update, sock) => {
 
             case 'wppicshelp':
               runCommand('wppicshelp', () =>
-                sock.sendMessage(
+                sendAndStore(sock, 
                   remoteJid,
                   { text: getWaifuPicsUsageText(commandPrefix) },
                   { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -415,7 +416,7 @@ export const handleMessages = async (update, sock) => {
               logger.info(`Comando desconhecido recebido: ${command}`);
 
               runCommand('unknown', () =>
-                sock.sendMessage(
+                sendAndStore(sock, 
                   remoteJid,
                   {
                     text: `❌ *Comando não reconhecido*

@@ -7,6 +7,7 @@ import { updateGroupParticipantsFromAction } from '../../services/groupMetadataS
 import fs from 'node:fs';
 import path from 'node:path';
 import moment from 'moment-timezone';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const replacePlaceholders = async (message, sock, groupId) => {
   logger.debug('Iniciando substituição de placeholders para a mensagem.', { groupId });
@@ -238,7 +239,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
         });
         messageOptions = { text: message.trim(), mentions: finalMentions };
       }
-      await sock.sendMessage(groupId, messageOptions);
+      await sendAndStore(sock, groupId, messageOptions);
       logger.info(`Mensagem de atualização de grupo enviada com sucesso para o grupo ${groupId}.`, {
         action,
         participants,

@@ -1,5 +1,6 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const METRICS_ENDPOINT =
   process.env.METRICS_ENDPOINT ||
@@ -305,14 +306,14 @@ export async function handlePingCommand({ sock, remoteJid, messageInfo, expirati
       metricsOk,
       metricsError,
     });
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
     logger.error('Erro ao gerar status do sistema:', { error: error.message });
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: 'Erro ao obter informações do sistema.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },

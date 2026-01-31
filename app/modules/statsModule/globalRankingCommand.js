@@ -2,6 +2,7 @@ import logger from '../../utils/logger/loggerModule.js';
 import { resolveBotJid } from '../../config/baileysConfig.js';
 import { isWhatsAppUserId } from '../../services/lidMapService.js';
 import { buildRankingMessage, getRankingReport, renderRankingImage } from './rankingCommon.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const RANKING_LIMIT = 5;
 
@@ -43,14 +44,14 @@ export async function handleGlobalRankingCommand({
       scope: 'global',
       limit: RANKING_LIMIT,
     });
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { image: imageBuffer, caption: text, ...(mentions.length ? { mentions } : {}) },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
     logger.error('Erro ao gerar ranking global:', { error: error.message });
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: `Erro ao gerar ranking global: ${error.message}` },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },

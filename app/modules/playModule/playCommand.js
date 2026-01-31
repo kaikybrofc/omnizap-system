@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import logger from '../../utils/logger/loggerModule.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const adminJid = process.env.USER_ADMIN;
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
@@ -700,14 +701,14 @@ const getUserErrorMessage = (error) => {
  */
 const notifyFailure = async (sock, remoteJid, messageInfo, expirationMessage, error, context) => {
   const errorMessage = getUserErrorMessage(error);
-  await sock.sendMessage(
+  await sendAndStore(sock, 
     remoteJid,
     { text: `❌ Erro: ${errorMessage}` },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 
   if (adminJid) {
-    await sock.sendMessage(adminJid, {
+    await sendAndStore(sock, adminJid, {
       text: `Erro no módulo play.\nChat: ${remoteJid}\nRequest: ${
         context?.requestId || 'n/a'
       }\nTipo: ${context?.type || 'n/a'}\nErro: ${errorMessage}\nCode: ${
@@ -748,7 +749,7 @@ const handlePlayGeneric = async ({
     const queueText = buildQueueStatusText(queueStatus);
     const waitText = queueText ? `${config.waitText}\n${queueText}` : config.waitText;
 
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: waitText },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -798,14 +799,14 @@ const handlePlayGeneric = async ({
         }
 
         if (thumbBuffer) {
-          await sock.sendMessage(
+          await sendAndStore(sock, 
             remoteJid,
             { image: thumbBuffer, caption },
             { quoted: messageInfo, ephemeralExpiration: expirationMessage },
           );
         }
 
-        await sock.sendMessage(
+        await sendAndStore(sock, 
           remoteJid,
           {
             audio: { url: filePath },
@@ -827,7 +828,7 @@ const handlePlayGeneric = async ({
       const infoText = formatVideoInfo(videoInfo);
       const caption = buildReadyCaption(type, infoText);
 
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         {
           video: { url: filePath },
@@ -890,7 +891,7 @@ export const handlePlayCommand = async (
 ) => {
   try {
     if (!text?.trim()) {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { text: `🎵 Uso: ${commandPrefix}play <link do YouTube ou termo de busca>` },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -933,7 +934,7 @@ export const handlePlayVidCommand = async (
 ) => {
   try {
     if (!text?.trim()) {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { text: `🎬 Uso: ${commandPrefix}playvid <link do YouTube ou termo de busca>` },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },

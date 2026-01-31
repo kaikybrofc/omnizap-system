@@ -8,6 +8,7 @@ import {
   isLidUserId,
   isWhatsAppUserId,
 } from '../../services/lidMapService.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const getParticipantJid = (participant) =>
   participant?.id || participant?.jid || participant?.lid || null;
@@ -148,7 +149,7 @@ export async function handleNoMessageCommand({
   text,
 }) {
   if (!isGroupMessage) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: 'Este comando so pode ser usado em grupos.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -156,7 +157,7 @@ export async function handleNoMessageCommand({
     return;
   }
   if (!(await isUserAdmin(remoteJid, senderJid))) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: 'Você não tem permissão para usar este comando.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -167,7 +168,7 @@ export async function handleNoMessageCommand({
   try {
     const participants = await getGroupParticipants(remoteJid);
     if (!participants || participants.length === 0) {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { text: 'Nao foi possivel obter os participantes do grupo.' },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -245,7 +246,7 @@ export async function handleNoMessageCommand({
         totalParticipants,
         totalListed,
       });
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { text: responseText },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -267,7 +268,7 @@ export async function handleNoMessageCommand({
         batchTotal: batches.length,
         batchSize: batch.length,
       });
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { text: responseText, mentions: batchMentions },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -278,7 +279,7 @@ export async function handleNoMessageCommand({
     }
   } catch (error) {
     logger.error('Erro ao buscar membros sem mensagens:', { error: error.message });
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: `Erro ao buscar membros sem mensagens: ${error.message}` },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },

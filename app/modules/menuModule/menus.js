@@ -10,6 +10,7 @@ import {
   buildAdminMenu,
 } from './common.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const MENU_IMAGE_ENV = 'IMAGE_MENU';
 
@@ -17,7 +18,7 @@ const sendMenuImage = async (sock, remoteJid, messageInfo, expirationMessage, ca
   const imageUrl = process.env[MENU_IMAGE_ENV];
   if (!imageUrl) {
     logger.error('IMAGE_MENU environment variable not set.');
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: 'Ocorreu um erro ao carregar o menu.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -27,7 +28,7 @@ const sendMenuImage = async (sock, remoteJid, messageInfo, expirationMessage, ca
 
   try {
     const imageBuffer = await getImageBuffer(imageUrl);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       {
         image: imageBuffer,
@@ -37,7 +38,7 @@ const sendMenuImage = async (sock, remoteJid, messageInfo, expirationMessage, ca
     );
   } catch (error) {
     logger.error('Error fetching menu image:', error);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: 'Ocorreu um erro ao carregar a imagem do menu.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },

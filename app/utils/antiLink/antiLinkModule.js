@@ -2,6 +2,7 @@ import { isUserAdmin, updateGroupParticipants } from '../../config/groupUtils.js
 import { getJidUser } from '../../config/baileysConfig.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import logger from '../logger/loggerModule.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 /**
  * Base de redes conhecidas e seus domínios oficiais para permitir por categoria.
@@ -207,11 +208,11 @@ export const handleAntiLink = async ({
     try {
       await updateGroupParticipants(sock, remoteJid, [senderJid], 'remove');
       const senderUser = getJidUser(senderJid);
-      await sock.sendMessage(remoteJid, {
+      await sendAndStore(sock, remoteJid, {
         text: `🚫 @${senderUser || 'usuario'} foi removido por enviar um link.`,
         mentions: senderUser ? [senderJid] : [],
       });
-      await sock.sendMessage(remoteJid, { delete: messageInfo.key });
+      await sendAndStore(sock, remoteJid, { delete: messageInfo.key });
 
       logger.info(`Usuário ${senderJid} removido do grupo ${remoteJid} por enviar link.`, {
         action: 'antilink_remove',
@@ -231,7 +232,7 @@ export const handleAntiLink = async ({
   } else if (isAdmin && !senderIsBot) {
     try {
       const senderUser = getJidUser(senderJid);
-      await sock.sendMessage(remoteJid, {
+      await sendAndStore(sock, remoteJid, {
         text: `ⓘ @${senderUser || 'admin'} (admin) enviou um link.`,
         mentions: senderUser ? [senderJid] : [],
       });

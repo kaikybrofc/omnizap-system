@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 import logger from '../../utils/logger/loggerModule.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const WAIFU_API_BASE = process.env.WAIFU_API_BASE || 'https://waifu.it/api/v4';
@@ -9,7 +10,7 @@ const WAIFU_TIMEOUT_MS = Number.parseInt(process.env.WAIFU_TIMEOUT_MS || '15000'
 
 const ensureToken = async (sock, remoteJid, messageInfo, expirationMessage) => {
   if (WAIFU_API_TOKEN) return true;
-  await sock.sendMessage(
+  await sendAndStore(sock, 
     remoteJid,
     { text: '❌ WAIFU_API_TOKEN não configurado no ambiente.' },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -74,7 +75,7 @@ export async function handleWaifuImageCommand({
 
     const imageUrl = data?.image?.large;
     if (!imageUrl) {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { text: '❌ Não foi possível obter a imagem agora. Tente novamente.' },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -82,7 +83,7 @@ export async function handleWaifuImageCommand({
       return;
     }
 
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       {
         image: { url: imageUrl },
@@ -92,7 +93,7 @@ export async function handleWaifuImageCommand({
     );
   } catch (error) {
     logger.error('handleWaifuImageCommand: erro na Waifu.it.', error);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Erro ao consultar a Waifu.it. Tente novamente.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -111,14 +112,14 @@ export async function handleWaifuFactCommand({ sock, remoteJid, messageInfo, exp
     const fact = data?.fact;
     if (!fact) throw new Error('fact vazio');
 
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: `📚 *Anime Fact*\n${fact}` },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
     logger.error('handleWaifuFactCommand: erro na Waifu.it.', error);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Erro ao consultar a Waifu.it. Tente novamente.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -149,14 +150,14 @@ export async function handleWaifuQuoteCommand({
     const author = data?.author ? `— ${data.author}` : '';
     const from = data?.from ? `\n🎬 ${data.from}` : '';
 
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: `💬 *Anime Quote*\n${quote}\n${author}${from}`.trim() },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
     logger.error('handleWaifuQuoteCommand: erro na Waifu.it.', error);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Erro ao consultar a Waifu.it. Tente novamente.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },

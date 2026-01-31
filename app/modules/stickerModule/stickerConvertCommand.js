@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import logger from '../../utils/logger/loggerModule.js';
 import { downloadMediaMessage } from '../../config/baileysConfig.js';
 import { getJidUser } from '../../config/baileysConfig.js';
+import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'sticker-convert');
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
@@ -71,7 +72,7 @@ export async function handleStickerConvertCommand({
 }) {
   const resolved = resolveStickerMessage(messageInfo);
   if (!resolved) {
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       {
         text: '❌ Envie ou responda a uma figurinha para converter.\n\nDica: use o comando respondendo a um sticker.',
@@ -85,7 +86,7 @@ export async function handleStickerConvertCommand({
   const fileLength = sticker?.fileLength || 0;
   if (fileLength > MAX_FILE_SIZE) {
     const sizeMb = (fileLength / (1024 * 1024)).toFixed(2);
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: `❌ Figurinha muito grande (${sizeMb} MB). Envie uma menor.` },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -107,7 +108,7 @@ export async function handleStickerConvertCommand({
 
     downloadedPath = await downloadMediaMessage(sticker, 'sticker', userDir);
     if (!downloadedPath) {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         { text: '❌ Não foi possível baixar a figurinha. Tente novamente.' },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -121,7 +122,7 @@ export async function handleStickerConvertCommand({
 
     const isAnimated = await isAnimatedSticker(sticker, webpPath);
     if (isAnimated) {
-      await sock.sendMessage(
+      await sendAndStore(sock, 
         remoteJid,
         {
           document: { stream: createReadStream(webpPath) },
@@ -144,7 +145,7 @@ export async function handleStickerConvertCommand({
     const converter = new ConverterClass();
     convertedPath = await converter.convertJobs({ input: webpPath, output: forcedOutput });
 
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       {
         image: { stream: createReadStream(convertedPath) },
@@ -156,7 +157,7 @@ export async function handleStickerConvertCommand({
     logger.error(`handleStickerConvertCommand: erro ao converter figurinha: ${error.message}`, {
       error: error.stack,
     });
-    await sock.sendMessage(
+    await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Não foi possível converter a figurinha agora. Tente novamente.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
