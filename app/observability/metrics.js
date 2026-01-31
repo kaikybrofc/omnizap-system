@@ -167,6 +167,22 @@ export const startMetricsServer = () => {
   });
 };
 
+export const stopMetricsServer = async () => {
+  if (!serverStarted || !server) return;
+  const current = server;
+  server = null;
+  serverStarted = false;
+  await new Promise((resolve, reject) => {
+    current.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+};
+
 export const recordError = (scope = 'app') => {
   const m = ensureMetrics();
   if (!m) return;

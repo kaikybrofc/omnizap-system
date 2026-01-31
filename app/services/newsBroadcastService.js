@@ -284,6 +284,16 @@ export const syncNewsBroadcastService = async () => {
 
 export const initializeNewsBroadcastService = async () => syncNewsBroadcastService();
 
+export const stopNewsBroadcastService = () => {
+  const groupIds = Array.from(groupLoops.keys());
+  if (!groupIds.length) {
+    return;
+  }
+
+  groupIds.forEach((groupId) => stopGroupLoopInternal(groupId));
+  logger.info('Servico de noticias parado.', { groups: groupIds.length });
+};
+
 export const getNewsStatusForGroup = async (groupId) => {
   const config = await groupConfigStore.getGroupConfig(groupId);
   const sentCount = Array.isArray(config.newsSentIds) ? config.newsSentIds.length : 0;
