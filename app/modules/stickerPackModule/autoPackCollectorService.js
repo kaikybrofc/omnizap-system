@@ -4,15 +4,54 @@ import { sanitizeText, toVisibility } from './stickerPackUtils.js';
 const DEFAULT_AUTO_PACK_NAME = process.env.STICKER_PACK_AUTO_PACK_NAME || 'Pack';
 const DEFAULT_AUTO_PACK_VISIBILITY = toVisibility(process.env.STICKER_PACK_AUTO_PACK_VISIBILITY || 'private', 'private');
 const AUTO_COLLECT_ENABLED = process.env.STICKER_PACK_AUTO_COLLECT_ENABLED !== 'false';
+const AUTO_PACK_NAME_MAX_LENGTH = 120;
+
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildAutoPackCandidate = (base, index) => {
+  const suffix = `-${index}`;
+  const maxBaseLength = Math.max(1, AUTO_PACK_NAME_MAX_LENGTH - suffix.length);
+  const trimmedBase = String(base || '').slice(0, maxBaseLength).trimEnd() || 'Pack';
+  return `${trimmedBase}${suffix}`;
+};
 
 const makeAutoPackName = (packs) => {
-  const base = sanitizeText(DEFAULT_AUTO_PACK_NAME, 120, { allowEmpty: false }) || 'Pack';
+  const base = sanitizeText(DEFAULT_AUTO_PACK_NAME, AUTO_PACK_NAME_MAX_LENGTH, { allowEmpty: false }) || 'Pack';
   const normalizedBase = base.toLowerCase();
+  const existingNames = packs
+    .map((pack) => sanitizeText(pack?.name, AUTO_PACK_NAME_MAX_LENGTH, { allowEmpty: true }) || '')
+    .filter(Boolean)
+    .map((name) => name.toLowerCase());
+  const existingSet = new Set(existingNames);
+  const usedIndexes = new Set();
+  const matcher = new RegExp(`^${escapeRegex(normalizedBase)}(?:[-\\s]+(\\d+))?$`, 'i');
 
-  const related = packs.filter((pack) => String(pack.name || '').toLowerCase().startsWith(normalizedBase));
-  if (!related.length) return base;
+  for (const name of existingNames) {
+    const match = name.match(matcher);
+    if (!match) continue;
 
-  return `${base} ${related.length + 1}`.slice(0, 120);
+    if (!match[1]) {
+      usedIndexes.add(1);
+      continue;
+    }
+
+    const parsedIndex = Number(match[1]);
+    if (Number.isInteger(parsedIndex) && parsedIndex > 0) {
+      usedIndexes.add(parsedIndex);
+    }
+  }
+
+  let index = 1;
+  while (index < 10_000) {
+    const candidate = buildAutoPackCandidate(base, index);
+    if (!usedIndexes.has(index) && !existingSet.has(candidate.toLowerCase())) {
+      return candidate;
+    }
+    index += 1;
+  }
+
+  const fallbackIndex = Math.max(1, packs.length + 1);
+  return buildAutoPackCandidate(base, fallbackIndex);
 };
 
 export function createAutoPackCollector(options = {}) {

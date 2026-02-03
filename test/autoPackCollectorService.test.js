@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createAutoPackCollector } from '../app/modules/stickerPackModule/autoPackCollectorService.js';
 import { StickerPackError, STICKER_PACK_ERROR_CODES } from '../app/modules/stickerPackModule/stickerPackErrors.js';
+import { sanitizeText } from '../app/modules/stickerPackModule/stickerPackUtils.js';
 
 const fakeBuffer = Buffer.from([
   0x52, 0x49, 0x46, 0x46, 0x1a, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
@@ -16,6 +17,8 @@ const silentLogger = {
   error: () => {},
   debug: () => {},
 };
+
+const autoPackBaseName = sanitizeText(process.env.STICKER_PACK_AUTO_PACK_NAME || 'Pack', 120, { allowEmpty: false }) || 'Pack';
 
 test('auto collector skips when disabled', async () => {
   const collector = createAutoPackCollector({
@@ -37,17 +40,21 @@ test('auto collector skips when disabled', async () => {
 
 test('auto collector creates pack when owner has no pack', async () => {
   const calls = [];
+  let createdPayload = null;
 
   const collector = createAutoPackCollector({
     logger: silentLogger,
     saveStickerAssetFromBuffer: async () => ({ id: 'asset-1' }),
     stickerPackService: {
       listPacks: async () => [],
-      createPack: async (payload) => ({
-        id: 'pack-1',
-        ...payload,
-        publisher: payload.publisher,
-      }),
+      createPack: async (payload) => {
+        createdPayload = payload;
+        return {
+          id: 'pack-1',
+          ...payload,
+          publisher: payload.publisher,
+        };
+      },
       addStickerToPack: async (payload) => {
         calls.push(payload);
         return {
@@ -68,6 +75,7 @@ test('auto collector creates pack when owner has no pack', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].identifier, 'pack-1');
   assert.equal(calls[0].asset.id, 'asset-1');
+  assert.equal(createdPayload.name, `${autoPackBaseName}-1`);
 });
 
 test('auto collector ignores duplicate sticker', async () => {
@@ -94,13 +102,17 @@ test('auto collector ignores duplicate sticker', async () => {
 
 test('auto collector creates rollover pack when limit is reached', async () => {
   let addAttempt = 0;
+  let createdPayload = null;
 
   const collector = createAutoPackCollector({
     logger: silentLogger,
     saveStickerAssetFromBuffer: async () => ({ id: 'asset-1' }),
     stickerPackService: {
-      listPacks: async () => [{ id: 'pack-1', name: 'Minhas Figurinhas', visibility: 'private', publisher: 'Kaiky' }],
-      createPack: async () => ({ id: 'pack-2', name: 'Minhas Figurinhas 2', visibility: 'private', publisher: 'Kaiky' }),
+      listPacks: async () => [{ id: 'pack-1', name: `${autoPackBaseName}-1`, visibility: 'private', publisher: 'Kaiky' }],
+      createPack: async (payload) => {
+        createdPayload = payload;
+        return { id: 'pack-2', ...payload };
+      },
       addStickerToPack: async ({ identifier }) => {
         addAttempt += 1;
         if (addAttempt === 1) {
@@ -123,4 +135,46 @@ test('auto collector creates rollover pack when limit is reached', async () => {
   assert.equal(result.status, 'added');
   assert.equal(result.pack.id, 'pack-2');
   assert.equal(addAttempt, 2);
+  assert.equal(createdPayload.name, `${autoPackBaseName}-2`);
+});
+
+test('auto collector skips duplicated index and chooses next available suffix', async () => {
+  let addAttempt = 0;
+  let createdPayload = null;
+
+  const collector = createAutoPackCollector({
+    logger: silentLogger,
+    saveStickerAssetFromBuffer: async () => ({ id: 'asset-1' }),
+    stickerPackService: {
+      listPacks: async () => [
+        { id: 'pack-1', name: autoPackBaseName, visibility: 'private', publisher: 'Kaiky' },
+        { id: 'pack-2', name: `${autoPackBaseName}-2`, visibility: 'private', publisher: 'Kaiky' },
+        { id: 'pack-3', name: `${autoPackBaseName}-3`, visibility: 'private', publisher: 'Kaiky' },
+      ],
+      createPack: async (payload) => {
+        createdPayload = payload;
+        return { id: 'pack-4', ...payload };
+      },
+      addStickerToPack: async ({ identifier }) => {
+        addAttempt += 1;
+        if (addAttempt === 1) {
+          throw new StickerPackError(STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED, 'limite');
+        }
+        return {
+          id: identifier,
+          items: [{ sticker_id: 'asset-1' }],
+        };
+      },
+    },
+  });
+
+  const result = await collector.addStickerToAutoPack({
+    ownerJid: '5511999999999@s.whatsapp.net',
+    senderName: 'Kaiky',
+    stickerBuffer: fakeBuffer,
+  });
+
+  assert.equal(result.status, 'added');
+  assert.equal(result.pack.id, 'pack-4');
+  assert.equal(createdPayload.name, `${autoPackBaseName}-4`);
 });
