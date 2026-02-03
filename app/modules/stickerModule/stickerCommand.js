@@ -10,14 +10,28 @@ import { sendAndStore } from '../../services/messagePersistenceService.js';
 const adminJid = process.env.USER_ADMIN;
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
-const MAX_FILE_SIZE = 1 * 1024 * 1024; // 2MB
+const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
 const SUPPORTED_MEDIA_TYPES = new Set(['image', 'video', 'sticker']);
+
+/**
+ * Resultado da criação/verificação de diretórios temporários do usuário.
+ * @typedef {Object} EnsureDirectoriesResult
+ * @property {boolean} success - Indica se o diretório está pronto para uso.
+ * @property {string} [error] - Mensagem amigável em caso de falha.
+ */
+
+/**
+ * Metadados normalizados para o pacote de stickers.
+ * @typedef {Object} StickerMetadata
+ * @property {string} packName - Nome final do pacote.
+ * @property {string} packAuthor - Autor final do pacote.
+ */
 
 /**
  * Garante que o diretório temporário do usuário para stickers existe.
  *
- * @param {string} userId - ID numérico do usuário (apenas dígitos).
- * @returns {Promise<{success: boolean, error?: string}>} Resultado da operação.
+ * @param {string} userId - Identificador do usuário usado no diretório temporário.
+ * @returns {Promise<EnsureDirectoriesResult>} Status da preparação do diretório.
  */
 async function ensureDirectories(userId) {
   if (!userId) {
@@ -49,10 +63,10 @@ async function ensureDirectories(userId) {
 /**
  * Verifica se o tamanho da mídia está dentro do limite permitido.
  *
- * @param {object} mediaKey - Objeto da mídia contendo fileLength.
- * @param {string} mediaType - Tipo da mídia (image, video, sticker, document).
+ * @param {{ fileLength?: number }} mediaKey - Estrutura de mídia retornada pelo Baileys.
+ * @param {string} mediaType - Tipo normalizado da mídia (ex.: image, video, sticker).
  * @param {number} [maxFileSize=MAX_FILE_SIZE] - Tamanho máximo permitido em bytes.
- * @returns {boolean} True se o tamanho for permitido, false caso contrário.
+ * @returns {boolean} `true` quando o tamanho está dentro do limite; caso contrário `false`.
  */
 function checkMediaSize(mediaKey, mediaType, maxFileSize = MAX_FILE_SIZE) {
   const fileLength = mediaKey?.fileLength || 0;
@@ -69,9 +83,10 @@ function checkMediaSize(mediaKey, mediaType, maxFileSize = MAX_FILE_SIZE) {
  * Faz o parsing do texto recebido para packName e packAuthor.
  * Se o texto contiver '/', separa em dois: packName/packAuthor.
  * Caso contrário, usa o texto como packName e o senderName como autor.
- * @param {string} text
- * @param {string} senderName
- * @returns {{ packName: string, packAuthor: string }}
+ *
+ * @param {string} text - Texto extra recebido com o comando.
+ * @param {string} senderName - Nome exibido do remetente.
+ * @returns {StickerMetadata} Objeto pronto para uso em `addStickerMetadata`.
  */
 function parseStickerMetaText(text, senderName) {
   let packName = 'OmniZap System';
@@ -91,12 +106,18 @@ function parseStickerMetaText(text, senderName) {
 }
 
 /**
- * Processa uma mensagem para criar e enviar um sticker a partir de uma mídia recebida.
+ * Processa uma mensagem para criar e enviar um sticker com metadados customizados.
  *
- * @param {object} sock - Instância do socket de conexão WhatsApp.
- * @param {object} messageInfo - Objeto da mensagem recebida.
+ * Fluxo: valida mídia/limite, baixa arquivo, converte para WEBP, aplica EXIF e envia ao chat.
+ * Erros de processamento geram resposta amigável para o usuário e alerta opcional para admin.
+ *
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - Socket ativo do Baileys.
+ * @param {import('@whiskeysockets/baileys').WAMessage} messageInfo - Mensagem de comando recebida.
  * @param {string} senderJid - JID do remetente.
- * @param {string} remoteJid - JID do chat remoto.
+ * @param {string} remoteJid - JID do chat onde a resposta será enviada.
+ * @param {number} expirationMessage - Tempo de expiração (segundos) para mensagens efêmeras.
+ * @param {string} senderName - Nome do remetente exibido no chat.
+ * @param {string} [extraText=''] - Texto opcional no formato `pack/author` para metadados.
  * @returns {Promise<void>}
  */
 export async function processSticker(

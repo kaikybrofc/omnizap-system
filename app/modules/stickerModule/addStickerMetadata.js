@@ -12,6 +12,27 @@ const WEBPMUX_EXEC_TIMEOUT_MS = 12000;
 
 let webpmuxAvailabilityPromise = null;
 
+/**
+ * Contexto de placeholders usados nos metadados (`#nome`, `#id`).
+ * @typedef {Object} StickerReplaceContext
+ * @property {string} [senderName] - Nome exibido do remetente.
+ * @property {string} [userId] - JID/ID de origem para preencher `#id`.
+ */
+
+/**
+ * Resultado da execução de processo externo.
+ * @typedef {Object} ProcessExecutionResult
+ * @property {string} stdout
+ * @property {string} stderr
+ */
+
+/**
+ * Envia sinal para um processo filho com tratamento seguro de erro.
+ *
+ * @param {import('node:child_process').ChildProcessWithoutNullStreams} child - Processo filho alvo.
+ * @param {NodeJS.Signals} signal - Sinal a ser enviado.
+ * @returns {boolean} `true` se o sinal foi enviado; `false` caso contrário.
+ */
 function safeKill(child, signal) {
   try {
     return child.kill(signal);
@@ -20,6 +41,14 @@ function safeKill(child, signal) {
   }
 }
 
+/**
+ * Executa um comando externo com timeout e captura de stdout/stderr.
+ *
+ * @param {string} command - Binário a executar.
+ * @param {string[]} args - Argumentos separados (sem shell).
+ * @param {{ timeoutMs: number }} options - Opções de execução.
+ * @returns {Promise<ProcessExecutionResult>} Saídas do comando.
+ */
 function runProcess(command, args, { timeoutMs }) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -75,6 +104,12 @@ function runProcess(command, args, { timeoutMs }) {
   });
 }
 
+/**
+ * Verifica se `webpmux` está disponível no ambiente, com cache em memória.
+ *
+ * @returns {Promise<true>} Resolve `true` quando o binário está disponível.
+ * @throws {Error} Quando `webpmux` não está instalado ou não responde.
+ */
 async function ensureWebpmuxAvailable() {
   if (webpmuxAvailabilityPromise) {
     return webpmuxAvailabilityPromise;
@@ -92,6 +127,13 @@ async function ensureWebpmuxAvailable() {
   return webpmuxAvailabilityPromise;
 }
 
+/**
+ * Normaliza texto de metadado: remove quebras de linha, compacta espaços e limita tamanho.
+ *
+ * @param {unknown} value - Valor de entrada.
+ * @param {string} [fallback=''] - Valor padrão quando o resultado fica vazio.
+ * @returns {string} Texto pronto para ser serializado no EXIF.
+ */
 function normalizeMetadataText(value, fallback = '') {
   const normalized = String(value ?? '')
     .replace(/[\r\n]+/g, ' ')
@@ -102,12 +144,15 @@ function normalizeMetadataText(value, fallback = '') {
 }
 
 /**
- * Adiciona metadados ao sticker, realizando replaces especiais em packName e packAuthor.
- * @param {string} stickerPath Caminho do sticker
- * @param {string} packName Nome do pack (pode conter #nome, #data, #hora, #id)
- * @param {string} packAuthor Autor do pack (pode conter #nome, #data, #hora, #id)
- * @param {object} [replaceContext] Contexto para replaces: { senderName, userId }
- * @returns {Promise<string>} Caminho do sticker final
+ * Adiciona metadados EXIF de pacote ao arquivo WEBP.
+ *
+ * Em caso de erro, a função retorna o `stickerPath` original para evitar bloquear o envio.
+ *
+ * @param {string} stickerPath - Caminho do WEBP base.
+ * @param {string} packName - Nome do pacote (aceita placeholders: `#nome`, `#data`, `#hora`, `#id`).
+ * @param {string} packAuthor - Autor do pacote (aceita placeholders: `#nome`, `#data`, `#hora`, `#id`).
+ * @param {StickerReplaceContext} [replaceContext={}] - Dados para substituir placeholders.
+ * @returns {Promise<string>} Caminho do WEBP final com metadados (ou o original em fallback).
  */
 export async function addStickerMetadata(stickerPath, packName, packAuthor, replaceContext = {}) {
   const { senderName = '', userId = '' } = replaceContext;
