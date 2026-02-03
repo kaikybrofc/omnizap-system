@@ -150,6 +150,8 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
   const pack = result.pack || {};
   const packName = pack.name || 'Minhas Figurinhas';
   const packIdentifier = pack.pack_key || pack.id || '<pack>';
+  const escapedPackName = packName.replace(/"/g, '\\"');
+  const packCommandTarget = escapedPackName ? `"${escapedPackName}"` : packIdentifier;
   const itemCount = Array.isArray(pack.items) ? pack.items.length : Number(pack.sticker_count || 0);
   const countLabel = itemCount > 0 ? ` (${itemCount}/${AUTO_PACK_MAX_ITEMS})` : '';
 
@@ -163,7 +165,7 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
   return [
     `📦 Figurinha salva automaticamente no pack *${packName}*${countLabel}.`,
     `Dica: use *${commandPrefix}pack list* para gerenciar seus packs.`,
-    `Para enviar agora: *${commandPrefix}pack send ${packIdentifier}*.`,
+    `Para enviar agora: *${commandPrefix}pack send ${packCommandTarget}*.`,
   ].join('\n');
 }
 

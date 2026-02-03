@@ -6,6 +6,7 @@ import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.
 const MAX_PREVIEW_LIST_LINES = Math.max(5, Number(process.env.STICKER_PACK_PREVIEW_LINES) || 20);
 const FALLBACK_SEND_LIMIT = Math.max(1, Number(process.env.STICKER_PACK_FALLBACK_SEND_LIMIT) || 30);
 const ZIP_FEATURE_ENABLED = process.env.STICKER_PACK_ZIP_ENABLED === 'true';
+const PACK_VISUAL_DIVIDER = '━━━━━━━━━━━━━━━━━━━';
 
 const normalizeEmojis = (value) => (Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean).slice(0, 8) : []);
 
@@ -17,19 +18,38 @@ const renderItemLabel = (item, index) => {
 
 const buildPreviewText = ({ pack, items, sentCount }) => {
   const lines = items.slice(0, MAX_PREVIEW_LIST_LINES).map((item, index) => renderItemLabel(item, index + 1));
+  const previewLines = [...lines];
+  if (items.length > MAX_PREVIEW_LIST_LINES) {
+    previewLines.push(`... e mais ${items.length - MAX_PREVIEW_LIST_LINES} figurinha(s).`);
+  }
 
-  const truncated = items.length > MAX_PREVIEW_LIST_LINES ? `\n... e mais ${items.length - MAX_PREVIEW_LIST_LINES} figurinha(s)` : '';
-  const sendNote = sentCount < items.length ? `\n\n⚠️ Enviadas ${sentCount}/${items.length} no fallback.` : '';
+  const compatibilityNote =
+    sentCount < items.length
+      ? `⚠️ Por compatibilidade, enviei ${sentCount}/${items.length} figurinha(s) neste fallback.`
+      : `✅ Envio completo no fallback: ${sentCount}/${items.length} figurinha(s).`;
 
   return [
-    `📦 *Pack preview*`,
-    `Nome: ${pack.name}`,
-    `Publisher: ${pack.publisher}`,
-    `ID: ${pack.pack_key}`,
-    `Figurinhas: ${items.length}`,
+    '📦 *GERENCIADOR DE PACKS DE FIGURINHAS*',
     '',
-    lines.join('\n') || 'Sem figurinhas para listar.',
-  ].join('\n') + truncated + sendNote;
+    '📤 *ENVIO EM MODO DE COMPATIBILIDADE*',
+    'Seu cliente não aceitou o pack nativo, então enviei preview + figurinhas individuais.',
+    '',
+    PACK_VISUAL_DIVIDER,
+    '📌 *RESUMO DO PACK*',
+    '',
+    `📛 Nome: *${pack.name}*`,
+    `👤 Publisher: *${pack.publisher}*`,
+    `🆔 ID: \`${pack.pack_key}\``,
+    `🧩 Figurinhas disponíveis: *${items.length}*`,
+    '',
+    PACK_VISUAL_DIVIDER,
+    '🖼 *PRÉVIA DAS FIGURINHAS*',
+    '',
+    previewLines.join('\n') || 'Nenhuma figurinha disponível para listar.',
+    '',
+    PACK_VISUAL_DIVIDER,
+    compatibilityNote,
+  ].join('\n');
 };
 
 async function buildZipPayload({ pack, coverBuffer, stickers }) {

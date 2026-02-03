@@ -1,12 +1,12 @@
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { sanitizeText, toVisibility } from './stickerPackUtils.js';
 
-const DEFAULT_AUTO_PACK_NAME = process.env.STICKER_PACK_AUTO_PACK_NAME || 'Minhas Figurinhas';
+const DEFAULT_AUTO_PACK_NAME = process.env.STICKER_PACK_AUTO_PACK_NAME || 'Pack';
 const DEFAULT_AUTO_PACK_VISIBILITY = toVisibility(process.env.STICKER_PACK_AUTO_PACK_VISIBILITY || 'private', 'private');
 const AUTO_COLLECT_ENABLED = process.env.STICKER_PACK_AUTO_COLLECT_ENABLED !== 'false';
 
 const makeAutoPackName = (packs) => {
-  const base = sanitizeText(DEFAULT_AUTO_PACK_NAME, 120, { allowEmpty: false }) || 'Minhas Figurinhas';
+  const base = sanitizeText(DEFAULT_AUTO_PACK_NAME, 120, { allowEmpty: false }) || 'Pack';
   const normalizedBase = base.toLowerCase();
 
   const related = packs.filter((pack) => String(pack.name || '').toLowerCase().startsWith(normalizedBase));
