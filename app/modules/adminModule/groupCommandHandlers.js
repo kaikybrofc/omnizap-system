@@ -54,6 +54,7 @@ const ADMIN_COMMANDS = new Set([
   'antilink',
   'premium',
   'nsfw',
+  'autosticker',
   'noticias',
   'news',
   'prefix',
@@ -228,6 +229,68 @@ export async function handleAdminCommand({
       break;
     }
 
+    case 'autosticker': {
+      if (!isGroupMessage) {
+        await sendAndStore(
+          sock,
+          remoteJid,
+          { text: 'Este comando só pode ser usado em grupos.' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+      if (!(await isUserAdmin(remoteJid, senderJid))) {
+        await sendAndStore(
+          sock,
+          remoteJid,
+          { text: 'Você não tem permissão para usar este comando.' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      const action = args[0]?.toLowerCase();
+      if (!action || !['on', 'off', 'status'].includes(action)) {
+        await sendAndStore(
+          sock,
+          remoteJid,
+          { text: `Uso: ${commandPrefix}autosticker <on|off|status>` },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (action === 'status') {
+        const config = await groupConfigStore.getGroupConfig(remoteJid);
+        const enabled = Boolean(config.autoStickerEnabled);
+        await sendAndStore(
+          sock,
+          remoteJid,
+          {
+            text:
+              `🖼️ AutoSticker está ${enabled ? 'ATIVADO' : 'DESATIVADO'} neste grupo.\n` +
+              'Quando ativado, imagens e vídeos enviados serão convertidos automaticamente.',
+          },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      const enabled = action === 'on';
+      await groupConfigStore.updateGroupConfig(remoteJid, { autoStickerEnabled: enabled });
+      await sendAndStore(
+        sock,
+        remoteJid,
+        {
+          text: enabled
+            ? '✅ AutoSticker ATIVADO neste grupo.\nEnvie imagem ou vídeo para converter automaticamente.'
+            : '🛑 AutoSticker DESATIVADO neste grupo.',
+        },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+      break;
+    }
+
     case 'newgroup': {
       if (args.length < 2) {
         await sendAndStore(sock, 
@@ -243,7 +306,7 @@ export async function handleAdminCommand({
         const group = await createGroup(sock, title, participants);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Grupo \"${group.subject}\" criado com sucesso!` },
+          { text: `Grupo "${group.subject}" criado com sucesso!` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
@@ -501,7 +564,7 @@ export async function handleAdminCommand({
         await updateGroupSubject(sock, remoteJid, newSubject);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Assunto do grupo alterado para \"${newSubject}\" com sucesso!` },
+          { text: `Assunto do grupo alterado para "${newSubject}" com sucesso!` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
@@ -592,7 +655,7 @@ export async function handleAdminCommand({
         await updateGroupSettings(sock, remoteJid, setting);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Configuração do grupo alterada para \"${setting}\" com sucesso!` },
+          { text: `Configuração do grupo alterada para "${setting}" com sucesso!` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {

@@ -28,6 +28,37 @@ const SUPPORTED_MEDIA_TYPES = new Set(['image', 'video', 'sticker']);
  */
 
 /**
+ * Opções de processamento para geração de sticker.
+ * @typedef {Object} ProcessStickerOptions
+ * @property {boolean} [includeQuotedMedia=true] - Se deve permitir mídia de mensagem citada.
+ */
+
+/**
+ * Verifica se o tipo de mídia é suportado para conversão em sticker.
+ *
+ * @param {string} mediaType - Tipo normalizado retornado pelo Baileys.
+ * @returns {boolean} `true` quando o tipo pode ser convertido em sticker.
+ */
+export function isSupportedStickerMediaType(mediaType) {
+  return SUPPORTED_MEDIA_TYPES.has(mediaType);
+}
+
+/**
+ * Extrai uma mídia válida para sticker, com suporte opcional a mensagem citada.
+ *
+ * @param {import('@whiskeysockets/baileys').WAMessage} messageInfo - Mensagem recebida.
+ * @param {{ includeQuoted?: boolean }} [options={}] - Opções de extração.
+ * @returns {{ mediaType: string, mediaKey: object, isQuoted?: boolean, details?: object }|null}
+ */
+export function extractSupportedStickerMediaDetails(messageInfo, options = {}) {
+  const mediaDetails = extractMediaDetails(messageInfo, options);
+  if (!mediaDetails || !isSupportedStickerMediaType(mediaDetails.mediaType)) {
+    return null;
+  }
+  return mediaDetails;
+}
+
+/**
  * Garante que o diretório temporário do usuário para stickers existe.
  *
  * @param {string} userId - Identificador do usuário usado no diretório temporário.
@@ -118,6 +149,7 @@ function parseStickerMetaText(text, senderName) {
  * @param {number} expirationMessage - Tempo de expiração (segundos) para mensagens efêmeras.
  * @param {string} senderName - Nome do remetente exibido no chat.
  * @param {string} [extraText=''] - Texto opcional no formato `pack/author` para metadados.
+ * @param {ProcessStickerOptions} [options={}] - Comportamento avançado do fluxo.
  * @returns {Promise<void>}
  */
 export async function processSticker(
@@ -128,7 +160,9 @@ export async function processSticker(
   expirationMessage,
   senderName,
   extraText = '',
+  options = {},
 ) {
+  const { includeQuotedMedia = true } = options;
   const uniqueId = uuidv4();
 
   let tempMediaPath = null;
@@ -152,8 +186,9 @@ export async function processSticker(
       return;
     }
 
-    const mediaDetails = extractMediaDetails(message);
+    const mediaDetails = extractMediaDetails(message, { includeQuoted: includeQuotedMedia });
     if (!mediaDetails) {
+      const maxSizeLabel = `${(MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)} MB`;
       await sendAndStore(sock, senderJid, { react: { text: '❓', key: messageInfo.key } });
       await sendAndStore(
         sock,
@@ -162,7 +197,7 @@ export async function processSticker(
           text:
             `Olá ${senderName} \n\n*❌ Não foi possível processar sua solicitação.*\n\n` +
             '> Você não enviou nem marcou nenhuma mídia.\n\n' +
-            '📌 Por favor, envie ou marque um arquivo de mídia com *tamanho máximo de 2 MB*.\n\n' +
+            `📌 Por favor, envie ou marque um arquivo de mídia com *tamanho máximo de ${maxSizeLabel}*.\n\n` +
             '> _*💡 Dica: desative o modo HD antes de enviar para reduzir o tamanho do arquivo e evitar falhas.*_',
         },
         { quoted: message, ephemeralExpiration: expirationMessage },
@@ -171,7 +206,7 @@ export async function processSticker(
     }
 
     const { mediaType, mediaKey } = mediaDetails;
-    if (!SUPPORTED_MEDIA_TYPES.has(mediaType)) {
+    if (!isSupportedStickerMediaType(mediaType)) {
       await sendAndStore(sock, senderJid, { react: { text: '❓', key: messageInfo.key } });
       await sendAndStore(
         sock,

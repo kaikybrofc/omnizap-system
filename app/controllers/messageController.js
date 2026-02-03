@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { handleMenuCommand } from '../modules/menuModule/menus.js';
 import { handleAdminCommand, isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
-import { processSticker } from '../modules/stickerModule/stickerCommand.js';
+import { extractSupportedStickerMediaDetails, processSticker } from '../modules/stickerModule/stickerCommand.js';
 import { processBlinkingTextSticker, processTextSticker } from '../modules/stickerModule/stickerTextCommand.js';
 import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/playCommand.js';
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
@@ -10,7 +10,13 @@ import { handleGlobalRankingCommand } from '../modules/statsModule/globalRanking
 import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
 import { handleInteractionGraphCommand } from '../modules/statsModule/interactionGraphCommand.js';
 import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js';
-import { extractMessageContent, getExpiration, isGroupJid, resolveBotJid } from '../config/baileysConfig.js';
+import {
+  extractMessageContent,
+  getExpiration,
+  isGroupJid,
+  isSameJidUser,
+  resolveBotJid,
+} from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { handleCatCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
@@ -97,7 +103,9 @@ export const handleMessages = async (update, sock) => {
          * Envia uma reação automática quando a mensagem começa com o prefixo de comando.
          * A falha no envio da reação não interrompe o processamento do comando.
          */
-        if (extractedText.startsWith(commandPrefix)) {
+        const isCommandMessage = extractedText.startsWith(commandPrefix);
+
+        if (isCommandMessage) {
           if (COMMAND_REACT_EMOJI) {
             try {
               await sendAndStore(sock, remoteJid, {
@@ -441,6 +449,31 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
               );
 
               break;
+            }
+          }
+        }
+
+        const isMessageFromBot =
+          Boolean(messageInfo?.key?.fromMe) || (botJid ? isSameJidUser(senderJid, botJid) : false);
+
+        if (isGroupMessage && !isCommandMessage && !isMessageFromBot) {
+          const autoStickerMedia = extractSupportedStickerMediaDetails(messageInfo, { includeQuoted: false });
+
+          if (autoStickerMedia && autoStickerMedia.mediaType !== 'sticker') {
+            const groupConfig = await groupConfigStore.getGroupConfig(remoteJid);
+            if (groupConfig.autoStickerEnabled) {
+              runCommand('autosticker', () =>
+                processSticker(
+                  sock,
+                  messageInfo,
+                  senderJid,
+                  remoteJid,
+                  expirationMessage,
+                  senderName,
+                  '',
+                  { includeQuotedMedia: false },
+                ),
+              );
             }
           }
         }

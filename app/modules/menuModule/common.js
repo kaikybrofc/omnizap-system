@@ -194,6 +194,7 @@ export const buildAdminMenu = (commandPrefix = '/') => `
 👋 *${commandPrefix}farewell <on|off|set> [mensagem ou caminho da mídia]* - Mensagem de saída.
 ⭐ *${commandPrefix}premium <add|remove|list> @user1 @user2...* - Gerencia acesso premium da IA.
 🔞 *${commandPrefix}nsfw <on|off|status>* - Ativa/desativa NSFW no grupo.
+🖼️ *${commandPrefix}autosticker <on|off|status>* - Converte mídia em figurinha automaticamente.
 📰 *${commandPrefix}noticias <on|off|status>* - Ativa/desativa envio automático de notícias.
 ⚙️ *${commandPrefix}prefix <novo_prefixo|status|reset>* - Altera o prefixo do bot no grupo.
 `;
