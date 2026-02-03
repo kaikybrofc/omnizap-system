@@ -6,6 +6,7 @@ import { addStickerMetadata } from './addStickerMetadata.js';
 import { convertToWebp } from './convertToWebp.js';
 import { v4 as uuidv4 } from 'uuid';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { addStickerToAutoPack } from '../stickerPackModule/autoPackCollectorRuntime.js';
 
 const adminJid = process.env.USER_ADMIN;
 
@@ -299,6 +300,21 @@ export async function processSticker(
         { sticker: stickerBuffer },
         { quoted: message, ephemeralExpiration: expirationMessage },
       );
+
+      // Coleta automática: toda figurinha gerada pelo usuário é adicionada ao pack dele.
+      setImmediate(() => {
+        addStickerToAutoPack({
+          ownerJid: senderJid,
+          senderName,
+          stickerBuffer,
+        }).catch((collectError) => {
+          logger.warn('Falha ao coletar figurinha automática no pack do usuário.', {
+            action: 'sticker_pack_auto_collect_failed',
+            owner_jid: senderJid,
+            error: collectError.message,
+          });
+        });
+      });
     } catch (sendErr) {
       logger.error(`processSticker Erro ao enviar o sticker: ${sendErr.message}`);
       const msgErro =

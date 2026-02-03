@@ -132,6 +132,77 @@ const resolveStickerMediaDetails = (messageInfo, { includeQuoted = true } = {}) 
   return mediaDetails;
 };
 
+const validateStickerBuffer = (buffer) => {
+  if (!Buffer.isBuffer(buffer) || !buffer.length) {
+    throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, 'Arquivo da figurinha veio vazio.');
+  }
+
+  if (buffer.length > MAX_STICKER_BYTES) {
+    throw new StickerPackError(
+      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+      `Figurinha excede o limite de ${(MAX_STICKER_BYTES / (1024 * 1024)).toFixed(1)} MB.`,
+    );
+  }
+
+  if (!isLikelyWebp(buffer)) {
+    throw new StickerPackError(
+      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+      'A mídia precisa estar no formato WEBP para entrar no pack.',
+    );
+  }
+};
+
+async function persistStickerAssetBuffer({ ownerJid, buffer, mimetype = 'image/webp' }) {
+  const normalizedOwner = normalizeOwnerJid(ownerJid);
+  validateStickerBuffer(buffer);
+
+  const sha256 = computeSha256(buffer);
+  const existing = await findStickerAssetBySha256(sha256);
+
+  if (existing) {
+    const existingPathOk = existing.storage_path ? await fileExists(existing.storage_path) : false;
+
+    if (!existingPathOk) {
+      const fixedPath = await ensureStorageForAsset({ ownerJid: normalizedOwner, sha256, buffer });
+      const repaired = await updateStickerAssetStoragePath(existing.id, fixedPath);
+      rememberLastSticker(normalizedOwner, repaired.id);
+      return repaired;
+    }
+
+    rememberLastSticker(normalizedOwner, existing.id);
+    return existing;
+  }
+
+  const storagePath = await ensureStorageForAsset({ ownerJid: normalizedOwner, sha256, buffer });
+  const { width, height } = parseWebpDimensions(buffer);
+
+  try {
+    const created = await createStickerAsset({
+      id: randomUUID(),
+      owner_jid: normalizedOwner,
+      sha256,
+      mimetype,
+      is_animated: detectAnimatedWebp(buffer),
+      width,
+      height,
+      size_bytes: buffer.length,
+      storage_path: storagePath,
+    });
+
+    rememberLastSticker(normalizedOwner, created.id);
+    return created;
+  } catch (error) {
+    if (error?.code === 'ER_DUP_ENTRY') {
+      const duplicated = await findStickerAssetBySha256(sha256);
+      if (duplicated) {
+        rememberLastSticker(normalizedOwner, duplicated.id);
+        return duplicated;
+      }
+    }
+    throw error;
+  }
+}
+
 async function persistStickerAssetFromDetails({ mediaDetails, ownerJid }) {
   const normalizedOwner = normalizeOwnerJid(ownerJid);
   const mediaSize = Number(mediaDetails?.details?.fileLength || mediaDetails?.mediaKey?.fileLength || 0);
@@ -158,69 +229,12 @@ async function persistStickerAssetFromDetails({ mediaDetails, ownerJid }) {
     }
 
     const buffer = await fs.readFile(downloadedPath);
-    if (!buffer.length) {
-      throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, 'Arquivo da figurinha veio vazio.');
-    }
 
-    if (buffer.length > MAX_STICKER_BYTES) {
-      throw new StickerPackError(
-        STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-        `Figurinha excede o limite de ${(MAX_STICKER_BYTES / (1024 * 1024)).toFixed(1)} MB.`,
-      );
-    }
-
-    if (!isLikelyWebp(buffer)) {
-      throw new StickerPackError(
-        STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-        'A mídia precisa estar no formato WEBP para entrar no pack.',
-      );
-    }
-
-    const sha256 = computeSha256(buffer);
-    const existing = await findStickerAssetBySha256(sha256);
-
-    if (existing) {
-      const existingPathOk = existing.storage_path ? await fileExists(existing.storage_path) : false;
-
-      if (!existingPathOk) {
-        const fixedPath = await ensureStorageForAsset({ ownerJid: normalizedOwner, sha256, buffer });
-        const repaired = await updateStickerAssetStoragePath(existing.id, fixedPath);
-        rememberLastSticker(normalizedOwner, repaired.id);
-        return repaired;
-      }
-
-      rememberLastSticker(normalizedOwner, existing.id);
-      return existing;
-    }
-
-    const storagePath = await ensureStorageForAsset({ ownerJid: normalizedOwner, sha256, buffer });
-    const { width, height } = parseWebpDimensions(buffer);
-
-    try {
-      const created = await createStickerAsset({
-        id: randomUUID(),
-        owner_jid: normalizedOwner,
-        sha256,
-        mimetype: mediaDetails?.details?.mimetype || 'image/webp',
-        is_animated: detectAnimatedWebp(buffer),
-        width,
-        height,
-        size_bytes: buffer.length,
-        storage_path: storagePath,
-      });
-
-      rememberLastSticker(normalizedOwner, created.id);
-      return created;
-    } catch (error) {
-      if (error?.code === 'ER_DUP_ENTRY') {
-        const duplicated = await findStickerAssetBySha256(sha256);
-        if (duplicated) {
-          rememberLastSticker(normalizedOwner, duplicated.id);
-          return duplicated;
-        }
-      }
-      throw error;
-    }
+    return await persistStickerAssetBuffer({
+      ownerJid: normalizedOwner,
+      buffer,
+      mimetype: mediaDetails?.details?.mimetype || 'image/webp',
+    });
   } catch (error) {
     if (error instanceof StickerPackError) {
       throw error;
@@ -240,6 +254,30 @@ async function persistStickerAssetFromDetails({ mediaDetails, ownerJid }) {
     if (downloadedPath) {
       await fs.unlink(downloadedPath).catch(() => {});
     }
+  }
+}
+
+export async function saveStickerAssetFromBuffer({ ownerJid, buffer, mimetype = 'image/webp' }) {
+  const normalizedOwner = normalizeOwnerJid(ownerJid);
+
+  try {
+    return await persistStickerAssetBuffer({ ownerJid: normalizedOwner, buffer, mimetype });
+  } catch (error) {
+    if (error instanceof StickerPackError) {
+      throw error;
+    }
+
+    logger.error('Falha ao persistir figurinha gerada localmente.', {
+      action: 'sticker_asset_store_from_buffer_failed',
+      owner_jid: normalizedOwner,
+      error: error.message,
+    });
+
+    throw new StickerPackError(
+      STICKER_PACK_ERROR_CODES.STORAGE_ERROR,
+      'Falha ao salvar figurinha gerada no servidor.',
+      error,
+    );
   }
 }
 

@@ -116,9 +116,8 @@ export async function buildStickerPackMessage(packDetails) {
   }));
 
   const payload = {
-    cover: {
-      data: coverItem.data,
-    },
+    // Baileys feat-add-stickerpack-support espera cover como media direto (Buffer/stream/url).
+    cover: coverItem.data,
     name: pack.name,
     publisher: pack.publisher,
     description: pack.description || undefined,
@@ -153,29 +152,24 @@ export async function sendStickerPackWithFallback({
     ephemeralExpiration: expirationMessage,
   };
 
-  const nativeAttempts = [{ stickerPack: packBuild.payload }];
-
-  if (packBuild.zipBuffer) {
-    nativeAttempts.push({
-      stickerPack: {
-        ...packBuild.payload,
-        zip: packBuild.zipBuffer,
-      },
-    });
-  }
-
   let nativeError = null;
+  try {
+    // Modo pack nativo.
+    await sendAndStore(
+      sock,
+      jid,
+      {
+        stickerPack: packBuild.payload,
+      },
+      options,
+    );
 
-  for (const content of nativeAttempts) {
-    try {
-      await sendAndStore(sock, jid, content, options);
-      return {
-        mode: 'native',
-        sentCount: packBuild.items.length,
-      };
-    } catch (error) {
-      nativeError = error;
-    }
+    return {
+      mode: 'native',
+      sentCount: packBuild.items.length,
+    };
+  } catch (error) {
+    nativeError = error;
   }
 
   logger.warn('Envio nativo de sticker pack falhou, ativando fallback.', {
@@ -201,12 +195,12 @@ export async function sendStickerPackWithFallback({
     options,
   );
 
-  if (packBuild.payload?.cover?.data) {
+  if (packBuild.payload?.cover) {
     await sendAndStore(
       sock,
       jid,
       {
-        sticker: packBuild.payload.cover.data,
+        sticker: packBuild.payload.cover,
       },
       options,
     );

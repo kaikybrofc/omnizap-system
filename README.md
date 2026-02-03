@@ -197,6 +197,7 @@ Observações:
 *   Edição é sempre restrita ao dono (`owner_jid`).
 *   O envio tenta `stickerPack` nativo primeiro e cai automaticamente no fallback se o cliente/lib não suportar.
 *   Figurinhas recebidas são capturadas para facilitar `add`/`setcover` com “última figurinha”.
+*   Figurinhas criadas pelo usuário via comandos (`/sticker`, `/st`, `/stb`) entram automaticamente no pack mais recente dele (com criação automática de pack quando necessário).
 
 ## 📈 Observabilidade (Grafana/Prometheus/Loki)
 

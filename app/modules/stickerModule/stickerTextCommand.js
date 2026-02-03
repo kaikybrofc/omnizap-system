@@ -1,4 +1,4 @@
-import { createCanvas, registerFont } from 'canvas';
+import { createCanvas } from 'canvas';
 import { exec } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -11,6 +11,7 @@ import { convertToWebp } from './convertToWebp.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
 import { getJidUser } from '../../config/baileysConfig.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { addStickerToAutoPack } from '../stickerPackModule/autoPackCollectorRuntime.js';
 
 /**
  * Constantes limitadoras
@@ -370,6 +371,16 @@ export async function processTextSticker({
       { sticker: stickerBuffer },
       { ephemeralExpiration: expirationMessage },
     );
+
+    setImmediate(() => {
+      addStickerToAutoPack({
+        ownerJid: senderJid,
+        senderName,
+        stickerBuffer,
+      }).catch((collectError) => {
+        logger.warn(`processTextSticker Falha ao coletar figurinha automática: ${collectError.message}`);
+      });
+    });
   } catch (error) {
     logger.error(`processTextSticker Erro: ${error.message}`, { error });
     await sendAndStore(sock, remoteJid, {
@@ -491,6 +502,16 @@ export async function processBlinkingTextSticker({
       { sticker: stickerBuffer },
       { ephemeralExpiration: expirationMessage },
     );
+
+    setImmediate(() => {
+      addStickerToAutoPack({
+        ownerJid: senderJid,
+        senderName,
+        stickerBuffer,
+      }).catch((collectError) => {
+        logger.warn(`processBlinkingTextSticker Falha ao coletar figurinha automática: ${collectError.message}`);
+      });
+    });
   } catch (error) {
     logger.error(`processBlinkingTextSticker Erro: ${error.message}`, { error });
     await sendAndStore(sock, remoteJid, {
