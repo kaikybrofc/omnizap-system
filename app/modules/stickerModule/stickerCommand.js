@@ -13,6 +13,9 @@ const adminJid = process.env.USER_ADMIN;
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
 const SUPPORTED_MEDIA_TYPES = new Set(['image', 'video', 'sticker']);
+const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
+const AUTO_PACK_NOTICE_ENABLED = process.env.STICKER_PACK_AUTO_COLLECT_NOTIFY !== 'false';
+const AUTO_PACK_MAX_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
 
 /**
  * Resultado da criação/verificação de diretórios temporários do usuário.
@@ -32,6 +35,8 @@ const SUPPORTED_MEDIA_TYPES = new Set(['image', 'video', 'sticker']);
  * Opções de processamento para geração de sticker.
  * @typedef {Object} ProcessStickerOptions
  * @property {boolean} [includeQuotedMedia=true] - Se deve permitir mídia de mensagem citada.
+ * @property {boolean} [showAutoPackNotice=true] - Se deve avisar no chat sobre a coleta automática no pack.
+ * @property {string} [commandPrefix='/'] - Prefixo para mensagens de ajuda/comando.
  */
 
 /**
@@ -137,6 +142,55 @@ function parseStickerMetaText(text, senderName) {
   return { packName, packAuthor };
 }
 
+function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX) {
+  if (!result || result.status === 'skipped') {
+    return null;
+  }
+
+  const pack = result.pack || {};
+  const packName = pack.name || 'Minhas Figurinhas';
+  const packIdentifier = pack.pack_key || pack.id || '<pack>';
+  const itemCount = Array.isArray(pack.items) ? pack.items.length : Number(pack.sticker_count || 0);
+  const countLabel = itemCount > 0 ? ` (${itemCount}/${AUTO_PACK_MAX_ITEMS})` : '';
+
+  if (result.status === 'duplicate') {
+    return [
+      `ℹ️ Essa figurinha já estava no pack automático *${packName}*.`,
+      `Use *${commandPrefix}pack info ${packIdentifier}* para ver o pack ou *${commandPrefix}pack send ${packIdentifier}* para enviar.`,
+    ].join('\n');
+  }
+
+  return [
+    `📦 Figurinha salva automaticamente no pack *${packName}*${countLabel}.`,
+    `Dica: use *${commandPrefix}pack list* para gerenciar seus packs.`,
+    `Para enviar agora: *${commandPrefix}pack send ${packIdentifier}*.`,
+  ].join('\n');
+}
+
+async function notifyAutoPackCollection({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  result,
+  commandPrefix,
+}) {
+  if (!AUTO_PACK_NOTICE_ENABLED) return;
+
+  const noticeText = buildAutoPackNoticeText(result, commandPrefix);
+  if (!noticeText) return;
+
+  await sendAndStore(
+    sock,
+    remoteJid,
+    { text: noticeText },
+    {
+      quoted: messageInfo,
+      ephemeralExpiration: expirationMessage,
+    },
+  );
+}
+
 /**
  * Processa uma mensagem para criar e enviar um sticker com metadados customizados.
  *
@@ -163,7 +217,11 @@ export async function processSticker(
   extraText = '',
   options = {},
 ) {
-  const { includeQuotedMedia = true } = options;
+  const {
+    includeQuotedMedia = true,
+    showAutoPackNotice = true,
+    commandPrefix = DEFAULT_COMMAND_PREFIX,
+  } = options;
   const uniqueId = uuidv4();
 
   let tempMediaPath = null;
@@ -307,13 +365,26 @@ export async function processSticker(
           ownerJid: senderJid,
           senderName,
           stickerBuffer,
-        }).catch((collectError) => {
-          logger.warn('Falha ao coletar figurinha automática no pack do usuário.', {
-            action: 'sticker_pack_auto_collect_failed',
-            owner_jid: senderJid,
-            error: collectError.message,
+        })
+          .then(async (collectResult) => {
+            if (!showAutoPackNotice) return;
+
+            await notifyAutoPackCollection({
+              sock,
+              remoteJid: from,
+              messageInfo: message,
+              expirationMessage,
+              result: collectResult,
+              commandPrefix,
+            });
+          })
+          .catch((collectError) => {
+            logger.warn('Falha ao coletar figurinha automática no pack do usuário.', {
+              action: 'sticker_pack_auto_collect_failed',
+              owner_jid: senderJid,
+              error: collectError.message,
+            });
           });
-        });
       });
     } catch (sendErr) {
       logger.error(`processSticker Erro ao enviar o sticker: ${sendErr.message}`);

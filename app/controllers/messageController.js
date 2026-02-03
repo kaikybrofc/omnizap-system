@@ -140,7 +140,9 @@ export const handleMessages = async (update, sock) => {
             case 'sticker':
             case 's':
               runCommand('sticker', () =>
-                processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' ')),
+                processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '), {
+                  commandPrefix,
+                }),
               );
               break;
 
@@ -314,6 +316,7 @@ export const handleMessages = async (update, sock) => {
                   extraText: 'PackZoeira',
                   expirationMessage,
                   color: 'black',
+                  commandPrefix,
                 }),
               );
               break;
@@ -331,6 +334,7 @@ export const handleMessages = async (update, sock) => {
                   extraText: 'PackZoeira',
                   expirationMessage,
                   color: 'white',
+                  commandPrefix,
                 }),
               );
               break;
@@ -348,6 +352,7 @@ export const handleMessages = async (update, sock) => {
                   extraText: 'PackZoeira',
                   expirationMessage,
                   color: 'white',
+                  commandPrefix,
                 }),
               );
               break;
@@ -497,7 +502,11 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
                   expirationMessage,
                   senderName,
                   '',
-                  { includeQuotedMedia: false },
+                  {
+                    includeQuotedMedia: false,
+                    showAutoPackNotice: false,
+                    commandPrefix,
+                  },
                 ),
               );
             }
