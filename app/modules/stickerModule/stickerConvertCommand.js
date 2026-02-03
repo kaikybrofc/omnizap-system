@@ -4,8 +4,7 @@ import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 
 import logger from '../../utils/logger/loggerModule.js';
-import { downloadMediaMessage } from '../../config/baileysConfig.js';
-import { getJidUser } from '../../config/baileysConfig.js';
+import { downloadMediaMessage, extractMediaDetails, getJidUser } from '../../config/baileysConfig.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'sticker-convert');
@@ -46,14 +45,16 @@ const isAnimatedSticker = async (sticker, inputPath) => {
 };
 
 const resolveStickerMessage = (messageInfo) => {
-  const message = messageInfo?.message;
-  const directSticker = message?.stickerMessage;
-  if (directSticker) return { sticker: directSticker, isQuoted: false };
+  const mediaDetails = extractMediaDetails(messageInfo);
+  if (!mediaDetails || mediaDetails.mediaType !== 'sticker') {
+    return null;
+  }
 
-  const quotedSticker = message?.extendedTextMessage?.contextInfo?.quotedMessage?.stickerMessage;
-  if (quotedSticker) return { sticker: quotedSticker, isQuoted: true };
-
-  return null;
+  return {
+    sticker: mediaDetails.mediaKey,
+    isQuoted: mediaDetails.isQuoted,
+    details: mediaDetails.details,
+  };
 };
 
 const ensureDir = async (dirPath) => {
@@ -82,8 +83,8 @@ export async function handleStickerConvertCommand({
     return;
   }
 
-  const { sticker } = resolved;
-  const fileLength = sticker?.fileLength || 0;
+  const { sticker, details } = resolved;
+  const fileLength = details?.fileLength || sticker?.fileLength || 0;
   if (fileLength > MAX_FILE_SIZE) {
     const sizeMb = (fileLength / (1024 * 1024)).toFixed(2);
     await sendAndStore(sock, 

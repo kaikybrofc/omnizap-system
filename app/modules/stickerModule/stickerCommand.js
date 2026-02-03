@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import logger from '../../utils/logger/loggerModule.js';
-import { getJidUser } from '../../config/baileysConfig.js';
-import { downloadMediaMessage } from '../../config/baileysConfig.js';
+import { downloadMediaMessage, extractMediaDetails, getJidUser } from '../../config/baileysConfig.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
 import { convertToWebp } from './convertToWebp.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,6 +11,7 @@ const adminJid = process.env.USER_ADMIN;
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const SUPPORTED_MEDIA_TYPES = new Set(['image', 'video', 'sticker']);
 
 /**
  * Garante que o diretório temporário do usuário para stickers existe.
@@ -47,33 +47,6 @@ async function ensureDirectories(userId) {
 }
 
 /**
- * Extrai detalhes da mídia de uma mensagem, incluindo tipo e chave da mídia.
- * Suporta mensagens diretas e citadas.
- *
- * @param {object} message - Objeto da mensagem recebida.
- * @returns {{mediaType: string, mediaKey: object, isQuoted: boolean}|null} Detalhes da mídia ou null se não encontrado.
- */
-function extractMediaDetails(message) {
-  logger.info('extractMediaDetails Extraindo detalhes da mídia...');
-  const messageContent = message.message;
-  const quotedMessage = messageContent?.extendedTextMessage?.contextInfo?.quotedMessage;
-  const mediaTypes = ['imageMessage', 'videoMessage', 'stickerMessage', 'documentMessage'];
-
-  const findMedia = (source, isQuoted = false) => {
-    for (const type of mediaTypes) {
-      if (source?.[type]) {
-        return { mediaType: type.replace('Message', ''), mediaKey: source[type], isQuoted };
-      }
-    }
-    return null;
-  };
-
-  const media = findMedia(messageContent) || findMedia(quotedMessage, true);
-  if (!media) logger.debug('extractMediaDetails Nenhuma mídia encontrada.');
-  return media;
-}
-
-/**
  * Verifica se o tamanho da mídia está dentro do limite permitido.
  *
  * @param {object} mediaKey - Objeto da mídia contendo fileLength.
@@ -84,9 +57,9 @@ function extractMediaDetails(message) {
 function checkMediaSize(mediaKey, mediaType, maxFileSize = MAX_FILE_SIZE) {
   const fileLength = mediaKey?.fileLength || 0;
   const formatBytes = (bytes) => (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  logger.debug(`checkMediaSize Verificando tamanho: ${formatBytes(fileLength)}`);
+  logger.debug(`checkMediaSize Verificando tamanho da mídia (${mediaType}): ${formatBytes(fileLength)}`);
   if (fileLength > maxFileSize) {
-    logger.warn(`checkMediaSize Mídia muito grande: ${formatBytes(fileLength)}`);
+    logger.warn(`checkMediaSize Mídia (${mediaType}) muito grande: ${formatBytes(fileLength)}`);
     return false;
   }
   return true;
@@ -161,7 +134,8 @@ export async function processSticker(
     const mediaDetails = extractMediaDetails(message);
     if (!mediaDetails) {
       await sendAndStore(sock, senderJid, { react: { text: '❓', key: messageInfo.key } });
-      await sendAndStore(sock, 
+      await sendAndStore(
+        sock,
         from,
         {
           text:
@@ -176,6 +150,22 @@ export async function processSticker(
     }
 
     const { mediaType, mediaKey } = mediaDetails;
+    if (!SUPPORTED_MEDIA_TYPES.has(mediaType)) {
+      await sendAndStore(sock, senderJid, { react: { text: '❓', key: messageInfo.key } });
+      await sendAndStore(
+        sock,
+        from,
+        {
+          text:
+            '*❌ Tipo de mídia não suportado para criar sticker.*' +
+            '\n\n- Tipos aceitos: *imagem, vídeo ou figurinha*.' +
+            '\n\n- 📌 Envie a mídia novamente em um desses formatos.',
+        },
+        { quoted: message, ephemeralExpiration: expirationMessage },
+      );
+      return;
+    }
+
     if (!checkMediaSize(mediaKey, mediaType)) {
       await sendAndStore(sock, senderJid, { react: { text: '❓', key: messageInfo.key } });
       const fileLength = mediaKey?.fileLength || 0;
@@ -188,7 +178,8 @@ export async function processSticker(
         const maxSegundos = Math.floor(MAX_FILE_SIZE / taxaBytesPorSegundo);
         sugestaoTempo = `\n\n_*💡 Dica: Para este vídeo, tente cortar para até ${maxSegundos} segundos com a mesma qualidade.*_`;
       }
-      await sendAndStore(sock, 
+      await sendAndStore(
+        sock,
         from,
         {
           text:
@@ -203,15 +194,11 @@ export async function processSticker(
     }
 
     const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
-    tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, userStickerDir, uniqueId);
+    tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, userStickerDir);
     if (!tempMediaPath) {
       const msgErro =
         '*❌ Não foi possível baixar a mídia enviada.*\n\n- Isso pode ocorrer por instabilidade na rede, mídia expirada ou formato não suportado.\n- Por favor, tente reenviar a mídia ou envie outro arquivo.';
-      await sendAndStore(sock, 
-        from,
-        { text: msgErro },
-        { quoted: message, ephemeralExpiration: expirationMessage },
-      );
+      await sendAndStore(sock, from, { text: msgErro }, { quoted: message, ephemeralExpiration: expirationMessage });
       if (adminJid) {
         await sendAndStore(sock, adminJid, {
           text: `🚨 Falha no download da mídia para sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nTipo: ${mediaType}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
@@ -240,11 +227,7 @@ export async function processSticker(
       logger.error(`processSticker Erro ao ler buffer do sticker: ${bufferErr.message}`);
       const msgErro =
         '*❌ Não foi possível finalizar o sticker.*\n\n- Ocorreu um erro ao acessar o arquivo temporário do sticker.\n- Tente reenviar a mídia ou envie outro arquivo.';
-      await sendAndStore(sock, 
-        from,
-        { text: msgErro },
-        { quoted: message, ephemeralExpiration: expirationMessage },
-      );
+      await sendAndStore(sock, from, { text: msgErro }, { quoted: message, ephemeralExpiration: expirationMessage });
       if (adminJid) {
         await sendAndStore(sock, adminJid, {
           text: `🚨 Erro ao ler buffer do sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nErro: ${bufferErr.message}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
@@ -254,7 +237,8 @@ export async function processSticker(
     }
 
     try {
-      await sendAndStore(sock, 
+      await sendAndStore(
+        sock,
         from,
         { sticker: stickerBuffer },
         { quoted: message, ephemeralExpiration: expirationMessage },
@@ -263,11 +247,7 @@ export async function processSticker(
       logger.error(`processSticker Erro ao enviar o sticker: ${sendErr.message}`);
       const msgErro =
         '*❌ Não foi possível enviar o sticker ao chat.*\n\n- Ocorreu um erro inesperado ao tentar enviar o arquivo.\n- Tente novamente ou envie outra mídia.';
-      await sendAndStore(sock, 
-        from,
-        { text: msgErro },
-        { quoted: message, ephemeralExpiration: expirationMessage },
-      );
+      await sendAndStore(sock, from, { text: msgErro }, { quoted: message, ephemeralExpiration: expirationMessage });
       if (adminJid) {
         await sendAndStore(sock, adminJid, {
           text: `🚨 Erro ao enviar sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nErro: ${sendErr.message}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
@@ -280,7 +260,8 @@ export async function processSticker(
     });
     const msgErro =
       '*❌ Não foi possível criar o sticker.*\n\n- Ocorreu um erro inesperado durante o processamento.\n- Tente novamente ou envie outra mídia.';
-    await sendAndStore(sock, 
+    await sendAndStore(
+      sock,
       remoteJid,
       { text: msgErro },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -291,15 +272,11 @@ export async function processSticker(
       });
     }
   } finally {
-    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath, convertedPath].filter(
-      Boolean,
-    );
+    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath, convertedPath].filter(Boolean);
     for (const file of filesToClean) {
       await fs
         .unlink(file)
-        .catch((err) =>
-          logger.warn(`processSticker Falha ao limpar arquivo temporário ${file}: ${err.message}`),
-        );
+        .catch((err) => logger.warn(`processSticker Falha ao limpar arquivo temporário ${file}: ${err.message}`));
     }
   }
 }
