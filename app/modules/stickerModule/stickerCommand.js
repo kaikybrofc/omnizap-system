@@ -10,7 +10,7 @@ import { sendAndStore } from '../../services/messagePersistenceService.js';
 const adminJid = process.env.USER_ADMIN;
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
-const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const MAX_FILE_SIZE = 1 * 1024 * 1024; // 2MB
 const SUPPORTED_MEDIA_TYPES = new Set(['image', 'video', 'sticker']);
 
 /**
