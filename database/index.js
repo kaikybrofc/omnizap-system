@@ -101,6 +101,9 @@ export const TABLES = {
   GROUPS_METADATA: 'groups_metadata',
   GROUP_CONFIGS: 'group_configs',
   LID_MAP: 'lid_map',
+  STICKER_PACK: 'sticker_pack',
+  STICKER_ASSET: 'sticker_asset',
+  STICKER_PACK_ITEM: 'sticker_pack_item',
 };
 
 /**

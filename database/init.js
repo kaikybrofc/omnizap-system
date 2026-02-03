@@ -1,6 +1,8 @@
 import mysql from 'mysql2/promise';
 import logger from '../app/utils/logger/loggerModule.js';
 import { dbConfig, TABLES } from './index.js';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -140,6 +142,130 @@ const createLidMapTableSQL = `
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
+const createSchemaMigrationsTableSQL = `
+  CREATE TABLE IF NOT EXISTS schema_migrations (
+    name VARCHAR(255) PRIMARY KEY,
+    executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+`;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
+
+/**
+ * Divide um arquivo SQL em statements individuais.
+ * Suporta aspas simples e duplas para não quebrar strings.
+ *
+ * @param {string} sql
+ * @returns {string[]}
+ */
+function splitSqlStatements(sql) {
+  const statements = [];
+  let current = '';
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let escaped = false;
+
+  for (const char of sql) {
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      current += char;
+      escaped = true;
+      continue;
+    }
+
+    if (char === "'" && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+      current += char;
+      continue;
+    }
+
+    if (char === '"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+      current += char;
+      continue;
+    }
+
+    if (char === ';' && !inSingleQuote && !inDoubleQuote) {
+      const statement = current.trim();
+      if (statement) {
+        statements.push(statement);
+      }
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  const trailing = current.trim();
+  if (trailing) {
+    statements.push(trailing);
+  }
+
+  return statements;
+}
+
+/**
+ * Executa migrações SQL idempotentes a partir de `database/migrations`.
+ *
+ * @param {import('mysql2/promise').Connection} connection
+ * @returns {Promise<number>} Quantidade de migrações aplicadas.
+ */
+async function runSqlMigrations(connection) {
+  await connection.query(createSchemaMigrationsTableSQL);
+
+  let files = [];
+  try {
+    files = await fs.readdir(MIGRATIONS_DIR);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      logger.info('Diretório de migrações não encontrado. Seguindo sem migrações extras.');
+      return 0;
+    }
+    throw error;
+  }
+
+  const migrationFiles = files.filter((file) => file.endsWith('.sql')).sort();
+  if (migrationFiles.length === 0) return 0;
+
+  const [rows] = await connection.query('SELECT name FROM schema_migrations');
+  const applied = new Set((rows || []).map((row) => row.name));
+
+  let appliedCount = 0;
+
+  for (const fileName of migrationFiles) {
+    if (applied.has(fileName)) continue;
+
+    const filePath = path.join(MIGRATIONS_DIR, fileName);
+    const sqlContent = await fs.readFile(filePath, 'utf8');
+    const statements = splitSqlStatements(sqlContent);
+
+    if (statements.length === 0) {
+      await connection.query('INSERT INTO schema_migrations (name) VALUES (?)', [fileName]);
+      appliedCount += 1;
+      continue;
+    }
+
+    logger.info(`Aplicando migração SQL: ${fileName}`);
+    for (const statement of statements) {
+      await connection.query(statement);
+    }
+
+    await connection.query('INSERT INTO schema_migrations (name) VALUES (?)', [fileName]);
+    appliedCount += 1;
+  }
+
+  return appliedCount;
+}
+
 /**
  * Inicializa o banco de dados:
  * 1) Conecta ao MySQL sem database
@@ -179,7 +305,11 @@ export default async function initializeDatabase() {
       connection.query(createLidMapTableSQL),
     ]);
 
-    logger.info('Todas as tabelas foram verificadas/criadas com sucesso.');
+    const appliedMigrations = await runSqlMigrations(connection);
+
+    logger.info('Todas as tabelas foram verificadas/criadas com sucesso.', {
+      appliedMigrations,
+    });
   } catch (error) {
     logger.error(`Erro ao inicializar o banco: ${error.code || ''} ${error.message}`);
     process.exit(1);
@@ -195,8 +325,6 @@ export default async function initializeDatabase() {
  * Permite que este arquivo seja executado diretamente:
  * node database/init.js
  */
-const __filename = fileURLToPath(import.meta.url);
-
 if (process.argv[1] === __filename) {
   initializeDatabase();
 }
