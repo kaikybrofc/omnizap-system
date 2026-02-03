@@ -19,12 +19,13 @@
     "dev": "node index.js",
     "db:init": "node database/init.js",
     "pm2:prod": "pm2 start ecosystem.prod.config.cjs",
+    "test": "node --test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
-    "@whiskeysockets/baileys": "github:WhiskeySockets/Baileys#v7.0.0-rc.9",
+    "@whiskeysockets/baileys": "github:WhiskeySockets/Baileys#pull/1561/head",
     "axios": "^1.13.2",
     "canvas": "^3.2.1",
     "chalk": "^4.1.2",

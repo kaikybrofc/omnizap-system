@@ -83,6 +83,14 @@ export const buildStickerMenu = (commandPrefix) => `
 📌 *Resultado:*  
 ➡️ Figurinha estática vira imagem  
 ➡️ Figurinha animada vira vídeo  
+
+━━━━━━━━━━━━━━━  
+📦 *Sticker Packs*  
+━━━━━━━━━━━━━━━  
+➡️ *${commandPrefix}pack create "Meu Pack"*  
+➡️ *${commandPrefix}pack add <pack>*  
+➡️ *${commandPrefix}pack list*  
+➡️ *${commandPrefix}pack send <pack>*  
 `;
 
 export const buildMediaMenu = (commandPrefix) => `

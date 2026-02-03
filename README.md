@@ -16,6 +16,7 @@ O **OmniZap System** é uma plataforma de automação para WhatsApp em Node.js c
 *   Comandos Personalizados
 *   Integração com MySQL
 *   Gerenciamento de Mídia (figurinhas)
+*   Sticker Packs persistentes por usuário (CRUD + envio com fallback)
 *   Normalização de IDs LID/JID (Baileys) com reconciliação automática
 *   Monitoramento com PM2
 
@@ -168,6 +169,34 @@ pm2 start ecosystem.prod.config.js # Produção
 ```
 
 Alerta: use o PM2 somente depois de conectar o QR code no modo normal, pois o PM2 não exibe o QR de conexão.
+
+## 📦 Sticker Packs (Persistente)
+
+O bot agora suporta packs de figurinhas salvos no MySQL + storage local (`STICKER_STORAGE_DIR`).
+
+Comandos principais:
+
+```text
+/pack create "Nome" | publisher="..." | desc="..."
+/pack list
+/pack info <pack>
+/pack rename <pack> "Novo Nome"
+/pack setpub <pack> "Publisher"
+/pack setdesc <pack> "Descrição"
+/pack add <pack>               (responda uma figurinha ou use a última salva)
+/pack remove <pack> <index|stickerId>
+/pack setcover <pack>          (responda uma figurinha ou use a última salva)
+/pack reorder <pack> <ordem>
+/pack clone <pack> "Novo Nome"
+/pack publish <pack> <private|public|unlisted>
+/pack send <pack>              (nativo quando suportado; fallback em preview+envio individual)
+/pack delete <pack>
+```
+
+Observações:
+*   Edição é sempre restrita ao dono (`owner_jid`).
+*   O envio tenta `stickerPack` nativo primeiro e cai automaticamente no fallback se o cliente/lib não suportar.
+*   Figurinhas recebidas são capturadas para facilitar `add`/`setcover` com “última figurinha”.
 
 ## 📈 Observabilidade (Grafana/Prometheus/Loki)
 

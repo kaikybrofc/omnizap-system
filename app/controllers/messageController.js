@@ -30,6 +30,7 @@ import {
   getWaifuUsageText,
 } from '../modules/waifuModule/waifuCommand.js';
 import { handleWaifuPicsCommand, getWaifuPicsUsageText } from '../modules/waifuPicsModule/waifuPicsCommand.js';
+import { handlePackCommand, maybeCaptureIncomingSticker } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
 import groupConfigStore from '../store/groupConfigStore.js';
 import { sendAndStore } from '../services/messagePersistenceService.js';
 
@@ -83,6 +84,8 @@ export const handleMessages = async (update, sock) => {
         const senderName = messageInfo.pushName;
         const expirationMessage = getExpiration(messageInfo);
         const botJid = resolveBotJid(sock?.user?.id);
+        const isMessageFromBot =
+          Boolean(messageInfo?.key?.fromMe) || (botJid ? isSameJidUser(senderJid, botJid) : false);
         let commandPrefix = DEFAULT_COMMAND_PREFIX;
 
         /**
@@ -138,6 +141,22 @@ export const handleMessages = async (update, sock) => {
             case 's':
               runCommand('sticker', () =>
                 processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' ')),
+              );
+              break;
+
+            case 'pack':
+            case 'packs':
+              runCommand('pack', () =>
+                handlePackCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  senderJid,
+                  senderName,
+                  text,
+                  commandPrefix,
+                }),
               );
               break;
 
@@ -453,8 +472,15 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
           }
         }
 
-        const isMessageFromBot =
-          Boolean(messageInfo?.key?.fromMe) || (botJid ? isSameJidUser(senderJid, botJid) : false);
+        if (!isMessageFromBot) {
+          runCommand('pack-capture', () =>
+            maybeCaptureIncomingSticker({
+              messageInfo,
+              senderJid,
+              isMessageFromBot,
+            }),
+          );
+        }
 
         if (isGroupMessage && !isCommandMessage && !isMessageFromBot) {
           const autoStickerMedia = extractSupportedStickerMediaDetails(messageInfo, { includeQuoted: false });
