@@ -1,30 +1,42 @@
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { sanitizeText, toVisibility } from './stickerPackUtils.js';
 
-const DEFAULT_AUTO_PACK_NAME = process.env.STICKER_PACK_AUTO_PACK_NAME || 'Pack';
+const DEFAULT_AUTO_PACK_NAME = process.env.STICKER_PACK_AUTO_PACK_NAME || 'pack';
 const DEFAULT_AUTO_PACK_VISIBILITY = toVisibility(process.env.STICKER_PACK_AUTO_PACK_VISIBILITY || 'private', 'private');
 const AUTO_COLLECT_ENABLED = process.env.STICKER_PACK_AUTO_COLLECT_ENABLED !== 'false';
 const AUTO_PACK_NAME_MAX_LENGTH = 120;
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const removeDiacritics = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+const normalizeAutoPackName = (value, { fallback = 'pack', maxLength = AUTO_PACK_NAME_MAX_LENGTH } = {}) => {
+  const sanitized = sanitizeText(value, maxLength, { allowEmpty: true }) || '';
+  const normalized = removeDiacritics(sanitized)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')
+    .slice(0, maxLength);
+
+  return normalized || fallback;
+};
+
 const buildAutoPackCandidate = (base, index) => {
-  const suffix = `-${index}`;
+  const suffix = String(index);
   const maxBaseLength = Math.max(1, AUTO_PACK_NAME_MAX_LENGTH - suffix.length);
-  const trimmedBase = String(base || '').slice(0, maxBaseLength).trimEnd() || 'Pack';
+  const trimmedBase = normalizeAutoPackName(base, { fallback: 'pack', maxLength: maxBaseLength });
   return `${trimmedBase}${suffix}`;
 };
 
 const makeAutoPackName = (packs) => {
-  const base = sanitizeText(DEFAULT_AUTO_PACK_NAME, AUTO_PACK_NAME_MAX_LENGTH, { allowEmpty: false }) || 'Pack';
+  const base = normalizeAutoPackName(DEFAULT_AUTO_PACK_NAME, { fallback: 'pack', maxLength: AUTO_PACK_NAME_MAX_LENGTH });
   const normalizedBase = base.toLowerCase();
   const existingNames = packs
-    .map((pack) => sanitizeText(pack?.name, AUTO_PACK_NAME_MAX_LENGTH, { allowEmpty: true }) || '')
+    .map((pack) => normalizeAutoPackName(pack?.name, { fallback: '', maxLength: AUTO_PACK_NAME_MAX_LENGTH }))
     .filter(Boolean)
     .map((name) => name.toLowerCase());
   const existingSet = new Set(existingNames);
   const usedIndexes = new Set();
-  const matcher = new RegExp(`^${escapeRegex(normalizedBase)}(?:[-\\s]+(\\d+))?$`, 'i');
+  const matcher = new RegExp(`^${escapeRegex(normalizedBase)}(\\d+)?$`, 'i');
 
   for (const name of existingNames) {
     const match = name.match(matcher);

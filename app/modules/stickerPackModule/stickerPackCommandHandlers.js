@@ -87,8 +87,11 @@ const sendReply = async ({ sock, remoteJid, messageInfo, expirationMessage, text
     },
   );
 
+// ============================
+// PADRÃO VISUAL / TOM DE VOZ
+// ============================
 const PACK_VISUAL_DIVIDER = '━━━━━━━━━━━━━━━━━━━';
-const PACK_VISUAL_HEADER = '📦 *GERENCIADOR DE PACKS DE FIGURINHAS*';
+const PACK_VISUAL_HEADER = '📦 *PACKS DE FIGURINHAS — CENTRAL DE GERENCIAMENTO*';
 
 const normalizeMessageLines = (value) => {
   if (value === null || value === undefined) return [];
@@ -140,7 +143,7 @@ const buildActionMessage = ({ title, explanation = [], details = [], nextSteps =
     intro: [title, ...normalizeMessageLines(explanation)],
     sections: [
       normalizeMessageLines(details).length ? { title: '📌 *DETALHES*', lines: details } : null,
-      normalizeMessageLines(nextSteps).length ? { title: '➡️ *PRÓXIMOS PASSOS*', lines: nextSteps } : null,
+      normalizeMessageLines(nextSteps).length ? { title: '➡️ *PRÓXIMAS AÇÕES*', lines: nextSteps } : null,
     ],
     footer,
   });
@@ -149,20 +152,20 @@ const formatPackList = (packs, prefix) => {
   if (!packs.length) {
     return buildPackVisualMessage({
       intro: [
-        '📭 *Você ainda não tem packs extras criados.*',
-        'Toda figurinha que você gera continua sendo salva automaticamente no seu *Pack Principal*.',
+        '📭 *Nenhum pack extra encontrado.*',
+        'As figurinhas que você cria continuam sendo salvas automaticamente no seu *Pack Principal*.',
       ],
       sections: [
         {
-          title: '🆕 *COMO COMEÇAR AGORA*',
+          title: '🆕 *COMECE EM 3 PASSOS*',
           lines: [
-            `1) Crie um pack com \`${prefix}pack create "Nome do Pack"\`.`,
-            `2) Responda uma figurinha e use \`${prefix}pack add <pack>\` para adicionar.`,
-            `3) Confira o resultado com \`${prefix}pack info <pack>\`.`,
+            `1) Crie um pack: \`${prefix}pack create meupack\``,
+            `2) Responda uma figurinha e adicione: \`${prefix}pack add <pack>\``,
+            `3) Veja o resumo: \`${prefix}pack info <pack>\``,
           ],
         },
       ],
-      footer: ['✨ Organize seus packs por tema e deixe o envio de figurinhas muito mais rápido.'],
+      footer: ['💡 Dica: crie packs por tema (memes, animes, reactions) para achar tudo mais rápido.'],
     });
   }
 
@@ -171,31 +174,28 @@ const formatPackList = (packs, prefix) => {
     return [
       `${index + 1}. *${pack.name}*`,
       `   🆔 ID: \`${pack.pack_key}\``,
-      `   🧩 Figurinhas: ${count}/${MAX_PACK_ITEMS}`,
+      `   🧩 Itens: ${count}/${MAX_PACK_ITEMS}`,
       `   👁️ Visibilidade: ${formatVisibilityLabel(pack.visibility)}`,
     ].join('\n');
   });
 
   return buildPackVisualMessage({
     intro: [
-      `📋 *Você tem ${packs.length} pack(s) disponível(is).*`,
-      'Use o nome ou o ID do pack para abrir detalhes, editar ou enviar direto no chat.',
+      `📋 *Packs encontrados: ${packs.length}*`,
+      'Você pode usar o *nome* ou o *ID* do pack para ver detalhes, editar ou enviar.',
     ],
     sections: [
+      { title: '📦 *SEUS PACKS*', lines },
       {
-        title: '📦 *SEUS PACKS*',
-        lines,
-      },
-      {
-        title: '🛠 *ATALHOS ÚTEIS*',
+        title: '🛠 *ATALHOS*',
         lines: [
-          `ℹ️ Ver informações: \`${prefix}pack info <pack>\``,
-          `📤 Enviar no chat: \`${prefix}pack send <pack>\``,
-          `🆕 Criar outro pack: \`${prefix}pack create "Nome do Pack"\``,
+          `ℹ️ Detalhes: \`${prefix}pack info <pack>\``,
+          `📤 Enviar: \`${prefix}pack send <pack>\``,
+          `🆕 Criar novo: \`${prefix}pack create meupack\``,
         ],
       },
     ],
-    footer: ['✨ Dica: mantenha os packs por assunto para encontrar cada figurinha em segundos.'],
+    footer: ['✅ Tudo pronto — escolha um pack e continue gerenciando.'],
   });
 };
 
@@ -204,88 +204,87 @@ const formatPackInfo = (pack, prefix) => {
   const coverLabel = coverIndex >= 0 ? `figurinha #${coverIndex + 1}` : 'não definida';
   const itemLines = pack.items.slice(0, 12).map((item, index) => {
     const emojis = Array.isArray(item.emojis) && item.emojis.length ? ` ${item.emojis.join(' ')}` : '';
-    const coverTag = item.sticker_id === pack.cover_sticker_id ? ' 🖼️ *Capa atual*' : '';
+    const coverTag = item.sticker_id === pack.cover_sticker_id ? ' 🖼️ *Capa*' : '';
     return `${index + 1}. \`${item.sticker_id.slice(0, 10)}\`${emojis}${coverTag}`;
   });
 
   if (pack.items.length > 12) {
-    itemLines.push(`... e mais ${pack.items.length - 12} figurinha(s).`);
+    itemLines.push(`… e mais ${pack.items.length - 12} figurinha(s).`);
   }
 
   return buildPackVisualMessage({
     intro: [
-      `ℹ️ *Detalhes completos do pack "${pack.name}".*`,
-      'Aqui você confere identificação, visibilidade e prévia das figurinhas cadastradas.',
+      `ℹ️ *Informações do pack: "${pack.name}"*`,
+      'Aqui você vê identificação, visibilidade e uma prévia dos itens cadastrados.',
     ],
     sections: [
       {
-        title: '📌 *INFORMAÇÕES DO PACK*',
+        title: '📌 *DADOS DO PACK*',
         lines: [
           `📛 Nome: *${pack.name}*`,
           `🆔 ID: \`${pack.pack_key}\``,
           `👤 Publisher: *${pack.publisher}*`,
           `👁️ Visibilidade: ${formatVisibilityLabel(pack.visibility)}`,
-          `🧩 Figurinhas: *${pack.items.length}/${MAX_PACK_ITEMS}*`,
+          `🧩 Itens: *${pack.items.length}/${MAX_PACK_ITEMS}*`,
           `🖼️ Capa: *${coverLabel}*`,
           `📝 Descrição: ${pack.description ? `"${pack.description}"` : 'não definida'}`,
         ],
       },
       {
-        title: '🖼 *PRÉVIA DAS FIGURINHAS*',
-        lines: itemLines.length ? itemLines : ['Nenhuma figurinha cadastrada ainda nesse pack.'],
+        title: '🖼️ *PRÉVIA (ATÉ 12 ITENS)*',
+        lines: itemLines.length ? itemLines : ['Nenhuma figurinha cadastrada neste pack ainda.'],
       },
       {
-        title: '⚙️ *GERENCIAR ESTE PACK*',
+        title: '⚙️ *AÇÕES DISPONÍVEIS*',
         lines: [
-          `➕ Adicionar figurinha: \`${prefix}pack add ${pack.pack_key}\``,
+          `➕ Adicionar: \`${prefix}pack add ${pack.pack_key}\``,
           `🖼 Definir capa: \`${prefix}pack setcover ${pack.pack_key}\``,
           `🔀 Reordenar: \`${prefix}pack reorder ${pack.pack_key} 1 2 3 ...\``,
-          `📤 Enviar no chat: \`${prefix}pack send ${pack.pack_key}\``,
+          `📤 Enviar: \`${prefix}pack send ${pack.pack_key}\``,
         ],
       },
     ],
-    footer: ['✨ Se quiser, eu também posso te guiar para renomear, clonar ou publicar este pack.'],
+    footer: ['💡 Se precisar, use o guia completo com `pack` para ver exemplos e comandos extras.'],
   });
 };
 
 const buildPackHelp = (prefix) =>
   [
-    '📦 *GERENCIADOR DE PACKS DE FIGURINHAS*',
+    '📦 *PACKS DE FIGURINHAS — GUIA RÁPIDO*',
     '',
     'Toda figurinha que você criar é salva automaticamente no seu *Pack Principal*.',
-    'Você pode criar, organizar e compartilhar seus próprios packs de forma simples e rápida.',
+    'Além disso, você pode criar packs extras para organizar por tema e enviar mais rápido.',
     '',
     PACK_VISUAL_DIVIDER,
-    '🛠 *COMANDOS PRINCIPAIS*',
+    '🧭 *COMANDOS PRINCIPAIS*',
     '',
-    '🆕 *Criar um pack*',
-    `\`${prefix}pack create "Nome do Pack" | publisher="Seu Nome" | desc="Descrição"\``,
+    '🆕 Criar um pack',
+    `\`${prefix}pack create meupack | publisher="Seu Nome" | desc="Descrição"\``,
+    '_Regra do nome: apenas letras minúsculas e números, sem espaços ou caracteres especiais._',
     '',
-    '📋 *Listar seus packs*',
+    '📋 Listar packs',
     `\`${prefix}pack list\``,
     '',
-    'ℹ️ *Ver informações de um pack*',
+    'ℹ️ Ver detalhes do pack',
     `\`${prefix}pack info <pack>\``,
     '',
-    '➕ *Adicionar figurinha a um pack*',
+    '➕ Adicionar figurinha',
     `\`${prefix}pack add <pack>\``,
-    '*(responda uma figurinha ou use a última enviada)*',
+    '_Dica: responda uma figurinha (ou use a última enviada)._',
     '',
-    '🖼 *Definir capa do pack*',
+    '🖼 Definir capa',
     `\`${prefix}pack setcover <pack>\``,
     '',
-    '📤 *Enviar um pack no chat*',
+    '📤 Enviar pack no chat',
     `\`${prefix}pack send <pack>\``,
     '',
     PACK_VISUAL_DIVIDER,
-    '⚙️ *FUNÇÕES EXTRAS*',
-    '',
-    'Você também pode usar os seguintes comandos para gerenciar seus packs:',
+    '🧰 *COMANDOS EXTRAS*',
     '',
     '`rename` • `setpub` • `setdesc` • `remove` • `reorder` • `clone` • `publish` • `delete`',
     '',
     PACK_VISUAL_DIVIDER,
-    '✨ *Organize seus packs e compartilhe suas figurinhas do seu jeito!*',
+    '✅ *Pronto!* Se quiser, diga o que você quer fazer (criar, organizar, enviar) que eu te guio.',
   ].join('\n');
 
 const buildErrorMessage = ({ title, explanation = [], steps = [], commandPrefix }) =>
@@ -299,14 +298,14 @@ const buildErrorMessage = ({ title, explanation = [], steps = [], commandPrefix 
           }
         : null,
     ],
-    footer: [`💡 Se quiser revisar todos os exemplos, use \`${commandPrefix}pack\`.`],
+    footer: [`💡 Guia completo: \`${commandPrefix}pack\``],
   });
 
 const formatErrorMessage = (error, commandPrefix) => {
   if (!(error instanceof StickerPackError)) {
     return buildErrorMessage({
-      title: '❌ *Falha ao processar o comando de pack.*',
-      explanation: ['Tive um erro inesperado ao montar sua resposta agora.'],
+      title: '❌ *Não consegui concluir sua solicitação.*',
+      explanation: ['Ocorreu um erro inesperado ao processar o comando.'],
       steps: ['Aguarde alguns segundos e tente novamente.'],
       commandPrefix,
     });
@@ -315,63 +314,63 @@ const formatErrorMessage = (error, commandPrefix) => {
   switch (error.code) {
     case STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND:
       return buildErrorMessage({
-        title: '❌ *Pack não encontrado.*',
-        explanation: ['Não consegui localizar esse pack pelo nome ou ID informado.'],
+        title: '🔎 *Pack não encontrado.*',
+        explanation: ['Não localizei um pack com esse nome ou ID.'],
         steps: [
-          `Confira os packs disponíveis com \`${commandPrefix}pack list\`.`,
-          'Copie exatamente o ID exibido na lista.',
-          `Depois tente de novo com \`${commandPrefix}pack info <pack>\`.`,
+          `Veja a lista com \`${commandPrefix}pack list\`.`,
+          'Copie o ID exatamente como aparece.',
+          `Depois tente novamente (ex.: \`${commandPrefix}pack info <pack>\`).`,
         ],
         commandPrefix,
       });
     case STICKER_PACK_ERROR_CODES.DUPLICATE_STICKER:
       return buildErrorMessage({
-        title: '⚠️ *Essa figurinha já está nesse pack.*',
-        explanation: ['Para evitar duplicidade, não repito o mesmo sticker no mesmo pack.'],
+        title: '⚠️ *Essa figurinha já está no pack.*',
+        explanation: ['Para manter o pack organizado, não adiciono itens duplicados.'],
         steps: [
-          `Revise os itens com \`${commandPrefix}pack info <pack>\`.`,
-          'Se quiser trocar a ordem, use o comando `reorder`.',
+          `Veja os itens com \`${commandPrefix}pack info <pack>\`.`,
+          'Se quiser reorganizar, use `reorder`.',
         ],
         commandPrefix,
       });
     case STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED:
       return buildErrorMessage({
-        title: '⚠️ *Seu pack atingiu o limite de figurinhas.*',
-        explanation: [error.message || 'Não é possível adicionar novas figurinhas nesse pack agora.'],
+        title: '⚠️ *Limite de figurinhas atingido.*',
+        explanation: [error.message || 'Este pack já está no limite e não aceita novos itens no momento.'],
         steps: [
-          `Crie um novo pack com \`${commandPrefix}pack create "Novo Pack"\`.`,
+          `Crie outro pack: \`${commandPrefix}pack create novopack\`.`,
           'Depois continue adicionando as próximas figurinhas no novo pack.',
         ],
         commandPrefix,
       });
     case STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND:
       return buildErrorMessage({
-        title: '❌ *Não encontrei uma figurinha válida para esse comando.*',
-        explanation: ['Você precisa responder uma figurinha existente ou ter uma figurinha recente salva.'],
+        title: '🧩 *Não encontrei uma figurinha válida para usar.*',
+        explanation: ['Para esse comando, você precisa responder uma figurinha ou ter uma figurinha recente no contexto.'],
         steps: [
-          'Responda diretamente a figurinha que deseja usar.',
-          'Ou envie uma nova figurinha e execute o comando novamente.',
+          'Responda diretamente a figurinha que você quer usar.',
+          'Ou envie uma figurinha e execute o comando novamente.',
         ],
         commandPrefix,
       });
     case STICKER_PACK_ERROR_CODES.INVALID_INPUT:
       return buildErrorMessage({
-        title: '⚠️ *Algum dado do comando está inválido.*',
-        explanation: [error.message || 'Revise o formato do comando antes de tentar novamente.'],
-        steps: [`Abra o guia completo com \`${commandPrefix}pack\`.`],
+        title: '⚠️ *Formato do comando inválido.*',
+        explanation: [error.message || 'Revise o formato do comando e tente novamente.'],
+        steps: [`Abra os exemplos: \`${commandPrefix}pack\`.`],
         commandPrefix,
       });
     case STICKER_PACK_ERROR_CODES.STORAGE_ERROR:
       return buildErrorMessage({
-        title: '❌ *Não consegui acessar os arquivos desse pack.*',
-        explanation: [error.message || 'Os dados das figurinhas não ficaram disponíveis agora.'],
-        steps: ['Tente novamente em instantes. Se persistir, me avise para investigar o storage.'],
+        title: '💾 *Falha ao acessar os dados do pack.*',
+        explanation: [error.message || 'Os arquivos não ficaram disponíveis agora.'],
+        steps: ['Tente novamente em instantes. Se persistir, envie o comando usado para eu analisar.'],
         commandPrefix,
       });
     default:
       return buildErrorMessage({
-        title: '❌ *Erro ao manipular packs.*',
-        explanation: [error.message || 'Aconteceu um erro interno durante a operação.'],
+        title: '❌ *Erro ao gerenciar packs.*',
+        explanation: [error.message || 'Ocorreu um erro interno durante a operação.'],
         steps: ['Tente novamente e, se continuar, compartilhe o comando usado para análise.'],
         commandPrefix,
       });
@@ -408,6 +407,25 @@ const parseIdentifierAndValue = (input) => {
     identifier,
     value: unquote(rest),
   };
+};
+
+const PACK_NAME_RULE_REGEX = /^[a-z0-9]+$/;
+
+const normalizePackName = (value, { label = 'Nome do pack' } = {}) => {
+  const normalized = unquote(value).toLowerCase();
+
+  if (!normalized) {
+    throw new StickerPackError(STICKER_PACK_ERROR_CODES.INVALID_INPUT, `${label} é obrigatório.`);
+  }
+
+  if (!PACK_NAME_RULE_REGEX.test(normalized)) {
+    throw new StickerPackError(
+      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+      'Nome do pack inválido. Use apenas letras minúsculas e números, sem espaços ou caracteres especiais.',
+    );
+  }
+
+  return normalized;
 };
 
 const parseReorderInput = async ({ ownerJid, identifier, rawOrder }) => {
@@ -467,12 +485,10 @@ export async function handlePackCommand({
       messageInfo,
       expirationMessage,
       text: buildActionMessage({
-        title: '⏳ *Limite temporário de ações atingido.*',
-        explanation: [
-          'Para manter o gerenciador de packs estável, apliquei uma pausa curta antes da próxima ação.',
-        ],
-        details: [`⏱️ Tempo restante para tentar de novo: *${waitSeconds}s*.`],
-        nextSteps: ['Aguarde esse tempo e execute novamente o comando de pack que você quiser.'],
+        title: '⏳ *Muitas ações em sequência.*',
+        explanation: ['Para manter o sistema estável, ativei uma pausa rápida antes do próximo comando.'],
+        details: [`⏱️ Você poderá tentar novamente em: *${waitSeconds}s*.`],
+        nextSteps: ['Aguarde o tempo acima e repita o comando de pack que deseja executar.'],
       }),
     });
     return;
@@ -488,7 +504,7 @@ export async function handlePackCommand({
         const base = segments.shift() || '';
         const options = parsePipeOptions(segments);
 
-        const name = unquote(base);
+        const name = normalizePackName(base);
         const publisher = options.publisher || options.pub || options.autor || senderName || 'OmniZap';
         const description = options.desc || options.description || '';
         const visibility = options.visibility || options.vis || 'private';
@@ -507,22 +523,19 @@ export async function handlePackCommand({
           messageInfo,
           expirationMessage,
           text: buildActionMessage({
-            title: '✅ *Pack criado com sucesso!*',
-            explanation: [
-              'Seu novo pack já está ativo e pronto para receber figurinhas.',
-              'Você pode gerenciar tudo pelo nome ou pelo ID exibido abaixo.',
-            ],
+            title: '✅ *Pack criado!*',
+            explanation: ['Seu pack já está disponível e pronto para receber figurinhas.'],
             details: [
-              `📛 Nome do pack: *${created.name}*`,
-              `🆔 ID do pack: \`${created.pack_key}\``,
+              `📛 Nome: *${created.name}*`,
+              `🆔 ID: \`${created.pack_key}\``,
               `👤 Publisher: *${created.publisher}*`,
-              `👁️ Visibilidade inicial: ${formatVisibilityLabel(created.visibility)}`,
+              `👁️ Visibilidade: ${formatVisibilityLabel(created.visibility)}`,
             ],
             nextSteps: [
-              `Responda uma figurinha e execute \`${commandPrefix}pack add ${created.pack_key}\`.`,
-              `Veja o resumo completo com \`${commandPrefix}pack info ${created.pack_key}\`.`,
+              `Responda uma figurinha e use: \`${commandPrefix}pack add ${created.pack_key}\`.`,
+              `Para conferir: \`${commandPrefix}pack info ${created.pack_key}\`.`,
             ],
-            footer: ['✨ Agora ficou fácil montar coleções temáticas e compartilhar quando quiser.'],
+            footer: ['💡 Dica: use packs por tema para organizar e enviar mais rápido.'],
           }),
         });
         return;
@@ -557,7 +570,8 @@ export async function handlePackCommand({
 
       case 'rename': {
         const { identifier, value } = parseIdentifierAndValue(rest);
-        const updated = await stickerPackService.renamePack({ ownerJid, identifier, name: value });
+        const normalizedName = normalizePackName(value, { label: 'Novo nome do pack' });
+        const updated = await stickerPackService.renamePack({ ownerJid, identifier, name: normalizedName });
 
         await sendReply({
           sock,
@@ -565,13 +579,10 @@ export async function handlePackCommand({
           messageInfo,
           expirationMessage,
           text: buildActionMessage({
-            title: '✏️ *Nome do pack atualizado!*',
-            explanation: ['A alteração foi salva com sucesso e já vale para os próximos envios.'],
-            details: [
-              `📛 Novo nome: *${updated.name}*`,
-              `🆔 ID do pack: \`${updated.pack_key}\``,
-            ],
-            nextSteps: [`Confira todos os detalhes em \`${commandPrefix}pack info ${updated.pack_key}\`.`],
+            title: '✏️ *Nome atualizado!*',
+            explanation: ['Alteração salva com sucesso.'],
+            details: [`📛 Novo nome: *${updated.name}*`, `🆔 ID: \`${updated.pack_key}\``],
+            nextSteps: [`Ver detalhes: \`${commandPrefix}pack info ${updated.pack_key}\`.`],
           }),
         });
         return;
@@ -587,15 +598,11 @@ export async function handlePackCommand({
           messageInfo,
           expirationMessage,
           text: buildActionMessage({
-            title: '👤 *Publisher atualizado com sucesso!*',
-            explanation: ['O nome do autor/editor desse pack foi alterado e já aparece nas próximas informações.'],
-            details: [
-              `📦 Pack: *${updated.name}*`,
-              `👤 Novo publisher: *${updated.publisher}*`,
-              `🆔 ID: \`${updated.pack_key}\``,
-            ],
+            title: '👤 *Publisher atualizado!*',
+            explanation: ['O publisher deste pack foi ajustado e já aparece nas informações.'],
+            details: [`📦 Pack: *${updated.name}*`, `👤 Publisher: *${updated.publisher}*`, `🆔 ID: \`${updated.pack_key}\``],
             nextSteps: [
-              `Se quiser, ajuste a descrição com \`${commandPrefix}pack setdesc ${updated.pack_key} "Nova descrição"\`.`,
+              `Se quiser, ajuste a descrição: \`${commandPrefix}pack setdesc ${updated.pack_key} "Nova descrição"\`.`,
             ],
           }),
         });
@@ -613,15 +620,13 @@ export async function handlePackCommand({
           messageInfo,
           expirationMessage,
           text: buildActionMessage({
-            title: '📝 *Descrição do pack atualizada!*',
-            explanation: ['A descrição foi salva com sucesso e ajuda a identificar o tema do pack.'],
+            title: '📝 *Descrição atualizada!*',
+            explanation: ['A descrição ajuda a identificar o tema do pack.'],
             details: [
               `📦 Pack: *${updated.name}*`,
-              description
-                ? `📝 Nova descrição: "${updated.description}"`
-                : '🧹 Descrição removida com sucesso.',
+              description ? `📝 Descrição: "${updated.description}"` : '🧹 Descrição removida.',
             ],
-            nextSteps: [`Confira como ficou com \`${commandPrefix}pack info ${updated.pack_key}\`.`],
+            nextSteps: [`Ver como ficou: \`${commandPrefix}pack info ${updated.pack_key}\`.`],
           }),
         });
         return;
@@ -634,7 +639,7 @@ export async function handlePackCommand({
         if (!asset) {
           throw new StickerPackError(
             STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND,
-            'Não encontrei figurinha para definir capa.',
+            'Não encontrei uma figurinha para definir como capa.',
           );
         }
 
@@ -650,13 +655,10 @@ export async function handlePackCommand({
           messageInfo,
           expirationMessage,
           text: buildActionMessage({
-            title: '🖼 *Capa do pack definida com sucesso!*',
-            explanation: ['A figurinha selecionada agora representa esse pack como capa principal.'],
-            details: [
-              `📦 Pack: *${updated.name}*`,
-              `🆔 ID: \`${updated.pack_key}\``,
-            ],
-            nextSteps: [`Envie o pack com a nova capa usando \`${commandPrefix}pack send ${updated.pack_key}\`.`],
+            title: '🖼️ *Capa definida!*',
+            explanation: ['A figurinha selecionada agora é a capa deste pack.'],
+            details: [`📦 Pack: *${updated.name}*`, `🆔 ID: \`${updated.pack_key}\``],
+            nextSteps: [`Para enviar: \`${commandPrefix}pack send ${updated.pack_key}\`.`],
           }),
         });
         return;
@@ -671,7 +673,7 @@ export async function handlePackCommand({
         if (!asset) {
           throw new StickerPackError(
             STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND,
-            'Não encontrei figurinha para adicionar.',
+            'Não encontrei uma figurinha para adicionar.',
           );
         }
 
@@ -689,16 +691,16 @@ export async function handlePackCommand({
           messageInfo,
           expirationMessage,
           text: buildActionMessage({
-            title: '➕ *Figurinha adicionada com sucesso!*',
-            explanation: ['A figurinha escolhida já entrou no pack e está pronta para uso.'],
+            title: '➕ *Figurinha adicionada!*',
+            explanation: ['Item adicionado com sucesso ao pack selecionado.'],
             details: [
               `📦 Pack: *${updated.name}*`,
-              `🧩 Total atual: *${updated.items.length}/${MAX_PACK_ITEMS}*`,
+              `🧩 Itens: *${updated.items.length}/${MAX_PACK_ITEMS}*`,
               `🆔 ID: \`${updated.pack_key}\``,
             ],
             nextSteps: [
-              `Se quiser, transforme essa figurinha em capa com \`${commandPrefix}pack setcover ${updated.pack_key}\` respondendo ela.`,
-              `Veja a ordem completa em \`${commandPrefix}pack info ${updated.pack_key}\`.`,
+              `Definir como capa: responda a figurinha e use \`${commandPrefix}pack setcover ${updated.pack_key}\`.`,
+              `Ver lista completa: \`${commandPrefix}pack info ${updated.pack_key}\`.`,
             ],
           }),
         });
@@ -721,14 +723,14 @@ export async function handlePackCommand({
           messageInfo,
           expirationMessage,
           text: buildActionMessage({
-            title: '🗑️ *Figurinha removida do pack!*',
-            explanation: ['A exclusão foi concluída e a ordem interna do pack foi ajustada automaticamente.'],
+            title: '🗑️ *Figurinha removida!*',
+            explanation: ['Remoção concluída e o pack foi reordenado automaticamente.'],
             details: [
               `📦 Pack: *${result.pack.name}*`,
               `🔢 Item removido: figurinha #${result.removed.position}`,
-              `🧩 Total atual: *${result.pack.items.length}/${MAX_PACK_ITEMS}*`,
+              `🧩 Itens: *${result.pack.items.length}/${MAX_PACK_ITEMS}*`,
             ],
-            nextSteps: [`Revise o resultado com \`${commandPrefix}pack info ${result.pack.pack_key}\`.`],
+            nextSteps: [`Conferir: \`${commandPrefix}pack info ${result.pack.pack_key}\`.`],
           }),
         });
         return;
@@ -754,13 +756,10 @@ export async function handlePackCommand({
           messageInfo,
           expirationMessage,
           text: buildActionMessage({
-            title: '🔀 *Ordem das figurinhas atualizada!*',
-            explanation: ['A nova sequência foi aplicada com sucesso no pack selecionado.'],
-            details: [
-              `📦 Pack: *${updated.name}*`,
-              `🆔 ID: \`${updated.pack_key}\``,
-            ],
-            nextSteps: [`Confira a sequência final em \`${commandPrefix}pack info ${updated.pack_key}\`.`],
+            title: '🔀 *Ordem atualizada!*',
+            explanation: ['A nova sequência foi aplicada ao pack.'],
+            details: [`📦 Pack: *${updated.name}*`, `🆔 ID: \`${updated.pack_key}\``],
+            nextSteps: [`Verificar sequência: \`${commandPrefix}pack info ${updated.pack_key}\`.`],
           }),
         });
         return;
@@ -768,7 +767,7 @@ export async function handlePackCommand({
 
       case 'clone': {
         const { token: identifier, rest: cloneNameRaw } = readToken(rest);
-        const cloneName = unquote(cloneNameRaw);
+        const cloneName = normalizePackName(cloneNameRaw, { label: 'Novo nome do clone' });
 
         const cloned = await stickerPackService.clonePack({
           ownerJid,
@@ -782,17 +781,12 @@ export async function handlePackCommand({
           messageInfo,
           expirationMessage,
           text: buildActionMessage({
-            title: '🧬 *Clone de pack criado com sucesso!*',
-            explanation: [
-              'Copiei as configurações e figurinhas do pack original para um novo pack independente.',
-            ],
-            details: [
-              `📦 Novo pack: *${cloned.name}*`,
-              `🆔 ID do clone: \`${cloned.pack_key}\``,
-            ],
+            title: '🧬 *Clone criado!*',
+            explanation: ['O pack foi duplicado com as mesmas figurinhas e configurações.'],
+            details: [`📦 Novo pack: *${cloned.name}*`, `🆔 ID: \`${cloned.pack_key}\``],
             nextSteps: [
-              `Renomeie com \`${commandPrefix}pack rename ${cloned.pack_key} "Novo nome"\`.`,
-              `Envie no chat com \`${commandPrefix}pack send ${cloned.pack_key}\`.`,
+              `Renomear: \`${commandPrefix}pack rename ${cloned.pack_key} novonome\`.`,
+              `Enviar: \`${commandPrefix}pack send ${cloned.pack_key}\`.`,
             ],
           }),
         });
@@ -809,10 +803,10 @@ export async function handlePackCommand({
           messageInfo,
           expirationMessage,
           text: buildActionMessage({
-            title: '🗑️ *Pack removido com sucesso!*',
-            explanation: ['O pack foi excluído da sua lista e não aparecerá mais nos comandos de gerenciamento.'],
+            title: '🗑️ *Pack removido!*',
+            explanation: ['O pack foi excluído e não aparecerá mais na sua lista.'],
             details: [`📦 Pack removido: *${deleted.name}*`],
-            nextSteps: [`Se quiser criar outro, use \`${commandPrefix}pack create "Nome do Pack"\`.`],
+            nextSteps: [`Criar outro: \`${commandPrefix}pack create meupack\`.`],
           }),
         });
         return;
@@ -834,14 +828,14 @@ export async function handlePackCommand({
           messageInfo,
           expirationMessage,
           text: buildActionMessage({
-            title: '🌐 *Visibilidade do pack atualizada!*',
-            explanation: ['A configuração de privacidade foi aplicada e já está ativa para este pack.'],
+            title: '🌐 *Visibilidade atualizada!*',
+            explanation: ['A configuração de privacidade foi aplicada ao pack.'],
             details: [
               `📦 Pack: *${updated.name}*`,
-              `👁️ Nova visibilidade: ${formatVisibilityLabel(updated.visibility)}`,
+              `👁️ Visibilidade: ${formatVisibilityLabel(updated.visibility)}`,
               `🆔 ID: \`${updated.pack_key}\``,
             ],
-            nextSteps: [`Para compartilhar agora, use \`${commandPrefix}pack send ${updated.pack_key}\`.`],
+            nextSteps: [`Compartilhar/enviar: \`${commandPrefix}pack send ${updated.pack_key}\`.`],
           }),
         });
         return;
@@ -866,16 +860,16 @@ export async function handlePackCommand({
             messageInfo,
             expirationMessage,
             text: buildActionMessage({
-              title: '📤 *Pack enviado com sucesso!*',
-              explanation: ['O envio foi feito no formato nativo de pack, com melhor compatibilidade de coleção.'],
+              title: '📤 *Pack enviado!*',
+              explanation: ['Enviei no formato nativo (melhor experiência e compatibilidade).'],
               details: [
-                `📦 Pack enviado: *${packDetails.name}*`,
+                `📦 Pack: *${packDetails.name}*`,
                 `🆔 ID: \`${packDetails.pack_key}\``,
-                `🧩 Total enviado: *${sendResult.sentCount} figurinha(s)*`,
+                `🧩 Enviadas: *${sendResult.sentCount} figurinha(s)*`,
               ],
               nextSteps: [
-                `Para revisar esse pack, use \`${commandPrefix}pack info ${packDetails.pack_key}\`.`,
-                `Para editar, continue com \`${commandPrefix}pack add ${packDetails.pack_key}\` ou \`${commandPrefix}pack remove ${packDetails.pack_key} <item>\`.`,
+                `Ver detalhes: \`${commandPrefix}pack info ${packDetails.pack_key}\`.`,
+                `Editar: \`${commandPrefix}pack add ${packDetails.pack_key}\` ou \`${commandPrefix}pack remove ${packDetails.pack_key} <item>\`.`,
               ],
             }),
           });
@@ -886,19 +880,19 @@ export async function handlePackCommand({
             messageInfo,
             expirationMessage,
             text: buildActionMessage({
-              title: 'ℹ️ *Envio concluído em modo de compatibilidade.*',
+              title: 'ℹ️ *Pack enviado em modo compatível.*',
               explanation: [
-                `Seu cliente não aceitou o formato nativo para *${packDetails.name}*, então enviei por fallback.`,
-                'Nesse modo, eu envio um preview e depois as figurinhas individualmente.',
+                `O cliente não aceitou o formato nativo para *${packDetails.name}*.`,
+                'Enviei em modo compatível (prévia + figurinhas individuais).',
               ],
               details: [
                 `📦 Pack: *${packDetails.name}*`,
-                `🧩 Progresso de envio: *${sendResult.sentCount}/${sendResult.total}*`,
-                sendResult.nativeError ? `🛠 Motivo técnico: ${sendResult.nativeError}` : null,
+                `🧩 Progresso: *${sendResult.sentCount}/${sendResult.total}*`,
+                sendResult.nativeError ? `🛠 Detalhe técnico: ${sendResult.nativeError}` : null,
               ],
               nextSteps: [
-                `Você ainda pode gerenciar normalmente com \`${commandPrefix}pack info ${packDetails.pack_key}\`.`,
-                `Se quiser tentar de novo, rode \`${commandPrefix}pack send ${packDetails.pack_key}\` mais tarde.`,
+                `Você pode continuar gerenciando: \`${commandPrefix}pack info ${packDetails.pack_key}\`.`,
+                `Para tentar novamente no formato nativo: \`${commandPrefix}pack send ${packDetails.pack_key}\` mais tarde.`,
               ],
             }),
           });
