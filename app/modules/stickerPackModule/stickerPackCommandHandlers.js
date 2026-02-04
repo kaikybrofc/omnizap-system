@@ -87,9 +87,6 @@ const sendReply = async ({ sock, remoteJid, messageInfo, expirationMessage, text
     },
   );
 
-// ============================
-// PADRÃO VISUAL / TOM DE VOZ
-// ============================
 const PACK_VISUAL_DIVIDER = '━━━━━━━━━━━━━━━━━━━';
 const PACK_VISUAL_HEADER = '📦 *PACKS DE FIGURINHAS — CENTRAL DE GERENCIAMENTO*';
 

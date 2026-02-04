@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import logger from '../../utils/logger/loggerModule.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
-import { normalizeOwnerJid, parseEmojiList, sanitizeText, shortHash, slugify, toVisibility } from './stickerPackUtils.js';
+import { normalizeOwnerJid, parseEmojiList, sanitizeText, slugify, toVisibility } from './stickerPackUtils.js';
 
 const MAX_NAME_LENGTH = 120;
 const MAX_PUBLISHER_LENGTH = 120;
@@ -10,6 +10,10 @@ const MAX_DESCRIPTION_LENGTH = 1024;
 const MAX_ACCESSIBILITY_LABEL_LENGTH = 255;
 const DEFAULT_MAX_STICKERS_PER_PACK = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
 const DEFAULT_MAX_PACKS_PER_OWNER = Math.max(1, Number(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER) || 50);
+const PACK_KEY_BASE_MAX_LENGTH = 32;
+const PACK_KEY_SUFFIX_LENGTH = 5;
+const PACK_KEY_SUFFIX_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
+const PACK_KEY_MAX_ATTEMPTS = 24;
 
 const defaultDependencies = {
   logger,
@@ -134,13 +138,24 @@ export function createStickerPackService(options = {}) {
     }
   };
 
-  const ensurePackKey = async (ownerJid, name) => {
-    const ownerHash = shortHash(ownerJid, 8);
-    const slug = slugify(name, { fallback: 'pack', maxLength: 32 });
+  const ensurePackKey = async (_ownerJid, name) => {
+    const base = slugify(name, { fallback: 'pack', maxLength: PACK_KEY_BASE_MAX_LENGTH });
+    const buildSuffix = () => {
+      let suffix = '';
+      while (suffix.length < PACK_KEY_SUFFIX_LENGTH) {
+        const chunk = randomBytes(PACK_KEY_SUFFIX_LENGTH);
+        for (const byte of chunk) {
+          // Rejection sampling keeps distribution close to uniform for base-36 chars.
+          if (byte >= 252) continue;
+          suffix += PACK_KEY_SUFFIX_ALPHABET[byte % PACK_KEY_SUFFIX_ALPHABET.length];
+          if (suffix.length >= PACK_KEY_SUFFIX_LENGTH) break;
+        }
+      }
+      return suffix;
+    };
 
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const entropy = shortHash(`${ownerJid}:${name}:${Date.now()}:${Math.random()}:${attempt}`, 12);
-      const candidate = `${ownerHash}-${slug}-${entropy}`.slice(0, 160);
+    for (let attempt = 0; attempt < PACK_KEY_MAX_ATTEMPTS; attempt += 1) {
+      const candidate = `${base}-${buildSuffix()}`;
       const available = await deps.packRepository.ensureUniquePackKey(candidate);
       if (available) return candidate;
     }
