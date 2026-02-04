@@ -93,7 +93,7 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
   }
 
   return [
-    `📦 Figurinha salva automaticamente no pack *${packName}*${countLabel}.`,
+    `📦 Figurinha salva automaticamente no pack *${packName}*${countLabel}.\n\n`,
     `Dica: use *${commandPrefix}pack list* para gerenciar seus packs.`,
     `Para enviar agora: *${commandPrefix}pack send ${packCommandTarget}*.`,
   ].join('\n');
