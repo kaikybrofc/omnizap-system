@@ -116,6 +116,31 @@ export const BINARY_MEDIA_TYPES = new Set(['image', 'video', 'videoNote', 'audio
 
 const normalizeMessage = (message) => normalizeMessageContent(message) || message;
 
+const hasNonEmptyMediaKey = (mediaKey) => {
+  if (!mediaKey) return false;
+
+  if (typeof mediaKey === 'string') {
+    return mediaKey.trim().length > 0;
+  }
+
+  if (Buffer.isBuffer(mediaKey) || mediaKey instanceof Uint8Array) {
+    return mediaKey.length > 0;
+  }
+
+  if (Array.isArray(mediaKey)) {
+    return mediaKey.length > 0;
+  }
+
+  if (typeof mediaKey === 'object') {
+    if (typeof mediaKey.byteLength === 'number') {
+      return mediaKey.byteLength > 0;
+    }
+    return Object.keys(mediaKey).length > 0;
+  }
+
+  return Boolean(mediaKey);
+};
+
 const buildMediaEntry = (mediaType, messageKey, value, isQuoted, overrides = {}) => ({
   mediaType,
   mediaKey: value,
@@ -409,6 +434,25 @@ export const extractMessageContent = ({ message }) => {
  * @returns {Promise<string|null>} The path to the downloaded file, or null if download fails.
  */
 export const downloadMediaMessage = async (message, type, outputPath) => {
+  if (!message || typeof message !== 'object') {
+    logger.warn('Skipping media download: invalid message payload.', { type });
+    return null;
+  }
+
+  if (!hasNonEmptyMediaKey(message.mediaKey)) {
+    logger.warn('Skipping media download: missing or empty media key.', {
+      type,
+      hasUrl: Boolean(message.url),
+      hasDirectPath: Boolean(message.directPath),
+    });
+    return null;
+  }
+
+  if (!message.url && !message.directPath) {
+    logger.warn('Skipping media download: media URL/directPath not found.', { type });
+    return null;
+  }
+
   try {
     const stream = await downloadContentFromMessage(message, type);
 
@@ -421,6 +465,11 @@ export const downloadMediaMessage = async (message, type, outputPath) => {
     logger.info(`Media downloaded successfully to ${filePath}`);
     return filePath;
   } catch (error) {
+    if (error?.message?.includes('Cannot derive from empty media key')) {
+      logger.warn('Skipping media download: invalid media key received from source.', { type });
+      return null;
+    }
+
     logger.error(`Error downloading media: ${error.message}`, error);
     return null;
   }
