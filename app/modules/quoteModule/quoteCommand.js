@@ -16,6 +16,9 @@ const QUOTE_BUBBLE_COLOR = process.env.QUOTE_BG_COLOR || '#03101d';
 const QUOTE_NAME_COLOR = process.env.QUOTE_NAME_COLOR || '#f6af6d';
 const QUOTE_TEXT_COLOR = process.env.QUOTE_TEXT_COLOR || '#e8eef6';
 const QUOTE_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_TIMEOUT_MS || '10000', 10);
+const QUOTE_EMOJI_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_EMOJI_TIMEOUT_MS || '4000', 10);
+const QUOTE_EMOJI_BASE_URL =
+  process.env.QUOTE_EMOJI_BASE_URL || 'https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/128';
 const QUOTE_FONT_FAMILY = process.env.QUOTE_FONT_FAMILY || '"Noto Sans","Segoe UI","Arial","Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif';
 
 const QUOTE_CANVAS_MAX_WIDTH = 920;
@@ -46,6 +49,11 @@ const QUOTE_NAME_TEXT_GAP = 12;
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'quotes');
 const GRAPHEME_SEGMENTER = typeof Intl?.Segmenter === 'function' ? new Intl.Segmenter('en', { granularity: 'grapheme' }) : null;
 const EMOJI_SEGMENT_REGEX = /\p{Extended_Pictographic}/u;
+const EMOJI_VARIATION_SELECTOR = 'fe0f';
+const EMOJI_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const EMOJI_FAIL_TTL_MS = 30 * 60 * 1000;
+const EMOJI_IMAGE_CACHE = globalThis.__omnizapQuoteEmojiImageCache || new Map();
+globalThis.__omnizapQuoteEmojiImageCache = EMOJI_IMAGE_CACHE;
 
 const isValidJid = (jid) => typeof jid === 'string' && jid.includes('@');
 const normalizeMentionedJids = (mentionedJids) => (Array.isArray(mentionedJids) ? mentionedJids.filter(Boolean) : []);
@@ -159,6 +167,70 @@ const segmentGraphemes = (text) => {
 
 const isEmojiSegment = (segment) => EMOJI_SEGMENT_REGEX.test(segment);
 
+const toCodePoints = (segment) => [...segment].map((char) => char.codePointAt(0).toString(16));
+
+const buildEmojiAssetKeys = (segment) => {
+  const original = toCodePoints(segment);
+  const noVariation = original.filter((value) => value !== EMOJI_VARIATION_SELECTOR);
+  const variants = [original.join('_')];
+  if (noVariation.length && noVariation.join('_') !== variants[0]) {
+    variants.push(noVariation.join('_'));
+  }
+  return variants.filter(Boolean);
+};
+
+const getEmojiAssetUrl = (assetKey) =>
+  `${QUOTE_EMOJI_BASE_URL.replace(/\/+$/, '')}/emoji_u${assetKey}.png`;
+
+const getCachedEmojiImage = (cacheKey) => {
+  const entry = EMOJI_IMAGE_CACHE.get(cacheKey);
+  if (!entry) return undefined;
+
+  const ttl = entry.image ? EMOJI_CACHE_TTL_MS : EMOJI_FAIL_TTL_MS;
+  if (Date.now() - entry.createdAt > ttl) {
+    EMOJI_IMAGE_CACHE.delete(cacheKey);
+    return undefined;
+  }
+
+  return entry.image;
+};
+
+const setCachedEmojiImage = (cacheKey, image) => {
+  EMOJI_IMAGE_CACHE.set(cacheKey, { image, createdAt: Date.now() });
+};
+
+const resolveEmojiImage = async (segment) => {
+  const cached = getCachedEmojiImage(segment);
+  if (cached !== undefined) return cached;
+
+  const variants = buildEmojiAssetKeys(segment);
+  for (const key of variants) {
+    const buffer = await fetchImageBuffer(getEmojiAssetUrl(key), QUOTE_EMOJI_TIMEOUT_MS);
+    if (!buffer || buffer.length === 0) continue;
+
+    try {
+      const image = await loadImage(buffer);
+      setCachedEmojiImage(segment, image);
+      return image;
+    } catch {
+      continue;
+    }
+  }
+
+  setCachedEmojiImage(segment, null);
+  return null;
+};
+
+const collectEmojiSegments = (texts) => {
+  const emojiSet = new Set();
+  for (const text of texts) {
+    for (const segment of segmentGraphemes(text)) {
+      if (isEmojiSegment(segment)) emojiSet.add(segment);
+    }
+  }
+  return [...emojiSet];
+};
+
 const measureTextVisualWidth = (ctx, text, fontSize) => {
   const graphemes = segmentGraphemes(text);
   const emojiAdvance = Math.round(fontSize * 1.06);
@@ -175,9 +247,11 @@ const measureTextVisualWidth = (ctx, text, fontSize) => {
   return width;
 };
 
-const drawTextWithEmoji = (ctx, text, x, y, fontSize) => {
+const drawTextWithEmoji = async (ctx, text, x, y, fontSize) => {
   const graphemes = segmentGraphemes(text);
   const emojiAdvance = Math.round(fontSize * 1.06);
+  const emojiSize = Math.round(fontSize * 1.1);
+  const emojiYOffset = Math.round((fontSize - emojiSize) * 0.5);
   let cursorX = x;
   let plainBuffer = '';
 
@@ -191,9 +265,15 @@ const drawTextWithEmoji = (ctx, text, x, y, fontSize) => {
   for (const segment of graphemes) {
     if (isEmojiSegment(segment)) {
       flushPlain();
-      ctx.fillText(segment, cursorX, y);
-      const measured = ctx.measureText(segment).width;
-      cursorX += Math.max(measured, emojiAdvance);
+      const emojiImage = await resolveEmojiImage(segment);
+      if (emojiImage) {
+        ctx.drawImage(emojiImage, cursorX, y + emojiYOffset, emojiSize, emojiSize);
+        cursorX += emojiAdvance;
+      } else {
+        ctx.fillText(segment, cursorX, y);
+        const measured = ctx.measureText(segment).width;
+        cursorX += Math.max(measured, emojiAdvance);
+      }
       continue;
     }
     plainBuffer += segment;
@@ -457,6 +537,8 @@ const renderQuoteImage = async ({ authorName, quoteText, avatarBuffer }) => {
 
   const nameFontSize = fitAuthorFontSize(measureCtx, safeAuthorName, maxInnerWidth);
   const quoteFit = fitQuoteLines(measureCtx, safeQuoteText, maxInnerWidth);
+  const emojiSegments = collectEmojiSegments([safeAuthorName, ...quoteFit.lines]);
+  await Promise.all(emojiSegments.map((segment) => resolveEmojiImage(segment)));
 
   measureCtx.font = `700 ${nameFontSize}px ${QUOTE_FONT_FAMILY}`;
   const measuredNameWidth = measureTextVisualWidth(measureCtx, safeAuthorName, nameFontSize);
@@ -510,14 +592,14 @@ const renderQuoteImage = async ({ authorName, quoteText, avatarBuffer }) => {
   ctx.textBaseline = 'top';
   ctx.fillStyle = QUOTE_NAME_COLOR;
   ctx.font = `700 ${nameFontSize}px ${QUOTE_FONT_FAMILY}`;
-  drawTextWithEmoji(ctx, safeAuthorName, textX, cursorY, nameFontSize);
+  await drawTextWithEmoji(ctx, safeAuthorName, textX, cursorY, nameFontSize);
 
   cursorY += nameLineHeight + QUOTE_NAME_TEXT_GAP;
   ctx.fillStyle = QUOTE_TEXT_COLOR;
   ctx.font = `500 ${quoteFit.fontSize}px ${QUOTE_FONT_FAMILY}`;
 
   for (const line of quoteFit.lines) {
-    drawTextWithEmoji(ctx, line, textX, cursorY, quoteFit.fontSize);
+    await drawTextWithEmoji(ctx, line, textX, cursorY, quoteFit.fontSize);
     cursorY += textLineHeight;
   }
 
