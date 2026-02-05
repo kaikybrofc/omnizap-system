@@ -112,13 +112,11 @@ export const KNOWN_NETWORKS = {
  * Delimitadores básicos para tokenização manual (sem regex).
  */
 const WHITESPACE_CHARS = new Set([' ', '\n', '\r', '\t', '\f', '\v']);
-const EDGE_PUNCTUATION_CHARS = new Set(['.', ',', '!', '?', ';', ':', ')', '(', '[', ']', '{', '}', '<', '>', '"', "'", '`', '…']);
+const EDGE_PUNCTUATION_CHARS = new Set([',', '!', '?', ';', ':', ')', '(', '[', ']', '{', '}', '<', '>', '"', "'", '`', '…']);
+const TOKEN_SEPARATOR_CHARS = new Set([',', ';', '|']);
 const HOST_TERMINATORS = new Set(['/', '?', '#', ':', '\\', ',', ';']);
 const URL_HINTS = ['https://', 'http://', 'www.'];
-const KNOWN_TLD_SUFFIXES = new Set(['com', 'net', 'org', 'io', 'br', 'com.br', 'net.br', 'org.br', 'gov.br', 'edu.br', 'co.uk', 'uk', 'us', 'edu', 'gov', 'mil', 'app', 'dev', 'info', 'biz', 'co']);
-const KNOWN_NETWORK_DOMAIN_LIST = Object.values(KNOWN_NETWORKS)
-  .flat()
-  .map((domain) => domain.toLowerCase());
+const KNOWN_TLD_SUFFIXES = new Set(['com', 'net', 'org', 'io', 'app', 'dev', 'info', 'biz', 'pro', 'co', 'me', 'tv', 'cc', 'xyz', 'site', 'online', 'store', 'shop', 'blog', 'tech', 'cloud', 'digital', 'live', 'media', 'news', 'one', 'top', 'club', 'vip', 'fun', 'games', 'game', 'space', 'world', 'today', 'agency', 'email', 'center', 'company', 'group', 'solutions', 'systems', 'services', 'network', 'social', 'design', 'studio', 'photo', 'video', 'audio', 'music', 'art', 'wiki', 'finance', 'capital', 'money', 'loans', 'insurance', 'legal', 'law', 'health', 'care', 'clinic', 'dental', 'academy', 'school', 'college', 'university', 'education', 'training', 'support', 'chat', 'forum', 'community', 'events', 'travel', 'tours', 'hotel', 'homes', 'house', 'auto', 'cars', 'bike', 'food', 'restaurant', 'cafe', 'bar', 'pizza', 'delivery', 'fashion', 'beauty', 'style', 'fit', 'fitness', 'sports', 'download', 'br', 'us', 'uk', 'eu', 'de', 'fr', 'es', 'pt', 'it', 'nl', 'be', 'ch', 'at', 'se', 'no', 'fi', 'dk', 'ie', 'pl', 'cz', 'sk', 'hu', 'ro', 'bg', 'gr', 'ru', 'ua', 'tr', 'il', 'ae', 'sa', 'qa', 'eg', 'ma', 'tn', 'dz', 'za', 'ng', 'ke', 'gh', 'in', 'pk', 'bd', 'lk', 'cn', 'jp', 'kr', 'tw', 'hk', 'sg', 'my', 'th', 'vn', 'ph', 'id', 'au', 'nz', 'ca', 'mx', 'ar', 'cl', 'co', 'pe', 'uy', 'py', 'bo', 'ec', 've', 'do', 'cu', 'pa', 'cr', 'gt', 'hn', 'ni', 'sv', 'pr', 'edu', 'gov', 'mil', 'com.br', 'net.br', 'org.br', 'gov.br', 'edu.br', 'jus.br', 'mil.br', 'co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'co.jp', 'ne.jp', 'or.jp', 'go.jp', 'ac.jp', 'com.au', 'net.au', 'org.au', 'edu.au', 'gov.au', 'com.mx', 'com.ar', 'com.co', 'com.pe', 'com.tr', 'com.sg', 'com.my', 'com.ph', 'co.in', 'firm.in', 'net.in', 'org.in', 'gen.in', 'ind.in', 'co.id', 'or.id', 'go.id', 'web.id', 'co.za', 'org.za', 'net.za', 'com.ng', 'com.gh', 'com.eg', 'com.sa', 'com.qa', 'com.ae', 'page.link', 'g.page']);
 
 /**
  * Tokeniza texto por espaço/quebra de linha sem regex.
@@ -146,6 +144,30 @@ const tokenizeText = (text) => {
 };
 
 /**
+ * Divide tokens compostos (site.com,site2.com|site3.com) sem regex.
+ * @param {string} token
+ * @returns {string[]}
+ */
+const splitCompositeToken = (token) => {
+  const parts = [];
+  let currentPart = '';
+
+  for (const char of token) {
+    if (TOKEN_SEPARATOR_CHARS.has(char)) {
+      if (currentPart) {
+        parts.push(currentPart);
+        currentPart = '';
+      }
+      continue;
+    }
+    currentPart += char;
+  }
+
+  if (currentPart) parts.push(currentPart);
+  return parts;
+};
+
+/**
  * Remove pontuação comum das bordas do token.
  * @param {string} token
  * @returns {string}
@@ -165,7 +187,7 @@ const isDigit = (char) => char >= '0' && char <= '9';
 const isDomainLabelChar = (char) => isAsciiLetter(char) || isDigit(char) || char === '-';
 
 /**
- * Normaliza host removendo "www." e ponto final.
+ * Normaliza host removendo "www." e pontos nas bordas.
  * @param {string} host
  * @returns {string}
  */
@@ -173,6 +195,9 @@ const normalizeHost = (host) => {
   if (!host) return '';
   let normalized = host.toLowerCase();
 
+  while (normalized.startsWith('.')) {
+    normalized = normalized.slice(1);
+  }
   while (normalized.endsWith('.')) {
     normalized = normalized.slice(0, -1);
   }
@@ -181,6 +206,37 @@ const normalizeHost = (host) => {
   }
 
   return normalized;
+};
+
+/**
+ * Retorna quantos labels formam o TLD conhecido (1, 2 ou 3).
+ * @param {string[]} labels
+ * @returns {number}
+ */
+const getKnownTldLabelCount = (labels) => {
+  if (labels.length >= 3) {
+    const lastThree = labels.slice(-3).join('.');
+    if (KNOWN_TLD_SUFFIXES.has(lastThree)) return 3;
+  }
+  if (labels.length >= 2) {
+    const lastTwo = labels.slice(-2).join('.');
+    if (KNOWN_TLD_SUFFIXES.has(lastTwo)) return 2;
+  }
+  const lastOne = labels[labels.length - 1];
+  if (KNOWN_TLD_SUFFIXES.has(lastOne)) return 1;
+  return 0;
+};
+
+/**
+ * Extrai o root registrável (ex.: youtube.com, example.com.br).
+ * @param {string} domain
+ * @returns {string}
+ */
+const getRegistrableRootDomain = (domain) => {
+  const labels = domain.split('.');
+  const tldLabelCount = getKnownTldLabelCount(labels);
+  if (tldLabelCount === 0 || labels.length <= tldLabelCount) return '';
+  return labels.slice(-(tldLabelCount + 1)).join('.');
 };
 
 /**
@@ -211,19 +267,48 @@ const isValidDomainStructure = (domain) => {
  */
 const hasKnownTldSuffix = (domain) => {
   const labels = domain.split('.');
-  for (let i = 1; i < labels.length; i += 1) {
-    const suffix = labels.slice(i).join('.');
-    if (KNOWN_TLD_SUFFIXES.has(suffix)) return true;
-  }
-  return false;
+  return getKnownTldLabelCount(labels) > 0;
 };
+
+const KNOWN_NETWORK_EXACT_DOMAINS = new Set();
+const KNOWN_NETWORK_SUBDOMAIN_ROOTS = new Set();
+
+for (const domains of Object.values(KNOWN_NETWORKS)) {
+  for (const domain of domains) {
+    const normalizedDomain = domain.toLowerCase();
+    KNOWN_NETWORK_EXACT_DOMAINS.add(normalizedDomain);
+
+    const rootDomain = getRegistrableRootDomain(normalizedDomain);
+    if (rootDomain) {
+      KNOWN_NETWORK_SUBDOMAIN_ROOTS.add(rootDomain);
+    }
+  }
+}
 
 /**
  * Verifica domínios oficiais já mapeados em KNOWN_NETWORKS.
  * @param {string} domain
  * @returns {boolean}
  */
-const isKnownNetworkDomain = (domain) => KNOWN_NETWORK_DOMAIN_LIST.some((knownDomain) => domain === knownDomain || domain.endsWith(`.${knownDomain}`));
+const isKnownNetworkDomain = (domain) => {
+  const normalizedDomain = domain.toLowerCase();
+  if (KNOWN_NETWORK_EXACT_DOMAINS.has(normalizedDomain)) return true;
+
+  const rootDomain = getRegistrableRootDomain(normalizedDomain);
+  if (rootDomain && rootDomain !== normalizedDomain && KNOWN_NETWORK_SUBDOMAIN_ROOTS.has(rootDomain)) {
+    return true;
+  }
+
+  // Fallback para sufixos fora da lista de TLDs (ex.: goo.gl), sem varrer array inteiro.
+  let dotIndex = normalizedDomain.indexOf('.');
+  while (dotIndex !== -1) {
+    const parentDomain = normalizedDomain.slice(dotIndex + 1);
+    if (KNOWN_NETWORK_EXACT_DOMAINS.has(parentDomain)) return true;
+    dotIndex = normalizedDomain.indexOf('.', dotIndex + 1);
+  }
+
+  return false;
+};
 
 /**
  * Busca o primeiro indicativo de URL no token.
@@ -308,17 +393,20 @@ export const extractDomainsNoRegex = (text) => {
   const domains = new Set();
 
   for (const token of tokens) {
-    const cleanedToken = stripEdgePunctuation(token);
-    if (!cleanedToken) continue;
+    const partialTokens = splitCompositeToken(token);
+    for (const partialToken of partialTokens) {
+      const cleanedToken = stripEdgePunctuation(partialToken);
+      if (!cleanedToken) continue;
 
-    const urlDomain = extractDomainFromUrlToken(cleanedToken);
-    if (urlDomain) {
-      domains.add(urlDomain);
-      continue;
+      const urlDomain = extractDomainFromUrlToken(cleanedToken);
+      if (urlDomain) {
+        domains.add(urlDomain);
+        continue;
+      }
+
+      const plainDomain = extractDomainFromPlainToken(cleanedToken);
+      if (plainDomain) domains.add(plainDomain);
     }
-
-    const plainDomain = extractDomainFromPlainToken(cleanedToken);
-    if (plainDomain) domains.add(plainDomain);
   }
 
   return Array.from(domains);
