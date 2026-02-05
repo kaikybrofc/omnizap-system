@@ -12,8 +12,8 @@ import { fetchLatestPushNames } from '../statsModule/rankingCommon.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
-const QUOTE_BUBBLE_COLOR = process.env.QUOTE_BG_COLOR || '#03101d';
-const QUOTE_NAME_COLOR = process.env.QUOTE_NAME_COLOR || '#f6af6d';
+const QUOTE_BUBBLE_COLOR = process.env.QUOTE_BG_COLOR || '#144d37';
+const QUOTE_NAME_COLOR = process.env.QUOTE_NAME_COLOR || '#facc01';
 const QUOTE_TEXT_COLOR = process.env.QUOTE_TEXT_COLOR || '#e8eef6';
 const QUOTE_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_TIMEOUT_MS || '10000', 10);
 const QUOTE_EMOJI_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_EMOJI_TIMEOUT_MS || '4000', 10);
@@ -59,6 +59,12 @@ const isValidJid = (jid) => typeof jid === 'string' && jid.includes('@');
 const normalizeMentionedJids = (mentionedJids) => (Array.isArray(mentionedJids) ? mentionedJids.filter(Boolean) : []);
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+/**
+ * Extrai texto bruto de diferentes formatos de mensagem WhatsApp.
+ *
+ * @param {object} [message={}] Conteúdo normalizado de mensagem.
+ * @returns {string} Texto encontrado (ou string vazia).
+ */
 const extractTextFromMessage = (message = {}) => {
   const text = message.conversation?.trim() || message.extendedTextMessage?.text;
   if (text) return text;
@@ -73,6 +79,13 @@ const getContactNameFromSock = (sock, jid) => {
   return contact?.notify || contact?.name || contact?.short || null;
 };
 
+/**
+ * Resolve o nome de exibição preferindo contatos em memória e fallback de ranking.
+ *
+ * @param {object} sock Instância do Baileys socket.
+ * @param {string|null} jid JID alvo.
+ * @returns {Promise<string|null>} Nome resolvido ou `null`.
+ */
 const resolveDisplayName = async (sock, jid) => {
   if (!jid) return null;
   const fromSock = getContactNameFromSock(sock, jid);
@@ -112,6 +125,12 @@ const toInitials = (value) => {
   return `${left}${right}`.toUpperCase() || 'O';
 };
 
+/**
+ * Separa uma menção inicial no formato "@12345 texto".
+ *
+ * @param {string} text Texto informado pelo usuário.
+ * @returns {{ mention: string|null, rest: string }} Menção sem `@` e restante da frase.
+ */
 const parseLeadingMention = (text) => {
   const trimmed = text?.trim() || '';
   if (!trimmed) return { mention: null, rest: '' };
@@ -123,6 +142,12 @@ const parseLeadingMention = (text) => {
   return { mention: null, rest: trimmed };
 };
 
+/**
+ * Converte menção numérica para JID padrão do WhatsApp.
+ *
+ * @param {string|null} mention Menção sem `@`.
+ * @returns {string|null} JID no formato `123@s.whatsapp.net`.
+ */
 const buildJidFromMention = (mention) => {
   if (!mention) return null;
   const digits = mention.replace(/\D/g, '');
@@ -130,6 +155,17 @@ const buildJidFromMention = (mention) => {
   return `${digits}@s.whatsapp.net`;
 };
 
+/**
+ * Extrai possíveis participantes de uma mensagem citada.
+ *
+ * @param {object} [contextInfo={}] Contexto da mensagem.
+ * @returns {{
+ * participant: string|null,
+ * participantAlt: string|null,
+ * keyParticipant: string|null,
+ * keyParticipantAlt: string|null
+ * }} Identificadores candidatos do autor citado.
+ */
 const resolveQuotedTarget = (contextInfo = {}) => {
   const participant = contextInfo?.participant || null;
   const participantAlt = contextInfo?.participantAlt || null;
@@ -144,6 +180,12 @@ const resolveQuotedTarget = (contextInfo = {}) => {
   };
 };
 
+/**
+ * Resolve JID final/alternativo considerando cenário LID e falhas de resolução.
+ *
+ * @param {{ primaryJid: string|null, altJid: string|null }} params Identificadores candidatos.
+ * @returns {Promise<{ targetJid: string|null, resolvedJid: string|null }>} IDs prontos para uso.
+ */
 const resolveTargetJids = async ({ primaryJid, altJid }) => {
   const primary = isValidJid(primaryJid) ? primaryJid : null;
   const alt = isValidJid(altJid) ? altJid : null;
@@ -156,6 +198,12 @@ const resolveTargetJids = async ({ primaryJid, altJid }) => {
   }
 };
 
+/**
+ * Segmenta uma string em grafemas para preservar emojis compostos.
+ *
+ * @param {string} text Texto de entrada.
+ * @returns {string[]} Lista de grafemas.
+ */
 const segmentGraphemes = (text) => {
   const input = `${text || ''}`;
   if (!input) return [];
@@ -167,8 +215,20 @@ const segmentGraphemes = (text) => {
 
 const isEmojiSegment = (segment) => EMOJI_SEGMENT_REGEX.test(segment);
 
+/**
+ * Retorna code points hexadecimais de um grafema.
+ *
+ * @param {string} segment Grafema individual.
+ * @returns {string[]} Lista de code points.
+ */
 const toCodePoints = (segment) => [...segment].map((char) => char.codePointAt(0).toString(16));
 
+/**
+ * Monta variações de chave para buscar asset de emoji (com/sem VS16).
+ *
+ * @param {string} segment Emoji/grafema.
+ * @returns {string[]} Chaves candidatas no formato `1f600` ou `2764_fe0f`.
+ */
 const buildEmojiAssetKeys = (segment) => {
   const original = toCodePoints(segment);
   const noVariation = original.filter((value) => value !== EMOJI_VARIATION_SELECTOR);
@@ -179,9 +239,21 @@ const buildEmojiAssetKeys = (segment) => {
   return variants.filter(Boolean);
 };
 
+/**
+ * Constrói URL do asset PNG de emoji Android (Noto Emoji).
+ *
+ * @param {string} assetKey Chave de code points.
+ * @returns {string} URL final para download.
+ */
 const getEmojiAssetUrl = (assetKey) =>
   `${QUOTE_EMOJI_BASE_URL.replace(/\/+$/, '')}/emoji_u${assetKey}.png`;
 
+/**
+ * Busca um emoji do cache com TTL para sucesso/falha.
+ *
+ * @param {string} cacheKey Chave do emoji.
+ * @returns {import('canvas').Image|null|undefined} `undefined` quando expirado/inexistente.
+ */
 const getCachedEmojiImage = (cacheKey) => {
   const entry = EMOJI_IMAGE_CACHE.get(cacheKey);
   if (!entry) return undefined;
@@ -195,10 +267,23 @@ const getCachedEmojiImage = (cacheKey) => {
   return entry.image;
 };
 
+/**
+ * Salva resultado de resolução de emoji no cache global.
+ *
+ * @param {string} cacheKey Chave do emoji.
+ * @param {import('canvas').Image|null} image Imagem carregada ou `null` para cache negativo.
+ * @returns {void}
+ */
 const setCachedEmojiImage = (cacheKey, image) => {
   EMOJI_IMAGE_CACHE.set(cacheKey, { image, createdAt: Date.now() });
 };
 
+/**
+ * Resolve imagem PNG de emoji no estilo Android com fallback de cache negativo.
+ *
+ * @param {string} segment Grafema de emoji.
+ * @returns {Promise<import('canvas').Image|null>} Imagem carregada ou `null`.
+ */
 const resolveEmojiImage = async (segment) => {
   const cached = getCachedEmojiImage(segment);
   if (cached !== undefined) return cached;
@@ -221,6 +306,12 @@ const resolveEmojiImage = async (segment) => {
   return null;
 };
 
+/**
+ * Coleta todos os grafemas de emoji presentes em múltiplos textos.
+ *
+ * @param {string[]} texts Lista de textos.
+ * @returns {string[]} Emojis únicos encontrados.
+ */
 const collectEmojiSegments = (texts) => {
   const emojiSet = new Set();
   for (const text of texts) {
@@ -231,6 +322,14 @@ const collectEmojiSegments = (texts) => {
   return [...emojiSet];
 };
 
+/**
+ * Mede largura visual do texto tratando emojis como avanço fixo.
+ *
+ * @param {import('canvas').CanvasRenderingContext2D} ctx Contexto de renderização.
+ * @param {string} text Texto a medir.
+ * @param {number} fontSize Tamanho da fonte atual.
+ * @returns {number} Largura total em pixels.
+ */
 const measureTextVisualWidth = (ctx, text, fontSize) => {
   const graphemes = segmentGraphemes(text);
   const emojiAdvance = Math.round(fontSize * 1.06);
@@ -247,6 +346,16 @@ const measureTextVisualWidth = (ctx, text, fontSize) => {
   return width;
 };
 
+/**
+ * Desenha texto com suporte a emojis Android renderizados por imagem.
+ *
+ * @param {import('canvas').CanvasRenderingContext2D} ctx Contexto de renderização.
+ * @param {string} text Texto final.
+ * @param {number} x Posição X inicial.
+ * @param {number} y Posição Y (baseline top).
+ * @param {number} fontSize Tamanho da fonte corrente.
+ * @returns {Promise<number>} Largura final desenhada.
+ */
 const drawTextWithEmoji = async (ctx, text, x, y, fontSize) => {
   const graphemes = segmentGraphemes(text);
   const emojiAdvance = Math.round(fontSize * 1.06);
@@ -283,6 +392,15 @@ const drawTextWithEmoji = async (ctx, text, x, y, fontSize) => {
   return cursorX - x;
 };
 
+/**
+ * Quebra texto em linhas respeitando largura máxima e grafemas.
+ *
+ * @param {import('canvas').CanvasRenderingContext2D} ctx Contexto de medição.
+ * @param {string} text Texto original.
+ * @param {number} maxWidth Largura máxima em pixels.
+ * @param {number} fontSize Fonte usada para a medição.
+ * @returns {string[]} Linhas quebradas.
+ */
 const wrapTextLines = (ctx, text, maxWidth, fontSize) => {
   const lines = [];
   const paragraphs = `${text || ''}`.split(/\r?\n/);
@@ -333,6 +451,15 @@ const wrapTextLines = (ctx, text, maxWidth, fontSize) => {
   return lines.length ? lines : [''];
 };
 
+/**
+ * Aplica reticências na linha para caber no espaço disponível.
+ *
+ * @param {import('canvas').CanvasRenderingContext2D} ctx Contexto de medição.
+ * @param {string} line Linha original.
+ * @param {number} maxWidth Largura máxima em pixels.
+ * @param {number} fontSize Fonte usada para medição.
+ * @returns {string} Linha truncada.
+ */
 const ellipsizeLine = (ctx, line, maxWidth, fontSize) => {
   const safeLine = `${line || ''}`;
   if (!safeLine || measureTextVisualWidth(ctx, safeLine, fontSize) <= maxWidth) {
@@ -347,6 +474,14 @@ const ellipsizeLine = (ctx, line, maxWidth, fontSize) => {
   return trimmed ? `${trimmed}${ellipsis}` : ellipsis;
 };
 
+/**
+ * Reduz fonte do nome do autor até caber na largura disponível.
+ *
+ * @param {import('canvas').CanvasRenderingContext2D} ctx Contexto de medição.
+ * @param {string} authorName Nome do autor.
+ * @param {number} maxWidth Largura máxima em pixels.
+ * @returns {number} Tamanho de fonte escolhido.
+ */
 const fitAuthorFontSize = (ctx, authorName, maxWidth) => {
   let fontSize = QUOTE_NAME_FONT_MAX;
   while (fontSize > QUOTE_NAME_FONT_MIN) {
@@ -357,6 +492,14 @@ const fitAuthorFontSize = (ctx, authorName, maxWidth) => {
   return fontSize;
 };
 
+/**
+ * Ajusta tamanho de fonte e linhas do texto principal.
+ *
+ * @param {import('canvas').CanvasRenderingContext2D} ctx Contexto de medição.
+ * @param {string} quoteText Texto da citação.
+ * @param {number} maxWidth Largura útil da bolha.
+ * @returns {{ fontSize: number, lines: string[] }} Resultado final de tipografia.
+ */
 const fitQuoteLines = (ctx, quoteText, maxWidth) => {
   let fontSize = QUOTE_TEXT_FONT_MAX;
   let lines = [''];
