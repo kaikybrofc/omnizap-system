@@ -17,7 +17,6 @@ import { handleCatCommand, handleCatPromptCommand } from '../modules/aiModule/ca
 import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js';
 import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
 import { handleStickerConvertCommand } from '../modules/stickerModule/stickerConvertCommand.js';
-import { handleWaifuFactCommand, handleWaifuImageCommand, handleWaifuQuoteCommand, getWaifuUsageText } from '../modules/waifuModule/waifuCommand.js';
 import { handleWaifuPicsCommand, getWaifuPicsUsageText } from '../modules/waifuPicsModule/waifuPicsCommand.js';
 import { handlePackCommand, maybeCaptureIncomingSticker } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
 import groupConfigStore from '../store/groupConfigStore.js';
@@ -159,28 +158,6 @@ export const handleMessages = async (update, sock) => {
             case 'quote':
             case 'qc':
               runCommand('quote', () => handleQuoteCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, text, commandPrefix }));
-              break;
-
-            case 'waifu':
-              runCommand('waifu', () => handleWaifuImageCommand({ sock, remoteJid, messageInfo, expirationMessage, text, endpoint: 'waifu' }));
-              break;
-
-            case 'husbando':
-              runCommand('husbando', () => handleWaifuImageCommand({ sock, remoteJid, messageInfo, expirationMessage, text, endpoint: 'husbando' }));
-              break;
-
-            case 'animefact':
-            case 'wfact':
-              runCommand('animefact', () => handleWaifuFactCommand({ sock, remoteJid, messageInfo, expirationMessage }));
-              break;
-
-            case 'animequote':
-            case 'wquote':
-              runCommand('animequote', () => handleWaifuQuoteCommand({ sock, remoteJid, messageInfo, expirationMessage, text }));
-              break;
-
-            case 'waifuhelp':
-              runCommand('waifuhelp', () => sendAndStore(sock, remoteJid, { text: getWaifuUsageText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }));
               break;
 
             case 'wp':

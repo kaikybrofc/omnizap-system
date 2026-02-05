@@ -1,3 +1,5 @@
+import { getWaifuPicsUsageText } from '../waifuPicsModule/waifuPicsCommand.js';
+
 export const buildMenuCaption = (senderName, commandPrefix) => `
 Olá, ${senderName}! 👋  
 
@@ -21,7 +23,7 @@ Escolha uma categoria para ver os comandos:
 📊 *Estatísticas*  
 ➡️ *${commandPrefix}menu stats*  
 
-🌸 *Waifu.it*  
+🌸 *Anime*  
 ➡️ *${commandPrefix}menu anime*  
 
 🛡️ *Administração*  
@@ -112,19 +114,10 @@ export const buildQuoteMenu = (commandPrefix) => `
 `;
 
 export const buildAnimeMenu = (commandPrefix) => `
-🌸 *Waifu.it*  
+🌸 *Anime*  
 
 ━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}waifu* [nome|anime:Nome]  
-➡️ *${commandPrefix}husbando* [nome|anime:Nome]  
-➡️ *${commandPrefix}animefact*  
-➡️ *${commandPrefix}animequote* [character:Nome|anime:Nome]  
-
-━━━━━━━━━━━━━━━  
-🖼️ *Waifu.pics*  
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}wp* <categoria> *(SFW)*  
-➡️ *${commandPrefix}wpnsfw* <categoria> *(NSFW)*  
+${getWaifuPicsUsageText(commandPrefix)}
 `;
 
 export const buildAiMenu = (commandPrefix) => `

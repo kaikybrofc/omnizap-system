@@ -101,11 +101,6 @@ Siga os passos para configurar e executar:
     QUOTE_BG_COLOR=#0b141a
     QUOTE_TIMEOUT_MS=20000
 
-    # Waifu.it
-    WAIFU_API_TOKEN=
-    WAIFU_API_BASE=https://waifu.it/api/v4
-    WAIFU_TIMEOUT_MS=15000
-
     # Waifu.pics
     WAIFU_PICS_BASE=https://api.waifu.pics
     WAIFU_PICS_TIMEOUT_MS=15000

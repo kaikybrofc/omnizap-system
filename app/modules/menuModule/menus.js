@@ -70,8 +70,6 @@ export async function handleMenuCommand(
     ['estatisticas', (prefix) => buildStatsMenu(prefix)],
     ['estatistica', (prefix) => buildStatsMenu(prefix)],
     ['anime', (prefix) => buildAnimeMenu(prefix)],
-    ['waifu', (prefix) => buildAnimeMenu(prefix)],
-    ['husbando', (prefix) => buildAnimeMenu(prefix)],
   ]);
 
   const buildCategory = categoryMap.get(category);
