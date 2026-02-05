@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import logger from '../../utils/logger/loggerModule.js';
@@ -37,6 +38,14 @@ const MAX_MEDIA_MB_LABEL = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB : 100;
 const QUICK_QUEUE_LOOKUP_MS = 1500;
 const THUMBNAIL_TIMEOUT_MS = 15000;
 const MAX_THUMB_BYTES = 5 * 1024 * 1024;
+const VIDEO_PROCESS_TIMEOUT_MS = Number.parseInt(
+  process.env.PLAY_VIDEO_PROCESS_TIMEOUT_MS || '420000',
+  10,
+);
+const VIDEO_FORCE_TRANSCODE =
+  String(process.env.PLAY_VIDEO_FORCE_TRANSCODE || 'true').toLowerCase() !== 'false';
+const FFMPEG_BIN = (process.env.FFMPEG_PATH || 'ffmpeg').trim();
+const FFPROBE_BIN = (process.env.FFPROBE_PATH || 'ffprobe').trim();
 const SEARCH_CACHE_TTL_MS = 60 * 1000;
 const MAX_SEARCH_CACHE_ENTRIES = 500;
 const MAX_REDIRECTS = 2;
@@ -65,12 +74,14 @@ const KNOWN_ERROR_CODES = new Set(Object.values(ERROR_CODES));
 
 const TYPE_CONFIG = {
   audio: {
-    waitText: '⏳ Aguarde, estamos preparando o áudio...',
+    waitText: '⏳ Processando sua mídia...',
+    queueWaitText: '⏳ Processando...',
     readyTitle: '🎵 Áudio pronto!',
     mimeFallback: 'audio/mpeg',
   },
   video: {
-    waitText: '⏳ Aguarde, estamos preparando o vídeo...',
+    waitText: '⏳ Processando sua mídia...',
+    queueWaitText: '⏳ Processando...',
     readyTitle: '🎬 Vídeo pronto!',
     mimeFallback: 'video/mp4',
   },
@@ -180,17 +191,13 @@ const formatVideoInfo = (videoInfo) => {
   if (!videoInfo || typeof videoInfo !== 'object') return null;
   const lines = [];
   const title = pickFirstString(videoInfo, ['title', 'titulo', 'name']);
-  if (title) lines.push(`*Título:* ${title}`);
+  if (title) lines.push(`🎧 ${title}`);
   const channel = pickFirstString(videoInfo, ['channel', 'uploader', 'uploader_name', 'author']);
-  if (channel) lines.push(`*Canal:* ${channel}`);
+  if (channel) lines.push(`📺 ${channel}`);
   const duration = formatDuration(videoInfo.duration);
-  if (duration) lines.push(`*Duração:* ${duration}`);
-  const views = formatNumber(videoInfo.views);
-  if (views !== null) lines.push(`*Views:* ${views}`);
-  const likes = formatNumber(videoInfo.like_count);
-  if (likes !== null) lines.push(`*Likes:* ${likes}`);
+  if (duration) lines.push(`⏱ ${duration}`);
   const id = pickFirstString(videoInfo, ['id', 'videoId', 'video_id']);
-  if (id) lines.push(`*ID:* ${id}`);
+  if (id) lines.push(`🆔 ${id}`);
   return lines.length ? lines.join('\n') : null;
 };
 
@@ -239,10 +246,9 @@ const buildQueueStatusText = (status) => {
   }
 
   const lines = [];
-  if (position !== null) lines.push(`📍 Você está na *posição ${position}*`);
-  if (downloadsAhead !== null)
-    lines.push(`🚀 Existem *${downloadsAhead} download(s)* à sua frente`);
-  if (totalQueued !== null) lines.push(`📦 Total na fila: *${totalQueued}*`);
+  if (position !== null) lines.push(`📍 Posição na fila: ${position}`);
+  if (downloadsAhead !== null) lines.push(`🚀 Downloads à frente: ${downloadsAhead}`);
+  if (!lines.length && totalQueued !== null) lines.push(`📦 Itens na fila: ${totalQueued}`);
 
   return lines.join('\n');
 };
@@ -251,7 +257,7 @@ const buildReadyCaption = (type, infoText) => {
   const config = TYPE_CONFIG[type];
   if (!config) return infoText || '';
   if (!infoText) return config.readyTitle;
-  return `${config.readyTitle}\n${infoText}`;
+  return `${config.readyTitle}\n──────────────\n${infoText}`;
 };
 
 const buildTempFilePath = (requestId, type) => {
@@ -297,6 +303,233 @@ const hasHeader = (headers, name) =>
   headers && typeof headers === 'object'
     ? Object.keys(headers).some((headerName) => headerName.toLowerCase() === name.toLowerCase())
     : false;
+
+const normalizeMimeType = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const mime = value.split(';', 1)[0]?.trim().toLowerCase();
+  return mime || null;
+};
+
+const resolveMediaMimeType = (type, contentType) => {
+  const normalized = normalizeMimeType(contentType);
+
+  if (type === 'audio') {
+    return normalized && normalized.startsWith('audio/')
+      ? normalized
+      : TYPE_CONFIG.audio.mimeFallback;
+  }
+
+  if (type === 'video') {
+    return normalized && normalized.startsWith('video/')
+      ? normalized
+      : TYPE_CONFIG.video.mimeFallback;
+  }
+
+  return normalized || 'application/octet-stream';
+};
+
+const runBinaryCommand = (command, args, { timeoutMs = VIDEO_PROCESS_TIMEOUT_MS } = {}) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const stdoutChunks = [];
+    const stderrChunks = [];
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let timedOut = false;
+    const maxCapturedBytes = MAX_ERROR_BODY_BYTES * 4;
+
+    const appendChunk = (chunks, chunk, bytes) => {
+      if (!chunk || bytes >= maxCapturedBytes) return bytes;
+      const current = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      const remaining = Math.max(0, maxCapturedBytes - bytes);
+      if (remaining <= 0) return bytes;
+      const accepted = current.length <= remaining ? current : current.subarray(0, remaining);
+      chunks.push(accepted);
+      return bytes + accepted.length;
+    };
+
+    child.stdout.on('data', (chunk) => {
+      stdoutBytes = appendChunk(stdoutChunks, chunk, stdoutBytes);
+    });
+
+    child.stderr.on('data', (chunk) => {
+      stderrBytes = appendChunk(stderrChunks, chunk, stderrBytes);
+    });
+
+    const timeoutId =
+      Number.isFinite(timeoutMs) && timeoutMs > 0
+        ? setTimeout(() => {
+            timedOut = true;
+            child.kill('SIGKILL');
+          }, timeoutMs)
+        : null;
+    let settled = false;
+
+    const finalize = (handler) => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      handler();
+    };
+
+    child.on('error', (error) => {
+      finalize(() => reject(error));
+    });
+
+    child.on('close', (code, signal) => {
+      finalize(() => {
+        const stdout = Buffer.concat(stdoutChunks, stdoutBytes).toString('utf-8').trim();
+        const stderr = Buffer.concat(stderrChunks, stderrBytes).toString('utf-8').trim();
+
+        if (!timedOut && code === 0) {
+          resolve({ stdout, stderr });
+          return;
+        }
+
+        const error = new Error(stderr || `Falha ao executar ${path.basename(command)}.`);
+        error.code = timedOut ? 'ETIMEDOUT' : 'EPROCESS';
+        error.exitCode = code;
+        error.signal = signal || null;
+        error.stderr = stderr;
+        error.stdout = stdout;
+        reject(error);
+      });
+    });
+  });
+
+const normalizeBinaryError = (
+  error,
+  { timeoutMessage, fallbackMessage, endpoint, requestId, command, outputPath },
+) => {
+  if (KNOWN_ERROR_CODES.has(error?.code) && error?.message) return error;
+  if (error?.code === 'ETIMEDOUT') {
+    return createError(ERROR_CODES.TIMEOUT, timeoutMessage, {
+      endpoint,
+      requestId,
+      command,
+      rawCode: error?.code || null,
+    });
+  }
+  return createError(ERROR_CODES.API, fallbackMessage, {
+    endpoint,
+    requestId,
+    command,
+    outputPath: outputPath || null,
+    rawCode: error?.code || null,
+    exitCode: error?.exitCode ?? null,
+    signal: error?.signal || null,
+    cause: truncateText(error?.stderr || error?.message || 'unknown'),
+  });
+};
+
+const probeVideoStreams = async (filePath, requestId, endpoint) => {
+  try {
+    const result = await runBinaryCommand(FFPROBE_BIN, [
+      '-v',
+      'error',
+      '-print_format',
+      'json',
+      '-show_streams',
+      filePath,
+    ]);
+    const parsed = JSON.parse(result.stdout || '{}');
+    const streams = Array.isArray(parsed?.streams) ? parsed.streams : [];
+    const videoStream = streams.find((stream) => stream?.codec_type === 'video') || null;
+    const audioStream = streams.find((stream) => stream?.codec_type === 'audio') || null;
+
+    return {
+      hasVideo: Boolean(videoStream),
+      hasAudio: Boolean(audioStream),
+      videoCodec: videoStream?.codec_name || null,
+      audioCodec: audioStream?.codec_name || null,
+    };
+  } catch (error) {
+    const normalized = normalizeBinaryError(error, {
+      timeoutMessage: 'Timeout ao analisar o vídeo recebido.',
+      fallbackMessage: 'Falha ao validar o vídeo recebido.',
+      endpoint,
+      requestId,
+      command: FFPROBE_BIN,
+    });
+    throw normalized;
+  }
+};
+
+const transcodeVideoForWhatsapp = async (filePath, requestId, endpoint) => {
+  const outputPath = `${filePath}.wa.mp4`;
+
+  try {
+    await safeUnlink(outputPath);
+
+    await runBinaryCommand(
+      FFMPEG_BIN,
+      [
+        '-y',
+        '-i',
+        filePath,
+        '-map',
+        '0:v:0',
+        '-map',
+        '0:a:0?',
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        '-pix_fmt',
+        'yuv420p',
+        '-movflags',
+        '+faststart',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-ar',
+        '44100',
+        '-ac',
+        '2',
+        outputPath,
+      ],
+      { timeoutMs: VIDEO_PROCESS_TIMEOUT_MS },
+    );
+
+    const stats = await fs.promises.stat(outputPath);
+    const transcodedBytes = Number(stats?.size || 0);
+
+    if (transcodedBytes <= 0) {
+      throw createError(ERROR_CODES.API, 'Falha ao gerar vídeo compatível para envio.', {
+        endpoint,
+        requestId,
+        outputPath,
+      });
+    }
+
+    if (transcodedBytes > MAX_MEDIA_BYTES) {
+      throw createError(
+        ERROR_CODES.TOO_BIG,
+        `O arquivo excede o limite permitido de ${MAX_MEDIA_MB_LABEL} MB.`,
+        {
+          endpoint,
+          requestId,
+          bytes: transcodedBytes,
+        },
+      );
+    }
+
+    await fs.promises.rename(outputPath, filePath);
+    return transcodedBytes;
+  } catch (error) {
+    await safeUnlink(outputPath);
+    const normalized = normalizeBinaryError(error, {
+      timeoutMessage: 'Timeout ao normalizar o vídeo para envio.',
+      fallbackMessage: 'Falha ao converter o vídeo para um formato compatível.',
+      endpoint,
+      requestId,
+      command: FFMPEG_BIN,
+      outputPath,
+    });
+    throw normalized;
+  }
+};
 
 const resolveHttpModule = (urlObj) => (urlObj.protocol === 'https:' ? https : http);
 
@@ -836,7 +1069,19 @@ const requestDownloadToFile = async (link, type, requestId) => {
       fallbackMessage: 'Falha ao comunicar com a API yt-dls.',
       onResponse: async ({ res, status, headers, endpoint: currentEndpoint }) => {
         const contentType = getHeaderValue(headers, 'content-type') || '';
+        const safeMimeType = resolveMediaMimeType(type, contentType);
+        const normalizedContentType = normalizeMimeType(contentType);
         const contentLength = toNumberOrNull(getHeaderValue(headers, 'content-length'));
+
+        if (normalizedContentType && normalizedContentType !== safeMimeType) {
+          logger.warn('Play download: content-type incompatível com tipo solicitado.', {
+            requestId,
+            type,
+            endpoint: currentEndpoint,
+            originalContentType: normalizedContentType,
+            appliedContentType: safeMimeType,
+          });
+        }
 
         if (contentLength !== null && contentLength > MAX_MEDIA_BYTES) {
           res.resume();
@@ -876,10 +1121,70 @@ const requestDownloadToFile = async (link, type, requestId) => {
           });
         }
 
+        let finalBytes = limiter.getBytes();
+        let finalMimeType = safeMimeType || fallbackMime;
+        let finalMediaType = type;
+
+        if (type === 'video') {
+          const streamInfo = await probeVideoStreams(filePath, requestId, currentEndpoint);
+
+          if (!streamInfo.hasVideo) {
+            if (streamInfo.hasAudio) {
+              finalMediaType = 'audio';
+              finalMimeType =
+                normalizedContentType === 'video/mp4'
+                  ? 'audio/mp4'
+                  : resolveMediaMimeType('audio', contentType);
+
+              logger.warn('Play vídeo: fonte retornou somente áudio, fallback ativado.', {
+                requestId,
+                endpoint: currentEndpoint,
+                status,
+                bytes: finalBytes,
+                audioCodec: streamInfo.audioCodec || null,
+              });
+            } else {
+              throw createError(
+                ERROR_CODES.API,
+                'Não foi possível enviar como vídeo: a mídia não possui faixa de vídeo nem áudio.',
+                {
+                  endpoint: currentEndpoint,
+                  status,
+                  requestId,
+                  hasAudio: streamInfo.hasAudio,
+                  videoCodec: streamInfo.videoCodec,
+                  audioCodec: streamInfo.audioCodec,
+                },
+              );
+            }
+          }
+
+          if (finalMediaType === 'video') {
+            if (
+              VIDEO_FORCE_TRANSCODE ||
+              streamInfo.videoCodec !== 'h264' ||
+              (streamInfo.hasAudio && streamInfo.audioCodec !== 'aac')
+            ) {
+              finalBytes = await transcodeVideoForWhatsapp(filePath, requestId, currentEndpoint);
+              finalMimeType = TYPE_CONFIG.video.mimeFallback;
+              logger.info('Play vídeo normalizado para compatibilidade.', {
+                requestId,
+                endpoint: currentEndpoint,
+                originalVideoCodec: streamInfo.videoCodec || null,
+                originalAudioCodec: streamInfo.audioCodec || null,
+                bytes: finalBytes,
+              });
+            } else {
+              finalMimeType = TYPE_CONFIG.video.mimeFallback;
+            }
+          }
+        }
+
         return {
           filePath,
-          contentType: contentType || fallbackMime,
-          bytes: limiter.getBytes(),
+          contentType: finalMimeType,
+          bytes: finalBytes,
+          mediaType: finalMediaType,
         };
       },
     });
@@ -1008,7 +1313,9 @@ const processPlayRequest = async ({
     const queueStatusPromise = ytdlsClient.fetchQueueStatus(requestId);
     const queueStatus = await Promise.race([queueStatusPromise, delay(QUICK_QUEUE_LOOKUP_MS)]);
     const queueText = formatters.buildQueueStatusText(queueStatus);
-    const waitText = queueText ? `${config.waitText}\n${queueText}` : config.waitText;
+    const waitText = queueText
+      ? `${config.queueWaitText || config.waitText}\n${queueText}`
+      : config.waitText;
 
     await sendAndStore(
       sock,
@@ -1034,21 +1341,36 @@ const processPlayRequest = async ({
     ]);
 
     filePath = downloadResult.filePath;
+    const deliveredType = downloadResult.mediaType || type;
+    const deliveredConfig = TYPE_CONFIG[deliveredType] || config;
+    const fallbackToAudio = type === 'video' && deliveredType === 'audio';
 
     logger.info('Play download concluído.', {
       requestId,
       remoteJid,
       type,
+      deliveredType,
+      fallbackToAudio,
       endpoint: YTDLS_ENDPOINTS.download,
       elapsedMs: Date.now() - startTime,
       bytes: downloadResult.bytes || 0,
     });
 
-    if (type === 'audio') {
+    if (fallbackToAudio) {
+      await sendAndStore(
+        sock,
+        remoteJid,
+        { text: '⚠️ Este link retornou somente áudio. Enviando no formato de áudio.' },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+    }
+
+    if (deliveredType === 'audio') {
       const infoText = formatters.formatVideoInfo(videoInfo);
-      const caption = formatters.buildReadyCaption(type, infoText);
+      const caption = formatters.buildReadyCaption(deliveredType, infoText);
       const thumbUrl = formatters.getThumbnailUrl(videoInfo);
       let thumbBuffer = null;
+      let previewDelivered = false;
 
       if (thumbUrl) {
         try {
@@ -1057,7 +1379,8 @@ const processPlayRequest = async ({
           logger.warn('Falha ao baixar thumbnail.', {
             requestId,
             remoteJid,
-            type,
+            type: deliveredType,
+            requestedType: type,
             endpoint: error?.meta?.endpoint || YTDLS_ENDPOINTS.thumbnail,
             status: error?.meta?.status || null,
             code: error?.code,
@@ -1075,11 +1398,35 @@ const processPlayRequest = async ({
             { image: thumbBuffer, caption },
             { quoted: messageInfo, ephemeralExpiration: expirationMessage },
           );
+          previewDelivered = true;
         } catch (error) {
           logger.warn('Falha ao enviar thumbnail de áudio.', {
             requestId,
             remoteJid,
-            type,
+            type: deliveredType,
+            requestedType: type,
+            code: error?.code || null,
+            error: truncateText(error?.message || ''),
+            elapsedMs: Date.now() - startTime,
+          });
+        }
+      }
+
+      if (!previewDelivered && caption) {
+        try {
+          await sendAndStore(
+            sock,
+            remoteJid,
+            { text: caption },
+            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+          );
+          previewDelivered = true;
+        } catch (error) {
+          logger.warn('Falha ao enviar preview textual do áudio.', {
+            requestId,
+            remoteJid,
+            type: deliveredType,
+            requestedType: type,
             code: error?.code || null,
             error: truncateText(error?.message || ''),
             elapsedMs: Date.now() - startTime,
@@ -1092,7 +1439,7 @@ const processPlayRequest = async ({
         remoteJid,
         {
           audio: { url: filePath },
-          mimetype: downloadResult.contentType || config.mimeFallback,
+          mimetype: downloadResult.contentType || deliveredConfig.mimeFallback,
           ptt: false,
         },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -1101,7 +1448,9 @@ const processPlayRequest = async ({
       logger.info('Play áudio enviado.', {
         requestId,
         remoteJid,
-        type,
+        type: deliveredType,
+        requestedType: type,
+        fallbackToAudio,
         bytes: downloadResult.bytes || 0,
         elapsedMs: Date.now() - startTime,
       });
@@ -1110,14 +1459,14 @@ const processPlayRequest = async ({
     }
 
     const infoText = formatters.formatVideoInfo(videoInfo);
-    const caption = formatters.buildReadyCaption(type, infoText);
+    const caption = formatters.buildReadyCaption(deliveredType, infoText);
 
     await sendAndStore(
       sock,
       remoteJid,
       {
         video: { url: filePath },
-        mimetype: downloadResult.contentType || config.mimeFallback,
+        mimetype: downloadResult.contentType || deliveredConfig.mimeFallback,
         caption,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -1126,7 +1475,8 @@ const processPlayRequest = async ({
     logger.info('Play vídeo enviado.', {
       requestId,
       remoteJid,
-      type,
+      type: deliveredType,
+      requestedType: type,
       bytes: downloadResult.bytes || 0,
       elapsedMs: Date.now() - startTime,
     });
