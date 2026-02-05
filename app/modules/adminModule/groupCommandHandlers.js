@@ -61,6 +61,12 @@ const ADMIN_COMMANDS = new Set([
 ]);
 const OWNER_JID = process.env.USER_ADMIN;
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
+const GROUP_ONLY_COMMAND_MESSAGE =
+  'Este comando está disponível apenas em conversas de grupo. Execute-o em um grupo para continuar.';
+const NO_PERMISSION_COMMAND_MESSAGE =
+  'Permissão insuficiente para executar este comando. Solicite suporte a um administrador do grupo.';
+const OWNER_ONLY_COMMAND_MESSAGE =
+  'Você não possui permissão para executar este comando. Este recurso é exclusivo do administrador principal do bot.';
 
 const getParticipantJids = (messageInfo, args) => {
   const mentionedJids = messageInfo.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
@@ -98,7 +104,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -106,7 +112,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -119,7 +125,7 @@ export async function handleAdminCommand({
       if (!OWNER_JID || senderJid !== OWNER_JID) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: OWNER_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -130,7 +136,8 @@ export async function handleAdminCommand({
       if (!action || !['add', 'remove', 'list'].includes(action)) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}premium <add|remove|list> @user1 @user2...` },
+          { text: `Formato de uso:
+${commandPrefix}premium <add|remove|list> @usuario1 @usuario2 ...` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -144,7 +151,7 @@ export async function handleAdminCommand({
             : 'Nenhum usuário premium cadastrado.';
         await sendAndStore(sock, 
           remoteJid,
-          { text: `⭐ *Lista Premium*\n\n${listText}` },
+          { text: `⭐ *Lista de usuários premium*\n\n${listText}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -155,7 +162,8 @@ export async function handleAdminCommand({
         await sendAndStore(sock, 
           remoteJid,
           {
-            text: `Uso: ${commandPrefix}premium <add|remove> @user1 @user2... ou responda a uma mensagem.`,
+            text: `Formato de uso:
+${commandPrefix}premium <add|remove> @usuario1 @usuario2 ...\nTambém é possível responder à mensagem do usuário desejado.`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -166,14 +174,14 @@ export async function handleAdminCommand({
         const updated = await premiumUserStore.addPremiumUsers(participants);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `✅ Usuários adicionados à lista premium.\nTotal: ${updated.length}` },
+          { text: `✅ Usuários adicionados à lista premium com sucesso.\nTotal atual de usuários premium: ${updated.length}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } else {
         const updated = await premiumUserStore.removePremiumUsers(participants);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `✅ Usuários removidos da lista premium.\nTotal: ${updated.length}` },
+          { text: `✅ Usuários removidos da lista premium com sucesso.\nTotal atual de usuários premium: ${updated.length}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -184,7 +192,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -192,7 +200,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -202,7 +210,8 @@ export async function handleAdminCommand({
       if (!action || !['on', 'off', 'status'].includes(action)) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}nsfw <on|off|status>` },
+          { text: `Formato de uso:
+${commandPrefix}nsfw <on|off|status>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -213,7 +222,7 @@ export async function handleAdminCommand({
         const enabled = Boolean(config.nsfwEnabled);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `🔞 NSFW está ${enabled ? 'ATIVADO' : 'DESATIVADO'} neste grupo.` },
+          { text: `🔞 Status do conteúdo NSFW neste grupo: *${enabled ? 'ativado' : 'desativado'}*.` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -223,7 +232,7 @@ export async function handleAdminCommand({
       await groupConfigStore.updateGroupConfig(remoteJid, { nsfwEnabled: enabled });
       await sendAndStore(sock, 
         remoteJid,
-        { text: `🔞 NSFW ${enabled ? 'ATIVADO' : 'DESATIVADO'} para este grupo.` },
+        { text: `🔞 Configuração NSFW atualizada: *${enabled ? 'ativado' : 'desativado'}* para este grupo.` },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );
       break;
@@ -234,7 +243,7 @@ export async function handleAdminCommand({
         await sendAndStore(
           sock,
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -243,7 +252,7 @@ export async function handleAdminCommand({
         await sendAndStore(
           sock,
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -254,7 +263,8 @@ export async function handleAdminCommand({
         await sendAndStore(
           sock,
           remoteJid,
-          { text: `Uso: ${commandPrefix}autosticker <on|off|status>` },
+          { text: `Formato de uso:
+${commandPrefix}autosticker <on|off|status>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -268,8 +278,8 @@ export async function handleAdminCommand({
           remoteJid,
           {
             text:
-              `🖼️ AutoSticker está ${enabled ? 'ATIVADO' : 'DESATIVADO'} neste grupo.\n` +
-              'Quando ativado, imagens e vídeos enviados serão convertidos automaticamente.',
+              `🖼️ Status do AutoSticker neste grupo: *${enabled ? 'ativado' : 'desativado'}*.\n` +
+              'Quando ativo, imagens e vídeos enviados serão convertidos automaticamente em figurinha.',
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -283,8 +293,8 @@ export async function handleAdminCommand({
         remoteJid,
         {
           text: enabled
-            ? '✅ AutoSticker ATIVADO neste grupo.\nEnvie imagem ou vídeo para converter automaticamente.'
-            : '🛑 AutoSticker DESATIVADO neste grupo.',
+            ? '✅ AutoSticker ativado neste grupo.\nEnvie uma imagem ou vídeo para conversão automática em figurinha.'
+            : '🛑 AutoSticker desativado neste grupo.',
         },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );
@@ -295,7 +305,8 @@ export async function handleAdminCommand({
       if (args.length < 2) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}newgroup <título> <participante1> <participante2>...` },
+          { text: `Formato de uso:
+${commandPrefix}newgroup <titulo> <participante1> <participante2> ...` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -306,13 +317,13 @@ export async function handleAdminCommand({
         const group = await createGroup(sock, title, participants);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Grupo "${group.subject}" criado com sucesso!` },
+          { text: `O grupo "${group.subject}" foi criado com sucesso.` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao criar o grupo: ${error.message}` },
+          { text: `Não foi possível criar o grupo. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -323,7 +334,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -331,7 +342,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -342,7 +353,8 @@ export async function handleAdminCommand({
         await sendAndStore(sock, 
           remoteJid,
           {
-            text: `Uso: ${commandPrefix}add @participante1 @participante2... ou forneça os JIDs.`,
+            text: `Formato de uso:
+${commandPrefix}add @participante1 @participante2 ...\nTambém é possível informar os JIDs dos participantes.`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -352,13 +364,13 @@ export async function handleAdminCommand({
         await updateGroupParticipants(sock, remoteJid, participants, 'add');
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Participantes adicionados com sucesso!' },
+          { text: 'Participantes adicionados com sucesso.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao adicionar participantes: ${error.message}` },
+          { text: `Não foi possível adicionar participantes. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -369,7 +381,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -377,7 +389,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -388,7 +400,8 @@ export async function handleAdminCommand({
         await sendAndStore(sock, 
           remoteJid,
           {
-            text: `Uso: ${commandPrefix}ban @participante1 @participante2... ou responda a uma mensagem.`,
+            text: `Formato de uso:
+${commandPrefix}ban @participante1 @participante2 ...\nTambém é possível responder à mensagem do participante desejado.`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -397,7 +410,7 @@ export async function handleAdminCommand({
       if (participants.includes(botJid)) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'O bot não pode remover a si mesmo.' },
+          { text: 'Operação cancelada: o bot não pode remover a própria conta.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -406,7 +419,7 @@ export async function handleAdminCommand({
         await updateGroupParticipants(sock, remoteJid, participants, 'remove');
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Participantes removidos com sucesso!' },
+          { text: 'Participantes removidos com sucesso.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         const repliedTo = messageInfo.message?.extendedTextMessage?.contextInfo;
@@ -418,7 +431,7 @@ export async function handleAdminCommand({
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao remover participantes: ${error.message}` },
+          { text: `Não foi possível remover participantes. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -429,7 +442,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -437,7 +450,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -448,7 +461,8 @@ export async function handleAdminCommand({
         await sendAndStore(sock, 
           remoteJid,
           {
-            text: `Uso: ${commandPrefix}up @participante1 @participante2... ou forneça os JIDs.`,
+            text: `Formato de uso:
+${commandPrefix}up @participante1 @participante2 ...\nTambém é possível informar os JIDs dos participantes.`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -457,7 +471,7 @@ export async function handleAdminCommand({
       if (participants.includes(botJid)) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'O bot não pode promover a si mesmo.' },
+          { text: 'Operação cancelada: o bot não pode promover a própria conta.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -466,13 +480,13 @@ export async function handleAdminCommand({
         await updateGroupParticipants(sock, remoteJid, participants, 'promote');
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Participantes promovidos a administradores com sucesso!' },
+          { text: 'Participantes promovidos a administradores com sucesso.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao promover participantes: ${error.message}` },
+          { text: `Não foi possível promover participantes. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -483,7 +497,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -491,7 +505,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -502,7 +516,8 @@ export async function handleAdminCommand({
         await sendAndStore(sock, 
           remoteJid,
           {
-            text: `Uso: ${commandPrefix}down @participante1 @participante2... ou forneça os JIDs.`,
+            text: `Formato de uso:
+${commandPrefix}down @participante1 @participante2 ...\nTambém é possível informar os JIDs dos participantes.`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -511,7 +526,7 @@ export async function handleAdminCommand({
       if (participants.includes(botJid)) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'O bot não pode rebaixar a si mesmo.' },
+          { text: 'Operação cancelada: o bot não pode rebaixar a própria conta.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -520,13 +535,13 @@ export async function handleAdminCommand({
         await updateGroupParticipants(sock, remoteJid, participants, 'demote');
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Administradores demovidos a participantes com sucesso!' },
+          { text: 'Administradores rebaixados para participantes com sucesso.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao demoter administradores: ${error.message}` },
+          { text: `Não foi possível rebaixar administradores. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -537,7 +552,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -545,7 +560,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -554,7 +569,8 @@ export async function handleAdminCommand({
       if (args.length < 1) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}setsubject <novo_assunto>` },
+          { text: `Formato de uso:
+${commandPrefix}setsubject <novo_assunto>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -564,13 +580,13 @@ export async function handleAdminCommand({
         await updateGroupSubject(sock, remoteJid, newSubject);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Assunto do grupo alterado para "${newSubject}" com sucesso!` },
+          { text: `O assunto do grupo foi atualizado para "${newSubject}" com sucesso.` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao alterar o assunto do grupo: ${error.message}` },
+          { text: `Não foi possível alterar o assunto do grupo. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -581,7 +597,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -589,7 +605,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -598,7 +614,8 @@ export async function handleAdminCommand({
       if (args.length < 1) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}setdesc <nova_descrição>` },
+          { text: `Formato de uso:
+${commandPrefix}setdesc <nova_descricao>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -608,13 +625,13 @@ export async function handleAdminCommand({
         await updateGroupDescription(sock, remoteJid, newDescription);
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Descrição do grupo alterada com sucesso!' },
+          { text: 'Descrição do grupo atualizada com sucesso.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao alterar a descrição do grupo: ${error.message}` },
+          { text: `Não foi possível alterar a descrição do grupo. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -625,7 +642,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -633,7 +650,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -645,7 +662,8 @@ export async function handleAdminCommand({
       ) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}setgroup <announcement|not_announcement|locked|unlocked>` },
+          { text: `Formato de uso:
+${commandPrefix}setgroup <announcement|not_announcement|locked|unlocked>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -655,13 +673,13 @@ export async function handleAdminCommand({
         await updateGroupSettings(sock, remoteJid, setting);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Configuração do grupo alterada para "${setting}" com sucesso!` },
+          { text: `Configuração do grupo atualizada com sucesso para: "${setting}".` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao alterar a configuração do grupo: ${error.message}` },
+          { text: `Não foi possível alterar a configuração do grupo. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -672,7 +690,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -680,7 +698,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -689,13 +707,13 @@ export async function handleAdminCommand({
         await leaveGroup(sock, remoteJid);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Saí do grupo ${remoteJid} com sucesso.` },
+          { text: 'Saída do grupo concluída com sucesso.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao sair do grupo: ${error.message}` },
+          { text: `Não foi possível sair do grupo. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -706,7 +724,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -714,7 +732,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -724,13 +742,14 @@ export async function handleAdminCommand({
         const code = await getGroupInviteCode(sock, remoteJid);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Código de convite para o grupo: ${code}` },
+          { text: `Código de convite atual do grupo:
+${code}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao obter o código de convite: ${error.message}` },
+          { text: `Não foi possível obter o código de convite. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -741,7 +760,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -749,7 +768,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -759,13 +778,13 @@ export async function handleAdminCommand({
         const code = await revokeGroupInviteCode(sock, remoteJid);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Código de convite revogado. Novo código: ${code}` },
+          { text: `Código de convite anterior revogado com sucesso.\nNovo código: ${code}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao revogar o código de convite: ${error.message}` },
+          { text: `Não foi possível revogar o código de convite. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -776,7 +795,8 @@ export async function handleAdminCommand({
       if (args.length < 1) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}join <código_de_convite>` },
+          { text: `Formato de uso:
+${commandPrefix}join <codigo_de_convite>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -786,13 +806,13 @@ export async function handleAdminCommand({
         const response = await acceptGroupInvite(sock, code);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Entrou no grupo: ${response}` },
+          { text: `Entrada no grupo concluída com sucesso.\nIdentificador retornado: ${response}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao entrar no grupo: ${error.message}` },
+          { text: `Não foi possível entrar no grupo. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -803,7 +823,8 @@ export async function handleAdminCommand({
       if (args.length < 1) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}infofrominvite <código_de_convite>` },
+          { text: `Formato de uso:
+${commandPrefix}infofrominvite <codigo_de_convite>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -813,13 +834,14 @@ export async function handleAdminCommand({
         const response = await getGroupInfoFromInvite(sock, code);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Informações do grupo: ${JSON.stringify(response, null, 2)}` },
+          { text: `Informações obtidas pelo convite:
+${JSON.stringify(response, null, 2)}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao obter informações do grupo: ${error.message}` },
+          { text: `Não foi possível obter informações do grupo. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -831,7 +853,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(groupId, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -840,13 +862,14 @@ export async function handleAdminCommand({
         const metadata = getGroupInfo(groupId);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Metadados do grupo: ${JSON.stringify(metadata, null, 2)}` },
+          { text: `Metadados do grupo:
+${JSON.stringify(metadata, null, 2)}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao obter metadados do grupo: ${error.message}` },
+          { text: `Não foi possível obter metadados do grupo. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -857,7 +880,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -865,7 +888,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -875,13 +898,14 @@ export async function handleAdminCommand({
         const response = await getGroupRequestParticipantsList(sock, remoteJid);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Solicitações de entrada: ${JSON.stringify(response, null, 2)}` },
+          { text: `Solicitações de entrada pendentes:
+${JSON.stringify(response, null, 2)}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao listar solicitações de entrada: ${error.message}` },
+          { text: `Não foi possível listar solicitações de entrada. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -892,7 +916,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -900,7 +924,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -909,7 +933,8 @@ export async function handleAdminCommand({
       if (args.length < 1 || !['approve', 'reject'].includes(args[0])) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}updaterequests <approve|reject> @participante1...` },
+          { text: `Formato de uso:
+${commandPrefix}updaterequests <approve|reject> @participante1 ...` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -920,7 +945,8 @@ export async function handleAdminCommand({
         await sendAndStore(sock, 
           remoteJid,
           {
-            text: `Uso: ${commandPrefix}updaterequests <approve|reject> @participante1... (mencione os usuários)`,
+            text: `Formato de uso:
+${commandPrefix}updaterequests <approve|reject> @participante1 ...\nMencione os usuários que devem ser aprovados ou rejeitados.`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -936,14 +962,15 @@ export async function handleAdminCommand({
         await sendAndStore(sock, 
           remoteJid,
           {
-            text: `Solicitações de entrada atualizadas: ${JSON.stringify(response, null, 2)}`,
+            text: `Solicitações de entrada atualizadas com sucesso:
+${JSON.stringify(response, null, 2)}`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao atualizar solicitações de entrada: ${error.message}` },
+          { text: `Não foi possível atualizar solicitações de entrada. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -954,7 +981,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -962,7 +989,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -971,7 +998,8 @@ export async function handleAdminCommand({
       if (args.length < 1) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}temp <duração_em_segundos>` },
+          { text: `Formato de uso:
+${commandPrefix}temp <duracao_em_segundos>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -981,13 +1009,13 @@ export async function handleAdminCommand({
         await toggleEphemeral(sock, remoteJid, duration);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Mensagens efêmeras atualizadas para ${duration} segundos.` },
+          { text: `Configuração de mensagens temporárias atualizada para ${duration} segundos.` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao atualizar mensagens efêmeras: ${error.message}` },
+          { text: `Não foi possível atualizar mensagens efêmeras. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -998,7 +1026,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1006,7 +1034,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1015,7 +1043,8 @@ export async function handleAdminCommand({
       if (args.length < 1 || !['all_member_add', 'admin_add'].includes(args[0])) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}addmode <all_member_add|admin_add>` },
+          { text: `Formato de uso:
+${commandPrefix}addmode <all_member_add|admin_add>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1025,13 +1054,13 @@ export async function handleAdminCommand({
         await updateGroupAddMode(sock, remoteJid, mode);
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Modo de adição de membros atualizado para ${mode}.` },
+          { text: `Modo de adição de membros atualizado com sucesso para: ${mode}.` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao atualizar o modo de adição de membros: ${error.message}` },
+          { text: `Não foi possível atualizar o modo de adição de membros. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -1042,7 +1071,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1050,7 +1079,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1059,7 +1088,7 @@ export async function handleAdminCommand({
       const rawPrefix = args[0]?.trim();
       const normalizedKeyword = rawPrefix?.toLowerCase();
       const usageText = [
-        'Uso:',
+        'Formato de uso do comando:',
         `${commandPrefix}prefix <novo_prefixo>`,
         `${commandPrefix}prefix status`,
         `${commandPrefix}prefix reset`,
@@ -1084,9 +1113,9 @@ export async function handleAdminCommand({
           remoteJid,
           {
             text: [
-              `🔧 Prefixo atual: *${currentPrefix}*`,
-              `Padrão do bot: *${DEFAULT_COMMAND_PREFIX}*`,
-              isCustom ? '✅ Prefixo personalizado ativo.' : 'ℹ️ Usando prefixo padrão.',
+              `🔧 Prefixo ativo neste grupo: *${currentPrefix}*`,
+              `Prefixo padrão global: *${DEFAULT_COMMAND_PREFIX}*`,
+              isCustom ? '✅ Este grupo utiliza um prefixo personalizado.' : 'ℹ️ Este grupo utiliza o prefixo padrão.',
             ].join('\n'),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -1099,7 +1128,7 @@ export async function handleAdminCommand({
         await sendAndStore(sock, 
           remoteJid,
           {
-            text: `✅ Prefixo restaurado para o padrão: *${DEFAULT_COMMAND_PREFIX}*`,
+            text: `✅ Prefixo restaurado para o padrão global: *${DEFAULT_COMMAND_PREFIX}*`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1109,7 +1138,7 @@ export async function handleAdminCommand({
       if (rawPrefix.length > 5) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: '⚠️ Prefixo muito longo. Use no máximo 5 caracteres.' },
+          { text: '⚠️ Prefixo inválido: utilize no máximo 5 caracteres.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1118,7 +1147,7 @@ export async function handleAdminCommand({
       if (/\s/.test(rawPrefix)) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: '⚠️ O prefixo não pode conter espaços.' },
+          { text: '⚠️ Prefixo inválido: não utilize espaços.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1130,7 +1159,7 @@ export async function handleAdminCommand({
         await sendAndStore(sock, 
           remoteJid,
           {
-            text: `✅ Prefixo atualizado para o padrão: *${DEFAULT_COMMAND_PREFIX}*`,
+            text: `✅ Prefixo atualizado para o padrão global: *${DEFAULT_COMMAND_PREFIX}*`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1140,7 +1169,7 @@ export async function handleAdminCommand({
       await groupConfigStore.updateGroupConfig(remoteJid, { commandPrefix: newPrefix });
       await sendAndStore(sock, 
         remoteJid,
-        { text: `✅ Prefixo do bot atualizado para: *${newPrefix}*` },
+        { text: `✅ Prefixo deste grupo atualizado para: *${newPrefix}*` },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );
       break;
@@ -1150,7 +1179,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1163,7 +1192,8 @@ export async function handleAdminCommand({
       if (!subCommand || !['on', 'off', 'set'].includes(subCommand)) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}welcome <on|off|set> [mensagem ou caminho da mídia]` },
+          { text: `Formato de uso:
+${commandPrefix}welcome <on|off|set> [mensagem ou caminho da midia]` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1172,7 +1202,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1183,14 +1213,14 @@ export async function handleAdminCommand({
           await groupConfigStore.updateGroupConfig(remoteJid, { welcomeMessageEnabled: true });
           await sendAndStore(sock, 
             remoteJid,
-            { text: 'Mensagens de boas-vindas ativadas para este grupo.' },
+            { text: 'Mensagens de boas-vindas ativadas com sucesso para este grupo.' },
             { quoted: messageInfo, ephemeralExpiration: expirationMessage },
           );
         } else if (subCommand === 'off') {
           await groupConfigStore.updateGroupConfig(remoteJid, { welcomeMessageEnabled: false });
           await sendAndStore(sock, 
             remoteJid,
-            { text: 'Mensagens de boas-vindas desativadas para este grupo.' },
+            { text: 'Mensagens de boas-vindas desativadas com sucesso para este grupo.' },
             { quoted: messageInfo, ephemeralExpiration: expirationMessage },
           );
         } else if (subCommand === 'set') {
@@ -1201,7 +1231,8 @@ export async function handleAdminCommand({
             await sendAndStore(sock, 
               remoteJid,
               {
-                text: `Uso: ${commandPrefix}welcome set <mensagem ou caminho da mídia> ou envie uma mídia com o comando.`,
+                text: `Formato de uso:
+${commandPrefix}welcome set <mensagem ou caminho da midia>\nTambém é possível enviar uma mídia junto ao comando.`,
               },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
@@ -1241,13 +1272,13 @@ export async function handleAdminCommand({
               });
               await sendAndStore(sock, 
                 remoteJid,
-                { text: `Mídia de boas-vindas definida para: ${downloadedMediaPath}` },
+                { text: `Mídia de boas-vindas configurada com sucesso: ${downloadedMediaPath}` },
                 { quoted: messageInfo, ephemeralExpiration: expirationMessage },
               );
             } else {
               await sendAndStore(sock, 
                 remoteJid,
-                { text: 'Erro ao baixar a mídia. Por favor, tente novamente.' },
+                { text: 'Não foi possível processar a mídia informada. Tente novamente em instantes.' },
                 { quoted: messageInfo, ephemeralExpiration: expirationMessage },
               );
             }
@@ -1261,7 +1292,7 @@ export async function handleAdminCommand({
             });
             await sendAndStore(sock, 
               remoteJid,
-              { text: `Mídia de boas-vindas definida para: ${messageOrPath}` },
+              { text: `Mídia de boas-vindas configurada com sucesso: ${messageOrPath}` },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
           } else {
@@ -1270,7 +1301,7 @@ export async function handleAdminCommand({
             });
             await sendAndStore(sock, 
               remoteJid,
-              { text: `Mensagem de boas-vindas definida para: ${messageOrPath}` },
+              { text: `Mensagem de boas-vindas configurada com sucesso: ${messageOrPath}` },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
           }
@@ -1278,7 +1309,7 @@ export async function handleAdminCommand({
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao configurar mensagens de boas-vindas: ${error.message}` },
+          { text: `Não foi possível configurar mensagens de boas-vindas. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -1289,7 +1320,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1297,7 +1328,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1309,7 +1340,8 @@ export async function handleAdminCommand({
       if (!subCommand || !['on', 'off', 'set'].includes(subCommand)) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}farewell <on|off|set> [mensagem ou caminho da mídia]` },
+          { text: `Formato de uso:
+${commandPrefix}farewell <on|off|set> [mensagem ou caminho da midia]` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1320,14 +1352,14 @@ export async function handleAdminCommand({
           await groupConfigStore.updateGroupConfig(remoteJid, { farewellMessageEnabled: true });
           await sendAndStore(sock, 
             remoteJid,
-            { text: 'Mensagens de saída ativadas para este grupo.' },
+            { text: 'Mensagens de saída ativadas com sucesso para este grupo.' },
             { quoted: messageInfo, ephemeralExpiration: expirationMessage },
           );
         } else if (subCommand === 'off') {
           await groupConfigStore.updateGroupConfig(remoteJid, { farewellMessageEnabled: false });
           await sendAndStore(sock, 
             remoteJid,
-            { text: 'Mensagens de saída desativadas para este grupo.' },
+            { text: 'Mensagens de saída desativadas com sucesso para este grupo.' },
             { quoted: messageInfo, ephemeralExpiration: expirationMessage },
           );
         } else if (subCommand === 'set') {
@@ -1338,7 +1370,8 @@ export async function handleAdminCommand({
             await sendAndStore(sock, 
               remoteJid,
               {
-                text: `Uso: ${commandPrefix}farewell set <mensagem ou caminho da mídia> ou envie uma mídia com o comando.`,
+                text: `Formato de uso:
+${commandPrefix}farewell set <mensagem ou caminho da midia>\nTambém é possível enviar uma mídia junto ao comando.`,
               },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
@@ -1378,13 +1411,13 @@ export async function handleAdminCommand({
               });
               await sendAndStore(sock, 
                 remoteJid,
-                { text: `Mídia de saída definida para: ${downloadedMediaPath}` },
+                { text: `Mídia de saída configurada com sucesso: ${downloadedMediaPath}` },
                 { quoted: messageInfo, ephemeralExpiration: expirationMessage },
               );
             } else {
               await sendAndStore(sock, 
                 remoteJid,
-                { text: 'Erro ao baixar a mídia. Por favor, tente novamente.' },
+                { text: 'Não foi possível processar a mídia informada. Tente novamente em instantes.' },
                 { quoted: messageInfo, ephemeralExpiration: expirationMessage },
               );
             }
@@ -1398,7 +1431,7 @@ export async function handleAdminCommand({
             });
             await sendAndStore(sock, 
               remoteJid,
-              { text: `Mídia de saída definida para: ${messageOrPath}` },
+              { text: `Mídia de saída configurada com sucesso: ${messageOrPath}` },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
           } else {
@@ -1407,7 +1440,7 @@ export async function handleAdminCommand({
             });
             await sendAndStore(sock, 
               remoteJid,
-              { text: `Mensagem de saída definida para: ${messageOrPath}` },
+              { text: `Mensagem de saída configurada com sucesso: ${messageOrPath}` },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
           }
@@ -1415,7 +1448,7 @@ export async function handleAdminCommand({
       } catch (error) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao configurar mensagens de saída: ${error.message}` },
+          { text: `Não foi possível configurar mensagens de saída. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -1426,7 +1459,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1434,7 +1467,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1460,7 +1493,7 @@ export async function handleAdminCommand({
             remoteJid,
             {
               text:
-                `📋 *Antilink - Lista*\n` +
+                `📋 *Antilink - Configuração atual*\n` +
                 `Status: *${status}*\n\n` +
                 `✅ *Redes permitidas*\n${formatNetworkList(allowedNetworks)}\n\n` +
                 `✅ *Domínios permitidos*\n${formatNetworkList(allowedDomains)}\n\n` +
@@ -1480,7 +1513,8 @@ export async function handleAdminCommand({
             await sendAndStore(sock, 
               remoteJid,
               {
-                text: `Uso: ${commandPrefix}antilink ${subCommand} <rede>\nDisponíveis: ${availableNetworks.join(', ')}`,
+                text: `Formato de uso:
+${commandPrefix}antilink ${subCommand} <rede>\nRedes disponíveis: ${availableNetworks.join(', ')}`,
               },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
@@ -1503,7 +1537,7 @@ export async function handleAdminCommand({
             : '';
           await sendAndStore(sock, 
             remoteJid,
-            { text: `Permitidos agora: ${formatNetworkList(updatedNetworks)}${invalidNote}` },
+            { text: `Redes permitidas atualizadas: ${formatNetworkList(updatedNetworks)}${invalidNote}` },
             { quoted: messageInfo, ephemeralExpiration: expirationMessage },
           );
           break;
@@ -1521,7 +1555,8 @@ export async function handleAdminCommand({
           if (normalizedDomains.length === 0) {
             await sendAndStore(sock, 
               remoteJid,
-              { text: `Uso: ${commandPrefix}antilink ${subCommand} <dominio>` },
+              { text: `Formato de uso:
+${commandPrefix}antilink ${subCommand} <dominio>` },
               { quoted: messageInfo, ephemeralExpiration: expirationMessage },
             );
             break;
@@ -1539,7 +1574,7 @@ export async function handleAdminCommand({
           });
           await sendAndStore(sock, 
             remoteJid,
-            { text: `Permitidos (domínios) agora: ${formatNetworkList(updatedDomains)}` },
+            { text: `Domínios permitidos atualizados: ${formatNetworkList(updatedDomains)}` },
             { quoted: messageInfo, ephemeralExpiration: expirationMessage },
           );
           break;
@@ -1550,16 +1585,16 @@ export async function handleAdminCommand({
           remoteJid,
           {
             text:
-              `📌 *Como usar o Antilink*\n` +
+              `📌 *Guia de uso do Antilink*\n` +
               `Status atual: *${status}*\n\n` +
               `✅ *${commandPrefix}antilink on*\nAtiva o bloqueio de links no grupo.\n\n` +
               `⛔ *${commandPrefix}antilink off*\nDesativa o bloqueio de links no grupo.\n\n` +
-              `📋 *${commandPrefix}antilink list*\nMostra as redes e dominios permitidos.\n\n` +
-              `➕ *${commandPrefix}antilink allow <rede>*\nPermite uma rede conhecida (ex: youtube, instagram).\n\n` +
+              `📋 *${commandPrefix}antilink list*\nExibe as redes e os domínios permitidos.\n\n` +
+              `➕ *${commandPrefix}antilink allow <rede>*\nPermite uma rede conhecida (ex.: youtube, instagram).\n\n` +
               `➖ *${commandPrefix}antilink disallow <rede>*\nRemove uma rede conhecida da lista permitida.\n\n` +
-              `🌐 *${commandPrefix}antilink add <dominio>*\nPermite um dominio especifico (ex: exemplo.com).\n\n` +
-              `🗑️ *${commandPrefix}antilink remove <dominio>*\nRemove um dominio especifico da lista.\n\n` +
-              `ℹ️ Dica: use *${commandPrefix}antilink list* para ver as redes disponiveis.`,
+              `🌐 *${commandPrefix}antilink add <dominio>*\nPermite um domínio específico (ex.: exemplo.com).\n\n` +
+              `🗑️ *${commandPrefix}antilink remove <dominio>*\nRemove um domínio específico da lista permitida.\n\n` +
+              `ℹ️ Dica: use *${commandPrefix}antilink list* para consultar as redes disponíveis.`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1571,7 +1606,7 @@ export async function handleAdminCommand({
         await groupConfigStore.updateGroupConfig(remoteJid, { antilinkEnabled: isEnabled });
         await sendAndStore(sock, 
           remoteJid,
-          { text: `✅ Antilink foi ${isEnabled ? 'ativado' : 'desativado'} para este grupo.` },
+          { text: `✅ Recurso Antilink ${isEnabled ? 'ativado' : 'desativado'} com sucesso neste grupo.` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } catch (error) {
@@ -1581,7 +1616,7 @@ export async function handleAdminCommand({
         });
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Erro ao configurar o antilink: ${error.message}` },
+          { text: `Não foi possível configurar o antilink. Detalhes: ${error.message}` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
@@ -1593,7 +1628,7 @@ export async function handleAdminCommand({
       if (!isGroupMessage) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Este comando só pode ser usado em grupos.' },
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1601,7 +1636,7 @@ export async function handleAdminCommand({
       if (!(await isUserAdmin(remoteJid, senderJid))) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: 'Você não tem permissão para usar este comando.' },
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1611,7 +1646,8 @@ export async function handleAdminCommand({
       if (!action || !['on', 'off', 'status'].includes(action)) {
         await sendAndStore(sock, 
           remoteJid,
-          { text: `Uso: ${commandPrefix}noticias <on|off|status>` },
+          { text: `Formato de uso:
+${commandPrefix}noticias <on|off|status>` },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         break;
@@ -1624,7 +1660,7 @@ export async function handleAdminCommand({
         await sendAndStore(sock, 
           remoteJid,
           {
-            text: `📰 Notícias ${enabledText} para este grupo.\nEnviadas: ${status.sentCount}.${lastSent}`,
+            text: `📰 Status de notícias neste grupo: *${enabledText.toLowerCase()}*.\nTotal de envios: ${status.sentCount}.${lastSent}`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -1637,14 +1673,14 @@ export async function handleAdminCommand({
         startNewsBroadcastForGroup(remoteJid);
         await sendAndStore(sock, 
           remoteJid,
-          { text: '📰 Notícias ativadas. Vou enviar as novidades com intervalo de 1 a 2 minutos.' },
+          { text: '📰 Envio automático de notícias ativado. As atualizações serão enviadas com intervalo aproximado de 1 a 2 minutos.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       } else {
         stopNewsBroadcastForGroup(remoteJid);
         await sendAndStore(sock, 
           remoteJid,
-          { text: '🛑 Notícias desativadas para este grupo.' },
+          { text: '🛑 Envio automático de notícias desativado para este grupo.' },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
