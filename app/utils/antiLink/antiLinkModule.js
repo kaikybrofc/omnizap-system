@@ -116,7 +116,238 @@ const EDGE_PUNCTUATION_CHARS = new Set([',', '!', '?', ';', ':', ')', '(', '[', 
 const TOKEN_SEPARATOR_CHARS = new Set([',', ';', '|']);
 const HOST_TERMINATORS = new Set(['/', '?', '#', ':', '\\', ',', ';']);
 const URL_HINTS = ['https://', 'http://', 'www.'];
-const KNOWN_TLD_SUFFIXES = new Set(['com', 'net', 'org', 'io', 'app', 'dev', 'info', 'biz', 'pro', 'co', 'me', 'tv', 'cc', 'xyz', 'site', 'online', 'store', 'shop', 'blog', 'tech', 'cloud', 'digital', 'live', 'media', 'news', 'one', 'top', 'club', 'vip', 'fun', 'games', 'game', 'space', 'world', 'today', 'agency', 'email', 'center', 'company', 'group', 'solutions', 'systems', 'services', 'network', 'social', 'design', 'studio', 'photo', 'video', 'audio', 'music', 'art', 'wiki', 'finance', 'capital', 'money', 'loans', 'insurance', 'legal', 'law', 'health', 'care', 'clinic', 'dental', 'academy', 'school', 'college', 'university', 'education', 'training', 'support', 'chat', 'forum', 'community', 'events', 'travel', 'tours', 'hotel', 'homes', 'house', 'auto', 'cars', 'bike', 'food', 'restaurant', 'cafe', 'bar', 'pizza', 'delivery', 'fashion', 'beauty', 'style', 'fit', 'fitness', 'sports', 'download', 'br', 'us', 'uk', 'eu', 'de', 'fr', 'es', 'pt', 'it', 'nl', 'be', 'ch', 'at', 'se', 'no', 'fi', 'dk', 'ie', 'pl', 'cz', 'sk', 'hu', 'ro', 'bg', 'gr', 'ru', 'ua', 'tr', 'il', 'ae', 'sa', 'qa', 'eg', 'ma', 'tn', 'dz', 'za', 'ng', 'ke', 'gh', 'in', 'pk', 'bd', 'lk', 'cn', 'jp', 'kr', 'tw', 'hk', 'sg', 'my', 'th', 'vn', 'ph', 'id', 'au', 'nz', 'ca', 'mx', 'ar', 'cl', 'co', 'pe', 'uy', 'py', 'bo', 'ec', 've', 'do', 'cu', 'pa', 'cr', 'gt', 'hn', 'ni', 'sv', 'pr', 'edu', 'gov', 'mil', 'com.br', 'net.br', 'org.br', 'gov.br', 'edu.br', 'jus.br', 'mil.br', 'co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'co.jp', 'ne.jp', 'or.jp', 'go.jp', 'ac.jp', 'com.au', 'net.au', 'org.au', 'edu.au', 'gov.au', 'com.mx', 'com.ar', 'com.co', 'com.pe', 'com.tr', 'com.sg', 'com.my', 'com.ph', 'co.in', 'firm.in', 'net.in', 'org.in', 'gen.in', 'ind.in', 'co.id', 'or.id', 'go.id', 'web.id', 'co.za', 'org.za', 'net.za', 'com.ng', 'com.gh', 'com.eg', 'com.sa', 'com.qa', 'com.ae', 'page.link', 'g.page']);
+const STRICT_TLD_SUFFIXES = new Set([
+  'com',
+  'net',
+  'org',
+  'edu',
+  'gov',
+  'mil',
+  'io',
+  'me',
+  'tv',
+  'co',
+  'cc',
+  'gg',
+  'gl',
+  'ly',
+  'so',
+  'br',
+  'us',
+  'uk',
+  'eu',
+  'de',
+  'fr',
+  'es',
+  'pt',
+  'it',
+  'nl',
+  'be',
+  'ch',
+  'at',
+  'se',
+  'no',
+  'fi',
+  'dk',
+  'ie',
+  'pl',
+  'cz',
+  'sk',
+  'hu',
+  'ro',
+  'bg',
+  'gr',
+  'ru',
+  'ua',
+  'tr',
+  'il',
+  'ae',
+  'sa',
+  'qa',
+  'eg',
+  'ma',
+  'tn',
+  'dz',
+  'za',
+  'ng',
+  'ke',
+  'gh',
+  'in',
+  'pk',
+  'bd',
+  'lk',
+  'cn',
+  'jp',
+  'kr',
+  'tw',
+  'hk',
+  'sg',
+  'my',
+  'th',
+  'vn',
+  'ph',
+  'id',
+  'au',
+  'nz',
+  'ca',
+  'mx',
+  'ar',
+  'cl',
+  'pe',
+  'uy',
+  'py',
+  'bo',
+  'ec',
+  've',
+  'do',
+  'cu',
+  'pa',
+  'cr',
+  'gt',
+  'hn',
+  'ni',
+  'sv',
+  'pr',
+  'com.br',
+  'net.br',
+  'org.br',
+  'gov.br',
+  'edu.br',
+  'jus.br',
+  'mil.br',
+  'co.uk',
+  'org.uk',
+  'gov.uk',
+  'ac.uk',
+  'co.jp',
+  'ne.jp',
+  'or.jp',
+  'go.jp',
+  'ac.jp',
+  'com.au',
+  'net.au',
+  'org.au',
+  'edu.au',
+  'gov.au',
+  'com.mx',
+  'com.ar',
+  'com.co',
+  'com.pe',
+  'com.tr',
+  'com.sg',
+  'com.my',
+  'com.ph',
+  'co.in',
+  'firm.in',
+  'net.in',
+  'org.in',
+  'gen.in',
+  'ind.in',
+  'co.id',
+  'or.id',
+  'go.id',
+  'web.id',
+  'co.za',
+  'org.za',
+  'net.za',
+  'com.ng',
+  'com.gh',
+  'com.eg',
+  'com.sa',
+  'com.qa',
+  'com.ae',
+  'page.link',
+  'g.page',
+]);
+const EXTRA_TLD_SUFFIXES = new Set([
+  'ai',
+  'app',
+  'dev',
+  'xyz',
+  'site',
+  'online',
+  'store',
+  'shop',
+  'blog',
+  'tech',
+  'cloud',
+  'digital',
+  'live',
+  'media',
+  'news',
+  'one',
+  'top',
+  'club',
+  'vip',
+  'fun',
+  'games',
+  'game',
+  'space',
+  'world',
+  'today',
+  'agency',
+  'email',
+  'center',
+  'company',
+  'group',
+  'solutions',
+  'systems',
+  'services',
+  'network',
+  'social',
+  'design',
+  'studio',
+  'photo',
+  'video',
+  'audio',
+  'music',
+  'art',
+  'wiki',
+  'finance',
+  'capital',
+  'money',
+  'loans',
+  'insurance',
+  'legal',
+  'law',
+  'health',
+  'care',
+  'clinic',
+  'dental',
+  'academy',
+  'school',
+  'college',
+  'university',
+  'education',
+  'training',
+  'support',
+  'chat',
+  'forum',
+  'community',
+  'events',
+  'travel',
+  'tours',
+  'hotel',
+  'homes',
+  'house',
+  'auto',
+  'cars',
+  'bike',
+  'food',
+  'restaurant',
+  'cafe',
+  'bar',
+  'pizza',
+  'delivery',
+  'fashion',
+  'beauty',
+  'style',
+  'fit',
+  'fitness',
+  'sports',
+  'download',
+]);
+const ANY_TLD_SUFFIXES = new Set([...STRICT_TLD_SUFFIXES, ...EXTRA_TLD_SUFFIXES]);
 
 /**
  * Tokeniza texto por espaço/quebra de linha sem regex.
@@ -152,8 +383,14 @@ const splitCompositeToken = (token) => {
   const parts = [];
   let currentPart = '';
 
-  for (const char of token) {
-    if (TOKEN_SEPARATOR_CHARS.has(char)) {
+  for (let i = 0; i < token.length; i += 1) {
+    const char = token[i];
+    const isArrowSeparator = char === '>' && i > 0 && token[i - 1] === '-';
+
+    if (TOKEN_SEPARATOR_CHARS.has(char) || isArrowSeparator) {
+      if (isArrowSeparator && currentPart.endsWith('-')) {
+        currentPart = currentPart.slice(0, -1);
+      }
       if (currentPart) {
         parts.push(currentPart);
         currentPart = '';
@@ -211,30 +448,45 @@ const normalizeHost = (host) => {
 /**
  * Retorna quantos labels formam o TLD conhecido (1, 2 ou 3).
  * @param {string[]} labels
+ * @param {Set<string>} suffixSet
  * @returns {number}
  */
-const getKnownTldLabelCount = (labels) => {
+const getKnownTldLabelCount = (labels, suffixSet) => {
   if (labels.length >= 3) {
     const lastThree = labels.slice(-3).join('.');
-    if (KNOWN_TLD_SUFFIXES.has(lastThree)) return 3;
+    if (suffixSet.has(lastThree)) return 3;
   }
   if (labels.length >= 2) {
     const lastTwo = labels.slice(-2).join('.');
-    if (KNOWN_TLD_SUFFIXES.has(lastTwo)) return 2;
+    if (suffixSet.has(lastTwo)) return 2;
   }
   const lastOne = labels[labels.length - 1];
-  if (KNOWN_TLD_SUFFIXES.has(lastOne)) return 1;
+  if (suffixSet.has(lastOne)) return 1;
   return 0;
 };
 
 /**
- * Extrai o root registrável (ex.: youtube.com, example.com.br).
+ * Conta labels de TLD somente na lista strict.
+ * @param {string[]} labels
+ * @returns {number}
+ */
+const getStrictTldLabelCount = (labels) => getKnownTldLabelCount(labels, STRICT_TLD_SUFFIXES);
+
+/**
+ * Conta labels de TLD aceitando strict + extra.
+ * @param {string[]} labels
+ * @returns {number}
+ */
+const getAnyTldLabelCount = (labels) => getKnownTldLabelCount(labels, ANY_TLD_SUFFIXES);
+
+/**
+ * Extrai o root registrável com base nos TLDs strict.
  * @param {string} domain
  * @returns {string}
  */
-const getRegistrableRootDomain = (domain) => {
+const getStrictRegistrableRootDomain = (domain) => {
   const labels = domain.split('.');
-  const tldLabelCount = getKnownTldLabelCount(labels);
+  const tldLabelCount = getStrictTldLabelCount(labels);
   if (tldLabelCount === 0 || labels.length <= tldLabelCount) return '';
   return labels.slice(-(tldLabelCount + 1)).join('.');
 };
@@ -265,9 +517,19 @@ const isValidDomainStructure = (domain) => {
  * @param {string} domain
  * @returns {boolean}
  */
-const hasKnownTldSuffix = (domain) => {
+const hasStrictKnownTldSuffix = (domain) => {
   const labels = domain.split('.');
-  return getKnownTldLabelCount(labels) > 0;
+  return getStrictTldLabelCount(labels) > 0;
+};
+
+/**
+ * Verifica se o domínio termina com TLD/sufixo conhecido (strict + extra).
+ * @param {string} domain
+ * @returns {boolean}
+ */
+const hasAnyKnownTldSuffix = (domain) => {
+  const labels = domain.split('.');
+  return getAnyTldLabelCount(labels) > 0;
 };
 
 const KNOWN_NETWORK_EXACT_DOMAINS = new Set();
@@ -278,7 +540,7 @@ for (const domains of Object.values(KNOWN_NETWORKS)) {
     const normalizedDomain = domain.toLowerCase();
     KNOWN_NETWORK_EXACT_DOMAINS.add(normalizedDomain);
 
-    const rootDomain = getRegistrableRootDomain(normalizedDomain);
+    const rootDomain = getStrictRegistrableRootDomain(normalizedDomain);
     if (rootDomain) {
       KNOWN_NETWORK_SUBDOMAIN_ROOTS.add(rootDomain);
     }
@@ -294,7 +556,7 @@ const isKnownNetworkDomain = (domain) => {
   const normalizedDomain = domain.toLowerCase();
   if (KNOWN_NETWORK_EXACT_DOMAINS.has(normalizedDomain)) return true;
 
-  const rootDomain = getRegistrableRootDomain(normalizedDomain);
+  const rootDomain = getStrictRegistrableRootDomain(normalizedDomain);
   if (rootDomain && rootDomain !== normalizedDomain && KNOWN_NETWORK_SUBDOMAIN_ROOTS.has(rootDomain)) {
     return true;
   }
@@ -354,6 +616,7 @@ const extractDomainFromUrlToken = (token) => {
     const parsedUrl = new URL(urlCandidate);
     const host = normalizeHost(parsedUrl.hostname);
     if (!isValidDomainStructure(host)) return null;
+    if (!hasAnyKnownTldSuffix(host) && !isKnownNetworkDomain(host)) return null;
     return host;
   } catch {
     return null;
@@ -377,7 +640,7 @@ const extractDomainFromPlainToken = (token) => {
 
   host = normalizeHost(host);
   if (!isValidDomainStructure(host)) return null;
-  if (!hasKnownTldSuffix(host) && !isKnownNetworkDomain(host)) return null;
+  if (!hasStrictKnownTldSuffix(host) && !isKnownNetworkDomain(host)) return null;
 
   return host;
 };
@@ -413,16 +676,29 @@ export const extractDomainsNoRegex = (text) => {
 };
 
 /**
- * Aceita o domínio exato ou subdomínios de um permitido.
- * @param {string} domain
+ * Normaliza e remove duplicados da allowlist.
  * @param {string[]} allowedDomains
+ * @returns {string[]}
+ */
+const normalizeAllowedDomains = (allowedDomains = []) => {
+  const normalizedDomains = new Set();
+
+  for (const allowedDomain of allowedDomains) {
+    const normalizedDomain = normalizeHost(String(allowedDomain || ''));
+    if (normalizedDomain) normalizedDomains.add(normalizedDomain);
+  }
+
+  return Array.from(normalizedDomains);
+};
+
+/**
+ * Aceita o domínio exato ou subdomínios de um permitido já normalizado.
+ * @param {string} domain
+ * @param {string[]} normalizedAllowedDomains
  * @returns {boolean}
  */
-const isDomainAllowed = (domain, allowedDomains) =>
-  allowedDomains.some((allowedDomain) => {
-    const normalizedAllowed = normalizeHost(String(allowedDomain || ''));
-    return normalizedAllowed && (domain === normalizedAllowed || domain.endsWith(`.${normalizedAllowed}`));
-  });
+const isDomainAllowed = (domain, normalizedAllowedDomains) =>
+  normalizedAllowedDomains.some((allowedDomain) => domain === allowedDomain || domain.endsWith(`.${allowedDomain}`));
 
 /**
  * Monta a lista final de domínios permitidos (redes conhecidas + personalizados).
@@ -443,14 +719,14 @@ const getAllowedDomains = (allowedNetworks = [], allowedCustomDomains = []) => {
 /**
  * Retorna true quando existir um link que não esteja na lista permitida.
  * @param {string} text
- * @param {string[]} allowedDomains
+ * @param {string[]} normalizedAllowedDomains
  * @returns {boolean}
  */
-export const isLinkDetected = (text, allowedDomains = []) => {
+export const isLinkDetected = (text, normalizedAllowedDomains = []) => {
   const domains = extractDomainsNoRegex(text);
   if (domains.length === 0) return false;
-  if (allowedDomains.length === 0) return true;
-  return domains.some((domain) => !isDomainAllowed(domain, allowedDomains));
+  if (normalizedAllowedDomains.length === 0) return true;
+  return domains.some((domain) => !isDomainAllowed(domain, normalizedAllowedDomains));
 };
 
 /**
@@ -471,7 +747,8 @@ export const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJ
   if (!groupConfig || !groupConfig.antilinkEnabled) return false;
 
   const allowedDomains = getAllowedDomains(groupConfig.antilinkAllowedNetworks || [], groupConfig.antilinkAllowedDomains || []);
-  if (!isLinkDetected(extractedText, allowedDomains)) return false;
+  const normalizedAllowedDomains = normalizeAllowedDomains(allowedDomains);
+  if (!isLinkDetected(extractedText, normalizedAllowedDomains)) return false;
 
   const isAdmin = await isUserAdmin(remoteJid, senderJid);
   const senderIsBot = senderJid === botJid;
