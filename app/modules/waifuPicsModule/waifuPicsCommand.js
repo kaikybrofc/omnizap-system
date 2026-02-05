@@ -99,7 +99,7 @@ const sendUsage = async (
     remoteJid,
     {
       text: [
-        '🖼️ *Waifu.pics*',
+        '🖼️ *Waifu pics*',
         '',
         `Modo: *${modeLabel}*`,
         `Use: *${command}*`,
@@ -225,7 +225,7 @@ export async function handleWaifuPicsCommand({
  */
 export const getWaifuPicsUsageText = (commandPrefix = DEFAULT_COMMAND_PREFIX) =>
   [
-    '🖼️ *Waifu.pics — Categorias*',
+    '🖼️ *Waifu pics — Categorias*',
     '',
     '📗 *SFW (seguro)*',
     `Comando: *${commandPrefix}wp* <categoria>`,
