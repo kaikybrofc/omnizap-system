@@ -1,5 +1,12 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
 
+/**
+ * Faz parse resiliente de JSON vindo do banco.
+ *
+ * @param {unknown} value Valor bruto.
+ * @param {unknown} [fallback=null] Valor fallback em caso de erro.
+ * @returns {unknown} Valor convertido ou fallback.
+ */
 const parseJson = (value, fallback = null) => {
   if (value === null || value === undefined) return fallback;
   if (typeof value === 'object') return value;
@@ -22,6 +29,12 @@ const parseJson = (value, fallback = null) => {
   return fallback;
 };
 
+/**
+ * Normaliza um item do pack com dados opcionais de asset.
+ *
+ * @param {Record<string, unknown>|null|undefined} row Linha crua retornada da query.
+ * @returns {object|null} Item normalizado.
+ */
 const normalizeItemRow = (row) => {
   if (!row) return null;
 
@@ -51,6 +64,13 @@ const normalizeItemRow = (row) => {
   };
 };
 
+/**
+ * Lista itens de um pack em ordem de posição.
+ *
+ * @param {string} packId ID do pack.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<object[]>} Itens do pack.
+ */
 export async function listStickerPackItems(packId, connection = null) {
   const rows = await executeQuery(
     `SELECT
@@ -76,6 +96,14 @@ export async function listStickerPackItems(packId, connection = null) {
   return rows.map((row) => normalizeItemRow(row));
 }
 
+/**
+ * Busca item do pack pelo sticker_id.
+ *
+ * @param {string} packId ID do pack.
+ * @param {string} stickerId ID do asset/sticker.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<object|null>} Item encontrado.
+ */
 export async function getStickerPackItemByStickerId(packId, stickerId, connection = null) {
   const rows = await executeQuery(
     `SELECT i.* FROM ${TABLES.STICKER_PACK_ITEM} i
@@ -88,6 +116,14 @@ export async function getStickerPackItemByStickerId(packId, stickerId, connectio
   return normalizeItemRow(rows?.[0] || null);
 }
 
+/**
+ * Busca item pela posição ordinal no pack.
+ *
+ * @param {string} packId ID do pack.
+ * @param {number} position Posição do item.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<object|null>} Item encontrado.
+ */
 export async function getStickerPackItemByPosition(packId, position, connection = null) {
   const rows = await executeQuery(
     `SELECT i.* FROM ${TABLES.STICKER_PACK_ITEM} i
@@ -100,6 +136,13 @@ export async function getStickerPackItemByPosition(packId, position, connection 
   return normalizeItemRow(rows?.[0] || null);
 }
 
+/**
+ * Conta quantos itens existem em um pack.
+ *
+ * @param {string} packId ID do pack.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<number>} Total de itens.
+ */
 export async function countStickerPackItems(packId, connection = null) {
   const rows = await executeQuery(
     `SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK_ITEM} WHERE pack_id = ?`,
@@ -110,6 +153,13 @@ export async function countStickerPackItems(packId, connection = null) {
   return Number(rows?.[0]?.total || 0);
 }
 
+/**
+ * Obtém a maior posição atualmente usada no pack.
+ *
+ * @param {string} packId ID do pack.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<number>} Maior posição encontrada.
+ */
 export async function getMaxStickerPackPosition(packId, connection = null) {
   const rows = await executeQuery(
     `SELECT MAX(position) AS max_position FROM ${TABLES.STICKER_PACK_ITEM} WHERE pack_id = ?`,
@@ -121,6 +171,13 @@ export async function getMaxStickerPackPosition(packId, connection = null) {
   return maxValue !== null && maxValue !== undefined ? Number(maxValue) : 0;
 }
 
+/**
+ * Cria um novo item dentro de um pack.
+ *
+ * @param {object} item Dados do item.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<object|null>} Item criado.
+ */
 export async function createStickerPackItem(item, connection = null) {
   await executeQuery(
     `INSERT INTO ${TABLES.STICKER_PACK_ITEM}
@@ -140,6 +197,15 @@ export async function createStickerPackItem(item, connection = null) {
   return getStickerPackItemByStickerId(item.pack_id, item.sticker_id, connection);
 }
 
+/**
+ * Atualiza metadados do item (emojis/acessibilidade).
+ *
+ * @param {string} packId ID do pack.
+ * @param {string} stickerId ID do sticker.
+ * @param {Record<string, unknown>} fields Campos alteráveis.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<object|null>} Item atualizado.
+ */
 export async function updateStickerPackItemMetadata(packId, stickerId, fields, connection = null) {
   const clauses = [];
   const params = [];
@@ -169,6 +235,14 @@ export async function updateStickerPackItemMetadata(packId, stickerId, fields, c
   return getStickerPackItemByStickerId(packId, stickerId, connection);
 }
 
+/**
+ * Remove item por sticker_id e retorna o item removido.
+ *
+ * @param {string} packId ID do pack.
+ * @param {string} stickerId ID do sticker.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<object|null>} Item removido.
+ */
 export async function removeStickerPackItemByStickerId(packId, stickerId, connection = null) {
   const item = await getStickerPackItemByStickerId(packId, stickerId, connection);
   if (!item) return null;
@@ -183,6 +257,14 @@ export async function removeStickerPackItemByStickerId(packId, stickerId, connec
   return item;
 }
 
+/**
+ * Remove item por posição e retorna o item removido.
+ *
+ * @param {string} packId ID do pack.
+ * @param {number} position Posição do item.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<object|null>} Item removido.
+ */
 export async function removeStickerPackItemByPosition(packId, position, connection = null) {
   const item = await getStickerPackItemByPosition(packId, position, connection);
   if (!item) return null;
@@ -197,6 +279,14 @@ export async function removeStickerPackItemByPosition(packId, position, connecti
   return item;
 }
 
+/**
+ * Reordena automaticamente os itens após remover uma posição.
+ *
+ * @param {string} packId ID do pack.
+ * @param {number} removedPosition Posição removida.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<void>}
+ */
 export async function shiftStickerPackPositionsAfter(packId, removedPosition, connection = null) {
   await executeQuery(
     `UPDATE ${TABLES.STICKER_PACK_ITEM}
@@ -207,6 +297,14 @@ export async function shiftStickerPackPositionsAfter(packId, removedPosition, co
   );
 }
 
+/**
+ * Aplica uma nova ordem explícita para os stickers do pack.
+ *
+ * @param {string} packId ID do pack.
+ * @param {string[]} orderedStickerIds IDs na ordem desejada.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<void>}
+ */
 export async function bulkUpdateStickerPackPositions(packId, orderedStickerIds, connection = null) {
   if (!Array.isArray(orderedStickerIds) || orderedStickerIds.length === 0) return;
 
@@ -230,6 +328,14 @@ export async function bulkUpdateStickerPackPositions(packId, orderedStickerIds, 
   }
 }
 
+/**
+ * Clona todos os itens de um pack para outro.
+ *
+ * @param {string} sourcePackId Pack de origem.
+ * @param {string} targetPackId Pack de destino.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<void>}
+ */
 export async function cloneStickerPackItems(sourcePackId, targetPackId, connection = null) {
   const items = await listStickerPackItems(sourcePackId, connection);
   for (const item of items) {

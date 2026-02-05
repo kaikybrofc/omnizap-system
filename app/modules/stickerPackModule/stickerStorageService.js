@@ -14,6 +14,9 @@ import {
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { normalizeOwnerJid } from './stickerPackUtils.js';
 
+/**
+ * Camada de storage local para assets de figurinha do sistema de packs.
+ */
 const STORAGE_ROOT = path.resolve(process.env.STICKER_STORAGE_DIR || path.join(process.cwd(), 'data', 'stickers'));
 const TEMP_ROOT = path.join(process.cwd(), 'temp', 'sticker-pack-assets');
 const DEFAULT_MAX_STICKER_BYTES = 2 * 1024 * 1024;
@@ -22,6 +25,12 @@ const LAST_STICKER_TTL_MS = Math.max(60_000, Number(process.env.STICKER_PACK_LAS
 
 const lastStickerCache = new Map();
 
+/**
+ * Converte JID para um token seguro no caminho de disco.
+ *
+ * @param {string} ownerJid JID do usuário.
+ * @returns {string} Token seguro para diretório.
+ */
 const safeOwnerToken = (ownerJid) => {
   const normalized = normalizeOwnerJid(ownerJid);
   const token = String(normalized || 'unknown').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
@@ -30,6 +39,12 @@ const safeOwnerToken = (ownerJid) => {
 
 const buildStoragePath = (ownerJid, sha256) => path.join(STORAGE_ROOT, safeOwnerToken(ownerJid), `${sha256}.webp`);
 
+/**
+ * Verifica se um caminho existe no sistema de arquivos.
+ *
+ * @param {string} targetPath Caminho absoluto do arquivo.
+ * @returns {Promise<boolean>} `true` quando o arquivo existe.
+ */
 const fileExists = async (targetPath) => {
   try {
     await fs.access(targetPath);
@@ -39,16 +54,34 @@ const fileExists = async (targetPath) => {
   }
 };
 
+/**
+ * Faz validação rápida de assinatura WEBP.
+ *
+ * @param {Buffer} buffer Buffer da mídia.
+ * @returns {boolean} `true` quando parece WEBP.
+ */
 const isLikelyWebp = (buffer) => {
   if (!Buffer.isBuffer(buffer) || buffer.length < 16) return false;
   return buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP';
 };
 
+/**
+ * Detecta chunks de animação em WEBP.
+ *
+ * @param {Buffer} buffer Buffer da mídia.
+ * @returns {boolean} `true` quando o sticker é animado.
+ */
 const detectAnimatedWebp = (buffer) => {
   if (!Buffer.isBuffer(buffer)) return false;
   return buffer.includes(Buffer.from('ANIM')) || buffer.includes(Buffer.from('ANMF'));
 };
 
+/**
+ * Lê dimensões de um arquivo WEBP a partir dos headers.
+ *
+ * @param {Buffer} buffer Buffer do sticker.
+ * @returns {{ width: number|null, height: number|null }} Dimensões detectadas.
+ */
 const parseWebpDimensions = (buffer) => {
   if (!isLikelyWebp(buffer)) return { width: null, height: null };
 
@@ -87,6 +120,13 @@ const parseWebpDimensions = (buffer) => {
   return { width: null, height: null };
 };
 
+/**
+ * Memoriza o último sticker salvo por dono para fallback rápido.
+ *
+ * @param {string} ownerJid JID do dono.
+ * @param {string} assetId ID do asset.
+ * @returns {void}
+ */
 const rememberLastSticker = (ownerJid, assetId) => {
   if (!ownerJid || !assetId) return;
 
@@ -97,6 +137,12 @@ const rememberLastSticker = (ownerJid, assetId) => {
   });
 };
 
+/**
+ * Resolve asset do cache do último sticker (com TTL).
+ *
+ * @param {string} ownerJid JID do dono.
+ * @returns {string|null} ID do asset ainda válido.
+ */
 const resolveLastStickerAssetId = (ownerJid) => {
   const normalized = normalizeOwnerJid(ownerJid);
   const entry = lastStickerCache.get(normalized);
@@ -110,8 +156,20 @@ const resolveLastStickerAssetId = (ownerJid) => {
   return entry.assetId;
 };
 
+/**
+ * Gera hash SHA-256 do buffer.
+ *
+ * @param {Buffer} buffer Conteúdo da figurinha.
+ * @returns {string} Hash SHA-256 em hexadecimal.
+ */
 const computeSha256 = (buffer) => createHash('sha256').update(buffer).digest('hex');
 
+/**
+ * Garante persistência física do arquivo no storage definitivo.
+ *
+ * @param {{ ownerJid: string, sha256: string, buffer: Buffer }} params Contexto de escrita.
+ * @returns {Promise<string>} Caminho final persistido.
+ */
 const ensureStorageForAsset = async ({ ownerJid, sha256, buffer }) => {
   const targetPath = buildStoragePath(ownerJid, sha256);
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
@@ -123,6 +181,13 @@ const ensureStorageForAsset = async ({ ownerJid, sha256, buffer }) => {
   return targetPath;
 };
 
+/**
+ * Extrai detalhes de mídia sticker de uma mensagem.
+ *
+ * @param {object} messageInfo Mensagem original.
+ * @param {{ includeQuoted?: boolean }} [options] Inclui mídia citada.
+ * @returns {object|null} Detalhes da mídia quando for sticker.
+ */
 const resolveStickerMediaDetails = (messageInfo, { includeQuoted = true } = {}) => {
   const mediaDetails = extractMediaDetails(messageInfo, { includeQuoted });
   if (!mediaDetails || mediaDetails.mediaType !== 'sticker') {
@@ -132,6 +197,13 @@ const resolveStickerMediaDetails = (messageInfo, { includeQuoted = true } = {}) 
   return mediaDetails;
 };
 
+/**
+ * Valida buffer recebido antes de salvar no storage.
+ *
+ * @param {Buffer} buffer Buffer da figurinha.
+ * @returns {void}
+ * @throws {StickerPackError} Quando o buffer for inválido, grande demais ou não-WEBP.
+ */
 const validateStickerBuffer = (buffer) => {
   if (!Buffer.isBuffer(buffer) || !buffer.length) {
     throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, 'Arquivo da figurinha veio vazio.');
@@ -152,6 +224,12 @@ const validateStickerBuffer = (buffer) => {
   }
 };
 
+/**
+ * Persiste um asset de sticker a partir de buffer em memória.
+ *
+ * @param {{ ownerJid: string, buffer: Buffer, mimetype?: string }} params Dados de persistência.
+ * @returns {Promise<object>} Asset salvo ou já existente.
+ */
 async function persistStickerAssetBuffer({ ownerJid, buffer, mimetype = 'image/webp' }) {
   const normalizedOwner = normalizeOwnerJid(ownerJid);
   validateStickerBuffer(buffer);
@@ -203,6 +281,12 @@ async function persistStickerAssetBuffer({ ownerJid, buffer, mimetype = 'image/w
   }
 }
 
+/**
+ * Faz download do sticker da mensagem e delega persistência do buffer.
+ *
+ * @param {{ mediaDetails: object, ownerJid: string }} params Detalhes da mídia e dono.
+ * @returns {Promise<object>} Asset salvo.
+ */
 async function persistStickerAssetFromDetails({ mediaDetails, ownerJid }) {
   const normalizedOwner = normalizeOwnerJid(ownerJid);
   const mediaSize = Number(mediaDetails?.details?.fileLength || mediaDetails?.mediaKey?.fileLength || 0);
@@ -257,6 +341,12 @@ async function persistStickerAssetFromDetails({ mediaDetails, ownerJid }) {
   }
 }
 
+/**
+ * Salva figurinha direto de um buffer local.
+ *
+ * @param {{ ownerJid: string, buffer: Buffer, mimetype?: string }} params Dados da figurinha.
+ * @returns {Promise<object>} Asset salvo.
+ */
 export async function saveStickerAssetFromBuffer({ ownerJid, buffer, mimetype = 'image/webp' }) {
   const normalizedOwner = normalizeOwnerJid(ownerJid);
 
@@ -281,6 +371,12 @@ export async function saveStickerAssetFromBuffer({ ownerJid, buffer, mimetype = 
   }
 }
 
+/**
+ * Salva figurinha a partir de mensagem (opcionalmente quoted).
+ *
+ * @param {{ messageInfo: object, ownerJid: string, includeQuoted?: boolean }} params Contexto da mensagem.
+ * @returns {Promise<object|null>} Asset salvo ou `null` quando não há sticker.
+ */
 export async function saveStickerAssetFromMessage({ messageInfo, ownerJid, includeQuoted = true }) {
   const mediaDetails = resolveStickerMediaDetails(messageInfo, { includeQuoted });
   if (!mediaDetails) return null;
@@ -288,10 +384,22 @@ export async function saveStickerAssetFromMessage({ messageInfo, ownerJid, inclu
   return persistStickerAssetFromDetails({ mediaDetails, ownerJid });
 }
 
+/**
+ * Captura stickers recebidos no fluxo passivo (sem quoted).
+ *
+ * @param {{ messageInfo: object, ownerJid: string }} params Contexto da mensagem.
+ * @returns {Promise<object|null>} Asset capturado.
+ */
 export async function captureIncomingStickerAsset({ messageInfo, ownerJid }) {
   return saveStickerAssetFromMessage({ messageInfo, ownerJid, includeQuoted: false });
 }
 
+/**
+ * Recupera o último sticker conhecido do usuário via cache+banco.
+ *
+ * @param {string} ownerJid JID do usuário.
+ * @returns {Promise<object|null>} Último asset encontrado.
+ */
 export async function getLastStickerAssetForOwner(ownerJid) {
   const normalizedOwner = normalizeOwnerJid(ownerJid);
   const cachedAssetId = resolveLastStickerAssetId(normalizedOwner);
@@ -308,6 +416,17 @@ export async function getLastStickerAssetForOwner(ownerJid) {
   return latest;
 }
 
+/**
+ * Resolve sticker para comandos: mensagem atual, quoted ou último cacheado.
+ *
+ * @param {{
+ *   messageInfo: object,
+ *   ownerJid: string,
+ *   includeQuoted?: boolean,
+ *   fallbackToLast?: boolean,
+ * }} params Contexto de resolução.
+ * @returns {Promise<object|null>} Asset resolvido.
+ */
 export async function resolveStickerAssetForCommand({
   messageInfo,
   ownerJid,
@@ -327,6 +446,13 @@ export async function resolveStickerAssetForCommand({
   return getLastStickerAssetForOwner(ownerJid);
 }
 
+/**
+ * Lê o arquivo de sticker em disco a partir de um asset.
+ *
+ * @param {{ storage_path?: string }} asset Registro do asset.
+ * @returns {Promise<Buffer>} Buffer da figurinha.
+ * @throws {StickerPackError} Quando o arquivo não puder ser lido.
+ */
 export async function readStickerAssetBuffer(asset) {
   if (!asset?.storage_path) {
     throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, 'Caminho do sticker não encontrado no storage.');
@@ -343,6 +469,11 @@ export async function readStickerAssetBuffer(asset) {
   }
 }
 
+/**
+ * Retorna configuração efetiva do storage do módulo.
+ *
+ * @returns {{ storageRoot: string, maxStickerBytes: number }} Configuração ativa.
+ */
 export function getStickerStorageConfig() {
   return {
     storageRoot: STORAGE_ROOT,

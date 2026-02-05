@@ -3,19 +3,41 @@ import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { readStickerAssetBuffer } from './stickerStorageService.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 
+/**
+ * Serviço de montagem/envio de mensagens para packs de figurinha.
+ */
 const MAX_PREVIEW_LIST_LINES = Math.max(5, Number(process.env.STICKER_PACK_PREVIEW_LINES) || 20);
 const FALLBACK_SEND_LIMIT = Math.max(1, Number(process.env.STICKER_PACK_FALLBACK_SEND_LIMIT) || 30);
 const ZIP_FEATURE_ENABLED = process.env.STICKER_PACK_ZIP_ENABLED === 'true';
 const PACK_VISUAL_DIVIDER = '━━━━━━━━━━━━━━━━━━━';
 
+/**
+ * Normaliza lista de emojis de um item.
+ *
+ * @param {unknown} value Valor de origem.
+ * @returns {string[]} Emojis válidos.
+ */
 const normalizeEmojis = (value) => (Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean).slice(0, 8) : []);
 
+/**
+ * Renderiza linha textual de um item para o preview fallback.
+ *
+ * @param {object} item Item do pack.
+ * @param {number} index Índice exibido.
+ * @returns {string} Linha renderizada.
+ */
 const renderItemLabel = (item, index) => {
   const emojiText = item.emojis?.length ? ` ${item.emojis.join(' ')}` : '';
   const accessibility = item.accessibility_label ? ` — ${item.accessibility_label}` : '';
   return `${index}. #${item.position}${emojiText}${accessibility}`;
 };
 
+/**
+ * Monta texto de preview para modo de envio compatível.
+ *
+ * @param {{ pack: object, items: object[], sentCount: number }} params Dados para composição.
+ * @returns {string} Mensagem textual pronta para envio.
+ */
 const buildPreviewText = ({ pack, items, sentCount }) => {
   const lines = items.slice(0, MAX_PREVIEW_LIST_LINES).map((item, index) => renderItemLabel(item, index + 1));
   const previewLines = [...lines];
@@ -52,6 +74,12 @@ const buildPreviewText = ({ pack, items, sentCount }) => {
   ].join('\n');
 };
 
+/**
+ * Gera ZIP opcional (feature flag) com conteúdo do pack.
+ *
+ * @param {{ pack: object, coverBuffer: Buffer, stickers: Array<{ data: Buffer }> }} params Dados do pacote.
+ * @returns {Promise<Buffer|null>} ZIP gerado ou `null`.
+ */
 async function buildZipPayload({ pack, coverBuffer, stickers }) {
   if (!ZIP_FEATURE_ENABLED) return null;
 
@@ -91,6 +119,12 @@ async function buildZipPayload({ pack, coverBuffer, stickers }) {
   }
 }
 
+/**
+ * Monta payload nativo do pack com buffers já carregados.
+ *
+ * @param {object} packDetails Pack completo com `items`.
+ * @returns {Promise<{ pack: object, items: object[], payload: object, zipBuffer: Buffer|null }>} Dados prontos para envio.
+ */
 export async function buildStickerPackMessage(packDetails) {
   const pack = packDetails;
   const items = Array.isArray(packDetails?.items) ? packDetails.items : [];
@@ -159,6 +193,19 @@ export async function buildStickerPackMessage(packDetails) {
   };
 }
 
+/**
+ * Tenta enviar pack no modo nativo e cai para fallback quando necessário.
+ *
+ * @param {{
+ *   sock: object,
+ *   jid: string,
+ *   messageInfo: object,
+ *   expirationMessage: number|undefined,
+ *   packBuild: { pack: object, items: object[], payload: object },
+ *   fallbackLimit?: number,
+ * }} params Contexto de envio.
+ * @returns {Promise<{ mode: 'native'|'fallback', sentCount: number, total?: number, nativeError?: string|null }>}
+ */
 export async function sendStickerPackWithFallback({
   sock,
   jid,

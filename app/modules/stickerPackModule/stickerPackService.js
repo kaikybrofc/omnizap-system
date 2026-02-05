@@ -4,6 +4,9 @@ import logger from '../../utils/logger/loggerModule.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { normalizeOwnerJid, parseEmojiList, sanitizeText, slugify, toVisibility } from './stickerPackUtils.js';
 
+/**
+ * Serviço de domínio para operações de packs e itens de figurinha.
+ */
 const MAX_NAME_LENGTH = 120;
 const MAX_PUBLISHER_LENGTH = 120;
 const MAX_DESCRIPTION_LENGTH = 1024;
@@ -14,6 +17,24 @@ const PACK_KEY_BASE_MAX_LENGTH = 32;
 const PACK_KEY_SUFFIX_LENGTH = 5;
 const PACK_KEY_SUFFIX_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 const PACK_KEY_MAX_ATTEMPTS = 24;
+
+/**
+ * @typedef {{
+ *   createPack: Function,
+ *   listPacks: Function,
+ *   getPackInfo: Function,
+ *   renamePack: Function,
+ *   setPackPublisher: Function,
+ *   setPackDescription: Function,
+ *   setPackVisibility: Function,
+ *   setPackCover: Function,
+ *   addStickerToPack: Function,
+ *   removeStickerFromPack: Function,
+ *   reorderPackItems: Function,
+ *   clonePack: Function,
+ *   deletePack: Function,
+ * }} StickerPackService
+ */
 
 const defaultDependencies = {
   logger,
@@ -39,6 +60,12 @@ const areArraysEqual = (left, right) => {
   return true;
 };
 
+/**
+ * Executa callback em transação SQL.
+ *
+ * @param {(connection: import('mysql2/promise').PoolConnection) => Promise<unknown>} handler Função transacional.
+ * @returns {Promise<unknown>} Resultado do callback.
+ */
 async function withTransaction(handler) {
   const { pool } = await import('../../../database/index.js');
   const connection = await pool.getConnection();
@@ -55,6 +82,19 @@ async function withTransaction(handler) {
   }
 }
 
+/**
+ * Cria instância do serviço de sticker pack com dependências injetáveis.
+ *
+ * @param {{
+ *   logger?: { info?: Function, error?: Function },
+ *   packRepository?: Record<string, Function>,
+ *   itemRepository?: Record<string, Function>,
+ *   maxStickersPerPack?: number,
+ *   maxPacksPerOwner?: number,
+ *   runInTransaction?: Function,
+ * }} [options] Configurações e dependências de runtime.
+ * @returns {StickerPackService} API de domínio para packs.
+ */
 export function createStickerPackService(options = {}) {
   const deps = {
     ...defaultDependencies,

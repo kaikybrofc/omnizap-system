@@ -1,15 +1,37 @@
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { sanitizeText, toVisibility } from './stickerPackUtils.js';
 
+/**
+ * Serviço responsável por direcionar figurinhas recém-criadas para packs automáticos.
+ */
 const DEFAULT_AUTO_PACK_NAME = process.env.STICKER_PACK_AUTO_PACK_NAME || 'pack';
 const DEFAULT_AUTO_PACK_VISIBILITY = toVisibility(process.env.STICKER_PACK_AUTO_PACK_VISIBILITY || 'private', 'private');
 const AUTO_COLLECT_ENABLED = process.env.STICKER_PACK_AUTO_COLLECT_ENABLED !== 'false';
 const AUTO_PACK_NAME_MAX_LENGTH = 120;
 
+/**
+ * Escapa texto para uso seguro em RegExp.
+ *
+ * @param {unknown} value Valor de entrada.
+ * @returns {string} Valor escapado.
+ */
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/**
+ * Remove acentos para facilitar normalização de nomes.
+ *
+ * @param {unknown} value Valor de entrada.
+ * @returns {string} Texto sem diacríticos.
+ */
 const removeDiacritics = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
+/**
+ * Gera nome de pack automático válido no padrão aceito.
+ *
+ * @param {unknown} value Nome base.
+ * @param {{ fallback?: string, maxLength?: number }} [options] Configurações de fallback/tamanho.
+ * @returns {string} Nome normalizado.
+ */
 const normalizeAutoPackName = (value, { fallback = 'pack', maxLength = AUTO_PACK_NAME_MAX_LENGTH } = {}) => {
   const sanitized = sanitizeText(value, maxLength, { allowEmpty: true }) || '';
   const normalized = removeDiacritics(sanitized)
@@ -20,6 +42,13 @@ const normalizeAutoPackName = (value, { fallback = 'pack', maxLength = AUTO_PACK
   return normalized || fallback;
 };
 
+/**
+ * Monta candidato incremental para nome de pack automático.
+ *
+ * @param {string} base Base do nome.
+ * @param {number} index Índice incremental.
+ * @returns {string} Nome candidato.
+ */
 const buildAutoPackCandidate = (base, index) => {
   const suffix = String(index);
   const maxBaseLength = Math.max(1, AUTO_PACK_NAME_MAX_LENGTH - suffix.length);
@@ -27,6 +56,12 @@ const buildAutoPackCandidate = (base, index) => {
   return `${trimmedBase}${suffix}`;
 };
 
+/**
+ * Define o próximo nome disponível para auto packs.
+ *
+ * @param {Array<{name?: string}>} packs Packs já existentes.
+ * @returns {string} Nome único sugerido.
+ */
 const makeAutoPackName = (packs) => {
   const base = normalizeAutoPackName(DEFAULT_AUTO_PACK_NAME, { fallback: 'pack', maxLength: AUTO_PACK_NAME_MAX_LENGTH });
   const normalizedBase = base.toLowerCase();
@@ -66,6 +101,17 @@ const makeAutoPackName = (packs) => {
   return buildAutoPackCandidate(base, fallbackIndex);
 };
 
+/**
+ * Cria coletor automático de figurinhas para packs.
+ *
+ * @param {{
+ *   enabled?: boolean,
+ *   logger?: { info?: Function, warn?: Function, error?: Function, debug?: Function },
+ *   stickerPackService?: object,
+ *   saveStickerAssetFromBuffer?: Function,
+ * }} [options] Dependências/configurações de runtime.
+ * @returns {{ addStickerToAutoPack: Function }} API do coletor.
+ */
 export function createAutoPackCollector(options = {}) {
   const deps = {
     logger: {

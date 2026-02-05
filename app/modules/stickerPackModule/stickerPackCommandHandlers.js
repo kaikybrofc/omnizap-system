@@ -8,12 +8,21 @@ import {
 } from './stickerStorageService.js';
 import { buildStickerPackMessage, sendStickerPackWithFallback } from './stickerPackMessageService.js';
 
+/**
+ * Handlers de comando textual para gerenciamento de packs de figurinha.
+ */
 const RATE_WINDOW_MS = Math.max(10_000, Number(process.env.STICKER_PACK_RATE_WINDOW_MS) || 60_000);
 const RATE_MAX_ACTIONS = Math.max(1, Number(process.env.STICKER_PACK_RATE_MAX_ACTIONS) || 20);
 const MAX_PACK_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
 
 const rateMap = new Map();
 
+/**
+ * Separa texto em subcomando e argumentos restantes.
+ *
+ * @param {string} text Texto bruto após `pack`.
+ * @returns {{ command: string, rest: string }} Partes do comando.
+ */
 const extractCommandParts = (text) => {
   const raw = String(text || '').trim();
   if (!raw) return { command: '', rest: '' };
@@ -29,6 +38,12 @@ const extractCommandParts = (text) => {
   };
 };
 
+/**
+ * Remove aspas simples/duplas de borda e trim.
+ *
+ * @param {unknown} value Valor textual.
+ * @returns {string} Texto sem aspas externas.
+ */
 const unquote = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -40,6 +55,12 @@ const unquote = (value) => {
   return raw;
 };
 
+/**
+ * Lê o primeiro token (com suporte a aspas) e retorna o restante.
+ *
+ * @param {string} input Texto de entrada.
+ * @returns {{ token: string|null, rest: string }} Token e restante.
+ */
 const readToken = (input) => {
   const raw = String(input || '').trim();
   if (!raw) return { token: null, rest: '' };
@@ -53,12 +74,24 @@ const readToken = (input) => {
   };
 };
 
+/**
+ * Divide argumentos por `|`, removendo segmentos vazios.
+ *
+ * @param {unknown} value Texto com opções pipe.
+ * @returns {string[]} Segmentos limpos.
+ */
 const splitPipeSegments = (value) =>
   String(value || '')
     .split('|')
     .map((segment) => segment.trim())
     .filter(Boolean);
 
+/**
+ * Converte segmentos `chave=valor` em objeto de opções.
+ *
+ * @param {string[]} segments Segmentos já divididos por pipe.
+ * @returns {Record<string, string>} Mapa de opções.
+ */
 const parsePipeOptions = (segments) => {
   const options = {};
 
@@ -76,6 +109,12 @@ const parsePipeOptions = (segments) => {
   return options;
 };
 
+/**
+ * Envia resposta textual no chat preservando contexto/ephemeral.
+ *
+ * @param {{ sock: object, remoteJid: string, messageInfo: object, expirationMessage: number|undefined, text: string }} params Contexto de envio.
+ * @returns {Promise<object>} Resultado de envio.
+ */
 const sendReply = async ({ sock, remoteJid, messageInfo, expirationMessage, text }) =>
   sendAndStore(
     sock,
@@ -90,6 +129,12 @@ const sendReply = async ({ sock, remoteJid, messageInfo, expirationMessage, text
 const PACK_VISUAL_DIVIDER = '━━━━━━━━━━━━━━━━━━━';
 const PACK_VISUAL_HEADER = '📦 *PACKS DE FIGURINHAS — CENTRAL DE GERENCIAMENTO*';
 
+/**
+ * Normaliza blocos de texto para linhas não vazias.
+ *
+ * @param {unknown} value Texto, lista de textos ou aninhamento.
+ * @returns {string[]} Linhas prontas para renderização.
+ */
 const normalizeMessageLines = (value) => {
   if (value === null || value === undefined) return [];
   if (Array.isArray(value)) {
@@ -100,6 +145,12 @@ const normalizeMessageLines = (value) => {
   return line ? [line] : [];
 };
 
+/**
+ * Formata rótulo visual de visibilidade do pack.
+ *
+ * @param {string} visibility Visibilidade interna.
+ * @returns {string} Rótulo amigável com ícone.
+ */
 const formatVisibilityLabel = (visibility) => {
   const normalized = String(visibility || '').toLowerCase();
   if (normalized === 'public') return '🌍 Público';
@@ -107,6 +158,12 @@ const formatVisibilityLabel = (visibility) => {
   return '🔒 Privado';
 };
 
+/**
+ * Monta mensagem visual padronizada para comandos de pack.
+ *
+ * @param {{ intro?: unknown[], sections?: Array<{title?: string, lines?: unknown[]}>, footer?: unknown[] }} params Blocos da mensagem.
+ * @returns {string} Texto final formatado.
+ */
 const buildPackVisualMessage = ({ intro = [], sections = [], footer = [] }) => {
   const lines = [PACK_VISUAL_HEADER];
   const introLines = normalizeMessageLines(intro);
@@ -135,6 +192,12 @@ const buildPackVisualMessage = ({ intro = [], sections = [], footer = [] }) => {
   return lines.join('\n');
 };
 
+/**
+ * Monta template visual para ações de sucesso/instrução.
+ *
+ * @param {{ title: string, explanation?: unknown[], details?: unknown[], nextSteps?: unknown[], footer?: unknown[] }} params Dados da mensagem.
+ * @returns {string} Texto final.
+ */
 const buildActionMessage = ({ title, explanation = [], details = [], nextSteps = [], footer = [] }) =>
   buildPackVisualMessage({
     intro: [title, ...normalizeMessageLines(explanation)],
@@ -145,6 +208,13 @@ const buildActionMessage = ({ title, explanation = [], details = [], nextSteps =
     footer,
   });
 
+/**
+ * Renderiza listagem de packs em formato amigável para chat.
+ *
+ * @param {object[]} packs Lista de packs do usuário.
+ * @param {string} prefix Prefixo de comando.
+ * @returns {string} Mensagem formatada.
+ */
 const formatPackList = (packs, prefix) => {
   if (!packs.length) {
     return buildPackVisualMessage({
@@ -196,6 +266,13 @@ const formatPackList = (packs, prefix) => {
   });
 };
 
+/**
+ * Renderiza detalhes completos de um pack com preview de itens.
+ *
+ * @param {{ items: object[], cover_sticker_id?: string, name: string, pack_key: string, publisher: string, visibility: string, description?: string }} pack Pack completo.
+ * @param {string} prefix Prefixo de comando.
+ * @returns {string} Mensagem formatada.
+ */
 const formatPackInfo = (pack, prefix) => {
   const coverIndex = pack.items.findIndex((item) => item.sticker_id === pack.cover_sticker_id);
   const coverLabel = coverIndex >= 0 ? `figurinha #${coverIndex + 1}` : 'não definida';
@@ -245,6 +322,12 @@ const formatPackInfo = (pack, prefix) => {
   });
 };
 
+/**
+ * Retorna texto de ajuda principal dos comandos de pack.
+ *
+ * @param {string} prefix Prefixo de comando.
+ * @returns {string} Guia textual.
+ */
 const buildPackHelp = (prefix) =>
   [
     '📦 *PACKS DE FIGURINHAS — GUIA RÁPIDO*',
@@ -284,6 +367,12 @@ const buildPackHelp = (prefix) =>
     '✅ *Pronto!* Se quiser, diga o que você quer fazer (criar, organizar, enviar) que eu te guio.',
   ].join('\n');
 
+/**
+ * Template visual de erro orientado a resolução.
+ *
+ * @param {{ title: string, explanation?: unknown[], steps?: unknown[], commandPrefix: string }} params Conteúdo do erro.
+ * @returns {string} Texto formatado.
+ */
 const buildErrorMessage = ({ title, explanation = [], steps = [], commandPrefix }) =>
   buildPackVisualMessage({
     intro: [title, ...normalizeMessageLines(explanation)],
@@ -298,6 +387,13 @@ const buildErrorMessage = ({ title, explanation = [], steps = [], commandPrefix 
     footer: [`💡 Guia completo: \`${commandPrefix}pack\``],
   });
 
+/**
+ * Converte erro interno em mensagem amigável para usuário.
+ *
+ * @param {unknown} error Erro recebido durante o comando.
+ * @param {string} commandPrefix Prefixo configurado.
+ * @returns {string} Mensagem final de erro.
+ */
 const formatErrorMessage = (error, commandPrefix) => {
   if (!(error instanceof StickerPackError)) {
     return buildErrorMessage({
@@ -374,6 +470,12 @@ const formatErrorMessage = (error, commandPrefix) => {
   }
 };
 
+/**
+ * Aplica rate limit por usuário para comandos de pack.
+ *
+ * @param {string} ownerJid JID do dono do comando.
+ * @returns {{ limited: boolean, remainingMs: number }} Estado do limite.
+ */
 const checkRateLimit = (ownerJid) => {
   const now = Date.now();
   const entry = rateMap.get(ownerJid);
@@ -398,6 +500,12 @@ const checkRateLimit = (ownerJid) => {
   return { limited: false, remainingMs: 0 };
 };
 
+/**
+ * Lê identificador inicial e restante textual do comando.
+ *
+ * @param {string} input Texto de entrada.
+ * @returns {{ identifier: string|null, value: string }} Partes parseadas.
+ */
 const parseIdentifierAndValue = (input) => {
   const { token: identifier, rest } = readToken(input);
   return {
@@ -408,6 +516,14 @@ const parseIdentifierAndValue = (input) => {
 
 const PACK_NAME_RULE_REGEX = /^[a-z0-9]+$/;
 
+/**
+ * Normaliza e valida nome de pack conforme regra do módulo.
+ *
+ * @param {string} value Nome informado.
+ * @param {{ label?: string }} [options] Label para mensagens de erro.
+ * @returns {string} Nome normalizado.
+ * @throws {StickerPackError} Quando o nome não atender ao padrão.
+ */
 const normalizePackName = (value, { label = 'Nome do pack' } = {}) => {
   const normalized = unquote(value).toLowerCase();
 
@@ -425,6 +541,12 @@ const normalizePackName = (value, { label = 'Nome do pack' } = {}) => {
   return normalized;
 };
 
+/**
+ * Converte entrada de reordenação em lista de sticker IDs.
+ *
+ * @param {{ ownerJid: string, identifier: string, rawOrder: string }} params Contexto de reordenação.
+ * @returns {Promise<string[]>} IDs na ordem desejada.
+ */
 const parseReorderInput = async ({ ownerJid, identifier, rawOrder }) => {
   const tokens = String(rawOrder || '')
     .split(/[\s,]+/)
@@ -452,6 +574,12 @@ const parseReorderInput = async ({ ownerJid, identifier, rawOrder }) => {
   return ids;
 };
 
+/**
+ * Resolve sticker a partir do contexto atual (quoted/último sticker).
+ *
+ * @param {{ messageInfo: object, ownerJid: string, includeQuoted?: boolean }} params Contexto da mensagem.
+ * @returns {Promise<object|null>} Asset resolvido.
+ */
 const resolveStickerFromCommandContext = async ({ messageInfo, ownerJid, includeQuoted = true }) => {
   return resolveStickerAssetForCommand({
     messageInfo,
@@ -461,6 +589,21 @@ const resolveStickerFromCommandContext = async ({ messageInfo, ownerJid, include
   });
 };
 
+/**
+ * Handler principal do comando `pack` e seus subcomandos.
+ *
+ * @param {{
+ *   sock: object,
+ *   remoteJid: string,
+ *   messageInfo: object,
+ *   expirationMessage: number|undefined,
+ *   senderJid: string,
+ *   senderName: string,
+ *   text: string,
+ *   commandPrefix: string,
+ * }} params Contexto da requisição.
+ * @returns {Promise<void>}
+ */
 export async function handlePackCommand({
   sock,
   remoteJid,
@@ -926,6 +1069,12 @@ export async function handlePackCommand({
   }
 }
 
+/**
+ * Captura stickers recebidos para manter cache/storage atualizado.
+ *
+ * @param {{ messageInfo: object, senderJid: string, isMessageFromBot: boolean }} params Contexto da mensagem recebida.
+ * @returns {Promise<object|null>} Asset capturado ou `null`.
+ */
 export async function maybeCaptureIncomingSticker({ messageInfo, senderJid, isMessageFromBot }) {
   if (isMessageFromBot) return null;
 

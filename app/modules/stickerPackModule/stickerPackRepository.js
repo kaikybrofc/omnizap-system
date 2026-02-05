@@ -1,5 +1,11 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
 
+/**
+ * Normaliza linha da tabela de packs para formato usado no domínio.
+ *
+ * @param {Record<string, unknown>|null|undefined} row Linha retornada da query.
+ * @returns {object|null} Pack normalizado.
+ */
 const normalizeStickerPackRow = (row) => {
   if (!row) return null;
 
@@ -20,6 +26,13 @@ const normalizeStickerPackRow = (row) => {
   };
 };
 
+/**
+ * Busca pack por ID.
+ *
+ * @param {string} packId ID interno do pack.
+ * @param {{ includeDeleted?: boolean, connection?: import('mysql2/promise').PoolConnection|null }} [options]
+ * @returns {Promise<object|null>} Pack encontrado.
+ */
 export async function findStickerPackById(packId, { includeDeleted = false, connection = null } = {}) {
   const rows = await executeQuery(
     `SELECT p.*,
@@ -34,6 +47,13 @@ export async function findStickerPackById(packId, { includeDeleted = false, conn
   return normalizeStickerPackRow(rows?.[0] || null);
 }
 
+/**
+ * Busca pack por chave pública (pack_key).
+ *
+ * @param {string} packKey Chave pública do pack.
+ * @param {{ includeDeleted?: boolean, connection?: import('mysql2/promise').PoolConnection|null }} [options]
+ * @returns {Promise<object|null>} Pack encontrado.
+ */
 export async function findStickerPackByPackKey(packKey, { includeDeleted = false, connection = null } = {}) {
   const rows = await executeQuery(
     `SELECT p.*,
@@ -48,6 +68,14 @@ export async function findStickerPackByPackKey(packKey, { includeDeleted = false
   return normalizeStickerPackRow(rows?.[0] || null);
 }
 
+/**
+ * Busca pack do dono por ID, pack_key ou nome.
+ *
+ * @param {string} ownerJid JID do dono.
+ * @param {string} identifier ID, chave ou nome do pack.
+ * @param {{ includeDeleted?: boolean, connection?: import('mysql2/promise').PoolConnection|null }} [options]
+ * @returns {Promise<object|null>} Pack encontrado.
+ */
 export async function findStickerPackByOwnerAndIdentifier(
   ownerJid,
   identifier,
@@ -88,6 +116,13 @@ export async function findStickerPackByOwnerAndIdentifier(
   return normalizeStickerPackRow(byName?.[0] || null);
 }
 
+/**
+ * Lista packs de um usuário com paginação simples.
+ *
+ * @param {string} ownerJid JID do dono.
+ * @param {{ includeDeleted?: boolean, limit?: number, offset?: number, connection?: import('mysql2/promise').PoolConnection|null }} [options]
+ * @returns {Promise<object[]>} Lista de packs.
+ */
 export async function listStickerPacksByOwner(
   ownerJid,
   { includeDeleted = false, limit = 50, offset = 0, connection = null } = {},
@@ -109,6 +144,13 @@ export async function listStickerPacksByOwner(
   return rows.map((row) => normalizeStickerPackRow(row));
 }
 
+/**
+ * Cria um registro de pack.
+ *
+ * @param {object} pack Dados do pack.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<object|null>} Pack criado.
+ */
 export async function createStickerPack(pack, connection = null) {
   await executeQuery(
     `INSERT INTO ${TABLES.STICKER_PACK}
@@ -141,6 +183,14 @@ const UPDATE_FIELD_MAP = {
   deleted_at: 'deleted_at',
 };
 
+/**
+ * Atualiza campos permitidos de um pack.
+ *
+ * @param {string} packId ID do pack.
+ * @param {Record<string, unknown>} fields Campos para atualização.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<object|null>} Pack atualizado.
+ */
 export async function updateStickerPackFields(packId, fields, connection = null) {
   const setClauses = [];
   const params = [];
@@ -169,6 +219,13 @@ export async function updateStickerPackFields(packId, fields, connection = null)
   return findStickerPackById(packId, { includeDeleted: true, connection });
 }
 
+/**
+ * Marca um pack como deletado sem remover dados físicos.
+ *
+ * @param {string} packId ID do pack.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<object|null>} Pack atualizado.
+ */
 export async function softDeleteStickerPack(packId, connection = null) {
   return updateStickerPackFields(
     packId,
@@ -179,11 +236,25 @@ export async function softDeleteStickerPack(packId, connection = null) {
   );
 }
 
+/**
+ * Verifica se a chave pública (pack_key) está disponível.
+ *
+ * @param {string} packKey Chave candidata.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<boolean>} `true` quando não existe pack com essa chave.
+ */
 export async function ensureUniquePackKey(packKey, connection = null) {
   const existing = await findStickerPackByPackKey(packKey, { includeDeleted: true, connection });
   return !existing;
 }
 
+/**
+ * Incrementa versão e timestamp de atualização do pack.
+ *
+ * @param {string} packId ID do pack.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<object|null>} Pack atualizado.
+ */
 export async function bumpStickerPackVersion(packId, connection = null) {
   await executeQuery(
     `UPDATE ${TABLES.STICKER_PACK}

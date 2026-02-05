@@ -20,6 +20,9 @@ import {
   shiftStickerPackPositionsAfter,
 } from './stickerPackItemRepository.js';
 
+/**
+ * Serviço principal de sticker pack com dependências concretas de runtime.
+ */
 const stickerPackService = createStickerPackService({
   packRepository: {
     createStickerPack,
