@@ -32,6 +32,30 @@ const formatSeconds = (seconds) => {
   return days > 0 ? `${days}d ${time}` : time;
 };
 
+const parseMetricNumber = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+  const parsed = Number(value.replace(',', '.').trim());
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getStatusLevel = (value, warnAt, criticalAt) => {
+  const numericValue = parseMetricNumber(value);
+  if (numericValue === null) return { emoji: '⚪', label: 'sem dado' };
+  if (numericValue >= criticalAt) return { emoji: '🔴', label: 'crítico' };
+  if (numericValue >= warnAt) return { emoji: '🟡', label: 'atenção' };
+  return { emoji: '🟢', label: 'ok' };
+};
+
+const formatStatusLevel = (status) => `${status.emoji} ${status.label}`;
+
+const padNumber = (value) => String(value).padStart(2, '0');
+
+const formatDateTime = (date = new Date()) =>
+  `${padNumber(date.getDate())}/${padNumber(date.getMonth() + 1)}/${date.getFullYear()} ${padNumber(
+    date.getHours(),
+  )}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}`;
+
 const parseLabels = (raw) => {
   if (!raw) return {};
   const labels = {};
@@ -91,60 +115,127 @@ const getLabelValue = (series, name, labelKey) => {
   return entry ? entry.labels[labelKey] : null;
 };
 
-const buildPingMessage = ({ systemMetrics, metricsSummary, metricsOk, metricsError }) => {
+const buildPingMessage = ({
+  systemMetrics,
+  metricsSummary,
+  metricsOk,
+  metricsError,
+  latencyMs,
+  generatedAt,
+}) => {
+  const responseTime = Number.isFinite(latencyMs) ? `${Math.max(0, Math.round(latencyMs))}ms` : 'n/a';
+
+  const hostCpuStatus = getStatusLevel(systemMetrics.usoCpuPercentual, 65, 85);
+  const hostMemoryStatus = getStatusLevel(systemMetrics.usoMemoriaPercentual, 75, 90);
+
+  const load1 = Array.isArray(systemMetrics.cargaMedia) ? systemMetrics.cargaMedia[0] : null;
+  const loadPerCore = Number.isFinite(load1) && systemMetrics.totalCpus > 0 ? load1 / systemMetrics.totalCpus : null;
+  const loadStatus = getStatusLevel(loadPerCore, 0.9, 1.2);
+  const loadPerCoreText = loadPerCore === null ? 'n/a' : loadPerCore.toFixed(2);
+
   const systemPart = `
-🖥️ *Host:* ${systemMetrics.hostname}
-🧠 *CPU:* ${systemMetrics.cpuModelo} (${systemMetrics.totalCpus} núcleos) • ${systemMetrics.usoCpuPercentual}%
-📈 *Carga (1m|5m|15m):* ${formatLoadAverage(systemMetrics.cargaMedia)}
-💾 *Memória:* ${systemMetrics.memoriaUsada} / ${systemMetrics.memoriaTotal} (${systemMetrics.usoMemoriaPercentual}%)
-🕒 *Uptime do sistema:* ${systemMetrics.uptimeSistema}
-🧱 *SO:* ${systemMetrics.plataforma} ${systemMetrics.release} (${systemMetrics.arquitetura})
+🖥️ *Servidor (máquina)*
+• Host: ${systemMetrics.hostname}
+• SO: ${systemMetrics.plataforma} ${systemMetrics.release} (${systemMetrics.arquitetura})
+• Uptime do sistema: ${systemMetrics.uptimeSistema}
+• CPU da máquina: ${formatStatusLevel(hostCpuStatus)} • ${systemMetrics.usoCpuPercentual}% (uso geral)
+• Carga (1m|5m|15m): ${formatLoadAverage(systemMetrics.cargaMedia)}
+• Pressão por núcleo (1m): ${loadPerCoreText} • ${formatStatusLevel(loadStatus)}
+• RAM: ${formatStatusLevel(hostMemoryStatus)} • ${systemMetrics.memoriaUsada} / ${systemMetrics.memoriaTotal} (${systemMetrics.usoMemoriaPercentual}%)
 `.trim();
 
   if (!metricsOk) {
     return `
-🏓 *Pong! Status do sistema*
+🏓 *Pong! Painel de saúde (modo básico)*
+🕐 Atualizado em: ${formatDateTime(generatedAt)}
+⚡ Tempo de resposta: ${responseTime}
+🧭 Legenda: 🟢 ok • 🟡 atenção • 🔴 crítico • ⚪ sem dado
 
 ${systemPart}
 
-⚠️ *Métricas Prometheus indisponíveis:* ${metricsError || 'sem detalhes'}
+⚠️ *Métricas avançadas indisponíveis*
+• Motivo: ${metricsError || 'sem detalhes'}
+• Endpoint: ${METRICS_ENDPOINT}
+• Timeout: ${METRICS_TIMEOUT_MS}ms
+
+💡 *Dica:* as métricas avançadas vêm do endpoint */metrics* (Prometheus).
 `.trim();
   }
 
+  const openFds = parseMetricNumber(metricsSummary.openFds);
+  const maxFds = parseMetricNumber(metricsSummary.maxFds);
+  const fdsUsage = openFds !== null && maxFds && maxFds > 0 ? (openFds / maxFds) * 100 : null;
+  const fdsStatus = getStatusLevel(fdsUsage, 60, 80);
+  const fdsUsageText = fdsUsage === null ? 'n/a' : `${fdsUsage.toFixed(1)}%`;
+
+  const lagP99 = parseMetricNumber(metricsSummary.lagP99);
+  const lagStatus = getStatusLevel(lagP99, 120, 300);
+
+  const dbTotal = parseMetricNumber(metricsSummary.dbTotal) || 0;
+  const dbSlow = parseMetricNumber(metricsSummary.dbSlow) || 0;
+  const slowRate = dbTotal > 0 ? (dbSlow / dbTotal) * 100 : null;
+  const dbStatus = getStatusLevel(slowRate, 5, 15);
+  const slowRateText = slowRate === null ? 'n/a' : `${slowRate.toFixed(2)}%`;
+
+  const queueValues = [metricsSummary.queues.messages, metricsSummary.queues.chats, metricsSummary.queues.lid_map]
+    .map((value) => parseMetricNumber(value))
+    .filter((value) => value !== null);
+  const queuePeak = queueValues.length ? Math.max(...queueValues) : null;
+  const queueStatus = getStatusLevel(queuePeak, 30, 120);
+  const queuePeakText = queuePeak === null ? 'n/a' : String(Math.round(queuePeak));
+
   const processPart = `
-⚙️ *Processo*
-• Uptime: ${metricsSummary.processUptime}
-• CPU: user ${metricsSummary.cpuUserSec}s | sys ${metricsSummary.cpuSysSec}s | total ${metricsSummary.cpuTotalSec}s
-• Mem: RSS ${metricsSummary.rss} | Heap ${metricsSummary.heap} | VMem ${metricsSummary.vmem}
-• FDs: ${metricsSummary.openFds}/${metricsSummary.maxFds}
+⚙️ *Processo do bot*
+• Uptime do processo: ${metricsSummary.processUptime}
+• Node.js: ${metricsSummary.nodeVersion}
+• CPU acumulada: total ${metricsSummary.cpuTotalSec}s (user ${metricsSummary.cpuUserSec}s | sys ${metricsSummary.cpuSysSec}s)
+• Memória do processo: RSS ${metricsSummary.rss} | Heap ${metricsSummary.heap} | VMem ${metricsSummary.vmem}
+• FDs abertos: ${metricsSummary.openFds}/${metricsSummary.maxFds} (${fdsUsageText}) • ${formatStatusLevel(fdsStatus)}
 `.trim();
 
   const nodePart = `
-🧠 *Node/Event Loop*
-• Node: ${metricsSummary.nodeVersion}
-• Lag: p50 ${metricsSummary.lagP50}ms | p90 ${metricsSummary.lagP90}ms | p99 ${metricsSummary.lagP99}ms
+🧠 *Event Loop (responsividade)*
+• Lag p50: ${metricsSummary.lagP50}ms (comportamento normal)
+• Lag p90: ${metricsSummary.lagP90}ms (picos frequentes)
+• Lag p99: ${metricsSummary.lagP99}ms (pior caso recente)
+• Status do loop: ${formatStatusLevel(lagStatus)} (quanto menor o lag, melhor)
 `.trim();
 
   const dbPart = `
 🗄️ *Banco*
-• Queries: ${metricsSummary.dbTotal} total | ${metricsSummary.dbSlow} slow
+• Queries totais: ${metricsSummary.dbTotal}
+• Queries lentas: ${metricsSummary.dbSlow} (${slowRateText}) • ${formatStatusLevel(dbStatus)}
 • Writes: messages ${metricsSummary.writes.messages} | lid_map ${metricsSummary.writes.lid_map} | groups ${metricsSummary.writes.groups_metadata}
 • Últimas latências (ms): messages ${metricsSummary.lastQuery.messages} | lid_map ${metricsSummary.lastQuery.lid_map} | groups ${metricsSummary.lastQuery.groups_metadata}
 `.trim();
 
   const queuePart = `
-📦 *Filas*
+📦 *Filas internas (backlog)*
 • messages ${metricsSummary.queues.messages} | chats ${metricsSummary.queues.chats} | lid_map ${metricsSummary.queues.lid_map}
+• Pico atual: ${queuePeakText} • ${formatStatusLevel(queueStatus)} (quanto menor, melhor)
 `.trim();
 
   const upsertPart = `
-📬 *messages.upsert*
-• Eventos: append ${metricsSummary.upsertEvents.append} | notify ${metricsSummary.upsertEvents.notify}
-• Mensagens: append ${metricsSummary.upsertMessages.append} | notify ${metricsSummary.upsertMessages.notify}
+📬 *messages.upsert (entrada de mensagens)*
+• Eventos recebidos: append ${metricsSummary.upsertEvents.append} | notify ${metricsSummary.upsertEvents.notify}
+• Mensagens processadas: append ${metricsSummary.upsertMessages.append} | notify ${metricsSummary.upsertMessages.notify}
+`.trim();
+
+  const glossaryPart = `
+📖 *Glossário rápido*
+• RSS: memória real em RAM usada pelo processo
+• Heap: memória JavaScript gerenciada pelo Node.js
+• VMem: memória virtual reservada pelo processo
+• Lag: atraso do Node para executar tarefas
 `.trim();
 
   return `
-🏓 *Pong! (Observabilidade)*
+🏓 *Pong! Painel de saúde do Omnizap*
+🕐 Atualizado em: ${formatDateTime(generatedAt)}
+⚡ Tempo de resposta: ${responseTime}
+🧭 Legenda: 🟢 ok • 🟡 atenção • 🔴 crítico • ⚪ sem dado
+
+${systemPart}
 
 ${processPart}
 
@@ -156,18 +247,21 @@ ${queuePart}
 
 ${upsertPart}
 
-${systemPart}
+${glossaryPart}
 `.trim();
 };
 
 const fetchMetricsSnapshot = async () => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), METRICS_TIMEOUT_MS);
+  const controller =
+    typeof globalThis.AbortController === 'function'
+      ? new globalThis.AbortController()
+      : null;
+  const timeout = setTimeout(() => controller?.abort(), METRICS_TIMEOUT_MS);
   try {
-    if (typeof fetch !== 'function') {
+    if (typeof globalThis.fetch !== 'function') {
       throw new Error('fetch indisponível');
     }
-    const response = await fetch(METRICS_ENDPOINT, { signal: controller.signal });
+    const response = await globalThis.fetch(METRICS_ENDPOINT, controller ? { signal: controller.signal } : {});
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -287,6 +381,7 @@ const fetchMetricsSnapshot = async () => {
 
 export async function handlePingCommand({ sock, remoteJid, messageInfo, expirationMessage }) {
   try {
+    const startedAt = Date.now();
     const systemMetrics = getSystemMetrics();
     let metricsSummary = null;
     let metricsOk = false;
@@ -305,15 +400,19 @@ export async function handlePingCommand({ sock, remoteJid, messageInfo, expirati
       metricsSummary,
       metricsOk,
       metricsError,
+      latencyMs: Date.now() - startedAt,
+      generatedAt: new Date(),
     });
-    await sendAndStore(sock, 
+    await sendAndStore(
+      sock,
       remoteJid,
       { text },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {
     logger.error('Erro ao gerar status do sistema:', { error: error.message });
-    await sendAndStore(sock, 
+    await sendAndStore(
+      sock,
       remoteJid,
       { text: 'Erro ao obter informações do sistema.' },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
