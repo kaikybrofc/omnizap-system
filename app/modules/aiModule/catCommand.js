@@ -346,26 +346,22 @@ export async function handleCatCommand({
     return;
   }
 
-  const prompt = rawPrompt || (imageResult.dataUrl ? DEFAULT_IMAGE_PROMPT : '');
-  if (!prompt && !imageResult.dataUrl) {
-    await sendUsage(sock, remoteJid, messageInfo, expirationMessage, commandPrefix);
-    return;
-  }
-
   const sessionKey = buildSessionKey(remoteJid, senderJid);
   const session = sessionCache.get(sessionKey);
   const userPrompt = await aiPromptStore.getPrompt(senderJid);
   const userPreference = typeof userPrompt === 'string' ? userPrompt.trim() : '';
+  const effectiveSystemPrompt = userPreference || BASE_SYSTEM_PROMPT;
+  const effectiveImagePrompt = userPreference || DEFAULT_IMAGE_PROMPT;
+
+  const effectivePrompt = rawPrompt || (imageResult.dataUrl ? effectiveImagePrompt : '');
+  if (!effectivePrompt && !imageResult.dataUrl) {
+    await sendUsage(sock, remoteJid, messageInfo, expirationMessage, commandPrefix);
+    return;
+  }
 
   const content = [];
-  if (userPreference) {
-    content.push({
-      type: 'input_text',
-      text: `Preferências do usuário:\n${userPreference}`,
-    });
-  }
-  if (prompt) {
-    content.push({ type: 'input_text', text: prompt });
+  if (effectivePrompt) {
+    content.push({ type: 'input_text', text: effectivePrompt });
   }
   if (imageResult.dataUrl) {
     content.push({ type: 'input_image', image_url: imageResult.dataUrl });
@@ -381,8 +377,8 @@ export async function handleCatCommand({
     ],
   };
 
-  if (BASE_SYSTEM_PROMPT) {
-    payload.instructions = BASE_SYSTEM_PROMPT;
+  if (effectiveSystemPrompt) {
+    payload.instructions = effectiveSystemPrompt;
   }
 
   if (session?.previousResponseId) {
