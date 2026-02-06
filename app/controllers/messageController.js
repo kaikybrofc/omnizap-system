@@ -21,6 +21,7 @@ import { handleWaifuPicsCommand, getWaifuPicsUsageText } from '../modules/waifuP
 import { handlePackCommand, maybeCaptureIncomingSticker } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
 import groupConfigStore from '../store/groupConfigStore.js';
 import { sendAndStore } from '../services/messagePersistenceService.js';
+import { resolveCaptchaByMessage } from '../services/captchaService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
@@ -87,6 +88,10 @@ export const handleMessages = async (update, sock) => {
             continue;
           }
           commandPrefix = await resolveCommandPrefix(true, remoteJid);
+        }
+
+        if (isGroupMessage && !isMessageFromBot) {
+          resolveCaptchaByMessage({ groupId: remoteJid, senderJid });
         }
 
         /**

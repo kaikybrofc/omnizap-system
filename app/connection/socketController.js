@@ -18,6 +18,7 @@ import { handleMessages } from '../controllers/messageController.js';
 import { syncNewsBroadcastService } from '../services/newsBroadcastService.js';
 import { setActiveSocket as storeActiveSocket } from '../services/socketState.js';
 import { recordError, recordMessagesUpsert } from '../observability/metrics.js';
+import { resolveCaptchaByReaction } from '../services/captchaService.js';
 
 import {
   handleGroupUpdate as handleGroupParticipantsEvent,
@@ -502,6 +503,31 @@ export async function connectToWhatsApp() {
         error: error.message,
         stack: error.stack,
         action: 'messages_update_error',
+      });
+    }
+  });
+
+  sock.ev.on('messages.reaction', (updates) => {
+    try {
+      const reactions = Array.isArray(updates) ? updates : [updates];
+      for (const update of reactions) {
+        const key = update?.key || update?.msg?.key || update?.reaction?.key || null;
+        const reaction = update?.reaction || update?.msg?.reaction || update?.reactionMessage || null;
+        const reactedKey = reaction?.key || update?.reactedKey || update?.reactionMessage?.key || null;
+
+        const groupId = key?.remoteJid || reactedKey?.remoteJid || null;
+        const senderJid = key?.participant || update?.participant || reaction?.sender || null;
+        const reactedMessageId = reactedKey?.id || null;
+
+        if (groupId && senderJid) {
+          resolveCaptchaByReaction({ groupId, senderJid, reactedMessageId });
+        }
+      }
+    } catch (error) {
+      logger.error('Erro no evento messages.reaction:', {
+        error: error.message,
+        stack: error.stack,
+        action: 'messages_reaction_error',
       });
     }
   });

@@ -6,8 +6,13 @@ import {
   getGroupRequestParticipantsList,
   updateGroupRequestParticipants,
 } from '../../config/groupUtils.js';
-import { getJidUser } from '../../config/baileysConfig.js';
+import { getJidUser, isSameJidUser, resolveBotJid } from '../../config/baileysConfig.js';
 import { updateGroupParticipantsFromAction } from '../../services/groupMetadataService.js';
+import {
+  CAPTCHA_TIMEOUT_MINUTES,
+  clearCaptchaForUser,
+  registerCaptchaChallenge,
+} from '../../services/captchaService.js';
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -112,6 +117,9 @@ const replacePlaceholders = async (message, sock, groupId) => {
   return { updatedMessage, mentions };
 };
 
+const buildCaptchaLine = (participantName) =>
+  `🤖 *Verificação humana*\n@${participantName}, reaja a esta mensagem ou envie qualquer mensagem em até *${CAPTCHA_TIMEOUT_MINUTES} minutos* para continuar no grupo.`;
+
 const ACTIONS_TO_SKIP_AUTO_APPROVE = new Set([
   'reject',
   'rejected',
@@ -176,6 +184,9 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
 
     let message = '';
     const allMentions = [];
+    const captchaParticipants = [];
+    const captchaEnabled = Boolean(groupConfig.captchaEnabled);
+    const botJid = resolveBotJid(sock?.user?.id);
 
     for (const participant of participants) {
       const jid =
@@ -189,15 +200,32 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
 
       switch (action) {
         case 'add':
-          if (groupConfig.welcomeMessageEnabled) {
-            const welcomeMsg =
-              groupConfig.welcomeMessage || '👋 Bem-vindo(a) ao grupo @groupname, @user! 🎉';
-            let msg = welcomeMsg.replace('{participant}', `@${participantName}`);
-            msg = msg.replace(/@user/g, `@${participantName}`);
-            message += `${msg}\n`;
+          {
+            const shouldRequestCaptcha =
+              captchaEnabled && jid && (!botJid || !isSameJidUser(jid, botJid));
+
+            if (shouldRequestCaptcha) {
+              captchaParticipants.push(jid);
+            }
+
+            if (groupConfig.welcomeMessageEnabled) {
+              const welcomeMsg =
+                groupConfig.welcomeMessage || '👋 Bem-vindo(a) ao grupo @groupname, @user! 🎉';
+              let msg = welcomeMsg.replace('{participant}', `@${participantName}`);
+              msg = msg.replace(/@user/g, `@${participantName}`);
+              if (shouldRequestCaptcha) {
+                msg = `${buildCaptchaLine(participantName)}\n${msg}`;
+              }
+              message += `${msg}\n`;
+            } else if (shouldRequestCaptcha) {
+              message += `${buildCaptchaLine(participantName)}\n`;
+            }
           }
           break;
         case 'remove':
+          if (jid) {
+            clearCaptchaForUser(groupId, jid, 'remove');
+          }
           if (groupConfig.farewellMessageEnabled) {
             const farewellMsg =
               groupConfig.farewellMessage || '😥 Adeus, @user! Sentiremos sua falta.';
@@ -237,7 +265,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
         finalMentionsCount: finalMentions.length,
       });
 
-      if (action === 'add' && groupConfig.welcomeMedia) {
+      if (action === 'add' && groupConfig.welcomeMedia && groupConfig.welcomeMessageEnabled) {
         mediaPath = groupConfig.welcomeMedia;
       } else if (action === 'remove' && groupConfig.farewellMedia) {
         mediaPath = groupConfig.farewellMedia;
@@ -284,7 +312,16 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
         });
         messageOptions = { text: message.trim(), mentions: finalMentions };
       }
-      await sendAndStore(sock, groupId, messageOptions);
+      const sentMessage = await sendAndStore(sock, groupId, messageOptions);
+      if (action === 'add' && captchaEnabled && captchaParticipants.length > 0 && sentMessage?.key) {
+        for (const participantJid of captchaParticipants) {
+          registerCaptchaChallenge({
+            groupId,
+            participantJid,
+            messageKey: sentMessage.key,
+          });
+        }
+      }
       logger.info(`Mensagem de atualização de grupo enviada com sucesso para o grupo ${groupId}.`, {
         action,
         participants,

@@ -201,4 +201,5 @@ export const buildAdminMenu = (commandPrefix = '/') => `
 🖼️ *${commandPrefix}autosticker <on|off|status>* - Converte mídia em figurinha automaticamente.
 📰 *${commandPrefix}noticias <on|off|status>* - Ativa/desativa envio automático de notícias.
 ⚙️ *${commandPrefix}prefix <novo_prefixo|status|reset>* - Altera o prefixo do bot no grupo.
+🤖 *${commandPrefix}captcha <on|off|status>* - Exige reação ou mensagem de novos membros.
 `;

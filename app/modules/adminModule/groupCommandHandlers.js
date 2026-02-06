@@ -28,6 +28,7 @@ import {
   stopNewsBroadcastForGroup,
 } from '../../services/newsBroadcastService.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { clearCaptchasForGroup } from '../../services/captchaService.js';
 
 const ADMIN_COMMANDS = new Set([
   'menuadm',
@@ -52,6 +53,7 @@ const ADMIN_COMMANDS = new Set([
   'addmode',
   'welcome',
   'farewell',
+  'captcha',
   'antilink',
   'premium',
   'nsfw',
@@ -1512,6 +1514,66 @@ ${commandPrefix}farewell set <mensagem ou caminho da midia>\nTambém é possíve
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
+      break;
+    }
+
+    case 'captcha': {
+      if (!isGroupMessage) {
+        await sendAndStore(sock, 
+          remoteJid,
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+      if (!(await isUserAdmin(remoteJid, senderJid))) {
+        await sendAndStore(sock, 
+          remoteJid,
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      const action = args[0]?.toLowerCase();
+      if (!action || !['on', 'off', 'status'].includes(action)) {
+        await sendAndStore(sock, 
+          remoteJid,
+          { text: `Formato de uso:\n${commandPrefix}captcha <on|off|status>` },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (action === 'status') {
+        const config = await groupConfigStore.getGroupConfig(remoteJid);
+        const enabled = Boolean(config.captchaEnabled);
+        await sendAndStore(sock, 
+          remoteJid,
+          {
+            text:
+              `🤖 Captcha neste grupo: *${enabled ? 'ativado' : 'desativado'}*.\n` +
+              'Quando ativo, novos membros precisam reagir ou enviar uma mensagem em até 5 minutos.',
+          },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      const enabled = action === 'on';
+      await groupConfigStore.updateGroupConfig(remoteJid, { captchaEnabled: enabled });
+      if (!enabled) {
+        clearCaptchasForGroup(remoteJid, 'disabled');
+      }
+      await sendAndStore(sock, 
+        remoteJid,
+        {
+          text: enabled
+            ? '✅ Captcha ativado. Novos membros terão 5 minutos para reagir ou enviar mensagem.'
+            : '🛑 Captcha desativado para este grupo.',
+        },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       break;
     }
 
