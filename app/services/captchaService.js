@@ -196,6 +196,45 @@ const sendCaptchaApprovalEdit = async ({ groupId, entry, messageState }) => {
   }
 };
 
+const sendCaptchaApprovalNotice = async ({ groupId, entry, method }) => {
+  if (!groupId) return;
+
+  const mentionId = entry?.rawId || entry?.userId || null;
+  const userLabel = getJidUser(mentionId) || 'usuario';
+  const methodLabel = method === 'reaction' ? 'reação' : 'mensagem';
+
+  const sock = getActiveSocket();
+  if (!sock) {
+    logger.warn('Socket ativo indisponível para enviar aviso de aprovação no captcha.', {
+      groupId,
+      userId: mentionId,
+      method,
+    });
+    return;
+  }
+
+  try {
+    await sendAndStore(sock, groupId, {
+      text: `✅ @${userLabel} completou a verificação por ${methodLabel} e foi aprovado(a).`,
+      mentions: mentionId ? [mentionId] : [],
+    });
+
+    logger.info('Usuário aprovado no captcha.', {
+      action: 'captcha_approved',
+      groupId,
+      userId: mentionId,
+      method,
+    });
+  } catch (error) {
+    logger.warn('Falha ao enviar aviso de aprovação de captcha.', {
+      groupId,
+      userId: mentionId,
+      method,
+      errorMessage: error.message,
+    });
+  }
+};
+
 export const registerCaptchaChallenge = ({
   groupId,
   participantJid,
@@ -308,6 +347,7 @@ export const resolveCaptchaByMessage = ({ groupId, senderJid, senderIdentity, me
   if (!cleared) return false;
 
   sendCaptchaApprovalReaction({ groupId, messageKey, userId });
+  sendCaptchaApprovalNotice({ groupId, entry: cleared.entry, method: 'message' });
   return true;
 };
 
@@ -328,5 +368,6 @@ export const resolveCaptchaByReaction = ({ groupId, senderJid, senderIdentity, r
   if (!cleared) return false;
 
   sendCaptchaApprovalEdit({ groupId, entry: cleared.entry, messageState: cleared.messageState });
+  sendCaptchaApprovalNotice({ groupId, entry: cleared.entry, method: 'reaction' });
   return true;
 };

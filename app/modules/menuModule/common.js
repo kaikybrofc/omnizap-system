@@ -1,205 +1,226 @@
 import { getWaifuPicsUsageText } from '../waifuPicsModule/waifuPicsCommand.js';
 
 export const buildMenuCaption = (senderName, commandPrefix) => `
-Olá, ${senderName}! 👋  
+Olá, ${senderName}. Seja bem-vindo(a)!
 
-🧭 *MENU PRINCIPAL*  
+━━━━━━━━━━━━━━━━━━━━
+📌 MENU PRINCIPAL
+━━━━━━━━━━━━━━━━━━━━
 
-Escolha uma categoria para ver os comandos:
+Selecione uma categoria para visualizar os comandos disponíveis:
 
-━━━━━━━━━━━━━━━  
-🖼️ *Figurinhas*  
-➡️ *${commandPrefix}menu figurinhas*  
+• Figurinhas  
+→ ${commandPrefix}menu figurinhas
 
-🎵 *Mídia*  
-➡️ *${commandPrefix}menu midia*  
+• Mídia  
+→ ${commandPrefix}menu midia
 
-🖼️ *Quotes*  
-➡️ *${commandPrefix}menu quote*  
+• Quotes  
+→ ${commandPrefix}menu quote
 
-🤖 *IA*  
-➡️ *${commandPrefix}menu ia*  
+• Inteligência Artificial  
+→ ${commandPrefix}menu ia
 
-📊 *Estatísticas*  
-➡️ *${commandPrefix}menu stats*  
+• Estatísticas  
+→ ${commandPrefix}menu stats
 
-🌸 *Anime*  
-➡️ *${commandPrefix}menu anime*  
+• Anime  
+→ ${commandPrefix}menu anime
 
-🛡️ *Administração*  
-➡️ *${commandPrefix}menuadm*  
+• Administração  
+→ ${commandPrefix}menuadm
 
-━━━━━━━━━━━━━━━  
-📌 *Status do Bot*  
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}ping*  
-🚧 Em evolução *(beta)*  
+━━━━━━━━━━━━━━━━━━━━
+📊 STATUS DO SISTEMA
+━━━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━  
-🌐 *Open Source*  
-━━━━━━━━━━━━━━━  
-🔗 GitHub:  
+→ ${commandPrefix}ping  
+Sistema em evolução (beta)
+
+━━━━━━━━━━━━━━━━━━━━
+🌐 PROJETO OPEN SOURCE
+━━━━━━━━━━━━━━━━━━━━
+
+GitHub:  
 https://github.com/kaikybrofc/omnizap-system  
 
-📩 Contato: *@kaikybrofc*
+Contato: @kaikybrofc
 `;
 
 export const buildStickerMenu = (commandPrefix) => `
-🖼️ *Figurinhas*  
+━━━━━━━━━━━━━━━━━━━━
+🖼️ FIGURINHAS
+━━━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━  
-🖼️ *Imagem / GIF*  
-━━━━━━━━━━━━━━━  
-▫️ Responda uma imagem ou GIF com:  
-➡️ *${commandPrefix}sticker* ou *${commandPrefix}s*  
+Imagem ou GIF  
+• Responda uma mídia com:  
+→ ${commandPrefix}sticker | ${commandPrefix}s  
 
-▫️ Ou envie a imagem/GIF com legenda:  
-➡️ *${commandPrefix}sticker* ou *${commandPrefix}s*  
+• Ou envie com legenda usando o mesmo comando.
 
-━━━━━━━━━━━━━━━  
-📝 *Texto*  
-━━━━━━━━━━━━━━━  
-▫️ Texto em preto:  
-➡️ *${commandPrefix}stickertext* ou *${commandPrefix}st*  
+━━━━━━━━━━━━━━━━━━━━
+📝 TEXTO
+━━━━━━━━━━━━━━━━━━━━
 
-▫️ Texto em branco:  
-➡️ *${commandPrefix}stickertextwhite* ou *${commandPrefix}stw*  
+• Texto padrão (preto):  
+→ ${commandPrefix}stickertext | ${commandPrefix}st  
 
-📌 *Exemplo:*  
-➡️ *${commandPrefix}stw Bom dia povo lindo*  
+• Texto alternativo (branco):  
+→ ${commandPrefix}stickertextwhite | ${commandPrefix}stw  
 
-━━━━━━━━━━━━━━━  
-✨ *Texto Piscante*  
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}stickertextblink* ou *${commandPrefix}stb*  
+Exemplo:  
+→ ${commandPrefix}stw Bom dia, pessoal
 
-📌 *Exemplo:*  
-➡️ *${commandPrefix}stb bom dia -verde*  
+━━━━━━━━━━━━━━━━━━━━
+✨ TEXTO PISCANTE
+━━━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━  
-🔁 *Converter figurinha*  
-━━━━━━━━━━━━━━━  
-▫️ Responda uma figurinha com:  
-➡️ *${commandPrefix}toimg*  
+→ ${commandPrefix}stickertextblink | ${commandPrefix}stb  
 
-📌 *Resultado:*  
-➡️ Figurinha estática vira imagem  
-➡️ Figurinha animada vira vídeo  
+Exemplo:  
+→ ${commandPrefix}stb bom dia -verde
 
-━━━━━━━━━━━━━━━  
-📦 *Sticker Packs*  
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}pack create "Meu Pack"*  
-➡️ *${commandPrefix}pack add <pack>*  
-➡️ *${commandPrefix}pack list*  
-➡️ *${commandPrefix}pack send <pack>*  
+━━━━━━━━━━━━━━━━━━━━
+🔁 CONVERSÃO
+━━━━━━━━━━━━━━━━━━━━
+
+• Responda uma figurinha com:  
+→ ${commandPrefix}toimg  
+
+Resultado:  
+– Figurinha estática → imagem  
+– Figurinha animada → vídeo
+
+━━━━━━━━━━━━━━━━━━━━
+📦 STICKER PACKS
+━━━━━━━━━━━━━━━━━━━━
+
+→ ${commandPrefix}pack create "Meu Pack"  
+→ ${commandPrefix}pack add <pack>  
+→ ${commandPrefix}pack list  
+→ ${commandPrefix}pack send <pack>
 `;
 
 export const buildMediaMenu = (commandPrefix) => `
-🎵 *Mídia*  
+━━━━━━━━━━━━━━━━━━━━
+🎵 MÍDIA
+━━━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}play* <link ou termo> *(áudio)*  
-➡️ *${commandPrefix}playvid* <link ou termo> *(vídeo)*  
+→ ${commandPrefix}play <link ou termo> (áudio)  
+→ ${commandPrefix}playvid <link ou termo> (vídeo)
 
-📌 *Exemplo:*  
-➡️ *${commandPrefix}play Coldplay Yellow*  
+Exemplo:  
+→ ${commandPrefix}play Coldplay Yellow
 `;
 
 export const buildQuoteMenu = (commandPrefix) => `
-🖼️ *Quotes*  
+━━━━━━━━━━━━━━━━━━━━
+💬 QUOTES
+━━━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}quote* *(responda uma mensagem ou envie um texto)*  
+→ ${commandPrefix}quote  
+Responda uma mensagem ou envie um texto.
 `;
 
 export const buildAnimeMenu = (commandPrefix) => `
-🌸 *Anime*  
+━━━━━━━━━━━━━━━━━━━━
+🌸 ANIME
+━━━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━  
 ${getWaifuPicsUsageText(commandPrefix)}
 `;
 
 export const buildAiMenu = (commandPrefix) => `
-🤖 *IA*  
+━━━━━━━━━━━━━━━━━━━━
+🤖 INTELIGÊNCIA ARTIFICIAL
+━━━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}cat* <mensagem ou pergunta> [--audio]  
-↪️ Responda ou envie uma imagem com legenda  
-➡️ *${commandPrefix}catimg* <prompt>  
-↪️ Gere ou edite imagens com IA  
-➡️ *${commandPrefix}catprompt* <novo prompt>  
-↪️ *${commandPrefix}catprompt reset*  
+→ ${commandPrefix}cat <mensagem ou pergunta> [--audio]  
+Responda ou envie uma imagem com legenda.
+
+→ ${commandPrefix}catimg <prompt>  
+Geração ou edição de imagens por IA.
+
+→ ${commandPrefix}catprompt <novo prompt>  
+→ ${commandPrefix}catprompt reset
 `;
 
 export const buildStatsMenu = (commandPrefix) => `
-📊 *Estatísticas*  
+━━━━━━━━━━━━━━━━━━━━
+📊 ESTATÍSTICAS
+━━━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━  
-➡️ *${commandPrefix}ranking* *(top 5 do grupo)*  
-➡️ *${commandPrefix}rankingglobal* *(top 5 do bot)*  
-➡️ *${commandPrefix}social* *(ranking de interações)*  
-➡️ *${commandPrefix}semmsg* *(membros sem mensagens)*  
-➡️ *${commandPrefix}ping* *(status do sistema)*  
+→ ${commandPrefix}ranking  
+Ranking do grupo (top 5)
+
+→ ${commandPrefix}rankingglobal  
+Ranking geral do bot
+
+→ ${commandPrefix}social  
+Ranking de interações
+
+→ ${commandPrefix}semmsg  
+Membros inativos
+
+→ ${commandPrefix}ping  
+Status do sistema
 `;
 
 export const buildStickerBlinkCaption = (commandPrefix) => `
-━━━━━━━━━━━━━━━  
-✨ *Figurinhas (Texto Piscante)*  
-━━━━━━━━━━━━━━━  
-▫️ Texto piscante (pisca-pisca):  
-➡️ *${commandPrefix}stickertextblink* ou *${commandPrefix}stb*  
+━━━━━━━━━━━━━━━━━━━━
+✨ FIGURINHAS — TEXTO PISCANTE
+━━━━━━━━━━━━━━━━━━━━
 
-▫️ Cor no final com “-cor”:  
-➡️ *${commandPrefix}stb bom dia -verde*  
+→ ${commandPrefix}stickertextblink | ${commandPrefix}stb  
 
-🎨 *Cores:* -branco, -preto, -vermelho, -verde, -azul, -amarelo, -rosa, -roxo, -laranja  
+Para definir cor, use “-cor” ao final:  
+Exemplo:  
+→ ${commandPrefix}stb bom dia -verde
+
+Cores disponíveis:  
+-branco, -preto, -vermelho, -verde, -azul, -amarelo, -rosa, -roxo, -laranja
 `;
 
 export const buildAdminMenu = (commandPrefix = '/') => `
-🛡️ *Menu de Administração*
+━━━━━━━━━━━━━━━━━━━━
+🛡️ ADMINISTRAÇÃO
+━━━━━━━━━━━━━━━━━━━━
 
-*Membros*
+Membros  
+→ ${commandPrefix}add @user  
+→ ${commandPrefix}ban @user  
+→ ${commandPrefix}up @user  
+→ ${commandPrefix}down @user  
 
-➕ *${commandPrefix}add @user1 @user2...* - Adiciona participantes.
-➖ *${commandPrefix}ban @user1 @user2...* - Remove participantes.
-⬆️ *${commandPrefix}up @user1 @user2...* - Promove administradores.
-⬇️ *${commandPrefix}down @user1 @user2...* - Remove administradores.
+Grupo  
+→ ${commandPrefix}setsubject <texto>  
+→ ${commandPrefix}setdesc <texto>  
+→ ${commandPrefix}setgroup <announcement|not_announcement|locked|unlocked>  
+→ ${commandPrefix}invite  
+→ ${commandPrefix}revoke  
+→ ${commandPrefix}leave  
 
-*Grupo*
+Solicitações  
+→ ${commandPrefix}requests  
+→ ${commandPrefix}updaterequests <approve|reject> @user  
+→ ${commandPrefix}autorequests <on|off|status>  
 
-📝 *${commandPrefix}setsubject <novo_assunto>* - Altera o nome do grupo.
-ℹ️ *${commandPrefix}setdesc <nova_descrição>* - Altera a descrição do grupo.
-🔧 *${commandPrefix}setgroup <announcement|not_announcement|locked|unlocked>* - Ajusta permissões do grupo.
-🚪 *${commandPrefix}leave* - O bot sai do grupo.
-🔗 *${commandPrefix}invite* - Exibe o código de convite.
-♻️ *${commandPrefix}revoke* - Revoga o código de convite.
+Gerais  
+→ ${commandPrefix}newgroup <título> <users>  
+→ ${commandPrefix}join <convite>  
+→ ${commandPrefix}info [grupo]  
+→ ${commandPrefix}metadata [grupo]  
+→ ${commandPrefix}groups  
 
-*Solicitações*
-
-📥 *${commandPrefix}requests* - Lista solicitações de entrada.
-✅ *${commandPrefix}updaterequests <approve|reject> @user1 @user2...* - Aprova ou rejeita solicitações.
-🤖 *${commandPrefix}autorequests <on|off|status>* - Auto-aprova solicitações de entrada.
-
-*Gerais*
-
-➕ *${commandPrefix}newgroup <título> <participante1> <participante2>...* - Cria um novo grupo.
-➡️ *${commandPrefix}join <código_de_convite>* - Entra via convite.
-🔍 *${commandPrefix}info [id_do_grupo]* - Mostra informações do grupo.
-📬 *${commandPrefix}infofrominvite <código_de_convite>* - Mostra informações pelo convite.
-📄 *${commandPrefix}metadata [id_do_grupo]* - Exibe metadados do grupo.
-🌐 *${commandPrefix}groups* - Lista grupos do bot.
-
-*Outros*
-
-⏳ *${commandPrefix}temp <duração_em_segundos>* - Mensagens efêmeras.
-🔒 *${commandPrefix}addmode <all_member_add|admin_add>* - Define quem pode adicionar membros.
-👋 *${commandPrefix}welcome <on|off|set> [mensagem ou mídia]* - Boas-vindas.
-👋 *${commandPrefix}farewell <on|off|set> [mensagem ou caminho da mídia]* - Mensagem de saída.
-⭐ *${commandPrefix}premium <add|remove|list> @user1 @user2...* - Gerencia acesso premium da IA.
-🔞 *${commandPrefix}nsfw <on|off|status>* - Ativa/desativa NSFW no grupo.
-🖼️ *${commandPrefix}autosticker <on|off|status>* - Converte mídia em figurinha automaticamente.
-📰 *${commandPrefix}noticias <on|off|status>* - Ativa/desativa envio automático de notícias.
-⚙️ *${commandPrefix}prefix <novo_prefixo|status|reset>* - Altera o prefixo do bot no grupo.
-🤖 *${commandPrefix}captcha <on|off|status>* - Exige reação ou mensagem de novos membros.
+Outros  
+→ ${commandPrefix}temp <segundos>  
+→ ${commandPrefix}addmode <all_member_add|admin_add>  
+→ ${commandPrefix}welcome <on|off|set>  
+→ ${commandPrefix}farewell <on|off|set>  
+→ ${commandPrefix}premium <add|remove|list>  
+→ ${commandPrefix}nsfw <on|off|status>  
+→ ${commandPrefix}autosticker <on|off|status>  
+→ ${commandPrefix}noticias <on|off|status>  
+→ ${commandPrefix}prefix <novo|status|reset>  
+→ ${commandPrefix}captcha <on|off|status>
 `;

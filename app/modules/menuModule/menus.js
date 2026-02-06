@@ -1,14 +1,5 @@
 import logger from '../../utils/logger/loggerModule.js';
-import {
-  buildAnimeMenu,
-  buildAiMenu,
-  buildMediaMenu,
-  buildMenuCaption,
-  buildQuoteMenu,
-  buildStatsMenu,
-  buildStickerMenu,
-  buildAdminMenu,
-} from './common.js';
+import { buildAnimeMenu, buildAiMenu, buildMediaMenu, buildMenuCaption, buildQuoteMenu, buildStatsMenu, buildStickerMenu, buildAdminMenu } from './common.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
@@ -18,17 +9,14 @@ const sendMenuImage = async (sock, remoteJid, messageInfo, expirationMessage, ca
   const imageUrl = process.env[MENU_IMAGE_ENV];
   if (!imageUrl) {
     logger.error('IMAGE_MENU environment variable not set.');
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: 'Ocorreu um erro ao carregar o menu.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: 'Ocorreu um erro ao carregar o menu.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   try {
     const imageBuffer = await getImageBuffer(imageUrl);
-    await sendAndStore(sock, 
+    await sendAndStore(
+      sock,
       remoteJid,
       {
         image: imageBuffer,
@@ -38,23 +26,11 @@ const sendMenuImage = async (sock, remoteJid, messageInfo, expirationMessage, ca
     );
   } catch (error) {
     logger.error('Error fetching menu image:', error);
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: 'Ocorreu um erro ao carregar a imagem do menu.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: 'Ocorreu um erro ao carregar a imagem do menu.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   }
 };
 
-export async function handleMenuCommand(
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  senderName,
-  commandPrefix,
-  args = [],
-) {
+export async function handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, commandPrefix, args = []) {
   const category = args?.[0]?.toLowerCase();
   const categoryMap = new Map([
     ['figurinhas', (prefix) => buildStickerMenu(prefix)],
@@ -73,25 +49,11 @@ export async function handleMenuCommand(
   ]);
 
   const buildCategory = categoryMap.get(category);
-  const caption = buildCategory
-    ? buildCategory(commandPrefix).trim()
-    : buildMenuCaption(senderName, commandPrefix).trim();
+  const caption = buildCategory ? buildCategory(commandPrefix).trim() : buildMenuCaption(senderName, commandPrefix).trim();
 
   await sendMenuImage(sock, remoteJid, messageInfo, expirationMessage, caption);
 }
 
-export async function handleMenuAdmCommand(
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  commandPrefix,
-) {
-  await sendMenuImage(
-    sock,
-    remoteJid,
-    messageInfo,
-    expirationMessage,
-    buildAdminMenu(commandPrefix).trim(),
-  );
+export async function handleMenuAdmCommand(sock, remoteJid, messageInfo, expirationMessage, commandPrefix) {
+  await sendMenuImage(sock, remoteJid, messageInfo, expirationMessage, buildAdminMenu(commandPrefix).trim());
 }
