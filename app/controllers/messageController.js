@@ -91,7 +91,11 @@ export const handleMessages = async (update, sock) => {
         }
 
         if (isGroupMessage && !isMessageFromBot) {
-          resolveCaptchaByMessage({ groupId: remoteJid, senderJid });
+          resolveCaptchaByMessage({
+            groupId: remoteJid,
+            senderJid,
+            messageKey: messageInfo.key,
+          });
         }
 
         /**

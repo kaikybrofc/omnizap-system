@@ -258,6 +258,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
         groupId,
       );
       message = updatedMessage;
+      const captchaMessageText = message.trim();
 
       const finalMentions = [...new Set([...allMentions, ...groupMentions])];
       logger.debug('Menções para a mensagem final processadas.', {
@@ -319,6 +320,8 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
             groupId,
             participantJid,
             messageKey: sentMessage.key,
+            messageText: captchaMessageText,
+            messageMentions: finalMentions,
           });
         }
       }
