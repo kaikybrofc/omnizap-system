@@ -197,7 +197,7 @@ const summarizeBaileysEventPayload = (eventName, payload) => {
       break;
     case 'lid-mapping.update':
       summary.lid = payload.lid ?? null;
-      summary.jid = payload.jid ?? null;
+      summary.pn = payload.pn ?? payload.jid ?? null;
       break;
     default:
       break;
@@ -249,6 +249,20 @@ const safeJsonParse = (value, fallback) => {
     });
     return fallback;
   }
+};
+
+/**
+ * Normaliza PN para JID de WhatsApp quando o payload vier sem domínio.
+ * @param {string|null|undefined} pn
+ * @returns {string|null}
+ */
+const normalizePnToJid = (pn) => {
+  if (!pn || typeof pn !== 'string') return null;
+  const normalized = pn.trim();
+  if (!normalized) return null;
+  if (isWhatsAppUserId(normalized)) return normalized;
+  if (/^\d+(?::\d+)?$/.test(normalized)) return `${normalized}@s.whatsapp.net`;
+  return null;
 };
 
 /**
@@ -491,6 +505,17 @@ export async function connectToWhatsApp() {
     }
   });
 
+  sock.ev.on('lid-mapping.update', (update) => {
+    try {
+      const lid = typeof update?.lid === 'string' ? update.lid : null;
+      const pnJid = normalizePnToJid(update?.pn);
+      if (!lid || !pnJid) return;
+      queueLidUpdate(lid, pnJid, 'lid-mapping');
+    } catch (error) {
+      logger.warn('Falha ao processar lid-mapping.update para lid_map.', { error: error.message });
+    }
+  });
+
   sock.ev.on('messages.update', (update) => {
     try {
       logger.debug('Atualização de mensagens recebida.', {
@@ -517,10 +542,15 @@ export async function connectToWhatsApp() {
 
         const groupId = key?.remoteJid || reactedKey?.remoteJid || null;
         const senderJid = key?.participant || update?.participant || reaction?.sender || null;
+        const senderIdentity = {
+          participant: key?.participant || update?.participant || reaction?.sender || null,
+          participantAlt: key?.participantAlt || update?.participantAlt || reaction?.participantAlt || reaction?.key?.participantAlt || null,
+          jid: senderJid,
+        };
         const reactedMessageId = reactedKey?.id || null;
 
-        if (groupId && senderJid) {
-          resolveCaptchaByReaction({ groupId, senderJid, reactedMessageId });
+        if (groupId && (senderJid || senderIdentity.participantAlt)) {
+          resolveCaptchaByReaction({ groupId, senderJid, senderIdentity, reactedMessageId });
         }
       }
     } catch (error) {

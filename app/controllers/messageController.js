@@ -70,6 +70,13 @@ export const handleMessages = async (update, sock) => {
         const remoteJid = messageInfo.key.remoteJid;
         const isGroupMessage = isGroupJid(remoteJid);
         const senderJid = isGroupMessage ? messageInfo.key.participant : remoteJid;
+        const senderIdentity = isGroupMessage
+          ? {
+              participant: messageInfo.key?.participant || null,
+              participantAlt: messageInfo.key?.participantAlt || null,
+              jid: senderJid || null,
+            }
+          : senderJid;
         const senderName = messageInfo.pushName;
         const expirationMessage = getExpiration(messageInfo);
         const botJid = resolveBotJid(sock?.user?.id);
@@ -94,6 +101,7 @@ export const handleMessages = async (update, sock) => {
           resolveCaptchaByMessage({
             groupId: remoteJid,
             senderJid,
+            senderIdentity,
             messageKey: messageInfo.key,
           });
         }

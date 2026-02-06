@@ -287,9 +287,17 @@ export const clearCaptchasForGroup = (groupId, reason = 'manual') => {
   });
 };
 
-export const resolveCaptchaByMessage = ({ groupId, senderJid, messageKey }) => {
+const resolveCaptchaUserId = (senderIdentity, senderJid) => {
+  if (senderIdentity) {
+    const resolvedFromIdentity = normalizeUserId(senderIdentity);
+    if (resolvedFromIdentity) return resolvedFromIdentity;
+  }
+  return normalizeUserId(senderJid);
+};
+
+export const resolveCaptchaByMessage = ({ groupId, senderJid, senderIdentity, messageKey }) => {
   if (!groupId) return false;
-  const userId = normalizeUserId(senderJid);
+  const userId = resolveCaptchaUserId(senderIdentity, senderJid);
   if (!userId) return false;
 
   const groupMap = pendingCaptchas.get(groupId);
@@ -303,9 +311,9 @@ export const resolveCaptchaByMessage = ({ groupId, senderJid, messageKey }) => {
   return true;
 };
 
-export const resolveCaptchaByReaction = ({ groupId, senderJid, reactedMessageId }) => {
+export const resolveCaptchaByReaction = ({ groupId, senderJid, senderIdentity, reactedMessageId }) => {
   if (!groupId) return false;
-  const userId = normalizeUserId(senderJid);
+  const userId = resolveCaptchaUserId(senderIdentity, senderJid);
   if (!userId) return false;
 
   const groupMap = pendingCaptchas.get(groupId);
