@@ -13,7 +13,7 @@ import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js
 import { extractMessageContent, getExpiration, isGroupJid, isSameJidUser, resolveBotJid } from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
-import { handleCatCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
+import { handleCatCommand, handleCatImageCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
 import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js';
 import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
 import { handleStickerConvertCommand } from '../modules/stickerModule/stickerConvertCommand.js';
@@ -147,6 +147,13 @@ export const handleMessages = async (update, sock) => {
 
             case 'cat':
               runCommand('cat', () => handleCatCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
+              break;
+
+            case 'catimg':
+            case 'catimage':
+              runCommand('catimg', () =>
+                handleCatImageCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }),
+              );
               break;
 
             case 'catprompt':

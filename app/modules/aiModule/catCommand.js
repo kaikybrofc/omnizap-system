@@ -10,6 +10,7 @@ import { downloadMediaMessage, extractAllMediaDetails, getJidUser } from '../../
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
+const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || OPENAI_MODEL;
 const OPENAI_TTS_MODEL = process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts';
 const OPENAI_TTS_VOICE = process.env.OPENAI_TTS_VOICE || 'alloy';
 const OPENAI_TTS_FORMAT_RAW = (process.env.OPENAI_TTS_FORMAT || 'mp3').toLowerCase();
@@ -17,6 +18,7 @@ const OPENAI_TTS_PTT = process.env.OPENAI_TTS_PTT === 'true';
 const OPENAI_TTS_MAX_CHARS = Number.parseInt(process.env.OPENAI_TTS_MAX_CHARS || '4096', 10);
 const OPENAI_MAX_IMAGE_MB = Number.parseFloat(process.env.OPENAI_MAX_IMAGE_MB || '50');
 const OPENAI_TIMEOUT_MS = Number.parseInt(process.env.OPENAI_TIMEOUT_MS || '30000', 10);
+const OPENAI_IMAGE_TIMEOUT_MS = Number.parseInt(process.env.OPENAI_IMAGE_TIMEOUT_MS || '120000', 10);
 const OPENAI_MAX_RETRIES = Number.parseInt(process.env.OPENAI_MAX_RETRIES || '2', 10);
 const OPENAI_RETRY_BASE_MS = Number.parseInt(process.env.OPENAI_RETRY_BASE_MS || '500', 10);
 const OPENAI_RETRY_MAX_MS = Number.parseInt(process.env.OPENAI_RETRY_MAX_MS || '4000', 10);
@@ -37,6 +39,63 @@ let cachedClient = null;
 
 const AUDIO_FLAG_ALIASES = new Set(['--audio', '--voz', '--voice', '--tts', '-a']);
 const TEXT_FLAG_ALIASES = new Set(['--texto', '--text', '--txt']);
+const IMAGE_DETAIL_ALIASES = new Map([
+  ['low', 'low'],
+  ['high', 'high'],
+  ['auto', 'auto'],
+  ['baixo', 'low'],
+  ['baixa', 'low'],
+  ['alto', 'high'],
+  ['alta', 'high'],
+  ['automatico', 'auto'],
+  ['automático', 'auto'],
+]);
+const IMAGE_GEN_SIZE_OPTIONS = new Set(['auto', '1024x1024', '1024x1536', '1536x1024']);
+const IMAGE_GEN_SIZE_ALIASES = new Map([
+  ['1024', '1024x1024'],
+  ['square', '1024x1024'],
+  ['quadrado', '1024x1024'],
+  ['portrait', '1024x1536'],
+  ['retrato', '1024x1536'],
+  ['landscape', '1536x1024'],
+  ['paisagem', '1536x1024'],
+  ['auto', 'auto'],
+]);
+const IMAGE_GEN_QUALITY_OPTIONS = new Set(['auto', 'low', 'medium', 'high']);
+const IMAGE_GEN_QUALITY_ALIASES = new Map([
+  ['baixa', 'low'],
+  ['baixo', 'low'],
+  ['media', 'medium'],
+  ['média', 'medium'],
+  ['medio', 'medium'],
+  ['médio', 'medium'],
+  ['alta', 'high'],
+  ['alto', 'high'],
+  ['auto', 'auto'],
+]);
+const IMAGE_GEN_FORMAT_OPTIONS = new Set(['png', 'jpeg', 'webp']);
+const IMAGE_GEN_FORMAT_ALIASES = new Map([
+  ['jpg', 'jpeg'],
+  ['jpeg', 'jpeg'],
+  ['png', 'png'],
+  ['webp', 'webp'],
+]);
+const IMAGE_GEN_BACKGROUND_OPTIONS = new Set(['auto', 'transparent', 'opaque']);
+const IMAGE_GEN_BACKGROUND_ALIASES = new Map([
+  ['auto', 'auto'],
+  ['transparent', 'transparent'],
+  ['transparente', 'transparent'],
+  ['opaque', 'opaque'],
+  ['opaco', 'opaque'],
+  ['opaca', 'opaque'],
+]);
+const IMAGE_GEN_FLAG_ALIASES = {
+  size: new Set(['--size', '--tamanho']),
+  quality: new Set(['--quality', '--qualidade']),
+  format: new Set(['--format', '--formato']),
+  background: new Set(['--background', '--fundo']),
+  compression: new Set(['--compression', '--compressao', '--compressão']),
+};
 const AUDIO_MIME_BY_FORMAT = {
   mp3: 'audio/mpeg',
   wav: 'audio/wav',
@@ -50,6 +109,9 @@ const TTS_OUTPUT_FORMAT = OPENAI_TTS_PTT ? 'opus' : SAFE_TTS_FORMAT;
 const TTS_MIME_TYPE = AUDIO_MIME_BY_FORMAT[TTS_OUTPUT_FORMAT] || 'audio/mpeg';
 const TTS_MAX_CHARS = Number.isFinite(OPENAI_TTS_MAX_CHARS) && OPENAI_TTS_MAX_CHARS > 0 ? OPENAI_TTS_MAX_CHARS : 4096;
 const OPENAI_TIMEOUT = Number.isFinite(OPENAI_TIMEOUT_MS) && OPENAI_TIMEOUT_MS > 0 ? OPENAI_TIMEOUT_MS : 30000;
+const OPENAI_IMAGE_TIMEOUT =
+  Number.isFinite(OPENAI_IMAGE_TIMEOUT_MS) && OPENAI_IMAGE_TIMEOUT_MS > 0 ? OPENAI_IMAGE_TIMEOUT_MS : 120000;
+const OPENAI_CLIENT_TIMEOUT = Math.max(OPENAI_TIMEOUT, OPENAI_IMAGE_TIMEOUT);
 const OPENAI_RETRIES = Number.isFinite(OPENAI_MAX_RETRIES) && OPENAI_MAX_RETRIES >= 0 ? OPENAI_MAX_RETRIES : 2;
 const OPENAI_RETRY_BASE =
   Number.isFinite(OPENAI_RETRY_BASE_MS) && OPENAI_RETRY_BASE_MS > 0 ? OPENAI_RETRY_BASE_MS : 500;
@@ -63,13 +125,16 @@ const getClient = () => {
   if (cachedClient) return cachedClient;
   cachedClient = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
-    timeout: OPENAI_TIMEOUT,
+    timeout: OPENAI_CLIENT_TIMEOUT,
     maxRetries: 0,
   });
   return cachedClient;
 };
 
-const buildSessionKey = (remoteJid, senderJid) => `${remoteJid}:${senderJid}`;
+const buildSessionKey = (remoteJid, senderJid, scope) => {
+  const base = `${remoteJid}:${senderJid}`;
+  return scope ? `${base}:${scope}` : base;
+};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -85,8 +150,8 @@ const isRetryableOpenAIError = (error) => {
   return false;
 };
 
-const runWithTimeout = async (operation, label) => {
-  if (!OPENAI_TIMEOUT || OPENAI_TIMEOUT <= 0) {
+const runWithTimeout = async (operation, label, timeoutMs = OPENAI_TIMEOUT) => {
+  if (!timeoutMs || timeoutMs <= 0) {
     return operation;
   }
   let timeoutId;
@@ -94,10 +159,10 @@ const runWithTimeout = async (operation, label) => {
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
       didTimeout = true;
-      const timeoutError = new Error(`OpenAI ${label} excedeu ${OPENAI_TIMEOUT}ms`);
+      const timeoutError = new Error(`OpenAI ${label} excedeu ${timeoutMs}ms`);
       timeoutError.code = 'OPENAI_TIMEOUT';
       reject(timeoutError);
-    }, OPENAI_TIMEOUT);
+    }, timeoutMs);
   });
   try {
     return await Promise.race([operation, timeoutPromise]);
@@ -111,12 +176,12 @@ const runWithTimeout = async (operation, label) => {
   }
 };
 
-const callOpenAI = async (operationFactory, label) => {
+const callOpenAI = async (operationFactory, label, timeoutMs) => {
   let attempt = 0;
   while (true) {
     try {
       const operation = operationFactory();
-      return await runWithTimeout(operation, label);
+      return await runWithTimeout(operation, label, timeoutMs);
     } catch (error) {
       attempt += 1;
       if (attempt > OPENAI_RETRIES || !isRetryableOpenAIError(error)) {
@@ -144,6 +209,10 @@ const sendUsage = async (sock, remoteJid, messageInfo, expirationMessage, comman
         'Use assim:',
         `*${commandPrefix}cat* [--audio] sua pergunta`,
         `*${commandPrefix}cat* (responda ou envie uma imagem com legenda)`,
+        '',
+        'Opções:',
+        '--audio | --texto',
+        '--detail low | high | auto',
         '',
         'Exemplo:',
         `*${commandPrefix}cat* Explique como funciona a fotossíntese.`,
@@ -216,13 +285,99 @@ const sendPromptUsage = async (
   );
 };
 
+const sendImageUsage = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) => {
+  await sendAndStore(
+    sock,
+    remoteJid,
+    {
+      text: [
+        '🖼️ *Imagem IA*',
+        '',
+        'Use assim:',
+        `*${commandPrefix}catimg* seu prompt`,
+        `*${commandPrefix}catimg* (responda uma imagem com legenda para editar)`,
+        '',
+        'Opções:',
+        '--size 1024x1024 | 1024x1536 | 1536x1024 | auto',
+        '--quality low | medium | high | auto',
+        '--format png | jpeg | webp',
+        '--background transparent | opaque | auto',
+        '--compression 0-100',
+        '',
+        'Exemplo:',
+        `*${commandPrefix}catimg* --size 1536x1024 Um gato astronauta em aquarela.`,
+      ].join('\n'),
+    },
+    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+  );
+};
+
+const normalizeImageDetail = (value) => {
+  if (!value) return null;
+  const normalized = IMAGE_DETAIL_ALIASES.get(String(value).toLowerCase());
+  return normalized || null;
+};
+
+const normalizeImageGenSize = (value) => {
+  if (!value) return null;
+  const raw = String(value).toLowerCase();
+  if (IMAGE_GEN_SIZE_OPTIONS.has(raw)) return raw;
+  const alias = IMAGE_GEN_SIZE_ALIASES.get(raw);
+  if (alias && IMAGE_GEN_SIZE_OPTIONS.has(alias)) return alias;
+  return null;
+};
+
+const normalizeImageGenQuality = (value) => {
+  if (!value) return null;
+  const raw = String(value).toLowerCase();
+  if (IMAGE_GEN_QUALITY_OPTIONS.has(raw)) return raw;
+  const alias = IMAGE_GEN_QUALITY_ALIASES.get(raw);
+  if (alias && IMAGE_GEN_QUALITY_OPTIONS.has(alias)) return alias;
+  return null;
+};
+
+const normalizeImageGenFormat = (value) => {
+  if (!value) return null;
+  const raw = String(value).toLowerCase();
+  const alias = IMAGE_GEN_FORMAT_ALIASES.get(raw);
+  if (alias && IMAGE_GEN_FORMAT_OPTIONS.has(alias)) return alias;
+  if (IMAGE_GEN_FORMAT_OPTIONS.has(raw)) return raw;
+  return null;
+};
+
+const normalizeImageGenBackground = (value) => {
+  if (!value) return null;
+  const raw = String(value).toLowerCase();
+  if (IMAGE_GEN_BACKGROUND_OPTIONS.has(raw)) return raw;
+  const alias = IMAGE_GEN_BACKGROUND_ALIASES.get(raw);
+  if (alias && IMAGE_GEN_BACKGROUND_OPTIONS.has(alias)) return alias;
+  return null;
+};
+
+const normalizeImageGenCompression = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = Number.parseInt(value, 10);
+  if (!Number.isFinite(numeric)) return null;
+  if (numeric < 0 || numeric > 100) return null;
+  return numeric;
+};
+
 const parseCatOptions = (rawText = '') => {
   const tokens = rawText.trim().split(/\s+/).filter(Boolean);
   let wantsAudio = false;
+  let imageDetail = null;
   const filtered = [];
 
-  for (const token of tokens) {
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
     const lower = token.toLowerCase();
+
     if (AUDIO_FLAG_ALIASES.has(lower)) {
       wantsAudio = true;
       continue;
@@ -231,12 +386,148 @@ const parseCatOptions = (rawText = '') => {
       wantsAudio = false;
       continue;
     }
+
+    if (lower.startsWith('--detail=') || lower.startsWith('--detalhe=')) {
+      const value = token.split('=')[1];
+      const detail = normalizeImageDetail(value);
+      if (detail) {
+        imageDetail = detail;
+        continue;
+      }
+    }
+
+    if (lower === '--detail' || lower === '--detalhe') {
+      const value = tokens[i + 1];
+      const detail = normalizeImageDetail(value);
+      if (detail) {
+        imageDetail = detail;
+        i += 1;
+        continue;
+      }
+    }
+
     filtered.push(token);
   }
 
   return {
     prompt: filtered.join(' ').trim(),
     wantsAudio,
+    imageDetail,
+  };
+};
+
+const parseImageGenOptions = (rawText = '') => {
+  const tokens = rawText.trim().split(/\s+/).filter(Boolean);
+  const promptParts = [];
+  const toolOptions = {};
+  const errors = [];
+
+  const setOption = (key, rawValue, normalizedValue) => {
+    if (!normalizedValue) {
+      errors.push(`${key}=${rawValue}`);
+      return;
+    }
+    toolOptions[key] = normalizedValue;
+  };
+
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    const lower = token.toLowerCase();
+
+    if (lower.startsWith('--size=')) {
+      const value = token.split('=')[1];
+      setOption('size', value, normalizeImageGenSize(value));
+      continue;
+    }
+    if (IMAGE_GEN_FLAG_ALIASES.size.has(lower)) {
+      const value = tokens[i + 1];
+      if (value) {
+        setOption('size', value, normalizeImageGenSize(value));
+        i += 1;
+        continue;
+      }
+    }
+
+    if (lower.startsWith('--quality=')) {
+      const value = token.split('=')[1];
+      setOption('quality', value, normalizeImageGenQuality(value));
+      continue;
+    }
+    if (IMAGE_GEN_FLAG_ALIASES.quality.has(lower)) {
+      const value = tokens[i + 1];
+      if (value) {
+        setOption('quality', value, normalizeImageGenQuality(value));
+        i += 1;
+        continue;
+      }
+    }
+
+    if (lower.startsWith('--format=')) {
+      const value = token.split('=')[1];
+      setOption('output_format', value, normalizeImageGenFormat(value));
+      continue;
+    }
+    if (IMAGE_GEN_FLAG_ALIASES.format.has(lower)) {
+      const value = tokens[i + 1];
+      if (value) {
+        setOption('output_format', value, normalizeImageGenFormat(value));
+        i += 1;
+        continue;
+      }
+    }
+
+    if (lower.startsWith('--background=')) {
+      const value = token.split('=')[1];
+      setOption('background', value, normalizeImageGenBackground(value));
+      continue;
+    }
+    if (IMAGE_GEN_FLAG_ALIASES.background.has(lower)) {
+      const value = tokens[i + 1];
+      if (value) {
+        setOption('background', value, normalizeImageGenBackground(value));
+        i += 1;
+        continue;
+      }
+    }
+
+    if (lower.startsWith('--compression=')) {
+      const value = token.split('=')[1];
+      setOption('output_compression', value, normalizeImageGenCompression(value));
+      continue;
+    }
+    if (IMAGE_GEN_FLAG_ALIASES.compression.has(lower)) {
+      const value = tokens[i + 1];
+      if (value) {
+        setOption('output_compression', value, normalizeImageGenCompression(value));
+        i += 1;
+        continue;
+      }
+    }
+
+    if (lower === '--transparent' || lower === '--transparente') {
+      toolOptions.background = 'transparent';
+      continue;
+    }
+    if (lower === '--opaque' || lower === '--opaco' || lower === '--opaca') {
+      toolOptions.background = 'opaque';
+      continue;
+    }
+
+    promptParts.push(token);
+  }
+
+  if (toolOptions.output_compression !== undefined) {
+    const format = toolOptions.output_format;
+    if (!format || !['jpeg', 'webp'].includes(format)) {
+      errors.push('output_compression');
+      delete toolOptions.output_compression;
+    }
+  }
+
+  return {
+    prompt: promptParts.join(' ').trim(),
+    toolOptions,
+    errors,
   };
 };
 
@@ -295,7 +586,7 @@ export async function handleCatCommand({
   text,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
-  const { prompt: rawPrompt, wantsAudio } = parseCatOptions(text || '');
+  const { prompt: rawPrompt, wantsAudio, imageDetail } = parseCatOptions(text || '');
 
   if (!process.env.OPENAI_API_KEY) {
     logger.warn('handleCatCommand: OPENAI_API_KEY não configurada.');
@@ -364,7 +655,11 @@ export async function handleCatCommand({
     content.push({ type: 'input_text', text: effectivePrompt });
   }
   if (imageResult.dataUrl) {
-    content.push({ type: 'input_image', image_url: imageResult.dataUrl });
+    const imagePayload = { type: 'input_image', image_url: imageResult.dataUrl };
+    if (imageDetail) {
+      imagePayload.detail = imageDetail;
+    }
+    content.push(imagePayload);
   }
 
   const payload = {
@@ -387,7 +682,7 @@ export async function handleCatCommand({
 
   try {
     const client = getClient();
-    const response = await callOpenAI(() => client.responses.create(payload), 'responses.create');
+    const response = await callOpenAI(() => client.responses.create(payload), 'responses.create', OPENAI_TIMEOUT);
     const outputText = response.output_text?.trim();
 
     sessionCache.set(sessionKey, {
@@ -424,6 +719,7 @@ export async function handleCatCommand({
                 response_format: TTS_OUTPUT_FORMAT,
               }),
             'audio.speech.create',
+            OPENAI_TIMEOUT,
           );
           const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
           await sendAndStore(
@@ -457,6 +753,192 @@ export async function handleCatCommand({
     );
   } catch (error) {
     logger.error('handleCatCommand: erro ao chamar OpenAI.', error);
+    await sendAndStore(
+      sock,
+      remoteJid,
+      {
+        text: ['❌ *Erro ao falar com a IA*', 'Tente novamente em alguns instantes.'].join('\n'),
+      },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+  }
+}
+
+export async function handleCatImageCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  senderJid,
+  text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+}) {
+  const { prompt, toolOptions, errors } = parseImageGenOptions(text || '');
+
+  if (!process.env.OPENAI_API_KEY) {
+    logger.warn('handleCatImageCommand: OPENAI_API_KEY não configurada.');
+    await sendAndStore(
+      sock,
+      remoteJid,
+      {
+        text: [
+          '⚠️ *OpenAI não configurada*',
+          '',
+          'Defina a variável *OPENAI_API_KEY* no `.env` para usar o comando *catimg*.',
+        ].join('\n'),
+      },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+    return;
+  }
+
+  await reactToMessage(sock, remoteJid, messageInfo);
+
+  if (!(await isPremiumAllowed(senderJid))) {
+    await sendPremiumOnly(sock, remoteJid, messageInfo, expirationMessage);
+    return;
+  }
+
+  const imageMedia = findImageMedia(messageInfo);
+  const imageResult = await buildImageDataUrl(imageMedia, senderJid);
+  if (imageResult.error === 'too_large') {
+    const limitMb = Math.round((MAX_IMAGE_BYTES / (1024 * 1024)) * 10) / 10;
+    await sendAndStore(
+      sock,
+      remoteJid,
+      {
+        text: `⚠️ A imagem enviada ultrapassa o limite de ${limitMb} MB. Envie uma imagem menor.`,
+      },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+    return;
+  }
+
+  if (imageResult.error === 'download_failed') {
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: '⚠️ Não consegui baixar a imagem. Tente reenviar.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+    return;
+  }
+
+  if (!prompt) {
+    await sendImageUsage(sock, remoteJid, messageInfo, expirationMessage, commandPrefix);
+    return;
+  }
+
+  if (errors.length) {
+    await sendAndStore(
+      sock,
+      remoteJid,
+      {
+        text: [
+          '⚠️ Opções inválidas no comando.',
+          `Detalhes: ${errors.join(', ')}`,
+          '',
+          `Use *${commandPrefix}catimg* sem opções para ver o formato correto.`,
+        ].join('\n'),
+      },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+    return;
+  }
+
+  const userPrompt = await aiPromptStore.getPrompt(senderJid);
+  const userPreference = typeof userPrompt === 'string' ? userPrompt.trim() : '';
+  const effectiveSystemPrompt = userPreference || BASE_SYSTEM_PROMPT;
+
+  const content = [];
+  if (prompt) {
+    content.push({ type: 'input_text', text: prompt });
+  }
+  if (imageResult.dataUrl) {
+    content.push({ type: 'input_image', image_url: imageResult.dataUrl });
+  }
+
+  const imageTool = { type: 'image_generation', ...toolOptions };
+
+  const payload = {
+    model: OPENAI_IMAGE_MODEL,
+    input: [
+      {
+        role: 'user',
+        content,
+      },
+    ],
+    tools: [imageTool],
+    tool_choice: { type: 'image_generation' },
+  };
+
+  if (effectiveSystemPrompt) {
+    payload.instructions = effectiveSystemPrompt;
+  }
+
+  const sessionKey = buildSessionKey(remoteJid, senderJid, 'image');
+  const session = sessionCache.get(sessionKey);
+  if (session?.previousResponseId) {
+    payload.previous_response_id = session.previousResponseId;
+  }
+
+  try {
+    const client = getClient();
+    const response = await callOpenAI(
+      () => client.responses.create(payload),
+      'responses.create.image',
+      OPENAI_IMAGE_TIMEOUT,
+    );
+    const outputText = response.output_text?.trim();
+
+    sessionCache.set(sessionKey, {
+      previousResponseId: response.id,
+      updatedAt: Date.now(),
+    });
+
+    const imageOutputs = Array.isArray(response.output)
+      ? response.output.filter((output) => output.type === 'image_generation_call' && output.result)
+      : [];
+    const imageBase64 = imageOutputs[0]?.result;
+
+    if (!imageBase64) {
+      if (outputText) {
+        await sendAndStore(
+          sock,
+          remoteJid,
+          { text: `🖼️ ${outputText}` },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        return;
+      }
+
+      await sendAndStore(
+        sock,
+        remoteJid,
+        { text: '⚠️ Não consegui gerar a imagem agora. Tente novamente.' },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+      return;
+    }
+
+    const outputFormat = toolOptions.output_format || 'png';
+    const mimeByFormat = {
+      png: 'image/png',
+      jpeg: 'image/jpeg',
+      webp: 'image/webp',
+    };
+    const mimetype = mimeByFormat[outputFormat] || 'image/png';
+    const imageBuffer = Buffer.from(imageBase64, 'base64');
+    const caption = outputText ? `🖼️ ${outputText}` : '🖼️ Imagem gerada.';
+
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { image: imageBuffer, caption, mimetype },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
+  } catch (error) {
+    logger.error('handleCatImageCommand: erro ao chamar OpenAI.', error);
     await sendAndStore(
       sock,
       remoteJid,
