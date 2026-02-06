@@ -1,6 +1,7 @@
 import logger from '../utils/logger/loggerModule.js';
 import { getJidUser } from '../config/baileysConfig.js';
-import { extractUserId, isUserAdmin, updateGroupParticipants } from '../config/groupUtils.js';
+import { isUserAdmin, updateGroupParticipants } from '../config/groupUtils.js';
+import { extractUserIdInfo, resolveUserIdCached } from './lidMapService.js';
 import { sendAndStore } from './messagePersistenceService.js';
 import { getActiveSocket } from './socketState.js';
 
@@ -14,11 +15,41 @@ const captchaMessageState = new Map();
 const buildMessageStateKey = (groupId, messageId) => `${groupId}:${messageId}`;
 const normalizeMessageText = (messageText) => (typeof messageText === 'string' ? messageText.trim() : '');
 
-const normalizeUserId = (userIdOrObj) => {
-  const normalized = extractUserId(userIdOrObj);
-  if (normalized) return normalized;
-  if (typeof userIdOrObj === 'string' && userIdOrObj.trim()) return userIdOrObj.trim();
-  return null;
+const toNonEmptyString = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+};
+
+const appendCandidate = (set, value) => {
+  const normalized = toNonEmptyString(value);
+  if (normalized) {
+    set.add(normalized);
+  }
+};
+
+const buildUserIdCandidates = (...sources) => {
+  const candidateIds = new Set();
+
+  for (const source of sources) {
+    if (!source) continue;
+    const info = extractUserIdInfo(source);
+    appendCandidate(candidateIds, resolveUserIdCached(info));
+    appendCandidate(candidateIds, info.jid);
+    appendCandidate(candidateIds, info.lid);
+    appendCandidate(candidateIds, info.participantAlt);
+    appendCandidate(candidateIds, info.raw);
+
+    if (typeof source === 'object') {
+      appendCandidate(candidateIds, source.id);
+      appendCandidate(candidateIds, source.jid);
+      appendCandidate(candidateIds, source.lid);
+      appendCandidate(candidateIds, source.participant);
+      appendCandidate(candidateIds, source.participantAlt);
+    }
+  }
+
+  return Array.from(candidateIds);
 };
 
 const ensureGroupMap = (groupId) => {
@@ -44,6 +75,30 @@ const cleanupMessageStateForEntry = (entry) => {
   return state;
 };
 
+const removeEntryAliasesFromGroup = (groupMap, entry) => {
+  if (!groupMap || !entry) return;
+  for (const [key, mappedEntry] of groupMap.entries()) {
+    if (mappedEntry === entry) {
+      groupMap.delete(key);
+    }
+  }
+};
+
+const findPendingEntry = (groupId, ...identitySources) => {
+  const groupMap = pendingCaptchas.get(groupId);
+  if (!groupMap) return null;
+
+  const candidates = buildUserIdCandidates(...identitySources);
+  for (const candidate of candidates) {
+    const entry = groupMap.get(candidate);
+    if (entry) {
+      return { groupMap, entry, lookupUserId: candidate };
+    }
+  }
+
+  return null;
+};
+
 const clearEntry = (groupId, userId, reason) => {
   const groupMap = pendingCaptchas.get(groupId);
   if (!groupMap) return null;
@@ -54,14 +109,15 @@ const clearEntry = (groupId, userId, reason) => {
     clearTimeout(entry.timeoutId);
   }
 
-  groupMap.delete(userId);
+  removeEntryAliasesFromGroup(groupMap, entry);
   cleanupGroupIfEmpty(groupId, groupMap);
   const messageState = cleanupMessageStateForEntry(entry);
 
   logger.debug('Captcha resolvido/removido.', {
     action: 'captcha_clear',
     groupId,
-    userId,
+    userId: entry.userId || userId,
+    lookupUserId: userId,
     reason,
   });
 
@@ -158,9 +214,7 @@ const sendCaptchaApprovalEdit = async ({ groupId, entry, messageState }) => {
   const userLabel = getJidUser(mentionId) || 'usuario';
   const approvalLine = `✅ @${userLabel} passou na verificação.`;
   const baseText = normalizeMessageText(messageState?.text);
-  const updatedText = baseText.includes(approvalLine)
-    ? baseText
-    : `${baseText}${baseText ? '\n' : ''}${approvalLine}`;
+  const updatedText = baseText.includes(approvalLine) ? baseText : `${baseText}${baseText ? '\n' : ''}${approvalLine}`;
 
   const mentionsSet = new Set(Array.isArray(messageState?.mentions) ? messageState.mentions : []);
   if (mentionId) {
@@ -235,22 +289,21 @@ const sendCaptchaApprovalNotice = async ({ groupId, entry, method }) => {
   }
 };
 
-export const registerCaptchaChallenge = ({
-  groupId,
-  participantJid,
-  messageKey,
-  messageText,
-  messageMentions,
-}) => {
+export const registerCaptchaChallenge = ({ groupId, participantJid, messageKey, messageText, messageMentions }) => {
   if (!groupId) return;
-  const userId = normalizeUserId(participantJid);
+  const userIdCandidates = buildUserIdCandidates(participantJid);
+  const userId = userIdCandidates[0] || null;
   if (!userId) return;
-  const rawId = typeof participantJid === 'string' && participantJid.trim() ? participantJid.trim() : userId;
+  const rawId = toNonEmptyString(participantJid) || userId;
 
   const groupMap = ensureGroupMap(groupId);
-  const existing = groupMap.get(userId);
-  if (existing?.timeoutId) {
-    clearTimeout(existing.timeoutId);
+  const existingMatch = findPendingEntry(groupId, participantJid, userId);
+  if (existingMatch?.entry?.timeoutId) {
+    clearTimeout(existingMatch.entry.timeoutId);
+  }
+  if (existingMatch?.entry) {
+    removeEntryAliasesFromGroup(groupMap, existingMatch.entry);
+    cleanupMessageStateForEntry(existingMatch.entry);
   }
 
   const expiresAt = Date.now() + CAPTCHA_TIMEOUT_MS;
@@ -259,9 +312,7 @@ export const registerCaptchaChallenge = ({
   const messageStateKey = messageId && normalizedText ? buildMessageStateKey(groupId, messageId) : null;
 
   if (messageStateKey) {
-    const mentions = Array.isArray(messageMentions)
-      ? Array.from(new Set(messageMentions.filter(Boolean)))
-      : [];
+    const mentions = Array.isArray(messageMentions) ? Array.from(new Set(messageMentions.filter(Boolean))) : [];
     const existingState = captchaMessageState.get(messageStateKey);
     if (existingState) {
       existingState.pendingCount = (existingState.pendingCount || 0) + 1;
@@ -282,7 +333,7 @@ export const registerCaptchaChallenge = ({
     handleCaptchaTimeout(groupId, userId);
   }, CAPTCHA_TIMEOUT_MS);
 
-  groupMap.set(userId, {
+  const entry = {
     userId,
     rawId,
     messageId,
@@ -290,7 +341,12 @@ export const registerCaptchaChallenge = ({
     messageStateKey,
     expiresAt,
     timeoutId,
-  });
+  };
+
+  const aliases = Array.from(new Set([userId, rawId, ...userIdCandidates].filter(Boolean)));
+  for (const alias of aliases) {
+    groupMap.set(alias, entry);
+  }
 
   logger.debug('Captcha iniciado para usuário.', {
     action: 'captcha_start',
@@ -302,9 +358,9 @@ export const registerCaptchaChallenge = ({
 };
 
 export const clearCaptchaForUser = (groupId, participantJid, reason = 'manual') => {
-  const userId = normalizeUserId(participantJid);
-  if (!userId) return false;
-  const cleared = clearEntry(groupId, userId, reason);
+  const match = findPendingEntry(groupId, participantJid);
+  if (!match) return false;
+  const cleared = clearEntry(groupId, match.lookupUserId, reason);
   return Boolean(cleared);
 };
 
@@ -312,7 +368,8 @@ export const clearCaptchasForGroup = (groupId, reason = 'manual') => {
   const groupMap = pendingCaptchas.get(groupId);
   if (!groupMap) return;
 
-  for (const entry of groupMap.values()) {
+  const uniqueEntries = new Set(groupMap.values());
+  for (const entry of uniqueEntries) {
     if (entry.timeoutId) clearTimeout(entry.timeoutId);
     cleanupMessageStateForEntry(entry);
   }
@@ -326,45 +383,29 @@ export const clearCaptchasForGroup = (groupId, reason = 'manual') => {
   });
 };
 
-const resolveCaptchaUserId = (senderIdentity, senderJid) => {
-  if (senderIdentity) {
-    const resolvedFromIdentity = normalizeUserId(senderIdentity);
-    if (resolvedFromIdentity) return resolvedFromIdentity;
-  }
-  return normalizeUserId(senderJid);
-};
-
 export const resolveCaptchaByMessage = ({ groupId, senderJid, senderIdentity, messageKey }) => {
   if (!groupId) return false;
-  const userId = resolveCaptchaUserId(senderIdentity, senderJid);
-  if (!userId) return false;
+  const match = findPendingEntry(groupId, senderIdentity, senderJid);
+  if (!match) return false;
 
-  const groupMap = pendingCaptchas.get(groupId);
-  const entry = groupMap?.get(userId);
-  if (!entry) return false;
-
-  const cleared = clearEntry(groupId, userId, 'message');
+  const cleared = clearEntry(groupId, match.lookupUserId, 'message');
   if (!cleared) return false;
 
-  sendCaptchaApprovalReaction({ groupId, messageKey, userId });
+  sendCaptchaApprovalReaction({ groupId, messageKey, userId: cleared.entry.userId || match.lookupUserId });
   sendCaptchaApprovalNotice({ groupId, entry: cleared.entry, method: 'message' });
   return true;
 };
 
 export const resolveCaptchaByReaction = ({ groupId, senderJid, senderIdentity, reactedMessageId }) => {
   if (!groupId) return false;
-  const userId = resolveCaptchaUserId(senderIdentity, senderJid);
-  if (!userId) return false;
+  const match = findPendingEntry(groupId, senderIdentity, senderJid);
+  if (!match?.entry) return false;
 
-  const groupMap = pendingCaptchas.get(groupId);
-  const entry = groupMap?.get(userId);
-  if (!entry) return false;
-
-  if (entry.messageId && reactedMessageId && entry.messageId !== reactedMessageId) {
+  if (match.entry.messageId && reactedMessageId && match.entry.messageId !== reactedMessageId) {
     return false;
   }
 
-  const cleared = clearEntry(groupId, userId, 'reaction');
+  const cleared = clearEntry(groupId, match.lookupUserId, 'reaction');
   if (!cleared) return false;
 
   sendCaptchaApprovalEdit({ groupId, entry: cleared.entry, messageState: cleared.messageState });
