@@ -19,7 +19,10 @@ import { syncNewsBroadcastService } from '../services/newsBroadcastService.js';
 import { setActiveSocket as storeActiveSocket } from '../services/socketState.js';
 import { recordError, recordMessagesUpsert } from '../observability/metrics.js';
 
-import { handleGroupUpdate as handleGroupParticipantsEvent } from '../modules/adminModule/groupEventHandlers.js';
+import {
+  handleGroupUpdate as handleGroupParticipantsEvent,
+  handleGroupJoinRequest,
+} from '../modules/adminModule/groupEventHandlers.js';
 
 import { findBy, findById, remove } from '../../database/index.js';
 import {
@@ -534,6 +537,25 @@ export async function connectToWhatsApp() {
         error: err.message,
         stack: err.stack,
         action: 'group_participants_update_error',
+      });
+    }
+  });
+
+  sock.ev.on('group.join-request', (update) => {
+    try {
+      logger.debug('Solicitação de entrada no grupo recebida.', {
+        action: 'group_join_request',
+        groupId: update?.id,
+        participant: update?.participant,
+        method: update?.method,
+        joinAction: update?.action,
+      });
+      handleGroupJoinRequest(sock, update);
+    } catch (err) {
+      logger.error('Erro no evento group.join-request:', {
+        error: err.message,
+        stack: err.stack,
+        action: 'group_join_request_error',
       });
     }
   });

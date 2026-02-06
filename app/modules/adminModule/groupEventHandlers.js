@@ -1,6 +1,11 @@
 import groupConfigStore from '../../store/groupConfigStore.js';
 import logger from '../../utils/logger/loggerModule.js';
-import { getGroupMetadata, getGroupInviteCode } from '../../config/groupUtils.js';
+import {
+  getGroupMetadata,
+  getGroupInviteCode,
+  getGroupRequestParticipantsList,
+  updateGroupRequestParticipants,
+} from '../../config/groupUtils.js';
 import { getJidUser } from '../../config/baileysConfig.js';
 import { updateGroupParticipantsFromAction } from '../../services/groupMetadataService.js';
 
@@ -105,6 +110,46 @@ const replacePlaceholders = async (message, sock, groupId) => {
   }
   logger.debug('Substituição de placeholders finalizada.', { groupId });
   return { updatedMessage, mentions };
+};
+
+const ACTIONS_TO_SKIP_AUTO_APPROVE = new Set([
+  'reject',
+  'rejected',
+  'cancel',
+  'canceled',
+  'approve',
+  'approved',
+  'accept',
+  'accepted',
+  'remove',
+  'removed',
+]);
+
+const shouldAutoApproveAction = (action) => {
+  if (!action) return true;
+  return !ACTIONS_TO_SKIP_AUTO_APPROVE.has(action);
+};
+
+const extractJoinRequestParticipants = (payload) => {
+  const rawParticipants = [];
+
+  if (payload?.participant) rawParticipants.push(payload.participant);
+  if (payload?.participants && Array.isArray(payload.participants)) {
+    rawParticipants.push(...payload.participants);
+  }
+  if (payload?.participantsJids && Array.isArray(payload.participantsJids)) {
+    rawParticipants.push(...payload.participantsJids);
+  }
+
+  const participants = rawParticipants
+    .map((participant) => {
+      if (!participant) return null;
+      if (typeof participant === 'string') return participant;
+      return participant.id || participant.jid || participant.participant || participant.lid || null;
+    })
+    .filter(Boolean);
+
+  return Array.from(new Set(participants));
 };
 
 export const handleGroupUpdate = async (sock, groupId, participants, action) => {
@@ -252,6 +297,71 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
       errorMessage: error.message,
       stack: error.stack,
       error,
+    });
+  }
+};
+
+export const handleGroupJoinRequest = async (sock, update) => {
+  const groupId = update?.id || update?.groupId || update?.jid;
+  const action = typeof update?.action === 'string' ? update.action.toLowerCase() : '';
+
+  logger.debug('Iniciando tratamento de solicitação de entrada no grupo.', {
+    groupId,
+    action,
+    participant: update?.participant,
+    method: update?.method,
+  });
+
+  if (!groupId) {
+    logger.warn('Evento de solicitação de entrada sem groupId.', {
+      action,
+      updateKeys: update && typeof update === 'object' ? Object.keys(update) : null,
+    });
+    return;
+  }
+
+  if (!shouldAutoApproveAction(action)) {
+    logger.debug('Evento de solicitação ignorado pelo filtro de ação.', { groupId, action });
+    return;
+  }
+
+  try {
+    const groupConfig = await groupConfigStore.getGroupConfig(groupId);
+    if (!groupConfig.autoApproveRequestsEnabled) {
+      logger.debug('Auto-aprovação de solicitações desativada para o grupo.', { groupId });
+      return;
+    }
+
+    let participants = extractJoinRequestParticipants(update);
+
+    if (participants.length === 0) {
+      try {
+        const listResponse = await getGroupRequestParticipantsList(sock, groupId);
+        participants = extractJoinRequestParticipants(listResponse);
+      } catch (error) {
+        logger.warn('Falha ao obter lista de solicitações de entrada.', {
+          groupId,
+          errorMessage: error.message,
+        });
+      }
+    }
+
+    if (participants.length === 0) {
+      logger.debug('Nenhuma solicitação de entrada pendente encontrada.', { groupId });
+      return;
+    }
+
+    await updateGroupRequestParticipants(sock, groupId, participants, 'approve');
+    logger.info('Solicitações de entrada aprovadas automaticamente.', {
+      groupId,
+      participantsCount: participants.length,
+      participants,
+    });
+  } catch (error) {
+    logger.error('Erro ao aprovar automaticamente solicitações de entrada.', {
+      groupId,
+      errorMessage: error.message,
+      stack: error.stack,
     });
   }
 };

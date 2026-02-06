@@ -179,6 +179,7 @@ export const buildAdminMenu = (commandPrefix = '/') => `
 
 📥 *${commandPrefix}requests* - Lista solicitações de entrada.
 ✅ *${commandPrefix}updaterequests <approve|reject> @user1 @user2...* - Aprova ou rejeita solicitações.
+🤖 *${commandPrefix}autorequests <on|off|status>* - Auto-aprova solicitações de entrada.
 
 *Gerais*
 

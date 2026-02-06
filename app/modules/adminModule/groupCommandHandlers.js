@@ -47,6 +47,7 @@ const ADMIN_COMMANDS = new Set([
   'metadata',
   'requests',
   'updaterequests',
+  'autorequests',
   'temp',
   'addmode',
   'welcome',
@@ -974,6 +975,65 @@ ${JSON.stringify(response, null, 2)}`,
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
       }
+      break;
+    }
+
+    case 'autorequests': {
+      if (!isGroupMessage) {
+        await sendAndStore(sock, 
+          remoteJid,
+          { text: GROUP_ONLY_COMMAND_MESSAGE },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+      if (!(await isUserAdmin(remoteJid, senderJid))) {
+        await sendAndStore(sock, 
+          remoteJid,
+          { text: NO_PERMISSION_COMMAND_MESSAGE },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      const action = args[0]?.toLowerCase();
+      if (!action || !['on', 'off', 'status'].includes(action)) {
+        await sendAndStore(sock, 
+          remoteJid,
+          { text: `Formato de uso:\n${commandPrefix}autorequests <on|off|status>` },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      if (action === 'status') {
+        const config = await groupConfigStore.getGroupConfig(remoteJid);
+        const enabled = Boolean(config.autoApproveRequestsEnabled);
+        await sendAndStore(sock, 
+          remoteJid,
+          {
+            text:
+              `🤖 Auto-aprovação de solicitações: *${enabled ? 'ativada' : 'desativada'}*.\n` +
+              'Quando ativo, o bot aprova automaticamente novas solicitações de entrada.',
+          },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        break;
+      }
+
+      const enabled = action === 'on';
+      await groupConfigStore.updateGroupConfig(remoteJid, {
+        autoApproveRequestsEnabled: enabled,
+      });
+      await sendAndStore(sock, 
+        remoteJid,
+        {
+          text: enabled
+            ? '✅ Auto-aprovação de solicitações ativada para este grupo.'
+            : '🛑 Auto-aprovação de solicitações desativada para este grupo.',
+        },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       break;
     }
 
