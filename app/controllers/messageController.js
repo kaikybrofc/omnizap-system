@@ -104,6 +104,8 @@ export const handleMessages = async (update, sock) => {
             senderJid,
             senderIdentity,
             messageKey: messageInfo.key,
+            messageInfo,
+            extractedText,
           });
         }
 

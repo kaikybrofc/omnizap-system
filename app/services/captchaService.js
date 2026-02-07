@@ -11,9 +11,47 @@ const CAPTCHA_OK_EMOJI = process.env.CAPTCHA_OK_EMOJI || '✅';
 
 const pendingCaptchas = new Map();
 const captchaMessageState = new Map();
+const NON_HUMAN_CAPTCHA_MESSAGE_TEXTS = new Set([
+  'Mensagem vazia',
+  'Tipo de mensagem não suportado ou sem conteúdo.',
+  '[Histórico de mensagens]',
+  '[Aviso de histórico de mensagens]',
+]);
 
 const buildMessageStateKey = (groupId, messageId) => `${groupId}:${messageId}`;
 const normalizeMessageText = (messageText) => (typeof messageText === 'string' ? messageText.trim() : '');
+const hasMessageStubType = (messageInfo) => messageInfo?.messageStubType !== undefined && messageInfo?.messageStubType !== null;
+
+const resolveMessagePayload = (messageInfo) => {
+  const payload = messageInfo?.message;
+  if (!payload || typeof payload !== 'object') return null;
+
+  if (payload.deviceSentMessage?.message && typeof payload.deviceSentMessage.message === 'object') {
+    return payload.deviceSentMessage.message;
+  }
+
+  return payload;
+};
+
+const isHumanCaptchaMessage = ({ messageInfo, extractedText }) => {
+  const normalizedText = normalizeMessageText(extractedText);
+  if (!normalizedText || NON_HUMAN_CAPTCHA_MESSAGE_TEXTS.has(normalizedText)) {
+    return false;
+  }
+
+  if (!messageInfo || typeof messageInfo !== 'object' || hasMessageStubType(messageInfo)) {
+    return false;
+  }
+
+  const payload = resolveMessagePayload(messageInfo);
+  if (!payload) return false;
+
+  if (payload.protocolMessage || payload.messageHistoryBundle || payload.messageHistoryNotice || payload.fastRatchetKeySenderKeyDistributionMessage) {
+    return false;
+  }
+
+  return true;
+};
 
 const toNonEmptyString = (value) => {
   if (typeof value !== 'string') return null;
@@ -421,8 +459,9 @@ export const clearCaptchasForGroup = (groupId, reason = 'manual') => {
   });
 };
 
-export const resolveCaptchaByMessage = async ({ groupId, senderJid, senderIdentity, messageKey }) => {
+export const resolveCaptchaByMessage = async ({ groupId, senderJid, senderIdentity, messageKey, messageInfo, extractedText }) => {
   if (!groupId) return false;
+  if (!isHumanCaptchaMessage({ messageInfo, extractedText })) return false;
   const match = await findPendingEntryAsync(groupId, senderIdentity, senderJid);
   if (!match) return false;
 
@@ -434,12 +473,13 @@ export const resolveCaptchaByMessage = async ({ groupId, senderJid, senderIdenti
   return true;
 };
 
-export const resolveCaptchaByReaction = async ({ groupId, senderJid, senderIdentity, reactedMessageId }) => {
+export const resolveCaptchaByReaction = async ({ groupId, senderJid, senderIdentity, reactedMessageId, reactionText }) => {
   if (!groupId) return false;
+  if (!normalizeMessageText(reactionText)) return false;
   const match = await findPendingEntryAsync(groupId, senderIdentity, senderJid);
   if (!match?.entry) return false;
 
-  if (match.entry.messageId && reactedMessageId && match.entry.messageId !== reactedMessageId) {
+  if (match.entry.messageId && match.entry.messageId !== reactedMessageId) {
     return false;
   }
 

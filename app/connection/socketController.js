@@ -490,9 +490,10 @@ export async function connectToWhatsApp() {
           jid: senderJid,
         };
         const reactedMessageId = reactedKey?.id || null;
+        const reactionText = typeof reaction?.text === 'string' ? reaction.text : '';
 
         if (groupId && (senderJid || senderIdentity.participantAlt)) {
-          await resolveCaptchaByReaction({ groupId, senderJid, senderIdentity, reactedMessageId });
+          await resolveCaptchaByReaction({ groupId, senderJid, senderIdentity, reactedMessageId, reactionText });
         }
       }
     } catch (error) {
