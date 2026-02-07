@@ -1,4 +1,4 @@
-<img width="1318" height="352" alt="image" src="https://github.com/user-attachments/assets/d44835e7-021a-4c67-a0e7-5b858d51eb91" />
+<img width="1318" height="352" alt="OmniZap banner" src="https://github.com/user-attachments/assets/d44835e7-021a-4c67-a0e7-5b858d51eb91" />
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-3C873A?logo=node.js&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-F7DF1E?logo=javascript&logoColor=000)
@@ -8,314 +8,246 @@
 ![OpenAI](https://img.shields.io/badge/OpenAI-SDK-111111?logo=openai&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-0B6E4F?logo=opensourceinitiative&logoColor=white)
 
-O **OmniZap System** é uma plataforma de automação para WhatsApp em Node.js com Baileys, oferecendo gerenciamento de grupos, automação de interações e comandos personalizados com suporte a MySQL.
+O **OmniZap System** é uma plataforma de automação para WhatsApp usando **Node.js + Baileys**, com foco em:
 
-## ✨ Recursos Principais
+- comando por chat (grupos e privado)
+- persistência em MySQL
+- automações administrativas
+- mídia/figurinhas com packs persistentes
+- observabilidade (Prometheus/Grafana/Loki)
 
-*   Automação e Gerenciamento de WhatsApp
-*   Comandos Personalizados
-*   Integração com MySQL
-*   Gerenciamento de Mídia (figurinhas)
-*   Sticker Packs persistentes por usuário (CRUD + envio com fallback)
-*   Normalização de IDs LID/JID (Baileys) com reconciliação automática
-*   Monitoramento com PM2
+## Recursos principais
 
-## 🚀 Instalação
+- Gerenciamento de grupos (admin, boas-vindas, despedida, anti-link, captcha).
+- Prefixo de comando por grupo.
+- Comandos de mídia (`play`, `playvid`, stickers e conversões).
+- Sticker packs persistentes com CRUD e envio com fallback.
+- Recursos de IA (`cat`, `catimg`, `catprompt`) com OpenAI.
+- Estatísticas (`ranking`, `rankingglobal`, `social`, `semmsg`, `user perfil`).
+- Suporte a LID/JID com reconciliação automática (`lid_map`).
+- Métricas e logs estruturados para operação em produção.
 
-Siga os passos para configurar e executar:
+## Pré-requisitos
 
-## ✅ Pré-requisitos
+- Node.js 18+ recomendado.
+- MySQL 8+.
+- FFmpeg instalado e acessível no `PATH`.
+- PM2 (opcional): `npm i -g pm2`.
+- Docker Compose (opcional, para stack de observabilidade).
 
-*   Node.js 18+ (recomendado)
-*   MySQL 8+
-*   PM2 instalado globalmente (`npm i -g pm2`)
-*   FFmpeg instalado no sistema para recursos de mídia (figurinhas)
-*   Docker + Docker Compose (opcional, para observabilidade)
+## Instalação rápida
 
-1.  **Clone o repositório:**
-    ```bash
-    git clone https://github.com/Kaikybrofc/omnizap-system.git
-    cd omnizap-system
-    ```
+1. Clone o repositório:
 
-2.  **Instale as dependências:**
-    ```bash
-    npm install
-    ```
-
-3.  **Configure as variáveis de ambiente:** Crie um arquivo `.env` na raiz do projeto:
-
-    ```env
-    # Configurações do Bot
-    COMMAND_PREFIX=#
-    COMMAND_REACT_EMOJI=🤖
-    USER_ADMIN=seu_jid_de_admin@s.whatsapp.net
-    PM2_APP_NAME=omnizap-system
-    LOG_LEVEL=info
-    NODE_ENV=development
-    IMAGE_MENU=https://example.com/assets/omnizap-banner.png
-    BAILEYS_VERSION=
-
-    # Configurações do MySQL
-    DB_HOST=localhost
-    DB_USER=user1
-    DB_PASSWORD=1234
-    DB_NAME=omnizap
-    DB_POOL_LIMIT=10
-
-    # Observabilidade (Prometheus)
-    METRICS_ENABLED=true
-    METRICS_HOST=0.0.0.0
-    METRICS_PORT=9102
-    METRICS_PATH=/metrics
-
-    # Monitor de DB (logs estruturados)
-    DB_MONITOR_ENABLED=true
-    DB_MONITOR_LOG_PATH=./logs/db-monitor.log
-    DB_SLOW_QUERY_MS=500
-    DB_QUERY_ALERT_THRESHOLDS=500,1000
-
-    # Paths e armazenamento
-    STORE_PATH=./temp
-
-    # Backfill do lid_map ao iniciar (default: true)
-    LID_BACKFILL_ON_START=true
-
-    # Tamanho do batch do backfill (default: 50000)
-    LID_BACKFILL_BATCH=5000000
-
-    # OpenAI
-    OPENAI_API_KEY=
-    OPENAI_MODEL=gpt-5-nano
-    OPENAI_SYSTEM_PROMPT=
-    OPENAI_SESSION_TTL_SECONDS=21600
-    OPENAI_TTS_MODEL=gpt-4o-mini-tts
-    OPENAI_TTS_VOICE=alloy
-    OPENAI_TTS_FORMAT=mp3
-    OPENAI_TTS_PTT=false
-    OPENAI_TTS_MAX_CHARS=4096
-    OPENAI_MAX_IMAGE_MB=50
-
-    # Quote API
-    QUOTE_API_URL=https://bot.lyo.su/quote/generate.png
-    QUOTE_BG_COLOR=#0b141a
-    QUOTE_TIMEOUT_MS=20000
-
-    # Waifu.pics
-    WAIFU_PICS_BASE=https://api.waifu.pics
-    WAIFU_PICS_TIMEOUT_MS=15000
-    WAIFU_PICS_ALLOW_NSFW=false
-
-    # YT-DL/Play
-    YTDLS_BASE_URL=http://127.0.0.1:3000
-    YT_DLS_BASE_URL=
-    PLAY_API_TIMEOUT_MS=900000
-    PLAY_API_DOWNLOAD_TIMEOUT_MS=1800000
-    PLAY_MAX_MB=100
-    PLAY_QUEUE_STATUS_TIMEOUT_MS=8000
-
-    # FFmpeg (opcional) - se o binário não estiver no PATH do sistema
-    # FFMPEG_PATH=/usr/bin/ffmpeg
-    ```
-
-4.  **Prepare o banco de dados:**
-    *   Crie o banco indicado em `DB_NAME`.
-    *   Garanta que o usuário tenha permissões de leitura e escrita.
-
-## 🧩 Suporte a LID/JID (Baileys)
-
-O WhatsApp (Baileys) pode retornar participantes em formato `@lid`. O OmniZap agora resolve um **sender_id canônico** para manter rankings, logs e análises consistentes:
-
-*   Sempre que possível, usa o JID real (`xxx@s.whatsapp.net`).
-*   Quando não há JID real, usa o LID (`xxx@lid`) temporariamente.
-*   Quando o JID real aparece depois, ocorre **reconciliação automática** (migrando mensagens antigas do LID para o JID).
-
-Banco de dados:
-
-*   Nova tabela `lid_map` (LID → JID) com `first_seen`, `last_seen` e `source`.
-*   Cache em memória com TTL para evitar consultas por mensagem.
-*   Captura de `participantAlt` em `messages.upsert` e `contacts.update` quando disponível.
-*   Backfill automático no boot usando mensagens salvas (`participantAlt`).
-
-Configurações opcionais:
-
-```env
-# Backfill do lid_map ao iniciar (default: true)
-LID_BACKFILL_ON_START=true
-
-# Tamanho do batch do backfill (default: 50000)
-LID_BACKFILL_BATCH=50000
+```bash
+git clone https://github.com/Kaikygr/omnizap-system.git
+cd omnizap-system
 ```
 
-## ▶️ Como Executar
+2. Instale dependências:
 
-Para iniciar direto via Node:
+```bash
+npm install
+```
+
+3. Crie o `.env` a partir do exemplo:
+
+```bash
+cp .env.example .env
+```
+
+4. Ajuste as variáveis mínimas obrigatórias no `.env`:
+
+```env
+DB_HOST=localhost
+DB_USER=seu_usuario
+DB_PASSWORD=sua_senha
+DB_NAME=omnizap
+USER_ADMIN=seu_jid@s.whatsapp.net
+IMAGE_MENU=https://example.com/menu.png
+```
+
+5. Inicialize banco e tabelas:
+
+```bash
+npm run db:init
+```
+
+6. Inicie o bot:
 
 ```bash
 npm run start
-# ou
-node index.js
 ```
 
-Para iniciar com PM2:
+7. Escaneie o QR Code no terminal.
+
+## Observações importantes de ambiente
+
+- `DB_NAME` recebe sufixo automaticamente:
+  - `NODE_ENV=development` => `_dev`
+  - `NODE_ENV=production` => `_prod`
+  - Se já terminar com `_dev` ou `_prod`, o nome é preservado.
+- `COMMAND_PREFIX` pode ser global e também por grupo (via comandos admin).
+- `LID_BACKFILL_ON_START=true` habilita backfill de `lid_map` no boot.
+- `LID_BACKFILL_BATCH` padrão do serviço: `50000`.
+
+## Scripts npm
+
+- `npm run start`: inicia o app (`node index.js`).
+- `npm run dev`: alias de start.
+- `npm run db:init`: cria/valida schema e executa migrations.
+- `npm run pm2:prod`: sobe com PM2 usando `ecosystem.prod.config.cjs`.
+- `npm run test`: executa testes Node (`node --test`).
+- `npm run lint`: lint com ESLint.
+- `npm run lint:fix`: lint com correções automáticas.
+
+## Execução com PM2
+
+Após conectar o QR uma primeira vez em modo normal:
 
 ```bash
-pm2 start ecosystem.prod.config.js # Produção
+npm run pm2:prod
 ```
 
-Alerta: use o PM2 somente depois de conectar o QR code no modo normal, pois o PM2 não exibe o QR de conexão.
+Comandos úteis:
 
-## 📦 Sticker Packs (Persistente)
+```bash
+pm2 status
+pm2 logs
+pm2 restart omnizap-system-production
+```
 
-O bot agora suporta packs de figurinhas salvos no MySQL + storage local (`STICKER_STORAGE_DIR`).
+> O QR Code não é exibido no fluxo do PM2. Conecte primeiro no modo normal.
 
-Comandos principais:
+## Comandos principais
+
+Use `menu` para ver os comandos por categoria. Exemplos:
+
+- `<prefix>menu`
+- `<prefix>menu figurinhas`
+- `<prefix>menu midia`
+- `<prefix>menu ia`
+- `<prefix>menu stats`
+- `<prefix>menuadm`
+
+Comandos mais usados:
+
+- `<prefix>sticker` / `<prefix>s`
+- `<prefix>stickertext` / `<prefix>st` / `<prefix>stw` / `<prefix>stb`
+- `<prefix>toimg` / `<prefix>tovideo`
+- `<prefix>play <busca|url>`
+- `<prefix>playvid <busca|url>`
+- `<prefix>quote`
+- `<prefix>cat`, `<prefix>catimg`, `<prefix>catprompt`
+- `<prefix>ranking`, `<prefix>rankingglobal`, `<prefix>social`, `<prefix>semmsg`
+- `<prefix>user perfil`
+
+## Sticker packs persistentes
+
+Exemplos de fluxo:
 
 ```text
-/pack create "Nome" | publisher="..." | desc="..."
-/pack list
-/pack info <pack>
-/pack rename <pack> "Novo Nome"
-/pack setpub <pack> "Publisher"
-/pack setdesc <pack> "Descrição"
-/pack add <pack>               (responda uma figurinha ou use a última salva)
-/pack remove <pack> <index|stickerId>
-/pack setcover <pack>          (responda uma figurinha ou use a última salva)
-/pack reorder <pack> <ordem>
-/pack clone <pack> "Novo Nome"
-/pack publish <pack> <private|public|unlisted>
-/pack send <pack>              (nativo quando suportado; fallback em preview+envio individual)
-/pack delete <pack>
+<prefix>pack create "Meu Pack"
+<prefix>pack add <pack>
+<prefix>pack list
+<prefix>pack info <pack>
+<prefix>pack send <pack>
+<prefix>pack publish <pack> <private|public|unlisted>
+<prefix>pack delete <pack>
 ```
 
-Observações:
-*   Edição é sempre restrita ao dono (`owner_jid`).
-*   O envio tenta `stickerPack` nativo primeiro e cai automaticamente no fallback se o cliente/lib não suportar.
-*   Figurinhas recebidas são capturadas para facilitar `add`/`setcover` com “última figurinha”.
-*   Figurinhas criadas pelo usuário via comandos (`/sticker`, `/st`, `/stb`) entram automaticamente no pack mais recente dele (com criação automática de pack quando necessário).
+Notas:
 
-## 📈 Observabilidade (Grafana/Prometheus/Loki)
+- Edição de pack é restrita ao dono (`owner_jid`).
+- O envio tenta sticker pack nativo e faz fallback automático quando necessário.
+- O sistema captura “última figurinha” para simplificar `add` e `setcover`.
 
-O projeto inclui um stack completo de observabilidade com Docker Compose.
+## Suporte a LID/JID
 
-### 0) Configurar variáveis do Docker Compose
+O WhatsApp pode alternar IDs entre `@lid` e `@s.whatsapp.net`.  
+O OmniZap resolve isso com um `sender_id` canônico para manter métricas/rankings consistentes.
 
-O `docker-compose.yml` lê variáveis do arquivo `.env` automaticamente (ou do arquivo que você indicar com `--env-file`). Para customizar portas, versões de imagens, caminhos e credenciais, ajuste as variáveis no `.env` (veja `.env.example`).
+- Tabela dedicada: `lid_map`.
+- Cache em memória com TTL.
+- Reconciliação automática quando o JID real aparece.
+- Backfill opcional no startup.
 
-Exemplo usando um arquivo dedicado:
+## Observabilidade (Prometheus + Grafana + Loki)
 
-```bash
-docker compose --env-file .env.docker up -d
-```
+O projeto inclui `docker-compose.yml` com:
 
-Principais variáveis:
+- Prometheus
+- Grafana
+- Loki
+- Promtail
+- MySQL Exporter
+- Node Exporter
 
-*   `STACK_NAME`: prefixo dos volumes (ex.: `omnizap`)
-*   `PROMETHEUS_*`: versão, retenção, paths e porta (`PROMETHEUS_PORT`)
-*   `GRAFANA_*`: admin, root URL, timezone, paths e porta (`GRAFANA_PORT`)
-*   `LOKI_*`: versão, config e porta (`LOKI_PORT`)
-*   `PROMTAIL_*`: versão, config, paths de logs e porta (`PROMTAIL_PORT`)
-*   `MYSQL_EXPORTER_*`: versão, DSN, arquivo `.cnf` e porta (`MYSQL_EXPORTER_PORT`)
-*   `NODE_EXPORTER_*`: versão e porta (`NODE_EXPORTER_PORT`)
-
-> Dica: se o MySQL não estiver em `host.docker.internal:3306`, ajuste `MYSQL_EXPORTER_DSN` e/ou `observability/mysql-exporter.cnf`. Se os logs da aplicação estiverem em outro diretório, atualize `APP_LOGS_PATH`.
-
-### 1) Subir o stack
+Subir stack:
 
 ```bash
 docker compose up -d
 ```
 
-### 2) MySQL: métricas e slow log
-
-Execute o setup (habilita performance_schema, slow log e cria usuário de métricas):
+Setup recomendado de métricas MySQL:
 
 ```bash
 sudo mysql < observability/mysql-setup.sql
 ```
 
-Atualize as credenciais do exporter em:
+Acessos padrão:
 
-```
-observability/mysql-exporter.cnf
-```
+- Grafana: `http://localhost:3003`
+- Prometheus: `http://localhost:9090`
+- Loki: `http://localhost:3100`
+- Métricas do app: `http://localhost:9102/metrics`
 
-> Dica: esse arquivo está no `.gitignore`. Use uma senha forte que atenda à política do MySQL.
+Arquivos úteis:
 
-### 3) Acessos rápidos
+- `observability/prometheus.yml`
+- `observability/alert-rules.yml`
+- `observability/grafana/dashboards/omnizap-overview.json`
+- `observability/grafana/dashboards/omnizap-mysql.json`
 
-*   Grafana: `http://localhost:3003`
-*   Prometheus: `http://localhost:9090`
-*   Loki: `http://localhost:3100`
-*   Node /metrics: `http://localhost:9102/metrics`
-
-### 4) Dashboards prontos
-
-Os dashboards são provisionados automaticamente:
-
-*   `observability/grafana/dashboards/omnizap-overview.json`
-*   `observability/grafana/dashboards/omnizap-mysql.json`
-
-### 5) Alertas
-
-Os alertas do Prometheus ficam em:
-
-```
-observability/alert-rules.yml
-```
-
-## 🧰 Troubleshooting
+## Troubleshooting
 
 **QR não aparece no PM2**
 
-*   Inicie primeiro sem PM2 para escanear o QR: `npm run start` ou `node index.js`.
-*   Depois de conectar, finalize o processo e inicie via PM2.
-*   Se necessário, apague a sessão salva e reconecte.
+- Inicie com `npm run start`, conecte o QR e depois volte para PM2.
+- Se necessário, limpe sessão salva e reconecte.
 
-**Erro de MySQL**
+**Erro de conexão MySQL**
 
-*   Verifique `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
-*   Garanta que o banco existe e o usuário tem permissão de leitura/escrita.
-*   Confirme se o MySQL está rodando e acessível na porta correta.
+- Verifique `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
+- Confirme se o usuário possui permissão de leitura/escrita.
 
 **FFmpeg não encontrado**
 
-*   Instale o FFmpeg no sistema e certifique-se de que está no `PATH`.
-*   Alternativamente, configure `FFMPEG_PATH` no `.env`.
+- Instale FFmpeg no sistema ou configure `FFMPEG_PATH`/`FFPROBE_PATH`.
 
-**Target omnizap DOWN no Prometheus**
+**Comando `play` falhando**
 
-*   Verifique se o app está rodando e se o `/metrics` responde em `http://localhost:9102/metrics`.
-*   Garanta `METRICS_HOST=0.0.0.0` no `.env`.
+- Verifique se o serviço configurado em `YTDLS_BASE_URL`/`YT_DLS_BASE_URL` está ativo.
 
-## 🛠️ Tecnologias Utilizadas
+## Tecnologias
 
-*   Node.js
-*   MySQL
-*   @whiskeysockets/baileys
-*   mysql2
-*   Pino + Winston (logs)
-*   OpenAI SDK
-*   Axios
-*   Canvas
-*   FFmpeg + WebP (webp-conv)
-*   PM2
-*   Dotenv + Envalid
+- Node.js
+- MySQL (`mysql2`)
+- Baileys (`@whiskeysockets/baileys`)
+- OpenAI SDK
+- Axios
+- Canvas
+- PM2
+- Prometheus / Grafana / Loki
 
-## 🤝 Créditos e links úteis
+## Contribuições
 
-*   Baileys (WhatsApp Web API): https://github.com/WhiskeySockets/Baileys
-*   WhatsApp: https://www.whatsapp.com
+1. Faça um fork.
+2. Crie uma branch: `git checkout -b feature/minha-feature`.
+3. Commit: `git commit -m "feat: minha feature"`.
+4. Push: `git push origin feature/minha-feature`.
+5. Abra um Pull Request.
 
-## 🤝 Contribuições
+## Licença
 
-Para contribuir:
-1.  Fork o repositório.
-2.  Crie sua branch (`git checkout -b feature/sua-feature`).
-3.  Commit suas alterações (`git commit -m 'Adiciona nova feature'`).
-4.  Push para a branch (`git push origin feature/sua-feature`).
-5.  Abra um Pull Request.
-
-## 📄 Licença
-
-Este projeto está licenciado sob a Licença MIT. Veja [LICENSE](LICENSE) para mais detalhes.
+Licença MIT. Veja [`LICENSE`](LICENSE).
