@@ -8,6 +8,7 @@ import { addXpToUser } from './xpService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const OWNER_JID = process.env.USER_ADMIN ? normalizeJid(process.env.USER_ADMIN) : null;
+const XP_COMMAND_NAME = 'xpconfig';
 
 const MIN_PHONE_DIGITS = 5;
 const MAX_PHONE_DIGITS = 20;
@@ -16,9 +17,9 @@ const buildUsageText = (commandPrefix = DEFAULT_COMMAND_PREFIX) => {
   return [
     '*Comandos de XP*',
     '',
-    `• ${commandPrefix}xp bootstrap`,
-    `• ${commandPrefix}xp add @usuario 500 [--announce] [motivo]`,
-    `• ${commandPrefix}xp add <jid|numero> 500 [--announce] [motivo]`,
+    `• ${commandPrefix}${XP_COMMAND_NAME} bootstrap`,
+    `• ${commandPrefix}${XP_COMMAND_NAME} add @usuario 500 [--announce] [motivo]`,
+    `• ${commandPrefix}${XP_COMMAND_NAME} add <jid|numero> 500 [--announce] [motivo]`,
     '',
     '*Observações*',
     '• Apenas admin/dono pode executar.',
@@ -270,8 +271,8 @@ export const handleXpCommand = async ({
         {
           text: [
             'Formato inválido para ajuste de XP.',
-            `Use: ${commandPrefix}xp add @usuario 500 [--announce] [motivo]`,
-            `Ou: ${commandPrefix}xp add <jid|numero> 500 [--announce] [motivo]`,
+            `Use: ${commandPrefix}${XP_COMMAND_NAME} add @usuario 500 [--announce] [motivo]`,
+            `Ou: ${commandPrefix}${XP_COMMAND_NAME} add <jid|numero> 500 [--announce] [motivo]`,
           ].join('\n'),
         },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
@@ -285,7 +286,7 @@ export const handleXpCommand = async ({
         sock,
         remoteJid,
         {
-          text: `Informe um valor inteiro diferente de zero para XP. Exemplo: ${commandPrefix}xp add @usuario 500`,
+          text: `Informe um valor inteiro diferente de zero para XP. Exemplo: ${commandPrefix}${XP_COMMAND_NAME} add @usuario 500`,
         },
         { quoted: messageInfo, ephemeralExpiration: expirationMessage },
       );

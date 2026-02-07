@@ -269,8 +269,8 @@ export const handleMessages = async (update, sock) => {
               );
               break;
 
-            case 'xp':
-              runCommand('xp', () =>
+            case 'xpconfig':
+              runCommand('xpconfig', () =>
                 handleXpCommand({
                   sock,
                   remoteJid,

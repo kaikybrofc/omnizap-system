@@ -6,6 +6,7 @@ import { sendAndStore } from '../../services/messagePersistenceService.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { MESSAGE_TYPE_SQL, TIMESTAMP_TO_DATETIME_SQL } from '../statsModule/rankingCommon.js';
+import { calculateLevelFromXp } from '../xpModule/xpConfig.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const ACTIVE_DAYS_WINDOW = Number.parseInt(process.env.USER_PROFILE_ACTIVE_DAYS || '30', 10);
@@ -535,6 +536,99 @@ const fetchUserRanking = async (canonicalId) => {
 };
 
 /**
+ * Calcula indicadores de XP global do usuário.
+ * @param {string|null} canonicalId ID canônico do usuário.
+ * @returns {Promise<{ xpTotal: number, level: number, xpMessagesCount: number, lastXpAt: string|Date|null, position: number|null, totalRankedUsers: number }>}
+ */
+const fetchUserXpInsights = async (canonicalId) => {
+  if (!canonicalId) {
+    return {
+      xpTotal: 0,
+      level: 1,
+      xpMessagesCount: 0,
+      lastXpAt: null,
+      position: null,
+      totalRankedUsers: 0,
+    };
+  }
+
+  const [summaryRow] = await executeQuery(
+    `SELECT
+        COALESCE(SUM(ux.xp), 0) AS xp_total,
+        COALESCE(SUM(ux.messages_count), 0) AS xp_messages_count,
+        MAX(ux.last_xp_at) AS last_xp_at
+      FROM ${TABLES.USER_XP} ux
+      LEFT JOIN ${TABLES.LID_MAP} lm
+        ON lm.lid = ux.sender_id
+       AND lm.jid IS NOT NULL
+      WHERE ux.sender_id IS NOT NULL
+        AND COALESCE(lm.jid, ux.sender_id) = ?`,
+    [canonicalId],
+  );
+
+  const xpTotal = Number(summaryRow?.xp_total || 0);
+  const xpMessagesCount = Number(summaryRow?.xp_messages_count || 0);
+  const level = calculateLevelFromXp(xpTotal).level;
+  const lastXpAt = summaryRow?.last_xp_at || null;
+
+  const [rankedUsersRow] = await executeQuery(
+    `SELECT COUNT(*) AS total_ranked_users
+       FROM (
+         SELECT
+           COALESCE(lm.jid, ux.sender_id) AS canonical_id,
+           SUM(ux.xp) AS xp_total
+         FROM ${TABLES.USER_XP} ux
+         LEFT JOIN ${TABLES.LID_MAP} lm
+           ON lm.lid = ux.sender_id
+          AND lm.jid IS NOT NULL
+         WHERE ux.sender_id IS NOT NULL
+         GROUP BY COALESCE(lm.jid, ux.sender_id)
+         HAVING xp_total > 0
+       ) ranked_users`,
+  );
+  const totalRankedUsers = Number(rankedUsersRow?.total_ranked_users || 0);
+
+  if (xpTotal <= 0) {
+    return {
+      xpTotal,
+      level,
+      xpMessagesCount,
+      lastXpAt,
+      position: null,
+      totalRankedUsers,
+    };
+  }
+
+  const [rankRow] = await executeQuery(
+    `SELECT COUNT(*) + 1 AS rank_position
+       FROM (
+         SELECT
+           COALESCE(lm.jid, ux.sender_id) AS canonical_id,
+           SUM(ux.xp) AS xp_total
+         FROM ${TABLES.USER_XP} ux
+         LEFT JOIN ${TABLES.LID_MAP} lm
+           ON lm.lid = ux.sender_id
+          AND lm.jid IS NOT NULL
+         WHERE ux.sender_id IS NOT NULL
+         GROUP BY COALESCE(lm.jid, ux.sender_id)
+       ) ranked
+      WHERE ranked.xp_total > ?`,
+    [xpTotal],
+  );
+
+  return {
+    xpTotal,
+    level,
+    xpMessagesCount,
+    lastXpAt,
+    position: Number.isFinite(Number(rankRow?.rank_position))
+      ? Number(rankRow.rank_position)
+      : null,
+    totalRankedUsers,
+  };
+};
+
+/**
  * Busca o `pushName` mais recente entre um conjunto de IDs equivalentes.
  * @param {string[]} senderIds IDs usados nas mensagens salvas.
  * @returns {Promise<string|null>} Nome exibido mais recente, quando disponível.
@@ -978,7 +1072,96 @@ const withVerticalSpacing = (lines = []) => lines.flatMap((line, index) => (inde
  * @param {object} data Dados agregados do usuário para renderização.
  * @returns {string} Texto completo enviado no comando de perfil.
  */
-const buildProfileMessage = ({ mentionLabel, displayName, phone, canonicalTarget, status, firstMessage, tempoDeCasa, lastInteraction, diasSemFalar, totalMessages, rankingLabel, trendLabel, avgPerDay, activeDays, streakDays, activeHourLabel, favoriteTypeLabel, dominantTypeByPeriodLabel, socialScore, socialSent, socialReceived, responseRateLabel, socialPartners, topPartnerLabel, topPartnersLabel, topGroupsLabel, globalShareLabel, groupShareLabel, tags }) => ['👤 *PERFIL DO USUÁRIO*', '━━━━━━━━━━━━━━━━━━━━', '', '🧾 *Identificação*', ...withVerticalSpacing([`• Usuário: ${mentionLabel}`, `• Nome: ${displayName}`, `• Número: ${phone}`, `• ID: ${canonicalTarget || 'N/D'}`, `• Status: *${status}*`]), '', '📈 *Mensagens e Ranking*', ...withVerticalSpacing([`• Primeira mensagem: ${firstMessage}`, `• Tempo de casa no bot: ${tempoDeCasa}`, `• Última interação: ${lastInteraction}`, `• Dias sem falar: ${diasSemFalar}`, `• Mensagens gerais registradas: ${totalMessages}`, `• Participação global: ${globalShareLabel}`, `• Participação no grupo atual: ${groupShareLabel}`, `• Posição no ranking: ${rankingLabel}`, `• Tendência de mensagens: ${trendLabel}`, `• Média/dia (global): ${avgPerDay}`, `• Dias ativos (global): ${activeDays}`, `• Streak (global): ${streakDays} dia(s)`, `• Horário mais ativo: ${activeHourLabel}`, `• Tipo favorito (global): ${favoriteTypeLabel}`, `• Tipo dominante por período: ${dominantTypeByPeriodLabel}`]), '', '🌐 *Interações Sociais*', ...withVerticalSpacing([`• Interações sociais (${SOCIAL_RECENT_DAYS}d): ${socialScore}`, `• Respostas enviadas (${SOCIAL_RECENT_DAYS}d): ${socialSent}`, `• Respostas recebidas (${SOCIAL_RECENT_DAYS}d): ${socialReceived}`, `• Taxa de resposta (${SOCIAL_RECENT_DAYS}d): ${responseRateLabel}`, `• Parceiros sociais (${SOCIAL_RECENT_DAYS}d): ${socialPartners}`, `• Parceiro principal (${SOCIAL_RECENT_DAYS}d): ${topPartnerLabel}`, `• Top 3 parceiros (${SOCIAL_RECENT_DAYS}d):\n${topPartnersLabel}`]), '', '🏘️ *Presença em Grupos*', ...withVerticalSpacing([`• Top grupos onde fala:\n${topGroupsLabel}`]), '', '🏷️ *Contexto*', ...withVerticalSpacing([`• Tags: ${tags.length ? tags.join(', ') : 'sem tags'}`])].join('\n');
+const buildProfileMessage = ({
+  mentionLabel,
+  displayName,
+  phone,
+  canonicalTarget,
+  status,
+  firstMessage,
+  tempoDeCasa,
+  lastInteraction,
+  diasSemFalar,
+  totalMessages,
+  xpTotal,
+  xpLevel,
+  xpRankingLabel,
+  xpMessagesCount,
+  xpLastGain,
+  rankingLabel,
+  trendLabel,
+  avgPerDay,
+  activeDays,
+  streakDays,
+  activeHourLabel,
+  favoriteTypeLabel,
+  dominantTypeByPeriodLabel,
+  socialScore,
+  socialSent,
+  socialReceived,
+  responseRateLabel,
+  socialPartners,
+  topPartnerLabel,
+  topPartnersLabel,
+  topGroupsLabel,
+  globalShareLabel,
+  groupShareLabel,
+  tags,
+}) =>
+  [
+    '👤 *PERFIL DO USUÁRIO*',
+    '━━━━━━━━━━━━━━━━━━━━',
+    '',
+    '🧾 *Identificação*',
+    ...withVerticalSpacing([
+      `• Usuário: ${mentionLabel}`,
+      `• Nome: ${displayName}`,
+      `• Número: ${phone}`,
+      `• ID: ${canonicalTarget || 'N/D'}`,
+      `• Status: *${status}*`,
+    ]),
+    '',
+    '📈 *Mensagens, Ranking e XP*',
+    ...withVerticalSpacing([
+      `• Primeira mensagem: ${firstMessage}`,
+      `• Tempo de casa no bot: ${tempoDeCasa}`,
+      `• Última interação: ${lastInteraction}`,
+      `• Dias sem falar: ${diasSemFalar}`,
+      `• Mensagens gerais registradas: ${totalMessages}`,
+      `• Participação global: ${globalShareLabel}`,
+      `• Participação no grupo atual: ${groupShareLabel}`,
+      `• Posição no ranking (mensagens): ${rankingLabel}`,
+      `• XP global: ${xpTotal}`,
+      `• Nível global: ${xpLevel}`,
+      `• Ranking global de XP: ${xpRankingLabel}`,
+      `• Mensagens contabilizadas no XP: ${xpMessagesCount}`,
+      `• Último ganho de XP: ${xpLastGain}`,
+      `• Tendência de mensagens: ${trendLabel}`,
+      `• Média/dia (global): ${avgPerDay}`,
+      `• Dias ativos (global): ${activeDays}`,
+      `• Streak (global): ${streakDays} dia(s)`,
+      `• Horário mais ativo: ${activeHourLabel}`,
+      `• Tipo favorito (global): ${favoriteTypeLabel}`,
+      `• Tipo dominante por período: ${dominantTypeByPeriodLabel}`,
+    ]),
+    '',
+    '🌐 *Interações Sociais*',
+    ...withVerticalSpacing([
+      `• Interações sociais (${SOCIAL_RECENT_DAYS}d): ${socialScore}`,
+      `• Respostas enviadas (${SOCIAL_RECENT_DAYS}d): ${socialSent}`,
+      `• Respostas recebidas (${SOCIAL_RECENT_DAYS}d): ${socialReceived}`,
+      `• Taxa de resposta (${SOCIAL_RECENT_DAYS}d): ${responseRateLabel}`,
+      `• Parceiros sociais (${SOCIAL_RECENT_DAYS}d): ${socialPartners}`,
+      `• Parceiro principal (${SOCIAL_RECENT_DAYS}d): ${topPartnerLabel}`,
+      `• Top 3 parceiros (${SOCIAL_RECENT_DAYS}d):\n${topPartnersLabel}`,
+    ]),
+    '',
+    '🏘️ *Presença em Grupos*',
+    ...withVerticalSpacing([`• Top grupos onde fala:\n${topGroupsLabel}`]),
+    '',
+    '🏷️ *Contexto*',
+    ...withVerticalSpacing([`• Tags: ${tags.length ? tags.join(', ') : 'sem tags'}`]),
+  ].join('\n');
 
 /**
  * Seleciona o primeiro ID de usuário válido dentro de uma lista.
@@ -1026,7 +1209,15 @@ export async function handleUserCommand({ sock, remoteJid, messageInfo, expirati
     const senderCanonical = resolveUserIdCached({ jid: senderJid, lid: senderJid, participantAlt: null });
     const rankingTargetId = mentionJid || canonicalTarget;
 
-    const [stats, ranking, latestPushName, premiumUsers, blocked, groupAdmin] = await Promise.all([fetchUserStats({ canonicalId: rankingTargetId, senderIds: normalizedTargetIds }), fetchUserRanking(rankingTargetId), fetchLatestPushName(normalizedTargetIds), premiumUserStore.getPremiumUsers(), isTargetBlocked(sock, normalizedTargetIds), isGroupMessage ? isUserAdmin(remoteJid, mentionJid || canonicalTarget) : Promise.resolve(false)]);
+    const [stats, ranking, xpInsights, latestPushName, premiumUsers, blocked, groupAdmin] = await Promise.all([
+      fetchUserStats({ canonicalId: rankingTargetId, senderIds: normalizedTargetIds }),
+      fetchUserRanking(rankingTargetId),
+      fetchUserXpInsights(rankingTargetId),
+      fetchLatestPushName(normalizedTargetIds),
+      premiumUserStore.getPremiumUsers(),
+      isTargetBlocked(sock, normalizedTargetIds),
+      isGroupMessage ? isUserAdmin(remoteJid, mentionJid || canonicalTarget) : Promise.resolve(false),
+    ]);
     const [globalInsights, socialInsights, trendInsights, activeHourInsights, dominantTypeByPeriod, topGroups, participationInsights] = await Promise.all([
       fetchUserGlobalRankingInsights({
         canonicalId: rankingTargetId,
@@ -1068,6 +1259,10 @@ export async function handleUserCommand({ sock, remoteJid, messageInfo, expirati
     if (!recentInteraction && stats.totalMessages > 0) tags.push('inativo');
     if (stats.totalMessages === 0) tags.push('sem histórico');
     const rankingLabel = ranking.position && ranking.totalRankedUsers > 0 ? `#${ranking.position} de ${ranking.totalRankedUsers}` : 'fora do ranking (sem mensagens)';
+    const xpRankingLabel =
+      xpInsights.position && xpInsights.totalRankedUsers > 0
+        ? `#${xpInsights.position} de ${xpInsights.totalRankedUsers}`
+        : 'fora do ranking (sem XP)';
     const favoriteTypeLabel = globalInsights.favoriteType ? `${globalInsights.favoriteType} (${globalInsights.favoriteCount})` : 'N/D';
     const topPartnerLabel = socialInsights.topPartnerCount > 0 ? `${socialInsights.topPartnerLabel} (${socialInsights.topPartnerCount})` : 'N/D';
     const trendLabel = formatTrendLabel(trendInsights);
@@ -1090,6 +1285,11 @@ export async function handleUserCommand({ sock, remoteJid, messageInfo, expirati
       lastInteraction: formatDateTime(stats.lastMessage),
       diasSemFalar: formatDaysSinceLastMessage(stats.lastMessage),
       totalMessages: stats.totalMessages,
+      xpTotal: xpInsights.xpTotal,
+      xpLevel: xpInsights.level,
+      xpRankingLabel,
+      xpMessagesCount: xpInsights.xpMessagesCount,
+      xpLastGain: formatDateTime(xpInsights.lastXpAt),
       globalShareLabel,
       groupShareLabel,
       rankingLabel,

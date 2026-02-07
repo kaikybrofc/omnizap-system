@@ -21,7 +21,7 @@ export async function handleGlobalRankingCommand({
   remoteJid,
   messageInfo,
   expirationMessage,
-  isGroupMessage,
+  isGroupMessage: _isGroupMessage,
 }) {
   try {
     const botJid = resolveBotJid(sock?.user?.id);
