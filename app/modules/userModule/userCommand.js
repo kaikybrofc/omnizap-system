@@ -139,7 +139,28 @@ const resolveSenderIdsForTarget = async (canonicalTarget) => {
 
 const buildInClause = (items) => items.map(() => '?').join(', ');
 
-const fetchUserStats = async (senderIds) => {
+const fetchUserStats = async ({ canonicalId, senderIds = [] }) => {
+  if (canonicalId) {
+    const [row] = await executeQuery(
+      `SELECT COUNT(*) AS total_messages,
+              MIN(m.timestamp) AS first_message,
+              MAX(m.timestamp) AS last_message
+         FROM ${TABLES.MESSAGES} m
+         LEFT JOIN ${TABLES.LID_MAP} lm
+           ON lm.lid = m.sender_id
+          AND lm.jid IS NOT NULL
+        WHERE m.sender_id IS NOT NULL
+          AND COALESCE(lm.jid, m.sender_id) = ?`,
+      [canonicalId],
+    );
+
+    return {
+      totalMessages: Number(row?.total_messages || 0),
+      firstMessage: row?.first_message || null,
+      lastMessage: row?.last_message || null,
+    };
+  }
+
   if (!senderIds.length) return { totalMessages: 0, firstMessage: null, lastMessage: null };
 
   const inClause = buildInClause(senderIds);
@@ -168,6 +189,18 @@ const toMillis = (value) => {
   }
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? null : parsed;
+};
+
+const formatPercent = (value, total) => {
+  const numericValue = Number(value || 0);
+  const numericTotal = Number(total || 0);
+  if (numericTotal <= 0) return '0.00%';
+  return `${((numericValue / numericTotal) * 100).toFixed(2)}%`;
+};
+
+const toIntegerDays = (fromMs, toMs = Date.now()) => {
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs < fromMs) return 0;
+  return Math.floor((toMs - fromMs) / DAY_MS);
 };
 
 const computeStreak = (days) => {
@@ -257,6 +290,122 @@ const fetchUserGlobalRankingInsights = async ({
     favoriteType: favRow?.message_type || null,
     favoriteCount: Number(favRow?.total || 0),
   };
+};
+
+const fetchUserTrendInsights = async (canonicalId) => {
+  if (!canonicalId) return { last30: 0, prev30: 0, delta: 0, trendLabel: 'estável' };
+
+  const [row] = await executeQuery(
+    `SELECT
+        SUM(CASE WHEN m.timestamp >= NOW() - INTERVAL 30 DAY THEN 1 ELSE 0 END) AS last30,
+        SUM(
+          CASE
+            WHEN m.timestamp < NOW() - INTERVAL 30 DAY
+             AND m.timestamp >= NOW() - INTERVAL 60 DAY
+            THEN 1
+            ELSE 0
+          END
+        ) AS prev30
+      FROM ${TABLES.MESSAGES} m
+      LEFT JOIN ${TABLES.LID_MAP} lm
+        ON lm.lid = m.sender_id
+       AND lm.jid IS NOT NULL
+      WHERE m.sender_id IS NOT NULL
+        AND m.timestamp IS NOT NULL
+        AND COALESCE(lm.jid, m.sender_id) = ?`,
+    [canonicalId],
+  );
+
+  const last30 = Number(row?.last30 || 0);
+  const prev30 = Number(row?.prev30 || 0);
+  const delta = last30 - prev30;
+  const trendLabel = delta > 0 ? 'subiu' : delta < 0 ? 'caiu' : 'estável';
+  return { last30, prev30, delta, trendLabel };
+};
+
+const getHourBand = (hour) => {
+  const h = Number(hour);
+  if (!Number.isFinite(h) || h < 0 || h > 23) return 'N/D';
+  if (h < 6) return 'madrugada';
+  if (h < 12) return 'manhã';
+  if (h < 18) return 'tarde';
+  return 'noite';
+};
+
+const fetchUserActiveHourInsights = async (canonicalId) => {
+  if (!canonicalId) return { activeHour: null, hourBand: 'N/D', count: 0 };
+  const [row] = await executeQuery(
+    `SELECT HOUR(m.timestamp) AS active_hour,
+            COUNT(*) AS total
+       FROM ${TABLES.MESSAGES} m
+       LEFT JOIN ${TABLES.LID_MAP} lm
+         ON lm.lid = m.sender_id
+        AND lm.jid IS NOT NULL
+      WHERE m.sender_id IS NOT NULL
+        AND m.timestamp IS NOT NULL
+        AND COALESCE(lm.jid, m.sender_id) = ?
+      GROUP BY HOUR(m.timestamp)
+      ORDER BY total DESC
+      LIMIT 1`,
+    [canonicalId],
+  );
+
+  const activeHour = row?.active_hour ?? null;
+  return {
+    activeHour,
+    hourBand: getHourBand(activeHour),
+    count: Number(row?.total || 0),
+  };
+};
+
+const fetchDominantTypeByPeriod = async (canonicalId) => {
+  if (!canonicalId) {
+    return {
+      last30: { type: null, count: 0 },
+      prev30: { type: null, count: 0 },
+    };
+  }
+
+  const rows = await executeQuery(
+    `SELECT period, message_type, total
+       FROM (
+             SELECT
+               CASE
+                 WHEN m.timestamp >= NOW() - INTERVAL 30 DAY THEN 'last30'
+                 ELSE 'prev30'
+               END AS period,
+               ${MESSAGE_TYPE_SQL} AS message_type,
+               COUNT(*) AS total
+             FROM ${TABLES.MESSAGES} m
+             LEFT JOIN ${TABLES.LID_MAP} lm
+               ON lm.lid = m.sender_id
+              AND lm.jid IS NOT NULL
+             WHERE m.sender_id IS NOT NULL
+               AND m.raw_message IS NOT NULL
+               AND m.timestamp IS NOT NULL
+               AND m.timestamp >= NOW() - INTERVAL 60 DAY
+               AND COALESCE(lm.jid, m.sender_id) = ?
+             GROUP BY period, message_type
+            ) t
+      ORDER BY period, total DESC`,
+    [canonicalId],
+  );
+
+  const result = {
+    last30: { type: null, count: 0 },
+    prev30: { type: null, count: 0 },
+  };
+  (rows || []).forEach((row) => {
+    const period = row?.period;
+    if (!period || !result[period]) return;
+    if (result[period].type) return;
+    result[period] = {
+      type: row?.message_type || null,
+      count: Number(row?.total || 0),
+    };
+  });
+
+  return result;
 };
 
 const fetchUserRanking = async (canonicalId) => {
@@ -388,6 +537,9 @@ const fetchUserSocialInsights = async ({ canonicalId, sock }) => {
       topPartnerId: null,
       topPartnerCount: 0,
       topPartnerLabel: 'N/D',
+      responseRatePercent: '0.00%',
+      responseRatio: '0/0',
+      topPartners: [],
     };
   }
 
@@ -407,7 +559,7 @@ const fetchUserSocialInsights = async ({ canonicalId, sock }) => {
     [canonicalId, canonicalId, canonicalId, canonicalId, canonicalId, canonicalId],
   );
 
-  const [topPartnerRow] = await executeQuery(
+  const topPartnerRows = await executeQuery(
     buildSocialBaseQuery(
       `SELECT
           CASE WHEN src = ? THEN dst ELSE src END AS partner_id,
@@ -416,7 +568,7 @@ const fetchUserSocialInsights = async ({ canonicalId, sock }) => {
        WHERE src = ? OR dst = ?
        GROUP BY partner_id
        ORDER BY total DESC
-       LIMIT 1`,
+       LIMIT 3`,
     ),
     [canonicalId, canonicalId, canonicalId],
   );
@@ -424,13 +576,24 @@ const fetchUserSocialInsights = async ({ canonicalId, sock }) => {
   const repliesSent = Number(summaryRow?.replies_sent || 0);
   const repliesReceived = Number(summaryRow?.replies_received || 0);
   const uniquePartners = Number(summaryRow?.unique_partners || 0);
-  const topPartnerId = topPartnerRow?.partner_id || null;
-  const topPartnerCount = Number(topPartnerRow?.total || 0);
-  const topPartnerMention = topPartnerId && getJidUser(topPartnerId) ? `@${getJidUser(topPartnerId)}` : null;
-  const topPartnerFromContacts = resolveNameFromContacts(sock, topPartnerId ? [topPartnerId] : []);
-  const topPartnerPushName = topPartnerId ? await fetchCanonicalPushName(topPartnerId) : null;
-  const topPartnerLabel =
-    topPartnerFromContacts || topPartnerPushName || topPartnerMention || topPartnerId || 'N/D';
+  const topPartners = await Promise.all(
+    (topPartnerRows || []).map(async (row) => {
+      const id = row?.partner_id || null;
+      const count = Number(row?.total || 0);
+      const mention = id && getJidUser(id) ? `@${getJidUser(id)}` : null;
+      const fromContacts = resolveNameFromContacts(sock, id ? [id] : []);
+      const pushName = id ? await fetchCanonicalPushName(id) : null;
+      const label = fromContacts || pushName || mention || id || 'N/D';
+      return { id, count, label };
+    }),
+  );
+  const topPartner = topPartners[0] || null;
+  const topPartnerId = topPartner?.id || null;
+  const topPartnerCount = Number(topPartner?.count || 0);
+  const topPartnerLabel = topPartner?.label || 'N/D';
+  const totalSocial = repliesSent + repliesReceived;
+  const responseRatePercent = totalSocial > 0 ? `${((repliesSent / totalSocial) * 100).toFixed(2)}%` : '0.00%';
+  const responseRatio = `${repliesSent}/${repliesReceived}`;
 
   return {
     repliesSent,
@@ -440,6 +603,91 @@ const fetchUserSocialInsights = async ({ canonicalId, sock }) => {
     topPartnerId,
     topPartnerCount,
     topPartnerLabel,
+    responseRatePercent,
+    responseRatio,
+    topPartners,
+  };
+};
+
+const fetchTopGroupsInsights = async (canonicalId) => {
+  if (!canonicalId) return [];
+  const rows = await executeQuery(
+    `SELECT
+        m.chat_id,
+        COALESCE(gm.subject, '') AS group_subject,
+        COUNT(*) AS total
+      FROM ${TABLES.MESSAGES} m
+      LEFT JOIN ${TABLES.LID_MAP} lm
+        ON lm.lid = m.sender_id
+       AND lm.jid IS NOT NULL
+      LEFT JOIN ${TABLES.GROUPS_METADATA} gm
+        ON gm.id = m.chat_id
+      WHERE m.sender_id IS NOT NULL
+        AND m.chat_id LIKE '%@g.us'
+        AND COALESCE(lm.jid, m.sender_id) = ?
+      GROUP BY m.chat_id, gm.subject
+      ORDER BY total DESC
+      LIMIT 3`,
+    [canonicalId],
+  );
+  return (rows || []).map((row) => ({
+    chatId: row?.chat_id || null,
+    subject: row?.group_subject ? String(row.group_subject).trim() : null,
+    total: Number(row?.total || 0),
+  }));
+};
+
+const fetchParticipationInsights = async ({ canonicalId, totalMessages, remoteJid, isGroupMessage }) => {
+  const [globalRow] = await executeQuery(
+    `SELECT COUNT(*) AS total
+       FROM ${TABLES.MESSAGES}
+      WHERE sender_id IS NOT NULL`,
+  );
+  const globalTotal = Number(globalRow?.total || 0);
+
+  const globalShare = formatPercent(totalMessages, globalTotal);
+
+  if (!isGroupMessage || !remoteJid || !canonicalId) {
+    return {
+      globalTotal,
+      globalShare,
+      groupTotal: 0,
+      groupUserTotal: 0,
+      groupShare: 'N/D',
+    };
+  }
+
+  const [groupTotalsRow, groupUserRow] = await Promise.all([
+    executeQuery(
+      `SELECT COUNT(*) AS total
+         FROM ${TABLES.MESSAGES}
+        WHERE sender_id IS NOT NULL
+          AND chat_id = ?`,
+      [remoteJid],
+    ),
+    executeQuery(
+      `SELECT COUNT(*) AS total
+         FROM ${TABLES.MESSAGES} m
+         LEFT JOIN ${TABLES.LID_MAP} lm
+           ON lm.lid = m.sender_id
+          AND lm.jid IS NOT NULL
+        WHERE m.sender_id IS NOT NULL
+          AND m.chat_id = ?
+          AND COALESCE(lm.jid, m.sender_id) = ?`,
+      [remoteJid, canonicalId],
+    ),
+  ]);
+
+  const groupTotal = Number(groupTotalsRow?.[0]?.total || 0);
+  const groupUserTotal = Number(groupUserRow?.[0]?.total || 0);
+  const groupShare = groupTotal > 0 ? formatPercent(groupUserTotal, groupTotal) : '0.00%';
+
+  return {
+    globalTotal,
+    globalShare,
+    groupTotal,
+    groupUserTotal,
+    groupShare,
   };
 };
 
@@ -484,46 +732,134 @@ const isTargetBlocked = async (sock, targetIds) => {
   }
 };
 
+const formatTempoDeCasa = (firstMessage) => {
+  const firstMs = toMillis(firstMessage);
+  if (!Number.isFinite(firstMs)) return 'N/D';
+  const days = toIntegerDays(firstMs, Date.now());
+  return `${days} dia(s)`;
+};
+
+const formatDaysSinceLastMessage = (lastMessage) => {
+  const lastMs = toMillis(lastMessage);
+  if (!Number.isFinite(lastMs)) return 'N/D';
+  return `${toIntegerDays(lastMs, Date.now())} dia(s)`;
+};
+
+const formatTrendLabel = ({ trendLabel, delta, last30, prev30 }) => {
+  const sign = delta > 0 ? '+' : '';
+  return `${trendLabel} (${sign}${delta} | 30d: ${last30} vs ant.: ${prev30})`;
+};
+
+const truncateLabel = (value, max = 30) => {
+  const input = String(value || '');
+  if (input.length <= max) return input;
+  return `${input.slice(0, Math.max(0, max - 1))}…`;
+};
+
+const formatActiveHourLabel = ({ hourBand, activeHour, count }) => {
+  if (!Number.isFinite(Number(activeHour))) return 'N/D';
+  return `${hourBand} (${String(activeHour).padStart(2, '0')}h, ${count} msg)`;
+};
+
+const formatDominantTypeByPeriod = (dominantByPeriod) => {
+  const last30Type = dominantByPeriod?.last30?.type || 'N/D';
+  const last30Count = Number(dominantByPeriod?.last30?.count || 0);
+  const prev30Type = dominantByPeriod?.prev30?.type || 'N/D';
+  const prev30Count = Number(dominantByPeriod?.prev30?.count || 0);
+  return `30d: ${last30Type} (${last30Count}) | ant.: ${prev30Type} (${prev30Count})`;
+};
+
+const formatTopPartnersLine = (topPartners = []) => {
+  if (!Array.isArray(topPartners) || topPartners.length === 0) return 'N/D';
+  return topPartners
+    .slice(0, 3)
+    .map((entry, index) => `${index + 1}) ${truncateLabel(entry.label, 26)} (${entry.count})`)
+    .join(' | ');
+};
+
+const formatTopGroupsLine = (topGroups = []) => {
+  if (!Array.isArray(topGroups) || topGroups.length === 0) return 'N/D';
+  return topGroups
+    .slice(0, 3)
+    .map(
+      (entry, index) =>
+        `${index + 1}) ${truncateLabel((entry.subject && entry.subject.trim()) || entry.chatId || 'grupo', 24)} (${entry.total})`,
+    )
+    .join(' | ');
+};
+
 const buildProfileMessage = ({
   mentionLabel,
   displayName,
   phone,
   canonicalTarget,
   status,
+  firstMessage,
+  tempoDeCasa,
   lastInteraction,
+  diasSemFalar,
   totalMessages,
   rankingLabel,
+  trendLabel,
   avgPerDay,
   activeDays,
   streakDays,
+  activeHourLabel,
   favoriteTypeLabel,
+  dominantTypeByPeriodLabel,
   socialScore,
   socialSent,
   socialReceived,
+  responseRateLabel,
   socialPartners,
   topPartnerLabel,
+  topPartnersLabel,
+  topGroupsLabel,
+  globalShareLabel,
+  groupShareLabel,
   tags,
 }) =>
   [
-    '👤 *Perfil do usuário*',
+    '👤 *PERFIL DO USUÁRIO*',
+    '━━━━━━━━━━━━━━━━━━━━',
     '',
+    '🧾 *Identificação*',
     `• Usuário: ${mentionLabel}`,
     `• Nome: ${displayName}`,
     `• Número: ${phone}`,
     `• ID: ${canonicalTarget || 'N/D'}`,
     `• Status: *${status}*`,
+    '',
+    '📈 *Mensagens e Ranking*',
+    `• Primeira mensagem: ${firstMessage}`,
+    `• Tempo de casa no bot: ${tempoDeCasa}`,
     `• Última interação: ${lastInteraction}`,
+    `• Dias sem falar: ${diasSemFalar}`,
     `• Mensagens gerais registradas: ${totalMessages}`,
+    `• Participação global: ${globalShareLabel}`,
+    `• Participação no grupo atual: ${groupShareLabel}`,
     `• Posição no ranking: ${rankingLabel}`,
+    `• Tendência de mensagens: ${trendLabel}`,
     `• Média/dia (global): ${avgPerDay}`,
     `• Dias ativos (global): ${activeDays}`,
     `• Streak (global): ${streakDays} dia(s)`,
+    `• Horário mais ativo: ${activeHourLabel}`,
     `• Tipo favorito (global): ${favoriteTypeLabel}`,
+    `• Tipo dominante por período: ${dominantTypeByPeriodLabel}`,
+    '',
+    '🌐 *Interações Sociais*',
     `• Interações sociais (${SOCIAL_RECENT_DAYS}d): ${socialScore}`,
     `• Respostas enviadas (${SOCIAL_RECENT_DAYS}d): ${socialSent}`,
     `• Respostas recebidas (${SOCIAL_RECENT_DAYS}d): ${socialReceived}`,
+    `• Taxa de resposta (${SOCIAL_RECENT_DAYS}d): ${responseRateLabel}`,
     `• Parceiros sociais (${SOCIAL_RECENT_DAYS}d): ${socialPartners}`,
     `• Parceiro principal (${SOCIAL_RECENT_DAYS}d): ${topPartnerLabel}`,
+    `• Top 3 parceiros (${SOCIAL_RECENT_DAYS}d): ${topPartnersLabel}`,
+    '',
+    '🏘️ *Presença em Grupos*',
+    `• Top grupos onde fala:\n ${topGroupsLabel}`,
+    '',
+    '🏷️ *Contexto*',
     `• Tags: ${tags.length ? tags.join(', ') : 'sem tags'}`,
   ].join('\n');
 
@@ -587,14 +923,22 @@ export async function handleUserCommand({
     const rankingTargetId = mentionJid || canonicalTarget;
 
     const [stats, ranking, latestPushName, premiumUsers, blocked, groupAdmin] = await Promise.all([
-      fetchUserStats(normalizedTargetIds),
+      fetchUserStats({ canonicalId: rankingTargetId, senderIds: normalizedTargetIds }),
       fetchUserRanking(rankingTargetId),
       fetchLatestPushName(normalizedTargetIds),
       premiumUserStore.getPremiumUsers(),
       isTargetBlocked(sock, normalizedTargetIds),
       isGroupMessage ? isUserAdmin(remoteJid, mentionJid || canonicalTarget) : Promise.resolve(false),
     ]);
-    const [globalInsights, socialInsights] = await Promise.all([
+    const [
+      globalInsights,
+      socialInsights,
+      trendInsights,
+      activeHourInsights,
+      dominantTypeByPeriod,
+      topGroups,
+      participationInsights,
+    ] = await Promise.all([
       fetchUserGlobalRankingInsights({
         canonicalId: rankingTargetId,
         totalMessages: stats.totalMessages,
@@ -604,6 +948,16 @@ export async function handleUserCommand({
       fetchUserSocialInsights({
         canonicalId: rankingTargetId,
         sock,
+      }),
+      fetchUserTrendInsights(rankingTargetId),
+      fetchUserActiveHourInsights(rankingTargetId),
+      fetchDominantTypeByPeriod(rankingTargetId),
+      fetchTopGroupsInsights(rankingTargetId),
+      fetchParticipationInsights({
+        canonicalId: rankingTargetId,
+        totalMessages: stats.totalMessages,
+        remoteJid,
+        isGroupMessage,
       }),
     ]);
 
@@ -635,6 +989,16 @@ export async function handleUserCommand({
       socialInsights.topPartnerCount > 0
         ? `${socialInsights.topPartnerLabel} (${socialInsights.topPartnerCount})`
         : 'N/D';
+    const trendLabel = formatTrendLabel(trendInsights);
+    const activeHourLabel = formatActiveHourLabel(activeHourInsights);
+    const dominantTypeByPeriodLabel = formatDominantTypeByPeriod(dominantTypeByPeriod);
+    const responseRateLabel = `${socialInsights.responseRatePercent} (${socialInsights.responseRatio})`;
+    const topPartnersLabel = formatTopPartnersLine(socialInsights.topPartners);
+    const topGroupsLabel = formatTopGroupsLine(topGroups);
+    const groupShareLabel = isGroupMessage
+      ? `${participationInsights.groupShare} (${participationInsights.groupUserTotal}/${participationInsights.groupTotal})`
+      : 'N/D';
+    const globalShareLabel = `${participationInsights.globalShare} (${stats.totalMessages}/${participationInsights.globalTotal})`;
 
     const text = buildProfileMessage({
       mentionLabel,
@@ -642,18 +1006,29 @@ export async function handleUserCommand({
       phone: formatPhone(canonicalTarget),
       canonicalTarget,
       status,
+      firstMessage: formatDateTime(stats.firstMessage),
+      tempoDeCasa: formatTempoDeCasa(stats.firstMessage),
       lastInteraction: formatDateTime(stats.lastMessage),
+      diasSemFalar: formatDaysSinceLastMessage(stats.lastMessage),
       totalMessages: stats.totalMessages,
+      globalShareLabel,
+      groupShareLabel,
       rankingLabel,
+      trendLabel,
       avgPerDay: globalInsights.avgPerDay,
       activeDays: globalInsights.activeDays,
       streakDays: globalInsights.streakDays,
+      activeHourLabel,
       favoriteTypeLabel,
+      dominantTypeByPeriodLabel,
       socialScore: socialInsights.socialScore,
       socialSent: socialInsights.repliesSent,
       socialReceived: socialInsights.repliesReceived,
+      responseRateLabel,
       socialPartners: socialInsights.uniquePartners,
       topPartnerLabel,
+      topPartnersLabel,
+      topGroupsLabel,
       tags,
     });
 
