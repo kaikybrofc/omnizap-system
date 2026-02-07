@@ -164,6 +164,9 @@ Membros inativos
 
 → ${commandPrefix}ping  
 Status do sistema
+
+→ ${commandPrefix}user perfil <id|telefone>  
+Resumo rápido de um usuário
 `;
 
 export const buildStickerBlinkCaption = (commandPrefix) => `

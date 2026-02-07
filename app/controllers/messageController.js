@@ -19,6 +19,7 @@ import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
 import { handleStickerConvertCommand } from '../modules/stickerModule/stickerConvertCommand.js';
 import { handleWaifuPicsCommand, getWaifuPicsUsageText } from '../modules/waifuPicsModule/waifuPicsCommand.js';
 import { handlePackCommand, maybeCaptureIncomingSticker } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
+import { handleUserCommand } from '../modules/userModule/userCommand.js';
 import groupConfigStore from '../store/groupConfigStore.js';
 import { sendAndStore } from '../services/messagePersistenceService.js';
 import { resolveCaptchaByMessage } from '../services/captchaService.js';
@@ -241,6 +242,22 @@ export const handleMessages = async (update, sock) => {
 
             case 'ping':
               runCommand('ping', () => handlePingCommand({ sock, remoteJid, messageInfo, expirationMessage }));
+              break;
+
+            case 'user':
+            case 'usuario':
+              runCommand('user', () =>
+                handleUserCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  senderJid,
+                  args,
+                  isGroupMessage,
+                  commandPrefix,
+                }),
+              );
               break;
 
             case 'aviso':
