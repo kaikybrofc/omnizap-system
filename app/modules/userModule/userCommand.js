@@ -1,12 +1,7 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
 import { getJidUser, getProfilePicBuffer, normalizeJid } from '../../config/baileysConfig.js';
 import { isUserAdmin } from '../../config/groupUtils.js';
-import {
-  extractUserIdInfo,
-  isWhatsAppUserId,
-  resolveUserId,
-  resolveUserIdCached,
-} from '../../services/lidMapService.js';
+import { extractUserIdInfo, isWhatsAppUserId, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import logger from '../../utils/logger/loggerModule.js';
@@ -32,16 +27,18 @@ const SOCIAL_DST_EXPR = `JSON_UNQUOTE(
   )
 )`;
 
-const buildUsageText = (commandPrefix = DEFAULT_COMMAND_PREFIX) =>
-  [
-    'Formato de uso:',
-    `${commandPrefix}user perfil <id|telefone>`,
-    '',
-    'Dica:',
-    '• Você pode mencionar alguém.',
-    '• Ou responder a mensagem do usuário desejado.',
-  ].join('\n');
+/**
+ * Monta o texto de ajuda com a forma correta de uso do comando.
+ * @param {string} [commandPrefix=DEFAULT_COMMAND_PREFIX] Prefixo configurado para comandos.
+ * @returns {string} Texto de instruções para o usuário.
+ */
+const buildUsageText = (commandPrefix = DEFAULT_COMMAND_PREFIX) => ['Formato de uso:', `${commandPrefix}user perfil <id|telefone>`, '', 'Dica:', '• Você pode mencionar alguém.', '• Ou responder a mensagem do usuário desejado.'].join('\n');
 
+/**
+ * Extrai o `contextInfo` da mensagem, incluindo estruturas aninhadas.
+ * @param {object} messageInfo Estrutura da mensagem recebida pelo bot.
+ * @returns {object|null} `contextInfo` encontrado ou `null` quando indisponível.
+ */
 const getContextInfo = (messageInfo) => {
   const message = messageInfo?.message;
   if (!message || typeof message !== 'object') return null;
@@ -62,6 +59,11 @@ const getContextInfo = (messageInfo) => {
   return null;
 };
 
+/**
+ * Normaliza e valida o alvo informado manualmente no comando.
+ * @param {string} rawValue Valor bruto digitado após o subcomando.
+ * @returns {{ jid: string | null, invalid: boolean }} JID normalizado ou sinalização de entrada inválida.
+ */
 const parseTargetArgument = (rawValue) => {
   const value = typeof rawValue === 'string' ? rawValue.trim() : '';
   if (!value) return { jid: null, invalid: false };
@@ -81,11 +83,16 @@ const parseTargetArgument = (rawValue) => {
   return { jid: `${digits}@s.whatsapp.net`, invalid: false };
 };
 
+/**
+ * Define qual usuário será usado como alvo (menção, argumento, reply ou remetente).
+ * @param {object} messageInfo Mensagem usada para inferir contexto.
+ * @param {string|null} senderJid JID do remetente do comando.
+ * @param {string} targetArg Argumento explícito passado no comando.
+ * @returns {{ source: string | object | null, invalidExplicitTarget: boolean }} Fonte escolhida e sinalizador de argumento inválido.
+ */
 const resolveCandidateTarget = (messageInfo, senderJid, targetArg) => {
   const contextInfo = getContextInfo(messageInfo);
-  const mentioned = Array.isArray(contextInfo?.mentionedJid)
-    ? contextInfo.mentionedJid.find(Boolean) || null
-    : null;
+  const mentioned = Array.isArray(contextInfo?.mentionedJid) ? contextInfo.mentionedJid.find(Boolean) || null : null;
   const parsedTarget = parseTargetArgument(targetArg);
   const repliedSource =
     contextInfo?.participant || contextInfo?.participantAlt
@@ -102,6 +109,11 @@ const resolveCandidateTarget = (messageInfo, senderJid, targetArg) => {
   };
 };
 
+/**
+ * Resolve o identificador canônico do usuário, considerando mapeamento JID/LID.
+ * @param {string|object|null} source Fonte de identificação do usuário.
+ * @returns {Promise<string|null>} ID canônico resolvido ou fallback quando possível.
+ */
 const resolveCanonicalTarget = async (source) => {
   if (!source) return null;
   const info = extractUserIdInfo(source);
@@ -118,6 +130,11 @@ const resolveCanonicalTarget = async (source) => {
   }
 };
 
+/**
+ * Carrega todos os IDs equivalentes ao alvo (JID e/ou LID) para consultas no banco.
+ * @param {string|null} canonicalTarget ID canônico do usuário.
+ * @returns {Promise<string[]>} Lista de IDs possíveis para o mesmo usuário.
+ */
 const resolveSenderIdsForTarget = async (canonicalTarget) => {
   if (!canonicalTarget) return [];
   const ids = new Set([canonicalTarget]);
@@ -137,8 +154,18 @@ const resolveSenderIdsForTarget = async (canonicalTarget) => {
   return Array.from(ids);
 };
 
+/**
+ * Constrói placeholders SQL para cláusulas `IN`.
+ * @param {unknown[]} items Itens que serão bindados na query.
+ * @returns {string} String no formato `?, ?, ?`.
+ */
 const buildInClause = (items) => items.map(() => '?').join(', ');
 
+/**
+ * Busca contagem e período de atividade do usuário no histórico de mensagens.
+ * @param {{ canonicalId: string | null, senderIds?: string[] }} params Parâmetros de busca.
+ * @returns {Promise<{ totalMessages: number, firstMessage: string | Date | null, lastMessage: string | Date | null }>} Estatísticas básicas.
+ */
 const fetchUserStats = async ({ canonicalId, senderIds = [] }) => {
   if (canonicalId) {
     const [row] = await executeQuery(
@@ -180,6 +207,11 @@ const fetchUserStats = async ({ canonicalId, senderIds = [] }) => {
   };
 };
 
+/**
+ * Converte timestamps numéricos ou datas textuais para milissegundos.
+ * @param {number|string|Date|null|undefined} value Valor de data/hora em formatos suportados.
+ * @returns {number|null} Timestamp em milissegundos ou `null` quando inválido.
+ */
 const toMillis = (value) => {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number') {
@@ -191,6 +223,12 @@ const toMillis = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
+/**
+ * Formata uma proporção em percentual com duas casas decimais.
+ * @param {number} value Numerador.
+ * @param {number} total Denominador.
+ * @returns {string} Percentual no padrão `00.00%`.
+ */
 const formatPercent = (value, total) => {
   const numericValue = Number(value || 0);
   const numericTotal = Number(total || 0);
@@ -198,11 +236,22 @@ const formatPercent = (value, total) => {
   return `${((numericValue / numericTotal) * 100).toFixed(2)}%`;
 };
 
+/**
+ * Calcula a diferença inteira em dias entre dois timestamps.
+ * @param {number} fromMs Timestamp inicial em milissegundos.
+ * @param {number} [toMs=Date.now()] Timestamp final em milissegundos.
+ * @returns {number} Quantidade de dias inteiros.
+ */
 const toIntegerDays = (fromMs, toMs = Date.now()) => {
   if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs < fromMs) return 0;
   return Math.floor((toMs - fromMs) / DAY_MS);
 };
 
+/**
+ * Calcula a maior sequência de dias consecutivos com atividade.
+ * @param {string[]} days Dias ativos ordenados no formato `YYYY-MM-DD`.
+ * @returns {number} Melhor sequência contínua em dias.
+ */
 const computeStreak = (days) => {
   if (!days.length) return 0;
   let best = 1;
@@ -222,12 +271,12 @@ const computeStreak = (days) => {
   return best;
 };
 
-const fetchUserGlobalRankingInsights = async ({
-  canonicalId,
-  totalMessages = 0,
-  firstMessage = null,
-  lastMessage = null,
-}) => {
+/**
+ * Consolida métricas globais de atividade do usuário para o perfil.
+ * @param {{ canonicalId: string | null, totalMessages?: number, firstMessage?: string | Date | null, lastMessage?: string | Date | null }} params Dados base do usuário.
+ * @returns {Promise<{ activeDays: number, avgPerDay: string, streakDays: number, favoriteType: string | null, favoriteCount: number }>} Indicadores de frequência e tipo favorito.
+ */
+const fetchUserGlobalRankingInsights = async ({ canonicalId, totalMessages = 0, firstMessage = null, lastMessage = null }) => {
   if (!canonicalId) {
     return {
       activeDays: 0,
@@ -292,6 +341,11 @@ const fetchUserGlobalRankingInsights = async ({
   };
 };
 
+/**
+ * Compara volume de mensagens dos últimos 30 dias com os 30 dias anteriores.
+ * @param {string|null} canonicalId ID canônico do usuário.
+ * @returns {Promise<{ last30: number, prev30: number, delta: number, trendLabel: 'subiu'|'caiu'|'estável' }>} Resultado da tendência.
+ */
 const fetchUserTrendInsights = async (canonicalId) => {
   if (!canonicalId) return { last30: 0, prev30: 0, delta: 0, trendLabel: 'estável' };
 
@@ -323,6 +377,11 @@ const fetchUserTrendInsights = async (canonicalId) => {
   return { last30, prev30, delta, trendLabel };
 };
 
+/**
+ * Traduz a hora do dia para uma faixa textual.
+ * @param {number|string|null} hour Hora em formato 0-23.
+ * @returns {string} Faixa horária (`madrugada`, `manhã`, `tarde`, `noite` ou `N/D`).
+ */
 const getHourBand = (hour) => {
   const h = Number(hour);
   if (!Number.isFinite(h) || h < 0 || h > 23) return 'N/D';
@@ -332,6 +391,11 @@ const getHourBand = (hour) => {
   return 'noite';
 };
 
+/**
+ * Obtém o horário de maior atividade do usuário.
+ * @param {string|null} canonicalId ID canônico do usuário.
+ * @returns {Promise<{ activeHour: number|null, hourBand: string, count: number }>} Hora mais ativa e total de mensagens na faixa.
+ */
 const fetchUserActiveHourInsights = async (canonicalId) => {
   if (!canonicalId) return { activeHour: null, hourBand: 'N/D', count: 0 };
   const [row] = await executeQuery(
@@ -358,6 +422,11 @@ const fetchUserActiveHourInsights = async (canonicalId) => {
   };
 };
 
+/**
+ * Identifica o tipo de mensagem dominante no período atual e no período anterior.
+ * @param {string|null} canonicalId ID canônico do usuário.
+ * @returns {Promise<{ last30: { type: string|null, count: number }, prev30: { type: string|null, count: number } }>} Tipos dominantes por janela.
+ */
 const fetchDominantTypeByPeriod = async (canonicalId) => {
   if (!canonicalId) {
     return {
@@ -408,6 +477,11 @@ const fetchDominantTypeByPeriod = async (canonicalId) => {
   return result;
 };
 
+/**
+ * Calcula posição do usuário no ranking global por volume de mensagens.
+ * @param {string|null} canonicalId ID canônico do usuário.
+ * @returns {Promise<{ position: number|null, totalRankedUsers: number, totalMessages: number }>} Posição no ranking e totais associados.
+ */
 const fetchUserRanking = async (canonicalId) => {
   if (!canonicalId) {
     return { position: null, totalRankedUsers: 0, totalMessages: 0 };
@@ -460,6 +534,11 @@ const fetchUserRanking = async (canonicalId) => {
   };
 };
 
+/**
+ * Busca o `pushName` mais recente entre um conjunto de IDs equivalentes.
+ * @param {string[]} senderIds IDs usados nas mensagens salvas.
+ * @returns {Promise<string|null>} Nome exibido mais recente, quando disponível.
+ */
 const fetchLatestPushName = async (senderIds) => {
   if (!senderIds.length) return null;
   const inClause = buildInClause(senderIds);
@@ -476,6 +555,12 @@ const fetchLatestPushName = async (senderIds) => {
   return row?.push_name || null;
 };
 
+/**
+ * Tenta resolver o nome de exibição do contato a partir do cache de contatos do socket.
+ * @param {object} sock Instância do socket Baileys.
+ * @param {string[]} ids Lista de IDs candidatos.
+ * @returns {string|null} Nome encontrado ou `null`.
+ */
 const resolveNameFromContacts = (sock, ids) => {
   for (const id of ids) {
     const contact = sock?.contacts?.[id];
@@ -485,6 +570,11 @@ const resolveNameFromContacts = (sock, ids) => {
   return null;
 };
 
+/**
+ * Busca o `pushName` mais recente para um ID canônico específico.
+ * @param {string|null} canonicalId ID canônico alvo.
+ * @returns {Promise<string|null>} Nome mais recente registrado nas mensagens.
+ */
 const fetchCanonicalPushName = async (canonicalId) => {
   if (!canonicalId) return null;
   const [row] = await executeQuery(
@@ -504,6 +594,11 @@ const fetchCanonicalPushName = async (canonicalId) => {
   return row?.push_name || null;
 };
 
+/**
+ * Monta a base SQL reutilizável para análises de interação social.
+ * @param {string} selectSql Trecho `SELECT ...` que será aplicado sobre a CTE `base`.
+ * @returns {string} Query SQL final.
+ */
 const buildSocialBaseQuery = (selectSql) => `
   WITH base AS (
     SELECT
@@ -527,6 +622,22 @@ const buildSocialBaseQuery = (selectSql) => `
   ${selectSql}
 `;
 
+/**
+ * Calcula métricas sociais do usuário (envio/recebimento de respostas e parceiros).
+ * @param {{ canonicalId: string | null, sock: object }} params Parâmetros de consulta.
+ * @returns {Promise<{
+ *   repliesSent: number,
+ *   repliesReceived: number,
+ *   socialScore: number,
+ *   uniquePartners: number,
+ *   topPartnerId: string|null,
+ *   topPartnerCount: number,
+ *   topPartnerLabel: string,
+ *   responseRatePercent: string,
+ *   responseRatio: string,
+ *   topPartners: Array<{ id: string|null, count: number, label: string }>
+ * }>} Métricas sociais agregadas.
+ */
 const fetchUserSocialInsights = async ({ canonicalId, sock }) => {
   if (!canonicalId) {
     return {
@@ -609,6 +720,11 @@ const fetchUserSocialInsights = async ({ canonicalId, sock }) => {
   };
 };
 
+/**
+ * Retorna os grupos onde o usuário mais fala.
+ * @param {string|null} canonicalId ID canônico do usuário.
+ * @returns {Promise<Array<{ chatId: string|null, subject: string|null, total: number }>>} Top grupos por volume.
+ */
 const fetchTopGroupsInsights = async (canonicalId) => {
   if (!canonicalId) return [];
   const rows = await executeQuery(
@@ -637,6 +753,11 @@ const fetchTopGroupsInsights = async (canonicalId) => {
   }));
 };
 
+/**
+ * Calcula participação proporcional do usuário no global e no grupo atual.
+ * @param {{ canonicalId: string | null, totalMessages: number, remoteJid: string, isGroupMessage: boolean }} params Contexto da conversa e totais.
+ * @returns {Promise<{ globalTotal: number, globalShare: string, groupTotal: number, groupUserTotal: number, groupShare: string }>} Métricas de participação.
+ */
 const fetchParticipationInsights = async ({ canonicalId, totalMessages, remoteJid, isGroupMessage }) => {
   const [globalRow] = await executeQuery(
     `SELECT COUNT(*) AS total
@@ -691,6 +812,11 @@ const fetchParticipationInsights = async ({ canonicalId, totalMessages, remoteJi
   };
 };
 
+/**
+ * Formata JID para telefone em padrão internacional simples.
+ * @param {string|null} jid JID do usuário.
+ * @returns {string} Telefone formatado ou `N/D`.
+ */
 const formatPhone = (jid) => {
   const user = getJidUser(jid);
   if (!user) return 'N/D';
@@ -698,6 +824,11 @@ const formatPhone = (jid) => {
   return digits ? `+${digits}` : user;
 };
 
+/**
+ * Formata data/hora no padrão pt-BR com timezone de São Paulo.
+ * @param {string|Date|null} value Valor de data para formatação.
+ * @returns {string} Data formatada ou texto padrão quando indisponível.
+ */
 const formatDateTime = (value) => {
   if (!value) return 'Sem registros';
   const date = value instanceof Date ? value : new Date(value);
@@ -709,6 +840,11 @@ const formatDateTime = (value) => {
   }).format(date);
 };
 
+/**
+ * Verifica se houve interação dentro da janela de atividade configurada.
+ * @param {string|Date|null} lastMessage Última mensagem registrada.
+ * @returns {boolean} `true` quando a última interação está dentro da janela ativa.
+ */
 const hasRecentInteraction = (lastMessage) => {
   if (!lastMessage) return false;
   const parsed = lastMessage instanceof Date ? lastMessage.getTime() : new Date(lastMessage).getTime();
@@ -717,14 +853,18 @@ const hasRecentInteraction = (lastMessage) => {
   return Date.now() - parsed <= maxAgeMs;
 };
 
+/**
+ * Consulta se algum dos IDs do usuário está bloqueado no WhatsApp.
+ * @param {object} sock Instância do socket Baileys.
+ * @param {string[]} targetIds IDs que representam o usuário alvo.
+ * @returns {Promise<boolean>} `true` quando o alvo consta na blocklist.
+ */
 const isTargetBlocked = async (sock, targetIds) => {
   if (!sock || typeof sock.fetchBlocklist !== 'function') return false;
   try {
     const blocklist = await sock.fetchBlocklist();
     if (!Array.isArray(blocklist) || blocklist.length === 0) return false;
-    const normalizedBlocked = new Set(
-      blocklist.map((jid) => normalizeJid(jid) || jid).filter(Boolean),
-    );
+    const normalizedBlocked = new Set(blocklist.map((jid) => normalizeJid(jid) || jid).filter(Boolean));
     return targetIds.some((id) => normalizedBlocked.has(normalizeJid(id) || id));
   } catch (error) {
     logger.warn('Falha ao consultar blocklist no comando user perfil.', { error: error.message });
@@ -732,6 +872,11 @@ const isTargetBlocked = async (sock, targetIds) => {
   }
 };
 
+/**
+ * Converte a primeira mensagem em tempo de casa no bot (em dias).
+ * @param {string|Date|null} firstMessage Primeira mensagem registrada.
+ * @returns {string} Tempo de casa formatado.
+ */
 const formatTempoDeCasa = (firstMessage) => {
   const firstMs = toMillis(firstMessage);
   if (!Number.isFinite(firstMs)) return 'N/D';
@@ -739,28 +884,54 @@ const formatTempoDeCasa = (firstMessage) => {
   return `${days} dia(s)`;
 };
 
+/**
+ * Calcula quantos dias o usuário está sem enviar mensagens.
+ * @param {string|Date|null} lastMessage Última mensagem registrada.
+ * @returns {string} Quantidade de dias sem falar.
+ */
 const formatDaysSinceLastMessage = (lastMessage) => {
   const lastMs = toMillis(lastMessage);
   if (!Number.isFinite(lastMs)) return 'N/D';
   return `${toIntegerDays(lastMs, Date.now())} dia(s)`;
 };
 
+/**
+ * Formata o resumo da tendência de mensagens dos últimos períodos.
+ * @param {{ trendLabel: string, delta: number, last30: number, prev30: number }} trend Dados de tendência.
+ * @returns {string} Texto de tendência pronto para exibição.
+ */
 const formatTrendLabel = ({ trendLabel, delta, last30, prev30 }) => {
   const sign = delta > 0 ? '+' : '';
   return `${trendLabel} (${sign}${delta} | 30d: ${last30} vs ant.: ${prev30})`;
 };
 
+/**
+ * Trunca labels longos preservando tamanho máximo com reticências.
+ * @param {string} value Texto original.
+ * @param {number} [max=30] Tamanho máximo permitido.
+ * @returns {string} Texto truncado quando necessário.
+ */
 const truncateLabel = (value, max = 30) => {
   const input = String(value || '');
   if (input.length <= max) return input;
   return `${input.slice(0, Math.max(0, max - 1))}…`;
 };
 
+/**
+ * Formata a saída do horário mais ativo do usuário.
+ * @param {{ hourBand: string, activeHour: number|null, count: number }} insights Dados de atividade por hora.
+ * @returns {string} Texto de horário mais ativo.
+ */
 const formatActiveHourLabel = ({ hourBand, activeHour, count }) => {
   if (!Number.isFinite(Number(activeHour))) return 'N/D';
   return `${hourBand} (${String(activeHour).padStart(2, '0')}h, ${count} msg)`;
 };
 
+/**
+ * Formata os tipos de mensagem dominantes por janela temporal.
+ * @param {{ last30?: { type?: string|null, count?: number }, prev30?: { type?: string|null, count?: number } }} dominantByPeriod Resultado bruto da consulta.
+ * @returns {string} Texto com comparativo entre período atual e anterior.
+ */
 const formatDominantTypeByPeriod = (dominantByPeriod) => {
   const last30Type = dominantByPeriod?.last30?.type || 'N/D';
   const last30Count = Number(dominantByPeriod?.last30?.count || 0);
@@ -769,176 +940,94 @@ const formatDominantTypeByPeriod = (dominantByPeriod) => {
   return `30d: ${last30Type} (${last30Count}) | ant.: ${prev30Type} (${prev30Count})`;
 };
 
+/**
+ * Formata lista dos principais parceiros de interação em linhas.
+ * @param {Array<{ label: string, count: number }>} [topPartners=[]] Lista dos parceiros.
+ * @returns {string} Bloco multiline com ranking de parceiros.
+ */
 const formatTopPartnersLine = (topPartners = []) => {
-  if (!Array.isArray(topPartners) || topPartners.length === 0) return 'N/D';
+  if (!Array.isArray(topPartners) || topPartners.length === 0) return '   N/D';
   return topPartners
     .slice(0, 3)
-    .map((entry, index) => `${index + 1}) ${truncateLabel(entry.label, 26)} (${entry.count})`)
-    .join(' | ');
+    .map((entry, index) => `   ${index + 1}) ${truncateLabel(entry.label, 26)} (${entry.count})`)
+    .join('\n');
 };
 
+/**
+ * Formata lista dos grupos com maior volume de mensagens do usuário.
+ * @param {Array<{ subject?: string|null, chatId?: string|null, total: number }>} [topGroups=[]] Lista de grupos.
+ * @returns {string} Bloco multiline com ranking de grupos.
+ */
 const formatTopGroupsLine = (topGroups = []) => {
-  if (!Array.isArray(topGroups) || topGroups.length === 0) return 'N/D';
+  if (!Array.isArray(topGroups) || topGroups.length === 0) return '   N/D';
   return topGroups
     .slice(0, 3)
-    .map(
-      (entry, index) =>
-        `${index + 1}) ${truncateLabel((entry.subject && entry.subject.trim()) || entry.chatId || 'grupo', 24)} (${entry.total})`,
-    )
-    .join(' | ');
+    .map((entry, index) => `   ${index + 1}) ${truncateLabel((entry.subject && entry.subject.trim()) || entry.chatId || 'grupo', 24)} (${entry.total})`)
+    .join('\n');
 };
 
-const buildProfileMessage = ({
-  mentionLabel,
-  displayName,
-  phone,
-  canonicalTarget,
-  status,
-  firstMessage,
-  tempoDeCasa,
-  lastInteraction,
-  diasSemFalar,
-  totalMessages,
-  rankingLabel,
-  trendLabel,
-  avgPerDay,
-  activeDays,
-  streakDays,
-  activeHourLabel,
-  favoriteTypeLabel,
-  dominantTypeByPeriodLabel,
-  socialScore,
-  socialSent,
-  socialReceived,
-  responseRateLabel,
-  socialPartners,
-  topPartnerLabel,
-  topPartnersLabel,
-  topGroupsLabel,
-  globalShareLabel,
-  groupShareLabel,
-  tags,
-}) =>
-  [
-    '👤 *PERFIL DO USUÁRIO*',
-    '━━━━━━━━━━━━━━━━━━━━',
-    '',
-    '🧾 *Identificação*',
-    `• Usuário: ${mentionLabel}`,
-    `• Nome: ${displayName}`,
-    `• Número: ${phone}`,
-    `• ID: ${canonicalTarget || 'N/D'}`,
-    `• Status: *${status}*`,
-    '',
-    '📈 *Mensagens e Ranking*',
-    `• Primeira mensagem: ${firstMessage}`,
-    `• Tempo de casa no bot: ${tempoDeCasa}`,
-    `• Última interação: ${lastInteraction}`,
-    `• Dias sem falar: ${diasSemFalar}`,
-    `• Mensagens gerais registradas: ${totalMessages}`,
-    `• Participação global: ${globalShareLabel}`,
-    `• Participação no grupo atual: ${groupShareLabel}`,
-    `• Posição no ranking: ${rankingLabel}`,
-    `• Tendência de mensagens: ${trendLabel}`,
-    `• Média/dia (global): ${avgPerDay}`,
-    `• Dias ativos (global): ${activeDays}`,
-    `• Streak (global): ${streakDays} dia(s)`,
-    `• Horário mais ativo: ${activeHourLabel}`,
-    `• Tipo favorito (global): ${favoriteTypeLabel}`,
-    `• Tipo dominante por período: ${dominantTypeByPeriodLabel}`,
-    '',
-    '🌐 *Interações Sociais*',
-    `• Interações sociais (${SOCIAL_RECENT_DAYS}d): ${socialScore}`,
-    `• Respostas enviadas (${SOCIAL_RECENT_DAYS}d): ${socialSent}`,
-    `• Respostas recebidas (${SOCIAL_RECENT_DAYS}d): ${socialReceived}`,
-    `• Taxa de resposta (${SOCIAL_RECENT_DAYS}d): ${responseRateLabel}`,
-    `• Parceiros sociais (${SOCIAL_RECENT_DAYS}d): ${socialPartners}`,
-    `• Parceiro principal (${SOCIAL_RECENT_DAYS}d): ${topPartnerLabel}`,
-    `• Top 3 parceiros (${SOCIAL_RECENT_DAYS}d): ${topPartnersLabel}`,
-    '',
-    '🏘️ *Presença em Grupos*',
-    `• Top grupos onde fala:\n ${topGroupsLabel}`,
-    '',
-    '🏷️ *Contexto*',
-    `• Tags: ${tags.length ? tags.join(', ') : 'sem tags'}`,
-  ].join('\n');
+/**
+ * Insere linhas em branco entre itens para melhorar legibilidade.
+ * @param {string[]} [lines=[]] Linhas que serão espaçadas.
+ * @returns {string[]} Linhas com separação vertical.
+ */
+const withVerticalSpacing = (lines = []) => lines.flatMap((line, index) => (index === lines.length - 1 ? [line] : [line, '']));
 
-const resolveMentionJid = (ids = []) =>
-  ids.find((id) => isWhatsAppUserId(id)) || null;
+/**
+ * Constrói a mensagem final do perfil com seções e métricas organizadas.
+ * @param {object} data Dados agregados do usuário para renderização.
+ * @returns {string} Texto completo enviado no comando de perfil.
+ */
+const buildProfileMessage = ({ mentionLabel, displayName, phone, canonicalTarget, status, firstMessage, tempoDeCasa, lastInteraction, diasSemFalar, totalMessages, rankingLabel, trendLabel, avgPerDay, activeDays, streakDays, activeHourLabel, favoriteTypeLabel, dominantTypeByPeriodLabel, socialScore, socialSent, socialReceived, responseRateLabel, socialPartners, topPartnerLabel, topPartnersLabel, topGroupsLabel, globalShareLabel, groupShareLabel, tags }) => ['👤 *PERFIL DO USUÁRIO*', '━━━━━━━━━━━━━━━━━━━━', '', '🧾 *Identificação*', ...withVerticalSpacing([`• Usuário: ${mentionLabel}`, `• Nome: ${displayName}`, `• Número: ${phone}`, `• ID: ${canonicalTarget || 'N/D'}`, `• Status: *${status}*`]), '', '📈 *Mensagens e Ranking*', ...withVerticalSpacing([`• Primeira mensagem: ${firstMessage}`, `• Tempo de casa no bot: ${tempoDeCasa}`, `• Última interação: ${lastInteraction}`, `• Dias sem falar: ${diasSemFalar}`, `• Mensagens gerais registradas: ${totalMessages}`, `• Participação global: ${globalShareLabel}`, `• Participação no grupo atual: ${groupShareLabel}`, `• Posição no ranking: ${rankingLabel}`, `• Tendência de mensagens: ${trendLabel}`, `• Média/dia (global): ${avgPerDay}`, `• Dias ativos (global): ${activeDays}`, `• Streak (global): ${streakDays} dia(s)`, `• Horário mais ativo: ${activeHourLabel}`, `• Tipo favorito (global): ${favoriteTypeLabel}`, `• Tipo dominante por período: ${dominantTypeByPeriodLabel}`]), '', '🌐 *Interações Sociais*', ...withVerticalSpacing([`• Interações sociais (${SOCIAL_RECENT_DAYS}d): ${socialScore}`, `• Respostas enviadas (${SOCIAL_RECENT_DAYS}d): ${socialSent}`, `• Respostas recebidas (${SOCIAL_RECENT_DAYS}d): ${socialReceived}`, `• Taxa de resposta (${SOCIAL_RECENT_DAYS}d): ${responseRateLabel}`, `• Parceiros sociais (${SOCIAL_RECENT_DAYS}d): ${socialPartners}`, `• Parceiro principal (${SOCIAL_RECENT_DAYS}d): ${topPartnerLabel}`, `• Top 3 parceiros (${SOCIAL_RECENT_DAYS}d):\n${topPartnersLabel}`]), '', '🏘️ *Presença em Grupos*', ...withVerticalSpacing([`• Top grupos onde fala:\n${topGroupsLabel}`]), '', '🏷️ *Contexto*', ...withVerticalSpacing([`• Tags: ${tags.length ? tags.join(', ') : 'sem tags'}`])].join('\n');
 
-export async function handleUserCommand({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  senderJid,
-  args = [],
-  isGroupMessage,
-  commandPrefix = DEFAULT_COMMAND_PREFIX,
-}) {
+/**
+ * Seleciona o primeiro ID de usuário válido dentro de uma lista.
+ * @param {string[]} [ids=[]] IDs candidatos.
+ * @returns {string|null} Primeiro JID de usuário válido ou `null`.
+ */
+const resolveMentionJid = (ids = []) => ids.find((id) => isWhatsAppUserId(id)) || null;
+
+/**
+ * Processa o comando `user perfil`, resolve o alvo e envia o resumo com métricas.
+ * @param {object} params Parâmetros operacionais do comando.
+ * @param {object} params.sock Instância do socket Baileys.
+ * @param {string} params.remoteJid JID da conversa atual.
+ * @param {object} params.messageInfo Mensagem original usada como contexto.
+ * @param {number|undefined} params.expirationMessage Configuração de expiração de mensagem.
+ * @param {string} params.senderJid JID de quem executou o comando.
+ * @param {string[]} [params.args=[]] Argumentos recebidos após o comando.
+ * @param {boolean} params.isGroupMessage Indica se o contexto é grupo.
+ * @param {string} [params.commandPrefix=DEFAULT_COMMAND_PREFIX] Prefixo de comandos.
+ * @returns {Promise<void>} Finaliza após responder ao usuário.
+ */
+export async function handleUserCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, args = [], isGroupMessage, commandPrefix = DEFAULT_COMMAND_PREFIX }) {
   const subcommand = args?.[0]?.toLowerCase() || '';
   if (subcommand !== 'perfil' && subcommand !== 'profile') {
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: buildUsageText(commandPrefix) },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: buildUsageText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   const explicitTargetArg = args.slice(1).join(' ').trim();
   const { source, invalidExplicitTarget } = resolveCandidateTarget(messageInfo, senderJid, explicitTargetArg);
   if (invalidExplicitTarget) {
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: `❌ ID ou telefone inválido.\n\n${buildUsageText(commandPrefix)}` },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: `❌ ID ou telefone inválido.\n\n${buildUsageText(commandPrefix)}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
   if (!source) {
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: buildUsageText(commandPrefix) },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: buildUsageText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   try {
     const canonicalTarget = await resolveCanonicalTarget(source);
     const senderIds = await resolveSenderIdsForTarget(canonicalTarget);
-    const normalizedTargetIds = Array.from(
-      new Set(
-        [canonicalTarget, ...senderIds]
-          .map((value) => normalizeJid(value) || value)
-          .filter(Boolean),
-      ),
-    );
+    const normalizedTargetIds = Array.from(new Set([canonicalTarget, ...senderIds].map((value) => normalizeJid(value) || value).filter(Boolean)));
     const mentionJid = resolveMentionJid(normalizedTargetIds);
     const senderCanonical = resolveUserIdCached({ jid: senderJid, lid: senderJid, participantAlt: null });
     const rankingTargetId = mentionJid || canonicalTarget;
 
-    const [stats, ranking, latestPushName, premiumUsers, blocked, groupAdmin] = await Promise.all([
-      fetchUserStats({ canonicalId: rankingTargetId, senderIds: normalizedTargetIds }),
-      fetchUserRanking(rankingTargetId),
-      fetchLatestPushName(normalizedTargetIds),
-      premiumUserStore.getPremiumUsers(),
-      isTargetBlocked(sock, normalizedTargetIds),
-      isGroupMessage ? isUserAdmin(remoteJid, mentionJid || canonicalTarget) : Promise.resolve(false),
-    ]);
-    const [
-      globalInsights,
-      socialInsights,
-      trendInsights,
-      activeHourInsights,
-      dominantTypeByPeriod,
-      topGroups,
-      participationInsights,
-    ] = await Promise.all([
+    const [stats, ranking, latestPushName, premiumUsers, blocked, groupAdmin] = await Promise.all([fetchUserStats({ canonicalId: rankingTargetId, senderIds: normalizedTargetIds }), fetchUserRanking(rankingTargetId), fetchLatestPushName(normalizedTargetIds), premiumUserStore.getPremiumUsers(), isTargetBlocked(sock, normalizedTargetIds), isGroupMessage ? isUserAdmin(remoteJid, mentionJid || canonicalTarget) : Promise.resolve(false)]);
+    const [globalInsights, socialInsights, trendInsights, activeHourInsights, dominantTypeByPeriod, topGroups, participationInsights] = await Promise.all([
       fetchUserGlobalRankingInsights({
         canonicalId: rankingTargetId,
         totalMessages: stats.totalMessages,
@@ -978,26 +1067,16 @@ export async function handleUserCommand({
     if (isOwner) tags.push('owner');
     if (!recentInteraction && stats.totalMessages > 0) tags.push('inativo');
     if (stats.totalMessages === 0) tags.push('sem histórico');
-    const rankingLabel =
-      ranking.position && ranking.totalRankedUsers > 0
-        ? `#${ranking.position} de ${ranking.totalRankedUsers}`
-        : 'fora do ranking (sem mensagens)';
-    const favoriteTypeLabel = globalInsights.favoriteType
-      ? `${globalInsights.favoriteType} (${globalInsights.favoriteCount})`
-      : 'N/D';
-    const topPartnerLabel =
-      socialInsights.topPartnerCount > 0
-        ? `${socialInsights.topPartnerLabel} (${socialInsights.topPartnerCount})`
-        : 'N/D';
+    const rankingLabel = ranking.position && ranking.totalRankedUsers > 0 ? `#${ranking.position} de ${ranking.totalRankedUsers}` : 'fora do ranking (sem mensagens)';
+    const favoriteTypeLabel = globalInsights.favoriteType ? `${globalInsights.favoriteType} (${globalInsights.favoriteCount})` : 'N/D';
+    const topPartnerLabel = socialInsights.topPartnerCount > 0 ? `${socialInsights.topPartnerLabel} (${socialInsights.topPartnerCount})` : 'N/D';
     const trendLabel = formatTrendLabel(trendInsights);
     const activeHourLabel = formatActiveHourLabel(activeHourInsights);
     const dominantTypeByPeriodLabel = formatDominantTypeByPeriod(dominantTypeByPeriod);
     const responseRateLabel = `${socialInsights.responseRatePercent} (${socialInsights.responseRatio})`;
     const topPartnersLabel = formatTopPartnersLine(socialInsights.topPartners);
     const topGroupsLabel = formatTopGroupsLine(topGroups);
-    const groupShareLabel = isGroupMessage
-      ? `${participationInsights.groupShare} (${participationInsights.groupUserTotal}/${participationInsights.groupTotal})`
-      : 'N/D';
+    const groupShareLabel = isGroupMessage ? `${participationInsights.groupShare} (${participationInsights.groupUserTotal}/${participationInsights.groupTotal})` : 'N/D';
     const globalShareLabel = `${participationInsights.globalShare} (${stats.totalMessages}/${participationInsights.globalTotal})`;
 
     const text = buildProfileMessage({
@@ -1043,25 +1122,9 @@ export async function handleUserCommand({
         })
       : null;
 
-    await sendAndStore(
-      sock,
-      remoteJid,
-      profilePicBuffer
-        ? mentions.length
-          ? { image: profilePicBuffer, caption: text, mentions }
-          : { image: profilePicBuffer, caption: text }
-        : mentions.length
-        ? { text, mentions }
-        : { text },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, profilePicBuffer ? (mentions.length ? { image: profilePicBuffer, caption: text, mentions } : { image: profilePicBuffer, caption: text }) : mentions.length ? { text, mentions } : { text }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   } catch (error) {
     logger.error('Erro ao processar comando user perfil.', { error: error.message });
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: '❌ Não foi possível carregar o perfil do usuário agora.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: '❌ Não foi possível carregar o perfil do usuário agora.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   }
 }
