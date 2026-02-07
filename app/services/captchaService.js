@@ -1,7 +1,7 @@
 import logger from '../utils/logger/loggerModule.js';
 import { getJidUser } from '../config/baileysConfig.js';
 import { isUserAdmin, updateGroupParticipants } from '../config/groupUtils.js';
-import { extractUserIdInfo, resolveUserIdCached } from './lidMapService.js';
+import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from './lidMapService.js';
 import { sendAndStore } from './messagePersistenceService.js';
 import { getActiveSocket } from './socketState.js';
 
@@ -92,6 +92,44 @@ const findPendingEntry = (groupId, ...identitySources) => {
   for (const candidate of candidates) {
     const entry = groupMap.get(candidate);
     if (entry) {
+      return { groupMap, entry, lookupUserId: candidate };
+    }
+  }
+
+  return null;
+};
+
+const findPendingEntryAsync = async (groupId, ...identitySources) => {
+  const directMatch = findPendingEntry(groupId, ...identitySources);
+  if (directMatch) return directMatch;
+
+  const groupMap = pendingCaptchas.get(groupId);
+  if (!groupMap) return null;
+
+  const asyncCandidates = new Set();
+
+  for (const source of identitySources) {
+    if (!source) continue;
+    const info = extractUserIdInfo(source);
+    const hasLidLikeIdentity = Boolean(info.lid || (typeof info.raw === 'string' && info.raw.includes('@lid')));
+    if (!hasLidLikeIdentity) continue;
+
+    try {
+      const resolved = await resolveUserId(info);
+      appendCandidate(asyncCandidates, resolved);
+    } catch (error) {
+      logger.warn('Falha ao resolver ID canônico no captcha via lid_map.', {
+        groupId,
+        errorMessage: error.message,
+      });
+    }
+  }
+
+  for (const candidate of asyncCandidates) {
+    const entry = groupMap.get(candidate);
+    if (entry) {
+      // guarda alias resolvido para próximos eventos do mesmo usuário
+      groupMap.set(candidate, entry);
       return { groupMap, entry, lookupUserId: candidate };
     }
   }
@@ -383,9 +421,9 @@ export const clearCaptchasForGroup = (groupId, reason = 'manual') => {
   });
 };
 
-export const resolveCaptchaByMessage = ({ groupId, senderJid, senderIdentity, messageKey }) => {
+export const resolveCaptchaByMessage = async ({ groupId, senderJid, senderIdentity, messageKey }) => {
   if (!groupId) return false;
-  const match = findPendingEntry(groupId, senderIdentity, senderJid);
+  const match = await findPendingEntryAsync(groupId, senderIdentity, senderJid);
   if (!match) return false;
 
   const cleared = clearEntry(groupId, match.lookupUserId, 'message');
@@ -396,9 +434,9 @@ export const resolveCaptchaByMessage = ({ groupId, senderJid, senderIdentity, me
   return true;
 };
 
-export const resolveCaptchaByReaction = ({ groupId, senderJid, senderIdentity, reactedMessageId }) => {
+export const resolveCaptchaByReaction = async ({ groupId, senderJid, senderIdentity, reactedMessageId }) => {
   if (!groupId) return false;
-  const match = findPendingEntry(groupId, senderIdentity, senderJid);
+  const match = await findPendingEntryAsync(groupId, senderIdentity, senderJid);
   if (!match?.entry) return false;
 
   if (match.entry.messageId && reactedMessageId && match.entry.messageId !== reactedMessageId) {

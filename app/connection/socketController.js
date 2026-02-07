@@ -532,7 +532,7 @@ export async function connectToWhatsApp() {
     }
   });
 
-  sock.ev.on('messages.reaction', (updates) => {
+  sock.ev.on('messages.reaction', async (updates) => {
     try {
       const reactions = Array.isArray(updates) ? updates : [updates];
       for (const update of reactions) {
@@ -550,7 +550,7 @@ export async function connectToWhatsApp() {
         const reactedMessageId = reactedKey?.id || null;
 
         if (groupId && (senderJid || senderIdentity.participantAlt)) {
-          resolveCaptchaByReaction({ groupId, senderJid, senderIdentity, reactedMessageId });
+          await resolveCaptchaByReaction({ groupId, senderJid, senderIdentity, reactedMessageId });
         }
       }
     } catch (error) {
