@@ -384,8 +384,37 @@ const fetchJidByLid = async (lid) => {
 
   const direct = rowMap.has(lid) ? rowMap.get(lid) : undefined;
   const baseValue = base && base !== lid && rowMap.has(base) ? rowMap.get(base) : undefined;
-  const resolved = direct ?? baseValue ?? null;
-  const shouldSeedDerived = Boolean(resolved && direct === undefined && baseValue !== undefined);
+  let resolved = direct ?? baseValue ?? null;
+
+  if (!resolved) {
+    const normalized = base || lid;
+    const [rawUser, rawServer] = String(normalized).split('@');
+    const rootUser = rawUser ? rawUser.split(':')[0] : '';
+    const server = rawServer || '';
+
+    if (rootUser && server) {
+      const derivedRows = await executeQuery(
+        `SELECT jid
+           FROM ${TABLES.LID_MAP}
+          WHERE jid IS NOT NULL
+            AND (
+              lid = ?
+              OR lid = ?
+              OR lid = ?
+              OR lid LIKE ?
+            )
+          ORDER BY last_seen DESC
+          LIMIT 1`,
+        [lid, base || lid, `${rootUser}@${server}`, `${rootUser}:%@${server}`],
+      );
+      const derivedJid = derivedRows?.[0]?.jid;
+      if (derivedJid && isWhatsAppJid(derivedJid)) {
+        resolved = normalizeJid(derivedJid);
+      }
+    }
+  }
+
+  const shouldSeedDerived = Boolean(resolved && direct === undefined);
 
   setCacheEntry(
     lid,

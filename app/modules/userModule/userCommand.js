@@ -10,12 +10,27 @@ import {
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import logger from '../../utils/logger/loggerModule.js';
+import { MESSAGE_TYPE_SQL, TIMESTAMP_TO_DATETIME_SQL } from '../statsModule/rankingCommon.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const ACTIVE_DAYS_WINDOW = Number.parseInt(process.env.USER_PROFILE_ACTIVE_DAYS || '30', 10);
 const OWNER_JID = process.env.USER_ADMIN ? normalizeJid(process.env.USER_ADMIN) : null;
 const MIN_PHONE_DIGITS = 5;
 const MAX_PHONE_DIGITS = 20;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SOCIAL_RECENT_DAYS = Number.parseInt(process.env.USER_PROFILE_SOCIAL_DAYS || '45', 10);
+const SOCIAL_DST_EXPR = `JSON_UNQUOTE(
+  COALESCE(
+    JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.participant'),
+    JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.contextInfo.mentionedJid[0]'),
+    JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.participant'),
+    JSON_EXTRACT(m.raw_message, '$.message.imageMessage.contextInfo.mentionedJid[0]'),
+    JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.participant'),
+    JSON_EXTRACT(m.raw_message, '$.message.videoMessage.contextInfo.mentionedJid[0]'),
+    JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.participant'),
+    JSON_EXTRACT(m.raw_message, '$.message.documentMessage.contextInfo.mentionedJid[0]')
+  )
+)`;
 
 const buildUsageText = (commandPrefix = DEFAULT_COMMAND_PREFIX) =>
   [
@@ -79,10 +94,11 @@ const resolveCandidateTarget = (messageInfo, senderJid, targetArg) => {
           participantAlt: contextInfo.participantAlt || null,
         }
       : null;
+  const hasContextTarget = Boolean(mentioned || repliedSource);
 
   return {
-    source: parsedTarget.jid || mentioned || repliedSource || senderJid || null,
-    invalidExplicitTarget: parsedTarget.invalid,
+    source: mentioned || parsedTarget.jid || repliedSource || senderJid || null,
+    invalidExplicitTarget: parsedTarget.invalid && !hasContextTarget,
   };
 };
 
@@ -124,11 +140,12 @@ const resolveSenderIdsForTarget = async (canonicalTarget) => {
 const buildInClause = (items) => items.map(() => '?').join(', ');
 
 const fetchUserStats = async (senderIds) => {
-  if (!senderIds.length) return { totalMessages: 0, lastMessage: null };
+  if (!senderIds.length) return { totalMessages: 0, firstMessage: null, lastMessage: null };
 
   const inClause = buildInClause(senderIds);
   const [row] = await executeQuery(
     `SELECT COUNT(*) AS total_messages,
+            MIN(timestamp) AS first_message,
             MAX(timestamp) AS last_message
        FROM ${TABLES.MESSAGES}
       WHERE sender_id IN (${inClause})`,
@@ -137,7 +154,160 @@ const fetchUserStats = async (senderIds) => {
 
   return {
     totalMessages: Number(row?.total_messages || 0),
+    firstMessage: row?.first_message || null,
     lastMessage: row?.last_message || null,
+  };
+};
+
+const toMillis = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') {
+    if (value > 1e12) return value;
+    if (value > 1e9) return value * 1000;
+    return value;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const computeStreak = (days) => {
+  if (!days.length) return 0;
+  let best = 1;
+  let current = 1;
+  let prev = new Date(`${days[0]}T00:00:00Z`).getTime();
+  for (let i = 1; i < days.length; i += 1) {
+    const currentDay = new Date(`${days[i]}T00:00:00Z`).getTime();
+    const diff = currentDay - prev;
+    if (diff === DAY_MS) {
+      current += 1;
+    } else {
+      current = 1;
+    }
+    if (current > best) best = current;
+    prev = currentDay;
+  }
+  return best;
+};
+
+const fetchUserGlobalRankingInsights = async ({
+  canonicalId,
+  totalMessages = 0,
+  firstMessage = null,
+  lastMessage = null,
+}) => {
+  if (!canonicalId) {
+    return {
+      activeDays: 0,
+      avgPerDay: '0.00',
+      streakDays: 0,
+      favoriteType: null,
+      favoriteCount: 0,
+    };
+  }
+
+  const daysRows = await executeQuery(
+    `SELECT DISTINCT DATE(ts) AS day
+       FROM (
+         SELECT ${TIMESTAMP_TO_DATETIME_SQL} AS ts
+           FROM ${TABLES.MESSAGES} m
+           LEFT JOIN ${TABLES.LID_MAP} lm
+             ON lm.lid = m.sender_id
+            AND lm.jid IS NOT NULL
+          WHERE m.sender_id IS NOT NULL
+            AND COALESCE(lm.jid, m.sender_id) = ?
+            AND m.timestamp IS NOT NULL
+       ) d
+      WHERE d.ts IS NOT NULL
+      ORDER BY day ASC`,
+    [canonicalId],
+  );
+  const days = (daysRows || []).map((item) => item.day).filter(Boolean);
+  const activeDays = days.length;
+  const streakDays = computeStreak(days);
+
+  const firstMs = toMillis(firstMessage);
+  const lastMs = toMillis(lastMessage);
+  let avgPerDay = '0.00';
+  if (Number(totalMessages) > 0 && firstMs !== null && lastMs !== null) {
+    const rangeDays = Math.max(1, Math.ceil((lastMs - firstMs) / DAY_MS) + 1);
+    avgPerDay = (Number(totalMessages) / rangeDays).toFixed(2);
+  }
+
+  const [favRow] = await executeQuery(
+    `SELECT
+        ${MESSAGE_TYPE_SQL} AS message_type,
+        COUNT(*) AS total
+      FROM ${TABLES.MESSAGES} m
+      LEFT JOIN ${TABLES.LID_MAP} lm
+        ON lm.lid = m.sender_id
+       AND lm.jid IS NOT NULL
+      WHERE m.sender_id IS NOT NULL
+        AND COALESCE(lm.jid, m.sender_id) = ?
+        AND m.raw_message IS NOT NULL
+      GROUP BY message_type
+      ORDER BY total DESC
+      LIMIT 1`,
+    [canonicalId],
+  );
+
+  return {
+    activeDays,
+    avgPerDay,
+    streakDays,
+    favoriteType: favRow?.message_type || null,
+    favoriteCount: Number(favRow?.total || 0),
+  };
+};
+
+const fetchUserRanking = async (canonicalId) => {
+  if (!canonicalId) {
+    return { position: null, totalRankedUsers: 0, totalMessages: 0 };
+  }
+
+  const [totalRow] = await executeQuery(
+    `SELECT COUNT(*) AS total_messages
+       FROM ${TABLES.MESSAGES} m
+       LEFT JOIN ${TABLES.LID_MAP} lm ON lm.lid = m.sender_id
+      WHERE m.sender_id IS NOT NULL
+        AND COALESCE(lm.jid, m.sender_id) = ?`,
+    [canonicalId],
+  );
+  const totalMessages = Number(totalRow?.total_messages || 0);
+
+  const [rankedUsersRow] = await executeQuery(
+    `SELECT COUNT(*) AS total_ranked_users
+       FROM (
+             SELECT COALESCE(lm.jid, m.sender_id) AS canonical_id
+               FROM ${TABLES.MESSAGES} m
+               LEFT JOIN ${TABLES.LID_MAP} lm ON lm.lid = m.sender_id
+              WHERE m.sender_id IS NOT NULL
+              GROUP BY COALESCE(lm.jid, m.sender_id)
+            ) ranked_users`,
+  );
+  const totalRankedUsers = Number(rankedUsersRow?.total_ranked_users || 0);
+
+  if (totalMessages <= 0) {
+    return { position: null, totalRankedUsers, totalMessages };
+  }
+
+  const [rankRow] = await executeQuery(
+    `SELECT COUNT(*) + 1 AS rank_position
+       FROM (
+             SELECT COALESCE(lm.jid, m.sender_id) AS canonical_id,
+                    COUNT(*) AS total_messages
+               FROM ${TABLES.MESSAGES} m
+               LEFT JOIN ${TABLES.LID_MAP} lm ON lm.lid = m.sender_id
+              WHERE m.sender_id IS NOT NULL
+              GROUP BY COALESCE(lm.jid, m.sender_id)
+            ) ranked
+      WHERE ranked.total_messages > ?`,
+    [totalMessages],
+  );
+
+  return {
+    position: Number.isFinite(Number(rankRow?.rank_position)) ? Number(rankRow.rank_position) : null,
+    totalRankedUsers,
+    totalMessages,
   };
 };
 
@@ -164,6 +334,113 @@ const resolveNameFromContacts = (sock, ids) => {
     if (name) return name;
   }
   return null;
+};
+
+const fetchCanonicalPushName = async (canonicalId) => {
+  if (!canonicalId) return null;
+  const [row] = await executeQuery(
+    `SELECT JSON_UNQUOTE(JSON_EXTRACT(m.raw_message, '$.pushName')) AS push_name
+       FROM ${TABLES.MESSAGES} m
+       LEFT JOIN ${TABLES.LID_MAP} lm
+         ON lm.lid = m.sender_id
+        AND lm.jid IS NOT NULL
+      WHERE m.sender_id IS NOT NULL
+        AND COALESCE(lm.jid, m.sender_id) = ?
+        AND m.raw_message IS NOT NULL
+        AND JSON_EXTRACT(m.raw_message, '$.pushName') IS NOT NULL
+      ORDER BY m.id DESC
+      LIMIT 1`,
+    [canonicalId],
+  );
+  return row?.push_name || null;
+};
+
+const buildSocialBaseQuery = (selectSql) => `
+  WITH base AS (
+    SELECT
+      COALESCE(src_map.jid, m.sender_id) AS src,
+      COALESCE(dst_map.jid, ${SOCIAL_DST_EXPR}) AS dst
+    FROM ${TABLES.MESSAGES} m
+    LEFT JOIN ${TABLES.LID_MAP} src_map
+      ON src_map.lid = m.sender_id
+     AND src_map.jid IS NOT NULL
+    LEFT JOIN ${TABLES.LID_MAP} dst_map
+      ON dst_map.lid = ${SOCIAL_DST_EXPR}
+     AND dst_map.jid IS NOT NULL
+    WHERE m.raw_message IS NOT NULL
+      AND m.sender_id IS NOT NULL
+      AND m.timestamp IS NOT NULL
+      AND m.timestamp >= NOW() - INTERVAL ${SOCIAL_RECENT_DAYS} DAY
+      AND ${SOCIAL_DST_EXPR} IS NOT NULL
+      AND ${SOCIAL_DST_EXPR} <> ''
+      AND COALESCE(src_map.jid, m.sender_id) <> COALESCE(dst_map.jid, ${SOCIAL_DST_EXPR})
+  )
+  ${selectSql}
+`;
+
+const fetchUserSocialInsights = async ({ canonicalId, sock }) => {
+  if (!canonicalId) {
+    return {
+      repliesSent: 0,
+      repliesReceived: 0,
+      socialScore: 0,
+      uniquePartners: 0,
+      topPartnerId: null,
+      topPartnerCount: 0,
+      topPartnerLabel: 'N/D',
+    };
+  }
+
+  const [summaryRow] = await executeQuery(
+    buildSocialBaseQuery(
+      `SELECT
+          SUM(CASE WHEN src = ? THEN 1 ELSE 0 END) AS replies_sent,
+          SUM(CASE WHEN dst = ? THEN 1 ELSE 0 END) AS replies_received,
+          COUNT(DISTINCT CASE
+            WHEN src = ? THEN dst
+            WHEN dst = ? THEN src
+            ELSE NULL
+          END) AS unique_partners
+        FROM base
+       WHERE src = ? OR dst = ?`,
+    ),
+    [canonicalId, canonicalId, canonicalId, canonicalId, canonicalId, canonicalId],
+  );
+
+  const [topPartnerRow] = await executeQuery(
+    buildSocialBaseQuery(
+      `SELECT
+          CASE WHEN src = ? THEN dst ELSE src END AS partner_id,
+          COUNT(*) AS total
+        FROM base
+       WHERE src = ? OR dst = ?
+       GROUP BY partner_id
+       ORDER BY total DESC
+       LIMIT 1`,
+    ),
+    [canonicalId, canonicalId, canonicalId],
+  );
+
+  const repliesSent = Number(summaryRow?.replies_sent || 0);
+  const repliesReceived = Number(summaryRow?.replies_received || 0);
+  const uniquePartners = Number(summaryRow?.unique_partners || 0);
+  const topPartnerId = topPartnerRow?.partner_id || null;
+  const topPartnerCount = Number(topPartnerRow?.total || 0);
+  const topPartnerMention = topPartnerId && getJidUser(topPartnerId) ? `@${getJidUser(topPartnerId)}` : null;
+  const topPartnerFromContacts = resolveNameFromContacts(sock, topPartnerId ? [topPartnerId] : []);
+  const topPartnerPushName = topPartnerId ? await fetchCanonicalPushName(topPartnerId) : null;
+  const topPartnerLabel =
+    topPartnerFromContacts || topPartnerPushName || topPartnerMention || topPartnerId || 'N/D';
+
+  return {
+    repliesSent,
+    repliesReceived,
+    socialScore: repliesSent + repliesReceived,
+    uniquePartners,
+    topPartnerId,
+    topPartnerCount,
+    topPartnerLabel,
+  };
 };
 
 const formatPhone = (jid) => {
@@ -215,6 +492,16 @@ const buildProfileMessage = ({
   status,
   lastInteraction,
   totalMessages,
+  rankingLabel,
+  avgPerDay,
+  activeDays,
+  streakDays,
+  favoriteTypeLabel,
+  socialScore,
+  socialSent,
+  socialReceived,
+  socialPartners,
+  topPartnerLabel,
   tags,
 }) =>
   [
@@ -227,6 +514,16 @@ const buildProfileMessage = ({
     `• Status: *${status}*`,
     `• Última interação: ${lastInteraction}`,
     `• Mensagens gerais registradas: ${totalMessages}`,
+    `• Posição no ranking: ${rankingLabel}`,
+    `• Média/dia (global): ${avgPerDay}`,
+    `• Dias ativos (global): ${activeDays}`,
+    `• Streak (global): ${streakDays} dia(s)`,
+    `• Tipo favorito (global): ${favoriteTypeLabel}`,
+    `• Interações sociais (${SOCIAL_RECENT_DAYS}d): ${socialScore}`,
+    `• Respostas enviadas (${SOCIAL_RECENT_DAYS}d): ${socialSent}`,
+    `• Respostas recebidas (${SOCIAL_RECENT_DAYS}d): ${socialReceived}`,
+    `• Parceiros sociais (${SOCIAL_RECENT_DAYS}d): ${socialPartners}`,
+    `• Parceiro principal (${SOCIAL_RECENT_DAYS}d): ${topPartnerLabel}`,
     `• Tags: ${tags.length ? tags.join(', ') : 'sem tags'}`,
   ].join('\n');
 
@@ -287,13 +584,27 @@ export async function handleUserCommand({
     );
     const mentionJid = resolveMentionJid(normalizedTargetIds);
     const senderCanonical = resolveUserIdCached({ jid: senderJid, lid: senderJid, participantAlt: null });
+    const rankingTargetId = mentionJid || canonicalTarget;
 
-    const [stats, latestPushName, premiumUsers, blocked, groupAdmin] = await Promise.all([
+    const [stats, ranking, latestPushName, premiumUsers, blocked, groupAdmin] = await Promise.all([
       fetchUserStats(normalizedTargetIds),
+      fetchUserRanking(rankingTargetId),
       fetchLatestPushName(normalizedTargetIds),
       premiumUserStore.getPremiumUsers(),
       isTargetBlocked(sock, normalizedTargetIds),
       isGroupMessage ? isUserAdmin(remoteJid, mentionJid || canonicalTarget) : Promise.resolve(false),
+    ]);
+    const [globalInsights, socialInsights] = await Promise.all([
+      fetchUserGlobalRankingInsights({
+        canonicalId: rankingTargetId,
+        totalMessages: stats.totalMessages,
+        firstMessage: stats.firstMessage,
+        lastMessage: stats.lastMessage,
+      }),
+      fetchUserSocialInsights({
+        canonicalId: rankingTargetId,
+        sock,
+      }),
     ]);
 
     const premiumSet = new Set((premiumUsers || []).map((jid) => normalizeJid(jid) || jid));
@@ -313,6 +624,17 @@ export async function handleUserCommand({
     if (isOwner) tags.push('owner');
     if (!recentInteraction && stats.totalMessages > 0) tags.push('inativo');
     if (stats.totalMessages === 0) tags.push('sem histórico');
+    const rankingLabel =
+      ranking.position && ranking.totalRankedUsers > 0
+        ? `#${ranking.position} de ${ranking.totalRankedUsers}`
+        : 'fora do ranking (sem mensagens)';
+    const favoriteTypeLabel = globalInsights.favoriteType
+      ? `${globalInsights.favoriteType} (${globalInsights.favoriteCount})`
+      : 'N/D';
+    const topPartnerLabel =
+      socialInsights.topPartnerCount > 0
+        ? `${socialInsights.topPartnerLabel} (${socialInsights.topPartnerCount})`
+        : 'N/D';
 
     const text = buildProfileMessage({
       mentionLabel,
@@ -322,6 +644,16 @@ export async function handleUserCommand({
       status,
       lastInteraction: formatDateTime(stats.lastMessage),
       totalMessages: stats.totalMessages,
+      rankingLabel,
+      avgPerDay: globalInsights.avgPerDay,
+      activeDays: globalInsights.activeDays,
+      streakDays: globalInsights.streakDays,
+      favoriteTypeLabel,
+      socialScore: socialInsights.socialScore,
+      socialSent: socialInsights.repliesSent,
+      socialReceived: socialInsights.repliesReceived,
+      socialPartners: socialInsights.uniquePartners,
+      topPartnerLabel,
       tags,
     });
 
