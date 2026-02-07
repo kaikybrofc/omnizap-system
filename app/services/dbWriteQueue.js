@@ -3,6 +3,7 @@ import { executeQuery, TABLES } from '../../database/index.js';
 import { queueLidUpdate, flushLidQueue } from './lidMapService.js';
 import { buildPlaceholders, createFlushRunner } from './queueUtils.js';
 import { recordError, setQueueDepth } from '../observability/metrics.js';
+import { sanitizeUnicodeString, toSafeJsonColumnValue } from '../utils/json/jsonSanitizer.js';
 
 /**
  * Converte um valor para número com fallback.
@@ -59,6 +60,18 @@ const MESSAGE_QUEUE_MAX = Math.max(
   MESSAGE_BATCH_SIZE * 5,
   Math.floor(parseNumber(process.env.DB_MESSAGE_QUEUE_MAX, 5000)),
 );
+
+/**
+ * Regex de erro para payload JSON inválido no MySQL.
+ * @type {RegExp}
+ */
+const INVALID_JSON_TEXT_REGEX = /Invalid JSON text/i;
+
+/**
+ * Regex específica para surrogate inválido.
+ * @type {RegExp}
+ */
+const INVALID_SURROGATE_REGEX = /surrogate pair/i;
 
 /**
  * Fila em memória com mensagens pendentes de persistência.
@@ -189,35 +202,127 @@ const hashObject = (value) => {
   }
 };
 
+/**
+ * Indica se o erro foi causado por texto JSON inválido (payload determinístico).
+ *
+ * @param {Error} error
+ * @returns {boolean}
+ */
+const isInvalidJsonPayloadError = (error) => {
+  const message = error?.message || '';
+  return INVALID_JSON_TEXT_REGEX.test(message) || INVALID_SURROGATE_REGEX.test(message);
+};
+
+/**
+ * Normaliza payload de mensagem antes de persistir.
+ * - content: remove surrogate inválido
+ * - raw_message: serializa JSON seguro para coluna JSON
+ *
+ * @param {{message_id:string, chat_id:string, sender_id:string, content:(string|null), raw_message:(Object|string|null), timestamp:(number|string|Date)}} messageData
+ * @returns {{message_id:string, chat_id:string, sender_id:string, content:(string|null), raw_message:(string|null), timestamp:(number|string|Date)}}
+ */
+const normalizeMessageForQueue = (messageData) => ({
+  ...messageData,
+  content: typeof messageData?.content === 'string' ? sanitizeUnicodeString(messageData.content) : messageData?.content,
+  raw_message: toSafeJsonColumnValue(messageData?.raw_message),
+});
+
+/**
+ * Executa INSERT IGNORE de um batch de mensagens.
+ *
+ * @param {Array<{message_id:string, chat_id:string, sender_id:string, content:(string|null), raw_message:(string|null), timestamp:(number|string|Date)}>} batch
+ * @returns {Promise<void>}
+ */
+const insertMessageBatch = async (batch) => {
+  const placeholders = buildPlaceholders(batch.length, 6);
+  const params = [];
+  for (const message of batch) {
+    params.push(
+      message.message_id,
+      message.chat_id,
+      message.sender_id,
+      message.content,
+      message.raw_message,
+      message.timestamp,
+    );
+  }
+
+  const sql = `INSERT IGNORE INTO ${TABLES.MESSAGES}
+      (message_id, chat_id, sender_id, content, raw_message, timestamp)
+      VALUES ${placeholders}`;
+
+  await executeQuery(sql, params);
+};
+
+/**
+ * Remove IDs de mensagens do set de pendentes.
+ *
+ * @param {Array<{message_id:string}>} batch
+ * @returns {void}
+ */
+const clearPendingMessageIds = (batch) => {
+  for (const message of batch) {
+    messagePendingIds.delete(message.message_id);
+  }
+};
+
+/**
+ * Em caso de erro JSON no batch, tenta persistir item a item.
+ * - Mensagem inválida é descartada para não travar a fila inteira.
+ * - Em erro transitório, re-enfileira o restante e interrompe.
+ *
+ * @param {Array<{message_id:string, chat_id:string, sender_id:string, content:(string|null), raw_message:(string|null), timestamp:(number|string|Date)}>} batch
+ * @returns {Promise<void>}
+ */
+const salvageJsonErrorBatch = async (batch) => {
+  for (let index = 0; index < batch.length; index += 1) {
+    const message = batch[index];
+    try {
+      await insertMessageBatch([message]);
+      clearPendingMessageIds([message]);
+    } catch (error) {
+      if (isInvalidJsonPayloadError(error)) {
+        clearPendingMessageIds([message]);
+        logger.warn('Mensagem descartada por payload JSON inválido.', {
+          messageId: message?.message_id,
+          chatId: message?.chat_id,
+          error: error.message,
+        });
+        recordError('db_write_queue');
+        continue;
+      }
+
+      messageQueue.unshift(...batch.slice(index));
+      throw error;
+    }
+  }
+};
+
 const flushMessageQueueCore = async () => {
   while (messageQueue.length > 0) {
     const batch = messageQueue.splice(0, MESSAGE_BATCH_SIZE);
-    const placeholders = buildPlaceholders(batch.length, 6);
-    const params = [];
-    for (const message of batch) {
-      params.push(
-        message.message_id,
-        message.chat_id,
-        message.sender_id,
-        message.content,
-        message.raw_message,
-        message.timestamp,
-      );
-    }
-    const sql = `INSERT IGNORE INTO ${TABLES.MESSAGES}
-        (message_id, chat_id, sender_id, content, raw_message, timestamp)
-        VALUES ${placeholders}`;
-
     try {
-      await executeQuery(sql, params);
-      for (const message of batch) {
-        messagePendingIds.delete(message.message_id);
-      }
+      await insertMessageBatch(batch);
+      clearPendingMessageIds(batch);
     } catch (error) {
       logger.error('Falha ao inserir batch de mensagens.', { error: error.message });
       recordError('db_write_queue');
-      messageQueue.unshift(...batch);
-      break;
+
+      if (isInvalidJsonPayloadError(error)) {
+        try {
+          await salvageJsonErrorBatch(batch);
+          continue;
+        } catch (salvageError) {
+          logger.error('Falha ao recuperar batch de mensagens após erro de JSON inválido.', {
+            error: salvageError.message,
+          });
+          recordError('db_write_queue');
+          break;
+        }
+      } else {
+        messageQueue.unshift(...batch);
+        break;
+      }
     }
   }
 };
@@ -236,7 +341,10 @@ const flushChatQueueCore = async () => {
     const placeholders = buildPlaceholders(ready.length, 3);
     const params = [];
     for (const entry of ready) {
-      params.push(entry.id, entry.name, entry.raw);
+      if (typeof entry.name === 'string') {
+        entry.name = sanitizeUnicodeString(entry.name);
+      }
+      params.push(entry.id, entry.name, toSafeJsonColumnValue(entry.raw));
     }
 
     const sql = `INSERT INTO ${TABLES.CHATS} (id, name, raw_chat)
@@ -317,13 +425,15 @@ export function queueMessageInsert(messageData) {
   if (!messageData?.message_id) return false;
   if (messagePendingIds.has(messageData.message_id)) return false;
 
+  const normalizedMessage = normalizeMessageForQueue(messageData);
+
   if (messageQueue.length >= MESSAGE_QUEUE_MAX) {
     logger.warn('Fila de mensagens cheia, forçando flush.', { size: messageQueue.length });
     scheduleFlush();
   }
 
-  messagePendingIds.add(messageData.message_id);
-  messageQueue.push(messageData);
+  messagePendingIds.add(normalizedMessage.message_id);
+  messageQueue.push(normalizedMessage);
   updateQueueMetrics();
 
   if (messageQueue.length >= MESSAGE_BATCH_SIZE) {
