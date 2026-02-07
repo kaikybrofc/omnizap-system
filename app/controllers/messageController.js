@@ -20,6 +20,7 @@ import { handleStickerConvertCommand } from '../modules/stickerModule/stickerCon
 import { handleWaifuPicsCommand, getWaifuPicsUsageText } from '../modules/waifuPicsModule/waifuPicsCommand.js';
 import { handlePackCommand, maybeCaptureIncomingSticker } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
 import { handleUserCommand } from '../modules/userModule/userCommand.js';
+import { handleDiceCommand } from '../modules/gameModule/diceCommand.js';
 import groupConfigStore from '../store/groupConfigStore.js';
 import { sendAndStore } from '../services/messagePersistenceService.js';
 import { resolveCaptchaByMessage } from '../services/captchaService.js';
@@ -242,6 +243,11 @@ export const handleMessages = async (update, sock) => {
 
             case 'ping':
               runCommand('ping', () => handlePingCommand({ sock, remoteJid, messageInfo, expirationMessage }));
+              break;
+
+            case 'dado':
+            case 'dice':
+              runCommand('dado', () => handleDiceCommand({ sock, remoteJid, messageInfo, expirationMessage, args, commandPrefix }));
               break;
 
             case 'user':

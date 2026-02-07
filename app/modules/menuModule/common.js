@@ -33,6 +33,10 @@ Selecione uma categoria para visualizar os comandos disponíveis:
 → ${commandPrefix}menu anime
 💡 Exemplo: ${commandPrefix}menu anime
 
+• 🎮 Brincadeiras  
+→ ${commandPrefix}dado
+💡 Exemplo: ${commandPrefix}dado
+
 • 🛡️ Administração  
 → ${commandPrefix}menuadm
 💡 Exemplo: ${commandPrefix}menuadm
