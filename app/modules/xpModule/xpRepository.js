@@ -3,9 +3,14 @@ import { executeQuery, TABLES } from '../../../database/index.js';
 const USER_XP_COLUMNS_SQL = 'id, sender_id, xp, level, messages_count, last_xp_at, created_at, updated_at';
 const CONVERSATION_TEXT_SQL = "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(m.raw_message, '$.message.conversation')), '')";
 const EXTENDED_TEXT_SQL = "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(m.raw_message, '$.message.extendedTextMessage.text')), '')";
-const EFFECTIVE_COMMAND_PREFIX_SQL = "COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(gc.config, '$.commandPrefix')), ''), ?)";
 
-const buildBootstrapFilterSql = ({ ignoreCommands, extraCommandPrefixes = [] } = {}) => {
+const escapeSqlString = (value) => {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "''");
+};
+
+const buildBootstrapFilterSql = ({ ignoreCommands, defaultCommandPrefix = '/', extraCommandPrefixes = [] } = {}) => {
   const conditions = [
     'm.sender_id IS NOT NULL',
     'm.sender_id > ?',
@@ -43,18 +48,23 @@ const buildBootstrapFilterSql = ({ ignoreCommands, extraCommandPrefixes = [] } =
   ];
 
   if (ignoreCommands) {
+    const escapedDefaultPrefix = escapeSqlString(defaultCommandPrefix);
+    const effectiveCommandPrefixSql = `COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(gc.config, '$.commandPrefix')), ''), '${escapedDefaultPrefix}')`;
+
     conditions.push(
       `NOT (
-        ${CONVERSATION_TEXT_SQL} LIKE CONCAT(${EFFECTIVE_COMMAND_PREFIX_SQL}, '%')
-        OR ${EXTENDED_TEXT_SQL} LIKE CONCAT(${EFFECTIVE_COMMAND_PREFIX_SQL}, '%')
+        LEFT(${CONVERSATION_TEXT_SQL}, CHAR_LENGTH(${effectiveCommandPrefixSql})) = ${effectiveCommandPrefixSql}
+        OR LEFT(${EXTENDED_TEXT_SQL}, CHAR_LENGTH(${effectiveCommandPrefixSql})) = ${effectiveCommandPrefixSql}
       )`,
     );
 
-    extraCommandPrefixes.forEach(() => {
+    extraCommandPrefixes.forEach((prefix) => {
+      const escapedPrefix = escapeSqlString(prefix);
+      const quotedPrefix = `'${escapedPrefix}'`;
       conditions.push(
         `NOT (
-          ${CONVERSATION_TEXT_SQL} LIKE CONCAT(?, '%')
-          OR ${EXTENDED_TEXT_SQL} LIKE CONCAT(?, '%')
+          LEFT(${CONVERSATION_TEXT_SQL}, CHAR_LENGTH(${quotedPrefix})) = ${quotedPrefix}
+          OR LEFT(${EXTENDED_TEXT_SQL}, CHAR_LENGTH(${quotedPrefix})) = ${quotedPrefix}
         )`,
       );
     });
@@ -131,15 +141,17 @@ export const fetchBootstrapBatch = async ({
   ignoreCommands = true,
   extraCommandPrefixes = [],
 }) => {
-  const filters = buildBootstrapFilterSql({ ignoreCommands, extraCommandPrefixes });
+  const filters = buildBootstrapFilterSql({
+    ignoreCommands,
+    defaultCommandPrefix,
+    extraCommandPrefixes,
+  });
   const whereSql = filters.join('\n        AND ');
 
   const params = [startAfterSenderId];
-  if (ignoreCommands) {
-    params.push(defaultCommandPrefix, defaultCommandPrefix);
-    extraCommandPrefixes.forEach((prefix) => params.push(prefix, prefix));
-  }
-  params.push(batchSize);
+  const safeBatchSize = Number.isFinite(Number(batchSize))
+    ? Math.max(1, Math.floor(Number(batchSize)))
+    : 5000;
 
   const sql = `
     SELECT
@@ -151,19 +163,22 @@ export const fetchBootstrapBatch = async ({
     WHERE ${whereSql}
     GROUP BY m.sender_id
     ORDER BY m.sender_id ASC
-    LIMIT ?
+    LIMIT ${safeBatchSize}
   `;
 
   return executeQuery(sql, params);
 };
 
 export const getTopUsersByXp = async (limit = 5) => {
+  const safeLimit = Number.isFinite(Number(limit))
+    ? Math.max(1, Math.floor(Number(limit)))
+    : 5;
+
   return executeQuery(
     `SELECT sender_id, xp, level, messages_count
        FROM ${TABLES.USER_XP}
       ORDER BY xp DESC, level DESC, messages_count DESC
-      LIMIT ?`,
-    [limit],
+      LIMIT ${safeLimit}`,
   );
 };
 
