@@ -21,9 +21,12 @@ import { handleWaifuPicsCommand, getWaifuPicsUsageText } from '../modules/waifuP
 import { handlePackCommand, maybeCaptureIncomingSticker } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
 import { handleUserCommand } from '../modules/userModule/userCommand.js';
 import { handleDiceCommand } from '../modules/gameModule/diceCommand.js';
+import { handleXpCommand } from '../modules/xpModule/xpCommands.js';
+import { awardXpForMessage } from '../modules/xpModule/xpService.js';
 import groupConfigStore from '../store/groupConfigStore.js';
 import { sendAndStore } from '../services/messagePersistenceService.js';
 import { resolveCaptchaByMessage } from '../services/captchaService.js';
+import { resolveUserIdCached } from '../services/lidMapService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
@@ -266,6 +269,22 @@ export const handleMessages = async (update, sock) => {
               );
               break;
 
+            case 'xp':
+              runCommand('xp', () =>
+                handleXpCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  senderJid,
+                  args,
+                  text,
+                  isGroupMessage,
+                  commandPrefix,
+                }),
+              );
+              break;
+
             case 'aviso':
             case 'notice':
               runCommand('aviso', () => handleNoticeCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
@@ -306,6 +325,33 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
               messageInfo,
               senderJid,
               isMessageFromBot,
+            }),
+          );
+
+          const xpIdentity =
+            typeof senderIdentity === 'string'
+              ? {
+                  jid: senderIdentity,
+                  lid: senderIdentity,
+                  participantAlt: null,
+                }
+              : {
+                  jid: senderIdentity?.jid || null,
+                  lid: senderIdentity?.participant || senderIdentity?.jid || null,
+                  participantAlt: senderIdentity?.participantAlt || null,
+                };
+          const xpSenderId = resolveUserIdCached(xpIdentity) || senderJid;
+
+          runCommand('xp-award', () =>
+            awardXpForMessage({
+              senderId: xpSenderId,
+              chatId: remoteJid,
+              messageInfo,
+              extractedText,
+              isMessageFromBot,
+              isCommandMessage,
+              sock,
+              expirationMessage,
             }),
           );
         }

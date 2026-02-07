@@ -104,6 +104,8 @@ export const TABLES = {
   STICKER_PACK: 'sticker_pack',
   STICKER_ASSET: 'sticker_asset',
   STICKER_PACK_ITEM: 'sticker_pack_item',
+  USER_XP: 'user_xp',
+  XP_TRANSACTIONS: 'xp_transactions',
 };
 
 /**
