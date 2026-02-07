@@ -169,9 +169,7 @@ export const handleMessages = async (update, sock) => {
 
             case 'catimg':
             case 'catimage':
-              runCommand('catimg', () =>
-                handleCatImageCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }),
-              );
+              runCommand('catimg', () => handleCatImageCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
               break;
 
             case 'catprompt':

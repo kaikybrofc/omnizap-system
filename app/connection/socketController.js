@@ -1,9 +1,4 @@
-import makeWASocket, {
-  useMultiFileAuthState,
-  DisconnectReason,
-  Browsers,
-  getAggregateVotesInPollMessage,
-} from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage } from '@whiskeysockets/baileys';
 
 import NodeCache from 'node-cache';
 import { resolveBaileysVersion } from '../config/baileysConfig.js';
@@ -20,25 +15,12 @@ import { setActiveSocket as storeActiveSocket } from '../services/socketState.js
 import { recordError, recordMessagesUpsert } from '../observability/metrics.js';
 import { resolveCaptchaByReaction } from '../services/captchaService.js';
 
-import {
-  handleGroupUpdate as handleGroupParticipantsEvent,
-  handleGroupJoinRequest,
-} from '../modules/adminModule/groupEventHandlers.js';
+import { handleGroupUpdate as handleGroupParticipantsEvent, handleGroupJoinRequest } from '../modules/adminModule/groupEventHandlers.js';
 
 import { findBy, findById, remove } from '../../database/index.js';
-import {
-  extractSenderInfoFromMessage,
-  primeLidCache,
-  resolveUserIdCached,
-  isLidUserId,
-  isWhatsAppUserId,
-} from '../services/lidMapService.js';
+import { extractSenderInfoFromMessage, primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../services/lidMapService.js';
 import { queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
-import {
-  buildGroupMetadataFromGroup,
-  buildGroupMetadataFromUpdate,
-  upsertGroupMetadata,
-} from '../services/groupMetadataService.js';
+import { buildGroupMetadataFromGroup, buildGroupMetadataFromUpdate, upsertGroupMetadata } from '../services/groupMetadataService.js';
 import { buildMessageData } from '../services/messagePersistenceService.js';
 
 import { fileURLToPath } from 'node:url';
@@ -51,48 +33,8 @@ let connectionAttempts = 0;
 const msgRetryCounterCache = new NodeCache();
 const MAX_CONNECTION_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 3000;
-const BAILEYS_EVENT_NAMES = [
-  'connection.update',
-  'creds.update',
-  'messaging-history.set',
-  'chats.upsert',
-  'chats.update',
-  'lid-mapping.update',
-  'chats.delete',
-  'presence.update',
-  'contacts.upsert',
-  'contacts.update',
-  'messages.delete',
-  'messages.update',
-  'messages.media-update',
-  'messages.upsert',
-  'messages.reaction',
-  'message-receipt.update',
-  'groups.upsert',
-  'groups.update',
-  'group-participants.update',
-  'group.join-request',
-  'group.member-tag.update',
-  'blocklist.set',
-  'blocklist.update',
-  'call',
-  'labels.edit',
-  'labels.association',
-  'newsletter.reaction',
-  'newsletter.view',
-  'newsletter-participants.update',
-  'newsletter-settings.update',
-  'chats.lock',
-  'settings.update',
-];
-const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set([
-  'creds.update',
-  'connection.update',
-  'messages.upsert',
-  'messages.update',
-  'groups.update',
-  'group-participants.update',
-]);
+const BAILEYS_EVENT_NAMES = ['connection.update', 'creds.update', 'messaging-history.set', 'chats.upsert', 'chats.update', 'lid-mapping.update', 'chats.delete', 'presence.update', 'contacts.upsert', 'contacts.update', 'messages.delete', 'messages.update', 'messages.media-update', 'messages.upsert', 'messages.reaction', 'message-receipt.update', 'groups.upsert', 'groups.update', 'group-participants.update', 'group.join-request', 'group.member-tag.update', 'blocklist.set', 'blocklist.update', 'call', 'labels.edit', 'labels.association', 'newsletter.reaction', 'newsletter.view', 'newsletter-participants.update', 'newsletter-settings.update', 'chats.lock', 'settings.update'];
+const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set(['creds.update', 'connection.update', 'messages.upsert', 'messages.update', 'groups.update', 'group-participants.update']);
 
 const summarizeBaileysEventPayload = (eventName, payload) => {
   if (payload === null) return { payloadType: 'null' };

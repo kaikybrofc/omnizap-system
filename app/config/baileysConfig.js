@@ -1,29 +1,7 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-undef */
 /* eslint-disable no-useless-escape */
-import {
-  fetchLatestBaileysVersion,
-  downloadContentFromMessage,
-  jidNormalizedUser,
-  jidEncode,
-  jidDecode,
-  areJidsSameUser,
-  normalizeMessageContent,
-  isJidMetaAI,
-  isPnUser,
-  isLidUser,
-  isJidBroadcast,
-  isJidGroup,
-  isJidStatusBroadcast,
-  isJidNewsletter,
-  isHostedPnUser,
-  isHostedLidUser,
-  isJidBot,
-  SERVER_JID,
-  PSA_WID,
-  STORIES_JID,
-  META_AI_JID,
-} from '@whiskeysockets/baileys';
+import { fetchLatestBaileysVersion, downloadContentFromMessage, jidNormalizedUser, jidEncode, jidDecode, areJidsSameUser, normalizeMessageContent, isJidMetaAI, isPnUser, isLidUser, isJidBroadcast, isJidGroup, isJidStatusBroadcast, isJidNewsletter, isHostedPnUser, isHostedLidUser, isJidBot, SERVER_JID, PSA_WID, STORIES_JID, META_AI_JID } from '@whiskeysockets/baileys';
 
 import logger from '../utils/logger/loggerModule.js';
 import { createWriteStream } from 'node:fs';
@@ -33,6 +11,10 @@ import { Readable } from 'node:stream';
 
 const DEFAULT_BAILEYS_VERSION = [7, 0, 0];
 
+/**
+ * Constantes de JID expostas pelo Baileys para facilitar comparações.
+ * @type {{SERVER_JID: string, PSA_WID: string, STORIES_JID: string, META_AI_JID: string}}
+ */
 export const JID_CONSTANTS = {
   SERVER_JID,
   PSA_WID,
@@ -222,6 +204,11 @@ const getMediaExtension = (type) => {
   return 'bin';
 };
 
+/**
+ * Converte a versão do Baileys (string ou array) para o formato `[major, minor, patch]`.
+ * @param {string|number[]|null|undefined} rawVersion - Valor bruto informado na variável de ambiente.
+ * @returns {number[]|null} Retorna a versão normalizada ou `null` se inválida.
+ */
 function parseBaileysVersion(rawVersion) {
   if (!rawVersion) {
     return null;
@@ -240,61 +227,134 @@ function parseBaileysVersion(rawVersion) {
   return parts.slice(0, 3);
 }
 
+/**
+ * Codifica um usuário no formato JID aceito pelo WhatsApp.
+ * @param {string|number|null|undefined} user - Identificador do usuário.
+ * @param {string} [server='c.us'] - Domínio do servidor JID.
+ * @param {number} [device] - ID do dispositivo quando aplicável.
+ * @returns {string|null} JID codificado ou `null` para entrada inválida.
+ */
 export function encodeJid(user, server = 'c.us', device) {
   if (user === null || user === undefined) return null;
   return jidEncode(user, server, device);
 }
 
+/**
+ * Decodifica um JID em partes (`user`, `server`, `device`) usando cache simples.
+ * @param {string} jid - JID completo.
+ * @returns {{user?: string, server?: string, domainType?: number, device?: number}|null} Partes do JID ou `null`.
+ */
 export function decodeJid(jid) {
   if (!jid) return null;
   return decodeJidParts(jid);
 }
 
+/**
+ * Normaliza um JID para o formato canônico.
+ * @param {string} jid - JID de entrada.
+ * @returns {string} JID normalizado ou string vazia quando ausente.
+ */
 export function normalizeJid(jid) {
   if (!jid) return '';
   return jidNormalizedUser(jid);
 }
 
+/**
+ * Extrai o identificador do usuário de um JID.
+ * @param {string} jid - JID completo.
+ * @returns {string|null} Usuário extraído ou `null`.
+ */
 export function getJidUser(jid) {
   return decodeJidParts(jid)?.user || null;
 }
 
+/**
+ * Extrai o servidor de um JID.
+ * @param {string} jid - JID completo.
+ * @returns {string|null} Servidor extraído ou `null`.
+ */
 export function getJidServer(jid) {
   return decodeJidParts(jid)?.server || null;
 }
 
+/**
+ * Verifica se dois JIDs pertencem ao mesmo usuário.
+ * @param {string} jid1 - Primeiro JID.
+ * @param {string} jid2 - Segundo JID.
+ * @returns {boolean} `true` quando representam o mesmo usuário.
+ */
 export function isSameJidUser(jid1, jid2) {
   return areJidsSameUser(jid1, jid2);
 }
 
+/**
+ * Verifica se o JID representa um usuário (PN/LID, hospedado ou não).
+ * @param {string} jid - JID a validar.
+ * @returns {boolean} `true` quando for JID de usuário.
+ */
 export function isUserJid(jid) {
   return Boolean(jid && (isPnUser(jid) || isHostedPnUser(jid) || isLidUser(jid) || isHostedLidUser(jid)));
 }
 
+/**
+ * Verifica se o JID é de grupo.
+ * @param {string} jid - JID a validar.
+ * @returns {boolean} `true` quando for grupo.
+ */
 export function isGroupJid(jid) {
   return Boolean(jid && isJidGroup(jid));
 }
 
+/**
+ * Verifica se o JID é de broadcast.
+ * @param {string} jid - JID a validar.
+ * @returns {boolean} `true` quando for broadcast.
+ */
 export function isBroadcastJid(jid) {
   return Boolean(jid && isJidBroadcast(jid));
 }
 
+/**
+ * Verifica se o JID é do status broadcast.
+ * @param {string} jid - JID a validar.
+ * @returns {boolean} `true` quando for status.
+ */
 export function isStatusJid(jid) {
   return Boolean(jid && isJidStatusBroadcast(jid));
 }
 
+/**
+ * Verifica se o JID é de newsletter/canal.
+ * @param {string} jid - JID a validar.
+ * @returns {boolean} `true` quando for newsletter.
+ */
 export function isNewsletterJid(jid) {
   return Boolean(jid && isJidNewsletter(jid));
 }
 
+/**
+ * Verifica se o JID pertence à Meta AI.
+ * @param {string} jid - JID a validar.
+ * @returns {boolean} `true` quando for Meta AI.
+ */
 export function isMetaAiJid(jid) {
   return Boolean(jid && isJidMetaAI(jid));
 }
 
+/**
+ * Verifica se o JID pertence a um bot.
+ * @param {string} jid - JID a validar.
+ * @returns {boolean} `true` quando for bot.
+ */
 export function isBotJid(jid) {
   return Boolean(jid && isJidBot(jid));
 }
 
+/**
+ * Resolve o JID do bot a partir do `sock.user.id`.
+ * @param {string} sockUserId - ID bruto retornado pelo socket.
+ * @returns {string|null} JID normalizado do bot ou `null`.
+ */
 export function resolveBotJid(sockUserId) {
   const normalized = normalizeJid(sockUserId);
   if (normalized) return normalized;
@@ -303,6 +363,11 @@ export function resolveBotJid(sockUserId) {
   return encodeJid(rawUser, 's.whatsapp.net');
 }
 
+/**
+ * Resolve a versão do Baileys com prioridade para `BAILEYS_VERSION`.
+ * Se a variável não for válida, tenta buscar a recomendada e aplica fallback local.
+ * @returns {Promise<number[]>} Versão no formato `[major, minor, patch]`.
+ */
 export async function resolveBaileysVersion() {
   const envVersion = parseBaileysVersion(process.env.BAILEYS_VERSION);
   if (envVersion) {
@@ -329,6 +394,12 @@ export async function resolveBaileysVersion() {
   return DEFAULT_BAILEYS_VERSION;
 }
 
+/**
+ * Baixa a foto de perfil associada à mensagem recebida.
+ * @param {import('@whiskeysockets/baileys').WASocket} sock - Instância conectada do socket.
+ * @param {import('@whiskeysockets/baileys').proto.IWebMessageInfo} msg - Mensagem usada para resolver o JID.
+ * @returns {Promise<Buffer|null>} Buffer da imagem ou `null` se indisponível.
+ */
 export async function getProfilePicBuffer(sock, msg) {
   const rawJid = msg?.key?.participant || msg?.key?.remoteJid;
   const jid = jidNormalizedUser(rawJid);
@@ -349,8 +420,8 @@ export async function getProfilePicBuffer(sock, msg) {
 
 /**
  * Extrai o valor de expiração de uma mensagem do WhatsApp, ou retorna 24 horas (em segundos) por padrão.
- * @param {object} info - Objeto da mensagem recebido via Baileys.
- * @returns {number} Timestamp de expiração (em segundos).
+ * @param {{message?: object}|null|undefined} sock - Estrutura contendo a propriedade `message`.
+ * @returns {number} Tempo de expiração em segundos.
  */
 export function getExpiration(sock) {
   const DEFAULT_EXPIRATION_SECONDS = 24 * 60 * 60;
@@ -367,8 +438,8 @@ export function getExpiration(sock) {
 
 /**
  * Extrai o conteúdo de texto de uma mensagem do WhatsApp.
- * @param {Object} messageInfo
- * @returns {string}
+ * @param {{message?: object}} messageInfo - Objeto que contém o payload da mensagem.
+ * @returns {string} Conteúdo textual extraído ou descrição do tipo de mensagem.
  */
 export const extractMessageContent = ({ message }) => {
   if (!message) return 'Mensagem vazia';
@@ -390,20 +461,11 @@ export const extractMessageContent = ({ message }) => {
     [normalizedMessage.contactMessage, (m) => `[Contato] ${m.displayName}`],
     [normalizedMessage.contactsArrayMessage, (m) => `[Contatos] ${m.contacts.map((c) => c.displayName).join(', ')}`],
     [normalizedMessage.listMessage, (m) => m.description || '[Mensagem de Lista]'],
-    [
-      normalizedMessage.listResponseMessage,
-      (m) => `[Lista] ${m.singleSelectReply?.selectedRowId || m.title || ''}`.trim(),
-    ],
+    [normalizedMessage.listResponseMessage, (m) => `[Lista] ${m.singleSelectReply?.selectedRowId || m.title || ''}`.trim()],
     [normalizedMessage.buttonsMessage, (m) => m.contentText || '[Mensagem de Botões]'],
-    [
-      normalizedMessage.buttonsResponseMessage,
-      (m) => `[Botão] ${m.selectedDisplayText || m.selectedButtonId || ''}`.trim(),
-    ],
+    [normalizedMessage.buttonsResponseMessage, (m) => `[Botão] ${m.selectedDisplayText || m.selectedButtonId || ''}`.trim()],
     [normalizedMessage.templateButtonReplyMessage, (m) => `[Resposta de Botão] ${m.selectedDisplayText || ''}`.trim()],
-    [
-      normalizedMessage.interactiveResponseMessage,
-      (m) => `[Interativo] ${m.body?.text || m.nativeFlowResponseMessage?.name || ''}`.trim(),
-    ],
+    [normalizedMessage.interactiveResponseMessage, (m) => `[Interativo] ${m.body?.text || m.nativeFlowResponseMessage?.name || ''}`.trim()],
     [normalizedMessage.productMessage, (m) => m.product?.title || '[Mensagem de Produto]'],
     [normalizedMessage.reactionMessage, (m) => `[Reação] ${m.text || ''}`.trim()],
     [normalizedMessage.pollCreationMessage, (m) => `[Enquete] ${m.name}`],
@@ -427,11 +489,11 @@ export const extractMessageContent = ({ message }) => {
 };
 
 /**
- * Downloads media from a Baileys message.
- * @param {import('@whiskeysockets/baileys').WAProto.IMessage} message - The message object containing the media.
- * @param {string} type - The type of media (e.g., 'image', 'video', 'audio', 'document').
- * @param {string} outputPath - The directory where the media should be saved.
- * @returns {Promise<string|null>} The path to the downloaded file, or null if download fails.
+ * Faz o download de mídia a partir de uma mensagem do Baileys.
+ * @param {import('@whiskeysockets/baileys').WAProto.IMessage} message - Objeto da mídia a ser baixada.
+ * @param {string} type - Tipo de mídia (ex.: `image`, `video`, `audio`, `document`).
+ * @param {string} outputPath - Diretório onde o arquivo será salvo.
+ * @returns {Promise<string|null>} Caminho do arquivo salvo ou `null` em caso de falha.
  */
 export const downloadMediaMessage = async (message, type, outputPath) => {
   if (!message || typeof message !== 'object') {
