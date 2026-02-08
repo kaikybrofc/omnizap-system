@@ -203,6 +203,8 @@ export const startMetricsServer = () => {
         logger.info('Catalogo web de sticker packs habilitado', {
           web_path: config.webPath,
           api_base_path: config.apiBasePath,
+          data_public_path: config.dataPublicPath,
+          data_public_dir: config.dataPublicDir,
           host: METRICS_HOST,
           port: METRICS_PORT,
         });

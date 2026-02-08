@@ -175,6 +175,8 @@ Principais rotas da API:
 - `GET /api/sticker-packs?q=&visibility=public|unlisted|all&limit=&offset=`
 - `GET /api/sticker-packs/:packKey`
 - `GET /api/sticker-packs/:packKey/stickers/:stickerId.webp`
+- `GET /api/sticker-packs/data-files?q=&limit=&offset=` (lista imagens da pasta `data`)
+- `GET /data/<caminho-da-imagem>` (acesso direto ao arquivo de imagem)
 
 ## Suporte a LID/JID
 

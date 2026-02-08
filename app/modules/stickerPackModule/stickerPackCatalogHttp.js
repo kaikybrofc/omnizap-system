@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
 import logger from '../../utils/logger/loggerModule.js';
 import { listStickerPacksForCatalog, findStickerPackByPackKey } from './stickerPackRepository.js';
 import { listStickerPackItems } from './stickerPackItemRepository.js';
@@ -40,9 +43,15 @@ const clampInt = (value, fallback, min, max) => {
 const STICKER_CATALOG_ENABLED = parseEnvBool(process.env.STICKER_CATALOG_ENABLED, true);
 const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stickers');
 const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PATH, '/api/sticker-packs');
+const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
+const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
 const DEFAULT_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_LIMIT, 24, 1, 60);
 const MAX_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_MAX_LIMIT, 60, 1, 100);
+const DEFAULT_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_LIMIT, 50, 1, 200);
+const MAX_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_MAX_LIMIT, 200, 1, 500);
+const MAX_DATA_SCAN_FILES = clampInt(process.env.STICKER_DATA_SCAN_MAX_FILES, 10000, 100, 50000);
 const ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_ASSET_CACHE_SECONDS, 60 * 10, 0, 60 * 60 * 24 * 7);
+const DATA_IMAGE_EXTENSIONS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.bmp']);
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 const isPackPubliclyVisible = (pack) => pack?.visibility === 'public' || pack?.visibility === 'unlisted';
@@ -88,6 +97,85 @@ const buildPackApiUrl = (packKey) => `${STICKER_API_BASE_PATH}/${encodeURICompon
 const buildPackWebUrl = (packKey) => `${STICKER_WEB_PATH}/${encodeURIComponent(packKey)}`;
 const buildStickerAssetUrl = (packKey, stickerId) =>
   `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}.webp`;
+const buildDataAssetApiBaseUrl = () => `${STICKER_API_BASE_PATH}/data-files`;
+const buildDataAssetUrl = (relativePath) =>
+  `${STICKER_DATA_PUBLIC_PATH}/${String(relativePath)
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')}`;
+
+const normalizeRelativePath = (value) => String(value || '').split(path.sep).join('/').replace(/^\/+/, '');
+const isAllowedDataImageFile = (filePath) => DATA_IMAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+const isInsideDataPublicRoot = (targetPath) =>
+  targetPath === STICKER_DATA_PUBLIC_DIR || targetPath.startsWith(`${STICKER_DATA_PUBLIC_DIR}${path.sep}`);
+
+const toImageMimeType = (filePath) => {
+  const extension = path.extname(filePath).toLowerCase();
+  if (extension === '.png') return 'image/png';
+  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg';
+  if (extension === '.gif') return 'image/gif';
+  if (extension === '.avif') return 'image/avif';
+  if (extension === '.bmp') return 'image/bmp';
+  return 'image/webp';
+};
+
+const listDataImageFiles = async () => {
+  const files = [];
+  const queue = [STICKER_DATA_PUBLIC_DIR];
+
+  while (queue.length && files.length < MAX_DATA_SCAN_FILES) {
+    const currentDir = queue.shift();
+    let entries = [];
+    try {
+      entries = await fs.readdir(currentDir, { withFileTypes: true });
+    } catch (error) {
+      if (error?.code === 'ENOENT') break;
+      throw error;
+    }
+
+    for (const entry of entries) {
+      const absolutePath = path.join(currentDir, entry.name);
+
+      if (!isInsideDataPublicRoot(absolutePath)) continue;
+      if (entry.isDirectory()) {
+        queue.push(absolutePath);
+        continue;
+      }
+
+      if (!entry.isFile()) continue;
+      if (!isAllowedDataImageFile(entry.name)) continue;
+
+      const relativePath = normalizeRelativePath(path.relative(STICKER_DATA_PUBLIC_DIR, absolutePath));
+      if (!relativePath || relativePath.startsWith('..')) continue;
+
+      let stat = null;
+      try {
+        stat = await fs.stat(absolutePath);
+      } catch {
+        stat = null;
+      }
+
+      files.push({
+        name: path.basename(relativePath),
+        relative_path: relativePath,
+        size_bytes: stat?.size ?? null,
+        updated_at: stat?.mtime ? stat.mtime.toISOString() : null,
+        created_at: stat?.ctime ? stat.ctime.toISOString() : null,
+        url: buildDataAssetUrl(relativePath),
+      });
+
+      if (files.length >= MAX_DATA_SCAN_FILES) break;
+    }
+  }
+
+  files.sort((left, right) => {
+    const leftTime = left.updated_at ? Date.parse(left.updated_at) : 0;
+    const rightTime = right.updated_at ? Date.parse(right.updated_at) : 0;
+    return rightTime - leftTime;
+  });
+
+  return files;
+};
 
 const mapPackSummary = (pack) => ({
   id: pack.id,
@@ -846,6 +934,91 @@ const handleListRequest = async (req, res, url) => {
   });
 };
 
+const handleDataFileListRequest = async (req, res, url) => {
+  const q = sanitizeText(url.searchParams.get('q') || '', 140, { allowEmpty: true }) || '';
+  const limit = clampInt(url.searchParams.get('limit'), DEFAULT_DATA_LIST_LIMIT, 1, MAX_DATA_LIST_LIMIT);
+  const offset = clampInt(url.searchParams.get('offset'), 0, 0, 1_000_000);
+  const normalizedQuery = q.toLowerCase();
+
+  const allFiles = await listDataImageFiles();
+  const filteredFiles = normalizedQuery
+    ? allFiles.filter(
+        (item) => item.name.toLowerCase().includes(normalizedQuery) || item.relative_path.toLowerCase().includes(normalizedQuery),
+      )
+    : allFiles;
+
+  const page = filteredFiles.slice(offset, offset + limit);
+  const hasMore = offset + limit < filteredFiles.length;
+
+  sendJson(req, res, 200, {
+    data: page,
+    pagination: {
+      limit,
+      offset,
+      has_more: hasMore,
+      next_offset: hasMore ? offset + limit : null,
+      total: filteredFiles.length,
+    },
+    filters: {
+      q,
+    },
+    meta: {
+      root: STICKER_DATA_PUBLIC_DIR,
+      public_path: STICKER_DATA_PUBLIC_PATH,
+      api_base: buildDataAssetApiBaseUrl(),
+    },
+  });
+};
+
+const handlePublicDataAssetRequest = async (req, res, pathname) => {
+  const suffix = pathname.slice(STICKER_DATA_PUBLIC_PATH.length).replace(/^\/+/, '');
+  if (!suffix) {
+    sendJson(req, res, 400, {
+      error: 'Informe o caminho do arquivo. Exemplo: /data/stickers/arquivo.webp',
+    });
+    return true;
+  }
+
+  const decodedSegments = suffix.split('/').filter(Boolean).map((segment) => {
+    try {
+      return decodeURIComponent(segment);
+    } catch {
+      return segment;
+    }
+  });
+
+  const relativePath = normalizeRelativePath(decodedSegments.join('/'));
+  if (!relativePath || relativePath.includes('..') || !isAllowedDataImageFile(relativePath)) {
+    sendJson(req, res, 400, { error: 'Caminho de imagem invalido.' });
+    return true;
+  }
+
+  const absolutePath = path.resolve(STICKER_DATA_PUBLIC_DIR, relativePath);
+  if (!isInsideDataPublicRoot(absolutePath)) {
+    sendJson(req, res, 403, { error: 'Acesso negado.' });
+    return true;
+  }
+
+  try {
+    const buffer = await fs.readFile(absolutePath);
+    sendAsset(req, res, buffer, toImageMimeType(absolutePath));
+    return true;
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      sendJson(req, res, 404, { error: 'Imagem nao encontrada.' });
+      return true;
+    }
+
+    logger.error('Falha ao servir imagem da pasta data.', {
+      action: 'sticker_catalog_data_asset_failed',
+      error: error?.message,
+      relative_path: relativePath,
+    });
+    sendJson(req, res, 500, { error: 'Falha ao ler imagem no servidor.' });
+    return true;
+  }
+};
+
 const handleDetailsRequest = async (req, res, packKey) => {
   const normalizedPackKey = sanitizeText(packKey, 160, { allowEmpty: false });
   if (!normalizedPackKey) {
@@ -919,6 +1092,11 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
     }
   });
 
+  if (segments.length === 1 && segments[0] === 'data-files') {
+    await handleDataFileListRequest(req, res, url);
+    return true;
+  }
+
   if (segments.length === 1) {
     await handleDetailsRequest(req, res, segments[0]);
     return true;
@@ -944,6 +1122,8 @@ export const getStickerCatalogConfig = () => ({
   enabled: STICKER_CATALOG_ENABLED,
   webPath: STICKER_WEB_PATH,
   apiBasePath: STICKER_API_BASE_PATH,
+  dataPublicPath: STICKER_DATA_PUBLIC_PATH,
+  dataPublicDir: STICKER_DATA_PUBLIC_DIR,
 });
 
 /**
@@ -957,6 +1137,10 @@ export const getStickerCatalogConfig = () => ({
 export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url }) {
   if (!STICKER_CATALOG_ENABLED) return false;
   if (!['GET', 'HEAD'].includes(req.method || '')) return false;
+
+  if (hasPathPrefix(pathname, STICKER_DATA_PUBLIC_PATH)) {
+    return handlePublicDataAssetRequest(req, res, pathname);
+  }
 
   if (hasPathPrefix(pathname, STICKER_WEB_PATH)) {
     handleCatalogPageRequest(req, res, pathname);
