@@ -145,6 +145,67 @@ export async function listStickerPacksByOwner(
 }
 
 /**
+ * Lista packs públicos para catálogo web com busca e paginação.
+ *
+ * @param {{
+ *   visibility?: 'public'|'unlisted'|'all',
+ *   search?: string,
+ *   limit?: number,
+ *   offset?: number,
+ *   connection?: import('mysql2/promise').PoolConnection|null,
+ * }} [options] Filtros de listagem.
+ * @returns {Promise<{ packs: object[], hasMore: boolean }>} Resultado paginado.
+ */
+export async function listStickerPacksForCatalog({
+  visibility = 'public',
+  search = '',
+  limit = 24,
+  offset = 0,
+  connection = null,
+} = {}) {
+  const safeLimit = Math.max(1, Math.min(60, Number(limit) || 24));
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const safeLimitWithSentinel = safeLimit + 1;
+
+  const normalizedVisibility = String(visibility || 'public').trim().toLowerCase();
+  const visibilityValues =
+    normalizedVisibility === 'all'
+      ? ['public', 'unlisted']
+      : normalizedVisibility === 'unlisted'
+        ? ['unlisted']
+        : ['public'];
+
+  const normalizedSearch = String(search || '').trim().toLowerCase().slice(0, 120);
+  const params = [...visibilityValues];
+  const whereClauses = ['p.deleted_at IS NULL', `p.visibility IN (${visibilityValues.map(() => '?').join(', ')})`];
+
+  if (normalizedSearch) {
+    const like = `%${normalizedSearch}%`;
+    whereClauses.push(
+      '(LOWER(p.name) LIKE ? OR LOWER(p.publisher) LIKE ? OR LOWER(COALESCE(p.description, \'\')) LIKE ? OR LOWER(p.pack_key) LIKE ?)',
+    );
+    params.push(like, like, like, like);
+  }
+
+  const rows = await executeQuery(
+    `SELECT p.*,
+      (SELECT COUNT(*) FROM ${TABLES.STICKER_PACK_ITEM} i WHERE i.pack_id = p.id) AS sticker_count
+     FROM ${TABLES.STICKER_PACK} p
+     WHERE ${whereClauses.join(' AND ')}
+     ORDER BY p.updated_at DESC
+     LIMIT ${safeLimitWithSentinel} OFFSET ${safeOffset}`,
+    params,
+    connection,
+  );
+
+  const hasMore = rows.length > safeLimit;
+  return {
+    packs: rows.slice(0, safeLimit).map((row) => normalizeStickerPackRow(row)),
+    hasMore,
+  };
+}
+
+/**
  * Cria um registro de pack.
  *
  * @param {object} pack Dados do pack.

@@ -162,6 +162,20 @@ Notas:
 - O envio tenta sticker pack nativo e faz fallback automático quando necessário.
 - O sistema captura “última figurinha” para simplificar `add` e `setcover`.
 
+### Catálogo web de packs
+
+O servidor HTTP de observabilidade também expõe um catálogo web simples para os packs publicados:
+
+- Página web: `http://localhost:9102/stickers`
+- API: `http://localhost:9102/api/sticker-packs`
+- Endpoint de métricas permanece em: `http://localhost:9102/metrics`
+
+Principais rotas da API:
+
+- `GET /api/sticker-packs?q=&visibility=public|unlisted|all&limit=&offset=`
+- `GET /api/sticker-packs/:packKey`
+- `GET /api/sticker-packs/:packKey/stickers/:stickerId.webp`
+
 ## Suporte a LID/JID
 
 O WhatsApp pode alternar IDs entre `@lid` e `@s.whatsapp.net`.  

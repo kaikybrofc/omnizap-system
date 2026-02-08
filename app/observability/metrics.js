@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 import http from 'node:http';
+import { URL } from 'node:url';
 import client from 'prom-client';
 import logger from '../utils/logger/loggerModule.js';
 
@@ -38,6 +39,7 @@ const registry = new client.Registry();
 let metrics = null;
 let server = null;
 let serverStarted = false;
+let stickerCatalogModulePromise = null;
 
 const normalizeLabel = (value, fallback = 'unknown') => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -130,17 +132,50 @@ const ensureMetrics = () => {
   return metrics;
 };
 
+const loadStickerCatalogModule = async () => {
+  if (!stickerCatalogModulePromise) {
+    stickerCatalogModulePromise = import('../modules/stickerPackModule/stickerPackCatalogHttp.js');
+  }
+  return stickerCatalogModulePromise;
+};
+
 export const isMetricsEnabled = () => METRICS_ENABLED;
 
 export const startMetricsServer = () => {
   if (!METRICS_ENABLED || serverStarted) return;
   ensureMetrics();
   server = http.createServer(async (req, res) => {
-    if (!req.url || !req.url.startsWith(METRICS_PATH)) {
+    const host = req.headers.host || `${METRICS_HOST}:${METRICS_PORT}`;
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(req.url || '/', `http://${host}`);
+    } catch {
+      parsedUrl = new URL(req.url || '/', 'http://localhost');
+    }
+    const pathname = parsedUrl.pathname;
+
+    try {
+      const stickerCatalogModule = await loadStickerCatalogModule();
+      const handledByCatalog = await stickerCatalogModule.maybeHandleStickerCatalogRequest(req, res, {
+        pathname,
+        url: parsedUrl,
+      });
+
+      if (handledByCatalog) {
+        return;
+      }
+    } catch (error) {
+      logger.error('Erro ao inicializar rotas web de sticker packs.', {
+        error: error.message,
+      });
+    }
+
+    if (!pathname.startsWith(METRICS_PATH)) {
       res.statusCode = 404;
       res.end('Not Found');
       return;
     }
+
     try {
       const body = await registry.metrics();
       res.statusCode = 200;
@@ -160,6 +195,23 @@ export const startMetricsServer = () => {
       port: METRICS_PORT,
       path: METRICS_PATH,
     });
+
+    loadStickerCatalogModule()
+      .then((module) => {
+        const config = typeof module.getStickerCatalogConfig === 'function' ? module.getStickerCatalogConfig() : null;
+        if (!config?.enabled) return;
+        logger.info('Catalogo web de sticker packs habilitado', {
+          web_path: config.webPath,
+          api_base_path: config.apiBasePath,
+          host: METRICS_HOST,
+          port: METRICS_PORT,
+        });
+      })
+      .catch((error) => {
+        logger.warn('Nao foi possivel carregar configuracao do catalogo de sticker packs.', {
+          error: error.message,
+        });
+      });
   });
 
   server.on('error', (error) => {
