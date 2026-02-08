@@ -112,7 +112,7 @@ export async function findLatestStickerAssetByOwner(ownerJid, connection = null)
  *   offset?: number,
  *   connection?: import('mysql2/promise').PoolConnection|null,
  * }} [options] Filtros de listagem.
- * @returns {Promise<{ assets: object[], hasMore: boolean }>} Resultado paginado.
+ * @returns {Promise<{ assets: object[], hasMore: boolean, total: number }>} Resultado paginado.
  */
 export async function listStickerAssetsWithoutPack({ search = '', limit = 120, offset = 0, connection = null } = {}) {
   const safeLimit = Math.max(1, Math.min(500, Number(limit) || 120));
@@ -140,10 +140,21 @@ export async function listStickerAssetsWithoutPack({ search = '', limit = 120, o
     connection,
   );
 
+  const countRows = await executeQuery(
+    `SELECT COUNT(*) AS total
+     FROM ${TABLES.STICKER_ASSET} a
+     LEFT JOIN ${TABLES.STICKER_PACK_ITEM} i ON i.sticker_id = a.id
+     WHERE ${whereClauses.join(' AND ')}`,
+    params,
+    connection,
+  );
+
   const hasMore = rows.length > safeLimit;
+  const total = Number(countRows?.[0]?.total || 0);
   return {
     assets: rows.slice(0, safeLimit).map((row) => normalizeStickerAssetRow(row)),
     hasMore,
+    total,
   };
 }
 

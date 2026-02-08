@@ -571,6 +571,53 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       margin-top: 10px;
     }
 
+    .orphan-pagination {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      background: rgba(10, 16, 13, 0.85);
+      padding: 8px;
+    }
+
+    .orphan-page-btn {
+      min-height: 36px;
+      padding: 0 10px;
+      border-radius: 9px;
+      border: 1px solid var(--stroke-strong);
+      background: rgba(13, 22, 17, 0.9);
+      color: #d4e6dd;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: border-color 180ms ease, box-shadow 180ms ease, color 180ms ease, opacity 180ms ease;
+    }
+
+    .orphan-page-btn:hover {
+      border-color: var(--accent-strong);
+      color: #f1fbf5;
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.28);
+    }
+
+    .orphan-page-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .orphan-page-info {
+      margin: 0;
+      color: #b4cbc0;
+      font-size: 12px;
+      text-align: center;
+      font-weight: 600;
+      line-height: 1.3;
+      flex: 1;
+    }
+
     .orphan-item,
     .card,
     .sticker {
@@ -887,6 +934,7 @@ const renderCatalogHtml = ({ initialPackKey }) => {
     .close:focus-visible,
     .card:focus-visible,
     .panel-page-btn:focus-visible,
+    .orphan-page-btn:focus-visible,
     .topbar-nav a:focus-visible,
     .topbar-brand:focus-visible {
       outline: none;
@@ -975,6 +1023,10 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       }
 
       .panel-page-info {
+        font-size: 11px;
+      }
+
+      .orphan-page-info {
         font-size: 11px;
       }
     }
@@ -1075,6 +1127,15 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       <h2 class="section-title">Figurinhas Sem Pack</h2>
       <div id="orphan-status" class="status"></div>
       <div id="orphan-grid" class="stickers orphan-grid"></div>
+      <div id="orphan-pagination" class="orphan-pagination">
+        <button id="orphan-prev" class="orphan-page-btn" type="button" aria-label="Página anterior de figurinhas sem pack">
+          Anterior
+        </button>
+        <span id="orphan-page-info" class="orphan-page-info">Página 1 de 1 • 0 figurinhas</span>
+        <button id="orphan-next" class="orphan-page-btn" type="button" aria-label="Próxima página de figurinhas sem pack">
+          Próxima
+        </button>
+      </div>
       <button id="orphan-load-more" class="button load-more" hidden>Carregar mais figurinhas</button>
     </section>
   </main>
@@ -1118,9 +1179,10 @@ const renderCatalogHtml = ({ initialPackKey }) => {
         items: [],
       },
       orphan: {
-        offset: 0,
+        page: 1,
         limit: CONFIG.defaultOrphanLimit,
-        hasMore: true,
+        totalPages: 1,
+        totalItems: 0,
         loading: false,
         items: [],
       },
@@ -1141,6 +1203,10 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       more: document.getElementById('load-more'),
       orphanStatus: document.getElementById('orphan-status'),
       orphanGrid: document.getElementById('orphan-grid'),
+      orphanPagination: document.getElementById('orphan-pagination'),
+      orphanPrev: document.getElementById('orphan-prev'),
+      orphanNext: document.getElementById('orphan-next'),
+      orphanPageInfo: document.getElementById('orphan-page-info'),
       orphanMore: document.getElementById('orphan-load-more'),
       panelPagination: document.getElementById('panel-pagination'),
       panelPrev: document.getElementById('panel-prev'),
@@ -1158,6 +1224,9 @@ const renderCatalogHtml = ({ initialPackKey }) => {
 
     els.panelPrev.disabled = true;
     els.panelNext.disabled = true;
+    els.orphanPrev.disabled = true;
+    els.orphanNext.disabled = true;
+    els.orphanMore.hidden = true;
 
     const toApi = (path, searchParams) => {
       const url = new URL(path, window.location.origin);
@@ -1299,10 +1368,15 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       els.more.textContent = state.packs.loading ? 'Carregando...' : 'Carregar mais';
     };
 
-    const updateOrphanMoreButton = () => {
-      els.orphanMore.hidden = !state.orphan.hasMore;
-      els.orphanMore.disabled = state.orphan.loading;
-      els.orphanMore.textContent = state.orphan.loading ? 'Carregando...' : 'Carregar mais figurinhas';
+    const updateOrphanPaginationControls = () => {
+      const totalPages = Math.max(1, Number(state.orphan.totalPages) || 1);
+      const totalItems = Math.max(0, Number(state.orphan.totalItems) || 0);
+      const page = Math.max(1, Math.min(totalPages, Number(state.orphan.page) || 1));
+      state.orphan.page = page;
+
+      els.orphanPrev.disabled = page <= 1 || state.orphan.loading;
+      els.orphanNext.disabled = page >= totalPages || state.orphan.loading;
+      els.orphanPageInfo.textContent = 'Página ' + page + ' de ' + totalPages + ' • ' + totalItems + ' figurinhas';
     };
 
     const listPacks = async ({ reset = false } = {}) => {
@@ -1346,47 +1420,55 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       }
     };
 
-    const listOrphanStickers = async ({ reset = false, loadAll = false } = {}) => {
+    const listOrphanStickers = async ({ reset = false } = {}) => {
       if (state.orphan.loading) return;
       state.orphan.loading = true;
-      updateOrphanMoreButton();
-      setOrphanStatus(reset ? 'Buscando figurinhas sem pack...' : 'Carregando mais figurinhas sem pack...');
+      updateOrphanPaginationControls();
+      setOrphanStatus('Buscando figurinhas sem pack...');
 
       if (reset) {
-        state.orphan.offset = 0;
+        state.orphan.page = 1;
         state.orphan.items = [];
       }
 
       try {
-        do {
-          const payload = await fetchJson(
-            toApi(CONFIG.orphanApiPath, {
-              q: state.q,
-              limit: state.orphan.limit,
-              offset: state.orphan.offset,
-            }),
-          );
+        const currentPage = Math.max(1, Number(state.orphan.page) || 1);
+        const currentLimit = Math.max(1, Number(state.orphan.limit) || 1);
+        const offset = (currentPage - 1) * currentLimit;
 
-          const stickers = Array.isArray(payload.data) ? payload.data : [];
-          state.orphan.items = state.orphan.items.concat(stickers);
-          state.orphan.offset = (payload.pagination && payload.pagination.next_offset) || state.orphan.items.length;
-          state.orphan.hasMore = Boolean(payload.pagination && payload.pagination.has_more);
+        const payload = await fetchJson(
+          toApi(CONFIG.orphanApiPath, {
+            q: state.q,
+            limit: currentLimit,
+            offset,
+          }),
+        );
 
-          renderOrphanGrid();
+        const stickers = Array.isArray(payload.data) ? payload.data : [];
+        const totalItems = Math.max(0, Number(payload?.pagination?.total || 0));
+        const totalPages = Math.max(1, Number(payload?.pagination?.total_pages || Math.ceil(totalItems / currentLimit) || 1));
 
-          if (!loadAll) break;
-        } while (state.orphan.hasMore);
+        state.orphan.items = stickers;
+        state.orphan.totalItems = totalItems;
+        state.orphan.totalPages = totalPages;
+        state.orphan.page = Math.max(1, Math.min(totalPages, currentPage));
+
+        renderOrphanGrid();
 
         if (!state.orphan.items.length) {
           setOrphanStatus('Nenhuma figurinha sem pack encontrada.');
         } else {
-          setOrphanStatus(state.orphan.items.length + ' figurinha(s) sem pack carregada(s).');
+          const from = offset + 1;
+          const to = offset + state.orphan.items.length;
+          setOrphanStatus(
+            'Mostrando ' + from + '-' + to + ' de ' + state.orphan.totalItems + ' figurinha(s) sem pack.',
+          );
         }
       } catch (error) {
         setOrphanStatus(error.message || 'Nao foi possivel listar figurinhas sem pack.');
       } finally {
         state.orphan.loading = false;
-        updateOrphanMoreButton();
+        updateOrphanPaginationControls();
       }
     };
 
@@ -1503,15 +1585,23 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       event.preventDefault();
       state.q = els.search.value.trim();
       state.visibility = els.visibility.value;
-      await Promise.all([listPacks({ reset: true }), listOrphanStickers({ reset: true, loadAll: true })]);
+      await Promise.all([listPacks({ reset: true }), listOrphanStickers({ reset: true })]);
     });
 
     els.more.addEventListener('click', async () => {
       await listPacks({ reset: false });
     });
 
-    els.orphanMore.addEventListener('click', async () => {
-      await listOrphanStickers({ reset: false, loadAll: true });
+    els.orphanPrev.addEventListener('click', async () => {
+      if (state.orphan.page <= 1) return;
+      state.orphan.page -= 1;
+      await listOrphanStickers();
+    });
+
+    els.orphanNext.addEventListener('click', async () => {
+      if (state.orphan.page >= state.orphan.totalPages) return;
+      state.orphan.page += 1;
+      await listOrphanStickers();
     });
 
     els.panelPrev.addEventListener('click', () => {
@@ -1560,7 +1650,7 @@ const renderCatalogHtml = ({ initialPackKey }) => {
     });
 
     (async () => {
-      await Promise.all([listPacks({ reset: true }), listOrphanStickers({ reset: true, loadAll: true })]);
+      await Promise.all([listPacks({ reset: true }), listOrphanStickers({ reset: true })]);
       if (CONFIG.initialPackKey) {
         openPack(CONFIG.initialPackKey, { pushState: false });
       }
@@ -1603,17 +1693,22 @@ const handleOrphanStickerListRequest = async (req, res, url) => {
   const limit = clampInt(url.searchParams.get('limit'), DEFAULT_ORPHAN_LIST_LIMIT, 1, MAX_ORPHAN_LIST_LIMIT);
   const offset = clampInt(url.searchParams.get('offset'), 0, 0, 1_000_000);
 
-  const { assets, hasMore } = await listStickerAssetsWithoutPack({
+  const { assets, hasMore, total } = await listStickerAssetsWithoutPack({
     search: q,
     limit,
     offset,
   });
+  const currentPage = Math.floor(offset / limit) + 1;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   sendJson(req, res, 200, {
     data: assets.map((asset) => mapOrphanStickerAsset(asset)),
     pagination: {
       limit,
       offset,
+      page: currentPage,
+      total,
+      total_pages: totalPages,
       has_more: hasMore,
       next_offset: hasMore ? offset + limit : null,
     },
