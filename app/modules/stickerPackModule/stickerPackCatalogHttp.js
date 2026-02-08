@@ -346,12 +346,70 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       z-index: 0;
     }
 
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      backdrop-filter: blur(12px);
+      background: linear-gradient(180deg, rgba(8, 13, 11, 0.9), rgba(8, 13, 11, 0.78));
+      border-bottom: 1px solid rgba(30, 58, 47, 0.88);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+    }
+
+    .topbar-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      min-height: 62px;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .topbar-brand {
+      color: #eff9f3;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .topbar-nav {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .topbar-nav a {
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid transparent;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      transition: color 180ms ease, border-color 180ms ease, background-color 180ms ease;
+    }
+
+    .topbar-nav a:hover {
+      color: #f0fbf5;
+      border-color: var(--stroke-strong);
+      background: rgba(12, 19, 16, 0.74);
+    }
+
     .page {
       position: relative;
       z-index: 1;
       max-width: 1180px;
       margin: 0 auto;
-      padding: 30px 18px 56px;
+      padding: 22px 18px 56px;
+    }
+
+    #packs-section,
+    #orphan-section {
+      scroll-margin-top: 88px;
     }
 
     .hero {
@@ -628,7 +686,7 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       border-top: 1px solid var(--stroke-strong);
       box-shadow: 0 -20px 36px rgba(0, 0, 0, 0.45);
       overflow: auto;
-      z-index: 20;
+      z-index: 40;
       backdrop-filter: blur(8px);
     }
 
@@ -707,6 +765,53 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.4);
     }
 
+    .panel-pagination {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      background: rgba(10, 16, 13, 0.85);
+      padding: 8px;
+    }
+
+    .panel-page-btn {
+      min-height: 36px;
+      padding: 0 10px;
+      border-radius: 9px;
+      border: 1px solid var(--stroke-strong);
+      background: rgba(13, 22, 17, 0.9);
+      color: #d4e6dd;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: border-color 180ms ease, box-shadow 180ms ease, color 180ms ease, opacity 180ms ease;
+    }
+
+    .panel-page-btn:hover {
+      border-color: var(--accent-strong);
+      color: #f1fbf5;
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.28);
+    }
+
+    .panel-page-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .panel-page-info {
+      margin: 0;
+      color: #b4cbc0;
+      font-size: 12px;
+      text-align: center;
+      font-weight: 600;
+      line-height: 1.3;
+      flex: 1;
+    }
+
     .stickers {
       margin-top: 16px;
       display: grid;
@@ -750,12 +855,40 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       line-height: 1.35;
     }
 
+    .site-footer {
+      position: relative;
+      z-index: 1;
+      margin: 18px auto 30px;
+      max-width: 1180px;
+      padding: 18px;
+      border-top: 1px solid rgba(30, 58, 47, 0.9);
+      color: #9cb2a8;
+      text-align: center;
+    }
+
+    .site-footer-title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: #d7e9e0;
+    }
+
+    .site-footer-sub {
+      margin: 6px 0 0;
+      font-size: 12px;
+      color: #87a196;
+    }
+
     .input:focus-visible,
     .select:focus-visible,
     .button:focus-visible,
     .copy:focus-visible,
     .close:focus-visible,
-    .card:focus-visible {
+    .card:focus-visible,
+    .panel-page-btn:focus-visible,
+    .topbar-nav a:focus-visible,
+    .topbar-brand:focus-visible {
       outline: none;
       box-shadow: var(--focus-ring);
     }
@@ -801,6 +934,20 @@ const renderCatalogHtml = ({ initialPackKey }) => {
         padding: 20px 14px 40px;
       }
 
+      .topbar-inner {
+        min-height: 58px;
+        padding: 8px 12px;
+      }
+
+      .topbar-brand {
+        font-size: 13px;
+      }
+
+      .topbar-nav a {
+        padding: 5px 9px;
+        font-size: 11px;
+      }
+
       .hero {
         padding: 22px 16px 18px;
       }
@@ -820,6 +967,15 @@ const renderCatalogHtml = ({ initialPackKey }) => {
 
       .orphan-item {
         padding: 7px;
+      }
+
+      .stickers {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .panel-page-info {
+        font-size: 11px;
       }
     }
 
@@ -878,6 +1034,19 @@ const renderCatalogHtml = ({ initialPackKey }) => {
   </style>
 </head>
 <body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="topbar-brand" href="${STICKER_WEB_PATH}" aria-label="OmniZap Sticker Catalog">
+        OmniZap Sticker Catalog
+      </a>
+      <nav class="topbar-nav" aria-label="Navegação principal">
+        <a href="#packs-section">Packs</a>
+        <a href="#orphan-section">Sem pack</a>
+        <a href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
   <main class="page">
     <section class="hero">
       <p class="kicker">OmniZap / Sticker Catalog</p>
@@ -897,12 +1066,12 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       <div id="status" class="status"></div>
     </section>
 
-    <section>
+    <section id="packs-section">
       <div id="grid" class="grid"></div>
       <button id="load-more" class="button load-more" hidden>Carregar mais</button>
     </section>
 
-    <section>
+    <section id="orphan-section">
       <h2 class="section-title">Figurinhas Sem Pack</h2>
       <div id="orphan-status" class="status"></div>
       <div id="orphan-grid" class="stickers orphan-grid"></div>
@@ -921,10 +1090,20 @@ const renderCatalogHtml = ({ initialPackKey }) => {
         <button id="panel-close" class="close" type="button">X</button>
       </div>
       <button id="copy-link" class="copy" type="button">Copiar link do pack</button>
+      <div id="panel-pagination" class="panel-pagination">
+        <button id="panel-prev" class="panel-page-btn" type="button" aria-label="Página anterior de stickers">Anterior</button>
+        <span id="panel-page-info" class="panel-page-info">Página 1 de 1 • 0 stickers</span>
+        <button id="panel-next" class="panel-page-btn" type="button" aria-label="Próxima página de stickers">Próxima</button>
+      </div>
       <div id="panel-error" class="error" hidden></div>
       <div id="stickers" class="stickers"></div>
     </div>
   </aside>
+
+  <footer class="site-footer">
+    <p class="site-footer-title">OmniZap System • Sticker Catalog • ${new Date().getFullYear()}</p>
+    <p class="site-footer-sub">Powered by OmniZap</p>
+  </footer>
 
   <script>
     const CONFIG = ${jsonForInlineScript(clientConfig)};
@@ -945,6 +1124,11 @@ const renderCatalogHtml = ({ initialPackKey }) => {
         loading: false,
         items: [],
       },
+      panelPagination: {
+        page: 1,
+        perPage: 100,
+        totalPages: 1,
+      },
       selectedPack: null,
     };
 
@@ -958,6 +1142,10 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       orphanStatus: document.getElementById('orphan-status'),
       orphanGrid: document.getElementById('orphan-grid'),
       orphanMore: document.getElementById('orphan-load-more'),
+      panelPagination: document.getElementById('panel-pagination'),
+      panelPrev: document.getElementById('panel-prev'),
+      panelNext: document.getElementById('panel-next'),
+      panelPageInfo: document.getElementById('panel-page-info'),
       panel: document.getElementById('panel'),
       panelTitle: document.getElementById('panel-title'),
       panelSub: document.getElementById('panel-subtitle'),
@@ -967,6 +1155,9 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       copy: document.getElementById('copy-link'),
       stickers: document.getElementById('stickers'),
     };
+
+    els.panelPrev.disabled = true;
+    els.panelNext.disabled = true;
 
     const toApi = (path, searchParams) => {
       const url = new URL(path, window.location.origin);
@@ -1199,11 +1390,67 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       }
     };
 
+    const updatePanelPaginationControls = (totalItems) => {
+      const safeTotal = Math.max(0, Number(totalItems) || 0);
+      const totalPages = Math.max(1, Math.ceil(safeTotal / state.panelPagination.perPage));
+      state.panelPagination.totalPages = totalPages;
+
+      if (state.panelPagination.page > totalPages) {
+        state.panelPagination.page = totalPages;
+      }
+      if (state.panelPagination.page < 1) {
+        state.panelPagination.page = 1;
+      }
+
+      els.panelPrev.disabled = state.panelPagination.page <= 1;
+      els.panelNext.disabled = state.panelPagination.page >= totalPages;
+      els.panelPageInfo.textContent =
+        'Página ' + state.panelPagination.page + ' de ' + totalPages + ' • ' + safeTotal + ' stickers';
+    };
+
+    const renderPanelStickersPage = () => {
+      const pack = state.selectedPack;
+      const items = Array.isArray(pack?.items) ? pack.items : [];
+      const perPage = state.panelPagination.perPage;
+
+      updatePanelPaginationControls(items.length);
+
+      const start = (state.panelPagination.page - 1) * perPage;
+      const end = start + perPage;
+      const pageItems = items.slice(start, end);
+
+      els.stickers.innerHTML = '';
+
+      if (!items.length) {
+        const empty = document.createElement('p');
+        empty.textContent = 'Este pack nao possui stickers disponiveis.';
+        els.stickers.appendChild(empty);
+        return;
+      }
+
+      pageItems.forEach((item) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'sticker';
+
+        const image = document.createElement('img');
+        image.loading = 'lazy';
+        image.alt = item.accessibility_label || ('Sticker #' + item.position);
+        image.src = item.asset_url;
+        wrapper.appendChild(image);
+        els.stickers.appendChild(wrapper);
+      });
+    };
+
     const closePanel = ({ replaceState = false } = {}) => {
       state.selectedPack = null;
+      state.panelPagination.page = 1;
+      state.panelPagination.totalPages = 1;
       els.panel.classList.remove('open');
       els.panel.setAttribute('aria-hidden', 'true');
       els.stickers.innerHTML = '';
+      els.panelPageInfo.textContent = 'Página 1 de 1 • 0 stickers';
+      els.panelPrev.disabled = true;
+      els.panelNext.disabled = true;
       clearPanelError();
       if (replaceState) {
         history.replaceState({}, '', CONFIG.webPath);
@@ -1211,29 +1458,13 @@ const renderCatalogHtml = ({ initialPackKey }) => {
     };
 
     const renderPack = (pack) => {
+      state.selectedPack = pack || null;
+      state.panelPagination.page = 1;
+
       els.panelTitle.textContent = pack.name || 'Pack';
       els.panelSub.textContent = (pack.publisher || '-') + ' | ' + (pack.description || 'Sem descricao');
       els.panelChip.textContent = pack.sticker_count + ' itens | ' + pack.visibility + ' | ' + pack.pack_key;
-      els.stickers.innerHTML = '';
-
-      const items = Array.isArray(pack.items) ? pack.items : [];
-      if (!items.length) {
-        const empty = document.createElement('p');
-        empty.textContent = 'Este pack nao possui stickers disponiveis.';
-        els.stickers.appendChild(empty);
-      } else {
-        items.forEach((item) => {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'sticker';
-
-          const image = document.createElement('img');
-          image.loading = 'lazy';
-          image.alt = item.accessibility_label || ('Sticker #' + item.position);
-          image.src = item.asset_url;
-          wrapper.appendChild(image);
-          els.stickers.appendChild(wrapper);
-        });
-      }
+      renderPanelStickersPage();
 
       els.panel.classList.add('open');
       els.panel.setAttribute('aria-hidden', 'false');
@@ -1281,6 +1512,18 @@ const renderCatalogHtml = ({ initialPackKey }) => {
 
     els.orphanMore.addEventListener('click', async () => {
       await listOrphanStickers({ reset: false, loadAll: true });
+    });
+
+    els.panelPrev.addEventListener('click', () => {
+      if (state.panelPagination.page <= 1) return;
+      state.panelPagination.page -= 1;
+      renderPanelStickersPage();
+    });
+
+    els.panelNext.addEventListener('click', () => {
+      if (state.panelPagination.page >= state.panelPagination.totalPages) return;
+      state.panelPagination.page += 1;
+      renderPanelStickersPage();
     });
 
     els.panelClose.addEventListener('click', () => closePanel({ replaceState: true }));
