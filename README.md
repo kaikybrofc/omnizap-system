@@ -173,6 +173,7 @@ O servidor HTTP de observabilidade também expõe um catálogo web simples para 
 Principais rotas da API:
 
 - `GET /api/sticker-packs?q=&visibility=public|unlisted|all&limit=&offset=`
+- `GET /api/sticker-packs/orphan-stickers?q=&limit=&offset=` (figurinhas salvas sem pack)
 - `GET /api/sticker-packs/:packKey`
 - `GET /api/sticker-packs/:packKey/stickers/:stickerId.webp`
 - `GET /api/sticker-packs/data-files?q=&limit=&offset=` (lista imagens da pasta `data`)

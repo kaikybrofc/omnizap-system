@@ -4,6 +4,7 @@ import path from 'node:path';
 import logger from '../../utils/logger/loggerModule.js';
 import { listStickerPacksForCatalog, findStickerPackByPackKey } from './stickerPackRepository.js';
 import { listStickerPackItems } from './stickerPackItemRepository.js';
+import { listStickerAssetsWithoutPack } from './stickerAssetRepository.js';
 import { readStickerAssetBuffer } from './stickerStorageService.js';
 import { sanitizeText } from './stickerPackUtils.js';
 
@@ -43,10 +44,13 @@ const clampInt = (value, fallback, min, max) => {
 const STICKER_CATALOG_ENABLED = parseEnvBool(process.env.STICKER_CATALOG_ENABLED, true);
 const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stickers');
 const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PATH, '/api/sticker-packs');
+const STICKER_ORPHAN_API_PATH = `${STICKER_API_BASE_PATH}/orphan-stickers`;
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
 const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
 const DEFAULT_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_LIMIT, 24, 1, 60);
 const MAX_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_MAX_LIMIT, 60, 1, 100);
+const DEFAULT_ORPHAN_LIST_LIMIT = clampInt(process.env.STICKER_ORPHAN_LIST_LIMIT, 120, 1, 300);
+const MAX_ORPHAN_LIST_LIMIT = clampInt(process.env.STICKER_ORPHAN_LIST_MAX_LIMIT, 300, 1, 500);
 const DEFAULT_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_LIMIT, 50, 1, 200);
 const MAX_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_MAX_LIMIT, 200, 1, 500);
 const MAX_DATA_SCAN_FILES = clampInt(process.env.STICKER_DATA_SCAN_MAX_FILES, 10000, 100, 50000);
@@ -97,6 +101,7 @@ const buildPackApiUrl = (packKey) => `${STICKER_API_BASE_PATH}/${encodeURICompon
 const buildPackWebUrl = (packKey) => `${STICKER_WEB_PATH}/${encodeURIComponent(packKey)}`;
 const buildStickerAssetUrl = (packKey, stickerId) =>
   `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}.webp`;
+const buildOrphanStickersApiUrl = () => STICKER_ORPHAN_API_PATH;
 const buildDataAssetApiBaseUrl = () => `${STICKER_API_BASE_PATH}/data-files`;
 const buildDataAssetUrl = (relativePath) =>
   `${STICKER_DATA_PUBLIC_PATH}/${String(relativePath)
@@ -108,6 +113,16 @@ const normalizeRelativePath = (value) => String(value || '').split(path.sep).joi
 const isAllowedDataImageFile = (filePath) => DATA_IMAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 const isInsideDataPublicRoot = (targetPath) =>
   targetPath === STICKER_DATA_PUBLIC_DIR || targetPath.startsWith(`${STICKER_DATA_PUBLIC_DIR}${path.sep}`);
+
+const toPublicDataUrlFromStoragePath = (storagePath) => {
+  if (!storagePath) return null;
+  const absolutePath = path.resolve(String(storagePath));
+  if (!isInsideDataPublicRoot(absolutePath)) return null;
+
+  const relativePath = normalizeRelativePath(path.relative(STICKER_DATA_PUBLIC_DIR, absolutePath));
+  if (!relativePath || relativePath.startsWith('..')) return null;
+  return buildDataAssetUrl(relativePath);
+};
 
 const toImageMimeType = (filePath) => {
   const extension = path.extname(filePath).toLowerCase();
@@ -224,6 +239,19 @@ const mapPackDetails = (pack, items) => {
   };
 };
 
+const mapOrphanStickerAsset = (asset) => ({
+  id: asset.id,
+  owner_jid: asset.owner_jid,
+  sha256: asset.sha256,
+  mimetype: asset.mimetype || 'image/webp',
+  is_animated: Boolean(asset.is_animated),
+  width: asset.width !== null && asset.width !== undefined ? Number(asset.width) : null,
+  height: asset.height !== null && asset.height !== undefined ? Number(asset.height) : null,
+  size_bytes: asset.size_bytes !== null && asset.size_bytes !== undefined ? Number(asset.size_bytes) : 0,
+  created_at: toIsoOrNull(asset.created_at),
+  url: toPublicDataUrlFromStoragePath(asset.storage_path),
+});
+
 export const extractPackKeyFromWebPath = (pathname) => {
   if (!hasPathPrefix(pathname, STICKER_WEB_PATH)) return null;
 
@@ -243,9 +271,12 @@ export const extractPackKeyFromWebPath = (pathname) => {
 const renderCatalogHtml = ({ initialPackKey }) => {
   const clientConfig = {
     apiBasePath: STICKER_API_BASE_PATH,
+    orphanApiPath: buildOrphanStickersApiUrl(),
     webPath: STICKER_WEB_PATH,
+    dataPublicPath: STICKER_DATA_PUBLIC_PATH,
     initialPackKey: initialPackKey || null,
     defaultLimit: DEFAULT_LIST_LIMIT,
+    defaultOrphanLimit: DEFAULT_ORPHAN_LIST_LIMIT,
   };
 
   return `<!doctype html>
@@ -377,6 +408,43 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
       gap: 14px;
+    }
+
+    .section-title {
+      margin: 28px 0 8px;
+      font-family: "Instrument Serif", serif;
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      line-height: 1.05;
+    }
+
+    .orphan-grid {
+      margin-top: 8px;
+    }
+
+    .orphan-item {
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      padding: 8px;
+      background: #fff;
+      display: grid;
+      gap: 6px;
+    }
+
+    .orphan-item img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+      border-radius: 8px;
+      background: #f6f6f6;
+      display: block;
+    }
+
+    .orphan-meta {
+      margin: 0;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.35;
+      word-break: break-word;
     }
 
     .card {
@@ -594,6 +662,13 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       <div id="grid" class="grid"></div>
       <button id="load-more" class="button load-more" hidden>Carregar mais</button>
     </section>
+
+    <section>
+      <h2 class="section-title">Figurinhas Sem Pack</h2>
+      <div id="orphan-status" class="status"></div>
+      <div id="orphan-grid" class="stickers orphan-grid"></div>
+      <button id="orphan-load-more" class="button load-more" hidden>Carregar mais figurinhas</button>
+    </section>
   </main>
 
   <aside id="panel" class="panel" aria-hidden="true">
@@ -617,12 +692,21 @@ const renderCatalogHtml = ({ initialPackKey }) => {
     const state = {
       q: '',
       visibility: 'public',
-      offset: 0,
-      limit: CONFIG.defaultLimit,
-      hasMore: true,
-      loading: false,
+      packs: {
+        offset: 0,
+        limit: CONFIG.defaultLimit,
+        hasMore: true,
+        loading: false,
+        items: [],
+      },
+      orphan: {
+        offset: 0,
+        limit: CONFIG.defaultOrphanLimit,
+        hasMore: true,
+        loading: false,
+        items: [],
+      },
       selectedPack: null,
-      cards: [],
     };
 
     const els = {
@@ -632,6 +716,9 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       status: document.getElementById('status'),
       grid: document.getElementById('grid'),
       more: document.getElementById('load-more'),
+      orphanStatus: document.getElementById('orphan-status'),
+      orphanGrid: document.getElementById('orphan-grid'),
+      orphanMore: document.getElementById('orphan-load-more'),
       panel: document.getElementById('panel'),
       panelTitle: document.getElementById('panel-title'),
       panelSub: document.getElementById('panel-subtitle'),
@@ -656,6 +743,10 @@ const renderCatalogHtml = ({ initialPackKey }) => {
 
     const setStatus = (text) => {
       els.status.textContent = text || '';
+    };
+
+    const setOrphanStatus = (text) => {
+      els.orphanStatus.textContent = text || '';
     };
 
     const fetchJson = async (url) => {
@@ -730,26 +821,63 @@ const renderCatalogHtml = ({ initialPackKey }) => {
 
     const renderGrid = () => {
       els.grid.innerHTML = '';
-      state.cards.forEach((pack) => {
+      state.packs.items.forEach((pack) => {
         els.grid.appendChild(renderCard(pack));
       });
     };
 
+    const renderOrphanSticker = (sticker) => {
+      const wrapper = document.createElement('article');
+      wrapper.className = 'orphan-item';
+
+      if (sticker.url) {
+        const image = document.createElement('img');
+        image.loading = 'lazy';
+        image.alt = 'Sticker sem pack ' + sticker.id;
+        image.src = sticker.url;
+        wrapper.appendChild(image);
+      } else {
+        const fallback = document.createElement('div');
+        fallback.className = 'thumb-fallback';
+        fallback.textContent = 'Arquivo nao acessivel';
+        wrapper.appendChild(fallback);
+      }
+
+      const meta = document.createElement('p');
+      meta.className = 'orphan-meta';
+      meta.textContent = sticker.sha256 || sticker.id || 'sticker';
+      wrapper.appendChild(meta);
+      return wrapper;
+    };
+
+    const renderOrphanGrid = () => {
+      els.orphanGrid.innerHTML = '';
+      state.orphan.items.forEach((sticker) => {
+        els.orphanGrid.appendChild(renderOrphanSticker(sticker));
+      });
+    };
+
     const updateMoreButton = () => {
-      els.more.hidden = !state.hasMore;
-      els.more.disabled = state.loading;
-      els.more.textContent = state.loading ? 'Carregando...' : 'Carregar mais';
+      els.more.hidden = !state.packs.hasMore;
+      els.more.disabled = state.packs.loading;
+      els.more.textContent = state.packs.loading ? 'Carregando...' : 'Carregar mais';
+    };
+
+    const updateOrphanMoreButton = () => {
+      els.orphanMore.hidden = !state.orphan.hasMore;
+      els.orphanMore.disabled = state.orphan.loading;
+      els.orphanMore.textContent = state.orphan.loading ? 'Carregando...' : 'Carregar mais figurinhas';
     };
 
     const listPacks = async ({ reset = false } = {}) => {
-      if (state.loading) return;
-      state.loading = true;
+      if (state.packs.loading) return;
+      state.packs.loading = true;
       updateMoreButton();
       setStatus(reset ? 'Buscando packs...' : 'Carregando mais packs...');
 
       if (reset) {
-        state.offset = 0;
-        state.cards = [];
+        state.packs.offset = 0;
+        state.packs.items = [];
       }
 
       try {
@@ -757,28 +885,72 @@ const renderCatalogHtml = ({ initialPackKey }) => {
           toApi(CONFIG.apiBasePath, {
             q: state.q,
             visibility: state.visibility,
-            limit: state.limit,
-            offset: state.offset,
+            limit: state.packs.limit,
+            offset: state.packs.offset,
           }),
         );
 
         const packs = Array.isArray(payload.data) ? payload.data : [];
-        state.cards = reset ? packs : state.cards.concat(packs);
-        state.offset = (payload.pagination && payload.pagination.next_offset) || state.cards.length;
-        state.hasMore = Boolean(payload.pagination && payload.pagination.has_more);
+        state.packs.items = reset ? packs : state.packs.items.concat(packs);
+        state.packs.offset = (payload.pagination && payload.pagination.next_offset) || state.packs.items.length;
+        state.packs.hasMore = Boolean(payload.pagination && payload.pagination.has_more);
 
         renderGrid();
 
-        if (!state.cards.length) {
+        if (!state.packs.items.length) {
           setStatus('Nenhum pack encontrado com os filtros atuais.');
         } else {
-          setStatus(state.cards.length + ' pack(s) carregado(s).');
+          setStatus(state.packs.items.length + ' pack(s) carregado(s).');
         }
       } catch (error) {
         setStatus(error.message || 'Nao foi possivel listar os packs agora.');
       } finally {
-        state.loading = false;
+        state.packs.loading = false;
         updateMoreButton();
+      }
+    };
+
+    const listOrphanStickers = async ({ reset = false, loadAll = false } = {}) => {
+      if (state.orphan.loading) return;
+      state.orphan.loading = true;
+      updateOrphanMoreButton();
+      setOrphanStatus(reset ? 'Buscando figurinhas sem pack...' : 'Carregando mais figurinhas sem pack...');
+
+      if (reset) {
+        state.orphan.offset = 0;
+        state.orphan.items = [];
+      }
+
+      try {
+        do {
+          const payload = await fetchJson(
+            toApi(CONFIG.orphanApiPath, {
+              q: state.q,
+              limit: state.orphan.limit,
+              offset: state.orphan.offset,
+            }),
+          );
+
+          const stickers = Array.isArray(payload.data) ? payload.data : [];
+          state.orphan.items = state.orphan.items.concat(stickers);
+          state.orphan.offset = (payload.pagination && payload.pagination.next_offset) || state.orphan.items.length;
+          state.orphan.hasMore = Boolean(payload.pagination && payload.pagination.has_more);
+
+          renderOrphanGrid();
+
+          if (!loadAll) break;
+        } while (state.orphan.hasMore);
+
+        if (!state.orphan.items.length) {
+          setOrphanStatus('Nenhuma figurinha sem pack encontrada.');
+        } else {
+          setOrphanStatus(state.orphan.items.length + ' figurinha(s) sem pack carregada(s).');
+        }
+      } catch (error) {
+        setOrphanStatus(error.message || 'Nao foi possivel listar figurinhas sem pack.');
+      } finally {
+        state.orphan.loading = false;
+        updateOrphanMoreButton();
       }
     };
 
@@ -855,11 +1027,15 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       event.preventDefault();
       state.q = els.search.value.trim();
       state.visibility = els.visibility.value;
-      await listPacks({ reset: true });
+      await Promise.all([listPacks({ reset: true }), listOrphanStickers({ reset: true, loadAll: true })]);
     });
 
     els.more.addEventListener('click', async () => {
       await listPacks({ reset: false });
+    });
+
+    els.orphanMore.addEventListener('click', async () => {
+      await listOrphanStickers({ reset: false, loadAll: true });
     });
 
     els.panelClose.addEventListener('click', () => closePanel({ replaceState: true }));
@@ -896,7 +1072,7 @@ const renderCatalogHtml = ({ initialPackKey }) => {
     });
 
     (async () => {
-      await listPacks({ reset: true });
+      await Promise.all([listPacks({ reset: true }), listOrphanStickers({ reset: true, loadAll: true })]);
       if (CONFIG.initialPackKey) {
         openPack(CONFIG.initialPackKey, { pushState: false });
       }
@@ -930,6 +1106,31 @@ const handleListRequest = async (req, res, url) => {
     filters: {
       q,
       visibility,
+    },
+  });
+};
+
+const handleOrphanStickerListRequest = async (req, res, url) => {
+  const q = sanitizeText(url.searchParams.get('q') || '', 140, { allowEmpty: true }) || '';
+  const limit = clampInt(url.searchParams.get('limit'), DEFAULT_ORPHAN_LIST_LIMIT, 1, MAX_ORPHAN_LIST_LIMIT);
+  const offset = clampInt(url.searchParams.get('offset'), 0, 0, 1_000_000);
+
+  const { assets, hasMore } = await listStickerAssetsWithoutPack({
+    search: q,
+    limit,
+    offset,
+  });
+
+  sendJson(req, res, 200, {
+    data: assets.map((asset) => mapOrphanStickerAsset(asset)),
+    pagination: {
+      limit,
+      offset,
+      has_more: hasMore,
+      next_offset: hasMore ? offset + limit : null,
+    },
+    filters: {
+      q,
     },
   });
 };
@@ -1081,6 +1282,11 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
     return true;
   }
 
+  if (pathname === STICKER_ORPHAN_API_PATH) {
+    await handleOrphanStickerListRequest(req, res, url);
+    return true;
+  }
+
   const suffix = pathname.slice(STICKER_API_BASE_PATH.length).replace(/^\/+/, '');
   if (!suffix) return false;
 
@@ -1122,6 +1328,7 @@ export const getStickerCatalogConfig = () => ({
   enabled: STICKER_CATALOG_ENABLED,
   webPath: STICKER_WEB_PATH,
   apiBasePath: STICKER_API_BASE_PATH,
+  orphanApiPath: STICKER_ORPHAN_API_PATH,
   dataPublicPath: STICKER_DATA_PUBLIC_PATH,
   dataPublicDir: STICKER_DATA_PUBLIC_DIR,
 });
