@@ -780,6 +780,11 @@ const renderCatalogHtml = ({ initialPackKey }) => {
       container.append(left, right);
     };
 
+    const shortStickerId = (value) => {
+      const normalized = String(value || '').replace(/[^a-zA-Z0-9]/g, '');
+      return normalized.slice(0, 5) || '-----';
+    };
+
     const renderCard = (pack) => {
       const card = document.createElement('button');
       card.type = 'button';
@@ -845,7 +850,8 @@ const renderCatalogHtml = ({ initialPackKey }) => {
 
       const meta = document.createElement('p');
       meta.className = 'orphan-meta';
-      meta.textContent = sticker.sha256 || sticker.id || 'sticker';
+      meta.textContent = 'ID: ' + shortStickerId(sticker.id);
+      meta.title = sticker.id || '';
       wrapper.appendChild(meta);
       return wrapper;
     };
