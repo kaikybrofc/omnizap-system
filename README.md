@@ -137,6 +137,7 @@ Comandos mais usados:
 - `<prefix>toimg` / `<prefix>tovideo`
 - `<prefix>play <busca|url>`
 - `<prefix>playvid <busca|url>`
+- `<prefix>tiktok <url>`
 - `<prefix>quote`
 - `<prefix>cat`, `<prefix>catimg`, `<prefix>catprompt`
 - `<prefix>ranking`, `<prefix>rankingglobal`, `<prefix>social`, `<prefix>semmsg`
@@ -245,6 +246,10 @@ Arquivos úteis:
 **Comando `play` falhando**
 
 - Verifique se o serviço configurado em `YTDLS_BASE_URL`/`YT_DLS_BASE_URL` está ativo.
+
+**Comando `tiktok` falhando**
+
+- Verifique se sua API local está ativa em `TIKTOK_EXTRACT_BASE_URL` + `TIKTOK_EXTRACT_PATH` (ex.: `http://127.0.0.1:8000/extract`).
 
 ## Tecnologias
 

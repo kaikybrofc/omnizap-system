@@ -129,6 +129,9 @@ export const buildMediaMenu = (commandPrefix) => `
 
 → ${commandPrefix}playvid <link ou termo> (vídeo)  
 💡 Exemplo: ${commandPrefix}playvid Imagine Dragons Believer
+
+→ ${commandPrefix}tiktok <link> (TikTok HD)  
+💡 Exemplo: ${commandPrefix}tiktok https://www.tiktok.com/@usuario/video/123
 `;
 
 export const buildQuoteMenu = (commandPrefix) => `

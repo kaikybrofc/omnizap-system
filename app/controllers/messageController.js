@@ -23,6 +23,7 @@ import { handleUserCommand } from '../modules/userModule/userCommand.js';
 import { handleDiceCommand } from '../modules/gameModule/diceCommand.js';
 import { handleXpCommand } from '../modules/xpModule/xpCommands.js';
 import { awardXpForMessage } from '../modules/xpModule/xpService.js';
+import { handleTikTokCommand } from '../modules/tiktokModule/tiktokCommand.js';
 import groupConfigStore from '../store/groupConfigStore.js';
 import { sendAndStore } from '../services/messagePersistenceService.js';
 import { resolveCaptchaByMessage } from '../services/captchaService.js';
@@ -167,6 +168,11 @@ export const handleMessages = async (update, sock) => {
 
             case 'playvid':
               runCommand('playvid', () => handlePlayVidCommand(sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix));
+              break;
+
+            case 'tiktok':
+            case 'tt':
+              runCommand('tiktok', () => handleTikTokCommand({ sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix }));
               break;
 
             case 'cat':
