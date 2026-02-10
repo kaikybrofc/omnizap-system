@@ -114,6 +114,9 @@ export const TABLES = {
   RPG_PLAYER_MISSION_PROGRESS: 'rpg_player_mission_progress',
   RPG_PLAYER_POKEDEX: 'rpg_player_pokedex',
   RPG_PLAYER_TRAVEL: 'rpg_player_travel',
+  RPG_RAID_STATE: 'rpg_raid_state',
+  RPG_RAID_PARTICIPANT: 'rpg_raid_participant',
+  RPG_PVP_CHALLENGE: 'rpg_pvp_challenge',
 };
 
 /**

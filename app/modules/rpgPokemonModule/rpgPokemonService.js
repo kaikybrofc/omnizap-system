@@ -13,6 +13,7 @@ import {
   resolveCaptureAttempt,
   resolveEvolutionByLevel,
   resolveEvolutionByItem,
+  resolveSingleAttack,
 } from './rpgBattleService.js';
 import {
   addInventoryItem,
@@ -40,9 +41,24 @@ import {
   listPokedexEntries,
   setActivePokemon,
   createMissionProgress,
+  createPvpChallenge,
+  deleteExpiredRaidStates,
   upsertPokedexEntry,
   upsertGroupBiome,
+  deleteRaidParticipantsByChat,
+  deleteRaidStateByChat,
+  expireOldPvpChallenges,
+  getActivePvpChallengeByPlayerForUpdate,
+  getPvpChallengeByIdForUpdate,
+  getRaidParticipant,
+  getRaidStateByChatForUpdate,
+  listOpenPvpChallengesByPlayer,
+  listRaidParticipants,
+  upsertRaidParticipant,
+  addRaidParticipantDamage,
+  upsertRaidState,
   upsertTravelState,
+  updatePvpChallengeState,
   updateMissionProgress,
   updatePlayerGoldOnly,
   updatePlayerPokemonState,
@@ -70,6 +86,12 @@ import {
   buildPokemonFaintedText,
   buildProfileText,
   buildBerryListText,
+  buildPvpChallengeText,
+  buildPvpStatusText,
+  buildPvpTurnText,
+  buildRaidAttackText,
+  buildRaidStartText,
+  buildRaidStatusText,
   buildShopText,
   buildStartText,
   buildTeamText,
@@ -102,8 +124,17 @@ import {
 import {
   recordRpgBattleStarted,
   recordRpgCapture,
+  recordRpgCaptureAttempt,
   recordRpgEvolution,
+  recordRpgAction,
+  recordRpgBattleDuration,
+  recordRpgFlee,
+  recordRpgPvpChallenge,
+  recordRpgPvpCompleted,
+  recordRpgRaidCompleted,
+  recordRpgRaidStarted,
   recordRpgPlayerCreated,
+  recordRpgSessionDuration,
   recordRpgShinyFound,
 } from '../../observability/metrics.js';
 import {
@@ -138,6 +169,15 @@ const DEFAULT_POKEDEX_TOTAL = Math.max(151, Number(process.env.RPG_POKEDEX_TOTAL
 const DEFAULT_REGION = String(process.env.RPG_DEFAULT_REGION || 'kanto')
   .trim()
   .toLowerCase();
+const SESSION_IDLE_MS = Math.max(2 * 60 * 1000, Number(process.env.RPG_SESSION_IDLE_MS) || 10 * 60 * 1000);
+const RAID_TTL_MS = Math.max(2 * 60 * 1000, Number(process.env.RPG_RAID_TTL_MS) || 20 * 60 * 1000);
+const PVP_TTL_MS = Math.max(2 * 60 * 1000, Number(process.env.RPG_PVP_TTL_MS) || 15 * 60 * 1000);
+const PVP_CHALLENGE_COOLDOWN_MS = Math.max(5_000, Number(process.env.RPG_PVP_COOLDOWN_MS) || 30_000);
+const RAID_LEVEL_BONUS_MIN = Math.max(4, Number(process.env.RPG_RAID_LEVEL_BONUS_MIN) || 6);
+const RAID_LEVEL_BONUS_MAX = Math.max(RAID_LEVEL_BONUS_MIN + 1, Number(process.env.RPG_RAID_LEVEL_BONUS_MAX) || 12);
+const PVP_WIN_GOLD = Math.max(50, Number(process.env.RPG_PVP_WIN_GOLD) || 220);
+const PVP_WIN_PLAYER_XP = Math.max(40, Number(process.env.RPG_PVP_WIN_PLAYER_XP) || 140);
+const PVP_WIN_POKEMON_XP = Math.max(40, Number(process.env.RPG_PVP_WIN_POKEMON_XP) || 120);
 
 const POKEDEX_MILESTONES = new Map([
   [10, { gold: 300, xp: 120 }],
@@ -147,6 +187,12 @@ const POKEDEX_MILESTONES = new Map([
 
 const playerCooldownMap = globalThis.__omnizapRpgCooldownMap instanceof Map ? globalThis.__omnizapRpgCooldownMap : new Map();
 globalThis.__omnizapRpgCooldownMap = playerCooldownMap;
+
+const pvpCooldownMap = globalThis.__omnizapRpgPvpCooldownMap instanceof Map ? globalThis.__omnizapRpgPvpCooldownMap : new Map();
+globalThis.__omnizapRpgPvpCooldownMap = pvpCooldownMap;
+
+const sessionTrackerMap = globalThis.__omnizapRpgSessionTrackerMap instanceof Map ? globalThis.__omnizapRpgSessionTrackerMap : new Map();
+globalThis.__omnizapRpgSessionTrackerMap = sessionTrackerMap;
 
 const dynamicShopCache = globalThis.__omnizapRpgDynamicShopCache || {
   items: null,
@@ -676,12 +722,77 @@ const applyMissionEvent = async ({ ownerJid, eventKey, connection }) => {
 const buildBattleChatKey = (chatJid, ownerJid) => `${chatJid}::${ownerJid}`;
 
 const nowPlusTtlDate = () => new Date(Date.now() + BATTLE_TTL_MS);
+const nowPlusRaidTtlDate = () => new Date(Date.now() + RAID_TTL_MS);
+const nowPlusPvpTtlDate = () => new Date(Date.now() + PVP_TTL_MS);
 
 const parseBattleSnapshot = (battleState) => {
   const snapshot = battleState?.enemy_snapshot_json;
   if (!snapshot || typeof snapshot !== 'object') return null;
   if (!snapshot.my || !snapshot.enemy) return null;
   return snapshot;
+};
+
+const toDateSafe = (value) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+};
+
+const toDurationSeconds = (startedAt, endedAt = new Date()) => {
+  const start = toDateSafe(startedAt);
+  const end = toDateSafe(endedAt) || new Date();
+  if (!start) return 0;
+  const delta = (end.getTime() - start.getTime()) / 1000;
+  if (!Number.isFinite(delta) || delta < 0) return 0;
+  return delta;
+};
+
+const recordBattleDurationFromSnapshot = ({ snapshot, outcome }) => {
+  const seconds = toDurationSeconds(snapshot?.startedAt);
+  if (seconds <= 0) return;
+  recordRpgBattleDuration({
+    mode: snapshot?.mode || 'wild',
+    outcome,
+    seconds,
+  });
+};
+
+const markSessionSample = (ownerJid) => {
+  const now = Date.now();
+  const tracker = sessionTrackerMap.get(ownerJid);
+  if (!tracker || now - tracker.lastAt > SESSION_IDLE_MS) {
+    sessionTrackerMap.set(ownerJid, {
+      startedAt: now,
+      lastAt: now,
+    });
+    return;
+  }
+
+  tracker.lastAt = now;
+  const durationSec = Math.max(0, Math.round((now - tracker.startedAt) / 1000));
+  recordRpgSessionDuration(durationSec);
+};
+
+const normalizeJidToken = (token) => {
+  const raw = String(token || '').trim();
+  if (!raw) return null;
+  if (raw.includes('@s.whatsapp.net')) return raw.toLowerCase();
+  if (raw.includes('@lid')) return raw.toLowerCase();
+
+  const numeric = raw.replace(/[^\d]/g, '');
+  if (numeric.length < 6) return null;
+  return `${numeric}@s.whatsapp.net`;
+};
+
+const resolveOpponentJidFromArgs = ({ actionArgs = [] }) => {
+  const direct = normalizeJidToken(actionArgs?.[0]);
+  if (direct) return direct;
+
+  const joined = String(actionArgs.join(' ') || '');
+  const mentionMatch = joined.match(/@(\d{6,})/);
+  if (!mentionMatch) return null;
+  return `${mentionMatch[1]}@s.whatsapp.net`;
 };
 
 const getCooldownSecondsLeft = (ownerJid) => {
@@ -692,12 +803,24 @@ const getCooldownSecondsLeft = (ownerJid) => {
   return Math.max(1, Math.ceil((COOLDOWN_MS - diff) / 1000));
 };
 
+const getPvpCooldownSecondsLeft = (ownerJid) => {
+  const lastAt = pvpCooldownMap.get(ownerJid);
+  if (!lastAt) return 0;
+  const diff = Date.now() - lastAt;
+  if (diff >= PVP_CHALLENGE_COOLDOWN_MS) return 0;
+  return Math.max(1, Math.ceil((PVP_CHALLENGE_COOLDOWN_MS - diff) / 1000));
+};
+
 const shouldApplyCooldown = (action) => {
-  return ['explorar', 'ginasio', 'atacar', 'capturar', 'fugir', 'comprar', 'escolher', 'usar', 'viajar', 'tm', 'berry'].includes(action);
+  return ['explorar', 'ginasio', 'atacar', 'capturar', 'fugir', 'comprar', 'escolher', 'usar', 'viajar', 'tm', 'berry', 'raid', 'desafiar', 'pvp'].includes(action);
 };
 
 const touchCooldown = (ownerJid) => {
   playerCooldownMap.set(ownerJid, Date.now());
+};
+
+const touchPvpCooldown = (ownerJid) => {
+  pvpCooldownMap.set(ownerJid, Date.now());
 };
 
 const loadPokemonDisplayData = async (pokemonRow) => {
@@ -1092,6 +1215,7 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
 
     const battleSnapshot = {
       turn: 1,
+      startedAt: new Date().toISOString(),
       mode: 'wild',
       biome: biome
         ? {
@@ -1204,6 +1328,7 @@ const handleGym = async ({ ownerJid, chatJid, commandPrefix }) => {
 
     const battleSnapshot = {
       turn: 1,
+      startedAt: new Date().toISOString(),
       mode: 'gym',
       biome: biome
         ? {
@@ -1369,6 +1494,10 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
         connection,
       });
 
+      recordBattleDurationFromSnapshot({
+        snapshot: updatedSnapshot,
+        outcome: 'player_win',
+      });
       await deleteBattleStateByOwner(ownerJid, connection);
 
       const finalBattleSnapshot = {
@@ -1415,6 +1544,10 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
         connection,
       );
 
+      recordBattleDurationFromSnapshot({
+        snapshot: updatedSnapshot,
+        outcome: 'player_lose',
+      });
       await deleteBattleStateByOwner(ownerJid, connection);
 
       const text = buildBattleTurnText({
@@ -1580,6 +1713,7 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball', it
     const pokeballLeft = Math.max(0, inventory.quantity - 1);
 
     if (captureResult.success) {
+      recordRpgCaptureAttempt('success');
       const captured = await createCapturedPokemon({
         ownerJid,
         enemySnapshot: updatedSnapshot.enemy,
@@ -1636,6 +1770,10 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball', it
         }
       }
 
+      recordBattleDurationFromSnapshot({
+        snapshot: updatedSnapshot,
+        outcome: 'capture_success',
+      });
       await deleteBattleStateByOwner(ownerJid, connection);
       recordRpgCapture();
 
@@ -1659,6 +1797,7 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball', it
     }
 
     if (captureResult.winner === 'enemy') {
+      recordRpgCaptureAttempt('failed');
       await updatePlayerPokemonState(
         {
           id: myPokemon.id,
@@ -1670,6 +1809,10 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball', it
         connection,
       );
 
+      recordBattleDurationFromSnapshot({
+        snapshot: updatedSnapshot,
+        outcome: 'capture_failed_ko',
+      });
       await deleteBattleStateByOwner(ownerJid, connection);
 
       const text = buildCaptureFailText({
@@ -1710,6 +1853,8 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball', it
       },
       connection,
     );
+
+    recordRpgCaptureAttempt('failed');
 
     const text = buildCaptureFailText({
       logs: [...captureResult.logs, `Poke Bola restante: ${pokeballLeft}`],
@@ -2393,6 +2538,12 @@ const handleFlee = async ({ ownerJid, commandPrefix }) => {
       return { ok: true, text: buildNoBattleText(commandPrefix) };
     }
 
+    const snapshot = parseBattleSnapshot(battleRow);
+    recordBattleDurationFromSnapshot({
+      snapshot,
+      outcome: 'flee',
+    });
+    recordRpgFlee();
     await deleteBattleStateByOwner(ownerJid, connection);
     return { ok: true, text: buildFleeText(commandPrefix) };
   });
@@ -2459,6 +2610,821 @@ const handleBuy = async ({ ownerJid, itemKey, quantity, commandPrefix }) => {
   });
 };
 
+const toRaidView = (raidRow) => {
+  if (!raidRow) return null;
+  const boss = raidRow?.boss_snapshot_json || {};
+  return {
+    chatJid: raidRow.chat_jid,
+    bossName: boss.displayName || boss.name || 'Boss',
+    level: toInt(boss.level, 1),
+    maxHp: Math.max(1, toInt(raidRow.max_hp, toInt(boss.maxHp, 1))),
+    currentHp: Math.max(0, toInt(raidRow.current_hp, toInt(boss.currentHp, 0))),
+    bossSnapshot: {
+      ...boss,
+      maxHp: Math.max(1, toInt(raidRow.max_hp, toInt(boss.maxHp, 1))),
+      currentHp: Math.max(0, toInt(raidRow.current_hp, toInt(boss.currentHp, 0))),
+    },
+    biomeKey: raidRow.biome_key || null,
+    startedAt: raidRow.started_at || null,
+    endsAt: raidRow.ends_at || null,
+  };
+};
+
+const isDateExpired = (value) => {
+  const date = toDateSafe(value);
+  if (!date) return false;
+  return date.getTime() <= Date.now();
+};
+
+const formatParticipantRows = (participants = []) =>
+  participants.map((entry) => ({
+    ownerJid: entry.owner_jid,
+    totalDamage: toInt(entry.total_damage, 0),
+  }));
+
+const resolveRaidRewards = ({ bossLevel, totalDamage, participantDamage }) => {
+  const safeLevel = Math.max(1, toInt(bossLevel, 1));
+  const ratio = totalDamage > 0 ? clamp(participantDamage / totalDamage, 0, 1) : 0;
+  const gold = Math.max(80, Math.round(safeLevel * 10 + ratio * 400));
+  const playerXp = Math.max(60, Math.round(safeLevel * 12 + ratio * 260));
+  const pokemonXp = Math.max(70, Math.round(safeLevel * 15 + ratio * 280));
+  return { gold, playerXp, pokemonXp };
+};
+
+const buildPvpSnapshotState = ({ challengerJid, challengerPokemonId, challengerSnapshot, opponentJid, opponentPokemonId, opponentSnapshot, turnJid }) => {
+  return {
+    startedAt: new Date().toISOString(),
+    turn: 1,
+    players: {
+      [challengerJid]: {
+        ownerJid: challengerJid,
+        pokemonId: challengerPokemonId,
+        pokemon: challengerSnapshot,
+      },
+      [opponentJid]: {
+        ownerJid: opponentJid,
+        pokemonId: opponentPokemonId,
+        pokemon: opponentSnapshot,
+      },
+    },
+    turnJid,
+  };
+};
+
+const resolvePvpOpponentJid = (challenge, ownerJid) => {
+  if (!challenge) return null;
+  if (challenge.challenger_jid === ownerJid) return challenge.opponent_jid;
+  if (challenge.opponent_jid === ownerJid) return challenge.challenger_jid;
+  return null;
+};
+
+const toPvpStatusView = ({ challenge, ownerJid }) => {
+  if (!challenge) return null;
+  const snapshot = challenge?.battle_snapshot_json || {};
+  const players = snapshot.players || {};
+  const me = players[ownerJid]?.pokemon || {};
+  const opponentJid = resolvePvpOpponentJid(challenge, ownerJid);
+  const enemy = opponentJid ? players[opponentJid]?.pokemon || {} : {};
+  return {
+    id: challenge.id,
+    turnJid: challenge.turn_jid,
+    myHp: toInt(me.currentHp, 0),
+    myMaxHp: Math.max(1, toInt(me.maxHp, 1)),
+    enemyHp: toInt(enemy.currentHp, 0),
+    enemyMaxHp: Math.max(1, toInt(enemy.maxHp, 1)),
+  };
+};
+
+const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] }) => {
+  if (!isGroupJid(chatJid)) {
+    return {
+      ok: true,
+      text: `🛡️ Raid só pode ser usada em grupos.\n💡 Use em um grupo: ${commandPrefix}rpg raid iniciar`,
+    };
+  }
+
+  const sub = String(actionArgs?.[0] || 'status')
+    .trim()
+    .toLowerCase();
+
+  return withTransaction(async (connection) => {
+    await deleteExpiredRaidStates(connection);
+    const currentRaid = await getRaidStateByChatForUpdate(chatJid, connection);
+    const raidView = toRaidView(currentRaid);
+
+    if (sub === 'status') {
+      if (!raidView) {
+        return { ok: true, text: buildRaidStatusText({ raid: null, participants: [], prefix: commandPrefix }) };
+      }
+      if (isDateExpired(raidView.endsAt)) {
+        await deleteRaidStateByChat(chatJid, connection);
+        return { ok: true, text: buildRaidStatusText({ raid: null, participants: [], prefix: commandPrefix }) };
+      }
+      const participants = await listRaidParticipants(chatJid, connection);
+      return {
+        ok: true,
+        text: buildRaidStatusText({
+          raid: raidView,
+          participants: formatParticipantRows(participants),
+          prefix: commandPrefix,
+        }),
+        imageUrl: raidView.bossSnapshot?.imageUrl || null,
+      };
+    }
+
+    const player = await getPlayerByJidForUpdate(ownerJid, connection);
+    if (!player) {
+      return { ok: true, text: buildNeedStartText(commandPrefix) };
+    }
+
+    if (sub === 'iniciar' || sub === 'start') {
+      if (raidView && !isDateExpired(raidView.endsAt)) {
+        const participants = await listRaidParticipants(chatJid, connection);
+        return {
+          ok: true,
+          text: buildRaidStatusText({
+            raid: raidView,
+            participants: formatParticipantRows(participants),
+            prefix: commandPrefix,
+          }),
+          imageUrl: raidView.bossSnapshot?.imageUrl || null,
+        };
+      }
+
+      const activePokemonRow = await getActivePlayerPokemonForUpdate(ownerJid, connection);
+      if (!activePokemonRow) {
+        return { ok: true, text: buildNeedActivePokemonText(commandPrefix) };
+      }
+
+      const activeSnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: activePokemonRow });
+      if (activeSnapshot.currentHp <= 0) {
+        return { ok: true, text: buildPokemonFaintedText(commandPrefix) };
+      }
+
+      const biome = await resolveBiomeForChat(chatJid, connection);
+      const travel = await resolveTravelStateForOwner({ ownerJid, connection });
+      const encounterPool = await resolveTravelEncounterPool(travel?.location_area_key);
+      const raidLevel = clamp(toInt(player.level, 1) + randomBetweenInt(RAID_LEVEL_BONUS_MIN, RAID_LEVEL_BONUS_MAX), 1, 100);
+      const { enemySnapshot } = await createWildEncounter({
+        playerLevel: raidLevel,
+        preferredTypes: biome?.preferredTypes || [],
+        preferredHabitats: biome?.preferredHabitats || [],
+        encounterPool,
+      });
+
+      const bossMaxHp = Math.max(1, Math.round(enemySnapshot.maxHp * 8));
+      const bossSnapshot = {
+        ...enemySnapshot,
+        displayName: `${enemySnapshot.displayName} (Raid Boss)`,
+        maxHp: bossMaxHp,
+        currentHp: bossMaxHp,
+      };
+
+      const startedAt = new Date();
+      const endsAt = nowPlusRaidTtlDate();
+      await upsertRaidState(
+        {
+          chatJid,
+          createdByJid: ownerJid,
+          biomeKey: biome?.key || null,
+          bossSnapshot,
+          maxHp: bossMaxHp,
+          currentHp: bossMaxHp,
+          startedAt,
+          endsAt,
+        },
+        connection,
+      );
+      await upsertRaidParticipant({ chatJid, ownerJid }, connection);
+      recordRpgRaidStarted();
+
+      return {
+        ok: true,
+        text: buildRaidStartText({
+          bossName: bossSnapshot.displayName,
+          level: bossSnapshot.level,
+          currentHp: bossSnapshot.currentHp,
+          maxHp: bossSnapshot.maxHp,
+          expiresInMin: Math.max(1, Math.round(RAID_TTL_MS / 60000)),
+          prefix: commandPrefix,
+        }),
+        imageUrl: bossSnapshot.imageUrl || null,
+      };
+    }
+
+    if (!raidView || isDateExpired(raidView.endsAt)) {
+      if (raidView) await deleteRaidStateByChat(chatJid, connection);
+      return { ok: true, text: buildRaidStatusText({ raid: null, participants: [], prefix: commandPrefix }) };
+    }
+
+    if (sub === 'entrar' || sub === 'join') {
+      await upsertRaidParticipant({ chatJid, ownerJid }, connection);
+      const participants = await listRaidParticipants(chatJid, connection);
+      return {
+        ok: true,
+        text: buildRaidStatusText({
+          raid: raidView,
+          participants: formatParticipantRows(participants),
+          prefix: commandPrefix,
+        }),
+      };
+    }
+
+    if (sub === 'atacar' || sub === 'attack') {
+      const participant = await getRaidParticipant(chatJid, ownerJid, connection);
+      if (!participant) {
+        return {
+          ok: true,
+          text: `Você ainda não entrou na raid.\n👉 Use: ${commandPrefix}rpg raid entrar`,
+        };
+      }
+
+      const moveSlot = actionArgs?.[1];
+      const activePokemonRow = await getActivePlayerPokemonForUpdate(ownerJid, connection);
+      if (!activePokemonRow) {
+        return { ok: true, text: buildNeedActivePokemonText(commandPrefix) };
+      }
+      const playerSnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: activePokemonRow });
+      if (playerSnapshot.currentHp <= 0) {
+        return { ok: true, text: buildPokemonFaintedText(commandPrefix) };
+      }
+
+      const attack = resolveSingleAttack({
+        attackerSnapshot: playerSnapshot,
+        defenderSnapshot: raidView.bossSnapshot,
+        moveSlot,
+        attackerLabel: `Seu ${playerSnapshot.displayName}`,
+        defenderLabel: raidView.bossSnapshot.displayName || 'Raid Boss',
+      });
+
+      if (!attack.validMove) {
+        return {
+          ok: true,
+          text: buildRaidAttackText({
+            logs: attack.logs,
+            currentHp: raidView.currentHp,
+            maxHp: raidView.maxHp,
+            defeated: false,
+            ranking: [],
+            prefix: commandPrefix,
+          }),
+        };
+      }
+
+      const nextCurrentHp = clamp(toInt(attack.defender.currentHp, raidView.currentHp), 0, raidView.maxHp);
+      await addRaidParticipantDamage(
+        {
+          chatJid,
+          ownerJid,
+          damage: attack.damage,
+        },
+        connection,
+      );
+
+      const defeated = nextCurrentHp <= 0;
+
+      if (!defeated) {
+        await upsertRaidState(
+          {
+            chatJid,
+            createdByJid: currentRaid.created_by_jid,
+            biomeKey: currentRaid.biome_key,
+            bossSnapshot: {
+              ...raidView.bossSnapshot,
+              ...attack.defender,
+              currentHp: nextCurrentHp,
+              maxHp: raidView.maxHp,
+            },
+            maxHp: raidView.maxHp,
+            currentHp: nextCurrentHp,
+            startedAt: currentRaid.started_at,
+            endsAt: currentRaid.ends_at,
+          },
+          connection,
+        );
+
+        const participants = await listRaidParticipants(chatJid, connection);
+        return {
+          ok: true,
+          text: buildRaidAttackText({
+            logs: [...attack.logs, `💥 Dano causado: ${attack.damage}`],
+            currentHp: nextCurrentHp,
+            maxHp: raidView.maxHp,
+            defeated: false,
+            ranking: formatParticipantRows(participants),
+            prefix: commandPrefix,
+          }),
+          imageUrl: raidView.bossSnapshot?.imageUrl || null,
+        };
+      }
+
+      const participants = await listRaidParticipants(chatJid, connection);
+      const totalDamage = participants.reduce((acc, entry) => acc + toInt(entry.total_damage, 0), 0);
+
+      for (const entry of participants) {
+        const participantJid = entry.owner_jid;
+        const participantDamage = toInt(entry.total_damage, 0);
+        const rewards = resolveRaidRewards({
+          bossLevel: raidView.level,
+          totalDamage,
+          participantDamage,
+        });
+
+        const participantPlayer = await getPlayerByJidForUpdate(participantJid, connection);
+        if (!participantPlayer) continue;
+        const nextPlayerXp = Math.max(0, toInt(participantPlayer.xp, 0) + rewards.playerXp);
+        const nextPlayerGold = Math.max(0, toInt(participantPlayer.gold, 0) + rewards.gold);
+        const nextPlayerLevel = calculatePlayerLevelFromXp(nextPlayerXp);
+
+        await updatePlayerProgress(
+          {
+            jid: participantJid,
+            level: nextPlayerLevel,
+            xp: nextPlayerXp,
+            gold: nextPlayerGold,
+          },
+          connection,
+        );
+
+        const participantActive = await getActivePlayerPokemonForUpdate(participantJid, connection);
+        if (participantActive) {
+          const pokemonProgress = applyPokemonXpGain({
+            currentLevel: participantActive.level,
+            currentXp: participantActive.xp,
+            gainedXp: rewards.pokemonXp,
+          });
+          await updatePlayerPokemonState(
+            {
+              id: participantActive.id,
+              ownerJid: participantJid,
+              level: pokemonProgress.level,
+              xp: pokemonProgress.xp,
+              currentHp: participantActive.current_hp,
+            },
+            connection,
+          );
+        }
+      }
+
+      recordRpgRaidCompleted();
+      await deleteRaidParticipantsByChat(chatJid, connection);
+      await deleteRaidStateByChat(chatJid, connection);
+
+      return {
+        ok: true,
+        text: buildRaidAttackText({
+          logs: [...attack.logs, `💥 Dano final: ${attack.damage}`],
+          currentHp: 0,
+          maxHp: raidView.maxHp,
+          defeated: true,
+          ranking: formatParticipantRows(participants),
+          prefix: commandPrefix,
+        }),
+        imageUrl: raidView.bossSnapshot?.imageUrl || null,
+      };
+    }
+
+    return {
+      ok: true,
+      text: `Use: ${commandPrefix}rpg raid <iniciar|entrar|atacar|status>`,
+    };
+  });
+};
+
+const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] }) => {
+  const opponentJid = resolveOpponentJidFromArgs({ actionArgs });
+  if (!opponentJid) {
+    return {
+      ok: true,
+      text: `Use: ${commandPrefix}rpg desafiar <jid/@numero>`,
+    };
+  }
+
+  if (opponentJid === ownerJid) {
+    return {
+      ok: true,
+      text: 'Você não pode se desafiar no PvP.',
+    };
+  }
+
+  const pvpCooldown = getPvpCooldownSecondsLeft(ownerJid);
+  if (pvpCooldown > 0) {
+    return {
+      ok: true,
+      text: `⏳ Aguarde ${pvpCooldown}s para enviar outro desafio PvP.`,
+    };
+  }
+
+  const created = await withTransaction(async (connection) => {
+    await expireOldPvpChallenges(connection);
+    const selfPlayer = await getPlayerByJidForUpdate(ownerJid, connection);
+    const opponentPlayer = await getPlayerByJidForUpdate(opponentJid, connection);
+    if (!selfPlayer || !opponentPlayer) {
+      return { error: 'player_not_found' };
+    }
+
+    const existingSelf = await listOpenPvpChallengesByPlayer(ownerJid, connection);
+    const existingOpponent = await listOpenPvpChallengesByPlayer(opponentJid, connection);
+    if ((existingSelf || []).length || (existingOpponent || []).length) {
+      return { error: 'challenge_exists' };
+    }
+
+    const myActive = await getActivePlayerPokemonForUpdate(ownerJid, connection);
+    const enemyActive = await getActivePlayerPokemonForUpdate(opponentJid, connection);
+    if (!myActive || !enemyActive) {
+      return { error: 'active_missing' };
+    }
+
+    const mySnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: myActive });
+    const enemySnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: enemyActive });
+    if (mySnapshot.currentHp <= 0 || enemySnapshot.currentHp <= 0) {
+      return { error: 'fainted' };
+    }
+
+    const turnJid = randomFromArray([ownerJid, opponentJid]);
+    const battleSnapshot = buildPvpSnapshotState({
+      challengerJid: ownerJid,
+      challengerPokemonId: myActive.id,
+      challengerSnapshot: mySnapshot,
+      opponentJid,
+      opponentPokemonId: enemyActive.id,
+      opponentSnapshot: enemySnapshot,
+      turnJid,
+    });
+
+    const challenge = await createPvpChallenge(
+      {
+        chatJid,
+        challengerJid: ownerJid,
+        opponentJid,
+        status: 'pending',
+        turnJid,
+        battleSnapshot,
+        startedAt: null,
+        expiresAt: nowPlusPvpTtlDate(),
+      },
+      connection,
+    );
+
+    return { challenge };
+  });
+
+  if (created?.error === 'player_not_found') {
+    return { ok: true, text: 'Um dos jogadores ainda não iniciou no RPG.' };
+  }
+  if (created?.error === 'challenge_exists') {
+    return { ok: true, text: 'Já existe um desafio PvP pendente/ativo para um dos jogadores.' };
+  }
+  if (created?.error === 'active_missing') {
+    return { ok: true, text: 'Ambos os jogadores precisam ter Pokémon ativo para PvP.' };
+  }
+  if (created?.error === 'fainted') {
+    return { ok: true, text: 'Um dos Pokémon ativos está sem HP. Recupere antes do PvP.' };
+  }
+
+  const challenge = created?.challenge;
+  if (!challenge) {
+    return { ok: true, text: 'Não foi possível criar o desafio PvP agora.' };
+  }
+
+  touchPvpCooldown(ownerJid);
+  recordRpgPvpChallenge();
+  return {
+    ok: true,
+    text: buildPvpChallengeText({
+      challengeId: challenge.id,
+      challengerJid: ownerJid,
+      opponentJid,
+      prefix: commandPrefix,
+    }),
+  };
+};
+
+const handlePvpStatus = async ({ ownerJid, commandPrefix }) => {
+  await withTransaction(async (connection) => {
+    await expireOldPvpChallenges(connection);
+  });
+  const open = await listOpenPvpChallengesByPlayer(ownerJid);
+  const pending = open
+    .filter((entry) => entry.status === 'pending' && entry.opponent_jid === ownerJid)
+    .map((entry) => ({
+      id: entry.id,
+      challengerJid: entry.challenger_jid,
+    }));
+  const active = open.find((entry) => entry.status === 'active') || null;
+  const activeView = active ? toPvpStatusView({ challenge: active, ownerJid }) : null;
+  return {
+    ok: true,
+    text: buildPvpStatusText({
+      pending,
+      active: activeView,
+      ownerJid,
+      prefix: commandPrefix,
+    }),
+  };
+};
+
+const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
+  const sub = String(actionArgs?.[0] || 'status')
+    .trim()
+    .toLowerCase();
+
+  if (sub === 'status' || sub === 'listar') {
+    return handlePvpStatus({ ownerJid, commandPrefix });
+  }
+
+  if (sub === 'aceitar' || sub === 'accept') {
+    const challengeId = toInt(actionArgs?.[1], NaN);
+    if (!Number.isFinite(challengeId) || challengeId <= 0) {
+      return { ok: true, text: `Use: ${commandPrefix}rpg pvp aceitar <id>` };
+    }
+
+    return withTransaction(async (connection) => {
+      await expireOldPvpChallenges(connection);
+      const challenge = await getPvpChallengeByIdForUpdate(challengeId, connection);
+      if (!challenge || challenge.status !== 'pending') {
+        return { ok: true, text: 'Desafio não encontrado ou não está pendente.' };
+      }
+      if (challenge.opponent_jid !== ownerJid) {
+        return { ok: true, text: 'Apenas o oponente pode aceitar este desafio.' };
+      }
+      if (isDateExpired(challenge.expires_at)) {
+        await updatePvpChallengeState({ id: challenge.id, status: 'expired' }, connection);
+        return { ok: true, text: 'Esse desafio expirou.' };
+      }
+
+      await updatePvpChallengeState(
+        {
+          id: challenge.id,
+          status: 'active',
+          startedAt: new Date(),
+          expiresAt: nowPlusPvpTtlDate(),
+        },
+        connection,
+      );
+
+      const view = toPvpStatusView({ challenge, ownerJid });
+      return {
+        ok: true,
+        text: buildPvpStatusText({
+          pending: [],
+          active: view,
+          ownerJid,
+          prefix: commandPrefix,
+        }),
+      };
+    });
+  }
+
+  if (sub === 'recusar' || sub === 'reject') {
+    const challengeId = toInt(actionArgs?.[1], NaN);
+    if (!Number.isFinite(challengeId) || challengeId <= 0) {
+      return { ok: true, text: `Use: ${commandPrefix}rpg pvp recusar <id>` };
+    }
+
+    return withTransaction(async (connection) => {
+      const challenge = await getPvpChallengeByIdForUpdate(challengeId, connection);
+      if (!challenge || challenge.status !== 'pending') {
+        return { ok: true, text: 'Desafio não encontrado ou inválido.' };
+      }
+      if (challenge.opponent_jid !== ownerJid) {
+        return { ok: true, text: 'Apenas o oponente pode recusar este desafio.' };
+      }
+      await updatePvpChallengeState(
+        {
+          id: challenge.id,
+          status: 'rejected',
+          turnJid: null,
+        },
+        connection,
+      );
+      return { ok: true, text: '❌ Desafio recusado.' };
+    });
+  }
+
+  if (sub === 'fugir' || sub === 'forfeit') {
+    return withTransaction(async (connection) => {
+      await expireOldPvpChallenges(connection);
+      const challenge = await getActivePvpChallengeByPlayerForUpdate(ownerJid, connection);
+      if (!challenge) {
+        return { ok: true, text: 'Você não tem PvP ativo.' };
+      }
+      const opponentJid = resolvePvpOpponentJid(challenge, ownerJid);
+      await updatePvpChallengeState(
+        {
+          id: challenge.id,
+          status: 'finished',
+          winnerJid: opponentJid,
+          turnJid: null,
+          expiresAt: new Date(),
+        },
+        connection,
+      );
+
+      recordRpgPvpCompleted();
+      recordRpgBattleDuration({
+        mode: 'pvp',
+        outcome: 'forfeit',
+        seconds: toDurationSeconds(challenge?.battle_snapshot_json?.startedAt || challenge.started_at),
+      });
+      return { ok: true, text: `🏳️ Você desistiu do PvP.\nVencedor: ${opponentJid}` };
+    });
+  }
+
+  if (sub === 'atacar' || sub === 'attack') {
+    const moveSlot = actionArgs?.[1];
+    return withTransaction(async (connection) => {
+      await expireOldPvpChallenges(connection);
+      const challenge = await getActivePvpChallengeByPlayerForUpdate(ownerJid, connection);
+      if (!challenge) {
+        return { ok: true, text: 'Você não tem PvP ativo.' };
+      }
+
+      if (challenge.turn_jid !== ownerJid) {
+        return { ok: true, text: `⏳ Aguarde seu turno. Turno atual: ${challenge.turn_jid}` };
+      }
+
+      const snapshot = challenge?.battle_snapshot_json || {};
+      const players = snapshot.players || {};
+      const me = players[ownerJid];
+      const opponentJid = resolvePvpOpponentJid(challenge, ownerJid);
+      const enemy = opponentJid ? players[opponentJid] : null;
+      if (!me || !enemy) {
+        await updatePvpChallengeState({ id: challenge.id, status: 'expired', turnJid: null }, connection);
+        return { ok: true, text: 'Partida PvP inválida/expirada.' };
+      }
+      if (toInt(me?.pokemon?.currentHp, 0) <= 0 || toInt(enemy?.pokemon?.currentHp, 0) <= 0) {
+        await updatePvpChallengeState(
+          {
+            id: challenge.id,
+            status: 'finished',
+            winnerJid: toInt(me?.pokemon?.currentHp, 0) > 0 ? ownerJid : opponentJid,
+            turnJid: null,
+            expiresAt: new Date(),
+          },
+          connection,
+        );
+        return { ok: true, text: 'Esta partida já foi finalizada.' };
+      }
+
+      const attack = resolveSingleAttack({
+        attackerSnapshot: me.pokemon,
+        defenderSnapshot: enemy.pokemon,
+        moveSlot,
+        attackerLabel: `Seu ${me.pokemon.displayName}`,
+        defenderLabel: `${enemy.pokemon.displayName}`,
+      });
+      if (!attack.validMove) {
+        return {
+          ok: true,
+          text: buildPvpTurnText({
+            logs: attack.logs,
+            myHp: me.pokemon.currentHp,
+            myMaxHp: me.pokemon.maxHp,
+            enemyHp: enemy.pokemon.currentHp,
+            enemyMaxHp: enemy.pokemon.maxHp,
+            winnerJid: null,
+            prefix: commandPrefix,
+          }),
+        };
+      }
+
+      const nextSnapshot = {
+        ...snapshot,
+        turn: toInt(snapshot.turn, 1) + 1,
+        players: {
+          ...players,
+          [ownerJid]: {
+            ...me,
+            pokemon: attack.attacker,
+          },
+          [opponentJid]: {
+            ...enemy,
+            pokemon: attack.defender,
+          },
+        },
+      };
+
+      const myPokemonRow = await getPlayerPokemonByIdForUpdate(ownerJid, toInt(me.pokemonId, 0), connection);
+      const enemyPokemonRow = await getPlayerPokemonByIdForUpdate(opponentJid, toInt(enemy.pokemonId, 0), connection);
+
+      if (myPokemonRow) {
+        await updatePlayerPokemonState(
+          {
+            id: myPokemonRow.id,
+            ownerJid,
+            level: myPokemonRow.level,
+            xp: myPokemonRow.xp,
+            currentHp: Math.max(0, toInt(attack.attacker.currentHp, 0)),
+          },
+          connection,
+        );
+      }
+
+      if (enemyPokemonRow) {
+        await updatePlayerPokemonState(
+          {
+            id: enemyPokemonRow.id,
+            ownerJid: opponentJid,
+            level: enemyPokemonRow.level,
+            xp: enemyPokemonRow.xp,
+            currentHp: Math.max(0, toInt(attack.defender.currentHp, 0)),
+          },
+          connection,
+        );
+      }
+
+      let winnerJid = null;
+      if (toInt(attack.defender.currentHp, 0) <= 0) {
+        winnerJid = ownerJid;
+
+        const winnerPlayer = await getPlayerByJidForUpdate(ownerJid, connection);
+        if (winnerPlayer) {
+          const nextXp = Math.max(0, toInt(winnerPlayer.xp, 0) + PVP_WIN_PLAYER_XP);
+          const nextGold = Math.max(0, toInt(winnerPlayer.gold, 0) + PVP_WIN_GOLD);
+          const nextLevel = calculatePlayerLevelFromXp(nextXp);
+          await updatePlayerProgress(
+            {
+              jid: ownerJid,
+              level: nextLevel,
+              xp: nextXp,
+              gold: nextGold,
+            },
+            connection,
+          );
+        }
+
+        const winnerPokemon = await getPlayerPokemonByIdForUpdate(ownerJid, toInt(me.pokemonId, 0), connection);
+        if (winnerPokemon) {
+          const progress = applyPokemonXpGain({
+            currentLevel: winnerPokemon.level,
+            currentXp: winnerPokemon.xp,
+            gainedXp: PVP_WIN_POKEMON_XP,
+          });
+          await updatePlayerPokemonState(
+            {
+              id: winnerPokemon.id,
+              ownerJid,
+              level: progress.level,
+              xp: progress.xp,
+              currentHp: Math.max(0, toInt(attack.attacker.currentHp, 0)),
+            },
+            connection,
+          );
+        }
+
+        await updatePvpChallengeState(
+          {
+            id: challenge.id,
+            status: 'finished',
+            winnerJid,
+            turnJid: null,
+            battleSnapshot: nextSnapshot,
+            expiresAt: new Date(),
+          },
+          connection,
+        );
+
+        recordRpgPvpCompleted();
+        recordRpgBattleDuration({
+          mode: 'pvp',
+          outcome: 'finished',
+          seconds: toDurationSeconds(snapshot.startedAt || challenge.started_at),
+        });
+      } else {
+        await updatePvpChallengeState(
+          {
+            id: challenge.id,
+            status: 'active',
+            turnJid: opponentJid,
+            battleSnapshot: nextSnapshot,
+            expiresAt: nowPlusPvpTtlDate(),
+          },
+          connection,
+        );
+      }
+
+      return {
+        ok: true,
+        text: buildPvpTurnText({
+          logs: [...attack.logs, `💥 Dano: ${attack.damage}`],
+          myHp: toInt(attack.attacker.currentHp, 0),
+          myMaxHp: Math.max(1, toInt(attack.attacker.maxHp, 1)),
+          enemyHp: Math.max(0, toInt(attack.defender.currentHp, 0)),
+          enemyMaxHp: Math.max(1, toInt(attack.defender.maxHp, 1)),
+          winnerJid,
+          prefix: commandPrefix,
+        }),
+      };
+    });
+  }
+
+  return {
+    ok: true,
+    text: `Use: ${commandPrefix}rpg pvp <status|aceitar|recusar|atacar|fugir>`,
+  };
+};
+
 export const executeRpgPokemonAction = async ({
   ownerJid,
   chatJid,
@@ -2472,6 +3438,11 @@ export const executeRpgPokemonAction = async ({
     if (shouldApplyCooldown(normalizedAction)) {
       const cooldownLeft = getCooldownSecondsLeft(ownerJid);
       if (cooldownLeft > 0) {
+        markSessionSample(ownerJid);
+        recordRpgAction({
+          action: normalizedAction,
+          status: 'cooldown',
+        });
         return {
           ok: true,
           text: buildCooldownText({
@@ -2551,6 +3522,18 @@ export const executeRpgPokemonAction = async ({
         result = await handleBerry({ ownerJid, commandPrefix, actionArgs });
         break;
 
+      case 'raid':
+        result = await handleRaid({ ownerJid, chatJid, commandPrefix, actionArgs });
+        break;
+
+      case 'desafiar':
+        result = await handleChallenge({ ownerJid, chatJid, commandPrefix, actionArgs });
+        break;
+
+      case 'pvp':
+        result = await handlePvp({ ownerJid, commandPrefix, actionArgs });
+        break;
+
       case 'missoes':
       case 'missões':
         result = await handleMissions({ ownerJid, commandPrefix });
@@ -2593,12 +3576,23 @@ export const executeRpgPokemonAction = async ({
       touchCooldown(ownerJid);
     }
 
+    markSessionSample(ownerJid);
+    recordRpgAction({
+      action: normalizedAction,
+      status: result?.ok ? 'ok' : 'error',
+    });
+
     return result;
   } catch (error) {
     logger.error('Erro ao executar ação RPG Pokemon.', {
       ownerJid,
       action,
       error: error.message,
+    });
+    markSessionSample(ownerJid);
+    recordRpgAction({
+      action: String(action || '').toLowerCase() || 'unknown',
+      status: 'exception',
     });
 
     return {

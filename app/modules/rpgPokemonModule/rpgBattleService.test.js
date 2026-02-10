@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createWildEncounter, resolveBattleTurn, resolveCaptureAttempt, resolveEvolutionByLevel } from './rpgBattleService.js';
+import { createWildEncounter, resolveBattleTurn, resolveCaptureAttempt, resolveEvolutionByLevel, resolveSingleAttack } from './rpgBattleService.js';
 
 const PREFERRED_MOVE_NAMES = ['tackle', 'quick-attack', 'scratch', 'pound', 'ember', 'water-gun', 'vine-whip', 'bite', 'gust', 'swift', 'struggle'];
 
@@ -335,3 +335,56 @@ test(
     assert.equal(atLevel40?.to?.name, 'Charizard');
   },
 );
+
+test('ataque único deve aplicar dano e reduzir HP do alvo', () => {
+  const attacker = {
+    displayName: 'Pikachu',
+    level: 15,
+    types: ['electric'],
+    stats: {
+      attack: 70,
+      defense: 55,
+      specialAttack: 65,
+      specialDefense: 55,
+      speed: 90,
+    },
+    moves: [
+      {
+        displayName: 'Tackle',
+        name: 'tackle',
+        power: 40,
+        accuracy: 100,
+        damageClass: 'physical',
+        type: 'normal',
+        typeDamage: { doubleTo: [], halfTo: [], noTo: [] },
+      },
+    ],
+  };
+  const defender = {
+    displayName: 'Bulbasaur',
+    level: 12,
+    currentHp: 80,
+    maxHp: 80,
+    types: ['grass'],
+    stats: {
+      attack: 55,
+      defense: 60,
+      specialAttack: 55,
+      specialDefense: 60,
+      speed: 50,
+    },
+    moves: [],
+  };
+
+  const result = resolveSingleAttack({
+    attackerSnapshot: attacker,
+    defenderSnapshot: defender,
+    moveSlot: 1,
+    attackerLabel: 'Pikachu',
+    defenderLabel: 'Bulbasaur',
+  });
+
+  assert.equal(result.validMove, true);
+  assert.ok(result.damage >= 1);
+  assert.ok(result.defender.currentHp < 80);
+});

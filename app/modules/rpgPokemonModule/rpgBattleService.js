@@ -889,6 +889,51 @@ export const resolveBattleTurn = ({ battleSnapshot, playerMoveSlot }) => {
   };
 };
 
+export const resolveSingleAttack = ({
+  attackerSnapshot,
+  defenderSnapshot,
+  moveSlot = 1,
+  attackerLabel = 'Atacante',
+  defenderLabel = 'Defensor',
+}) => {
+  const attacker = cloneSnapshot(attackerSnapshot || {});
+  const defender = cloneSnapshot(defenderSnapshot || {});
+  const logs = [];
+
+  const moves = Array.isArray(attacker?.moves) ? attacker.moves : [];
+  const selectedIndex = clamp(toPositiveInt(moveSlot, 1) - 1, 0, 3);
+  const selectedMove = moves[selectedIndex];
+
+  if (!selectedMove) {
+    return {
+      attacker,
+      defender,
+      logs: ['Movimento inválido. Use 1, 2, 3 ou 4.'],
+      damage: 0,
+      validMove: false,
+    };
+  }
+
+  const beforeHp = toPositiveInt(defender.currentHp, 0);
+  const actionLogs = performAction({
+    attacker,
+    defender,
+    move: selectedMove,
+    attackerLabel,
+    defenderLabel,
+  });
+  logs.push(...actionLogs);
+  const afterHp = toPositiveInt(defender.currentHp, 0);
+
+  return {
+    attacker,
+    defender,
+    logs,
+    damage: Math.max(0, beforeHp - afterHp),
+    validMove: true,
+  };
+};
+
 export const resolveCaptureAttempt = ({ battleSnapshot }) => {
   const snapshot = cloneSnapshot(battleSnapshot);
   const logs = [];

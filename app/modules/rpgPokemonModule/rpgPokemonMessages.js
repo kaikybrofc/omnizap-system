@@ -76,6 +76,9 @@ export const buildUsageText = (prefix = '/') =>
     `• ${prefix}rpg viajar [regiao]`,
     `• ${prefix}rpg tm <listar|usar>`,
     `• ${prefix}rpg berry <listar|usar>`,
+    `• ${prefix}rpg raid <iniciar|entrar|atacar|status>`,
+    `• ${prefix}rpg desafiar <jid/@numero>`,
+    `• ${prefix}rpg pvp <status|aceitar|recusar|atacar>`,
     '',
     `💡 *Dica:* faça ${prefix}rpg start → ${prefix}rpg perfil → ${prefix}rpg explorar`,
   ].join('\n');
@@ -432,5 +435,105 @@ export const buildBerryListText = ({ items = [], prefix = '/' }) => {
   const lines = ['🍓 *Suas Berries*'];
   items.forEach((item) => lines.push(`• ${item.label} (${item.quantity})`));
   lines.push('', `🥣 Usar berry: ${prefix}rpg berry usar <item>`);
+  return lines.join('\n');
+};
+
+export const buildRaidStartText = ({ bossName, level, currentHp, maxHp, expiresInMin, prefix = '/' }) =>
+  [
+    '🐉 *RAID INICIADA!*',
+    `Chefe: *${formatName(bossName)}* Lv.${level}`,
+    `❤️ HP Boss: ${hpBar(currentHp, maxHp)}`,
+    `⏱️ Tempo: ${expiresInMin} min`,
+    `➡️ Entrar: ${prefix}rpg raid entrar`,
+    `⚔️ Atacar: ${prefix}rpg raid atacar <1-4>`,
+  ].join('\n');
+
+export const buildRaidStatusText = ({ raid, participants = [], prefix = '/' }) => {
+  if (!raid) {
+    return `🛡️ Nenhuma raid ativa neste grupo.\n👉 Iniciar: ${prefix}rpg raid iniciar`;
+  }
+
+  const lines = [
+    '🛡️ *Status da Raid*',
+    `Chefe: *${formatName(raid.bossName)}* Lv.${raid.level}`,
+    `❤️ HP Boss: ${hpBar(raid.currentHp, raid.maxHp)}`,
+    `👥 Participantes: ${participants.length}`,
+  ];
+
+  if (participants.length) {
+    lines.push('', '🏆 Ranking de dano:');
+    participants.slice(0, 5).forEach((entry, idx) => {
+      lines.push(`${idx + 1}. ${entry.ownerJid} — ${entry.totalDamage} dmg`);
+    });
+  }
+
+  lines.push('', `➡️ Ações: ${prefix}rpg raid entrar | ${prefix}rpg raid atacar <1-4>`);
+  return lines.join('\n');
+};
+
+export const buildRaidAttackText = ({ logs = [], currentHp, maxHp, defeated = false, ranking = [], prefix = '/' }) => {
+  const lines = [...logs, `❤️ HP Boss: ${hpBar(currentHp, maxHp)}`];
+
+  if (defeated) {
+    lines.push('🎉 Boss derrotado! Recompensas distribuídas.');
+    if (ranking.length) {
+      lines.push('', '🏆 Ranking final:');
+      ranking.slice(0, 5).forEach((entry, idx) => {
+        lines.push(`${idx + 1}. ${entry.ownerJid} — ${entry.totalDamage} dmg`);
+      });
+    }
+    lines.push('', `➡️ Próximo: ${prefix}rpg explorar`);
+    return lines.join('\n');
+  }
+
+  lines.push(`➡️ Continue: ${prefix}rpg raid atacar <1-4>`);
+  return lines.join('\n');
+};
+
+export const buildPvpChallengeText = ({ challengeId, challengerJid, opponentJid, prefix = '/' }) =>
+  [
+    '⚔️ *Desafio PvP criado!*',
+    `ID: *${challengeId}*`,
+    `Desafiante: ${challengerJid}`,
+    `Oponente: ${opponentJid}`,
+    `✅ Aceitar: ${prefix}rpg pvp aceitar ${challengeId}`,
+    `❌ Recusar: ${prefix}rpg pvp recusar ${challengeId}`,
+  ].join('\n');
+
+export const buildPvpStatusText = ({ pending = [], active = null, prefix = '/' }) => {
+  const lines = ['🥊 *Status PvP*'];
+
+  if (active) {
+    lines.push(
+      '',
+      `Partida ativa: #${active.id}`,
+      `Turno de: ${active.turnJid}`,
+      `Seu Pokémon HP: ${active.myHp}/${active.myMaxHp}`,
+      `Inimigo HP: ${active.enemyHp}/${active.enemyMaxHp}`,
+      `➡️ Ação: ${prefix}rpg pvp atacar <1-4>`,
+    );
+  } else {
+    lines.push('', 'Nenhuma partida ativa no momento.');
+  }
+
+  if (pending.length) {
+    lines.push('', '📨 Desafios pendentes para você:');
+    pending.slice(0, 5).forEach((entry) => {
+      lines.push(`• #${entry.id} de ${entry.challengerJid} (expira em breve)`);
+    });
+  }
+
+  lines.push('', `💡 Criar desafio: ${prefix}rpg desafiar <jid/@numero>`);
+  return lines.join('\n');
+};
+
+export const buildPvpTurnText = ({ logs = [], myHp, myMaxHp, enemyHp, enemyMaxHp, winnerJid = null, prefix = '/' }) => {
+  const lines = [...logs, `❤️ Seu HP: ${hpBar(myHp, myMaxHp)}`, `❤️ Inimigo HP: ${hpBar(enemyHp, enemyMaxHp)}`];
+  if (winnerJid) {
+    lines.push(`🏁 Vitória de ${winnerJid}`);
+    lines.push(`➡️ Próximo: ${prefix}rpg explorar`);
+    return lines.join('\n');
+  }
+  lines.push(`➡️ Próximo turno: ${prefix}rpg pvp atacar <1-4>`);
   return lines.join('\n');
 };

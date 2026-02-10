@@ -42,6 +42,24 @@ const normalizeBattle = (row) => {
   };
 };
 
+const normalizeRaidState = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    boss_snapshot_json: parseJson(row.boss_snapshot_json, {}),
+    max_hp: Number(row.max_hp || 0),
+    current_hp: Number(row.current_hp || 0),
+  };
+};
+
+const normalizePvpChallenge = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    battle_snapshot_json: parseJson(row.battle_snapshot_json, {}),
+  };
+};
+
 export const getPlayerByJid = async (jid, connection = null) => {
   const rows = await executeQuery(
     `SELECT ${PLAYER_COLUMNS}
@@ -667,4 +685,267 @@ export const upsertTravelState = async ({ ownerJid, regionKey = null, locationKe
     [ownerJid, regionKey, locationKey, locationAreaKey],
     connection,
   );
+};
+
+export const getRaidStateByChat = async (chatJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, created_by_jid, biome_key, boss_snapshot_json, max_hp, current_hp, started_at, ends_at, created_at, updated_at
+       FROM ${TABLES.RPG_RAID_STATE}
+      WHERE chat_jid = ?
+      LIMIT 1`,
+    [chatJid],
+    connection,
+  );
+
+  return normalizeRaidState(rows?.[0] || null);
+};
+
+export const getRaidStateByChatForUpdate = async (chatJid, connection) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, created_by_jid, biome_key, boss_snapshot_json, max_hp, current_hp, started_at, ends_at, created_at, updated_at
+       FROM ${TABLES.RPG_RAID_STATE}
+      WHERE chat_jid = ?
+      LIMIT 1
+      FOR UPDATE`,
+    [chatJid],
+    connection,
+  );
+
+  return normalizeRaidState(rows?.[0] || null);
+};
+
+export const upsertRaidState = async (
+  { chatJid, createdByJid, biomeKey = null, bossSnapshot, maxHp, currentHp, startedAt, endsAt },
+  connection = null,
+) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_RAID_STATE}
+      (chat_jid, created_by_jid, biome_key, boss_snapshot_json, max_hp, current_hp, started_at, ends_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+      created_by_jid = VALUES(created_by_jid),
+      biome_key = VALUES(biome_key),
+      boss_snapshot_json = VALUES(boss_snapshot_json),
+      max_hp = VALUES(max_hp),
+      current_hp = VALUES(current_hp),
+      started_at = VALUES(started_at),
+      ends_at = VALUES(ends_at),
+      updated_at = CURRENT_TIMESTAMP`,
+    [chatJid, createdByJid, biomeKey, JSON.stringify(bossSnapshot || {}), maxHp, currentHp, startedAt, endsAt],
+    connection,
+  );
+};
+
+export const deleteRaidStateByChat = async (chatJid, connection = null) => {
+  await executeQuery(
+    `DELETE FROM ${TABLES.RPG_RAID_STATE}
+      WHERE chat_jid = ?`,
+    [chatJid],
+    connection,
+  );
+};
+
+export const deleteExpiredRaidStates = async (connection = null) => {
+  const result = await executeQuery(
+    `DELETE FROM ${TABLES.RPG_RAID_STATE}
+      WHERE ends_at <= UTC_TIMESTAMP()`,
+    [],
+    connection,
+  );
+  return Number(result?.affectedRows || 0);
+};
+
+export const upsertRaidParticipant = async ({ chatJid, ownerJid }, connection = null) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_RAID_PARTICIPANT} (chat_jid, owner_jid, total_damage)
+     VALUES (?, ?, 0)
+     ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP`,
+    [chatJid, ownerJid],
+    connection,
+  );
+};
+
+export const addRaidParticipantDamage = async ({ chatJid, ownerJid, damage }, connection = null) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_RAID_PARTICIPANT} (chat_jid, owner_jid, total_damage)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE total_damage = total_damage + VALUES(total_damage), updated_at = CURRENT_TIMESTAMP`,
+    [chatJid, ownerJid, Math.max(0, Number(damage) || 0)],
+    connection,
+  );
+};
+
+export const listRaidParticipants = async (chatJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, owner_jid, total_damage, joined_at, updated_at
+       FROM ${TABLES.RPG_RAID_PARTICIPANT}
+      WHERE chat_jid = ?
+      ORDER BY total_damage DESC, joined_at ASC`,
+    [chatJid],
+    connection,
+  );
+
+  return (rows || []).map((row) => ({
+    ...row,
+    total_damage: Number(row.total_damage || 0),
+  }));
+};
+
+export const getRaidParticipant = async (chatJid, ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, owner_jid, total_damage, joined_at, updated_at
+       FROM ${TABLES.RPG_RAID_PARTICIPANT}
+      WHERE chat_jid = ?
+        AND owner_jid = ?
+      LIMIT 1`,
+    [chatJid, ownerJid],
+    connection,
+  );
+
+  const row = rows?.[0] || null;
+  if (!row) return null;
+  return {
+    ...row,
+    total_damage: Number(row.total_damage || 0),
+  };
+};
+
+export const deleteRaidParticipantsByChat = async (chatJid, connection = null) => {
+  await executeQuery(
+    `DELETE FROM ${TABLES.RPG_RAID_PARTICIPANT}
+      WHERE chat_jid = ?`,
+    [chatJid],
+    connection,
+  );
+};
+
+export const createPvpChallenge = async (
+  { chatJid = null, challengerJid, opponentJid, status = 'pending', turnJid = null, winnerJid = null, battleSnapshot, startedAt = null, expiresAt },
+  connection = null,
+) => {
+  const result = await executeQuery(
+    `INSERT INTO ${TABLES.RPG_PVP_CHALLENGE}
+      (chat_jid, challenger_jid, opponent_jid, status, turn_jid, winner_jid, battle_snapshot_json, started_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [chatJid, challengerJid, opponentJid, status, turnJid, winnerJid, JSON.stringify(battleSnapshot || {}), startedAt, expiresAt],
+    connection,
+  );
+
+  const insertId = Number(result?.insertId || 0);
+  if (!insertId) return null;
+  return getPvpChallengeById(insertId, connection);
+};
+
+export const getPvpChallengeById = async (challengeId, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, challenger_jid, opponent_jid, status, turn_jid, winner_jid, battle_snapshot_json, started_at, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_PVP_CHALLENGE}
+      WHERE id = ?
+      LIMIT 1`,
+    [challengeId],
+    connection,
+  );
+
+  return normalizePvpChallenge(rows?.[0] || null);
+};
+
+export const getPvpChallengeByIdForUpdate = async (challengeId, connection) => {
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, challenger_jid, opponent_jid, status, turn_jid, winner_jid, battle_snapshot_json, started_at, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_PVP_CHALLENGE}
+      WHERE id = ?
+      LIMIT 1
+      FOR UPDATE`,
+    [challengeId],
+    connection,
+  );
+
+  return normalizePvpChallenge(rows?.[0] || null);
+};
+
+export const listOpenPvpChallengesByPlayer = async (ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, challenger_jid, opponent_jid, status, turn_jid, winner_jid, battle_snapshot_json, started_at, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_PVP_CHALLENGE}
+      WHERE (challenger_jid = ? OR opponent_jid = ?)
+        AND status IN ('pending', 'active')
+        AND expires_at > UTC_TIMESTAMP()
+      ORDER BY id DESC`,
+    [ownerJid, ownerJid],
+    connection,
+  );
+
+  return (rows || []).map(normalizePvpChallenge);
+};
+
+export const getActivePvpChallengeByPlayerForUpdate = async (ownerJid, connection) => {
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, challenger_jid, opponent_jid, status, turn_jid, winner_jid, battle_snapshot_json, started_at, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_PVP_CHALLENGE}
+      WHERE (challenger_jid = ? OR opponent_jid = ?)
+        AND status = 'active'
+        AND expires_at > UTC_TIMESTAMP()
+      ORDER BY id DESC
+      LIMIT 1
+      FOR UPDATE`,
+    [ownerJid, ownerJid],
+    connection,
+  );
+
+  return normalizePvpChallenge(rows?.[0] || null);
+};
+
+export const updatePvpChallengeState = async (
+  { id, status, turnJid, winnerJid, battleSnapshot, startedAt, expiresAt },
+  connection = null,
+) => {
+  const fields = ['updated_at = CURRENT_TIMESTAMP'];
+  const params = [];
+
+  if (status !== undefined) {
+    fields.push('status = ?');
+    params.push(status);
+  }
+  if (turnJid !== undefined) {
+    fields.push('turn_jid = ?');
+    params.push(turnJid ?? null);
+  }
+  if (winnerJid !== undefined) {
+    fields.push('winner_jid = ?');
+    params.push(winnerJid ?? null);
+  }
+  if (battleSnapshot !== undefined) {
+    fields.push('battle_snapshot_json = ?');
+    params.push(JSON.stringify(battleSnapshot || {}));
+  }
+  if (startedAt !== undefined) {
+    fields.push('started_at = ?');
+    params.push(startedAt ?? null);
+  }
+  if (expiresAt !== undefined) {
+    fields.push('expires_at = ?');
+    params.push(expiresAt);
+  }
+
+  params.push(id);
+  await executeQuery(
+    `UPDATE ${TABLES.RPG_PVP_CHALLENGE}
+        SET ${fields.join(', ')}
+      WHERE id = ?`,
+    params,
+    connection,
+  );
+};
+
+export const expireOldPvpChallenges = async (connection = null) => {
+  const result = await executeQuery(
+    `UPDATE ${TABLES.RPG_PVP_CHALLENGE}
+        SET status = 'expired',
+            updated_at = CURRENT_TIMESTAMP
+      WHERE status IN ('pending', 'active')
+        AND expires_at <= UTC_TIMESTAMP()`,
+    [],
+    connection,
+  );
+  return Number(result?.affectedRows || 0);
 };

@@ -23,6 +23,9 @@ const ALLOWED_ACTIONS = new Set([
   'viajar',
   'tm',
   'berry',
+  'raid',
+  'desafiar',
+  'pvp',
   'ginasio',
   'ginásio',
 ]);

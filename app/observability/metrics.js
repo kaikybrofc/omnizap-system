@@ -147,6 +147,56 @@ const ensureMetrics = () => {
       help: 'Total de capturas realizadas no RPG Pokemon',
       registers: [registry],
     }),
+    rpgCaptureAttemptsTotal: new client.Counter({
+      name: 'rpg_capture_attempts_total',
+      help: 'Total de tentativas de captura no RPG Pokemon',
+      labelNames: ['result'],
+      registers: [registry],
+    }),
+    rpgFleesTotal: new client.Counter({
+      name: 'rpg_flees_total',
+      help: 'Total de fugas de batalha no RPG Pokemon',
+      registers: [registry],
+    }),
+    rpgBattleDurationSeconds: new client.Histogram({
+      name: 'rpg_battle_duration_seconds',
+      help: 'Duração de batalhas do RPG em segundos',
+      buckets: [5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 600, 900],
+      labelNames: ['mode', 'outcome'],
+      registers: [registry],
+    }),
+    rpgActionsTotal: new client.Counter({
+      name: 'rpg_actions_total',
+      help: 'Total de ações/comandos do RPG Pokemon',
+      labelNames: ['action', 'status'],
+      registers: [registry],
+    }),
+    rpgSessionDurationSeconds: new client.Histogram({
+      name: 'rpg_session_duration_seconds',
+      help: 'Duração amostrada das sessões do RPG em segundos',
+      buckets: [5, 10, 20, 30, 60, 120, 300, 600, 900, 1800, 3600],
+      registers: [registry],
+    }),
+    rpgRaidsStartedTotal: new client.Counter({
+      name: 'rpg_raids_started_total',
+      help: 'Total de raids iniciadas no RPG',
+      registers: [registry],
+    }),
+    rpgRaidsCompletedTotal: new client.Counter({
+      name: 'rpg_raids_completed_total',
+      help: 'Total de raids concluídas no RPG',
+      registers: [registry],
+    }),
+    rpgPvpChallengesTotal: new client.Counter({
+      name: 'rpg_pvp_challenges_total',
+      help: 'Total de desafios PvP criados no RPG',
+      registers: [registry],
+    }),
+    rpgPvpCompletedTotal: new client.Counter({
+      name: 'rpg_pvp_completed_total',
+      help: 'Total de PvP concluídos no RPG',
+      registers: [registry],
+    }),
     rpgShinyFoundTotal: new client.Counter({
       name: 'rpg_shiny_found_total',
       help: 'Total de encontros shiny no RPG Pokemon',
@@ -377,6 +427,90 @@ export const recordRpgCapture = (value = 1) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return;
   m.rpgCapturesTotal.inc(numeric);
+};
+
+export const recordRpgCaptureAttempt = (result = 'failed', value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgCaptureAttemptsTotal.inc({ result: normalizeLabel(result, 'failed') }, numeric);
+};
+
+export const recordRpgFlee = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgFleesTotal.inc(numeric);
+};
+
+export const recordRpgBattleDuration = ({ mode = 'wild', outcome = 'unknown', seconds }) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(seconds);
+  if (!Number.isFinite(numeric) || numeric < 0) return;
+  m.rpgBattleDurationSeconds.observe(
+    {
+      mode: normalizeLabel(mode, 'wild'),
+      outcome: normalizeLabel(outcome, 'unknown'),
+    },
+    numeric,
+  );
+};
+
+export const recordRpgAction = ({ action = 'unknown', status = 'ok', value = 1 }) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgActionsTotal.inc(
+    {
+      action: normalizeLabel(action, 'unknown'),
+      status: normalizeLabel(status, 'ok'),
+    },
+    numeric,
+  );
+};
+
+export const recordRpgSessionDuration = (seconds) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(seconds);
+  if (!Number.isFinite(numeric) || numeric < 0) return;
+  m.rpgSessionDurationSeconds.observe(numeric);
+};
+
+export const recordRpgRaidStarted = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgRaidsStartedTotal.inc(numeric);
+};
+
+export const recordRpgRaidCompleted = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgRaidsCompletedTotal.inc(numeric);
+};
+
+export const recordRpgPvpChallenge = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgPvpChallengesTotal.inc(numeric);
+};
+
+export const recordRpgPvpCompleted = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgPvpCompletedTotal.inc(numeric);
 };
 
 export const recordPokeApiCacheHit = (value = 1) => {
