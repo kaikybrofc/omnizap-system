@@ -1,7 +1,8 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
 
 const PLAYER_COLUMNS = 'jid, level, xp, gold, created_at, updated_at';
-const PLAYER_POKEMON_COLUMNS = 'id, owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, is_shiny, is_active, created_at';
+const PLAYER_POKEMON_COLUMNS =
+  'id, owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, nature_key, ability_key, ability_name, is_shiny, is_active, created_at';
 const BATTLE_COLUMNS = 'chat_jid, owner_jid, my_pokemon_id, enemy_snapshot_json, turn, expires_at, created_at, updated_at';
 
 const parseJson = (value, fallback) => {
@@ -26,6 +27,9 @@ const normalizePlayerPokemon = (row) => {
     xp: Number(row.xp || 0),
     current_hp: Number(row.current_hp || 0),
     poke_id: Number(row.poke_id || 0),
+    nature_key: row.nature_key || null,
+    ability_key: row.ability_key || null,
+    ability_name: row.ability_name || null,
   };
 };
 
@@ -102,14 +106,42 @@ export const updatePlayerGoldOnly = async ({ jid, gold }, connection = null) => 
 };
 
 export const createPlayerPokemon = async (
-  { ownerJid, pokeId, nickname = null, level = 5, xp = 0, currentHp, ivsJson, movesJson, isShiny = false, isActive = false },
+  {
+    ownerJid,
+    pokeId,
+    nickname = null,
+    level = 5,
+    xp = 0,
+    currentHp,
+    ivsJson,
+    movesJson,
+    natureKey = null,
+    abilityKey = null,
+    abilityName = null,
+    isShiny = false,
+    isActive = false,
+  },
   connection = null,
 ) => {
   const result = await executeQuery(
     `INSERT INTO ${TABLES.RPG_PLAYER_POKEMON}
-      (owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, is_shiny, is_active)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [ownerJid, pokeId, nickname, level, xp, currentHp, JSON.stringify(ivsJson || {}), JSON.stringify(movesJson || []), isShiny ? 1 : 0, isActive ? 1 : 0],
+      (owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, nature_key, ability_key, ability_name, is_shiny, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      ownerJid,
+      pokeId,
+      nickname,
+      level,
+      xp,
+      currentHp,
+      JSON.stringify(ivsJson || {}),
+      JSON.stringify(movesJson || []),
+      natureKey,
+      abilityKey,
+      abilityName,
+      isShiny ? 1 : 0,
+      isActive ? 1 : 0,
+    ],
     connection,
   );
 
@@ -213,7 +245,20 @@ export const setActivePokemon = async (ownerJid, pokemonId, connection = null) =
 };
 
 export const updatePlayerPokemonState = async (
-  { id, ownerJid, level, xp, currentHp, movesJson = null, pokeId = null, nickname, isShiny },
+  {
+    id,
+    ownerJid,
+    level,
+    xp,
+    currentHp,
+    movesJson = null,
+    pokeId = null,
+    nickname,
+    isShiny,
+    natureKey,
+    abilityKey,
+    abilityName,
+  },
   connection = null,
 ) => {
   const fields = ['level = ?', 'xp = ?', 'current_hp = ?'];
@@ -237,6 +282,21 @@ export const updatePlayerPokemonState = async (
   if (isShiny !== undefined) {
     fields.push('is_shiny = ?');
     params.push(isShiny ? 1 : 0);
+  }
+
+  if (natureKey !== undefined) {
+    fields.push('nature_key = ?');
+    params.push(natureKey ?? null);
+  }
+
+  if (abilityKey !== undefined) {
+    fields.push('ability_key = ?');
+    params.push(abilityKey ?? null);
+  }
+
+  if (abilityName !== undefined) {
+    fields.push('ability_name = ?');
+    params.push(abilityName ?? null);
   }
 
   params.push(id, ownerJid);
@@ -523,6 +583,88 @@ export const updateMissionProgress = async (
       weeklyClaimedAt || null,
       ownerJid,
     ],
+    connection,
+  );
+};
+
+export const upsertPokedexEntry = async ({ ownerJid, pokeId }, connection = null) => {
+  const result = await executeQuery(
+    `INSERT IGNORE INTO ${TABLES.RPG_PLAYER_POKEDEX} (owner_jid, poke_id)
+     VALUES (?, ?)`,
+    [ownerJid, pokeId],
+    connection,
+  );
+
+  return Number(result?.affectedRows || 0) > 0;
+};
+
+export const countPokedexEntries = async (ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT COUNT(*) AS total
+       FROM ${TABLES.RPG_PLAYER_POKEDEX}
+      WHERE owner_jid = ?`,
+    [ownerJid],
+    connection,
+  );
+
+  return Number(rows?.[0]?.total || 0);
+};
+
+export const listPokedexEntries = async (ownerJid, limit = 12, connection = null) => {
+  const safeLimit = Math.max(1, Math.min(50, Number(limit) || 12));
+  const rows = await executeQuery(
+    `SELECT owner_jid, poke_id, first_captured_at
+       FROM ${TABLES.RPG_PLAYER_POKEDEX}
+      WHERE owner_jid = ?
+      ORDER BY first_captured_at DESC
+      LIMIT ${safeLimit}`,
+    [ownerJid],
+    connection,
+  );
+
+  return (rows || []).map((row) => ({
+    ...row,
+    poke_id: Number(row.poke_id || 0),
+  }));
+};
+
+export const getTravelStateByOwner = async (ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT owner_jid, region_key, location_key, location_area_key, created_at, updated_at
+       FROM ${TABLES.RPG_PLAYER_TRAVEL}
+      WHERE owner_jid = ?
+      LIMIT 1`,
+    [ownerJid],
+    connection,
+  );
+
+  return rows?.[0] || null;
+};
+
+export const getTravelStateByOwnerForUpdate = async (ownerJid, connection) => {
+  const rows = await executeQuery(
+    `SELECT owner_jid, region_key, location_key, location_area_key, created_at, updated_at
+       FROM ${TABLES.RPG_PLAYER_TRAVEL}
+      WHERE owner_jid = ?
+      LIMIT 1
+      FOR UPDATE`,
+    [ownerJid],
+    connection,
+  );
+
+  return rows?.[0] || null;
+};
+
+export const upsertTravelState = async ({ ownerJid, regionKey = null, locationKey = null, locationAreaKey = null }, connection = null) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_PLAYER_TRAVEL} (owner_jid, region_key, location_key, location_area_key)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+      region_key = VALUES(region_key),
+      location_key = VALUES(location_key),
+      location_area_key = VALUES(location_area_key),
+      updated_at = CURRENT_TIMESTAMP`,
+    [ownerJid, regionKey, locationKey, locationAreaKey],
     connection,
   );
 };

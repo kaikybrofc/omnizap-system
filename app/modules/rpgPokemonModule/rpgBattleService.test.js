@@ -138,6 +138,15 @@ const seedCoreTypeAndMoveData = (cache) => {
   for (const moveName of PREFERRED_MOVE_NAMES) {
     setCache(cache, `move:${moveName}`, buildMoveData(moveName, 'normal', moveName === 'struggle' ? 50 : 40));
   }
+
+  for (let id = 1; id <= 25; id += 1) {
+    setCache(cache, `nature:${id}`, {
+      id,
+      name: `nature-${id}`,
+      increased_stat: null,
+      decreased_stat: null,
+    });
+  }
 };
 
 const withRandomSequence = async (values, fn) => {

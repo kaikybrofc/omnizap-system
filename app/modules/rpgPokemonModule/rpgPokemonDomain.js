@@ -5,16 +5,19 @@ export const BIOME_DEFINITIONS = {
     key: 'floresta',
     label: 'Floresta',
     preferredTypes: ['grass', 'bug'],
+    preferredHabitats: ['forest', 'grassland'],
   },
   cidade: {
     key: 'cidade',
     label: 'Cidade',
     preferredTypes: ['electric', 'normal'],
+    preferredHabitats: ['urban', 'rough-terrain'],
   },
   caverna: {
     key: 'caverna',
     label: 'Caverna',
     preferredTypes: ['rock', 'ground'],
+    preferredHabitats: ['cave', 'mountain'],
   },
 };
 
@@ -155,11 +158,21 @@ export const resolveMissionStateForRefs = ({ ownerJid, row, refs }) => {
 
 export const resolveVictoryRewards = (battleSnapshot) => {
   const enemyLevel = Math.max(1, toInt(battleSnapshot?.enemy?.level, 1));
+  const growthRate = String(battleSnapshot?.enemy?.growthRate || '').trim().toLowerCase();
   const isGymBattle = battleSnapshot?.mode === 'gym';
 
+  const growthMultiplier =
+    growthRate === 'slow'
+      ? 1.12
+      : growthRate === 'fast'
+        ? 0.92
+        : growthRate === 'medium slow'
+          ? 1.06
+          : 1;
+
   const rewards = {
-    playerXp: enemyLevel * 14,
-    pokemonXp: enemyLevel * 20,
+    playerXp: Math.max(1, Math.round(enemyLevel * 14 * growthMultiplier)),
+    pokemonXp: Math.max(1, Math.round(enemyLevel * 20 * growthMultiplier)),
     gold: enemyLevel * 9,
     items: [],
   };

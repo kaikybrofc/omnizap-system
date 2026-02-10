@@ -112,6 +112,8 @@ export const TABLES = {
   RPG_PLAYER_INVENTORY: 'rpg_player_inventory',
   RPG_GROUP_BIOME: 'rpg_group_biome',
   RPG_PLAYER_MISSION_PROGRESS: 'rpg_player_mission_progress',
+  RPG_PLAYER_POKEDEX: 'rpg_player_pokedex',
+  RPG_PLAYER_TRAVEL: 'rpg_player_travel',
 };
 
 /**

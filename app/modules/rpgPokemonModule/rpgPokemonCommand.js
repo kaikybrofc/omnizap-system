@@ -17,8 +17,12 @@ const ALLOWED_ACTIONS = new Set([
   'comprar',
   'usar',
   'bolsa',
+  'pokedex',
   'missoes',
   'missões',
+  'viajar',
+  'tm',
+  'berry',
   'ginasio',
   'ginásio',
 ]);

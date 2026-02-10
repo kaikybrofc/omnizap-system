@@ -78,6 +78,25 @@ const requestResource = async ({ path, cacheKey }) => {
   return requestPromise;
 };
 
+const getNamedResource = async (resource, idOrName) => {
+  const normalized = normalizeKeyPart(idOrName);
+  return requestResource({
+    path: `/${resource}/${encodeURIComponent(normalized)}`,
+    cacheKey: `${resource}:${normalized}`,
+  });
+};
+
+export const getResourceList = async ({ resource, limit = 20, offset = 0 }) => {
+  const safeLimit = Math.max(1, Math.min(200, Number(limit) || 20));
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const cacheKey = `list:${resource}:${safeLimit}:${safeOffset}`;
+  const query = `?limit=${encodeURIComponent(String(safeLimit))}&offset=${encodeURIComponent(String(safeOffset))}`;
+  return requestResource({
+    path: `/${resource}${query}`,
+    cacheKey,
+  });
+};
+
 export const getPokemonImage = (pokemonApiResponse, options = {}) => {
   const shinyPreferred = Boolean(options?.shiny);
   if (shinyPreferred) {
@@ -101,27 +120,15 @@ export const getPokemonImage = (pokemonApiResponse, options = {}) => {
 };
 
 export const getPokemon = async (idOrName) => {
-  const normalized = normalizeKeyPart(idOrName);
-  return requestResource({
-    path: `/pokemon/${encodeURIComponent(normalized)}`,
-    cacheKey: `pokemon:${normalized}`,
-  });
+  return getNamedResource('pokemon', idOrName);
 };
 
 export const getMove = async (idOrName) => {
-  const normalized = normalizeKeyPart(idOrName);
-  return requestResource({
-    path: `/move/${encodeURIComponent(normalized)}`,
-    cacheKey: `move:${normalized}`,
-  });
+  return getNamedResource('move', idOrName);
 };
 
 export const getType = async (name) => {
-  const normalized = normalizeKeyPart(name);
-  return requestResource({
-    path: `/type/${encodeURIComponent(normalized)}`,
-    cacheKey: `type:${normalized}`,
-  });
+  return getNamedResource('type', name);
 };
 
 export const getSpecies = async (id) => {
@@ -133,12 +140,36 @@ export const getSpecies = async (id) => {
 };
 
 export const getEvolutionChain = async (id) => {
-  const normalized = normalizeKeyPart(id);
-  return requestResource({
-    path: `/evolution-chain/${encodeURIComponent(normalized)}`,
-    cacheKey: `evolution-chain:${normalized}`,
-  });
+  return getNamedResource('evolution-chain', id);
 };
+
+export const getItem = async (idOrName) => getNamedResource('item', idOrName);
+
+export const getItemCategory = async (idOrName) => getNamedResource('item-category', idOrName);
+
+export const getItemPocket = async (idOrName) => getNamedResource('item-pocket', idOrName);
+
+export const getMachine = async (idOrName) => getNamedResource('machine', idOrName);
+
+export const getBerry = async (idOrName) => getNamedResource('berry', idOrName);
+
+export const getBerryFlavor = async (idOrName) => getNamedResource('berry-flavor', idOrName);
+
+export const getRegion = async (idOrName) => getNamedResource('region', idOrName);
+
+export const getLocation = async (idOrName) => getNamedResource('location', idOrName);
+
+export const getLocationArea = async (idOrName) => getNamedResource('location-area', idOrName);
+
+export const getPokedex = async (idOrName) => getNamedResource('pokedex', idOrName);
+
+export const getGeneration = async (idOrName) => getNamedResource('generation', idOrName);
+
+export const getNature = async (idOrName) => getNamedResource('nature', idOrName);
+
+export const getAbility = async (idOrName) => getNamedResource('ability', idOrName);
+
+export const getCharacteristic = async (idOrName) => getNamedResource('characteristic', idOrName);
 
 export default {
   getPokemon,
@@ -146,5 +177,20 @@ export default {
   getType,
   getSpecies,
   getEvolutionChain,
+  getItem,
+  getItemCategory,
+  getItemPocket,
+  getMachine,
+  getBerry,
+  getBerryFlavor,
+  getRegion,
+  getLocation,
+  getLocationArea,
+  getPokedex,
+  getGeneration,
+  getNature,
+  getAbility,
+  getCharacteristic,
+  getResourceList,
   getPokemonImage,
 };

@@ -1,4 +1,13 @@
-import { getEvolutionChain, getMove, getPokemon, getPokemonImage, getSpecies, getType } from '../../services/pokeApiService.js';
+import {
+  getAbility,
+  getEvolutionChain,
+  getMove,
+  getNature,
+  getPokemon,
+  getPokemonImage,
+  getSpecies,
+  getType,
+} from '../../services/pokeApiService.js';
 import logger from '../../utils/logger/loggerModule.js';
 
 const MIN_LEVEL = 1;
@@ -11,6 +20,9 @@ const DEFAULT_SHINY_CHANCE = 0.01;
 const RAW_SHINY_CHANCE = Number(process.env.RPG_SHINY_CHANCE ?? DEFAULT_SHINY_CHANCE);
 const SHINY_CHANCE = Number.isFinite(RAW_SHINY_CHANCE) ? Math.max(0, Math.min(1, RAW_SHINY_CHANCE)) : DEFAULT_SHINY_CHANCE;
 const MAX_BIOME_LOOKUP_ATTEMPTS = Math.max(2, Number(process.env.RPG_BIOME_LOOKUP_ATTEMPTS) || 6);
+const MAX_SPECIES_FILTER_ATTEMPTS = Math.max(2, Number(process.env.RPG_SPECIES_FILTER_ATTEMPTS) || 5);
+const LEGENDARY_SPAWN_CHANCE = Math.max(0.005, Math.min(1, Number(process.env.RPG_LEGENDARY_SPAWN_CHANCE) || 0.06));
+const MYTHICAL_SPAWN_CHANCE = Math.max(0.001, Math.min(1, Number(process.env.RPG_MYTHICAL_SPAWN_CHANCE) || 0.03));
 
 const PHYSICAL_CLASS = 'physical';
 const SPECIAL_CLASS = 'special';
@@ -90,6 +102,48 @@ const calculateMaxHp = ({ baseHp, ivHp, level }) => {
 const calculateStat = ({ base, iv, level }) => {
   const computed = Math.floor(((2 * base + iv) * level) / 100) + 5;
   return Math.max(1, computed);
+};
+
+const normalizeStatKey = (name) => {
+  const key = String(name || '').trim().toLowerCase();
+  if (key === 'special-attack') return 'specialAttack';
+  if (key === 'special-defense') return 'specialDefense';
+  if (key === 'attack') return 'attack';
+  if (key === 'defense') return 'defense';
+  if (key === 'speed') return 'speed';
+  return null;
+};
+
+const hashString = (value) => {
+  const raw = String(value || '');
+  let hash = 0;
+  for (let index = 0; index < raw.length; index += 1) {
+    hash = (hash * 31 + raw.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+};
+
+const applyNatureAndAbilityModifiers = ({ stats, natureData = null, abilityKey = null }) => {
+  const next = { ...stats };
+  const increased = normalizeStatKey(natureData?.increased_stat?.name);
+  const decreased = normalizeStatKey(natureData?.decreased_stat?.name);
+
+  if (increased && next[increased]) {
+    next[increased] = Math.max(1, Math.round(next[increased] * 1.1));
+  }
+
+  if (decreased && next[decreased]) {
+    next[decreased] = Math.max(1, Math.round(next[decreased] * 0.9));
+  }
+
+  const abilityToken = String(abilityKey || '').trim().toLowerCase();
+  if (abilityToken) {
+    const modKeys = ['attack', 'defense', 'specialAttack', 'specialDefense', 'speed'];
+    const selectedKey = modKeys[hashString(abilityToken) % modKeys.length];
+    next[selectedKey] = Math.max(1, Math.round(next[selectedKey] * 1.05));
+  }
+
+  return next;
 };
 
 const normalizeTypeRelations = (typeData) => {
@@ -369,6 +423,42 @@ const parsePokemonIdFromTypeEntry = (entry) => {
   return null;
 };
 
+const parsePokemonLookupFromAreaEntry = (entry) => {
+  const url = entry?.pokemon?.url;
+  const idFromUrl = extractIdFromUrl(url);
+  if (Number.isFinite(idFromUrl) && idFromUrl > 0) {
+    return idFromUrl;
+  }
+
+  const name = String(entry?.pokemon?.name || '').trim().toLowerCase();
+  if (name) return name;
+  return null;
+};
+
+const pickPokemonFromEncounterPool = async (encounterPool = []) => {
+  const lookups = (Array.isArray(encounterPool) ? encounterPool : [])
+    .map((entry) => {
+      if (typeof entry === 'number') return entry;
+      if (typeof entry === 'string') return entry.trim().toLowerCase();
+      return parsePokemonLookupFromAreaEntry(entry);
+    })
+    .filter(Boolean);
+
+  if (!lookups.length) return null;
+
+  const selectedLookup = lookups[randomInt(0, lookups.length - 1)];
+  try {
+    const pokemonData = await getPokemon(selectedLookup);
+    return pokemonData || null;
+  } catch (error) {
+    logger.warn('Falha ao resolver Pokémon por encounter_pool.', {
+      selectedLookup,
+      error: error.message,
+    });
+    return null;
+  }
+};
+
 const pickPokemonByPreferredTypes = async (preferredTypes = []) => {
   const normalizedTypes = (Array.isArray(preferredTypes) ? preferredTypes : [])
     .map((type) => String(type || '').trim().toLowerCase())
@@ -397,6 +487,24 @@ const pickPokemonByPreferredTypes = async (preferredTypes = []) => {
   }
 
   return null;
+};
+
+const shouldAcceptSpeciesForEncounter = ({ speciesData, preferredHabitats = [] }) => {
+  const normalizedHabitats = (Array.isArray(preferredHabitats) ? preferredHabitats : [])
+    .map((habitat) => String(habitat || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  const habitatName = String(speciesData?.habitat?.name || '').trim().toLowerCase();
+  const isLegendary = Boolean(speciesData?.is_legendary);
+  const isMythical = Boolean(speciesData?.is_mythical);
+
+  if (isMythical && Math.random() > MYTHICAL_SPAWN_CHANCE) return false;
+  if (isLegendary && Math.random() > LEGENDARY_SPAWN_CHANCE) return false;
+
+  if (!normalizedHabitats.length) return true;
+  if (!habitatName) return Math.random() <= 0.5;
+  if (normalizedHabitats.includes(habitatName)) return true;
+  return Math.random() <= 0.35;
 };
 
 const findEvolutionNodeBySpeciesName = (chainNode, speciesName) => {
@@ -463,6 +571,25 @@ const resolveEligibleEvolution = (chainNode, level) => {
   return candidates[0];
 };
 
+const resolveEligibleEvolutionByItem = (chainNode, itemKey) => {
+  const normalizedItem = String(itemKey || '').trim().toLowerCase();
+  if (!normalizedItem) return null;
+
+  const candidates = [];
+  for (const nextNode of chainNode?.evolves_to || []) {
+    const details = Array.isArray(nextNode?.evolution_details) ? nextNode.evolution_details : [];
+    for (const detail of details) {
+      const triggerName = String(detail?.trigger?.name || '').toLowerCase();
+      if (triggerName !== 'use-item') continue;
+      const requiredItem = String(detail?.item?.name || '').trim().toLowerCase();
+      if (!requiredItem || requiredItem !== normalizedItem) continue;
+      candidates.push(nextNode);
+    }
+  }
+
+  return candidates[0] || null;
+};
+
 const resolveSpeciesIdFromNode = (chainNode) => {
   return extractIdFromUrl(chainNode?.species?.url) || null;
 };
@@ -504,6 +631,8 @@ export const buildPokemonSnapshot = async ({
   currentHp = null,
   ivs = null,
   storedMoves = null,
+  natureData = null,
+  abilityData = null,
   isShiny = false,
 }) => {
   const safeLevel = clamp(toPositiveInt(level, 5), MIN_LEVEL, MAX_LEVEL);
@@ -516,13 +645,19 @@ export const buildPokemonSnapshot = async ({
     level: safeLevel,
   });
 
-  const stats = {
+  const baseCalculatedStats = {
     attack: calculateStat({ base: baseStats.attack, iv: resolvedIvs.attack, level: safeLevel }),
     defense: calculateStat({ base: baseStats.defense, iv: resolvedIvs.defense, level: safeLevel }),
     specialAttack: calculateStat({ base: baseStats.specialAttack, iv: resolvedIvs.specialAttack, level: safeLevel }),
     specialDefense: calculateStat({ base: baseStats.specialDefense, iv: resolvedIvs.specialDefense, level: safeLevel }),
     speed: calculateStat({ base: baseStats.speed, iv: resolvedIvs.speed, level: safeLevel }),
   };
+  const abilityKey = String(abilityData?.name || '').trim().toLowerCase() || null;
+  const stats = applyNatureAndAbilityModifiers({
+    stats: baseCalculatedStats,
+    natureData,
+    abilityKey,
+  });
 
   const types = (pokemonData?.types || [])
     .sort((a, b) => toPositiveInt(a?.slot, 0) - toPositiveInt(b?.slot, 0))
@@ -554,11 +689,44 @@ export const buildPokemonSnapshot = async ({
     sprite: pokemonData?.sprites?.front_default || null,
     speciesId,
     captureRate: toPositiveInt(speciesData?.capture_rate, DEFAULT_CAPTURE_RATE),
+    growthRate: String(speciesData?.growth_rate?.name || '').trim().toLowerCase() || null,
+    habitat: String(speciesData?.habitat?.name || '').trim().toLowerCase() || null,
+    isLegendary: Boolean(speciesData?.is_legendary),
+    isMythical: Boolean(speciesData?.is_mythical),
+    nature: natureData
+      ? {
+          key: String(natureData?.name || '').trim().toLowerCase() || null,
+          name: capitalize(natureData?.name),
+        }
+      : null,
+    ability: abilityData
+      ? {
+          key: abilityKey,
+          name: capitalize(abilityData?.name),
+        }
+      : null,
   };
 };
 
 export const buildPlayerBattleSnapshot = async ({ playerPokemonRow }) => {
   const pokemonData = await getPokemon(playerPokemonRow.poke_id);
+  let natureData = null;
+  if (playerPokemonRow?.nature_key) {
+    try {
+      natureData = await getNature(playerPokemonRow.nature_key);
+    } catch (error) {
+      logger.debug('Nature ignorada no snapshot do jogador.', {
+        natureKey: playerPokemonRow.nature_key,
+        error: error.message,
+      });
+    }
+  }
+  const abilityData =
+    playerPokemonRow?.ability_key || playerPokemonRow?.ability_name
+      ? {
+          name: playerPokemonRow.ability_key || playerPokemonRow.ability_name,
+        }
+      : null;
 
   return buildPokemonSnapshot({
     pokemonData,
@@ -566,42 +734,91 @@ export const buildPlayerBattleSnapshot = async ({ playerPokemonRow }) => {
     currentHp: playerPokemonRow.current_hp,
     ivs: playerPokemonRow.ivs_json,
     storedMoves: playerPokemonRow.moves_json,
+    natureData,
+    abilityData,
     isShiny: Boolean(playerPokemonRow.is_shiny),
   });
 };
 
-export const createWildEncounter = async ({ playerLevel, preferredTypes = [] }) => {
+export const createWildEncounter = async ({ playerLevel, preferredTypes = [], preferredHabitats = [], encounterPool = [] }) => {
   const minLevel = Math.max(MIN_WILD_LEVEL, toPositiveInt(playerLevel, 1) - 2);
   const maxLevel = clamp(minLevel + 4, minLevel, MAX_LEVEL);
   const wildLevel = randomInt(minLevel, maxLevel);
   const isShiny = Math.random() <= SHINY_CHANCE;
 
-  let pokemonData;
-  pokemonData = await pickPokemonByPreferredTypes(preferredTypes);
+  let selectedPokemon = null;
+  let selectedSpecies = null;
 
-  if (!pokemonData) {
-    const wildId = randomInt(1, DEFAULT_WILD_MAX_ID);
-    try {
-      pokemonData = await getPokemon(wildId);
-    } catch {
-      pokemonData = await getPokemon(25);
+  for (let attempt = 0; attempt < MAX_SPECIES_FILTER_ATTEMPTS; attempt += 1) {
+    let candidate =
+      (await pickPokemonFromEncounterPool(encounterPool)) ||
+      (await pickPokemonByPreferredTypes(preferredTypes));
+
+    if (!candidate) {
+      const wildId = randomInt(1, DEFAULT_WILD_MAX_ID);
+      try {
+        candidate = await getPokemon(wildId);
+      } catch {
+        candidate = await getPokemon(25);
+      }
     }
+
+    const speciesId = extractIdFromUrl(candidate?.species?.url) || candidate?.id;
+    if (!speciesId) continue;
+
+    const speciesData = await getSpecies(speciesId);
+    if (!shouldAcceptSpeciesForEncounter({ speciesData, preferredHabitats })) {
+      continue;
+    }
+
+    selectedPokemon = candidate;
+    selectedSpecies = speciesData;
+    break;
   }
 
-  const speciesId = extractIdFromUrl(pokemonData?.species?.url) || pokemonData?.id;
-  const speciesData = await getSpecies(speciesId);
+  if (!selectedPokemon) {
+    selectedPokemon = await getPokemon(25);
+    const fallbackSpeciesId = extractIdFromUrl(selectedPokemon?.species?.url) || selectedPokemon?.id;
+    selectedSpecies = await getSpecies(fallbackSpeciesId);
+  }
+
+  const abilities = (selectedPokemon?.abilities || []).filter((entry) => !entry?.is_hidden);
+  const abilityEntry = abilities.length ? abilities[randomInt(0, abilities.length - 1)] : selectedPokemon?.abilities?.[0];
+  const abilityKey = String(abilityEntry?.ability?.name || '').trim().toLowerCase() || null;
+  let abilityData = null;
+  if (abilityKey) {
+    try {
+      abilityData = await getAbility(abilityKey);
+    } catch (error) {
+      logger.debug('Ability ignorada no encontro selvagem.', {
+        abilityKey,
+        error: error.message,
+      });
+    }
+  }
+  let natureData = null;
+  try {
+    natureData = await getNature(randomInt(1, 25));
+  } catch (error) {
+    logger.debug('Nature aleatória indisponível no encontro.', {
+      error: error.message,
+    });
+  }
+
   const enemySnapshot = await buildPokemonSnapshot({
-    pokemonData,
-    speciesData,
+    pokemonData: selectedPokemon,
+    speciesData: selectedSpecies,
     level: wildLevel,
     currentHp: null,
     ivs: createRandomIvs(),
+    natureData,
+    abilityData,
     isShiny,
   });
 
   return {
     enemySnapshot,
-    speciesData,
+    speciesData: selectedSpecies,
     isShiny,
   };
 };
@@ -690,10 +907,12 @@ export const resolveCaptureAttempt = ({ battleSnapshot }) => {
     };
   }
 
+  const captureBonus = clamp(toNumber(snapshot?.my?.captureBonus, 0), 0, 1);
+  const guaranteedCapture = Boolean(snapshot?.my?.guaranteedCapture);
   const hpFactor = clamp((enemy.maxHp - enemy.currentHp) / Math.max(1, enemy.maxHp), 0, 1);
   const captureRateFactor = clamp(toPositiveInt(enemy.captureRate, DEFAULT_CAPTURE_RATE) / 255, 0, 1);
-  const chance = clamp(0.1 + hpFactor * 0.6 + captureRateFactor * 0.25, 0.05, 0.9);
-  const success = Math.random() <= chance;
+  const chance = guaranteedCapture ? 1 : clamp(0.1 + hpFactor * 0.6 + captureRateFactor * 0.25 + captureBonus, 0.05, 0.95);
+  const success = guaranteedCapture || Math.random() <= chance;
 
   if (success) {
     logs.push(`Você lançou uma Poké Bola e capturou *${enemy.displayName}*!`);
@@ -736,6 +955,10 @@ export const resolveCaptureAttempt = ({ battleSnapshot }) => {
 export const buildEvolutionChainId = (speciesData) => {
   const chainUrl = speciesData?.evolution_chain?.url;
   return extractIdFromUrl(chainUrl);
+};
+
+export const buildMoveSnapshotByName = async (idOrName) => {
+  return loadMoveSnapshot(idOrName);
 };
 
 export const resolveEvolutionByLevel = async ({ pokeId, level }) => {
@@ -781,6 +1004,43 @@ export const resolveEvolutionByLevel = async ({ pokeId, level }) => {
     from: {
       pokeId: toPositiveInt(evolvedFrom?.id, 0),
       name: capitalize(evolvedFrom?.name),
+    },
+    to: {
+      pokeId: toPositiveInt(evolvedPokemon?.id, 0),
+      name: capitalize(evolvedPokemon?.name),
+    },
+    pokemonData: evolvedPokemon,
+  };
+};
+
+export const resolveEvolutionByItem = async ({ pokeId, itemKey }) => {
+  const normalizedItem = String(itemKey || '').trim().toLowerCase();
+  if (!normalizedItem) return null;
+
+  const currentPokemon = await getPokemon(pokeId);
+  const currentSpeciesId = extractIdFromUrl(currentPokemon?.species?.url) || toPositiveInt(currentPokemon?.id, 0);
+  if (!currentSpeciesId) return null;
+
+  const speciesData = await getSpecies(currentSpeciesId);
+  const chainId = buildEvolutionChainId(speciesData);
+  if (!chainId) return null;
+
+  const chainData = await getEvolutionChain(chainId);
+  const currentNode = findEvolutionNodeBySpeciesName(chainData?.chain, currentPokemon?.species?.name || currentPokemon?.name);
+  if (!currentNode) return null;
+
+  const nextNode = resolveEligibleEvolutionByItem(currentNode, normalizedItem);
+  if (!nextNode) return null;
+
+  const nextSpeciesId = resolveSpeciesIdFromNode(nextNode);
+  const nextLookup = nextSpeciesId || String(nextNode?.species?.name || '').toLowerCase();
+  if (!nextLookup) return null;
+
+  const evolvedPokemon = await getPokemon(nextLookup);
+  return {
+    from: {
+      pokeId: toPositiveInt(currentPokemon?.id, 0),
+      name: capitalize(currentPokemon?.name),
     },
     to: {
       pokeId: toPositiveInt(evolvedPokemon?.id, 0),
