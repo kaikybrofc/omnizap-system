@@ -155,6 +155,7 @@ import {
   resolveMissionStateForRefs,
   resolveVictoryRewards,
 } from './rpgPokemonDomain.js';
+import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
 
 const COOLDOWN_MS = Math.max(5_000, Number(process.env.RPG_COOLDOWN_MS) || 10_000);
 const BATTLE_TTL_MS = Math.max(60_000, Number(process.env.RPG_BATTLE_TTL_MS) || 5 * 60 * 1000);
@@ -812,14 +813,31 @@ const normalizeJidToken = (token) => {
   return `${numeric}@s.whatsapp.net`;
 };
 
-const resolveOpponentJidFromArgs = ({ actionArgs = [] }) => {
+const resolveCanonicalUserJid = async (rawUserId) => {
+  const info = extractUserIdInfo(rawUserId);
+  if (!info.raw) return null;
+
+  const fallback = resolveUserIdCached(info) || info.raw || null;
+  try {
+    const resolved = await resolveUserId(info);
+    return resolved || fallback;
+  } catch (error) {
+    logger.warn('Falha ao resolver ID canônico para PvP.', {
+      rawUserId: info.raw,
+      error: error.message,
+    });
+    return fallback;
+  }
+};
+
+const resolveOpponentJidFromArgs = async ({ actionArgs = [] }) => {
   const direct = normalizeJidToken(actionArgs?.[0]);
-  if (direct) return direct;
+  if (direct) return resolveCanonicalUserJid(direct);
 
   const joined = String(actionArgs.join(' ') || '');
   const mentionMatch = joined.match(/@(\d{6,})/);
   if (!mentionMatch) return null;
-  return `${mentionMatch[1]}@s.whatsapp.net`;
+  return resolveCanonicalUserJid(`${mentionMatch[1]}@s.whatsapp.net`);
 };
 
 const getCooldownSecondsLeft = (ownerJid) => {
@@ -3100,7 +3118,12 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
 };
 
 const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] }) => {
-  const opponentJid = resolveOpponentJidFromArgs({ actionArgs });
+  const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
+  if (!canonicalOwnerJid) {
+    return { ok: true, text: 'Não foi possível identificar o seu usuário para PvP.' };
+  }
+
+  const opponentJid = await resolveOpponentJidFromArgs({ actionArgs });
   if (!opponentJid) {
     return {
       ok: true,
@@ -3108,14 +3131,14 @@ const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = 
     };
   }
 
-  if (opponentJid === ownerJid) {
+  if (opponentJid === canonicalOwnerJid) {
     return {
       ok: true,
       text: 'Você não pode se desafiar no PvP.',
     };
   }
 
-  const pvpCooldown = getPvpCooldownSecondsLeft(ownerJid);
+  const pvpCooldown = getPvpCooldownSecondsLeft(canonicalOwnerJid);
   if (pvpCooldown > 0) {
     return {
       ok: true,
@@ -3125,19 +3148,19 @@ const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = 
 
   const created = await withTransaction(async (connection) => {
     await expireOldPvpChallenges(connection);
-    const selfPlayer = await getPlayerByJidForUpdate(ownerJid, connection);
+    const selfPlayer = await getPlayerByJidForUpdate(canonicalOwnerJid, connection);
     const opponentPlayer = await getPlayerByJidForUpdate(opponentJid, connection);
     if (!selfPlayer || !opponentPlayer) {
       return { error: 'player_not_found' };
     }
 
-    const existingSelf = await listOpenPvpChallengesByPlayer(ownerJid, connection);
+    const existingSelf = await listOpenPvpChallengesByPlayer(canonicalOwnerJid, connection);
     const existingOpponent = await listOpenPvpChallengesByPlayer(opponentJid, connection);
     if ((existingSelf || []).length || (existingOpponent || []).length) {
       return { error: 'challenge_exists' };
     }
 
-    const myActive = await getActivePlayerPokemonForUpdate(ownerJid, connection);
+    const myActive = await getActivePlayerPokemonForUpdate(canonicalOwnerJid, connection);
     const enemyActive = await getActivePlayerPokemonForUpdate(opponentJid, connection);
     if (!myActive || !enemyActive) {
       return { error: 'active_missing' };
@@ -3149,9 +3172,9 @@ const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = 
       return { error: 'fainted' };
     }
 
-    const turnJid = randomFromArray([ownerJid, opponentJid]);
+    const turnJid = randomFromArray([canonicalOwnerJid, opponentJid]);
     const battleSnapshot = buildPvpSnapshotState({
-      challengerJid: ownerJid,
+      challengerJid: canonicalOwnerJid,
       challengerPokemonId: myActive.id,
       challengerSnapshot: mySnapshot,
       opponentJid,
@@ -3163,7 +3186,7 @@ const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = 
     const challenge = await createPvpChallenge(
       {
         chatJid,
-        challengerJid: ownerJid,
+        challengerJid: canonicalOwnerJid,
         opponentJid,
         status: 'pending',
         turnJid,
@@ -3195,13 +3218,13 @@ const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = 
     return { ok: true, text: 'Não foi possível criar o desafio PvP agora.' };
   }
 
-  touchPvpCooldown(ownerJid);
+  touchPvpCooldown(canonicalOwnerJid);
   recordRpgPvpChallenge();
   return {
     ok: true,
     text: buildPvpChallengeText({
       challengeId: challenge.id,
-      challengerJid: ownerJid,
+      challengerJid: canonicalOwnerJid,
       opponentJid,
       prefix: commandPrefix,
     }),
@@ -3209,36 +3232,46 @@ const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = 
 };
 
 const handlePvpStatus = async ({ ownerJid, commandPrefix }) => {
+  const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
+  if (!canonicalOwnerJid) {
+    return { ok: true, text: 'Não foi possível identificar o seu usuário para PvP.' };
+  }
+
   await withTransaction(async (connection) => {
     await expireOldPvpChallenges(connection);
   });
-  const open = await listOpenPvpChallengesByPlayer(ownerJid);
+  const open = await listOpenPvpChallengesByPlayer(canonicalOwnerJid);
   const pending = open
-    .filter((entry) => entry.status === 'pending' && entry.opponent_jid === ownerJid)
+    .filter((entry) => entry.status === 'pending' && entry.opponent_jid === canonicalOwnerJid)
     .map((entry) => ({
       id: entry.id,
       challengerJid: entry.challenger_jid,
     }));
   const active = open.find((entry) => entry.status === 'active') || null;
-  const activeView = active ? toPvpStatusView({ challenge: active, ownerJid }) : null;
+  const activeView = active ? toPvpStatusView({ challenge: active, ownerJid: canonicalOwnerJid }) : null;
   return {
     ok: true,
     text: buildPvpStatusText({
       pending,
       active: activeView,
-      ownerJid,
+      ownerJid: canonicalOwnerJid,
       prefix: commandPrefix,
     }),
   };
 };
 
 const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
+  const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
+  if (!canonicalOwnerJid) {
+    return { ok: true, text: 'Não foi possível identificar o seu usuário para PvP.' };
+  }
+
   const sub = String(actionArgs?.[0] || 'status')
     .trim()
     .toLowerCase();
 
   if (sub === 'status' || sub === 'listar') {
-    return handlePvpStatus({ ownerJid, commandPrefix });
+    return handlePvpStatus({ ownerJid: canonicalOwnerJid, commandPrefix });
   }
 
   if (sub === 'aceitar' || sub === 'accept') {
@@ -3253,7 +3286,7 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
       if (!challenge || challenge.status !== 'pending') {
         return { ok: true, text: 'Desafio não encontrado ou não está pendente.' };
       }
-      if (challenge.opponent_jid !== ownerJid) {
+      if (challenge.opponent_jid !== canonicalOwnerJid) {
         return { ok: true, text: 'Apenas o oponente pode aceitar este desafio.' };
       }
       if (isDateExpired(challenge.expires_at)) {
@@ -3271,13 +3304,13 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
         connection,
       );
 
-      const view = toPvpStatusView({ challenge, ownerJid });
+      const view = toPvpStatusView({ challenge, ownerJid: canonicalOwnerJid });
       return {
         ok: true,
         text: buildPvpStatusText({
           pending: [],
           active: view,
-          ownerJid,
+          ownerJid: canonicalOwnerJid,
           prefix: commandPrefix,
         }),
       };
@@ -3295,7 +3328,7 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
       if (!challenge || challenge.status !== 'pending') {
         return { ok: true, text: 'Desafio não encontrado ou inválido.' };
       }
-      if (challenge.opponent_jid !== ownerJid) {
+      if (challenge.opponent_jid !== canonicalOwnerJid) {
         return { ok: true, text: 'Apenas o oponente pode recusar este desafio.' };
       }
       await updatePvpChallengeState(
@@ -3313,11 +3346,11 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
   if (sub === 'fugir' || sub === 'forfeit') {
     return withTransaction(async (connection) => {
       await expireOldPvpChallenges(connection);
-      const challenge = await getActivePvpChallengeByPlayerForUpdate(ownerJid, connection);
+      const challenge = await getActivePvpChallengeByPlayerForUpdate(canonicalOwnerJid, connection);
       if (!challenge) {
         return { ok: true, text: 'Você não tem PvP ativo.' };
       }
-      const opponentJid = resolvePvpOpponentJid(challenge, ownerJid);
+      const opponentJid = resolvePvpOpponentJid(challenge, canonicalOwnerJid);
       await updatePvpChallengeState(
         {
           id: challenge.id,
@@ -3343,19 +3376,19 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
     const moveSlot = actionArgs?.[1];
     return withTransaction(async (connection) => {
       await expireOldPvpChallenges(connection);
-      const challenge = await getActivePvpChallengeByPlayerForUpdate(ownerJid, connection);
+      const challenge = await getActivePvpChallengeByPlayerForUpdate(canonicalOwnerJid, connection);
       if (!challenge) {
         return { ok: true, text: 'Você não tem PvP ativo.' };
       }
 
-      if (challenge.turn_jid !== ownerJid) {
+      if (challenge.turn_jid !== canonicalOwnerJid) {
         return { ok: true, text: `⏳ Aguarde seu turno. Turno atual: ${challenge.turn_jid}` };
       }
 
       const snapshot = challenge?.battle_snapshot_json || {};
       const players = snapshot.players || {};
-      const me = players[ownerJid];
-      const opponentJid = resolvePvpOpponentJid(challenge, ownerJid);
+      const me = players[canonicalOwnerJid];
+      const opponentJid = resolvePvpOpponentJid(challenge, canonicalOwnerJid);
       const enemy = opponentJid ? players[opponentJid] : null;
       if (!me || !enemy) {
         await updatePvpChallengeState({ id: challenge.id, status: 'expired', turnJid: null }, connection);
@@ -3366,7 +3399,7 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
           {
             id: challenge.id,
             status: 'finished',
-            winnerJid: toInt(me?.pokemon?.currentHp, 0) > 0 ? ownerJid : opponentJid,
+            winnerJid: toInt(me?.pokemon?.currentHp, 0) > 0 ? canonicalOwnerJid : opponentJid,
             turnJid: null,
             expiresAt: new Date(),
           },
@@ -3402,7 +3435,7 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
         turn: toInt(snapshot.turn, 1) + 1,
         players: {
           ...players,
-          [ownerJid]: {
+          [canonicalOwnerJid]: {
             ...me,
             pokemon: attack.attacker,
           },
@@ -3413,14 +3446,14 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
         },
       };
 
-      const myPokemonRow = await getPlayerPokemonByIdForUpdate(ownerJid, toInt(me.pokemonId, 0), connection);
+      const myPokemonRow = await getPlayerPokemonByIdForUpdate(canonicalOwnerJid, toInt(me.pokemonId, 0), connection);
       const enemyPokemonRow = await getPlayerPokemonByIdForUpdate(opponentJid, toInt(enemy.pokemonId, 0), connection);
 
       if (myPokemonRow) {
         await updatePlayerPokemonState(
           {
             id: myPokemonRow.id,
-            ownerJid,
+            ownerJid: canonicalOwnerJid,
             level: myPokemonRow.level,
             xp: myPokemonRow.xp,
             currentHp: Math.max(0, toInt(attack.attacker.currentHp, 0)),
@@ -3444,16 +3477,16 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
 
       let winnerJid = null;
       if (toInt(attack.defender.currentHp, 0) <= 0) {
-        winnerJid = ownerJid;
+        winnerJid = canonicalOwnerJid;
 
-        const winnerPlayer = await getPlayerByJidForUpdate(ownerJid, connection);
+        const winnerPlayer = await getPlayerByJidForUpdate(canonicalOwnerJid, connection);
         if (winnerPlayer) {
           const nextXp = Math.max(0, toInt(winnerPlayer.xp, 0) + PVP_WIN_PLAYER_XP);
           const nextGold = Math.max(0, toInt(winnerPlayer.gold, 0) + PVP_WIN_GOLD);
           const nextLevel = calculatePlayerLevelFromXp(nextXp);
           await updatePlayerProgress(
             {
-              jid: ownerJid,
+              jid: canonicalOwnerJid,
               level: nextLevel,
               xp: nextXp,
               gold: nextGold,
@@ -3462,7 +3495,7 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
           );
         }
 
-        const winnerPokemon = await getPlayerPokemonByIdForUpdate(ownerJid, toInt(me.pokemonId, 0), connection);
+        const winnerPokemon = await getPlayerPokemonByIdForUpdate(canonicalOwnerJid, toInt(me.pokemonId, 0), connection);
         if (winnerPokemon) {
           const progress = applyPokemonXpGain({
             currentLevel: winnerPokemon.level,
@@ -3472,7 +3505,7 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
           await updatePlayerPokemonState(
             {
               id: winnerPokemon.id,
-              ownerJid,
+              ownerJid: canonicalOwnerJid,
               level: progress.level,
               xp: progress.xp,
               currentHp: Math.max(0, toInt(attack.attacker.currentHp, 0)),
