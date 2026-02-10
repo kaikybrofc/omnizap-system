@@ -30,7 +30,7 @@ const normalizeKeyPart = (value) => {
   return raw.toLowerCase();
 };
 
-const normalizeApiText = (value) => {
+export const normalizeApiText = (value) => {
   return String(value || '')
     .replace(/[\n\r\f\t]+/g, ' ')
     .replace(/\s+/g, ' ')
