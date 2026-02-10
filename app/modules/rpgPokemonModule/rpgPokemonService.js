@@ -24,14 +24,18 @@ import {
   getBattleStateByOwner,
   getBattleStateByOwnerForUpdate,
   getInventoryItemForUpdate,
+  getInventoryItems,
   getGroupBiomeByJid,
+  getMissionProgressByOwnerForUpdate,
   getPlayerByJid,
   getPlayerByJidForUpdate,
   getPlayerPokemonById,
   getPlayerPokemonByIdForUpdate,
   listPlayerPokemons,
   setActivePokemon,
+  createMissionProgress,
   upsertGroupBiome,
+  updateMissionProgress,
   updatePlayerGoldOnly,
   updatePlayerPokemonState,
   updatePlayerProgress,
@@ -45,6 +49,7 @@ import {
   buildBuySuccessText,
   buildCaptureFailText,
   buildCaptureSuccessText,
+  buildCaptureBlockedGymText,
   buildChooseErrorText,
   buildChooseSuccessText,
   buildCooldownText,
@@ -58,6 +63,9 @@ import {
   buildShopText,
   buildStartText,
   buildTeamText,
+  buildBagText,
+  buildMissionsText,
+  buildMissionRewardText,
   buildUseItemErrorText,
   buildUsePotionSuccessText,
   buildUseItemUsageText,
@@ -95,6 +103,36 @@ const BIOME_DEFINITIONS = {
     preferredTypes: ['rock', 'ground'],
   },
 };
+const MISSION_KEYS = {
+  EXPLORE: 'explorar',
+  WIN: 'vitorias',
+  CAPTURE: 'capturas',
+};
+const DAILY_MISSION_TARGET = {
+  [MISSION_KEYS.EXPLORE]: 3,
+  [MISSION_KEYS.WIN]: 2,
+  [MISSION_KEYS.CAPTURE]: 1,
+};
+const WEEKLY_MISSION_TARGET = {
+  [MISSION_KEYS.EXPLORE]: 20,
+  [MISSION_KEYS.WIN]: 12,
+  [MISSION_KEYS.CAPTURE]: 5,
+};
+const DAILY_MISSION_REWARD = {
+  gold: 150,
+  xp: 120,
+  items: [{ key: 'potion', quantity: 1 }],
+};
+const WEEKLY_MISSION_REWARD = {
+  gold: 800,
+  xp: 500,
+  items: [
+    { key: 'superpotion', quantity: 2 },
+    { key: 'pokeball', quantity: 2 },
+  ],
+};
+const GYM_LEVEL_BONUS_MIN = 3;
+const GYM_LEVEL_BONUS_MAX = 6;
 
 const playerCooldownMap = globalThis.__omnizapRpgCooldownMap instanceof Map ? globalThis.__omnizapRpgCooldownMap : new Map();
 globalThis.__omnizapRpgCooldownMap = playerCooldownMap;
@@ -129,6 +167,12 @@ const toInt = (value, fallback = 0) => {
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const randomFromArray = (items) => items[Math.floor(Math.random() * items.length)];
+const randomBetweenInt = (min, max) => {
+  const low = Math.ceil(min);
+  const high = Math.floor(max);
+  if (high <= low) return low;
+  return Math.floor(Math.random() * (high - low + 1)) + low;
+};
 
 const normalizeItemToken = (value) => {
   const normalized = String(value || '')
@@ -191,6 +235,216 @@ const resolveBiomeForChat = async (chatJid, connection = null) => {
   return assigned;
 };
 
+const toDateOnly = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+};
+
+const buildMissionProgressZero = () => ({
+  [MISSION_KEYS.EXPLORE]: 0,
+  [MISSION_KEYS.WIN]: 0,
+  [MISSION_KEYS.CAPTURE]: 0,
+});
+
+const normalizeMissionProgress = (value) => {
+  const source = value && typeof value === 'object' ? value : {};
+  return {
+    [MISSION_KEYS.EXPLORE]: Math.max(0, toInt(source[MISSION_KEYS.EXPLORE], 0)),
+    [MISSION_KEYS.WIN]: Math.max(0, toInt(source[MISSION_KEYS.WIN], 0)),
+    [MISSION_KEYS.CAPTURE]: Math.max(0, toInt(source[MISSION_KEYS.CAPTURE], 0)),
+  };
+};
+
+const isMissionCompleted = (progress, target) => {
+  return (
+    progress[MISSION_KEYS.EXPLORE] >= target[MISSION_KEYS.EXPLORE] &&
+    progress[MISSION_KEYS.WIN] >= target[MISSION_KEYS.WIN] &&
+    progress[MISSION_KEYS.CAPTURE] >= target[MISSION_KEYS.CAPTURE]
+  );
+};
+
+const resolveMissionRefs = (date = new Date()) => {
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  const today = new Date(Date.UTC(year, month, day));
+  const weekDay = today.getUTCDay();
+  const diffToMonday = weekDay === 0 ? 6 : weekDay - 1;
+  const monday = new Date(today);
+  monday.setUTCDate(today.getUTCDate() - diffToMonday);
+
+  return {
+    dailyRefDate: toDateOnly(today),
+    weeklyRefDate: toDateOnly(monday),
+  };
+};
+
+const itemRewardLabel = (itemKey) => {
+  return SHOP_INDEX.get(itemKey)?.label || itemKey;
+};
+
+const formatMissionRewardSummary = (reward, label) => {
+  const itemText = (reward.items || []).map((item) => `+${item.quantity} ${itemRewardLabel(item.key)}`).join(' | ');
+  const parts = [`🏆 Missão ${label} concluída!`, `+${reward.gold} gold`, `+${reward.xp} XP`];
+  if (itemText) parts.push(itemText);
+  return parts.join(' ');
+};
+
+const ensureMissionStateForUpdate = async ({ ownerJid, connection }) => {
+  const refs = resolveMissionRefs(new Date());
+  let row = await getMissionProgressByOwnerForUpdate(ownerJid, connection);
+
+  if (!row) {
+    row = await createMissionProgress(
+      {
+        ownerJid,
+        dailyRefDate: refs.dailyRefDate,
+        dailyProgressJson: buildMissionProgressZero(),
+        weeklyRefDate: refs.weeklyRefDate,
+        weeklyProgressJson: buildMissionProgressZero(),
+      },
+      connection,
+    );
+  }
+
+  const normalized = {
+    owner_jid: ownerJid,
+    daily_ref_date: toDateOnly(row?.daily_ref_date) || refs.dailyRefDate,
+    weekly_ref_date: toDateOnly(row?.weekly_ref_date) || refs.weeklyRefDate,
+    daily_progress_json: normalizeMissionProgress(row?.daily_progress_json),
+    weekly_progress_json: normalizeMissionProgress(row?.weekly_progress_json),
+    daily_claimed_at: row?.daily_claimed_at || null,
+    weekly_claimed_at: row?.weekly_claimed_at || null,
+  };
+
+  let dirty = false;
+  if (normalized.daily_ref_date !== refs.dailyRefDate) {
+    normalized.daily_ref_date = refs.dailyRefDate;
+    normalized.daily_progress_json = buildMissionProgressZero();
+    normalized.daily_claimed_at = null;
+    dirty = true;
+  }
+
+  if (normalized.weekly_ref_date !== refs.weeklyRefDate) {
+    normalized.weekly_ref_date = refs.weeklyRefDate;
+    normalized.weekly_progress_json = buildMissionProgressZero();
+    normalized.weekly_claimed_at = null;
+    dirty = true;
+  }
+
+  if (dirty) {
+    await updateMissionProgress(
+      {
+        ownerJid,
+        dailyRefDate: normalized.daily_ref_date,
+        dailyProgressJson: normalized.daily_progress_json,
+        dailyClaimedAt: normalized.daily_claimed_at,
+        weeklyRefDate: normalized.weekly_ref_date,
+        weeklyProgressJson: normalized.weekly_progress_json,
+        weeklyClaimedAt: normalized.weekly_claimed_at,
+      },
+      connection,
+    );
+  }
+
+  return normalized;
+};
+
+const applyMissionReward = async ({ player, ownerJid, reward, connection }) => {
+  const nextXp = Math.max(0, toInt(player.xp, 0) + Math.max(0, toInt(reward.xp, 0)));
+  const nextGold = Math.max(0, toInt(player.gold, 0) + Math.max(0, toInt(reward.gold, 0)));
+  const nextLevel = calculatePlayerLevelFromXp(nextXp);
+
+  await updatePlayerProgress(
+    {
+      jid: ownerJid,
+      level: nextLevel,
+      xp: nextXp,
+      gold: nextGold,
+    },
+    connection,
+  );
+
+  for (const item of reward.items || []) {
+    if (!item?.key || !Number.isFinite(Number(item?.quantity)) || Number(item.quantity) <= 0) continue;
+    await addInventoryItem(
+      {
+        ownerJid,
+        itemKey: item.key,
+        quantity: Number(item.quantity),
+      },
+      connection,
+    );
+  }
+
+  return {
+    ...player,
+    level: nextLevel,
+    xp: nextXp,
+    gold: nextGold,
+  };
+};
+
+const applyMissionEvent = async ({ ownerJid, eventKey, connection }) => {
+  if (!Object.values(MISSION_KEYS).includes(eventKey)) {
+    return { notices: [] };
+  }
+
+  const mission = await ensureMissionStateForUpdate({ ownerJid, connection });
+  const player = await getPlayerByJidForUpdate(ownerJid, connection);
+  if (!player) {
+    return { notices: [] };
+  }
+
+  const dailyProgress = { ...mission.daily_progress_json };
+  const weeklyProgress = { ...mission.weekly_progress_json };
+  dailyProgress[eventKey] = Math.max(0, toInt(dailyProgress[eventKey], 0) + 1);
+  weeklyProgress[eventKey] = Math.max(0, toInt(weeklyProgress[eventKey], 0) + 1);
+
+  let updatedPlayer = player;
+  const notices = [];
+  let dailyClaimedAt = mission.daily_claimed_at;
+  let weeklyClaimedAt = mission.weekly_claimed_at;
+
+  if (!dailyClaimedAt && isMissionCompleted(dailyProgress, DAILY_MISSION_TARGET)) {
+    updatedPlayer = await applyMissionReward({
+      player: updatedPlayer,
+      ownerJid,
+      reward: DAILY_MISSION_REWARD,
+      connection,
+    });
+    dailyClaimedAt = new Date();
+    notices.push(formatMissionRewardSummary(DAILY_MISSION_REWARD, 'diária'));
+  }
+
+  if (!weeklyClaimedAt && isMissionCompleted(weeklyProgress, WEEKLY_MISSION_TARGET)) {
+    updatedPlayer = await applyMissionReward({
+      player: updatedPlayer,
+      ownerJid,
+      reward: WEEKLY_MISSION_REWARD,
+      connection,
+    });
+    weeklyClaimedAt = new Date();
+    notices.push(formatMissionRewardSummary(WEEKLY_MISSION_REWARD, 'semanal'));
+  }
+
+  await updateMissionProgress(
+    {
+      ownerJid,
+      dailyRefDate: mission.daily_ref_date,
+      dailyProgressJson: dailyProgress,
+      dailyClaimedAt,
+      weeklyRefDate: mission.weekly_ref_date,
+      weeklyProgressJson: weeklyProgress,
+      weeklyClaimedAt,
+    },
+    connection,
+  );
+
+  return { notices, player: updatedPlayer };
+};
+
 const buildBattleChatKey = (chatJid, ownerJid) => `${chatJid}::${ownerJid}`;
 
 const nowPlusTtlDate = () => new Date(Date.now() + BATTLE_TTL_MS);
@@ -211,7 +465,7 @@ const getCooldownSecondsLeft = (ownerJid) => {
 };
 
 const shouldApplyCooldown = (action) => {
-  return ['explorar', 'atacar', 'capturar', 'fugir', 'comprar', 'escolher', 'usar'].includes(action);
+  return ['explorar', 'ginasio', 'atacar', 'capturar', 'fugir', 'comprar', 'escolher', 'usar'].includes(action);
 };
 
 const touchCooldown = (ownerJid) => {
@@ -231,17 +485,6 @@ const loadPokemonDisplayData = async (pokemonRow) => {
     isShiny: Boolean(pokemonRow.is_shiny),
     isActive: pokemonRow.is_active,
     imageUrl: snapshot.imageUrl || null,
-  };
-};
-
-const getActivePokemonSnapshot = async (ownerJid) => {
-  const activePokemonRow = await getActivePlayerPokemon(ownerJid);
-  if (!activePokemonRow) return null;
-  const battleSnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: activePokemonRow });
-
-  return {
-    row: activePokemonRow,
-    battleSnapshot,
   };
 };
 
@@ -284,12 +527,23 @@ const ensureNoExpiredBattle = async (ownerJid, connection = null) => {
 
 const resolveVictoryRewards = (battleSnapshot) => {
   const enemyLevel = Math.max(1, toInt(battleSnapshot?.enemy?.level, 1));
+  const isGymBattle = battleSnapshot?.mode === 'gym';
 
-  return {
+  const rewards = {
     playerXp: enemyLevel * 14,
     pokemonXp: enemyLevel * 20,
     gold: enemyLevel * 9,
+    items: [],
   };
+
+  if (isGymBattle) {
+    rewards.playerXp = Math.round(rewards.playerXp * 2.2);
+    rewards.pokemonXp = Math.round(rewards.pokemonXp * 2);
+    rewards.gold = Math.round(rewards.gold * 2.5);
+    rewards.items.push({ key: 'pokeball', quantity: 1 });
+  }
+
+  return rewards;
 };
 
 const withPokemonImage = ({ text, pokemonSnapshot, caption = null, extra = {} }) => {
@@ -549,72 +803,179 @@ const handleChoose = async ({ ownerJid, selectedPokemonId, commandPrefix }) => {
 };
 
 const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
-  const player = await getPlayerByJid(ownerJid);
-  if (!player) {
-    return { ok: true, text: buildNeedStartText(commandPrefix) };
-  }
+  return withTransaction(async (connection) => {
+    const player = await getPlayerByJidForUpdate(ownerJid, connection);
+    if (!player) {
+      return { ok: true, text: buildNeedStartText(commandPrefix) };
+    }
 
-  await ensureNoExpiredBattle(ownerJid);
-  const existingBattle = await getBattleStateByOwner(ownerJid);
-  if (existingBattle) {
-    return { ok: true, text: buildBattleAlreadyActiveText(commandPrefix) };
-  }
+    await ensureNoExpiredBattle(ownerJid, connection);
+    const existingBattle = await getBattleStateByOwnerForUpdate(ownerJid, connection);
+    if (existingBattle) {
+      return { ok: true, text: buildBattleAlreadyActiveText(commandPrefix) };
+    }
 
-  const activePokemon = await getActivePokemonSnapshot(ownerJid);
-  if (!activePokemon) {
-    return { ok: true, text: buildNeedActivePokemonText(commandPrefix) };
-  }
+    const activePokemonRow = await getActivePlayerPokemonForUpdate(ownerJid, connection);
+    if (!activePokemonRow) {
+      return { ok: true, text: buildNeedActivePokemonText(commandPrefix) };
+    }
 
-  if (activePokemon.battleSnapshot.currentHp <= 0) {
-    return { ok: true, text: buildPokemonFaintedText(commandPrefix) };
-  }
+    const activeBattleSnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: activePokemonRow });
+    if (activeBattleSnapshot.currentHp <= 0) {
+      return { ok: true, text: buildPokemonFaintedText(commandPrefix) };
+    }
 
-  const biome = await resolveBiomeForChat(chatJid);
-  const { enemySnapshot } = await createWildEncounter({
-    playerLevel: player.level,
-    preferredTypes: biome?.preferredTypes || [],
+    const biome = await resolveBiomeForChat(chatJid, connection);
+    const { enemySnapshot } = await createWildEncounter({
+      playerLevel: player.level,
+      preferredTypes: biome?.preferredTypes || [],
+    });
+
+    const battleSnapshot = {
+      turn: 1,
+      mode: 'wild',
+      biome: biome
+        ? {
+            key: biome.key,
+            label: biome.label,
+          }
+        : null,
+      my: {
+        ...activeBattleSnapshot,
+        id: activePokemonRow.id,
+        xp: activePokemonRow.xp,
+      },
+      enemy: enemySnapshot,
+    };
+
+    await upsertBattleState(
+      {
+        chatJid: buildBattleChatKey(chatJid, ownerJid),
+        ownerJid,
+        myPokemonId: activePokemonRow.id,
+        battleSnapshot,
+        turn: 1,
+        expiresAt: nowPlusTtlDate(),
+      },
+      connection,
+    );
+
+    const mission = await applyMissionEvent({
+      ownerJid,
+      eventKey: MISSION_KEYS.EXPLORE,
+      connection,
+    });
+
+    recordRpgBattleStarted();
+    if (enemySnapshot.isShiny) {
+      recordRpgShinyFound();
+    }
+
+    let text = buildBattleStartText({
+      battleSnapshot,
+      prefix: commandPrefix,
+    });
+    const missionText = buildMissionRewardText(mission.notices || []);
+    if (missionText) {
+      text = `${text}\n${missionText}`;
+    }
+
+    return withPokemonImage({
+      text,
+      pokemonSnapshot: battleSnapshot.enemy,
+      caption: enemySnapshot.isShiny
+        ? `✨ UM POKEMON SHINY APARECEU! ✨\n${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level}`
+        : `🐾 Um ${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level} apareceu!\nUse ${commandPrefix}rpg atacar ou ${commandPrefix}rpg capturar`,
+    });
   });
+};
 
-  const battleSnapshot = {
-    turn: 1,
-    biome: biome
-      ? {
-          key: biome.key,
-          label: biome.label,
-        }
-      : null,
-    my: {
-      ...activePokemon.battleSnapshot,
-      id: activePokemon.row.id,
-      xp: activePokemon.row.xp,
-    },
-    enemy: enemySnapshot,
-  };
+const resolveBiomeForGym = async ({ chatJid, connection = null }) => {
+  const biome = await resolveBiomeForChat(chatJid, connection);
+  if (biome) return biome;
+  return BIOME_DEFINITIONS[randomFromArray(BIOME_KEYS)];
+};
 
-  await upsertBattleState({
-    chatJid: buildBattleChatKey(chatJid, ownerJid),
-    ownerJid,
-    myPokemonId: activePokemon.row.id,
-    battleSnapshot,
-    turn: 1,
-    expiresAt: nowPlusTtlDate(),
-  });
+const handleGym = async ({ ownerJid, chatJid, commandPrefix }) => {
+  return withTransaction(async (connection) => {
+    const player = await getPlayerByJidForUpdate(ownerJid, connection);
+    if (!player) {
+      return { ok: true, text: buildNeedStartText(commandPrefix) };
+    }
 
-  recordRpgBattleStarted();
-  if (enemySnapshot.isShiny) {
-    recordRpgShinyFound();
-  }
-  const text = buildBattleStartText({
-    battleSnapshot,
-    prefix: commandPrefix,
-  });
+    await ensureNoExpiredBattle(ownerJid, connection);
+    const existingBattle = await getBattleStateByOwnerForUpdate(ownerJid, connection);
+    if (existingBattle) {
+      return { ok: true, text: buildBattleAlreadyActiveText(commandPrefix) };
+    }
 
-  return withPokemonImage({
-    text,
-    pokemonSnapshot: battleSnapshot.enemy,
-    caption: enemySnapshot.isShiny
-      ? `✨ UM POKEMON SHINY APARECEU! ✨\n${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level}`
-      : `🐾 Um ${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level} apareceu!\nUse ${commandPrefix}rpg atacar ou ${commandPrefix}rpg capturar`,
+    const activePokemonRow = await getActivePlayerPokemonForUpdate(ownerJid, connection);
+    if (!activePokemonRow) {
+      return { ok: true, text: buildNeedActivePokemonText(commandPrefix) };
+    }
+
+    const activeBattleSnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: activePokemonRow });
+    if (activeBattleSnapshot.currentHp <= 0) {
+      return { ok: true, text: buildPokemonFaintedText(commandPrefix) };
+    }
+
+    const biome = await resolveBiomeForGym({ chatJid, connection });
+    const gymBaseLevel = clamp(toInt(player.level, 1) + randomBetweenInt(GYM_LEVEL_BONUS_MIN, GYM_LEVEL_BONUS_MAX), 1, 100);
+    const { enemySnapshot } = await createWildEncounter({
+      playerLevel: gymBaseLevel,
+      preferredTypes: biome?.preferredTypes || [],
+    });
+
+    const gymEnemy = {
+      ...enemySnapshot,
+      isGymBoss: true,
+      displayName: `${enemySnapshot.displayName} (Líder)`,
+    };
+
+    const battleSnapshot = {
+      turn: 1,
+      mode: 'gym',
+      biome: biome
+        ? {
+            key: biome.key,
+            label: biome.label,
+          }
+        : null,
+      my: {
+        ...activeBattleSnapshot,
+        id: activePokemonRow.id,
+        xp: activePokemonRow.xp,
+      },
+      enemy: gymEnemy,
+    };
+
+    await upsertBattleState(
+      {
+        chatJid: buildBattleChatKey(chatJid, ownerJid),
+        ownerJid,
+        myPokemonId: activePokemonRow.id,
+        battleSnapshot,
+        turn: 1,
+        expiresAt: nowPlusTtlDate(),
+      },
+      connection,
+    );
+
+    recordRpgBattleStarted();
+    if (gymEnemy.isShiny) {
+      recordRpgShinyFound();
+    }
+
+    const text = buildBattleStartText({
+      battleSnapshot,
+      prefix: commandPrefix,
+    });
+
+    return withPokemonImage({
+      text,
+      pokemonSnapshot: battleSnapshot.enemy,
+      caption: `🏟️ Ginasio (${biome?.label || 'Desafio'})\n${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level}`,
+    });
   });
 };
 
@@ -631,6 +992,10 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
     if (!battleSnapshot) {
       await deleteBattleStateByOwner(ownerJid, connection);
       return { ok: true, text: buildNoBattleText(commandPrefix) };
+    }
+
+    if (battleSnapshot.mode === 'gym') {
+      return { ok: true, text: buildCaptureBlockedGymText(commandPrefix) };
     }
 
     const myPokemon = await getPlayerPokemonByIdForUpdate(ownerJid, battleRow.my_pokemon_id, connection);
@@ -710,6 +1075,27 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
         connection,
       );
 
+      for (const item of rewards.items || []) {
+        if (!item?.key || !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0) continue;
+        await addInventoryItem(
+          {
+            ownerJid,
+            itemKey: item.key,
+            quantity: Number(item.quantity),
+          },
+          connection,
+        );
+      }
+      const rewardItemNotices = (rewards.items || [])
+        .filter((item) => item?.key && Number.isFinite(Number(item.quantity)) && Number(item.quantity) > 0)
+        .map((item) => `🎁 Bônus: +${Number(item.quantity)} ${itemRewardLabel(item.key)}`);
+
+      const mission = await applyMissionEvent({
+        ownerJid,
+        eventKey: MISSION_KEYS.WIN,
+        connection,
+      });
+
       await deleteBattleStateByOwner(ownerJid, connection);
 
       const finalBattleSnapshot = {
@@ -718,7 +1104,7 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
       };
 
       const text = buildBattleTurnText({
-        logs: turnResult.logs,
+        logs: [...turnResult.logs, ...rewardItemNotices, ...(mission.notices || [])],
         battleSnapshot: finalBattleSnapshot,
         prefix: commandPrefix,
         rewards,
@@ -923,6 +1309,12 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball' }) 
         connection,
       );
 
+      const mission = await applyMissionEvent({
+        ownerJid,
+        eventKey: MISSION_KEYS.CAPTURE,
+        connection,
+      });
+
       await deleteBattleStateByOwner(ownerJid, connection);
       recordRpgCapture();
 
@@ -934,7 +1326,7 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball' }) 
           isShiny: Boolean(updatedSnapshot.enemy?.isShiny),
         },
         prefix: commandPrefix,
-      }).concat(`\nPoke Bola restante: ${pokeballLeft}`);
+      }).concat(`\nPoke Bola restante: ${pokeballLeft}${mission.notices?.length ? `\n${mission.notices.join('\n')}` : ''}`);
 
       return withPokemonImage({
         text,
@@ -1137,6 +1529,78 @@ const handleUse = async ({ ownerJid, commandPrefix, itemToken }) => {
   return { ok: true, text: buildUseItemErrorText({ reason: 'invalid_item', prefix: commandPrefix }) };
 };
 
+const toMissionView = ({ progress, target, claimedAt }) => {
+  const normalized = normalizeMissionProgress(progress);
+  return {
+    explorar: normalized[MISSION_KEYS.EXPLORE],
+    vitorias: normalized[MISSION_KEYS.WIN],
+    capturas: normalized[MISSION_KEYS.CAPTURE],
+    target: {
+      explorar: target[MISSION_KEYS.EXPLORE],
+      vitorias: target[MISSION_KEYS.WIN],
+      capturas: target[MISSION_KEYS.CAPTURE],
+    },
+    completed: isMissionCompleted(normalized, target),
+    claimed: Boolean(claimedAt),
+  };
+};
+
+const handleBag = async ({ ownerJid, commandPrefix }) => {
+  const player = await getPlayerByJid(ownerJid);
+  if (!player) {
+    return { ok: true, text: buildNeedStartText(commandPrefix) };
+  }
+
+  const items = await getInventoryItems(ownerJid);
+  const labelMap = new Map(SHOP_ITEMS.map((item) => [item.key, item.label]));
+  const formattedItems = items
+    .filter((item) => toInt(item.quantity, 0) > 0)
+    .map((item) => ({
+      key: item.item_key,
+      label: labelMap.get(item.item_key) || item.item_key,
+      quantity: toInt(item.quantity, 0),
+    }));
+
+  return {
+    ok: true,
+    text: buildBagText({
+      items: formattedItems,
+      gold: toInt(player.gold, 0),
+      prefix: commandPrefix,
+    }),
+  };
+};
+
+const handleMissions = async ({ ownerJid, commandPrefix }) => {
+  const player = await getPlayerByJid(ownerJid);
+  if (!player) {
+    return { ok: true, text: buildNeedStartText(commandPrefix) };
+  }
+
+  return withTransaction(async (connection) => {
+    const mission = await ensureMissionStateForUpdate({ ownerJid, connection });
+    const daily = toMissionView({
+      progress: mission.daily_progress_json,
+      target: DAILY_MISSION_TARGET,
+      claimedAt: mission.daily_claimed_at,
+    });
+    const weekly = toMissionView({
+      progress: mission.weekly_progress_json,
+      target: WEEKLY_MISSION_TARGET,
+      claimedAt: mission.weekly_claimed_at,
+    });
+
+    return {
+      ok: true,
+      text: buildMissionsText({
+        daily,
+        weekly,
+        prefix: commandPrefix,
+      }),
+    };
+  });
+};
+
 const handleFlee = async ({ ownerJid, commandPrefix }) => {
   return withTransaction(async (connection) => {
     await ensureNoExpiredBattle(ownerJid, connection);
@@ -1247,6 +1711,11 @@ export const executeRpgPokemonAction = async ({
         result = await handleExplore({ ownerJid, chatJid, commandPrefix });
         break;
 
+      case 'ginasio':
+      case 'ginásio':
+        result = await handleGym({ ownerJid, chatJid, commandPrefix });
+        break;
+
       case 'atacar':
         result = await handleAttack({ ownerJid, moveSlot: actionArgs?.[0], commandPrefix });
         break;
@@ -1261,6 +1730,15 @@ export const executeRpgPokemonAction = async ({
 
       case 'time':
         result = await handleTeam({ ownerJid, commandPrefix });
+        break;
+
+      case 'bolsa':
+        result = await handleBag({ ownerJid, commandPrefix });
+        break;
+
+      case 'missoes':
+      case 'missões':
+        result = await handleMissions({ ownerJid, commandPrefix });
         break;
 
       case 'escolher':

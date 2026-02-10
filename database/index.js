@@ -111,6 +111,7 @@ export const TABLES = {
   RPG_BATTLE_STATE: 'rpg_battle_state',
   RPG_PLAYER_INVENTORY: 'rpg_player_inventory',
   RPG_GROUP_BIOME: 'rpg_group_biome',
+  RPG_PLAYER_MISSION_PROGRESS: 'rpg_player_mission_progress',
 };
 
 /**

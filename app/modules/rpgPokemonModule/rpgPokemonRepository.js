@@ -436,3 +436,93 @@ export const upsertGroupBiome = async ({ groupJid, biomeKey }, connection = null
     connection,
   );
 };
+
+const MISSION_COLUMNS =
+  'owner_jid, daily_ref_date, daily_progress_json, daily_claimed_at, weekly_ref_date, weekly_progress_json, weekly_claimed_at, created_at, updated_at';
+
+const normalizeMissionRow = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    daily_progress_json: parseJson(row.daily_progress_json, {}),
+    weekly_progress_json: parseJson(row.weekly_progress_json, {}),
+  };
+};
+
+export const getMissionProgressByOwner = async (ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT ${MISSION_COLUMNS}
+       FROM ${TABLES.RPG_PLAYER_MISSION_PROGRESS}
+      WHERE owner_jid = ?
+      LIMIT 1`,
+    [ownerJid],
+    connection,
+  );
+
+  return normalizeMissionRow(rows?.[0] || null);
+};
+
+export const getMissionProgressByOwnerForUpdate = async (ownerJid, connection) => {
+  const rows = await executeQuery(
+    `SELECT ${MISSION_COLUMNS}
+       FROM ${TABLES.RPG_PLAYER_MISSION_PROGRESS}
+      WHERE owner_jid = ?
+      LIMIT 1
+      FOR UPDATE`,
+    [ownerJid],
+    connection,
+  );
+
+  return normalizeMissionRow(rows?.[0] || null);
+};
+
+export const createMissionProgress = async (
+  { ownerJid, dailyRefDate, dailyProgressJson, weeklyRefDate, weeklyProgressJson },
+  connection = null,
+) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_PLAYER_MISSION_PROGRESS}
+      (owner_jid, daily_ref_date, daily_progress_json, daily_claimed_at, weekly_ref_date, weekly_progress_json, weekly_claimed_at)
+     VALUES (?, ?, ?, NULL, ?, ?, NULL)
+     ON DUPLICATE KEY UPDATE owner_jid = VALUES(owner_jid)`,
+    [ownerJid, dailyRefDate, JSON.stringify(dailyProgressJson || {}), weeklyRefDate, JSON.stringify(weeklyProgressJson || {})],
+    connection,
+  );
+
+  return getMissionProgressByOwner(ownerJid, connection);
+};
+
+export const updateMissionProgress = async (
+  {
+    ownerJid,
+    dailyRefDate,
+    dailyProgressJson,
+    dailyClaimedAt,
+    weeklyRefDate,
+    weeklyProgressJson,
+    weeklyClaimedAt,
+  },
+  connection = null,
+) => {
+  await executeQuery(
+    `UPDATE ${TABLES.RPG_PLAYER_MISSION_PROGRESS}
+        SET daily_ref_date = ?,
+            daily_progress_json = ?,
+            daily_claimed_at = ?,
+            weekly_ref_date = ?,
+            weekly_progress_json = ?,
+            weekly_claimed_at = ?,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE owner_jid = ?`,
+    [
+      dailyRefDate,
+      JSON.stringify(dailyProgressJson || {}),
+      dailyClaimedAt || null,
+      weeklyRefDate,
+      JSON.stringify(weeklyProgressJson || {}),
+      weeklyClaimedAt || null,
+      ownerJid,
+    ],
+    connection,
+  );
+};

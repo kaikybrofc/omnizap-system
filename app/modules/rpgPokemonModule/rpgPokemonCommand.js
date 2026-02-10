@@ -16,6 +16,11 @@ const ALLOWED_ACTIONS = new Set([
   'loja',
   'comprar',
   'usar',
+  'bolsa',
+  'missoes',
+  'missões',
+  'ginasio',
+  'ginásio',
 ]);
 
 const resolveOwnerJid = ({ senderJid, senderIdentity }) => {

@@ -50,6 +50,9 @@ export const buildUsageText = (prefix = '/') =>
     `${prefix}rpg loja`,
     `${prefix}rpg comprar <item> <qtd>`,
     `${prefix}rpg usar <item>`,
+    `${prefix}rpg bolsa`,
+    `${prefix}rpg missoes`,
+    `${prefix}rpg ginasio`,
   ].join('\n');
 
 export const buildCooldownText = ({ secondsLeft, prefix = '/' }) =>
@@ -114,6 +117,10 @@ export const buildBattleStartText = ({ battleSnapshot, prefix = '/' }) => {
   const enemy = battleSnapshot.enemy;
   const lines = [];
 
+  if (battleSnapshot.mode === 'gym') {
+    lines.push('🏟️ *Desafio de Ginasio*');
+  }
+
   if (enemy.isShiny) {
     lines.push('✨ UM POKEMON SHINY APARECEU! ✨');
   }
@@ -164,6 +171,9 @@ export const buildBattleTurnText = ({ logs = [], battleSnapshot, prefix = '/', r
 
 export const buildCaptureSuccessText = ({ capturedPokemon, prefix = '/' }) =>
   `🎉 Captura concluída: *${formatPokemonLabel({ name: capturedPokemon.displayName || capturedPokemon.name, isShiny: capturedPokemon.isShiny })}* (ID ${capturedPokemon.id}).\nPróximos: ${prefix}rpg time | ${prefix}rpg explorar`;
+
+export const buildCaptureBlockedGymText = (prefix = '/') =>
+  `Em batalha de ginasio não é possível capturar.\nUse: ${prefix}rpg atacar <1-4> ou ${prefix}rpg fugir`;
 
 export const buildCaptureFailText = ({ logs = [], battleSnapshot, prefix = '/' }) => {
   const my = battleSnapshot.my;
@@ -228,6 +238,47 @@ export const buildUsePotionSuccessText = ({
   prefix = '/',
 }) =>
   `🧪 ${itemLabel} usada em *${formatName(pokemonName)}* (+${healedAmount} HP).\nHP: ${currentHp}/${maxHp} | ${itemLabel} restantes: ${quantityLeft}\nPróximos: ${prefix}rpg atacar <1-4> | ${prefix}rpg explorar`;
+
+export const buildBagText = ({ items = [], gold = 0, prefix = '/' }) => {
+  if (!items.length) {
+    return `🎒 *Sua Bolsa*\nGold: *${gold}*\nSem itens no momento.\nCompre em: ${prefix}rpg loja`;
+  }
+
+  const lines = items.map((item) => `• ${item.label}: ${item.quantity}`);
+  return ['🎒 *Sua Bolsa*', `Gold: *${gold}*`, ...lines, `Usar: ${prefix}rpg usar <item>`].join('\n');
+};
+
+const missionLine = (label, current, target) => `• ${label}: ${Math.max(0, current)}/${target}`;
+
+export const buildMissionsText = ({ daily, weekly, prefix = '/' }) => {
+  const lines = ['🎯 *Missões*'];
+
+  lines.push(
+    '',
+    '*Diária*',
+    missionLine('Explorar', daily.explorar, daily.target.explorar),
+    missionLine('Vitórias', daily.vitorias, daily.target.vitorias),
+    missionLine('Capturas', daily.capturas, daily.target.capturas),
+    daily.claimed ? '✅ Recompensa diária já coletada' : daily.completed ? '🎁 Recompensa diária pronta' : '⏳ Diária em progresso',
+  );
+
+  lines.push(
+    '',
+    '*Semanal*',
+    missionLine('Explorar', weekly.explorar, weekly.target.explorar),
+    missionLine('Vitórias', weekly.vitorias, weekly.target.vitorias),
+    missionLine('Capturas', weekly.capturas, weekly.target.capturas),
+    weekly.claimed ? '✅ Recompensa semanal já coletada' : weekly.completed ? '🎁 Recompensa semanal pronta' : '⏳ Semanal em progresso',
+  );
+
+  lines.push('', `Próximos: ${prefix}rpg explorar | ${prefix}rpg ginasio`);
+  return lines.join('\n');
+};
+
+export const buildMissionRewardText = (rewardLines = []) => {
+  if (!rewardLines.length) return '';
+  return rewardLines.join('\n');
+};
 
 export const buildChooseSuccessText = ({ pokemon, prefix = '/' }) =>
   `✅ Pokemon ativo: *${formatPokemonLabel({ name: pokemon.displayName || pokemon.name, isShiny: pokemon.isShiny })}* (ID ${pokemon.id}).\nPróximo: ${prefix}rpg explorar`;
