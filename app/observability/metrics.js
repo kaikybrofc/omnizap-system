@@ -197,6 +197,40 @@ const ensureMetrics = () => {
       help: 'Total de PvP concluídos no RPG',
       registers: [registry],
     }),
+    rpgPvpQueueTotal: new client.Counter({
+      name: 'rpg_pvp_queue_total',
+      help: 'Total de eventos da fila PvP (join/match/leave/expire)',
+      labelNames: ['status'],
+      registers: [registry],
+    }),
+    rpgTradesTotal: new client.Counter({
+      name: 'rpg_trades_total',
+      help: 'Total de trocas de jogadores no RPG',
+      labelNames: ['status'],
+      registers: [registry],
+    }),
+    rpgCoopCompletedTotal: new client.Counter({
+      name: 'rpg_coop_completed_total',
+      help: 'Total de missoes cooperativas concluídas',
+      registers: [registry],
+    }),
+    rpgWeeklyEventCompletedTotal: new client.Counter({
+      name: 'rpg_weekly_event_completed_total',
+      help: 'Total de eventos semanais de grupo concluídos',
+      registers: [registry],
+    }),
+    rpgKarmaVotesTotal: new client.Counter({
+      name: 'rpg_karma_votes_total',
+      help: 'Total de votos de karma no RPG',
+      labelNames: ['type'],
+      registers: [registry],
+    }),
+    rpgGroupRetentionRatio: new client.Histogram({
+      name: 'rpg_group_retention_ratio',
+      help: 'Retenção diária de usuários por grupo (0-1)',
+      buckets: [0, 0.1, 0.25, 0.4, 0.55, 0.7, 0.85, 1],
+      registers: [registry],
+    }),
     rpgShinyFoundTotal: new client.Counter({
       name: 'rpg_shiny_found_total',
       help: 'Total de encontros shiny no RPG Pokemon',
@@ -511,6 +545,54 @@ export const recordRpgPvpCompleted = (value = 1) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return;
   m.rpgPvpCompletedTotal.inc(numeric);
+};
+
+export const recordRpgPvpQueue = (status = 'join', value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgPvpQueueTotal.inc({ status: normalizeLabel(status, 'join') }, numeric);
+};
+
+export const recordRpgTrade = (status = 'created', value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgTradesTotal.inc({ status: normalizeLabel(status, 'created') }, numeric);
+};
+
+export const recordRpgCoopCompleted = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgCoopCompletedTotal.inc(numeric);
+};
+
+export const recordRpgWeeklyEventCompleted = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgWeeklyEventCompletedTotal.inc(numeric);
+};
+
+export const recordRpgKarmaVote = (type = 'up', value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgKarmaVotesTotal.inc({ type: normalizeLabel(type, 'up') }, numeric);
+};
+
+export const recordRpgGroupRetentionRatio = (ratio) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(ratio);
+  if (!Number.isFinite(numeric) || numeric < 0) return;
+  m.rpgGroupRetentionRatio.observe(Math.min(1, numeric));
 };
 
 export const recordPokeApiCacheHit = (value = 1) => {

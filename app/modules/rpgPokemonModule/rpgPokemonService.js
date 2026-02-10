@@ -16,30 +16,66 @@ import {
   resolveSingleAttack,
 } from './rpgBattleService.js';
 import {
+  addGroupCoopContribution,
+  addGroupEventContribution,
   addInventoryItem,
   consumeInventoryItem,
+  countPlayerPokemons,
   createPlayer,
+  createKarmaVote,
   createPlayerPokemon,
+  createTradeOffer,
+  applyKarmaDelta,
+  cancelQueuedPvpByOwner,
   deleteBattleStateByOwner,
   deleteExpiredBattleStatesByOwner,
   getActivePlayerPokemonForUpdate,
   getActivePlayerPokemon,
+  getGroupActivitySummaryByDay,
+  getGroupActiveUsersByDay,
   getBattleStateByOwner,
   getBattleStateByOwnerForUpdate,
+  getFirstPlayerPokemon,
+  getGroupCoopWeekly,
+  getGroupCoopWeeklyForUpdate,
+  getGroupEventMemberForUpdate,
+  getGroupEventWeeklyForUpdate,
   getInventoryItemForUpdate,
   getInventoryItems,
   getGroupBiomeByJid,
+  getKarmaProfile,
+  getKarmaVoteByWeekForUpdate,
+  getLatestFinishedPvpByPlayer,
   getMissionProgressByOwnerForUpdate,
   getPlayerByJid,
   getPlayerByJidForUpdate,
+  getQueuedPvpByOwnerForUpdate,
+  getSocialLinkByUsers,
+  getTradeOfferByIdForUpdate,
+  getGroupRetentionByDays,
   countPokedexEntries,
   getPlayerPokemonById,
   getPlayerPokemonByIdForUpdate,
   getTravelStateByOwner,
   getTravelStateByOwnerForUpdate,
+  listGroupCoopMembers,
+  listUnrewardedGroupCoopMembersForUpdate,
+  listGroupEventMembers,
+  listOpenTradeOffersByUser,
+  listPvpWeeklyRanking,
   listPlayerPokemons,
   listPokedexEntries,
+  listQueuedPvpByChat,
+  listQueuedPvpByChatForUpdate,
+  listSocialLinksByOwner,
+  listTopKarmaProfiles,
+  markGroupCoopCompleted,
+  markGroupCoopMemberRewardClaimed,
+  markGroupEventCompleted,
+  markGroupEventMemberRewardClaimed,
+  markPvpQueueMatchedByIds,
   setActivePokemon,
+  transferPlayerPokemon,
   createMissionProgress,
   createPvpChallenge,
   deleteExpiredRaidStates,
@@ -48,6 +84,9 @@ import {
   deleteRaidParticipantsByChat,
   deleteRaidStateByChat,
   expireOldPvpChallenges,
+  expireOldTradeOffers,
+  expirePvpQueue,
+  enqueuePvpQueue,
   getActivePvpChallengeByPlayerForUpdate,
   getPvpChallengeByIdForUpdate,
   getRaidParticipant,
@@ -56,9 +95,15 @@ import {
   listRaidParticipants,
   upsertRaidParticipant,
   addRaidParticipantDamage,
+  upsertGroupActivityDaily,
+  upsertGroupCoopWeekly,
+  upsertGroupEventWeekly,
+  upsertPvpWeeklyStatsDelta,
+  upsertSocialLinkDelta,
   upsertRaidState,
   upsertTravelState,
   updatePvpChallengeState,
+  updateTradeOfferState,
   updateMissionProgress,
   updatePlayerGoldOnly,
   updatePlayerPokemonState,
@@ -108,6 +153,9 @@ import {
   buildUseItemUsageText,
 } from './rpgPokemonMessages.js';
 import {
+  getEffectText,
+  getFlavorText,
+  getLocalizedName,
   getAbility,
   getCharacteristic,
   getItem,
@@ -119,6 +167,8 @@ import {
   getNature,
   getPokedex,
   getPokemon,
+  getSpecies,
+  normalizeApiText,
   getRegion,
   getResourceList,
 } from '../../services/pokeApiService.js';
@@ -132,10 +182,16 @@ import {
   recordRpgFlee,
   recordRpgPvpChallenge,
   recordRpgPvpCompleted,
+  recordRpgPvpQueue,
   recordRpgRaidCompleted,
   recordRpgRaidStarted,
   recordRpgPlayerCreated,
   recordRpgSessionDuration,
+  recordRpgTrade,
+  recordRpgCoopCompleted,
+  recordRpgWeeklyEventCompleted,
+  recordRpgKarmaVote,
+  recordRpgGroupRetentionRatio,
   recordRpgShinyFound,
 } from '../../observability/metrics.js';
 import {
@@ -175,11 +231,14 @@ const SESSION_IDLE_MS = Math.max(2 * 60 * 1000, Number(process.env.RPG_SESSION_I
 const RAID_TTL_MS = Math.max(2 * 60 * 1000, Number(process.env.RPG_RAID_TTL_MS) || 20 * 60 * 1000);
 const PVP_TTL_MS = Math.max(2 * 60 * 1000, Number(process.env.RPG_PVP_TTL_MS) || 15 * 60 * 1000);
 const PVP_CHALLENGE_COOLDOWN_MS = Math.max(5_000, Number(process.env.RPG_PVP_COOLDOWN_MS) || 30_000);
+const PVP_QUEUE_TTL_MS = Math.max(30_000, Number(process.env.RPG_PVP_QUEUE_TTL_MS) || 10 * 60 * 1000);
 const RAID_LEVEL_BONUS_MIN = Math.max(4, Number(process.env.RPG_RAID_LEVEL_BONUS_MIN) || 6);
 const RAID_LEVEL_BONUS_MAX = Math.max(RAID_LEVEL_BONUS_MIN + 1, Number(process.env.RPG_RAID_LEVEL_BONUS_MAX) || 12);
 const PVP_WIN_GOLD = Math.max(50, Number(process.env.RPG_PVP_WIN_GOLD) || 220);
 const PVP_WIN_PLAYER_XP = Math.max(40, Number(process.env.RPG_PVP_WIN_PLAYER_XP) || 140);
 const PVP_WIN_POKEMON_XP = Math.max(40, Number(process.env.RPG_PVP_WIN_POKEMON_XP) || 120);
+const PVP_WIN_POINTS = Math.max(2, Number(process.env.RPG_PVP_WIN_POINTS) || 3);
+const PVP_LOSS_POINTS = Math.max(0, Number(process.env.RPG_PVP_LOSS_POINTS) || 1);
 const STARTER_GOLD = Math.max(300, Number(process.env.RPG_STARTER_GOLD) || 450);
 const STARTER_POKEBALL_QTY = Math.max(3, Number(process.env.RPG_STARTER_POKEBALL_QTY) || 4);
 const STARTER_POTION_QTY = Math.max(1, Number(process.env.RPG_STARTER_POTION_QTY) || 3);
@@ -189,12 +248,48 @@ const ECONOMY_RESCUE_COOLDOWN_MS = Math.max(60 * 60 * 1000, Number(process.env.R
 const ECONOMY_RESCUE_MAX_GOLD = Math.max(0, Number(process.env.RPG_ECONOMY_RESCUE_MAX_GOLD) || 60);
 const ECONOMY_RESCUE_GOLD = Math.max(0, Number(process.env.RPG_ECONOMY_RESCUE_GOLD) || 90);
 const ECONOMY_RESCUE_POTION_QTY = Math.max(1, Number(process.env.RPG_ECONOMY_RESCUE_POTION_QTY) || 1);
+const TRADE_TTL_MS = Math.max(60_000, Number(process.env.RPG_TRADE_TTL_MS) || 20 * 60 * 1000);
+const COOP_CAPTURE_TARGET = Math.max(5, Number(process.env.RPG_COOP_CAPTURE_TARGET) || 25);
+const COOP_RAID_TARGET = Math.max(1, Number(process.env.RPG_COOP_RAID_TARGET) || 8);
+const COOP_REWARD_GOLD = Math.max(50, Number(process.env.RPG_COOP_REWARD_GOLD) || 220);
+const COOP_REWARD_XP = Math.max(50, Number(process.env.RPG_COOP_REWARD_XP) || 160);
+const COOP_REWARD_ITEM_KEY = String(process.env.RPG_COOP_REWARD_ITEM_KEY || 'pokeball').trim().toLowerCase();
+const COOP_REWARD_ITEM_QTY = Math.max(1, Number(process.env.RPG_COOP_REWARD_ITEM_QTY) || 2);
+const KARMA_BONUS_THRESHOLD = Math.max(5, Number(process.env.RPG_KARMA_BONUS_THRESHOLD) || 20);
+const KARMA_BONUS_RATE = Math.min(0.25, Math.max(0, Number(process.env.RPG_KARMA_BONUS_RATE) || 0.08));
 
 const POKEDEX_MILESTONES = new Map([
   [10, { gold: 300, xp: 120 }],
   [25, { gold: 900, xp: 350 }],
   [50, { gold: 2200, xp: 900 }],
 ]);
+
+const WEEKLY_EVENT_DEFINITIONS = [
+  {
+    key: 'capturas',
+    label: 'Festival de Capturas',
+    targetValue: Math.max(10, Number(process.env.RPG_EVENT_CAPTURE_TARGET) || 40),
+    trigger: 'capture',
+    rewardGold: Math.max(40, Number(process.env.RPG_EVENT_CAPTURE_REWARD_GOLD) || 160),
+    rewardXp: Math.max(40, Number(process.env.RPG_EVENT_CAPTURE_REWARD_XP) || 120),
+  },
+  {
+    key: 'vitorias_pvp',
+    label: 'Arena Semanal',
+    targetValue: Math.max(4, Number(process.env.RPG_EVENT_PVP_TARGET) || 14),
+    trigger: 'pvp_win',
+    rewardGold: Math.max(60, Number(process.env.RPG_EVENT_PVP_REWARD_GOLD) || 220),
+    rewardXp: Math.max(60, Number(process.env.RPG_EVENT_PVP_REWARD_XP) || 150),
+  },
+  {
+    key: 'dano_raid',
+    label: 'Caçada de Raid',
+    targetValue: Math.max(1200, Number(process.env.RPG_EVENT_RAID_DAMAGE_TARGET) || 4500),
+    trigger: 'raid_damage',
+    rewardGold: Math.max(60, Number(process.env.RPG_EVENT_RAID_REWARD_GOLD) || 210),
+    rewardXp: Math.max(60, Number(process.env.RPG_EVENT_RAID_REWARD_XP) || 145),
+  },
+];
 
 const playerCooldownMap = globalThis.__omnizapRpgCooldownMap instanceof Map ? globalThis.__omnizapRpgCooldownMap : new Map();
 globalThis.__omnizapRpgCooldownMap = playerCooldownMap;
@@ -285,14 +380,29 @@ const toTitleCase = (value) => {
     .join(' ');
 };
 
-const pickEnglishEffect = (itemData) => {
-  const entries = Array.isArray(itemData?.effect_entries) ? itemData.effect_entries : [];
-  const english = entries.find((entry) => entry?.language?.name === 'en');
-  return String(english?.short_effect || english?.effect || '').trim();
+const pickItemEffect = (itemData) => {
+  return getEffectText(itemData?.effect_entries, { preferLong: false }) || null;
+};
+
+const pickItemFlavor = (itemData) => {
+  return getFlavorText(itemData?.flavor_text_entries) || null;
+};
+
+const trimLoreText = (value, maxLength = 210) => {
+  const text = normalizeApiText(value || '');
+  if (!text) return null;
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(30, maxLength - 1)).trimEnd()}…`;
+};
+
+const appendLoreLine = (text, loreText, label = '📖') => {
+  const lore = trimLoreText(loreText);
+  if (!lore) return text;
+  return `${text}\n${label} ${lore}`;
 };
 
 const resolveItemHealingAmount = (itemData) => {
-  const effectText = pickEnglishEffect(itemData).toLowerCase();
+  const effectText = String(pickItemEffect(itemData) || '').toLowerCase();
   const exact = effectText.match(/restore[s]?\s+(\d+)\s*hp/);
   if (exact) return Math.max(0, toInt(exact[1], 0));
 
@@ -327,10 +437,12 @@ const resolveCategoryKey = (itemData) => String(itemData?.category?.name || '').
 
 const buildShopItemFromApi = (itemData) => {
   const key = normalizeItemToken(itemData?.name || '');
-  const label = toTitleCase(itemData?.name || key);
+  const localizedLabel = getLocalizedName(itemData?.names, itemData?.name || key);
+  const label = toTitleCase(localizedLabel || itemData?.name || key);
   const pocket = resolvePocketKey(itemData);
   const category = resolveCategoryKey(itemData);
-  const effect = pickEnglishEffect(itemData);
+  const effect = pickItemEffect(itemData);
+  const loreText = pickItemFlavor(itemData);
   const healAmount = resolveItemHealingAmount(itemData);
   const cost = resolveInternalShopCost({
     itemKey: key,
@@ -346,7 +458,8 @@ const buildShopItemFromApi = (itemData) => {
     sourceName: String(itemData?.name || '').trim().toLowerCase() || key,
     label,
     price: cost,
-    description: effect || 'Item Pokémon',
+    description: trimLoreText(effect || loreText || 'Item Pokémon', 120),
+    loreText: trimLoreText(loreText || effect || '', 180),
     healAmount,
     catchBonus: isPokeball ? resolveCatchBonusByBall(key) : 0,
     guaranteedCapture: key === 'masterball',
@@ -370,6 +483,7 @@ const mergeShopItems = (dynamicItems = []) => {
       healAmount: item.key === 'superpotion' ? SUPER_POTION_HEAL_HP : item.key === 'potion' ? POTION_HEAL_HP : 0,
       catchBonus: item.key === 'pokeball' ? 0 : 0,
       guaranteedCapture: false,
+      loreText: trimLoreText(item.description, 180),
       isPokeball: item.key === 'pokeball',
       isMachine: false,
       isBerry: false,
@@ -530,8 +644,9 @@ const resolvePokemonTraits = async ({ pokemonData }) => {
     natureData,
     abilityKey,
     abilityName: abilityData?.name ? toTitleCase(abilityData.name) : abilityKey ? toTitleCase(abilityKey) : null,
+    abilityEffectText: trimLoreText(getEffectText(abilityData?.effect_entries, { preferLong: false }), 160),
     abilityData,
-    characteristic: characteristicData?.description ? String(characteristicData.description) : null,
+    characteristic: characteristicData?.description ? trimLoreText(characteristicData.description, 140) : null,
   };
 };
 
@@ -748,6 +863,7 @@ const applyMissionEvent = async ({ ownerJid, eventKey, connection }) => {
 };
 
 const buildBattleChatKey = (chatJid, ownerJid) => `${chatJid}::${ownerJid}`;
+const extractSourceChatFromBattleKey = (battleChatKey) => String(battleChatKey || '').split('::')[0] || null;
 
 const nowPlusTtlDate = () => new Date(Date.now() + BATTLE_TTL_MS);
 const nowPlusRaidTtlDate = () => new Date(Date.now() + RAID_TTL_MS);
@@ -802,6 +918,133 @@ const markSessionSample = (ownerJid) => {
   recordRpgSessionDuration(durationSec);
 };
 
+const toUtcDateOnly = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+};
+
+const getDateOnlyOffset = (days = 0) => {
+  const now = new Date();
+  const atMidnightUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  atMidnightUtc.setUTCDate(atMidnightUtc.getUTCDate() + days);
+  return toUtcDateOnly(atMidnightUtc);
+};
+
+const toDateFromDateOnly = (dateOnly, plusDays = 0) => {
+  const source = String(dateOnly || '').trim();
+  if (!source) return new Date();
+  const date = new Date(`${source}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return new Date();
+  date.setUTCDate(date.getUTCDate() + plusDays);
+  return date;
+};
+
+const getCurrentMissionRefs = () => resolveMissionRefs(new Date());
+
+const getCurrentWeekRefDate = () => getCurrentMissionRefs().weeklyRefDate;
+
+const getCurrentDayRefDate = () => getCurrentMissionRefs().dailyRefDate;
+
+const buildEngagementMentions = (...jids) => Array.from(new Set((jids || []).flat().filter(Boolean)));
+
+const determineEventDefinitionForGroup = ({ chatJid, weekRefDate }) => {
+  const seedRaw = `${chatJid || 'chat'}::${weekRefDate || getCurrentWeekRefDate()}`;
+  let hash = 0;
+  for (let i = 0; i < seedRaw.length; i += 1) {
+    hash = (hash * 31 + seedRaw.charCodeAt(i)) >>> 0;
+  }
+  const index = hash % WEEKLY_EVENT_DEFINITIONS.length;
+  return WEEKLY_EVENT_DEFINITIONS[index];
+};
+
+const resolveEventDefinitionByKey = (eventKey) => {
+  return WEEKLY_EVENT_DEFINITIONS.find((entry) => entry.key === eventKey) || null;
+};
+
+const normalizeTradeAssetToken = (token) => {
+  const raw = String(token || '').trim().toLowerCase();
+  if (!raw) return null;
+  const parts = raw.split(':').filter(Boolean);
+  if (parts.length < 2) return null;
+
+  const type = parts[0];
+  if (type === 'item') {
+    const itemKey = normalizeItemToken(parts[1]);
+    const quantity = Math.max(1, toInt(parts[2], 1));
+    if (!itemKey) return null;
+    return { type: 'item', itemKey, quantity };
+  }
+
+  if (type === 'pokemon') {
+    const pokemonId = toInt(parts[1], NaN);
+    if (!Number.isFinite(pokemonId) || pokemonId <= 0) return null;
+    return { type: 'pokemon', pokemonId };
+  }
+
+  return null;
+};
+
+const formatTradeAsset = (asset) => {
+  if (!asset || typeof asset !== 'object') return 'ativo inválido';
+  if (asset.type === 'item') return `item:${asset.itemKey}:${Math.max(1, toInt(asset.quantity, 1))}`;
+  if (asset.type === 'pokemon') return `pokemon:${toInt(asset.pokemonId, 0)}`;
+  return 'ativo inválido';
+};
+
+const resolveMentionOrArgJid = async ({ token = null, mentionedJids = [] }) => {
+  const mentioned = Array.isArray(mentionedJids) ? mentionedJids.find(Boolean) : null;
+  if (mentioned) return resolveCanonicalUserJid(mentioned);
+  return resolveCanonicalUserJid(token);
+};
+
+const applyKarmaBonus = async ({ ownerJid, gold = 0, xp = 0, connection }) => {
+  const karma = await getKarmaProfile(ownerJid, connection);
+  const score = toInt(karma?.karma_score, 0);
+  if (score < KARMA_BONUS_THRESHOLD) {
+    return {
+      bonusGold: 0,
+      bonusXp: 0,
+      karmaScore: score,
+    };
+  }
+
+  return {
+    bonusGold: Math.max(0, Math.round(gold * KARMA_BONUS_RATE)),
+    bonusXp: Math.max(0, Math.round(xp * KARMA_BONUS_RATE)),
+    karmaScore: score,
+  };
+};
+
+const trackGroupActivity = async ({
+  chatJid,
+  ownerJid,
+  actionsDelta = 1,
+  pvpCreatedDelta = 0,
+  pvpCompletedDelta = 0,
+  coopCompletedDelta = 0,
+}) => {
+  if (!isGroupJid(chatJid)) return;
+  const dayRefDate = getCurrentDayRefDate();
+  try {
+    await upsertGroupActivityDaily({
+      dayRefDate,
+      chatJid,
+      ownerJid,
+      actionsDelta,
+      pvpCreatedDelta,
+      pvpCompletedDelta,
+      coopCompletedDelta,
+    });
+  } catch (error) {
+    logger.warn('Falha ao registrar atividade diária de grupo no RPG.', {
+      chatJid,
+      ownerJid,
+      error: error.message,
+    });
+  }
+};
+
 const normalizeJidToken = (token) => {
   const raw = String(token || '').trim();
   if (!raw) return null;
@@ -830,7 +1073,13 @@ const resolveCanonicalUserJid = async (rawUserId) => {
   }
 };
 
-const resolveOpponentJidFromArgs = async ({ actionArgs = [] }) => {
+const resolveOpponentJidFromArgs = async ({ actionArgs = [], mentionedJids = [] }) => {
+  const mentioned = await resolveMentionOrArgJid({
+    token: null,
+    mentionedJids,
+  });
+  if (mentioned) return mentioned;
+
   const direct = normalizeJidToken(actionArgs?.[0]);
   if (direct) return resolveCanonicalUserJid(direct);
 
@@ -883,6 +1132,9 @@ const loadPokemonDisplayData = async (pokemonRow) => {
     imageUrl: snapshot.imageUrl || null,
     natureName: snapshot?.nature?.name || pokemonRow.nature_key || null,
     abilityName: snapshot?.ability?.name || pokemonRow.ability_name || pokemonRow.ability_key || null,
+    abilityEffectText: snapshot?.ability?.effectText || null,
+    flavorText: snapshot?.flavorText || null,
+    genus: snapshot?.genus || null,
   };
 };
 
@@ -1087,6 +1339,7 @@ const handleStart = async ({ ownerJid, commandPrefix }) => {
         name: starterData.snapshot.displayName,
         displayName: starterData.snapshot.displayName,
         isShiny: Boolean(starterData.snapshot?.isShiny),
+        flavorText: trimLoreText(starterData.snapshot?.flavorText || '', 160),
       },
       prefix: commandPrefix,
     }),
@@ -1121,6 +1374,9 @@ const handleProfile = async ({ ownerJid, commandPrefix }) => {
         imageUrl: snapshot.imageUrl || null,
         natureName: snapshot?.nature?.name || active.nature_key || null,
         abilityName: snapshot?.ability?.name || active.ability_name || active.ability_key || null,
+        abilityEffectText: snapshot?.ability?.effectText || null,
+        flavorText: snapshot?.flavorText || null,
+        genus: snapshot?.genus || null,
       };
     } catch (error) {
       logger.warn('Falha ao montar perfil do Pokemon ativo no RPG.', {
@@ -1136,9 +1392,15 @@ const handleProfile = async ({ ownerJid, commandPrefix }) => {
     activePokemon: activeDisplay,
     prefix: commandPrefix,
   });
+  const karmaProfile = await getKarmaProfile(ownerJid);
+  const karmaScore = toInt(karmaProfile?.karma_score, 0);
+  const socialText = karmaScore >= KARMA_BONUS_THRESHOLD
+    ? `\n🌟 Karma: ${karmaScore} (bônus social ativo em recompensas).`
+    : `\n🌟 Karma: ${karmaScore} (atinga ${KARMA_BONUS_THRESHOLD} para bônus social).`;
+  const fullText = `${text}${socialText}`;
 
   return withPokemonImage({
-    text,
+    text: fullText,
     pokemonSnapshot: activeSnapshot,
     caption: activeSnapshot
       ? `👤 ${activeDisplay.displayName} Lv.${activeDisplay.level}\nPróximo: ${commandPrefix}rpg explorar`
@@ -1449,6 +1711,10 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
       return { ok: true, text: buildNoBattleText(commandPrefix) };
     }
 
+    const selectedMoveIndex = Math.max(0, toInt(moveSlot, 1) - 1);
+    const selectedMove = Array.isArray(battleSnapshot?.my?.moves) ? battleSnapshot.my.moves[selectedMoveIndex] : null;
+    const selectedMoveLore = trimLoreText(selectedMove?.loreText || selectedMove?.shortEffect || '', 150);
+
     const turnResult = resolveBattleTurn({
       battleSnapshot,
       playerMoveSlot: moveSlot,
@@ -1456,7 +1722,7 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
 
     if (!turnResult.validTurn) {
       const text = buildBattleTurnText({
-        logs: turnResult.logs,
+        logs: [...turnResult.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])],
         battleSnapshot,
         prefix: commandPrefix,
         rewards: null,
@@ -1553,7 +1819,7 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
       };
 
       const text = buildBattleTurnText({
-        logs: [...turnResult.logs, ...rewardItemNotices, ...(mission.notices || [])],
+        logs: [...turnResult.logs, ...rewardItemNotices, ...(mission.notices || []), ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])],
         battleSnapshot: finalBattleSnapshot,
         prefix: commandPrefix,
         rewards,
@@ -1598,7 +1864,7 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
       await deleteBattleStateByOwner(ownerJid, connection);
 
       const text = buildBattleTurnText({
-        logs: turnResult.logs,
+        logs: [...turnResult.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])],
         battleSnapshot: updatedSnapshot,
         prefix: commandPrefix,
         rewards: null,
@@ -1638,7 +1904,7 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
     );
 
     const text = buildBattleTurnText({
-      logs: turnResult.logs,
+      logs: [...turnResult.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])],
       battleSnapshot: updatedSnapshot,
       prefix: commandPrefix,
       rewards: null,
@@ -1869,16 +2135,35 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball', it
       await deleteBattleStateByOwner(ownerJid, connection);
       recordRpgCapture();
 
+      const sourceChatJid = extractSourceChatFromBattleKey(battleRow.chat_jid);
+      const coopUpdate = await applyGroupCoopContribution({
+        chatJid: sourceChatJid,
+        ownerJid,
+        captureDelta: 1,
+        raidDelta: 0,
+        connection,
+      });
+      const eventUpdate = await applyGroupWeeklyEventContribution({
+        chatJid: sourceChatJid,
+        ownerJid,
+        trigger: 'capture',
+        value: 1,
+        connection,
+      });
+
       const text = buildCaptureSuccessText({
         capturedPokemon: {
           id: captured?.id,
           name: captured?.nickname || updatedSnapshot.enemy.displayName,
           displayName: captured?.nickname || updatedSnapshot.enemy.displayName,
           isShiny: Boolean(updatedSnapshot.enemy?.isShiny),
+          flavorText: trimLoreText(updatedSnapshot.enemy?.flavorText || '', 180),
         },
         prefix: commandPrefix,
       }).concat(
-        `\nPoke Bola restante: ${pokeballLeft}${mission.notices?.length ? `\n${mission.notices.join('\n')}` : ''}${pokedexNotice ? `\n${pokedexNotice}` : ''}`,
+        `\nPoke Bola restante: ${pokeballLeft}${mission.notices?.length ? `\n${mission.notices.join('\n')}` : ''}${pokedexNotice ? `\n${pokedexNotice}` : ''}${
+          coopUpdate.notices?.length ? `\n${Array.from(new Set(coopUpdate.notices)).join('\n')}` : ''
+        }${eventUpdate.notices?.length ? `\n${Array.from(new Set(eventUpdate.notices)).join('\n')}` : ''}`,
       );
 
       return withPokemonImage({
@@ -2082,6 +2367,7 @@ const handleUseHealingItem = async ({ ownerJid, commandPrefix, itemMeta }) => {
         currentHp: healedHp,
         maxHp,
         quantityLeft: Math.max(0, inventory.quantity - 1),
+        itemLore: trimLoreText(itemMeta?.loreText || itemMeta?.description || '', 160),
         prefix: commandPrefix,
       }) + suffix,
     };
@@ -2132,8 +2418,23 @@ const handleUseEvolutionItem = async ({ ownerJid, commandPrefix, itemMeta }) => 
       return { ok: true, text: buildUseItemErrorText({ reason: 'no_item', prefix: commandPrefix }) };
     }
 
+    let speciesData = null;
+    try {
+      const speciesLookup = evolution?.pokemonData?.species?.name || evolution?.to?.pokeId;
+      if (speciesLookup) {
+        speciesData = await getSpecies(speciesLookup);
+      }
+    } catch (error) {
+      logger.debug('Falha ao carregar species na evolução por item.', {
+        ownerJid,
+        pokeId: evolution?.to?.pokeId,
+        error: error.message,
+      });
+    }
+
     const battleSnapshot = await buildPokemonSnapshot({
       pokemonData: evolution.pokemonData,
+      speciesData,
       level: activePokemon.level,
       currentHp: null,
       ivs: activePokemon.ivs_json,
@@ -2164,7 +2465,10 @@ const handleUseEvolutionItem = async ({ ownerJid, commandPrefix, itemMeta }) => 
 
     return {
       ok: true,
-      text: `🎉 Evolução por item!\n${evolution.from.name} evoluiu para *${evolution.to.name}* usando ${itemMeta.label}.\n➡️ Próximos: ${commandPrefix}rpg perfil | ${commandPrefix}rpg explorar`,
+      text: appendLoreLine(
+        `🎉 Evolução por item!\n${evolution.from.name} evoluiu para *${evolution.to.name}* usando ${itemMeta.label}.\n➡️ Próximos: ${commandPrefix}rpg perfil | ${commandPrefix}rpg explorar`,
+        battleSnapshot?.flavorText || null,
+      ),
       imageUrl: battleSnapshot.imageUrl || null,
     };
   });
@@ -2329,6 +2633,7 @@ const handleTm = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
       text: buildTmUseText({
         itemLabel: itemMeta.label,
         moveName: moveSnapshot.displayName || moveSnapshot.name,
+        moveLore: trimLoreText(moveSnapshot?.loreText || moveSnapshot?.shortEffect || '', 160),
         slot,
         pokemonName: activePokemon.nickname || `Pokemon #${activePokemon.poke_id}`,
         prefix: commandPrefix,
@@ -2448,6 +2753,7 @@ const handleBag = async ({ ownerJid, commandPrefix }) => {
     .map((item) => ({
       key: normalizeItemToken(item.item_key),
       label: index.get(normalizeItemToken(item.item_key))?.label || toTitleCase(item.item_key),
+      loreText: trimLoreText(index.get(normalizeItemToken(item.item_key))?.loreText || '', 90),
       quantity: toInt(item.quantity, 0),
     }));
 
@@ -2485,10 +2791,16 @@ const handlePokedex = async ({ ownerJid, commandPrefix }) => {
   const recent = [];
   for (const row of recentRows) {
     try {
-      const pokemon = await getPokemon(row.poke_id);
+      const species = await getSpecies(row.poke_id);
+      const localizedName = getLocalizedName(species?.names, species?.name || `pokemon-${row.poke_id}`);
+      const genus = trimLoreText(species?.genera?.find((entry) => String(entry?.language?.name || '').toLowerCase() === 'pt-br')?.genus || null, 70);
+      const flavor = trimLoreText(getFlavorText(species?.flavor_text_entries), 100);
+      const loreNote = trimLoreText([genus, flavor].filter(Boolean).join(' • '), 130);
       recent.push({
         pokeId: row.poke_id,
-        name: pokemon?.name || `pokemon-${row.poke_id}`,
+        name: localizedName || species?.name || `pokemon-${row.poke_id}`,
+        displayName: toTitleCase(localizedName || species?.name || `pokemon-${row.poke_id}`),
+        note: loreNote,
       });
     } catch {
       recent.push({
@@ -2516,13 +2828,39 @@ const listTravelRegions = async () => {
   return (list?.results || []).map((entry) => String(entry?.name || '').trim().toLowerCase()).filter(Boolean);
 };
 
+const buildRegionLore = (regionData) => {
+  const generation = String(regionData?.main_generation?.name || '').trim().toLowerCase();
+  if (!generation) return null;
+  return `Região historicamente associada à ${toTitleCase(generation)}.`;
+};
+
+const buildLocationLore = (locationData) => {
+  const areaCount = Array.isArray(locationData?.areas) ? locationData.areas.length : 0;
+  if (areaCount <= 0) return null;
+  return `Área com ${areaCount} sub-região(ões) explorável(is).`;
+};
+
+const buildAreaLore = (areaData) => {
+  const encounterCount = Array.isArray(areaData?.pokemon_encounters) ? areaData.pokemon_encounters.length : 0;
+  if (encounterCount <= 0) return null;
+  return `${encounterCount} espécie(s) registradas nesta área.`;
+};
+
 const pickTravelLocationData = async (regionKey) => {
   const regionData = await getRegion(regionKey);
   const locations = Array.isArray(regionData?.locations) ? regionData.locations : [];
+  const regionLabel = getLocalizedName(regionData?.names, regionKey) || toTitleCase(regionKey);
+  const regionLore = trimLoreText(buildRegionLore(regionData), 130);
   if (!locations.length) {
     return {
+      regionLabel,
+      regionLore,
       locationKey: null,
       locationAreaKey: null,
+      locationLabel: null,
+      locationLore: null,
+      areaLabel: null,
+      areaLore: null,
     };
   }
 
@@ -2530,20 +2868,105 @@ const pickTravelLocationData = async (regionKey) => {
   const locationName = String(selectedLocation?.name || '').trim().toLowerCase();
   if (!locationName) {
     return {
+      regionLabel,
+      regionLore,
       locationKey: null,
       locationAreaKey: null,
+      locationLabel: null,
+      locationLore: null,
+      areaLabel: null,
+      areaLore: null,
     };
   }
 
   const locationData = await getLocation(locationName);
+  const locationLabel = getLocalizedName(locationData?.names, locationName) || toTitleCase(locationName);
+  const locationLore = trimLoreText(buildLocationLore(locationData), 130);
   const areas = Array.isArray(locationData?.areas) ? locationData.areas : [];
   const selectedArea = areas.length ? randomFromArray(areas) : null;
   const areaKey = String(selectedArea?.name || '').trim().toLowerCase() || null;
+  let areaLabel = null;
+  let areaLore = null;
+  if (areaKey) {
+    areaLabel = toTitleCase(areaKey);
+    try {
+      const areaData = await getLocationArea(areaKey);
+      areaLabel = getLocalizedName(areaData?.names, areaKey) || areaLabel;
+      areaLore = trimLoreText(buildAreaLore(areaData), 130);
+    } catch (error) {
+      logger.debug('Falha ao carregar lore da área de viagem.', {
+        areaKey,
+        error: error.message,
+      });
+    }
+  }
 
   return {
+    regionLabel,
+    regionLore,
     locationKey: locationName,
     locationAreaKey: areaKey,
+    locationLabel,
+    locationLore,
+    areaLabel,
+    areaLore,
   };
+};
+
+const hydrateTravelView = async (travelRow) => {
+  if (!travelRow) return null;
+  const travel = {
+    regionKey: travelRow.region_key || null,
+    locationKey: travelRow.location_key || null,
+    locationAreaKey: travelRow.location_area_key || null,
+    regionLabel: null,
+    locationLabel: null,
+    areaLabel: null,
+    regionLore: null,
+    locationLore: null,
+    areaLore: null,
+  };
+
+  try {
+    if (travel.regionKey) {
+      const regionData = await getRegion(travel.regionKey);
+      travel.regionLabel = getLocalizedName(regionData?.names, travel.regionKey) || toTitleCase(travel.regionKey);
+      travel.regionLore = trimLoreText(buildRegionLore(regionData), 130);
+    }
+  } catch (error) {
+    logger.debug('Falha ao hidratar região da viagem.', {
+      regionKey: travel.regionKey,
+      error: error.message,
+    });
+  }
+
+  try {
+    if (travel.locationKey) {
+      const locationData = await getLocation(travel.locationKey);
+      travel.locationLabel = getLocalizedName(locationData?.names, travel.locationKey) || toTitleCase(travel.locationKey);
+      travel.locationLore = trimLoreText(buildLocationLore(locationData), 130);
+    }
+  } catch (error) {
+    logger.debug('Falha ao hidratar local da viagem.', {
+      locationKey: travel.locationKey,
+      error: error.message,
+    });
+  }
+
+  try {
+    if (travel.locationAreaKey) {
+      const areaData = await getLocationArea(travel.locationAreaKey);
+      travel.areaLabel = getLocalizedName(areaData?.names, travel.locationAreaKey) || toTitleCase(travel.locationAreaKey);
+      travel.areaLore = trimLoreText(buildAreaLore(areaData), 130);
+    }
+  } catch (error) {
+    logger.debug('Falha ao hidratar área da viagem.', {
+      areaKey: travel.locationAreaKey,
+      error: error.message,
+    });
+  }
+
+  return travel;
 };
 
 const handleTravel = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
@@ -2555,16 +2978,11 @@ const handleTravel = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
   const targetRegion = String(actionArgs?.[0] || '').trim().toLowerCase();
   if (!targetRegion) {
     const [travel, regions] = await Promise.all([getTravelStateByOwner(ownerJid), listTravelRegions()]);
+    const hydratedTravel = await hydrateTravelView(travel);
     return {
       ok: true,
       text: buildTravelStatusText({
-        travel: travel
-          ? {
-              regionKey: travel.region_key,
-              locationKey: travel.location_key,
-              locationAreaKey: travel.location_area_key,
-            }
-          : null,
+        travel: hydratedTravel,
         regions: regions.slice(0, 8),
         prefix: commandPrefix,
       }),
@@ -2592,6 +3010,12 @@ const handleTravel = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
           regionKey: targetRegion,
           locationKey: locationData.locationKey,
           locationAreaKey: locationData.locationAreaKey,
+          regionLabel: locationData.regionLabel,
+          locationLabel: locationData.locationLabel,
+          areaLabel: locationData.areaLabel,
+          regionLore: locationData.regionLore,
+          locationLore: locationData.locationLore,
+          areaLore: locationData.areaLore,
         },
         prefix: commandPrefix,
       }),
@@ -2725,13 +3149,16 @@ const handleBuy = async ({ ownerJid, itemKey, quantity, commandPrefix }) => {
 
     return {
       ok: true,
-      text: buildBuySuccessText({
-        item,
-        quantity: parsedQty,
-        totalPrice,
-        goldLeft: nextGold,
-        prefix: commandPrefix,
-      }),
+      text: appendLoreLine(
+        buildBuySuccessText({
+          item,
+          quantity: parsedQty,
+          totalPrice,
+          goldLeft: nextGold,
+          prefix: commandPrefix,
+        }),
+        item?.loreText || item?.description,
+      ),
     };
   });
 };
@@ -2750,6 +3177,7 @@ const toRaidView = (raidRow) => {
       maxHp: Math.max(1, toInt(raidRow.max_hp, toInt(boss.maxHp, 1))),
       currentHp: Math.max(0, toInt(raidRow.current_hp, toInt(boss.currentHp, 0))),
     },
+    bossLore: trimLoreText(boss?.flavorText || '', 170),
     biomeKey: raidRow.biome_key || null,
     startedAt: raidRow.started_at || null,
     endsAt: raidRow.ends_at || null,
@@ -2818,6 +3246,353 @@ const toPvpStatusView = ({ challenge, ownerJid }) => {
     myMaxHp: Math.max(1, toInt(me.maxHp, 1)),
     enemyHp: toInt(enemy.currentHp, 0),
     enemyMaxHp: Math.max(1, toInt(enemy.maxHp, 1)),
+  };
+};
+
+const buildPvpQueueStatusText = ({ queue = [], ownerJid, prefix = '/' }) => {
+  const lines = ['🥊 *Fila PvP*'];
+  const me = queue.find((entry) => entry.owner_jid === ownerJid) || null;
+  if (me) {
+    lines.push(`Você está na fila (entrada #${me.id}).`);
+  } else {
+    lines.push('Você não está na fila no momento.');
+  }
+  lines.push(`Jogadores aguardando: ${queue.length}`);
+  if (queue.length) {
+    queue.slice(0, 8).forEach((entry, idx) => {
+      lines.push(`${idx + 1}. ${entry.owner_jid}`);
+    });
+  }
+  lines.push(`➡️ Entrar: ${prefix}rpg pvp fila entrar`);
+  lines.push(`➡️ Sair: ${prefix}rpg pvp fila sair`);
+  return lines.join('\n');
+};
+
+const buildPvpWeeklyRankingText = ({ weekRefDate, ranking = [], prefix = '/' }) => {
+  const lines = ['🏆 *Ranking PvP Semanal*', `Semana: ${weekRefDate}`];
+  if (!ranking.length) {
+    lines.push('Sem partidas registradas nesta semana.');
+  } else {
+    ranking.forEach((entry, idx) => {
+      lines.push(
+        `${idx + 1}. ${entry.owner_jid} — ${entry.points} pts (${entry.wins}W/${entry.losses}L, ${entry.matches_played}j)`,
+      );
+    });
+  }
+  lines.push(`➡️ Entre na fila: ${prefix}rpg pvp fila entrar`);
+  return lines.join('\n');
+};
+
+const createPvpChallengeBetweenPlayers = async ({
+  challengerJid,
+  opponentJid,
+  chatJid = null,
+  connection,
+}) => {
+  const selfPlayer = await getPlayerByJidForUpdate(challengerJid, connection);
+  const opponentPlayer = await getPlayerByJidForUpdate(opponentJid, connection);
+  if (!selfPlayer || !opponentPlayer) {
+    return { error: 'player_not_found' };
+  }
+
+  const existingSelf = await listOpenPvpChallengesByPlayer(challengerJid, connection);
+  const existingOpponent = await listOpenPvpChallengesByPlayer(opponentJid, connection);
+  if ((existingSelf || []).length || (existingOpponent || []).length) {
+    return { error: 'challenge_exists' };
+  }
+
+  const myActive = await getActivePlayerPokemonForUpdate(challengerJid, connection);
+  const enemyActive = await getActivePlayerPokemonForUpdate(opponentJid, connection);
+  if (!myActive || !enemyActive) {
+    return { error: 'active_missing' };
+  }
+
+  const mySnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: myActive });
+  const enemySnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: enemyActive });
+  if (mySnapshot.currentHp <= 0 || enemySnapshot.currentHp <= 0) {
+    return { error: 'fainted' };
+  }
+
+  const turnJid = randomFromArray([challengerJid, opponentJid]);
+  const battleSnapshot = buildPvpSnapshotState({
+    challengerJid,
+    challengerPokemonId: myActive.id,
+    challengerSnapshot: mySnapshot,
+    opponentJid,
+    opponentPokemonId: enemyActive.id,
+    opponentSnapshot: enemySnapshot,
+    turnJid,
+  });
+
+  const challenge = await createPvpChallenge(
+    {
+      chatJid,
+      challengerJid,
+      opponentJid,
+      status: 'pending',
+      turnJid,
+      battleSnapshot,
+      startedAt: null,
+      expiresAt: nowPlusPvpTtlDate(),
+    },
+    connection,
+  );
+
+  return { challenge };
+};
+
+const applyPvpWeeklyOutcome = async ({ winnerJid, loserJid, connection }) => {
+  const weekRefDate = getCurrentWeekRefDate();
+  await upsertPvpWeeklyStatsDelta(
+    {
+      weekRefDate,
+      ownerJid: winnerJid,
+      matchesPlayedDelta: 1,
+      winsDelta: 1,
+      lossesDelta: 0,
+      pointsDelta: PVP_WIN_POINTS,
+    },
+    connection,
+  );
+  await upsertPvpWeeklyStatsDelta(
+    {
+      weekRefDate,
+      ownerJid: loserJid,
+      matchesPlayedDelta: 1,
+      winsDelta: 0,
+      lossesDelta: 1,
+      pointsDelta: PVP_LOSS_POINTS,
+    },
+    connection,
+  );
+
+  await upsertSocialLinkDelta(
+    {
+      jidA: winnerJid,
+      jidB: loserJid,
+      rivalryDelta: 2,
+      friendshipDelta: 0,
+      interactionsDelta: 1,
+    },
+    connection,
+  );
+};
+
+const resolveRivalryBonus = (rivalryScore) => {
+  const score = Math.max(0, toInt(rivalryScore, 0));
+  if (score >= 30) return { bonusXp: 45, bonusGold: 70 };
+  if (score >= 15) return { bonusXp: 20, bonusGold: 30 };
+  return { bonusXp: 0, bonusGold: 0 };
+};
+
+const ensureGroupCoopStateForUpdate = async ({ chatJid, connection }) => {
+  const weekRefDate = getCurrentWeekRefDate();
+  await upsertGroupCoopWeekly(
+    {
+      chatJid,
+      weekRefDate,
+      captureTarget: COOP_CAPTURE_TARGET,
+      raidTarget: COOP_RAID_TARGET,
+    },
+    connection,
+  );
+  const row = await getGroupCoopWeeklyForUpdate(chatJid, weekRefDate, connection);
+  return { weekRefDate, row };
+};
+
+const completeCoopIfNeeded = async ({ chatJid, weekRefDate, connection }) => {
+  const coop = await getGroupCoopWeeklyForUpdate(chatJid, weekRefDate, connection);
+  if (!coop) return { completedNow: false, rewardedCount: 0 };
+  if (coop.status === 'completed') return { completedNow: false, rewardedCount: 0 };
+  if (coop.capture_progress < coop.capture_target || coop.raid_progress < coop.raid_target) {
+    return { completedNow: false, rewardedCount: 0 };
+  }
+
+  await markGroupCoopCompleted(chatJid, weekRefDate, connection);
+  const members = await listUnrewardedGroupCoopMembersForUpdate(chatJid, weekRefDate, connection);
+  let rewardedCount = 0;
+  for (const member of members) {
+    const contribution = toInt(member.capture_contribution, 0) + toInt(member.raid_contribution, 0);
+    if (contribution <= 0) continue;
+    const player = await getPlayerByJidForUpdate(member.owner_jid, connection);
+    if (!player) continue;
+    const nextXp = Math.max(0, toInt(player.xp, 0) + COOP_REWARD_XP);
+    const nextGold = Math.max(0, toInt(player.gold, 0) + COOP_REWARD_GOLD);
+    const nextLevel = calculatePlayerLevelFromXp(nextXp);
+    await updatePlayerProgress(
+      {
+        jid: member.owner_jid,
+        level: nextLevel,
+        xp: nextXp,
+        gold: nextGold,
+      },
+      connection,
+    );
+    await addInventoryItem(
+      {
+        ownerJid: member.owner_jid,
+        itemKey: COOP_REWARD_ITEM_KEY,
+        quantity: COOP_REWARD_ITEM_QTY,
+      },
+      connection,
+    );
+    await markGroupCoopMemberRewardClaimed(chatJid, weekRefDate, member.owner_jid, connection);
+    await upsertGroupActivityDaily(
+      {
+        dayRefDate: getCurrentDayRefDate(),
+        chatJid,
+        ownerJid: member.owner_jid,
+        actionsDelta: 0,
+        coopCompletedDelta: 1,
+      },
+      connection,
+    );
+    rewardedCount += 1;
+  }
+
+  if (rewardedCount > 0) {
+    recordRpgCoopCompleted();
+  }
+
+  return { completedNow: rewardedCount > 0, rewardedCount };
+};
+
+const applyGroupCoopContribution = async ({
+  chatJid,
+  ownerJid,
+  captureDelta = 0,
+  raidDelta = 0,
+  connection,
+}) => {
+  if (!isGroupJid(chatJid)) return { notices: [] };
+
+  const { weekRefDate } = await ensureGroupCoopStateForUpdate({ chatJid, connection });
+  await addGroupCoopContribution(
+    {
+      chatJid,
+      weekRefDate,
+      ownerJid,
+      captureDelta,
+      raidDelta,
+    },
+    connection,
+  );
+  const coop = await getGroupCoopWeekly(chatJid, weekRefDate, connection);
+  const completion = await completeCoopIfNeeded({ chatJid, weekRefDate, connection });
+  const notices = [];
+  if (coop) {
+    notices.push(`🤝 Coop semanal: capturas ${coop.capture_progress}/${coop.capture_target} | raids ${coop.raid_progress}/${coop.raid_target}`);
+  }
+  if (completion.completedNow) {
+    notices.push(`🎉 Missão cooperativa semanal concluída! Recompensa entregue para ${completion.rewardedCount} jogador(es).`);
+  }
+  return { notices, completedNow: completion.completedNow };
+};
+
+const ensureWeeklyEventForUpdate = async ({ chatJid, connection }) => {
+  const weekRefDate = getCurrentWeekRefDate();
+  let event = await getGroupEventWeeklyForUpdate(chatJid, weekRefDate, connection);
+  if (!event) {
+    const definition = determineEventDefinitionForGroup({ chatJid, weekRefDate });
+    const expiresAt = toDateFromDateOnly(weekRefDate, 7);
+    await upsertGroupEventWeekly(
+      {
+        chatJid,
+        weekRefDate,
+        eventKey: definition.key,
+        targetValue: definition.targetValue,
+        expiresAt,
+      },
+      connection,
+    );
+    event = await getGroupEventWeeklyForUpdate(chatJid, weekRefDate, connection);
+  }
+  return { weekRefDate, event, definition: resolveEventDefinitionByKey(event?.event_key) };
+};
+
+const applyGroupWeeklyEventContribution = async ({
+  chatJid,
+  ownerJid,
+  trigger,
+  value,
+  connection,
+}) => {
+  if (!isGroupJid(chatJid)) return { notices: [] };
+  const { weekRefDate, event, definition } = await ensureWeeklyEventForUpdate({ chatJid, connection });
+  if (!event || !definition || definition.trigger !== trigger || event.status === 'completed') {
+    return { notices: [] };
+  }
+
+  const delta = Math.max(0, toInt(value, 0));
+  if (delta <= 0) return { notices: [] };
+
+  await addGroupEventContribution(
+    {
+      chatJid,
+      weekRefDate,
+      ownerJid,
+      contributionDelta: delta,
+    },
+    connection,
+  );
+
+  const refreshed = await getGroupEventWeeklyForUpdate(chatJid, weekRefDate, connection);
+  const notices = [];
+  if (refreshed) {
+    notices.push(`🎯 Evento semanal (${definition.label}): ${refreshed.progress_value}/${refreshed.target_value}`);
+    if (refreshed.status !== 'completed' && refreshed.progress_value >= refreshed.target_value) {
+      await markGroupEventCompleted(chatJid, weekRefDate, connection);
+      recordRpgWeeklyEventCompleted();
+      notices.push('🏁 Evento semanal concluído! Use /rpg evento claim para resgatar.');
+    }
+  }
+
+  return { notices };
+};
+
+const claimWeeklyEventReward = async ({ ownerJid, chatJid, connection }) => {
+  if (!isGroupJid(chatJid)) {
+    return { ok: true, text: 'Evento semanal só existe em grupos.' };
+  }
+
+  const { weekRefDate, event, definition } = await ensureWeeklyEventForUpdate({ chatJid, connection });
+  if (!event || !definition) {
+    return { ok: true, text: 'Evento semanal indisponível no momento.' };
+  }
+  if (event.status !== 'completed') {
+    return {
+      ok: true,
+      text: `Evento da semana ainda em andamento: ${event.progress_value}/${event.target_value}.`,
+    };
+  }
+
+  const member = await getGroupEventMemberForUpdate(chatJid, weekRefDate, ownerJid, connection);
+  if (!member || toInt(member.contribution, 0) <= 0) {
+    return { ok: true, text: 'Você não contribuiu neste evento semanal.' };
+  }
+  if (member.reward_claimed_at) {
+    return { ok: true, text: 'Você já resgatou a recompensa deste evento.' };
+  }
+
+  const player = await getPlayerByJidForUpdate(ownerJid, connection);
+  if (!player) return { ok: true, text: buildNeedStartText('/') };
+
+  const nextXp = Math.max(0, toInt(player.xp, 0) + definition.rewardXp);
+  const nextGold = Math.max(0, toInt(player.gold, 0) + definition.rewardGold);
+  const nextLevel = calculatePlayerLevelFromXp(nextXp);
+  await updatePlayerProgress(
+    {
+      jid: ownerJid,
+      level: nextLevel,
+      xp: nextXp,
+      gold: nextGold,
+    },
+    connection,
+  );
+  await markGroupEventMemberRewardClaimed(chatJid, weekRefDate, ownerJid, connection);
+  return {
+    ok: true,
+    text: `🎁 Recompensa do evento resgatada: +${definition.rewardGold} gold e +${definition.rewardXp} XP.`,
   };
 };
 
@@ -2932,6 +3707,7 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
           currentHp: bossSnapshot.currentHp,
           maxHp: bossSnapshot.maxHp,
           expiresInMin: Math.max(1, Math.round(RAID_TTL_MS / 60000)),
+          bossLore: trimLoreText(bossSnapshot?.flavorText || '', 170),
           prefix: commandPrefix,
         }),
         imageUrl: bossSnapshot.imageUrl || null,
@@ -2982,12 +3758,15 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
         attackerLabel: `Seu ${playerSnapshot.displayName}`,
         defenderLabel: raidView.bossSnapshot.displayName || 'Raid Boss',
       });
+      const selectedMoveIndex = Math.max(0, toInt(moveSlot, 1) - 1);
+      const selectedMove = Array.isArray(playerSnapshot?.moves) ? playerSnapshot.moves[selectedMoveIndex] : null;
+      const selectedMoveLore = trimLoreText(selectedMove?.loreText || selectedMove?.shortEffect || '', 150);
 
       if (!attack.validMove) {
         return {
           ok: true,
           text: buildRaidAttackText({
-            logs: attack.logs,
+            logs: [...attack.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])],
             currentHp: raidView.currentHp,
             maxHp: raidView.maxHp,
             defeated: false,
@@ -3030,10 +3809,17 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
         );
 
         const participants = await listRaidParticipants(chatJid, connection);
+        const eventUpdate = await applyGroupWeeklyEventContribution({
+          chatJid,
+          ownerJid,
+          trigger: 'raid_damage',
+          value: attack.damage,
+          connection,
+        });
         return {
           ok: true,
           text: buildRaidAttackText({
-            logs: [...attack.logs, `💥 Dano causado: ${attack.damage}`],
+            logs: [...attack.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : []), `💥 Dano causado: ${attack.damage}`, ...(eventUpdate.notices || [])],
             currentHp: nextCurrentHp,
             maxHp: raidView.maxHp,
             defeated: false,
@@ -3046,20 +3832,31 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
 
       const participants = await listRaidParticipants(chatJid, connection);
       const totalDamage = participants.reduce((acc, entry) => acc + toInt(entry.total_damage, 0), 0);
+      const mentions = [];
+      const coopNotices = [];
 
       for (const entry of participants) {
         const participantJid = entry.owner_jid;
+        mentions.push(participantJid);
         const participantDamage = toInt(entry.total_damage, 0);
         const rewards = resolveRaidRewards({
           bossLevel: raidView.level,
           totalDamage,
           participantDamage,
         });
+        const karmaBonus = await applyKarmaBonus({
+          ownerJid: participantJid,
+          gold: rewards.gold,
+          xp: rewards.playerXp,
+          connection,
+        });
+        const totalPlayerXp = rewards.playerXp + karmaBonus.bonusXp;
+        const totalGold = rewards.gold + karmaBonus.bonusGold;
 
         const participantPlayer = await getPlayerByJidForUpdate(participantJid, connection);
         if (!participantPlayer) continue;
-        const nextPlayerXp = Math.max(0, toInt(participantPlayer.xp, 0) + rewards.playerXp);
-        const nextPlayerGold = Math.max(0, toInt(participantPlayer.gold, 0) + rewards.gold);
+        const nextPlayerXp = Math.max(0, toInt(participantPlayer.xp, 0) + totalPlayerXp);
+        const nextPlayerGold = Math.max(0, toInt(participantPlayer.gold, 0) + totalGold);
         const nextPlayerLevel = calculatePlayerLevelFromXp(nextPlayerXp);
 
         await updatePlayerProgress(
@@ -3090,6 +3887,35 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
             connection,
           );
         }
+
+        const coopUpdate = await applyGroupCoopContribution({
+          chatJid,
+          ownerJid: participantJid,
+          captureDelta: 0,
+          raidDelta: 1,
+          connection,
+        });
+        if (coopUpdate.notices?.length) {
+          coopNotices.push(...coopUpdate.notices);
+        }
+      }
+
+      for (let i = 0; i < participants.length; i += 1) {
+        for (let j = i + 1; j < participants.length; j += 1) {
+          const jidA = participants[i]?.owner_jid;
+          const jidB = participants[j]?.owner_jid;
+          if (!jidA || !jidB || jidA === jidB) continue;
+          await upsertSocialLinkDelta(
+            {
+              jidA,
+              jidB,
+              friendshipDelta: 1,
+              rivalryDelta: 0,
+              interactionsDelta: 1,
+            },
+            connection,
+          );
+        }
       }
 
       recordRpgRaidCompleted();
@@ -3099,7 +3925,7 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
       return {
         ok: true,
         text: buildRaidAttackText({
-          logs: [...attack.logs, `💥 Dano final: ${attack.damage}`],
+          logs: [...attack.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : []), `💥 Dano final: ${attack.damage}`, ...Array.from(new Set(coopNotices))],
           currentHp: 0,
           maxHp: raidView.maxHp,
           defeated: true,
@@ -3107,6 +3933,7 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
           prefix: commandPrefix,
         }),
         imageUrl: raidView.bossSnapshot?.imageUrl || null,
+        mentions: buildEngagementMentions(mentions),
       };
     }
 
@@ -3117,13 +3944,21 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
   });
 };
 
-const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] }) => {
+const resolvePvpChallengeCreateErrorText = (errorCode) => {
+  if (errorCode === 'player_not_found') return 'Um dos jogadores ainda não iniciou no RPG.';
+  if (errorCode === 'challenge_exists') return 'Já existe um desafio PvP pendente/ativo para um dos jogadores.';
+  if (errorCode === 'active_missing') return 'Ambos os jogadores precisam ter Pokémon ativo para PvP.';
+  if (errorCode === 'fainted') return 'Um dos Pokémon ativos está sem HP. Recupere antes do PvP.';
+  return 'Não foi possível criar o desafio PvP agora.';
+};
+
+const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [], mentionedJids = [] }) => {
   const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
   if (!canonicalOwnerJid) {
     return { ok: true, text: 'Não foi possível identificar o seu usuário para PvP.' };
   }
 
-  const opponentJid = await resolveOpponentJidFromArgs({ actionArgs });
+  const opponentJid = await resolveOpponentJidFromArgs({ actionArgs, mentionedJids });
   if (!opponentJid) {
     return {
       ok: true,
@@ -3148,78 +3983,31 @@ const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = 
 
   const created = await withTransaction(async (connection) => {
     await expireOldPvpChallenges(connection);
-    const selfPlayer = await getPlayerByJidForUpdate(canonicalOwnerJid, connection);
-    const opponentPlayer = await getPlayerByJidForUpdate(opponentJid, connection);
-    if (!selfPlayer || !opponentPlayer) {
-      return { error: 'player_not_found' };
-    }
-
-    const existingSelf = await listOpenPvpChallengesByPlayer(canonicalOwnerJid, connection);
-    const existingOpponent = await listOpenPvpChallengesByPlayer(opponentJid, connection);
-    if ((existingSelf || []).length || (existingOpponent || []).length) {
-      return { error: 'challenge_exists' };
-    }
-
-    const myActive = await getActivePlayerPokemonForUpdate(canonicalOwnerJid, connection);
-    const enemyActive = await getActivePlayerPokemonForUpdate(opponentJid, connection);
-    if (!myActive || !enemyActive) {
-      return { error: 'active_missing' };
-    }
-
-    const mySnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: myActive });
-    const enemySnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: enemyActive });
-    if (mySnapshot.currentHp <= 0 || enemySnapshot.currentHp <= 0) {
-      return { error: 'fainted' };
-    }
-
-    const turnJid = randomFromArray([canonicalOwnerJid, opponentJid]);
-    const battleSnapshot = buildPvpSnapshotState({
+    return createPvpChallengeBetweenPlayers({
       challengerJid: canonicalOwnerJid,
-      challengerPokemonId: myActive.id,
-      challengerSnapshot: mySnapshot,
       opponentJid,
-      opponentPokemonId: enemyActive.id,
-      opponentSnapshot: enemySnapshot,
-      turnJid,
-    });
-
-    const challenge = await createPvpChallenge(
-      {
-        chatJid,
-        challengerJid: canonicalOwnerJid,
-        opponentJid,
-        status: 'pending',
-        turnJid,
-        battleSnapshot,
-        startedAt: null,
-        expiresAt: nowPlusPvpTtlDate(),
-      },
+      chatJid,
       connection,
-    );
-
-    return { challenge };
+    });
   });
 
-  if (created?.error === 'player_not_found') {
-    return { ok: true, text: 'Um dos jogadores ainda não iniciou no RPG.' };
-  }
-  if (created?.error === 'challenge_exists') {
-    return { ok: true, text: 'Já existe um desafio PvP pendente/ativo para um dos jogadores.' };
-  }
-  if (created?.error === 'active_missing') {
-    return { ok: true, text: 'Ambos os jogadores precisam ter Pokémon ativo para PvP.' };
-  }
-  if (created?.error === 'fainted') {
-    return { ok: true, text: 'Um dos Pokémon ativos está sem HP. Recupere antes do PvP.' };
+  if (created?.error) {
+    return { ok: true, text: resolvePvpChallengeCreateErrorText(created.error) };
   }
 
   const challenge = created?.challenge;
   if (!challenge) {
-    return { ok: true, text: 'Não foi possível criar o desafio PvP agora.' };
+    return { ok: true, text: resolvePvpChallengeCreateErrorText('unknown') };
   }
 
   touchPvpCooldown(canonicalOwnerJid);
   recordRpgPvpChallenge();
+  await trackGroupActivity({
+    chatJid,
+    ownerJid: canonicalOwnerJid,
+    actionsDelta: 0,
+    pvpCreatedDelta: 1,
+  });
   return {
     ok: true,
     text: buildPvpChallengeText({
@@ -3228,10 +4016,11 @@ const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = 
       opponentJid,
       prefix: commandPrefix,
     }),
+    mentions: buildEngagementMentions(canonicalOwnerJid, opponentJid),
   };
 };
 
-const handlePvpStatus = async ({ ownerJid, commandPrefix }) => {
+const handlePvpStatus = async ({ ownerJid, chatJid, commandPrefix }) => {
   const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
   if (!canonicalOwnerJid) {
     return { ok: true, text: 'Não foi possível identificar o seu usuário para PvP.' };
@@ -3239,7 +4028,9 @@ const handlePvpStatus = async ({ ownerJid, commandPrefix }) => {
 
   await withTransaction(async (connection) => {
     await expireOldPvpChallenges(connection);
+    await expirePvpQueue(connection);
   });
+
   const open = await listOpenPvpChallengesByPlayer(canonicalOwnerJid);
   const pending = open
     .filter((entry) => entry.status === 'pending' && entry.opponent_jid === canonicalOwnerJid)
@@ -3249,18 +4040,221 @@ const handlePvpStatus = async ({ ownerJid, commandPrefix }) => {
     }));
   const active = open.find((entry) => entry.status === 'active') || null;
   const activeView = active ? toPvpStatusView({ challenge: active, ownerJid: canonicalOwnerJid }) : null;
+  const queue =
+    isGroupJid(chatJid) ? await listQueuedPvpByChat(chatJid, 10) : [];
+
+  const statusText = buildPvpStatusText({
+    pending,
+    active: activeView,
+    ownerJid: canonicalOwnerJid,
+    prefix: commandPrefix,
+  });
+
+  if (!isGroupJid(chatJid)) {
+    return { ok: true, text: statusText };
+  }
+
   return {
     ok: true,
-    text: buildPvpStatusText({
-      pending,
-      active: activeView,
-      ownerJid: canonicalOwnerJid,
-      prefix: commandPrefix,
-    }),
+    text: `${statusText}\n\n${buildPvpQueueStatusText({ queue, ownerJid: canonicalOwnerJid, prefix: commandPrefix })}`,
   };
 };
 
-const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
+const handlePvpQueue = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] }) => {
+  if (!isGroupJid(chatJid)) {
+    return { ok: true, text: 'Fila PvP só funciona em grupos.' };
+  }
+
+  const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
+  if (!canonicalOwnerJid) return { ok: true, text: 'Não foi possível identificar o seu usuário para PvP.' };
+
+  const queueAction = String(actionArgs?.[1] || 'status').trim().toLowerCase();
+
+  return withTransaction(async (connection) => {
+    await expireOldPvpChallenges(connection);
+    await expirePvpQueue(connection);
+
+    if (queueAction === 'sair' || queueAction === 'leave') {
+      const removed = await cancelQueuedPvpByOwner(chatJid, canonicalOwnerJid, connection);
+      if (!removed) {
+        return { ok: true, text: 'Você não estava na fila PvP deste grupo.' };
+      }
+      recordRpgPvpQueue('leave');
+      return { ok: true, text: '✅ Você saiu da fila PvP.' };
+    }
+
+    if (queueAction === 'status' || queueAction === 'listar') {
+      const queue = await listQueuedPvpByChat(chatJid, 15, connection);
+      return {
+        ok: true,
+        text: buildPvpQueueStatusText({
+          queue,
+          ownerJid: canonicalOwnerJid,
+          prefix: commandPrefix,
+        }),
+      };
+    }
+
+    if (queueAction !== 'entrar' && queueAction !== 'join') {
+      return {
+        ok: true,
+        text: `Use: ${commandPrefix}rpg pvp fila <entrar|sair|status>`,
+      };
+    }
+
+    const player = await getPlayerByJidForUpdate(canonicalOwnerJid, connection);
+    if (!player) return { ok: true, text: buildNeedStartText(commandPrefix) };
+    const activePokemon = await getActivePlayerPokemonForUpdate(canonicalOwnerJid, connection);
+    if (!activePokemon) return { ok: true, text: buildNeedActivePokemonText(commandPrefix) };
+    if (toInt(activePokemon.current_hp, 0) <= 0) return { ok: true, text: buildPokemonFaintedText(commandPrefix) };
+
+    const existingChallenge = await listOpenPvpChallengesByPlayer(canonicalOwnerJid, connection);
+    if ((existingChallenge || []).length) {
+      return { ok: true, text: 'Você já tem um PvP pendente/ativo.' };
+    }
+
+    await enqueuePvpQueue(
+      {
+        chatJid,
+        ownerJid: canonicalOwnerJid,
+        expiresAt: new Date(Date.now() + PVP_QUEUE_TTL_MS),
+      },
+      connection,
+    );
+    recordRpgPvpQueue('join');
+
+    const myQueue = await getQueuedPvpByOwnerForUpdate(chatJid, canonicalOwnerJid, connection);
+    const queue = await listQueuedPvpByChatForUpdate(chatJid, 20, connection);
+    const opponentQueue = queue.find((entry) => entry.owner_jid !== canonicalOwnerJid) || null;
+
+    if (!myQueue || !opponentQueue) {
+      return {
+        ok: true,
+        text: buildPvpQueueStatusText({
+          queue,
+          ownerJid: canonicalOwnerJid,
+          prefix: commandPrefix,
+        }),
+      };
+    }
+
+    const created = await createPvpChallengeBetweenPlayers({
+      challengerJid: canonicalOwnerJid,
+      opponentJid: opponentQueue.owner_jid,
+      chatJid,
+      connection,
+    });
+
+    if (created?.error) {
+      return { ok: true, text: resolvePvpChallengeCreateErrorText(created.error) };
+    }
+
+    const challenge = created?.challenge;
+    if (!challenge) return { ok: true, text: 'Falha ao criar o match da fila PvP.' };
+
+    await markPvpQueueMatchedByIds([myQueue.id, opponentQueue.id], challenge.id, connection);
+    const dayRefDate = getCurrentDayRefDate();
+    await upsertGroupActivityDaily(
+      {
+        dayRefDate,
+        chatJid,
+        ownerJid: canonicalOwnerJid,
+        actionsDelta: 0,
+        pvpCreatedDelta: 1,
+      },
+      connection,
+    );
+    await upsertGroupActivityDaily(
+      {
+        dayRefDate,
+        chatJid,
+        ownerJid: opponentQueue.owner_jid,
+        actionsDelta: 0,
+        pvpCreatedDelta: 1,
+      },
+      connection,
+    );
+    recordRpgPvpQueue('match');
+    recordRpgPvpChallenge();
+    return {
+      ok: true,
+      text: `${buildPvpChallengeText({
+        challengeId: challenge.id,
+        challengerJid: canonicalOwnerJid,
+        opponentJid: opponentQueue.owner_jid,
+        prefix: commandPrefix,
+      })}\n\n🔥 Match encontrado pela fila automaticamente.`,
+      mentions: buildEngagementMentions(canonicalOwnerJid, opponentQueue.owner_jid),
+    };
+  });
+};
+
+const handlePvpRanking = async ({ commandPrefix }) => {
+  const weekRefDate = getCurrentWeekRefDate();
+  const ranking = await listPvpWeeklyRanking(weekRefDate, 10);
+  return {
+    ok: true,
+    text: buildPvpWeeklyRankingText({ weekRefDate, ranking, prefix: commandPrefix }),
+  };
+};
+
+const handlePvpRevanche = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [], mentionedJids = [] }) => {
+  const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
+  if (!canonicalOwnerJid) return { ok: true, text: 'Não foi possível identificar o seu usuário para PvP.' };
+
+  let opponentJid = await resolveOpponentJidFromArgs({
+    actionArgs: actionArgs.slice(1),
+    mentionedJids,
+  });
+
+  if (!opponentJid) {
+    const latest = await getLatestFinishedPvpByPlayer(canonicalOwnerJid);
+    opponentJid = resolvePvpOpponentJid(latest, canonicalOwnerJid);
+  }
+
+  if (!opponentJid) {
+    return { ok: true, text: 'Nenhum oponente recente encontrado para revanche.' };
+  }
+  if (opponentJid === canonicalOwnerJid) {
+    return { ok: true, text: 'Você não pode criar revanche com você mesmo.' };
+  }
+
+  const created = await withTransaction(async (connection) => {
+    await expireOldPvpChallenges(connection);
+    return createPvpChallengeBetweenPlayers({
+      challengerJid: canonicalOwnerJid,
+      opponentJid,
+      chatJid,
+      connection,
+    });
+  });
+  if (created?.error) {
+    return { ok: true, text: resolvePvpChallengeCreateErrorText(created.error) };
+  }
+  if (!created?.challenge) {
+    return { ok: true, text: 'Não foi possível criar a revanche agora.' };
+  }
+
+  recordRpgPvpChallenge();
+  await trackGroupActivity({
+    chatJid,
+    ownerJid: canonicalOwnerJid,
+    actionsDelta: 0,
+    pvpCreatedDelta: 1,
+  });
+  return {
+    ok: true,
+    text: `${buildPvpChallengeText({
+      challengeId: created.challenge.id,
+      challengerJid: canonicalOwnerJid,
+      opponentJid,
+      prefix: commandPrefix,
+    })}\n\n🔁 Revanche criada.`,
+    mentions: buildEngagementMentions(canonicalOwnerJid, opponentJid),
+  };
+};
+
+const handlePvp = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [], mentionedJids = [] }) => {
   const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
   if (!canonicalOwnerJid) {
     return { ok: true, text: 'Não foi possível identificar o seu usuário para PvP.' };
@@ -3271,7 +4265,30 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
     .toLowerCase();
 
   if (sub === 'status' || sub === 'listar') {
-    return handlePvpStatus({ ownerJid: canonicalOwnerJid, commandPrefix });
+    return handlePvpStatus({ ownerJid: canonicalOwnerJid, chatJid, commandPrefix });
+  }
+
+  if (sub === 'fila' || sub === 'queue') {
+    return handlePvpQueue({
+      ownerJid: canonicalOwnerJid,
+      chatJid,
+      commandPrefix,
+      actionArgs,
+    });
+  }
+
+  if (sub === 'ranking' || sub === 'rank') {
+    return handlePvpRanking({ commandPrefix });
+  }
+
+  if (sub === 'revanche' || sub === 'rematch') {
+    return handlePvpRevanche({
+      ownerJid: canonicalOwnerJid,
+      chatJid,
+      commandPrefix,
+      actionArgs,
+      mentionedJids,
+    });
   }
 
   if (sub === 'aceitar' || sub === 'accept') {
@@ -3344,7 +4361,7 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
   }
 
   if (sub === 'fugir' || sub === 'forfeit') {
-    return withTransaction(async (connection) => {
+    const outcome = await withTransaction(async (connection) => {
       await expireOldPvpChallenges(connection);
       const challenge = await getActivePvpChallengeByPlayerForUpdate(canonicalOwnerJid, connection);
       if (!challenge) {
@@ -3361,6 +4378,18 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
         },
         connection,
       );
+      await applyPvpWeeklyOutcome({
+        winnerJid: opponentJid,
+        loserJid: canonicalOwnerJid,
+        connection,
+      });
+      const eventUpdate = await applyGroupWeeklyEventContribution({
+        chatJid: challenge.chat_jid || chatJid,
+        ownerJid: opponentJid,
+        trigger: 'pvp_win',
+        value: 1,
+        connection,
+      });
 
       recordRpgPvpCompleted();
       recordRpgBattleDuration({
@@ -3368,13 +4397,28 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
         outcome: 'forfeit',
         seconds: toDurationSeconds(challenge?.battle_snapshot_json?.startedAt || challenge.started_at),
       });
-      return { ok: true, text: `🏳️ Você desistiu do PvP.\nVencedor: ${opponentJid}` };
+
+      return {
+        ok: true,
+        text: `🏳️ Você desistiu do PvP.\nVencedor: ${opponentJid}${eventUpdate.notices?.length ? `\n${eventUpdate.notices.join('\n')}` : ''}`,
+        winnerJid: opponentJid,
+      };
     });
+
+    if (outcome?.winnerJid) {
+      await trackGroupActivity({
+        chatJid,
+        ownerJid: outcome.winnerJid,
+        actionsDelta: 0,
+        pvpCompletedDelta: 1,
+      });
+    }
+    return outcome;
   }
 
   if (sub === 'atacar' || sub === 'attack') {
     const moveSlot = actionArgs?.[1];
-    return withTransaction(async (connection) => {
+    const output = await withTransaction(async (connection) => {
       await expireOldPvpChallenges(connection);
       const challenge = await getActivePvpChallengeByPlayerForUpdate(canonicalOwnerJid, connection);
       if (!challenge) {
@@ -3476,13 +4520,25 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
       }
 
       let winnerJid = null;
+      const notices = [];
       if (toInt(attack.defender.currentHp, 0) <= 0) {
         winnerJid = canonicalOwnerJid;
 
+        const socialBefore = await getSocialLinkByUsers(canonicalOwnerJid, opponentJid, connection);
+        const rivalryBonus = resolveRivalryBonus(toInt(socialBefore?.rivalry_score, 0) + 2);
+        const karmaBonus = await applyKarmaBonus({
+          ownerJid: canonicalOwnerJid,
+          gold: PVP_WIN_GOLD,
+          xp: PVP_WIN_PLAYER_XP,
+          connection,
+        });
+
         const winnerPlayer = await getPlayerByJidForUpdate(canonicalOwnerJid, connection);
         if (winnerPlayer) {
-          const nextXp = Math.max(0, toInt(winnerPlayer.xp, 0) + PVP_WIN_PLAYER_XP);
-          const nextGold = Math.max(0, toInt(winnerPlayer.gold, 0) + PVP_WIN_GOLD);
+          const totalXpReward = PVP_WIN_PLAYER_XP + rivalryBonus.bonusXp + karmaBonus.bonusXp;
+          const totalGoldReward = PVP_WIN_GOLD + rivalryBonus.bonusGold + karmaBonus.bonusGold;
+          const nextXp = Math.max(0, toInt(winnerPlayer.xp, 0) + totalXpReward);
+          const nextGold = Math.max(0, toInt(winnerPlayer.gold, 0) + totalGoldReward);
           const nextLevel = calculatePlayerLevelFromXp(nextXp);
           await updatePlayerProgress(
             {
@@ -3493,6 +4549,12 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
             },
             connection,
           );
+          if (rivalryBonus.bonusXp > 0 || rivalryBonus.bonusGold > 0) {
+            notices.push(`🔥 Bônus de rivalidade: +${rivalryBonus.bonusXp} XP e +${rivalryBonus.bonusGold} gold.`);
+          }
+          if (karmaBonus.bonusXp > 0 || karmaBonus.bonusGold > 0) {
+            notices.push(`🌟 Bônus de karma: +${karmaBonus.bonusXp} XP e +${karmaBonus.bonusGold} gold.`);
+          }
         }
 
         const winnerPokemon = await getPlayerPokemonByIdForUpdate(canonicalOwnerJid, toInt(me.pokemonId, 0), connection);
@@ -3526,6 +4588,20 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
           connection,
         );
 
+        await applyPvpWeeklyOutcome({
+          winnerJid: canonicalOwnerJid,
+          loserJid: opponentJid,
+          connection,
+        });
+        const eventUpdate = await applyGroupWeeklyEventContribution({
+          chatJid: challenge.chat_jid || chatJid,
+          ownerJid: canonicalOwnerJid,
+          trigger: 'pvp_win',
+          value: 1,
+          connection,
+        });
+        if (eventUpdate.notices?.length) notices.push(...eventUpdate.notices);
+
         recordRpgPvpCompleted();
         recordRpgBattleDuration({
           mode: 'pvp',
@@ -3548,7 +4624,7 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
       return {
         ok: true,
         text: buildPvpTurnText({
-          logs: [...attack.logs, `💥 Dano: ${attack.damage}`],
+          logs: [...attack.logs, `💥 Dano: ${attack.damage}`, ...(notices || [])],
           myHp: toInt(attack.attacker.currentHp, 0),
           myMaxHp: Math.max(1, toInt(attack.attacker.maxHp, 1)),
           enemyHp: Math.max(0, toInt(attack.defender.currentHp, 0)),
@@ -3556,13 +4632,577 @@ const handlePvp = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
           winnerJid,
           prefix: commandPrefix,
         }),
+        winnerJid,
+        loserJid: winnerJid ? opponentJid : null,
+        mentions: winnerJid ? buildEngagementMentions(winnerJid, opponentJid) : [],
       };
+    });
+
+    if (output?.winnerJid && output?.loserJid) {
+      await trackGroupActivity({
+        chatJid,
+        ownerJid: output.winnerJid,
+        actionsDelta: 0,
+        pvpCompletedDelta: 1,
+      });
+    }
+    return output;
+  }
+
+  return {
+    ok: true,
+    text: `Use: ${commandPrefix}rpg pvp <status|fila|ranking|revanche|aceitar|recusar|atacar|fugir>`,
+  };
+};
+
+const validateTradeAssetForOwner = async ({ ownerJid, asset, connection }) => {
+  if (!asset || typeof asset !== 'object') {
+    return { ok: false, reason: 'asset_invalid' };
+  }
+
+  if (asset.type === 'item') {
+    const inventory = await getInventoryItemForUpdate(ownerJid, asset.itemKey, connection);
+    if (!inventory || toInt(inventory.quantity, 0) < Math.max(1, toInt(asset.quantity, 1))) {
+      return { ok: false, reason: 'item_missing' };
+    }
+    return { ok: true };
+  }
+
+  if (asset.type === 'pokemon') {
+    const pokemon = await getPlayerPokemonByIdForUpdate(ownerJid, asset.pokemonId, connection);
+    if (!pokemon) return { ok: false, reason: 'pokemon_missing' };
+    if (pokemon.is_active) return { ok: false, reason: 'pokemon_active' };
+    const total = await countPlayerPokemons(ownerJid, connection);
+    if (total <= 1) return { ok: false, reason: 'pokemon_last' };
+    return { ok: true };
+  }
+
+  return { ok: false, reason: 'asset_invalid' };
+};
+
+const transferTradeAsset = async ({ fromJid, toJid, asset, connection }) => {
+  if (asset.type === 'item') {
+    const consumed = await consumeInventoryItem(
+      {
+        ownerJid: fromJid,
+        itemKey: asset.itemKey,
+        quantity: Math.max(1, toInt(asset.quantity, 1)),
+      },
+      connection,
+    );
+    if (!consumed) return false;
+    await addInventoryItem(
+      {
+        ownerJid: toJid,
+        itemKey: asset.itemKey,
+        quantity: Math.max(1, toInt(asset.quantity, 1)),
+      },
+      connection,
+    );
+    return true;
+  }
+
+  if (asset.type === 'pokemon') {
+    const moved = await transferPlayerPokemon(
+      {
+        pokemonId: asset.pokemonId,
+        fromOwnerJid: fromJid,
+        toOwnerJid: toJid,
+      },
+      connection,
+    );
+    if (!moved) return false;
+    const receiverActive = await getActivePlayerPokemonForUpdate(toJid, connection);
+    if (!receiverActive) {
+      await setActivePokemon(toJid, asset.pokemonId, connection);
+    }
+    const senderActive = await getActivePlayerPokemonForUpdate(fromJid, connection);
+    if (!senderActive) {
+      const first = await getFirstPlayerPokemon(fromJid, connection);
+      if (first) await setActivePokemon(fromJid, first.id, connection);
+    }
+    return true;
+  }
+
+  return false;
+};
+
+const handleTrade = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [], mentionedJids = [] }) => {
+  const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
+  if (!canonicalOwnerJid) return { ok: true, text: 'Não foi possível identificar o jogador.' };
+
+  const sub = String(actionArgs?.[0] || 'status').trim().toLowerCase();
+
+  if (sub === 'status' || sub === 'listar') {
+    const offers = await listOpenTradeOffersByUser(canonicalOwnerJid);
+    if (!offers.length) {
+      return {
+        ok: true,
+        text: `📦 Nenhuma troca pendente.\nUse: ${commandPrefix}rpg trade propor <jid/@numero> item:potion:2 item:pokeball:3`,
+      };
+    }
+
+    const lines = ['📦 *Trocas pendentes*'];
+    offers.slice(0, 12).forEach((offer) => {
+      lines.push(
+        `#${offer.id} ${offer.proposer_jid} -> ${offer.receiver_jid} | ${formatTradeAsset(offer.proposer_offer_json)} ↔ ${formatTradeAsset(offer.receiver_offer_json)}`,
+      );
+    });
+    lines.push(`Aceitar: ${commandPrefix}rpg trade aceitar <id>`);
+    lines.push(`Recusar: ${commandPrefix}rpg trade recusar <id>`);
+    return { ok: true, text: lines.join('\n') };
+  }
+
+  if (sub === 'propor' || sub === 'oferecer' || sub === 'create') {
+    let cursor = 1;
+    const mentionToken = Array.isArray(mentionedJids) ? mentionedJids.find(Boolean) || null : null;
+    const rawTarget = mentionToken || actionArgs?.[cursor];
+    if (!mentionToken) cursor += 1;
+    else if (String(actionArgs?.[cursor] || '').startsWith('@')) cursor += 1;
+
+    const offeredToken = actionArgs?.[cursor];
+    const requestedToken = actionArgs?.[cursor + 1];
+
+    if (!rawTarget || !offeredToken || !requestedToken) {
+      return {
+        ok: true,
+        text: `Use: ${commandPrefix}rpg trade propor <jid/@numero> <item:chave:qtd|pokemon:id> <item:chave:qtd|pokemon:id>`,
+      };
+    }
+
+    const receiverJid = await resolveMentionOrArgJid({
+      token: rawTarget,
+      mentionedJids,
+    });
+    if (!receiverJid) {
+      return { ok: true, text: 'Não foi possível resolver o usuário alvo da troca.' };
+    }
+    if (receiverJid === canonicalOwnerJid) {
+      return { ok: true, text: 'Você não pode criar troca com você mesmo.' };
+    }
+
+    const proposerOffer = normalizeTradeAssetToken(offeredToken);
+    const receiverOffer = normalizeTradeAssetToken(requestedToken);
+    if (!proposerOffer || !receiverOffer) {
+      return {
+        ok: true,
+        text: 'Formato inválido de ativo. Use item:chave:qtd ou pokemon:id.',
+      };
+    }
+
+    const created = await withTransaction(async (connection) => {
+      await expireOldTradeOffers(connection);
+      const proposerPlayer = await getPlayerByJidForUpdate(canonicalOwnerJid, connection);
+      const receiverPlayer = await getPlayerByJidForUpdate(receiverJid, connection);
+      if (!proposerPlayer || !receiverPlayer) return { error: 'player_not_found' };
+
+      const proposerValid = await validateTradeAssetForOwner({
+        ownerJid: canonicalOwnerJid,
+        asset: proposerOffer,
+        connection,
+      });
+      if (!proposerValid.ok) return { error: `proposer_${proposerValid.reason}` };
+
+      const receiverValid = await validateTradeAssetForOwner({
+        ownerJid: receiverJid,
+        asset: receiverOffer,
+        connection,
+      });
+      if (!receiverValid.ok) return { error: `receiver_${receiverValid.reason}` };
+
+      const offer = await createTradeOffer(
+        {
+          chatJid,
+          proposerJid: canonicalOwnerJid,
+          receiverJid,
+          proposerOffer,
+          receiverOffer,
+          expiresAt: new Date(Date.now() + TRADE_TTL_MS),
+        },
+        connection,
+      );
+      return { offer };
+    });
+
+    if (created?.error === 'player_not_found') {
+      return { ok: true, text: 'Ambos jogadores precisam ter conta no RPG.' };
+    }
+    if (created?.error?.includes('item_missing') || created?.error?.includes('pokemon_missing')) {
+      return { ok: true, text: 'Um dos ativos da troca não está mais disponível.' };
+    }
+    if (created?.error?.includes('pokemon_active')) {
+      return { ok: true, text: 'Não é permitido negociar Pokémon ativo.' };
+    }
+    if (created?.error?.includes('pokemon_last')) {
+      return { ok: true, text: 'Não é permitido negociar seu último Pokémon.' };
+    }
+
+    const offer = created?.offer;
+    if (!offer) return { ok: true, text: 'Não foi possível criar a troca agora.' };
+
+    recordRpgTrade('created');
+    return {
+      ok: true,
+      text: `📨 Troca #${offer.id} criada.\nVocê oferece: ${formatTradeAsset(proposerOffer)}\nVocê quer: ${formatTradeAsset(receiverOffer)}\n${receiverJid}, aceite com: ${commandPrefix}rpg trade aceitar ${offer.id}`,
+      mentions: buildEngagementMentions(receiverJid),
+    };
+  }
+
+  if (sub === 'aceitar' || sub === 'accept') {
+    const tradeId = toInt(actionArgs?.[1], NaN);
+    if (!Number.isFinite(tradeId) || tradeId <= 0) {
+      return { ok: true, text: `Use: ${commandPrefix}rpg trade aceitar <id>` };
+    }
+
+    const settled = await withTransaction(async (connection) => {
+      await expireOldTradeOffers(connection);
+      const offer = await getTradeOfferByIdForUpdate(tradeId, connection);
+      if (!offer || offer.status !== 'pending') return { error: 'not_pending' };
+      if (offer.receiver_jid !== canonicalOwnerJid) return { error: 'not_receiver' };
+      if (isDateExpired(offer.expires_at)) {
+        await updateTradeOfferState({ id: offer.id, status: 'expired' }, connection);
+        return { error: 'expired' };
+      }
+
+      const proposerValid = await validateTradeAssetForOwner({
+        ownerJid: offer.proposer_jid,
+        asset: offer.proposer_offer_json,
+        connection,
+      });
+      const receiverValid = await validateTradeAssetForOwner({
+        ownerJid: offer.receiver_jid,
+        asset: offer.receiver_offer_json,
+        connection,
+      });
+      if (!proposerValid.ok || !receiverValid.ok) return { error: 'asset_unavailable' };
+
+      const movedA = await transferTradeAsset({
+        fromJid: offer.proposer_jid,
+        toJid: offer.receiver_jid,
+        asset: offer.proposer_offer_json,
+        connection,
+      });
+      const movedB = await transferTradeAsset({
+        fromJid: offer.receiver_jid,
+        toJid: offer.proposer_jid,
+        asset: offer.receiver_offer_json,
+        connection,
+      });
+      if (!movedA || !movedB) return { error: 'transfer_failed' };
+
+      await updateTradeOfferState(
+        {
+          id: offer.id,
+          status: 'accepted',
+          acceptedAt: new Date(),
+        },
+        connection,
+      );
+      await upsertSocialLinkDelta(
+        {
+          jidA: offer.proposer_jid,
+          jidB: offer.receiver_jid,
+          friendshipDelta: 3,
+          rivalryDelta: 0,
+          interactionsDelta: 1,
+        },
+        connection,
+      );
+      const link = await getSocialLinkByUsers(offer.proposer_jid, offer.receiver_jid, connection);
+      return { offer, link };
+    });
+
+    if (settled?.error === 'not_pending') return { ok: true, text: 'Troca não encontrada ou já encerrada.' };
+    if (settled?.error === 'not_receiver') return { ok: true, text: 'Apenas o destinatário pode aceitar esta troca.' };
+    if (settled?.error === 'expired') return { ok: true, text: 'Essa troca expirou.' };
+    if (settled?.error === 'asset_unavailable') return { ok: true, text: 'Ativos indisponíveis. A troca foi invalidada.' };
+    if (settled?.error === 'transfer_failed') return { ok: true, text: 'Falha de transferência. Tente novamente.' };
+
+    if (!settled?.offer) return { ok: true, text: 'Falha ao concluir a troca.' };
+    recordRpgTrade('accepted');
+
+    return {
+      ok: true,
+      text: `✅ Troca #${settled.offer.id} concluída!\n${settled.offer.proposer_jid} recebeu ${formatTradeAsset(settled.offer.receiver_offer_json)}\n${settled.offer.receiver_jid} recebeu ${formatTradeAsset(settled.offer.proposer_offer_json)}\n🤝 Amizade atual: ${toInt(settled.link?.friendship_score, 0)}`,
+      mentions: buildEngagementMentions(settled.offer.proposer_jid, settled.offer.receiver_jid),
+    };
+  }
+
+  if (sub === 'recusar' || sub === 'reject') {
+    const tradeId = toInt(actionArgs?.[1], NaN);
+    if (!Number.isFinite(tradeId) || tradeId <= 0) return { ok: true, text: `Use: ${commandPrefix}rpg trade recusar <id>` };
+
+    return withTransaction(async (connection) => {
+      const offer = await getTradeOfferByIdForUpdate(tradeId, connection);
+      if (!offer || offer.status !== 'pending') return { ok: true, text: 'Troca não encontrada ou inválida.' };
+      if (offer.receiver_jid !== canonicalOwnerJid) return { ok: true, text: 'Apenas o destinatário pode recusar.' };
+      await updateTradeOfferState({ id: offer.id, status: 'rejected' }, connection);
+      recordRpgTrade('rejected');
+      return { ok: true, text: '❌ Troca recusada.' };
+    });
+  }
+
+  if (sub === 'cancelar' || sub === 'cancel') {
+    const tradeId = toInt(actionArgs?.[1], NaN);
+    if (!Number.isFinite(tradeId) || tradeId <= 0) return { ok: true, text: `Use: ${commandPrefix}rpg trade cancelar <id>` };
+
+    return withTransaction(async (connection) => {
+      const offer = await getTradeOfferByIdForUpdate(tradeId, connection);
+      if (!offer || offer.status !== 'pending') return { ok: true, text: 'Troca não encontrada ou inválida.' };
+      if (offer.proposer_jid !== canonicalOwnerJid) return { ok: true, text: 'Apenas o criador pode cancelar.' };
+      await updateTradeOfferState({ id: offer.id, status: 'cancelled' }, connection);
+      recordRpgTrade('cancelled');
+      return { ok: true, text: '🛑 Troca cancelada.' };
     });
   }
 
   return {
     ok: true,
-    text: `Use: ${commandPrefix}rpg pvp <status|aceitar|recusar|atacar|fugir>`,
+    text: `Use: ${commandPrefix}rpg trade <status|propor|aceitar|recusar|cancelar>`,
+  };
+};
+
+const handleCoop = async ({ ownerJid, chatJid }) => {
+  if (!isGroupJid(chatJid)) {
+    return { ok: true, text: 'Missão cooperativa é exclusiva para grupos.' };
+  }
+
+  const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
+  if (!canonicalOwnerJid) return { ok: true, text: 'Não foi possível identificar o jogador.' };
+
+  const data = await withTransaction(async (connection) => {
+    const { weekRefDate } = await ensureGroupCoopStateForUpdate({ chatJid, connection });
+    const coop = await getGroupCoopWeekly(chatJid, weekRefDate, connection);
+    const members = await listGroupCoopMembers(chatJid, weekRefDate, connection);
+    return { weekRefDate, coop, members };
+  });
+
+  if (!data?.coop) return { ok: true, text: 'Missão cooperativa indisponível no momento.' };
+
+  const lines = [
+    '🤝 *Missão Cooperativa Semanal*',
+    `Semana: ${data.weekRefDate}`,
+    `Capturas: ${data.coop.capture_progress}/${data.coop.capture_target}`,
+    `Raids: ${data.coop.raid_progress}/${data.coop.raid_target}`,
+    `Status: ${data.coop.status}`,
+    `Recompensa: +${COOP_REWARD_GOLD} gold | +${COOP_REWARD_XP} XP | +${COOP_REWARD_ITEM_QTY} ${COOP_REWARD_ITEM_KEY}`,
+  ];
+
+  if (data.members.length) {
+    lines.push('', 'Top contribuições:');
+    data.members.slice(0, 8).forEach((entry, idx) => {
+      lines.push(
+        `${idx + 1}. ${entry.owner_jid} — capturas ${entry.capture_contribution}, raids ${entry.raid_contribution}`,
+      );
+    });
+  }
+
+  lines.push('', `💡 Progresso coop é atualizado ao capturar em grupo e concluir raids.`);
+  return { ok: true, text: lines.join('\n') };
+};
+
+const handleWeeklyEvent = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] }) => {
+  if (!isGroupJid(chatJid)) return { ok: true, text: 'Evento semanal é exclusivo para grupos.' };
+
+  const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
+  if (!canonicalOwnerJid) return { ok: true, text: 'Não foi possível identificar o jogador.' };
+
+  const sub = String(actionArgs?.[0] || 'status').trim().toLowerCase();
+
+  if (sub === 'claim' || sub === 'resgatar') {
+    return withTransaction(async (connection) => {
+      return claimWeeklyEventReward({
+        ownerJid: canonicalOwnerJid,
+        chatJid,
+        connection,
+      });
+    });
+  }
+
+  const data = await withTransaction(async (connection) => {
+    const { weekRefDate, event, definition } = await ensureWeeklyEventForUpdate({ chatJid, connection });
+    const ranking = await listGroupEventMembers(chatJid, weekRefDate, 10, connection);
+    return { weekRefDate, event, definition, ranking };
+  });
+
+  if (!data?.event || !data?.definition) {
+    return { ok: true, text: 'Evento semanal indisponível no momento.' };
+  }
+
+  const lines = [
+    '🎯 *Evento Semanal do Grupo*',
+    `Semana: ${data.weekRefDate}`,
+    `Evento: ${data.definition.label}`,
+    `Progresso: ${data.event.progress_value}/${data.event.target_value}`,
+    `Status: ${data.event.status}`,
+    `Recompensa por participação: +${data.definition.rewardGold} gold e +${data.definition.rewardXp} XP`,
+  ];
+  if (data.ranking.length) {
+    lines.push('', 'Ranking de contribuição:');
+    data.ranking.forEach((entry, idx) => {
+      lines.push(`${idx + 1}. ${entry.owner_jid} — ${entry.contribution}`);
+    });
+  }
+  lines.push('', `Resgate: ${commandPrefix}rpg evento claim`);
+  return { ok: true, text: lines.join('\n') };
+};
+
+const handleSocial = async ({ ownerJid, commandPrefix, actionArgs = [], mentionedJids = [] }) => {
+  const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
+  if (!canonicalOwnerJid) return { ok: true, text: 'Não foi possível identificar o jogador.' };
+
+  const mode = String(actionArgs?.[0] || 'status').trim().toLowerCase();
+  const targetToken = actionArgs?.[1] || null;
+  const targetJid = await resolveMentionOrArgJid({ token: targetToken, mentionedJids });
+
+  if (mode === 'status' && targetJid && targetJid !== canonicalOwnerJid) {
+    const link = await getSocialLinkByUsers(canonicalOwnerJid, targetJid);
+    if (!link) {
+      return { ok: true, text: `Ainda não há histórico social entre ${canonicalOwnerJid} e ${targetJid}.` };
+    }
+    const rivalryBonus = resolveRivalryBonus(link.rivalry_score);
+    return {
+      ok: true,
+      text: `🤝 Link social com ${targetJid}\nAmizade: ${link.friendship_score}\nRivalidade: ${link.rivalry_score}\nInterações: ${link.interactions_count}\nPerk rivalidade atual: +${rivalryBonus.bonusXp} XP / +${rivalryBonus.bonusGold} gold em vitória PvP`,
+      mentions: buildEngagementMentions(targetJid),
+    };
+  }
+
+  const topFriends = await listSocialLinksByOwner(canonicalOwnerJid, 'friendship', 5);
+  const topRivals = await listSocialLinksByOwner(canonicalOwnerJid, 'rivalry', 5);
+  const lines = ['🧬 *Painel Social*'];
+
+  lines.push('Top amizades:');
+  if (!topFriends.length) lines.push('Sem vínculos ainda.');
+  topFriends.forEach((entry, idx) => {
+    const other = entry.user_a_jid === canonicalOwnerJid ? entry.user_b_jid : entry.user_a_jid;
+    lines.push(`${idx + 1}. ${other} — amizade ${entry.friendship_score}`);
+  });
+
+  lines.push('', 'Top rivalidades:');
+  if (!topRivals.length) lines.push('Sem rivalidades ainda.');
+  topRivals.forEach((entry, idx) => {
+    const other = entry.user_a_jid === canonicalOwnerJid ? entry.user_b_jid : entry.user_a_jid;
+    lines.push(`${idx + 1}. ${other} — rivalidade ${entry.rivalry_score}`);
+  });
+
+  lines.push('', `Consultar vínculo direto: ${commandPrefix}rpg social status @usuario`);
+  return { ok: true, text: lines.join('\n') };
+};
+
+const handleKarma = async ({ ownerJid, commandPrefix, actionArgs = [], mentionedJids = [] }) => {
+  const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
+  if (!canonicalOwnerJid) return { ok: true, text: 'Não foi possível identificar o jogador.' };
+
+  const sub = String(actionArgs?.[0] || 'status').trim().toLowerCase();
+
+  if (sub === 'top') {
+    const top = await listTopKarmaProfiles(10);
+    const lines = ['🌟 *Top Karma*'];
+    if (!top.length) {
+      lines.push('Sem votos registrados.');
+    } else {
+      top.forEach((entry, idx) => {
+        lines.push(`${idx + 1}. ${entry.owner_jid} — karma ${entry.karma_score}`);
+      });
+    }
+    return { ok: true, text: lines.join('\n') };
+  }
+
+  if (sub === '+' || sub === 'up' || sub === '-' || sub === 'down') {
+    const voteValue = sub === '+' || sub === 'up' ? 1 : -1;
+    const targetToken = actionArgs?.[1] || null;
+    const targetJid = await resolveMentionOrArgJid({ token: targetToken, mentionedJids });
+    if (!targetJid) return { ok: true, text: `Use: ${commandPrefix}rpg karma <+|-> <jid/@numero>` };
+    if (targetJid === canonicalOwnerJid) return { ok: true, text: 'Você não pode votar em si mesmo.' };
+
+    const result = await withTransaction(async (connection) => {
+      const weekRefDate = getCurrentWeekRefDate();
+      const voter = await getPlayerByJidForUpdate(canonicalOwnerJid, connection);
+      const target = await getPlayerByJidForUpdate(targetJid, connection);
+      if (!voter || !target) return { error: 'player_not_found' };
+
+      const existing = await getKarmaVoteByWeekForUpdate(weekRefDate, canonicalOwnerJid, targetJid, connection);
+      if (existing) return { error: 'already_voted' };
+
+      const created = await createKarmaVote(
+        {
+          weekRefDate,
+          voterJid: canonicalOwnerJid,
+          targetJid,
+          voteValue,
+        },
+        connection,
+      );
+      if (!created) return { error: 'vote_failed' };
+
+      await applyKarmaDelta(
+        {
+          ownerJid: targetJid,
+          karmaDelta: voteValue,
+          positiveDelta: voteValue > 0 ? 1 : 0,
+          negativeDelta: voteValue < 0 ? 1 : 0,
+        },
+        connection,
+      );
+      const profile = await getKarmaProfile(targetJid, connection);
+      return { profile };
+    });
+
+    if (result?.error === 'player_not_found') return { ok: true, text: 'Ambos jogadores precisam ter conta no RPG.' };
+    if (result?.error === 'already_voted') return { ok: true, text: 'Você já votou nesse jogador nesta semana.' };
+    if (result?.error) return { ok: true, text: 'Não foi possível registrar o voto agora.' };
+
+    recordRpgKarmaVote(voteValue > 0 ? 'up' : 'down');
+    return {
+      ok: true,
+      text: `${voteValue > 0 ? '👍' : '👎'} Karma atualizado para ${targetJid}. Saldo atual: ${toInt(result?.profile?.karma_score, 0)}.`,
+      mentions: buildEngagementMentions(targetJid),
+    };
+  }
+
+  const targetToken = actionArgs?.[1] || null;
+  const targetJid = (await resolveMentionOrArgJid({ token: targetToken, mentionedJids })) || canonicalOwnerJid;
+  const profile = await getKarmaProfile(targetJid);
+  return {
+    ok: true,
+    text: `🌟 Karma de ${targetJid}\nSaldo: ${toInt(profile?.karma_score, 0)}\n👍 ${toInt(profile?.positive_votes, 0)} | 👎 ${toInt(profile?.negative_votes, 0)}\nVote: ${commandPrefix}rpg karma + @usuario | ${commandPrefix}rpg karma - @usuario`,
+    mentions: buildEngagementMentions(targetJid),
+  };
+};
+
+const handleEngagement = async ({ ownerJid, chatJid }) => {
+  if (!isGroupJid(chatJid)) return { ok: true, text: 'Engajamento só pode ser consultado em grupos.' };
+
+  const canonicalOwnerJid = await resolveCanonicalUserJid(ownerJid);
+  if (!canonicalOwnerJid) return { ok: true, text: 'Não foi possível identificar o jogador.' };
+
+  const today = getDateOnlyOffset(0);
+  const yesterday = getDateOnlyOffset(-1);
+
+  const [activeToday, activeYesterday, retained, summaryToday] = await Promise.all([
+    getGroupActiveUsersByDay(chatJid, today),
+    getGroupActiveUsersByDay(chatJid, yesterday),
+    getGroupRetentionByDays(chatJid, today, yesterday),
+    getGroupActivitySummaryByDay(chatJid, today),
+  ]);
+
+  const retentionRate = activeYesterday > 0 ? retained / activeYesterday : 0;
+  recordRpgGroupRetentionRatio(retentionRate);
+  const retentionPct = Math.round(retentionRate * 100);
+
+  return {
+    ok: true,
+    text: [
+      '📊 *Engajamento do Grupo (Hoje)*',
+      `Ativos hoje: ${activeToday}`,
+      `Ativos ontem: ${activeYesterday}`,
+      `Retidos (ontem->hoje): ${retained} (${retentionPct}%)`,
+      `Ações totais hoje: ${summaryToday.actionsTotal}`,
+      `PvP criados hoje: ${summaryToday.pvpCreatedTotal}`,
+      `PvP concluídos hoje: ${summaryToday.pvpCompletedTotal}`,
+      `Coops concluídas hoje: ${summaryToday.coopCompletedTotal}`,
+    ].join('\n'),
   };
 };
 
@@ -3571,6 +5211,7 @@ export const executeRpgPokemonAction = async ({
   chatJid,
   action,
   actionArgs = [],
+  mentionedJids = [],
   commandPrefix = '/',
 }) => {
   try {
@@ -3579,6 +5220,11 @@ export const executeRpgPokemonAction = async ({
     if (shouldApplyCooldown(normalizedAction)) {
       const cooldownLeft = getCooldownSecondsLeft(ownerJid);
       if (cooldownLeft > 0) {
+        await trackGroupActivity({
+          chatJid,
+          ownerJid,
+          actionsDelta: 1,
+        });
         markSessionSample(ownerJid);
         recordRpgAction({
           action: normalizedAction,
@@ -3668,11 +5314,11 @@ export const executeRpgPokemonAction = async ({
         break;
 
       case 'desafiar':
-        result = await handleChallenge({ ownerJid, chatJid, commandPrefix, actionArgs });
+        result = await handleChallenge({ ownerJid, chatJid, commandPrefix, actionArgs, mentionedJids });
         break;
 
       case 'pvp':
-        result = await handlePvp({ ownerJid, commandPrefix, actionArgs });
+        result = await handlePvp({ ownerJid, chatJid, commandPrefix, actionArgs, mentionedJids });
         break;
 
       case 'missoes':
@@ -3705,6 +5351,58 @@ export const executeRpgPokemonAction = async ({
         });
         break;
 
+      case 'trade':
+        result = await handleTrade({
+          ownerJid,
+          chatJid,
+          commandPrefix,
+          actionArgs,
+          mentionedJids,
+        });
+        break;
+
+      case 'coop':
+        result = await handleCoop({
+          ownerJid,
+          chatJid,
+          commandPrefix,
+        });
+        break;
+
+      case 'evento':
+        result = await handleWeeklyEvent({
+          ownerJid,
+          chatJid,
+          commandPrefix,
+          actionArgs,
+        });
+        break;
+
+      case 'social':
+        result = await handleSocial({
+          ownerJid,
+          commandPrefix,
+          actionArgs,
+          mentionedJids,
+        });
+        break;
+
+      case 'karma':
+        result = await handleKarma({
+          ownerJid,
+          commandPrefix,
+          actionArgs,
+          mentionedJids,
+        });
+        break;
+
+      case 'engajamento':
+        result = await handleEngagement({
+          ownerJid,
+          chatJid,
+        });
+        break;
+
       default:
         result = {
           ok: true,
@@ -3716,6 +5414,12 @@ export const executeRpgPokemonAction = async ({
     if (result?.ok && shouldApplyCooldown(normalizedAction) && normalizedAction !== 'perfil' && normalizedAction !== 'time' && normalizedAction !== 'loja') {
       touchCooldown(ownerJid);
     }
+
+    await trackGroupActivity({
+      chatJid,
+      ownerJid,
+      actionsDelta: 1,
+    });
 
     markSessionSample(ownerJid);
     recordRpgAction({

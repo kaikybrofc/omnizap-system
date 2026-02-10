@@ -6,6 +6,10 @@ const BASE_URL = 'https://pokeapi.co/api/v2';
 const MIN_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const CACHE_TTL_MS = Math.max(MIN_CACHE_TTL_MS, Number(process.env.POKEAPI_CACHE_TTL_MS) || MIN_CACHE_TTL_MS);
 const REQUEST_TIMEOUT_MS = Math.max(3_000, Number(process.env.POKEAPI_TIMEOUT_MS) || 10_000);
+const DEFAULT_LORE_LANGUAGES = String(process.env.POKEAPI_LORE_LANGS || 'pt-br,pt,en')
+  .split(',')
+  .map((entry) => String(entry || '').trim().toLowerCase())
+  .filter(Boolean);
 
 const sharedCache = globalThis.__omnizapPokeApiCache instanceof Map ? globalThis.__omnizapPokeApiCache : new Map();
 const sharedInflight = globalThis.__omnizapPokeApiInflight instanceof Map ? globalThis.__omnizapPokeApiInflight : new Map();
@@ -25,6 +29,74 @@ const normalizeKeyPart = (value) => {
 
   return raw.toLowerCase();
 };
+
+const normalizeApiText = (value) => {
+  return String(value || '')
+    .replace(/[\n\r\f\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const resolveEntryLang = (entry) => String(entry?.language?.name || '').trim().toLowerCase();
+
+const pickEntryByLangPriority = (entries = [], languages = DEFAULT_LORE_LANGUAGES) => {
+  const list = Array.isArray(entries) ? entries : [];
+  const langPriority = (Array.isArray(languages) ? languages : DEFAULT_LORE_LANGUAGES)
+    .map((entry) => String(entry || '').trim().toLowerCase())
+    .filter(Boolean);
+  if (!list.length) return null;
+  if (!langPriority.length) return list[0] || null;
+
+  for (const lang of langPriority) {
+    const found = list.find((entry) => resolveEntryLang(entry) === lang);
+    if (found) return found;
+  }
+
+  const english = list.find((entry) => resolveEntryLang(entry) === 'en');
+  if (english) return english;
+  return list[0] || null;
+};
+
+export const getLocalizedName = (names = [], fallback = null, languages = DEFAULT_LORE_LANGUAGES) => {
+  const entry = pickEntryByLangPriority(names, languages);
+  const value = normalizeApiText(entry?.name || '');
+  return value || normalizeApiText(fallback || '') || null;
+};
+
+export const getLocalizedGenus = (genera = [], fallback = null, languages = DEFAULT_LORE_LANGUAGES) => {
+  const entry = pickEntryByLangPriority(genera, languages);
+  const value = normalizeApiText(entry?.genus || '');
+  return value || normalizeApiText(fallback || '') || null;
+};
+
+export const getFlavorText = (flavorTextEntries = [], options = {}) => {
+  const entries = Array.isArray(flavorTextEntries) ? flavorTextEntries : [];
+  if (!entries.length) return null;
+
+  const languages = Array.isArray(options?.languages) ? options.languages : DEFAULT_LORE_LANGUAGES;
+  const preferredVersion = String(options?.version || '').trim().toLowerCase();
+  const filtered = preferredVersion
+    ? entries.filter((entry) => String(entry?.version?.name || '').trim().toLowerCase() === preferredVersion)
+    : entries;
+
+  const entry = pickEntryByLangPriority(filtered.length ? filtered : entries, languages);
+  const value = normalizeApiText(entry?.flavor_text || entry?.text || '');
+  return value || null;
+};
+
+export const getEffectText = (effectEntries = [], options = {}) => {
+  const entries = Array.isArray(effectEntries) ? effectEntries : [];
+  if (!entries.length) return null;
+  const languages = Array.isArray(options?.languages) ? options.languages : DEFAULT_LORE_LANGUAGES;
+  const entry = pickEntryByLangPriority(entries, languages);
+  const shortFirst = options?.preferLong ? false : true;
+  const primary = shortFirst ? entry?.short_effect : entry?.effect;
+  const fallback = shortFirst ? entry?.effect : entry?.short_effect;
+  const value = normalizeApiText(primary || fallback || '');
+  return value || null;
+};
+
+export const getDefaultLoreLanguages = () => [...DEFAULT_LORE_LANGUAGES];
 
 const cleanupExpiredEntry = (key, now) => {
   const entry = sharedCache.get(key);
@@ -191,6 +263,12 @@ export default {
   getNature,
   getAbility,
   getCharacteristic,
+  getLocalizedName,
+  getLocalizedGenus,
+  getFlavorText,
+  getEffectText,
+  getDefaultLoreLanguages,
+  normalizeApiText,
   getResourceList,
   getPokemonImage,
 };

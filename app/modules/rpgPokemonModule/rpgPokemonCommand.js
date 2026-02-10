@@ -28,7 +28,39 @@ const ALLOWED_ACTIONS = new Set([
   'pvp',
   'ginasio',
   'ginásio',
+  'trade',
+  'coop',
+  'evento',
+  'social',
+  'karma',
+  'engajamento',
 ]);
+
+const getContextInfo = (messageInfo) => {
+  const root = messageInfo?.message;
+  if (!root || typeof root !== 'object') return null;
+
+  for (const value of Object.values(root)) {
+    if (value?.contextInfo && typeof value.contextInfo === 'object') {
+      return value.contextInfo;
+    }
+    if (value?.message && typeof value.message === 'object') {
+      for (const nested of Object.values(value.message)) {
+        if (nested?.contextInfo && typeof nested.contextInfo === 'object') {
+          return nested.contextInfo;
+        }
+      }
+    }
+  }
+
+  return null;
+};
+
+const extractMentionedJids = (messageInfo) => {
+  const contextInfo = getContextInfo(messageInfo);
+  if (!Array.isArray(contextInfo?.mentionedJid)) return [];
+  return Array.from(new Set(contextInfo.mentionedJid.filter((jid) => typeof jid === 'string' && jid.trim())));
+};
 
 const resolveOwnerJid = ({ senderJid, senderIdentity }) => {
   if (senderIdentity && typeof senderIdentity === 'object') {
@@ -105,10 +137,12 @@ export const handleRpgPokemonCommand = async ({
       chatJid: remoteJid,
       action,
       actionArgs: args.slice(1),
+      mentionedJids: extractMentionedJids(messageInfo),
       commandPrefix,
     });
 
     const responseText = result?.text || '❌ Não foi possível processar o comando RPG agora.';
+    const mentions = Array.isArray(result?.mentions) ? result.mentions.filter(Boolean) : [];
     const imageUrl = typeof result?.imageUrl === 'string' && result.imageUrl.trim() ? result.imageUrl.trim() : null;
     const caption = responseText;
 
@@ -120,6 +154,7 @@ export const handleRpgPokemonCommand = async ({
           {
             image: { url: imageUrl },
             caption,
+            ...(mentions.length ? { mentions } : {}),
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -137,7 +172,7 @@ export const handleRpgPokemonCommand = async ({
     await sendAndStore(
       sock,
       remoteJid,
-      { text: responseText },
+      { text: responseText, ...(mentions.length ? { mentions } : {}) },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
   } catch (error) {

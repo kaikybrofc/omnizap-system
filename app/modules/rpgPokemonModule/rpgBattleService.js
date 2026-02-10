@@ -1,6 +1,10 @@
 import {
+  getEffectText,
   getAbility,
   getEvolutionChain,
+  getFlavorText,
+  getLocalizedGenus,
+  getLocalizedName,
   getMove,
   getNature,
   getPokemon,
@@ -178,6 +182,8 @@ const normalizeMove = (move, index) => {
       halfTo: Array.isArray(move?.typeDamage?.halfTo) ? move.typeDamage.halfTo : [],
       noTo: Array.isArray(move?.typeDamage?.noTo) ? move.typeDamage.noTo : [],
     },
+    shortEffect: String(move?.shortEffect || '').trim() || null,
+    loreText: String(move?.loreText || '').trim() || null,
   };
 };
 
@@ -197,6 +203,8 @@ const loadMoveSnapshot = async (idOrName) => {
       damageClass: moveData?.damage_class?.name,
       type: typeName,
       typeDamage,
+      shortEffect: getEffectText(moveData?.effect_entries, { preferLong: false }),
+      loreText: getFlavorText(moveData?.flavor_text_entries),
     },
     0,
   );
@@ -667,6 +675,10 @@ export const buildPokemonSnapshot = async ({
 
   const moves = await resolveMoveSet(pokemonData, storedMoves);
   const speciesId = extractIdFromUrl(pokemonData?.species?.url) || toPositiveInt(speciesData?.id, 0);
+  const localizedName = getLocalizedName(speciesData?.names, pokemonData?.name);
+  const localizedGenus = getLocalizedGenus(speciesData?.genera);
+  const flavorText = getFlavorText(speciesData?.flavor_text_entries);
+  const abilityEffectText = getEffectText(abilityData?.effect_entries, { preferLong: false });
   const resolvedCurrentHp =
     currentHp === null || currentHp === undefined
       ? maxHp
@@ -675,7 +687,7 @@ export const buildPokemonSnapshot = async ({
   return {
     pokeId: toPositiveInt(pokemonData?.id, 0),
     name: String(pokemonData?.name || 'unknown').toLowerCase(),
-    displayName: capitalize(pokemonData?.name),
+    displayName: capitalize(localizedName || pokemonData?.name),
     level: safeLevel,
     currentHp: resolvedCurrentHp,
     maxHp,
@@ -693,6 +705,8 @@ export const buildPokemonSnapshot = async ({
     habitat: String(speciesData?.habitat?.name || '').trim().toLowerCase() || null,
     isLegendary: Boolean(speciesData?.is_legendary),
     isMythical: Boolean(speciesData?.is_mythical),
+    genus: localizedGenus || null,
+    flavorText: flavorText || null,
     nature: natureData
       ? {
           key: String(natureData?.name || '').trim().toLowerCase() || null,
@@ -703,6 +717,7 @@ export const buildPokemonSnapshot = async ({
       ? {
           key: abilityKey,
           name: capitalize(abilityData?.name),
+          effectText: abilityEffectText || null,
         }
       : null,
   };
@@ -710,6 +725,19 @@ export const buildPokemonSnapshot = async ({
 
 export const buildPlayerBattleSnapshot = async ({ playerPokemonRow }) => {
   const pokemonData = await getPokemon(playerPokemonRow.poke_id);
+  let speciesData = null;
+  try {
+    const speciesLookup = pokemonData?.species?.name || extractIdFromUrl(pokemonData?.species?.url);
+    if (speciesLookup) {
+      speciesData = await getSpecies(speciesLookup);
+    }
+  } catch (error) {
+    logger.debug('Species ignorada no snapshot do jogador.', {
+      pokeId: playerPokemonRow?.poke_id,
+      error: error.message,
+    });
+  }
+
   let natureData = null;
   if (playerPokemonRow?.nature_key) {
     try {
@@ -721,15 +749,23 @@ export const buildPlayerBattleSnapshot = async ({ playerPokemonRow }) => {
       });
     }
   }
-  const abilityData =
-    playerPokemonRow?.ability_key || playerPokemonRow?.ability_name
-      ? {
-          name: playerPokemonRow.ability_key || playerPokemonRow.ability_name,
-        }
-      : null;
+  let abilityData = null;
+  const abilityLookup = playerPokemonRow?.ability_key || playerPokemonRow?.ability_name || null;
+  if (abilityLookup) {
+    try {
+      abilityData = await getAbility(abilityLookup);
+    } catch (error) {
+      logger.debug('Ability ignorada no snapshot do jogador.', {
+        abilityLookup,
+        error: error.message,
+      });
+      abilityData = { name: abilityLookup };
+    }
+  }
 
   return buildPokemonSnapshot({
     pokemonData,
+    speciesData,
     level: playerPokemonRow.level,
     currentHp: playerPokemonRow.current_hp,
     ivs: playerPokemonRow.ivs_json,

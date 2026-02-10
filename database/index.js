@@ -117,6 +117,17 @@ export const TABLES = {
   RPG_RAID_STATE: 'rpg_raid_state',
   RPG_RAID_PARTICIPANT: 'rpg_raid_participant',
   RPG_PVP_CHALLENGE: 'rpg_pvp_challenge',
+  RPG_PVP_QUEUE: 'rpg_pvp_queue',
+  RPG_PVP_WEEKLY_STATS: 'rpg_pvp_weekly_stats',
+  RPG_SOCIAL_LINK: 'rpg_social_link',
+  RPG_TRADE_OFFER: 'rpg_trade_offer',
+  RPG_GROUP_COOP_WEEKLY: 'rpg_group_coop_weekly',
+  RPG_GROUP_COOP_MEMBER: 'rpg_group_coop_member',
+  RPG_GROUP_EVENT_WEEKLY: 'rpg_group_event_weekly',
+  RPG_GROUP_EVENT_MEMBER: 'rpg_group_event_member',
+  RPG_KARMA_PROFILE: 'rpg_karma_profile',
+  RPG_KARMA_VOTE_HISTORY: 'rpg_karma_vote_history',
+  RPG_GROUP_ACTIVITY_DAILY: 'rpg_group_activity_daily',
 };
 
 /**

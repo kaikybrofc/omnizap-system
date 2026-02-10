@@ -78,7 +78,13 @@ export const buildUsageText = (prefix = '/') =>
     `• ${prefix}rpg berry <listar|usar>`,
     `• ${prefix}rpg raid <iniciar|entrar|atacar|status>`,
     `• ${prefix}rpg desafiar <jid/@numero>`,
-    `• ${prefix}rpg pvp <status|aceitar|recusar|atacar>`,
+    `• ${prefix}rpg pvp <status|fila|ranking|revanche|aceitar|recusar|atacar>`,
+    `• ${prefix}rpg trade <status|propor|aceitar|recusar|cancelar>`,
+    `• ${prefix}rpg coop`,
+    `• ${prefix}rpg evento <status|claim>`,
+    `• ${prefix}rpg social [status @usuario]`,
+    `• ${prefix}rpg karma <status|top|+|->`,
+    `• ${prefix}rpg engajamento`,
     '',
     `💡 *Dica:* faça ${prefix}rpg start → ${prefix}rpg perfil → ${prefix}rpg explorar`,
   ].join('\n');
@@ -98,6 +104,7 @@ export const buildStartText = ({ isNewPlayer, starterPokemon, prefix = '/' }) =>
     '🎉 *Jornada iniciada com sucesso!*',
     `🧩 Parceiro inicial: *${formatPokemonLabel({ name: starterPokemon.displayName || starterPokemon.name, isShiny: starterPokemon.isShiny })}*`,
     `🆔 ID no seu time: *${starterPokemon.id}*`,
+    ...(starterPokemon?.flavorText ? [`📖 ${starterPokemon.flavorText}`] : []),
     '🎁 Kit inicial: 4x Poke Bola + 3x Potion',
     `➡️ Próximos: ${prefix}rpg perfil | ${prefix}rpg explorar`,
     `💡 Dica: explore com frequência para subir nível e capturar novos Pokémon.`,
@@ -120,8 +127,17 @@ export const buildProfileText = ({ player, activePokemon, prefix = '/' }) => {
     if (activePokemon.natureName) {
       lines.push(`🧬 Nature: *${formatName(activePokemon.natureName)}*`);
     }
+    if (activePokemon.genus) {
+      lines.push(`📚 Espécie: ${activePokemon.genus}`);
+    }
     if (activePokemon.abilityName) {
       lines.push(`✨ Habilidade: *${formatName(activePokemon.abilityName)}*`);
+    }
+    if (activePokemon.abilityEffectText) {
+      lines.push(`🧠 Efeito: ${activePokemon.abilityEffectText}`);
+    }
+    if (activePokemon.flavorText) {
+      lines.push(`📖 ${activePokemon.flavorText}`);
     }
   } else {
     lines.push('⚠️ Você ainda não tem Pokémon ativo selecionado.');
@@ -185,8 +201,14 @@ export const buildBattleStartText = ({ battleSnapshot, prefix = '/' }) => {
   if (enemy.habitat) {
     lines.push(`🏞️ Habitat: ${formatName(enemy.habitat)}`);
   }
+  if (enemy.genus) {
+    lines.push(`📚 Espécie: ${enemy.genus}`);
+  }
   if (enemy.isLegendary || enemy.isMythical) {
     lines.push(enemy.isMythical ? '🌟 Status: Mítico' : '👑 Status: Lendário');
+  }
+  if (enemy.flavorText) {
+    lines.push(`📖 ${enemy.flavorText}`);
   }
 
   lines.push(
@@ -233,7 +255,9 @@ export const buildBattleTurnText = ({ logs = [], battleSnapshot, prefix = '/', r
 };
 
 export const buildCaptureSuccessText = ({ capturedPokemon, prefix = '/' }) =>
-  `🎉 *Captura concluída!*\n✅ Você capturou *${formatPokemonLabel({ name: capturedPokemon.displayName || capturedPokemon.name, isShiny: capturedPokemon.isShiny })}* (ID ${capturedPokemon.id}).\n➡️ Próximos: ${prefix}rpg time | ${prefix}rpg explorar\n💡 Dica: defina como ativo com ${prefix}rpg escolher ${capturedPokemon.id}`;
+  `🎉 *Captura concluída!*\n✅ Você capturou *${formatPokemonLabel({ name: capturedPokemon.displayName || capturedPokemon.name, isShiny: capturedPokemon.isShiny })}* (ID ${capturedPokemon.id}).${
+    capturedPokemon?.flavorText ? `\n📖 ${capturedPokemon.flavorText}` : ''
+  }\n➡️ Próximos: ${prefix}rpg time | ${prefix}rpg explorar\n💡 Dica: defina como ativo com ${prefix}rpg escolher ${capturedPokemon.id}`;
 
 export const buildCaptureBlockedGymText = (prefix = '/') =>
   `🚫 Em batalha de ginásio não é possível capturar.\n➡️ Use: ${prefix}rpg atacar <1-4> ou ${prefix}rpg fugir`;
@@ -318,9 +342,12 @@ export const buildUsePotionSuccessText = ({
   currentHp,
   maxHp,
   quantityLeft,
+  itemLore = null,
   prefix = '/',
 }) =>
-  `🧪 *${itemLabel}* usada em *${formatName(pokemonName)}* (+${healedAmount} HP)\n❤️ HP atual: ${currentHp}/${maxHp}\n🎒 ${itemLabel} restantes: ${quantityLeft}\n➡️ Próximos: ${prefix}rpg atacar <1-4> | ${prefix}rpg explorar`;
+  `🧪 *${itemLabel}* usada em *${formatName(pokemonName)}* (+${healedAmount} HP)\n❤️ HP atual: ${currentHp}/${maxHp}\n🎒 ${itemLabel} restantes: ${quantityLeft}${
+    itemLore ? `\n📖 ${itemLore}` : ''
+  }\n➡️ Próximos: ${prefix}rpg atacar <1-4> | ${prefix}rpg explorar`;
 
 export const buildEconomyRescueText = ({ goldGranted = 0, potionGranted = 0, goldTotal = 0, prefix = '/' }) =>
   [
@@ -335,7 +362,7 @@ export const buildBagText = ({ items = [], gold = 0, prefix = '/' }) => {
     return `🎒 *Sua Bolsa*\n🪙 Gold: *${gold}*\n📭 Sem itens no momento.\n🛒 Compre em: ${prefix}rpg loja`;
   }
 
-  const lines = items.map((item) => `• ${itemEmoji(item.key)} ${item.label}: ${item.quantity}`);
+  const lines = items.map((item) => `• ${itemEmoji(item.key)} ${item.label}: ${item.quantity}${item?.loreText ? ` — ${item.loreText}` : ''}`);
   return [
     '🎒 *Sua Bolsa*',
     `🪙 Gold: *${gold}*`,
@@ -397,7 +424,10 @@ export const buildPokedexText = ({ uniqueTotal = 0, total = 0, completion = 0, r
   if (recent.length) {
     lines.push('', '🆕 Capturas recentes:');
     recent.forEach((entry) => {
-      lines.push(`• #${entry.pokeId} ${formatPokemonLabel({ name: entry.name, isShiny: false })}`);
+      lines.push(`• #${entry.pokeId} ${formatPokemonLabel({ name: entry.displayName || entry.name, isShiny: false })}`);
+      if (entry.note) {
+        lines.push(`  ↳ ${entry.note}`);
+      }
     });
   }
 
@@ -409,11 +439,23 @@ export const buildTravelStatusText = ({ travel = null, regions = [], prefix = '/
   const lines = ['🧭 *Viagem RPG*'];
 
   if (travel?.regionKey) {
+    const regionLabel = travel.regionLabel || formatName(travel.regionKey);
+    const locationLabel = travel.locationLabel || formatName(travel.locationKey || 'desconhecido');
+    const areaLabel = travel.areaLabel || formatName(travel.locationAreaKey || 'geral');
     lines.push(
-      `🌍 Região: *${formatName(travel.regionKey)}*`,
-      `📍 Local: *${formatName(travel.locationKey || 'desconhecido')}*`,
-      `🗺️ Área: *${formatName(travel.locationAreaKey || 'geral')}*`,
+      `🌍 Região: *${regionLabel}*`,
+      `📍 Local: *${locationLabel}*`,
+      `🗺️ Área: *${areaLabel}*`,
     );
+    if (travel?.regionLore) {
+      lines.push(`📖 Região: ${travel.regionLore}`);
+    }
+    if (travel?.locationLore) {
+      lines.push(`📖 Local: ${travel.locationLore}`);
+    }
+    if (travel?.areaLore) {
+      lines.push(`📖 Área: ${travel.areaLore}`);
+    }
   } else {
     lines.push('🌍 Você ainda não definiu uma região.');
   }
@@ -428,9 +470,13 @@ export const buildTravelStatusText = ({ travel = null, regions = [], prefix = '/
 };
 
 export const buildTravelSetText = ({ travel, prefix = '/' }) =>
-  `✈️ Viagem atualizada!\n🌍 Região: *${formatName(travel.regionKey)}*\n📍 Local: *${formatName(travel.locationKey || 'desconhecido')}*\n🗺️ Área: *${formatName(
-    travel.locationAreaKey || 'geral',
-  )}*\n➡️ Próximo: ${prefix}rpg explorar`;
+  `✈️ Viagem atualizada!\n🌍 Região: *${travel?.regionLabel || formatName(travel.regionKey)}*\n📍 Local: *${
+    travel?.locationLabel || formatName(travel.locationKey || 'desconhecido')
+  }*\n🗺️ Área: *${travel?.areaLabel || formatName(travel.locationAreaKey || 'geral')}*${travel?.regionLore ? `\n📖 Região: ${travel.regionLore}` : ''}${
+    travel?.locationLore ? `\n📖 Local: ${travel.locationLore}` : ''
+  }${
+    travel?.areaLore ? `\n📖 Área: ${travel.areaLore}` : ''
+  }\n➡️ Próximo: ${prefix}rpg explorar`;
 
 export const buildTmListText = ({ items = [], prefix = '/' }) => {
   if (!items.length) {
@@ -443,8 +489,10 @@ export const buildTmListText = ({ items = [], prefix = '/' }) => {
   return lines.join('\n');
 };
 
-export const buildTmUseText = ({ itemLabel, moveName, slot, pokemonName, prefix = '/' }) =>
-  `📀 *TM usado com sucesso!*\n🧩 ${formatName(pokemonName)} aprendeu *${formatName(moveName)}* no slot ${slot}\n🎒 TM consumido: ${itemLabel}\n➡️ Próximos: ${prefix}rpg atacar <1-4> | ${prefix}rpg explorar`;
+export const buildTmUseText = ({ itemLabel, moveName, moveLore = null, slot, pokemonName, prefix = '/' }) =>
+  `📀 *TM usado com sucesso!*\n🧩 ${formatName(pokemonName)} aprendeu *${formatName(moveName)}* no slot ${slot}${
+    moveLore ? `\n📖 ${moveLore}` : ''
+  }\n🎒 TM consumido: ${itemLabel}\n➡️ Próximos: ${prefix}rpg atacar <1-4> | ${prefix}rpg explorar`;
 
 export const buildBerryListText = ({ items = [], prefix = '/' }) => {
   if (!items.length) {
@@ -457,11 +505,12 @@ export const buildBerryListText = ({ items = [], prefix = '/' }) => {
   return lines.join('\n');
 };
 
-export const buildRaidStartText = ({ bossName, level, currentHp, maxHp, expiresInMin, prefix = '/' }) =>
+export const buildRaidStartText = ({ bossName, level, currentHp, maxHp, expiresInMin, bossLore = null, prefix = '/' }) =>
   [
     '🐉 *RAID INICIADA!*',
     `Chefe: *${formatName(bossName)}* Lv.${level}`,
     `❤️ HP Boss: ${hpBar(currentHp, maxHp)}`,
+    ...(bossLore ? [`📖 ${bossLore}`] : []),
     `⏱️ Tempo: ${expiresInMin} min`,
     `➡️ Entrar: ${prefix}rpg raid entrar`,
     `⚔️ Atacar: ${prefix}rpg raid atacar <1-4>`,
@@ -476,6 +525,7 @@ export const buildRaidStatusText = ({ raid, participants = [], prefix = '/' }) =
     '🛡️ *Status da Raid*',
     `Chefe: *${formatName(raid.bossName)}* Lv.${raid.level}`,
     `❤️ HP Boss: ${hpBar(raid.currentHp, raid.maxHp)}`,
+    ...(raid?.bossLore ? [`📖 ${raid.bossLore}`] : []),
     `👥 Participantes: ${participants.length}`,
   ];
 
@@ -543,6 +593,8 @@ export const buildPvpStatusText = ({ pending = [], active = null, prefix = '/' }
   }
 
   lines.push('', `💡 Criar desafio: ${prefix}rpg desafiar <jid/@numero>`);
+  lines.push(`💡 Fila automática: ${prefix}rpg pvp fila entrar`);
+  lines.push(`💡 Ranking semanal: ${prefix}rpg pvp ranking`);
   return lines.join('\n');
 };
 

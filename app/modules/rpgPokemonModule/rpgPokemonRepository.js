@@ -949,3 +949,858 @@ export const expireOldPvpChallenges = async (connection = null) => {
   );
   return Number(result?.affectedRows || 0);
 };
+
+const normalizePvpQueueRow = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    id: Number(row.id || 0),
+    matched_challenge_id: row.matched_challenge_id ? Number(row.matched_challenge_id) : null,
+  };
+};
+
+const normalizeTradeOfferRow = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    id: Number(row.id || 0),
+    proposer_offer_json: parseJson(row.proposer_offer_json, {}),
+    receiver_offer_json: parseJson(row.receiver_offer_json, {}),
+  };
+};
+
+const normalizeSocialLinkRow = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    friendship_score: Number(row.friendship_score || 0),
+    rivalry_score: Number(row.rivalry_score || 0),
+    interactions_count: Number(row.interactions_count || 0),
+  };
+};
+
+const normalizeWeeklyStatsRow = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    matches_played: Number(row.matches_played || 0),
+    wins: Number(row.wins || 0),
+    losses: Number(row.losses || 0),
+    points: Number(row.points || 0),
+  };
+};
+
+const normalizeCoopWeeklyRow = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    capture_target: Number(row.capture_target || 0),
+    raid_target: Number(row.raid_target || 0),
+    capture_progress: Number(row.capture_progress || 0),
+    raid_progress: Number(row.raid_progress || 0),
+  };
+};
+
+const normalizeCoopMemberRow = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    capture_contribution: Number(row.capture_contribution || 0),
+    raid_contribution: Number(row.raid_contribution || 0),
+  };
+};
+
+const normalizeGroupEventRow = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    target_value: Number(row.target_value || 0),
+    progress_value: Number(row.progress_value || 0),
+  };
+};
+
+const normalizeGroupEventMemberRow = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    contribution: Number(row.contribution || 0),
+  };
+};
+
+const normalizeKarmaProfileRow = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    karma_score: Number(row.karma_score || 0),
+    positive_votes: Number(row.positive_votes || 0),
+    negative_votes: Number(row.negative_votes || 0),
+  };
+};
+
+const buildPairUsers = (jidA, jidB) => {
+  const a = String(jidA || '').trim();
+  const b = String(jidB || '').trim();
+  if (!a || !b || a === b) return null;
+  return a < b ? [a, b] : [b, a];
+};
+
+const buildPairKey = (jidA, jidB) => {
+  const pair = buildPairUsers(jidA, jidB);
+  if (!pair) return null;
+  return `${pair[0]}::${pair[1]}`;
+};
+
+export const expirePvpQueue = async (connection = null) => {
+  const result = await executeQuery(
+    `UPDATE ${TABLES.RPG_PVP_QUEUE}
+        SET status = 'expired',
+            updated_at = CURRENT_TIMESTAMP
+      WHERE status = 'queued'
+        AND expires_at <= UTC_TIMESTAMP()`,
+    [],
+    connection,
+  );
+  return Number(result?.affectedRows || 0);
+};
+
+export const enqueuePvpQueue = async ({ chatJid, ownerJid, expiresAt }, connection = null) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_PVP_QUEUE} (chat_jid, owner_jid, status, matched_challenge_id, expires_at)
+     VALUES (?, ?, 'queued', NULL, ?)
+     ON DUPLICATE KEY UPDATE
+      expires_at = VALUES(expires_at),
+      matched_challenge_id = NULL,
+      updated_at = CURRENT_TIMESTAMP`,
+    [chatJid, ownerJid, expiresAt],
+    connection,
+  );
+};
+
+export const getQueuedPvpByOwnerForUpdate = async (chatJid, ownerJid, connection) => {
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, owner_jid, status, matched_challenge_id, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_PVP_QUEUE}
+      WHERE chat_jid = ?
+        AND owner_jid = ?
+        AND status = 'queued'
+      LIMIT 1
+      FOR UPDATE`,
+    [chatJid, ownerJid],
+    connection,
+  );
+  return normalizePvpQueueRow(rows?.[0] || null);
+};
+
+export const listQueuedPvpByChatForUpdate = async (chatJid, limit = 10, connection = null) => {
+  const safeLimit = Math.max(1, Math.min(50, Number(limit) || 10));
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, owner_jid, status, matched_challenge_id, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_PVP_QUEUE}
+      WHERE chat_jid = ?
+        AND status = 'queued'
+        AND expires_at > UTC_TIMESTAMP()
+      ORDER BY created_at ASC
+      LIMIT ${safeLimit}
+      FOR UPDATE`,
+    [chatJid],
+    connection,
+  );
+  return (rows || []).map(normalizePvpQueueRow);
+};
+
+export const listQueuedPvpByChat = async (chatJid, limit = 10, connection = null) => {
+  const safeLimit = Math.max(1, Math.min(50, Number(limit) || 10));
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, owner_jid, status, matched_challenge_id, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_PVP_QUEUE}
+      WHERE chat_jid = ?
+        AND status = 'queued'
+        AND expires_at > UTC_TIMESTAMP()
+      ORDER BY created_at ASC
+      LIMIT ${safeLimit}`,
+    [chatJid],
+    connection,
+  );
+  return (rows || []).map(normalizePvpQueueRow);
+};
+
+export const cancelQueuedPvpByOwner = async (chatJid, ownerJid, connection = null) => {
+  const result = await executeQuery(
+    `UPDATE ${TABLES.RPG_PVP_QUEUE}
+        SET status = 'cancelled',
+            updated_at = CURRENT_TIMESTAMP
+      WHERE chat_jid = ?
+        AND owner_jid = ?
+        AND status = 'queued'`,
+    [chatJid, ownerJid],
+    connection,
+  );
+  return Number(result?.affectedRows || 0);
+};
+
+export const markPvpQueueMatchedByIds = async (queueIds = [], challengeId = null, connection = null) => {
+  const ids = (queueIds || []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0);
+  if (!ids.length) return 0;
+  const placeholders = ids.map(() => '?').join(', ');
+  const result = await executeQuery(
+    `UPDATE ${TABLES.RPG_PVP_QUEUE}
+        SET status = 'matched',
+            matched_challenge_id = ?,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id IN (${placeholders})`,
+    [challengeId, ...ids],
+    connection,
+  );
+  return Number(result?.affectedRows || 0);
+};
+
+export const getLatestFinishedPvpByPlayer = async (ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, challenger_jid, opponent_jid, status, turn_jid, winner_jid, battle_snapshot_json, started_at, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_PVP_CHALLENGE}
+      WHERE status = 'finished'
+        AND (challenger_jid = ? OR opponent_jid = ?)
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 1`,
+    [ownerJid, ownerJid],
+    connection,
+  );
+  return normalizePvpChallenge(rows?.[0] || null);
+};
+
+export const upsertPvpWeeklyStatsDelta = async (
+  {
+    weekRefDate,
+    ownerJid,
+    matchesPlayedDelta = 0,
+    winsDelta = 0,
+    lossesDelta = 0,
+    pointsDelta = 0,
+  },
+  connection = null,
+) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_PVP_WEEKLY_STATS}
+      (week_ref_date, owner_jid, matches_played, wins, losses, points)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+      matches_played = GREATEST(0, matches_played + VALUES(matches_played)),
+      wins = GREATEST(0, wins + VALUES(wins)),
+      losses = GREATEST(0, losses + VALUES(losses)),
+      points = GREATEST(0, points + VALUES(points)),
+      updated_at = CURRENT_TIMESTAMP`,
+    [weekRefDate, ownerJid, matchesPlayedDelta, winsDelta, lossesDelta, pointsDelta],
+    connection,
+  );
+};
+
+export const listPvpWeeklyRanking = async (weekRefDate, limit = 10, connection = null) => {
+  const safeLimit = Math.max(1, Math.min(30, Number(limit) || 10));
+  const rows = await executeQuery(
+    `SELECT week_ref_date, owner_jid, matches_played, wins, losses, points, created_at, updated_at
+       FROM ${TABLES.RPG_PVP_WEEKLY_STATS}
+      WHERE week_ref_date = ?
+      ORDER BY points DESC, wins DESC, matches_played DESC, owner_jid ASC
+      LIMIT ${safeLimit}`,
+    [weekRefDate],
+    connection,
+  );
+  return (rows || []).map(normalizeWeeklyStatsRow);
+};
+
+export const getSocialLinkByUsers = async (jidA, jidB, connection = null) => {
+  const pair = buildPairUsers(jidA, jidB);
+  if (!pair) return null;
+  const pairKey = buildPairKey(pair[0], pair[1]);
+  const rows = await executeQuery(
+    `SELECT pair_key, user_a_jid, user_b_jid, friendship_score, rivalry_score, interactions_count, last_interaction_at, created_at, updated_at
+       FROM ${TABLES.RPG_SOCIAL_LINK}
+      WHERE pair_key = ?
+      LIMIT 1`,
+    [pairKey],
+    connection,
+  );
+  return normalizeSocialLinkRow(rows?.[0] || null);
+};
+
+export const upsertSocialLinkDelta = async (
+  {
+    jidA,
+    jidB,
+    friendshipDelta = 0,
+    rivalryDelta = 0,
+    interactionsDelta = 1,
+  },
+  connection = null,
+) => {
+  const pair = buildPairUsers(jidA, jidB);
+  if (!pair) return;
+  const pairKey = buildPairKey(pair[0], pair[1]);
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_SOCIAL_LINK}
+      (pair_key, user_a_jid, user_b_jid, friendship_score, rivalry_score, interactions_count, last_interaction_at)
+     VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())
+     ON DUPLICATE KEY UPDATE
+      friendship_score = friendship_score + VALUES(friendship_score),
+      rivalry_score = rivalry_score + VALUES(rivalry_score),
+      interactions_count = interactions_count + VALUES(interactions_count),
+      last_interaction_at = UTC_TIMESTAMP(),
+      updated_at = CURRENT_TIMESTAMP`,
+    [pairKey, pair[0], pair[1], friendshipDelta, rivalryDelta, interactionsDelta],
+    connection,
+  );
+};
+
+export const listSocialLinksByOwner = async (ownerJid, mode = 'friendship', limit = 10, connection = null) => {
+  const safeLimit = Math.max(1, Math.min(30, Number(limit) || 10));
+  const orderField = mode === 'rivalry' ? 'rivalry_score' : 'friendship_score';
+  const rows = await executeQuery(
+    `SELECT pair_key, user_a_jid, user_b_jid, friendship_score, rivalry_score, interactions_count, last_interaction_at, created_at, updated_at
+       FROM ${TABLES.RPG_SOCIAL_LINK}
+      WHERE user_a_jid = ?
+         OR user_b_jid = ?
+      ORDER BY ${orderField} DESC, interactions_count DESC, updated_at DESC
+      LIMIT ${safeLimit}`,
+    [ownerJid, ownerJid],
+    connection,
+  );
+  return (rows || []).map(normalizeSocialLinkRow);
+};
+
+export const createTradeOffer = async (
+  {
+    chatJid = null,
+    proposerJid,
+    receiverJid,
+    proposerOffer,
+    receiverOffer,
+    expiresAt,
+  },
+  connection = null,
+) => {
+  const result = await executeQuery(
+    `INSERT INTO ${TABLES.RPG_TRADE_OFFER}
+      (chat_jid, proposer_jid, receiver_jid, proposer_offer_json, receiver_offer_json, status, accepted_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, 'pending', NULL, ?)`,
+    [chatJid, proposerJid, receiverJid, JSON.stringify(proposerOffer || {}), JSON.stringify(receiverOffer || {}), expiresAt],
+    connection,
+  );
+  const id = Number(result?.insertId || 0);
+  if (!id) return null;
+  return getTradeOfferById(id, connection);
+};
+
+export const getTradeOfferById = async (offerId, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, proposer_jid, receiver_jid, proposer_offer_json, receiver_offer_json, status, accepted_at, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_TRADE_OFFER}
+      WHERE id = ?
+      LIMIT 1`,
+    [offerId],
+    connection,
+  );
+  return normalizeTradeOfferRow(rows?.[0] || null);
+};
+
+export const getTradeOfferByIdForUpdate = async (offerId, connection) => {
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, proposer_jid, receiver_jid, proposer_offer_json, receiver_offer_json, status, accepted_at, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_TRADE_OFFER}
+      WHERE id = ?
+      LIMIT 1
+      FOR UPDATE`,
+    [offerId],
+    connection,
+  );
+  return normalizeTradeOfferRow(rows?.[0] || null);
+};
+
+export const listOpenTradeOffersByUser = async (ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, proposer_jid, receiver_jid, proposer_offer_json, receiver_offer_json, status, accepted_at, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_TRADE_OFFER}
+      WHERE status = 'pending'
+        AND expires_at > UTC_TIMESTAMP()
+        AND (proposer_jid = ? OR receiver_jid = ?)
+      ORDER BY id DESC
+      LIMIT 30`,
+    [ownerJid, ownerJid],
+    connection,
+  );
+  return (rows || []).map(normalizeTradeOfferRow);
+};
+
+export const updateTradeOfferState = async ({ id, status, acceptedAt = undefined }, connection = null) => {
+  const fields = ['status = ?', 'updated_at = CURRENT_TIMESTAMP'];
+  const params = [status];
+  if (acceptedAt !== undefined) {
+    fields.push('accepted_at = ?');
+    params.push(acceptedAt);
+  }
+  params.push(id);
+  await executeQuery(
+    `UPDATE ${TABLES.RPG_TRADE_OFFER}
+        SET ${fields.join(', ')}
+      WHERE id = ?`,
+    params,
+    connection,
+  );
+};
+
+export const expireOldTradeOffers = async (connection = null) => {
+  const result = await executeQuery(
+    `UPDATE ${TABLES.RPG_TRADE_OFFER}
+        SET status = 'expired',
+            updated_at = CURRENT_TIMESTAMP
+      WHERE status = 'pending'
+        AND expires_at <= UTC_TIMESTAMP()`,
+    [],
+    connection,
+  );
+  return Number(result?.affectedRows || 0);
+};
+
+export const countPlayerPokemons = async (ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT COUNT(*) AS total
+       FROM ${TABLES.RPG_PLAYER_POKEMON}
+      WHERE owner_jid = ?`,
+    [ownerJid],
+    connection,
+  );
+  return Number(rows?.[0]?.total || 0);
+};
+
+export const transferPlayerPokemon = async ({ pokemonId, fromOwnerJid, toOwnerJid }, connection = null) => {
+  const result = await executeQuery(
+    `UPDATE ${TABLES.RPG_PLAYER_POKEMON}
+        SET owner_jid = ?,
+            is_active = 0
+      WHERE id = ?
+        AND owner_jid = ?`,
+    [toOwnerJid, pokemonId, fromOwnerJid],
+    connection,
+  );
+  return Number(result?.affectedRows || 0) > 0;
+};
+
+export const getFirstPlayerPokemon = async (ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT ${PLAYER_POKEMON_COLUMNS}
+       FROM ${TABLES.RPG_PLAYER_POKEMON}
+      WHERE owner_jid = ?
+      ORDER BY id ASC
+      LIMIT 1`,
+    [ownerJid],
+    connection,
+  );
+  return normalizePlayerPokemon(rows?.[0] || null);
+};
+
+export const getGroupCoopWeekly = async (chatJid, weekRefDate, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, week_ref_date, capture_target, raid_target, capture_progress, raid_progress, status, completed_at, created_at, updated_at
+       FROM ${TABLES.RPG_GROUP_COOP_WEEKLY}
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+      LIMIT 1`,
+    [chatJid, weekRefDate],
+    connection,
+  );
+  return normalizeCoopWeeklyRow(rows?.[0] || null);
+};
+
+export const getGroupCoopWeeklyForUpdate = async (chatJid, weekRefDate, connection) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, week_ref_date, capture_target, raid_target, capture_progress, raid_progress, status, completed_at, created_at, updated_at
+       FROM ${TABLES.RPG_GROUP_COOP_WEEKLY}
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+      LIMIT 1
+      FOR UPDATE`,
+    [chatJid, weekRefDate],
+    connection,
+  );
+  return normalizeCoopWeeklyRow(rows?.[0] || null);
+};
+
+export const upsertGroupCoopWeekly = async (
+  {
+    chatJid,
+    weekRefDate,
+    captureTarget = 20,
+    raidTarget = 3,
+  },
+  connection = null,
+) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_GROUP_COOP_WEEKLY}
+      (chat_jid, week_ref_date, capture_target, raid_target, capture_progress, raid_progress, status, completed_at)
+     VALUES (?, ?, ?, ?, 0, 0, 'active', NULL)
+     ON DUPLICATE KEY UPDATE
+      capture_target = capture_target,
+      raid_target = raid_target,
+      updated_at = CURRENT_TIMESTAMP`,
+    [chatJid, weekRefDate, captureTarget, raidTarget],
+    connection,
+  );
+};
+
+export const addGroupCoopContribution = async (
+  {
+    chatJid,
+    weekRefDate,
+    ownerJid,
+    captureDelta = 0,
+    raidDelta = 0,
+  },
+  connection = null,
+) => {
+  await executeQuery(
+    `UPDATE ${TABLES.RPG_GROUP_COOP_WEEKLY}
+        SET capture_progress = capture_progress + ?,
+            raid_progress = raid_progress + ?,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE chat_jid = ?
+        AND week_ref_date = ?`,
+    [captureDelta, raidDelta, chatJid, weekRefDate],
+    connection,
+  );
+
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_GROUP_COOP_MEMBER}
+      (chat_jid, week_ref_date, owner_jid, capture_contribution, raid_contribution, reward_claimed_at, last_contribution_at)
+     VALUES (?, ?, ?, ?, ?, NULL, UTC_TIMESTAMP())
+     ON DUPLICATE KEY UPDATE
+      capture_contribution = capture_contribution + VALUES(capture_contribution),
+      raid_contribution = raid_contribution + VALUES(raid_contribution),
+      last_contribution_at = UTC_TIMESTAMP(),
+      updated_at = CURRENT_TIMESTAMP`,
+    [chatJid, weekRefDate, ownerJid, captureDelta, raidDelta],
+    connection,
+  );
+};
+
+export const listGroupCoopMembers = async (chatJid, weekRefDate, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, week_ref_date, owner_jid, capture_contribution, raid_contribution, reward_claimed_at, last_contribution_at, created_at, updated_at
+       FROM ${TABLES.RPG_GROUP_COOP_MEMBER}
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+      ORDER BY (capture_contribution + raid_contribution) DESC, updated_at DESC`,
+    [chatJid, weekRefDate],
+    connection,
+  );
+  return (rows || []).map(normalizeCoopMemberRow);
+};
+
+export const listUnrewardedGroupCoopMembersForUpdate = async (chatJid, weekRefDate, connection) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, week_ref_date, owner_jid, capture_contribution, raid_contribution, reward_claimed_at, last_contribution_at, created_at, updated_at
+       FROM ${TABLES.RPG_GROUP_COOP_MEMBER}
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+        AND reward_claimed_at IS NULL
+      FOR UPDATE`,
+    [chatJid, weekRefDate],
+    connection,
+  );
+  return (rows || []).map(normalizeCoopMemberRow);
+};
+
+export const markGroupCoopCompleted = async (chatJid, weekRefDate, connection = null) => {
+  await executeQuery(
+    `UPDATE ${TABLES.RPG_GROUP_COOP_WEEKLY}
+        SET status = 'completed',
+            completed_at = COALESCE(completed_at, UTC_TIMESTAMP()),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE chat_jid = ?
+        AND week_ref_date = ?`,
+    [chatJid, weekRefDate],
+    connection,
+  );
+};
+
+export const markGroupCoopMemberRewardClaimed = async (chatJid, weekRefDate, ownerJid, connection = null) => {
+  await executeQuery(
+    `UPDATE ${TABLES.RPG_GROUP_COOP_MEMBER}
+        SET reward_claimed_at = COALESCE(reward_claimed_at, UTC_TIMESTAMP()),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+        AND owner_jid = ?`,
+    [chatJid, weekRefDate, ownerJid],
+    connection,
+  );
+};
+
+export const getGroupEventWeekly = async (chatJid, weekRefDate, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, week_ref_date, event_key, target_value, progress_value, status, expires_at, completed_at, created_at, updated_at
+       FROM ${TABLES.RPG_GROUP_EVENT_WEEKLY}
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+      LIMIT 1`,
+    [chatJid, weekRefDate],
+    connection,
+  );
+  return normalizeGroupEventRow(rows?.[0] || null);
+};
+
+export const getGroupEventWeeklyForUpdate = async (chatJid, weekRefDate, connection) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, week_ref_date, event_key, target_value, progress_value, status, expires_at, completed_at, created_at, updated_at
+       FROM ${TABLES.RPG_GROUP_EVENT_WEEKLY}
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+      LIMIT 1
+      FOR UPDATE`,
+    [chatJid, weekRefDate],
+    connection,
+  );
+  return normalizeGroupEventRow(rows?.[0] || null);
+};
+
+export const upsertGroupEventWeekly = async (
+  { chatJid, weekRefDate, eventKey, targetValue, expiresAt },
+  connection = null,
+) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_GROUP_EVENT_WEEKLY}
+      (chat_jid, week_ref_date, event_key, target_value, progress_value, status, expires_at, completed_at)
+     VALUES (?, ?, ?, ?, 0, 'active', ?, NULL)
+     ON DUPLICATE KEY UPDATE
+      event_key = event_key,
+      target_value = target_value,
+      expires_at = expires_at,
+      updated_at = CURRENT_TIMESTAMP`,
+    [chatJid, weekRefDate, eventKey, targetValue, expiresAt],
+    connection,
+  );
+};
+
+export const addGroupEventContribution = async (
+  { chatJid, weekRefDate, ownerJid, contributionDelta = 0 },
+  connection = null,
+) => {
+  await executeQuery(
+    `UPDATE ${TABLES.RPG_GROUP_EVENT_WEEKLY}
+        SET progress_value = progress_value + ?,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE chat_jid = ?
+        AND week_ref_date = ?`,
+    [contributionDelta, chatJid, weekRefDate],
+    connection,
+  );
+
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_GROUP_EVENT_MEMBER}
+      (chat_jid, week_ref_date, owner_jid, contribution, reward_claimed_at, last_contribution_at)
+     VALUES (?, ?, ?, ?, NULL, UTC_TIMESTAMP())
+     ON DUPLICATE KEY UPDATE
+      contribution = contribution + VALUES(contribution),
+      last_contribution_at = UTC_TIMESTAMP(),
+      updated_at = CURRENT_TIMESTAMP`,
+    [chatJid, weekRefDate, ownerJid, contributionDelta],
+    connection,
+  );
+};
+
+export const listGroupEventMembers = async (chatJid, weekRefDate, limit = 10, connection = null) => {
+  const safeLimit = Math.max(1, Math.min(50, Number(limit) || 10));
+  const rows = await executeQuery(
+    `SELECT chat_jid, week_ref_date, owner_jid, contribution, reward_claimed_at, last_contribution_at, created_at, updated_at
+       FROM ${TABLES.RPG_GROUP_EVENT_MEMBER}
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+      ORDER BY contribution DESC, updated_at DESC
+      LIMIT ${safeLimit}`,
+    [chatJid, weekRefDate],
+    connection,
+  );
+  return (rows || []).map(normalizeGroupEventMemberRow);
+};
+
+export const getGroupEventMemberForUpdate = async (chatJid, weekRefDate, ownerJid, connection) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, week_ref_date, owner_jid, contribution, reward_claimed_at, last_contribution_at, created_at, updated_at
+       FROM ${TABLES.RPG_GROUP_EVENT_MEMBER}
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+        AND owner_jid = ?
+      LIMIT 1
+      FOR UPDATE`,
+    [chatJid, weekRefDate, ownerJid],
+    connection,
+  );
+  return normalizeGroupEventMemberRow(rows?.[0] || null);
+};
+
+export const markGroupEventCompleted = async (chatJid, weekRefDate, connection = null) => {
+  await executeQuery(
+    `UPDATE ${TABLES.RPG_GROUP_EVENT_WEEKLY}
+        SET status = 'completed',
+            completed_at = COALESCE(completed_at, UTC_TIMESTAMP()),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE chat_jid = ?
+        AND week_ref_date = ?`,
+    [chatJid, weekRefDate],
+    connection,
+  );
+};
+
+export const markGroupEventMemberRewardClaimed = async (chatJid, weekRefDate, ownerJid, connection = null) => {
+  await executeQuery(
+    `UPDATE ${TABLES.RPG_GROUP_EVENT_MEMBER}
+        SET reward_claimed_at = COALESCE(reward_claimed_at, UTC_TIMESTAMP()),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+        AND owner_jid = ?`,
+    [chatJid, weekRefDate, ownerJid],
+    connection,
+  );
+};
+
+export const getKarmaProfile = async (ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT owner_jid, karma_score, positive_votes, negative_votes, created_at, updated_at
+       FROM ${TABLES.RPG_KARMA_PROFILE}
+      WHERE owner_jid = ?
+      LIMIT 1`,
+    [ownerJid],
+    connection,
+  );
+  return normalizeKarmaProfileRow(rows?.[0] || null);
+};
+
+export const getKarmaVoteByWeekForUpdate = async (weekRefDate, voterJid, targetJid, connection) => {
+  const rows = await executeQuery(
+    `SELECT id, week_ref_date, voter_jid, target_jid, vote_value, created_at
+       FROM ${TABLES.RPG_KARMA_VOTE_HISTORY}
+      WHERE week_ref_date = ?
+        AND voter_jid = ?
+        AND target_jid = ?
+      LIMIT 1
+      FOR UPDATE`,
+    [weekRefDate, voterJid, targetJid],
+    connection,
+  );
+  return rows?.[0] || null;
+};
+
+export const createKarmaVote = async ({ weekRefDate, voterJid, targetJid, voteValue }, connection = null) => {
+  const result = await executeQuery(
+    `INSERT INTO ${TABLES.RPG_KARMA_VOTE_HISTORY}
+      (week_ref_date, voter_jid, target_jid, vote_value)
+     VALUES (?, ?, ?, ?)`,
+    [weekRefDate, voterJid, targetJid, voteValue],
+    connection,
+  );
+  return Number(result?.insertId || 0) > 0;
+};
+
+export const applyKarmaDelta = async ({ ownerJid, karmaDelta = 0, positiveDelta = 0, negativeDelta = 0 }, connection = null) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_KARMA_PROFILE}
+      (owner_jid, karma_score, positive_votes, negative_votes)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+      karma_score = karma_score + VALUES(karma_score),
+      positive_votes = positive_votes + VALUES(positive_votes),
+      negative_votes = negative_votes + VALUES(negative_votes),
+      updated_at = CURRENT_TIMESTAMP`,
+    [ownerJid, karmaDelta, positiveDelta, negativeDelta],
+    connection,
+  );
+};
+
+export const listTopKarmaProfiles = async (limit = 10, connection = null) => {
+  const safeLimit = Math.max(1, Math.min(30, Number(limit) || 10));
+  const rows = await executeQuery(
+    `SELECT owner_jid, karma_score, positive_votes, negative_votes, created_at, updated_at
+       FROM ${TABLES.RPG_KARMA_PROFILE}
+      ORDER BY karma_score DESC, positive_votes DESC, updated_at DESC
+      LIMIT ${safeLimit}`,
+    [],
+    connection,
+  );
+  return (rows || []).map(normalizeKarmaProfileRow);
+};
+
+export const upsertGroupActivityDaily = async (
+  {
+    dayRefDate,
+    chatJid,
+    ownerJid,
+    actionsDelta = 0,
+    pvpCreatedDelta = 0,
+    pvpCompletedDelta = 0,
+    coopCompletedDelta = 0,
+  },
+  connection = null,
+) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_GROUP_ACTIVITY_DAILY}
+      (day_ref_date, chat_jid, owner_jid, actions_count, pvp_created_count, pvp_completed_count, coop_completed_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+      actions_count = actions_count + VALUES(actions_count),
+      pvp_created_count = pvp_created_count + VALUES(pvp_created_count),
+      pvp_completed_count = pvp_completed_count + VALUES(pvp_completed_count),
+      coop_completed_count = coop_completed_count + VALUES(coop_completed_count),
+      updated_at = CURRENT_TIMESTAMP`,
+    [dayRefDate, chatJid, ownerJid, actionsDelta, pvpCreatedDelta, pvpCompletedDelta, coopCompletedDelta],
+    connection,
+  );
+};
+
+export const getGroupActiveUsersByDay = async (chatJid, dayRefDate, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT COUNT(*) AS total
+       FROM ${TABLES.RPG_GROUP_ACTIVITY_DAILY}
+      WHERE chat_jid = ?
+        AND day_ref_date = ?`,
+    [chatJid, dayRefDate],
+    connection,
+  );
+  return Number(rows?.[0]?.total || 0);
+};
+
+export const getGroupRetentionByDays = async (chatJid, currentDayRefDate, previousDayRefDate, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT COUNT(*) AS retained
+       FROM ${TABLES.RPG_GROUP_ACTIVITY_DAILY} cur
+      INNER JOIN ${TABLES.RPG_GROUP_ACTIVITY_DAILY} prev
+              ON prev.chat_jid = cur.chat_jid
+             AND prev.owner_jid = cur.owner_jid
+             AND prev.day_ref_date = ?
+      WHERE cur.chat_jid = ?
+        AND cur.day_ref_date = ?`,
+    [previousDayRefDate, chatJid, currentDayRefDate],
+    connection,
+  );
+  return Number(rows?.[0]?.retained || 0);
+};
+
+export const getGroupActivitySummaryByDay = async (chatJid, dayRefDate, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT
+        COALESCE(SUM(actions_count), 0) AS actions_total,
+        COALESCE(SUM(pvp_created_count), 0) AS pvp_created_total,
+        COALESCE(SUM(pvp_completed_count), 0) AS pvp_completed_total,
+        COALESCE(SUM(coop_completed_count), 0) AS coop_completed_total
+       FROM ${TABLES.RPG_GROUP_ACTIVITY_DAILY}
+      WHERE chat_jid = ?
+        AND day_ref_date = ?`,
+    [chatJid, dayRefDate],
+    connection,
+  );
+  const row = rows?.[0] || {};
+  return {
+    actionsTotal: Number(row.actions_total || 0),
+    pvpCreatedTotal: Number(row.pvp_created_total || 0),
+    pvpCompletedTotal: Number(row.pvp_completed_total || 0),
+    coopCompletedTotal: Number(row.coop_completed_total || 0),
+  };
+};
