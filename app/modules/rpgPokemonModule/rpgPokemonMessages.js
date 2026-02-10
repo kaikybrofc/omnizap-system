@@ -12,6 +12,11 @@ const formatName = (name) => {
     .join(' ');
 };
 
+const formatPokemonLabel = ({ name, isShiny = false }) => {
+  const label = formatName(name);
+  return isShiny ? `✨ ${label}` : label;
+};
+
 const hpBar = (current, max, size = 10) => {
   const safeMax = Math.max(1, toNumber(max, 1));
   const safeCurrent = Math.max(0, Math.min(safeMax, toNumber(current, 0)));
@@ -48,7 +53,7 @@ export const buildUsageText = (prefix = '/') =>
   ].join('\n');
 
 export const buildCooldownText = ({ secondsLeft, prefix = '/' }) =>
-  `⏳ Aguarde *${secondsLeft}s* antes do próximo comando.\nPróximo: ${prefix}rpg perfil`;
+  `⏳ Aguarde ${secondsLeft}s para a próxima ação.\nPróximo: ${prefix}rpg perfil`;
 
 export const buildNeedStartText = (prefix = '/') => `Você ainda não iniciou sua jornada.\nUse: ${prefix}rpg start`;
 
@@ -59,7 +64,7 @@ export const buildStartText = ({ isNewPlayer, starterPokemon, prefix = '/' }) =>
 
   return [
     '🎒 Jornada iniciada!',
-    `Parceiro inicial: *${formatName(starterPokemon.displayName || starterPokemon.name)}* (ID do time: ${starterPokemon.id})`,
+    `Parceiro inicial: *${formatPokemonLabel({ name: starterPokemon.displayName || starterPokemon.name, isShiny: starterPokemon.isShiny })}* (ID do time: ${starterPokemon.id})`,
     `Próximos: ${prefix}rpg perfil | ${prefix}rpg explorar`,
   ].join('\n');
 };
@@ -74,7 +79,7 @@ export const buildProfileText = ({ player, activePokemon, prefix = '/' }) => {
 
   if (activePokemon) {
     lines.push(
-      `Ativo: *${formatName(activePokemon.displayName || activePokemon.name)}* (ID: ${activePokemon.id})`,
+      `Ativo: *${formatPokemonLabel({ name: activePokemon.displayName || activePokemon.name, isShiny: activePokemon.isShiny })}* (ID: ${activePokemon.id})`,
       `HP: ${hpBar(activePokemon.currentHp, activePokemon.maxHp)}`,
     );
   } else {
@@ -92,7 +97,7 @@ export const buildTeamText = ({ team, prefix = '/' }) => {
 
   const rows = team.map((pokemon) => {
     const marker = pokemon.isActive ? '⭐' : '•';
-    return `${marker} ID ${pokemon.id} | ${formatName(pokemon.displayName || pokemon.name)} Lv.${pokemon.level} | HP ${pokemon.currentHp}/${pokemon.maxHp}`;
+    return `${marker} ID ${pokemon.id} | ${formatPokemonLabel({ name: pokemon.displayName || pokemon.name, isShiny: pokemon.isShiny })} Lv.${pokemon.level} | HP ${pokemon.currentHp}/${pokemon.maxHp}`;
   });
 
   return ['🎯 *Seu Time*', ...rows, `Trocar ativo: ${prefix}rpg escolher <pokemon_id>`].join('\n');
@@ -107,16 +112,27 @@ export const buildPokemonFaintedText = (prefix = '/') =>
 export const buildBattleStartText = ({ battleSnapshot, prefix = '/' }) => {
   const my = battleSnapshot.my;
   const enemy = battleSnapshot.enemy;
+  const lines = [];
 
-  return [
-    `🌿 Selvagem: *${formatName(enemy.displayName || enemy.name)}* Lv.${enemy.level}`,
+  if (enemy.isShiny) {
+    lines.push('✨ UM POKEMON SHINY APARECEU! ✨');
+  }
+
+  if (battleSnapshot.biome?.label) {
+    lines.push(`🌍 Bioma: ${battleSnapshot.biome.label}`);
+  }
+
+  lines.push(
+    `🌿 Selvagem: *${formatPokemonLabel({ name: enemy.displayName || enemy.name, isShiny: enemy.isShiny })}* Lv.${enemy.level}`,
     `HP inimigo: ${hpBar(enemy.currentHp, enemy.maxHp)}`,
-    `Seu: *${formatName(my.displayName || my.name)}* Lv.${my.level}`,
+    `Seu: *${formatPokemonLabel({ name: my.displayName || my.name, isShiny: my.isShiny })}* Lv.${my.level}`,
     `Seu HP: ${hpBar(my.currentHp, my.maxHp)}`,
     'Movimentos:',
     ...my.moves.map(moveLine),
     `Próximos: ${prefix}rpg atacar <1-4> | ${prefix}rpg capturar | ${prefix}rpg usar pokeball | ${prefix}rpg fugir`,
-  ].join('\n');
+  );
+
+  return lines.join('\n');
 };
 
 export const buildBattleTurnText = ({ logs = [], battleSnapshot, prefix = '/', rewards = null, evolution = null }) => {
@@ -130,7 +146,7 @@ export const buildBattleTurnText = ({ logs = [], battleSnapshot, prefix = '/', r
   if (enemy.currentHp <= 0 && rewards) {
     lines.push(`🏆 Vitória! +${rewards.playerXp} XP jogador | +${rewards.pokemonXp} XP Pokemon | +${rewards.gold} gold`);
     if (evolution?.fromName && evolution?.toName) {
-      lines.push(`✨ Evolução: *${formatName(evolution.fromName)}* -> *${formatName(evolution.toName)}*`);
+      lines.push(`🎉 Seu ${formatName(evolution.fromName)} evoluiu para ${formatName(evolution.toName)}!`);
     }
     lines.push(`Próximo: ${prefix}rpg explorar`);
     return lines.join('\n');
@@ -147,7 +163,7 @@ export const buildBattleTurnText = ({ logs = [], battleSnapshot, prefix = '/', r
 };
 
 export const buildCaptureSuccessText = ({ capturedPokemon, prefix = '/' }) =>
-  `🎉 Captura concluída: *${formatName(capturedPokemon.displayName || capturedPokemon.name)}* (ID ${capturedPokemon.id}).\nPróximos: ${prefix}rpg time | ${prefix}rpg explorar`;
+  `🎉 Captura concluída: *${formatPokemonLabel({ name: capturedPokemon.displayName || capturedPokemon.name, isShiny: capturedPokemon.isShiny })}* (ID ${capturedPokemon.id}).\nPróximos: ${prefix}rpg time | ${prefix}rpg explorar`;
 
 export const buildCaptureFailText = ({ logs = [], battleSnapshot, prefix = '/' }) => {
   const my = battleSnapshot.my;
@@ -214,7 +230,7 @@ export const buildUsePotionSuccessText = ({
   `🧪 ${itemLabel} usada em *${formatName(pokemonName)}* (+${healedAmount} HP).\nHP: ${currentHp}/${maxHp} | ${itemLabel} restantes: ${quantityLeft}\nPróximos: ${prefix}rpg atacar <1-4> | ${prefix}rpg explorar`;
 
 export const buildChooseSuccessText = ({ pokemon, prefix = '/' }) =>
-  `✅ Pokemon ativo: *${formatName(pokemon.displayName || pokemon.name)}* (ID ${pokemon.id}).\nPróximo: ${prefix}rpg explorar`;
+  `✅ Pokemon ativo: *${formatPokemonLabel({ name: pokemon.displayName || pokemon.name, isShiny: pokemon.isShiny })}* (ID ${pokemon.id}).\nPróximo: ${prefix}rpg explorar`;
 
 export const buildChooseErrorText = (prefix = '/') =>
   `Pokemon não encontrado no seu time.\nUse: ${prefix}rpg time`;

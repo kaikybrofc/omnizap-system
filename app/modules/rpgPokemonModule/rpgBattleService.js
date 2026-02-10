@@ -7,6 +7,10 @@ const MIN_WILD_LEVEL = 2;
 const DEFAULT_CAPTURE_RATE = 120;
 const DEFAULT_WILD_MAX_ID = Math.max(151, Number(process.env.RPG_WILD_MAX_POKE_ID) || 151);
 const MOVE_SAMPLE_LIMIT = Math.max(12, Number(process.env.RPG_MOVE_SAMPLE_LIMIT) || 24);
+const DEFAULT_SHINY_CHANCE = 0.01;
+const RAW_SHINY_CHANCE = Number(process.env.RPG_SHINY_CHANCE ?? DEFAULT_SHINY_CHANCE);
+const SHINY_CHANCE = Number.isFinite(RAW_SHINY_CHANCE) ? Math.max(0, Math.min(1, RAW_SHINY_CHANCE)) : DEFAULT_SHINY_CHANCE;
+const MAX_BIOME_LOOKUP_ATTEMPTS = Math.max(2, Number(process.env.RPG_BIOME_LOOKUP_ATTEMPTS) || 6);
 
 const PHYSICAL_CLASS = 'physical';
 const SPECIAL_CLASS = 'special';
@@ -356,6 +360,45 @@ const pickEnemyMoveIndex = (snapshot) => {
   return randomInt(0, moves.length - 1);
 };
 
+const parsePokemonIdFromTypeEntry = (entry) => {
+  const url = entry?.pokemon?.url;
+  const idFromUrl = extractIdFromUrl(url);
+  if (Number.isFinite(idFromUrl) && idFromUrl > 0) {
+    return idFromUrl;
+  }
+  return null;
+};
+
+const pickPokemonByPreferredTypes = async (preferredTypes = []) => {
+  const normalizedTypes = (Array.isArray(preferredTypes) ? preferredTypes : [])
+    .map((type) => String(type || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!normalizedTypes.length) return null;
+
+  for (let attempt = 0; attempt < MAX_BIOME_LOOKUP_ATTEMPTS; attempt += 1) {
+    const selectedType = normalizedTypes[randomInt(0, normalizedTypes.length - 1)];
+    try {
+      const typeData = await getType(selectedType);
+      const pokemonIds = (typeData?.pokemon || [])
+        .map(parsePokemonIdFromTypeEntry)
+        .filter((id) => Number.isFinite(id) && id > 0 && id <= DEFAULT_WILD_MAX_ID);
+
+      if (!pokemonIds.length) continue;
+      const chosenId = pokemonIds[randomInt(0, pokemonIds.length - 1)];
+      const pokemonData = await getPokemon(chosenId);
+      if (pokemonData) return pokemonData;
+    } catch (error) {
+      logger.warn('Falha ao resolver spawn por tipo de bioma.', {
+        selectedType,
+        error: error.message,
+      });
+    }
+  }
+
+  return null;
+};
+
 const findEvolutionNodeBySpeciesName = (chainNode, speciesName) => {
   if (!chainNode || typeof chainNode !== 'object') return null;
   const currentName = String(chainNode?.species?.name || '').toLowerCase();
@@ -454,7 +497,15 @@ export const applyPokemonXpGain = ({ currentLevel, currentXp, gainedXp }) => {
   return { level, xp };
 };
 
-export const buildPokemonSnapshot = async ({ pokemonData, speciesData = null, level, currentHp = null, ivs = null, storedMoves = null }) => {
+export const buildPokemonSnapshot = async ({
+  pokemonData,
+  speciesData = null,
+  level,
+  currentHp = null,
+  ivs = null,
+  storedMoves = null,
+  isShiny = false,
+}) => {
   const safeLevel = clamp(toPositiveInt(level, 5), MIN_LEVEL, MAX_LEVEL);
   const resolvedIvs = normalizeIvs(ivs || createRandomIvs());
   const baseStats = getBaseStats(pokemonData);
@@ -498,7 +549,8 @@ export const buildPokemonSnapshot = async ({ pokemonData, speciesData = null, le
     ivs: resolvedIvs,
     stats,
     moves,
-    imageUrl: getPokemonImage(pokemonData),
+    isShiny: Boolean(isShiny),
+    imageUrl: getPokemonImage(pokemonData, { shiny: isShiny }),
     sprite: pokemonData?.sprites?.front_default || null,
     speciesId,
     captureRate: toPositiveInt(speciesData?.capture_rate, DEFAULT_CAPTURE_RATE),
@@ -514,20 +566,26 @@ export const buildPlayerBattleSnapshot = async ({ playerPokemonRow }) => {
     currentHp: playerPokemonRow.current_hp,
     ivs: playerPokemonRow.ivs_json,
     storedMoves: playerPokemonRow.moves_json,
+    isShiny: Boolean(playerPokemonRow.is_shiny),
   });
 };
 
-export const createWildEncounter = async ({ playerLevel }) => {
+export const createWildEncounter = async ({ playerLevel, preferredTypes = [] }) => {
   const minLevel = Math.max(MIN_WILD_LEVEL, toPositiveInt(playerLevel, 1) - 2);
   const maxLevel = clamp(minLevel + 4, minLevel, MAX_LEVEL);
   const wildLevel = randomInt(minLevel, maxLevel);
-  const wildId = randomInt(1, DEFAULT_WILD_MAX_ID);
+  const isShiny = Math.random() <= SHINY_CHANCE;
 
   let pokemonData;
-  try {
-    pokemonData = await getPokemon(wildId);
-  } catch {
-    pokemonData = await getPokemon(25);
+  pokemonData = await pickPokemonByPreferredTypes(preferredTypes);
+
+  if (!pokemonData) {
+    const wildId = randomInt(1, DEFAULT_WILD_MAX_ID);
+    try {
+      pokemonData = await getPokemon(wildId);
+    } catch {
+      pokemonData = await getPokemon(25);
+    }
   }
 
   const speciesId = extractIdFromUrl(pokemonData?.species?.url) || pokemonData?.id;
@@ -538,11 +596,13 @@ export const createWildEncounter = async ({ playerLevel }) => {
     level: wildLevel,
     currentHp: null,
     ivs: createRandomIvs(),
+    isShiny,
   });
 
   return {
     enemySnapshot,
     speciesData,
+    isShiny,
   };
 };
 

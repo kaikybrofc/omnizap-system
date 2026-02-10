@@ -1,7 +1,7 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
 
 const PLAYER_COLUMNS = 'jid, level, xp, gold, created_at, updated_at';
-const PLAYER_POKEMON_COLUMNS = 'id, owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, is_active, created_at';
+const PLAYER_POKEMON_COLUMNS = 'id, owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, is_shiny, is_active, created_at';
 const BATTLE_COLUMNS = 'chat_jid, owner_jid, my_pokemon_id, enemy_snapshot_json, turn, expires_at, created_at, updated_at';
 
 const parseJson = (value, fallback) => {
@@ -20,6 +20,7 @@ const normalizePlayerPokemon = (row) => {
     ...row,
     ivs_json: parseJson(row.ivs_json, {}),
     moves_json: parseJson(row.moves_json, []),
+    is_shiny: Number(row.is_shiny) === 1,
     is_active: Number(row.is_active) === 1,
     level: Number(row.level || 1),
     xp: Number(row.xp || 0),
@@ -101,14 +102,14 @@ export const updatePlayerGoldOnly = async ({ jid, gold }, connection = null) => 
 };
 
 export const createPlayerPokemon = async (
-  { ownerJid, pokeId, nickname = null, level = 5, xp = 0, currentHp, ivsJson, movesJson, isActive = false },
+  { ownerJid, pokeId, nickname = null, level = 5, xp = 0, currentHp, ivsJson, movesJson, isShiny = false, isActive = false },
   connection = null,
 ) => {
   const result = await executeQuery(
     `INSERT INTO ${TABLES.RPG_PLAYER_POKEMON}
-      (owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, is_active)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [ownerJid, pokeId, nickname, level, xp, currentHp, JSON.stringify(ivsJson || {}), JSON.stringify(movesJson || []), isActive ? 1 : 0],
+      (owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, is_shiny, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [ownerJid, pokeId, nickname, level, xp, currentHp, JSON.stringify(ivsJson || {}), JSON.stringify(movesJson || []), isShiny ? 1 : 0, isActive ? 1 : 0],
     connection,
   );
 
@@ -212,7 +213,7 @@ export const setActivePokemon = async (ownerJid, pokemonId, connection = null) =
 };
 
 export const updatePlayerPokemonState = async (
-  { id, ownerJid, level, xp, currentHp, movesJson = null, pokeId = null, nickname },
+  { id, ownerJid, level, xp, currentHp, movesJson = null, pokeId = null, nickname, isShiny },
   connection = null,
 ) => {
   const fields = ['level = ?', 'xp = ?', 'current_hp = ?'];
@@ -231,6 +232,11 @@ export const updatePlayerPokemonState = async (
   if (nickname !== undefined) {
     fields.push('nickname = ?');
     params.push(nickname ?? null);
+  }
+
+  if (isShiny !== undefined) {
+    fields.push('is_shiny = ?');
+    params.push(isShiny ? 1 : 0);
   }
 
   params.push(id, ownerJid);
@@ -406,4 +412,27 @@ export const consumeInventoryItem = async ({ ownerJid, itemKey, quantity }, conn
   );
 
   return true;
+};
+
+export const getGroupBiomeByJid = async (groupJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT group_jid, biome_key, created_at, updated_at
+       FROM ${TABLES.RPG_GROUP_BIOME}
+      WHERE group_jid = ?
+      LIMIT 1`,
+    [groupJid],
+    connection,
+  );
+
+  return rows?.[0] || null;
+};
+
+export const upsertGroupBiome = async ({ groupJid, biomeKey }, connection = null) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_GROUP_BIOME} (group_jid, biome_key)
+     VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE biome_key = VALUES(biome_key), updated_at = CURRENT_TIMESTAMP`,
+    [groupJid, biomeKey],
+    connection,
+  );
 };

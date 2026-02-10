@@ -78,7 +78,15 @@ const requestResource = async ({ path, cacheKey }) => {
   return requestPromise;
 };
 
-export const getPokemonImage = (pokemonApiResponse) => {
+export const getPokemonImage = (pokemonApiResponse, options = {}) => {
+  const shinyPreferred = Boolean(options?.shiny);
+  if (shinyPreferred) {
+    const shinyFront = pokemonApiResponse?.sprites?.front_shiny;
+    if (typeof shinyFront === 'string' && shinyFront.trim()) {
+      return shinyFront.trim();
+    }
+  }
+
   const officialArtwork = pokemonApiResponse?.sprites?.other?.['official-artwork']?.front_default;
   if (typeof officialArtwork === 'string' && officialArtwork.trim()) {
     return officialArtwork.trim();

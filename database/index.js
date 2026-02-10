@@ -110,6 +110,7 @@ export const TABLES = {
   RPG_PLAYER_POKEMON: 'rpg_player_pokemon',
   RPG_BATTLE_STATE: 'rpg_battle_state',
   RPG_PLAYER_INVENTORY: 'rpg_player_inventory',
+  RPG_GROUP_BIOME: 'rpg_group_biome',
 };
 
 /**

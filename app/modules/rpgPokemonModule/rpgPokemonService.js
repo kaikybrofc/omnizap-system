@@ -1,4 +1,5 @@
 import { pool } from '../../../database/index.js';
+import { isGroupJid } from '../../config/baileysConfig.js';
 import logger from '../../utils/logger/loggerModule.js';
 import {
   applyPokemonXpGain,
@@ -23,12 +24,14 @@ import {
   getBattleStateByOwner,
   getBattleStateByOwnerForUpdate,
   getInventoryItemForUpdate,
+  getGroupBiomeByJid,
   getPlayerByJid,
   getPlayerByJidForUpdate,
   getPlayerPokemonById,
   getPlayerPokemonByIdForUpdate,
   listPlayerPokemons,
   setActivePokemon,
+  upsertGroupBiome,
   updatePlayerGoldOnly,
   updatePlayerPokemonState,
   updatePlayerProgress,
@@ -60,7 +63,13 @@ import {
   buildUseItemUsageText,
 } from './rpgPokemonMessages.js';
 import { getPokemon } from '../../services/pokeApiService.js';
-import { recordRpgBattleStarted, recordRpgCapture, recordRpgPlayerCreated } from '../../observability/metrics.js';
+import {
+  recordRpgBattleStarted,
+  recordRpgCapture,
+  recordRpgEvolution,
+  recordRpgPlayerCreated,
+  recordRpgShinyFound,
+} from '../../observability/metrics.js';
 
 const COOLDOWN_MS = Math.max(5_000, Number(process.env.RPG_COOLDOWN_MS) || 10_000);
 const BATTLE_TTL_MS = Math.max(60_000, Number(process.env.RPG_BATTLE_TTL_MS) || 5 * 60 * 1000);
@@ -68,6 +77,24 @@ const STARTER_LEVEL = Math.max(3, Number(process.env.RPG_STARTER_LEVEL) || 5);
 const STARTER_POKE_IDS = [1, 4, 7, 25];
 const POTION_HEAL_HP = Math.max(10, Number(process.env.RPG_POTION_HEAL_HP) || 25);
 const SUPER_POTION_HEAL_HP = Math.max(POTION_HEAL_HP + 5, Number(process.env.RPG_SUPER_POTION_HEAL_HP) || 60);
+const BIOME_KEYS = ['floresta', 'cidade', 'caverna'];
+const BIOME_DEFINITIONS = {
+  floresta: {
+    key: 'floresta',
+    label: 'Floresta',
+    preferredTypes: ['grass', 'bug'],
+  },
+  cidade: {
+    key: 'cidade',
+    label: 'Cidade',
+    preferredTypes: ['electric', 'normal'],
+  },
+  caverna: {
+    key: 'caverna',
+    label: 'Caverna',
+    preferredTypes: ['rock', 'ground'],
+  },
+};
 
 const playerCooldownMap = globalThis.__omnizapRpgCooldownMap instanceof Map ? globalThis.__omnizapRpgCooldownMap : new Map();
 globalThis.__omnizapRpgCooldownMap = playerCooldownMap;
@@ -123,6 +150,47 @@ const normalizeNameKey = (value) => {
     .replace(/[^a-z0-9]/g, '');
 };
 
+const stableHash = (value) => {
+  const raw = String(value || '');
+  let hash = 0;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+};
+
+const resolveBiomeFromKey = (biomeKey) => {
+  const key = String(biomeKey || '').trim().toLowerCase();
+  return BIOME_DEFINITIONS[key] || null;
+};
+
+const resolveDefaultBiomeForGroup = (groupJid) => {
+  const index = stableHash(groupJid) % BIOME_KEYS.length;
+  const biomeKey = BIOME_KEYS[index];
+  return BIOME_DEFINITIONS[biomeKey];
+};
+
+const resolveBiomeForChat = async (chatJid, connection = null) => {
+  if (!isGroupJid(chatJid)) return null;
+
+  const stored = await getGroupBiomeByJid(chatJid, connection);
+  const storedBiome = resolveBiomeFromKey(stored?.biome_key);
+  if (storedBiome) return storedBiome;
+
+  const assigned = resolveDefaultBiomeForGroup(chatJid);
+  if (!assigned) return null;
+
+  await upsertGroupBiome(
+    {
+      groupJid: chatJid,
+      biomeKey: assigned.key,
+    },
+    connection,
+  );
+
+  return assigned;
+};
+
 const buildBattleChatKey = (chatJid, ownerJid) => `${chatJid}::${ownerJid}`;
 
 const nowPlusTtlDate = () => new Date(Date.now() + BATTLE_TTL_MS);
@@ -160,6 +228,7 @@ const loadPokemonDisplayData = async (pokemonRow) => {
     level: pokemonRow.level,
     currentHp: pokemonRow.current_hp,
     maxHp: snapshot.maxHp,
+    isShiny: Boolean(pokemonRow.is_shiny),
     isActive: pokemonRow.is_active,
     imageUrl: snapshot.imageUrl || null,
   };
@@ -184,6 +253,7 @@ const createStarterPokemon = async ({ ownerJid, connection }) => {
     level: STARTER_LEVEL,
     currentHp: null,
     ivs: createRandomIvs(),
+    isShiny: false,
   });
 
   const created = await createPlayerPokemon(
@@ -196,6 +266,7 @@ const createStarterPokemon = async ({ ownerJid, connection }) => {
       currentHp: starterSnapshot.maxHp,
       ivsJson: starterSnapshot.ivs,
       movesJson: starterSnapshot.moves,
+      isShiny: false,
       isActive: true,
     },
     connection,
@@ -261,6 +332,7 @@ const resolveEvolutionOutcome = async ({ myPokemon, pokemonProgress, updatedBatt
     currentHp: null,
     ivs: myPokemon.ivs_json,
     storedMoves: myPokemon.moves_json,
+    isShiny: Boolean(myPokemon.is_shiny),
   });
 
   const evolvedHp = clamp(Math.max(1, Math.round(evolvedSnapshot.maxHp * hpRatio)), 0, evolvedSnapshot.maxHp);
@@ -290,6 +362,7 @@ const resolveEvolutionOutcome = async ({ myPokemon, pokemonProgress, updatedBatt
       currentHp: evolvedHp,
       level: pokemonProgress.level,
       xp: pokemonProgress.xp,
+      isShiny: Boolean(myPokemon.is_shiny),
     },
   };
 };
@@ -338,6 +411,7 @@ const handleStart = async ({ ownerJid, commandPrefix }) => {
         id: starterData.row?.id,
         name: starterData.snapshot.displayName,
         displayName: starterData.snapshot.displayName,
+        isShiny: Boolean(starterData.snapshot?.isShiny),
       },
       prefix: commandPrefix,
     }),
@@ -368,6 +442,7 @@ const handleProfile = async ({ ownerJid, commandPrefix }) => {
         level: active.level,
         currentHp: active.current_hp,
         maxHp: snapshot.maxHp,
+        isShiny: Boolean(active.is_shiny),
         imageUrl: snapshot.imageUrl || null,
       };
     } catch (error) {
@@ -418,6 +493,7 @@ const handleTeam = async ({ ownerJid, commandPrefix }) => {
         level: row.level,
         currentHp: row.current_hp,
         maxHp: row.current_hp,
+        isShiny: Boolean(row.is_shiny),
         isActive: row.is_active,
       });
     }
@@ -465,6 +541,7 @@ const handleChoose = async ({ ownerJid, selectedPokemonId, commandPrefix }) => {
         id: target.id,
         name: target.nickname || `Pokemon #${target.poke_id}`,
         displayName: target.nickname || `Pokemon #${target.poke_id}`,
+        isShiny: Boolean(target.is_shiny),
       },
       prefix: commandPrefix,
     }),
@@ -492,10 +569,20 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
     return { ok: true, text: buildPokemonFaintedText(commandPrefix) };
   }
 
-  const { enemySnapshot } = await createWildEncounter({ playerLevel: player.level });
+  const biome = await resolveBiomeForChat(chatJid);
+  const { enemySnapshot } = await createWildEncounter({
+    playerLevel: player.level,
+    preferredTypes: biome?.preferredTypes || [],
+  });
 
   const battleSnapshot = {
     turn: 1,
+    biome: biome
+      ? {
+          key: biome.key,
+          label: biome.label,
+        }
+      : null,
     my: {
       ...activePokemon.battleSnapshot,
       id: activePokemon.row.id,
@@ -514,6 +601,9 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
   });
 
   recordRpgBattleStarted();
+  if (enemySnapshot.isShiny) {
+    recordRpgShinyFound();
+  }
   const text = buildBattleStartText({
     battleSnapshot,
     prefix: commandPrefix,
@@ -522,7 +612,9 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
   return withPokemonImage({
     text,
     pokemonSnapshot: battleSnapshot.enemy,
-    caption: `🐾 Um ${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level} apareceu!\nUse ${commandPrefix}rpg atacar ou ${commandPrefix}rpg capturar`,
+    caption: enemySnapshot.isShiny
+      ? `✨ UM POKEMON SHINY APARECEU! ✨\n${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level}`
+      : `🐾 Um ${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level} apareceu!\nUse ${commandPrefix}rpg atacar ou ${commandPrefix}rpg capturar`,
   });
 };
 
@@ -639,6 +731,9 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
       });
 
       const imageTarget = evolutionOutcome ? finalBattleSnapshot.my : finalBattleSnapshot.enemy;
+      if (evolutionOutcome) {
+        recordRpgEvolution();
+      }
 
       return withPokemonImage({
         text,
@@ -729,6 +824,7 @@ const createCapturedPokemon = async ({ ownerJid, enemySnapshot, connection }) =>
       currentHp: enemySnapshot.maxHp,
       ivsJson: enemySnapshot.ivs,
       movesJson: enemySnapshot.moves,
+      isShiny: Boolean(enemySnapshot.isShiny),
       isActive: false,
     },
     connection,
@@ -835,6 +931,7 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball' }) 
           id: captured?.id,
           name: captured?.nickname || updatedSnapshot.enemy.displayName,
           displayName: captured?.nickname || updatedSnapshot.enemy.displayName,
+          isShiny: Boolean(updatedSnapshot.enemy?.isShiny),
         },
         prefix: commandPrefix,
       }).concat(`\nPoke Bola restante: ${pokeballLeft}`);

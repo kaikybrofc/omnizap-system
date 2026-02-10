@@ -137,9 +137,24 @@ const ensureMetrics = () => {
       help: 'Total de batalhas iniciadas no RPG Pokemon',
       registers: [registry],
     }),
+    rpgBattlesTotal: new client.Counter({
+      name: 'rpg_battles_total',
+      help: 'Total de batalhas iniciadas no RPG Pokemon (alias geral)',
+      registers: [registry],
+    }),
     rpgCapturesTotal: new client.Counter({
       name: 'rpg_captures_total',
       help: 'Total de capturas realizadas no RPG Pokemon',
+      registers: [registry],
+    }),
+    rpgShinyFoundTotal: new client.Counter({
+      name: 'rpg_shiny_found_total',
+      help: 'Total de encontros shiny no RPG Pokemon',
+      registers: [registry],
+    }),
+    rpgEvolutionsTotal: new client.Counter({
+      name: 'rpg_evolutions_total',
+      help: 'Total de evolucoes de Pokemon no RPG',
       registers: [registry],
     }),
     pokeApiCacheHitTotal: new client.Counter({
@@ -353,6 +368,7 @@ export const recordRpgBattleStarted = (value = 1) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return;
   m.rpgBattlesStartedTotal.inc(numeric);
+  m.rpgBattlesTotal.inc(numeric);
 };
 
 export const recordRpgCapture = (value = 1) => {
@@ -369,4 +385,20 @@ export const recordPokeApiCacheHit = (value = 1) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return;
   m.pokeApiCacheHitTotal.inc(numeric);
+};
+
+export const recordRpgShinyFound = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgShinyFoundTotal.inc(numeric);
+};
+
+export const recordRpgEvolution = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgEvolutionsTotal.inc(numeric);
 };
