@@ -102,6 +102,7 @@ import {
   buildBagText,
   buildMissionsText,
   buildMissionRewardText,
+  buildEconomyRescueText,
   buildUseItemErrorText,
   buildUsePotionSuccessText,
   buildUseItemUsageText,
@@ -178,6 +179,15 @@ const RAID_LEVEL_BONUS_MAX = Math.max(RAID_LEVEL_BONUS_MIN + 1, Number(process.e
 const PVP_WIN_GOLD = Math.max(50, Number(process.env.RPG_PVP_WIN_GOLD) || 220);
 const PVP_WIN_PLAYER_XP = Math.max(40, Number(process.env.RPG_PVP_WIN_PLAYER_XP) || 140);
 const PVP_WIN_POKEMON_XP = Math.max(40, Number(process.env.RPG_PVP_WIN_POKEMON_XP) || 120);
+const STARTER_GOLD = Math.max(300, Number(process.env.RPG_STARTER_GOLD) || 450);
+const STARTER_POKEBALL_QTY = Math.max(3, Number(process.env.RPG_STARTER_POKEBALL_QTY) || 4);
+const STARTER_POTION_QTY = Math.max(1, Number(process.env.RPG_STARTER_POTION_QTY) || 3);
+const SHOP_COST_FACTOR = Math.min(1, Math.max(0.05, Number(process.env.RPG_SHOP_COST_FACTOR) || 0.22));
+const SHOP_COST_MIN = Math.max(10, Number(process.env.RPG_SHOP_COST_MIN) || 28);
+const ECONOMY_RESCUE_COOLDOWN_MS = Math.max(60 * 60 * 1000, Number(process.env.RPG_ECONOMY_RESCUE_COOLDOWN_MS) || 6 * 60 * 60 * 1000);
+const ECONOMY_RESCUE_MAX_GOLD = Math.max(0, Number(process.env.RPG_ECONOMY_RESCUE_MAX_GOLD) || 60);
+const ECONOMY_RESCUE_GOLD = Math.max(0, Number(process.env.RPG_ECONOMY_RESCUE_GOLD) || 90);
+const ECONOMY_RESCUE_POTION_QTY = Math.max(1, Number(process.env.RPG_ECONOMY_RESCUE_POTION_QTY) || 1);
 
 const POKEDEX_MILESTONES = new Map([
   [10, { gold: 300, xp: 120 }],
@@ -194,6 +204,9 @@ globalThis.__omnizapRpgPvpCooldownMap = pvpCooldownMap;
 const sessionTrackerMap = globalThis.__omnizapRpgSessionTrackerMap instanceof Map ? globalThis.__omnizapRpgSessionTrackerMap : new Map();
 globalThis.__omnizapRpgSessionTrackerMap = sessionTrackerMap;
 
+const economyRescueMap = globalThis.__omnizapRpgEconomyRescueMap instanceof Map ? globalThis.__omnizapRpgEconomyRescueMap : new Map();
+globalThis.__omnizapRpgEconomyRescueMap = economyRescueMap;
+
 const dynamicShopCache = globalThis.__omnizapRpgDynamicShopCache || {
   items: null,
   index: null,
@@ -206,12 +219,13 @@ const areaEncounterCache = globalThis.__omnizapRpgAreaEncounterCache instanceof 
 globalThis.__omnizapRpgAreaEncounterCache = areaEncounterCache;
 
 const BASE_SHOP_ITEMS = [
-  { key: 'pokeball', label: 'Poke Bola', price: 100, description: 'Item de captura' },
-  { key: 'potion', label: 'Potion', price: 60, description: `Recupera ${POTION_HEAL_HP} HP` },
-  { key: 'superpotion', label: 'Super Potion', price: 140, description: `Recupera ${SUPER_POTION_HEAL_HP} HP` },
+  { key: 'pokeball', label: 'Poke Bola', price: 70, description: 'Item de captura' },
+  { key: 'potion', label: 'Potion', price: 35, description: `Recupera ${POTION_HEAL_HP} HP` },
+  { key: 'superpotion', label: 'Super Potion', price: 95, description: `Recupera ${SUPER_POTION_HEAL_HP} HP` },
 ];
 
 const BASE_SHOP_INDEX = new Map(BASE_SHOP_ITEMS.map((item) => [item.key, item]));
+const CORE_ITEM_PRICE_OVERRIDES = new Map(BASE_SHOP_ITEMS.map((item) => [item.key, item.price]));
 const ITEM_ALIASES = new Map([
   ['pokeball', 'pokeball'],
   ['pokebola', 'pokeball'],
@@ -288,6 +302,16 @@ const resolveItemHealingAmount = (itemData) => {
   return 0;
 };
 
+const resolveInternalShopCost = ({ itemKey, apiCost }) => {
+  const normalized = normalizeItemToken(itemKey);
+  if (CORE_ITEM_PRICE_OVERRIDES.has(normalized)) {
+    return CORE_ITEM_PRICE_OVERRIDES.get(normalized);
+  }
+
+  const safeCost = Math.max(1, toInt(apiCost, 0) || 80);
+  return Math.max(SHOP_COST_MIN, Math.round(safeCost * SHOP_COST_FACTOR));
+};
+
 const resolveCatchBonusByBall = (itemKey) => {
   const key = normalizeItemToken(itemKey);
   if (key === 'masterball') return 1;
@@ -307,7 +331,10 @@ const buildShopItemFromApi = (itemData) => {
   const category = resolveCategoryKey(itemData);
   const effect = pickEnglishEffect(itemData);
   const healAmount = resolveItemHealingAmount(itemData);
-  const cost = Math.max(1, toInt(itemData?.cost, 0) || 80);
+  const cost = resolveInternalShopCost({
+    itemKey: key,
+    apiCost: itemData?.cost,
+  });
   const isPokeball = pocket === 'pokeballs' || category.includes('ball');
   const isMachine = pocket === 'machines' || category.includes('machines');
   const isBerry = pocket === 'berries' || category.includes('berries');
@@ -1015,7 +1042,7 @@ const handleStart = async ({ ownerJid, commandPrefix }) => {
   }
 
   const starterData = await withTransaction(async (connection) => {
-    await createPlayer({ jid: ownerJid, level: 1, xp: 0, gold: 300 }, connection);
+    await createPlayer({ jid: ownerJid, level: 1, xp: 0, gold: STARTER_GOLD }, connection);
     await upsertTravelState(
       {
         ownerJid,
@@ -1026,6 +1053,8 @@ const handleStart = async ({ ownerJid, commandPrefix }) => {
       connection,
     );
     const starter = await createStarterPokemon({ ownerJid, connection });
+    await addInventoryItem({ ownerJid, itemKey: 'pokeball', quantity: STARTER_POKEBALL_QTY }, connection);
+    await addInventoryItem({ ownerJid, itemKey: 'potion', quantity: STARTER_POTION_QTY }, connection);
     return starter;
   });
 
@@ -1633,6 +1662,51 @@ const requireInventoryItem = async ({ ownerJid, itemKey, connection }) => {
   return { row, quantity };
 };
 
+const getEconomyRescueSecondsLeft = (ownerJid) => {
+  const lastAt = economyRescueMap.get(ownerJid);
+  if (!lastAt) return 0;
+  const diff = Date.now() - lastAt;
+  if (diff >= ECONOMY_RESCUE_COOLDOWN_MS) return 0;
+  return Math.max(1, Math.ceil((ECONOMY_RESCUE_COOLDOWN_MS - diff) / 1000));
+};
+
+const tryApplyEconomyRescue = async ({ ownerJid, player, activePokemon = null, connection }) => {
+  const cooldownLeft = getEconomyRescueSecondsLeft(ownerJid);
+  if (cooldownLeft > 0) return null;
+
+  const currentGold = toInt(player?.gold, 0);
+  if (currentGold > ECONOMY_RESCUE_MAX_GOLD) return null;
+
+  const potionInventory = await getInventoryItemForUpdate(ownerJid, 'potion', connection);
+  const superPotionInventory = await getInventoryItemForUpdate(ownerJid, 'superpotion', connection);
+  const healingItems = toInt(potionInventory?.quantity, 0) + toInt(superPotionInventory?.quantity, 0);
+  if (healingItems > 0) return null;
+
+  if (activePokemon) {
+    const snapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: activePokemon });
+    const maxHp = Math.max(1, toInt(snapshot?.maxHp, activePokemon.current_hp || 1));
+    const currentHp = clamp(toInt(activePokemon.current_hp, 0), 0, maxHp);
+    if (currentHp / maxHp > 0.6) return null;
+  }
+
+  const nextGold = currentGold + ECONOMY_RESCUE_GOLD;
+  await updatePlayerGoldOnly({ jid: ownerJid, gold: nextGold }, connection);
+  await addInventoryItem({ ownerJid, itemKey: 'potion', quantity: ECONOMY_RESCUE_POTION_QTY }, connection);
+  economyRescueMap.set(ownerJid, Date.now());
+
+  logger.info('Auxílio econômico aplicado para evitar travamento no início.', {
+    ownerJid,
+    grantedGold: ECONOMY_RESCUE_GOLD,
+    grantedPotions: ECONOMY_RESCUE_POTION_QTY,
+  });
+
+  return {
+    grantedGold: ECONOMY_RESCUE_GOLD,
+    grantedPotions: ECONOMY_RESCUE_POTION_QTY,
+    nextGold,
+  };
+};
+
 const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball', itemMeta = null }) => {
   return withTransaction(async (connection) => {
     await ensureNoExpiredBattle(ownerJid, connection);
@@ -1907,6 +1981,23 @@ const handleUseHealingItem = async ({ ownerJid, commandPrefix, itemMeta }) => {
 
     const inventory = await requireInventoryItem({ ownerJid, itemKey: itemMeta.key, connection });
     if (!inventory) {
+      const rescue = await tryApplyEconomyRescue({
+        ownerJid,
+        player,
+        activePokemon,
+        connection,
+      });
+      if (rescue) {
+        return {
+          ok: true,
+          text: buildEconomyRescueText({
+            goldGranted: rescue.grantedGold,
+            potionGranted: rescue.grantedPotions,
+            goldTotal: rescue.nextGold,
+            prefix: commandPrefix,
+          }),
+        };
+      }
       return {
         ok: true,
         text: buildUseItemErrorText({ reason: 'no_item', prefix: commandPrefix }),
@@ -2587,6 +2678,23 @@ const handleBuy = async ({ ownerJid, itemKey, quantity, commandPrefix }) => {
     const currentGold = toInt(player.gold, 0);
 
     if (currentGold < totalPrice) {
+      if (item.isMedicine) {
+        const rescue = await tryApplyEconomyRescue({
+          ownerJid,
+          player,
+          connection,
+        });
+        if (rescue) {
+          return {
+            ok: true,
+            text: buildBuyErrorText({
+              reason: 'not_enough_gold',
+              rescue,
+              prefix: commandPrefix,
+            }),
+          };
+        }
+      }
       return {
         ok: true,
         text: buildBuyErrorText({ reason: 'not_enough_gold', prefix: commandPrefix }),

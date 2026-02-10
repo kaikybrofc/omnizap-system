@@ -173,14 +173,14 @@ export const resolveVictoryRewards = (battleSnapshot) => {
   const rewards = {
     playerXp: Math.max(1, Math.round(enemyLevel * 14 * growthMultiplier)),
     pokemonXp: Math.max(1, Math.round(enemyLevel * 20 * growthMultiplier)),
-    gold: enemyLevel * 9,
+    gold: Math.max(40, Math.round(enemyLevel * 12 * growthMultiplier)),
     items: [],
   };
 
   if (isGymBattle) {
     rewards.playerXp = Math.round(rewards.playerXp * 2.2);
     rewards.pokemonXp = Math.round(rewards.pokemonXp * 2);
-    rewards.gold = Math.round(rewards.gold * 2.5);
+    rewards.gold = Math.round(rewards.gold * 2.3);
     rewards.items.push({ key: 'pokeball', quantity: 1 });
   }
 

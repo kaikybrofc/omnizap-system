@@ -98,6 +98,7 @@ export const buildStartText = ({ isNewPlayer, starterPokemon, prefix = '/' }) =>
     '🎉 *Jornada iniciada com sucesso!*',
     `🧩 Parceiro inicial: *${formatPokemonLabel({ name: starterPokemon.displayName || starterPokemon.name, isShiny: starterPokemon.isShiny })}*`,
     `🆔 ID no seu time: *${starterPokemon.id}*`,
+    '🎁 Kit inicial: 4x Poke Bola + 3x Potion',
     `➡️ Próximos: ${prefix}rpg perfil | ${prefix}rpg explorar`,
     `💡 Dica: explore com frequência para subir nível e capturar novos Pokémon.`,
   ].join('\n');
@@ -278,10 +279,20 @@ export const buildShopText = ({ items, prefix = '/' }) => {
 export const buildBuySuccessText = ({ item, quantity, totalPrice, goldLeft, prefix = '/' }) =>
   `✅ *Compra concluída!*\n🛍️ ${quantity}x *${item.label}* por ${totalPrice} gold\n🪙 Gold restante: *${goldLeft}*\n➡️ Próximos: ${prefix}rpg bolsa | ${prefix}rpg loja`;
 
-export const buildBuyErrorText = ({ reason = 'erro', prefix = '/' }) => {
+export const buildBuyErrorText = ({ reason = 'erro', rescue = null, prefix = '/' }) => {
   if (reason === 'invalid_item') return `❌ Item inválido.\n👉 Confira a loja: ${prefix}rpg loja`;
   if (reason === 'invalid_quantity') return `❌ Quantidade inválida.\n👉 Use: ${prefix}rpg comprar <item> <qtd>`;
-  if (reason === 'not_enough_gold') return `🪙 Gold insuficiente para essa compra.\n💡 Dica: vença batalhas e missões para ganhar mais gold.\n👉 Use: ${prefix}rpg loja`;
+  if (reason === 'not_enough_gold') {
+    if (rescue) {
+      return [
+        '🪙 Gold insuficiente para essa compra.',
+        `🆘 Ajuda emergencial recebida: +${toNumber(rescue?.grantedGold, 0)} gold e +${toNumber(rescue?.grantedPotions, 0)} Potion`,
+        `🪙 Gold atual: *${toNumber(rescue?.nextGold, 0)}*`,
+        `👉 Próximos: ${prefix}rpg usar potion | ${prefix}rpg explorar`,
+      ].join('\n');
+    }
+    return `🪙 Gold insuficiente para essa compra.\n💡 Dica: vença batalhas e missões para ganhar mais gold.\n👉 Use: ${prefix}rpg loja`;
+  }
   return `❌ Não foi possível processar a compra agora.\n👉 Tente novamente: ${prefix}rpg loja`;
 };
 
@@ -310,6 +321,14 @@ export const buildUsePotionSuccessText = ({
   prefix = '/',
 }) =>
   `🧪 *${itemLabel}* usada em *${formatName(pokemonName)}* (+${healedAmount} HP)\n❤️ HP atual: ${currentHp}/${maxHp}\n🎒 ${itemLabel} restantes: ${quantityLeft}\n➡️ Próximos: ${prefix}rpg atacar <1-4> | ${prefix}rpg explorar`;
+
+export const buildEconomyRescueText = ({ goldGranted = 0, potionGranted = 0, goldTotal = 0, prefix = '/' }) =>
+  [
+    '🆘 *Ajuda de emergência liberada!*',
+    `🪙 +${toNumber(goldGranted, 0)} gold | 🧪 +${toNumber(potionGranted, 0)} Potion`,
+    `💰 Gold atual: *${toNumber(goldTotal, 0)}*`,
+    `➡️ Próximos: ${prefix}rpg usar potion | ${prefix}rpg explorar`,
+  ].join('\n');
 
 export const buildBagText = ({ items = [], gold = 0, prefix = '/' }) => {
   if (!items.length) {
