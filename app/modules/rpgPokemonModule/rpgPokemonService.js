@@ -78,6 +78,23 @@ import {
   recordRpgPlayerCreated,
   recordRpgShinyFound,
 } from '../../observability/metrics.js';
+import {
+  BIOME_DEFINITIONS,
+  BIOME_KEYS,
+  DAILY_MISSION_REWARD,
+  DAILY_MISSION_TARGET,
+  MISSION_KEYS,
+  WEEKLY_MISSION_REWARD,
+  WEEKLY_MISSION_TARGET,
+  buildMissionProgressZero,
+  isMissionCompleted,
+  normalizeMissionProgress,
+  resolveBiomeFromKey,
+  resolveDefaultBiomeForGroup,
+  resolveMissionRefs,
+  resolveMissionStateForRefs,
+  resolveVictoryRewards,
+} from './rpgPokemonDomain.js';
 
 const COOLDOWN_MS = Math.max(5_000, Number(process.env.RPG_COOLDOWN_MS) || 10_000);
 const BATTLE_TTL_MS = Math.max(60_000, Number(process.env.RPG_BATTLE_TTL_MS) || 5 * 60 * 1000);
@@ -85,52 +102,6 @@ const STARTER_LEVEL = Math.max(3, Number(process.env.RPG_STARTER_LEVEL) || 5);
 const STARTER_POKE_IDS = [1, 4, 7, 25];
 const POTION_HEAL_HP = Math.max(10, Number(process.env.RPG_POTION_HEAL_HP) || 25);
 const SUPER_POTION_HEAL_HP = Math.max(POTION_HEAL_HP + 5, Number(process.env.RPG_SUPER_POTION_HEAL_HP) || 60);
-const BIOME_KEYS = ['floresta', 'cidade', 'caverna'];
-const BIOME_DEFINITIONS = {
-  floresta: {
-    key: 'floresta',
-    label: 'Floresta',
-    preferredTypes: ['grass', 'bug'],
-  },
-  cidade: {
-    key: 'cidade',
-    label: 'Cidade',
-    preferredTypes: ['electric', 'normal'],
-  },
-  caverna: {
-    key: 'caverna',
-    label: 'Caverna',
-    preferredTypes: ['rock', 'ground'],
-  },
-};
-const MISSION_KEYS = {
-  EXPLORE: 'explorar',
-  WIN: 'vitorias',
-  CAPTURE: 'capturas',
-};
-const DAILY_MISSION_TARGET = {
-  [MISSION_KEYS.EXPLORE]: 3,
-  [MISSION_KEYS.WIN]: 2,
-  [MISSION_KEYS.CAPTURE]: 1,
-};
-const WEEKLY_MISSION_TARGET = {
-  [MISSION_KEYS.EXPLORE]: 20,
-  [MISSION_KEYS.WIN]: 12,
-  [MISSION_KEYS.CAPTURE]: 5,
-};
-const DAILY_MISSION_REWARD = {
-  gold: 150,
-  xp: 120,
-  items: [{ key: 'potion', quantity: 1 }],
-};
-const WEEKLY_MISSION_REWARD = {
-  gold: 800,
-  xp: 500,
-  items: [
-    { key: 'superpotion', quantity: 2 },
-    { key: 'pokeball', quantity: 2 },
-  ],
-};
 const GYM_LEVEL_BONUS_MIN = 3;
 const GYM_LEVEL_BONUS_MAX = 6;
 
@@ -194,26 +165,6 @@ const normalizeNameKey = (value) => {
     .replace(/[^a-z0-9]/g, '');
 };
 
-const stableHash = (value) => {
-  const raw = String(value || '');
-  let hash = 0;
-  for (let i = 0; i < raw.length; i += 1) {
-    hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
-  }
-  return hash;
-};
-
-const resolveBiomeFromKey = (biomeKey) => {
-  const key = String(biomeKey || '').trim().toLowerCase();
-  return BIOME_DEFINITIONS[key] || null;
-};
-
-const resolveDefaultBiomeForGroup = (groupJid) => {
-  const index = stableHash(groupJid) % BIOME_KEYS.length;
-  const biomeKey = BIOME_KEYS[index];
-  return BIOME_DEFINITIONS[biomeKey];
-};
-
 const resolveBiomeForChat = async (chatJid, connection = null) => {
   if (!isGroupJid(chatJid)) return null;
 
@@ -233,51 +184,6 @@ const resolveBiomeForChat = async (chatJid, connection = null) => {
   );
 
   return assigned;
-};
-
-const toDateOnly = (value) => {
-  if (!value) return null;
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  return String(value).slice(0, 10);
-};
-
-const buildMissionProgressZero = () => ({
-  [MISSION_KEYS.EXPLORE]: 0,
-  [MISSION_KEYS.WIN]: 0,
-  [MISSION_KEYS.CAPTURE]: 0,
-});
-
-const normalizeMissionProgress = (value) => {
-  const source = value && typeof value === 'object' ? value : {};
-  return {
-    [MISSION_KEYS.EXPLORE]: Math.max(0, toInt(source[MISSION_KEYS.EXPLORE], 0)),
-    [MISSION_KEYS.WIN]: Math.max(0, toInt(source[MISSION_KEYS.WIN], 0)),
-    [MISSION_KEYS.CAPTURE]: Math.max(0, toInt(source[MISSION_KEYS.CAPTURE], 0)),
-  };
-};
-
-const isMissionCompleted = (progress, target) => {
-  return (
-    progress[MISSION_KEYS.EXPLORE] >= target[MISSION_KEYS.EXPLORE] &&
-    progress[MISSION_KEYS.WIN] >= target[MISSION_KEYS.WIN] &&
-    progress[MISSION_KEYS.CAPTURE] >= target[MISSION_KEYS.CAPTURE]
-  );
-};
-
-const resolveMissionRefs = (date = new Date()) => {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth();
-  const day = date.getUTCDate();
-  const today = new Date(Date.UTC(year, month, day));
-  const weekDay = today.getUTCDay();
-  const diffToMonday = weekDay === 0 ? 6 : weekDay - 1;
-  const monday = new Date(today);
-  monday.setUTCDate(today.getUTCDate() - diffToMonday);
-
-  return {
-    dailyRefDate: toDateOnly(today),
-    weeklyRefDate: toDateOnly(monday),
-  };
 };
 
 const itemRewardLabel = (itemKey) => {
@@ -307,31 +213,11 @@ const ensureMissionStateForUpdate = async ({ ownerJid, connection }) => {
       connection,
     );
   }
-
-  const normalized = {
-    owner_jid: ownerJid,
-    daily_ref_date: toDateOnly(row?.daily_ref_date) || refs.dailyRefDate,
-    weekly_ref_date: toDateOnly(row?.weekly_ref_date) || refs.weeklyRefDate,
-    daily_progress_json: normalizeMissionProgress(row?.daily_progress_json),
-    weekly_progress_json: normalizeMissionProgress(row?.weekly_progress_json),
-    daily_claimed_at: row?.daily_claimed_at || null,
-    weekly_claimed_at: row?.weekly_claimed_at || null,
-  };
-
-  let dirty = false;
-  if (normalized.daily_ref_date !== refs.dailyRefDate) {
-    normalized.daily_ref_date = refs.dailyRefDate;
-    normalized.daily_progress_json = buildMissionProgressZero();
-    normalized.daily_claimed_at = null;
-    dirty = true;
-  }
-
-  if (normalized.weekly_ref_date !== refs.weeklyRefDate) {
-    normalized.weekly_ref_date = refs.weeklyRefDate;
-    normalized.weekly_progress_json = buildMissionProgressZero();
-    normalized.weekly_claimed_at = null;
-    dirty = true;
-  }
+  const { normalized, dirty } = resolveMissionStateForRefs({
+    ownerJid,
+    row,
+    refs,
+  });
 
   if (dirty) {
     await updateMissionProgress(
@@ -523,27 +409,6 @@ const createStarterPokemon = async ({ ownerJid, connection }) => {
 
 const ensureNoExpiredBattle = async (ownerJid, connection = null) => {
   await deleteExpiredBattleStatesByOwner(ownerJid, connection);
-};
-
-const resolveVictoryRewards = (battleSnapshot) => {
-  const enemyLevel = Math.max(1, toInt(battleSnapshot?.enemy?.level, 1));
-  const isGymBattle = battleSnapshot?.mode === 'gym';
-
-  const rewards = {
-    playerXp: enemyLevel * 14,
-    pokemonXp: enemyLevel * 20,
-    gold: enemyLevel * 9,
-    items: [],
-  };
-
-  if (isGymBattle) {
-    rewards.playerXp = Math.round(rewards.playerXp * 2.2);
-    rewards.pokemonXp = Math.round(rewards.pokemonXp * 2);
-    rewards.gold = Math.round(rewards.gold * 2.5);
-    rewards.items.push({ key: 'pokeball', quantity: 1 });
-  }
-
-  return rewards;
 };
 
 const withPokemonImage = ({ text, pokemonSnapshot, caption = null, extra = {} }) => {
