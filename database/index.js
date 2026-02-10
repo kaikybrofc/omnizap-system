@@ -106,6 +106,10 @@ export const TABLES = {
   STICKER_PACK_ITEM: 'sticker_pack_item',
   USER_XP: 'user_xp',
   XP_TRANSACTIONS: 'xp_transactions',
+  RPG_PLAYER: 'rpg_player',
+  RPG_PLAYER_POKEMON: 'rpg_player_pokemon',
+  RPG_BATTLE_STATE: 'rpg_battle_state',
+  RPG_PLAYER_INVENTORY: 'rpg_player_inventory',
 };
 
 /**

@@ -127,6 +127,26 @@ const ensureMetrics = () => {
       labelNames: ['type'],
       registers: [registry],
     }),
+    rpgPlayersTotal: new client.Counter({
+      name: 'rpg_players_total',
+      help: 'Total de jogadores criados no RPG Pokemon',
+      registers: [registry],
+    }),
+    rpgBattlesStartedTotal: new client.Counter({
+      name: 'rpg_battles_started_total',
+      help: 'Total de batalhas iniciadas no RPG Pokemon',
+      registers: [registry],
+    }),
+    rpgCapturesTotal: new client.Counter({
+      name: 'rpg_captures_total',
+      help: 'Total de capturas realizadas no RPG Pokemon',
+      registers: [registry],
+    }),
+    pokeApiCacheHitTotal: new client.Counter({
+      name: 'pokeapi_cache_hit_total',
+      help: 'Total de cache hits no cliente da PokéAPI',
+      registers: [registry],
+    }),
   };
 
   return metrics;
@@ -317,4 +337,36 @@ export const recordMessagesUpsert = ({ durationMs, type, messagesCount, ok }) =>
   if (Number.isFinite(count) && count > 0) {
     m.messagesUpsertMessagesTotal.inc({ type: eventType }, count);
   }
+};
+
+export const recordRpgPlayerCreated = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgPlayersTotal.inc(numeric);
+};
+
+export const recordRpgBattleStarted = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgBattlesStartedTotal.inc(numeric);
+};
+
+export const recordRpgCapture = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.rpgCapturesTotal.inc(numeric);
+};
+
+export const recordPokeApiCacheHit = (value = 1) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.pokeApiCacheHitTotal.inc(numeric);
 };

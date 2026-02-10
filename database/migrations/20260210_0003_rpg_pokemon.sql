@@ -1,0 +1,58 @@
+CREATE TABLE IF NOT EXISTS rpg_player (
+  jid VARCHAR(255) PRIMARY KEY,
+  level INT UNSIGNED NOT NULL DEFAULT 1,
+  xp BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  gold BIGINT UNSIGNED NOT NULL DEFAULT 200,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS rpg_player_pokemon (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  owner_jid VARCHAR(255) NOT NULL,
+  poke_id INT UNSIGNED NOT NULL,
+  nickname VARCHAR(120) NULL,
+  level INT UNSIGNED NOT NULL DEFAULT 5,
+  xp BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  current_hp INT UNSIGNED NOT NULL,
+  ivs_json JSON NOT NULL,
+  moves_json JSON NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_rpg_player_pokemon_owner (owner_jid),
+  INDEX idx_rpg_player_pokemon_owner_active (owner_jid, is_active),
+  CONSTRAINT fk_rpg_player_pokemon_owner
+    FOREIGN KEY (owner_jid) REFERENCES rpg_player(jid)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS rpg_battle_state (
+  chat_jid VARCHAR(255) PRIMARY KEY,
+  owner_jid VARCHAR(255) NOT NULL,
+  my_pokemon_id BIGINT UNSIGNED NOT NULL,
+  enemy_snapshot_json JSON NOT NULL,
+  turn INT UNSIGNED NOT NULL DEFAULT 1,
+  expires_at DATETIME NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_rpg_battle_owner (owner_jid),
+  INDEX idx_rpg_battle_expires_at (expires_at),
+  CONSTRAINT fk_rpg_battle_owner
+    FOREIGN KEY (owner_jid) REFERENCES rpg_player(jid)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_rpg_battle_my_pokemon
+    FOREIGN KEY (my_pokemon_id) REFERENCES rpg_player_pokemon(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS rpg_player_inventory (
+  owner_jid VARCHAR(255) NOT NULL,
+  item_key VARCHAR(64) NOT NULL,
+  quantity INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (owner_jid, item_key),
+  CONSTRAINT fk_rpg_inventory_owner
+    FOREIGN KEY (owner_jid) REFERENCES rpg_player(jid)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

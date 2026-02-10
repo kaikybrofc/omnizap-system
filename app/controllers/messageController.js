@@ -24,6 +24,7 @@ import { handleDiceCommand } from '../modules/gameModule/diceCommand.js';
 import { handleXpCommand } from '../modules/xpModule/xpCommands.js';
 import { awardXpForMessage } from '../modules/xpModule/xpService.js';
 import { handleTikTokCommand } from '../modules/tiktokModule/tiktokCommand.js';
+import { handleRpgPokemonCommand } from '../modules/rpgPokemonModule/rpgPokemonCommand.js';
 import groupConfigStore from '../store/groupConfigStore.js';
 import { sendAndStore } from '../services/messagePersistenceService.js';
 import { resolveCaptchaByMessage } from '../services/captchaService.js';
@@ -286,6 +287,21 @@ export const handleMessages = async (update, sock) => {
                   args,
                   text,
                   isGroupMessage,
+                  commandPrefix,
+                }),
+              );
+              break;
+
+            case 'rpg':
+              runCommand('rpg', () =>
+                handleRpgPokemonCommand({
+                  sock,
+                  remoteJid,
+                  messageInfo,
+                  expirationMessage,
+                  senderJid,
+                  senderIdentity,
+                  args,
                   commandPrefix,
                 }),
               );
