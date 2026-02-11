@@ -143,8 +143,31 @@ export const handleRpgPokemonCommand = async ({
 
     const responseText = result?.text || '❌ Não foi possível processar o comando RPG agora.';
     const mentions = Array.isArray(result?.mentions) ? result.mentions.filter(Boolean) : [];
+    const imageBuffer = Buffer.isBuffer(result?.imageBuffer) ? result.imageBuffer : null;
     const imageUrl = typeof result?.imageUrl === 'string' && result.imageUrl.trim() ? result.imageUrl.trim() : null;
     const caption = responseText;
+
+    if (imageBuffer) {
+      try {
+        await sendAndStore(
+          sock,
+          remoteJid,
+          {
+            image: imageBuffer,
+            caption,
+            ...(mentions.length ? { mentions } : {}),
+          },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
+        return;
+      } catch (error) {
+        logger.warn('Falha ao enviar frame canvas do RPG Pokemon. Fallback para imagem URL/texto.', {
+          ownerJid,
+          action,
+          error: error.message,
+        });
+      }
+    }
 
     if (imageUrl) {
       try {

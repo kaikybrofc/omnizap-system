@@ -8,6 +8,7 @@ import { getEffectText, getFlavorText, getLocalizedGenus, getLocalizedName, getA
 import { recordRpgBattleStarted, recordRpgCapture, recordRpgCaptureAttempt, recordRpgEvolution, recordRpgAction, recordRpgBattleDuration, recordRpgFlee, recordRpgPvpChallenge, recordRpgPvpCompleted, recordRpgPvpQueue, recordRpgRaidCompleted, recordRpgRaidStarted, recordRpgPlayerCreated, recordRpgSessionDuration, recordRpgTrade, recordRpgCoopCompleted, recordRpgWeeklyEventCompleted, recordRpgKarmaVote, recordRpgGroupRetentionRatio, recordRpgShinyFound } from '../../observability/metrics.js';
 import { BIOME_DEFINITIONS, BIOME_KEYS, DAILY_MISSION_REWARD, DAILY_MISSION_TARGET, MISSION_KEYS, WEEKLY_MISSION_REWARD, WEEKLY_MISSION_TARGET, buildMissionProgressZero, isMissionCompleted, normalizeMissionProgress, resolveBiomeFromKey, resolveDefaultBiomeForGroup, resolveMissionRefs, resolveMissionStateForRefs, resolveVictoryRewards } from './rpgPokemonDomain.js';
 import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
+import { inferEffectTagFromLogs, renderBattleFrameCanvas } from './rpgBattleCanvasRenderer.js';
 
 const COOLDOWN_MS = Math.max(5_000, Number(process.env.RPG_COOLDOWN_MS) || 10_000);
 const BATTLE_TTL_MS = Math.max(60_000, Number(process.env.RPG_BATTLE_TTL_MS) || 5 * 60 * 1000);
@@ -55,6 +56,9 @@ const COOP_REWARD_ITEM_KEY = String(process.env.RPG_COOP_REWARD_ITEM_KEY || 'pok
 const COOP_REWARD_ITEM_QTY = Math.max(1, Number(process.env.RPG_COOP_REWARD_ITEM_QTY) || 2);
 const KARMA_BONUS_THRESHOLD = Math.max(5, Number(process.env.RPG_KARMA_BONUS_THRESHOLD) || 20);
 const KARMA_BONUS_RATE = Math.min(0.25, Math.max(0, Number(process.env.RPG_KARMA_BONUS_RATE) || 0.08));
+const BATTLE_CANVAS_ENABLED = String(process.env.RPG_BATTLE_CANVAS_ENABLED ?? 'true')
+  .trim()
+  .toLowerCase() !== 'false';
 
 const POKEDEX_MILESTONES = new Map([
   [10, { gold: 300, xp: 120 }],
@@ -1053,6 +1057,72 @@ const withPokemonImage = ({ text, pokemonSnapshot, caption = null, extra = {} })
   };
 };
 
+const resolveBattleModeLabel = (mode) => {
+  const key = String(mode || '').trim().toLowerCase();
+  if (key === 'gym') return 'Desafio de Ginasio';
+  if (key === 'pvp') return 'Batalha PvP';
+  if (key === 'raid') return 'Raid';
+  return 'Batalha Pokemon';
+};
+
+const pickBattleActionText = ({ logs = [], fallback = '' }) => {
+  const candidates = Array.isArray(logs) ? logs : [];
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const entry = trimLoreText(candidates[index], 110);
+    if (!entry) continue;
+    if (entry.startsWith('❤️') || entry.startsWith('➡️') || entry.startsWith('💡')) continue;
+    return entry;
+  }
+  return trimLoreText(fallback || 'Aguardando acao.', 110) || 'Aguardando acao.';
+};
+
+const withBattleCanvasFrame = async ({
+  text,
+  battleSnapshot,
+  logs = [],
+  caption = null,
+  modeLabel = null,
+  actionText = null,
+  extra = {},
+  pokemonSnapshotFallback = null,
+}) => {
+  const fallback = withPokemonImage({
+    text,
+    pokemonSnapshot: pokemonSnapshotFallback || battleSnapshot?.enemy || battleSnapshot?.my || null,
+    caption,
+    extra,
+  });
+
+  if (!BATTLE_CANVAS_ENABLED) return fallback;
+  if (!battleSnapshot?.my || !battleSnapshot?.enemy) return fallback;
+
+  try {
+    const buffer = await renderBattleFrameCanvas({
+      leftPokemon: battleSnapshot.my,
+      rightPokemon: battleSnapshot.enemy,
+      turn: toInt(battleSnapshot?.turn, 1),
+      biomeLabel: battleSnapshot?.biome?.label || battleSnapshot?.travel?.regionKey || '',
+      modeLabel: modeLabel || resolveBattleModeLabel(battleSnapshot?.mode),
+      actionText: pickBattleActionText({ logs, fallback: actionText || text }),
+      effectTag: inferEffectTagFromLogs(logs),
+    });
+
+    return {
+      ok: true,
+      text,
+      imageBuffer: buffer,
+      caption: caption || text,
+      ...extra,
+    };
+  } catch (error) {
+    logger.warn('Falha ao renderizar frame canvas da batalha RPG.', {
+      mode: battleSnapshot?.mode || null,
+      error: error.message,
+    });
+    return fallback;
+  }
+};
+
 const shouldRenamePokemonAfterEvolution = ({ currentNickname, currentSpeciesName }) => {
   if (!currentNickname) return true;
   return normalizeNameKey(currentNickname) === normalizeNameKey(currentSpeciesName);
@@ -1424,10 +1494,14 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
       text = `${text}\n${missionText}`;
     }
 
-    return withPokemonImage({
+    return withBattleCanvasFrame({
       text,
-      pokemonSnapshot: battleSnapshot.enemy,
+      battleSnapshot,
+      logs: [`${battleSnapshot.enemy.displayName} apareceu para batalha.`],
+      actionText: 'Encontro iniciado.',
+      modeLabel: battleSnapshot.mode === 'gym' ? 'Desafio de Ginasio' : 'Batalha Selvagem',
       caption: enemySnapshot.isShiny ? `✨ UM POKEMON SHINY APARECEU! ✨\n${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level}` : `🐾 Um ${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level} apareceu!\nUse ${commandPrefix}rpg atacar ou ${commandPrefix}rpg capturar`,
+      pokemonSnapshotFallback: battleSnapshot.enemy,
     });
   });
 };
@@ -1525,10 +1599,14 @@ const handleGym = async ({ ownerJid, chatJid, commandPrefix }) => {
       prefix: commandPrefix,
     });
 
-    return withPokemonImage({
+    return withBattleCanvasFrame({
       text,
-      pokemonSnapshot: battleSnapshot.enemy,
+      battleSnapshot,
+      logs: [`${battleSnapshot.enemy.displayName} aceitou o desafio de ginasio.`],
+      actionText: 'Batalha de ginasio iniciada.',
+      modeLabel: 'Desafio de Ginasio',
       caption: `🏟️ Ginasio (${biome?.label || 'Desafio'})\n${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level}`,
+      pokemonSnapshotFallback: battleSnapshot.enemy,
     });
   });
 };
@@ -1564,19 +1642,22 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
     });
 
     if (!turnResult.validTurn) {
+      const frameLogs = [...turnResult.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])];
       const text = buildBattleTurnText({
-        logs: [...turnResult.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])],
+        logs: frameLogs,
         battleSnapshot,
         prefix: commandPrefix,
         rewards: null,
       });
-      return {
-        ...withPokemonImage({
-          text,
-          pokemonSnapshot: battleSnapshot.enemy || battleSnapshot.my,
-          caption: `⚔️ Batalha: ${battleSnapshot.enemy?.displayName || 'Inimigo'} Lv.${battleSnapshot.enemy?.level || 1}\nUse ${commandPrefix}rpg atacar`,
-        }),
-      };
+      return withBattleCanvasFrame({
+        text,
+        battleSnapshot,
+        logs: frameLogs,
+        modeLabel: battleSnapshot.mode === 'gym' ? 'Desafio de Ginasio' : 'Batalha Selvagem',
+        actionText: frameLogs[frameLogs.length - 1] || 'Escolha outro movimento.',
+        caption: `⚔️ Batalha: ${battleSnapshot.enemy?.displayName || 'Inimigo'} Lv.${battleSnapshot.enemy?.level || 1}\nUse ${commandPrefix}rpg atacar`,
+        pokemonSnapshotFallback: battleSnapshot.enemy || battleSnapshot.my,
+      });
     }
 
     const updatedSnapshot = turnResult.snapshot;
@@ -1677,10 +1758,15 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
         recordRpgEvolution();
       }
 
-      return withPokemonImage({
+      const frameLogs = [...turnResult.logs, ...rewardItemNotices, ...(mission.notices || []), ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])];
+      return withBattleCanvasFrame({
         text,
-        pokemonSnapshot: imageTarget,
+        battleSnapshot: finalBattleSnapshot,
+        logs: frameLogs,
+        modeLabel: finalBattleSnapshot.mode === 'gym' ? 'Desafio de Ginasio' : 'Batalha Selvagem',
+        actionText: frameLogs[frameLogs.length - 1] || 'Vitoria na batalha.',
         caption: evolutionOutcome ? `✨ ${finalBattleSnapshot.my.displayName} Lv.${finalBattleSnapshot.my.level}\nPróximo: ${commandPrefix}rpg explorar` : `🏆 ${finalBattleSnapshot.enemy.displayName} derrotado!\nPróximo: ${commandPrefix}rpg explorar`,
+        pokemonSnapshotFallback: imageTarget,
       });
     }
 
@@ -1709,10 +1795,15 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
         rewards: null,
       });
 
-      return withPokemonImage({
+      const frameLogs = [...turnResult.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])];
+      return withBattleCanvasFrame({
         text,
-        pokemonSnapshot: updatedSnapshot.enemy || updatedSnapshot.my,
+        battleSnapshot: updatedSnapshot,
+        logs: frameLogs,
+        modeLabel: updatedSnapshot.mode === 'gym' ? 'Desafio de Ginasio' : 'Batalha Selvagem',
+        actionText: frameLogs[frameLogs.length - 1] || 'Seu Pokemon desmaiou.',
         caption: `⚔️ ${updatedSnapshot.enemy?.displayName || 'Inimigo'} Lv.${updatedSnapshot.enemy?.level || 1}\nSeu Pokémon desmaiou`,
+        pokemonSnapshotFallback: updatedSnapshot.enemy || updatedSnapshot.my,
       });
     }
 
@@ -1749,10 +1840,15 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
       rewards: null,
     });
 
-    return withPokemonImage({
+    const frameLogs = [...turnResult.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])];
+    return withBattleCanvasFrame({
       text,
-      pokemonSnapshot: updatedSnapshot.enemy || updatedSnapshot.my,
+      battleSnapshot: updatedSnapshot,
+      logs: frameLogs,
+      modeLabel: updatedSnapshot.mode === 'gym' ? 'Desafio de Ginasio' : 'Batalha Selvagem',
+      actionText: frameLogs[frameLogs.length - 1] || 'Turno finalizado.',
       caption: `⚔️ ${updatedSnapshot.enemy?.displayName || 'Inimigo'} Lv.${updatedSnapshot.enemy?.level || 1}\nUse ${commandPrefix}rpg atacar`,
+      pokemonSnapshotFallback: updatedSnapshot.enemy || updatedSnapshot.my,
     });
   });
 };
@@ -1871,13 +1967,15 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball', it
         battleSnapshot,
         prefix: commandPrefix,
       });
-      return {
-        ...withPokemonImage({
-          text,
-          pokemonSnapshot: battleSnapshot.enemy || battleSnapshot.my,
-          caption: `🎯 ${battleSnapshot.enemy?.displayName || 'Alvo'} Lv.${battleSnapshot.enemy?.level || 1}\nUse ${commandPrefix}rpg atacar ou ${commandPrefix}rpg capturar`,
-        }),
-      };
+      return withBattleCanvasFrame({
+        text,
+        battleSnapshot,
+        logs: captureResult.logs,
+        modeLabel: battleSnapshot.mode === 'gym' ? 'Desafio de Ginasio' : 'Tentativa de Captura',
+        actionText: captureResult.logs[captureResult.logs.length - 1] || 'Acao invalida para captura.',
+        caption: `🎯 ${battleSnapshot.enemy?.displayName || 'Alvo'} Lv.${battleSnapshot.enemy?.level || 1}\nUse ${commandPrefix}rpg atacar ou ${commandPrefix}rpg capturar`,
+        pokemonSnapshotFallback: battleSnapshot.enemy || battleSnapshot.my,
+      });
     }
 
     const inventory = await requireInventoryItem({
@@ -2036,10 +2134,14 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball', it
         prefix: commandPrefix,
       });
 
-      return withPokemonImage({
+      return withBattleCanvasFrame({
         text,
-        pokemonSnapshot: updatedSnapshot.enemy || updatedSnapshot.my,
+        battleSnapshot: updatedSnapshot,
+        logs: [...captureResult.logs, `Poke Bola restante: ${pokeballLeft}`],
+        modeLabel: 'Tentativa de Captura',
+        actionText: 'A captura falhou e seu Pokemon desmaiou.',
         caption: `🎯 ${updatedSnapshot.enemy?.displayName || 'Alvo'} Lv.${updatedSnapshot.enemy?.level || 1}\nA captura falhou`,
+        pokemonSnapshotFallback: updatedSnapshot.enemy || updatedSnapshot.my,
       });
     }
 
@@ -2077,10 +2179,14 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball', it
       prefix: commandPrefix,
     });
 
-    return withPokemonImage({
+    return withBattleCanvasFrame({
       text,
-      pokemonSnapshot: updatedSnapshot.enemy || updatedSnapshot.my,
+      battleSnapshot: updatedSnapshot,
+      logs: [...captureResult.logs, `Poke Bola restante: ${pokeballLeft}`],
+      modeLabel: 'Tentativa de Captura',
+      actionText: captureResult.logs[captureResult.logs.length - 1] || 'Captura nao concluida.',
       caption: `🎯 ${updatedSnapshot.enemy?.displayName || 'Alvo'} Lv.${updatedSnapshot.enemy?.level || 1}\nUse ${commandPrefix}rpg atacar ou ${commandPrefix}rpg capturar`,
+      pokemonSnapshotFallback: updatedSnapshot.enemy || updatedSnapshot.my,
     });
   });
 };
@@ -4377,19 +4483,33 @@ const handlePvp = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [], me
         defenderLabel: `${enemy.pokemon.displayName}`,
       });
       if (!attack.validMove) {
+        const turnLogs = attack.logs;
+        const turnText = buildPvpTurnText({
+          logs: turnLogs,
+          myPokemonLabel: toPvpPokemonLabel(me.pokemon),
+          enemyPokemonLabel: toPvpPokemonLabel(enemy.pokemon),
+          myHp: me.pokemon.currentHp,
+          myMaxHp: me.pokemon.maxHp,
+          enemyHp: enemy.pokemon.currentHp,
+          enemyMaxHp: enemy.pokemon.maxHp,
+          winnerJid: null,
+          prefix: commandPrefix,
+        });
         return {
-          ok: true,
-          text: buildPvpTurnText({
-            logs: attack.logs,
-            myPokemonLabel: toPvpPokemonLabel(me.pokemon),
-            enemyPokemonLabel: toPvpPokemonLabel(enemy.pokemon),
-            myHp: me.pokemon.currentHp,
-            myMaxHp: me.pokemon.maxHp,
-            enemyHp: enemy.pokemon.currentHp,
-            enemyMaxHp: enemy.pokemon.maxHp,
-            winnerJid: null,
-            prefix: commandPrefix,
-          }),
+          ...(await withBattleCanvasFrame({
+            text: turnText,
+            battleSnapshot: {
+              mode: 'pvp',
+              turn: toInt(snapshot.turn, 1),
+              biome: { label: 'Arena PvP' },
+              my: me.pokemon,
+              enemy: enemy.pokemon,
+            },
+            logs: turnLogs,
+            modeLabel: 'Batalha PvP',
+            actionText: turnLogs[turnLogs.length - 1] || 'Movimento invalido.',
+            pokemonSnapshotFallback: enemy.pokemon || me.pokemon,
+          })),
         };
       }
 
@@ -4540,28 +4660,43 @@ const handlePvp = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [], me
         );
       }
 
-      return {
-        ok: true,
-        text: buildPvpTurnText({
-          logs: [...attack.logs, `💥 Dano: ${attack.damage}`, ...(notices || [])],
-          myPokemonLabel: toPvpPokemonLabel(attack.attacker),
-          enemyPokemonLabel: toPvpPokemonLabel(attack.defender),
-          myHp: toInt(attack.attacker.currentHp, 0),
-          myMaxHp: Math.max(1, toInt(attack.attacker.maxHp, 1)),
-          enemyHp: Math.max(0, toInt(attack.defender.currentHp, 0)),
-          enemyMaxHp: Math.max(1, toInt(attack.defender.maxHp, 1)),
-          winnerJid: winnerJid
-            ? {
-                jid: winnerJid,
-                label: toMentionLabel(winnerJid),
-              }
-            : null,
-          prefix: commandPrefix,
-        }),
-        winnerJid,
-        loserJid: winnerJid ? opponentJid : null,
-        mentions: winnerJid ? buildEngagementMentions(winnerJid, opponentJid) : [],
-      };
+      const turnLogs = [...attack.logs, `💥 Dano: ${attack.damage}`, ...(notices || [])];
+      const turnText = buildPvpTurnText({
+        logs: turnLogs,
+        myPokemonLabel: toPvpPokemonLabel(attack.attacker),
+        enemyPokemonLabel: toPvpPokemonLabel(attack.defender),
+        myHp: toInt(attack.attacker.currentHp, 0),
+        myMaxHp: Math.max(1, toInt(attack.attacker.maxHp, 1)),
+        enemyHp: Math.max(0, toInt(attack.defender.currentHp, 0)),
+        enemyMaxHp: Math.max(1, toInt(attack.defender.maxHp, 1)),
+        winnerJid: winnerJid
+          ? {
+              jid: winnerJid,
+              label: toMentionLabel(winnerJid),
+            }
+          : null,
+        prefix: commandPrefix,
+      });
+
+      return withBattleCanvasFrame({
+        text: turnText,
+        battleSnapshot: {
+          mode: 'pvp',
+          turn: toInt(nextSnapshot.turn, 1),
+          biome: { label: 'Arena PvP' },
+          my: attack.attacker,
+          enemy: attack.defender,
+        },
+        logs: turnLogs,
+        modeLabel: 'Batalha PvP',
+        actionText: turnLogs[turnLogs.length - 1] || 'Turno atualizado.',
+        pokemonSnapshotFallback: attack.defender || attack.attacker,
+        extra: {
+          winnerJid,
+          loserJid: winnerJid ? opponentJid : null,
+          mentions: winnerJid ? buildEngagementMentions(winnerJid, opponentJid) : [],
+        },
+      });
     });
 
     if (output?.winnerJid && output?.loserJid) {
