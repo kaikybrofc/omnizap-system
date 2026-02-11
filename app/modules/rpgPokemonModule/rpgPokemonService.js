@@ -821,6 +821,56 @@ const buildEngagementMentions = (...jids) =>
     ),
   );
 
+const USER_JID_IN_TEXT_REGEX = /(?:\b\d{6,}@s\.whatsapp\.net\b|\b[0-9a-z._:-]+@lid\b)/gi;
+
+const replaceUserJidsWithMentions = (text) => {
+  const raw = String(text || '');
+  if (!raw.trim()) {
+    return {
+      text: raw,
+      mentions: [],
+    };
+  }
+
+  const foundMentions = [];
+  const replaced = raw.replace(USER_JID_IN_TEXT_REGEX, (match) => {
+    const jid = toMentionJid(match);
+    if (!jid) return match;
+    foundMentions.push(jid);
+    return toMentionLabel(jid);
+  });
+
+  return {
+    text: replaced,
+    mentions: buildEngagementMentions(foundMentions),
+  };
+};
+
+const applyAutoMentionsOnResult = (result) => {
+  if (!result || typeof result !== 'object') return result;
+
+  const textRaw = typeof result.text === 'string' ? result.text : '';
+  const captionRaw = typeof result.caption === 'string' ? result.caption : null;
+
+  const textResolved = replaceUserJidsWithMentions(textRaw);
+  const captionResolved = captionRaw === null ? { text: null, mentions: [] } : replaceUserJidsWithMentions(captionRaw);
+
+  const mergedMentions = buildEngagementMentions(
+    result.mentions || [],
+    textResolved.mentions,
+    captionResolved.mentions,
+    result.winnerJid || null,
+    result.loserJid || null,
+  );
+
+  return {
+    ...result,
+    ...(typeof result.text === 'string' ? { text: textResolved.text } : {}),
+    ...(typeof result.caption === 'string' ? { caption: captionResolved.text } : {}),
+    ...(mergedMentions.length ? { mentions: mergedMentions } : {}),
+  };
+};
+
 const determineEventDefinitionForGroup = ({ chatJid, weekRefDate }) => {
   const seedRaw = `${chatJid || 'chat'}::${weekRefDate || getCurrentWeekRefDate()}`;
   let hash = 0;
@@ -5708,6 +5758,8 @@ export const executeRpgPokemonAction = async ({ ownerJid, chatJid, action, actio
         };
         break;
     }
+
+    result = applyAutoMentionsOnResult(result);
 
     if (result?.ok && shouldApplyCooldown(normalizedAction) && normalizedAction !== 'perfil' && normalizedAction !== 'time' && normalizedAction !== 'loja') {
       touchCooldown(ownerJid);
