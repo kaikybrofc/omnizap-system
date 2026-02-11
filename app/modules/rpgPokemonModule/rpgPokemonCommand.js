@@ -1,10 +1,11 @@
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { resolveUserIdCached } from '../../services/lidMapService.js';
 import logger from '../../utils/logger/loggerModule.js';
-import { buildUsageText } from './rpgPokemonMessages.js';
+import { buildRpgHelpText, buildUsageText } from './rpgPokemonMessages.js';
 import { executeRpgPokemonAction } from './rpgPokemonService.js';
 
-const ALLOWED_ACTIONS = new Set(['start', 'perfil', 'explorar', 'atacar', 'capturar', 'fugir', 'time', 'escolher', 'loja', 'comprar', 'usar', 'bolsa', 'pokedex', 'evolucao', 'evolução', 'missoes', 'missões', 'viajar', 'tm', 'berry', 'raid', 'desafiar', 'pvp', 'ginasio', 'ginásio', 'trade', 'coop', 'evento', 'social', 'karma', 'engajamento']);
+const ALLOWED_ACTIONS = new Set(['help', 'ajuda', 'start', 'perfil', 'explorar', 'atacar', 'capturar', 'fugir', 'time', 'escolher', 'loja', 'comprar', 'usar', 'bolsa', 'pokedex', 'evolucao', 'evolução', 'missoes', 'missões', 'viajar', 'tm', 'berry', 'raid', 'desafiar', 'pvp', 'ginasio', 'ginásio', 'trade', 'coop', 'evento', 'social', 'karma', 'engajamento']);
+const HELP_ACTIONS = new Set(['help', 'ajuda']);
 
 const getContextInfo = (messageInfo) => {
   const root = messageInfo?.message;
@@ -62,7 +63,12 @@ export const handleRpgPokemonCommand = async ({ sock, remoteJid, messageInfo, ex
     .toLowerCase();
 
   if (!action) {
-    await sendAndStore(sock, remoteJid, { text: buildUsageText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(sock, remoteJid, { text: buildRpgHelpText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    return;
+  }
+
+  if (HELP_ACTIONS.has(action)) {
+    await sendAndStore(sock, remoteJid, { text: buildRpgHelpText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
@@ -71,7 +77,7 @@ export const handleRpgPokemonCommand = async ({ sock, remoteJid, messageInfo, ex
       sock,
       remoteJid,
       {
-        text: `${buildUsageText(commandPrefix)}\n\nUse um subcomando válido depois de ${commandPrefix}rpg.`,
+        text: `${buildUsageText(commandPrefix)}\n\nUse um subcomando válido depois de ${commandPrefix}rpg.\nGuia completo: ${commandPrefix}rpg help`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );

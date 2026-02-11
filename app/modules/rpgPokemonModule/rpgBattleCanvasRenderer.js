@@ -90,6 +90,12 @@ const STATUS_MAP = new Map([
   ['paralyze', { icon: '⚡', label: 'PAR', color: '#facc15' }],
   ['paralysis', { icon: '⚡', label: 'PAR', color: '#facc15' }],
   ['par', { icon: '⚡', label: 'PAR', color: '#facc15' }],
+  ['sleep', { icon: '💤', label: 'SLP', color: '#60a5fa' }],
+  ['slp', { icon: '💤', label: 'SLP', color: '#60a5fa' }],
+  ['freeze', { icon: '❄️', label: 'FRZ', color: '#67e8f9' }],
+  ['frz', { icon: '❄️', label: 'FRZ', color: '#67e8f9' }],
+  ['confusion', { icon: '🌀', label: 'CNF', color: '#fbbf24' }],
+  ['conf', { icon: '🌀', label: 'CNF', color: '#fbbf24' }],
 ]);
 
 const TYPE_ICONS = new Map([

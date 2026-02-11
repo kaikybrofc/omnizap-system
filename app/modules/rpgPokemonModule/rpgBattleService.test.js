@@ -187,6 +187,33 @@ const withRandomSequence = async (values, fn) => {
   }
 };
 
+const buildMoveSnapshot = ({
+  name = 'tackle',
+  displayName = 'Tackle',
+  power = 40,
+  accuracy = 100,
+  damageClass = 'physical',
+  type = 'normal',
+  effectMeta = {},
+} = {}) => ({
+  name,
+  displayName,
+  power,
+  accuracy,
+  damageClass,
+  type,
+  typeDamage: { doubleTo: [], halfTo: [], noTo: [] },
+  effectMeta: {
+    target: effectMeta.target || 'selected-pokemon',
+    statChanges: Array.isArray(effectMeta.statChanges) ? effectMeta.statChanges : [],
+    statChance: Number.isFinite(Number(effectMeta.statChance)) ? Number(effectMeta.statChance) : 100,
+    ailment: effectMeta.ailment || null,
+    ailmentChance: Number.isFinite(Number(effectMeta.ailmentChance)) ? Number(effectMeta.ailmentChance) : 0,
+    healing: Number.isFinite(Number(effectMeta.healing)) ? Number(effectMeta.healing) : 0,
+    drain: Number.isFinite(Number(effectMeta.drain)) ? Number(effectMeta.drain) : 0,
+  },
+});
+
 test('fluxo crítico: explorar -> batalha -> capturar deve ser executável com snapshot válido', { concurrency: false }, async () => {
   const cache = ensurePokeApiCache();
   cache.clear();
@@ -432,4 +459,219 @@ test('ataque único deve aplicar dano e reduzir HP do alvo', () => {
   assert.equal(result.validMove, true);
   assert.ok(result.damage >= 1);
   assert.ok(result.defender.currentHp < 80);
+});
+
+test('paralisia deve poder impedir ação no turno', async () => {
+  const caster = {
+    displayName: 'Pikachu',
+    level: 20,
+    currentHp: 95,
+    maxHp: 95,
+    types: ['electric'],
+    stats: {
+      attack: 70,
+      defense: 55,
+      specialAttack: 80,
+      specialDefense: 60,
+      speed: 95,
+    },
+    moves: [
+      buildMoveSnapshot({
+        name: 'thunder-wave',
+        displayName: 'Thunder Wave',
+        power: 0,
+        damageClass: 'status',
+        type: 'electric',
+        effectMeta: {
+          target: 'selected-pokemon',
+          ailment: 'paralysis',
+          ailmentChance: 100,
+        },
+      }),
+    ],
+  };
+
+  const target = {
+    displayName: 'Eevee',
+    level: 18,
+    currentHp: 100,
+    maxHp: 100,
+    types: ['normal'],
+    stats: {
+      attack: 65,
+      defense: 60,
+      specialAttack: 45,
+      specialDefense: 65,
+      speed: 55,
+    },
+    moves: [buildMoveSnapshot()],
+  };
+
+  const setup = await withRandomSequence([0.0], async () =>
+    resolveSingleAttack({
+      attackerSnapshot: caster,
+      defenderSnapshot: target,
+      moveSlot: 1,
+      attackerLabel: 'Pikachu',
+      defenderLabel: 'Eevee',
+    }),
+  );
+
+  assert.equal(setup.defender.nonVolatileStatus, 'paralysis');
+  assert.ok(setup.logs.some((line) => String(line).includes('paralisado')));
+
+  const blocked = await withRandomSequence([0.0], async () =>
+    resolveSingleAttack({
+      attackerSnapshot: setup.defender,
+      defenderSnapshot: setup.attacker,
+      moveSlot: 1,
+      attackerLabel: 'Eevee',
+      defenderLabel: 'Pikachu',
+    }),
+  );
+
+  assert.equal(blocked.validMove, true);
+  assert.equal(blocked.damage, 0);
+  assert.ok(blocked.logs.some((line) => String(line).includes('não conseguiu agir')));
+});
+
+test('debuff de ataque deve reduzir dano físico no turno seguinte', async () => {
+  const attackerBase = {
+    displayName: 'GrowlMon',
+    level: 22,
+    currentHp: 120,
+    maxHp: 120,
+    types: ['normal'],
+    stats: {
+      attack: 70,
+      defense: 70,
+      specialAttack: 60,
+      specialDefense: 65,
+      speed: 75,
+    },
+    moves: [
+      buildMoveSnapshot({
+        name: 'growl',
+        displayName: 'Growl',
+        power: 0,
+        damageClass: 'status',
+        effectMeta: {
+          target: 'selected-pokemon',
+          statChanges: [{ stat: 'attack', change: -1 }],
+          statChance: 100,
+        },
+      }),
+    ],
+  };
+
+  const defenderBase = {
+    displayName: 'BiteMon',
+    level: 22,
+    currentHp: 120,
+    maxHp: 120,
+    types: ['normal'],
+    stats: {
+      attack: 85,
+      defense: 68,
+      specialAttack: 50,
+      specialDefense: 60,
+      speed: 72,
+    },
+    moves: [buildMoveSnapshot()],
+  };
+
+  const baseline = await withRandomSequence([0.0, 0.0], async () =>
+    resolveSingleAttack({
+      attackerSnapshot: defenderBase,
+      defenderSnapshot: attackerBase,
+      moveSlot: 1,
+      attackerLabel: 'BiteMon',
+      defenderLabel: 'GrowlMon',
+    }),
+  );
+
+  const debuffStep = await withRandomSequence([0.0], async () =>
+    resolveSingleAttack({
+      attackerSnapshot: attackerBase,
+      defenderSnapshot: defenderBase,
+      moveSlot: 1,
+      attackerLabel: 'GrowlMon',
+      defenderLabel: 'BiteMon',
+    }),
+  );
+
+  assert.ok(debuffStep.logs.some((line) => String(line).includes('reduziu Ataque')));
+
+  const afterDebuff = await withRandomSequence([0.0, 0.0], async () =>
+    resolveSingleAttack({
+      attackerSnapshot: debuffStep.defender,
+      defenderSnapshot: debuffStep.attacker,
+      moveSlot: 1,
+      attackerLabel: 'BiteMon',
+      defenderLabel: 'GrowlMon',
+    }),
+  );
+
+  assert.ok(afterDebuff.damage < baseline.damage);
+});
+
+test('queimadura deve causar dano residual ao final do turno', async () => {
+  const caster = {
+    displayName: 'Flareon',
+    level: 24,
+    currentHp: 130,
+    maxHp: 130,
+    types: ['fire'],
+    stats: {
+      attack: 95,
+      defense: 70,
+      specialAttack: 85,
+      specialDefense: 80,
+      speed: 70,
+    },
+    moves: [
+      buildMoveSnapshot({
+        name: 'will-o-wisp',
+        displayName: 'Will-O-Wisp',
+        power: 0,
+        damageClass: 'status',
+        type: 'fire',
+        effectMeta: {
+          target: 'selected-pokemon',
+          ailment: 'burn',
+          ailmentChance: 100,
+        },
+      }),
+    ],
+  };
+
+  const target = {
+    displayName: 'Snorlax',
+    level: 24,
+    currentHp: 160,
+    maxHp: 160,
+    types: ['normal'],
+    stats: {
+      attack: 90,
+      defense: 75,
+      specialAttack: 65,
+      specialDefense: 85,
+      speed: 30,
+    },
+    moves: [buildMoveSnapshot()],
+  };
+
+  const result = await withRandomSequence([0.0], async () =>
+    resolveSingleAttack({
+      attackerSnapshot: caster,
+      defenderSnapshot: target,
+      moveSlot: 1,
+      attackerLabel: 'Flareon',
+      defenderLabel: 'Snorlax',
+    }),
+  );
+
+  assert.equal(result.defender.nonVolatileStatus, 'burn');
+  assert.ok(result.defender.currentHp < target.maxHp);
+  assert.ok(result.logs.some((line) => String(line).includes('dano por queimadura')));
 });

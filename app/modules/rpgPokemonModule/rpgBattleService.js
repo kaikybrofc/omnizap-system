@@ -21,6 +21,19 @@ const SPECIAL_CLASS = 'special';
 const STATUS_CLASS = 'status';
 
 const BASE_STAT_NAMES = ['hp', 'attack', 'defense', 'special-attack', 'special-defense', 'speed'];
+const STAT_STAGE_KEYS = ['attack', 'defense', 'specialAttack', 'specialDefense', 'speed', 'accuracy', 'evasion'];
+const MIN_STAT_STAGE = -6;
+const MAX_STAT_STAGE = 6;
+const PARALYSIS_SKIP_CHANCE = 0.25;
+const FREEZE_THAW_CHANCE = 0.2;
+const CONFUSION_SELF_HIT_CHANCE = 0.33;
+const CONFUSION_MIN_TURNS = 1;
+const CONFUSION_MAX_TURNS = 4;
+const SLEEP_MIN_TURNS = 1;
+const SLEEP_MAX_TURNS = 3;
+const BURN_DAMAGE_RATIO = 1 / 16;
+const POISON_DAMAGE_RATIO = 1 / 8;
+const TOXIC_BASE_DAMAGE_RATIO = 1 / 16;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const randomInt = (min, max) => {
@@ -54,6 +67,11 @@ const toNumber = (value, fallback = 0) => {
 const toPositiveInt = (value, fallback = 0) => {
   const parsed = Math.floor(toNumber(value, fallback));
   return parsed >= 0 ? parsed : fallback;
+};
+
+const toInt = (value, fallback = 0) => {
+  const parsed = Math.trunc(toNumber(value, fallback));
+  return Number.isFinite(parsed) ? parsed : fallback;
 };
 
 const normalizeIvs = (ivs) => {
@@ -105,6 +123,8 @@ const normalizeStatKey = (name) => {
   if (key === 'attack') return 'attack';
   if (key === 'defense') return 'defense';
   if (key === 'speed') return 'speed';
+  if (key === 'accuracy') return 'accuracy';
+  if (key === 'evasion') return 'evasion';
   return null;
 };
 
@@ -115,6 +135,173 @@ const hashString = (value) => {
     hash = (hash * 31 + raw.charCodeAt(index)) >>> 0;
   }
   return hash;
+};
+
+const normalizeAilmentKey = (value) => {
+  const key = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (!key) return null;
+  if (key === 'paralysis' || key === 'paralyze' || key === 'par') return 'paralysis';
+  if (key === 'burn' || key === 'brn') return 'burn';
+  if (key === 'poison' || key === 'psn') return 'poison';
+  if (key === 'toxic' || key === 'bad-poison') return 'toxic';
+  if (key === 'sleep' || key === 'slp') return 'sleep';
+  if (key === 'freeze' || key === 'frz') return 'freeze';
+  if (key === 'confusion' || key === 'confuse' || key === 'conf') return 'confusion';
+  return null;
+};
+
+const stageMultiplier = (stage) => {
+  const safeStage = clamp(toPositiveInt(Math.abs(stage), 0), 0, 6);
+  if (stage >= 0) return (2 + safeStage) / 2;
+  return 2 / (2 + safeStage);
+};
+
+const shouldApplyChance = (chancePercent) => {
+  const chance = clamp(toNumber(chancePercent, 0), 0, 100);
+  if (chance <= 0) return false;
+  if (chance >= 100) return true;
+  return Math.random() * 100 < chance;
+};
+
+const createDefaultStatStages = () => ({
+  attack: 0,
+  defense: 0,
+  specialAttack: 0,
+  specialDefense: 0,
+  speed: 0,
+  accuracy: 0,
+  evasion: 0,
+});
+
+const buildStatusEffectList = (pokemon = {}) => {
+  const effects = [];
+  const nonVolatile = normalizeAilmentKey(pokemon?.nonVolatileStatus);
+  if (nonVolatile) effects.push(nonVolatile);
+  if (toPositiveInt(pokemon?.confusionTurns, 0) > 0) effects.push('confusion');
+  return effects;
+};
+
+const syncPokemonCombatState = (pokemon = {}) => {
+  if (!pokemon || typeof pokemon !== 'object') return pokemon;
+  const maxHpRaw = toInt(pokemon?.maxHp, NaN);
+  const currentHpRaw = toInt(pokemon?.currentHp, NaN);
+  pokemon.maxHp = Number.isFinite(maxHpRaw) && maxHpRaw > 0 ? maxHpRaw : Math.max(1, Number.isFinite(currentHpRaw) ? currentHpRaw : 1);
+  pokemon.currentHp = Number.isFinite(currentHpRaw) ? clamp(currentHpRaw, 0, pokemon.maxHp) : pokemon.maxHp;
+
+  const sourceStages = pokemon?.statStages && typeof pokemon.statStages === 'object' ? pokemon.statStages : {};
+  const nextStages = createDefaultStatStages();
+  for (const key of STAT_STAGE_KEYS) {
+    nextStages[key] = clamp(toInt(sourceStages[key], 0), MIN_STAT_STAGE, MAX_STAT_STAGE);
+  }
+  pokemon.statStages = nextStages;
+  pokemon.nonVolatileStatus = normalizeAilmentKey(pokemon?.nonVolatileStatus);
+  pokemon.sleepTurns = toPositiveInt(pokemon?.sleepTurns, 0);
+  pokemon.toxicCounter = Math.max(1, toPositiveInt(pokemon?.toxicCounter, 1));
+  pokemon.confusionTurns = toPositiveInt(pokemon?.confusionTurns, 0);
+  pokemon.statusEffects = buildStatusEffectList(pokemon);
+  return pokemon;
+};
+
+const resolveStatStage = (pokemon = {}, statKey) => {
+  if (!STAT_STAGE_KEYS.includes(statKey)) return 0;
+  return clamp(toInt(pokemon?.statStages?.[statKey], 0), MIN_STAT_STAGE, MAX_STAT_STAGE);
+};
+
+const applyStatStageDelta = (pokemon = {}, statKey, delta) => {
+  if (!STAT_STAGE_KEYS.includes(statKey)) return 0;
+  syncPokemonCombatState(pokemon);
+  const current = resolveStatStage(pokemon, statKey);
+  const desired = clamp(current + toInt(delta, 0), MIN_STAT_STAGE, MAX_STAT_STAGE);
+  pokemon.statStages[statKey] = desired;
+  return desired - current;
+};
+
+const clearNonVolatileStatus = (pokemon = {}) => {
+  syncPokemonCombatState(pokemon);
+  pokemon.nonVolatileStatus = null;
+  pokemon.sleepTurns = 0;
+  pokemon.toxicCounter = 1;
+  pokemon.statusEffects = buildStatusEffectList(pokemon);
+};
+
+const setNonVolatileStatus = (pokemon = {}, statusKey) => {
+  const normalized = normalizeAilmentKey(statusKey);
+  if (!normalized || normalized === 'confusion') return false;
+  syncPokemonCombatState(pokemon);
+  if (pokemon.nonVolatileStatus) return false;
+  pokemon.nonVolatileStatus = normalized;
+  if (normalized === 'sleep') {
+    pokemon.sleepTurns = randomInt(SLEEP_MIN_TURNS, SLEEP_MAX_TURNS);
+  } else {
+    pokemon.sleepTurns = 0;
+  }
+  pokemon.toxicCounter = normalized === 'toxic' ? 1 : 1;
+  pokemon.statusEffects = buildStatusEffectList(pokemon);
+  return true;
+};
+
+const setConfusionStatus = (pokemon = {}) => {
+  syncPokemonCombatState(pokemon);
+  if (pokemon.confusionTurns > 0) return false;
+  pokemon.confusionTurns = randomInt(CONFUSION_MIN_TURNS, CONFUSION_MAX_TURNS);
+  pokemon.statusEffects = buildStatusEffectList(pokemon);
+  return true;
+};
+
+const resolveEffectiveStat = ({ pokemon, statKey, applyBurnPenalty = false }) => {
+  syncPokemonCombatState(pokemon);
+  const base = Math.max(1, toPositiveInt(pokemon?.stats?.[statKey], 1));
+  const stage = resolveStatStage(pokemon, statKey);
+  let effective = Math.max(1, Math.round(base * stageMultiplier(stage)));
+
+  if (statKey === 'attack' && applyBurnPenalty && pokemon?.nonVolatileStatus === 'burn') {
+    effective = Math.max(1, Math.round(effective * 0.5));
+  }
+  if (statKey === 'speed' && pokemon?.nonVolatileStatus === 'paralysis') {
+    effective = Math.max(1, Math.round(effective * 0.5));
+  }
+
+  return effective;
+};
+
+const resolveEffectiveAccuracy = ({ move, attacker, defender }) => {
+  const baseAccuracy = clamp(toPositiveInt(move?.accuracy, 100), 1, 100);
+  const accuracyStage = resolveStatStage(attacker, 'accuracy');
+  const evasionStage = resolveStatStage(defender, 'evasion');
+  const accuracyMultiplier = stageMultiplier(accuracyStage);
+  const evasionMultiplier = stageMultiplier(evasionStage);
+  return clamp(Math.round(baseAccuracy * (accuracyMultiplier / Math.max(0.1, evasionMultiplier))), 1, 100);
+};
+
+const isAilmentBlockedByType = (pokemon = {}, ailmentKey) => {
+  const types = Array.isArray(pokemon?.types)
+    ? pokemon.types
+        .map((entry) =>
+          String(entry || '')
+            .trim()
+            .toLowerCase(),
+        )
+        .filter(Boolean)
+    : [];
+
+  if (ailmentKey === 'burn' && types.includes('fire')) return true;
+  if ((ailmentKey === 'poison' || ailmentKey === 'toxic') && (types.includes('poison') || types.includes('steel'))) return true;
+  if (ailmentKey === 'paralysis' && types.includes('electric')) return true;
+  if (ailmentKey === 'freeze' && types.includes('ice')) return true;
+  return false;
+};
+
+const formatStageLabel = (statKey) => {
+  if (statKey === 'attack') return 'Ataque';
+  if (statKey === 'defense') return 'Defesa';
+  if (statKey === 'specialAttack') return 'Ataque Especial';
+  if (statKey === 'specialDefense') return 'Defesa Especial';
+  if (statKey === 'speed') return 'Velocidade';
+  if (statKey === 'accuracy') return 'Precisão';
+  if (statKey === 'evasion') return 'Evasão';
+  return statKey;
 };
 
 const applyNatureAndAbilityModifiers = ({ stats, natureData = null, abilityKey = null }) => {
@@ -157,6 +344,27 @@ const normalizeMove = (move, index) => {
   const damageClass = String(move?.damageClass || STATUS_CLASS).toLowerCase();
   const type = String(move?.type || 'normal').toLowerCase();
   const moveName = String(move?.name || `move-${index + 1}`).toLowerCase();
+  const effectMeta = move?.effectMeta && typeof move.effectMeta === 'object' ? move.effectMeta : {};
+  const rawStatChanges = Array.isArray(move?.statChanges) ? move.statChanges : Array.isArray(effectMeta.statChanges) ? effectMeta.statChanges : [];
+  const statChanges = rawStatChanges
+    .map((entry) => {
+      const key = normalizeStatKey(entry?.stat || entry?.name || entry?.stat?.name);
+      const change = toInt(entry?.change, 0);
+      if (!key || !Number.isFinite(change) || change === 0) return null;
+      return { stat: key, change: clamp(change, -3, 3) };
+    })
+    .filter(Boolean);
+  const normalizedAilment = normalizeAilmentKey(move?.ailment || effectMeta?.ailment);
+  const normalizedTarget = String(move?.target || effectMeta?.target || '').trim().toLowerCase();
+  const rawAilmentChance = toNumber(move?.ailmentChance ?? effectMeta?.ailmentChance, NaN);
+  const rawStatChance = toNumber(move?.statChance ?? effectMeta?.statChance, NaN);
+  const ailmentChance = Number.isFinite(rawAilmentChance)
+    ? clamp(rawAilmentChance, 0, 100)
+    : normalizedAilment && damageClass === STATUS_CLASS
+      ? 100
+      : 0;
+  const rawHealing = toNumber(move?.healing ?? effectMeta?.healing, 0);
+  const rawDrain = toNumber(move?.drain ?? effectMeta?.drain, 0);
 
   return {
     id: toPositiveInt(move?.id, 0),
@@ -171,6 +379,15 @@ const normalizeMove = (move, index) => {
       doubleTo: Array.isArray(move?.typeDamage?.doubleTo) ? move.typeDamage.doubleTo : [],
       halfTo: Array.isArray(move?.typeDamage?.halfTo) ? move.typeDamage.halfTo : [],
       noTo: Array.isArray(move?.typeDamage?.noTo) ? move.typeDamage.noTo : [],
+    },
+    effectMeta: {
+      target: normalizedTarget || null,
+      statChanges,
+      statChance: Number.isFinite(rawStatChance) ? clamp(rawStatChance, 0, 100) : 100,
+      ailment: normalizedAilment,
+      ailmentChance,
+      healing: clamp(rawHealing, 0, 100),
+      drain: clamp(rawDrain, -100, 100),
     },
     shortEffect: String(move?.shortEffect || '').trim() || null,
     loreText: String(move?.loreText || '').trim() || null,
@@ -193,6 +410,16 @@ const loadMoveSnapshot = async (idOrName) => {
       damageClass: moveData?.damage_class?.name,
       type: typeName,
       typeDamage,
+      target: moveData?.target?.name,
+      statChanges: (moveData?.stat_changes || []).map((entry) => ({
+        stat: entry?.stat?.name,
+        change: entry?.change,
+      })),
+      statChance: moveData?.meta?.stat_chance ?? moveData?.effect_chance ?? null,
+      ailment: moveData?.meta?.ailment?.name || null,
+      ailmentChance: moveData?.meta?.ailment_chance ?? moveData?.effect_chance ?? null,
+      healing: moveData?.meta?.healing ?? 0,
+      drain: moveData?.meta?.drain ?? 0,
       shortEffect: getEffectText(moveData?.effect_entries, { preferLong: false }),
       loreText: getFlavorText(moveData?.flavor_text_entries),
     },
@@ -308,9 +535,247 @@ const resolveTypeMultiplier = (move, defenderTypes = []) => {
   return multiplier;
 };
 
+const resolveMoveEffectTarget = (move) => {
+  const targetKey = String(move?.effectMeta?.target || '')
+    .trim()
+    .toLowerCase();
+  if (!targetKey) return 'opponent';
+  if (targetKey.includes('user') || targetKey.includes('ally')) return 'self';
+  return 'opponent';
+};
+
+const formatAilmentLabel = (ailmentKey) => {
+  if (ailmentKey === 'burn') return 'queimado';
+  if (ailmentKey === 'poison') return 'envenenado';
+  if (ailmentKey === 'toxic') return 'envenenado gravemente';
+  if (ailmentKey === 'paralysis') return 'paralisado';
+  if (ailmentKey === 'sleep') return 'adormeceu';
+  if (ailmentKey === 'freeze') return 'congelado';
+  if (ailmentKey === 'confusion') return 'confuso';
+  return 'afetado';
+};
+
+const calculateConfusionSelfDamage = (pokemon = {}) => {
+  const level = clamp(toPositiveInt(pokemon?.level, 1), MIN_LEVEL, MAX_LEVEL);
+  const attackStat = resolveEffectiveStat({ pokemon, statKey: 'attack', applyBurnPenalty: false });
+  const defenseStat = resolveEffectiveStat({ pokemon, statKey: 'defense', applyBurnPenalty: false });
+  const baseDamage = (((2 * level) / 5 + 2) * 40 * (attackStat / Math.max(1, defenseStat))) / 50 + 2;
+  const finalDamage = Math.max(1, Math.floor(baseDamage * randomFloat(0.85, 1)));
+  pokemon.currentHp = clamp(toPositiveInt(pokemon.currentHp, 0) - finalDamage, 0, toPositiveInt(pokemon.maxHp, 1));
+  return finalDamage;
+};
+
+const processTurnStartStatus = ({ actor, actorLabel }) => {
+  syncPokemonCombatState(actor);
+  const logs = [];
+
+  if (toPositiveInt(actor?.currentHp, 0) <= 0) {
+    return { canAct: false, logs };
+  }
+
+  const nonVolatile = normalizeAilmentKey(actor?.nonVolatileStatus);
+  if (nonVolatile === 'sleep') {
+    if (actor.sleepTurns <= 0) {
+      actor.sleepTurns = randomInt(SLEEP_MIN_TURNS, SLEEP_MAX_TURNS);
+    }
+    actor.sleepTurns = Math.max(0, actor.sleepTurns - 1);
+    if (actor.sleepTurns > 0) {
+      logs.push(`${actorLabel} está dormindo e não conseguiu agir.`);
+      actor.statusEffects = buildStatusEffectList(actor);
+      return { canAct: false, logs };
+    }
+    clearNonVolatileStatus(actor);
+    logs.push(`${actorLabel} acordou.`);
+  }
+
+  if (normalizeAilmentKey(actor?.nonVolatileStatus) === 'freeze') {
+    if (shouldApplyChance(FREEZE_THAW_CHANCE * 100)) {
+      clearNonVolatileStatus(actor);
+      logs.push(`${actorLabel} descongelou.`);
+    } else {
+      logs.push(`${actorLabel} está congelado e não conseguiu agir.`);
+      actor.statusEffects = buildStatusEffectList(actor);
+      return { canAct: false, logs };
+    }
+  }
+
+  if (normalizeAilmentKey(actor?.nonVolatileStatus) === 'paralysis' && shouldApplyChance(PARALYSIS_SKIP_CHANCE * 100)) {
+    logs.push(`${actorLabel} está paralisado e não conseguiu agir.`);
+    actor.statusEffects = buildStatusEffectList(actor);
+    return { canAct: false, logs };
+  }
+
+  if (actor.confusionTurns > 0) {
+    actor.confusionTurns = Math.max(0, actor.confusionTurns - 1);
+    if (shouldApplyChance(CONFUSION_SELF_HIT_CHANCE * 100)) {
+      const selfDamage = calculateConfusionSelfDamage(actor);
+      logs.push(`${actorLabel} está confuso e se feriu em *${selfDamage}* de dano.`);
+      if (toPositiveInt(actor.currentHp, 0) <= 0) {
+        logs.push(`${actorLabel} desmaiou.`);
+      }
+      if (actor.confusionTurns <= 0) {
+        logs.push(`${actorLabel} não está mais confuso.`);
+      }
+      actor.statusEffects = buildStatusEffectList(actor);
+      return { canAct: false, logs };
+    }
+    if (actor.confusionTurns <= 0) {
+      logs.push(`${actorLabel} não está mais confuso.`);
+    }
+  }
+
+  actor.statusEffects = buildStatusEffectList(actor);
+  return { canAct: true, logs };
+};
+
+const applyResidualDamageToPokemon = ({ pokemon, label, logs = [] }) => {
+  syncPokemonCombatState(pokemon);
+  if (toPositiveInt(pokemon?.currentHp, 0) <= 0) return;
+
+  const maxHp = Math.max(1, toPositiveInt(pokemon?.maxHp, 1));
+  const status = normalizeAilmentKey(pokemon?.nonVolatileStatus);
+  let damage = 0;
+  let causeText = '';
+
+  if (status === 'burn') {
+    damage = Math.max(1, Math.floor(maxHp * BURN_DAMAGE_RATIO));
+    causeText = 'queimadura';
+  } else if (status === 'poison') {
+    damage = Math.max(1, Math.floor(maxHp * POISON_DAMAGE_RATIO));
+    causeText = 'veneno';
+  } else if (status === 'toxic') {
+    const toxicCounter = Math.max(1, toPositiveInt(pokemon.toxicCounter, 1));
+    damage = Math.max(1, Math.floor(maxHp * TOXIC_BASE_DAMAGE_RATIO * toxicCounter));
+    pokemon.toxicCounter = toxicCounter + 1;
+    causeText = 'veneno severo';
+  }
+
+  if (damage <= 0) return;
+  pokemon.currentHp = clamp(toPositiveInt(pokemon.currentHp, 0) - damage, 0, maxHp);
+  logs.push(`${label} sofreu *${damage}* de dano por ${causeText}.`);
+  if (toPositiveInt(pokemon.currentHp, 0) <= 0) {
+    logs.push(`${label} desmaiou.`);
+  }
+};
+
+const applyEndTurnResidualEffects = ({ snapshot, logs = [], myLabel = 'Seu Pokémon', enemyLabel = 'Inimigo' }) => {
+  applyResidualDamageToPokemon({
+    pokemon: snapshot?.my,
+    label: myLabel,
+    logs,
+  });
+  applyResidualDamageToPokemon({
+    pokemon: snapshot?.enemy,
+    label: enemyLabel,
+    logs,
+  });
+};
+
+const applyMoveStatChanges = ({ attacker, defender, move, attackerLabel, defenderLabel, logs = [] }) => {
+  const changes = Array.isArray(move?.effectMeta?.statChanges) ? move.effectMeta.statChanges : [];
+  if (!changes.length) return;
+  const statChance = clamp(toNumber(move?.effectMeta?.statChance, 100), 0, 100);
+  if (!shouldApplyChance(statChance)) return;
+
+  const effectTarget = resolveMoveEffectTarget(move);
+  const targetPokemon = effectTarget === 'self' ? attacker : defender;
+  const targetLabel = effectTarget === 'self' ? attackerLabel : defenderLabel;
+
+  for (const change of changes) {
+    const statKey = normalizeStatKey(change?.stat);
+    const delta = toInt(change?.change, 0);
+    if (!statKey || delta === 0) continue;
+    const applied = applyStatStageDelta(targetPokemon, statKey, delta);
+    if (applied === 0) {
+      logs.push(`${targetLabel} não pode ter ${formatStageLabel(statKey)} alterado além do limite.`);
+      continue;
+    }
+    logs.push(
+      `${targetLabel} ${applied > 0 ? 'aumentou' : 'reduziu'} ${formatStageLabel(statKey)} em ${Math.abs(applied)} estágio(s).`,
+    );
+  }
+};
+
+const applyMoveAilment = ({ attacker, defender, move, attackerLabel, defenderLabel, logs = [] }) => {
+  const ailment = normalizeAilmentKey(move?.effectMeta?.ailment);
+  if (!ailment) return;
+
+  const rawChance = toNumber(move?.effectMeta?.ailmentChance, 0);
+  const defaultChance = ailment && String(move?.damageClass || '').toLowerCase() === STATUS_CLASS ? 100 : 0;
+  const chance = rawChance > 0 ? clamp(rawChance, 0, 100) : defaultChance;
+  if (!shouldApplyChance(chance)) return;
+
+  const effectTarget = resolveMoveEffectTarget(move);
+  const targetPokemon = effectTarget === 'self' ? attacker : defender;
+  const targetLabel = effectTarget === 'self' ? attackerLabel : defenderLabel;
+  syncPokemonCombatState(targetPokemon);
+  if (toPositiveInt(targetPokemon?.currentHp, 0) <= 0) return;
+
+  if (ailment === 'confusion') {
+    const appliedConfusion = setConfusionStatus(targetPokemon);
+    if (appliedConfusion) {
+      logs.push(`${targetLabel} ficou confuso.`);
+    } else {
+      logs.push(`${targetLabel} já está confuso.`);
+    }
+    return;
+  }
+
+  if (isAilmentBlockedByType(targetPokemon, ailment)) {
+    logs.push(`${targetLabel} é imune a ${formatAilmentLabel(ailment)}.`);
+    return;
+  }
+
+  const applied = setNonVolatileStatus(targetPokemon, ailment);
+  if (applied) {
+    logs.push(`${targetLabel} ficou ${formatAilmentLabel(ailment)}.`);
+  } else {
+    logs.push(`${targetLabel} já possui uma condição de status.`);
+  }
+};
+
+const applyMoveRecoveryAndRecoil = ({ attacker, move, damageDone = 0, attackerLabel, logs = [] }) => {
+  syncPokemonCombatState(attacker);
+  if (toPositiveInt(attacker?.currentHp, 0) <= 0) return;
+
+  const maxHp = Math.max(1, toPositiveInt(attacker?.maxHp, 1));
+  const healingPct = clamp(toNumber(move?.effectMeta?.healing, 0), 0, 100);
+  if (healingPct > 0) {
+    const healAmount = Math.max(1, Math.floor(maxHp * (healingPct / 100)));
+    const before = toPositiveInt(attacker.currentHp, 0);
+    attacker.currentHp = clamp(before + healAmount, 0, maxHp);
+    const recovered = Math.max(0, attacker.currentHp - before);
+    if (recovered > 0) {
+      logs.push(`${attackerLabel} recuperou *${recovered}* de HP.`);
+    }
+  }
+
+  const drainPct = clamp(toNumber(move?.effectMeta?.drain, 0), -100, 100);
+  if (drainPct > 0 && damageDone > 0) {
+    const healAmount = Math.max(1, Math.floor(damageDone * (drainPct / 100)));
+    const before = toPositiveInt(attacker.currentHp, 0);
+    attacker.currentHp = clamp(before + healAmount, 0, maxHp);
+    const recovered = Math.max(0, attacker.currentHp - before);
+    if (recovered > 0) {
+      logs.push(`${attackerLabel} drenou energia e recuperou *${recovered}* de HP.`);
+    }
+  }
+
+  if (drainPct < 0 && damageDone > 0) {
+    const recoil = Math.max(1, Math.floor(damageDone * (Math.abs(drainPct) / 100)));
+    attacker.currentHp = clamp(toPositiveInt(attacker.currentHp, 0) - recoil, 0, maxHp);
+    logs.push(`${attackerLabel} sofreu *${recoil}* de dano de recuo.`);
+    if (toPositiveInt(attacker.currentHp, 0) <= 0) {
+      logs.push(`${attackerLabel} desmaiou.`);
+    }
+  }
+};
+
 const applyDamage = ({ attacker, defender, move }) => {
+  syncPokemonCombatState(attacker);
+  syncPokemonCombatState(defender);
   const accuracyRoll = randomInt(1, 100);
-  const accuracy = clamp(toPositiveInt(move?.accuracy, 100), 1, 100);
+  const accuracy = resolveEffectiveAccuracy({ move, attacker, defender });
   if (accuracyRoll > accuracy) {
     return {
       hit: false,
@@ -333,8 +798,14 @@ const applyDamage = ({ attacker, defender, move }) => {
   }
 
   const damageClass = String(move?.damageClass || PHYSICAL_CLASS).toLowerCase();
-  const attackStat = damageClass === SPECIAL_CLASS ? toPositiveInt(attacker?.stats?.specialAttack, 1) : toPositiveInt(attacker?.stats?.attack, 1);
-  const defenseStat = damageClass === SPECIAL_CLASS ? toPositiveInt(defender?.stats?.specialDefense, 1) : toPositiveInt(defender?.stats?.defense, 1);
+  const attackStat =
+    damageClass === SPECIAL_CLASS
+      ? resolveEffectiveStat({ pokemon: attacker, statKey: 'specialAttack', applyBurnPenalty: false })
+      : resolveEffectiveStat({ pokemon: attacker, statKey: 'attack', applyBurnPenalty: true });
+  const defenseStat =
+    damageClass === SPECIAL_CLASS
+      ? resolveEffectiveStat({ pokemon: defender, statKey: 'specialDefense', applyBurnPenalty: false })
+      : resolveEffectiveStat({ pokemon: defender, statKey: 'defense', applyBurnPenalty: false });
 
   const level = clamp(toPositiveInt(attacker?.level, 1), MIN_LEVEL, MAX_LEVEL);
   const baseDamage = (((2 * level) / 5 + 2) * power * (attackStat / Math.max(1, defenseStat))) / 50 + 2;
@@ -368,19 +839,49 @@ const formatTypeEffectText = (multiplier) => {
 };
 
 const performAction = ({ attacker, defender, move, attackerLabel, defenderLabel }) => {
+  syncPokemonCombatState(attacker);
+  syncPokemonCombatState(defender);
   const result = applyDamage({ attacker, defender, move });
+  const lines = [];
 
   if (!result.hit) {
     return [`${attackerLabel} usou *${move.displayName}* e errou.`];
   }
 
-  if (result.damage <= 0) {
-    return [`${attackerLabel} usou *${move.displayName}*, mas não causou dano.`];
+  const moveClass = String(move?.damageClass || PHYSICAL_CLASS).toLowerCase();
+  if (moveClass === STATUS_CLASS) {
+    lines.push(`${attackerLabel} usou *${move.displayName}*.`);
+  } else if (result.damage <= 0) {
+    lines.push(`${attackerLabel} usou *${move.displayName}*, mas não causou dano.`);
+  } else {
+    lines.push(`${attackerLabel} usou *${move.displayName}* e causou *${result.damage}* de dano.`);
+    const effectText = formatTypeEffectText(result.multiplier);
+    if (effectText) lines.push(effectText);
   }
 
-  const lines = [`${attackerLabel} usou *${move.displayName}* e causou *${result.damage}* de dano.`];
-  const effectText = formatTypeEffectText(result.multiplier);
-  if (effectText) lines.push(effectText);
+  applyMoveStatChanges({
+    attacker,
+    defender,
+    move,
+    attackerLabel,
+    defenderLabel,
+    logs: lines,
+  });
+  applyMoveAilment({
+    attacker,
+    defender,
+    move,
+    attackerLabel,
+    defenderLabel,
+    logs: lines,
+  });
+  applyMoveRecoveryAndRecoil({
+    attacker,
+    move,
+    damageDone: result.damage,
+    attackerLabel,
+    logs: lines,
+  });
 
   if (defender.currentHp <= 0) {
     lines.push(`${defenderLabel} desmaiou.`);
@@ -392,8 +893,10 @@ const performAction = ({ attacker, defender, move, attackerLabel, defenderLabel 
 const cloneSnapshot = (snapshot) => JSON.parse(JSON.stringify(snapshot));
 
 const resolveActionOrder = (snapshot, playerMoveIndex, enemyMoveIndex) => {
-  const mySpeed = toPositiveInt(snapshot?.my?.stats?.speed, 1);
-  const enemySpeed = toPositiveInt(snapshot?.enemy?.stats?.speed, 1);
+  syncPokemonCombatState(snapshot?.my);
+  syncPokemonCombatState(snapshot?.enemy);
+  const mySpeed = resolveEffectiveStat({ pokemon: snapshot?.my, statKey: 'speed' });
+  const enemySpeed = resolveEffectiveStat({ pokemon: snapshot?.enemy, statKey: 'speed' });
 
   const playerAction = { actor: 'my', moveIndex: playerMoveIndex };
   const enemyAction = { actor: 'enemy', moveIndex: enemyMoveIndex };
@@ -855,6 +1358,8 @@ export const createWildEncounter = async ({ playerLevel, preferredTypes = [], pr
 export const resolveBattleTurn = ({ battleSnapshot, playerMoveSlot }) => {
   const snapshot = cloneSnapshot(battleSnapshot);
   const logs = [];
+  syncPokemonCombatState(snapshot?.my);
+  syncPokemonCombatState(snapshot?.enemy);
 
   const selectedIndex = clamp(toPositiveInt(playerMoveSlot, 1) - 1, 0, 3);
   const playerMoves = Array.isArray(snapshot?.my?.moves) ? snapshot.my.moves : [];
@@ -884,30 +1389,38 @@ export const resolveBattleTurn = ({ battleSnapshot, playerMoveSlot }) => {
   for (const action of orderedActions) {
     if (resolveWinner(snapshot)) break;
 
-    if (action.actor === 'my') {
-      const move = snapshot.my.moves[action.moveIndex];
-      logs.push(
-        ...performAction({
-          attacker: snapshot.my,
-          defender: snapshot.enemy,
-          move,
-          attackerLabel: `Seu ${snapshot.my.displayName}`,
-          defenderLabel: ` ${snapshot.enemy.displayName}`.trim(),
-        }),
-      );
-      continue;
-    }
+    const isPlayerAction = action.actor === 'my';
+    const attacker = isPlayerAction ? snapshot.my : snapshot.enemy;
+    const defender = isPlayerAction ? snapshot.enemy : snapshot.my;
+    const attackerLabel = isPlayerAction ? `Seu ${snapshot.my.displayName}` : ` ${snapshot.enemy.displayName}`.trim();
+    const defenderLabel = isPlayerAction ? ` ${snapshot.enemy.displayName}`.trim() : `Seu ${snapshot.my.displayName}`;
 
-    const move = snapshot.enemy.moves[action.moveIndex];
+    const preMoveStatus = processTurnStartStatus({
+      actor: attacker,
+      actorLabel: attackerLabel,
+    });
+    logs.push(...preMoveStatus.logs);
+    if (!preMoveStatus.canAct) continue;
+
+    const move = Array.isArray(attacker?.moves) ? attacker.moves[action.moveIndex] : null;
     logs.push(
       ...performAction({
-        attacker: snapshot.enemy,
-        defender: snapshot.my,
+        attacker,
+        defender,
         move,
-        attackerLabel: ` ${snapshot.enemy.displayName}`.trim(),
-        defenderLabel: `Seu ${snapshot.my.displayName}`,
+        attackerLabel,
+        defenderLabel,
       }),
     );
+  }
+
+  if (!resolveWinner(snapshot)) {
+    applyEndTurnResidualEffects({
+      snapshot,
+      logs,
+      myLabel: `Seu ${snapshot?.my?.displayName || 'Pokémon'}`,
+      enemyLabel: `${snapshot?.enemy?.displayName || 'Inimigo'}`,
+    });
   }
 
   return {
@@ -921,6 +1434,8 @@ export const resolveBattleTurn = ({ battleSnapshot, playerMoveSlot }) => {
 export const resolveSingleAttack = ({ attackerSnapshot, defenderSnapshot, moveSlot = 1, attackerLabel = 'Atacante', defenderLabel = 'Defensor' }) => {
   const attacker = cloneSnapshot(attackerSnapshot || {});
   const defender = cloneSnapshot(defenderSnapshot || {});
+  syncPokemonCombatState(attacker);
+  syncPokemonCombatState(defender);
   const logs = [];
 
   const moves = Array.isArray(attacker?.moves) ? attacker.moves : [];
@@ -937,6 +1452,29 @@ export const resolveSingleAttack = ({ attackerSnapshot, defenderSnapshot, moveSl
     };
   }
 
+  const preMoveStatus = processTurnStartStatus({
+    actor: attacker,
+    actorLabel: attackerLabel,
+  });
+  logs.push(...preMoveStatus.logs);
+  if (!preMoveStatus.canAct) {
+    if (!resolveWinner({ my: attacker, enemy: defender })) {
+      applyEndTurnResidualEffects({
+        snapshot: { my: attacker, enemy: defender },
+        logs,
+        myLabel: attackerLabel,
+        enemyLabel: defenderLabel,
+      });
+    }
+    return {
+      attacker,
+      defender,
+      logs,
+      damage: 0,
+      validMove: true,
+    };
+  }
+
   const beforeHp = toPositiveInt(defender.currentHp, 0);
   const actionLogs = performAction({
     attacker,
@@ -947,6 +1485,15 @@ export const resolveSingleAttack = ({ attackerSnapshot, defenderSnapshot, moveSl
   });
   logs.push(...actionLogs);
   const afterHp = toPositiveInt(defender.currentHp, 0);
+
+  if (!resolveWinner({ my: attacker, enemy: defender })) {
+    applyEndTurnResidualEffects({
+      snapshot: { my: attacker, enemy: defender },
+      logs,
+      myLabel: attackerLabel,
+      enemyLabel: defenderLabel,
+    });
+  }
 
   return {
     attacker,
@@ -959,6 +1506,8 @@ export const resolveSingleAttack = ({ attackerSnapshot, defenderSnapshot, moveSl
 
 export const resolveCaptureAttempt = ({ battleSnapshot }) => {
   const snapshot = cloneSnapshot(battleSnapshot);
+  syncPokemonCombatState(snapshot?.my);
+  syncPokemonCombatState(snapshot?.enemy);
   const logs = [];
 
   const enemy = snapshot?.enemy;
@@ -997,17 +1546,35 @@ export const resolveCaptureAttempt = ({ battleSnapshot }) => {
   logs.push(`A captura falhou (${Math.round(chance * 100)}% de chance).`);
 
   if (enemy.currentHp > 0 && my.currentHp > 0) {
-    const enemyMoveIndex = pickEnemyMoveIndex(snapshot);
-    const enemyMove = snapshot.enemy.moves[enemyMoveIndex];
-    logs.push(
-      ...performAction({
-        attacker: snapshot.enemy,
-        defender: snapshot.my,
-        move: enemyMove,
-        attackerLabel: ` ${snapshot.enemy.displayName}`.trim(),
-        defenderLabel: `Seu ${snapshot.my.displayName}`,
-      }),
-    );
+    const enemyLabel = ` ${snapshot.enemy.displayName}`.trim();
+    const preMoveStatus = processTurnStartStatus({
+      actor: snapshot.enemy,
+      actorLabel: enemyLabel,
+    });
+    logs.push(...preMoveStatus.logs);
+
+    if (preMoveStatus.canAct) {
+      const enemyMoveIndex = pickEnemyMoveIndex(snapshot);
+      const enemyMove = snapshot.enemy.moves[enemyMoveIndex];
+      logs.push(
+        ...performAction({
+          attacker: snapshot.enemy,
+          defender: snapshot.my,
+          move: enemyMove,
+          attackerLabel: enemyLabel,
+          defenderLabel: `Seu ${snapshot.my.displayName}`,
+        }),
+      );
+    }
+  }
+
+  if (!resolveWinner(snapshot)) {
+    applyEndTurnResidualEffects({
+      snapshot,
+      logs,
+      myLabel: `Seu ${snapshot?.my?.displayName || 'Pokémon'}`,
+      enemyLabel: `${snapshot?.enemy?.displayName || 'Inimigo'}`,
+    });
   }
 
   return {
