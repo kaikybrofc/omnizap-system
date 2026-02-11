@@ -1900,7 +1900,9 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
     }
 
     const updatedSnapshot = turnResult.snapshot;
-    const winner = turnResult.winner;
+    const myPokemonFainted = toInt(updatedSnapshot?.my?.currentHp, 0) <= 0;
+    const enemyPokemonFainted = toInt(updatedSnapshot?.enemy?.currentHp, 0) <= 0;
+    const winner = myPokemonFainted ? 'enemy' : enemyPokemonFainted ? 'player' : turnResult.winner;
     const sourceChatJid = extractSourceChatFromBattleKey(battleRow.chat_jid);
 
     if (winner === 'player') {
@@ -2405,7 +2407,7 @@ const handleCapture = async ({ ownerJid, commandPrefix, itemKey = 'pokeball', it
       });
     }
 
-    if (captureResult.winner === 'enemy') {
+    if (toInt(updatedSnapshot?.my?.currentHp, 0) <= 0 || captureResult.winner === 'enemy') {
       recordRpgCaptureAttempt('failed');
       await updatePlayerPokemonState(
         {

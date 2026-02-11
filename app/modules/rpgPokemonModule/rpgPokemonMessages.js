@@ -198,6 +198,7 @@ export const buildBattleTurnText = ({ logs = [], battleSnapshot, prefix = '/', r
   if (my.currentHp <= 0) {
     lines.push('');
     lines.push('💥 Seu Pokémon desmaiou.');
+    lines.push('❌ Batalha perdida e encerrada.');
     lines.push(`➡️ Próximo: ${prefix}rpg escolher <pokemon_id>`);
     lines.push(`💡 Dica: recupere HP com ${prefix}rpg usar potion`);
     return lines.join('\n');
@@ -230,6 +231,7 @@ export const buildCaptureFailText = ({ logs = [], battleSnapshot, prefix = '/' }
 
   if (my.currentHp <= 0) {
     lines.push('');
+    lines.push('❌ Batalha perdida e encerrada.');
     lines.push(`➡️ Próximo: ${prefix}rpg escolher <pokemon_id>`);
     return lines.join('\n');
   }
