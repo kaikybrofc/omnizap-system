@@ -14,6 +14,7 @@ const MAX_BIOME_LOOKUP_ATTEMPTS = Math.max(2, Number(process.env.RPG_BIOME_LOOKU
 const MAX_SPECIES_FILTER_ATTEMPTS = Math.max(2, Number(process.env.RPG_SPECIES_FILTER_ATTEMPTS) || 5);
 const LEGENDARY_SPAWN_CHANCE = Math.max(0.005, Math.min(1, Number(process.env.RPG_LEGENDARY_SPAWN_CHANCE) || 0.06));
 const MYTHICAL_SPAWN_CHANCE = Math.max(0.001, Math.min(1, Number(process.env.RPG_MYTHICAL_SPAWN_CHANCE) || 0.03));
+const MAX_ENCOUNTER_LEVEL_DIFF = 1;
 
 const PHYSICAL_CLASS = 'physical';
 const SPECIAL_CLASS = 'special';
@@ -767,8 +768,9 @@ export const buildPlayerBattleSnapshot = async ({ playerPokemonRow }) => {
 };
 
 export const createWildEncounter = async ({ playerLevel, preferredTypes = [], preferredHabitats = [], encounterPool = [] }) => {
-  const minLevel = Math.max(MIN_WILD_LEVEL, toPositiveInt(playerLevel, 1) - 2);
-  const maxLevel = clamp(minLevel + 4, minLevel, MAX_LEVEL);
+  const referenceLevel = clamp(toPositiveInt(playerLevel, 1), MIN_LEVEL, MAX_LEVEL);
+  const minLevel = clamp(referenceLevel - MAX_ENCOUNTER_LEVEL_DIFF, MIN_WILD_LEVEL, MAX_LEVEL);
+  const maxLevel = clamp(referenceLevel + MAX_ENCOUNTER_LEVEL_DIFF, minLevel, MAX_LEVEL);
   const wildLevel = randomInt(minLevel, maxLevel);
   const isShiny = Math.random() <= SHINY_CHANCE;
 

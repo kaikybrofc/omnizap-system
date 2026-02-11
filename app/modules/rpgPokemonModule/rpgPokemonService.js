@@ -17,8 +17,6 @@ const STARTER_LEVEL = Math.max(3, Number(process.env.RPG_STARTER_LEVEL) || 5);
 const STARTER_POKE_IDS = [1, 4, 7, 25];
 const POTION_HEAL_HP = Math.max(10, Number(process.env.RPG_POTION_HEAL_HP) || 25);
 const SUPER_POTION_HEAL_HP = Math.max(POTION_HEAL_HP + 5, Number(process.env.RPG_SUPER_POTION_HEAL_HP) || 60);
-const GYM_LEVEL_BONUS_MIN = 3;
-const GYM_LEVEL_BONUS_MAX = 6;
 const SHOP_REFRESH_MS = Math.max(15 * 60 * 1000, Number(process.env.RPG_SHOP_REFRESH_MS) || 60 * 60 * 1000);
 const SHOP_ITEMS_PER_POCKET = Math.max(3, Math.min(12, Number(process.env.RPG_SHOP_ITEMS_PER_POCKET) || 6));
 const DEFAULT_POKEDEX_TOTAL = Math.max(1025, Number(process.env.RPG_POKEDEX_TOTAL) || 1025);
@@ -30,8 +28,6 @@ const RAID_TTL_MS = Math.max(2 * 60 * 1000, Number(process.env.RPG_RAID_TTL_MS) 
 const PVP_TTL_MS = Math.max(2 * 60 * 1000, Number(process.env.RPG_PVP_TTL_MS) || 15 * 60 * 1000);
 const PVP_CHALLENGE_COOLDOWN_MS = Math.max(5_000, Number(process.env.RPG_PVP_COOLDOWN_MS) || 30_000);
 const PVP_QUEUE_TTL_MS = Math.max(30_000, Number(process.env.RPG_PVP_QUEUE_TTL_MS) || 10 * 60 * 1000);
-const RAID_LEVEL_BONUS_MIN = Math.max(4, Number(process.env.RPG_RAID_LEVEL_BONUS_MIN) || 6);
-const RAID_LEVEL_BONUS_MAX = Math.max(RAID_LEVEL_BONUS_MIN + 1, Number(process.env.RPG_RAID_LEVEL_BONUS_MAX) || 12);
 const PVP_WIN_GOLD = Math.max(50, Number(process.env.RPG_PVP_WIN_GOLD) || 220);
 const PVP_WIN_PLAYER_XP = Math.max(40, Number(process.env.RPG_PVP_WIN_PLAYER_XP) || 140);
 const PVP_WIN_POKEMON_XP = Math.max(40, Number(process.env.RPG_PVP_WIN_POKEMON_XP) || 120);
@@ -1667,7 +1663,7 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
     const travel = await resolveTravelStateForOwner({ ownerJid, connection });
     const encounterPool = await resolveTravelEncounterPool(travel?.location_area_key);
     const { enemySnapshot } = await createWildEncounter({
-      playerLevel: playerLevelForEncounter,
+      playerLevel: activePokemonState.level,
       preferredTypes: biome?.preferredTypes || [],
       preferredHabitats: biome?.preferredHabitats || [],
       encounterPool,
@@ -1782,9 +1778,8 @@ const handleGym = async ({ ownerJid, chatJid, commandPrefix }) => {
     const biome = await resolveBiomeForGym({ chatJid, connection });
     const travel = await resolveTravelStateForOwner({ ownerJid, connection });
     const encounterPool = await resolveTravelEncounterPool(travel?.location_area_key);
-    const gymBaseLevel = clamp(toInt(player.level, 1) + randomBetweenInt(GYM_LEVEL_BONUS_MIN, GYM_LEVEL_BONUS_MAX), 1, 100);
     const { enemySnapshot } = await createWildEncounter({
-      playerLevel: gymBaseLevel,
+      playerLevel: activePokemonRow.level,
       preferredTypes: biome?.preferredTypes || [],
       preferredHabitats: biome?.preferredHabitats || [],
       encounterPool,
@@ -4166,9 +4161,8 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
       const biome = await resolveBiomeForChat(chatJid, connection);
       const travel = await resolveTravelStateForOwner({ ownerJid, connection });
       const encounterPool = await resolveTravelEncounterPool(travel?.location_area_key);
-      const raidLevel = clamp(toInt(player.level, 1) + randomBetweenInt(RAID_LEVEL_BONUS_MIN, RAID_LEVEL_BONUS_MAX), 1, 100);
       const { enemySnapshot } = await createWildEncounter({
-        playerLevel: raidLevel,
+        playerLevel: activePokemonRow.level,
         preferredTypes: biome?.preferredTypes || [],
         preferredHabitats: biome?.preferredHabitats || [],
         encounterPool,
