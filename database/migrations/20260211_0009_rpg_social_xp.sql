@@ -1,5 +1,20 @@
-ALTER TABLE rpg_player
-  ADD COLUMN IF NOT EXISTS xp_pool_social BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER xp;
+SET @xp_pool_social_exists := (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'rpg_player'
+    AND COLUMN_NAME = 'xp_pool_social'
+);
+
+SET @xp_pool_social_sql := IF(
+  @xp_pool_social_exists = 0,
+  'ALTER TABLE rpg_player ADD COLUMN xp_pool_social BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER xp',
+  'SELECT 1'
+);
+
+PREPARE stmt_rpg_player_xp_pool_social FROM @xp_pool_social_sql;
+EXECUTE stmt_rpg_player_xp_pool_social;
+DEALLOCATE PREPARE stmt_rpg_player_xp_pool_social;
 
 CREATE TABLE IF NOT EXISTS rpg_social_xp_daily (
   day_ref_date DATE NOT NULL,
