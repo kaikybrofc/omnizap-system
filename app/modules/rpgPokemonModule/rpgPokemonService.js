@@ -3,14 +3,15 @@ import { getJidUser, isGroupJid, normalizeJid } from '../../config/baileysConfig
 import logger from '../../utils/logger/loggerModule.js';
 import { applyPokemonXpGain, buildMoveSnapshotByName, buildPlayerBattleSnapshot, buildPokemonSnapshot, calculatePlayerLevelFromXp, createRandomIvs, createWildEncounter, resolveBattleTurn, resolveCaptureAttempt, resolveEvolutionByLevel, resolveEvolutionByItem, resolveSingleAttack } from './rpgBattleService.js';
 import { addGroupCoopContribution, addGroupEventContribution, addInventoryItem, consumeInventoryItem, countPlayerPokemons, createPlayer, createKarmaVote, createPlayerPokemon, createTradeOffer, applyKarmaDelta, cancelQueuedPvpByOwner, deleteBattleStateByOwner, deleteExpiredBattleStatesByOwner, getActivePlayerPokemonForUpdate, getActivePlayerPokemon, getGroupActivitySummaryByDay, getGroupActiveUsersByDay, getBattleStateByOwner, getBattleStateByOwnerForUpdate, getFirstPlayerPokemon, getGroupCoopWeekly, getGroupCoopWeeklyForUpdate, getGroupEventMemberForUpdate, getGroupEventWeeklyForUpdate, getInventoryItemForUpdate, getInventoryItems, getGroupBiomeByJid, getKarmaProfile, getKarmaVoteByWeekForUpdate, getLatestFinishedPvpByPlayer, getMissionProgressByOwnerForUpdate, getPlayerByJid, getPlayerByJidForUpdate, getQueuedPvpByOwnerForUpdate, getSocialLinkByUsers, getTradeOfferByIdForUpdate, getGroupRetentionByDays, countPokedexEntries, getPlayerPokemonById, getPlayerPokemonByIdForUpdate, getTravelStateByOwner, getTravelStateByOwnerForUpdate, listGroupCoopMembers, listUnrewardedGroupCoopMembersForUpdate, listGroupEventMembers, listOpenTradeOffersByUser, listPvpWeeklyRanking, listPlayerPokemons, listPokedexEntries, listQueuedPvpByChat, listQueuedPvpByChatForUpdate, listSocialLinksByOwner, listTopKarmaProfiles, markGroupCoopCompleted, markGroupCoopMemberRewardClaimed, markGroupEventCompleted, markGroupEventMemberRewardClaimed, markPvpQueueMatchedByIds, setActivePokemon, transferPlayerPokemon, createMissionProgress, createPvpChallenge, deleteExpiredRaidStates, upsertPokedexEntry, upsertGroupBiome, deleteRaidParticipantsByChat, deleteRaidStateByChat, expireOldPvpChallenges, expireOldTradeOffers, expirePvpQueue, enqueuePvpQueue, getActivePvpChallengeByPlayerForUpdate, getPvpChallengeByIdForUpdate, getRaidParticipant, getRaidStateByChatForUpdate, listOpenPvpChallengesByPlayer, listRaidParticipants, upsertRaidParticipant, addRaidParticipantDamage, upsertGroupActivityDaily, upsertGroupCoopWeekly, upsertGroupEventWeekly, upsertPvpWeeklyStatsDelta, upsertSocialLinkDelta, upsertRaidState, upsertTravelState, updatePvpChallengeState, updateTradeOfferState, updateMissionProgress, updatePlayerGoldOnly, updatePlayerPokemonState, updatePlayerProgress, upsertBattleState } from './rpgPokemonRepository.js';
-import { buildBattleAlreadyActiveText, buildBattleStartText, buildBattleTurnText, buildBuyErrorText, buildBuySuccessText, buildCaptureFailText, buildCaptureSuccessText, buildCaptureBlockedGymText, buildChooseErrorText, buildChooseSuccessText, buildCooldownText, buildFleeText, buildGenericErrorText, buildNeedActivePokemonText, buildNeedStartText, buildNoBattleText, buildPokedexText, buildPokemonFaintedText, buildProfileText, buildBerryListText, buildPvpChallengeText, buildPvpStatusText, buildPvpTurnText, buildRaidAttackText, buildRaidStartText, buildRaidStatusText, buildShopText, buildStartText, buildTeamText, buildTmListText, buildTmUseText, buildTravelSetText, buildTravelStatusText, buildBagText, buildMissionsText, buildMissionRewardText, buildEconomyRescueText, buildUseItemErrorText, buildUsePotionSuccessText, buildUseItemUsageText } from './rpgPokemonMessages.js';
-import { getEffectText, getFlavorText, getLocalizedGenus, getLocalizedName, getAbility, getCharacteristic, getItem, getItemCategory, getItemPocket, getLocation, getLocationArea, getMachine, getNature, getPokedex, getPokemon, getSpecies, normalizeApiText, getRegion, getResourceList } from '../../services/pokeApiService.js';
+import { buildBattleAlreadyActiveText, buildBattleStartText, buildBattleTurnText, buildBuyErrorText, buildBuySuccessText, buildCaptureFailText, buildCaptureSuccessText, buildCaptureBlockedGymText, buildChooseErrorText, buildChooseSuccessText, buildCooldownText, buildEvolutionTreeText, buildFleeText, buildGenericErrorText, buildNeedActivePokemonText, buildNeedStartText, buildNoBattleText, buildPokedexText, buildPokemonFaintedText, buildProfileText, buildBerryListText, buildPvpChallengeText, buildPvpStatusText, buildPvpTurnText, buildRaidAttackText, buildRaidStartText, buildRaidStatusText, buildShopText, buildStartText, buildTeamText, buildTmListText, buildTmUseText, buildTravelSetText, buildTravelStatusText, buildBagText, buildMissionsText, buildMissionRewardText, buildEconomyRescueText, buildUseItemErrorText, buildUsePotionSuccessText, buildUseItemUsageText } from './rpgPokemonMessages.js';
+import { getEffectText, getEvolutionChain, getFlavorText, getLocalizedGenus, getLocalizedName, getAbility, getCharacteristic, getItem, getItemCategory, getItemPocket, getLocation, getLocationArea, getMachine, getNature, getPokedex, getPokemon, getSpecies, normalizeApiText, getRegion, getResourceList } from '../../services/pokeApiService.js';
 import { recordRpgBattleStarted, recordRpgCapture, recordRpgCaptureAttempt, recordRpgEvolution, recordRpgAction, recordRpgBattleDuration, recordRpgFlee, recordRpgPvpChallenge, recordRpgPvpCompleted, recordRpgPvpQueue, recordRpgRaidCompleted, recordRpgRaidStarted, recordRpgPlayerCreated, recordRpgSessionDuration, recordRpgTrade, recordRpgCoopCompleted, recordRpgWeeklyEventCompleted, recordRpgKarmaVote, recordRpgGroupRetentionRatio, recordRpgShinyFound } from '../../observability/metrics.js';
 import { BIOME_DEFINITIONS, BIOME_KEYS, DAILY_MISSION_REWARD, DAILY_MISSION_TARGET, MISSION_KEYS, WEEKLY_MISSION_REWARD, WEEKLY_MISSION_TARGET, buildMissionProgressZero, isMissionCompleted, normalizeMissionProgress, resolveBiomeFromKey, resolveDefaultBiomeForGroup, resolveMissionRefs, resolveMissionStateForRefs, resolveVictoryRewards } from './rpgPokemonDomain.js';
 import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
 import { inferEffectTagFromLogs, renderBattleFrameCanvas } from './rpgBattleCanvasRenderer.js';
+import { registerEvolutionPokedexEntry } from './rpgEvolutionUtils.js';
 
-const COOLDOWN_MS = Math.max(5_000, Number(process.env.RPG_COOLDOWN_MS) || 10_000);
+const COOLDOWN_MS = 5_000;
 const BATTLE_TTL_MS = Math.max(60_000, Number(process.env.RPG_BATTLE_TTL_MS) || 5 * 60 * 1000);
 const STARTER_LEVEL = Math.max(3, Number(process.env.RPG_STARTER_LEVEL) || 5);
 const STARTER_POKE_IDS = [1, 4, 7, 25];
@@ -181,6 +182,11 @@ const toTitleCase = (value) => {
     .split('-')
     .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1)}` : ''))
     .join(' ');
+};
+
+const extractResourceIdFromUrl = (url) => {
+  const match = String(url || '').match(/\/(\d+)\/?$/);
+  return match ? toInt(match[1], 0) : 0;
 };
 
 const pickItemEffect = (itemData) => {
@@ -1702,6 +1708,12 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
         },
         connection,
       );
+      await registerEvolutionPokedexEntry({
+        ownerJid,
+        evolutionOutcome,
+        connection,
+        registerEntry: upsertPokedexEntry,
+      });
 
       await updatePlayerProgress(
         {
@@ -2774,6 +2786,250 @@ const handlePokedex = async ({ ownerJid, commandPrefix }) => {
       prefix: commandPrefix,
     }),
   };
+};
+
+const findEvolutionNodeBySpeciesName = (chainNode, speciesName) => {
+  if (!chainNode || !speciesName) return null;
+  const current = normalizeNameKey(chainNode?.species?.name || '');
+  const expected = normalizeNameKey(speciesName);
+  if (current && current === expected) return chainNode;
+  const nextNodes = Array.isArray(chainNode?.evolves_to) ? chainNode.evolves_to : [];
+  for (const nextNode of nextNodes) {
+    const found = findEvolutionNodeBySpeciesName(nextNode, speciesName);
+    if (found) return found;
+  }
+  return null;
+};
+
+const resolveEvolutionDetailLabel = (detail = {}) => {
+  if (!detail || typeof detail !== 'object') return null;
+  const trigger = String(detail?.trigger?.name || '')
+    .trim()
+    .toLowerCase();
+  const parts = [];
+
+  if (trigger === 'level-up') {
+    if (Number.isFinite(Number(detail?.min_level)) && Number(detail.min_level) > 0) {
+      parts.push(`Lv. ${toInt(detail.min_level, 0)}`);
+    } else {
+      parts.push('Subir de nível');
+    }
+  } else if (trigger === 'use-item') {
+    const itemName = String(detail?.item?.name || '').trim().toLowerCase();
+    parts.push(itemName ? `Usar ${toTitleCase(itemName)}` : 'Usar item');
+  } else if (trigger === 'trade') {
+    parts.push('Troca');
+  } else if (trigger) {
+    parts.push(toTitleCase(trigger));
+  }
+
+  if (Number.isFinite(Number(detail?.min_happiness))) parts.push(`Felicidade ${toInt(detail.min_happiness, 0)}+`);
+  if (Number.isFinite(Number(detail?.min_affection))) parts.push(`Afeição ${toInt(detail.min_affection, 0)}+`);
+  if (Number.isFinite(Number(detail?.min_beauty))) parts.push(`Beleza ${toInt(detail.min_beauty, 0)}+`);
+  if (String(detail?.time_of_day || '').trim()) parts.push(`Período: ${toTitleCase(detail.time_of_day)}`);
+  if (detail?.needs_overworld_rain) parts.push('Com chuva no mapa');
+  if (detail?.turn_upside_down) parts.push('Dispositivo invertido');
+  if (Number(detail?.gender) === 1) parts.push('Apenas fêmea');
+  if (Number(detail?.gender) === 2) parts.push('Apenas macho');
+
+  const heldItem = String(detail?.held_item?.name || '').trim().toLowerCase();
+  if (heldItem) parts.push(`Segurando ${toTitleCase(heldItem)}`);
+  const knownMove = String(detail?.known_move?.name || '').trim().toLowerCase();
+  if (knownMove) parts.push(`Conhecer ${toTitleCase(knownMove)}`);
+  const knownMoveType = String(detail?.known_move_type?.name || '').trim().toLowerCase();
+  if (knownMoveType) parts.push(`Golpe tipo ${toTitleCase(knownMoveType)}`);
+  const location = String(detail?.location?.name || '').trim().toLowerCase();
+  if (location) parts.push(`Local: ${toTitleCase(location)}`);
+  const partySpecies = String(detail?.party_species?.name || '').trim().toLowerCase();
+  if (partySpecies) parts.push(`Com ${toTitleCase(partySpecies)} no time`);
+  const partyType = String(detail?.party_type?.name || '').trim().toLowerCase();
+  if (partyType) parts.push(`Com tipo ${toTitleCase(partyType)} no time`);
+
+  return parts.length ? parts.join(' • ') : null;
+};
+
+const resolveEvolutionRequirement = (details = []) => {
+  const labels = (Array.isArray(details) ? details : [])
+    .map((detail) => resolveEvolutionDetailLabel(detail))
+    .filter(Boolean);
+  if (!labels.length) return 'Requisito não especificado';
+  return Array.from(new Set(labels)).join('  OU  ');
+};
+
+const resolveEvolutionTargetFromTeam = async ({ ownerJid, token = '' }) => {
+  const rows = await listPlayerPokemons(ownerJid);
+  if (!rows.length) return null;
+
+  const normalized = normalizeNameKey(token);
+  const parsedToken = toInt(token, 0);
+
+  const buildTargetFromRow = async (row) => {
+    const snapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: row });
+    return {
+      speciesName: snapshot.name,
+      displayName: row.nickname || snapshot.displayName || toTitleCase(snapshot.name),
+      flavorText: trimLoreText(snapshot?.flavorText || '', 140),
+      imageUrl: snapshot?.imageUrl || null,
+      speciesData: null,
+    };
+  };
+
+  if (!normalized) {
+    const active = rows.find((row) => Boolean(row?.is_active)) || rows[0];
+    if (!active) return null;
+    return buildTargetFromRow(active);
+  }
+
+  if (parsedToken > 0) {
+    const byTeamId = rows.find((row) => toInt(row?.id, 0) === parsedToken);
+    if (byTeamId) return buildTargetFromRow(byTeamId);
+
+    const byPokeId = rows.find((row) => toInt(row?.poke_id, 0) === parsedToken);
+    if (byPokeId) return buildTargetFromRow(byPokeId);
+  }
+
+  const byNickname = rows.find((row) => normalizeNameKey(row?.nickname) === normalized);
+  if (byNickname) return buildTargetFromRow(byNickname);
+
+  for (const row of rows) {
+    try {
+      const snapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: row });
+      if (normalizeNameKey(snapshot?.name) === normalized || normalizeNameKey(snapshot?.displayName) === normalized) {
+        return {
+          speciesName: snapshot.name,
+          displayName: row.nickname || snapshot.displayName || toTitleCase(snapshot.name),
+          flavorText: trimLoreText(snapshot?.flavorText || '', 140),
+          imageUrl: snapshot?.imageUrl || null,
+          speciesData: null,
+        };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+};
+
+const resolveEvolutionTarget = async ({ ownerJid, token = '' }) => {
+  const teamTarget = await resolveEvolutionTargetFromTeam({ ownerJid, token });
+  if (teamTarget) return teamTarget;
+
+  const lookup = String(token || '').trim();
+  if (!lookup) return null;
+
+  try {
+    const pokemonData = await getPokemon(lookup);
+    const speciesLookup = pokemonData?.species?.name || extractResourceIdFromUrl(pokemonData?.species?.url) || pokemonData?.id;
+    const speciesData = speciesLookup ? await getSpecies(speciesLookup) : null;
+    const localizedName = getLocalizedName(speciesData?.names, pokemonData?.name || lookup);
+    return {
+      speciesName: String(speciesData?.name || pokemonData?.name || lookup)
+        .trim()
+        .toLowerCase(),
+      displayName: toTitleCase(localizedName || pokemonData?.name || lookup),
+      flavorText: trimLoreText(getFlavorText(speciesData?.flavor_text_entries), 140),
+      imageUrl: null,
+      speciesData,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const buildEvolutionStages = async (currentNode) => {
+  const stages = [];
+  const labelCache = new Map();
+
+  const resolveSpeciesLabel = async (speciesNode = {}) => {
+    const speciesName = String(speciesNode?.name || '').trim().toLowerCase();
+    const speciesId = extractResourceIdFromUrl(speciesNode?.url);
+    const cacheKey = speciesId > 0 ? `id:${speciesId}` : `name:${speciesName}`;
+    if (labelCache.has(cacheKey)) return labelCache.get(cacheKey);
+
+    let label = toTitleCase(speciesName || 'pokemon');
+    try {
+      const lookup = speciesId > 0 ? speciesId : speciesName;
+      const speciesData = lookup ? await getSpecies(lookup) : null;
+      const localizedName = getLocalizedName(speciesData?.names, speciesName);
+      label = toTitleCase(localizedName || speciesName || 'pokemon');
+    } catch {
+      // fallback já definido em label
+    }
+
+    labelCache.set(cacheKey, label);
+    return label;
+  };
+
+  const walk = async (node, depth) => {
+    const nextNodes = Array.isArray(node?.evolves_to) ? node.evolves_to : [];
+    for (const nextNode of nextNodes) {
+      stages.push({
+        depth,
+        name: await resolveSpeciesLabel(nextNode?.species),
+        requirement: resolveEvolutionRequirement(nextNode?.evolution_details),
+      });
+      await walk(nextNode, depth + 1);
+    }
+  };
+
+  await walk(currentNode, 0);
+  return stages;
+};
+
+const handleEvolutionTree = async ({ ownerJid, commandPrefix, pokemonToken = null }) => {
+  const player = await getPlayerByJid(ownerJid);
+  if (!player) {
+    return { ok: true, text: buildNeedStartText(commandPrefix) };
+  }
+
+  const target = await resolveEvolutionTarget({
+    ownerJid,
+    token: String(pokemonToken || '').trim(),
+  });
+  if (!target) {
+    return {
+      ok: true,
+      text: `🔎 Não consegui identificar esse Pokémon.\nUse: ${commandPrefix}rpg evolucao <pokemon|id>\n💡 Se omitir o nome, uso seu Pokémon ativo.`,
+    };
+  }
+
+  const speciesData = target.speciesData || (target.speciesName ? await getSpecies(target.speciesName) : null);
+  const chainId = extractResourceIdFromUrl(speciesData?.evolution_chain?.url);
+  if (!chainId) {
+    return {
+      ok: true,
+      text: buildEvolutionTreeText({
+        pokemonName: target.displayName,
+        flavorText: target.flavorText || trimLoreText(getFlavorText(speciesData?.flavor_text_entries), 140),
+        stages: [],
+        prefix: commandPrefix,
+      }),
+    };
+  }
+
+  const chainData = await getEvolutionChain(chainId);
+  const currentNode = findEvolutionNodeBySpeciesName(chainData?.chain, target.speciesName || speciesData?.name || '');
+  if (!currentNode) {
+    return {
+      ok: true,
+      text: `⚠️ Não foi possível montar a árvore evolutiva agora.\n➡️ Tente novamente: ${commandPrefix}rpg evolucao ${target.displayName}`,
+    };
+  }
+
+  const stages = await buildEvolutionStages(currentNode);
+  const text = buildEvolutionTreeText({
+    pokemonName: target.displayName,
+    flavorText: target.flavorText || trimLoreText(getFlavorText(speciesData?.flavor_text_entries), 140),
+    stages,
+    prefix: commandPrefix,
+  });
+
+  return withPokemonImage({
+    text,
+    pokemonSnapshot: { imageUrl: target.imageUrl || null },
+    caption: target.imageUrl ? `🧬 Árvore evolutiva: ${target.displayName}` : null,
+  });
 };
 
 const listTravelRegions = async () => {
@@ -5328,6 +5584,15 @@ export const executeRpgPokemonAction = async ({ ownerJid, chatJid, action, actio
 
       case 'pokedex':
         result = await handlePokedex({ ownerJid, commandPrefix });
+        break;
+
+      case 'evolucao':
+      case 'evolução':
+        result = await handleEvolutionTree({
+          ownerJid,
+          commandPrefix,
+          pokemonToken: actionArgs?.[0],
+        });
         break;
 
       case 'viajar':

@@ -4,7 +4,7 @@ import logger from '../../utils/logger/loggerModule.js';
 import { buildUsageText } from './rpgPokemonMessages.js';
 import { executeRpgPokemonAction } from './rpgPokemonService.js';
 
-const ALLOWED_ACTIONS = new Set(['start', 'perfil', 'explorar', 'atacar', 'capturar', 'fugir', 'time', 'escolher', 'loja', 'comprar', 'usar', 'bolsa', 'pokedex', 'missoes', 'missões', 'viajar', 'tm', 'berry', 'raid', 'desafiar', 'pvp', 'ginasio', 'ginásio', 'trade', 'coop', 'evento', 'social', 'karma', 'engajamento']);
+const ALLOWED_ACTIONS = new Set(['start', 'perfil', 'explorar', 'atacar', 'capturar', 'fugir', 'time', 'escolher', 'loja', 'comprar', 'usar', 'bolsa', 'pokedex', 'evolucao', 'evolução', 'missoes', 'missões', 'viajar', 'tm', 'berry', 'raid', 'desafiar', 'pvp', 'ginasio', 'ginásio', 'trade', 'coop', 'evento', 'social', 'karma', 'engajamento']);
 
 const getContextInfo = (messageInfo) => {
   const root = messageInfo?.message;

@@ -47,7 +47,7 @@ const moveLine = (move, index) => {
   return `${slot} ${moveName} (${type} • ${power})`;
 };
 
-export const buildUsageText = (prefix = '/') => ['🎮 *RPG Pokémon - Guia de Comandos*', '', '🚀 *Começo da Jornada*', `• ${prefix}rpg start`, `• ${prefix}rpg perfil`, `• ${prefix}rpg explorar`, '', '⚔️ *Batalha*', `• ${prefix}rpg atacar <1|2|3|4>`, `• ${prefix}rpg capturar`, `• ${prefix}rpg fugir`, '', '👥 *Time e Progressão*', `• ${prefix}rpg time`, `• ${prefix}rpg escolher <pokemon_id>`, `• ${prefix}rpg missoes`, `• ${prefix}rpg ginasio`, '', '🎒 *Itens e Economia*', `• ${prefix}rpg loja`, `• ${prefix}rpg comprar <item> <qtd>`, `• ${prefix}rpg usar <item>`, `• ${prefix}rpg bolsa`, `• ${prefix}rpg pokedex`, `• ${prefix}rpg viajar [regiao]`, `• ${prefix}rpg tm <listar|usar>`, `• ${prefix}rpg berry <listar|usar>`, `• ${prefix}rpg raid <iniciar|entrar|atacar|status>`, `• ${prefix}rpg desafiar <jid/@numero>`, `• ${prefix}rpg pvp <status|fila|ranking|revanche|aceitar|recusar|atacar>`, `• ${prefix}rpg trade <status|propor|aceitar|recusar|cancelar>`, `• ${prefix}rpg coop`, `• ${prefix}rpg evento <status|claim>`, `• ${prefix}rpg social [status @usuario]`, `• ${prefix}rpg karma <status|top|+|->`, `• ${prefix}rpg engajamento`, '', `💡 *Dica:* faça ${prefix}rpg start → ${prefix}rpg perfil → ${prefix}rpg explorar`].join('\n');
+export const buildUsageText = (prefix = '/') => ['🎮 *RPG Pokémon - Guia de Comandos*', '', '🚀 *Começo da Jornada*', `• ${prefix}rpg start`, `• ${prefix}rpg perfil`, `• ${prefix}rpg explorar`, '', '⚔️ *Batalha*', `• ${prefix}rpg atacar <1|2|3|4>`, `• ${prefix}rpg capturar`, `• ${prefix}rpg fugir`, '', '👥 *Time e Progressão*', `• ${prefix}rpg time`, `• ${prefix}rpg escolher <pokemon_id>`, `• ${prefix}rpg missoes`, `• ${prefix}rpg ginasio`, '', '🎒 *Itens e Economia*', `• ${prefix}rpg loja`, `• ${prefix}rpg comprar <item> <qtd>`, `• ${prefix}rpg usar <item>`, `• ${prefix}rpg bolsa`, `• ${prefix}rpg pokedex`, `• ${prefix}rpg evolucao <pokemon|id>`, `• ${prefix}rpg viajar [regiao]`, `• ${prefix}rpg tm <listar|usar>`, `• ${prefix}rpg berry <listar|usar>`, `• ${prefix}rpg raid <iniciar|entrar|atacar|status>`, `• ${prefix}rpg desafiar <jid/@numero>`, `• ${prefix}rpg pvp <status|fila|ranking|revanche|aceitar|recusar|atacar>`, `• ${prefix}rpg trade <status|propor|aceitar|recusar|cancelar>`, `• ${prefix}rpg coop`, `• ${prefix}rpg evento <status|claim>`, `• ${prefix}rpg social [status @usuario]`, `• ${prefix}rpg karma <status|top|+|->`, `• ${prefix}rpg engajamento`, '', `💡 *Dica:* faça ${prefix}rpg start → ${prefix}rpg perfil → ${prefix}rpg explorar`].join('\n');
 
 export const buildCooldownText = ({ secondsLeft, prefix = '/' }) => `⏳ Espere *${secondsLeft}s* para agir novamente.\n💡 Dica: enquanto isso, veja seu progresso em ${prefix}rpg perfil`;
 
@@ -282,6 +282,30 @@ export const buildPokedexText = ({ uniqueTotal = 0, total = 0, completion = 0, r
   }
 
   lines.push('', `➡️ Próximos: ${prefix}rpg explorar | ${prefix}rpg capturar`);
+  return lines.join('\n');
+};
+
+export const buildEvolutionTreeText = ({ pokemonName, flavorText = null, stages = [], prefix = '/' }) => {
+  const safeName = formatName(pokemonName || 'Pokemon');
+  const lines = [`🧬 *Árvore Evolutiva*`, `🔎 Base: *${safeName}*`];
+
+  if (flavorText) {
+    lines.push(`📖 ${flavorText}`);
+  }
+
+  if (!Array.isArray(stages) || !stages.length) {
+    lines.push('✅ Este Pokémon não possui próximos estágios de evolução.');
+    lines.push(`➡️ Próximos: ${prefix}rpg explorar | ${prefix}rpg time`);
+    return lines.join('\n');
+  }
+
+  lines.push('', '🌱 Próximos estágios e requisitos:');
+  stages.forEach((stage) => {
+    const depth = Math.max(0, toNumber(stage?.depth, 0));
+    const arrow = `${'↳ '.repeat(depth + 1)}`.trimEnd();
+    lines.push(`${arrow} ${formatName(stage?.name || 'Pokemon')} — ${stage?.requirement || 'Requisito não especificado'}`);
+  });
+  lines.push('', `💡 Dica: use ${prefix}rpg usar <item> quando o requisito for por pedra/item.`);
   return lines.join('\n');
 };
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createWildEncounter, resolveBattleTurn, resolveCaptureAttempt, resolveEvolutionByLevel, resolveSingleAttack } from './rpgBattleService.js';
+import { createWildEncounter, resolveBattleTurn, resolveCaptureAttempt, resolveEvolutionByItem, resolveEvolutionByLevel, resolveSingleAttack } from './rpgBattleService.js';
 
 const PREFERRED_MOVE_NAMES = ['tackle', 'quick-attack', 'scratch', 'pound', 'ember', 'water-gun', 'vine-whip', 'bite', 'gust', 'swift', 'struggle'];
 
@@ -77,6 +77,7 @@ const seedCorePokemonData = (cache) => {
   setCache(cache, 'pokemon:5', buildPokemonData({ id: 5, name: 'charmeleon', primaryType: 'fire', speciesId: 5, speed: 80 }));
   setCache(cache, 'pokemon:6', buildPokemonData({ id: 6, name: 'charizard', primaryType: 'fire', speciesId: 6, speed: 100 }));
   setCache(cache, 'pokemon:25', buildPokemonData({ id: 25, name: 'pikachu', primaryType: 'electric', speed: 90 }));
+  setCache(cache, 'pokemon:26', buildPokemonData({ id: 26, name: 'raichu', primaryType: 'electric', speciesId: 26, speed: 110 }));
 
   setCache(cache, 'species:1', {
     id: 1,
@@ -93,6 +94,24 @@ const seedCorePokemonData = (cache) => {
     capture_rate: 190,
     evolution_chain: { url: 'https://pokeapi.co/api/v2/evolution-chain/10/' },
   });
+  setCache(cache, 'species:26', {
+    id: 26,
+    capture_rate: 75,
+    evolution_chain: { url: 'https://pokeapi.co/api/v2/evolution-chain/10/' },
+  });
+
+  setCache(cache, 'evolution-chain:1', {
+    chain: {
+      species: { name: 'bulbasaur', url: 'https://pokeapi.co/api/v2/pokemon-species/1/' },
+      evolves_to: [
+        {
+          species: { name: 'ivysaur', url: 'https://pokeapi.co/api/v2/pokemon-species/2/' },
+          evolution_details: [{ trigger: { name: 'level-up' }, min_level: 16 }],
+          evolves_to: [],
+        },
+      ],
+    },
+  });
 
   setCache(cache, 'evolution-chain:2', {
     chain: {
@@ -108,6 +127,19 @@ const seedCorePokemonData = (cache) => {
               evolves_to: [],
             },
           ],
+        },
+      ],
+    },
+  });
+
+  setCache(cache, 'evolution-chain:10', {
+    chain: {
+      species: { name: 'pikachu', url: 'https://pokeapi.co/api/v2/pokemon-species/25/' },
+      evolves_to: [
+        {
+          species: { name: 'raichu', url: 'https://pokeapi.co/api/v2/pokemon-species/26/' },
+          evolution_details: [{ trigger: { name: 'use-item' }, item: { name: 'thunder-stone' } }],
+          evolves_to: [],
         },
       ],
     },
@@ -306,6 +338,47 @@ test('evolução automática por nível deve seguir evolution-chain da PokéAPI'
   });
   assert.equal(atLevel40?.to?.pokeId, 6);
   assert.equal(atLevel40?.to?.name, 'Charizard');
+});
+
+test('evolução por nível deve retornar nulo quando ainda não atingiu requisito', { concurrency: false }, async () => {
+  const cache = ensurePokeApiCache();
+  cache.clear();
+  seedCoreTypeAndMoveData(cache);
+  seedCorePokemonData(cache);
+
+  const noEvolution = await resolveEvolutionByLevel({
+    pokeId: 1,
+    level: 15,
+  });
+  assert.equal(noEvolution, null);
+});
+
+test('evolução por item deve falhar para item inválido', { concurrency: false }, async () => {
+  const cache = ensurePokeApiCache();
+  cache.clear();
+  seedCoreTypeAndMoveData(cache);
+  seedCorePokemonData(cache);
+
+  const invalidItem = await resolveEvolutionByItem({
+    pokeId: 25,
+    itemKey: 'water-stone',
+  });
+  assert.equal(invalidItem, null);
+});
+
+test('evolução por item válida deve resolver próximo estágio', { concurrency: false }, async () => {
+  const cache = ensurePokeApiCache();
+  cache.clear();
+  seedCoreTypeAndMoveData(cache);
+  seedCorePokemonData(cache);
+
+  const validItem = await resolveEvolutionByItem({
+    pokeId: 25,
+    itemKey: 'thunder-stone',
+  });
+  assert.equal(validItem?.from?.pokeId, 25);
+  assert.equal(validItem?.to?.pokeId, 26);
+  assert.equal(validItem?.to?.name, 'Raichu');
 });
 
 test('ataque único deve aplicar dano e reduzir HP do alvo', () => {
