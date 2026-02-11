@@ -559,12 +559,20 @@ export const buildRaidAttackText = ({ logs = [], currentHp, maxHp, defeated = fa
   return lines.join('\n');
 };
 
-export const buildPvpChallengeText = ({ challengeId, challengerJid, opponentJid, prefix = '/' }) =>
+export const buildPvpChallengeText = ({
+  challengeId,
+  challengerJid,
+  opponentJid,
+  challengerPokemonLabel = null,
+  opponentPokemonLabel = null,
+  prefix = '/',
+}) =>
   [
     '⚔️ *Desafio PvP criado!*',
     `ID: *${challengeId}*`,
     `Desafiante: ${challengerJid}`,
     `Oponente: ${opponentJid}`,
+    ...(challengerPokemonLabel && opponentPokemonLabel ? [`🧩 Confronto: *${challengerPokemonLabel}* vs *${opponentPokemonLabel}*`] : []),
     `✅ Aceitar: ${prefix}rpg pvp aceitar ${challengeId}`,
     `❌ Recusar: ${prefix}rpg pvp recusar ${challengeId}`,
   ].join('\n');
@@ -576,7 +584,8 @@ export const buildPvpStatusText = ({ pending = [], active = null, prefix = '/' }
     lines.push(
       '',
       `Partida ativa: #${active.id}`,
-      `Turno de: ${active.turnJid}`,
+      ...(active.myPokemonLabel && active.enemyPokemonLabel ? [`🧩 Confronto: *${active.myPokemonLabel}* vs *${active.enemyPokemonLabel}*`] : []),
+      `Turno de: ${active.turnLabel || active.turnJid}`,
       `Seu Pokémon HP: ${active.myHp}/${active.myMaxHp}`,
       `Inimigo HP: ${active.enemyHp}/${active.enemyMaxHp}`,
       `➡️ Ação: ${prefix}rpg pvp atacar <1-4>`,
@@ -588,7 +597,7 @@ export const buildPvpStatusText = ({ pending = [], active = null, prefix = '/' }
   if (pending.length) {
     lines.push('', '📨 Desafios pendentes para você:');
     pending.slice(0, 5).forEach((entry) => {
-      lines.push(`• #${entry.id} de ${entry.challengerJid} (expira em breve)`);
+      lines.push(`• #${entry.id} de ${entry.challengerLabel || entry.challengerJid} (${entry.challengerPokemonLabel || 'Pokémon oculto'})`);
     });
   }
 
@@ -598,10 +607,25 @@ export const buildPvpStatusText = ({ pending = [], active = null, prefix = '/' }
   return lines.join('\n');
 };
 
-export const buildPvpTurnText = ({ logs = [], myHp, myMaxHp, enemyHp, enemyMaxHp, winnerJid = null, prefix = '/' }) => {
-  const lines = [...logs, `❤️ Seu HP: ${hpBar(myHp, myMaxHp)}`, `❤️ Inimigo HP: ${hpBar(enemyHp, enemyMaxHp)}`];
+export const buildPvpTurnText = ({
+  logs = [],
+  myPokemonLabel = null,
+  enemyPokemonLabel = null,
+  myHp,
+  myMaxHp,
+  enemyHp,
+  enemyMaxHp,
+  winnerJid = null,
+  prefix = '/',
+}) => {
+  const lines = [
+    ...(myPokemonLabel && enemyPokemonLabel ? [`🧩 Confronto: *${myPokemonLabel}* vs *${enemyPokemonLabel}*`] : []),
+    ...logs,
+    `❤️ Seu HP: ${hpBar(myHp, myMaxHp)}`,
+    `❤️ Inimigo HP: ${hpBar(enemyHp, enemyMaxHp)}`,
+  ];
   if (winnerJid) {
-    lines.push(`🏁 Vitória de ${winnerJid}`);
+    lines.push(`🏁 Vitória de ${winnerJid.label || winnerJid}`);
     lines.push(`➡️ Próximo: ${prefix}rpg explorar`);
     return lines.join('\n');
   }

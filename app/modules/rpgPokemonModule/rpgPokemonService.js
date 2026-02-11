@@ -1,5 +1,5 @@
 import { pool } from '../../../database/index.js';
-import { isGroupJid } from '../../config/baileysConfig.js';
+import { getJidUser, isGroupJid, normalizeJid } from '../../config/baileysConfig.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { applyPokemonXpGain, buildMoveSnapshotByName, buildPlayerBattleSnapshot, buildPokemonSnapshot, calculatePlayerLevelFromXp, createRandomIvs, createWildEncounter, resolveBattleTurn, resolveCaptureAttempt, resolveEvolutionByLevel, resolveEvolutionByItem, resolveSingleAttack } from './rpgBattleService.js';
 import { addGroupCoopContribution, addGroupEventContribution, addInventoryItem, consumeInventoryItem, countPlayerPokemons, createPlayer, createKarmaVote, createPlayerPokemon, createTradeOffer, applyKarmaDelta, cancelQueuedPvpByOwner, deleteBattleStateByOwner, deleteExpiredBattleStatesByOwner, getActivePlayerPokemonForUpdate, getActivePlayerPokemon, getGroupActivitySummaryByDay, getGroupActiveUsersByDay, getBattleStateByOwner, getBattleStateByOwnerForUpdate, getFirstPlayerPokemon, getGroupCoopWeekly, getGroupCoopWeeklyForUpdate, getGroupEventMemberForUpdate, getGroupEventWeeklyForUpdate, getInventoryItemForUpdate, getInventoryItems, getGroupBiomeByJid, getKarmaProfile, getKarmaVoteByWeekForUpdate, getLatestFinishedPvpByPlayer, getMissionProgressByOwnerForUpdate, getPlayerByJid, getPlayerByJidForUpdate, getQueuedPvpByOwnerForUpdate, getSocialLinkByUsers, getTradeOfferByIdForUpdate, getGroupRetentionByDays, countPokedexEntries, getPlayerPokemonById, getPlayerPokemonByIdForUpdate, getTravelStateByOwner, getTravelStateByOwnerForUpdate, listGroupCoopMembers, listUnrewardedGroupCoopMembersForUpdate, listGroupEventMembers, listOpenTradeOffersByUser, listPvpWeeklyRanking, listPlayerPokemons, listPokedexEntries, listQueuedPvpByChat, listQueuedPvpByChatForUpdate, listSocialLinksByOwner, listTopKarmaProfiles, markGroupCoopCompleted, markGroupCoopMemberRewardClaimed, markGroupEventCompleted, markGroupEventMemberRewardClaimed, markPvpQueueMatchedByIds, setActivePokemon, transferPlayerPokemon, createMissionProgress, createPvpChallenge, deleteExpiredRaidStates, upsertPokedexEntry, upsertGroupBiome, deleteRaidParticipantsByChat, deleteRaidStateByChat, expireOldPvpChallenges, expireOldTradeOffers, expirePvpQueue, enqueuePvpQueue, getActivePvpChallengeByPlayerForUpdate, getPvpChallengeByIdForUpdate, getRaidParticipant, getRaidStateByChatForUpdate, listOpenPvpChallengesByPlayer, listRaidParticipants, upsertRaidParticipant, addRaidParticipantDamage, upsertGroupActivityDaily, upsertGroupCoopWeekly, upsertGroupEventWeekly, upsertPvpWeeklyStatsDelta, upsertSocialLinkDelta, upsertRaidState, upsertTravelState, updatePvpChallengeState, updateTradeOfferState, updateMissionProgress, updatePlayerGoldOnly, updatePlayerPokemonState, updatePlayerProgress, upsertBattleState } from './rpgPokemonRepository.js';
@@ -767,7 +767,40 @@ const getCurrentWeekRefDate = () => getCurrentMissionRefs().weeklyRefDate;
 
 const getCurrentDayRefDate = () => getCurrentMissionRefs().dailyRefDate;
 
-const buildEngagementMentions = (...jids) => Array.from(new Set((jids || []).flat().filter(Boolean)));
+const toMentionJid = (jid) => {
+  const raw = String(jid || '').trim();
+  if (!raw) return null;
+  const normalized = normalizeJid(raw);
+  return normalized || raw;
+};
+
+const toMentionLabel = (jid) => {
+  const resolved = toMentionJid(jid);
+  if (!resolved) return 'desconhecido';
+  const user = getJidUser(resolved) || String(resolved).split('@')[0] || '';
+  const safeUser = String(user)
+    .trim()
+    .replace(/[^0-9a-zA-Z._-]/g, '');
+  return safeUser ? `@${safeUser}` : resolved;
+};
+
+const toPvpPokemonLabel = (pokemonSnapshot) => {
+  const name = String(pokemonSnapshot?.displayName || pokemonSnapshot?.name || '').trim();
+  if (!name) return null;
+  const level = Math.max(1, toInt(pokemonSnapshot?.level, 1));
+  const shinyPrefix = pokemonSnapshot?.isShiny ? '✨ ' : '';
+  return `${shinyPrefix}${name} Lv.${level}`;
+};
+
+const toPvpDuelLabels = ({ battleSnapshot, challengerJid, opponentJid }) => {
+  const players = battleSnapshot?.players && typeof battleSnapshot.players === 'object' ? battleSnapshot.players : {};
+  return {
+    challengerPokemonLabel: toPvpPokemonLabel(players?.[challengerJid]?.pokemon || null),
+    opponentPokemonLabel: toPvpPokemonLabel(players?.[opponentJid]?.pokemon || null),
+  };
+};
+
+const buildEngagementMentions = (...jids) => Array.from(new Set((jids || []).flat().map((jid) => toMentionJid(jid)).filter(Boolean)));
 
 const determineEventDefinitionForGroup = ({ chatJid, weekRefDate }) => {
   const seedRaw = `${chatJid || 'chat'}::${weekRefDate || getCurrentWeekRefDate()}`;
@@ -3068,6 +3101,9 @@ const toPvpStatusView = ({ challenge, ownerJid }) => {
   return {
     id: challenge.id,
     turnJid: challenge.turn_jid,
+    turnLabel: toMentionLabel(challenge.turn_jid),
+    myPokemonLabel: toPvpPokemonLabel(me),
+    enemyPokemonLabel: toPvpPokemonLabel(enemy),
     myHp: toInt(me.currentHp, 0),
     myMaxHp: Math.max(1, toInt(me.maxHp, 1)),
     enemyHp: toInt(enemy.currentHp, 0),
@@ -3086,7 +3122,7 @@ const buildPvpQueueStatusText = ({ queue = [], ownerJid, prefix = '/' }) => {
   lines.push(`Jogadores aguardando: ${queue.length}`);
   if (queue.length) {
     queue.slice(0, 8).forEach((entry, idx) => {
-      lines.push(`${idx + 1}. ${entry.owner_jid}`);
+      lines.push(`${idx + 1}. ${entry.ownerLabel || entry.owner_jid}`);
     });
   }
   lines.push(`➡️ Entrar: ${prefix}rpg pvp fila entrar`);
@@ -3095,12 +3131,19 @@ const buildPvpQueueStatusText = ({ queue = [], ownerJid, prefix = '/' }) => {
 };
 
 const buildPvpWeeklyRankingText = ({ weekRefDate, ranking = [], prefix = '/' }) => {
-  const lines = ['🏆 *Ranking PvP Semanal*', `Semana: ${weekRefDate}`];
+  const lines = ['🏆 *Ranking PvP Semanal*', `📅 Semana: ${weekRefDate}`];
   if (!ranking.length) {
     lines.push('Sem partidas registradas nesta semana.');
   } else {
+    lines.push('Pontuação: pontos | vitórias/derrotas | taxa de vitória');
     ranking.forEach((entry, idx) => {
-      lines.push(`${idx + 1}. ${entry.owner_jid} — ${entry.points} pts (${entry.wins}W/${entry.losses}L, ${entry.matches_played}j)`);
+      const games = Math.max(0, toInt(entry.matches_played, 0));
+      const wins = Math.max(0, toInt(entry.wins, 0));
+      const losses = Math.max(0, toInt(entry.losses, 0));
+      const points = Math.max(0, toInt(entry.points, 0));
+      const winRate = games > 0 ? Math.round((wins / games) * 100) : 0;
+      const rankBadge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+      lines.push(`${rankBadge} ${entry.ownerLabel || entry.owner_jid} — *${points} pts* | ${wins}W/${losses}L | ${winRate}% WR`);
     });
   }
   lines.push(`➡️ Entre na fila: ${prefix}rpg pvp fila entrar`);
@@ -3806,6 +3849,11 @@ const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = 
   if (!challenge) {
     return { ok: true, text: resolvePvpChallengeCreateErrorText('unknown') };
   }
+  const duelLabels = toPvpDuelLabels({
+    battleSnapshot: challenge?.battle_snapshot_json,
+    challengerJid: canonicalOwnerJid,
+    opponentJid,
+  });
 
   touchPvpCooldown(canonicalOwnerJid);
   recordRpgPvpChallenge();
@@ -3815,12 +3863,17 @@ const handleChallenge = async ({ ownerJid, chatJid, commandPrefix, actionArgs = 
     actionsDelta: 0,
     pvpCreatedDelta: 1,
   });
+
+  const challengerLabel = toMentionLabel(canonicalOwnerJid);
+  const opponentLabel = toMentionLabel(opponentJid);
   return {
     ok: true,
     text: buildPvpChallengeText({
       challengeId: challenge.id,
-      challengerJid: canonicalOwnerJid,
-      opponentJid,
+      challengerJid: challengerLabel,
+      opponentJid: opponentLabel,
+      challengerPokemonLabel: duelLabels.challengerPokemonLabel,
+      opponentPokemonLabel: duelLabels.opponentPokemonLabel,
       prefix: commandPrefix,
     }),
     mentions: buildEngagementMentions(canonicalOwnerJid, opponentJid),
@@ -3844,10 +3897,26 @@ const handlePvpStatus = async ({ ownerJid, chatJid, commandPrefix }) => {
     .map((entry) => ({
       id: entry.id,
       challengerJid: entry.challenger_jid,
+      challengerLabel: toMentionLabel(entry.challenger_jid),
+      challengerPokemonLabel: toPvpDuelLabels({
+        battleSnapshot: entry?.battle_snapshot_json,
+        challengerJid: entry.challenger_jid,
+        opponentJid: entry.opponent_jid,
+      }).challengerPokemonLabel,
     }));
   const active = open.find((entry) => entry.status === 'active') || null;
   const activeView = active ? toPvpStatusView({ challenge: active, ownerJid: canonicalOwnerJid }) : null;
   const queue = isGroupJid(chatJid) ? await listQueuedPvpByChat(chatJid, 10) : [];
+  const queueView = queue.slice(0, 8).map((entry) => ({
+    ...entry,
+    ownerLabel: toMentionLabel(entry.owner_jid),
+  }));
+  const statusMentions = buildEngagementMentions(
+    canonicalOwnerJid,
+    pending.map((entry) => entry.challengerJid),
+    active ? [active.challenger_jid, active.opponent_jid, active.turn_jid] : [],
+    queueView.map((entry) => entry.owner_jid),
+  );
 
   const statusText = buildPvpStatusText({
     pending,
@@ -3857,12 +3926,13 @@ const handlePvpStatus = async ({ ownerJid, chatJid, commandPrefix }) => {
   });
 
   if (!isGroupJid(chatJid)) {
-    return { ok: true, text: statusText };
+    return { ok: true, text: statusText, mentions: statusMentions };
   }
 
   return {
     ok: true,
-    text: `${statusText}\n\n${buildPvpQueueStatusText({ queue, ownerJid: canonicalOwnerJid, prefix: commandPrefix })}`,
+    text: `${statusText}\n\n${buildPvpQueueStatusText({ queue: queueView, ownerJid: canonicalOwnerJid, prefix: commandPrefix })}`,
+    mentions: statusMentions,
   };
 };
 
@@ -3893,13 +3963,18 @@ const handlePvpQueue = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [
 
     if (queueAction === 'status' || queueAction === 'listar') {
       const queue = await listQueuedPvpByChat(chatJid, 15, connection);
+      const queueView = queue.slice(0, 8).map((entry) => ({
+        ...entry,
+        ownerLabel: toMentionLabel(entry.owner_jid),
+      }));
       return {
         ok: true,
         text: buildPvpQueueStatusText({
-          queue,
+          queue: queueView,
           ownerJid: canonicalOwnerJid,
           prefix: commandPrefix,
         }),
+        mentions: buildEngagementMentions(queueView.map((entry) => entry.owner_jid)),
       };
     }
 
@@ -3936,13 +4011,18 @@ const handlePvpQueue = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [
     const opponentQueue = queue.find((entry) => entry.owner_jid !== canonicalOwnerJid) || null;
 
     if (!myQueue || !opponentQueue) {
+      const queueView = queue.slice(0, 8).map((entry) => ({
+        ...entry,
+        ownerLabel: toMentionLabel(entry.owner_jid),
+      }));
       return {
         ok: true,
         text: buildPvpQueueStatusText({
-          queue,
+          queue: queueView,
           ownerJid: canonicalOwnerJid,
           prefix: commandPrefix,
         }),
+        mentions: buildEngagementMentions(queueView.map((entry) => entry.owner_jid)),
       };
     }
 
@@ -3959,6 +4039,11 @@ const handlePvpQueue = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [
 
     const challenge = created?.challenge;
     if (!challenge) return { ok: true, text: 'Falha ao criar o match da fila PvP.' };
+    const duelLabels = toPvpDuelLabels({
+      battleSnapshot: challenge?.battle_snapshot_json,
+      challengerJid: canonicalOwnerJid,
+      opponentJid: opponentQueue.owner_jid,
+    });
 
     await markPvpQueueMatchedByIds([myQueue.id, opponentQueue.id], challenge.id, connection);
     const dayRefDate = getCurrentDayRefDate();
@@ -3984,12 +4069,16 @@ const handlePvpQueue = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [
     );
     recordRpgPvpQueue('match');
     recordRpgPvpChallenge();
+    const challengerLabel = toMentionLabel(canonicalOwnerJid);
+    const opponentLabel = toMentionLabel(opponentQueue.owner_jid);
     return {
       ok: true,
       text: `${buildPvpChallengeText({
         challengeId: challenge.id,
-        challengerJid: canonicalOwnerJid,
-        opponentJid: opponentQueue.owner_jid,
+        challengerJid: challengerLabel,
+        opponentJid: opponentLabel,
+        challengerPokemonLabel: duelLabels.challengerPokemonLabel,
+        opponentPokemonLabel: duelLabels.opponentPokemonLabel,
         prefix: commandPrefix,
       })}\n\n🔥 Match encontrado pela fila automaticamente.`,
       mentions: buildEngagementMentions(canonicalOwnerJid, opponentQueue.owner_jid),
@@ -4000,9 +4089,14 @@ const handlePvpQueue = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [
 const handlePvpRanking = async ({ commandPrefix }) => {
   const weekRefDate = getCurrentWeekRefDate();
   const ranking = await listPvpWeeklyRanking(weekRefDate, 10);
+  const rankingView = ranking.map((entry) => ({
+    ...entry,
+    ownerLabel: toMentionLabel(entry.owner_jid),
+  }));
   return {
     ok: true,
-    text: buildPvpWeeklyRankingText({ weekRefDate, ranking, prefix: commandPrefix }),
+    text: buildPvpWeeklyRankingText({ weekRefDate, ranking: rankingView, prefix: commandPrefix }),
+    mentions: buildEngagementMentions(rankingView.map((entry) => entry.owner_jid)),
   };
 };
 
@@ -4042,6 +4136,11 @@ const handlePvpRevanche = async ({ ownerJid, chatJid, commandPrefix, actionArgs 
   if (!created?.challenge) {
     return { ok: true, text: 'Não foi possível criar a revanche agora.' };
   }
+  const duelLabels = toPvpDuelLabels({
+    battleSnapshot: created?.challenge?.battle_snapshot_json,
+    challengerJid: canonicalOwnerJid,
+    opponentJid,
+  });
 
   recordRpgPvpChallenge();
   await trackGroupActivity({
@@ -4050,12 +4149,16 @@ const handlePvpRevanche = async ({ ownerJid, chatJid, commandPrefix, actionArgs 
     actionsDelta: 0,
     pvpCreatedDelta: 1,
   });
+  const challengerLabel = toMentionLabel(canonicalOwnerJid);
+  const opponentLabel = toMentionLabel(opponentJid);
   return {
     ok: true,
     text: `${buildPvpChallengeText({
       challengeId: created.challenge.id,
-      challengerJid: canonicalOwnerJid,
-      opponentJid,
+      challengerJid: challengerLabel,
+      opponentJid: opponentLabel,
+      challengerPokemonLabel: duelLabels.challengerPokemonLabel,
+      opponentPokemonLabel: duelLabels.opponentPokemonLabel,
       prefix: commandPrefix,
     })}\n\n🔁 Revanche criada.`,
     mentions: buildEngagementMentions(canonicalOwnerJid, opponentJid),
@@ -4138,6 +4241,7 @@ const handlePvp = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [], me
           ownerJid: canonicalOwnerJid,
           prefix: commandPrefix,
         }),
+        mentions: buildEngagementMentions(challenge.challenger_jid, challenge.opponent_jid, challenge.turn_jid),
       };
     });
   }
@@ -4208,8 +4312,9 @@ const handlePvp = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [], me
 
       return {
         ok: true,
-        text: `🏳️ Você desistiu do PvP.\nVencedor: ${opponentJid}${eventUpdate.notices?.length ? `\n${eventUpdate.notices.join('\n')}` : ''}`,
+        text: `🏳️ Você desistiu do PvP.\nVencedor: ${toMentionLabel(opponentJid)}${eventUpdate.notices?.length ? `\n${eventUpdate.notices.join('\n')}` : ''}`,
         winnerJid: opponentJid,
+        mentions: buildEngagementMentions(opponentJid, canonicalOwnerJid),
       };
     });
 
@@ -4234,7 +4339,11 @@ const handlePvp = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [], me
       }
 
       if (challenge.turn_jid !== canonicalOwnerJid) {
-        return { ok: true, text: `⏳ Aguarde seu turno. Turno atual: ${challenge.turn_jid}` };
+        return {
+          ok: true,
+          text: `⏳ Aguarde seu turno. Turno atual: ${toMentionLabel(challenge.turn_jid)}`,
+          mentions: buildEngagementMentions(challenge.turn_jid),
+        };
       }
 
       const snapshot = challenge?.battle_snapshot_json || {};
@@ -4272,6 +4381,8 @@ const handlePvp = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [], me
           ok: true,
           text: buildPvpTurnText({
             logs: attack.logs,
+            myPokemonLabel: toPvpPokemonLabel(me.pokemon),
+            enemyPokemonLabel: toPvpPokemonLabel(enemy.pokemon),
             myHp: me.pokemon.currentHp,
             myMaxHp: me.pokemon.maxHp,
             enemyHp: enemy.pokemon.currentHp,
@@ -4433,11 +4544,18 @@ const handlePvp = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [], me
         ok: true,
         text: buildPvpTurnText({
           logs: [...attack.logs, `💥 Dano: ${attack.damage}`, ...(notices || [])],
+          myPokemonLabel: toPvpPokemonLabel(attack.attacker),
+          enemyPokemonLabel: toPvpPokemonLabel(attack.defender),
           myHp: toInt(attack.attacker.currentHp, 0),
           myMaxHp: Math.max(1, toInt(attack.attacker.maxHp, 1)),
           enemyHp: Math.max(0, toInt(attack.defender.currentHp, 0)),
           enemyMaxHp: Math.max(1, toInt(attack.defender.maxHp, 1)),
-          winnerJid,
+          winnerJid: winnerJid
+            ? {
+                jid: winnerJid,
+                label: toMentionLabel(winnerJid),
+              }
+            : null,
           prefix: commandPrefix,
         }),
         winnerJid,
