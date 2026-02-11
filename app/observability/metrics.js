@@ -241,6 +241,31 @@ const ensureMetrics = () => {
       help: 'Total de evolucoes de Pokemon no RPG',
       registers: [registry],
     }),
+    socialXpEarnedTotal: new client.Counter({
+      name: 'social_xp_earned_total',
+      help: 'XP social ganho por mensagens elegíveis',
+      labelNames: ['source'],
+      registers: [registry],
+    }),
+    socialXpConvertedTotal: new client.Counter({
+      name: 'social_xp_converted_total',
+      help: 'XP social convertido em bonus de RPG',
+      labelNames: ['action'],
+      registers: [registry],
+    }),
+    socialXpConversionRate: new client.Histogram({
+      name: 'social_xp_conversion_rate',
+      help: 'Taxa de conversao aplicada no consumo de XP social',
+      buckets: [0, 0.1, 0.25, 0.5, 0.75, 1, 1.1, 1.25, 1.5],
+      labelNames: ['action'],
+      registers: [registry],
+    }),
+    socialXpCapHitsTotal: new client.Counter({
+      name: 'social_xp_cap_hits_total',
+      help: 'Total de vezes que o cap de XP social bloqueou ganho/conversao',
+      labelNames: ['scope'],
+      registers: [registry],
+    }),
     pokeApiCacheHitTotal: new client.Counter({
       name: 'pokeapi_cache_hit_total',
       help: 'Total de cache hits no cliente da PokéAPI',
@@ -617,4 +642,34 @@ export const recordRpgEvolution = (value = 1) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return;
   m.rpgEvolutionsTotal.inc(numeric);
+};
+
+export const recordSocialXpEarned = ({ value = 1, source = 'message' } = {}) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.socialXpEarnedTotal.inc({ source: normalizeLabel(source, 'message') }, numeric);
+};
+
+export const recordSocialXpConverted = ({ value = 1, action = 'unknown' } = {}) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return;
+  m.socialXpConvertedTotal.inc({ action: normalizeLabel(action, 'unknown') }, numeric);
+};
+
+export const recordSocialXpConversionRate = ({ rate, action = 'unknown' } = {}) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const numeric = Number(rate);
+  if (!Number.isFinite(numeric) || numeric < 0) return;
+  m.socialXpConversionRate.observe({ action: normalizeLabel(action, 'unknown') }, numeric);
+};
+
+export const recordSocialXpCapHit = ({ scope = 'earn' } = {}) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  m.socialXpCapHitsTotal.inc({ scope: normalizeLabel(scope, 'earn') });
 };

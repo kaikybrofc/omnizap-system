@@ -1,6 +1,6 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
 
-const PLAYER_COLUMNS = 'jid, level, xp, gold, created_at, updated_at';
+const PLAYER_COLUMNS = 'jid, level, xp, xp_pool_social, gold, created_at, updated_at';
 const PLAYER_POKEMON_COLUMNS = 'id, owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, nature_key, ability_key, ability_name, is_shiny, is_active, created_at';
 const BATTLE_COLUMNS = 'chat_jid, owner_jid, my_pokemon_id, enemy_snapshot_json, turn, expires_at, created_at, updated_at';
 
@@ -88,8 +88,8 @@ export const getPlayerByJidForUpdate = async (jid, connection) => {
 
 export const createPlayer = async ({ jid, level = 1, xp = 0, gold = 200 }, connection = null) => {
   await executeQuery(
-    `INSERT INTO ${TABLES.RPG_PLAYER} (jid, level, xp, gold)
-     VALUES (?, ?, ?, ?)
+    `INSERT INTO ${TABLES.RPG_PLAYER} (jid, level, xp, xp_pool_social, gold)
+     VALUES (?, ?, ?, 0, ?)
      ON DUPLICATE KEY UPDATE jid = VALUES(jid)`,
     [jid, level, xp, gold],
     connection,
@@ -107,6 +107,17 @@ export const updatePlayerProgress = async ({ jid, level, xp, gold }, connection 
             updated_at = CURRENT_TIMESTAMP
       WHERE jid = ?`,
     [level, xp, gold, jid],
+    connection,
+  );
+};
+
+export const updatePlayerSocialXpPool = async ({ jid, xpPoolSocial }, connection = null) => {
+  await executeQuery(
+    `UPDATE ${TABLES.RPG_PLAYER}
+        SET xp_pool_social = ?,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE jid = ?`,
+    [Math.max(0, Number(xpPoolSocial) || 0), jid],
     connection,
   );
 };
@@ -465,6 +476,7 @@ export const upsertGroupBiome = async ({ groupJid, biomeKey }, connection = null
 };
 
 const MISSION_COLUMNS = 'owner_jid, daily_ref_date, daily_progress_json, daily_claimed_at, weekly_ref_date, weekly_progress_json, weekly_claimed_at, created_at, updated_at';
+const SOCIAL_XP_DAILY_COLUMNS = 'day_ref_date, owner_jid, chat_jid, earned_xp, converted_xp, cap_hits, last_message_hash, last_earned_at, created_at, updated_at';
 
 const normalizeMissionRow = (row) => {
   if (!row) return null;
@@ -951,6 +963,16 @@ const normalizeKarmaProfileRow = (row) => {
     karma_score: Number(row.karma_score || 0),
     positive_votes: Number(row.positive_votes || 0),
     negative_votes: Number(row.negative_votes || 0),
+  };
+};
+
+const normalizeSocialXpDailyRow = (row) => {
+  if (!row) return null;
+  return {
+    ...row,
+    earned_xp: Number(row.earned_xp || 0),
+    converted_xp: Number(row.converted_xp || 0),
+    cap_hits: Number(row.cap_hits || 0),
   };
 };
 
@@ -1605,6 +1627,48 @@ export const upsertGroupActivityDaily = async ({ dayRefDate, chatJid, ownerJid, 
       coop_completed_count = coop_completed_count + VALUES(coop_completed_count),
       updated_at = CURRENT_TIMESTAMP`,
     [dayRefDate, chatJid, ownerJid, actionsDelta, pvpCreatedDelta, pvpCompletedDelta, coopCompletedDelta],
+    connection,
+  );
+};
+
+export const getSocialXpDailyByKeyForUpdate = async (dayRefDate, ownerJid, chatJid, connection) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_SOCIAL_XP_DAILY}
+      (day_ref_date, owner_jid, chat_jid, earned_xp, converted_xp, cap_hits, last_message_hash, last_earned_at)
+     VALUES (?, ?, ?, 0, 0, 0, NULL, NULL)
+     ON DUPLICATE KEY UPDATE updated_at = updated_at`,
+    [dayRefDate, ownerJid, chatJid],
+    connection,
+  );
+
+  const rows = await executeQuery(
+    `SELECT ${SOCIAL_XP_DAILY_COLUMNS}
+       FROM ${TABLES.RPG_SOCIAL_XP_DAILY}
+      WHERE day_ref_date = ?
+        AND owner_jid = ?
+        AND chat_jid = ?
+      LIMIT 1
+      FOR UPDATE`,
+    [dayRefDate, ownerJid, chatJid],
+    connection,
+  );
+
+  return normalizeSocialXpDailyRow(rows?.[0] || null);
+};
+
+export const upsertSocialXpDailyDelta = async ({ dayRefDate, ownerJid, chatJid, earnedDelta = 0, convertedDelta = 0, capHitsDelta = 0, lastMessageHash = null, lastEarnedAt = null }, connection = null) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.RPG_SOCIAL_XP_DAILY}
+      (day_ref_date, owner_jid, chat_jid, earned_xp, converted_xp, cap_hits, last_message_hash, last_earned_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+      earned_xp = GREATEST(0, earned_xp + VALUES(earned_xp)),
+      converted_xp = GREATEST(0, converted_xp + VALUES(converted_xp)),
+      cap_hits = GREATEST(0, cap_hits + VALUES(cap_hits)),
+      last_message_hash = COALESCE(VALUES(last_message_hash), last_message_hash),
+      last_earned_at = COALESCE(VALUES(last_earned_at), last_earned_at),
+      updated_at = CURRENT_TIMESTAMP`,
+    [dayRefDate, ownerJid, chatJid, Math.max(0, Number(earnedDelta) || 0), Math.max(0, Number(convertedDelta) || 0), Math.max(0, Number(capHitsDelta) || 0), lastMessageHash || null, lastEarnedAt || null],
     connection,
   );
 };

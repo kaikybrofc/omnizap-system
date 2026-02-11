@@ -75,7 +75,7 @@ export const buildStartText = ({ isNewPlayer, starterPokemon, prefix = '/' }) =>
 };
 
 export const buildProfileText = ({ player, activePokemon, prefix = '/' }) => {
-  const lines = ['📘 *Seu Perfil RPG*', '', `🏅 Nível: *${toNumber(player?.level, 1)}*`, `✨ XP: *${toNumber(player?.xp, 0)}*`, `🪙 Gold: *${toNumber(player?.gold, 0)}*`];
+  const lines = ['📘 *Seu Perfil RPG*', '', `🏅 Nível: *${toNumber(player?.level, 1)}*`, `✨ XP: *${toNumber(player?.xp, 0)}*`, `💬 XP social (pool): *${toNumber(player?.xp_pool_social, 0)}*`, `🪙 Gold: *${toNumber(player?.gold, 0)}*`];
 
   if (activePokemon) {
     lines.push('');

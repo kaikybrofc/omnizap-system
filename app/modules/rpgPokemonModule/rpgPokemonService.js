@@ -2,10 +2,10 @@ import { pool } from '../../../database/index.js';
 import { getJidUser, isGroupJid, normalizeJid } from '../../config/baileysConfig.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { applyPokemonXpGain, buildMoveSnapshotByName, buildPlayerBattleSnapshot, buildPokemonSnapshot, calculatePlayerLevelFromXp, createRandomIvs, createWildEncounter, resolveBattleTurn, resolveCaptureAttempt, resolveEvolutionByLevel, resolveEvolutionByItem, resolveSingleAttack } from './rpgBattleService.js';
-import { addGroupCoopContribution, addGroupEventContribution, addInventoryItem, consumeInventoryItem, countPlayerPokemons, createPlayer, createKarmaVote, createPlayerPokemon, createTradeOffer, applyKarmaDelta, cancelQueuedPvpByOwner, deleteBattleStateByOwner, deleteExpiredBattleStatesByOwner, getActivePlayerPokemonForUpdate, getActivePlayerPokemon, getGroupActivitySummaryByDay, getGroupActiveUsersByDay, getBattleStateByOwner, getBattleStateByOwnerForUpdate, getFirstPlayerPokemon, getGroupCoopWeekly, getGroupCoopWeeklyForUpdate, getGroupEventMemberForUpdate, getGroupEventWeeklyForUpdate, getInventoryItemForUpdate, getInventoryItems, getGroupBiomeByJid, getKarmaProfile, getKarmaVoteByWeekForUpdate, getLatestFinishedPvpByPlayer, getMissionProgressByOwnerForUpdate, getPlayerByJid, getPlayerByJidForUpdate, getQueuedPvpByOwnerForUpdate, getSocialLinkByUsers, getTradeOfferByIdForUpdate, getGroupRetentionByDays, countPokedexEntries, getPlayerPokemonById, getPlayerPokemonByIdForUpdate, getTravelStateByOwner, getTravelStateByOwnerForUpdate, listGroupCoopMembers, listUnrewardedGroupCoopMembersForUpdate, listGroupEventMembers, listOpenTradeOffersByUser, listPvpWeeklyRanking, listPlayerPokemons, listPokedexEntries, listQueuedPvpByChat, listQueuedPvpByChatForUpdate, listSocialLinksByOwner, listTopKarmaProfiles, markGroupCoopCompleted, markGroupCoopMemberRewardClaimed, markGroupEventCompleted, markGroupEventMemberRewardClaimed, markPvpQueueMatchedByIds, setActivePokemon, transferPlayerPokemon, createMissionProgress, createPvpChallenge, deleteExpiredRaidStates, upsertPokedexEntry, upsertGroupBiome, deleteRaidParticipantsByChat, deleteRaidStateByChat, expireOldPvpChallenges, expireOldTradeOffers, expirePvpQueue, enqueuePvpQueue, getActivePvpChallengeByPlayerForUpdate, getPvpChallengeByIdForUpdate, getRaidParticipant, getRaidStateByChatForUpdate, listOpenPvpChallengesByPlayer, listRaidParticipants, upsertRaidParticipant, addRaidParticipantDamage, upsertGroupActivityDaily, upsertGroupCoopWeekly, upsertGroupEventWeekly, upsertPvpWeeklyStatsDelta, upsertSocialLinkDelta, upsertRaidState, upsertTravelState, updatePvpChallengeState, updateTradeOfferState, updateMissionProgress, updatePlayerGoldOnly, updatePlayerPokemonState, updatePlayerProgress, upsertBattleState } from './rpgPokemonRepository.js';
+import { addGroupCoopContribution, addGroupEventContribution, addInventoryItem, consumeInventoryItem, countPlayerPokemons, createPlayer, createKarmaVote, createPlayerPokemon, createTradeOffer, applyKarmaDelta, cancelQueuedPvpByOwner, deleteBattleStateByOwner, deleteExpiredBattleStatesByOwner, getActivePlayerPokemonForUpdate, getActivePlayerPokemon, getGroupActivitySummaryByDay, getGroupActiveUsersByDay, getBattleStateByOwner, getBattleStateByOwnerForUpdate, getFirstPlayerPokemon, getGroupCoopWeekly, getGroupCoopWeeklyForUpdate, getGroupEventMemberForUpdate, getGroupEventWeeklyForUpdate, getInventoryItemForUpdate, getInventoryItems, getGroupBiomeByJid, getKarmaProfile, getKarmaVoteByWeekForUpdate, getLatestFinishedPvpByPlayer, getMissionProgressByOwnerForUpdate, getPlayerByJid, getPlayerByJidForUpdate, getQueuedPvpByOwnerForUpdate, getSocialLinkByUsers, getTradeOfferByIdForUpdate, getGroupRetentionByDays, countPokedexEntries, getPlayerPokemonById, getPlayerPokemonByIdForUpdate, getSocialXpDailyByKeyForUpdate, getTravelStateByOwner, getTravelStateByOwnerForUpdate, listGroupCoopMembers, listUnrewardedGroupCoopMembersForUpdate, listGroupEventMembers, listOpenTradeOffersByUser, listPvpWeeklyRanking, listPlayerPokemons, listPokedexEntries, listQueuedPvpByChat, listQueuedPvpByChatForUpdate, listSocialLinksByOwner, listTopKarmaProfiles, markGroupCoopCompleted, markGroupCoopMemberRewardClaimed, markGroupEventCompleted, markGroupEventMemberRewardClaimed, markPvpQueueMatchedByIds, setActivePokemon, transferPlayerPokemon, createMissionProgress, createPvpChallenge, deleteExpiredRaidStates, upsertPokedexEntry, upsertGroupBiome, deleteRaidParticipantsByChat, deleteRaidStateByChat, expireOldPvpChallenges, expireOldTradeOffers, expirePvpQueue, enqueuePvpQueue, getActivePvpChallengeByPlayerForUpdate, getPvpChallengeByIdForUpdate, getRaidParticipant, getRaidStateByChatForUpdate, listOpenPvpChallengesByPlayer, listRaidParticipants, upsertRaidParticipant, addRaidParticipantDamage, upsertGroupActivityDaily, upsertGroupCoopWeekly, upsertGroupEventWeekly, upsertPvpWeeklyStatsDelta, upsertSocialLinkDelta, upsertRaidState, upsertSocialXpDailyDelta, upsertTravelState, updatePvpChallengeState, updateTradeOfferState, updateMissionProgress, updatePlayerGoldOnly, updatePlayerPokemonState, updatePlayerProgress, updatePlayerSocialXpPool, upsertBattleState } from './rpgPokemonRepository.js';
 import { buildBattleAlreadyActiveText, buildBattleStartText, buildBattleTurnText, buildBuyErrorText, buildBuySuccessText, buildCaptureFailText, buildCaptureSuccessText, buildCaptureBlockedGymText, buildChooseErrorText, buildChooseSuccessText, buildCooldownText, buildEvolutionTreeText, buildFleeText, buildGenericErrorText, buildNeedActivePokemonText, buildNeedStartText, buildNoBattleText, buildPokedexText, buildPokemonFaintedText, buildProfileText, buildBerryListText, buildPvpChallengeText, buildPvpStatusText, buildPvpTurnText, buildRaidAttackText, buildRaidStartText, buildRaidStatusText, buildShopText, buildStartText, buildTeamText, buildTmListText, buildTmUseText, buildTravelSetText, buildTravelStatusText, buildBagText, buildMissionsText, buildMissionRewardText, buildEconomyRescueText, buildUseItemErrorText, buildUsePotionSuccessText, buildUseItemUsageText } from './rpgPokemonMessages.js';
 import { getEffectText, getEvolutionChain, getFlavorText, getLocalizedGenus, getLocalizedName, getAbility, getCharacteristic, getItem, getItemCategory, getItemPocket, getLocation, getLocationArea, getMachine, getNature, getPokedex, getPokemon, getSpecies, normalizeApiText, getRegion, getResourceList } from '../../services/pokeApiService.js';
-import { recordRpgBattleStarted, recordRpgCapture, recordRpgCaptureAttempt, recordRpgEvolution, recordRpgAction, recordRpgBattleDuration, recordRpgFlee, recordRpgPvpChallenge, recordRpgPvpCompleted, recordRpgPvpQueue, recordRpgRaidCompleted, recordRpgRaidStarted, recordRpgPlayerCreated, recordRpgSessionDuration, recordRpgTrade, recordRpgCoopCompleted, recordRpgWeeklyEventCompleted, recordRpgKarmaVote, recordRpgGroupRetentionRatio, recordRpgShinyFound } from '../../observability/metrics.js';
+import { recordRpgBattleStarted, recordRpgCapture, recordRpgCaptureAttempt, recordRpgEvolution, recordRpgAction, recordRpgBattleDuration, recordRpgFlee, recordRpgPvpChallenge, recordRpgPvpCompleted, recordRpgPvpQueue, recordRpgRaidCompleted, recordRpgRaidStarted, recordRpgPlayerCreated, recordRpgSessionDuration, recordRpgTrade, recordRpgCoopCompleted, recordRpgWeeklyEventCompleted, recordRpgKarmaVote, recordRpgGroupRetentionRatio, recordRpgShinyFound, recordSocialXpCapHit, recordSocialXpConversionRate, recordSocialXpConverted } from '../../observability/metrics.js';
 import { BIOME_DEFINITIONS, BIOME_KEYS, DAILY_MISSION_REWARD, DAILY_MISSION_TARGET, MISSION_KEYS, WEEKLY_MISSION_REWARD, WEEKLY_MISSION_TARGET, buildMissionProgressZero, isMissionCompleted, normalizeMissionProgress, resolveBiomeFromKey, resolveDefaultBiomeForGroup, resolveMissionRefs, resolveMissionStateForRefs, resolveVictoryRewards } from './rpgPokemonDomain.js';
 import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
 import { inferEffectTagFromLogs, renderBattleFrameCanvas } from './rpgBattleCanvasRenderer.js';
@@ -57,6 +57,14 @@ const COOP_REWARD_ITEM_KEY = String(process.env.RPG_COOP_REWARD_ITEM_KEY || 'pok
 const COOP_REWARD_ITEM_QTY = Math.max(1, Number(process.env.RPG_COOP_REWARD_ITEM_QTY) || 2);
 const KARMA_BONUS_THRESHOLD = Math.max(5, Number(process.env.RPG_KARMA_BONUS_THRESHOLD) || 20);
 const KARMA_BONUS_RATE = Math.min(0.25, Math.max(0, Number(process.env.RPG_KARMA_BONUS_RATE) || 0.08));
+const SOCIAL_XP_CONVERSION_RATE = Math.min(1, Math.max(0.05, Number(process.env.RPG_SOCIAL_XP_CONVERSION_RATE) || 0.25));
+const SOCIAL_XP_ACTION_CAP = Math.max(5, Number(process.env.RPG_SOCIAL_XP_ACTION_CAP) || 45);
+const SOCIAL_XP_DAILY_CONVERSION_CAP = Math.max(SOCIAL_XP_ACTION_CAP, Number(process.env.RPG_SOCIAL_XP_DAILY_CONVERSION_CAP) || 300);
+const SOCIAL_XP_PLAYER_SHARE = Math.min(0.9, Math.max(0.1, Number(process.env.RPG_SOCIAL_XP_PLAYER_SHARE) || 0.6));
+const SOCIAL_XP_KARMA_BOOST_RATE = Math.min(0.2, Math.max(0, Number(process.env.RPG_SOCIAL_XP_KARMA_BOOST_RATE) || 0.08));
+const SOCIAL_XP_GROUP_BOOST_RATE = Math.min(0.2, Math.max(0, Number(process.env.RPG_SOCIAL_XP_GROUP_BOOST_RATE) || 0.05));
+const SOCIAL_XP_ABUSE_PENALTY_RATE = Math.min(0.4, Math.max(0, Number(process.env.RPG_SOCIAL_XP_ABUSE_PENALTY_RATE) || 0.12));
+const SOCIAL_XP_ABUSE_CAP_HITS_THRESHOLD = Math.max(1, Number(process.env.RPG_SOCIAL_XP_ABUSE_CAP_HITS_THRESHOLD) || 3);
 const BATTLE_CANVAS_ENABLED =
   String(process.env.RPG_BATTLE_CANVAS_ENABLED ?? 'true')
     .trim()
@@ -778,6 +786,127 @@ const getCurrentWeekRefDate = () => getCurrentMissionRefs().weeklyRefDate;
 
 const getCurrentDayRefDate = () => getCurrentMissionRefs().dailyRefDate;
 
+const resolveSocialChatScope = (chatJid) => {
+  const raw = String(chatJid || '').trim();
+  if (!raw) return '__direct__';
+  if (raw.endsWith('@g.us')) return raw;
+  return '__direct__';
+};
+
+const resolveSocialConversionMultiplier = ({ karmaScore = 0, hasGroupMomentum = false, capHits = 0 }) => {
+  let multiplier = 1;
+  if (karmaScore >= KARMA_BONUS_THRESHOLD) {
+    multiplier += SOCIAL_XP_KARMA_BOOST_RATE;
+  }
+  if (hasGroupMomentum) {
+    multiplier += SOCIAL_XP_GROUP_BOOST_RATE;
+  }
+  if (capHits >= SOCIAL_XP_ABUSE_CAP_HITS_THRESHOLD) {
+    multiplier -= SOCIAL_XP_ABUSE_PENALTY_RATE;
+  }
+  return clamp(multiplier, 0.6, 1.4);
+};
+
+const buildSocialConversionNotice = ({ convertedXp = 0, playerXpBonus = 0, pokemonXpBonus = 0 }) => {
+  if (convertedXp <= 0) return null;
+  return `💬 XP social convertido: +${convertedXp} (${playerXpBonus} XP jogador + ${pokemonXpBonus} XP Pokémon).`;
+};
+
+const applySocialXpConversion = async ({ ownerJid, chatJid, connection, actionKey = 'unknown' }) => {
+  const player = await getPlayerByJidForUpdate(ownerJid, connection);
+  if (!player) return { convertedXp: 0, playerXpBonus: 0, pokemonXpBonus: 0, notice: null };
+
+  const poolBefore = Math.max(0, toInt(player?.xp_pool_social, 0));
+  if (poolBefore <= 0) {
+    return { convertedXp: 0, playerXpBonus: 0, pokemonXpBonus: 0, notice: null };
+  }
+
+  const dayRefDate = getCurrentDayRefDate();
+  const scopedChatJid = resolveSocialChatScope(chatJid);
+  const daily = await getSocialXpDailyByKeyForUpdate(dayRefDate, ownerJid, scopedChatJid, connection);
+  const convertedToday = Math.max(0, toInt(daily?.converted_xp, 0));
+  const capRemaining = Math.max(0, SOCIAL_XP_DAILY_CONVERSION_CAP - convertedToday);
+
+  if (capRemaining <= 0) {
+    await upsertSocialXpDailyDelta(
+      {
+        dayRefDate,
+        ownerJid,
+        chatJid: scopedChatJid,
+        capHitsDelta: 1,
+      },
+      connection,
+    );
+    recordSocialXpCapHit({ scope: 'conversion' });
+    return {
+      convertedXp: 0,
+      playerXpBonus: 0,
+      pokemonXpBonus: 0,
+      capReached: true,
+      notice: '⛔ Cap diário de conversão de XP social atingido neste chat.',
+    };
+  }
+
+  const [karmaProfile, activeUsers] = await Promise.all([
+    getKarmaProfile(ownerJid, connection),
+    scopedChatJid.endsWith('@g.us') ? getGroupActiveUsersByDay(scopedChatJid, dayRefDate, connection) : Promise.resolve(0),
+  ]);
+  const multiplier = resolveSocialConversionMultiplier({
+    karmaScore: toInt(karmaProfile?.karma_score, 0),
+    hasGroupMomentum: toInt(activeUsers, 0) >= 3,
+    capHits: toInt(daily?.cap_hits, 0),
+  });
+
+  const baseConverted = Math.max(1, Math.round(poolBefore * SOCIAL_XP_CONVERSION_RATE));
+  const adjustedConverted = Math.max(
+    0,
+    Math.min(
+      poolBefore,
+      capRemaining,
+      SOCIAL_XP_ACTION_CAP,
+      Math.max(1, Math.round(baseConverted * multiplier)),
+    ),
+  );
+
+  if (adjustedConverted <= 0) {
+    return { convertedXp: 0, playerXpBonus: 0, pokemonXpBonus: 0, notice: null };
+  }
+
+  const playerXpBonus = Math.max(1, Math.round(adjustedConverted * SOCIAL_XP_PLAYER_SHARE));
+  const pokemonXpBonus = Math.max(0, adjustedConverted - playerXpBonus);
+  const poolAfter = Math.max(0, poolBefore - adjustedConverted);
+
+  await updatePlayerSocialXpPool({
+    jid: ownerJid,
+    xpPoolSocial: poolAfter,
+  }, connection);
+  await upsertSocialXpDailyDelta(
+    {
+      dayRefDate,
+      ownerJid,
+      chatJid: scopedChatJid,
+      convertedDelta: adjustedConverted,
+    },
+    connection,
+  );
+
+  recordSocialXpConverted({ value: adjustedConverted, action: actionKey });
+  recordSocialXpConversionRate({
+    action: actionKey,
+    rate: adjustedConverted / Math.max(1, baseConverted),
+  });
+
+  return {
+    convertedXp: adjustedConverted,
+    playerXpBonus,
+    pokemonXpBonus,
+    poolBefore,
+    poolAfter,
+    multiplier,
+    notice: buildSocialConversionNotice({ convertedXp: adjustedConverted, playerXpBonus, pokemonXpBonus }),
+  };
+};
+
 const toMentionJid = (jid) => {
   const raw = String(jid || '').trim();
   if (!raw) return null;
@@ -1481,7 +1610,55 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
       return { ok: true, text: buildNeedActivePokemonText(commandPrefix) };
     }
 
-    const activeBattleSnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: activePokemonRow });
+    const socialBonus = await applySocialXpConversion({
+      ownerJid,
+      chatJid,
+      connection,
+      actionKey: 'explore',
+    });
+
+    let playerLevelForEncounter = Math.max(1, toInt(player.level, 1));
+    let playerXpCurrent = Math.max(0, toInt(player.xp, 0));
+    const playerGoldCurrent = Math.max(0, toInt(player.gold, 0));
+    if (socialBonus.playerXpBonus > 0) {
+      playerXpCurrent = Math.max(0, playerXpCurrent + socialBonus.playerXpBonus);
+      playerLevelForEncounter = calculatePlayerLevelFromXp(playerXpCurrent);
+      await updatePlayerProgress(
+        {
+          jid: ownerJid,
+          level: playerLevelForEncounter,
+          xp: playerXpCurrent,
+          gold: playerGoldCurrent,
+        },
+        connection,
+      );
+    }
+
+    let activePokemonState = activePokemonRow;
+    if (socialBonus.pokemonXpBonus > 0) {
+      const socialPokemonProgress = applyPokemonXpGain({
+        currentLevel: activePokemonRow.level,
+        currentXp: activePokemonRow.xp,
+        gainedXp: socialBonus.pokemonXpBonus,
+      });
+      await updatePlayerPokemonState(
+        {
+          id: activePokemonRow.id,
+          ownerJid,
+          level: socialPokemonProgress.level,
+          xp: socialPokemonProgress.xp,
+          currentHp: activePokemonRow.current_hp,
+        },
+        connection,
+      );
+      activePokemonState = {
+        ...activePokemonRow,
+        level: socialPokemonProgress.level,
+        xp: socialPokemonProgress.xp,
+      };
+    }
+
+    const activeBattleSnapshot = await buildPlayerBattleSnapshot({ playerPokemonRow: activePokemonState });
     if (activeBattleSnapshot.currentHp <= 0) {
       return { ok: true, text: buildPokemonFaintedText(commandPrefix) };
     }
@@ -1490,7 +1667,7 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
     const travel = await resolveTravelStateForOwner({ ownerJid, connection });
     const encounterPool = await resolveTravelEncounterPool(travel?.location_area_key);
     const { enemySnapshot } = await createWildEncounter({
-      playerLevel: player.level,
+      playerLevel: playerLevelForEncounter,
       preferredTypes: biome?.preferredTypes || [],
       preferredHabitats: biome?.preferredHabitats || [],
       encounterPool,
@@ -1515,8 +1692,8 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
         : null,
       my: {
         ...activeBattleSnapshot,
-        id: activePokemonRow.id,
-        xp: activePokemonRow.xp,
+        id: activePokemonState.id,
+        xp: activePokemonState.xp,
       },
       enemy: enemySnapshot,
     };
@@ -1525,7 +1702,7 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
       {
         chatJid: buildBattleChatKey(chatJid, ownerJid),
         ownerJid,
-        myPokemonId: activePokemonRow.id,
+        myPokemonId: activePokemonState.id,
         battleSnapshot,
         turn: 1,
         expiresAt: nowPlusTtlDate(),
@@ -1548,15 +1725,23 @@ const handleExplore = async ({ ownerJid, chatJid, commandPrefix }) => {
       battleSnapshot,
       prefix: commandPrefix,
     });
+    if (socialBonus.notice) {
+      text = `${text}\n${socialBonus.notice}`;
+    }
     const missionText = buildMissionRewardText(mission.notices || []);
     if (missionText) {
       text = `${text}\n${missionText}`;
     }
 
+    const frameLogs = [`${battleSnapshot.enemy.displayName} apareceu para batalha.`];
+    if (socialBonus.notice) {
+      frameLogs.push(socialBonus.notice);
+    }
+
     return withBattleCanvasFrame({
       text,
       battleSnapshot,
-      logs: [`${battleSnapshot.enemy.displayName} apareceu para batalha.`],
+      logs: frameLogs,
       actionText: 'Encontro iniciado.',
       modeLabel: battleSnapshot.mode === 'gym' ? 'Desafio de Ginasio' : 'Batalha Selvagem',
       caption: enemySnapshot.isShiny ? `✨ UM POKEMON SHINY APARECEU! ✨\n${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level}` : `🐾 Um ${battleSnapshot.enemy.displayName} Lv.${battleSnapshot.enemy.level} apareceu!\nUse ${commandPrefix}rpg atacar ou ${commandPrefix}rpg capturar`,
@@ -1721,19 +1906,31 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
 
     const updatedSnapshot = turnResult.snapshot;
     const winner = turnResult.winner;
+    const sourceChatJid = extractSourceChatFromBattleKey(battleRow.chat_jid);
 
     if (winner === 'player') {
       const rewards = resolveVictoryRewards(updatedSnapshot);
+      const socialBonus = await applySocialXpConversion({
+        ownerJid,
+        chatJid: sourceChatJid,
+        connection,
+        actionKey: 'attack',
+      });
+      const rewardWithSocial = {
+        ...rewards,
+        playerXp: rewards.playerXp + Math.max(0, socialBonus.playerXpBonus || 0),
+        pokemonXp: rewards.pokemonXp + Math.max(0, socialBonus.pokemonXpBonus || 0),
+      };
       const player = await getPlayerByJidForUpdate(ownerJid, connection);
 
       const pokemonProgress = applyPokemonXpGain({
         currentLevel: myPokemon.level,
         currentXp: myPokemon.xp,
-        gainedXp: rewards.pokemonXp,
+        gainedXp: rewardWithSocial.pokemonXp,
       });
 
-      const playerXp = toInt(player?.xp, 0) + rewards.playerXp;
-      const playerGold = Math.max(0, toInt(player?.gold, 0) + rewards.gold);
+      const playerXp = toInt(player?.xp, 0) + rewardWithSocial.playerXp;
+      const playerGold = Math.max(0, toInt(player?.gold, 0) + rewardWithSocial.gold);
       const playerLevel = calculatePlayerLevelFromXp(playerXp);
 
       const evolutionOutcome = await resolveEvolutionOutcome({
@@ -1787,6 +1984,7 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
         );
       }
       const rewardItemNotices = (rewards.items || []).filter((item) => item?.key && Number.isFinite(Number(item.quantity)) && Number(item.quantity) > 0).map((item) => `🎁 Bônus: +${Number(item.quantity)} ${itemRewardLabel(item.key)}`);
+      const socialNotices = socialBonus.notice ? [socialBonus.notice] : [];
 
       const mission = await applyMissionEvent({
         ownerJid,
@@ -1806,10 +2004,10 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
       };
 
       const text = buildBattleTurnText({
-        logs: [...turnResult.logs, ...rewardItemNotices, ...(mission.notices || []), ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])],
+        logs: [...turnResult.logs, ...rewardItemNotices, ...socialNotices, ...(mission.notices || []), ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])],
         battleSnapshot: finalBattleSnapshot,
         prefix: commandPrefix,
-        rewards,
+        rewards: rewardWithSocial,
         evolution: evolutionOutcome
           ? {
               fromName: evolutionOutcome.evolution.from.name,
@@ -1823,7 +2021,7 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
         recordRpgEvolution();
       }
 
-      const frameLogs = [...turnResult.logs, ...rewardItemNotices, ...(mission.notices || []), ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])];
+      const frameLogs = [...turnResult.logs, ...rewardItemNotices, ...socialNotices, ...(mission.notices || []), ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])];
       return withBattleCanvasFrame({
         text,
         battleSnapshot: finalBattleSnapshot,
@@ -1872,12 +2070,45 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
       });
     }
 
+    const socialBonus = await applySocialXpConversion({
+      ownerJid,
+      chatJid: sourceChatJid,
+      connection,
+      actionKey: 'attack',
+    });
+
+    if (socialBonus.playerXpBonus > 0) {
+      const player = await getPlayerByJidForUpdate(ownerJid, connection);
+      if (player) {
+        const nextPlayerXp = Math.max(0, toInt(player.xp, 0) + socialBonus.playerXpBonus);
+        const nextPlayerLevel = calculatePlayerLevelFromXp(nextPlayerXp);
+        await updatePlayerProgress(
+          {
+            jid: ownerJid,
+            level: nextPlayerLevel,
+            xp: nextPlayerXp,
+            gold: Math.max(0, toInt(player.gold, 0)),
+          },
+          connection,
+        );
+      }
+    }
+
+    let socialPokemonProgress = null;
+    if (socialBonus.pokemonXpBonus > 0) {
+      socialPokemonProgress = applyPokemonXpGain({
+        currentLevel: myPokemon.level,
+        currentXp: myPokemon.xp,
+        gainedXp: socialBonus.pokemonXpBonus,
+      });
+    }
+
     await updatePlayerPokemonState(
       {
         id: myPokemon.id,
         ownerJid,
-        level: myPokemon.level,
-        xp: myPokemon.xp,
+        level: socialPokemonProgress?.level ?? myPokemon.level,
+        xp: socialPokemonProgress?.xp ?? myPokemon.xp,
         currentHp: Math.max(0, toInt(updatedSnapshot?.my?.currentHp, myPokemon.current_hp)),
       },
       connection,
@@ -1890,6 +2121,11 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
         myPokemonId: myPokemon.id,
         battleSnapshot: {
           ...updatedSnapshot,
+          my: {
+            ...(updatedSnapshot.my || {}),
+            level: socialPokemonProgress?.level ?? updatedSnapshot?.my?.level ?? myPokemon.level,
+            xp: socialPokemonProgress?.xp ?? updatedSnapshot?.my?.xp ?? myPokemon.xp,
+          },
           turn: toInt(battleRow.turn, 1) + 1,
         },
         turn: toInt(battleRow.turn, 1) + 1,
@@ -1899,13 +2135,13 @@ const handleAttack = async ({ ownerJid, moveSlot, commandPrefix }) => {
     );
 
     const text = buildBattleTurnText({
-      logs: [...turnResult.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])],
+      logs: [...turnResult.logs, ...(socialBonus.notice ? [socialBonus.notice] : []), ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])],
       battleSnapshot: updatedSnapshot,
       prefix: commandPrefix,
       rewards: null,
     });
 
-    const frameLogs = [...turnResult.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])];
+    const frameLogs = [...turnResult.logs, ...(socialBonus.notice ? [socialBonus.notice] : []), ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : [])];
     return withBattleCanvasFrame({
       text,
       battleSnapshot: updatedSnapshot,
@@ -4041,6 +4277,48 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
         };
       }
 
+      const socialBonus = await applySocialXpConversion({
+        ownerJid,
+        chatJid,
+        connection,
+        actionKey: 'raid_attack',
+      });
+
+      if (socialBonus.playerXpBonus > 0) {
+        const playerForBonus = await getPlayerByJidForUpdate(ownerJid, connection);
+        if (playerForBonus) {
+          const nextPlayerXp = Math.max(0, toInt(playerForBonus.xp, 0) + socialBonus.playerXpBonus);
+          const nextPlayerLevel = calculatePlayerLevelFromXp(nextPlayerXp);
+          await updatePlayerProgress(
+            {
+              jid: ownerJid,
+              level: nextPlayerLevel,
+              xp: nextPlayerXp,
+              gold: Math.max(0, toInt(playerForBonus.gold, 0)),
+            },
+            connection,
+          );
+        }
+      }
+
+      if (socialBonus.pokemonXpBonus > 0) {
+        const socialPokemonProgress = applyPokemonXpGain({
+          currentLevel: activePokemonRow.level,
+          currentXp: activePokemonRow.xp,
+          gainedXp: socialBonus.pokemonXpBonus,
+        });
+        await updatePlayerPokemonState(
+          {
+            id: activePokemonRow.id,
+            ownerJid,
+            level: socialPokemonProgress.level,
+            xp: socialPokemonProgress.xp,
+            currentHp: activePokemonRow.current_hp,
+          },
+          connection,
+        );
+      }
+
       const nextCurrentHp = clamp(toInt(attack.defender.currentHp, raidView.currentHp), 0, raidView.maxHp);
       await addRaidParticipantDamage(
         {
@@ -4084,7 +4362,7 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
         return {
           ok: true,
           text: buildRaidAttackText({
-            logs: [...attack.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : []), `💥 Dano causado: ${attack.damage}`, ...(eventUpdate.notices || [])],
+            logs: [...attack.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : []), ...(socialBonus.notice ? [socialBonus.notice] : []), `💥 Dano causado: ${attack.damage}`, ...(eventUpdate.notices || [])],
             currentHp: nextCurrentHp,
             maxHp: raidView.maxHp,
             defeated: false,
@@ -4190,7 +4468,7 @@ const handleRaid = async ({ ownerJid, chatJid, commandPrefix, actionArgs = [] })
       return {
         ok: true,
         text: buildRaidAttackText({
-          logs: [...attack.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : []), `💥 Dano final: ${attack.damage}`, ...Array.from(new Set(coopNotices))],
+          logs: [...attack.logs, ...(selectedMoveLore ? [`📖 Golpe: ${selectedMoveLore}`] : []), ...(socialBonus.notice ? [socialBonus.notice] : []), `💥 Dano final: ${attack.damage}`, ...Array.from(new Set(coopNotices))],
           currentHp: 0,
           maxHp: raidView.maxHp,
           defeated: true,

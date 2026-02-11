@@ -1,11 +1,21 @@
+import { createHash } from 'node:crypto';
 import { pool } from '../../../database/index.js';
 import { getJidUser } from '../../config/baileysConfig.js';
+import { recordSocialXpCapHit, recordSocialXpEarned } from '../../observability/metrics.js';
+import { getPlayerByJidForUpdate, getSocialXpDailyByKeyForUpdate, updatePlayerSocialXpPool, upsertSocialXpDailyDelta } from '../rpgPokemonModule/rpgPokemonRepository.js';
 import { getActiveSocket } from '../../services/socketState.js';
 import { isWhatsAppUserId } from '../../services/lidMapService.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { XP_CONFIG, calculateLevelFromXp, isEligibleContentForXp, resolveXpGainForLevel } from './xpConfig.js';
 import { ensureUserXpRowForUpdate, getUserXpBySenderId, insertXpTransaction, updateUserXpRow } from './xpRepository.js';
+
+const SOCIAL_XP_DAILY_EARN_CAP = Math.max(0, Number(process.env.RPG_SOCIAL_XP_DAILY_EARN_CAP) || 300);
+const SOCIAL_XP_MIN_MESSAGE_LENGTH = Math.max(4, Number(process.env.RPG_SOCIAL_XP_MIN_MESSAGE_LENGTH) || 10);
+const SOCIAL_XP_MAX_PER_MESSAGE = Math.max(1, Number(process.env.RPG_SOCIAL_XP_MAX_PER_MESSAGE) || 15);
+const SOCIAL_XP_MENTION_BONUS = Math.max(0, Number(process.env.RPG_SOCIAL_XP_MENTION_BONUS) || 1);
+const SOCIAL_XP_REPLY_BONUS = Math.max(0, Number(process.env.RPG_SOCIAL_XP_REPLY_BONUS) || 1);
+const SOCIAL_XP_DIRECT_SCOPE = '__direct__';
 
 const toInt = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -17,6 +27,127 @@ const toTimestamp = (value) => {
   if (!value) return null;
   const ts = new Date(value).getTime();
   return Number.isFinite(ts) ? ts : null;
+};
+
+const toUtcDateOnly = (value = Date.now()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+};
+
+const resolveSocialChatScope = (chatId) => {
+  const raw = String(chatId || '').trim();
+  if (!raw) return SOCIAL_XP_DIRECT_SCOPE;
+  if (raw.endsWith('@g.us')) return raw;
+  return SOCIAL_XP_DIRECT_SCOPE;
+};
+
+const normalizeSocialMessageText = (value) => {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s!?.,]/g, '')
+    .replace(/\s+/g, ' ');
+};
+
+const hashSocialMessageText = (normalizedText) => {
+  const payload = String(normalizedText || '').trim();
+  if (!payload) return null;
+  return createHash('sha1').update(payload).digest('hex');
+};
+
+const extractContextInfo = (messageInfo) => {
+  const message = messageInfo?.message;
+  if (!message || typeof message !== 'object') return null;
+  const entries = Object.values(message);
+  for (const entry of entries) {
+    if (entry && typeof entry === 'object' && entry.contextInfo && typeof entry.contextInfo === 'object') {
+      return entry.contextInfo;
+    }
+  }
+  return null;
+};
+
+const resolveInteractionBonus = (messageInfo) => {
+  const contextInfo = extractContextInfo(messageInfo);
+  if (!contextInfo) return 0;
+  let bonus = 0;
+  if (Array.isArray(contextInfo.mentionedJid) && contextInfo.mentionedJid.length > 0) {
+    bonus += SOCIAL_XP_MENTION_BONUS;
+  }
+  if (contextInfo.quotedMessage || contextInfo.stanzaId || contextInfo.participant) {
+    bonus += SOCIAL_XP_REPLY_BONUS;
+  }
+  return bonus;
+};
+
+const applySocialXpPoolFromMessage = async ({ senderId, chatId, extractedText, messageInfo, xpGain, now, connection }) => {
+  if (!senderId) return { applied: false, reason: 'missing_sender' };
+
+  const player = await getPlayerByJidForUpdate(senderId, connection);
+  if (!player) return { applied: false, reason: 'player_not_started' };
+
+  const normalizedText = normalizeSocialMessageText(extractedText);
+  if (normalizedText.length < SOCIAL_XP_MIN_MESSAGE_LENGTH) {
+    return { applied: false, reason: 'short_message' };
+  }
+
+  const messageHash = hashSocialMessageText(normalizedText);
+  if (!messageHash) return { applied: false, reason: 'invalid_hash' };
+
+  const dayRefDate = toUtcDateOnly(now);
+  if (!dayRefDate) return { applied: false, reason: 'invalid_day' };
+
+  const scopedChatJid = resolveSocialChatScope(chatId);
+  const daily = await getSocialXpDailyByKeyForUpdate(dayRefDate, senderId, scopedChatJid, connection);
+  if (daily?.last_message_hash && daily.last_message_hash === messageHash) {
+    return { applied: false, reason: 'duplicated_message' };
+  }
+
+  const earnedToday = Math.max(0, toInt(daily?.earned_xp, 0));
+  const remainingCap = Math.max(0, SOCIAL_XP_DAILY_EARN_CAP - earnedToday);
+  if (remainingCap <= 0) {
+    await upsertSocialXpDailyDelta(
+      {
+        dayRefDate,
+        ownerJid: senderId,
+        chatJid: scopedChatJid,
+        capHitsDelta: 1,
+      },
+      connection,
+    );
+    recordSocialXpCapHit({ scope: 'earn' });
+    return { applied: false, reason: 'daily_cap_reached' };
+  }
+
+  const interactionBonus = resolveInteractionBonus(messageInfo);
+  const baseGain = Math.max(1, toInt(xpGain, 1));
+  const rawGain = Math.max(1, Math.min(SOCIAL_XP_MAX_PER_MESSAGE, baseGain + interactionBonus));
+  const appliedGain = Math.max(0, Math.min(rawGain, remainingCap));
+  if (appliedGain <= 0) return { applied: false, reason: 'zero_gain' };
+
+  const nextPool = Math.max(0, toInt(player?.xp_pool_social, 0) + appliedGain);
+  await updatePlayerSocialXpPool({ jid: senderId, xpPoolSocial: nextPool }, connection);
+  await upsertSocialXpDailyDelta(
+    {
+      dayRefDate,
+      ownerJid: senderId,
+      chatJid: scopedChatJid,
+      earnedDelta: appliedGain,
+      lastMessageHash: messageHash,
+      lastEarnedAt: new Date(now),
+    },
+    connection,
+  );
+  recordSocialXpEarned({ value: appliedGain, source: 'message' });
+
+  return {
+    applied: true,
+    appliedGain,
+    nextPool,
+  };
 };
 
 const buildMentionText = (senderId) => {
@@ -113,6 +244,7 @@ export const awardXpForMessage = async ({
     const nextXp = currentXp + xpGain;
     const nextLevel = calculateLevelFromXp(nextXp).level;
     const leveledUp = nextLevel > currentLevel;
+    let socialXpResult = null;
 
     await updateUserXpRow(
       {
@@ -124,6 +256,24 @@ export const awardXpForMessage = async ({
       },
       connection,
     );
+
+    try {
+      socialXpResult = await applySocialXpPoolFromMessage({
+        senderId,
+        chatId,
+        extractedText,
+        messageInfo,
+        xpGain,
+        now,
+        connection,
+      });
+    } catch (socialError) {
+      logger.warn('Falha ao registrar XP social por mensagem.', {
+        error: socialError.message,
+        senderId,
+        chatId,
+      });
+    }
 
     await connection.commit();
 
@@ -157,6 +307,7 @@ export const awardXpForMessage = async ({
       xpAfter: nextXp,
       messagesCount: nextMessagesCount,
       leveledUp,
+      socialXp: socialXpResult,
     };
   } catch (error) {
     await connection.rollback();

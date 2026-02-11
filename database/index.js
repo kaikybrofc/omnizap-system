@@ -128,6 +128,7 @@ export const TABLES = {
   RPG_KARMA_PROFILE: 'rpg_karma_profile',
   RPG_KARMA_VOTE_HISTORY: 'rpg_karma_vote_history',
   RPG_GROUP_ACTIVITY_DAILY: 'rpg_group_activity_daily',
+  RPG_SOCIAL_XP_DAILY: 'rpg_social_xp_daily',
 };
 
 /**
