@@ -1105,6 +1105,7 @@ const withBattleCanvasFrame = async ({
       modeLabel: modeLabel || resolveBattleModeLabel(battleSnapshot?.mode),
       actionText: pickBattleActionText({ logs, fallback: actionText || text }),
       effectTag: inferEffectTagFromLogs(logs),
+      logLines: logs,
     });
 
     return {
