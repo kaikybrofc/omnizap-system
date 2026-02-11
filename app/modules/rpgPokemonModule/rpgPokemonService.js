@@ -21,7 +21,7 @@ const GYM_LEVEL_BONUS_MIN = 3;
 const GYM_LEVEL_BONUS_MAX = 6;
 const SHOP_REFRESH_MS = Math.max(15 * 60 * 1000, Number(process.env.RPG_SHOP_REFRESH_MS) || 60 * 60 * 1000);
 const SHOP_ITEMS_PER_POCKET = Math.max(3, Math.min(12, Number(process.env.RPG_SHOP_ITEMS_PER_POCKET) || 6));
-const DEFAULT_POKEDEX_TOTAL = Math.max(151, Number(process.env.RPG_POKEDEX_TOTAL) || 151);
+const DEFAULT_POKEDEX_TOTAL = Math.max(1025, Number(process.env.RPG_POKEDEX_TOTAL) || 1025);
 const DEFAULT_REGION = String(process.env.RPG_DEFAULT_REGION || 'kanto')
   .trim()
   .toLowerCase();
