@@ -3,16 +3,7 @@ import assert from 'node:assert/strict';
 
 import { __testablesRpgPokemonDomain } from './rpgPokemonDomain.js';
 
-const {
-  resolveBiomeFromKey,
-  resolveDefaultBiomeForGroup,
-  resolveMissionRefs,
-  buildMissionProgressZero,
-  normalizeMissionProgress,
-  isMissionCompleted,
-  resolveMissionStateForRefs,
-  resolveVictoryRewards,
-} = __testablesRpgPokemonDomain;
+const { resolveBiomeFromKey, resolveDefaultBiomeForGroup, resolveMissionRefs, buildMissionProgressZero, normalizeMissionProgress, isMissionCompleted, resolveMissionStateForRefs, resolveVictoryRewards } = __testablesRpgPokemonDomain;
 
 test('bioma deve ser resolvido por chave e mapeamento de grupo deve ser determinístico', () => {
   const cidade = resolveBiomeFromKey('cidade');

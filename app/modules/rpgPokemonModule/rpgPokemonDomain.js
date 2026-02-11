@@ -75,7 +75,9 @@ const stableHash = (value) => {
 };
 
 export const resolveBiomeFromKey = (biomeKey) => {
-  const key = String(biomeKey || '').trim().toLowerCase();
+  const key = String(biomeKey || '')
+    .trim()
+    .toLowerCase();
   return BIOME_DEFINITIONS[key] || null;
 };
 
@@ -117,11 +119,7 @@ export const normalizeMissionProgress = (value) => {
 };
 
 export const isMissionCompleted = (progress, target) => {
-  return (
-    progress[MISSION_KEYS.EXPLORE] >= target[MISSION_KEYS.EXPLORE] &&
-    progress[MISSION_KEYS.WIN] >= target[MISSION_KEYS.WIN] &&
-    progress[MISSION_KEYS.CAPTURE] >= target[MISSION_KEYS.CAPTURE]
-  );
+  return progress[MISSION_KEYS.EXPLORE] >= target[MISSION_KEYS.EXPLORE] && progress[MISSION_KEYS.WIN] >= target[MISSION_KEYS.WIN] && progress[MISSION_KEYS.CAPTURE] >= target[MISSION_KEYS.CAPTURE];
 };
 
 export const resolveMissionStateForRefs = ({ ownerJid, row, refs }) => {
@@ -158,17 +156,12 @@ export const resolveMissionStateForRefs = ({ ownerJid, row, refs }) => {
 
 export const resolveVictoryRewards = (battleSnapshot) => {
   const enemyLevel = Math.max(1, toInt(battleSnapshot?.enemy?.level, 1));
-  const growthRate = String(battleSnapshot?.enemy?.growthRate || '').trim().toLowerCase();
+  const growthRate = String(battleSnapshot?.enemy?.growthRate || '')
+    .trim()
+    .toLowerCase();
   const isGymBattle = battleSnapshot?.mode === 'gym';
 
-  const growthMultiplier =
-    growthRate === 'slow'
-      ? 1.12
-      : growthRate === 'fast'
-        ? 0.92
-        : growthRate === 'medium slow'
-          ? 1.06
-          : 1;
+  const growthMultiplier = growthRate === 'slow' ? 1.12 : growthRate === 'fast' ? 0.92 : growthRate === 'medium slow' ? 1.06 : 1;
 
   const rewards = {
     playerXp: Math.max(1, Math.round(enemyLevel * 14 * growthMultiplier)),

@@ -56,9 +56,10 @@ const COOP_REWARD_ITEM_KEY = String(process.env.RPG_COOP_REWARD_ITEM_KEY || 'pok
 const COOP_REWARD_ITEM_QTY = Math.max(1, Number(process.env.RPG_COOP_REWARD_ITEM_QTY) || 2);
 const KARMA_BONUS_THRESHOLD = Math.max(5, Number(process.env.RPG_KARMA_BONUS_THRESHOLD) || 20);
 const KARMA_BONUS_RATE = Math.min(0.25, Math.max(0, Number(process.env.RPG_KARMA_BONUS_RATE) || 0.08));
-const BATTLE_CANVAS_ENABLED = String(process.env.RPG_BATTLE_CANVAS_ENABLED ?? 'true')
-  .trim()
-  .toLowerCase() !== 'false';
+const BATTLE_CANVAS_ENABLED =
+  String(process.env.RPG_BATTLE_CANVAS_ENABLED ?? 'true')
+    .trim()
+    .toLowerCase() !== 'false';
 
 const POKEDEX_MILESTONES = new Map([
   [10, { gold: 300, xp: 120 }],
@@ -804,7 +805,15 @@ const toPvpDuelLabels = ({ battleSnapshot, challengerJid, opponentJid }) => {
   };
 };
 
-const buildEngagementMentions = (...jids) => Array.from(new Set((jids || []).flat().map((jid) => toMentionJid(jid)).filter(Boolean)));
+const buildEngagementMentions = (...jids) =>
+  Array.from(
+    new Set(
+      (jids || [])
+        .flat()
+        .map((jid) => toMentionJid(jid))
+        .filter(Boolean),
+    ),
+  );
 
 const determineEventDefinitionForGroup = ({ chatJid, weekRefDate }) => {
   const seedRaw = `${chatJid || 'chat'}::${weekRefDate || getCurrentWeekRefDate()}`;
@@ -1058,7 +1067,9 @@ const withPokemonImage = ({ text, pokemonSnapshot, caption = null, extra = {} })
 };
 
 const resolveBattleModeLabel = (mode) => {
-  const key = String(mode || '').trim().toLowerCase();
+  const key = String(mode || '')
+    .trim()
+    .toLowerCase();
   if (key === 'gym') return 'Desafio de Ginasio';
   if (key === 'pvp') return 'Batalha PvP';
   if (key === 'raid') return 'Raid';
@@ -1076,16 +1087,7 @@ const pickBattleActionText = ({ logs = [], fallback = '' }) => {
   return trimLoreText(fallback || 'Aguardando acao.', 110) || 'Aguardando acao.';
 };
 
-const withBattleCanvasFrame = async ({
-  text,
-  battleSnapshot,
-  logs = [],
-  caption = null,
-  modeLabel = null,
-  actionText = null,
-  extra = {},
-  pokemonSnapshotFallback = null,
-}) => {
+const withBattleCanvasFrame = async ({ text, battleSnapshot, logs = [], caption = null, modeLabel = null, actionText = null, extra = {}, pokemonSnapshotFallback = null }) => {
   const fallback = withPokemonImage({
     text,
     pokemonSnapshot: pokemonSnapshotFallback || battleSnapshot?.enemy || battleSnapshot?.my || null,

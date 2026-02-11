@@ -1,8 +1,7 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
 
 const PLAYER_COLUMNS = 'jid, level, xp, gold, created_at, updated_at';
-const PLAYER_POKEMON_COLUMNS =
-  'id, owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, nature_key, ability_key, ability_name, is_shiny, is_active, created_at';
+const PLAYER_POKEMON_COLUMNS = 'id, owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, nature_key, ability_key, ability_name, is_shiny, is_active, created_at';
 const BATTLE_COLUMNS = 'chat_jid, owner_jid, my_pokemon_id, enemy_snapshot_json, turn, expires_at, created_at, updated_at';
 
 const parseJson = (value, fallback) => {
@@ -123,43 +122,12 @@ export const updatePlayerGoldOnly = async ({ jid, gold }, connection = null) => 
   );
 };
 
-export const createPlayerPokemon = async (
-  {
-    ownerJid,
-    pokeId,
-    nickname = null,
-    level = 5,
-    xp = 0,
-    currentHp,
-    ivsJson,
-    movesJson,
-    natureKey = null,
-    abilityKey = null,
-    abilityName = null,
-    isShiny = false,
-    isActive = false,
-  },
-  connection = null,
-) => {
+export const createPlayerPokemon = async ({ ownerJid, pokeId, nickname = null, level = 5, xp = 0, currentHp, ivsJson, movesJson, natureKey = null, abilityKey = null, abilityName = null, isShiny = false, isActive = false }, connection = null) => {
   const result = await executeQuery(
     `INSERT INTO ${TABLES.RPG_PLAYER_POKEMON}
       (owner_jid, poke_id, nickname, level, xp, current_hp, ivs_json, moves_json, nature_key, ability_key, ability_name, is_shiny, is_active)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      ownerJid,
-      pokeId,
-      nickname,
-      level,
-      xp,
-      currentHp,
-      JSON.stringify(ivsJson || {}),
-      JSON.stringify(movesJson || []),
-      natureKey,
-      abilityKey,
-      abilityName,
-      isShiny ? 1 : 0,
-      isActive ? 1 : 0,
-    ],
+    [ownerJid, pokeId, nickname, level, xp, currentHp, JSON.stringify(ivsJson || {}), JSON.stringify(movesJson || []), natureKey, abilityKey, abilityName, isShiny ? 1 : 0, isActive ? 1 : 0],
     connection,
   );
 
@@ -262,23 +230,7 @@ export const setActivePokemon = async (ownerJid, pokemonId, connection = null) =
   return Number(result?.affectedRows || 0) > 0;
 };
 
-export const updatePlayerPokemonState = async (
-  {
-    id,
-    ownerJid,
-    level,
-    xp,
-    currentHp,
-    movesJson = null,
-    pokeId = null,
-    nickname,
-    isShiny,
-    natureKey,
-    abilityKey,
-    abilityName,
-  },
-  connection = null,
-) => {
+export const updatePlayerPokemonState = async ({ id, ownerJid, level, xp, currentHp, movesJson = null, pokeId = null, nickname, isShiny, natureKey, abilityKey, abilityName }, connection = null) => {
   const fields = ['level = ?', 'xp = ?', 'current_hp = ?'];
   const params = [level, xp, currentHp];
 
@@ -368,10 +320,7 @@ export const getBattleStateByOwnerForUpdate = async (ownerJid, connection) => {
   return normalizeBattle(rows?.[0] || null);
 };
 
-export const upsertBattleState = async (
-  { chatJid, ownerJid, myPokemonId, battleSnapshot, turn = 1, expiresAt },
-  connection = null,
-) => {
+export const upsertBattleState = async ({ chatJid, ownerJid, myPokemonId, battleSnapshot, turn = 1, expiresAt }, connection = null) => {
   await executeQuery(
     `INSERT INTO ${TABLES.RPG_BATTLE_STATE}
       (chat_jid, owner_jid, my_pokemon_id, enemy_snapshot_json, turn, expires_at)
@@ -515,8 +464,7 @@ export const upsertGroupBiome = async ({ groupJid, biomeKey }, connection = null
   );
 };
 
-const MISSION_COLUMNS =
-  'owner_jid, daily_ref_date, daily_progress_json, daily_claimed_at, weekly_ref_date, weekly_progress_json, weekly_claimed_at, created_at, updated_at';
+const MISSION_COLUMNS = 'owner_jid, daily_ref_date, daily_progress_json, daily_claimed_at, weekly_ref_date, weekly_progress_json, weekly_claimed_at, created_at, updated_at';
 
 const normalizeMissionRow = (row) => {
   if (!row) return null;
@@ -554,10 +502,7 @@ export const getMissionProgressByOwnerForUpdate = async (ownerJid, connection) =
   return normalizeMissionRow(rows?.[0] || null);
 };
 
-export const createMissionProgress = async (
-  { ownerJid, dailyRefDate, dailyProgressJson, weeklyRefDate, weeklyProgressJson },
-  connection = null,
-) => {
+export const createMissionProgress = async ({ ownerJid, dailyRefDate, dailyProgressJson, weeklyRefDate, weeklyProgressJson }, connection = null) => {
   await executeQuery(
     `INSERT INTO ${TABLES.RPG_PLAYER_MISSION_PROGRESS}
       (owner_jid, daily_ref_date, daily_progress_json, daily_claimed_at, weekly_ref_date, weekly_progress_json, weekly_claimed_at)
@@ -570,18 +515,7 @@ export const createMissionProgress = async (
   return getMissionProgressByOwner(ownerJid, connection);
 };
 
-export const updateMissionProgress = async (
-  {
-    ownerJid,
-    dailyRefDate,
-    dailyProgressJson,
-    dailyClaimedAt,
-    weeklyRefDate,
-    weeklyProgressJson,
-    weeklyClaimedAt,
-  },
-  connection = null,
-) => {
+export const updateMissionProgress = async ({ ownerJid, dailyRefDate, dailyProgressJson, dailyClaimedAt, weeklyRefDate, weeklyProgressJson, weeklyClaimedAt }, connection = null) => {
   await executeQuery(
     `UPDATE ${TABLES.RPG_PLAYER_MISSION_PROGRESS}
         SET daily_ref_date = ?,
@@ -592,15 +526,7 @@ export const updateMissionProgress = async (
             weekly_claimed_at = ?,
             updated_at = CURRENT_TIMESTAMP
       WHERE owner_jid = ?`,
-    [
-      dailyRefDate,
-      JSON.stringify(dailyProgressJson || {}),
-      dailyClaimedAt || null,
-      weeklyRefDate,
-      JSON.stringify(weeklyProgressJson || {}),
-      weeklyClaimedAt || null,
-      ownerJid,
-    ],
+    [dailyRefDate, JSON.stringify(dailyProgressJson || {}), dailyClaimedAt || null, weeklyRefDate, JSON.stringify(weeklyProgressJson || {}), weeklyClaimedAt || null, ownerJid],
     connection,
   );
 };
@@ -714,10 +640,7 @@ export const getRaidStateByChatForUpdate = async (chatJid, connection) => {
   return normalizeRaidState(rows?.[0] || null);
 };
 
-export const upsertRaidState = async (
-  { chatJid, createdByJid, biomeKey = null, bossSnapshot, maxHp, currentHp, startedAt, endsAt },
-  connection = null,
-) => {
+export const upsertRaidState = async ({ chatJid, createdByJid, biomeKey = null, bossSnapshot, maxHp, currentHp, startedAt, endsAt }, connection = null) => {
   await executeQuery(
     `INSERT INTO ${TABLES.RPG_RAID_STATE}
       (chat_jid, created_by_jid, biome_key, boss_snapshot_json, max_hp, current_hp, started_at, ends_at)
@@ -819,10 +742,7 @@ export const deleteRaidParticipantsByChat = async (chatJid, connection = null) =
   );
 };
 
-export const createPvpChallenge = async (
-  { chatJid = null, challengerJid, opponentJid, status = 'pending', turnJid = null, winnerJid = null, battleSnapshot, startedAt = null, expiresAt },
-  connection = null,
-) => {
+export const createPvpChallenge = async ({ chatJid = null, challengerJid, opponentJid, status = 'pending', turnJid = null, winnerJid = null, battleSnapshot, startedAt = null, expiresAt }, connection = null) => {
   const result = await executeQuery(
     `INSERT INTO ${TABLES.RPG_PVP_CHALLENGE}
       (chat_jid, challenger_jid, opponent_jid, status, turn_jid, winner_jid, battle_snapshot_json, started_at, expires_at)
@@ -895,10 +815,7 @@ export const getActivePvpChallengeByPlayerForUpdate = async (ownerJid, connectio
   return normalizePvpChallenge(rows?.[0] || null);
 };
 
-export const updatePvpChallengeState = async (
-  { id, status, turnJid, winnerJid, battleSnapshot, startedAt, expiresAt },
-  connection = null,
-) => {
+export const updatePvpChallengeState = async ({ id, status, turnJid, winnerJid, battleSnapshot, startedAt, expiresAt }, connection = null) => {
   const fields = ['updated_at = CURRENT_TIMESTAMP'];
   const params = [];
 
@@ -1168,17 +1085,7 @@ export const getLatestFinishedPvpByPlayer = async (ownerJid, connection = null) 
   return normalizePvpChallenge(rows?.[0] || null);
 };
 
-export const upsertPvpWeeklyStatsDelta = async (
-  {
-    weekRefDate,
-    ownerJid,
-    matchesPlayedDelta = 0,
-    winsDelta = 0,
-    lossesDelta = 0,
-    pointsDelta = 0,
-  },
-  connection = null,
-) => {
+export const upsertPvpWeeklyStatsDelta = async ({ weekRefDate, ownerJid, matchesPlayedDelta = 0, winsDelta = 0, lossesDelta = 0, pointsDelta = 0 }, connection = null) => {
   await executeQuery(
     `INSERT INTO ${TABLES.RPG_PVP_WEEKLY_STATS}
       (week_ref_date, owner_jid, matches_played, wins, losses, points)
@@ -1223,16 +1130,7 @@ export const getSocialLinkByUsers = async (jidA, jidB, connection = null) => {
   return normalizeSocialLinkRow(rows?.[0] || null);
 };
 
-export const upsertSocialLinkDelta = async (
-  {
-    jidA,
-    jidB,
-    friendshipDelta = 0,
-    rivalryDelta = 0,
-    interactionsDelta = 1,
-  },
-  connection = null,
-) => {
+export const upsertSocialLinkDelta = async ({ jidA, jidB, friendshipDelta = 0, rivalryDelta = 0, interactionsDelta = 1 }, connection = null) => {
   const pair = buildPairUsers(jidA, jidB);
   if (!pair) return;
   const pairKey = buildPairKey(pair[0], pair[1]);
@@ -1267,17 +1165,7 @@ export const listSocialLinksByOwner = async (ownerJid, mode = 'friendship', limi
   return (rows || []).map(normalizeSocialLinkRow);
 };
 
-export const createTradeOffer = async (
-  {
-    chatJid = null,
-    proposerJid,
-    receiverJid,
-    proposerOffer,
-    receiverOffer,
-    expiresAt,
-  },
-  connection = null,
-) => {
+export const createTradeOffer = async ({ chatJid = null, proposerJid, receiverJid, proposerOffer, receiverOffer, expiresAt }, connection = null) => {
   const result = await executeQuery(
     `INSERT INTO ${TABLES.RPG_TRADE_OFFER}
       (chat_jid, proposer_jid, receiver_jid, proposer_offer_json, receiver_offer_json, status, accepted_at, expires_at)
@@ -1424,15 +1312,7 @@ export const getGroupCoopWeeklyForUpdate = async (chatJid, weekRefDate, connecti
   return normalizeCoopWeeklyRow(rows?.[0] || null);
 };
 
-export const upsertGroupCoopWeekly = async (
-  {
-    chatJid,
-    weekRefDate,
-    captureTarget = 20,
-    raidTarget = 3,
-  },
-  connection = null,
-) => {
+export const upsertGroupCoopWeekly = async ({ chatJid, weekRefDate, captureTarget = 20, raidTarget = 3 }, connection = null) => {
   await executeQuery(
     `INSERT INTO ${TABLES.RPG_GROUP_COOP_WEEKLY}
       (chat_jid, week_ref_date, capture_target, raid_target, capture_progress, raid_progress, status, completed_at)
@@ -1446,16 +1326,7 @@ export const upsertGroupCoopWeekly = async (
   );
 };
 
-export const addGroupCoopContribution = async (
-  {
-    chatJid,
-    weekRefDate,
-    ownerJid,
-    captureDelta = 0,
-    raidDelta = 0,
-  },
-  connection = null,
-) => {
+export const addGroupCoopContribution = async ({ chatJid, weekRefDate, ownerJid, captureDelta = 0, raidDelta = 0 }, connection = null) => {
   await executeQuery(
     `UPDATE ${TABLES.RPG_GROUP_COOP_WEEKLY}
         SET capture_progress = capture_progress + ?,
@@ -1561,10 +1432,7 @@ export const getGroupEventWeeklyForUpdate = async (chatJid, weekRefDate, connect
   return normalizeGroupEventRow(rows?.[0] || null);
 };
 
-export const upsertGroupEventWeekly = async (
-  { chatJid, weekRefDate, eventKey, targetValue, expiresAt },
-  connection = null,
-) => {
+export const upsertGroupEventWeekly = async ({ chatJid, weekRefDate, eventKey, targetValue, expiresAt }, connection = null) => {
   await executeQuery(
     `INSERT INTO ${TABLES.RPG_GROUP_EVENT_WEEKLY}
       (chat_jid, week_ref_date, event_key, target_value, progress_value, status, expires_at, completed_at)
@@ -1579,10 +1447,7 @@ export const upsertGroupEventWeekly = async (
   );
 };
 
-export const addGroupEventContribution = async (
-  { chatJid, weekRefDate, ownerJid, contributionDelta = 0 },
-  connection = null,
-) => {
+export const addGroupEventContribution = async ({ chatJid, weekRefDate, ownerJid, contributionDelta = 0 }, connection = null) => {
   await executeQuery(
     `UPDATE ${TABLES.RPG_GROUP_EVENT_WEEKLY}
         SET progress_value = progress_value + ?,
@@ -1728,18 +1593,7 @@ export const listTopKarmaProfiles = async (limit = 10, connection = null) => {
   return (rows || []).map(normalizeKarmaProfileRow);
 };
 
-export const upsertGroupActivityDaily = async (
-  {
-    dayRefDate,
-    chatJid,
-    ownerJid,
-    actionsDelta = 0,
-    pvpCreatedDelta = 0,
-    pvpCompletedDelta = 0,
-    coopCompletedDelta = 0,
-  },
-  connection = null,
-) => {
+export const upsertGroupActivityDaily = async ({ dayRefDate, chatJid, ownerJid, actionsDelta = 0, pvpCreatedDelta = 0, pvpCompletedDelta = 0, coopCompletedDelta = 0 }, connection = null) => {
   await executeQuery(
     `INSERT INTO ${TABLES.RPG_GROUP_ACTIVITY_DAILY}
       (day_ref_date, chat_jid, owner_jid, actions_count, pvp_created_count, pvp_completed_count, coop_completed_count)
