@@ -6,6 +6,12 @@ const BASE_URL = 'https://pokeapi.co/api/v2';
 const MIN_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const CACHE_TTL_MS = Math.max(MIN_CACHE_TTL_MS, Number(process.env.POKEAPI_CACHE_TTL_MS) || MIN_CACHE_TTL_MS);
 const REQUEST_TIMEOUT_MS = Math.max(3_000, Number(process.env.POKEAPI_TIMEOUT_MS) || 10_000);
+const REQUEST_RETRY_ATTEMPTS = Math.max(0, Number(process.env.POKEAPI_RETRY_ATTEMPTS) || 2);
+const REQUEST_RETRY_BASE_DELAY_MS = Math.max(120, Number(process.env.POKEAPI_RETRY_BASE_DELAY_MS) || 350);
+const DNS_FAMILY = [0, 4, 6].includes(Number(process.env.POKEAPI_DNS_FAMILY)) ? Number(process.env.POKEAPI_DNS_FAMILY) : 4;
+const REQUEST_USER_AGENT =
+  String(process.env.POKEAPI_USER_AGENT || 'omnizap-system/2.1 (+https://github.com/Kaikygr/omnizap-system)')
+    .trim();
 const DEFAULT_LORE_LANGUAGES = String(process.env.POKEAPI_LORE_LANGS || 'pt-br,pt,en')
   .split(',')
   .map((entry) => String(entry || '').trim().toLowerCase())
@@ -38,6 +44,62 @@ export const normalizeApiText = (value) => {
 };
 
 const resolveEntryLang = (entry) => String(entry?.language?.name || '').trim().toLowerCase();
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const hasErrorMessage = (value) => typeof value === 'string' && value.trim().length > 0;
+
+const extractCauseMessages = (error) => {
+  const causes = Array.isArray(error?.cause?.errors)
+    ? error.cause.errors
+    : Array.isArray(error?.errors)
+      ? error.errors
+      : [];
+
+  const messages = causes
+    .map((entry) => String(entry?.message || '').trim())
+    .filter(Boolean);
+  return messages;
+};
+
+const summarizeRequestError = (error) => {
+  const directMessage = String(error?.message || '').trim();
+  const causeMessage = String(error?.cause?.message || '').trim();
+  const status = Number(error?.response?.status);
+  const code = String(error?.code || error?.cause?.code || '').trim() || null;
+  const causeMessages = extractCauseMessages(error);
+
+  const message =
+    directMessage ||
+    causeMessage ||
+    causeMessages[0] ||
+    (Number.isFinite(status) ? `HTTP ${status}` : null) ||
+    (code ? `Erro de rede (${code})` : null) ||
+    'erro-desconhecido';
+
+  return {
+    message,
+    code,
+    status: Number.isFinite(status) ? status : null,
+    causeMessages: causeMessages.slice(0, 3),
+  };
+};
+
+const isRetryableRequestError = (error) => {
+  const status = Number(error?.response?.status);
+  if (Number.isFinite(status)) {
+    return status === 408 || status === 425 || status === 429 || (status >= 500 && status < 600);
+  }
+
+  const code = String(error?.code || error?.cause?.code || '').trim().toUpperCase();
+  if (!code) return false;
+  return ['ETIMEDOUT', 'ECONNRESET', 'ECONNABORTED', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'EPIPE'].includes(code);
+};
+
+const calculateRetryDelay = (attempt) => {
+  const exponential = REQUEST_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, attempt);
+  return Math.min(2_500, exponential + Math.floor(Math.random() * 180));
+};
 
 const pickEntryByLangPriority = (entries = [], languages = DEFAULT_LORE_LANGUAGES) => {
   const list = Array.isArray(entries) ? entries : [];
@@ -110,6 +172,8 @@ const cleanupExpiredEntry = (key, now) => {
 
 const requestResource = async ({ path, cacheKey }) => {
   const now = Date.now();
+  const staleEntry = sharedCache.get(cacheKey);
+  const staleData = staleEntry?.data || null;
   const cached = cleanupExpiredEntry(cacheKey, now);
   if (cached) {
     recordPokeApiCacheHit();
@@ -120,31 +184,85 @@ const requestResource = async ({ path, cacheKey }) => {
     return sharedInflight.get(cacheKey);
   }
 
-  const requestPromise = axios
-    .get(`${BASE_URL}${path}`, {
-      timeout: REQUEST_TIMEOUT_MS,
-      headers: {
-        Accept: 'application/json',
-      },
-    })
-    .then((response) => {
-      const data = response?.data;
-      sharedCache.set(cacheKey, {
-        data,
-        expiresAt: Date.now() + CACHE_TTL_MS,
-      });
-      return data;
-    })
-    .catch((error) => {
-      logger.warn('Falha ao consultar PokéAPI.', {
+  const requestPromise = (async () => {
+    let lastError = null;
+    const maxAttempts = Math.max(1, REQUEST_RETRY_ATTEMPTS + 1);
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        const response = await axios.get(`${BASE_URL}${path}`, {
+          timeout: REQUEST_TIMEOUT_MS,
+          family: DNS_FAMILY,
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': REQUEST_USER_AGENT,
+          },
+        });
+        const data = response?.data;
+        sharedCache.set(cacheKey, {
+          data,
+          expiresAt: Date.now() + CACHE_TTL_MS,
+        });
+        return data;
+      } catch (error) {
+        lastError = error;
+        const shouldRetry = attempt < maxAttempts - 1 && isRetryableRequestError(error);
+        if (shouldRetry) {
+          await sleep(calculateRetryDelay(attempt));
+          continue;
+        }
+        break;
+      }
+    }
+
+    const details = summarizeRequestError(lastError);
+    if (staleData) {
+      logger.warn('Falha ao consultar PokéAPI. Usando cache expirado.', {
         path,
-        error: error.message,
+        error: details.message,
+        code: details.code,
+        status: details.status,
+        attempts: maxAttempts,
+        causeMessages: details.causeMessages,
       });
-      throw error;
-    })
-    .finally(() => {
-      sharedInflight.delete(cacheKey);
+      return staleData;
+    }
+
+    logger.warn('Falha ao consultar PokéAPI.', {
+      path,
+      error: details.message,
+      code: details.code,
+      status: details.status,
+      attempts: maxAttempts,
+      causeMessages: details.causeMessages,
     });
+
+    if (!lastError || typeof lastError !== 'object') {
+      const normalizedError = new Error(details.message);
+      normalizedError.code = details.code;
+      normalizedError.status = details.status;
+      normalizedError.pokeApiMeta = {
+        code: details.code,
+        status: details.status,
+        attempts: maxAttempts,
+        causeMessages: details.causeMessages,
+      };
+      throw normalizedError;
+    }
+
+    if (!hasErrorMessage(lastError.message)) {
+      lastError.message = details.message;
+    }
+    lastError.pokeApiMeta = {
+      code: details.code,
+      status: details.status,
+      attempts: maxAttempts,
+      causeMessages: details.causeMessages,
+    };
+    throw lastError;
+  })().finally(() => {
+    sharedInflight.delete(cacheKey);
+  });
 
   sharedInflight.set(cacheKey, requestPromise);
   return requestPromise;
