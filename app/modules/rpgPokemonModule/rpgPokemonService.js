@@ -2,13 +2,14 @@ import { pool } from '../../../database/index.js';
 import { getJidUser, isGroupJid, normalizeJid } from '../../config/baileysConfig.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { applyPokemonXpGain, buildMoveSnapshotByName, buildPlayerBattleSnapshot, buildPokemonSnapshot, calculatePlayerLevelFromXp, createRandomIvs, createWildEncounter, resolveBattleTurn, resolveCaptureAttempt, resolveEvolutionByLevel, resolveEvolutionByItem, resolveSingleAttack } from './rpgBattleService.js';
-import { addGroupCoopContribution, addGroupEventContribution, addInventoryItem, consumeInventoryItem, countPlayerPokemons, createPlayer, createKarmaVote, createPlayerPokemon, createTradeOffer, applyKarmaDelta, cancelQueuedPvpByOwner, deleteBattleStateByOwner, deleteExpiredBattleStatesByOwner, getActivePlayerPokemonForUpdate, getActivePlayerPokemon, getGroupActivitySummaryByDay, getGroupActiveUsersByDay, getBattleStateByOwner, getBattleStateByOwnerForUpdate, getFirstPlayerPokemon, getGroupCoopWeekly, getGroupCoopWeeklyForUpdate, getGroupEventMemberForUpdate, getGroupEventWeeklyForUpdate, getInventoryItemForUpdate, getInventoryItems, getGroupBiomeByJid, getKarmaProfile, getKarmaVoteByWeekForUpdate, getLatestFinishedPvpByPlayer, getMissionProgressByOwnerForUpdate, getPlayerByJid, getPlayerByJidForUpdate, getQueuedPvpByOwnerForUpdate, getSocialLinkByUsers, getTradeOfferByIdForUpdate, getGroupRetentionByDays, countPokedexEntries, getPlayerPokemonById, getPlayerPokemonByIdForUpdate, getSocialXpDailyByKeyForUpdate, getTravelStateByOwner, getTravelStateByOwnerForUpdate, listGroupCoopMembers, listUnrewardedGroupCoopMembersForUpdate, listGroupEventMembers, listOpenTradeOffersByUser, listPvpWeeklyRanking, listPlayerPokemons, listPokedexEntries, listQueuedPvpByChat, listQueuedPvpByChatForUpdate, listSocialLinksByOwner, listTopKarmaProfiles, markGroupCoopCompleted, markGroupCoopMemberRewardClaimed, markGroupEventCompleted, markGroupEventMemberRewardClaimed, markPvpQueueMatchedByIds, setActivePokemon, transferPlayerPokemon, createMissionProgress, createPvpChallenge, deleteExpiredRaidStates, upsertPokedexEntry, upsertGroupBiome, deleteRaidParticipantsByChat, deleteRaidStateByChat, expireOldPvpChallenges, expireOldTradeOffers, expirePvpQueue, enqueuePvpQueue, getActivePvpChallengeByPlayerForUpdate, getPvpChallengeByIdForUpdate, getRaidParticipant, getRaidStateByChatForUpdate, listOpenPvpChallengesByPlayer, listRaidParticipants, upsertRaidParticipant, addRaidParticipantDamage, upsertGroupActivityDaily, upsertGroupCoopWeekly, upsertGroupEventWeekly, upsertPvpWeeklyStatsDelta, upsertSocialLinkDelta, upsertRaidState, upsertSocialXpDailyDelta, upsertTravelState, updatePvpChallengeState, updateTradeOfferState, updateMissionProgress, updatePlayerGoldOnly, updatePlayerPokemonState, updatePlayerProgress, updatePlayerSocialXpPool, upsertBattleState } from './rpgPokemonRepository.js';
+import { addGroupCoopContribution, addGroupEventContribution, addInventoryItem, consumeInventoryItem, countPlayerPokemons, createPlayer, createKarmaVote, createPlayerPokemon, createTradeOffer, applyKarmaDelta, cancelQueuedPvpByOwner, deleteBattleStateByOwner, deleteExpiredBattleStatesByOwner, getActivePlayerPokemonForUpdate, getActivePlayerPokemon, getGroupActivitySummaryByDay, getGroupActiveUsersByDay, getBattleStateByOwner, getBattleStateByOwnerForUpdate, getFirstPlayerPokemon, getGroupCoopMember, getGroupCoopWeekly, getGroupCoopWeeklyForUpdate, getGroupEventMember, getGroupEventMemberForUpdate, getGroupEventWeeklyForUpdate, getInventoryItemForUpdate, getInventoryItems, getGroupBiomeByJid, getKarmaProfile, getKarmaVoteByWeekForUpdate, getLatestFinishedPvpByPlayer, getMissionProgressByOwnerForUpdate, getPlayerByJid, getPlayerByJidForUpdate, getPvpLifetimeStatsByOwner, getPvpWeeklyRankByOwner, getPvpWeeklyStatsByOwner, getQueuedPvpByOwnerForUpdate, getSocialLinkByUsers, getSocialSummaryByOwner, getTradeOfferByIdForUpdate, getGroupRetentionByDays, countPokedexEntries, getPlayerPokemonById, getPlayerPokemonByIdForUpdate, getSocialXpDailyByKeyForUpdate, getTravelStateByOwner, getTravelStateByOwnerForUpdate, listGroupCoopMembers, listRecentFinishedPvpByPlayer, listUnrewardedGroupCoopMembersForUpdate, listGroupEventMembers, listOpenTradeOffersByUser, listPvpWeeklyRanking, listPlayerPokemons, listPokedexEntries, listQueuedPvpByChat, listQueuedPvpByChatForUpdate, listSocialLinksByOwner, listTopKarmaProfiles, markGroupCoopCompleted, markGroupCoopMemberRewardClaimed, markGroupEventCompleted, markGroupEventMemberRewardClaimed, markPvpQueueMatchedByIds, setActivePokemon, transferPlayerPokemon, createMissionProgress, createPvpChallenge, deleteExpiredRaidStates, upsertPokedexEntry, upsertGroupBiome, deleteRaidParticipantsByChat, deleteRaidStateByChat, expireOldPvpChallenges, expireOldTradeOffers, expirePvpQueue, enqueuePvpQueue, getActivePvpChallengeByPlayerForUpdate, getPvpChallengeByIdForUpdate, getRaidParticipant, getRaidStateByChatForUpdate, listOpenPvpChallengesByPlayer, listRaidParticipants, upsertRaidParticipant, addRaidParticipantDamage, upsertGroupActivityDaily, upsertGroupCoopWeekly, upsertGroupEventWeekly, upsertPvpWeeklyStatsDelta, upsertSocialLinkDelta, upsertRaidState, upsertSocialXpDailyDelta, upsertTravelState, updatePvpChallengeState, updateTradeOfferState, updateMissionProgress, updatePlayerGoldOnly, updatePlayerPokemonState, updatePlayerProgress, updatePlayerSocialXpPool, upsertBattleState } from './rpgPokemonRepository.js';
 import { buildBattleAlreadyActiveText, buildBattleStartText, buildBattleTurnText, buildBuyErrorText, buildBuySuccessText, buildCaptureFailText, buildCaptureSuccessText, buildCaptureBlockedGymText, buildChooseErrorText, buildChooseSuccessText, buildCooldownText, buildEvolutionTreeText, buildFleeText, buildGenericErrorText, buildNeedActivePokemonText, buildNeedStartText, buildNoBattleText, buildPokedexText, buildPokemonFaintedText, buildProfileText, buildBerryListText, buildPvpChallengeText, buildPvpStatusText, buildPvpTurnText, buildRaidAttackText, buildRaidStartText, buildRaidStatusText, buildShopText, buildStartText, buildTeamText, buildTmListText, buildTmUseText, buildTravelSetText, buildTravelStatusText, buildBagText, buildMissionsText, buildMissionRewardText, buildEconomyRescueText, buildUseItemErrorText, buildUsePotionSuccessText, buildUseItemUsageText, buildRpgHelpText } from './rpgPokemonMessages.js';
 import { getEffectText, getEvolutionChain, getFlavorText, getLocalizedGenus, getLocalizedName, getAbility, getCharacteristic, getItem, getItemCategory, getItemPocket, getLocation, getLocationArea, getMachine, getNature, getPokedex, getPokemon, getSpecies, normalizeApiText, getRegion, getResourceList } from '../../services/pokeApiService.js';
 import { recordRpgBattleStarted, recordRpgCapture, recordRpgCaptureAttempt, recordRpgEvolution, recordRpgAction, recordRpgBattleDuration, recordRpgFlee, recordRpgPvpChallenge, recordRpgPvpCompleted, recordRpgPvpQueue, recordRpgRaidCompleted, recordRpgRaidStarted, recordRpgPlayerCreated, recordRpgSessionDuration, recordRpgTrade, recordRpgCoopCompleted, recordRpgWeeklyEventCompleted, recordRpgKarmaVote, recordRpgGroupRetentionRatio, recordRpgShinyFound, recordSocialXpCapHit, recordSocialXpConversionRate, recordSocialXpConverted } from '../../observability/metrics.js';
 import { BIOME_DEFINITIONS, BIOME_KEYS, DAILY_MISSION_REWARD, DAILY_MISSION_TARGET, MISSION_KEYS, WEEKLY_MISSION_REWARD, WEEKLY_MISSION_TARGET, buildMissionProgressZero, isMissionCompleted, normalizeMissionProgress, resolveBiomeFromKey, resolveDefaultBiomeForGroup, resolveMissionRefs, resolveMissionStateForRefs, resolveVictoryRewards } from './rpgPokemonDomain.js';
 import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
 import { inferEffectTagFromLogs, renderBattleFrameCanvas } from './rpgBattleCanvasRenderer.js';
+import { renderProfileCanvasCard } from './rpgProfileCanvasRenderer.js';
 import { registerEvolutionPokedexEntry } from './rpgEvolutionUtils.js';
 
 const COOLDOWN_MS = 5_000;
@@ -65,6 +66,12 @@ const BATTLE_CANVAS_ENABLED =
   String(process.env.RPG_BATTLE_CANVAS_ENABLED ?? 'true')
     .trim()
     .toLowerCase() !== 'false';
+const PROFILE_CANVAS_ENABLED =
+  String(process.env.RPG_PROFILE_CANVAS_ENABLED ?? 'true')
+    .trim()
+    .toLowerCase() !== 'false';
+const PLAYER_LEVEL_XP_FACTOR = 120;
+const PLAYER_MAX_LEVEL = calculatePlayerLevelFromXp(Number.MAX_SAFE_INTEGER);
 
 const POKEDEX_MILESTONES = new Map([
   [10, { gold: 300, xp: 120 }],
@@ -1228,6 +1235,33 @@ const withPokemonImage = ({ text, pokemonSnapshot, caption = null, extra = {} })
   };
 };
 
+const withProfileCanvasCard = async ({ text, profileCanvas, caption = null, extra = {}, pokemonSnapshotFallback = null }) => {
+  const fallback = withPokemonImage({
+    text,
+    pokemonSnapshot: pokemonSnapshotFallback,
+    caption: caption || text,
+    extra,
+  });
+
+  if (!PROFILE_CANVAS_ENABLED) return fallback;
+
+  try {
+    const imageBuffer = await renderProfileCanvasCard(profileCanvas || {});
+    return {
+      ok: true,
+      text,
+      imageBuffer,
+      caption: caption || text,
+      ...extra,
+    };
+  } catch (error) {
+    logger.warn('Falha ao renderizar canvas de perfil RPG.', {
+      error: error.message,
+    });
+    return fallback;
+  }
+};
+
 const resolveBattleModeLabel = (mode) => {
   const key = String(mode || '')
     .trim()
@@ -1446,7 +1480,223 @@ const handleStart = async ({ ownerJid, commandPrefix }) => {
   };
 };
 
-const handleProfile = async ({ ownerJid, commandPrefix }) => {
+const toPercent = (value, total, decimals = 0) => {
+  const safeTotal = Math.max(0, toInt(total, 0));
+  if (safeTotal <= 0) return 0;
+  const ratio = clamp(toInt(value, 0) / safeTotal, 0, 1);
+  const factor = 10 ** Math.max(0, toInt(decimals, 0));
+  return Math.round(ratio * 100 * factor) / factor;
+};
+
+const resolvePlayerLevelProgress = ({ level, xp }) => {
+  const safeXp = Math.max(0, toInt(xp, 0));
+  const levelByXp = calculatePlayerLevelFromXp(safeXp);
+  const fallbackLevel = clamp(toInt(level, levelByXp) || levelByXp, 1, PLAYER_MAX_LEVEL);
+  const resolvedLevel = clamp(levelByXp, 1, PLAYER_MAX_LEVEL) || fallbackLevel;
+  const isMaxLevel = resolvedLevel >= PLAYER_MAX_LEVEL;
+  const currentLevelStartXp = isMaxLevel ? safeXp : Math.max(0, Math.floor(PLAYER_LEVEL_XP_FACTOR * (resolvedLevel - 1) * (resolvedLevel - 1)));
+  const nextLevel = isMaxLevel ? resolvedLevel : resolvedLevel + 1;
+  const nextLevelXp = isMaxLevel ? safeXp : Math.max(currentLevelStartXp + 1, Math.floor(PLAYER_LEVEL_XP_FACTOR * resolvedLevel * resolvedLevel));
+  const xpNeededForNextLevel = Math.max(0, nextLevelXp - currentLevelStartXp);
+  const xpIntoLevel = isMaxLevel ? 0 : clamp(safeXp - currentLevelStartXp, 0, xpNeededForNextLevel);
+  const xpToNextLevel = isMaxLevel ? 0 : Math.max(0, nextLevelXp - safeXp);
+  const xpProgressPct = isMaxLevel ? 100 : toPercent(xpIntoLevel, Math.max(1, xpNeededForNextLevel), 0);
+  return {
+    level: resolvedLevel,
+    isMaxLevel,
+    currentLevelStartXp,
+    nextLevel,
+    nextLevelXp,
+    xpNeededForNextLevel,
+    xpIntoLevel,
+    xpToNextLevel,
+    xpProgressPct,
+  };
+};
+
+const toDateLabel = (value) => {
+  const date = toDateSafe(value);
+  if (!date) return null;
+  return date.toISOString().slice(0, 10);
+};
+
+const toPvpOutcomeForOwner = ({ challenge, ownerJid }) => {
+  if (!challenge || !ownerJid) return null;
+  const winner = String(challenge?.winner_jid || '').trim();
+  if (!winner) return null;
+  return winner === ownerJid ? 'win' : 'loss';
+};
+
+const resolvePvpStreakInfo = ({ challenges = [], ownerJid }) => {
+  const filtered = (Array.isArray(challenges) ? challenges : [])
+    .map((entry) => ({
+      outcome: toPvpOutcomeForOwner({ challenge: entry, ownerJid }),
+    }))
+    .filter((entry) => entry.outcome === 'win' || entry.outcome === 'loss');
+  if (!filtered.length) {
+    return {
+      count: 0,
+      type: 'none',
+      label: 'Sem histórico',
+    };
+  }
+
+  const type = filtered[0].outcome;
+  let count = 0;
+  for (const entry of filtered) {
+    if (entry.outcome !== type) break;
+    count += 1;
+  }
+
+  return {
+    count,
+    type,
+    label: type === 'win' ? `${count} vitória(s)` : `${count} derrota(s)`,
+  };
+};
+
+const resolveMostUsedPokemonLabel = ({ challenges = [], ownerJid, fallback = null }) => {
+  const usage = new Map();
+  for (const challenge of challenges || []) {
+    const players = challenge?.battle_snapshot_json?.players || {};
+    const pokemon = players?.[ownerJid]?.pokemon || {};
+    const label = String(pokemon?.displayName || pokemon?.name || '')
+      .trim();
+    if (!label) continue;
+    usage.set(label, (usage.get(label) || 0) + 1);
+  }
+
+  if (!usage.size) return fallback;
+  const sorted = [...usage.entries()].sort((a, b) => b[1] - a[1]);
+  const [label, count] = sorted[0];
+  return `${toTitleCase(label)} (${count}x)`;
+};
+
+const resolveBestRecentVictory = ({ challenges = [], ownerJid }) => {
+  let best = null;
+  for (const challenge of challenges || []) {
+    if (String(challenge?.winner_jid || '').trim() !== ownerJid) continue;
+    const opponentJid = resolvePvpOpponentJid(challenge, ownerJid);
+    if (!opponentJid) continue;
+    const players = challenge?.battle_snapshot_json?.players || {};
+    const opponentSnapshot = players?.[opponentJid]?.pokemon || {};
+    const opponentLevel = Math.max(1, toInt(opponentSnapshot?.level, 1));
+    if (!best || opponentLevel > best.opponentLevel) {
+      best = {
+        opponentJid,
+        opponentLevel,
+        updatedAt: challenge?.updated_at || challenge?.created_at || null,
+      };
+    }
+  }
+  if (!best) return null;
+  return `${toMentionLabel(best.opponentJid)} (Lv.${best.opponentLevel}, ${toDateLabel(best.updatedAt) || 'sem data'})`;
+};
+
+const resolveMissionCompletionPercent = (view = {}) => {
+  const targets = view?.target || {};
+  const currentValues = [MISSION_KEYS.EXPLORE, MISSION_KEYS.WIN, MISSION_KEYS.CAPTURE].map((key) => Math.max(0, toInt(view?.[key], 0)));
+  const targetValues = [MISSION_KEYS.EXPLORE, MISSION_KEYS.WIN, MISSION_KEYS.CAPTURE].map((key) => Math.max(1, toInt(targets?.[key], 1)));
+  const currentTotal = currentValues.reduce((acc, value, index) => acc + Math.min(value, targetValues[index]), 0);
+  const targetTotal = targetValues.reduce((acc, value) => acc + value, 0);
+  return toPercent(currentTotal, targetTotal, 0);
+};
+
+const resolveProfileAchievements = ({ pokedexUnique = 0, pvpWins = 0, shinyCount = 0, karmaScore = 0, coopContribution = 0, eventContribution = 0 }) => {
+  const badges = [];
+  if (pokedexUnique >= 10) badges.push('📘 Pokédex 10+');
+  if (pokedexUnique >= 25) badges.push('📗 Pokédex 25+');
+  if (pokedexUnique >= 50) badges.push('📙 Pokédex 50+');
+  if (pvpWins >= 100) badges.push('🥊 100 vitórias PvP');
+  if (shinyCount > 0) badges.push('✨ Primeiro shiny');
+  if (karmaScore >= KARMA_BONUS_THRESHOLD) badges.push('🌟 Karma de elite');
+  if (coopContribution > 0) badges.push('🤝 Contribuição coop');
+  if (eventContribution > 0) badges.push('🎯 Contribuição em evento');
+  if (!badges.length) badges.push('🚀 Primeiros passos');
+  return badges.slice(0, 8);
+};
+
+const resolveProfileGoals = ({ pokedexUnique = 0, dailyMission, weeklyMission, karmaScore = 0, pvpWeeklyRank = null, pvpWeeklyPoints = 0 }) => {
+  const goals = [];
+  const milestones = [10, 25, 50, 100, 250, 500];
+  const nextMilestone = milestones.find((value) => value > pokedexUnique);
+  if (nextMilestone) {
+    goals.push(`📘 Faltam ${nextMilestone - pokedexUnique} registros para Pokédex ${nextMilestone}.`);
+  }
+
+  const dailyRemaining = Math.max(0, toInt(dailyMission?.target?.[MISSION_KEYS.EXPLORE], 0) - toInt(dailyMission?.explorar, 0))
+    + Math.max(0, toInt(dailyMission?.target?.[MISSION_KEYS.WIN], 0) - toInt(dailyMission?.vitorias, 0))
+    + Math.max(0, toInt(dailyMission?.target?.[MISSION_KEYS.CAPTURE], 0) - toInt(dailyMission?.capturas, 0));
+  if (dailyRemaining > 0) {
+    goals.push(`☀️ Diária: faltam ${dailyRemaining} ação(ões) para concluir.`);
+  } else if (dailyMission?.completed && !dailyMission?.claimed) {
+    goals.push('🎁 Recompensa diária pronta para resgate automático.');
+  }
+
+  if (karmaScore < KARMA_BONUS_THRESHOLD) {
+    goals.push(`🌟 Ganhe ${KARMA_BONUS_THRESHOLD - karmaScore} de karma para ativar bônus social.`);
+  } else if (Number.isFinite(Number(pvpWeeklyRank)) && pvpWeeklyRank > 1) {
+    goals.push(`🏆 PvP semanal: você está em #${pvpWeeklyRank} com ${pvpWeeklyPoints} pts.`);
+  } else if (weeklyMission && !weeklyMission.completed) {
+    const weeklyRemaining = Math.max(0, toInt(weeklyMission?.target?.[MISSION_KEYS.EXPLORE], 0) - toInt(weeklyMission?.explorar, 0))
+      + Math.max(0, toInt(weeklyMission?.target?.[MISSION_KEYS.WIN], 0) - toInt(weeklyMission?.vitorias, 0))
+      + Math.max(0, toInt(weeklyMission?.target?.[MISSION_KEYS.CAPTURE], 0) - toInt(weeklyMission?.capturas, 0));
+    goals.push(`📅 Semanal: faltam ${weeklyRemaining} ação(ões) para concluir.`);
+  }
+
+  while (goals.length < 3) {
+    goals.push('🧭 Explore biomas e varie tipos para evoluir mais rápido.');
+  }
+  return goals.slice(0, 3);
+};
+
+const loadProfileProgressContext = async ({ ownerJid, chatJid }) => {
+  return withTransaction(async (connection) => {
+    const mission = await ensureMissionStateForUpdate({ ownerJid, connection });
+    const daily = toMissionView({
+      progress: mission.daily_progress_json,
+      target: DAILY_MISSION_TARGET,
+      claimedAt: mission.daily_claimed_at,
+    });
+    const weekly = toMissionView({
+      progress: mission.weekly_progress_json,
+      target: WEEKLY_MISSION_TARGET,
+      claimedAt: mission.weekly_claimed_at,
+    });
+
+    let coop = null;
+    let event = null;
+
+    if (isGroupJid(chatJid)) {
+      const { weekRefDate: coopWeekRefDate } = await ensureGroupCoopStateForUpdate({ chatJid, connection });
+      const coopWeekly = await getGroupCoopWeekly(chatJid, coopWeekRefDate, connection);
+      const coopMember = await getGroupCoopMember(chatJid, coopWeekRefDate, ownerJid, connection);
+      coop = {
+        weekRefDate: coopWeekRefDate,
+        weekly: coopWeekly,
+        member: coopMember,
+      };
+
+      const eventData = await ensureWeeklyEventForUpdate({ chatJid, connection });
+      const eventMember = await getGroupEventMember(chatJid, eventData.weekRefDate, ownerJid, connection);
+      event = {
+        weekRefDate: eventData.weekRefDate,
+        weekly: eventData.event,
+        definition: eventData.definition,
+        member: eventMember,
+      };
+    }
+
+    return {
+      daily,
+      weekly,
+      coop,
+      event,
+    };
+  });
+};
+
+const handleProfile = async ({ ownerJid, chatJid, commandPrefix }) => {
   const player = await getPlayerByJid(ownerJid);
   if (!player) {
     return {
@@ -1455,7 +1705,39 @@ const handleProfile = async ({ ownerJid, commandPrefix }) => {
     };
   }
 
-  const active = await getActivePlayerPokemon(ownerJid);
+  const currentWeekRefDate = getCurrentWeekRefDate();
+
+  const [
+    active,
+    teamRows,
+    karmaProfile,
+    socialSummary,
+    inventoryRows,
+    uniquePokedexTotal,
+    pokedexTotal,
+    latestPokedexRows,
+    pvpWeeklyStats,
+    pvpWeeklyRank,
+    pvpLifetimeStats,
+    recentPvpChallenges,
+    profileProgress,
+    shopCatalog,
+  ] = await Promise.all([
+    getActivePlayerPokemon(ownerJid),
+    listPlayerPokemons(ownerJid),
+    getKarmaProfile(ownerJid),
+    getSocialSummaryByOwner(ownerJid),
+    getInventoryItems(ownerJid),
+    countPokedexEntries(ownerJid),
+    resolveNationalPokedexTotal(),
+    listPokedexEntries(ownerJid, 1),
+    getPvpWeeklyStatsByOwner(currentWeekRefDate, ownerJid),
+    getPvpWeeklyRankByOwner(currentWeekRefDate, ownerJid),
+    getPvpLifetimeStatsByOwner(ownerJid),
+    listRecentFinishedPvpByPlayer(ownerJid, 20),
+    loadProfileProgressContext({ ownerJid, chatJid }),
+    getShopCatalog(),
+  ]);
   let activeDisplay = null;
   let activeSnapshot = null;
 
@@ -1470,6 +1752,7 @@ const handleProfile = async ({ ownerJid, commandPrefix }) => {
         level: active.level,
         currentHp: active.current_hp,
         maxHp: snapshot.maxHp,
+        types: Array.isArray(snapshot?.types) ? snapshot.types : [],
         isShiny: Boolean(active.is_shiny),
         imageUrl: snapshot.imageUrl || null,
         natureName: snapshot?.nature?.name || active.nature_key || null,
@@ -1487,20 +1770,248 @@ const handleProfile = async ({ ownerJid, commandPrefix }) => {
     }
   }
 
+  let latestCapture = null;
+  const latestCaptureEntry = latestPokedexRows?.[0] || null;
+  if (latestCaptureEntry?.poke_id) {
+    try {
+      const species = await getSpecies(latestCaptureEntry.poke_id);
+      const localizedName = getLocalizedName(species?.names, species?.name || `pokemon-${latestCaptureEntry.poke_id}`);
+      latestCapture = {
+        pokeId: latestCaptureEntry.poke_id,
+        name: toTitleCase(localizedName || species?.name || `pokemon-${latestCaptureEntry.poke_id}`),
+        capturedAt: latestCaptureEntry?.first_captured_at || null,
+      };
+    } catch {
+      latestCapture = {
+        pokeId: latestCaptureEntry.poke_id,
+        name: `Pokemon #${latestCaptureEntry.poke_id}`,
+        capturedAt: latestCaptureEntry?.first_captured_at || null,
+      };
+    }
+  }
+
+  const pvpMatchesLifetime = Math.max(0, toInt(pvpLifetimeStats?.matches_played, 0));
+  const pvpWinsLifetime = Math.max(0, toInt(pvpLifetimeStats?.wins, 0));
+  const pvpLossesLifetime = Math.max(0, toInt(pvpLifetimeStats?.losses, 0));
+  const pvpWinRate = toPercent(pvpWinsLifetime, pvpMatchesLifetime, 0);
+  const pvpKd = pvpLossesLifetime > 0 ? Math.round((pvpWinsLifetime / pvpLossesLifetime) * 100) / 100 : pvpWinsLifetime > 0 ? 'inf' : 0;
+  const streak = resolvePvpStreakInfo({ challenges: recentPvpChallenges, ownerJid });
+  const mostUsedPokemon = resolveMostUsedPokemonLabel({
+    challenges: recentPvpChallenges,
+    ownerJid,
+    fallback: activeDisplay?.displayName ? `${activeDisplay.displayName} (ativo)` : null,
+  });
+  const bestVictory = resolveBestRecentVictory({
+    challenges: recentPvpChallenges,
+    ownerJid,
+  });
+
+  const dailyMission = profileProgress?.daily || {
+    explorar: 0,
+    vitorias: 0,
+    capturas: 0,
+    target: DAILY_MISSION_TARGET,
+    completed: false,
+    claimed: false,
+  };
+  const weeklyMission = profileProgress?.weekly || {
+    explorar: 0,
+    vitorias: 0,
+    capturas: 0,
+    target: WEEKLY_MISSION_TARGET,
+    completed: false,
+    claimed: false,
+  };
+  const dailyMissionPct = resolveMissionCompletionPercent(dailyMission);
+  const weeklyMissionPct = resolveMissionCompletionPercent(weeklyMission);
+
+  const coopWeekly = profileProgress?.coop?.weekly || null;
+  const coopMember = profileProgress?.coop?.member || null;
+  const coopContributionCapture = Math.max(0, toInt(coopMember?.capture_contribution, 0));
+  const coopContributionRaid = Math.max(0, toInt(coopMember?.raid_contribution, 0));
+  const coopContributionTotal = coopContributionCapture + coopContributionRaid;
+  const coopRewardPending = String(coopWeekly?.status || '') === 'completed' && coopContributionTotal > 0 && !coopMember?.reward_claimed_at;
+
+  const eventWeekly = profileProgress?.event?.weekly || null;
+  const eventDefinition = profileProgress?.event?.definition || null;
+  const eventMember = profileProgress?.event?.member || null;
+  const eventContribution = Math.max(0, toInt(eventMember?.contribution, 0));
+  const eventProgressPct = toPercent(toInt(eventWeekly?.progress_value, 0), Math.max(1, toInt(eventWeekly?.target_value, 1)), 0);
+  const eventRewardPending = String(eventWeekly?.status || '') === 'completed' && eventContribution > 0 && !eventMember?.reward_claimed_at;
+
+  const pendingRewards = [];
+  if (dailyMission.completed && !dailyMission.claimed) pendingRewards.push('Missão diária');
+  if (weeklyMission.completed && !weeklyMission.claimed) pendingRewards.push('Missão semanal');
+  if (coopRewardPending) pendingRewards.push('Coop semanal');
+  if (eventRewardPending) pendingRewards.push('Evento semanal');
+
+  const inventoryItems = (inventoryRows || [])
+    .map((entry) => ({
+      key: normalizeItemToken(entry?.item_key),
+      quantity: Math.max(0, toInt(entry?.quantity, 0)),
+    }))
+    .filter((entry) => entry.quantity > 0);
+  const inventoryTop = [...inventoryItems]
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, 5)
+    .map((entry) => {
+      const itemMeta = shopCatalog?.index?.get(entry.key) || null;
+      return {
+        key: entry.key,
+        quantity: entry.quantity,
+        label: itemMeta?.label || toTitleCase(entry.key),
+      };
+    });
+  const inventoryEstimatedValue = inventoryItems.reduce((acc, entry) => {
+    const itemMeta = shopCatalog?.index?.get(entry.key);
+    const unitPrice = Math.max(0, toInt(itemMeta?.price, 0));
+    return acc + entry.quantity * unitPrice;
+  }, 0);
+
+  const shinyCount = (teamRows || []).filter((entry) => Boolean(entry?.is_shiny)).length;
+  const capturesTotal = (teamRows || []).length;
+  const pokedexCompletion = toPercent(uniquePokedexTotal, Math.max(1, pokedexTotal), 0);
+  const weeklyMatches = Math.max(0, toInt(pvpWeeklyStats?.matches_played, 0));
+  const weeklyWins = Math.max(0, toInt(pvpWeeklyStats?.wins, 0));
+  const weeklyLosses = Math.max(0, toInt(pvpWeeklyStats?.losses, 0));
+  const weeklyPoints = Math.max(0, toInt(pvpWeeklyStats?.points, 0));
+  const playerXp = Math.max(0, toInt(player?.xp, 0));
+  const playerLevelProgress = resolvePlayerLevelProgress({
+    level: player?.level,
+    xp: playerXp,
+  });
+
+  const karmaScore = Math.max(0, toInt(karmaProfile?.karma_score, 0));
+  const achievements = resolveProfileAchievements({
+    pokedexUnique: uniquePokedexTotal,
+    pvpWins: pvpWinsLifetime,
+    shinyCount,
+    karmaScore,
+    coopContribution: coopContributionTotal,
+    eventContribution,
+  });
+  const goals = resolveProfileGoals({
+    pokedexUnique: uniquePokedexTotal,
+    dailyMission,
+    weeklyMission,
+    karmaScore,
+    pvpWeeklyRank,
+    pvpWeeklyPoints: weeklyPoints,
+  });
+
+  const profileData = {
+    summary: {
+      weekRefDate: currentWeekRefDate,
+      pvpWeeklyRank,
+      streak,
+      level: playerLevelProgress.level,
+      nextLevel: playerLevelProgress.nextLevel,
+      xpToNextLevel: playerLevelProgress.xpToNextLevel,
+      xpProgressPct: playerLevelProgress.xpProgressPct,
+      xpIntoLevel: playerLevelProgress.xpIntoLevel,
+      xpNeededForNextLevel: playerLevelProgress.xpNeededForNextLevel,
+      isMaxLevel: playerLevelProgress.isMaxLevel,
+    },
+    combat: {
+      weeklyMatches,
+      weeklyWins,
+      weeklyLosses,
+      lifetimeMatches: pvpMatchesLifetime,
+      lifetimeWins: pvpWinsLifetime,
+      lifetimeLosses: pvpLossesLifetime,
+      winRatePct: pvpWinRate,
+      kdRatio: pvpKd,
+      averageDamage: null,
+      bestVictory,
+      mostUsedPokemon,
+    },
+    collection: {
+      capturesTotal,
+      captureRatePct: null,
+      pokedexUnique: uniquePokedexTotal,
+      pokedexTotal,
+      pokedexCompletionPct: pokedexCompletion,
+      shinyCount,
+      rareCount: null,
+      latestCapture,
+    },
+    progression: {
+      dailyMission,
+      weeklyMission,
+      dailyMissionPct,
+      weeklyMissionPct,
+      event: eventWeekly
+        ? {
+            key: eventWeekly.event_key || null,
+            label: eventDefinition?.label || toTitleCase(eventWeekly.event_key),
+            progress: toInt(eventWeekly.progress_value, 0),
+            target: Math.max(1, toInt(eventWeekly.target_value, 1)),
+            progressPct: eventProgressPct,
+            status: eventWeekly.status || 'active',
+          }
+        : null,
+      pendingRewards,
+    },
+    economy: {
+      gold: Math.max(0, toInt(player?.gold, 0)),
+      totalSpent: null,
+      inventoryTop,
+      inventoryEstimatedValue,
+    },
+    social: {
+      karmaScore,
+      karmaBonusActive: karmaScore >= KARMA_BONUS_THRESHOLD,
+      karmaThreshold: KARMA_BONUS_THRESHOLD,
+      positiveVotes: Math.max(0, toInt(karmaProfile?.positive_votes, 0)),
+      negativeVotes: Math.max(0, toInt(karmaProfile?.negative_votes, 0)),
+      linksTotal: Math.max(0, toInt(socialSummary?.linksTotal, 0)),
+      interactionsTotal: Math.max(0, toInt(socialSummary?.interactionsTotal, 0)),
+      topFriendship: Math.max(0, toInt(socialSummary?.topFriendship, 0)),
+      topRivalry: Math.max(0, toInt(socialSummary?.topRivalry, 0)),
+      coopCaptureContribution: coopContributionCapture,
+      coopRaidContribution: coopContributionRaid,
+      eventContribution,
+    },
+    achievements,
+    goals,
+  };
+
   const text = buildProfileText({
     player,
     activePokemon: activeDisplay,
+    profile: profileData,
     prefix: commandPrefix,
   });
-  const karmaProfile = await getKarmaProfile(ownerJid);
-  const karmaScore = toInt(karmaProfile?.karma_score, 0);
-  const socialText = karmaScore >= KARMA_BONUS_THRESHOLD ? `\n🌟 Karma: ${karmaScore} (bônus social ativo em recompensas).` : `\n🌟 Karma: ${karmaScore} (atinga ${KARMA_BONUS_THRESHOLD} para bônus social).`;
-  const fullText = `${text}${socialText}`;
 
-  return withPokemonImage({
-    text: fullText,
-    pokemonSnapshot: activeSnapshot,
-    caption: activeSnapshot ? `👤 ${activeDisplay.displayName} Lv.${activeDisplay.level}\nPróximo: ${commandPrefix}rpg explorar` : null,
+  return withProfileCanvasCard({
+    text,
+    profileCanvas: {
+      trainerLabel: toMentionLabel(ownerJid),
+      generatedAtLabel: toDateLabel(Date.now()),
+      activePokemon: {
+        displayName: activeDisplay?.displayName || activeDisplay?.name || null,
+        name: activeDisplay?.name || null,
+        level: activeDisplay?.level || null,
+        currentHp: activeDisplay?.currentHp || null,
+        maxHp: activeDisplay?.maxHp || null,
+        imageUrl: activeDisplay?.imageUrl || activeSnapshot?.imageUrl || null,
+        isShiny: Boolean(activeDisplay?.isShiny),
+        types: Array.isArray(activeDisplay?.types) && activeDisplay.types.length ? activeDisplay.types : Array.isArray(activeSnapshot?.types) ? activeSnapshot.types : [],
+      },
+      summary: {
+        level: playerLevelProgress.level,
+        xp: playerXp,
+        gold: Math.max(0, toInt(player?.gold, 0)),
+        pvpWeeklyRank,
+        streakLabel: streak?.label || null,
+        xpToNextLevel: playerLevelProgress.xpToNextLevel,
+        nextLevel: playerLevelProgress.nextLevel,
+        xpProgressPct: playerLevelProgress.xpProgressPct,
+      },
+      profileText: text,
+    },
+    pokemonSnapshotFallback: activeSnapshot,
+    caption: `📘 Perfil RPG de ${toMentionLabel(ownerJid)} | Lv.${playerLevelProgress.level}`,
   });
 };
 
@@ -5892,7 +6403,7 @@ export const executeRpgPokemonAction = async ({ ownerJid, chatJid, action, actio
         break;
 
       case 'perfil':
-        result = await handleProfile({ ownerJid, commandPrefix });
+        result = await handleProfile({ ownerJid, chatJid, commandPrefix });
         break;
 
       case 'explorar':

@@ -138,8 +138,58 @@ export const buildStartText = ({ isNewPlayer, starterPokemon, prefix = '/' }) =>
   ].join('\n');
 };
 
-export const buildProfileText = ({ player, activePokemon, prefix = '/' }) => {
-  const lines = ['📘 *Seu Perfil RPG*', '', `🏅 Nível: *${toNumber(player?.level, 1)}*`, `✨ XP: *${toNumber(player?.xp, 0)}*`, `💬 XP social (pool): *${toNumber(player?.xp_pool_social, 0)}*`, `🪙 Gold: *${toNumber(player?.gold, 0)}*`];
+const toDisplayText = (value, fallback = 'N/D') => {
+  if (value === null || value === undefined) return fallback;
+  const text = String(value).trim();
+  return text ? text : fallback;
+};
+
+const formatPercent = (value) => {
+  if (!Number.isFinite(Number(value))) return 'N/D';
+  return `${Math.max(0, Number(value))}%`;
+};
+
+const formatRatio = (value) => {
+  if (String(value) === 'inf') return '∞';
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 'N/D';
+  return numeric.toFixed(2);
+};
+
+export const buildProfileText = ({ player, activePokemon, profile = {}, prefix = '/' }) => {
+  const summary = profile?.summary || {};
+  const combat = profile?.combat || {};
+  const collection = profile?.collection || {};
+  const progression = profile?.progression || {};
+  const economy = profile?.economy || {};
+  const social = profile?.social || {};
+  const achievements = Array.isArray(profile?.achievements) ? profile.achievements : [];
+  const goals = Array.isArray(profile?.goals) ? profile.goals : [];
+
+  const lines = [
+    '📘 *Seu Perfil RPG*',
+    '',
+    '📌 *Resumo rápido*',
+    `🏅 Nível: *${toNumber(summary?.level, toNumber(player?.level, 1))}*`,
+    `✨ XP: *${toNumber(player?.xp, 0)}*`,
+    `💬 XP social (pool): *${toNumber(player?.xp_pool_social, 0)}*`,
+    `🪙 Gold: *${toNumber(player?.gold, 0)}*`,
+    `🏆 Rank PvP semanal: *${toDisplayText(summary?.pvpWeeklyRank, 'Sem rank')}*`,
+    `🔥 Streak atual: *${toDisplayText(summary?.streak?.label, 'Sem histórico')}*`,
+  ];
+
+  if (summary?.isMaxLevel) {
+    lines.push('📈 Progresso de nível: *nível máximo alcançado*');
+  } else {
+    lines.push(
+      `📈 Progresso de nível: *${toNumber(summary?.xpProgressPct, 0)}%* (${toNumber(summary?.xpIntoLevel, 0)}/${toNumber(summary?.xpNeededForNextLevel, 0)} XP no nível)`,
+    );
+    lines.push(`⏭️ Próximo nível: *Lv.${toNumber(summary?.nextLevel, toNumber(player?.level, 1) + 1)}* (faltam *${toNumber(summary?.xpToNextLevel, 0)} XP*)`);
+  }
+
+  if (summary?.weekRefDate) {
+    lines.push(`📅 Semana PvP: ${summary.weekRefDate}`);
+  }
 
   if (activePokemon) {
     lines.push('');
@@ -168,8 +218,82 @@ export const buildProfileText = ({ player, activePokemon, prefix = '/' }) => {
   }
 
   lines.push('');
+  lines.push('⚔️ *Time e combate*');
+  lines.push(`• PvP semana: ${toNumber(combat?.weeklyWins, 0)}W/${toNumber(combat?.weeklyLosses, 0)}L (${toNumber(combat?.weeklyMatches, 0)} partidas)`);
+  lines.push(`• PvP total: ${toNumber(combat?.lifetimeWins, 0)}W/${toNumber(combat?.lifetimeLosses, 0)}L (${toNumber(combat?.lifetimeMatches, 0)} partidas)`);
+  lines.push(`• Win rate: ${formatPercent(combat?.winRatePct)} | K/D: ${formatRatio(combat?.kdRatio)}`);
+  lines.push(`• Dano médio: ${toDisplayText(combat?.averageDamage)}`);
+  lines.push(`• Melhor vitória: ${toDisplayText(combat?.bestVictory, 'Sem vitórias recentes')}`);
+  lines.push(`• Pokémon mais usado: ${toDisplayText(combat?.mostUsedPokemon, 'Sem histórico suficiente')}`);
+
+  lines.push('');
+  lines.push('📚 *Captura e coleção*');
+  lines.push(`• Capturas totais: ${toNumber(collection?.capturesTotal, 0)}`);
+  lines.push(`• Taxa de captura: ${collection?.captureRatePct === null || collection?.captureRatePct === undefined ? 'N/D (histórico não rastreado)' : formatPercent(collection?.captureRatePct)}`);
+  lines.push(`• Pokédex: ${toNumber(collection?.pokedexUnique, 0)}/${toNumber(collection?.pokedexTotal, 0)} (${formatPercent(collection?.pokedexCompletionPct)})`);
+  lines.push(`• Raros/Shiny: ${collection?.rareCount === null || collection?.rareCount === undefined ? 'Raros N/D' : `Raros ${toNumber(collection?.rareCount, 0)}`} | Shiny ${toNumber(collection?.shinyCount, 0)}`);
+  lines.push(
+    `• Última captura: ${
+      collection?.latestCapture
+        ? `${toDisplayText(collection.latestCapture.name)} (#${toNumber(collection.latestCapture.pokeId, 0)}) em ${toDisplayText(collection.latestCapture.capturedAt, 'data indisponível')}`
+        : 'Sem registros recentes'
+    }`,
+  );
+
+  lines.push('');
+  lines.push('📈 *Progressão*');
+  lines.push(
+    `• Missão diária: ${toNumber(progression?.dailyMission?.explorar, 0)}/${toNumber(progression?.dailyMission?.target?.explorar, 0)} explorar, ${toNumber(progression?.dailyMission?.vitorias, 0)}/${toNumber(progression?.dailyMission?.target?.vitorias, 0)} vitórias, ${toNumber(progression?.dailyMission?.capturas, 0)}/${toNumber(progression?.dailyMission?.target?.capturas, 0)} capturas (${formatPercent(progression?.dailyMissionPct)})`,
+  );
+  lines.push(
+    `• Missão semanal: ${toNumber(progression?.weeklyMission?.explorar, 0)}/${toNumber(progression?.weeklyMission?.target?.explorar, 0)} explorar, ${toNumber(progression?.weeklyMission?.vitorias, 0)}/${toNumber(progression?.weeklyMission?.target?.vitorias, 0)} vitórias, ${toNumber(progression?.weeklyMission?.capturas, 0)}/${toNumber(progression?.weeklyMission?.target?.capturas, 0)} capturas (${formatPercent(progression?.weeklyMissionPct)})`,
+  );
+  if (progression?.event) {
+    lines.push(
+      `• Evento ativo: ${toDisplayText(progression.event.label)} ${toNumber(progression.event.progress, 0)}/${toNumber(progression.event.target, 0)} (${formatPercent(progression.event.progressPct)}) [${toDisplayText(progression.event.status, 'ativo')}]`,
+    );
+  } else {
+    lines.push('• Evento ativo: indisponível fora de grupo');
+  }
+  const pendingRewards = Array.isArray(progression?.pendingRewards) ? progression.pendingRewards : [];
+  lines.push(`• Recompensas pendentes: ${pendingRewards.length ? pendingRewards.join(', ') : 'Nenhuma'}`);
+
+  lines.push('');
+  lines.push('💰 *Economia*');
+  lines.push(`• Saldo atual: ${toNumber(economy?.gold, 0)} gold`);
+  lines.push(`• Gasto total: ${economy?.totalSpent === null || economy?.totalSpent === undefined ? 'N/D (histórico não rastreado)' : `${toNumber(economy?.totalSpent, 0)} gold`}`);
+  const topItems = Array.isArray(economy?.inventoryTop) ? economy.inventoryTop : [];
+  if (topItems.length) {
+    lines.push(`• Itens principais: ${topItems.map((item) => `${toDisplayText(item.label)} x${toNumber(item.quantity, 0)}`).join(' | ')}`);
+  } else {
+    lines.push('• Itens principais: bolsa vazia');
+  }
+  lines.push(`• Valor estimado da bolsa: ${toNumber(economy?.inventoryEstimatedValue, 0)} gold`);
+
+  lines.push('');
+  lines.push('🤝 *Social e Karma*');
+  lines.push(`• Karma: ${toNumber(social?.karmaScore, 0)} (${social?.karmaBonusActive ? 'bônus ativo' : `faltam ${Math.max(0, toNumber(social?.karmaThreshold, 0) - toNumber(social?.karmaScore, 0))} para bônus`})`);
+  lines.push(`• Votos: 👍 ${toNumber(social?.positiveVotes, 0)} | 👎 ${toNumber(social?.negativeVotes, 0)}`);
+  lines.push(`• Interações sociais úteis: ${toNumber(social?.interactionsTotal, 0)} em ${toNumber(social?.linksTotal, 0)} vínculo(s)`);
+  lines.push(`• Melhor amizade/rivalidade: ${toNumber(social?.topFriendship, 0)} / ${toNumber(social?.topRivalry, 0)}`);
+  lines.push(`• Contribuição coop (captura/raid): ${toNumber(social?.coopCaptureContribution, 0)}/${toNumber(social?.coopRaidContribution, 0)}`);
+  lines.push(`• Contribuição em evento semanal: ${toNumber(social?.eventContribution, 0)}`);
+
+  lines.push('');
+  lines.push('🏅 *Conquistas*');
+  achievements.forEach((badge) => {
+    lines.push(`• ${badge}`);
+  });
+
+  lines.push('');
+  lines.push('🎯 *Metas sugeridas*');
+  goals.forEach((goal, index) => {
+    lines.push(`${index + 1}. ${goal}`);
+  });
+
+  lines.push('');
   lines.push(`➡️ Próximos: ${prefix}rpg explorar | ${prefix}rpg time`);
-  lines.push(`💡 Dica: use ${prefix}rpg bolsa para checar seus itens.`);
+  lines.push(`💡 Dica: use ${prefix}rpg bolsa, ${prefix}rpg missoes e ${prefix}rpg pvp ranking para avançar nas metas.`);
   return lines.join('\n');
 };
 

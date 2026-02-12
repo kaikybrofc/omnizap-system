@@ -104,7 +104,8 @@ export const handleRpgPokemonCommand = async ({ sock, remoteJid, messageInfo, ex
     const mentions = Array.isArray(result?.mentions) ? result.mentions.filter(Boolean) : [];
     const imageBuffer = Buffer.isBuffer(result?.imageBuffer) ? result.imageBuffer : null;
     const imageUrl = typeof result?.imageUrl === 'string' && result.imageUrl.trim() ? result.imageUrl.trim() : null;
-    const caption = responseText;
+    const caption = typeof result?.caption === 'string' && result.caption.trim() ? result.caption.trim() : responseText;
+    const sendTextAfterImage = Boolean(result?.sendTextAfterImage);
 
     if (imageBuffer) {
       try {
@@ -118,6 +119,9 @@ export const handleRpgPokemonCommand = async ({ sock, remoteJid, messageInfo, ex
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
+        if (sendTextAfterImage && responseText && responseText !== caption) {
+          await sendAndStore(sock, remoteJid, { text: responseText, ...(mentions.length ? { mentions } : {}) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+        }
         return;
       } catch (error) {
         logger.warn('Falha ao enviar frame canvas do RPG Pokemon. Fallback para imagem URL/texto.', {
@@ -140,6 +144,9 @@ export const handleRpgPokemonCommand = async ({ sock, remoteJid, messageInfo, ex
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
+        if (sendTextAfterImage && responseText && responseText !== caption) {
+          await sendAndStore(sock, remoteJid, { text: responseText, ...(mentions.length ? { mentions } : {}) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+        }
         return;
       } catch (error) {
         logger.warn('Falha ao enviar imagem do RPG Pokemon. Enviando texto puro.', {

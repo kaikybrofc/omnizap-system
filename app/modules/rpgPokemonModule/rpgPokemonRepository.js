@@ -1107,6 +1107,21 @@ export const getLatestFinishedPvpByPlayer = async (ownerJid, connection = null) 
   return normalizePvpChallenge(rows?.[0] || null);
 };
 
+export const listRecentFinishedPvpByPlayer = async (ownerJid, limit = 20, connection = null) => {
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+  const rows = await executeQuery(
+    `SELECT id, chat_jid, challenger_jid, opponent_jid, status, turn_jid, winner_jid, battle_snapshot_json, started_at, expires_at, created_at, updated_at
+       FROM ${TABLES.RPG_PVP_CHALLENGE}
+      WHERE status = 'finished'
+        AND (challenger_jid = ? OR opponent_jid = ?)
+      ORDER BY updated_at DESC, id DESC
+      LIMIT ${safeLimit}`,
+    [ownerJid, ownerJid],
+    connection,
+  );
+  return (rows || []).map(normalizePvpChallenge);
+};
+
 export const upsertPvpWeeklyStatsDelta = async ({ weekRefDate, ownerJid, matchesPlayedDelta = 0, winsDelta = 0, lossesDelta = 0, pointsDelta = 0 }, connection = null) => {
   await executeQuery(
     `INSERT INTO ${TABLES.RPG_PVP_WEEKLY_STATS}
@@ -1121,6 +1136,75 @@ export const upsertPvpWeeklyStatsDelta = async ({ weekRefDate, ownerJid, matches
     [weekRefDate, ownerJid, matchesPlayedDelta, winsDelta, lossesDelta, pointsDelta],
     connection,
   );
+};
+
+export const getPvpWeeklyStatsByOwner = async (weekRefDate, ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT week_ref_date, owner_jid, matches_played, wins, losses, points, created_at, updated_at
+       FROM ${TABLES.RPG_PVP_WEEKLY_STATS}
+      WHERE week_ref_date = ?
+        AND owner_jid = ?
+      LIMIT 1`,
+    [weekRefDate, ownerJid],
+    connection,
+  );
+  return normalizeWeeklyStatsRow(rows?.[0] || null);
+};
+
+export const getPvpWeeklyRankByOwner = async (weekRefDate, ownerJid, connection = null) => {
+  const stats = await getPvpWeeklyStatsByOwner(weekRefDate, ownerJid, connection);
+  if (!stats) return null;
+
+  const rows = await executeQuery(
+    `SELECT COUNT(*) + 1 AS rank_position
+       FROM ${TABLES.RPG_PVP_WEEKLY_STATS}
+      WHERE week_ref_date = ?
+        AND (
+          points > ?
+          OR (points = ? AND wins > ?)
+          OR (points = ? AND wins = ? AND matches_played > ?)
+          OR (points = ? AND wins = ? AND matches_played = ? AND owner_jid < ?)
+        )`,
+    [
+      weekRefDate,
+      stats.points,
+      stats.points,
+      stats.wins,
+      stats.points,
+      stats.wins,
+      stats.matches_played,
+      stats.points,
+      stats.wins,
+      stats.matches_played,
+      ownerJid,
+    ],
+    connection,
+  );
+
+  const rank = Number(rows?.[0]?.rank_position || 0);
+  return rank > 0 ? rank : null;
+};
+
+export const getPvpLifetimeStatsByOwner = async (ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT
+        COALESCE(SUM(matches_played), 0) AS matches_played,
+        COALESCE(SUM(wins), 0) AS wins,
+        COALESCE(SUM(losses), 0) AS losses,
+        COALESCE(SUM(points), 0) AS points
+       FROM ${TABLES.RPG_PVP_WEEKLY_STATS}
+      WHERE owner_jid = ?`,
+    [ownerJid],
+    connection,
+  );
+
+  const row = rows?.[0] || {};
+  return {
+    matches_played: Number(row.matches_played || 0),
+    wins: Number(row.wins || 0),
+    losses: Number(row.losses || 0),
+    points: Number(row.points || 0),
+  };
 };
 
 export const listPvpWeeklyRanking = async (weekRefDate, limit = 10, connection = null) => {
@@ -1185,6 +1269,29 @@ export const listSocialLinksByOwner = async (ownerJid, mode = 'friendship', limi
     connection,
   );
   return (rows || []).map(normalizeSocialLinkRow);
+};
+
+export const getSocialSummaryByOwner = async (ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT
+        COUNT(*) AS links_total,
+        COALESCE(SUM(interactions_count), 0) AS interactions_total,
+        COALESCE(MAX(friendship_score), 0) AS top_friendship,
+        COALESCE(MAX(rivalry_score), 0) AS top_rivalry
+       FROM ${TABLES.RPG_SOCIAL_LINK}
+      WHERE user_a_jid = ?
+         OR user_b_jid = ?`,
+    [ownerJid, ownerJid],
+    connection,
+  );
+
+  const row = rows?.[0] || {};
+  return {
+    linksTotal: Number(row.links_total || 0),
+    interactionsTotal: Number(row.interactions_total || 0),
+    topFriendship: Number(row.top_friendship || 0),
+    topRivalry: Number(row.top_rivalry || 0),
+  };
 };
 
 export const createTradeOffer = async ({ chatJid = null, proposerJid, receiverJid, proposerOffer, receiverOffer, expiresAt }, connection = null) => {
@@ -1387,6 +1494,20 @@ export const listGroupCoopMembers = async (chatJid, weekRefDate, connection = nu
   return (rows || []).map(normalizeCoopMemberRow);
 };
 
+export const getGroupCoopMember = async (chatJid, weekRefDate, ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, week_ref_date, owner_jid, capture_contribution, raid_contribution, reward_claimed_at, last_contribution_at, created_at, updated_at
+       FROM ${TABLES.RPG_GROUP_COOP_MEMBER}
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+        AND owner_jid = ?
+      LIMIT 1`,
+    [chatJid, weekRefDate, ownerJid],
+    connection,
+  );
+  return normalizeCoopMemberRow(rows?.[0] || null);
+};
+
 export const listUnrewardedGroupCoopMembersForUpdate = async (chatJid, weekRefDate, connection) => {
   const rows = await executeQuery(
     `SELECT chat_jid, week_ref_date, owner_jid, capture_contribution, raid_contribution, reward_claimed_at, last_contribution_at, created_at, updated_at
@@ -1506,6 +1627,20 @@ export const listGroupEventMembers = async (chatJid, weekRefDate, limit = 10, co
     connection,
   );
   return (rows || []).map(normalizeGroupEventMemberRow);
+};
+
+export const getGroupEventMember = async (chatJid, weekRefDate, ownerJid, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT chat_jid, week_ref_date, owner_jid, contribution, reward_claimed_at, last_contribution_at, created_at, updated_at
+       FROM ${TABLES.RPG_GROUP_EVENT_MEMBER}
+      WHERE chat_jid = ?
+        AND week_ref_date = ?
+        AND owner_jid = ?
+      LIMIT 1`,
+    [chatJid, weekRefDate, ownerJid],
+    connection,
+  );
+  return normalizeGroupEventMemberRow(rows?.[0] || null);
 };
 
 export const getGroupEventMemberForUpdate = async (chatJid, weekRefDate, ownerJid, connection) => {
