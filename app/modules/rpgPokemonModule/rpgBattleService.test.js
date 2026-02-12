@@ -19,11 +19,11 @@ const setCache = (cache, key, data) => {
   });
 };
 
-const buildTypeData = ({ pokemonIds = [] } = {}) => ({
+const buildTypeData = ({ pokemonIds = [], doubleDamageTo = [], halfDamageTo = [], noDamageTo = [] } = {}) => ({
   damage_relations: {
-    double_damage_to: [],
-    half_damage_to: [],
-    no_damage_to: [],
+    double_damage_to: doubleDamageTo.map((name) => ({ name })),
+    half_damage_to: halfDamageTo.map((name) => ({ name })),
+    no_damage_to: noDamageTo.map((name) => ({ name })),
   },
   pokemon: pokemonIds.map((id) => ({
     pokemon: {
@@ -343,6 +343,97 @@ test('bioma deve priorizar spawn por tipo preferencial', { concurrency: false },
 
   assert.equal(encounter.enemySnapshot.pokeId, 25);
   assert.ok(encounter.enemySnapshot.types.includes('electric'));
+});
+
+test('moveset inicial deve garantir STAB e limitar normal quando houver alternativas', { concurrency: false }, async () => {
+  const cache = ensurePokeApiCache();
+  cache.clear();
+  seedCoreTypeAndMoveData(cache);
+
+  setCache(
+    cache,
+    'pokemon:1',
+    buildPokemonData({
+      id: 1,
+      name: 'bulbasaur',
+      primaryType: 'grass',
+      moves: ['tackle', 'scratch', 'vine-whip', 'bite', 'growl', 'struggle'],
+    }),
+  );
+  setCache(cache, 'species:1', {
+    id: 1,
+    capture_rate: 45,
+    evolution_chain: { url: 'https://pokeapi.co/api/v2/evolution-chain/1/' },
+  });
+
+  setCache(cache, 'type:grass', buildTypeData({ pokemonIds: [1] }));
+  setCache(cache, 'type:normal', buildTypeData({ noDamageTo: ['ghost'] }));
+  setCache(cache, 'type:dark', buildTypeData());
+
+  setCache(cache, 'move:tackle', buildMoveData('tackle', 'normal', 40));
+  setCache(cache, 'move:scratch', buildMoveData('scratch', 'normal', 40));
+  setCache(cache, 'move:vine-whip', buildMoveData('vine-whip', 'grass', 45));
+  setCache(cache, 'move:bite', buildMoveData('bite', 'dark', 60));
+  setCache(cache, 'move:growl', buildMoveData('growl', 'normal', 0));
+  setCache(cache, 'move:struggle', buildMoveData('struggle', 'normal', 50));
+
+  const encounter = await withRandomSequence([0.8, 0.4, 0.2, 0.1], async () =>
+    createWildEncounter({
+      playerLevel: 10,
+      preferredTypes: ['grass'],
+    }),
+  );
+
+  const offensiveMoves = encounter.enemySnapshot.moves.filter((move) => Number(move?.power) > 0 && move?.damageClass !== 'status');
+  const hasStab = offensiveMoves.some((move) => String(move?.type || '').toLowerCase() === 'grass');
+  const normalCount = offensiveMoves.filter((move) => String(move?.type || '').toLowerCase() === 'normal').length;
+
+  assert.equal(hasStab, true);
+  assert.ok(normalCount <= 1);
+});
+
+test('moveset inicial deve evitar softlock por imunidade com fallback neutro', { concurrency: false }, async () => {
+  const cache = ensurePokeApiCache();
+  cache.clear();
+  seedCoreTypeAndMoveData(cache);
+
+  setCache(
+    cache,
+    'pokemon:66',
+    buildPokemonData({
+      id: 66,
+      name: 'machop',
+      primaryType: 'fighting',
+      moves: ['karate-chop', 'tackle', 'leer', 'struggle'],
+    }),
+  );
+  setCache(cache, 'species:66', {
+    id: 66,
+    capture_rate: 180,
+    evolution_chain: { url: 'https://pokeapi.co/api/v2/evolution-chain/23/' },
+  });
+
+  setCache(cache, 'type:fighting', buildTypeData({ pokemonIds: [66], noDamageTo: ['ghost'] }));
+  setCache(cache, 'type:normal', buildTypeData({ noDamageTo: ['ghost'] }));
+
+  setCache(cache, 'move:karate-chop', buildMoveData('karate-chop', 'fighting', 50));
+  setCache(cache, 'move:tackle', buildMoveData('tackle', 'normal', 40));
+  setCache(cache, 'move:leer', buildMoveData('leer', 'normal', 0));
+  setCache(cache, 'move:struggle', buildMoveData('struggle', 'normal', 50));
+
+  const encounter = await withRandomSequence([0.8, 0.4, 0.2, 0.1], async () =>
+    createWildEncounter({
+      playerLevel: 14,
+      preferredTypes: ['fighting'],
+    }),
+  );
+
+  const offensiveMoves = encounter.enemySnapshot.moves.filter((move) => Number(move?.power) > 0 && move?.damageClass !== 'status');
+  const canHitGhost = offensiveMoves.some((move) => !((move?.typeDamage?.noTo || []).includes('ghost')));
+  const hasNeutralFallback = encounter.enemySnapshot.moves.some((move) => String(move?.name || '').startsWith('neutral-strike'));
+
+  assert.equal(canHitGhost, true);
+  assert.equal(hasNeutralFallback, true);
 });
 
 test('evolução automática por nível deve seguir evolution-chain da PokéAPI', { concurrency: false }, async () => {

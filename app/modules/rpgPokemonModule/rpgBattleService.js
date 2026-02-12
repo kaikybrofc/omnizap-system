@@ -19,6 +19,9 @@ const MAX_ENCOUNTER_LEVEL_DIFF = 1;
 const PHYSICAL_CLASS = 'physical';
 const SPECIAL_CLASS = 'special';
 const STATUS_CLASS = 'status';
+const MOVESET_SIZE = 4;
+const MOVESET_BACKUP_CANDIDATES = ['struggle'];
+const MOVESET_NEUTRAL_FALLBACK_NAME = 'neutral-strike';
 
 const BASE_STAT_NAMES = ['hp', 'attack', 'defense', 'special-attack', 'special-defense', 'speed'];
 const STAT_STAGE_KEYS = ['attack', 'defense', 'specialAttack', 'specialDefense', 'speed', 'accuracy', 'evasion'];
@@ -428,26 +431,27 @@ const loadMoveSnapshot = async (idOrName) => {
 };
 
 const ensureFourMoves = async (moves) => {
-  const normalized = (moves || []).map((move, index) => normalizeMove(move, index)).slice(0, 4);
+  const normalized = (moves || []).map((move, index) => normalizeMove(move, index)).slice(0, MOVESET_SIZE);
 
   if (!normalized.length) {
     normalized.push(await loadMoveSnapshot('struggle'));
   }
 
-  while (normalized.length < 4) {
+  while (normalized.length < MOVESET_SIZE) {
     normalized.push({ ...normalized[normalized.length % normalized.length] });
   }
 
-  return normalized.slice(0, 4);
+  return normalized.slice(0, MOVESET_SIZE);
 };
 
 const buildMoveCandidateList = (pokemonData) => {
-  const preferred = ['tackle', 'quick-attack', 'scratch', 'pound', 'ember', 'water-gun', 'vine-whip', 'bite', 'gust', 'swift'];
   const fromPokemon = (pokemonData?.moves || []).map((entry) => entry?.move?.name).filter(Boolean);
   const unique = new Set();
   const merged = [];
+  const reserveForFallback = Math.max(0, MOVESET_BACKUP_CANDIDATES.length);
+  const maxFromPokemon = Math.max(1, MOVE_SAMPLE_LIMIT - reserveForFallback);
 
-  [...preferred, ...fromPokemon].forEach((name) => {
+  [...fromPokemon.slice(0, maxFromPokemon), ...MOVESET_BACKUP_CANDIDATES].forEach((name) => {
     const key = String(name || '')
       .trim()
       .toLowerCase();
@@ -459,21 +463,236 @@ const buildMoveCandidateList = (pokemonData) => {
   return merged.slice(0, MOVE_SAMPLE_LIMIT);
 };
 
+const resolvePokemonTypeList = (pokemonData) => {
+  return (pokemonData?.types || [])
+    .sort((a, b) => toPositiveInt(a?.slot, 0) - toPositiveInt(b?.slot, 0))
+    .map((entry) => entry?.type?.name)
+    .filter(Boolean)
+    .map((name) => String(name).toLowerCase());
+};
+
+const isOffensiveMove = (move) => {
+  return toPositiveInt(move?.power, 0) > 0 && String(move?.damageClass || '').toLowerCase() !== STATUS_CLASS;
+};
+
+const normalizeMoveType = (move) =>
+  String(move?.type || '')
+    .trim()
+    .toLowerCase();
+
+const calcOffensiveMoveScore = ({ move, pokemonTypeSet, penalizeNormal = false }) => {
+  const power = Math.max(0, toPositiveInt(move?.power, 0));
+  const accuracy = clamp(toPositiveInt(move?.accuracy, 100), 1, 100);
+  let score = power * (accuracy / 100);
+  const moveType = normalizeMoveType(move);
+  if (moveType && pokemonTypeSet.has(moveType)) score *= 1.2;
+  if (penalizeNormal && moveType === 'normal') score *= 0.1;
+  return score;
+};
+
+const calcSupportMoveScore = (move) => {
+  const accuracy = clamp(toPositiveInt(move?.accuracy, 100), 1, 100);
+  const meta = move?.effectMeta || {};
+  let score = accuracy / 100;
+  if (meta?.ailment) score += 2.5;
+  if (Array.isArray(meta?.statChanges) && meta.statChanges.length) score += 2;
+  if (Math.abs(toNumber(meta?.healing, 0)) > 0) score += 1.5;
+  if (Math.abs(toNumber(meta?.drain, 0)) > 0) score += 1;
+  return score;
+};
+
+const compareByScoreDesc = (a, b) => {
+  if (b.score !== a.score) return b.score - a.score;
+  const bPower = toPositiveInt(b.move?.power, 0);
+  const aPower = toPositiveInt(a.move?.power, 0);
+  if (bPower !== aPower) return bPower - aPower;
+  return toPositiveInt(b.move?.accuracy, 100) - toPositiveInt(a.move?.accuracy, 100);
+};
+
+const sortOffensiveMovesByScore = ({ moves = [], pokemonTypeSet, penalizeNormal = false }) => {
+  return moves
+    .map((move) => ({
+      move,
+      score: calcOffensiveMoveScore({
+        move,
+        pokemonTypeSet,
+        penalizeNormal,
+      }),
+    }))
+    .sort(compareByScoreDesc)
+    .map((entry) => entry.move);
+};
+
+const sortSupportMovesByScore = (moves = []) => {
+  return moves
+    .map((move) => ({
+      move,
+      score: calcSupportMoveScore(move),
+    }))
+    .sort(compareByScoreDesc)
+    .map((entry) => entry.move);
+};
+
+const countNormalOffensiveMoves = (moves = []) => {
+  return moves.filter((move) => isOffensiveMove(move) && normalizeMoveType(move) === 'normal').length;
+};
+
+const buildNeutralFallbackMove = (suffix = '') =>
+  normalizeMove(
+    {
+      id: 0,
+      name: suffix ? `${MOVESET_NEUTRAL_FALLBACK_NAME}-${suffix}` : MOVESET_NEUTRAL_FALLBACK_NAME,
+      power: 50,
+      accuracy: 100,
+      pp: 35,
+      damageClass: PHYSICAL_CLASS,
+      type: 'neutral',
+      typeDamage: {
+        doubleTo: [],
+        halfTo: [],
+        noTo: [],
+      },
+      target: 'selected-pokemon',
+      shortEffect: 'Golpe neutro de segurança para evitar travamento por imunidade.',
+    },
+    0,
+  );
+
+const resolveBlockedTypesByNoDamageIntersection = (offensiveMoves = []) => {
+  if (!offensiveMoves.length) return [];
+  const first = offensiveMoves[0];
+  const firstNoTo = new Set(Array.isArray(first?.typeDamage?.noTo) ? first.typeDamage.noTo : []);
+  const blocked = new Set(firstNoTo);
+
+  offensiveMoves.slice(1).forEach((move) => {
+    const noTo = new Set(Array.isArray(move?.typeDamage?.noTo) ? move.typeDamage.noTo : []);
+    for (const blockedType of Array.from(blocked)) {
+      if (!noTo.has(blockedType)) {
+        blocked.delete(blockedType);
+      }
+    }
+  });
+
+  return Array.from(blocked);
+};
+
+const findFirstIndex = (items = [], predicate) => {
+  for (let index = 0; index < items.length; index += 1) {
+    if (predicate(items[index], index)) return index;
+  }
+  return -1;
+};
+
+const pickReplacementIndexForMove = ({ selected = [], pokemonTypeSet, keepOneStab = false }) => {
+  const supportIndex = findFirstIndex(selected, (move) => !isOffensiveMove(move));
+  if (supportIndex >= 0) return supportIndex;
+
+  const offensiveIndexes = selected
+    .map((move, index) => ({ move, index }))
+    .filter((entry) => isOffensiveMove(entry.move));
+  if (!offensiveIndexes.length) return selected.length - 1;
+
+  const stabIndexes = offensiveIndexes.filter((entry) => pokemonTypeSet.has(normalizeMoveType(entry.move)));
+  const canReplace = offensiveIndexes.filter((entry) => !(keepOneStab && stabIndexes.length <= 1 && stabIndexes[0]?.index === entry.index));
+  const candidates = canReplace.length ? canReplace : offensiveIndexes;
+
+  candidates.sort((left, right) => {
+    const leftScore = calcOffensiveMoveScore({ move: left.move, pokemonTypeSet });
+    const rightScore = calcOffensiveMoveScore({ move: right.move, pokemonTypeSet });
+    return leftScore - rightScore;
+  });
+
+  return candidates[0]?.index ?? selected.length - 1;
+};
+
+const tryAddMove = ({ selected, move, usedNames, allowMultipleNormal, pokemonTypeSet, forceReplace = false, keepOneStab = false }) => {
+  if (!move) return false;
+  const moveName = String(move?.name || '')
+    .trim()
+    .toLowerCase();
+  if (!moveName || usedNames.has(moveName)) return false;
+
+  const moveType = normalizeMoveType(move);
+  const isNormalOffensive = isOffensiveMove(move) && moveType === 'normal';
+  if (!allowMultipleNormal && isNormalOffensive && countNormalOffensiveMoves(selected) >= 1) {
+    return false;
+  }
+
+  if (selected.length < MOVESET_SIZE && !forceReplace) {
+    selected.push(move);
+    usedNames.add(moveName);
+    return true;
+  }
+
+  const replaceIndex = pickReplacementIndexForMove({
+    selected,
+    pokemonTypeSet,
+    keepOneStab,
+  });
+  if (replaceIndex < 0) return false;
+  const previousName = String(selected[replaceIndex]?.name || '')
+    .trim()
+    .toLowerCase();
+  selected[replaceIndex] = move;
+  if (previousName) usedNames.delete(previousName);
+  usedNames.add(moveName);
+  return true;
+};
+
+const pickBestCoverageCandidate = ({ selectedOffensive = [], offensivePool = [], usedNames, pokemonTypeSet, allowMultipleNormal, stabType = null }) => {
+  const blockedTypes = resolveBlockedTypesByNoDamageIntersection(selectedOffensive);
+  const candidates = offensivePool.filter((move) => {
+    const name = String(move?.name || '')
+      .trim()
+      .toLowerCase();
+    if (!name || usedNames.has(name)) return false;
+    if (!allowMultipleNormal && normalizeMoveType(move) === 'normal' && countNormalOffensiveMoves(selectedOffensive) >= 1) return false;
+    return true;
+  });
+
+  let best = null;
+  for (const move of candidates) {
+    const moveType = normalizeMoveType(move);
+    const base = calcOffensiveMoveScore({
+      move,
+      pokemonTypeSet,
+      penalizeNormal: !allowMultipleNormal && countNormalOffensiveMoves(selectedOffensive) >= 1,
+    });
+    let score = base;
+    if (stabType && moveType && moveType !== stabType) score += 35;
+    if (moveType && moveType !== 'normal') score += 8;
+
+    let unblockCount = 0;
+    let neutralCount = 0;
+    for (const defType of blockedTypes) {
+      const multiplier = resolveTypeMultiplier(move, [defType]);
+      if (multiplier > 0) {
+        unblockCount += 1;
+        if (multiplier === 1) neutralCount += 1;
+      }
+    }
+
+    score += unblockCount * 45;
+    score += neutralCount * 25;
+
+    if (!best || score > best.score) {
+      best = { move, score };
+    }
+  }
+
+  return best?.move || null;
+};
+
 const pickBattleMoves = async (pokemonData) => {
   const candidateNames = buildMoveCandidateList(pokemonData);
-  const damagingMoves = [];
-  const supportMoves = [];
+  const pokemonTypes = resolvePokemonTypeList(pokemonData);
+  const pokemonTypeSet = new Set(pokemonTypes);
+  const loadedMoves = [];
 
   for (const moveName of candidateNames) {
-    if (damagingMoves.length >= 4 && supportMoves.length >= 4) break;
-
     try {
       const move = await loadMoveSnapshot(moveName);
-      if (move.power > 0 && move.damageClass !== STATUS_CLASS) {
-        damagingMoves.push(move);
-      } else {
-        supportMoves.push(move);
-      }
+      loadedMoves.push(move);
     } catch (error) {
       logger.debug('Movimento ignorado no carregamento do RPG Pokemon.', {
         moveName,
@@ -482,13 +701,182 @@ const pickBattleMoves = async (pokemonData) => {
     }
   }
 
-  const merged = [...damagingMoves.slice(0, 4)];
-  for (const move of supportMoves) {
-    if (merged.length >= 4) break;
-    merged.push(move);
+  const offensivePool = loadedMoves.filter((move) => isOffensiveMove(move));
+  const supportPool = loadedMoves.filter((move) => !isOffensiveMove(move));
+  const hasNonNormalOffensive = offensivePool.some((move) => normalizeMoveType(move) !== 'normal');
+  const isPureNormal = pokemonTypes.length === 1 && pokemonTypes[0] === 'normal';
+  const allowMultipleNormal = isPureNormal && !hasNonNormalOffensive;
+
+  const selected = [];
+  const usedNames = new Set();
+
+  const stabPool = sortOffensiveMovesByScore({
+    moves: offensivePool.filter((move) => pokemonTypeSet.has(normalizeMoveType(move))),
+    pokemonTypeSet,
+  });
+  const bestStab = stabPool[0] || null;
+  const selectedStab = tryAddMove({
+    selected,
+    move: bestStab,
+    usedNames,
+    allowMultipleNormal,
+    pokemonTypeSet,
+  });
+  const stabType = selectedStab ? normalizeMoveType(bestStab) : null;
+
+  const selectedOffensiveNow = selected.filter((move) => isOffensiveMove(move));
+  const bestCoverage = pickBestCoverageCandidate({
+    selectedOffensive: selectedOffensiveNow.length ? selectedOffensiveNow : stabPool.slice(0, 1),
+    offensivePool,
+    usedNames,
+    pokemonTypeSet,
+    allowMultipleNormal,
+    stabType,
+  });
+  tryAddMove({
+    selected,
+    move: bestCoverage,
+    usedNames,
+    allowMultipleNormal,
+    pokemonTypeSet,
+  });
+
+  const supportCandidates = sortSupportMovesByScore(supportPool);
+  const bestUtility = supportCandidates.find((move) => {
+    const moveName = String(move?.name || '')
+      .trim()
+      .toLowerCase();
+    return moveName && !usedNames.has(moveName);
+  });
+  tryAddMove({
+    selected,
+    move: bestUtility,
+    usedNames,
+    allowMultipleNormal,
+    pokemonTypeSet,
+  });
+
+  const scoredOffensive = sortOffensiveMovesByScore({
+    moves: offensivePool,
+    pokemonTypeSet,
+  });
+  for (const move of scoredOffensive) {
+    if (selected.length >= MOVESET_SIZE) break;
+    tryAddMove({
+      selected,
+      move,
+      usedNames,
+      allowMultipleNormal,
+      pokemonTypeSet,
+      keepOneStab: stabPool.length > 0,
+    });
   }
 
-  return ensureFourMoves(merged);
+  for (const move of supportCandidates) {
+    if (selected.length >= MOVESET_SIZE) break;
+    tryAddMove({
+      selected,
+      move,
+      usedNames,
+      allowMultipleNormal,
+      pokemonTypeSet,
+    });
+  }
+
+  if (stabPool.length > 0 && !selected.some((move) => isOffensiveMove(move) && pokemonTypeSet.has(normalizeMoveType(move)))) {
+    tryAddMove({
+      selected,
+      move: stabPool[0],
+      usedNames,
+      allowMultipleNormal,
+      pokemonTypeSet,
+      forceReplace: true,
+      keepOneStab: false,
+    });
+  }
+
+  let selectedOffensive = selected.filter((move) => isOffensiveMove(move));
+  if (!selectedOffensive.length) {
+    const bestOffensive = scoredOffensive[0] || buildNeutralFallbackMove();
+    tryAddMove({
+      selected,
+      move: bestOffensive,
+      usedNames,
+      allowMultipleNormal: true,
+      pokemonTypeSet,
+      forceReplace: selected.length >= MOVESET_SIZE,
+    });
+    selectedOffensive = selected.filter((move) => isOffensiveMove(move));
+  }
+
+  let blockedTypes = resolveBlockedTypesByNoDamageIntersection(selectedOffensive);
+  if (blockedTypes.length) {
+    const breaker = pickBestCoverageCandidate({
+      selectedOffensive,
+      offensivePool,
+      usedNames,
+      pokemonTypeSet,
+      allowMultipleNormal,
+      stabType,
+    });
+    if (breaker) {
+      tryAddMove({
+        selected,
+        move: breaker,
+        usedNames,
+        allowMultipleNormal,
+        pokemonTypeSet,
+        forceReplace: selected.length >= MOVESET_SIZE,
+        keepOneStab: stabPool.length > 0,
+      });
+    }
+    selectedOffensive = selected.filter((move) => isOffensiveMove(move));
+    blockedTypes = resolveBlockedTypesByNoDamageIntersection(selectedOffensive);
+  }
+
+  if (blockedTypes.length) {
+    const neutralFallback = buildNeutralFallbackMove();
+    tryAddMove({
+      selected,
+      move: neutralFallback,
+      usedNames,
+      allowMultipleNormal: true,
+      pokemonTypeSet,
+      forceReplace: selected.length >= MOVESET_SIZE,
+      keepOneStab: stabPool.length > 0,
+    });
+  }
+
+  if (!allowMultipleNormal) {
+    let neutralIndex = 1;
+    while (countNormalOffensiveMoves(selected) > 1) {
+      const replaceIndex = findFirstIndex(selected, (move) => isOffensiveMove(move) && normalizeMoveType(move) === 'normal');
+      if (replaceIndex < 0) break;
+      const replacement = buildNeutralFallbackMove(`normal-limit-${neutralIndex}`);
+      const previousName = String(selected[replaceIndex]?.name || '')
+        .trim()
+        .toLowerCase();
+      if (previousName) usedNames.delete(previousName);
+      selected[replaceIndex] = replacement;
+      usedNames.add(replacement.name);
+      neutralIndex += 1;
+    }
+  }
+
+  let neutralFillIndex = 1;
+  while (selected.length < MOVESET_SIZE) {
+    const neutralFallback = buildNeutralFallbackMove(`fill-${neutralFillIndex}`);
+    tryAddMove({
+      selected,
+      move: neutralFallback,
+      usedNames,
+      allowMultipleNormal: true,
+      pokemonTypeSet,
+    });
+    neutralFillIndex += 1;
+  }
+
+  return ensureFourMoves(selected);
 };
 
 const isStoredMoveValid = (move) => {
