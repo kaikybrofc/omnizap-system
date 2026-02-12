@@ -104,7 +104,8 @@ export const handleRpgPokemonCommand = async ({ sock, remoteJid, messageInfo, ex
     const mentions = Array.isArray(result?.mentions) ? result.mentions.filter(Boolean) : [];
     const imageBuffer = Buffer.isBuffer(result?.imageBuffer) ? result.imageBuffer : null;
     const imageUrl = typeof result?.imageUrl === 'string' && result.imageUrl.trim() ? result.imageUrl.trim() : null;
-    const caption = typeof result?.caption === 'string' && result.caption.trim() ? result.caption.trim() : responseText;
+    const resultCaption = typeof result?.caption === 'string' && result.caption.trim() ? result.caption.trim() : null;
+    const caption = result?.preferResultCaption && resultCaption ? resultCaption : responseText;
     const sendTextAfterImage = Boolean(result?.sendTextAfterImage);
 
     if (imageBuffer) {

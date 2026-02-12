@@ -2012,6 +2012,9 @@ const handleProfile = async ({ ownerJid, chatJid, commandPrefix }) => {
     },
     pokemonSnapshotFallback: activeSnapshot,
     caption: `📘 Perfil RPG de ${toMentionLabel(ownerJid)} | Lv.${playerLevelProgress.level}`,
+    extra: {
+      preferResultCaption: true,
+    },
   });
 };
 
