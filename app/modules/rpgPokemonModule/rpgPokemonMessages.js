@@ -27,6 +27,21 @@ const itemEmoji = (itemKey) => {
   return '🎒';
 };
 
+const itemMeaning = (item = {}) => {
+  const text = String(item?.description || item?.loreText || '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  return text || 'Item utilitário do RPG.';
+};
+
+const itemUseCommand = ({ item = {}, prefix = '/' }) => {
+  const key = String(item?.key || '').trim() || '<item>';
+  if (item?.isMachine) return `${prefix}rpg tm usar ${key} <1-4>`;
+  if (item?.isBerry) return `${prefix}rpg berry usar ${key}`;
+  if (item?.isPokeball) return `${prefix}rpg usar ${key} (em batalha)`;
+  return `${prefix}rpg usar ${key}`;
+};
+
 const hpBar = (current, max, size = 10) => {
   const safeMax = Math.max(1, toNumber(max, 1));
   const safeCurrent = Math.max(0, Math.min(safeMax, toNumber(current, 0)));
@@ -108,7 +123,7 @@ export const buildUsageText = (prefix = '/') =>
   ].join('\n');
 
 export const buildRpgHelpText = (prefix = '/') => {
-  const lines = ['📘 *RPG Pokémon - Help Completo*', '', `Prefixo atual: *${prefix}*`, '', '🚀 *Começo Rápido*', `1) ${prefix}rpg start`, `2) ${prefix}rpg perfil`, `3) ${prefix}rpg explorar`, `4) ${prefix}rpg atacar 1`, `5) ${prefix}rpg capturar`, '', '⚔️ *Batalha e Progressão*', `• ${prefix}rpg start`, 'Cria sua conta e entrega kit inicial.', `Exemplo: ${prefix}rpg start`, '', `• ${prefix}rpg perfil`, 'Mostra nível, XP, gold e Pokémon ativo.', `Exemplo: ${prefix}rpg perfil`, '', `• ${prefix}rpg explorar`, 'Inicia encontro selvagem.', `Exemplo: ${prefix}rpg explorar`, '', `• ${prefix}rpg atacar <1-4>`, 'Usa o golpe do slot escolhido.', `Exemplo: ${prefix}rpg atacar 2`, '', `• ${prefix}rpg capturar`, 'Tenta capturar usando Poké Bola comum.', `Exemplo: ${prefix}rpg capturar`, '', `• ${prefix}rpg fugir`, 'Encerra a batalha ativa.', `Exemplo: ${prefix}rpg fugir`, '', `• ${prefix}rpg ginasio`, 'Inicia batalha de ginásio.', `Exemplo: ${prefix}rpg ginasio`, '', '👥 *Time, Itens e Evolução*', `• ${prefix}rpg time`, 'Lista seu time completo e ID de cada Pokémon.', `Exemplo: ${prefix}rpg time`, '', `• ${prefix}rpg escolher <pokemon_id>`, 'Define qual Pokémon fica ativo.', `Exemplo: ${prefix}rpg escolher 12`, '', `• ${prefix}rpg bolsa`, 'Lista itens no inventário.', `Exemplo: ${prefix}rpg bolsa`, '', `• ${prefix}rpg loja`, 'Mostra itens disponíveis para compra.', `Exemplo: ${prefix}rpg loja`, '', `• ${prefix}rpg comprar <item> <qtd>`, 'Compra item da loja.', `Exemplo: ${prefix}rpg comprar pokeball 5`, '', `• ${prefix}rpg usar <item>`, 'Usa item de cura, evolução ou captura.', `Exemplo: ${prefix}rpg usar potion`, '', `• ${prefix}rpg pokedex`, 'Mostra progresso da Pokédex.', `Exemplo: ${prefix}rpg pokedex`, '', `• ${prefix}rpg evolucao <pokemon|id>`, 'Mostra linha evolutiva do alvo.', `Exemplo: ${prefix}rpg evolucao pikachu`, '', `• ${prefix}rpg missoes`, 'Exibe missões diária/semanal.', `Exemplo: ${prefix}rpg missoes`, '', '🧭 *Viagem e Conteúdo Avançado*', `• ${prefix}rpg viajar [regiao]`, 'Sem região: mostra status. Com região: viaja.', `Exemplo: ${prefix}rpg viajar paldea`, '', `• ${prefix}rpg tm listar`, 'Lista TMs na bolsa.', `Exemplo: ${prefix}rpg tm listar`, '', `• ${prefix}rpg tm usar <tm> <1-4>`, 'Ensina golpe no slot informado.', `Exemplo: ${prefix}rpg tm usar tm-thunderbolt 1`, '', `• ${prefix}rpg berry listar`, 'Lista berries disponíveis.', `Exemplo: ${prefix}rpg berry listar`, '', `• ${prefix}rpg berry usar <item>`, 'Usa berry no Pokémon ativo.', `Exemplo: ${prefix}rpg berry usar oran-berry`, '', `• ${prefix}rpg raid <iniciar|entrar|atacar|status>`, 'Sistema de boss em grupo.', `Exemplo: ${prefix}rpg raid iniciar`, '', '🥊 *PvP e Interação Social*', `• ${prefix}rpg desafiar <jid/@numero>`, 'Cria desafio direto contra outro jogador.', `Exemplo: ${prefix}rpg desafiar @usuario`, '', `• ${prefix}rpg pvp status`, 'Mostra desafios pendentes/ativos.', `Exemplo: ${prefix}rpg pvp status`, '', `• ${prefix}rpg pvp fila <entrar|sair|status>`, 'Matchmaking automático no grupo.', `Exemplo: ${prefix}rpg pvp fila entrar`, '', `• ${prefix}rpg pvp ranking`, 'Ranking semanal de PvP.', `Exemplo: ${prefix}rpg pvp ranking`, '', `• ${prefix}rpg pvp revanche [@usuario]`, 'Cria revanche com último rival ou alvo informado.', `Exemplo: ${prefix}rpg pvp revanche`, '', `• ${prefix}rpg pvp aceitar <id>`, `• ${prefix}rpg pvp recusar <id>`, `• ${prefix}rpg pvp atacar <1-4>`, `• ${prefix}rpg pvp fugir`, '', `• ${prefix}rpg trade <status|propor|aceitar|recusar|cancelar>`, 'Sistema de trocas entre jogadores.', `Exemplo: ${prefix}rpg trade propor @usuario item:potion:2 pokemon:15`, '', `• ${prefix}rpg coop`, 'Status da missão cooperativa semanal.', `Exemplo: ${prefix}rpg coop`, '', `• ${prefix}rpg evento <status|claim>`, 'Evento semanal do grupo e resgate de recompensa.', `Exemplo: ${prefix}rpg evento claim`, '', `• ${prefix}rpg social [status @usuario]`, 'Painel social e vínculo entre jogadores.', `Exemplo: ${prefix}rpg social status @usuario`, '', `• ${prefix}rpg karma <status|top|+|->`, 'Sistema de reputação.', `Exemplo: ${prefix}rpg karma + @usuario`, '', `• ${prefix}rpg engajamento`, 'Métricas de atividade/retensão do grupo.', `Exemplo: ${prefix}rpg engajamento`, '', `💡 *Dicas*`, '1) Use IDs do comando time para escolher/trocar Pokémon ativo.', '2) Em batalha: primeiro ataque para baixar HP, depois capture.', `3) Para ajuda a qualquer momento: use ${prefix}rpg help ou ${prefix}rpg ajuda.`];
+  const lines = ['📘 *RPG Pokémon - Help Completo*', '', `Prefixo atual: *${prefix}*`, '', '🚀 *Começo Rápido*', `1) ${prefix}rpg start`, `2) ${prefix}rpg perfil`, `3) ${prefix}rpg explorar`, `4) ${prefix}rpg atacar 1`, `5) ${prefix}rpg capturar`, '', '⚔️ *Batalha e Progressão*', `• ${prefix}rpg start`, 'Cria sua conta e entrega kit inicial.', `Exemplo: ${prefix}rpg start`, '', `• ${prefix}rpg perfil`, 'Mostra nível, XP, gold e Pokémon ativo.', `Exemplo: ${prefix}rpg perfil`, '', `• ${prefix}rpg explorar`, 'Inicia encontro selvagem.', `Exemplo: ${prefix}rpg explorar`, '', `• ${prefix}rpg atacar <1-4>`, 'Usa o golpe do slot escolhido.', `Exemplo: ${prefix}rpg atacar 2`, '', `• ${prefix}rpg capturar`, 'Tenta capturar usando Poké Bola comum.', `Exemplo: ${prefix}rpg capturar`, '', `• ${prefix}rpg fugir`, 'Encerra a batalha ativa.', `Exemplo: ${prefix}rpg fugir`, '', `• ${prefix}rpg ginasio`, 'Inicia batalha de ginásio.', `Exemplo: ${prefix}rpg ginasio`, '', '👥 *Time, Itens e Evolução*', `• ${prefix}rpg time`, 'Lista seu time completo e ID de cada Pokémon.', `Exemplo: ${prefix}rpg time`, '', `• ${prefix}rpg escolher <pokemon_id>`, 'Define qual Pokémon fica ativo.', `Exemplo: ${prefix}rpg escolher 12`, '', `• ${prefix}rpg bolsa`, 'Lista itens no inventário.', `Exemplo: ${prefix}rpg bolsa`, '', `• ${prefix}rpg loja`, 'Mostra itens disponíveis para compra.', `Exemplo: ${prefix}rpg loja`, '', `• ${prefix}rpg comprar <item> <qtd>`, 'Compra item da loja.', `Exemplo: ${prefix}rpg comprar pokeball 5`, '', `• ${prefix}rpg usar <item>`, 'Usa item de cura, evolução ou captura.', `Exemplo: ${prefix}rpg usar pocao`, '', `• ${prefix}rpg pokedex`, 'Mostra progresso da Pokédex.', `Exemplo: ${prefix}rpg pokedex`, '', `• ${prefix}rpg evolucao <pokemon|id>`, 'Mostra linha evolutiva do alvo.', `Exemplo: ${prefix}rpg evolucao pikachu`, '', `• ${prefix}rpg missoes`, 'Exibe missões diária/semanal.', `Exemplo: ${prefix}rpg missoes`, '', '🧭 *Viagem e Conteúdo Avançado*', `• ${prefix}rpg viajar [regiao]`, 'Sem região: mostra status. Com região: viaja.', `Exemplo: ${prefix}rpg viajar paldea`, '', `• ${prefix}rpg tm listar`, 'Lista TMs na bolsa.', `Exemplo: ${prefix}rpg tm listar`, '', `• ${prefix}rpg tm usar <tm> <1-4>`, 'Ensina golpe no slot informado.', `Exemplo: ${prefix}rpg tm usar tm-thunderbolt 1`, '', `• ${prefix}rpg berry listar`, 'Lista berries disponíveis.', `Exemplo: ${prefix}rpg berry listar`, '', `• ${prefix}rpg berry usar <item>`, 'Usa berry no Pokémon ativo.', `Exemplo: ${prefix}rpg berry usar oran-berry`, '', `• ${prefix}rpg raid <iniciar|entrar|atacar|status>`, 'Sistema de boss em grupo.', `Exemplo: ${prefix}rpg raid iniciar`, '', '🥊 *PvP e Interação Social*', `• ${prefix}rpg desafiar <jid/@numero>`, 'Cria desafio direto contra outro jogador.', `Exemplo: ${prefix}rpg desafiar @usuario`, '', `• ${prefix}rpg pvp status`, 'Mostra desafios pendentes/ativos.', `Exemplo: ${prefix}rpg pvp status`, '', `• ${prefix}rpg pvp fila <entrar|sair|status>`, 'Matchmaking automático no grupo.', `Exemplo: ${prefix}rpg pvp fila entrar`, '', `• ${prefix}rpg pvp ranking`, 'Ranking semanal de PvP.', `Exemplo: ${prefix}rpg pvp ranking`, '', `• ${prefix}rpg pvp revanche [@usuario]`, 'Cria revanche com último rival ou alvo informado.', `Exemplo: ${prefix}rpg pvp revanche`, '', `• ${prefix}rpg pvp aceitar <id>`, `• ${prefix}rpg pvp recusar <id>`, `• ${prefix}rpg pvp atacar <1-4>`, `• ${prefix}rpg pvp fugir`, '', `• ${prefix}rpg trade <status|propor|aceitar|recusar|cancelar>`, 'Sistema de trocas entre jogadores.', `Exemplo: ${prefix}rpg trade propor @usuario item:potion:2 pokemon:15`, '', `• ${prefix}rpg coop`, 'Status da missão cooperativa semanal.', `Exemplo: ${prefix}rpg coop`, '', `• ${prefix}rpg evento <status|claim>`, 'Evento semanal do grupo e resgate de recompensa.', `Exemplo: ${prefix}rpg evento claim`, '', `• ${prefix}rpg social [status @usuario]`, 'Painel social e vínculo entre jogadores.', `Exemplo: ${prefix}rpg social status @usuario`, '', `• ${prefix}rpg karma <status|top|+|->`, 'Sistema de reputação.', `Exemplo: ${prefix}rpg karma + @usuario`, '', `• ${prefix}rpg engajamento`, 'Métricas de atividade/retensão do grupo.', `Exemplo: ${prefix}rpg engajamento`, '', `💡 *Dicas*`, '1) Use IDs do comando time para escolher/trocar Pokémon ativo.', '2) Em batalha: primeiro ataque para baixar HP, depois capture.', `3) Para ajuda a qualquer momento: use ${prefix}rpg help ou ${prefix}rpg ajuda.`];
 
   return lines.join('\n');
 };
@@ -131,7 +146,7 @@ export const buildStartText = ({ isNewPlayer, starterPokemon, prefix = '/' }) =>
     `🆔 ID no seu time: *${starterPokemon.id}*`,
     ...(starterPokemon?.flavorText ? ['', `📖 ${starterPokemon.flavorText}`] : []),
     '',
-    '🎁 Kit inicial: 4x Poke Bola + 3x Potion',
+    '🎁 Kit inicial: 4x Poke Bola + 3x Poção',
     '',
     `➡️ Próximos: ${prefix}rpg perfil | ${prefix}rpg explorar`,
     `💡 Dica: explore com frequência para subir nível e capturar novos Pokémon.`,
@@ -315,7 +330,7 @@ export const buildNeedActivePokemonText = (prefix = '/') =>
   ['⚠️ *Sem Pokémon ativo para batalhar*', '', `👉 Use: ${prefix}rpg time`, `➡️ Depois: ${prefix}rpg escolher <pokemon_id>`].join('\n');
 
 export const buildPokemonFaintedText = (prefix = '/') =>
-  ['💥 *Seu Pokémon ativo está sem HP*', '', `🔁 Escolha outro: ${prefix}rpg escolher <pokemon_id>`, `💡 Dica: use potion/superpotion com ${prefix}rpg usar <item>`].join('\n');
+  ['💥 *Seu Pokémon ativo está sem HP*', '', `🔁 Escolha outro: ${prefix}rpg escolher <pokemon_id>`, `💡 Dica: use pocao/superpocao com ${prefix}rpg usar <item>`].join('\n');
 
 export const buildBattleStartText = ({ battleSnapshot, prefix = '/' }) => {
   const my = battleSnapshot.my;
@@ -396,7 +411,7 @@ export const buildBattleTurnText = ({ logs = [], battleSnapshot, prefix = '/', r
     lines.push('💥 Seu Pokémon desmaiou.');
     lines.push('❌ Batalha perdida e encerrada.');
     lines.push(`➡️ Próximo: ${prefix}rpg escolher <pokemon_id>`);
-    lines.push(`💡 Dica: recupere HP com ${prefix}rpg usar potion`);
+    lines.push(`💡 Dica: recupere HP com ${prefix}rpg usar pocao`);
     return lines.join('\n');
   }
 
@@ -447,8 +462,18 @@ export const buildFleeText = (prefix = '/') => ['🏃 Você fugiu da batalha com
 export const buildNoBattleText = (prefix = '/') => ['⚠️ Nenhuma batalha ativa no momento.', '', `👉 Use: ${prefix}rpg explorar`].join('\n');
 
 export const buildShopText = ({ items, prefix = '/' }) => {
-  const itemLines = items.map((item) => `• ${itemEmoji(item.key)} *${item.label || item.key}* [${item.key}] — ${item.price} gold (${item.description})`);
-  return ['🛒 *Loja RPG*', '', 'Itens disponíveis:', ...itemLines, '', `🧾 Comprar: ${prefix}rpg comprar <item> <qtd>`, `🎒 Usar item: ${prefix}rpg usar <item>`, '💡 Dica: mantenha pokeball e potion na bolsa antes de explorar.'].join('\n');
+  const itemLines = items.map((item) => `• ${itemEmoji(item.key)} *${item.label || item.key}* [${item.key}] — ${item.price} gold | Para que serve: ${itemMeaning(item)} | Como usar: ${itemUseCommand({ item, prefix })}`);
+  return [
+    '🛒 *Loja RPG*',
+    '',
+    'Itens disponíveis:',
+    ...itemLines,
+    '',
+    `🧾 Comprar: ${prefix}rpg comprar <item> <qtd>`,
+    `🎒 Usar por nome: ${prefix}rpg usar <item>`,
+    `🔢 Usar por número da bolsa: ${prefix}rpg usar <slot>`,
+    '💡 Dica: mantenha pokeball e pocao na bolsa antes de explorar.',
+  ].join('\n');
 };
 
 export const buildBuySuccessText = ({ item, quantity, totalPrice, goldLeft, prefix = '/' }) =>
@@ -460,7 +485,7 @@ export const buildBuyErrorText = ({ reason = 'erro', rescue = null, prefix = '/'
   if (reason === 'battle_active') return `⚔️ Compra bloqueada durante batalha ativa.\n\n👉 Finalize a batalha com: ${prefix}rpg atacar <1-4> | ${prefix}rpg fugir`;
   if (reason === 'not_enough_gold') {
     if (rescue) {
-      return ['🪙 Gold insuficiente para essa compra.', '', `🆘 Ajuda emergencial recebida: +${toNumber(rescue?.grantedGold, 0)} gold e +${toNumber(rescue?.grantedPotions, 0)} Potion`, `🪙 Gold atual: *${toNumber(rescue?.nextGold, 0)}*`, '', `👉 Próximos: ${prefix}rpg usar potion | ${prefix}rpg explorar`].join('\n');
+      return ['🪙 Gold insuficiente para essa compra.', '', `🆘 Ajuda emergencial recebida: +${toNumber(rescue?.grantedGold, 0)} gold e +${toNumber(rescue?.grantedPotions, 0)} Poção`, `🪙 Gold atual: *${toNumber(rescue?.nextGold, 0)}*`, '', `👉 Próximos: ${prefix}rpg usar pocao | ${prefix}rpg explorar`].join('\n');
     }
     return `🪙 Gold insuficiente para essa compra.\n\n💡 Dica: vença batalhas e missões para ganhar mais gold.\n👉 Use: ${prefix}rpg loja`;
   }
@@ -471,14 +496,24 @@ export const buildBattleAlreadyActiveText = (prefix = '/') =>
   ['⚔️ Você já está em batalha ativa.', '', `➡️ Ações: ${prefix}rpg atacar <1-4> | ${prefix}rpg capturar | ${prefix}rpg usar pokeball | ${prefix}rpg fugir`].join('\n');
 
 export const buildUseItemUsageText = (prefix = '/') =>
-  ['🎒 *Uso de item*', '', `${prefix}rpg usar <item>`, '', `💡 Dica: veja nomes válidos em ${prefix}rpg bolsa ou ${prefix}rpg loja`].join('\n');
+  [
+    '🎒 *Uso de item*',
+    '',
+    `• Por nome: ${prefix}rpg usar <item>`,
+    `• Por slot da bolsa: ${prefix}rpg usar <numero>`,
+    `• Poké Bola (em batalha): ${prefix}rpg usar pokeball`,
+    `• TM: ${prefix}rpg tm usar <tm> <1-4>`,
+    `• Berry: ${prefix}rpg berry usar <item>`,
+    '',
+    `💡 Veja itens e slots em: ${prefix}rpg bolsa`,
+  ].join('\n');
 
 export const buildUseItemErrorText = ({ reason = 'invalid_item', prefix = '/' }) => {
   if (reason === 'invalid_item') return `❌ Item inválido para uso.\n${buildUseItemUsageText(prefix)}`;
-  if (reason === 'no_item') return `🎒 Você não tem esse item na bolsa.\n🛒 Compre em: ${prefix}rpg loja`;
+  if (reason === 'no_item') return `🎒 Você não tem esse item na bolsa.\n📦 Confira sua bolsa: ${prefix}rpg bolsa\n🛒 Comprar: ${prefix}rpg loja`;
   if (reason === 'full_hp') return `❤️ Seu Pokémon já está com HP cheio.\n➡️ Próximo: ${prefix}rpg explorar`;
   if (reason === 'no_active_pokemon') return `⚠️ Você não possui Pokémon ativo.\n👉 Use: ${prefix}rpg escolher <pokemon_id>`;
-  if (reason === 'no_battle_for_pokeball') return `⚪ Poké Bola só pode ser usada em batalha.\n👉 Inicie uma batalha: ${prefix}rpg explorar`;
+  if (reason === 'no_battle_for_pokeball') return `⚪ Poké Bola só pode ser usada em batalha.\n👉 Inicie uma batalha: ${prefix}rpg explorar\n💡 Durante a luta: ${prefix}rpg usar pokeball ou ${prefix}rpg capturar`;
   return `❌ Não foi possível usar item agora.\n➡️ Próximo: ${prefix}rpg perfil`;
 };
 
@@ -486,15 +521,25 @@ export const buildUsePotionSuccessText = ({ itemLabel, healedAmount, pokemonName
   ['🧪 *Item usado com sucesso!*', '', `• Item: *${itemLabel}*`, `• Alvo: *${formatName(pokemonName)}* (+${healedAmount} HP)`, `• ❤️ HP atual: ${currentHp}/${maxHp}`, `• 🎒 ${itemLabel} restantes: ${quantityLeft}`, ...(itemLore ? ['', `📖 ${itemLore}`] : []), '', `➡️ Próximos: ${prefix}rpg atacar <1-4> | ${prefix}rpg explorar`].join('\n');
 
 export const buildEconomyRescueText = ({ goldGranted = 0, potionGranted = 0, goldTotal = 0, prefix = '/' }) =>
-  ['🆘 *Ajuda de emergência liberada!*', '', `🪙 +${toNumber(goldGranted, 0)} gold | 🧪 +${toNumber(potionGranted, 0)} Potion`, `💰 Gold atual: *${toNumber(goldTotal, 0)}*`, '', `➡️ Próximos: ${prefix}rpg usar potion | ${prefix}rpg explorar`].join('\n');
+  ['🆘 *Ajuda de emergência liberada!*', '', `🪙 +${toNumber(goldGranted, 0)} gold | 🧪 +${toNumber(potionGranted, 0)} Poção`, `💰 Gold atual: *${toNumber(goldTotal, 0)}*`, '', `➡️ Próximos: ${prefix}rpg usar pocao | ${prefix}rpg explorar`].join('\n');
 
 export const buildBagText = ({ items = [], gold = 0, prefix = '/' }) => {
   if (!items.length) {
     return ['🎒 *Sua Bolsa*', '', `🪙 Gold: *${gold}*`, '📭 Sem itens no momento.', '', `🛒 Compre em: ${prefix}rpg loja`].join('\n');
   }
 
-  const lines = items.map((item) => `• ${itemEmoji(item.key)} ${item.label}: ${item.quantity}${item?.loreText ? ` — ${item.loreText}` : ''}`);
-  return ['🎒 *Sua Bolsa*', '', `🪙 Gold: *${gold}*`, '', ...lines, '', `🧾 Usar: ${prefix}rpg usar <item>`, `💡 Dica: confira preços em ${prefix}rpg loja`].join('\n');
+  const lines = items.map((item) => `${item.slot || '•'}${item.slot ? ')' : ''} ${itemEmoji(item.key)} ${item.label} [${item.key}] x${item.quantity} | Para que serve: ${itemMeaning(item)} | Usar: ${prefix}rpg usar ${item.slot || item.key}`);
+  return [
+    '🎒 *Sua Bolsa*',
+    '',
+    `🪙 Gold: *${gold}*`,
+    '',
+    ...lines,
+    '',
+    `🧾 Usar por nome: ${prefix}rpg usar <item>`,
+    `🔢 Usar por número: ${prefix}rpg usar <slot>`,
+    `💡 Dica: confira preços e significado dos itens em ${prefix}rpg loja`,
+  ].join('\n');
 };
 
 const missionLine = (label, current, target) => `• ${label}: ${Math.max(0, current)}/${target}`;

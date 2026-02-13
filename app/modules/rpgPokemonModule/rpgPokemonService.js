@@ -130,9 +130,9 @@ const areaEncounterCache = globalThis.__omnizapRpgAreaEncounterCache instanceof 
 globalThis.__omnizapRpgAreaEncounterCache = areaEncounterCache;
 
 const BASE_SHOP_ITEMS = [
-  { key: 'pokeball', label: 'Poke Bola', price: 70, description: 'Item de captura' },
-  { key: 'potion', label: 'Potion', price: 35, description: `Recupera ${POTION_HEAL_HP} HP` },
-  { key: 'superpotion', label: 'Super Potion', price: 95, description: `Recupera ${SUPER_POTION_HEAL_HP} HP` },
+  { key: 'pokeball', label: 'Poke Bola', price: 70, description: 'Captura um Pokémon durante batalha.' },
+  { key: 'potion', label: 'Poção', price: 35, description: `Recupera ${POTION_HEAL_HP} HP do Pokémon ativo.` },
+  { key: 'superpotion', label: 'Super Poção', price: 95, description: `Recupera ${SUPER_POTION_HEAL_HP} HP do Pokémon ativo.` },
 ];
 
 const BASE_SHOP_INDEX = new Map(BASE_SHOP_ITEMS.map((item) => [item.key, item]));
@@ -261,6 +261,35 @@ const resolveCategoryKey = (itemData) =>
     .trim()
     .toLowerCase();
 
+const resolveItemMeaningText = ({ isPokeball, isMachine, isBerry, isMedicine, category = '', healAmount = 0, catchBonus = 0, guaranteedCapture = false }) => {
+  if (isPokeball) {
+    if (guaranteedCapture) return 'Captura garantida durante batalha.';
+    const bonusText = catchBonus > 0 ? ` com bônus de captura +${Math.round(catchBonus * 100)}%` : '';
+    return `Captura Pokémon durante batalha${bonusText}.`;
+  }
+
+  if (isMachine) {
+    return 'TM que ensina um golpe para o Pokémon ativo (consome ao usar).';
+  }
+
+  if (String(category).includes('evolution')) {
+    return 'Item evolutivo: evolui Pokémon compatível.';
+  }
+
+  if (isMedicine) {
+    if (healAmount >= 9999) return 'Recupera todo o HP do Pokémon ativo.';
+    if (healAmount > 0) return `Recupera ${healAmount} HP do Pokémon ativo.`;
+    return 'Recupera HP do Pokémon ativo.';
+  }
+
+  if (isBerry) {
+    const bonusText = catchBonus > 0 ? ` e aplica bônus de captura +${Math.round(catchBonus * 100)}% em batalha` : '';
+    return `Berry de suporte: recupera cerca de 15% do HP${bonusText}.`;
+  }
+
+  return 'Item especial para uso no RPG.';
+};
+
 const buildShopItemFromApi = (itemData) => {
   const key = normalizeItemToken(itemData?.name || '');
   const localizedLabel = getLocalizedName(itemData?.names, itemData?.name || key);
@@ -278,6 +307,18 @@ const buildShopItemFromApi = (itemData) => {
   const isMachine = pocket === 'machines' || category.includes('machines');
   const isBerry = pocket === 'berries' || category.includes('berries');
   const isMedicine = pocket === 'medicine' || category.includes('medicine') || healAmount > 0;
+  const catchBonus = isPokeball ? resolveCatchBonusByBall(key) : isBerry ? 0.08 : 0;
+  const guaranteedCapture = key === 'masterball';
+  const description = resolveItemMeaningText({
+    isPokeball,
+    isMachine,
+    isBerry,
+    isMedicine,
+    category,
+    healAmount,
+    catchBonus,
+    guaranteedCapture,
+  });
 
   return {
     key,
@@ -287,11 +328,11 @@ const buildShopItemFromApi = (itemData) => {
         .toLowerCase() || key,
     label,
     price: cost,
-    description: trimLoreText(effect || loreText || 'Item Pokémon', 120),
+    description: trimLoreText(description || effect || loreText || 'Item Pokémon', 120),
     loreText: trimLoreText(loreText || effect || '', 180),
     healAmount,
-    catchBonus: isPokeball ? resolveCatchBonusByBall(key) : 0,
-    guaranteedCapture: key === 'masterball',
+    catchBonus,
+    guaranteedCapture,
     pocket,
     category,
     isPokeball,
@@ -1560,8 +1601,7 @@ const resolveMostUsedPokemonLabel = ({ challenges = [], ownerJid, fallback = nul
   for (const challenge of challenges || []) {
     const players = challenge?.battle_snapshot_json?.players || {};
     const pokemon = players?.[ownerJid]?.pokemon || {};
-    const label = String(pokemon?.displayName || pokemon?.name || '')
-      .trim();
+    const label = String(pokemon?.displayName || pokemon?.name || '').trim();
     if (!label) continue;
     usage.set(label, (usage.get(label) || 0) + 1);
   }
@@ -1624,9 +1664,7 @@ const resolveProfileGoals = ({ pokedexUnique = 0, dailyMission, weeklyMission, k
     goals.push(`📘 Faltam ${nextMilestone - pokedexUnique} registros para Pokédex ${nextMilestone}.`);
   }
 
-  const dailyRemaining = Math.max(0, toInt(dailyMission?.target?.[MISSION_KEYS.EXPLORE], 0) - toInt(dailyMission?.explorar, 0))
-    + Math.max(0, toInt(dailyMission?.target?.[MISSION_KEYS.WIN], 0) - toInt(dailyMission?.vitorias, 0))
-    + Math.max(0, toInt(dailyMission?.target?.[MISSION_KEYS.CAPTURE], 0) - toInt(dailyMission?.capturas, 0));
+  const dailyRemaining = Math.max(0, toInt(dailyMission?.target?.[MISSION_KEYS.EXPLORE], 0) - toInt(dailyMission?.explorar, 0)) + Math.max(0, toInt(dailyMission?.target?.[MISSION_KEYS.WIN], 0) - toInt(dailyMission?.vitorias, 0)) + Math.max(0, toInt(dailyMission?.target?.[MISSION_KEYS.CAPTURE], 0) - toInt(dailyMission?.capturas, 0));
   if (dailyRemaining > 0) {
     goals.push(`☀️ Diária: faltam ${dailyRemaining} ação(ões) para concluir.`);
   } else if (dailyMission?.completed && !dailyMission?.claimed) {
@@ -1638,9 +1676,7 @@ const resolveProfileGoals = ({ pokedexUnique = 0, dailyMission, weeklyMission, k
   } else if (Number.isFinite(Number(pvpWeeklyRank)) && pvpWeeklyRank > 1) {
     goals.push(`🏆 PvP semanal: você está em #${pvpWeeklyRank} com ${pvpWeeklyPoints} pts.`);
   } else if (weeklyMission && !weeklyMission.completed) {
-    const weeklyRemaining = Math.max(0, toInt(weeklyMission?.target?.[MISSION_KEYS.EXPLORE], 0) - toInt(weeklyMission?.explorar, 0))
-      + Math.max(0, toInt(weeklyMission?.target?.[MISSION_KEYS.WIN], 0) - toInt(weeklyMission?.vitorias, 0))
-      + Math.max(0, toInt(weeklyMission?.target?.[MISSION_KEYS.CAPTURE], 0) - toInt(weeklyMission?.capturas, 0));
+    const weeklyRemaining = Math.max(0, toInt(weeklyMission?.target?.[MISSION_KEYS.EXPLORE], 0) - toInt(weeklyMission?.explorar, 0)) + Math.max(0, toInt(weeklyMission?.target?.[MISSION_KEYS.WIN], 0) - toInt(weeklyMission?.vitorias, 0)) + Math.max(0, toInt(weeklyMission?.target?.[MISSION_KEYS.CAPTURE], 0) - toInt(weeklyMission?.capturas, 0));
     goals.push(`📅 Semanal: faltam ${weeklyRemaining} ação(ões) para concluir.`);
   }
 
@@ -1707,37 +1743,7 @@ const handleProfile = async ({ ownerJid, chatJid, commandPrefix }) => {
 
   const currentWeekRefDate = getCurrentWeekRefDate();
 
-  const [
-    active,
-    teamRows,
-    karmaProfile,
-    socialSummary,
-    inventoryRows,
-    uniquePokedexTotal,
-    pokedexTotal,
-    latestPokedexRows,
-    pvpWeeklyStats,
-    pvpWeeklyRank,
-    pvpLifetimeStats,
-    recentPvpChallenges,
-    profileProgress,
-    shopCatalog,
-  ] = await Promise.all([
-    getActivePlayerPokemon(ownerJid),
-    listPlayerPokemons(ownerJid),
-    getKarmaProfile(ownerJid),
-    getSocialSummaryByOwner(ownerJid),
-    getInventoryItems(ownerJid),
-    countPokedexEntries(ownerJid),
-    resolveNationalPokedexTotal(),
-    listPokedexEntries(ownerJid, 1),
-    getPvpWeeklyStatsByOwner(currentWeekRefDate, ownerJid),
-    getPvpWeeklyRankByOwner(currentWeekRefDate, ownerJid),
-    getPvpLifetimeStatsByOwner(ownerJid),
-    listRecentFinishedPvpByPlayer(ownerJid, 20),
-    loadProfileProgressContext({ ownerJid, chatJid }),
-    getShopCatalog(),
-  ]);
+  const [active, teamRows, karmaProfile, socialSummary, inventoryRows, uniquePokedexTotal, pokedexTotal, latestPokedexRows, pvpWeeklyStats, pvpWeeklyRank, pvpLifetimeStats, recentPvpChallenges, profileProgress, shopCatalog] = await Promise.all([getActivePlayerPokemon(ownerJid), listPlayerPokemons(ownerJid), getKarmaProfile(ownerJid), getSocialSummaryByOwner(ownerJid), getInventoryItems(ownerJid), countPokedexEntries(ownerJid), resolveNationalPokedexTotal(), listPokedexEntries(ownerJid, 1), getPvpWeeklyStatsByOwner(currentWeekRefDate, ownerJid), getPvpWeeklyRankByOwner(currentWeekRefDate, ownerJid), getPvpLifetimeStatsByOwner(ownerJid), listRecentFinishedPvpByPlayer(ownerJid, 20), loadProfileProgressContext({ ownerJid, chatJid }), getShopCatalog()]);
   let activeDisplay = null;
   let activeSnapshot = null;
 
@@ -3447,7 +3453,24 @@ const handleBerry = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
 
 const handleUse = async ({ ownerJid, commandPrefix, itemToken }) => {
   const { index, aliasMap } = await getShopCatalog();
-  const normalizedItem = resolveCatalogItemKey(itemToken, aliasMap);
+  const rawItemToken = String(itemToken || '')
+    .trim()
+    .toLowerCase();
+
+  if (!rawItemToken || rawItemToken === 'ajuda' || rawItemToken === 'help') {
+    return { ok: true, text: buildUseItemUsageText(commandPrefix) };
+  }
+
+  let normalizedItem = null;
+  if (/^\d+$/.test(rawItemToken)) {
+    const targetSlot = toInt(rawItemToken, 0);
+    const inventoryRows = await getInventoryItems(ownerJid);
+    const inventoryView = buildInventoryView({ inventoryRows, index });
+    normalizedItem = inventoryView.find((entry) => entry.slot === targetSlot)?.key || null;
+  } else {
+    normalizedItem = resolveCatalogItemKey(rawItemToken, aliasMap);
+  }
+
   if (!normalizedItem) {
     return { ok: true, text: buildUseItemUsageText(commandPrefix) };
   }
@@ -3499,6 +3522,32 @@ const toMissionView = ({ progress, target, claimedAt }) => {
   };
 };
 
+const buildInventoryView = ({ inventoryRows = [], index }) => {
+  return inventoryRows
+    .filter((item) => toInt(item?.quantity, 0) > 0)
+    .map((item) => {
+      const key = normalizeItemToken(item?.item_key);
+      const itemMeta = index.get(key) || null;
+      return {
+        key,
+        label: itemMeta?.label || toTitleCase(item?.item_key),
+        description: trimLoreText(itemMeta?.description || '', 120),
+        loreText: trimLoreText(itemMeta?.loreText || '', 90),
+        quantity: toInt(item?.quantity, 0),
+        isPokeball: Boolean(itemMeta?.isPokeball),
+        isMachine: Boolean(itemMeta?.isMachine),
+        isBerry: Boolean(itemMeta?.isBerry),
+        isMedicine: Boolean(itemMeta?.isMedicine),
+        category: String(itemMeta?.category || ''),
+      };
+    })
+    .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'pt-BR'))
+    .map((entry, idx) => ({
+      ...entry,
+      slot: idx + 1,
+    }));
+};
+
 const handleBag = async ({ ownerJid, commandPrefix }) => {
   const player = await getPlayerByJid(ownerJid);
   if (!player) {
@@ -3506,15 +3555,8 @@ const handleBag = async ({ ownerJid, commandPrefix }) => {
   }
 
   const { index } = await getShopCatalog();
-  const items = await getInventoryItems(ownerJid);
-  const formattedItems = items
-    .filter((item) => toInt(item.quantity, 0) > 0)
-    .map((item) => ({
-      key: normalizeItemToken(item.item_key),
-      label: index.get(normalizeItemToken(item.item_key))?.label || toTitleCase(item.item_key),
-      loreText: trimLoreText(index.get(normalizeItemToken(item.item_key))?.loreText || '', 90),
-      quantity: toInt(item.quantity, 0),
-    }));
+  const inventoryRows = await getInventoryItems(ownerJid);
+  const formattedItems = buildInventoryView({ inventoryRows, index });
 
   return {
     ok: true,
