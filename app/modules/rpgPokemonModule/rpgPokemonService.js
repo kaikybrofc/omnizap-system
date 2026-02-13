@@ -188,7 +188,15 @@ const ITEM_CATEGORY_DEFINITIONS = [
 ];
 
 const ITEM_CATEGORY_LABEL_MAP = new Map(ITEM_CATEGORY_DEFINITIONS.map((entry) => [entry.key, entry.label]));
-const ITEM_CATEGORY_ALIAS_MAP = new Map([['todos', 'todos'], ['todo', 'todos'], ['all', 'todos'], ['categoria', 'todos'], ['categorias', 'todos'], ['listar', 'todos'], ['lista', 'todos']]);
+const ITEM_CATEGORY_ALIAS_MAP = new Map([
+  ['todos', 'todos'],
+  ['todo', 'todos'],
+  ['all', 'todos'],
+  ['categoria', 'todos'],
+  ['categorias', 'todos'],
+  ['listar', 'todos'],
+  ['lista', 'todos'],
+]);
 ITEM_CATEGORY_DEFINITIONS.forEach((entry) => {
   ITEM_CATEGORY_ALIAS_MAP.set(entry.key, entry.key);
   entry.aliases.forEach((alias) => {
@@ -3603,10 +3611,7 @@ const handleBag = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
   const fullInventory = buildInventoryView({ inventoryRows, index });
   const requestedCategoryToken = actionArgs?.[0];
   const selectedCategory = resolveItemCategoryFilter(requestedCategoryToken);
-  const filteredItems =
-    selectedCategory && selectedCategory !== 'todos'
-      ? fullInventory.filter((entry) => entry.categoryKey === selectedCategory)
-      : fullInventory;
+  const filteredItems = selectedCategory && selectedCategory !== 'todos' ? fullInventory.filter((entry) => entry.categoryKey === selectedCategory) : fullInventory;
   const availableCategories = resolveAvailableCategoryKeys(fullInventory);
   const selectedCategoryLabel = selectedCategory && selectedCategory !== 'todos' ? ITEM_CATEGORY_LABEL_MAP.get(selectedCategory) || selectedCategory : 'Todas';
 
@@ -4227,10 +4232,7 @@ const handleShop = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
   const { items } = await getShopCatalog();
   const requestedCategoryToken = actionArgs?.[0];
   const selectedCategory = resolveItemCategoryFilter(requestedCategoryToken);
-  const filteredItems =
-    selectedCategory && selectedCategory !== 'todos'
-      ? items.filter((entry) => resolveItemCategoryKeyFromMeta(entry) === selectedCategory)
-      : items;
+  const filteredItems = selectedCategory && selectedCategory !== 'todos' ? items.filter((entry) => resolveItemCategoryKeyFromMeta(entry) === selectedCategory) : items;
   const availableCategories = resolveAvailableCategoryKeys(items);
   const selectedCategoryLabel = selectedCategory && selectedCategory !== 'todos' ? ITEM_CATEGORY_LABEL_MAP.get(selectedCategory) || selectedCategory : 'Todas';
 

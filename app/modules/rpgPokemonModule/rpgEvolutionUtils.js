@@ -3,12 +3,7 @@ const toInt = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? Math.trunc(parsed) : fallback;
 };
 
-export const registerEvolutionPokedexEntry = async ({
-  ownerJid,
-  evolutionOutcome,
-  connection = null,
-  registerEntry,
-}) => {
+export const registerEvolutionPokedexEntry = async ({ ownerJid, evolutionOutcome, connection = null, registerEntry }) => {
   if (typeof registerEntry !== 'function') {
     throw new Error('registerEntry é obrigatório para registrar evolução na Pokédex.');
   }

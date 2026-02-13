@@ -39,14 +39,8 @@ const POISON_DAMAGE_RATIO = 1 / 8;
 const TOXIC_BASE_DAMAGE_RATIO = 1 / 16;
 const BATTLE_DAMAGE_SCALE = Math.max(0.35, Math.min(1.25, Number(process.env.RPG_BATTLE_DAMAGE_SCALE) || 0.68));
 const BATTLE_DAMAGE_MAX_HP_RATIO = Math.max(0.2, Math.min(0.95, Number(process.env.RPG_BATTLE_DAMAGE_MAX_HP_RATIO) || 0.5));
-const BATTLE_DAMAGE_SUPER_EFFECTIVE_BONUS_RATIO = Math.max(
-  0,
-  Math.min(0.45, Number(process.env.RPG_BATTLE_DAMAGE_SUPER_EFFECTIVE_BONUS_RATIO) || 0.2),
-);
-const BATTLE_DAMAGE_ULTRA_EFFECTIVE_BONUS_RATIO = Math.max(
-  0,
-  Math.min(0.5, Number(process.env.RPG_BATTLE_DAMAGE_ULTRA_EFFECTIVE_BONUS_RATIO) || 0.25),
-);
+const BATTLE_DAMAGE_SUPER_EFFECTIVE_BONUS_RATIO = Math.max(0, Math.min(0.45, Number(process.env.RPG_BATTLE_DAMAGE_SUPER_EFFECTIVE_BONUS_RATIO) || 0.2));
+const BATTLE_DAMAGE_ULTRA_EFFECTIVE_BONUS_RATIO = Math.max(0, Math.min(0.5, Number(process.env.RPG_BATTLE_DAMAGE_ULTRA_EFFECTIVE_BONUS_RATIO) || 0.25));
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const randomInt = (min, max) => {
@@ -368,14 +362,12 @@ const normalizeMove = (move, index) => {
     })
     .filter(Boolean);
   const normalizedAilment = normalizeAilmentKey(move?.ailment || effectMeta?.ailment);
-  const normalizedTarget = String(move?.target || effectMeta?.target || '').trim().toLowerCase();
+  const normalizedTarget = String(move?.target || effectMeta?.target || '')
+    .trim()
+    .toLowerCase();
   const rawAilmentChance = toNumber(move?.ailmentChance ?? effectMeta?.ailmentChance, NaN);
   const rawStatChance = toNumber(move?.statChance ?? effectMeta?.statChance, NaN);
-  const ailmentChance = Number.isFinite(rawAilmentChance)
-    ? clamp(rawAilmentChance, 0, 100)
-    : normalizedAilment && damageClass === STATUS_CLASS
-      ? 100
-      : 0;
+  const ailmentChance = Number.isFinite(rawAilmentChance) ? clamp(rawAilmentChance, 0, 100) : normalizedAilment && damageClass === STATUS_CLASS ? 100 : 0;
   const rawHealing = toNumber(move?.healing ?? effectMeta?.healing, 0);
   const rawDrain = toNumber(move?.drain ?? effectMeta?.drain, 0);
 
@@ -597,9 +589,7 @@ const pickReplacementIndexForMove = ({ selected = [], pokemonTypeSet, keepOneSta
   const supportIndex = findFirstIndex(selected, (move) => !isOffensiveMove(move));
   if (supportIndex >= 0) return supportIndex;
 
-  const offensiveIndexes = selected
-    .map((move, index) => ({ move, index }))
-    .filter((entry) => isOffensiveMove(entry.move));
+  const offensiveIndexes = selected.map((move, index) => ({ move, index })).filter((entry) => isOffensiveMove(entry.move));
   if (!offensiveIndexes.length) return selected.length - 1;
 
   const stabIndexes = offensiveIndexes.filter((entry) => pokemonTypeSet.has(normalizeMoveType(entry.move)));
@@ -1098,9 +1088,7 @@ const applyMoveStatChanges = ({ attacker, defender, move, attackerLabel, defende
       logs.push(`${targetLabel} não pode ter ${formatStageLabel(statKey)} alterado além do limite.`);
       continue;
     }
-    logs.push(
-      `${targetLabel} ${applied > 0 ? 'aumentou' : 'reduziu'} ${formatStageLabel(statKey)} em ${Math.abs(applied)} estágio(s).`,
-    );
+    logs.push(`${targetLabel} ${applied > 0 ? 'aumentou' : 'reduziu'} ${formatStageLabel(statKey)} em ${Math.abs(applied)} estágio(s).`);
   }
 };
 
@@ -1206,14 +1194,8 @@ const applyDamage = ({ attacker, defender, move }) => {
   }
 
   const damageClass = String(move?.damageClass || PHYSICAL_CLASS).toLowerCase();
-  const attackStat =
-    damageClass === SPECIAL_CLASS
-      ? resolveEffectiveStat({ pokemon: attacker, statKey: 'specialAttack', applyBurnPenalty: false })
-      : resolveEffectiveStat({ pokemon: attacker, statKey: 'attack', applyBurnPenalty: true });
-  const defenseStat =
-    damageClass === SPECIAL_CLASS
-      ? resolveEffectiveStat({ pokemon: defender, statKey: 'specialDefense', applyBurnPenalty: false })
-      : resolveEffectiveStat({ pokemon: defender, statKey: 'defense', applyBurnPenalty: false });
+  const attackStat = damageClass === SPECIAL_CLASS ? resolveEffectiveStat({ pokemon: attacker, statKey: 'specialAttack', applyBurnPenalty: false }) : resolveEffectiveStat({ pokemon: attacker, statKey: 'attack', applyBurnPenalty: true });
+  const defenseStat = damageClass === SPECIAL_CLASS ? resolveEffectiveStat({ pokemon: defender, statKey: 'specialDefense', applyBurnPenalty: false }) : resolveEffectiveStat({ pokemon: defender, statKey: 'defense', applyBurnPenalty: false });
 
   const level = clamp(toPositiveInt(attacker?.level, 1), MIN_LEVEL, MAX_LEVEL);
   const baseDamage = (((2 * level) / 5 + 2) * power * (attackStat / Math.max(1, defenseStat))) / 50 + 2;

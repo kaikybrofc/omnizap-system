@@ -187,15 +187,7 @@ const withRandomSequence = async (values, fn) => {
   }
 };
 
-const buildMoveSnapshot = ({
-  name = 'tackle',
-  displayName = 'Tackle',
-  power = 40,
-  accuracy = 100,
-  damageClass = 'physical',
-  type = 'normal',
-  effectMeta = {},
-} = {}) => ({
+const buildMoveSnapshot = ({ name = 'tackle', displayName = 'Tackle', power = 40, accuracy = 100, damageClass = 'physical', type = 'normal', effectMeta = {} } = {}) => ({
   name,
   displayName,
   power,
@@ -429,7 +421,7 @@ test('moveset inicial deve evitar softlock por imunidade com fallback neutro', {
   );
 
   const offensiveMoves = encounter.enemySnapshot.moves.filter((move) => Number(move?.power) > 0 && move?.damageClass !== 'status');
-  const canHitGhost = offensiveMoves.some((move) => !((move?.typeDamage?.noTo || []).includes('ghost')));
+  const canHitGhost = offensiveMoves.some((move) => !(move?.typeDamage?.noTo || []).includes('ghost'));
   const hasNeutralFallback = encounter.enemySnapshot.moves.some((move) => String(move?.name || '').startsWith('neutral-strike'));
 
   assert.equal(canHitGhost, true);
