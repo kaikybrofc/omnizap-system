@@ -37,6 +37,16 @@ const SLEEP_MAX_TURNS = 3;
 const BURN_DAMAGE_RATIO = 1 / 16;
 const POISON_DAMAGE_RATIO = 1 / 8;
 const TOXIC_BASE_DAMAGE_RATIO = 1 / 16;
+const BATTLE_DAMAGE_SCALE = Math.max(0.35, Math.min(1.25, Number(process.env.RPG_BATTLE_DAMAGE_SCALE) || 0.68));
+const BATTLE_DAMAGE_MAX_HP_RATIO = Math.max(0.2, Math.min(0.95, Number(process.env.RPG_BATTLE_DAMAGE_MAX_HP_RATIO) || 0.5));
+const BATTLE_DAMAGE_SUPER_EFFECTIVE_BONUS_RATIO = Math.max(
+  0,
+  Math.min(0.45, Number(process.env.RPG_BATTLE_DAMAGE_SUPER_EFFECTIVE_BONUS_RATIO) || 0.2),
+);
+const BATTLE_DAMAGE_ULTRA_EFFECTIVE_BONUS_RATIO = Math.max(
+  0,
+  Math.min(0.5, Number(process.env.RPG_BATTLE_DAMAGE_ULTRA_EFFECTIVE_BONUS_RATIO) || 0.25),
+);
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const randomInt = (min, max) => {
@@ -923,6 +933,16 @@ const resolveTypeMultiplier = (move, defenderTypes = []) => {
   return multiplier;
 };
 
+const resolveDamageCapByEffectiveness = ({ multiplier, defenderMaxHp }) => {
+  if (multiplier <= 0) return 0;
+
+  let ratio = BATTLE_DAMAGE_MAX_HP_RATIO;
+  if (multiplier >= 2) ratio += BATTLE_DAMAGE_SUPER_EFFECTIVE_BONUS_RATIO;
+  if (multiplier >= 4) ratio += BATTLE_DAMAGE_ULTRA_EFFECTIVE_BONUS_RATIO;
+
+  return Math.max(1, Math.floor(defenderMaxHp * Math.min(1, ratio)));
+};
+
 const resolveMoveEffectTarget = (move) => {
   const targetKey = String(move?.effectMeta?.target || '')
     .trim()
@@ -1200,10 +1220,12 @@ const applyDamage = ({ attacker, defender, move }) => {
   const stab = Array.isArray(attacker?.types) && attacker.types.includes(move?.type) ? 1.2 : 1;
   const multiplier = resolveTypeMultiplier(move, defender?.types || []);
   const randomFactor = randomFloat(0.85, 1);
+  const defenderMaxHp = Math.max(1, toPositiveInt(defender?.maxHp, 1));
+  const damageCap = resolveDamageCapByEffectiveness({ multiplier, defenderMaxHp });
 
-  let finalDamage = Math.floor(baseDamage * stab * multiplier * randomFactor);
+  let finalDamage = Math.floor(baseDamage * stab * multiplier * randomFactor * BATTLE_DAMAGE_SCALE);
   if (multiplier > 0) {
-    finalDamage = Math.max(1, finalDamage);
+    finalDamage = Math.min(Math.max(1, finalDamage), damageCap);
   } else {
     finalDamage = 0;
   }
