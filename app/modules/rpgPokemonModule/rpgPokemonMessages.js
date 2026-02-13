@@ -42,6 +42,53 @@ const itemUseCommand = ({ item = {}, prefix = '/' }) => {
   return `${prefix}rpg usar ${key}`;
 };
 
+const ITEM_CATEGORY_ORDER = ['captura', 'cura', 'berry', 'tm', 'evolucao', 'outros'];
+const ITEM_CATEGORY_LABEL_MAP = new Map([
+  ['captura', 'Captura'],
+  ['cura', 'Cura'],
+  ['berry', 'Berries'],
+  ['tm', 'TMs'],
+  ['evolucao', 'Evolução'],
+  ['outros', 'Outros'],
+  ['todos', 'Todas'],
+]);
+
+const resolveItemCategoryKey = (item = {}) => {
+  const predefined = String(item?.categoryKey || '')
+    .trim()
+    .toLowerCase();
+  if (ITEM_CATEGORY_LABEL_MAP.has(predefined)) return predefined;
+  if (item?.isPokeball) return 'captura';
+  if (item?.isMedicine) return 'cura';
+  if (item?.isBerry) return 'berry';
+  if (item?.isMachine) return 'tm';
+  if (String(item?.category || '').includes('evolution')) return 'evolucao';
+  return 'outros';
+};
+
+const groupItemsByCategory = (items = []) => {
+  const grouped = new Map();
+  items.forEach((item) => {
+    const categoryKey = resolveItemCategoryKey(item);
+    if (!grouped.has(categoryKey)) grouped.set(categoryKey, []);
+    grouped.get(categoryKey).push(item);
+  });
+  return grouped;
+};
+
+const renderCategoryMenu = ({ prefix = '/', command = 'loja', availableCategories = [], selectedCategory = 'todos' }) => {
+  const categories = availableCategories.length ? availableCategories : ITEM_CATEGORY_ORDER;
+  const tokens = ['todos', ...categories.filter((key) => key !== 'todos')];
+  const tags = tokens.map((key) => {
+    const label = ITEM_CATEGORY_LABEL_MAP.get(key) || key;
+    return key === selectedCategory ? `[${label}]` : label;
+  });
+  return [
+    `🧭 Categorias: ${tags.join(' | ')}`,
+    `Use: ${prefix}rpg ${command} <todos|captura|cura|berry|tm|evolucao|outros>`,
+  ];
+};
+
 const hpBar = (current, max, size = 10) => {
   const safeMax = Math.max(1, toNumber(max, 1));
   const safeCurrent = Math.max(0, Math.min(safeMax, toNumber(current, 0)));
@@ -461,19 +508,37 @@ export const buildFleeText = (prefix = '/') => ['🏃 Você fugiu da batalha com
 
 export const buildNoBattleText = (prefix = '/') => ['⚠️ Nenhuma batalha ativa no momento.', '', `👉 Use: ${prefix}rpg explorar`].join('\n');
 
-export const buildShopText = ({ items, prefix = '/' }) => {
-  const itemLines = items.map((item) => `• ${itemEmoji(item.key)} *${item.label || item.key}* [${item.key}] — ${item.price} gold | Para que serve: ${itemMeaning(item)} | Como usar: ${itemUseCommand({ item, prefix })}`);
-  return [
-    '🛒 *Loja RPG*',
-    '',
-    'Itens disponíveis:',
-    ...itemLines,
-    '',
-    `🧾 Comprar: ${prefix}rpg comprar <item> <qtd>`,
-    `🎒 Usar por nome: ${prefix}rpg usar <item>`,
-    `🔢 Usar por número da bolsa: ${prefix}rpg usar <slot>`,
-    '💡 Dica: mantenha pokeball e pocao na bolsa antes de explorar.',
-  ].join('\n');
+export const buildShopText = ({ items, prefix = '/', availableCategories = [], selectedCategory = 'todos', selectedCategoryLabel = 'Todas', invalidCategory = null }) => {
+  const lines = ['🛒 *Loja RPG*', ''];
+  lines.push(...renderCategoryMenu({ prefix, command: 'loja', availableCategories, selectedCategory }));
+  if (invalidCategory) {
+    lines.push('', `⚠️ Categoria inválida: *${invalidCategory}*`);
+  }
+
+  if (!items.length) {
+    lines.push('', `📭 Sem itens na categoria *${selectedCategoryLabel || 'Selecionada'}* no momento.`);
+    lines.push(`💡 Tente: ${prefix}rpg loja todos`);
+    return lines.join('\n');
+  }
+
+  const grouped = groupItemsByCategory(items);
+  const categoryOrder = ITEM_CATEGORY_ORDER.filter((key) => grouped.has(key));
+  categoryOrder.forEach((categoryKey) => {
+    const categoryLabel = ITEM_CATEGORY_LABEL_MAP.get(categoryKey) || categoryKey;
+    lines.push('', `━━━━━━━━ ${categoryLabel} ━━━━━━━━`);
+    grouped.get(categoryKey).forEach((item) => {
+      lines.push(`• ${itemEmoji(item.key)} *${item.label || item.key}* [${item.key}] — ${item.price} gold`);
+      lines.push(`  Para que serve: ${itemMeaning(item)}`);
+      lines.push(`  Como usar: ${itemUseCommand({ item, prefix })}`);
+    });
+  });
+
+  lines.push('');
+  lines.push(`🧾 Comprar: ${prefix}rpg comprar <item> <qtd>`);
+  lines.push(`🎒 Usar por nome: ${prefix}rpg usar <item>`);
+  lines.push(`🔢 Usar por número da bolsa: ${prefix}rpg usar <slot>`);
+  lines.push('💡 Dica: mantenha pokeball e pocao na bolsa antes de explorar.');
+  return lines.join('\n');
 };
 
 export const buildBuySuccessText = ({ item, quantity, totalPrice, goldLeft, prefix = '/' }) =>
@@ -523,23 +588,43 @@ export const buildUsePotionSuccessText = ({ itemLabel, healedAmount, pokemonName
 export const buildEconomyRescueText = ({ goldGranted = 0, potionGranted = 0, goldTotal = 0, prefix = '/' }) =>
   ['🆘 *Ajuda de emergência liberada!*', '', `🪙 +${toNumber(goldGranted, 0)} gold | 🧪 +${toNumber(potionGranted, 0)} Poção`, `💰 Gold atual: *${toNumber(goldTotal, 0)}*`, '', `➡️ Próximos: ${prefix}rpg usar pocao | ${prefix}rpg explorar`].join('\n');
 
-export const buildBagText = ({ items = [], gold = 0, prefix = '/' }) => {
+export const buildBagText = ({ items = [], gold = 0, prefix = '/', availableCategories = [], selectedCategory = 'todos', selectedCategoryLabel = 'Todas', invalidCategory = null }) => {
   if (!items.length) {
-    return ['🎒 *Sua Bolsa*', '', `🪙 Gold: *${gold}*`, '📭 Sem itens no momento.', '', `🛒 Compre em: ${prefix}rpg loja`].join('\n');
+    return [
+      '🎒 *Sua Bolsa*',
+      '',
+      `🪙 Gold: *${gold}*`,
+      ...renderCategoryMenu({ prefix, command: 'bolsa', availableCategories, selectedCategory }),
+      ...(invalidCategory ? ['', `⚠️ Categoria inválida: *${invalidCategory}*`] : []),
+      '',
+      `📭 Sem itens na categoria *${selectedCategoryLabel || 'Selecionada'}*.`,
+      '',
+      `🛒 Compre em: ${prefix}rpg loja`,
+    ].join('\n');
   }
 
-  const lines = items.map((item) => `${item.slot || '•'}${item.slot ? ')' : ''} ${itemEmoji(item.key)} ${item.label} [${item.key}] x${item.quantity} | Para que serve: ${itemMeaning(item)} | Usar: ${prefix}rpg usar ${item.slot || item.key}`);
-  return [
-    '🎒 *Sua Bolsa*',
-    '',
-    `🪙 Gold: *${gold}*`,
-    '',
-    ...lines,
-    '',
-    `🧾 Usar por nome: ${prefix}rpg usar <item>`,
-    `🔢 Usar por número: ${prefix}rpg usar <slot>`,
-    `💡 Dica: confira preços e significado dos itens em ${prefix}rpg loja`,
-  ].join('\n');
+  const lines = ['🎒 *Sua Bolsa*', '', `🪙 Gold: *${gold}*`, ...renderCategoryMenu({ prefix, command: 'bolsa', availableCategories, selectedCategory })];
+  if (invalidCategory) {
+    lines.push('', `⚠️ Categoria inválida: *${invalidCategory}*`);
+  }
+
+  const grouped = groupItemsByCategory(items);
+  const categoryOrder = ITEM_CATEGORY_ORDER.filter((key) => grouped.has(key));
+  categoryOrder.forEach((categoryKey) => {
+    const categoryLabel = ITEM_CATEGORY_LABEL_MAP.get(categoryKey) || categoryKey;
+    lines.push('', `━━━━━━━━ ${categoryLabel} ━━━━━━━━`);
+    grouped.get(categoryKey).forEach((item) => {
+      lines.push(`${item.slot || '•'}${item.slot ? ')' : ''} ${itemEmoji(item.key)} ${item.label} [${item.key}] x${item.quantity}`);
+      lines.push(`  Para que serve: ${itemMeaning(item)}`);
+      lines.push(`  Usar: ${prefix}rpg usar ${item.slot || item.key}`);
+    });
+  });
+
+  lines.push('');
+  lines.push(`🧾 Usar por nome: ${prefix}rpg usar <item>`);
+  lines.push(`🔢 Usar por número: ${prefix}rpg usar <slot>`);
+  lines.push(`💡 Dica: confira preços e significado dos itens em ${prefix}rpg loja`);
+  return lines.join('\n');
 };
 
 const missionLine = (label, current, target) => `• ${label}: ${Math.max(0, current)}/${target}`;

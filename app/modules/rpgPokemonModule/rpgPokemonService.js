@@ -178,6 +178,47 @@ const normalizeItemToken = (value) => {
   return ITEM_ALIASES.get(normalized) || normalized;
 };
 
+const ITEM_CATEGORY_DEFINITIONS = [
+  { key: 'captura', label: 'Captura', aliases: ['captura', 'capturar', 'bola', 'bolas', 'pokeball', 'pokebola', 'pokebolas'] },
+  { key: 'cura', label: 'Cura', aliases: ['cura', 'cura hp', 'heal', 'healing', 'medicina', 'medicine', 'potion', 'pocao', 'pocoes', 'superpotion', 'superpocao'] },
+  { key: 'berry', label: 'Berry', aliases: ['berry', 'berries', 'fruta', 'frutas'] },
+  { key: 'tm', label: 'TM', aliases: ['tm', 'tms', 'maquina', 'maquinas', 'machine', 'machines'] },
+  { key: 'evolucao', label: 'Evolução', aliases: ['evolucao', 'evolução', 'evoluir', 'pedra', 'pedras'] },
+  { key: 'outros', label: 'Outros', aliases: ['outros', 'outro', 'misc'] },
+];
+
+const ITEM_CATEGORY_LABEL_MAP = new Map(ITEM_CATEGORY_DEFINITIONS.map((entry) => [entry.key, entry.label]));
+const ITEM_CATEGORY_ALIAS_MAP = new Map([['todos', 'todos'], ['todo', 'todos'], ['all', 'todos'], ['categoria', 'todos'], ['categorias', 'todos'], ['listar', 'todos'], ['lista', 'todos']]);
+ITEM_CATEGORY_DEFINITIONS.forEach((entry) => {
+  ITEM_CATEGORY_ALIAS_MAP.set(entry.key, entry.key);
+  entry.aliases.forEach((alias) => {
+    ITEM_CATEGORY_ALIAS_MAP.set(normalizeItemToken(alias), entry.key);
+  });
+});
+
+const resolveItemCategoryKeyFromMeta = (itemMeta = {}) => {
+  if (itemMeta?.isPokeball) return 'captura';
+  if (itemMeta?.isMedicine) return 'cura';
+  if (itemMeta?.isBerry) return 'berry';
+  if (itemMeta?.isMachine) return 'tm';
+  if (String(itemMeta?.category || '').includes('evolution')) return 'evolucao';
+  return 'outros';
+};
+
+const resolveItemCategoryFilter = (value) => {
+  const normalized = normalizeItemToken(value);
+  if (!normalized) return 'todos';
+  return ITEM_CATEGORY_ALIAS_MAP.get(normalized) || null;
+};
+
+const resolveAvailableCategoryKeys = (items = []) => {
+  const available = new Set();
+  items.forEach((item) => {
+    available.add(resolveItemCategoryKeyFromMeta(item));
+  });
+  return ITEM_CATEGORY_DEFINITIONS.map((entry) => entry.key).filter((key) => available.has(key));
+};
+
 const normalizeNameKey = (value) => {
   return String(value || '')
     .trim()
@@ -3528,6 +3569,7 @@ const buildInventoryView = ({ inventoryRows = [], index }) => {
     .map((item) => {
       const key = normalizeItemToken(item?.item_key);
       const itemMeta = index.get(key) || null;
+      const categoryKey = resolveItemCategoryKeyFromMeta(itemMeta);
       return {
         key,
         label: itemMeta?.label || toTitleCase(item?.item_key),
@@ -3539,6 +3581,8 @@ const buildInventoryView = ({ inventoryRows = [], index }) => {
         isBerry: Boolean(itemMeta?.isBerry),
         isMedicine: Boolean(itemMeta?.isMedicine),
         category: String(itemMeta?.category || ''),
+        categoryKey,
+        categoryLabel: ITEM_CATEGORY_LABEL_MAP.get(categoryKey) || 'Outros',
       };
     })
     .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'pt-BR'))
@@ -3548,7 +3592,7 @@ const buildInventoryView = ({ inventoryRows = [], index }) => {
     }));
 };
 
-const handleBag = async ({ ownerJid, commandPrefix }) => {
+const handleBag = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
   const player = await getPlayerByJid(ownerJid);
   if (!player) {
     return { ok: true, text: buildNeedStartText(commandPrefix) };
@@ -3556,14 +3600,26 @@ const handleBag = async ({ ownerJid, commandPrefix }) => {
 
   const { index } = await getShopCatalog();
   const inventoryRows = await getInventoryItems(ownerJid);
-  const formattedItems = buildInventoryView({ inventoryRows, index });
+  const fullInventory = buildInventoryView({ inventoryRows, index });
+  const requestedCategoryToken = actionArgs?.[0];
+  const selectedCategory = resolveItemCategoryFilter(requestedCategoryToken);
+  const filteredItems =
+    selectedCategory && selectedCategory !== 'todos'
+      ? fullInventory.filter((entry) => entry.categoryKey === selectedCategory)
+      : fullInventory;
+  const availableCategories = resolveAvailableCategoryKeys(fullInventory);
+  const selectedCategoryLabel = selectedCategory && selectedCategory !== 'todos' ? ITEM_CATEGORY_LABEL_MAP.get(selectedCategory) || selectedCategory : 'Todas';
 
   return {
     ok: true,
     text: buildBagText({
-      items: formattedItems,
+      items: filteredItems,
       gold: toInt(player.gold, 0),
       prefix: commandPrefix,
+      availableCategories,
+      selectedCategory: selectedCategory || 'todos',
+      selectedCategoryLabel,
+      invalidCategory: requestedCategoryToken && !selectedCategory ? requestedCategoryToken : null,
     }),
   };
 };
@@ -4156,7 +4212,7 @@ const handleFlee = async ({ ownerJid, commandPrefix }) => {
   });
 };
 
-const handleShop = async ({ ownerJid, commandPrefix }) => {
+const handleShop = async ({ ownerJid, commandPrefix, actionArgs = [] }) => {
   const player = await getPlayerByJid(ownerJid);
   if (!player) {
     return { ok: true, text: buildNeedStartText(commandPrefix) };
@@ -4169,9 +4225,25 @@ const handleShop = async ({ ownerJid, commandPrefix }) => {
   }
 
   const { items } = await getShopCatalog();
+  const requestedCategoryToken = actionArgs?.[0];
+  const selectedCategory = resolveItemCategoryFilter(requestedCategoryToken);
+  const filteredItems =
+    selectedCategory && selectedCategory !== 'todos'
+      ? items.filter((entry) => resolveItemCategoryKeyFromMeta(entry) === selectedCategory)
+      : items;
+  const availableCategories = resolveAvailableCategoryKeys(items);
+  const selectedCategoryLabel = selectedCategory && selectedCategory !== 'todos' ? ITEM_CATEGORY_LABEL_MAP.get(selectedCategory) || selectedCategory : 'Todas';
+
   return {
     ok: true,
-    text: buildShopText({ items, prefix: commandPrefix }),
+    text: buildShopText({
+      items: filteredItems,
+      prefix: commandPrefix,
+      availableCategories,
+      selectedCategory: selectedCategory || 'todos',
+      selectedCategoryLabel,
+      invalidCategory: requestedCategoryToken && !selectedCategory ? requestedCategoryToken : null,
+    }),
   };
 };
 
@@ -6490,7 +6562,7 @@ export const executeRpgPokemonAction = async ({ ownerJid, chatJid, action, actio
         break;
 
       case 'bolsa':
-        result = await handleBag({ ownerJid, commandPrefix });
+        result = await handleBag({ ownerJid, commandPrefix, actionArgs });
         break;
 
       case 'pokedex':
@@ -6540,7 +6612,7 @@ export const executeRpgPokemonAction = async ({ ownerJid, chatJid, action, actio
         break;
 
       case 'loja':
-        result = await handleShop({ ownerJid, commandPrefix });
+        result = await handleShop({ ownerJid, commandPrefix, actionArgs });
         break;
 
       case 'comprar':
