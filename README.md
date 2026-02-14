@@ -56,7 +56,7 @@ npm install
 cp .env.example .env
 ```
 
-4. Ajuste as variáveis mínimas obrigatórias no `.env`:
+4. Ajuste as variáveis mínimas obrigatórias no `.env` (o restante já vem com defaults no `.env.example`):
 
 ```env
 DB_HOST=localhost
@@ -65,6 +65,12 @@ DB_PASSWORD=sua_senha
 DB_NAME=omnizap
 USER_ADMIN=seu_jid@s.whatsapp.net
 IMAGE_MENU=https://example.com/menu.png
+```
+
+Para recursos de IA (`cat`, `catimg`, `catprompt`), configure também:
+
+```env
+OPENAI_API_KEY=sua_chave
 ```
 
 5. Inicialize banco e tabelas:
@@ -90,6 +96,23 @@ npm run start
 - `COMMAND_PREFIX` pode ser global e também por grupo (via comandos admin).
 - `LID_BACKFILL_ON_START=true` habilita backfill de `lid_map` no boot.
 - `LID_BACKFILL_BATCH` padrão do serviço: `50000`.
+
+## Referência de variáveis (`.env.example`)
+
+O `.env.example` foi atualizado para cobrir todas as variáveis atualmente referenciadas no código e no `docker-compose.yml`.
+
+Principais blocos do arquivo:
+
+- Core do bot (prefixo, admin, imagem de menu, logs e Baileys).
+- Banco MySQL (conexão, fila de escrita, monitor de query lenta).
+- Métricas/observabilidade do app (`METRICS_*`, `DB_QUERY_ALERT_THRESHOLDS`, social metrics).
+- OpenAI (chat, imagem, TTS, timeout e retry).
+- Mídia (`play`, TikTok, FFmpeg/FFprobe).
+- Sticker packs (storage, limites, auto-coleta, catálogo web).
+- XP e RPG Pokémon (economia, PvP, raids, social XP, canvas).
+- Stack de observabilidade no Docker (Prometheus, Grafana, Loki, Promtail e exporters).
+
+Variáveis legadas foram mantidas por compatibilidade (`QUOTE_API_URL`, `WAIFU_API_*`, `STORE_PATH`), mas não participam do fluxo principal atual.
 
 ## Scripts npm
 
