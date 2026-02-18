@@ -12,6 +12,14 @@ const MIN_DELAY_MS = 60 * 1000;
 const MAX_DELAY_MS = 120 * 1000;
 const MAX_SENT_IDS = Number(process.env.NEWS_SENT_IDS_LIMIT || 500);
 const LOOP_START_DELAY_MS = 5000;
+const GROUP_UNAVAILABLE_ERROR_PATTERNS = [
+  'item-not-found',
+  'not-authorized',
+  'not in group',
+  'group does not exist',
+  'recipient not found',
+  'recipient-unavailable',
+];
 
 const groupLoops = new Map();
 
@@ -122,6 +130,38 @@ const trimSentIds = (ids) => {
   return ids.slice(ids.length - MAX_SENT_IDS);
 };
 
+const toErrorFragments = (error) => {
+  const candidates = [
+    error?.message,
+    error?.data,
+    error?.output?.payload?.message,
+    error?.output?.payload?.error,
+    error?.output?.statusCode,
+    error?.status,
+    error?.cause?.message,
+    error?.cause?.data,
+  ];
+
+  return candidates
+    .filter((value) => value !== null && value !== undefined)
+    .map((value) => {
+      if (typeof value === 'string') return value.toLowerCase();
+      if (typeof value === 'number') return String(value);
+      try {
+        return JSON.stringify(value).toLowerCase();
+      } catch {
+        return String(value).toLowerCase();
+      }
+    });
+};
+
+const isGroupUnavailableError = (error) => {
+  const fragments = toErrorFragments(error);
+  return fragments.some((fragment) =>
+    GROUP_UNAVAILABLE_ERROR_PATTERNS.some((pattern) => fragment.includes(pattern)),
+  );
+};
+
 const scheduleNextRun = (groupId, delayMs) => {
   const state = groupLoops.get(groupId);
   if (!state || state.stopped) return;
@@ -196,16 +236,31 @@ const processGroupNews = async (groupId) => {
     let sent = false;
 
     try {
-      if (imageUrl && imageUrl.startsWith('https://')) {
+      if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
+        let imageBuffer = null;
         try {
-          const imageBuffer = await getImageBuffer(imageUrl);
-          await sendAndStore(sock, groupId, { image: imageBuffer, caption });
-          sent = true;
+          imageBuffer = await getImageBuffer(imageUrl);
         } catch (error) {
           logger.warn('Falha ao baixar imagem da noticia. Enviando texto.', {
             groupId,
             error: error.message,
+            imageUrl,
           });
+        }
+
+        if (imageBuffer) {
+          try {
+            await sendAndStore(sock, groupId, { image: imageBuffer, caption });
+            sent = true;
+          } catch (error) {
+            if (isGroupUnavailableError(error)) {
+              throw error;
+            }
+            logger.warn('Falha ao enviar imagem da noticia. Enviando texto.', {
+              groupId,
+              error: error.message,
+            });
+          }
         }
       }
 
@@ -223,6 +278,26 @@ const processGroupNews = async (groupId) => {
         });
       }
     } catch (error) {
+      if (isGroupUnavailableError(error)) {
+        shouldSchedule = false;
+        stopGroupLoopInternal(groupId);
+
+        try {
+          await groupConfigStore.updateGroupConfig(groupId, { newsEnabled: false });
+        } catch (updateError) {
+          logger.error('Falha ao desativar noticias para grupo indisponivel.', {
+            groupId,
+            error: updateError.message,
+          });
+        }
+
+        logger.warn('Grupo indisponivel para envio de noticias. Envio automatico desativado.', {
+          groupId,
+          error: error.message,
+        });
+        return;
+      }
+
       logger.error('Erro ao enviar noticia para grupo.', {
         groupId,
         error: error.message,
