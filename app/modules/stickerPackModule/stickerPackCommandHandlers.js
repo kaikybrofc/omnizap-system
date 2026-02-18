@@ -1,5 +1,6 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { isUserJid } from '../../config/baileysConfig.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import {
@@ -1077,6 +1078,7 @@ export async function handlePackCommand({
  */
 export async function maybeCaptureIncomingSticker({ messageInfo, senderJid, isMessageFromBot }) {
   if (isMessageFromBot) return null;
+  if (!isUserJid(senderJid)) return null;
 
   try {
     return await captureIncomingStickerAsset({

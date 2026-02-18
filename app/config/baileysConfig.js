@@ -204,6 +204,17 @@ const getMediaExtension = (type) => {
   return 'bin';
 };
 
+const isBadDecryptError = (error) => {
+  if (!error || typeof error !== 'object') return false;
+  if (error.code === 'ERR_OSSL_BAD_DECRYPT') return true;
+
+  const message = String(error.message || '').toLowerCase();
+  const reason = String(error.reason || '').toLowerCase();
+  const opensslStack = Array.isArray(error.opensslErrorStack) ? error.opensslErrorStack.join(' ').toLowerCase() : '';
+
+  return message.includes('bad decrypt') || reason.includes('bad decrypt') || opensslStack.includes('bad decrypt');
+};
+
 /**
  * Converte a versão do Baileys (string ou array) para o formato `[major, minor, patch]`.
  * @param {string|number[]|null|undefined} rawVersion - Valor bruto informado na variável de ambiente.
@@ -529,6 +540,15 @@ export const downloadMediaMessage = async (message, type, outputPath) => {
   } catch (error) {
     if (error?.message?.includes('Cannot derive from empty media key')) {
       logger.warn('Skipping media download: invalid media key received from source.', { type });
+      return null;
+    }
+
+    if (isBadDecryptError(error)) {
+      logger.warn('Skipping media download: failed to decrypt media payload from source.', {
+        type,
+        code: error.code,
+        reason: error.reason || null,
+      });
       return null;
     }
 
