@@ -12,14 +12,7 @@ const MIN_DELAY_MS = 60 * 1000;
 const MAX_DELAY_MS = 120 * 1000;
 const MAX_SENT_IDS = Number(process.env.NEWS_SENT_IDS_LIMIT || 500);
 const LOOP_START_DELAY_MS = 5000;
-const GROUP_UNAVAILABLE_ERROR_PATTERNS = [
-  'item-not-found',
-  'not-authorized',
-  'not in group',
-  'group does not exist',
-  'recipient not found',
-  'recipient-unavailable',
-];
+const GROUP_UNAVAILABLE_ERROR_PATTERNS = ['item-not-found', 'not-authorized', 'not in group', 'group does not exist', 'recipient not found', 'recipient-unavailable'];
 
 const groupLoops = new Map();
 
@@ -131,16 +124,7 @@ const trimSentIds = (ids) => {
 };
 
 const toErrorFragments = (error) => {
-  const candidates = [
-    error?.message,
-    error?.data,
-    error?.output?.payload?.message,
-    error?.output?.payload?.error,
-    error?.output?.statusCode,
-    error?.status,
-    error?.cause?.message,
-    error?.cause?.data,
-  ];
+  const candidates = [error?.message, error?.data, error?.output?.payload?.message, error?.output?.payload?.error, error?.output?.statusCode, error?.status, error?.cause?.message, error?.cause?.data];
 
   return candidates
     .filter((value) => value !== null && value !== undefined)
@@ -157,9 +141,7 @@ const toErrorFragments = (error) => {
 
 const isGroupUnavailableError = (error) => {
   const fragments = toErrorFragments(error);
-  return fragments.some((fragment) =>
-    GROUP_UNAVAILABLE_ERROR_PATTERNS.some((pattern) => fragment.includes(pattern)),
-  );
+  return fragments.some((fragment) => GROUP_UNAVAILABLE_ERROR_PATTERNS.some((pattern) => fragment.includes(pattern)));
 };
 
 const scheduleNextRun = (groupId, delayMs) => {
@@ -171,17 +153,6 @@ const scheduleNextRun = (groupId, delayMs) => {
   }, delayMs);
 };
 
-const waitForSocketReady = async (timeoutMs = 60000) => {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const sock = getActiveSocket();
-    if (sock && sock.ws?.readyState === 1) {
-      return sock;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-  return null;
-};
 
 const stopGroupLoopInternal = (groupId) => {
   const state = groupLoops.get(groupId);
@@ -322,8 +293,7 @@ export const startNewsBroadcastForGroup = (groupId, options = {}) => {
     return;
   }
 
-  const initialDelay =
-    typeof options.initialDelayMs === 'number' ? options.initialDelayMs : LOOP_START_DELAY_MS;
+  const initialDelay = typeof options.initialDelayMs === 'number' ? options.initialDelayMs : LOOP_START_DELAY_MS;
 
   groupLoops.set(groupId, {
     timeoutId: null,
