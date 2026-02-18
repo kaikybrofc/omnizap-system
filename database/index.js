@@ -22,13 +22,7 @@ import { once } from 'node:events';
 import path from 'node:path';
 import { promises as fsPromises } from 'node:fs';
 import logger from '../app/utils/logger/loggerModule.js';
-import {
-  isMetricsEnabled,
-  recordDbQuery,
-  recordDbWrite,
-  recordError,
-  setDbInFlight,
-} from '../app/observability/metrics.js';
+import { isMetricsEnabled, recordDbQuery, recordDbWrite, recordError, setDbInFlight } from '../app/observability/metrics.js';
 
 const { NODE_ENV } = process.env;
 const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_POOL_LIMIT = 10 } = process.env;
@@ -247,16 +241,10 @@ const DB_STATS_TOP_N = Math.max(1, Math.floor(parseEnvNumber(process.env.DB_STAT
 const DB_STATS_SAMPLE_SIZE = Math.max(0, Math.floor(parseEnvNumber(process.env.DB_STATS_SAMPLE_SIZE, 2000)));
 const DB_SLOW_EXPLAIN = parseEnvBool(process.env.DB_SLOW_EXPLAIN, false);
 const rawMonitorLogPath = process.env.DB_MONITOR_LOG_PATH;
-const DB_MONITOR_LOG_PATH =
-  rawMonitorLogPath && rawMonitorLogPath.trim() !== ''
-    ? path.resolve(rawMonitorLogPath)
-    : path.resolve('logs', 'db-monitor.log');
+const DB_MONITOR_LOG_PATH = rawMonitorLogPath && rawMonitorLogPath.trim() !== '' ? path.resolve(rawMonitorLogPath) : path.resolve('logs', 'db-monitor.log');
 const DB_MONITOR_LOG_ROTATE_MB = Math.max(0, parseEnvNumber(process.env.DB_MONITOR_LOG_ROTATE_MB, 20));
 const DB_MONITOR_LOG_KEEP = Math.max(0, Math.floor(parseEnvNumber(process.env.DB_MONITOR_LOG_KEEP, 5)));
-const DB_MONITOR_SNAPSHOT_EVERY_MS = Math.max(
-  0,
-  Math.floor(parseEnvNumber(process.env.DB_MONITOR_SNAPSHOT_EVERY_MS, 0)),
-);
+const DB_MONITOR_SNAPSHOT_EVERY_MS = Math.max(0, Math.floor(parseEnvNumber(process.env.DB_MONITOR_SNAPSHOT_EVERY_MS, 0)));
 
 /**
  * Ativa warning sobre assinatura antiga de executeQuery() quando options vierem no 3º parâmetro.
@@ -779,8 +767,7 @@ function calculatePercentiles() {
       if (cumulative >= item.target) {
         if (i < buckets.length) results[item.key] = buckets[i];
         else {
-          results[item.key] =
-            dbStats.durationMax !== null ? Number(dbStats.durationMax.toFixed(2)) : buckets[buckets.length - 1];
+          results[item.key] = dbStats.durationMax !== null ? Number(dbStats.durationMax.toFixed(2)) : buckets[buckets.length - 1];
         }
       }
     }
@@ -1077,12 +1064,7 @@ function extractResultStats(result) {
   }
 
   let rows = result;
-  const looksLikeFields =
-    Array.isArray(result) &&
-    result.length === 2 &&
-    ((Array.isArray(result[1]) && (result[1].length === 0 || typeof result[1][0] === 'object')) ||
-      result[1] === undefined ||
-      result[1] === null);
+  const looksLikeFields = Array.isArray(result) && result.length === 2 && ((Array.isArray(result[1]) && (result[1].length === 0 || typeof result[1][0] === 'object')) || result[1] === undefined || result[1] === null);
 
   if (looksLikeFields) {
     rows = result[0];
@@ -1215,20 +1197,7 @@ function recordStats({ fingerprint, normalizedSql, type, table, durationMs, ok, 
  * @param {object} payload
  * @returns {object}
  */
-function buildMonitorLogEntry({
-  event,
-  durationMs,
-  type,
-  table,
-  fingerprint,
-  normalizedSql,
-  sql,
-  rowCount,
-  affectedRows,
-  traceId,
-  error,
-  params,
-}) {
+function buildMonitorLogEntry({ event, durationMs, type, table, fingerprint, normalizedSql, sql, rowCount, affectedRows, traceId, error, params }) {
   const entry = {
     ts: new Date().toISOString(),
     event,
@@ -1725,9 +1694,7 @@ export async function executeQuery(sql, params = [], connection = null, options 
   // Compat: options no 3º parâmetro (depreciado)
   if (connection && !options && isValidExecuteOptions(connection)) {
     if (DEPRECATION_WARN_EXECUTEQUERY_OPTIONS_IN_3RD_PARAM) {
-      logger.warn(
-        'executeQuery(): assinatura com options no 3º parâmetro está depreciada. Use executeQuery(sql, params, connection, options).',
-      );
+      logger.warn('executeQuery(): assinatura com options no 3º parâmetro está depreciada. Use executeQuery(sql, params, connection, options).');
     }
     options = connection;
     connection = null;
@@ -1736,17 +1703,14 @@ export async function executeQuery(sql, params = [], connection = null, options 
   let executor = pool;
   let traceId = options && typeof options === 'object' ? options.traceId : undefined;
 
-  const isConnection =
-    connection && (typeof connection.execute === 'function' || typeof connection.query === 'function');
+  const isConnection = connection && (typeof connection.execute === 'function' || typeof connection.query === 'function');
 
   if (connection) {
     if (isConnection) {
       executor = connection;
       traceId = traceId || connection.__traceId;
     } else {
-      throw new Error(
-        'Parâmetro connection inválido em executeQuery. Informe uma conexão MySQL2 válida ou passe options no 4º parâmetro.',
-      );
+      throw new Error('Parâmetro connection inválido em executeQuery. Informe uma conexão MySQL2 válida ou passe options no 4º parâmetro.');
     }
   }
 
@@ -1925,9 +1889,7 @@ export async function create(tableName, data) {
   }
 
   const values = Object.values(data);
-  const sql = `INSERT INTO ${mysql.escapeId(tableName)} (${keys.map(mysql.escapeId).join(', ')}) VALUES (${keys
-    .map(() => '?')
-    .join(', ')})`;
+  const sql = `INSERT INTO ${mysql.escapeId(tableName)} (${keys.map(mysql.escapeId).join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`;
 
   const result = await executeQuery(sql, values);
   return { id: result.insertId, ...data };
@@ -1948,9 +1910,7 @@ export async function createIgnore(tableName, data) {
   }
 
   const values = Object.values(data);
-  const sql = `INSERT IGNORE INTO ${mysql.escapeId(tableName)} (${keys.map(mysql.escapeId).join(', ')}) VALUES (${keys
-    .map(() => '?')
-    .join(', ')})`;
+  const sql = `INSERT IGNORE INTO ${mysql.escapeId(tableName)} (${keys.map(mysql.escapeId).join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`;
 
   const result = await executeQuery(sql, values);
   if (!result.insertId) return null;

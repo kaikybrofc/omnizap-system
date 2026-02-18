@@ -370,14 +370,7 @@ export default async function initializeDatabase() {
     await connection.changeUser({ database: dbToCreate });
 
     // Cria todas as tabelas em paralelo
-    await Promise.all([
-      connection.query(createMessagesTableSQL),
-      connection.query(createChatsTableSQL),
-      connection.query(createGroupsMetadataTableSQL),
-      connection.query(createGroupConfigsTableSQL),
-      connection.query(createLidMapTableSQL),
-      connection.query(createStickerAssetTableSQL),
-    ]);
+    await Promise.all([connection.query(createMessagesTableSQL), connection.query(createChatsTableSQL), connection.query(createGroupsMetadataTableSQL), connection.query(createGroupConfigsTableSQL), connection.query(createLidMapTableSQL), connection.query(createStickerAssetTableSQL)]);
 
     // Ordem importa por conta das FKs: pack depende de asset e item depende de pack+asset.
     await connection.query(createStickerPackTableSQL);
