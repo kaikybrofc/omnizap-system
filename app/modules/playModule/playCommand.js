@@ -160,8 +160,10 @@ const ensureHttpUrl = (value) => {
   try {
     const url = new URL(value.trim());
     if (url.protocol === 'http:' || url.protocol === 'https:') return url.toString();
-  } catch {}
-  return null;
+    return null;
+  } catch {
+    return null;
+  }
 };
 
 const formatNumber = (value) => {
@@ -272,14 +274,16 @@ const safeUnlink = async (filePath) => {
   if (!filePath) return;
   try {
     await fs.promises.unlink(filePath);
-  } catch {}
+  } catch {
+    return;
+  }
 };
 
 const createAbortSignal = (timeoutMs) => {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     return { signal: undefined, cleanup: () => {} };
   }
-  const controller = new AbortController();
+  const controller = new globalThis.AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   return {
     signal: controller.signal,
@@ -615,7 +619,9 @@ const buildApiErrorFromResponse = ({ status, bodyText, defaultMessage, endpoint 
       if (typeof parsed?.mensagem === 'string' && parsed.mensagem.trim()) {
         message = parsed.mensagem.trim();
       }
-    } catch {}
+    } catch {
+      void bodyText;
+    }
   }
 
   return createError(ERROR_CODES.API, message, {

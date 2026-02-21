@@ -34,7 +34,7 @@ const env = cleanEnv(process.env, {
   pm_id: str({ default: undefined, desc: 'PM2 instance ID (legacy)' }),
 });
 
-const IS_PRODUCTION = env.NODE_ENV === 'production';
+const _IS_PRODUCTION = env.NODE_ENV === 'production';
 const DEFAULT_LOG_LEVEL = env.LOG_LEVEL;
 const INSTANCE_ID = env.PM2_INSTANCE_ID ?? env.NODE_APP_INSTANCE ?? env.pm_id ?? 'local';
 const ECOSYSTEM_NAME = env.name ?? env.ECOSYSTEM_NAME ?? 'system';

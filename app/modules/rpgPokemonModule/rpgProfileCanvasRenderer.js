@@ -46,12 +46,6 @@ const toText = (value, fallback = 'N/D') => {
   return text || fallback;
 };
 
-const toPercentText = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return 'N/D';
-  return `${clamp(Math.round(numeric), 0, 100)}%`;
-};
-
 const trimText = (value, max = 120) => {
   const text = String(value || '')
     .replace(/\s+/g, ' ')

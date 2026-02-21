@@ -197,7 +197,7 @@ const stableStringify = (value, depth = 0, seen = new WeakSet()) => {
 const hashObject = (value) => {
   try {
     return fnv1aHash(stableStringify(value));
-  } catch (error) {
+  } catch {
     return fnv1aHash(String(value));
   }
 };

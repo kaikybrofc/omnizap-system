@@ -356,7 +356,7 @@ const assignClanNamesFromList = (clusters, list = CLAN_NAME_LIST) => {
  * @param {*} pushName - Parâmetro.
  * @returns {*} - Retorno.
  */
-const getDisplayLabel = (jid, pushName) => {
+const _getDisplayLabel = (jid, pushName) => {
   const user = getJidUser(jid);
   if (!user) return 'Desconhecido';
   const handle = `@${user}`;
@@ -825,7 +825,7 @@ const buildGraphData = (rows, names) => {
  * @param {*} limit - Parâmetro.
  * @returns {*} - Retorno.
  */
-const buildClusterSummaryLines = (clusters, names, clusterColors, clanByJid, limit = 3) => {
+const _buildClusterSummaryLines = (clusters, names, clusterColors, clanByJid, limit = 3) => {
   if (!clusters || !clusters.length) return [];
   const makeLine = (text, color) => (color ? { text, color } : text);
   const lines = ['Clans (top 3)', ''];
@@ -857,7 +857,7 @@ const buildClusterSummaryLines = (clusters, names, clusterColors, clanByJid, lim
  * @param {*} limit - Parâmetro.
  * @returns {*} - Retorno.
  */
-const buildClanLegendLines = (clusters, clusterColors, limit = 6) => {
+const _buildClanLegendLines = (clusters, clusterColors, limit = 6) => {
   if (!clusters || !clusters.length) return [];
   const makeLine = (text, color) => (color ? { text, color } : text);
   const lines = ['Legenda de clans', ''];
@@ -897,7 +897,7 @@ const hslToColorName = (hsl) => {
   return 'rosa';
 };
 
-const buildClanCaptionLines = (clusters, clusterColors, leaderByClanId, names, limit = 10) => {
+const _buildClanCaptionLines = (clusters, clusterColors, leaderByClanId, names, limit = 10) => {
   if (!clusters || !clusters.length) return [];
   const lines = ['🏷️ *Clans*', ''];
   clusters.slice(0, limit).forEach((cluster) => {
@@ -1266,7 +1266,7 @@ const buildSkewLines = (ranking) => {
  * @param {*} lines - Parâmetro.
  * @returns {*} - Retorno.
  */
-const filterImageSummaryLines = (lines) => {
+const _filterImageSummaryLines = (lines) => {
   const blockedHeaders = new Set(['Conectores (top 5)']);
   const filtered = [];
   let skipSection = false;
@@ -1288,7 +1288,7 @@ const filterImageSummaryLines = (lines) => {
   return filtered;
 };
 
-const linesToText = (lines) =>
+const _linesToText = (lines) =>
   (lines || [])
     .map((line) => (typeof line === 'string' ? line : line?.text || ''))
     .join('\n')
@@ -1383,7 +1383,7 @@ const renderGraphImage = async ({
     const weight = maxNodeValue ? node.total / maxNodeValue : 0.2;
     const minRadius = 36;
     const extraRadius = 36;
-    let nodeRadius = minRadius + weight * extraRadius;
+    const nodeRadius = minRadius + weight * extraRadius;
     nodeRadii.set(node.jid, nodeRadius);
   });
 
@@ -1768,7 +1768,6 @@ const renderGraphImage = async ({
       ctx.shadowBlur = 6;
     }
     const lineHeight = fontSize + 2;
-    const totalHeight = lineHeight * lines.length;
     lines.forEach((line, index) => {
       const offsetY = (index - (lines.length - 1) / 2) * lineHeight;
       ctx.fillText(line, x, y + offsetY);
@@ -1783,7 +1782,6 @@ const renderGraphImage = async ({
     const clusterId = nodeClusters?.get(node.jid);
     const clusterColor = clusterId ? clusterColors?.get(clusterId) : null;
     const avatarImage = avatarImages?.get(node.jid) || null;
-    const weight = maxNodeValue ? node.total / maxNodeValue : 0.2;
     const nodeAlpha = 1;
     const isInfluence = highlightInfluence?.has(node.jid);
     const isConnector = highlightConnectors?.has(node.jid);
@@ -2013,8 +2011,8 @@ export async function handleInteractionGraphCommand({
   remoteJid,
   messageInfo,
   expirationMessage,
-  isGroupMessage,
-  args,
+  isGroupMessage: _isGroupMessage,
+  args: _args,
   senderJid,
 }) {
   const jobStart = performance.now();
@@ -2412,7 +2410,7 @@ export async function handleInteractionGraphCommand({
       );
       return;
     }
-    renderAbortController = new AbortController();
+    renderAbortController = new globalThis.AbortController();
     renderTimeout = setTimeout(
       () => renderAbortController.abort(),
       Math.max(1000, Math.floor(timeLeft)),
