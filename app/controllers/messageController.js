@@ -8,7 +8,6 @@ import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/p
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleGlobalRankingCommand } from '../modules/statsModule/globalRankingCommand.js';
 import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
-import { handleInteractionGraphCommand } from '../modules/statsModule/interactionGraphCommand.js';
 import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js';
 import { extractMessageContent, getExpiration, isGroupJid, isSameJidUser, resolveBotJid } from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
@@ -242,13 +241,6 @@ export const handleMessages = async (update, sock) => {
             case 'nomsg':
             case 'inativos':
               runCommand('semmsg', () => handleNoMessageCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, senderJid, text }));
-              break;
-
-            case 'social':
-            case 'grafo':
-            case 'interacoes':
-            case 'interacao':
-              runCommand('social', () => handleInteractionGraphCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, args, senderJid }));
               break;
 
             case 'ping':

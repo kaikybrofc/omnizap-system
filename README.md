@@ -23,7 +23,7 @@ O **OmniZap System** é uma plataforma de automação para WhatsApp usando **Nod
 - Comandos de mídia (`play`, `playvid`, stickers e conversões).
 - Sticker packs persistentes com CRUD e envio com fallback.
 - Recursos de IA (`cat`, `catimg`, `catprompt`) com OpenAI.
-- Estatísticas (`ranking`, `rankingglobal`, `social`, `semmsg`, `user perfil`).
+- Estatísticas (`ranking`, `rankingglobal`, `semmsg`, `user perfil`).
 - Suporte a LID/JID com reconciliação automática (`lid_map`).
 - Métricas e logs estruturados para operação em produção.
 
@@ -163,7 +163,7 @@ Comandos mais usados:
 - `<prefix>tiktok <url>`
 - `<prefix>quote`
 - `<prefix>cat`, `<prefix>catimg`, `<prefix>catprompt`
-- `<prefix>ranking`, `<prefix>rankingglobal`, `<prefix>social`, `<prefix>semmsg`
+- `<prefix>ranking`, `<prefix>rankingglobal`, `<prefix>semmsg`
 - `<prefix>user perfil`
 
 ## Sticker packs persistentes

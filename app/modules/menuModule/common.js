@@ -185,10 +185,6 @@ Ranking do grupo (top 5)
 💡 Exemplo: ${commandPrefix}rankingglobal
 Ranking geral do bot
 
-→ ${commandPrefix}social  
-💡 Exemplo: ${commandPrefix}social
-Ranking de interações
-
 → ${commandPrefix}semmsg  
 💡 Exemplo: ${commandPrefix}semmsg
 Membros inativos
