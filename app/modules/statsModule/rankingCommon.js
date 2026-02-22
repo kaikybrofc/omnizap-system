@@ -12,6 +12,7 @@ globalThis.__omnizapProfilePicCache = PROFILE_PIC_CACHE;
 const RANKING_IMAGE_WIDTH = 1600;
 const RANKING_IMAGE_HEIGHT = 900;
 const RANKING_IMAGE_SCALE = 2;
+const PROFILE_FETCH_TIMEOUT_MS = 4000;
 
 export const MESSAGE_TYPE_SQL = `
   CASE
@@ -140,7 +141,12 @@ const setCachedProfilePic = (jid, buffer) => {
 const fetchProfileBuffer = async (sock, jid, remoteJid) => {
   const cached = getCachedProfilePic(jid);
   if (cached) return cached;
-  const buffer = await getProfilePicBuffer(sock, { key: { participant: jid, remoteJid } });
+  const buffer = await Promise.race([
+    getProfilePicBuffer(sock, { key: { participant: jid, remoteJid } }),
+    new Promise((resolve) => {
+      setTimeout(() => resolve(null), PROFILE_FETCH_TIMEOUT_MS);
+    }),
+  ]);
   if (buffer) setCachedProfilePic(jid, buffer);
   return buffer;
 };
@@ -556,12 +562,20 @@ export const enrichRankingRows = async ({ rows, scope, remoteJid, botJid }) => {
 
 /**
  * Monta um relatorio completo do ranking conforme escopo.
- * @param {{scope: 'group'|'global', remoteJid?: string|null, botJid?: string|null, limit?: number|null}} params
+ * @param {{scope: 'group'|'global', remoteJid?: string|null, botJid?: string|null, limit?: number|null, includeTopType?: boolean, includeDbStart?: boolean, enrichRows?: boolean}} params
  * @returns {Promise<{rows: Array<any>, totalMessages: number, topType: {label: string, count: number}|null, topTotal: number, dbStart: any}>}
  */
-export const getRankingReport = async ({ scope, remoteJid, botJid, limit = null }) => {
+export const getRankingReport = async ({
+  scope,
+  remoteJid,
+  botJid,
+  limit = null,
+  includeTopType = true,
+  includeDbStart = true,
+  enrichRows = true,
+}) => {
   const totalMessages = await getTotalMessages({ scope, remoteJid, botJid });
-  const topType = await getTopMessageType({ scope, remoteJid, botJid });
+  const topType = includeTopType ? await getTopMessageType({ scope, remoteJid, botJid }) : null;
   const { rows } = await getRankingBase({ scope, remoteJid, botJid, limit });
   const xpByCanonical = await fetchXpByCanonicalIds(rows.map((row) => row?.sender_id));
   rows.forEach((row) => {
@@ -569,9 +583,11 @@ export const getRankingReport = async ({ scope, remoteJid, botJid, limit = null 
     row.xp_total = xpData.xpTotal;
     row.xp_level = xpData.xpLevel;
   });
-  await enrichRankingRows({ rows, scope, remoteJid, botJid });
+  if (enrichRows) {
+    await enrichRankingRows({ rows, scope, remoteJid, botJid });
+  }
   const topTotal = rows.reduce((acc, row) => acc + Number(row.total_messages || 0), 0);
-  const dbStart = await getDbStart({ scope, remoteJid, botJid });
+  const dbStart = includeDbStart ? await getDbStart({ scope, remoteJid, botJid }) : null;
   return { rows, totalMessages, topType, topTotal, dbStart };
 };
 

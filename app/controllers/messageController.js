@@ -233,6 +233,7 @@ export const handleMessages = async (update, sock) => {
             case 'rankingglobal':
             case 'rankglobal':
             case 'globalrank':
+            case 'globalranking':
               runCommand('rankingglobal', () => handleGlobalRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }));
               break;
 

@@ -5,6 +5,15 @@ import { buildRankingMessage, getRankingReport, renderRankingImage } from './ran
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const RANKING_LIMIT = 5;
+const RENDER_TIMEOUT_MS = 15000;
+
+const withTimeout = (promise, timeoutMs) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`Tempo limite excedido (${timeoutMs}ms)`)), timeoutMs);
+    }),
+  ]);
 
 /**
  * Handler do comando de ranking global.
@@ -29,26 +38,42 @@ export async function handleGlobalRankingCommand({
       scope: 'global',
       botJid,
       limit: RANKING_LIMIT,
+      includeTopType: false,
+      enrichRows: false,
     });
     const text = buildRankingMessage({ scope: 'global', limit: RANKING_LIMIT, ...report });
     const mentions = report.rows
       .map((row) => row.mention_id)
       .filter((jid) => isWhatsAppUserId(jid));
 
-    const imageBuffer = await renderRankingImage({
-      sock,
-      remoteJid,
-      rows: report.rows,
-      totalMessages: report.totalMessages,
-      topType: report.topType,
-      scope: 'global',
-      limit: RANKING_LIMIT,
-    });
-    await sendAndStore(sock, 
-      remoteJid,
-      { image: imageBuffer, caption: text, ...(mentions.length ? { mentions } : {}) },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    try {
+      const imageBuffer = await withTimeout(
+        renderRankingImage({
+          sock,
+          remoteJid,
+          rows: report.rows,
+          totalMessages: report.totalMessages,
+          topType: report.topType,
+          scope: 'global',
+          limit: RANKING_LIMIT,
+        }),
+        RENDER_TIMEOUT_MS,
+      );
+      await sendAndStore(sock, 
+        remoteJid,
+        { image: imageBuffer, caption: text, ...(mentions.length ? { mentions } : {}) },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+    } catch (renderError) {
+      logger.warn('Falha/timeout ao renderizar imagem do ranking global; enviando somente texto.', {
+        error: renderError?.message,
+      });
+      await sendAndStore(sock, 
+        remoteJid,
+        { text, ...(mentions.length ? { mentions } : {}) },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
+    }
   } catch (error) {
     logger.error('Erro ao gerar ranking global:', { error: error.message });
     await sendAndStore(sock, 
