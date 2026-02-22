@@ -194,7 +194,7 @@ export const buildProfileText = ({ player, activePokemon, profile = {}, prefix =
   const achievements = Array.isArray(profile?.achievements) ? profile.achievements : [];
   const goals = Array.isArray(profile?.goals) ? profile.goals : [];
 
-  const lines = ['📘 *Seu Perfil RPG*', '', '📌 *Resumo rápido*', `🏅 Nível: *${toNumber(summary?.level, toNumber(player?.level, 1))}*`, `✨ XP: *${toNumber(player?.xp, 0)}*`, `💬 XP social (pool): *${toNumber(player?.xp_pool_social, 0)}*`, `🪙 Gold: *${toNumber(player?.gold, 0)}*`, `🏆 Rank PvP semanal: *${toDisplayText(summary?.pvpWeeklyRank, 'Sem rank')}*`, `🔥 Streak atual: *${toDisplayText(summary?.streak?.label, 'Sem histórico')}*`];
+  const lines = ['📘 *Seu Perfil RPG*', '', '📌 *Resumo rápido*', `🏅 Nível: *${toNumber(summary?.level, toNumber(player?.level, 1))}*`, `✨ XP: *${toNumber(player?.xp, 0)}*`, `🪙 Gold: *${toNumber(player?.gold, 0)}*`, `🏆 Rank PvP semanal: *${toDisplayText(summary?.pvpWeeklyRank, 'Sem rank')}*`, `🔥 Streak atual: *${toDisplayText(summary?.streak?.label, 'Sem histórico')}*`];
 
   if (summary?.isMaxLevel) {
     lines.push('📈 Progresso de nível: *nível máximo alcançado*');

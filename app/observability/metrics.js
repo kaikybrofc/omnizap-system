@@ -241,12 +241,6 @@ const ensureMetrics = () => {
       help: 'Total de evolucoes de Pokemon no RPG',
       registers: [registry],
     }),
-    socialXpEarnedTotal: new client.Counter({
-      name: 'social_xp_earned_total',
-      help: 'XP social ganho por mensagens elegíveis',
-      labelNames: ['source'],
-      registers: [registry],
-    }),
     socialXpConvertedTotal: new client.Counter({
       name: 'social_xp_converted_total',
       help: 'XP social convertido em bonus de RPG',
@@ -642,14 +636,6 @@ export const recordRpgEvolution = (value = 1) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return;
   m.rpgEvolutionsTotal.inc(numeric);
-};
-
-export const recordSocialXpEarned = ({ value = 1, source = 'message' } = {}) => {
-  const m = ensureMetrics();
-  if (!m) return;
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return;
-  m.socialXpEarnedTotal.inc({ source: normalizeLabel(source, 'message') }, numeric);
 };
 
 export const recordSocialXpConverted = ({ value = 1, action = 'unknown' } = {}) => {

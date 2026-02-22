@@ -62,6 +62,7 @@ const SOCIAL_XP_KARMA_BOOST_RATE = Math.min(0.2, Math.max(0, Number(process.env.
 const SOCIAL_XP_GROUP_BOOST_RATE = Math.min(0.2, Math.max(0, Number(process.env.RPG_SOCIAL_XP_GROUP_BOOST_RATE) || 0.05));
 const SOCIAL_XP_ABUSE_PENALTY_RATE = Math.min(0.4, Math.max(0, Number(process.env.RPG_SOCIAL_XP_ABUSE_PENALTY_RATE) || 0.12));
 const SOCIAL_XP_ABUSE_CAP_HITS_THRESHOLD = Math.max(1, Number(process.env.RPG_SOCIAL_XP_ABUSE_CAP_HITS_THRESHOLD) || 3);
+const MESSAGE_XP_BRIDGE_ENABLED = false;
 const BATTLE_CANVAS_ENABLED =
   String(process.env.RPG_BATTLE_CANVAS_ENABLED ?? 'true')
     .trim()
@@ -901,6 +902,10 @@ const resolveSocialConversionMultiplier = ({ karmaScore = 0, hasGroupMomentum = 
 };
 
 const applySocialXpConversion = async ({ ownerJid, chatJid, connection, actionKey = 'unknown' }) => {
+  if (!MESSAGE_XP_BRIDGE_ENABLED) {
+    return { convertedXp: 0, playerXpBonus: 0, pokemonXpBonus: 0, notice: null };
+  }
+
   const player = await getPlayerByJidForUpdate(ownerJid, connection);
   if (!player) return { convertedXp: 0, playerXpBonus: 0, pokemonXpBonus: 0, notice: null };
 

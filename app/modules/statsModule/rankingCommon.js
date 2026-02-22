@@ -1,8 +1,7 @@
 import { createCanvas, loadImage } from 'canvas';
-import { executeQuery, TABLES } from '../../../database/index.js';
+import { executeQuery } from '../../../database/index.js';
 import { getJidUser, getProfilePicBuffer, normalizeJid } from '../../config/baileysConfig.js';
 import { primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../../services/lidMapService.js';
-import { calculateLevelFromXp } from '../xpModule/xpConfig.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -248,40 +247,6 @@ const pickAvatarJid = (row) => {
   if (isWhatsAppUserId(row.mention_id)) return row.mention_id;
   if (isWhatsAppUserId(row.sender_id)) return row.sender_id;
   return null;
-};
-
-const buildInClause = (items) => items.map(() => '?').join(', ');
-
-const fetchXpByCanonicalIds = async (canonicalIds = []) => {
-  const ids = Array.from(new Set((canonicalIds || []).filter(Boolean)));
-  if (!ids.length) return new Map();
-
-  const inClause = buildInClause(ids);
-  const rows = await executeQuery(
-    `SELECT
-        COALESCE(lm.jid, ux.sender_id) AS canonical_id,
-        SUM(ux.xp) AS xp_total
-      FROM ${TABLES.USER_XP} ux
-      LEFT JOIN ${TABLES.LID_MAP} lm
-        ON lm.lid = ux.sender_id
-       AND lm.jid IS NOT NULL
-      WHERE COALESCE(lm.jid, ux.sender_id) IN (${inClause})
-      GROUP BY COALESCE(lm.jid, ux.sender_id)`,
-    ids,
-  );
-
-  const xpByCanonical = new Map();
-  (rows || []).forEach((row) => {
-    const canonicalId = row?.canonical_id;
-    if (!canonicalId) return;
-    const xpTotal = Number(row?.xp_total || 0);
-    xpByCanonical.set(canonicalId, {
-      xpTotal,
-      xpLevel: calculateLevelFromXp(xpTotal).level,
-    });
-  });
-
-  return xpByCanonical;
 };
 
 const drawAvatar = (ctx, { x, y, radius, image, fallbackLabel, borderColor = '#38bdf8' }) => {
@@ -592,12 +557,6 @@ export const getRankingReport = async ({
   const totalMessages = await getTotalMessages({ scope, remoteJid, botJid });
   const topType = includeTopType ? await getTopMessageType({ scope, remoteJid, botJid }) : null;
   const { rows } = await getRankingBase({ scope, remoteJid, botJid, limit });
-  const xpByCanonical = await fetchXpByCanonicalIds(rows.map((row) => row?.sender_id));
-  rows.forEach((row) => {
-    const xpData = xpByCanonical.get(row?.sender_id) || { xpTotal: 0, xpLevel: 1 };
-    row.xp_total = xpData.xpTotal;
-    row.xp_level = xpData.xpLevel;
-  });
   if (enrichRows) {
     await enrichRankingRows({ rows, scope, remoteJid, botJid });
   }
@@ -634,11 +593,9 @@ export const buildRankingMessage = ({ scope, limit, rows, totalMessages, topTota
     const avgPerDay = row.avg_per_day || '0.00';
     const activeDays = row.active_days ?? 0;
     const streak = row.streak ?? 0;
-    const xpTotal = Number(row.xp_total || 0);
-    const xpLevel = Number(row.xp_level || 1);
     const favoriteType = row.favorite_type ? `${row.favorite_type} (${row.favorite_count || 0})` : 'N/D';
     const position = `${index + 1}`.padStart(2, '0');
-    lines.push(`${position}. ${handle}`, `   💬 ${total} msg(s)`, `   ⭐ XP: ${xpTotal} | nível: ${xpLevel}`, `   📊 ${percent}% do total`, `   📆 dias ativos: ${activeDays}`, `   📈 media/dia: ${avgPerDay}`, `   🔥 favorito: ${favoriteType}`, `   🔗 streak: ${streak} dia(s)`, `   📅 primeira: ${first}`, `   🕘 ultima: ${last}`, '');
+    lines.push(`${position}. ${handle}`, `   💬 ${total} msg(s)`, `   📊 ${percent}% do total`, `   📆 dias ativos: ${activeDays}`, `   📈 media/dia: ${avgPerDay}`, `   🔥 favorito: ${favoriteType}`, `   🔗 streak: ${streak} dia(s)`, `   📅 primeira: ${first}`, `   🕘 ultima: ${last}`, '');
   });
 
   lines.push(`Inicio do banco (primeira mensagem): ${formatDate(dbStart)}`);
