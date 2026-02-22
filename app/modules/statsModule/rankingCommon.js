@@ -1,6 +1,6 @@
 import { createCanvas, loadImage } from 'canvas';
 import { executeQuery, TABLES } from '../../../database/index.js';
-import { getJidUser, getProfilePicBuffer } from '../../config/baileysConfig.js';
+import { getJidUser, getProfilePicBuffer, normalizeJid } from '../../config/baileysConfig.js';
 import { primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../../services/lidMapService.js';
 import { calculateLevelFromXp } from '../xpModule/xpConfig.js';
 
@@ -111,8 +111,23 @@ const buildWhere = ({ scope, remoteJid, botJid }) => {
     params.push(remoteJid);
   }
   if (botJid) {
+    const normalizedBotJid = normalizeJid(botJid) || botJid;
+    const botUser = getJidUser(normalizedBotJid);
+
+    // Exclui por JID exato (normalizado e bruto) e pelo usuário base
+    // para cobrir formatos como numero:dispositivo@s.whatsapp.net.
     where.push('m.sender_id <> ?');
-    params.push(botJid);
+    params.push(normalizedBotJid);
+    if (botJid !== normalizedBotJid) {
+      where.push('m.sender_id <> ?');
+      params.push(botJid);
+    }
+    if (botUser) {
+      where.push('m.sender_id NOT LIKE ?');
+      params.push(`${botUser}@%`);
+      where.push('m.sender_id NOT LIKE ?');
+      params.push(`${botUser}:%`);
+    }
   }
   return { where, params };
 };
