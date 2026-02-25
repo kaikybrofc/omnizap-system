@@ -17,8 +17,9 @@ FLUSH PRIVILEGES;
 SET GLOBAL slow_query_log = ON;
 SET GLOBAL long_query_time = 0.5;
 SET GLOBAL log_output = 'FILE';
--- Adjust path if your MySQL logs are in a different directory.
-SET GLOBAL slow_query_log_file = '/var/log/mysql/mysql-slow.log';
+-- Keep slow log in datadir for compatibility across MariaDB/MySQL host setups.
+-- If needed, change to another writable path.
+SET GLOBAL slow_query_log_file = '/var/lib/mysql/mysql-slow.log';
 
 -- 3) Performance Schema consumers/instruments
 -- NOTE: performance_schema itself cannot be enabled dynamically.

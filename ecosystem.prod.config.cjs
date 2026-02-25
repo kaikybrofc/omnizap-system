@@ -18,7 +18,6 @@ module.exports = {
       error_file: `logs/${appName}-error.log`,
       env: {
         NODE_ENV: 'production',
-        LOG_LEVEL: 'info',
         COMMAND_PREFIX: '/',
       },
       wait_ready: true,

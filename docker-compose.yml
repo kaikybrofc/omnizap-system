@@ -69,6 +69,7 @@ services:
       - "--config.my-cnf=/etc/mysql-exporter/my.cnf"
       - "--collect.global_status"
       - "--collect.global_variables"
+      - "--no-collect.slave_status"
       - "--collect.info_schema.innodb_metrics"
       - "--collect.info_schema.processlist"
       - "--collect.info_schema.tables"

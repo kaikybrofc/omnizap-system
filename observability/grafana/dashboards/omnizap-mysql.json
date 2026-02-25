@@ -3,7 +3,7 @@
   "title": "OmniZap MySQL",
   "timezone": "browser",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 3,
   "refresh": "10s",
   "time": {
     "from": "now-6h",
@@ -31,7 +31,7 @@
       "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
       "targets": [
         {
-          "expr": "rate(mysql_global_status_com_insert[5m]) + rate(mysql_global_status_com_update[5m]) + rate(mysql_global_status_com_delete[5m])",
+          "expr": "sum(rate(mysql_global_status_commands_total{command=~\"insert|update|delete\"}[5m])) or (sum(rate(mysql_global_status_com_insert[5m])) + sum(rate(mysql_global_status_com_update[5m])) + sum(rate(mysql_global_status_com_delete[5m]))) or vector(0)",
           "legendFormat": "writes",
           "refId": "A"
         }
