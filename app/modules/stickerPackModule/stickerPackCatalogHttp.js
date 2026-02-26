@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { getJidUser, resolveBotJid } from '../../config/baileysConfig.js';
+import { getActiveSocket } from '../../services/socketState.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
 import { listStickerPacksForCatalog, findStickerPackByPackKey } from './stickerPackRepository.js';
@@ -60,6 +62,9 @@ const DEFAULT_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_LIMIT, 50
 const MAX_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_MAX_LIMIT, 200, 1, 500);
 const MAX_DATA_SCAN_FILES = clampInt(process.env.STICKER_DATA_SCAN_MAX_FILES, 10000, 100, 50000);
 const ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_ASSET_CACHE_SECONDS, 60 * 10, 0, 60 * 60 * 24 * 7);
+const STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE =
+  String(process.env.STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE || '/pack send {{pack_key}}').trim() ||
+  '/pack send {{pack_key}}';
 const METRICS_ENDPOINT =
   process.env.METRICS_ENDPOINT ||
   `http://127.0.0.1:${process.env.METRICS_PORT || 9102}${process.env.METRICS_PATH || '/metrics'}`;
@@ -244,6 +249,49 @@ const toImageMimeType = (filePath) => {
   return 'image/webp';
 };
 
+const normalizePhoneDigits = (value) => String(value || '').replace(/\D+/g, '');
+
+const resolveCatalogBotPhone = () => {
+  const activeSocket = getActiveSocket();
+  const botJid = resolveBotJid(activeSocket?.user?.id);
+  const jidUser = getJidUser(botJid || '');
+  const fromSocket = normalizePhoneDigits(jidUser);
+  if (fromSocket) return fromSocket;
+
+  const envCandidates = [
+    process.env.WHATSAPP_BOT_NUMBER,
+    process.env.BOT_NUMBER,
+    process.env.PHONE_NUMBER,
+    process.env.BOT_PHONE_NUMBER,
+  ];
+
+  for (const candidate of envCandidates) {
+    const normalized = normalizePhoneDigits(candidate);
+    if (normalized) return normalized;
+  }
+
+  return '';
+};
+
+const buildPackWhatsAppText = (pack) =>
+  STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE
+    .replaceAll('{{pack_key}}', String(pack?.pack_key || ''))
+    .replaceAll('{{pack_name}}', String(pack?.name || ''));
+
+const buildPackWhatsAppInfo = (pack) => {
+  const phone = resolveCatalogBotPhone();
+  if (!phone) return null;
+
+  const text = buildPackWhatsAppText(pack);
+  const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+
+  return {
+    phone,
+    text,
+    url,
+  };
+};
+
 const listDataImageFiles = async () => {
   const files = [];
   const queue = [STICKER_DATA_PUBLIC_DIR];
@@ -314,6 +362,7 @@ const mapPackSummary = (pack) => ({
   cover_url: pack.cover_sticker_id ? buildStickerAssetUrl(pack.pack_key, pack.cover_sticker_id) : null,
   api_url: buildPackApiUrl(pack.pack_key),
   web_url: buildPackWebUrl(pack.pack_key),
+  whatsapp: buildPackWhatsAppInfo(pack),
   updated_at: toIsoOrNull(pack.updated_at),
 });
 

@@ -71,6 +71,7 @@
     panelError: document.getElementById('panel-error'),
     panelClose: document.getElementById('panel-close'),
     copy: document.getElementById('copy-link'),
+    useWhatsAppLink: document.getElementById('use-whatsapp-link'),
     stickers: document.getElementById('stickers'),
     packPage: document.getElementById('pack-page'),
     packPageTitle: document.getElementById('pack-page-title'),
@@ -80,6 +81,7 @@
     packPageGrid: document.getElementById('pack-page-stickers'),
     packPageBack: document.getElementById('pack-page-back'),
     packPageCopy: document.getElementById('pack-page-copy'),
+    packPageWhatsApp: document.getElementById('pack-page-whatsapp'),
   };
 
   if (
@@ -104,6 +106,7 @@
     !els.panelNext ||
     !els.panelPageInfo ||
     !els.copy ||
+    !els.useWhatsAppLink ||
     !els.stickers ||
     !els.packPage ||
     !els.packPageTitle ||
@@ -112,7 +115,8 @@
     !els.packPageStatus ||
     !els.packPageGrid ||
     !els.packPageBack ||
-    !els.packPageCopy
+    !els.packPageCopy ||
+    !els.packPageWhatsApp
   ) {
     return;
   }
@@ -173,6 +177,18 @@
     els.orphanStatus.textContent = text || '';
   };
 
+  const applyWhatsAppLink = (element, url) => {
+    if (!element) return;
+    const value = String(url || '').trim();
+    if (!value) {
+      element.hidden = true;
+      element.removeAttribute('href');
+      return;
+    }
+    element.hidden = false;
+    element.setAttribute('href', value);
+  };
+
   const fetchJson = async (url) => {
     const response = await fetch(url);
     const data = await response.json().catch(() => ({}));
@@ -211,7 +227,7 @@
 
   const renderCard = (pack) => {
     const col = document.createElement('div');
-    col.className = 'col-12 col-sm-6 col-md-4 col-lg-3';
+    col.className = 'col-4 col-sm-6 col-md-4 col-lg-3';
 
     const card = document.createElement('button');
     card.type = 'button';
@@ -284,7 +300,7 @@
     els.grid.innerHTML = '';
     for (let index = 0; index < count; index += 1) {
       const col = document.createElement('div');
-      col.className = 'col-12 col-sm-6 col-md-4 col-lg-3';
+      col.className = 'col-4 col-sm-6 col-md-4 col-lg-3';
       col.innerHTML =
         '<div class="card h-100 bg-dark text-light shadow-sm pack-card">' +
         '<div class="card-body d-flex flex-column gap-2">' +
@@ -345,6 +361,7 @@
     els.packPageSub.textContent = (pack?.publisher || '-') + ' | ' + (pack?.description || 'Sem descrição');
     els.packPageChip.textContent =
       String(pack?.sticker_count || items.length || 0) + ' itens | ' + (pack?.visibility || '-') + ' | ' + (pack?.pack_key || '-');
+    applyWhatsAppLink(els.packPageWhatsApp, pack?.whatsapp?.url);
 
     els.packPageGrid.innerHTML = '';
     if (!items.length) {
@@ -600,6 +617,7 @@
     els.panelTitle.textContent = pack.name || 'Pack';
     els.panelSub.textContent = (pack.publisher || '-') + ' | ' + (pack.description || 'Sem descrição');
     els.panelChip.textContent = pack.sticker_count + ' itens | ' + pack.visibility + ' | ' + pack.pack_key;
+    applyWhatsAppLink(els.useWhatsAppLink, pack?.whatsapp?.url);
     renderPanelStickersPage();
 
     showPanel();
@@ -614,6 +632,8 @@
     els.packPageChip.textContent = '';
     els.packPageGrid.innerHTML = '';
     els.packPageStatus.textContent = 'Buscando informações do pack...';
+    applyWhatsAppLink(els.packPageWhatsApp, '');
+    applyWhatsAppLink(els.useWhatsAppLink, '');
 
     try {
       const payload = await fetchJson(toApi(CONFIG.apiBasePath + '/' + encodeURIComponent(sanitizedKey)));
