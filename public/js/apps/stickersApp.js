@@ -700,7 +700,14 @@ function CreatorStatCard({ icon, label, value, tone = 'slate', sublabel = '' }) 
   `;
 }
 
-function CreatorPackCardPro({ pack, onOpenPublic, onOpenActions, onOpenManage, actionBusy = '' }) {
+function CreatorPackCardPro({
+  pack,
+  onOpenPublic,
+  onOpenActions,
+  onOpenManage,
+  onQuickDelete,
+  actionBusy = '',
+}) {
   const visibilityPill = formatVisibilityPill(pack?.visibility);
   const statusPill = formatStatusPill(pack?.status);
   const engagement = getPackEngagement(pack);
@@ -711,7 +718,7 @@ function CreatorPackCardPro({ pack, onOpenPublic, onOpenActions, onOpenManage, a
   return html`
     <article className="group overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/90 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lg">
       <div className="relative">
-        <img src=${coverUrl} alt=${`Capa de ${pack?.name || 'Pack'}`} className="h-40 w-full object-cover bg-slate-950" loading="lazy" />
+        <img src=${coverUrl} alt=${`Capa de ${pack?.name || 'Pack'}`} className="h-28 w-full object-cover bg-slate-950 sm:h-32" loading="lazy" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/25 to-transparent"></div>
         <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
           <span className=${`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${statusPill.className}`}>${statusPill.label}</span>
@@ -730,25 +737,52 @@ function CreatorPackCardPro({ pack, onOpenPublic, onOpenActions, onOpenManage, a
           : null}
       </div>
 
-      <div className="p-3 space-y-3">
-        <div>
-          <h3 className="truncate text-base font-bold text-slate-100">${pack?.name || 'Pack sem nome'}</h3>
-          <p className="truncate text-[11px] text-slate-500">ID ${pack?.pack_key || '-'}</p>
+      <div className="p-2.5 space-y-2">
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-bold text-slate-100 sm:text-[15px]">${pack?.name || 'Pack sem nome'}</h3>
+          <p className="truncate text-[10px] text-slate-500">${pack?.pack_key || '-'}</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-800 bg-slate-950/35 px-2.5 py-2">
           <p className="text-[11px] text-slate-300">🧩 ${shortNum(pack?.sticker_count || 0)}</p>
           <p className="text-[11px] text-slate-300">❤️ ${shortNum(engagement.likeCount)}</p>
           <p className="text-[11px] text-slate-300">⬇ ${shortNum(engagement.openCount)}</p>
-          <p className="truncate text-[11px] text-slate-300">📅 ${pack?.updated_at ? new Date(pack.updated_at).toLocaleDateString('pt-BR') : '-'}</p>
+          <p className="truncate text-[11px] text-slate-400">📅 ${pack?.updated_at ? new Date(pack.updated_at).toLocaleDateString('pt-BR') : '-'}</p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-wrap gap-1.5">
           <button
             type="button"
             onClick=${() => onOpenManage?.(pack)}
             disabled=${Boolean(actionBusy)}
-            className="inline-flex h-10 flex-1 items-center justify-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60"
+            className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/60 px-2 text-[11px] text-slate-100 hover:bg-slate-800 disabled:opacity-60"
+          >
+            ➕ Sticker
+          </button>
+          <button
+            type="button"
+            onClick=${() => onOpenManage?.(pack)}
+            disabled=${Boolean(actionBusy)}
+            className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/60 px-2 text-[11px] text-slate-100 hover:bg-slate-800 disabled:opacity-60"
+          >
+            ✏️ Editar
+          </button>
+          <button
+            type="button"
+            onClick=${() => onQuickDelete?.(pack)}
+            disabled=${Boolean(actionBusy)}
+            className="inline-flex h-8 items-center justify-center rounded-lg border border-rose-500/25 bg-rose-500/10 px-2 text-[11px] text-rose-100 hover:bg-rose-500/15 disabled:opacity-60"
+          >
+            🗑️ Excluir
+          </button>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick=${() => onOpenManage?.(pack)}
+            disabled=${Boolean(actionBusy)}
+            className="inline-flex h-9 flex-1 items-center justify-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60"
           >
             ${actionBusy === 'manage' ? 'Abrindo...' : 'Gerenciar pack'}
           </button>
@@ -757,12 +791,12 @@ function CreatorPackCardPro({ pack, onOpenPublic, onOpenActions, onOpenManage, a
                 <button
                   type="button"
                   onClick=${() => onOpenPublic?.(pack.pack_key)}
-                  className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20"
+                  className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-950/60 px-3 text-xs font-medium text-slate-100 hover:bg-slate-800"
                 >
-                  Abrir no catálogo
+                  Abrir
                 </button>
               `
-            : null}
+            : html`<span className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-800 bg-slate-950/40 px-3 text-[11px] text-slate-500">Sem link público</span>`}
         </div>
       </div>
     </article>
@@ -778,6 +812,7 @@ function PackManagerModal({
   onClose,
   onRefresh,
   onSaveMetadata,
+  onAddSticker,
   onRemoveSticker,
   onReplaceSticker,
   onSetCover,
@@ -837,6 +872,20 @@ function PackManagerModal({
               <p className="truncate text-xs text-slate-500">${pack?.pack_key || '-'}</p>
             </div>
             <div className="flex items-center gap-2">
+              <label className="inline-flex h-10 cursor-pointer items-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20">
+                ➕ Adicionar sticker
+                <input
+                  type="file"
+                  accept="image/*,video/mp4,video/webm,video/quicktime,video/x-m4v"
+                  className="hidden"
+                  onChange=${(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    onAddSticker?.(file);
+                    event.target.value = '';
+                  }}
+                />
+              </label>
               <button type="button" onClick=${onOpenAnalytics} disabled=${loading || !pack} className="h-10 rounded-xl border border-indigo-500/35 bg-indigo-500/10 px-3 text-xs font-semibold text-indigo-100 hover:bg-indigo-500/20 disabled:opacity-60">📊 Analytics</button>
               <button type="button" onClick=${onRefresh} disabled=${Boolean(busyAction) || loading} className="h-10 rounded-xl border border-slate-700 px-3 text-xs text-slate-100 hover:bg-slate-800 disabled:opacity-60">${loading ? 'Atualizando...' : 'Atualizar'}</button>
               <button type="button" onClick=${onClose} className="h-10 rounded-xl border border-slate-700 px-3 text-xs text-slate-100 hover:bg-slate-800">Fechar</button>
@@ -1032,8 +1081,12 @@ function CreatorProfileDashboard({
   onOpenPackActions,
   onOpenManagePack,
   onProfileAction,
+  onRequestDeletePack,
   packActionBusyByKey = {},
 }) {
+  const [packSearch, setPackSearch] = useState('');
+  const [packSort, setPackSort] = useState('recent');
+  const [packFilter, setPackFilter] = useState('all');
   const hasGoogleLogin = Boolean(googleAuth?.user?.sub);
   const googleLoginEnabled = Boolean(googleAuthConfig?.enabled && googleAuthConfig?.clientId);
   const packs = Array.isArray(myPacks) ? myPacks : [];
@@ -1050,34 +1103,81 @@ function CreatorProfileDashboard({
     },
     { downloads: 0, likes: 0, stickers: 0, publishedStickers: 0 },
   );
+  const filteredSortedPacks = useMemo(() => {
+    const q = normalizeToken(packSearch);
+    const next = packs.filter((pack) => {
+      if (packFilter !== 'all') {
+        const status = String(pack?.status || '').toLowerCase();
+        const visibility = String(pack?.visibility || '').toLowerCase();
+        if (packFilter === 'published' && status !== 'published') return false;
+        if (packFilter === 'draft' && status !== 'draft') return false;
+        if (packFilter === 'private' && visibility !== 'private') return false;
+        if (packFilter === 'unlisted' && visibility !== 'unlisted') return false;
+      }
+      if (!q) return true;
+      const searchable = [
+        pack?.name,
+        pack?.publisher,
+        pack?.pack_key,
+        pack?.description,
+        ...(Array.isArray(pack?.manual_tags) ? pack.manual_tags : []),
+      ]
+        .map((value) => normalizeToken(value))
+        .join(' ');
+      return searchable.includes(q);
+    });
+
+    next.sort((a, b) => {
+      const ea = getPackEngagement(a);
+      const eb = getPackEngagement(b);
+      if (packSort === 'downloads') return eb.openCount - ea.openCount;
+      if (packSort === 'likes') return eb.likeCount - ea.likeCount;
+      return new Date(b?.updated_at || b?.created_at || 0).getTime() - new Date(a?.updated_at || a?.created_at || 0).getTime();
+    });
+    return next;
+  }, [packs, packSearch, packSort, packFilter]);
+  const visibleCountLabel = `${filteredSortedPacks.length}${packSearch.trim() || packFilter !== 'all' ? ` de ${packs.length}` : ''}`;
+  const profileStatusChips = [
+    { key: 'published', label: '🟢 Publicados', value: Number(myProfileStats?.published || 0) },
+    { key: 'draft', label: '🟡 Rascunhos', value: Number(myProfileStats?.drafts || 0) },
+    { key: 'private', label: '🔒 Privados', value: Number(myProfileStats?.private || 0) },
+    { key: 'unlisted', label: '🔵 Não listados', value: Number(myProfileStats?.unlisted || 0) },
+  ];
+  const packFilterOptions = [
+    { key: 'all', label: 'Todos' },
+    { key: 'published', label: 'Publicados' },
+    { key: 'draft', label: 'Rascunhos' },
+    { key: 'private', label: 'Privados' },
+    { key: 'unlisted', label: 'Não listados' },
+  ];
 
   return html`
-    <section className="space-y-4 pb-20 sm:pb-4">
+    <section className="space-y-3 pb-16 sm:pb-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <button type="button" onClick=${onBack} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">← Voltar para catálogo</button>
+        <button type="button" onClick=${onBack} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">← Catálogo</button>
         <div className="flex items-center gap-2">
-          <button type="button" onClick=${() => onProfileAction?.('edit-profile')} className="inline-flex h-10 items-center rounded-xl border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800">✏️ Editar perfil</button>
-          <button type="button" onClick=${() => onProfileAction?.('settings')} className="inline-flex h-10 items-center rounded-xl border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800">⚙️ Configurações</button>
-          <button type="button" onClick=${onRefresh} disabled=${myPacksLoading || googleAuthBusy} className="inline-flex h-10 items-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60">${myPacksLoading ? 'Atualizando...' : 'Atualizar'}</button>
+          <button type="button" onClick=${() => onProfileAction?.('edit-profile')} className="inline-flex h-10 items-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20">✏️ Editar perfil</button>
+          <button type="button" onClick=${() => onProfileAction?.('settings')} className="inline-flex h-10 items-center rounded-xl border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800">⚙️</button>
+          <button type="button" onClick=${onRefresh} disabled=${myPacksLoading || googleAuthBusy} className="inline-flex h-10 items-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60">${myPacksLoading ? '...' : '⟳'}</button>
         </div>
       </div>
 
-      <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-4 sm:p-5">
-        <div className="pointer-events-none absolute -right-14 -top-14 h-44 w-44 rounded-full bg-cyan-400/10 blur-3xl"></div>
-        <div className="pointer-events-none absolute -left-10 bottom-0 h-36 w-36 rounded-full bg-emerald-400/10 blur-3xl"></div>
+      <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-900 p-3.5 sm:p-4">
+        <div className="pointer-events-none absolute -right-10 -top-8 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl"></div>
+        <div className="pointer-events-none absolute -left-8 bottom-0 h-32 w-32 rounded-full bg-emerald-400/10 blur-3xl"></div>
         <div className="relative">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <img
                 src=${googleAuth?.user?.picture || getAvatarUrl(googleAuth?.user?.name || 'creator')}
                 alt="Avatar"
-                className="h-16 w-16 rounded-2xl border border-slate-700 bg-slate-900 object-cover sm:h-20 sm:w-20"
+                className="h-20 w-20 rounded-2xl border border-slate-700 bg-slate-900 object-cover sm:h-24 sm:w-24"
               />
               <div className="min-w-0">
-                <div className="mb-1 inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-100">✨ Criador</div>
-                <h1 className="truncate text-xl font-extrabold tracking-tight text-slate-100 sm:text-2xl">${googleAuth?.user?.name || 'Meu perfil de packs'}</h1>
+                <div className="mb-1 inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-100">✅ Criador verificado</div>
+                <h1 className="truncate text-2xl font-extrabold tracking-tight text-slate-100 sm:text-3xl">${googleAuth?.user?.name || 'Meu perfil de packs'}</h1>
                 <p className="truncate text-xs text-slate-400">${googleAuth?.user?.email || 'Faça login com Google para vincular seus packs.'}</p>
-                <p className="mt-1 text-[11px] text-slate-500">Sessão ${googleAuth?.expiresAt ? `até ${new Date(googleAuth.expiresAt).toLocaleString('pt-BR')}` : hasGoogleLogin ? 'ativa' : 'não autenticada'}</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Sessão ${googleAuth?.expiresAt ? `até ${new Date(googleAuth.expiresAt).toLocaleString('pt-BR')}` : hasGoogleLogin ? 'ativa' : 'não autenticada'}</p>
               </div>
             </div>
             ${hasGoogleLogin
@@ -1085,19 +1185,42 @@ function CreatorProfileDashboard({
               : null}
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3"><p className="text-[11px] text-slate-400">Packs</p><p className="text-lg font-bold text-slate-100">${shortNum(myProfileStats?.total || 0)}</p></div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3"><p className="text-[11px] text-slate-400">Downloads</p><p className="text-lg font-bold text-slate-100">${shortNum(totals.downloads)}</p></div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3"><p className="text-[11px] text-slate-400">Likes</p><p className="text-lg font-bold text-slate-100">${shortNum(totals.likes)}</p></div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3"><p className="text-[11px] text-slate-400">Stickers publicados</p><p className="text-lg font-bold text-slate-100">${shortNum(totals.publishedStickers)}</p></div>
-          </div>
+          ${hasGoogleLogin
+            ? html`
+                <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/35 p-2.5">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-2.5 py-2"><p className="text-[10px] text-slate-400">Packs</p><p className="text-base font-bold text-slate-100">${shortNum(myProfileStats?.total || 0)}</p></div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-2.5 py-2"><p className="text-[10px] text-slate-400">Downloads</p><p className="text-base font-bold text-slate-100">${shortNum(totals.downloads)}</p></div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-2.5 py-2"><p className="text-[10px] text-slate-400">Likes</p><p className="text-base font-bold text-slate-100">${shortNum(totals.likes)}</p></div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/50 px-2.5 py-2"><p className="text-[10px] text-slate-400">Stickers publicados</p><p className="text-base font-bold text-slate-100">${shortNum(totals.publishedStickers)}</p></div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    ${profileStatusChips.map((chip) => html`
+                      <button
+                        key=${chip.key}
+                        type="button"
+                        onClick=${() => setPackFilter((prev) => (prev === chip.key ? 'all' : chip.key))}
+                        className=${`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] ${
+                          packFilter === chip.key
+                            ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-100'
+                            : 'border-slate-700 bg-slate-900/50 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <span>${chip.label}</span>
+                        <span className="font-semibold">${shortNum(chip.value)}</span>
+                      </button>
+                    `)}
+                  </div>
+                </div>
+              `
+            : null}
         </div>
       </section>
 
       ${!hasGoogleLogin
         ? html`
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-              <div className="space-y-3">
+            <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
+              <div className="space-y-2.5">
                 <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
                   <p className="text-sm font-semibold text-cyan-200">Entrar com Google</p>
                   <p className="mt-1 text-xs text-slate-300">
@@ -1123,50 +1246,91 @@ function CreatorProfileDashboard({
             </section>
           `
         : html`
-            <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <${CreatorStatCard} icon="📦" label="Total de packs" value=${shortNum(myProfileStats?.total || 0)} tone="slate" sublabel="Base de conteúdo" />
-              <${CreatorStatCard} icon="🟢" label="Publicados" value=${shortNum(myProfileStats?.published || 0)} tone="emerald" sublabel="Visíveis no catálogo" />
-              <${CreatorStatCard} icon="🟡" label="Rascunhos" value=${shortNum(myProfileStats?.drafts || 0)} tone="amber" sublabel="Em preparação" />
-              <${CreatorStatCard} icon="🔒" label="Privados" value=${shortNum(myProfileStats?.private || 0)} tone="rose" sublabel="Somente você" />
-              <${CreatorStatCard} icon="🔵" label="Não listados" value=${shortNum(myProfileStats?.unlisted || 0)} tone="cyan" sublabel="Acesso via link" />
-            </section>
-
             ${myPacksError ? html`<div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">${myPacksError}</div>` : null}
 
-            <section className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-100">Packs criados por você</h2>
-                  <p className="text-xs text-slate-400">Gerencie conteúdo, visibilidade e stickers individuais.</p>
+            <section className="space-y-2.5">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-100">Packs criados por você</h2>
+                    <p className="text-xs text-slate-400">Busca, ordenação e gerenciamento rápido.</p>
+                  </div>
+                  <span className="text-xs text-slate-400">${myPacksLoading ? 'Carregando...' : `${visibleCountLabel} pack(s)`}</span>
                 </div>
-                <span className="text-xs text-slate-400">${myPacksLoading ? 'Carregando...' : `${packs.length} pack(s)`}</span>
+
+                <div className="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px]">
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">🔎</span>
+                    <input
+                      type="search"
+                      value=${packSearch}
+                      onChange=${(e) => setPackSearch(e.target.value)}
+                      placeholder="Buscar por nome, ID, tags ou publisher..."
+                      className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950/60 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-cyan-400/40"
+                    />
+                  </div>
+                  <select
+                    value=${packSort}
+                    onChange=${(e) => setPackSort(e.target.value)}
+                    className="h-10 rounded-xl border border-slate-700 bg-slate-950/60 px-3 text-sm text-slate-100 outline-none focus:border-cyan-400/40"
+                  >
+                    <option value="recent">Mais recente</option>
+                    <option value="downloads">Mais downloads</option>
+                    <option value="likes">Mais likes</option>
+                  </select>
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  ${packFilterOptions.map((option) => html`
+                    <button
+                      key=${option.key}
+                      type="button"
+                      onClick=${() => setPackFilter(option.key)}
+                      className=${`h-8 rounded-full border px-2.5 text-[11px] ${
+                        packFilter === option.key
+                          ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-100'
+                          : 'border-slate-700 bg-slate-950/50 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      ${option.label}
+                    </button>
+                  `)}
+                </div>
               </div>
 
               ${myPacksLoading
                 ? html`
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      ${Array.from({ length: 6 }).map((_, index) => html`<div key=${index} className="h-72 animate-pulse rounded-2xl border border-slate-800 bg-slate-900/70"></div>`)}
+                      ${Array.from({ length: 6 }).map((_, index) => html`<div key=${index} className="h-56 animate-pulse rounded-2xl border border-slate-800 bg-slate-900/70"></div>`)}
                     </div>
                   `
-                : packs.length
+                : filteredSortedPacks.length
                   ? html`
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                        ${packs.map((pack) => html`
+                        ${filteredSortedPacks.map((pack) => html`
                           <${CreatorPackCardPro}
                             key=${pack.id || pack.pack_key}
                             pack=${pack}
                             onOpenPublic=${onOpenPublicPack}
                             onOpenActions=${onOpenPackActions}
                             onOpenManage=${onOpenManagePack}
+                            onQuickDelete=${onRequestDeletePack}
                             actionBusy=${packActionBusyByKey?.[pack.pack_key] || ''}
                           />
                         `)}
                       </div>
                     `
                   : html`
-                      <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/60 p-6 text-center">
-                        <p className="text-sm font-semibold text-slate-100">Nenhum pack encontrado para esta conta.</p>
-                        <p className="mt-1 text-xs text-slate-400">Crie um pack com essa conta Google em <a href="/stickers/create/" className="text-cyan-300 underline">/stickers/create</a> e volte aqui.</p>
+                      <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/60 p-5 text-center">
+                        <p className="text-sm font-semibold text-slate-100">${packs.length ? 'Nenhum pack corresponde aos filtros.' : 'Nenhum pack encontrado para esta conta.'}</p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          ${packs.length
+                            ? 'Tente limpar busca/filtros para ver seus packs.'
+                            : html`Crie um pack com essa conta Google em <a href="/stickers/create/" className="text-cyan-300 underline">/stickers/create</a> e volte aqui.`}
+                        </p>
+                        ${packs.length
+                          ? html`<button type="button" onClick=${() => { setPackSearch(''); setPackFilter('all'); }} className="mt-3 h-9 rounded-xl border border-slate-700 px-3 text-xs text-slate-100 hover:bg-slate-800">Limpar filtros</button>`
+                          : null}
                       </div>
                     `}
             </section>
@@ -2203,6 +2367,25 @@ function StickersApp() {
     ).catch(() => {});
   };
 
+  const handleManageAddSticker = async (file) => {
+    if (!managePackTargetKey || !file) return;
+    try {
+      const stickerDataUrl = await readFileAsDataUrl(file);
+      await runManagePackMutation(
+        'addSticker',
+        async () =>
+          fetchJson(buildManagePackApiPath(managePackTargetKey, '/stickers'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=utf-8' },
+            body: JSON.stringify({ sticker_data_url: stickerDataUrl }),
+          }),
+        'Sticker adicionado ao pack.',
+      );
+    } catch (err) {
+      pushProfileToast(err?.message || 'Falha ao adicionar sticker.', 'error');
+    }
+  };
+
   const handleManageSetCover = async (stickerId) => {
     if (!managePackTargetKey || !stickerId) return;
     await runManagePackMutation(
@@ -2672,6 +2855,7 @@ function StickersApp() {
                 onOpenPackActions=${openPackActionsSheet}
                 onOpenManagePack=${(pack) => openManagePackByKey(pack?.pack_key || '')}
                 onProfileAction=${handleProfileAction}
+                onRequestDeletePack=${requestDeletePack}
                 packActionBusyByKey=${packActionBusyByKey}
               />
             `
@@ -2932,6 +3116,7 @@ function StickersApp() {
         onClose=${closeManagePackModal}
         onRefresh=${refreshManagePackData}
         onSaveMetadata=${handleManageSaveMetadata}
+        onAddSticker=${handleManageAddSticker}
         onRemoveSticker=${handleManageRemoveSticker}
         onReplaceSticker=${handleManageReplaceSticker}
         onSetCover=${handleManageSetCover}

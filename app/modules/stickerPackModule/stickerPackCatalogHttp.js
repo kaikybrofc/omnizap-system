@@ -2518,6 +2518,80 @@ const handleManagedPackStickerDeleteRequest = async (req, res, packKey, stickerI
   }
 };
 
+const handleManagedPackStickerCreateRequest = async (req, res, packKey) => {
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const context = await loadOwnedPackForWebManagement(req, res, packKey);
+  if (!context) return;
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req, {
+      maxBytes: Math.max(256 * 1024, Math.round(MAX_STICKER_SOURCE_UPLOAD_BYTES * 1.6)),
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  const decoded = decodeStickerBase64Payload(payload?.sticker_base64 || payload?.sticker_data_url || '');
+  if (!decoded?.buffer) {
+    sendJson(req, res, 400, {
+      error: 'Envie sticker_base64 ou sticker_data_url.',
+      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    });
+    return;
+  }
+  if (decoded.buffer.length > MAX_STICKER_SOURCE_UPLOAD_BYTES) {
+    sendJson(req, res, 400, {
+      error: `Arquivo excede limite de ${Math.round(MAX_STICKER_SOURCE_UPLOAD_BYTES / (1024 * 1024))}MB.`,
+      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    });
+    return;
+  }
+
+  try {
+    const normalizedUpload = await convertUploadMediaToWebp({
+      ownerJid: context.session.ownerJid,
+      buffer: decoded.buffer,
+      mimetype: decoded.mimetype || 'image/webp',
+    });
+    const asset = await saveStickerAssetFromBuffer({
+      ownerJid: context.session.ownerJid,
+      buffer: normalizedUpload.buffer,
+      mimetype: normalizedUpload.mimetype || 'image/webp',
+    });
+
+    let updatedPack = await stickerPackService.addStickerToPack({
+      ownerJid: context.session.ownerJid,
+      identifier: context.packKey,
+      asset: { id: asset.id },
+      emojis: [],
+      accessibilityLabel: null,
+    });
+
+    if (payload?.set_cover === true) {
+      updatedPack = await stickerPackService.setPackCover({
+        ownerJid: context.session.ownerJid,
+        identifier: context.packKey,
+        stickerId: asset.id,
+      });
+    }
+
+    sendJson(req, res, 201, {
+      data: {
+        added_sticker_id: asset.id,
+        ...(await buildManagedPackResponseData(updatedPack)),
+      },
+    });
+  } catch (error) {
+    const mapped = mapStickerPackWebManageError(error);
+    sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+  }
+};
+
 const handleManagedPackStickerReplaceRequest = async (req, res, packKey, stickerId) => {
   if (req.method !== 'POST') {
     sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
@@ -4288,6 +4362,11 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
 
   if (segments.length === 3 && segments[1] === 'manage' && segments[2] === 'analytics') {
     await handleManagedPackAnalyticsRequest(req, res, segments[0]);
+    return true;
+  }
+
+  if (segments.length === 3 && segments[1] === 'manage' && segments[2] === 'stickers') {
+    await handleManagedPackStickerCreateRequest(req, res, segments[0]);
     return true;
   }
 
