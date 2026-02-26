@@ -6,10 +6,11 @@ import { sendAndStore } from '../../services/messagePersistenceService.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { MESSAGE_TYPE_SQL, TIMESTAMP_TO_DATETIME_SQL } from '../statsModule/rankingCommon.js';
+import { getAdminJid } from '../../config/adminIdentity.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const ACTIVE_DAYS_WINDOW = Number.parseInt(process.env.USER_PROFILE_ACTIVE_DAYS || '30', 10);
-const OWNER_JID = process.env.USER_ADMIN ? normalizeJid(process.env.USER_ADMIN) : null;
+const OWNER_JID = getAdminJid();
 const MIN_PHONE_DIGITS = 5;
 const MAX_PHONE_DIGITS = 20;
 const DAY_MS = 24 * 60 * 60 * 1000;

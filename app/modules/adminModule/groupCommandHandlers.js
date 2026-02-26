@@ -8,9 +8,10 @@ import { KNOWN_NETWORKS } from '../../utils/antiLink/antiLinkModule.js';
 import { getNewsStatusForGroup, startNewsBroadcastForGroup, stopNewsBroadcastForGroup } from '../../services/newsBroadcastService.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { clearCaptchasForGroup } from '../../services/captchaService.js';
+import { getAdminJid, isAdminSender } from '../../config/adminIdentity.js';
 
 const ADMIN_COMMANDS = new Set(['menuadm', 'newgroup', 'add', 'ban', 'up', 'down', 'setsubject', 'setdesc', 'setgroup', 'leave', 'invite', 'revoke', 'join', 'infofrominvite', 'metadata', 'requests', 'updaterequests', 'autorequests', 'temp', 'addmode', 'welcome', 'farewell', 'captcha', 'antilink', 'premium', 'nsfw', 'autosticker', 'noticias', 'news', 'prefix']);
-const OWNER_JID = process.env.USER_ADMIN;
+const OWNER_JID = getAdminJid();
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const GROUP_ONLY_COMMAND_MESSAGE = 'Este comando está disponível apenas em conversas de grupo. Execute-o em um grupo para continuar.';
 const NO_PERMISSION_COMMAND_MESSAGE = 'Permissão insuficiente para executar este comando. Solicite suporte a um administrador do grupo.';
@@ -50,7 +51,7 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
     }
 
     case 'premium': {
-      if (!OWNER_JID || senderJid !== OWNER_JID) {
+      if (!OWNER_JID || !isAdminSender(senderJid)) {
         await sendAndStore(sock, remoteJid, { text: OWNER_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }

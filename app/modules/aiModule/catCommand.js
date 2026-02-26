@@ -6,8 +6,9 @@ import path from 'node:path';
 import logger from '../../utils/logger/loggerModule.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import aiPromptStore from '../../store/aiPromptStore.js';
-import { downloadMediaMessage, extractAllMediaDetails, getJidUser } from '../../config/baileysConfig.js';
+import { downloadMediaMessage, extractAllMediaDetails, getJidUser, normalizeJid } from '../../config/baileysConfig.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { getAdminJid } from '../../config/adminIdentity.js';
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || OPENAI_MODEL;
@@ -28,7 +29,7 @@ const TEMP_DIR = path.join(process.cwd(), 'temp', 'ai');
 
 const BASE_SYSTEM_PROMPT = process.env.OPENAI_SYSTEM_PROMPT?.trim() || DEFAULT_SYSTEM_PROMPT;
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
-const OWNER_JID = process.env.USER_ADMIN;
+const OWNER_JID = getAdminJid();
 
 const SESSION_TTL_SECONDS = Number.parseInt(process.env.OPENAI_SESSION_TTL_SECONDS || '21600', 10);
 const sessionCache = new NodeCache({
@@ -239,9 +240,11 @@ const reactToMessage = async (sock, remoteJid, messageInfo) => {
 
 const isPremiumAllowed = async (senderJid) => {
   if (!OWNER_JID) return true;
-  if (senderJid === OWNER_JID) return true;
+  const normalizedSender = normalizeJid(senderJid);
+  if (normalizedSender && normalizedSender === OWNER_JID) return true;
   const premiumUsers = await premiumUserStore.getPremiumUsers();
-  return premiumUsers.includes(senderJid);
+  if (!Array.isArray(premiumUsers) || premiumUsers.length === 0) return false;
+  return premiumUsers.map((jid) => normalizeJid(jid)).includes(normalizedSender);
 };
 
 const sendPremiumOnly = async (sock, remoteJid, messageInfo, expirationMessage) => {

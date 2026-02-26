@@ -10,8 +10,9 @@ import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import logger from '../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { getAdminJid } from '../../config/adminIdentity.js';
 
-const adminJid = process.env.USER_ADMIN;
+const adminJid = getAdminJid();
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const YTDLS_BASE_URL = (
   process.env.YTDLS_BASE_URL ||

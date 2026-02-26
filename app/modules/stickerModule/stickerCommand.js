@@ -7,8 +7,9 @@ import { convertToWebp } from './convertToWebp.js';
 import { v4 as uuidv4 } from 'uuid';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { addStickerToAutoPack } from '../stickerPackModule/autoPackCollectorRuntime.js';
+import { getAdminJid } from '../../config/adminIdentity.js';
 
-const adminJid = process.env.USER_ADMIN;
+const adminJid = getAdminJid();
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
