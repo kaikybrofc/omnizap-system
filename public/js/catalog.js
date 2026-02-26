@@ -217,6 +217,65 @@
     return normalized.slice(0, 5) || '-----';
   };
 
+  const toTagToken = (value) => {
+    const normalized = String(value || '')
+      .trim()
+      .toLowerCase();
+    if (!normalized) return '';
+
+    const mapped = {
+      'video game screenshot': 'game',
+      'real life photo': 'foto-real',
+      'anime illustration': 'anime',
+      'nsfw content': 'nsfw',
+    };
+
+    if (mapped[normalized]) return mapped[normalized];
+
+    return normalized
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 18);
+  };
+
+  const resolveTopStickerTags = (entity) => {
+    const classification = entity?.asset?.classification || entity?.classification || null;
+    const explicitTags = Array.isArray(entity?.tags) ? entity.tags : [];
+    const classificationTags = Array.isArray(classification?.tags) ? classification.tags : [];
+
+    const rankedFromScores = Object.entries(classification?.all_scores || {})
+      .filter(([, score]) => Number.isFinite(Number(score)))
+      .sort((left, right) => Number(right[1]) - Number(left[1]))
+      .map(([label]) => toTagToken(label))
+      .filter(Boolean);
+
+    const merged = [...rankedFromScores, ...classificationTags, ...explicitTags]
+      .map((tag) => toTagToken(tag))
+      .filter(Boolean);
+
+    return Array.from(new Set(merged)).slice(0, 3);
+  };
+
+  const buildStickerTagsOverlay = (entity) => {
+    const tags = resolveTopStickerTags(entity);
+    if (!tags.length) return null;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'sticker-tags';
+    overlay.setAttribute('aria-label', 'Tags da figurinha: ' + tags.join(', '));
+
+    tags.forEach((tag) => {
+      const chip = document.createElement('span');
+      chip.className = 'sticker-tag';
+      chip.textContent = tag;
+      overlay.appendChild(chip);
+    });
+
+    return overlay;
+  };
+
   const renderCard = (pack) => {
     const col = document.createElement('div');
     col.className = 'col-4 col-sm-6 col-md-4 col-lg-3';
@@ -338,6 +397,9 @@
       body.appendChild(fallback);
     }
 
+    const tagsOverlay = buildStickerTagsOverlay(sticker);
+    if (tagsOverlay) body.appendChild(tagsOverlay);
+
     const meta = document.createElement('p');
     meta.className = 'orphan-meta mb-0 mt-2';
     meta.textContent = 'ID: ' + shortStickerId(sticker.id);
@@ -386,6 +448,8 @@
       image.src = item.asset_url;
 
       wrapper.appendChild(image);
+      const tagsOverlay = buildStickerTagsOverlay(item);
+      if (tagsOverlay) wrapper.appendChild(tagsOverlay);
       col.appendChild(wrapper);
       els.packPageGrid.appendChild(col);
     });
@@ -568,6 +632,8 @@
       image.src = item.asset_url;
 
       wrapper.appendChild(image);
+      const tagsOverlay = buildStickerTagsOverlay(item);
+      if (tagsOverlay) wrapper.appendChild(tagsOverlay);
       col.appendChild(wrapper);
       els.stickers.appendChild(col);
     });

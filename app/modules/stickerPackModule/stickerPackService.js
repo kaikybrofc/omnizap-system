@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 import logger from '../../utils/logger/loggerModule.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
+import { getPackClassificationSummaryByAssetIds } from './stickerClassificationService.js';
 import { normalizeOwnerJid, parseEmojiList, sanitizeText, slugify, toVisibility } from './stickerPackUtils.js';
 
 /**
@@ -310,12 +311,16 @@ export function createStickerPackService(options = {}) {
   const loadPackDetails = async (pack, { connection = null } = {}) => {
     const items = await deps.itemRepository.listStickerPackItems(pack.id, connection);
     const coverItem = items.find((item) => item.sticker_id === pack.cover_sticker_id);
+    const packClassification = await getPackClassificationSummaryByAssetIds(items.map((item) => item.sticker_id)).catch(
+      () => null,
+    );
 
     return {
       ...pack,
       items,
       cover_asset: coverItem?.asset || items[0]?.asset || null,
       sticker_count: items.length,
+      classification: packClassification,
     };
   };
 

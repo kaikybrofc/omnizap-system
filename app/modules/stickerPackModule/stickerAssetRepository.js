@@ -104,6 +104,29 @@ export async function findLatestStickerAssetByOwner(ownerJid, connection = null)
 }
 
 /**
+ * Lista assets que ainda não possuem classificação associada.
+ *
+ * @param {{ limit?: number, connection?: import('mysql2/promise').PoolConnection|null }} [options]
+ * @returns {Promise<object[]>} Assets pendentes de classificação.
+ */
+export async function listStickerAssetsPendingClassification({ limit = 50, connection = null } = {}) {
+  const safeLimit = Math.max(1, Math.min(300, Number(limit) || 50));
+
+  const rows = await executeQuery(
+    `SELECT a.*
+     FROM ${TABLES.STICKER_ASSET} a
+     LEFT JOIN ${TABLES.STICKER_ASSET_CLASSIFICATION} c ON c.asset_id = a.id
+     WHERE c.asset_id IS NULL
+     ORDER BY a.created_at ASC
+     LIMIT ${safeLimit}`,
+    [],
+    connection,
+  );
+
+  return rows.map((row) => normalizeStickerAssetRow(row));
+}
+
+/**
  * Lista assets que ainda não pertencem a nenhum pack.
  *
  * @param {{

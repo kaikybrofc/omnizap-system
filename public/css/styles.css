@@ -284,6 +284,7 @@ body.catalog-body::before {
 .orphan-card {
   border: 1px solid #334b72;
   background: linear-gradient(165deg, rgba(17, 26, 46, 0.95), rgba(14, 22, 40, 0.95));
+  position: relative;
 }
 
 .orphan-card img {
@@ -305,6 +306,7 @@ body.catalog-body::before {
   background: linear-gradient(165deg, rgba(17, 26, 46, 0.95), rgba(14, 22, 40, 0.95));
   border-radius: 0.75rem;
   padding: 0.5rem;
+  position: relative;
 }
 
 .sticker-tile img {
@@ -317,6 +319,31 @@ body.catalog-body::before {
 
 #pack-page-stickers .sticker-tile {
   min-height: 120px;
+}
+
+.sticker-tags {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.24rem;
+  max-width: calc(100% - 1rem);
+  z-index: 3;
+}
+
+.sticker-tag {
+  font-size: 0.58rem;
+  line-height: 1;
+  padding: 0.22rem 0.34rem;
+  border-radius: 999px;
+  color: #dff2ff;
+  background: rgba(13, 25, 47, 0.82);
+  border: 1px solid rgba(103, 145, 212, 0.5);
+  backdrop-filter: blur(5px);
+  text-transform: lowercase;
+  letter-spacing: 0.01em;
 }
 
 .modal-content {
@@ -411,6 +438,17 @@ body.catalog-body::before {
   .pack-count-badge {
     font-size: 0.52rem;
     padding: 0.28rem 0.36rem;
+  }
+
+  .sticker-tags {
+    top: 0.42rem;
+    right: 0.42rem;
+    gap: 0.2rem;
+  }
+
+  .sticker-tag {
+    font-size: 0.52rem;
+    padding: 0.2rem 0.3rem;
   }
 }
 

@@ -11,6 +11,7 @@ import {
   findStickerAssetBySha256,
   updateStickerAssetStoragePath,
 } from './stickerAssetRepository.js';
+import { ensureStickerAssetClassified } from './stickerClassificationService.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { normalizeOwnerJid } from './stickerPackUtils.js';
 
@@ -244,10 +245,26 @@ async function persistStickerAssetBuffer({ ownerJid, buffer, mimetype = 'image/w
       const fixedPath = await ensureStorageForAsset({ ownerJid: normalizedOwner, sha256, buffer });
       const repaired = await updateStickerAssetStoragePath(existing.id, fixedPath);
       rememberLastSticker(normalizedOwner, repaired.id);
+      await ensureStickerAssetClassified({ asset: repaired, buffer }).catch((error) => {
+        logger.warn('Falha ao classificar figurinha reparada durante persistência.', {
+          action: 'sticker_asset_classify_repaired_failed',
+          asset_id: repaired.id,
+          owner_jid: normalizedOwner,
+          error: error?.message,
+        });
+      });
       return repaired;
     }
 
     rememberLastSticker(normalizedOwner, existing.id);
+    await ensureStickerAssetClassified({ asset: existing, buffer }).catch((error) => {
+      logger.warn('Falha ao classificar figurinha existente durante persistência.', {
+        action: 'sticker_asset_classify_existing_failed',
+        asset_id: existing.id,
+        owner_jid: normalizedOwner,
+        error: error?.message,
+      });
+    });
     return existing;
   }
 
@@ -268,6 +285,14 @@ async function persistStickerAssetBuffer({ ownerJid, buffer, mimetype = 'image/w
     });
 
     rememberLastSticker(normalizedOwner, created.id);
+    await ensureStickerAssetClassified({ asset: created, buffer }).catch((error) => {
+      logger.warn('Falha ao classificar figurinha recém-criada durante persistência.', {
+        action: 'sticker_asset_classify_created_failed',
+        asset_id: created.id,
+        owner_jid: normalizedOwner,
+        error: error?.message,
+      });
+    });
     return created;
   } catch (error) {
     if (error?.code === 'ER_DUP_ENTRY') {

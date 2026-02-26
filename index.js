@@ -26,6 +26,10 @@ import {
 } from './app/services/newsBroadcastService.js';
 import initializeDatabase from './database/init.js';
 import { startMetricsServer, stopMetricsServer } from './app/observability/metrics.js';
+import {
+  startStickerClassificationBackground,
+  stopStickerClassificationBackground,
+} from './app/modules/stickerPackModule/stickerClassificationBackgroundRuntime.js';
 
 /**
  * Timeout máximo para inicialização do banco (criar/verificar DB + tabelas).
@@ -172,6 +176,7 @@ async function startApp() {
 
     logger.info('Inicializando servidor de metricas...');
     startMetricsServer();
+    startStickerClassificationBackground();
 
     // Backfill é opcional, rodando em background.
     const shouldBackfill = process.env.LID_BACKFILL_ON_START !== 'false';
@@ -294,6 +299,15 @@ async function shutdown(signal, error) {
       } catch (metricsError) {
         logger.warn('Falha ao encerrar servidor de metricas.', { error: metricsError.message });
       }
+    }
+
+    // 4.1) Encerrar worker de classificação de stickers
+    try {
+      stopStickerClassificationBackground();
+    } catch (workerError) {
+      logger.warn('Falha ao encerrar worker de classificação de stickers.', {
+        error: workerError?.message,
+      });
     }
 
     // 5) Encerrar MySQL pool

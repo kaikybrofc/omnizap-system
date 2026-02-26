@@ -9,6 +9,15 @@ import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.
 import { listStickerPacksForCatalog, findStickerPackByPackKey } from './stickerPackRepository.js';
 import { listStickerPackItems } from './stickerPackItemRepository.js';
 import { listStickerAssetsWithoutPack } from './stickerAssetRepository.js';
+import {
+  findStickerClassificationByAssetId,
+  listStickerClassificationsByAssetIds,
+} from './stickerAssetClassificationRepository.js';
+import {
+  decoratePackClassificationSummary,
+  decorateStickerClassification,
+  getPackClassificationSummaryByAssetIds,
+} from './stickerClassificationService.js';
 import { readStickerAssetBuffer } from './stickerStorageService.js';
 import { sanitizeText } from './stickerPackUtils.js';
 
@@ -66,6 +75,7 @@ const ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_ASSET_CACHE_SECONDS
 const STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE =
   String(process.env.STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE || '/pack send {{pack_key}}').trim() ||
   '/pack send {{pack_key}}';
+const STICKER_CATALOG_ONLY_CLASSIFIED = parseEnvBool(process.env.STICKER_CATALOG_ONLY_CLASSIFIED, true);
 const METRICS_ENDPOINT =
   process.env.METRICS_ENDPOINT ||
   `http://127.0.0.1:${process.env.METRICS_PORT || 9102}${process.env.METRICS_PATH || '/metrics'}`;
@@ -514,7 +524,7 @@ const mapPackSummary = (pack) => ({
   updated_at: toIsoOrNull(pack.updated_at),
 });
 
-const mapPackDetails = (pack, items) => {
+const mapPackDetails = (pack, items, { byAssetClassification = new Map(), packClassification = null } = {}) => {
   const coverStickerId = pack.cover_sticker_id || items[0]?.sticker_id || null;
 
   return {
@@ -524,6 +534,7 @@ const mapPackDetails = (pack, items) => {
       sticker_count: items.length,
     }),
     items: items.map((item) => ({
+      // `tags` facilita renderização direta no front sem precisar reprocessar score.
       id: item.id,
       sticker_id: item.sticker_id,
       position: Number(item.position || 0),
@@ -531,6 +542,7 @@ const mapPackDetails = (pack, items) => {
       accessibility_label: item.accessibility_label || null,
       created_at: toIsoOrNull(item.created_at),
       asset_url: buildStickerAssetUrl(pack.pack_key, item.sticker_id),
+      tags: decorateStickerClassification(byAssetClassification.get(item.sticker_id) || null)?.tags || [],
       asset: item.asset
         ? {
             id: item.asset.id,
@@ -540,13 +552,16 @@ const mapPackDetails = (pack, items) => {
             height: item.asset.height !== null && item.asset.height !== undefined ? Number(item.asset.height) : null,
             size_bytes:
               item.asset.size_bytes !== null && item.asset.size_bytes !== undefined ? Number(item.asset.size_bytes) : 0,
+            classification: decorateStickerClassification(byAssetClassification.get(item.sticker_id) || null),
           }
         : null,
     })),
+    classification: decoratePackClassificationSummary(packClassification),
+    tags: decoratePackClassificationSummary(packClassification)?.tags || [],
   };
 };
 
-const mapOrphanStickerAsset = (asset) => ({
+const mapOrphanStickerAsset = (asset, classification = null) => ({
   id: asset.id,
   owner_jid: asset.owner_jid,
   sha256: asset.sha256,
@@ -557,7 +572,20 @@ const mapOrphanStickerAsset = (asset) => ({
   size_bytes: asset.size_bytes !== null && asset.size_bytes !== undefined ? Number(asset.size_bytes) : 0,
   created_at: toIsoOrNull(asset.created_at),
   url: toPublicDataUrlFromStoragePath(asset.storage_path),
+  classification: decorateStickerClassification(classification || null),
+  tags: decorateStickerClassification(classification || null)?.tags || [],
 });
+
+const isStickerClassified = (classification) => {
+  if (!classification || typeof classification !== 'object') return false;
+  if (classification.category) return true;
+  if (classification.is_nsfw) return true;
+  if (classification.all_scores && Object.keys(classification.all_scores).length > 0) return true;
+  return false;
+};
+
+const isPackClassified = (classificationSummary) =>
+  Boolean(classificationSummary && Number(classificationSummary.classified_items || 0) > 0);
 
 export const extractPackKeyFromWebPath = (pathname) => {
   if (!hasPathPrefix(pathname, STICKER_WEB_PATH)) return null;
@@ -658,8 +686,27 @@ const handleListRequest = async (req, res, url) => {
     offset,
   });
 
+  const packClassifications = await Promise.all(
+    packs.map(async (pack) => {
+      const items = await listStickerPackItems(pack.id);
+      const summary = await getPackClassificationSummaryByAssetIds(items.map((item) => item.sticker_id));
+      return [pack.id, decoratePackClassificationSummary(summary)];
+    }),
+  );
+  const packClassificationById = new Map(packClassifications);
+  const filteredPacks = STICKER_CATALOG_ONLY_CLASSIFIED
+    ? packs.filter((pack) => isPackClassified(packClassificationById.get(pack.id)))
+    : packs;
+
   sendJson(req, res, 200, {
-    data: packs.map((pack) => mapPackSummary(pack)),
+    data: filteredPacks.map((pack) => {
+      const classification = packClassificationById.get(pack.id) || null;
+      return {
+        ...mapPackSummary(pack),
+        classification,
+        tags: classification?.tags || [],
+      };
+    }),
     pagination: {
       limit,
       offset,
@@ -683,11 +730,16 @@ const handleOrphanStickerListRequest = async (req, res, url) => {
     limit,
     offset,
   });
+  const classifications = await listStickerClassificationsByAssetIds(assets.map((asset) => asset.id));
+  const byAssetId = new Map(classifications.map((entry) => [entry.asset_id, entry]));
+  const filteredAssets = STICKER_CATALOG_ONLY_CLASSIFIED
+    ? assets.filter((asset) => isStickerClassified(byAssetId.get(asset.id)))
+    : assets;
   const currentPage = Math.floor(offset / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   sendJson(req, res, 200, {
-    data: assets.map((asset) => mapOrphanStickerAsset(asset)),
+    data: filteredAssets.map((asset) => mapOrphanStickerAsset(asset, byAssetId.get(asset.id) || null)),
     pagination: {
       limit,
       offset,
@@ -1164,8 +1216,23 @@ const handleDetailsRequest = async (req, res, packKey) => {
   }
 
   const items = await listStickerPackItems(pack.id);
+  const stickerIds = items.map((item) => item.sticker_id);
+  const [classifications, packClassification] = await Promise.all([
+    listStickerClassificationsByAssetIds(stickerIds),
+    getPackClassificationSummaryByAssetIds(stickerIds),
+  ]);
+  const byAssetClassification = new Map(classifications.map((entry) => [entry.asset_id, entry]));
+  const visibleItems = STICKER_CATALOG_ONLY_CLASSIFIED
+    ? items.filter((item) => isStickerClassified(byAssetClassification.get(item.sticker_id)))
+    : items;
+
+  if (STICKER_CATALOG_ONLY_CLASSIFIED && !isPackClassified(packClassification)) {
+    sendJson(req, res, 404, { error: 'Pack nao encontrado.' });
+    return;
+  }
+
   sendJson(req, res, 200, {
-    data: mapPackDetails(pack, items),
+    data: mapPackDetails(pack, visibleItems, { byAssetClassification, packClassification }),
   });
 };
 
@@ -1194,6 +1261,19 @@ const handleAssetRequest = async (req, res, packKey, stickerToken) => {
 
   try {
     const buffer = await readStickerAssetBuffer(item.asset);
+    const classification = await findStickerClassificationByAssetId(normalizedStickerId).catch(() => null);
+    if (STICKER_CATALOG_ONLY_CLASSIFIED && !isStickerClassified(classification)) {
+      sendJson(req, res, 404, { error: 'Sticker nao encontrado.' });
+      return;
+    }
+    if (classification) {
+      const decorated = decorateStickerClassification(classification);
+      res.setHeader('X-Sticker-Category', String(decorated?.category || 'unknown'));
+      res.setHeader('X-Sticker-NSFW', decorated?.is_nsfw ? '1' : '0');
+      if (Array.isArray(decorated?.tags) && decorated.tags.length) {
+        res.setHeader('X-Sticker-Tags', decorated.tags.join(','));
+      }
+    }
     sendAsset(req, res, buffer, item.asset.mimetype || 'image/webp');
   } catch (error) {
     logger.warn('Falha ao ler asset de sticker para rota web.', {

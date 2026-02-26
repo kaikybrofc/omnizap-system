@@ -3,5 +3,23 @@ logs/
 temp/
 app/connection/auth
 .env
+.env.*
+!.env.example
 observability/mysql-exporter.cnf
 data/
+
+# Python / ML artifacts
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local virtualenvs
+.venv/
+venv/
+ml/clip_classifier/.venv/
