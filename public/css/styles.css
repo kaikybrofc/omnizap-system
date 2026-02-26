@@ -1,0 +1,139 @@
+:root {
+  color-scheme: dark;
+}
+
+body.catalog-body {
+  font-family: "Bricolage Grotesque", sans-serif;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(25, 135, 84, 0.28), transparent 26%),
+    radial-gradient(circle at 88% 0%, rgba(13, 110, 253, 0.2), transparent 24%),
+    linear-gradient(160deg, #070a08 0%, #0b0f0d 44%, #050907 100%);
+  min-height: 100vh;
+  background-attachment: fixed;
+}
+
+body.catalog-body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.22;
+  z-index: -1;
+}
+
+.glass-nav {
+  backdrop-filter: blur(12px);
+  background: rgba(9, 14, 12, 0.82);
+}
+
+.hero-card {
+  background:
+    radial-gradient(circle at 12% 16%, rgba(25, 135, 84, 0.24), transparent 35%),
+    radial-gradient(circle at 86% 0%, rgba(13, 202, 240, 0.2), transparent 30%),
+    linear-gradient(160deg, rgba(13, 20, 17, 0.95), rgba(10, 16, 13, 0.95));
+}
+
+.catalog-title,
+.section-title,
+#panel-title {
+  font-family: "Instrument Serif", serif;
+}
+
+.status-text {
+  color: #a9baaf;
+  min-height: 20px;
+}
+
+.panel-controls {
+  border: 1px solid rgba(49, 84, 68, 0.8);
+  background: rgba(9, 15, 12, 0.78);
+}
+
+.pack-card {
+  cursor: pointer;
+  border-color: rgba(56, 97, 78, 0.85) !important;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.pack-card:hover,
+.pack-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(25, 135, 84, 0.95) !important;
+  box-shadow: 0 0 0 1px rgba(25, 135, 84, 0.3), 0 14px 28px rgba(0, 0, 0, 0.36);
+}
+
+.pack-card .card-title {
+  font-size: 1rem;
+}
+
+.pack-thumb {
+  aspect-ratio: 1 / 1;
+  border: 1px solid rgba(56, 97, 78, 0.65);
+  border-radius: 0.6rem;
+  overflow: hidden;
+  background: radial-gradient(circle at 20% 20%, rgba(25, 135, 84, 0.17), rgba(7, 12, 10, 0.95));
+  display: grid;
+  place-items: center;
+}
+
+.pack-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.pack-thumb-fallback {
+  color: #94a89d;
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 0.6rem;
+}
+
+.pack-meta {
+  color: #9fb4a9;
+  font-size: 0.82rem;
+}
+
+.orphan-card {
+  border: 1px solid rgba(56, 97, 78, 0.7);
+  background: linear-gradient(165deg, rgba(18, 29, 24, 0.95), rgba(14, 23, 19, 0.95));
+}
+
+.orphan-card img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  background: radial-gradient(circle at 20% 20%, rgba(25, 135, 84, 0.15), rgba(7, 12, 10, 0.95));
+}
+
+.orphan-meta {
+  font-size: 0.75rem;
+  color: #b9ccc2;
+  word-break: break-word;
+}
+
+.sticker-tile {
+  border: 1px solid rgba(56, 97, 78, 0.75);
+  background: linear-gradient(165deg, rgba(18, 29, 24, 0.95), rgba(14, 23, 19, 0.95));
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+}
+
+.sticker-tile img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  background: radial-gradient(circle at 20% 20%, rgba(25, 135, 84, 0.13), rgba(7, 12, 10, 0.95));
+}
+
+@media (max-width: 576px) {
+  .hero-card .card-body {
+    padding: 1.15rem !important;
+  }
+}
