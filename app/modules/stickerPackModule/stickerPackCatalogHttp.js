@@ -43,6 +43,7 @@ import {
 } from './stickerPackMarketplaceService.js';
 import { getMarketplaceDriftSnapshot } from './stickerMarketplaceDriftService.js';
 import { getStickerStorageConfig, readStickerAssetBuffer, saveStickerAssetFromBuffer } from './stickerStorageService.js';
+import { convertToWebp } from '../stickerModule/convertToWebp.js';
 import { sanitizeText } from './stickerPackUtils.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
@@ -122,6 +123,16 @@ const GITHUB_PROJECT_CACHE_SECONDS = clampInt(process.env.GITHUB_PROJECT_CACHE_S
 const GLOBAL_RANK_REFRESH_SECONDS = clampInt(process.env.GLOBAL_RANK_REFRESH_SECONDS, 600, 60, 3600);
 const DATA_IMAGE_EXTENSIONS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.bmp']);
 const { maxStickerBytes: MAX_STICKER_UPLOAD_BYTES } = getStickerStorageConfig();
+const MAX_STICKER_SOURCE_UPLOAD_BYTES = Math.max(
+  MAX_STICKER_UPLOAD_BYTES,
+  Number(process.env.STICKER_WEB_UPLOAD_SOURCE_MAX_BYTES) || 20 * 1024 * 1024,
+);
+const ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES = new Set([
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-m4v',
+]);
 const webPackEditTokenMap = new Map();
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -608,6 +619,111 @@ const decodeStickerBase64Payload = (value) => {
     buffer,
     mimetype,
   };
+};
+
+const isLikelyWebpBuffer = (buffer) =>
+  Buffer.isBuffer(buffer) &&
+  buffer.length >= 16 &&
+  buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+  buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+
+const resolveExtensionFromMimetype = (mimetype) => {
+  const normalized = String(mimetype || '').trim().toLowerCase();
+  if (normalized === 'image/jpeg') return 'jpg';
+  if (normalized === 'image/jpg') return 'jpg';
+  if (normalized === 'image/png') return 'png';
+  if (normalized === 'image/gif') return 'gif';
+  if (normalized === 'image/avif') return 'avif';
+  if (normalized === 'image/heic') return 'heic';
+  if (normalized === 'image/heif') return 'heif';
+  if (normalized === 'image/bmp') return 'bmp';
+  if (normalized === 'image/tiff') return 'tiff';
+  if (normalized === 'image/x-icon') return 'ico';
+  if (normalized === 'video/webm') return 'webm';
+  if (normalized === 'video/quicktime') return 'mov';
+  if (normalized === 'video/x-m4v') return 'm4v';
+  if (normalized === 'video/mp4') return 'mp4';
+  if (normalized === 'image/webp') return 'webp';
+  return 'bin';
+};
+
+const convertUploadMediaToWebp = async ({ ownerJid, buffer, mimetype }) => {
+  const normalizedMimetype = String(mimetype || '').trim().toLowerCase() || 'image/webp';
+  const isVideo = normalizedMimetype.startsWith('video/');
+  const isImage = normalizedMimetype.startsWith('image/');
+
+  if (!isVideo && !isImage) {
+    throw new StickerPackError(
+      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+      'Formato não suportado. Envie imagem ou vídeo.',
+    );
+  }
+
+  if (isLikelyWebpBuffer(buffer) && buffer.length <= MAX_STICKER_UPLOAD_BYTES) {
+    return { buffer, mimetype: 'image/webp' };
+  }
+
+  if (isVideo && !ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES.has(normalizedMimetype) && normalizedMimetype !== 'video/mp4') {
+    throw new StickerPackError(
+      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+      'Formato de vídeo não suportado. Use mp4/webm/mov/m4v.',
+    );
+  }
+
+  const uniqueId = randomUUID();
+  const inputPath = path.join(
+    process.cwd(),
+    'temp',
+    'stickers',
+    'web-create',
+    `${uniqueId}.${resolveExtensionFromMimetype(normalizedMimetype)}`,
+  );
+
+  await fs.mkdir(path.dirname(inputPath), { recursive: true });
+  await fs.writeFile(inputPath, buffer);
+
+  const conversionProfiles = isVideo
+    ? [
+        { videoMaxDurationSeconds: 8, videoFps: 10, videoQuality: 55, videoCompressionLevel: 6 },
+        { videoMaxDurationSeconds: 6, videoFps: 9, videoQuality: 50, videoCompressionLevel: 6 },
+        { videoMaxDurationSeconds: 4, videoFps: 8, videoQuality: 44, videoCompressionLevel: 6 },
+        { videoMaxDurationSeconds: 3, videoFps: 8, videoQuality: 38, videoCompressionLevel: 6 },
+        { videoMaxDurationSeconds: 2, videoFps: 7, videoQuality: 34, videoCompressionLevel: 6 },
+        { videoMaxDurationSeconds: 1, videoFps: 6, videoQuality: 30, videoCompressionLevel: 6 },
+      ]
+    : [{ stretch: true }, { stretch: false }];
+
+  let lastError = null;
+  try {
+    for (const profile of conversionProfiles) {
+      let outputPath = null;
+      try {
+        outputPath = await convertToWebp(inputPath, isVideo ? 'video' : 'image', ownerJid, randomUUID(), {
+          ...profile,
+          maxOutputSizeBytes: MAX_STICKER_UPLOAD_BYTES,
+        });
+        const converted = await fs.readFile(outputPath);
+        if (!isLikelyWebpBuffer(converted) || converted.length > MAX_STICKER_UPLOAD_BYTES) {
+          throw new Error('WEBP convertido excedeu o limite final.');
+        }
+        return { buffer: converted, mimetype: 'image/webp' };
+      } catch (error) {
+        lastError = error;
+      } finally {
+        if (outputPath) {
+          await fs.unlink(outputPath).catch(() => {});
+        }
+      }
+    }
+  } finally {
+    await fs.unlink(inputPath).catch(() => {});
+  }
+
+  throw new StickerPackError(
+    STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    `Não foi possível converter a mídia para sticker no limite de ${Math.round(MAX_STICKER_UPLOAD_BYTES / 1024)}KB.`,
+    lastError,
+  );
 };
 
 const resolveSupportAdminPhone = async () => {
@@ -1301,6 +1417,7 @@ const handleCreatePackConfigRequest = async (req, res) => {
         stickers_per_pack: PACK_CREATE_MAX_ITEMS,
         packs_per_owner: PACK_CREATE_MAX_PACKS_PER_OWNER,
         sticker_upload_max_bytes: MAX_STICKER_UPLOAD_BYTES,
+        sticker_upload_source_max_bytes: MAX_STICKER_SOURCE_UPLOAD_BYTES,
       },
       rules: {
         pack_name_regex: PACK_CREATE_NAME_REGEX,
@@ -1455,7 +1572,9 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
 
   let payload = {};
   try {
-    payload = await readJsonBody(req, { maxBytes: Math.max(256 * 1024, MAX_STICKER_UPLOAD_BYTES * 2) });
+    payload = await readJsonBody(req, {
+      maxBytes: Math.max(256 * 1024, Math.round(MAX_STICKER_SOURCE_UPLOAD_BYTES * 1.6)),
+    });
   } catch (error) {
     sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
     return;
@@ -1479,19 +1598,24 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
     return;
   }
 
-  if (decoded.buffer.length > MAX_STICKER_UPLOAD_BYTES) {
+  if (decoded.buffer.length > MAX_STICKER_SOURCE_UPLOAD_BYTES) {
     sendJson(req, res, 400, {
-      error: `Sticker excede limite de ${Math.round(MAX_STICKER_UPLOAD_BYTES / 1024)}KB.`,
+      error: `Arquivo excede limite de ${Math.round(MAX_STICKER_SOURCE_UPLOAD_BYTES / (1024 * 1024))}MB.`,
       code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
     });
     return;
   }
 
   try {
-    const asset = await saveStickerAssetFromBuffer({
+    const normalizedUpload = await convertUploadMediaToWebp({
       ownerJid: pack.owner_jid,
       buffer: decoded.buffer,
       mimetype: decoded.mimetype || 'image/webp',
+    });
+    const asset = await saveStickerAssetFromBuffer({
+      ownerJid: pack.owner_jid,
+      buffer: normalizedUpload.buffer,
+      mimetype: normalizedUpload.mimetype || 'image/webp',
     });
 
     const updatedPack = await stickerPackService.addStickerToPack({

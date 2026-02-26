@@ -15,7 +15,9 @@ const DEFAULT_LIMITS = {
   stickers_per_pack: 30,
   packs_per_owner: 50,
   sticker_upload_max_bytes: 2 * 1024 * 1024,
+  sticker_upload_source_max_bytes: 20 * 1024 * 1024,
 };
+const UPLOAD_REQUEST_TIMEOUT_MS = 3 * 60 * 1000;
 
 const STEPS = [
   { id: 1, title: 'Informações' },
@@ -80,6 +82,15 @@ const writeUploadTask = (payload) => {
   }
 };
 
+const clearCreatePackStorage = () => {
+  try {
+    localStorage.removeItem(CREATE_PACK_DRAFT_KEY);
+    localStorage.removeItem(PACK_UPLOAD_TASK_KEY);
+  } catch {
+    // ignore storage errors
+  }
+};
+
 const fileToDataUrl = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -93,6 +104,7 @@ const uploadStickerWithProgress = ({ apiBasePath, packKey, editToken, item, setC
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${apiBasePath}/${encodeURIComponent(packKey)}/stickers-upload`);
     xhr.setRequestHeader('Content-Type', 'application/json; charset=utf-8');
+    xhr.timeout = UPLOAD_REQUEST_TIMEOUT_MS;
 
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable) return;
@@ -101,6 +113,7 @@ const uploadStickerWithProgress = ({ apiBasePath, packKey, editToken, item, setC
     };
 
     xhr.onerror = () => reject(new Error(`Falha de rede ao enviar ${item.file.name}.`));
+    xhr.ontimeout = () => reject(new Error(`Timeout ao enviar ${item.file.name}. Tente novamente.`));
     xhr.onload = () => {
       let payload = {};
       try {
@@ -176,7 +189,9 @@ function StickerThumb({ item, index, selectedCoverId, onSetCover, onRemove, onDr
       onDrop=${() => onDropOn(item.id)}
       className="group relative overflow-hidden rounded-2xl border border-line bg-panelSoft"
     >
-      <img src=${item.dataUrl} alt=${item.file.name} className="aspect-square w-full object-contain bg-slate-900/80" />
+      ${item.mediaKind === 'video'
+        ? html`<video src=${item.dataUrl} muted=${true} playsInline=${true} preload="metadata" className="aspect-square w-full object-cover bg-slate-900/80"></video>`
+        : html`<img src=${item.dataUrl} alt=${item.file.name} className="aspect-square w-full object-contain bg-slate-900/80" />`}
       <span className="absolute left-2 top-2 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-bold">#${index + 1}</span>
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/80 to-transparent p-2">
         <button
@@ -218,6 +233,7 @@ function CreatePackApp() {
   const [error, setError] = useState('');
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [uploadMap, setUploadMap] = useState({});
+  const [activeSession, setActiveSession] = useState(null);
   const [result, setResult] = useState(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
 
@@ -228,6 +244,18 @@ function CreatePackApp() {
   const canStep3 = useMemo(() => files.length > 0, [files.length]);
   const publishReady = canStep2 && canStep3 && !busy;
   const completionPercentage = Math.round((step / STEPS.length) * 100);
+  const failedUploadsCount = useMemo(
+    () => files.reduce((acc, item) => (uploadMap[item.id]?.status === 'error' ? acc + 1 : acc), 0),
+    [files, uploadMap],
+  );
+  const pendingUploadsCount = useMemo(
+    () => files.reduce((acc, item) => (uploadMap[item.id]?.status === 'done' ? acc : acc + 1), 0),
+    [files, uploadMap],
+  );
+  const publishLabel =
+    failedUploadsCount > 0 || (activeSession?.packKey && pendingUploadsCount < files.length)
+      ? `🔁 Reenviar falhas (${failedUploadsCount})`
+      : '🚀 Publicar Pack';
 
   const suggestedFromText = useMemo(() => {
     const haystack = `${name} ${description}`
@@ -253,7 +281,9 @@ function CreatePackApp() {
   const preview = useMemo(() => {
     const safeName = sanitizePackName(name, limits.pack_name_max_length) || 'novopack';
     const safeDescription = clampText(description, limits.description_max_length);
-    const cover = files.find((item) => item.id === coverId) || files[0] || null;
+    const preferredCover = files.find((item) => item.id === coverId) || files[0] || null;
+    const imageFallback = files.find((item) => item.mediaKind !== 'video') || null;
+    const cover = preferredCover?.mediaKind === 'video' ? imageFallback : preferredCover;
     return {
       name: safeName,
       description: safeDescription,
@@ -313,14 +343,16 @@ function CreatePackApp() {
         return;
       }
 
-      if (typeof parsed.name === 'string') setName(sanitizePackName(parsed.name, DEFAULT_LIMITS.pack_name_max_length));
+      const restoredName = typeof parsed.name === 'string' ? sanitizePackName(parsed.name, DEFAULT_LIMITS.pack_name_max_length) : '';
+      if (restoredName) setName(restoredName);
       if (typeof parsed.description === 'string') setDescription(parsed.description);
       if (typeof parsed.publisher === 'string') setPublisher(parsed.publisher);
       if (typeof parsed.visibility === 'string') setVisibility(parsed.visibility);
       if (typeof parsed.accountId === 'string') setAccountId(parsed.accountId);
       if (Array.isArray(parsed.tags)) setTags(mergeTags(parsed.tags).slice(0, MAX_MANUAL_TAGS));
-      if (Number.isFinite(Number(parsed.step))) setStep(Math.max(1, Math.min(3, Number(parsed.step))));
+      const parsedStep = Number.isFinite(Number(parsed.step)) ? Math.max(1, Math.min(3, Number(parsed.step))) : 1;
 
+      let restoredCount = 0;
       if (Array.isArray(parsed.files)) {
         const restored = parsed.files
           .filter((item) => item && typeof item.dataUrl === 'string' && typeof item.name === 'string')
@@ -331,10 +363,16 @@ function CreatePackApp() {
               size: Number(item.size || 0),
               type: String(item.type || 'image/webp'),
             },
+            mediaKind:
+              String(item.type || '').toLowerCase().startsWith('video/') ||
+              String(item.name || '').toLowerCase().match(/\.(mp4|webm|mov|m4v)$/i)
+                ? 'video'
+                : 'image',
             dataUrl: String(item.dataUrl),
           }));
 
         if (restored.length) {
+          restoredCount = restored.length;
           setFiles(restored.slice(0, DEFAULT_LIMITS.stickers_per_pack));
           setUploadMap(
             restored.reduce((acc, item) => {
@@ -346,7 +384,24 @@ function CreatePackApp() {
           setCoverId(restored.find((item) => item.id === restoredCoverId)?.id || restored[0].id);
         }
       }
-      setStatus('Rascunho restaurado automaticamente.');
+      if (parsed?.activeSession && typeof parsed.activeSession === 'object') {
+        const packKey = String(parsed.activeSession.packKey || '').trim();
+        const editToken = String(parsed.activeSession.editToken || '').trim();
+        if (packKey && editToken) {
+          setActiveSession({
+            packKey,
+            editToken,
+            webUrl: String(parsed.activeSession.webUrl || '').trim() || null,
+            created: parsed.activeSession.created && typeof parsed.activeSession.created === 'object' ? parsed.activeSession.created : null,
+          });
+        }
+      }
+
+      const normalizedStep = restoredCount === 0 ? Math.min(2, parsedStep) : parsedStep;
+      setStep(normalizedStep);
+      if (restoredCount > 0 || restoredName) {
+        setStatus('Rascunho restaurado automaticamente.');
+      }
     } catch {
       // ignore invalid drafts
     } finally {
@@ -366,6 +421,7 @@ function CreatePackApp() {
       accountId,
       tags,
       coverId,
+      activeSession: activeSession?.packKey && activeSession?.editToken ? activeSession : null,
       files: files.map((item) => ({
         id: item.id,
         name: item?.file?.name || 'sticker.webp',
@@ -381,26 +437,55 @@ function CreatePackApp() {
       if (raw.length <= CREATE_PACK_DRAFT_MAX_CHARS) {
         localStorage.setItem(CREATE_PACK_DRAFT_KEY, raw);
       } else {
-        const lighter = { ...serializable, files: [] };
+        const lighter = { ...serializable, step: Math.min(2, Number(serializable.step || 1)), coverId: '', files: [] };
         localStorage.setItem(CREATE_PACK_DRAFT_KEY, JSON.stringify(lighter));
       }
     } catch {
       // ignore storage errors
     }
-  }, [draftLoaded, busy, step, name, description, publisher, visibility, accountId, tags, coverId, files]);
+  }, [draftLoaded, busy, step, name, description, publisher, visibility, accountId, tags, coverId, files, activeSession]);
+
+  useEffect(() => {
+    if (!draftLoaded) return;
+    if (files.length > 0) return;
+    try {
+      const rawTask = localStorage.getItem(PACK_UPLOAD_TASK_KEY);
+      if (!rawTask) return;
+      const task = JSON.parse(rawTask);
+      const statusValue = String(task?.status || '').toLowerCase();
+      if (statusValue !== 'paused') return;
+      localStorage.removeItem(PACK_UPLOAD_TASK_KEY);
+      setStatus((prev) => prev || 'Envio pausado anterior foi limpo. Selecione os stickers novamente para continuar.');
+    } catch {
+      // ignore
+    }
+  }, [draftLoaded, files.length]);
 
   const addIncomingFiles = async (incoming) => {
     const raw = Array.from(incoming || []).filter(Boolean);
     if (!raw.length) return;
 
     const filtered = raw.filter((file) => {
-      const isWebp = String(file.name || '').toLowerCase().endsWith('.webp') || String(file.type || '').toLowerCase() === 'image/webp';
-      const underLimit = Number(file.size || 0) <= Number(limits.sticker_upload_max_bytes || 0);
-      return isWebp && underLimit;
+      const lowerName = String(file.name || '').toLowerCase();
+      const lowerType = String(file.type || '').toLowerCase();
+      const isImage = lowerType.startsWith('image/');
+      const isVideo =
+        lowerType.startsWith('video/') ||
+        lowerName.endsWith('.mp4') ||
+        lowerName.endsWith('.webm') ||
+        lowerName.endsWith('.mov') ||
+        lowerName.endsWith('.m4v');
+      if (!isImage && !isVideo) return false;
+      const maxBytes = Number(limits.sticker_upload_source_max_bytes || 0);
+      return Number(file.size || 0) <= maxBytes;
     });
 
     if (!filtered.length) {
-      setError(`Selecione arquivos .webp até ${toBytesLabel(limits.sticker_upload_max_bytes)}.`);
+      setError(
+        `Envie imagem ou vídeo até ${toBytesLabel(
+          limits.sticker_upload_source_max_bytes,
+        )}. O sistema converte automaticamente para webp.`,
+      );
       return;
     }
 
@@ -416,6 +501,11 @@ function CreatePackApp() {
       selected.map(async (file) => ({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         file,
+        mediaKind:
+          String(file.type || '').toLowerCase().startsWith('video/') ||
+          String(file.name || '').toLowerCase().match(/\.(mp4|webm|mov|m4v)$/i)
+            ? 'video'
+            : 'image',
         dataUrl: await fileToDataUrl(file),
       })),
     );
@@ -491,76 +581,100 @@ function CreatePackApp() {
 
     setBusy(true);
     setError('');
-    setStatus('Criando pack...');
-    setProgress({ current: 0, total: files.length });
-    setResult(null);
-    writeUploadTask({
-      status: 'running',
-      title: 'Publicando pack',
-      current: 0,
-      total: files.length,
-      progress: 0,
-      packKey: null,
-      packUrl: null,
-      message: 'Criando pack...',
-    });
+    const doneBeforeRun = files.reduce((acc, item) => (uploadMap[item.id]?.status === 'done' ? acc + 1 : acc), 0);
+    const pendingFiles = files.filter((item) => uploadMap[item.id]?.status !== 'done');
+    if (!pendingFiles.length) {
+      setBusy(false);
+      setStatus('Todos os stickers já foram enviados.');
+      return;
+    }
+
+    setProgress({ current: doneBeforeRun, total: files.length });
+    setResult((prev) => prev);
 
     try {
-      const createResponse = await fetch(`${apiBasePath}/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
-        body: JSON.stringify({
-          name: finalName,
-          publisher: finalPublisher,
-          description: finalDescription,
-          tags,
-          visibility,
-          owner_jid: clampText(accountId, 64),
-        }),
-      });
+      let session = activeSession;
+      if (!session?.packKey || !session?.editToken) {
+        setStatus('Criando pack...');
+        writeUploadTask({
+          status: 'running',
+          title: 'Publicando pack',
+          current: doneBeforeRun,
+          total: files.length,
+          progress: Math.round((doneBeforeRun / Math.max(1, files.length)) * 100),
+          packKey: null,
+          packUrl: null,
+          message: 'Criando pack...',
+        });
 
-      const createPayload = await createResponse.json().catch(() => ({}));
-      if (!createResponse.ok) throw new Error(createPayload?.error || 'Não foi possível criar o pack.');
+        const createResponse = await fetch(`${apiBasePath}/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({
+            name: finalName,
+            publisher: finalPublisher,
+            description: finalDescription,
+            tags,
+            visibility,
+            owner_jid: clampText(accountId, 64),
+          }),
+        });
 
-      const created = createPayload?.data || {};
-      const editToken = String(createPayload?.meta?.edit_token || '').trim();
-      const packKey = String(created?.pack_key || '').trim();
-      if (!editToken || !packKey) throw new Error('Resposta de criação inválida.');
+        const createPayload = await createResponse.json().catch(() => ({}));
+        if (!createResponse.ok) throw new Error(createPayload?.error || 'Não foi possível criar o pack.');
+
+        const created = createPayload?.data || {};
+        const editToken = String(createPayload?.meta?.edit_token || '').trim();
+        const packKey = String(created?.pack_key || '').trim();
+        if (!editToken || !packKey) throw new Error('Resposta de criação inválida.');
+        session = {
+          packKey,
+          editToken,
+          webUrl: created?.web_url || `${webPath}/${packKey}`,
+          created,
+        };
+        setActiveSession(session);
+        setResult(created);
+      }
 
       setStatus('Enviando stickers...');
       writeUploadTask({
         status: 'running',
         title: 'Publicando pack',
-        current: 0,
+        current: doneBeforeRun,
         total: files.length,
-        progress: 0,
-        packKey,
-        packUrl: created?.web_url || `${webPath}/${packKey}`,
+        progress: Math.round((doneBeforeRun / Math.max(1, files.length)) * 100),
+        packKey: session.packKey,
+        packUrl: session.webUrl,
         message: 'Enviando stickers...',
       });
       setUploadMap((prev) => {
         const next = { ...prev };
-        for (const item of files) {
+        for (const item of pendingFiles) {
           next[item.id] = { ...(next[item.id] || {}), status: 'uploading', progress: 0, error: '' };
         }
         return next;
       });
 
-      const concurrency = Math.max(2, Math.min(4, Number(window.navigator?.hardwareConcurrency || 3)));
+      const hasVideoPending = pendingFiles.some((item) => item.mediaKind === 'video');
+      const concurrency = hasVideoPending
+        ? 1
+        : Math.max(2, Math.min(4, Number(window.navigator?.hardwareConcurrency || 3)));
       let cursor = 0;
-      let completed = 0;
+      let processed = doneBeforeRun;
+      let failedCount = 0;
 
       const runWorker = async () => {
-        while (cursor < files.length) {
+        while (cursor < pendingFiles.length) {
           const index = cursor;
           cursor += 1;
-          const item = files[index];
+          const item = pendingFiles[index];
 
           try {
             await uploadStickerWithProgress({
               apiBasePath,
-              packKey,
-              editToken,
+              packKey: session.packKey,
+              editToken: session.editToken,
               item,
               setCover: item.id === coverId,
               onProgress: (percentage) => {
@@ -571,11 +685,11 @@ function CreatePackApp() {
                 writeUploadTask({
                   status: 'running',
                   title: 'Publicando pack',
-                  current: completed,
+                  current: processed,
                   total: files.length,
-                  progress: Math.round(((completed + percentage / 100) / Math.max(1, files.length)) * 100),
-                  packKey,
-                  packUrl: created?.web_url || `${webPath}/${packKey}`,
+                  progress: Math.round(((processed + percentage / 100) / Math.max(1, files.length)) * 100),
+                  packKey: session.packKey,
+                  packUrl: session.webUrl,
                   message: `Enviando ${item.file.name}`,
                 });
               },
@@ -585,6 +699,7 @@ function CreatePackApp() {
               [item.id]: { ...(prev[item.id] || {}), status: 'done', progress: 100, error: '' },
             }));
           } catch (err) {
+            failedCount += 1;
             setUploadMap((prev) => ({
               ...prev,
               [item.id]: {
@@ -594,41 +709,50 @@ function CreatePackApp() {
                 error: err?.message || 'Falha de upload',
               },
             }));
-            throw err;
           } finally {
-            completed += 1;
-            setProgress({ current: completed, total: files.length });
+            processed += 1;
+            setProgress({ current: processed, total: files.length });
             writeUploadTask({
               status: 'running',
               title: 'Publicando pack',
-              current: completed,
+              current: processed,
               total: files.length,
-              progress: Math.round((completed / Math.max(1, files.length)) * 100),
-              packKey,
-              packUrl: created?.web_url || `${webPath}/${packKey}`,
-              message: completed >= files.length ? 'Finalizando publicação...' : 'Processando próximo sticker...',
+              progress: Math.round((processed / Math.max(1, files.length)) * 100),
+              packKey: session.packKey,
+              packUrl: session.webUrl,
+              message: processed >= files.length ? 'Finalizando publicação...' : 'Processando próximo sticker...',
             });
           }
         }
       };
 
-      await Promise.all(Array.from({ length: Math.min(concurrency, files.length) }, () => runWorker()));
+      await Promise.all(Array.from({ length: Math.min(concurrency, pendingFiles.length) }, () => runWorker()));
+
+      if (failedCount > 0) {
+        setStatus(`Upload concluído com ${failedCount} falha(s).`);
+        setError(`Alguns stickers falharam. Clique em "🚀 Publicar Pack" novamente para reenviar apenas as falhas.`);
+        setResult(session.created || result);
+        setStep(3);
+        writeUploadTask({
+          status: 'error',
+          title: 'Publicação parcial',
+          current: Number(processed || 0),
+          total: Number(files.length || 0),
+          progress: Math.round((Number(processed || 0) / Math.max(1, Number(files.length || 1))) * 100),
+          packKey: session.packKey,
+          packUrl: session.webUrl,
+          message: `${failedCount} sticker(s) falharam no upload.`,
+        });
+        return;
+      }
 
       setStatus('Pack publicado com sucesso.');
-      setResult(created);
+      setResult(session.created || result);
       setStep(3);
-      localStorage.removeItem(CREATE_PACK_DRAFT_KEY);
-      writeUploadTask({
-        status: 'completed',
-        title: 'Pack publicado',
-        current: files.length,
-        total: files.length,
-        progress: 100,
-        packKey: created?.pack_key || null,
-        packUrl: created?.web_url || `${webPath}/${created?.pack_key || ''}`,
-        message: 'Publicação concluída.',
-      });
+      setActiveSession(null);
+      clearCreatePackStorage();
     } catch (err) {
+      setActiveSession(null);
       setError(err?.message || 'Falha ao publicar pack.');
       setStatus('');
       writeUploadTask({
@@ -655,15 +779,15 @@ function CreatePackApp() {
         current: Number(progress.current || 0),
         total: Number(progress.total || files.length || 0),
         progress: Math.round((Number(progress.current || 0) / Math.max(1, Number(progress.total || files.length || 1))) * 100),
-        packKey: result?.pack_key || null,
-        packUrl: result?.web_url || null,
+        packKey: activeSession?.packKey || result?.pack_key || null,
+        packUrl: activeSession?.webUrl || result?.web_url || null,
         message: 'Você saiu da tela durante o envio.',
       });
     };
 
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [busy, progress.current, progress.total, files.length, result]);
+  }, [busy, progress.current, progress.total, files.length, result, activeSession]);
 
   const nextStep = () => {
     if (step === 1 && !canStep2) {
@@ -861,11 +985,15 @@ function CreatePackApp() {
                       className=${`rounded-3xl border-2 border-dashed p-6 text-center transition ${dragActive ? 'border-accent bg-accent/10' : 'border-line bg-panelSoft'}`}
                     >
                       <p className="text-base font-bold">Arraste e solte seus stickers aqui</p>
-                      <p className="mt-1 text-xs text-slate-400">Apenas .webp até ${toBytesLabel(limits.sticker_upload_max_bytes)} cada</p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Imagens e vídeos até ${toBytesLabel(
+                          limits.sticker_upload_source_max_bytes,
+                        )} cada (conversão automática para .webp)
+                      </p>
                       <input
                         id="webp-upload"
                         type="file"
-                        accept=".webp,image/webp"
+                        accept="image/*,video/*"
                         multiple
                         className="hidden"
                         onChange=${async (e) => {
@@ -922,24 +1050,26 @@ function CreatePackApp() {
                         `
                       : null}
 
-                    <div className="space-y-2">
-                      ${files.map((item) => {
-                        const row = uploadMap[item.id] || { status: 'idle', progress: 0, error: '' };
+                    <div className="rounded-2xl border border-line bg-panelSoft p-4">
+                      ${(() => {
+                        const total = Math.max(0, Number(progress.total || files.length || 0));
+                        const done = Math.max(0, Math.min(total || 0, Number(progress.current || 0)));
+                        const percent = Math.max(0, Math.min(100, Math.round((done / Math.max(1, total || 1)) * 100)));
+                        const failed = failedUploadsCount;
+                        const barTone = failed > 0 && !busy ? 'bg-rose-400' : result ? 'bg-emerald-400' : 'bg-accent';
                         return html`
-                          <div key=${item.id} className="rounded-xl border border-line bg-panelSoft p-2.5 text-xs">
-                            <div className="mb-1 flex items-center justify-between gap-2">
-                              <span className="truncate text-slate-300">${item.file.name}</span>
-                              <span className=${`${row.status === 'done' ? 'text-emerald-300' : row.status === 'error' ? 'text-rose-300' : 'text-slate-400'} font-semibold`}>
-                                ${row.status === 'done' ? 'Concluído' : row.status === 'error' ? 'Falhou' : `${row.progress || 0}%`}
-                              </span>
-                            </div>
-                            <div className="h-1.5 overflow-hidden rounded bg-slate-800">
-                              <div className=${`h-full ${row.status === 'error' ? 'bg-rose-400' : 'bg-accent'} transition-all`} style=${{ width: `${Math.max(0, Math.min(100, Number(row.progress || 0)))}%` }}></div>
-                            </div>
-                            ${row.error ? html`<p className="mt-1 text-[10px] text-rose-300">${row.error}</p>` : null}
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <p className="font-semibold text-slate-200">Progresso do envio</p>
+                            <p className="text-slate-300">${done}/${total || files.length || 0} · ${percent}%</p>
                           </div>
+                          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-800">
+                            <div className=${`h-full ${barTone} transition-all`} style=${{ width: `${percent}%` }}></div>
+                          </div>
+                          ${failed > 0
+                            ? html`<p className="mt-2 text-xs text-rose-300">${failed} sticker(s) falharam. Você pode reenviar apenas as falhas.</p>`
+                            : null}
                         `;
-                      })}
+                      })()}
                     </div>
 
                     ${result
@@ -1001,7 +1131,7 @@ function CreatePackApp() {
           <button type="button" className="h-11 flex-1 rounded-xl border border-line bg-panelSoft text-sm font-bold" onClick=${prevStep} disabled=${step === 1 || busy}>Voltar</button>
           ${step < 3
             ? html`<button type="button" className="h-11 flex-[1.4] rounded-xl bg-accent text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${nextStep} disabled=${busy}>Continuar</button>`
-            : html`<button type="button" className="h-11 flex-[1.4] rounded-xl bg-accent2 text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${publishPack} disabled=${!publishReady}>🚀 Publicar Pack</button>`}
+            : html`<button type="button" className="h-11 flex-[1.4] rounded-xl bg-accent2 text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${publishPack} disabled=${!publishReady}>${publishLabel}</button>`}
         </div>
       </div>
 
@@ -1009,7 +1139,7 @@ function CreatePackApp() {
         <button type="button" className="h-11 rounded-xl border border-line bg-panelSoft px-5 text-sm font-bold" onClick=${prevStep} disabled=${step === 1 || busy}>Voltar</button>
         ${step < 3
           ? html`<button type="button" className="h-11 rounded-xl bg-accent px-5 text-sm font-extrabold text-slate-900" onClick=${nextStep} disabled=${busy}>Próximo passo</button>`
-          : html`<button type="button" className="h-11 rounded-xl bg-accent2 px-5 text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${publishPack} disabled=${!publishReady}>🚀 Publicar Pack</button>`}
+          : html`<button type="button" className="h-11 rounded-xl bg-accent2 px-5 text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${publishPack} disabled=${!publishReady}>${publishLabel}</button>`}
       </div>
     </div>
   `;
