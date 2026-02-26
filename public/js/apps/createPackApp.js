@@ -41,8 +41,9 @@ const clampInputText = (value, maxLength) => String(value || '').slice(0, maxLen
 const sanitizePackName = (value, maxLength = 120) =>
   String(value || '')
     .toLowerCase()
-    .replace(/\s+/g, '')
-    .replace(/[^a-z0-9]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
     .slice(0, maxLength);
 
 const toBytesLabel = (bytes) => `${Math.round(Number(bytes || 0) / 1024)} KB`;
@@ -495,6 +496,28 @@ function CreatePackApp() {
     const fallback = suggestedTags.map((tag) => normalizeTag(tag)).filter((tag) => tag && !selected.has(tag));
     return mergeTags(matches, fallback).slice(0, 5);
   }, [name, description, suggestedTags, tags]);
+
+  const tagTypeaheadSuggestions = useMemo(() => {
+    const query = normalizeTag(tagInput);
+    if (!query) return [];
+
+    const selected = new Set(tags);
+    const startsWith = [];
+    const includes = [];
+
+    for (const tag of mergeTags(suggestedFromText, suggestedTags)) {
+      if (!tag || selected.has(tag) || tag === query) continue;
+      if (tag.startsWith(query)) {
+        startsWith.push(tag);
+        continue;
+      }
+      if (tag.includes(query)) {
+        includes.push(tag);
+      }
+    }
+
+    return [...startsWith, ...includes].slice(0, 6);
+  }, [tagInput, tags, suggestedFromText, suggestedTags]);
 
   const preview = useMemo(() => {
     const safeName = sanitizePackName(name, limits.pack_name_max_length) || 'novopack';
@@ -1435,6 +1458,11 @@ function CreatePackApp() {
   };
 
   const onTagInputKeyDown = (event) => {
+    if (event.key === 'Tab' && !event.shiftKey && tagInput.trim() && tagTypeaheadSuggestions.length) {
+      event.preventDefault();
+      addTag(tagTypeaheadSuggestions[0]);
+      return;
+    }
     if (event.key === 'Enter' || event.key === ',') {
       event.preventDefault();
       addTag(tagInput);
@@ -1627,12 +1655,36 @@ function CreatePackApp() {
                           disabled=${tags.length >= MAX_MANUAL_TAGS}
                           className="h-11 w-full rounded-xl border border-line/70 bg-panel/80 px-3 text-sm outline-none transition focus:border-accent/60 disabled:opacity-60"
                         />
+                        ${tagInput.trim() && tags.length < MAX_MANUAL_TAGS && tagTypeaheadSuggestions.length
+                          ? html`
+                              <div className="mt-2 rounded-xl border border-line/70 bg-panel/70 p-2">
+                                <div className="mb-1 flex items-center justify-between gap-2">
+                                  <p className="text-[10px] font-semibold uppercase tracking-[.08em] text-slate-400">Sugestões</p>
+                                  <p className="text-[10px] text-slate-500">Tab completa a primeira</p>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  ${tagTypeaheadSuggestions.map((tag) => html`
+                                    <button
+                                      key=${`typeahead-${tag}`}
+                                      type="button"
+                                      onMouseDown=${(e) => e.preventDefault()}
+                                      onClick=${() => addTag(tag)}
+                                      className="rounded-full border border-accent/35 bg-accent/10 px-2 py-1 text-[10px] font-semibold text-accent transition hover:border-accent/60"
+                                    >
+                                      #${tag}
+                                    </button>
+                                  `)}
+                                </div>
+                              </div>
+                            `
+                          : null}
                         <p className="mt-2 text-[11px] text-slate-400">${tags.length}/${MAX_MANUAL_TAGS} tags selecionadas.</p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           ${suggestedFromText.map((tag) => html`
                             <button
                               key=${tag}
                               type="button"
+                              onMouseDown=${(e) => e.preventDefault()}
                               onClick=${() => addTag(tag)}
                               className="rounded-full border border-line bg-panel px-2 py-1 text-[10px] font-semibold text-slate-300 transition hover:border-accent/50 hover:text-accent"
                             >

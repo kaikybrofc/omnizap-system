@@ -341,7 +341,7 @@ const buildPackHelp = (prefix) =>
     '',
     '🆕 Criar um pack',
     `\`${prefix}pack create meupack | publisher="Seu Nome" | desc="Descrição"\``,
-    '_Regra do nome: apenas letras minúsculas e números, sem espaços ou caracteres especiais._',
+    '_Regra do nome: apenas letras minúsculas, números e espaços (sem caracteres especiais)._',
     '',
     '📋 Listar packs',
     `\`${prefix}pack list\``,
@@ -515,7 +515,7 @@ const parseIdentifierAndValue = (input) => {
   };
 };
 
-const PACK_NAME_RULE_REGEX = /^[a-z0-9]+$/;
+const PACK_NAME_RULE_REGEX = /^[a-z0-9]+(?: [a-z0-9]+)*$/;
 
 /**
  * Normaliza e valida nome de pack conforme regra do módulo.
@@ -526,7 +526,10 @@ const PACK_NAME_RULE_REGEX = /^[a-z0-9]+$/;
  * @throws {StickerPackError} Quando o nome não atender ao padrão.
  */
 const normalizePackName = (value, { label = 'Nome do pack' } = {}) => {
-  const normalized = unquote(value).toLowerCase();
+  const normalized = String(unquote(value) || '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
 
   if (!normalized) {
     throw new StickerPackError(STICKER_PACK_ERROR_CODES.INVALID_INPUT, `${label} é obrigatório.`);
@@ -535,7 +538,7 @@ const normalizePackName = (value, { label = 'Nome do pack' } = {}) => {
   if (!PACK_NAME_RULE_REGEX.test(normalized)) {
     throw new StickerPackError(
       STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Nome do pack inválido. Use apenas letras minúsculas e números, sem espaços ou caracteres especiais.',
+      'Nome do pack inválido. Use apenas letras minúsculas, números e espaços, sem caracteres especiais.',
     );
   }
 

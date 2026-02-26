@@ -106,7 +106,7 @@ const STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE =
   String(process.env.STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE || '/pack send {{pack_key}}').trim() ||
   '/pack send {{pack_key}}';
 const PACK_COMMAND_PREFIX = String(process.env.COMMAND_PREFIX || '/').trim() || '/';
-const PACK_CREATE_NAME_REGEX = '^[a-z0-9]+$';
+const PACK_CREATE_NAME_REGEX = '^[a-z0-9]+(?: [a-z0-9]+)*$';
 const PACK_CREATE_MAX_NAME_LENGTH = 120;
 const PACK_CREATE_MAX_PUBLISHER_LENGTH = 120;
 const PACK_CREATE_MAX_DESCRIPTION_LENGTH = 1024;
@@ -1951,7 +1951,7 @@ const handleCreatePackConfigRequest = async (req, res) => {
       },
       rules: {
         pack_name_regex: PACK_CREATE_NAME_REGEX,
-        pack_name_hint: 'Use apenas letras minúsculas e números, sem espaços.',
+        pack_name_hint: 'Use apenas letras minúsculas, números e espaços.',
         visibility_values: ['public', 'unlisted', 'private'],
         owner_phone_required: !STICKER_WEB_GOOGLE_AUTH_REQUIRED,
         owner_phone_hint: STICKER_WEB_GOOGLE_AUTH_REQUIRED
@@ -2081,10 +2081,10 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
 
 const normalizeCreatePackName = (value) =>
   String(value || '')
-    .trim()
     .toLowerCase()
-    .replace(/\s+/g, '')
-    .replace(/[^a-z0-9]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
     .slice(0, PACK_CREATE_MAX_NAME_LENGTH);
 
 const mapStickerPackCreateError = (error) => {
@@ -2133,7 +2133,7 @@ const handleCreatePackRequest = async (req, res) => {
   const name = normalizeCreatePackName(payload?.name);
   if (!name || !new RegExp(PACK_CREATE_NAME_REGEX).test(name)) {
     sendJson(req, res, 400, {
-      error: 'Nome inválido. Use apenas letras minúsculas e números, sem espaços.',
+      error: 'Nome inválido. Use apenas letras minúsculas, números e espaços.',
       code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
     });
     return;
