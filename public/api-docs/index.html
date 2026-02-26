@@ -35,6 +35,8 @@
     h1, h2 { margin: 0 0 10px; }
     h1 { font-size: 34px; }
     h2 { font-size: 20px; margin-top: 22px; }
+    .section-title { margin: 22px 0 10px; }
+    .sub-title { font-size: 18px; margin: 0 0 10px; }
     p { color: #9fb0cc; }
     .card {
       border: 1px solid #2a3b60;
@@ -42,6 +44,76 @@
       border-radius: 12px;
       padding: 16px;
       margin-bottom: 12px;
+    }
+    .list {
+      margin: 0;
+      padding-left: 18px;
+      color: #c5d4ea;
+      line-height: 1.7;
+    }
+    .status-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      border: 1px solid transparent;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+    .badge-ok {
+      color: #d8ffea;
+      background: #103724;
+      border-color: #1f6a42;
+    }
+    .badge-warn {
+      color: #f5eed6;
+      background: #34280f;
+      border-color: #6b5422;
+    }
+    .badge-bad {
+      color: #ffd8de;
+      background: #3a141d;
+      border-color: #713041;
+    }
+    .status-meta {
+      color: #9fb0cc;
+      font-size: 13px;
+    }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 8px;
+    }
+    .status-item {
+      border: 1px solid #314669;
+      border-radius: 10px;
+      padding: 10px;
+      background: #0f1729;
+      display: grid;
+      gap: 4px;
+    }
+    .status-item strong {
+      font-size: 12px;
+      color: #9fb0cc;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+    }
+    .status-item span {
+      font-size: 14px;
+      color: #d5f8e1;
+    }
+    .status-error {
+      margin-top: 10px;
+      color: #ffb4c1;
+      font-size: 13px;
     }
     code, pre {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -67,6 +139,6 @@
 </head>
 <body>
   <div id="api-docs-react-root"></div>
-  <script type="module" src="/js/apps/apiDocsApp.js?v=20260226c"></script>
+  <script type="module" src="/js/apps/apiDocsApp.js?v=20260226e"></script>
 </body>
 </html>

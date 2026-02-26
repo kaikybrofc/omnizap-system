@@ -232,6 +232,16 @@
     const thumbWrap = document.createElement('div');
     thumbWrap.className = 'pack-thumb';
 
+    const visibilityBadge = document.createElement('span');
+    visibilityBadge.className = 'pack-visibility-badge';
+    const visibility = String(pack.visibility || '').toLowerCase();
+    visibilityBadge.textContent =
+      visibility === 'public' ? 'Público' : visibility === 'unlisted' ? 'Não listado' : 'Privado';
+
+    const countBadge = document.createElement('span');
+    countBadge.className = 'pack-count-badge';
+    countBadge.textContent = String(Number(pack.sticker_count || 0)) + ' itens';
+
     if (pack.cover_url) {
       const image = document.createElement('img');
       image.loading = 'lazy';
@@ -242,17 +252,18 @@
     } else {
       setThumbFallback(thumbWrap);
     }
+    thumbWrap.append(visibilityBadge, countBadge);
 
     const title = document.createElement('h3');
     title.className = 'card-title h6 mb-0';
     title.textContent = pack.name;
 
     const quantity = document.createElement('p');
-    quantity.className = 'pack-meta mb-0';
+    quantity.className = 'pack-meta pack-count mb-0';
     quantity.textContent = String(Number(pack.sticker_count || 0)) + ' itens';
 
     const author = document.createElement('p');
-    author.className = 'pack-meta mb-0';
+    author.className = 'pack-meta pack-author mb-0';
     author.textContent = pack.publisher || 'Autor não informado';
 
     cardBody.append(thumbWrap, title, quantity, author);
