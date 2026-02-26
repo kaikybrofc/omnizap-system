@@ -131,7 +131,7 @@
       .nav {
         width: 100%;
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
       }
 
@@ -142,9 +142,6 @@
         border-radius: 10px;
       }
 
-      .nav .btn.primary {
-        grid-column: 1 / -1;
-      }
     }
 
     @media (max-width: 420px) {
@@ -323,10 +320,8 @@
     <div class="container top-inner">
       <div class="brand">OmniZap System</div>
       <nav class="nav">
-        <a class="btn" href="/stickers/">Stickers</a>
         <a class="btn" href="/api-docs/">API</a>
         <a class="btn" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">GitHub</a>
-        <a class="btn primary" href="/stickers/">Abrir Plataforma</a>
       </nav>
     </div>
   </header>
@@ -335,36 +330,50 @@
     <section class="hero">
       <span class="eyebrow">Open Source SaaS-Ready WhatsApp Automation</span>
       <h1>Automação WhatsApp para bots, operações e empresas com stack pronta para produção.</h1>
-      <p class="lead">Comandos, mídia, catálogo de stickers, API pública e observabilidade em um único sistema. Estrutura projetada para escalar com segurança e controle operacional.</p>
+      <p class="lead">O OmniZap System é uma plataforma open source para centralizar atendimento automatizado, execução de comandos, rotinas operacionais e integração com APIs em um único projeto.</p>
       <div class="hero-cta">
-        <a class="btn primary" href="/stickers/">Ver Catálogo de Stickers</a>
+        <a class="btn primary" href="/stickers/">Abrir Plataforma</a>
         <a class="btn" href="/api-docs/">Explorar API</a>
-      </div>
-      <div class="hero-stats">
-        <div class="chip" id="metric-host-cpu">CPU host: carregando...</div>
-        <div class="chip" id="metric-host-memory">RAM host: carregando...</div>
-        <div class="chip" id="metric-process-uptime">Uptime processo: carregando...</div>
-        <div class="chip" id="metric-observability">Observabilidade: carregando...</div>
       </div>
     </section>
 
-    <h2 class="section-title">Recursos da Plataforma</h2>
+    <h2 class="section-title">Visão do Projeto</h2>
+    <section class="grid">
+      <article class="card">
+        <h3>Base Única de Operação</h3>
+        <p>Consolida automação, comandos, mídia e integrações em uma stack única para reduzir complexidade operacional.</p>
+      </article>
+      <article class="card">
+        <h3>Arquitetura Modular</h3>
+        <p>Projeto estruturado em módulos para facilitar manutenção, extensão de funcionalidades e evolução contínua do bot.</p>
+      </article>
+      <article class="card">
+        <h3>Pronto para Produção</h3>
+        <p>Direcionado para uso real: foco em estabilidade, controle de fluxo, visibilidade e facilidade de deploy.</p>
+      </article>
+      <article class="card">
+        <h3>Open Source</h3>
+        <p>Código aberto para customização completa, integração com sistemas próprios e colaboração da comunidade.</p>
+      </article>
+    </section>
+
+    <h2 class="section-title">Recursos Principais</h2>
     <section class="grid">
       <article class="card">
         <h3>Automação de Comandos</h3>
-        <p>Módulos para grupos, administração, fluxos de mídia e comandos extensivos para operação diária.</p>
+        <p>Módulos para grupos, administração, rotinas de mídia e comandos para fluxos do dia a dia.</p>
       </article>
       <article class="card">
-        <h3>Catálogo de Stickers</h3>
-        <p>Packs públicos, busca, filtros, visualização de stickers e página dedicada para assets sem pack.</p>
+        <h3>Integrações e API</h3>
+        <p>Endpoints para consulta de dados, integração com serviços externos e consumo de recursos públicos do sistema.</p>
       </article>
       <article class="card">
-        <h3>API Pública</h3>
-        <p>Endpoints consistentes para listar packs, obter detalhes e consumir imagens via URL pública.</p>
+        <h3>Gestão de Conteúdo</h3>
+        <p>Organização de assets e packs para manter o conteúdo do bot estruturado e fácil de reutilizar.</p>
       </article>
       <article class="card">
         <h3>Observabilidade</h3>
-        <p>Métricas e logs integrados para monitorar uso, saúde, desempenho e gargalos em produção.</p>
+        <p>Métricas e dados operacionais para monitorar saúde da aplicação, desempenho e capacidade.</p>
       </article>
     </section>
 
@@ -377,8 +386,36 @@ GET /api/sticker-packs/:packKey
 GET /data/stickers/:owner/:file.webp</code></pre>
     </section>
 
+    <h2 class="section-title">Catálogo de Stickers</h2>
+    <section class="grid">
+      <article class="card">
+        <h3>Packs Públicos</h3>
+        <p>Listagem com busca e ordenação para navegar por packs compartilhados e abrir detalhes de cada coleção.</p>
+      </article>
+      <article class="card">
+        <h3>Compartilhamento Direto</h3>
+        <p>Cada pack possui link dedicado, facilitando divulgação e uso no WhatsApp com comando pré-preenchido.</p>
+      </article>
+      <article class="card">
+        <h3>Visualização Web</h3>
+        <p>Página de catálogo otimizada para desktop e mobile, com carregamento progressivo e navegação rápida.</p>
+      </article>
+      <article class="card">
+        <h3>Modo Sem Pack</h3>
+        <p>Área específica para figurinhas sem pack, útil para curadoria e organização do conteúdo recebido.</p>
+      </article>
+    </section>
+
+    <h2 class="section-title">Métricas do Sistema</h2>
+    <section class="hero-stats">
+      <div class="chip" id="metric-host-cpu">CPU host: carregando...</div>
+      <div class="chip" id="metric-host-memory">RAM host: carregando...</div>
+      <div class="chip" id="metric-process-uptime">Uptime processo: carregando...</div>
+      <div class="chip" id="metric-observability">Observabilidade: carregando...</div>
+    </section>
+
     <section class="final-cta">
-      <p><strong>Pronto para elevar o OmniZap para nível SaaS?</strong><br />Use a homepage para conversão e mantenha o catálogo em <code>/stickers/</code> como produto principal.</p>
+      <p><strong>Pronto para usar o OmniZap na operação?</strong><br />Explore o catálogo de stickers e a API pública para integrar o sistema ao seu fluxo.</p>
       <a class="btn primary" href="/stickers/">Entrar no Catálogo</a>
     </section>
   </main>
