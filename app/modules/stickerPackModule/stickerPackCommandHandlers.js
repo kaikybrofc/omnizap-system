@@ -984,7 +984,7 @@ export async function handlePackCommand({
 
       case 'send': {
         const { token: identifier } = readToken(rest);
-        const packDetails = await stickerPackService.getPackInfo({ ownerJid, identifier });
+        const packDetails = await stickerPackService.getPackInfoForSend({ ownerJid, identifier });
         const packBuild = await buildStickerPackMessage(packDetails);
         const sendResult = await sendStickerPackWithFallback({
           sock,

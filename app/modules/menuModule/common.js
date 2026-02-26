@@ -56,7 +56,8 @@ Sistema em evolução (beta)
 GitHub:  
 https://github.com/kaikybrofc/omnizap-system  
 
-Contato: @kaikybrofc on instagram
+Site oficial:  
+https://omnizap.shop/
 `;
 
 export const buildStickerMenu = (commandPrefix) => `

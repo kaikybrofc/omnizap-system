@@ -410,14 +410,16 @@
       justify-content: space-between;
       gap: 8px;
       align-items: center;
+      min-width: 0;
     }
 
     .rank-user {
       display: inline-flex;
       align-items: center;
       gap: 10px;
+      flex: 1 1 auto;
       min-width: 0;
-      max-width: 72%;
+      max-width: 100%;
     }
 
     .rank-avatar {
@@ -438,6 +440,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      overflow-wrap: anywhere;
     }
 
     .rank-value {
@@ -445,6 +448,8 @@
       font-size: 13px;
       text-align: right;
       white-space: nowrap;
+      min-width: 0;
+      flex: 0 0 auto;
     }
 
     .final-cta p { margin: 0; color: #c2d0e5; }
@@ -509,6 +514,29 @@
     }
 
     @media (max-width: 520px) {
+      .rank-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+      }
+
+      .rank-user {
+        max-width: 100%;
+      }
+
+      .rank-name {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+      }
+
+      .rank-value {
+        white-space: normal;
+        text-align: left;
+        padding-left: 44px;
+      }
+
       .hero-banner {
         max-height: 140px;
       }
@@ -565,7 +593,7 @@
   <main class="container">
     <section class="hero">
       <img class="hero-banner" src="https://iili.io/fSNGag2.png" alt="Banner OmniZap System" loading="lazy" decoding="async" />
-      <span class="eyebrow">Open Source SaaS-Ready WhatsApp Automation</span>
+      <span class="eyebrow">Automação de WhatsApp Open Source pronta para SaaS</span>
       <h1>Automação WhatsApp para bots, operações e empresas com stack pronta para produção.</h1>
       <p class="lead">O OmniZap System é uma plataforma open source para centralizar atendimento automatizado, execução de comandos, rotinas operacionais e integração com APIs em um único projeto.</p>
       <div class="hero-cta">
@@ -679,6 +707,8 @@ GET /data/stickers/:owner/:file.webp</code></pre>
         <a href="/"><i class="fa-solid fa-house icon-inline" aria-hidden="true"></i>Home</a>
         <a href="/stickers/"><i class="fa-solid fa-icons icon-inline" aria-hidden="true"></i>Stickers</a>
         <a href="/api-docs/"><i class="fa-solid fa-book icon-inline" aria-hidden="true"></i>API Docs</a>
+        <a href="/termos-de-uso/"><i class="fa-solid fa-file-contract icon-inline" aria-hidden="true"></i>Termos de Uso</a>
+        <a href="/licenca/"><i class="fa-solid fa-scale-balanced icon-inline" aria-hidden="true"></i>Licença</a>
       </div>
       <div class="foot-col">
         <h4><i class="fa-solid fa-diagram-project icon-inline" aria-hidden="true"></i>Projeto</h4>

@@ -23,6 +23,7 @@ const PACK_KEY_MAX_ATTEMPTS = 24;
  *   createPack: Function,
  *   listPacks: Function,
  *   getPackInfo: Function,
+ *   getPackInfoForSend: Function,
  *   renamePack: Function,
  *   setPackPublisher: Function,
  *   setPackDescription: Function,
@@ -51,6 +52,59 @@ const ensureValue = (condition, code, message, details = null) => {
 };
 
 const normalizePackIdentifier = (identifier) => sanitizeText(identifier, 180, { allowEmpty: false });
+
+const normalizeCandidate = (value) => {
+  const raw = String(value || '')
+    .trim()
+    // Remove pontuações de cauda comuns quando o usuário cola links/comandos.
+    .replace(/[)\],;.!?]+$/g, '');
+  return normalizePackIdentifier(raw);
+};
+
+const extractPackKeyFromValue = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  try {
+    const url = new URL(raw, 'https://omnizap.shop');
+    const parts = String(url.pathname || '')
+      .split('/')
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (parts[0] && parts[0].toLowerCase() === 'stickers' && parts[1]) {
+      return normalizeCandidate(decodeURIComponent(parts[1]));
+    }
+  } catch {
+    // Ignora parse de URL inválida e segue para regex.
+  }
+
+  const pathMatch = raw.match(/\/stickers\/([^/?#\s]+)/i);
+  if (pathMatch?.[1]) {
+    return normalizeCandidate(pathMatch[1]);
+  }
+
+  return '';
+};
+
+const buildIdentifierCandidates = (identifier) => {
+  const set = new Set();
+  const normalized = normalizeCandidate(identifier);
+  if (normalized) set.add(normalized);
+
+  const fromPath = extractPackKeyFromValue(identifier);
+  if (fromPath) set.add(fromPath);
+
+  for (const current of Array.from(set)) {
+    set.add(current.toLowerCase());
+    set.add(current.replace(/_/g, '-'));
+    set.add(current.replace(/-/g, '_'));
+  }
+
+  return Array.from(set).filter(Boolean);
+};
+
+const isShareableVisibility = (visibility) => ['public', 'unlisted'].includes(String(visibility || '').toLowerCase());
 
 const areArraysEqual = (left, right) => {
   if (left.length !== right.length) return false;
@@ -117,6 +171,7 @@ export function createStickerPackService(options = {}) {
     'createStickerPack',
     'listStickerPacksByOwner',
     'findStickerPackByOwnerAndIdentifier',
+    'findStickerPackByPackKey',
     'updateStickerPackFields',
     'softDeleteStickerPack',
     'ensureUniquePackKey',
@@ -211,16 +266,45 @@ export function createStickerPackService(options = {}) {
 
   const resolveOwnedPack = async (ownerJid, identifier, { connection = null } = {}) => {
     const normalizedOwner = resolveOwner(ownerJid);
-    const normalizedIdentifier = normalizePackIdentifier(identifier);
+    const candidates = buildIdentifierCandidates(identifier);
 
-    ensureValue(normalizedIdentifier, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Informe o pack para continuar.');
+    ensureValue(candidates.length > 0, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Informe o pack para continuar.');
 
-    const pack = await deps.packRepository.findStickerPackByOwnerAndIdentifier(normalizedOwner, normalizedIdentifier, {
-      connection,
-    });
+    for (const candidate of candidates) {
+      const pack = await deps.packRepository.findStickerPackByOwnerAndIdentifier(normalizedOwner, candidate, {
+        connection,
+      });
+      if (pack) return pack;
+    }
 
-    ensureValue(pack, STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND, 'Pack não encontrado para este usuário.');
-    return pack;
+    throw buildError(STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND, 'Pack não encontrado para este usuário.');
+  };
+
+  const resolvePackForSend = async (ownerJid, identifier, { connection = null } = {}) => {
+    const normalizedOwner = resolveOwner(ownerJid);
+    const candidates = buildIdentifierCandidates(identifier);
+
+    ensureValue(candidates.length > 0, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Informe o pack para continuar.');
+
+    for (const candidate of candidates) {
+      const owned = await deps.packRepository.findStickerPackByOwnerAndIdentifier(normalizedOwner, candidate, {
+        connection,
+      });
+      if (owned) return owned;
+    }
+
+    for (const candidate of candidates) {
+      const shared = await deps.packRepository.findStickerPackByPackKey(candidate, {
+        includeDeleted: false,
+        connection,
+      });
+
+      if (shared && isShareableVisibility(shared.visibility)) {
+        return shared;
+      }
+    }
+
+    throw buildError(STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND, 'Pack não encontrado para este usuário.');
   };
 
   const loadPackDetails = async (pack, { connection = null } = {}) => {
@@ -296,6 +380,15 @@ export function createStickerPackService(options = {}) {
 
     return runAction('pack_info', { owner_jid: owner }, async () => {
       const pack = await resolveOwnedPack(owner, identifier);
+      return loadPackDetails(pack);
+    });
+  };
+
+  const getPackInfoForSend = async ({ ownerJid, identifier }) => {
+    const owner = resolveOwner(ownerJid);
+
+    return runAction('pack_send_info', { owner_jid: owner }, async () => {
+      const pack = await resolvePackForSend(owner, identifier);
       return loadPackDetails(pack);
     });
   };
@@ -610,6 +703,7 @@ export function createStickerPackService(options = {}) {
     createPack,
     listPacks,
     getPackInfo,
+    getPackInfoForSend,
     renamePack,
     setPackPublisher,
     setPackDescription,

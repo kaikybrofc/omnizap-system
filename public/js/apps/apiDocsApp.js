@@ -24,6 +24,8 @@ function ApiDocsApp() {
       { className: 'top' },
       h('a', { href: '/' }, h(Icon, { cls: 'fa-solid fa-house' }), 'Home'),
       h('a', { href: '/stickers/' }, h(Icon, { cls: 'fa-solid fa-icons' }), 'Stickers'),
+      h('a', { href: '/termos-de-uso/' }, h(Icon, { cls: 'fa-solid fa-file-contract' }), 'Termos'),
+      h('a', { href: '/licenca/' }, h(Icon, { cls: 'fa-solid fa-scale-balanced' }), 'Licença'),
       h('a', { href: 'https://github.com/Kaikygr/omnizap-system', target: '_blank', rel: 'noreferrer noopener' }, h(Icon, { cls: 'fa-brands fa-github' }), 'GitHub'),
     ),
     h('h1', null, h(Icon, { cls: 'fa-solid fa-code' }), 'OmniZap API Docs'),
