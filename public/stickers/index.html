@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="pt-BR" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OmniZap Sticker Packs</title>
+  <meta name="description" content="Catalogo web de packs de figurinhas do OmniZap." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="/css/styles.css" rel="stylesheet" />
+</head>
+<body class="catalog-body">
+  <header class="navbar navbar-expand-lg border-bottom border-success-subtle sticky-top glass-nav">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="/stickers">OmniZap Sticker Catalog</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#catalog-nav" aria-controls="catalog-nav" aria-expanded="false" aria-label="Alternar navegacao">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <nav class="collapse navbar-collapse" id="catalog-nav">
+        <ul class="navbar-nav ms-auto gap-lg-2">
+          <li class="nav-item"><a class="nav-link" href="/">Inicio</a></li>
+          <li class="nav-item"><a class="nav-link" href="#packs-section">Packs</a></li>
+          <li class="nav-item"><a class="nav-link" href="#orphan-section">Sem pack</a></li>
+          <li class="nav-item"><a class="nav-link" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main
+    id="catalog-root"
+    class="container py-4"
+    data-web-path="/stickers"
+    data-api-base-path="/api/sticker-packs"
+    data-orphan-api-path="/api/sticker-packs/orphan-stickers"
+    data-data-public-path="/data"
+    data-default-limit="24"
+    data-default-orphan-limit="120"
+    data-initial-pack-key=""
+  >
+    <section class="hero-card card shadow-sm border-success-subtle">
+      <div class="card-body p-4 p-md-5">
+        <p class="text-uppercase small fw-semibold text-info-emphasis mb-2">OmniZap / Sticker Catalog</p>
+        <h1 class="display-6 catalog-title mb-2">Explore packs de figurinhas em uma pagina web.</h1>
+        <p class="text-secondary mb-4">
+          Catalogo publico com busca, filtros e visualizacao completa dos packs. Clique em qualquer card para abrir os stickers.
+        </p>
+
+        <form id="search-form" class="row g-2 align-items-center">
+          <div class="col-12 col-md-6 col-lg-7">
+            <input id="search-input" class="form-control" type="search" placeholder="Buscar por nome, publisher ou pack id" autocomplete="off" />
+          </div>
+          <div class="col-12 col-md-4 col-lg-3">
+            <select id="visibility-input" class="form-select">
+              <option value="public">Publicos</option>
+              <option value="unlisted">Nao listados</option>
+              <option value="all">Publicos + nao listados</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-2 col-lg-2 d-grid">
+            <button class="btn btn-success" type="submit">Pesquisar</button>
+          </div>
+        </form>
+
+        <div id="status" class="status-text mt-3"></div>
+      </div>
+    </section>
+
+    <section id="packs-section" class="mt-4">
+      <div id="grid" class="row g-3"></div>
+      <div class="text-center mt-3">
+        <button id="load-more" class="btn btn-success" hidden>Carregar mais</button>
+      </div>
+    </section>
+
+    <section id="orphan-section" class="mt-5">
+      <h2 class="h3 mb-2 section-title">Figurinhas Sem Pack</h2>
+      <div id="orphan-status" class="status-text"></div>
+
+      <div id="orphan-grid" class="row g-3 mt-1"></div>
+
+      <div id="orphan-pagination" class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3 panel-controls rounded-3 p-2">
+        <button id="orphan-prev" class="btn btn-outline-light btn-sm" type="button" aria-label="Pagina anterior de figurinhas sem pack">Anterior</button>
+        <span id="orphan-page-info" class="small text-secondary flex-grow-1 text-center">Pagina 1 de 1 - 0 figurinhas</span>
+        <button id="orphan-next" class="btn btn-outline-light btn-sm" type="button" aria-label="Proxima pagina de figurinhas sem pack">Proxima</button>
+      </div>
+
+      <button id="orphan-load-more" class="btn btn-success mt-3" hidden>Carregar mais figurinhas</button>
+    </section>
+  </main>
+
+  <div class="modal fade" id="panel" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content bg-dark text-light border-secondary">
+        <div class="modal-header border-secondary">
+          <div>
+            <h2 id="panel-title" class="h4 mb-1">Pack</h2>
+            <p id="panel-subtitle" class="mb-2 text-secondary"></p>
+            <span id="panel-chip" class="badge rounded-pill text-bg-secondary"></span>
+          </div>
+          <button id="panel-close" type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <button id="copy-link" class="btn btn-success btn-sm">Copiar link do pack</button>
+
+          <div id="panel-pagination" class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3 panel-controls rounded-3 p-2">
+            <button id="panel-prev" class="btn btn-outline-light btn-sm" type="button" aria-label="Pagina anterior de stickers">Anterior</button>
+            <span id="panel-page-info" class="small text-secondary flex-grow-1 text-center">Pagina 1 de 1 - 0 stickers</span>
+            <button id="panel-next" class="btn btn-outline-light btn-sm" type="button" aria-label="Proxima pagina de stickers">Proxima</button>
+          </div>
+
+          <div id="panel-error" class="alert alert-danger mt-3 mb-0" hidden></div>
+          <div id="stickers" class="row g-3 mt-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="container py-4 text-center text-secondary small">
+    <p class="mb-1 fw-semibold text-light">OmniZap System - Sticker Catalog - 2026</p>
+    <p class="mb-0">Powered by OmniZap</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/catalog.js" defer></script>
+</body>
+</html>
