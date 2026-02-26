@@ -95,48 +95,41 @@ function PackCard({ pack, index, onOpen }) {
   const engagement = getPackEngagement(pack);
 
   return html`
-    <article className="group rounded-2xl border border-slate-700/80 bg-slate-800/80 shadow-soft overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
-      <div className="relative aspect-square bg-slate-900 overflow-hidden">
+    <button
+      type="button"
+      onClick=${() => onOpen(pack.pack_key)}
+      className="group w-full text-left rounded-2xl border border-slate-700/70 bg-slate-800/90 shadow-soft overflow-hidden transition-all duration-200 active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-lg"
+    >
+      <div className="relative aspect-[4/5] bg-slate-900 overflow-hidden">
         <img
           src=${pack.cover_url || 'https://iili.io/fSNGag2.png'}
           alt=${`Capa de ${pack.name}`}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          className="w-full h-[70%] object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           loading="lazy"
         />
         <div className="absolute top-2 left-2 flex items-center gap-1">
-          ${isTrending
-            ? html`<span className="rounded-full bg-emerald-400/95 px-2 py-0.5 text-[10px] font-bold text-slate-900">Trending</span>`
-            : null}
-          ${isNew
-            ? html`<span className="rounded-full bg-slate-900/85 border border-slate-500 px-2 py-0.5 text-[10px] font-semibold text-slate-100">Novo</span>`
-            : null}
+          ${isTrending ? html`<span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[10px] font-bold text-slate-900">Trending</span>` : null}
+          ${isNew ? html`<span className="rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-slate-100">Novo</span>` : null}
+        </div>
+
+        <div className="absolute inset-x-0 bottom-0 p-2.5 bg-gradient-to-t from-slate-900 via-slate-900/95 to-slate-900/5">
+          <h3 className="font-semibold text-sm leading-5 line-clamp-2">${pack.name || 'Pack sem nome'}</h3>
+          <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-300">
+            <img src=${getAvatarUrl(pack.publisher)} alt="Criador" className="w-4 h-4 rounded-full bg-slate-700" loading="lazy" />
+            <span className="truncate">${pack.publisher || 'Criador não informado'}</span>
+          </div>
+          <p className="mt-1.5 text-[11px] text-slate-300">
+            👍 ${shortNum(engagement.likeCount)} · 👎 ${shortNum(engagement.dislikeCount)} · 🧩 ${Number(pack.sticker_count || 0)}
+          </p>
         </div>
       </div>
 
-      <div className="p-3 space-y-3">
-        <h3 className="font-semibold text-sm leading-5 line-clamp-2 min-h-[2.5rem]">${pack.name || 'Pack sem nome'}</h3>
-
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <img src=${getAvatarUrl(pack.publisher)} alt="Criador" className="w-5 h-5 rounded-full bg-slate-700" loading="lazy" />
-          <span className="truncate">${pack.publisher || 'Criador não informado'}</span>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-300">
-          <span className="rounded-lg border border-slate-700 px-2 py-1 text-center">👍 ${shortNum(engagement.likeCount)}</span>
-          <span className="rounded-lg border border-slate-700 px-2 py-1 text-center">👎 ${shortNum(engagement.dislikeCount)}</span>
-          <span className="rounded-lg border border-slate-700 px-2 py-1 text-center">🧩 ${Number(pack.sticker_count || 0)}</span>
-        </div>
-        <p className="text-[11px] text-slate-400">👆 ${shortNum(engagement.openCount)} cliques</p>
-
-        <button
-          type="button"
-          onClick=${() => onOpen(pack.pack_key)}
-          className="w-full rounded-xl border border-emerald-400/40 bg-emerald-400/15 px-3 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/25"
-        >
-          Abrir pack
-        </button>
+      <div className="px-2.5 pb-2.5 pt-2 bg-slate-800/95">
+        <span className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-emerald-400/35 bg-emerald-400/12 text-sm font-semibold text-emerald-200 transition group-active:brightness-110">
+          Abrir pack · ${shortNum(engagement.openCount)} cliques
+        </span>
       </div>
-    </article>
+    </button>
   `;
 }
 
@@ -168,11 +161,11 @@ function SkeletonGrid({ count = 10 }) {
       ${Array.from({ length: count }).map(
         (_, index) => html`
           <div key=${index} className="rounded-2xl border border-slate-700 bg-slate-800 overflow-hidden animate-pulse">
-            <div className="aspect-square bg-slate-700"></div>
-            <div className="p-3 space-y-2">
+            <div className="aspect-[4/5] bg-slate-700"></div>
+            <div className="p-2.5 space-y-2">
               <div className="h-3 rounded bg-slate-700"></div>
               <div className="h-3 w-2/3 rounded bg-slate-700"></div>
-              <div className="h-8 rounded bg-slate-700"></div>
+              <div className="h-11 rounded-xl bg-slate-700"></div>
             </div>
           </div>
         `,
@@ -422,6 +415,7 @@ function StickersApp() {
   const [packLoading, setPackLoading] = useState(false);
   const [reactionLoading, setReactionLoading] = useState('');
   const [relatedPacks, setRelatedPacks] = useState([]);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   const tagSuggestions = useMemo(() => {
     const options = new Map();
@@ -649,6 +643,13 @@ function StickersApp() {
   }, []);
 
   useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
     if (currentPackKey) {
       void loadPackDetail(currentPackKey);
       return;
@@ -695,24 +696,28 @@ function StickersApp() {
   };
 
   return html`
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen bg-slate-950 text-slate-100">
       <style>
         ${`@keyframes fadeInCard { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .fade-card { animation: fadeInCard 260ms ease both; }
-        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }`}
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .chips-scroll { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+        .chip-item { scroll-snap-align: start; }`}
       </style>
 
-      <header className="sticky top-0 z-30 border-b border-slate-700/80 bg-slate-900/95 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+      <header className=${`sticky top-0 z-30 border-b border-slate-800 bg-slate-950/95 backdrop-blur transition-shadow ${
+        isScrolled ? 'shadow-[0_8px_24px_rgba(2,6,23,0.45)]' : ''
+      }`}>
+        <div className="max-w-7xl mx-auto h-14 px-3 flex items-center gap-2.5">
           <a href="/" className="shrink-0 flex items-center gap-2">
-            <img src="https://iili.io/FC3FABe.jpg" alt="OmniZap" className="w-8 h-8 rounded-full border border-slate-600" />
+            <img src="https://iili.io/FC3FABe.jpg" alt="OmniZap" className="w-7 h-7 rounded-full border border-slate-700" />
             <span className="hidden sm:inline text-sm font-semibold">OmniZap</span>
           </a>
 
           ${!currentPackKey
             ? html`
                 <form onSubmit=${onSubmit} className="flex-1 relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔎</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔎</span>
                   <input
                     type="search"
                     value=${query}
@@ -725,11 +730,11 @@ function StickersApp() {
                       }
                     }}
                     placeholder="Buscar packs, criadores ou categorias..."
-                    className="w-full h-11 rounded-2xl border border-slate-700 bg-slate-800 pl-11 pr-4 text-sm text-slate-100 placeholder:text-slate-400 outline-none transition focus:border-emerald-400/60 focus:ring-4 focus:ring-emerald-400/15"
+                    className="w-full h-10 rounded-2xl border border-slate-800 bg-slate-900 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/15"
                   />
                   ${showAutocomplete && filteredSuggestions.length
                     ? html`
-                        <div className="absolute z-40 mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 shadow-xl overflow-hidden">
+                        <div className="absolute z-40 mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 shadow-xl overflow-hidden">
                           ${filteredSuggestions.map(
                             (item) => html`
                               <button
@@ -760,7 +765,7 @@ function StickersApp() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-4 space-y-5">
+      <main className="max-w-7xl mx-auto px-3 py-3 space-y-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         ${error
           ? html`<div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">${error}</div>`
           : null}
@@ -781,23 +786,27 @@ function StickersApp() {
             `
           : html`
               <section className="space-y-3">
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  ${CATEGORY_OPTIONS.map(
-                    (item) => html`
-                      <button
-                        key=${item.value || 'all'}
-                        type="button"
-                        onClick=${() => setActiveCategory(item.value)}
-                        className=${`whitespace-nowrap rounded-full px-4 py-2 text-sm border transition ${
-                          activeCategory === item.value
-                            ? 'bg-emerald-400 text-slate-900 border-emerald-400 font-semibold shadow-sm'
-                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                        }`}
-                      >
-                        ${item.label}
-                      </button>
-                    `,
-                  )}
+                <div className="relative">
+                  <div className="absolute left-0 top-0 bottom-0 w-5 bg-gradient-to-r from-slate-950 to-transparent pointer-events-none z-10"></div>
+                  <div className="absolute right-0 top-0 bottom-0 w-5 bg-gradient-to-l from-slate-950 to-transparent pointer-events-none z-10"></div>
+                  <div className="chips-scroll flex gap-2 overflow-x-auto pb-1.5 pr-1">
+                    ${CATEGORY_OPTIONS.map(
+                      (item) => html`
+                        <button
+                          key=${item.value || 'all'}
+                          type="button"
+                          onClick=${() => setActiveCategory(item.value)}
+                          className=${`chip-item h-9 whitespace-nowrap rounded-full px-3 text-xs border transition ${
+                            activeCategory === item.value
+                              ? 'bg-emerald-400 text-slate-900 border-emerald-400 font-semibold shadow-sm'
+                              : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+                          }`}
+                        >
+                          ${item.label}
+                        </button>
+                      `,
+                    )}
+                  </div>
                 </div>
               </section>
 
