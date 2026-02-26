@@ -3,7 +3,9 @@ import path from 'node:path';
 
 import { executeQuery } from '../../../database/index.js';
 import { getJidUser, normalizeJid, resolveBotJid } from '../../config/baileysConfig.js';
+import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../config/adminIdentity.js';
 import { getActiveSocket } from '../../services/socketState.js';
+import { extractUserIdInfo, resolveUserId } from '../../services/lidMapService.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
 import { listStickerPacksForCatalog, findStickerPackByPackKey } from './stickerPackRepository.js';
@@ -455,6 +457,55 @@ const buildPackWhatsAppInfo = (pack) => {
     phone,
     text,
     url,
+  };
+};
+
+const isPlausibleWhatsAppPhone = (value) => {
+  const digits = normalizePhoneDigits(value);
+  return digits.length >= 10 && digits.length <= 15 ? digits : '';
+};
+
+const resolveSupportAdminPhone = async () => {
+  const adminRaw = String(getAdminRawValue() || '').trim();
+
+  if (adminRaw) {
+    try {
+      const resolvedFromLidMap = await resolveUserId(extractUserIdInfo(adminRaw));
+      const resolvedPhoneFromLidMap = isPlausibleWhatsAppPhone(getJidUser(resolvedFromLidMap || ''));
+      if (resolvedPhoneFromLidMap) return resolvedPhoneFromLidMap;
+    } catch {}
+  }
+
+  try {
+    const resolvedAdminJid = await resolveAdminJid();
+    const resolvedPhone = isPlausibleWhatsAppPhone(getJidUser(resolvedAdminJid || ''));
+    if (resolvedPhone) return resolvedPhone;
+  } catch {}
+
+  const rawPhone = isPlausibleWhatsAppPhone(getJidUser(adminRaw) || adminRaw);
+  if (rawPhone) return rawPhone;
+
+  const adminPhone = isPlausibleWhatsAppPhone(getAdminPhone() || '');
+  if (adminPhone) return adminPhone;
+
+  const candidates = [process.env.WHATSAPP_SUPPORT_NUMBER, process.env.OWNER_NUMBER, process.env.USER_ADMIN];
+
+  for (const candidate of candidates) {
+    const digits = isPlausibleWhatsAppPhone(getJidUser(candidate || '') || candidate);
+    if (digits) return digits;
+  }
+
+  return '';
+};
+
+const buildSupportInfo = async () => {
+  const phone = await resolveSupportAdminPhone();
+  if (!phone) return null;
+  const text = String(process.env.STICKER_SUPPORT_WHATSAPP_TEXT || 'Olá! Preciso de suporte no catálogo OmniZap.').trim();
+  return {
+    phone,
+    text,
+    url: `https://wa.me/${phone}?text=${encodeURIComponent(text)}`,
   };
 };
 
@@ -1268,6 +1319,15 @@ const handleGitHubProjectSummaryRequest = async (req, res) => {
   }
 };
 
+const handleSupportInfoRequest = async (req, res) => {
+  const data = await buildSupportInfo();
+  if (!data) {
+    sendJson(req, res, 404, { error: 'Contato de suporte indisponível.' });
+    return;
+  }
+  sendJson(req, res, 200, { data });
+};
+
 const handlePublicDataAssetRequest = async (req, res, pathname) => {
   const suffix = pathname.slice(STICKER_DATA_PUBLIC_PATH.length).replace(/^\/+/, '');
   if (!suffix) {
@@ -1511,6 +1571,15 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
       return true;
     }
     await handleGlobalRankingSummaryRequest(req, res);
+    return true;
+  }
+
+  if (segments.length === 1 && segments[0] === 'support') {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handleSupportInfoRequest(req, res);
     return true;
   }
 
