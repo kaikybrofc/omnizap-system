@@ -4,19 +4,21 @@ import htm from 'https://esm.sh/htm@3.1.1';
 const html = htm.bind(React.createElement);
 const SEARCH_HISTORY_KEY = 'omnizap_stickers_search_history_v1';
 
-const CATEGORY_OPTIONS = [
-  { value: '', label: '🔥 Em alta' },
-  { value: 'anime', label: '🎌 Anime' },
-  { value: 'game', label: '🎮 Games' },
-  { value: 'meme', label: '😂 Meme' },
-  { value: 'nsfw', label: '🔞 +18' },
-  { value: 'dark-aesthetic', label: '🖤 Dark' },
-  { value: 'texto', label: '✍ Texto' },
-  { value: 'cartoon', label: '🧸 Cartoon' },
-  { value: 'foto-real', label: '📷 Foto real' },
-  { value: 'animal-photo', label: '🐾 Animal' },
-  { value: 'cyberpunk', label: '⚡ Cyberpunk' },
+const DEFAULT_CATEGORIES = [
+  { value: '', label: '🔥 Em alta', icon: '🔥' },
+  { value: 'anime', label: 'Anime', icon: '🎌' },
+  { value: 'game', label: 'Games', icon: '🎮' },
+  { value: 'meme', label: 'Meme', icon: '😂' },
+  { value: 'nsfw', label: '+18', icon: '🔞' },
+  { value: 'dark-aesthetic', label: 'Dark', icon: '🖤' },
+  { value: 'texto', label: 'Texto', icon: '✍️' },
+  { value: 'cartoon', label: 'Cartoon', icon: '🧸' },
+  { value: 'foto-real', label: 'Foto real', icon: '📷' },
+  { value: 'animal-photo', label: 'Animal', icon: '🐾' },
+  { value: 'cyberpunk', label: 'Cyberpunk', icon: '⚡' },
 ];
+
+const CATEGORY_META = new Map(DEFAULT_CATEGORIES.map((entry) => [entry.value, entry]));
 
 const parseIntSafe = (value, fallback) => {
   const parsed = Number.parseInt(String(value || ''), 10);
@@ -425,15 +427,54 @@ function StickersApp() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [supportInfo, setSupportInfo] = useState(null);
 
+  const dynamicCategoryOptions = useMemo(() => {
+    const scoreByTag = new Map();
+    const ensureTag = (rawTag, baseScore = 1) => {
+      const tag = String(rawTag || '').trim();
+      if (!tag) return;
+      scoreByTag.set(tag, (scoreByTag.get(tag) || 0) + baseScore);
+    };
+
+    packs.forEach((pack) => {
+      const engagement = getPackEngagement(pack);
+      const scoreBoost = 1 + engagement.openCount * 0.02 + engagement.likeCount * 0.08;
+      (Array.isArray(pack?.tags) ? pack.tags : []).forEach((tag) => ensureTag(tag, scoreBoost));
+    });
+    orphans.forEach((asset) => {
+      (Array.isArray(asset?.tags) ? asset.tags : []).forEach((tag) => ensureTag(tag, 1));
+    });
+
+    const sortedTags = Array.from(scoreByTag.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([value]) => {
+        const meta = CATEGORY_META.get(value) || null;
+        if (meta) return { value, label: `${meta.icon} ${meta.label}`, icon: meta.icon };
+        const label = value.replace(/-/g, ' ');
+        return { value, label: `🏷️ ${label}`, icon: '🏷️' };
+      });
+
+    if (activeCategory && !sortedTags.some((entry) => entry.value === activeCategory)) {
+      const meta = CATEGORY_META.get(activeCategory) || null;
+      sortedTags.unshift(
+        meta
+          ? { value: activeCategory, label: `${meta.icon} ${meta.label}`, icon: meta.icon }
+          : { value: activeCategory, label: `🏷️ ${activeCategory.replace(/-/g, ' ')}`, icon: '🏷️' },
+      );
+    }
+
+    return [{ value: '', label: '🔥 Em alta', icon: '🔥' }, ...sortedTags];
+  }, [packs, orphans, activeCategory]);
+
   const tagSuggestions = useMemo(() => {
     const options = new Map();
 
-    CATEGORY_OPTIONS.forEach((entry) => {
+    dynamicCategoryOptions.forEach((entry) => {
       if (!entry?.value) return;
       options.set(entry.value, {
         value: entry.value,
         label: String(entry.label || entry.value).replace(/^.+?\s/, ''),
-        icon: '🏷',
+        icon: entry.icon || '🏷️',
       });
     });
 
@@ -457,7 +498,7 @@ function StickersApp() {
     });
 
     return Array.from(options.values());
-  }, [packs, orphans]);
+  }, [dynamicCategoryOptions, packs, orphans]);
 
   const filteredSuggestions = useMemo(() => {
     const q = normalizeToken(query);
@@ -494,7 +535,7 @@ function StickersApp() {
   }, [packs, sortBy]);
 
   const categoryActiveLabel =
-    CATEGORY_OPTIONS.find((entry) => entry.value === activeCategory)?.label?.replace(/^.+?\s/, '') || 'Todas';
+    dynamicCategoryOptions.find((entry) => entry.value === activeCategory)?.label?.replace(/^.+?\s/, '') || 'Todas';
   const growingNowPacks = useMemo(() => {
     return [...packs]
       .map((pack) => {
@@ -802,6 +843,15 @@ function StickersApp() {
   }, [appliedQuery, activeCategory, currentPackKey]);
 
   useEffect(() => {
+    if (currentPackKey) return undefined;
+    const timer = setInterval(() => {
+      void loadPacks({ reset: true });
+      void loadOrphans();
+    }, 60 * 1000);
+    return () => clearInterval(timer);
+  }, [currentPackKey, appliedQuery, activeCategory]);
+
+  useEffect(() => {
     if (!sentinel || !packHasMore || packsLoading || packsLoadingMore || currentPackKey) return;
     const observer = new IntersectionObserver(
       (entries) => {
@@ -834,7 +884,7 @@ function StickersApp() {
     if (!value) return;
     setQuery(value);
     setAppliedQuery(value);
-    if (CATEGORY_OPTIONS.some((entry) => entry.value === value)) {
+    if (dynamicCategoryOptions.some((entry) => entry.value === value)) {
       setActiveCategory(value);
     }
     setShowAutocomplete(false);
@@ -952,7 +1002,7 @@ function StickersApp() {
                   />`}
             `
           : html`
-              <div className="lg:grid lg:grid-cols-[250px_1fr] lg:gap-5">
+              <div className="lg:grid lg:grid-cols-[250px_minmax(0,1fr)] lg:gap-5">
                 <aside className="hidden lg:block">
                   <div className="sticky top-[72px] space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
                     <h3 className="text-sm font-semibold">Filtros</h3>
@@ -972,16 +1022,52 @@ function StickersApp() {
                       <button onClick=${() => setSortBy('new')} className=${`w-full h-10 rounded-xl border text-sm ${sortBy === 'new' ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>🆕 Mais recentes</button>
                       <button onClick=${() => setSortBy('liked')} className=${`w-full h-10 rounded-xl border text-sm ${sortBy === 'liked' ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>👍 Mais curtidos</button>
                     </div>
+
+                    <div className="pt-1 border-t border-slate-800 space-y-2">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Top da semana</p>
+                      ${topWeekPacks.slice(0, 3).map(
+                        (entry, idx) => html`
+                          <button
+                            key=${`side-top-${entry.pack_key}`}
+                            type="button"
+                            onClick=${() => openPack(entry.pack_key)}
+                            className="w-full text-left rounded-lg px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+                          >
+                            ${idx + 1}. ${entry.name || 'Pack'}
+                          </button>
+                        `,
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-2.5 space-y-1.5">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Resumo rápido</p>
+                      <p className="text-xs text-slate-300">${shortNum(platformStats.packs)} packs</p>
+                      <p className="text-xs text-slate-300">${shortNum(platformStats.stickers)} stickers</p>
+                      <p className="text-xs text-slate-300">${shortNum(platformStats.opens)} cliques</p>
+                    </div>
+
+                    ${supportInfo?.url
+                      ? html`
+                          <a
+                            href=${supportInfo.url}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="w-full h-10 inline-flex items-center justify-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 text-sm text-emerald-200 hover:bg-emerald-500/20"
+                          >
+                            💬 Suporte no WhatsApp
+                          </a>
+                        `
+                      : null}
                   </div>
                 </aside>
 
-                <div className="space-y-4">
-                  <section className="space-y-3">
-                    <div className="relative">
+                <div className="space-y-4 min-w-0">
+                  <section className="space-y-3 min-w-0">
+                    <div className="relative min-w-0">
                       <div className="absolute left-0 top-0 bottom-0 w-5 bg-gradient-to-r from-slate-950 to-transparent pointer-events-none z-10"></div>
                       <div className="absolute right-0 top-0 bottom-0 w-5 bg-gradient-to-l from-slate-950 to-transparent pointer-events-none z-10"></div>
-                      <div className="chips-scroll flex gap-2 overflow-x-auto pb-1.5 pr-1">
-                        ${CATEGORY_OPTIONS.map(
+                      <div className="chips-scroll flex max-w-full gap-2 overflow-x-auto pb-1.5 pr-1">
+                        ${dynamicCategoryOptions.map(
                           (item) => html`
                             <button
                               key=${item.value || 'all'}
@@ -1084,7 +1170,7 @@ function StickersApp() {
 
                   ${packs.length
                     ? html`
-                        <section className="space-y-3">
+                        <section className="space-y-3 min-w-0">
                           <div className="flex items-end justify-between gap-3">
                             <div>
                               <h2 className="text-xl font-bold">Packs</h2>
@@ -1103,7 +1189,7 @@ function StickersApp() {
                               </select>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+                          <div className="grid min-w-0 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
                             ${sortedPacks.map((pack, index) => html`<div key=${pack.pack_key || pack.id} className="fade-card"><${PackCard} pack=${pack} index=${index} onOpen=${openPack} /></div>`)}
                           </div>
                           <div ref=${setSentinel} className="h-8 flex items-center justify-center text-xs text-slate-500">

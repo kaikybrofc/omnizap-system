@@ -111,7 +111,7 @@ function ApiDocsApp() {
       h('a', { href: 'https://github.com/Kaikygr/omnizap-system', target: '_blank', rel: 'noreferrer noopener' }, h(Icon, { cls: 'fa-brands fa-github' }), 'GitHub'),
     ),
     h('h1', null, h(Icon, { cls: 'fa-solid fa-code' }), 'OmniZap API Docs'),
-    h('p', null, 'API pública para o catálogo de sticker packs e assets.'),
+    h('p', null, 'API pública para catálogo de packs, stickers, métricas e interações em tempo real.'),
     h(SectionTitle, { iconClass: 'fa-solid fa-route' }, 'Maneiras de uso'),
     h(
       'section',
@@ -132,10 +132,19 @@ function ApiDocsApp() {
     }),
     h(Card, {
       title: 'Listar stickers sem pack',
-      code: 'GET /api/sticker-packs/orphan-stickers?q=&limit=&offset=',
+      code: 'GET /api/sticker-packs/orphan-stickers?q=&categories=&limit=&offset=',
       iconClass: 'fa-solid fa-box-open',
     }),
     h(Card, { title: 'Detalhes de pack', code: 'GET /api/sticker-packs/:packKey', iconClass: 'fa-solid fa-circle-info' }),
+    h(Card, {
+      title: 'Interações do pack (dados reais)',
+      code:
+        'POST /api/sticker-packs/:packKey/open\n' +
+        'POST /api/sticker-packs/:packKey/like\n' +
+        'POST /api/sticker-packs/:packKey/dislike',
+      iconClass: 'fa-solid fa-thumbs-up',
+    }),
+    h(Card, { title: 'Contato de suporte', code: 'GET /api/sticker-packs/support', iconClass: 'fa-brands fa-whatsapp' }),
     h(Card, {
       title: 'Imagem de sticker',
       code: 'GET /api/sticker-packs/:packKey/stickers/:stickerId.webp\nGET /data/stickers/:owner/:file.webp',
@@ -143,14 +152,15 @@ function ApiDocsApp() {
     }),
     h(Card, { title: 'Resumo de métricas do sistema', code: 'GET /api/sticker-packs/system-summary', iconClass: 'fa-solid fa-gauge-high' }),
     h(Card, { title: 'Resumo do projeto no GitHub', code: 'GET /api/sticker-packs/project-summary', iconClass: 'fa-brands fa-github' }),
+    h(Card, { title: 'Ranking global (cacheado)', code: 'GET /api/sticker-packs/global-ranking-summary', iconClass: 'fa-solid fa-ranking-star' }),
     h(SectionTitle, { iconClass: 'fa-solid fa-brackets-curly' }, 'Como a API responde'),
     h(Card, {
       title: 'Padrão de resposta (sucesso)',
       code:
         '{\n' +
-        '  "ok": true,\n' +
         '  "data": [ ... ],\n' +
-        '  "pagination": { "limit": 24, "offset": 0, "has_more": true }\n' +
+        '  "pagination": { "limit": 24, "offset": 0, "has_more": true, "next_offset": 24 },\n' +
+        '  "filters": { "q": "", "visibility": "public", "categories": [] }\n' +
         '}',
       iconClass: 'fa-solid fa-circle-check',
     }),
@@ -162,6 +172,44 @@ function ApiDocsApp() {
         '  "error": "mensagem descritiva do erro"\n' +
         '}',
       iconClass: 'fa-solid fa-triangle-exclamation',
+    }),
+    h(Card, {
+      title: 'Exemplo real de retorno (pack + engagement)',
+      code:
+        '{\n' +
+        '  "data": {\n' +
+        '    "pack_key": "auto-manga-panel-2-iu4n2",\n' +
+        '    "name": "[AUTO] Manga Panel #2",\n' +
+        '    "sticker_count": 30,\n' +
+        '    "tags": ["manga-panel", "anime"],\n' +
+        '    "engagement": {\n' +
+        '      "open_count": 120,\n' +
+        '      "like_count": 34,\n' +
+        '      "dislike_count": 2,\n' +
+        '      "score": 32\n' +
+        '    }\n' +
+        '  }\n' +
+        '}',
+      iconClass: 'fa-solid fa-database',
+    }),
+    h(SectionTitle, { iconClass: 'fa-solid fa-filter' }, 'Filtros e paginação'),
+    h(Card, {
+      title: 'Parâmetros principais',
+      code:
+        'q: texto de busca (nome, publisher, descrição, pack_key)\n' +
+        'visibility: public | unlisted | all\n' +
+        'categories: lista separada por vírgula (ex: anime,meme)\n' +
+        'limit: tamanho da página\n' +
+        'offset: deslocamento para próxima página',
+      iconClass: 'fa-solid fa-sliders',
+    }),
+    h(Card, {
+      title: 'Exemplo de paginação incremental',
+      code:
+        'GET /api/sticker-packs?visibility=public&limit=24&offset=0\n' +
+        'GET /api/sticker-packs?visibility=public&limit=24&offset=24\n' +
+        'GET /api/sticker-packs?visibility=public&limit=24&offset=48',
+      iconClass: 'fa-solid fa-forward-step',
     }),
     h(SectionTitle, { iconClass: 'fa-solid fa-diagram-project' }, 'Como integrar no seu sistema'),
     h(Card, {
@@ -179,7 +227,11 @@ function ApiDocsApp() {
       title: 'Exemplo cURL',
       code:
         'curl -sS "https://omnizap.shop/api/sticker-packs?visibility=public&limit=5"\n' +
+        'curl -sS "https://omnizap.shop/api/sticker-packs?categories=anime,meme&limit=12"\n' +
         'curl -sS "https://omnizap.shop/api/sticker-packs/orphan-stickers?limit=20&offset=0"\n' +
+        'curl -sS -X POST "https://omnizap.shop/api/sticker-packs/<packKey>/open"\n' +
+        'curl -sS -X POST "https://omnizap.shop/api/sticker-packs/<packKey>/like"\n' +
+        'curl -sS "https://omnizap.shop/api/sticker-packs/support"\n' +
         'curl -sS "https://omnizap.shop/api/sticker-packs/system-summary"\n' +
         'curl -sS "https://omnizap.shop/api/sticker-packs/project-summary"',
       iconClass: 'fa-solid fa-terminal',
@@ -208,12 +260,45 @@ function ApiDocsApp() {
         '    if (packs[0]?.pack_key) {\n' +
         '      const details = await getPackDetails(packs[0].pack_key);\n' +
         "      console.log('Primeiro pack:', details?.name, details?.pack_key);\n" +
+        "      await fetch(`${API_BASE}/${encodeURIComponent(packs[0].pack_key)}/open`, { method: 'POST' });\n" +
         '    }\n' +
         '  } catch (error) {\n' +
         "    console.error('Falha ao consumir API:', error.message);\n" +
         '  }\n' +
         '})();',
       iconClass: 'fa-brands fa-js',
+    }),
+    h(Card, {
+      title: 'Exemplo Node.js (backend / integração server-to-server)',
+      code:
+        "const API_BASE = 'https://omnizap.shop/api/sticker-packs';\n" +
+        '\n' +
+        'export async function syncCatalogPage(offset = 0) {\n' +
+        '  const url = `${API_BASE}?visibility=public&limit=50&offset=${offset}`;\n' +
+        '  const response = await fetch(url, { headers: { Accept: "application/json" } });\n' +
+        '  if (!response.ok) throw new Error(`Catalog HTTP ${response.status}`);\n' +
+        '  const payload = await response.json();\n' +
+        '  const packs = payload?.data || [];\n' +
+        '  const nextOffset = payload?.pagination?.next_offset;\n' +
+        '  return { packs, nextOffset, hasMore: Boolean(payload?.pagination?.has_more) };\n' +
+        '}\n' +
+        '\n' +
+        'export async function markPackLike(packKey) {\n' +
+        '  const response = await fetch(`${API_BASE}/${encodeURIComponent(packKey)}/like`, { method: "POST" });\n' +
+        '  if (!response.ok) throw new Error(`Like HTTP ${response.status}`);\n' +
+        '  return response.json();\n' +
+        '}',
+      iconClass: 'fa-solid fa-server',
+    }),
+    h(Card, {
+      title: 'Checklist de produção',
+      code:
+        '- Implementar retry com backoff (429/5xx)\n' +
+        '- Cachear listagens por 30-120s no seu sistema\n' +
+        '- Validar next_offset para paginação contínua\n' +
+        '- Tratar 404 de pack removido/inválido\n' +
+        '- Registrar métricas de latência e taxa de erro do consumo',
+      iconClass: 'fa-solid fa-shield-heart',
     }),
   );
 }
