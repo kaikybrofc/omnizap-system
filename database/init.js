@@ -224,6 +224,7 @@ const createStickerAssetClassificationTableSQL = `
     asset_id CHAR(36) PRIMARY KEY,
     provider VARCHAR(64) NOT NULL DEFAULT 'clip',
     model_name VARCHAR(120) NULL,
+    classification_version VARCHAR(32) NOT NULL DEFAULT 'v1',
     category VARCHAR(120) NULL,
     confidence DECIMAL(6,5) NULL,
     nsfw_score DECIMAL(6,5) NULL,
@@ -259,6 +260,29 @@ const createStickerPackEngagementTableSQL = `
     INDEX idx_sticker_pack_engagement_updated (updated_at),
     INDEX idx_sticker_pack_engagement_like (like_count),
     INDEX idx_sticker_pack_engagement_open (open_count)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+`;
+
+/**
+ * Tabela STICKER_PACK_INTERACTION_EVENT
+ * Histórico de interações para tendência, recomendação e perfis de criador.
+ */
+const createStickerPackInteractionEventTableSQL = `
+  CREATE TABLE IF NOT EXISTS ${TABLES.STICKER_PACK_INTERACTION_EVENT} (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    pack_id CHAR(36) NOT NULL,
+    interaction ENUM('open', 'like', 'dislike') NOT NULL,
+    actor_key VARCHAR(120) NULL,
+    session_key VARCHAR(120) NULL,
+    source VARCHAR(32) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_sticker_pack_interaction_pack
+      FOREIGN KEY (pack_id) REFERENCES ${TABLES.STICKER_PACK}(id)
+      ON DELETE CASCADE ON UPDATE CASCADE,
+    INDEX idx_sticker_pack_interaction_pack_created (pack_id, created_at),
+    INDEX idx_sticker_pack_interaction_actor_created (actor_key, created_at),
+    INDEX idx_sticker_pack_interaction_session_created (session_key, created_at),
+    INDEX idx_sticker_pack_interaction_type_created (interaction, created_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
@@ -431,6 +455,7 @@ export default async function initializeDatabase() {
     await connection.query(createStickerPackItemTableSQL);
     await connection.query(createStickerAssetClassificationTableSQL);
     await connection.query(createStickerPackEngagementTableSQL);
+    await connection.query(createStickerPackInteractionEventTableSQL);
 
     const appliedMigrations = await runSqlMigrations(connection);
 

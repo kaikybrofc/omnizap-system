@@ -265,6 +265,37 @@ const ensureMetrics = () => {
       help: 'Total de cache hits no cliente da PokéAPI',
       registers: [registry],
     }),
+    stickerAutoPackCycleDurationMs: new client.Histogram({
+      name: 'omnizap_sticker_autopack_cycle_duration_ms',
+      help: 'Duracao do ciclo de auto-pack em ms',
+      buckets: [50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000],
+      registers: [registry],
+    }),
+    stickerAutoPackAssetsScannedTotal: new client.Counter({
+      name: 'omnizap_sticker_autopack_assets_scanned_total',
+      help: 'Total de assets escaneados no auto-pack',
+      registers: [registry],
+    }),
+    stickerAutoPackAssetsAddedTotal: new client.Counter({
+      name: 'omnizap_sticker_autopack_assets_added_total',
+      help: 'Total de assets adicionados em packs no auto-pack',
+      registers: [registry],
+    }),
+    stickerAutoPackDuplicateRate: new client.Gauge({
+      name: 'omnizap_sticker_autopack_duplicate_rate',
+      help: 'Taxa de duplicidade observada no ciclo de auto-pack (0-1)',
+      registers: [registry],
+    }),
+    stickerAutoPackRejectionRate: new client.Gauge({
+      name: 'omnizap_sticker_autopack_rejection_rate',
+      help: 'Taxa de rejeicao no ciclo de auto-pack (0-1)',
+      registers: [registry],
+    }),
+    stickerAutoPackFillRate: new client.Gauge({
+      name: 'omnizap_sticker_autopack_fill_rate',
+      help: 'Taxa de packs completos em relacao ao target_size (0-1)',
+      registers: [registry],
+    }),
   };
 
   return metrics;
@@ -658,4 +689,46 @@ export const recordSocialXpCapHit = ({ scope = 'earn' } = {}) => {
   const m = ensureMetrics();
   if (!m) return;
   m.socialXpCapHitsTotal.inc({ scope: normalizeLabel(scope, 'earn') });
+};
+
+export const recordStickerAutoPackCycle = ({
+  durationMs,
+  assetsScanned = 0,
+  assetsAdded = 0,
+  duplicateRate = null,
+  rejectionRate = null,
+  fillRate = null,
+} = {}) => {
+  const m = ensureMetrics();
+  if (!m) return;
+
+  const duration = Number(durationMs);
+  if (Number.isFinite(duration) && duration >= 0) {
+    m.stickerAutoPackCycleDurationMs.observe(duration);
+  }
+
+  const scanned = Number(assetsScanned);
+  if (Number.isFinite(scanned) && scanned > 0) {
+    m.stickerAutoPackAssetsScannedTotal.inc(scanned);
+  }
+
+  const added = Number(assetsAdded);
+  if (Number.isFinite(added) && added > 0) {
+    m.stickerAutoPackAssetsAddedTotal.inc(added);
+  }
+
+  const duplicate = Number(duplicateRate);
+  if (Number.isFinite(duplicate)) {
+    m.stickerAutoPackDuplicateRate.set(Math.max(0, Math.min(1, duplicate)));
+  }
+
+  const rejection = Number(rejectionRate);
+  if (Number.isFinite(rejection)) {
+    m.stickerAutoPackRejectionRate.set(Math.max(0, Math.min(1, rejection)));
+  }
+
+  const fill = Number(fillRate);
+  if (Number.isFinite(fill)) {
+    m.stickerAutoPackFillRate.set(Math.max(0, Math.min(1, fill)));
+  }
 };

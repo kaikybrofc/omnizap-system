@@ -29,6 +29,7 @@ const normalizeClassificationRow = (row) => {
     asset_id: row.asset_id,
     provider: row.provider || 'clip',
     model_name: row.model_name || null,
+    classification_version: row.classification_version || 'v1',
     category: row.category || null,
     confidence: row.confidence !== null && row.confidence !== undefined ? Number(row.confidence) : null,
     nsfw_score: row.nsfw_score !== null && row.nsfw_score !== undefined ? Number(row.nsfw_score) : null,
@@ -70,11 +71,12 @@ export async function listStickerClassificationsByAssetIds(assetIds, connection 
 export async function upsertStickerAssetClassification(payload, connection = null) {
   await executeQuery(
     `INSERT INTO ${TABLES.STICKER_ASSET_CLASSIFICATION}
-      (asset_id, provider, model_name, category, confidence, nsfw_score, is_nsfw, all_scores, classified_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      (asset_id, provider, model_name, classification_version, category, confidence, nsfw_score, is_nsfw, all_scores, classified_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
      ON DUPLICATE KEY UPDATE
       provider = VALUES(provider),
       model_name = VALUES(model_name),
+      classification_version = VALUES(classification_version),
       category = VALUES(category),
       confidence = VALUES(confidence),
       nsfw_score = VALUES(nsfw_score),
@@ -86,6 +88,7 @@ export async function upsertStickerAssetClassification(payload, connection = nul
       payload.asset_id,
       payload.provider || 'clip',
       payload.model_name || null,
+      payload.classification_version || 'v1',
       payload.category || null,
       payload.confidence ?? null,
       payload.nsfw_score ?? null,

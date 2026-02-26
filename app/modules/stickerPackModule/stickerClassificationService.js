@@ -19,6 +19,8 @@ const CLIP_CLASSIFIER_API_URL =
   'http://127.0.0.1:8008/classify';
 const CLIP_CLASSIFIER_TIMEOUT_MS = Math.max(500, Number(process.env.CLIP_CLASSIFIER_TIMEOUT_MS) || 3000);
 const CLIP_CLASSIFIER_PROVIDER = String(process.env.CLIP_CLASSIFIER_PROVIDER || 'clip').trim() || 'clip';
+const CLIP_CLASSIFIER_CLASSIFICATION_VERSION =
+  String(process.env.CLIP_CLASSIFIER_CLASSIFICATION_VERSION || process.env.CLIP_CLASSIFIER_MODEL_VERSION || 'v1').trim() || 'v1';
 const CLIP_CLASSIFIER_NSFW_THRESHOLD = Number.isFinite(Number(process.env.CLIP_CLASSIFIER_NSFW_THRESHOLD))
   ? Number(process.env.CLIP_CLASSIFIER_NSFW_THRESHOLD)
   : null;
@@ -184,6 +186,7 @@ export async function ensureStickerAssetClassified({ asset, buffer, force = fals
     asset_id: asset.id,
     provider: CLIP_CLASSIFIER_PROVIDER,
     model_name: inference.model_name,
+    classification_version: CLIP_CLASSIFIER_CLASSIFICATION_VERSION,
     category: inference.category,
     confidence: inference.confidence,
     nsfw_score: inference.nsfw_score,
@@ -332,6 +335,7 @@ export const classifierConfig = {
   api_url: CLIP_CLASSIFIER_API_URL,
   timeout_ms: CLIP_CLASSIFIER_TIMEOUT_MS,
   nsfw_threshold: CLIP_CLASSIFIER_NSFW_THRESHOLD,
+  classification_version: CLIP_CLASSIFIER_CLASSIFICATION_VERSION,
 };
 
 export const classifyStickerAssetBufferSafe = async (buffer, filename) => {
