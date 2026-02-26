@@ -18,6 +18,7 @@ const normalizeStickerPackRow = (row) => {
     pack_key: row.pack_key,
     cover_sticker_id: row.cover_sticker_id,
     visibility: row.visibility,
+    status: row.status || 'published',
     version: Number(row.version || 1),
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -177,7 +178,11 @@ export async function listStickerPacksForCatalog({
 
   const normalizedSearch = String(search || '').trim().toLowerCase().slice(0, 120);
   const params = [...visibilityValues];
-  const whereClauses = ['p.deleted_at IS NULL', `p.visibility IN (${visibilityValues.map(() => '?').join(', ')})`];
+  const whereClauses = [
+    'p.deleted_at IS NULL',
+    "p.status = 'published'",
+    `p.visibility IN (${visibilityValues.map(() => '?').join(', ')})`,
+  ];
 
   if (normalizedSearch) {
     const like = `%${normalizedSearch}%`;
@@ -215,8 +220,8 @@ export async function listStickerPacksForCatalog({
 export async function createStickerPack(pack, connection = null) {
   await executeQuery(
     `INSERT INTO ${TABLES.STICKER_PACK}
-      (id, owner_jid, name, publisher, description, pack_key, cover_sticker_id, visibility, version)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, owner_jid, name, publisher, description, pack_key, cover_sticker_id, visibility, status, version)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       pack.id,
       pack.owner_jid,
@@ -226,6 +231,7 @@ export async function createStickerPack(pack, connection = null) {
       pack.pack_key,
       pack.cover_sticker_id ?? null,
       pack.visibility,
+      pack.status ?? 'published',
       pack.version ?? 1,
     ],
     connection,
@@ -241,6 +247,7 @@ const UPDATE_FIELD_MAP = {
   pack_key: 'pack_key',
   cover_sticker_id: 'cover_sticker_id',
   visibility: 'visibility',
+  status: 'status',
   deleted_at: 'deleted_at',
 };
 

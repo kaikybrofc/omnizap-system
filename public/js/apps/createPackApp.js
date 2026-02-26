@@ -1,4 +1,4 @@
-import { React, createRoot, useMemo, useState, useEffect } from '../runtime/react-runtime.js';
+import { React, createRoot, useMemo, useState, useEffect, useRef } from '../runtime/react-runtime.js?v=20260226-googlefix1';
 import htm from 'https://esm.sh/htm@3.1.1';
 
 const html = htm.bind(React.createElement);
@@ -7,6 +7,11 @@ const CREATE_PACK_DRAFT_MAX_CHARS = 3_500_000;
 const PACK_UPLOAD_TASK_KEY = 'omnizap_pack_upload_task_v1';
 const MAX_MANUAL_TAGS = 8;
 const DEFAULT_SUGGESTED_TAGS = ['anime', 'meme', 'game', 'texto', 'nsfw', 'dark', 'cartoon', 'foto-real', 'cyberpunk'];
+const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+const PACK_STATUS_PUBLISHED = 'published';
+const FIXED_UPLOAD_QUEUE_CONCURRENCY = 3;
+const UPLOAD_AUTO_RETRY_ATTEMPTS = 2;
+const UPLOAD_RETRY_BASE_DELAY_MS = 700;
 
 const DEFAULT_LIMITS = {
   pack_name_max_length: 120,
@@ -17,7 +22,7 @@ const DEFAULT_LIMITS = {
   sticker_upload_max_bytes: 2 * 1024 * 1024,
   sticker_upload_source_max_bytes: 20 * 1024 * 1024,
 };
-const UPLOAD_REQUEST_TIMEOUT_MS = 3 * 60 * 1000;
+const UPLOAD_REQUEST_TIMEOUT_MS = 8 * 60 * 1000;
 
 const STEPS = [
   { id: 1, title: 'Informações' },
@@ -68,6 +73,107 @@ const mergeTags = (...groups) => {
   return ordered;
 };
 
+const decodeJwtPayload = (jwt) => {
+  const parts = String(jwt || '').split('.');
+  if (parts.length < 2) return null;
+  try {
+    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const decoded = atob(padded);
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+};
+
+const loadScript = (src) =>
+  new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === '1') {
+        resolve();
+        return;
+      }
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error(`Falha ao carregar script: ${src}`)), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.defer = true;
+    script.addEventListener('load', () => {
+      script.dataset.loaded = '1';
+      resolve();
+    });
+    script.addEventListener('error', () => reject(new Error(`Falha ao carregar script: ${src}`)));
+    document.head.appendChild(script);
+  });
+
+const fetchJson = async (url, options = {}) => {
+  const response = await fetch(url, { credentials: 'same-origin', ...options });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Falha na requisição.');
+  }
+  return payload;
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms || 0))));
+
+const bytesToHex = (bufferLike) => {
+  const bytes = bufferLike instanceof Uint8Array ? bufferLike : new Uint8Array(bufferLike || []);
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+const computeDataUrlSha256 = async (dataUrl) => {
+  try {
+    const raw = String(dataUrl || '');
+    const base64 = raw.includes(',') ? raw.split(',').slice(1).join(',') : raw;
+    if (!base64) return '';
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return '';
+    const binary = atob(base64.replace(/\s+/g, ''));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const digest = await subtle.digest('SHA-256', bytes);
+    return bytesToHex(digest);
+  } catch {
+    return '';
+  }
+};
+
+const runAsyncQueue = async (items, worker, maxConcurrency = FIXED_UPLOAD_QUEUE_CONCURRENCY) => {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return [];
+  const concurrency = Math.max(1, Math.min(Number(maxConcurrency || 1), list.length));
+  const results = new Array(list.length);
+  let cursor = 0;
+
+  const runWorker = async () => {
+    while (cursor < list.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await worker(list[index], index);
+    }
+  };
+
+  await Promise.all(Array.from({ length: concurrency }, () => runWorker()));
+  return results;
+};
+
+const isTransientUploadError = (error) => {
+  const statusCode = Number(error?.statusCode || 0);
+  if ([408, 429, 502, 503, 504].includes(statusCode)) return true;
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('rede') || message.includes('timeout') || message.includes('demorou');
+};
+
 const writeUploadTask = (payload) => {
   try {
     localStorage.setItem(
@@ -112,8 +218,16 @@ const uploadStickerWithProgress = ({ apiBasePath, packKey, editToken, item, setC
       onProgress(percentage);
     };
 
-    xhr.onerror = () => reject(new Error(`Falha de rede ao enviar ${item.file.name}.`));
-    xhr.ontimeout = () => reject(new Error(`Timeout ao enviar ${item.file.name}. Tente novamente.`));
+    xhr.onerror = () => {
+      const error = new Error(`Falha de rede ao enviar ${item.file.name}.`);
+      error.statusCode = 0;
+      reject(error);
+    };
+    xhr.ontimeout = () => {
+      const error = new Error(`Timeout ao enviar ${item.file.name}. Tente novamente.`);
+      error.statusCode = 408;
+      reject(error);
+    };
     xhr.onload = () => {
       let payload = {};
       try {
@@ -125,28 +239,67 @@ const uploadStickerWithProgress = ({ apiBasePath, packKey, editToken, item, setC
         resolve(payload);
         return;
       }
-      reject(new Error(payload?.error || `Falha no upload de ${item.file.name}.`));
+      if (xhr.status === 413) {
+        const error = new Error(`Arquivo muito grande para enviar (${item.file.name}). Reduza o tamanho e tente novamente.`);
+        error.statusCode = 413;
+        error.code = payload?.code || '';
+        reject(error);
+        return;
+      }
+      if (xhr.status === 502 || xhr.status === 504) {
+        const error = new Error(`Servidor demorou para processar ${item.file.name}. Tente novamente em seguida.`);
+        error.statusCode = xhr.status;
+        error.code = payload?.code || '';
+        reject(error);
+        return;
+      }
+      const error = new Error(payload?.error || `Falha no upload de ${item.file.name}.`);
+      error.statusCode = xhr.status;
+      error.code = payload?.code || '';
+      reject(error);
     };
 
     const body = JSON.stringify({
       edit_token: editToken,
+      upload_id: String(item.id || ''),
+      sticker_hash: String(item.hash || ''),
       sticker_data_url: item.dataUrl,
       set_cover: Boolean(setCover),
     });
     xhr.send(body);
   });
 
+const uploadStickerWithRetry = async (params) => {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= UPLOAD_AUTO_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await uploadStickerWithProgress(params);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= UPLOAD_AUTO_RETRY_ATTEMPTS || !isTransientUploadError(error)) {
+        break;
+      }
+      await sleep(UPLOAD_RETRY_BASE_DELAY_MS * attempt);
+    }
+  }
+
+  throw lastError || new Error('Falha no upload do sticker.');
+};
+
 function StepPill({ step, active, done }) {
   return html`
-    <div className=${`flex items-center gap-2 rounded-2xl border px-3 py-2 transition ${
+    <div className=${`flex min-w-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 transition sm:gap-2 sm:rounded-2xl sm:px-3 sm:py-2 ${
       active
         ? 'border-accent/50 bg-accent/10 text-accent'
         : done
           ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
-          : 'border-line bg-panelSoft text-slate-300'
+          : 'border-line/70 bg-panelSoft/80 text-slate-300'
     }`}>
-      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/30 text-xs font-extrabold">${done ? '✓' : step.id}</span>
-      <p className="text-[11px] font-semibold">${step.title}</p>
+      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-black/25 text-[11px] font-extrabold sm:h-6 sm:w-6 sm:text-xs">
+        ${done ? '✓' : step.id}
+      </span>
+      <p className="truncate text-[10px] font-semibold sm:text-[11px]">${step.title}</p>
     </div>
   `;
 }
@@ -159,21 +312,23 @@ function FloatingField({ label, value, onChange, maxLength, hint = '', multiline
 
   return html`
     <label className="block">
-      <span className="mb-2 inline-block text-xs font-semibold text-slate-300">${label}</span>
+      <span className="mb-1.5 inline-block text-xs font-semibold text-slate-300">${label}</span>
       <div className="relative">
         <${Tag}
-          className=${`w-full rounded-2xl border bg-panel/80 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-transparent ${
+          className=${`w-full rounded-2xl border bg-panel/70 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-transparent md:bg-panel/80 md:px-4 md:py-3 ${
             atLimit ? 'border-rose-400/60 focus:border-rose-300' : 'border-line focus:border-accent/60'
-          } ${multiline ? 'min-h-[110px] max-h-52 resize-none overflow-y-auto' : 'h-12'}`}
+          } ${multiline ? 'min-h-[96px] max-h-44 resize-none overflow-y-auto md:min-h-[110px] md:max-h-52' : 'h-11 md:h-12'}`}
           placeholder=${label}
           value=${value}
           maxlength=${maxLength}
           onInput=${onChange}
         />
-        <span className="pointer-events-none absolute left-4 top-[-9px] rounded-md bg-panel px-2 text-[10px] font-semibold uppercase tracking-[.08em] text-slate-400">${label}</span>
+        <span className="pointer-events-none absolute left-3.5 top-[-9px] rounded-md bg-base px-1.5 text-[10px] font-semibold uppercase tracking-[.08em] text-slate-400 md:left-4 md:bg-panel md:px-2">
+          ${label}
+        </span>
       </div>
-      <div className="mt-2 flex items-center justify-between text-[11px]">
-        <span className="text-slate-400">${hint}</span>
+      <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px]">
+        <span className="line-clamp-2 text-slate-400">${hint}</span>
         <span className=${`${atLimit ? 'text-rose-300' : nearLimit ? 'text-amber-300' : 'text-slate-400'} font-semibold`}>${used}/${maxLength}</span>
       </div>
     </label>
@@ -209,10 +364,47 @@ function StickerThumb({ item, index, selectedCoverId, onSetCover, onRemove, onDr
   `;
 }
 
+function PackPreviewPanel({ preview, quality, compact = false }) {
+  return html`
+    <div className="space-y-2">
+      <article className="min-w-0 overflow-hidden rounded-2xl border border-line/70 bg-panelSoft/80">
+        <img src=${preview.coverUrl} alt="Preview capa" className="aspect-square w-full object-cover bg-slate-900/70" />
+        <div className=${`${compact ? 'p-3' : 'p-4'} space-y-2`}>
+          <p className=${`${compact ? 'text-base' : 'text-lg'} line-clamp-2 font-display font-bold`}>${preview.name}</p>
+          <p className="line-clamp-2 text-sm text-slate-300">${preview.description || 'Descrição do pack aparecerá aqui.'}</p>
+          <p className="text-xs text-slate-400">por ${preview.publisher}</p>
+          <div className="flex flex-wrap items-center gap-1">
+            ${preview.tags.length
+              ? preview.tags.map((tag) => html`<span key=${tag} className="rounded-full border border-line/70 px-2 py-0.5 text-[10px] text-slate-300">#${tag}</span>`)
+              : html`<span className="text-[10px] text-slate-500">Adicione tags para melhorar descoberta</span>`}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="rounded-full border border-line/70 px-2 py-1 text-slate-300">${preview.visibility}</span>
+            <span className="rounded-full border border-line/70 px-2 py-1 text-slate-300">🧩 ${preview.stickerCount}</span>
+            <span className="rounded-full border border-line/70 px-2 py-1 text-slate-300">❤️ ${preview.fakeLikes}</span>
+            <span className="rounded-full border border-line/70 px-2 py-1 text-slate-300">⬇ ${preview.fakeOpens}</span>
+          </div>
+        </div>
+      </article>
+
+      <div className="rounded-2xl border border-line/60 bg-panelSoft/70 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="truncate text-xs font-semibold text-slate-200">Score: ${quality.score} · ${quality.label}</p>
+          <span className=${`${quality.tone} shrink-0 text-[11px] font-semibold`}>${quality.score}%</span>
+        </div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-900/70">
+          <div className=${`h-full transition-all ${quality.bar}`} style=${{ width: `${quality.score}%` }}></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function CreatePackApp() {
   const root = document.getElementById('create-pack-react-root');
   const apiBasePath = root?.dataset?.apiBasePath || '/api/sticker-packs';
   const webPath = root?.dataset?.webPath || '/stickers';
+  const googleSessionApiPath = `${apiBasePath}/auth/google/session`;
 
   const [step, setStep] = useState(1);
   const [limits, setLimits] = useState(DEFAULT_LIMITS);
@@ -224,6 +416,12 @@ function CreatePackApp() {
   const [tagInput, setTagInput] = useState('');
   const [suggestedTags, setSuggestedTags] = useState(DEFAULT_SUGGESTED_TAGS);
   const [accountId, setAccountId] = useState('');
+  const [googleAuthConfig, setGoogleAuthConfig] = useState({ enabled: false, required: false, clientId: '' });
+  const [googleAuth, setGoogleAuth] = useState({ user: null, expiresAt: '' });
+  const [googleAuthUiReady, setGoogleAuthUiReady] = useState(false);
+  const [googleAuthError, setGoogleAuthError] = useState('');
+  const [googleAuthBusy, setGoogleAuthBusy] = useState(false);
+  const [googleSessionChecked, setGoogleSessionChecked] = useState(false);
   const [files, setFiles] = useState([]);
   const [coverId, setCoverId] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -231,15 +429,25 @@ function CreatePackApp() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [publishPhase, setPublishPhase] = useState('idle');
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [uploadMap, setUploadMap] = useState({});
   const [activeSession, setActiveSession] = useState(null);
   const [result, setResult] = useState(null);
+  const [backendPublishState, setBackendPublishState] = useState(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+  const googleButtonRef = useRef(null);
+  const googleLoginEnabled = Boolean(googleAuthConfig.enabled && googleAuthConfig.clientId);
+  const googleLoginRequired = Boolean(googleAuthConfig.required);
+  const hasGoogleLogin = Boolean(googleAuth.user?.sub);
+  const shouldRenderGoogleButton = googleLoginEnabled && !hasGoogleLogin && googleSessionChecked && !googleAuthBusy;
 
   const canStep2 = useMemo(
-    () => sanitizePackName(name, limits.pack_name_max_length).length > 0 && isValidPhone(accountId),
-    [name, accountId, limits.pack_name_max_length],
+    () =>
+      sanitizePackName(name, limits.pack_name_max_length).length > 0 &&
+      (googleLoginRequired ? hasGoogleLogin : googleLoginEnabled ? hasGoogleLogin || isValidPhone(accountId) : isValidPhone(accountId)),
+    [name, accountId, limits.pack_name_max_length, googleLoginRequired, googleLoginEnabled, hasGoogleLogin],
   );
   const canStep3 = useMemo(() => files.length > 0, [files.length]);
   const publishReady = canStep2 && canStep3 && !busy;
@@ -252,9 +460,17 @@ function CreatePackApp() {
     () => files.reduce((acc, item) => (uploadMap[item.id]?.status === 'done' ? acc : acc + 1), 0),
     [files, uploadMap],
   );
+  const hasPartialUploadedSession = Boolean(activeSession?.packKey && pendingUploadsCount > 0 && pendingUploadsCount < files.length);
+  const backendPackStatus = String(
+    backendPublishState?.status || result?.status || activeSession?.created?.status || '',
+  ).toLowerCase();
   const publishLabel =
-    failedUploadsCount > 0 || (activeSession?.packKey && pendingUploadsCount < files.length)
+    backendPackStatus === 'failed'
+      ? '🛠️ Reparar pack'
+      : failedUploadsCount > 0
       ? `🔁 Reenviar falhas (${failedUploadsCount})`
+      : hasPartialUploadedSession
+        ? '▶ Retomar envio'
       : '🚀 Publicar Pack';
 
   const suggestedFromText = useMemo(() => {
@@ -314,21 +530,156 @@ function CreatePackApp() {
   useEffect(() => {
     const load = async () => {
       try {
-        const response = await fetch(`${apiBasePath}/create-config`);
-        if (!response.ok) throw new Error('Falha ao buscar configuração.');
-        const payload = await response.json();
+        const payload = await fetchJson(`${apiBasePath}/create-config`);
         const apiLimits = payload?.data?.limits || {};
         const apiSuggestions = payload?.data?.rules?.suggested_tags;
+        const apiGoogleAuth = payload?.data?.auth?.google || {};
         setLimits((prev) => ({ ...prev, ...apiLimits }));
         if (Array.isArray(apiSuggestions) && apiSuggestions.length) {
           setSuggestedTags(mergeTags(apiSuggestions).slice(0, 20));
         }
+        setGoogleAuthConfig({
+          enabled: Boolean(apiGoogleAuth?.enabled),
+          required: Boolean(apiGoogleAuth?.required),
+          clientId: String(apiGoogleAuth?.client_id || '').trim(),
+        });
       } catch {
         // keep default
       }
     };
     load();
   }, [apiBasePath]);
+
+  useEffect(() => {
+    if (!googleLoginEnabled) {
+      setGoogleSessionChecked(true);
+      return;
+    }
+    let cancelled = false;
+    setGoogleSessionChecked(false);
+
+    fetchJson(googleSessionApiPath)
+      .then((payload) => {
+        if (cancelled) return;
+        const sessionData = payload?.data || {};
+        if (!sessionData?.authenticated || !sessionData?.user?.sub) return;
+        setGoogleAuth({
+          user: {
+            sub: String(sessionData.user.sub || ''),
+            email: String(sessionData.user.email || ''),
+            name: String(sessionData.user.name || 'Conta Google'),
+            picture: String(sessionData.user.picture || ''),
+          },
+          expiresAt: String(sessionData.expires_at || ''),
+        });
+        setGoogleAuthError('');
+      })
+      .catch(() => {
+        // silent: endpoint may be unavailable in some setups
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setGoogleSessionChecked(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [googleLoginEnabled, googleSessionApiPath]);
+
+  useEffect(() => {
+    const clearGoogleButton = () => {
+      if (googleButtonRef.current) googleButtonRef.current.innerHTML = '';
+      try {
+        window.google?.accounts?.id?.cancel?.();
+      } catch {
+        // ignore sdk errors
+      }
+    };
+
+    if (!shouldRenderGoogleButton) {
+      clearGoogleButton();
+      return;
+    }
+    if (!googleButtonRef.current) return;
+
+    let cancelled = false;
+    setGoogleAuthUiReady(false);
+    setGoogleAuthError('');
+
+    loadScript(GOOGLE_GSI_SCRIPT_SRC)
+      .then(() => {
+        if (cancelled) return;
+        const accounts = window.google?.accounts?.id;
+        if (!accounts) throw new Error('SDK do Google não disponível.');
+
+        accounts.initialize({
+          client_id: googleAuthConfig.clientId,
+          callback: (response) => {
+            const credential = String(response?.credential || '').trim();
+            const claims = decodeJwtPayload(credential);
+            if (!credential || !claims?.sub) {
+              setGoogleAuthError('Falha ao concluir login Google.');
+              return;
+            }
+            setGoogleAuthBusy(true);
+            fetchJson(googleSessionApiPath, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json; charset=utf-8' },
+              body: JSON.stringify({ google_id_token: credential }),
+            })
+              .then((sessionPayload) => {
+                const sessionData = sessionPayload?.data || {};
+                if (!sessionData?.authenticated || !sessionData?.user?.sub) {
+                  throw new Error('Sessão Google não foi criada.');
+                }
+                setGoogleAuth({
+                  user: {
+                    sub: String(sessionData.user.sub || claims.sub || ''),
+                    email: String(sessionData.user.email || claims.email || ''),
+                    name: String(sessionData.user.name || claims.name || claims.given_name || 'Conta Google'),
+                    picture: String(sessionData.user.picture || claims.picture || ''),
+                  },
+                  expiresAt: String(sessionData.expires_at || ''),
+                });
+                setGoogleAuthError('');
+                setError('');
+              })
+              .catch((sessionError) => {
+                setGoogleAuthError(sessionError?.message || 'Falha ao salvar sessão Google.');
+              })
+              .finally(() => setGoogleAuthBusy(false));
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+
+        if (googleButtonRef.current) {
+          googleButtonRef.current.innerHTML = '';
+          const measuredWidth = Math.floor(Number(googleButtonRef.current.clientWidth || 0));
+          const buttonWidth = Math.max(180, Math.min(320, measuredWidth || 320));
+          accounts.renderButton(googleButtonRef.current, {
+            type: 'standard',
+            theme: 'filled_black',
+            size: 'large',
+            text: 'signin_with',
+            shape: 'pill',
+            logo_alignment: 'left',
+            width: buttonWidth,
+          });
+        }
+        setGoogleAuthUiReady(true);
+      })
+      .catch((sdkError) => {
+        if (cancelled) return;
+        setGoogleAuthError(sdkError?.message || 'Falha ao carregar login Google.');
+      });
+
+    return () => {
+      cancelled = true;
+      clearGoogleButton();
+    };
+  }, [shouldRenderGoogleButton, googleAuthConfig.clientId, googleSessionApiPath]);
 
   useEffect(() => {
     try {
@@ -363,6 +714,7 @@ function CreatePackApp() {
               size: Number(item.size || 0),
               type: String(item.type || 'image/webp'),
             },
+            hash: /^[a-f0-9]{64}$/.test(String(item.hash || '').toLowerCase()) ? String(item.hash || '').toLowerCase() : '',
             mediaKind:
               String(item.type || '').toLowerCase().startsWith('video/') ||
               String(item.name || '').toLowerCase().match(/\.(mp4|webm|mov|m4v)$/i)
@@ -427,6 +779,7 @@ function CreatePackApp() {
         name: item?.file?.name || 'sticker.webp',
         size: Number(item?.file?.size || 0),
         type: String(item?.file?.type || 'image/webp'),
+        hash: String(item?.hash || ''),
         dataUrl: item.dataUrl,
       })),
       updatedAt: Date.now(),
@@ -460,6 +813,103 @@ function CreatePackApp() {
       // ignore
     }
   }, [draftLoaded, files.length]);
+
+  useEffect(() => {
+    if (!draftLoaded || busy) return;
+    if (!activeSession?.packKey || !activeSession?.editToken) return;
+
+    let cancelled = false;
+    const syncBackendPublishState = async () => {
+      try {
+        const response = await fetch(`${apiBasePath}/${encodeURIComponent(activeSession.packKey)}/publish-state`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ edit_token: activeSession.editToken }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || cancelled) return;
+
+        const publishState = payload?.data || null;
+        const packData = payload?.pack || null;
+        if (!publishState || typeof publishState !== 'object') return;
+
+        setBackendPublishState(publishState);
+        if (packData && packData.pack_key) {
+          setResult((prev) => (prev?.pack_key === packData.pack_key ? { ...prev, ...packData } : prev || packData));
+        }
+
+        const uploads = Array.isArray(publishState.uploads) ? publishState.uploads : [];
+        const uploadsById = new Map(uploads.map((entry) => [String(entry.upload_id || ''), entry]));
+        const uploadsByHash = new Map(
+          uploads.filter((entry) => entry?.sticker_hash).map((entry) => [String(entry.sticker_hash || ''), entry]),
+        );
+
+        setUploadMap((prev) => {
+          const next = { ...prev };
+          for (const item of files) {
+            const match = uploadsById.get(String(item.id || '')) || (item.hash ? uploadsByHash.get(String(item.hash || '')) : null);
+            if (!match) continue;
+            const remoteStatus = String(match.status || '').toLowerCase();
+            if (remoteStatus === 'done') {
+              next[item.id] = { ...(next[item.id] || {}), status: 'done', progress: 100, error: '' };
+            } else if (remoteStatus === 'failed') {
+              next[item.id] = {
+                ...(next[item.id] || {}),
+                status: 'error',
+                progress: 0,
+                error: String(match.error_message || 'Falha anterior no upload.'),
+              };
+            } else if (remoteStatus === 'processing') {
+              next[item.id] = { ...(next[item.id] || {}), status: 'uploading', progress: Number(next[item.id]?.progress || 0), error: '' };
+            }
+          }
+          return next;
+        });
+
+        const doneCount = files.reduce((acc, item) => {
+          const match = uploadsById.get(String(item.id || '')) || (item.hash ? uploadsByHash.get(String(item.hash || '')) : null);
+          return acc + (String(match?.status || '').toLowerCase() === 'done' ? 1 : 0);
+        }, 0);
+
+        setProgress({
+          current: doneCount,
+          total: Math.max(files.length, Number(publishState?.consistency?.total_uploads || 0), files.length ? 0 : 0),
+        });
+
+        const realStatus = String(publishState.status || '').toLowerCase();
+        if (realStatus === PACK_STATUS_PUBLISHED) {
+          clearCreatePackStorage();
+          setActiveSession(null);
+          setPublishPhase('idle');
+          setError('');
+          setStatus('Pack já foi publicado no backend. Rascunho local limpo.');
+          return;
+        }
+
+        if (realStatus === 'failed') {
+          setStatus('Pack com falha no backend. Use "Reparar pack" para retomar o fluxo.');
+          return;
+        }
+
+        if (realStatus === 'processing') {
+          setStatus('Pack em processamento/finalização. Você pode tentar publicar novamente para concluir.');
+          return;
+        }
+
+        if (realStatus === 'draft' || realStatus === 'uploading') {
+          setStatus('Rascunho sincronizado com o backend. Você pode retomar o envio com segurança.');
+        }
+      } catch {
+        // mantém estado local se backend estiver indisponível
+      }
+    };
+
+    syncBackendPublishState();
+    return () => {
+      cancelled = true;
+    };
+  }, [draftLoaded, busy, activeSession, apiBasePath, files]);
 
   const addIncomingFiles = async (incoming) => {
     const raw = Array.from(incoming || []).filter(Boolean);
@@ -498,16 +948,20 @@ function CreatePackApp() {
 
     setError('');
     const mapped = await Promise.all(
-      selected.map(async (file) => ({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        file,
-        mediaKind:
-          String(file.type || '').toLowerCase().startsWith('video/') ||
-          String(file.name || '').toLowerCase().match(/\.(mp4|webm|mov|m4v)$/i)
-            ? 'video'
-            : 'image',
-        dataUrl: await fileToDataUrl(file),
-      })),
+      selected.map(async (file) => {
+        const dataUrl = await fileToDataUrl(file);
+        return {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          file,
+          hash: await computeDataUrlSha256(dataUrl),
+          mediaKind:
+            String(file.type || '').toLowerCase().startsWith('video/') ||
+            String(file.name || '').toLowerCase().match(/\.(mp4|webm|mov|m4v)$/i)
+              ? 'video'
+              : 'image',
+          dataUrl,
+        };
+      }),
     );
 
     setFiles((prev) => [...prev, ...mapped].slice(0, limits.stickers_per_pack));
@@ -568,7 +1022,12 @@ function CreatePackApp() {
       setStep(1);
       return;
     }
-    if (!isValidPhone(accountId)) {
+    if (googleLoginRequired && !hasGoogleLogin) {
+      setError('Faça login com Google para publicar packs.');
+      setStep(1);
+      return;
+    }
+    if (!googleLoginRequired && !googleLoginEnabled && !isValidPhone(accountId)) {
       setError('Informe seu número de celular com DDD para publicar.');
       setStep(1);
       return;
@@ -581,24 +1040,19 @@ function CreatePackApp() {
 
     setBusy(true);
     setError('');
+    setBackendPublishState((prev) => prev || null);
     const doneBeforeRun = files.reduce((acc, item) => (uploadMap[item.id]?.status === 'done' ? acc + 1 : acc), 0);
-    const pendingFiles = files.filter((item) => uploadMap[item.id]?.status !== 'done');
-    if (!pendingFiles.length) {
-      setBusy(false);
-      setStatus('Todos os stickers já foram enviados.');
-      return;
-    }
-
     setProgress({ current: doneBeforeRun, total: files.length });
-    setResult((prev) => prev);
+    let session = activeSession;
 
     try {
-      let session = activeSession;
       if (!session?.packKey || !session?.editToken) {
+        setPublishPhase('creating');
         setStatus('Criando pack...');
         writeUploadTask({
           status: 'running',
           title: 'Publicando pack',
+          phase: 'creating',
           current: doneBeforeRun,
           total: files.length,
           progress: Math.round((doneBeforeRun / Math.max(1, files.length)) * 100),
@@ -609,6 +1063,7 @@ function CreatePackApp() {
 
         const createResponse = await fetch(`${apiBasePath}/create`, {
           method: 'POST',
+          credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
           body: JSON.stringify({
             name: finalName,
@@ -616,7 +1071,7 @@ function CreatePackApp() {
             description: finalDescription,
             tags,
             visibility,
-            owner_jid: clampText(accountId, 64),
+            owner_jid: hasGoogleLogin ? '' : clampText(accountId, 64),
           }),
         });
 
@@ -635,107 +1090,142 @@ function CreatePackApp() {
         };
         setActiveSession(session);
         setResult(created);
+        setBackendPublishState((prev) => ({
+          ...(prev || {}),
+          pack_key: packKey,
+          status: String(created?.status || 'draft').toLowerCase(),
+        }));
       }
 
-      setStatus('Enviando stickers...');
-      writeUploadTask({
-        status: 'running',
-        title: 'Publicando pack',
-        current: doneBeforeRun,
-        total: files.length,
-        progress: Math.round((doneBeforeRun / Math.max(1, files.length)) * 100),
-        packKey: session.packKey,
-        packUrl: session.webUrl,
-        message: 'Enviando stickers...',
-      });
-      setUploadMap((prev) => {
-        const next = { ...prev };
-        for (const item of pendingFiles) {
-          next[item.id] = { ...(next[item.id] || {}), status: 'uploading', progress: 0, error: '' };
-        }
-        return next;
-      });
-
-      const hasVideoPending = pendingFiles.some((item) => item.mediaKind === 'video');
-      const concurrency = hasVideoPending
-        ? 1
-        : Math.max(2, Math.min(4, Number(window.navigator?.hardwareConcurrency || 3)));
-      let cursor = 0;
+      const pendingFiles = files.filter((item) => uploadMap[item.id]?.status !== 'done');
       let processed = doneBeforeRun;
       let failedCount = 0;
 
-      const runWorker = async () => {
-        while (cursor < pendingFiles.length) {
-          const index = cursor;
-          cursor += 1;
-          const item = pendingFiles[index];
-
-          try {
-            await uploadStickerWithProgress({
-              apiBasePath,
-              packKey: session.packKey,
-              editToken: session.editToken,
-              item,
-              setCover: item.id === coverId,
-              onProgress: (percentage) => {
-                setUploadMap((prev) => ({
-                  ...prev,
-                  [item.id]: { ...(prev[item.id] || {}), status: 'uploading', progress: percentage, error: '' },
-                }));
-                writeUploadTask({
-                  status: 'running',
-                  title: 'Publicando pack',
-                  current: processed,
-                  total: files.length,
-                  progress: Math.round(((processed + percentage / 100) / Math.max(1, files.length)) * 100),
-                  packKey: session.packKey,
-                  packUrl: session.webUrl,
-                  message: `Enviando ${item.file.name}`,
-                });
-              },
-            });
-            setUploadMap((prev) => ({
-              ...prev,
-              [item.id]: { ...(prev[item.id] || {}), status: 'done', progress: 100, error: '' },
-            }));
-          } catch (err) {
-            failedCount += 1;
-            setUploadMap((prev) => ({
-              ...prev,
-              [item.id]: {
-                ...(prev[item.id] || {}),
-                status: 'error',
-                progress: 0,
-                error: err?.message || 'Falha de upload',
-              },
-            }));
-          } finally {
-            processed += 1;
-            setProgress({ current: processed, total: files.length });
-            writeUploadTask({
-              status: 'running',
-              title: 'Publicando pack',
-              current: processed,
-              total: files.length,
-              progress: Math.round((processed / Math.max(1, files.length)) * 100),
-              packKey: session.packKey,
-              packUrl: session.webUrl,
-              message: processed >= files.length ? 'Finalizando publicação...' : 'Processando próximo sticker...',
-            });
+      if (pendingFiles.length > 0) {
+        setPublishPhase('uploading');
+        setStatus('Enviando stickers...');
+        writeUploadTask({
+          status: 'running',
+          title: 'Publicando pack',
+          phase: 'uploading',
+          current: doneBeforeRun,
+          total: files.length,
+          progress: Math.round((doneBeforeRun / Math.max(1, files.length)) * 100),
+          packKey: session.packKey,
+          packUrl: session.webUrl,
+          message: 'Enviando stickers...',
+        });
+        setUploadMap((prev) => {
+          const next = { ...prev };
+          for (const item of pendingFiles) {
+            next[item.id] = { ...(next[item.id] || {}), status: 'uploading', progress: 0, error: '' };
           }
-        }
-      };
+          return next;
+        });
 
-      await Promise.all(Array.from({ length: Math.min(concurrency, pendingFiles.length) }, () => runWorker()));
+        await runAsyncQueue(
+          pendingFiles,
+          async (item) => {
+            let effectiveHash = String(item.hash || '');
+            if (!effectiveHash) {
+              effectiveHash = await computeDataUrlSha256(item.dataUrl);
+              if (effectiveHash) {
+                setFiles((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, hash: effectiveHash } : entry)));
+              }
+            }
+
+            const effectiveItem = effectiveHash && effectiveHash !== item.hash ? { ...item, hash: effectiveHash } : item;
+
+            try {
+              const uploadPayload = await uploadStickerWithRetry({
+                apiBasePath,
+                packKey: session.packKey,
+                editToken: session.editToken,
+                item: effectiveItem,
+                setCover: effectiveItem.id === coverId,
+                onProgress: (percentage) => {
+                  setUploadMap((prev) => ({
+                    ...prev,
+                    [effectiveItem.id]: {
+                      ...(prev[effectiveItem.id] || {}),
+                      status: 'uploading',
+                      progress: percentage,
+                      error: '',
+                    },
+                  }));
+                  writeUploadTask({
+                    status: 'running',
+                    title: 'Publicando pack',
+                    phase: 'uploading',
+                    current: processed,
+                    total: files.length,
+                    progress: Math.round(((processed + percentage / 100) / Math.max(1, files.length)) * 100),
+                    packKey: session.packKey,
+                    packUrl: session.webUrl,
+                    message: `Enviando ${effectiveItem.file.name}`,
+                  });
+                },
+              });
+
+              setUploadMap((prev) => ({
+                ...prev,
+                [effectiveItem.id]: { ...(prev[effectiveItem.id] || {}), status: 'done', progress: 100, error: '' },
+              }));
+
+              const remotePackStatus = String(uploadPayload?.data?.pack_status || '').toLowerCase();
+              if (remotePackStatus) {
+                setBackendPublishState((prev) => ({
+                  ...(prev || {}),
+                  pack_key: session.packKey,
+                  status: remotePackStatus,
+                }));
+              }
+            } catch (err) {
+              failedCount += 1;
+              setUploadMap((prev) => ({
+                ...prev,
+                [effectiveItem.id]: {
+                  ...(prev[effectiveItem.id] || {}),
+                  status: 'error',
+                  progress: 0,
+                  error: err?.message || 'Falha de upload',
+                },
+              }));
+            } finally {
+              processed += 1;
+              setProgress({ current: processed, total: files.length });
+              writeUploadTask({
+                status: 'running',
+                title: 'Publicando pack',
+                phase: 'uploading',
+                current: processed,
+                total: files.length,
+                progress: Math.round((processed / Math.max(1, files.length)) * 100),
+                packKey: session.packKey,
+                packUrl: session.webUrl,
+                message: processed >= files.length ? 'Preparando finalização...' : 'Processando próximo sticker...',
+              });
+            }
+          },
+          FIXED_UPLOAD_QUEUE_CONCURRENCY,
+        );
+      }
 
       if (failedCount > 0) {
+        setPublishPhase('idle');
         setStatus(`Upload concluído com ${failedCount} falha(s).`);
         setError(`Alguns stickers falharam. Clique em "🚀 Publicar Pack" novamente para reenviar apenas as falhas.`);
-        setResult(session.created || result);
+        setResult((prev) => prev || session.created || null);
+        setBackendPublishState((prev) => ({
+          ...(prev || {}),
+          pack_key: session.packKey,
+          status: 'draft',
+        }));
         setStep(3);
         writeUploadTask({
           status: 'error',
           title: 'Publicação parcial',
+          phase: 'uploading',
           current: Number(processed || 0),
           total: Number(files.length || 0),
           progress: Math.round((Number(processed || 0) / Math.max(1, Number(files.length || 1))) * 100),
@@ -746,23 +1236,89 @@ function CreatePackApp() {
         return;
       }
 
+      setPublishPhase('processing');
+      setStatus('Processando stickers...');
+      writeUploadTask({
+        status: 'running',
+        title: 'Publicando pack',
+        phase: 'processing',
+        current: Number(files.length || 0),
+        total: Number(files.length || 0),
+        progress: 100,
+        packKey: session.packKey,
+        packUrl: session.webUrl,
+        message: 'Validando consistência do pack...',
+      });
+
+      setPublishPhase('publishing');
+      setStatus('Publicando pack...');
+      const finalizeResponse = await fetch(`${apiBasePath}/${encodeURIComponent(session.packKey)}/finalize`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ edit_token: session.editToken }),
+      });
+      const finalizePayload = await finalizeResponse.json().catch(() => ({}));
+      if (finalizeResponse.status === 409) {
+        const publishState = finalizePayload?.data?.publish_state || null;
+        const packFromFinalize = finalizePayload?.data?.pack || session.created || null;
+        if (publishState) setBackendPublishState(publishState);
+        if (packFromFinalize) setResult(packFromFinalize);
+        setPublishPhase('idle');
+        setStatus('Pack ficou em rascunho aguardando correções.');
+        setError(finalizePayload?.error || 'Finalize recusado: o pack ainda não está consistente.');
+        writeUploadTask({
+          status: 'error',
+          title: 'Finalize pendente',
+          phase: 'finalize',
+          current: Number(files.length || 0),
+          total: Number(files.length || 0),
+          progress: 100,
+          packKey: session.packKey,
+          packUrl: session.webUrl,
+          message: finalizePayload?.error || 'Pack ainda não pode ser publicado.',
+        });
+        setStep(3);
+        return;
+      }
+      if (!finalizeResponse.ok) {
+        throw new Error(finalizePayload?.error || 'Falha ao finalizar publicação do pack.');
+      }
+
+      const finalizeData = finalizePayload?.data || {};
+      const publishedPack = finalizeData?.pack || session.created || result;
+      const publishState = finalizeData?.publish_state || null;
+      if (publishState) setBackendPublishState(publishState);
       setStatus('Pack publicado com sucesso.');
-      setResult(session.created || result);
+      setResult(publishedPack);
       setStep(3);
+      setPublishPhase('idle');
       setActiveSession(null);
       clearCreatePackStorage();
+      writeUploadTask({
+        status: 'done',
+        title: 'Pack publicado',
+        phase: 'published',
+        current: Number(files.length || 0),
+        total: Number(files.length || 0),
+        progress: 100,
+        packKey: session.packKey,
+        packUrl: session.webUrl,
+        message: 'Pack publicado com sucesso.',
+      });
     } catch (err) {
-      setActiveSession(null);
+      setPublishPhase('idle');
       setError(err?.message || 'Falha ao publicar pack.');
       setStatus('');
       writeUploadTask({
         status: 'error',
         title: 'Falha na publicação',
+        phase: publishPhase || 'unknown',
         current: Number(progress.current || 0),
         total: Number(progress.total || files.length || 0),
         progress: Math.round((Number(progress.current || 0) / Math.max(1, Number(progress.total || files.length || 1))) * 100),
-        packKey: null,
-        packUrl: null,
+        packKey: session?.packKey || activeSession?.packKey || result?.pack_key || null,
+        packUrl: session?.webUrl || activeSession?.webUrl || result?.web_url || null,
         message: err?.message || 'Falha ao publicar pack.',
       });
     } finally {
@@ -795,7 +1351,13 @@ function CreatePackApp() {
         setError('Defina um nome para avançar.');
         return;
       }
-      setError('Informe seu número de celular com DDD para avançar.');
+      setError(
+        googleLoginRequired
+          ? 'Faça login com Google para avançar.'
+          : googleLoginEnabled
+            ? 'Faça login com Google ou informe seu número de celular para avançar.'
+            : 'Informe seu número de celular com DDD para avançar.',
+      );
       return;
     }
     if (step === 2 && !canStep3) {
@@ -809,6 +1371,50 @@ function CreatePackApp() {
   const prevStep = () => {
     setError('');
     setStep((prev) => Math.max(1, prev - 1));
+  };
+
+  const disconnectGoogleLogin = () => {
+    try {
+      window.google?.accounts?.id?.disableAutoSelect?.();
+    } catch {
+      // ignore sdk errors
+    }
+    setGoogleAuthBusy(true);
+    fetchJson(googleSessionApiPath, { method: 'DELETE' })
+      .catch(() => null)
+      .finally(() => {
+        setGoogleAuth({ user: null, expiresAt: '' });
+        setGoogleAuthBusy(false);
+      });
+    setGoogleAuthError('');
+  };
+
+  const restartCreateFlow = () => {
+    if (busy) return;
+    const confirmed = window.confirm('Recomeçar a criação? Isso vai limpar o rascunho local e o progresso salvo neste dispositivo.');
+    if (!confirmed) return;
+
+    clearCreatePackStorage();
+    setStep(1);
+    setName('');
+    setDescription('');
+    setPublisher('');
+    setVisibility('public');
+    setTags([]);
+    setTagInput('');
+    setAccountId('');
+    setFiles([]);
+    setCoverId('');
+    setDragActive(false);
+    setDraggingStickerId('');
+    setStatus('Criação reiniciada. Dados locais foram limpos.');
+    setError('');
+    setPublishPhase('idle');
+    setProgress({ current: 0, total: 0 });
+    setUploadMap({});
+    setActiveSession(null);
+    setResult(null);
+    setBackendPublishState(null);
   };
 
   const addTag = (rawValue) => {
@@ -845,40 +1451,67 @@ function CreatePackApp() {
         ? 'Não listado: acesso por link direto.'
         : 'Público: aparece no catálogo para descoberta.';
 
+  const uploadProgressTotal = Math.max(0, Number(progress.total || files.length || 0));
+  const uploadProgressDone = Math.max(0, Math.min(uploadProgressTotal || 0, Number(progress.current || 0)));
+  const uploadProgressPercent = Math.max(
+    0,
+    Math.min(100, Math.round((uploadProgressDone / Math.max(1, uploadProgressTotal || 1)) * 100)),
+  );
+  const uploadHasFailures = failedUploadsCount > 0;
+  const backendStateFailed = backendPackStatus === 'failed';
+  const publishCompleted = Boolean(
+    result && String(backendPackStatus || result?.status || '').toLowerCase() === PACK_STATUS_PUBLISHED && !busy,
+  );
+  const showUploadProgressCard = step === 3 && busy;
+  const showUploadFailureCard = step === 3 && !busy && (uploadHasFailures || backendStateFailed);
+  const mobilePrimaryActionLabel = step < 3 ? 'Continuar' : publishLabel;
+  const mobilePrimaryActionClass =
+    step < 3 ? 'bg-accent text-slate-900' : 'bg-accent2 text-slate-900';
+  const toggleMobilePreview = () => setMobilePreviewOpen((prev) => !prev);
+
   return html`
-    <div className="min-h-screen bg-base">
-      <div className="mx-auto w-full max-w-7xl px-4 pb-28 pt-5 md:px-6 md:pb-10">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div className="min-h-screen bg-gradient-to-b from-[#0a0f15] via-[#0d1219] to-[#0e141a]">
+      <div className="mx-auto w-full max-w-7xl px-4 pb-32 pt-4 md:px-6 md:pb-10 md:pt-5">
+        <header className="mb-4 flex flex-wrap items-start justify-between gap-3 md:mb-6 md:items-center">
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-[.15em] text-accent">OmniZap Studio</p>
-            <h1 className="font-display text-3xl font-extrabold md:text-4xl">Criar novo Pack</h1>
-            <p className="mt-1 text-sm text-slate-400">Fluxo guiado para montar e publicar seu pack com visual de marketplace.</p>
+            <h1 className="font-display text-2xl font-extrabold leading-tight md:text-4xl">Criar novo Pack</h1>
+            <p className="mt-1 text-xs text-slate-400 md:text-sm">Fluxo guiado para montar e publicar seu pack com visual de marketplace.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-            <span className="rounded-full border border-line bg-panel px-3 py-1">🧩 Até ${limits.stickers_per_pack} stickers</span>
-            <span className="rounded-full border border-line bg-panel px-3 py-1">📦 Até ${limits.packs_per_owner} packs</span>
-            <span className="rounded-full border border-line bg-panel px-3 py-1">✍ ${limits.pack_name_max_length} caracteres no nome</span>
+          <div className="flex flex-wrap items-center justify-end gap-1.5 text-[11px] font-semibold md:gap-2">
+            <span className="hidden rounded-full border border-line/60 bg-panel/70 px-3 py-1 sm:inline-flex">🧩 Até ${limits.stickers_per_pack} stickers</span>
+            <span className="hidden rounded-full border border-line/60 bg-panel/70 px-3 py-1 sm:inline-flex">📦 Até ${limits.packs_per_owner} packs</span>
+            <span className="hidden rounded-full border border-line/60 bg-panel/70 px-3 py-1 md:inline-flex">✍ ${limits.pack_name_max_length} caracteres no nome</span>
+            <button
+              type="button"
+              onClick=${restartCreateFlow}
+              disabled=${busy}
+              className="h-8 rounded-full border border-line/70 bg-panel/70 px-3 text-[11px] font-semibold text-slate-200 disabled:opacity-60"
+              title="Limpar rascunho local e recomeçar"
+            >
+              Recomeçar
+            </button>
           </div>
         </header>
 
-        <div className="mb-5 grid gap-2 sm:grid-cols-3">
+        <div className="mb-3 grid grid-cols-3 gap-2 md:mb-5">
           ${STEPS.map((item) => html`<${StepPill} key=${item.id} step=${item} active=${step === item.id} done=${step > item.id} />`)}
         </div>
-        <div className="mb-6">
+        <div className="mb-4 md:mb-6">
           <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-400">
             <span>Progresso</span>
             <span>${completionPercentage}%</span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-900/80">
+          <div className="h-1.5 overflow-hidden rounded-full bg-slate-900/70 md:h-2">
             <div className="h-full bg-accent transition-all duration-300" style=${{ width: `${completionPercentage}%` }}></div>
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(340px,1.1fr)_minmax(320px,.9fr)]">
-          <section className="min-w-0 rounded-3xl border border-line bg-panel p-4 shadow-panel md:p-5">
+        <div className="grid gap-3 lg:grid-cols-[minmax(340px,1.1fr)_minmax(320px,.9fr)] lg:gap-4">
+          <section className="min-w-0 rounded-2xl border border-line/70 bg-panel/85 p-3 shadow-none md:rounded-3xl md:border-line md:bg-panel md:p-5 md:shadow-panel">
             ${step === 1
               ? html`
-                  <div className="space-y-4">
+                  <div className="space-y-3 md:space-y-4">
                     <${FloatingField}
                       label="Nome do pack"
                       value=${name}
@@ -901,19 +1534,72 @@ function CreatePackApp() {
                       hint="Como seu nome será exibido no catálogo."
                       onChange=${(e) => setPublisher(clampText(e.target.value, limits.publisher_max_length))}
                     />
-                    <${FloatingField}
-                      label="Celular (WhatsApp)"
-                      value=${accountId}
-                      maxLength=${32}
-                      hint="Obrigatório para vincular o pack ao criador. Ex: 5511999998888"
-                      onChange=${(e) => setAccountId(String(e.target.value || '').replace(/[^\d+()\-\s]/g, '').slice(0, 32))}
-                    />
-                    ${accountId && !isValidPhone(accountId)
-                      ? html`<p className="text-xs text-rose-300">Informe um número válido com DDD (10 a 15 dígitos).</p>`
-                      : null}
+                    ${googleLoginEnabled
+                      ? html`
+                          <div className="rounded-2xl border border-line/70 bg-panel/70 p-3 md:p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-400">
+                                  ${googleLoginRequired ? 'Login obrigatório' : 'Login Google'}
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-100">Entrar com Google</p>
+                                <p className="mt-1 text-xs text-slate-400">
+                                  ${googleLoginRequired
+                                    ? 'Somente contas logadas podem criar packs nesta página.'
+                                    : 'Faça login para vincular o pack à sua conta Google.'}
+                                </p>
+                              </div>
+                              ${hasGoogleLogin
+                                ? html`<span className="rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">Conectado</span>`
+                                : null}
+                            </div>
+
+                            ${hasGoogleLogin
+                              ? html`
+                                  <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-line/70 bg-panelSoft/80 p-2.5 md:gap-3 md:p-3">
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-semibold text-slate-100">${googleAuth.user?.name || 'Conta Google'}</p>
+                                      <p className="truncate text-xs text-slate-400">${googleAuth.user?.email || ''}</p>
+                                    </div>
+                                    <button type="button" onClick=${disconnectGoogleLogin} className="h-10 rounded-lg border border-line/70 px-3 text-xs font-semibold text-slate-200">
+                                      Trocar conta
+                                    </button>
+                                  </div>
+                                `
+                              : html`
+                                  <div className="mt-3">
+                                    <div ref=${googleButtonRef} className="min-h-[42px] w-full max-w-full overflow-hidden"></div>
+                                    ${!googleSessionChecked
+                                      ? html`<p className="mt-2 text-xs text-slate-400">Verificando sessão Google...</p>`
+                                      : googleAuthBusy
+                                        ? html`<p className="mt-2 text-xs text-slate-400">Conectando conta Google...</p>`
+                                        : !googleAuthUiReady && !googleAuthError
+                                          ? html`<p className="mt-2 text-xs text-slate-400">Carregando login Google...</p>`
+                                          : null}
+                                    ${googleSessionChecked && !googleAuthBusy && !shouldRenderGoogleButton && !googleAuthError
+                                      ? html`<p className="mt-2 text-xs text-slate-400">Login Google indisponível no momento. Tente recarregar a página.</p>`
+                                      : null}
+                                  </div>
+                                `}
+
+                            ${googleAuthError ? html`<p className="mt-2 text-xs text-rose-300">${googleAuthError}</p>` : null}
+                          </div>
+                        `
+                      : html`
+                          <${FloatingField}
+                            label="Celular (WhatsApp)"
+                            value=${accountId}
+                            maxLength=${32}
+                            hint="Obrigatório para vincular o pack ao criador. Ex: 5511999998888"
+                            onChange=${(e) => setAccountId(String(e.target.value || '').replace(/[^\d+()\-\s]/g, '').slice(0, 32))}
+                          />
+                          ${accountId && !isValidPhone(accountId)
+                            ? html`<p className="text-xs text-rose-300">Informe um número válido com DDD (10 a 15 dígitos).</p>`
+                            : null}
+                        `}
                     <label className="block">
                       <span className="mb-2 inline-block text-xs font-semibold text-slate-300">Tags do pack</span>
-                      <div className="rounded-2xl border border-line bg-panelSoft px-3 py-3">
+                      <div className="rounded-2xl border border-line/70 bg-panelSoft/80 px-3 py-3">
                         <div className="mb-2 flex flex-wrap gap-2">
                           ${tags.map((tag) => html`
                             <button
@@ -937,7 +1623,7 @@ function CreatePackApp() {
                           onBlur=${() => addTag(tagInput)}
                           placeholder=${tags.length >= MAX_MANUAL_TAGS ? `Limite de ${MAX_MANUAL_TAGS} tags` : 'Digite e pressione Enter para adicionar'}
                           disabled=${tags.length >= MAX_MANUAL_TAGS}
-                          className="h-10 w-full rounded-xl border border-line bg-panel px-3 text-sm outline-none transition focus:border-accent/60 disabled:opacity-60"
+                          className="h-11 w-full rounded-xl border border-line/70 bg-panel/80 px-3 text-sm outline-none transition focus:border-accent/60 disabled:opacity-60"
                         />
                         <p className="mt-2 text-[11px] text-slate-400">${tags.length}/${MAX_MANUAL_TAGS} tags selecionadas.</p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -959,7 +1645,7 @@ function CreatePackApp() {
                       <select
                         value=${visibility}
                         onChange=${(e) => setVisibility(String(e.target.value || 'public'))}
-                        className="h-12 w-full rounded-2xl border border-line bg-panelSoft px-4 text-sm outline-none focus:border-accent/60"
+                        className="h-11 w-full rounded-2xl border border-line/70 bg-panelSoft/80 px-4 text-sm outline-none focus:border-accent/60 md:h-12"
                       >
                         <option value="public">Público</option>
                         <option value="unlisted">Não listado</option>
@@ -974,7 +1660,7 @@ function CreatePackApp() {
 
             ${step === 2
               ? html`
-                  <div className="space-y-4">
+                  <div className="space-y-3 md:space-y-4">
                     <div
                       onDragOver=${(e) => {
                         e.preventDefault();
@@ -982,9 +1668,9 @@ function CreatePackApp() {
                       }}
                       onDragLeave=${() => setDragActive(false)}
                       onDrop=${onDropUpload}
-                      className=${`rounded-3xl border-2 border-dashed p-6 text-center transition ${dragActive ? 'border-accent bg-accent/10' : 'border-line bg-panelSoft'}`}
+                      className=${`rounded-2xl border border-dashed p-4 text-center transition md:rounded-3xl md:border-2 md:p-6 ${dragActive ? 'border-accent bg-accent/10' : 'border-line/70 bg-panelSoft/80'}`}
                     >
-                      <p className="text-base font-bold">Arraste e solte seus stickers aqui</p>
+                      <p className="text-sm font-bold md:text-base">Arraste e solte seus stickers aqui</p>
                       <p className="mt-1 text-xs text-slate-400">
                         Imagens e vídeos até ${toBytesLabel(
                           limits.sticker_upload_source_max_bytes,
@@ -1001,7 +1687,7 @@ function CreatePackApp() {
                           e.target.value = '';
                         }}
                       />
-                      <label for="webp-upload" className="mt-4 inline-flex cursor-pointer rounded-xl bg-accent px-4 py-2 text-sm font-extrabold text-slate-900">Selecionar stickers</label>
+                      <label for="webp-upload" className="mt-3 inline-flex h-11 cursor-pointer items-center rounded-xl bg-accent px-4 text-sm font-extrabold text-slate-900">Selecionar stickers</label>
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-slate-400">
@@ -1011,7 +1697,7 @@ function CreatePackApp() {
 
                     ${files.length
                       ? html`
-                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
                             ${files.map((item, index) => html`<${StickerThumb}
                               key=${item.id}
                               item=${item}
@@ -1024,62 +1710,81 @@ function CreatePackApp() {
                             />`)}
                           </div>
                         `
-                      : html`<p className="rounded-2xl border border-line bg-panelSoft p-4 text-center text-sm text-slate-400">Nenhum sticker selecionado ainda.</p>`}
+                      : html`<p className="rounded-2xl border border-line/70 bg-panelSoft/80 p-3 text-center text-sm text-slate-400 md:p-4">Nenhum sticker selecionado ainda.</p>`}
                   </div>
                 `
               : null}
 
             ${step === 3
               ? html`
-                  <div className="space-y-4">
-                    <div className="rounded-2xl border border-line bg-panelSoft p-4">
-                      <h3 className="font-display text-lg font-bold">Revisão final</h3>
-                      <ul className="mt-3 space-y-1 text-sm text-slate-300">
-                        <li>Nome: <strong>${preview.name}</strong></li>
-                        <li>Visibilidade: ${preview.visibility}</li>
-                        <li>Stickers: ${files.length}</li>
-                      </ul>
+                  <div className="space-y-3 md:space-y-4">
+                    <div className="rounded-2xl border border-line/70 bg-panelSoft/80 p-3 md:p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-display text-base font-bold md:text-lg">Revisão final</h3>
+                          <p className="mt-0.5 text-xs text-slate-400">Confira os dados antes de publicar.</p>
+                        </div>
+                        <span className="rounded-full border border-line/70 bg-panel/60 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+                          ${files.length} stickers
+                        </span>
+                      </div>
+                      <div className="mt-3 grid gap-1.5 text-sm text-slate-300">
+                        <p className="truncate"><span className="text-slate-400">Nome:</span> <strong>${preview.name}</strong></p>
+                        <p><span className="text-slate-400">Visibilidade:</span> ${preview.visibility}</p>
+                        <p className="truncate text-xs text-slate-400">Autor: ${preview.publisher}</p>
+                      </div>
                     </div>
 
-                    ${busy
+                    ${showUploadProgressCard
                       ? html`
-                          <div className="rounded-2xl border border-accent/30 bg-accent/10 p-4 text-sm">
-                            <p className="font-semibold text-accent">${status || 'Processando...'}</p>
-                            <p className="mt-1 text-slate-300">${progress.current}/${progress.total} concluídos</p>
+                          <div className="rounded-2xl border border-accent/25 bg-accent/5 p-3 md:p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-semibold text-slate-100">${status || 'Processando publicação...'}</p>
+                              <p className="text-xs font-semibold text-accent">${uploadProgressPercent}%</p>
+                            </div>
+                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-900/70">
+                              <div className="h-full bg-accent transition-all" style=${{ width: `${uploadProgressPercent}%` }}></div>
+                            </div>
+                            <p className="mt-2 text-xs text-slate-400">
+                              ${publishPhase === 'creating'
+                                ? 'Criando pack...'
+                                : publishPhase === 'uploading'
+                                  ? `${uploadProgressDone}/${uploadProgressTotal || files.length || 0} enviados`
+                                  : publishPhase === 'processing'
+                                    ? 'Validando consistência e capa do pack...'
+                                    : publishPhase === 'publishing'
+                                      ? 'Publicando pack no marketplace...'
+                                      : `${uploadProgressDone}/${uploadProgressTotal || files.length || 0} concluídos`}
+                            </p>
                           </div>
                         `
                       : null}
 
-                    <div className="rounded-2xl border border-line bg-panelSoft p-4">
-                      ${(() => {
-                        const total = Math.max(0, Number(progress.total || files.length || 0));
-                        const done = Math.max(0, Math.min(total || 0, Number(progress.current || 0)));
-                        const percent = Math.max(0, Math.min(100, Math.round((done / Math.max(1, total || 1)) * 100)));
-                        const failed = failedUploadsCount;
-                        const barTone = failed > 0 && !busy ? 'bg-rose-400' : result ? 'bg-emerald-400' : 'bg-accent';
-                        return html`
-                          <div className="flex items-center justify-between gap-3 text-sm">
-                            <p className="font-semibold text-slate-200">Progresso do envio</p>
-                            <p className="text-slate-300">${done}/${total || files.length || 0} · ${percent}%</p>
-                          </div>
-                          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-800">
-                            <div className=${`h-full ${barTone} transition-all`} style=${{ width: `${percent}%` }}></div>
-                          </div>
-                          ${failed > 0
-                            ? html`<p className="mt-2 text-xs text-rose-300">${failed} sticker(s) falharam. Você pode reenviar apenas as falhas.</p>`
-                            : null}
-                        `;
-                      })()}
-                    </div>
-
-                    ${result
+                    ${showUploadFailureCard
                       ? html`
-                          <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+                          <div className="rounded-2xl border border-rose-400/25 bg-rose-400/5 p-3 text-sm">
+                            <p className="font-semibold text-rose-200">
+                              ${backendStateFailed
+                                ? 'O pack entrou em estado de falha no backend.'
+                                : `${failedUploadsCount} sticker(s) falharam no envio.`}
+                            </p>
+                            <p className="mt-1 text-xs text-rose-200/80">
+                              ${backendStateFailed
+                                ? `Use "${publishLabel}" para reparar e concluir a publicação.`
+                                : `Toque em "${publishLabel}" para reenviar apenas as falhas.`}
+                            </p>
+                          </div>
+                        `
+                      : null}
+
+                    ${publishCompleted
+                      ? html`
+                          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/5 p-3 text-sm text-emerald-100 md:p-4">
                             <p className="font-bold">Pack publicado com sucesso</p>
                             <p className="mt-1">${result.name} · ${result.pack_key}</p>
                             <div className="mt-3 flex flex-wrap gap-2">
-                              <a href=${result.web_url || `${webPath}/${result.pack_key}`} className="rounded-lg bg-emerald-300 px-3 py-1.5 text-xs font-bold text-slate-900">Abrir pack</a>
-                              <a href=${webPath} className="rounded-lg border border-emerald-300/40 px-3 py-1.5 text-xs font-bold">Voltar ao marketplace</a>
+                              <a href=${result.web_url || `${webPath}/${result.pack_key}`} className="inline-flex h-10 items-center rounded-lg bg-emerald-300 px-3 text-xs font-bold text-slate-900">Abrir pack</a>
+                              <a href=${webPath} className="inline-flex h-10 items-center rounded-lg border border-emerald-300/30 px-3 text-xs font-bold">Voltar ao marketplace</a>
                             </div>
                           </div>
                         `
@@ -1089,54 +1794,106 @@ function CreatePackApp() {
               : null}
           </section>
 
-          <aside className="min-w-0 rounded-3xl border border-line bg-panel p-4 md:p-5">
-            <p className="text-xs font-semibold uppercase tracking-[.12em] text-accent">Preview em tempo real</p>
-            <article className="mt-3 min-w-0 overflow-hidden rounded-3xl border border-line bg-panelSoft">
-              <img src=${preview.coverUrl} alt="Preview capa" className="aspect-square w-full object-cover bg-slate-900" />
-              <div className="space-y-2 p-4">
-                <p className="line-clamp-2 font-display text-lg font-bold">${preview.name}</p>
-                <p className="line-clamp-2 text-sm text-slate-300">${preview.description || 'Descrição do pack aparecerá aqui.'}</p>
-                <p className="text-xs text-slate-400">por ${preview.publisher}</p>
-                <div className="flex flex-wrap items-center gap-1">
-                  ${preview.tags.length
-                    ? preview.tags.map((tag) => html`<span key=${tag} className="rounded-full border border-line px-2 py-0.5 text-[10px] text-slate-300">#${tag}</span>`)
-                    : html`<span className="text-[10px] text-slate-500">Adicione tags para melhorar descoberta</span>`}
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="rounded-full border border-line px-2 py-1 text-slate-300">${preview.visibility}</span>
-                  <span className="rounded-full border border-line px-2 py-1 text-slate-300">🧩 ${preview.stickerCount}</span>
-                  <span className="rounded-full border border-line px-2 py-1 text-slate-300">❤️ ${preview.fakeLikes}</span>
-                  <span className="rounded-full border border-line px-2 py-1 text-slate-300">⬇ ${preview.fakeOpens}</span>
-                </div>
-              </div>
-            </article>
-            <article className="mt-3 rounded-2xl border border-line bg-panelSoft p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-400">Pack Score</p>
-                <p className=${`text-sm font-bold ${quality.tone}`}>${quality.label} · ${quality.score}</p>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-900/80">
-                <div className=${`h-full transition-all ${quality.bar}`} style=${{ width: `${quality.score}%` }}></div>
-              </div>
-              <p className="mt-2 text-[11px] text-slate-400">Melhora com título claro, descrição, tags relevantes e stickers suficientes.</p>
-            </article>
+          <aside className="hidden min-w-0 rounded-3xl border border-line/70 bg-panel/85 p-4 lg:block lg:p-5">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[.12em] text-accent">Preview em tempo real</p>
+              <span className="text-[11px] font-semibold text-slate-400">Atualiza automaticamente</span>
+            </div>
+            <${PackPreviewPanel} preview=${preview} quality=${quality} compact=${false} />
           </aside>
         </div>
 
-        ${error ? html`<div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">${error}</div>` : null}
+        <div className="mt-3 lg:hidden">
+          <div className="rounded-2xl border border-line/70 bg-panel/80 p-3">
+            <button
+              type="button"
+              onClick=${toggleMobilePreview}
+              className="flex h-11 w-full items-center justify-between gap-3 rounded-xl border border-line/70 bg-panelSoft/70 px-3 text-left"
+              aria-expanded=${mobilePreviewOpen ? 'true' : 'false'}
+            >
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-400">Preview</p>
+                <p className="text-sm font-semibold text-slate-100">${preview.name}</p>
+              </div>
+              <span className="text-xs font-semibold text-accent">${mobilePreviewOpen ? 'Ocultar' : 'Mostrar'}</span>
+            </button>
+            ${mobilePreviewOpen
+              ? html`<div className="mt-3"><${PackPreviewPanel} preview=${preview} quality=${quality} compact=${true} /></div>`
+              : html`<p className="mt-2 text-xs text-slate-400">Toque para visualizar capa, descrição e score do pack.</p>`}
+          </div>
+        </div>
+
+        ${error
+          ? html`<div className="mt-3 rounded-2xl border border-rose-400/25 bg-rose-400/5 px-3 py-2.5 text-sm text-rose-200 md:mt-4 md:px-4 md:py-3">${error}</div>`
+          : null}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-panel/95 p-3 backdrop-blur md:hidden">
-        <div className="mx-auto flex w-full max-w-7xl items-center gap-2">
-          <button type="button" className="h-11 flex-1 rounded-xl border border-line bg-panelSoft text-sm font-bold" onClick=${prevStep} disabled=${step === 1 || busy}>Voltar</button>
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-panel/95 p-3 backdrop-blur md:hidden">
+        <div className="mx-auto w-full max-w-7xl">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              className="h-8 rounded-full border border-line/70 bg-panelSoft/80 px-3 text-xs font-semibold text-slate-200 disabled:opacity-60"
+              onClick=${restartCreateFlow}
+              disabled=${busy}
+              title="Limpar rascunho local"
+            >
+              Recomeçar
+            </button>
+            <button
+              type="button"
+              className="h-8 rounded-full border border-line/70 bg-panelSoft/60 px-3 text-xs font-semibold text-slate-300"
+              onClick=${toggleMobilePreview}
+              aria-expanded=${mobilePreviewOpen ? 'true' : 'false'}
+            >
+              ${mobilePreviewOpen ? 'Ocultar preview' : 'Preview'}
+            </button>
+          </div>
+          <div className="grid grid-cols-[1fr_1.45fr] gap-2">
+          <button
+            type="button"
+            className="h-11 rounded-xl border border-line/70 bg-panelSoft/80 text-sm font-bold disabled:opacity-60"
+            onClick=${prevStep}
+            disabled=${step === 1 || busy}
+          >
+            Voltar
+          </button>
           ${step < 3
-            ? html`<button type="button" className="h-11 flex-[1.4] rounded-xl bg-accent text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${nextStep} disabled=${busy}>Continuar</button>`
-            : html`<button type="button" className="h-11 flex-[1.4] rounded-xl bg-accent2 text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${publishPack} disabled=${!publishReady}>${publishLabel}</button>`}
+            ? html`
+                <button
+                  type="button"
+                  className=${`h-11 rounded-xl text-sm font-extrabold disabled:opacity-60 ${mobilePrimaryActionClass}`}
+                  onClick=${nextStep}
+                  disabled=${busy}
+                >
+                  ${mobilePrimaryActionLabel}
+                </button>
+              `
+            : html`
+                <button
+                  type="button"
+                  className=${`h-11 rounded-xl text-sm font-extrabold disabled:opacity-60 ${mobilePrimaryActionClass}`}
+                  onClick=${publishPack}
+                  disabled=${!publishReady}
+                >
+                  ${mobilePrimaryActionLabel}
+                </button>
+              `}
+          </div>
         </div>
       </div>
 
       <div className="mt-6 hidden items-center justify-end gap-2 px-6 pb-6 md:flex">
-        <button type="button" className="h-11 rounded-xl border border-line bg-panelSoft px-5 text-sm font-bold" onClick=${prevStep} disabled=${step === 1 || busy}>Voltar</button>
+        <button
+          type="button"
+          className="h-10 rounded-xl border border-line/70 bg-panelSoft/80 px-4 text-sm font-bold disabled:opacity-60"
+          onClick=${restartCreateFlow}
+          disabled=${busy}
+          title="Limpar rascunho local e recomeçar"
+        >
+          Recomeçar
+        </button>
+        <button type="button" className="h-11 rounded-xl border border-line/70 bg-panelSoft/80 px-5 text-sm font-bold" onClick=${prevStep} disabled=${step === 1 || busy}>Voltar</button>
         ${step < 3
           ? html`<button type="button" className="h-11 rounded-xl bg-accent px-5 text-sm font-extrabold text-slate-900" onClick=${nextStep} disabled=${busy}>Próximo passo</button>`
           : html`<button type="button" className="h-11 rounded-xl bg-accent2 px-5 text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${publishPack} disabled=${!publishReady}>${publishLabel}</button>`}

@@ -98,6 +98,7 @@ export const TABLES = {
   STICKER_PACK: 'sticker_pack',
   STICKER_ASSET: 'sticker_asset',
   STICKER_PACK_ITEM: 'sticker_pack_item',
+  STICKER_PACK_WEB_UPLOAD: 'sticker_pack_web_upload',
   STICKER_ASSET_CLASSIFICATION: 'sticker_asset_classification',
   STICKER_PACK_ENGAGEMENT: 'sticker_pack_engagement',
   STICKER_PACK_INTERACTION_EVENT: 'sticker_pack_interaction_event',

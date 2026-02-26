@@ -18,6 +18,7 @@ const PACK_KEY_BASE_MAX_LENGTH = 32;
 const PACK_KEY_SUFFIX_LENGTH = 5;
 const PACK_KEY_SUFFIX_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 const PACK_KEY_MAX_ATTEMPTS = 24;
+const PACK_STATUS_VALUES = new Set(['draft', 'uploading', 'processing', 'published', 'failed']);
 
 /**
  * @typedef {{
@@ -234,7 +235,7 @@ export function createStickerPackService(options = {}) {
     }
   };
 
-  const ensurePackKey = async (_ownerJid, name) => {
+  const ensurePackKey = async (_ownerJid, name, connection = null) => {
     const base = slugify(name, { fallback: 'pack', maxLength: PACK_KEY_BASE_MAX_LENGTH });
     const buildSuffix = () => {
       let suffix = '';
@@ -252,7 +253,7 @@ export function createStickerPackService(options = {}) {
 
     for (let attempt = 0; attempt < PACK_KEY_MAX_ATTEMPTS; attempt += 1) {
       const candidate = `${base}-${buildSuffix()}`;
-      const available = await deps.packRepository.ensureUniquePackKey(candidate);
+      const available = await deps.packRepository.ensureUniquePackKey(candidate, connection);
       if (available) return candidate;
     }
 
@@ -341,33 +342,46 @@ export function createStickerPackService(options = {}) {
     };
   };
 
-  const createPack = async ({ ownerJid, name, publisher, description, visibility = 'public' }) => {
+  const createPack = async ({ ownerJid, name, publisher, description, visibility = 'public', status = 'published' }) => {
     const owner = resolveOwner(ownerJid);
+    const normalizedStatus = PACK_STATUS_VALUES.has(String(status || '').toLowerCase())
+      ? String(status).toLowerCase()
+      : 'published';
+
     return runAction('create_pack', { owner_jid: owner }, async () => {
-      const metadata = sanitizeMetadata({ name, publisher, description, visibility });
-      const existing = await deps.packRepository.listStickerPacksByOwner(owner, { limit: maxPacksPerOwner + 1 });
+      return runInTransaction(async (connection) => {
+        const metadata = sanitizeMetadata({ name, publisher, description, visibility });
+        const existing = await deps.packRepository.listStickerPacksByOwner(owner, {
+          limit: maxPacksPerOwner + 1,
+          connection,
+        });
 
-      ensureValue(
-        existing.length < maxPacksPerOwner,
-        STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED,
-        `Limite de packs atingido (${maxPacksPerOwner}).`,
-      );
+        ensureValue(
+          existing.length < maxPacksPerOwner,
+          STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED,
+          `Limite de packs atingido (${maxPacksPerOwner}).`,
+        );
 
-      const packKey = await ensurePackKey(owner, metadata.name);
+        const packKey = await ensurePackKey(owner, metadata.name, connection);
 
-      const created = await deps.packRepository.createStickerPack({
-        id: randomUUID(),
-        owner_jid: owner,
-        name: metadata.name,
-        publisher: metadata.publisher,
-        description: metadata.description,
-        pack_key: packKey,
-        cover_sticker_id: null,
-        visibility: metadata.visibility,
-        version: 1,
+        const created = await deps.packRepository.createStickerPack(
+          {
+            id: randomUUID(),
+            owner_jid: owner,
+            name: metadata.name,
+            publisher: metadata.publisher,
+            description: metadata.description,
+            pack_key: packKey,
+            cover_sticker_id: null,
+            visibility: metadata.visibility,
+            status: normalizedStatus,
+            version: 1,
+          },
+          connection,
+        );
+
+        return loadPackDetails(created, { connection });
       });
-
-      return loadPackDetails(created);
     });
   };
 

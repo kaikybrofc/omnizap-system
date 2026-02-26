@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import axios from 'axios';
 
-import { executeQuery } from '../../../database/index.js';
+import { executeQuery, pool, TABLES } from '../../../database/index.js';
 import { getJidUser, normalizeJid, resolveBotJid } from '../../config/baileysConfig.js';
 import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../config/adminIdentity.js';
 import { getActiveSocket } from '../../services/socketState.js';
@@ -112,6 +113,15 @@ const PACK_CREATE_MAX_DESCRIPTION_LENGTH = 1024;
 const PACK_CREATE_MAX_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
 const PACK_CREATE_MAX_PACKS_PER_OWNER = Math.max(1, Number(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER) || 50);
 const PACK_WEB_EDIT_TOKEN_TTL_MS = Math.max(60_000, Number(process.env.STICKER_WEB_EDIT_TOKEN_TTL_MS) || 6 * 60 * 60 * 1000);
+const STICKER_WEB_GOOGLE_CLIENT_ID = String(process.env.STICKER_WEB_GOOGLE_CLIENT_ID || '').trim();
+const STICKER_WEB_GOOGLE_AUTH_REQUIRED = parseEnvBool(
+  process.env.STICKER_WEB_GOOGLE_AUTH_REQUIRED,
+  Boolean(STICKER_WEB_GOOGLE_CLIENT_ID),
+);
+const STICKER_WEB_GOOGLE_SESSION_TTL_MS = Math.max(
+  5 * 60 * 1000,
+  Number(process.env.STICKER_WEB_GOOGLE_SESSION_TTL_MS) || 7 * 24 * 60 * 60 * 1000,
+);
 const STICKER_CATALOG_ONLY_CLASSIFIED = parseEnvBool(process.env.STICKER_CATALOG_ONLY_CLASSIFIED, true);
 const METRICS_ENDPOINT =
   process.env.METRICS_ENDPOINT ||
@@ -134,9 +144,29 @@ const ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES = new Set([
   'video/x-m4v',
 ]);
 const webPackEditTokenMap = new Map();
+const webGoogleSessionMap = new Map();
+const GOOGLE_WEB_SESSION_COOKIE_NAME = 'omnizap_google_session';
+const PACK_WEB_STATUS_VALUES = new Set(['draft', 'uploading', 'processing', 'published', 'failed']);
+const PACK_WEB_UPLOAD_STATUS_VALUES = new Set(['pending', 'processing', 'done', 'failed']);
+const WEB_UPLOAD_ERROR_MESSAGE_MAX = 255;
+const WEB_UPLOAD_MAX_CONCURRENCY = Math.max(1, Math.min(6, Number(process.env.STICKER_WEB_UPLOAD_CONCURRENCY) || 3));
+const WEB_DRAFT_CLEANUP_TTL_MS = Math.max(
+  60 * 60 * 1000,
+  Number(process.env.STICKER_WEB_DRAFT_CLEANUP_TTL_MS) || 24 * 60 * 60 * 1000,
+);
+const WEB_DRAFT_CLEANUP_RUN_INTERVAL_MS = Math.max(
+  60 * 1000,
+  Number(process.env.STICKER_WEB_DRAFT_CLEANUP_RUN_INTERVAL_MS) || 15 * 60 * 1000,
+);
+const WEB_UPLOAD_ID_MAX_LENGTH = 120;
+let staleDraftCleanupState = {
+  running: false,
+  lastRunAt: 0,
+};
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
-const isPackPubliclyVisible = (pack) => pack?.visibility === 'public' || pack?.visibility === 'unlisted';
+const isPackPubliclyVisible = (pack) =>
+  (pack?.visibility === 'public' || pack?.visibility === 'unlisted') && String(pack?.status || 'published') === 'published';
 const toIsoOrNull = (value) => (value ? new Date(value).toISOString() : null);
 const GITHUB_PROJECT_CACHE = {
   expiresAt: 0,
@@ -180,6 +210,93 @@ const sendText = (req, res, statusCode, body, contentType) => {
   res.end(body);
 };
 
+const parseCookies = (req) => {
+  const raw = String(req?.headers?.cookie || '');
+  if (!raw) return {};
+  return raw.split(';').reduce((acc, chunk) => {
+    const [k, ...rest] = chunk.split('=');
+    const key = String(k || '').trim();
+    if (!key) return acc;
+    const value = rest.join('=').trim();
+    try {
+      acc[key] = decodeURIComponent(value);
+    } catch {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+};
+
+const isRequestSecure = (req) => {
+  const proto = String(req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+  if (proto) return proto === 'https';
+  return Boolean(req?.socket?.encrypted);
+};
+
+const appendSetCookie = (res, cookieValue) => {
+  const current = res.getHeader('Set-Cookie');
+  if (!current) {
+    res.setHeader('Set-Cookie', cookieValue);
+    return;
+  }
+  if (Array.isArray(current)) {
+    res.setHeader('Set-Cookie', [...current, cookieValue]);
+    return;
+  }
+  res.setHeader('Set-Cookie', [String(current), cookieValue]);
+};
+
+const logPackWebFlow = (level, phase, payload = {}) => {
+  const method = typeof logger?.[level] === 'function' ? logger[level].bind(logger) : logger.info.bind(logger);
+  method(`Fluxo web de criação/publicação de pack: ${phase}`, {
+    action: `sticker_pack_web_${phase}`,
+    phase,
+    ...payload,
+  });
+};
+
+const normalizePackWebStatus = (value, fallback = 'draft') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return PACK_WEB_STATUS_VALUES.has(normalized) ? normalized : fallback;
+};
+
+const normalizePackWebUploadStatus = (value, fallback = 'pending') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return PACK_WEB_UPLOAD_STATUS_VALUES.has(normalized) ? normalized : fallback;
+};
+
+const sha256Hex = (buffer) => createHash('sha256').update(buffer).digest('hex');
+
+const clampUploadErrorMessage = (message) =>
+  String(message || '')
+    .trim()
+    .slice(0, WEB_UPLOAD_ERROR_MESSAGE_MAX) || null;
+
+const runSqlTransaction = async (handler) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const result = await handler(connection);
+    await connection.commit();
+    return result;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+const buildCookieString = (name, value, req, options = {}) => {
+  const parts = [`${name}=${encodeURIComponent(String(value ?? ''))}`];
+  parts.push(`Path=${options.path || '/'}`);
+  if (options.httpOnly !== false) parts.push('HttpOnly');
+  parts.push(`SameSite=${options.sameSite || 'Lax'}`);
+  if (isRequestSecure(req)) parts.push('Secure');
+  if (Number.isFinite(options.maxAgeSeconds)) parts.push(`Max-Age=${Math.max(0, Math.floor(options.maxAgeSeconds))}`);
+  return parts.join('; ');
+};
+
 const readJsonBody = async (req, { maxBytes = 64 * 1024 } = {}) =>
   new Promise((resolve, reject) => {
     const chunks = [];
@@ -215,6 +332,415 @@ const readJsonBody = async (req, { maxBytes = 64 * 1024 } = {}) =>
 
     req.on('error', (error) => reject(error));
   });
+
+const normalizeWebUploadId = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9._:-]/g, '')
+    .slice(0, WEB_UPLOAD_ID_MAX_LENGTH);
+
+const normalizeStickerHashHex = (value) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-f0-9]/g, '');
+  return normalized.length === 64 ? normalized : '';
+};
+
+const normalizePackWebUploadRow = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    pack_id: row.pack_id,
+    upload_id: row.upload_id,
+    sticker_hash: row.sticker_hash,
+    source_mimetype: row.source_mimetype || null,
+    upload_status: normalizePackWebUploadStatus(row.upload_status, 'pending'),
+    sticker_id: row.sticker_id || null,
+    error_code: row.error_code || null,
+    error_message: row.error_message || null,
+    attempt_count: Number(row.attempt_count || 0),
+    last_attempt_at: row.last_attempt_at || null,
+    created_at: row.created_at || null,
+    updated_at: row.updated_at || null,
+  };
+};
+
+const listPackWebUploads = async (packId, connection = null) => {
+  const rows = await executeQuery(
+    `SELECT *
+     FROM ${TABLES.STICKER_PACK_WEB_UPLOAD}
+     WHERE pack_id = ?
+     ORDER BY updated_at ASC, created_at ASC`,
+    [packId],
+    connection,
+  );
+  return rows.map((row) => normalizePackWebUploadRow(row));
+};
+
+const findPackWebUploadByUploadId = async (packId, uploadId, connection = null) => {
+  if (!packId || !uploadId) return null;
+  const rows = await executeQuery(
+    `SELECT *
+     FROM ${TABLES.STICKER_PACK_WEB_UPLOAD}
+     WHERE pack_id = ? AND upload_id = ?
+     LIMIT 1`,
+    [packId, uploadId],
+    connection,
+  );
+  return normalizePackWebUploadRow(rows?.[0] || null);
+};
+
+const findPackWebUploadByStickerHash = async (packId, stickerHash, connection = null) => {
+  if (!packId || !stickerHash) return null;
+  const rows = await executeQuery(
+    `SELECT *
+     FROM ${TABLES.STICKER_PACK_WEB_UPLOAD}
+     WHERE pack_id = ? AND sticker_hash = ?
+     LIMIT 1`,
+    [packId, stickerHash],
+    connection,
+  );
+  return normalizePackWebUploadRow(rows?.[0] || null);
+};
+
+const createPackWebUpload = async (entry, connection = null) => {
+  await executeQuery(
+    `INSERT INTO ${TABLES.STICKER_PACK_WEB_UPLOAD}
+      (id, pack_id, upload_id, sticker_hash, source_mimetype, upload_status, sticker_id, error_code, error_message, attempt_count, last_attempt_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      entry.id,
+      entry.pack_id,
+      entry.upload_id,
+      entry.sticker_hash,
+      entry.source_mimetype ?? null,
+      normalizePackWebUploadStatus(entry.upload_status, 'pending'),
+      entry.sticker_id ?? null,
+      entry.error_code ?? null,
+      clampUploadErrorMessage(entry.error_message),
+      Math.max(0, Number(entry.attempt_count || 0)),
+      entry.last_attempt_at ?? null,
+    ],
+    connection,
+  );
+  return findPackWebUploadByUploadId(entry.pack_id, entry.upload_id, connection);
+};
+
+const updatePackWebUpload = async (uploadIdPk, fields, connection = null) => {
+  const clauses = [];
+  const params = [];
+  const mappings = {
+    upload_status: (value) => normalizePackWebUploadStatus(value, 'pending'),
+    sticker_id: (value) => value ?? null,
+    error_code: (value) => (value ? String(value).trim().slice(0, 64) : null),
+    error_message: (value) => clampUploadErrorMessage(value),
+    source_mimetype: (value) => (value ? String(value).trim().slice(0, 64) : null),
+    attempt_count: (value) => Math.max(0, Number(value || 0)),
+    last_attempt_at: (value) => value ?? null,
+  };
+
+  for (const [field, mapValue] of Object.entries(mappings)) {
+    if (!(field in fields)) continue;
+    clauses.push(`${field} = ?`);
+    params.push(mapValue(fields[field]));
+  }
+
+  if (!clauses.length) return null;
+  clauses.push('updated_at = CURRENT_TIMESTAMP');
+
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_PACK_WEB_UPLOAD}
+     SET ${clauses.join(', ')}
+     WHERE id = ?`,
+    [...params, uploadIdPk],
+    connection,
+  );
+
+  const rows = await executeQuery(
+    `SELECT * FROM ${TABLES.STICKER_PACK_WEB_UPLOAD} WHERE id = ? LIMIT 1`,
+    [uploadIdPk],
+    connection,
+  );
+  return normalizePackWebUploadRow(rows?.[0] || null);
+};
+
+const setStickerPackStatus = async (packId, status, connection = null) => {
+  const normalizedStatus = normalizePackWebStatus(status, 'draft');
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_PACK}
+     SET status = ?,
+         version = version + 1,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = ? AND deleted_at IS NULL`,
+    [normalizedStatus, packId],
+    connection,
+  );
+  return normalizedStatus;
+};
+
+const lockStickerPackByPackKey = async (packKey, connection) => {
+  const rows = await executeQuery(
+    `SELECT *
+     FROM ${TABLES.STICKER_PACK}
+     WHERE pack_key = ? AND deleted_at IS NULL
+     LIMIT 1
+     FOR UPDATE`,
+    [packKey],
+    connection,
+  );
+  return rows?.[0] || null;
+};
+
+const getPackConsistencySnapshot = async (packId, coverStickerId = null, connection = null) => {
+  const [itemsRow] = await executeQuery(
+    `SELECT
+       COUNT(*) AS sticker_count,
+       SUM(CASE WHEN sticker_id = ? THEN 1 ELSE 0 END) AS cover_matches
+     FROM ${TABLES.STICKER_PACK_ITEM}
+     WHERE pack_id = ?`,
+    [coverStickerId || '', packId],
+    connection,
+  );
+
+  const [uploadRow] = await executeQuery(
+    `SELECT
+       COUNT(*) AS total_uploads,
+       SUM(CASE WHEN upload_status = 'done' THEN 1 ELSE 0 END) AS done_uploads,
+       SUM(CASE WHEN upload_status = 'failed' THEN 1 ELSE 0 END) AS failed_uploads,
+       SUM(CASE WHEN upload_status = 'processing' THEN 1 ELSE 0 END) AS processing_uploads,
+       SUM(CASE WHEN upload_status = 'pending' THEN 1 ELSE 0 END) AS pending_uploads
+     FROM ${TABLES.STICKER_PACK_WEB_UPLOAD}
+     WHERE pack_id = ?`,
+    [packId],
+    connection,
+  );
+
+  return {
+    sticker_count: Number(itemsRow?.sticker_count || 0),
+    cover_set: Boolean(coverStickerId),
+    cover_valid: Boolean(coverStickerId) && Number(itemsRow?.cover_matches || 0) > 0,
+    total_uploads: Number(uploadRow?.total_uploads || 0),
+    done_uploads: Number(uploadRow?.done_uploads || 0),
+    failed_uploads: Number(uploadRow?.failed_uploads || 0),
+    processing_uploads: Number(uploadRow?.processing_uploads || 0),
+    pending_uploads: Number(uploadRow?.pending_uploads || 0),
+  };
+};
+
+const buildPackPublishStateData = async (pack, { includeUploads = true, connection = null } = {}) => {
+  const snapshot = await getPackConsistencySnapshot(pack.id, pack.cover_sticker_id, connection);
+  const uploads = includeUploads ? await listPackWebUploads(pack.id, connection) : [];
+
+  return {
+    pack_key: pack.pack_key,
+    status: normalizePackWebStatus(pack.status, 'draft'),
+    visibility: pack.visibility,
+    cover_sticker_id: pack.cover_sticker_id || null,
+    consistency: {
+      sticker_count: snapshot.sticker_count,
+      cover_set: snapshot.cover_set,
+      cover_valid: snapshot.cover_valid,
+      total_uploads: snapshot.total_uploads,
+      done_uploads: snapshot.done_uploads,
+      failed_uploads: snapshot.failed_uploads,
+      processing_uploads: snapshot.processing_uploads,
+      pending_uploads: snapshot.pending_uploads,
+      can_publish:
+        snapshot.sticker_count >= 1 &&
+        snapshot.failed_uploads === 0 &&
+        snapshot.processing_uploads === 0 &&
+        snapshot.pending_uploads === 0 &&
+        snapshot.cover_valid,
+    },
+    uploads: uploads.map((entry) => ({
+      upload_id: entry.upload_id,
+      sticker_hash: entry.sticker_hash,
+      status: entry.upload_status,
+      sticker_id: entry.sticker_id || null,
+      error_code: entry.error_code || null,
+      error_message: entry.error_message || null,
+      attempt_count: Number(entry.attempt_count || 0),
+      updated_at: toIsoOrNull(entry.updated_at),
+    })),
+    updated_at: toIsoOrNull(pack.updated_at),
+    published: normalizePackWebStatus(pack.status, 'draft') === 'published',
+  };
+};
+
+const maybeCleanupStaleDraftPacks = async () => {
+  if (staleDraftCleanupState.running) return;
+  if (Date.now() - staleDraftCleanupState.lastRunAt < WEB_DRAFT_CLEANUP_RUN_INTERVAL_MS) return;
+
+  staleDraftCleanupState.running = true;
+  staleDraftCleanupState.lastRunAt = Date.now();
+
+  try {
+    const rows = await executeQuery(
+      `SELECT p.id, p.pack_key
+       FROM ${TABLES.STICKER_PACK} p
+       LEFT JOIN ${TABLES.STICKER_PACK_ITEM} i ON i.pack_id = p.id
+       WHERE p.deleted_at IS NULL
+         AND p.status = 'draft'
+         AND p.updated_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? SECOND)
+       GROUP BY p.id, p.pack_key
+       HAVING COUNT(i.id) = 0
+       LIMIT 200`,
+      [Math.floor(WEB_DRAFT_CLEANUP_TTL_MS / 1000)],
+    );
+
+    if (!rows.length) return;
+
+    await executeQuery(
+      `UPDATE ${TABLES.STICKER_PACK}
+       SET deleted_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP,
+           version = version + 1
+       WHERE id IN (${rows.map(() => '?').join(', ')})`,
+      rows.map((row) => row.id),
+    );
+
+    logPackWebFlow('info', 'cleanup_draft_deleted', {
+      deleted_count: rows.length,
+      ttl_ms: WEB_DRAFT_CLEANUP_TTL_MS,
+    });
+  } catch (error) {
+    logPackWebFlow('warn', 'cleanup_draft_failed', {
+      error: error?.message,
+    });
+  } finally {
+    staleDraftCleanupState.running = false;
+  }
+};
+
+const triggerStaleDraftCleanup = () => {
+  maybeCleanupStaleDraftPacks().catch(() => {});
+};
+
+const GOOGLE_TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
+
+const normalizeGoogleSubject = (value) => String(value || '').trim().replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
+
+const buildGoogleOwnerJid = (googleSub) => {
+  const normalizedSub = normalizeGoogleSubject(googleSub);
+  if (!normalizedSub) return '';
+  return normalizeJid(`g${normalizedSub}@google.oauth`) || '';
+};
+
+const verifyGoogleIdToken = async (idToken) => {
+  const token = String(idToken || '').trim();
+  if (!token) {
+    const error = new Error('Token Google ausente.');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  let response;
+  try {
+    response = await axios.get(GOOGLE_TOKENINFO_URL, {
+      params: { id_token: token },
+      timeout: 5000,
+      validateStatus: () => true,
+    });
+  } catch (error) {
+    const wrapped = new Error('Falha ao validar login Google.');
+    wrapped.statusCode = 502;
+    wrapped.cause = error;
+    throw wrapped;
+  }
+
+  if (response.status < 200 || response.status >= 300) {
+    const reason = String(response?.data?.error_description || response?.data?.error || '').trim();
+    const error = new Error(reason || 'Token Google inválido.');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const claims = response?.data && typeof response.data === 'object' ? response.data : {};
+  const aud = String(claims.aud || '').trim();
+  const iss = String(claims.iss || '').trim();
+  const sub = normalizeGoogleSubject(claims.sub);
+  const email = String(claims.email || '').trim().toLowerCase();
+  const emailVerified = String(claims.email_verified || '').trim().toLowerCase();
+
+  if (STICKER_WEB_GOOGLE_CLIENT_ID && aud !== STICKER_WEB_GOOGLE_CLIENT_ID) {
+    const error = new Error('Login Google não pertence a este aplicativo.');
+    error.statusCode = 403;
+    throw error;
+  }
+  if (iss && !['accounts.google.com', 'https://accounts.google.com'].includes(iss)) {
+    const error = new Error('Emissor do token Google inválido.');
+    error.statusCode = 401;
+    throw error;
+  }
+  if (!sub) {
+    const error = new Error('Token Google sem identificador de usuário.');
+    error.statusCode = 401;
+    throw error;
+  }
+  if (email && emailVerified && !['true', '1'].includes(emailVerified)) {
+    const error = new Error('Conta Google sem e-mail verificado.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return {
+    sub,
+    email: email || null,
+    name: sanitizeText(claims.name || claims.given_name || '', 120, { allowEmpty: true }) || null,
+    picture: String(claims.picture || '').trim() || null,
+  };
+};
+
+const pruneExpiredGoogleSessions = () => {
+  const now = Date.now();
+  for (const [token, session] of webGoogleSessionMap.entries()) {
+    if (!session || Number(session.expiresAt || 0) <= now) {
+      webGoogleSessionMap.delete(token);
+    }
+  }
+};
+
+const createGoogleWebSession = (claims) => {
+  pruneExpiredGoogleSessions();
+  const token = randomUUID();
+  const now = Date.now();
+  const session = {
+    token,
+    sub: claims.sub,
+    email: claims.email || null,
+    name: claims.name || null,
+    picture: claims.picture || null,
+    ownerJid: buildGoogleOwnerJid(claims.sub),
+    createdAt: now,
+    expiresAt: now + STICKER_WEB_GOOGLE_SESSION_TTL_MS,
+  };
+  webGoogleSessionMap.set(token, session);
+  return session;
+};
+
+const resolveGoogleWebSessionFromRequest = (req) => {
+  pruneExpiredGoogleSessions();
+  const cookies = parseCookies(req);
+  const sessionToken = String(cookies[GOOGLE_WEB_SESSION_COOKIE_NAME] || '').trim();
+  if (!sessionToken) return null;
+  const session = webGoogleSessionMap.get(sessionToken);
+  if (!session) return null;
+  if (Number(session.expiresAt || 0) <= Date.now()) {
+    webGoogleSessionMap.delete(sessionToken);
+    return null;
+  }
+  return session;
+};
+
+const clearGoogleWebSessionCookie = (req, res) => {
+  appendSetCookie(
+    res,
+    buildCookieString(GOOGLE_WEB_SESSION_COOKIE_NAME, '', req, {
+      maxAgeSeconds: 0,
+    }),
+  );
+};
 
 const sendAsset = (req, res, buffer, mimetype = 'image/webp') => {
   res.statusCode = 200;
@@ -890,6 +1416,7 @@ const mapPackSummary = (pack, engagement = null, signals = null) => {
     publisher: pack.publisher,
     description: metadata.cleanDescription,
     visibility: pack.visibility,
+    status: normalizePackWebStatus(pack.status, 'published'),
     sticker_count: Number(pack.sticker_count || 0),
     cover_sticker_id: pack.cover_sticker_id || null,
     cover_url: pack.cover_sticker_id ? buildStickerAssetUrl(pack.pack_key, pack.cover_sticker_id) : null,
@@ -1380,6 +1907,7 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
      FROM sticker_pack p
      LEFT JOIN sticker_pack_item i ON i.pack_id = p.id
      WHERE p.deleted_at IS NULL
+       AND p.status = 'published'
        AND p.visibility IN (${placeholders})`,
     visibilityValues,
   );
@@ -1389,6 +1917,7 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
      FROM sticker_pack_engagement e
      INNER JOIN sticker_pack p ON p.id = e.pack_id
      WHERE p.deleted_at IS NULL
+       AND p.status = 'published'
        AND p.visibility IN (${placeholders})`,
     visibilityValues,
   );
@@ -1407,6 +1936,7 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
 };
 
 const handleCreatePackConfigRequest = async (req, res) => {
+  triggerStaleDraftCleanup();
   sendJson(req, res, 200, {
     data: {
       command_prefix: PACK_COMMAND_PREFIX,
@@ -1423,9 +1953,19 @@ const handleCreatePackConfigRequest = async (req, res) => {
         pack_name_regex: PACK_CREATE_NAME_REGEX,
         pack_name_hint: 'Use apenas letras minúsculas e números, sem espaços.',
         visibility_values: ['public', 'unlisted', 'private'],
-        owner_phone_required: true,
-        owner_phone_hint: 'Informe o número de celular com DDD para vincular o pack ao criador.',
+        owner_phone_required: !STICKER_WEB_GOOGLE_AUTH_REQUIRED,
+        owner_phone_hint: STICKER_WEB_GOOGLE_AUTH_REQUIRED
+          ? 'Login Google obrigatório para criar packs nesta página.'
+          : 'Informe o número de celular com DDD para vincular o pack ao criador.',
         suggested_tags: ['anime', 'meme', 'game', 'texto', 'nsfw', 'dark', 'cartoon', 'foto-real', 'cyberpunk'],
+      },
+      auth: {
+        google: {
+          enabled: Boolean(STICKER_WEB_GOOGLE_CLIENT_ID),
+          required: Boolean(STICKER_WEB_GOOGLE_AUTH_REQUIRED),
+          client_id: STICKER_WEB_GOOGLE_CLIENT_ID || null,
+          session_ttl_ms: STICKER_WEB_GOOGLE_SESSION_TTL_MS,
+        },
       },
       examples: {
         create: `${PACK_COMMAND_PREFIX}pack create meupack | publisher="Seu Nome" | desc="Descrição"`,
@@ -1437,10 +1977,106 @@ const handleCreatePackConfigRequest = async (req, res) => {
         create: `${STICKER_CREATE_WEB_PATH}/`,
         api_base: STICKER_API_BASE_PATH,
         create_api: `${STICKER_API_BASE_PATH}/create`,
+        google_auth_session_api: `${STICKER_API_BASE_PATH}/auth/google/session`,
         upload_api_template: `${STICKER_API_BASE_PATH}/:pack_key/stickers-upload`,
+        finalize_api_template: `${STICKER_API_BASE_PATH}/:pack_key/finalize`,
+        publish_state_api_template: `${STICKER_API_BASE_PATH}/:pack_key/publish-state`,
+      },
+      publish_flow: {
+        statuses: ['draft', 'uploading', 'processing', 'published', 'failed'],
+        upload_queue_concurrency: WEB_UPLOAD_MAX_CONCURRENCY,
+        finalize_required: true,
       },
     },
   });
+};
+
+const handleGoogleAuthSessionRequest = async (req, res) => {
+  if (!STICKER_WEB_GOOGLE_CLIENT_ID) {
+    sendJson(req, res, 404, { error: 'Login Google desabilitado.' });
+    return;
+  }
+
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    const session = resolveGoogleWebSessionFromRequest(req);
+    sendJson(req, res, 200, {
+      data: session
+        ? {
+            authenticated: true,
+            provider: 'google',
+            user: {
+              sub: session.sub,
+              email: session.email,
+              name: session.name,
+              picture: session.picture,
+            },
+            expires_at: toIsoOrNull(session.expiresAt),
+          }
+        : {
+            authenticated: false,
+            provider: 'google',
+            user: null,
+            expires_at: null,
+          },
+    });
+    return;
+  }
+
+  if (req.method === 'DELETE') {
+    const cookies = parseCookies(req);
+    const token = String(cookies[GOOGLE_WEB_SESSION_COOKIE_NAME] || '').trim();
+    if (token) webGoogleSessionMap.delete(token);
+    clearGoogleWebSessionCookie(req, res);
+    sendJson(req, res, 200, { data: { cleared: true } });
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  try {
+    const claims = await verifyGoogleIdToken(payload?.google_id_token || payload?.id_token);
+    const session = createGoogleWebSession(claims);
+    if (!session.ownerJid) {
+      sendJson(req, res, 400, { error: 'Nao foi possivel vincular a conta Google.' });
+      return;
+    }
+
+    appendSetCookie(
+      res,
+      buildCookieString(GOOGLE_WEB_SESSION_COOKIE_NAME, session.token, req, {
+        maxAgeSeconds: Math.floor(STICKER_WEB_GOOGLE_SESSION_TTL_MS / 1000),
+      }),
+    );
+    sendJson(req, res, 200, {
+      data: {
+        authenticated: true,
+        provider: 'google',
+        user: {
+          sub: session.sub,
+          email: session.email,
+          name: session.name,
+          picture: session.picture,
+        },
+        expires_at: toIsoOrNull(session.expiresAt),
+      },
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 401), {
+      error: error?.message || 'Login Google inválido.',
+      code: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+    });
+  }
 };
 
 const normalizeCreatePackName = (value) =>
@@ -1484,6 +2120,7 @@ const mapStickerPackCreateError = (error) => {
 };
 
 const handleCreatePackRequest = async (req, res) => {
+  triggerStaleDraftCleanup();
   let payload = {};
   try {
     payload = await readJsonBody(req);
@@ -1508,34 +2145,84 @@ const handleCreatePackRequest = async (req, res) => {
   const persistedDescription = buildPackDescriptionWithTags(description, manualTags);
   const visibility = String(payload?.visibility || 'public').trim().toLowerCase();
   const explicitOwnerJid = toOwnerJid(payload?.owner_jid);
+  const googleSession = resolveGoogleWebSessionFromRequest(req);
+  let googleCreator = null;
 
-  if (!explicitOwnerJid) {
+  if (googleSession) {
+    googleCreator = {
+      ownerJid: googleSession.ownerJid,
+      sub: googleSession.sub,
+      email: googleSession.email,
+      name: googleSession.name,
+      picture: googleSession.picture,
+    };
+  } else if (STICKER_WEB_GOOGLE_AUTH_REQUIRED || payload?.google_id_token) {
+    try {
+      const googleClaims = await verifyGoogleIdToken(payload?.google_id_token);
+      const googleOwnerJid = buildGoogleOwnerJid(googleClaims.sub);
+      if (!googleOwnerJid) {
+        sendJson(req, res, 400, {
+          error: 'Não foi possível vincular a conta Google ao criador.',
+          code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+        });
+        return;
+      }
+      googleCreator = {
+        ownerJid: googleOwnerJid,
+        ...googleClaims,
+      };
+    } catch (error) {
+      sendJson(req, res, Number(error?.statusCode || 401), {
+        error: error?.message || 'Login Google inválido.',
+        code: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+      });
+      return;
+    }
+  }
+
+  if (STICKER_WEB_GOOGLE_AUTH_REQUIRED && !googleCreator) {
     sendJson(req, res, 400, {
-      error: 'Informe seu número de celular para criar o pack.',
+      error: 'Faça login com Google para criar packs nesta página.',
       code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
     });
     return;
   }
 
-  const ownerJid = explicitOwnerJid;
+  const ownerJid = googleCreator?.ownerJid || explicitOwnerJid;
 
   if (!ownerJid) {
     sendJson(req, res, 400, {
-      error: 'Não foi possível resolver owner_jid para criar o pack.',
+      error: STICKER_WEB_GOOGLE_AUTH_REQUIRED
+        ? 'Faça login com Google para criar packs nesta página.'
+        : 'Não foi possível resolver owner_jid para criar o pack.',
       code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
     });
     return;
   }
 
   try {
+    logPackWebFlow('info', 'create_pack_start', {
+      owner_jid: ownerJid,
+      google_sub: googleCreator?.sub || null,
+      requested_visibility: visibility,
+      name,
+    });
     const created = await stickerPackService.createPack({
       ownerJid,
       name,
       publisher,
       description: persistedDescription,
       visibility,
+      status: 'draft',
     });
     const editToken = saveWebPackEditToken({ packId: created.id, ownerJid });
+    logPackWebFlow('info', 'create_pack_success', {
+      owner_jid: ownerJid,
+      pack_id: created.id,
+      pack_key: created.pack_key,
+      status: created.status || 'draft',
+      visibility: created.visibility,
+    });
 
     sendJson(req, res, 201, {
       data: mapPackSummary(created),
@@ -1543,6 +2230,14 @@ const handleCreatePackRequest = async (req, res) => {
         owner_jid: ownerJid,
         edit_token: editToken,
         edit_token_expires_in_ms: PACK_WEB_EDIT_TOKEN_TTL_MS,
+        google_auth: googleCreator
+          ? {
+              provider: 'google',
+              email: googleCreator.email,
+              name: googleCreator.name,
+              sub: googleCreator.sub,
+            }
+          : null,
         limits: {
           stickers_per_pack: PACK_CREATE_MAX_ITEMS,
           packs_per_owner: PACK_CREATE_MAX_PACKS_PER_OWNER,
@@ -1551,9 +2246,18 @@ const handleCreatePackRequest = async (req, res) => {
     });
   } catch (error) {
     const mapped = mapStickerPackCreateError(error);
+    logPackWebFlow('warn', 'create_pack_failed', {
+      owner_jid: ownerJid,
+      google_sub: googleCreator?.sub || null,
+      name,
+      visibility,
+      error: error?.message,
+      error_code: error?.code,
+    });
     logger.warn('Falha ao criar pack via API web.', {
       action: 'sticker_catalog_create_pack_failed',
       owner_jid: ownerJid,
+      google_sub: googleCreator?.sub || null,
       name,
       visibility,
       error: error?.message,
@@ -1564,6 +2268,7 @@ const handleCreatePackRequest = async (req, res) => {
 };
 
 const handleUploadStickerToPackRequest = async (req, res, packKey) => {
+  triggerStaleDraftCleanup();
   const pack = await findStickerPackByPackKey(packKey);
   if (!pack) {
     sendJson(req, res, 404, { error: 'Pack nao encontrado.', code: STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND });
@@ -1606,7 +2311,136 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
     return;
   }
 
+  const computedStickerHash = sha256Hex(decoded.buffer);
+  const payloadStickerHash = normalizeStickerHashHex(payload?.sticker_hash);
+  if (payloadStickerHash && payloadStickerHash !== computedStickerHash) {
+    sendJson(req, res, 400, {
+      error: 'sticker_hash nao corresponde ao arquivo enviado.',
+      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    });
+    return;
+  }
+
+  const uploadId = normalizeWebUploadId(payload?.upload_id) || `h-${computedStickerHash.slice(0, 24)}`;
+  const stickerHash = payloadStickerHash || computedStickerHash;
+
+  logPackWebFlow('info', 'upload_start', {
+    pack_key: pack.pack_key,
+    pack_id: pack.id,
+    owner_jid: pack.owner_jid,
+    upload_id: uploadId,
+    sticker_hash: stickerHash,
+    source_bytes: decoded.buffer.length,
+    source_mimetype: decoded.mimetype || 'image/webp',
+  });
+
+  let reservedUpload = null;
+  let idempotentDoneResponse = null;
+  let packStatusForResponse = normalizePackWebStatus(pack.status, 'draft');
+
   try {
+    await runSqlTransaction(async (connection) => {
+      const lockedPackRow = await lockStickerPackByPackKey(pack.pack_key, connection);
+      if (!lockedPackRow) {
+        throw new StickerPackError(STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND, 'Pack nao encontrado.');
+      }
+      if (String(lockedPackRow.id) !== String(pack.id) || String(lockedPackRow.owner_jid) !== String(pack.owner_jid)) {
+        throw new StickerPackError(STICKER_PACK_ERROR_CODES.NOT_ALLOWED, 'Pack inválido para edição.');
+      }
+
+      let existingUpload = await findPackWebUploadByUploadId(pack.id, uploadId, connection);
+      if (existingUpload && existingUpload.sticker_hash !== stickerHash) {
+        throw new StickerPackError(
+          STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+          'upload_id já foi usado para outro arquivo neste pack.',
+        );
+      }
+
+      if (!existingUpload) {
+        existingUpload = await findPackWebUploadByStickerHash(pack.id, stickerHash, connection);
+      }
+
+      const currentPackStatus = normalizePackWebStatus(lockedPackRow.status, 'draft');
+      if (existingUpload?.upload_status === 'done' && existingUpload.sticker_id) {
+        const snapshot = await getPackConsistencySnapshot(pack.id, lockedPackRow.cover_sticker_id, connection);
+        idempotentDoneResponse = {
+          data: {
+            pack_key: pack.pack_key,
+            sticker_id: existingUpload.sticker_id,
+            sticker_count: snapshot.sticker_count,
+            asset_url: buildStickerAssetUrl(pack.pack_key, existingUpload.sticker_id),
+            idempotent: true,
+            upload_id: existingUpload.upload_id,
+            sticker_hash: existingUpload.sticker_hash,
+            pack_status: currentPackStatus,
+          },
+        };
+        return;
+      }
+
+      if (currentPackStatus === 'published') {
+        throw new StickerPackError(
+          STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+          'Pack já foi publicado. Crie um novo pack para enviar novos stickers.',
+        );
+      }
+
+      if (currentPackStatus === 'processing') {
+        throw new StickerPackError(
+          STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+          'Pack está em finalização. Aguarde e tente novamente.',
+        );
+      }
+
+      if (!existingUpload) {
+        reservedUpload = await createPackWebUpload(
+          {
+            id: randomUUID(),
+            pack_id: pack.id,
+            upload_id: uploadId,
+            sticker_hash: stickerHash,
+            source_mimetype: decoded.mimetype || 'image/webp',
+            upload_status: 'processing',
+            attempt_count: 1,
+            last_attempt_at: new Date(),
+          },
+          connection,
+        );
+      } else {
+        reservedUpload = await updatePackWebUpload(
+          existingUpload.id,
+          {
+            upload_status: 'processing',
+            source_mimetype: decoded.mimetype || existingUpload.source_mimetype || 'image/webp',
+            error_code: null,
+            error_message: null,
+            attempt_count: Math.max(1, Number(existingUpload.attempt_count || 0) + 1),
+            last_attempt_at: new Date(),
+          },
+          connection,
+        );
+      }
+
+      packStatusForResponse = currentPackStatus === 'failed' ? 'uploading' : 'uploading';
+      if (currentPackStatus !== 'uploading') {
+        await setStickerPackStatus(pack.id, 'uploading', connection);
+        packStatusForResponse = 'uploading';
+      }
+    });
+
+    if (idempotentDoneResponse) {
+      logPackWebFlow('info', 'upload_success', {
+        pack_key: pack.pack_key,
+        pack_id: pack.id,
+        owner_jid: pack.owner_jid,
+        upload_id: uploadId,
+        sticker_hash: stickerHash,
+        idempotent: true,
+      });
+      sendJson(req, res, 200, idempotentDoneResponse);
+      return;
+    }
+
     const normalizedUpload = await convertUploadMediaToWebp({
       ownerJid: pack.owner_jid,
       buffer: decoded.buffer,
@@ -1618,37 +2452,344 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
       mimetype: normalizedUpload.mimetype || 'image/webp',
     });
 
-    const updatedPack = await stickerPackService.addStickerToPack({
-      ownerJid: pack.owner_jid,
-      identifier: pack.pack_key,
-      asset: { id: asset.id },
-      emojis: [],
-      accessibilityLabel: null,
-    });
+    let updatedPack;
+    try {
+      updatedPack = await stickerPackService.addStickerToPack({
+        ownerJid: pack.owner_jid,
+        identifier: pack.pack_key,
+        asset: { id: asset.id },
+        emojis: [],
+        accessibilityLabel: null,
+      });
+    } catch (error) {
+      if (error?.code !== STICKER_PACK_ERROR_CODES.DUPLICATE_STICKER) {
+        throw error;
+      }
+      updatedPack = await stickerPackService.getPackInfo({
+        ownerJid: pack.owner_jid,
+        identifier: pack.pack_key,
+      });
+    }
 
     if (payload?.set_cover === true) {
-      await stickerPackService.setPackCover({
+      updatedPack = await stickerPackService.setPackCover({
         ownerJid: pack.owner_jid,
         identifier: pack.pack_key,
         stickerId: asset.id,
       });
     }
 
+    let responseStickerCount = Number(updatedPack?.sticker_count || 0);
+    await runSqlTransaction(async (connection) => {
+      const lockedPackRow = await lockStickerPackByPackKey(pack.pack_key, connection);
+      if (!lockedPackRow) {
+        throw new StickerPackError(STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND, 'Pack nao encontrado.');
+      }
+
+      const uploadRow =
+        (reservedUpload?.id &&
+          normalizePackWebUploadRow(
+            (
+              await executeQuery(
+                `SELECT * FROM ${TABLES.STICKER_PACK_WEB_UPLOAD} WHERE id = ? LIMIT 1`,
+                [reservedUpload.id],
+                connection,
+              )
+            )?.[0],
+          )) ||
+        (await findPackWebUploadByUploadId(pack.id, uploadId, connection)) ||
+        (await findPackWebUploadByStickerHash(pack.id, stickerHash, connection));
+
+      if (!uploadRow) {
+        throw new StickerPackError(STICKER_PACK_ERROR_CODES.INTERNAL_ERROR, 'Registro de upload não encontrado para finalizar.');
+      }
+
+      await updatePackWebUpload(
+        uploadRow.id,
+        {
+          upload_status: 'done',
+          sticker_id: asset.id,
+          error_code: null,
+          error_message: null,
+          source_mimetype: decoded.mimetype || 'image/webp',
+        },
+        connection,
+      );
+
+      if (normalizePackWebStatus(lockedPackRow.status, 'draft') !== 'published') {
+        await setStickerPackStatus(pack.id, 'uploading', connection);
+        packStatusForResponse = 'uploading';
+      } else {
+        packStatusForResponse = 'published';
+      }
+
+      const snapshot = await getPackConsistencySnapshot(
+        pack.id,
+        payload?.set_cover === true ? asset.id : lockedPackRow.cover_sticker_id,
+        connection,
+      );
+      responseStickerCount = snapshot.sticker_count;
+    });
+
+    logPackWebFlow('info', 'upload_success', {
+      pack_key: pack.pack_key,
+      pack_id: pack.id,
+      owner_jid: pack.owner_jid,
+      upload_id: uploadId,
+      sticker_hash: stickerHash,
+      sticker_id: asset.id,
+      pack_status: packStatusForResponse,
+    });
+
     sendJson(req, res, 201, {
       data: {
-        pack_key: updatedPack.pack_key,
+        pack_key: pack.pack_key,
         sticker_id: asset.id,
-        sticker_count: Number(updatedPack.sticker_count || 0),
-        asset_url: buildStickerAssetUrl(updatedPack.pack_key, asset.id),
+        sticker_count: responseStickerCount,
+        asset_url: buildStickerAssetUrl(pack.pack_key, asset.id),
+        upload_id: uploadId,
+        sticker_hash: stickerHash,
+        idempotent: false,
+        pack_status: packStatusForResponse,
       },
     });
   } catch (error) {
+    if (reservedUpload?.id) {
+      await runSqlTransaction(async (connection) => {
+        const currentUpload =
+          (await findPackWebUploadByUploadId(pack.id, uploadId, connection)) ||
+          (await findPackWebUploadByStickerHash(pack.id, stickerHash, connection));
+        if (currentUpload) {
+          await updatePackWebUpload(
+            currentUpload.id,
+            {
+              upload_status: 'failed',
+              error_code: String(error?.code || 'UPLOAD_FAILED').slice(0, 64),
+              error_message: error?.message || 'Falha no upload do sticker.',
+              source_mimetype: decoded?.mimetype || currentUpload.source_mimetype || 'image/webp',
+            },
+            connection,
+          );
+        }
+        await setStickerPackStatus(pack.id, 'draft', connection);
+      }).catch((updateError) => {
+        logPackWebFlow('warn', 'upload_failed_mark_failed', {
+          pack_key: pack.pack_key,
+          pack_id: pack.id,
+          upload_id: uploadId,
+          sticker_hash: stickerHash,
+          original_error: error?.message,
+          update_error: updateError?.message,
+        });
+      });
+    }
+
+    logPackWebFlow('warn', 'upload_failed', {
+      pack_key: pack.pack_key,
+      pack_id: pack.id,
+      owner_jid: pack.owner_jid,
+      upload_id: uploadId,
+      sticker_hash: stickerHash,
+      error: error?.message,
+      error_code: error?.code,
+    });
     const mapped = mapStickerPackCreateError(error);
     sendJson(req, res, mapped.statusCode, {
       error: mapped.message,
       code: mapped.code,
     });
   }
+};
+
+const handlePackPublishStateRequest = async (req, res, packKey, url = null) => {
+  const pack = await findStickerPackByPackKey(packKey);
+  if (!pack) {
+    sendJson(req, res, 404, { error: 'Pack nao encontrado.', code: STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND });
+    return;
+  }
+
+  let payload = {};
+  if (req.method === 'POST') {
+    try {
+      payload = await readJsonBody(req);
+    } catch (error) {
+      sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+      return;
+    }
+  }
+
+  const editTokenValue =
+    (req.method === 'GET' || req.method === 'HEAD' ? String(url?.searchParams?.get('edit_token') || '') : '') ||
+    String(payload?.edit_token || '');
+  const editToken = resolveWebPackEditToken(editTokenValue);
+  if (!editToken || editToken.packId !== pack.id || editToken.ownerJid !== pack.owner_jid) {
+    sendJson(req, res, 403, {
+      error: 'Token de edição inválido para este pack.',
+      code: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+    });
+    return;
+  }
+
+  const packState = await buildPackPublishStateData(pack, { includeUploads: true });
+  sendJson(req, res, 200, {
+    data: packState,
+    pack: mapPackSummary({ ...pack, sticker_count: packState.consistency.sticker_count }),
+  });
+};
+
+const handleFinalizePackRequest = async (req, res, packKey) => {
+  triggerStaleDraftCleanup();
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  const pack = await findStickerPackByPackKey(packKey);
+  if (!pack) {
+    sendJson(req, res, 404, { error: 'Pack nao encontrado.', code: STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND });
+    return;
+  }
+
+  const editToken = resolveWebPackEditToken(payload?.edit_token);
+  if (!editToken || editToken.packId !== pack.id || editToken.ownerJid !== pack.owner_jid) {
+    sendJson(req, res, 403, {
+      error: 'Token de edição inválido para este pack.',
+      code: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+    });
+    return;
+  }
+
+  logPackWebFlow('info', 'finalize_start', {
+    pack_key: pack.pack_key,
+    pack_id: pack.id,
+    owner_jid: pack.owner_jid,
+  });
+
+  let finalizeResult = {
+    canPublish: false,
+    packStatus: normalizePackWebStatus(pack.status, 'draft'),
+    reason: 'unknown',
+  };
+
+  try {
+    await runSqlTransaction(async (connection) => {
+      const lockedPackRow = await lockStickerPackByPackKey(pack.pack_key, connection);
+      if (!lockedPackRow) {
+        throw new StickerPackError(STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND, 'Pack nao encontrado.');
+      }
+
+      const currentStatus = normalizePackWebStatus(lockedPackRow.status, 'draft');
+      if (currentStatus === 'published') {
+        finalizeResult = {
+          canPublish: true,
+          packStatus: 'published',
+          reason: 'already_published',
+        };
+        return;
+      }
+
+      await setStickerPackStatus(pack.id, 'processing', connection);
+
+      const snapshot = await getPackConsistencySnapshot(pack.id, lockedPackRow.cover_sticker_id, connection);
+      const canPublish =
+        snapshot.sticker_count >= 1 &&
+        snapshot.failed_uploads === 0 &&
+        snapshot.processing_uploads === 0 &&
+        snapshot.pending_uploads === 0 &&
+        snapshot.cover_valid;
+
+      if (canPublish) {
+        await setStickerPackStatus(pack.id, 'published', connection);
+        finalizeResult = {
+          canPublish: true,
+          packStatus: 'published',
+          reason: 'published',
+        };
+        return;
+      }
+
+      await setStickerPackStatus(pack.id, 'draft', connection);
+      finalizeResult = {
+        canPublish: false,
+        packStatus: 'draft',
+        reason:
+          snapshot.failed_uploads > 0
+            ? 'failed_uploads'
+            : snapshot.processing_uploads > 0
+              ? 'uploads_processing'
+              : snapshot.pending_uploads > 0
+                ? 'uploads_pending'
+                : !snapshot.cover_valid
+                  ? 'cover_missing'
+                  : snapshot.sticker_count < 1
+                    ? 'not_enough_stickers'
+                    : 'inconsistent',
+      };
+    });
+  } catch (error) {
+    await runSqlTransaction(async (connection) => {
+      const lockedPackRow = await lockStickerPackByPackKey(pack.pack_key, connection).catch(() => null);
+      if (lockedPackRow) {
+        await setStickerPackStatus(pack.id, 'failed', connection);
+      }
+    }).catch(() => null);
+
+    logPackWebFlow('error', 'finalize_failed', {
+      pack_key: pack.pack_key,
+      pack_id: pack.id,
+      owner_jid: pack.owner_jid,
+      error: error?.message,
+      error_code: error?.code,
+    });
+
+    const mapped = mapStickerPackCreateError(error);
+    sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+    return;
+  }
+
+  const freshPack = (await findStickerPackByPackKey(pack.pack_key)) || pack;
+  const packState = await buildPackPublishStateData(freshPack, { includeUploads: true });
+
+  if (finalizeResult.canPublish) {
+    logPackWebFlow('info', 'finalize_success', {
+      pack_key: pack.pack_key,
+      pack_id: pack.id,
+      owner_jid: pack.owner_jid,
+      pack_status: 'published',
+      sticker_count: packState?.consistency?.sticker_count || 0,
+    });
+
+    sendJson(req, res, 200, {
+      data: {
+        pack: mapPackSummary({ ...freshPack, sticker_count: packState.consistency.sticker_count }),
+        publish_state: packState,
+      },
+    });
+    return;
+  }
+
+  logPackWebFlow('warn', 'finalize_failed', {
+    pack_key: pack.pack_key,
+    pack_id: pack.id,
+    owner_jid: pack.owner_jid,
+    reason: finalizeResult.reason,
+    pack_status: finalizeResult.packStatus,
+    consistency: packState.consistency,
+  });
+
+  sendJson(req, res, 409, {
+    error: 'Pack ainda não está consistente para publicação.',
+    code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    data: {
+      pack: mapPackSummary({ ...freshPack, sticker_count: packState.consistency.sticker_count }),
+      publish_state: packState,
+      reason: finalizeResult.reason,
+    },
+  });
 };
 
 const handleCreatorRankingRequest = async (req, res, url) => {
@@ -2406,6 +3547,11 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
     return true;
   }
 
+  if (pathname === `${STICKER_API_BASE_PATH}/auth/google/session`) {
+    await handleGoogleAuthSessionRequest(req, res);
+    return true;
+  }
+
   if (pathname === STICKER_API_BASE_PATH) {
     if (!['GET', 'HEAD'].includes(req.method || '')) {
       sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
@@ -2540,6 +3686,24 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
       return true;
     }
     await handlePackInteractionRequest(req, res, segments[0], segments[1], url);
+    return true;
+  }
+
+  if (segments.length === 2 && segments[1] === 'publish-state') {
+    if (!['GET', 'HEAD', 'POST'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handlePackPublishStateRequest(req, res, segments[0], url);
+    return true;
+  }
+
+  if (segments.length === 2 && segments[1] === 'finalize') {
+    if (req.method !== 'POST') {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handleFinalizePackRequest(req, res, segments[0]);
     return true;
   }
 
