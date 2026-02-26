@@ -22,6 +22,7 @@
     q: '',
     catalogLoaded: false,
     visibility: 'public',
+    categories: [],
     packs: {
       offset: 0,
       limit: CONFIG.defaultLimit,
@@ -50,6 +51,11 @@
     form: document.getElementById('search-form'),
     search: document.getElementById('search-input'),
     visibility: document.getElementById('visibility-input'),
+    categories: document.getElementById('categories-input'),
+    categoriesPicker: document.getElementById('categories-picker'),
+    categoriesSearch: document.getElementById('categories-search'),
+    categoriesChips: document.getElementById('categories-chips'),
+    categoriesOptions: document.getElementById('categories-options'),
     status: document.getElementById('status'),
     grid: document.getElementById('grid'),
     more: document.getElementById('load-more'),
@@ -89,6 +95,11 @@
     !els.form ||
     !els.search ||
     !els.visibility ||
+    !els.categories ||
+    !els.categoriesPicker ||
+    !els.categoriesSearch ||
+    !els.categoriesChips ||
+    !els.categoriesOptions ||
     !els.status ||
     !els.grid ||
     !els.more ||
@@ -154,6 +165,145 @@
       return '';
     }
   };
+
+  const getSelectedCategories = () =>
+    Array.from(els.categories.selectedOptions || [])
+      .map((option) => String(option.value || '').trim())
+      .filter(Boolean);
+
+  const normalizeCategorySearch = (value) =>
+    String(value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+
+  const categoryCatalog = Array.from(els.categories.options || []).map((option) => ({
+    value: String(option.value || '').trim(),
+    label: String(option.textContent || option.value || '').trim(),
+  }));
+
+  const syncCategorySelect = (selectedValues) => {
+    const selected = new Set((selectedValues || []).map((value) => String(value || '').trim()).filter(Boolean));
+    Array.from(els.categories.options || []).forEach((option) => {
+      option.selected = selected.has(String(option.value || '').trim());
+    });
+    state.categories = getSelectedCategories();
+  };
+
+  const renderCategoryChips = () => {
+    els.categoriesChips.innerHTML = '';
+    if (!state.categories.length) {
+      const empty = document.createElement('span');
+      empty.className = 'categories-empty';
+      empty.textContent = 'Nenhuma categoria selecionada';
+      els.categoriesChips.appendChild(empty);
+      return;
+    }
+
+    state.categories.forEach((value) => {
+      const entry = categoryCatalog.find((item) => item.value === value);
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'category-chip';
+      chip.dataset.value = value;
+      chip.setAttribute('aria-label', 'Remover categoria ' + (entry?.label || value));
+      chip.innerHTML =
+        '<span class="category-chip-label">' +
+        (entry?.label || value) +
+        '</span><i class="fa-solid fa-xmark category-chip-remove" aria-hidden="true"></i>';
+      els.categoriesChips.appendChild(chip);
+    });
+  };
+
+  const renderCategoryOptions = () => {
+    const query = normalizeCategorySearch(els.categoriesSearch.value);
+    const selected = new Set(state.categories);
+    const filtered = categoryCatalog.filter((entry) => {
+      if (!entry.value) return false;
+      if (!query) return true;
+      return normalizeCategorySearch(entry.label).includes(query) || normalizeCategorySearch(entry.value).includes(query);
+    });
+
+    els.categoriesOptions.innerHTML = '';
+
+    if (!filtered.length) {
+      const empty = document.createElement('div');
+      empty.className = 'categories-options-empty';
+      empty.textContent = 'Nenhuma categoria encontrada';
+      els.categoriesOptions.appendChild(empty);
+      return;
+    }
+
+    filtered.forEach((entry) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'category-option' + (selected.has(entry.value) ? ' selected' : '');
+      button.dataset.value = entry.value;
+      button.innerHTML =
+        '<span class="category-option-label">' +
+        entry.label +
+        '</span><i class="fa-solid fa-check category-option-check" aria-hidden="true"></i>';
+      els.categoriesOptions.appendChild(button);
+    });
+  };
+
+  const applyFilters = async () => {
+    state.q = els.search.value.trim();
+    state.visibility = els.visibility.value;
+    state.categories = getSelectedCategories();
+    await Promise.all([listPacks({ reset: true }), listOrphanStickers({ reset: true })]);
+  };
+
+  let filterRefreshTimer = null;
+  const scheduleFilterRefresh = () => {
+    if (filterRefreshTimer) {
+      clearTimeout(filterRefreshTimer);
+    }
+    filterRefreshTimer = setTimeout(() => {
+      filterRefreshTimer = null;
+      void applyFilters();
+    }, 120);
+  };
+
+  const toggleCategory = (value) => {
+    const normalized = String(value || '').trim();
+    if (!normalized) return;
+    const selected = new Set(state.categories);
+    if (selected.has(normalized)) {
+      selected.delete(normalized);
+    } else {
+      selected.add(normalized);
+    }
+    syncCategorySelect(Array.from(selected));
+    renderCategoryChips();
+    renderCategoryOptions();
+    scheduleFilterRefresh();
+  };
+
+  const initCategoriesPicker = () => {
+    syncCategorySelect(getSelectedCategories());
+    renderCategoryChips();
+    renderCategoryOptions();
+
+    els.categoriesSearch.addEventListener('input', () => {
+      renderCategoryOptions();
+    });
+
+    els.categoriesOptions.addEventListener('click', (event) => {
+      const option = event.target.closest('.category-option');
+      if (!option) return;
+      toggleCategory(option.dataset.value);
+    });
+
+    els.categoriesChips.addEventListener('click', (event) => {
+      const chip = event.target.closest('.category-chip');
+      if (!chip) return;
+      toggleCategory(chip.dataset.value);
+    });
+  };
+
+  initCategoriesPicker();
 
   const showCatalogView = () => {
     els.packPage.hidden = true;
@@ -276,6 +426,35 @@
     return overlay;
   };
 
+  const resolveTopPackTags = (pack) => {
+    const explicitTags = Array.isArray(pack?.tags) ? pack.tags : [];
+    const classificationTags = Array.isArray(pack?.classification?.tags) ? pack.classification.tags : [];
+
+    const merged = [...classificationTags, ...explicitTags]
+      .map((tag) => toTagToken(tag))
+      .filter(Boolean);
+
+    return Array.from(new Set(merged)).slice(0, 3);
+  };
+
+  const buildPackTagsRow = (pack) => {
+    const tags = resolveTopPackTags(pack);
+    if (!tags.length) return null;
+
+    const row = document.createElement('div');
+    row.className = 'pack-tags';
+    row.setAttribute('aria-label', 'Categorias do pack: ' + tags.join(', '));
+
+    tags.forEach((tag) => {
+      const chip = document.createElement('span');
+      chip.className = 'pack-tag';
+      chip.textContent = tag;
+      row.appendChild(chip);
+    });
+
+    return row;
+  };
+
   const renderCard = (pack) => {
     const col = document.createElement('div');
     col.className = 'col-4 col-sm-6 col-md-4 col-lg-3';
@@ -325,7 +504,11 @@
     author.className = 'pack-meta pack-author mb-0';
     author.textContent = pack.publisher || 'Autor não informado';
 
+    const tagsRow = buildPackTagsRow(pack);
     cardBody.append(thumbWrap, title, quantity, author);
+    if (tagsRow) {
+      cardBody.appendChild(tagsRow);
+    }
     card.appendChild(cardBody);
     card.addEventListener('click', () => openPack(pack.pack_key, { pushState: true }));
 
@@ -503,6 +686,7 @@
         toApi(CONFIG.apiBasePath, {
           q: state.q,
           visibility: state.visibility,
+          categories: state.categories.join(','),
           limit: state.packs.limit,
           offset: state.packs.offset,
         }),
@@ -549,6 +733,7 @@
       const payload = await fetchJson(
         toApi(CONFIG.orphanApiPath, {
           q: state.q,
+          categories: state.categories.join(','),
           limit: currentLimit,
           offset,
         }),
@@ -705,7 +890,11 @@
     applyWhatsAppLink(els.useWhatsAppLink, '');
 
     try {
-      const payload = await fetchJson(toApi(CONFIG.apiBasePath + '/' + encodeURIComponent(sanitizedKey)));
+      const payload = await fetchJson(
+        toApi(CONFIG.apiBasePath + '/' + encodeURIComponent(sanitizedKey), {
+          categories: state.categories.join(','),
+        }),
+      );
       state.selectedPack = payload.data || null;
       if (!state.selectedPack) {
         throw new Error('Pack não encontrado.');
@@ -722,9 +911,7 @@
 
   els.form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    state.q = els.search.value.trim();
-    state.visibility = els.visibility.value;
-    await Promise.all([listPacks({ reset: true }), listOrphanStickers({ reset: true })]);
+    await applyFilters();
   });
 
   els.more.addEventListener('click', async () => {

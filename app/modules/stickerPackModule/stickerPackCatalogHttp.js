@@ -8,7 +8,7 @@ import logger from '../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
 import { listStickerPacksForCatalog, findStickerPackByPackKey } from './stickerPackRepository.js';
 import { listStickerPackItems } from './stickerPackItemRepository.js';
-import { listStickerAssetsWithoutPack } from './stickerAssetRepository.js';
+import { listClassifiedStickerAssetsWithoutPack, listStickerAssetsWithoutPack } from './stickerAssetRepository.js';
 import {
   findStickerClassificationByAssetId,
   listStickerClassificationsByAssetIds,
@@ -18,6 +18,14 @@ import {
   decorateStickerClassification,
   getPackClassificationSummaryByAssetIds,
 } from './stickerClassificationService.js';
+import {
+  getEmptyStickerPackEngagement,
+  getStickerPackEngagementByPackId,
+  incrementStickerPackDislike,
+  incrementStickerPackLike,
+  incrementStickerPackOpen,
+  listStickerPackEngagementByPackIds,
+} from './stickerPackEngagementRepository.js';
 import { readStickerAssetBuffer } from './stickerStorageService.js';
 import { sanitizeText } from './stickerPackUtils.js';
 
@@ -508,23 +516,40 @@ const listDataImageFiles = async () => {
   return files;
 };
 
-const mapPackSummary = (pack) => ({
-  id: pack.id,
-  pack_key: pack.pack_key,
-  name: pack.name,
-  publisher: pack.publisher,
-  description: pack.description || null,
-  visibility: pack.visibility,
-  sticker_count: Number(pack.sticker_count || 0),
-  cover_sticker_id: pack.cover_sticker_id || null,
-  cover_url: pack.cover_sticker_id ? buildStickerAssetUrl(pack.pack_key, pack.cover_sticker_id) : null,
-  api_url: buildPackApiUrl(pack.pack_key),
-  web_url: buildPackWebUrl(pack.pack_key),
-  whatsapp: buildPackWhatsAppInfo(pack),
-  updated_at: toIsoOrNull(pack.updated_at),
-});
+const mapPackSummary = (pack, engagement = null) => {
+  const safeEngagement = engagement || getEmptyStickerPackEngagement();
+  return {
+    id: pack.id,
+    pack_key: pack.pack_key,
+    name: pack.name,
+    publisher: pack.publisher,
+    description: pack.description || null,
+    visibility: pack.visibility,
+    sticker_count: Number(pack.sticker_count || 0),
+    cover_sticker_id: pack.cover_sticker_id || null,
+    cover_url: pack.cover_sticker_id ? buildStickerAssetUrl(pack.pack_key, pack.cover_sticker_id) : null,
+    api_url: buildPackApiUrl(pack.pack_key),
+    web_url: buildPackWebUrl(pack.pack_key),
+    whatsapp: buildPackWhatsAppInfo(pack),
+    created_at: toIsoOrNull(pack.created_at),
+    updated_at: toIsoOrNull(pack.updated_at),
+    engagement: {
+      open_count: Number(safeEngagement.open_count || 0),
+      like_count: Number(safeEngagement.like_count || 0),
+      dislike_count: Number(safeEngagement.dislike_count || 0),
+      score:
+        Number(safeEngagement.score || 0) ||
+        Number(safeEngagement.like_count || 0) - Number(safeEngagement.dislike_count || 0),
+      updated_at: toIsoOrNull(safeEngagement.updated_at),
+    },
+  };
+};
 
-const mapPackDetails = (pack, items, { byAssetClassification = new Map(), packClassification = null } = {}) => {
+const mapPackDetails = (
+  pack,
+  items,
+  { byAssetClassification = new Map(), packClassification = null, engagement = null } = {},
+) => {
   const coverStickerId = pack.cover_sticker_id || items[0]?.sticker_id || null;
 
   return {
@@ -532,7 +557,7 @@ const mapPackDetails = (pack, items, { byAssetClassification = new Map(), packCl
       ...pack,
       cover_sticker_id: coverStickerId,
       sticker_count: items.length,
-    }),
+    }, engagement),
     items: items.map((item) => ({
       // `tags` facilita renderização direta no front sem precisar reprocessar score.
       id: item.id,
@@ -586,6 +611,81 @@ const isStickerClassified = (classification) => {
 
 const isPackClassified = (classificationSummary) =>
   Boolean(classificationSummary && Number(classificationSummary.classified_items || 0) > 0);
+
+const normalizeCategoryToken = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+
+const parseCategoryFilters = (rawValue) => {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return [];
+
+  const parts = raw
+    .split(',')
+    .map((part) => normalizeCategoryToken(part))
+    .filter(Boolean);
+
+  return Array.from(new Set(parts)).slice(0, 20);
+};
+
+const hasAnyCategory = (tags, categories) => {
+  if (!Array.isArray(categories) || !categories.length) return true;
+  const normalized = new Set((Array.isArray(tags) ? tags : []).map((entry) => normalizeCategoryToken(entry)));
+  return categories.some((category) => normalized.has(category));
+};
+
+const resolveClassificationTags = (classification) => decorateStickerClassification(classification || null)?.tags || [];
+
+const listClassifiedOrphanAssetsByCategories = async ({ search = '', categories = [], limit = 120, offset = 0 }) => {
+  const safeLimit = Math.max(1, Math.min(MAX_ORPHAN_LIST_LIMIT, Number(limit) || DEFAULT_ORPHAN_LIST_LIMIT));
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const normalizedCategories = Array.isArray(categories) ? categories.filter(Boolean) : [];
+  const scanBatchSize = Math.max(safeLimit, 180);
+
+  let cursorOffset = 0;
+  let matchedCount = 0;
+  const pageAssets = [];
+
+  while (true) {
+    const { assets, hasMore } = await listClassifiedStickerAssetsWithoutPack({
+      search,
+      limit: scanBatchSize,
+      offset: cursorOffset,
+    });
+
+    if (!assets.length) break;
+
+    const classifications = await listStickerClassificationsByAssetIds(assets.map((asset) => asset.id));
+    const byAssetId = new Map(classifications.map((entry) => [entry.asset_id, entry]));
+
+    for (const asset of assets) {
+      const tags = resolveClassificationTags(byAssetId.get(asset.id));
+      if (!hasAnyCategory(tags, normalizedCategories)) continue;
+
+      const currentIndex = matchedCount;
+      matchedCount += 1;
+
+      if (currentIndex >= safeOffset && pageAssets.length < safeLimit) {
+        pageAssets.push(asset);
+      }
+    }
+
+    cursorOffset += assets.length;
+    if (!hasMore) break;
+  }
+
+  return {
+    assets: pageAssets,
+    total: matchedCount,
+    hasMore: safeOffset + safeLimit < matchedCount,
+  };
+};
 
 export const extractPackKeyFromWebPath = (pathname) => {
   if (!hasPathPrefix(pathname, STICKER_WEB_PATH)) return null;
@@ -676,6 +776,7 @@ const handleCatalogStaticAssetRequest = async (req, res, pathname) => {
 const handleListRequest = async (req, res, url) => {
   const q = sanitizeText(url.searchParams.get('q') || '', 120, { allowEmpty: true }) || '';
   const visibility = normalizeCatalogVisibility(url.searchParams.get('visibility'));
+  const categories = parseCategoryFilters(url.searchParams.get('categories'));
   const limit = clampInt(url.searchParams.get('limit'), DEFAULT_LIST_LIMIT, 1, MAX_LIST_LIMIT);
   const offset = clampInt(url.searchParams.get('offset'), 0, 0, 100000);
 
@@ -685,6 +786,7 @@ const handleListRequest = async (req, res, url) => {
     limit,
     offset,
   });
+  const engagementByPackId = await listStickerPackEngagementByPackIds(packs.map((pack) => pack.id));
 
   const packClassifications = await Promise.all(
     packs.map(async (pack) => {
@@ -697,12 +799,15 @@ const handleListRequest = async (req, res, url) => {
   const filteredPacks = STICKER_CATALOG_ONLY_CLASSIFIED
     ? packs.filter((pack) => isPackClassified(packClassificationById.get(pack.id)))
     : packs;
+  const filteredByCategories = categories.length
+    ? filteredPacks.filter((pack) => hasAnyCategory(packClassificationById.get(pack.id)?.tags || [], categories))
+    : filteredPacks;
 
   sendJson(req, res, 200, {
-    data: filteredPacks.map((pack) => {
+    data: filteredByCategories.map((pack) => {
       const classification = packClassificationById.get(pack.id) || null;
       return {
-        ...mapPackSummary(pack),
+        ...mapPackSummary(pack, engagementByPackId.get(pack.id) || null),
         classification,
         tags: classification?.tags || [],
       };
@@ -716,30 +821,39 @@ const handleListRequest = async (req, res, url) => {
     filters: {
       q,
       visibility,
+      categories,
     },
   });
 };
 
 const handleOrphanStickerListRequest = async (req, res, url) => {
   const q = sanitizeText(url.searchParams.get('q') || '', 140, { allowEmpty: true }) || '';
+  const categories = parseCategoryFilters(url.searchParams.get('categories'));
   const limit = clampInt(url.searchParams.get('limit'), DEFAULT_ORPHAN_LIST_LIMIT, 1, MAX_ORPHAN_LIST_LIMIT);
   const offset = clampInt(url.searchParams.get('offset'), 0, 0, 1_000_000);
 
-  const { assets, hasMore, total } = await listStickerAssetsWithoutPack({
-    search: q,
-    limit,
-    offset,
-  });
+  const { assets, hasMore, total } = categories.length
+    ? await listClassifiedOrphanAssetsByCategories({ search: q, categories, limit, offset })
+    : await (
+        STICKER_CATALOG_ONLY_CLASSIFIED ? listClassifiedStickerAssetsWithoutPack : listStickerAssetsWithoutPack
+      )({
+        search: q,
+        limit,
+        offset,
+      });
   const classifications = await listStickerClassificationsByAssetIds(assets.map((asset) => asset.id));
   const byAssetId = new Map(classifications.map((entry) => [entry.asset_id, entry]));
   const filteredAssets = STICKER_CATALOG_ONLY_CLASSIFIED
     ? assets.filter((asset) => isStickerClassified(byAssetId.get(asset.id)))
     : assets;
+  const filteredByCategories = categories.length
+    ? filteredAssets.filter((asset) => hasAnyCategory(resolveClassificationTags(byAssetId.get(asset.id)), categories))
+    : filteredAssets;
   const currentPage = Math.floor(offset / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   sendJson(req, res, 200, {
-    data: filteredAssets.map((asset) => mapOrphanStickerAsset(asset, byAssetId.get(asset.id) || null)),
+    data: filteredByCategories.map((asset) => mapOrphanStickerAsset(asset, byAssetId.get(asset.id) || null)),
     pagination: {
       limit,
       offset,
@@ -751,6 +865,7 @@ const handleOrphanStickerListRequest = async (req, res, url) => {
     },
     filters: {
       q,
+      categories,
     },
   });
 };
@@ -1202,8 +1317,9 @@ const handlePublicDataAssetRequest = async (req, res, pathname) => {
   }
 };
 
-const handleDetailsRequest = async (req, res, packKey) => {
+const handleDetailsRequest = async (req, res, packKey, url) => {
   const normalizedPackKey = sanitizeText(packKey, 160, { allowEmpty: false });
+  const categories = parseCategoryFilters(url.searchParams.get('categories'));
   if (!normalizedPackKey) {
     sendJson(req, res, 400, { error: 'pack_key invalido.' });
     return;
@@ -1217,14 +1333,18 @@ const handleDetailsRequest = async (req, res, packKey) => {
 
   const items = await listStickerPackItems(pack.id);
   const stickerIds = items.map((item) => item.sticker_id);
-  const [classifications, packClassification] = await Promise.all([
+  const [classifications, packClassification, engagement] = await Promise.all([
     listStickerClassificationsByAssetIds(stickerIds),
     getPackClassificationSummaryByAssetIds(stickerIds),
+    getStickerPackEngagementByPackId(pack.id),
   ]);
   const byAssetClassification = new Map(classifications.map((entry) => [entry.asset_id, entry]));
   const visibleItems = STICKER_CATALOG_ONLY_CLASSIFIED
     ? items.filter((item) => isStickerClassified(byAssetClassification.get(item.sticker_id)))
     : items;
+  const visibleItemsByCategories = categories.length
+    ? visibleItems.filter((item) => hasAnyCategory(resolveClassificationTags(byAssetClassification.get(item.sticker_id)), categories))
+    : visibleItems;
 
   if (STICKER_CATALOG_ONLY_CLASSIFIED && !isPackClassified(packClassification)) {
     sendJson(req, res, 404, { error: 'Pack nao encontrado.' });
@@ -1232,7 +1352,7 @@ const handleDetailsRequest = async (req, res, packKey) => {
   }
 
   sendJson(req, res, 200, {
-    data: mapPackDetails(pack, visibleItems, { byAssetClassification, packClassification }),
+    data: mapPackDetails(pack, visibleItemsByCategories, { byAssetClassification, packClassification, engagement }),
   });
 };
 
@@ -1286,13 +1406,63 @@ const handleAssetRequest = async (req, res, packKey, stickerToken) => {
   }
 };
 
+const findPublicPackByKey = async (rawPackKey) => {
+  const normalizedPackKey = sanitizeText(rawPackKey, 160, { allowEmpty: false });
+  if (!normalizedPackKey) return null;
+  const pack = await findStickerPackByPackKey(normalizedPackKey);
+  if (!pack || !isPackPubliclyVisible(pack)) return null;
+  return pack;
+};
+
+const handlePackInteractionRequest = async (req, res, packKey, interaction) => {
+  const pack = await findPublicPackByKey(packKey);
+  if (!pack) {
+    sendJson(req, res, 404, { error: 'Pack nao encontrado.' });
+    return;
+  }
+
+  let engagement = getEmptyStickerPackEngagement();
+  if (interaction === 'open') {
+    engagement = await incrementStickerPackOpen(pack.id);
+  } else if (interaction === 'like') {
+    engagement = await incrementStickerPackLike(pack.id);
+  } else if (interaction === 'dislike') {
+    engagement = await incrementStickerPackDislike(pack.id);
+  } else {
+    sendJson(req, res, 400, { error: 'Interacao invalida.' });
+    return;
+  }
+
+  sendJson(req, res, 200, {
+    data: {
+      pack_key: pack.pack_key,
+      interaction,
+      engagement: {
+        open_count: Number(engagement.open_count || 0),
+        like_count: Number(engagement.like_count || 0),
+        dislike_count: Number(engagement.dislike_count || 0),
+        score: Number(engagement.score || 0),
+        updated_at: toIsoOrNull(engagement.updated_at),
+      },
+    },
+  });
+};
+
 const handleCatalogApiRequest = async (req, res, pathname, url) => {
   if (pathname === STICKER_API_BASE_PATH) {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
     await handleListRequest(req, res, url);
     return true;
   }
 
   if (pathname === STICKER_ORPHAN_API_PATH) {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
     await handleOrphanStickerListRequest(req, res, url);
     return true;
   }
@@ -1309,31 +1479,64 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
   });
 
   if (segments.length === 1 && segments[0] === 'data-files') {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
     await handleDataFileListRequest(req, res, url);
     return true;
   }
 
   if (segments.length === 1 && segments[0] === 'system-summary') {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
     await handleSystemSummaryRequest(req, res);
     return true;
   }
 
   if (segments.length === 1 && segments[0] === 'project-summary') {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
     await handleGitHubProjectSummaryRequest(req, res);
     return true;
   }
 
   if (segments.length === 1 && segments[0] === 'global-ranking-summary') {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
     await handleGlobalRankingSummaryRequest(req, res);
     return true;
   }
 
   if (segments.length === 1) {
-    await handleDetailsRequest(req, res, segments[0]);
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handleDetailsRequest(req, res, segments[0], url);
+    return true;
+  }
+
+  if (segments.length === 2 && ['open', 'like', 'dislike'].includes(segments[1])) {
+    if (req.method !== 'POST') {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handlePackInteractionRequest(req, res, segments[0], segments[1]);
     return true;
   }
 
   if (segments.length === 3 && segments[1] === 'stickers') {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
     await handleAssetRequest(req, res, segments[0], segments[2]);
     return true;
   }
@@ -1387,13 +1590,15 @@ scheduleGlobalRankingPreload();
  */
 export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url }) {
   if (!STICKER_CATALOG_ENABLED) return false;
-  if (!['GET', 'HEAD'].includes(req.method || '')) return false;
+  if (!['GET', 'HEAD', 'POST'].includes(req.method || '')) return false;
 
   if (hasPathPrefix(pathname, STICKER_DATA_PUBLIC_PATH)) {
+    if (!['GET', 'HEAD'].includes(req.method || '')) return false;
     return handlePublicDataAssetRequest(req, res, pathname);
   }
 
   if (hasPathPrefix(pathname, STICKER_WEB_PATH)) {
+    if (!['GET', 'HEAD'].includes(req.method || '')) return false;
     const handledStaticAsset = await handleCatalogStaticAssetRequest(req, res, pathname);
     if (handledStaticAsset) return true;
 

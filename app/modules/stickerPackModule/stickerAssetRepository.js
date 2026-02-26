@@ -182,6 +182,64 @@ export async function listStickerAssetsWithoutPack({ search = '', limit = 120, o
 }
 
 /**
+ * Lista assets sem pack que já possuem classificação.
+ *
+ * @param {{
+ *   search?: string,
+ *   limit?: number,
+ *   offset?: number,
+ *   connection?: import('mysql2/promise').PoolConnection|null,
+ * }} [options] Filtros de listagem.
+ * @returns {Promise<{ assets: object[], hasMore: boolean, total: number }>} Resultado paginado.
+ */
+export async function listClassifiedStickerAssetsWithoutPack({ search = '', limit = 120, offset = 0, connection = null } = {}) {
+  const safeLimit = Math.max(1, Math.min(500, Number(limit) || 120));
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const safeLimitWithSentinel = safeLimit + 1;
+  const normalizedSearch = String(search || '').trim().toLowerCase().slice(0, 140);
+
+  const whereClauses = ['i.sticker_id IS NULL'];
+  const params = [];
+
+  if (normalizedSearch) {
+    const like = `%${normalizedSearch}%`;
+    whereClauses.push('(LOWER(a.sha256) LIKE ? OR LOWER(a.owner_jid) LIKE ? OR LOWER(a.storage_path) LIKE ?)');
+    params.push(like, like, like);
+  }
+
+  const rows = await executeQuery(
+    `SELECT a.*
+     FROM ${TABLES.STICKER_ASSET} a
+     INNER JOIN ${TABLES.STICKER_ASSET_CLASSIFICATION} c ON c.asset_id = a.id
+     LEFT JOIN ${TABLES.STICKER_PACK_ITEM} i ON i.sticker_id = a.id
+     WHERE ${whereClauses.join(' AND ')}
+     ORDER BY a.created_at DESC
+     LIMIT ${safeLimitWithSentinel} OFFSET ${safeOffset}`,
+    params,
+    connection,
+  );
+
+  const countRows = await executeQuery(
+    `SELECT COUNT(*) AS total
+     FROM ${TABLES.STICKER_ASSET} a
+     INNER JOIN ${TABLES.STICKER_ASSET_CLASSIFICATION} c ON c.asset_id = a.id
+     LEFT JOIN ${TABLES.STICKER_PACK_ITEM} i ON i.sticker_id = a.id
+     WHERE ${whereClauses.join(' AND ')}`,
+    params,
+    connection,
+  );
+
+  const hasMore = rows.length > safeLimit;
+  const total = Number(countRows?.[0]?.total || 0);
+
+  return {
+    assets: rows.slice(0, safeLimit).map((row) => normalizeStickerAssetRow(row)),
+    hasMore,
+    total,
+  };
+}
+
+/**
  * Cria um novo asset de figurinha.
  *
  * @param {object} asset Payload de criação do asset.

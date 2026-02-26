@@ -99,6 +99,7 @@ export const TABLES = {
   STICKER_ASSET: 'sticker_asset',
   STICKER_PACK_ITEM: 'sticker_pack_item',
   STICKER_ASSET_CLASSIFICATION: 'sticker_asset_classification',
+  STICKER_PACK_ENGAGEMENT: 'sticker_pack_engagement',
   RPG_PLAYER: 'rpg_player',
   RPG_PLAYER_POKEMON: 'rpg_player_pokemon',
   RPG_BATTLE_STATE: 'rpg_battle_state',

@@ -239,6 +239,29 @@ const createStickerAssetClassificationTableSQL = `
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
+/**
+ * Tabela STICKER_PACK_ENGAGEMENT
+ * Armazena métricas reais de interação no catálogo web (cliques/likes/dislikes).
+ */
+const createStickerPackEngagementTableSQL = `
+  CREATE TABLE IF NOT EXISTS ${TABLES.STICKER_PACK_ENGAGEMENT} (
+    pack_id CHAR(36) PRIMARY KEY,
+    open_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    like_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    dislike_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    last_opened_at TIMESTAMP NULL DEFAULT NULL,
+    last_interacted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_sticker_pack_engagement_pack
+      FOREIGN KEY (pack_id) REFERENCES ${TABLES.STICKER_PACK}(id)
+      ON DELETE CASCADE ON UPDATE CASCADE,
+    INDEX idx_sticker_pack_engagement_updated (updated_at),
+    INDEX idx_sticker_pack_engagement_like (like_count),
+    INDEX idx_sticker_pack_engagement_open (open_count)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+`;
+
 const createSchemaMigrationsTableSQL = `
   CREATE TABLE IF NOT EXISTS schema_migrations (
     name VARCHAR(255) PRIMARY KEY,
@@ -407,6 +430,7 @@ export default async function initializeDatabase() {
     await connection.query(createStickerPackTableSQL);
     await connection.query(createStickerPackItemTableSQL);
     await connection.query(createStickerAssetClassificationTableSQL);
+    await connection.query(createStickerPackEngagementTableSQL);
 
     const appliedMigrations = await runSqlMigrations(connection);
 

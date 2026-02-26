@@ -30,6 +30,10 @@ import {
   startStickerClassificationBackground,
   stopStickerClassificationBackground,
 } from './app/modules/stickerPackModule/stickerClassificationBackgroundRuntime.js';
+import {
+  startStickerAutoPackByTagsBackground,
+  stopStickerAutoPackByTagsBackground,
+} from './app/modules/stickerPackModule/stickerAutoPackByTagsRuntime.js';
 
 /**
  * Timeout máximo para inicialização do banco (criar/verificar DB + tabelas).
@@ -177,6 +181,7 @@ async function startApp() {
     logger.info('Inicializando servidor de metricas...');
     startMetricsServer();
     startStickerClassificationBackground();
+    startStickerAutoPackByTagsBackground();
 
     // Backfill é opcional, rodando em background.
     const shouldBackfill = process.env.LID_BACKFILL_ON_START !== 'false';
@@ -306,6 +311,14 @@ async function shutdown(signal, error) {
       stopStickerClassificationBackground();
     } catch (workerError) {
       logger.warn('Falha ao encerrar worker de classificação de stickers.', {
+        error: workerError?.message,
+      });
+    }
+
+    try {
+      stopStickerAutoPackByTagsBackground();
+    } catch (workerError) {
+      logger.warn('Falha ao encerrar worker de auto-pack por tags.', {
         error: workerError?.message,
       });
     }
