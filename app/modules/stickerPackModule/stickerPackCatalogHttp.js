@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { getJidUser, resolveBotJid } from '../../config/baileysConfig.js';
+import { executeQuery } from '../../../database/index.js';
+import { getJidUser, normalizeJid, resolveBotJid } from '../../config/baileysConfig.js';
 import { getActiveSocket } from '../../services/socketState.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
@@ -72,6 +73,7 @@ const METRICS_SUMMARY_TIMEOUT_MS = clampInt(process.env.STICKER_SYSTEM_METRICS_T
 const GITHUB_REPOSITORY = String(process.env.GITHUB_REPOSITORY || 'Kaikygr/omnizap-system').trim();
 const GITHUB_TOKEN = String(process.env.GITHUB_TOKEN || '').trim();
 const GITHUB_PROJECT_CACHE_SECONDS = clampInt(process.env.GITHUB_PROJECT_CACHE_SECONDS, 300, 30, 3600);
+const GLOBAL_RANK_REFRESH_SECONDS = clampInt(process.env.GLOBAL_RANK_REFRESH_SECONDS, 600, 60, 3600);
 const DATA_IMAGE_EXTENSIONS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.bmp']);
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -81,6 +83,12 @@ const GITHUB_PROJECT_CACHE = {
   expiresAt: 0,
   value: null,
 };
+const GLOBAL_RANK_CACHE = {
+  expiresAt: 0,
+  value: null,
+  pending: null,
+};
+let globalRankRefreshTimer = null;
 const formatDuration = (totalSeconds) => {
   const total = Math.max(0, Math.floor(Number(totalSeconds) || 0));
   const days = Math.floor(total / 86400);
@@ -771,6 +779,301 @@ const handleSystemSummaryRequest = async (req, res) => {
   });
 };
 
+const withTimeout = (promise, timeoutMs) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`timeout_${timeoutMs}ms`)), timeoutMs);
+    }),
+  ]);
+
+const parseMessageTypeFromRaw = (rawMessage) => {
+  try {
+    const message = JSON.parse(rawMessage || '{}')?.message || {};
+    if (message.conversation || message.extendedTextMessage) return 'texto';
+    if (message.imageMessage) return 'imagem';
+    if (message.videoMessage) return 'video';
+    if (message.audioMessage) return 'audio';
+    if (message.stickerMessage) return 'figurinha';
+    if (message.documentMessage) return 'documento';
+    if (message.locationMessage) return 'localizacao';
+    if (message.reactionMessage) return 'reacao';
+    return 'outros';
+  } catch {
+    return 'outros';
+  }
+};
+
+const resolveBotUserCandidates = (activeSocket) => {
+  const candidates = new Set();
+  const botJidFromSocket = resolveBotJid(activeSocket?.user?.id);
+  const botUserFromSocket = getJidUser(botJidFromSocket || '');
+  if (botUserFromSocket) candidates.add(String(botUserFromSocket).trim());
+  const botPhoneFromCatalog = String(resolveCatalogBotPhone() || '').replace(/\D+/g, '');
+  if (botPhoneFromCatalog) candidates.add(botPhoneFromCatalog);
+
+  const envCandidates = [
+    process.env.WHATSAPP_BOT_NUMBER,
+    process.env.BOT_NUMBER,
+    process.env.PHONE_NUMBER,
+    process.env.BOT_PHONE_NUMBER,
+  ];
+
+  for (const candidate of envCandidates) {
+    const digits = String(candidate || '').replace(/\D+/g, '');
+    if (digits) candidates.add(digits);
+  }
+
+  return Array.from(candidates).filter((value) => value.length >= 8);
+};
+
+const isSenderFromAnyBotUser = (senderId, botUsers) => {
+  const normalizedSender = String(senderId || '').trim();
+  if (!normalizedSender) return false;
+  return botUsers.some((botUser) => {
+    const safe = String(botUser || '').trim();
+    if (!safe) return false;
+    return normalizedSender === `${safe}@s.whatsapp.net` || normalizedSender.startsWith(`${safe}:`) || normalizedSender.startsWith(`${safe}@`);
+  });
+};
+
+const sanitizeRankingPayloadByBot = (payload, botUsers) => {
+  const sourceRows = Array.isArray(payload?.rows) ? payload.rows : [];
+  const filteredRows = sourceRows.filter((row) => !isSenderFromAnyBotUser(row?.sender_id, botUsers));
+  const normalizedRows = filteredRows.slice(0, Number(payload?.limit || 5)).map((row, index) => ({
+    ...row,
+    position: index + 1,
+  }));
+  const totalMessages = Number(payload?.total_messages || 0);
+  const topTotal = normalizedRows.reduce((acc, row) => acc + Number(row?.total_messages || 0), 0);
+  const topShare = totalMessages > 0 ? Number(((topTotal / totalMessages) * 100).toFixed(2)) : 0;
+
+  return {
+    ...payload,
+    rows: normalizedRows,
+    top_share_percent: topShare,
+  };
+};
+
+const extractPushNameFromRaw = (rawMessage) => {
+  try {
+    const parsed = JSON.parse(rawMessage || '{}');
+    const direct = String(parsed?.pushName || '').trim();
+    if (direct) return direct;
+
+    const nested = String(parsed?.message?.extendedTextMessage?.contextInfo?.participantName || '').trim();
+    if (nested) return nested;
+  } catch {
+    return '';
+  }
+  return '';
+};
+
+const resolveRankingDisplayName = async (senderId) => {
+  if (!senderId) return 'Desconhecido';
+  const fallback = `@${String(getJidUser(senderId) || senderId).trim()}`;
+  try {
+    const rows = await executeQuery(
+      `SELECT raw_message FROM messages
+       WHERE sender_id = ?
+         AND raw_message IS NOT NULL
+       ORDER BY id DESC
+       LIMIT 12`,
+      [senderId],
+    );
+    for (const row of rows) {
+      const name = extractPushNameFromRaw(row?.raw_message);
+      if (name) return name;
+    }
+  } catch {
+    return fallback;
+  }
+  return fallback;
+};
+
+const resolveRankingAvatarUrl = async (sock, senderId) => {
+  if (!sock || !senderId || typeof sock.profilePictureUrl !== 'function') return null;
+  const normalized = normalizeJid(senderId) || senderId;
+  try {
+    const url = await sock.profilePictureUrl(normalized, 'image');
+    return typeof url === 'string' && url.trim() ? url : null;
+  } catch {
+    return null;
+  }
+};
+
+const buildGlobalRankingSummary = async () => {
+  const LIMIT = 5;
+  const QUERY_LIMIT = 12;
+  const SAMPLE_LIMIT = 50000;
+  const activeSocket = getActiveSocket();
+  const botUsers = resolveBotUserCandidates(activeSocket);
+
+  const whereClauses = ['sender_id IS NOT NULL'];
+  const params = [];
+  for (const botUser of botUsers) {
+    whereClauses.push('sender_id <> ?');
+    params.push(`${botUser}@s.whatsapp.net`);
+    whereClauses.push('sender_id NOT LIKE ?');
+    whereClauses.push('sender_id NOT LIKE ?');
+    params.push(`${botUser}@%`, `${botUser}:%`);
+  }
+
+  const where = whereClauses.join(' AND ');
+  const recentScopeSql = `SELECT id, sender_id, timestamp, raw_message FROM messages WHERE ${where} ORDER BY id DESC LIMIT ${SAMPLE_LIMIT}`;
+
+  const [totalRow] = await executeQuery(`SELECT COUNT(*) AS total FROM (${recentScopeSql}) recent_scope`, params);
+  const totalMessages = Number(totalRow?.total || 0);
+
+  const rows = await executeQuery(
+    `SELECT
+      recent_scope.sender_id,
+      CONCAT('@', SUBSTRING_INDEX(recent_scope.sender_id, '@', 1)) AS display_name,
+      COUNT(*) AS total_messages,
+      MAX(
+        CASE
+          WHEN recent_scope.timestamp > 1000000000000 THEN FROM_UNIXTIME(recent_scope.timestamp / 1000)
+          WHEN recent_scope.timestamp > 1000000000 THEN FROM_UNIXTIME(recent_scope.timestamp)
+          ELSE recent_scope.timestamp
+        END
+      ) AS last_message
+    FROM (${recentScopeSql}) recent_scope
+    GROUP BY recent_scope.sender_id
+    ORDER BY total_messages DESC
+    LIMIT ${QUERY_LIMIT}`,
+    params,
+  );
+
+  const typeRows = await executeQuery(
+    `SELECT recent_scope.raw_message
+     FROM (${recentScopeSql}) recent_scope
+     WHERE recent_scope.raw_message IS NOT NULL
+     ORDER BY recent_scope.id DESC
+     LIMIT 300`,
+    params,
+  );
+
+  const typeCounts = new Map();
+  for (const row of typeRows) {
+    const type = parseMessageTypeFromRaw(row?.raw_message);
+    typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
+  }
+  const sortedTypes = Array.from(typeCounts.entries()).sort((left, right) => right[1] - left[1]);
+  const topType = sortedTypes[0]?.[0] || null;
+  const topTypeCount = Number(sortedTypes[0]?.[1] || 0);
+
+  const topTotal = rows.reduce((acc, row) => acc + Number(row?.total_messages || 0), 0);
+  const topShare = totalMessages > 0 ? Number(((topTotal / totalMessages) * 100).toFixed(2)) : 0;
+
+  const rowsWithoutBot = rows.filter((row) => !isSenderFromAnyBotUser(row?.sender_id, botUsers)).slice(0, LIMIT);
+
+  const rowsEnriched = await Promise.all(
+    rowsWithoutBot.map(async (row, index) => {
+      const total = Number(row?.total_messages || 0);
+      const percent = totalMessages > 0 ? Number(((total / totalMessages) * 100).toFixed(2)) : 0;
+      const senderId = row?.sender_id || null;
+      const displayName = await resolveRankingDisplayName(senderId);
+      const avatarUrl = await resolveRankingAvatarUrl(activeSocket, senderId);
+      return {
+        position: index + 1,
+        sender_id: senderId,
+        mention_id: senderId,
+        display_name: displayName || row?.display_name || senderId || 'Desconhecido',
+        avatar_url: avatarUrl,
+        total_messages: total,
+        percent_of_total: percent,
+        last_message: row?.last_message ? new Date(row.last_message).toISOString() : null,
+      };
+    }),
+  );
+
+  return {
+    limit: LIMIT,
+    sample_limit: SAMPLE_LIMIT,
+    total_messages: totalMessages,
+    top_share_percent: topShare,
+    top_type: topType,
+    top_type_count: topTypeCount,
+    rows: rowsEnriched,
+    updated_at: new Date().toISOString(),
+  };
+};
+
+const getGlobalRankingSummaryCached = async () => {
+  const now = Date.now();
+  const hasValue = Boolean(GLOBAL_RANK_CACHE.value);
+
+  if (hasValue && now < GLOBAL_RANK_CACHE.expiresAt) {
+    return GLOBAL_RANK_CACHE.value;
+  }
+
+  if (!GLOBAL_RANK_CACHE.pending) {
+    GLOBAL_RANK_CACHE.pending = withTimeout(buildGlobalRankingSummary(), 5000)
+      .then((data) => {
+        GLOBAL_RANK_CACHE.value = data;
+        GLOBAL_RANK_CACHE.expiresAt = Date.now() + GLOBAL_RANK_REFRESH_SECONDS * 1000;
+        return data;
+      })
+      .finally(() => {
+        GLOBAL_RANK_CACHE.pending = null;
+      });
+  }
+
+  if (hasValue) {
+    return GLOBAL_RANK_CACHE.value;
+  }
+
+  return GLOBAL_RANK_CACHE.pending;
+};
+
+const scheduleGlobalRankingPreload = () => {
+  if (globalRankRefreshTimer) return;
+
+  getGlobalRankingSummaryCached().catch((error) => {
+    logger.warn('Falha no preload inicial do ranking global.', {
+      action: 'global_ranking_preload_init_error',
+      error: error?.message,
+    });
+  });
+
+  globalRankRefreshTimer = setInterval(() => {
+    GLOBAL_RANK_CACHE.expiresAt = 0;
+    getGlobalRankingSummaryCached().catch((error) => {
+      logger.warn('Falha ao atualizar cache do ranking global em background.', {
+        action: 'global_ranking_preload_refresh_error',
+        error: error?.message,
+      });
+    });
+  }, GLOBAL_RANK_REFRESH_SECONDS * 1000);
+
+  if (typeof globalRankRefreshTimer?.unref === 'function') {
+    globalRankRefreshTimer.unref();
+  }
+};
+
+const handleGlobalRankingSummaryRequest = async (req, res) => {
+  const activeSocket = getActiveSocket();
+  const botUsers = resolveBotUserCandidates(activeSocket);
+  try {
+    const rawData = await getGlobalRankingSummaryCached();
+    const data = sanitizeRankingPayloadByBot(rawData, botUsers);
+    sendJson(req, res, 200, { data, meta: { cache_seconds: GLOBAL_RANK_REFRESH_SECONDS } });
+  } catch (error) {
+    logger.warn('Falha ao montar resumo do ranking global.', {
+      action: 'global_ranking_summary_error',
+      error: error?.message,
+    });
+    if (GLOBAL_RANK_CACHE.value) {
+      sendJson(req, res, 200, {
+        data: sanitizeRankingPayloadByBot(GLOBAL_RANK_CACHE.value, botUsers),
+        meta: { cache_seconds: GLOBAL_RANK_REFRESH_SECONDS, stale: true, error: error?.message || 'fallback_cache' },
+      });
+      return;
+    }
+    sendJson(req, res, 503, { error: 'Ranking global indisponível no momento.' });
+  }
+};
+
 const handleGitHubProjectSummaryRequest = async (req, res) => {
   if (!GITHUB_REPO_INFO) {
     sendJson(req, res, 500, { error: 'Configuracao de repositorio GitHub invalida.' });
@@ -940,6 +1243,11 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
     return true;
   }
 
+  if (segments.length === 1 && segments[0] === 'global-ranking-summary') {
+    await handleGlobalRankingSummaryRequest(req, res);
+    return true;
+  }
+
   if (segments.length === 1) {
     await handleDetailsRequest(req, res, segments[0]);
     return true;
@@ -986,6 +1294,8 @@ export const getStickerCatalogConfig = () => ({
   stylesPath: buildCatalogStylesUrl(),
   scriptPath: buildCatalogScriptUrl(),
 });
+
+scheduleGlobalRankingPreload();
 
 /**
  * Manipula rotas web/API de catalogo de sticker packs.

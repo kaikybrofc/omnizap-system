@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Pastas e arquivos internos que nao precisam aparecer em buscas
+Disallow: /data/
+Disallow: /app/
+Disallow: /.env
+
+Sitemap: https://omnizap.shop/sitemap.xml

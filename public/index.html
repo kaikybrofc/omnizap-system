@@ -5,19 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>OmniZap System | Automação WhatsApp para Bots e Empresas</title>
   <meta name="description" content="OmniZap System: plataforma open source para automação WhatsApp com comandos, mídia, sticker packs, API e observabilidade." />
-  <meta name="robots" content="index, follow" />
+  <meta name="keywords" content="omnizap, whatsapp bot, automação whatsapp, sticker packs, api whatsapp, chatbot, saas, open source" />
+  <meta name="author" content="OmniZap System" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
   <meta name="theme-color" content="#0b1020" />
   <link rel="canonical" href="https://omnizap.shop/" />
+  <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
+  <link rel="apple-touch-icon" href="https://iili.io/FC3FABe.jpg" />
+  <link rel="sitemap" type="application/xml" href="https://omnizap.shop/sitemap.xml" />
+  <link rel="me" href="https://github.com/Kaikygr/omnizap-system" />
+  <link rel="me" href="https://wa.me/?text=iniciar" />
 
   <meta property="og:type" content="website" />
+  <meta property="og:locale" content="pt_BR" />
   <meta property="og:site_name" content="OmniZap System" />
   <meta property="og:title" content="OmniZap System | Automação WhatsApp para Bots e Empresas" />
   <meta property="og:description" content="Automação, mídia, stickers e API em uma stack pronta para produção." />
   <meta property="og:url" content="https://omnizap.shop/" />
+  <meta property="og:image" content="https://iili.io/fSNGag2.png" />
+  <meta property="og:image:alt" content="Banner OmniZap System com identidade visual tecnológica" />
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="OmniZap System" />
   <meta name="twitter:description" content="Automação WhatsApp com comandos, mídia, stickers e observabilidade." />
+  <meta name="twitter:image" content="https://iili.io/fSNGag2.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -39,6 +50,19 @@
       "price": "0",
       "priceCurrency": "USD"
     }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "OmniZap System",
+    "url": "https://omnizap.shop/",
+    "logo": "https://iili.io/FC3FABe.jpg",
+    "sameAs": [
+      "https://github.com/Kaikygr/omnizap-system",
+      "https://wa.me/?text=iniciar"
+    ]
   }
   </script>
 
@@ -140,6 +164,17 @@
       transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
     }
 
+    .icon-inline {
+      margin-right: 8px;
+      color: #8ec5ff;
+      font-size: .95em;
+    }
+
+    .btn .icon-inline {
+      margin-right: 6px;
+      color: inherit;
+    }
+
     .btn:hover { transform: translateY(-1px); border-color: #3f567f; }
 
     .btn.primary {
@@ -216,6 +251,16 @@
       background: linear-gradient(155deg, #0e1629f2, #101b31f2);
       padding: clamp(16px, 2.8vw, 30px);
       animation: rise .5s ease-out;
+    }
+
+    .hero-banner {
+      display: block;
+      width: 100%;
+      max-height: 220px;
+      object-fit: cover;
+      border-radius: 14px;
+      border: 1px solid #2a3d61;
+      margin-bottom: 14px;
     }
 
     .eyebrow {
@@ -328,6 +373,80 @@
       flex-wrap: wrap;
     }
 
+    .rank-panel {
+      margin-top: 16px;
+      border: 1px solid #2a3b60;
+      border-radius: 14px;
+      background: linear-gradient(160deg, #101a31f2, #12213df2);
+      padding: 16px;
+    }
+
+    .rank-title {
+      margin: 0 0 10px;
+      font-family: "Sora", sans-serif;
+      font-size: 22px;
+    }
+
+    .rank-meta {
+      margin: 0 0 10px;
+      color: #9fb0cc;
+      font-size: 14px;
+    }
+
+    .rank-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 8px;
+    }
+
+    .rank-item {
+      border: 1px solid #334b72;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #0d1629;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .rank-user {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      max-width: 72%;
+    }
+
+    .rank-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid #355182;
+      background: #14243f;
+      flex: 0 0 auto;
+    }
+
+    .rank-name {
+      color: #dce7f9;
+      font-weight: 700;
+      font-size: 14px;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .rank-value {
+      color: #9fb0cc;
+      font-size: 13px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
     .final-cta p { margin: 0; color: #c2d0e5; }
 
     footer {
@@ -390,6 +509,10 @@
     }
 
     @media (max-width: 520px) {
+      .hero-banner {
+        max-height: 140px;
+      }
+
       .wpp-float {
         width: 54px;
         height: 54px;
@@ -416,7 +539,7 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="https://iili.io/FBps3Cb.png"
+            src="https://iili.io/FC3FABe.jpg"
             alt="OmniZap"
             loading="lazy"
             decoding="async"
@@ -433,59 +556,60 @@
         >☰</button>
       </div>
       <nav id="main-nav" class="nav">
-        <a class="btn" href="/api-docs/">API</a>
-        <a class="btn" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">GitHub</a>
+        <a class="btn" href="/api-docs/"><i class="fa-solid fa-code icon-inline" aria-hidden="true"></i>API</a>
+        <a class="btn" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener"><i class="fa-brands fa-github icon-inline" aria-hidden="true"></i>GitHub</a>
       </nav>
     </div>
   </header>
 
   <main class="container">
     <section class="hero">
+      <img class="hero-banner" src="https://iili.io/fSNGag2.png" alt="Banner OmniZap System" loading="lazy" decoding="async" />
       <span class="eyebrow">Open Source SaaS-Ready WhatsApp Automation</span>
       <h1>Automação WhatsApp para bots, operações e empresas com stack pronta para produção.</h1>
       <p class="lead">O OmniZap System é uma plataforma open source para centralizar atendimento automatizado, execução de comandos, rotinas operacionais e integração com APIs em um único projeto.</p>
       <div class="hero-cta">
-        <a class="btn primary" href="/stickers/">Abrir Plataforma</a>
-        <a class="btn" href="/api-docs/">Explorar API</a>
+        <a class="btn primary" href="/stickers/"><i class="fa-solid fa-rocket icon-inline" aria-hidden="true"></i>Abrir Plataforma</a>
+        <a class="btn" href="/api-docs/"><i class="fa-solid fa-book icon-inline" aria-hidden="true"></i>Explorar API</a>
       </div>
     </section>
 
-    <h2 class="section-title">Visão do Projeto</h2>
+    <h2 class="section-title"><i class="fa-solid fa-compass-drafting icon-inline" aria-hidden="true"></i>Visão do Projeto</h2>
     <section class="grid">
       <article class="card">
-        <h3>Base Única de Operação</h3>
+        <h3><i class="fa-solid fa-layer-group icon-inline" aria-hidden="true"></i>Base Única de Operação</h3>
         <p>Consolida automação, comandos, mídia e integrações em uma stack única para reduzir complexidade operacional.</p>
       </article>
       <article class="card">
-        <h3>Arquitetura Modular</h3>
+        <h3><i class="fa-solid fa-cubes icon-inline" aria-hidden="true"></i>Arquitetura Modular</h3>
         <p>Projeto estruturado em módulos para facilitar manutenção, extensão de funcionalidades e evolução contínua do bot.</p>
       </article>
       <article class="card">
-        <h3>Pronto para Produção</h3>
+        <h3><i class="fa-solid fa-shield-halved icon-inline" aria-hidden="true"></i>Pronto para Produção</h3>
         <p>Direcionado para uso real: foco em estabilidade, controle de fluxo, visibilidade e facilidade de deploy.</p>
       </article>
       <article class="card">
-        <h3>Open Source</h3>
+        <h3><i class="fa-solid fa-code-branch icon-inline" aria-hidden="true"></i>Open Source</h3>
         <p>Código aberto para customização completa, integração com sistemas próprios e colaboração da comunidade.</p>
       </article>
     </section>
 
-    <h2 class="section-title">Recursos Principais</h2>
+    <h2 class="section-title"><i class="fa-solid fa-bolt icon-inline" aria-hidden="true"></i>Recursos Principais</h2>
     <section class="grid">
       <article class="card">
-        <h3>Automação de Comandos</h3>
+        <h3><i class="fa-solid fa-terminal icon-inline" aria-hidden="true"></i>Automação de Comandos</h3>
         <p>Módulos para grupos, administração, rotinas de mídia e comandos para fluxos do dia a dia.</p>
       </article>
       <article class="card">
-        <h3>Integrações e API</h3>
+        <h3><i class="fa-solid fa-plug icon-inline" aria-hidden="true"></i>Integrações e API</h3>
         <p>Endpoints para consulta de dados, integração com serviços externos e consumo de recursos públicos do sistema.</p>
       </article>
       <article class="card">
-        <h3>Gestão de Conteúdo</h3>
+        <h3><i class="fa-solid fa-folder-tree icon-inline" aria-hidden="true"></i>Gestão de Conteúdo</h3>
         <p>Organização de assets e packs para manter o conteúdo do bot estruturado e fácil de reutilizar.</p>
       </article>
       <article class="card">
-        <h3>Observabilidade</h3>
+        <h3><i class="fa-solid fa-chart-line icon-inline" aria-hidden="true"></i>Observabilidade</h3>
         <p>Métricas e dados operacionais para monitorar saúde da aplicação, desempenho e capacidade.</p>
       </article>
     </section>
@@ -497,36 +621,36 @@
       data-endpoint="/api/sticker-packs/project-summary"
     ></div>
 
-    <h2 class="section-title">API-First</h2>
+    <h2 class="section-title"><i class="fa-solid fa-code icon-inline" aria-hidden="true"></i>API-First</h2>
     <section class="api">
-      <div class="api-head">Exemplo rápido</div>
+      <div class="api-head"><i class="fa-solid fa-flask-vial icon-inline" aria-hidden="true"></i>Exemplo rápido</div>
       <pre><code>GET /api/sticker-packs?visibility=public&limit=24&offset=0
 GET /api/sticker-packs/orphan-stickers?limit=120&offset=0
 GET /api/sticker-packs/:packKey
 GET /data/stickers/:owner/:file.webp</code></pre>
     </section>
 
-    <h2 class="section-title">Catálogo de Stickers</h2>
+    <h2 class="section-title"><i class="fa-solid fa-icons icon-inline" aria-hidden="true"></i>Catálogo de Stickers</h2>
     <section class="grid">
       <article class="card">
-        <h3>Packs Públicos</h3>
+        <h3><i class="fa-solid fa-globe icon-inline" aria-hidden="true"></i>Packs Públicos</h3>
         <p>Listagem com busca e ordenação para navegar por packs compartilhados e abrir detalhes de cada coleção.</p>
       </article>
       <article class="card">
-        <h3>Compartilhamento Direto</h3>
+        <h3><i class="fa-solid fa-share-nodes icon-inline" aria-hidden="true"></i>Compartilhamento Direto</h3>
         <p>Cada pack possui link dedicado, facilitando divulgação e uso no WhatsApp com comando pré-preenchido.</p>
       </article>
       <article class="card">
-        <h3>Visualização Web</h3>
+        <h3><i class="fa-solid fa-desktop icon-inline" aria-hidden="true"></i>Visualização Web</h3>
         <p>Página de catálogo otimizada para desktop e mobile, com carregamento progressivo e navegação rápida.</p>
       </article>
       <article class="card">
-        <h3>Modo Sem Pack</h3>
+        <h3><i class="fa-solid fa-box-open icon-inline" aria-hidden="true"></i>Modo Sem Pack</h3>
         <p>Área específica para figurinhas sem pack, útil para curadoria e organização do conteúdo recebido.</p>
       </article>
     </section>
 
-    <h2 class="section-title">Métricas do Sistema</h2>
+    <h2 class="section-title"><i class="fa-solid fa-gauge-high icon-inline" aria-hidden="true"></i>Métricas do Sistema</h2>
     <section class="hero-stats">
       <div class="chip" id="metric-host-cpu">CPU host: carregando...</div>
       <div class="chip" id="metric-host-memory">RAM host: carregando...</div>
@@ -534,33 +658,41 @@ GET /data/stickers/:owner/:file.webp</code></pre>
       <div class="chip" id="metric-observability">Observabilidade: carregando...</div>
     </section>
 
+    <section class="rank-panel">
+      <h2 class="rank-title"><i class="fa-solid fa-ranking-star icon-inline" aria-hidden="true"></i>Top usuários recentes</h2>
+      <p class="rank-meta" id="rank-summary">Carregando ranking global...</p>
+      <ul class="rank-list" id="rank-list">
+        <li class="rank-item"><span class="rank-name">Carregando...</span><span class="rank-value">--</span></li>
+      </ul>
+    </section>
+
     <section class="final-cta">
       <p><strong>Pronto para usar o OmniZap na operação?</strong><br />Explore o catálogo de stickers e a API pública para integrar o sistema ao seu fluxo.</p>
-      <a class="btn primary" href="/stickers/">Entrar no Catálogo</a>
+      <a class="btn primary" href="/stickers/"><i class="fa-solid fa-right-to-bracket icon-inline" aria-hidden="true"></i>Entrar no Catálogo</a>
     </section>
   </main>
 
   <footer>
     <div class="container foot-grid">
       <div class="foot-col">
-        <h4>Produto</h4>
-        <a href="/">Home</a>
-        <a href="/stickers/">Stickers</a>
-        <a href="/api-docs/">API Docs</a>
+        <h4><i class="fa-solid fa-cube icon-inline" aria-hidden="true"></i>Produto</h4>
+        <a href="/"><i class="fa-solid fa-house icon-inline" aria-hidden="true"></i>Home</a>
+        <a href="/stickers/"><i class="fa-solid fa-icons icon-inline" aria-hidden="true"></i>Stickers</a>
+        <a href="/api-docs/"><i class="fa-solid fa-book icon-inline" aria-hidden="true"></i>API Docs</a>
       </div>
       <div class="foot-col">
-        <h4>Projeto</h4>
-        <a href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">GitHub</a>
-        <a href="/api/sticker-packs?limit=1">Health API</a>
+        <h4><i class="fa-solid fa-diagram-project icon-inline" aria-hidden="true"></i>Projeto</h4>
+        <a href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener"><i class="fa-brands fa-github icon-inline" aria-hidden="true"></i>GitHub</a>
+        <a href="/api/sticker-packs?limit=1"><i class="fa-solid fa-heart-pulse icon-inline" aria-hidden="true"></i>Health API</a>
       </div>
       <div class="foot-col">
-        <h4>Stack</h4>
-        <a href="#">Node.js</a>
-        <a href="#">MySQL</a>
-        <a href="#">Prometheus/Grafana</a>
+        <h4><i class="fa-solid fa-server icon-inline" aria-hidden="true"></i>Stack</h4>
+        <a href="#"><i class="fa-brands fa-node-js icon-inline" aria-hidden="true"></i>Node.js</a>
+        <a href="#"><i class="fa-solid fa-database icon-inline" aria-hidden="true"></i>MySQL</a>
+        <a href="#"><i class="fa-solid fa-chart-column icon-inline" aria-hidden="true"></i>Prometheus/Grafana</a>
       </div>
       <div class="foot-col">
-        <h4>OmniZap</h4>
+        <h4><i class="fa-solid fa-robot icon-inline" aria-hidden="true"></i>OmniZap</h4>
         <div>OmniZap System - 2026</div>
       </div>
     </div>

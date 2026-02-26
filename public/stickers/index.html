@@ -5,20 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>OmniZap Sticker Packs | Catálogo Web</title>
   <meta name="description" content="Catálogo web de packs de figurinhas do OmniZap com busca, filtros e visualização completa." />
-  <meta name="robots" content="index, follow" />
+  <meta name="keywords" content="sticker packs, figurinhas whatsapp, catálogo de stickers, omnizap stickers, packs públicos" />
+  <meta name="author" content="OmniZap System" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#070a08" />
   <link rel="canonical" href="https://omnizap.shop/stickers/" />
+  <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
+  <link rel="apple-touch-icon" href="https://iili.io/FC3FABe.jpg" />
+  <link rel="sitemap" type="application/xml" href="https://omnizap.shop/sitemap.xml" />
+  <link rel="me" href="https://github.com/Kaikygr/omnizap-system" />
+  <link rel="me" href="https://wa.me/?text=iniciar" />
   <meta property="og:type" content="website" />
+  <meta property="og:locale" content="pt_BR" />
   <meta property="og:site_name" content="OmniZap System" />
   <meta property="og:title" content="OmniZap Sticker Packs | Catálogo Web" />
   <meta property="og:description" content="Explore packs públicos e figurinhas sem pack no catálogo do OmniZap." />
   <meta property="og:url" content="https://omnizap.shop/stickers/" />
+  <meta property="og:image" content="https://iili.io/fSNGag2.png" />
+  <meta property="og:image:alt" content="Banner OmniZap System para o catálogo de stickers" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="OmniZap Sticker Packs" />
   <meta name="twitter:description" content="Catálogo web de packs de figurinhas e stickers do OmniZap." />
+  <meta name="twitter:image" content="https://iili.io/fSNGag2.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="/css/styles.css?v=20260226c" rel="stylesheet" />
 </head>
@@ -27,7 +39,7 @@
     <div class="container">
       <a class="navbar-brand fw-bold d-inline-flex align-items-center gap-2" href="/stickers">
         <img
-          src="https://iili.io/FBps3Cb.png"
+          src="https://iili.io/FC3FABe.jpg"
           alt="OmniZap"
           width="30"
           height="30"
@@ -35,18 +47,18 @@
           loading="lazy"
           decoding="async"
         />
-        <span>OmniZap Sticker Catalog</span>
+        <span><i class="fa-solid fa-icons me-2" aria-hidden="true"></i>OmniZap Sticker Catalog</span>
       </a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#catalog-nav" aria-controls="catalog-nav" aria-expanded="false" aria-label="Alternar navegação">
         <span class="navbar-toggler-icon"></span>
       </button>
       <nav class="collapse navbar-collapse" id="catalog-nav">
         <ul class="navbar-nav ms-auto gap-lg-2">
-          <li class="nav-item"><a class="nav-link" href="/">Início</a></li>
-          <li class="nav-item"><a class="nav-link" href="/api-docs/">API</a></li>
-          <li class="nav-item"><a class="nav-link" href="#packs-section">Packs</a></li>
-          <li class="nav-item"><a class="nav-link" href="#orphan-section">Sem pack</a></li>
-          <li class="nav-item"><a class="nav-link" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">GitHub</a></li>
+          <li class="nav-item"><a class="nav-link" href="/"><i class="fa-solid fa-house me-2" aria-hidden="true"></i>Início</a></li>
+          <li class="nav-item"><a class="nav-link" href="/api-docs/"><i class="fa-solid fa-code me-2" aria-hidden="true"></i>API</a></li>
+          <li class="nav-item"><a class="nav-link" href="#packs-section"><i class="fa-solid fa-layer-group me-2" aria-hidden="true"></i>Packs</a></li>
+          <li class="nav-item"><a class="nav-link" href="#orphan-section"><i class="fa-solid fa-box-open me-2" aria-hidden="true"></i>Sem pack</a></li>
+          <li class="nav-item"><a class="nav-link" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener"><i class="fa-brands fa-github me-2" aria-hidden="true"></i>GitHub</a></li>
         </ul>
       </nav>
     </div>
@@ -83,7 +95,7 @@
             </select>
           </div>
           <div class="col-12 col-md-2 col-lg-2 d-grid">
-            <button class="btn btn-success" type="submit">Pesquisar</button>
+            <button class="btn btn-success" type="submit"><i class="fa-solid fa-magnifying-glass me-2" aria-hidden="true"></i>Pesquisar</button>
           </div>
         </form>
 
@@ -94,31 +106,31 @@
     <section id="packs-section" class="mt-4">
       <div id="grid" class="row g-3"></div>
       <div class="text-center mt-3">
-        <button id="load-more" class="btn btn-success" hidden>Carregar mais</button>
+        <button id="load-more" class="btn btn-success" hidden><i class="fa-solid fa-chevron-down me-2" aria-hidden="true"></i>Carregar mais</button>
       </div>
     </section>
 
     <section id="orphan-section" class="mt-5">
-      <h2 class="h3 mb-2 section-title">Figurinhas Sem Pack</h2>
+      <h2 class="h3 mb-2 section-title"><i class="fa-solid fa-box-open me-2" aria-hidden="true"></i>Figurinhas Sem Pack</h2>
       <div id="orphan-status" class="status-text"></div>
 
       <div id="orphan-grid" class="row g-3 mt-1"></div>
 
       <div id="orphan-pagination" class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3 panel-controls rounded-3 p-2">
-        <button id="orphan-prev" class="btn btn-outline-light btn-sm" type="button" aria-label="Página anterior de figurinhas sem pack">Anterior</button>
+        <button id="orphan-prev" class="btn btn-outline-light btn-sm" type="button" aria-label="Página anterior de figurinhas sem pack"><i class="fa-solid fa-arrow-left me-2" aria-hidden="true"></i>Anterior</button>
         <span id="orphan-page-info" class="small text-secondary flex-grow-1 text-center">Página 1 de 1 - 0 figurinhas</span>
-        <button id="orphan-next" class="btn btn-outline-light btn-sm" type="button" aria-label="Próxima página de figurinhas sem pack">Próxima</button>
+        <button id="orphan-next" class="btn btn-outline-light btn-sm" type="button" aria-label="Próxima página de figurinhas sem pack">Próxima<i class="fa-solid fa-arrow-right ms-2" aria-hidden="true"></i></button>
       </div>
 
-      <button id="orphan-load-more" class="btn btn-success mt-3" hidden>Carregar mais figurinhas</button>
+      <button id="orphan-load-more" class="btn btn-success mt-3" hidden><i class="fa-solid fa-images me-2" aria-hidden="true"></i>Carregar mais figurinhas</button>
     </section>
 
     <section id="pack-page" class="mt-3" hidden>
       <div class="hero-card card shadow-sm border-success-subtle">
         <div class="card-body p-4 p-md-5">
           <div class="d-flex flex-wrap gap-2 mb-3">
-            <button id="pack-page-back" class="btn btn-outline-light btn-sm" type="button">Voltar ao catálogo</button>
-            <button id="pack-page-copy" class="btn btn-success btn-sm" type="button">Copiar link do pack</button>
+            <button id="pack-page-back" class="btn btn-outline-light btn-sm" type="button"><i class="fa-solid fa-arrow-left me-2" aria-hidden="true"></i>Voltar ao catálogo</button>
+            <button id="pack-page-copy" class="btn btn-success btn-sm" type="button"><i class="fa-solid fa-link me-2" aria-hidden="true"></i>Copiar link do pack</button>
             <a
               id="pack-page-whatsapp"
               class="btn btn-outline-success btn-sm"
@@ -126,7 +138,7 @@
               target="_blank"
               rel="noreferrer noopener"
               hidden
-            >Usar no WhatsApp</a>
+            ><i class="fa-brands fa-whatsapp me-2" aria-hidden="true"></i>Usar no WhatsApp</a>
           </div>
           <p class="text-uppercase small fw-semibold text-info-emphasis mb-2">OmniZap / Pack</p>
           <h1 id="pack-page-title" class="display-6 catalog-title mb-2">Carregando pack...</h1>
@@ -152,7 +164,7 @@
         </div>
         <div class="modal-body">
           <div class="d-flex flex-wrap gap-2">
-            <button id="copy-link" class="btn btn-success btn-sm">Copiar link do pack</button>
+            <button id="copy-link" class="btn btn-success btn-sm"><i class="fa-solid fa-link me-2" aria-hidden="true"></i>Copiar link do pack</button>
             <a
               id="use-whatsapp-link"
               class="btn btn-outline-success btn-sm"
@@ -160,13 +172,13 @@
               target="_blank"
               rel="noreferrer noopener"
               hidden
-            >Usar no WhatsApp</a>
+            ><i class="fa-brands fa-whatsapp me-2" aria-hidden="true"></i>Usar no WhatsApp</a>
           </div>
 
           <div id="panel-pagination" class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3 panel-controls rounded-3 p-2">
-            <button id="panel-prev" class="btn btn-outline-light btn-sm" type="button" aria-label="Página anterior de stickers">Anterior</button>
+            <button id="panel-prev" class="btn btn-outline-light btn-sm" type="button" aria-label="Página anterior de stickers"><i class="fa-solid fa-arrow-left me-2" aria-hidden="true"></i>Anterior</button>
             <span id="panel-page-info" class="small text-secondary flex-grow-1 text-center">Página 1 de 1 - 0 stickers</span>
-            <button id="panel-next" class="btn btn-outline-light btn-sm" type="button" aria-label="Próxima página de stickers">Próxima</button>
+            <button id="panel-next" class="btn btn-outline-light btn-sm" type="button" aria-label="Próxima página de stickers">Próxima<i class="fa-solid fa-arrow-right ms-2" aria-hidden="true"></i></button>
           </div>
 
           <div id="panel-error" class="alert alert-danger mt-3 mb-0" hidden></div>
@@ -177,8 +189,8 @@
   </div>
 
   <footer class="container py-4 text-center text-secondary small">
-    <p class="mb-1 fw-semibold text-light">OmniZap System - Sticker Catalog - 2026</p>
-    <p class="mb-0">Powered by OmniZap</p>
+    <p class="mb-1 fw-semibold text-light"><i class="fa-solid fa-icons me-2" aria-hidden="true"></i>OmniZap System - Sticker Catalog - 2026</p>
+    <p class="mb-0"><i class="fa-solid fa-bolt me-2" aria-hidden="true"></i>Powered by OmniZap</p>
   </footer>
 
   <div id="stickers-react-root" hidden></div>
