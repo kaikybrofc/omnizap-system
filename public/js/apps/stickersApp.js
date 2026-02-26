@@ -120,6 +120,34 @@ const loadScript = (src) =>
     document.head.appendChild(script);
   });
 
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error('Arquivo inválido.'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Falha ao ler arquivo.'));
+    reader.readAsDataURL(file);
+  });
+
+const moveArrayItem = (list, fromIndex, toIndex) => {
+  const arr = Array.isArray(list) ? [...list] : [];
+  if (fromIndex < 0 || toIndex < 0 || fromIndex >= arr.length || toIndex >= arr.length) return arr;
+  if (fromIndex === toIndex) return arr;
+  const [item] = arr.splice(fromIndex, 1);
+  arr.splice(toIndex, 0, item);
+  return arr;
+};
+
+const parseTagsInputText = (value) =>
+  String(value || '')
+    .split(',')
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean)
+    .slice(0, 8);
+
 const isRecent = (dateString) => {
   if (!dateString) return false;
   const created = new Date(dateString).getTime();
@@ -472,6 +500,681 @@ function ProfilePage({
   `;
 }
 
+function ToastStack({ toasts = [], onDismiss }) {
+  if (!Array.isArray(toasts) || !toasts.length) return null;
+  return html`
+    <div className="fixed right-3 top-16 z-[90] flex w-[min(92vw,380px)] flex-col gap-2">
+      ${toasts.map(
+        (toast) => html`
+          <div
+            key=${toast.id}
+            className=${`rounded-2xl border px-3 py-2.5 shadow-xl backdrop-blur ${
+              toast.type === 'error'
+                ? 'border-rose-500/35 bg-rose-500/15 text-rose-100'
+                : toast.type === 'warning'
+                  ? 'border-amber-500/35 bg-amber-500/15 text-amber-100'
+                  : 'border-emerald-500/35 bg-emerald-500/15 text-emerald-100'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm leading-5">${toast.message || ''}</p>
+              <button
+                type="button"
+                onClick=${() => onDismiss?.(toast.id)}
+                className="rounded-md border border-white/10 px-1.5 py-0.5 text-[11px] text-white/70 hover:bg-white/10"
+              >
+                fechar
+              </button>
+            </div>
+          </div>
+        `,
+      )}
+    </div>
+  `;
+}
+
+function ConfirmDialog({
+  open = false,
+  title = 'Confirmar',
+  message = '',
+  confirmLabel = 'Confirmar',
+  cancelLabel = 'Cancelar',
+  busy = false,
+  danger = false,
+  onCancel,
+  onConfirm,
+}) {
+  if (!open) return null;
+  return html`
+    <div className="fixed inset-0 z-[88] flex items-end justify-center bg-black/60 p-3 sm:items-center">
+      <button type="button" className="absolute inset-0" onClick=${busy ? undefined : onCancel} aria-label="Fechar"></button>
+      <div className="relative w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl">
+        <h3 className="text-base font-bold text-slate-100">${title}</h3>
+        <p className="mt-2 text-sm text-slate-300">${message}</p>
+        <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick=${onCancel}
+            disabled=${busy}
+            className="h-10 rounded-xl border border-slate-700 px-4 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-60"
+          >
+            ${cancelLabel}
+          </button>
+          <button
+            type="button"
+            onClick=${onConfirm}
+            disabled=${busy}
+            className=${`h-10 rounded-xl border px-4 text-sm font-semibold disabled:opacity-60 ${
+              danger
+                ? 'border-rose-500/35 bg-rose-500/15 text-rose-100 hover:bg-rose-500/20'
+                : 'border-emerald-500/35 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/20'
+            }`}
+          >
+            ${busy ? 'Processando...' : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+const PROFILE_PACK_ACTIONS = [
+  { key: 'manage', label: '🛠️ Gerenciar pack' },
+  { key: 'edit', label: '✏️ Editar pack' },
+  { key: 'visibility', label: '👁️ Alterar visibilidade' },
+  { key: 'duplicate', label: '📤 Duplicar pack' },
+  { key: 'analytics', label: '📊 Ver analytics' },
+  { key: 'delete', label: '🗑️ Apagar pack', danger: true },
+];
+
+function PackActionsSheet({ pack, open = false, busyAction = '', onClose, onAction }) {
+  if (!open || !pack) return null;
+  return html`
+    <div className="fixed inset-0 z-[87] flex items-end justify-center bg-black/60 p-2 sm:items-center">
+      <button type="button" className="absolute inset-0" onClick=${onClose} aria-label="Fechar"></button>
+      <section className="relative w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-3 shadow-2xl">
+        <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-700 sm:hidden"></div>
+        <div className="mb-2 flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-2.5">
+          <img src=${pack.cover_url || 'https://iili.io/fSNGag2.png'} alt="" className="h-14 w-14 rounded-xl border border-slate-800 bg-slate-900 object-cover" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-100">${pack.name || 'Pack'}</p>
+            <p className="truncate text-xs text-slate-400">${pack.pack_key || '-'}</p>
+          </div>
+        </div>
+        <div className="space-y-1">
+          ${PROFILE_PACK_ACTIONS.map((action) => html`
+            <button
+              key=${action.key}
+              type="button"
+              onClick=${() => onAction?.(action.key, pack)}
+              disabled=${Boolean(busyAction)}
+              className=${`w-full rounded-xl border px-3 py-3 text-left text-sm transition disabled:opacity-60 ${
+                action.danger
+                  ? 'border-rose-500/25 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15'
+                  : 'border-slate-700 bg-slate-950/60 text-slate-100 hover:bg-slate-800'
+              }`}
+            >
+              <span>${busyAction === action.key ? '⏳ ' : ''}${action.label}</span>
+            </button>
+          `)}
+        </div>
+        <button type="button" onClick=${onClose} className="mt-3 h-10 w-full rounded-xl border border-slate-700 text-sm text-slate-200 hover:bg-slate-800">
+          Fechar
+        </button>
+      </section>
+    </div>
+  `;
+}
+
+function PackAnalyticsModal({ open = false, pack = null, data = null, loading = false, error = '', onClose }) {
+  if (!open) return null;
+  const analytics = data?.analytics || null;
+  const publishState = data?.publish_state || null;
+  return html`
+    <div className="fixed inset-0 z-[86] flex items-end justify-center bg-black/60 p-3 sm:items-center">
+      <button type="button" className="absolute inset-0" onClick=${onClose} aria-label="Fechar"></button>
+      <section className="relative w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-400">Analytics</p>
+            <h3 className="text-lg font-bold text-slate-100">${pack?.name || 'Pack'}</h3>
+          </div>
+          <button type="button" onClick=${onClose} className="h-9 rounded-lg border border-slate-700 px-3 text-sm text-slate-200 hover:bg-slate-800">Fechar</button>
+        </div>
+
+        ${loading
+          ? html`<div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">${Array.from({ length: 4 }).map((_, i) => html`<div key=${i} className="h-20 animate-pulse rounded-xl border border-slate-800 bg-slate-950/50"></div>`)}</div>`
+          : error
+            ? html`<div className="mt-4 rounded-xl border border-rose-500/35 bg-rose-500/10 p-3 text-sm text-rose-200">${error}</div>`
+            : html`
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <article className="rounded-xl border border-slate-800 bg-slate-950/60 p-3"><p className="text-[11px] text-slate-400">Downloads</p><p className="text-lg font-bold text-slate-100">⬇ ${shortNum(analytics?.downloads || 0)}</p></article>
+                  <article className="rounded-xl border border-slate-800 bg-slate-950/60 p-3"><p className="text-[11px] text-slate-400">Likes</p><p className="text-lg font-bold text-slate-100">❤️ ${shortNum(analytics?.likes || 0)}</p></article>
+                  <article className="rounded-xl border border-slate-800 bg-slate-950/60 p-3"><p className="text-[11px] text-slate-400">Dislikes</p><p className="text-lg font-bold text-slate-100">👎 ${shortNum(analytics?.dislikes || 0)}</p></article>
+                  <article className="rounded-xl border border-slate-800 bg-slate-950/60 p-3"><p className="text-[11px] text-slate-400">Score</p><p className="text-lg font-bold text-slate-100">⭐ ${shortNum(analytics?.score || 0)}</p></article>
+                </div>
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <article className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                    <p className="text-xs font-semibold text-slate-200">Últimas 24h vs 7 dias</p>
+                    <div className="mt-2 space-y-1.5 text-xs text-slate-300">
+                      <p>👆 Aberturas: <span className="font-semibold text-slate-100">${shortNum(analytics?.interaction_window?.open_horizon || 0)}</span> / ${shortNum(analytics?.interaction_window?.open_baseline || 0)}</p>
+                      <p>❤️ Likes: <span className="font-semibold text-slate-100">${shortNum(analytics?.interaction_window?.like_horizon || 0)}</span> / ${shortNum(analytics?.interaction_window?.like_baseline || 0)}</p>
+                      <p>👎 Dislikes: <span className="font-semibold text-slate-100">${shortNum(analytics?.interaction_window?.dislike_horizon || 0)}</span> / ${shortNum(analytics?.interaction_window?.dislike_baseline || 0)}</p>
+                    </div>
+                  </article>
+                  <article className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                    <p className="text-xs font-semibold text-slate-200">Status de publicação</p>
+                    <div className="mt-2 space-y-1.5 text-xs text-slate-300">
+                      <p>Status: <span className="font-semibold text-slate-100">${publishState?.status || '-'}</span></p>
+                      <p>Figurinhas: <span className="font-semibold text-slate-100">${shortNum(publishState?.consistency?.sticker_count || 0)}</span></p>
+                      <p>Uploads falhos: <span className="font-semibold text-slate-100">${shortNum(publishState?.consistency?.failed_uploads || 0)}</span></p>
+                      <p>Capa válida: <span className="font-semibold text-slate-100">${publishState?.consistency?.cover_valid ? 'sim' : 'não'}</span></p>
+                    </div>
+                  </article>
+                </div>
+              `}
+      </section>
+    </div>
+  `;
+}
+
+function CreatorStatCard({ icon, label, value, tone = 'slate', sublabel = '' }) {
+  const toneMap = {
+    emerald: 'border-emerald-500/25 bg-emerald-500/8',
+    cyan: 'border-cyan-500/25 bg-cyan-500/8',
+    amber: 'border-amber-500/25 bg-amber-500/8',
+    rose: 'border-rose-500/25 bg-rose-500/8',
+    slate: 'border-slate-800 bg-slate-900/70',
+    indigo: 'border-indigo-500/25 bg-indigo-500/8',
+  };
+  return html`
+    <article className=${`rounded-2xl border p-3 ${toneMap[tone] || toneMap.slate}`}>
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-xl">${icon || '📊'}</span>
+        <span className="h-8 w-16 rounded-full bg-white/5"></span>
+      </div>
+      <p className="mt-2 text-xl font-bold text-slate-100">${value}</p>
+      <p className="text-xs text-slate-300">${label}</p>
+      ${sublabel ? html`<p className="mt-1 text-[11px] text-slate-500">${sublabel}</p>` : null}
+    </article>
+  `;
+}
+
+function CreatorPackCardPro({ pack, onOpenPublic, onOpenActions, onOpenManage, actionBusy = '' }) {
+  const visibilityPill = formatVisibilityPill(pack?.visibility);
+  const statusPill = formatStatusPill(pack?.status);
+  const engagement = getPackEngagement(pack);
+  const shareable = isShareablePack(pack) && Boolean(pack?.pack_key);
+  const coverUrl = pack?.cover_url || 'https://iili.io/fSNGag2.png';
+  const isCoverHidden = !pack?.cover_url && !isShareablePack(pack);
+
+  return html`
+    <article className="group overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/90 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lg">
+      <div className="relative">
+        <img src=${coverUrl} alt=${`Capa de ${pack?.name || 'Pack'}`} className="h-40 w-full object-cover bg-slate-950" loading="lazy" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/25 to-transparent"></div>
+        <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
+          <span className=${`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${statusPill.className}`}>${statusPill.label}</span>
+          <span className=${`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${visibilityPill.className}`}>${visibilityPill.label}</span>
+        </div>
+        <button
+          type="button"
+          onClick=${() => onOpenActions?.(pack)}
+          className="absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/90 bg-slate-950/80 text-slate-100 hover:bg-slate-800"
+          title="Ações"
+        >
+          ⋮
+        </button>
+        ${isCoverHidden
+          ? html`<div className="absolute bottom-2 left-2 rounded-full border border-slate-600 bg-slate-950/80 px-2 py-0.5 text-[10px] text-slate-300">🔒 capa oculta no catálogo</div>`
+          : null}
+      </div>
+
+      <div className="p-3 space-y-3">
+        <div>
+          <h3 className="truncate text-base font-bold text-slate-100">${pack?.name || 'Pack sem nome'}</h3>
+          <p className="truncate text-[11px] text-slate-500">ID ${pack?.pack_key || '-'}</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-2">
+          <p className="text-[11px] text-slate-300">🧩 ${shortNum(pack?.sticker_count || 0)}</p>
+          <p className="text-[11px] text-slate-300">❤️ ${shortNum(engagement.likeCount)}</p>
+          <p className="text-[11px] text-slate-300">⬇ ${shortNum(engagement.openCount)}</p>
+          <p className="truncate text-[11px] text-slate-300">📅 ${pack?.updated_at ? new Date(pack.updated_at).toLocaleDateString('pt-BR') : '-'}</p>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick=${() => onOpenManage?.(pack)}
+            disabled=${Boolean(actionBusy)}
+            className="inline-flex h-10 flex-1 items-center justify-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60"
+          >
+            ${actionBusy === 'manage' ? 'Abrindo...' : 'Gerenciar pack'}
+          </button>
+          ${shareable
+            ? html`
+                <button
+                  type="button"
+                  onClick=${() => onOpenPublic?.(pack.pack_key)}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20"
+                >
+                  Abrir no catálogo
+                </button>
+              `
+            : null}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function PackManagerModal({
+  open = false,
+  data = null,
+  loading = false,
+  error = '',
+  busyAction = '',
+  onClose,
+  onRefresh,
+  onSaveMetadata,
+  onRemoveSticker,
+  onReplaceSticker,
+  onSetCover,
+  onReorder,
+  onOpenAnalytics,
+}) {
+  const pack = data?.pack || null;
+  const publishState = data?.publish_state || null;
+  const analytics = data?.analytics || null;
+  const items = Array.isArray(pack?.items) ? pack.items : [];
+
+  const [name, setName] = useState('');
+  const [publisher, setPublisher] = useState('');
+  const [description, setDescription] = useState('');
+  const [tagsText, setTagsText] = useState('');
+  const [visibility, setVisibility] = useState('public');
+  const [orderIds, setOrderIds] = useState([]);
+  const [draggingId, setDraggingId] = useState('');
+
+  useEffect(() => {
+    if (!pack) return;
+    setName(String(pack.name || ''));
+    setPublisher(String(pack.publisher || ''));
+    setDescription(String(pack.description || ''));
+    setTagsText(Array.isArray(pack.manual_tags) ? pack.manual_tags.join(', ') : '');
+    setVisibility(String(pack.visibility || 'public'));
+    setOrderIds(items.map((item) => item.sticker_id).filter(Boolean));
+  }, [pack?.id, pack?.version, items.length]);
+
+  useEffect(() => {
+    if (!pack) return;
+    const itemIds = items.map((item) => item.sticker_id).filter(Boolean);
+    setOrderIds((prev) => {
+      const current = Array.isArray(prev) ? prev.filter((id) => itemIds.includes(id)) : [];
+      const missing = itemIds.filter((id) => !current.includes(id));
+      return [...current, ...missing];
+    });
+  }, [pack?.id, items.map((item) => item.sticker_id).join('|')]);
+
+  if (!open) return null;
+
+  const orderMap = new Map(items.map((item) => [item.sticker_id, item]));
+  const orderedItems = orderIds.map((id) => orderMap.get(id)).filter(Boolean);
+  const orderDirty =
+    orderedItems.length === items.length &&
+    orderedItems.some((item, index) => String(item?.sticker_id || '') !== String(items[index]?.sticker_id || ''));
+
+  return html`
+    <div className="fixed inset-0 z-[85] flex items-end justify-center bg-black/65 p-2 sm:items-center sm:p-4">
+      <button type="button" className="absolute inset-0" onClick=${onClose} aria-label="Fechar"></button>
+      <section className="relative flex h-[min(94vh,960px)] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <header className="border-b border-slate-800 bg-slate-950/70 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-wide text-slate-400">Gerenciar pack</p>
+              <h3 className="truncate text-lg font-bold text-slate-100">${pack?.name || 'Carregando...'}</h3>
+              <p className="truncate text-xs text-slate-500">${pack?.pack_key || '-'}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick=${onOpenAnalytics} disabled=${loading || !pack} className="h-10 rounded-xl border border-indigo-500/35 bg-indigo-500/10 px-3 text-xs font-semibold text-indigo-100 hover:bg-indigo-500/20 disabled:opacity-60">📊 Analytics</button>
+              <button type="button" onClick=${onRefresh} disabled=${Boolean(busyAction) || loading} className="h-10 rounded-xl border border-slate-700 px-3 text-xs text-slate-100 hover:bg-slate-800 disabled:opacity-60">${loading ? 'Atualizando...' : 'Atualizar'}</button>
+              <button type="button" onClick=${onClose} className="h-10 rounded-xl border border-slate-700 px-3 text-xs text-slate-100 hover:bg-slate-800">Fechar</button>
+            </div>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
+          ${loading
+            ? html`
+                <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+                  <div className="space-y-3">${Array.from({ length: 4 }).map((_, i) => html`<div key=${i} className="h-24 animate-pulse rounded-2xl border border-slate-800 bg-slate-950/50"></div>`)}</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">${Array.from({ length: 8 }).map((_, i) => html`<div key=${i} className="aspect-square animate-pulse rounded-2xl border border-slate-800 bg-slate-950/50"></div>`)}</div>
+                </div>
+              `
+            : error
+              ? html`<div className="rounded-2xl border border-rose-500/35 bg-rose-500/10 p-3 text-sm text-rose-200">${error}</div>`
+              : !pack
+                ? html`<div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-300">Pack não carregado.</div>`
+                : html`
+                    <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+                      <aside className="space-y-4">
+                        <section className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
+                          <div className="flex gap-3">
+                            <img src=${pack.cover_url || 'https://iili.io/fSNGag2.png'} alt="" className="h-20 w-20 rounded-2xl border border-slate-800 bg-slate-900 object-cover" />
+                            <div className="min-w-0 space-y-1">
+                              <p className="truncate text-sm font-semibold text-slate-100">${pack.name || 'Pack'}</p>
+                              <p className="truncate text-[11px] text-slate-400">${pack.pack_key || '-'}</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                <span className=${`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${formatStatusPill(pack.status).className}`}>${formatStatusPill(pack.status).label}</span>
+                                <span className=${`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${formatVisibilityPill(pack.visibility).className}`}>${formatVisibilityPill(pack.visibility).label}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-2"><p className="text-slate-400">Stickers</p><p className="font-semibold text-slate-100">${shortNum(pack.sticker_count || 0)}</p></div>
+                            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-2"><p className="text-slate-400">Downloads</p><p className="font-semibold text-slate-100">${shortNum(analytics?.downloads || 0)}</p></div>
+                            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-2"><p className="text-slate-400">Likes</p><p className="font-semibold text-slate-100">${shortNum(analytics?.likes || 0)}</p></div>
+                            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-2"><p className="text-slate-400">Pronto p/ publicar</p><p className="font-semibold text-slate-100">${publishState?.consistency?.can_publish ? 'Sim' : 'Não'}</p></div>
+                          </div>
+                        </section>
+
+                        <form
+                          onSubmit=${(event) => {
+                            event.preventDefault();
+                            onSaveMetadata?.({
+                              name,
+                              publisher,
+                              description,
+                              tags: parseTagsInputText(tagsText),
+                              visibility,
+                            });
+                          }}
+                          className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3"
+                        >
+                          <div>
+                            <label className="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">Nome</label>
+                            <input value=${name} onChange=${(e) => setName(e.target.value)} maxLength="120" className="h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-cyan-400/40" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">Publisher</label>
+                            <input value=${publisher} onChange=${(e) => setPublisher(e.target.value)} maxLength="120" className="h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-cyan-400/40" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">Descrição</label>
+                            <textarea value=${description} onChange=${(e) => setDescription(e.target.value)} rows="3" maxLength="1024" className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400/40"></textarea>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">Tags (separadas por vírgula)</label>
+                            <input value=${tagsText} onChange=${(e) => setTagsText(e.target.value)} placeholder="meme, reaction, anime" className="h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-cyan-400/40" />
+                            <p className="mt-1 text-[11px] text-slate-500">Salvas no metadata do pack (máx. 8).</p>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">Visibilidade</label>
+                            <select value=${visibility} onChange=${(e) => setVisibility(e.target.value)} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-cyan-400/40">
+                              <option value="public">Público</option>
+                              <option value="unlisted">Não listado</option>
+                              <option value="private">Privado</option>
+                            </select>
+                          </div>
+                          <button type="submit" disabled=${Boolean(busyAction)} className="h-11 w-full rounded-xl border border-cyan-500/35 bg-cyan-500/10 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60">
+                            ${busyAction === 'saveMetadata' ? 'Salvando...' : 'Salvar alterações'}
+                          </button>
+                        </form>
+                      </aside>
+
+                      <section className="space-y-3 min-w-0">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <h4 className="text-base font-bold text-slate-100">Stickers do pack</h4>
+                            <p className="text-xs text-slate-400">Arraste para reordenar. Use ⭐ para capa, 🔁 para substituir e ❌ para remover.</p>
+                          </div>
+                          ${orderDirty
+                            ? html`
+                                <button
+                                  type="button"
+                                  onClick=${() => onReorder?.(orderIds)}
+                                  disabled=${Boolean(busyAction)}
+                                  className="h-10 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 text-xs font-semibold text-amber-100 hover:bg-amber-500/20 disabled:opacity-60"
+                                >
+                                  ${busyAction === 'reorder' ? 'Salvando ordem...' : 'Salvar ordem'}
+                                </button>
+                              `
+                            : null}
+                        </div>
+
+                        ${orderedItems.length
+                          ? html`
+                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                                ${orderedItems.map((item, index) => {
+                                  const isCover = String(pack?.cover_sticker_id || '') === String(item?.sticker_id || '');
+                                  return html`
+                                    <article
+                                      key=${item.sticker_id}
+                                      draggable="true"
+                                      onDragStart=${() => setDraggingId(item.sticker_id)}
+                                      onDragOver=${(e) => e.preventDefault()}
+                                      onDrop=${(e) => {
+                                        e.preventDefault();
+                                        const fromIndex = orderIds.findIndex((id) => id === draggingId);
+                                        const toIndex = orderIds.findIndex((id) => id === item.sticker_id);
+                                        if (fromIndex >= 0 && toIndex >= 0) {
+                                          setOrderIds(moveArrayItem(orderIds, fromIndex, toIndex));
+                                        }
+                                        setDraggingId('');
+                                      }}
+                                      className=${`group overflow-hidden rounded-2xl border bg-slate-950/40 ${draggingId === item.sticker_id ? 'border-cyan-400/50' : 'border-slate-800'}`}
+                                    >
+                                      <div className="relative aspect-square bg-slate-950">
+                                        <img src=${item.asset_url || 'https://iili.io/fSNGag2.png'} alt=${item.accessibility_label || 'Sticker'} className="h-full w-full object-contain" loading="lazy" />
+                                        <div className="absolute left-2 top-2 rounded-full border border-slate-700 bg-slate-950/90 px-2 py-0.5 text-[10px] text-slate-200">#${index + 1}</div>
+                                        ${isCover ? html`<div className="absolute right-2 top-2 rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-100">⭐ Capa</div>` : null}
+                                      </div>
+                                      <div className="p-2 space-y-2">
+                                        <p className="truncate text-[11px] text-slate-500">${item.sticker_id}</p>
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                          <button type="button" onClick=${() => onSetCover?.(item.sticker_id)} disabled=${Boolean(busyAction)} className="h-8 rounded-lg border border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-100 hover:bg-amber-500/15 disabled:opacity-60">⭐ Capa</button>
+                                          <label className="inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 text-[11px] text-cyan-100 hover:bg-cyan-500/15">
+                                            🔁 Trocar
+                                            <input
+                                              type="file"
+                                              accept="image/*,video/mp4,video/webm,video/quicktime,video/x-m4v"
+                                              className="hidden"
+                                              onChange=${(event) => {
+                                                const file = event.target.files?.[0];
+                                                if (!file) return;
+                                                onReplaceSticker?.(item.sticker_id, file);
+                                                event.target.value = '';
+                                              }}
+                                            />
+                                          </label>
+                                          <button type="button" onClick=${() => onRemoveSticker?.(item.sticker_id)} disabled=${Boolean(busyAction)} className="col-span-2 h-8 rounded-lg border border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-100 hover:bg-rose-500/15 disabled:opacity-60">❌ Remover sticker</button>
+                                        </div>
+                                      </div>
+                                    </article>
+                                  `;
+                                })}
+                              </div>
+                            `
+                          : html`<div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/40 p-6 text-center text-sm text-slate-300">Este pack ainda não possui stickers.</div>`}
+                      </section>
+                    </div>
+                  `}
+        </div>
+
+        <footer className="border-t border-slate-800 bg-slate-950/80 px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+            <span>${busyAction ? `Processando: ${busyAction}` : 'Pronto para gerenciar.'}</span>
+            <span>${publishState?.consistency?.can_publish ? '✅ Pack consistente para publicação' : '⚠️ Revise capa/uploads/stickers antes de publicar'}</span>
+          </div>
+        </footer>
+      </section>
+    </div>
+  `;
+}
+
+function CreatorProfileDashboard({
+  googleAuthConfig,
+  googleAuth,
+  googleAuthBusy,
+  googleAuthError,
+  googleSessionChecked,
+  googleAuthUiReady,
+  googleButtonRef,
+  myPacks,
+  myPacksLoading,
+  myPacksError,
+  myProfileStats,
+  onBack,
+  onRefresh,
+  onLogout,
+  onOpenPublicPack,
+  onOpenPackActions,
+  onOpenManagePack,
+  onProfileAction,
+  packActionBusyByKey = {},
+}) {
+  const hasGoogleLogin = Boolean(googleAuth?.user?.sub);
+  const googleLoginEnabled = Boolean(googleAuthConfig?.enabled && googleAuthConfig?.clientId);
+  const packs = Array.isArray(myPacks) ? myPacks : [];
+  const totals = packs.reduce(
+    (acc, pack) => {
+      const engagement = getPackEngagement(pack);
+      acc.downloads += Number(engagement.openCount || 0);
+      acc.likes += Number(engagement.likeCount || 0);
+      acc.stickers += Number(pack?.sticker_count || 0);
+      if (String(pack?.status || '').toLowerCase() === 'published') {
+        acc.publishedStickers += Number(pack?.sticker_count || 0);
+      }
+      return acc;
+    },
+    { downloads: 0, likes: 0, stickers: 0, publishedStickers: 0 },
+  );
+
+  return html`
+    <section className="space-y-4 pb-20 sm:pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button type="button" onClick=${onBack} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">← Voltar para catálogo</button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick=${() => onProfileAction?.('edit-profile')} className="inline-flex h-10 items-center rounded-xl border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800">✏️ Editar perfil</button>
+          <button type="button" onClick=${() => onProfileAction?.('settings')} className="inline-flex h-10 items-center rounded-xl border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800">⚙️ Configurações</button>
+          <button type="button" onClick=${onRefresh} disabled=${myPacksLoading || googleAuthBusy} className="inline-flex h-10 items-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60">${myPacksLoading ? 'Atualizando...' : 'Atualizar'}</button>
+        </div>
+      </div>
+
+      <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-4 sm:p-5">
+        <div className="pointer-events-none absolute -right-14 -top-14 h-44 w-44 rounded-full bg-cyan-400/10 blur-3xl"></div>
+        <div className="pointer-events-none absolute -left-10 bottom-0 h-36 w-36 rounded-full bg-emerald-400/10 blur-3xl"></div>
+        <div className="relative">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <img
+                src=${googleAuth?.user?.picture || getAvatarUrl(googleAuth?.user?.name || 'creator')}
+                alt="Avatar"
+                className="h-16 w-16 rounded-2xl border border-slate-700 bg-slate-900 object-cover sm:h-20 sm:w-20"
+              />
+              <div className="min-w-0">
+                <div className="mb-1 inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-100">✨ Criador</div>
+                <h1 className="truncate text-xl font-extrabold tracking-tight text-slate-100 sm:text-2xl">${googleAuth?.user?.name || 'Meu perfil de packs'}</h1>
+                <p className="truncate text-xs text-slate-400">${googleAuth?.user?.email || 'Faça login com Google para vincular seus packs.'}</p>
+                <p className="mt-1 text-[11px] text-slate-500">Sessão ${googleAuth?.expiresAt ? `até ${new Date(googleAuth.expiresAt).toLocaleString('pt-BR')}` : hasGoogleLogin ? 'ativa' : 'não autenticada'}</p>
+              </div>
+            </div>
+            ${hasGoogleLogin
+              ? html`<button type="button" onClick=${onLogout} disabled=${googleAuthBusy} className="inline-flex h-10 items-center rounded-xl border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-60">${googleAuthBusy ? 'Saindo...' : 'Sair'}</button>`
+              : null}
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3"><p className="text-[11px] text-slate-400">Packs</p><p className="text-lg font-bold text-slate-100">${shortNum(myProfileStats?.total || 0)}</p></div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3"><p className="text-[11px] text-slate-400">Downloads</p><p className="text-lg font-bold text-slate-100">${shortNum(totals.downloads)}</p></div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3"><p className="text-[11px] text-slate-400">Likes</p><p className="text-lg font-bold text-slate-100">${shortNum(totals.likes)}</p></div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3"><p className="text-[11px] text-slate-400">Stickers publicados</p><p className="text-lg font-bold text-slate-100">${shortNum(totals.publishedStickers)}</p></div>
+          </div>
+        </div>
+      </section>
+
+      ${!hasGoogleLogin
+        ? html`
+            <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+              <div className="space-y-3">
+                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+                  <p className="text-sm font-semibold text-cyan-200">Entrar com Google</p>
+                  <p className="mt-1 text-xs text-slate-300">
+                    ${googleLoginEnabled
+                      ? 'Use a mesma conta Google usada na criação de packs para carregar e gerenciar tudo aqui.'
+                      : 'Login Google indisponível no momento.'}
+                  </p>
+                </div>
+                ${googleLoginEnabled
+                  ? html`
+                      <div ref=${googleButtonRef} className="min-h-[42px] w-full max-w-[340px] overflow-hidden"></div>
+                      ${!googleSessionChecked
+                        ? html`<p className="text-xs text-slate-400">Verificando sessão Google...</p>`
+                        : googleAuthBusy
+                          ? html`<p className="text-xs text-slate-400">Conectando conta Google...</p>`
+                          : !googleAuthUiReady && !googleAuthError
+                            ? html`<p className="text-xs text-slate-400">Carregando login Google...</p>`
+                            : null}
+                    `
+                  : null}
+                ${googleAuthError ? html`<p className="text-xs text-rose-300">${googleAuthError}</p>` : null}
+              </div>
+            </section>
+          `
+        : html`
+            <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <${CreatorStatCard} icon="📦" label="Total de packs" value=${shortNum(myProfileStats?.total || 0)} tone="slate" sublabel="Base de conteúdo" />
+              <${CreatorStatCard} icon="🟢" label="Publicados" value=${shortNum(myProfileStats?.published || 0)} tone="emerald" sublabel="Visíveis no catálogo" />
+              <${CreatorStatCard} icon="🟡" label="Rascunhos" value=${shortNum(myProfileStats?.drafts || 0)} tone="amber" sublabel="Em preparação" />
+              <${CreatorStatCard} icon="🔒" label="Privados" value=${shortNum(myProfileStats?.private || 0)} tone="rose" sublabel="Somente você" />
+              <${CreatorStatCard} icon="🔵" label="Não listados" value=${shortNum(myProfileStats?.unlisted || 0)} tone="cyan" sublabel="Acesso via link" />
+            </section>
+
+            ${myPacksError ? html`<div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">${myPacksError}</div>` : null}
+
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">Packs criados por você</h2>
+                  <p className="text-xs text-slate-400">Gerencie conteúdo, visibilidade e stickers individuais.</p>
+                </div>
+                <span className="text-xs text-slate-400">${myPacksLoading ? 'Carregando...' : `${packs.length} pack(s)`}</span>
+              </div>
+
+              ${myPacksLoading
+                ? html`
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      ${Array.from({ length: 6 }).map((_, index) => html`<div key=${index} className="h-72 animate-pulse rounded-2xl border border-slate-800 bg-slate-900/70"></div>`)}
+                    </div>
+                  `
+                : packs.length
+                  ? html`
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        ${packs.map((pack) => html`
+                          <${CreatorPackCardPro}
+                            key=${pack.id || pack.pack_key}
+                            pack=${pack}
+                            onOpenPublic=${onOpenPublicPack}
+                            onOpenActions=${onOpenPackActions}
+                            onOpenManage=${onOpenManagePack}
+                            actionBusy=${packActionBusyByKey?.[pack.pack_key] || ''}
+                          />
+                        `)}
+                      </div>
+                    `
+                  : html`
+                      <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/60 p-6 text-center">
+                        <p className="text-sm font-semibold text-slate-100">Nenhum pack encontrado para esta conta.</p>
+                        <p className="mt-1 text-xs text-slate-400">Crie um pack com essa conta Google em <a href="/stickers/create/" className="text-cyan-300 underline">/stickers/create</a> e volte aqui.</p>
+                      </div>
+                    `}
+            </section>
+          `}
+    </section>
+  `;
+}
+
 function OrphanCard({ sticker }) {
   return html`
     <article className="group rounded-2xl border border-slate-700/80 bg-slate-800/70 shadow-soft overflow-hidden transition-all duration-200 hover:-translate-y-0.5">
@@ -779,6 +1482,22 @@ function StickersApp() {
     unlisted: 0,
     public: 0,
   });
+  const [packActionBusyByKey, setPackActionBusyByKey] = useState({});
+  const [profileToasts, setProfileToasts] = useState([]);
+  const [packActionsSheetPack, setPackActionsSheetPack] = useState(null);
+  const [confirmDeletePack, setConfirmDeletePack] = useState(null);
+  const [confirmDeleteBusy, setConfirmDeleteBusy] = useState(false);
+  const [managePackOpen, setManagePackOpen] = useState(false);
+  const [managePackData, setManagePackData] = useState(null);
+  const [managePackLoading, setManagePackLoading] = useState(false);
+  const [managePackError, setManagePackError] = useState('');
+  const [managePackBusyAction, setManagePackBusyAction] = useState('');
+  const [managePackTargetKey, setManagePackTargetKey] = useState('');
+  const [analyticsModalOpen, setAnalyticsModalOpen] = useState(false);
+  const [analyticsModalLoading, setAnalyticsModalLoading] = useState(false);
+  const [analyticsModalError, setAnalyticsModalError] = useState('');
+  const [analyticsModalData, setAnalyticsModalData] = useState(null);
+  const [analyticsModalPack, setAnalyticsModalPack] = useState(null);
   const googleButtonRef = useRef(null);
   const googlePromptAttemptedRef = useRef(false);
 
@@ -1035,6 +1754,132 @@ function StickersApp() {
     }
   };
 
+  const pushProfileToast = (message, type = 'success') => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setProfileToasts((prev) => [...prev, { id, message: String(message || ''), type }].slice(-5));
+    window.setTimeout(() => {
+      setProfileToasts((prev) => prev.filter((item) => item.id !== id));
+    }, 4200);
+  };
+
+  const dismissProfileToast = (toastId) => {
+    setProfileToasts((prev) => prev.filter((item) => item.id !== toastId));
+  };
+
+  const setPackActionBusy = (packKey, action = '') => {
+    if (!packKey) return;
+    setPackActionBusyByKey((prev) => {
+      if (!action) {
+        const next = { ...prev };
+        delete next[packKey];
+        return next;
+      }
+      return { ...prev, [packKey]: action };
+    });
+  };
+
+  const buildManagePackApiPath = (packKey, suffix = '') =>
+    `${config.apiBasePath}/${encodeURIComponent(String(packKey || ''))}/manage${suffix}`;
+
+  const applyManagedPackToMyList = (managedData) => {
+    const pack = managedData?.pack || null;
+    if (!pack?.pack_key) return;
+    setMyPacks((prev) => {
+      const list = Array.isArray(prev) ? [...prev] : [];
+      const index = list.findIndex((entry) => String(entry?.pack_key || '') === String(pack.pack_key || ''));
+      if (index >= 0) {
+        list[index] = { ...list[index], ...pack };
+        return list;
+      }
+      return [pack, ...list];
+    });
+  };
+
+  const removePackFromMyList = (packKey) => {
+    if (!packKey) return;
+    setMyPacks((prev) => (Array.isArray(prev) ? prev.filter((entry) => String(entry?.pack_key || '') !== String(packKey)) : []));
+  };
+
+  const loadManagePackData = async (packKey, { openModal = false, silent = false } = {}) => {
+    if (!packKey) return null;
+    if (!silent) setManagePackLoading(true);
+    setManagePackError('');
+    setManagePackTargetKey(String(packKey));
+    if (openModal) setManagePackOpen(true);
+    try {
+      const payload = await fetchJson(buildManagePackApiPath(packKey));
+      const managed = payload?.data || null;
+      setManagePackData(managed);
+      applyManagedPackToMyList(managed);
+      return managed;
+    } catch (err) {
+      setManagePackError(err?.message || 'Falha ao carregar gerenciador do pack.');
+      throw err;
+    } finally {
+      if (!silent) setManagePackLoading(false);
+    }
+  };
+
+  const openManagePackByKey = async (packKey) => {
+    if (!packKey) return;
+    setPackActionBusy(packKey, 'manage');
+    setPackActionsSheetPack(null);
+    try {
+      await loadManagePackData(packKey, { openModal: true });
+    } catch (err) {
+      pushProfileToast(err?.message || 'Falha ao abrir gerenciador do pack.', 'error');
+      setManagePackOpen(false);
+    } finally {
+      setPackActionBusy(packKey, '');
+    }
+  };
+
+  const closeManagePackModal = () => {
+    setManagePackOpen(false);
+    setManagePackBusyAction('');
+    setManagePackError('');
+  };
+
+  const refreshManagePackData = async () => {
+    if (!managePackTargetKey) return;
+    try {
+      await loadManagePackData(managePackTargetKey, { openModal: true });
+    } catch {}
+  };
+
+  const applyManagedMutationResult = async (payloadData, { successMessage = '' } = {}) => {
+    const managed = payloadData?.pack ? payloadData : payloadData?.data?.pack ? payloadData.data : payloadData;
+    if (managed?.pack) {
+      setManagePackData(managed);
+      applyManagedPackToMyList(managed);
+    }
+    await refreshMyProfile({ silent: true }).catch(() => {});
+    if (successMessage) pushProfileToast(successMessage, 'success');
+    return managed;
+  };
+
+  const openAnalyticsModalForPack = async (pack) => {
+    if (!pack?.pack_key) return;
+    setAnalyticsModalPack(pack);
+    setAnalyticsModalOpen(true);
+    setAnalyticsModalError('');
+    setAnalyticsModalLoading(true);
+    try {
+      const payload = await fetchJson(buildManagePackApiPath(pack.pack_key, '/analytics'));
+      setAnalyticsModalData(payload?.data || null);
+    } catch (err) {
+      setAnalyticsModalError(err?.message || 'Falha ao carregar analytics do pack.');
+    } finally {
+      setAnalyticsModalLoading(false);
+    }
+  };
+
+  const closeAnalyticsModal = () => {
+    setAnalyticsModalOpen(false);
+    setAnalyticsModalError('');
+    setAnalyticsModalLoading(false);
+  };
+
   const mergeEngagementInPack = (pack, engagement) => {
     if (!pack || !engagement) return pack;
     return {
@@ -1188,6 +2033,230 @@ function StickersApp() {
     setCurrentPack(null);
     setRelatedPacks([]);
     setError('');
+  };
+
+  const cycleVisibilityValue = (currentVisibility) => {
+    const normalized = String(currentVisibility || '').toLowerCase();
+    if (normalized === 'public') return 'unlisted';
+    if (normalized === 'unlisted') return 'private';
+    return 'public';
+  };
+
+  const openPackActionsSheet = (pack) => {
+    if (!pack?.pack_key) return;
+    setPackActionsSheetPack(pack);
+  };
+
+  const closePackActionsSheet = () => {
+    setPackActionsSheetPack(null);
+  };
+
+  const runPackQuickMutation = async (packKey, actionName, task) => {
+    if (!packKey || typeof task !== 'function') return null;
+    setPackActionBusy(packKey, actionName);
+    try {
+      return await task();
+    } finally {
+      setPackActionBusy(packKey, '');
+    }
+  };
+
+  const handlePackVisibilityQuickToggle = async (pack) => {
+    if (!pack?.pack_key) return;
+    const nextVisibility = cycleVisibilityValue(pack.visibility);
+    await runPackQuickMutation(pack.pack_key, 'visibility', async () => {
+      const payload = await fetchJson(buildManagePackApiPath(pack.pack_key), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ visibility: nextVisibility }),
+      });
+      await applyManagedMutationResult(payload?.data ? payload : { data: payload }, {
+        successMessage: `Visibilidade alterada para ${nextVisibility}.`,
+      });
+      if (managePackOpen && String(managePackTargetKey || '') === String(pack.pack_key)) {
+        setManagePackData(payload?.data || null);
+      }
+    }).catch((err) => {
+      pushProfileToast(err?.message || 'Falha ao alterar visibilidade.', 'error');
+    });
+  };
+
+  const handlePackDuplicate = async (pack) => {
+    if (!pack?.pack_key) return;
+    await runPackQuickMutation(pack.pack_key, 'duplicate', async () => {
+      await fetchJson(buildManagePackApiPath(pack.pack_key, '/clone'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({}),
+      });
+      await refreshMyProfile({ silent: true });
+      pushProfileToast('Pack duplicado com sucesso.', 'success');
+    }).catch((err) => {
+      pushProfileToast(err?.message || 'Falha ao duplicar pack.', 'error');
+    });
+  };
+
+  const requestDeletePack = (pack) => {
+    if (!pack?.pack_key) return;
+    setConfirmDeletePack(pack);
+    setConfirmDeleteBusy(false);
+    closePackActionsSheet();
+  };
+
+  const handleDeletePackConfirmed = async () => {
+    const pack = confirmDeletePack;
+    if (!pack?.pack_key) return;
+    setConfirmDeleteBusy(true);
+    try {
+      await fetchJson(buildManagePackApiPath(pack.pack_key), { method: 'DELETE' });
+      removePackFromMyList(pack.pack_key);
+      await refreshMyProfile({ silent: true });
+      if (managePackOpen && String(managePackTargetKey || '') === String(pack.pack_key)) {
+        closeManagePackModal();
+      }
+      pushProfileToast('Pack apagado com sucesso.', 'success');
+      setConfirmDeletePack(null);
+    } catch (err) {
+      pushProfileToast(err?.message || 'Falha ao apagar pack.', 'error');
+    } finally {
+      setConfirmDeleteBusy(false);
+    }
+  };
+
+  const handleProfileAction = (actionKey) => {
+    if (actionKey === 'edit-profile') {
+      pushProfileToast('Edição de perfil do criador será adicionada na próxima etapa.', 'warning');
+      return;
+    }
+    if (actionKey === 'settings') {
+      pushProfileToast('Configurações do criador ainda não têm tela dedicada.', 'warning');
+      return;
+    }
+  };
+
+  const handlePackActionsSheetAction = async (actionKey, pack) => {
+    if (!pack?.pack_key) return;
+    if (actionKey === 'manage' || actionKey === 'edit') {
+      await openManagePackByKey(pack.pack_key);
+      return;
+    }
+    if (actionKey === 'visibility') {
+      closePackActionsSheet();
+      await handlePackVisibilityQuickToggle(pack);
+      return;
+    }
+    if (actionKey === 'duplicate') {
+      closePackActionsSheet();
+      await handlePackDuplicate(pack);
+      return;
+    }
+    if (actionKey === 'analytics') {
+      closePackActionsSheet();
+      await openAnalyticsModalForPack(pack);
+      return;
+    }
+    if (actionKey === 'delete') {
+      requestDeletePack(pack);
+    }
+  };
+
+  const runManagePackMutation = async (actionName, task, successMessage = '') => {
+    if (!managePackTargetKey) return null;
+    setManagePackBusyAction(actionName);
+    setManagePackError('');
+    try {
+      const result = await task();
+      if (result?.data?.pack || result?.pack) {
+        const managed = result?.data?.pack ? result.data : result;
+        setManagePackData(managed);
+        applyManagedPackToMyList(managed);
+      }
+      await refreshMyProfile({ silent: true });
+      if (successMessage) pushProfileToast(successMessage, 'success');
+      return result;
+    } catch (err) {
+      setManagePackError(err?.message || 'Falha ao atualizar pack.');
+      pushProfileToast(err?.message || 'Falha ao atualizar pack.', 'error');
+      throw err;
+    } finally {
+      setManagePackBusyAction('');
+    }
+  };
+
+  const handleManageSaveMetadata = async (values) => {
+    if (!managePackTargetKey) return;
+    await runManagePackMutation(
+      'saveMetadata',
+      async () =>
+        fetchJson(buildManagePackApiPath(managePackTargetKey), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({
+            name: values?.name,
+            publisher: values?.publisher,
+            description: values?.description,
+            tags: Array.isArray(values?.tags) ? values.tags : [],
+            visibility: values?.visibility,
+          }),
+        }),
+      'Pack atualizado.',
+    ).catch(() => {});
+  };
+
+  const handleManageSetCover = async (stickerId) => {
+    if (!managePackTargetKey || !stickerId) return;
+    await runManagePackMutation(
+      'setCover',
+      async () =>
+        fetchJson(buildManagePackApiPath(managePackTargetKey, '/cover'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ sticker_id: stickerId }),
+        }),
+      'Capa atualizada.',
+    ).catch(() => {});
+  };
+
+  const handleManageRemoveSticker = async (stickerId) => {
+    if (!managePackTargetKey || !stickerId) return;
+    await runManagePackMutation(
+      'removeSticker',
+      async () => fetchJson(`${buildManagePackApiPath(managePackTargetKey, '/stickers')}/${encodeURIComponent(stickerId)}`, { method: 'DELETE' }),
+      'Sticker removido do pack.',
+    ).catch(() => {});
+  };
+
+  const handleManageReplaceSticker = async (stickerId, file) => {
+    if (!managePackTargetKey || !stickerId || !file) return;
+    try {
+      const stickerDataUrl = await readFileAsDataUrl(file);
+      await runManagePackMutation(
+        'replaceSticker',
+        async () =>
+          fetchJson(`${buildManagePackApiPath(managePackTargetKey, '/stickers')}/${encodeURIComponent(stickerId)}/replace`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=utf-8' },
+            body: JSON.stringify({ sticker_data_url: stickerDataUrl }),
+          }),
+        'Sticker substituído com sucesso.',
+      );
+    } catch (err) {
+      pushProfileToast(err?.message || 'Falha ao substituir sticker.', 'error');
+    }
+  };
+
+  const handleManageReorder = async (orderStickerIds) => {
+    if (!managePackTargetKey || !Array.isArray(orderStickerIds) || !orderStickerIds.length) return;
+    await runManagePackMutation(
+      'reorder',
+      async () =>
+        fetchJson(buildManagePackApiPath(managePackTargetKey, '/reorder'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ order_sticker_ids: orderStickerIds }),
+        }),
+      'Ordem dos stickers salva.',
+    ).catch(() => {});
   };
 
   const handleLike = async (packKey) => {
@@ -1584,7 +2653,7 @@ function StickersApp() {
 
         ${isProfileView
           ? html`
-              <${ProfilePage}
+              <${CreatorProfileDashboard}
                 googleAuthConfig=${googleAuthConfig}
                 googleAuth=${googleAuth}
                 googleAuthBusy=${googleAuthBusy}
@@ -1600,6 +2669,10 @@ function StickersApp() {
                 onRefresh=${() => refreshMyProfile()}
                 onLogout=${handleGoogleLogout}
                 onOpenPublicPack=${openPack}
+                onOpenPackActions=${openPackActionsSheet}
+                onOpenManagePack=${(pack) => openManagePackByKey(pack?.pack_key || '')}
+                onProfileAction=${handleProfileAction}
+                packActionBusyByKey=${packActionBusyByKey}
               />
             `
           : currentPackKey
@@ -1843,6 +2916,48 @@ function StickersApp() {
           setUploadTask(null);
         }}
       />
+      <${PackActionsSheet}
+        open=${Boolean(packActionsSheetPack)}
+        pack=${packActionsSheetPack}
+        busyAction=${packActionsSheetPack ? packActionBusyByKey?.[packActionsSheetPack.pack_key] || '' : ''}
+        onClose=${closePackActionsSheet}
+        onAction=${handlePackActionsSheetAction}
+      />
+      <${PackManagerModal}
+        open=${managePackOpen}
+        data=${managePackData}
+        loading=${managePackLoading}
+        error=${managePackError}
+        busyAction=${managePackBusyAction}
+        onClose=${closeManagePackModal}
+        onRefresh=${refreshManagePackData}
+        onSaveMetadata=${handleManageSaveMetadata}
+        onRemoveSticker=${handleManageRemoveSticker}
+        onReplaceSticker=${handleManageReplaceSticker}
+        onSetCover=${handleManageSetCover}
+        onReorder=${handleManageReorder}
+        onOpenAnalytics=${() => openAnalyticsModalForPack(managePackData?.pack || null)}
+      />
+      <${PackAnalyticsModal}
+        open=${analyticsModalOpen}
+        pack=${analyticsModalPack}
+        data=${analyticsModalData}
+        loading=${analyticsModalLoading}
+        error=${analyticsModalError}
+        onClose=${closeAnalyticsModal}
+      />
+      <${ConfirmDialog}
+        open=${Boolean(confirmDeletePack)}
+        title="Apagar pack"
+        message=${confirmDeletePack ? `Tem certeza que deseja apagar o pack "${confirmDeletePack.name || confirmDeletePack.pack_key}"? Essa ação remove o pack do seu painel.` : ''}
+        confirmLabel="Apagar pack"
+        cancelLabel="Cancelar"
+        danger=${true}
+        busy=${confirmDeleteBusy}
+        onCancel=${() => (confirmDeleteBusy ? null : setConfirmDeletePack(null))}
+        onConfirm=${handleDeletePackConfirmed}
+      />
+      <${ToastStack} toasts=${profileToasts} onDismiss=${dismissProfileToast} />
     </div>
   `;
 }

@@ -2171,6 +2171,491 @@ const handleMyProfileRequest = async (req, res) => {
   });
 };
 
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
+
+const mapStickerPackWebManageError = (error) => {
+  if (!(error instanceof StickerPackError)) {
+    return {
+      statusCode: 500,
+      code: STICKER_PACK_ERROR_CODES.INTERNAL_ERROR,
+      message: error?.message || 'Falha interna ao gerenciar pack.',
+    };
+  }
+
+  if (error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND) {
+    return { statusCode: 404, code: error.code, message: error.message || 'Pack nao encontrado.' };
+  }
+  if (error.code === STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND) {
+    return { statusCode: 404, code: error.code, message: error.message || 'Sticker nao encontrado.' };
+  }
+  if (error.code === STICKER_PACK_ERROR_CODES.NOT_ALLOWED) {
+    return { statusCode: 403, code: error.code, message: error.message || 'Operacao nao permitida.' };
+  }
+  if (error.code === STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED) {
+    return { statusCode: 429, code: error.code, message: error.message || 'Limite de packs atingido.' };
+  }
+  if (error.code === STICKER_PACK_ERROR_CODES.INVALID_INPUT) {
+    return { statusCode: 400, code: error.code, message: error.message || 'Dados invalidos.' };
+  }
+  return { statusCode: 400, code: error.code, message: error.message || 'Falha ao gerenciar pack.' };
+};
+
+const requireGoogleWebSessionForManagement = (req, res) => {
+  const session = resolveGoogleWebSessionFromRequest(req);
+  if (!session?.ownerJid) {
+    sendJson(req, res, 401, {
+      error: 'Login Google obrigatorio para gerenciar packs.',
+      code: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+    });
+    return null;
+  }
+  return session;
+};
+
+const loadOwnedPackForWebManagement = async (req, res, packKey) => {
+  const session = requireGoogleWebSessionForManagement(req, res);
+  if (!session) return null;
+
+  const normalizedPackKey = sanitizeText(packKey, 160, { allowEmpty: false });
+  if (!normalizedPackKey) {
+    sendJson(req, res, 400, {
+      error: 'pack_key invalido.',
+      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    });
+    return null;
+  }
+
+  try {
+    const pack = await stickerPackService.getPackInfo({
+      ownerJid: session.ownerJid,
+      identifier: normalizedPackKey,
+    });
+    return { session, packKey: normalizedPackKey, pack };
+  } catch (error) {
+    const mapped = mapStickerPackWebManageError(error);
+    sendJson(req, res, mapped.statusCode, {
+      error: mapped.message,
+      code: mapped.code,
+    });
+    return null;
+  }
+};
+
+const buildManagedPackAnalytics = async (pack) => {
+  const engagement = await getStickerPackEngagementByPackId(pack.id);
+  const interactionStatsByPack = await listStickerPackInteractionStatsByPackIds([pack.id]);
+  const interaction = interactionStatsByPack.get(pack.id) || {
+    open_horizon: 0,
+    open_baseline: 0,
+    like_horizon: 0,
+    like_baseline: 0,
+    dislike_horizon: 0,
+    dislike_baseline: 0,
+  };
+  return {
+    downloads: Number(engagement?.open_count || 0),
+    likes: Number(engagement?.like_count || 0),
+    dislikes: Number(engagement?.dislike_count || 0),
+    score:
+      Number(engagement?.score || 0) ||
+      Number(engagement?.like_count || 0) - Number(engagement?.dislike_count || 0),
+    engagement: {
+      open_count: Number(engagement?.open_count || 0),
+      like_count: Number(engagement?.like_count || 0),
+      dislike_count: Number(engagement?.dislike_count || 0),
+      updated_at: toIsoOrNull(engagement?.updated_at || null),
+    },
+    interaction_window: {
+      open_horizon: Number(interaction.open_horizon || 0),
+      open_baseline: Number(interaction.open_baseline || 0),
+      like_horizon: Number(interaction.like_horizon || 0),
+      like_baseline: Number(interaction.like_baseline || 0),
+      dislike_horizon: Number(interaction.dislike_horizon || 0),
+      dislike_baseline: Number(interaction.dislike_baseline || 0),
+    },
+  };
+};
+
+const buildManagedPackResponseData = async (pack) => {
+  const items = Array.isArray(pack?.items) ? pack.items : [];
+  const stickerIds = items.map((item) => item.sticker_id).filter(Boolean);
+
+  const [classifications, packClassification, analytics, publishState] = await Promise.all([
+    stickerIds.length ? listStickerClassificationsByAssetIds(stickerIds) : Promise.resolve([]),
+    pack?.classification || (stickerIds.length ? getPackClassificationSummaryByAssetIds(stickerIds).catch(() => null) : null),
+    buildManagedPackAnalytics(pack),
+    buildPackPublishStateData(pack, { includeUploads: true }),
+  ]);
+
+  const byAssetClassification = new Map((Array.isArray(classifications) ? classifications : []).map((entry) => [entry.asset_id, entry]));
+
+  return {
+    pack: mapPackDetails(pack, items, {
+      byAssetClassification,
+      packClassification: packClassification || null,
+      engagement: analytics.engagement,
+      signals: null,
+    }),
+    publish_state: publishState,
+    analytics,
+  };
+};
+
+const sendManagedPackResponse = async (req, res, pack) => {
+  const data = await buildManagedPackResponseData(pack);
+  sendJson(req, res, 200, { data });
+};
+
+const parseTagListInput = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') return value.split(',');
+  return [];
+};
+
+const handleManagedPackRequest = async (req, res, packKey) => {
+  if (!['GET', 'HEAD', 'PATCH', 'DELETE'].includes(req.method || '')) {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  const context = await loadOwnedPackForWebManagement(req, res, packKey);
+  if (!context) return;
+  const { session, packKey: normalizedPackKey } = context;
+
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    await sendManagedPackResponse(req, res, context.pack);
+    return;
+  }
+
+  if (req.method === 'DELETE') {
+    try {
+      const deleted = await stickerPackService.deletePack({
+        ownerJid: session.ownerJid,
+        identifier: normalizedPackKey,
+      });
+      sendJson(req, res, 200, {
+        data: {
+          deleted: true,
+          pack_key: deleted?.pack_key || normalizedPackKey,
+          id: deleted?.id || null,
+          deleted_at: toIsoOrNull(deleted?.deleted_at || new Date()),
+        },
+      });
+    } catch (error) {
+      const mapped = mapStickerPackWebManageError(error);
+      sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+    }
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  try {
+    let updatedPack = context.pack;
+
+    if (hasOwn(payload, 'name')) {
+      updatedPack = await stickerPackService.renamePack({
+        ownerJid: session.ownerJid,
+        identifier: normalizedPackKey,
+        name: payload.name,
+      });
+    }
+
+    if (hasOwn(payload, 'publisher')) {
+      updatedPack = await stickerPackService.setPackPublisher({
+        ownerJid: session.ownerJid,
+        identifier: normalizedPackKey,
+        publisher: payload.publisher,
+      });
+    }
+
+    if (hasOwn(payload, 'visibility')) {
+      updatedPack = await stickerPackService.setPackVisibility({
+        ownerJid: session.ownerJid,
+        identifier: normalizedPackKey,
+        visibility: payload.visibility,
+      });
+    }
+
+    if (hasOwn(payload, 'description') || hasOwn(payload, 'tags')) {
+      const currentMeta = parsePackDescriptionMetadata(updatedPack?.description);
+      const nextDescription = hasOwn(payload, 'description') ? String(payload?.description || '') : String(currentMeta.cleanDescription || '');
+      const nextTags = hasOwn(payload, 'tags') ? parseTagListInput(payload?.tags) : currentMeta.tags;
+      const descriptionWithTags = buildPackDescriptionWithTags(nextDescription, nextTags);
+      updatedPack = await stickerPackService.setPackDescription({
+        ownerJid: session.ownerJid,
+        identifier: normalizedPackKey,
+        description: descriptionWithTags || '',
+      });
+    }
+
+    await sendManagedPackResponse(req, res, updatedPack);
+  } catch (error) {
+    const mapped = mapStickerPackWebManageError(error);
+    sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+  }
+};
+
+const handleManagedPackCloneRequest = async (req, res, packKey) => {
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const context = await loadOwnedPackForWebManagement(req, res, packKey);
+  if (!context) return;
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  const baseName = sanitizeText(context.pack?.name || 'Pack', PACK_CREATE_MAX_NAME_LENGTH, { allowEmpty: false }) || 'Pack';
+  const requestedName = sanitizeText(payload?.new_name || '', PACK_CREATE_MAX_NAME_LENGTH, { allowEmpty: true });
+  const newName = requestedName || `${baseName} (copia)`;
+
+  try {
+    const cloned = await stickerPackService.clonePack({
+      ownerJid: context.session.ownerJid,
+      identifier: context.packKey,
+      newName,
+    });
+    sendJson(req, res, 201, {
+      data: {
+        pack: mapPackSummary(cloned),
+      },
+    });
+  } catch (error) {
+    const mapped = mapStickerPackWebManageError(error);
+    sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+  }
+};
+
+const handleManagedPackCoverRequest = async (req, res, packKey) => {
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const context = await loadOwnedPackForWebManagement(req, res, packKey);
+  if (!context) return;
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  try {
+    const updated = await stickerPackService.setPackCover({
+      ownerJid: context.session.ownerJid,
+      identifier: context.packKey,
+      stickerId: payload?.sticker_id,
+    });
+    await sendManagedPackResponse(req, res, updated);
+  } catch (error) {
+    const mapped = mapStickerPackWebManageError(error);
+    sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+  }
+};
+
+const handleManagedPackReorderRequest = async (req, res, packKey) => {
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const context = await loadOwnedPackForWebManagement(req, res, packKey);
+  if (!context) return;
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  try {
+    const updated = await stickerPackService.reorderPackItems({
+      ownerJid: context.session.ownerJid,
+      identifier: context.packKey,
+      orderStickerIds: Array.isArray(payload?.order_sticker_ids) ? payload.order_sticker_ids : [],
+    });
+    await sendManagedPackResponse(req, res, updated);
+  } catch (error) {
+    const mapped = mapStickerPackWebManageError(error);
+    sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+  }
+};
+
+const handleManagedPackStickerDeleteRequest = async (req, res, packKey, stickerId) => {
+  if (req.method !== 'DELETE') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const context = await loadOwnedPackForWebManagement(req, res, packKey);
+  if (!context) return;
+
+  try {
+    const result = await stickerPackService.removeStickerFromPack({
+      ownerJid: context.session.ownerJid,
+      identifier: context.packKey,
+      selector: stickerId,
+    });
+    await sendManagedPackResponse(req, res, result?.pack || context.pack);
+  } catch (error) {
+    const mapped = mapStickerPackWebManageError(error);
+    sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+  }
+};
+
+const handleManagedPackStickerReplaceRequest = async (req, res, packKey, stickerId) => {
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const context = await loadOwnedPackForWebManagement(req, res, packKey);
+  if (!context) return;
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req, {
+      maxBytes: Math.max(256 * 1024, Math.round(MAX_STICKER_SOURCE_UPLOAD_BYTES * 1.6)),
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  const decoded = decodeStickerBase64Payload(payload?.sticker_base64 || payload?.sticker_data_url || '');
+  if (!decoded?.buffer) {
+    sendJson(req, res, 400, {
+      error: 'Envie sticker_base64 ou sticker_data_url.',
+      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    });
+    return;
+  }
+  if (decoded.buffer.length > MAX_STICKER_SOURCE_UPLOAD_BYTES) {
+    sendJson(req, res, 400, {
+      error: `Arquivo excede limite de ${Math.round(MAX_STICKER_SOURCE_UPLOAD_BYTES / (1024 * 1024))}MB.`,
+      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    });
+    return;
+  }
+
+  const normalizedStickerId = sanitizeText(stickerId, 36, { allowEmpty: false });
+  if (!normalizedStickerId) {
+    sendJson(req, res, 400, { error: 'sticker_id invalido.', code: STICKER_PACK_ERROR_CODES.INVALID_INPUT });
+    return;
+  }
+
+  try {
+    const originalPack = await stickerPackService.getPackInfo({
+      ownerJid: context.session.ownerJid,
+      identifier: context.packKey,
+    });
+    const originalItems = Array.isArray(originalPack?.items) ? originalPack.items : [];
+    const oldItem = originalItems.find((item) => item?.sticker_id === normalizedStickerId);
+    if (!oldItem) {
+      sendJson(req, res, 404, { error: 'Sticker nao encontrado no pack.', code: STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND });
+      return;
+    }
+
+    const normalizedUpload = await convertUploadMediaToWebp({
+      ownerJid: context.session.ownerJid,
+      buffer: decoded.buffer,
+      mimetype: decoded.mimetype || 'image/webp',
+    });
+    const asset = await saveStickerAssetFromBuffer({
+      ownerJid: context.session.ownerJid,
+      buffer: normalizedUpload.buffer,
+      mimetype: normalizedUpload.mimetype || 'image/webp',
+    });
+
+    const addedPack = await stickerPackService.addStickerToPack({
+      ownerJid: context.session.ownerJid,
+      identifier: context.packKey,
+      asset: { id: asset.id },
+      emojis: Array.isArray(oldItem?.emojis) ? oldItem.emojis : [],
+      accessibilityLabel: oldItem?.accessibility_label || null,
+    });
+
+    const originalOrder = originalItems.map((item) => item.sticker_id).filter(Boolean);
+    const afterAddItems = Array.isArray(addedPack?.items) ? addedPack.items : [];
+    const afterAddIds = afterAddItems.map((item) => item.sticker_id).filter(Boolean);
+    const requestedOrder = originalOrder.map((id) => (id === normalizedStickerId ? asset.id : id));
+    const finalReorderPayload = requestedOrder.filter(Boolean);
+
+    let workingPack = addedPack;
+    if (afterAddIds.length > 1 && finalReorderPayload.length) {
+      workingPack = await stickerPackService.reorderPackItems({
+        ownerJid: context.session.ownerJid,
+        identifier: context.packKey,
+        orderStickerIds: finalReorderPayload,
+      });
+    }
+
+    if (String(originalPack?.cover_sticker_id || '') === normalizedStickerId) {
+      workingPack = await stickerPackService.setPackCover({
+        ownerJid: context.session.ownerJid,
+        identifier: context.packKey,
+        stickerId: asset.id,
+      });
+    }
+
+    const removeResult = await stickerPackService.removeStickerFromPack({
+      ownerJid: context.session.ownerJid,
+      identifier: context.packKey,
+      selector: normalizedStickerId,
+    });
+    const finalPack = removeResult?.pack || workingPack;
+
+    sendJson(req, res, 200, {
+      data: {
+        replaced_sticker_id: normalizedStickerId,
+        new_sticker_id: asset.id,
+        ...(await buildManagedPackResponseData(finalPack)),
+      },
+    });
+  } catch (error) {
+    const mapped = mapStickerPackWebManageError(error);
+    sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+  }
+};
+
+const handleManagedPackAnalyticsRequest = async (req, res, packKey) => {
+  if (!['GET', 'HEAD'].includes(req.method || '')) {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const context = await loadOwnedPackForWebManagement(req, res, packKey);
+  if (!context) return;
+
+  try {
+    const analytics = await buildManagedPackAnalytics(context.pack);
+    const publishState = await buildPackPublishStateData(context.pack, { includeUploads: true });
+    sendJson(req, res, 200, {
+      data: {
+        pack_key: context.packKey,
+        analytics,
+        publish_state: publishState,
+      },
+    });
+  } catch (error) {
+    const mapped = mapStickerPackWebManageError(error);
+    sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+  }
+};
+
 const normalizeCreatePackName = (value) =>
   sanitizeText(value, PACK_CREATE_MAX_NAME_LENGTH, { allowEmpty: true }) || '';
 
@@ -3778,6 +4263,41 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
       return true;
     }
     await handlePackInteractionRequest(req, res, segments[0], segments[1], url);
+    return true;
+  }
+
+  if (segments.length === 2 && segments[1] === 'manage') {
+    await handleManagedPackRequest(req, res, segments[0]);
+    return true;
+  }
+
+  if (segments.length === 3 && segments[1] === 'manage' && segments[2] === 'clone') {
+    await handleManagedPackCloneRequest(req, res, segments[0]);
+    return true;
+  }
+
+  if (segments.length === 3 && segments[1] === 'manage' && segments[2] === 'cover') {
+    await handleManagedPackCoverRequest(req, res, segments[0]);
+    return true;
+  }
+
+  if (segments.length === 3 && segments[1] === 'manage' && segments[2] === 'reorder') {
+    await handleManagedPackReorderRequest(req, res, segments[0]);
+    return true;
+  }
+
+  if (segments.length === 3 && segments[1] === 'manage' && segments[2] === 'analytics') {
+    await handleManagedPackAnalyticsRequest(req, res, segments[0]);
+    return true;
+  }
+
+  if (segments.length === 4 && segments[1] === 'manage' && segments[2] === 'stickers') {
+    await handleManagedPackStickerDeleteRequest(req, res, segments[0], segments[3]);
+    return true;
+  }
+
+  if (segments.length === 5 && segments[1] === 'manage' && segments[2] === 'stickers' && segments[4] === 'replace') {
+    await handleManagedPackStickerReplaceRequest(req, res, segments[0], segments[3]);
     return true;
   }
 
