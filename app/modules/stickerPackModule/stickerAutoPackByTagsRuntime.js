@@ -3,11 +3,15 @@ import { getActiveSocket } from '../../services/socketState.js';
 import { normalizeJid, resolveBotJid } from '../../config/baileysConfig.js';
 import { recordStickerAutoPackCycle } from '../../observability/metrics.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
-import { listClassifiedStickerAssetsWithoutPack } from './stickerAssetRepository.js';
+import { listClassifiedStickerAssetsForCuration } from './stickerAssetRepository.js';
 import { listStickerClassificationsByAssetIds } from './stickerAssetClassificationRepository.js';
 import { decorateStickerClassification } from './stickerClassificationService.js';
-import { listStickerPacksByOwner } from './stickerPackRepository.js';
-import { listStickerPackItems } from './stickerPackItemRepository.js';
+import {
+  findStickerPackById,
+  listStickerAutoPacksForCuration,
+  updateStickerPackFields,
+} from './stickerPackRepository.js';
+import { listStickerPackItems, listStickerPackItemsByPackIds } from './stickerPackItemRepository.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -22,8 +26,8 @@ const STARTUP_DELAY_MS = Math.max(1_000, Number(process.env.STICKER_AUTO_PACK_BY
 const INTERVAL_MS = Math.max(20_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_INTERVAL_MS) || 180_000);
 const TARGET_PACK_SIZE = Math.max(5, Math.min(30, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_TARGET_SIZE) || 30));
 const MIN_GROUP_SIZE = Math.max(3, Math.min(100, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_GROUP_SIZE) || 8));
-const MAX_TAG_GROUPS = Math.max(1, Math.min(40, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_GROUPS) || 12));
-const MAX_SCAN_ASSETS = Math.max(100, Math.min(50_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_SCAN_ASSETS) || 5000));
+const MAX_TAG_GROUPS = Math.max(0, Math.min(500, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_GROUPS) || 0));
+const MAX_SCAN_ASSETS = Math.max(0, Math.min(250_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_SCAN_ASSETS) || 0));
 const MAX_ADDITIONS_PER_CYCLE = Math.max(10, Math.min(2000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_ADDITIONS_PER_CYCLE) || 300));
 const AUTO_PACK_VISIBILITY = String(process.env.STICKER_AUTO_PACK_BY_TAGS_VISIBILITY || 'public').trim().toLowerCase() || 'public';
 const AUTO_PUBLISHER = String(process.env.STICKER_AUTO_PACK_BY_TAGS_PUBLISHER || 'OmniZap Auto').trim() || 'OmniZap Auto';
@@ -54,6 +58,22 @@ const DEDUPE_SIMILARITY_THRESHOLD = Number.isFinite(Number(process.env.STICKER_A
 const COHESION_REBUILD_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_COHESION_REBUILD_THRESHOLD))
   ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_COHESION_REBUILD_THRESHOLD)
   : 0.56;
+const MOVE_OUT_THEME_SCORE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_OUT_THRESHOLD))
+  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_OUT_THRESHOLD)
+  : 0.22;
+const MOVE_IN_THEME_SCORE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_IN_THRESHOLD))
+  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_IN_THRESHOLD)
+  : 0.12;
+const REVIEW_SAMPLE_PERCENT = Math.max(
+  0,
+  Math.min(100, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_RECHECK_SAMPLE_PERCENT) || 5),
+);
+const REVIEW_VERSION_TARGET = String(process.env.STICKER_AUTO_PACK_BY_TAGS_REVIEW_CLASSIFICATION_VERSION || '').trim();
+const CURATION_OWNERS_POOL_RAW = String(
+  process.env.CURATION_OWNERS_POOL || process.env.STICKER_AUTO_PACK_CURATION_OWNERS_POOL || '',
+).trim();
+const MAX_PACKS_PER_OWNER = Math.max(1, Number(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER) || 50);
+const READY_PACK_MIN_ITEMS = Math.max(1, Math.min(TARGET_PACK_SIZE, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_READY_MIN_ITEMS) || 1));
 
 const EXPLICIT_OWNER = String(process.env.STICKER_AUTO_PACK_OWNER_JID || process.env.USER_ADMIN || '').trim();
 
@@ -110,6 +130,34 @@ const resolveOwnerJid = () => {
   return null;
 };
 
+const normalizeOwnerCandidate = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.includes('@')) return normalizeJid(raw);
+  const digits = raw.replace(/\D+/g, '');
+  return digits ? normalizeJid(`${digits}@s.whatsapp.net`) : '';
+};
+
+const parseOwnerPool = (raw) =>
+  Array.from(
+    new Set(
+      String(raw || '')
+        .split(/[,\n;]+/)
+        .map((entry) => normalizeOwnerCandidate(entry))
+        .filter(Boolean),
+    ),
+  );
+
+const resolveCurationOwnerPool = () => {
+  const poolFromEnv = parseOwnerPool(CURATION_OWNERS_POOL_RAW);
+  const resolvedPrimary = resolveOwnerJid();
+  const owners = [...poolFromEnv];
+  if (resolvedPrimary && !owners.includes(resolvedPrimary)) {
+    owners.unshift(resolvedPrimary);
+  }
+  return Array.from(new Set(owners.filter(Boolean)));
+};
+
 const buildThemeKey = (theme, subtheme = '') => {
   const normalizedTheme = normalizeTag(theme);
   const normalizedSubtheme = normalizeTag(subtheme);
@@ -126,8 +174,8 @@ const parseThemeKey = (raw) => {
   };
 };
 const buildAutoPackName = (theme, subtheme, index) => {
-  const base = `[AUTO] ${toPackTitleTag(theme)}${subtheme ? ` · ${toPackTitleTag(subtheme)}` : ''}`;
-  return `${base} (Vol. ${index})`;
+  const base = `[AUTO] ${toPackTitleTag(theme)}${subtheme ? ` • ${toPackTitleTag(subtheme)}` : ''}`;
+  return `${base} • Vol. ${index}`;
 };
 const buildAutoPackMarker = (themeKey) => `[auto-theme:${themeKey}]`;
 const buildAutoPackDescription = ({ theme, subtheme, themeKey, groupScore }) =>
@@ -320,29 +368,47 @@ const collectCuratableCandidates = async () => {
   let offset = 0;
   const pageLimit = 400;
   let scanned = 0;
+  let totalSeen = 0;
+  let versionMismatchScanned = 0;
+  const seenAssetIds = new Set();
   const stats = {
     assets_scanned: 0,
     assets_rejected_quality: 0,
     assets_rejected_no_theme: 0,
     assets_grouped: 0,
+    review_sample_percent: REVIEW_SAMPLE_PERCENT,
+    review_version_target: REVIEW_VERSION_TARGET || null,
+    review_mode: MAX_SCAN_ASSETS === 0 ? 'full_scan' : 'bounded_scan',
+    assets_total_seen: 0,
+    assets_version_mismatch_scanned: 0,
     reject_reason_counts: {},
   };
 
-  while (scanned < MAX_SCAN_ASSETS) {
-    const remaining = MAX_SCAN_ASSETS - scanned;
-    const limit = Math.max(1, Math.min(pageLimit, remaining));
+  const effectiveCap = MAX_SCAN_ASSETS > 0 ? MAX_SCAN_ASSETS : Number.POSITIVE_INFINITY;
 
-    const page = await listClassifiedStickerAssetsWithoutPack({ limit, offset });
+  const processAssetsPage = async (page, { countTowardsCap = true } = {}) => {
     const assets = Array.isArray(page?.assets) ? page.assets : [];
-    if (!assets.length) break;
+    if (!assets.length) return { processed: 0, done: true };
 
     const classifications = await listStickerClassificationsByAssetIds(assets.map((asset) => asset.id));
     const byAssetId = new Map(classifications.map((entry) => [entry.asset_id, entry]));
 
     for (const asset of assets) {
+      if (countTowardsCap && scanned >= effectiveCap) {
+        return { processed: assets.length, done: true };
+      }
+      if (!asset?.id || seenAssetIds.has(asset.id)) continue;
+      seenAssetIds.add(asset.id);
+
+      totalSeen += 1;
       stats.assets_scanned += 1;
+      stats.assets_total_seen = totalSeen;
       const classification = byAssetId.get(asset.id);
       if (!classification) continue;
+      if (REVIEW_VERSION_TARGET && String(classification.classification_version || '').trim() !== REVIEW_VERSION_TARGET) {
+        versionMismatchScanned += 1;
+        stats.assets_version_mismatch_scanned = versionMismatchScanned;
+      }
 
       const quality = evaluateQualityGate(asset, classification);
       if (!quality.accepted) {
@@ -359,6 +425,11 @@ const collectCuratableCandidates = async () => {
       }
 
       const themeKey = buildThemeKey(theme, subtheme);
+      const themeScore = Number(topTags.find((entry) => entry.tag === theme)?.score || 0);
+      if (themeScore < MOVE_IN_THEME_SCORE_THRESHOLD) {
+        stats.reject_reason_counts.low_theme_match = (stats.reject_reason_counts.low_theme_match || 0) + 1;
+        continue;
+      }
       const score = scoreCandidate({ classification, theme, topTags, qualityScore: quality.qualityScore });
       const list = grouped.get(themeKey) || [];
       list.push({
@@ -369,6 +440,7 @@ const collectCuratableCandidates = async () => {
         themeKey,
         topTags,
         qualityScore: quality.qualityScore,
+        themeScore,
         score,
         nsfwScore,
         nsfwLevel,
@@ -377,10 +449,41 @@ const collectCuratableCandidates = async () => {
       stats.assets_grouped += 1;
     }
 
-    scanned += assets.length;
-    offset += assets.length;
+    if (countTowardsCap) {
+      scanned += assets.length;
+    }
 
-    if (!page?.hasMore) break;
+    return {
+      processed: assets.length,
+      done: !page?.hasMore || scanned >= effectiveCap,
+    };
+  };
+
+  if (REVIEW_VERSION_TARGET) {
+    let versionOffset = 0;
+    while (scanned < effectiveCap) {
+      const remaining = Number.isFinite(effectiveCap) ? Math.max(0, effectiveCap - scanned) : pageLimit;
+      const limit = Math.max(1, Math.min(pageLimit, remaining || pageLimit));
+      const page = await listClassifiedStickerAssetsForCuration({
+        limit,
+        offset: versionOffset,
+        onlyVersionMismatch: REVIEW_VERSION_TARGET,
+      });
+      const { done, processed } = await processAssetsPage(page, { countTowardsCap: true });
+      if (!processed || done) break;
+      versionOffset += processed;
+    }
+  }
+
+  while (scanned < effectiveCap) {
+    const remaining = Number.isFinite(effectiveCap) ? Math.max(0, effectiveCap - scanned) : pageLimit;
+    const limit = Math.max(1, Math.min(pageLimit, remaining || pageLimit));
+
+    const page = await listClassifiedStickerAssetsForCuration({ limit, offset, includePacked: true, includeUnpacked: true });
+    const { done, processed } = await processAssetsPage(page, { countTowardsCap: true });
+    if (!processed || done) break;
+
+    offset += processed;
   }
 
   let dedupeDropped = 0;
@@ -461,17 +564,20 @@ const computeGroupMetrics = (themeKey, candidates) => {
 };
 
 const buildCurationPlan = ({ grouped, stats }) => {
-  const curatedGroups = Array.from(grouped.entries())
+  let curatedGroups = Array.from(grouped.entries())
     .map(([themeKey, candidates]) => {
       const metrics = computeGroupMetrics(themeKey, candidates);
       return { ...metrics, candidates };
     })
-    .filter((group) => group.theme && group.candidates.length >= MIN_GROUP_SIZE)
+    .filter((group) => group.theme && group.candidates.length > 0)
     .sort((left, right) => {
       if (right.groupScore !== left.groupScore) return right.groupScore - left.groupScore;
       return right.candidates.length - left.candidates.length;
-    })
-    .slice(0, MAX_TAG_GROUPS);
+    });
+
+  if (MAX_TAG_GROUPS > 0) {
+    curatedGroups = curatedGroups.slice(0, MAX_TAG_GROUPS);
+  }
 
   return {
     groups: curatedGroups,
@@ -482,25 +588,507 @@ const buildCurationPlan = ({ grouped, stats }) => {
   };
 };
 
-const ensureAutoPacksForTheme = async ({ ownerJid, theme, subtheme, themeKey, groupScore, requiredCount, existingPacksByTheme }) => {
-  const current = existingPacksByTheme.get(themeKey) || [];
-  const created = [];
-
-  while (current.length + created.length < requiredCount) {
-    const index = current.length + created.length + 1;
-    const pack = await stickerPackService.createPack({
-      ownerJid,
-      name: buildAutoPackName(theme, subtheme, index),
-      publisher: AUTO_PUBLISHER,
-      description: buildAutoPackDescription({ theme, subtheme, themeKey, groupScore }),
-      visibility: AUTO_PACK_VISIBILITY,
-    });
-    created.push(pack);
+const extractThemeKeyFromPack = (pack) => {
+  const direct = normalizeTag(pack?.pack_theme_key || '');
+  if (direct) {
+    const parsedDirect = parseThemeKey(pack.pack_theme_key);
+    return buildThemeKey(parsedDirect.theme, parsedDirect.subtheme) || direct;
   }
 
-  const merged = [...current, ...created];
-  existingPacksByTheme.set(themeKey, merged);
-  return { packs: merged, createdCount: created.length };
+  const description = String(pack?.description || '');
+  const themeMarker = description.match(/\[auto-theme:([^\]]+)\]/i);
+  const legacyTagMarker = description.match(/\[auto-tag:([^\]]+)\]/i);
+  const markerValue = themeMarker?.[1] || legacyTagMarker?.[1] || '';
+  if (!markerValue) return '';
+  const parsed = parseThemeKey(markerValue);
+  const themeKey = buildThemeKey(parsed.theme, parsed.subtheme);
+  return themeKey || normalizeTag(markerValue);
+};
+
+const extractVolumeFromPack = (pack) => {
+  const directVolume = Number(pack?.pack_volume || 0);
+  if (Number.isInteger(directVolume) && directVolume > 0) return directVolume;
+
+  const name = String(pack?.name || '');
+  const match = name.match(/vol\.\s*(\d+)/i);
+  const parsed = Number(match?.[1] || 0);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+};
+
+const sortAutoThemePacks = (packs) =>
+  [...(Array.isArray(packs) ? packs : [])].sort((left, right) => {
+    const leftVol = extractVolumeFromPack(left);
+    const rightVol = extractVolumeFromPack(right);
+    if (leftVol !== rightVol) return leftVol - rightVol;
+    return String(left.id || '').localeCompare(String(right.id || ''));
+  });
+
+const buildAutoPackIndex = (packs) => {
+  const byTheme = new Map();
+  const byId = new Map();
+  for (const pack of Array.isArray(packs) ? packs : []) {
+    if (!pack?.id) continue;
+    byId.set(pack.id, pack);
+    const themeKey = extractThemeKeyFromPack(pack);
+    if (!themeKey) continue;
+    const list = byTheme.get(themeKey) || [];
+    list.push(pack);
+    byTheme.set(themeKey, list);
+  }
+
+  for (const [themeKey, list] of byTheme.entries()) {
+    byTheme.set(themeKey, sortAutoThemePacks(list));
+  }
+
+  return { byTheme, byId };
+};
+
+const buildOwnerCapacityState = async (ownerPool) => {
+  const states = [];
+  for (const ownerJid of ownerPool) {
+    try {
+      const packs = await stickerPackService.listPacks({ ownerJid, limit: 100 });
+      states.push({
+        ownerJid,
+        totalPacks: Array.isArray(packs) ? packs.length : 0,
+      });
+    } catch (error) {
+      logger.warn('Falha ao calcular capacidade de owner para auto-curadoria.', {
+        action: 'sticker_auto_pack_by_tags_owner_capacity_failed',
+        owner_jid: ownerJid,
+        error: error?.message,
+      });
+      states.push({
+        ownerJid,
+        totalPacks: MAX_PACKS_PER_OWNER,
+      });
+    }
+  }
+
+  return states.map((entry) => ({
+    ...entry,
+    available: Math.max(0, MAX_PACKS_PER_OWNER - Math.max(0, Number(entry.totalPacks || 0))),
+  }));
+};
+
+const pickOwnerWithCapacity = (ownerStates) => {
+  const candidates = (Array.isArray(ownerStates) ? ownerStates : [])
+    .filter((entry) => Number(entry.available || 0) > 0)
+    .sort((left, right) => {
+      if (left.available !== right.available) return right.available - left.available;
+      if (left.totalPacks !== right.totalPacks) return left.totalPacks - right.totalPacks;
+      return String(left.ownerJid || '').localeCompare(String(right.ownerJid || ''));
+    });
+  return candidates[0] || null;
+};
+
+const chunkArray = (list, size) => {
+  const safeSize = Math.max(1, Number(size) || 1);
+  const chunks = [];
+  for (let index = 0; index < list.length; index += safeSize) {
+    chunks.push(list.slice(index, index + safeSize));
+  }
+  return chunks;
+};
+
+const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAdditions }) => {
+  const autoPacks = await listStickerAutoPacksForCuration({
+    ownerJids: ownerPool,
+    includeArchived: true,
+    limit: 5000,
+  });
+  const autoPackIndex = buildAutoPackIndex(autoPacks);
+  const ownerStates = await buildOwnerCapacityState(ownerPool);
+
+  const packIds = autoPacks.map((pack) => pack.id).filter(Boolean);
+  const allItems = packIds.length ? await listStickerPackItemsByPackIds(packIds) : [];
+  const itemsByPackId = new Map();
+  for (const item of allItems) {
+    const list = itemsByPackId.get(item.pack_id) || [];
+    list.push(item);
+    itemsByPackId.set(item.pack_id, list);
+  }
+
+  const classificationByAssetId = new Map();
+  const operations = [];
+  let plannedCreates = 0;
+  let reuseOnlyMode = false;
+  let overflowVolumesSkipped = 0;
+
+  for (const group of curatedGroups) {
+    for (const candidate of group.candidates) {
+      if (candidate?.asset?.id && candidate?.classification) {
+        classificationByAssetId.set(candidate.asset.id, candidate.classification);
+      }
+    }
+
+    const currentThemePacks = sortAutoThemePacks(autoPackIndex.byTheme.get(group.themeKey) || []);
+    const volumeCandidateChunks = chunkArray(
+      group.candidates.map((candidate) => candidate.asset.id).filter(Boolean),
+      TARGET_PACK_SIZE,
+    );
+
+    const capacityForCreate = enableAdditions
+      ? ownerStates.reduce((sum, owner) => sum + Math.max(0, Number(owner.available || 0)), 0)
+      : 0;
+    const maxCreatableForGroup = Math.max(0, capacityForCreate);
+    const maxTotalVolumes = enableAdditions
+      ? currentThemePacks.length + maxCreatableForGroup
+      : currentThemePacks.length;
+    const targetVolumeCount = Math.min(volumeCandidateChunks.length, Math.max(0, maxTotalVolumes));
+
+    if (volumeCandidateChunks.length > targetVolumeCount) {
+      reuseOnlyMode = true;
+      overflowVolumesSkipped += volumeCandidateChunks.length - targetVolumeCount;
+    }
+
+    const targetChunks = volumeCandidateChunks.slice(0, targetVolumeCount);
+
+    for (let volumeIndex = 0; volumeIndex < targetVolumeCount; volumeIndex += 1) {
+      const volume = volumeIndex + 1;
+      const existingPack = currentThemePacks.find((pack) => extractVolumeFromPack(pack) === volume)
+        || currentThemePacks[volumeIndex]
+        || null;
+
+      let createOwnerJid = null;
+      if (!existingPack && enableAdditions) {
+        const selectedOwner = pickOwnerWithCapacity(ownerStates);
+        if (selectedOwner) {
+          createOwnerJid = selectedOwner.ownerJid;
+          selectedOwner.available = Math.max(0, Number(selectedOwner.available || 0) - 1);
+          selectedOwner.totalPacks = Number(selectedOwner.totalPacks || 0) + 1;
+          plannedCreates += 1;
+        } else {
+          reuseOnlyMode = true;
+        }
+      }
+
+      operations.push({
+        type: 'reconcile_volume',
+        sort_key: `${group.themeKey}#${String(volume).padStart(6, '0')}`,
+        theme: group.theme,
+        subtheme: group.subtheme,
+        themeKey: group.themeKey,
+        volume,
+        groupScore: group.groupScore,
+        cohesion: group.cohesion,
+        desiredAssetIds: targetChunks[volumeIndex] || [],
+        existingPackId: existingPack?.id || null,
+        ownerJid: existingPack?.owner_jid || createOwnerJid || null,
+        ownerCandidates: existingPack
+          ? [existingPack.owner_jid].filter(Boolean)
+          : [createOwnerJid, ...ownerPool.filter((owner) => owner && owner !== createOwnerJid)].filter(Boolean),
+      });
+    }
+
+    for (const pack of currentThemePacks) {
+      const volume = extractVolumeFromPack(pack);
+      if (volume <= targetVolumeCount) continue;
+
+      operations.push({
+        type: 'archive_volume',
+        sort_key: `${group.themeKey}#${String(volume).padStart(6, '0')}#archive`,
+        theme: group.theme,
+        subtheme: group.subtheme,
+        themeKey: group.themeKey,
+        volume,
+        groupScore: group.groupScore,
+        cohesion: group.cohesion,
+        desiredAssetIds: [],
+        existingPackId: pack.id,
+        ownerJid: pack.owner_jid,
+        ownerCandidates: [pack.owner_jid].filter(Boolean),
+      });
+    }
+  }
+
+  operations.sort((left, right) => String(left.sort_key || '').localeCompare(String(right.sort_key || '')));
+
+  return {
+    operations,
+    itemsByPackId,
+    classificationByAssetId,
+    autoPackIndex,
+    stats: {
+      owner_pool_size: ownerPool.length,
+      owner_available_total: ownerStates.reduce((sum, owner) => sum + Math.max(0, Number(owner.available || 0)), 0),
+      planned_creates: plannedCreates,
+      reuse_only_mode: reuseOnlyMode,
+      overflow_volumes_skipped: overflowVolumesSkipped,
+      existing_auto_packs: autoPacks.length,
+      auto_pack_items_indexed: allItems.length,
+    },
+  };
+};
+
+const updateAutoPackMetadata = async (packId, payload) => {
+  const fields = {
+    name: payload.name,
+    publisher: AUTO_PUBLISHER,
+    description: payload.description,
+    visibility: AUTO_PACK_VISIBILITY,
+    status: 'published',
+    pack_status: payload.pack_status,
+    pack_theme_key: payload.themeKey,
+    pack_volume: payload.volume,
+    is_auto_pack: 1,
+    last_rebalanced_at: new Date(),
+  };
+  if ('cover_sticker_id' in payload) {
+    fields.cover_sticker_id = payload.cover_sticker_id ?? null;
+  }
+  return updateStickerPackFields(packId, fields);
+};
+
+const createAutoPackVolume = async ({
+  ownerJid,
+  theme,
+  subtheme,
+  themeKey,
+  groupScore,
+  volume,
+}) => {
+  return stickerPackService.createPack({
+    ownerJid,
+    name: buildAutoPackName(theme, subtheme, volume),
+    publisher: AUTO_PUBLISHER,
+    description: buildAutoPackDescription({ theme, subtheme, themeKey, groupScore }),
+    visibility: AUTO_PACK_VISIBILITY,
+    status: 'published',
+    packStatus: 'building',
+    packThemeKey: themeKey,
+    packVolume: volume,
+    isAutoPack: true,
+    lastRebalancedAt: new Date(),
+  });
+};
+
+const getThemeScoreForPack = (classification, theme) => getScoreByTag(classification, theme);
+
+const reconcileAutoPackVolume = async ({
+  op,
+  enableAdditions,
+  enableRebuild,
+  budgets,
+  itemsByPackId,
+  classificationByAssetId,
+}) => {
+  let pack = op.existingPackId ? await findStickerPackById(op.existingPackId) : null;
+
+  if (!pack && op.type === 'reconcile_volume') {
+    const ownerCandidates = Array.from(new Set((Array.isArray(op.ownerCandidates) ? op.ownerCandidates : [op.ownerJid]).filter(Boolean)));
+    if (!enableAdditions || !ownerCandidates.length || budgets.added >= MAX_ADDITIONS_PER_CYCLE) {
+      return { status: 'skipped_no_pack', created: 0, added: 0, removed: 0, duplicateSkips: 0, packLimitSkips: 0 };
+    }
+
+    let ownerFullCount = 0;
+    for (const ownerCandidate of ownerCandidates) {
+      try {
+        pack = await createAutoPackVolume({
+          ownerJid: ownerCandidate,
+          theme: op.theme,
+          subtheme: op.subtheme,
+          themeKey: op.themeKey,
+          groupScore: op.groupScore,
+          volume: op.volume,
+        });
+        break;
+      } catch (error) {
+        if (error?.code === 'PACK_LIMIT_REACHED') {
+          ownerFullCount += 1;
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (!pack) {
+      if (ownerFullCount > 0) {
+        return {
+          status: 'owner_full',
+          created: 0,
+          added: 0,
+          removed: 0,
+          duplicateSkips: 0,
+          packLimitSkips: ownerFullCount,
+        };
+      }
+      return { status: 'skipped_missing_pack', created: 0, added: 0, removed: 0, duplicateSkips: 0, packLimitSkips: 0 };
+    }
+  }
+
+  if (!pack) {
+    return { status: 'skipped_missing_pack', created: 0, added: 0, removed: 0, duplicateSkips: 0, packLimitSkips: 0 };
+  }
+
+  const desiredIds = Array.from(new Set((Array.isArray(op.desiredAssetIds) ? op.desiredAssetIds : []).filter(Boolean)));
+  const desiredSet = new Set(desiredIds);
+  let removed = 0;
+  let added = 0;
+  let duplicateSkips = 0;
+  let packLimitSkips = 0;
+  let created = op.existingPackId ? 0 : 1;
+
+  await updateAutoPackMetadata(pack.id, {
+    name: buildAutoPackName(op.theme, op.subtheme, op.volume),
+    description: buildAutoPackDescription({ theme: op.theme, subtheme: op.subtheme, themeKey: op.themeKey, groupScore: op.groupScore }),
+    themeKey: op.themeKey,
+    volume: op.volume,
+    pack_status: 'building',
+    cover_sticker_id: pack.cover_sticker_id || null,
+  });
+
+  let currentItems = itemsByPackId.get(pack.id) || await listStickerPackItems(pack.id);
+  const currentById = new Map(currentItems.map((item) => [item.sticker_id, item]));
+
+  const shouldRebuildVolume = enableRebuild || op.type === 'archive_volume' || Number(op.cohesion || 0) < COHESION_REBUILD_THRESHOLD;
+  if (shouldRebuildVolume && budgets.removed < MAX_REMOVALS_PER_CYCLE) {
+    for (const item of currentItems) {
+      if (budgets.removed >= MAX_REMOVALS_PER_CYCLE) break;
+      if (desiredSet.has(item.sticker_id)) continue;
+
+      const classification = classificationByAssetId.get(item.sticker_id);
+      const themeScore = getThemeScoreForPack(classification, op.theme);
+      if (!enableRebuild && op.type !== 'archive_volume' && themeScore >= MOVE_OUT_THEME_SCORE_THRESHOLD) {
+        continue;
+      }
+
+      try {
+        await stickerPackService.removeStickerFromPack({
+          ownerJid: pack.owner_jid,
+          identifier: pack.id,
+          selector: item.sticker_id,
+        });
+        budgets.removed += 1;
+        removed += 1;
+        currentById.delete(item.sticker_id);
+      } catch (error) {
+        logger.warn('Falha ao remover sticker no rebalance de auto-pack por tags.', {
+          action: 'sticker_auto_pack_by_tags_rebalance_remove_failed',
+          pack_id: pack.id,
+          asset_id: item.sticker_id,
+          theme_key: op.themeKey,
+          error: error?.message,
+          error_code: error?.code,
+        });
+      }
+    }
+
+    currentItems = await listStickerPackItems(pack.id);
+    itemsByPackId.set(pack.id, currentItems);
+    currentById.clear();
+    for (const item of currentItems) currentById.set(item.sticker_id, item);
+  }
+
+  if (enableAdditions && budgets.added < MAX_ADDITIONS_PER_CYCLE && desiredIds.length) {
+    for (const assetId of desiredIds) {
+      if (budgets.added >= MAX_ADDITIONS_PER_CYCLE) break;
+      if (currentById.has(assetId)) continue;
+
+      try {
+        await stickerPackService.addStickerToPack({
+          ownerJid: pack.owner_jid,
+          identifier: pack.id,
+          asset: { id: assetId },
+          emojis: [],
+          accessibilityLabel: `Auto-theme ${op.theme}${op.subtheme ? `/${op.subtheme}` : ''}`,
+        });
+        budgets.added += 1;
+        added += 1;
+      } catch (error) {
+        if (error?.code === 'DUPLICATE_STICKER') {
+          duplicateSkips += 1;
+          continue;
+        }
+        if (error?.code === 'PACK_LIMIT_REACHED') {
+          packLimitSkips += 1;
+          break;
+        }
+
+        logger.warn('Falha ao adicionar sticker em auto-pack por tags.', {
+          action: 'sticker_auto_pack_by_tags_add_failed',
+          theme: op.theme,
+          subtheme: op.subtheme || null,
+          theme_key: op.themeKey,
+          pack_id: pack.id,
+          asset_id: assetId,
+          error: error?.message,
+          error_code: error?.code,
+        });
+      }
+    }
+
+    currentItems = await listStickerPackItems(pack.id);
+    itemsByPackId.set(pack.id, currentItems);
+    currentById.clear();
+    for (const item of currentItems) currentById.set(item.sticker_id, item);
+  }
+
+  const finalDesiredOrder = desiredIds.filter((assetId) => currentById.has(assetId));
+  const currentOrder = currentItems.map((item) => item.sticker_id);
+  const needsReorder =
+    finalDesiredOrder.length > 1 &&
+    (finalDesiredOrder.length !== currentOrder.length
+      || finalDesiredOrder.some((assetId, index) => currentOrder[index] !== assetId));
+
+  if (needsReorder) {
+    try {
+      await stickerPackService.reorderPackItems({
+        ownerJid: pack.owner_jid,
+        identifier: pack.id,
+        orderStickerIds: finalDesiredOrder,
+      });
+      currentItems = await listStickerPackItems(pack.id);
+      itemsByPackId.set(pack.id, currentItems);
+    } catch (error) {
+      logger.warn('Falha ao reordenar auto-pack por tags.', {
+        action: 'sticker_auto_pack_by_tags_reorder_failed',
+        pack_id: pack.id,
+        theme_key: op.themeKey,
+        error: error?.message,
+        error_code: error?.code,
+      });
+    }
+  }
+
+  const finalItems = itemsByPackId.get(pack.id) || await listStickerPackItems(pack.id);
+  const finalCount = finalItems.length;
+  const finalCover = finalItems[0]?.sticker_id || null;
+  const isLastVolumeInPlan = desiredIds.length < TARGET_PACK_SIZE;
+  const finalDesiredPresentCount = finalItems.filter((item) => desiredSet.has(item.sticker_id)).length;
+  const allDesiredPresent = finalDesiredPresentCount === desiredIds.length;
+  const hasExtraItems = finalItems.some((item) => !desiredSet.has(item.sticker_id));
+  const packStatus =
+    finalCount === 0
+      ? 'archived'
+      : allDesiredPresent && !hasExtraItems && (
+          finalCount >= TARGET_PACK_SIZE
+          || isLastVolumeInPlan
+          || finalCount >= READY_PACK_MIN_ITEMS
+        )
+        ? 'ready'
+        : 'building';
+
+  const updated = await updateAutoPackMetadata(pack.id, {
+    name: buildAutoPackName(op.theme, op.subtheme, op.volume),
+    description: buildAutoPackDescription({ theme: op.theme, subtheme: op.subtheme, themeKey: op.themeKey, groupScore: op.groupScore }),
+    themeKey: op.themeKey,
+    volume: op.volume,
+    pack_status: packStatus,
+    cover_sticker_id: finalCover,
+  });
+
+  itemsByPackId.set(pack.id, finalItems);
+  return {
+    status: packStatus,
+    pack: updated,
+    created,
+    added,
+    removed,
+    duplicateSkips,
+    packLimitSkips,
+    finalCount,
+  };
 };
 
 let intervalHandle = null;
@@ -514,8 +1102,8 @@ export const runStickerAutoPackByTagsCycle = async ({
   if (running) return;
   if (!AUTO_ENABLED) return;
 
-  const ownerJid = resolveOwnerJid();
-  if (!ownerJid) {
+  const ownerPool = resolveCurationOwnerPool();
+  if (!ownerPool.length) {
     logger.warn('Auto-pack por tags: owner_jid indisponível, ciclo ignorado.', {
       action: 'sticker_auto_pack_by_tags_owner_missing',
     });
@@ -524,12 +1112,16 @@ export const runStickerAutoPackByTagsCycle = async ({
 
   running = true;
   const startedAt = Date.now();
-  let added = 0;
+  const budgets = { added: 0, removed: 0 };
   let createdPacks = 0;
   let processedGroups = 0;
+  let processedVolumes = 0;
   let duplicateSkips = 0;
   let packLimitSkips = 0;
-  let removed = 0;
+  let readyPacks = 0;
+  let buildingPacks = 0;
+  let archivedPacks = 0;
+  let ownerFullSkips = 0;
 
   try {
     const curationInput = await collectCuratableCandidates();
@@ -543,165 +1135,44 @@ export const runStickerAutoPackByTagsCycle = async ({
       return;
     }
 
-    const ownerPacks = await listStickerPacksByOwner(ownerJid, { limit: 1000 });
-    const existingPacksByTheme = new Map();
+    processedGroups = curatedGroups.length;
+    const planner = await buildCurationExecutionPlan({
+      curatedGroups,
+      ownerPool,
+      enableAdditions,
+    });
 
-    for (const pack of ownerPacks) {
-      const description = String(pack.description || '');
-      const themeMarker = description.match(/\[auto-theme:([^\]]+)\]/i);
-      const legacyTagMarker = description.match(/\[auto-tag:([^\]]+)\]/i);
-      const markerValue = themeMarker?.[1] || legacyTagMarker?.[1] || '';
-      if (!markerValue) continue;
-      const parsed = parseThemeKey(markerValue);
-      const normalizedLegacyTheme = !parsed.theme ? normalizeTag(markerValue) : '';
-      if (!parsed.theme && !normalizedLegacyTheme) continue;
-      const themeKey = buildThemeKey(parsed.theme, parsed.subtheme);
-      const fallbackThemeKey = normalizedLegacyTheme || '';
-      const finalThemeKey = themeKey || fallbackThemeKey;
-      if (!finalThemeKey) continue;
-      const list = existingPacksByTheme.get(finalThemeKey) || [];
-      list.push(pack);
-      existingPacksByTheme.set(finalThemeKey, list);
-    }
-
-    const executionGroups = [];
-    for (const group of curatedGroups) {
-      const requiredPacks = Math.max(1, Math.ceil(group.candidates.length / TARGET_PACK_SIZE));
-      const { packs, createdCount } = await ensureAutoPacksForTheme({
-        ownerJid,
-        theme: group.theme,
-        subtheme: group.subtheme,
-        themeKey: group.themeKey,
-        groupScore: group.groupScore,
-        requiredCount: requiredPacks,
-        existingPacksByTheme,
+    for (const op of planner.operations) {
+      const result = await reconcileAutoPackVolume({
+        op,
+        enableAdditions,
+        enableRebuild,
+        budgets,
+        itemsByPackId: planner.itemsByPackId,
+        classificationByAssetId: planner.classificationByAssetId,
       });
-      createdPacks += createdCount;
-      processedGroups += 1;
 
-      executionGroups.push({
-        ...group,
-        packs,
-        candidateIndex: 0,
-        assignedCount: 0,
-        packCounts: new Map(
-        packs.map((pack) => [pack.id, Math.max(0, Number(pack.sticker_count || 0))]),
-        ),
-      });
-    }
-
-    if (enableRebuild && MAX_REMOVALS_PER_CYCLE > 0) {
-      for (const group of executionGroups) {
-        if (removed >= MAX_REMOVALS_PER_CYCLE) break;
-        if (Number(group.semantic_cohesion || 0) >= COHESION_REBUILD_THRESHOLD) continue;
-        const desiredByPack = new Map();
-
-        for (let packIndex = 0; packIndex < group.packs.length; packIndex += 1) {
-          const start = packIndex * TARGET_PACK_SIZE;
-          const end = start + TARGET_PACK_SIZE;
-          const desiredIds = group.candidates.slice(start, end).map((candidate) => candidate.asset.id);
-          desiredByPack.set(group.packs[packIndex].id, new Set(desiredIds));
-        }
-
-        for (const pack of group.packs) {
-          if (removed >= MAX_REMOVALS_PER_CYCLE) break;
-          const desiredSet = desiredByPack.get(pack.id) || new Set();
-          const currentItems = await listStickerPackItems(pack.id);
-          for (const item of currentItems) {
-            if (removed >= MAX_REMOVALS_PER_CYCLE) break;
-            if (desiredSet.has(item.sticker_id)) continue;
-
-            try {
-              await stickerPackService.removeStickerFromPack({
-                ownerJid,
-                identifier: pack.id,
-                selector: item.sticker_id,
-              });
-              removed += 1;
-              const currentCount = group.packCounts.get(pack.id) || 0;
-              group.packCounts.set(pack.id, Math.max(0, currentCount - 1));
-            } catch (error) {
-              logger.warn('Falha ao remover sticker no rebuild de auto-pack por tags.', {
-                action: 'sticker_auto_pack_by_tags_rebuild_remove_failed',
-                theme: group.theme,
-                theme_key: group.themeKey,
-                pack_id: pack.id,
-                asset_id: item.sticker_id,
-                error: error?.message,
-                error_code: error?.code,
-              });
-            }
-          }
-        }
+      processedVolumes += 1;
+      createdPacks += Number(result?.created || 0);
+      duplicateSkips += Number(result?.duplicateSkips || 0);
+      packLimitSkips += Number(result?.packLimitSkips || 0);
+      if (result?.status === 'owner_full') {
+        ownerFullSkips += 1;
       }
-    }
-
-    let progressed = true;
-    while (enableAdditions && added < MAX_ADDITIONS_PER_CYCLE && progressed) {
-      progressed = false;
-
-      for (const group of executionGroups) {
-        if (added >= MAX_ADDITIONS_PER_CYCLE) break;
-        if (group.candidateIndex >= group.candidates.length) continue;
-
-        let targetPackIndex = Math.floor(group.assignedCount / TARGET_PACK_SIZE);
-        let targetPack = group.packs[targetPackIndex];
-        while (targetPack && (group.packCounts.get(targetPack.id) || 0) >= TARGET_PACK_SIZE) {
-          targetPackIndex += 1;
-          targetPack = group.packs[targetPackIndex];
-        }
-        if (!targetPack) continue;
-
-        const candidate = group.candidates[group.candidateIndex];
-        group.candidateIndex += 1;
-        progressed = true;
-
-        try {
-          await stickerPackService.addStickerToPack({
-            ownerJid,
-            identifier: targetPack.id,
-            asset: { id: candidate.asset.id },
-            emojis: [],
-            accessibilityLabel: `Auto-theme ${group.theme}${group.subtheme ? `/${group.subtheme}` : ''}`,
-          });
-          const currentCount = group.packCounts.get(targetPack.id) || 0;
-          group.packCounts.set(targetPack.id, currentCount + 1);
-          group.assignedCount += 1;
-          added += 1;
-        } catch (error) {
-          if (error?.code === 'DUPLICATE_STICKER') {
-            duplicateSkips += 1;
-            continue;
-          }
-          if (error?.code === 'PACK_LIMIT_REACHED') {
-            group.packCounts.set(targetPack.id, TARGET_PACK_SIZE);
-            packLimitSkips += 1;
-            continue;
-          }
-
-          logger.warn('Falha ao adicionar sticker em auto-pack por tags.', {
-            action: 'sticker_auto_pack_by_tags_add_failed',
-            theme: group.theme,
-            subtheme: group.subtheme || null,
-            theme_key: group.themeKey,
-            pack_id: targetPack.id,
-            asset_id: candidate.asset.id,
-            error: error?.message,
-            error_code: error?.code,
-          });
-        }
-      }
+      if (result?.status === 'ready') readyPacks += 1;
+      if (result?.status === 'building') buildingPacks += 1;
+      if (result?.status === 'archived') archivedPacks += 1;
     }
 
     const duplicateRate = Number(stats.assets_deduped || 0) / Math.max(1, Number(stats.assets_scanned || 0));
     const rejectedCount = Number(stats.assets_rejected_quality || 0) + Number(stats.assets_rejected_no_theme || 0);
     const rejectionRate = rejectedCount / Math.max(1, Number(stats.assets_scanned || 0));
-    const fillRate = added / Math.max(1, processedGroups * TARGET_PACK_SIZE);
+    const fillRate = budgets.added / Math.max(1, processedVolumes * TARGET_PACK_SIZE);
 
     recordStickerAutoPackCycle({
       durationMs: Date.now() - startedAt,
       assetsScanned: Number(stats.assets_scanned || 0),
-      assetsAdded: added,
+      assetsAdded: budgets.added,
       duplicateRate,
       rejectionRate,
       fillRate,
@@ -709,11 +1180,17 @@ export const runStickerAutoPackByTagsCycle = async ({
 
     logger.info('Auto-pack por tags executado.', {
       action: 'sticker_auto_pack_by_tags_cycle',
-      owner_jid: ownerJid,
+      owner_jid: ownerPool[0],
+      owner_pool: ownerPool,
       processed_groups: processedGroups,
+      processed_volumes: processedVolumes,
       created_packs: createdPacks,
-      added_stickers: added,
-      removed_stickers: removed,
+      added_stickers: budgets.added,
+      removed_stickers: budgets.removed,
+      ready_packs_touched: readyPacks,
+      building_packs_touched: buildingPacks,
+      archived_packs_touched: archivedPacks,
+      owner_full_skips: ownerFullSkips,
       rebuild_enabled_cycle: Boolean(enableRebuild),
       additions_enabled_cycle: Boolean(enableAdditions),
       cohesion_rebuild_threshold: Number(COHESION_REBUILD_THRESHOLD.toFixed(6)),
@@ -726,6 +1203,11 @@ export const runStickerAutoPackByTagsCycle = async ({
       min_group_size: MIN_GROUP_SIZE,
       target_pack_size: TARGET_PACK_SIZE,
       max_additions_per_cycle: MAX_ADDITIONS_PER_CYCLE,
+      max_removals_per_cycle: MAX_REMOVALS_PER_CYCLE,
+      move_out_theme_score_threshold: Number(MOVE_OUT_THEME_SCORE_THRESHOLD.toFixed(6)),
+      move_in_theme_score_threshold: Number(MOVE_IN_THEME_SCORE_THRESHOLD.toFixed(6)),
+      ready_pack_min_items: READY_PACK_MIN_ITEMS,
+      ...planner.stats,
       ...stats,
     });
   } catch (error) {

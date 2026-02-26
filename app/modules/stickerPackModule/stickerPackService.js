@@ -342,7 +342,19 @@ export function createStickerPackService(options = {}) {
     };
   };
 
-  const createPack = async ({ ownerJid, name, publisher, description, visibility = 'public', status = 'published' }) => {
+  const createPack = async ({
+    ownerJid,
+    name,
+    publisher,
+    description,
+    visibility = 'public',
+    status = 'published',
+    packStatus = undefined,
+    packThemeKey = undefined,
+    packVolume = undefined,
+    isAutoPack = undefined,
+    lastRebalancedAt = undefined,
+  }) => {
     const owner = resolveOwner(ownerJid);
     const normalizedStatus = PACK_STATUS_VALUES.has(String(status || '').toLowerCase())
       ? String(status).toLowerCase()
@@ -375,6 +387,11 @@ export function createStickerPackService(options = {}) {
             cover_sticker_id: null,
             visibility: metadata.visibility,
             status: normalizedStatus,
+            pack_status: packStatus,
+            pack_theme_key: packThemeKey,
+            pack_volume: packVolume,
+            is_auto_pack: isAutoPack,
+            last_rebalanced_at: lastRebalancedAt,
             version: 1,
           },
           connection,

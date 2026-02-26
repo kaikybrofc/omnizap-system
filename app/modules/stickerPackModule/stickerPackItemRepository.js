@@ -97,6 +97,43 @@ export async function listStickerPackItems(packId, connection = null) {
 }
 
 /**
+ * Lista itens de múltiplos packs em uma única consulta.
+ *
+ * @param {string[]} packIds IDs dos packs.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null]
+ * @returns {Promise<object[]>}
+ */
+export async function listStickerPackItemsByPackIds(packIds, connection = null) {
+  if (!Array.isArray(packIds) || packIds.length === 0) return [];
+  const uniquePackIds = Array.from(new Set(packIds.filter(Boolean)));
+  if (!uniquePackIds.length) return [];
+
+  const placeholders = uniquePackIds.map(() => '?').join(', ');
+  const rows = await executeQuery(
+    `SELECT
+       i.*,
+       a.id AS asset_id,
+       a.owner_jid AS asset_owner_jid,
+       a.sha256 AS asset_sha256,
+       a.mimetype AS asset_mimetype,
+       a.is_animated AS asset_is_animated,
+       a.width AS asset_width,
+       a.height AS asset_height,
+       a.size_bytes AS asset_size_bytes,
+       a.storage_path AS asset_storage_path,
+       a.created_at AS asset_created_at
+     FROM ${TABLES.STICKER_PACK_ITEM} i
+     LEFT JOIN ${TABLES.STICKER_ASSET} a ON a.id = i.sticker_id
+     WHERE i.pack_id IN (${placeholders})
+     ORDER BY i.pack_id ASC, i.position ASC`,
+    uniquePackIds,
+    connection,
+  );
+
+  return rows.map((row) => normalizeItemRow(row));
+}
+
+/**
  * Busca item do pack pelo sticker_id.
  *
  * @param {string} packId ID do pack.

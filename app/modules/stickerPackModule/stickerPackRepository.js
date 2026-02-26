@@ -19,6 +19,11 @@ const normalizeStickerPackRow = (row) => {
     cover_sticker_id: row.cover_sticker_id,
     visibility: row.visibility,
     status: row.status || 'published',
+    pack_status: row.pack_status || 'ready',
+    pack_theme_key: row.pack_theme_key || null,
+    pack_volume: row.pack_volume !== null && row.pack_volume !== undefined ? Number(row.pack_volume) : null,
+    is_auto_pack: row.is_auto_pack === 1 || row.is_auto_pack === true,
+    last_rebalanced_at: row.last_rebalanced_at || null,
     version: Number(row.version || 1),
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -146,6 +151,74 @@ export async function listStickerPacksByOwner(
 }
 
 /**
+ * Lista packs automáticos de curadoria para um conjunto de owners.
+ *
+ * @param {{
+ *   ownerJids?: string[],
+ *   includeArchived?: boolean,
+ *   themeKey?: string,
+ *   limit?: number,
+ *   offset?: number,
+ *   connection?: import('mysql2/promise').PoolConnection|null,
+ * }} [options]
+ * @returns {Promise<object[]>}
+ */
+export async function listStickerAutoPacksForCuration({
+  ownerJids = [],
+  includeArchived = true,
+  themeKey = '',
+  includeLegacyMarkers = true,
+  limit = 2000,
+  offset = 0,
+  connection = null,
+} = {}) {
+  const owners = Array.from(new Set((Array.isArray(ownerJids) ? ownerJids : []).filter(Boolean)));
+  if (!owners.length) return [];
+
+  const safeLimit = Math.max(1, Math.min(5000, Number(limit) || 2000));
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const ownerPlaceholders = owners.map(() => '?').join(', ');
+
+  const whereClauses = [
+    'p.deleted_at IS NULL',
+    `p.owner_jid IN (${ownerPlaceholders})`,
+  ];
+  const params = [...owners];
+
+  if (includeLegacyMarkers) {
+    whereClauses.push("(p.is_auto_pack = 1 OR p.description LIKE '%[auto-theme:%' OR p.description LIKE '%[auto-tag:%')");
+  } else {
+    whereClauses.push('p.is_auto_pack = 1');
+  }
+
+  const normalizedThemeKey = String(themeKey || '').trim().toLowerCase();
+  if (normalizedThemeKey) {
+    whereClauses.push('LOWER(COALESCE(p.pack_theme_key, \'\')) = ?');
+    params.push(normalizedThemeKey);
+  }
+
+  if (!includeArchived) {
+    whereClauses.push("COALESCE(p.pack_status, 'ready') <> 'archived'");
+  }
+
+  const rows = await executeQuery(
+    `SELECT p.*,
+      (SELECT COUNT(*) FROM ${TABLES.STICKER_PACK_ITEM} i WHERE i.pack_id = p.id) AS sticker_count
+     FROM ${TABLES.STICKER_PACK} p
+     WHERE ${whereClauses.join(' AND ')}
+     ORDER BY
+       COALESCE(p.pack_theme_key, '') ASC,
+       COALESCE(p.pack_volume, 0) ASC,
+       p.updated_at DESC
+     LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+    params,
+    connection,
+  );
+
+  return rows.map((row) => normalizeStickerPackRow(row));
+}
+
+/**
  * Lista packs públicos para catálogo web com busca e paginação.
  *
  * @param {{
@@ -181,6 +254,7 @@ export async function listStickerPacksForCatalog({
   const whereClauses = [
     'p.deleted_at IS NULL',
     "p.status = 'published'",
+    "COALESCE(p.pack_status, 'ready') = 'ready'",
     `p.visibility IN (${visibilityValues.map(() => '?').join(', ')})`,
   ];
 
@@ -220,8 +294,24 @@ export async function listStickerPacksForCatalog({
 export async function createStickerPack(pack, connection = null) {
   await executeQuery(
     `INSERT INTO ${TABLES.STICKER_PACK}
-      (id, owner_jid, name, publisher, description, pack_key, cover_sticker_id, visibility, status, version)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (
+        id,
+        owner_jid,
+        name,
+        publisher,
+        description,
+        pack_key,
+        cover_sticker_id,
+        visibility,
+        status,
+        pack_status,
+        pack_theme_key,
+        pack_volume,
+        is_auto_pack,
+        last_rebalanced_at,
+        version
+      )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       pack.id,
       pack.owner_jid,
@@ -232,6 +322,11 @@ export async function createStickerPack(pack, connection = null) {
       pack.cover_sticker_id ?? null,
       pack.visibility,
       pack.status ?? 'published',
+      pack.pack_status ?? 'ready',
+      pack.pack_theme_key ?? null,
+      pack.pack_volume ?? null,
+      pack.is_auto_pack ? 1 : 0,
+      pack.last_rebalanced_at ?? null,
       pack.version ?? 1,
     ],
     connection,
@@ -248,6 +343,11 @@ const UPDATE_FIELD_MAP = {
   cover_sticker_id: 'cover_sticker_id',
   visibility: 'visibility',
   status: 'status',
+  pack_status: 'pack_status',
+  pack_theme_key: 'pack_theme_key',
+  pack_volume: 'pack_volume',
+  is_auto_pack: 'is_auto_pack',
+  last_rebalanced_at: 'last_rebalanced_at',
   deleted_at: 'deleted_at',
 };
 

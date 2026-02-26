@@ -240,6 +240,79 @@ export async function listClassifiedStickerAssetsWithoutPack({ search = '', limi
 }
 
 /**
+ * Lista assets classificados para curadoria (inclui com/sem pack) com paginação.
+ *
+ * @param {{
+ *   limit?: number,
+ *   offset?: number,
+ *   includePacked?: boolean,
+ *   includeUnpacked?: boolean,
+ *   onlyVersionMismatch?: string|null,
+ *   connection?: import('mysql2/promise').PoolConnection|null,
+ * }} [options]
+ * @returns {Promise<{ assets: object[], hasMore: boolean, total: number }>}
+ */
+export async function listClassifiedStickerAssetsForCuration({
+  limit = 200,
+  offset = 0,
+  includePacked = true,
+  includeUnpacked = true,
+  onlyVersionMismatch = null,
+  connection = null,
+} = {}) {
+  const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 200));
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const safeLimitWithSentinel = safeLimit + 1;
+
+  const whereClauses = [];
+  const params = [];
+
+  if (!includePacked && includeUnpacked) {
+    whereClauses.push('i_any.sticker_id IS NULL');
+  } else if (includePacked && !includeUnpacked) {
+    whereClauses.push('i_any.sticker_id IS NOT NULL');
+  }
+
+  const normalizedVersion = String(onlyVersionMismatch || '').trim();
+  if (normalizedVersion) {
+    whereClauses.push('c.classification_version <> ?');
+    params.push(normalizedVersion);
+  }
+
+  const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+  const rows = await executeQuery(
+    `SELECT DISTINCT a.*
+     FROM ${TABLES.STICKER_ASSET} a
+     INNER JOIN ${TABLES.STICKER_ASSET_CLASSIFICATION} c ON c.asset_id = a.id
+     LEFT JOIN ${TABLES.STICKER_PACK_ITEM} i_any ON i_any.sticker_id = a.id
+     ${whereSql}
+     ORDER BY a.created_at DESC, a.id DESC
+     LIMIT ${safeLimitWithSentinel} OFFSET ${safeOffset}`,
+    params,
+    connection,
+  );
+
+  const countRows = await executeQuery(
+    `SELECT COUNT(DISTINCT a.id) AS total
+     FROM ${TABLES.STICKER_ASSET} a
+     INNER JOIN ${TABLES.STICKER_ASSET_CLASSIFICATION} c ON c.asset_id = a.id
+     LEFT JOIN ${TABLES.STICKER_PACK_ITEM} i_any ON i_any.sticker_id = a.id
+     ${whereSql}`,
+    params,
+    connection,
+  );
+
+  const hasMore = rows.length > safeLimit;
+  const total = Number(countRows?.[0]?.total || 0);
+  return {
+    assets: rows.slice(0, safeLimit).map((row) => normalizeStickerAssetRow(row)),
+    hasMore,
+    total,
+  };
+}
+
+/**
  * Cria um novo asset de figurinha.
  *
  * @param {object} asset Payload de criação do asset.

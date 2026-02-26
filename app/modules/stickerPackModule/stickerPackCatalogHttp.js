@@ -198,7 +198,9 @@ let staleDraftCleanupState = {
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 const isPackPubliclyVisible = (pack) =>
-  (pack?.visibility === 'public' || pack?.visibility === 'unlisted') && String(pack?.status || 'published') === 'published';
+  (pack?.visibility === 'public' || pack?.visibility === 'unlisted')
+  && String(pack?.status || 'published') === 'published'
+  && String(pack?.pack_status || 'ready') === 'ready';
 const toIsoOrNull = (value) => (value ? new Date(value).toISOString() : null);
 const GITHUB_PROJECT_CACHE = {
   expiresAt: 0,
@@ -1965,6 +1967,7 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
      LEFT JOIN sticker_pack_item i ON i.pack_id = p.id
      WHERE p.deleted_at IS NULL
        AND p.status = 'published'
+       AND COALESCE(p.pack_status, 'ready') = 'ready'
        AND p.visibility IN (${placeholders})`,
     visibilityValues,
   );
@@ -1975,6 +1978,7 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
      INNER JOIN sticker_pack p ON p.id = e.pack_id
      WHERE p.deleted_at IS NULL
        AND p.status = 'published'
+       AND COALESCE(p.pack_status, 'ready') = 'ready'
        AND p.visibility IN (${placeholders})`,
     visibilityValues,
   );
@@ -4443,6 +4447,7 @@ const buildMarketplaceGlobalStatsSnapshot = async () => {
        FROM ${TABLES.STICKER_PACK}
        WHERE deleted_at IS NULL
          AND status = 'published'
+         AND COALESCE(pack_status, 'ready') = 'ready'
          AND visibility IN (${placeholders})`,
       visiblePublishedVisibility,
     ),
@@ -4461,6 +4466,7 @@ const buildMarketplaceGlobalStatsSnapshot = async () => {
        INNER JOIN ${TABLES.STICKER_PACK} p ON p.id = e.pack_id
        WHERE p.deleted_at IS NULL
          AND p.status = 'published'
+         AND COALESCE(p.pack_status, 'ready') = 'ready'
          AND p.visibility IN (${placeholders})`,
       visiblePublishedVisibility,
     ),
@@ -4469,6 +4475,7 @@ const buildMarketplaceGlobalStatsSnapshot = async () => {
        FROM ${TABLES.STICKER_PACK}
        WHERE deleted_at IS NULL
          AND status = 'published'
+         AND COALESCE(pack_status, 'ready') = 'ready'
          AND visibility IN (${placeholders})
          AND created_at >= (${dayFilterSql})
        GROUP BY DATE(created_at)`,
@@ -4488,6 +4495,7 @@ const buildMarketplaceGlobalStatsSnapshot = async () => {
          AND ev.interaction IN ('open', 'like')
          AND p.deleted_at IS NULL
          AND p.status = 'published'
+         AND COALESCE(p.pack_status, 'ready') = 'ready'
          AND p.visibility IN (${placeholders})
        GROUP BY DATE(ev.created_at), ev.interaction`,
       visiblePublishedVisibility,
