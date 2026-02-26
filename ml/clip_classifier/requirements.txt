@@ -4,4 +4,4 @@ python-multipart==0.0.20
 Pillow==11.3.0
 numpy==2.3.2
 torch>=2.2.0
-git+https://github.com/openai/CLIP.git
+open-clip-torch>=2.26.1

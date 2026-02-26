@@ -7,7 +7,7 @@ import threading
 from dataclasses import dataclass
 from typing import Iterable
 
-import clip
+import open_clip
 import torch
 from PIL import Image, UnidentifiedImageError
 
@@ -136,7 +136,8 @@ BUILTIN_DEFAULT_LABELS = [
 ]
 
 NSFW_THRESHOLD = float(os.getenv("NSFW_THRESHOLD", "0.6"))
-CLIP_MODEL_NAME = os.getenv("CLIP_MODEL_NAME", "ViT-B/32")
+CLIP_MODEL_NAME = os.getenv("CLIP_MODEL_NAME", "MobileCLIP-S1")
+CLIP_MODEL_PRETRAINED = os.getenv("CLIP_MODEL_PRETRAINED", "datacompdr")
 MAX_LABELS = max(5, int(os.getenv("CLIP_MAX_LABELS", "256")))
 
 
@@ -226,11 +227,22 @@ class ClassifierRuntimeInfo:
 
 
 class ClipClassifier:
-    def __init__(self, model_name: str = CLIP_MODEL_NAME, device: str | None = None) -> None:
+    def __init__(
+        self,
+        model_name: str = CLIP_MODEL_NAME,
+        pretrained: str = CLIP_MODEL_PRETRAINED,
+        device: str | None = None,
+    ) -> None:
         self.device = device or _resolve_device()
         self.model_name = model_name
-        self.model, self.preprocess = clip.load(self.model_name, device=self.device)
+        self.pretrained = pretrained
+        self.model, _, self.preprocess = open_clip.create_model_and_transforms(
+            self.model_name,
+            pretrained=self.pretrained,
+        )
+        self.model = self.model.to(self.device)
         self.model.eval()
+        self.tokenizer = open_clip.get_tokenizer(self.model_name)
 
     @property
     def runtime_info(self) -> ClassifierRuntimeInfo:
@@ -246,10 +258,22 @@ class ClipClassifier:
         nsfw_label = _pick_nsfw_label(clean_labels)
 
         image_tensor = self.preprocess(image.convert("RGB")).unsqueeze(0).to(self.device)
-        text_tokens = clip.tokenize(clean_labels).to(self.device)
+        text_tokens = self.tokenizer(clean_labels).to(self.device)
 
         with torch.no_grad():
-            logits_per_image, _ = self.model(image_tensor, text_tokens)
+            image_features = self.model.encode_image(image_tensor)
+            text_features = self.model.encode_text(text_tokens)
+
+            image_features = image_features / image_features.norm(dim=-1, keepdim=True).clamp(min=1e-12)
+            text_features = text_features / text_features.norm(dim=-1, keepdim=True).clamp(min=1e-12)
+
+            scale = getattr(self.model, "logit_scale", None)
+            if isinstance(scale, torch.Tensor):
+                logit_scale = scale.exp()
+            else:
+                logit_scale = torch.tensor(100.0, device=self.device)
+
+            logits_per_image = (logit_scale * (image_features @ text_features.T)).float()
             probs = logits_per_image.softmax(dim=-1).squeeze(0).detach().cpu().tolist()
 
         scores = {label: float(score) for label, score in zip(clean_labels, probs)}

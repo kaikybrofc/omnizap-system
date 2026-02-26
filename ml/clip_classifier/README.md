@@ -1,6 +1,6 @@
-# OmniZap CLIP Classifier
+# OmniZap CLIP Classifier (MobileCLIP)
 
-Serviço de classificação de imagens com CLIP para categorizar stickers/packs.
+Serviço de classificação de imagens com MobileCLIP (via OpenCLIP) para categorizar stickers/packs.
 
 ## Estrutura
 
@@ -36,6 +36,9 @@ Você pode sobrescrever via ambiente:
 - `CLIP_DEFAULT_LABELS_JSON`: lista JSON (`["categoria 1","categoria 2"]`)
 - `CLIP_DEFAULT_LABELS_PATH`: caminho para arquivo `.txt`/`.json` com labels
 - `CLIP_MAX_LABELS`: limite máximo de labels por inferência (padrão: `256`)
+- `CLIP_MODEL_NAME`: modelo OpenCLIP (padrão: `MobileCLIP-S1`)
+- `CLIP_MODEL_PRETRAINED`: tag de pesos OpenCLIP (padrão: `datacompdr`)
+- `CLIP_DEVICE`: força `cpu`/`cuda` (opcional)
 
 Exemplo com cURL:
 
@@ -61,7 +64,7 @@ curl -X POST "http://localhost:8008/classify" \
   },
   "nsfw_score": 0.01,
   "is_nsfw": false,
-  "model": "ViT-B/32",
+  "model": "MobileCLIP-S1",
   "device": "cuda",
   "labels": [
     "anime illustration",

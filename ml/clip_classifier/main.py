@@ -9,9 +9,9 @@ from pydantic import BaseModel
 from classifier import DEFAULT_LABELS, NSFW_THRESHOLD, classify_image_bytes, get_classifier
 
 app = FastAPI(
-    title="OmniZap CLIP Classifier API",
-    description="Classificação de imagens com CLIP para categorizar stickers/packs.",
-    version="1.0.0",
+    title="OmniZap MobileCLIP Classifier API",
+    description="Classificação de imagens com MobileCLIP (via OpenCLIP) para categorizar stickers/packs.",
+    version="1.1.0",
 )
 
 
@@ -100,4 +100,3 @@ async def classify(
         filename=file.filename,
         content_type=file.content_type,
     )
-

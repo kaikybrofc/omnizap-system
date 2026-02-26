@@ -227,12 +227,12 @@ O OmniZap resolve isso com um `sender_id` canônico para manter métricas/rankin
 - Reconciliação automática quando o JID real aparece.
 - Backfill opcional no startup.
 
-## Classificação de imagens (CLIP)
+## Classificação de imagens (CLIP / MobileCLIP)
 
 Para categorizar packs e stickers solos (ex.: anime/game/real/cartoon/nsfw), foi adicionado um microserviço Python:
 
 - Caminho: `ml/clip_classifier`
-- Stack: `FastAPI + CLIP + PyTorch`
+- Stack: `FastAPI + MobileCLIP (OpenCLIP) + PyTorch`
 - Endpoint: `POST /classify` (upload de imagem)
 
 Documentação e execução:
