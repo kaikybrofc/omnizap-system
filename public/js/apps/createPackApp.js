@@ -36,6 +36,8 @@ const clampText = (value, maxLength) =>
     .trim()
     .slice(0, maxLength);
 
+const clampInputText = (value, maxLength) => String(value || '').slice(0, maxLength);
+
 const sanitizePackName = (value, maxLength = 120) =>
   String(value || '')
     .toLowerCase()
@@ -1525,14 +1527,14 @@ function CreatePackApp() {
                       multiline=${true}
                       maxLength=${limits.description_max_length}
                       hint="Explique o tema do pack em uma frase curta"
-                      onChange=${(e) => setDescription(clampText(e.target.value, limits.description_max_length))}
+                      onChange=${(e) => setDescription(clampInputText(e.target.value, limits.description_max_length))}
                     />
                     <${FloatingField}
                       label="Autor"
                       value=${publisher}
                       maxLength=${limits.publisher_max_length}
                       hint="Como seu nome será exibido no catálogo."
-                      onChange=${(e) => setPublisher(clampText(e.target.value, limits.publisher_max_length))}
+                      onChange=${(e) => setPublisher(clampInputText(e.target.value, limits.publisher_max_length))}
                     />
                     ${googleLoginEnabled
                       ? html`
