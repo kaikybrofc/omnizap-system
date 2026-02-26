@@ -16,6 +16,14 @@ O **OmniZap System** é uma plataforma de automação para WhatsApp usando **Nod
 - mídia/figurinhas com packs persistentes
 - observabilidade (Prometheus/Grafana/Loki)
 
+## Links oficiais do projeto
+
+- Site principal: https://omnizap.shop/
+- Catálogo web de stickers: https://omnizap.shop/stickers/
+- API Docs: https://omnizap.shop/api-docs/
+- Termos de uso: https://omnizap.shop/termos-de-uso/
+- Licença: https://omnizap.shop/licenca/
+
 ## Recursos principais
 
 - Gerenciamento de grupos (admin, boas-vindas, despedida, anti-link, captcha).
@@ -193,6 +201,12 @@ O servidor HTTP de observabilidade também expõe um catálogo web simples para 
 - Página web: `http://localhost:9102/stickers`
 - API: `http://localhost:9102/api/sticker-packs`
 - Endpoint de métricas permanece em: `http://localhost:9102/metrics`
+
+Em produção (instância oficial):
+
+- Página web: `https://omnizap.shop/stickers/`
+- API: `https://omnizap.shop/api/sticker-packs`
+- API Docs: `https://omnizap.shop/api-docs/`
 
 Principais rotas da API:
 
