@@ -86,27 +86,13 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
   const countLabel = itemCount > 0 ? ` (${itemCount}/${AUTO_PACK_MAX_ITEMS})` : '';
 
   if (result.status === 'duplicate') {
-    return [
-      `ℹ️ Essa figurinha já estava no pack automático *${packName}*.`,
-      `Use *${commandPrefix}pack info ${packIdentifier}* para ver o pack ou *${commandPrefix}pack send ${packIdentifier}* para enviar.`,
-    ].join('\n');
+    return [`ℹ️ Essa figurinha já estava no pack automático *${packName}*.`, `Use *${commandPrefix}pack info ${packIdentifier}* para ver o pack ou *${commandPrefix}pack send ${packIdentifier}* para enviar.`].join('\n');
   }
 
-  return [
-    `📦 Figurinha salva automaticamente no pack *${packName}*${countLabel}.\n\n`,
-    `Dica: use *${commandPrefix}pack list* para gerenciar seus packs.`,
-    `Para enviar agora: *${commandPrefix}pack send ${packCommandTarget}*.`,
-  ].join('\n');
+  return [`📦 Figurinha salva automaticamente no pack *${packName}*${countLabel}.\n\n`, `Dica: use *${commandPrefix}pack list* para gerenciar seus packs.`, `Para enviar agora: *${commandPrefix}pack send ${packCommandTarget}*.`].join('\n');
 }
 
-async function notifyAutoPackCollection({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  result,
-  commandPrefix,
-}) {
+async function notifyAutoPackCollection({ sock, remoteJid, messageInfo, expirationMessage, result, commandPrefix }) {
   if (!AUTO_PACK_NOTICE_ENABLED) return;
 
   const noticeText = buildAutoPackNoticeText(result, commandPrefix);
@@ -198,10 +184,7 @@ function drawTextOnCanvas(ctx, text, color, { glow = false } = {}) {
   };
 
   let lines = wrapText();
-  while (
-    lines.length * fontSize > height - 40 ||
-    lines.some((line) => ctx.measureText(line).width > maxWidth)
-  ) {
+  while (lines.length * fontSize > height - 40 || lines.some((line) => ctx.measureText(line).width > maxWidth)) {
     fontSize -= 4;
     ctx.font = `bold ${fontSize}px Arial`;
     lines = wrapText();
@@ -337,18 +320,7 @@ async function generateBlinkingTextWebp(text, outputDir, fileName, color = 'whit
  * @param {string} [params.commandPrefix='/']
  * @returns {Promise<void>}
  */
-export async function processTextSticker({
-  sock,
-  messageInfo,
-  remoteJid,
-  senderJid,
-  senderName,
-  text,
-  expirationMessage,
-  extraText = '',
-  color = 'black',
-  commandPrefix = DEFAULT_COMMAND_PREFIX,
-}) {
+export async function processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, expirationMessage, extraText = '', color = 'black', commandPrefix = DEFAULT_COMMAND_PREFIX }) {
   const stickerText = text.trim();
 
   if (!stickerText) {
@@ -356,9 +328,7 @@ export async function processTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          '❌ Você precisa informar um texto para criar a figurinha.\n\n' +
-          `Exemplo:\n*${commandPrefix}st bom dia seus lindos*`,
+        text: '❌ Você precisa informar um texto para criar a figurinha.\n\n' + `Exemplo:\n*${commandPrefix}st bom dia seus lindos*`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -371,9 +341,7 @@ export async function processTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          `❌ Texto muito longo: *${stickerText.length}* caracteres.\n` +
-          `Limite atual: *${MAX_CHARACTERS}* caracteres.`,
+        text: `❌ Texto muito longo: *${stickerText.length}* caracteres.\n` + `Limite atual: *${MAX_CHARACTERS}* caracteres.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -388,9 +356,7 @@ export async function processTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          `❌ Texto com muitas linhas: *${stickerLines.length}*.\n` +
-          `Limite atual: *${MAX_LINES}* linhas.`,
+        text: `❌ Texto com muitas linhas: *${stickerLines.length}*.\n` + `Limite atual: *${MAX_LINES}* linhas.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -435,12 +401,7 @@ export async function processTextSticker({
 
     const stickerBuffer = await fs.readFile(stickerPath);
 
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { sticker: stickerBuffer },
-      { ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { sticker: stickerBuffer }, { ephemeralExpiration: expirationMessage });
 
     setImmediate(() => {
       addStickerToAutoPack({
@@ -468,9 +429,7 @@ export async function processTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          '*❌ Não foi possível criar a figurinha de texto.*\n\n' +
-          `Tente novamente com outro texto ou use *${commandPrefix}st* com uma frase menor.`,
+        text: '*❌ Não foi possível criar a figurinha de texto.*\n\n' + `Tente novamente com outro texto ou use *${commandPrefix}st* com uma frase menor.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -498,18 +457,7 @@ export async function processTextSticker({
  * @param {string} [params.commandPrefix='/']
  * @returns {Promise<void>}
  */
-export async function processBlinkingTextSticker({
-  sock,
-  messageInfo,
-  remoteJid,
-  senderJid,
-  senderName,
-  text,
-  expirationMessage,
-  extraText = '',
-  color = 'white',
-  commandPrefix = DEFAULT_COMMAND_PREFIX,
-}) {
+export async function processBlinkingTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, expirationMessage, extraText = '', color = 'white', commandPrefix = DEFAULT_COMMAND_PREFIX }) {
   const parsed = parseColorFlag(text, color);
   const stickerText = parsed.text.trim();
   const resolvedColor = parsed.color;
@@ -519,9 +467,7 @@ export async function processBlinkingTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          '❌ Você precisa informar um texto para criar a figurinha piscante.\n\n' +
-          `Exemplo:\n*${commandPrefix}stb bom dia seus lindos -verde*`,
+        text: '❌ Você precisa informar um texto para criar a figurinha piscante.\n\n' + `Exemplo:\n*${commandPrefix}stb bom dia seus lindos -verde*`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -534,9 +480,7 @@ export async function processBlinkingTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          `❌ Texto muito longo: *${stickerText.length}* caracteres.\n` +
-          `Limite atual: *${MAX_CHARACTERS}* caracteres.`,
+        text: `❌ Texto muito longo: *${stickerText.length}* caracteres.\n` + `Limite atual: *${MAX_CHARACTERS}* caracteres.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -551,9 +495,7 @@ export async function processBlinkingTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          `❌ Texto com muitas linhas: *${stickerLines.length}*.\n` +
-          `Limite atual: *${MAX_LINES}* linhas.`,
+        text: `❌ Texto com muitas linhas: *${stickerLines.length}*.\n` + `Limite atual: *${MAX_LINES}* linhas.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -572,12 +514,7 @@ export async function processBlinkingTextSticker({
     const userDir = path.join(TEMP_DIR, sanitizedUserId);
     await fs.mkdir(userDir, { recursive: true });
 
-    webpPath = await generateBlinkingTextWebp(
-      stickerText,
-      userDir,
-      `text_blink_${uniqueId}`,
-      resolvedColor,
-    );
+    webpPath = await generateBlinkingTextWebp(stickerText, userDir, `text_blink_${uniqueId}`, resolvedColor);
 
     const { packName, packAuthor } = (() => {
       if (!extraText) {
@@ -600,12 +537,7 @@ export async function processBlinkingTextSticker({
 
     const stickerBuffer = await fs.readFile(stickerPath);
 
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { sticker: stickerBuffer },
-      { ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { sticker: stickerBuffer }, { ephemeralExpiration: expirationMessage });
 
     setImmediate(() => {
       addStickerToAutoPack({
@@ -633,9 +565,7 @@ export async function processBlinkingTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          '*❌ Não foi possível criar a figurinha piscante.*\n\n' +
-          `Tente novamente com outro texto ou use *${commandPrefix}stb* com uma frase menor.`,
+        text: '*❌ Não foi possível criar a figurinha piscante.*\n\n' + `Tente novamente com outro texto ou use *${commandPrefix}stb* com uma frase menor.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );

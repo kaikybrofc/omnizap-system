@@ -61,19 +61,13 @@ const ensureDir = async (dirPath) => {
   await fs.mkdir(dirPath, { recursive: true });
 };
 
-const pickConverterClass = (moduleRef) =>
-  moduleRef?.default || moduleRef?.Converter || moduleRef?.WebpConv || moduleRef?.webpconv || null;
+const pickConverterClass = (moduleRef) => moduleRef?.default || moduleRef?.Converter || moduleRef?.WebpConv || moduleRef?.webpconv || null;
 
-export async function handleStickerConvertCommand({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  senderJid,
-}) {
+export async function handleStickerConvertCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid }) {
   const resolved = resolveStickerMessage(messageInfo);
   if (!resolved) {
-    await sendAndStore(sock, 
+    await sendAndStore(
+      sock,
       remoteJid,
       {
         text: '❌ Envie ou responda a uma figurinha para converter.\n\nDica: use o comando respondendo a um sticker.',
@@ -87,11 +81,7 @@ export async function handleStickerConvertCommand({
   const fileLength = details?.fileLength || sticker?.fileLength || 0;
   if (fileLength > MAX_FILE_SIZE) {
     const sizeMb = (fileLength / (1024 * 1024)).toFixed(2);
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: `❌ Figurinha muito grande (${sizeMb} MB). Envie uma menor.` },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: `❌ Figurinha muito grande (${sizeMb} MB). Envie uma menor.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
@@ -109,11 +99,7 @@ export async function handleStickerConvertCommand({
 
     downloadedPath = await downloadMediaMessage(sticker, 'sticker', userDir);
     if (!downloadedPath) {
-      await sendAndStore(sock, 
-        remoteJid,
-        { text: '❌ Não foi possível baixar a figurinha. Tente novamente.' },
-        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-      );
+      await sendAndStore(sock, remoteJid, { text: '❌ Não foi possível baixar a figurinha. Tente novamente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       return;
     }
 
@@ -123,7 +109,8 @@ export async function handleStickerConvertCommand({
 
     const isAnimated = await isAnimatedSticker(sticker, webpPath);
     if (isAnimated) {
-      await sendAndStore(sock, 
+      await sendAndStore(
+        sock,
         remoteJid,
         {
           document: { stream: createReadStream(webpPath) },
@@ -146,7 +133,8 @@ export async function handleStickerConvertCommand({
     const converter = new ConverterClass();
     convertedPath = await converter.convertJobs({ input: webpPath, output: forcedOutput });
 
-    await sendAndStore(sock, 
+    await sendAndStore(
+      sock,
       remoteJid,
       {
         image: { stream: createReadStream(convertedPath) },
@@ -158,19 +146,11 @@ export async function handleStickerConvertCommand({
     logger.error(`handleStickerConvertCommand: erro ao converter figurinha: ${error.message}`, {
       error: error.stack,
     });
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: '❌ Não foi possível converter a figurinha agora. Tente novamente.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: '❌ Não foi possível converter a figurinha agora. Tente novamente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   } finally {
     const cleanupFiles = [downloadedPath, webpPath, convertedPath].filter(Boolean);
     for (const file of cleanupFiles) {
-      await fs
-        .unlink(file)
-        .catch((err) =>
-          logger.warn(`handleStickerConvertCommand: falha ao limpar ${file}: ${err.message}`),
-        );
+      await fs.unlink(file).catch((err) => logger.warn(`handleStickerConvertCommand: falha ao limpar ${file}: ${err.message}`));
     }
   }
 }
