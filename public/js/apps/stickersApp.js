@@ -6,6 +6,57 @@ const SEARCH_HISTORY_KEY = 'omnizap_stickers_search_history_v1';
 const PACK_UPLOAD_TASK_KEY = 'omnizap_pack_upload_task_v1';
 const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const PROFILE_ROUTE_SEGMENTS = new Set(['perfil', 'profile']);
+const CREATORS_ROUTE_SEGMENTS = new Set(['creators', 'criadores']);
+
+const CATALOG_SORT_OPTIONS = [
+  { value: 'recent', label: 'Mais recentes', icon: '🆕' },
+  { value: 'likes', label: 'Mais curtidos', icon: '👍' },
+  { value: 'downloads', label: 'Mais baixados', icon: '⬇️' },
+  { value: 'trending', label: 'Em alta', icon: '🔥' },
+  { value: 'comments', label: 'Mais comentados', icon: '💬' },
+];
+
+const DEFAULT_CATALOG_SORT = 'trending';
+const DEFAULT_CREATORS_SORT = 'popular';
+
+const safeNumber = (value, fallback = 0) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+};
+
+const normalizeCatalogSort = (value, fallback = DEFAULT_CATALOG_SORT) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'new') return 'recent';
+  if (normalized === 'liked') return 'likes';
+  if (normalized === 'popular') return 'trending';
+  if (CATALOG_SORT_OPTIONS.some((entry) => entry.value === normalized)) return normalized;
+  return fallback;
+};
+
+const normalizeCreatorsSort = (value, fallback = DEFAULT_CREATORS_SORT) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'creator_score') return 'popular';
+  if (['popular', 'likes', 'downloads', 'packs', 'name'].includes(normalized)) return normalized;
+  return fallback;
+};
+
+const catalogSortLabel = (sort) =>
+  CATALOG_SORT_OPTIONS.find((entry) => entry.value === normalizeCatalogSort(sort))?.label || 'Ordenar';
+
+const getPackTrendScore = (pack) => safeNumber(pack?.signals?.trend_score);
+const getPackRankingScore = (pack) => safeNumber(pack?.signals?.ranking_score);
+const getPackCommentCount = (pack) => safeNumber(pack?.engagement?.comment_count || pack?.comment_count || 0);
+
+const buildCreatorScore = (creator) => {
+  const avgPackScore = safeNumber(creator?.avgPackScore ?? creator?.stats?.avg_pack_score);
+  const totalLikes = safeNumber(creator?.likes ?? creator?.stats?.total_likes);
+  const totalDownloads = safeNumber(creator?.downloads ?? creator?.stats?.total_opens);
+  return Number((avgPackScore * 0.45 + totalLikes * 0.0008 + totalDownloads * 0.00015).toFixed(6));
+};
 
 const DEFAULT_CATEGORIES = [
   { value: '', label: '🔥 Em alta', icon: '🔥' },
@@ -49,16 +100,45 @@ const getPackEngagement = (pack) => {
   const likeCount = Number(engagement.like_count || 0);
   const dislikeCount = Number(engagement.dislike_count || 0);
   const openCount = Number(engagement.open_count || 0);
+  const commentCount = Number(engagement.comment_count || pack?.comment_count || 0);
   return {
     likeCount,
     dislikeCount,
     openCount,
+    commentCount,
     score: Number(engagement.score || likeCount - dislikeCount),
   };
 };
 
 const getAvatarUrl = (name) =>
   `https://api.dicebear.com/8.x/thumbs/svg?seed=${encodeURIComponent(String(name || 'omnizap'))}`;
+
+const parseCatalogSearchState = (search = '') => {
+  const params = new URLSearchParams(String(search || ''));
+  const filter = String(params.get('filter') || '').trim().toLowerCase();
+  const hasTrendingFilter = filter === 'trending';
+  const q = hasTrendingFilter ? '' : String(params.get('q') || '').trim();
+  const category = hasTrendingFilter
+    ? ''
+    : String(params.get('category') || params.get('categories') || '')
+        .trim()
+        .toLowerCase();
+
+  return {
+    q,
+    category,
+    filter: hasTrendingFilter ? 'trending' : '',
+    sort: hasTrendingFilter ? 'trending' : normalizeCatalogSort(params.get('sort') || ''),
+  };
+};
+
+const parseCreatorsSearchState = (search = '') => {
+  const params = new URLSearchParams(String(search || ''));
+  return {
+    sort: normalizeCreatorsSort(params.get('sort') || ''),
+    q: String(params.get('q') || '').trim(),
+  };
+};
 
 const parseStickersLocation = (webPath = '/stickers') => {
   const path = String(window.location.pathname || '');
@@ -76,6 +156,9 @@ const parseStickersLocation = (webPath = '/stickers') => {
     const firstSegment = decodeURIComponent(firstSegmentRaw);
     if (PROFILE_ROUTE_SEGMENTS.has(String(firstSegment || '').trim().toLowerCase())) {
       return { view: 'profile', packKey: '' };
+    }
+    if (CREATORS_ROUTE_SEGMENTS.has(String(firstSegment || '').trim().toLowerCase())) {
+      return { view: 'creators', packKey: '' };
     }
     return { view: 'pack', packKey: firstSegment };
   } catch {
@@ -1531,6 +1614,221 @@ function EmptyState({ onClear }) {
   `;
 }
 
+function CatalogSortPicker({ open = false, currentSort = DEFAULT_CATALOG_SORT, busy = false, onClose, onSelect }) {
+  if (!open) return null;
+  const selectedSort = normalizeCatalogSort(currentSort);
+
+  return html`
+    <div className="fixed inset-0 z-[85]">
+      <button type="button" className="absolute inset-0 bg-black/55 backdrop-blur-sm" aria-label="Fechar ordenação" onClick=${onClose}></button>
+      <div className="absolute inset-x-0 bottom-0 sm:inset-auto sm:right-4 sm:top-16 sm:w-[360px]">
+        <div className="rounded-t-2xl sm:rounded-2xl border border-slate-700 bg-slate-950/95 p-3 shadow-2xl">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">Ordenar catálogo</p>
+              <p className="text-sm font-semibold text-slate-100">Escolha o tipo de ranking</p>
+            </div>
+            <button
+              type="button"
+              onClick=${onClose}
+              className="h-8 rounded-lg border border-slate-700 px-2.5 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-60"
+              disabled=${busy}
+            >
+              Fechar
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            ${CATALOG_SORT_OPTIONS.map((option) => {
+              const active = selectedSort === option.value;
+              return html`
+                <button
+                  key=${option.value}
+                  type="button"
+                  onClick=${() => onSelect?.(option.value)}
+                  disabled=${busy}
+                  className=${`w-full rounded-xl border px-3 py-2.5 text-left transition disabled:opacity-60 ${
+                    active
+                      ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100'
+                      : 'border-slate-700 bg-slate-900/70 text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-2">
+                      <span>${option.icon}</span>
+                      <span className="text-sm font-medium">${option.label}</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">${active ? 'ativo' : ''}</span>
+                  </span>
+                </button>
+              `;
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function PackPageSkeleton() {
+  return html`
+    <section className="space-y-4 animate-pulse">
+      <div className="h-10 w-40 rounded-xl border border-slate-700 bg-slate-800/70"></div>
+      <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/70">
+        <div className="h-56 sm:h-64 bg-slate-800"></div>
+        <div className="p-4 space-y-3">
+          <div className="h-6 w-2/3 rounded bg-slate-800"></div>
+          <div className="h-4 w-1/2 rounded bg-slate-800"></div>
+          <div className="h-10 rounded-xl bg-slate-800"></div>
+          <div className="h-9 rounded-xl bg-slate-800"></div>
+          <div className="h-20 rounded-xl bg-slate-800"></div>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        ${Array.from({ length: 9 }).map((_, index) => html`<div key=${index} className="aspect-square rounded-xl border border-slate-700 bg-slate-800"></div>`)}
+      </div>
+    </section>
+  `;
+}
+
+function CreatorRankingSkeleton({ count = 8 }) {
+  return html`
+    <div className="space-y-2">
+      ${Array.from({ length: count }).map(
+        (_, index) => html`
+          <div key=${index} className="animate-pulse rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-full bg-slate-800"></div>
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="h-4 w-40 rounded bg-slate-800"></div>
+                <div className="h-3 w-56 rounded bg-slate-800"></div>
+              </div>
+              <div className="h-9 w-24 rounded-xl bg-slate-800"></div>
+            </div>
+          </div>
+        `,
+      )}
+    </div>
+  `;
+}
+
+function CreatorsRankingPage({
+  creators = [],
+  loading = false,
+  error = '',
+  sort = DEFAULT_CREATORS_SORT,
+  onSortChange,
+  onBack,
+  onRetry,
+  onOpenCreator,
+  onOpenPack,
+}) {
+  const selectedSort = normalizeCreatorsSort(sort);
+
+  return html`
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick=${onBack}
+          className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-700 px-3 text-sm text-slate-200 hover:bg-slate-800"
+        >
+          ← Voltar para catálogo
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400">Ordenar</span>
+          <select
+            value=${selectedSort}
+            onChange=${(event) => onSortChange?.(event.target.value)}
+            className="h-9 rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200 outline-none"
+          >
+            <option value="popular">Popular</option>
+            <option value="likes">Likes</option>
+            <option value="downloads">Downloads</option>
+            <option value="packs">Packs</option>
+            <option value="name">Nome</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:p-4">
+        <p className="text-[11px] uppercase tracking-wide text-slate-400">Criadores populares</p>
+        <h1 className="mt-1 text-lg sm:text-xl font-bold text-slate-100">Ranking de criadores</h1>
+        <p className="text-xs text-slate-400">Avatar, packs publicados, downloads, likes e acesso rápido ao perfil.</p>
+      </div>
+
+      ${error
+        ? html`
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4">
+              <p className="text-sm font-semibold text-rose-100">Falha ao carregar criadores</p>
+              <p className="mt-1 text-xs text-rose-200/90">${error}</p>
+              <button
+                type="button"
+                onClick=${onRetry}
+                className="mt-3 inline-flex h-9 items-center rounded-xl border border-rose-400/40 px-3 text-xs text-rose-100 hover:bg-rose-500/10"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          `
+        : null}
+
+      ${loading ? html`<${CreatorRankingSkeleton} />` : null}
+
+      ${!loading && !error && !creators.length
+        ? html`
+            <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/50 p-8 text-center">
+              <p className="text-sm font-semibold text-slate-100">Nenhum criador encontrado</p>
+              <p className="mt-1 text-xs text-slate-400">Tente atualizar a página ou voltar ao catálogo.</p>
+            </div>
+          `
+        : null}
+
+      ${!loading && creators.length
+        ? html`
+            <div className="space-y-2">
+              ${creators.map((creator, index) => html`
+                <article key=${creator.key || creator.publisher || index} className="fade-card rounded-2xl border border-slate-800 bg-slate-900/65 p-3">
+                  <div className="flex items-center gap-3">
+                    <img src=${creator.avatarUrl || getAvatarUrl(creator.publisher)} alt="" className="h-12 w-12 rounded-full bg-slate-800 border border-slate-700" loading="lazy" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-slate-100">${creator.publisher || 'Criador'}</p>
+                        ${creator.verified ? html`<span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200">Verificado</span>` : null}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                        <span>📦 ${shortNum(creator.packCount || 0)} packs</span>
+                        <span>⬇ ${shortNum(creator.downloads || 0)} downloads</span>
+                        <span>❤️ ${shortNum(creator.likes || 0)} likes</span>
+                      </div>
+                      ${creator.topPack?.name
+                        ? html`
+                            <button
+                              type="button"
+                              onClick=${() => onOpenPack?.(creator.topPack?.pack_key)}
+                              className="mt-1 text-[11px] text-cyan-300 hover:text-cyan-200"
+                            >
+                              Top pack: ${creator.topPack.name}
+                            </button>
+                          `
+                        : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick=${() => onOpenCreator?.(creator)}
+                      className="shrink-0 h-9 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20"
+                    >
+                      Ver perfil
+                    </button>
+                  </div>
+                </article>
+              `)}
+            </div>
+          `
+        : null}
+    </section>
+  `;
+}
+
 function StickerPreview({ item, onClose, onPrev, onNext }) {
   if (!item) return null;
 
@@ -1561,131 +1859,191 @@ function StickerPreview({ item, onClose, onPrev, onNext }) {
   `;
 }
 
-function PackPage({ pack, relatedPacks, onBack, onOpenRelated, onLike, onDislike, reactionLoading = '' }) {
+function PackPage({
+  pack,
+  relatedPacks,
+  onBack,
+  onOpenRelated,
+  onLike,
+  onDislike,
+  onTagClick,
+  reactionLoading = '',
+  reactionNotice = null,
+}) {
+  if (!pack) {
+    return html`
+      <section className="space-y-4">
+        <button
+          type="button"
+          onClick=${onBack}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+        >
+          ← Voltar para catálogo
+        </button>
+        <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/50 p-8 text-center">
+          <p className="text-sm font-semibold text-slate-100">Pack não encontrado</p>
+          <p className="mt-1 text-xs text-slate-400">Tente voltar ao catálogo e abrir novamente.</p>
+        </div>
+      </section>
+    `;
+  }
+
   const items = Array.isArray(pack?.items) ? pack.items : [];
   const tags = Array.isArray(pack?.tags) ? pack.tags : [];
   const cover = pack?.cover_url || items?.[0]?.asset_url || 'https://iili.io/fSNGag2.png';
   const whatsappUrl = String(pack?.whatsapp?.url || '').trim();
   const engagement = getPackEngagement(pack);
+  const hasReactionRequest = Boolean(reactionLoading);
   const [previewIndex, setPreviewIndex] = useState(-1);
-
   const currentPreviewItem = previewIndex >= 0 ? items[previewIndex] : null;
+  const pageBottomPadding = whatsappUrl ? 'pb-[calc(96px+env(safe-area-inset-bottom))] sm:pb-4' : 'pb-4';
 
   return html`
-    <section className="space-y-5 pb-20 sm:pb-4">
+    <section className=${`space-y-4 ${pageBottomPadding}`}>
       <button
         type="button"
         onClick=${onBack}
-        className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+        className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 text-sm text-slate-200 hover:bg-slate-800"
       >
         ← Voltar para catálogo
       </button>
 
-      <div className="rounded-2xl border border-slate-700 bg-slate-800/90 overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-0">
-          <div className="bg-slate-900">
-            <img src=${cover} alt=${`Capa ${pack?.name || 'Pack'}`} className="w-full aspect-square object-cover" loading="lazy" />
+      <article className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/80 shadow-[0_18px_40px_rgba(2,6,23,0.25)]">
+        <div className="relative h-52 sm:h-64 md:h-72 bg-slate-900">
+          <img src=${cover} alt=${`Capa ${pack?.name || 'Pack'}`} className="h-full w-full object-cover" loading="lazy" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent"></div>
+          <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+            <div className="max-w-4xl">
+              <p className="text-[11px] uppercase tracking-wide text-slate-300/90">Pack público</p>
+              <h1 className="mt-1 text-xl sm:text-2xl font-extrabold tracking-tight text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.35)]">
+                ${pack?.name || 'Pack'}
+              </h1>
+              <p className="mt-1 text-xs sm:text-sm text-slate-200/90">
+                ${pack?.publisher || '-'} · ${pack?.created_at ? new Date(pack.created_at).toLocaleDateString('pt-BR') : 'sem data'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-2 text-sm">
+            <span className="text-slate-200">👍 <strong className="font-semibold">${shortNum(engagement.likeCount)}</strong></span>
+            <span className="text-slate-200">👎 <strong className="font-semibold">${shortNum(engagement.dislikeCount)}</strong></span>
+            <span className="text-slate-200">🧩 <strong className="font-semibold">${shortNum(Number(pack?.sticker_count || items.length))}</strong></span>
+            <span className="text-slate-200">👁 <strong className="font-semibold">${shortNum(engagement.openCount)}</strong></span>
           </div>
 
-          <div className="p-4 sm:p-5 space-y-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">${pack?.name || 'Pack'}</h1>
-              <p className="text-sm text-slate-400 mt-1">${pack?.publisher || '-'} · ${pack?.created_at ? new Date(pack.created_at).toLocaleDateString('pt-BR') : 'sem data'}</p>
-            </div>
+          ${whatsappUrl
+            ? html`
+                <a
+                  href=${whatsappUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="hidden sm:inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#25D366] px-5 text-sm font-bold text-[#042d17] shadow-[0_8px_24px_rgba(37,211,102,0.30)] transition hover:brightness-95"
+                >
+                  🟢 Adicionar no WhatsApp
+                </a>
+              `
+            : null}
 
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <div className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2">
-                <p className="text-[10px] text-slate-400">Likes</p>
-                <p className="text-sm font-semibold">👍 ${shortNum(engagement.likeCount)}</p>
-              </div>
-              <div className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2">
-                <p className="text-[10px] text-slate-400">Dislikes</p>
-                <p className="text-sm font-semibold">👎 ${shortNum(engagement.dislikeCount)}</p>
-              </div>
-              <div className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2">
-                <p className="text-[10px] text-slate-400">Stickers</p>
-                <p className="text-sm font-semibold">🧩 ${Number(pack?.sticker_count || items.length)}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 text-sm">
-              <span className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-slate-300">
-                👆 ${shortNum(engagement.openCount)} cliques
-              </span>
-              <button
-                type="button"
-                onClick=${() => onLike(pack?.pack_key)}
-                disabled=${reactionLoading === 'like'}
-                className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60"
-              >
-                ${reactionLoading === 'like' ? 'Enviando...' : '👍 Curtir'}
-              </button>
-              <button
-                type="button"
-                onClick=${() => onDislike(pack?.pack_key)}
-                disabled=${reactionLoading === 'dislike'}
-                className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-rose-200 transition hover:bg-rose-500/20 disabled:opacity-60"
-              >
-                ${reactionLoading === 'dislike' ? 'Enviando...' : '👎 Não curtir'}
-              </button>
-            </div>
-
-            ${tags.length
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick=${() => onLike?.(pack?.pack_key)}
+              disabled=${hasReactionRequest}
+              className="inline-flex h-9 items-center justify-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              ${reactionLoading === 'like' ? 'Enviando...' : 'Curtir'}
+            </button>
+            <button
+              type="button"
+              onClick=${() => onDislike?.(pack?.pack_key)}
+              disabled=${hasReactionRequest}
+              className="inline-flex h-9 items-center justify-center rounded-xl border border-rose-500/35 bg-rose-500/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              ${reactionLoading === 'dislike' ? 'Enviando...' : 'Não curtir'}
+            </button>
+            ${reactionNotice?.message
               ? html`
-                  <div className="flex flex-wrap gap-2">
-                    ${tags.slice(0, 8).map(
-                      (tag) => html`<span key=${tag} className="inline-flex rounded-full border border-slate-600 bg-slate-900/85 px-3 py-1 text-xs text-slate-200">${tagLabel(tag)}</span>`,
-                    )}
+                  <span className=${`text-xs ${reactionNotice.type === 'error' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                    ${reactionNotice.message}
+                  </span>
+                `
+              : null}
+          </div>
+
+          ${pack?.description
+            ? html`<p className="text-sm leading-6 text-slate-300">${pack.description}</p>`
+            : null}
+
+          ${tags.length
+            ? html`
+                <div className="space-y-1">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Tags</p>
+                  <div className="chips-scroll -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                    ${tags.slice(0, 12).map((tag) => html`
+                      <button
+                        key=${tag}
+                        type="button"
+                        onClick=${() => onTagClick?.(tag)}
+                        className="chip-item shrink-0 rounded-full border border-slate-700 bg-slate-900/90 px-2.5 py-1 text-[11px] text-slate-200 hover:border-cyan-400/30 hover:bg-cyan-500/10"
+                      >
+                        ${tagLabel(tag)}
+                      </button>
+                    `)}
                   </div>
-                `
-              : null}
-
-            ${whatsappUrl
-              ? html`
-                  <a
-                    href=${whatsappUrl}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="hidden sm:inline-flex w-full sm:w-auto items-center justify-center rounded-xl bg-[#25D366] px-5 py-2.5 text-sm font-bold text-[#042d17] shadow-[0_8px_24px_rgba(37,211,102,0.35)] transition hover:brightness-95"
-                  >
-                    📲 Adicionar no WhatsApp
-                  </a>
-                `
-              : null}
-          </div>
+                </div>
+              `
+            : null}
         </div>
-      </div>
+      </article>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-bold">Stickers do pack</h2>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-          ${items.map(
-            (item, index) => html`
-              <button
-                key=${item.sticker_id || item.position || index}
-                type="button"
-                onClick=${() => setPreviewIndex(index)}
-                className="group rounded-xl border border-slate-700/70 bg-slate-800 overflow-hidden text-left"
-              >
-                <img
-                  src=${item.asset_url || 'https://iili.io/fSNGag2.png'}
-                  alt=${item.accessibility_label || 'Sticker'}
-                  loading="lazy"
-                  className="w-full aspect-square object-contain bg-slate-950 transition-transform duration-300 group-hover:scale-105"
-                />
-              </button>
-            `,
-          )}
+      <section className="space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-bold">Stickers do pack</h2>
+          <span className="text-xs text-slate-400">${items.length} itens</span>
         </div>
+
+        ${items.length
+          ? html`
+              <div className="pack-stickers-grid gap-2 sm:gap-3">
+                ${items.map(
+                  (item, index) => html`
+                    <button
+                      key=${item.sticker_id || item.position || index}
+                      type="button"
+                      onClick=${() => setPreviewIndex(index)}
+                      className="pack-sticker-card group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 text-left transition hover:-translate-y-0.5 hover:border-slate-600"
+                    >
+                      <img
+                        src=${item.asset_url || 'https://iili.io/fSNGag2.png'}
+                        alt=${item.accessibility_label || 'Sticker'}
+                        loading="lazy"
+                        className="w-full aspect-square object-contain bg-slate-950 transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </button>
+                  `,
+                )}
+              </div>
+            `
+          : html`
+              <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-8 text-center">
+                <p className="text-sm font-semibold text-slate-100">Este pack ainda não tem stickers visíveis.</p>
+                <p className="mt-1 text-xs text-slate-400">Volte mais tarde ou abra outro pack do catálogo.</p>
+              </div>
+            `}
       </section>
 
       ${relatedPacks.length
         ? html`
             <section className="space-y-3">
-              <h2 className="text-lg font-bold">Packs relacionados</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg font-bold">Packs relacionados</h2>
+                <span className="text-xs text-slate-500">${relatedPacks.length} sugestões</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3">
                 ${relatedPacks.map(
-                  (entry, index) => html`<${PackCard} key=${entry.pack_key || entry.id} pack=${entry} index=${index} onOpen=${onOpenRelated} />`,
+                  (entry, index) => html`<div key=${entry.pack_key || entry.id} className="fade-card"><${PackCard} pack=${entry} index=${index} onOpen=${onOpenRelated} /></div>`,
                 )}
               </div>
             </section>
@@ -1694,14 +2052,14 @@ function PackPage({ pack, relatedPacks, onBack, onOpenRelated, onLike, onDislike
 
       ${whatsappUrl
         ? html`
-            <div className="sm:hidden fixed bottom-4 left-4 right-4 z-40">
+            <div className="sm:hidden fixed left-3 right-3 z-[75]" style=${{ bottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
               <a
                 href=${whatsappUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="w-full inline-flex items-center justify-center rounded-xl bg-[#25D366] px-4 py-3 text-sm font-bold text-[#042d17] shadow-[0_10px_30px_rgba(37,211,102,0.35)]"
+                className="w-full inline-flex h-12 items-center justify-center rounded-xl bg-[#25D366] px-4 text-sm font-bold text-[#042d17] shadow-[0_12px_28px_rgba(37,211,102,0.28)]"
               >
-                📲 Adicionar no WhatsApp
+                🟢 Adicionar no WhatsApp
               </a>
             </div>
           `
@@ -1734,14 +2092,19 @@ function StickersApp() {
     [root],
   );
   const initialRoute = parseStickersLocation(config.webPath);
+  const initialCatalogSearch = parseCatalogSearchState(window.location.search);
+  const initialCreatorsSearch = parseCreatorsSearchState(window.location.search);
 
-  const [query, setQuery] = useState('');
-  const [appliedQuery, setAppliedQuery] = useState('');
-  const [sortBy, setSortBy] = useState('popular');
-  const [activeCategory, setActiveCategory] = useState('');
+  const [query, setQuery] = useState(initialCatalogSearch.q || '');
+  const [appliedQuery, setAppliedQuery] = useState(initialCatalogSearch.q || '');
+  const [sortBy, setSortBy] = useState(normalizeCatalogSort(initialCatalogSearch.sort || DEFAULT_CATALOG_SORT));
+  const [activeCategory, setActiveCategory] = useState(initialCatalogSearch.category || '');
+  const [catalogFilter, setCatalogFilter] = useState(initialCatalogSearch.filter || '');
   const [discoverTab, setDiscoverTab] = useState('growing');
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [recentSearches, setRecentSearches] = useState([]);
+  const [sortPickerOpen, setSortPickerOpen] = useState(false);
+  const [sortPickerBusy, setSortPickerBusy] = useState(false);
 
   const [packs, setPacks] = useState([]);
   const [packOffset, setPackOffset] = useState(0);
@@ -1760,7 +2123,12 @@ function StickersApp() {
   const [currentPack, setCurrentPack] = useState(null);
   const [packLoading, setPackLoading] = useState(false);
   const [reactionLoading, setReactionLoading] = useState('');
+  const [reactionNotice, setReactionNotice] = useState(null);
   const [relatedPacks, setRelatedPacks] = useState([]);
+  const [creatorRanking, setCreatorRanking] = useState([]);
+  const [creatorRankingLoading, setCreatorRankingLoading] = useState(false);
+  const [creatorRankingError, setCreatorRankingError] = useState('');
+  const [creatorSort, setCreatorSort] = useState(normalizeCreatorsSort(initialCreatorsSearch.sort || DEFAULT_CREATORS_SORT));
   const [isScrolled, setIsScrolled] = useState(false);
   const [supportInfo, setSupportInfo] = useState(null);
   const [uploadTask, setUploadTask] = useState(null);
@@ -1799,6 +2167,7 @@ function StickersApp() {
   const [analyticsModalPack, setAnalyticsModalPack] = useState(null);
   const googleButtonRef = useRef(null);
   const googlePromptAttemptedRef = useRef(false);
+  const sortPickerLockRef = useRef(false);
 
   const dynamicCategoryOptions = useMemo(() => {
     const scoreByTag = new Map();
@@ -1889,26 +2258,45 @@ function StickersApp() {
 
   const sortedPacks = useMemo(() => {
     const list = [...packs];
-    if (sortBy === 'new') {
+    const selectedSort = normalizeCatalogSort(sortBy);
+    if (selectedSort === 'recent') {
       list.sort((a, b) => new Date(b?.created_at || b?.updated_at || 0).getTime() - new Date(a?.created_at || a?.updated_at || 0).getTime());
       return list;
     }
-    if (sortBy === 'liked') {
+    if (selectedSort === 'likes') {
       list.sort((a, b) => getPackEngagement(b).likeCount - getPackEngagement(a).likeCount);
       return list;
     }
-    list.sort((a, b) => {
-      const eb = getPackEngagement(b);
-      const ea = getPackEngagement(a);
-      const bScore = eb.openCount * 2 + eb.likeCount * 3 - eb.dislikeCount;
-      const aScore = ea.openCount * 2 + ea.likeCount * 3 - ea.dislikeCount;
-      return bScore - aScore;
-    });
+    if (selectedSort === 'downloads') {
+      list.sort((a, b) => getPackEngagement(b).openCount - getPackEngagement(a).openCount);
+      return list;
+    }
+    if (selectedSort === 'comments') {
+      list.sort((a, b) => {
+        const commentDelta = getPackCommentCount(b) - getPackCommentCount(a);
+        if (commentDelta !== 0) return commentDelta;
+        return getPackEngagement(b).likeCount - getPackEngagement(a).likeCount;
+      });
+      return list;
+    }
+    if (selectedSort === 'trending') {
+      list.sort((a, b) => {
+        const trendDelta = getPackTrendScore(b) - getPackTrendScore(a);
+        if (trendDelta !== 0) return trendDelta;
+        const rankingDelta = getPackRankingScore(b) - getPackRankingScore(a);
+        if (rankingDelta !== 0) return rankingDelta;
+        return getPackEngagement(b).openCount - getPackEngagement(a).openCount;
+      });
+      return list;
+    }
+    list.sort((a, b) => getPackRankingScore(b) - getPackRankingScore(a));
     return list;
   }, [packs, sortBy]);
 
   const categoryActiveLabel =
-    dynamicCategoryOptions.find((entry) => entry.value === activeCategory)?.label?.replace(/^.+?\s/, '') || 'Todas';
+    catalogFilter === 'trending'
+      ? 'Em alta agora'
+      : dynamicCategoryOptions.find((entry) => entry.value === activeCategory)?.label?.replace(/^.+?\s/, '') || 'Todas';
   const growingNowPacks = useMemo(() => {
     return [...packs]
       .map((pack) => {
@@ -1941,24 +2329,60 @@ function StickersApp() {
       const publisher = String(pack?.publisher || 'OmniZap Auto').trim();
       const current = byPublisher.get(publisher) || {
         publisher,
+        key: String(publisher || '').toLowerCase(),
         packCount: 0,
         likes: 0,
         opens: 0,
+        avgPackScoreSum: 0,
         topPack: pack,
       };
       const engagement = getPackEngagement(pack);
       current.packCount += 1;
       current.likes += engagement.likeCount;
       current.opens += engagement.openCount;
+      current.avgPackScoreSum += safeNumber(pack?.signals?.pack_score);
       if (!current.topPack || engagement.likeCount > getPackEngagement(current.topPack).likeCount) {
         current.topPack = pack;
       }
       byPublisher.set(publisher, current);
     });
     return Array.from(byPublisher.values())
-      .sort((a, b) => b.likes + b.opens - (a.likes + a.opens))
+      .map((creator) => ({
+        ...creator,
+        downloads: creator.opens,
+        avgPackScore: creator.avgPackScoreSum / Math.max(1, creator.packCount),
+        creatorScore: buildCreatorScore({
+          avgPackScore: creator.avgPackScoreSum / Math.max(1, creator.packCount),
+          likes: creator.likes,
+          downloads: creator.opens,
+        }),
+        avatarUrl: getAvatarUrl(creator.publisher),
+      }))
+      .sort((a, b) => b.creatorScore - a.creatorScore)
       .slice(0, 3);
   }, [packs]);
+  const sortedCreatorRanking = useMemo(() => {
+    const list = [...creatorRanking];
+    const selectedSort = normalizeCreatorsSort(creatorSort);
+    if (selectedSort === 'likes') {
+      list.sort((a, b) => b.likes - a.likes);
+      return list;
+    }
+    if (selectedSort === 'downloads') {
+      list.sort((a, b) => b.downloads - a.downloads);
+      return list;
+    }
+    if (selectedSort === 'packs') {
+      list.sort((a, b) => b.packCount - a.packCount);
+      return list;
+    }
+    if (selectedSort === 'name') {
+      list.sort((a, b) => String(a.publisher || '').localeCompare(String(b.publisher || ''), 'pt-BR'));
+      return list;
+    }
+    list.sort((a, b) => b.creatorScore - a.creatorScore);
+    return list;
+  }, [creatorRanking, creatorSort]);
   const platformStats = useMemo(() => {
     const totals = packs.reduce(
       (acc, pack) => {
@@ -2042,6 +2466,7 @@ function StickersApp() {
   const googleSessionApiPath = `${config.apiBasePath}/auth/google/session`;
   const myProfileApiPath = `${config.apiBasePath}/me`;
   const isProfileView = currentView === 'profile';
+  const isCreatorsView = currentView === 'creators';
   const hasGoogleLogin = Boolean(googleAuth.user?.sub);
   const googleLoginEnabled = Boolean(googleAuthConfig.enabled && googleAuthConfig.clientId);
   const shouldRenderGoogleButton =
@@ -2351,10 +2776,11 @@ function StickersApp() {
     }
   };
 
-  const buildParams = ({ q, category, limit, offset, includeVisibility = false }) => {
+  const buildParams = ({ q, category, sort, limit, offset, includeVisibility = false }) => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (category) params.set('categories', category);
+    if (sort) params.set('sort', normalizeCatalogSort(sort));
     params.set('limit', String(limit));
     if (Number.isFinite(offset)) params.set('offset', String(offset));
     if (includeVisibility) params.set('visibility', 'public');
@@ -2374,9 +2800,11 @@ function StickersApp() {
     setError('');
     try {
       const nextOffset = reset ? 0 : packOffset;
+      const effectiveSort = catalogFilter === 'trending' ? 'trending' : sortBy;
       const params = buildParams({
-        q: appliedQuery,
-        category: activeCategory,
+        q: catalogFilter === 'trending' ? '' : appliedQuery,
+        category: catalogFilter === 'trending' ? '' : activeCategory,
+        sort: effectiveSort,
         limit: config.limit,
         offset: nextOffset,
         includeVisibility: true,
@@ -2403,8 +2831,8 @@ function StickersApp() {
     setOrphansLoading(true);
     try {
       const params = buildParams({
-        q: appliedQuery,
-        category: activeCategory,
+        q: catalogFilter === 'trending' ? '' : appliedQuery,
+        category: catalogFilter === 'trending' ? '' : activeCategory,
         limit: config.orphanLimit,
       });
       const payload = await fetchJson(`${config.orphanApiPath}?${params.toString()}`);
@@ -2413,6 +2841,46 @@ function StickersApp() {
       setOrphans([]);
     } finally {
       setOrphansLoading(false);
+    }
+  };
+
+  const loadCreatorRanking = async () => {
+    setCreatorRankingLoading(true);
+    setCreatorRankingError('');
+    try {
+      const params = new URLSearchParams();
+      params.set('visibility', 'public');
+      params.set('limit', '100');
+      params.set('sort', normalizeCreatorsSort(creatorSort));
+      const payload = await fetchJson(`${config.apiBasePath}/creators?${params.toString()}`, { retry: 1 });
+      const rows = (Array.isArray(payload?.data) ? payload.data : []).map((entry, index) => {
+        const publisher = String(entry?.publisher || '').trim() || `Criador ${index + 1}`;
+        const stats = entry?.stats || {};
+        const avgPackScore = safeNumber(stats?.avg_pack_score);
+        const likes = safeNumber(stats?.total_likes);
+        const downloads = safeNumber(stats?.total_opens);
+        const packCount = safeNumber(stats?.packs_count);
+        return {
+          key: String(publisher || '').toLowerCase(),
+          publisher,
+          verified: Boolean(entry?.verified),
+          badges: Array.isArray(entry?.badges) ? entry.badges : [],
+          packCount,
+          likes,
+          downloads,
+          avgPackScore,
+          creatorScore: buildCreatorScore({ avgPackScore, likes, downloads }),
+          avatarUrl: getAvatarUrl(publisher),
+          topPack: entry?.top_pack || null,
+          raw: entry,
+        };
+      });
+      setCreatorRanking(rows);
+    } catch (err) {
+      setCreatorRanking([]);
+      setCreatorRankingError(err?.message || 'Falha ao carregar ranking de criadores.');
+    } finally {
+      setCreatorRankingLoading(false);
     }
   };
 
@@ -2448,19 +2916,120 @@ function StickersApp() {
     }
   };
 
+  const buildCatalogWebUrl = ({
+    q = appliedQuery,
+    category = activeCategory,
+    sort = sortBy,
+    filter = catalogFilter,
+  } = {}) => {
+    const params = new URLSearchParams();
+    const normalizedFilter = String(filter || '').trim().toLowerCase() === 'trending' ? 'trending' : '';
+    const normalizedSort = normalizeCatalogSort(sort || DEFAULT_CATALOG_SORT);
+    if (normalizedFilter === 'trending') {
+      params.set('filter', 'trending');
+    } else {
+      if (String(q || '').trim()) params.set('q', String(q).trim());
+      if (String(category || '').trim()) params.set('category', String(category).trim().toLowerCase());
+      if (normalizedSort && normalizedSort !== DEFAULT_CATALOG_SORT) params.set('sort', normalizedSort);
+    }
+    const qs = params.toString();
+    return `${config.webPath}/${qs ? `?${qs}` : ''}`;
+  };
+
+  const buildCreatorsWebUrl = ({ sort = creatorSort } = {}) => {
+    const params = new URLSearchParams();
+    params.set('sort', normalizeCreatorsSort(sort || DEFAULT_CREATORS_SORT));
+    return `${config.webPath}/creators?${params.toString()}`;
+  };
+
+  const applyCatalogViewState = ({ q = '', category = '', sort = DEFAULT_CATALOG_SORT, filter = '' } = {}) => {
+    const normalizedFilter = String(filter || '').trim().toLowerCase() === 'trending' ? 'trending' : '';
+    const normalizedSort = normalizeCatalogSort(normalizedFilter ? 'trending' : sort || DEFAULT_CATALOG_SORT);
+    const nextQ = normalizedFilter ? '' : String(q || '').trim();
+    const nextCategory = normalizedFilter ? '' : String(category || '').trim().toLowerCase();
+
+    setCatalogFilter(normalizedFilter);
+    setSortBy(normalizedSort);
+    setQuery(nextQ);
+    setAppliedQuery(nextQ);
+    setActiveCategory(nextCategory);
+  };
+
   const openPack = (packKey, push = true) => {
     if (!packKey) return;
     if (push) window.history.pushState({}, '', `${config.webPath}/${encodeURIComponent(packKey)}`);
     setCurrentView('pack');
     setCurrentPackKey(packKey);
+    setSortPickerOpen(false);
   };
 
   const goCatalog = (push = true) => {
-    if (push) window.history.pushState({}, '', `${config.webPath}/`);
+    if (push) window.history.pushState({}, '', buildCatalogWebUrl());
     setCurrentView('catalog');
     setCurrentPackKey('');
     setCurrentPack(null);
     setRelatedPacks([]);
+    setSortPickerOpen(false);
+  };
+
+  const openCatalogWithState = ({ q = '', category = '', sort = DEFAULT_CATALOG_SORT, filter = '', push = true } = {}) => {
+    const nextState = {
+      q,
+      category,
+      sort: normalizeCatalogSort(sort || DEFAULT_CATALOG_SORT),
+      filter: String(filter || '').trim().toLowerCase() === 'trending' ? 'trending' : '',
+    };
+    if (push) window.history.pushState({}, '', buildCatalogWebUrl(nextState));
+    applyCatalogViewState(nextState);
+    setCurrentView('catalog');
+    setCurrentPackKey('');
+    setCurrentPack(null);
+    setRelatedPacks([]);
+    setError('');
+    setSortPickerOpen(false);
+  };
+
+  const openTrendingCatalog = () => {
+    openCatalogWithState({ q: '', category: '', sort: 'trending', filter: 'trending', push: true });
+    setDiscoverTab('growing');
+  };
+
+  const openCreatorsRanking = (sort = DEFAULT_CREATORS_SORT, push = true) => {
+    const nextSort = normalizeCreatorsSort(sort || DEFAULT_CREATORS_SORT);
+    if (push) window.history.pushState({}, '', buildCreatorsWebUrl({ sort: nextSort }));
+    setCreatorSort(nextSort);
+    setCurrentView('creators');
+    setCurrentPackKey('');
+    setCurrentPack(null);
+    setRelatedPacks([]);
+    setError('');
+    setSortPickerOpen(false);
+  };
+
+  const openCreatorProfileFromRanking = (creator) => {
+    const publisher = String(creator?.publisher || '').trim();
+    if (!publisher) return;
+    openCatalogWithState({
+      q: publisher,
+      category: '',
+      sort: DEFAULT_CATALOG_SORT,
+      filter: '',
+      push: true,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const openCatalogTagFilter = (tag) => {
+    const nextTag = String(tag || '').trim().toLowerCase();
+    if (!nextTag) return;
+    openCatalogWithState({
+      q: '',
+      category: nextTag,
+      sort: DEFAULT_CATALOG_SORT,
+      filter: '',
+      push: true,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const openProfile = (push = true) => {
@@ -2471,6 +3040,7 @@ function StickersApp() {
     setCurrentPack(null);
     setRelatedPacks([]);
     setError('');
+    setSortPickerOpen(false);
   };
 
   const cycleVisibilityValue = (currentVisibility) => {
@@ -2727,23 +3297,110 @@ function StickersApp() {
     ).catch(() => {});
   };
 
+  const openSortPicker = () => {
+    if (sortPickerBusy || sortPickerLockRef.current) return;
+    setSortPickerOpen(true);
+  };
+
+  const closeSortPicker = () => {
+    if (sortPickerBusy) return;
+    setSortPickerOpen(false);
+  };
+
+  const handleCatalogSortSelection = async (sortValue) => {
+    const nextSort = normalizeCatalogSort(sortValue, sortBy);
+    if (sortPickerBusy || sortPickerLockRef.current) return;
+    sortPickerLockRef.current = true;
+    setSortPickerBusy(true);
+    const previousScrollY = window.scrollY || 0;
+    if (catalogFilter) setCatalogFilter('');
+    setSortBy(nextSort);
+    setSortPickerOpen(false);
+    window.requestAnimationFrame(() => window.scrollTo({ top: previousScrollY }));
+    window.setTimeout(() => {
+      sortPickerLockRef.current = false;
+      setSortPickerBusy(false);
+    }, 220);
+  };
+
+  const handleCreatorsSortChange = (sortValue) => {
+    setCreatorSort(normalizeCreatorsSort(sortValue, creatorSort));
+  };
+
+  const getKnownPackByKey = (packKey) => {
+    if (!packKey) return null;
+    if (currentPack?.pack_key === packKey) return currentPack;
+    return packs.find((entry) => entry?.pack_key === packKey) || relatedPacks.find((entry) => entry?.pack_key === packKey) || null;
+  };
+
+  const applyOptimisticPackReaction = (packKey, action) => {
+    const sourcePack = getKnownPackByKey(packKey);
+    if (!sourcePack) return null;
+    const previous = {
+      open_count: safeNumber(sourcePack?.engagement?.open_count),
+      like_count: safeNumber(sourcePack?.engagement?.like_count),
+      dislike_count: safeNumber(sourcePack?.engagement?.dislike_count),
+      comment_count: safeNumber(sourcePack?.engagement?.comment_count),
+      score:
+        safeNumber(sourcePack?.engagement?.score) ||
+        safeNumber(sourcePack?.engagement?.like_count) - safeNumber(sourcePack?.engagement?.dislike_count),
+      updated_at: sourcePack?.engagement?.updated_at || null,
+    };
+    const optimistic = {
+      ...previous,
+      updated_at: new Date().toISOString(),
+    };
+    if (action === 'like') {
+      optimistic.like_count += 1;
+      optimistic.score += 1;
+    }
+    if (action === 'dislike') {
+      optimistic.dislike_count += 1;
+      optimistic.score -= 1;
+    }
+    applyPackEngagement(packKey, optimistic);
+    return previous;
+  };
+
+  const emitReactionNotice = (message, type = 'success') => {
+    setReactionNotice({ message: String(message || ''), type });
+  };
+
   const handleLike = async (packKey) => {
-    if (!packKey) return;
+    if (!packKey || reactionLoading) return;
+    const previousEngagement = applyOptimisticPackReaction(packKey, 'like');
     setReactionLoading('like');
-    await registerPackInteraction(packKey, 'like');
+    emitReactionNotice('👍 Curtido');
+    const engagement = await registerPackInteraction(packKey, 'like');
+    if (!engagement && previousEngagement) {
+      applyPackEngagement(packKey, previousEngagement);
+      emitReactionNotice('Falha ao curtir', 'error');
+    }
     setReactionLoading('');
   };
 
   const handleDislike = async (packKey) => {
-    if (!packKey) return;
+    if (!packKey || reactionLoading) return;
+    const previousEngagement = applyOptimisticPackReaction(packKey, 'dislike');
     setReactionLoading('dislike');
-    await registerPackInteraction(packKey, 'dislike');
+    emitReactionNotice('👎 Avaliação enviada');
+    const engagement = await registerPackInteraction(packKey, 'dislike');
+    if (!engagement && previousEngagement) {
+      applyPackEngagement(packKey, previousEngagement);
+      emitReactionNotice('Falha ao enviar avaliação', 'error');
+    }
     setReactionLoading('');
   };
 
   useEffect(() => {
     const applyRoute = () => {
       const route = parseStickersLocation(config.webPath);
+      if (route.view === 'creators') {
+        const creatorsSearch = parseCreatorsSearchState(window.location.search);
+        setCreatorSort(normalizeCreatorsSort(creatorsSearch.sort || DEFAULT_CREATORS_SORT));
+        openCreatorsRanking(creatorsSearch.sort || DEFAULT_CREATORS_SORT, false);
+        return;
+      }
       if (route.view === 'profile') {
         openProfile(false);
         return;
@@ -2751,8 +3408,10 @@ function StickersApp() {
       if (route.view === 'pack' && route.packKey) {
         setCurrentView('pack');
         setCurrentPackKey(route.packKey);
+        setSortPickerOpen(false);
         return;
       }
+      applyCatalogViewState(parseCatalogSearchState(window.location.search));
       goCatalog(false);
     };
 
@@ -2772,6 +3431,12 @@ function StickersApp() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!reactionNotice?.message) return undefined;
+    const timer = window.setTimeout(() => setReactionNotice(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [reactionNotice]);
 
   useEffect(() => {
     try {
@@ -2812,14 +3477,36 @@ function StickersApp() {
   }, [config.apiBasePath]);
 
   useEffect(() => {
+    if (currentView !== 'catalog' || currentPackKey) return;
+    const nextUrl = buildCatalogWebUrl();
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState({}, '', nextUrl);
+    }
+  }, [currentView, currentPackKey, appliedQuery, activeCategory, sortBy, catalogFilter, config.webPath]);
+
+  useEffect(() => {
+    if (currentView !== 'creators') return;
+    const nextUrl = buildCreatorsWebUrl();
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState({}, '', nextUrl);
+    }
+  }, [currentView, creatorSort, config.webPath]);
+
+  useEffect(() => {
     if (currentView === 'pack' && currentPackKey) {
       void loadPackDetail(currentPackKey);
+      return;
+    }
+    if (currentView === 'creators') {
+      void loadCreatorRanking();
       return;
     }
     if (currentView !== 'catalog') return;
     void loadPacks({ reset: true });
     void loadOrphans();
-  }, [appliedQuery, activeCategory, currentView, currentPackKey]);
+  }, [appliedQuery, activeCategory, sortBy, catalogFilter, currentView, currentPackKey, creatorSort]);
 
   useEffect(() => {
     if (currentView !== 'catalog' || currentPackKey) return undefined;
@@ -2828,7 +3515,7 @@ function StickersApp() {
       void loadOrphans();
     }, 60 * 1000);
     return () => clearInterval(timer);
-  }, [currentView, currentPackKey, appliedQuery, activeCategory]);
+  }, [currentView, currentPackKey, appliedQuery, activeCategory, sortBy, catalogFilter]);
 
   useEffect(() => {
     if (currentView !== 'catalog' || !sentinel || !packHasMore || packsLoading || packsLoadingMore || currentPackKey) return;
@@ -2842,7 +3529,7 @@ function StickersApp() {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [sentinel, packHasMore, packsLoading, packsLoadingMore, packOffset, appliedQuery, activeCategory, currentView, currentPackKey]);
+  }, [sentinel, packHasMore, packsLoading, packsLoadingMore, packOffset, appliedQuery, activeCategory, sortBy, catalogFilter, currentView, currentPackKey]);
 
   useEffect(() => {
     const sync = () => setUploadTask(readUploadTask());
@@ -2980,6 +3667,7 @@ function StickersApp() {
     event.preventDefault();
     setShowAutocomplete(false);
     const next = query.trim();
+    setCatalogFilter('');
     setAppliedQuery(next);
     if (next) {
       const nextHistory = [next, ...recentSearches.filter((entry) => entry !== next)].slice(0, 8);
@@ -2994,6 +3682,7 @@ function StickersApp() {
     const value = String(item?.value || '').trim();
     if (!value) return;
     setQuery(value);
+    setCatalogFilter('');
     setAppliedQuery(value);
     if (dynamicCategoryOptions.some((entry) => entry.value === value)) {
       setActiveCategory(value);
@@ -3005,6 +3694,7 @@ function StickersApp() {
     setQuery('');
     setAppliedQuery('');
     setActiveCategory('');
+    setCatalogFilter('');
   };
 
   return html`
@@ -3015,7 +3705,14 @@ function StickersApp() {
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .chips-scroll { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scroll-behavior: smooth; scrollbar-width: none; }
         .chips-scroll::-webkit-scrollbar { display: none; }
-        .chip-item { scroll-snap-align: start; }`}
+        .chip-item { scroll-snap-align: start; }
+        .pack-stickers-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        @media (min-width: 1024px) {
+          .pack-stickers-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .fade-card { animation: none; }
+        }`}
       </style>
 
       <header className=${`sticky top-0 z-30 border-b border-slate-800 bg-slate-950/95 backdrop-blur transition-shadow ${
@@ -3145,10 +3842,24 @@ function StickersApp() {
                 packActionBusyByKey=${packActionBusyByKey}
               />
             `
+          : isCreatorsView
+            ? html`
+                <${CreatorsRankingPage}
+                  creators=${sortedCreatorRanking}
+                  loading=${creatorRankingLoading}
+                  error=${creatorRankingError}
+                  sort=${creatorSort}
+                  onSortChange=${handleCreatorsSortChange}
+                  onBack=${goCatalog}
+                  onRetry=${loadCreatorRanking}
+                  onOpenCreator=${openCreatorProfileFromRanking}
+                  onOpenPack=${openPack}
+                />
+              `
           : currentPackKey
             ? html`
               ${packLoading
-                ? html`<div className="rounded-2xl border border-slate-700 bg-slate-800/70 p-4 text-sm text-slate-300">Carregando pack...</div>`
+                ? html`<${PackPageSkeleton} />`
                 : html`<${PackPage}
                     pack=${currentPack}
                     relatedPacks=${relatedPacks}
@@ -3156,7 +3867,9 @@ function StickersApp() {
                     onOpenRelated=${openPack}
                     onLike=${handleLike}
                     onDislike=${handleDislike}
+                    onTagClick=${openCatalogTagFilter}
                     reactionLoading=${reactionLoading}
+                    reactionNotice=${reactionNotice}
                   />`}
             `
             : html`
@@ -3182,9 +3895,21 @@ function StickersApp() {
                         Ordenar catálogo
                       </summary>
                       <div className="mt-2 space-y-1.5">
-                        <button onClick=${() => setSortBy('popular')} className=${`w-full h-9 rounded-xl border text-xs ${sortBy === 'popular' ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>🔥 Mais populares</button>
-                        <button onClick=${() => setSortBy('new')} className=${`w-full h-9 rounded-xl border text-xs ${sortBy === 'new' ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>🆕 Mais recentes</button>
-                        <button onClick=${() => setSortBy('liked')} className=${`w-full h-9 rounded-xl border text-xs ${sortBy === 'liked' ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>👍 Mais curtidos</button>
+                        ${CATALOG_SORT_OPTIONS.map((option) => html`
+                          <button
+                            key=${option.value}
+                            type="button"
+                            onClick=${() => handleCatalogSortSelection(option.value)}
+                            disabled=${sortPickerBusy}
+                            className=${`w-full h-9 rounded-xl border text-xs disabled:opacity-60 ${
+                              normalizeCatalogSort(sortBy) === option.value
+                                ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200'
+                                : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                            }`}
+                          >
+                            ${option.icon} ${option.label}
+                          </button>
+                        `)}
                       </div>
                     </details>
 
@@ -3283,10 +4008,7 @@ function StickersApp() {
                                         ${featuredCreators.map((creator) => html`
                                           <button
                                             key=${creator.publisher}
-                                            onClick=${() => {
-                                              setQuery(creator.publisher);
-                                              setAppliedQuery(creator.publisher);
-                                            }}
+                                            onClick=${() => openCatalogWithState({ q: creator.publisher, category: '', sort: DEFAULT_CATALOG_SORT, filter: '', push: true })}
                                             className="w-full flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-2 py-1.5 text-left hover:bg-slate-800/90"
                                           >
                                             <img src=${getAvatarUrl(creator.publisher)} alt="" className="w-9 h-9 rounded-full bg-slate-800" />
@@ -3310,7 +4032,7 @@ function StickersApp() {
                             <section className="space-y-1.5">
                               <div className="flex items-center justify-between">
                                 <h4 className="text-xs font-semibold text-slate-200">🔥 Em alta agora</h4>
-                                <button type="button" onClick=${() => setDiscoverTab('growing')} className="text-[10px] text-cyan-300">ver lista</button>
+                                <button type="button" onClick=${openTrendingCatalog} className="text-[10px] text-cyan-300">ver lista</button>
                               </div>
                               <div className="flex gap-2 overflow-x-auto pb-1">
                                 ${growingNowPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-grow-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
@@ -3319,7 +4041,7 @@ function StickersApp() {
                             <section className="space-y-1.5">
                               <div className="flex items-center justify-between">
                                 <h4 className="text-xs font-semibold text-slate-200">🆕 Recém publicados</h4>
-                                <button type="button" onClick=${() => setSortBy('new')} className="text-[10px] text-cyan-300">ordenar</button>
+                                <button type="button" onClick=${openSortPicker} disabled=${sortPickerBusy} className="text-[10px] text-cyan-300 disabled:opacity-50">ordenar</button>
                               </div>
                               <div className="flex gap-2 overflow-x-auto pb-1">
                                 ${recentPublishedPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-new-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
@@ -3328,17 +4050,14 @@ function StickersApp() {
                             <section className="space-y-1.5">
                               <div className="flex items-center justify-between">
                                 <h4 className="text-xs font-semibold text-slate-200">👑 Criadores populares</h4>
-                                <button type="button" onClick=${() => setDiscoverTab('creators')} className="text-[10px] text-cyan-300">ver lista</button>
+                                <button type="button" onClick=${() => openCreatorsRanking('popular', true)} className="text-[10px] text-cyan-300">ver lista</button>
                               </div>
                               <div className="flex gap-2 overflow-x-auto pb-1">
                                 ${featuredCreators.map((creator) => html`
                                   <${DiscoverCreatorMiniCard}
                                     key=${`mobile-creator-${creator.publisher}`}
                                     creator=${creator}
-                                    onPick=${(publisher) => {
-                                      setQuery(publisher);
-                                      setAppliedQuery(publisher);
-                                    }}
+                                    onPick=${(publisher) => openCatalogWithState({ q: publisher, category: '', sort: DEFAULT_CATALOG_SORT, filter: '', push: true })}
                                   />
                                 `)}
                               </div>
@@ -3370,15 +4089,15 @@ function StickersApp() {
                             </div>
                             <div className="hidden md:flex items-center gap-2">
                               <span className="text-xs text-slate-400">Ordenar por</span>
-                              <select
-                                value=${sortBy}
-                                onChange=${(event) => setSortBy(event.target.value)}
-                                className="h-8 rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200 outline-none"
+                              <button
+                                type="button"
+                                onClick=${openSortPicker}
+                                disabled=${sortPickerBusy}
+                                className="inline-flex h-8 items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-60"
                               >
-                                <option value="popular">Mais populares</option>
-                                <option value="new">Mais recentes</option>
-                                <option value="liked">Mais curtidos</option>
-                              </select>
+                                <span>${catalogSortLabel(sortBy)}</span>
+                                <span className="text-[10px] text-slate-400">▾</span>
+                              </button>
                             </div>
                           </div>
                           <div className="grid min-w-0 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5 sm:gap-3">
@@ -3422,6 +4141,13 @@ function StickersApp() {
           } catch {}
           setUploadTask(null);
         }}
+      />
+      <${CatalogSortPicker}
+        open=${sortPickerOpen}
+        currentSort=${sortBy}
+        busy=${sortPickerBusy}
+        onClose=${closeSortPicker}
+        onSelect=${handleCatalogSortSelection}
       />
       <${PackActionsSheet}
         open=${Boolean(packActionsSheetPack)}

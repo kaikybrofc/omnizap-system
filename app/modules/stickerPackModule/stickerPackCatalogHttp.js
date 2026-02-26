@@ -95,6 +95,15 @@ export const normalizeCatalogVisibility = (value) => {
   return 'public';
 };
 
+const normalizeCatalogSortParam = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'new') return 'recent';
+  if (normalized === 'liked') return 'likes';
+  if (normalized === 'popular') return 'trending';
+  if (['recent', 'likes', 'downloads', 'trending', 'comments'].includes(normalized)) return normalized;
+  return 'popular';
+};
+
 export const stripWebpExtension = (value) => String(value || '').trim().replace(/\.webp$/i, '');
 
 const clampInt = (value, fallback, min, max) => {
@@ -1797,6 +1806,7 @@ const handleCatalogStaticAssetRequest = async (req, res, pathname) => {
 const handleListRequest = async (req, res, url) => {
   const q = sanitizeText(url.searchParams.get('q') || '', 120, { allowEmpty: true }) || '';
   const visibility = normalizeCatalogVisibility(url.searchParams.get('visibility'));
+  const sort = normalizeCatalogSortParam(url.searchParams.get('sort'));
   const categories = parseCategoryFilters(url.searchParams.get('categories'));
   const intent = sanitizeText(url.searchParams.get('intent') || '', 32, { allowEmpty: true }) || '';
   const includeSensitive = parseEnvBool(url.searchParams.get('include_sensitive'), true);
@@ -1838,10 +1848,28 @@ const handleListRequest = async (req, res, url) => {
       ? entriesBySensitivity.filter((entry) => classifyPackIntent(entry) === normalizedIntent)
       : entriesBySensitivity;
     const sortedEntries = [...entriesByIntent].sort((left, right) => {
-      const leftScore = Number(left.signals?.ranking_score || 0);
-      const rightScore = Number(right.signals?.ranking_score || 0);
+      if (sort === 'recent') {
+        return Date.parse(right?.pack?.created_at || right?.pack?.updated_at || 0) - Date.parse(left?.pack?.created_at || left?.pack?.updated_at || 0);
+      }
+      if (sort === 'likes') {
+        return Number(right?.engagement?.like_count || 0) - Number(left?.engagement?.like_count || 0);
+      }
+      if (sort === 'downloads') {
+        return Number(right?.engagement?.open_count || 0) - Number(left?.engagement?.open_count || 0);
+      }
+      if (sort === 'comments') {
+        const commentDelta = Number(right?.engagement?.comment_count || 0) - Number(left?.engagement?.comment_count || 0);
+        if (commentDelta !== 0) return commentDelta;
+        return Number(right?.engagement?.like_count || 0) - Number(left?.engagement?.like_count || 0);
+      }
+      if (sort === 'trending') {
+        const trendDelta = Number(right?.signals?.trend_score || 0) - Number(left?.signals?.trend_score || 0);
+        if (trendDelta !== 0) return trendDelta;
+      }
+      const leftScore = Number(left?.signals?.ranking_score || 0);
+      const rightScore = Number(right?.signals?.ranking_score || 0);
       if (rightScore !== leftScore) return rightScore - leftScore;
-      return Date.parse(right.pack.updated_at || 0) - Date.parse(left.pack.updated_at || 0);
+      return Date.parse(right?.pack?.updated_at || 0) - Date.parse(left?.pack?.updated_at || 0);
     });
 
     for (const entry of sortedEntries) {
@@ -1864,6 +1892,7 @@ const handleListRequest = async (req, res, url) => {
     filters: {
       q,
       visibility,
+      sort,
       categories,
       intent: intent || null,
       include_sensitive: includeSensitive,
@@ -3860,6 +3889,13 @@ const handleCreatorRankingRequest = async (req, res, url) => {
 
   sendJson(req, res, 200, {
     data: ranking.map((creator) => ({
+      creator_score: Number(
+        (
+          Number(creator.avg_pack_score || 0) * 0.45 +
+          Number(creator.total_likes || 0) * 0.0008 +
+          Number(creator.total_opens || 0) * 0.00015
+        ).toFixed(6),
+      ),
       publisher: creator.publisher,
       verified: Boolean(creator.verified),
       badges: creator.verified ? ['verified_creator'] : [],
