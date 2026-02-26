@@ -3474,6 +3474,30 @@ function StickersApp() {
     setCreatorSort(normalizeCreatorsSort(sortValue, creatorSort));
   };
 
+  const handleCategoryChipPress = (value) => {
+    const nextValue = String(value || '').trim().toLowerCase();
+    const previousScrollY = window.scrollY || 0;
+
+    if (!nextValue) {
+      openTrendingCatalog();
+      window.requestAnimationFrame(() => window.scrollTo({ top: previousScrollY }));
+      return;
+    }
+
+    const toggledOff = catalogFilter !== 'trending' && activeCategory === nextValue;
+    const nextSort = catalogFilter === 'trending' ? DEFAULT_CATALOG_SORT : sortBy;
+
+    openCatalogWithState({
+      q: catalogFilter === 'trending' ? '' : appliedQuery,
+      category: toggledOff ? '' : nextValue,
+      sort: nextSort,
+      filter: '',
+      push: true,
+    });
+
+    window.requestAnimationFrame(() => window.scrollTo({ top: previousScrollY }));
+  };
+
   const getKnownPackByKey = (packKey) => {
     if (!packKey) return null;
     if (currentPack?.pack_key === packKey) return currentPack;
@@ -3858,9 +3882,16 @@ function StickersApp() {
         ${`@keyframes fadeInCard { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .fade-card { animation: fadeInCard 260ms ease both; }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .chips-scroll { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scroll-behavior: smooth; scrollbar-width: none; }
+        .chips-scroll {
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+          scroll-behavior: smooth;
+          scrollbar-width: none;
+          overscroll-behavior-x: contain;
+          touch-action: pan-x;
+        }
         .chips-scroll::-webkit-scrollbar { display: none; }
-        .chip-item { scroll-snap-align: start; }
+        .chip-item { scroll-snap-align: start; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
         .pack-stickers-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
         @media (min-width: 1024px) {
           .pack-stickers-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
@@ -4094,7 +4125,7 @@ function StickersApp() {
                             <button
                               key=${item.value || 'all'}
                               type="button"
-                              onClick=${() => setActiveCategory(item.value)}
+                              onClick=${() => handleCategoryChipPress(item.value)}
                               className=${`chip-item h-8 whitespace-nowrap rounded-full px-3 text-[11px] border transition ${
                                 activeCategory === item.value
                                   ? 'bg-emerald-400 text-slate-900 border-emerald-300 font-semibold shadow-[0_0_0_2px_rgba(16,185,129,0.18)]'
