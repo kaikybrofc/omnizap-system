@@ -917,44 +917,66 @@ const handleListRequest = async (req, res, url) => {
   const visibility = normalizeCatalogVisibility(url.searchParams.get('visibility'));
   const categories = parseCategoryFilters(url.searchParams.get('categories'));
   const intent = sanitizeText(url.searchParams.get('intent') || '', 32, { allowEmpty: true }) || '';
-  const includeSensitive = parseEnvBool(url.searchParams.get('include_sensitive'), false);
+  const includeSensitive = parseEnvBool(url.searchParams.get('include_sensitive'), true);
   const limit = clampInt(url.searchParams.get('limit'), DEFAULT_LIST_LIMIT, 1, MAX_LIST_LIMIT);
   const offset = clampInt(url.searchParams.get('offset'), 0, 0, 100000);
+  const normalizedIntent = normalizeCategoryToken(intent).replace(/-/g, '_');
+  const batchLimit = Math.max(limit, Math.min(MAX_LIST_LIMIT, 24));
+  const maxPagesToScan = 8;
+  const seenPackIds = new Set();
+  const collectedEntries = [];
+  let sourceHasMore = true;
+  let cursorOffset = offset;
+  let pagesScanned = 0;
 
-  const { packs, hasMore } = await listStickerPacksForCatalog({
-    visibility,
-    search: q,
-    limit,
-    offset,
-  });
-  const { entries } = await hydrateMarketplaceEntries(packs);
-  const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED
-    ? entries.filter((entry) => isPackClassified(entry.packClassification))
-    : entries;
-  const entriesByCategory = categories.length
-    ? entriesClassified.filter((entry) => hasAnyCategory(entry.packClassification?.tags || [], categories))
-    : entriesClassified;
-  const entriesBySensitivity = includeSensitive
-    ? entriesByCategory
-    : entriesByCategory.filter((entry) => entry.signals?.nsfw_level === 'safe');
-  const normalizedIntent = normalizeTag(intent).replace(/-/g, '_');
-  const entriesByIntent = intent
-    ? entriesBySensitivity.filter((entry) => classifyPackIntent(entry) === normalizedIntent)
-    : entriesBySensitivity;
-  const sortedEntries = [...entriesByIntent].sort((left, right) => {
-    const leftScore = Number(left.signals?.pack_score || 0) + Number(left.signals?.trend_score || 0) * 0.08;
-    const rightScore = Number(right.signals?.pack_score || 0) + Number(right.signals?.trend_score || 0) * 0.08;
-    if (rightScore !== leftScore) return rightScore - leftScore;
-    return Date.parse(right.pack.updated_at || 0) - Date.parse(left.pack.updated_at || 0);
-  });
+  while (collectedEntries.length < limit && sourceHasMore && pagesScanned < maxPagesToScan) {
+    pagesScanned += 1;
+    const { packs, hasMore } = await listStickerPacksForCatalog({
+      visibility,
+      search: q,
+      limit: batchLimit,
+      offset: cursorOffset,
+    });
+    sourceHasMore = hasMore;
+    cursorOffset += batchLimit;
+    if (!packs.length) break;
+
+    const { entries } = await hydrateMarketplaceEntries(packs);
+    const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED
+      ? entries.filter((entry) => isPackClassified(entry.packClassification))
+      : entries;
+    const entriesByCategory = categories.length
+      ? entriesClassified.filter((entry) => hasAnyCategory(entry.packClassification?.tags || [], categories))
+      : entriesClassified;
+    const entriesBySensitivity = includeSensitive
+      ? entriesByCategory
+      : entriesByCategory.filter((entry) => entry.signals?.nsfw_level === 'safe');
+    const entriesByIntent = intent
+      ? entriesBySensitivity.filter((entry) => classifyPackIntent(entry) === normalizedIntent)
+      : entriesBySensitivity;
+    const sortedEntries = [...entriesByIntent].sort((left, right) => {
+      const leftScore = Number(left.signals?.pack_score || 0) + Number(left.signals?.trend_score || 0) * 0.08;
+      const rightScore = Number(right.signals?.pack_score || 0) + Number(right.signals?.trend_score || 0) * 0.08;
+      if (rightScore !== leftScore) return rightScore - leftScore;
+      return Date.parse(right.pack.updated_at || 0) - Date.parse(left.pack.updated_at || 0);
+    });
+
+    for (const entry of sortedEntries) {
+      if (!entry?.pack?.id) continue;
+      if (seenPackIds.has(entry.pack.id)) continue;
+      seenPackIds.add(entry.pack.id);
+      collectedEntries.push(entry);
+      if (collectedEntries.length >= limit) break;
+    }
+  }
 
   sendJson(req, res, 200, {
-    data: sortedEntries.map((entry) => toSummaryEntry(entry)),
+    data: collectedEntries.map((entry) => toSummaryEntry(entry)),
     pagination: {
       limit,
       offset,
-      has_more: hasMore,
-      next_offset: hasMore ? offset + limit : null,
+      has_more: sourceHasMore,
+      next_offset: sourceHasMore ? cursorOffset : null,
     },
     filters: {
       q,
