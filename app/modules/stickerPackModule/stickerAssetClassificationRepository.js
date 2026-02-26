@@ -101,6 +101,17 @@ export async function upsertStickerAssetClassification(payload, connection = nul
   return findStickerClassificationByAssetId(payload.asset_id, connection);
 }
 
+export async function deleteStickerAssetClassificationByAssetId(assetId, connection = null) {
+  const result = await executeQuery(
+    `DELETE FROM ${TABLES.STICKER_ASSET_CLASSIFICATION}
+     WHERE asset_id = ?`,
+    [assetId],
+    connection,
+  );
+
+  return Number(result?.affectedRows || 0);
+}
+
 const clampInt = (value, fallback, min, max) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;

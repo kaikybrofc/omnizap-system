@@ -287,3 +287,21 @@ export async function updateStickerAssetStoragePath(id, storagePath, connection 
 
   return findStickerAssetById(id, connection);
 }
+
+/**
+ * Remove um asset pelo ID.
+ *
+ * @param {string} id ID do asset.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<number>} Quantidade de linhas removidas.
+ */
+export async function deleteStickerAssetById(id, connection = null) {
+  const result = await executeQuery(
+    `DELETE FROM ${TABLES.STICKER_ASSET}
+     WHERE id = ?`,
+    [id],
+    connection,
+  );
+
+  return Number(result?.affectedRows || 0);
+}

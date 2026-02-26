@@ -154,6 +154,23 @@ export async function countStickerPackItems(packId, connection = null) {
 }
 
 /**
+ * Conta quantas referências um sticker possui em todos os packs.
+ *
+ * @param {string} stickerId ID do sticker/asset.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<number>} Total de referências em packs.
+ */
+export async function countStickerPackItemRefsByStickerId(stickerId, connection = null) {
+  const rows = await executeQuery(
+    `SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK_ITEM} WHERE sticker_id = ?`,
+    [stickerId],
+    connection,
+  );
+
+  return Number(rows?.[0]?.total || 0);
+}
+
+/**
  * Obtém a maior posição atualmente usada no pack.
  *
  * @param {string} packId ID do pack.
@@ -277,6 +294,24 @@ export async function removeStickerPackItemByPosition(packId, position, connecti
   );
 
   return item;
+}
+
+/**
+ * Remove todos os itens de um pack.
+ *
+ * @param {string} packId ID do pack.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<number>} Quantidade de linhas removidas.
+ */
+export async function removeStickerPackItemsByPackId(packId, connection = null) {
+  const result = await executeQuery(
+    `DELETE FROM ${TABLES.STICKER_PACK_ITEM}
+     WHERE pack_id = ?`,
+    [packId],
+    connection,
+  );
+
+  return Number(result?.affectedRows || 0);
 }
 
 /**

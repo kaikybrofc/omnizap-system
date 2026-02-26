@@ -155,6 +155,8 @@ const isRecent = (dateString) => {
   return Date.now() - created <= 1000 * 60 * 60 * 24 * 7;
 };
 
+const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+
 const primaryTag = (item) => {
   const tags = Array.isArray(item?.tags) ? item.tags : [];
   if (!tags.length) return '';
@@ -646,7 +648,7 @@ function ConfirmDialog({
   return html`
     <div className="fixed inset-0 z-[88] flex items-end justify-center bg-black/60 p-3 sm:items-center">
       <button type="button" className="absolute inset-0" onClick=${busy ? undefined : onCancel} aria-label="Fechar"></button>
-      <div className="relative w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl">
+      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl">
         <h3 className="text-base font-bold text-slate-100">${title}</h3>
         <p className="mt-2 text-sm text-slate-300">${message}</p>
         <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -690,7 +692,7 @@ function PackActionsSheet({ pack, open = false, busyAction = '', onClose, onActi
   return html`
     <div className="fixed inset-0 z-[87] flex items-end justify-center bg-black/60 p-2 sm:items-center">
       <button type="button" className="absolute inset-0" onClick=${onClose} aria-label="Fechar"></button>
-      <section className="relative w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-3 shadow-2xl">
+      <section className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-3 shadow-2xl">
         <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-700 sm:hidden"></div>
         <div className="mb-2 flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-2.5">
           <img src=${pack.cover_url || 'https://iili.io/fSNGag2.png'} alt="" className="h-14 w-14 rounded-xl border border-slate-800 bg-slate-900 object-cover" />
@@ -731,7 +733,7 @@ function PackAnalyticsModal({ open = false, pack = null, data = null, loading = 
   return html`
     <div className="fixed inset-0 z-[86] flex items-end justify-center bg-black/60 p-3 sm:items-center">
       <button type="button" className="absolute inset-0" onClick=${onClose} aria-label="Fechar"></button>
-      <section className="relative w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl">
+      <section className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-3 sm:p-4 shadow-2xl">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-400">Analytics</p>
@@ -814,9 +816,9 @@ function CreatorPackCardPro({
   const isCoverHidden = !pack?.cover_url && !isShareablePack(pack);
 
   return html`
-    <article className="group overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/90 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lg">
+    <article className="group min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/90 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lg">
       <div className="relative">
-        <img src=${coverUrl} alt=${`Capa de ${pack?.name || 'Pack'}`} className="h-28 w-full object-cover bg-slate-950 sm:h-32" loading="lazy" />
+        <img src=${coverUrl} alt=${`Capa de ${pack?.name || 'Pack'}`} className="h-24 w-full object-cover bg-slate-950 sm:h-28 md:h-32" loading="lazy" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/25 to-transparent"></div>
         <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
           <span className=${`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${statusPill.className}`}>${statusPill.label}</span>
@@ -825,7 +827,7 @@ function CreatorPackCardPro({
         <button
           type="button"
           onClick=${() => onOpenActions?.(pack)}
-          className="absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/90 bg-slate-950/80 text-slate-100 hover:bg-slate-800"
+          className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700/90 bg-slate-950/80 text-slate-100 hover:bg-slate-800"
           title="Ações"
         >
           ⋮
@@ -835,43 +837,49 @@ function CreatorPackCardPro({
           : null}
       </div>
 
-      <div className="p-2.5 space-y-2">
+      <div className="min-w-0 p-2 space-y-1.5 sm:p-2.5 sm:space-y-2">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-bold text-slate-100 sm:text-[15px]">${pack?.name || 'Pack sem nome'}</h3>
-          <p className="truncate text-[10px] text-slate-500">${pack?.pack_key || '-'}</p>
+          <p className="truncate text-[10px] text-slate-500/90">${pack?.pack_key || '-'}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-800 bg-slate-950/35 px-2.5 py-2">
-          <p className="text-[11px] text-slate-300">🧩 ${shortNum(pack?.sticker_count || 0)}</p>
-          <p className="text-[11px] text-slate-300">❤️ ${shortNum(engagement.likeCount)}</p>
-          <p className="text-[11px] text-slate-300">⬇ ${shortNum(engagement.openCount)}</p>
-          <p className="truncate text-[11px] text-slate-400">📅 ${pack?.updated_at ? new Date(pack.updated_at).toLocaleDateString('pt-BR') : '-'}</p>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-slate-800 bg-slate-950/35 px-2 py-1.5">
+          <p className="text-[10px] text-slate-300">🧩 ${shortNum(pack?.sticker_count || 0)}</p>
+          <p className="text-[10px] text-slate-300">❤️ ${shortNum(engagement.likeCount)}</p>
+          <p className="text-[10px] text-slate-300">⬇ ${shortNum(engagement.openCount)}</p>
+          <p className="hidden truncate text-[10px] text-slate-400 sm:block">📅 ${pack?.updated_at ? new Date(pack.updated_at).toLocaleDateString('pt-BR') : '-'}</p>
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           <button
             type="button"
             onClick=${() => onOpenManage?.(pack)}
             disabled=${Boolean(actionBusy)}
-            className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/60 px-2 text-[11px] text-slate-100 hover:bg-slate-800 disabled:opacity-60"
+            className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/60 px-1 text-[11px] text-slate-100 hover:bg-slate-800 disabled:opacity-60"
+            title="Adicionar sticker"
           >
-            ➕ Sticker
+            <span className="sm:hidden">➕</span>
+            <span className="hidden sm:inline">➕ Sticker</span>
           </button>
           <button
             type="button"
             onClick=${() => onOpenManage?.(pack)}
             disabled=${Boolean(actionBusy)}
-            className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/60 px-2 text-[11px] text-slate-100 hover:bg-slate-800 disabled:opacity-60"
+            className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/60 px-1 text-[11px] text-slate-100 hover:bg-slate-800 disabled:opacity-60"
+            title="Editar pack"
           >
-            ✏️ Editar
+            <span className="sm:hidden">✏️</span>
+            <span className="hidden sm:inline">✏️ Editar</span>
           </button>
           <button
             type="button"
             onClick=${() => onQuickDelete?.(pack)}
             disabled=${Boolean(actionBusy)}
-            className="inline-flex h-8 items-center justify-center rounded-lg border border-rose-500/25 bg-rose-500/10 px-2 text-[11px] text-rose-100 hover:bg-rose-500/15 disabled:opacity-60"
+            className="inline-flex h-8 items-center justify-center rounded-lg border border-rose-500/25 bg-rose-500/10 px-1 text-[11px] text-rose-100 hover:bg-rose-500/15 disabled:opacity-60"
+            title="Excluir pack"
           >
-            🗑️ Excluir
+            <span className="sm:hidden">🗑️</span>
+            <span className="hidden sm:inline">🗑️ Excluir</span>
           </button>
         </div>
 
@@ -880,7 +888,7 @@ function CreatorPackCardPro({
             type="button"
             onClick=${() => onOpenManage?.(pack)}
             disabled=${Boolean(actionBusy)}
-            className="inline-flex h-9 flex-1 items-center justify-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60"
+            className="inline-flex h-8 flex-1 items-center justify-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-2.5 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60 sm:h-9 sm:text-xs"
           >
             ${actionBusy === 'manage' ? 'Abrindo...' : 'Gerenciar pack'}
           </button>
@@ -889,7 +897,7 @@ function CreatorPackCardPro({
                 <button
                   type="button"
                   onClick=${() => onOpenPublic?.(pack.pack_key)}
-                  className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-950/60 px-3 text-xs font-medium text-slate-100 hover:bg-slate-800"
+                  className="inline-flex h-8 items-center justify-center rounded-xl border border-slate-700 bg-slate-950/60 px-2.5 text-[11px] font-medium text-slate-100 hover:bg-slate-800 sm:h-9 sm:px-3 sm:text-xs"
                 >
                   Abrir
                 </button>
@@ -961,21 +969,27 @@ function PackManagerModal({
   return html`
     <div className="fixed inset-0 z-[85] flex items-end justify-center bg-black/65 p-2 sm:items-center sm:p-4">
       <button type="button" className="absolute inset-0" onClick=${onClose} aria-label="Fechar"></button>
-      <section className="relative flex h-[min(94vh,960px)] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-slate-700 bg-slate-900 shadow-2xl">
-        <header className="border-b border-slate-800 bg-slate-950/70 px-4 py-3">
+      <section className="relative flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl sm:h-[min(94vh,960px)] sm:rounded-3xl">
+        <header className="border-b border-slate-800 bg-slate-950/70 px-3 py-2.5 sm:px-4 sm:py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-wide text-slate-400">Gerenciar pack</p>
-              <h3 className="truncate text-lg font-bold text-slate-100">${pack?.name || 'Carregando...'}</h3>
+              <h3 className="truncate text-base font-bold text-slate-100 sm:text-lg">${pack?.name || 'Carregando...'}</h3>
               <p className="truncate text-xs text-slate-500">${pack?.pack_key || '-'}</p>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="inline-flex h-10 cursor-pointer items-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20">
-                ➕ Adicionar sticker
+            <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:justify-end sm:gap-2">
+              <label
+                className=${`inline-flex h-9 cursor-pointer items-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-2.5 text-[11px] font-semibold text-emerald-100 hover:bg-emerald-500/20 sm:h-10 sm:px-3 sm:text-xs ${
+                  busyAction ? 'pointer-events-none opacity-60' : ''
+                }`}
+              >
+                <span className="sm:hidden">➕ Sticker</span>
+                <span className="hidden sm:inline">➕ Adicionar sticker</span>
                 <input
                   type="file"
                   accept="image/*,video/mp4,video/webm,video/quicktime,video/x-m4v"
                   className="hidden"
+                  disabled=${Boolean(busyAction)}
                   onChange=${(event) => {
                     const file = event.target.files?.[0];
                     if (!file) return;
@@ -984,14 +998,14 @@ function PackManagerModal({
                   }}
                 />
               </label>
-              <button type="button" onClick=${onOpenAnalytics} disabled=${loading || !pack} className="h-10 rounded-xl border border-indigo-500/35 bg-indigo-500/10 px-3 text-xs font-semibold text-indigo-100 hover:bg-indigo-500/20 disabled:opacity-60">📊 Analytics</button>
-              <button type="button" onClick=${onRefresh} disabled=${Boolean(busyAction) || loading} className="h-10 rounded-xl border border-slate-700 px-3 text-xs text-slate-100 hover:bg-slate-800 disabled:opacity-60">${loading ? 'Atualizando...' : 'Atualizar'}</button>
-              <button type="button" onClick=${onClose} className="h-10 rounded-xl border border-slate-700 px-3 text-xs text-slate-100 hover:bg-slate-800">Fechar</button>
+              <button type="button" onClick=${onOpenAnalytics} disabled=${loading || !pack || Boolean(busyAction)} className="h-9 rounded-xl border border-indigo-500/35 bg-indigo-500/10 px-2.5 text-[11px] font-semibold text-indigo-100 hover:bg-indigo-500/20 disabled:opacity-60 sm:h-10 sm:px-3 sm:text-xs">📊 <span className="hidden sm:inline">Analytics</span></button>
+              <button type="button" onClick=${onRefresh} disabled=${Boolean(busyAction) || loading} className="h-9 rounded-xl border border-slate-700 px-2.5 text-[11px] text-slate-100 hover:bg-slate-800 disabled:opacity-60 sm:h-10 sm:px-3 sm:text-xs">${loading ? 'Atualizando...' : 'Atualizar'}</button>
+              <button type="button" onClick=${onClose} disabled=${Boolean(busyAction)} className="ml-auto h-9 rounded-xl border border-slate-700 px-2.5 text-[11px] text-slate-100 hover:bg-slate-800 disabled:opacity-60 sm:ml-0 sm:h-10 sm:px-3 sm:text-xs">Fechar</button>
             </div>
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
+        <div className="min-h-0 flex-1 overflow-auto overflow-x-hidden p-2.5 sm:p-4">
           ${loading
             ? html`
                 <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
@@ -1004,9 +1018,9 @@ function PackManagerModal({
               : !pack
                 ? html`<div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-300">Pack não carregado.</div>`
                 : html`
-                    <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-                      <aside className="space-y-4">
-                        <section className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
+                    <div className="grid gap-3 lg:grid-cols-[360px_minmax(0,1fr)]">
+                      <aside className="space-y-3">
+                        <section className="rounded-2xl border border-slate-800 bg-slate-950/40 p-2.5 sm:p-3 space-y-3">
                           <div className="flex gap-3">
                             <img src=${pack.cover_url || 'https://iili.io/fSNGag2.png'} alt="" className="h-20 w-20 rounded-2xl border border-slate-800 bg-slate-900 object-cover" />
                             <div className="min-w-0 space-y-1">
@@ -1074,7 +1088,7 @@ function PackManagerModal({
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
                             <h4 className="text-base font-bold text-slate-100">Stickers do pack</h4>
-                            <p className="text-xs text-slate-400">Arraste para reordenar. Use ⭐ para capa, 🔁 para substituir e ❌ para remover.</p>
+                            <p className="text-[11px] text-slate-400">Arraste para reordenar. Use ⭐, 🔁 e ❌.</p>
                           </div>
                           ${orderDirty
                             ? html`
@@ -1082,7 +1096,7 @@ function PackManagerModal({
                                   type="button"
                                   onClick=${() => onReorder?.(orderIds)}
                                   disabled=${Boolean(busyAction)}
-                                  className="h-10 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 text-xs font-semibold text-amber-100 hover:bg-amber-500/20 disabled:opacity-60"
+                                  className="h-9 rounded-xl border border-amber-500/35 bg-amber-500/10 px-2.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 disabled:opacity-60 sm:h-10 sm:px-3 sm:text-xs"
                                 >
                                   ${busyAction === 'reorder' ? 'Salvando ordem...' : 'Salvar ordem'}
                                 </button>
@@ -1092,7 +1106,7 @@ function PackManagerModal({
 
                         ${orderedItems.length
                           ? html`
-                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
                                 ${orderedItems.map((item, index) => {
                                   const isCover = String(pack?.cover_sticker_id || '') === String(item?.sticker_id || '');
                                   return html`
@@ -1117,16 +1131,30 @@ function PackManagerModal({
                                         <div className="absolute left-2 top-2 rounded-full border border-slate-700 bg-slate-950/90 px-2 py-0.5 text-[10px] text-slate-200">#${index + 1}</div>
                                         ${isCover ? html`<div className="absolute right-2 top-2 rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-100">⭐ Capa</div>` : null}
                                       </div>
-                                      <div className="p-2 space-y-2">
-                                        <p className="truncate text-[11px] text-slate-500">${item.sticker_id}</p>
-                                        <div className="grid grid-cols-2 gap-1.5">
-                                          <button type="button" onClick=${() => onSetCover?.(item.sticker_id)} disabled=${Boolean(busyAction)} className="h-8 rounded-lg border border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-100 hover:bg-amber-500/15 disabled:opacity-60">⭐ Capa</button>
-                                          <label className="inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 text-[11px] text-cyan-100 hover:bg-cyan-500/15">
-                                            🔁 Trocar
+                                      <div className="p-1.5 space-y-1.5 sm:p-2 sm:space-y-2">
+                                        <p className="truncate text-[10px] text-slate-500">${item.sticker_id}</p>
+                                        <div className="grid grid-cols-3 gap-1.5">
+                                          <button
+                                            type="button"
+                                            title="Definir como capa"
+                                            onClick=${() => onSetCover?.(item.sticker_id)}
+                                            disabled=${Boolean(busyAction)}
+                                            className="h-8 rounded-lg border border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-100 hover:bg-amber-500/15 disabled:opacity-60"
+                                          >
+                                            ⭐
+                                          </button>
+                                          <label
+                                            className=${`inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 text-[11px] text-cyan-100 hover:bg-cyan-500/15 ${
+                                              busyAction ? 'pointer-events-none opacity-60' : ''
+                                            }`}
+                                            title="Substituir sticker"
+                                          >
+                                            🔁
                                             <input
                                               type="file"
                                               accept="image/*,video/mp4,video/webm,video/quicktime,video/x-m4v"
                                               className="hidden"
+                                              disabled=${Boolean(busyAction)}
                                               onChange=${(event) => {
                                                 const file = event.target.files?.[0];
                                                 if (!file) return;
@@ -1135,7 +1163,15 @@ function PackManagerModal({
                                               }}
                                             />
                                           </label>
-                                          <button type="button" onClick=${() => onRemoveSticker?.(item.sticker_id)} disabled=${Boolean(busyAction)} className="col-span-2 h-8 rounded-lg border border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-100 hover:bg-rose-500/15 disabled:opacity-60">❌ Remover sticker</button>
+                                          <button
+                                            type="button"
+                                            title="Remover sticker"
+                                            onClick=${() => onRemoveSticker?.(item.sticker_id)}
+                                            disabled=${Boolean(busyAction)}
+                                            className="h-8 rounded-lg border border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-100 hover:bg-rose-500/15 disabled:opacity-60"
+                                          >
+                                            ❌
+                                          </button>
                                         </div>
                                       </div>
                                     </article>
@@ -1150,9 +1186,9 @@ function PackManagerModal({
         </div>
 
         <footer className="border-t border-slate-800 bg-slate-950/80 px-3 py-2">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-            <span>${busyAction ? `Processando: ${busyAction}` : 'Pronto para gerenciar.'}</span>
-            <span>${publishState?.consistency?.can_publish ? '✅ Pack consistente para publicação' : '⚠️ Revise capa/uploads/stickers antes de publicar'}</span>
+          <div className="flex flex-col gap-1 text-[11px] text-slate-400 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2 sm:text-xs">
+            <span className="truncate">${busyAction ? `Processando: ${busyAction}` : 'Pronto para gerenciar.'}</span>
+            <span className="break-words">${publishState?.consistency?.can_publish ? '✅ Pack consistente para publicação' : '⚠️ Revise capa/uploads/stickers antes de publicar'}</span>
           </div>
         </footer>
       </section>
@@ -1363,7 +1399,7 @@ function CreatorProfileDashboard({
                       type="search"
                       value=${packSearch}
                       onChange=${(e) => setPackSearch(e.target.value)}
-                      placeholder="Buscar por nome, ID, tags ou publisher..."
+                      placeholder="Buscar packs..."
                       className="h-10 w-full rounded-xl border border-slate-700 bg-slate-950/60 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-cyan-400/40"
                     />
                   </div>
@@ -2012,10 +2048,47 @@ function StickersApp() {
     isProfileView && googleLoginEnabled && !hasGoogleLogin && googleSessionChecked && !googleAuthBusy;
 
   const fetchJson = async (url, options = undefined) => {
-    const response = await fetch(url, { credentials: 'same-origin', ...(options || {}) });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar catálogo');
-    return payload;
+    const opts = options && typeof options === 'object' ? { ...options } : {};
+    const retry = Math.max(0, Number(opts.retry || 0));
+    const retryDelayMs = Math.max(120, Number(opts.retryDelayMs || 350));
+    delete opts.retry;
+    delete opts.retryDelayMs;
+
+    let attempt = 0;
+    while (true) {
+      try {
+        const response = await fetch(url, { credentials: 'same-origin', ...opts });
+        const rawText = await response.text().catch(() => '');
+        let payload = {};
+        if (rawText) {
+          try {
+            payload = JSON.parse(rawText);
+          } catch {
+            payload = { raw: rawText };
+          }
+        }
+
+        if (!response.ok) {
+          const error = new Error(payload?.error || payload?.message || rawText || 'Falha ao carregar catálogo');
+          error.status = Number(response.status || 0);
+          error.code = payload?.code || '';
+          error.payload = payload;
+          error.url = String(url || '');
+          error.retryable = response.status >= 500 || response.status === 429;
+          throw error;
+        }
+
+        return payload;
+      } catch (err) {
+        const normalized = err instanceof Error ? err : new Error('Falha de rede');
+        if (normalized.status === undefined) normalized.status = 0;
+        if (normalized.retryable === undefined) normalized.retryable = !normalized.status || normalized.status >= 500;
+
+        if (attempt >= retry || !normalized.retryable) throw normalized;
+        attempt += 1;
+        await sleep(retryDelayMs * attempt);
+      }
+    }
   };
 
   const applyGoogleSessionData = (sessionData) => {
@@ -2063,9 +2136,9 @@ function StickersApp() {
     if (!silent) setMyPacksLoading(true);
     setMyPacksError('');
     setGoogleAuthError('');
-    setGoogleSessionChecked(false);
+    if (!silent) setGoogleSessionChecked(false);
     try {
-      const payload = await fetchJson(myProfileApiPath);
+      const payload = await fetchJson(myProfileApiPath, { retry: 1 });
       applyMyProfileData(payload);
     } catch (err) {
       setMyPacks([]);
@@ -2104,6 +2177,8 @@ function StickersApp() {
   const buildManagePackApiPath = (packKey, suffix = '') =>
     `${config.apiBasePath}/${encodeURIComponent(String(packKey || ''))}/manage${suffix}`;
 
+  const getManagedMutationStatus = (payload) => String(payload?.data?.status || payload?.status || '').trim().toLowerCase();
+
   const applyManagedPackToMyList = (managedData) => {
     const pack = managedData?.pack || null;
     if (!pack?.pack_key) return;
@@ -2130,12 +2205,16 @@ function StickersApp() {
     setManagePackTargetKey(String(packKey));
     if (openModal) setManagePackOpen(true);
     try {
-      const payload = await fetchJson(buildManagePackApiPath(packKey));
+      const payload = await fetchJson(buildManagePackApiPath(packKey), { retry: 1 });
       const managed = payload?.data || null;
       setManagePackData(managed);
       applyManagedPackToMyList(managed);
       return managed;
     } catch (err) {
+      if (Number(err?.status || 0) === 404) {
+        removePackFromMyList(packKey);
+        if (openModal) setManagePackOpen(false);
+      }
       setManagePackError(err?.message || 'Falha ao carregar gerenciador do pack.');
       throw err;
     } finally {
@@ -2145,6 +2224,7 @@ function StickersApp() {
 
   const openManagePackByKey = async (packKey) => {
     if (!packKey) return;
+    if (packActionBusyByKey?.[packKey]) return;
     setPackActionBusy(packKey, 'manage');
     setPackActionsSheetPack(null);
     try {
@@ -2161,23 +2241,58 @@ function StickersApp() {
     setManagePackOpen(false);
     setManagePackBusyAction('');
     setManagePackError('');
+    setManagePackData(null);
+    setManagePackTargetKey('');
   };
 
   const refreshManagePackData = async () => {
     if (!managePackTargetKey) return;
     try {
-      await loadManagePackData(managePackTargetKey, { openModal: true });
+      await loadManagePackData(managePackTargetKey, { openModal: true, silent: true });
     } catch {}
   };
 
   const applyManagedMutationResult = async (payloadData, { successMessage = '' } = {}) => {
-    const managed = payloadData?.pack ? payloadData : payloadData?.data?.pack ? payloadData.data : payloadData;
+    const envelope = payloadData?.data ? payloadData : { data: payloadData || {} };
+    const status = getManagedMutationStatus(envelope);
+    const managed = envelope?.data?.pack ? envelope.data : envelope?.pack ? envelope : null;
+
+    if (status === 'already_deleted' && !managed?.pack) {
+      const deletedPackKey = String(envelope?.data?.pack_key || managePackTargetKey || '').trim();
+      if (deletedPackKey) removePackFromMyList(deletedPackKey);
+      if (deletedPackKey && String(managePackTargetKey || '') === deletedPackKey) closeManagePackModal();
+      await refreshMyProfile({ silent: true }).catch(() => {});
+      return null;
+    }
+
     if (managed?.pack) {
       setManagePackData(managed);
       applyManagedPackToMyList(managed);
     }
+
+    const targetKey =
+      String(managed?.pack?.pack_key || envelope?.data?.pack_key || managePackTargetKey || '').trim() || '';
+    if (targetKey && managePackOpen && String(managePackTargetKey || '') === targetKey) {
+      try {
+        await loadManagePackData(targetKey, { openModal: true, silent: true });
+      } catch (err) {
+        if (Number(err?.status || 0) === 404) {
+          removePackFromMyList(targetKey);
+          closeManagePackModal();
+        }
+      }
+    }
+
     await refreshMyProfile({ silent: true }).catch(() => {});
-    if (successMessage) pushProfileToast(successMessage, 'success');
+    if (successMessage && status !== 'noop' && status !== 'unchanged' && status !== 'already_deleted') {
+      pushProfileToast(successMessage, 'success');
+    }
+    if (status === 'noop') {
+      pushProfileToast('Nenhuma alteração necessária (estado já atualizado).', 'warning');
+    }
+    if (status === 'unchanged') {
+      pushProfileToast('Nenhuma alteração detectada.', 'warning');
+    }
     return managed;
   };
 
@@ -2188,7 +2303,7 @@ function StickersApp() {
     setAnalyticsModalError('');
     setAnalyticsModalLoading(true);
     try {
-      const payload = await fetchJson(buildManagePackApiPath(pack.pack_key, '/analytics'));
+      const payload = await fetchJson(buildManagePackApiPath(pack.pack_key, '/analytics'), { retry: 1 });
       setAnalyticsModalData(payload?.data || null);
     } catch (err) {
       setAnalyticsModalError(err?.message || 'Falha ao carregar analytics do pack.');
@@ -2376,6 +2491,7 @@ function StickersApp() {
 
   const runPackQuickMutation = async (packKey, actionName, task) => {
     if (!packKey || typeof task !== 'function') return null;
+    if (packActionBusyByKey?.[packKey]) return null;
     setPackActionBusy(packKey, actionName);
     try {
       return await task();
@@ -2390,15 +2506,13 @@ function StickersApp() {
     await runPackQuickMutation(pack.pack_key, 'visibility', async () => {
       const payload = await fetchJson(buildManagePackApiPath(pack.pack_key), {
         method: 'PATCH',
+        retry: 1,
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({ visibility: nextVisibility }),
       });
       await applyManagedMutationResult(payload?.data ? payload : { data: payload }, {
         successMessage: `Visibilidade alterada para ${nextVisibility}.`,
       });
-      if (managePackOpen && String(managePackTargetKey || '') === String(pack.pack_key)) {
-        setManagePackData(payload?.data || null);
-      }
     }).catch((err) => {
       pushProfileToast(err?.message || 'Falha ao alterar visibilidade.', 'error');
     });
@@ -2428,16 +2542,17 @@ function StickersApp() {
 
   const handleDeletePackConfirmed = async () => {
     const pack = confirmDeletePack;
-    if (!pack?.pack_key) return;
+    if (!pack?.pack_key || confirmDeleteBusy) return;
     setConfirmDeleteBusy(true);
     try {
-      await fetchJson(buildManagePackApiPath(pack.pack_key), { method: 'DELETE' });
+      const payload = await fetchJson(buildManagePackApiPath(pack.pack_key), { method: 'DELETE', retry: 1 });
+      const status = getManagedMutationStatus(payload);
       removePackFromMyList(pack.pack_key);
       await refreshMyProfile({ silent: true });
       if (managePackOpen && String(managePackTargetKey || '') === String(pack.pack_key)) {
         closeManagePackModal();
       }
-      pushProfileToast('Pack apagado com sucesso.', 'success');
+      pushProfileToast(status === 'already_deleted' ? 'Pack já havia sido apagado.' : 'Pack apagado com sucesso.', 'success');
       setConfirmDeletePack(null);
     } catch (err) {
       pushProfileToast(err?.message || 'Falha ao apagar pack.', 'error');
@@ -2485,21 +2600,23 @@ function StickersApp() {
 
   const runManagePackMutation = async (actionName, task, successMessage = '') => {
     if (!managePackTargetKey) return null;
+    if (managePackBusyAction) return null;
     setManagePackBusyAction(actionName);
     setManagePackError('');
     try {
       const result = await task();
-      if (result?.data?.pack || result?.pack) {
-        const managed = result?.data?.pack ? result.data : result;
-        setManagePackData(managed);
-        applyManagedPackToMyList(managed);
-      }
-      await refreshMyProfile({ silent: true });
-      if (successMessage) pushProfileToast(successMessage, 'success');
+      await applyManagedMutationResult(result, { successMessage });
       return result;
     } catch (err) {
+      if (Number(err?.status || 0) === 404) {
+        removePackFromMyList(managePackTargetKey);
+        closeManagePackModal();
+      }
       setManagePackError(err?.message || 'Falha ao atualizar pack.');
       pushProfileToast(err?.message || 'Falha ao atualizar pack.', 'error');
+      try {
+        err.handledByUi = true;
+      } catch {}
       throw err;
     } finally {
       setManagePackBusyAction('');
@@ -2513,6 +2630,7 @@ function StickersApp() {
       async () =>
         fetchJson(buildManagePackApiPath(managePackTargetKey), {
           method: 'PATCH',
+          retry: 1,
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
           body: JSON.stringify({
             name: values?.name,
@@ -2527,7 +2645,7 @@ function StickersApp() {
   };
 
   const handleManageAddSticker = async (file) => {
-    if (!managePackTargetKey || !file) return;
+    if (!managePackTargetKey || !file || managePackBusyAction) return;
     try {
       const stickerDataUrl = await readFileAsDataUrl(file);
       await runManagePackMutation(
@@ -2541,6 +2659,7 @@ function StickersApp() {
         'Sticker adicionado ao pack.',
       );
     } catch (err) {
+      if (err?.handledByUi) return;
       pushProfileToast(err?.message || 'Falha ao adicionar sticker.', 'error');
     }
   };
@@ -2552,6 +2671,7 @@ function StickersApp() {
       async () =>
         fetchJson(buildManagePackApiPath(managePackTargetKey, '/cover'), {
           method: 'POST',
+          retry: 1,
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
           body: JSON.stringify({ sticker_id: stickerId }),
         }),
@@ -2563,13 +2683,17 @@ function StickersApp() {
     if (!managePackTargetKey || !stickerId) return;
     await runManagePackMutation(
       'removeSticker',
-      async () => fetchJson(`${buildManagePackApiPath(managePackTargetKey, '/stickers')}/${encodeURIComponent(stickerId)}`, { method: 'DELETE' }),
+      async () =>
+        fetchJson(`${buildManagePackApiPath(managePackTargetKey, '/stickers')}/${encodeURIComponent(stickerId)}`, {
+          method: 'DELETE',
+          retry: 1,
+        }),
       'Sticker removido do pack.',
     ).catch(() => {});
   };
 
   const handleManageReplaceSticker = async (stickerId, file) => {
-    if (!managePackTargetKey || !stickerId || !file) return;
+    if (!managePackTargetKey || !stickerId || !file || managePackBusyAction) return;
     try {
       const stickerDataUrl = await readFileAsDataUrl(file);
       await runManagePackMutation(
@@ -2583,6 +2707,7 @@ function StickersApp() {
         'Sticker substituído com sucesso.',
       );
     } catch (err) {
+      if (err?.handledByUi) return;
       pushProfileToast(err?.message || 'Falha ao substituir sticker.', 'error');
     }
   };
@@ -2594,6 +2719,7 @@ function StickersApp() {
       async () =>
         fetchJson(buildManagePackApiPath(managePackTargetKey, '/reorder'), {
           method: 'POST',
+          retry: 1,
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
           body: JSON.stringify({ order_sticker_ids: orderStickerIds }),
         }),
