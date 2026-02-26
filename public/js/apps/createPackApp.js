@@ -5,6 +5,8 @@ const html = htm.bind(React.createElement);
 const CREATE_PACK_DRAFT_KEY = 'omnizap_create_pack_draft_v1';
 const CREATE_PACK_DRAFT_MAX_CHARS = 3_500_000;
 const PACK_UPLOAD_TASK_KEY = 'omnizap_pack_upload_task_v1';
+const GOOGLE_AUTH_CACHE_KEY = 'omnizap_google_web_auth_cache_v1';
+const GOOGLE_AUTH_CACHE_MAX_STALE_MS = 8 * 24 * 60 * 60 * 1000;
 const MAX_MANUAL_TAGS = 8;
 const DEFAULT_SUGGESTED_TAGS = ['anime', 'meme', 'game', 'texto', 'nsfw', 'dark', 'cartoon', 'foto-real', 'cyberpunk'];
 const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
@@ -88,6 +90,76 @@ const decodeJwtPayload = (jwt) => {
     return JSON.parse(decoded);
   } catch {
     return null;
+  }
+};
+
+const normalizeGoogleAuthState = (value) => {
+  const user = value?.user && typeof value.user === 'object' ? value.user : null;
+  const sub = String(user?.sub || '').trim();
+  if (!sub) return { user: null, expiresAt: '' };
+  return {
+    user: {
+      sub,
+      email: String(user?.email || '').trim(),
+      name: String(user?.name || 'Conta Google').trim() || 'Conta Google',
+      picture: String(user?.picture || '').trim(),
+    },
+    expiresAt: String(value?.expiresAt || '').trim(),
+  };
+};
+
+const readGoogleAuthCache = () => {
+  try {
+    const raw = localStorage.getItem(GOOGLE_AUTH_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const savedAt = Number(parsed?.savedAt || 0);
+    if (savedAt && Date.now() - savedAt > GOOGLE_AUTH_CACHE_MAX_STALE_MS) {
+      localStorage.removeItem(GOOGLE_AUTH_CACHE_KEY);
+      return null;
+    }
+    const normalized = normalizeGoogleAuthState(parsed?.auth || null);
+    if (!normalized.user?.sub) {
+      localStorage.removeItem(GOOGLE_AUTH_CACHE_KEY);
+      return null;
+    }
+    if (normalized.expiresAt) {
+      const expiresAt = Number(new Date(normalized.expiresAt));
+      if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+        localStorage.removeItem(GOOGLE_AUTH_CACHE_KEY);
+        return null;
+      }
+    }
+    return normalized;
+  } catch {
+    return null;
+  }
+};
+
+const writeGoogleAuthCache = (authState) => {
+  try {
+    const normalized = normalizeGoogleAuthState(authState);
+    if (!normalized.user?.sub) {
+      localStorage.removeItem(GOOGLE_AUTH_CACHE_KEY);
+      return;
+    }
+    localStorage.setItem(
+      GOOGLE_AUTH_CACHE_KEY,
+      JSON.stringify({
+        auth: normalized,
+        savedAt: Date.now(),
+      }),
+    );
+  } catch {
+    // ignore storage errors
+  }
+};
+
+const clearGoogleAuthCache = () => {
+  try {
+    localStorage.removeItem(GOOGLE_AUTH_CACHE_KEY);
+  } catch {
+    // ignore storage errors
   }
 };
 
@@ -422,7 +494,7 @@ function CreatePackApp() {
   const [suggestedTags, setSuggestedTags] = useState(DEFAULT_SUGGESTED_TAGS);
   const [accountId, setAccountId] = useState('');
   const [googleAuthConfig, setGoogleAuthConfig] = useState({ enabled: false, required: false, clientId: '' });
-  const [googleAuth, setGoogleAuth] = useState({ user: null, expiresAt: '' });
+  const [googleAuth, setGoogleAuth] = useState(() => readGoogleAuthCache() || { user: null, expiresAt: '' });
   const [googleAuthUiReady, setGoogleAuthUiReady] = useState(false);
   const [googleAuthError, setGoogleAuthError] = useState('');
   const [googleAuthBusy, setGoogleAuthBusy] = useState(false);
@@ -589,8 +661,12 @@ function CreatePackApp() {
       .then((payload) => {
         if (cancelled) return;
         const sessionData = payload?.data || {};
-        if (!sessionData?.authenticated || !sessionData?.user?.sub) return;
-        setGoogleAuth({
+        if (!sessionData?.authenticated || !sessionData?.user?.sub) {
+          setGoogleAuth({ user: null, expiresAt: '' });
+          clearGoogleAuthCache();
+          return;
+        }
+        const nextAuth = {
           user: {
             sub: String(sessionData.user.sub || ''),
             email: String(sessionData.user.email || ''),
@@ -598,7 +674,9 @@ function CreatePackApp() {
             picture: String(sessionData.user.picture || ''),
           },
           expiresAt: String(sessionData.expires_at || ''),
-        });
+        };
+        setGoogleAuth(nextAuth);
+        writeGoogleAuthCache(nextAuth);
         setGoogleAuthError('');
       })
       .catch(() => {
@@ -661,6 +739,15 @@ function CreatePackApp() {
                   throw new Error('Sessão Google não foi criada.');
                 }
                 setGoogleAuth({
+                  user: {
+                    sub: String(sessionData.user.sub || claims.sub || ''),
+                    email: String(sessionData.user.email || claims.email || ''),
+                    name: String(sessionData.user.name || claims.name || claims.given_name || 'Conta Google'),
+                    picture: String(sessionData.user.picture || claims.picture || ''),
+                  },
+                  expiresAt: String(sessionData.expires_at || ''),
+                });
+                writeGoogleAuthCache({
                   user: {
                     sub: String(sessionData.user.sub || claims.sub || ''),
                     email: String(sessionData.user.email || claims.email || ''),
@@ -1411,6 +1498,7 @@ function CreatePackApp() {
     fetchJson(googleSessionApiPath, { method: 'DELETE' })
       .catch(() => null)
       .finally(() => {
+        clearGoogleAuthCache();
         setGoogleAuth({ user: null, expiresAt: '' });
         setGoogleAuthBusy(false);
       });
@@ -1497,10 +1585,26 @@ function CreatePackApp() {
   );
   const showUploadProgressCard = step === 3 && busy;
   const showUploadFailureCard = step === 3 && !busy && (uploadHasFailures || backendStateFailed);
-  const mobilePrimaryActionLabel = step < 3 ? 'Continuar' : publishLabel;
+  const publishedPackUrl =
+    String(result?.web_url || activeSession?.webUrl || '').trim() ||
+    (result?.pack_key ? `${webPath}/${encodeURIComponent(String(result.pack_key || ''))}` : '');
+  const finalStepPrimaryLabel = publishCompleted ? '👁 Ver pack criado' : publishLabel;
+  const mobilePrimaryActionLabel = step < 3 ? 'Continuar' : finalStepPrimaryLabel;
   const mobilePrimaryActionClass =
     step < 3 ? 'bg-accent text-slate-900' : 'bg-accent2 text-slate-900';
   const toggleMobilePreview = () => setMobilePreviewOpen((prev) => !prev);
+  const openCreatedPack = () => {
+    if (!publishedPackUrl) return;
+    window.location.assign(publishedPackUrl);
+  };
+  const handleFinalStepPrimaryAction = () => {
+    if (publishCompleted) {
+      openCreatedPack();
+      return;
+    }
+    publishPack();
+  };
+  const finalStepPrimaryDisabled = publishCompleted ? !publishedPackUrl : !publishReady;
 
   return html`
     <div className="min-h-screen bg-gradient-to-b from-[#0a0f15] via-[#0d1219] to-[#0e141a]">
@@ -1930,8 +2034,8 @@ function CreatePackApp() {
                 <button
                   type="button"
                   className=${`h-11 rounded-xl text-sm font-extrabold disabled:opacity-60 ${mobilePrimaryActionClass}`}
-                  onClick=${publishPack}
-                  disabled=${!publishReady}
+                  onClick=${handleFinalStepPrimaryAction}
+                  disabled=${finalStepPrimaryDisabled}
                 >
                   ${mobilePrimaryActionLabel}
                 </button>
@@ -1953,7 +2057,7 @@ function CreatePackApp() {
         <button type="button" className="h-11 rounded-xl border border-line/70 bg-panelSoft/80 px-5 text-sm font-bold" onClick=${prevStep} disabled=${step === 1 || busy}>Voltar</button>
         ${step < 3
           ? html`<button type="button" className="h-11 rounded-xl bg-accent px-5 text-sm font-extrabold text-slate-900" onClick=${nextStep} disabled=${busy}>Próximo passo</button>`
-          : html`<button type="button" className="h-11 rounded-xl bg-accent2 px-5 text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${publishPack} disabled=${!publishReady}>${publishLabel}</button>`}
+          : html`<button type="button" className="h-11 rounded-xl bg-accent2 px-5 text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${handleFinalStepPrimaryAction} disabled=${finalStepPrimaryDisabled}>${finalStepPrimaryLabel}</button>`}
       </div>
     </div>
   `;

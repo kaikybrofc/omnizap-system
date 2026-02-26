@@ -104,6 +104,8 @@ export const TABLES = {
   STICKER_PACK_INTERACTION_EVENT: 'sticker_pack_interaction_event',
   STICKER_ASSET_REPROCESS_QUEUE: 'sticker_asset_reprocess_queue',
   STICKER_WORKER_TASK_QUEUE: 'sticker_worker_task_queue',
+  STICKER_WEB_GOOGLE_USER: 'sticker_web_google_user',
+  STICKER_WEB_GOOGLE_SESSION: 'sticker_web_google_session',
   RPG_PLAYER: 'rpg_player',
   RPG_PLAYER_POKEMON: 'rpg_player_pokemon',
   RPG_BATTLE_STATE: 'rpg_battle_state',

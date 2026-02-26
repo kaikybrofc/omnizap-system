@@ -4,6 +4,8 @@ import htm from 'https://esm.sh/htm@3.1.1';
 const html = htm.bind(React.createElement);
 const SEARCH_HISTORY_KEY = 'omnizap_stickers_search_history_v1';
 const PACK_UPLOAD_TASK_KEY = 'omnizap_pack_upload_task_v1';
+const GOOGLE_AUTH_CACHE_KEY = 'omnizap_google_web_auth_cache_v1';
+const GOOGLE_AUTH_CACHE_MAX_STALE_MS = 8 * 24 * 60 * 60 * 1000;
 const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const PROFILE_ROUTE_SEGMENTS = new Set(['perfil', 'profile']);
 const CREATORS_ROUTE_SEGMENTS = new Set(['creators', 'criadores']);
@@ -77,6 +79,76 @@ const CATEGORY_META = new Map(DEFAULT_CATEGORIES.map((entry) => [entry.value, en
 const parseIntSafe = (value, fallback) => {
   const parsed = Number.parseInt(String(value || ''), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const normalizeGoogleAuthState = (value) => {
+  const user = value?.user && typeof value.user === 'object' ? value.user : null;
+  const sub = String(user?.sub || '').trim();
+  if (!sub) return { user: null, expiresAt: '' };
+  return {
+    user: {
+      sub,
+      email: String(user?.email || '').trim(),
+      name: String(user?.name || 'Conta Google').trim() || 'Conta Google',
+      picture: String(user?.picture || '').trim(),
+    },
+    expiresAt: String(value?.expiresAt || '').trim(),
+  };
+};
+
+const readGoogleAuthCache = () => {
+  try {
+    const raw = localStorage.getItem(GOOGLE_AUTH_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const savedAt = Number(parsed?.savedAt || 0);
+    if (savedAt && Date.now() - savedAt > GOOGLE_AUTH_CACHE_MAX_STALE_MS) {
+      localStorage.removeItem(GOOGLE_AUTH_CACHE_KEY);
+      return null;
+    }
+    const normalized = normalizeGoogleAuthState(parsed?.auth || null);
+    if (!normalized.user?.sub) {
+      localStorage.removeItem(GOOGLE_AUTH_CACHE_KEY);
+      return null;
+    }
+    if (normalized.expiresAt) {
+      const expiresAt = Number(new Date(normalized.expiresAt));
+      if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+        localStorage.removeItem(GOOGLE_AUTH_CACHE_KEY);
+        return null;
+      }
+    }
+    return normalized;
+  } catch {
+    return null;
+  }
+};
+
+const writeGoogleAuthCache = (authState) => {
+  try {
+    const normalized = normalizeGoogleAuthState(authState);
+    if (!normalized.user?.sub) {
+      localStorage.removeItem(GOOGLE_AUTH_CACHE_KEY);
+      return;
+    }
+    localStorage.setItem(
+      GOOGLE_AUTH_CACHE_KEY,
+      JSON.stringify({
+        auth: normalized,
+        savedAt: Date.now(),
+      }),
+    );
+  } catch {
+    // ignore storage errors
+  }
+};
+
+const clearGoogleAuthCache = () => {
+  try {
+    localStorage.removeItem(GOOGLE_AUTH_CACHE_KEY);
+  } catch {
+    // ignore storage errors
+  }
 };
 
 const normalizeToken = (value) =>
@@ -2200,7 +2272,7 @@ function StickersApp() {
   const [supportInfo, setSupportInfo] = useState(null);
   const [uploadTask, setUploadTask] = useState(null);
   const [googleAuthConfig, setGoogleAuthConfig] = useState({ enabled: false, required: false, clientId: '' });
-  const [googleAuth, setGoogleAuth] = useState({ user: null, expiresAt: '' });
+  const [googleAuth, setGoogleAuth] = useState(() => readGoogleAuthCache() || { user: null, expiresAt: '' });
   const [googleAuthUiReady, setGoogleAuthUiReady] = useState(false);
   const [googleAuthError, setGoogleAuthError] = useState('');
   const [googleAuthBusy, setGoogleAuthBusy] = useState(false);
@@ -2631,9 +2703,10 @@ function StickersApp() {
   const applyGoogleSessionData = (sessionData) => {
     if (!sessionData?.authenticated || !sessionData?.user?.sub) {
       setGoogleAuth({ user: null, expiresAt: '' });
+      clearGoogleAuthCache();
       return false;
     }
-    setGoogleAuth({
+    const nextAuth = {
       user: {
         sub: String(sessionData.user.sub || ''),
         email: String(sessionData.user.email || ''),
@@ -2641,7 +2714,9 @@ function StickersApp() {
         picture: String(sessionData.user.picture || ''),
       },
       expiresAt: String(sessionData.expires_at || ''),
-    });
+    };
+    setGoogleAuth(nextAuth);
+    writeGoogleAuthCache(nextAuth);
     return true;
   };
 
@@ -3831,6 +3906,8 @@ function StickersApp() {
   const handleGoogleLogout = async () => {
     setGoogleAuthBusy(true);
     setGoogleAuthError('');
+    setGoogleAuth({ user: null, expiresAt: '' });
+    clearGoogleAuthCache();
     try {
       await fetchJson(googleSessionApiPath, { method: 'DELETE' });
     } catch {

@@ -178,6 +178,14 @@ const ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES = new Set([
 const webPackEditTokenMap = new Map();
 const webGoogleSessionMap = new Map();
 const GOOGLE_WEB_SESSION_COOKIE_NAME = 'omnizap_google_session';
+const GOOGLE_WEB_SESSION_DB_TOUCH_INTERVAL_MS = Math.max(
+  30_000,
+  Number(process.env.STICKER_WEB_GOOGLE_SESSION_DB_TOUCH_INTERVAL_MS) || 60_000,
+);
+const GOOGLE_WEB_SESSION_DB_PRUNE_INTERVAL_MS = Math.max(
+  5 * 60 * 1000,
+  Number(process.env.STICKER_WEB_GOOGLE_SESSION_DB_PRUNE_INTERVAL_MS) || 60 * 60 * 1000,
+);
 const PACK_WEB_STATUS_VALUES = new Set(['draft', 'uploading', 'processing', 'published', 'failed']);
 const PACK_WEB_UPLOAD_STATUS_VALUES = new Set(['pending', 'processing', 'done', 'failed']);
 const WEB_UPLOAD_ERROR_MESSAGE_MAX = 255;
@@ -195,6 +203,7 @@ let staleDraftCleanupState = {
   running: false,
   lastRunAt: 0,
 };
+let googleWebSessionDbPruneAt = 0;
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 const isPackPubliclyVisible = (pack) =>
@@ -740,6 +749,170 @@ const pruneExpiredGoogleSessions = () => {
   }
 };
 
+const getGoogleWebSessionTokenFromRequest = (req) => {
+  const cookies = parseCookies(req);
+  return String(cookies[GOOGLE_WEB_SESSION_COOKIE_NAME] || '').trim();
+};
+
+const normalizeGoogleWebSessionRow = (row) => {
+  if (!row || typeof row !== 'object') return null;
+  const token = String(row.session_token || '').trim();
+  const sub = normalizeGoogleSubject(row.google_sub);
+  const ownerJid = normalizeJid(row.owner_jid) || '';
+  const expiresAt = Number(new Date(row.expires_at || 0));
+  if (!token || !sub || !ownerJid || !Number.isFinite(expiresAt)) return null;
+  const createdAtRaw = Number(new Date(row.created_at || 0));
+  const lastSeenAtRaw = Number(new Date(row.last_seen_at || 0));
+  return {
+    token,
+    sub,
+    email: String(row.email || '').trim().toLowerCase() || null,
+    name: sanitizeText(row.name || '', 120, { allowEmpty: true }) || null,
+    picture: String(row.picture_url || '').trim() || null,
+    ownerJid,
+    createdAt: Number.isFinite(createdAtRaw) ? createdAtRaw : Date.now(),
+    expiresAt,
+    lastSeenAt: Number.isFinite(lastSeenAtRaw) ? lastSeenAtRaw : 0,
+    lastDbTouchAt: Date.now(),
+  };
+};
+
+const maybePruneExpiredGoogleSessionsFromDb = async () => {
+  const now = Date.now();
+  if (now - googleWebSessionDbPruneAt < GOOGLE_WEB_SESSION_DB_PRUNE_INTERVAL_MS) return;
+  googleWebSessionDbPruneAt = now;
+  try {
+    await executeQuery(
+      `DELETE FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
+       WHERE revoked_at IS NOT NULL OR expires_at <= UTC_TIMESTAMP()`,
+    );
+  } catch (error) {
+    logger.warn('Falha ao limpar sessões Google web expiradas do banco.', {
+      action: 'sticker_pack_google_web_session_db_prune_failed',
+      error: error?.message,
+    });
+  }
+};
+
+const upsertGoogleWebUserRecord = async (user, connection = null) => {
+  const sub = normalizeGoogleSubject(user?.sub);
+  const ownerJid = normalizeJid(user?.ownerJid) || '';
+  if (!sub || !ownerJid) return;
+  const email = String(user?.email || '').trim().toLowerCase() || null;
+  const name = sanitizeText(user?.name || '', 120, { allowEmpty: true }) || null;
+  const pictureUrl = String(user?.picture || '').trim().slice(0, 1024) || null;
+
+  await executeQuery(
+    `INSERT INTO ${TABLES.STICKER_WEB_GOOGLE_USER}
+      (google_sub, owner_jid, email, name, picture_url, last_login_at, last_seen_at)
+     VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())
+     ON DUPLICATE KEY UPDATE
+      owner_jid = VALUES(owner_jid),
+      email = VALUES(email),
+      name = VALUES(name),
+      picture_url = VALUES(picture_url),
+      last_login_at = UTC_TIMESTAMP(),
+      last_seen_at = UTC_TIMESTAMP()`,
+    [sub, ownerJid, email, name, pictureUrl],
+    connection,
+  );
+};
+
+const upsertGoogleWebSessionRecord = async (session, connection = null) => {
+  const token = String(session?.token || '').trim();
+  const sub = normalizeGoogleSubject(session?.sub);
+  const ownerJid = normalizeJid(session?.ownerJid) || '';
+  const expiresAt = Number(session?.expiresAt || 0);
+  if (!token || !sub || !ownerJid || !Number.isFinite(expiresAt) || expiresAt <= 0) return;
+  const email = String(session?.email || '').trim().toLowerCase() || null;
+  const name = sanitizeText(session?.name || '', 120, { allowEmpty: true }) || null;
+  const pictureUrl = String(session?.picture || '').trim().slice(0, 1024) || null;
+
+  await executeQuery(
+    `INSERT INTO ${TABLES.STICKER_WEB_GOOGLE_SESSION}
+      (session_token, google_sub, owner_jid, email, name, picture_url, expires_at, revoked_at, last_seen_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, UTC_TIMESTAMP())
+     ON DUPLICATE KEY UPDATE
+      google_sub = VALUES(google_sub),
+      owner_jid = VALUES(owner_jid),
+      email = VALUES(email),
+      name = VALUES(name),
+      picture_url = VALUES(picture_url),
+      expires_at = VALUES(expires_at),
+      revoked_at = NULL,
+      last_seen_at = UTC_TIMESTAMP()`,
+    [token, sub, ownerJid, email, name, pictureUrl, new Date(expiresAt)],
+    connection,
+  );
+};
+
+const persistGoogleWebSessionToDb = async (session) => {
+  if (!session?.token || !session?.sub || !session?.ownerJid) return;
+  await maybePruneExpiredGoogleSessionsFromDb();
+  await runSqlTransaction(async (connection) => {
+    await upsertGoogleWebUserRecord(
+      {
+        sub: session.sub,
+        ownerJid: session.ownerJid,
+        email: session.email,
+        name: session.name,
+        picture: session.picture,
+      },
+      connection,
+    );
+    await upsertGoogleWebSessionRecord(session, connection);
+  });
+};
+
+const findGoogleWebSessionInDbByToken = async (sessionToken) => {
+  const token = String(sessionToken || '').trim();
+  if (!token) return null;
+  await maybePruneExpiredGoogleSessionsFromDb();
+  const rows = await executeQuery(
+    `SELECT session_token, google_sub, owner_jid, email, name, picture_url, created_at, expires_at, last_seen_at
+       FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
+      WHERE session_token = ?
+        AND revoked_at IS NULL
+        AND expires_at > UTC_TIMESTAMP()
+      LIMIT 1`,
+    [token],
+  );
+  return normalizeGoogleWebSessionRow(Array.isArray(rows) ? rows[0] : null);
+};
+
+const touchGoogleWebSessionSeenInDb = async (sessionToken) => {
+  const token = String(sessionToken || '').trim();
+  if (!token) return;
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_WEB_GOOGLE_SESSION}
+        SET last_seen_at = UTC_TIMESTAMP()
+      WHERE session_token = ?
+        AND revoked_at IS NULL`,
+    [token],
+  );
+};
+
+const touchGoogleWebUserSeenInDb = async (googleSub) => {
+  const sub = normalizeGoogleSubject(googleSub);
+  if (!sub) return;
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_WEB_GOOGLE_USER}
+        SET last_seen_at = UTC_TIMESTAMP()
+      WHERE google_sub = ?`,
+    [sub],
+  );
+};
+
+const deleteGoogleWebSessionFromDb = async (sessionToken) => {
+  const token = String(sessionToken || '').trim();
+  if (!token) return 0;
+  const result = await executeQuery(
+    `DELETE FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION} WHERE session_token = ?`,
+    [token],
+  );
+  return Number(result?.affectedRows || 0);
+};
+
 const createGoogleWebSession = (claims) => {
   pruneExpiredGoogleSessions();
   const token = randomUUID();
@@ -753,23 +926,49 @@ const createGoogleWebSession = (claims) => {
     ownerJid: buildGoogleOwnerJid(claims.sub),
     createdAt: now,
     expiresAt: now + STICKER_WEB_GOOGLE_SESSION_TTL_MS,
+    lastSeenAt: now,
+    lastDbTouchAt: 0,
   };
   webGoogleSessionMap.set(token, session);
   return session;
 };
 
-const resolveGoogleWebSessionFromRequest = (req) => {
+const resolveGoogleWebSessionFromRequest = async (req) => {
   pruneExpiredGoogleSessions();
-  const cookies = parseCookies(req);
-  const sessionToken = String(cookies[GOOGLE_WEB_SESSION_COOKIE_NAME] || '').trim();
+  const sessionToken = getGoogleWebSessionTokenFromRequest(req);
   if (!sessionToken) return null;
   const session = webGoogleSessionMap.get(sessionToken);
-  if (!session) return null;
-  if (Number(session.expiresAt || 0) <= Date.now()) {
-    webGoogleSessionMap.delete(sessionToken);
+  if (session) {
+    if (Number(session.expiresAt || 0) <= Date.now()) {
+      webGoogleSessionMap.delete(sessionToken);
+    } else {
+      const now = Date.now();
+      session.lastSeenAt = now;
+      if (now - Number(session.lastDbTouchAt || 0) >= GOOGLE_WEB_SESSION_DB_TOUCH_INTERVAL_MS) {
+        session.lastDbTouchAt = now;
+        void touchGoogleWebSessionSeenInDb(sessionToken).catch((error) => {
+          logger.warn('Falha ao atualizar last_seen da sessão Google web.', {
+            action: 'sticker_pack_google_web_session_touch_failed',
+            error: error?.message,
+          });
+        });
+        void touchGoogleWebUserSeenInDb(session.sub).catch(() => {});
+      }
+      return session;
+    }
+  }
+  try {
+    const persistedSession = await findGoogleWebSessionInDbByToken(sessionToken);
+    if (!persistedSession) return null;
+    webGoogleSessionMap.set(sessionToken, persistedSession);
+    return persistedSession;
+  } catch (error) {
+    logger.warn('Falha ao resolver sessão Google web no banco.', {
+      action: 'sticker_pack_google_web_session_db_resolve_failed',
+      error: error?.message,
+    });
     return null;
   }
-  return session;
 };
 
 const clearGoogleWebSessionCookie = (req, res) => {
@@ -2059,7 +2258,7 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
   }
 
   if (req.method === 'GET' || req.method === 'HEAD') {
-    const session = resolveGoogleWebSessionFromRequest(req);
+    const session = await resolveGoogleWebSessionFromRequest(req);
     sendJson(req, res, 200, {
       data: session
         ? {
@@ -2084,9 +2283,16 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
   }
 
   if (req.method === 'DELETE') {
-    const cookies = parseCookies(req);
-    const token = String(cookies[GOOGLE_WEB_SESSION_COOKIE_NAME] || '').trim();
+    const token = getGoogleWebSessionTokenFromRequest(req);
     if (token) webGoogleSessionMap.delete(token);
+    if (token) {
+      await deleteGoogleWebSessionFromDb(token).catch((error) => {
+        logger.warn('Falha ao remover sessão Google web do banco.', {
+          action: 'sticker_pack_google_web_session_db_delete_failed',
+          error: error?.message,
+        });
+      });
+    }
     clearGoogleWebSessionCookie(req, res);
     sendJson(req, res, 200, { data: { cleared: true } });
     return;
@@ -2110,6 +2316,17 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
     const session = createGoogleWebSession(claims);
     if (!session.ownerJid) {
       sendJson(req, res, 400, { error: 'Nao foi possivel vincular a conta Google.' });
+      return;
+    }
+    try {
+      await persistGoogleWebSessionToDb(session);
+    } catch (persistError) {
+      webGoogleSessionMap.delete(session.token);
+      logger.error('Falha ao persistir sessão Google web no banco.', {
+        action: 'sticker_pack_google_web_session_db_persist_failed',
+        error: persistError?.message,
+      });
+      sendJson(req, res, 500, { error: 'Falha ao salvar sessão Google. Tente novamente.' });
       return;
     }
 
@@ -2166,7 +2383,7 @@ const handleMyProfileRequest = async (req, res) => {
     return;
   }
 
-  const session = resolveGoogleWebSessionFromRequest(req);
+  const session = await resolveGoogleWebSessionFromRequest(req);
   const authGoogle = {
     enabled: Boolean(STICKER_WEB_GOOGLE_CLIENT_ID),
     required: Boolean(STICKER_WEB_GOOGLE_AUTH_REQUIRED),
@@ -2383,8 +2600,8 @@ const mapStickerPackWebManageError = (error) => {
   return { statusCode: 400, code: error.code, message: error.message || 'Falha ao gerenciar pack.' };
 };
 
-const requireGoogleWebSessionForManagement = (req, res) => {
-  const session = resolveGoogleWebSessionFromRequest(req);
+const requireGoogleWebSessionForManagement = async (req, res) => {
+  const session = await resolveGoogleWebSessionFromRequest(req);
   if (!session?.ownerJid) {
     sendJson(req, res, 401, {
       error: 'Login Google obrigatorio para gerenciar packs.',
@@ -2396,7 +2613,7 @@ const requireGoogleWebSessionForManagement = (req, res) => {
 };
 
 const loadOwnedPackForWebManagement = async (req, res, packKey, { allowMissing = false } = {}) => {
-  const session = requireGoogleWebSessionForManagement(req, res);
+  const session = await requireGoogleWebSessionForManagement(req, res);
   if (!session) return null;
 
   const normalizedPackKey = sanitizeText(packKey, 160, { allowEmpty: false });
@@ -3233,7 +3450,7 @@ const handleCreatePackRequest = async (req, res) => {
   const persistedDescription = buildPackDescriptionWithTags(description, manualTags);
   const visibility = String(payload?.visibility || 'public').trim().toLowerCase();
   const explicitOwnerJid = toOwnerJid(payload?.owner_jid);
-  const googleSession = resolveGoogleWebSessionFromRequest(req);
+  const googleSession = await resolveGoogleWebSessionFromRequest(req);
   let googleCreator = null;
 
   if (googleSession) {
@@ -3274,6 +3491,21 @@ const handleCreatePackRequest = async (req, res) => {
       code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
     });
     return;
+  }
+
+  if (googleCreator?.sub && googleCreator?.ownerJid) {
+    await upsertGoogleWebUserRecord({
+      sub: googleCreator.sub,
+      ownerJid: googleCreator.ownerJid,
+      email: googleCreator.email,
+      name: googleCreator.name,
+      picture: googleCreator.picture,
+    }).catch((error) => {
+      logger.warn('Falha ao persistir usuário Google web durante criação de pack.', {
+        action: 'sticker_pack_google_web_user_upsert_create_pack_failed',
+        error: error?.message,
+      });
+    });
   }
 
   const ownerJid = googleCreator?.ownerJid || explicitOwnerJid;
