@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import axios from 'axios';
 
 import { executeQuery, pool, TABLES } from '../../../database/index.js';
@@ -117,11 +117,13 @@ const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stick
 const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PATH, '/api/sticker-packs');
 const STICKER_ORPHAN_API_PATH = `${STICKER_API_BASE_PATH}/orphan-stickers`;
 const STICKER_CREATE_WEB_PATH = `${STICKER_WEB_PATH}/create`;
+const STICKER_ADMIN_WEB_PATH = `${STICKER_WEB_PATH}/admin`;
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
 const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
 const CATALOG_PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'index.html');
 const CREATE_PACK_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'create', 'index.html');
+const ADMIN_PANEL_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'admin', 'index.html');
 const CATALOG_STYLES_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'css', 'styles.css');
 const CATALOG_SCRIPT_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'js', 'catalog.js');
 const DEFAULT_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_LIMIT, 24, 1, 60);
@@ -144,6 +146,13 @@ const PACK_CREATE_MAX_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_IT
 const PACK_CREATE_MAX_PACKS_PER_OWNER = Math.max(1, Number(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER) || 50);
 const PACK_WEB_EDIT_TOKEN_TTL_MS = Math.max(60_000, Number(process.env.STICKER_WEB_EDIT_TOKEN_TTL_MS) || 6 * 60 * 60 * 1000);
 const STICKER_WEB_GOOGLE_CLIENT_ID = String(process.env.STICKER_WEB_GOOGLE_CLIENT_ID || '').trim();
+const ADMIN_PANEL_EMAIL = String(process.env.ADM_EMAIL || '').trim().toLowerCase();
+const ADMIN_PANEL_PASSWORD = String(process.env.ADM_PANEL_PASSWORD || process.env.ADM_PANEL || '').trim();
+const ADMIN_PANEL_ENABLED = Boolean(ADMIN_PANEL_EMAIL && ADMIN_PANEL_PASSWORD);
+const ADMIN_PANEL_SESSION_TTL_MS = Math.max(
+  10 * 60 * 1000,
+  Number(process.env.ADM_PANEL_SESSION_TTL_MS) || 12 * 60 * 60 * 1000,
+);
 const STICKER_WEB_GOOGLE_AUTH_REQUIRED = parseEnvBool(
   process.env.STICKER_WEB_GOOGLE_AUTH_REQUIRED,
   Boolean(STICKER_WEB_GOOGLE_CLIENT_ID),
@@ -177,7 +186,9 @@ const ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES = new Set([
 ]);
 const webPackEditTokenMap = new Map();
 const webGoogleSessionMap = new Map();
+const adminPanelSessionMap = new Map();
 const GOOGLE_WEB_SESSION_COOKIE_NAME = 'omnizap_google_session';
+const ADMIN_PANEL_SESSION_COOKIE_NAME = 'omnizap_admin_panel_session';
 const GOOGLE_WEB_SESSION_DB_TOUCH_INTERVAL_MS = Math.max(
   30_000,
   Number(process.env.STICKER_WEB_GOOGLE_SESSION_DB_TOUCH_INTERVAL_MS) || 60_000,
@@ -204,6 +215,7 @@ let staleDraftCleanupState = {
   lastRunAt: 0,
 };
 let googleWebSessionDbPruneAt = 0;
+let adminPanelSessionPruneAt = 0;
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 const isPackPubliclyVisible = (pack) =>
@@ -314,6 +326,17 @@ const normalizePackWebUploadStatus = (value, fallback = 'pending') => {
 };
 
 const sha256Hex = (buffer) => createHash('sha256').update(buffer).digest('hex');
+const normalizeEmail = (value) => String(value || '').trim().toLowerCase().slice(0, 255);
+const constantTimeStringEqual = (a, b) => {
+  const left = Buffer.from(String(a || ''), 'utf8');
+  const right = Buffer.from(String(b || ''), 'utf8');
+  if (left.length !== right.length) return false;
+  try {
+    return timingSafeEqual(left, right);
+  } catch {
+    return false;
+  }
+};
 
 const clampUploadErrorMessage = (message) =>
   String(message || '')
@@ -913,6 +936,263 @@ const deleteGoogleWebSessionFromDb = async (sessionToken) => {
   return Number(result?.affectedRows || 0);
 };
 
+const mapAdminBanRow = (row) => {
+  if (!row || typeof row !== 'object') return null;
+  return {
+    id: String(row.id || '').trim(),
+    google_sub: normalizeGoogleSubject(row.google_sub),
+    email: normalizeEmail(row.email),
+    owner_jid: normalizeJid(row.owner_jid) || null,
+    reason: sanitizeText(row.reason || '', 255, { allowEmpty: true }) || null,
+    created_by_google_sub: normalizeGoogleSubject(row.created_by_google_sub),
+    created_by_email: normalizeEmail(row.created_by_email),
+    created_at: toIsoOrNull(row.created_at),
+    updated_at: toIsoOrNull(row.updated_at),
+    revoked_at: toIsoOrNull(row.revoked_at),
+  };
+};
+
+const findActiveAdminBanForIdentity = async ({ googleSub = '', email = '', ownerJid = '' } = {}) => {
+  const normalizedSub = normalizeGoogleSubject(googleSub);
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedOwnerJid = normalizeJid(ownerJid) || '';
+  const clauses = [];
+  const params = [];
+  if (normalizedSub) {
+    clauses.push('google_sub = ?');
+    params.push(normalizedSub);
+  }
+  if (normalizedEmail) {
+    clauses.push('email = ?');
+    params.push(normalizedEmail);
+  }
+  if (normalizedOwnerJid) {
+    clauses.push('owner_jid = ?');
+    params.push(normalizedOwnerJid);
+  }
+  if (!clauses.length) return null;
+
+  const rows = await executeQuery(
+    `SELECT *
+       FROM ${TABLES.STICKER_WEB_ADMIN_BAN}
+      WHERE revoked_at IS NULL
+        AND (${clauses.join(' OR ')})
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    params,
+  );
+  return mapAdminBanRow(Array.isArray(rows) ? rows[0] : null);
+};
+
+const listAdminBans = async ({ activeOnly = false, limit = 100 } = {}) => {
+  const safeLimit = Math.max(1, Math.min(500, Number(limit || 100)));
+  const rows = await executeQuery(
+    `SELECT *
+       FROM ${TABLES.STICKER_WEB_ADMIN_BAN}
+      ${activeOnly ? 'WHERE revoked_at IS NULL' : ''}
+      ORDER BY created_at DESC
+      LIMIT ${safeLimit}`,
+  );
+  return (Array.isArray(rows) ? rows : []).map(mapAdminBanRow).filter(Boolean);
+};
+
+const createAdminBanRecord = async ({ googleSub = '', email = '', ownerJid = '', reason = '', adminSession = null }) => {
+  const normalizedSub = normalizeGoogleSubject(googleSub);
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedOwnerJid = normalizeJid(ownerJid) || '';
+  if (!normalizedSub && !normalizedEmail && !normalizedOwnerJid) {
+    const error = new Error('Informe google_sub, email ou owner_jid para banir.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const existing = await findActiveAdminBanForIdentity({
+    googleSub: normalizedSub,
+    email: normalizedEmail,
+    ownerJid: normalizedOwnerJid,
+  });
+  if (existing) return { created: false, ban: existing };
+
+  const banId = randomUUID();
+  await executeQuery(
+    `INSERT INTO ${TABLES.STICKER_WEB_ADMIN_BAN}
+      (id, google_sub, email, owner_jid, reason, created_by_google_sub, created_by_email)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      banId,
+      normalizedSub || null,
+      normalizedEmail || null,
+      normalizedOwnerJid || null,
+      sanitizeText(reason || '', 255, { allowEmpty: true }) || null,
+      normalizeGoogleSubject(adminSession?.googleSub) || null,
+      normalizeEmail(adminSession?.email) || null,
+    ],
+  );
+
+  if (normalizedSub || normalizedEmail || normalizedOwnerJid) {
+    // Revoke matching Google web sessions immediately.
+    const clauses = [];
+    const params = [];
+    if (normalizedSub) {
+      clauses.push('google_sub = ?');
+      params.push(normalizedSub);
+    }
+    if (normalizedEmail) {
+      clauses.push('email = ?');
+      params.push(normalizedEmail);
+    }
+    if (normalizedOwnerJid) {
+      clauses.push('owner_jid = ?');
+      params.push(normalizedOwnerJid);
+    }
+    if (clauses.length) {
+      await executeQuery(
+        `DELETE FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
+          WHERE ${clauses.join(' OR ')}`,
+        params,
+      ).catch(() => {});
+      for (const [token, session] of webGoogleSessionMap.entries()) {
+        if (!session) continue;
+        const sessionSub = normalizeGoogleSubject(session.sub);
+        const sessionEmail = normalizeEmail(session.email);
+        const sessionOwner = normalizeJid(session.ownerJid) || '';
+        if (
+          (normalizedSub && sessionSub === normalizedSub) ||
+          (normalizedEmail && sessionEmail === normalizedEmail) ||
+          (normalizedOwnerJid && sessionOwner === normalizedOwnerJid)
+        ) {
+          webGoogleSessionMap.delete(token);
+        }
+      }
+    }
+  }
+
+  const rows = await executeQuery(`SELECT * FROM ${TABLES.STICKER_WEB_ADMIN_BAN} WHERE id = ? LIMIT 1`, [banId]);
+  return { created: true, ban: mapAdminBanRow(Array.isArray(rows) ? rows[0] : null) };
+};
+
+const revokeAdminBanRecord = async (banId) => {
+  const normalizedId = sanitizeText(banId, 36, { allowEmpty: false });
+  if (!normalizedId) {
+    const error = new Error('ban_id invalido.');
+    error.statusCode = 400;
+    throw error;
+  }
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_WEB_ADMIN_BAN}
+        SET revoked_at = COALESCE(revoked_at, UTC_TIMESTAMP())
+      WHERE id = ?`,
+    [normalizedId],
+  );
+  const rows = await executeQuery(`SELECT * FROM ${TABLES.STICKER_WEB_ADMIN_BAN} WHERE id = ? LIMIT 1`, [normalizedId]);
+  return mapAdminBanRow(Array.isArray(rows) ? rows[0] : null);
+};
+
+const assertGoogleIdentityNotBanned = async ({ sub = '', email = '', ownerJid = '' } = {}) => {
+  const ban = await findActiveAdminBanForIdentity({ googleSub: sub, email, ownerJid });
+  if (!ban) return null;
+  const error = new Error('Conta bloqueada pela administracao.');
+  error.statusCode = 403;
+  error.code = 'ADMIN_BANNED';
+  error.ban = ban;
+  throw error;
+};
+
+const pruneExpiredAdminPanelSessions = () => {
+  const now = Date.now();
+  if (now - adminPanelSessionPruneAt < 30_000) return;
+  adminPanelSessionPruneAt = now;
+  for (const [token, session] of adminPanelSessionMap.entries()) {
+    if (!session || Number(session.expiresAt || 0) <= now) {
+      adminPanelSessionMap.delete(token);
+    }
+  }
+};
+
+const getAdminPanelSessionTokenFromRequest = (req) => {
+  const cookies = parseCookies(req);
+  return String(cookies[ADMIN_PANEL_SESSION_COOKIE_NAME] || '').trim();
+};
+
+const clearAdminPanelSessionCookie = (req, res) => {
+  appendSetCookie(
+    res,
+    buildCookieString(ADMIN_PANEL_SESSION_COOKIE_NAME, '', req, {
+      maxAgeSeconds: 0,
+    }),
+  );
+};
+
+const createAdminPanelSession = (googleSession) => {
+  pruneExpiredAdminPanelSessions();
+  const now = Date.now();
+  const token = randomUUID();
+  const session = {
+    token,
+    googleSub: normalizeGoogleSubject(googleSession?.sub),
+    ownerJid: normalizeJid(googleSession?.ownerJid) || '',
+    email: normalizeEmail(googleSession?.email),
+    name: sanitizeText(googleSession?.name || '', 120, { allowEmpty: true }) || 'Administrador',
+    picture: String(googleSession?.picture || '').trim() || '',
+    createdAt: now,
+    expiresAt: now + ADMIN_PANEL_SESSION_TTL_MS,
+  };
+  adminPanelSessionMap.set(token, session);
+  return session;
+};
+
+const resolveAdminPanelSessionFromRequest = (req) => {
+  if (!ADMIN_PANEL_ENABLED) return null;
+  pruneExpiredAdminPanelSessions();
+  const token = getAdminPanelSessionTokenFromRequest(req);
+  if (!token) return null;
+  const session = adminPanelSessionMap.get(token);
+  if (!session) return null;
+  if (Number(session.expiresAt || 0) <= Date.now()) {
+    adminPanelSessionMap.delete(token);
+    return null;
+  }
+  return session;
+};
+
+const mapAdminPanelSessionResponseData = (session) =>
+  session
+    ? {
+        authenticated: true,
+        user: {
+          google_sub: session.googleSub,
+          owner_jid: session.ownerJid,
+          email: session.email,
+          name: session.name,
+          picture: session.picture || null,
+        },
+        expires_at: toIsoOrNull(session.expiresAt),
+      }
+    : {
+        authenticated: false,
+        user: null,
+        expires_at: null,
+      };
+
+const isAdminGoogleSessionAllowed = (googleSession) => {
+  if (!ADMIN_PANEL_ENABLED) return false;
+  if (!googleSession?.sub || !googleSession?.ownerJid) return false;
+  const email = normalizeEmail(googleSession.email);
+  return Boolean(email && email === ADMIN_PANEL_EMAIL);
+};
+
+const requireAdminPanelSession = (req, res) => {
+  if (!ADMIN_PANEL_ENABLED) {
+    sendJson(req, res, 404, { error: 'Painel admin desabilitado.' });
+    return null;
+  }
+  const session = resolveAdminPanelSessionFromRequest(req);
+  if (!session) {
+    sendJson(req, res, 401, { error: 'Sessao admin invalida ou expirada.' });
+    return null;
+  }
+  return session;
+};
+
 const createGoogleWebSession = (claims) => {
   pruneExpiredGoogleSessions();
   const token = randomUUID();
@@ -954,12 +1234,33 @@ const resolveGoogleWebSessionFromRequest = async (req) => {
         });
         void touchGoogleWebUserSeenInDb(session.sub).catch(() => {});
       }
+      try {
+        await assertGoogleIdentityNotBanned({
+          sub: session.sub,
+          email: session.email,
+          ownerJid: session.ownerJid,
+        });
+      } catch (banError) {
+        webGoogleSessionMap.delete(sessionToken);
+        void deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
+        return null;
+      }
       return session;
     }
   }
   try {
     const persistedSession = await findGoogleWebSessionInDbByToken(sessionToken);
     if (!persistedSession) return null;
+    try {
+      await assertGoogleIdentityNotBanned({
+        sub: persistedSession.sub,
+        email: persistedSession.email,
+        ownerJid: persistedSession.ownerJid,
+      });
+    } catch {
+      await deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
+      return null;
+    }
     webGoogleSessionMap.set(sessionToken, persistedSession);
     return persistedSession;
   } catch (error) {
@@ -1971,6 +2272,22 @@ const renderCreatePackHtml = async () => {
   return html;
 };
 
+const renderAdminPanelHtml = async () => {
+  const template = await fs.readFile(ADMIN_PANEL_TEMPLATE_PATH, 'utf8');
+  const replacements = {
+    __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
+    __STICKER_ADMIN_WEB_PATH__: escapeHtmlAttribute(STICKER_ADMIN_WEB_PATH),
+    __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
+    __CURRENT_YEAR__: String(new Date().getFullYear()),
+  };
+
+  let html = template;
+  for (const [token, value] of Object.entries(replacements)) {
+    html = html.replaceAll(token, value);
+  }
+  return html;
+};
+
 const sendStaticTextFile = async (req, res, filePath, contentType) => {
   try {
     const body = await fs.readFile(filePath, 'utf8');
@@ -2313,6 +2630,11 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
 
   try {
     const claims = await verifyGoogleIdToken(payload?.google_id_token || payload?.id_token);
+    await assertGoogleIdentityNotBanned({
+      sub: claims.sub,
+      email: claims.email,
+      ownerJid: buildGoogleOwnerJid(claims.sub),
+    });
     const session = createGoogleWebSession(claims);
     if (!session.ownerJid) {
       sendJson(req, res, 400, { error: 'Nao foi possivel vincular a conta Google.' });
@@ -3465,6 +3787,11 @@ const handleCreatePackRequest = async (req, res) => {
     try {
       const googleClaims = await verifyGoogleIdToken(payload?.google_id_token);
       const googleOwnerJid = buildGoogleOwnerJid(googleClaims.sub);
+      await assertGoogleIdentityNotBanned({
+        sub: googleClaims.sub,
+        email: googleClaims.email,
+        ownerJid: googleOwnerJid,
+      });
       if (!googleOwnerJid) {
         sendJson(req, res, 400, {
           error: 'Não foi possível vincular a conta Google ao criador.',
@@ -5061,6 +5388,465 @@ const handlePackInteractionRequest = async (req, res, packKey, interaction, url)
   });
 };
 
+const listAdminActiveGoogleWebSessions = async ({ limit = 200 } = {}) => {
+  const safeLimit = Math.max(1, Math.min(500, Number(limit || 200)));
+  const rows = await executeQuery(
+    `SELECT session_token, google_sub, owner_jid, email, name, picture_url, created_at, last_seen_at, expires_at
+       FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
+      WHERE revoked_at IS NULL
+        AND expires_at > UTC_TIMESTAMP()
+      ORDER BY COALESCE(last_seen_at, created_at) DESC
+      LIMIT ${safeLimit}`,
+  );
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    session_token: String(row.session_token || '').trim(),
+    google_sub: normalizeGoogleSubject(row.google_sub),
+    owner_jid: normalizeJid(row.owner_jid) || null,
+    email: normalizeEmail(row.email) || null,
+    name: sanitizeText(row.name || '', 120, { allowEmpty: true }) || null,
+    picture: String(row.picture_url || '').trim() || null,
+    created_at: toIsoOrNull(row.created_at),
+    last_seen_at: toIsoOrNull(row.last_seen_at),
+    expires_at: toIsoOrNull(row.expires_at),
+  }));
+};
+
+const listAdminKnownGoogleUsers = async ({ limit = 200 } = {}) => {
+  const safeLimit = Math.max(1, Math.min(500, Number(limit || 200)));
+  const rows = await executeQuery(
+    `SELECT google_sub, owner_jid, email, name, picture_url, created_at, updated_at, last_login_at, last_seen_at
+       FROM ${TABLES.STICKER_WEB_GOOGLE_USER}
+      ORDER BY COALESCE(last_seen_at, last_login_at, updated_at, created_at) DESC
+      LIMIT ${safeLimit}`,
+  );
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    google_sub: normalizeGoogleSubject(row.google_sub),
+    owner_jid: normalizeJid(row.owner_jid) || null,
+    email: normalizeEmail(row.email) || null,
+    name: sanitizeText(row.name || '', 120, { allowEmpty: true }) || null,
+    picture: String(row.picture_url || '').trim() || null,
+    created_at: toIsoOrNull(row.created_at),
+    updated_at: toIsoOrNull(row.updated_at),
+    last_login_at: toIsoOrNull(row.last_login_at),
+    last_seen_at: toIsoOrNull(row.last_seen_at),
+  }));
+};
+
+const listAdminPacks = async (url) => {
+  const q = sanitizeText(url?.searchParams?.get('q') || '', 120, { allowEmpty: true }) || '';
+  const owner = normalizeJid(url?.searchParams?.get('owner_jid') || '') || '';
+  const limit = Math.max(1, Math.min(200, Number(url?.searchParams?.get('limit') || 50)));
+  const params = [];
+  const where = ['p.deleted_at IS NULL'];
+  if (q) {
+    where.push('(p.pack_key LIKE ? OR p.name LIKE ? OR p.publisher LIKE ? OR p.owner_jid LIKE ?)');
+    const like = `%${q}%`;
+    params.push(like, like, like, like);
+  }
+  if (owner) {
+    where.push('p.owner_jid = ?');
+    params.push(owner);
+  }
+  const rows = await executeQuery(
+    `SELECT
+        p.id,
+        p.pack_key,
+        p.owner_jid,
+        p.name,
+        p.publisher,
+        p.visibility,
+        p.status,
+        p.pack_status,
+        p.is_auto_pack,
+        p.pack_theme_key,
+        p.pack_volume,
+        p.created_at,
+        p.updated_at,
+        p.cover_sticker_id,
+        (SELECT COUNT(*) FROM ${TABLES.STICKER_PACK_ITEM} i WHERE i.pack_id = p.id) AS stickers_count,
+        COALESCE(e.open_count, 0) AS open_count,
+        COALESCE(e.like_count, 0) AS like_count,
+        COALESCE(e.dislike_count, 0) AS dislike_count
+       FROM ${TABLES.STICKER_PACK} p
+       LEFT JOIN ${TABLES.STICKER_PACK_ENGAGEMENT} e ON e.pack_id = p.id
+      WHERE ${where.join(' AND ')}
+      ORDER BY p.updated_at DESC
+      LIMIT ${limit}`,
+    params,
+  );
+  return (Array.isArray(rows) ? rows : []).map((row) => ({
+    id: String(row.id || ''),
+    pack_key: String(row.pack_key || ''),
+    owner_jid: normalizeJid(row.owner_jid) || null,
+    name: String(row.name || ''),
+    publisher: String(row.publisher || ''),
+    visibility: String(row.visibility || ''),
+    status: String(row.status || ''),
+    pack_status: String(row.pack_status || 'ready'),
+    is_auto_pack: Boolean(Number(row.is_auto_pack || 0)),
+    pack_theme_key: String(row.pack_theme_key || '').trim() || null,
+    pack_volume: Number.isFinite(Number(row.pack_volume)) ? Number(row.pack_volume) : null,
+    created_at: toIsoOrNull(row.created_at),
+    updated_at: toIsoOrNull(row.updated_at),
+    cover_sticker_id: String(row.cover_sticker_id || '').trim() || null,
+    stickers_count: Number(row.stickers_count || 0),
+    open_count: Number(row.open_count || 0),
+    like_count: Number(row.like_count || 0),
+    dislike_count: Number(row.dislike_count || 0),
+    web_url: `${STICKER_WEB_PATH}/${encodeURIComponent(String(row.pack_key || ''))}`,
+  }));
+};
+
+const findAdminPackContextByKey = async (rawPackKey) => {
+  const packKey = sanitizeText(rawPackKey, 160, { allowEmpty: false });
+  if (!packKey) return null;
+  const basePack = await findStickerPackByPackKey(packKey);
+  if (!basePack) return null;
+  const ownerJid = normalizeJid(basePack.owner_jid) || '';
+  if (!ownerJid) return null;
+  const fullPack = await stickerPackService.getPackInfo({ ownerJid, identifier: basePack.pack_key });
+  return { basePack, fullPack, ownerJid, packKey: basePack.pack_key };
+};
+
+const handleAdminPanelSessionRequest = async (req, res) => {
+  if (!ADMIN_PANEL_ENABLED) {
+    sendJson(req, res, 404, { error: 'Painel admin desabilitado.' });
+    return;
+  }
+
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    const googleSession = await resolveGoogleWebSessionFromRequest(req);
+    const adminSession = resolveAdminPanelSessionFromRequest(req);
+    sendJson(req, res, 200, {
+      data: {
+        enabled: true,
+        admin_email: ADMIN_PANEL_EMAIL || null,
+        google: mapGoogleSessionResponseData(googleSession),
+        eligible_google_login: isAdminGoogleSessionAllowed(googleSession),
+        session: mapAdminPanelSessionResponseData(adminSession),
+      },
+    });
+    return;
+  }
+
+  if (req.method === 'DELETE') {
+    const token = getAdminPanelSessionTokenFromRequest(req);
+    if (token) adminPanelSessionMap.delete(token);
+    clearAdminPanelSessionCookie(req, res);
+    sendJson(req, res, 200, { data: { cleared: true } });
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  const googleSession = await resolveGoogleWebSessionFromRequest(req);
+  if (!isAdminGoogleSessionAllowed(googleSession)) {
+    sendJson(req, res, 403, { error: 'Conta Google sem permissao para o painel admin.' });
+    return;
+  }
+  const password = String(payload?.password || '').trim();
+  if (!password || !constantTimeStringEqual(password, ADMIN_PANEL_PASSWORD)) {
+    sendJson(req, res, 401, { error: 'Senha do painel admin invalida.' });
+    return;
+  }
+
+  const session = createAdminPanelSession(googleSession);
+  appendSetCookie(
+    res,
+    buildCookieString(ADMIN_PANEL_SESSION_COOKIE_NAME, session.token, req, {
+      maxAgeSeconds: Math.floor(ADMIN_PANEL_SESSION_TTL_MS / 1000),
+    }),
+  );
+  sendJson(req, res, 200, {
+    data: {
+      enabled: true,
+      admin_email: ADMIN_PANEL_EMAIL,
+      google: mapGoogleSessionResponseData(googleSession),
+      eligible_google_login: true,
+      session: mapAdminPanelSessionResponseData(session),
+    },
+  });
+};
+
+const handleAdminOverviewRequest = async (req, res) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (!['GET', 'HEAD'].includes(req.method || '')) {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  const [
+    marketplaceStats,
+    activeSessions,
+    knownUsers,
+    bans,
+    packsCountRows,
+    stickersCountRows,
+    recentPacks,
+  ] = await Promise.all([
+    getMarketplaceGlobalStatsCached().catch(() => null),
+    listAdminActiveGoogleWebSessions({ limit: 50 }),
+    listAdminKnownGoogleUsers({ limit: 50 }),
+    listAdminBans({ activeOnly: true, limit: 50 }),
+    executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK} WHERE deleted_at IS NULL`),
+    executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_ASSET}`),
+    listAdminPacks({ searchParams: new URLSearchParams([['limit', '20']]) }),
+  ]);
+
+  sendJson(req, res, 200, {
+    data: {
+      admin_session: mapAdminPanelSessionResponseData(adminSession),
+      marketplace_stats: marketplaceStats,
+      counters: {
+        total_packs_any_status: Number(packsCountRows?.[0]?.total || 0),
+        total_stickers_any_status: Number(stickersCountRows?.[0]?.total || 0),
+        active_google_sessions: Number(activeSessions.length || 0),
+        known_google_users: Number(knownUsers.length || 0),
+        active_bans: Number(bans.length || 0),
+      },
+      active_sessions: activeSessions,
+      users: knownUsers,
+      bans,
+      recent_packs: recentPacks,
+    },
+  });
+};
+
+const handleAdminUsersRequest = async (req, res, url) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (!['GET', 'HEAD'].includes(req.method || '')) {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const limit = Math.max(1, Math.min(500, Number(url?.searchParams?.get('limit') || 200)));
+  const [activeSessions, users] = await Promise.all([
+    listAdminActiveGoogleWebSessions({ limit }),
+    listAdminKnownGoogleUsers({ limit }),
+  ]);
+  sendJson(req, res, 200, { data: { active_sessions: activeSessions, users } });
+};
+
+const handleAdminPacksRequest = async (req, res, url) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (!['GET', 'HEAD'].includes(req.method || '')) {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const packs = await listAdminPacks(url);
+  sendJson(req, res, 200, { data: packs });
+};
+
+const handleAdminPackDetailsRequest = async (req, res, packKey) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (!['GET', 'HEAD'].includes(req.method || '')) {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const context = await findAdminPackContextByKey(packKey);
+  if (!context?.fullPack) {
+    sendJson(req, res, 404, { error: 'Pack nao encontrado.' });
+    return;
+  }
+  const data = await buildManagedPackResponseData(context.fullPack);
+  sendJson(req, res, 200, { data });
+};
+
+const handleAdminPackDeleteRequest = async (req, res, packKey) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (req.method !== 'DELETE') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const context = await findAdminPackContextByKey(packKey);
+  const normalizedPackKey = sanitizeText(packKey, 160, { allowEmpty: false }) || String(packKey || '');
+  if (!context?.fullPack) {
+    sendManagedMutationStatus(req, res, 'already_deleted', {
+      deleted: false,
+      pack_key: normalizedPackKey,
+      admin: true,
+    });
+    return;
+  }
+  const result = await deleteManagedPackWithCleanup({
+    ownerJid: context.ownerJid,
+    identifier: context.packKey,
+    fallbackPack: context.fullPack,
+  });
+  sendManagedMutationStatus(req, res, 'deleted', {
+    admin: true,
+    deleted: !result?.missing,
+    pack_key: result?.deletedPack?.pack_key || context.packKey,
+    id: result?.deletedPack?.id || context.fullPack?.id || null,
+    deleted_at: toIsoOrNull(result?.deletedPack?.deleted_at || new Date()),
+    removed_sticker_count: Number(result?.removedCount || 0),
+  });
+};
+
+const handleAdminPackStickerDeleteRequest = async (req, res, packKey, stickerId) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (req.method !== 'DELETE') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const context = await findAdminPackContextByKey(packKey);
+  const normalizedStickerId = sanitizeText(stickerId, 36, { allowEmpty: false });
+  if (!context?.fullPack) {
+    sendManagedMutationStatus(req, res, 'already_deleted', {
+      admin: true,
+      pack_key: sanitizeText(packKey, 160, { allowEmpty: true }) || String(packKey || ''),
+      sticker_id: normalizedStickerId || null,
+    });
+    return;
+  }
+  try {
+    const result = await stickerPackService.removeStickerFromPack({
+      ownerJid: context.ownerJid,
+      identifier: context.packKey,
+      selector: normalizedStickerId,
+    });
+    invalidateStickerCatalogDerivedCaches();
+    if (normalizedStickerId) {
+      await cleanupOrphanStickerAssets([normalizedStickerId], { reason: 'admin_remove_sticker' });
+    }
+    await sendManagedPackMutationStatus(req, res, 'updated', result?.pack || context.fullPack, {
+      admin: true,
+      pack_key: context.packKey,
+      removed_sticker_id: normalizedStickerId || null,
+    });
+  } catch (error) {
+    const mapped = mapStickerPackWebManageError(error);
+    sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+  }
+};
+
+const handleAdminGlobalStickerDeleteRequest = async (req, res, stickerId) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (req.method !== 'DELETE') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  const normalizedStickerId = sanitizeText(stickerId, 36, { allowEmpty: false });
+  if (!normalizedStickerId) {
+    sendJson(req, res, 400, { error: 'sticker_id invalido.' });
+    return;
+  }
+
+  const refs = await executeQuery(
+    `SELECT p.pack_key, p.owner_jid
+       FROM ${TABLES.STICKER_PACK_ITEM} i
+       INNER JOIN ${TABLES.STICKER_PACK} p ON p.id = i.pack_id
+      WHERE i.sticker_id = ?
+        AND p.deleted_at IS NULL`,
+    [normalizedStickerId],
+  );
+
+  let removedFromPacks = 0;
+  let removeErrors = 0;
+  for (const ref of Array.isArray(refs) ? refs : []) {
+    try {
+      const ownerJid = normalizeJid(ref.owner_jid) || '';
+      const packKey = sanitizeText(ref.pack_key, 160, { allowEmpty: false });
+      if (!ownerJid || !packKey) continue;
+      await stickerPackService.removeStickerFromPack({
+        ownerJid,
+        identifier: packKey,
+        selector: normalizedStickerId,
+      });
+      removedFromPacks += 1;
+    } catch {
+      removeErrors += 1;
+    }
+  }
+
+  const cleanup = await cleanupOrphanStickerAssets([normalizedStickerId], { reason: 'admin_delete_sticker_global' });
+  invalidateStickerCatalogDerivedCaches();
+  sendJson(req, res, 200, {
+    data: {
+      success: true,
+      sticker_id: normalizedStickerId,
+      removed_from_packs: removedFromPacks,
+      remove_errors: removeErrors,
+      cleanup,
+      deleted: Number(cleanup?.deleted || 0) > 0,
+    },
+  });
+};
+
+const handleAdminBansRequest = async (req, res) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    const bans = await listAdminBans({ activeOnly: false, limit: 200 });
+    sendJson(req, res, 200, { data: bans });
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  try {
+    const result = await createAdminBanRecord({
+      googleSub: payload?.google_sub,
+      email: payload?.email,
+      ownerJid: payload?.owner_jid,
+      reason: payload?.reason,
+      adminSession,
+    });
+    sendJson(req, res, result.created ? 201 : 200, {
+      data: {
+        created: result.created,
+        ban: result.ban,
+      },
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Falha ao banir usuário.' });
+  }
+};
+
+const handleAdminBanRevokeRequest = async (req, res, banId) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (req.method !== 'DELETE') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  try {
+    const ban = await revokeAdminBanRecord(banId);
+    sendJson(req, res, 200, { data: { revoked: true, ban } });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Falha ao revogar ban.' });
+  }
+};
+
 const handleCatalogApiRequest = async (req, res, pathname, url) => {
   if (pathname === `${STICKER_API_BASE_PATH}/create`) {
     if (req.method !== 'POST') {
@@ -5078,6 +5864,11 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
 
   if (pathname === `${STICKER_API_BASE_PATH}/me`) {
     await handleMyProfileRequest(req, res);
+    return true;
+  }
+
+  if (pathname === `${STICKER_API_BASE_PATH}/admin/session`) {
+    await handleAdminPanelSessionRequest(req, res);
     return true;
   }
 
@@ -5200,6 +5991,47 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
     return true;
   }
 
+  if (segments[0] === 'admin') {
+    if (segments.length === 2 && segments[1] === 'overview') {
+      await handleAdminOverviewRequest(req, res);
+      return true;
+    }
+    if (segments.length === 2 && segments[1] === 'users') {
+      await handleAdminUsersRequest(req, res, url);
+      return true;
+    }
+    if (segments.length === 2 && segments[1] === 'packs') {
+      await handleAdminPacksRequest(req, res, url);
+      return true;
+    }
+    if (segments.length === 3 && segments[1] === 'packs') {
+      await handleAdminPackDetailsRequest(req, res, segments[2]);
+      return true;
+    }
+    if (segments.length === 4 && segments[1] === 'packs' && segments[3] === 'delete') {
+      await handleAdminPackDeleteRequest(req, res, segments[2]);
+      return true;
+    }
+    if (segments.length === 6 && segments[1] === 'packs' && segments[3] === 'stickers' && segments[5] === 'delete') {
+      await handleAdminPackStickerDeleteRequest(req, res, segments[2], segments[4]);
+      return true;
+    }
+    if (segments.length === 4 && segments[1] === 'stickers' && segments[3] === 'delete') {
+      await handleAdminGlobalStickerDeleteRequest(req, res, segments[2]);
+      return true;
+    }
+    if (segments.length === 2 && segments[1] === 'bans') {
+      await handleAdminBansRequest(req, res);
+      return true;
+    }
+    if (segments.length === 4 && segments[1] === 'bans' && segments[3] === 'revoke') {
+      await handleAdminBanRevokeRequest(req, res, segments[2]);
+      return true;
+    }
+    sendJson(req, res, 404, { error: 'Rota admin nao encontrada.' });
+    return true;
+  }
+
   if (segments.length === 1) {
     if (!['GET', 'HEAD'].includes(req.method || '')) {
       sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
@@ -5300,6 +6132,26 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
 
 const handleCatalogPageRequest = async (req, res, pathname) => {
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  if (normalizedPath === STICKER_ADMIN_WEB_PATH) {
+    try {
+      const html = await renderAdminPanelHtml();
+      sendText(req, res, 200, html, 'text/html; charset=utf-8');
+      return;
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        sendJson(req, res, 404, { error: 'Template do painel admin nao encontrado.' });
+        return;
+      }
+      logger.error('Falha ao renderizar pagina do painel admin.', {
+        action: 'sticker_catalog_admin_page_render_failed',
+        path: pathname,
+        error: error?.message,
+      });
+      sendJson(req, res, 500, { error: 'Falha interna ao renderizar painel admin.' });
+      return;
+    }
+  }
+
   if (normalizedPath === STICKER_CREATE_WEB_PATH) {
     try {
       const html = await renderCreatePackHtml();
