@@ -230,15 +230,16 @@ function PackCard({ pack, index, onOpen }) {
     <button
       type="button"
       onClick=${() => onOpen(pack.pack_key)}
-      className="group w-full text-left rounded-2xl border border-slate-800 bg-slate-900/90 shadow-soft overflow-hidden transition-all duration-200 active:scale-[0.985] hover:-translate-y-0.5 hover:shadow-lg touch-manipulation"
+      className="group w-full text-left rounded-2xl border border-slate-800 bg-slate-900/90 shadow-soft overflow-hidden transition-all duration-200 active:scale-[0.985] md:hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-lg touch-manipulation"
     >
-      <div className="relative aspect-[4/5] bg-slate-900 overflow-hidden">
+      <div className="relative aspect-[5/6] sm:aspect-[4/5] bg-slate-900 overflow-hidden">
         <img
           src=${pack.cover_url || 'https://iili.io/fSNGag2.png'}
           alt=${`Capa de ${pack.name}`}
-          className="w-full h-[70%] object-cover transition-transform duration-300 group-hover:scale-[1.04] group-active:scale-[1.02]"
+          className="w-full h-full object-cover transition-transform duration-300 md:group-hover:scale-[1.05] group-active:scale-[1.02]"
           loading="lazy"
         />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent"></div>
         <div className="absolute top-2 left-2 flex items-center gap-1">
           ${isTrending
             ? html`<span className="rounded-full border border-emerald-300/30 bg-emerald-400/80 backdrop-blur px-1.5 py-0.5 text-[9px] font-bold text-slate-900">Trending</span>`
@@ -248,21 +249,118 @@ function PackCard({ pack, index, onOpen }) {
             : null}
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-slate-950 via-slate-900/95 to-slate-900/5">
+        <div className="absolute inset-x-0 bottom-0 p-2">
           <h3 className="font-semibold text-sm leading-5 line-clamp-2">${pack.name || 'Pack sem nome'}</h3>
-          <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-300">
+          <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-300">
             <img src=${getAvatarUrl(pack.publisher)} alt="Criador" className="w-4 h-4 rounded-full bg-slate-700" loading="lazy" />
             <span className="truncate">${pack.publisher || 'Criador não informado'}</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-300">
-            👍 ${shortNum(engagement.likeCount)} · 👆 ${shortNum(engagement.openCount)} · 🧩 ${Number(pack.sticker_count || 0)}
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-300">
+            <span>🧩 ${Number(pack.sticker_count || 0)}</span>
+            <span>❤️ ${shortNum(engagement.likeCount)}</span>
+            <span>⬇ ${shortNum(engagement.openCount)}</span>
           </p>
+        </div>
+
+        <div className="pointer-events-none absolute inset-x-2 bottom-2 hidden md:flex justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <span className="inline-flex h-8 w-full items-center justify-center rounded-xl border border-emerald-400/35 bg-emerald-400/12 px-3 text-xs font-semibold text-emerald-200 backdrop-blur">
+            Abrir pack
+          </span>
         </div>
       </div>
 
-      <div className="px-2 pb-2 bg-slate-900/95">
-        <span className="inline-flex h-11 w-full items-center justify-center rounded-2xl border border-emerald-400/30 bg-emerald-400/10 text-sm font-semibold text-emerald-200 transition group-active:brightness-110 group-hover:bg-emerald-400/15">
+      <div className="px-2 pb-2 pt-1 bg-slate-900/95 md:hidden">
+        <span className="inline-flex h-[34px] w-full items-center justify-center rounded-xl border border-emerald-400/30 bg-emerald-400/10 text-xs font-semibold text-emerald-200 transition group-active:brightness-110">
           Abrir pack
+        </span>
+      </div>
+    </button>
+  `;
+}
+
+function CatalogMetricCard({ label, value, icon = '📊', hint = '', bars = [], tone = 'slate' }) {
+  const toneMap = {
+    slate: 'border-slate-800 bg-slate-900/60',
+    emerald: 'border-emerald-500/20 bg-emerald-500/5',
+    cyan: 'border-cyan-500/20 bg-cyan-500/5',
+    amber: 'border-amber-500/20 bg-amber-500/5',
+  };
+  return html`
+    <article
+      className=${`rounded-xl border p-2.5 ${toneMap[tone] || toneMap.slate}`}
+      title=${hint || label}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm">${icon}</span>
+        <div className="flex items-end gap-0.5">
+          ${(Array.isArray(bars) ? bars : []).slice(0, 7).map((bar, index) => html`
+            <span
+              key=${index}
+              className="w-1 rounded-full bg-white/15"
+              style=${{ height: `${Math.max(4, Math.min(16, Number(bar || 0)))}px` }}
+            ></span>
+          `)}
+        </div>
+      </div>
+      <p className="mt-1 text-base font-bold text-slate-100">${value}</p>
+      <p className="text-[11px] text-slate-400">${label}</p>
+      ${hint ? html`<p className="mt-0.5 text-[10px] text-slate-500">${hint}</p>` : null}
+    </article>
+  `;
+}
+
+function DiscoverPackRowItem({ pack, onOpen, rank = 0 }) {
+  if (!pack?.pack_key) return null;
+  return html`
+    <button
+      type="button"
+      onClick=${() => onOpen(pack.pack_key)}
+      className="w-full flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-2 py-1.5 text-left hover:bg-slate-800/90"
+    >
+      <img src=${pack.cover_url || 'https://iili.io/fSNGag2.png'} alt="" className="h-9 w-9 rounded-lg object-cover bg-slate-800" loading="lazy" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium text-slate-100">${rank > 0 ? `${rank}. ` : ''}${pack.name || 'Pack'}</span>
+        <span className="block truncate text-[10px] text-slate-400">${pack.publisher || '-'} · ❤️ ${shortNum(getPackEngagement(pack).likeCount)}</span>
+      </span>
+      <span className="text-[10px] text-slate-500">→</span>
+    </button>
+  `;
+}
+
+function DiscoverPackMiniCard({ pack, onOpen }) {
+  if (!pack?.pack_key) return null;
+  const engagement = getPackEngagement(pack);
+  return html`
+    <button
+      type="button"
+      onClick=${() => onOpen(pack.pack_key)}
+      className="group w-[170px] shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 text-left"
+    >
+      <div className="relative h-24 bg-slate-900">
+        <img src=${pack.cover_url || 'https://iili.io/fSNGag2.png'} alt="" className="h-full w-full object-cover transition-transform duration-200 group-active:scale-[1.02]" loading="lazy" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 to-transparent"></div>
+      </div>
+      <div className="p-2">
+        <p className="truncate text-xs font-semibold text-slate-100">${pack.name || 'Pack'}</p>
+        <p className="mt-1 truncate text-[10px] text-slate-400">⬇ ${shortNum(engagement.openCount)} · ❤️ ${shortNum(engagement.likeCount)}</p>
+      </div>
+    </button>
+  `;
+}
+
+function DiscoverCreatorMiniCard({ creator, onPick }) {
+  if (!creator?.publisher) return null;
+  return html`
+    <button
+      type="button"
+      onClick=${() => onPick(creator.publisher)}
+      className="w-[190px] shrink-0 rounded-xl border border-slate-800 bg-slate-900/70 p-2 text-left hover:bg-slate-800/90"
+    >
+      <div className="flex items-center gap-2">
+        <img src=${getAvatarUrl(creator.publisher)} alt="" className="h-9 w-9 rounded-full bg-slate-800" />
+        <span className="min-w-0">
+          <span className="block truncate text-xs font-semibold text-slate-100">${creator.publisher}</span>
+          <span className="block truncate text-[10px] text-slate-400">${creator.packCount} packs · ❤️ ${shortNum(creator.likes)}</span>
         </span>
       </div>
     </button>
@@ -1605,6 +1703,7 @@ function StickersApp() {
   const [appliedQuery, setAppliedQuery] = useState('');
   const [sortBy, setSortBy] = useState('popular');
   const [activeCategory, setActiveCategory] = useState('');
+  const [discoverTab, setDiscoverTab] = useState('growing');
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [recentSearches, setRecentSearches] = useState([]);
 
@@ -1842,6 +1941,66 @@ function StickersApp() {
       likes: totals.likes,
     };
   }, [packs, orphans.length]);
+  const recentPublishedPacks = useMemo(
+    () =>
+      [...packs]
+        .sort(
+          (a, b) =>
+            new Date(b?.created_at || b?.updated_at || 0).getTime() - new Date(a?.created_at || a?.updated_at || 0).getTime(),
+        )
+        .slice(0, 10),
+    [packs],
+  );
+  const globalTrendBars = useMemo(() => {
+    const sample = topWeekPacks.slice(0, 7).map((pack) => {
+      const engagement = getPackEngagement(pack);
+      return Number(engagement.openCount || 0) + Number(engagement.likeCount || 0) * 2 + 1;
+    });
+    const source = sample.length ? sample : [2, 4, 3, 5, 6, 4, 7];
+    const max = Math.max(...source, 1);
+    return source.map((value) => Math.round((value / max) * 14) + 2);
+  }, [topWeekPacks]);
+  const catalogMetricCards = useMemo(() => {
+    const recentCount = recentPublishedPacks.slice(0, 7).length;
+    return [
+      {
+        key: 'packs',
+        label: 'Packs',
+        value: shortNum(platformStats.packs),
+        icon: '📦',
+        tone: 'slate',
+        hint: `+${recentCount} recentes`,
+        bars: globalTrendBars,
+      },
+      {
+        key: 'stickers',
+        label: 'Stickers',
+        value: shortNum(platformStats.stickers),
+        icon: '🧩',
+        tone: 'cyan',
+        hint: `${shortNum(orphans.length)} sem pack`,
+        bars: [...globalTrendBars].reverse(),
+      },
+      {
+        key: 'opens',
+        label: 'Cliques',
+        value: shortNum(platformStats.opens),
+        icon: '⬇',
+        tone: 'emerald',
+        hint: 'Engajamento do catálogo',
+        bars: globalTrendBars.map((v, i) => Math.max(3, v - (i % 3))),
+      },
+      {
+        key: 'likes',
+        label: 'Likes',
+        value: shortNum(platformStats.likes),
+        icon: '❤️',
+        tone: 'amber',
+        hint: `+${shortNum(growingNowPacks.reduce((acc, pack) => acc + getPackEngagement(pack).likeCount, 0))} em tendência`,
+        bars: globalTrendBars.map((v, i) => Math.max(3, Math.min(16, v - 2 + (i % 2)))),
+      },
+    ];
+  }, [platformStats, recentPublishedPacks, globalTrendBars, orphans.length, growingNowPacks]);
 
   const hasAnyResult = packs.length > 0 || orphans.length > 0;
   const googleSessionApiPath = `${config.apiBasePath}/auth/google/session`;
@@ -2728,7 +2887,8 @@ function StickersApp() {
         ${`@keyframes fadeInCard { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .fade-card { animation: fadeInCard 260ms ease both; }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .chips-scroll { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+        .chips-scroll { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scroll-behavior: smooth; scrollbar-width: none; }
+        .chips-scroll::-webkit-scrollbar { display: none; }
         .chip-item { scroll-snap-align: start; }`}
       </style>
 
@@ -2744,10 +2904,10 @@ function StickersApp() {
           ${currentView === 'catalog'
             ? html`
                 <form onSubmit=${onSubmit} className="flex-1 relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔎</span>
-                  <input
-                    type="search"
-                    value=${query}
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">🔎</span>
+                    <input
+                      type="search"
+                      value=${query}
                     onChange=${(e) => setQuery(e.target.value)}
                     onFocus=${() => setShowAutocomplete(true)}
                     onBlur=${() => setTimeout(() => setShowAutocomplete(false), 120)}
@@ -2756,9 +2916,9 @@ function StickersApp() {
                         setShowAutocomplete(false);
                       }
                     }}
-                    placeholder="Buscar packs, criadores ou categorias..."
-                    className="w-full h-10 rounded-2xl border border-slate-800 bg-slate-900 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/15"
-                  />
+                      placeholder="Buscar packs..."
+                      className="w-full h-9 sm:h-10 rounded-2xl border border-slate-800 bg-slate-900 pl-[34px] sm:pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/15"
+                    />
                   ${showAutocomplete && filteredSuggestions.length
                     ? html`
                         <div className="absolute z-40 mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 shadow-xl overflow-hidden">
@@ -2805,7 +2965,7 @@ function StickersApp() {
               title="Criar pack"
             >
               <span className="sm:hidden">➕</span>
-              <span className="hidden sm:inline">Criar Pack</span>
+              <span className="hidden sm:inline">✨ Criar pack agora</span>
             </a>
             ${supportInfo?.url
               ? html`
@@ -2829,7 +2989,7 @@ function StickersApp() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 py-3 space-y-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+      <main className="max-w-7xl mx-auto px-3 py-2.5 sm:py-3 space-y-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         ${error
           ? html`<div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">${error}</div>`
           : null}
@@ -2874,49 +3034,33 @@ function StickersApp() {
                   />`}
             `
             : html`
-              <div className="lg:grid lg:grid-cols-[250px_minmax(0,1fr)] lg:gap-5">
+              <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-4">
                 <aside className="hidden lg:block">
-                  <div className="sticky top-[72px] space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
-                    <h3 className="text-sm font-semibold">Filtros</h3>
-                    <button
-                      type="button"
-                      onClick=${clearFilters}
-                      className="w-full h-11 rounded-xl border border-slate-700 text-sm text-slate-200 hover:bg-slate-800"
-                    >
-                      Limpar filtros
-                    </button>
-                    <div className="space-y-2 text-xs text-slate-400">
-                      <p>${packs.length}${packHasMore ? '+' : ''} packs</p>
-                      <p>${orphans.length} stickers sem pack</p>
-                    </div>
-                    <div className="space-y-2">
-                      <button onClick=${() => setSortBy('popular')} className=${`w-full h-10 rounded-xl border text-sm ${sortBy === 'popular' ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>🔥 Mais populares</button>
-                      <button onClick=${() => setSortBy('new')} className=${`w-full h-10 rounded-xl border text-sm ${sortBy === 'new' ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>🆕 Mais recentes</button>
-                      <button onClick=${() => setSortBy('liked')} className=${`w-full h-10 rounded-xl border text-sm ${sortBy === 'liked' ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>👍 Mais curtidos</button>
+                  <div className="sticky top-[72px] space-y-2.5 rounded-2xl border border-slate-800 bg-slate-900/80 p-2.5">
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-300">Filtros</h3>
+                        <button
+                          type="button"
+                          onClick=${clearFilters}
+                          className="h-8 rounded-lg border border-slate-700 px-2 text-[11px] text-slate-200 hover:bg-slate-800"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-500">${packs.length}${packHasMore ? '+' : ''} packs · ${orphans.length} sem pack</p>
                     </div>
 
-                    <div className="pt-1 border-t border-slate-800 space-y-2">
-                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Top da semana</p>
-                      ${topWeekPacks.slice(0, 3).map(
-                        (entry, idx) => html`
-                          <button
-                            key=${`side-top-${entry.pack_key}`}
-                            type="button"
-                            onClick=${() => openPack(entry.pack_key)}
-                            className="w-full text-left rounded-lg px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
-                          >
-                            ${idx + 1}. ${entry.name || 'Pack'}
-                          </button>
-                        `,
-                      )}
-                    </div>
-
-                    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-2.5 space-y-1.5">
-                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Resumo rápido</p>
-                      <p className="text-xs text-slate-300">${shortNum(platformStats.packs)} packs</p>
-                      <p className="text-xs text-slate-300">${shortNum(platformStats.stickers)} stickers</p>
-                      <p className="text-xs text-slate-300">${shortNum(platformStats.opens)} cliques</p>
-                    </div>
+                    <details open className="rounded-xl border border-slate-800 bg-slate-950/40 p-2">
+                      <summary className="cursor-pointer list-none text-xs font-semibold text-slate-200">
+                        Ordenar catálogo
+                      </summary>
+                      <div className="mt-2 space-y-1.5">
+                        <button onClick=${() => setSortBy('popular')} className=${`w-full h-9 rounded-xl border text-xs ${sortBy === 'popular' ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>🔥 Mais populares</button>
+                        <button onClick=${() => setSortBy('new')} className=${`w-full h-9 rounded-xl border text-xs ${sortBy === 'new' ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>🆕 Mais recentes</button>
+                        <button onClick=${() => setSortBy('liked')} className=${`w-full h-9 rounded-xl border text-xs ${sortBy === 'liked' ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>👍 Mais curtidos</button>
+                      </div>
+                    </details>
 
                     ${supportInfo?.url
                       ? html`
@@ -2924,7 +3068,7 @@ function StickersApp() {
                             href=${supportInfo.url}
                             target="_blank"
                             rel="noreferrer noopener"
-                            className="w-full h-10 inline-flex items-center justify-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 text-sm text-emerald-200 hover:bg-emerald-500/20"
+                            className="w-full h-9 inline-flex items-center justify-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 text-xs text-emerald-200 hover:bg-emerald-500/20"
                           >
                             💬 Suporte no WhatsApp
                           </a>
@@ -2933,21 +3077,21 @@ function StickersApp() {
                   </div>
                 </aside>
 
-                <div className="space-y-4 min-w-0">
-                  <section className="space-y-3 min-w-0">
+                <div className="space-y-3 min-w-0">
+                  <section className="space-y-2 min-w-0">
                     <div className="relative min-w-0">
                       <div className="absolute left-0 top-0 bottom-0 w-5 bg-gradient-to-r from-slate-950 to-transparent pointer-events-none z-10"></div>
                       <div className="absolute right-0 top-0 bottom-0 w-5 bg-gradient-to-l from-slate-950 to-transparent pointer-events-none z-10"></div>
-                      <div className="chips-scroll flex max-w-full gap-2 overflow-x-auto pb-1.5 pr-1">
+                      <div className="chips-scroll flex max-w-full gap-1.5 overflow-x-auto pb-1 pr-1">
                         ${dynamicCategoryOptions.map(
                           (item) => html`
                             <button
                               key=${item.value || 'all'}
                               type="button"
                               onClick=${() => setActiveCategory(item.value)}
-                              className=${`chip-item h-9 whitespace-nowrap rounded-full px-3 text-xs border transition ${
+                              className=${`chip-item h-8 whitespace-nowrap rounded-full px-3 text-[11px] border transition ${
                                 activeCategory === item.value
-                                  ? 'bg-emerald-400 text-slate-900 border-emerald-400 font-semibold shadow-sm'
+                                  ? 'bg-emerald-400 text-slate-900 border-emerald-300 font-semibold shadow-[0_0_0_2px_rgba(16,185,129,0.18)]'
                                   : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
                               }`}
                             >
@@ -2961,99 +3105,149 @@ function StickersApp() {
 
                   ${packs.length
                     ? html`
-                        <section className="hidden lg:block space-y-3">
-                          <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
-                            <div className="flex items-center justify-between gap-3">
+                        <section className="space-y-2">
+                          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                               <div>
-                                <p className="text-xs uppercase tracking-wide text-slate-400">Descobrir</p>
-                                <h3 className="text-base font-semibold">Recomendado para você</h3>
-                                <p className="text-xs text-slate-400">Mais populares em: ${categoryActiveLabel}</p>
+                                <p className="text-[11px] uppercase tracking-wide text-slate-400">Descobrir</p>
+                                <h3 className="text-sm font-semibold text-slate-100">Curadoria do marketplace</h3>
+                                <p className="text-[11px] text-slate-500">Mais packs visíveis acima da dobra, com descoberta compacta.</p>
                               </div>
-                              <a href="/api-docs/" className="h-10 inline-flex items-center rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 text-sm text-emerald-200 hover:bg-emerald-500/20">
-                                Criar com API
+                              <a href="/stickers/create/" className="inline-flex h-8 items-center rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-3 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/20">
+                                ✨ Criar pack agora
                               </a>
                             </div>
-                          </article>
 
-                          <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-                            <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
-                              <h4 className="text-sm font-semibold mb-2">🔥 Crescendo agora</h4>
-                              <div className="space-y-2">
-                                ${growingNowPacks.slice(0, 3).map((entry) => html`
-                                  <button key=${entry.pack_key} onClick=${() => openPack(entry.pack_key)} className="w-full flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-slate-800">
-                                    <img src=${entry.cover_url || 'https://iili.io/fSNGag2.png'} alt="" className="w-10 h-10 rounded-lg object-cover bg-slate-800" />
-                                    <span className="min-w-0 text-left">
-                                      <span className="block text-xs font-medium truncate">${entry.name || 'Pack'}</span>
-                                      <span className="block text-[11px] text-slate-400 truncate">${entry.publisher || '-'}</span>
-                                    </span>
-                                  </button>
-                                `)}
-                              </div>
-                            </article>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              ${[
+                                { key: 'growing', label: '🔥 Crescendo' },
+                                { key: 'top', label: '🏆 Top 10' },
+                                { key: 'creators', label: '⭐ Criadores' },
+                              ].map((tab) => html`
+                                <button
+                                  key=${tab.key}
+                                  type="button"
+                                  onClick=${() => setDiscoverTab(tab.key)}
+                                  className=${`h-8 rounded-full border px-2.5 text-[11px] ${
+                                    discoverTab === tab.key
+                                      ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-100'
+                                      : 'border-slate-700 bg-slate-950/40 text-slate-300 hover:bg-slate-800'
+                                  }`}
+                                >
+                                  ${tab.label}
+                                </button>
+                              `)}
+                            </div>
 
-                            <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
-                              <h4 className="text-sm font-semibold mb-2">🥇 Top 10 da semana</h4>
-                              <ol className="space-y-1.5">
-                                ${topWeekPacks.slice(0, 5).map((entry, idx) => html`
-                                  <li key=${entry.pack_key}>
-                                    <button onClick=${() => openPack(entry.pack_key)} className="w-full rounded-lg px-2 py-1 text-left text-xs text-slate-200 hover:bg-slate-800">
-                                      ${idx + 1}. ${entry.name || 'Pack'}
-                                    </button>
-                                  </li>
-                                `)}
-                              </ol>
-                            </article>
-
-                            <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
-                              <h4 className="text-sm font-semibold mb-2">👤 Criadores em destaque</h4>
-                              <div className="space-y-2">
-                                ${featuredCreators.map((creator) => html`
-                                  <button
-                                    key=${creator.publisher}
-                                    onClick=${() => {
-                                      setQuery(creator.publisher);
-                                      setAppliedQuery(creator.publisher);
-                                    }}
-                                    className="w-full flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-slate-800"
-                                  >
-                                    <img src=${getAvatarUrl(creator.publisher)} alt="" className="w-9 h-9 rounded-full bg-slate-800" />
-                                    <span className="min-w-0 text-left">
-                                      <span className="block text-xs font-medium truncate">${creator.publisher}</span>
-                                      <span className="block text-[11px] text-slate-400 truncate">${creator.packCount} packs · 👍 ${shortNum(creator.likes)}</span>
-                                    </span>
-                                  </button>
-                                `)}
-                              </div>
-                            </article>
+                            <div className="mt-2 hidden lg:block">
+                              ${discoverTab === 'growing'
+                                ? html`
+                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                                      ${growingNowPacks.slice(0, 6).map((entry) => html`<${DiscoverPackRowItem} key=${`grow-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
+                                    </div>
+                                  `
+                                : discoverTab === 'top'
+                                  ? html`
+                                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                                        ${topWeekPacks.slice(0, 8).map((entry, idx) => html`<${DiscoverPackRowItem} key=${`top-${entry.pack_key}`} pack=${entry} onOpen=${openPack} rank=${idx + 1} />`)}
+                                      </div>
+                                    `
+                                  : html`
+                                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                                        ${featuredCreators.map((creator) => html`
+                                          <button
+                                            key=${creator.publisher}
+                                            onClick=${() => {
+                                              setQuery(creator.publisher);
+                                              setAppliedQuery(creator.publisher);
+                                            }}
+                                            className="w-full flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-2 py-1.5 text-left hover:bg-slate-800/90"
+                                          >
+                                            <img src=${getAvatarUrl(creator.publisher)} alt="" className="w-9 h-9 rounded-full bg-slate-800" />
+                                            <span className="min-w-0 flex-1">
+                                              <span className="block truncate text-xs font-medium text-slate-100">${creator.publisher}</span>
+                                              <span className="block truncate text-[10px] text-slate-400">${creator.packCount} packs · ❤️ ${shortNum(creator.likes)} · ⬇ ${shortNum(creator.opens)}</span>
+                                            </span>
+                                            <span className="text-[10px] text-slate-500">filtrar</span>
+                                          </button>
+                                        `)}
+                                      </div>
+                                    `}
+                            </div>
                           </div>
 
-                          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-                            <article className="rounded-xl border border-slate-800 bg-slate-900/60 p-3"><p className="text-[11px] text-slate-400">Packs</p><p className="text-lg font-semibold">${shortNum(platformStats.packs)}</p></article>
-                            <article className="rounded-xl border border-slate-800 bg-slate-900/60 p-3"><p className="text-[11px] text-slate-400">Stickers</p><p className="text-lg font-semibold">${shortNum(platformStats.stickers)}</p></article>
-                            <article className="rounded-xl border border-slate-800 bg-slate-900/60 p-3"><p className="text-[11px] text-slate-400">Cliques</p><p className="text-lg font-semibold">${shortNum(platformStats.opens)}</p></article>
-                            <article className="rounded-xl border border-slate-800 bg-slate-900/60 p-3"><p className="text-[11px] text-slate-400">Likes</p><p className="text-lg font-semibold">${shortNum(platformStats.likes)}</p></article>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            ${catalogMetricCards.map((card) => html`<${CatalogMetricCard} key=${card.key} label=${card.label} value=${card.value} icon=${card.icon} hint=${card.hint} bars=${card.bars} tone=${card.tone} />`)}
+                          </div>
+
+                          <div className="lg:hidden space-y-2">
+                            <section className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-semibold text-slate-200">🔥 Em alta agora</h4>
+                                <button type="button" onClick=${() => setDiscoverTab('growing')} className="text-[10px] text-cyan-300">ver lista</button>
+                              </div>
+                              <div className="flex gap-2 overflow-x-auto pb-1">
+                                ${growingNowPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-grow-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
+                              </div>
+                            </section>
+                            <section className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-semibold text-slate-200">🆕 Recém publicados</h4>
+                                <button type="button" onClick=${() => setSortBy('new')} className="text-[10px] text-cyan-300">ordenar</button>
+                              </div>
+                              <div className="flex gap-2 overflow-x-auto pb-1">
+                                ${recentPublishedPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-new-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
+                              </div>
+                            </section>
+                            <section className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-semibold text-slate-200">👑 Criadores populares</h4>
+                                <button type="button" onClick=${() => setDiscoverTab('creators')} className="text-[10px] text-cyan-300">ver lista</button>
+                              </div>
+                              <div className="flex gap-2 overflow-x-auto pb-1">
+                                ${featuredCreators.map((creator) => html`
+                                  <${DiscoverCreatorMiniCard}
+                                    key=${`mobile-creator-${creator.publisher}`}
+                                    creator=${creator}
+                                    onPick=${(publisher) => {
+                                      setQuery(publisher);
+                                      setAppliedQuery(publisher);
+                                    }}
+                                  />
+                                `)}
+                              </div>
+                            </section>
+                          </div>
+
+                          <div className="hidden lg:block rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 to-cyan-500/5 p-2.5">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-semibold text-emerald-100">Quer aparecer em destaque?</p>
+                                <p className="text-[11px] text-slate-300">Publique seu pack e melhore capa/tags para ganhar mais cliques.</p>
+                              </div>
+                              <a href="/stickers/create/" className="inline-flex h-8 items-center rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-3 text-[11px] font-semibold text-emerald-100 hover:bg-emerald-500/20">
+                                Publicar pack
+                              </a>
+                            </div>
                           </div>
                         </section>
                       `
                     : null}
-
-                  ${packsLoading ? html`<${SkeletonGrid} count=${10} />` : null}
-                  ${!packsLoading && !hasAnyResult ? html`<${EmptyState} onClear=${clearFilters} />` : null}
 
                   ${packs.length
                     ? html`
                         <section className="space-y-3 min-w-0">
                           <div className="flex items-end justify-between gap-3">
                             <div>
-                              <h2 className="text-xl font-bold">Packs</h2>
-                              <p className="text-xs text-slate-400">${sortedPacks.length}${packHasMore ? '+' : ''} resultados</p>
+                              <h2 className="text-lg sm:text-xl font-bold">Packs</h2>
+                              <p className="text-xs text-slate-400">${sortedPacks.length}${packHasMore ? '+' : ''} resultados · ${categoryActiveLabel}</p>
                             </div>
                             <div className="hidden md:flex items-center gap-2">
                               <span className="text-xs text-slate-400">Ordenar por</span>
                               <select
                                 value=${sortBy}
                                 onChange=${(event) => setSortBy(event.target.value)}
-                                className="h-9 rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm text-slate-200 outline-none"
+                                className="h-8 rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200 outline-none"
                               >
                                 <option value="popular">Mais populares</option>
                                 <option value="new">Mais recentes</option>
@@ -3061,7 +3255,7 @@ function StickersApp() {
                               </select>
                             </div>
                           </div>
-                          <div className="grid min-w-0 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+                          <div className="grid min-w-0 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5 sm:gap-3">
                             ${sortedPacks.map((pack, index) => html`<div key=${pack.pack_key || pack.id} className="fade-card"><${PackCard} pack=${pack} index=${index} onOpen=${openPack} /></div>`)}
                           </div>
                           <div ref=${setSentinel} className="h-8 flex items-center justify-center text-xs text-slate-500">
@@ -3071,18 +3265,21 @@ function StickersApp() {
                       `
                     : null}
 
-                  <section className="space-y-3">
+                  ${packsLoading ? html`<${SkeletonGrid} count=${10} />` : null}
+                  ${!packsLoading && !hasAnyResult ? html`<${EmptyState} onClear=${clearFilters} />` : null}
+
+                  <section className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-bold">Stickers sem pack</h2>
+                      <h2 className="text-base sm:text-lg font-bold">Stickers sem pack</h2>
                       <span className="text-xs text-slate-400">${orphans.length} resultados</span>
                     </div>
 
                     ${orphansLoading
-                      ? html`<div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-3">${Array.from({ length: 16 }).map(
+                      ? html`<div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-2.5 sm:gap-3">${Array.from({ length: 16 }).map(
                           (_, i) => html`<div key=${i} className="rounded-2xl border border-slate-700 bg-slate-800 animate-pulse aspect-square"></div>`,
                         )}</div>`
                       : html`
-                          <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-3">
+                          <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-2.5 sm:gap-3">
                             ${orphans.map((item) => html`<div key=${item.id} className="fade-card"><${OrphanCard} sticker=${item} /></div>`)}
                           </div>
                         `}
