@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 import { executeQuery } from '../../../database/index.js';
 import { getJidUser, normalizeJid, resolveBotJid } from '../../config/baileysConfig.js';
@@ -41,8 +42,10 @@ import {
   computePackSignals,
 } from './stickerPackMarketplaceService.js';
 import { getMarketplaceDriftSnapshot } from './stickerMarketplaceDriftService.js';
-import { readStickerAssetBuffer } from './stickerStorageService.js';
+import { getStickerStorageConfig, readStickerAssetBuffer, saveStickerAssetFromBuffer } from './stickerStorageService.js';
 import { sanitizeText } from './stickerPackUtils.js';
+import stickerPackService from './stickerPackServiceRuntime.js';
+import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -81,10 +84,12 @@ const STICKER_CATALOG_ENABLED = parseEnvBool(process.env.STICKER_CATALOG_ENABLED
 const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stickers');
 const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PATH, '/api/sticker-packs');
 const STICKER_ORPHAN_API_PATH = `${STICKER_API_BASE_PATH}/orphan-stickers`;
+const STICKER_CREATE_WEB_PATH = `${STICKER_WEB_PATH}/create`;
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
 const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
 const CATALOG_PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'index.html');
+const CREATE_PACK_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'create', 'index.html');
 const CATALOG_STYLES_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'css', 'styles.css');
 const CATALOG_SCRIPT_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'js', 'catalog.js');
 const DEFAULT_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_LIMIT, 24, 1, 60);
@@ -98,6 +103,14 @@ const ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_ASSET_CACHE_SECONDS
 const STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE =
   String(process.env.STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE || '/pack send {{pack_key}}').trim() ||
   '/pack send {{pack_key}}';
+const PACK_COMMAND_PREFIX = String(process.env.COMMAND_PREFIX || '/').trim() || '/';
+const PACK_CREATE_NAME_REGEX = '^[a-z0-9]+$';
+const PACK_CREATE_MAX_NAME_LENGTH = 120;
+const PACK_CREATE_MAX_PUBLISHER_LENGTH = 120;
+const PACK_CREATE_MAX_DESCRIPTION_LENGTH = 1024;
+const PACK_CREATE_MAX_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
+const PACK_CREATE_MAX_PACKS_PER_OWNER = Math.max(1, Number(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER) || 50);
+const PACK_WEB_EDIT_TOKEN_TTL_MS = Math.max(60_000, Number(process.env.STICKER_WEB_EDIT_TOKEN_TTL_MS) || 6 * 60 * 60 * 1000);
 const STICKER_CATALOG_ONLY_CLASSIFIED = parseEnvBool(process.env.STICKER_CATALOG_ONLY_CLASSIFIED, true);
 const METRICS_ENDPOINT =
   process.env.METRICS_ENDPOINT ||
@@ -108,6 +121,8 @@ const GITHUB_TOKEN = String(process.env.GITHUB_TOKEN || '').trim();
 const GITHUB_PROJECT_CACHE_SECONDS = clampInt(process.env.GITHUB_PROJECT_CACHE_SECONDS, 300, 30, 3600);
 const GLOBAL_RANK_REFRESH_SECONDS = clampInt(process.env.GLOBAL_RANK_REFRESH_SECONDS, 600, 60, 3600);
 const DATA_IMAGE_EXTENSIONS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.bmp']);
+const { maxStickerBytes: MAX_STICKER_UPLOAD_BYTES } = getStickerStorageConfig();
+const webPackEditTokenMap = new Map();
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 const isPackPubliclyVisible = (pack) => pack?.visibility === 'public' || pack?.visibility === 'unlisted';
@@ -153,6 +168,42 @@ const sendText = (req, res, statusCode, body, contentType) => {
   }
   res.end(body);
 };
+
+const readJsonBody = async (req, { maxBytes = 64 * 1024 } = {}) =>
+  new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        const error = new Error('Payload excedeu limite permitido.');
+        error.statusCode = 413;
+        reject(error);
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8').trim();
+      if (!raw) {
+        resolve({});
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(raw));
+      } catch {
+        const error = new Error('JSON invalido.');
+        error.statusCode = 400;
+        reject(error);
+      }
+    });
+
+    req.on('error', (error) => reject(error));
+  });
 
 const sendAsset = (req, res, buffer, mimetype = 'image/webp') => {
   res.statusCode = 200;
@@ -478,6 +529,87 @@ const isPlausibleWhatsAppPhone = (value) => {
   return digits.length >= 10 && digits.length <= 15 ? digits : '';
 };
 
+const toOwnerJid = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.includes('@')) {
+    return normalizeJid(raw) || '';
+  }
+  const digits = normalizePhoneDigits(raw);
+  if (!digits) return '';
+  return normalizeJid(`${digits}@s.whatsapp.net`) || '';
+};
+
+const resolveWebCreateOwnerJid = async (explicitOwner = '') => {
+  const explicit = toOwnerJid(explicitOwner);
+  if (explicit) return explicit;
+
+  const activeSocket = getActiveSocket();
+  const botJid = resolveBotJid(activeSocket?.user?.id);
+  const fromSocket = toOwnerJid(botJid);
+  if (fromSocket) return fromSocket;
+
+  try {
+    const resolvedAdminJid = await resolveAdminJid();
+    const fromAdmin = toOwnerJid(resolvedAdminJid);
+    if (fromAdmin) return fromAdmin;
+  } catch {}
+
+  const adminCandidates = [
+    getAdminRawValue(),
+    getAdminPhone(),
+    process.env.USER_ADMIN,
+    process.env.WHATSAPP_SUPPORT_NUMBER,
+  ];
+  for (const candidate of adminCandidates) {
+    const normalized = toOwnerJid(candidate);
+    if (normalized) return normalized;
+  }
+
+  return '';
+};
+
+const saveWebPackEditToken = ({ packId, ownerJid }) => {
+  if (!packId || !ownerJid) return null;
+  const token = randomUUID();
+  webPackEditTokenMap.set(token, {
+    packId,
+    ownerJid,
+    expiresAt: Date.now() + PACK_WEB_EDIT_TOKEN_TTL_MS,
+  });
+  return token;
+};
+
+const resolveWebPackEditToken = (token) => {
+  const normalized = String(token || '').trim();
+  if (!normalized) return null;
+  const entry = webPackEditTokenMap.get(normalized);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    webPackEditTokenMap.delete(normalized);
+    return null;
+  }
+  return entry;
+};
+
+const decodeStickerBase64Payload = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  const dataUrlMatch = raw.match(/^data:([^;]+);base64,([\s\S]+)$/i);
+  const base64Value = dataUrlMatch ? dataUrlMatch[2] : raw;
+  const mimetype = dataUrlMatch ? String(dataUrlMatch[1] || '').trim().toLowerCase() : 'image/webp';
+  const cleaned = base64Value.replace(/\s+/g, '');
+  if (!cleaned) return null;
+
+  const buffer = Buffer.from(cleaned, 'base64');
+  if (!buffer.length) return null;
+  return {
+    buffer,
+    mimetype,
+  };
+};
+
 const resolveSupportAdminPhone = async () => {
   const adminRaw = String(getAdminRawValue() || '').trim();
 
@@ -580,14 +712,67 @@ const listDataImageFiles = async () => {
   return files;
 };
 
+const PACK_TAG_MARKER_REGEX = /\[pack-tags:([^\]]+)\]/i;
+const normalizePackTag = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+
+const mergeUniqueTags = (...groups) => {
+  const merged = [];
+  const seen = new Set();
+  for (const group of groups) {
+    for (const entry of Array.isArray(group) ? group : []) {
+      const normalized = normalizePackTag(entry);
+      if (!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      merged.push(normalized);
+    }
+  }
+  return merged;
+};
+
+const parsePackDescriptionMetadata = (description) => {
+  const raw = String(description || '').trim();
+  if (!raw) return { cleanDescription: null, tags: [] };
+
+  const marker = raw.match(PACK_TAG_MARKER_REGEX);
+  const markerTags = marker?.[1]
+    ? marker[1]
+        .split(',')
+        .map((entry) => normalizePackTag(entry))
+        .filter(Boolean)
+    : [];
+  const cleanDescription = raw.replace(PACK_TAG_MARKER_REGEX, '').trim() || null;
+
+  return {
+    cleanDescription,
+    tags: mergeUniqueTags(markerTags).slice(0, 8),
+  };
+};
+
+const buildPackDescriptionWithTags = (description, tags = []) => {
+  const cleanDescription = sanitizeText(description || '', PACK_CREATE_MAX_DESCRIPTION_LENGTH, { allowEmpty: true }) || '';
+  const normalizedTags = mergeUniqueTags(tags).slice(0, 8);
+  const marker = normalizedTags.length ? `[pack-tags:${normalizedTags.join(',')}]` : '';
+  const combined = `${marker}${marker && cleanDescription ? ' ' : ''}${cleanDescription}`.trim();
+  return combined || null;
+};
+
 const mapPackSummary = (pack, engagement = null, signals = null) => {
   const safeEngagement = engagement || getEmptyStickerPackEngagement();
+  const metadata = parsePackDescriptionMetadata(pack.description);
   return {
     id: pack.id,
     pack_key: pack.pack_key,
     name: pack.name,
     publisher: pack.publisher,
-    description: pack.description || null,
+    description: metadata.cleanDescription,
     visibility: pack.visibility,
     sticker_count: Number(pack.sticker_count || 0),
     cover_sticker_id: pack.cover_sticker_id || null,
@@ -607,6 +792,7 @@ const mapPackSummary = (pack, engagement = null, signals = null) => {
       updated_at: toIsoOrNull(safeEngagement.updated_at),
     },
     signals: signals || null,
+    manual_tags: metadata.tags,
   };
 };
 
@@ -616,10 +802,14 @@ const mapPackDetails = (
   { byAssetClassification = new Map(), packClassification = null, engagement = null, signals = null } = {},
 ) => {
   const coverStickerId = pack.cover_sticker_id || items[0]?.sticker_id || null;
+  const metadata = parsePackDescriptionMetadata(pack.description);
+  const decoratedClassification = decoratePackClassificationSummary(packClassification);
+  const mergedTags = mergeUniqueTags(decoratedClassification?.tags || [], metadata.tags);
 
   return {
     ...mapPackSummary({
       ...pack,
+      description: metadata.cleanDescription,
       cover_sticker_id: coverStickerId,
       sticker_count: items.length,
     }, engagement, signals),
@@ -646,8 +836,11 @@ const mapPackDetails = (
           }
         : null,
     })),
-    classification: decoratePackClassificationSummary(packClassification),
-    tags: decoratePackClassificationSummary(packClassification)?.tags || [],
+    classification: {
+      ...(decoratedClassification || {}),
+      tags: mergedTags,
+    },
+    tags: mergedTags,
   };
 };
 
@@ -669,7 +862,7 @@ const mapOrphanStickerAsset = (asset, classification = null) => ({
 const toSummaryEntry = (entry) => ({
   ...mapPackSummary(entry.pack, entry.engagement, entry.signals),
   classification: entry.packClassification,
-  tags: entry.packClassification?.tags || [],
+  tags: mergeUniqueTags(entry.packClassification?.tags || [], parsePackDescriptionMetadata(entry.pack?.description).tags),
 });
 
 const classifyPackIntent = (entry) => {
@@ -718,6 +911,9 @@ const hydrateMarketplaceEntries = async (packs, { includeItems = true, driftSnap
     const orderedClassifications = stickerIds.map((stickerId) => byAssetClassification.get(stickerId)).filter(Boolean);
     const engagement = engagementByPackId.get(pack.id) || getEmptyStickerPackEngagement();
     const interactionStats = interactionStatsByPackId.get(pack.id) || null;
+    const packMetadata = parsePackDescriptionMetadata(pack.description);
+    const decoratedClassification = decoratePackClassificationSummary(packClassification);
+    const mergedPackTags = mergeUniqueTags(decoratedClassification?.tags || [], packMetadata.tags);
     const signals = computePackSignals({
       pack: { ...pack, items },
       engagement,
@@ -731,7 +927,10 @@ const hydrateMarketplaceEntries = async (packs, { includeItems = true, driftSnap
       pack,
       items,
       engagement,
-      packClassification: decoratePackClassificationSummary(packClassification),
+      packClassification: {
+        ...(decoratedClassification || {}),
+        tags: mergedPackTags,
+      },
       signals,
       interactionStats,
     };
@@ -864,6 +1063,23 @@ const renderCatalogHtml = async ({ initialPackKey }) => {
     __INITIAL_PACK_KEY__: escapeHtmlAttribute(initialPackKey || ''),
     __CATALOG_STYLES_PATH__: escapeHtmlAttribute(buildCatalogStylesUrl()),
     __CATALOG_SCRIPT_PATH__: escapeHtmlAttribute(buildCatalogScriptUrl()),
+    __CURRENT_YEAR__: String(new Date().getFullYear()),
+  };
+
+  let html = template;
+  for (const [token, value] of Object.entries(replacements)) {
+    html = html.replaceAll(token, value);
+  }
+  return html;
+};
+
+const renderCreatePackHtml = async () => {
+  const template = await fs.readFile(CREATE_PACK_TEMPLATE_PATH, 'utf8');
+  const replacements = {
+    __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
+    __STICKER_CREATE_WEB_PATH__: escapeHtmlAttribute(STICKER_CREATE_WEB_PATH),
+    __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
+    __PACK_COMMAND_PREFIX__: escapeHtmlAttribute(PACK_COMMAND_PREFIX),
     __CURRENT_YEAR__: String(new Date().getFullYear()),
   };
 
@@ -1072,6 +1288,243 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
       visibility,
     },
   });
+};
+
+const handleCreatePackConfigRequest = async (req, res) => {
+  sendJson(req, res, 200, {
+    data: {
+      command_prefix: PACK_COMMAND_PREFIX,
+      limits: {
+        pack_name_max_length: PACK_CREATE_MAX_NAME_LENGTH,
+        publisher_max_length: PACK_CREATE_MAX_PUBLISHER_LENGTH,
+        description_max_length: PACK_CREATE_MAX_DESCRIPTION_LENGTH,
+        stickers_per_pack: PACK_CREATE_MAX_ITEMS,
+        packs_per_owner: PACK_CREATE_MAX_PACKS_PER_OWNER,
+        sticker_upload_max_bytes: MAX_STICKER_UPLOAD_BYTES,
+      },
+      rules: {
+        pack_name_regex: PACK_CREATE_NAME_REGEX,
+        pack_name_hint: 'Use apenas letras minúsculas e números, sem espaços.',
+        visibility_values: ['public', 'unlisted', 'private'],
+        owner_phone_required: true,
+        owner_phone_hint: 'Informe o número de celular com DDD para vincular o pack ao criador.',
+        suggested_tags: ['anime', 'meme', 'game', 'texto', 'nsfw', 'dark', 'cartoon', 'foto-real', 'cyberpunk'],
+      },
+      examples: {
+        create: `${PACK_COMMAND_PREFIX}pack create meupack | publisher="Seu Nome" | desc="Descrição"`,
+        add_sticker: `${PACK_COMMAND_PREFIX}pack add <pack>`,
+        set_description: `${PACK_COMMAND_PREFIX}pack setdesc <pack> "Nova descrição"`,
+      },
+      links: {
+        stickers: `${STICKER_WEB_PATH}/`,
+        create: `${STICKER_CREATE_WEB_PATH}/`,
+        api_base: STICKER_API_BASE_PATH,
+        create_api: `${STICKER_API_BASE_PATH}/create`,
+        upload_api_template: `${STICKER_API_BASE_PATH}/:pack_key/stickers-upload`,
+      },
+    },
+  });
+};
+
+const normalizeCreatePackName = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, PACK_CREATE_MAX_NAME_LENGTH);
+
+const mapStickerPackCreateError = (error) => {
+  if (!(error instanceof StickerPackError)) {
+    return {
+      statusCode: 500,
+      code: STICKER_PACK_ERROR_CODES.INTERNAL_ERROR,
+      message: 'Falha interna ao criar pack.',
+    };
+  }
+
+  if (error.code === STICKER_PACK_ERROR_CODES.INVALID_INPUT) {
+    return {
+      statusCode: 400,
+      code: error.code,
+      message: error.message || 'Dados de entrada inválidos para criar pack.',
+    };
+  }
+
+  if (error.code === STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED) {
+    return {
+      statusCode: 429,
+      code: error.code,
+      message: error.message || 'Limite de packs atingido para este usuário.',
+    };
+  }
+
+  return {
+    statusCode: 400,
+    code: error.code,
+    message: error.message || 'Não foi possível criar o pack.',
+  };
+};
+
+const handleCreatePackRequest = async (req, res) => {
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    const statusCode = Number(error?.statusCode || 400);
+    sendJson(req, res, statusCode, { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  const name = normalizeCreatePackName(payload?.name);
+  if (!name || !new RegExp(PACK_CREATE_NAME_REGEX).test(name)) {
+    sendJson(req, res, 400, {
+      error: 'Nome inválido. Use apenas letras minúsculas e números, sem espaços.',
+      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    });
+    return;
+  }
+
+  const publisher = sanitizeText(payload?.publisher || 'OmniZap Creator', PACK_CREATE_MAX_PUBLISHER_LENGTH, { allowEmpty: false });
+  const description = sanitizeText(payload?.description || '', PACK_CREATE_MAX_DESCRIPTION_LENGTH, { allowEmpty: true });
+  const manualTags = mergeUniqueTags(Array.isArray(payload?.tags) ? payload.tags : []).slice(0, 8);
+  const persistedDescription = buildPackDescriptionWithTags(description, manualTags);
+  const visibility = String(payload?.visibility || 'public').trim().toLowerCase();
+  const explicitOwnerJid = toOwnerJid(payload?.owner_jid);
+
+  if (!explicitOwnerJid) {
+    sendJson(req, res, 400, {
+      error: 'Informe seu número de celular para criar o pack.',
+      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    });
+    return;
+  }
+
+  const ownerJid = explicitOwnerJid;
+
+  if (!ownerJid) {
+    sendJson(req, res, 400, {
+      error: 'Não foi possível resolver owner_jid para criar o pack.',
+      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    });
+    return;
+  }
+
+  try {
+    const created = await stickerPackService.createPack({
+      ownerJid,
+      name,
+      publisher,
+      description: persistedDescription,
+      visibility,
+    });
+    const editToken = saveWebPackEditToken({ packId: created.id, ownerJid });
+
+    sendJson(req, res, 201, {
+      data: mapPackSummary(created),
+      meta: {
+        owner_jid: ownerJid,
+        edit_token: editToken,
+        edit_token_expires_in_ms: PACK_WEB_EDIT_TOKEN_TTL_MS,
+        limits: {
+          stickers_per_pack: PACK_CREATE_MAX_ITEMS,
+          packs_per_owner: PACK_CREATE_MAX_PACKS_PER_OWNER,
+        },
+      },
+    });
+  } catch (error) {
+    const mapped = mapStickerPackCreateError(error);
+    logger.warn('Falha ao criar pack via API web.', {
+      action: 'sticker_catalog_create_pack_failed',
+      owner_jid: ownerJid,
+      name,
+      visibility,
+      error: error?.message,
+      error_code: error?.code,
+    });
+    sendJson(req, res, mapped.statusCode, { error: mapped.message, code: mapped.code });
+  }
+};
+
+const handleUploadStickerToPackRequest = async (req, res, packKey) => {
+  const pack = await findStickerPackByPackKey(packKey);
+  if (!pack) {
+    sendJson(req, res, 404, { error: 'Pack nao encontrado.', code: STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req, { maxBytes: Math.max(256 * 1024, MAX_STICKER_UPLOAD_BYTES * 2) });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  const editToken = resolveWebPackEditToken(payload?.edit_token);
+  if (!editToken || editToken.packId !== pack.id || editToken.ownerJid !== pack.owner_jid) {
+    sendJson(req, res, 403, {
+      error: 'Token de edição inválido para este pack.',
+      code: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+    });
+    return;
+  }
+
+  const decoded = decodeStickerBase64Payload(payload?.sticker_base64 || payload?.sticker_data_url || '');
+  if (!decoded?.buffer) {
+    sendJson(req, res, 400, {
+      error: 'Envie sticker_base64 ou sticker_data_url no payload.',
+      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    });
+    return;
+  }
+
+  if (decoded.buffer.length > MAX_STICKER_UPLOAD_BYTES) {
+    sendJson(req, res, 400, {
+      error: `Sticker excede limite de ${Math.round(MAX_STICKER_UPLOAD_BYTES / 1024)}KB.`,
+      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+    });
+    return;
+  }
+
+  try {
+    const asset = await saveStickerAssetFromBuffer({
+      ownerJid: pack.owner_jid,
+      buffer: decoded.buffer,
+      mimetype: decoded.mimetype || 'image/webp',
+    });
+
+    const updatedPack = await stickerPackService.addStickerToPack({
+      ownerJid: pack.owner_jid,
+      identifier: pack.pack_key,
+      asset: { id: asset.id },
+      emojis: [],
+      accessibilityLabel: null,
+    });
+
+    if (payload?.set_cover === true) {
+      await stickerPackService.setPackCover({
+        ownerJid: pack.owner_jid,
+        identifier: pack.pack_key,
+        stickerId: asset.id,
+      });
+    }
+
+    sendJson(req, res, 201, {
+      data: {
+        pack_key: updatedPack.pack_key,
+        sticker_id: asset.id,
+        sticker_count: Number(updatedPack.sticker_count || 0),
+        asset_url: buildStickerAssetUrl(updatedPack.pack_key, asset.id),
+      },
+    });
+  } catch (error) {
+    const mapped = mapStickerPackCreateError(error);
+    sendJson(req, res, mapped.statusCode, {
+      error: mapped.message,
+      code: mapped.code,
+    });
+  }
 };
 
 const handleCreatorRankingRequest = async (req, res, url) => {
@@ -1820,6 +2273,15 @@ const handlePackInteractionRequest = async (req, res, packKey, interaction, url)
 };
 
 const handleCatalogApiRequest = async (req, res, pathname, url) => {
+  if (pathname === `${STICKER_API_BASE_PATH}/create`) {
+    if (req.method !== 'POST') {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handleCreatePackRequest(req, res);
+    return true;
+  }
+
   if (pathname === STICKER_API_BASE_PATH) {
     if (!['GET', 'HEAD'].includes(req.method || '')) {
       sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
@@ -1862,6 +2324,15 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
       return true;
     }
     await handleMarketplaceStatsRequest(req, res, url);
+    return true;
+  }
+
+  if (pathname === `${STICKER_API_BASE_PATH}/create-config`) {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handleCreatePackConfigRequest(req, res);
     return true;
   }
 
@@ -1948,6 +2419,15 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
     return true;
   }
 
+  if (segments.length === 2 && segments[1] === 'stickers-upload') {
+    if (req.method !== 'POST') {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handleUploadStickerToPackRequest(req, res, segments[0]);
+    return true;
+  }
+
   if (segments.length === 3 && segments[1] === 'stickers') {
     if (!['GET', 'HEAD'].includes(req.method || '')) {
       sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
@@ -1962,6 +2442,27 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
 };
 
 const handleCatalogPageRequest = async (req, res, pathname) => {
+  const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  if (normalizedPath === STICKER_CREATE_WEB_PATH) {
+    try {
+      const html = await renderCreatePackHtml();
+      sendText(req, res, 200, html, 'text/html; charset=utf-8');
+      return;
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        sendJson(req, res, 404, { error: 'Template da criacao de packs nao encontrado.' });
+        return;
+      }
+      logger.error('Falha ao renderizar pagina de criacao de packs.', {
+        action: 'sticker_catalog_create_page_render_failed',
+        path: pathname,
+        error: error?.message,
+      });
+      sendJson(req, res, 500, { error: 'Falha interna ao renderizar criacao de packs.' });
+      return;
+    }
+  }
+
   const initialPackKey = extractPackKeyFromWebPath(pathname);
 
   try {

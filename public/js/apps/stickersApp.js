@@ -3,6 +3,7 @@ import htm from 'https://esm.sh/htm@3.1.1';
 
 const html = htm.bind(React.createElement);
 const SEARCH_HISTORY_KEY = 'omnizap_stickers_search_history_v1';
+const PACK_UPLOAD_TASK_KEY = 'omnizap_pack_upload_task_v1';
 
 const DEFAULT_CATEGORIES = [
   { value: '', label: '🔥 Em alta', icon: '🔥' },
@@ -91,6 +92,57 @@ const tagLabel = (tag) => {
   if (normalized.includes('meme')) return `😂 ${String(tag).replace(/-/g, ' ')}`;
   return `🏷 ${String(tag).replace(/-/g, ' ')}`;
 };
+
+const readUploadTask = () => {
+  try {
+    const raw = localStorage.getItem(PACK_UPLOAD_TASK_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+function UploadTaskWidget({ task, onClose }) {
+  if (!task) return null;
+  const progress = Math.max(0, Math.min(100, Number(task.progress || 0)));
+  const status = String(task.status || 'running');
+  const isDone = status === 'completed';
+  const isError = status === 'error';
+  const isPaused = status === 'paused';
+  const title = isDone ? 'Pack publicado' : isError ? 'Falha na publicação' : isPaused ? 'Publicação pausada' : 'Publicando pack';
+  const packUrl = String(task.packUrl || task.pack_url || '').trim();
+
+  return html`
+    <aside className="fixed bottom-4 right-4 z-[70] w-[min(92vw,360px)] rounded-2xl border border-slate-700 bg-slate-950/95 p-3 shadow-2xl backdrop-blur">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-sm font-bold text-slate-100">${title}</p>
+        <button type="button" onClick=${onClose} className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800">Fechar</button>
+      </div>
+      <p className="truncate text-xs text-slate-400">${task.message || `${task.current || 0}/${task.total || 0}`}</p>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+        <div className=${`h-full transition-all ${isError ? 'bg-rose-400' : isDone ? 'bg-emerald-400' : isPaused ? 'bg-amber-400' : 'bg-cyan-400'}`} style=${{ width: `${progress}%` }}></div>
+      </div>
+      <div className="mt-2 flex items-center justify-between text-[11px]">
+        <span className="text-slate-400">${task.current || 0}/${task.total || 0}</span>
+        <span className=${`${isError ? 'text-rose-300' : isDone ? 'text-emerald-300' : isPaused ? 'text-amber-300' : 'text-cyan-300'} font-semibold`}>
+          ${progress}%
+        </span>
+      </div>
+      ${(isDone || isPaused) && packUrl
+        ? html`
+            <div className="mt-2 flex gap-2">
+              <a href=${packUrl} className="inline-flex rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-cyan-200">Abrir pack</a>
+              ${isPaused
+                ? html`<a href="/stickers/create/" className="inline-flex rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-amber-200">Retomar envio</a>`
+                : null}
+            </div>
+          `
+        : null}
+    </aside>
+  `;
+}
 
 function PackCard({ pack, index, onOpen }) {
   const isTrending = index < 4 || Number(pack?.sticker_count || 0) >= 30;
@@ -426,6 +478,7 @@ function StickersApp() {
   const [relatedPacks, setRelatedPacks] = useState([]);
   const [isScrolled, setIsScrolled] = useState(false);
   const [supportInfo, setSupportInfo] = useState(null);
+  const [uploadTask, setUploadTask] = useState(null);
 
   const dynamicCategoryOptions = useMemo(() => {
     const scoreByTag = new Map();
@@ -865,6 +918,23 @@ function StickersApp() {
     return () => observer.disconnect();
   }, [sentinel, packHasMore, packsLoading, packsLoadingMore, packOffset, appliedQuery, activeCategory, currentPackKey]);
 
+  useEffect(() => {
+    const sync = () => setUploadTask(readUploadTask());
+    sync();
+
+    const interval = setInterval(sync, 1000);
+    const onStorage = (event) => {
+      if (event?.key === PACK_UPLOAD_TASK_KEY) {
+        sync();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
+
   const onSubmit = (event) => {
     event.preventDefault();
     setShowAutocomplete(false);
@@ -960,6 +1030,14 @@ function StickersApp() {
             : html`<div className="flex-1"></div>`}
 
           <div className="flex items-center gap-2">
+            <a
+              className="text-xs rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-cyan-200 hover:bg-cyan-500/20"
+              href="/stickers/create/"
+              title="Criar pack"
+            >
+              <span className="sm:hidden">➕</span>
+              <span className="hidden sm:inline">Criar Pack</span>
+            </a>
             ${supportInfo?.url
               ? html`
                   <a
@@ -1219,6 +1297,15 @@ function StickersApp() {
               </div>
             `}
       </main>
+      <${UploadTaskWidget}
+        task=${uploadTask}
+        onClose=${() => {
+          try {
+            localStorage.removeItem(PACK_UPLOAD_TASK_KEY);
+          } catch {}
+          setUploadTask(null);
+        }}
+      />
     </div>
   `;
 }
