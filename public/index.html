@@ -22,6 +22,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  <link href="/css/github-project-panel.css?v=20260226a" rel="stylesheet" />
 
   <script type="application/ld+json">
   {
@@ -87,13 +89,45 @@
       padding: 14px 0;
     }
 
+    .top-head {
+      display: contents;
+    }
+
     .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
       font-family: "Sora", sans-serif;
       font-weight: 700;
       letter-spacing: .2px;
     }
 
+    .brand-logo {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid #2f4368;
+      box-shadow: 0 2px 10px #00000033;
+      flex: 0 0 auto;
+    }
+
     .nav { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .nav-toggle {
+      display: none;
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #111a2d;
+      color: var(--text);
+      align-items: center;
+      justify-content: center;
+      font-size: 21px;
+      line-height: 1;
+      cursor: pointer;
+    }
 
     .btn {
       text-decoration: none;
@@ -122,17 +156,33 @@
         gap: 12px;
       }
 
+      .top-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
       .brand {
-        text-align: center;
+        text-align: left;
         font-size: 22px;
         line-height: 1.1;
       }
 
+      .nav-toggle {
+        display: inline-flex;
+        flex: 0 0 auto;
+      }
+
       .nav {
+        display: none;
         width: 100%;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 1fr;
         gap: 8px;
+      }
+
+      .nav.open {
+        display: grid;
       }
 
       .btn {
@@ -150,7 +200,7 @@
       }
 
       .brand {
-        font-size: 20px;
+        font-size: 19px;
       }
 
       .btn {
@@ -309,6 +359,50 @@
 
     .foot-col a:hover { color: #d3e3fb; }
 
+    .wpp-float {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      width: 58px;
+      height: 58px;
+      border-radius: 999px;
+      border: 1px solid #2fb86f;
+      background: linear-gradient(135deg, #25d366, #1ea952);
+      color: #052111;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 25px #25d3664d;
+      text-decoration: none;
+      z-index: 30;
+      font-size: 27px;
+      line-height: 1;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+    .wpp-float i {
+      font-size: 30px;
+    }
+
+    .wpp-float:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 30px #25d36666;
+    }
+
+    @media (max-width: 520px) {
+      .wpp-float {
+        width: 54px;
+        height: 54px;
+        right: 14px;
+        bottom: 14px;
+        font-size: 25px;
+      }
+
+      .wpp-float i {
+        font-size: 27px;
+      }
+    }
+
     @keyframes rise {
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
@@ -318,8 +412,27 @@
 <body>
   <header class="top">
     <div class="container top-inner">
-      <div class="brand">OmniZap System</div>
-      <nav class="nav">
+      <div class="top-head">
+        <div class="brand">
+          <img
+            class="brand-logo"
+            src="https://iili.io/FBps3Cb.png"
+            alt="OmniZap"
+            loading="lazy"
+            decoding="async"
+          />
+          <span>OmniZap System</span>
+        </div>
+        <button
+          id="nav-toggle"
+          class="nav-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="main-nav"
+          aria-label="Abrir menu"
+        >☰</button>
+      </div>
+      <nav id="main-nav" class="nav">
         <a class="btn" href="/api-docs/">API</a>
         <a class="btn" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">GitHub</a>
       </nav>
@@ -376,6 +489,13 @@
         <p>Métricas e dados operacionais para monitorar saúde da aplicação, desempenho e capacidade.</p>
       </article>
     </section>
+
+    <div
+      id="github-project-panel-root"
+      data-owner="kaikybrofc"
+      data-repo="omnizap-system"
+      data-endpoint="/api/sticker-packs/project-summary"
+    ></div>
 
     <h2 class="section-title">API-First</h2>
     <section class="api">
@@ -446,7 +566,59 @@ GET /data/stickers/:owner/:file.webp</code></pre>
     </div>
   </footer>
 
+  <a
+    id="wpp-float"
+    class="wpp-float"
+    href="#"
+    target="_blank"
+    rel="noreferrer noopener"
+    aria-label="Falar com o bot no WhatsApp"
+    title="Falar com o bot"
+    hidden
+  ><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></a>
+
   <script>
+    (() => {
+      const toggle = document.getElementById('nav-toggle');
+      const nav = document.getElementById('main-nav');
+      if (!toggle || !nav) return;
+
+      toggle.addEventListener('click', () => {
+        const isOpen = nav.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+    })();
+
+    (() => {
+      const wppButton = document.getElementById('wpp-float');
+      if (!wppButton) return;
+
+      const command = 'iniciar';
+      const normalizeDigits = (value) => String(value || '').replace(/\D+/g, '');
+      const buildUrl = (phone) => `https://wa.me/${phone}?text=${encodeURIComponent(command)}`;
+      const applyLink = (phone) => {
+        const digits = normalizeDigits(phone);
+        if (!digits) return false;
+        wppButton.href = buildUrl(digits);
+        wppButton.hidden = false;
+        return true;
+      };
+
+      fetch('/api/sticker-packs?visibility=public&limit=1')
+        .then((response) => {
+          if (!response.ok) throw new Error('Falha ao buscar bot');
+          return response.json();
+        })
+        .then((payload) => {
+          const firstPack = Array.isArray(payload?.data) ? payload.data[0] : null;
+          const phone = firstPack?.whatsapp?.phone || '';
+          applyLink(phone);
+        })
+        .catch(() => {
+          wppButton.hidden = true;
+        });
+    })();
+
     (() => {
       const cpuEl = document.getElementById('metric-host-cpu');
       const memEl = document.getElementById('metric-host-memory');
@@ -498,8 +670,9 @@ GET /data/stickers/:owner/:file.webp</code></pre>
         })
         .catch(() => {
           setFallback();
-        });
+      });
     })();
   </script>
+  <script type="module" src="/js/github-panel/index.js?v=20260226a"></script>
 </body>
 </html>
