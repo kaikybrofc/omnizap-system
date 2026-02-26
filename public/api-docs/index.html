@@ -45,48 +45,7 @@
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <div class="top"><a href="/">Home</a><a href="/stickers/">Stickers</a></div>
-    <h1>OmniZap API Docs</h1>
-    <p>API pública para o catálogo de sticker packs e assets.</p>
-
-    <section class="card">
-      <h2>Base URL</h2>
-      <pre><code>https://omnizap.shop/api/sticker-packs</code></pre>
-    </section>
-
-    <section class="card">
-      <h2>Listar packs</h2>
-      <pre><code>GET /api/sticker-packs?q=&visibility=public|unlisted|all&limit=&offset=</code></pre>
-    </section>
-
-    <section class="card">
-      <h2>Listar stickers sem pack</h2>
-      <pre><code>GET /api/sticker-packs/orphan-stickers?q=&limit=&offset=</code></pre>
-    </section>
-
-    <section class="card">
-      <h2>Detalhes de pack</h2>
-      <pre><code>GET /api/sticker-packs/:packKey</code></pre>
-    </section>
-
-    <section class="card">
-      <h2>Imagem de sticker</h2>
-      <pre><code>GET /api/sticker-packs/:packKey/stickers/:stickerId.webp
-GET /data/stickers/:owner/:file.webp</code></pre>
-    </section>
-
-    <section class="card">
-      <h2>Resumo de métricas do sistema</h2>
-      <pre><code>GET /api/sticker-packs/system-summary</code></pre>
-    </section>
-
-    <section class="card">
-      <h2>Exemplo cURL</h2>
-      <pre><code>curl -sS "https://omnizap.shop/api/sticker-packs?visibility=public&limit=5"
-curl -sS "https://omnizap.shop/api/sticker-packs/orphan-stickers?limit=20&offset=0"
-curl -sS "https://omnizap.shop/api/sticker-packs/system-summary"</code></pre>
-    </section>
-  </main>
+  <div id="api-docs-react-root"></div>
+  <script type="module" src="/js/apps/apiDocsApp.js?v=20260226a"></script>
 </body>
 </html>
