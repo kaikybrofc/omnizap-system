@@ -8,6 +8,7 @@ import {
   resolveStickerAssetForCommand,
 } from './stickerStorageService.js';
 import { buildStickerPackMessage, sendStickerPackWithFallback } from './stickerPackMessageService.js';
+import { sanitizeText } from './stickerPackUtils.js';
 
 /**
  * Handlers de comando textual para gerenciamento de packs de figurinha.
@@ -15,6 +16,7 @@ import { buildStickerPackMessage, sendStickerPackWithFallback } from './stickerP
 const RATE_WINDOW_MS = Math.max(10_000, Number(process.env.STICKER_PACK_RATE_WINDOW_MS) || 60_000);
 const RATE_MAX_ACTIONS = Math.max(1, Number(process.env.STICKER_PACK_RATE_MAX_ACTIONS) || 20);
 const MAX_PACK_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
+const MAX_PACK_NAME_LENGTH = 120;
 
 const rateMap = new Map();
 
@@ -340,8 +342,8 @@ const buildPackHelp = (prefix) =>
     '🧭 *COMANDOS PRINCIPAIS*',
     '',
     '🆕 Criar um pack',
-    `\`${prefix}pack create meupack | publisher="Seu Nome" | desc="Descrição"\``,
-    '_Regra do nome: apenas letras minúsculas, números e espaços (sem caracteres especiais)._',
+    `\`${prefix}pack create "Meus memes 😂" | publisher="Seu Nome" | desc="Descrição"\``,
+    '_Nome livre: espaços e emojis são permitidos._',
     '',
     '📋 Listar packs',
     `\`${prefix}pack list\``,
@@ -357,7 +359,8 @@ const buildPackHelp = (prefix) =>
     `\`${prefix}pack setcover <pack>\``,
     '',
     '📤 Enviar pack no chat',
-    `\`${prefix}pack send <pack>\``,
+    `\`${prefix}pack send "<nome do pack>"\``,
+    `_Ou use o ID: \`${prefix}pack send <pack_id>\`_`,
     '',
     PACK_VISUAL_DIVIDER,
     '🧰 *COMANDOS EXTRAS*',
@@ -515,31 +518,24 @@ const parseIdentifierAndValue = (input) => {
   };
 };
 
-const PACK_NAME_RULE_REGEX = /^[a-z0-9]+(?: [a-z0-9]+)*$/;
+const readSingleArgument = (input) => {
+  const value = unquote(input);
+  return value ? value : null;
+};
 
 /**
- * Normaliza e valida nome de pack conforme regra do módulo.
+ * Normaliza e valida nome de pack (permite espaços e emojis).
  *
  * @param {string} value Nome informado.
  * @param {{ label?: string }} [options] Label para mensagens de erro.
  * @returns {string} Nome normalizado.
- * @throws {StickerPackError} Quando o nome não atender ao padrão.
+ * @throws {StickerPackError} Quando o nome estiver vazio.
  */
 const normalizePackName = (value, { label = 'Nome do pack' } = {}) => {
-  const normalized = String(unquote(value) || '')
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, ' ');
+  const normalized = sanitizeText(unquote(value), MAX_PACK_NAME_LENGTH, { allowEmpty: false });
 
   if (!normalized) {
     throw new StickerPackError(STICKER_PACK_ERROR_CODES.INVALID_INPUT, `${label} é obrigatório.`);
-  }
-
-  if (!PACK_NAME_RULE_REGEX.test(normalized)) {
-    throw new StickerPackError(
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Nome do pack inválido. Use apenas letras minúsculas, números e espaços, sem caracteres especiais.',
-    );
   }
 
   return normalized;
@@ -699,7 +695,7 @@ export async function handlePackCommand({
       }
 
       case 'info': {
-        const { token: identifier } = readToken(rest);
+        const identifier = readSingleArgument(rest);
         const pack = await stickerPackService.getPackInfo({ ownerJid, identifier });
 
         await sendReply({
@@ -777,7 +773,7 @@ export async function handlePackCommand({
       }
 
       case 'setcover': {
-        const { token: identifier } = readToken(rest);
+        const identifier = readSingleArgument(rest);
         const asset = await resolveStickerFromCommandContext({ messageInfo, ownerJid });
 
         if (!asset) {
@@ -810,7 +806,7 @@ export async function handlePackCommand({
 
       case 'add': {
         const segments = splitPipeSegments(rest);
-        const identifier = readToken(segments.shift() || '').token;
+        const identifier = readSingleArgument(segments.shift() || '');
         const options = parsePipeOptions(segments);
 
         const asset = await resolveStickerFromCommandContext({ messageInfo, ownerJid });
@@ -938,7 +934,7 @@ export async function handlePackCommand({
       }
 
       case 'delete': {
-        const { token: identifier } = readToken(rest);
+        const identifier = readSingleArgument(rest);
         const deleted = await stickerPackService.deletePack({ ownerJid, identifier });
 
         await sendReply({
@@ -986,7 +982,7 @@ export async function handlePackCommand({
       }
 
       case 'send': {
-        const { token: identifier } = readToken(rest);
+        const identifier = readSingleArgument(rest);
         const packDetails = await stickerPackService.getPackInfoForSend({ ownerJid, identifier });
         const packBuild = await buildStickerPackMessage(packDetails);
         const sendResult = await sendStickerPackWithFallback({

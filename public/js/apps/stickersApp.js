@@ -1,9 +1,11 @@
-import { React, createRoot, useEffect, useMemo, useState } from '../runtime/react-runtime.js';
+import { React, createRoot, useEffect, useMemo, useRef, useState } from '../runtime/react-runtime.js';
 import htm from 'https://esm.sh/htm@3.1.1';
 
 const html = htm.bind(React.createElement);
 const SEARCH_HISTORY_KEY = 'omnizap_stickers_search_history_v1';
 const PACK_UPLOAD_TASK_KEY = 'omnizap_pack_upload_task_v1';
+const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+const PROFILE_ROUTE_SEGMENTS = new Set(['perfil', 'profile']);
 
 const DEFAULT_CATEGORIES = [
   { value: '', label: '🔥 Em alta', icon: '🔥' },
@@ -58,18 +60,65 @@ const getPackEngagement = (pack) => {
 const getAvatarUrl = (name) =>
   `https://api.dicebear.com/8.x/thumbs/svg?seed=${encodeURIComponent(String(name || 'omnizap'))}`;
 
-const getPackKeyFromLocation = () => {
-  const path = window.location.pathname || '';
-  const base = '/stickers/';
-  if (!path.startsWith(base)) return '';
-  const suffix = path.slice(base.length);
-  if (!suffix) return '';
+const parseStickersLocation = (webPath = '/stickers') => {
+  const path = String(window.location.pathname || '');
+  const basePath = String(webPath || '/stickers').replace(/\/+$/, '') || '/stickers';
+  if (path === basePath || path === `${basePath}/`) return { view: 'catalog', packKey: '' };
+  const baseWithSlash = `${basePath}/`;
+  if (!path.startsWith(baseWithSlash)) return { view: 'catalog', packKey: '' };
+  const suffix = path.slice(baseWithSlash.length);
+  if (!suffix) return { view: 'catalog', packKey: '' };
+
+  const firstSegmentRaw = suffix.split('/')[0] || '';
+  if (!firstSegmentRaw) return { view: 'catalog', packKey: '' };
+
   try {
-    return decodeURIComponent(suffix.split('/')[0] || '');
+    const firstSegment = decodeURIComponent(firstSegmentRaw);
+    if (PROFILE_ROUTE_SEGMENTS.has(String(firstSegment || '').trim().toLowerCase())) {
+      return { view: 'profile', packKey: '' };
+    }
+    return { view: 'pack', packKey: firstSegment };
   } catch {
-    return '';
+    return { view: 'catalog', packKey: '' };
   }
 };
+
+const decodeJwtPayload = (jwt) => {
+  const parts = String(jwt || '').split('.');
+  if (parts.length < 2) return null;
+  try {
+    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+};
+
+const loadScript = (src) =>
+  new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === '1') {
+        resolve();
+        return;
+      }
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error(`Falha ao carregar script: ${src}`)), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.defer = true;
+    script.addEventListener('load', () => {
+      script.dataset.loaded = '1';
+      resolve();
+    });
+    script.addEventListener('error', () => reject(new Error(`Falha ao carregar script: ${src}`)));
+    document.head.appendChild(script);
+  });
 
 const isRecent = (dateString) => {
   if (!dateString) return false;
@@ -189,6 +238,237 @@ function PackCard({ pack, index, onOpen }) {
         </span>
       </div>
     </button>
+  `;
+}
+
+const isShareablePack = (pack) => {
+  const visibility = String(pack?.visibility || '').toLowerCase();
+  const status = String(pack?.status || '').toLowerCase();
+  return (visibility === 'public' || visibility === 'unlisted') && status === 'published';
+};
+
+const formatVisibilityPill = (visibility) => {
+  const normalized = String(visibility || '').toLowerCase();
+  if (normalized === 'public') return { label: '🌍 Público', className: 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200' };
+  if (normalized === 'unlisted') return { label: '🔗 Não listado', className: 'border-cyan-500/35 bg-cyan-500/10 text-cyan-200' };
+  return { label: '🔒 Privado', className: 'border-slate-600 bg-slate-900/80 text-slate-300' };
+};
+
+const formatStatusPill = (status) => {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'published') return { label: '✅ Publicado', className: 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200' };
+  if (normalized === 'draft') return { label: '📝 Rascunho', className: 'border-amber-500/35 bg-amber-500/10 text-amber-200' };
+  if (normalized === 'processing') return { label: '⚙️ Processando', className: 'border-indigo-500/35 bg-indigo-500/10 text-indigo-200' };
+  if (normalized === 'uploading') return { label: '⏫ Enviando', className: 'border-sky-500/35 bg-sky-500/10 text-sky-200' };
+  if (normalized === 'failed') return { label: '❌ Falhou', className: 'border-rose-500/35 bg-rose-500/10 text-rose-200' };
+  return { label: `ℹ️ ${normalized || 'desconhecido'}`, className: 'border-slate-600 bg-slate-900/80 text-slate-300' };
+};
+
+function MyPackCard({ pack, onOpenPublic }) {
+  const visibilityPill = formatVisibilityPill(pack?.visibility);
+  const statusPill = formatStatusPill(pack?.status);
+  const shareable = isShareablePack(pack) && Boolean(pack?.pack_key);
+  const engagement = getPackEngagement(pack);
+  const coverUrl = pack?.cover_url || 'https://iili.io/fSNGag2.png';
+
+  return html`
+    <article className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
+      <div className="flex gap-3">
+        <img src=${coverUrl} alt=${`Capa de ${pack?.name || 'Pack'}`} className="h-20 w-20 rounded-xl border border-slate-800 bg-slate-950 object-cover shrink-0" loading="lazy" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div>
+            <p className="truncate text-sm font-semibold text-slate-100">${pack?.name || 'Pack sem nome'}</p>
+            <p className="truncate text-[11px] text-slate-400">ID: ${pack?.pack_key || '-'}</p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <span className=${`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${statusPill.className}`}>${statusPill.label}</span>
+            <span className=${`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${visibilityPill.className}`}>${visibilityPill.label}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+            <span>🧩 ${Number(pack?.sticker_count || 0)}</span>
+            <span>👍 ${shortNum(engagement.likeCount)}</span>
+            <span>👆 ${shortNum(engagement.openCount)}</span>
+            <span>${pack?.updated_at ? new Date(pack.updated_at).toLocaleDateString('pt-BR') : '-'}</span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        ${shareable
+          ? html`
+              <button
+                type="button"
+                onClick=${() => onOpenPublic(pack.pack_key)}
+                className="inline-flex h-9 items-center justify-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/20"
+              >
+                Abrir no catálogo
+              </button>
+            `
+          : html`
+              <span className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-900/70 px-3 text-xs text-slate-400">
+                Não visível no catálogo
+              </span>
+            `}
+        <a
+          href="/stickers/create/"
+          className="inline-flex h-9 items-center justify-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20"
+        >
+          Criar/gerenciar packs
+        </a>
+      </div>
+    </article>
+  `;
+}
+
+function ProfilePage({
+  googleAuthConfig,
+  googleAuth,
+  googleAuthBusy,
+  googleAuthError,
+  googleSessionChecked,
+  googleAuthUiReady,
+  googleButtonRef,
+  myPacks,
+  myPacksLoading,
+  myPacksError,
+  myProfileStats,
+  onBack,
+  onRefresh,
+  onLogout,
+  onOpenPublicPack,
+}) {
+  const hasGoogleLogin = Boolean(googleAuth?.user?.sub);
+  const googleLoginEnabled = Boolean(googleAuthConfig?.enabled && googleAuthConfig?.clientId);
+
+  return html`
+    <section className="space-y-4 pb-20 sm:pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick=${onBack}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+        >
+          ← Voltar para catálogo
+        </button>
+        <button
+          type="button"
+          onClick=${onRefresh}
+          disabled=${myPacksLoading || googleAuthBusy}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-60"
+        >
+          ${myPacksLoading ? 'Atualizando...' : 'Atualizar'}
+        </button>
+      </div>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-400">Perfil de criador</p>
+            <h1 className="mt-1 text-xl font-bold">Meus packs</h1>
+            <p className="mt-1 text-sm text-slate-400">
+              Faça login com Google para ver e vincular os packs criados pela sua conta.
+            </p>
+          </div>
+          ${hasGoogleLogin
+            ? html`
+                <button
+                  type="button"
+                  onClick=${onLogout}
+                  disabled=${googleAuthBusy}
+                  className="inline-flex h-10 items-center rounded-xl border border-slate-700 px-3 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-60"
+                >
+                  ${googleAuthBusy ? 'Saindo...' : 'Sair'}
+                </button>
+              `
+            : null}
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/50 p-3">
+          ${hasGoogleLogin
+            ? html`
+                <div className="flex flex-wrap items-center gap-3">
+                  <img
+                    src=${googleAuth.user?.picture || getAvatarUrl(googleAuth.user?.name)}
+                    alt="Avatar do Google"
+                    className="h-12 w-12 rounded-full border border-slate-700 bg-slate-900 object-cover"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-100">${googleAuth.user?.name || 'Conta Google'}</p>
+                    <p className="truncate text-xs text-slate-400">${googleAuth.user?.email || ''}</p>
+                    <p className="truncate text-[11px] text-slate-500">
+                      ${googleAuth.expiresAt ? `Sessão válida até ${new Date(googleAuth.expiresAt).toLocaleString('pt-BR')}` : 'Sessão ativa'}
+                    </p>
+                  </div>
+                </div>
+              `
+            : html`
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+                    <p className="text-sm font-semibold text-cyan-200">Entrar com Google</p>
+                    <p className="mt-1 text-xs text-slate-300">
+                      ${googleLoginEnabled
+                        ? 'Use a mesma conta Google usada na criação de packs para carregar seus dados e packs automaticamente.'
+                        : 'Login Google indisponível no momento.'}
+                    </p>
+                  </div>
+                  ${googleLoginEnabled
+                    ? html`
+                        <div ref=${googleButtonRef} className="min-h-[42px] w-full max-w-[320px] overflow-hidden"></div>
+                        ${!googleSessionChecked
+                          ? html`<p className="text-xs text-slate-400">Verificando sessão Google...</p>`
+                          : googleAuthBusy
+                            ? html`<p className="text-xs text-slate-400">Conectando conta Google...</p>`
+                            : !googleAuthUiReady && !googleAuthError
+                              ? html`<p className="text-xs text-slate-400">Carregando login Google...</p>`
+                              : null}
+                      `
+                    : null}
+                </div>
+              `}
+          ${googleAuthError ? html`<p className="mt-2 text-xs text-rose-300">${googleAuthError}</p>` : null}
+        </div>
+      </section>
+
+      ${myPacksError ? html`<div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">${myPacksError}</div>` : null}
+
+      ${hasGoogleLogin
+        ? html`
+            <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <article className="rounded-xl border border-slate-800 bg-slate-900/70 p-3"><p className="text-[11px] text-slate-400">Total</p><p className="text-lg font-semibold">${shortNum(myProfileStats?.total || 0)}</p></article>
+              <article className="rounded-xl border border-slate-800 bg-slate-900/70 p-3"><p className="text-[11px] text-slate-400">Publicados</p><p className="text-lg font-semibold">${shortNum(myProfileStats?.published || 0)}</p></article>
+              <article className="rounded-xl border border-slate-800 bg-slate-900/70 p-3"><p className="text-[11px] text-slate-400">Rascunhos</p><p className="text-lg font-semibold">${shortNum(myProfileStats?.drafts || 0)}</p></article>
+              <article className="rounded-xl border border-slate-800 bg-slate-900/70 p-3"><p className="text-[11px] text-slate-400">Privados</p><p className="text-lg font-semibold">${shortNum(myProfileStats?.private || 0)}</p></article>
+              <article className="rounded-xl border border-slate-800 bg-slate-900/70 p-3"><p className="text-[11px] text-slate-400">Não listados</p><p className="text-lg font-semibold">${shortNum(myProfileStats?.unlisted || 0)}</p></article>
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg font-bold">Packs criados por você</h2>
+                <span className="text-xs text-slate-400">${myPacksLoading ? 'Carregando...' : `${myPacks.length} pack(s)`}</span>
+              </div>
+              ${myPacksLoading
+                ? html`
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      ${Array.from({ length: 6 }).map(
+                        (_, index) => html`<div key=${index} className="h-40 rounded-2xl border border-slate-800 bg-slate-900/70 animate-pulse"></div>`,
+                      )}
+                    </div>
+                  `
+                : myPacks.length
+                  ? html`
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        ${myPacks.map((pack) => html`<${MyPackCard} key=${pack.id || pack.pack_key} pack=${pack} onOpenPublic=${onOpenPublicPack} />`)}
+                      </div>
+                    `
+                  : html`
+                      <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/60 p-6 text-center">
+                        <p className="text-sm font-semibold text-slate-100">Nenhum pack encontrado para esta conta.</p>
+                        <p className="mt-1 text-xs text-slate-400">Crie um pack com essa conta Google em <a href="/stickers/create/" className="text-cyan-300 underline">/stickers/create</a> e volte aqui.</p>
+                      </div>
+                    `}
+            </section>
+          `
+        : null}
+    </section>
   `;
 }
 
@@ -444,6 +724,7 @@ function StickersApp() {
   const root = document.getElementById('stickers-react-root');
   const config = useMemo(
     () => ({
+      webPath: root?.dataset.webPath || '/stickers',
       apiBasePath: root?.dataset.apiBasePath || '/api/sticker-packs',
       orphanApiPath: root?.dataset.orphanApiPath || '/api/sticker-packs/orphan-stickers',
       limit: parseIntSafe(root?.dataset.defaultLimit, 24),
@@ -451,6 +732,7 @@ function StickersApp() {
     }),
     [root],
   );
+  const initialRoute = parseStickersLocation(config.webPath);
 
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
@@ -471,7 +753,8 @@ function StickersApp() {
   const [error, setError] = useState('');
   const [sentinel, setSentinel] = useState(null);
 
-  const [currentPackKey, setCurrentPackKey] = useState('');
+  const [currentView, setCurrentView] = useState(initialRoute.view || 'catalog');
+  const [currentPackKey, setCurrentPackKey] = useState(initialRoute.packKey || '');
   const [currentPack, setCurrentPack] = useState(null);
   const [packLoading, setPackLoading] = useState(false);
   const [reactionLoading, setReactionLoading] = useState('');
@@ -479,6 +762,25 @@ function StickersApp() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [supportInfo, setSupportInfo] = useState(null);
   const [uploadTask, setUploadTask] = useState(null);
+  const [googleAuthConfig, setGoogleAuthConfig] = useState({ enabled: false, required: false, clientId: '' });
+  const [googleAuth, setGoogleAuth] = useState({ user: null, expiresAt: '' });
+  const [googleAuthUiReady, setGoogleAuthUiReady] = useState(false);
+  const [googleAuthError, setGoogleAuthError] = useState('');
+  const [googleAuthBusy, setGoogleAuthBusy] = useState(false);
+  const [googleSessionChecked, setGoogleSessionChecked] = useState(false);
+  const [myPacks, setMyPacks] = useState([]);
+  const [myPacksLoading, setMyPacksLoading] = useState(false);
+  const [myPacksError, setMyPacksError] = useState('');
+  const [myProfileStats, setMyProfileStats] = useState({
+    total: 0,
+    published: 0,
+    drafts: 0,
+    private: 0,
+    unlisted: 0,
+    public: 0,
+  });
+  const googleButtonRef = useRef(null);
+  const googlePromptAttemptedRef = useRef(false);
 
   const dynamicCategoryOptions = useMemo(() => {
     const scoreByTag = new Map();
@@ -659,12 +961,78 @@ function StickersApp() {
   }, [packs, orphans.length]);
 
   const hasAnyResult = packs.length > 0 || orphans.length > 0;
+  const googleSessionApiPath = `${config.apiBasePath}/auth/google/session`;
+  const myProfileApiPath = `${config.apiBasePath}/me`;
+  const isProfileView = currentView === 'profile';
+  const hasGoogleLogin = Boolean(googleAuth.user?.sub);
+  const googleLoginEnabled = Boolean(googleAuthConfig.enabled && googleAuthConfig.clientId);
+  const shouldRenderGoogleButton =
+    isProfileView && googleLoginEnabled && !hasGoogleLogin && googleSessionChecked && !googleAuthBusy;
 
   const fetchJson = async (url, options = undefined) => {
-    const response = await fetch(url, options);
+    const response = await fetch(url, { credentials: 'same-origin', ...(options || {}) });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload?.error || 'Falha ao carregar catálogo');
     return payload;
+  };
+
+  const applyGoogleSessionData = (sessionData) => {
+    if (!sessionData?.authenticated || !sessionData?.user?.sub) {
+      setGoogleAuth({ user: null, expiresAt: '' });
+      return false;
+    }
+    setGoogleAuth({
+      user: {
+        sub: String(sessionData.user.sub || ''),
+        email: String(sessionData.user.email || ''),
+        name: String(sessionData.user.name || 'Conta Google'),
+        picture: String(sessionData.user.picture || ''),
+      },
+      expiresAt: String(sessionData.expires_at || ''),
+    });
+    return true;
+  };
+
+  const applyMyProfileData = (payload) => {
+    const data = payload?.data || {};
+    const authGoogle = data?.auth?.google || {};
+    setGoogleAuthConfig({
+      enabled: Boolean(authGoogle?.enabled),
+      required: Boolean(authGoogle?.required),
+      clientId: String(authGoogle?.client_id || '').trim(),
+    });
+    const authenticated = applyGoogleSessionData(data?.session || null);
+    const nextPacks = Array.isArray(data?.packs) ? data.packs : [];
+    setMyPacks(authenticated ? nextPacks : []);
+    const stats = data?.stats && typeof data.stats === 'object' ? data.stats : {};
+    setMyProfileStats({
+      total: Number(stats.total || 0),
+      published: Number(stats.published || 0),
+      drafts: Number(stats.drafts || 0),
+      private: Number(stats.private || 0),
+      unlisted: Number(stats.unlisted || 0),
+      public: Number(stats.public || 0),
+    });
+    setGoogleSessionChecked(true);
+    return { authenticated };
+  };
+
+  const refreshMyProfile = async ({ silent = false } = {}) => {
+    if (!silent) setMyPacksLoading(true);
+    setMyPacksError('');
+    setGoogleAuthError('');
+    setGoogleSessionChecked(false);
+    try {
+      const payload = await fetchJson(myProfileApiPath);
+      applyMyProfileData(payload);
+    } catch (err) {
+      setMyPacks([]);
+      setMyProfileStats({ total: 0, published: 0, drafts: 0, private: 0, unlisted: 0, public: 0 });
+      setGoogleSessionChecked(true);
+      setMyPacksError(err?.message || 'Falha ao carregar perfil e packs.');
+    } finally {
+      if (!silent) setMyPacksLoading(false);
+    }
   };
 
   const mergeEngagementInPack = (pack, engagement) => {
@@ -799,15 +1167,27 @@ function StickersApp() {
 
   const openPack = (packKey, push = true) => {
     if (!packKey) return;
-    if (push) window.history.pushState({}, '', `/stickers/${encodeURIComponent(packKey)}`);
+    if (push) window.history.pushState({}, '', `${config.webPath}/${encodeURIComponent(packKey)}`);
+    setCurrentView('pack');
     setCurrentPackKey(packKey);
   };
 
   const goCatalog = (push = true) => {
-    if (push) window.history.pushState({}, '', '/stickers/');
+    if (push) window.history.pushState({}, '', `${config.webPath}/`);
+    setCurrentView('catalog');
     setCurrentPackKey('');
     setCurrentPack(null);
     setRelatedPacks([]);
+  };
+
+  const openProfile = (push = true) => {
+    googlePromptAttemptedRef.current = false;
+    if (push) window.history.pushState({}, '', `${config.webPath}/perfil`);
+    setCurrentView('profile');
+    setCurrentPackKey('');
+    setCurrentPack(null);
+    setRelatedPacks([]);
+    setError('');
   };
 
   const handleLike = async (packKey) => {
@@ -825,21 +1205,29 @@ function StickersApp() {
   };
 
   useEffect(() => {
-    const initial = getPackKeyFromLocation();
-    if (initial) setCurrentPackKey(initial);
-
-    const onPopState = () => {
-      const key = getPackKeyFromLocation();
-      if (!key) {
-        goCatalog(false);
+    const applyRoute = () => {
+      const route = parseStickersLocation(config.webPath);
+      if (route.view === 'profile') {
+        openProfile(false);
         return;
       }
-      setCurrentPackKey(key);
+      if (route.view === 'pack' && route.packKey) {
+        setCurrentView('pack');
+        setCurrentPackKey(route.packKey);
+        return;
+      }
+      goCatalog(false);
+    };
+
+    applyRoute();
+
+    const onPopState = () => {
+      applyRoute();
     };
 
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, []);
+  }, [config.webPath]);
 
   useEffect(() => {
     const onScroll = () => setIsScrolled(window.scrollY > 8);
@@ -887,25 +1275,26 @@ function StickersApp() {
   }, [config.apiBasePath]);
 
   useEffect(() => {
-    if (currentPackKey) {
+    if (currentView === 'pack' && currentPackKey) {
       void loadPackDetail(currentPackKey);
       return;
     }
+    if (currentView !== 'catalog') return;
     void loadPacks({ reset: true });
     void loadOrphans();
-  }, [appliedQuery, activeCategory, currentPackKey]);
+  }, [appliedQuery, activeCategory, currentView, currentPackKey]);
 
   useEffect(() => {
-    if (currentPackKey) return undefined;
+    if (currentView !== 'catalog' || currentPackKey) return undefined;
     const timer = setInterval(() => {
       void loadPacks({ reset: true });
       void loadOrphans();
     }, 60 * 1000);
     return () => clearInterval(timer);
-  }, [currentPackKey, appliedQuery, activeCategory]);
+  }, [currentView, currentPackKey, appliedQuery, activeCategory]);
 
   useEffect(() => {
-    if (!sentinel || !packHasMore || packsLoading || packsLoadingMore || currentPackKey) return;
+    if (currentView !== 'catalog' || !sentinel || !packHasMore || packsLoading || packsLoadingMore || currentPackKey) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
@@ -916,7 +1305,7 @@ function StickersApp() {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [sentinel, packHasMore, packsLoading, packsLoadingMore, packOffset, appliedQuery, activeCategory, currentPackKey]);
+  }, [sentinel, packHasMore, packsLoading, packsLoadingMore, packOffset, appliedQuery, activeCategory, currentView, currentPackKey]);
 
   useEffect(() => {
     const sync = () => setUploadTask(readUploadTask());
@@ -934,6 +1323,121 @@ function StickersApp() {
       window.removeEventListener('storage', onStorage);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isProfileView) {
+      googlePromptAttemptedRef.current = false;
+      return;
+    }
+    void refreshMyProfile();
+  }, [isProfileView, myProfileApiPath]);
+
+  useEffect(() => {
+    const clearGoogleButton = () => {
+      if (googleButtonRef.current) googleButtonRef.current.innerHTML = '';
+      try {
+        window.google?.accounts?.id?.cancel?.();
+      } catch {
+        // ignore sdk cleanup errors
+      }
+    };
+
+    if (!shouldRenderGoogleButton) {
+      clearGoogleButton();
+      return;
+    }
+    if (!googleButtonRef.current) return;
+
+    let cancelled = false;
+    setGoogleAuthUiReady(false);
+    setGoogleAuthError('');
+
+    loadScript(GOOGLE_GSI_SCRIPT_SRC)
+      .then(() => {
+        if (cancelled) return;
+        const accounts = window.google?.accounts?.id;
+        if (!accounts) throw new Error('SDK do Google não disponível.');
+
+        accounts.initialize({
+          client_id: googleAuthConfig.clientId,
+          callback: (response) => {
+            const credential = String(response?.credential || '').trim();
+            const claims = decodeJwtPayload(credential);
+            if (!credential || !claims?.sub) {
+              setGoogleAuthError('Falha ao concluir login Google.');
+              return;
+            }
+            setGoogleAuthBusy(true);
+            fetchJson(googleSessionApiPath, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json; charset=utf-8' },
+              body: JSON.stringify({ google_id_token: credential }),
+            })
+              .then(async () => {
+                googlePromptAttemptedRef.current = true;
+                const profilePayload = await fetchJson(myProfileApiPath);
+                applyMyProfileData(profilePayload);
+                setMyPacksError('');
+              })
+              .catch((sessionError) => {
+                setGoogleAuthError(sessionError?.message || 'Falha ao salvar sessão Google.');
+              })
+              .finally(() => setGoogleAuthBusy(false));
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+
+        if (googleButtonRef.current) {
+          googleButtonRef.current.innerHTML = '';
+          const measuredWidth = Math.floor(Number(googleButtonRef.current.clientWidth || 0));
+          const buttonWidth = Math.max(180, Math.min(320, measuredWidth || 320));
+          accounts.renderButton(googleButtonRef.current, {
+            type: 'standard',
+            theme: 'filled_black',
+            size: 'large',
+            text: 'signin_with',
+            shape: 'pill',
+            logo_alignment: 'left',
+            width: buttonWidth,
+          });
+        }
+
+        if (!googlePromptAttemptedRef.current) {
+          googlePromptAttemptedRef.current = true;
+          try {
+            accounts.prompt(() => {});
+          } catch {
+            // prompt may be blocked by browser/privacy settings
+          }
+        }
+
+        setGoogleAuthUiReady(true);
+      })
+      .catch((sdkError) => {
+        if (cancelled) return;
+        setGoogleAuthError(sdkError?.message || 'Falha ao carregar login Google.');
+      });
+
+    return () => {
+      cancelled = true;
+      clearGoogleButton();
+    };
+  }, [shouldRenderGoogleButton, googleAuthConfig.clientId, googleSessionApiPath, myProfileApiPath]);
+
+  const handleGoogleLogout = async () => {
+    setGoogleAuthBusy(true);
+    setGoogleAuthError('');
+    try {
+      await fetchJson(googleSessionApiPath, { method: 'DELETE' });
+    } catch {
+      // still refresh local state after logout attempts
+    } finally {
+      setGoogleAuthBusy(false);
+    }
+    googlePromptAttemptedRef.current = false;
+    await refreshMyProfile({ silent: false });
+  };
 
   const onSubmit = (event) => {
     event.preventDefault();
@@ -985,7 +1489,7 @@ function StickersApp() {
             <span className="hidden sm:inline text-sm font-semibold">OmniZap</span>
           </a>
 
-          ${!currentPackKey
+          ${currentView === 'catalog'
             ? html`
                 <form onSubmit=${onSubmit} className="flex-1 relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔎</span>
@@ -1030,6 +1534,19 @@ function StickersApp() {
             : html`<div className="flex-1"></div>`}
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className=${`text-xs rounded-lg border px-3 py-2 ${
+                isProfileView
+                  ? 'border-amber-400/40 bg-amber-400/10 text-amber-200'
+                  : 'border-amber-500/30 bg-amber-500/5 text-amber-200 hover:bg-amber-500/10'
+              }`}
+              onClick=${() => openProfile(true)}
+              title="Meu perfil e packs"
+            >
+              <span className="sm:hidden">👤</span>
+              <span className="hidden sm:inline">Meus Packs</span>
+            </button>
             <a
               className="text-xs rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-cyan-200 hover:bg-cyan-500/20"
               href="/stickers/create/"
@@ -1065,8 +1582,28 @@ function StickersApp() {
           ? html`<div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">${error}</div>`
           : null}
 
-        ${currentPackKey
+        ${isProfileView
           ? html`
+              <${ProfilePage}
+                googleAuthConfig=${googleAuthConfig}
+                googleAuth=${googleAuth}
+                googleAuthBusy=${googleAuthBusy}
+                googleAuthError=${googleAuthError}
+                googleSessionChecked=${googleSessionChecked}
+                googleAuthUiReady=${googleAuthUiReady}
+                googleButtonRef=${googleButtonRef}
+                myPacks=${myPacks}
+                myPacksLoading=${myPacksLoading}
+                myPacksError=${myPacksError}
+                myProfileStats=${myProfileStats}
+                onBack=${goCatalog}
+                onRefresh=${() => refreshMyProfile()}
+                onLogout=${handleGoogleLogout}
+                onOpenPublicPack=${openPack}
+              />
+            `
+          : currentPackKey
+            ? html`
               ${packLoading
                 ? html`<div className="rounded-2xl border border-slate-700 bg-slate-800/70 p-4 text-sm text-slate-300">Carregando pack...</div>`
                 : html`<${PackPage}
@@ -1079,7 +1616,7 @@ function StickersApp() {
                     reactionLoading=${reactionLoading}
                   />`}
             `
-          : html`
+            : html`
               <div className="lg:grid lg:grid-cols-[250px_minmax(0,1fr)] lg:gap-5">
                 <aside className="hidden lg:block">
                   <div className="sticky top-[72px] space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-3">

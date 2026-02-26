@@ -10,7 +10,7 @@ import { getActiveSocket } from '../../services/socketState.js';
 import { extractUserIdInfo, resolveUserId } from '../../services/lidMapService.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
-import { listStickerPacksForCatalog, findStickerPackByPackKey } from './stickerPackRepository.js';
+import { listStickerPacksForCatalog, findStickerPackByPackKey, listStickerPacksByOwner } from './stickerPackRepository.js';
 import { listStickerPackItems } from './stickerPackItemRepository.js';
 import { listClassifiedStickerAssetsWithoutPack, listStickerAssetsWithoutPack } from './stickerAssetRepository.js';
 import {
@@ -106,7 +106,7 @@ const STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE =
   String(process.env.STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE || '/pack send {{pack_key}}').trim() ||
   '/pack send {{pack_key}}';
 const PACK_COMMAND_PREFIX = String(process.env.COMMAND_PREFIX || '/').trim() || '/';
-const PACK_CREATE_NAME_REGEX = '^[a-z0-9]+(?: [a-z0-9]+)*$';
+const PACK_CREATE_NAME_REGEX = '^[\\s\\S]+$';
 const PACK_CREATE_MAX_NAME_LENGTH = 120;
 const PACK_CREATE_MAX_PUBLISHER_LENGTH = 120;
 const PACK_CREATE_MAX_DESCRIPTION_LENGTH = 1024;
@@ -1951,7 +1951,7 @@ const handleCreatePackConfigRequest = async (req, res) => {
       },
       rules: {
         pack_name_regex: PACK_CREATE_NAME_REGEX,
-        pack_name_hint: 'Use apenas letras minúsculas, números e espaços.',
+        pack_name_hint: 'Nome livre (espaços e emojis são permitidos).',
         visibility_values: ['public', 'unlisted', 'private'],
         owner_phone_required: !STICKER_WEB_GOOGLE_AUTH_REQUIRED,
         owner_phone_hint: STICKER_WEB_GOOGLE_AUTH_REQUIRED
@@ -2079,13 +2079,100 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
   }
 };
 
+const mapGoogleSessionResponseData = (session) =>
+  session
+    ? {
+        authenticated: true,
+        provider: 'google',
+        user: {
+          sub: session.sub,
+          email: session.email,
+          name: session.name,
+          picture: session.picture,
+        },
+        expires_at: toIsoOrNull(session.expiresAt),
+      }
+    : {
+        authenticated: false,
+        provider: 'google',
+        user: null,
+        expires_at: null,
+      };
+
+const handleMyProfileRequest = async (req, res) => {
+  if (!['GET', 'HEAD'].includes(req.method || '')) {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  const session = resolveGoogleWebSessionFromRequest(req);
+  const authGoogle = {
+    enabled: Boolean(STICKER_WEB_GOOGLE_CLIENT_ID),
+    required: Boolean(STICKER_WEB_GOOGLE_AUTH_REQUIRED),
+    client_id: STICKER_WEB_GOOGLE_CLIENT_ID || null,
+  };
+
+  if (!session?.ownerJid) {
+    sendJson(req, res, 200, {
+      data: {
+        auth: { google: authGoogle },
+        session: mapGoogleSessionResponseData(null),
+        owner_jid: null,
+        packs: [],
+        stats: {
+          total: 0,
+          published: 0,
+          drafts: 0,
+          private: 0,
+          unlisted: 0,
+          public: 0,
+        },
+      },
+    });
+    return;
+  }
+
+  const packs = await listStickerPacksByOwner(session.ownerJid, { limit: 200, offset: 0 });
+  const engagementByPackId = await listStickerPackEngagementByPackIds(packs.map((pack) => pack.id));
+
+  const mappedPacks = packs.map((pack) => {
+    const safeSummary = mapPackSummary(pack, engagementByPackId.get(pack.id) || null, null);
+    const publicVisible = isPackPubliclyVisible(pack);
+    return {
+      ...safeSummary,
+      is_publicly_visible: publicVisible,
+      cover_url: publicVisible ? safeSummary.cover_url : null,
+    };
+  });
+
+  const stats = mappedPacks.reduce(
+    (acc, pack) => {
+      acc.total += 1;
+      const status = String(pack.status || '').toLowerCase();
+      const visibility = String(pack.visibility || '').toLowerCase();
+      if (status === 'published') acc.published += 1;
+      if (status === 'draft') acc.drafts += 1;
+      if (visibility === 'private') acc.private += 1;
+      if (visibility === 'unlisted') acc.unlisted += 1;
+      if (visibility === 'public') acc.public += 1;
+      return acc;
+    },
+    { total: 0, published: 0, drafts: 0, private: 0, unlisted: 0, public: 0 },
+  );
+
+  sendJson(req, res, 200, {
+    data: {
+      auth: { google: authGoogle },
+      session: mapGoogleSessionResponseData(session),
+      owner_jid: session.ownerJid,
+      packs: mappedPacks,
+      stats,
+    },
+  });
+};
+
 const normalizeCreatePackName = (value) =>
-  String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, PACK_CREATE_MAX_NAME_LENGTH);
+  sanitizeText(value, PACK_CREATE_MAX_NAME_LENGTH, { allowEmpty: true }) || '';
 
 const mapStickerPackCreateError = (error) => {
   if (!(error instanceof StickerPackError)) {
@@ -2131,9 +2218,9 @@ const handleCreatePackRequest = async (req, res) => {
   }
 
   const name = normalizeCreatePackName(payload?.name);
-  if (!name || !new RegExp(PACK_CREATE_NAME_REGEX).test(name)) {
+  if (!name) {
     sendJson(req, res, 400, {
-      error: 'Nome inválido. Use apenas letras minúsculas, números e espaços.',
+      error: 'Nome inválido. Informe um nome de pack (espaços e emojis são permitidos).',
       code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
     });
     return;
@@ -3549,6 +3636,11 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
 
   if (pathname === `${STICKER_API_BASE_PATH}/auth/google/session`) {
     await handleGoogleAuthSessionRequest(req, res);
+    return true;
+  }
+
+  if (pathname === `${STICKER_API_BASE_PATH}/me`) {
+    await handleMyProfileRequest(req, res);
     return true;
   }
 

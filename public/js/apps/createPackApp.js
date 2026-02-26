@@ -38,10 +38,12 @@ const clampText = (value, maxLength) =>
 
 const clampInputText = (value, maxLength) => String(value || '').slice(0, maxLength);
 
+const removeControlChars = (value) => String(value || '').replace(/[\u0000-\u001F\u007F]/g, '');
+
+const sanitizePackNameInput = (value, maxLength = 120) => removeControlChars(value).slice(0, maxLength);
+
 const sanitizePackName = (value, maxLength = 120) =>
-  String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
+  removeControlChars(value)
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
@@ -719,7 +721,8 @@ function CreatePackApp() {
         return;
       }
 
-      const restoredName = typeof parsed.name === 'string' ? sanitizePackName(parsed.name, DEFAULT_LIMITS.pack_name_max_length) : '';
+      const restoredName =
+        typeof parsed.name === 'string' ? sanitizePackNameInput(parsed.name, DEFAULT_LIMITS.pack_name_max_length) : '';
       if (restoredName) setName(restoredName);
       if (typeof parsed.description === 'string') setDescription(parsed.description);
       if (typeof parsed.publisher === 'string') setPublisher(parsed.publisher);
@@ -1547,7 +1550,7 @@ function CreatePackApp() {
                       value=${name}
                       maxLength=${limits.pack_name_max_length}
                       hint="Use um nome curto e fácil de encontrar."
-                      onChange=${(e) => setName(sanitizePackName(e.target.value, limits.pack_name_max_length))}
+                      onChange=${(e) => setName(sanitizePackNameInput(e.target.value, limits.pack_name_max_length))}
                     />
                     <${FloatingField}
                       label="Descrição"
