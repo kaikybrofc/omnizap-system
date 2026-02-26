@@ -4,6 +4,76 @@ const h = React.createElement;
 
 function HomeEffects() {
   useEffect(() => {
+    const proofPacks = document.getElementById('proof-packs');
+    const proofStickers = document.getElementById('proof-stickers');
+    const proofDownloads = document.getElementById('proof-downloads');
+    const previewStatus = document.getElementById('hero-preview-status');
+    const previewGrid = document.getElementById('hero-pack-preview');
+    if (!proofPacks || !proofStickers || !proofDownloads || !previewStatus || !previewGrid) return;
+
+    const shortNum = (value) =>
+      new Intl.NumberFormat('pt-BR', {
+        notation: value >= 1000 ? 'compact' : 'standard',
+        maximumFractionDigits: value >= 1000 ? 1 : 0,
+      }).format(Math.max(0, Number(value) || 0));
+
+    const fallbackThumb = 'https://iili.io/FC3FABe.jpg';
+
+    const renderPreview = (packs) => {
+      previewGrid.innerHTML = '';
+      if (!Array.isArray(packs) || !packs.length) {
+        previewStatus.textContent = 'Sem packs em destaque no momento.';
+        return;
+      }
+
+      previewStatus.textContent = `${packs.length} packs sugeridos agora`;
+      packs.slice(0, 6).forEach((pack) => {
+        const card = document.createElement('a');
+        card.className = 'market-pack';
+        card.href = pack.web_url || `/stickers/${encodeURIComponent(pack.pack_key || '')}`;
+        card.innerHTML =
+          `<img class="market-pack-thumb" loading="lazy" src="${pack.cover_url || fallbackThumb}" alt="${String(
+            pack.name || 'Pack',
+          ).replace(/"/g, '&quot;')}">` +
+          '<div class="market-pack-body">' +
+          `<p class="market-pack-name">${pack.name || 'Pack sem nome'}</p>` +
+          `<p class="market-pack-meta">${shortNum(pack.sticker_count || 0)} stickers · ${shortNum(
+            pack?.engagement?.open_count || 0,
+          )} aberturas</p>` +
+          '</div>';
+        previewGrid.appendChild(card);
+      });
+    };
+
+    const loadMarketplaceData = async () => {
+      try {
+        const [statsResponse, intentsResponse] = await Promise.all([
+          fetch('/api/sticker-packs/stats'),
+          fetch('/api/sticker-packs/intents?limit=12'),
+        ]);
+
+        const statsPayload = statsResponse.ok ? await statsResponse.json() : null;
+        const intentsPayload = intentsResponse.ok ? await intentsResponse.json() : null;
+        const stats = statsPayload?.data || {};
+        const intents = intentsPayload?.data || {};
+        const trending = Array.isArray(intents?.em_alta) ? intents.em_alta : [];
+
+        proofPacks.textContent = shortNum(stats.packs_total || 0);
+        proofStickers.textContent = shortNum(stats.stickers_total || 0);
+        proofDownloads.textContent = shortNum(stats.downloads_total || 0);
+        renderPreview(trending);
+      } catch {
+        proofPacks.textContent = 'n/d';
+        proofStickers.textContent = 'n/d';
+        proofDownloads.textContent = 'n/d';
+        previewStatus.textContent = 'Não foi possível carregar o preview agora.';
+      }
+    };
+
+    loadMarketplaceData();
+  }, []);
+
+  useEffect(() => {
     const summaryEl = document.getElementById('rank-summary');
     const listEl = document.getElementById('rank-list');
     if (!summaryEl || !listEl) return;

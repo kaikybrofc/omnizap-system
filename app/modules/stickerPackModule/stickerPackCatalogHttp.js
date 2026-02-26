@@ -1027,6 +1027,50 @@ const handleIntentCollectionsRequest = async (req, res, url) => {
   });
 };
 
+const handleMarketplaceStatsRequest = async (req, res, url) => {
+  const visibility = normalizeCatalogVisibility(url.searchParams.get('visibility'));
+  const visibilityValues =
+    visibility === 'all'
+      ? ['public', 'unlisted']
+      : visibility === 'unlisted'
+        ? ['unlisted']
+        : ['public'];
+  const placeholders = visibilityValues.map(() => '?').join(', ');
+
+  const [packStatsRow] = await executeQuery(
+    `SELECT
+       COUNT(DISTINCT p.id) AS packs_total,
+       COUNT(i.sticker_id) AS stickers_total,
+       COUNT(DISTINCT p.publisher) AS creators_total
+     FROM sticker_pack p
+     LEFT JOIN sticker_pack_item i ON i.pack_id = p.id
+     WHERE p.deleted_at IS NULL
+       AND p.visibility IN (${placeholders})`,
+    visibilityValues,
+  );
+
+  const [downloadsRow] = await executeQuery(
+    `SELECT COALESCE(SUM(e.open_count), 0) AS downloads_total
+     FROM sticker_pack_engagement e
+     INNER JOIN sticker_pack p ON p.id = e.pack_id
+     WHERE p.deleted_at IS NULL
+       AND p.visibility IN (${placeholders})`,
+    visibilityValues,
+  );
+
+  sendJson(req, res, 200, {
+    data: {
+      packs_total: Number(packStatsRow?.packs_total || 0),
+      stickers_total: Number(packStatsRow?.stickers_total || 0),
+      creators_total: Number(packStatsRow?.creators_total || 0),
+      downloads_total: Number(downloadsRow?.downloads_total || 0),
+    },
+    filters: {
+      visibility,
+    },
+  });
+};
+
 const handleCreatorRankingRequest = async (req, res, url) => {
   const visibility = normalizeCatalogVisibility(url.searchParams.get('visibility'));
   const q = sanitizeText(url.searchParams.get('q') || '', 120, { allowEmpty: true }) || '';
@@ -1803,6 +1847,15 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
       return true;
     }
     await handleRecommendationsRequest(req, res, url);
+    return true;
+  }
+
+  if (pathname === `${STICKER_API_BASE_PATH}/stats`) {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handleMarketplaceStatsRequest(req, res, url);
     return true;
   }
 

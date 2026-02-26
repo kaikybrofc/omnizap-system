@@ -300,6 +300,112 @@
       gap: 10px;
     }
 
+    .hero-proof {
+      margin-top: 14px;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+    }
+
+    .proof-card {
+      border: 1px solid #2a3d61;
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: linear-gradient(155deg, #0f1a31, #0c162a);
+    }
+
+    .proof-value {
+      display: block;
+      font-family: "Sora", sans-serif;
+      font-size: 22px;
+      line-height: 1.1;
+      color: #e9f4ff;
+    }
+
+    .proof-label {
+      display: block;
+      margin-top: 3px;
+      color: #9eb2d0;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .market-preview {
+      margin: 18px 0 8px;
+      border: 1px solid #2a3d61;
+      border-radius: 14px;
+      background: #0d1628cc;
+      padding: 14px;
+    }
+
+    .market-preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .market-preview-title {
+      margin: 0;
+      font-family: "Sora", sans-serif;
+      font-size: 18px;
+    }
+
+    .market-preview-status {
+      color: #90a5c5;
+      font-size: 13px;
+    }
+
+    .market-preview-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    }
+
+    .market-pack {
+      border: 1px solid #31496f;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #0b1324;
+      text-decoration: none;
+      color: inherit;
+      transition: transform .2s ease, border-color .2s ease;
+    }
+
+    .market-pack:hover {
+      transform: translateY(-2px);
+      border-color: #4c6fa8;
+    }
+
+    .market-pack-thumb {
+      width: 100%;
+      aspect-ratio: 1/1;
+      object-fit: cover;
+      background: radial-gradient(circle at 20% 20%, #2f4f8033, #0a1222);
+      border-bottom: 1px solid #2c3f62;
+    }
+
+    .market-pack-body {
+      padding: 10px;
+    }
+
+    .market-pack-name {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: #e8f2ff;
+      line-height: 1.25;
+      min-height: 32px;
+    }
+
+    .market-pack-meta {
+      margin-top: 4px;
+      color: #99adcb;
+      font-size: 12px;
+    }
+
     .chip {
       border: 1px solid #2a3d61;
       border-radius: 12px;
@@ -593,36 +699,58 @@
   <main class="container">
     <section class="hero">
       <img class="hero-banner" src="https://iili.io/fSNGag2.png" alt="Banner OmniZap System" loading="lazy" decoding="async" />
-      <span class="eyebrow">Automação de WhatsApp Open Source pronta para SaaS</span>
-      <h1>Automação WhatsApp para bots, operações e empresas com stack pronta para produção.</h1>
-      <p class="lead">O OmniZap System é uma plataforma open source para centralizar atendimento automatizado, execução de comandos, rotinas operacionais e integração com APIs em um único projeto.</p>
+      <span class="eyebrow">Marketplace de Stickers OmniZap</span>
+      <h1>Descubra, crie e compartilhe packs de stickers em uma plataforma visual feita para viralizar.</h1>
+      <p class="lead">A home agora é centrada na descoberta de packs: curadoria inteligente, tendências reais e coleção viva de stickers para WhatsApp.</p>
       <div class="hero-cta">
-        <a class="btn primary" href="/stickers/"><i class="fa-solid fa-rocket icon-inline" aria-hidden="true"></i>Plataforma de Sticker</a>
-        <a class="btn" href="/api-docs/"><i class="fa-solid fa-book icon-inline" aria-hidden="true"></i>Explorar API</a>
+        <a class="btn primary" href="/stickers/"><i class="fa-solid fa-icons icon-inline" aria-hidden="true"></i>Explorar Stickers</a>
+        <a class="btn" href="/stickers/"><i class="fa-solid fa-wand-magic-sparkles icon-inline" aria-hidden="true"></i>Criar Meu Pack</a>
       </div>
+      <section class="hero-proof">
+        <article class="proof-card">
+          <span id="proof-packs" class="proof-value">--</span>
+          <span class="proof-label">packs publicados</span>
+        </article>
+        <article class="proof-card">
+          <span id="proof-stickers" class="proof-value">--</span>
+          <span class="proof-label">stickers no catálogo</span>
+        </article>
+        <article class="proof-card">
+          <span id="proof-downloads" class="proof-value">--</span>
+          <span class="proof-label">downloads/aberturas</span>
+        </article>
+      </section>
     </section>
 
-    <h2 class="section-title"><i class="fa-solid fa-compass-drafting icon-inline" aria-hidden="true"></i>Visão do Projeto</h2>
+    <section class="market-preview">
+      <div class="market-preview-head">
+        <h2 class="market-preview-title"><i class="fa-solid fa-fire icon-inline" aria-hidden="true"></i>Packs em destaque agora</h2>
+        <span id="hero-preview-status" class="market-preview-status">Carregando curadoria...</span>
+      </div>
+      <div id="hero-pack-preview" class="market-preview-grid"></div>
+    </section>
+
+    <h2 class="section-title"><i class="fa-solid fa-compass-drafting icon-inline" aria-hidden="true"></i>Experiência Sticker-First</h2>
     <section class="grid">
       <article class="card">
-        <h3><i class="fa-solid fa-layer-group icon-inline" aria-hidden="true"></i>Base Única de Operação</h3>
-        <p>Consolida automação, comandos, mídia e integrações em uma stack única para reduzir complexidade operacional.</p>
+        <h3><i class="fa-solid fa-ranking-star icon-inline" aria-hidden="true"></i>Descoberta por Tendência</h3>
+        <p>Veja packs em alta, novidades e coleções crescendo agora com sinais de engajamento em tempo real.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-cubes icon-inline" aria-hidden="true"></i>Arquitetura Modular</h3>
-        <p>Projeto estruturado em módulos para facilitar manutenção, extensão de funcionalidades e evolução contínua do bot.</p>
+        <h3><i class="fa-solid fa-layer-group icon-inline" aria-hidden="true"></i>Curadoria Inteligente</h3>
+        <p>Organização automática de stickers com foco em qualidade visual, coerência temática e diversidade.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-shield-halved icon-inline" aria-hidden="true"></i>Pronto para Produção</h3>
-        <p>Direcionado para uso real: foco em estabilidade, controle de fluxo, visibilidade e facilidade de deploy.</p>
+        <h3><i class="fa-solid fa-share-nodes icon-inline" aria-hidden="true"></i>Compartilhamento Instantâneo</h3>
+        <p>Cada pack possui link próprio para abrir, enviar no WhatsApp e acelerar distribuição orgânica.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-code-branch icon-inline" aria-hidden="true"></i>Open Source</h3>
-        <p>Código aberto para customização completa, integração com sistemas próprios e colaboração da comunidade.</p>
+        <h3><i class="fa-solid fa-store icon-inline" aria-hidden="true"></i>Marketplace Visual</h3>
+        <p>Interface pensada para navegação rápida em mobile e desktop, com foco em conversão para exploração de packs.</p>
       </article>
     </section>
 
-    <h2 class="section-title"><i class="fa-solid fa-bolt icon-inline" aria-hidden="true"></i>Recursos Principais</h2>
+    <h2 class="section-title"><i class="fa-solid fa-gears icon-inline" aria-hidden="true"></i>Infra e API (Secundário)</h2>
     <section class="grid">
       <article class="card">
         <h3><i class="fa-solid fa-terminal icon-inline" aria-hidden="true"></i>Automação de Comandos</h3>
@@ -649,7 +777,7 @@
       data-endpoint="/api/sticker-packs/project-summary"
     ></div>
 
-    <h2 class="section-title"><i class="fa-solid fa-code icon-inline" aria-hidden="true"></i>API-First</h2>
+    <h2 class="section-title"><i class="fa-solid fa-code icon-inline" aria-hidden="true"></i>Bloco Técnico</h2>
     <section class="api">
       <div class="api-head"><i class="fa-solid fa-flask-vial icon-inline" aria-hidden="true"></i>Exemplo rápido</div>
       <pre><code>GET /api/sticker-packs?visibility=public&limit=24&offset=0
@@ -695,8 +823,8 @@ GET /data/stickers/:owner/:file.webp</code></pre>
     </section>
 
     <section class="final-cta">
-      <p><strong>Pronto para usar o OmniZap na operação?</strong><br />Explore o catálogo de stickers e a API pública para integrar o sistema ao seu fluxo.</p>
-      <a class="btn primary" href="/stickers/"><i class="fa-solid fa-right-to-bracket icon-inline" aria-hidden="true"></i>Entrar no Catálogo</a>
+      <p><strong>Comece pela descoberta.</strong><br />Abra o marketplace, encontre packs prontos e crie sua coleção.</p>
+      <a class="btn primary" href="/stickers/"><i class="fa-solid fa-right-to-bracket icon-inline" aria-hidden="true"></i>Explorar Stickers</a>
     </section>
   </main>
 
