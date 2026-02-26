@@ -8,35 +8,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Manrope', 'ui-sans-serif', 'system-ui']
-          },
-          colors: {
-            base: '#070b12',
-            panel: '#101826',
-            panelSoft: '#162234',
-            line: '#22304a',
-            accent: '#2dd4bf',
-            danger: '#fb7185'
-          }
-        }
-      }
-    }
-  </script>
+  <link rel="stylesheet" href="/css/stickers-admin.css?v=20260226-admin-saas-redesign-v1" />
 </head>
-<body class="min-h-screen bg-base text-slate-100">
+<body>
   <div
     id="stickers-admin-root"
-    data-api-base-path="__STICKER_API_BASE_PATH__"
-    data-web-path="__STICKER_WEB_PATH__"
-    data-admin-web-path="__STICKER_ADMIN_WEB_PATH__"
+    data-api-base-path="/api/sticker-packs"
+    data-web-path="/stickers"
+    data-admin-web-path="/stickers/admin"
   ></div>
 
-  <script type="module" src="/js/apps/stickersAdminApp.js?v=20260226-admin-panel-v1"></script>
+  <script type="module" src="/js/apps/stickersAdminApp.js?v=20260226-admin-moderators-v1"></script>
 </body>
 </html>

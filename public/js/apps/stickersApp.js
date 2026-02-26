@@ -3106,6 +3106,31 @@ function StickersApp() {
     }
   };
 
+  const loadRelatedPacksForPack = async (pack) => {
+    const q = String(pack?.publisher || '').trim();
+    const relatedParams = new URLSearchParams();
+    relatedParams.set('visibility', 'public');
+    relatedParams.set('limit', '12');
+    if (q) relatedParams.set('q', q);
+    else if (Array.isArray(pack?.tags) && pack.tags[0]) relatedParams.set('categories', pack.tags[0]);
+
+    const relatedPayload = await fetchJson(`${config.apiBasePath}?${relatedParams.toString()}`);
+    const relatedList = (Array.isArray(relatedPayload?.data) ? relatedPayload.data : [])
+      .filter((entry) => entry.pack_key && entry.pack_key !== pack?.pack_key)
+      .slice(0, 8);
+    setRelatedPacks(relatedList);
+  };
+
+  const tryLoadManagedPackDetail = async (packKey) => {
+    try {
+      const managedPayload = await fetchJson(buildManagePackApiPath(packKey), { retry: 1 });
+      const managedPack = managedPayload?.data?.pack || null;
+      return managedPack?.pack_key ? managedPack : null;
+    } catch {
+      return null;
+    }
+  };
+
   const loadPackDetail = async (packKey) => {
     if (!packKey) return;
     setPackLoading(true);
@@ -3114,23 +3139,26 @@ function StickersApp() {
     setError('');
 
     try {
-      const payload = await fetchJson(`${config.apiBasePath}/${encodeURIComponent(packKey)}`);
-      const pack = payload?.data || null;
+      let pack = null;
+      try {
+        const payload = await fetchJson(`${config.apiBasePath}/${encodeURIComponent(packKey)}`);
+        pack = payload?.data || null;
+      } catch (publicError) {
+        if (Number(publicError?.status || 0) !== 404) throw publicError;
+        pack = await tryLoadManagedPackDetail(packKey);
+        if (!pack) throw publicError;
+      }
+
       setCurrentPack(pack);
-      void registerPackInteraction(packKey, 'open', { silent: true });
+      const resolvedPackKey = String(pack?.pack_key || packKey).trim();
+      if (resolvedPackKey && resolvedPackKey !== packKey) {
+        window.history.replaceState({}, '', `${config.webPath}/${encodeURIComponent(resolvedPackKey)}`);
+        setCurrentPackKey(resolvedPackKey);
+      }
 
-      const q = String(pack?.publisher || '').trim();
-      const relatedParams = new URLSearchParams();
-      relatedParams.set('visibility', 'public');
-      relatedParams.set('limit', '12');
-      if (q) relatedParams.set('q', q);
-      else if (Array.isArray(pack?.tags) && pack.tags[0]) relatedParams.set('categories', pack.tags[0]);
+      void registerPackInteraction(resolvedPackKey || packKey, 'open', { silent: true });
 
-      const relatedPayload = await fetchJson(`${config.apiBasePath}?${relatedParams.toString()}`);
-      const relatedList = (Array.isArray(relatedPayload?.data) ? relatedPayload.data : [])
-        .filter((entry) => entry.pack_key && entry.pack_key !== pack?.pack_key)
-        .slice(0, 8);
-      setRelatedPacks(relatedList);
+      await loadRelatedPacksForPack(pack);
     } catch (err) {
       setError(err?.message || 'Não foi possível abrir o pack');
     } finally {

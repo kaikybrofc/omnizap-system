@@ -1,25 +1,64 @@
 const root = document.getElementById('stickers-admin-root');
 
 if (!root) {
-  throw new Error('stickers-admin-root não encontrado.');
+  throw new Error('stickers-admin-root nao encontrado.');
 }
 
 const apiBasePath = root.dataset.apiBasePath || '/api/sticker-packs';
 const webPath = root.dataset.webPath || '/stickers';
 const adminApiBase = `${apiBasePath}/admin`;
+const googleSessionApiPath = `${apiBasePath}/auth/google/session`;
+const createConfigApiPath = `${apiBasePath}/create-config`;
+const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+const GOOGLE_AUTH_CACHE_KEY = 'omnizap_google_web_auth_cache_v1';
+
+const PAGE_SIZE = Object.freeze({
+  sessions: 8,
+  users: 8,
+  packs: 10,
+  bans: 8,
+  uploads: 8,
+});
+
+const TAB_ITEMS = [
+  { id: 'users', label: 'Usuarios' },
+  { id: 'packs', label: 'Packs' },
+  { id: 'logs', label: 'Logs' },
+  { id: 'uploads', label: 'Uploads' },
+  { id: 'system', label: 'Sistema' },
+];
 
 const state = {
   loading: true,
   busy: false,
+  sidebarOpen: false,
+  activeTab: 'users',
+  rowMenu: null,
   adminStatus: null,
+  googleAuthConfig: { enabled: false, clientId: '' },
+  googleAuthConfigError: '',
+  googleLoginUiReady: false,
   overview: null,
   packs: [],
+  moderators: [],
   selectedPackKey: '',
   selectedPack: null,
   packsQuery: '',
+  usersQuery: '',
+  logsQuery: '',
   error: '',
-  notice: '',
+  toast: null,
+  pagination: {
+    sessions: 1,
+    users: 1,
+    packs: 1,
+    bans: 1,
+    uploads: 1,
+  },
 };
+
+let toastTimer = null;
+let googleLoginRenderNonce = 0;
 
 const escapeHtml = (value) =>
   String(value ?? '')
@@ -29,8 +68,7 @@ const escapeHtml = (value) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const fmtNum = (value) =>
-  new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(Math.max(0, Number(value || 0)));
+const fmtNum = (value) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(Math.max(0, Number(value || 0)));
 
 const fmtDate = (value) => {
   const raw = String(value || '').trim();
@@ -40,14 +78,117 @@ const fmtDate = (value) => {
   return dt.toLocaleString('pt-BR');
 };
 
+const normalizeToken = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const includesToken = (parts, token) => {
+  if (!token) return true;
+  return parts.some((part) => normalizeToken(part).includes(token));
+};
+
 const isAdminAuthenticated = () => Boolean(state.adminStatus?.session?.authenticated);
 const canUnlockAdmin = () => Boolean(state.adminStatus?.eligible_google_login);
+const getAdminRole = () => String(state.adminStatus?.session?.role || '').trim().toLowerCase();
+const canManageModerators = () => Boolean(state.adminStatus?.session?.capabilities?.can_manage_moderators || getAdminRole() === 'owner');
+
+function setToast(type, message, timeoutMs = 3200) {
+  const clean = String(message || '').trim();
+  if (!clean) {
+    state.toast = null;
+    return;
+  }
+  state.toast = { type: String(type || 'info'), message: clean };
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    state.toast = null;
+    render();
+  }, timeoutMs);
+}
+
+function setError(message) {
+  state.error = String(message || '').trim();
+  if (state.error) setToast('error', state.error, 5000);
+}
+
+function clearError() {
+  state.error = '';
+}
+
+function setBusy(busy) {
+  state.busy = Boolean(busy);
+}
+
+function readLocalGoogleAuthCache() {
+  try {
+    const raw = localStorage.getItem(GOOGLE_AUTH_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const auth = parsed?.auth && typeof parsed.auth === 'object' ? parsed.auth : null;
+    const user = auth?.user && typeof auth.user === 'object' ? auth.user : null;
+    const sub = String(user?.sub || '').trim();
+    if (!sub) return null;
+    return {
+      user: {
+        sub,
+        email: String(user?.email || '').trim(),
+        name: String(user?.name || '').trim() || 'Conta Google',
+      },
+      savedAt: Number(parsed?.savedAt || 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function decodeJwtPayload(jwt) {
+  const parts = String(jwt || '').split('.');
+  if (parts.length < 2) return null;
+  try {
+    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const decoded = atob(padded);
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === '1') {
+        resolve();
+        return;
+      }
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error(`Falha ao carregar script: ${src}`)), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.defer = true;
+    script.addEventListener('load', () => {
+      script.dataset.loaded = '1';
+      resolve();
+    });
+    script.addEventListener('error', () => reject(new Error(`Falha ao carregar script: ${src}`)));
+    document.head.appendChild(script);
+  });
+}
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
     credentials: 'same-origin',
     ...options,
   });
+
   const text = await response.text().catch(() => '');
   let payload = {};
   if (text) {
@@ -57,34 +198,1020 @@ async function fetchJson(url, options = {}) {
       payload = { raw: text };
     }
   }
+
   if (!response.ok) {
     const error = new Error(payload?.error || payload?.message || `HTTP ${response.status}`);
     error.status = response.status;
     error.payload = payload;
     throw error;
   }
+
   return payload;
 }
 
-function setError(message) {
-  state.error = String(message || '');
+const getOverviewData = () => {
+  const overview = state.overview || {};
+  return {
+    counters: overview?.counters && typeof overview.counters === 'object' ? overview.counters : {},
+    marketplace: overview?.marketplace_stats && typeof overview.marketplace_stats === 'object' ? overview.marketplace_stats : {},
+    activeSessions: Array.isArray(overview?.active_sessions) ? overview.active_sessions : [],
+    users: Array.isArray(overview?.users) ? overview.users : [],
+    bans: Array.isArray(overview?.bans) ? overview.bans : [],
+    recentPacks: Array.isArray(overview?.recent_packs) ? overview.recent_packs : [],
+  };
+};
+
+function paginate(items, key) {
+  const list = Array.isArray(items) ? items : [];
+  const size = Math.max(1, Number(PAGE_SIZE[key] || 10));
+  const totalPages = Math.max(1, Math.ceil(list.length / size));
+  const current = Math.min(totalPages, Math.max(1, Number(state.pagination[key] || 1)));
+  state.pagination[key] = current;
+  const start = (current - 1) * size;
+  return {
+    items: list.slice(start, start + size),
+    current,
+    totalPages,
+    total: list.length,
+  };
 }
 
-function setNotice(message) {
-  state.notice = String(message || '');
-  if (!state.notice) return;
-  window.clearTimeout(setNotice._timer);
-  setNotice._timer = window.setTimeout(() => {
-    if (state.notice === message) {
-      state.notice = '';
-      render();
-    }
-  }, 3500);
+function renderPagination(key, page) {
+  if (!page || page.totalPages <= 1) return '';
+  const prevPage = Math.max(1, page.current - 1);
+  const nextPage = Math.min(page.totalPages, page.current + 1);
+  return `
+    <div class="pager">
+      <button class="subtle-btn" data-action="page-nav" data-page-target="${escapeHtml(key)}" data-page="${prevPage}" ${page.current <= 1 ? 'disabled' : ''}>Anterior</button>
+      <span class="pager-meta">Pagina ${page.current} de ${page.totalPages} • ${fmtNum(page.total)} itens</span>
+      <button class="subtle-btn" data-action="page-nav" data-page-target="${escapeHtml(key)}" data-page="${nextPage}" ${page.current >= page.totalPages ? 'disabled' : ''}>Proxima</button>
+    </div>
+  `;
+}
+
+function toneClassForStatus(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (['published', 'ready', 'done', 'online', 'active'].includes(normalized)) return 'status-success';
+  if (['failed', 'error', 'deleted'].includes(normalized)) return 'status-danger';
+  if (['uploading', 'processing', 'pending', 'draft'].includes(normalized)) return 'status-warning';
+  return 'status-neutral';
+}
+
+function renderStatusBadge(label, tone = '') {
+  const normalizedTone = tone || toneClassForStatus(label);
+  return `<span class="status-badge ${normalizedTone}">${escapeHtml(label || 'n/a')}</span>`;
+}
+
+function isRowMenuOpen(kind, id) {
+  return Boolean(state.rowMenu && state.rowMenu.kind === kind && String(state.rowMenu.id) === String(id));
+}
+
+function renderMenuWrap(kind, id, content) {
+  const open = isRowMenuOpen(kind, id);
+  return `
+    <div class="menu-wrap" data-row-menu>
+      <button class="menu-trigger" data-action="toggle-row-menu" data-row-kind="${escapeHtml(kind)}" data-row-id="${escapeHtml(id)}" aria-expanded="${open ? 'true' : 'false'}">⋯</button>
+      ${open ? `<div class="row-menu">${content}</div>` : ''}
+    </div>
+  `;
+}
+
+function renderSparkline(values) {
+  const source = Array.isArray(values) && values.length ? values.map((entry) => Math.max(0, Number(entry || 0))) : [0, 0, 0, 0, 0, 0, 0];
+  const max = Math.max(...source, 1);
+  const bars = source
+    .map((value) => {
+      const h = Math.max(4, Math.min(24, Math.round((value / max) * 24)));
+      return `<span class="sparkbar" style="height:${h}px"></span>`;
+    })
+    .join('');
+  return `<div class="sparkline">${bars}</div>`;
+}
+
+function buildMetricCards() {
+  const { counters, marketplace, activeSessions } = getOverviewData();
+  const series = Array.isArray(marketplace?.series_last_7_days) ? marketplace.series_last_7_days : [];
+
+  const clicksSeries = series.map((row) => Number(row?.clicks || 0));
+  const packsSeries = series.map((row) => Number(row?.packs_published || 0));
+  const likesSeries = series.map((row) => Number(row?.likes || 0));
+  const usersSeries = series.map((_, idx) => {
+    const base = Math.max(1, Number(counters.known_google_users || counters.known_users || 1));
+    return Math.max(0, Math.round((base * (idx + 3)) / 10));
+  });
+
+  return [
+    {
+      id: 'users',
+      label: 'Usuarios',
+      value: Number(counters.known_google_users || counters.known_users || 0),
+      trend: `${fmtNum(activeSessions.length)} online`,
+      trendTone: 'trend-neutral',
+      bars: usersSeries,
+    },
+    {
+      id: 'downloads',
+      label: 'Downloads',
+      value: Number(marketplace.total_clicks || 0),
+      trend: `+${fmtNum(marketplace.clicks_last_7_days || 0)} nos ultimos 7 dias`,
+      trendTone: 'trend-up',
+      bars: clicksSeries,
+    },
+    {
+      id: 'packs',
+      label: 'Packs',
+      value: Number(counters.total_packs_any_status || marketplace.total_packs || 0),
+      trend: `+${fmtNum(marketplace.packs_last_7_days || 0)} esta semana`,
+      trendTone: 'trend-up',
+      bars: packsSeries,
+    },
+    {
+      id: 'errors',
+      label: 'Incidentes',
+      value: Number(counters.active_bans || 0),
+      trend: `${fmtNum(counters.active_bans || 0)} bloqueios ativos`,
+      trendTone: Number(counters.active_bans || 0) > 0 ? 'trend-down' : 'trend-neutral',
+      bars: likesSeries,
+    },
+  ];
+}
+
+function renderMetricCards() {
+  const cards = buildMetricCards();
+  return `
+    <section class="metrics-grid">
+      ${cards
+        .map(
+          (card) => `
+            <article class="metric-card">
+              <p class="metric-label">${escapeHtml(card.label)}</p>
+              <p class="metric-value">${fmtNum(card.value)}</p>
+              <div class="metric-foot">
+                <span class="metric-trend ${escapeHtml(card.trendTone)}">${escapeHtml(card.trend)}</span>
+                ${renderSparkline(card.bars)}
+              </div>
+            </article>
+          `,
+        )
+        .join('')}
+    </section>
+  `;
+}
+
+function renderTabs() {
+  return `
+    <div class="tabs-strip">
+      ${TAB_ITEMS.map((tab) => {
+        const active = state.activeTab === tab.id;
+        return `<button class="tab-btn ${active ? 'active' : ''}" data-action="switch-tab" data-tab-id="${escapeHtml(tab.id)}">${escapeHtml(tab.label)}</button>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderUsersTab() {
+  const { activeSessions, users } = getOverviewData();
+  const token = normalizeToken(state.usersQuery);
+
+  const filteredSessions = activeSessions.filter((row) =>
+    includesToken([row?.name, row?.email, row?.owner_jid, row?.google_sub], token),
+  );
+  const filteredUsers = users.filter((row) => includesToken([row?.name, row?.email, row?.owner_jid, row?.google_sub], token));
+
+  const sessionsPage = paginate(filteredSessions, 'sessions');
+  const usersPage = paginate(filteredUsers, 'users');
+
+  const sessionRowsDesktop = sessionsPage.items
+    .map((row) => {
+      const menu = renderMenuWrap(
+        'session',
+        row?.session_token || row?.google_sub || row?.email || Math.random(),
+        `<button class="row-menu-item danger" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(
+          row?.google_sub || '',
+        )}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir usuario</button>`,
+      );
+      return `
+        <tr>
+          <td>
+            <div class="row-title">${escapeHtml(row?.name || 'Conta Google')}</div>
+            <div class="row-sub break-all">${escapeHtml(row?.email || '-')}</div>
+            <div class="row-meta break-all">${escapeHtml(row?.owner_jid || '')}</div>
+          </td>
+          <td class="muted">${escapeHtml(fmtDate(row?.last_seen_at || row?.created_at))}</td>
+          <td>${menu}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const usersRowsDesktop = usersPage.items
+    .map((row) => {
+      const menu = renderMenuWrap(
+        'user',
+        row?.google_sub || row?.email || row?.owner_jid || Math.random(),
+        `<button class="row-menu-item danger" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(
+          row?.google_sub || '',
+        )}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir usuario</button>`,
+      );
+      return `
+        <tr>
+          <td>
+            <div class="row-title">${escapeHtml(row?.name || 'Conta Google')}</div>
+            <div class="row-sub break-all">${escapeHtml(row?.email || '-')}</div>
+            <div class="row-meta break-all">${escapeHtml(row?.owner_jid || '')}</div>
+            <div class="row-meta break-all mono">${escapeHtml(row?.google_sub || '')}</div>
+          </td>
+          <td class="muted">${escapeHtml(fmtDate(row?.last_login_at || row?.last_seen_at || row?.updated_at))}</td>
+          <td>${menu}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const sessionsMobile = sessionsPage.items
+    .map(
+      (row) => `
+        <article class="mobile-card">
+          <p class="row-title">${escapeHtml(row?.name || 'Conta Google')}</p>
+          <p class="row-sub break-all">${escapeHtml(row?.email || '-')}</p>
+          <p class="row-meta break-all">${escapeHtml(row?.owner_jid || '')}</p>
+          <div class="mobile-card-foot">
+            <span class="muted">${escapeHtml(fmtDate(row?.last_seen_at || row?.created_at))}</span>
+            <button class="danger-btn" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(
+        row?.google_sub || '',
+      )}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir</button>
+          </div>
+        </article>
+      `,
+    )
+    .join('');
+
+  const usersMobile = usersPage.items
+    .map(
+      (row) => `
+        <article class="mobile-card">
+          <p class="row-title">${escapeHtml(row?.name || 'Conta Google')}</p>
+          <p class="row-sub break-all">${escapeHtml(row?.email || '-')}</p>
+          <p class="row-meta break-all">${escapeHtml(row?.owner_jid || '')}</p>
+          <p class="row-meta break-all mono">${escapeHtml(row?.google_sub || '')}</p>
+          <div class="mobile-card-foot">
+            <span class="muted">${escapeHtml(fmtDate(row?.last_login_at || row?.last_seen_at || row?.updated_at))}</span>
+            <button class="danger-btn" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(
+        row?.google_sub || '',
+      )}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir</button>
+          </div>
+        </article>
+      `,
+    )
+    .join('');
+
+  return `
+    <section class="stack">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h3 class="panel-title">Usuarios</h3>
+            <p class="panel-desc">Monitore sessoes ativas e contas vinculadas ao marketplace.</p>
+          </div>
+          <form data-form="users-search" class="search-form compact">
+            <input class="search-input" type="search" name="q" placeholder="Buscar por nome, email, owner_jid" value="${escapeHtml(state.usersQuery)}" />
+            <button class="outline-btn" type="submit">Filtrar</button>
+          </form>
+        </div>
+      </section>
+
+      <div class="section-grid two-col">
+        <section class="panel">
+          <div class="panel-head slim">
+            <h4 class="panel-title">Sessoes ativas (${fmtNum(sessionsPage.total)})</h4>
+          </div>
+          <div class="table-shell desktop-only">
+            <table class="data-table">
+              <thead>
+                <tr><th>Usuario</th><th>Ultimo acesso</th><th>Acoes</th></tr>
+              </thead>
+              <tbody>
+                ${sessionRowsDesktop || '<tr><td colspan="3" class="empty">Nenhuma sessao ativa.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+          <div class="mobile-list mobile-only">${sessionsMobile || '<div class="empty-box">Nenhuma sessao ativa.</div>'}</div>
+          ${renderPagination('sessions', sessionsPage)}
+        </section>
+
+        <section class="panel">
+          <div class="panel-head slim">
+            <h4 class="panel-title">Usuarios conhecidos (${fmtNum(usersPage.total)})</h4>
+          </div>
+          <div class="table-shell desktop-only">
+            <table class="data-table">
+              <thead>
+                <tr><th>Usuario</th><th>Ultimo login</th><th>Acoes</th></tr>
+              </thead>
+              <tbody>
+                ${usersRowsDesktop || '<tr><td colspan="3" class="empty">Sem usuarios cadastrados.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+          <div class="mobile-list mobile-only">${usersMobile || '<div class="empty-box">Sem usuarios cadastrados.</div>'}</div>
+          ${renderPagination('users', usersPage)}
+        </section>
+      </div>
+    </section>
+  `;
+}
+
+function renderPacksTab() {
+  const packsPage = paginate(state.packs, 'packs');
+  const selectedData = state.selectedPack?.pack ? state.selectedPack : state.selectedPack?.data || state.selectedPack;
+  const selectedPack = selectedData?.pack || null;
+  const selectedItems = Array.isArray(selectedPack?.items) ? selectedPack.items : [];
+
+  const packRowsDesktop = packsPage.items
+    .map((pack) => {
+      const statusBadges = [
+        renderStatusBadge(pack?.visibility || 'n/a'),
+        renderStatusBadge(pack?.status || 'n/a'),
+        renderStatusBadge(pack?.pack_status || 'ready'),
+      ].join('');
+
+      const menu = renderMenuWrap(
+        'pack',
+        pack?.pack_key || pack?.id || Math.random(),
+        `
+          <button class="row-menu-item" data-action="open-pack-admin" data-pack-key="${escapeHtml(pack?.pack_key || '')}">Ver detalhes</button>
+          <a class="row-menu-item" href="${escapeHtml(pack?.web_url || `${webPath}/${encodeURIComponent(String(pack?.pack_key || ''))}`)}" target="_blank" rel="noreferrer">Abrir no catalogo</a>
+          <button class="row-menu-item danger" data-action="delete-pack-admin" data-pack-key="${escapeHtml(pack?.pack_key || '')}">Apagar pack</button>
+        `,
+      );
+
+      return `
+        <tr>
+          <td>
+            <div class="row-title break-words">${escapeHtml(pack?.name || pack?.pack_key || 'Pack')}</div>
+            <div class="row-sub break-all">${escapeHtml(pack?.pack_key || '')}</div>
+            <div class="row-meta break-all">${escapeHtml(pack?.owner_jid || '')}</div>
+          </td>
+          <td>${statusBadges}</td>
+          <td class="muted">${fmtNum(pack?.stickers_count)} stickers • ${fmtNum(pack?.like_count)} likes • ${fmtNum(pack?.open_count)} opens</td>
+          <td>${menu}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const packRowsMobile = packsPage.items
+    .map(
+      (pack) => `
+        <article class="mobile-card">
+          <p class="row-title break-words">${escapeHtml(pack?.name || pack?.pack_key || 'Pack')}</p>
+          <p class="row-sub break-all">${escapeHtml(pack?.pack_key || '')}</p>
+          <p class="row-meta break-all">${escapeHtml(pack?.owner_jid || '')}</p>
+          <div class="badge-row">
+            ${renderStatusBadge(pack?.visibility || 'n/a')}
+            ${renderStatusBadge(pack?.status || 'n/a')}
+            ${renderStatusBadge(pack?.pack_status || 'ready')}
+          </div>
+          <p class="row-meta">${fmtNum(pack?.stickers_count)} stickers • ${fmtNum(pack?.like_count)} likes • ${fmtNum(pack?.open_count)} opens</p>
+          <div class="mobile-card-foot">
+            <button class="outline-btn" data-action="open-pack-admin" data-pack-key="${escapeHtml(pack?.pack_key || '')}">Detalhes</button>
+            <a class="outline-btn" href="${escapeHtml(pack?.web_url || `${webPath}/${encodeURIComponent(String(pack?.pack_key || ''))}`)}" target="_blank" rel="noreferrer">Abrir</a>
+            <button class="danger-btn" data-action="delete-pack-admin" data-pack-key="${escapeHtml(pack?.pack_key || '')}">Apagar</button>
+          </div>
+        </article>
+      `,
+    )
+    .join('');
+
+  const detailItems = selectedItems
+    .map(
+      (item) => `
+        <article class="detail-item">
+          <img class="detail-thumb" src="${escapeHtml(item?.asset_url || '')}" alt="" />
+          <div class="detail-content">
+            <p class="row-title break-all">${escapeHtml(item?.sticker_id || '')}</p>
+            <p class="row-meta">Posicao ${escapeHtml(item?.position)}</p>
+            <p class="row-meta">${escapeHtml(item?.asset?.mimetype || '')}</p>
+          </div>
+          <div class="detail-actions">
+            <button class="outline-btn" data-action="remove-pack-sticker" data-pack-key="${escapeHtml(selectedPack?.pack_key || '')}" data-sticker-id="${escapeHtml(item?.sticker_id || '')}">Remover do pack</button>
+            <button class="danger-btn" data-action="delete-sticker-global-btn" data-sticker-id="${escapeHtml(item?.sticker_id || '')}">Apagar global</button>
+          </div>
+        </article>
+      `,
+    )
+    .join('');
+
+  return `
+    <section class="stack">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h3 class="panel-title">Packs</h3>
+            <p class="panel-desc">Moderacao completa de packs com busca e acoes rapidas.</p>
+          </div>
+          <form data-form="packs-search" class="search-form">
+            <input class="search-input" type="search" name="q" placeholder="pack_key, nome, publisher, owner_jid" value="${escapeHtml(state.packsQuery)}" />
+            <button class="primary-btn" type="submit">Buscar</button>
+          </form>
+        </div>
+
+        <div class="table-shell desktop-only">
+          <table class="data-table">
+            <thead>
+              <tr><th>Pack</th><th>Status</th><th>Metricas</th><th>Acoes</th></tr>
+            </thead>
+            <tbody>
+              ${packRowsDesktop || '<tr><td colspan="4" class="empty">Nenhum pack encontrado.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+        <div class="mobile-list mobile-only">${packRowsMobile || '<div class="empty-box">Nenhum pack encontrado.</div>'}</div>
+        ${renderPagination('packs', packsPage)}
+      </section>
+
+      <section class="panel">
+        <div class="panel-head slim">
+          <h4 class="panel-title">Pack selecionado</h4>
+        </div>
+        ${selectedPack
+          ? `
+            <div class="selected-pack-head">
+              <div>
+                <p class="row-title break-words">${escapeHtml(selectedPack?.name || selectedPack?.pack_key || 'Pack')}</p>
+                <p class="row-sub break-all">${escapeHtml(selectedPack?.pack_key || '')}</p>
+                <p class="row-meta break-all">${escapeHtml(selectedPack?.owner_jid || '')}</p>
+                <div class="badge-row">
+                  ${renderStatusBadge(selectedPack?.visibility || 'n/a')}
+                  ${renderStatusBadge(selectedPack?.status || 'n/a')}
+                  ${renderStatusBadge(selectedPack?.pack_status || 'ready')}
+                </div>
+              </div>
+              <div class="selected-pack-actions">
+                <a class="outline-btn" href="${escapeHtml(selectedPack?.web_url || `${webPath}/${encodeURIComponent(String(selectedPack?.pack_key || ''))}`)}" target="_blank" rel="noreferrer">Abrir</a>
+                <button class="danger-btn" data-action="delete-pack-admin" data-pack-key="${escapeHtml(selectedPack?.pack_key || '')}">Apagar pack</button>
+                <button class="outline-btn" data-action="ban-user" data-email="${escapeHtml(selectedPack?.owner_email || '')}" data-owner="${escapeHtml(selectedPack?.owner_jid || '')}">Banir dono</button>
+              </div>
+            </div>
+            <div class="detail-list">${detailItems || '<div class="empty-box">Pack sem stickers.</div>'}</div>
+          `
+          : '<div class="empty-box">Selecione um pack na tabela para visualizar e moderar stickers.</div>'}
+      </section>
+    </section>
+  `;
+}
+
+function renderLogsTab() {
+  const { bans } = getOverviewData();
+  const token = normalizeToken(state.logsQuery);
+  const filteredBans = bans.filter((ban) => includesToken([ban?.email, ban?.owner_jid, ban?.google_sub, ban?.reason], token));
+  const page = paginate(filteredBans, 'bans');
+
+  const rowsDesktop = page.items
+    .map((ban) => {
+      const revoked = Boolean(ban?.revoked_at);
+      const menu = revoked
+        ? ''
+        : renderMenuWrap(
+            'ban',
+            ban?.id || Math.random(),
+            `<button class="row-menu-item" data-action="revoke-ban" data-ban-id="${escapeHtml(ban?.id || '')}">Revogar banimento</button>`,
+          );
+
+      return `
+        <tr>
+          <td>
+            <div class="row-title break-all">${escapeHtml(ban?.email || ban?.owner_jid || ban?.google_sub || ban?.id || 'Ban')}</div>
+            <div class="row-meta break-all">${escapeHtml(ban?.google_sub || '')}</div>
+            <div class="row-meta break-all">${escapeHtml(ban?.owner_jid || '')}</div>
+          </td>
+          <td class="muted">${escapeHtml(ban?.reason || 'Sem motivo')}</td>
+          <td class="muted">${escapeHtml(fmtDate(ban?.created_at))}</td>
+          <td>${revoked ? renderStatusBadge('revogado', 'status-neutral') : renderStatusBadge('ativo', 'status-danger')}</td>
+          <td>${menu || '<span class="muted">-</span>'}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const rowsMobile = page.items
+    .map(
+      (ban) => `
+        <article class="mobile-card">
+          <p class="row-title break-all">${escapeHtml(ban?.email || ban?.owner_jid || ban?.google_sub || ban?.id || 'Ban')}</p>
+          <p class="row-sub">${escapeHtml(ban?.reason || 'Sem motivo')}</p>
+          <p class="row-meta">${escapeHtml(fmtDate(ban?.created_at))}</p>
+          <div class="mobile-card-foot">
+            ${Boolean(ban?.revoked_at)
+              ? renderStatusBadge('revogado', 'status-neutral')
+              : `<button class="outline-btn" data-action="revoke-ban" data-ban-id="${escapeHtml(ban?.id || '')}">Revogar</button>`}
+          </div>
+        </article>
+      `,
+    )
+    .join('');
+
+  return `
+    <section class="stack">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h3 class="panel-title">Logs e bans</h3>
+            <p class="panel-desc">Historico de bloqueios e auditoria de moderacao.</p>
+          </div>
+          <form data-form="logs-search" class="search-form compact">
+            <input class="search-input" type="search" name="q" placeholder="Buscar email, owner_jid, motivo" value="${escapeHtml(state.logsQuery)}" />
+            <button class="outline-btn" type="submit">Filtrar</button>
+          </form>
+        </div>
+
+        <div class="table-shell desktop-only">
+          <table class="data-table">
+            <thead>
+              <tr><th>Identidade</th><th>Motivo</th><th>Criado em</th><th>Status</th><th>Acoes</th></tr>
+            </thead>
+            <tbody>
+              ${rowsDesktop || '<tr><td colspan="5" class="empty">Sem registros de log.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mobile-list mobile-only">${rowsMobile || '<div class="empty-box">Sem registros de log.</div>'}</div>
+        ${renderPagination('bans', page)}
+      </section>
+
+      <section class="panel">
+        <div class="panel-head slim">
+          <h4 class="panel-title">Banir usuario manualmente</h4>
+        </div>
+        <form data-form="manual-ban" class="form-grid">
+          <input class="search-input" name="email" placeholder="email@exemplo.com" />
+          <input class="search-input" name="google_sub" placeholder="google_sub (opcional)" />
+          <input class="search-input" name="owner_jid" placeholder="owner_jid (opcional)" />
+          <input class="search-input" name="reason" placeholder="Motivo do banimento" />
+          <button class="danger-btn" type="submit">Banir agora</button>
+        </form>
+      </section>
+    </section>
+  `;
+}
+
+function renderUploadsTab() {
+  const { recentPacks } = getOverviewData();
+  const page = paginate(recentPacks, 'uploads');
+
+  const cards = page.items
+    .map((pack) => {
+      const status = String(pack?.status || '').toLowerCase();
+      const progressMap = {
+        published: 100,
+        processing: 72,
+        uploading: 48,
+        draft: 28,
+        failed: 100,
+      };
+      const progress = Number(progressMap[status] || 36);
+      const uploadMenu = renderMenuWrap(
+        'upload',
+        pack?.pack_key || pack?.id || Math.random(),
+        `
+          <button class="row-menu-item" data-action="open-pack-admin" data-pack-key="${escapeHtml(pack?.pack_key || '')}">Ver detalhes</button>
+          <a class="row-menu-item" href="${escapeHtml(pack?.web_url || `${webPath}/${encodeURIComponent(String(pack?.pack_key || ''))}`)}" target="_blank" rel="noreferrer">Abrir no catalogo</a>
+        `,
+      );
+      return `
+        <article class="upload-card">
+          <div class="upload-card-head">
+            <div>
+              <p class="row-title break-words">${escapeHtml(pack?.name || pack?.pack_key || 'Pack')}</p>
+              <p class="row-sub break-all">${escapeHtml(pack?.pack_key || '')}</p>
+            </div>
+            ${renderStatusBadge(pack?.status || 'draft')}
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-track"><span class="progress-bar" style="width:${Math.max(0, Math.min(100, progress))}%"></span></div>
+            <span class="progress-meta">${progress}%</span>
+          </div>
+          <div class="upload-meta">
+            <span>${fmtNum(pack?.sticker_count)} stickers</span>
+            <span>${fmtDate(pack?.updated_at || pack?.created_at)}</span>
+          </div>
+          <div class="upload-actions">
+            <button class="outline-btn" data-action="open-pack-admin" data-pack-key="${escapeHtml(pack?.pack_key || '')}">Ver pack</button>
+            ${uploadMenu}
+          </div>
+        </article>
+      `;
+    })
+    .join('');
+
+  return `
+    <section class="stack">
+      <section class="panel">
+        <div class="panel-head slim">
+          <h3 class="panel-title">Uploads e processamento</h3>
+          <p class="panel-desc">Visao compacta dos packs recentes e estado de processamento.</p>
+        </div>
+        <div class="upload-grid">
+          ${cards || '<div class="empty-box">Sem uploads recentes.</div>'}
+        </div>
+        ${renderPagination('uploads', page)}
+      </section>
+
+      <section class="panel">
+        <div class="panel-head slim">
+          <h4 class="panel-title">Apagar sticker global</h4>
+          <p class="panel-desc">Remove o sticker de todos os packs e limpa o asset quando ficar orfao.</p>
+        </div>
+        <form data-form="delete-sticker-global" class="search-form compact">
+          <input class="search-input" name="sticker_id" placeholder="sticker_id (UUID)" />
+          <button class="danger-btn" type="submit">Apagar</button>
+        </form>
+      </section>
+    </section>
+  `;
+}
+
+function renderSystemTab() {
+  const { counters, marketplace, users } = getOverviewData();
+  const authGoogle = state.adminStatus?.google || {};
+  const moderators = Array.isArray(state.moderators) ? state.moderators : [];
+  const ownerMode = canManageModerators();
+
+  const moderatorRowsDesktop = moderators
+    .map((row) => {
+      const active = Boolean(row?.active && !row?.revoked_at);
+      return `
+        <tr>
+          <td>
+            <div class="row-title">${escapeHtml(row?.name || 'Moderador')}</div>
+            <div class="row-sub break-all">${escapeHtml(row?.email || '-')}</div>
+            <div class="row-meta break-all mono">${escapeHtml(row?.google_sub || '')}</div>
+            <div class="row-meta break-all">${escapeHtml(row?.owner_jid || '')}</div>
+          </td>
+          <td>${active ? renderStatusBadge('ativo', 'status-success') : renderStatusBadge('revogado', 'status-neutral')}</td>
+          <td class="muted">${escapeHtml(fmtDate(row?.last_login_at || row?.updated_at || row?.created_at))}</td>
+          <td>
+            ${active ? `<button class="danger-btn" data-action="revoke-moderator" data-google-sub="${escapeHtml(row?.google_sub || '')}">Remover</button>` : '<span class="muted">-</span>'}
+          </td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const moderatorRowsMobile = moderators
+    .map(
+      (row) => `
+        <article class="mobile-card">
+          <p class="row-title">${escapeHtml(row?.name || 'Moderador')}</p>
+          <p class="row-sub break-all">${escapeHtml(row?.email || '-')}</p>
+          <p class="row-meta break-all mono">${escapeHtml(row?.google_sub || '')}</p>
+          <p class="row-meta break-all">${escapeHtml(row?.owner_jid || '')}</p>
+          <div class="mobile-card-foot">
+            ${Boolean(row?.active && !row?.revoked_at) ? renderStatusBadge('ativo', 'status-success') : renderStatusBadge('revogado', 'status-neutral')}
+            ${Boolean(row?.active && !row?.revoked_at)
+              ? `<button class="danger-btn" data-action="revoke-moderator" data-google-sub="${escapeHtml(row?.google_sub || '')}">Remover</button>`
+              : ''}
+          </div>
+        </article>
+      `,
+    )
+    .join('');
+
+  const targetOptions = (Array.isArray(users) ? users : [])
+    .slice(0, 120)
+    .map((row) => {
+      const email = String(row?.email || '').trim();
+      const sub = String(row?.google_sub || '').trim();
+      const owner = String(row?.owner_jid || '').trim();
+      const name = String(row?.name || '').trim();
+      const entries = [];
+      if (email) entries.push(`<option value="${escapeHtml(email)}">${escapeHtml(name || email)}</option>`);
+      if (sub) entries.push(`<option value="${escapeHtml(sub)}">${escapeHtml(name || sub)}</option>`);
+      if (owner) entries.push(`<option value="${escapeHtml(owner)}">${escapeHtml(name || owner)}</option>`);
+      return entries.join('');
+    })
+    .join('');
+
+  return `
+    <section class="stack">
+      <section class="section-grid two-col">
+        <article class="panel">
+          <div class="panel-head slim">
+            <h3 class="panel-title">Resumo do sistema</h3>
+          </div>
+          <div class="kv-grid">
+            <div class="kv-item"><span class="kv-key">Packs totais</span><span class="kv-value">${fmtNum(counters.total_packs_any_status || marketplace.total_packs)}</span></div>
+            <div class="kv-item"><span class="kv-key">Stickers totais</span><span class="kv-value">${fmtNum(counters.total_stickers_any_status || marketplace.total_stickers)}</span></div>
+            <div class="kv-item"><span class="kv-key">Cliques globais</span><span class="kv-value">${fmtNum(marketplace.total_clicks)}</span></div>
+            <div class="kv-item"><span class="kv-key">Likes globais</span><span class="kv-value">${fmtNum(marketplace.total_likes)}</span></div>
+            <div class="kv-item"><span class="kv-key">Atualizado em</span><span class="kv-value">${escapeHtml(fmtDate(marketplace.updated_at))}</span></div>
+            <div class="kv-item"><span class="kv-key">Sessoes ativas</span><span class="kv-value">${fmtNum(counters.active_google_sessions)}</span></div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head slim">
+            <h3 class="panel-title">Autenticacao admin</h3>
+          </div>
+          <div class="kv-grid">
+            <div class="kv-item"><span class="kv-key">Admin email</span><span class="kv-value break-all">${escapeHtml(state.adminStatus?.admin_email || '-')}</span></div>
+            <div class="kv-item"><span class="kv-key">Google session</span><span class="kv-value">${authGoogle?.authenticated ? 'Ativa' : 'Inativa'}</span></div>
+            <div class="kv-item"><span class="kv-key">Elegivel</span><span class="kv-value">${canUnlockAdmin() ? 'Sim' : 'Nao'}</span></div>
+            <div class="kv-item"><span class="kv-key">Seu papel</span><span class="kv-value">${escapeHtml(getAdminRole() || 'owner')}</span></div>
+            <div class="kv-item"><span class="kv-key">API base</span><span class="kv-value break-all mono">${escapeHtml(apiBasePath)}</span></div>
+            <div class="kv-item"><span class="kv-key">Google client</span><span class="kv-value break-all mono">${escapeHtml(state.googleAuthConfig?.clientId || '-')}</span></div>
+          </div>
+        </article>
+      </section>
+
+      <article class="panel">
+        <div class="panel-head slim">
+          <h3 class="panel-title">Moderadores</h3>
+          <p class="panel-desc">Acesso secundario do painel com senha individual e sessao Google obrigatoria.</p>
+        </div>
+        ${ownerMode
+          ? `
+            <form data-form="moderator-upsert" class="form-grid">
+              <input class="search-input" list="moderator-target-list" name="target" placeholder="email, google_sub ou owner_jid do usuario logado" />
+              <datalist id="moderator-target-list">${targetOptions}</datalist>
+              <input class="search-input" type="password" name="password" placeholder="Senha do moderador" autocomplete="new-password" />
+              <button class="primary-btn" type="submit">Salvar moderador</button>
+              <p class="hint">Somente usuarios que ja fizeram login Google no site podem virar moderadores.</p>
+            </form>
+
+            <div class="table-shell desktop-only">
+              <table class="data-table">
+                <thead>
+                  <tr><th>Usuario</th><th>Status</th><th>Ultimo login</th><th>Acoes</th></tr>
+                </thead>
+                <tbody>
+                  ${moderatorRowsDesktop || '<tr><td colspan="4" class="empty">Nenhum moderador cadastrado.</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+            <div class="mobile-list mobile-only">${moderatorRowsMobile || '<div class="empty-box">Nenhum moderador cadastrado.</div>'}</div>
+          `
+          : '<div class="empty-box">Sessao atual de moderador. Apenas o owner pode cadastrar/remover moderadores.</div>'}
+      </article>
+
+      <article class="panel">
+        <div class="panel-head slim">
+          <h3 class="panel-title">Snapshot marketplace</h3>
+          <p class="panel-desc">Dados consolidados para auditoria rapida.</p>
+        </div>
+        <pre class="code-block">${escapeHtml(JSON.stringify({ counters, marketplace }, null, 2))}</pre>
+      </article>
+    </section>
+  `;
+}
+
+function renderActiveTabContent() {
+  if (state.activeTab === 'users') return renderUsersTab();
+  if (state.activeTab === 'packs') return renderPacksTab();
+  if (state.activeTab === 'logs') return renderLogsTab();
+  if (state.activeTab === 'uploads') return renderUploadsTab();
+  return renderSystemTab();
+}
+
+function renderSidebar({ mobile = false } = {}) {
+  const { counters } = getOverviewData();
+  const countMap = {
+    users: Number(counters.known_google_users || counters.known_users || 0),
+    packs: Number(counters.total_packs_any_status || 0),
+    logs: Number(counters.active_bans || 0),
+    uploads: Number((getOverviewData().recentPacks || []).length || 0),
+    system: Number(counters.active_google_sessions || 0),
+  };
+
+  const nav = `
+    <nav class="nav-group">
+      ${TAB_ITEMS.map((tab) => {
+        const active = state.activeTab === tab.id;
+        const count = countMap[tab.id] || 0;
+        return `
+          <button class="nav-item ${active ? 'active' : ''}" data-action="switch-tab" data-tab-id="${escapeHtml(tab.id)}">
+            <span>${escapeHtml(tab.label)}</span>
+            <span class="nav-count">${fmtNum(count)}</span>
+          </button>
+        `;
+      }).join('')}
+    </nav>
+  `;
+
+  if (!mobile) {
+    return `
+      <aside class="sidebar desktop-only">
+        ${nav}
+        <div class="sidebar-footer">
+          <button class="subtle-btn" data-action="refresh-dashboard" ${state.busy ? 'disabled' : ''}>Atualizar dados</button>
+          ${isAdminAuthenticated() ? `<button class="subtle-btn danger" data-action="logout-admin" ${state.busy ? 'disabled' : ''}>Sair do admin</button>` : ''}
+        </div>
+      </aside>
+    `;
+  }
+
+  if (!state.sidebarOpen) return '';
+
+  return `
+    <div class="drawer" data-drawer>
+      <div class="drawer-backdrop" data-action="close-sidebar"></div>
+      <aside class="drawer-panel">
+        <div class="drawer-head">
+          <p class="panel-title">Navegacao</p>
+          <button class="icon-btn" data-action="close-sidebar">✕</button>
+        </div>
+        ${nav}
+      </aside>
+    </div>
+  `;
+}
+
+function renderHeader() {
+  const adminUser = state.adminStatus?.session?.user || null;
+  const adminRole = getAdminRole();
+  const roleLabel = adminRole === 'owner' ? 'owner' : adminRole === 'moderator' ? 'moderador' : '';
+  return `
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="topbar-left">
+          <button class="icon-btn mobile-only" data-action="toggle-sidebar" aria-label="Abrir menu">☰</button>
+          <span class="brand-dot"></span>
+          <div>
+            <p class="brand-title">OmniZap Admin</p>
+            <p class="brand-sub">Painel SaaS • Moderacao</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="ghost-btn" data-action="refresh-dashboard" ${state.busy ? 'disabled' : ''}>Atualizar</button>
+          ${isAdminAuthenticated()
+            ? `<span class="user-chip">${escapeHtml(`${roleLabel ? `${roleLabel} • ` : ''}${adminUser?.email || adminUser?.name || 'Admin'}`)}</span>`
+            : '<span class="user-chip muted">Nao autenticado</span>'}
+          ${isAdminAuthenticated()
+            ? `<button class="ghost-btn danger" data-action="logout-admin" ${state.busy ? 'disabled' : ''}>Sair</button>`
+            : `<button class="ghost-btn" data-action="refresh-admin-status" ${state.busy ? 'disabled' : ''}>Revalidar</button>`}
+        </div>
+      </div>
+    </header>
+  `;
+}
+
+function renderSkeletonView() {
+  return `
+    <section class="stack">
+      <div class="metrics-grid">
+        ${Array.from({ length: 4 })
+          .map(
+            () => `
+              <article class="metric-card skeleton">
+                <div class="skeleton-line w-30"></div>
+                <div class="skeleton-line w-60"></div>
+                <div class="skeleton-line w-80"></div>
+              </article>
+            `,
+          )
+          .join('')}
+      </div>
+      <section class="panel skeleton">
+        <div class="skeleton-line w-50"></div>
+        <div class="skeleton-line w-90"></div>
+        <div class="skeleton-line w-85"></div>
+      </section>
+    </section>
+  `;
+}
+
+function renderUnlockView() {
+  const adminStatus = state.adminStatus || {};
+  const google = adminStatus.google || {};
+  const googleSession = google?.user ? google : { authenticated: false };
+  const localGoogleCache = readLocalGoogleAuthCache();
+  const hasLocalCache = Boolean(localGoogleCache?.user?.sub);
+  const adminEmail = String(adminStatus?.admin_email || 'ADM_EMAIL');
+  const googleConfigEnabled = Boolean(state.googleAuthConfig?.enabled && state.googleAuthConfig?.clientId);
+
+  return `
+    <section class="stack">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Controle total do marketplace</h2>
+            <p class="panel-desc">Autenticacao dupla: conta Google (owner ou moderador autorizado) + senha do painel.</p>
+          </div>
+          <a class="outline-btn" href="${escapeHtml(webPath)}">Voltar ao catalogo</a>
+        </div>
+
+        <div class="section-grid two-col">
+          <article class="panel inner">
+            <div class="panel-head slim">
+              <h3 class="panel-title">Login Google do site</h3>
+              <button class="subtle-btn" data-action="refresh-admin-status" ${state.busy ? 'disabled' : ''}>Revalidar</button>
+            </div>
+
+            ${googleSession?.authenticated
+              ? `
+                <div class="account-box">
+                  <p class="row-title">${escapeHtml(googleSession.user?.name || 'Conta Google')}</p>
+                  <p class="row-sub break-all">${escapeHtml(googleSession.user?.email || '')}</p>
+                  <p class="row-meta">${canUnlockAdmin() ? 'Conta elegivel para admin.' : 'Conta Google logada nao bate com ADM_EMAIL.'}</p>
+                </div>
+              `
+              : `
+                <div class="account-box warning">
+                  <p class="row-title">Nenhuma sessao Google ativa no servidor.</p>
+                  ${hasLocalCache
+                    ? `<p class="row-sub">Sessao local encontrada: ${escapeHtml(localGoogleCache.user?.email || localGoogleCache.user?.name || 'Conta Google')}.</p>`
+                    : '<p class="row-sub">Nao encontramos cache local de login Google.</p>'}
+                  <p class="row-meta">Renove o login Google abaixo para continuar.</p>
+                </div>
+                ${googleConfigEnabled
+                  ? `
+                    <div class="google-login-box">
+                      <div data-google-admin-login-button class="google-login-slot"></div>
+                      ${state.googleLoginUiReady ? '' : '<p class="row-meta">Carregando botao de login Google...</p>'}
+                    </div>
+                  `
+                  : `<p class="row-meta">Login Google indisponivel no painel (${escapeHtml(state.googleAuthConfigError || 'config nao encontrada')}).</p>`}
+              `}
+          </article>
+
+          <article class="panel inner">
+            <div class="panel-head slim">
+              <h3 class="panel-title">Senha do painel</h3>
+            </div>
+            <form data-form="admin-unlock" class="form-grid">
+              <input class="search-input" type="password" name="password" placeholder="Digite a senha do painel" autocomplete="current-password" />
+              <button class="primary-btn" type="submit" ${state.busy ? 'disabled' : ''}>${state.busy ? 'Validando...' : 'Desbloquear Painel'}</button>
+              ${!canUnlockAdmin()
+                ? `<p class="hint warning">A senha so desbloqueia apos sessao Google elegivel (${escapeHtml(adminEmail)} ou moderador autorizado).</p>`
+                : '<p class="hint">Sessao Google elegivel detectada. Informe a senha correspondente.</p>'}
+            </form>
+          </article>
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+function renderToast() {
+  if (!state.toast?.message) return '';
+  const tone = state.toast.type === 'error' ? 'toast danger' : 'toast success';
+  return `<div class="toast-stack"><div class="${tone}">${escapeHtml(state.toast.message)}</div></div>`;
+}
+
+function renderMainContent() {
+  if (state.loading) return renderSkeletonView();
+  if (!isAdminAuthenticated()) return renderUnlockView();
+
+  return `
+    <section class="stack">
+      ${renderMetricCards()}
+      ${renderTabs()}
+      ${renderActiveTabContent()}
+    </section>
+  `;
+}
+
+function renderLayout() {
+  root.innerHTML = `
+    <div class="admin-app">
+      ${renderHeader()}
+      <div class="layout-wrap">
+        ${renderSidebar()}
+        <main class="main">
+          ${state.error ? `<div class="inline-alert">${escapeHtml(state.error)}</div>` : ''}
+          ${renderMainContent()}
+        </main>
+      </div>
+      ${renderSidebar({ mobile: true })}
+      ${renderToast()}
+    </div>
+  `;
+}
+
+function render() {
+  renderLayout();
+  void ensureGoogleLoginButtonRendered();
 }
 
 async function loadAdminStatus() {
   const payload = await fetchJson(`${adminApiBase}/session`);
   state.adminStatus = payload?.data || null;
+}
+
+async function loadGoogleAuthConfig() {
+  try {
+    const payload = await fetchJson(createConfigApiPath);
+    const google = payload?.data?.auth?.google || {};
+    state.googleAuthConfig = {
+      enabled: Boolean(google?.enabled),
+      clientId: String(google?.client_id || '').trim(),
+    };
+    state.googleAuthConfigError = '';
+  } catch {
+    state.googleAuthConfig = { enabled: false, clientId: '' };
+    state.googleAuthConfigError = 'Falha ao carregar configuracao Google.';
+  }
 }
 
 async function loadOverview() {
@@ -95,10 +1222,19 @@ async function loadOverview() {
 async function loadPacks(query = state.packsQuery) {
   state.packsQuery = String(query || '').trim();
   const params = new URLSearchParams();
-  params.set('limit', '80');
+  params.set('limit', '120');
   if (state.packsQuery) params.set('q', state.packsQuery);
   const payload = await fetchJson(`${adminApiBase}/packs?${params.toString()}`);
   state.packs = Array.isArray(payload?.data) ? payload.data : [];
+}
+
+async function loadModerators() {
+  if (!canManageModerators()) {
+    state.moderators = [];
+    return;
+  }
+  const payload = await fetchJson(`${adminApiBase}/moderators`);
+  state.moderators = Array.isArray(payload?.data?.moderators) ? payload.data.moderators : [];
 }
 
 async function loadSelectedPack(packKey) {
@@ -113,13 +1249,43 @@ async function loadSelectedPack(packKey) {
   state.selectedPack = payload?.data || null;
 }
 
+async function bootstrapDashboardData() {
+  const jobs = [loadOverview(), loadPacks(state.packsQuery || '')];
+  if (canManageModerators()) jobs.push(loadModerators());
+  else state.moderators = [];
+  await Promise.all(jobs);
+  if (state.selectedPackKey) {
+    await loadSelectedPack(state.selectedPackKey).catch(() => {
+      state.selectedPack = null;
+      state.selectedPackKey = '';
+    });
+  }
+}
+
+async function runTask(task, { successMessage = '', keepError = false } = {}) {
+  if (state.busy) return;
+  setBusy(true);
+  if (!keepError) clearError();
+  render();
+  try {
+    await task();
+    if (successMessage) setToast('success', successMessage);
+  } catch (error) {
+    setError(error?.message || 'Falha ao executar operacao.');
+  } finally {
+    setBusy(false);
+    render();
+  }
+}
+
 async function boot() {
   state.loading = true;
-  setError('');
+  clearError();
+  render();
   try {
-    await loadAdminStatus();
+    await Promise.all([loadAdminStatus(), loadGoogleAuthConfig()]);
     if (isAdminAuthenticated()) {
-      await Promise.all([loadOverview(), loadPacks('')]);
+      await bootstrapDashboardData();
     }
   } catch (error) {
     setError(error?.message || 'Falha ao carregar painel admin.');
@@ -129,30 +1295,69 @@ async function boot() {
   }
 }
 
-async function runTask(task, { successMessage = '', rerender = true } = {}) {
-  if (state.busy) return;
-  state.busy = true;
-  setError('');
-  try {
-    await task();
-    if (successMessage) setNotice(successMessage);
-  } catch (error) {
-    setError(error?.message || 'Falha na operação.');
-  } finally {
-    state.busy = false;
-    if (rerender) render();
-  }
+async function refreshAdminStatusOnly() {
+  await runTask(async () => {
+    await Promise.all([loadAdminStatus(), loadGoogleAuthConfig()]);
+  }, { successMessage: 'Status de autenticacao atualizado.' });
+}
+
+async function refreshDashboard() {
+  await runTask(async () => {
+    await Promise.all([loadAdminStatus(), loadGoogleAuthConfig()]);
+    if (!isAdminAuthenticated()) {
+      state.overview = null;
+      state.packs = [];
+      state.moderators = [];
+      state.selectedPack = null;
+      state.selectedPackKey = '';
+      return;
+    }
+    await bootstrapDashboardData();
+  }, { successMessage: 'Painel atualizado.' });
+}
+
+async function loginGoogleForAdmin(credential) {
+  await runTask(async () => {
+    const payload = await fetchJson(googleSessionApiPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ google_id_token: credential }),
+    });
+    const data = payload?.data || {};
+    if (!data?.authenticated || !data?.user?.sub) {
+      throw new Error('Nao foi possivel criar sessao Google do site.');
+    }
+    await loadAdminStatus();
+  }, { successMessage: 'Sessao Google renovada.' });
 }
 
 async function unlockAdmin(password) {
   await runTask(async () => {
+    if (!canUnlockAdmin()) {
+      const google = state.adminStatus?.google || {};
+      const adminEmail = String(state.adminStatus?.admin_email || '').trim();
+      const loggedEmail = String(google?.user?.email || '').trim();
+      if (!google?.authenticated) {
+        const local = readLocalGoogleAuthCache();
+        if (local?.user?.email) {
+          throw new Error(`Sua sessao Google do servidor expirou. Renove o login Google (${local.user.email}) e tente novamente.`);
+        }
+        throw new Error('Faca login Google no site com o email admin antes de digitar a senha.');
+      }
+      if (loggedEmail && adminEmail && loggedEmail.toLowerCase() !== adminEmail.toLowerCase()) {
+        throw new Error(`Email logado (${loggedEmail}) e diferente do ADM_EMAIL (${adminEmail}).`);
+      }
+      throw new Error('Conta Google atual nao esta elegivel para desbloquear o painel.');
+    }
+
     const payload = await fetchJson(`${adminApiBase}/session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ password }),
     });
     state.adminStatus = payload?.data || null;
-    await Promise.all([loadOverview(), loadPacks('')]);
+    state.activeTab = 'users';
+    await bootstrapDashboardData();
   }, { successMessage: 'Painel admin desbloqueado.' });
 }
 
@@ -162,35 +1367,22 @@ async function logoutAdmin() {
     await loadAdminStatus();
     state.overview = null;
     state.packs = [];
+    state.moderators = [];
     state.selectedPack = null;
     state.selectedPackKey = '';
-  }, { successMessage: 'Sessão admin encerrada.' });
-}
-
-async function refreshDashboard() {
-  await runTask(async () => {
-    await loadAdminStatus();
-    if (!isAdminAuthenticated()) {
-      state.overview = null;
-      state.packs = [];
-      state.selectedPack = null;
-      return;
-    }
-    await Promise.all([loadOverview(), loadPacks(state.packsQuery || '')]);
-    if (state.selectedPackKey) {
-      await loadSelectedPack(state.selectedPackKey);
-    }
-  }, { successMessage: 'Painel atualizado.' });
+  }, { successMessage: 'Sessao admin encerrada.' });
 }
 
 async function searchPacks(query) {
   await runTask(async () => {
+    state.pagination.packs = 1;
     await loadPacks(query);
   });
 }
 
 async function openPackDetailsAdmin(packKey) {
   await runTask(async () => {
+    state.activeTab = 'packs';
     await loadSelectedPack(packKey);
   });
 }
@@ -221,7 +1413,7 @@ async function removeStickerFromPackAdmin(packKey, stickerId) {
 }
 
 async function forceDeleteStickerAdmin(stickerId) {
-  if (!window.confirm(`Apagar sticker ${stickerId} globalmente (todas as referências)?`)) return;
+  if (!window.confirm(`Apagar sticker ${stickerId} globalmente (todas as referencias)?`)) return;
   await runTask(async () => {
     await fetchJson(`${adminApiBase}/stickers/${encodeURIComponent(stickerId)}/delete`, { method: 'DELETE' });
     if (state.selectedPackKey) {
@@ -241,341 +1433,96 @@ async function createBanAdmin(payload) {
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
       body: JSON.stringify(payload),
     });
-    if (state.overview) await loadOverview();
-    await loadSelectedPack(state.selectedPackKey).catch(() => {});
-  }, { successMessage: 'Usuário banido.' });
+    await loadOverview();
+  }, { successMessage: 'Usuario banido.' });
 }
 
 async function revokeBanAdmin(banId) {
   if (!window.confirm('Revogar este banimento?')) return;
   await runTask(async () => {
     await fetchJson(`${adminApiBase}/bans/${encodeURIComponent(banId)}/revoke`, { method: 'DELETE' });
-    if (state.overview) await loadOverview();
+    await loadOverview();
   }, { successMessage: 'Banimento revogado.' });
 }
 
-function renderUnlockSection() {
-  const adminStatus = state.adminStatus || {};
-  const google = adminStatus.google || {};
-  const googleSession = google?.user ? google : { authenticated: false };
-  return `
-    <section class="rounded-2xl border border-line bg-panel p-4 md:p-5">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[.12em] text-accent">Painel Admin</p>
-          <h1 class="mt-1 text-xl font-extrabold md:text-2xl">Controle total do marketplace</h1>
-          <p class="mt-1 text-sm text-slate-400">Autenticação dupla: conta Google (${escapeHtml(adminStatus.admin_email || 'ADM_EMAIL')}) + senha do painel (env).</p>
-        </div>
-        <a href="${escapeHtml(webPath)}" class="inline-flex h-10 items-center rounded-xl border border-line px-4 text-sm font-semibold text-slate-200 hover:bg-panelSoft">Voltar ao catálogo</a>
-      </div>
-
-      <div class="mt-4 grid gap-4 md:grid-cols-2">
-        <div class="rounded-xl border border-line/80 bg-panelSoft/70 p-4">
-          <p class="text-xs font-semibold uppercase tracking-[.1em] text-slate-400">Login Google do site</p>
-          ${googleSession?.authenticated
-            ? `
-              <div class="mt-3 flex items-center gap-3">
-                <img src="${escapeHtml(googleSession.user?.picture || '')}" alt="" class="h-10 w-10 rounded-full border border-line object-cover" onerror="this.style.display='none'">
-                <div class="min-w-0">
-                  <p class="truncate text-sm font-semibold">${escapeHtml(googleSession.user?.name || 'Conta Google')}</p>
-                  <p class="truncate text-xs text-slate-400">${escapeHtml(googleSession.user?.email || '')}</p>
-                </div>
-              </div>
-              <p class="mt-3 text-xs ${canUnlockAdmin() ? 'text-emerald-300' : 'text-rose-300'}">
-                ${canUnlockAdmin() ? 'Conta elegível para admin.' : 'Conta Google logada não bate com ADM_EMAIL.'}
-              </p>
-            `
-            : `
-              <p class="mt-3 text-sm text-slate-300">Nenhuma sessão Google ativa no site.</p>
-              <p class="mt-2 text-xs text-slate-400">Faça login em <a href="${escapeHtml(webPath)}/perfil" class="text-accent underline">/stickers/perfil</a> e volte para desbloquear o painel.</p>
-            `}
-        </div>
-
-        <form data-form="admin-unlock" class="rounded-xl border border-line/80 bg-panelSoft/70 p-4">
-          <p class="text-xs font-semibold uppercase tracking-[.1em] text-slate-400">Senha do painel</p>
-          <label class="mt-3 block">
-            <span class="mb-1 block text-xs text-slate-400">Senha (env ADM_PANEL ou ADM_PANEL_PASSWORD)</span>
-            <input name="password" type="password" autocomplete="current-password"
-              class="h-11 w-full rounded-xl border border-line bg-panel px-3 text-sm outline-none focus:border-accent"
-              placeholder="Digite a senha do painel"
-              ${canUnlockAdmin() ? '' : 'disabled'} />
-          </label>
-          <button type="submit" class="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl bg-accent px-4 text-sm font-extrabold text-slate-900 disabled:opacity-60" ${canUnlockAdmin() && !state.busy ? '' : 'disabled'}>
-            ${state.busy ? 'Desbloqueando...' : 'Desbloquear Painel'}
-          </button>
-        </form>
-      </div>
-    </section>
-  `;
+async function upsertModeratorAdmin(payload) {
+  await runTask(async () => {
+    await fetchJson(`${adminApiBase}/moderators`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify(payload),
+    });
+    await Promise.all([loadModerators(), loadOverview()]);
+  }, { successMessage: 'Moderador salvo com sucesso.' });
 }
 
-function renderOverviewSection() {
-  const ov = state.overview || {};
-  const counters = ov.counters || {};
-  const marketplace = ov.marketplace_stats || {};
-  const activeSessions = Array.isArray(ov.active_sessions) ? ov.active_sessions : [];
-  const users = Array.isArray(ov.users) ? ov.users : [];
-  const bans = Array.isArray(ov.bans) ? ov.bans : [];
-  const recentPacks = Array.isArray(ov.recent_packs) ? ov.recent_packs : [];
-  const selectedPack = state.selectedPack?.pack || state.selectedPack?.data?.pack || state.selectedPack?.pack ? state.selectedPack.pack : state.selectedPack?.pack;
-  const packData = state.selectedPack?.pack ? state.selectedPack : (state.selectedPack?.data ? state.selectedPack.data : state.selectedPack);
-  const selectedPackItems = Array.isArray(packData?.pack?.items) ? packData.pack.items : [];
-
-  return `
-    <section class="rounded-2xl border border-line bg-panel p-4 md:p-5">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[.1em] text-accent">Administrador</p>
-          <h2 class="text-lg font-extrabold md:text-xl">${escapeHtml(state.adminStatus?.session?.user?.name || 'Admin')}</h2>
-          <p class="text-xs text-slate-400">${escapeHtml(state.adminStatus?.session?.user?.email || '')}</p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <button data-action="refresh-dashboard" class="h-10 rounded-xl border border-line px-3 text-sm font-semibold hover:bg-panelSoft ${state.busy ? 'opacity-60' : ''}" ${state.busy ? 'disabled' : ''}>Atualizar</button>
-          <button data-action="logout-admin" class="h-10 rounded-xl border border-rose-500/40 px-3 text-sm font-semibold text-rose-200 hover:bg-rose-500/10 ${state.busy ? 'opacity-60' : ''}" ${state.busy ? 'disabled' : ''}>Sair do admin</button>
-        </div>
-      </div>
-
-      <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="rounded-xl border border-line bg-panelSoft/70 p-3"><p class="text-xs text-slate-400">Packs (ativos)</p><p class="mt-1 text-2xl font-extrabold">${fmtNum(counters.total_packs_any_status)}</p></div>
-        <div class="rounded-xl border border-line bg-panelSoft/70 p-3"><p class="text-xs text-slate-400">Stickers (globais)</p><p class="mt-1 text-2xl font-extrabold">${fmtNum(counters.total_stickers_any_status || marketplace.total_stickers)}</p></div>
-        <div class="rounded-xl border border-line bg-panelSoft/70 p-3"><p class="text-xs text-slate-400">Usuários logados</p><p class="mt-1 text-2xl font-extrabold">${fmtNum(counters.active_google_sessions)}</p></div>
-        <div class="rounded-xl border border-line bg-panelSoft/70 p-3"><p class="text-xs text-slate-400">Banimentos ativos</p><p class="mt-1 text-2xl font-extrabold text-rose-300">${fmtNum(counters.active_bans)}</p></div>
-      </div>
-
-      <div class="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-        <div class="space-y-4">
-          <section class="rounded-xl border border-line bg-panelSoft/60 p-3">
-            <div class="mb-2 flex items-center justify-between">
-              <h3 class="text-sm font-bold">Usuários logados (sessões Google ativas)</h3>
-              <span class="text-xs text-slate-400">${fmtNum(activeSessions.length)} sessões</span>
-            </div>
-            <div class="max-h-72 overflow-auto rounded-lg border border-line/60">
-              <table class="min-w-full text-xs">
-                <thead class="bg-panel/80 text-slate-400">
-                  <tr><th class="px-2 py-2 text-left">Usuário</th><th class="px-2 py-2 text-left">Último acesso</th><th class="px-2 py-2 text-left">Ações</th></tr>
-                </thead>
-                <tbody>
-                  ${activeSessions.length
-                    ? activeSessions.map((row) => `
-                      <tr class="border-t border-line/40">
-                        <td class="px-2 py-2 align-top">
-                          <div class="font-semibold">${escapeHtml(row.name || 'Conta Google')}</div>
-                          <div class="text-slate-400">${escapeHtml(row.email || '-')}</div>
-                          <div class="text-[10px] text-slate-500">${escapeHtml(row.owner_jid || '')}</div>
-                        </td>
-                        <td class="px-2 py-2 align-top text-slate-300">${escapeHtml(fmtDate(row.last_seen_at || row.created_at))}</td>
-                        <td class="px-2 py-2 align-top">
-                          <button data-action="ban-user" data-email="${escapeHtml(row.email || '')}" data-sub="${escapeHtml(row.google_sub || '')}" data-owner="${escapeHtml(row.owner_jid || '')}" class="rounded-md border border-rose-500/40 px-2 py-1 text-[11px] font-semibold text-rose-200 hover:bg-rose-500/10">Banir</button>
-                        </td>
-                      </tr>
-                    `).join('')
-                    : `<tr><td colspan="3" class="px-3 py-4 text-center text-slate-400">Nenhuma sessão ativa</td></tr>`}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="rounded-xl border border-line bg-panelSoft/60 p-3">
-            <div class="mb-2 flex items-center justify-between">
-              <h3 class="text-sm font-bold">Busca de packs / moderação</h3>
-              <a href="${escapeHtml(webPath)}" target="_blank" rel="noreferrer" class="text-xs text-accent underline">Abrir catálogo</a>
-            </div>
-            <form data-form="packs-search" class="flex flex-col gap-2 sm:flex-row">
-              <input name="q" value="${escapeHtml(state.packsQuery)}" placeholder="pack_key, nome, publisher, owner_jid"
-                class="h-10 flex-1 rounded-xl border border-line bg-panel px-3 text-sm outline-none focus:border-accent" />
-              <button type="submit" class="h-10 rounded-xl bg-accent px-4 text-sm font-extrabold text-slate-900 ${state.busy ? 'opacity-60' : ''}" ${state.busy ? 'disabled' : ''}>Buscar</button>
-            </form>
-            <div class="mt-3 max-h-80 overflow-auto rounded-lg border border-line/60">
-              <table class="min-w-full text-xs">
-                <thead class="bg-panel/80 text-slate-400">
-                  <tr><th class="px-2 py-2 text-left">Pack</th><th class="px-2 py-2 text-left">Status</th><th class="px-2 py-2 text-left">Ações</th></tr>
-                </thead>
-                <tbody>
-                  ${state.packs.length
-                    ? state.packs.map((pack) => `
-                      <tr class="border-t border-line/40 ${state.selectedPackKey === pack.pack_key ? 'bg-accent/5' : ''}">
-                        <td class="px-2 py-2 align-top">
-                          <div class="font-semibold">${escapeHtml(pack.name || pack.pack_key)}</div>
-                          <div class="text-slate-400">${escapeHtml(pack.pack_key)}</div>
-                          <div class="text-[10px] text-slate-500">${escapeHtml(pack.owner_jid || '')}</div>
-                          <div class="text-[10px] text-slate-500">${fmtNum(pack.stickers_count)} stickers • ${fmtNum(pack.like_count)} likes • ${fmtNum(pack.open_count)} opens</div>
-                        </td>
-                        <td class="px-2 py-2 align-top text-slate-300">${escapeHtml(`${pack.visibility} / ${pack.status} / ${pack.pack_status || 'ready'}`)}</td>
-                        <td class="px-2 py-2 align-top">
-                          <div class="flex flex-wrap gap-1">
-                            <button data-action="open-pack-admin" data-pack-key="${escapeHtml(pack.pack_key)}" class="rounded-md border border-line px-2 py-1 text-[11px] font-semibold hover:bg-panel">Detalhes</button>
-                            <a href="${escapeHtml(pack.web_url)}" target="_blank" rel="noreferrer" class="rounded-md border border-line px-2 py-1 text-[11px] font-semibold hover:bg-panel">Abrir</a>
-                            <button data-action="delete-pack-admin" data-pack-key="${escapeHtml(pack.pack_key)}" class="rounded-md border border-rose-500/40 px-2 py-1 text-[11px] font-semibold text-rose-200 hover:bg-rose-500/10">Apagar</button>
-                          </div>
-                        </td>
-                      </tr>
-                    `).join('')
-                    : `<tr><td colspan="3" class="px-3 py-4 text-center text-slate-400">Nenhum pack encontrado</td></tr>`}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-
-        <div class="space-y-4">
-          <section class="rounded-xl border border-line bg-panelSoft/60 p-3">
-            <h3 class="text-sm font-bold">Banir usuário</h3>
-            <p class="mt-1 text-xs text-slate-400">Pode banir por e-mail, google_sub ou owner_jid. O ban derruba sessões Google web ativas.</p>
-            <form data-form="manual-ban" class="mt-3 space-y-2">
-              <input name="email" placeholder="email@exemplo.com" class="h-10 w-full rounded-xl border border-line bg-panel px-3 text-sm outline-none focus:border-accent">
-              <input name="google_sub" placeholder="google_sub (opcional)" class="h-10 w-full rounded-xl border border-line bg-panel px-3 text-sm outline-none focus:border-accent">
-              <input name="owner_jid" placeholder="owner_jid (opcional)" class="h-10 w-full rounded-xl border border-line bg-panel px-3 text-sm outline-none focus:border-accent">
-              <input name="reason" placeholder="Motivo do banimento" class="h-10 w-full rounded-xl border border-line bg-panel px-3 text-sm outline-none focus:border-accent">
-              <button type="submit" class="h-10 w-full rounded-xl bg-rose-500 px-4 text-sm font-extrabold text-white ${state.busy ? 'opacity-60' : ''}" ${state.busy ? 'disabled' : ''}>Banir</button>
-            </form>
-          </section>
-
-          <section class="rounded-xl border border-line bg-panelSoft/60 p-3">
-            <div class="mb-2 flex items-center justify-between">
-              <h3 class="text-sm font-bold">Banimentos</h3>
-              <span class="text-xs text-slate-400">${fmtNum(bans.length)} ativos</span>
-            </div>
-            <div class="max-h-72 overflow-auto rounded-lg border border-line/60">
-              ${bans.length
-                ? bans.map((ban) => `
-                  <div class="border-t border-line/40 px-3 py-2 first:border-t-0">
-                    <div class="flex items-start justify-between gap-2">
-                      <div class="min-w-0">
-                        <p class="truncate text-xs font-semibold text-rose-200">${escapeHtml(ban.email || ban.owner_jid || ban.google_sub || ban.id)}</p>
-                        <p class="truncate text-[11px] text-slate-400">${escapeHtml(ban.reason || 'Sem motivo')}</p>
-                        <p class="truncate text-[10px] text-slate-500">${escapeHtml(ban.google_sub || '')} ${ban.owner_jid ? '• ' + escapeHtml(ban.owner_jid) : ''}</p>
-                        <p class="text-[10px] text-slate-500">${escapeHtml(fmtDate(ban.created_at))}</p>
-                      </div>
-                      <button data-action="revoke-ban" data-ban-id="${escapeHtml(ban.id)}" class="shrink-0 rounded-md border border-line px-2 py-1 text-[11px] font-semibold hover:bg-panel">Revogar</button>
-                    </div>
-                  </div>
-                `).join('')
-                : `<div class="px-3 py-4 text-center text-xs text-slate-400">Sem banimentos ativos.</div>`}
-            </div>
-          </section>
-
-          <section class="rounded-xl border border-line bg-panelSoft/60 p-3">
-            <h3 class="text-sm font-bold">Stickers (ações globais)</h3>
-            <form data-form="delete-sticker-global" class="mt-3 flex gap-2">
-              <input name="sticker_id" placeholder="sticker_id (UUID)" class="h-10 flex-1 rounded-xl border border-line bg-panel px-3 text-sm outline-none focus:border-accent">
-              <button type="submit" class="h-10 rounded-xl border border-rose-500/40 px-3 text-sm font-semibold text-rose-200 hover:bg-rose-500/10 ${state.busy ? 'opacity-60' : ''}" ${state.busy ? 'disabled' : ''}>Apagar</button>
-            </form>
-            <p class="mt-2 text-[11px] text-slate-400">Remove o sticker de todos os packs e apaga o asset se ficar órfão.</p>
-          </section>
-        </div>
-      </div>
-
-      <div class="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
-        <section class="rounded-xl border border-line bg-panelSoft/60 p-3">
-          <h3 class="text-sm font-bold">Pack selecionado</h3>
-          ${packData?.pack
-            ? `
-              <div class="mt-3 rounded-xl border border-line/70 bg-panel/60 p-3">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p class="text-sm font-extrabold">${escapeHtml(packData.pack.name || packData.pack.pack_key)}</p>
-                    <p class="text-xs text-slate-400">${escapeHtml(packData.pack.pack_key)} • ${escapeHtml(packData.pack.owner_jid || '')}</p>
-                    <p class="text-[11px] text-slate-500">${escapeHtml(packData.pack.visibility || '')} / ${escapeHtml(packData.pack.status || '')} / ${escapeHtml(packData.pack.pack_status || 'ready')}</p>
-                  </div>
-                  <div class="flex flex-wrap gap-2">
-                    <a href="${escapeHtml(packData.pack.web_url || `${webPath}/${packData.pack.pack_key}`)}" target="_blank" rel="noreferrer" class="inline-flex h-9 items-center rounded-lg border border-line px-3 text-xs font-semibold hover:bg-panel">Abrir</a>
-                    <button data-action="delete-pack-admin" data-pack-key="${escapeHtml(packData.pack.pack_key)}" class="h-9 rounded-lg border border-rose-500/40 px-3 text-xs font-semibold text-rose-200 hover:bg-rose-500/10">Apagar pack</button>
-                    <button data-action="ban-user" data-email="${escapeHtml(packData.pack.owner_email || '')}" data-owner="${escapeHtml(packData.pack.owner_jid || '')}" class="h-9 rounded-lg border border-rose-500/40 px-3 text-xs font-semibold text-rose-200 hover:bg-rose-500/10">Banir dono</button>
-                  </div>
-                </div>
-              </div>
-              <div class="mt-3 max-h-[26rem] overflow-auto rounded-lg border border-line/60">
-                <table class="min-w-full text-xs">
-                  <thead class="bg-panel/80 text-slate-400">
-                    <tr><th class="px-2 py-2 text-left">Sticker</th><th class="px-2 py-2 text-left">Tags</th><th class="px-2 py-2 text-left">Ações</th></tr>
-                  </thead>
-                  <tbody>
-                    ${selectedPackItems.length
-                      ? selectedPackItems.map((item) => `
-                        <tr class="border-t border-line/40">
-                          <td class="px-2 py-2 align-top">
-                            <div class="flex items-start gap-2">
-                              <img src="${escapeHtml(item.asset_url || '')}" alt="" class="h-12 w-12 rounded-lg border border-line bg-panel object-cover">
-                              <div class="min-w-0">
-                                <p class="truncate font-semibold">${escapeHtml(item.sticker_id || '')}</p>
-                                <p class="truncate text-[10px] text-slate-500">pos ${escapeHtml(item.position)}</p>
-                                <p class="truncate text-[10px] text-slate-500">${escapeHtml(item.asset?.mimetype || '')}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td class="px-2 py-2 align-top text-slate-300">${Array.isArray(item.tags) && item.tags.length ? item.tags.map((tag) => `<span class="mr-1 inline-block rounded-full border border-line px-2 py-0.5 text-[10px]">${escapeHtml(tag)}</span>`).join('') : '<span class="text-slate-500">-</span>'}</td>
-                          <td class="px-2 py-2 align-top">
-                            <div class="flex flex-wrap gap-1">
-                              <button data-action="remove-pack-sticker" data-pack-key="${escapeHtml(packData.pack.pack_key)}" data-sticker-id="${escapeHtml(item.sticker_id || '')}" class="rounded-md border border-line px-2 py-1 text-[11px] font-semibold hover:bg-panel">Remover do pack</button>
-                              <button data-action="delete-sticker-global-btn" data-sticker-id="${escapeHtml(item.sticker_id || '')}" class="rounded-md border border-rose-500/40 px-2 py-1 text-[11px] font-semibold text-rose-200 hover:bg-rose-500/10">Apagar global</button>
-                            </div>
-                          </td>
-                        </tr>
-                      `).join('')
-                      : `<tr><td colspan="3" class="px-3 py-4 text-center text-slate-400">Pack sem stickers.</td></tr>`}
-                  </tbody>
-                </table>
-              </div>
-            `
-            : `<p class="mt-2 text-xs text-slate-400">Selecione um pack na lista para moderar stickers e apagar o pack.</p>`}
-        </section>
-
-        <section class="rounded-xl border border-line bg-panelSoft/60 p-3">
-          <h3 class="text-sm font-bold">Usuários conhecidos (Google web)</h3>
-          <div class="mt-2 max-h-[32rem] overflow-auto rounded-lg border border-line/60">
-            <table class="min-w-full text-xs">
-              <thead class="bg-panel/80 text-slate-400">
-                <tr><th class="px-2 py-2 text-left">Usuário</th><th class="px-2 py-2 text-left">Último login</th><th class="px-2 py-2 text-left">Ações</th></tr>
-              </thead>
-              <tbody>
-                ${users.length
-                  ? users.map((user) => `
-                    <tr class="border-t border-line/40">
-                      <td class="px-2 py-2 align-top">
-                        <div class="font-semibold">${escapeHtml(user.name || 'Conta Google')}</div>
-                        <div class="text-slate-400">${escapeHtml(user.email || '-')}</div>
-                        <div class="text-[10px] text-slate-500">${escapeHtml(user.owner_jid || '')}</div>
-                        <div class="text-[10px] text-slate-500">${escapeHtml(user.google_sub || '')}</div>
-                      </td>
-                      <td class="px-2 py-2 align-top text-slate-300">${escapeHtml(fmtDate(user.last_login_at || user.last_seen_at || user.updated_at))}</td>
-                      <td class="px-2 py-2 align-top">
-                        <button data-action="ban-user" data-email="${escapeHtml(user.email || '')}" data-sub="${escapeHtml(user.google_sub || '')}" data-owner="${escapeHtml(user.owner_jid || '')}" class="rounded-md border border-rose-500/40 px-2 py-1 text-[11px] font-semibold text-rose-200 hover:bg-rose-500/10">Banir</button>
-                      </td>
-                    </tr>
-                  `).join('')
-                  : `<tr><td colspan="3" class="px-3 py-4 text-center text-slate-400">Sem usuários cadastrados.</td></tr>`}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-
-      <div class="mt-4 rounded-xl border border-line bg-panelSoft/60 p-3 text-xs text-slate-400">
-        <p>Stats globais: packs ${fmtNum(marketplace.total_packs)} • stickers ${fmtNum(marketplace.total_stickers)} • cliques ${fmtNum(marketplace.total_clicks)} • likes ${fmtNum(marketplace.total_likes)}</p>
-      </div>
-    </section>
-  `;
+async function revokeModeratorAdmin(googleSub) {
+  const normalized = String(googleSub || '').trim();
+  if (!normalized) return;
+  if (!window.confirm('Remover acesso deste moderador?')) return;
+  await runTask(async () => {
+    await fetchJson(`${adminApiBase}/moderators/${encodeURIComponent(normalized)}`, {
+      method: 'DELETE',
+    });
+    await Promise.all([loadModerators(), loadOverview()]);
+  }, { successMessage: 'Moderador removido.' });
 }
 
-function renderLayout() {
-  const loading = state.loading;
-  const body = loading
-    ? `<div class="rounded-2xl border border-line bg-panel p-8 text-center text-sm text-slate-300">Carregando painel admin...</div>`
-    : isAdminAuthenticated()
-      ? renderOverviewSection()
-      : renderUnlockSection();
+async function ensureGoogleLoginButtonRendered() {
+  if (state.loading || isAdminAuthenticated()) return;
+  const googleSession = state.adminStatus?.google || {};
+  if (googleSession?.authenticated) return;
+  const clientId = String(state.googleAuthConfig?.clientId || '').trim();
+  if (!clientId || !state.googleAuthConfig?.enabled) return;
 
-  root.innerHTML = `
-    <div class="mx-auto w-full max-w-7xl px-4 py-4 md:px-6 md:py-6">
-      ${state.error ? `<div class="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">${escapeHtml(state.error)}</div>` : ''}
-      ${state.notice ? `<div class="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">${escapeHtml(state.notice)}</div>` : ''}
-      ${body}
-    </div>
-  `;
-}
+  const mount = root.querySelector('[data-google-admin-login-button]');
+  if (!(mount instanceof HTMLElement)) return;
 
-function render() {
-  renderLayout();
+  const renderNonce = ++googleLoginRenderNonce;
+  state.googleLoginUiReady = false;
+
+  try {
+    await loadScript(GOOGLE_GSI_SCRIPT_SRC);
+    if (renderNonce !== googleLoginRenderNonce) return;
+
+    const accounts = window.google?.accounts?.id;
+    if (!accounts) throw new Error('SDK do Google indisponivel no navegador.');
+
+    accounts.initialize({
+      client_id: clientId,
+      callback: async (response) => {
+        const credential = String(response?.credential || '').trim();
+        const claims = decodeJwtPayload(credential);
+        if (!credential || !claims?.sub) {
+          setError('Falha ao concluir login Google.');
+          render();
+          return;
+        }
+        await loginGoogleForAdmin(credential);
+        render();
+      },
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+
+    mount.innerHTML = '';
+    const measuredWidth = Math.floor(Number(mount.clientWidth || 0));
+    const buttonWidth = Math.max(220, Math.min(360, measuredWidth || 320));
+    accounts.renderButton(mount, {
+      type: 'standard',
+      theme: 'filled_black',
+      size: 'large',
+      text: 'signin_with',
+      shape: 'pill',
+      logo_alignment: 'left',
+      width: buttonWidth,
+    });
+    state.googleLoginUiReady = true;
+  } catch (error) {
+    if (renderNonce !== googleLoginRenderNonce) return;
+    state.googleLoginUiReady = false;
+    setError(error?.message || 'Falha ao carregar login Google no painel admin.');
+  }
 }
 
 root.addEventListener('submit', async (event) => {
@@ -596,9 +1543,47 @@ root.addEventListener('submit', async (event) => {
     return;
   }
 
+  if (formType === 'users-search') {
+    state.usersQuery = String(new FormData(form).get('q') || '').trim();
+    state.pagination.sessions = 1;
+    state.pagination.users = 1;
+    render();
+    return;
+  }
+
   if (formType === 'packs-search') {
     const q = String(new FormData(form).get('q') || '').trim();
     await searchPacks(q);
+    return;
+  }
+
+  if (formType === 'logs-search') {
+    state.logsQuery = String(new FormData(form).get('q') || '').trim();
+    state.pagination.bans = 1;
+    render();
+    return;
+  }
+
+  if (formType === 'moderator-upsert') {
+    const fd = new FormData(form);
+    const target = String(fd.get('target') || '').trim();
+    const password = String(fd.get('password') || '').trim();
+    if (!target) {
+      setError('Informe email, google_sub ou owner_jid do moderador.');
+      render();
+      return;
+    }
+    if (password.length < 8) {
+      setError('A senha do moderador deve ter no minimo 8 caracteres.');
+      render();
+      return;
+    }
+    const payload = { password };
+    if (target.includes('@') && !target.endsWith('@s.whatsapp.net')) payload.email = target;
+    else if (target.endsWith('@s.whatsapp.net')) payload.owner_jid = target;
+    else payload.google_sub = target;
+    await upsertModeratorAdmin(payload);
+    form.reset();
     return;
   }
 
@@ -617,7 +1602,6 @@ root.addEventListener('submit', async (event) => {
     }
     await createBanAdmin(payload);
     form.reset();
-    render();
     return;
   }
 
@@ -629,52 +1613,131 @@ root.addEventListener('submit', async (event) => {
       return;
     }
     await forceDeleteStickerAdmin(stickerId);
-    return;
   }
 });
 
 root.addEventListener('click', async (event) => {
-  const target = event.target instanceof HTMLElement ? event.target.closest('[data-action]') : null;
-  if (!(target instanceof HTMLElement)) return;
-  const action = target.dataset.action;
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  if (!target) return;
+
+  const actionEl = target.closest('[data-action]');
+  const clickedInsideMenu = Boolean(target.closest('[data-row-menu]'));
+
+  if (!clickedInsideMenu && (!actionEl || actionEl.dataset.action !== 'toggle-row-menu') && state.rowMenu) {
+    state.rowMenu = null;
+    render();
+    return;
+  }
+
+  if (!(actionEl instanceof HTMLElement)) return;
+
+  const action = actionEl.dataset.action;
   if (!action) return;
+
+  if (action === 'toggle-sidebar') {
+    state.sidebarOpen = !state.sidebarOpen;
+    render();
+    return;
+  }
+
+  if (action === 'close-sidebar') {
+    state.sidebarOpen = false;
+    render();
+    return;
+  }
+
+  if (action === 'switch-tab') {
+    const tabId = String(actionEl.dataset.tabId || '').trim();
+    if (TAB_ITEMS.some((tab) => tab.id === tabId)) {
+      state.activeTab = tabId;
+      state.sidebarOpen = false;
+      state.rowMenu = null;
+      render();
+    }
+    return;
+  }
+
+  if (action === 'refresh-dashboard') {
+    await refreshDashboard();
+    return;
+  }
+
+  if (action === 'refresh-admin-status') {
+    await refreshAdminStatusOnly();
+    return;
+  }
 
   if (action === 'logout-admin') {
     await logoutAdmin();
     return;
   }
-  if (action === 'refresh-dashboard') {
-    await refreshDashboard();
+
+  if (action === 'toggle-row-menu') {
+    const kind = String(actionEl.dataset.rowKind || '').trim();
+    const id = String(actionEl.dataset.rowId || '').trim();
+    if (!kind || !id) return;
+    if (isRowMenuOpen(kind, id)) {
+      state.rowMenu = null;
+    } else {
+      state.rowMenu = { kind, id };
+    }
+    render();
     return;
   }
+
+  if (action === 'page-nav') {
+    const targetKey = String(actionEl.dataset.pageTarget || '').trim();
+    const nextPage = Number(actionEl.dataset.page || 1);
+    if (!targetKey || !Number.isFinite(nextPage)) return;
+    state.pagination[targetKey] = Math.max(1, Math.floor(nextPage));
+    render();
+    return;
+  }
+
   if (action === 'open-pack-admin') {
-    await openPackDetailsAdmin(target.dataset.packKey || '');
+    state.rowMenu = null;
+    await openPackDetailsAdmin(actionEl.dataset.packKey || '');
     return;
   }
+
   if (action === 'delete-pack-admin') {
-    await deletePackAdmin(target.dataset.packKey || '');
+    state.rowMenu = null;
+    await deletePackAdmin(actionEl.dataset.packKey || '');
     return;
   }
+
   if (action === 'remove-pack-sticker') {
-    await removeStickerFromPackAdmin(target.dataset.packKey || '', target.dataset.stickerId || '');
+    state.rowMenu = null;
+    await removeStickerFromPackAdmin(actionEl.dataset.packKey || '', actionEl.dataset.stickerId || '');
     return;
   }
+
   if (action === 'delete-sticker-global-btn') {
-    await forceDeleteStickerAdmin(target.dataset.stickerId || '');
+    state.rowMenu = null;
+    await forceDeleteStickerAdmin(actionEl.dataset.stickerId || '');
     return;
   }
+
   if (action === 'ban-user') {
-    const reason = window.prompt('Motivo do banimento (opcional):', 'Violação de regras do marketplace') || '';
+    state.rowMenu = null;
+    const reason = window.prompt('Motivo do banimento (opcional):', 'Violacao das regras do marketplace') || '';
     await createBanAdmin({
-      email: target.dataset.email || '',
-      google_sub: target.dataset.sub || '',
-      owner_jid: target.dataset.owner || '',
+      email: actionEl.dataset.email || '',
+      google_sub: actionEl.dataset.sub || '',
+      owner_jid: actionEl.dataset.owner || '',
       reason,
     });
     return;
   }
+
   if (action === 'revoke-ban') {
-    await revokeBanAdmin(target.dataset.banId || '');
+    state.rowMenu = null;
+    await revokeBanAdmin(actionEl.dataset.banId || '');
+    return;
+  }
+
+  if (action === 'revoke-moderator') {
+    await revokeModeratorAdmin(actionEl.dataset.googleSub || '');
   }
 });
 

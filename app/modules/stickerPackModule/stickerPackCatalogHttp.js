@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import axios from 'axios';
 
 import { executeQuery, pool, TABLES } from '../../../database/index.js';
@@ -152,6 +152,10 @@ const ADMIN_PANEL_ENABLED = Boolean(ADMIN_PANEL_EMAIL && ADMIN_PANEL_PASSWORD);
 const ADMIN_PANEL_SESSION_TTL_MS = Math.max(
   10 * 60 * 1000,
   Number(process.env.ADM_PANEL_SESSION_TTL_MS) || 12 * 60 * 60 * 1000,
+);
+const ADMIN_MODERATOR_PASSWORD_MIN_LENGTH = Math.max(
+  6,
+  Number(process.env.ADM_MODERATOR_PASSWORD_MIN_LENGTH) || 8,
 );
 const STICKER_WEB_GOOGLE_AUTH_REQUIRED = parseEnvBool(
   process.env.STICKER_WEB_GOOGLE_AUTH_REQUIRED,
@@ -333,6 +337,40 @@ const constantTimeStringEqual = (a, b) => {
   if (left.length !== right.length) return false;
   try {
     return timingSafeEqual(left, right);
+  } catch {
+    return false;
+  }
+};
+const normalizeAdminPanelRole = (value, fallback = 'owner') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'moderator') return 'moderator';
+  if (normalized === 'owner') return 'owner';
+  return fallback;
+};
+const hashAdminModeratorPassword = (password) => {
+  const normalized = String(password || '');
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(normalized, salt, 64).toString('hex');
+  return `scrypt$${salt}$${hash}`;
+};
+const verifyAdminModeratorPassword = (password, encodedHash) => {
+  const raw = String(encodedHash || '').trim();
+  if (!raw) return false;
+  const parts = raw.split('$');
+  if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
+  const salt = String(parts[1] || '').trim();
+  const expectedHex = String(parts[2] || '').trim();
+  if (!salt || !expectedHex) return false;
+  let expectedBuffer;
+  try {
+    expectedBuffer = Buffer.from(expectedHex, 'hex');
+  } catch {
+    return false;
+  }
+  if (!expectedBuffer.length) return false;
+  const derived = scryptSync(String(password || ''), salt, expectedBuffer.length);
+  try {
+    return timingSafeEqual(expectedBuffer, derived);
   } catch {
     return false;
   }
@@ -1097,6 +1135,263 @@ const assertGoogleIdentityNotBanned = async ({ sub = '', email = '', ownerJid = 
   throw error;
 };
 
+const mapAdminModeratorRow = (row) => {
+  if (!row || typeof row !== 'object') return null;
+  return {
+    google_sub: normalizeGoogleSubject(row.google_sub),
+    email: normalizeEmail(row.email),
+    owner_jid: normalizeJid(row.owner_jid) || null,
+    name: sanitizeText(row.name || '', 120, { allowEmpty: true }) || null,
+    created_by_google_sub: normalizeGoogleSubject(row.created_by_google_sub),
+    created_by_email: normalizeEmail(row.created_by_email),
+    updated_by_google_sub: normalizeGoogleSubject(row.updated_by_google_sub),
+    updated_by_email: normalizeEmail(row.updated_by_email),
+    last_login_at: toIsoOrNull(row.last_login_at),
+    created_at: toIsoOrNull(row.created_at),
+    updated_at: toIsoOrNull(row.updated_at),
+    revoked_at: toIsoOrNull(row.revoked_at),
+    active: !row.revoked_at,
+  };
+};
+
+const listAdminModerators = async ({ activeOnly = false, limit = 200 } = {}) => {
+  const safeLimit = Math.max(1, Math.min(500, Number(limit || 200)));
+  const rows = await executeQuery(
+    `SELECT google_sub, email, owner_jid, name, created_by_google_sub, created_by_email, updated_by_google_sub, updated_by_email,
+            last_login_at, created_at, updated_at, revoked_at
+       FROM ${TABLES.STICKER_WEB_ADMIN_MODERATOR}
+      ${activeOnly ? 'WHERE revoked_at IS NULL' : ''}
+      ORDER BY updated_at DESC
+      LIMIT ${safeLimit}`,
+  );
+  return (Array.isArray(rows) ? rows : []).map(mapAdminModeratorRow).filter(Boolean);
+};
+
+const findAdminModeratorByGoogleSub = async (googleSub, { activeOnly = false } = {}) => {
+  const normalizedSub = normalizeGoogleSubject(googleSub);
+  if (!normalizedSub) return null;
+  const rows = await executeQuery(
+    `SELECT *
+       FROM ${TABLES.STICKER_WEB_ADMIN_MODERATOR}
+      WHERE google_sub = ?
+      ${activeOnly ? 'AND revoked_at IS NULL' : ''}
+      LIMIT 1`,
+    [normalizedSub],
+  );
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+};
+
+const resolveKnownGoogleUserForModerator = async ({ googleSub = '', email = '', ownerJid = '' } = {}) => {
+  const normalizedSub = normalizeGoogleSubject(googleSub);
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedOwnerJid = normalizeJid(ownerJid) || '';
+  const clauses = [];
+  const params = [];
+
+  if (normalizedSub) {
+    clauses.push('google_sub = ?');
+    params.push(normalizedSub);
+  }
+  if (normalizedEmail) {
+    clauses.push('email = ?');
+    params.push(normalizedEmail);
+  }
+  if (normalizedOwnerJid) {
+    clauses.push('owner_jid = ?');
+    params.push(normalizedOwnerJid);
+  }
+  if (!clauses.length) return null;
+
+  const rows = await executeQuery(
+    `SELECT google_sub, email, owner_jid, name
+       FROM ${TABLES.STICKER_WEB_GOOGLE_USER}
+      WHERE ${clauses.join(' OR ')}
+      ORDER BY COALESCE(last_seen_at, last_login_at, updated_at, created_at) DESC
+      LIMIT 1`,
+    params,
+  );
+  const row = Array.isArray(rows) ? rows[0] : null;
+  if (!row) return null;
+  const resolvedGoogleSub = normalizeGoogleSubject(row.google_sub);
+  const resolvedEmail = normalizeEmail(row.email);
+  const resolvedOwnerJid = normalizeJid(row.owner_jid) || '';
+  if (!resolvedGoogleSub || !resolvedEmail || !resolvedOwnerJid) return null;
+  return {
+    google_sub: resolvedGoogleSub,
+    email: resolvedEmail,
+    owner_jid: resolvedOwnerJid,
+    name: sanitizeText(row.name || '', 120, { allowEmpty: true }) || null,
+  };
+};
+
+const findActiveAdminModeratorForIdentity = async ({ googleSub = '', email = '', ownerJid = '' } = {}) => {
+  const normalizedSub = normalizeGoogleSubject(googleSub);
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedOwnerJid = normalizeJid(ownerJid) || '';
+  const clauses = [];
+  const params = [];
+  if (normalizedSub) {
+    clauses.push('google_sub = ?');
+    params.push(normalizedSub);
+  }
+  if (normalizedEmail) {
+    clauses.push('email = ?');
+    params.push(normalizedEmail);
+  }
+  if (normalizedOwnerJid) {
+    clauses.push('owner_jid = ?');
+    params.push(normalizedOwnerJid);
+  }
+  if (!clauses.length) return null;
+
+  const rows = await executeQuery(
+    `SELECT *
+       FROM ${TABLES.STICKER_WEB_ADMIN_MODERATOR}
+      WHERE revoked_at IS NULL
+        AND (${clauses.join(' OR ')})
+      ORDER BY updated_at DESC
+      LIMIT 1`,
+    params,
+  );
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+};
+
+const pruneModeratorAdminPanelSessions = ({ googleSub = '', email = '', ownerJid = '' } = {}) => {
+  const normalizedSub = normalizeGoogleSubject(googleSub);
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedOwnerJid = normalizeJid(ownerJid) || '';
+  if (!normalizedSub && !normalizedEmail && !normalizedOwnerJid) return;
+
+  for (const [token, session] of adminPanelSessionMap.entries()) {
+    if (!session || normalizeAdminPanelRole(session.role, 'owner') !== 'moderator') continue;
+    const sessionSub = normalizeGoogleSubject(session.googleSub);
+    const sessionEmail = normalizeEmail(session.email);
+    const sessionOwner = normalizeJid(session.ownerJid) || '';
+    if (
+      (normalizedSub && sessionSub === normalizedSub) ||
+      (normalizedEmail && sessionEmail === normalizedEmail) ||
+      (normalizedOwnerJid && sessionOwner === normalizedOwnerJid)
+    ) {
+      adminPanelSessionMap.delete(token);
+    }
+  }
+};
+
+const upsertAdminModeratorRecord = async ({ googleSub = '', email = '', ownerJid = '', password = '', adminSession = null }) => {
+  const cleanPassword = String(password || '').trim();
+  if (cleanPassword.length < ADMIN_MODERATOR_PASSWORD_MIN_LENGTH) {
+    const error = new Error(`Senha do moderador deve ter no minimo ${ADMIN_MODERATOR_PASSWORD_MIN_LENGTH} caracteres.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const knownUser = await resolveKnownGoogleUserForModerator({ googleSub, email, ownerJid });
+  if (!knownUser?.google_sub) {
+    const error = new Error('Somente usuarios Google logados no site podem virar moderadores.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const existing = await findAdminModeratorByGoogleSub(knownUser.google_sub);
+  const passwordHash = hashAdminModeratorPassword(cleanPassword);
+  await executeQuery(
+    `INSERT INTO ${TABLES.STICKER_WEB_ADMIN_MODERATOR}
+      (google_sub, email, owner_jid, name, password_hash, created_by_google_sub, created_by_email, updated_by_google_sub, updated_by_email, revoked_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+     ON DUPLICATE KEY UPDATE
+      email = VALUES(email),
+      owner_jid = VALUES(owner_jid),
+      name = VALUES(name),
+      password_hash = VALUES(password_hash),
+      updated_by_google_sub = VALUES(updated_by_google_sub),
+      updated_by_email = VALUES(updated_by_email),
+      revoked_at = NULL`,
+    [
+      knownUser.google_sub,
+      knownUser.email,
+      knownUser.owner_jid,
+      knownUser.name || null,
+      passwordHash,
+      normalizeGoogleSubject(adminSession?.googleSub) || null,
+      normalizeEmail(adminSession?.email) || null,
+      normalizeGoogleSubject(adminSession?.googleSub) || null,
+      normalizeEmail(adminSession?.email) || null,
+    ],
+  );
+
+  pruneModeratorAdminPanelSessions({
+    googleSub: knownUser.google_sub,
+    email: knownUser.email,
+    ownerJid: knownUser.owner_jid,
+  });
+
+  const fresh = await findAdminModeratorByGoogleSub(knownUser.google_sub);
+  return {
+    created: !existing,
+    moderator: mapAdminModeratorRow(fresh),
+  };
+};
+
+const revokeAdminModeratorRecord = async (googleSub, adminSession = null) => {
+  const normalizedSub = normalizeGoogleSubject(googleSub);
+  if (!normalizedSub) {
+    const error = new Error('google_sub invalido.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_WEB_ADMIN_MODERATOR}
+        SET revoked_at = COALESCE(revoked_at, UTC_TIMESTAMP()),
+            updated_by_google_sub = ?,
+            updated_by_email = ?
+      WHERE google_sub = ?`,
+    [
+      normalizeGoogleSubject(adminSession?.googleSub) || null,
+      normalizeEmail(adminSession?.email) || null,
+      normalizedSub,
+    ],
+  );
+
+  const fresh = await findAdminModeratorByGoogleSub(normalizedSub);
+  if (!fresh) {
+    const error = new Error('Moderador nao encontrado.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  pruneModeratorAdminPanelSessions({
+    googleSub: normalizedSub,
+    email: normalizeEmail(fresh.email),
+    ownerJid: normalizeJid(fresh.owner_jid) || '',
+  });
+
+  return mapAdminModeratorRow(fresh);
+};
+
+const touchAdminModeratorLastLogin = async (moderatorRow, googleSession) => {
+  const normalizedSub = normalizeGoogleSubject(moderatorRow?.google_sub || googleSession?.sub);
+  if (!normalizedSub) return;
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_WEB_ADMIN_MODERATOR}
+        SET email = ?,
+            owner_jid = ?,
+            name = ?,
+            last_login_at = UTC_TIMESTAMP(),
+            updated_by_google_sub = ?,
+            updated_by_email = ?
+      WHERE google_sub = ?`,
+    [
+      normalizeEmail(googleSession?.email || moderatorRow?.email) || null,
+      normalizeJid(googleSession?.ownerJid || moderatorRow?.owner_jid) || null,
+      sanitizeText(googleSession?.name || moderatorRow?.name || '', 120, { allowEmpty: true }) || null,
+      normalizeGoogleSubject(googleSession?.sub || moderatorRow?.google_sub) || null,
+      normalizeEmail(googleSession?.email || moderatorRow?.email) || null,
+      normalizedSub,
+    ],
+  ).catch(() => {});
+};
+
 const pruneExpiredAdminPanelSessions = () => {
   const now = Date.now();
   if (now - adminPanelSessionPruneAt < 30_000) return;
@@ -1122,12 +1417,14 @@ const clearAdminPanelSessionCookie = (req, res) => {
   );
 };
 
-const createAdminPanelSession = (googleSession) => {
+const createAdminPanelSession = (googleSession, { role = 'owner' } = {}) => {
   pruneExpiredAdminPanelSessions();
   const now = Date.now();
+  const normalizedRole = normalizeAdminPanelRole(role, 'owner');
   const token = randomUUID();
   const session = {
     token,
+    role: normalizedRole,
     googleSub: normalizeGoogleSubject(googleSession?.sub),
     ownerJid: normalizeJid(googleSession?.ownerJid) || '',
     email: normalizeEmail(googleSession?.email),
@@ -1158,6 +1455,10 @@ const mapAdminPanelSessionResponseData = (session) =>
   session
     ? {
         authenticated: true,
+        role: normalizeAdminPanelRole(session.role, 'owner'),
+        capabilities: {
+          can_manage_moderators: normalizeAdminPanelRole(session.role, 'owner') === 'owner',
+        },
         user: {
           google_sub: session.googleSub,
           owner_jid: session.ownerJid,
@@ -1169,15 +1470,35 @@ const mapAdminPanelSessionResponseData = (session) =>
       }
     : {
         authenticated: false,
+        role: null,
+        capabilities: {
+          can_manage_moderators: false,
+        },
         user: null,
         expires_at: null,
       };
 
-const isAdminGoogleSessionAllowed = (googleSession) => {
+const isOwnerGoogleSessionAllowed = (googleSession) => {
   if (!ADMIN_PANEL_ENABLED) return false;
   if (!googleSession?.sub || !googleSession?.ownerJid) return false;
   const email = normalizeEmail(googleSession.email);
   return Boolean(email && email === ADMIN_PANEL_EMAIL);
+};
+
+const resolveAdminPanelLoginEligibility = async (googleSession) => {
+  if (!ADMIN_PANEL_ENABLED || !googleSession?.sub || !googleSession?.ownerJid) {
+    return { eligible: false, role: '', moderator: null };
+  }
+  if (isOwnerGoogleSessionAllowed(googleSession)) {
+    return { eligible: true, role: 'owner', moderator: null };
+  }
+  const moderator = await findActiveAdminModeratorForIdentity({
+    googleSub: googleSession.sub,
+    email: googleSession.email,
+    ownerJid: googleSession.ownerJid,
+  });
+  if (!moderator) return { eligible: false, role: '', moderator: null };
+  return { eligible: true, role: 'moderator', moderator };
 };
 
 const requireAdminPanelSession = (req, res) => {
@@ -1188,6 +1509,16 @@ const requireAdminPanelSession = (req, res) => {
   const session = resolveAdminPanelSessionFromRequest(req);
   if (!session) {
     sendJson(req, res, 401, { error: 'Sessao admin invalida ou expirada.' });
+    return null;
+  }
+  return session;
+};
+
+const requireOwnerAdminPanelSession = (req, res) => {
+  const session = requireAdminPanelSession(req, res);
+  if (!session) return null;
+  if (normalizeAdminPanelRole(session.role, 'owner') !== 'owner') {
+    sendJson(req, res, 403, { error: 'Somente o dono pode gerenciar moderadores.' });
     return null;
   }
   return session;
@@ -5517,12 +5848,14 @@ const handleAdminPanelSessionRequest = async (req, res) => {
   if (req.method === 'GET' || req.method === 'HEAD') {
     const googleSession = await resolveGoogleWebSessionFromRequest(req);
     const adminSession = resolveAdminPanelSessionFromRequest(req);
+    const eligibility = await resolveAdminPanelLoginEligibility(googleSession);
     sendJson(req, res, 200, {
       data: {
         enabled: true,
         admin_email: ADMIN_PANEL_EMAIL || null,
         google: mapGoogleSessionResponseData(googleSession),
-        eligible_google_login: isAdminGoogleSessionAllowed(googleSession),
+        eligible_google_login: Boolean(eligibility.eligible),
+        eligible_role: eligibility.role || null,
         session: mapAdminPanelSessionResponseData(adminSession),
       },
     });
@@ -5551,17 +5884,33 @@ const handleAdminPanelSessionRequest = async (req, res) => {
   }
 
   const googleSession = await resolveGoogleWebSessionFromRequest(req);
-  if (!isAdminGoogleSessionAllowed(googleSession)) {
+  const eligibility = await resolveAdminPanelLoginEligibility(googleSession);
+  if (!eligibility.eligible) {
     sendJson(req, res, 403, { error: 'Conta Google sem permissao para o painel admin.' });
     return;
   }
   const password = String(payload?.password || '').trim();
-  if (!password || !constantTimeStringEqual(password, ADMIN_PANEL_PASSWORD)) {
-    sendJson(req, res, 401, { error: 'Senha do painel admin invalida.' });
+  let sessionRole = 'owner';
+  if (eligibility.role === 'owner') {
+    if (!password || !constantTimeStringEqual(password, ADMIN_PANEL_PASSWORD)) {
+      sendJson(req, res, 401, { error: 'Senha do painel admin invalida.' });
+      return;
+    }
+    sessionRole = 'owner';
+  } else if (eligibility.role === 'moderator') {
+    const moderatorHash = String(eligibility?.moderator?.password_hash || '').trim();
+    if (!password || !verifyAdminModeratorPassword(password, moderatorHash)) {
+      sendJson(req, res, 401, { error: 'Senha do moderador invalida.' });
+      return;
+    }
+    sessionRole = 'moderator';
+    await touchAdminModeratorLastLogin(eligibility.moderator, googleSession).catch(() => {});
+  } else {
+    sendJson(req, res, 403, { error: 'Conta Google sem permissao para o painel admin.' });
     return;
   }
 
-  const session = createAdminPanelSession(googleSession);
+  const session = createAdminPanelSession(googleSession, { role: sessionRole });
   appendSetCookie(
     res,
     buildCookieString(ADMIN_PANEL_SESSION_COOKIE_NAME, session.token, req, {
@@ -5574,6 +5923,7 @@ const handleAdminPanelSessionRequest = async (req, res) => {
       admin_email: ADMIN_PANEL_EMAIL,
       google: mapGoogleSessionResponseData(googleSession),
       eligible_google_login: true,
+      eligible_role: sessionRole,
       session: mapAdminPanelSessionResponseData(session),
     },
   });
@@ -5637,6 +5987,63 @@ const handleAdminUsersRequest = async (req, res, url) => {
     listAdminKnownGoogleUsers({ limit }),
   ]);
   sendJson(req, res, 200, { data: { active_sessions: activeSessions, users } });
+};
+
+const handleAdminModeratorsRequest = async (req, res) => {
+  const adminSession = requireOwnerAdminPanelSession(req, res);
+  if (!adminSession) return;
+
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    const moderators = await listAdminModerators({ activeOnly: false, limit: 500 });
+    sendJson(req, res, 200, { data: { moderators } });
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  try {
+    const result = await upsertAdminModeratorRecord({
+      googleSub: payload?.google_sub,
+      email: payload?.email,
+      ownerJid: payload?.owner_jid,
+      password: payload?.password,
+      adminSession,
+    });
+    sendJson(req, res, result.created ? 201 : 200, {
+      data: {
+        created: result.created,
+        moderator: result.moderator,
+      },
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Falha ao salvar moderador.' });
+  }
+};
+
+const handleAdminModeratorDeleteRequest = async (req, res, googleSub) => {
+  const adminSession = requireOwnerAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (req.method !== 'DELETE') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+  try {
+    const moderator = await revokeAdminModeratorRecord(googleSub, adminSession);
+    sendJson(req, res, 200, { data: { revoked: true, moderator } });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Falha ao remover moderador.' });
+  }
 };
 
 const handleAdminPacksRequest = async (req, res, url) => {
@@ -5998,6 +6405,14 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
     }
     if (segments.length === 2 && segments[1] === 'users') {
       await handleAdminUsersRequest(req, res, url);
+      return true;
+    }
+    if (segments.length === 2 && segments[1] === 'moderators') {
+      await handleAdminModeratorsRequest(req, res);
+      return true;
+    }
+    if (segments.length === 3 && segments[1] === 'moderators') {
+      await handleAdminModeratorDeleteRequest(req, res, segments[2]);
       return true;
     }
     if (segments.length === 2 && segments[1] === 'packs') {

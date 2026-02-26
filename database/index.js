@@ -107,6 +107,7 @@ export const TABLES = {
   STICKER_WEB_GOOGLE_USER: 'sticker_web_google_user',
   STICKER_WEB_GOOGLE_SESSION: 'sticker_web_google_session',
   STICKER_WEB_ADMIN_BAN: 'sticker_web_admin_ban',
+  STICKER_WEB_ADMIN_MODERATOR: 'sticker_web_admin_moderator',
   RPG_PLAYER: 'rpg_player',
   RPG_PLAYER_POKEMON: 'rpg_player_pokemon',
   RPG_BATTLE_STATE: 'rpg_battle_state',
