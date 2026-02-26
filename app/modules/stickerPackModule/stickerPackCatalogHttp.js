@@ -161,6 +161,8 @@ const GITHUB_REPOSITORY = String(process.env.GITHUB_REPOSITORY || 'Kaikygr/omniz
 const GITHUB_TOKEN = String(process.env.GITHUB_TOKEN || '').trim();
 const GITHUB_PROJECT_CACHE_SECONDS = clampInt(process.env.GITHUB_PROJECT_CACHE_SECONDS, 300, 30, 3600);
 const GLOBAL_RANK_REFRESH_SECONDS = clampInt(process.env.GLOBAL_RANK_REFRESH_SECONDS, 600, 60, 3600);
+const MARKETPLACE_GLOBAL_STATS_API_PATH = '/api/marketplace/stats';
+const MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS = clampInt(process.env.MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS, 45, 30, 60);
 const DATA_IMAGE_EXTENSIONS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.bmp']);
 const { maxStickerBytes: MAX_STICKER_UPLOAD_BYTES } = getStickerStorageConfig();
 const MAX_STICKER_SOURCE_UPLOAD_BYTES = Math.max(
@@ -203,6 +205,11 @@ const GITHUB_PROJECT_CACHE = {
   value: null,
 };
 const GLOBAL_RANK_CACHE = {
+  expiresAt: 0,
+  value: null,
+  pending: null,
+};
+const MARKETPLACE_GLOBAL_STATS_CACHE = {
   expiresAt: 0,
   value: null,
   pending: null,
@@ -4385,6 +4392,199 @@ const handleGlobalRankingSummaryRequest = async (req, res) => {
   }
 };
 
+const buildLastSevenUtcDateKeys = () => {
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Array.from({ length: 7 }).map((_, index) => {
+    const date = new Date(todayUtc - (6 - index) * 24 * 60 * 60 * 1000);
+    return date.toISOString().slice(0, 10);
+  });
+};
+
+const toUtcDayKey = (value) => {
+  if (!value) return '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const text = String(value || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : '';
+};
+
+const mapRowsByDayKey = (rows, valueField = 'total') => {
+  const map = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const dayKey = toUtcDayKey(row?.day_key);
+    if (!dayKey) return;
+    map.set(dayKey, Number(row?.[valueField] || 0));
+  });
+  return map;
+};
+
+const buildMarketplaceGlobalStatsSnapshot = async () => {
+  const visiblePublishedVisibility = ['public', 'unlisted'];
+  const placeholders = visiblePublishedVisibility.map(() => '?').join(', ');
+  const dayKeys = buildLastSevenUtcDateKeys();
+  const dayFilterSql = `UTC_DATE() - INTERVAL 6 DAY`;
+
+  const [
+    packTotalsRows,
+    stickerTotalsRows,
+    stickersWithoutPackRows,
+    engagementTotalsRows,
+    dailyPacksRows,
+    dailyStickersRows,
+    dailyInteractionRows,
+  ] = await Promise.all([
+    executeQuery(
+      `SELECT
+         COUNT(*) AS total_packs,
+         COUNT(DISTINCT publisher) AS creators_total,
+         SUM(CASE WHEN created_at >= (UTC_TIMESTAMP() - INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS packs_last_7_days
+       FROM ${TABLES.STICKER_PACK}
+       WHERE deleted_at IS NULL
+         AND status = 'published'
+         AND visibility IN (${placeholders})`,
+      visiblePublishedVisibility,
+    ),
+    executeQuery(`SELECT COUNT(*) AS total_stickers FROM ${TABLES.STICKER_ASSET}`),
+    executeQuery(
+      `SELECT COUNT(*) AS stickers_without_pack
+       FROM ${TABLES.STICKER_ASSET} a
+       LEFT JOIN ${TABLES.STICKER_PACK_ITEM} i ON i.sticker_id = a.id
+       WHERE i.sticker_id IS NULL`,
+    ),
+    executeQuery(
+      `SELECT
+         COALESCE(SUM(e.open_count), 0) AS total_clicks,
+         COALESCE(SUM(e.like_count), 0) AS total_likes
+       FROM ${TABLES.STICKER_PACK_ENGAGEMENT} e
+       INNER JOIN ${TABLES.STICKER_PACK} p ON p.id = e.pack_id
+       WHERE p.deleted_at IS NULL
+         AND p.status = 'published'
+         AND p.visibility IN (${placeholders})`,
+      visiblePublishedVisibility,
+    ),
+    executeQuery(
+      `SELECT DATE(created_at) AS day_key, COUNT(*) AS total
+       FROM ${TABLES.STICKER_PACK}
+       WHERE deleted_at IS NULL
+         AND status = 'published'
+         AND visibility IN (${placeholders})
+         AND created_at >= (${dayFilterSql})
+       GROUP BY DATE(created_at)`,
+      visiblePublishedVisibility,
+    ),
+    executeQuery(
+      `SELECT DATE(created_at) AS day_key, COUNT(*) AS total
+       FROM ${TABLES.STICKER_ASSET}
+       WHERE created_at >= (${dayFilterSql})
+       GROUP BY DATE(created_at)`,
+    ),
+    executeQuery(
+      `SELECT DATE(ev.created_at) AS day_key, ev.interaction, COUNT(*) AS total
+       FROM ${TABLES.STICKER_PACK_INTERACTION_EVENT} ev
+       INNER JOIN ${TABLES.STICKER_PACK} p ON p.id = ev.pack_id
+       WHERE ev.created_at >= (${dayFilterSql})
+         AND ev.interaction IN ('open', 'like')
+         AND p.deleted_at IS NULL
+         AND p.status = 'published'
+         AND p.visibility IN (${placeholders})
+       GROUP BY DATE(ev.created_at), ev.interaction`,
+      visiblePublishedVisibility,
+    ),
+  ]);
+
+  const packTotals = packTotalsRows?.[0] || {};
+  const stickerTotals = stickerTotalsRows?.[0] || {};
+  const stickersWithoutPack = stickersWithoutPackRows?.[0] || {};
+  const engagementTotals = engagementTotalsRows?.[0] || {};
+
+  const dailyPacksByDay = mapRowsByDayKey(dailyPacksRows, 'total');
+  const dailyStickersByDay = mapRowsByDayKey(dailyStickersRows, 'total');
+  const dailyOpensByDay = new Map();
+  const dailyLikesByDay = new Map();
+  (Array.isArray(dailyInteractionRows) ? dailyInteractionRows : []).forEach((row) => {
+    const dayKey = toUtcDayKey(row?.day_key);
+    const interaction = String(row?.interaction || '').trim().toLowerCase();
+    const total = Number(row?.total || 0);
+    if (!dayKey) return;
+    if (interaction === 'open') dailyOpensByDay.set(dayKey, total);
+    if (interaction === 'like') dailyLikesByDay.set(dayKey, total);
+  });
+
+  const seriesLast7Days = dayKeys.map((day) => ({
+    date: day,
+    packs_published: Number(dailyPacksByDay.get(day) || 0),
+    stickers_created: Number(dailyStickersByDay.get(day) || 0),
+    clicks: Number(dailyOpensByDay.get(day) || 0),
+    likes: Number(dailyLikesByDay.get(day) || 0),
+  }));
+
+  const likesLast7Days = seriesLast7Days.reduce((acc, row) => acc + Number(row.likes || 0), 0);
+  const clicksLast7Days = seriesLast7Days.reduce((acc, row) => acc + Number(row.clicks || 0), 0);
+
+  return {
+    total_packs: Number(packTotals?.total_packs || 0),
+    total_stickers: Number(stickerTotals?.total_stickers || 0),
+    total_clicks: Number(engagementTotals?.total_clicks || 0),
+    total_likes: Number(engagementTotals?.total_likes || 0),
+    packs_last_7_days: Number(packTotals?.packs_last_7_days || 0),
+    stickers_without_pack: Number(stickersWithoutPack?.stickers_without_pack || 0),
+    creators_total: Number(packTotals?.creators_total || 0),
+    clicks_last_7_days: Number(clicksLast7Days || 0),
+    likes_last_7_days: Number(likesLast7Days || 0),
+    series_last_7_days: seriesLast7Days,
+    updated_at: new Date().toISOString(),
+  };
+};
+
+const getMarketplaceGlobalStatsCached = async () => {
+  const now = Date.now();
+  const hasValue = Boolean(MARKETPLACE_GLOBAL_STATS_CACHE.value);
+  if (hasValue && now < MARKETPLACE_GLOBAL_STATS_CACHE.expiresAt) {
+    return MARKETPLACE_GLOBAL_STATS_CACHE.value;
+  }
+
+  if (!MARKETPLACE_GLOBAL_STATS_CACHE.pending) {
+    MARKETPLACE_GLOBAL_STATS_CACHE.pending = withTimeout(buildMarketplaceGlobalStatsSnapshot(), 5000)
+      .then((data) => {
+        MARKETPLACE_GLOBAL_STATS_CACHE.value = data;
+        MARKETPLACE_GLOBAL_STATS_CACHE.expiresAt = Date.now() + MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS * 1000;
+        return data;
+      })
+      .finally(() => {
+        MARKETPLACE_GLOBAL_STATS_CACHE.pending = null;
+      });
+  }
+
+  if (hasValue) return MARKETPLACE_GLOBAL_STATS_CACHE.value;
+  return MARKETPLACE_GLOBAL_STATS_CACHE.pending;
+};
+
+const handleMarketplaceGlobalStatsRequest = async (req, res) => {
+  try {
+    const data = await getMarketplaceGlobalStatsCached();
+    sendJson(req, res, 200, {
+      ...data,
+      cache_seconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
+    });
+  } catch (error) {
+    logger.warn('Falha ao montar stats globais do marketplace.', {
+      action: 'marketplace_global_stats_error',
+      error: error?.message,
+    });
+    if (MARKETPLACE_GLOBAL_STATS_CACHE.value) {
+      sendJson(req, res, 200, {
+        ...MARKETPLACE_GLOBAL_STATS_CACHE.value,
+        cache_seconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
+        stale: true,
+      });
+      return;
+    }
+    sendJson(req, res, 503, { error: 'Stats globais do marketplace indisponíveis no momento.' });
+  }
+};
+
 const handleGitHubProjectSummaryRequest = async (req, res) => {
   if (!GITHUB_REPO_INFO) {
     sendJson(req, res, 500, { error: 'Configuracao de repositorio GitHub invalida.' });
@@ -4937,6 +5137,21 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
     if (handledStaticAsset) return true;
 
     await handleCatalogPageRequest(req, res, pathname);
+    return true;
+  }
+
+  if (pathname === MARKETPLACE_GLOBAL_STATS_API_PATH) {
+    if (!['GET', 'HEAD'].includes(req.method || '')) return false;
+    try {
+      await handleMarketplaceGlobalStatsRequest(req, res);
+    } catch (error) {
+      logger.error('Erro ao processar API global do marketplace.', {
+        action: 'marketplace_global_stats_api_error',
+        path: pathname,
+        error: error?.message,
+      });
+      sendJson(req, res, 500, { error: 'Falha interna ao processar a requisicao.' });
+    }
     return true;
   }
 

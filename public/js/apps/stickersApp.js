@@ -95,6 +95,17 @@ const shortNum = (value) => {
   return String(n);
 };
 
+const formatFullNum = (value) =>
+  new Intl.NumberFormat('pt-BR', {
+    maximumFractionDigits: 0,
+  }).format(Math.max(0, Math.round(Number(value || 0))));
+
+const toMiniBars = (values = [], { minHeight = 3, maxHeight = 16 } = {}) => {
+  const source = Array.isArray(values) && values.length ? values.map((value) => Math.max(0, Number(value || 0))) : [0, 0, 0, 0, 0, 0, 0];
+  const max = Math.max(...source, 1);
+  return source.map((value) => Math.max(minHeight, Math.min(maxHeight, Math.round((value / max) * (maxHeight - 2)) + 2)));
+};
+
 const getPackEngagement = (pack) => {
   const engagement = pack?.engagement || {};
   const likeCount = Number(engagement.like_count || 0);
@@ -363,13 +374,66 @@ function PackCard({ pack, index, onOpen }) {
   `;
 }
 
-function CatalogMetricCard({ label, value, icon = '📊', hint = '', bars = [], tone = 'slate' }) {
+function CatalogMetricCard({
+  label,
+  value = '',
+  valueRaw = null,
+  numberFormat = 'compact',
+  icon = '📊',
+  hint = '',
+  bars = [],
+  tone = 'slate',
+}) {
   const toneMap = {
     slate: 'border-slate-800 bg-slate-900/60',
     emerald: 'border-emerald-500/20 bg-emerald-500/5',
     cyan: 'border-cyan-500/20 bg-cyan-500/5',
     amber: 'border-amber-500/20 bg-amber-500/5',
   };
+  const numericTarget = valueRaw === null || valueRaw === undefined ? null : Math.max(0, Number(valueRaw || 0));
+  const [animatedValue, setAnimatedValue] = useState(numericTarget ?? 0);
+  const animatedFromRef = useRef(numericTarget ?? 0);
+
+  useEffect(() => {
+    if (numericTarget === null || !Number.isFinite(numericTarget)) return undefined;
+    const startValue = Number.isFinite(animatedFromRef.current) ? animatedFromRef.current : 0;
+    const endValue = numericTarget;
+    if (startValue === endValue) {
+      setAnimatedValue(endValue);
+      animatedFromRef.current = endValue;
+      return undefined;
+    }
+
+    let frameId = 0;
+    const startAt = performance.now();
+    const durationMs = 520;
+    const tick = (now) => {
+      const progress = Math.min(1, (now - startAt) / durationMs);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const next = startValue + (endValue - startValue) * eased;
+      setAnimatedValue(next);
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+        return;
+      }
+      animatedFromRef.current = endValue;
+      setAnimatedValue(endValue);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      animatedFromRef.current = endValue;
+    };
+  }, [numericTarget]);
+
+  const resolvedValue =
+    numericTarget === null
+      ? String(value || '0')
+      : numberFormat === 'full'
+        ? formatFullNum(animatedValue)
+        : shortNum(animatedValue);
+
   return html`
     <article
       className=${`rounded-xl border p-2.5 ${toneMap[tone] || toneMap.slate}`}
@@ -387,7 +451,7 @@ function CatalogMetricCard({ label, value, icon = '📊', hint = '', bars = [], 
           `)}
         </div>
       </div>
-      <p className="mt-1 text-base font-bold text-slate-100">${value}</p>
+      <p className="mt-1 text-base font-bold text-slate-100">${resolvedValue}</p>
       <p className="text-[11px] text-slate-400">${label}</p>
       ${hint ? html`<p className="mt-0.5 text-[10px] text-slate-500">${hint}</p>` : null}
     </article>
@@ -2129,6 +2193,9 @@ function StickersApp() {
   const [creatorRankingLoading, setCreatorRankingLoading] = useState(false);
   const [creatorRankingError, setCreatorRankingError] = useState('');
   const [creatorSort, setCreatorSort] = useState(normalizeCreatorsSort(initialCreatorsSearch.sort || DEFAULT_CREATORS_SORT));
+  const [globalMarketplaceStats, setGlobalMarketplaceStats] = useState(null);
+  const [globalMarketplaceStatsLoading, setGlobalMarketplaceStatsLoading] = useState(false);
+  const [globalMarketplaceStatsError, setGlobalMarketplaceStatsError] = useState('');
   const [isScrolled, setIsScrolled] = useState(false);
   const [supportInfo, setSupportInfo] = useState(null);
   const [uploadTask, setUploadTask] = useState(null);
@@ -2411,58 +2478,103 @@ function StickersApp() {
         .slice(0, 10),
     [packs],
   );
-  const globalTrendBars = useMemo(() => {
+  const localTrendBars = useMemo(() => {
     const sample = topWeekPacks.slice(0, 7).map((pack) => {
       const engagement = getPackEngagement(pack);
-      return Number(engagement.openCount || 0) + Number(engagement.likeCount || 0) * 2 + 1;
+      return Number(engagement.openCount || 0) + Number(engagement.likeCount || 0) * 2;
     });
-    const source = sample.length ? sample : [2, 4, 3, 5, 6, 4, 7];
-    const max = Math.max(...source, 1);
-    return source.map((value) => Math.round((value / max) * 14) + 2);
+    return toMiniBars(sample);
   }, [topWeekPacks]);
+  const globalMarketplaceSeries = useMemo(() => {
+    const rows = Array.isArray(globalMarketplaceStats?.seriesLast7Days) ? globalMarketplaceStats.seriesLast7Days : [];
+    return {
+      packs: rows.map((entry) => safeNumber(entry?.packsPublished)),
+      stickers: rows.map((entry) => safeNumber(entry?.stickersCreated)),
+      clicks: rows.map((entry) => safeNumber(entry?.clicks)),
+      likes: rows.map((entry) => safeNumber(entry?.likes)),
+    };
+  }, [globalMarketplaceStats]);
   const catalogMetricCards = useMemo(() => {
-    const recentCount = recentPublishedPacks.slice(0, 7).length;
+    const localTrendingLikes = growingNowPacks.reduce((acc, pack) => acc + getPackEngagement(pack).likeCount, 0);
+    const hasGlobalStats = Boolean(globalMarketplaceStats);
+    const metrics = hasGlobalStats
+      ? {
+          packs: safeNumber(globalMarketplaceStats?.totalPacks),
+          stickers: safeNumber(globalMarketplaceStats?.totalStickers),
+          clicks: safeNumber(globalMarketplaceStats?.totalClicks),
+          likes: safeNumber(globalMarketplaceStats?.totalLikes),
+          packsLast7Days: safeNumber(globalMarketplaceStats?.packsLast7Days),
+          stickersWithoutPack: safeNumber(globalMarketplaceStats?.stickersWithoutPack),
+          likesLast7Days: safeNumber(globalMarketplaceStats?.likesLast7Days),
+          bars: {
+            packs: toMiniBars(globalMarketplaceSeries.packs),
+            stickers: toMiniBars(globalMarketplaceSeries.stickers),
+            clicks: toMiniBars(globalMarketplaceSeries.clicks),
+            likes: toMiniBars(globalMarketplaceSeries.likes),
+          },
+        }
+      : {
+          packs: safeNumber(platformStats.packs),
+          stickers: safeNumber(platformStats.stickers),
+          clicks: safeNumber(platformStats.opens),
+          likes: safeNumber(platformStats.likes),
+          packsLast7Days: recentPublishedPacks.slice(0, 7).length,
+          stickersWithoutPack: safeNumber(orphans.length),
+          likesLast7Days: safeNumber(localTrendingLikes),
+          bars: {
+            packs: localTrendBars,
+            stickers: [...localTrendBars].reverse(),
+            clicks: localTrendBars.map((v, i) => Math.max(3, v - (i % 3))),
+            likes: localTrendBars.map((v, i) => Math.max(3, Math.min(16, v - 2 + (i % 2)))),
+          },
+        };
+
     return [
       {
         key: 'packs',
-        label: 'Packs',
-        value: shortNum(platformStats.packs),
+        label: 'Packs globais',
+        valueRaw: metrics.packs,
+        numberFormat: 'full',
         icon: '📦',
         tone: 'slate',
-        hint: `+${recentCount} recentes`,
-        bars: globalTrendBars,
+        hint: `+${formatFullNum(metrics.packsLast7Days)} esta semana`,
+        bars: metrics.bars.packs,
       },
       {
         key: 'stickers',
-        label: 'Stickers',
-        value: shortNum(platformStats.stickers),
+        label: 'Stickers globais',
+        valueRaw: metrics.stickers,
+        numberFormat: 'full',
         icon: '🧩',
         tone: 'cyan',
-        hint: `${shortNum(orphans.length)} sem pack`,
-        bars: [...globalTrendBars].reverse(),
+        hint: `${formatFullNum(metrics.stickersWithoutPack)} sem pack`,
+        bars: metrics.bars.stickers,
       },
       {
         key: 'opens',
-        label: 'Cliques',
-        value: shortNum(platformStats.opens),
-        icon: '⬇',
+        label: 'Cliques globais',
+        valueRaw: metrics.clicks,
+        numberFormat: 'full',
+        icon: '👁',
         tone: 'emerald',
-        hint: 'Engajamento do catálogo',
-        bars: globalTrendBars.map((v, i) => Math.max(3, v - (i % 3))),
+        hint: 'Engajamento total',
+        bars: metrics.bars.clicks,
       },
       {
         key: 'likes',
-        label: 'Likes',
-        value: shortNum(platformStats.likes),
+        label: 'Likes globais',
+        valueRaw: metrics.likes,
+        numberFormat: 'full',
         icon: '❤️',
         tone: 'amber',
-        hint: `+${shortNum(growingNowPacks.reduce((acc, pack) => acc + getPackEngagement(pack).likeCount, 0))} em tendência`,
-        bars: globalTrendBars.map((v, i) => Math.max(3, Math.min(16, v - 2 + (i % 2)))),
+        hint: `+${formatFullNum(metrics.likesLast7Days)} em tendência`,
+        bars: metrics.bars.likes,
       },
     ];
-  }, [platformStats, recentPublishedPacks, globalTrendBars, orphans.length, growingNowPacks]);
+  }, [globalMarketplaceStats, globalMarketplaceSeries, platformStats, recentPublishedPacks, orphans.length, growingNowPacks, localTrendBars]);
 
   const hasAnyResult = packs.length > 0 || orphans.length > 0;
+  const marketplaceGlobalStatsApiPath = '/api/marketplace/stats';
   const googleSessionApiPath = `${config.apiBasePath}/auth/google/session`;
   const myProfileApiPath = `${config.apiBasePath}/me`;
   const isProfileView = currentView === 'profile';
@@ -2841,6 +2953,41 @@ function StickersApp() {
       setOrphans([]);
     } finally {
       setOrphansLoading(false);
+    }
+  };
+
+  const loadGlobalMarketplaceStats = async ({ silent = false } = {}) => {
+    if (!silent) setGlobalMarketplaceStatsLoading(true);
+    if (!silent) setGlobalMarketplaceStatsError('');
+    try {
+      const payload = await fetchJson(marketplaceGlobalStatsApiPath, { retry: 1 });
+      const source = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+      const series = Array.isArray(source?.series_last_7_days) ? source.series_last_7_days : [];
+      setGlobalMarketplaceStats({
+        totalPacks: safeNumber(source?.total_packs),
+        totalStickers: safeNumber(source?.total_stickers),
+        totalClicks: safeNumber(source?.total_clicks),
+        totalLikes: safeNumber(source?.total_likes),
+        packsLast7Days: safeNumber(source?.packs_last_7_days),
+        stickersWithoutPack: safeNumber(source?.stickers_without_pack),
+        clicksLast7Days: safeNumber(source?.clicks_last_7_days),
+        likesLast7Days: safeNumber(source?.likes_last_7_days),
+        cacheSeconds: safeNumber(source?.cache_seconds, 45),
+        updatedAt: String(source?.updated_at || ''),
+        stale: Boolean(source?.stale),
+        seriesLast7Days: series.map((entry) => ({
+          date: String(entry?.date || ''),
+          packsPublished: safeNumber(entry?.packs_published),
+          stickersCreated: safeNumber(entry?.stickers_created),
+          clicks: safeNumber(entry?.clicks),
+          likes: safeNumber(entry?.likes),
+        })),
+      });
+      setGlobalMarketplaceStatsError('');
+    } catch (err) {
+      setGlobalMarketplaceStatsError(err?.message || 'Falha ao carregar painel global.');
+    } finally {
+      if (!silent) setGlobalMarketplaceStatsLoading(false);
     }
   };
 
@@ -3477,6 +3624,14 @@ function StickersApp() {
   }, [config.apiBasePath]);
 
   useEffect(() => {
+    void loadGlobalMarketplaceStats({ silent: false });
+    const intervalId = window.setInterval(() => {
+      void loadGlobalMarketplaceStats({ silent: true });
+    }, 60 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, [marketplaceGlobalStatsApiPath]);
+
+  useEffect(() => {
     if (currentView !== 'catalog' || currentPackKey) return;
     const nextUrl = buildCatalogWebUrl();
     const currentUrl = `${window.location.pathname}${window.location.search}`;
@@ -3961,12 +4116,22 @@ function StickersApp() {
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div>
                                 <p className="text-[11px] uppercase tracking-wide text-slate-400">Descobrir</p>
-                                <h3 className="text-sm font-semibold text-slate-100">Curadoria do marketplace</h3>
-                                <p className="text-[11px] text-slate-500">Mais packs visíveis acima da dobra, com descoberta compacta.</p>
+                                <h3 className="text-sm font-semibold text-slate-100">Painel oficial do marketplace</h3>
+                                <p className="text-[11px] text-slate-500">
+                                  Métricas globais reais da plataforma (cache ~${globalMarketplaceStats?.cacheSeconds || 45}s, atualização automática).
+                                </p>
                               </div>
-                              <a href="/stickers/create/" className="inline-flex h-8 items-center rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-3 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/20">
-                                ✨ Criar pack agora
-                              </a>
+                              <div className="flex items-center gap-2">
+                                ${globalMarketplaceStatsLoading && !globalMarketplaceStats
+                                  ? html`<span className="inline-flex h-8 items-center rounded-lg border border-slate-700 bg-slate-900/60 px-3 text-[11px] text-slate-300">Carregando métricas...</span>`
+                                  : null}
+                                ${globalMarketplaceStatsError
+                                  ? html`<span className="inline-flex h-8 items-center rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 text-[11px] text-amber-100">Fallback local</span>`
+                                  : null}
+                                <a href="/stickers/create/" className="inline-flex h-8 items-center rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-3 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/20">
+                                  ✨ Criar pack agora
+                                </a>
+                              </div>
                             </div>
 
                             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -4025,7 +4190,19 @@ function StickersApp() {
                           </div>
 
                           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                            ${catalogMetricCards.map((card) => html`<${CatalogMetricCard} key=${card.key} label=${card.label} value=${card.value} icon=${card.icon} hint=${card.hint} bars=${card.bars} tone=${card.tone} />`)}
+                            ${catalogMetricCards.map(
+                              (card) => html`<${CatalogMetricCard}
+                                key=${card.key}
+                                label=${card.label}
+                                value=${card.value}
+                                valueRaw=${card.valueRaw}
+                                numberFormat=${card.numberFormat}
+                                icon=${card.icon}
+                                hint=${card.hint}
+                                bars=${card.bars}
+                                tone=${card.tone}
+                              />`,
+                            )}
                           </div>
 
                           <div className="lg:hidden space-y-2">
