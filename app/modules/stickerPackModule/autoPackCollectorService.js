@@ -5,7 +5,7 @@ import { sanitizeText, toVisibility } from './stickerPackUtils.js';
  * Serviço responsável por direcionar figurinhas recém-criadas para packs automáticos.
  */
 const DEFAULT_AUTO_PACK_NAME = process.env.STICKER_PACK_AUTO_PACK_NAME || 'pack';
-const DEFAULT_AUTO_PACK_VISIBILITY = toVisibility(process.env.STICKER_PACK_AUTO_PACK_VISIBILITY || 'private', 'private');
+const DEFAULT_AUTO_PACK_VISIBILITY = toVisibility(process.env.STICKER_PACK_AUTO_PACK_VISIBILITY || 'public', 'public');
 const AUTO_COLLECT_ENABLED = process.env.STICKER_PACK_AUTO_COLLECT_ENABLED !== 'false';
 const AUTO_PACK_NAME_MAX_LENGTH = 120;
 

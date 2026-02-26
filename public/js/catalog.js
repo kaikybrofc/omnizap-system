@@ -20,6 +20,7 @@
 
   const state = {
     q: '',
+    catalogLoaded: false,
     visibility: 'public',
     packs: {
       offset: 0,
@@ -45,6 +46,7 @@
   };
 
   const els = {
+    hero: document.getElementById('catalog-hero'),
     form: document.getElementById('search-form'),
     search: document.getElementById('search-input'),
     visibility: document.getElementById('visibility-input'),
@@ -70,9 +72,18 @@
     panelClose: document.getElementById('panel-close'),
     copy: document.getElementById('copy-link'),
     stickers: document.getElementById('stickers'),
+    packPage: document.getElementById('pack-page'),
+    packPageTitle: document.getElementById('pack-page-title'),
+    packPageSub: document.getElementById('pack-page-subtitle'),
+    packPageChip: document.getElementById('pack-page-chip'),
+    packPageStatus: document.getElementById('pack-page-status'),
+    packPageGrid: document.getElementById('pack-page-stickers'),
+    packPageBack: document.getElementById('pack-page-back'),
+    packPageCopy: document.getElementById('pack-page-copy'),
   };
 
   if (
+    !els.hero ||
     !els.form ||
     !els.search ||
     !els.visibility ||
@@ -93,7 +104,15 @@
     !els.panelNext ||
     !els.panelPageInfo ||
     !els.copy ||
-    !els.stickers
+    !els.stickers ||
+    !els.packPage ||
+    !els.packPageTitle ||
+    !els.packPageSub ||
+    !els.packPageChip ||
+    !els.packPageStatus ||
+    !els.packPageGrid ||
+    !els.packPageBack ||
+    !els.packPageCopy
   ) {
     return;
   }
@@ -120,6 +139,30 @@
       });
     }
     return url.toString();
+  };
+
+  const extractPackKeyFromPath = () => {
+    const path = window.location.pathname;
+    if (!path.startsWith(CONFIG.webPath + '/')) return '';
+    try {
+      return decodeURIComponent(path.slice((CONFIG.webPath + '/').length).split('/')[0] || '');
+    } catch {
+      return '';
+    }
+  };
+
+  const showCatalogView = () => {
+    els.packPage.hidden = true;
+    els.hero.hidden = false;
+    document.getElementById('packs-section').hidden = false;
+    document.getElementById('orphan-section').hidden = false;
+  };
+
+  const showPackPageView = () => {
+    els.packPage.hidden = false;
+    els.hero.hidden = true;
+    document.getElementById('packs-section').hidden = true;
+    document.getElementById('orphan-section').hidden = true;
   };
 
   const setStatus = (text) => {
@@ -149,7 +192,7 @@
     thumbWrap.textContent = '';
     const fallback = document.createElement('div');
     fallback.className = 'pack-thumb-fallback';
-    fallback.textContent = 'Sem capa disponivel';
+    fallback.textContent = 'Sem capa disponível';
     thumbWrap.appendChild(fallback);
   };
 
@@ -219,6 +262,24 @@
     });
   };
 
+  const rankPacksByCompleteness = (packs) => {
+    if (!Array.isArray(packs)) return [];
+    return [...packs].sort((left, right) => {
+      const leftCount = Number(left?.sticker_count) || 0;
+      const rightCount = Number(right?.sticker_count) || 0;
+      const leftHasCover = left?.cover_url ? 1 : 0;
+      const rightHasCover = right?.cover_url ? 1 : 0;
+      const leftIsComplete = leftCount >= 30 ? 1 : 0;
+      const rightIsComplete = rightCount >= 30 ? 1 : 0;
+
+      if (rightIsComplete !== leftIsComplete) return rightIsComplete - leftIsComplete;
+
+      if (rightCount !== leftCount) return rightCount - leftCount;
+      if (rightHasCover !== leftHasCover) return rightHasCover - leftHasCover;
+      return String(left?.name || '').localeCompare(String(right?.name || ''), 'pt-BR');
+    });
+  };
+
   const renderPackSkeletons = (count) => {
     els.grid.innerHTML = '';
     for (let index = 0; index < count; index += 1) {
@@ -254,7 +315,7 @@
     } else {
       const fallback = document.createElement('div');
       fallback.className = 'pack-thumb-fallback';
-      fallback.textContent = 'Arquivo nao acessivel';
+      fallback.textContent = 'Arquivo não acessível';
       body.appendChild(fallback);
     }
 
@@ -273,6 +334,40 @@
     els.orphanGrid.innerHTML = '';
     state.orphan.items.forEach((sticker) => {
       els.orphanGrid.appendChild(renderOrphanSticker(sticker));
+    });
+  };
+
+  const renderPackPage = (pack) => {
+    const items = Array.isArray(pack?.items) ? pack.items : [];
+    state.selectedPack = pack || null;
+
+    els.packPageTitle.textContent = pack?.name || 'Pack';
+    els.packPageSub.textContent = (pack?.publisher || '-') + ' | ' + (pack?.description || 'Sem descrição');
+    els.packPageChip.textContent =
+      String(pack?.sticker_count || items.length || 0) + ' itens | ' + (pack?.visibility || '-') + ' | ' + (pack?.pack_key || '-');
+
+    els.packPageGrid.innerHTML = '';
+    if (!items.length) {
+      els.packPageStatus.textContent = 'Este pack não possui stickers disponíveis.';
+      return;
+    }
+
+    els.packPageStatus.textContent = 'Exibindo ' + items.length + ' sticker(s).';
+    items.forEach((item) => {
+      const col = document.createElement('div');
+      col.className = 'col-6 col-sm-4 col-md-3 col-lg-2';
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'sticker-tile';
+
+      const image = document.createElement('img');
+      image.loading = 'lazy';
+      image.alt = item.accessibility_label || 'Sticker #' + item.position;
+      image.src = item.asset_url;
+
+      wrapper.appendChild(image);
+      col.appendChild(wrapper);
+      els.packPageGrid.appendChild(col);
     });
   };
 
@@ -304,7 +399,7 @@
 
     els.orphanPrev.disabled = page <= 1 || state.orphan.loading;
     els.orphanNext.disabled = page >= totalPages || state.orphan.loading;
-    els.orphanPageInfo.textContent = 'Pagina ' + page + ' de ' + totalPages + ' - ' + totalItems + ' figurinhas';
+    els.orphanPageInfo.textContent = 'Página ' + page + ' de ' + totalPages + ' - ' + totalItems + ' figurinhas';
   };
 
   const listPacks = async ({ reset = false } = {}) => {
@@ -331,6 +426,7 @@
 
       const packs = Array.isArray(payload.data) ? payload.data : [];
       state.packs.items = reset ? packs : state.packs.items.concat(packs);
+      state.packs.items = rankPacksByCompleteness(state.packs.items);
       state.packs.offset = (payload.pagination && payload.pagination.next_offset) || state.packs.items.length;
       state.packs.hasMore = Boolean(payload.pagination && payload.pagination.has_more);
 
@@ -342,7 +438,7 @@
         setStatus(state.packs.items.length + ' pack(s) carregado(s).');
       }
     } catch (error) {
-      setStatus(error.message || 'Nao foi possivel listar os packs agora.');
+      setStatus(error.message || 'Não foi possível listar os packs agora.');
     } finally {
       state.packs.loading = false;
       updateMoreButton();
@@ -393,7 +489,7 @@
         setOrphanStatus('Mostrando ' + from + '-' + to + ' de ' + state.orphan.totalItems + ' figurinha(s) sem pack.');
       }
     } catch (error) {
-      setOrphanStatus(error.message || 'Nao foi possivel listar figurinhas sem pack.');
+      setOrphanStatus(error.message || 'Não foi possível listar figurinhas sem pack.');
     } finally {
       state.orphan.loading = false;
       updateOrphanPaginationControls();
@@ -415,7 +511,7 @@
     els.panelPrev.disabled = state.panelPagination.page <= 1;
     els.panelNext.disabled = state.panelPagination.page >= totalPages;
     els.panelPageInfo.textContent =
-      'Pagina ' + state.panelPagination.page + ' de ' + totalPages + ' - ' + safeTotal + ' stickers';
+      'Página ' + state.panelPagination.page + ' de ' + totalPages + ' - ' + safeTotal + ' stickers';
   };
 
   const renderPanelStickersPage = () => {
@@ -434,7 +530,7 @@
     if (!items.length) {
       const empty = document.createElement('p');
       empty.className = 'text-secondary mb-0';
-      empty.textContent = 'Este pack nao possui stickers disponiveis.';
+      empty.textContent = 'Este pack não possui stickers disponíveis.';
       els.stickers.appendChild(empty);
       return;
     }
@@ -465,7 +561,7 @@
     els.panelSub.textContent = '';
     els.panelChip.textContent = '';
     els.stickers.innerHTML = '';
-    els.panelPageInfo.textContent = 'Pagina 1 de 1 - 0 stickers';
+    els.panelPageInfo.textContent = 'Página 1 de 1 - 0 stickers';
     els.panelPrev.disabled = true;
     els.panelNext.disabled = true;
     clearPanelError();
@@ -502,7 +598,7 @@
     state.panelPagination.page = 1;
 
     els.panelTitle.textContent = pack.name || 'Pack';
-    els.panelSub.textContent = (pack.publisher || '-') + ' | ' + (pack.description || 'Sem descricao');
+    els.panelSub.textContent = (pack.publisher || '-') + ' | ' + (pack.description || 'Sem descrição');
     els.panelChip.textContent = pack.sticker_count + ' itens | ' + pack.visibility + ' | ' + pack.pack_key;
     renderPanelStickersPage();
 
@@ -512,28 +608,26 @@
   const openPack = async (packKey, { pushState = false } = {}) => {
     const sanitizedKey = String(packKey || '').trim();
     if (!sanitizedKey) return;
-
-    clearPanelError();
-    els.panelTitle.textContent = 'Carregando...';
-    els.panelSub.textContent = '';
-    els.panelChip.textContent = '';
-    els.stickers.innerHTML = '';
-    showPanel();
+    showPackPageView();
+    els.packPageTitle.textContent = 'Carregando...';
+    els.packPageSub.textContent = '';
+    els.packPageChip.textContent = '';
+    els.packPageGrid.innerHTML = '';
+    els.packPageStatus.textContent = 'Buscando informações do pack...';
 
     try {
       const payload = await fetchJson(toApi(CONFIG.apiBasePath + '/' + encodeURIComponent(sanitizedKey)));
       state.selectedPack = payload.data || null;
       if (!state.selectedPack) {
-        throw new Error('Pack nao encontrado.');
+        throw new Error('Pack não encontrado.');
       }
 
-      renderPack(state.selectedPack);
+      renderPackPage(state.selectedPack);
       if (pushState) {
         history.pushState({}, '', CONFIG.webPath + '/' + encodeURIComponent(sanitizedKey));
       }
     } catch (error) {
-      els.panelError.hidden = false;
-      els.panelError.textContent = error.message || 'Nao foi possivel abrir este pack.';
+      els.packPageStatus.textContent = error.message || 'Não foi possível abrir este pack.';
     }
   };
 
@@ -591,6 +685,29 @@
     }
   });
 
+  els.packPageCopy.addEventListener('click', async () => {
+    if (!state.selectedPack) return;
+    const url = window.location.origin + CONFIG.webPath + '/' + encodeURIComponent(state.selectedPack.pack_key);
+    try {
+      await navigator.clipboard.writeText(url);
+      els.packPageCopy.textContent = 'Link copiado';
+      setTimeout(() => {
+        els.packPageCopy.textContent = 'Copiar link do pack';
+      }, 1800);
+    } catch {
+      els.packPageCopy.textContent = 'Falha ao copiar';
+    }
+  });
+
+  els.packPageBack.addEventListener('click', async () => {
+    history.pushState({}, '', CONFIG.webPath);
+    showCatalogView();
+    if (!state.catalogLoaded) {
+      await Promise.all([listPacks({ reset: true }), listOrphanStickers({ reset: true })]);
+      state.catalogLoaded = true;
+    }
+  });
+
   if (panelModal) {
     els.panel.addEventListener('hidden.bs.modal', () => {
       resetPanel();
@@ -604,29 +721,23 @@
   }
 
   window.addEventListener('popstate', () => {
-    const path = window.location.pathname;
-    if (!path.startsWith(CONFIG.webPath + '/')) {
-      closePanel();
+    const key = extractPackKeyFromPath();
+    if (!key) {
+      showCatalogView();
       return;
     }
-
-    let key = '';
-    try {
-      key = decodeURIComponent(path.slice((CONFIG.webPath + '/').length).split('/')[0] || '');
-    } catch {
-      key = '';
-    }
-
-    if (key) {
-      openPack(key, { pushState: false });
-    }
+    openPack(key, { pushState: false });
   });
 
   (async () => {
-    await Promise.all([listPacks({ reset: true }), listOrphanStickers({ reset: true })]);
-
-    if (CONFIG.initialPackKey) {
-      openPack(CONFIG.initialPackKey, { pushState: false });
+    const pathPackKey = extractPackKeyFromPath();
+    const initialPackKey = pathPackKey || CONFIG.initialPackKey;
+    if (initialPackKey) {
+      await openPack(initialPackKey, { pushState: false });
+      return;
     }
+    showCatalogView();
+    await Promise.all([listPacks({ reset: true }), listOrphanStickers({ reset: true })]);
+    state.catalogLoaded = true;
   })();
 })();

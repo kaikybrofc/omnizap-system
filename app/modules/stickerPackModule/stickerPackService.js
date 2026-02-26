@@ -239,7 +239,7 @@ export function createStickerPackService(options = {}) {
     const normalizedName = sanitizeText(name, MAX_NAME_LENGTH, { allowEmpty: false });
     const normalizedPublisher = sanitizeText(publisher, MAX_PUBLISHER_LENGTH, { allowEmpty: false });
     const normalizedDescription = sanitizeText(description, MAX_DESCRIPTION_LENGTH, { allowEmpty: true });
-    const normalizedVisibility = toVisibility(visibility, 'private');
+    const normalizedVisibility = toVisibility(visibility, 'public');
 
     ensureValue(normalizedName, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Nome do pack é obrigatório.');
     ensureValue(normalizedPublisher, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Publisher do pack é obrigatório.');
@@ -252,7 +252,7 @@ export function createStickerPackService(options = {}) {
     };
   };
 
-  const createPack = async ({ ownerJid, name, publisher, description, visibility = 'private' }) => {
+  const createPack = async ({ ownerJid, name, publisher, description, visibility = 'public' }) => {
     const owner = resolveOwner(ownerJid);
     return runAction('create_pack', { owner_jid: owner }, async () => {
       const metadata = sanitizeMetadata({ name, publisher, description, visibility });
@@ -571,7 +571,7 @@ export function createStickerPackService(options = {}) {
             description: source.description,
             pack_key: packKey,
             cover_sticker_id: source.cover_sticker_id,
-            visibility: source.visibility,
+            visibility: 'public',
             version: 1,
           },
           connection,

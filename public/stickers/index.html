@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OmniZap Sticker Packs | Catalogo Web</title>
-  <meta name="description" content="Catalogo web de packs de figurinhas do OmniZap com busca, filtros e visualizacao completa." />
+  <title>OmniZap Sticker Packs | Catálogo Web</title>
+  <meta name="description" content="Catálogo web de packs de figurinhas do OmniZap com busca, filtros e visualização completa." />
   <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#070a08" />
   <link rel="canonical" href="https://omnizap.shop/stickers/" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="OmniZap System" />
-  <meta property="og:title" content="OmniZap Sticker Packs | Catalogo Web" />
-  <meta property="og:description" content="Explore packs publicos e figurinhas sem pack no catalogo do OmniZap." />
+  <meta property="og:title" content="OmniZap Sticker Packs | Catálogo Web" />
+  <meta property="og:description" content="Explore packs públicos e figurinhas sem pack no catálogo do OmniZap." />
   <meta property="og:url" content="https://omnizap.shop/stickers/" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="OmniZap Sticker Packs" />
-  <meta name="twitter:description" content="Catalogo web de packs de figurinhas e stickers do OmniZap." />
+  <meta name="twitter:description" content="Catálogo web de packs de figurinhas e stickers do OmniZap." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
@@ -26,12 +26,12 @@
   <header class="navbar navbar-expand-lg border-bottom border-success-subtle sticky-top glass-nav">
     <div class="container">
       <a class="navbar-brand fw-bold" href="/stickers">OmniZap Sticker Catalog</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#catalog-nav" aria-controls="catalog-nav" aria-expanded="false" aria-label="Alternar navegacao">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#catalog-nav" aria-controls="catalog-nav" aria-expanded="false" aria-label="Alternar navegação">
         <span class="navbar-toggler-icon"></span>
       </button>
       <nav class="collapse navbar-collapse" id="catalog-nav">
         <ul class="navbar-nav ms-auto gap-lg-2">
-          <li class="nav-item"><a class="nav-link" href="/">Inicio</a></li>
+          <li class="nav-item"><a class="nav-link" href="/">Início</a></li>
           <li class="nav-item"><a class="nav-link" href="/api-docs/">API</a></li>
           <li class="nav-item"><a class="nav-link" href="#packs-section">Packs</a></li>
           <li class="nav-item"><a class="nav-link" href="#orphan-section">Sem pack</a></li>
@@ -52,12 +52,12 @@
     data-default-orphan-limit="120"
     data-initial-pack-key=""
   >
-    <section class="hero-card card shadow-sm border-success-subtle">
+    <section id="catalog-hero" class="hero-card card shadow-sm border-success-subtle">
       <div class="card-body p-4 p-md-5">
         <p class="text-uppercase small fw-semibold text-info-emphasis mb-2">OmniZap / Sticker Catalog</p>
-        <h1 class="display-6 catalog-title mb-2">Explore packs de figurinhas em uma pagina web.</h1>
+        <h1 class="display-6 catalog-title mb-2">Explore packs de figurinhas em uma página web.</h1>
         <p class="text-secondary mb-4">
-          Catalogo publico com busca, filtros e visualizacao completa dos packs. Clique em qualquer card para abrir os stickers.
+          Catálogo público com busca, filtros e visualização completa dos packs. Clique em qualquer card para abrir os stickers.
         </p>
 
         <form id="search-form" class="row g-2 align-items-center">
@@ -66,9 +66,9 @@
           </div>
           <div class="col-12 col-md-4 col-lg-3">
             <select id="visibility-input" class="form-select">
-              <option value="public">Publicos</option>
-              <option value="unlisted">Nao listados</option>
-              <option value="all">Publicos + nao listados</option>
+              <option value="public">Públicos</option>
+              <option value="unlisted">Não listados</option>
+              <option value="all">Públicos + não listados</option>
             </select>
           </div>
           <div class="col-12 col-md-2 col-lg-2 d-grid">
@@ -94,12 +94,29 @@
       <div id="orphan-grid" class="row g-3 mt-1"></div>
 
       <div id="orphan-pagination" class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3 panel-controls rounded-3 p-2">
-        <button id="orphan-prev" class="btn btn-outline-light btn-sm" type="button" aria-label="Pagina anterior de figurinhas sem pack">Anterior</button>
-        <span id="orphan-page-info" class="small text-secondary flex-grow-1 text-center">Pagina 1 de 1 - 0 figurinhas</span>
-        <button id="orphan-next" class="btn btn-outline-light btn-sm" type="button" aria-label="Proxima pagina de figurinhas sem pack">Proxima</button>
+        <button id="orphan-prev" class="btn btn-outline-light btn-sm" type="button" aria-label="Página anterior de figurinhas sem pack">Anterior</button>
+        <span id="orphan-page-info" class="small text-secondary flex-grow-1 text-center">Página 1 de 1 - 0 figurinhas</span>
+        <button id="orphan-next" class="btn btn-outline-light btn-sm" type="button" aria-label="Próxima página de figurinhas sem pack">Próxima</button>
       </div>
 
       <button id="orphan-load-more" class="btn btn-success mt-3" hidden>Carregar mais figurinhas</button>
+    </section>
+
+    <section id="pack-page" class="mt-3" hidden>
+      <div class="hero-card card shadow-sm border-success-subtle">
+        <div class="card-body p-4 p-md-5">
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <button id="pack-page-back" class="btn btn-outline-light btn-sm" type="button">Voltar ao catálogo</button>
+            <button id="pack-page-copy" class="btn btn-success btn-sm" type="button">Copiar link do pack</button>
+          </div>
+          <p class="text-uppercase small fw-semibold text-info-emphasis mb-2">OmniZap / Pack</p>
+          <h1 id="pack-page-title" class="display-6 catalog-title mb-2">Carregando pack...</h1>
+          <p id="pack-page-subtitle" class="text-secondary mb-2"></p>
+          <span id="pack-page-chip" class="badge rounded-pill text-bg-secondary"></span>
+          <p id="pack-page-status" class="status-text mt-3"></p>
+        </div>
+      </div>
+      <div id="pack-page-stickers" class="row g-3 mt-2"></div>
     </section>
   </main>
 
@@ -118,9 +135,9 @@
           <button id="copy-link" class="btn btn-success btn-sm">Copiar link do pack</button>
 
           <div id="panel-pagination" class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3 panel-controls rounded-3 p-2">
-            <button id="panel-prev" class="btn btn-outline-light btn-sm" type="button" aria-label="Pagina anterior de stickers">Anterior</button>
-            <span id="panel-page-info" class="small text-secondary flex-grow-1 text-center">Pagina 1 de 1 - 0 stickers</span>
-            <button id="panel-next" class="btn btn-outline-light btn-sm" type="button" aria-label="Proxima pagina de stickers">Proxima</button>
+            <button id="panel-prev" class="btn btn-outline-light btn-sm" type="button" aria-label="Página anterior de stickers">Anterior</button>
+            <span id="panel-page-info" class="small text-secondary flex-grow-1 text-center">Página 1 de 1 - 0 stickers</span>
+            <button id="panel-next" class="btn btn-outline-light btn-sm" type="button" aria-label="Próxima página de stickers">Próxima</button>
           </div>
 
           <div id="panel-error" class="alert alert-danger mt-3 mb-0" hidden></div>

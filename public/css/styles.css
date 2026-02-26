@@ -200,6 +200,10 @@ body.catalog-body::before {
   background: radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.13), rgba(7, 12, 24, 0.95));
 }
 
+#pack-page-stickers .sticker-tile {
+  min-height: 120px;
+}
+
 .modal-content {
   background: #121a2f !important;
   border-color: var(--line-soft) !important;

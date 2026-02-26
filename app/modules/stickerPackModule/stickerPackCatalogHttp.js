@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import logger from '../../utils/logger/loggerModule.js';
+import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
 import { listStickerPacksForCatalog, findStickerPackByPackKey } from './stickerPackRepository.js';
 import { listStickerPackItems } from './stickerPackItemRepository.js';
 import { listStickerAssetsWithoutPack } from './stickerAssetRepository.js';
@@ -59,11 +60,24 @@ const DEFAULT_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_LIMIT, 50
 const MAX_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_MAX_LIMIT, 200, 1, 500);
 const MAX_DATA_SCAN_FILES = clampInt(process.env.STICKER_DATA_SCAN_MAX_FILES, 10000, 100, 50000);
 const ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_ASSET_CACHE_SECONDS, 60 * 10, 0, 60 * 60 * 24 * 7);
+const METRICS_ENDPOINT =
+  process.env.METRICS_ENDPOINT ||
+  `http://127.0.0.1:${process.env.METRICS_PORT || 9102}${process.env.METRICS_PATH || '/metrics'}`;
+const METRICS_SUMMARY_TIMEOUT_MS = clampInt(process.env.STICKER_SYSTEM_METRICS_TIMEOUT_MS, 1200, 300, 5000);
 const DATA_IMAGE_EXTENSIONS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.bmp']);
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 const isPackPubliclyVisible = (pack) => pack?.visibility === 'public' || pack?.visibility === 'unlisted';
 const toIsoOrNull = (value) => (value ? new Date(value).toISOString() : null);
+const formatDuration = (totalSeconds) => {
+  const total = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const hhmmss = [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+  return days > 0 ? `${days}d ${hhmmss}` : hhmmss;
+};
 
 const sendJson = (req, res, statusCode, payload) => {
   const body = JSON.stringify(payload);
@@ -97,6 +111,98 @@ const sendAsset = (req, res, buffer, mimetype = 'image/webp') => {
     return;
   }
   res.end(buffer);
+};
+
+const parsePrometheusLabels = (raw) => {
+  if (!raw) return {};
+  const labels = {};
+  const regex = /(\w+)="((?:\\.|[^"\\])*)"/g;
+  let match;
+  while ((match = regex.exec(raw)) !== null) {
+    labels[match[1]] = match[2].replace(/\\"/g, '"');
+  }
+  return labels;
+};
+
+const parsePrometheusText = (text) => {
+  const series = new Map();
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const [metricPart, valuePart] = trimmed.split(/\s+/, 2);
+    if (!metricPart || !valuePart) continue;
+    const value = Number(valuePart);
+    if (!Number.isFinite(value)) continue;
+
+    let name = metricPart;
+    let labels = {};
+    const labelStart = metricPart.indexOf('{');
+    if (labelStart !== -1) {
+      name = metricPart.slice(0, labelStart);
+      const labelBody = metricPart.slice(labelStart + 1, metricPart.lastIndexOf('}'));
+      labels = parsePrometheusLabels(labelBody);
+    }
+
+    const list = series.get(name) || [];
+    list.push({ labels, value });
+    series.set(name, list);
+  }
+  return series;
+};
+
+const pickMetricValue = (series, name) => {
+  const list = series.get(name) || [];
+  return list.length ? list[0].value : null;
+};
+
+const sumMetricValues = (series, name) => {
+  const list = series.get(name) || [];
+  return list.reduce((sum, entry) => sum + (Number.isFinite(entry.value) ? entry.value : 0), 0);
+};
+
+const fetchPrometheusSummary = async () => {
+  if (typeof globalThis.fetch !== 'function') {
+    throw new Error('fetch indisponivel');
+  }
+
+  const controller = typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null;
+  const timeout = setTimeout(() => controller?.abort(), METRICS_SUMMARY_TIMEOUT_MS);
+
+  try {
+    const response = await globalThis.fetch(METRICS_ENDPOINT, controller ? { signal: controller.signal } : {});
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const text = await response.text();
+    const series = parsePrometheusText(text);
+
+    const processStart = pickMetricValue(series, 'omnizap_process_start_time_seconds');
+    const nowSeconds = Date.now() / 1000;
+    const processUptimeSeconds = Number.isFinite(processStart) ? Math.max(0, nowSeconds - processStart) : null;
+
+    const lagP99 = pickMetricValue(series, 'omnizap_nodejs_eventloop_lag_p99_seconds');
+    const dbTotal = sumMetricValues(series, 'omnizap_db_query_total');
+    const dbSlow = sumMetricValues(series, 'omnizap_db_slow_queries_total');
+
+    const queueDepthSeries = series.get('omnizap_queue_depth') || [];
+    const queuePeak = queueDepthSeries.reduce((max, entry) => {
+      if (!Number.isFinite(entry.value)) return max;
+      return Math.max(max, entry.value);
+    }, 0);
+
+    return {
+      process_uptime: processUptimeSeconds !== null ? formatDuration(processUptimeSeconds) : 'n/a',
+      lag_p99_ms: Number.isFinite(lagP99) ? Number((lagP99 * 1000).toFixed(2)) : null,
+      db_total: Math.round(dbTotal || 0),
+      db_slow: Math.round(dbSlow || 0),
+      queue_peak: Math.round(queuePeak || 0),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 };
 
 const buildPackApiUrl = (packKey) => `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}`;
@@ -436,6 +542,46 @@ const handleDataFileListRequest = async (req, res, url) => {
   });
 };
 
+const handleSystemSummaryRequest = async (req, res) => {
+  const system = getSystemMetrics();
+  let prometheus = null;
+  let prometheusError = null;
+
+  try {
+    prometheus = await fetchPrometheusSummary();
+  } catch (error) {
+    prometheusError = error?.message || 'Falha ao consultar /metrics';
+  }
+
+  sendJson(req, res, 200, {
+    data: {
+      host: {
+        cpu_percent: system.usoCpuPercentual,
+        memory_percent: system.usoMemoriaPercentual,
+        memory_used: system.memoriaUsada,
+        memory_total: system.memoriaTotal,
+        uptime: system.uptimeSistema,
+      },
+      process: {
+        uptime: prometheus?.process_uptime || system.uptime,
+        node_version: system.versaoNode,
+      },
+      observability: {
+        lag_p99_ms: prometheus?.lag_p99_ms ?? null,
+        db_total: prometheus?.db_total ?? null,
+        db_slow: prometheus?.db_slow ?? null,
+        queue_peak: prometheus?.queue_peak ?? null,
+      },
+      updated_at: new Date().toISOString(),
+    },
+    meta: {
+      metrics_endpoint: METRICS_ENDPOINT,
+      metrics_ok: Boolean(prometheus),
+      metrics_error: prometheusError,
+    },
+  });
+};
+
 const handlePublicDataAssetRequest = async (req, res, pathname) => {
   const suffix = pathname.slice(STICKER_DATA_PUBLIC_PATH.length).replace(/^\/+/, '');
   if (!suffix) {
@@ -565,6 +711,11 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
 
   if (segments.length === 1 && segments[0] === 'data-files') {
     await handleDataFileListRequest(req, res, url);
+    return true;
+  }
+
+  if (segments.length === 1 && segments[0] === 'system-summary') {
+    await handleSystemSummaryRequest(req, res);
     return true;
   }
 

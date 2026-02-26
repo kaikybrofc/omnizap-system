@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>OmniZap API Docs | Sticker Packs</title>
-  <meta name="description" content="Documentacao da API publica de sticker packs do OmniZap System." />
+  <meta name="description" content="Documentação da API pública de sticker packs do OmniZap System." />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://omnizap.shop/api-docs/" />
   <style>
@@ -48,7 +48,7 @@
   <main class="wrap">
     <div class="top"><a href="/">Home</a><a href="/stickers/">Stickers</a></div>
     <h1>OmniZap API Docs</h1>
-    <p>API publica para o catalogo de sticker packs e assets.</p>
+    <p>API pública para o catálogo de sticker packs e assets.</p>
 
     <section class="card">
       <h2>Base URL</h2>
@@ -77,9 +77,15 @@ GET /data/stickers/:owner/:file.webp</code></pre>
     </section>
 
     <section class="card">
+      <h2>Resumo de métricas do sistema</h2>
+      <pre><code>GET /api/sticker-packs/system-summary</code></pre>
+    </section>
+
+    <section class="card">
       <h2>Exemplo cURL</h2>
       <pre><code>curl -sS "https://omnizap.shop/api/sticker-packs?visibility=public&limit=5"
-curl -sS "https://omnizap.shop/api/sticker-packs/orphan-stickers?limit=20&offset=0"</code></pre>
+curl -sS "https://omnizap.shop/api/sticker-packs/orphan-stickers?limit=20&offset=0"
+curl -sS "https://omnizap.shop/api/sticker-packs/system-summary"</code></pre>
     </section>
   </main>
 </body>
