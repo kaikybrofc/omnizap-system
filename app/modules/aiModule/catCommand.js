@@ -8,7 +8,7 @@ import premiumUserStore from '../../store/premiumUserStore.js';
 import aiPromptStore from '../../store/aiPromptStore.js';
 import { downloadMediaMessage, extractAllMediaDetails, getJidUser, normalizeJid } from '../../config/baileysConfig.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
-import { getAdminJid } from '../../config/adminIdentity.js';
+import { getAdminJid, resolveAdminJid } from '../../config/adminIdentity.js';
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || OPENAI_MODEL;
@@ -239,9 +239,10 @@ const reactToMessage = async (sock, remoteJid, messageInfo) => {
 };
 
 const isPremiumAllowed = async (senderJid) => {
-  if (!OWNER_JID) return true;
+  const adminJid = (await resolveAdminJid()) || OWNER_JID;
+  if (!adminJid) return true;
   const normalizedSender = normalizeJid(senderJid);
-  if (normalizedSender && normalizedSender === OWNER_JID) return true;
+  if (normalizedSender && normalizedSender === adminJid) return true;
   const premiumUsers = await premiumUserStore.getPremiumUsers();
   if (!Array.isArray(premiumUsers) || premiumUsers.length === 0) return false;
   return premiumUsers.map((jid) => normalizeJid(jid)).includes(normalizedSender);

@@ -1,11 +1,10 @@
 import logger from '../../utils/logger/loggerModule.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 import { getAllParticipatingGroups } from '../../config/groupUtils.js';
-import { normalizeJid, encodeJid } from '../../config/baileysConfig.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { getAdminJid, isAdminSenderAsync } from '../../config/adminIdentity.js';
 
 const MENU_IMAGE_ENV = 'IMAGE_MENU';
-const OWNER_JID_ENV = 'USER_ADMIN';
 const PROGRESS_EVERY = 10;
 const PROGRESS_INTERVAL_MS = 15 * 1000;
 const MAX_FAILURE_SAMPLE = 10;
@@ -34,8 +33,6 @@ const MODE_CONFIG = {
     backoffBaseMs: 2500,
   },
 };
-
-const toWhatsAppJid = (jid) => (jid && jid.includes('@') ? jid : encodeJid(jid, 's.whatsapp.net'));
 
 /**
  * Aguarda um tempo em milissegundos.
@@ -219,7 +216,7 @@ export async function handleNoticeCommand({
   text,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
-  const ownerJid = process.env[OWNER_JID_ENV];
+  const ownerJid = getAdminJid();
   if (!ownerJid) {
     await sendAndStore(sock, 
       remoteJid,
@@ -229,7 +226,13 @@ export async function handleNoticeCommand({
     return;
   }
 
-  if (normalizeJid(toWhatsAppJid(ownerJid)) !== normalizeJid(toWhatsAppJid(senderJid))) {
+  if (
+    !(await isAdminSenderAsync({
+      jid: senderJid || null,
+      participantAlt: messageInfo?.key?.participantAlt || null,
+      participant: messageInfo?.key?.participant || null,
+    }))
+  ) {
     await sendAndStore(sock, 
       remoteJid,
       { text: '❌ Você não tem permissão para usar este comando.' },
