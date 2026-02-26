@@ -212,14 +212,6 @@
     thumbWrap.appendChild(fallback);
   };
 
-  const appendMetaLine = (container, leftText, rightText) => {
-    const left = document.createElement('span');
-    left.textContent = leftText;
-    const right = document.createElement('span');
-    right.textContent = rightText;
-    container.append(left, right);
-  };
-
   const shortStickerId = (value) => {
     const normalized = String(value || '').replace(/[^a-zA-Z0-9]/g, '');
     return normalized.slice(0, 5) || '-----';
@@ -255,15 +247,15 @@
     title.className = 'card-title h6 mb-0';
     title.textContent = pack.name;
 
-    const metaTop = document.createElement('p');
-    metaTop.className = 'pack-meta mb-0 d-flex justify-content-between gap-2';
-    appendMetaLine(metaTop, pack.publisher, pack.sticker_count + ' itens');
+    const quantity = document.createElement('p');
+    quantity.className = 'pack-meta mb-0';
+    quantity.textContent = String(Number(pack.sticker_count || 0)) + ' itens';
 
-    const metaBottom = document.createElement('p');
-    metaBottom.className = 'pack-meta mb-0 d-flex justify-content-between gap-2';
-    appendMetaLine(metaBottom, pack.visibility, pack.pack_key);
+    const author = document.createElement('p');
+    author.className = 'pack-meta mb-0';
+    author.textContent = pack.publisher || 'Autor não informado';
 
-    cardBody.append(thumbWrap, title, metaTop, metaBottom);
+    cardBody.append(thumbWrap, title, quantity, author);
     card.appendChild(cardBody);
     card.addEventListener('click', () => openPack(pack.pack_key, { pushState: true }));
 
