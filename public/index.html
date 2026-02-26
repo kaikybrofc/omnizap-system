@@ -3,162 +3,410 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OmniZap System</title>
-  <meta name="description" content="OmniZap System: automacoes, stickers e comandos para WhatsApp." />
+  <title>OmniZap System | Automacao WhatsApp para Bots e Empresas</title>
+  <meta name="description" content="OmniZap System: plataforma open source para automacao WhatsApp com comandos, midia, sticker packs, API e observabilidade." />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#0b1020" />
+  <link rel="canonical" href="https://omnizap.shop/" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="OmniZap System" />
+  <meta property="og:title" content="OmniZap System | Automacao WhatsApp para Bots e Empresas" />
+  <meta property="og:description" content="Automacao, midia, stickers e API em uma stack pronta para producao." />
+  <meta property="og:url" content="https://omnizap.shop/" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="OmniZap System" />
+  <meta name="twitter:description" content="Automacao WhatsApp com comandos, midia, stickers e observabilidade." />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "OmniZap System",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Linux, Windows, macOS",
+    "url": "https://omnizap.shop/",
+    "description": "Plataforma open source de automacao WhatsApp com comandos, midia, stickers e observabilidade.",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
   <style>
     :root {
-      --bg: #06111a;
-      --bg2: #0a1f2c;
-      --card: rgba(9, 25, 36, 0.78);
-      --line: rgba(116, 255, 199, 0.2);
-      --text: #e8f5ef;
-      --muted: #9ac3b3;
-      --accent: #24d48a;
-      --accent-2: #57b6ff;
+      --bg: #0b1020;
+      --bg-2: #121a2f;
+      --card: #141e36cc;
+      --line: #2a3b60;
+      --text: #e6edf7;
+      --muted: #9fb0cc;
+      --primary: #22c55e;
+      --primary-2: #38bdf8;
+      --warn: #f59e0b;
+      --radius: 16px;
     }
 
     * { box-sizing: border-box; }
 
+    html, body { margin: 0; padding: 0; }
+
     body {
-      margin: 0;
-      font-family: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+      font-family: "Manrope", system-ui, -apple-system, sans-serif;
       color: var(--text);
       background:
-        radial-gradient(60rem 30rem at 10% -10%, rgba(36, 212, 138, 0.18), transparent 60%),
-        radial-gradient(60rem 30rem at 110% 10%, rgba(87, 182, 255, 0.16), transparent 60%),
-        linear-gradient(160deg, var(--bg), var(--bg2));
+        radial-gradient(58rem 24rem at -8% -12%, #22c55e26, transparent 60%),
+        radial-gradient(58rem 24rem at 112% -10%, #38bdf822, transparent 58%),
+        linear-gradient(165deg, var(--bg), var(--bg-2));
       min-height: 100vh;
     }
 
-    .wrap {
-      width: min(1100px, 92vw);
-      margin: 0 auto;
-      padding: 2rem 0 3rem;
-    }
+    .container { width: min(1150px, 92vw); margin: 0 auto; }
 
     .top {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(10px);
+      background: #0c1221cc;
+      border-bottom: 1px solid #223250;
+    }
+
+    .top-inner {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: 2rem;
+      gap: 16px;
+      padding: 14px 0;
     }
 
     .brand {
-      font-size: 1.2rem;
-      font-weight: 800;
-      letter-spacing: 0.2px;
+      font-family: "Sora", sans-serif;
+      font-weight: 700;
+      letter-spacing: .2px;
     }
 
-    .nav {
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
+    .nav { display: flex; gap: 10px; flex-wrap: wrap; }
 
     .btn {
-      display: inline-block;
-      border: 1px solid var(--line);
-      color: var(--text);
       text-decoration: none;
-      padding: 0.62rem 0.95rem;
-      border-radius: 0.8rem;
+      color: var(--text);
+      border: 1px solid var(--line);
+      background: #111a2d;
+      padding: 10px 14px;
+      border-radius: 12px;
       font-weight: 600;
-      background: rgba(10, 29, 40, 0.5);
+      transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
     }
 
+    .btn:hover { transform: translateY(-1px); border-color: #3f567f; }
+
     .btn.primary {
-      background: linear-gradient(90deg, var(--accent), #16a96c);
+      color: #042511;
       border-color: transparent;
-      color: #042211;
+      background: linear-gradient(90deg, var(--primary), #16a34a);
+      box-shadow: 0 8px 22px #22c55e33;
+    }
+
+    @media (max-width: 860px) {
+      .top-inner {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+
+      .brand {
+        text-align: center;
+        font-size: 22px;
+        line-height: 1.1;
+      }
+
+      .nav {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .btn {
+        width: 100%;
+        text-align: center;
+        padding: 10px 10px;
+        border-radius: 10px;
+      }
+
+      .nav .btn.primary {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .top-inner {
+        padding: 12px 0;
+      }
+
+      .brand {
+        font-size: 20px;
+      }
+
+      .btn {
+        font-size: 15px;
+        padding: 9px 8px;
+      }
     }
 
     .hero {
+      margin: 38px 0 14px;
       border: 1px solid var(--line);
-      background: var(--card);
-      border-radius: 1.2rem;
-      padding: 1.4rem;
-      margin-bottom: 1rem;
+      border-radius: var(--radius);
+      background: linear-gradient(155deg, #0e1629f2, #101b31f2);
+      padding: clamp(20px, 4vw, 44px);
+      animation: rise .5s ease-out;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      border: 1px solid #2f4368;
+      border-radius: 999px;
+      padding: 7px 12px;
+      color: #b7c6df;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      text-transform: uppercase;
     }
 
     h1 {
-      margin: 0 0 0.75rem;
-      font-size: clamp(1.8rem, 4vw, 2.8rem);
-      line-height: 1.08;
+      font-family: "Sora", sans-serif;
+      margin: 14px 0 10px;
+      font-size: clamp(30px, 5vw, 54px);
+      line-height: 1.06;
+      max-width: 980px;
     }
 
-    p {
+    .lead {
       margin: 0;
+      max-width: 760px;
       color: var(--muted);
-      font-size: 1.04rem;
+      font-size: clamp(16px, 2.2vw, 20px);
       line-height: 1.55;
     }
 
-    .grid {
-      margin-top: 1rem;
+    .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+
+    .hero-stats {
+      margin-top: 22px;
       display: grid;
-      gap: 0.9rem;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+    }
+
+    .chip {
+      border: 1px solid #2a3d61;
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: #0d1528;
+      color: #bfd0ea;
+      font-size: 14px;
+    }
+
+    .section-title {
+      margin: 34px 0 12px;
+      font-family: "Sora", sans-serif;
+      font-size: 24px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
     }
 
     .card {
       border: 1px solid var(--line);
+      border-radius: 14px;
       background: var(--card);
-      border-radius: 1rem;
-      padding: 1rem;
+      padding: 16px;
+      animation: rise .55s ease-out;
     }
 
-    .card h2 {
-      margin: 0 0 0.45rem;
-      color: var(--accent-2);
-      font-size: 1rem;
+    .card h3 { margin: 0 0 8px; font-size: 18px; }
+    .card p { margin: 0; color: var(--muted); line-height: 1.5; }
+
+    .api {
+      margin-top: 14px;
+      border: 1px solid #2c4067;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #0c1529;
     }
 
-    .foot {
-      margin-top: 1.6rem;
-      color: #87a79a;
-      font-size: 0.92rem;
-      text-align: center;
+    .api-head {
+      padding: 10px 14px;
+      border-bottom: 1px solid #26395d;
+      color: #b8c8e2;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .35px;
+    }
+
+    pre {
+      margin: 0;
+      padding: 14px;
+      overflow: auto;
+      color: #d3f7e0;
+      font-size: 13px;
+      line-height: 1.55;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .final-cta {
+      margin: 26px 0;
+      padding: 22px;
+      border-radius: 14px;
+      border: 1px solid #334970;
+      background: linear-gradient(135deg, #101a31, #122445);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .final-cta p { margin: 0; color: #c2d0e5; }
+
+    footer {
+      border-top: 1px solid #243452;
+      padding: 24px 0 30px;
+      color: #8fa6c7;
+      font-size: 14px;
+    }
+
+    .foot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 14px;
+    }
+
+    .foot-col h4 {
+      margin: 0 0 8px;
+      color: #d3dff2;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .foot-col a {
+      display: block;
+      color: #93abcb;
+      text-decoration: none;
+      margin: 4px 0;
+    }
+
+    .foot-col a:hover { color: #d3e3fb; }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header class="top">
+  <header class="top">
+    <div class="container top-inner">
       <div class="brand">OmniZap System</div>
       <nav class="nav">
-        <a class="btn primary" href="/stickers">Abrir Catálogo de Stickers</a>
+        <a class="btn" href="/stickers/">Stickers</a>
+        <a class="btn" href="/api-docs/">API</a>
         <a class="btn" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">GitHub</a>
+        <a class="btn primary" href="/stickers/">Abrir Plataforma</a>
       </nav>
-    </header>
+    </div>
+  </header>
 
-    <main class="hero">
-      <h1>Bot do OmniZap com automação, mídia e catálogo de figurinhas.</h1>
-      <p>
-        Este painel é a página principal do OmniZap. Acesse a subpágina de stickers em
-        <strong>/stickers</strong> para navegar pelos packs públicos e figurinhas sem pack.
-      </p>
-    </main>
+  <main class="container">
+    <section class="hero">
+      <span class="eyebrow">Open Source SaaS-Ready WhatsApp Automation</span>
+      <h1>Automacao WhatsApp para bots, operacoes e empresas com stack pronta para producao.</h1>
+      <p class="lead">Comandos, midia, catalogo de stickers, API publica e observabilidade em um unico sistema. Estrutura projetada para escalar com seguranca e controle operacional.</p>
+      <div class="hero-cta">
+        <a class="btn primary" href="/stickers/">Ver Catalogo de Stickers</a>
+        <a class="btn" href="/api-docs/">Explorar API</a>
+      </div>
+      <div class="hero-stats">
+        <div class="chip">Node.js + MySQL + Baileys</div>
+        <div class="chip">API em <code>/api/sticker-packs</code></div>
+        <div class="chip">Observabilidade com Prometheus/Grafana</div>
+        <div class="chip">Deploy simples em VPS</div>
+      </div>
+    </section>
 
+    <h2 class="section-title">Recursos da Plataforma</h2>
     <section class="grid">
       <article class="card">
-        <h2>Recursos</h2>
-        <p>Comandos de grupo, utilidades, mídia, integrações e gerenciamento de figurinhas.</p>
+        <h3>Automacao de Comandos</h3>
+        <p>Modulos para grupos, administracao, fluxos de midia e comandos extensivos para operacao diaria.</p>
       </article>
       <article class="card">
-        <h2>Catálogo Web</h2>
-        <p>Listagem de packs, busca por pack id e visualização detalhada de stickers.</p>
+        <h3>Catalogo de Stickers</h3>
+        <p>Packs publicos, busca, filtros, visualizacao de stickers e pagina dedicada para assets sem pack.</p>
       </article>
       <article class="card">
-        <h2>API</h2>
-        <p>Endpoints disponíveis em <strong>/api/sticker-packs</strong> para listagem e detalhes.</p>
+        <h3>API Publica</h3>
+        <p>Endpoints consistentes para listar packs, obter detalhes e consumir imagens via URL publica.</p>
+      </article>
+      <article class="card">
+        <h3>Observabilidade</h3>
+        <p>Metricas e logs integrados para monitorar uso, saude, desempenho e gargalos em producao.</p>
       </article>
     </section>
 
-    <footer class="foot">OmniZap System • 2026</footer>
-  </div>
+    <h2 class="section-title">API-First</h2>
+    <section class="api">
+      <div class="api-head">Exemplo rapido</div>
+      <pre><code>GET /api/sticker-packs?visibility=public&limit=24&offset=0
+GET /api/sticker-packs/orphan-stickers?limit=120&offset=0
+GET /api/sticker-packs/:packKey
+GET /data/stickers/:owner/:file.webp</code></pre>
+    </section>
+
+    <section class="final-cta">
+      <p><strong>Pronto para elevar o OmniZap para nivel SaaS?</strong><br />Use a homepage para conversao e mantenha o catalogo em <code>/stickers/</code> como produto principal.</p>
+      <a class="btn primary" href="/stickers/">Entrar no Catalogo</a>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container foot-grid">
+      <div class="foot-col">
+        <h4>Produto</h4>
+        <a href="/">Home</a>
+        <a href="/stickers/">Stickers</a>
+        <a href="/api-docs/">API Docs</a>
+      </div>
+      <div class="foot-col">
+        <h4>Projeto</h4>
+        <a href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">GitHub</a>
+        <a href="/api/sticker-packs?limit=1">Health API</a>
+      </div>
+      <div class="foot-col">
+        <h4>Stack</h4>
+        <a href="#">Node.js</a>
+        <a href="#">MySQL</a>
+        <a href="#">Prometheus/Grafana</a>
+      </div>
+      <div class="foot-col">
+        <h4>OmniZap</h4>
+        <div>OmniZap System - 2026</div>
+      </div>
+    </div>
+  </footer>
 </body>
 </html>

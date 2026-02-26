@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OmniZap API Docs | Sticker Packs</title>
+  <meta name="description" content="Documentacao da API publica de sticker packs do OmniZap System." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://omnizap.shop/api-docs/" />
+  <style>
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: #0b1020;
+      color: #e6edf7;
+    }
+    .wrap { width: min(1024px, 92vw); margin: 0 auto; padding: 30px 0; }
+    h1, h2 { margin: 0 0 10px; }
+    h1 { font-size: 34px; }
+    h2 { font-size: 20px; margin-top: 22px; }
+    p { color: #9fb0cc; }
+    .card {
+      border: 1px solid #2a3b60;
+      background: #121a2f;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: #0f1729;
+      border-radius: 8px;
+    }
+    pre {
+      padding: 12px;
+      overflow: auto;
+      border: 1px solid #314669;
+      color: #d5f8e1;
+    }
+    .top a {
+      color: #38bdf8;
+      text-decoration: none;
+      margin-right: 12px;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="top"><a href="/">Home</a><a href="/stickers/">Stickers</a></div>
+    <h1>OmniZap API Docs</h1>
+    <p>API publica para o catalogo de sticker packs e assets.</p>
+
+    <section class="card">
+      <h2>Base URL</h2>
+      <pre><code>https://omnizap.shop/api/sticker-packs</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>Listar packs</h2>
+      <pre><code>GET /api/sticker-packs?q=&visibility=public|unlisted|all&limit=&offset=</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>Listar stickers sem pack</h2>
+      <pre><code>GET /api/sticker-packs/orphan-stickers?q=&limit=&offset=</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>Detalhes de pack</h2>
+      <pre><code>GET /api/sticker-packs/:packKey</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>Imagem de sticker</h2>
+      <pre><code>GET /api/sticker-packs/:packKey/stickers/:stickerId.webp
+GET /data/stickers/:owner/:file.webp</code></pre>
+    </section>
+
+    <section class="card">
+      <h2>Exemplo cURL</h2>
+      <pre><code>curl -sS "https://omnizap.shop/api/sticker-packs?visibility=public&limit=5"
+curl -sS "https://omnizap.shop/api/sticker-packs/orphan-stickers?limit=20&offset=0"</code></pre>
+    </section>
+  </main>
+</body>
+</html>

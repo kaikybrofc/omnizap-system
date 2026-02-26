@@ -219,6 +219,22 @@
     });
   };
 
+  const renderPackSkeletons = (count) => {
+    els.grid.innerHTML = '';
+    for (let index = 0; index < count; index += 1) {
+      const col = document.createElement('div');
+      col.className = 'col-12 col-sm-6 col-md-4 col-lg-3';
+      col.innerHTML =
+        '<div class="card h-100 bg-dark text-light shadow-sm pack-card">' +
+        '<div class="card-body d-flex flex-column gap-2">' +
+        '<div class="skeleton skeleton-thumb"></div>' +
+        '<div class="skeleton skeleton-line"></div>' +
+        '<div class="skeleton skeleton-line short"></div>' +
+        '</div></div>';
+      els.grid.appendChild(col);
+    }
+  };
+
   const renderOrphanSticker = (sticker) => {
     const col = document.createElement('div');
     col.className = 'col-6 col-md-3 col-lg-2';
@@ -260,6 +276,20 @@
     });
   };
 
+  const renderOrphanSkeletons = (count) => {
+    els.orphanGrid.innerHTML = '';
+    for (let index = 0; index < count; index += 1) {
+      const col = document.createElement('div');
+      col.className = 'col-6 col-md-3 col-lg-2';
+      col.innerHTML =
+        '<article class="orphan-card card h-100"><div class="card-body p-2">' +
+        '<div class="skeleton skeleton-orphan"></div>' +
+        '<div class="skeleton skeleton-line short mt-2"></div>' +
+        '</div></article>';
+      els.orphanGrid.appendChild(col);
+    }
+  };
+
   const updateMoreButton = () => {
     els.more.hidden = !state.packs.hasMore;
     els.more.disabled = state.packs.loading;
@@ -282,6 +312,7 @@
     state.packs.loading = true;
     updateMoreButton();
     setStatus(reset ? 'Buscando packs...' : 'Carregando mais packs...');
+    if (reset) renderPackSkeletons(Math.min(state.packs.limit, 12));
 
     if (reset) {
       state.packs.offset = 0;
@@ -323,6 +354,7 @@
     state.orphan.loading = true;
     updateOrphanPaginationControls();
     setOrphanStatus('Buscando figurinhas sem pack...');
+    if (reset) renderOrphanSkeletons(Math.min(state.orphan.limit, 12));
 
     if (reset) {
       state.orphan.page = 1;
