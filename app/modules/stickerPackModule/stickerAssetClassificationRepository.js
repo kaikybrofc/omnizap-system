@@ -100,3 +100,97 @@ export async function upsertStickerAssetClassification(payload, connection = nul
 
   return findStickerClassificationByAssetId(payload.asset_id, connection);
 }
+
+const clampInt = (value, fallback, min, max) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(numeric)));
+};
+
+export async function listAssetsForModelUpgradeReprocess(
+  { currentVersion, limit = 150, offset = 0 } = {},
+  connection = null,
+) {
+  const normalizedVersion = String(currentVersion || '').trim();
+  if (!normalizedVersion) return [];
+
+  const safeLimit = clampInt(limit, 150, 1, 1000);
+  const safeOffset = clampInt(offset, 0, 0, 500000);
+  const rows = await executeQuery(
+    `SELECT c.asset_id
+     FROM ${TABLES.STICKER_ASSET_CLASSIFICATION} c
+     LEFT JOIN ${TABLES.STICKER_ASSET_REPROCESS_QUEUE} q
+       ON q.asset_id = c.asset_id
+       AND q.reason = 'MODEL_UPGRADE'
+       AND q.status IN ('pending', 'processing')
+     WHERE c.classification_version <> ?
+       AND q.id IS NULL
+     ORDER BY c.updated_at ASC
+     LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+    [normalizedVersion],
+    connection,
+  );
+
+  return rows.map((row) => row.asset_id).filter(Boolean);
+}
+
+export async function listAssetsForLowConfidenceReprocess(
+  { confidenceThreshold = 0.65, staleHours = 48, limit = 150, offset = 0 } = {},
+  connection = null,
+) {
+  const threshold = Number(confidenceThreshold);
+  if (!Number.isFinite(threshold)) return [];
+
+  const safeStaleHours = clampInt(staleHours, 48, 1, 24 * 365);
+  const safeLimit = clampInt(limit, 150, 1, 1000);
+  const safeOffset = clampInt(offset, 0, 0, 500000);
+
+  const rows = await executeQuery(
+    `SELECT c.asset_id
+     FROM ${TABLES.STICKER_ASSET_CLASSIFICATION} c
+     LEFT JOIN ${TABLES.STICKER_ASSET_REPROCESS_QUEUE} q
+       ON q.asset_id = c.asset_id
+       AND q.reason = 'LOW_CONFIDENCE'
+       AND q.status IN ('pending', 'processing')
+     WHERE c.confidence IS NOT NULL
+       AND c.confidence < ?
+       AND c.updated_at <= (UTC_TIMESTAMP() - INTERVAL ${safeStaleHours} HOUR)
+       AND q.id IS NULL
+     ORDER BY c.confidence ASC, c.updated_at ASC
+     LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+    [threshold],
+    connection,
+  );
+
+  return rows.map((row) => row.asset_id).filter(Boolean);
+}
+
+export async function listClassificationCategoryDistribution({ days = 7 } = {}, connection = null) {
+  const safeDays = clampInt(days, 7, 1, 365);
+  const rows = await executeQuery(
+    `SELECT
+       LOWER(TRIM(COALESCE(category, 'unknown'))) AS category,
+       COUNT(*) AS total
+     FROM ${TABLES.STICKER_ASSET_CLASSIFICATION}
+     WHERE updated_at >= (UTC_TIMESTAMP() - INTERVAL ${safeDays} DAY)
+     GROUP BY LOWER(TRIM(COALESCE(category, 'unknown')))`,
+    [],
+    connection,
+  );
+
+  const distribution = new Map();
+  let total = 0;
+  for (const row of rows) {
+    const category = String(row.category || 'unknown').trim() || 'unknown';
+    const count = Number(row.total || 0);
+    if (!count) continue;
+    distribution.set(category, count);
+    total += count;
+  }
+
+  return {
+    days: safeDays,
+    total,
+    categories: distribution,
+  };
+}

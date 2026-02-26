@@ -51,6 +51,9 @@ const MAX_REMOVALS_PER_CYCLE = Math.max(0, Math.min(500, Number(process.env.STIC
 const DEDUPE_SIMILARITY_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_DEDUPE_SIMILARITY_THRESHOLD))
   ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_DEDUPE_SIMILARITY_THRESHOLD)
   : 0.985;
+const COHESION_REBUILD_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_COHESION_REBUILD_THRESHOLD))
+  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_COHESION_REBUILD_THRESHOLD)
+  : 0.56;
 
 const EXPLICIT_OWNER = String(process.env.STICKER_AUTO_PACK_OWNER_JID || process.env.USER_ADMIN || '').trim();
 
@@ -416,6 +419,15 @@ const computeGroupMetrics = (themeKey, candidates) => {
     candidates.reduce((sum, candidate) => sum + Number(candidate.classification?.confidence || 0), 0) / size;
   const avgQuality = candidates.reduce((sum, candidate) => sum + Number(candidate.qualityScore || 0), 0) / size;
   const avgDuplicateRate = candidates.reduce((sum, candidate) => sum + Number(candidate.duplicateRate || 0), 0) / size;
+  let semanticSimilaritySum = 0;
+  let semanticPairs = 0;
+  for (let i = 0; i < candidates.length; i += 1) {
+    for (let j = i + 1; j < candidates.length; j += 1) {
+      semanticPairs += 1;
+      semanticSimilaritySum += cosineSimilarity(candidates[i]?.classification?.all_scores || {}, candidates[j]?.classification?.all_scores || {});
+    }
+  }
+  const semanticCohesion = semanticPairs > 0 ? semanticSimilaritySum / semanticPairs : 1;
   const cooccurrence = new Map();
   for (const candidate of candidates) {
     const localSecondary = (candidate.topTags || [])
@@ -425,7 +437,8 @@ const computeGroupMetrics = (themeKey, candidates) => {
     cooccurrence.set(localSecondary, (cooccurrence.get(localSecondary) || 0) + 1);
   }
   const bestCooccurrence = Math.max(0, ...cooccurrence.values());
-  const cohesion = size ? bestCooccurrence / size : 0;
+  const topicalCohesion = size ? bestCooccurrence / size : 0;
+  const cohesion = topicalCohesion * 0.45 + semanticCohesion * 0.55;
   const subthemeFromCooccurrence = Array.from(cooccurrence.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] || subtheme;
   const volumeBoost = Math.min(1, size / Math.max(MIN_GROUP_SIZE, TARGET_PACK_SIZE));
   const duplicatePenalty = Math.max(0.65, 1 - avgDuplicateRate * 0.8);
@@ -439,6 +452,8 @@ const computeGroupMetrics = (themeKey, candidates) => {
     themeKey,
     groupScore,
     cohesion: Number(cohesion.toFixed(6)),
+    topical_cohesion: Number(topicalCohesion.toFixed(6)),
+    semantic_cohesion: Number(semanticCohesion.toFixed(6)),
     avgConfidence: Number(avgConfidence.toFixed(6)),
     avgQuality: Number(avgQuality.toFixed(6)),
     duplicateRate: Number(avgDuplicateRate.toFixed(6)),
@@ -492,7 +507,10 @@ let intervalHandle = null;
 let startupHandle = null;
 let running = false;
 
-const executeCycle = async () => {
+export const runStickerAutoPackByTagsCycle = async ({
+  enableAdditions = true,
+  enableRebuild = REBUILD_ENABLED,
+} = {}) => {
   if (running) return;
   if (!AUTO_ENABLED) return;
 
@@ -572,9 +590,10 @@ const executeCycle = async () => {
       });
     }
 
-    if (REBUILD_ENABLED && MAX_REMOVALS_PER_CYCLE > 0) {
+    if (enableRebuild && MAX_REMOVALS_PER_CYCLE > 0) {
       for (const group of executionGroups) {
         if (removed >= MAX_REMOVALS_PER_CYCLE) break;
+        if (Number(group.semantic_cohesion || 0) >= COHESION_REBUILD_THRESHOLD) continue;
         const desiredByPack = new Map();
 
         for (let packIndex = 0; packIndex < group.packs.length; packIndex += 1) {
@@ -618,7 +637,7 @@ const executeCycle = async () => {
     }
 
     let progressed = true;
-    while (added < MAX_ADDITIONS_PER_CYCLE && progressed) {
+    while (enableAdditions && added < MAX_ADDITIONS_PER_CYCLE && progressed) {
       progressed = false;
 
       for (const group of executionGroups) {
@@ -695,6 +714,9 @@ const executeCycle = async () => {
       created_packs: createdPacks,
       added_stickers: added,
       removed_stickers: removed,
+      rebuild_enabled_cycle: Boolean(enableRebuild),
+      additions_enabled_cycle: Boolean(enableAdditions),
+      cohesion_rebuild_threshold: Number(COHESION_REBUILD_THRESHOLD.toFixed(6)),
       duplicate_skips: duplicateSkips,
       pack_limit_skips: packLimitSkips,
       duration_ms: Date.now() - startedAt,
@@ -755,10 +777,10 @@ export const startStickerAutoPackByTagsBackground = () => {
 
   startupHandle = setTimeout(() => {
     startupHandle = null;
-    void executeCycle();
+    void runStickerAutoPackByTagsCycle();
 
     intervalHandle = setInterval(() => {
-      void executeCycle();
+      void runStickerAutoPackByTagsCycle();
     }, INTERVAL_MS);
 
     if (typeof intervalHandle.unref === 'function') {

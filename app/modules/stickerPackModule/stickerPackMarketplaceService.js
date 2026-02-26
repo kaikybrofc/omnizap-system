@@ -11,6 +11,7 @@ const NSFW_EXPLICIT_THRESHOLD = Number.isFinite(Number(process.env.STICKER_NSFW_
 const NSFW_SUGGESTIVE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_NSFW_SUGGESTIVE_THRESHOLD))
   ? Number(process.env.STICKER_NSFW_SUGGESTIVE_THRESHOLD)
   : 0.4;
+const AGE_DECAY_DAYS = Math.max(1, Number(process.env.STICKER_PACK_AGE_DECAY_DAYS) || 45);
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const safeNumber = (value, fallback = 0) => {
@@ -129,6 +130,22 @@ const computeDiversityScore = ({ tags = [], itemClassifications = [] }) => {
   return Number((diversityFromSimilarity * 0.7 + diversityFromTags * 0.3).toFixed(6));
 };
 
+const computeCohesionScore = (itemClassifications = []) => {
+  if (!Array.isArray(itemClassifications) || itemClassifications.length <= 1) return 1;
+  let pairCount = 0;
+  let similaritySum = 0;
+
+  for (let i = 0; i < itemClassifications.length; i += 1) {
+    for (let j = i + 1; j < itemClassifications.length; j += 1) {
+      pairCount += 1;
+      similaritySum += cosineSimilarity(itemClassifications[i]?.all_scores || {}, itemClassifications[j]?.all_scores || {});
+    }
+  }
+
+  if (!pairCount) return 1;
+  return Number(clamp(similaritySum / pairCount, 0, 1).toFixed(6));
+};
+
 const computeDuplicatePenalty = ({ itemClassifications = [], duplicateRate = 0 }) => {
   if (!itemClassifications.length) return 0;
   const vectors = itemClassifications.map((entry) => entry?.all_scores || {});
@@ -155,7 +172,16 @@ export const computePackSignals = ({
   itemClassifications = [],
   interactionStats = null,
   duplicateRate = 0,
+  scoringWeights = null,
+  ageDecayDays = AGE_DECAY_DAYS,
 }) => {
+  const resolvedWeights = {
+    classification: clamp(safeNumber(scoringWeights?.classification, 0.4), 0.1, 0.7),
+    engagement: clamp(safeNumber(scoringWeights?.engagement, 0.3), 0.1, 0.7),
+    quality: clamp(safeNumber(scoringWeights?.quality, 0.2), 0.05, 0.6),
+    diversity: clamp(safeNumber(scoringWeights?.diversity, 0.1), 0.05, 0.4),
+  };
+
   const classificationConfidence = clamp(safeNumber(packClassification?.confidence), 0, 1);
   const qualityScore = computeQualityScore({ items: pack?.items || [], itemClassifications });
   const engagementScore = computeEngagementScore(engagement);
@@ -163,25 +189,41 @@ export const computePackSignals = ({
     tags: packClassification?.tags || [],
     itemClassifications,
   });
+  const cohesionScore = computeCohesionScore(itemClassifications);
   const duplicatePenalty = computeDuplicatePenalty({ itemClassifications, duplicateRate });
   const trendScore = computeTrendScore(interactionStats);
   const nsfwLevel = resolveNsfwLevel(packClassification);
   const sensitiveContent = nsfwLevel !== 'safe';
   const packScoreRaw =
-    classificationConfidence * 0.4 + engagementScore * 0.3 + qualityScore * 0.2 + diversityScore * 0.1 - duplicatePenalty * 0.25;
+    classificationConfidence * resolvedWeights.classification +
+    engagementScore * resolvedWeights.engagement +
+    qualityScore * resolvedWeights.quality +
+    diversityScore * resolvedWeights.diversity -
+    duplicatePenalty * 0.25;
   const packScore = Number(clamp(packScoreRaw, 0, 1.5).toFixed(6));
+  const referenceDate = pack?.updated_at || pack?.created_at || null;
+  const ageMs = referenceDate ? Date.now() - Date.parse(referenceDate) : 0;
+  const ageDays = Number.isFinite(ageMs) && ageMs > 0 ? ageMs / (24 * 60 * 60 * 1000) : 0;
+  const decayWindow = Math.max(1, Number(ageDecayDays) || AGE_DECAY_DAYS);
+  const ageDecayFactor = Number(Math.exp(-ageDays / decayWindow).toFixed(6));
+  const rankingScore = Number((packScore * ageDecayFactor + trendScore * 0.08 + cohesionScore * 0.05).toFixed(6));
 
   return {
     classification_confidence: Number(classificationConfidence.toFixed(6)),
     quality_score: qualityScore,
     engagement_score: engagementScore,
     diversity_score: diversityScore,
+    cohesion_score: cohesionScore,
     duplicate_penalty: duplicatePenalty,
     trend_score: trendScore,
     pack_score: packScore,
+    ranking_score: rankingScore,
+    age_decay_factor: ageDecayFactor,
+    age_decay_days: decayWindow,
     trending_now: trendScore >= 1.4,
     nsfw_level: nsfwLevel,
     sensitive_content: sensitiveContent,
+    scoring_weights: resolvedWeights,
   };
 };
 
@@ -202,7 +244,7 @@ export const buildIntentCollections = (entries, { limit = 18 } = {}) => {
   const pick = (list) => list.slice(0, safeLimit);
 
   return {
-    em_alta: pick(sortByScoreDesc(safeOnly, 'pack_score')),
+    em_alta: pick(sortByScoreDesc(safeOnly, 'ranking_score')),
     novos: pick(sortByUpdatedDesc(safeOnly)),
     crescendo_agora: pick(sortByScoreDesc(all.filter((entry) => entry?.signals?.trending_now), 'trend_score')),
     mais_curtidos: pick([...safeOnly].sort((a, b) => safeNumber(b?.engagement?.like_count) - safeNumber(a?.engagement?.like_count))),

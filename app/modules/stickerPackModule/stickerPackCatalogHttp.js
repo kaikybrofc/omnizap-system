@@ -40,6 +40,7 @@ import {
   buildViewerTagAffinity,
   computePackSignals,
 } from './stickerPackMarketplaceService.js';
+import { getMarketplaceDriftSnapshot } from './stickerMarketplaceDriftService.js';
 import { readStickerAssetBuffer } from './stickerStorageService.js';
 import { sanitizeText } from './stickerPackUtils.js';
 
@@ -698,7 +699,7 @@ const resolveActorKeysFromRequest = (req, url) => {
   };
 };
 
-const hydrateMarketplaceEntries = async (packs, { includeItems = true } = {}) => {
+const hydrateMarketplaceEntries = async (packs, { includeItems = true, driftSnapshot = null } = {}) => {
   const packIds = packs.map((pack) => pack.id);
   const engagementByPackId = await listStickerPackEngagementByPackIds(packIds);
   const interactionStatsByPackId = await listStickerPackInteractionStatsByPackIds(packIds);
@@ -723,6 +724,7 @@ const hydrateMarketplaceEntries = async (packs, { includeItems = true } = {}) =>
       packClassification,
       itemClassifications: orderedClassifications,
       interactionStats,
+      scoringWeights: driftSnapshot?.weights || null,
     });
 
     const entry = {
@@ -925,6 +927,7 @@ const handleListRequest = async (req, res, url) => {
   const maxPagesToScan = 8;
   const seenPackIds = new Set();
   const collectedEntries = [];
+  const driftSnapshot = await getMarketplaceDriftSnapshot();
   let sourceHasMore = true;
   let cursorOffset = offset;
   let pagesScanned = 0;
@@ -941,7 +944,7 @@ const handleListRequest = async (req, res, url) => {
     cursorOffset += batchLimit;
     if (!packs.length) break;
 
-    const { entries } = await hydrateMarketplaceEntries(packs);
+    const { entries } = await hydrateMarketplaceEntries(packs, { driftSnapshot });
     const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED
       ? entries.filter((entry) => isPackClassified(entry.packClassification))
       : entries;
@@ -955,8 +958,8 @@ const handleListRequest = async (req, res, url) => {
       ? entriesBySensitivity.filter((entry) => classifyPackIntent(entry) === normalizedIntent)
       : entriesBySensitivity;
     const sortedEntries = [...entriesByIntent].sort((left, right) => {
-      const leftScore = Number(left.signals?.pack_score || 0) + Number(left.signals?.trend_score || 0) * 0.08;
-      const rightScore = Number(right.signals?.pack_score || 0) + Number(right.signals?.trend_score || 0) * 0.08;
+      const leftScore = Number(left.signals?.ranking_score || 0);
+      const rightScore = Number(right.signals?.ranking_score || 0);
       if (rightScore !== leftScore) return rightScore - leftScore;
       return Date.parse(right.pack.updated_at || 0) - Date.parse(left.pack.updated_at || 0);
     });
@@ -1000,8 +1003,8 @@ const handleIntentCollectionsRequest = async (req, res, url) => {
     limit: Math.max(limit * 3, 40),
     offset: 0,
   });
-
-  const { entries } = await hydrateMarketplaceEntries(packs);
+  const driftSnapshot = await getMarketplaceDriftSnapshot();
+  const { entries } = await hydrateMarketplaceEntries(packs, { driftSnapshot });
   const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED
     ? entries.filter((entry) => isPackClassified(entry.packClassification))
     : entries;
@@ -1082,8 +1085,8 @@ const handleCreatorRankingRequest = async (req, res, url) => {
     limit: 120,
     offset: 0,
   });
-
-  const { entries } = await hydrateMarketplaceEntries(packs);
+  const driftSnapshot = await getMarketplaceDriftSnapshot();
+  const { entries } = await hydrateMarketplaceEntries(packs, { driftSnapshot });
   const ranking = buildCreatorRanking(
     STICKER_CATALOG_ONLY_CLASSIFIED ? entries.filter((entry) => isPackClassified(entry.packClassification)) : entries,
     { limit },
@@ -1123,7 +1126,8 @@ const handleRecommendationsRequest = async (req, res, url) => {
     limit: Math.max(limit * 4, 80),
     offset: 0,
   });
-  const { entries, packClassificationById } = await hydrateMarketplaceEntries(packs);
+  const driftSnapshot = await getMarketplaceDriftSnapshot();
+  const { entries, packClassificationById } = await hydrateMarketplaceEntries(packs, { driftSnapshot });
   const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED
     ? entries.filter((entry) => isPackClassified(entry.packClassification))
     : entries;
@@ -1686,6 +1690,7 @@ const handleDetailsRequest = async (req, res, packKey, url) => {
     getStickerPackEngagementByPackId(pack.id),
   ]);
   const interactionStatsByPack = await listStickerPackInteractionStatsByPackIds([pack.id]);
+  const driftSnapshot = await getMarketplaceDriftSnapshot();
   const byAssetClassification = new Map(classifications.map((entry) => [entry.asset_id, entry]));
   const orderedClassifications = stickerIds.map((stickerId) => byAssetClassification.get(stickerId)).filter(Boolean);
   const signals = computePackSignals({
@@ -1694,6 +1699,7 @@ const handleDetailsRequest = async (req, res, packKey, url) => {
     packClassification,
     itemClassifications: orderedClassifications,
     interactionStats: interactionStatsByPack.get(pack.id) || null,
+    scoringWeights: driftSnapshot.weights,
   });
   const visibleItems = STICKER_CATALOG_ONLY_CLASSIFIED
     ? items.filter((item) => isStickerClassified(byAssetClassification.get(item.sticker_id)))

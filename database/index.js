@@ -101,6 +101,8 @@ export const TABLES = {
   STICKER_ASSET_CLASSIFICATION: 'sticker_asset_classification',
   STICKER_PACK_ENGAGEMENT: 'sticker_pack_engagement',
   STICKER_PACK_INTERACTION_EVENT: 'sticker_pack_interaction_event',
+  STICKER_ASSET_REPROCESS_QUEUE: 'sticker_asset_reprocess_queue',
+  STICKER_WORKER_TASK_QUEUE: 'sticker_worker_task_queue',
   RPG_PLAYER: 'rpg_player',
   RPG_PLAYER_POKEMON: 'rpg_player_pokemon',
   RPG_BATTLE_STATE: 'rpg_battle_state',
