@@ -4144,7 +4144,7 @@ function StickersApp() {
                                   key=${tab.key}
                                   type="button"
                                   onClick=${() => setDiscoverTab(tab.key)}
-                                  className=${`h-8 rounded-full border px-2.5 text-[11px] ${
+                                  className=${`h-8 rounded-full border px-2.5 text-[11px] touch-manipulation ${
                                     discoverTab === tab.key
                                       ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-100'
                                       : 'border-slate-700 bg-slate-950/40 text-slate-300 hover:bg-slate-800'
@@ -4187,6 +4187,56 @@ function StickersApp() {
                                       </div>
                                     `}
                             </div>
+
+                            <div className="mt-2 lg:hidden">
+                              ${discoverTab === 'growing'
+                                ? html`
+                                    <section className="space-y-1.5">
+                                      <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-semibold text-slate-200">🔥 Em alta agora</h4>
+                                        <button type="button" onClick=${openTrendingCatalog} className="text-[10px] text-cyan-300">ver lista</button>
+                                      </div>
+                                      <div className="flex gap-2 overflow-x-auto pb-1">
+                                        ${growingNowPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-grow-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
+                                      </div>
+                                    </section>
+                                  `
+                                : discoverTab === 'top'
+                                  ? html`
+                                      <section className="space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                          <h4 className="text-xs font-semibold text-slate-200">🏆 Top 10 da semana</h4>
+                                          <button
+                                            type="button"
+                                            onClick=${() => openCatalogWithState({ q: '', category: '', sort: 'trending', filter: '', push: true })}
+                                            className="text-[10px] text-cyan-300"
+                                          >
+                                            ver lista
+                                          </button>
+                                        </div>
+                                        <div className="flex gap-2 overflow-x-auto pb-1">
+                                          ${topWeekPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-top-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
+                                        </div>
+                                      </section>
+                                    `
+                                  : html`
+                                      <section className="space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                          <h4 className="text-xs font-semibold text-slate-200">👑 Criadores populares</h4>
+                                          <button type="button" onClick=${() => openCreatorsRanking('popular', true)} className="text-[10px] text-cyan-300">ver lista</button>
+                                        </div>
+                                        <div className="flex gap-2 overflow-x-auto pb-1">
+                                          ${featuredCreators.map((creator) => html`
+                                            <${DiscoverCreatorMiniCard}
+                                              key=${`mobile-tab-creator-${creator.publisher}`}
+                                              creator=${creator}
+                                              onPick=${(publisher) => openCatalogWithState({ q: publisher, category: '', sort: DEFAULT_CATALOG_SORT, filter: '', push: true })}
+                                            />
+                                          `)}
+                                        </div>
+                                      </section>
+                                    `}
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -4208,35 +4258,11 @@ function StickersApp() {
                           <div className="lg:hidden space-y-2">
                             <section className="space-y-1.5">
                               <div className="flex items-center justify-between">
-                                <h4 className="text-xs font-semibold text-slate-200">🔥 Em alta agora</h4>
-                                <button type="button" onClick=${openTrendingCatalog} className="text-[10px] text-cyan-300">ver lista</button>
-                              </div>
-                              <div className="flex gap-2 overflow-x-auto pb-1">
-                                ${growingNowPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-grow-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
-                              </div>
-                            </section>
-                            <section className="space-y-1.5">
-                              <div className="flex items-center justify-between">
                                 <h4 className="text-xs font-semibold text-slate-200">🆕 Recém publicados</h4>
                                 <button type="button" onClick=${openSortPicker} disabled=${sortPickerBusy} className="text-[10px] text-cyan-300 disabled:opacity-50">ordenar</button>
                               </div>
                               <div className="flex gap-2 overflow-x-auto pb-1">
                                 ${recentPublishedPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-new-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
-                              </div>
-                            </section>
-                            <section className="space-y-1.5">
-                              <div className="flex items-center justify-between">
-                                <h4 className="text-xs font-semibold text-slate-200">👑 Criadores populares</h4>
-                                <button type="button" onClick=${() => openCreatorsRanking('popular', true)} className="text-[10px] text-cyan-300">ver lista</button>
-                              </div>
-                              <div className="flex gap-2 overflow-x-auto pb-1">
-                                ${featuredCreators.map((creator) => html`
-                                  <${DiscoverCreatorMiniCard}
-                                    key=${`mobile-creator-${creator.publisher}`}
-                                    creator=${creator}
-                                    onPick=${(publisher) => openCatalogWithState({ q: publisher, category: '', sort: DEFAULT_CATALOG_SORT, filter: '', push: true })}
-                                  />
-                                `)}
                               </div>
                             </section>
                           </div>
