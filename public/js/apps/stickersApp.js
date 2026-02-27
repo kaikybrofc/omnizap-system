@@ -1,4 +1,4 @@
-import { React, createRoot, useEffect, useMemo, useRef, useState } from '../runtime/react-runtime.js';
+import { React, createRoot, useEffect, useMemo, useRef, useState } from '../runtime/react-runtime.js?v=20260227-runtime-twind-v1';
 import htm from 'https://esm.sh/htm@3.1.1';
 
 const html = htm.bind(React.createElement);
@@ -161,7 +161,7 @@ const normalizeToken = (value) =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9- ]+/g, '');
 
-const NSFW_HINT_TOKENS = ['nsfw', 'adult', 'explicit', 'suggestive', 'sexual', 'porn', 'nud', 'gore', '18'];
+const NSFW_HINT_TOKENS = ['nsfw', 'adult', 'explicit', 'suggestive', 'sexual', 'porn', 'nud', 'gore', '18', 'bikini', 'lingerie', 'underwear', 'swimsuit'];
 const normalizeNsfwToken = (value) =>
   String(value || '')
     .toLowerCase()
@@ -209,6 +209,8 @@ const isPackMarkedNsfw = (pack) => {
   if (pack.is_nsfw === true) return true;
   if (isSignalMarkedNsfw(pack.signals)) return true;
   if (isClassificationMarkedNsfw(pack.classification)) return true;
+  if (hasNsfwHint(pack.name || '')) return true;
+  if (hasNsfwHint(pack.description || '')) return true;
   if (hasNsfwHintsInList(pack.tags) || hasNsfwHintsInList(pack.manual_tags)) return true;
   return false;
 };

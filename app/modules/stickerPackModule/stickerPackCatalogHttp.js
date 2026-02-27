@@ -111,6 +111,21 @@ const clampInt = (value, fallback, min, max) => {
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(parsed)));
 };
+const parseMaxPacksPerOwnerLimit = (value, fallback = 50) => {
+  if (value === undefined || value === null || value === '') {
+    return Math.max(1, Number(fallback) || 50);
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (['0', '-1', 'inf', 'infinity', 'unlimited', 'sem-limite'].includes(normalized)) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const parsed = Number(normalized);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.max(1, Math.floor(parsed));
+  }
+  return Math.max(1, Number(fallback) || 50);
+};
+const serializePackOwnerLimit = (value) => (Number.isFinite(value) ? Math.max(1, Number(value) || 1) : null);
 
 const STICKER_CATALOG_ENABLED = parseEnvBool(process.env.STICKER_CATALOG_ENABLED, true);
 const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stickers');
@@ -143,7 +158,7 @@ const PACK_CREATE_MAX_NAME_LENGTH = 120;
 const PACK_CREATE_MAX_PUBLISHER_LENGTH = 120;
 const PACK_CREATE_MAX_DESCRIPTION_LENGTH = 1024;
 const PACK_CREATE_MAX_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
-const PACK_CREATE_MAX_PACKS_PER_OWNER = Math.max(1, Number(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER) || 50);
+const PACK_CREATE_MAX_PACKS_PER_OWNER = parseMaxPacksPerOwnerLimit(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER, 50);
 const PACK_WEB_EDIT_TOKEN_TTL_MS = Math.max(60_000, Number(process.env.STICKER_WEB_EDIT_TOKEN_TTL_MS) || 6 * 60 * 60 * 1000);
 const STICKER_WEB_GOOGLE_CLIENT_ID = String(process.env.STICKER_WEB_GOOGLE_CLIENT_ID || '').trim();
 const ADMIN_PANEL_EMAIL = String(process.env.ADM_EMAIL || '').trim().toLowerCase();
@@ -236,10 +251,15 @@ let googleWebSessionDbPruneAt = 0;
 let adminPanelSessionPruneAt = 0;
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
-const isPackPubliclyVisible = (pack) =>
-  (pack?.visibility === 'public' || pack?.visibility === 'unlisted')
-  && String(pack?.status || 'published') === 'published'
-  && String(pack?.pack_status || 'ready') === 'ready';
+const isPackPubliclyVisible = (pack) => {
+  const visibility = String(pack?.visibility || '').toLowerCase();
+  if (visibility !== 'public' && visibility !== 'unlisted') return false;
+  if (String(pack?.status || 'published') !== 'published') return false;
+
+  const packStatus = String(pack?.pack_status || 'ready').toLowerCase();
+  if (packStatus === 'ready') return true;
+  return packStatus === 'building' && Number(pack?.is_auto_pack || 0) === 1;
+};
 const toIsoOrNull = (value) => (value ? new Date(value).toISOString() : null);
 const GITHUB_PROJECT_CACHE = {
   expiresAt: 0,
@@ -2363,7 +2383,7 @@ const mapPackSummary = (pack, engagement = null, signals = null) => {
   };
 };
 
-const NSFW_HINT_TOKENS = ['nsfw', 'adult', 'explicit', 'suggestive', 'sexual', 'porn', 'nud', 'gore', '18'];
+const NSFW_HINT_TOKENS = ['nsfw', 'adult', 'explicit', 'suggestive', 'sexual', 'porn', 'nud', 'gore', '18', 'bikini', 'lingerie', 'underwear', 'swimsuit'];
 const normalizeNsfwToken = (value) =>
   String(value || '')
     .trim()
@@ -2409,6 +2429,8 @@ const isPackSummaryMarkedNsfw = (packSummary) => {
   if (packSummary.is_nsfw === true) return true;
   if (isSignalMarkedNsfw(packSummary.signals)) return true;
   if (isClassificationMarkedNsfw(packSummary.classification)) return true;
+  if (hasNsfwHint(packSummary.name || '')) return true;
+  if (hasNsfwHint(packSummary.description || '')) return true;
   if (hasNsfwHintsInList(packSummary.tags) || hasNsfwHintsInList(packSummary.manual_tags)) return true;
   return false;
 };
@@ -2863,6 +2885,7 @@ const renderPackSeoHtml = ({ packSummary }) => {
   <meta name="description" content="${escapeHtmlAttribute(packDescription)}" />
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
   <link rel="canonical" href="${escapeHtmlAttribute(canonicalUrl)}" />
+  <link rel="stylesheet" href="${escapeHtmlAttribute(buildCatalogStylesUrl())}" />
   <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
 
   <meta property="og:type" content="website" />
@@ -2912,7 +2935,7 @@ const renderPackSeoHtml = ({ packSummary }) => {
     data-default-orphan-limit="${DEFAULT_ORPHAN_LIST_LIMIT}"
     data-initial-pack-key="${escapeHtmlAttribute(packSummary?.pack_key || '')}"
   ></div>
-  <script type="module" src="/js/apps/stickersApp.js?v=20260226-pack-open-fallback-manage-v1"></script>
+  <script type="module" src="/js/apps/stickersApp.js?v=20260227-ui-hotfix-v3"></script>
 </body>
 </html>`;
 };
@@ -3276,7 +3299,8 @@ const handleCreatePackConfigRequest = async (req, res) => {
         publisher_max_length: PACK_CREATE_MAX_PUBLISHER_LENGTH,
         description_max_length: PACK_CREATE_MAX_DESCRIPTION_LENGTH,
         stickers_per_pack: PACK_CREATE_MAX_ITEMS,
-        packs_per_owner: PACK_CREATE_MAX_PACKS_PER_OWNER,
+        packs_per_owner: serializePackOwnerLimit(PACK_CREATE_MAX_PACKS_PER_OWNER),
+        packs_per_owner_unlimited: !Number.isFinite(PACK_CREATE_MAX_PACKS_PER_OWNER),
         sticker_upload_max_bytes: MAX_STICKER_UPLOAD_BYTES,
         sticker_upload_source_max_bytes: MAX_STICKER_SOURCE_UPLOAD_BYTES,
       },
@@ -4641,7 +4665,8 @@ const handleCreatePackRequest = async (req, res) => {
           : null,
         limits: {
           stickers_per_pack: PACK_CREATE_MAX_ITEMS,
-          packs_per_owner: PACK_CREATE_MAX_PACKS_PER_OWNER,
+          packs_per_owner: serializePackOwnerLimit(PACK_CREATE_MAX_PACKS_PER_OWNER),
+          packs_per_owner_unlimited: !Number.isFinite(PACK_CREATE_MAX_PACKS_PER_OWNER),
         },
       },
     });
@@ -6110,6 +6135,8 @@ const handleAssetRequest = async (req, res, packKey, stickerToken) => {
     const packMetadata = parsePackDescriptionMetadata(pack.description);
     const decoratedPackClassification = decoratePackClassificationSummary(packClassification);
     const packMarkedNsfw = isPackSummaryMarkedNsfw({
+      name: pack.name || '',
+      description: packMetadata.cleanDescription || '',
       classification: decoratedPackClassification,
       tags: mergeUniqueTags(decoratedPackClassification?.tags || [], packMetadata.tags),
       manual_tags: packMetadata.tags,

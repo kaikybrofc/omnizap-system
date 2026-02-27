@@ -5,3 +5,6 @@ Pillow==11.3.0
 numpy==2.3.2
 torch>=2.2.0
 open-clip-torch>=2.26.1
+python-dotenv>=1.0.1
+PyMySQL>=1.1.1
+openai>=1.63.0

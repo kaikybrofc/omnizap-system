@@ -1,3 +1,12 @@
+import { setup } from 'https://esm.sh/twind@0.16.19';
+import { observe } from 'https://esm.sh/twind@0.16.19/observe';
+
+if (typeof document !== 'undefined' && !window.__omnizapTwindReady) {
+  setup({ preflight: false });
+  observe(document.documentElement);
+  window.__omnizapTwindReady = true;
+}
+
 export {
   default as React,
   useEffect,

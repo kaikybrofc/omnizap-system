@@ -130,7 +130,7 @@ export const decorateStickerClassification = (classification) => {
   };
 };
 
-const classifyBufferViaHttp = async (buffer, filename = 'sticker.webp') => {
+const classifyBufferViaHttp = async (buffer, filename = 'sticker.webp', metadata = {}) => {
   if (!CLIP_CLASSIFIER_ENABLED) return null;
   if (!Buffer.isBuffer(buffer) || !buffer.length) return null;
 
@@ -142,6 +142,15 @@ const classifyBufferViaHttp = async (buffer, filename = 'sticker.webp') => {
   form.append('file', new Blob([buffer], { type: 'image/webp' }), filename);
   if (CLIP_CLASSIFIER_NSFW_THRESHOLD !== null) {
     form.append('nsfw_threshold', String(CLIP_CLASSIFIER_NSFW_THRESHOLD));
+  }
+  if (metadata?.assetId) {
+    form.append('asset_id', String(metadata.assetId));
+  }
+  if (metadata?.assetSha256) {
+    form.append('asset_sha256', String(metadata.assetSha256));
+  }
+  if (metadata?.theme) {
+    form.append('theme', String(metadata.theme));
   }
 
   const controller = typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null;
@@ -179,7 +188,10 @@ export async function ensureStickerAssetClassified({ asset, buffer, force = fals
     if (cached) return cached;
   }
 
-  const inference = await classifyBufferViaHttp(buffer, `${asset.id}.webp`);
+  const inference = await classifyBufferViaHttp(buffer, `${asset.id}.webp`, {
+    assetId: asset.id,
+    assetSha256: asset.sha256 || null,
+  });
   if (!inference) return null;
 
   return upsertStickerAssetClassification({

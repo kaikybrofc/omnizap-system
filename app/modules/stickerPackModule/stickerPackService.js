@@ -13,7 +13,24 @@ const MAX_PUBLISHER_LENGTH = 120;
 const MAX_DESCRIPTION_LENGTH = 1024;
 const MAX_ACCESSIBILITY_LABEL_LENGTH = 255;
 const DEFAULT_MAX_STICKERS_PER_PACK = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
-const DEFAULT_MAX_PACKS_PER_OWNER = Math.max(1, Number(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER) || 50);
+const parseMaxPacksPerOwnerLimit = (value, fallback = 50) => {
+  if (value === undefined || value === null || value === '') {
+    return Math.max(1, Number(fallback) || 50);
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (['0', '-1', 'inf', 'infinity', 'unlimited', 'sem-limite'].includes(normalized)) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const parsed = Number(normalized);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.max(1, Math.floor(parsed));
+  }
+
+  return Math.max(1, Number(fallback) || 50);
+};
+const DEFAULT_MAX_PACKS_PER_OWNER = parseMaxPacksPerOwnerLimit(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER, 50);
 const PACK_KEY_BASE_MAX_LENGTH = 32;
 const PACK_KEY_SUFFIX_LENGTH = 5;
 const PACK_KEY_SUFFIX_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -166,7 +183,8 @@ export function createStickerPackService(options = {}) {
   };
 
   const maxStickersPerPack = Math.max(1, Number(options.maxStickersPerPack) || DEFAULT_MAX_STICKERS_PER_PACK);
-  const maxPacksPerOwner = Math.max(1, Number(options.maxPacksPerOwner) || DEFAULT_MAX_PACKS_PER_OWNER);
+  const maxPacksPerOwner = parseMaxPacksPerOwnerLimit(options.maxPacksPerOwner, DEFAULT_MAX_PACKS_PER_OWNER);
+  const hasOwnerPackLimit = Number.isFinite(maxPacksPerOwner);
   const runInTransaction = options.runInTransaction || withTransaction;
 
   const requiredPackMethods = [
@@ -363,16 +381,18 @@ export function createStickerPackService(options = {}) {
     return runAction('create_pack', { owner_jid: owner }, async () => {
       return runInTransaction(async (connection) => {
         const metadata = sanitizeMetadata({ name, publisher, description, visibility });
-        const existing = await deps.packRepository.listStickerPacksByOwner(owner, {
-          limit: maxPacksPerOwner + 1,
-          connection,
-        });
+        if (hasOwnerPackLimit) {
+          const existing = await deps.packRepository.listStickerPacksByOwner(owner, {
+            limit: maxPacksPerOwner + 1,
+            connection,
+          });
 
-        ensureValue(
-          existing.length < maxPacksPerOwner,
-          STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED,
-          `Limite de packs atingido (${maxPacksPerOwner}).`,
-        );
+          ensureValue(
+            existing.length < maxPacksPerOwner,
+            STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED,
+            `Limite de packs atingido (${maxPacksPerOwner}).`,
+          );
+        }
 
         const packKey = await ensurePackKey(owner, metadata.name, connection);
 

@@ -1,13 +1,21 @@
-# OmniZap CLIP Classifier (MobileCLIP)
+# OmniZap CLIP Classifier 2.0 (MobileCLIP)
 
-Serviço de classificação de imagens com MobileCLIP (via OpenCLIP) para categorizar stickers/packs.
+Serviço de classificação de imagens com MobileCLIP (OpenCLIP), com arquitetura híbrida:
+
+- embeddings persistidos (imagem e labels)
+- multi-label top-k com entropia e margin
+- clustering por similaridade imagem-imagem
+- ajuste adaptativo por feedback de packs
+- expansão semântica via API da OpenAI (cacheada)
 
 ## Estrutura
 
-- `classifier.py`: lógica de inferência (modelo global, classificação, NSFW).
+- `classifier.py`: pipeline principal de inferência/classificação.
+- `embedding_store.py`: persistência MySQL de embeddings, feedback e cache LLM.
+- `similarity_engine.py`: cosine similarity e busca de imagens similares.
+- `adaptive_scoring.py`: ajuste adaptativo de score por afinidade histórica.
+- `llm_label_expander.py`: expansão semântica de labels usando OpenAI.
 - `main.py`: API FastAPI.
-- `requirements.txt`: dependências Python.
-- `Dockerfile`: container pronto para deploy.
 
 ## Rodando localmente
 
@@ -19,69 +27,94 @@ pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8008 --reload
 ```
 
-## Endpoint principal
+## Endpoints
 
-`POST /classify`
+### `POST /classify`
 
-- `file`: upload da imagem
-- `labels` (opcional): lista custom (JSON ou CSV)
-- `nsfw_threshold` (opcional): threshold para NSFW
+Multipart form:
 
-## Categorias (100+)
+- `file`: imagem
+- `labels` (opcional): JSON array ou CSV
+- `nsfw_threshold` (opcional)
+- `asset_id` (opcional)
+- `asset_sha256` (opcional)
+- `theme` (opcional, para adaptive scoring)
+- `similar_threshold` (opcional)
+- `similar_limit` (opcional)
 
-O serviço agora vem com mais de 100 categorias padrão.
+### `POST /feedback`
 
-Você pode sobrescrever via ambiente:
+JSON:
 
-- `CLIP_DEFAULT_LABELS_JSON`: lista JSON (`["categoria 1","categoria 2"]`)
-- `CLIP_DEFAULT_LABELS_PATH`: caminho para arquivo `.txt`/`.json` com labels
-- `CLIP_MAX_LABELS`: limite máximo de labels por inferência (padrão: `256`)
-- `CLIP_MODEL_NAME`: modelo OpenCLIP (padrão: `MobileCLIP-S1`)
-- `CLIP_MODEL_PRETRAINED`: tag de pesos OpenCLIP (padrão: `datacompdr`)
-- `CLIP_DEVICE`: força `cpu`/`cuda` (opcional)
-
-Exemplo com cURL:
-
-```bash
-curl -X POST "http://localhost:8008/classify" \
-  -F "file=@./imagem.jpg" \
-  -F "labels=[\"anime illustration\",\"video game screenshot\",\"real life photo\",\"nsfw content\",\"cartoon\"]" \
-  -F "nsfw_threshold=0.6"
+```json
+{
+  "image_hash": "...",
+  "theme": "reaction-meme",
+  "accepted": true,
+  "asset_id": "uuid-opcional"
+}
 ```
 
-## Resposta esperada
+### `GET /labels`
+
+Retorna labels padrão, thresholds e flags de recursos.
+
+## Variáveis de ambiente
+
+Principais:
+
+- `CLIP_TOP_K=5`
+- `ENABLE_EMBEDDING_CACHE=true`
+- `ENABLE_CLUSTERING=true`
+- `ENABLE_ADAPTIVE_SCORING=true`
+- `ENABLE_LLM_LABEL_EXPANSION=true`
+- `ADAPTIVE_ALPHA=0.4`
+- `ENTROPY_THRESHOLD=2.5`
+
+Complementares:
+
+- `SIMILARITY_THRESHOLD=0.85`
+- `SIMILARITY_LIMIT=25`
+- `SIMILARITY_SCAN_LIMIT=3000`
+- `LLM_LABEL_EXPANSION_MODEL=gpt-4.1-mini`
+- `LLM_LABEL_EXPANSION_TIMEOUT_MS=6000`
+
+Persistência MySQL (obrigatório para cache/feedback):
+
+- `DB_HOST`
+- `DB_PORT` (opcional, padrão `3306`)
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME`
+
+OpenAI:
+
+- `OPENAI_API_KEY`
+
+## Resposta (exemplo resumido)
 
 ```json
 {
   "category": "anime illustration",
-  "confidence": 0.91,
-  "all_scores": {
-    "anime illustration": 0.91,
-    "video game screenshot": 0.03,
-    "real life photo": 0.02,
-    "nsfw content": 0.01,
-    "cartoon": 0.03
-  },
+  "confidence": 0.82,
+  "top_labels": [
+    {"label": "anime illustration", "score": 0.82, "logit": 18.10, "clip_score": 0.80},
+    {"label": "cartoon", "score": 0.09, "logit": 13.40, "clip_score": 0.10}
+  ],
+  "entropy": 1.42,
+  "confidence_margin": 0.73,
+  "ambiguous": false,
   "nsfw_score": 0.01,
   "is_nsfw": false,
-  "model": "MobileCLIP-S1",
-  "device": "cuda",
-  "labels": [
-    "anime illustration",
-    "video game screenshot",
-    "real life photo",
-    "nsfw content",
-    "cartoon"
-  ],
-  "filename": "imagem.jpg",
-  "content_type": "image/jpeg"
+  "raw_logits": {"anime illustration": 18.1, "cartoon": 13.4},
+  "llm_expansion": {
+    "subtags": ["cel shading", "shonen vibe"],
+    "style_traits": ["high contrast"],
+    "emotions": ["energetic"],
+    "pack_suggestions": ["anime-reaction"]
+  },
+  "similar_images": [
+    {"image_hash": "...", "asset_id": "...", "similarity": 0.91}
+  ]
 }
-```
-
-## Docker
-
-```bash
-cd ml/clip_classifier
-docker build -t omnizap-clip-classifier .
-docker run --rm -p 8008:8008 omnizap-clip-classifier
 ```
