@@ -18,6 +18,64 @@ const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const DEFAULT_STICKER_PACK_NAME = (process.env.STICKER_DEFAULT_PACK_NAME || '').trim() || 'https://omnizap.shop/';
 const AUTO_PACK_NOTICE_ENABLED = process.env.STICKER_PACK_AUTO_COLLECT_NOTIFY !== 'false';
 const AUTO_PACK_MAX_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
+const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stickers');
+const STICKER_WEB_ORIGIN = resolveStickerWebOrigin();
+
+function normalizeBasePath(value, fallback) {
+  const raw = String(value || '').trim() || fallback;
+  const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  const withoutTrailingSlash =
+    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
+      ? withLeadingSlash.slice(0, -1)
+      : withLeadingSlash;
+  return withoutTrailingSlash || fallback;
+}
+
+function normalizeOrigin(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  try {
+    const parsed = new URL(raw);
+    if (!parsed.protocol || !parsed.host) return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+function resolveStickerWebOrigin() {
+  const candidates = [
+    process.env.STICKER_WEB_ORIGIN,
+    process.env.APP_BASE_URL,
+    process.env.PUBLIC_BASE_URL,
+    process.env.SITE_URL,
+    process.env.WEB_URL,
+    process.env.BASE_URL,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeOrigin(candidate);
+    if (normalized) return normalized;
+  }
+
+  const fromDefaultPack = normalizeOrigin(DEFAULT_STICKER_PACK_NAME);
+  return fromDefaultPack || 'https://omnizap.shop';
+}
+
+function buildPackWebUrl(packKey) {
+  const normalizedPackKey = String(packKey || '').trim();
+  if (!normalizedPackKey) return null;
+
+  return `${STICKER_WEB_ORIGIN}${STICKER_WEB_PATH}/${encodeURIComponent(normalizedPackKey)}`;
+}
+
+function isPackPubliclyVisible(pack) {
+  const visibility = String(pack?.visibility || '').trim().toLowerCase();
+  const status = String(pack?.status || 'published').trim().toLowerCase();
+  const packStatus = String(pack?.pack_status || 'ready').trim().toLowerCase();
+  return (visibility === 'public' || visibility === 'unlisted') && status === 'published' && packStatus === 'ready';
+}
 
 /**
  * Resultado da criação/verificação de diretórios temporários do usuário.
@@ -152,16 +210,37 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
   const pack = result.pack || {};
   const packName = pack.name || 'Minhas Figurinhas';
   const packIdentifier = pack.pack_key || pack.id || '<pack>';
+  const packWebUrl = isPackPubliclyVisible(pack) ? buildPackWebUrl(pack.pack_key) : null;
+  const profileUrl = `${STICKER_WEB_ORIGIN}${STICKER_WEB_PATH}/profile`;
   const escapedPackName = packName.replace(/"/g, '\\"');
   const packCommandTarget = escapedPackName ? `"${escapedPackName}"` : packIdentifier;
   const itemCount = Array.isArray(pack.items) ? pack.items.length : Number(pack.sticker_count || 0);
   const countLabel = itemCount > 0 ? ` (${itemCount}/${AUTO_PACK_MAX_ITEMS})` : '';
 
   if (result.status === 'duplicate') {
-    return [`ℹ️ Essa figurinha já estava no pack automático *${packName}*.`, `Use *${commandPrefix}pack info ${packIdentifier}* para ver o pack ou *${commandPrefix}pack send ${packIdentifier}* para enviar.`].join('\n');
+    const duplicateLines = [
+      `ℹ️ Essa figurinha já estava no pack automático *${packName}*.`,
+      `Use *${commandPrefix}pack info ${packIdentifier}* para ver o pack ou *${commandPrefix}pack send ${packIdentifier}* para enviar.`,
+    ];
+    if (packWebUrl) {
+      duplicateLines.push(`🌐 Link do pack no site: ${packWebUrl}`);
+    } else {
+      duplicateLines.push(`🔒 Pack privado/não publicado. Abra no painel: ${profileUrl}`);
+    }
+    return duplicateLines.join('\n');
   }
 
-  return [`📦 Figurinha salva automaticamente no pack *${packName}*${countLabel}.\n\n`, `Dica: use *${commandPrefix}pack list* para gerenciar seus packs.`, `Para enviar agora: *${commandPrefix}pack send ${packCommandTarget}*.`].join('\n');
+  const savedLines = [
+    `📦 Figurinha salva automaticamente no pack *${packName}*${countLabel}.\n\n`,
+    `Dica: use *${commandPrefix}pack list* para gerenciar seus packs.`,
+    `Para enviar agora: *${commandPrefix}pack send ${packCommandTarget}*.`,
+  ];
+  if (packWebUrl) {
+    savedLines.push(`🌐 Abrir no site: ${packWebUrl}`);
+  } else {
+    savedLines.push(`🔒 Pack privado/não publicado. Gerencie em: ${profileUrl}`);
+  }
+  return savedLines.join('\n');
 }
 
 async function notifyAutoPackCollection({ sock, remoteJid, messageInfo, expirationMessage, result, commandPrefix }) {

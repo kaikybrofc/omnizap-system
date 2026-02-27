@@ -1,13 +1,14 @@
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
-import { sanitizeText, toVisibility } from './stickerPackUtils.js';
+import { sanitizeText } from './stickerPackUtils.js';
 
 /**
  * Serviço responsável por direcionar figurinhas recém-criadas para packs automáticos.
  */
 const DEFAULT_AUTO_PACK_NAME = process.env.STICKER_PACK_AUTO_PACK_NAME || 'pack';
-const DEFAULT_AUTO_PACK_VISIBILITY = toVisibility(process.env.STICKER_PACK_AUTO_PACK_VISIBILITY || 'public', 'public');
+const AUTO_PACK_TARGET_VISIBILITY = 'unlisted';
 const AUTO_COLLECT_ENABLED = process.env.STICKER_PACK_AUTO_COLLECT_ENABLED !== 'false';
 const AUTO_PACK_NAME_MAX_LENGTH = 120;
+const normalizeVisibility = (value) => String(value || '').trim().toLowerCase();
 
 /**
  * Escapa texto para uso seguro em RegExp.
@@ -137,11 +138,50 @@ export function createAutoPackCollector(options = {}) {
     }
   }
 
+  const ensureAutoPackVisibility = async ({ ownerJid, pack }) => {
+    if (!pack) return pack;
+
+    if (normalizeVisibility(pack.visibility) === AUTO_PACK_TARGET_VISIBILITY) {
+      return pack;
+    }
+
+    if (typeof deps.stickerPackService.setPackVisibility !== 'function') {
+      return { ...pack, visibility: AUTO_PACK_TARGET_VISIBILITY };
+    }
+
+    try {
+      const updated = await deps.stickerPackService.setPackVisibility({
+        ownerJid,
+        identifier: pack.id || pack.pack_key,
+        visibility: AUTO_PACK_TARGET_VISIBILITY,
+      });
+
+      deps.logger.info('Visibilidade do pack automático ajustada para unlisted.', {
+        action: 'sticker_pack_auto_collect_visibility_adjusted',
+        owner_jid: ownerJid,
+        pack_id: updated?.id || pack.id || null,
+      });
+
+      return updated || { ...pack, visibility: AUTO_PACK_TARGET_VISIBILITY };
+    } catch (error) {
+      deps.logger.warn('Falha ao ajustar visibilidade do pack automático.', {
+        action: 'sticker_pack_auto_collect_visibility_adjust_failed',
+        owner_jid: ownerJid,
+        pack_id: pack.id || null,
+        error: error?.message,
+      });
+      return pack;
+    }
+  };
+
   const ensureTargetPack = async ({ ownerJid, senderName }) => {
     const packs = await deps.stickerPackService.listPacks({ ownerJid, limit: 30 });
     if (packs.length > 0) {
+      const preferredPack =
+        packs.find((entry) => normalizeVisibility(entry?.visibility) === AUTO_PACK_TARGET_VISIBILITY) || packs[0];
+      const ensuredPack = await ensureAutoPackVisibility({ ownerJid, pack: preferredPack });
       return {
-        pack: packs[0],
+        pack: ensuredPack,
         packs,
       };
     }
@@ -151,7 +191,7 @@ export function createAutoPackCollector(options = {}) {
       name: makeAutoPackName([]),
       publisher: sanitizeText(senderName, 120, { allowEmpty: true }) || 'OmniZap',
       description: 'Coleção automática de figurinhas criadas pelo usuário.',
-      visibility: DEFAULT_AUTO_PACK_VISIBILITY,
+      visibility: AUTO_PACK_TARGET_VISIBILITY,
     });
 
     return {
@@ -211,7 +251,7 @@ export function createAutoPackCollector(options = {}) {
           name: makeAutoPackName(packs),
           publisher: sanitizeText(senderName, 120, { allowEmpty: true }) || targetPack.publisher || 'OmniZap',
           description: 'Coleção automática de figurinhas criadas pelo usuário.',
-          visibility: targetPack.visibility || DEFAULT_AUTO_PACK_VISIBILITY,
+          visibility: AUTO_PACK_TARGET_VISIBILITY,
         });
 
         const updated = await deps.stickerPackService.addStickerToPack({
