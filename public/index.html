@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OmniZap System | Automação WhatsApp para Bots e Empresas</title>
-  <meta name="description" content="OmniZap System: plataforma open source para automação WhatsApp com comandos, mídia, sticker packs, API e observabilidade." />
-  <meta name="keywords" content="omnizap, whatsapp bot, automação whatsapp, sticker packs, api whatsapp, chatbot, saas, open source" />
+  <title>OmniZap System | Plataforma Open Source de Automação WhatsApp</title>
+  <meta name="description" content="OmniZap System: infraestrutura open source para bots e automação WhatsApp em escala, com API, observabilidade, gestão de grupos e arquitetura pronta para produção." />
+  <meta name="keywords" content="omnizap, automação whatsapp, api whatsapp, bot whatsapp open source, infraestrutura bot, saas whatsapp, observabilidade, gestão de grupos" />
   <meta name="author" content="OmniZap System" />
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
   <meta name="theme-color" content="#0b1020" />
@@ -19,15 +19,15 @@
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="pt_BR" />
   <meta property="og:site_name" content="OmniZap System" />
-  <meta property="og:title" content="OmniZap System | Automação WhatsApp para Bots e Empresas" />
-  <meta property="og:description" content="Automação, mídia, stickers e API em uma stack pronta para produção." />
+  <meta property="og:title" content="OmniZap System | Plataforma Open Source de Automação WhatsApp" />
+  <meta property="og:description" content="Infraestrutura técnica para bots WhatsApp com API, observabilidade e arquitetura modular pronta para produção." />
   <meta property="og:url" content="https://omnizap.shop/" />
   <meta property="og:image" content="https://iili.io/fSNGag2.png" />
   <meta property="og:image:alt" content="Banner OmniZap System com identidade visual tecnológica" />
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="OmniZap System" />
-  <meta name="twitter:description" content="Automação WhatsApp com comandos, mídia, stickers e observabilidade." />
+  <meta name="twitter:description" content="Plataforma open source de automação WhatsApp com API, telemetria e stack de produção." />
   <meta name="twitter:image" content="https://iili.io/fSNGag2.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -44,7 +44,7 @@
     "applicationCategory": "BusinessApplication",
     "operatingSystem": "Linux, Windows, macOS",
     "url": "https://omnizap.shop/",
-    "description": "Plataforma open source de automação WhatsApp com comandos, mídia, stickers e observabilidade.",
+    "description": "Plataforma open source de automação WhatsApp com API, observabilidade, gestão de grupos e arquitetura modular para produção.",
     "offers": {
       "@type": "Offer",
       "price": "0",
@@ -782,6 +782,12 @@
       padding: 16px;
     }
 
+    .github-spotlight {
+      margin-top: 10px;
+      border-color: #4a6ea8;
+      box-shadow: 0 18px 34px #04102366;
+    }
+
     .rank-title {
       margin: 0 0 10px;
       font-family: "Sora", sans-serif;
@@ -1060,29 +1066,30 @@
   <main class="container">
     <section class="hero">
       <img class="hero-banner" src="https://iili.io/fSNGag2.png" alt="Banner OmniZap System" loading="lazy" decoding="async" />
-      <span class="eyebrow">Marketplace de Stickers OmniZap</span>
-      <h1>Descubra, crie e compartilhe packs de stickers em uma plataforma visual feita para viralizar.</h1>
-      <p class="lead">A home agora é centrada na descoberta de packs: curadoria inteligente, tendências reais e coleção viva de stickers para WhatsApp.</p>
+      <span class="eyebrow">Plataforma Open Source de Automação WhatsApp</span>
+      <h1>Infraestrutura completa para bots, automação e gestão de WhatsApp em escala.</h1>
+      <p class="lead">Foco em API, observabilidade, gestão de grupos, mídia, comandos automatizados e arquitetura pronta para produção.</p>
       <div class="hero-cta">
-        <a class="btn primary" href="/stickers/"><i class="fa-solid fa-icons icon-inline" aria-hidden="true"></i>Explorar Stickers</a>
-        <a class="btn" href="/stickers/create/"><i class="fa-solid fa-wand-magic-sparkles icon-inline" aria-hidden="true"></i>Criar Meu Pack</a>
+        <a class="btn primary" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener"><i class="fa-brands fa-github icon-inline" aria-hidden="true"></i>Ver no GitHub</a>
+        <a class="btn" href="/api-docs/"><i class="fa-solid fa-book icon-inline" aria-hidden="true"></i>Documentação da API</a>
+        <a class="btn" href="#infra-arquitetura"><i class="fa-solid fa-diagram-project icon-inline" aria-hidden="true"></i>Ver Arquitetura</a>
       </div>
       <section class="hero-proof">
         <article class="proof-card">
           <span id="proof-packs" class="proof-value">--</span>
-          <span class="proof-label">packs publicados</span>
+          <span class="proof-label">packs no módulo stickers</span>
         </article>
         <article class="proof-card">
           <span id="proof-stickers" class="proof-value">--</span>
-          <span class="proof-label">stickers no catálogo</span>
+          <span class="proof-label">stickers indexados</span>
         </article>
         <article class="proof-card">
           <span id="proof-downloads" class="proof-value">--</span>
-          <span class="proof-label">downloads/aberturas</span>
+          <span class="proof-label">aberturas do catálogo</span>
         </article>
         <article class="proof-card">
           <span id="proof-users" class="proof-value">--</span>
-          <span class="proof-label">usuários no bot</span>
+          <span class="proof-label">usuários monitorados</span>
         </article>
         <article class="proof-card">
           <span id="proof-groups" class="proof-value">--</span>
@@ -1095,91 +1102,67 @@
       </section>
     </section>
 
-    <section class="market-preview">
-      <div class="market-preview-head">
-        <h2 class="market-preview-title"><i class="fa-solid fa-fire icon-inline" aria-hidden="true"></i>Packs em destaque agora</h2>
-        <span id="hero-preview-status" class="market-preview-status">Carregando curadoria...</span>
-      </div>
-      <div id="hero-pack-preview" class="market-preview-grid"></div>
-    </section>
-
-    <h2 class="section-title"><i class="fa-solid fa-compass-drafting icon-inline" aria-hidden="true"></i>Experiência Sticker-First</h2>
+    <h2 class="section-title"><i class="fa-solid fa-circle-info icon-inline" aria-hidden="true"></i>Sobre o Sistema</h2>
     <section class="grid">
       <article class="card">
-        <h3><i class="fa-solid fa-ranking-star icon-inline" aria-hidden="true"></i>Descoberta por Tendência</h3>
-        <p>Veja packs em alta, novidades e coleções crescendo agora com sinais de engajamento em tempo real.</p>
+        <h3><i class="fa-solid fa-circle-info icon-inline" aria-hidden="true"></i>Visão Geral</h3>
+        <p>O OmniZap é uma plataforma open source para operação de bots e automações WhatsApp com base técnica orientada a produção.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-layer-group icon-inline" aria-hidden="true"></i>Curadoria Inteligente</h3>
-        <p>Organização automática de stickers com foco em qualidade visual, coerência temática e diversidade.</p>
+        <h3><i class="fa-solid fa-users-gear icon-inline" aria-hidden="true"></i>Para Quem É</h3>
+        <p>Projetado para devs, equipes de produto, empresas e operadores SaaS que precisam de automação confiável em alto volume.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-share-nodes icon-inline" aria-hidden="true"></i>Compartilhamento Instantâneo</h3>
-        <p>Cada pack possui link próprio para abrir, enviar no WhatsApp e acelerar distribuição orgânica.</p>
+        <h3><i class="fa-solid fa-microchip icon-inline" aria-hidden="true"></i>Diferencial Técnico</h3>
+        <p>Camadas de observabilidade, fila de escrita, reconciliação LID/JID e serviços modulares para reduzir risco operacional.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-store icon-inline" aria-hidden="true"></i>Marketplace Visual</h3>
-        <p>Interface pensada para navegação rápida em mobile e desktop, com foco em conversão para exploração de packs.</p>
+        <h3><i class="fa-solid fa-cubes-stacked icon-inline" aria-hidden="true"></i>Estrutura Modular</h3>
+        <p>Domínios de comando isolados por módulos, facilitando manutenção, evolução incremental e integração com novos recursos.</p>
       </article>
     </section>
 
-    <h2 class="section-title"><i class="fa-solid fa-gears icon-inline" aria-hidden="true"></i>Infra e API (Secundário)</h2>
+    <h2 id="infra-arquitetura" class="section-title"><i class="fa-solid fa-sitemap icon-inline" aria-hidden="true"></i>Infraestrutura e Arquitetura</h2>
     <section class="grid">
       <article class="card">
-        <h3><i class="fa-solid fa-terminal icon-inline" aria-hidden="true"></i>Automação de Comandos</h3>
-        <p>Módulos para grupos, administração, rotinas de mídia e comandos para fluxos do dia a dia.</p>
+        <h3><i class="fa-solid fa-server icon-inline" aria-hidden="true"></i>Camada de Execução</h3>
+        <p>Node.js com Baileys para conexão com WhatsApp, controle de sessão, recuperação e reconexão resiliente.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-plug icon-inline" aria-hidden="true"></i>Integrações e API</h3>
-        <p>Endpoints para consulta de dados, integração com serviços externos e consumo de recursos públicos do sistema.</p>
+        <h3><i class="fa-solid fa-database icon-inline" aria-hidden="true"></i>Persistência</h3>
+        <p>MySQL com schema evolutivo, fila de escrita e proteção de consistência para chats, mensagens e metadados.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-folder-tree icon-inline" aria-hidden="true"></i>Gestão de Conteúdo</h3>
-        <p>Organização de assets e packs para manter o conteúdo do bot estruturado e fácil de reutilizar.</p>
+        <h3><i class="fa-solid fa-layer-group icon-inline" aria-hidden="true"></i>Módulos de Domínio</h3>
+        <p>Administração de grupos, mídia, IA, stickers, ranking e utilitários operam como blocos independentes.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-chart-line icon-inline" aria-hidden="true"></i>Observabilidade</h3>
-        <p>Métricas e dados operacionais para monitorar saúde da aplicação, desempenho e capacidade.</p>
+        <h3><i class="fa-solid fa-shield-halved icon-inline" aria-hidden="true"></i>Operação em Produção</h3>
+        <p>Logs estruturados, limites de retry e fluxo de monitoramento para suportar crescimento com previsibilidade.</p>
       </article>
     </section>
 
-    <div
-      id="github-project-panel-root"
-      data-owner="kaikybrofc"
-      data-repo="omnizap-system"
-      data-endpoint="/api/sticker-packs/project-summary"
-    ></div>
-
-    <h2 class="section-title"><i class="fa-solid fa-code icon-inline" aria-hidden="true"></i>Bloco Técnico</h2>
-    <section class="api">
-      <div class="api-head"><i class="fa-solid fa-flask-vial icon-inline" aria-hidden="true"></i>Exemplo rápido</div>
-      <pre><code>GET /api/sticker-packs?visibility=public&limit=24&offset=0
-GET /api/sticker-packs/orphan-stickers?limit=120&offset=0
-GET /api/sticker-packs/:packKey
-GET /data/stickers/:owner/:file.webp</code></pre>
-    </section>
-
-    <h2 class="section-title"><i class="fa-solid fa-icons icon-inline" aria-hidden="true"></i>Catálogo de Stickers</h2>
+    <h2 class="section-title"><i class="fa-solid fa-plug-circle-bolt icon-inline" aria-hidden="true"></i>API e Integrações</h2>
     <section class="grid">
       <article class="card">
-        <h3><i class="fa-solid fa-globe icon-inline" aria-hidden="true"></i>Packs Públicos</h3>
-        <p>Listagem com busca e ordenação para navegar por packs compartilhados e abrir detalhes de cada coleção.</p>
+        <h3><i class="fa-solid fa-code-branch icon-inline" aria-hidden="true"></i>Endpoints Públicos</h3>
+        <p>APIs HTTP para catálogo, ranking, status do sistema e dados de descoberta consumíveis por frontends e integrações.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-share-nodes icon-inline" aria-hidden="true"></i>Compartilhamento Direto</h3>
-        <p>Cada pack possui link dedicado, facilitando divulgação e uso no WhatsApp com comando pré-preenchido.</p>
+        <h3><i class="fa-solid fa-link icon-inline" aria-hidden="true"></i>Integração com Serviços</h3>
+        <p>Fluxos preparados para conectar monitoramento, pipelines de conteúdo, serviços de IA e rotinas externas.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-desktop icon-inline" aria-hidden="true"></i>Visualização Web</h3>
-        <p>Página de catálogo otimizada para desktop e mobile, com carregamento progressivo e navegação rápida.</p>
+        <h3><i class="fa-solid fa-key icon-inline" aria-hidden="true"></i>Governança de Acesso</h3>
+        <p>Rotas técnicas e documentação organizada para facilitar controle de consumo e expansão por ambiente.</p>
       </article>
       <article class="card">
-        <h3><i class="fa-solid fa-box-open icon-inline" aria-hidden="true"></i>Modo Sem Pack</h3>
-        <p>Área específica para figurinhas sem pack, útil para curadoria e organização do conteúdo recebido.</p>
+        <h3><i class="fa-solid fa-gear icon-inline" aria-hidden="true"></i>Pronto para SaaS</h3>
+        <p>Base adequada para produtos multi-módulo com evolução incremental sem reescrever o núcleo do sistema.</p>
       </article>
     </section>
 
-    <h2 class="section-title"><i class="fa-solid fa-gauge-high icon-inline" aria-hidden="true"></i>Métricas do Sistema</h2>
+    <h2 class="section-title"><i class="fa-solid fa-gauge-high icon-inline" aria-hidden="true"></i>Status e Telemetria do Sistema</h2>
     <section class="hero-stats">
       <div class="chip" id="metric-host-cpu">CPU host: carregando...</div>
       <div class="chip" id="metric-host-memory">RAM host: carregando...</div>
@@ -1188,16 +1171,96 @@ GET /data/stickers/:owner/:file.webp</code></pre>
     </section>
 
     <section class="rank-panel">
-      <h2 class="rank-title"><i class="fa-solid fa-ranking-star icon-inline" aria-hidden="true"></i>Top usuários recentes</h2>
+      <h2 class="rank-title"><i class="fa-solid fa-ranking-star icon-inline" aria-hidden="true"></i>Painel de atividade recente</h2>
       <p class="rank-meta" id="rank-summary">Carregando ranking global...</p>
       <ul class="rank-list" id="rank-list">
         <li class="rank-item"><span class="rank-name">Carregando...</span><span class="rank-value">--</span></li>
       </ul>
     </section>
 
+    <h2 class="section-title"><i class="fa-solid fa-laptop-code icon-inline" aria-hidden="true"></i>Stack Tecnológica</h2>
+    <section class="grid">
+      <article class="card">
+        <h3><i class="fa-brands fa-node-js icon-inline" aria-hidden="true"></i>Node.js + Baileys</h3>
+        <p>Runtime principal de mensageria, orquestração de eventos e automações operacionais de WhatsApp.</p>
+      </article>
+      <article class="card">
+        <h3><i class="fa-solid fa-database icon-inline" aria-hidden="true"></i>MySQL + Migrations</h3>
+        <p>Persistência transacional com versionamento de schema para manter evolução segura do sistema.</p>
+      </article>
+      <article class="card">
+        <h3><i class="fa-solid fa-chart-column icon-inline" aria-hidden="true"></i>Observabilidade</h3>
+        <p>Métricas e endpoints operacionais compatíveis com Prometheus, Grafana e monitoramento de latência.</p>
+      </article>
+      <article class="card">
+        <h3><i class="fa-solid fa-layer-group icon-inline" aria-hidden="true"></i>Frontend Web</h3>
+        <p>Painéis web para catálogo, documentação e administração, consumindo os mesmos serviços de API.</p>
+      </article>
+    </section>
+
+    <h2 class="section-title"><i class="fa-brands fa-github icon-inline" aria-hidden="true"></i>Projeto Open Source no GitHub</h2>
+    <section class="rank-panel github-spotlight">
+      <p class="rank-meta">Indicadores públicos do repositório: stars, forks, issues, releases e evolução contínua do projeto.</p>
+      <div
+        id="github-project-panel-root"
+        data-owner="kaikybrofc"
+        data-repo="omnizap-system"
+        data-endpoint="/api/sticker-packs/project-summary"
+      ></div>
+    </section>
+
+    <h2 class="section-title"><i class="fa-solid fa-code icon-inline" aria-hidden="true"></i>Bloco Técnico</h2>
+    <section class="api">
+      <div class="api-head"><i class="fa-solid fa-flask-vial icon-inline" aria-hidden="true"></i>Referência rápida de integração</div>
+      <pre><code># Autenticação (exemplo via header)
+Authorization: Bearer &lt;token-de-acesso&gt;
+
+# Health check da API
+GET /api/sticker-packs?limit=1
+
+# Endpoints úteis
+GET /api/sticker-packs?visibility=public&limit=24&offset=0
+GET /api/sticker-packs/global-ranking-summary
+GET /api/sticker-packs/system-summary
+GET /api/sticker-packs/orphan-stickers?limit=120&offset=0
+GET /api/sticker-packs/:packKey
+GET /data/stickers/:owner/:file.webp
+
+# Consumo via curl
+curl -sS https://omnizap.shop/api/sticker-packs/system-summary | jq</code></pre>
+    </section>
+
+    <h2 class="section-title"><i class="fa-solid fa-icons icon-inline" aria-hidden="true"></i>Módulo de Catálogo e Stickers</h2>
+    <section class="market-preview">
+      <div class="market-preview-head">
+        <h2 class="market-preview-title"><i class="fa-solid fa-fire icon-inline" aria-hidden="true"></i>Packs em destaque do módulo stickers</h2>
+        <span id="hero-preview-status" class="market-preview-status">Carregando dados do módulo...</span>
+      </div>
+      <div id="hero-pack-preview" class="market-preview-grid"></div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h3><i class="fa-solid fa-puzzle-piece icon-inline" aria-hidden="true"></i>Módulo Secundário</h3>
+        <p>O catálogo de stickers é um recurso da plataforma, integrado ao núcleo de API e operação do OmniZap.</p>
+      </article>
+      <article class="card">
+        <h3><i class="fa-solid fa-globe icon-inline" aria-hidden="true"></i>Packs Públicos</h3>
+        <p>Listagem com busca e ordenação para navegar por coleções compartilhadas e abrir detalhes de cada pack.</p>
+      </article>
+      <article class="card">
+        <h3><i class="fa-solid fa-share-nodes icon-inline" aria-hidden="true"></i>Compartilhamento Direto</h3>
+        <p>Cada pack possui link dedicado para distribuição rápida no WhatsApp e integração com fluxos de comunidade.</p>
+      </article>
+      <article class="card">
+        <h3><i class="fa-solid fa-box-open icon-inline" aria-hidden="true"></i>Curadoria Operacional</h3>
+        <p>Área para organizar figurinhas sem pack, manter qualidade do acervo e apoiar fluxos de conteúdo do bot.</p>
+      </article>
+    </section>
+
     <section class="final-cta">
-      <p><strong>Comece pela descoberta.</strong><br />Abra o marketplace, encontre packs prontos e crie sua coleção.</p>
-      <a class="btn primary" href="/stickers/"><i class="fa-solid fa-right-to-bracket icon-inline" aria-hidden="true"></i>Explorar Stickers</a>
+      <p><strong>Pronto para produção.</strong><br />Acesse o repositório, consulte a API e implemente o OmniZap na sua stack de automação.</p>
+      <a class="btn primary" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener"><i class="fa-brands fa-github icon-inline" aria-hidden="true"></i>Iniciar no GitHub</a>
     </section>
   </main>
 

@@ -1,20 +1,8 @@
 import logger from '../utils/logger/loggerModule.js';
 import { findById, upsert } from '../../database/index.js';
-import {
-  extractUserIdInfo,
-  resolveUserIdCached,
-  isLidUserId,
-  isWhatsAppUserId,
-} from './lidMapService.js';
+import { extractUserIdInfo, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from './lidMapService.js';
 
-const GROUP_METADATA_FIELDS = [
-  'id',
-  'subject',
-  'description',
-  'owner_jid',
-  'creation',
-  'participants',
-];
+const GROUP_METADATA_FIELDS = ['id', 'subject', 'description', 'owner_jid', 'creation', 'participants'];
 
 const PARTICIPANT_ACTIONS = new Set(['add', 'remove', 'promote', 'demote']);
 
@@ -106,9 +94,7 @@ export const getParticipantKey = (participant) => {
  */
 export const normalizeParticipantsList = (participants = []) => {
   if (!Array.isArray(participants)) return [];
-  return participants
-    .map(normalizeParticipant)
-    .filter((participant) => participant && (participant.jid || participant.id));
+  return participants.map(normalizeParticipant).filter((participant) => participant && (participant.jid || participant.id));
 };
 
 /**
@@ -164,9 +150,7 @@ export const upsertGroupMetadata = async (groupId, updates, options = {}) => {
     id: groupId,
   };
 
-  const payload = mergeExisting
-    ? mergeGroupMetadata(await findById('groups_metadata', groupId), safeUpdates)
-    : buildGroupMetadataPayload(safeUpdates);
+  const payload = mergeExisting ? mergeGroupMetadata(await findById('groups_metadata', groupId), safeUpdates) : buildGroupMetadataPayload(safeUpdates);
 
   if (!payload.id) {
     logger.warn('Ignorando upsert de grupo sem ID.', { groupId, updates });

@@ -152,11 +152,21 @@ Variáveis úteis:
 - `DEPLOY_RESTART_PM2` (default: `1`)
 - `DEPLOY_CREATE_BACKUP` (default: `1`)
 - `DEPLOY_VERIFY_URL` (default: `https://omnizap.shop/`)
+- `DEPLOY_GITHUB_NOTIFY` (default: `1`) - cria/atualiza deployment no GitHub
+- `DEPLOY_GITHUB_ENVIRONMENT` (default: `production`)
+- `DEPLOY_GITHUB_REPO` (opcional, ex.: `kaikybrofc/omnizap-system`)
+- `DEPLOY_GITHUB_TOKEN` (opcional; se vazio usa `GITHUB_TOKEN`/`GH_TOKEN`)
 
 Exemplo sem restart do PM2:
 
 ```bash
 DEPLOY_RESTART_PM2=0 npm run deploy
+```
+
+Exemplo com marcação explícita no GitHub:
+
+```bash
+DEPLOY_GITHUB_NOTIFY=1 DEPLOY_GITHUB_ENVIRONMENT=production npm run deploy
 ```
 
 ## Execução com PM2

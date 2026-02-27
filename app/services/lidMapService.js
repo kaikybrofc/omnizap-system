@@ -155,9 +155,7 @@ export const primeLidCache = async (lids = []) => {
   const uniqueLids = Array.from(new Set((lids || []).filter(Boolean)));
   if (!uniqueLids.length) return new Map();
 
-  const pending = uniqueLids.filter(
-    (lid) => isLidJid(lid) && getCachedJidForLid(lid) === undefined,
-  );
+  const pending = uniqueLids.filter((lid) => isLidJid(lid) && getCachedJidForLid(lid) === undefined);
   if (!pending.length) {
     const map = new Map();
     uniqueLids.forEach((lid) => map.set(lid, getCachedJidForLid(lid) ?? null));
@@ -180,10 +178,7 @@ export const primeLidCache = async (lids = []) => {
 
   for (const chunk of chunks) {
     const placeholders = chunk.map(() => '?').join(', ');
-    const rows = await executeQuery(
-      `SELECT lid, jid FROM ${TABLES.LID_MAP} WHERE lid IN (${placeholders})`,
-      chunk,
-    );
+    const rows = await executeQuery(`SELECT lid, jid FROM ${TABLES.LID_MAP} WHERE lid IN (${placeholders})`, chunk);
 
     (rows || []).forEach((row) => {
       if (!row?.lid) return;
@@ -195,8 +190,7 @@ export const primeLidCache = async (lids = []) => {
   for (const lid of pending) {
     const base = baseByLid.get(lid);
     const direct = rowMap.has(lid) ? rowMap.get(lid) : undefined;
-    const baseValue =
-      base && base !== lid && rowMap.has(base) ? rowMap.get(base) : undefined;
+    const baseValue = base && base !== lid && rowMap.has(base) ? rowMap.get(base) : undefined;
     const resolved = direct ?? baseValue ?? null;
     setCacheEntry(lid, resolved, resolved ? CACHE_TTL_MS : NEGATIVE_TTL_MS);
     results.set(lid, resolved);
@@ -370,10 +364,7 @@ const fetchJidByLid = async (lid) => {
   if (base && base !== lid) candidates.push(base);
 
   const placeholders = candidates.map(() => '?').join(', ');
-  const rows = await executeQuery(
-    `SELECT lid, jid FROM ${TABLES.LID_MAP} WHERE lid IN (${placeholders})`,
-    candidates,
-  );
+  const rows = await executeQuery(`SELECT lid, jid FROM ${TABLES.LID_MAP} WHERE lid IN (${placeholders})`, candidates);
 
   const rowMap = new Map();
   (rows || []).forEach((row) => {
@@ -416,12 +407,7 @@ const fetchJidByLid = async (lid) => {
 
   const shouldSeedDerived = Boolean(resolved && direct === undefined);
 
-  setCacheEntry(
-    lid,
-    resolved,
-    resolved ? CACHE_TTL_MS : NEGATIVE_TTL_MS,
-    shouldSeedDerived ? 0 : undefined,
-  );
+  setCacheEntry(lid, resolved, resolved ? CACHE_TTL_MS : NEGATIVE_TTL_MS, shouldSeedDerived ? 0 : undefined);
 
   if (shouldSeedDerived) {
     queueLidUpdate(lid, resolved, 'derived');
@@ -453,10 +439,7 @@ export const resolveUserId = async ({ lid, jid, participantAlt } = {}) => {
  */
 export const reconcileLidToJid = async ({ lid, jid, source = 'map' } = {}) => {
   if (!lid || !jid) return { updated: 0 };
-  const result = await executeQuery(
-    `UPDATE ${TABLES.MESSAGES} SET sender_id = ? WHERE sender_id = ?`,
-    [jid, lid],
-  );
+  const result = await executeQuery(`UPDATE ${TABLES.MESSAGES} SET sender_id = ? WHERE sender_id = ?`, [jid, lid]);
   const updated = Number(result?.affectedRows || 0);
   if (updated > 0) {
     logger.info('Reconciliação lid->jid aplicada.', {
@@ -594,9 +577,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * @returns {Promise<{minId: number, maxId: number}>}
  */
 const getMessageIdRange = async () => {
-  const rows = await executeQuery(
-    `SELECT MIN(id) AS min_id, MAX(id) AS max_id FROM ${TABLES.MESSAGES}`,
-  );
+  const rows = await executeQuery(`SELECT MIN(id) AS min_id, MAX(id) AS max_id FROM ${TABLES.MESSAGES}`);
   const minId = Number(rows?.[0]?.min_id || 0);
   const maxId = Number(rows?.[0]?.max_id || 0);
   return { minId, maxId };
@@ -644,11 +625,7 @@ const runBackfillBatch = async (fromId, toId) => {
  * @param {{batchSize?: number, sleepMs?: number, maxBatches?: number|null}} [options]
  * @returns {Promise<{batches: number, minId?: number, maxId?: number}>}
  */
-export const backfillLidMapFromMessages = async ({
-  batchSize = BACKFILL_DEFAULT_BATCH,
-  sleepMs = 50,
-  maxBatches = null,
-} = {}) => {
+export const backfillLidMapFromMessages = async ({ batchSize = BACKFILL_DEFAULT_BATCH, sleepMs = 50, maxBatches = null } = {}) => {
   const { minId, maxId } = await getMessageIdRange();
   if (!minId || !maxId || maxId < minId) {
     logger.info('Backfill lid_map ignorado: tabela messages vazia.');
