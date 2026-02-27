@@ -121,7 +121,7 @@ const STICKER_ADMIN_WEB_PATH = `${STICKER_WEB_PATH}/admin`;
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
 const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
 const CATALOG_PUBLIC_DIR = path.resolve(process.cwd(), 'public');
-const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'index.html');
+const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'index.html');
 const CREATE_PACK_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'create', 'index.html');
 const ADMIN_PANEL_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'admin', 'index.html');
 const CATALOG_STYLES_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'css', 'styles.css');
@@ -176,6 +176,20 @@ const GITHUB_PROJECT_CACHE_SECONDS = clampInt(process.env.GITHUB_PROJECT_CACHE_S
 const GLOBAL_RANK_REFRESH_SECONDS = clampInt(process.env.GLOBAL_RANK_REFRESH_SECONDS, 600, 60, 3600);
 const MARKETPLACE_GLOBAL_STATS_API_PATH = '/api/marketplace/stats';
 const MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS = clampInt(process.env.MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS, 45, 30, 60);
+const SITE_CANONICAL_HOST = String(process.env.SITE_CANONICAL_HOST || 'omnizap.shop').trim().toLowerCase() || 'omnizap.shop';
+const SITE_CANONICAL_SCHEME = String(process.env.SITE_CANONICAL_SCHEME || 'https').trim().toLowerCase() === 'http'
+  ? 'http'
+  : 'https';
+const SITE_CANONICAL_REDIRECT_ENABLED = parseEnvBool(process.env.SITE_CANONICAL_REDIRECT_ENABLED, true);
+const SITE_ORIGIN = String(process.env.SITE_ORIGIN || `${SITE_CANONICAL_SCHEME}://${SITE_CANONICAL_HOST}`)
+  .trim()
+  .replace(/\/+$/, '');
+const SITEMAP_MAX_PACKS = clampInt(process.env.STICKER_SITEMAP_MAX_PACKS, 45000, 100, 50000);
+const SITEMAP_CACHE_SECONDS = clampInt(process.env.STICKER_SITEMAP_CACHE_SECONDS, 180, 30, 3600);
+const SEO_DISCOVERY_LINK_LIMIT = clampInt(process.env.STICKER_SEO_DISCOVERY_LINK_LIMIT, 60, 10, 200);
+const SEO_DISCOVERY_CACHE_SECONDS = clampInt(process.env.STICKER_SEO_DISCOVERY_CACHE_SECONDS, 180, 30, 3600);
+const PACK_PAGE_ROUTE_EXCLUSIONS = new Set(['profile', 'perfil', 'creators', 'criadores']);
+const NSFW_STICKER_PLACEHOLDER_URL = String(process.env.NSFW_STICKER_PLACEHOLDER_URL || 'https://iili.io/qfhwS6u.jpg').trim();
 const DATA_IMAGE_EXTENSIONS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.bmp']);
 const { maxStickerBytes: MAX_STICKER_UPLOAD_BYTES } = getStickerStorageConfig();
 const MAX_STICKER_SOURCE_UPLOAD_BYTES = Math.max(
@@ -241,6 +255,14 @@ const MARKETPLACE_GLOBAL_STATS_CACHE = {
   value: null,
   pending: null,
 };
+const SITEMAP_CACHE = {
+  expiresAt: 0,
+  xml: '',
+};
+const SEO_DISCOVERY_CACHE = {
+  expiresAt: 0,
+  html: '',
+};
 let globalRankRefreshTimer = null;
 const formatDuration = (totalSeconds) => {
   const total = Math.max(0, Math.floor(Number(totalSeconds) || 0));
@@ -257,6 +279,7 @@ const sendJson = (req, res, statusCode, payload) => {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   if (req.method === 'HEAD') {
     res.end();
     return;
@@ -272,6 +295,37 @@ const sendText = (req, res, statusCode, body, contentType) => {
     return;
   }
   res.end(body);
+};
+
+const toSiteAbsoluteUrl = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return SITE_ORIGIN;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `${SITE_ORIGIN}${raw.startsWith('/') ? raw : `/${raw}`}`;
+};
+
+const toRequestHost = (req) =>
+  String(req?.headers?.host || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase()
+    .replace(/\.$/, '')
+    .split(':')[0];
+
+const maybeRedirectToCanonicalHost = (req, res, url) => {
+  if (!SITE_CANONICAL_REDIRECT_ENABLED) return false;
+  if (!['GET', 'HEAD'].includes(req.method || '')) return false;
+  if (!SITE_CANONICAL_HOST) return false;
+
+  const requestHost = toRequestHost(req);
+  if (requestHost !== `www.${SITE_CANONICAL_HOST}`) return false;
+
+  const location = `${SITE_CANONICAL_SCHEME}://${SITE_CANONICAL_HOST}${url.pathname}${url.search || ''}`;
+  res.statusCode = 301;
+  res.setHeader('Location', location);
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.end();
+  return true;
 };
 
 const parseCookies = (req) => {
@@ -2309,46 +2363,121 @@ const mapPackSummary = (pack, engagement = null, signals = null) => {
   };
 };
 
+const NSFW_HINT_TOKENS = ['nsfw', 'adult', 'explicit', 'suggestive', 'sexual', 'porn', 'nud', 'gore', '18'];
+const normalizeNsfwToken = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-');
+
+const hasNsfwHint = (value) => {
+  const normalized = normalizeNsfwToken(value);
+  if (!normalized) return false;
+  return NSFW_HINT_TOKENS.some((token) => normalized.includes(token));
+};
+
+const hasNsfwHintsInList = (values) => {
+  const list = Array.isArray(values) ? values : [];
+  return list.some((entry) => hasNsfwHint(entry));
+};
+
+const isClassificationMarkedNsfw = (classification) => {
+  if (!classification || typeof classification !== 'object') return false;
+  if (classification.is_nsfw === true) return true;
+
+  const nsfw = classification.nsfw || {};
+  if (Number(nsfw.flagged_items || 0) > 0) return true;
+  if (Number(nsfw.max_score || 0) >= 0.12) return true;
+  if (Number(nsfw.avg_score || 0) >= 0.08) return true;
+
+  if (hasNsfwHint(classification.category || classification.majority_category || '')) return true;
+  if (hasNsfwHintsInList(classification.tags)) return true;
+  return false;
+};
+
+const isSignalMarkedNsfw = (signals) => {
+  const level = String(signals?.nsfw_level || '').trim().toLowerCase();
+  if (signals?.sensitive_content === true) return true;
+  if (!level) return false;
+  return level !== 'safe';
+};
+
+const isPackSummaryMarkedNsfw = (packSummary) => {
+  if (!packSummary || typeof packSummary !== 'object') return false;
+  if (packSummary.is_nsfw === true) return true;
+  if (isSignalMarkedNsfw(packSummary.signals)) return true;
+  if (isClassificationMarkedNsfw(packSummary.classification)) return true;
+  if (hasNsfwHintsInList(packSummary.tags) || hasNsfwHintsInList(packSummary.manual_tags)) return true;
+  return false;
+};
+
 const mapPackDetails = (
   pack,
   items,
-  { byAssetClassification = new Map(), packClassification = null, engagement = null, signals = null } = {},
+  {
+    byAssetClassification = new Map(),
+    packClassification = null,
+    engagement = null,
+    signals = null,
+    hideSensitiveAssets = false,
+  } = {},
 ) => {
   const coverStickerId = pack.cover_sticker_id || items[0]?.sticker_id || null;
   const metadata = parsePackDescriptionMetadata(pack.description);
   const decoratedClassification = decoratePackClassificationSummary(packClassification);
   const mergedTags = mergeUniqueTags(decoratedClassification?.tags || [], metadata.tags);
+  const summary = mapPackSummary({
+    ...pack,
+    description: metadata.cleanDescription,
+    cover_sticker_id: coverStickerId,
+    sticker_count: items.length,
+  }, engagement, signals);
+  const packPreview = {
+    ...summary,
+    classification: {
+      ...(decoratedClassification || {}),
+      tags: mergedTags,
+    },
+    tags: mergedTags,
+  };
+  const packIsNsfw = isPackSummaryMarkedNsfw(packPreview);
+  const safeSummary = hideSensitiveAssets && packIsNsfw
+    ? { ...summary, cover_url: null }
+    : summary;
 
   return {
-    ...mapPackSummary({
-      ...pack,
-      description: metadata.cleanDescription,
-      cover_sticker_id: coverStickerId,
-      sticker_count: items.length,
-    }, engagement, signals),
-    items: items.map((item) => ({
-      // `tags` facilita renderização direta no front sem precisar reprocessar score.
-      id: item.id,
-      sticker_id: item.sticker_id,
-      position: Number(item.position || 0),
-      emojis: Array.isArray(item.emojis) ? item.emojis : [],
-      accessibility_label: item.accessibility_label || null,
-      created_at: toIsoOrNull(item.created_at),
-      asset_url: buildStickerAssetUrl(pack.pack_key, item.sticker_id),
-      tags: decorateStickerClassification(byAssetClassification.get(item.sticker_id) || null)?.tags || [],
-      asset: item.asset
-        ? {
-            id: item.asset.id,
-            mimetype: item.asset.mimetype || 'image/webp',
-            is_animated: Boolean(item.asset.is_animated),
-            width: item.asset.width !== null && item.asset.width !== undefined ? Number(item.asset.width) : null,
-            height: item.asset.height !== null && item.asset.height !== undefined ? Number(item.asset.height) : null,
-            size_bytes:
-              item.asset.size_bytes !== null && item.asset.size_bytes !== undefined ? Number(item.asset.size_bytes) : 0,
-            classification: decorateStickerClassification(byAssetClassification.get(item.sticker_id) || null),
-          }
-        : null,
-    })),
+    ...safeSummary,
+    is_nsfw: packIsNsfw,
+    items: items.map((item) => {
+      const decoratedItemClassification = decorateStickerClassification(byAssetClassification.get(item.sticker_id) || null);
+      const itemIsNsfw = isClassificationMarkedNsfw(decoratedItemClassification);
+      return {
+        // `tags` facilita renderização direta no front sem precisar reprocessar score.
+        id: item.id,
+        sticker_id: item.sticker_id,
+        position: Number(item.position || 0),
+        emojis: Array.isArray(item.emojis) ? item.emojis : [],
+        accessibility_label: item.accessibility_label || null,
+        created_at: toIsoOrNull(item.created_at),
+        asset_url: hideSensitiveAssets && (packIsNsfw || itemIsNsfw) ? null : buildStickerAssetUrl(pack.pack_key, item.sticker_id),
+        tags: decoratedItemClassification?.tags || [],
+        is_nsfw: itemIsNsfw,
+        asset: item.asset
+          ? {
+              id: item.asset.id,
+              mimetype: item.asset.mimetype || 'image/webp',
+              is_animated: Boolean(item.asset.is_animated),
+              width: item.asset.width !== null && item.asset.width !== undefined ? Number(item.asset.width) : null,
+              height: item.asset.height !== null && item.asset.height !== undefined ? Number(item.asset.height) : null,
+              size_bytes:
+                item.asset.size_bytes !== null && item.asset.size_bytes !== undefined ? Number(item.asset.size_bytes) : 0,
+              classification: decoratedItemClassification,
+            }
+          : null,
+      };
+    }),
     classification: {
       ...(decoratedClassification || {}),
       tags: mergedTags,
@@ -2357,26 +2486,39 @@ const mapPackDetails = (
   };
 };
 
-const mapOrphanStickerAsset = (asset, classification = null) => ({
-  id: asset.id,
-  owner_jid: asset.owner_jid,
-  sha256: asset.sha256,
-  mimetype: asset.mimetype || 'image/webp',
-  is_animated: Boolean(asset.is_animated),
-  width: asset.width !== null && asset.width !== undefined ? Number(asset.width) : null,
-  height: asset.height !== null && asset.height !== undefined ? Number(asset.height) : null,
-  size_bytes: asset.size_bytes !== null && asset.size_bytes !== undefined ? Number(asset.size_bytes) : 0,
-  created_at: toIsoOrNull(asset.created_at),
-  url: toPublicDataUrlFromStoragePath(asset.storage_path),
-  classification: decorateStickerClassification(classification || null),
-  tags: decorateStickerClassification(classification || null)?.tags || [],
-});
+const mapOrphanStickerAsset = (asset, classification = null, { hideSensitiveAssets = false } = {}) => {
+  const decoratedClassification = decorateStickerClassification(classification || null);
+  const isNsfw = isClassificationMarkedNsfw(decoratedClassification);
+  return {
+    id: asset.id,
+    owner_jid: asset.owner_jid,
+    sha256: asset.sha256,
+    mimetype: asset.mimetype || 'image/webp',
+    is_animated: Boolean(asset.is_animated),
+    width: asset.width !== null && asset.width !== undefined ? Number(asset.width) : null,
+    height: asset.height !== null && asset.height !== undefined ? Number(asset.height) : null,
+    size_bytes: asset.size_bytes !== null && asset.size_bytes !== undefined ? Number(asset.size_bytes) : 0,
+    created_at: toIsoOrNull(asset.created_at),
+    url: hideSensitiveAssets && isNsfw ? null : toPublicDataUrlFromStoragePath(asset.storage_path),
+    classification: decoratedClassification,
+    tags: decoratedClassification?.tags || [],
+    is_nsfw: isNsfw,
+  };
+};
 
-const toSummaryEntry = (entry) => ({
-  ...mapPackSummary(entry.pack, entry.engagement, entry.signals),
-  classification: entry.packClassification,
-  tags: mergeUniqueTags(entry.packClassification?.tags || [], parsePackDescriptionMetadata(entry.pack?.description).tags),
-});
+const toSummaryEntry = (entry, { hideSensitiveCover = false } = {}) => {
+  const summary = {
+    ...mapPackSummary(entry.pack, entry.engagement, entry.signals),
+    classification: entry.packClassification,
+    tags: mergeUniqueTags(entry.packClassification?.tags || [], parsePackDescriptionMetadata(entry.pack?.description).tags),
+  };
+  const isNsfw = isPackSummaryMarkedNsfw(summary);
+  const safeSummary = hideSensitiveCover && isNsfw ? { ...summary, cover_url: null } : summary;
+  return {
+    ...safeSummary,
+    is_nsfw: isNsfw,
+  };
+};
 
 const classifyPackIntent = (entry) => {
   if (entry?.signals?.trending_now) return 'crescendo_agora';
@@ -2564,6 +2706,83 @@ const escapeHtmlAttribute = (value) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
+const escapeXml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+const normalizeWhitespace = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const truncateText = (value, maxLength = 160) => {
+  const normalized = normalizeWhitespace(value);
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+};
+
+const toDateOnly = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+};
+
+const buildCatalogDiscoveryLinksHtml = async () => {
+  if (SEO_DISCOVERY_CACHE.expiresAt > Date.now() && SEO_DISCOVERY_CACHE.html) {
+    return SEO_DISCOVERY_CACHE.html;
+  }
+
+  try {
+    const { packs } = await listStickerPacksForCatalog({
+      visibility: 'public',
+      search: '',
+      limit: SEO_DISCOVERY_LINK_LIMIT,
+      offset: 0,
+    });
+
+    const links = (Array.isArray(packs) ? packs : [])
+      .filter((pack) => pack?.pack_key && isPackPubliclyVisible(pack))
+      .slice(0, SEO_DISCOVERY_LINK_LIMIT);
+
+    if (!links.length) {
+      SEO_DISCOVERY_CACHE.expiresAt = Date.now() + SEO_DISCOVERY_CACHE_SECONDS * 1000;
+      SEO_DISCOVERY_CACHE.html = '';
+      return '';
+    }
+
+    const linksMarkup = links
+      .map((pack) => {
+        const href = escapeHtmlAttribute(buildPackWebUrl(pack.pack_key));
+        const label = escapeHtmlAttribute(truncateText(pack.name || pack.pack_key, 80));
+        return `<li><a href="${href}">${label}</a></li>`;
+      })
+      .join('');
+
+    const html = `
+<noscript>
+  <section id="seo-discovery-links" style="padding:16px;color:#e5e7eb;background:#020617;">
+    <h2 style="margin:0 0 8px;font-size:18px;">Packs populares</h2>
+    <p style="margin:0 0 12px;">Navegue direto pelos packs mais recentes:</p>
+    <ul style="margin:0;padding-left:18px;display:grid;gap:6px;">
+      ${linksMarkup}
+    </ul>
+  </section>
+</noscript>`;
+
+    SEO_DISCOVERY_CACHE.expiresAt = Date.now() + SEO_DISCOVERY_CACHE_SECONDS * 1000;
+    SEO_DISCOVERY_CACHE.html = html;
+    return html;
+  } catch (error) {
+    logger.warn('Falha ao gerar links SEO de descoberta do catalogo.', {
+      action: 'sticker_catalog_seo_discovery_links_failed',
+      error: error?.message,
+    });
+    return '';
+  }
+};
+
 const renderCatalogHtml = async ({ initialPackKey }) => {
   const template = await fs.readFile(CATALOG_TEMPLATE_PATH, 'utf8');
   const replacements = {
@@ -2583,8 +2802,146 @@ const renderCatalogHtml = async ({ initialPackKey }) => {
   for (const [token, value] of Object.entries(replacements)) {
     html = html.replaceAll(token, value);
   }
+
+  const initialPackKeyAttr = `data-initial-pack-key="${escapeHtmlAttribute(initialPackKey || '')}"`;
+  html = html.replace(/data-initial-pack-key="[^"]*"/i, initialPackKeyAttr);
+
+  if (!/rel="canonical"/i.test(html)) {
+    html = html.replace(
+      '</head>',
+      `  <link rel="canonical" href="${escapeHtmlAttribute(toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`))}" />\n</head>`,
+    );
+  }
+
+  const discoveryLinks = await buildCatalogDiscoveryLinksHtml();
+  if (discoveryLinks && html.includes('</body>')) {
+    html = html.replace('</body>', `${discoveryLinks}\n</body>`);
+  }
+
   return html;
 };
+
+const renderPackSeoHtml = ({ packSummary }) => {
+  const packName = truncateText(packSummary?.name || packSummary?.pack_key || 'Pack', 95);
+  const packDescription = truncateText(
+    packSummary?.description
+      || `Pack de stickers "${packName}" disponível no catálogo OmniZap.`,
+    180,
+  );
+  const canonicalUrl = toSiteAbsoluteUrl(buildPackWebUrl(packSummary?.pack_key || ''));
+  const catalogUrl = toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`);
+  const fallbackCoverUrl = packSummary?.is_nsfw ? NSFW_STICKER_PLACEHOLDER_URL : 'https://iili.io/fSNGag2.png';
+  const coverUrl = toSiteAbsoluteUrl(packSummary?.cover_url || fallbackCoverUrl);
+  const publisher = truncateText(packSummary?.publisher || 'Criador OmniZap', 80);
+  const stickerCount = Math.max(0, Number(packSummary?.sticker_count || 0));
+  const updatedAt = packSummary?.updated_at || packSummary?.created_at || new Date().toISOString();
+  const schemaJson = JSON.stringify(
+    {
+      '@context': 'https://schema.org',
+      '@type': 'CreativeWork',
+      name: packName,
+      description: packDescription,
+      url: canonicalUrl,
+      image: coverUrl,
+      dateModified: updatedAt,
+      author: {
+        '@type': 'Person',
+        name: publisher,
+      },
+      inLanguage: 'pt-BR',
+    },
+    null,
+    0,
+  ).replace(/</g, '\\u003c');
+
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtmlAttribute(`${packName} | OmniZap Sticker Pack`)}</title>
+  <meta name="description" content="${escapeHtmlAttribute(packDescription)}" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+  <link rel="canonical" href="${escapeHtmlAttribute(canonicalUrl)}" />
+  <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:site_name" content="OmniZap System" />
+  <meta property="og:title" content="${escapeHtmlAttribute(packName)}" />
+  <meta property="og:description" content="${escapeHtmlAttribute(packDescription)}" />
+  <meta property="og:url" content="${escapeHtmlAttribute(canonicalUrl)}" />
+  <meta property="og:image" content="${escapeHtmlAttribute(coverUrl)}" />
+  <meta property="og:image:alt" content="${escapeHtmlAttribute(`Capa do pack ${packName}`)}" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${escapeHtmlAttribute(packName)}" />
+  <meta name="twitter:description" content="${escapeHtmlAttribute(packDescription)}" />
+  <meta name="twitter:image" content="${escapeHtmlAttribute(coverUrl)}" />
+
+  <script type="application/ld+json">${schemaJson}</script>
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #020617; color: #e5e7eb; }
+    .seo-shell { max-width: 880px; margin: 0 auto; padding: 18px 14px 12px; }
+    .seo-card { border: 1px solid #1e293b; border-radius: 12px; background: #0b1220; padding: 16px; }
+    .seo-card h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; }
+    .seo-card p { margin: 0 0 10px; line-height: 1.55; color: #cbd5e1; }
+    .seo-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .seo-row a { color: #a5f3fc; text-decoration: none; border: 1px solid #334155; border-radius: 8px; padding: 8px 10px; }
+    .seo-row a:hover { background: #0f172a; }
+  </style>
+</head>
+<body>
+  <main class="seo-shell">
+    <section class="seo-card">
+      <h1>${escapeHtmlAttribute(packName)}</h1>
+      <p>${escapeHtmlAttribute(packDescription)}</p>
+      <p>Criador: <strong>${escapeHtmlAttribute(publisher)}</strong> • Stickers: <strong>${stickerCount}</strong></p>
+      <div class="seo-row">
+        <a href="${escapeHtmlAttribute(canonicalUrl)}">Abrir este pack</a>
+        <a href="${escapeHtmlAttribute(catalogUrl)}">Voltar ao catálogo</a>
+      </div>
+    </section>
+  </main>
+
+  <div id="stickers-react-root"
+    data-web-path="${escapeHtmlAttribute(STICKER_WEB_PATH)}"
+    data-api-base-path="${escapeHtmlAttribute(STICKER_API_BASE_PATH)}"
+    data-orphan-api-path="${escapeHtmlAttribute(STICKER_ORPHAN_API_PATH)}"
+    data-default-limit="${DEFAULT_LIST_LIMIT}"
+    data-default-orphan-limit="${DEFAULT_ORPHAN_LIST_LIMIT}"
+    data-initial-pack-key="${escapeHtmlAttribute(packSummary?.pack_key || '')}"
+  ></div>
+  <script type="module" src="/js/apps/stickersApp.js?v=20260226-pack-open-fallback-manage-v1"></script>
+</body>
+</html>`;
+};
+
+const renderPackNotFoundHtml = (packKey = '') => `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pack não encontrado | OmniZap</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="canonical" href="${escapeHtmlAttribute(toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`))}" />
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #020617; color: #e5e7eb; }
+    main { max-width: 760px; margin: 0 auto; padding: 20px 14px; }
+    article { border: 1px solid #1e293b; border-radius: 12px; background: #0b1220; padding: 16px; }
+    a { color: #67e8f9; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <article>
+      <h1>Pack não encontrado</h1>
+      <p>Não localizamos o pack <strong>${escapeHtmlAttribute(packKey || 'informado')}</strong>.</p>
+      <p><a href="${escapeHtmlAttribute(toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`))}">Ir para o catálogo</a></p>
+    </article>
+  </main>
+</body>
+</html>`;
 
 const renderCreatePackHtml = async () => {
   const template = await fs.readFile(CREATE_PACK_TEMPLATE_PATH, 'utf8');
@@ -2617,6 +2974,68 @@ const renderAdminPanelHtml = async () => {
     html = html.replaceAll(token, value);
   }
   return html;
+};
+
+const buildSitemapXml = async () => {
+  if (SITEMAP_CACHE.expiresAt > Date.now() && SITEMAP_CACHE.xml) {
+    return SITEMAP_CACHE.xml;
+  }
+
+  const staticUrls = [
+    { loc: toSiteAbsoluteUrl('/'), changefreq: 'daily', priority: '1.0' },
+    { loc: toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`), changefreq: 'hourly', priority: '0.9' },
+    { loc: toSiteAbsoluteUrl('/api-docs/'), changefreq: 'weekly', priority: '0.8' },
+    { loc: toSiteAbsoluteUrl('/termos-de-uso/'), changefreq: 'monthly', priority: '0.5' },
+    { loc: toSiteAbsoluteUrl('/licenca/'), changefreq: 'monthly', priority: '0.5' },
+  ];
+
+  const packRows = await executeQuery(
+    `SELECT pack_key, updated_at, created_at
+     FROM ${TABLES.STICKER_PACK}
+     WHERE deleted_at IS NULL
+       AND status = 'published'
+       AND COALESCE(pack_status, 'ready') = 'ready'
+       AND visibility IN ('public', 'unlisted')
+     ORDER BY updated_at DESC
+     LIMIT ?`,
+    [SITEMAP_MAX_PACKS],
+  );
+
+  const packUrls = (Array.isArray(packRows) ? packRows : [])
+    .filter((row) => String(row?.pack_key || '').trim())
+    .map((row) => ({
+      loc: toSiteAbsoluteUrl(buildPackWebUrl(row.pack_key)),
+      lastmod: toDateOnly(row.updated_at || row.created_at || null),
+      changefreq: 'daily',
+      priority: '0.7',
+    }));
+
+  const xmlItems = [...staticUrls, ...packUrls]
+    .map((entry) => {
+      const lastmod = entry.lastmod ? `\n    <lastmod>${escapeXml(entry.lastmod)}</lastmod>` : '';
+      const changefreq = entry.changefreq ? `\n    <changefreq>${escapeXml(entry.changefreq)}</changefreq>` : '';
+      const priority = entry.priority ? `\n    <priority>${escapeXml(entry.priority)}</priority>` : '';
+      return `  <url>\n    <loc>${escapeXml(entry.loc)}</loc>${lastmod}${changefreq}${priority}\n  </url>`;
+    })
+    .join('\n');
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${xmlItems}\n</urlset>\n`;
+  SITEMAP_CACHE.expiresAt = Date.now() + SITEMAP_CACHE_SECONDS * 1000;
+  SITEMAP_CACHE.xml = xml;
+  return xml;
+};
+
+const handleSitemapRequest = async (req, res) => {
+  const xml = await buildSitemapXml();
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Cache-Control', `public, max-age=${SITEMAP_CACHE_SECONDS}`);
+  if (req.method === 'HEAD') {
+    res.end();
+    return true;
+  }
+  res.end(xml);
+  return true;
 };
 
 const sendStaticTextFile = async (req, res, filePath, contentType) => {
@@ -2671,6 +3090,8 @@ const handleListRequest = async (req, res, url) => {
   const normalizedIntent = normalizeCategoryToken(intent).replace(/-/g, '_');
   const batchLimit = Math.max(limit, Math.min(MAX_LIST_LIMIT, 24));
   const maxPagesToScan = 8;
+  const googleSession = await resolveGoogleWebSessionFromRequest(req);
+  const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
   const seenPackIds = new Set();
   const collectedEntries = [];
   const driftSnapshot = await getMarketplaceDriftSnapshot();
@@ -2738,7 +3159,7 @@ const handleListRequest = async (req, res, url) => {
   }
 
   sendJson(req, res, 200, {
-    data: collectedEntries.map((entry) => toSummaryEntry(entry)),
+    data: collectedEntries.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
     pagination: {
       limit,
       offset,
@@ -2761,6 +3182,8 @@ const handleIntentCollectionsRequest = async (req, res, url) => {
   const q = sanitizeText(url.searchParams.get('q') || '', 120, { allowEmpty: true }) || '';
   const categories = parseCategoryFilters(url.searchParams.get('categories'));
   const limit = clampInt(url.searchParams.get('limit'), 18, 4, 50);
+  const googleSession = await resolveGoogleWebSessionFromRequest(req);
+  const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
 
   const { packs } = await listStickerPacksForCatalog({
     visibility,
@@ -2780,11 +3203,11 @@ const handleIntentCollectionsRequest = async (req, res, url) => {
 
   sendJson(req, res, 200, {
     data: {
-      em_alta: intents.em_alta.map((entry) => toSummaryEntry(entry)),
-      novos: intents.novos.map((entry) => toSummaryEntry(entry)),
-      crescendo_agora: intents.crescendo_agora.map((entry) => toSummaryEntry(entry)),
-      mais_curtidos: intents.mais_curtidos.map((entry) => toSummaryEntry(entry)),
-      melhor_avaliados: intents.melhor_avaliados.map((entry) => toSummaryEntry(entry)),
+      em_alta: intents.em_alta.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
+      novos: intents.novos.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
+      crescendo_agora: intents.crescendo_agora.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
+      mais_curtidos: intents.mais_curtidos.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
+      melhor_avaliados: intents.melhor_avaliados.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
     },
     filters: {
       visibility,
@@ -4774,6 +5197,8 @@ const handleCreatorRankingRequest = async (req, res, url) => {
   const visibility = normalizeCatalogVisibility(url.searchParams.get('visibility'));
   const q = sanitizeText(url.searchParams.get('q') || '', 120, { allowEmpty: true }) || '';
   const limit = clampInt(url.searchParams.get('limit'), 50, 5, 200);
+  const googleSession = await resolveGoogleWebSessionFromRequest(req);
+  const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
 
   const { packs } = await listStickerPacksForCatalog({
     visibility,
@@ -4806,7 +5231,7 @@ const handleCreatorRankingRequest = async (req, res, url) => {
         total_opens: Number(creator.total_opens || 0),
         avg_pack_score: Number(creator.avg_pack_score || 0),
       },
-      top_pack: creator.top_pack ? toSummaryEntry(creator.top_pack) : null,
+      top_pack: creator.top_pack ? toSummaryEntry(creator.top_pack, { hideSensitiveCover: !hasNsfwAccess }) : null,
     })),
     filters: {
       visibility,
@@ -4822,6 +5247,8 @@ const handleRecommendationsRequest = async (req, res, url) => {
   const categories = parseCategoryFilters(url.searchParams.get('categories'));
   const limit = clampInt(url.searchParams.get('limit'), 18, 4, 50);
   const viewerKey = normalizeViewerKey(url.searchParams.get('viewer_key'));
+  const googleSession = await resolveGoogleWebSessionFromRequest(req);
+  const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
 
   const { packs } = await listStickerPacksForCatalog({
     visibility,
@@ -4853,7 +5280,7 @@ const handleRecommendationsRequest = async (req, res, url) => {
   const result = personalized.length ? personalized : fallback;
 
   sendJson(req, res, 200, {
-    data: result.map((entry) => toSummaryEntry(entry)),
+    data: result.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
     meta: {
       personalized: Boolean(personalized.length),
       viewer_key_present: Boolean(viewerKey),
@@ -4876,6 +5303,8 @@ const handleOrphanStickerListRequest = async (req, res, url) => {
   const categories = parseCategoryFilters(url.searchParams.get('categories'));
   const limit = clampInt(url.searchParams.get('limit'), DEFAULT_ORPHAN_LIST_LIMIT, 1, MAX_ORPHAN_LIST_LIMIT);
   const offset = clampInt(url.searchParams.get('offset'), 0, 0, 1_000_000);
+  const googleSession = await resolveGoogleWebSessionFromRequest(req);
+  const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
 
   const { assets, hasMore, total } = categories.length
     ? await listClassifiedOrphanAssetsByCategories({ search: q, categories, limit, offset })
@@ -4898,7 +5327,8 @@ const handleOrphanStickerListRequest = async (req, res, url) => {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   sendJson(req, res, 200, {
-    data: filteredByCategories.map((asset) => mapOrphanStickerAsset(asset, byAssetId.get(asset.id) || null)),
+    data: filteredByCategories.map((asset) =>
+      mapOrphanStickerAsset(asset, byAssetId.get(asset.id) || null, { hideSensitiveAssets: !hasNsfwAccess })),
     pagination: {
       limit,
       offset,
@@ -5568,19 +5998,9 @@ const handlePublicDataAssetRequest = async (req, res, pathname) => {
   }
 };
 
-const handleDetailsRequest = async (req, res, packKey, url) => {
-  const normalizedPackKey = sanitizeText(packKey, 160, { allowEmpty: false });
-  const categories = parseCategoryFilters(url.searchParams.get('categories'));
-  if (!normalizedPackKey) {
-    sendJson(req, res, 400, { error: 'pack_key invalido.' });
-    return;
-  }
-
+const fetchPublicPackPayload = async (normalizedPackKey) => {
   const pack = await findStickerPackByPackKey(normalizedPackKey);
-  if (!pack || !isPackPubliclyVisible(pack)) {
-    sendJson(req, res, 404, { error: 'Pack nao encontrado.' });
-    return;
-  }
+  if (!pack || !isPackPubliclyVisible(pack)) return null;
 
   const items = await listStickerPackItems(pack.id);
   const stickerIds = items.map((item) => item.sticker_id);
@@ -5589,6 +6009,11 @@ const handleDetailsRequest = async (req, res, packKey, url) => {
     getPackClassificationSummaryByAssetIds(stickerIds),
     getStickerPackEngagementByPackId(pack.id),
   ]);
+
+  if (STICKER_CATALOG_ONLY_CLASSIFIED && !isPackClassified(packClassification)) {
+    return null;
+  }
+
   const interactionStatsByPack = await listStickerPackInteractionStatsByPackIds([pack.id]);
   const driftSnapshot = await getMarketplaceDriftSnapshot();
   const byAssetClassification = new Map(classifications.map((entry) => [entry.asset_id, entry]));
@@ -5601,6 +6026,34 @@ const handleDetailsRequest = async (req, res, packKey, url) => {
     interactionStats: interactionStatsByPack.get(pack.id) || null,
     scoringWeights: driftSnapshot.weights,
   });
+
+  return {
+    pack,
+    items,
+    byAssetClassification,
+    packClassification,
+    engagement,
+    signals,
+  };
+};
+
+const handleDetailsRequest = async (req, res, packKey, url) => {
+  const normalizedPackKey = sanitizeText(packKey, 160, { allowEmpty: false });
+  const categories = parseCategoryFilters(url.searchParams.get('categories'));
+  if (!normalizedPackKey) {
+    sendJson(req, res, 400, { error: 'pack_key invalido.' });
+    return;
+  }
+  const googleSession = await resolveGoogleWebSessionFromRequest(req);
+  const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
+
+  const packPayload = await fetchPublicPackPayload(normalizedPackKey);
+  if (!packPayload) {
+    sendJson(req, res, 404, { error: 'Pack nao encontrado.' });
+    return;
+  }
+
+  const { pack, items, byAssetClassification, packClassification, engagement, signals } = packPayload;
   const visibleItems = STICKER_CATALOG_ONLY_CLASSIFIED
     ? items.filter((item) => isStickerClassified(byAssetClassification.get(item.sticker_id)))
     : items;
@@ -5608,13 +6061,14 @@ const handleDetailsRequest = async (req, res, packKey, url) => {
     ? visibleItems.filter((item) => hasAnyCategory(resolveClassificationTags(byAssetClassification.get(item.sticker_id)), categories))
     : visibleItems;
 
-  if (STICKER_CATALOG_ONLY_CLASSIFIED && !isPackClassified(packClassification)) {
-    sendJson(req, res, 404, { error: 'Pack nao encontrado.' });
-    return;
-  }
-
   sendJson(req, res, 200, {
-    data: mapPackDetails(pack, visibleItemsByCategories, { byAssetClassification, packClassification, engagement, signals }),
+    data: mapPackDetails(pack, visibleItemsByCategories, {
+      byAssetClassification,
+      packClassification,
+      engagement,
+      signals,
+      hideSensitiveAssets: !hasNsfwAccess,
+    }),
   });
 };
 
@@ -5635,6 +6089,7 @@ const handleAssetRequest = async (req, res, packKey, stickerToken) => {
 
   const items = await listStickerPackItems(pack.id);
   const item = items.find((entry) => entry.sticker_id === normalizedStickerId);
+  const stickerIds = items.map((entry) => entry.sticker_id).filter(Boolean);
 
   if (!item?.asset) {
     sendJson(req, res, 404, { error: 'Sticker nao encontrado.' });
@@ -5644,12 +6099,31 @@ const handleAssetRequest = async (req, res, packKey, stickerToken) => {
   try {
     const buffer = await readStickerAssetBuffer(item.asset);
     const classification = await findStickerClassificationByAssetId(normalizedStickerId).catch(() => null);
+    const packClassification = stickerIds.length
+      ? await getPackClassificationSummaryByAssetIds(stickerIds).catch(() => null)
+      : null;
     if (STICKER_CATALOG_ONLY_CLASSIFIED && !isStickerClassified(classification)) {
       sendJson(req, res, 404, { error: 'Sticker nao encontrado.' });
       return;
     }
-    if (classification) {
-      const decorated = decorateStickerClassification(classification);
+    const decorated = classification ? decorateStickerClassification(classification) : null;
+    const packMetadata = parsePackDescriptionMetadata(pack.description);
+    const decoratedPackClassification = decoratePackClassificationSummary(packClassification);
+    const packMarkedNsfw = isPackSummaryMarkedNsfw({
+      classification: decoratedPackClassification,
+      tags: mergeUniqueTags(decoratedPackClassification?.tags || [], packMetadata.tags),
+      manual_tags: packMetadata.tags,
+    });
+    const stickerMarkedNsfw = isClassificationMarkedNsfw(decorated);
+    if (packMarkedNsfw || stickerMarkedNsfw) {
+      const googleSession = await resolveGoogleWebSessionFromRequest(req);
+      const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
+      if (!hasNsfwAccess) {
+        sendJson(req, res, 403, { error: 'Conteudo sensivel disponivel apenas para usuarios logados.' });
+        return;
+      }
+    }
+    if (decorated) {
       res.setHeader('X-Sticker-Category', String(decorated?.category || 'unknown'));
       res.setHeader('X-Sticker-NSFW', decorated?.is_nsfw ? '1' : '0');
       if (Array.isArray(decorated?.tags) && decorated.tags.length) {
@@ -6588,9 +7062,54 @@ const handleCatalogPageRequest = async (req, res, pathname) => {
   }
 
   const initialPackKey = extractPackKeyFromWebPath(pathname);
+  const initialPackKeyNormalized = String(initialPackKey || '').trim().toLowerCase();
+  const shouldRenderPackSeoPage = Boolean(initialPackKey && !PACK_PAGE_ROUTE_EXCLUSIONS.has(initialPackKeyNormalized));
+
+  if (shouldRenderPackSeoPage) {
+    const safePackKey = sanitizeText(initialPackKey, 160, { allowEmpty: false });
+    if (!safePackKey) {
+      const notFoundHtml = renderPackNotFoundHtml(initialPackKey);
+      sendText(req, res, 404, notFoundHtml, 'text/html; charset=utf-8');
+      return;
+    }
+
+    try {
+      const packPayload = await fetchPublicPackPayload(safePackKey);
+      if (!packPayload) {
+        const notFoundHtml = renderPackNotFoundHtml(safePackKey);
+        sendText(req, res, 404, notFoundHtml, 'text/html; charset=utf-8');
+        return;
+      }
+
+      const googleSession = await resolveGoogleWebSessionFromRequest(req);
+      const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
+      const packSummary = toSummaryEntry(
+        {
+          pack: packPayload.pack,
+          engagement: packPayload.engagement,
+          signals: packPayload.signals,
+          packClassification: packPayload.packClassification,
+        },
+        { hideSensitiveCover: !hasNsfwAccess },
+      );
+      const html = renderPackSeoHtml({ packSummary });
+      sendText(req, res, 200, html, 'text/html; charset=utf-8');
+      return;
+    } catch (error) {
+      logger.error('Falha ao renderizar pagina SEO de pack.', {
+        action: 'sticker_catalog_pack_seo_page_render_failed',
+        path: pathname,
+        pack_key: safePackKey,
+        error: error?.message,
+      });
+      const notFoundHtml = renderPackNotFoundHtml(safePackKey);
+      sendText(req, res, 404, notFoundHtml, 'text/html; charset=utf-8');
+      return;
+    }
+  }
 
   try {
-    const html = await renderCatalogHtml({ initialPackKey });
+    const html = await renderCatalogHtml({ initialPackKey: '' });
     sendText(req, res, 200, html, 'text/html; charset=utf-8');
   } catch (error) {
     if (error?.code === 'ENOENT') {
@@ -6632,6 +7151,21 @@ scheduleGlobalRankingPreload();
 export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url }) {
   if (!STICKER_CATALOG_ENABLED) return false;
   if (!['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'].includes(req.method || '')) return false;
+  if (maybeRedirectToCanonicalHost(req, res, url)) return true;
+
+  if (pathname === '/sitemap.xml') {
+    if (!['GET', 'HEAD'].includes(req.method || '')) return false;
+    try {
+      return await handleSitemapRequest(req, res);
+    } catch (error) {
+      logger.error('Falha ao gerar sitemap dinamico.', {
+        action: 'sticker_catalog_sitemap_failed',
+        error: error?.message,
+      });
+      sendJson(req, res, 500, { error: 'Falha ao gerar sitemap.' });
+      return true;
+    }
+  }
 
   if (hasPathPrefix(pathname, STICKER_DATA_PUBLIC_PATH)) {
     if (!['GET', 'HEAD'].includes(req.method || '')) return false;

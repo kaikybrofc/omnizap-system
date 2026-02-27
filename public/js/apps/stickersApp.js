@@ -9,6 +9,8 @@ const GOOGLE_AUTH_CACHE_MAX_STALE_MS = 8 * 24 * 60 * 60 * 1000;
 const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const PROFILE_ROUTE_SEGMENTS = new Set(['perfil', 'profile']);
 const CREATORS_ROUTE_SEGMENTS = new Set(['creators', 'criadores']);
+const DEFAULT_STICKER_PLACEHOLDER_URL = 'https://iili.io/fSNGag2.png';
+const NSFW_STICKER_PLACEHOLDER_URL = 'https://iili.io/qfhwS6u.jpg';
 
 const CATALOG_SORT_OPTIONS = [
   { value: 'recent', label: 'Mais recentes', icon: '🆕' },
@@ -158,6 +160,66 @@ const normalizeToken = (value) =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9- ]+/g, '');
+
+const NSFW_HINT_TOKENS = ['nsfw', 'adult', 'explicit', 'suggestive', 'sexual', 'porn', 'nud', 'gore', '18'];
+const normalizeNsfwToken = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9- ]+/g, '')
+    .replace(/\s+/g, '-');
+
+const hasNsfwHint = (value) => {
+  const normalized = normalizeNsfwToken(value);
+  if (!normalized) return false;
+  return NSFW_HINT_TOKENS.some((token) => normalized.includes(token));
+};
+
+const hasNsfwHintsInList = (values) => {
+  const list = Array.isArray(values) ? values : [];
+  return list.some((entry) => hasNsfwHint(entry));
+};
+
+const isSignalMarkedNsfw = (signals) => {
+  const level = String(signals?.nsfw_level || '')
+    .trim()
+    .toLowerCase();
+  if (signals?.sensitive_content === true) return true;
+  if (!level) return false;
+  return level !== 'safe';
+};
+
+const isClassificationMarkedNsfw = (classification) => {
+  if (!classification || typeof classification !== 'object') return false;
+  if (classification.is_nsfw === true) return true;
+  if (hasNsfwHint(classification.category || classification.majority_category || '')) return true;
+  if (hasNsfwHintsInList(classification.tags)) return true;
+
+  const nsfw = classification.nsfw || {};
+  if (Number(nsfw.flagged_items || 0) > 0) return true;
+  if (Number(nsfw.max_score || 0) >= 0.12) return true;
+  if (Number(nsfw.avg_score || 0) >= 0.08) return true;
+  return false;
+};
+
+const isPackMarkedNsfw = (pack) => {
+  if (!pack || typeof pack !== 'object') return false;
+  if (pack.is_nsfw === true) return true;
+  if (isSignalMarkedNsfw(pack.signals)) return true;
+  if (isClassificationMarkedNsfw(pack.classification)) return true;
+  if (hasNsfwHintsInList(pack.tags) || hasNsfwHintsInList(pack.manual_tags)) return true;
+  return false;
+};
+
+const isStickerMarkedNsfw = (item) => {
+  if (!item || typeof item !== 'object') return false;
+  if (item.is_nsfw === true) return true;
+  if (isClassificationMarkedNsfw(item.classification || item.asset?.classification)) return true;
+  if (hasNsfwHintsInList(item.tags)) return true;
+  return false;
+};
 
 const shortNum = (value) => {
   const n = Number(value || 0);
@@ -389,26 +451,40 @@ function UploadTaskWidget({ task, onClose }) {
   `;
 }
 
-function PackCard({ pack, index, onOpen }) {
+function PackCard({ pack, index, onOpen, hasNsfwAccess = true, onRequireLogin }) {
   const isTrending = index < 4 || Number(pack?.sticker_count || 0) >= 30;
   const isNew = isRecent(pack?.created_at);
   const engagement = getPackEngagement(pack);
+  const lockedByNsfw = isPackMarkedNsfw(pack) && !hasNsfwAccess;
+  const coverUrl = lockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : pack.cover_url || DEFAULT_STICKER_PLACEHOLDER_URL;
+  const handleOpen = () => {
+    if (lockedByNsfw) {
+      onRequireLogin?.();
+      return;
+    }
+    onOpen(pack.pack_key);
+  };
 
   return html`
     <button
       type="button"
-      onClick=${() => onOpen(pack.pack_key)}
+      onClick=${handleOpen}
       className="group w-full text-left rounded-2xl border border-slate-800 bg-slate-900/90 shadow-soft overflow-hidden transition-all duration-200 active:scale-[0.985] md:hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-lg touch-manipulation"
     >
       <div className="relative aspect-[5/6] sm:aspect-[4/5] bg-slate-900 overflow-hidden">
         <img
-          src=${pack.cover_url || 'https://iili.io/fSNGag2.png'}
+          src=${coverUrl}
           alt=${`Capa de ${pack.name}`}
-          className="w-full h-full object-cover transition-transform duration-300 md:group-hover:scale-[1.05] group-active:scale-[1.02]"
+          className=${`w-full h-full object-cover transition-transform duration-300 ${
+            lockedByNsfw ? 'blur-md scale-105' : 'md:group-hover:scale-[1.05] group-active:scale-[1.02]'
+          }`}
           loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent"></div>
         <div className="absolute top-2 left-2 flex items-center gap-1">
+          ${lockedByNsfw
+            ? html`<span className="rounded-full border border-amber-300/35 bg-amber-500/25 backdrop-blur px-1.5 py-0.5 text-[9px] font-bold text-amber-100">🔞 Login</span>`
+            : null}
           ${isTrending
             ? html`<span className="rounded-full border border-emerald-300/30 bg-emerald-400/80 backdrop-blur px-1.5 py-0.5 text-[9px] font-bold text-slate-900">Trending</span>`
             : null}
@@ -432,14 +508,23 @@ function PackCard({ pack, index, onOpen }) {
 
         <div className="pointer-events-none absolute inset-x-2 bottom-2 hidden md:flex justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <span className="inline-flex h-8 w-full items-center justify-center rounded-xl border border-emerald-400/35 bg-emerald-400/12 px-3 text-xs font-semibold text-emerald-200 backdrop-blur">
-            Abrir pack
+            ${lockedByNsfw ? 'Entrar para desbloquear' : 'Abrir pack'}
           </span>
         </div>
+        ${lockedByNsfw
+          ? html`
+              <div className="pointer-events-none absolute inset-x-0 top-[42%] flex justify-center px-3">
+                <span className="inline-flex rounded-xl border border-amber-400/40 bg-slate-950/70 px-2.5 py-1 text-[10px] font-semibold text-amber-100 backdrop-blur">
+                  Conteúdo sensível
+                </span>
+              </div>
+            `
+          : null}
       </div>
 
       <div className="px-2 pb-2 pt-1 bg-slate-900/95 md:hidden">
         <span className="inline-flex h-[34px] w-full items-center justify-center rounded-xl border border-emerald-400/30 bg-emerald-400/10 text-xs font-semibold text-emerald-200 transition group-active:brightness-110">
-          Abrir pack
+          ${lockedByNsfw ? 'Entrar para desbloquear' : 'Abrir pack'}
         </span>
       </div>
     </button>
@@ -530,40 +615,73 @@ function CatalogMetricCard({
   `;
 }
 
-function DiscoverPackRowItem({ pack, onOpen, rank = 0 }) {
+function DiscoverPackRowItem({ pack, onOpen, rank = 0, hasNsfwAccess = true, onRequireLogin }) {
   if (!pack?.pack_key) return null;
+  const lockedByNsfw = isPackMarkedNsfw(pack) && !hasNsfwAccess;
+  const handleOpen = () => {
+    if (lockedByNsfw) {
+      onRequireLogin?.();
+      return;
+    }
+    onOpen(pack.pack_key);
+  };
   return html`
     <button
       type="button"
-      onClick=${() => onOpen(pack.pack_key)}
+      onClick=${handleOpen}
       className="w-full flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-2 py-1.5 text-left hover:bg-slate-800/90"
     >
-      <img src=${pack.cover_url || 'https://iili.io/fSNGag2.png'} alt="" className="h-9 w-9 rounded-lg object-cover bg-slate-800" loading="lazy" />
+      <img
+        src=${lockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : pack.cover_url || DEFAULT_STICKER_PLACEHOLDER_URL}
+        alt=""
+        className=${`h-9 w-9 rounded-lg object-cover bg-slate-800 ${lockedByNsfw ? 'blur-sm' : ''}`}
+        loading="lazy"
+      />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs font-medium text-slate-100">${rank > 0 ? `${rank}. ` : ''}${pack.name || 'Pack'}</span>
-        <span className="block truncate text-[10px] text-slate-400">${pack.publisher || '-'} · ❤️ ${shortNum(getPackEngagement(pack).likeCount)}</span>
+        <span className="block truncate text-[10px] text-slate-400">
+          ${lockedByNsfw ? '🔒 Entrar para desbloquear' : `${pack.publisher || '-'} · ❤️ ${shortNum(getPackEngagement(pack).likeCount)}`}
+        </span>
       </span>
       <span className="text-[10px] text-slate-500">→</span>
     </button>
   `;
 }
 
-function DiscoverPackMiniCard({ pack, onOpen }) {
+function DiscoverPackMiniCard({ pack, onOpen, hasNsfwAccess = true, onRequireLogin }) {
   if (!pack?.pack_key) return null;
   const engagement = getPackEngagement(pack);
+  const lockedByNsfw = isPackMarkedNsfw(pack) && !hasNsfwAccess;
+  const handleOpen = () => {
+    if (lockedByNsfw) {
+      onRequireLogin?.();
+      return;
+    }
+    onOpen(pack.pack_key);
+  };
   return html`
     <button
       type="button"
-      onClick=${() => onOpen(pack.pack_key)}
+      onClick=${handleOpen}
       className="group w-[170px] shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 text-left"
     >
       <div className="relative h-24 bg-slate-900">
-        <img src=${pack.cover_url || 'https://iili.io/fSNGag2.png'} alt="" className="h-full w-full object-cover transition-transform duration-200 group-active:scale-[1.02]" loading="lazy" />
+        <img
+          src=${lockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : pack.cover_url || DEFAULT_STICKER_PLACEHOLDER_URL}
+          alt=""
+          className=${`h-full w-full object-cover transition-transform duration-200 ${
+            lockedByNsfw ? 'blur-sm scale-105' : 'group-active:scale-[1.02]'
+          }`}
+          loading="lazy"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 to-transparent"></div>
+        ${lockedByNsfw ? html`<span className="absolute top-1.5 left-1.5 rounded-full border border-amber-300/35 bg-amber-500/25 px-1.5 py-0.5 text-[9px] font-semibold text-amber-100">🔞 Login</span>` : null}
       </div>
       <div className="p-2">
         <p className="truncate text-xs font-semibold text-slate-100">${pack.name || 'Pack'}</p>
-        <p className="mt-1 truncate text-[10px] text-slate-400">⬇ ${shortNum(engagement.openCount)} · ❤️ ${shortNum(engagement.likeCount)}</p>
+        <p className="mt-1 truncate text-[10px] text-slate-400">
+          ${lockedByNsfw ? 'Entrar para desbloquear' : `⬇ ${shortNum(engagement.openCount)} · ❤️ ${shortNum(engagement.likeCount)}`}
+        </p>
       </div>
     </button>
   `;
@@ -1692,16 +1810,32 @@ function CreatorProfileDashboard({
   `;
 }
 
-function OrphanCard({ sticker }) {
+function OrphanCard({ sticker, hasNsfwAccess = true, onRequireLogin }) {
+  const lockedByNsfw = isStickerMarkedNsfw(sticker) && !hasNsfwAccess;
   return html`
     <article className="group rounded-2xl border border-slate-700/80 bg-slate-800/70 shadow-soft overflow-hidden transition-all duration-200 hover:-translate-y-0.5">
-      <div className="aspect-square bg-slate-900 overflow-hidden">
+      <div className="relative aspect-square bg-slate-900 overflow-hidden">
         <img
-          src=${sticker.url || 'https://iili.io/fSNGag2.png'}
+          src=${lockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : sticker.url || DEFAULT_STICKER_PLACEHOLDER_URL}
           alt="Sticker sem pack"
-          className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-110"
+          className=${`w-full h-full object-contain transition-transform duration-300 ${
+            lockedByNsfw ? 'blur-md scale-105' : 'group-hover:scale-110'
+          }`}
           loading="lazy"
         />
+        ${lockedByNsfw
+          ? html`
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-950/35 p-2">
+                <button
+                  type="button"
+                  onClick=${() => onRequireLogin?.()}
+                  className="inline-flex h-8 items-center rounded-lg border border-amber-400/35 bg-amber-500/15 px-2.5 text-[10px] font-semibold text-amber-100"
+                >
+                  Entrar para desbloquear
+                </button>
+              </div>
+            `
+          : null}
       </div>
       <div className="p-2">
         ${primaryTag(sticker)
@@ -1965,8 +2099,9 @@ function CreatorsRankingPage({
   `;
 }
 
-function StickerPreview({ item, onClose, onPrev, onNext }) {
+function StickerPreview({ item, onClose, onPrev, onNext, hasNsfwAccess = true, onRequireLogin }) {
   if (!item) return null;
+  const lockedByNsfw = isStickerMarkedNsfw(item) && !hasNsfwAccess;
 
   const handleCopy = async () => {
     if (!item?.asset_url) return;
@@ -1980,12 +2115,35 @@ function StickerPreview({ item, onClose, onPrev, onNext }) {
       <button type="button" className="absolute inset-0" aria-label="Fechar preview" onClick=${onClose}></button>
 
       <div className="relative w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-3">
-        <img src=${item.asset_url || 'https://iili.io/fSNGag2.png'} alt=${item.accessibility_label || 'Sticker'} className="w-full max-h-[70vh] object-contain rounded-xl bg-slate-950" />
+        <img
+          src=${lockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : item.asset_url || DEFAULT_STICKER_PLACEHOLDER_URL}
+          alt=${item.accessibility_label || 'Sticker'}
+          className=${`w-full max-h-[70vh] object-contain rounded-xl bg-slate-950 ${lockedByNsfw ? 'blur-md' : ''}`}
+        />
+        ${lockedByNsfw
+          ? html`
+              <div className="absolute inset-x-3 top-3 bottom-[64px] flex items-center justify-center rounded-xl bg-slate-950/40 p-4">
+                <div className="max-w-sm rounded-xl border border-amber-500/35 bg-slate-950/80 px-4 py-3 text-center">
+                  <p className="text-sm font-semibold text-amber-100">Conteúdo sensível</p>
+                  <p className="mt-1 text-xs text-slate-300">Faça login com Google para desbloquear este sticker.</p>
+                  <button
+                    type="button"
+                    onClick=${() => onRequireLogin?.()}
+                    className="mt-3 inline-flex h-9 items-center rounded-xl border border-amber-400/40 bg-amber-500/15 px-3 text-xs font-semibold text-amber-100"
+                  >
+                    Entrar e desbloquear
+                  </button>
+                </div>
+              </div>
+            `
+          : null}
 
         <div className="mt-3 flex items-center justify-between gap-2">
           <button type="button" onClick=${onPrev} className="rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">← Anterior</button>
           <div className="flex items-center gap-2">
-            <button type="button" onClick=${handleCopy} className="rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">Copiar link</button>
+            ${lockedByNsfw
+              ? null
+              : html`<button type="button" onClick=${handleCopy} className="rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">Copiar link</button>`}
             <button type="button" onClick=${onClose} className="rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">Fechar</button>
           </div>
           <button type="button" onClick=${onNext} className="rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">Próximo →</button>
@@ -2005,6 +2163,8 @@ function PackPage({
   onTagClick,
   reactionLoading = '',
   reactionNotice = null,
+  hasNsfwAccess = true,
+  onRequireLogin,
 }) {
   if (!pack) {
     return html`
@@ -2026,7 +2186,10 @@ function PackPage({
 
   const items = Array.isArray(pack?.items) ? pack.items : [];
   const tags = Array.isArray(pack?.tags) ? pack.tags : [];
-  const cover = pack?.cover_url || items?.[0]?.asset_url || 'https://iili.io/fSNGag2.png';
+  const packLockedByNsfw = isPackMarkedNsfw(pack) && !hasNsfwAccess;
+  const cover = packLockedByNsfw
+    ? NSFW_STICKER_PLACEHOLDER_URL
+    : pack?.cover_url || items?.[0]?.asset_url || DEFAULT_STICKER_PLACEHOLDER_URL;
   const whatsappUrl = String(pack?.whatsapp?.url || '').trim();
   const engagement = getPackEngagement(pack);
   const hasReactionRequest = Boolean(reactionLoading);
@@ -2046,8 +2209,16 @@ function PackPage({
 
       <article className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/80 shadow-[0_18px_40px_rgba(2,6,23,0.25)]">
         <div className="relative h-52 sm:h-64 md:h-72 bg-slate-900">
-          <img src=${cover} alt=${`Capa ${pack?.name || 'Pack'}`} className="h-full w-full object-cover" loading="lazy" />
+          <img
+            src=${cover}
+            alt=${`Capa ${pack?.name || 'Pack'}`}
+            className=${`h-full w-full object-cover ${packLockedByNsfw ? 'blur-md scale-105' : ''}`}
+            loading="lazy"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/55 to-transparent"></div>
+          ${packLockedByNsfw
+            ? html`<div className="absolute top-3 left-3 rounded-full border border-amber-300/40 bg-amber-500/25 px-2 py-1 text-[10px] font-semibold text-amber-100">🔞 Conteúdo sensível</div>`
+            : null}
           <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
             <div className="max-w-4xl">
               <p className="text-[11px] uppercase tracking-wide text-slate-300/90">Pack público</p>
@@ -2062,6 +2233,21 @@ function PackPage({
         </div>
 
         <div className="space-y-3 p-4 sm:p-5">
+          ${packLockedByNsfw
+            ? html`
+                <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-3">
+                  <p className="text-sm font-semibold text-amber-100">Este pack foi marcado como sensível (+18).</p>
+                  <p className="mt-1 text-xs text-slate-300">Faça login com Google para visualizar os stickers.</p>
+                  <button
+                    type="button"
+                    onClick=${() => onRequireLogin?.()}
+                    className="mt-3 inline-flex h-9 items-center rounded-xl border border-amber-400/35 bg-amber-500/15 px-3 text-xs font-semibold text-amber-100"
+                  >
+                    Entrar para desbloquear
+                  </button>
+                </div>
+              `
+            : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-2 text-sm">
             <span className="text-slate-200">👍 <strong className="font-semibold">${shortNum(engagement.likeCount)}</strong></span>
             <span className="text-slate-200">👎 <strong className="font-semibold">${shortNum(engagement.dislikeCount)}</strong></span>
@@ -2069,7 +2255,7 @@ function PackPage({
             <span className="text-slate-200">👁 <strong className="font-semibold">${shortNum(engagement.openCount)}</strong></span>
           </div>
 
-          ${whatsappUrl
+          ${whatsappUrl && !packLockedByNsfw
             ? html`
                 <a
                   href=${whatsappUrl}
@@ -2086,7 +2272,7 @@ function PackPage({
             <button
               type="button"
               onClick=${() => onLike?.(pack?.pack_key)}
-              disabled=${hasReactionRequest}
+              disabled=${hasReactionRequest || packLockedByNsfw}
               className="inline-flex h-9 items-center justify-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               ${reactionLoading === 'like' ? 'Enviando...' : 'Curtir'}
@@ -2094,7 +2280,7 @@ function PackPage({
             <button
               type="button"
               onClick=${() => onDislike?.(pack?.pack_key)}
-              disabled=${hasReactionRequest}
+              disabled=${hasReactionRequest || packLockedByNsfw}
               className="inline-flex h-9 items-center justify-center rounded-xl border border-rose-500/35 bg-rose-500/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               ${reactionLoading === 'dislike' ? 'Enviando...' : 'Não curtir'}
@@ -2140,25 +2326,53 @@ function PackPage({
           <span className="text-xs text-slate-400">${items.length} itens</span>
         </div>
 
-        ${items.length
+        ${packLockedByNsfw
+          ? html`
+              <div className="rounded-2xl border border-dashed border-amber-500/35 bg-slate-900/55 p-8 text-center">
+                <p className="text-sm font-semibold text-amber-100">Stickers bloqueados por conteúdo sensível.</p>
+                <p className="mt-1 text-xs text-slate-300">Entre com Google para liberar a visualização deste pack.</p>
+                <button
+                  type="button"
+                  onClick=${() => onRequireLogin?.()}
+                  className="mt-3 inline-flex h-9 items-center rounded-xl border border-amber-400/35 bg-amber-500/15 px-3 text-xs font-semibold text-amber-100"
+                >
+                  Entrar e desbloquear
+                </button>
+              </div>
+            `
+          : items.length
           ? html`
               <div className="pack-stickers-grid gap-2 sm:gap-3">
                 ${items.map(
-                  (item, index) => html`
-                    <button
-                      key=${item.sticker_id || item.position || index}
-                      type="button"
-                      onClick=${() => setPreviewIndex(index)}
-                      className="pack-sticker-card group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 text-left transition hover:-translate-y-0.5 hover:border-slate-600"
-                    >
-                      <img
-                        src=${item.asset_url || 'https://iili.io/fSNGag2.png'}
-                        alt=${item.accessibility_label || 'Sticker'}
-                        loading="lazy"
-                        className="w-full aspect-square object-contain bg-slate-950 transition-transform duration-300 group-hover:scale-105"
-                      />
-                    </button>
-                  `,
+                  (item, index) => {
+                    const stickerLockedByNsfw = isStickerMarkedNsfw(item) && !hasNsfwAccess;
+                    return html`
+                      <button
+                        key=${item.sticker_id || item.position || index}
+                        type="button"
+                        onClick=${() => (stickerLockedByNsfw ? onRequireLogin?.() : setPreviewIndex(index))}
+                        className="pack-sticker-card group relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 text-left transition hover:-translate-y-0.5 hover:border-slate-600"
+                      >
+                        <img
+                          src=${stickerLockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : item.asset_url || DEFAULT_STICKER_PLACEHOLDER_URL}
+                          alt=${item.accessibility_label || 'Sticker'}
+                          loading="lazy"
+                          className=${`w-full aspect-square object-contain bg-slate-950 transition-transform duration-300 ${
+                            stickerLockedByNsfw ? 'blur-md scale-105' : 'group-hover:scale-105'
+                          }`}
+                        />
+                        ${stickerLockedByNsfw
+                          ? html`
+                              <div className="absolute inset-0 flex items-center justify-center bg-slate-950/35 p-2">
+                                <span className="rounded-lg border border-amber-400/35 bg-amber-500/15 px-2 py-1 text-[10px] font-semibold text-amber-100">
+                                  Entrar para desbloquear
+                                </span>
+                              </div>
+                            `
+                          : null}
+                      </button>
+                    `;
+                  },
                 )}
               </div>
             `
@@ -2179,14 +2393,14 @@ function PackPage({
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3">
                 ${relatedPacks.map(
-                  (entry, index) => html`<div key=${entry.pack_key || entry.id} className="fade-card"><${PackCard} pack=${entry} index=${index} onOpen=${onOpenRelated} /></div>`,
+                  (entry, index) => html`<div key=${entry.pack_key || entry.id} className="fade-card"><${PackCard} pack=${entry} index=${index} onOpen=${onOpenRelated} hasNsfwAccess=${hasNsfwAccess} onRequireLogin=${onRequireLogin} /></div>`,
                 )}
               </div>
             </section>
           `
         : null}
 
-      ${whatsappUrl
+      ${whatsappUrl && !packLockedByNsfw
         ? html`
             <div className="sm:hidden fixed left-3 right-3 z-[75]" style=${{ bottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
               <a
@@ -2208,6 +2422,8 @@ function PackPage({
               onClose=${() => setPreviewIndex(-1)}
               onPrev=${() => setPreviewIndex((value) => (value <= 0 ? items.length - 1 : value - 1))}
               onNext=${() => setPreviewIndex((value) => (value >= items.length - 1 ? 0 : value + 1))}
+              hasNsfwAccess=${hasNsfwAccess}
+              onRequireLogin=${onRequireLogin}
             />
           `
         : null}
@@ -2652,6 +2868,7 @@ function StickersApp() {
   const isProfileView = currentView === 'profile';
   const isCreatorsView = currentView === 'creators';
   const hasGoogleLogin = Boolean(googleAuth.user?.sub);
+  const hasNsfwAccess = hasGoogleLogin;
   const googleLoginEnabled = Boolean(googleAuthConfig.enabled && googleAuthConfig.clientId);
   const shouldRenderGoogleButton =
     isProfileView && googleLoginEnabled && !hasGoogleLogin && googleSessionChecked && !googleAuthBusy;
@@ -3291,6 +3508,10 @@ function StickersApp() {
     setRelatedPacks([]);
     setError('');
     setSortPickerOpen(false);
+  };
+
+  const requestNsfwUnlock = () => {
+    openProfile(true);
   };
 
   const cycleVisibilityValue = (currentVisibility) => {
@@ -4161,6 +4382,8 @@ function StickersApp() {
                     onTagClick=${openCatalogTagFilter}
                     reactionLoading=${reactionLoading}
                     reactionNotice=${reactionNotice}
+                    hasNsfwAccess=${hasNsfwAccess}
+                    onRequireLogin=${requestNsfwUnlock}
                   />`}
             `
             : html`
@@ -4295,13 +4518,30 @@ function StickersApp() {
                               ${discoverTab === 'growing'
                                 ? html`
                                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                                      ${growingNowPacks.slice(0, 6).map((entry) => html`<${DiscoverPackRowItem} key=${`grow-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
+                                      ${growingNowPacks.slice(0, 6).map(
+                                        (entry) => html`<${DiscoverPackRowItem}
+                                          key=${`grow-${entry.pack_key}`}
+                                          pack=${entry}
+                                          onOpen=${openPack}
+                                          hasNsfwAccess=${hasNsfwAccess}
+                                          onRequireLogin=${requestNsfwUnlock}
+                                        />`,
+                                      )}
                                     </div>
                                   `
                                 : discoverTab === 'top'
                                   ? html`
                                       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                                        ${topWeekPacks.slice(0, 8).map((entry, idx) => html`<${DiscoverPackRowItem} key=${`top-${entry.pack_key}`} pack=${entry} onOpen=${openPack} rank=${idx + 1} />`)}
+                                        ${topWeekPacks.slice(0, 8).map(
+                                          (entry, idx) => html`<${DiscoverPackRowItem}
+                                            key=${`top-${entry.pack_key}`}
+                                            pack=${entry}
+                                            onOpen=${openPack}
+                                            rank=${idx + 1}
+                                            hasNsfwAccess=${hasNsfwAccess}
+                                            onRequireLogin=${requestNsfwUnlock}
+                                          />`,
+                                        )}
                                       </div>
                                     `
                                   : html`
@@ -4333,7 +4573,15 @@ function StickersApp() {
                                         <button type="button" onClick=${openTrendingCatalog} className="text-[10px] text-cyan-300">ver lista</button>
                                       </div>
                                       <div className="flex gap-2 overflow-x-auto pb-1">
-                                        ${growingNowPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-grow-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
+                                        ${growingNowPacks.slice(0, 8).map(
+                                          (entry) => html`<${DiscoverPackMiniCard}
+                                            key=${`mobile-grow-${entry.pack_key}`}
+                                            pack=${entry}
+                                            onOpen=${openPack}
+                                            hasNsfwAccess=${hasNsfwAccess}
+                                            onRequireLogin=${requestNsfwUnlock}
+                                          />`,
+                                        )}
                                       </div>
                                     </section>
                                   `
@@ -4351,7 +4599,15 @@ function StickersApp() {
                                           </button>
                                         </div>
                                         <div className="flex gap-2 overflow-x-auto pb-1">
-                                          ${topWeekPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-top-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
+                                          ${topWeekPacks.slice(0, 8).map(
+                                            (entry) => html`<${DiscoverPackMiniCard}
+                                              key=${`mobile-top-${entry.pack_key}`}
+                                              pack=${entry}
+                                              onOpen=${openPack}
+                                              hasNsfwAccess=${hasNsfwAccess}
+                                              onRequireLogin=${requestNsfwUnlock}
+                                            />`,
+                                          )}
                                         </div>
                                       </section>
                                     `
@@ -4398,7 +4654,15 @@ function StickersApp() {
                                 <button type="button" onClick=${openSortPicker} disabled=${sortPickerBusy} className="text-[10px] text-cyan-300 disabled:opacity-50">ordenar</button>
                               </div>
                               <div className="flex gap-2 overflow-x-auto pb-1">
-                                ${recentPublishedPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-new-${entry.pack_key}`} pack=${entry} onOpen=${openPack} />`)}
+                                ${recentPublishedPacks.slice(0, 8).map(
+                                  (entry) => html`<${DiscoverPackMiniCard}
+                                    key=${`mobile-new-${entry.pack_key}`}
+                                    pack=${entry}
+                                    onOpen=${openPack}
+                                    hasNsfwAccess=${hasNsfwAccess}
+                                    onRequireLogin=${requestNsfwUnlock}
+                                  />`,
+                                )}
                               </div>
                             </section>
                           </div>
@@ -4440,7 +4704,15 @@ function StickersApp() {
                             </div>
                           </div>
                           <div className="grid min-w-0 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5 sm:gap-3">
-                            ${sortedPacks.map((pack, index) => html`<div key=${pack.pack_key || pack.id} className="fade-card"><${PackCard} pack=${pack} index=${index} onOpen=${openPack} /></div>`)}
+                            ${sortedPacks.map(
+                              (pack, index) => html`<div key=${pack.pack_key || pack.id} className="fade-card"><${PackCard}
+                                pack=${pack}
+                                index=${index}
+                                onOpen=${openPack}
+                                hasNsfwAccess=${hasNsfwAccess}
+                                onRequireLogin=${requestNsfwUnlock}
+                              /></div>`,
+                            )}
                           </div>
                           <div ref=${setSentinel} className="h-8 flex items-center justify-center text-xs text-slate-500">
                             ${packsLoadingMore ? 'Carregando mais packs...' : packHasMore ? 'Role para carregar mais' : 'Fim da lista'}
@@ -4464,7 +4736,13 @@ function StickersApp() {
                         )}</div>`
                       : html`
                           <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-2.5 sm:gap-3">
-                            ${orphans.map((item) => html`<div key=${item.id} className="fade-card"><${OrphanCard} sticker=${item} /></div>`)}
+                            ${orphans.map(
+                              (item) => html`<div key=${item.id} className="fade-card"><${OrphanCard}
+                                sticker=${item}
+                                hasNsfwAccess=${hasNsfwAccess}
+                                onRequireLogin=${requestNsfwUnlock}
+                              /></div>`,
+                            )}
                           </div>
                         `}
                   </section>
