@@ -28,9 +28,43 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const parseEnvBool = (value, fallback) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+  return fallback;
+};
+
+const parseEnvInt = (value, fallback, min, max) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(parsed)));
+};
+
+const IS_PRODUCTION = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
+const MSG_RETRY_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_MSG_RETRY_CACHE_TTL_SECONDS, 600, 60, 24 * 60 * 60);
+const MSG_RETRY_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_MSG_RETRY_CACHE_CHECKPERIOD_SECONDS, 120, 30, 3600);
+const BAILEYS_EVENT_LOG_ENABLED = parseEnvBool(process.env.BAILEYS_EVENT_LOG_ENABLED, !IS_PRODUCTION);
+const BAILEYS_RECONNECT_ATTEMPT_RESET_MS = parseEnvInt(
+  process.env.BAILEYS_RECONNECT_ATTEMPT_RESET_MS,
+  10 * 60 * 1000,
+  60 * 1000,
+  24 * 60 * 60 * 1000,
+);
+const GROUP_SYNC_ON_CONNECT = parseEnvBool(process.env.GROUP_SYNC_ON_CONNECT, true);
+const GROUP_SYNC_TIMEOUT_MS = parseEnvInt(process.env.GROUP_SYNC_TIMEOUT_MS, 30 * 1000, 5 * 1000, 120 * 1000);
+const GROUP_SYNC_MAX_GROUPS = parseEnvInt(process.env.GROUP_SYNC_MAX_GROUPS, 0, 0, 10_000);
+const GROUP_SYNC_BATCH_SIZE = parseEnvInt(process.env.GROUP_SYNC_BATCH_SIZE, 50, 1, 1000);
+
 let activeSocket = null;
 let connectionAttempts = 0;
-const msgRetryCounterCache = new NodeCache();
+let reconnectWindowStartedAt = 0;
+const msgRetryCounterCache = new NodeCache({
+  stdTTL: MSG_RETRY_CACHE_TTL_SECONDS,
+  checkperiod: MSG_RETRY_CACHE_CHECKPERIOD_SECONDS,
+  useClones: false,
+});
 const MAX_CONNECTION_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 3000;
 let reconnectTimeout = null;
@@ -38,6 +72,7 @@ let connectPromise = null;
 let socketGeneration = 0;
 const BAILEYS_EVENT_NAMES = ['connection.update', 'creds.update', 'messaging-history.set', 'chats.upsert', 'chats.update', 'lid-mapping.update', 'chats.delete', 'presence.update', 'contacts.upsert', 'contacts.update', 'messages.delete', 'messages.update', 'messages.media-update', 'messages.upsert', 'messages.reaction', 'message-receipt.update', 'groups.upsert', 'groups.update', 'group-participants.update', 'group.join-request', 'group.member-tag.update', 'blocklist.set', 'blocklist.update', 'call', 'labels.edit', 'labels.association', 'newsletter.reaction', 'newsletter.view', 'newsletter-participants.update', 'newsletter-settings.update', 'chats.lock', 'settings.update'];
 const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set(['creds.update', 'connection.update', 'messages.upsert', 'messages.update', 'groups.update', 'group-participants.update']);
+const BAILEYS_NOISY_EVENTS_IN_PRODUCTION = new Set(['presence.update']);
 
 const summarizeBaileysEventPayload = (eventName, payload) => {
   if (payload === null) return { payloadType: 'null' };
@@ -151,8 +186,16 @@ const summarizeBaileysEventPayload = (eventName, payload) => {
   return summary;
 };
 
+const shouldLogBaileysEvent = (eventName) => {
+  if (!BAILEYS_EVENT_LOG_ENABLED) return false;
+  if (IS_PRODUCTION && BAILEYS_NOISY_EVENTS_IN_PRODUCTION.has(eventName)) return false;
+  return true;
+};
+
 const registerBaileysEventLoggers = (sock) => {
-  const eventsToLog = BAILEYS_EVENT_NAMES.filter((eventName) => !BAILEYS_EVENTS_WITH_INTERNAL_LOG.has(eventName));
+  const eventsToLog = BAILEYS_EVENT_NAMES.filter(
+    (eventName) => !BAILEYS_EVENTS_WITH_INTERNAL_LOG.has(eventName) && shouldLogBaileysEvent(eventName),
+  );
 
   for (const eventName of eventsToLog) {
     sock.ev.on(eventName, (payload) => {
@@ -168,6 +211,7 @@ const registerBaileysEventLoggers = (sock) => {
 
   logger.debug('Loggers de eventos Baileys registrados.', {
     action: 'baileys_event_logger_ready',
+    enabled: BAILEYS_EVENT_LOG_ENABLED,
     eventsCount: eventsToLog.length,
     events: eventsToLog,
   });
@@ -288,25 +332,101 @@ const clearReconnectTimeout = () => {
   reconnectTimeout = null;
 };
 
+const resetReconnectState = () => {
+  connectionAttempts = 0;
+  reconnectWindowStartedAt = 0;
+};
+
+const getNextReconnectAttempt = () => {
+  const now = Date.now();
+  if (!reconnectWindowStartedAt || now - reconnectWindowStartedAt >= BAILEYS_RECONNECT_ATTEMPT_RESET_MS) {
+    reconnectWindowStartedAt = now;
+    connectionAttempts = 0;
+  }
+  connectionAttempts += 1;
+  return connectionAttempts;
+};
+
 const scheduleReconnect = (delay) => {
   if (reconnectTimeout) return;
-  reconnectTimeout = setTimeout(() => {
-    reconnectTimeout = null;
-    connectToWhatsApp().catch((error) => {
-      logger.error('Falha ao executar reconexão agendada.', {
-        action: 'reconnect_schedule_failure',
-        errorMessage: error?.message,
-        stack: error?.stack,
-        timestamp: new Date().toISOString(),
+  reconnectTimeout = setTimeout(
+    () => {
+      reconnectTimeout = null;
+      connectToWhatsApp().catch((error) => {
+        logger.error('Falha ao executar reconexão agendada.', {
+          action: 'reconnect_schedule_failure',
+          errorMessage: error?.message,
+          stack: error?.stack,
+          timestamp: new Date().toISOString(),
+        });
       });
-    });
-  }, Math.max(0, Number(delay) || 0));
+    },
+    Math.max(0, Number(delay) || 0),
+  );
 };
 
 const isSocketOpen = (socket) => {
   if (!socket?.ws) return false;
   if (typeof socket.ws.isOpen === 'boolean') return socket.ws.isOpen;
   return socket.ws.readyState === 1;
+};
+
+const withTimeout = (promise, timeoutMs, timeoutLabel = 'operation_timeout') =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(timeoutLabel)), timeoutMs);
+    }),
+  ]);
+
+const syncGroupsOnConnectionOpen = async (sock) => {
+  if (!GROUP_SYNC_ON_CONNECT) {
+    logger.info('Sincronização de grupos no connect desativada por configuração.', {
+      action: 'groups_sync_disabled',
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  const allGroups = await withTimeout(
+    sock.groupFetchAllParticipating(),
+    GROUP_SYNC_TIMEOUT_MS,
+    `groups_sync_timeout_${GROUP_SYNC_TIMEOUT_MS}ms`,
+  );
+  const allGroupEntries = Object.values(allGroups || {});
+  const selectedGroups =
+    GROUP_SYNC_MAX_GROUPS > 0
+      ? allGroupEntries.slice(0, GROUP_SYNC_MAX_GROUPS)
+      : allGroupEntries;
+
+  let syncedCount = 0;
+  let failedCount = 0;
+
+  for (let offset = 0; offset < selectedGroups.length; offset += GROUP_SYNC_BATCH_SIZE) {
+    const batch = selectedGroups.slice(offset, offset + GROUP_SYNC_BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map((group) =>
+        upsertGroupMetadata(group.id, buildGroupMetadataFromGroup(group), {
+          mergeExisting: false,
+        })),
+    );
+    for (const result of results) {
+      if (result.status === 'fulfilled') syncedCount += 1;
+      else failedCount += 1;
+    }
+  }
+
+  logger.info('📁 Metadados de grupos sincronizados com MySQL.', {
+    action: 'groups_synced',
+    totalFetched: allGroupEntries.length,
+    totalSynced: syncedCount,
+    totalFailed: failedCount,
+    totalSkipped: Math.max(0, allGroupEntries.length - selectedGroups.length),
+    batchSize: GROUP_SYNC_BATCH_SIZE,
+    maxGroups: GROUP_SYNC_MAX_GROUPS > 0 ? GROUP_SYNC_MAX_GROUPS : null,
+    timeoutMs: GROUP_SYNC_TIMEOUT_MS,
+    timestamp: new Date().toISOString(),
+  });
 };
 
 /**
@@ -656,29 +776,38 @@ async function handleConnectionUpdate(update, sock) {
 
     const shouldReconnect = lastDisconnect?.error instanceof Boom && disconnectCode !== DisconnectReason.loggedOut;
 
-    if (shouldReconnect && connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
-      connectionAttempts++;
-      const reconnectDelay = INITIAL_RECONNECT_DELAY * Math.pow(2, connectionAttempts - 1);
-      logger.warn(`⚠️ Conexão perdida. Tentando reconectar...`, {
-        action: 'reconnect_attempt',
-        attempt: connectionAttempts,
-        maxAttempts: MAX_CONNECTION_ATTEMPTS,
-        delay: reconnectDelay,
-        reasonCode: disconnectCode,
-        errorMessage,
-        timestamp: new Date().toISOString(),
-      });
-      activeSocket = null;
-      storeActiveSocket(null);
-      scheduleReconnect(reconnectDelay);
-    } else if (shouldReconnect) {
-      logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.', {
-        action: 'reconnect_failed',
-        totalAttempts: connectionAttempts,
-        reasonCode: disconnectCode,
-        errorMessage,
-        timestamp: new Date().toISOString(),
-      });
+    if (shouldReconnect) {
+      const attempt = getNextReconnectAttempt();
+      if (attempt <= MAX_CONNECTION_ATTEMPTS) {
+        const reconnectDelay = INITIAL_RECONNECT_DELAY * Math.pow(2, attempt - 1);
+        logger.warn(`⚠️ Conexão perdida. Tentando reconectar...`, {
+          action: 'reconnect_attempt',
+          attempt,
+          maxAttempts: MAX_CONNECTION_ATTEMPTS,
+          delay: reconnectDelay,
+          reasonCode: disconnectCode,
+          errorMessage,
+          timestamp: new Date().toISOString(),
+        });
+        activeSocket = null;
+        storeActiveSocket(null);
+        scheduleReconnect(reconnectDelay);
+      } else {
+        logger.error('❌ Limite de tentativas atingido; aguardando janela para novo retry.', {
+          action: 'reconnect_backoff_window',
+          totalAttempts: attempt,
+          maxAttempts: MAX_CONNECTION_ATTEMPTS,
+          retryAfterMs: BAILEYS_RECONNECT_ATTEMPT_RESET_MS,
+          reasonCode: disconnectCode,
+          errorMessage,
+          timestamp: new Date().toISOString(),
+        });
+        activeSocket = null;
+        storeActiveSocket(null);
+        connectionAttempts = 0;
+        reconnectWindowStartedAt = Date.now();
+        scheduleReconnect(BAILEYS_RECONNECT_ATTEMPT_RESET_MS);
+      }
     } else {
       logger.error('❌ Conexão fechada definitivamente.', {
         action: 'connection_closed',
@@ -695,7 +824,7 @@ async function handleConnectionUpdate(update, sock) {
       timestamp: new Date().toISOString(),
     });
 
-    connectionAttempts = 0;
+    resetReconnectState();
     clearReconnectTimeout();
 
     if (process.send) {
@@ -707,25 +836,13 @@ async function handleConnectionUpdate(update, sock) {
     }
 
     try {
-      const allGroups = await sock.groupFetchAllParticipating();
-
-      for (const group of Object.values(allGroups)) {
-        await upsertGroupMetadata(group.id, buildGroupMetadataFromGroup(group), {
-          mergeExisting: false,
-        });
-      }
-
-      logger.info(`📁 Metadados de ${Object.keys(allGroups).length} grupos sincronizados com MySQL.`, {
-        action: 'groups_synced',
-        count: Object.keys(allGroups).length,
-        groupIds: Object.keys(allGroups),
-        timestamp: new Date().toISOString(),
-      });
+      await syncGroupsOnConnectionOpen(sock);
     } catch (error) {
       logger.error('❌ Erro ao carregar metadados de grupos na conexão.', {
         action: 'groups_load_error',
         errorMessage: error.message,
         stack: error.stack,
+        timeoutMs: GROUP_SYNC_TIMEOUT_MS,
         timestamp: new Date().toISOString(),
       });
     }
