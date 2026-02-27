@@ -8,13 +8,18 @@ from pydantic import BaseModel, Field
 
 from classifier import (
     ADAPTIVE_ALPHA,
+    AFFINITY_WEIGHT_CAP,
     CLIP_TOP_K,
     DEFAULT_LABELS,
     ENABLE_ADAPTIVE_SCORING,
+    ENABLE_LLM_EXPANSION_GATING,
     ENABLE_CLUSTERING,
     ENABLE_EMBEDDING_CACHE,
     ENABLE_LLM_LABEL_EXPANSION,
+    ENTROPY_NORMALIZED_THRESHOLD,
     ENTROPY_THRESHOLD,
+    LLM_EXPANSION_MAX_ENTROPY_NORMALIZED,
+    LLM_EXPANSION_MIN_MARGIN,
     NSFW_THRESHOLD,
     classify_image_bytes,
     get_classifier,
@@ -55,11 +60,16 @@ class ClassificationResponse(BaseModel):
     raw_logits: dict[str, float] = Field(default_factory=dict)
     top_labels: list[TopLabelEntry] = Field(default_factory=list)
     entropy: float
+    entropy_top_k: float = 0.0
+    entropy_normalized: float = 0.0
     confidence_margin: float
     nsfw_score: float
     is_nsfw: bool
     ambiguous: bool
     affinity_weight: float
+    affinity_weight_raw: float = 0.0
+    llm_expansion_used: bool = False
+    llm_expansion_gate_reason: str = "enabled"
     llm_expansion: LlmExpansionPayload = Field(default_factory=LlmExpansionPayload)
     similar_images: list[SimilarImageEntry] = Field(default_factory=list)
     image_hash: str | None = None
@@ -121,12 +131,17 @@ def labels() -> dict[str, Any]:
         "nsfw_threshold": NSFW_THRESHOLD,
         "top_k": CLIP_TOP_K,
         "entropy_threshold": ENTROPY_THRESHOLD,
+        "entropy_normalized_threshold": ENTROPY_NORMALIZED_THRESHOLD,
         "adaptive_alpha": ADAPTIVE_ALPHA,
+        "affinity_weight_cap": AFFINITY_WEIGHT_CAP,
+        "llm_expansion_min_margin": LLM_EXPANSION_MIN_MARGIN,
+        "llm_expansion_max_entropy_normalized": LLM_EXPANSION_MAX_ENTROPY_NORMALIZED,
         "features": {
             "embedding_cache": ENABLE_EMBEDDING_CACHE,
             "clustering": ENABLE_CLUSTERING,
             "adaptive_scoring": ENABLE_ADAPTIVE_SCORING,
             "llm_label_expansion": ENABLE_LLM_LABEL_EXPANSION,
+            "llm_expansion_gating": ENABLE_LLM_EXPANSION_GATING,
         },
     }
 

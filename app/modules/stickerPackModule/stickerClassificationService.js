@@ -17,6 +17,10 @@ const CLIP_CLASSIFIER_ENABLED = parseEnvBool(process.env.CLIP_CLASSIFIER_ENABLED
 const CLIP_CLASSIFIER_API_URL =
   String(process.env.CLIP_CLASSIFIER_API_URL || 'http://127.0.0.1:8008/classify').trim() ||
   'http://127.0.0.1:8008/classify';
+const CLIP_CLASSIFIER_FEEDBACK_API_URL = String(
+  process.env.CLIP_CLASSIFIER_FEEDBACK_API_URL
+  || CLIP_CLASSIFIER_API_URL.replace(/\/classify\/?$/i, '/feedback'),
+).trim();
 const CLIP_CLASSIFIER_TIMEOUT_MS = Math.max(500, Number(process.env.CLIP_CLASSIFIER_TIMEOUT_MS) || 3000);
 const CLIP_CLASSIFIER_PROVIDER = String(process.env.CLIP_CLASSIFIER_PROVIDER || 'clip').trim() || 'clip';
 const CLIP_CLASSIFIER_CLASSIFICATION_VERSION =
@@ -69,25 +73,109 @@ const normalizeScores = (scores) => {
   return normalized;
 };
 
+const normalizeListOfStrings = (values, max = 30) => {
+  if (!Array.isArray(values)) return [];
+  const list = [];
+  const seen = new Set();
+  for (const value of values) {
+    const normalized = String(value || '').trim();
+    if (!normalized) continue;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push(normalized);
+    if (list.length >= max) break;
+  }
+  return list;
+};
+
+const normalizeTopLabels = (entries) => {
+  if (!Array.isArray(entries)) return [];
+  const normalized = [];
+  for (const entry of entries) {
+    const label = String(entry?.label || '').trim();
+    const score = Number(entry?.score);
+    if (!label || !Number.isFinite(score)) continue;
+    normalized.push({
+      label,
+      score: Number(score.toFixed(6)),
+      logit: Number.isFinite(Number(entry?.logit)) ? Number(Number(entry.logit).toFixed(6)) : null,
+      clip_score: Number.isFinite(Number(entry?.clip_score)) ? Number(Number(entry.clip_score).toFixed(6)) : null,
+    });
+  }
+  normalized.sort((a, b) => b.score - a.score || String(a.label).localeCompare(String(b.label)));
+  return normalized.slice(0, 10);
+};
+
 const normalizeClassificationResult = (payload) => {
   const allScores = normalizeScores(payload?.all_scores || {});
+  const topLabels = normalizeTopLabels(payload?.top_labels || []);
   const explicitCategory = String(payload?.category || '').trim();
   const scoreEntries = Object.entries(allScores);
   const topFromScores = scoreEntries[0] || null;
-  const category = explicitCategory || topFromScores?.[0] || null;
+  const topFromLabels = topLabels[0] || null;
+  const category = explicitCategory || topFromLabels?.label || topFromScores?.[0] || null;
   const confidence = Number.isFinite(Number(payload?.confidence))
     ? Number(Number(payload.confidence).toFixed(6))
+    : Number.isFinite(Number(topFromLabels?.score))
+      ? Number(Number(topFromLabels.score).toFixed(6))
     : topFromScores
       ? Number(Number(topFromScores[1]).toFixed(6))
       : null;
   const nsfwScore = Number.isFinite(Number(payload?.nsfw_score)) ? Number(Number(payload.nsfw_score).toFixed(6)) : null;
+  const entropy = Number.isFinite(Number(payload?.entropy)) ? Number(Number(payload.entropy).toFixed(6)) : null;
+  const entropyNormalized = Number.isFinite(Number(payload?.entropy_normalized))
+    ? Number(Number(payload.entropy_normalized).toFixed(6))
+    : null;
+  const confidenceMargin = Number.isFinite(Number(payload?.confidence_margin))
+    ? Number(Number(payload.confidence_margin).toFixed(6))
+    : null;
+  const affinityWeight = Number.isFinite(Number(payload?.affinity_weight))
+    ? Number(Number(payload.affinity_weight).toFixed(6))
+    : null;
+  const affinityWeightRaw = Number.isFinite(Number(payload?.affinity_weight_raw))
+    ? Number(Number(payload.affinity_weight_raw).toFixed(6))
+    : null;
+  const imageHash = String(payload?.image_hash || '').trim().toLowerCase();
+
+  const llmExpansion = payload?.llm_expansion && typeof payload.llm_expansion === 'object'
+    ? payload.llm_expansion
+    : {};
+  const llmSubtags = normalizeListOfStrings(llmExpansion?.subtags, 40);
+  const llmStyleTraits = normalizeListOfStrings(llmExpansion?.style_traits, 20);
+  const llmEmotions = normalizeListOfStrings(llmExpansion?.emotions, 20);
+  const llmPackSuggestions = normalizeListOfStrings(llmExpansion?.pack_suggestions, 30);
+
+  const similarImages = Array.isArray(payload?.similar_images)
+    ? payload.similar_images
+      .map((entry) => ({
+        image_hash: String(entry?.image_hash || '').trim().toLowerCase(),
+        asset_id: entry?.asset_id ? String(entry.asset_id) : null,
+        similarity: Number.isFinite(Number(entry?.similarity)) ? Number(Number(entry.similarity).toFixed(6)) : null,
+      }))
+      .filter((entry) => entry.image_hash && Number.isFinite(Number(entry.similarity)))
+      .slice(0, 40)
+    : [];
 
   return {
     category,
     confidence,
+    entropy,
+    entropy_normalized: entropyNormalized,
+    confidence_margin: confidenceMargin,
+    affinity_weight: affinityWeight,
+    affinity_weight_raw: affinityWeightRaw,
     all_scores: allScores,
+    top_labels: topLabels,
     nsfw_score: nsfwScore,
     is_nsfw: payload?.is_nsfw === true || payload?.is_nsfw === 1,
+    ambiguous: payload?.ambiguous === true || payload?.ambiguous === 1,
+    image_hash: imageHash || null,
+    llm_subtags: llmSubtags,
+    llm_style_traits: llmStyleTraits,
+    llm_emotions: llmEmotions,
+    llm_pack_suggestions: llmPackSuggestions,
+    similar_images: similarImages,
     model_name: payload?.model || payload?.model_name || null,
   };
 };
@@ -201,9 +289,20 @@ export async function ensureStickerAssetClassified({ asset, buffer, force = fals
     classification_version: CLIP_CLASSIFIER_CLASSIFICATION_VERSION,
     category: inference.category,
     confidence: inference.confidence,
+    entropy: inference.entropy,
+    confidence_margin: inference.confidence_margin,
+    top_labels: inference.top_labels,
+    affinity_weight: inference.affinity_weight,
+    image_hash: inference.image_hash || asset.sha256 || null,
+    ambiguous: inference.ambiguous,
     nsfw_score: inference.nsfw_score,
     is_nsfw: inference.is_nsfw,
     all_scores: inference.all_scores,
+    llm_subtags: inference.llm_subtags,
+    llm_style_traits: inference.llm_style_traits,
+    llm_emotions: inference.llm_emotions,
+    llm_pack_suggestions: inference.llm_pack_suggestions,
+    similar_images: inference.similar_images,
   });
 }
 
@@ -345,9 +444,44 @@ export async function getPackClassificationSummaryByAssetIds(assetIds) {
 export const classifierConfig = {
   enabled: CLIP_CLASSIFIER_ENABLED,
   api_url: CLIP_CLASSIFIER_API_URL,
+  feedback_api_url: CLIP_CLASSIFIER_FEEDBACK_API_URL,
   timeout_ms: CLIP_CLASSIFIER_TIMEOUT_MS,
   nsfw_threshold: CLIP_CLASSIFIER_NSFW_THRESHOLD,
   classification_version: CLIP_CLASSIFIER_CLASSIFICATION_VERSION,
+};
+
+export const submitStickerClassificationFeedback = async ({
+  imageHash,
+  theme,
+  accepted,
+  assetId = null,
+}) => {
+  if (!CLIP_CLASSIFIER_ENABLED) return false;
+  const normalizedHash = String(imageHash || '').trim().toLowerCase();
+  const normalizedTheme = String(theme || '').trim().toLowerCase();
+  if (!normalizedHash || !normalizedTheme) return false;
+  if (typeof globalThis.fetch !== 'function') return false;
+
+  const controller = typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null;
+  const timeout = setTimeout(() => controller?.abort(), Math.max(500, CLIP_CLASSIFIER_TIMEOUT_MS));
+  try {
+    const response = await globalThis.fetch(CLIP_CLASSIFIER_FEEDBACK_API_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      signal: controller?.signal,
+      body: JSON.stringify({
+        image_hash: normalizedHash,
+        theme: normalizedTheme,
+        accepted: Boolean(accepted),
+        asset_id: assetId || null,
+      }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
 };
 
 export const classifyStickerAssetBufferSafe = async (buffer, filename) => {

@@ -6,6 +6,7 @@ import { setQueueDepth } from '../../observability/metrics.js';
 import { listStickerAssetsPendingClassification, findStickerAssetById } from './stickerAssetRepository.js';
 import { classifierConfig, ensureStickerAssetClassified } from './stickerClassificationService.js';
 import {
+  listAssetsForPrioritySignalBackfillReprocess,
   listAssetsForLowConfidenceReprocess,
   listAssetsForModelUpgradeReprocess,
 } from './stickerAssetClassificationRepository.js';
@@ -54,6 +55,15 @@ const REPROCESS_LOW_CONFIDENCE_THRESHOLD = Number.isFinite(Number(process.env.ST
 const REPROCESS_LOW_CONFIDENCE_STALE_HOURS = Math.max(
   1,
   Math.min(24 * 365, Number(process.env.STICKER_REPROCESS_LOW_CONFIDENCE_STALE_HOURS) || 48),
+);
+const REPROCESS_PRIORITY_BACKFILL_ENABLED = parseEnvBool(process.env.STICKER_REPROCESS_PRIORITY_BACKFILL_ENABLED, true);
+const REPROCESS_PRIORITY_BACKFILL_SCAN_LIMIT = Math.max(
+  0,
+  Math.min(3000, Number(process.env.STICKER_REPROCESS_PRIORITY_BACKFILL_SCAN_LIMIT) || 300),
+);
+const REPROCESS_PRIORITY_BACKFILL_PRIORITY = Math.max(
+  1,
+  Math.min(100, Number(process.env.STICKER_REPROCESS_PRIORITY_BACKFILL_PRIORITY) || 95),
 );
 const REPROCESS_RETRY_DELAY_SECONDS = Math.max(
   5,
@@ -166,20 +176,43 @@ const enqueueLowConfidenceCandidates = async () => {
   return enqueued;
 };
 
+const enqueuePriorityBackfillCandidates = async () => {
+  if (!REPROCESS_ENABLED || !REPROCESS_PRIORITY_BACKFILL_ENABLED) return 0;
+
+  const assetIds = await listAssetsForPrioritySignalBackfillReprocess({
+    limit: REPROCESS_PRIORITY_BACKFILL_SCAN_LIMIT,
+  });
+
+  let enqueued = 0;
+  for (const assetId of assetIds) {
+    const inserted = await enqueueStickerAssetReprocess({
+      assetId,
+      reason: 'MODEL_UPGRADE',
+      priority: REPROCESS_PRIORITY_BACKFILL_PRIORITY,
+    });
+    if (inserted) enqueued += 1;
+  }
+
+  return enqueued;
+};
+
 const processReprocessQueue = async ({ limit = REPROCESS_MAX_PER_CYCLE } = {}) => {
   if (!REPROCESS_ENABLED || limit <= 0 || !reprocessQueueAvailable) {
     return {
       processed: 0,
       classified: 0,
       failed: 0,
+      enqueued_priority_backfill: 0,
       enqueued_model_upgrade: 0,
       enqueued_low_confidence: 0,
     };
   }
 
+  let enqueuedPriorityBackfill = 0;
   let enqueuedModelUpgrade = 0;
   let enqueuedLowConfidence = 0;
   try {
+    enqueuedPriorityBackfill = await enqueuePriorityBackfillCandidates();
     enqueuedModelUpgrade = await enqueueModelUpgradeCandidates();
     enqueuedLowConfidence = await enqueueLowConfidenceCandidates();
   } catch (error) {
@@ -192,6 +225,7 @@ const processReprocessQueue = async ({ limit = REPROCESS_MAX_PER_CYCLE } = {}) =
         processed: 0,
         classified: 0,
         failed: 0,
+        enqueued_priority_backfill: 0,
         enqueued_model_upgrade: 0,
         enqueued_low_confidence: 0,
       };
@@ -203,6 +237,7 @@ const processReprocessQueue = async ({ limit = REPROCESS_MAX_PER_CYCLE } = {}) =
     processed: 0,
     classified: 0,
     failed: 0,
+    enqueued_priority_backfill: enqueuedPriorityBackfill,
     enqueued_model_upgrade: enqueuedModelUpgrade,
     enqueued_low_confidence: enqueuedLowConfidence,
   };
@@ -308,6 +343,7 @@ const classifyBatch = async () => {
       processed: 0,
       classified: 0,
       failed: 0,
+      enqueued_priority_backfill: 0,
       enqueued_model_upgrade: 0,
       enqueued_low_confidence: 0,
     };
@@ -316,7 +352,12 @@ const classifyBatch = async () => {
     const classified = Number(pending.classified || 0) + Number(reprocess.classified || 0);
     const failed = Number(pending.failed || 0) + Number(reprocess.failed || 0);
 
-    if (processed > 0 || reprocess.enqueued_model_upgrade > 0 || reprocess.enqueued_low_confidence > 0) {
+    if (
+      processed > 0
+      || reprocess.enqueued_priority_backfill > 0
+      || reprocess.enqueued_model_upgrade > 0
+      || reprocess.enqueued_low_confidence > 0
+    ) {
       logger.info('Worker de classificação executado.', {
         action: 'sticker_classification_background_cycle',
         processed,
@@ -325,6 +366,7 @@ const classifyBatch = async () => {
         reprocess_processed: Number(reprocess.processed || 0),
         reprocess_classified: Number(reprocess.classified || 0),
         reprocess_failed: Number(reprocess.failed || 0),
+        reprocess_enqueued_priority_backfill: Number(reprocess.enqueued_priority_backfill || 0),
         reprocess_enqueued_model_upgrade: Number(reprocess.enqueued_model_upgrade || 0),
         reprocess_enqueued_low_confidence: Number(reprocess.enqueued_low_confidence || 0),
         duration_ms: Date.now() - startedAt,
@@ -368,6 +410,9 @@ export const startStickerClassificationBackground = () => {
     classifier_api: classifierConfig.api_url,
     reprocess_enabled: REPROCESS_ENABLED,
     reprocess_max_per_cycle: REPROCESS_MAX_PER_CYCLE,
+    reprocess_priority_backfill_enabled: REPROCESS_PRIORITY_BACKFILL_ENABLED,
+    reprocess_priority_backfill_scan_limit: REPROCESS_PRIORITY_BACKFILL_SCAN_LIMIT,
+    reprocess_priority_backfill_priority: REPROCESS_PRIORITY_BACKFILL_PRIORITY,
   });
 
   startupTimeoutHandle = setTimeout(() => {

@@ -19,6 +19,13 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         COMMAND_PREFIX: '/',
+        LOG_LEVEL: 'info',
+        DB_LOG_EVERY_QUERY: 'false',
+        DB_MONITOR_ENABLED: 'false',
+        LID_BACKFILL_ON_START: 'false',
+        STICKER_CLASSIFICATION_BACKGROUND_ENABLED: 'true',
+        STICKER_REPROCESS_QUEUE_ENABLED: 'true',
+        STICKER_AUTO_PACK_BY_TAGS_ENABLED: 'true',
       },
       wait_ready: true,
       listen_timeout: 10000,

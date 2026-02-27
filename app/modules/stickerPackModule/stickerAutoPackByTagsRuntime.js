@@ -4,8 +4,14 @@ import { normalizeJid, resolveBotJid } from '../../config/baileysConfig.js';
 import { recordStickerAutoPackCycle } from '../../observability/metrics.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
 import { listClassifiedStickerAssetsForCuration } from './stickerAssetRepository.js';
-import { listStickerClassificationsByAssetIds } from './stickerAssetClassificationRepository.js';
-import { decorateStickerClassification } from './stickerClassificationService.js';
+import {
+  listClipImageEmbeddingsByImageHashes,
+  listStickerClassificationsByAssetIds,
+} from './stickerAssetClassificationRepository.js';
+import {
+  decorateStickerClassification,
+  submitStickerClassificationFeedback,
+} from './stickerClassificationService.js';
 import {
   findStickerPackById,
   listStickerAutoPacksForCuration,
@@ -13,6 +19,7 @@ import {
   updateStickerPackFields,
 } from './stickerPackRepository.js';
 import { listStickerPackItems, listStickerPackItemsByPackIds } from './stickerPackItemRepository.js';
+import { listStickerPackEngagementByPackIds } from './stickerPackEngagementRepository.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -100,6 +107,49 @@ const MOVE_OUT_THEME_SCORE_THRESHOLD = Number.isFinite(Number(process.env.STICKE
 const MOVE_IN_THEME_SCORE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_IN_THRESHOLD))
   ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_IN_THRESHOLD)
   : 0.12;
+const ENTROPY_THRESHOLD = Number.isFinite(Number(process.env.ENTROPY_THRESHOLD))
+  ? Number(process.env.ENTROPY_THRESHOLD)
+  : 2.5;
+const ENTROPY_NORMALIZED_THRESHOLD = Number.isFinite(Number(process.env.ENTROPY_NORMALIZED_THRESHOLD))
+  ? Math.max(0, Math.min(1, Number(process.env.ENTROPY_NORMALIZED_THRESHOLD)))
+  : 0.76;
+const ENTROPY_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ENTROPY_WEIGHT))
+  ? Math.max(0, Math.min(1.5, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ENTROPY_WEIGHT)))
+  : 0.09;
+const AMBIGUOUS_FLAG_PENALTY = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AMBIGUOUS_FLAG_PENALTY))
+  ? Math.max(0, Math.min(0.5, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AMBIGUOUS_FLAG_PENALTY)))
+  : 0.06;
+const ADAPTIVE_BONUS_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ADAPTIVE_BONUS_WEIGHT))
+  ? Math.max(0, Math.min(1.2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ADAPTIVE_BONUS_WEIGHT)))
+  : 0.18;
+const MARGIN_BONUS_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MARGIN_BONUS_WEIGHT))
+  ? Math.max(0, Math.min(1.2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MARGIN_BONUS_WEIGHT)))
+  : 0.12;
+const SIMILAR_IMAGES_PENALTY_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SIMILAR_IMAGES_PENALTY_WEIGHT))
+  ? Math.max(0, Math.min(1.2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SIMILAR_IMAGES_PENALTY_WEIGHT)))
+  : 0.08;
+const LLM_TRAIT_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_LLM_TRAIT_WEIGHT))
+  ? Math.max(0, Math.min(0.6, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_LLM_TRAIT_WEIGHT)))
+  : 0.1;
+const ASSET_QUALITY_W1 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W1))
+  ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W1)))
+  : 0.34;
+const ASSET_QUALITY_W2 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W2))
+  ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W2)))
+  : 0.24;
+const ASSET_QUALITY_W3 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W3))
+  ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W3)))
+  : 0.18;
+const ASSET_QUALITY_W4 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W4))
+  ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W4)))
+  : 0.24;
+const AFFINITY_WEIGHT_CAP = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_CAP))
+  ? Math.max(0, Math.min(1, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_CAP)))
+  : 0.85;
+const ENABLE_AFFINITY_LOG_SCALING = parseEnvBool(process.env.STICKER_AUTO_PACK_BY_TAGS_ENABLE_AFFINITY_LOG_SCALING, true);
+const AFFINITY_LOG_SCALE = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_LOG_SCALE))
+  ? Math.max(0.1, Math.min(20, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_LOG_SCALE)))
+  : 4;
 const REVIEW_SAMPLE_PERCENT = Math.max(
   0,
   Math.min(100, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_RECHECK_SAMPLE_PERCENT) || 5),
@@ -128,6 +178,10 @@ const OPTIMIZATION_CYCLES = Math.max(1, Math.min(8, Number(process.env.OPTIMIZAT
 const OPTIMIZATION_EPSILON = Number.isFinite(Number(process.env.OPTIMIZATION_EPSILON))
   ? Math.max(0.000001, Math.min(0.5, Number(process.env.OPTIMIZATION_EPSILON)))
   : 0.001;
+const OPTIMIZATION_STABLE_CYCLES = Math.max(
+  1,
+  Math.min(5, Number(process.env.OPTIMIZATION_STABLE_CYCLES) || 2),
+);
 const TRANSFER_THRESHOLD = Number.isFinite(Number(process.env.TRANSFER_THRESHOLD))
   ? Math.max(-0.2, Math.min(1, Number(process.env.TRANSFER_THRESHOLD)))
   : 0.02;
@@ -171,6 +225,91 @@ const PACK_QUALITY_W5 = Number.isFinite(Number(process.env.PACK_QUALITY_W5))
 const PACK_QUALITY_W6 = Number.isFinite(Number(process.env.PACK_QUALITY_W6))
   ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W6)))
   : 0.07;
+const MIGRATION_CANDIDATE_LIMIT = Number.isFinite(Number(process.env.MIGRATION_CANDIDATE_LIMIT))
+  ? Math.max(4, Math.min(64, Number(process.env.MIGRATION_CANDIDATE_LIMIT)))
+  : 16;
+const TRANSFER_CANDIDATE_SIMILARITY_FLOOR = Number.isFinite(Number(process.env.TRANSFER_CANDIDATE_SIMILARITY_FLOOR))
+  ? Math.max(0, Math.min(1, Number(process.env.TRANSFER_CANDIDATE_SIMILARITY_FLOOR)))
+  : 0.35;
+const INTER_PACK_SIMILARITY_THRESHOLD = Number.isFinite(Number(process.env.INTER_PACK_SIMILARITY_THRESHOLD))
+  ? Math.max(0, Math.min(1, Number(process.env.INTER_PACK_SIMILARITY_THRESHOLD)))
+  : 0.85;
+const PACK_TIER_QUALITY_W1 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W1))
+  ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W1)))
+  : 0.40;
+const PACK_TIER_QUALITY_W2 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W2))
+  ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W2)))
+  : 0.25;
+const PACK_TIER_QUALITY_W3 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W3))
+  ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W3)))
+  : 0.15;
+const PACK_TIER_QUALITY_W4 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W4))
+  ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W4)))
+  : 0.10;
+const PACK_TIER_QUALITY_W5 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W5))
+  ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W5)))
+  : 0.10;
+const AUTO_PACK_PROFILE = String(process.env.AUTO_PACK_PROFILE || 'BALANCED').trim().toUpperCase();
+const IS_AGGRESSIVE_PROFILE = AUTO_PACK_PROFILE === 'AGGRESSIVE';
+const AGGRESSIVE_MIGRATION_THRESHOLD = Number.isFinite(Number(process.env.AGGRESSIVE_MIGRATION_THRESHOLD))
+  ? Math.max(-0.1, Math.min(1, Number(process.env.AGGRESSIVE_MIGRATION_THRESHOLD)))
+  : 0.01;
+const ARCHIVE_LOW_SCORE_PACKS = parseEnvBool(
+  process.env.ARCHIVE_LOW_SCORE_PACKS,
+  IS_AGGRESSIVE_PROFILE,
+);
+const GLOBAL_ENERGY_W1 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W1))
+  ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W1)))
+  : 0.40;
+const GLOBAL_ENERGY_W2 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W2))
+  ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W2)))
+  : 0.25;
+const GLOBAL_ENERGY_W3 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W3))
+  ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W3)))
+  : 0.10;
+const GLOBAL_ENERGY_W4 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W4))
+  ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W4)))
+  : 0.15;
+const GLOBAL_ENERGY_W5 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W5))
+  ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W5)))
+  : 0.10;
+const PACK_TIER_GOLD_THRESHOLD = Number.isFinite(Number(process.env.PACK_TIER_GOLD_THRESHOLD))
+  ? Math.max(0, Math.min(2, Number(process.env.PACK_TIER_GOLD_THRESHOLD)))
+  : 0.80;
+const PACK_TIER_SILVER_THRESHOLD = Number.isFinite(Number(process.env.PACK_TIER_SILVER_THRESHOLD))
+  ? Math.max(0, Math.min(PACK_TIER_GOLD_THRESHOLD, Number(process.env.PACK_TIER_SILVER_THRESHOLD)))
+  : 0.65;
+const PACK_TIER_BRONZE_THRESHOLD = Number.isFinite(Number(process.env.PACK_TIER_BRONZE_THRESHOLD))
+  ? Math.max(0, Math.min(PACK_TIER_SILVER_THRESHOLD, Number(process.env.PACK_TIER_BRONZE_THRESHOLD)))
+  : 0.50;
+
+const EFFECTIVE_MIN_ASSET_ACCEPTANCE_RATE = IS_AGGRESSIVE_PROFILE
+  ? Math.max(0.3, MIN_ASSET_ACCEPTANCE_RATE * 0.82)
+  : MIN_ASSET_ACCEPTANCE_RATE;
+const EFFECTIVE_MIN_THEME_DOMINANCE_RATIO = IS_AGGRESSIVE_PROFILE
+  ? Math.max(0.35, MIN_THEME_DOMINANCE_RATIO * 0.82)
+  : MIN_THEME_DOMINANCE_RATIO;
+const EFFECTIVE_SCORE_STDDEV_PENALTY = IS_AGGRESSIVE_PROFILE
+  ? Math.max(0.05, SCORE_STDDEV_PENALTY * 0.82)
+  : SCORE_STDDEV_PENALTY;
+const EFFECTIVE_TRANSFER_THRESHOLD = IS_AGGRESSIVE_PROFILE
+  ? Math.min(TRANSFER_THRESHOLD, AGGRESSIVE_MIGRATION_THRESHOLD)
+  : TRANSFER_THRESHOLD;
+const EFFECTIVE_MERGE_THRESHOLD = IS_AGGRESSIVE_PROFILE
+  ? Math.max(MERGE_THRESHOLD, 0.85)
+  : MERGE_THRESHOLD;
+const EFFECTIVE_INTER_PACK_SIMILARITY_THRESHOLD = Math.max(EFFECTIVE_MERGE_THRESHOLD, INTER_PACK_SIMILARITY_THRESHOLD);
+const EFFECTIVE_AUTO_ARCHIVE_BELOW_PERCENTILE = ARCHIVE_LOW_SCORE_PACKS && IS_AGGRESSIVE_PROFILE
+  ? Math.max(AUTO_ARCHIVE_BELOW_PERCENTILE, 35)
+  : AUTO_ARCHIVE_BELOW_PERCENTILE;
+const EFFECTIVE_PRIORITIZE_COMPLETION = PRIORITIZE_COMPLETION || IS_AGGRESSIVE_PROFILE;
+const EFFECTIVE_COMPLETION_TRANSFER_ENABLED = COMPLETION_TRANSFER_ENABLED || IS_AGGRESSIVE_PROFILE;
+const EFFECTIVE_MIGRATION_CANDIDATE_LIMIT = IS_AGGRESSIVE_PROFILE
+  ? Math.max(MIGRATION_CANDIDATE_LIMIT, 24)
+  : MIGRATION_CANDIDATE_LIMIT;
+const EFFECTIVE_TRANSFER_CANDIDATE_SIMILARITY_FLOOR = IS_AGGRESSIVE_PROFILE
+  ? Math.max(0.15, TRANSFER_CANDIDATE_SIMILARITY_FLOOR * 0.72)
+  : TRANSFER_CANDIDATE_SIMILARITY_FLOOR;
 
 const EXPLICIT_OWNER = String(process.env.STICKER_AUTO_PACK_OWNER_JID || process.env.USER_ADMIN || '').trim();
 
@@ -282,6 +421,31 @@ const buildAutoPackDescription = ({ theme, subtheme, themeKey, groupScore }) =>
 
 const clampNumber = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
 
+const normalizeAffinityWeight = (value) => {
+  const raw = clampNumber(Number(value || 0), 0, 1);
+  const capped = Math.min(raw, AFFINITY_WEIGHT_CAP);
+  if (!ENABLE_AFFINITY_LOG_SCALING) return capped;
+  return Math.log1p(capped * AFFINITY_LOG_SCALE) / Math.log1p(AFFINITY_LOG_SCALE);
+};
+
+const normalizeEntropy = ({ entropy = 0, entropyNormalized = null, topLabelCount = 0 }) => {
+  const explicit = Number(entropyNormalized);
+  if (Number.isFinite(explicit)) return clampNumber(explicit, 0, 1);
+
+  const safeEntropy = Math.max(0, Number(entropy || 0));
+  if (!safeEntropy) return 0;
+
+  const kFromLabels = Math.max(0, Number(topLabelCount || 0));
+  if (kFromLabels > 1) {
+    const maxEntropy = Math.log(kFromLabels);
+    if (maxEntropy > 0) {
+      return clampNumber(safeEntropy / maxEntropy, 0, 1);
+    }
+  }
+
+  return clampNumber(safeEntropy / Math.max(0.000001, ENTROPY_THRESHOLD), 0, 1);
+};
+
 const deterministicUnitInterval = (seed) => {
   let hash = 2166136261;
   const input = String(seed || '');
@@ -350,6 +514,14 @@ const buildStickerFeatureVector = (classification) => {
   if (!classification || typeof classification !== 'object') return {};
   const vector = {};
   accumulateVector(vector, classification.all_scores || {}, 1);
+  for (const topLabel of getTopLabelEntries(classification)) {
+    const mapped = toTagFromLabel(topLabel.label);
+    if (!mapped) continue;
+    vector[`top:${mapped}`] = Math.max(vector[`top:${mapped}`] || 0, Number(topLabel.score || 0));
+  }
+  for (const trait of getLlmTraitTokens(classification)) {
+    vector[`trait:${trait}`] = Math.max(vector[`trait:${trait}`] || 0, 0.12);
+  }
   if (classification.category) {
     const normalized = toTagFromLabel(classification.category);
     if (normalized) {
@@ -414,7 +586,13 @@ const computeStickerPackMatrixScore = ({
 
   const confidence = Number(classification.confidence || 0);
   const themeStrength = Number(buildTopTags(classification)[0]?.score || 0);
-  const impactOnGroupScore = confidence * 0.55 + themeStrength * 0.45;
+  const entropyStability = 1 - normalizeEntropy({
+    entropy: classification.entropy,
+    entropyNormalized: classification.entropy_normalized,
+    topLabelCount: Array.isArray(classification.top_labels) ? classification.top_labels.length : 0,
+  });
+  const affinityWeight = normalizeAffinityWeight(classification.affinity_weight);
+  const impactOnGroupScore = confidence * 0.4 + themeStrength * 0.35 + entropyStability * 0.15 + affinityWeight * 0.1;
 
   let duplicationPenalty = 0;
   if (others.length) {
@@ -433,6 +611,190 @@ const computeStickerPackMatrixScore = ({
     - MATRIX_DELTA * duplicationPenalty;
 
   return clampNumber(matrixScore, 0, 1.6);
+};
+
+const computePackEngagementScore = (engagement) => {
+  const opens = Math.max(0, Number(engagement?.open_count || 0));
+  const likes = Math.max(0, Number(engagement?.like_count || 0));
+  const dislikes = Math.max(0, Number(engagement?.dislike_count || 0));
+  if (!opens && !likes && !dislikes) return 0;
+  const positive = likes * 2 + opens * 0.15;
+  const negative = dislikes * 1.25;
+  return clampNumber((positive - negative) / 100, 0, 1.2);
+};
+
+const normalizeZScoreToUnit = (value) => clampNumber(0.5 + Number(value || 0) / 6, 0, 1);
+
+const buildNormalizedZScoreMap = (valueByKey = new Map()) => {
+  const entries = Array.from(valueByKey.entries());
+  if (!entries.length) return new Map();
+  const values = entries.map(([, value]) => Number(value || 0));
+  const mean = meanArray(values);
+  const variance = varianceArray(values);
+  const stddev = variance > 0 ? Math.sqrt(variance) : 0;
+  const normalized = new Map();
+  for (const [key, value] of entries) {
+    const numeric = Number(value || 0);
+    const zScore = stddev > 0 ? (numeric - mean) / stddev : 0;
+    normalized.set(key, Number(normalizeZScoreToUnit(zScore).toFixed(6)));
+  }
+  return normalized;
+};
+
+const computePackCohesionScore = (profile) => clampNumber(
+  Number(profile?.semanticCohesion || 0) * 0.7 + Number(profile?.topicDominance || 0) * 0.3,
+  0,
+  1,
+);
+
+const computePackObjectiveScore = ({ profile, engagementScore = 0 }) => {
+  const meanAssetQuality = clampNumber(Number(profile?.meanAssetQuality || 0), 0, 1);
+  const cohesionScore = computePackCohesionScore(profile);
+  const volumeScore = clampNumber(Number(profile?.volumeScore || 0), 0, 1);
+  const engagementComponent = clampNumber(Number(engagementScore || 0), 0, 1);
+
+  return clampNumber(
+    GLOBAL_ENERGY_W1 * meanAssetQuality
+      + GLOBAL_ENERGY_W2 * cohesionScore
+      + GLOBAL_ENERGY_W3 * volumeScore
+      + GLOBAL_ENERGY_W4 * engagementComponent,
+    0,
+    2,
+  );
+};
+
+const computePackOfficialQualityScore = ({ profile, engagementZscore = 0 }) => {
+  const meanAssetQuality = clampNumber(Number(profile?.meanAssetQuality || 0), 0, 1);
+  const cohesionScore = computePackCohesionScore(profile);
+  const completionRatio = clampNumber(Number(profile?.volumeScore || 0), 0, 1);
+  const stabilityIndex = clampNumber(1 - Math.max(0, Number(profile?.internalVariance || 0)), 0, 1);
+  const engagementComponent = clampNumber(Number(engagementZscore || 0), 0, 1);
+  const raw =
+    PACK_TIER_QUALITY_W1 * meanAssetQuality
+    + PACK_TIER_QUALITY_W2 * cohesionScore
+    + PACK_TIER_QUALITY_W3 * engagementComponent
+    + PACK_TIER_QUALITY_W4 * completionRatio
+    + PACK_TIER_QUALITY_W5 * stabilityIndex;
+  return clampNumber(raw, 0, 1.2);
+};
+
+const buildPackPairKey = (leftPackId, rightPackId) => {
+  const left = String(leftPackId || '');
+  const right = String(rightPackId || '');
+  return left < right ? `${left}::${right}` : `${right}::${left}`;
+};
+
+const computePackSemanticSimilarity = (leftProfile, rightProfile) =>
+  clampNumber(cosineSimilarity(leftProfile?.centroidVector || {}, rightProfile?.centroidVector || {}), 0, 1);
+
+const buildInterPackSimilarityMatrix = (profiles) => {
+  const profileList = Array.from((profiles instanceof Map ? profiles.values() : []))
+    .filter((profile) => Array.isArray(profile?.stickerIds) && profile.stickerIds.length > 0);
+  const matrix = new Map();
+  let sum = 0;
+  let count = 0;
+
+  for (let i = 0; i < profileList.length; i += 1) {
+    for (let j = i + 1; j < profileList.length; j += 1) {
+      const left = profileList[i];
+      const right = profileList[j];
+      const similarity = computePackSemanticSimilarity(left, right);
+      matrix.set(buildPackPairKey(left.packId, right.packId), similarity);
+      sum += similarity;
+      count += 1;
+    }
+  }
+
+  return {
+    matrix,
+    pair_count: count,
+    similarity_mean: Number((count > 0 ? sum / count : 0).toFixed(6)),
+  };
+};
+
+const computeMeanNormalizedEntropy = (stickerIds, classificationByAssetId) => {
+  if (!Array.isArray(stickerIds) || !stickerIds.length) return 0;
+  let total = 0;
+  let count = 0;
+  for (const stickerId of stickerIds) {
+    const classification = classificationByAssetId.get(stickerId);
+    if (!classification) continue;
+    total += normalizeEntropy({
+      entropy: classification.entropy,
+      entropyNormalized: classification.entropy_normalized,
+      topLabelCount: Array.isArray(classification.top_labels) ? classification.top_labels.length : 0,
+    });
+    count += 1;
+  }
+  return count > 0 ? total / count : 0;
+};
+
+const computePackEnergyDelta = ({
+  baseEnergySnapshot,
+  profiles,
+  profileScores,
+  changes,
+}) => {
+  const updates = changes instanceof Map ? changes : new Map();
+  if (!updates.size) {
+    return {
+      deltaEnergy: 0,
+      nextSnapshot: baseEnergySnapshot,
+    };
+  }
+
+  const changedIds = Array.from(updates.keys());
+  const changedSet = new Set(changedIds);
+  const unchangedIds = Array.from(profiles.keys()).filter((packId) => !changedSet.has(packId));
+
+  let qualityDelta = 0;
+  for (const packId of changedIds) {
+    const oldScore = Number(profileScores.get(packId) || 0);
+    const newScore = Number(updates.get(packId)?.score || 0);
+    qualityDelta += newScore - oldScore;
+  }
+
+  let overlapDelta = 0;
+  for (const packId of changedIds) {
+    const oldProfile = profiles.get(packId);
+    const newProfile = updates.get(packId)?.profile || oldProfile;
+    for (const otherId of unchangedIds) {
+      const otherProfile = profiles.get(otherId);
+      overlapDelta += computePackOverlap(newProfile, otherProfile) - computePackOverlap(oldProfile, otherProfile);
+    }
+  }
+  for (let index = 0; index < changedIds.length; index += 1) {
+    const leftId = changedIds[index];
+    const leftOld = profiles.get(leftId);
+    const leftNew = updates.get(leftId)?.profile || leftOld;
+    for (let j = index + 1; j < changedIds.length; j += 1) {
+      const rightId = changedIds[j];
+      const rightOld = profiles.get(rightId);
+      const rightNew = updates.get(rightId)?.profile || rightOld;
+      overlapDelta += computePackOverlap(leftNew, rightNew) - computePackOverlap(leftOld, rightOld);
+    }
+  }
+
+  const qualitySum = Number(baseEnergySnapshot?.qualitySum || 0) + qualityDelta;
+  const overlapPairs = Math.max(0, Number(baseEnergySnapshot?.overlapPairs || 0));
+  const overlapSum = Number(baseEnergySnapshot?.overlapSum || 0) + overlapDelta;
+  const redundancy = overlapPairs > 0 ? overlapSum / overlapPairs : 0;
+  const redundancyPenalty = SYSTEM_REDUNDANCY_LAMBDA * GLOBAL_ENERGY_W5 * redundancy;
+  const energy = qualitySum - redundancyPenalty;
+  const deltaEnergy = energy - Number(baseEnergySnapshot?.energy || 0);
+
+  return {
+    deltaEnergy: Number(deltaEnergy.toFixed(6)),
+    nextSnapshot: {
+      qualitySum: Number(qualitySum.toFixed(6)),
+      overlapSum: Number(overlapSum.toFixed(6)),
+      overlapPairs,
+      redundancy: Number(redundancy.toFixed(6)),
+      redundancyPenalty: Number(redundancyPenalty.toFixed(6)),
+      energy: Number(energy.toFixed(6)),
+      profileScores,
+    },
+  };
 };
 
 const computePackProfile = ({
@@ -457,6 +819,20 @@ const computePackProfile = ({
         const classification = classificationByAssetId.get(stickerId);
         return cosineSimilarity(buildStickerFeatureVector(classification), centroidVector);
       }));
+  const parsedThemeKey = parseThemeKey(themeKey);
+  const meanAssetQuality = meanArray(
+    cleanStickerIds.map((stickerId) => {
+      const classification = classificationByAssetId.get(stickerId);
+      if (!classification) return 0;
+      const topTags = buildTopTags(classification);
+      return computeAssetQualityForTheme({
+        classification,
+        theme: parsedThemeKey.theme,
+        subtheme: parsedThemeKey.subtheme,
+        topTags,
+      }).assetQuality;
+    }),
+  );
   const topicDominance = dominantTagRatio(cleanStickerIds, classificationByAssetId);
   const volumeScore = clampNumber(cleanStickerIds.length / Math.max(1, TARGET_PACK_SIZE), 0, 1);
   const internalVariance = varianceArray(matrixScores);
@@ -492,6 +868,7 @@ const computePackProfile = ({
     stickerIds: cleanStickerIds,
     centroidVector,
     packQuality: Number(packQuality.toFixed(6)),
+    meanAssetQuality: Number(meanAssetQuality.toFixed(6)),
     meanStickerScore: Number(meanStickerScore.toFixed(6)),
     semanticCohesion: Number(semanticCohesion.toFixed(6)),
     topicDominance: Number(topicDominance.toFixed(6)),
@@ -507,8 +884,71 @@ const computePackOverlap = (leftProfile, rightProfile) => {
   const intersection = Array.from(leftTags).filter((tag) => rightTags.has(tag)).length;
   const union = new Set([...leftTags, ...rightTags]).size;
   const jaccard = union > 0 ? intersection / union : 0;
-  const centroidSimilarity = cosineSimilarity(leftProfile?.centroidVector || {}, rightProfile?.centroidVector || {});
+  const centroidSimilarity = computePackSemanticSimilarity(leftProfile, rightProfile);
   return clampNumber(centroidSimilarity * 0.65 + jaccard * 0.35, 0, 1);
+};
+
+const parseFloat32EmbeddingBuffer = (rawBuffer, expectedDim = 0) => {
+  if (!Buffer.isBuffer(rawBuffer) || rawBuffer.length < 4) return null;
+  const total = Math.floor(rawBuffer.length / 4);
+  if (total <= 0) return null;
+  const size = expectedDim > 0 && expectedDim <= total ? expectedDim : total;
+  const vector = new Array(size);
+  for (let index = 0; index < size; index += 1) {
+    vector[index] = rawBuffer.readFloatLE(index * 4);
+  }
+  return vector;
+};
+
+const cosineSimilarityDense = (leftVector, rightVector) => {
+  if (!Array.isArray(leftVector) || !Array.isArray(rightVector) || !leftVector.length || !rightVector.length) return 0;
+  const size = Math.min(leftVector.length, rightVector.length);
+  if (size <= 0) return 0;
+
+  let dot = 0;
+  let leftNorm = 0;
+  let rightNorm = 0;
+  for (let index = 0; index < size; index += 1) {
+    const leftValue = Number(leftVector[index] || 0);
+    const rightValue = Number(rightVector[index] || 0);
+    dot += leftValue * rightValue;
+    leftNorm += leftValue * leftValue;
+    rightNorm += rightValue * rightValue;
+  }
+  if (leftNorm <= 0 || rightNorm <= 0) return 0;
+  return Math.max(0, Math.min(1, dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm))));
+};
+
+const getTopLabelEntries = (classification) => {
+  if (!Array.isArray(classification?.top_labels)) return [];
+  return classification.top_labels
+    .map((entry) => ({
+      label: String(entry?.label || '').trim(),
+      score: Number(entry?.score),
+    }))
+    .filter((entry) => entry.label && Number.isFinite(entry.score))
+    .sort((left, right) => right.score - left.score);
+};
+
+const getLlmTraitTokens = (classification) => {
+  const tokens = [];
+  const addToken = (value, prefix = '') => {
+    const normalized = normalizeTag(value);
+    if (!normalized) return;
+    const token = prefix ? `${prefix}:${normalized}` : normalized;
+    if (!tokens.includes(token)) tokens.push(token);
+  };
+
+  for (const item of Array.isArray(classification?.llm_subtags) ? classification.llm_subtags : []) {
+    addToken(item, 'sub');
+  }
+  for (const item of Array.isArray(classification?.llm_style_traits) ? classification.llm_style_traits : []) {
+    addToken(item, 'style');
+  }
+  for (const item of Array.isArray(classification?.llm_emotions) ? classification.llm_emotions : []) {
+    addToken(item, 'emo');
+  }
+  return tokens;
 };
 
 const getTagScoreEntries = (classification) => {
@@ -531,8 +971,16 @@ const getTagScoreEntries = (classification) => {
     register(toTagFromLabel(classification.category), Number(classification.confidence || 0));
   }
 
+  for (const entry of getTopLabelEntries(classification)) {
+    register(toTagFromLabel(entry.label), Number(entry.score || 0));
+  }
+
   if (classification.is_nsfw) {
     register('nsfw', Math.max(Number(classification.nsfw_score || 0), 0.7));
+  }
+
+  for (const trait of getLlmTraitTokens(classification)) {
+    register(trait, 0.12);
   }
 
   return Array.from(byTag.entries())
@@ -597,6 +1045,14 @@ const buildTopTags = (classification) => {
     if (tags.length >= TOP_TAGS_PER_ASSET) break;
   }
 
+  for (const topLabel of getTopLabelEntries(classification)) {
+    const mappedTag = toTagFromLabel(topLabel.label);
+    if (!mappedTag || TECHNICAL_TAGS.has(mappedTag)) continue;
+    if (tags.some((item) => item.tag === mappedTag)) continue;
+    tags.push({ tag: mappedTag, score: Number(topLabel.score || 0) });
+    if (tags.length >= TOP_TAGS_PER_ASSET) break;
+  }
+
   return tags.slice(0, TOP_TAGS_PER_ASSET);
 };
 
@@ -655,7 +1111,7 @@ const deriveThemeFromClassification = (classification) => {
   };
 };
 
-const dedupeCandidatesByEmbedding = (candidates) => {
+const dedupeCandidatesByEmbedding = (candidates, { embeddingByImageHash = new Map() } = {}) => {
   if (!Array.isArray(candidates) || candidates.length <= 1) {
     return { deduped: Array.isArray(candidates) ? candidates : [], duplicateRate: 0, dropped: 0 };
   }
@@ -663,10 +1119,17 @@ const dedupeCandidatesByEmbedding = (candidates) => {
   const deduped = [];
   let dropped = 0;
   for (const candidate of candidates) {
-    const candidateVector = candidate?.classification?.all_scores || {};
+    const candidateImageHash = String(candidate?.classification?.image_hash || '').trim().toLowerCase();
+    const candidateDense = candidateImageHash ? embeddingByImageHash.get(candidateImageHash) : null;
+    const candidateSparse = candidate?.classification?.all_scores || {};
     const isDuplicate = deduped.some((entry) => {
-      const entryVector = entry?.classification?.all_scores || {};
-      return cosineSimilarity(candidateVector, entryVector) >= DEDUPE_SIMILARITY_THRESHOLD;
+      const entryImageHash = String(entry?.classification?.image_hash || '').trim().toLowerCase();
+      const entryDense = entryImageHash ? embeddingByImageHash.get(entryImageHash) : null;
+      if (candidateDense && entryDense) {
+        return cosineSimilarityDense(candidateDense, entryDense) >= DEDUPE_SIMILARITY_THRESHOLD;
+      }
+      const entrySparse = entry?.classification?.all_scores || {};
+      return cosineSimilarity(candidateSparse, entrySparse) >= DEDUPE_SIMILARITY_THRESHOLD;
     });
 
     if (isDuplicate) {
@@ -684,11 +1147,65 @@ const dedupeCandidatesByEmbedding = (candidates) => {
   };
 };
 
-const scoreCandidate = ({ classification, theme, topTags, qualityScore }) => {
+const computeAssetQualityForTheme = ({ classification, theme, subtheme, topTags = [] }) => {
   const confidence = Number(classification?.confidence || 0);
-  const themeScore = Number(topTags.find((entry) => entry.tag === theme)?.score || 0);
-  const score = confidence * 0.35 + themeScore * 0.4 + qualityScore * 0.25;
-  return Number(Math.max(0, Math.min(1.2, score)).toFixed(6));
+  const affinityWeight = normalizeAffinityWeight(classification?.affinity_weight);
+  const entropyNormalized = normalizeEntropy({
+    entropy: classification?.entropy,
+    entropyNormalized: classification?.entropy_normalized,
+    topLabelCount: Array.isArray(classification?.top_labels) ? classification.top_labels.length : 0,
+  });
+  const topLabels = getTopLabelEntries(classification);
+  const topLabelThemeScore = topLabels.reduce((sum, entry) => {
+    const mapped = toTagFromLabel(entry.label);
+    if (mapped === theme || (subtheme && mapped === subtheme)) {
+      return sum + Number(entry.score || 0);
+    }
+    return sum;
+  }, 0);
+  const rankedThemeScore = Number((Array.isArray(topTags) ? topTags : []).find((entry) => entry.tag === theme)?.score || 0);
+  const thematicAlignment = clampNumber(Math.max(rankedThemeScore, topLabelThemeScore), 0, 1.2);
+  const assetQuality =
+    ASSET_QUALITY_W1 * confidence
+    + ASSET_QUALITY_W2 * (1 - entropyNormalized)
+    + ASSET_QUALITY_W3 * affinityWeight
+    + ASSET_QUALITY_W4 * thematicAlignment;
+
+  return {
+    confidence,
+    affinityWeight,
+    entropyNormalized,
+    thematicAlignment,
+    assetQuality,
+  };
+};
+
+const scoreCandidate = ({ classification, theme, subtheme, topTags, qualityScore }) => {
+  const {
+    affinityWeight,
+    entropyNormalized,
+    assetQuality,
+  } = computeAssetQualityForTheme({ classification, theme, subtheme, topTags });
+  const confidenceMargin = Math.max(0, Number(classification?.confidence_margin || 0));
+  const ambiguityPenalty = (classification?.ambiguous ? AMBIGUOUS_FLAG_PENALTY : 0) + entropyNormalized * ENTROPY_WEIGHT;
+
+  const similarImages = Array.isArray(classification?.similar_images) ? classification.similar_images : [];
+  const maxSimilarity = similarImages.reduce((max, entry) => {
+    const value = Number(entry?.similarity || 0);
+    return Number.isFinite(value) ? Math.max(max, value) : max;
+  }, 0);
+  const similarImagesPenalty = maxSimilarity * SIMILAR_IMAGES_PENALTY_WEIGHT;
+
+  const adaptiveBonus = affinityWeight * ADAPTIVE_BONUS_WEIGHT;
+  const marginBonus = confidenceMargin * MARGIN_BONUS_WEIGHT;
+  const finalScore =
+    assetQuality * 0.65
+    + Number(qualityScore || 0) * 0.2
+    + adaptiveBonus
+    + marginBonus
+    - ambiguityPenalty
+    - similarImagesPenalty;
+  return Number(clampNumber(finalScore, 0, 1.2).toFixed(6));
 };
 
 const collectCuratableCandidates = async ({ includePacked = true, includeUnpacked = true } = {}) => {
@@ -740,9 +1257,9 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
     scan_passes_effective: passCount,
     scan_pass_jitter_percent: SCAN_PASS_JITTER_PERCENT,
     stability_z_score: STABILITY_Z_SCORE,
-    min_asset_acceptance_rate: MIN_ASSET_ACCEPTANCE_RATE,
-    min_theme_dominance_ratio: MIN_THEME_DOMINANCE_RATIO,
-    score_stddev_penalty: SCORE_STDDEV_PENALTY,
+    min_asset_acceptance_rate: EFFECTIVE_MIN_ASSET_ACCEPTANCE_RATE,
+    min_theme_dominance_ratio: EFFECTIVE_MIN_THEME_DOMINANCE_RATIO,
+    score_stddev_penalty: EFFECTIVE_SCORE_STDDEV_PENALTY,
     pass_assets_scanned: [],
     pass_assets_unique: [],
   };
@@ -775,6 +1292,11 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
         confidenceSum: 0,
         themeScoreSum: 0,
         nsfwScoreSum: 0,
+        entropySum: 0,
+        confidenceMarginSum: 0,
+        affinityWeightSum: 0,
+        ambiguityVotes: 0,
+        similarPenaltySum: 0,
         subthemeVotes: new Map(),
         topTagVotes: new Map(),
       };
@@ -796,6 +1318,11 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
     score,
     nsfwScore,
     nsfwLevel,
+    entropy,
+    confidenceMargin,
+    affinityWeight,
+    ambiguous,
+    similarPenalty,
   }) => {
     const assetStats = ensureAssetStats(asset, classification);
     const themeStats = ensureThemeStats(assetStats, { themeKey, theme, subtheme });
@@ -809,6 +1336,11 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
     themeStats.confidenceSum += Number(classification?.confidence || 0);
     themeStats.themeScoreSum += Number(themeScore || 0);
     themeStats.nsfwScoreSum += Number(nsfwScore || 0);
+    themeStats.entropySum += Number(entropy || 0);
+    themeStats.confidenceMarginSum += Number(confidenceMargin || 0);
+    themeStats.affinityWeightSum += Number(affinityWeight || 0);
+    themeStats.similarPenaltySum += Number(similarPenalty || 0);
+    if (ambiguous) themeStats.ambiguityVotes += 1;
     if (subtheme) {
       themeStats.subthemeVotes.set(subtheme, (themeStats.subthemeVotes.get(subtheme) || 0) + 1);
     }
@@ -876,7 +1408,23 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
         continue;
       }
 
-      const score = scoreCandidate({ classification, theme, topTags, qualityScore: quality.qualityScore });
+      const score = scoreCandidate({
+        classification,
+        theme,
+        subtheme,
+        topTags,
+        qualityScore: quality.qualityScore,
+      });
+      const entropyNormalized = normalizeEntropy({
+        entropy: classification?.entropy,
+        entropyNormalized: classification?.entropy_normalized,
+        topLabelCount: Array.isArray(classification?.top_labels) ? classification.top_labels.length : 0,
+      });
+      const similarImages = Array.isArray(classification?.similar_images) ? classification.similar_images : [];
+      const maxSimilarity = similarImages.reduce((max, entry) => {
+        const value = Number(entry?.similarity || 0);
+        return Number.isFinite(value) ? Math.max(max, value) : max;
+      }, 0);
       registerCandidate({
         asset,
         classification,
@@ -890,6 +1438,14 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
         score,
         nsfwScore,
         nsfwLevel,
+        entropy: entropyNormalized,
+        confidenceMargin: Number(classification?.confidence_margin || 0),
+        affinityWeight: normalizeAffinityWeight(classification?.affinity_weight),
+        ambiguous:
+          classification?.ambiguous === true
+          || classification?.ambiguous === 1
+          || entropyNormalized > ENTROPY_NORMALIZED_THRESHOLD,
+        similarPenalty: maxSimilarity * SIMILAR_IMAGES_PENALTY_WEIGHT,
       });
     }
 
@@ -990,11 +1546,11 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
     const totalThemeVotes = themeEntries.reduce((sum, entry) => sum + Number(entry.votes || 0), 0);
     const acceptanceRate = acceptedVotes / Math.max(1, passCount);
     const dominanceRatio = acceptedVotes / Math.max(1, totalThemeVotes);
-    if (acceptanceRate < MIN_ASSET_ACCEPTANCE_RATE) {
+    if (acceptanceRate < EFFECTIVE_MIN_ASSET_ACCEPTANCE_RATE) {
       stats.reject_reason_counts.low_acceptance_rate = (stats.reject_reason_counts.low_acceptance_rate || 0) + 1;
       continue;
     }
-    if (dominanceRatio < MIN_THEME_DOMINANCE_RATIO) {
+    if (dominanceRatio < EFFECTIVE_MIN_THEME_DOMINANCE_RATIO) {
       stats.reject_reason_counts.unstable_theme_vote = (stats.reject_reason_counts.unstable_theme_vote || 0) + 1;
       continue;
     }
@@ -1008,6 +1564,11 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
     const avgConfidence = dominantTheme.confidenceSum / acceptedVotes;
     const avgThemeScore = dominantTheme.themeScoreSum / acceptedVotes;
     const avgNsfwScore = dominantTheme.nsfwScoreSum / acceptedVotes;
+    const avgEntropy = dominantTheme.entropySum / acceptedVotes;
+    const avgConfidenceMargin = dominantTheme.confidenceMarginSum / acceptedVotes;
+    const avgAffinityWeight = dominantTheme.affinityWeightSum / acceptedVotes;
+    const avgSimilarPenalty = dominantTheme.similarPenaltySum / acceptedVotes;
+    const ambiguousRatio = dominantTheme.ambiguityVotes / acceptedVotes;
     const stabilityFactor = Math.sqrt(clampNumber(acceptanceRate, 0, 1));
     const harmonicSignal = 3 / (
       (1 / Math.max(0.01, avgQuality))
@@ -1019,9 +1580,14 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
       + meanScore * 0.16
       + avgThemeScore * 0.14
       + avgConfidence * 0.08
-      + harmonicSignal * 0.16;
+      + harmonicSignal * 0.16
+      + avgConfidenceMargin * MARGIN_BONUS_WEIGHT * 0.45
+      + avgAffinityWeight * ADAPTIVE_BONUS_WEIGHT * 0.4
+      - Math.min(0.42, avgEntropy * ENTROPY_WEIGHT)
+      - ambiguousRatio * AMBIGUOUS_FLAG_PENALTY
+      - avgSimilarPenalty * 0.5;
     const stabilityMultiplier = 0.72 + stabilityFactor * 0.28;
-    const variancePenalty = Math.max(0.4, 1 - Math.min(0.55, stdDev * SCORE_STDDEV_PENALTY));
+    const variancePenalty = Math.max(0.4, 1 - Math.min(0.55, stdDev * EFFECTIVE_SCORE_STDDEV_PENALTY));
     const robustScore = clampNumber(robustScoreRaw * stabilityMultiplier * variancePenalty, 0, 1.2);
 
     const dominantSubtheme = Array.from(dominantTheme.subthemeVotes.entries())
@@ -1056,14 +1622,38 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
       stabilityFactor: Number(stabilityFactor.toFixed(6)),
       harmonicSignal: Number(harmonicSignal.toFixed(6)),
       passVotes: acceptedVotes,
+      avgEntropy: Number(avgEntropy.toFixed(6)),
+      avgConfidenceMargin: Number(avgConfidenceMargin.toFixed(6)),
+      avgAffinityWeight: Number(avgAffinityWeight.toFixed(6)),
+      ambiguousRatio: Number(ambiguousRatio.toFixed(6)),
     });
     grouped.set(themeKey, list);
     stats.assets_grouped += 1;
   }
 
+  const imageHashes = Array.from(
+    new Set(
+      Array.from(grouped.values())
+        .flat()
+        .map((candidate) => String(candidate?.classification?.image_hash || '').trim().toLowerCase())
+        .filter((hash) => hash.length === 64),
+    ),
+  );
+  const embeddingByImageHash = new Map();
+  if (imageHashes.length) {
+    const rows = await listClipImageEmbeddingsByImageHashes(imageHashes);
+    for (const row of rows) {
+      const imageHash = String(row?.image_hash || '').trim().toLowerCase();
+      if (!imageHash) continue;
+      const embedding = parseFloat32EmbeddingBuffer(row?.embedding, Number(row?.embedding_dim || 0));
+      if (!embedding?.length) continue;
+      embeddingByImageHash.set(imageHash, embedding);
+    }
+  }
+
   let dedupeDropped = 0;
   for (const [groupKey, list] of grouped.entries()) {
-    const { deduped, duplicateRate, dropped } = dedupeCandidatesByEmbedding(list);
+    const { deduped, duplicateRate, dropped } = dedupeCandidatesByEmbedding(list, { embeddingByImageHash });
     dedupeDropped += dropped;
     stats.reject_reason_counts.duplicate_embedding = (stats.reject_reason_counts.duplicate_embedding || 0) + dropped;
 
@@ -1096,6 +1686,18 @@ const computeGroupMetrics = (themeKey, candidates) => {
 
   const avgConfidence =
     candidates.reduce((sum, candidate) => sum + Number(candidate.classification?.confidence || 0), 0) / size;
+  const avgEntropy = candidates.reduce((sum, candidate) => (
+    sum
+    + normalizeEntropy({
+      entropy: candidate.classification?.entropy,
+      entropyNormalized: candidate.classification?.entropy_normalized,
+      topLabelCount: Array.isArray(candidate.classification?.top_labels) ? candidate.classification.top_labels.length : 0,
+    })
+  ), 0) / size;
+  const avgMargin = candidates.reduce((sum, candidate) => sum + Number(candidate.classification?.confidence_margin || 0), 0) / size;
+  const avgAffinity = candidates.reduce((sum, candidate) => (
+    sum + normalizeAffinityWeight(candidate.classification?.affinity_weight)
+  ), 0) / size;
   const avgQuality = candidates.reduce((sum, candidate) => sum + Number(candidate.qualityScore || 0), 0) / size;
   const avgDuplicateRate = candidates.reduce((sum, candidate) => sum + Number(candidate.duplicateRate || 0), 0) / size;
   let semanticSimilaritySum = 0;
@@ -1118,11 +1720,32 @@ const computeGroupMetrics = (themeKey, candidates) => {
   const bestCooccurrence = Math.max(0, ...cooccurrence.values());
   const topicalCohesion = size ? bestCooccurrence / size : 0;
   const cohesion = topicalCohesion * 0.45 + semanticCohesion * 0.55;
+  const traitVotes = new Map();
+  for (const candidate of candidates) {
+    for (const token of getLlmTraitTokens(candidate.classification)) {
+      traitVotes.set(token, (traitVotes.get(token) || 0) + 1);
+    }
+  }
+  const strongestTraitRatio = size
+    ? Math.max(0, ...Array.from(traitVotes.values()).map((value) => value / size))
+    : 0;
+  const semanticBoost = strongestTraitRatio * LLM_TRAIT_WEIGHT;
   const subthemeFromCooccurrence = Array.from(cooccurrence.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] || subtheme;
   const volumeBoost = Math.min(1, size / Math.max(MIN_GROUP_SIZE, TARGET_PACK_SIZE));
   const duplicatePenalty = Math.max(0.65, 1 - avgDuplicateRate * 0.8);
+  const entropyPenalty = Math.min(0.35, avgEntropy * ENTROPY_WEIGHT);
+  const marginBoost = Math.max(0, avgMargin * MARGIN_BONUS_WEIGHT);
+  const affinityBoost = Math.max(0, avgAffinity * ADAPTIVE_BONUS_WEIGHT);
   const groupScore = Number(
-    (avgConfidence * (0.55 + cohesion * 0.45) * avgQuality * (0.75 + volumeBoost * 0.25) * duplicatePenalty).toFixed(6),
+    (
+      avgConfidence
+      * (0.55 + cohesion * 0.45 + semanticBoost)
+      * avgQuality
+      * (0.75 + volumeBoost * 0.25 + marginBoost)
+      * duplicatePenalty
+      * (1 + affinityBoost)
+      * Math.max(0.45, 1 - entropyPenalty)
+    ).toFixed(6),
   );
 
   return {
@@ -1133,6 +1756,10 @@ const computeGroupMetrics = (themeKey, candidates) => {
     cohesion: Number(cohesion.toFixed(6)),
     topical_cohesion: Number(topicalCohesion.toFixed(6)),
     semantic_cohesion: Number(semanticCohesion.toFixed(6)),
+    semantic_boost: Number(semanticBoost.toFixed(6)),
+    avg_entropy: Number(avgEntropy.toFixed(6)),
+    avg_confidence_margin: Number(avgMargin.toFixed(6)),
+    avg_affinity_weight: Number(avgAffinity.toFixed(6)),
     avgConfidence: Number(avgConfidence.toFixed(6)),
     avgQuality: Number(avgQuality.toFixed(6)),
     duplicateRate: Number(avgDuplicateRate.toFixed(6)),
@@ -1273,6 +1900,7 @@ const optimizePackEcosystem = ({
   operations,
   itemsByPackId,
   classificationByAssetId,
+  packEngagementByPackId = new Map(),
 }) => {
   if (!ENABLE_GLOBAL_OPTIMIZATION) {
     return {
@@ -1280,6 +1908,7 @@ const optimizePackEcosystem = ({
       cycles_effective: 0,
       transfer_moves: 0,
       merge_moves: 0,
+      matrix_merge_moves: 0,
       archived_packs: 0,
       tier_gold: 0,
       tier_silver: 0,
@@ -1288,6 +1917,11 @@ const optimizePackEcosystem = ({
       energy_final: 0,
       energy_gain: 0,
       cycle_gains: [],
+      stable_gain_cycles: 0,
+      tier_mean_asset_quality: { gold: 0, silver: 0, bronze: 0 },
+      tier_archive: 0,
+      interpack_similarity_mean: 0,
+      entropy_mean_global: 0,
     };
   }
 
@@ -1301,6 +1935,7 @@ const optimizePackEcosystem = ({
       cycles_effective: 0,
       transfer_moves: 0,
       merge_moves: 0,
+      matrix_merge_moves: 0,
       archived_packs: 0,
       tier_gold: 0,
       tier_silver: 0,
@@ -1309,6 +1944,11 @@ const optimizePackEcosystem = ({
       energy_final: 0,
       energy_gain: 0,
       cycle_gains: [],
+      stable_gain_cycles: 0,
+      tier_mean_asset_quality: { gold: 0, silver: 0, bronze: 0 },
+      tier_archive: 0,
+      interpack_similarity_mean: 0,
+      entropy_mean_global: 0,
     };
   }
 
@@ -1339,9 +1979,41 @@ const optimizePackEcosystem = ({
     return profiles;
   };
 
-  const computeSystemEnergy = (profiles) => {
+  const getEngagementScore = (packId) => computePackEngagementScore(packEngagementByPackId.get(packId));
+  const engagementScoreByPackId = new Map(
+    Array.from(stateByPackId.keys()).map((packId) => [packId, Number(getEngagementScore(packId) || 0)]),
+  );
+  const engagementZscoreByPackId = buildNormalizedZScoreMap(engagementScoreByPackId);
+  const getEngagementZscore = (packId) => Number(engagementZscoreByPackId.get(packId) || 0);
+
+  const scoreProfile = (profile) => computePackObjectiveScore({
+    profile,
+    engagementScore: Number(getEngagementScore(profile?.packId) || 0),
+  });
+  const scoreQualityProfile = (profile) => computePackOfficialQualityScore({
+    profile,
+    engagementZscore: getEngagementZscore(profile?.packId),
+  });
+
+  const buildProfileScoreMap = (profiles) => {
+    const map = new Map();
+    for (const [packId, profile] of profiles.entries()) {
+      map.set(packId, Number(scoreProfile(profile).toFixed(6)));
+    }
+    return map;
+  };
+
+  const buildQualityScoreMap = (profiles) => {
+    const map = new Map();
+    for (const [packId, profile] of profiles.entries()) {
+      map.set(packId, Number(scoreQualityProfile(profile).toFixed(6)));
+    }
+    return map;
+  };
+
+  const computeSystemEnergy = (profiles, profileScores = buildProfileScoreMap(profiles)) => {
     const profileList = Array.from(profiles.values());
-    const qualitySum = sumArray(profileList.map((entry) => entry.packQuality));
+    const qualitySum = sumArray(profileList.map((entry) => Number(profileScores.get(entry.packId) || 0)));
     let overlapSum = 0;
     let overlapPairs = 0;
     for (let i = 0; i < profileList.length; i += 1) {
@@ -1351,128 +2023,260 @@ const optimizePackEcosystem = ({
       }
     }
     const redundancy = overlapPairs > 0 ? overlapSum / overlapPairs : 0;
-    const energy = SYSTEM_REDUNDANCY_LAMBDA * redundancy - qualitySum;
+    const redundancyPenalty = SYSTEM_REDUNDANCY_LAMBDA * GLOBAL_ENERGY_W5 * redundancy;
+    const energy = qualitySum - redundancyPenalty;
     return {
       qualitySum: Number(qualitySum.toFixed(6)),
+      overlapSum: Number(overlapSum.toFixed(6)),
+      overlapPairs,
       redundancy: Number(redundancy.toFixed(6)),
+      redundancyPenalty: Number(redundancyPenalty.toFixed(6)),
       energy: Number(energy.toFixed(6)),
+      profileScores,
     };
   };
 
-  const assignTiers = (profiles) => {
-    const qualities = Array.from(profiles.values()).map((entry) => Number(entry.packQuality || 0));
-    const goldCut = percentileValue(qualities, 90);
-    const silverCut = percentileValue(qualities, 70);
+  const assignTiers = (profiles, qualityScores) => {
     let gold = 0;
     let silver = 0;
     let bronze = 0;
-    for (const [packId, profile] of profiles.entries()) {
+    let archive = 0;
+    for (const [packId] of profiles.entries()) {
       const state = stateByPackId.get(packId);
       if (!state) continue;
-      if (profile.packQuality >= goldCut) {
+      const score = Number(qualityScores.get(packId) || 0);
+      state.qualityScore = score;
+      if (score >= PACK_TIER_GOLD_THRESHOLD) {
         state.tier = 'GOLD';
         gold += 1;
-      } else if (profile.packQuality >= silverCut) {
+      } else if (score >= PACK_TIER_SILVER_THRESHOLD) {
         state.tier = 'SILVER';
         silver += 1;
-      } else {
+      } else if (score >= PACK_TIER_BRONZE_THRESHOLD) {
         state.tier = 'BRONZE';
         bronze += 1;
+      } else {
+        state.tier = 'ARCHIVE';
+        archive += 1;
       }
     }
-    return { gold, silver, bronze };
+    return { gold, silver, bronze, archive };
+  };
+
+  const computeTierMeanAssetQuality = () => {
+    const totals = new Map([
+      ['GOLD', { sum: 0, count: 0 }],
+      ['SILVER', { sum: 0, count: 0 }],
+      ['BRONZE', { sum: 0, count: 0 }],
+    ]);
+
+    for (const state of stateByPackId.values()) {
+      const tier = ['GOLD', 'SILVER', 'BRONZE'].includes(state.tier) ? state.tier : 'BRONZE';
+      const parsedTheme = parseThemeKey(state.themeKey);
+      for (const stickerId of state.stickers) {
+        const classification = classificationByAssetId.get(stickerId);
+        if (!classification) continue;
+        const topTags = buildTopTags(classification);
+        const quality = computeAssetQualityForTheme({
+          classification,
+          theme: parsedTheme.theme,
+          subtheme: parsedTheme.subtheme,
+          topTags,
+        });
+        const bucket = totals.get(tier);
+        bucket.sum += Number(quality.assetQuality || 0);
+        bucket.count += 1;
+      }
+    }
+
+    const meanByTier = {};
+    for (const [tier, bucket] of totals.entries()) {
+      const mean = bucket.count ? bucket.sum / bucket.count : 0;
+      meanByTier[tier.toLowerCase()] = Number(mean.toFixed(6));
+    }
+    return meanByTier;
+  };
+
+  const collectStickerIds = () => {
+    const ids = new Set();
+    for (const state of stateByPackId.values()) {
+      for (const stickerId of state.stickers) {
+        if (stickerId) ids.add(stickerId);
+      }
+    }
+    return Array.from(ids);
   };
 
   let profiles = computeProfiles();
-  let energySnapshot = computeSystemEnergy(profiles);
+  let profileScores = buildProfileScoreMap(profiles);
+  let qualityScores = buildQualityScoreMap(profiles);
+  let energySnapshot = computeSystemEnergy(profiles, profileScores);
   const energyInitial = energySnapshot.energy;
   let transferMoves = 0;
   let mergeMoves = 0;
+  let matrixMergeMoves = 0;
   let archivedPacks = 0;
   let cyclesEffective = 0;
   const cycleGains = [];
-  let tierSnapshot = assignTiers(profiles);
+  let stableGainCycles = 0;
+  let tierSnapshot = assignTiers(profiles, qualityScores);
+  let interPackSimilaritySnapshot = buildInterPackSimilarityMatrix(profiles);
 
   for (let cycle = 0; cycle < OPTIMIZATION_CYCLES; cycle += 1) {
     cyclesEffective += 1;
+    const cycleStartEnergy = energySnapshot.energy;
     let cycleTransfers = 0;
     let cycleMerges = 0;
     let cycleArchives = 0;
 
-    const recipientStates = Array.from(stateByPackId.values()).sort((left, right) => {
+    const packStates = Array.from(stateByPackId.values());
+    const orderedSources = [...packStates].sort((left, right) => {
+      const leftQuality = Number(qualityScores.get(left.packId) || 0);
+      const rightQuality = Number(qualityScores.get(right.packId) || 0);
+      if (leftQuality !== rightQuality) return leftQuality - rightQuality;
       if (right.stickers.size !== left.stickers.size) return right.stickers.size - left.stickers.size;
       return String(left.packId || '').localeCompare(String(right.packId || ''));
     });
-    const donorStates = Array.from(stateByPackId.values()).sort((left, right) => {
-      if (left.stickers.size !== right.stickers.size) return left.stickers.size - right.stickers.size;
-      return String(left.packId || '').localeCompare(String(right.packId || ''));
-    });
 
-    for (const recipient of recipientStates) {
-      for (const donor of donorStates) {
-        if (donor.packId === recipient.packId) continue;
-        if (donor.themeKey !== recipient.themeKey) continue;
-        if (donor.stickers.size >= recipient.stickers.size) continue;
-        if (donor.stickers.size < COMPLETION_TRANSFER_MIN_DONOR_ITEMS) continue;
+    for (const source of orderedSources) {
+      const sourceStickerIds = Array.from(source.stickers);
+      for (const stickerId of sourceStickerIds) {
+        if (!source.stickers.has(stickerId)) continue;
+        if (source.stickers.size <= 1) break;
 
-        const donorStickerList = Array.from(donor.stickers);
-        for (const stickerId of donorStickerList) {
-          if (recipient.stickers.has(stickerId)) continue;
-          const donorProfile = profiles.get(donor.packId);
-          const recipientProfile = profiles.get(recipient.packId);
-          if (!donorProfile || !recipientProfile) continue;
+        const sourceProfile = profiles.get(source.packId);
+        const sourceScore = Number(profileScores.get(source.packId) || 0);
+        const sourceQuality = Number(qualityScores.get(source.packId) || 0);
+        if (!sourceProfile || !Number.isFinite(sourceScore) || !Number.isFinite(sourceQuality)) continue;
 
-          const donorNext = new Set(donor.stickers);
-          donorNext.delete(stickerId);
-          const recipientNext = new Set(recipient.stickers);
+        const recipientCandidates = packStates
+          .filter((recipient) =>
+            recipient.packId !== source.packId
+            && !recipient.stickers.has(stickerId)
+            && recipient.stickers.size < TARGET_PACK_SIZE)
+          .map((recipient) => {
+            const recipientProfile = profiles.get(recipient.packId);
+            const recipientScore = Number(profileScores.get(recipient.packId) || 0);
+            const recipientQuality = Number(qualityScores.get(recipient.packId) || 0);
+            if (!recipientProfile || !Number.isFinite(recipientScore) || !Number.isFinite(recipientQuality)) {
+              return null;
+            }
+            const semanticSimilarity = computePackSemanticSimilarity(sourceProfile, recipientProfile);
+            const sameTheme = source.themeKey && recipient.themeKey && source.themeKey === recipient.themeKey;
+            if (!sameTheme && semanticSimilarity < EFFECTIVE_TRANSFER_CANDIDATE_SIMILARITY_FLOOR) {
+              return null;
+            }
+            const candidateRank =
+              semanticSimilarity * 0.85
+              + (sameTheme ? 0.15 : 0)
+              + Math.max(0, recipientQuality - sourceQuality) * 0.1;
+            return {
+              recipient,
+              recipientScore,
+              recipientQuality,
+              candidateRank,
+            };
+          })
+          .filter(Boolean)
+          .sort((left, right) => right.candidateRank - left.candidateRank)
+          .slice(0, EFFECTIVE_MIGRATION_CANDIDATE_LIMIT);
+
+        let bestMove = null;
+        for (const candidate of recipientCandidates) {
+          const sourceNext = new Set(source.stickers);
+          sourceNext.delete(stickerId);
+          if (sourceNext.size === 0) continue;
+
+          const recipientNext = new Set(candidate.recipient.stickers);
           recipientNext.add(stickerId);
 
-          const donorNextProfile = computePackProfile({
-            packId: donor.packId,
-            stickerIds: Array.from(donorNext),
-            themeKey: donor.themeKey,
+          const sourceNextProfile = computePackProfile({
+            packId: source.packId,
+            stickerIds: Array.from(sourceNext),
+            themeKey: source.themeKey,
             classificationByAssetId,
           });
           const recipientNextProfile = computePackProfile({
-            packId: recipient.packId,
+            packId: candidate.recipient.packId,
             stickerIds: Array.from(recipientNext),
-            themeKey: recipient.themeKey,
+            themeKey: candidate.recipient.themeKey,
             classificationByAssetId,
           });
 
-          const delta =
-            (donorNextProfile.packQuality + recipientNextProfile.packQuality)
-            - (donorProfile.packQuality + recipientProfile.packQuality);
+          const sourceNextScore = Number(scoreProfile(sourceNextProfile).toFixed(6));
+          const recipientNextScore = Number(scoreProfile(recipientNextProfile).toFixed(6));
+          const sourceNextQuality = Number(scoreQualityProfile(sourceNextProfile).toFixed(6));
+          const recipientNextQuality = Number(scoreQualityProfile(recipientNextProfile).toFixed(6));
 
-          if (delta > TRANSFER_THRESHOLD) {
-            donor.stickers = donorNext;
-            recipient.stickers = recipientNext;
-            profiles.set(donor.packId, donorNextProfile);
-            profiles.set(recipient.packId, recipientNextProfile);
-            cycleTransfers += 1;
-            transferMoves += 1;
+          const changes = new Map([
+            [source.packId, { profile: sourceNextProfile, score: sourceNextScore }],
+            [candidate.recipient.packId, { profile: recipientNextProfile, score: recipientNextScore }],
+          ]);
+          const deltaPreview = computePackEnergyDelta({
+            baseEnergySnapshot: energySnapshot,
+            profiles,
+            profileScores,
+            changes,
+          });
+          if (!bestMove || deltaPreview.deltaEnergy > bestMove.deltaEnergy) {
+            bestMove = {
+              recipient: candidate.recipient,
+              sourceNext,
+              recipientNext,
+              sourceNextProfile,
+              recipientNextProfile,
+              sourceNextScore,
+              recipientNextScore,
+              sourceNextQuality,
+              recipientNextQuality,
+              deltaEnergy: deltaPreview.deltaEnergy,
+              nextSnapshot: deltaPreview.nextSnapshot,
+            };
           }
+        }
+
+        if (bestMove && bestMove.deltaEnergy > EFFECTIVE_TRANSFER_THRESHOLD) {
+          source.stickers = bestMove.sourceNext;
+          bestMove.recipient.stickers = bestMove.recipientNext;
+          profiles.set(source.packId, bestMove.sourceNextProfile);
+          profiles.set(bestMove.recipient.packId, bestMove.recipientNextProfile);
+          profileScores.set(source.packId, bestMove.sourceNextScore);
+          profileScores.set(bestMove.recipient.packId, bestMove.recipientNextScore);
+          qualityScores.set(source.packId, bestMove.sourceNextQuality);
+          qualityScores.set(bestMove.recipient.packId, bestMove.recipientNextQuality);
+          energySnapshot = {
+            ...bestMove.nextSnapshot,
+            profileScores,
+          };
+          cycleTransfers += 1;
+          transferMoves += 1;
         }
       }
     }
 
-    const packStates = Array.from(stateByPackId.values());
-    for (let i = 0; i < packStates.length; i += 1) {
-      for (let j = i + 1; j < packStates.length; j += 1) {
-        const left = packStates[i];
-        const right = packStates[j];
-        if (left.themeKey !== right.themeKey) continue;
+    profiles = computeProfiles();
+    profileScores = buildProfileScoreMap(profiles);
+    qualityScores = buildQualityScoreMap(profiles);
+    energySnapshot = computeSystemEnergy(profiles, profileScores);
+
+    interPackSimilaritySnapshot = buildInterPackSimilarityMatrix(profiles);
+    const packStatesForMerge = Array.from(stateByPackId.values());
+    for (let i = 0; i < packStatesForMerge.length; i += 1) {
+      for (let j = i + 1; j < packStatesForMerge.length; j += 1) {
+        const left = packStatesForMerge[i];
+        const right = packStatesForMerge[j];
         if (!left.stickers.size || !right.stickers.size) continue;
 
-        const leftProfile = profiles.get(left.packId);
-        const rightProfile = profiles.get(right.packId);
-        if (!leftProfile || !rightProfile) continue;
+        const pairKey = buildPackPairKey(left.packId, right.packId);
+        const similarity = Number(interPackSimilaritySnapshot.matrix.get(pairKey) || 0);
+        if (similarity < EFFECTIVE_INTER_PACK_SIMILARITY_THRESHOLD) continue;
 
-        const overlap = computePackOverlap(leftProfile, rightProfile);
-        if (overlap < MERGE_THRESHOLD) continue;
-
-        const recipient = left.stickers.size >= right.stickers.size ? left : right;
+        const leftQuality = Number(qualityScores.get(left.packId) || 0);
+        const rightQuality = Number(qualityScores.get(right.packId) || 0);
+        if (leftQuality === rightQuality) continue;
+        const recipient = leftQuality > rightQuality ? left : right;
         const donor = recipient.packId === left.packId ? right : left;
+
         const recipientProfile = profiles.get(recipient.packId);
         const donorProfile = profiles.get(donor.packId);
         if (!recipientProfile || !donorProfile) continue;
@@ -1508,62 +2312,111 @@ const optimizePackEcosystem = ({
           themeKey: recipient.themeKey,
           classificationByAssetId,
         });
+        const donorNextProfile = computePackProfile({
+          packId: donor.packId,
+          stickerIds: [],
+          themeKey: donor.themeKey,
+          classificationByAssetId,
+        });
+        const mergedScore = Number(scoreProfile(mergedProfile).toFixed(6));
+        const donorNextScore = Number(scoreProfile(donorNextProfile).toFixed(6));
+        const mergedQuality = Number(scoreQualityProfile(mergedProfile).toFixed(6));
+        const donorNextQuality = Number(scoreQualityProfile(donorNextProfile).toFixed(6));
 
-        const energyBefore =
-          recipientProfile.packQuality
-          + donorProfile.packQuality
-          - SYSTEM_REDUNDANCY_LAMBDA * overlap;
-        const energyAfter = mergedProfile.packQuality;
-        const delta = energyAfter - energyBefore;
-        if (delta <= TRANSFER_THRESHOLD) continue;
+        const changes = new Map([
+          [recipient.packId, { profile: mergedProfile, score: mergedScore }],
+          [donor.packId, { profile: donorNextProfile, score: donorNextScore }],
+        ]);
+        const deltaPreview = computePackEnergyDelta({
+          baseEnergySnapshot: energySnapshot,
+          profiles,
+          profileScores,
+          changes,
+        });
+        if (deltaPreview.deltaEnergy <= EFFECTIVE_TRANSFER_THRESHOLD) continue;
 
         recipient.stickers = new Set(keptIds);
         donor.stickers = new Set();
         profiles.set(recipient.packId, mergedProfile);
-        profiles.set(
-          donor.packId,
-          computePackProfile({
-            packId: donor.packId,
-            stickerIds: [],
-            themeKey: donor.themeKey,
-            classificationByAssetId,
-          }),
-        );
+        profiles.set(donor.packId, donorNextProfile);
+        profileScores.set(recipient.packId, mergedScore);
+        profileScores.set(donor.packId, donorNextScore);
+        qualityScores.set(recipient.packId, mergedQuality);
+        qualityScores.set(donor.packId, donorNextQuality);
+        energySnapshot = {
+          ...deltaPreview.nextSnapshot,
+          profileScores,
+        };
         cycleMerges += 1;
         mergeMoves += 1;
+        matrixMergeMoves += 1;
       }
     }
 
     profiles = computeProfiles();
-    const qualityValues = Array.from(profiles.values()).map((entry) => Number(entry.packQuality || 0));
-    const archiveCut = percentileValue(qualityValues, AUTO_ARCHIVE_BELOW_PERCENTILE);
-    let archiveWorkingEnergy = computeSystemEnergy(profiles).energy;
-    for (const state of stateByPackId.values()) {
-      const profile = profiles.get(state.packId);
-      if (!profile) continue;
-      if (state.stickers.size === 0) continue;
-      if (state.stickers.size >= MIN_PACK_SIZE) continue;
-      if (profile.packQuality > archiveCut) continue;
-      const previousStickers = state.stickers;
-      state.stickers = new Set();
-      const previewProfiles = computeProfiles();
-      const previewEnergy = computeSystemEnergy(previewProfiles).energy;
-      const archiveGain = archiveWorkingEnergy - previewEnergy;
-      if (archiveGain <= TRANSFER_THRESHOLD) {
-        state.stickers = previousStickers;
-        continue;
+    profileScores = buildProfileScoreMap(profiles);
+    qualityScores = buildQualityScoreMap(profiles);
+    energySnapshot = computeSystemEnergy(profiles, profileScores);
+
+    if (ARCHIVE_LOW_SCORE_PACKS) {
+      const qualityValues = Array.from(qualityScores.values()).filter((value) => Number.isFinite(value));
+      const archiveCut = percentileValue(qualityValues, EFFECTIVE_AUTO_ARCHIVE_BELOW_PERCENTILE);
+      for (const state of stateByPackId.values()) {
+        if (!state.stickers.size) continue;
+        if (state.stickers.size >= MIN_PACK_SIZE) continue;
+        const qualityScore = Number(qualityScores.get(state.packId) || 0);
+        if (qualityScore > archiveCut) continue;
+
+        const nextProfile = computePackProfile({
+          packId: state.packId,
+          stickerIds: [],
+          themeKey: state.themeKey,
+          classificationByAssetId,
+        });
+        const nextScore = Number(scoreProfile(nextProfile).toFixed(6));
+        const nextQuality = Number(scoreQualityProfile(nextProfile).toFixed(6));
+        const changes = new Map([
+          [state.packId, { profile: nextProfile, score: nextScore }],
+        ]);
+        const deltaPreview = computePackEnergyDelta({
+          baseEnergySnapshot: energySnapshot,
+          profiles,
+          profileScores,
+          changes,
+        });
+        if (deltaPreview.deltaEnergy <= EFFECTIVE_TRANSFER_THRESHOLD) continue;
+
+        state.stickers = new Set();
+        profiles.set(state.packId, nextProfile);
+        profileScores.set(state.packId, nextScore);
+        qualityScores.set(state.packId, nextQuality);
+        energySnapshot = {
+          ...deltaPreview.nextSnapshot,
+          profileScores,
+        };
+        cycleArchives += 1;
+        archivedPacks += 1;
       }
-      profiles = previewProfiles;
-      archiveWorkingEnergy = previewEnergy;
-      cycleArchives += 1;
-      archivedPacks += 1;
     }
 
-    tierSnapshot = assignTiers(profiles);
-    const nextEnergySnapshot = computeSystemEnergy(profiles);
-    const gain = energySnapshot.energy - nextEnergySnapshot.energy;
+    profiles = computeProfiles();
+    profileScores = buildProfileScoreMap(profiles);
+    qualityScores = buildQualityScoreMap(profiles);
+    tierSnapshot = assignTiers(profiles, qualityScores);
+    const nextEnergySnapshot = computeSystemEnergy(profiles, profileScores);
+    interPackSimilaritySnapshot = buildInterPackSimilarityMatrix(profiles);
+    const gain = nextEnergySnapshot.energy - cycleStartEnergy;
     cycleGains.push(Number(gain.toFixed(6)));
     energySnapshot = nextEnergySnapshot;
+    if (Math.abs(gain) < OPTIMIZATION_EPSILON) {
+      stableGainCycles += 1;
+    } else {
+      stableGainCycles = 0;
+    }
+
+    if (stableGainCycles >= OPTIMIZATION_STABLE_CYCLES) {
+      break;
+    }
 
     if (Math.abs(gain) < OPTIMIZATION_EPSILON && cycleTransfers === 0 && cycleMerges === 0 && cycleArchives === 0) {
       break;
@@ -1595,7 +2448,7 @@ const optimizePackEcosystem = ({
 
     op.desiredAssetIds = ordered.slice(0, TARGET_PACK_SIZE);
     op.fillAssetIds = [];
-    op.qualityTier = state.tier;
+    op.qualityTier = state.tier === 'ARCHIVE' ? 'BRONZE' : state.tier;
     const currentItems = itemsByPackId.get(state.packId) || [];
     const currentSet = new Set(currentItems.map((item) => item?.sticker_id).filter(Boolean));
     const desiredSet = new Set(op.desiredAssetIds);
@@ -1605,24 +2458,38 @@ const optimizePackEcosystem = ({
         new Set([...(Array.isArray(op.forceRemoveAssetIds) ? op.forceRemoveAssetIds : []), ...removedByOptimization]),
       );
     }
-    if (!op.desiredAssetIds.length) {
+    if (state.tier === 'ARCHIVE') {
+      op.desiredAssetIds = [];
+      op.fillAssetIds = [];
+      op.type = 'archive_volume';
+    } else if (!op.desiredAssetIds.length) {
       op.type = 'archive_volume';
     }
   }
+
+  const entropyMeanGlobal = Number(
+    computeMeanNormalizedEntropy(collectStickerIds(), classificationByAssetId).toFixed(6),
+  );
 
   return {
     enabled: true,
     cycles_effective: cyclesEffective,
     transfer_moves: transferMoves,
     merge_moves: mergeMoves,
+    matrix_merge_moves: matrixMergeMoves,
     archived_packs: archivedPacks,
     tier_gold: tierSnapshot.gold,
     tier_silver: tierSnapshot.silver,
     tier_bronze: tierSnapshot.bronze,
+    tier_archive: tierSnapshot.archive,
     energy_initial: Number(energyInitial.toFixed(6)),
     energy_final: Number(energySnapshot.energy.toFixed(6)),
-    energy_gain: Number((energyInitial - energySnapshot.energy).toFixed(6)),
+    energy_gain: Number((energySnapshot.energy - energyInitial).toFixed(6)),
     cycle_gains: cycleGains,
+    stable_gain_cycles: stableGainCycles,
+    tier_mean_asset_quality: computeTierMeanAssetQuality(),
+    interpack_similarity_mean: Number(interPackSimilaritySnapshot.similarity_mean || 0),
+    entropy_mean_global: entropyMeanGlobal,
   };
 };
 
@@ -1636,6 +2503,7 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
   const ownerStates = await buildOwnerCapacityState(ownerPool);
 
   const packIds = autoPacks.map((pack) => pack.id).filter(Boolean);
+  const engagementByPackId = packIds.length ? await listStickerPackEngagementByPackIds(packIds) : new Map();
   const allItems = packIds.length ? await listStickerPackItemsByPackIds(packIds) : [];
   const itemsByPackId = new Map();
   for (const item of allItems) {
@@ -1673,7 +2541,7 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
       const count = Number(packCountById.get(pack.id) || 0);
       return sum + (count < TARGET_PACK_SIZE ? 1 : 0);
     }, 0);
-    const prioritizeGroupCompletion = PRIORITIZE_COMPLETION && enableAdditions && incompleteExistingCount > 0;
+    const prioritizeGroupCompletion = EFFECTIVE_PRIORITIZE_COMPLETION && enableAdditions && incompleteExistingCount > 0;
     const completionPriorityPacks = prioritizeGroupCompletion
       ? [...currentThemePacks].sort((left, right) => {
           const leftCount = Number(packCountById.get(left.id) || 0);
@@ -1772,7 +2640,7 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
       });
     }
 
-    if (prioritizeGroupCompletion && COMPLETION_TRANSFER_ENABLED && currentThemePacks.length > 1) {
+    if (prioritizeGroupCompletion && EFFECTIVE_COMPLETION_TRANSFER_ENABLED && currentThemePacks.length > 1) {
       const groupOps = operations.slice(groupOpStartIndex).filter((entry) => entry.type === 'reconcile_volume' && entry.existingPackId);
       const recipientOps = [...groupOps].sort((left, right) => {
         const leftCount = Number(packCountById.get(left.existingPackId) || 0);
@@ -1853,6 +2721,7 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
     operations,
     itemsByPackId,
     classificationByAssetId,
+    packEngagementByPackId: engagementByPackId,
   });
 
   return {
@@ -1879,14 +2748,20 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
       optimization_cycles_effective: optimizationStats.cycles_effective,
       optimization_transfer_moves: optimizationStats.transfer_moves,
       optimization_merge_moves: optimizationStats.merge_moves,
+      optimization_matrix_merge_moves: optimizationStats.matrix_merge_moves,
       optimization_archived_packs: optimizationStats.archived_packs,
       optimization_tier_gold: optimizationStats.tier_gold,
       optimization_tier_silver: optimizationStats.tier_silver,
       optimization_tier_bronze: optimizationStats.tier_bronze,
+      optimization_tier_archive: optimizationStats.tier_archive,
       optimization_energy_initial: optimizationStats.energy_initial,
       optimization_energy_final: optimizationStats.energy_final,
       optimization_energy_gain: optimizationStats.energy_gain,
       optimization_cycle_gains: optimizationStats.cycle_gains,
+      optimization_stable_gain_cycles: optimizationStats.stable_gain_cycles,
+      optimization_tier_mean_asset_quality: optimizationStats.tier_mean_asset_quality,
+      optimization_interpack_similarity_mean: optimizationStats.interpack_similarity_mean,
+      optimization_entropy_mean_global: optimizationStats.entropy_mean_global,
     },
   };
 };
@@ -2006,7 +2881,20 @@ const reconcileAutoPackVolume = async ({
   let added = 0;
   let duplicateSkips = 0;
   let packLimitSkips = 0;
-  let created = op.existingPackId ? 0 : 1;
+  const created = op.existingPackId ? 0 : 1;
+  const feedbackPromises = [];
+  const queueFeedback = ({ classification, accepted, assetId }) => {
+    const imageHash = String(classification?.image_hash || '').trim().toLowerCase();
+    if (!imageHash) return;
+    feedbackPromises.push(
+      submitStickerClassificationFeedback({
+        imageHash,
+        theme: op.themeKey || op.theme,
+        accepted,
+        assetId,
+      }),
+    );
+  };
 
   await updateAutoPackMetadata(pack.id, {
     name: buildAutoPackName(op.theme, op.subtheme, op.volume),
@@ -2047,6 +2935,11 @@ const reconcileAutoPackVolume = async ({
         budgets.removed += 1;
         removed += 1;
         currentById.delete(item.sticker_id);
+        queueFeedback({
+          classification,
+          accepted: false,
+          assetId: item.sticker_id,
+        });
       } catch (error) {
         logger.warn('Falha ao remover sticker no rebalance de auto-pack por tags.', {
           action: 'sticker_auto_pack_by_tags_rebalance_remove_failed',
@@ -2080,6 +2973,11 @@ const reconcileAutoPackVolume = async ({
         });
         budgets.added += 1;
         added += 1;
+        queueFeedback({
+          classification: classificationByAssetId.get(assetId),
+          accepted: true,
+          assetId,
+        });
       } catch (error) {
         if (error?.code === 'DUPLICATE_STICKER') {
           duplicateSkips += 1;
@@ -2163,6 +3061,10 @@ const reconcileAutoPackVolume = async ({
     pack_status: packStatus,
     cover_sticker_id: finalCover,
   });
+
+  if (feedbackPromises.length) {
+    await Promise.allSettled(feedbackPromises);
+  }
 
   itemsByPackId.set(pack.id, finalItems);
   return {
@@ -2338,17 +3240,20 @@ export const startStickerAutoPackByTagsBackground = () => {
     max_scan_assets: MAX_SCAN_ASSETS,
     max_additions_per_cycle: MAX_ADDITIONS_PER_CYCLE,
     max_packs_per_owner: Number.isFinite(MAX_PACKS_PER_OWNER) ? MAX_PACKS_PER_OWNER : 'unlimited',
-    prioritize_completion: PRIORITIZE_COMPLETION,
-    completion_transfer_enabled: COMPLETION_TRANSFER_ENABLED,
+    auto_pack_profile: AUTO_PACK_PROFILE,
+    aggressive_profile: IS_AGGRESSIVE_PROFILE,
+    prioritize_completion: EFFECTIVE_PRIORITIZE_COMPLETION,
+    completion_transfer_enabled: EFFECTIVE_COMPLETION_TRANSFER_ENABLED,
     completion_transfer_min_donor_items: COMPLETION_TRANSFER_MIN_DONOR_ITEMS,
+    archive_low_score_packs: ARCHIVE_LOW_SCORE_PACKS,
     visibility: AUTO_PACK_VISIBILITY,
     top_tags_per_asset: TOP_TAGS_PER_ASSET,
     scan_passes: SCAN_PASSES,
     scan_pass_jitter_percent: SCAN_PASS_JITTER_PERCENT,
     stability_z_score: STABILITY_Z_SCORE,
-    min_asset_acceptance_rate: MIN_ASSET_ACCEPTANCE_RATE,
-    min_theme_dominance_ratio: MIN_THEME_DOMINANCE_RATIO,
-    score_stddev_penalty: SCORE_STDDEV_PENALTY,
+    min_asset_acceptance_rate: EFFECTIVE_MIN_ASSET_ACCEPTANCE_RATE,
+    min_theme_dominance_ratio: EFFECTIVE_MIN_THEME_DOMINANCE_RATIO,
+    score_stddev_penalty: EFFECTIVE_SCORE_STDDEV_PENALTY,
     nsfw_threshold: NSFW_THRESHOLD,
     nsfw_suggestive_threshold: NSFW_SUGGESTIVE_THRESHOLD,
     nsfw_explicit_threshold: NSFW_EXPLICIT_THRESHOLD,
@@ -2359,10 +3264,43 @@ export const startStickerAutoPackByTagsBackground = () => {
     global_optimization_enabled: ENABLE_GLOBAL_OPTIMIZATION,
     optimization_cycles: OPTIMIZATION_CYCLES,
     optimization_epsilon: OPTIMIZATION_EPSILON,
-    transfer_threshold: TRANSFER_THRESHOLD,
-    merge_threshold: MERGE_THRESHOLD,
+    optimization_stable_cycles: OPTIMIZATION_STABLE_CYCLES,
+    transfer_threshold: EFFECTIVE_TRANSFER_THRESHOLD,
+    merge_threshold: EFFECTIVE_MERGE_THRESHOLD,
+    migration_candidate_limit: EFFECTIVE_MIGRATION_CANDIDATE_LIMIT,
+    transfer_candidate_similarity_floor: EFFECTIVE_TRANSFER_CANDIDATE_SIMILARITY_FLOOR,
+    inter_pack_similarity_threshold: EFFECTIVE_INTER_PACK_SIMILARITY_THRESHOLD,
+    entropy_threshold: ENTROPY_THRESHOLD,
+    entropy_normalized_threshold: ENTROPY_NORMALIZED_THRESHOLD,
+    entropy_weight: ENTROPY_WEIGHT,
+    ambiguous_flag_penalty: AMBIGUOUS_FLAG_PENALTY,
+    adaptive_bonus_weight: ADAPTIVE_BONUS_WEIGHT,
+    margin_bonus_weight: MARGIN_BONUS_WEIGHT,
+    affinity_weight_cap: AFFINITY_WEIGHT_CAP,
+    affinity_log_scaling: ENABLE_AFFINITY_LOG_SCALING,
+    affinity_log_scale: AFFINITY_LOG_SCALE,
+    similar_images_penalty_weight: SIMILAR_IMAGES_PENALTY_WEIGHT,
+    llm_trait_weight: LLM_TRAIT_WEIGHT,
+    asset_quality_weights: {
+      w1: ASSET_QUALITY_W1,
+      w2: ASSET_QUALITY_W2,
+      w3: ASSET_QUALITY_W3,
+      w4: ASSET_QUALITY_W4,
+    },
+    global_energy_weights: {
+      w1: GLOBAL_ENERGY_W1,
+      w2: GLOBAL_ENERGY_W2,
+      w3: GLOBAL_ENERGY_W3,
+      w4: GLOBAL_ENERGY_W4,
+      w5: GLOBAL_ENERGY_W5,
+    },
+    pack_tier_thresholds: {
+      gold: PACK_TIER_GOLD_THRESHOLD,
+      silver: PACK_TIER_SILVER_THRESHOLD,
+      bronze: PACK_TIER_BRONZE_THRESHOLD,
+    },
     min_pack_size: MIN_PACK_SIZE,
-    auto_archive_below_percentile: AUTO_ARCHIVE_BELOW_PERCENTILE,
+    auto_archive_below_percentile: EFFECTIVE_AUTO_ARCHIVE_BELOW_PERCENTILE,
     system_redundancy_lambda: SYSTEM_REDUNDANCY_LAMBDA,
     matrix_weights: {
       alpha: MATRIX_ALPHA,
@@ -2377,6 +3315,13 @@ export const startStickerAutoPackByTagsBackground = () => {
       w4: PACK_QUALITY_W4,
       w5: PACK_QUALITY_W5,
       w6: PACK_QUALITY_W6,
+    },
+    pack_tier_quality_weights: {
+      mean_asset_quality: PACK_TIER_QUALITY_W1,
+      cohesion_score: PACK_TIER_QUALITY_W2,
+      engagement_zscore: PACK_TIER_QUALITY_W3,
+      completion_ratio: PACK_TIER_QUALITY_W4,
+      stability_index: PACK_TIER_QUALITY_W5,
     },
     quality_gate: {
       min_asset_edge: MIN_ASSET_EDGE,

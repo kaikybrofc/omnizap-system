@@ -170,6 +170,16 @@ ENABLE_ADAPTIVE_SCORING = _parse_env_bool(os.getenv("ENABLE_ADAPTIVE_SCORING"), 
 ENABLE_LLM_LABEL_EXPANSION = _parse_env_bool(os.getenv("ENABLE_LLM_LABEL_EXPANSION"), True)
 ADAPTIVE_ALPHA = float(os.getenv("ADAPTIVE_ALPHA", "0.4") or 0.4)
 ENTROPY_THRESHOLD = float(os.getenv("ENTROPY_THRESHOLD", "2.5") or 2.5)
+ENTROPY_NORMALIZED_THRESHOLD = float(os.getenv("ENTROPY_NORMALIZED_THRESHOLD", "0.76") or 0.76)
+AFFINITY_WEIGHT_CAP = max(0.0, min(1.0, float(os.getenv("AFFINITY_WEIGHT_CAP", "0.85") or 0.85)))
+ENABLE_AFFINITY_LOG_SCALING = _parse_env_bool(os.getenv("ENABLE_AFFINITY_LOG_SCALING"), True)
+AFFINITY_LOG_SCALE = max(0.1, float(os.getenv("AFFINITY_LOG_SCALE", "4.0") or 4.0))
+ENABLE_LLM_EXPANSION_GATING = _parse_env_bool(os.getenv("ENABLE_LLM_EXPANSION_GATING"), True)
+LLM_EXPANSION_MAX_ENTROPY_NORMALIZED = max(
+    0.0,
+    min(1.0, float(os.getenv("LLM_EXPANSION_MAX_ENTROPY_NORMALIZED", "0.72") or 0.72)),
+)
+LLM_EXPANSION_MIN_MARGIN = max(0.0, min(1.0, float(os.getenv("LLM_EXPANSION_MIN_MARGIN", "0.08") or 0.08)))
 SIMILARITY_THRESHOLD_DEFAULT = float(os.getenv("SIMILARITY_THRESHOLD", "0.85") or 0.85)
 SIMILARITY_LIMIT_DEFAULT = max(1, min(100, int(os.getenv("SIMILARITY_LIMIT", "25") or 25)))
 SIMILARITY_SCAN_LIMIT = max(100, min(20000, int(os.getenv("SIMILARITY_SCAN_LIMIT", "3000") or 3000)))
@@ -263,6 +273,24 @@ def _softmax(logits: np.ndarray) -> np.ndarray:
 def _entropy(probabilities: np.ndarray) -> float:
     p = np.clip(probabilities.astype(np.float64), 1e-12, 1.0)
     return float(-(p * np.log(p)).sum())
+
+
+def _normalize_entropy(entropy: float, k: int) -> float:
+    safe_k = max(1, int(k or 1))
+    if safe_k <= 1:
+        return 0.0
+    max_entropy = math.log(float(safe_k))
+    if max_entropy <= 1e-12:
+        return 0.0
+    return float(np.clip(float(entropy) / max_entropy, 0.0, 1.0))
+
+
+def _normalize_affinity_weight(raw_affinity: float) -> float:
+    safe = float(np.clip(float(raw_affinity or 0.0), 0.0, 1.0))
+    capped = min(safe, AFFINITY_WEIGHT_CAP)
+    if not ENABLE_AFFINITY_LOG_SCALING:
+        return capped
+    return float(math.log1p(capped * AFFINITY_LOG_SCALE) / math.log1p(AFFINITY_LOG_SCALE))
 
 
 def _round_map(values: dict[str, float], precision: int = 6) -> dict[str, float]:
@@ -409,10 +437,12 @@ class ClipClassifier:
         probabilities = _softmax(logits_vector)
         base_scores = {label: float(probabilities[idx]) for idx, label in enumerate(clean_labels)}
 
+        affinity_weight_raw = 0.0
         affinity_weight = 0.0
         effective_scores = base_scores
         if ENABLE_ADAPTIVE_SCORING and image_hash and normalized_theme:
-            affinity_weight = self.embedding_store.get_affinity_weight(image_hash=image_hash, theme=normalized_theme)
+            affinity_weight_raw = self.embedding_store.get_affinity_weight(image_hash=image_hash, theme=normalized_theme)
+            affinity_weight = _normalize_affinity_weight(affinity_weight_raw)
             effective_scores = apply_adaptive_scores(
                 base_scores=base_scores,
                 affinity_weight=affinity_weight,
@@ -442,13 +472,34 @@ class ClipClassifier:
         best_score = float(effective_scores.get(best_label, 0.0))
 
         entropy = _entropy(np.asarray([effective_scores[label] for label in clean_labels], dtype=np.float64))
+        top_entropy_labels = ordered[:top_k]
+        top_entropy_scores = np.asarray([effective_scores[label] for label in top_entropy_labels], dtype=np.float64)
+        top_entropy_total = float(top_entropy_scores.sum())
+        if top_entropy_total > 1e-12:
+            top_entropy_scores = top_entropy_scores / top_entropy_total
+        entropy_top_k = _entropy(top_entropy_scores) if top_entropy_scores.size else 0.0
+        entropy_normalized = _normalize_entropy(entropy_top_k, len(top_entropy_labels))
         margin = confidence_margin(top_items)
         nsfw_score = float(effective_scores.get(nsfw_label, 0.0)) if nsfw_label else 0.0
+
+        ambiguous = (float(entropy) > float(ENTROPY_THRESHOLD)) or (
+            float(entropy_normalized) > float(ENTROPY_NORMALIZED_THRESHOLD)
+        )
+
+        llm_allowed = bool(ENABLE_LLM_LABEL_EXPANSION)
+        llm_gate_reason = "enabled"
+        if ENABLE_LLM_EXPANSION_GATING:
+            if entropy_normalized > LLM_EXPANSION_MAX_ENTROPY_NORMALIZED:
+                llm_allowed = False
+                llm_gate_reason = "entropy_gate"
+            elif margin < LLM_EXPANSION_MIN_MARGIN:
+                llm_allowed = False
+                llm_gate_reason = "margin_gate"
 
         llm_expansion = expand_labels_with_llm(
             top_labels=[entry["label"] for entry in top_labels_payload[:3]],
             store=self.embedding_store,
-            enabled=ENABLE_LLM_LABEL_EXPANSION,
+            enabled=llm_allowed,
         )
 
         similar_images = []
@@ -472,11 +523,16 @@ class ClipClassifier:
             "raw_logits": _round_map(logits_by_label),
             "top_labels": top_labels_payload,
             "entropy": round(float(entropy), 6),
+            "entropy_top_k": round(float(entropy_top_k), 6),
+            "entropy_normalized": round(float(entropy_normalized), 6),
             "confidence_margin": round(float(margin), 6),
             "nsfw_score": round(nsfw_score, 6),
             "is_nsfw": nsfw_score >= float(nsfw_threshold),
-            "ambiguous": float(entropy) > float(ENTROPY_THRESHOLD),
+            "ambiguous": ambiguous,
             "affinity_weight": round(float(affinity_weight), 6),
+            "affinity_weight_raw": round(float(affinity_weight_raw), 6),
+            "llm_expansion_used": bool(llm_allowed),
+            "llm_expansion_gate_reason": llm_gate_reason,
             "llm_expansion": llm_expansion,
             "similar_images": similar_images,
             "image_hash": image_hash,
