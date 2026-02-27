@@ -41,7 +41,13 @@ class EmbeddingStore:
         self.db_host = os.getenv("DB_HOST", "").strip()
         self.db_user = os.getenv("DB_USER", "").strip()
         self.db_password = os.getenv("DB_PASSWORD", "")
-        self.db_name = os.getenv("DB_NAME", "").strip()
+        base_db_name = os.getenv("DB_NAME", "").strip()
+        node_env = os.getenv("NODE_ENV", "development").strip().lower() or "development"
+        suffix = "prod" if node_env == "production" else "dev"
+        if base_db_name.endswith("_prod") or base_db_name.endswith("_dev"):
+            self.db_name = base_db_name
+        else:
+            self.db_name = f"{base_db_name}_{suffix}" if base_db_name else ""
         self.db_port = int(os.getenv("DB_PORT", "3306") or 3306)
 
         self.enabled = all([self.db_host, self.db_user, self.db_name])
