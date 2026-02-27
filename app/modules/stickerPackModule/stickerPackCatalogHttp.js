@@ -191,6 +191,8 @@ const GITHUB_PROJECT_CACHE_SECONDS = clampInt(process.env.GITHUB_PROJECT_CACHE_S
 const GLOBAL_RANK_REFRESH_SECONDS = clampInt(process.env.GLOBAL_RANK_REFRESH_SECONDS, 600, 60, 3600);
 const MARKETPLACE_GLOBAL_STATS_API_PATH = '/api/marketplace/stats';
 const MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS = clampInt(process.env.MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS, 45, 30, 60);
+const HOME_MARKETPLACE_STATS_CACHE_SECONDS = clampInt(process.env.HOME_MARKETPLACE_STATS_CACHE_SECONDS, 45, 10, 300);
+const SYSTEM_SUMMARY_CACHE_SECONDS = clampInt(process.env.SYSTEM_SUMMARY_CACHE_SECONDS, 20, 5, 120);
 const SITE_CANONICAL_HOST = String(process.env.SITE_CANONICAL_HOST || 'omnizap.shop').trim().toLowerCase() || 'omnizap.shop';
 const SITE_CANONICAL_SCHEME = String(process.env.SITE_CANONICAL_SCHEME || 'https').trim().toLowerCase() === 'http'
   ? 'http'
@@ -271,6 +273,12 @@ const GLOBAL_RANK_CACHE = {
   pending: null,
 };
 const MARKETPLACE_GLOBAL_STATS_CACHE = {
+  expiresAt: 0,
+  value: null,
+  pending: null,
+};
+const HOME_MARKETPLACE_STATS_CACHE = new Map();
+const SYSTEM_SUMMARY_CACHE = {
   expiresAt: 0,
   value: null,
   pending: null,
@@ -2299,6 +2307,11 @@ const listDataImageFiles = async () => {
 };
 
 const PACK_TAG_MARKER_REGEX = /\[pack-tags:([^\]]+)\]/i;
+const AUTO_PACK_MARKER_REGEX = /\[(?:auto-theme|auto-tag):[^\]]+\]/ig;
+const AUTO_PACK_MARKER_TEST_REGEX = /\[(?:auto-theme|auto-tag):[^\]]+\]/i;
+const AUTO_PACK_DESCRIPTION_PREFIX_REGEX =
+  /^curadoria automática por tema\.\s*tema:\s*[^.]+\.?\s*(?:score\s*=\s*-?\d+(?:\.\d+)?\.?\s*)?/i;
+const AUTO_PACK_SCORE_FRAGMENT_REGEX = /\bscore\s*=\s*-?\d+(?:\.\d+)?\.?/ig;
 const normalizePackTag = (value) =>
   String(value || '')
     .trim()
@@ -2334,7 +2347,19 @@ const parsePackDescriptionMetadata = (description) => {
         .map((entry) => normalizePackTag(entry))
         .filter(Boolean)
     : [];
-  const cleanDescription = raw.replace(PACK_TAG_MARKER_REGEX, '').trim() || null;
+  let cleanDescription = raw.replace(PACK_TAG_MARKER_REGEX, '').trim() || null;
+  const hasAutoPackMarker = AUTO_PACK_MARKER_TEST_REGEX.test(cleanDescription || '');
+  if (cleanDescription) {
+    cleanDescription = cleanDescription.replace(AUTO_PACK_MARKER_REGEX, '').trim() || null;
+  }
+  if (cleanDescription && hasAutoPackMarker) {
+    cleanDescription = cleanDescription
+      .replace(AUTO_PACK_DESCRIPTION_PREFIX_REGEX, '')
+      .replace(AUTO_PACK_SCORE_FRAGMENT_REGEX, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/^[\s.:-]+/, '')
+      .trim() || null;
+  }
 
   return {
     cleanDescription,
@@ -2900,8 +2925,31 @@ const renderPackSeoHtml = ({ packSummary }) => {
   <meta name="description" content="${escapeHtmlAttribute(packDescription)}" />
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
   <link rel="canonical" href="${escapeHtmlAttribute(canonicalUrl)}" />
-  <link rel="stylesheet" href="${escapeHtmlAttribute(buildCatalogStylesUrl())}" />
   <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji']
+          },
+          colors: {
+            slateApp: '#0f172a',
+            slateCard: '#111827',
+            borderApp: '#22304a',
+            accent: '#22c55e'
+          },
+          boxShadow: {
+            soft: '0 8px 24px rgba(2, 6, 23, 0.22)'
+          }
+        }
+      }
+    };
+  </script>
 
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="pt_BR" />
@@ -2919,7 +2967,7 @@ const renderPackSeoHtml = ({ packSummary }) => {
 
   <script type="application/ld+json">${schemaJson}</script>
   <style>
-    body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #020617; color: #e5e7eb; }
+    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif; background: #020617; color: #e5e7eb; }
     .seo-shell { max-width: 880px; margin: 0 auto; padding: 18px 14px 12px; }
     .seo-card { border: 1px solid #1e293b; border-radius: 12px; background: #0b1220; padding: 16px; }
     .seo-card h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; }
@@ -2929,18 +2977,20 @@ const renderPackSeoHtml = ({ packSummary }) => {
     .seo-row a:hover { background: #0f172a; }
   </style>
 </head>
-<body>
-  <main class="seo-shell">
-    <section class="seo-card">
-      <h1>${escapeHtmlAttribute(packName)}</h1>
-      <p>${escapeHtmlAttribute(packDescription)}</p>
-      <p>Criador: <strong>${escapeHtmlAttribute(publisher)}</strong> • Stickers: <strong>${stickerCount}</strong></p>
-      <div class="seo-row">
-        <a href="${escapeHtmlAttribute(canonicalUrl)}">Abrir este pack</a>
-        <a href="${escapeHtmlAttribute(catalogUrl)}">Voltar ao catálogo</a>
-      </div>
-    </section>
-  </main>
+<body class="bg-slateApp text-slate-100 font-sans min-h-screen">
+  <noscript>
+    <main class="seo-shell">
+      <section class="seo-card">
+        <h1>${escapeHtmlAttribute(packName)}</h1>
+        <p>${escapeHtmlAttribute(packDescription)}</p>
+        <p>Criador: <strong>${escapeHtmlAttribute(publisher)}</strong> • Stickers: <strong>${stickerCount}</strong></p>
+        <div class="seo-row">
+          <a href="${escapeHtmlAttribute(canonicalUrl)}">Abrir este pack</a>
+          <a href="${escapeHtmlAttribute(catalogUrl)}">Voltar ao catálogo</a>
+        </div>
+      </section>
+    </main>
+  </noscript>
 
   <div id="stickers-react-root"
     data-web-path="${escapeHtmlAttribute(STICKER_WEB_PATH)}"
@@ -2950,7 +3000,7 @@ const renderPackSeoHtml = ({ packSummary }) => {
     data-default-orphan-limit="${DEFAULT_ORPHAN_LIST_LIMIT}"
     data-initial-pack-key="${escapeHtmlAttribute(packSummary?.pack_key || '')}"
   ></div>
-  <script type="module" src="/js/apps/stickersApp.js?v=20260227-ui-hotfix-v3"></script>
+  <script type="module" src="/js/apps/stickersApp.js?v=20260227-ui-hotfix-v5"></script>
 </body>
 </html>`;
 };
@@ -3258,14 +3308,30 @@ const handleIntentCollectionsRequest = async (req, res, url) => {
   });
 };
 
-const handleMarketplaceStatsRequest = async (req, res, url) => {
-  const visibility = normalizeCatalogVisibility(url.searchParams.get('visibility'));
-  const visibilityValues =
-    visibility === 'all'
-      ? ['public', 'unlisted']
-      : visibility === 'unlisted'
-        ? ['unlisted']
-        : ['public'];
+const resolveMarketplaceVisibilityValues = (visibility) =>
+  visibility === 'all'
+    ? ['public', 'unlisted']
+    : visibility === 'unlisted'
+      ? ['unlisted']
+      : ['public'];
+
+const getHomeMarketplaceStatsCacheBucket = (visibility) => {
+  const key = normalizeCatalogVisibility(visibility);
+  let bucket = HOME_MARKETPLACE_STATS_CACHE.get(key);
+  if (!bucket) {
+    bucket = {
+      expiresAt: 0,
+      value: null,
+      pending: null,
+    };
+    HOME_MARKETPLACE_STATS_CACHE.set(key, bucket);
+  }
+  return bucket;
+};
+
+const buildMarketplaceStatsSnapshot = async (visibility) => {
+  const normalizedVisibility = normalizeCatalogVisibility(visibility);
+  const visibilityValues = resolveMarketplaceVisibilityValues(normalizedVisibility);
   const placeholders = visibilityValues.map(() => '?').join(', ');
 
   const [packStatsRow] = await executeQuery(
@@ -3293,7 +3359,7 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
     visibilityValues,
   );
 
-  sendJson(req, res, 200, {
+  return {
     data: {
       packs_total: Number(packStatsRow?.packs_total || 0),
       stickers_total: Number(packStatsRow?.stickers_total || 0),
@@ -3301,9 +3367,67 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
       downloads_total: Number(downloadsRow?.downloads_total || 0),
     },
     filters: {
-      visibility,
+      visibility: normalizedVisibility,
     },
-  });
+  };
+};
+
+const getMarketplaceStatsCached = async (visibility) => {
+  const normalizedVisibility = normalizeCatalogVisibility(visibility);
+  const bucket = getHomeMarketplaceStatsCacheBucket(normalizedVisibility);
+  const now = Date.now();
+  const hasValue = Boolean(bucket.value);
+
+  if (hasValue && now < bucket.expiresAt) {
+    return bucket.value;
+  }
+
+  if (!bucket.pending) {
+    bucket.pending = withTimeout(buildMarketplaceStatsSnapshot(normalizedVisibility), 5000)
+      .then((data) => {
+        bucket.value = data;
+        bucket.expiresAt = Date.now() + HOME_MARKETPLACE_STATS_CACHE_SECONDS * 1000;
+        return data;
+      })
+      .finally(() => {
+        bucket.pending = null;
+      });
+  }
+
+  if (hasValue) return bucket.value;
+  return bucket.pending;
+};
+
+const handleMarketplaceStatsRequest = async (req, res, url) => {
+  const visibility = normalizeCatalogVisibility(url.searchParams.get('visibility'));
+  const cacheBucket = getHomeMarketplaceStatsCacheBucket(visibility);
+  try {
+    const payload = await getMarketplaceStatsCached(visibility);
+    sendJson(req, res, 200, {
+      ...payload,
+      meta: {
+        cache_seconds: HOME_MARKETPLACE_STATS_CACHE_SECONDS,
+      },
+    });
+  } catch (error) {
+    logger.warn('Falha ao montar stats da home do marketplace.', {
+      action: 'home_marketplace_stats_error',
+      error: error?.message,
+      visibility,
+    });
+    if (cacheBucket.value) {
+      sendJson(req, res, 200, {
+        ...cacheBucket.value,
+        meta: {
+          cache_seconds: HOME_MARKETPLACE_STATS_CACHE_SECONDS,
+          stale: true,
+          error: error?.message || 'fallback_cache',
+        },
+      });
+      return;
+    }
+    sendJson(req, res, 503, { error: 'Stats do marketplace indisponíveis no momento.' });
+  }
 };
 
 const handleCreatePackConfigRequest = async (req, res) => {
@@ -3572,6 +3696,10 @@ const invalidateStickerCatalogDerivedCaches = () => {
   GLOBAL_RANK_CACHE.expiresAt = 0;
   GLOBAL_RANK_CACHE.value = null;
   GLOBAL_RANK_CACHE.pending = null;
+  HOME_MARKETPLACE_STATS_CACHE.clear();
+  SYSTEM_SUMMARY_CACHE.expiresAt = 0;
+  SYSTEM_SUMMARY_CACHE.value = null;
+  SYSTEM_SUMMARY_CACHE.pending = null;
 };
 
 const sendManagedMutationStatus = (req, res, status, extra = {}, statusCode = 200) => {
@@ -5423,10 +5551,27 @@ const handleDataFileListRequest = async (req, res, url) => {
   });
 };
 
-const handleSystemSummaryRequest = async (req, res) => {
+const buildSystemSummarySnapshot = async () => {
   const system = getSystemMetrics();
+  const activeSocket = getActiveSocket();
   let prometheus = null;
   let prometheusError = null;
+  let platformError = null;
+
+  const socketReadyState = Number(activeSocket?.ws?.readyState);
+  const botJid = resolveBotJid(activeSocket?.user?.id) || null;
+  const botConnected = Boolean(botJid) && socketReadyState === 1;
+  const botConnectionStatus = botConnected
+    ? 'online'
+    : socketReadyState === 0
+      ? 'connecting'
+      : 'offline';
+
+  let platform = {
+    total_users: null,
+    total_groups: null,
+    total_chats: null,
+  };
 
   try {
     prometheus = await fetchPrometheusSummary();
@@ -5434,8 +5579,55 @@ const handleSystemSummaryRequest = async (req, res) => {
     prometheusError = error?.message || 'Falha ao consultar /metrics';
   }
 
-  sendJson(req, res, 200, {
+  try {
+    const [chatTotalsRows, groupsMetadataTotalsRows, lidMapTotalsRows] = await Promise.all([
+      executeQuery(
+        `SELECT
+           COUNT(*) AS total_chats,
+           SUM(CASE WHEN id LIKE '%@g.us' THEN 1 ELSE 0 END) AS total_groups
+         FROM ${TABLES.CHATS}`,
+      ),
+      executeQuery(`SELECT COUNT(*) AS total_groups FROM ${TABLES.GROUPS_METADATA}`),
+      executeQuery(`SELECT COUNT(*) AS total_users FROM ${TABLES.LID_MAP}`),
+    ]);
+
+    const chatsTotals = chatTotalsRows?.[0] || {};
+    const groupsMetadataTotals = groupsMetadataTotalsRows?.[0] || {};
+    const lidMapTotals = lidMapTotalsRows?.[0] || {};
+    const totalGroupsFromChats = Number(chatsTotals?.total_groups || 0);
+    const totalGroupsFromMetadata = Number(groupsMetadataTotals?.total_groups || 0);
+    const totalUsersFromLidMap = Number(lidMapTotals?.total_users || 0);
+
+    platform = {
+      total_users: totalUsersFromLidMap,
+      total_users_source: 'lid_map',
+      total_groups: Math.max(totalGroupsFromChats, totalGroupsFromMetadata),
+      total_chats: Number(chatsTotals?.total_chats || 0),
+    };
+  } catch (error) {
+    platformError = error?.message || 'Falha ao consultar totais de usuários/grupos';
+  }
+
+  const hostCpuPercent = Number(system.usoCpuPercentual);
+  const hostMemoryPercent = Number(system.usoMemoriaPercentual);
+  const statusReasons = [];
+  if (!botConnected) statusReasons.push('bot_disconnected');
+  if (!prometheus) statusReasons.push('metrics_unavailable');
+  if (Number.isFinite(hostCpuPercent) && hostCpuPercent >= 90) statusReasons.push('host_cpu_high');
+  if (Number.isFinite(hostMemoryPercent) && hostMemoryPercent >= 90) statusReasons.push('host_memory_high');
+  const systemStatus = statusReasons.length ? 'degraded' : 'online';
+
+  return {
     data: {
+      system_status: systemStatus,
+      status_reasons: statusReasons,
+      bot: {
+        connected: botConnected,
+        connection_status: botConnectionStatus,
+        jid: botJid,
+        ready_state: Number.isFinite(socketReadyState) ? socketReadyState : null,
+      },
+      platform,
       host: {
         cpu_percent: system.usoCpuPercentual,
         memory_percent: system.usoMemoriaPercentual,
@@ -5459,8 +5651,64 @@ const handleSystemSummaryRequest = async (req, res) => {
       metrics_endpoint: METRICS_ENDPOINT,
       metrics_ok: Boolean(prometheus),
       metrics_error: prometheusError,
+      platform_error: platformError,
     },
-  });
+  };
+};
+
+const getSystemSummaryCached = async () => {
+  const now = Date.now();
+  const hasValue = Boolean(SYSTEM_SUMMARY_CACHE.value);
+
+  if (hasValue && now < SYSTEM_SUMMARY_CACHE.expiresAt) {
+    return SYSTEM_SUMMARY_CACHE.value;
+  }
+
+  if (!SYSTEM_SUMMARY_CACHE.pending) {
+    SYSTEM_SUMMARY_CACHE.pending = withTimeout(buildSystemSummarySnapshot(), 5000)
+      .then((payload) => {
+        SYSTEM_SUMMARY_CACHE.value = payload;
+        SYSTEM_SUMMARY_CACHE.expiresAt = Date.now() + SYSTEM_SUMMARY_CACHE_SECONDS * 1000;
+        return payload;
+      })
+      .finally(() => {
+        SYSTEM_SUMMARY_CACHE.pending = null;
+      });
+  }
+
+  if (hasValue) return SYSTEM_SUMMARY_CACHE.value;
+  return SYSTEM_SUMMARY_CACHE.pending;
+};
+
+const handleSystemSummaryRequest = async (req, res) => {
+  try {
+    const payload = await getSystemSummaryCached();
+    sendJson(req, res, 200, {
+      ...payload,
+      meta: {
+        ...(payload.meta || {}),
+        cache_seconds: SYSTEM_SUMMARY_CACHE_SECONDS,
+      },
+    });
+  } catch (error) {
+    logger.warn('Falha ao montar resumo do sistema.', {
+      action: 'system_summary_error',
+      error: error?.message,
+    });
+    if (SYSTEM_SUMMARY_CACHE.value) {
+      sendJson(req, res, 200, {
+        ...SYSTEM_SUMMARY_CACHE.value,
+        meta: {
+          ...(SYSTEM_SUMMARY_CACHE.value.meta || {}),
+          cache_seconds: SYSTEM_SUMMARY_CACHE_SECONDS,
+          stale: true,
+          error: error?.message || 'fallback_cache',
+        },
+      });
+      return;
+    }
+    sendJson(req, res, 503, { error: 'Resumo do sistema indisponível no momento.' });
+  }
 };
 
 const withTimeout = (promise, timeoutMs) =>

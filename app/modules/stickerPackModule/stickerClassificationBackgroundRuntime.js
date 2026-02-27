@@ -32,26 +32,23 @@ const parseEnvBool = (value, fallback) => {
 
 const BACKGROUND_ENABLED = parseEnvBool(process.env.STICKER_CLASSIFICATION_BACKGROUND_ENABLED, true);
 const STARTUP_DELAY_MS = Math.max(1_000, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_STARTUP_DELAY_MS) || 15_000);
-const INTERVAL_MS_RAW = Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_INTERVAL_MS);
-const INTERVAL_MS = Number.isFinite(INTERVAL_MS_RAW)
-  ? Math.max(0, Math.min(3_600_000, INTERVAL_MS_RAW))
-  : 120_000;
-const IDLE_BACKOFF_SHORT_STREAK = Math.max(
-  1,
-  Math.min(100, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_IDLE_BACKOFF_SHORT_STREAK) || 3),
-);
-const IDLE_BACKOFF_LONG_STREAK = Math.max(
-  IDLE_BACKOFF_SHORT_STREAK,
-  Math.min(500, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_IDLE_BACKOFF_LONG_STREAK) || 10),
-);
-const IDLE_BACKOFF_SHORT_MS = Math.max(
-  1_000,
-  Math.min(15 * 60_000, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_IDLE_BACKOFF_SHORT_MS) || 25_000),
-);
-const IDLE_BACKOFF_LONG_MS = Math.max(
-  IDLE_BACKOFF_SHORT_MS,
-  Math.min(60 * 60_000, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_IDLE_BACKOFF_LONG_MS) || 90_000),
-);
+const LEGACY_INTERVAL_MS = Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_INTERVAL_MS);
+const INTERVAL_MIN_MS_RAW = Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_INTERVAL_MIN_MS);
+const INTERVAL_MAX_MS_RAW = Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_INTERVAL_MAX_MS);
+const DEFAULT_INTERVAL_MIN_MS = 5 * 60_000;
+const DEFAULT_INTERVAL_MAX_MS = 10 * 60_000;
+const INTERVAL_MIN_MS = Number.isFinite(INTERVAL_MIN_MS_RAW)
+  ? Math.max(60_000, Math.min(3_600_000, INTERVAL_MIN_MS_RAW))
+  : DEFAULT_INTERVAL_MIN_MS;
+const INTERVAL_MAX_MS_FROM_ENV = Number.isFinite(INTERVAL_MAX_MS_RAW)
+  ? Math.max(60_000, Math.min(3_600_000, INTERVAL_MAX_MS_RAW))
+  : DEFAULT_INTERVAL_MAX_MS;
+const INTERVAL_MAX_MS = Math.max(INTERVAL_MIN_MS, INTERVAL_MAX_MS_FROM_ENV);
+const LEGACY_FIXED_INTERVAL_MS = Number.isFinite(LEGACY_INTERVAL_MS) && LEGACY_INTERVAL_MS > 0
+  ? Math.max(60_000, Math.min(3_600_000, LEGACY_INTERVAL_MS))
+  : null;
+const EFFECTIVE_INTERVAL_MIN_MS = LEGACY_FIXED_INTERVAL_MS || INTERVAL_MIN_MS;
+const EFFECTIVE_INTERVAL_MAX_MS = LEGACY_FIXED_INTERVAL_MS || INTERVAL_MAX_MS;
 const cpuCount = Math.max(1, Number(os.cpus()?.length || 1));
 const BACKGROUND_CONCURRENCY = Math.max(
   1,
@@ -97,7 +94,6 @@ let cycleHandle = null;
 let startupTimeoutHandle = null;
 let running = false;
 let schedulerEnabled = false;
-let idleNoGainStreak = 0;
 let reprocessQueueAvailable = true;
 
 const classifyAsset = async ({ asset, force = false }) => {
@@ -387,49 +383,30 @@ const clearCycleHandle = () => {
   cycleHandle = null;
 };
 
-const resolveNextCycleDelayMs = (cycleResult = null) => {
-  const executed = cycleResult?.executed !== false;
-  const gainCount = Number(cycleResult?.gain_count || 0);
-
-  if (!executed) {
-    idleNoGainStreak += 1;
-  } else if (gainCount > 0) {
-    idleNoGainStreak = 0;
-  } else {
-    idleNoGainStreak += 1;
+const resolveNextCycleDelayMs = () => {
+  if (EFFECTIVE_INTERVAL_MAX_MS <= EFFECTIVE_INTERVAL_MIN_MS) {
+    return EFFECTIVE_INTERVAL_MIN_MS;
   }
 
-  const baseDelay = Math.max(0, INTERVAL_MS);
-  if (idleNoGainStreak >= IDLE_BACKOFF_LONG_STREAK) {
-    return Math.max(baseDelay, IDLE_BACKOFF_LONG_MS);
-  }
-  if (idleNoGainStreak >= IDLE_BACKOFF_SHORT_STREAK) {
-    return Math.max(baseDelay, IDLE_BACKOFF_SHORT_MS);
-  }
-  return baseDelay;
+  return EFFECTIVE_INTERVAL_MIN_MS
+    + Math.floor(Math.random() * (EFFECTIVE_INTERVAL_MAX_MS - EFFECTIVE_INTERVAL_MIN_MS + 1));
 };
 
-const scheduleNextCycle = (delayMs = INTERVAL_MS) => {
+const scheduleNextCycle = () => {
   if (!schedulerEnabled) return;
   clearCycleHandle();
 
-  const safeDelay = Math.max(0, Number(delayMs) || 0);
+  const safeDelay = Math.max(1_000, resolveNextCycleDelayMs());
   cycleHandle = setTimeout(() => {
     cycleHandle = null;
     if (!schedulerEnabled) return;
-    void classifyBatch()
-      .then((cycleResult) => resolveNextCycleDelayMs(cycleResult))
-      .catch((error) => {
-        logger.error('Falha ao executar ciclo encadeado de classificação em background.', {
-          action: 'sticker_classification_background_schedule_failed',
-          error: error?.message,
-        });
-        return Math.max(INTERVAL_MS, IDLE_BACKOFF_SHORT_MS);
-      })
-      .then((nextDelayMs) => {
-        if (!schedulerEnabled) return;
-        scheduleNextCycle(nextDelayMs);
+    scheduleNextCycle();
+    void classifyBatch().catch((error) => {
+      logger.error('Falha ao executar ciclo agendado de classificação em background.', {
+        action: 'sticker_classification_background_schedule_failed',
+        error: error?.message,
       });
+    });
   }, safeDelay);
 
   if (typeof cycleHandle.unref === 'function') {
@@ -569,17 +546,14 @@ export const startStickerClassificationBackground = () => {
     return;
   }
   schedulerEnabled = true;
-  idleNoGainStreak = 0;
 
   logger.info('Iniciando worker de classificação em background.', {
     action: 'sticker_classification_background_start',
     startup_delay_ms: STARTUP_DELAY_MS,
-    interval_ms: INTERVAL_MS,
-    interval_mode: INTERVAL_MS <= 0 ? 'immediate_after_finish' : 'delay_after_finish',
-    idle_backoff_short_streak: IDLE_BACKOFF_SHORT_STREAK,
-    idle_backoff_long_streak: IDLE_BACKOFF_LONG_STREAK,
-    idle_backoff_short_ms: IDLE_BACKOFF_SHORT_MS,
-    idle_backoff_long_ms: IDLE_BACKOFF_LONG_MS,
+    interval_min_ms: EFFECTIVE_INTERVAL_MIN_MS,
+    interval_max_ms: EFFECTIVE_INTERVAL_MAX_MS,
+    scheduler_mode: 'timer_non_chained_random_window',
+    interval_source: LEGACY_FIXED_INTERVAL_MS ? 'legacy_fixed_interval_ms' : 'interval_window',
     batch_size: BATCH_SIZE,
     concurrency: BACKGROUND_CONCURRENCY,
     classifier_api: classifierConfig.api_url,
@@ -598,19 +572,13 @@ export const startStickerClassificationBackground = () => {
   startupTimeoutHandle = setTimeout(() => {
     startupTimeoutHandle = null;
     if (!schedulerEnabled) return;
-    void classifyBatch()
-      .then((cycleResult) => resolveNextCycleDelayMs(cycleResult))
-      .catch((error) => {
-        logger.error('Falha ao executar ciclo inicial de classificação em background.', {
-          action: 'sticker_classification_background_initial_cycle_failed',
-          error: error?.message,
-        });
-        return Math.max(INTERVAL_MS, IDLE_BACKOFF_SHORT_MS);
-      })
-      .then((nextDelayMs) => {
-        if (!schedulerEnabled) return;
-        scheduleNextCycle(nextDelayMs);
+    scheduleNextCycle();
+    void classifyBatch().catch((error) => {
+      logger.error('Falha ao executar ciclo inicial de classificação em background.', {
+        action: 'sticker_classification_background_initial_cycle_failed',
+        error: error?.message,
       });
+    });
   }, STARTUP_DELAY_MS);
 
   if (typeof startupTimeoutHandle.unref === 'function') {
@@ -620,7 +588,6 @@ export const startStickerClassificationBackground = () => {
 
 export const stopStickerClassificationBackground = () => {
   schedulerEnabled = false;
-  idleNoGainStreak = 0;
 
   if (startupTimeoutHandle) {
     clearTimeout(startupTimeoutHandle);

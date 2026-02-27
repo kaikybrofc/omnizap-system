@@ -2217,10 +2217,9 @@ function PackPage({
   const hasReactionRequest = Boolean(reactionLoading);
   const [previewIndex, setPreviewIndex] = useState(-1);
   const currentPreviewItem = previewIndex >= 0 ? items[previewIndex] : null;
-  const pageBottomPadding = whatsappUrl ? 'pb-[calc(96px+env(safe-area-inset-bottom))] sm:pb-4' : 'pb-4';
 
   return html`
-    <section className=${`space-y-4 ${pageBottomPadding}`}>
+    <section className="space-y-4 pb-4">
       <button
         type="button"
         onClick=${onBack}
@@ -2283,7 +2282,7 @@ function PackPage({
                   href=${whatsappUrl}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="hidden sm:inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#25D366] px-5 text-sm font-bold text-[#042d17] shadow-[0_8px_24px_rgba(37,211,102,0.30)] transition hover:brightness-95"
+                  className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-[#25D366] px-5 text-sm font-bold text-[#042d17] shadow-[0_8px_24px_rgba(37,211,102,0.30)] transition hover:brightness-95"
                 >
                   🟢 Adicionar no WhatsApp
                 </a>
@@ -2419,21 +2418,6 @@ function PackPage({
                 )}
               </div>
             </section>
-          `
-        : null}
-
-      ${whatsappUrl && !packLockedByNsfw
-        ? html`
-            <div className="sm:hidden fixed left-3 right-3 z-[75]" style=${{ bottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
-              <a
-                href=${whatsappUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="w-full inline-flex h-12 items-center justify-center rounded-xl bg-[#25D366] px-4 text-sm font-bold text-[#042d17] shadow-[0_12px_28px_rgba(37,211,102,0.28)]"
-              >
-                🟢 Adicionar no WhatsApp
-              </a>
-            </div>
           `
         : null}
 

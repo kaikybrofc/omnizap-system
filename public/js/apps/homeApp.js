@@ -7,9 +7,23 @@ function HomeEffects() {
     const proofPacks = document.getElementById('proof-packs');
     const proofStickers = document.getElementById('proof-stickers');
     const proofDownloads = document.getElementById('proof-downloads');
+    const proofUsers = document.getElementById('proof-users');
+    const proofGroups = document.getElementById('proof-groups');
+    const proofSystem = document.getElementById('proof-system');
     const previewStatus = document.getElementById('hero-preview-status');
     const previewGrid = document.getElementById('hero-pack-preview');
-    if (!proofPacks || !proofStickers || !proofDownloads || !previewStatus || !previewGrid) return;
+    if (
+      !proofPacks
+      || !proofStickers
+      || !proofDownloads
+      || !proofUsers
+      || !proofGroups
+      || !proofSystem
+      || !previewStatus
+      || !previewGrid
+    ) {
+      return;
+    }
 
     const shortNum = (value) =>
       new Intl.NumberFormat('pt-BR', {
@@ -66,6 +80,9 @@ function HomeEffects() {
         proofPacks.textContent = 'n/d';
         proofStickers.textContent = 'n/d';
         proofDownloads.textContent = 'n/d';
+        proofUsers.textContent = 'n/d';
+        proofGroups.textContent = 'n/d';
+        proofSystem.textContent = 'n/d';
         previewStatus.textContent = 'Não foi possível carregar o preview agora.';
       }
     };
@@ -197,13 +214,47 @@ function HomeEffects() {
     const memEl = document.getElementById('metric-host-memory');
     const uptimeEl = document.getElementById('metric-process-uptime');
     const obsEl = document.getElementById('metric-observability');
+    const proofUsers = document.getElementById('proof-users');
+    const proofGroups = document.getElementById('proof-groups');
+    const proofSystem = document.getElementById('proof-system');
     if (!cpuEl || !memEl || !uptimeEl || !obsEl) return;
+
+    const shortNum = (value) =>
+      new Intl.NumberFormat('pt-BR', {
+        notation: Number(value) >= 1000 ? 'compact' : 'standard',
+        maximumFractionDigits: Number(value) >= 1000 ? 1 : 0,
+      }).format(Math.max(0, Number(value) || 0));
+
+    const normalizeStatus = (value) => {
+      const normalized = String(value || '')
+        .trim()
+        .toLowerCase();
+      if (!normalized) return 'degraded';
+      if (['online', 'healthy', 'ok'].includes(normalized)) return 'online';
+      if (['offline', 'down', 'disconnected'].includes(normalized)) return 'offline';
+      if (['connecting', 'opening', 'reconnecting'].includes(normalized)) return 'connecting';
+      return 'degraded';
+    };
+
+    const formatSystemStatusLabel = (status) => {
+      if (status === 'online') return 'online';
+      if (status === 'offline') return 'offline';
+      if (status === 'connecting') return 'conectando';
+      return 'instável';
+    };
 
     const setFallback = () => {
       cpuEl.textContent = 'CPU host: n/d';
       memEl.textContent = 'RAM host: n/d';
       uptimeEl.textContent = 'Uptime processo: n/d';
       obsEl.textContent = 'Observabilidade: API em /api/sticker-packs';
+      if (proofUsers) proofUsers.textContent = 'n/d';
+      if (proofGroups) proofGroups.textContent = 'n/d';
+      if (proofSystem) {
+        proofSystem.textContent = 'n/d';
+        const card = proofSystem.closest('.proof-card');
+        if (card) card.dataset.status = 'degraded';
+      }
     };
 
     const fmt = (value) => (Number.isFinite(value) ? value.toFixed(2) : 'n/d');
@@ -218,6 +269,9 @@ function HomeEffects() {
         const host = data.host || {};
         const process = data.process || {};
         const observability = data.observability || {};
+        const platform = data.platform || {};
+        const bot = data.bot || {};
+        const systemStatus = normalizeStatus(data.system_status || bot.connection_status);
 
         cpuEl.textContent = 'CPU host: ' + fmt(Number(host.cpu_percent)) + '%';
         memEl.textContent =
@@ -238,6 +292,14 @@ function HomeEffects() {
           (Number.isFinite(lag) ? lag.toFixed(2) + 'ms' : 'n/d') +
           ' | DB slow: ' +
           (Number.isFinite(Number(dbSlow)) && Number.isFinite(Number(dbTotal)) ? String(dbSlow) + '/' + String(dbTotal) : 'n/d');
+
+        if (proofUsers) proofUsers.textContent = shortNum(platform.total_users || 0);
+        if (proofGroups) proofGroups.textContent = shortNum(platform.total_groups || 0);
+        if (proofSystem) {
+          proofSystem.textContent = formatSystemStatusLabel(systemStatus);
+          const card = proofSystem.closest('.proof-card');
+          if (card) card.dataset.status = systemStatus;
+        }
       })
       .catch(() => {
         setFallback();
