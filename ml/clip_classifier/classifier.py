@@ -617,8 +617,8 @@ def classify_image(
                 image_hash=image_hash,
                 theme=theme,
             )
-    except UnidentifiedImageError as error:
-        raise ValueError("Arquivo inválido: não foi possível identificar como imagem.") from error
+    except (UnidentifiedImageError, OSError) as error:
+        raise ValueError("Arquivo inválido: não foi possível decodificar a imagem.") from error
 
 
 def classify_image_bytes(
@@ -650,5 +650,5 @@ def classify_image_bytes(
                 similar_threshold=similar_threshold,
                 similar_limit=similar_limit,
             )
-    except UnidentifiedImageError as error:
-        raise ValueError("Upload inválido: conteúdo não reconhecido como imagem.") from error
+    except (UnidentifiedImageError, OSError) as error:
+        raise ValueError("Upload inválido: não foi possível decodificar a imagem.") from error

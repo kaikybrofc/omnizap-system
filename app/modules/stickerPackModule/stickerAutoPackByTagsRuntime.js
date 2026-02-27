@@ -3,7 +3,10 @@ import { getActiveSocket } from '../../services/socketState.js';
 import { normalizeJid, resolveBotJid } from '../../config/baileysConfig.js';
 import { recordStickerAutoPackCycle } from '../../observability/metrics.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
-import { listClassifiedStickerAssetsForCuration } from './stickerAssetRepository.js';
+import {
+  countClassifiedStickerAssetsWithoutPack,
+  listClassifiedStickerAssetsForCuration,
+} from './stickerAssetRepository.js';
 import {
   listClipImageEmbeddingsByImageHashes,
   listStickerClassificationsByAssetIds,
@@ -16,9 +19,14 @@ import {
   findStickerPackById,
   listStickerAutoPacksForCuration,
   listStickerPacksByOwner,
+  softDeleteStickerPack,
   updateStickerPackFields,
 } from './stickerPackRepository.js';
-import { listStickerPackItems, listStickerPackItemsByPackIds } from './stickerPackItemRepository.js';
+import {
+  listStickerPackItems,
+  listStickerPackItemsByPackIds,
+  removeStickerPackItemsByPackId,
+} from './stickerPackItemRepository.js';
 import { listStickerPackEngagementByPackIds } from './stickerPackEngagementRepository.js';
 
 const parseEnvBool = (value, fallback) => {
@@ -45,10 +53,30 @@ const parseMaxPacksPerOwnerLimit = (value, fallback = 50) => {
 
 const AUTO_ENABLED = parseEnvBool(process.env.STICKER_AUTO_PACK_BY_TAGS_ENABLED, true);
 const STARTUP_DELAY_MS = Math.max(1_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_STARTUP_DELAY_MS) || 20_000);
-const INTERVAL_MS = Math.max(20_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_INTERVAL_MS) || 180_000);
+const INTERVAL_MS_RAW = Number(process.env.STICKER_AUTO_PACK_BY_TAGS_INTERVAL_MS);
+const INTERVAL_MS = Number.isFinite(INTERVAL_MS_RAW)
+  ? Math.max(0, Math.min(3_600_000, INTERVAL_MS_RAW))
+  : 180_000;
+const IDLE_BACKOFF_SHORT_STREAK = Math.max(
+  1,
+  Math.min(100, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_IDLE_BACKOFF_SHORT_STREAK) || 3),
+);
+const IDLE_BACKOFF_LONG_STREAK = Math.max(
+  IDLE_BACKOFF_SHORT_STREAK,
+  Math.min(500, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_IDLE_BACKOFF_LONG_STREAK) || 10),
+);
+const IDLE_BACKOFF_SHORT_MS = Math.max(
+  1_000,
+  Math.min(15 * 60_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_IDLE_BACKOFF_SHORT_MS) || 25_000),
+);
+const IDLE_BACKOFF_LONG_MS = Math.max(
+  IDLE_BACKOFF_SHORT_MS,
+  Math.min(60 * 60_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_IDLE_BACKOFF_LONG_MS) || 90_000),
+);
 const TARGET_PACK_SIZE = Math.max(5, Math.min(30, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_TARGET_SIZE) || 30));
 const MIN_GROUP_SIZE = Math.max(3, Math.min(100, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_GROUP_SIZE) || 8));
 const MAX_TAG_GROUPS = Math.max(0, Math.min(500, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_GROUPS) || 0));
+const ENABLE_SEMANTIC_CLUSTERING = parseEnvBool(process.env.ENABLE_SEMANTIC_CLUSTERING, false);
 const MAX_SCAN_ASSETS = Math.max(0, Math.min(250_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_SCAN_ASSETS) || 0));
 const MAX_ADDITIONS_PER_CYCLE = Math.max(10, Math.min(2000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_ADDITIONS_PER_CYCLE) || 300));
 const AUTO_PACK_VISIBILITY = String(process.env.STICKER_AUTO_PACK_BY_TAGS_VISIBILITY || 'public').trim().toLowerCase() || 'public';
@@ -162,6 +190,49 @@ const MAX_PACKS_PER_OWNER = parseMaxPacksPerOwnerLimit(
   process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_PACKS_PER_OWNER || process.env.STICKER_PACK_MAX_PACKS_PER_OWNER,
   50,
 );
+const HARD_MIN_GROUP_SIZE = Math.max(
+  3,
+  Math.min(TARGET_PACK_SIZE, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_HARD_MIN_GROUP_SIZE) || 12),
+);
+const SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK = Math.max(
+  HARD_MIN_GROUP_SIZE,
+  Math.min(TARGET_PACK_SIZE, Number(process.env.SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK) || HARD_MIN_GROUP_SIZE),
+);
+const EFFECTIVE_HARD_MIN_GROUP_SIZE = ENABLE_SEMANTIC_CLUSTERING
+  ? Math.max(HARD_MIN_GROUP_SIZE, SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK)
+  : HARD_MIN_GROUP_SIZE;
+const HARD_MIN_PACK_ITEMS = Math.max(
+  1,
+  Math.min(TARGET_PACK_SIZE, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_HARD_MIN_PACK_ITEMS) || 12),
+);
+const READY_PACK_MIN_ITEMS = Math.max(
+  HARD_MIN_PACK_ITEMS,
+  Math.min(TARGET_PACK_SIZE, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_READY_MIN_ITEMS) || 20),
+);
+const MAX_PACKS_PER_THEME = Math.max(
+  1,
+  Math.min(10, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_PACKS_PER_THEME) || 1),
+);
+const GLOBAL_AUTO_PACK_LIMIT = Math.max(
+  10,
+  Math.min(10_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_GLOBAL_PACK_LIMIT) || 300),
+);
+const DYNAMIC_GROUP_LIMIT_BASE = Math.max(
+  3,
+  Math.min(500, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_DYNAMIC_GROUP_LIMIT_BASE) || 30),
+);
+const RETRO_CONSOLIDATION_ENABLED = parseEnvBool(
+  process.env.STICKER_AUTO_PACK_BY_TAGS_RETRO_CONSOLIDATION_ENABLED,
+  true,
+);
+const RETRO_CONSOLIDATION_THEME_LIMIT = Math.max(
+  1,
+  Math.min(2000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_RETRO_CONSOLIDATION_THEME_LIMIT) || 1000),
+);
+const RETRO_CONSOLIDATION_MUTATION_LIMIT = Math.max(
+  10,
+  Math.min(10_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_RETRO_CONSOLIDATION_MUTATION_LIMIT) || 2000),
+);
 const PRIORITIZE_COMPLETION = parseEnvBool(process.env.STICKER_AUTO_PACK_BY_TAGS_PRIORITIZE_COMPLETION, true);
 const COMPLETION_TRANSFER_ENABLED = parseEnvBool(process.env.STICKER_AUTO_PACK_BY_TAGS_COMPLETION_TRANSFER_ENABLED, true);
 const COMPLETION_TRANSFER_MIN_DONOR_ITEMS = Math.max(
@@ -172,7 +243,6 @@ const COMPLETION_TRANSFER_MIN_DONOR_ITEMS = Math.max(
       || Math.max(2, Math.min(TARGET_PACK_SIZE - 1, 8)),
   ),
 );
-const READY_PACK_MIN_ITEMS = Math.max(1, Math.min(TARGET_PACK_SIZE, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_READY_MIN_ITEMS) || 1));
 const ENABLE_GLOBAL_OPTIMIZATION = parseEnvBool(process.env.ENABLE_GLOBAL_OPTIMIZATION, true);
 const OPTIMIZATION_CYCLES = Math.max(1, Math.min(8, Number(process.env.OPTIMIZATION_CYCLES) || 3));
 const OPTIMIZATION_EPSILON = Number.isFinite(Number(process.env.OPTIMIZATION_EPSILON))
@@ -340,6 +410,14 @@ const normalizeTag = (value) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 40);
 
+const toNumericClusterId = (value) => {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric <= 0) return null;
+  return numeric;
+};
+
+const isSemanticClusterSubthemeTag = (value) => /^cluster-\d+$/.test(normalizeTag(value));
+
 const toTagFromLabel = (label) => {
   const key = String(label || '').trim().toLowerCase();
   return LABEL_TO_TAG[key] || normalizeTag(key);
@@ -409,6 +487,14 @@ const parseThemeKey = (raw) => {
     subtheme: normalizeTag(subtheme),
   };
 };
+
+const sanitizeDisplaySubtheme = (subtheme) => {
+  const normalized = normalizeTag(subtheme);
+  if (!normalized) return '';
+  if (isSemanticClusterSubthemeTag(normalized)) return '';
+  return normalized;
+};
+
 const buildAutoPackName = (theme, subtheme, index) => {
   const base = `[AUTO] ${toPackTitleTag(theme)}${subtheme ? ` • ${toPackTitleTag(subtheme)}` : ''}`;
   return `${base} • Vol. ${index}`;
@@ -1085,6 +1171,35 @@ const evaluateQualityGate = (asset, classification) => {
   return { accepted: true, reason: null, qualityScore };
 };
 
+const withThemeInTopTags = (topTags, theme, scoreHint = 0) => {
+  const normalizedTheme = normalizeTag(theme);
+  if (!normalizedTheme) return Array.isArray(topTags) ? topTags.slice(0, TOP_TAGS_PER_ASSET) : [];
+
+  const list = [];
+  const seen = new Set();
+  const seed = {
+    tag: normalizedTheme,
+    score: Number(Number(clampNumber(Number(scoreHint || 0), 0, 1.2)).toFixed(6)),
+  };
+  for (const entry of [seed, ...(Array.isArray(topTags) ? topTags : [])]) {
+    const tag = normalizeTag(entry?.tag || entry);
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    list.push({
+      tag,
+      score: Number(Number(entry?.score || 0).toFixed(6)),
+    });
+  }
+
+  if (!list.length) return [{ tag: normalizedTheme, score: seed.score }];
+  list.sort((left, right) => {
+    if (left.tag === normalizedTheme) return -1;
+    if (right.tag === normalizedTheme) return 1;
+    return Number(right.score || 0) - Number(left.score || 0);
+  });
+  return list.slice(0, TOP_TAGS_PER_ASSET);
+};
+
 const deriveThemeFromClassification = (classification) => {
   const topTags = buildTopTags(classification);
   const nsfwScore = Number(classification?.nsfw_score || 0);
@@ -1100,12 +1215,50 @@ const deriveThemeFromClassification = (classification) => {
     };
   }
 
-  const primary = topTags.find((entry) => entry.tag !== 'nsfw')?.tag || '';
+  const semanticClusterId = toNumericClusterId(classification?.semantic_cluster_id);
+  const semanticClusterSlug = normalizeTag(classification?.semantic_cluster_slug || '');
+  const categoryTag = classification?.category ? toTagFromLabel(classification.category) : '';
+  const fallbackPrimary = topTags.find((entry) => entry.tag !== 'nsfw')?.tag || '';
+
+  if (ENABLE_SEMANTIC_CLUSTERING && semanticClusterId) {
+    const primary = semanticClusterSlug || categoryTag || fallbackPrimary || `cluster-${semanticClusterId}`;
+    const secondary = topTags.find((entry) => entry.tag !== primary && entry.tag !== 'nsfw')?.tag || '';
+    const semanticThemeKey = buildThemeKey(primary, `cluster-${semanticClusterId}`);
+    const semanticTopTags = withThemeInTopTags(
+      topTags,
+      primary,
+      Math.max(
+        Number(classification?.confidence || 0),
+        Number(topTags.find((entry) => entry.tag === primary)?.score || 0),
+        MOVE_IN_THEME_SCORE_THRESHOLD,
+      ),
+    );
+    return {
+      theme: primary,
+      subtheme: secondary,
+      topTags: semanticTopTags,
+      nsfwScore,
+      nsfwLevel: 'safe',
+      semanticClusterId,
+      semanticThemeKey,
+    };
+  }
+
+  const primary = (ENABLE_SEMANTIC_CLUSTERING ? categoryTag : '') || fallbackPrimary;
   const secondary = topTags.find((entry) => entry.tag !== primary && entry.tag !== 'nsfw')?.tag || '';
+  const fallbackTopTags = withThemeInTopTags(
+    topTags,
+    primary,
+    Math.max(
+      Number(classification?.confidence || 0),
+      Number(topTags.find((entry) => entry.tag === primary)?.score || 0),
+      MOVE_IN_THEME_SCORE_THRESHOLD,
+    ),
+  );
   return {
     theme: primary,
     subtheme: secondary,
-    topTags,
+    topTags: fallbackTopTags,
     nsfwScore,
     nsfwLevel: 'safe',
   };
@@ -1395,13 +1548,20 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
         continue;
       }
 
-      const { theme, subtheme, topTags, nsfwScore, nsfwLevel } = deriveThemeFromClassification(classification);
+      const {
+        theme,
+        subtheme,
+        topTags,
+        nsfwScore,
+        nsfwLevel,
+        semanticThemeKey = '',
+      } = deriveThemeFromClassification(classification);
       if (!theme) {
         stats.assets_rejected_no_theme += 1;
         continue;
       }
 
-      const themeKey = buildThemeKey(theme, subtheme);
+      const themeKey = semanticThemeKey || buildThemeKey(theme, subtheme);
       const themeScore = Number(topTags.find((entry) => entry.tag === theme)?.score || 0);
       if (themeScore < MOVE_IN_THEME_SCORE_THRESHOLD) {
         stats.reject_reason_counts.low_theme_match = (stats.reject_reason_counts.low_theme_match || 0) + 1;
@@ -1767,17 +1927,18 @@ const computeGroupMetrics = (themeKey, candidates) => {
 };
 
 const buildCurationPlan = ({ grouped, stats }) => {
-  let curatedGroups = Array.from(grouped.entries())
+  const rawGroups = Array.from(grouped.entries())
     .map(([themeKey, candidates]) => {
       const metrics = computeGroupMetrics(themeKey, candidates);
       return { ...metrics, candidates };
     })
-    .filter((group) => group.theme && group.candidates.length > 0)
+    .filter((group) => group.theme && group.candidates.length >= EFFECTIVE_HARD_MIN_GROUP_SIZE)
     .sort((left, right) => {
       if (right.groupScore !== left.groupScore) return right.groupScore - left.groupScore;
       return right.candidates.length - left.candidates.length;
     });
 
+  let curatedGroups = rawGroups;
   if (MAX_TAG_GROUPS > 0) {
     curatedGroups = curatedGroups.slice(0, MAX_TAG_GROUPS);
   }
@@ -1786,6 +1947,11 @@ const buildCurationPlan = ({ grouped, stats }) => {
     groups: curatedGroups,
     stats: {
       ...stats,
+      hard_min_group_size: EFFECTIVE_HARD_MIN_GROUP_SIZE,
+      hard_min_group_size_base: HARD_MIN_GROUP_SIZE,
+      semantic_clustering_enabled: ENABLE_SEMANTIC_CLUSTERING,
+      semantic_cluster_min_size_for_pack: SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK,
+      groups_filtered_hard_min: Math.max(0, Number(grouped?.size || 0) - rawGroups.length),
       groups_formed: curatedGroups.length,
     },
   };
@@ -1894,6 +2060,278 @@ const chunkArray = (list, size) => {
     chunks.push(list.slice(index, index + safeSize));
   }
   return chunks;
+};
+
+const countPackItems = (itemsByPackId, packId) => Number(itemsByPackId.get(packId)?.length || 0);
+
+const deleteAutoPackWithItems = async (packId, itemsByPackId) => {
+  await removeStickerPackItemsByPackId(packId);
+  await softDeleteStickerPack(packId);
+  itemsByPackId.set(packId, []);
+};
+
+const runRetroConsolidationCycle = async ({ ownerPool }) => {
+  if (!RETRO_CONSOLIDATION_ENABLED) {
+    return {
+      enabled: false,
+      processed_themes: 0,
+      merged_themes: 0,
+      deleted_packs: 0,
+      moved_stickers: 0,
+      trimmed_stickers: 0,
+      mutations: 0,
+      theme_limit_reached: false,
+      mutation_limit_reached: false,
+    };
+  }
+
+  const autoPacks = await listStickerAutoPacksForCuration({
+    ownerJids: ownerPool,
+    includeArchived: false,
+    limit: 5000,
+  });
+  if (!autoPacks.length) {
+    return {
+      enabled: true,
+      processed_themes: 0,
+      merged_themes: 0,
+      deleted_packs: 0,
+      moved_stickers: 0,
+      trimmed_stickers: 0,
+      mutations: 0,
+      theme_limit_reached: false,
+      mutation_limit_reached: false,
+    };
+  }
+
+  const packIds = autoPacks.map((pack) => pack.id).filter(Boolean);
+  const allItems = packIds.length ? await listStickerPackItemsByPackIds(packIds) : [];
+  const itemsByPackId = new Map();
+  for (const item of allItems) {
+    const list = itemsByPackId.get(item.pack_id) || [];
+    list.push(item);
+    itemsByPackId.set(item.pack_id, list);
+  }
+
+  const packsByTheme = new Map();
+  for (const pack of autoPacks) {
+    const themeKey = extractThemeKeyFromPack(pack);
+    if (!themeKey) continue;
+    const list = packsByTheme.get(themeKey) || [];
+    list.push(pack);
+    packsByTheme.set(themeKey, list);
+  }
+
+  let processedThemes = 0;
+  let mergedThemes = 0;
+  let deletedPacks = 0;
+  let movedStickers = 0;
+  let trimmedStickers = 0;
+  let mutations = 0;
+  let themeLimitReached = false;
+  let mutationLimitReached = false;
+
+  const themeEntries = Array.from(packsByTheme.entries())
+    .sort((left, right) => right[1].length - left[1].length);
+
+  for (const [themeKey, themePacksRaw] of themeEntries) {
+    if (processedThemes >= RETRO_CONSOLIDATION_THEME_LIMIT) {
+      themeLimitReached = true;
+      break;
+    }
+    if (mutations >= RETRO_CONSOLIDATION_MUTATION_LIMIT) {
+      mutationLimitReached = true;
+      break;
+    }
+    processedThemes += 1;
+
+    const themePacks = sortAutoThemePacks(themePacksRaw).sort((left, right) => {
+      const leftCount = countPackItems(itemsByPackId, left.id);
+      const rightCount = countPackItems(itemsByPackId, right.id);
+      if (rightCount !== leftCount) return rightCount - leftCount;
+      return extractVolumeFromPack(left) - extractVolumeFromPack(right);
+    });
+    if (!themePacks.length) continue;
+
+    const smallPacks = themePacks.filter((pack) => countPackItems(itemsByPackId, pack.id) < HARD_MIN_PACK_ITEMS);
+    const overflowPacks = themePacks.slice(MAX_PACKS_PER_THEME);
+    const needsReadinessCorrection = themePacks.some((pack) => {
+      const count = countPackItems(itemsByPackId, pack.id);
+      const packStatus = String(pack?.pack_status || 'ready').toLowerCase();
+      return packStatus === 'ready' && count < READY_PACK_MIN_ITEMS;
+    });
+    if (!smallPacks.length && !overflowPacks.length && !needsReadinessCorrection) continue;
+
+    const anchorPack = themePacks[0];
+    const anchorItemsInitial = itemsByPackId.get(anchorPack.id) || [];
+    const donorPacks = themePacks.filter((pack) => pack.id !== anchorPack.id && (
+      smallPacks.some((entry) => entry.id === pack.id) || overflowPacks.some((entry) => entry.id === pack.id)
+    ));
+
+    const desiredAnchorIds = Array.from(new Set([
+      ...anchorItemsInitial.map((item) => item.sticker_id).filter(Boolean),
+      ...donorPacks.flatMap((pack) => (itemsByPackId.get(pack.id) || []).map((item) => item.sticker_id).filter(Boolean)),
+    ])).slice(0, TARGET_PACK_SIZE);
+    const desiredAnchorSet = new Set(desiredAnchorIds);
+
+    let anchorItems = itemsByPackId.get(anchorPack.id) || await listStickerPackItems(anchorPack.id);
+    const anchorCurrentSet = new Set(anchorItems.map((item) => item.sticker_id).filter(Boolean));
+
+    for (const item of anchorItems) {
+      if (mutations >= RETRO_CONSOLIDATION_MUTATION_LIMIT) break;
+      if (desiredAnchorSet.has(item.sticker_id)) continue;
+      try {
+        await stickerPackService.removeStickerFromPack({
+          ownerJid: anchorPack.owner_jid,
+          identifier: anchorPack.id,
+          selector: item.sticker_id,
+        });
+        mutations += 1;
+        trimmedStickers += 1;
+      } catch (error) {
+        logger.warn('Falha ao podar sticker excedente durante consolidação retroativa.', {
+          action: 'sticker_auto_pack_retro_trim_failed',
+          pack_id: anchorPack.id,
+          sticker_id: item.sticker_id,
+          theme_key: themeKey,
+          error: error?.message,
+          error_code: error?.code,
+        });
+      }
+    }
+
+    anchorItems = await listStickerPackItems(anchorPack.id);
+    itemsByPackId.set(anchorPack.id, anchorItems);
+    anchorCurrentSet.clear();
+    for (const item of anchorItems) anchorCurrentSet.add(item.sticker_id);
+
+    for (const stickerId of desiredAnchorIds) {
+      if (mutations >= RETRO_CONSOLIDATION_MUTATION_LIMIT) break;
+      if (anchorCurrentSet.has(stickerId)) continue;
+      try {
+        await stickerPackService.addStickerToPack({
+          ownerJid: anchorPack.owner_jid,
+          identifier: anchorPack.id,
+          asset: { id: stickerId },
+          emojis: [],
+          accessibilityLabel: `Auto-theme ${themeKey}`,
+          expectedErrorCodes: ['PACK_LIMIT_REACHED'],
+        });
+        mutations += 1;
+        movedStickers += 1;
+        anchorCurrentSet.add(stickerId);
+      } catch (error) {
+        if (error?.code === 'PACK_LIMIT_REACHED') break;
+        if (error?.code === 'DUPLICATE_STICKER') continue;
+        logger.warn('Falha ao mover sticker para pack âncora na consolidação retroativa.', {
+          action: 'sticker_auto_pack_retro_move_failed',
+          pack_id: anchorPack.id,
+          sticker_id: stickerId,
+          theme_key: themeKey,
+          error: error?.message,
+          error_code: error?.code,
+        });
+      }
+    }
+
+    anchorItems = await listStickerPackItems(anchorPack.id);
+    itemsByPackId.set(anchorPack.id, anchorItems);
+    const anchorOrder = anchorItems.map((item) => item.sticker_id);
+    const finalDesiredOrder = desiredAnchorIds.filter((stickerId) => anchorOrder.includes(stickerId));
+    const needsReorder =
+      finalDesiredOrder.length > 1 &&
+      (finalDesiredOrder.length !== anchorOrder.length
+        || finalDesiredOrder.some((stickerId, index) => anchorOrder[index] !== stickerId));
+    if (needsReorder) {
+      try {
+        await stickerPackService.reorderPackItems({
+          ownerJid: anchorPack.owner_jid,
+          identifier: anchorPack.id,
+          orderStickerIds: finalDesiredOrder,
+        });
+        anchorItems = await listStickerPackItems(anchorPack.id);
+        itemsByPackId.set(anchorPack.id, anchorItems);
+      } catch (error) {
+        logger.warn('Falha ao reordenar pack âncora na consolidação retroativa.', {
+          action: 'sticker_auto_pack_retro_reorder_failed',
+          pack_id: anchorPack.id,
+          theme_key: themeKey,
+          error: error?.message,
+          error_code: error?.code,
+        });
+      }
+    }
+
+    for (const donor of donorPacks) {
+      if (mutations >= RETRO_CONSOLIDATION_MUTATION_LIMIT) break;
+      try {
+        await deleteAutoPackWithItems(donor.id, itemsByPackId);
+        mutations += 1;
+        deletedPacks += 1;
+      } catch (error) {
+        logger.warn('Falha ao excluir pack doador na consolidação retroativa.', {
+          action: 'sticker_auto_pack_retro_delete_donor_failed',
+          pack_id: donor.id,
+          theme_key: themeKey,
+          error: error?.message,
+        });
+      }
+    }
+
+    anchorItems = itemsByPackId.get(anchorPack.id) || await listStickerPackItems(anchorPack.id);
+    const anchorCount = anchorItems.length;
+    if (anchorCount < HARD_MIN_PACK_ITEMS) {
+      if (mutations < RETRO_CONSOLIDATION_MUTATION_LIMIT) {
+        try {
+          await deleteAutoPackWithItems(anchorPack.id, itemsByPackId);
+          mutations += 1;
+          deletedPacks += 1;
+        } catch (error) {
+          logger.warn('Falha ao excluir pack âncora abaixo do mínimo na consolidação retroativa.', {
+            action: 'sticker_auto_pack_retro_delete_anchor_failed',
+            pack_id: anchorPack.id,
+            theme_key: themeKey,
+            error: error?.message,
+          });
+        }
+      } else {
+        mutationLimitReached = true;
+      }
+      continue;
+    }
+
+    const parsedTheme = parseThemeKey(themeKey);
+    const resolvedTheme = parsedTheme.theme || normalizeTag(anchorPack.pack_theme_key || '') || 'outros';
+    const resolvedSubtheme = sanitizeDisplaySubtheme(parsedTheme.subtheme);
+    const packStatus = anchorCount >= READY_PACK_MIN_ITEMS ? 'ready' : 'building';
+    await updateAutoPackMetadata(anchorPack.id, {
+      name: buildAutoPackName(resolvedTheme, resolvedSubtheme, 1),
+      description: buildAutoPackDescription({
+        theme: resolvedTheme,
+        subtheme: resolvedSubtheme,
+        themeKey,
+        groupScore: 0,
+      }),
+      themeKey,
+      volume: 1,
+      pack_status: packStatus,
+      status: packStatus === 'ready' ? 'published' : 'draft',
+      cover_sticker_id: anchorItems[0]?.sticker_id || null,
+    });
+    mergedThemes += 1;
+  }
+
+  return {
+    enabled: true,
+    processed_themes: processedThemes,
+    merged_themes: mergedThemes,
+    deleted_packs: deletedPacks,
+    moved_stickers: movedStickers,
+    trimmed_stickers: trimmedStickers,
+    mutations,
+    theme_limit_reached: themeLimitReached,
+    mutation_limit_reached: mutationLimitReached,
+  };
 };
 
 const optimizePackEcosystem = ({
@@ -2519,8 +2957,14 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
   let overflowVolumesSkipped = 0;
   let completionPriorityGroups = 0;
   let plannedCompletionTransfers = 0;
+  const staticGroupLimit = MAX_TAG_GROUPS > 0 ? MAX_TAG_GROUPS : Number.POSITIVE_INFINITY;
+  const dynamicGroupLimit = Math.max(3, DYNAMIC_GROUP_LIMIT_BASE - autoPackIndex.byTheme.size);
+  const effectiveGroupLimit = Math.max(0, Math.min(curatedGroups.length, staticGroupLimit, dynamicGroupLimit));
+  const effectiveCuratedGroups = curatedGroups.slice(0, effectiveGroupLimit);
+  const groupsSkippedByDynamicLimit = Math.max(0, curatedGroups.length - effectiveCuratedGroups.length);
+  let creationBlockedByGlobalCap = 0;
 
-  for (const group of curatedGroups) {
+  for (const group of effectiveCuratedGroups) {
     for (const candidate of group.candidates) {
       if (candidate?.asset?.id && candidate?.classification) {
         classificationByAssetId.set(candidate.asset.id, candidate.classification);
@@ -2528,22 +2972,32 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
     }
 
     const currentThemePacks = sortAutoThemePacks(autoPackIndex.byTheme.get(group.themeKey) || []);
+    const rankedThemePacks = [...currentThemePacks].sort((left, right) => {
+      const leftArchived = String(left?.pack_status || 'ready').toLowerCase() === 'archived' ? 1 : 0;
+      const rightArchived = String(right?.pack_status || 'ready').toLowerCase() === 'archived' ? 1 : 0;
+      if (leftArchived !== rightArchived) return leftArchived - rightArchived;
+      const leftCount = Number(itemsByPackId.get(left.id)?.length || 0);
+      const rightCount = Number(itemsByPackId.get(right.id)?.length || 0);
+      if (rightCount !== leftCount) return rightCount - leftCount;
+      return extractVolumeFromPack(left) - extractVolumeFromPack(right);
+    });
+    const retainedThemePacks = rankedThemePacks.slice(0, MAX_PACKS_PER_THEME);
     const packCountById = new Map(
-      currentThemePacks.map((pack) => [pack.id, Number(itemsByPackId.get(pack.id)?.length || 0)]),
+      retainedThemePacks.map((pack) => [pack.id, Number(itemsByPackId.get(pack.id)?.length || 0)]),
     );
     const packItemsById = new Map(
-      currentThemePacks.map((pack) => [
+      retainedThemePacks.map((pack) => [
         pack.id,
         new Set((itemsByPackId.get(pack.id) || []).map((item) => item.sticker_id).filter(Boolean)),
       ]),
     );
-    const incompleteExistingCount = currentThemePacks.reduce((sum, pack) => {
+    const incompleteExistingCount = retainedThemePacks.reduce((sum, pack) => {
       const count = Number(packCountById.get(pack.id) || 0);
       return sum + (count < TARGET_PACK_SIZE ? 1 : 0);
     }, 0);
     const prioritizeGroupCompletion = EFFECTIVE_PRIORITIZE_COMPLETION && enableAdditions && incompleteExistingCount > 0;
     const completionPriorityPacks = prioritizeGroupCompletion
-      ? [...currentThemePacks].sort((left, right) => {
+      ? [...retainedThemePacks].sort((left, right) => {
           const leftCount = Number(packCountById.get(left.id) || 0);
           const rightCount = Number(packCountById.get(right.id) || 0);
           if (rightCount !== leftCount) return rightCount - leftCount;
@@ -2556,16 +3010,20 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
     );
     const groupFillAssetIds = group.candidates.map((candidate) => candidate.asset.id).filter(Boolean);
 
-    const capacityForCreate = !prioritizeGroupCompletion && enableAdditions
-      ? ownerStates.reduce((sum, owner) => sum + Math.max(0, Number(owner.available || 0)), 0)
+    const ownerCreateCapacity = ownerStates.reduce((sum, owner) => sum + Math.max(0, Number(owner.available || 0)), 0);
+    const hasIncompleteExisting = incompleteExistingCount > 0;
+    const themeCreateCapacity = Math.max(0, MAX_PACKS_PER_THEME - retainedThemePacks.length);
+    const globalCreateCapacity = Math.max(0, GLOBAL_AUTO_PACK_LIMIT - (autoPacks.length + plannedCreates));
+    const maxCreatableForGroup = enableAdditions && !hasIncompleteExisting
+      ? Math.max(0, Math.min(ownerCreateCapacity, themeCreateCapacity, globalCreateCapacity))
       : 0;
-    const maxCreatableForGroup = Math.max(0, capacityForCreate);
-    const maxTotalVolumes = !prioritizeGroupCompletion && enableAdditions
-      ? currentThemePacks.length + maxCreatableForGroup
-      : currentThemePacks.length;
+    if (enableAdditions && !hasIncompleteExisting && themeCreateCapacity > 0 && globalCreateCapacity <= 0) {
+      creationBlockedByGlobalCap += 1;
+    }
+    const maxTotalVolumes = retainedThemePacks.length + maxCreatableForGroup;
     let targetVolumeCount = Math.min(volumeCandidateChunks.length, Math.max(0, maxTotalVolumes));
     if (prioritizeGroupCompletion) {
-      targetVolumeCount = Math.max(targetVolumeCount, currentThemePacks.length);
+      targetVolumeCount = Math.max(targetVolumeCount, retainedThemePacks.length);
       completionPriorityGroups += 1;
     }
 
@@ -2576,28 +3034,37 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
 
     const targetChunks = volumeCandidateChunks.slice(0, targetVolumeCount);
     const groupOpStartIndex = operations.length;
+    const selectedExistingPackIds = new Set();
 
     for (let volumeIndex = 0; volumeIndex < targetVolumeCount; volumeIndex += 1) {
       const volume = volumeIndex + 1;
       const existingPack = prioritizeGroupCompletion
         ? completionPriorityPacks[volumeIndex]
-          || currentThemePacks.find((pack) => extractVolumeFromPack(pack) === volume)
-          || currentThemePacks[volumeIndex]
+          || retainedThemePacks.find((pack) => extractVolumeFromPack(pack) === volume)
+          || retainedThemePacks[volumeIndex]
           || null
-        : currentThemePacks.find((pack) => extractVolumeFromPack(pack) === volume)
-          || currentThemePacks[volumeIndex]
+        : retainedThemePacks.find((pack) => extractVolumeFromPack(pack) === volume)
+          || retainedThemePacks[volumeIndex]
           || null;
+      if (existingPack?.id) {
+        selectedExistingPackIds.add(existingPack.id);
+      }
 
       let createOwnerJid = null;
       if (!existingPack && enableAdditions) {
-        const selectedOwner = pickOwnerWithCapacity(ownerStates);
-        if (selectedOwner) {
-          createOwnerJid = selectedOwner.ownerJid;
-          selectedOwner.available = Math.max(0, Number(selectedOwner.available || 0) - 1);
-          selectedOwner.totalPacks = Number(selectedOwner.totalPacks || 0) + 1;
-          plannedCreates += 1;
-        } else {
+        if (autoPacks.length + plannedCreates >= GLOBAL_AUTO_PACK_LIMIT) {
           reuseOnlyMode = true;
+          creationBlockedByGlobalCap += 1;
+        } else {
+          const selectedOwner = pickOwnerWithCapacity(ownerStates);
+          if (selectedOwner) {
+            createOwnerJid = selectedOwner.ownerJid;
+            selectedOwner.available = Math.max(0, Number(selectedOwner.available || 0) - 1);
+            selectedOwner.totalPacks = Number(selectedOwner.totalPacks || 0) + 1;
+            plannedCreates += 1;
+          } else {
+            reuseOnlyMode = true;
+          }
         }
       }
 
@@ -2621,8 +3088,8 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
     }
 
     for (const pack of currentThemePacks) {
+      if (selectedExistingPackIds.has(pack.id)) continue;
       const volume = extractVolumeFromPack(pack);
-      if (volume <= targetVolumeCount) continue;
 
       operations.push({
         type: 'archive_volume',
@@ -2640,7 +3107,7 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
       });
     }
 
-    if (prioritizeGroupCompletion && EFFECTIVE_COMPLETION_TRANSFER_ENABLED && currentThemePacks.length > 1) {
+    if (prioritizeGroupCompletion && EFFECTIVE_COMPLETION_TRANSFER_ENABLED && retainedThemePacks.length > 1) {
       const groupOps = operations.slice(groupOpStartIndex).filter((entry) => entry.type === 'reconcile_volume' && entry.existingPackId);
       const recipientOps = [...groupOps].sort((left, right) => {
         const leftCount = Number(packCountById.get(left.existingPackId) || 0);
@@ -2739,6 +3206,15 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
       completion_transfers_planned: plannedCompletionTransfers,
       reuse_only_mode: reuseOnlyMode,
       overflow_volumes_skipped: overflowVolumesSkipped,
+      hard_min_pack_items: HARD_MIN_PACK_ITEMS,
+      max_packs_per_theme: MAX_PACKS_PER_THEME,
+      global_auto_pack_limit: GLOBAL_AUTO_PACK_LIMIT,
+      creation_blocked_global_cap: creationBlockedByGlobalCap,
+      group_limit_static: Number.isFinite(staticGroupLimit) ? staticGroupLimit : null,
+      group_limit_dynamic: dynamicGroupLimit,
+      groups_input: curatedGroups.length,
+      groups_effective: effectiveCuratedGroups.length,
+      groups_skipped_dynamic: groupsSkippedByDynamicLimit,
       existing_auto_packs: autoPacks.length,
       auto_pack_items_indexed: allItems.length,
       optimization_scope_assets: optimizationAssetIds.size,
@@ -2767,13 +3243,17 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
 };
 
 const updateAutoPackMetadata = async (packId, payload) => {
+  const normalizedPackStatus = String(payload?.pack_status || 'building').trim().toLowerCase() || 'building';
+  const resolvedWebStatus = String(payload?.status || (normalizedPackStatus === 'ready' ? 'published' : 'draft'))
+    .trim()
+    .toLowerCase();
   const fields = {
     name: payload.name,
     publisher: AUTO_PUBLISHER,
     description: payload.description,
     visibility: AUTO_PACK_VISIBILITY,
-    status: 'published',
-    pack_status: payload.pack_status,
+    status: resolvedWebStatus,
+    pack_status: normalizedPackStatus,
     pack_theme_key: payload.themeKey,
     pack_volume: payload.volume,
     is_auto_pack: 1,
@@ -2799,7 +3279,7 @@ const createAutoPackVolume = async ({
     publisher: AUTO_PUBLISHER,
     description: buildAutoPackDescription({ theme, subtheme, themeKey, groupScore }),
     visibility: AUTO_PACK_VISIBILITY,
-    status: 'published',
+    status: 'draft',
     packStatus: 'building',
     packThemeKey: themeKey,
     packVolume: volume,
@@ -2959,45 +3439,61 @@ const reconcileAutoPackVolume = async ({
   }
 
   if (enableAdditions && budgets.added < MAX_ADDITIONS_PER_CYCLE && plannedIds.length) {
-    for (const assetId of plannedIds) {
-      if (budgets.added >= MAX_ADDITIONS_PER_CYCLE) break;
-      if (currentById.has(assetId)) continue;
+    const hasPendingCandidates = plannedIds.some((assetId) => !currentById.has(assetId));
+    let availableSlots = Math.max(0, TARGET_PACK_SIZE - currentById.size);
 
-      try {
-        await stickerPackService.addStickerToPack({
-          ownerJid: pack.owner_jid,
-          identifier: pack.id,
-          asset: { id: assetId },
-          emojis: [],
-          accessibilityLabel: `Auto-theme ${op.theme}${op.subtheme ? `/${op.subtheme}` : ''}`,
-        });
-        budgets.added += 1;
-        added += 1;
-        queueFeedback({
-          classification: classificationByAssetId.get(assetId),
-          accepted: true,
-          assetId,
-        });
-      } catch (error) {
-        if (error?.code === 'DUPLICATE_STICKER') {
-          duplicateSkips += 1;
-          continue;
-        }
-        if (error?.code === 'PACK_LIMIT_REACHED') {
+    if (availableSlots <= 0) {
+      if (hasPendingCandidates) {
+        packLimitSkips += 1;
+      }
+    } else {
+      for (const assetId of plannedIds) {
+        if (budgets.added >= MAX_ADDITIONS_PER_CYCLE) break;
+        if (currentById.has(assetId)) continue;
+        if (availableSlots <= 0) {
           packLimitSkips += 1;
           break;
         }
 
-        logger.warn('Falha ao adicionar sticker em auto-pack por tags.', {
-          action: 'sticker_auto_pack_by_tags_add_failed',
-          theme: op.theme,
-          subtheme: op.subtheme || null,
-          theme_key: op.themeKey,
-          pack_id: pack.id,
-          asset_id: assetId,
-          error: error?.message,
-          error_code: error?.code,
-        });
+        try {
+          await stickerPackService.addStickerToPack({
+            ownerJid: pack.owner_jid,
+            identifier: pack.id,
+            asset: { id: assetId },
+            emojis: [],
+            accessibilityLabel: `Auto-theme ${op.theme}${op.subtheme ? `/${op.subtheme}` : ''}`,
+            expectedErrorCodes: ['PACK_LIMIT_REACHED'],
+          });
+          budgets.added += 1;
+          added += 1;
+          availableSlots = Math.max(0, availableSlots - 1);
+          queueFeedback({
+            classification: classificationByAssetId.get(assetId),
+            accepted: true,
+            assetId,
+          });
+        } catch (error) {
+          if (error?.code === 'DUPLICATE_STICKER') {
+            duplicateSkips += 1;
+            continue;
+          }
+          if (error?.code === 'PACK_LIMIT_REACHED') {
+            packLimitSkips += 1;
+            availableSlots = 0;
+            break;
+          }
+
+          logger.warn('Falha ao adicionar sticker em auto-pack por tags.', {
+            action: 'sticker_auto_pack_by_tags_add_failed',
+            theme: op.theme,
+            subtheme: op.subtheme || null,
+            theme_key: op.themeKey,
+            pack_id: pack.id,
+            asset_id: assetId,
+            error: error?.message,
+            error_code: error?.code,
+          });
+        }
       }
     }
 
@@ -3009,10 +3505,15 @@ const reconcileAutoPackVolume = async ({
 
   const finalDesiredOrder = plannedIds.filter((assetId) => currentById.has(assetId));
   const currentOrder = currentItems.map((item) => item.sticker_id);
+  const desiredReorderSet = new Set(finalDesiredOrder);
+  const projectedOrder = [
+    ...finalDesiredOrder,
+    ...currentOrder.filter((assetId) => !desiredReorderSet.has(assetId)),
+  ];
   const needsReorder =
-    finalDesiredOrder.length > 1 &&
-    (finalDesiredOrder.length !== currentOrder.length
-      || finalDesiredOrder.some((assetId, index) => currentOrder[index] !== assetId));
+    projectedOrder.length > 1
+    && projectedOrder.length === currentOrder.length
+    && projectedOrder.some((assetId, index) => currentOrder[index] !== assetId);
 
   if (needsReorder) {
     try {
@@ -3037,21 +3538,49 @@ const reconcileAutoPackVolume = async ({
   const finalItems = itemsByPackId.get(pack.id) || await listStickerPackItems(pack.id);
   const finalCount = finalItems.length;
   const finalCover = finalItems[0]?.sticker_id || null;
-  const isLastVolumeInPlan = desiredPrimaryIds.length < TARGET_PACK_SIZE;
   const finalDesiredPresentCount = finalItems.filter((item) => desiredSet.has(item.sticker_id)).length;
   const allDesiredPresent = finalDesiredPresentCount === plannedIds.length;
   const hasExtraItems = finalItems.some((item) => !desiredSet.has(item.sticker_id));
   const allowExtraItemsForReady = !enableRebuild && op.type === 'reconcile_volume';
+  const meetsHardMinimum = finalCount >= HARD_MIN_PACK_ITEMS;
+  const meetsReadyMinimum = finalCount >= READY_PACK_MIN_ITEMS;
   const packStatus =
     finalCount === 0
       ? 'archived'
-      : allDesiredPresent && (allowExtraItemsForReady || !hasExtraItems) && (
-          finalCount >= TARGET_PACK_SIZE
-          || isLastVolumeInPlan
-          || finalCount >= READY_PACK_MIN_ITEMS
-        )
+      : allDesiredPresent && (allowExtraItemsForReady || !hasExtraItems) && meetsReadyMinimum
         ? 'ready'
-        : 'building';
+        : meetsHardMinimum
+          ? 'building'
+          : 'archived';
+
+  const shouldDeletePack =
+    packStatus === 'archived' && (op.type === 'archive_volume' || finalCount < HARD_MIN_PACK_ITEMS);
+  if (shouldDeletePack) {
+    try {
+      await deleteAutoPackWithItems(pack.id, itemsByPackId);
+      if (feedbackPromises.length) {
+        await Promise.allSettled(feedbackPromises);
+      }
+      return {
+        status: 'archived',
+        pack: null,
+        created,
+        added,
+        removed,
+        deleted: 1,
+        duplicateSkips,
+        packLimitSkips,
+        finalCount: 0,
+      };
+    } catch (error) {
+      logger.warn('Falha ao excluir auto-pack arquivado durante consolidação.', {
+        action: 'sticker_auto_pack_delete_archived_failed',
+        pack_id: pack.id,
+        theme_key: op.themeKey,
+        error: error?.message,
+      });
+    }
+  }
 
   const updated = await updateAutoPackMetadata(pack.id, {
     name: buildAutoPackName(op.theme, op.subtheme, op.volume),
@@ -3073,29 +3602,121 @@ const reconcileAutoPackVolume = async ({
     created,
     added,
     removed,
+    deleted: 0,
     duplicateSkips,
     packLimitSkips,
     finalCount,
   };
 };
 
-let intervalHandle = null;
+let cycleHandle = null;
 let startupHandle = null;
 let running = false;
+let schedulerEnabled = false;
+let idleNoAdditionStreak = 0;
+
+const clearCycleHandle = () => {
+  if (!cycleHandle) return;
+  clearTimeout(cycleHandle);
+  cycleHandle = null;
+};
+
+const countClassifiedWithoutPackSafely = async ({ phase = 'unknown' } = {}) => {
+  try {
+    return await countClassifiedStickerAssetsWithoutPack();
+  } catch (error) {
+    logger.warn('Falha ao contar assets classificados sem pack.', {
+      action: 'sticker_auto_pack_by_tags_without_pack_count_failed',
+      phase,
+      error: error?.message,
+    });
+    return null;
+  }
+};
+
+const resolveNextCycleDelayMs = (cycleResult = null) => {
+  const executed = cycleResult?.executed !== false;
+  const addedStickers = Number(cycleResult?.added_stickers || 0);
+  const withoutPackDelta = Number(cycleResult?.without_pack_delta);
+  const hasMeasuredNetDelta = Number.isFinite(withoutPackDelta);
+  const hasProgress = hasMeasuredNetDelta ? withoutPackDelta > 0 : addedStickers > 0;
+
+  if (!executed) {
+    idleNoAdditionStreak += 1;
+  } else if (hasProgress) {
+    idleNoAdditionStreak = 0;
+  } else {
+    idleNoAdditionStreak += 1;
+  }
+
+  const baseDelay = Math.max(0, INTERVAL_MS);
+  if (idleNoAdditionStreak >= IDLE_BACKOFF_LONG_STREAK) {
+    return Math.max(baseDelay, IDLE_BACKOFF_LONG_MS);
+  }
+  if (idleNoAdditionStreak >= IDLE_BACKOFF_SHORT_STREAK) {
+    return Math.max(baseDelay, IDLE_BACKOFF_SHORT_MS);
+  }
+  return baseDelay;
+};
+
+const scheduleNextCycle = (delayMs = INTERVAL_MS) => {
+  if (!schedulerEnabled) return;
+  clearCycleHandle();
+
+  const safeDelay = Math.max(0, Number(delayMs) || 0);
+  cycleHandle = setTimeout(() => {
+    cycleHandle = null;
+    if (!schedulerEnabled) return;
+    void runStickerAutoPackByTagsCycle()
+      .then((cycleResult) => resolveNextCycleDelayMs(cycleResult))
+      .catch((error) => {
+        logger.error('Falha ao executar ciclo encadeado do auto-pack por tags.', {
+          action: 'sticker_auto_pack_by_tags_cycle_schedule_failed',
+          error: error?.message,
+          stack: error?.stack,
+        });
+        return Math.max(INTERVAL_MS, IDLE_BACKOFF_SHORT_MS);
+      })
+      .then((nextDelayMs) => {
+        if (!schedulerEnabled) return;
+        scheduleNextCycle(nextDelayMs);
+      });
+  }, safeDelay);
+
+  if (typeof cycleHandle.unref === 'function') {
+    cycleHandle.unref();
+  }
+};
 
 export const runStickerAutoPackByTagsCycle = async ({
   enableAdditions = true,
   enableRebuild = REBUILD_ENABLED,
 } = {}) => {
-  if (running) return;
-  if (!AUTO_ENABLED) return;
+  if (running) {
+    return {
+      executed: false,
+      reason: 'already_running',
+      added_stickers: 0,
+    };
+  }
+  if (!AUTO_ENABLED) {
+    return {
+      executed: false,
+      reason: 'disabled',
+      added_stickers: 0,
+    };
+  }
 
   const ownerPool = resolveCurationOwnerPool();
   if (!ownerPool.length) {
     logger.warn('Auto-pack por tags: owner_jid indisponível, ciclo ignorado.', {
       action: 'sticker_auto_pack_by_tags_owner_missing',
     });
-    return;
+    return {
+      executed: false,
+      reason: 'owner_missing',
+      added_stickers: 0,
+    };
   }
 
   running = true;
@@ -3110,8 +3731,57 @@ export const runStickerAutoPackByTagsCycle = async ({
   let buildingPacks = 0;
   let archivedPacks = 0;
   let ownerFullSkips = 0;
+  let deletedPacks = 0;
+  let consolidationStats = {
+    enabled: RETRO_CONSOLIDATION_ENABLED,
+    processed_themes: 0,
+    merged_themes: 0,
+    deleted_packs: 0,
+    moved_stickers: 0,
+    trimmed_stickers: 0,
+    mutations: 0,
+    theme_limit_reached: false,
+    mutation_limit_reached: false,
+  };
+  const classifiedWithoutPackBefore = await countClassifiedWithoutPackSafely({ phase: 'before_cycle' });
+  const finalizeCycleResult = async (payload) => {
+    const withoutPackBefore = Number.isFinite(classifiedWithoutPackBefore)
+      ? Number(classifiedWithoutPackBefore)
+      : null;
+    if (!Number.isFinite(withoutPackBefore)) {
+      return {
+        ...payload,
+        without_pack_before: null,
+        without_pack_after: null,
+        without_pack_delta: null,
+      };
+    }
+
+    const classifiedWithoutPackAfter = await countClassifiedWithoutPackSafely({ phase: 'after_cycle' });
+    const withoutPackAfter = Number.isFinite(classifiedWithoutPackAfter)
+      ? Number(classifiedWithoutPackAfter)
+      : null;
+    const withoutPackDelta = Number.isFinite(withoutPackAfter)
+      ? withoutPackBefore - withoutPackAfter
+      : null;
+
+    return {
+      ...payload,
+      without_pack_before: withoutPackBefore,
+      without_pack_after: withoutPackAfter,
+      without_pack_delta: Number.isFinite(withoutPackDelta) ? withoutPackDelta : null,
+    };
+  };
 
   try {
+    if (enableAdditions) {
+      consolidationStats = await runRetroConsolidationCycle({ ownerPool });
+    } else {
+      consolidationStats = {
+        ...consolidationStats,
+        enabled: false,
+      };
+    }
     const includePackedForCycle = enableRebuild || INCLUDE_PACKED_WHEN_REBUILD_DISABLED;
     const curationInput = await collectCuratableCandidates({
       includePacked: includePackedForCycle,
@@ -3120,19 +3790,34 @@ export const runStickerAutoPackByTagsCycle = async ({
     const { groups: curatedGroups, stats } = buildCurationPlan(curationInput);
 
     if (!curatedGroups.length) {
+      const idleResult = await finalizeCycleResult({
+        executed: true,
+        reason: 'idle',
+        added_stickers: 0,
+        removed_stickers: 0,
+        created_packs: 0,
+        pack_limit_skips: 0,
+        processed_groups: 0,
+        processed_volumes: 0,
+        duration_ms: Date.now() - startedAt,
+      });
       logger.debug('Auto-pack por tags: nenhum grupo elegível neste ciclo.', {
         action: 'sticker_auto_pack_by_tags_idle',
+        without_pack_before: idleResult.without_pack_before,
+        without_pack_after: idleResult.without_pack_after,
+        without_pack_delta: idleResult.without_pack_delta,
+        retro_consolidation: consolidationStats,
         ...stats,
       });
-      return;
+      return idleResult;
     }
 
-    processedGroups = curatedGroups.length;
     const planner = await buildCurationExecutionPlan({
       curatedGroups,
       ownerPool,
       enableAdditions,
     });
+    processedGroups = Number(planner?.stats?.groups_effective || curatedGroups.length || 0);
 
     for (const op of planner.operations) {
       const result = await reconcileAutoPackVolume({
@@ -3148,6 +3833,7 @@ export const runStickerAutoPackByTagsCycle = async ({
       createdPacks += Number(result?.created || 0);
       duplicateSkips += Number(result?.duplicateSkips || 0);
       packLimitSkips += Number(result?.packLimitSkips || 0);
+      deletedPacks += Number(result?.deleted || 0);
       if (result?.status === 'owner_full') {
         ownerFullSkips += 1;
       }
@@ -3175,6 +3861,18 @@ export const runStickerAutoPackByTagsCycle = async ({
       fillRate,
     });
 
+    const cycleResult = await finalizeCycleResult({
+      executed: true,
+      reason: 'ok',
+      added_stickers: Number(budgets.added || 0),
+      removed_stickers: Number(budgets.removed || 0),
+      created_packs: Number(createdPacks || 0),
+      pack_limit_skips: Number(packLimitSkips || 0),
+      processed_groups: Number(processedGroups || 0),
+      processed_volumes: Number(processedVolumes || 0),
+      duration_ms: Date.now() - startedAt,
+    });
+
     logger.info('Auto-pack por tags executado.', {
       action: 'sticker_auto_pack_by_tags_cycle',
       owner_jid: ownerPool[0],
@@ -3184,6 +3882,7 @@ export const runStickerAutoPackByTagsCycle = async ({
       created_packs: createdPacks,
       added_stickers: budgets.added,
       removed_stickers: budgets.removed,
+      deleted_packs: deletedPacks,
       ready_packs_touched: readyPacks,
       building_packs_touched: buildingPacks,
       archived_packs_touched: archivedPacks,
@@ -3199,6 +3898,9 @@ export const runStickerAutoPackByTagsCycle = async ({
       duplicate_rate: Number(duplicateRate.toFixed(6)),
       rejection_rate: Number(rejectionRate.toFixed(6)),
       pack_fill_rate: Number(fillRate.toFixed(6)),
+      without_pack_before: cycleResult.without_pack_before,
+      without_pack_after: cycleResult.without_pack_after,
+      without_pack_delta: cycleResult.without_pack_delta,
       min_group_size: MIN_GROUP_SIZE,
       target_pack_size: TARGET_PACK_SIZE,
       max_additions_per_cycle: MAX_ADDITIONS_PER_CYCLE,
@@ -3206,14 +3908,38 @@ export const runStickerAutoPackByTagsCycle = async ({
       move_out_theme_score_threshold: Number(MOVE_OUT_THEME_SCORE_THRESHOLD.toFixed(6)),
       move_in_theme_score_threshold: Number(MOVE_IN_THEME_SCORE_THRESHOLD.toFixed(6)),
       ready_pack_min_items: READY_PACK_MIN_ITEMS,
+      hard_min_group_size: EFFECTIVE_HARD_MIN_GROUP_SIZE,
+      hard_min_group_size_base: HARD_MIN_GROUP_SIZE,
+      hard_min_pack_items: HARD_MIN_PACK_ITEMS,
+      semantic_clustering_enabled: ENABLE_SEMANTIC_CLUSTERING,
+      semantic_cluster_min_size_for_pack: SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK,
+      max_packs_per_theme: MAX_PACKS_PER_THEME,
+      global_auto_pack_limit: GLOBAL_AUTO_PACK_LIMIT,
+      dynamic_group_limit_base: DYNAMIC_GROUP_LIMIT_BASE,
+      retro_consolidation_enabled: RETRO_CONSOLIDATION_ENABLED,
+      retro_consolidation_theme_limit: RETRO_CONSOLIDATION_THEME_LIMIT,
+      retro_consolidation_mutation_limit: RETRO_CONSOLIDATION_MUTATION_LIMIT,
+      retro_consolidation: consolidationStats,
       ...planner.stats,
       ...stats,
     });
+    return cycleResult;
   } catch (error) {
     logger.error('Falha no ciclo do auto-pack por tags.', {
       action: 'sticker_auto_pack_by_tags_cycle_failed',
       error: error?.message,
       stack: error?.stack,
+    });
+    return finalizeCycleResult({
+      executed: true,
+      reason: 'failed',
+      added_stickers: Number(budgets.added || 0),
+      removed_stickers: Number(budgets.removed || 0),
+      created_packs: Number(createdPacks || 0),
+      pack_limit_skips: Number(packLimitSkips || 0),
+      processed_groups: Number(processedGroups || 0),
+      processed_volumes: Number(processedVolumes || 0),
+      duration_ms: Date.now() - startedAt,
     });
   } finally {
     running = false;
@@ -3221,7 +3947,7 @@ export const runStickerAutoPackByTagsCycle = async ({
 };
 
 export const startStickerAutoPackByTagsBackground = () => {
-  if (startupHandle || intervalHandle) return;
+  if (startupHandle || cycleHandle || schedulerEnabled) return;
 
   if (!AUTO_ENABLED) {
     logger.info('Auto-pack por tags desabilitado.', {
@@ -3229,17 +3955,36 @@ export const startStickerAutoPackByTagsBackground = () => {
     });
     return;
   }
+  schedulerEnabled = true;
+  idleNoAdditionStreak = 0;
 
   logger.info('Iniciando auto-pack por tags em background.', {
     action: 'sticker_auto_pack_by_tags_start',
     startup_delay_ms: STARTUP_DELAY_MS,
     interval_ms: INTERVAL_MS,
+    interval_mode: INTERVAL_MS <= 0 ? 'immediate_after_finish' : 'delay_after_finish',
+    idle_backoff_short_streak: IDLE_BACKOFF_SHORT_STREAK,
+    idle_backoff_long_streak: IDLE_BACKOFF_LONG_STREAK,
+    idle_backoff_short_ms: IDLE_BACKOFF_SHORT_MS,
+    idle_backoff_long_ms: IDLE_BACKOFF_LONG_MS,
     target_pack_size: TARGET_PACK_SIZE,
     min_group_size: MIN_GROUP_SIZE,
+    hard_min_group_size: EFFECTIVE_HARD_MIN_GROUP_SIZE,
+    hard_min_group_size_base: HARD_MIN_GROUP_SIZE,
+    hard_min_pack_items: HARD_MIN_PACK_ITEMS,
+    semantic_clustering_enabled: ENABLE_SEMANTIC_CLUSTERING,
+    semantic_cluster_min_size_for_pack: SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK,
+    ready_pack_min_items: READY_PACK_MIN_ITEMS,
+    max_packs_per_theme: MAX_PACKS_PER_THEME,
+    global_auto_pack_limit: GLOBAL_AUTO_PACK_LIMIT,
+    dynamic_group_limit_base: DYNAMIC_GROUP_LIMIT_BASE,
     max_groups: MAX_TAG_GROUPS,
     max_scan_assets: MAX_SCAN_ASSETS,
     max_additions_per_cycle: MAX_ADDITIONS_PER_CYCLE,
     max_packs_per_owner: Number.isFinite(MAX_PACKS_PER_OWNER) ? MAX_PACKS_PER_OWNER : 'unlimited',
+    retro_consolidation_enabled: RETRO_CONSOLIDATION_ENABLED,
+    retro_consolidation_theme_limit: RETRO_CONSOLIDATION_THEME_LIMIT,
+    retro_consolidation_mutation_limit: RETRO_CONSOLIDATION_MUTATION_LIMIT,
     auto_pack_profile: AUTO_PACK_PROFILE,
     aggressive_profile: IS_AGGRESSIVE_PROFILE,
     prioritize_completion: EFFECTIVE_PRIORITIZE_COMPLETION,
@@ -3334,15 +4079,21 @@ export const startStickerAutoPackByTagsBackground = () => {
 
   startupHandle = setTimeout(() => {
     startupHandle = null;
-    void runStickerAutoPackByTagsCycle();
-
-    intervalHandle = setInterval(() => {
-      void runStickerAutoPackByTagsCycle();
-    }, INTERVAL_MS);
-
-    if (typeof intervalHandle.unref === 'function') {
-      intervalHandle.unref();
-    }
+    if (!schedulerEnabled) return;
+    void runStickerAutoPackByTagsCycle()
+      .then((cycleResult) => resolveNextCycleDelayMs(cycleResult))
+      .catch((error) => {
+        logger.error('Falha ao executar ciclo inicial do auto-pack por tags.', {
+          action: 'sticker_auto_pack_by_tags_initial_cycle_failed',
+          error: error?.message,
+          stack: error?.stack,
+        });
+        return Math.max(INTERVAL_MS, IDLE_BACKOFF_SHORT_MS);
+      })
+      .then((nextDelayMs) => {
+        if (!schedulerEnabled) return;
+        scheduleNextCycle(nextDelayMs);
+      });
   }, STARTUP_DELAY_MS);
 
   if (typeof startupHandle.unref === 'function') {
@@ -3351,13 +4102,13 @@ export const startStickerAutoPackByTagsBackground = () => {
 };
 
 export const stopStickerAutoPackByTagsBackground = () => {
+  schedulerEnabled = false;
+  idleNoAdditionStreak = 0;
+
   if (startupHandle) {
     clearTimeout(startupHandle);
     startupHandle = null;
   }
 
-  if (intervalHandle) {
-    clearInterval(intervalHandle);
-    intervalHandle = null;
-  }
+  clearCycleHandle();
 };

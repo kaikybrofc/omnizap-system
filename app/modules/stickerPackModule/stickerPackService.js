@@ -222,8 +222,13 @@ export function createStickerPackService(options = {}) {
     }
   }
 
-  const runAction = async (action, context, handler) => {
+  const runAction = async (action, context, handler, { expectedErrorCodes = [] } = {}) => {
     const start = process.hrtime.bigint();
+    const expectedCodesSet = new Set(
+      Array.isArray(expectedErrorCodes)
+        ? expectedErrorCodes.map((code) => String(code || '').trim()).filter(Boolean)
+        : [],
+    );
 
     try {
       const result = await handler();
@@ -239,15 +244,23 @@ export function createStickerPackService(options = {}) {
       return result;
     } catch (error) {
       const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
-
-      deps.logger.error('Falha na ação de sticker pack.', {
+      const payload = {
         action: 'sticker_pack_action_failed',
         sticker_action: action,
         duration_ms: Number(durationMs.toFixed(2)),
         error: error.message,
         error_code: error.code,
         ...context,
-      });
+      };
+
+      if (expectedCodesSet.has(String(error?.code || '').trim())) {
+        deps.logger.warn('Falha esperada na ação de sticker pack.', {
+          ...payload,
+          expected_failure: true,
+        });
+      } else {
+        deps.logger.error('Falha na ação de sticker pack.', payload);
+      }
 
       throw error;
     }
@@ -535,6 +548,7 @@ export function createStickerPackService(options = {}) {
     asset,
     emojis = [],
     accessibilityLabel = null,
+    expectedErrorCodes = [],
   }) => {
     const owner = resolveOwner(ownerJid);
 
@@ -594,7 +608,7 @@ export function createStickerPackService(options = {}) {
 
         return loadPackDetails(reloaded, { connection });
       });
-    });
+    }, { expectedErrorCodes });
   };
 
   const removeStickerFromPack = async ({ ownerJid, identifier, selector }) => {

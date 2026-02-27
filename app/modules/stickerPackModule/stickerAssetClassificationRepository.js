@@ -69,6 +69,11 @@ const normalizeClassificationRow = (row) => {
     llm_style_traits: Array.isArray(llmStyleTraits) ? llmStyleTraits : [],
     llm_emotions: Array.isArray(llmEmotions) ? llmEmotions : [],
     llm_pack_suggestions: Array.isArray(llmPackSuggestions) ? llmPackSuggestions : [],
+    semantic_cluster_id:
+      row.semantic_cluster_id !== null && row.semantic_cluster_id !== undefined
+        ? Number(row.semantic_cluster_id)
+        : null,
+    semantic_cluster_slug: row.semantic_cluster_slug || null,
     classified_at: row.classified_at,
     updated_at: row.updated_at,
   };
@@ -105,8 +110,8 @@ export async function listStickerClassificationsByAssetIds(assetIds, connection 
 export async function upsertStickerAssetClassification(payload, connection = null) {
   await executeQuery(
     `INSERT INTO ${TABLES.STICKER_ASSET_CLASSIFICATION}
-      (asset_id, provider, model_name, classification_version, category, confidence, entropy, confidence_margin, nsfw_score, is_nsfw, all_scores, top_labels, affinity_weight, image_hash, ambiguous, llm_subtags, llm_style_traits, llm_emotions, llm_pack_suggestions, similar_images, classified_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      (asset_id, provider, model_name, classification_version, category, confidence, entropy, confidence_margin, nsfw_score, is_nsfw, all_scores, top_labels, affinity_weight, image_hash, ambiguous, llm_subtags, llm_style_traits, llm_emotions, llm_pack_suggestions, semantic_cluster_id, semantic_cluster_slug, similar_images, classified_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
      ON DUPLICATE KEY UPDATE
       provider = VALUES(provider),
       model_name = VALUES(model_name),
@@ -126,6 +131,8 @@ export async function upsertStickerAssetClassification(payload, connection = nul
       llm_style_traits = VALUES(llm_style_traits),
       llm_emotions = VALUES(llm_emotions),
       llm_pack_suggestions = VALUES(llm_pack_suggestions),
+      semantic_cluster_id = VALUES(semantic_cluster_id),
+      semantic_cluster_slug = VALUES(semantic_cluster_slug),
       similar_images = VALUES(similar_images),
       classified_at = CURRENT_TIMESTAMP,
       updated_at = CURRENT_TIMESTAMP`,
@@ -149,12 +156,36 @@ export async function upsertStickerAssetClassification(payload, connection = nul
       payload.llm_style_traits ? JSON.stringify(payload.llm_style_traits) : JSON.stringify([]),
       payload.llm_emotions ? JSON.stringify(payload.llm_emotions) : JSON.stringify([]),
       payload.llm_pack_suggestions ? JSON.stringify(payload.llm_pack_suggestions) : JSON.stringify([]),
+      payload.semantic_cluster_id ?? null,
+      payload.semantic_cluster_slug || null,
       payload.similar_images ? JSON.stringify(payload.similar_images) : JSON.stringify([]),
     ],
     connection,
   );
 
   return findStickerClassificationByAssetId(payload.asset_id, connection);
+}
+
+export async function updateStickerClassificationSemanticCluster(
+  assetId,
+  { semanticClusterId = null, semanticClusterSlug = null } = {},
+  connection = null,
+) {
+  if (!assetId) return null;
+
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_ASSET_CLASSIFICATION}
+     SET semantic_cluster_id = ?, semantic_cluster_slug = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE asset_id = ?`,
+    [
+      semanticClusterId ?? null,
+      semanticClusterSlug || null,
+      assetId,
+    ],
+    connection,
+  );
+
+  return findStickerClassificationByAssetId(assetId, connection);
 }
 
 export async function listClipImageEmbeddingsByImageHashes(imageHashes, connection = null) {
@@ -262,7 +293,24 @@ export async function listAssetsForPrioritySignalBackfillReprocess(
   const safeLimit = clampInt(limit, 200, 1, 2000);
   const safeOffset = clampInt(offset, 0, 0, 500000);
   const rows = await executeQuery(
-    `SELECT c.asset_id
+    `SELECT
+       c.asset_id,
+       MAX(
+         (CASE WHEN c.category IS NULL OR TRIM(c.category) = '' THEN 1 ELSE 0 END)
+         + (CASE WHEN c.confidence IS NULL THEN 1 ELSE 0 END)
+         + (CASE WHEN c.entropy IS NULL THEN 1 ELSE 0 END)
+         + (CASE WHEN c.confidence_margin IS NULL THEN 1 ELSE 0 END)
+         + (CASE WHEN c.affinity_weight IS NULL THEN 1 ELSE 0 END)
+         + (CASE WHEN c.image_hash IS NULL OR TRIM(c.image_hash) = '' THEN 1 ELSE 0 END)
+         + (CASE WHEN COALESCE(JSON_LENGTH(c.all_scores), 0) = 0 THEN 1 ELSE 0 END)
+         + (CASE WHEN COALESCE(JSON_LENGTH(c.top_labels), 0) = 0 THEN 1 ELSE 0 END)
+         + (CASE WHEN COALESCE(JSON_LENGTH(c.llm_subtags), 0) = 0 THEN 1 ELSE 0 END)
+         + (CASE WHEN COALESCE(JSON_LENGTH(c.llm_style_traits), 0) = 0 THEN 1 ELSE 0 END)
+         + (CASE WHEN COALESCE(JSON_LENGTH(c.llm_emotions), 0) = 0 THEN 1 ELSE 0 END)
+         + (CASE WHEN COALESCE(JSON_LENGTH(c.llm_pack_suggestions), 0) = 0 THEN 1 ELSE 0 END)
+         + (CASE WHEN c.semantic_cluster_id IS NULL THEN 1 ELSE 0 END)
+         + (CASE WHEN c.semantic_cluster_slug IS NULL OR TRIM(c.semantic_cluster_slug) = '' THEN 1 ELSE 0 END)
+       ) AS missing_signal_score
      FROM ${TABLES.STICKER_ASSET_CLASSIFICATION} c
      LEFT JOIN ${TABLES.STICKER_PACK_ITEM} i ON i.sticker_id = c.asset_id
      LEFT JOIN ${TABLES.STICKER_PACK} p ON p.id = i.pack_id AND p.deleted_at IS NULL
@@ -272,15 +320,10 @@ export async function listAssetsForPrioritySignalBackfillReprocess(
        AND q.reason = 'MODEL_UPGRADE'
        AND q.status IN ('pending', 'processing')
      WHERE q.id IS NULL
-       AND (
-         c.entropy IS NULL
-         OR c.confidence_margin IS NULL
-         OR c.image_hash IS NULL
-         OR COALESCE(JSON_LENGTH(c.top_labels), 0) = 0
-         OR COALESCE(JSON_LENGTH(c.llm_subtags), 0) = 0
-       )
      GROUP BY c.asset_id
+     HAVING missing_signal_score > 0
      ORDER BY
+       missing_signal_score DESC,
        MAX(CASE WHEN p.pack_status = 'ready' THEN 1 ELSE 0 END) DESC,
        MAX(CASE WHEN p.visibility = 'public' THEN 1 ELSE 0 END) DESC,
        MAX(COALESCE(e.like_count, 0) + COALESCE(e.open_count, 0) * 0.02) DESC,
@@ -292,6 +335,87 @@ export async function listAssetsForPrioritySignalBackfillReprocess(
   );
 
   return rows.map((row) => row.asset_id).filter(Boolean);
+}
+
+export async function listStickerClassificationsForDeterministicReprocess(
+  {
+    limit = 250,
+    cursorAssetId = '',
+    entropyThreshold = 0.8,
+    affinityThreshold = 0.3,
+  } = {},
+  connection = null,
+) {
+  const safeLimit = clampInt(limit, 250, 1, 2000);
+  const normalizedCursor = String(cursorAssetId || '').trim();
+  const normalizedEntropyThreshold = Number.isFinite(Number(entropyThreshold))
+    ? Number(entropyThreshold)
+    : 0.8;
+  const normalizedAffinityThreshold = Number.isFinite(Number(affinityThreshold))
+    ? Number(affinityThreshold)
+    : 0.3;
+
+  const params = [normalizedEntropyThreshold, normalizedAffinityThreshold];
+  const cursorClause = normalizedCursor ? 'AND c.asset_id > ?' : '';
+  if (normalizedCursor) {
+    params.push(normalizedCursor);
+  }
+
+  const rows = await executeQuery(
+    `SELECT
+       c.asset_id,
+       c.top_labels,
+       c.llm_subtags,
+       c.llm_style_traits,
+       c.llm_emotions,
+       c.llm_pack_suggestions,
+       c.affinity_weight,
+       c.entropy,
+       c.ambiguous
+     FROM ${TABLES.STICKER_ASSET_CLASSIFICATION} c
+     WHERE (
+       c.ambiguous = 1
+       OR COALESCE(c.entropy, 0) > ?
+       OR COALESCE(c.affinity_weight, 0) < ?
+     )
+     ${cursorClause}
+     ORDER BY c.asset_id ASC
+     LIMIT ${safeLimit}`,
+    params,
+    connection,
+  );
+
+  return rows.map((row) => normalizeClassificationRow(row));
+}
+
+export async function updateStickerClassificationDeterministicSignals(
+  assetId,
+  { llmSubtags = [], affinityWeight = null, ambiguous = 0 } = {},
+  connection = null,
+) {
+  if (!assetId) return null;
+  const normalizedAffinityWeight = Number.isFinite(Number(affinityWeight))
+    ? Math.max(0, Math.min(1, Number(affinityWeight)))
+    : null;
+  const normalizedAmbiguous = ambiguous === 1 || ambiguous === true ? 1 : 0;
+  const normalizedSubtags = Array.isArray(llmSubtags)
+    ? llmSubtags.map((value) => String(value || '').trim()).filter(Boolean)
+    : [];
+
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_ASSET_CLASSIFICATION}
+     SET llm_subtags = ?, affinity_weight = ?, ambiguous = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE asset_id = ?`,
+    [
+      JSON.stringify(normalizedSubtags),
+      normalizedAffinityWeight,
+      normalizedAmbiguous,
+      assetId,
+    ],
+    connection,
+  );
+
+  return findStickerClassificationByAssetId(assetId, connection);
 }
 
 export async function listClassificationCategoryDistribution({ days = 7 } = {}, connection = null) {

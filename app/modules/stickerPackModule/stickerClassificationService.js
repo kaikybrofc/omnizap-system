@@ -4,6 +4,7 @@ import {
   listStickerClassificationsByAssetIds,
   upsertStickerAssetClassification,
 } from './stickerAssetClassificationRepository.js';
+import { enqueueSemanticClusterResolution } from './semanticThemeClusterService.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -180,6 +181,55 @@ const normalizeClassificationResult = (payload) => {
   };
 };
 
+const NON_RETRYABLE_CLASSIFIER_HTTP_STATUSES = new Set([400, 413, 415, 422]);
+
+const isClassifierNonRetryableError = (error) => {
+  const status = Number(error?.status || 0);
+  if (NON_RETRYABLE_CLASSIFIER_HTTP_STATUSES.has(status)) return true;
+
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('could not create decoder object')
+    || message.includes('nao foi possivel decodificar a imagem')
+    || message.includes('não foi possível decodificar a imagem')
+  );
+};
+
+const buildFallbackClassificationFromError = ({ asset, error }) => {
+  const message = String(error?.message || '').toLowerCase();
+  const reasonTag = message.includes('decoder') || message.includes('decodificar')
+    ? 'decoder-error'
+    : 'non-retryable-error';
+
+  return {
+    asset_id: asset.id,
+    provider: CLIP_CLASSIFIER_PROVIDER,
+    model_name: null,
+    classification_version: CLIP_CLASSIFIER_CLASSIFICATION_VERSION,
+    category: 'invalid image',
+    confidence: 0,
+    entropy: 0,
+    confidence_margin: 0,
+    top_labels: [{
+      label: 'invalid image',
+      score: 1,
+      logit: null,
+      clip_score: null,
+    }],
+    affinity_weight: 0,
+    image_hash: asset?.sha256 || null,
+    ambiguous: true,
+    nsfw_score: 0,
+    is_nsfw: false,
+    all_scores: { 'invalid image': 1 },
+    llm_subtags: ['classification-failed', reasonTag],
+    llm_style_traits: [],
+    llm_emotions: [],
+    llm_pack_suggestions: [],
+    similar_images: [],
+  };
+};
+
 export const buildStickerTags = (classification) => {
   if (!classification || typeof classification !== 'object') return [];
 
@@ -226,8 +276,8 @@ const classifyBufferViaHttp = async (buffer, filename = 'sticker.webp', metadata
     throw new Error('fetch/FormData indisponivel neste runtime Node.');
   }
 
-  const form = new FormData();
-  form.append('file', new Blob([buffer], { type: 'image/webp' }), filename);
+  const form = new globalThis.FormData();
+  form.append('file', new globalThis.Blob([buffer], { type: 'image/webp' }), filename);
   if (CLIP_CLASSIFIER_NSFW_THRESHOLD !== null) {
     form.append('nsfw_threshold', String(CLIP_CLASSIFIER_NSFW_THRESHOLD));
   }
@@ -253,7 +303,10 @@ const classifyBufferViaHttp = async (buffer, filename = 'sticker.webp', metadata
 
     if (!response.ok) {
       const raw = await response.text().catch(() => '');
-      throw new Error(`Classifier HTTP ${response.status}${raw ? `: ${raw.slice(0, 200)}` : ''}`);
+      const error = new Error(`Classifier HTTP ${response.status}${raw ? `: ${raw.slice(0, 200)}` : ''}`);
+      error.status = Number(response.status || 0);
+      error.response_body = raw ? String(raw).slice(0, 500) : '';
+      throw error;
     }
 
     const json = await response.json();
@@ -273,16 +326,45 @@ export async function ensureStickerAssetClassified({ asset, buffer, force = fals
 
   if (!force) {
     const cached = await findStickerClassificationByAssetId(asset.id);
-    if (cached) return cached;
+    if (cached) {
+      enqueueSemanticClusterResolution({
+        assetId: asset.id,
+        suggestions: cached.llm_pack_suggestions || [],
+        fallbackText: cached.category || '',
+        force: false,
+      });
+      return cached;
+    }
   }
 
-  const inference = await classifyBufferViaHttp(buffer, `${asset.id}.webp`, {
-    assetId: asset.id,
-    assetSha256: asset.sha256 || null,
-  });
+  let inference = null;
+  try {
+    inference = await classifyBufferViaHttp(buffer, `${asset.id}.webp`, {
+      assetId: asset.id,
+      assetSha256: asset.sha256 || null,
+    });
+  } catch (error) {
+    if (!isClassifierNonRetryableError(error)) {
+      throw error;
+    }
+
+    const fallbackPayload = buildFallbackClassificationFromError({ asset, error });
+    const persistedFallback = await upsertStickerAssetClassification(fallbackPayload);
+
+    logger.warn('Asset marcado com classificação fallback após erro não recuperável do classificador.', {
+      action: 'sticker_asset_classify_non_retryable_fallback',
+      asset_id: asset.id,
+      owner_jid: asset.owner_jid || null,
+      status: Number(error?.status || 0) || null,
+      error: error?.message,
+    });
+
+    return persistedFallback;
+  }
+
   if (!inference) return null;
 
-  return upsertStickerAssetClassification({
+  const persisted = await upsertStickerAssetClassification({
     asset_id: asset.id,
     provider: CLIP_CLASSIFIER_PROVIDER,
     model_name: inference.model_name,
@@ -304,6 +386,15 @@ export async function ensureStickerAssetClassified({ asset, buffer, force = fals
     llm_pack_suggestions: inference.llm_pack_suggestions,
     similar_images: inference.similar_images,
   });
+
+  enqueueSemanticClusterResolution({
+    assetId: asset.id,
+    suggestions: inference.llm_pack_suggestions || [],
+    fallbackText: inference.category || '',
+    force: Boolean(force),
+  });
+
+  return persisted;
 }
 
 const emptyAggregation = (totalItems = 0) => ({

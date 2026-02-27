@@ -360,11 +360,23 @@ export async function removeStickerPackItemsByPackId(packId, connection = null) 
  * @returns {Promise<void>}
  */
 export async function shiftStickerPackPositionsAfter(packId, removedPosition, connection = null) {
+  const SHIFT_OFFSET = 10000;
+
+  // Fase 1: move posições para uma faixa temporária, evitando colisão no índice único (pack_id, position).
   await executeQuery(
     `UPDATE ${TABLES.STICKER_PACK_ITEM}
-     SET position = position - 1
+     SET position = position + ?
      WHERE pack_id = ? AND position > ?`,
-    [packId, removedPosition],
+    [SHIFT_OFFSET, packId, removedPosition],
+    connection,
+  );
+
+  // Fase 2: normaliza removendo o offset e deslocando 1 posição para preencher o "gap" do item removido.
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_PACK_ITEM}
+     SET position = position - ?
+     WHERE pack_id = ? AND position > ?`,
+    [SHIFT_OFFSET + 1, packId, removedPosition + SHIFT_OFFSET],
     connection,
   );
 }

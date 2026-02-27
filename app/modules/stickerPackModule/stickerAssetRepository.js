@@ -240,6 +240,26 @@ export async function listClassifiedStickerAssetsWithoutPack({ search = '', limi
 }
 
 /**
+ * Conta quantos assets classificados ainda não pertencem a nenhum pack.
+ *
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null] Conexão transacional opcional.
+ * @returns {Promise<number>} Quantidade de assets classificados sem pack.
+ */
+export async function countClassifiedStickerAssetsWithoutPack(connection = null) {
+  const rows = await executeQuery(
+    `SELECT COUNT(*) AS total
+     FROM ${TABLES.STICKER_ASSET} a
+     INNER JOIN ${TABLES.STICKER_ASSET_CLASSIFICATION} c ON c.asset_id = a.id
+     LEFT JOIN ${TABLES.STICKER_PACK_ITEM} i ON i.sticker_id = a.id
+     WHERE i.sticker_id IS NULL`,
+    [],
+    connection,
+  );
+
+  return Number(rows?.[0]?.total || 0);
+}
+
+/**
  * Lista assets classificados para curadoria (inclui com/sem pack) com paginação.
  *
  * @param {{

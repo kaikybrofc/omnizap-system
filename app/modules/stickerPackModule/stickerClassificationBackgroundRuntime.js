@@ -17,6 +17,10 @@ import {
   enqueueStickerAssetReprocess,
   failStickerAssetReprocessTask,
 } from './stickerAssetReprocessQueueRepository.js';
+import {
+  batchReprocess as runDeterministicSemanticReclassification,
+  deterministicReclassificationConfig,
+} from './semanticReclassificationEngine.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -28,7 +32,26 @@ const parseEnvBool = (value, fallback) => {
 
 const BACKGROUND_ENABLED = parseEnvBool(process.env.STICKER_CLASSIFICATION_BACKGROUND_ENABLED, true);
 const STARTUP_DELAY_MS = Math.max(1_000, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_STARTUP_DELAY_MS) || 15_000);
-const INTERVAL_MS = Math.max(1_000, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_INTERVAL_MS) || 120_000);
+const INTERVAL_MS_RAW = Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_INTERVAL_MS);
+const INTERVAL_MS = Number.isFinite(INTERVAL_MS_RAW)
+  ? Math.max(0, Math.min(3_600_000, INTERVAL_MS_RAW))
+  : 120_000;
+const IDLE_BACKOFF_SHORT_STREAK = Math.max(
+  1,
+  Math.min(100, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_IDLE_BACKOFF_SHORT_STREAK) || 3),
+);
+const IDLE_BACKOFF_LONG_STREAK = Math.max(
+  IDLE_BACKOFF_SHORT_STREAK,
+  Math.min(500, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_IDLE_BACKOFF_LONG_STREAK) || 10),
+);
+const IDLE_BACKOFF_SHORT_MS = Math.max(
+  1_000,
+  Math.min(15 * 60_000, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_IDLE_BACKOFF_SHORT_MS) || 25_000),
+);
+const IDLE_BACKOFF_LONG_MS = Math.max(
+  IDLE_BACKOFF_SHORT_MS,
+  Math.min(60 * 60_000, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_IDLE_BACKOFF_LONG_MS) || 90_000),
+);
 const cpuCount = Math.max(1, Number(os.cpus()?.length || 1));
 const BACKGROUND_CONCURRENCY = Math.max(
   1,
@@ -70,9 +93,11 @@ const REPROCESS_RETRY_DELAY_SECONDS = Math.max(
   Math.min(3600, Number(process.env.STICKER_REPROCESS_RETRY_DELAY_SECONDS) || 120),
 );
 
-let intervalHandle = null;
+let cycleHandle = null;
 let startupTimeoutHandle = null;
 let running = false;
+let schedulerEnabled = false;
+let idleNoGainStreak = 0;
 let reprocessQueueAvailable = true;
 
 const classifyAsset = async ({ asset, force = false }) => {
@@ -302,32 +327,131 @@ const processReprocessQueue = async ({ limit = REPROCESS_MAX_PER_CYCLE } = {}) =
   return stats;
 };
 
+const processDeterministicReclassification = async () => {
+  if (!deterministicReclassificationConfig.enabled) {
+    return {
+      enabled: false,
+      processed: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      batches: 0,
+      last_cursor: null,
+      entropy_threshold: deterministicReclassificationConfig.entropy_threshold,
+      affinity_threshold: deterministicReclassificationConfig.affinity_threshold,
+    };
+  }
+
+  return runDeterministicSemanticReclassification({
+    maxItems: deterministicReclassificationConfig.max_per_cycle,
+    batchSize: deterministicReclassificationConfig.batch_size,
+    entropyThreshold: deterministicReclassificationConfig.entropy_threshold,
+    affinityThreshold: deterministicReclassificationConfig.affinity_threshold,
+  });
+};
+
 export const runStickerClassificationCycle = async ({
   processPending = true,
   processReprocess = true,
+  processDeterministic = true,
 } = {}) => {
-  if (!BACKGROUND_ENABLED || !classifierConfig.enabled) {
+  const shouldProcessClassifier = classifierConfig.enabled;
+  const shouldProcessDeterministic = deterministicReclassificationConfig.enabled;
+
+  if (!BACKGROUND_ENABLED || (!shouldProcessClassifier && !shouldProcessDeterministic)) {
     return {
       skipped: true,
-      reason: !BACKGROUND_ENABLED ? 'background_disabled' : 'classifier_disabled',
+      reason: !BACKGROUND_ENABLED ? 'background_disabled' : 'no_active_processors',
     };
   }
 
   const startedAt = Date.now();
-  const reprocessStats = processReprocess ? await processReprocessQueue() : null;
-  const pendingStats = processPending ? await processPendingAssets() : null;
+  const reprocessStats = processReprocess && shouldProcessClassifier ? await processReprocessQueue() : null;
+  const pendingStats = processPending && shouldProcessClassifier ? await processPendingAssets() : null;
+  const deterministicStats = processDeterministic
+    ? await processDeterministicReclassification()
+    : null;
 
   return {
     skipped: false,
     duration_ms: Date.now() - startedAt,
     pending: pendingStats,
     reprocess: reprocessStats,
+    deterministic_reclassification: deterministicStats,
   };
 };
 
+const clearCycleHandle = () => {
+  if (!cycleHandle) return;
+  clearTimeout(cycleHandle);
+  cycleHandle = null;
+};
+
+const resolveNextCycleDelayMs = (cycleResult = null) => {
+  const executed = cycleResult?.executed !== false;
+  const gainCount = Number(cycleResult?.gain_count || 0);
+
+  if (!executed) {
+    idleNoGainStreak += 1;
+  } else if (gainCount > 0) {
+    idleNoGainStreak = 0;
+  } else {
+    idleNoGainStreak += 1;
+  }
+
+  const baseDelay = Math.max(0, INTERVAL_MS);
+  if (idleNoGainStreak >= IDLE_BACKOFF_LONG_STREAK) {
+    return Math.max(baseDelay, IDLE_BACKOFF_LONG_MS);
+  }
+  if (idleNoGainStreak >= IDLE_BACKOFF_SHORT_STREAK) {
+    return Math.max(baseDelay, IDLE_BACKOFF_SHORT_MS);
+  }
+  return baseDelay;
+};
+
+const scheduleNextCycle = (delayMs = INTERVAL_MS) => {
+  if (!schedulerEnabled) return;
+  clearCycleHandle();
+
+  const safeDelay = Math.max(0, Number(delayMs) || 0);
+  cycleHandle = setTimeout(() => {
+    cycleHandle = null;
+    if (!schedulerEnabled) return;
+    void classifyBatch()
+      .then((cycleResult) => resolveNextCycleDelayMs(cycleResult))
+      .catch((error) => {
+        logger.error('Falha ao executar ciclo encadeado de classificação em background.', {
+          action: 'sticker_classification_background_schedule_failed',
+          error: error?.message,
+        });
+        return Math.max(INTERVAL_MS, IDLE_BACKOFF_SHORT_MS);
+      })
+      .then((nextDelayMs) => {
+        if (!schedulerEnabled) return;
+        scheduleNextCycle(nextDelayMs);
+      });
+  }, safeDelay);
+
+  if (typeof cycleHandle.unref === 'function') {
+    cycleHandle.unref();
+  }
+};
+
 const classifyBatch = async () => {
-  if (running) return;
-  if (!BACKGROUND_ENABLED || !classifierConfig.enabled) return;
+  if (running) {
+    return {
+      executed: false,
+      reason: 'already_running',
+      gain_count: 0,
+    };
+  }
+  if (!BACKGROUND_ENABLED || (!classifierConfig.enabled && !deterministicReclassificationConfig.enabled)) {
+    return {
+      executed: false,
+      reason: 'disabled',
+      gain_count: 0,
+    };
+  }
 
   running = true;
   const startedAt = Date.now();
@@ -336,6 +460,7 @@ const classifyBatch = async () => {
     const result = await runStickerClassificationCycle({
       processPending: true,
       processReprocess: true,
+      processDeterministic: true,
     });
 
     const pending = result?.pending || { processed: 0, classified: 0, failed: 0 };
@@ -347,16 +472,37 @@ const classifyBatch = async () => {
       enqueued_model_upgrade: 0,
       enqueued_low_confidence: 0,
     };
+    const deterministic = result?.deterministic_reclassification || {
+      processed: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      batches: 0,
+      last_cursor: null,
+      entropy_threshold: deterministicReclassificationConfig.entropy_threshold,
+      affinity_threshold: deterministicReclassificationConfig.affinity_threshold,
+    };
 
-    const processed = Number(pending.processed || 0) + Number(reprocess.processed || 0);
-    const classified = Number(pending.classified || 0) + Number(reprocess.classified || 0);
-    const failed = Number(pending.failed || 0) + Number(reprocess.failed || 0);
+    const processed =
+      Number(pending.processed || 0)
+      + Number(reprocess.processed || 0)
+      + Number(deterministic.processed || 0);
+    const classified =
+      Number(pending.classified || 0)
+      + Number(reprocess.classified || 0)
+      + Number(deterministic.updated || 0);
+    const failed =
+      Number(pending.failed || 0)
+      + Number(reprocess.failed || 0)
+      + Number(deterministic.failed || 0);
+    const gainCount = classified;
 
     if (
       processed > 0
       || reprocess.enqueued_priority_backfill > 0
       || reprocess.enqueued_model_upgrade > 0
       || reprocess.enqueued_low_confidence > 0
+      || deterministic.updated > 0
     ) {
       logger.info('Worker de classificação executado.', {
         action: 'sticker_classification_background_cycle',
@@ -369,23 +515,45 @@ const classifyBatch = async () => {
         reprocess_enqueued_priority_backfill: Number(reprocess.enqueued_priority_backfill || 0),
         reprocess_enqueued_model_upgrade: Number(reprocess.enqueued_model_upgrade || 0),
         reprocess_enqueued_low_confidence: Number(reprocess.enqueued_low_confidence || 0),
+        deterministic_reclassification_processed: Number(deterministic.processed || 0),
+        deterministic_reclassification_updated: Number(deterministic.updated || 0),
+        deterministic_reclassification_skipped: Number(deterministic.skipped || 0),
+        deterministic_reclassification_failed: Number(deterministic.failed || 0),
+        deterministic_reclassification_batches: Number(deterministic.batches || 0),
+        deterministic_reclassification_last_cursor: deterministic.last_cursor || null,
         duration_ms: Date.now() - startedAt,
         batch_size: BATCH_SIZE,
         concurrency: BACKGROUND_CONCURRENCY,
+        gain_count: gainCount,
       });
     }
+    return {
+      executed: true,
+      reason: 'ok',
+      gain_count: Number(gainCount || 0),
+      processed: Number(processed || 0),
+      classified: Number(classified || 0),
+      failed: Number(failed || 0),
+      duration_ms: Date.now() - startedAt,
+    };
   } catch (error) {
     logger.error('Falha no loop de classificação em background.', {
       action: 'sticker_classification_background_cycle_failed',
       error: error?.message,
     });
+    return {
+      executed: true,
+      reason: 'failed',
+      gain_count: 0,
+      duration_ms: Date.now() - startedAt,
+    };
   } finally {
     running = false;
   }
 };
 
 export const startStickerClassificationBackground = () => {
-  if (intervalHandle || startupTimeoutHandle) return;
+  if (cycleHandle || startupTimeoutHandle || schedulerEnabled) return;
 
   if (!BACKGROUND_ENABLED) {
     logger.info('Worker de classificação em background desabilitado.', {
@@ -394,17 +562,24 @@ export const startStickerClassificationBackground = () => {
     return;
   }
 
-  if (!classifierConfig.enabled) {
-    logger.info('Worker de classificação em background ignorado (CLIP desativado).', {
-      action: 'sticker_classification_background_classifier_disabled',
+  if (!classifierConfig.enabled && !deterministicReclassificationConfig.enabled) {
+    logger.info('Worker de classificação em background ignorado (nenhum processador ativo).', {
+      action: 'sticker_classification_background_all_processors_disabled',
     });
     return;
   }
+  schedulerEnabled = true;
+  idleNoGainStreak = 0;
 
   logger.info('Iniciando worker de classificação em background.', {
     action: 'sticker_classification_background_start',
     startup_delay_ms: STARTUP_DELAY_MS,
     interval_ms: INTERVAL_MS,
+    interval_mode: INTERVAL_MS <= 0 ? 'immediate_after_finish' : 'delay_after_finish',
+    idle_backoff_short_streak: IDLE_BACKOFF_SHORT_STREAK,
+    idle_backoff_long_streak: IDLE_BACKOFF_LONG_STREAK,
+    idle_backoff_short_ms: IDLE_BACKOFF_SHORT_MS,
+    idle_backoff_long_ms: IDLE_BACKOFF_LONG_MS,
     batch_size: BATCH_SIZE,
     concurrency: BACKGROUND_CONCURRENCY,
     classifier_api: classifierConfig.api_url,
@@ -413,19 +588,29 @@ export const startStickerClassificationBackground = () => {
     reprocess_priority_backfill_enabled: REPROCESS_PRIORITY_BACKFILL_ENABLED,
     reprocess_priority_backfill_scan_limit: REPROCESS_PRIORITY_BACKFILL_SCAN_LIMIT,
     reprocess_priority_backfill_priority: REPROCESS_PRIORITY_BACKFILL_PRIORITY,
+    deterministic_reclassification_enabled: deterministicReclassificationConfig.enabled,
+    deterministic_reclassification_batch_size: deterministicReclassificationConfig.batch_size,
+    deterministic_reclassification_max_per_cycle: deterministicReclassificationConfig.max_per_cycle,
+    deterministic_reclassification_entropy_threshold: deterministicReclassificationConfig.entropy_threshold,
+    deterministic_reclassification_affinity_threshold: deterministicReclassificationConfig.affinity_threshold,
   });
 
   startupTimeoutHandle = setTimeout(() => {
     startupTimeoutHandle = null;
-    void classifyBatch();
-
-    intervalHandle = setInterval(() => {
-      void classifyBatch();
-    }, INTERVAL_MS);
-
-    if (typeof intervalHandle.unref === 'function') {
-      intervalHandle.unref();
-    }
+    if (!schedulerEnabled) return;
+    void classifyBatch()
+      .then((cycleResult) => resolveNextCycleDelayMs(cycleResult))
+      .catch((error) => {
+        logger.error('Falha ao executar ciclo inicial de classificação em background.', {
+          action: 'sticker_classification_background_initial_cycle_failed',
+          error: error?.message,
+        });
+        return Math.max(INTERVAL_MS, IDLE_BACKOFF_SHORT_MS);
+      })
+      .then((nextDelayMs) => {
+        if (!schedulerEnabled) return;
+        scheduleNextCycle(nextDelayMs);
+      });
   }, STARTUP_DELAY_MS);
 
   if (typeof startupTimeoutHandle.unref === 'function') {
@@ -434,13 +619,13 @@ export const startStickerClassificationBackground = () => {
 };
 
 export const stopStickerClassificationBackground = () => {
+  schedulerEnabled = false;
+  idleNoGainStreak = 0;
+
   if (startupTimeoutHandle) {
     clearTimeout(startupTimeoutHandle);
     startupTimeoutHandle = null;
   }
 
-  if (intervalHandle) {
-    clearInterval(intervalHandle);
-    intervalHandle = null;
-  }
+  clearCycleHandle();
 };
