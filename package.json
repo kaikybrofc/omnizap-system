@@ -19,6 +19,8 @@
     "dev": "node index.js",
     "db:init": "node database/init.js",
     "pm2:prod": "pm2 start ecosystem.prod.config.cjs",
+    "deploy": "bash ./scripts/deploy.sh",
+    "deploy:dry-run": "DEPLOY_DRY_RUN=1 bash ./scripts/deploy.sh",
     "test": "node --test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"

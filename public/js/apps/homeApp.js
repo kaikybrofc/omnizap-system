@@ -1,6 +1,43 @@
 import { React, createRoot, useEffect } from '../runtime/react-runtime.js';
 
 const h = React.createElement;
+const shortNum = (value) =>
+  new Intl.NumberFormat('pt-BR', {
+    notation: Number(value) >= 1000 ? 'compact' : 'standard',
+    maximumFractionDigits: Number(value) >= 1000 ? 1 : 0,
+  }).format(Math.max(0, Number(value) || 0));
+
+const animateCountUp = (element, value, formatter = shortNum, durationMs = 850) => {
+  if (!element) return;
+  const target = Math.max(0, Number(value) || 0);
+  if (!Number.isFinite(target)) {
+    element.textContent = formatter(0);
+    return;
+  }
+
+  if (typeof requestAnimationFrame !== 'function' || typeof performance === 'undefined') {
+    element.dataset.value = String(target);
+    element.textContent = formatter(target);
+    return;
+  }
+
+  const previous = Number(element.dataset.value || 0);
+  const start = Number.isFinite(previous) ? previous : 0;
+  const delta = target - start;
+  const startTime = performance.now();
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+
+  const tick = (now) => {
+    const progress = Math.min(1, (now - startTime) / durationMs);
+    const eased = easeOut(progress);
+    const currentValue = start + delta * eased;
+    element.textContent = formatter(currentValue);
+    if (progress < 1) requestAnimationFrame(tick);
+  };
+
+  element.dataset.value = String(target);
+  requestAnimationFrame(tick);
+};
 
 function HomeEffects() {
   useEffect(() => {
@@ -25,13 +62,24 @@ function HomeEffects() {
       return;
     }
 
-    const shortNum = (value) =>
-      new Intl.NumberFormat('pt-BR', {
-        notation: value >= 1000 ? 'compact' : 'standard',
-        maximumFractionDigits: value >= 1000 ? 1 : 0,
-      }).format(Math.max(0, Number(value) || 0));
-
     const fallbackThumb = 'https://iili.io/FC3FABe.jpg';
+    const isAutoPack = (pack) =>
+      Number(pack?.is_auto_pack || pack?.auto_pack || 0) === 1 || /\[auto\]/i.test(String(pack?.name || ''));
+
+    const renderPreviewSkeleton = (count = 6) => {
+      previewGrid.innerHTML = Array.from({ length: count })
+        .map(
+          () =>
+            '<article class="market-pack is-loading">' +
+            '<div class="market-pack-skeleton-thumb"></div>' +
+            '<div class="market-pack-skeleton-body">' +
+            '<span class="market-pack-skeleton-line"></span>' +
+            '<span class="market-pack-skeleton-line short"></span>' +
+            '</div>' +
+            '</article>',
+        )
+        .join('');
+    };
 
     const renderPreview = (packs) => {
       previewGrid.innerHTML = '';
@@ -41,21 +89,24 @@ function HomeEffects() {
       }
 
       previewStatus.textContent = `${packs.length} packs sugeridos agora`;
-      packs.slice(0, 6).forEach((pack) => {
+      packs.slice(0, 6).forEach((pack, index) => {
         const card = document.createElement('a');
-        card.className = 'market-pack';
+        card.className = 'market-pack reveal';
         card.href = pack.web_url || `/stickers/${encodeURIComponent(pack.pack_key || '')}`;
         card.innerHTML =
           `<img class="market-pack-thumb" loading="lazy" src="${pack.cover_url || fallbackThumb}" alt="${String(
             pack.name || 'Pack',
           ).replace(/"/g, '&quot;')}">` +
+          (isAutoPack(pack) ? '<span class="market-pack-tag">auto</span>' : '') +
           '<div class="market-pack-body">' +
           `<p class="market-pack-name">${pack.name || 'Pack sem nome'}</p>` +
           `<p class="market-pack-meta">${shortNum(pack.sticker_count || 0)} stickers · ${shortNum(
             pack?.engagement?.open_count || 0,
           )} aberturas</p>` +
           '</div>';
+        card.style.transitionDelay = `${index * 40}ms`;
         previewGrid.appendChild(card);
+        requestAnimationFrame(() => card.classList.add('in-view'));
       });
     };
 
@@ -72,9 +123,9 @@ function HomeEffects() {
         const intents = intentsPayload?.data || {};
         const trending = Array.isArray(intents?.em_alta) ? intents.em_alta : [];
 
-        proofPacks.textContent = shortNum(stats.packs_total || 0);
-        proofStickers.textContent = shortNum(stats.stickers_total || 0);
-        proofDownloads.textContent = shortNum(stats.downloads_total || 0);
+        animateCountUp(proofPacks, stats.packs_total || 0);
+        animateCountUp(proofStickers, stats.stickers_total || 0);
+        animateCountUp(proofDownloads, stats.downloads_total || 0);
         renderPreview(trending);
       } catch {
         proofPacks.textContent = 'n/d';
@@ -83,10 +134,12 @@ function HomeEffects() {
         proofUsers.textContent = 'n/d';
         proofGroups.textContent = 'n/d';
         proofSystem.textContent = 'n/d';
+        previewGrid.innerHTML = '';
         previewStatus.textContent = 'Não foi possível carregar o preview agora.';
       }
     };
 
+    renderPreviewSkeleton(6);
     loadMarketplaceData();
   }, []);
 
@@ -103,8 +156,7 @@ function HomeEffects() {
 
     const renderFallback = (message) => {
       summaryEl.textContent = message || 'Ranking indisponível no momento.';
-      listEl.innerHTML =
-        '<li class=\"rank-item\"><span class=\"rank-name\">Sem dados no momento</span><span class=\"rank-value\">--</span></li>';
+      listEl.innerHTML = '<li class="rank-item"><span class="rank-name">Sem dados no momento</span><span class="rank-value">--</span></li>';
     };
 
     const renderRanking = (data) => {
@@ -219,12 +271,6 @@ function HomeEffects() {
     const proofSystem = document.getElementById('proof-system');
     if (!cpuEl || !memEl || !uptimeEl || !obsEl) return;
 
-    const shortNum = (value) =>
-      new Intl.NumberFormat('pt-BR', {
-        notation: Number(value) >= 1000 ? 'compact' : 'standard',
-        maximumFractionDigits: Number(value) >= 1000 ? 1 : 0,
-      }).format(Math.max(0, Number(value) || 0));
-
     const normalizeStatus = (value) => {
       const normalized = String(value || '')
         .trim()
@@ -293,8 +339,8 @@ function HomeEffects() {
           ' | DB slow: ' +
           (Number.isFinite(Number(dbSlow)) && Number.isFinite(Number(dbTotal)) ? String(dbSlow) + '/' + String(dbTotal) : 'n/d');
 
-        if (proofUsers) proofUsers.textContent = shortNum(platform.total_users || 0);
-        if (proofGroups) proofGroups.textContent = shortNum(platform.total_groups || 0);
+        if (proofUsers) animateCountUp(proofUsers, platform.total_users || 0);
+        if (proofGroups) animateCountUp(proofGroups, platform.total_groups || 0);
         if (proofSystem) {
           proofSystem.textContent = formatSystemStatusLabel(systemStatus);
           const card = proofSystem.closest('.proof-card');
@@ -304,6 +350,40 @@ function HomeEffects() {
       .catch(() => {
         setFallback();
       });
+  }, []);
+
+  useEffect(() => {
+    const revealTargets = Array.from(
+      document.querySelectorAll(
+        '.hero, .market-preview, .section-title, .grid .card, .api, .rank-panel, .final-cta, .hero-stats .chip, .hero-proof .proof-card',
+      ),
+    );
+    if (!revealTargets.length) return undefined;
+
+    revealTargets.forEach((element) => element.classList.add('reveal'));
+    if (typeof IntersectionObserver !== 'function') {
+      revealTargets.forEach((element) => element.classList.add('in-view'));
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in-view');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      {
+        root: null,
+        threshold: 0.14,
+        rootMargin: '0px 0px -8% 0px',
+      },
+    );
+
+    revealTargets.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
   }, []);
 
   return null;

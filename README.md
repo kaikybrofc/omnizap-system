@@ -130,9 +130,34 @@ Variáveis legadas foram mantidas por compatibilidade (`QUOTE_API_URL`, `WAIFU_A
 - `npm run dev`: alias de start.
 - `npm run db:init`: cria/valida schema e executa migrations.
 - `npm run pm2:prod`: sobe com PM2 usando `ecosystem.prod.config.cjs`.
+- `npm run deploy`: deploy automático de `public/` com cache-bust, backup, validação e reload do Nginx.
+- `npm run deploy:dry-run`: simula o deploy sem publicar/recarregar serviços.
 - `npm run test`: executa testes Node (`node --test`).
 - `npm run lint`: lint com ESLint.
 - `npm run lint:fix`: lint com correções automáticas.
+
+## Deploy automático (Nginx + cache-bust)
+
+Comando padrão:
+
+```bash
+npm run deploy
+```
+
+Variáveis úteis:
+
+- `DEPLOY_TARGET_DIR` (default: `/var/www/omnizap`)
+- `DEPLOY_NGINX_SERVICE` (default: `nginx`)
+- `DEPLOY_PM2_APP_NAME` (default: `omnizap-system-production`)
+- `DEPLOY_RESTART_PM2` (default: `1`)
+- `DEPLOY_CREATE_BACKUP` (default: `1`)
+- `DEPLOY_VERIFY_URL` (default: `https://omnizap.shop/`)
+
+Exemplo sem restart do PM2:
+
+```bash
+DEPLOY_RESTART_PM2=0 npm run deploy
+```
 
 ## Execução com PM2
 
