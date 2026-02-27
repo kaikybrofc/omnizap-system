@@ -33,6 +33,9 @@ let connectionAttempts = 0;
 const msgRetryCounterCache = new NodeCache();
 const MAX_CONNECTION_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 3000;
+let reconnectTimeout = null;
+let connectPromise = null;
+let socketGeneration = 0;
 const BAILEYS_EVENT_NAMES = ['connection.update', 'creds.update', 'messaging-history.set', 'chats.upsert', 'chats.update', 'lid-mapping.update', 'chats.delete', 'presence.update', 'contacts.upsert', 'contacts.update', 'messages.delete', 'messages.update', 'messages.media-update', 'messages.upsert', 'messages.reaction', 'message-receipt.update', 'groups.upsert', 'groups.update', 'group-participants.update', 'group.join-request', 'group.member-tag.update', 'blocklist.set', 'blocklist.update', 'call', 'labels.edit', 'labels.association', 'newsletter.reaction', 'newsletter.view', 'newsletter-participants.update', 'newsletter-settings.update', 'chats.lock', 'settings.update'];
 const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set(['creds.update', 'connection.update', 'messages.upsert', 'messages.update', 'groups.update', 'group-participants.update']);
 
@@ -279,6 +282,33 @@ async function getStoredMessage(key) {
   }
 }
 
+const clearReconnectTimeout = () => {
+  if (!reconnectTimeout) return;
+  clearTimeout(reconnectTimeout);
+  reconnectTimeout = null;
+};
+
+const scheduleReconnect = (delay) => {
+  if (reconnectTimeout) return;
+  reconnectTimeout = setTimeout(() => {
+    reconnectTimeout = null;
+    connectToWhatsApp().catch((error) => {
+      logger.error('Falha ao executar reconexão agendada.', {
+        action: 'reconnect_schedule_failure',
+        errorMessage: error?.message,
+        stack: error?.stack,
+        timestamp: new Date().toISOString(),
+      });
+    });
+  }, Math.max(0, Number(delay) || 0));
+};
+
+const isSocketOpen = (socket) => {
+  if (!socket?.ws) return false;
+  if (typeof socket.ws.isOpen === 'boolean') return socket.ws.isOpen;
+  return socket.ws.readyState === 1;
+};
+
 /**
  * Inicia e gerencia a conexão com o WhatsApp usando o Baileys.
  * Configura autenticação, cria o socket e registra handlers de eventos.
@@ -287,284 +317,317 @@ async function getStoredMessage(key) {
  * @throws {Error} Lança erro se a conexão inicial falhar.
  */
 export async function connectToWhatsApp() {
+  if (connectPromise) {
+    return connectPromise;
+  }
+
+  if (isSocketOpen(activeSocket)) {
+    return;
+  }
+
   logger.info('Iniciando conexão com o WhatsApp...', {
     action: 'connect_init',
     timestamp: new Date().toISOString(),
   });
+  connectPromise = (async () => {
+    clearReconnectTimeout();
+    const generation = ++socketGeneration;
+    const authPath = path.join(__dirname, 'auth');
+    const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
-  connectionAttempts = 0;
+    const version = await resolveBaileysVersion();
 
-  const authPath = path.join(__dirname, 'auth');
-  const { state, saveCreds } = await useMultiFileAuthState(authPath);
-
-  const version = await resolveBaileysVersion();
-
-  logger.debug('Dados de autenticação carregados com sucesso.', {
-    authPath,
-    version,
-  });
-
-  const sock = makeWASocket({
-    version,
-    auth: state,
-    logger: pino({ level: 'silent' }),
-    browser: Browsers.macOS('Desktop'),
-    qrTimeout: 30000,
-    syncFullHistory: false,
-    markOnlineOnConnect: true,
-    msgRetryCounterCache,
-    maxMsgRetryCount: 5,
-    retryRequestDelayMs: 250,
-    getMessage: getStoredMessage,
-  });
-
-  activeSocket = sock;
-  storeActiveSocket(sock);
-
-  sock.ev.on('creds.update', async () => {
-    logger.debug('Atualizando credenciais de autenticação...', {
-      action: 'creds_update',
-      timestamp: new Date().toISOString(),
+    logger.debug('Dados de autenticação carregados com sucesso.', {
+      authPath,
+      version,
+      generation,
     });
-    await saveCreds();
-  });
 
-  sock.ev.on('connection.update', (update) => {
-    handleConnectionUpdate(update, sock);
-    if (update.connection === 'open') {
-      syncNewsBroadcastService();
-    }
-    logger.debug('Estado da conexão atualizado.', {
-      action: 'connection_update',
-      status: update.connection,
-      lastDisconnect: update.lastDisconnect?.error?.message || null,
-      isNewLogin: update.isNewLogin || false,
-      timestamp: new Date().toISOString(),
+    const sock = makeWASocket({
+      version,
+      auth: state,
+      logger: pino({ level: 'silent' }),
+      browser: Browsers.macOS('Desktop'),
+      qrTimeout: 30000,
+      syncFullHistory: false,
+      markOnlineOnConnect: true,
+      msgRetryCounterCache,
+      maxMsgRetryCount: 5,
+      retryRequestDelayMs: 250,
+      getMessage: getStoredMessage,
     });
-  });
 
-  sock.ev.on('messages.upsert', (update) => {
-    const start = process.hrtime.bigint();
-    const messagesCount = Array.isArray(update?.messages) ? update.messages.length : 0;
-    const eventType = update?.type || 'unknown';
-    try {
-      logger.debug('Novo(s) evento(s) em messages.upsert', {
-        action: 'messages_upsert',
-        type: update.type,
-        messagesCount: update.messages.length,
-        remoteJid: update.messages[0]?.key.remoteJid || null,
+    activeSocket = sock;
+    storeActiveSocket(sock);
+
+    const isCurrentSocket = () => activeSocket === sock && generation === socketGeneration;
+
+    sock.ev.on('creds.update', async () => {
+      if (!isCurrentSocket()) return;
+      logger.debug('Atualizando credenciais de autenticação...', {
+        action: 'creds_update',
+        timestamp: new Date().toISOString(),
       });
-      const persistPromise = persistIncomingMessages(update.messages, update.type).catch((error) => {
-        logger.error('Erro ao persistir mensagens no banco de dados:', {
+      await saveCreds();
+    });
+
+    sock.ev.on('connection.update', (update) => {
+      if (!isCurrentSocket()) return;
+      handleConnectionUpdate(update, sock);
+      if (update.connection === 'open') {
+        syncNewsBroadcastService();
+      }
+      logger.debug('Estado da conexão atualizado.', {
+        action: 'connection_update',
+        status: update.connection,
+        lastDisconnect: update.lastDisconnect?.error?.message || null,
+        isNewLogin: update.isNewLogin || false,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    sock.ev.on('messages.upsert', (update) => {
+      if (!isCurrentSocket()) return;
+      const start = process.hrtime.bigint();
+      const messagesCount = Array.isArray(update?.messages) ? update.messages.length : 0;
+      const eventType = update?.type || 'unknown';
+      try {
+        logger.debug('Novo(s) evento(s) em messages.upsert', {
+          action: 'messages_upsert',
+          type: update.type,
+          messagesCount: update.messages.length,
+          remoteJid: update.messages[0]?.key.remoteJid || null,
+        });
+        const persistPromise = persistIncomingMessages(update.messages, update.type).catch((error) => {
+          logger.error('Erro ao persistir mensagens no banco de dados:', {
+            error: error.message,
+          });
+          recordError('messages_upsert');
+        });
+        const handlePromise = handleMessages(update, sock).catch((error) => {
+          recordError('messages_upsert');
+          throw error;
+        });
+
+        Promise.allSettled([persistPromise, handlePromise]).then((results) => {
+          const ok = results.every((result) => result.status === 'fulfilled');
+          const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+          recordMessagesUpsert({
+            durationMs,
+            type: eventType,
+            messagesCount,
+            ok,
+          });
+        });
+      } catch (error) {
+        logger.error('Erro no evento messages.upsert:', {
           error: error.message,
+          stack: error.stack,
+          action: 'messages_upsert_error',
         });
         recordError('messages_upsert');
-      });
-      const handlePromise = handleMessages(update, sock).catch((error) => {
-        recordError('messages_upsert');
-        throw error;
-      });
-
-      Promise.allSettled([persistPromise, handlePromise]).then((results) => {
-        const ok = results.every((result) => result.status === 'fulfilled');
         const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
         recordMessagesUpsert({
           durationMs,
           type: eventType,
           messagesCount,
-          ok,
-        });
-      });
-    } catch (error) {
-      logger.error('Erro no evento messages.upsert:', {
-        error: error.message,
-        stack: error.stack,
-        action: 'messages_upsert_error',
-      });
-      recordError('messages_upsert');
-      const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
-      recordMessagesUpsert({
-        durationMs,
-        type: eventType,
-        messagesCount,
-        ok: false,
-      });
-    }
-  });
-
-  sock.ev.on('chats.upsert', (newChats) => {
-    for (const chat of newChats) {
-      queueChatUpdate(chat, { partial: false, forceName: true });
-    }
-  });
-
-  sock.ev.on('chats.update', (updates) => {
-    for (const update of updates) {
-      queueChatUpdate(update, { partial: true });
-    }
-  });
-
-  sock.ev.on('chats.delete', (deletions) => {
-    for (const chatId of deletions) {
-      remove('chats', chatId).catch((error) => {
-        logger.error('Erro ao remover chat do banco:', {
-          error: error.message,
-          chatId,
-        });
-      });
-    }
-  });
-
-  sock.ev.on('groups.upsert', async (newGroups) => {
-    for (const group of newGroups) {
-      try {
-        await upsertGroupMetadata(group.id, buildGroupMetadataFromGroup(group), {
-          mergeExisting: false,
-        });
-      } catch (error) {
-        logger.error('Erro no upsert do grupo:', {
-          error: error.message,
-          groupId: group.id,
+          ok: false,
         });
       }
-    }
-  });
+    });
 
-  sock.ev.on('contacts.update', (updates) => {
-    if (!Array.isArray(updates)) return;
-    for (const update of updates) {
-      try {
-        const jidCandidate = update?.id || update?.jid || null;
-        const lidCandidate = update?.lid || null;
-        const jid = isWhatsAppUserId(jidCandidate) ? jidCandidate : null;
-        const lid = isLidUserId(lidCandidate) ? lidCandidate : isLidUserId(jidCandidate) ? jidCandidate : null;
-        if (lid) {
-          queueLidUpdate(lid, jid, 'contacts');
-        }
-      } catch (error) {
-        logger.warn('Falha ao processar contacts.update para lid_map.', { error: error.message });
+    sock.ev.on('chats.upsert', (newChats) => {
+      if (!isCurrentSocket()) return;
+      for (const chat of newChats) {
+        queueChatUpdate(chat, { partial: false, forceName: true });
       }
-    }
-  });
+    });
 
-  sock.ev.on('lid-mapping.update', (update) => {
-    try {
-      const lid = typeof update?.lid === 'string' ? update.lid : null;
-      const pnJid = normalizePnToJid(update?.pn);
-      if (!lid || !pnJid) return;
-      queueLidUpdate(lid, pnJid, 'lid-mapping');
-    } catch (error) {
-      logger.warn('Falha ao processar lid-mapping.update para lid_map.', { error: error.message });
-    }
-  });
+    sock.ev.on('chats.update', (updates) => {
+      if (!isCurrentSocket()) return;
+      for (const update of updates) {
+        queueChatUpdate(update, { partial: true });
+      }
+    });
 
-  sock.ev.on('messages.update', (update) => {
-    try {
-      logger.debug('Atualização de mensagens recebida.', {
-        action: 'messages_update',
-        updatesCount: update.length,
-      });
-      handleMessageUpdate(update, sock);
-    } catch (error) {
-      logger.error('Erro no evento messages.update:', {
-        error: error.message,
-        stack: error.stack,
-        action: 'messages_update_error',
-      });
-    }
-  });
+    sock.ev.on('chats.delete', (deletions) => {
+      if (!isCurrentSocket()) return;
+      for (const chatId of deletions) {
+        remove('chats', chatId).catch((error) => {
+          logger.error('Erro ao remover chat do banco:', {
+            error: error.message,
+            chatId,
+          });
+        });
+      }
+    });
 
-  sock.ev.on('messages.reaction', async (updates) => {
-    try {
-      const reactions = Array.isArray(updates) ? updates : [updates];
-      for (const update of reactions) {
-        const key = update?.key || update?.msg?.key || update?.reaction?.key || null;
-        const reaction = update?.reaction || update?.msg?.reaction || update?.reactionMessage || null;
-        const reactedKey = reaction?.key || update?.reactedKey || update?.reactionMessage?.key || null;
-
-        const groupId = key?.remoteJid || reactedKey?.remoteJid || null;
-        const senderJid = key?.participant || update?.participant || reaction?.sender || null;
-        const senderIdentity = {
-          participant: key?.participant || update?.participant || reaction?.sender || null,
-          participantAlt: key?.participantAlt || update?.participantAlt || reaction?.participantAlt || reaction?.key?.participantAlt || null,
-          jid: senderJid,
-        };
-        const reactedMessageId = reactedKey?.id || null;
-        const reactionText = typeof reaction?.text === 'string' ? reaction.text : '';
-
-        if (groupId && (senderJid || senderIdentity.participantAlt)) {
-          await resolveCaptchaByReaction({ groupId, senderJid, senderIdentity, reactedMessageId, reactionText });
+    sock.ev.on('groups.upsert', async (newGroups) => {
+      if (!isCurrentSocket()) return;
+      for (const group of newGroups) {
+        try {
+          await upsertGroupMetadata(group.id, buildGroupMetadataFromGroup(group), {
+            mergeExisting: false,
+          });
+        } catch (error) {
+          logger.error('Erro no upsert do grupo:', {
+            error: error.message,
+            groupId: group.id,
+          });
         }
       }
-    } catch (error) {
-      logger.error('Erro no evento messages.reaction:', {
-        error: error.message,
-        stack: error.stack,
-        action: 'messages_reaction_error',
-      });
-    }
-  });
+    });
 
-  sock.ev.on('groups.update', (updates) => {
-    try {
-      logger.debug('Grupo(s) atualizado(s).', {
-        action: 'groups_update',
-        groupCount: updates.length,
-        groupIds: updates.map((u) => u.id),
-      });
-      handleGroupUpdate(updates, sock);
-    } catch (err) {
-      logger.error('Erro no evento groups.update:', {
-        error: err.message,
-        stack: err.stack,
-        action: 'groups_update_error',
-      });
-    }
-  });
+    sock.ev.on('contacts.update', (updates) => {
+      if (!isCurrentSocket()) return;
+      if (!Array.isArray(updates)) return;
+      for (const update of updates) {
+        try {
+          const jidCandidate = update?.id || update?.jid || null;
+          const lidCandidate = update?.lid || null;
+          const jid = isWhatsAppUserId(jidCandidate) ? jidCandidate : null;
+          const lid = isLidUserId(lidCandidate) ? lidCandidate : isLidUserId(jidCandidate) ? jidCandidate : null;
+          if (lid) {
+            queueLidUpdate(lid, jid, 'contacts');
+          }
+        } catch (error) {
+          logger.warn('Falha ao processar contacts.update para lid_map.', { error: error.message });
+        }
+      }
+    });
 
-  sock.ev.on('group-participants.update', (update) => {
-    try {
-      logger.debug('Participantes do grupo atualizados.', {
-        action: 'group_participants_update',
-        groupId: update.id,
-        actionType: update.action,
-        participants: update.participants,
-      });
-      handleGroupParticipantsEvent(sock, update.id, update.participants, update.action);
-    } catch (err) {
-      logger.error('Erro no evento group-participants.update:', {
-        error: err.message,
-        stack: err.stack,
-        action: 'group_participants_update_error',
-      });
-    }
-  });
+    sock.ev.on('lid-mapping.update', (update) => {
+      if (!isCurrentSocket()) return;
+      try {
+        const lid = typeof update?.lid === 'string' ? update.lid : null;
+        const pnJid = normalizePnToJid(update?.pn);
+        if (!lid || !pnJid) return;
+        queueLidUpdate(lid, pnJid, 'lid-mapping');
+      } catch (error) {
+        logger.warn('Falha ao processar lid-mapping.update para lid_map.', { error: error.message });
+      }
+    });
 
-  sock.ev.on('group.join-request', (update) => {
-    try {
-      logger.debug('Solicitação de entrada no grupo recebida.', {
-        action: 'group_join_request',
-        groupId: update?.id,
-        participant: update?.participant,
-        method: update?.method,
-        joinAction: update?.action,
-      });
-      handleGroupJoinRequest(sock, update);
-    } catch (err) {
-      logger.error('Erro no evento group.join-request:', {
-        error: err.message,
-        stack: err.stack,
-        action: 'group_join_request_error',
-      });
-    }
-  });
+    sock.ev.on('messages.update', (update) => {
+      if (!isCurrentSocket()) return;
+      try {
+        logger.debug('Atualização de mensagens recebida.', {
+          action: 'messages_update',
+          updatesCount: update.length,
+        });
+        handleMessageUpdate(update, sock);
+      } catch (error) {
+        logger.error('Erro no evento messages.update:', {
+          error: error.message,
+          stack: error.stack,
+          action: 'messages_update_error',
+        });
+      }
+    });
 
-  registerBaileysEventLoggers(sock);
+    sock.ev.on('messages.reaction', async (updates) => {
+      if (!isCurrentSocket()) return;
+      try {
+        const reactions = Array.isArray(updates) ? updates : [updates];
+        for (const update of reactions) {
+          const key = update?.key || update?.msg?.key || update?.reaction?.key || null;
+          const reaction = update?.reaction || update?.msg?.reaction || update?.reactionMessage || null;
+          const reactedKey = reaction?.key || update?.reactedKey || update?.reactionMessage?.key || null;
 
-  logger.info('Conexão com o WhatsApp estabelecida com sucesso.', {
-    action: 'connect_success',
-    timestamp: new Date().toISOString(),
-  });
+          const groupId = key?.remoteJid || reactedKey?.remoteJid || null;
+          const senderJid = key?.participant || update?.participant || reaction?.sender || null;
+          const senderIdentity = {
+            participant: key?.participant || update?.participant || reaction?.sender || null,
+            participantAlt: key?.participantAlt || update?.participantAlt || reaction?.participantAlt || reaction?.key?.participantAlt || null,
+            jid: senderJid,
+          };
+          const reactedMessageId = reactedKey?.id || null;
+          const reactionText = typeof reaction?.text === 'string' ? reaction.text : '';
+
+          if (groupId && (senderJid || senderIdentity.participantAlt)) {
+            await resolveCaptchaByReaction({ groupId, senderJid, senderIdentity, reactedMessageId, reactionText });
+          }
+        }
+      } catch (error) {
+        logger.error('Erro no evento messages.reaction:', {
+          error: error.message,
+          stack: error.stack,
+          action: 'messages_reaction_error',
+        });
+      }
+    });
+
+    sock.ev.on('groups.update', (updates) => {
+      if (!isCurrentSocket()) return;
+      try {
+        logger.debug('Grupo(s) atualizado(s).', {
+          action: 'groups_update',
+          groupCount: updates.length,
+          groupIds: updates.map((u) => u.id),
+        });
+        handleGroupUpdate(updates, sock);
+      } catch (err) {
+        logger.error('Erro no evento groups.update:', {
+          error: err.message,
+          stack: err.stack,
+          action: 'groups_update_error',
+        });
+      }
+    });
+
+    sock.ev.on('group-participants.update', (update) => {
+      if (!isCurrentSocket()) return;
+      try {
+        logger.debug('Participantes do grupo atualizados.', {
+          action: 'group_participants_update',
+          groupId: update.id,
+          actionType: update.action,
+          participants: update.participants,
+        });
+        handleGroupParticipantsEvent(sock, update.id, update.participants, update.action);
+      } catch (err) {
+        logger.error('Erro no evento group-participants.update:', {
+          error: err.message,
+          stack: err.stack,
+          action: 'group_participants_update_error',
+        });
+      }
+    });
+
+    sock.ev.on('group.join-request', (update) => {
+      if (!isCurrentSocket()) return;
+      try {
+        logger.debug('Solicitação de entrada no grupo recebida.', {
+          action: 'group_join_request',
+          groupId: update?.id,
+          participant: update?.participant,
+          method: update?.method,
+          joinAction: update?.action,
+        });
+        handleGroupJoinRequest(sock, update);
+      } catch (err) {
+        logger.error('Erro no evento group.join-request:', {
+          error: err.message,
+          stack: err.stack,
+          action: 'group_join_request_error',
+        });
+      }
+    });
+
+    registerBaileysEventLoggers(sock);
+
+    logger.info('Conexão com o WhatsApp estabelecida com sucesso.', {
+      action: 'connect_success',
+      generation,
+      timestamp: new Date().toISOString(),
+    });
+  })();
+
+  try {
+    await connectPromise;
+  } finally {
+    connectPromise = null;
+  }
 }
 
 /**
@@ -576,6 +639,7 @@ export async function connectToWhatsApp() {
  * @returns {Promise<void>} Conclusão do processamento do estado.
  */
 async function handleConnectionUpdate(update, sock) {
+  if (sock !== activeSocket) return;
   const { connection, lastDisconnect, qr } = update;
 
   if (qr) {
@@ -604,7 +668,9 @@ async function handleConnectionUpdate(update, sock) {
         errorMessage,
         timestamp: new Date().toISOString(),
       });
-      setTimeout(connectToWhatsApp, reconnectDelay);
+      activeSocket = null;
+      storeActiveSocket(null);
+      scheduleReconnect(reconnectDelay);
     } else if (shouldReconnect) {
       logger.error('❌ Falha ao reconectar após várias tentativas. Reinicie a aplicação.', {
         action: 'reconnect_failed',
@@ -630,6 +696,7 @@ async function handleConnectionUpdate(update, sock) {
     });
 
     connectionAttempts = 0;
+    clearReconnectTimeout();
 
     if (process.send) {
       process.send('ready');

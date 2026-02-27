@@ -28,6 +28,8 @@ const safeNumber = (value, fallback = 0) => {
   return Number.isFinite(numeric) ? numeric : fallback;
 };
 
+const COMPLETE_PACK_STICKER_TARGET = 30;
+
 const normalizeCatalogSort = (value, fallback = DEFAULT_CATALOG_SORT) => {
   const normalized = String(value || '')
     .trim()
@@ -54,6 +56,24 @@ const catalogSortLabel = (sort) =>
 const getPackTrendScore = (pack) => safeNumber(pack?.signals?.trend_score);
 const getPackRankingScore = (pack) => safeNumber(pack?.signals?.ranking_score);
 const getPackCommentCount = (pack) => safeNumber(pack?.engagement?.comment_count || pack?.comment_count || 0);
+const getPackStickerCount = (pack) => Math.max(0, safeNumber(pack?.sticker_count || 0));
+const isPackComplete = (pack) => {
+  if (pack?.is_complete === true || pack?.is_complete === 1 || pack?.is_complete === '1') return true;
+  if (pack?.is_complete === false || pack?.is_complete === 0 || pack?.is_complete === '0') return false;
+  return getPackStickerCount(pack) >= COMPLETE_PACK_STICKER_TARGET;
+};
+const comparePacksByCompleteness = (left, right) => {
+  const leftCount = getPackStickerCount(left);
+  const rightCount = getPackStickerCount(right);
+  const leftIsComplete = isPackComplete(left) ? 1 : 0;
+  const rightIsComplete = isPackComplete(right) ? 1 : 0;
+
+  if (rightIsComplete !== leftIsComplete) return rightIsComplete - leftIsComplete;
+  if (rightCount !== leftCount) return rightCount - leftCount;
+  const leftHasCover = left?.cover_url ? 1 : 0;
+  const rightHasCover = right?.cover_url ? 1 : 0;
+  return rightHasCover - leftHasCover;
+};
 
 const buildCreatorScore = (creator) => {
   const avgPackScore = safeNumber(creator?.avgPackScore ?? creator?.stats?.avg_pack_score);
@@ -2616,37 +2636,33 @@ function StickersApp() {
   const sortedPacks = useMemo(() => {
     const list = [...packs];
     const selectedSort = normalizeCatalogSort(sortBy);
-    if (selectedSort === 'recent') {
-      list.sort((a, b) => new Date(b?.created_at || b?.updated_at || 0).getTime() - new Date(a?.created_at || a?.updated_at || 0).getTime());
-      return list;
-    }
-    if (selectedSort === 'likes') {
-      list.sort((a, b) => getPackEngagement(b).likeCount - getPackEngagement(a).likeCount);
-      return list;
-    }
-    if (selectedSort === 'downloads') {
-      list.sort((a, b) => getPackEngagement(b).openCount - getPackEngagement(a).openCount);
-      return list;
-    }
-    if (selectedSort === 'comments') {
-      list.sort((a, b) => {
+    list.sort((a, b) => {
+      const completenessDelta = comparePacksByCompleteness(a, b);
+      if (completenessDelta !== 0) return completenessDelta;
+
+      if (selectedSort === 'recent') {
+        return new Date(b?.created_at || b?.updated_at || 0).getTime() - new Date(a?.created_at || a?.updated_at || 0).getTime();
+      }
+      if (selectedSort === 'likes') {
+        return getPackEngagement(b).likeCount - getPackEngagement(a).likeCount;
+      }
+      if (selectedSort === 'downloads') {
+        return getPackEngagement(b).openCount - getPackEngagement(a).openCount;
+      }
+      if (selectedSort === 'comments') {
         const commentDelta = getPackCommentCount(b) - getPackCommentCount(a);
         if (commentDelta !== 0) return commentDelta;
         return getPackEngagement(b).likeCount - getPackEngagement(a).likeCount;
-      });
-      return list;
-    }
-    if (selectedSort === 'trending') {
-      list.sort((a, b) => {
+      }
+      if (selectedSort === 'trending') {
         const trendDelta = getPackTrendScore(b) - getPackTrendScore(a);
         if (trendDelta !== 0) return trendDelta;
         const rankingDelta = getPackRankingScore(b) - getPackRankingScore(a);
         if (rankingDelta !== 0) return rankingDelta;
         return getPackEngagement(b).openCount - getPackEngagement(a).openCount;
-      });
-      return list;
-    }
-    list.sort((a, b) => getPackRankingScore(b) - getPackRankingScore(a));
+      }
+      return getPackRankingScore(b) - getPackRankingScore(a);
+    });
     return list;
   }, [packs, sortBy]);
 
@@ -2663,7 +2679,11 @@ function StickersApp() {
         const growth = engagement.openCount * 1.5 + engagement.likeCount * 3 - engagement.dislikeCount + recentBonus;
         return { pack, growth };
       })
-      .sort((a, b) => b.growth - a.growth)
+      .sort((a, b) => {
+        const completenessDelta = comparePacksByCompleteness(a.pack, b.pack);
+        if (completenessDelta !== 0) return completenessDelta;
+        return b.growth - a.growth;
+      })
       .slice(0, 6)
       .map((entry) => entry.pack);
   }, [packs]);
@@ -2671,6 +2691,8 @@ function StickersApp() {
     () =>
       [...packs]
         .sort((a, b) => {
+          const completenessDelta = comparePacksByCompleteness(a, b);
+          if (completenessDelta !== 0) return completenessDelta;
           const ea = getPackEngagement(a);
           const eb = getPackEngagement(b);
           const sa = ea.openCount + ea.likeCount * 3 - ea.dislikeCount;
@@ -2762,8 +2784,11 @@ function StickersApp() {
     () =>
       [...packs]
         .sort(
-          (a, b) =>
-            new Date(b?.created_at || b?.updated_at || 0).getTime() - new Date(a?.created_at || a?.updated_at || 0).getTime(),
+          (a, b) => {
+            const completenessDelta = comparePacksByCompleteness(a, b);
+            if (completenessDelta !== 0) return completenessDelta;
+            return new Date(b?.created_at || b?.updated_at || 0).getTime() - new Date(a?.created_at || a?.updated_at || 0).getTime();
+          },
         )
         .slice(0, 10),
     [packs],

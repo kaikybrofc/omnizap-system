@@ -2353,6 +2353,7 @@ const buildPackDescriptionWithTags = (description, tags = []) => {
 const mapPackSummary = (pack, engagement = null, signals = null) => {
   const safeEngagement = engagement || getEmptyStickerPackEngagement();
   const metadata = parsePackDescriptionMetadata(pack.description);
+  const stickerCount = Number(pack.sticker_count || 0);
   return {
     id: pack.id,
     pack_key: pack.pack_key,
@@ -2361,7 +2362,8 @@ const mapPackSummary = (pack, engagement = null, signals = null) => {
     description: metadata.cleanDescription,
     visibility: pack.visibility,
     status: normalizePackWebStatus(pack.status, 'published'),
-    sticker_count: Number(pack.sticker_count || 0),
+    sticker_count: stickerCount,
+    is_complete: stickerCount >= PACK_CREATE_MAX_ITEMS,
     cover_sticker_id: pack.cover_sticker_id || null,
     cover_url: pack.cover_sticker_id ? buildStickerAssetUrl(pack.pack_key, pack.cover_sticker_id) : null,
     api_url: buildPackApiUrl(pack.pack_key),
@@ -2655,6 +2657,19 @@ const hasAnyCategory = (tags, categories) => {
   if (!Array.isArray(categories) || !categories.length) return true;
   const normalized = new Set((Array.isArray(tags) ? tags : []).map((entry) => normalizeCategoryToken(entry)));
   return categories.some((category) => normalized.has(category));
+};
+
+const getEntryStickerCount = (entry) => Math.max(0, Number(entry?.pack?.sticker_count || 0));
+const compareEntriesByPackCompleteness = (left, right) => {
+  const leftCount = getEntryStickerCount(left);
+  const rightCount = getEntryStickerCount(right);
+  const leftIsComplete = leftCount >= PACK_CREATE_MAX_ITEMS ? 1 : 0;
+  const rightIsComplete = rightCount >= PACK_CREATE_MAX_ITEMS ? 1 : 0;
+  if (rightIsComplete !== leftIsComplete) return rightIsComplete - leftIsComplete;
+  if (rightCount !== leftCount) return rightCount - leftCount;
+  const leftHasCover = left?.pack?.cover_sticker_id ? 1 : 0;
+  const rightHasCover = right?.pack?.cover_sticker_id ? 1 : 0;
+  return rightHasCover - leftHasCover;
 };
 
 const resolveClassificationTags = (classification) => decorateStickerClassification(classification || null)?.tags || [];
@@ -3148,6 +3163,8 @@ const handleListRequest = async (req, res, url) => {
       ? entriesBySensitivity.filter((entry) => classifyPackIntent(entry) === normalizedIntent)
       : entriesBySensitivity;
     const sortedEntries = [...entriesByIntent].sort((left, right) => {
+      const completenessDelta = compareEntriesByPackCompleteness(left, right);
+      if (completenessDelta !== 0) return completenessDelta;
       if (sort === 'recent') {
         return Date.parse(right?.pack?.created_at || right?.pack?.updated_at || 0) - Date.parse(left?.pack?.created_at || left?.pack?.updated_at || 0);
       }

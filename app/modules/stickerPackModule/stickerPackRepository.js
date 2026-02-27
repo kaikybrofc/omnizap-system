@@ -1,5 +1,7 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
 
+const CATALOG_COMPLETE_PACK_TARGET = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
+
 /**
  * Normaliza linha da tabela de packs para formato usado no domínio.
  *
@@ -271,7 +273,10 @@ export async function listStickerPacksForCatalog({
       (SELECT COUNT(*) FROM ${TABLES.STICKER_PACK_ITEM} i WHERE i.pack_id = p.id) AS sticker_count
      FROM ${TABLES.STICKER_PACK} p
      WHERE ${whereClauses.join(' AND ')}
-     ORDER BY p.updated_at DESC
+     ORDER BY
+       (sticker_count >= ${CATALOG_COMPLETE_PACK_TARGET}) DESC,
+       sticker_count DESC,
+       p.updated_at DESC
      LIMIT ${safeLimitWithSentinel} OFFSET ${safeOffset}`,
     params,
     connection,
