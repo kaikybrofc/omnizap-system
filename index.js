@@ -82,6 +82,31 @@ let shutdownPromise = null;
 let backfillPromise = null;
 
 /**
+ * Erros transitórios conhecidos que não devem derrubar o serviço inteiro.
+ * Ex.: limite temporário da API do WhatsApp/Baileys.
+ *
+ * @param {unknown} reason
+ * @returns {boolean}
+ */
+const isTransientUnhandledRejection = (reason) => {
+  const message =
+    reason instanceof Error
+      ? String(reason.message || '')
+      : typeof reason === 'string'
+        ? reason
+        : String(reason || '');
+
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) return false;
+
+  return (
+    normalized.includes('rate-overlimit') ||
+    normalized.includes('connection closed') ||
+    normalized.includes('timed out')
+  );
+};
+
+/**
  * Executa uma Promise com um timeout.
  *
  * Útil para passos críticos que podem travar:
@@ -245,7 +270,7 @@ startApp();
  * Regras:
  * - Se já estiver desligando, retorna a mesma promise.
  * - Define process.exitCode se ainda não estiver definido.
- * - Não chama process.exit() diretamente (deixa o processo encerrar naturalmente).
+ * - Ao finalizar, encerra o processo explicitamente para permitir restart limpo no PM2.
  *
  * @param {string} signal - Origem do shutdown (SIGINT, SIGTERM, uncaughtException, etc).
  * @param {unknown} [error] - Erro associado (se houver).
@@ -342,6 +367,11 @@ async function shutdown(signal, error) {
     await closeDatabasePool();
 
     logger.info('OmniZap System desligado.');
+
+    const exitCode = Number(process.exitCode ?? (error ? 1 : 0));
+    logger.info('Encerrando processo Node.', { exitCode, signal });
+    // Força término para evitar processo "online" sem servidor HTTP ativo.
+    process.exit(exitCode);
   })();
 
   return shutdownPromise;
@@ -390,6 +420,13 @@ process.on('uncaughtException', (err) => {
  * @returns {void}
  */
 process.on('unhandledRejection', (reason, promise) => {
+  if (isTransientUnhandledRejection(reason)) {
+    logger.warn('Rejeição de promessa transitória ignorada para manter disponibilidade.', {
+      reason: reason instanceof Error ? reason.message : String(reason || ''),
+    });
+    return;
+  }
+
   if (reason instanceof Error) {
     logger.error('Rejeição de promessa não tratada:', { error: reason.message, stack: reason.stack });
   } else {
