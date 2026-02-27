@@ -16,6 +16,8 @@ O **OmniZap System** é uma plataforma de automação para WhatsApp usando **Nod
 - mídia/figurinhas com packs persistentes
 - observabilidade (Prometheus/Grafana/Loki)
 
+**Versão atual:** `2.1.3`
+
 ## Links oficiais do projeto
 
 - Site principal: https://omnizap.shop/
