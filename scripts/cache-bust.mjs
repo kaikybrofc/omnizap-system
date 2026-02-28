@@ -2,6 +2,23 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { URLSearchParams } from 'node:url';
+
+const TARGET_SOURCE_EXTENSIONS = new Set(['.html', '.js', '.mjs', '.css']);
+const ASSET_SUFFIX_PATTERN =
+  String.raw`\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|ico|json|map|woff2?|ttf|eot)(?:\?[^"'#\s)]*)?(?:#[^"' \s)]*)?`;
+const HTML_ATTRIBUTE_ASSET_PATTERN = new RegExp(
+  String.raw`((?:src|href|poster)=["'])([^"']+?${ASSET_SUFFIX_PATTERN})(["'])`,
+  'gi',
+);
+const QUOTED_LOCAL_ASSET_PATTERN = new RegExp(
+  String.raw`(["'])((?:\/|\.{1,2}\/)[^"'\s]+?${ASSET_SUFFIX_PATTERN})\1`,
+  'gi',
+);
+const CSS_URL_ASSET_PATTERN = new RegExp(
+  String.raw`(url\(\s*["']?)([^"')\s]+?${ASSET_SUFFIX_PATTERN})(["']?\s*\))`,
+  'gi',
+);
 
 const usage = () => {
   console.error('Uso: node scripts/cache-bust.mjs --dir <diretorio> --version <build_id>');
@@ -30,7 +47,7 @@ const parseArgs = (argv) => {
   return options;
 };
 
-const listHtmlFiles = async (rootDir) => {
+const listSourceFiles = async (rootDir) => {
   const output = [];
   const stack = [rootDir];
 
@@ -44,13 +61,36 @@ const listHtmlFiles = async (rootDir) => {
         stack.push(absolutePath);
         continue;
       }
-      if (entry.isFile() && absolutePath.toLowerCase().endsWith('.html')) {
+      if (!entry.isFile()) continue;
+      const extension = path.extname(absolutePath).toLowerCase();
+      if (TARGET_SOURCE_EXTENSIONS.has(extension)) {
         output.push(absolutePath);
       }
     }
   }
 
   return output;
+};
+
+const isLocalAssetPath = (assetPath) => {
+  const value = String(assetPath || '').trim();
+  if (!value) return false;
+
+  const lower = value.toLowerCase();
+  if (
+    lower.startsWith('http://') ||
+    lower.startsWith('https://') ||
+    lower.startsWith('//') ||
+    lower.startsWith('data:') ||
+    lower.startsWith('mailto:') ||
+    lower.startsWith('tel:') ||
+    lower.startsWith('javascript:') ||
+    lower.startsWith('#')
+  ) {
+    return false;
+  }
+
+  return value.startsWith('/') || value.startsWith('./') || value.startsWith('../');
 };
 
 const withVersion = (assetPath, version) => {
@@ -62,13 +102,27 @@ const withVersion = (assetPath, version) => {
   return `${pathname}?${queryString}${hash ? `#${hash}` : ''}`;
 };
 
-const applyCacheBustToHtml = (html, version) => {
-  const pattern = /((?:src|href)=["'])(\/(?:js|css)\/[^"']+)(["'])/gi;
+const applyCacheBustToSource = (source, version) => {
   let referencesUpdated = 0;
-
-  const output = html.replace(pattern, (fullMatch, prefix, assetPath, suffix) => {
+  const rewrite = (assetPath) => {
+    if (!isLocalAssetPath(assetPath)) return assetPath;
     const nextPath = withVersion(assetPath, version);
     if (nextPath !== assetPath) referencesUpdated += 1;
+    return nextPath;
+  };
+
+  let output = source.replace(HTML_ATTRIBUTE_ASSET_PATTERN, (fullMatch, prefix, assetPath, suffix) => {
+    const nextPath = rewrite(assetPath);
+    return `${prefix}${nextPath}${suffix}`;
+  });
+
+  output = output.replace(QUOTED_LOCAL_ASSET_PATTERN, (fullMatch, quote, assetPath) => {
+    const nextPath = rewrite(assetPath);
+    return `${quote}${nextPath}${quote}`;
+  });
+
+  output = output.replace(CSS_URL_ASSET_PATTERN, (fullMatch, prefix, assetPath, suffix) => {
+    const nextPath = rewrite(assetPath);
     return `${prefix}${nextPath}${suffix}`;
   });
 
@@ -84,21 +138,21 @@ const main = async () => {
   }
 
   const targetDir = path.resolve(options.dir);
-  const htmlFiles = await listHtmlFiles(targetDir);
+  const sourceFiles = await listSourceFiles(targetDir);
   let filesUpdated = 0;
   let referencesUpdated = 0;
 
-  for (const filePath of htmlFiles) {
+  for (const filePath of sourceFiles) {
     const current = await fs.readFile(filePath, 'utf8');
-    const { output, referencesUpdated: fileRefs } = applyCacheBustToHtml(current, options.version);
+    const { output, referencesUpdated: fileRefs } = applyCacheBustToSource(current, options.version);
     if (output !== current) {
       await fs.writeFile(filePath, output, 'utf8');
       filesUpdated += 1;
-      referencesUpdated += fileRefs;
     }
+    referencesUpdated += fileRefs;
   }
 
-  console.log(`[cache-bust] version=${options.version} files=${filesUpdated} refs=${referencesUpdated}`);
+  console.log(`[cache-bust] version=${options.version} scanned=${sourceFiles.length} files=${filesUpdated} refs=${referencesUpdated}`);
 };
 
 main().catch((error) => {

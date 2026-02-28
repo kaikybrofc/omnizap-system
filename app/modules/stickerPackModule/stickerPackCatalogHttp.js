@@ -8,6 +8,7 @@ import { getJidUser, normalizeJid, resolveBotJid } from '../../config/baileysCon
 import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../config/adminIdentity.js';
 import { getActiveSocket } from '../../services/socketState.js';
 import { extractUserIdInfo, resolveUserId } from '../../services/lidMapService.js';
+import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppPhoneDigits } from '../../services/whatsappLoginLinkService.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
 import {
@@ -963,6 +964,15 @@ const upsertGoogleWebUserRecord = async (user, connection = null) => {
   const name = sanitizeText(user?.name || '', 120, { allowEmpty: true }) || null;
   const pictureUrl = String(user?.picture || '').trim().slice(0, 1024) || null;
 
+  // owner_jid e unico; removemos vinculos antigos desse numero antes do upsert para manter 1:1.
+  await executeQuery(
+    `DELETE FROM ${TABLES.STICKER_WEB_GOOGLE_USER}
+      WHERE owner_jid = ?
+        AND google_sub <> ?`,
+    [ownerJid, sub],
+    connection,
+  );
+
   await executeQuery(
     `INSERT INTO ${TABLES.STICKER_WEB_GOOGLE_USER}
       (google_sub, owner_jid, email, name, picture_url, last_login_at, last_seen_at)
@@ -1624,17 +1634,18 @@ const requireOwnerAdminPanelSession = (req, res) => {
   return session;
 };
 
-const createGoogleWebSession = (claims) => {
+const createGoogleWebSession = (claims, { ownerJid } = {}) => {
   pruneExpiredGoogleSessions();
   const token = randomUUID();
   const now = Date.now();
+  const resolvedOwnerJid = normalizeJid(ownerJid) || buildGoogleOwnerJid(claims.sub);
   const session = {
     token,
     sub: claims.sub,
     email: claims.email || null,
     name: claims.name || null,
     picture: claims.picture || null,
-    ownerJid: buildGoogleOwnerJid(claims.sub),
+    ownerJid: resolvedOwnerJid,
     createdAt: now,
     expiresAt: now + STICKER_WEB_GOOGLE_SESSION_TTL_MS,
     lastSeenAt: now,
@@ -2263,6 +2274,27 @@ const buildSupportInfo = async () => {
     phone,
     text,
     url: `https://wa.me/${phone}?text=${encodeURIComponent(text)}`,
+  };
+};
+
+const buildBotContactInfo = () => {
+  const phone = String(resolveCatalogBotPhone() || '').replace(/\D+/g, '');
+  if (!phone) return null;
+  const loginText = String(process.env.WHATSAPP_LOGIN_TRIGGER || 'iniciar').trim() || 'iniciar';
+  const menuText = `${PACK_COMMAND_PREFIX}menu`;
+  const buildUrl = (text) =>
+    `https://api.whatsapp.com/send/?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(
+      String(text || '').trim(),
+    )}&type=custom_url&app_absent=0`;
+
+  return {
+    phone,
+    login_text: loginText,
+    menu_text: menuText,
+    urls: {
+      login: buildUrl(loginText),
+      menu: buildUrl(menuText),
+    },
   };
 };
 
@@ -3514,24 +3546,7 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
   if (req.method === 'GET' || req.method === 'HEAD') {
     const session = await resolveGoogleWebSessionFromRequest(req);
     sendJson(req, res, 200, {
-      data: session
-        ? {
-            authenticated: true,
-            provider: 'google',
-            user: {
-              sub: session.sub,
-              email: session.email,
-              name: session.name,
-              picture: session.picture,
-            },
-            expires_at: toIsoOrNull(session.expiresAt),
-          }
-        : {
-            authenticated: false,
-            provider: 'google',
-            user: null,
-            expires_at: null,
-          },
+      data: mapGoogleSessionResponseData(session),
     });
     return;
   }
@@ -3567,12 +3582,40 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
 
   try {
     const claims = await verifyGoogleIdToken(payload?.google_id_token || payload?.id_token);
+    const linkedOwner = resolveWhatsAppOwnerJidFromLoginPayload(payload);
+    if (linkedOwner.hasPayload && !linkedOwner.ownerJid) {
+      const reason = String(linkedOwner.reason || '').trim().toLowerCase();
+      const isUnauthorizedAttempt = ['invalid_signature', 'missing_signature'].includes(reason);
+      const statusCode = isUnauthorizedAttempt ? 403 : 400;
+      const errorMessage =
+        reason === 'expired'
+          ? 'Link de login expirado. Envie "iniciar" novamente no WhatsApp.'
+          : isUnauthorizedAttempt
+            ? 'Tentativa de login sem permissao detectada. Gere um novo link enviando "iniciar" no privado do bot.'
+            : 'Link de login invalido. Envie "iniciar" novamente no WhatsApp.';
+
+      logger.warn('Tentativa de login web bloqueada por validacao do link WhatsApp.', {
+        action: 'sticker_pack_google_web_login_link_blocked',
+        reason: reason || 'unknown',
+        remote_ip: req.socket?.remoteAddress || null,
+        user_agent: req.headers?.['user-agent'] || null,
+      });
+
+      sendJson(req, res, statusCode, {
+        error: errorMessage,
+        code: 'WHATSAPP_LOGIN_LINK_INVALID',
+        reason: reason || 'invalid_link',
+      });
+      return;
+    }
+    const ownerJid = linkedOwner.ownerJid || buildGoogleOwnerJid(claims.sub);
+
     await assertGoogleIdentityNotBanned({
       sub: claims.sub,
       email: claims.email,
-      ownerJid: buildGoogleOwnerJid(claims.sub),
+      ownerJid,
     });
-    const session = createGoogleWebSession(claims);
+    const session = createGoogleWebSession(claims, { ownerJid });
     if (!session.ownerJid) {
       sendJson(req, res, 400, { error: 'Nao foi possivel vincular a conta Google.' });
       return;
@@ -3596,17 +3639,7 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
       }),
     );
     sendJson(req, res, 200, {
-      data: {
-        authenticated: true,
-        provider: 'google',
-        user: {
-          sub: session.sub,
-          email: session.email,
-          name: session.name,
-          picture: session.picture,
-        },
-        expires_at: toIsoOrNull(session.expiresAt),
-      },
+      data: mapGoogleSessionResponseData(session),
     });
   } catch (error) {
     sendJson(req, res, Number(error?.statusCode || 401), {
@@ -3627,12 +3660,16 @@ const mapGoogleSessionResponseData = (session) =>
           name: session.name,
           picture: session.picture,
         },
+        owner_jid: session.ownerJid,
+        owner_phone: toWhatsAppPhoneDigits(session.ownerJid) || null,
         expires_at: toIsoOrNull(session.expiresAt),
       }
     : {
         authenticated: false,
         provider: 'google',
         user: null,
+        owner_jid: null,
+        owner_phone: null,
         expires_at: null,
       };
 
@@ -5581,6 +5618,7 @@ const buildSystemSummarySnapshot = async () => {
 
   const socketReadyState = Number(activeSocket?.ws?.readyState);
   const botJid = resolveBotJid(activeSocket?.user?.id) || null;
+  const botPhone = String(resolveCatalogBotPhone() || '').replace(/\D+/g, '') || null;
   const botConnected = Boolean(botJid) && socketReadyState === 1;
   const botConnectionStatus = botConnected
     ? 'online'
@@ -5646,6 +5684,7 @@ const buildSystemSummarySnapshot = async () => {
         connected: botConnected,
         connection_status: botConnectionStatus,
         jid: botJid,
+        phone: botPhone,
         ready_state: Number.isFinite(socketReadyState) ? socketReadyState : null,
       },
       platform,
@@ -6505,6 +6544,15 @@ const handleSupportInfoRequest = async (req, res) => {
   const data = await buildSupportInfo();
   if (!data) {
     sendJson(req, res, 404, { error: 'Contato de suporte indisponível.' });
+    return;
+  }
+  sendJson(req, res, 200, { data });
+};
+
+const handleBotContactInfoRequest = async (req, res) => {
+  const data = buildBotContactInfo();
+  if (!data) {
+    sendJson(req, res, 404, { error: 'Contato do bot indisponivel no momento.' });
     return;
   }
   sendJson(req, res, 200, { data });
@@ -7450,6 +7498,15 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
       return true;
     }
     await handleSupportInfoRequest(req, res);
+    return true;
+  }
+
+  if (segments.length === 1 && segments[0] === 'bot-contact') {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handleBotContactInfoRequest(req, res);
     return true;
   }
 

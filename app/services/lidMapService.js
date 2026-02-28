@@ -344,7 +344,10 @@ export const extractSenderInfoFromMessage = (msg) => {
   } else {
     if (isWhatsAppJid(remoteJid)) jid = remoteJid;
     if (!jid && isWhatsAppJid(participant)) jid = participant;
+    if (!jid && isWhatsAppJid(participantAlt)) jid = participantAlt;
     if (isLidJid(participant)) lid = participant;
+    if (!lid && isLidJid(remoteJid)) lid = remoteJid;
+    if (!lid && isLidJid(participantAlt)) lid = participantAlt;
   }
 
   return { lid, jid, participantAlt, remoteJid, groupMessage };
@@ -541,7 +544,7 @@ export const extractUserIdInfo = (value) => {
   const participantAlt = typeof value.participantAlt === 'string' ? value.participantAlt : null;
   const participant = typeof value.participant === 'string' ? value.participant : null;
   const jidCandidate = value.jid || value.id || participantAlt || participant || null;
-  const lidCandidate = value.lid || participant || null;
+  const lidCandidate = value.lid || participant || participantAlt || value.id || value.jid || null;
 
   return {
     lid: pickLid(lidCandidate, participantAlt, participant),
