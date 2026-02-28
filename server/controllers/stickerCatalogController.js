@@ -3648,6 +3648,76 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
   }
 };
 
+const handleHomeBootstrapRequest = async (req, res, url) => {
+  const visibility = normalizeCatalogVisibility(url?.searchParams?.get('visibility'));
+  const fetchTimeoutMs = {
+    support: 450,
+    session: 450,
+    stats: 700,
+    system_summary: 700,
+  };
+  const errors = [];
+
+  const [supportResult, sessionResult, statsResult, systemSummaryResult] = await Promise.allSettled([
+    withTimeout(buildSupportInfo(), fetchTimeoutMs.support),
+    STICKER_WEB_GOOGLE_CLIENT_ID ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session) : Promise.resolve(null),
+    withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats),
+    withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary),
+  ]);
+
+  const support = supportResult.status === 'fulfilled' ? supportResult.value || null : null;
+  if (supportResult.status !== 'fulfilled') {
+    errors.push({
+      source: 'support',
+      message: supportResult.reason?.message || 'support_unavailable',
+    });
+  }
+
+  const session = sessionResult.status === 'fulfilled' ? sessionResult.value || null : null;
+  if (sessionResult.status !== 'fulfilled') {
+    errors.push({
+      source: 'session',
+      message: sessionResult.reason?.message || 'session_unavailable',
+    });
+  }
+
+  const statsPayload = statsResult.status === 'fulfilled' ? statsResult.value || null : null;
+  if (statsResult.status !== 'fulfilled') {
+    errors.push({
+      source: 'stats',
+      message: statsResult.reason?.message || 'stats_unavailable',
+    });
+  }
+
+  const systemSummaryPayload = systemSummaryResult.status === 'fulfilled' ? systemSummaryResult.value || null : null;
+  if (systemSummaryResult.status !== 'fulfilled') {
+    errors.push({
+      source: 'system_summary',
+      message: systemSummaryResult.reason?.message || 'system_summary_unavailable',
+    });
+  }
+
+  sendJson(req, res, 200, {
+    data: {
+      support,
+      session: mapGoogleSessionResponseData(session),
+      stats: statsPayload?.data || null,
+      stats_filters: statsPayload?.filters || null,
+      system_summary: systemSummaryPayload?.data || null,
+    },
+    meta: {
+      visibility,
+      cache_seconds: {
+        stats: HOME_MARKETPLACE_STATS_CACHE_SECONDS,
+        system_summary: SYSTEM_SUMMARY_CACHE_SECONDS,
+      },
+      timeouts_ms: fetchTimeoutMs,
+      partial: errors.length > 0,
+      errors,
+    },
+  });
+};
+
 const handleCreatePackConfigRequest = async (req, res) => {
   triggerStaleDraftCleanup();
   sendJson(req, res, 200, {
@@ -7624,6 +7694,7 @@ const catalogApiRouter = createCatalogApiRouter({
     handleCreatorRankingRequest,
     handleRecommendationsRequest,
     handleMarketplaceStatsRequest,
+    handleHomeBootstrapRequest,
     handleCreatePackConfigRequest,
     handleOrphanStickerListRequest,
     handleDataFileListRequest,

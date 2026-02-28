@@ -1,5 +1,23 @@
 const FALLBACK_THUMB_URL = '/assets/images/brand-logo-128.webp';
+const HOME_BOOTSTRAP_ENDPOINT = '/api/sticker-packs/home-bootstrap';
 const SVG_NS = 'http://www.w3.org/2000/svg';
+let homeBootstrapPayloadPromise = null;
+
+const fetchHomeBootstrapPayload = async () => {
+  if (!homeBootstrapPayloadPromise) {
+    homeBootstrapPayloadPromise = fetch(HOME_BOOTSTRAP_ENDPOINT, { credentials: 'include' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((payload) => payload?.data || {})
+      .catch((error) => {
+        homeBootstrapPayloadPromise = null;
+        throw error;
+      });
+  }
+  return homeBootstrapPayloadPromise;
+};
 
 const createIcon = (iconId, className = 'icon') => {
   const wrapper = document.createElement('span');
@@ -224,13 +242,9 @@ const initAuthSession = () => {
   };
 
   return runAfterLoadIdle(() => {
-    fetch('/api/sticker-packs/auth/google/session', { credentials: 'include' })
-      .then((response) => {
-        if (!response.ok) throw new Error('Sessão indisponível');
-        return response.json();
-      })
-      .then((payload) => {
-        const sessionData = payload?.data || {};
+    fetchHomeBootstrapPayload()
+      .then((bootstrapData) => {
+        const sessionData = bootstrapData?.session || {};
         if (!sessionData?.authenticated || !sessionData?.user?.sub) {
           setLoginState();
           return;
@@ -240,19 +254,7 @@ const initAuthSession = () => {
       .catch(() => {
         setLoginState();
       });
-  }, { delayMs: 160, timeoutMs: 1200 });
-};
-
-const resolveSupportUrl = async () => {
-  try {
-    const response = await fetch('/api/sticker-packs/support');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const payload = await response.json();
-    const url = String(payload?.data?.url || '').trim();
-    return url || '';
-  } catch {
-    return '';
-  }
+  }, { delayMs: 520, timeoutMs: 1200 });
 };
 
 const initAddBotCtas = () => {
@@ -278,8 +280,9 @@ const initAddBotCtas = () => {
   };
 
   return runAfterLoadIdle(() => {
-    resolveSupportUrl()
-      .then((url) => {
+    fetchHomeBootstrapPayload()
+      .then((bootstrapData) => {
+        const url = String(bootstrapData?.support?.url || '').trim();
         const applied = applyLink(url);
         if (!applied && floatButton) {
           floatButton.hidden = true;
@@ -288,7 +291,7 @@ const initAddBotCtas = () => {
       .catch(() => {
         if (floatButton) floatButton.hidden = true;
       });
-  }, { delayMs: 120, timeoutMs: 1400 });
+  }, { delayMs: 480, timeoutMs: 1400 });
 };
 
 const initSocialProof = () => {
@@ -316,18 +319,10 @@ const initSocialProof = () => {
   };
 
   return runAfterLoadIdle(() => {
-    Promise.all([
-      fetch('/api/sticker-packs/stats'),
-      fetch('/api/sticker-packs/system-summary'),
-    ])
-      .then(async ([statsRes, summaryRes]) => {
-        if (!statsRes.ok || !summaryRes.ok) throw new Error('Falha ao carregar prova social');
-
-        const statsPayload = await statsRes.json();
-        const summaryPayload = await summaryRes.json();
-
-        const stats = statsPayload?.data || {};
-        const summary = summaryPayload?.data || {};
+    fetchHomeBootstrapPayload()
+      .then((bootstrapData) => {
+        const stats = bootstrapData?.stats || {};
+        const summary = bootstrapData?.system_summary || {};
 
         animateCountUp(packsEl, Number(stats.packs_total || 0));
         animateCountUp(stickersEl, Number(stats.stickers_total || 0));
@@ -340,7 +335,7 @@ const initSocialProof = () => {
       .catch(() => {
         setFallback();
       });
-  }, { delayMs: 260, timeoutMs: 1500 });
+  }, { delayMs: 620, timeoutMs: 1500 });
 };
 
 const registerCleanup = (cleanups, cleanup) => {

@@ -58,6 +58,15 @@ export const handleCatalogPublicRoutes = async ({
     return true;
   }
 
+  if (pathname === `${apiBasePath}/home-bootstrap`) {
+    if (!isReadMethod(req.method || '')) {
+      sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
+      return true;
+    }
+    await handlers.handleHomeBootstrapRequest(req, res, url);
+    return true;
+  }
+
   if (pathname === `${apiBasePath}/create-config`) {
     if (!isReadMethod(req.method || '')) {
       sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
