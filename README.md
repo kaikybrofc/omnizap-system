@@ -53,7 +53,7 @@ Atualização em cache: **30 minutos** por padrão (`README_SUMMARY_CACHE_SECOND
 <!-- README_SNAPSHOT:START -->
 ### Snapshot do Sistema
 
-> Atualizado em `2026-02-28T10:29:57.995Z` | cache `1800s`
+> Atualizado em `2026-02-28T10:30:26.647Z` | cache `1800s`
 
 | Métrica | Valor |
 | --- | ---: |
