@@ -63,6 +63,16 @@ import {
   buildViewerTagAffinity,
   computePackSignals,
 } from './stickerPackMarketplaceService.js';
+import {
+  buildAdminMenu,
+  buildAiMenu,
+  buildAnimeMenu,
+  buildMediaMenu,
+  buildMenuCaption,
+  buildQuoteMenu,
+  buildStatsMenu,
+  buildStickerMenu,
+} from '../menuModule/common.js';
 import { getMarketplaceDriftSnapshot } from './stickerMarketplaceDriftService.js';
 import { getStickerStorageConfig, readStickerAssetBuffer, saveStickerAssetFromBuffer } from './stickerStorageService.js';
 import { convertToWebp } from '../stickerModule/convertToWebp.js';
@@ -193,6 +203,9 @@ const MARKETPLACE_GLOBAL_STATS_API_PATH = '/api/marketplace/stats';
 const MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS = clampInt(process.env.MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS, 45, 30, 60);
 const HOME_MARKETPLACE_STATS_CACHE_SECONDS = clampInt(process.env.HOME_MARKETPLACE_STATS_CACHE_SECONDS, 45, 10, 300);
 const SYSTEM_SUMMARY_CACHE_SECONDS = clampInt(process.env.SYSTEM_SUMMARY_CACHE_SECONDS, 20, 5, 120);
+const README_SUMMARY_CACHE_SECONDS = clampInt(process.env.README_SUMMARY_CACHE_SECONDS, 60 * 30, 60, 60 * 60 * 6);
+const README_MESSAGE_TYPE_SAMPLE_LIMIT = clampInt(process.env.README_MESSAGE_TYPE_SAMPLE_LIMIT, 25000, 500, 250000);
+const README_COMMAND_PREFIX = String(process.env.README_COMMAND_PREFIX || PACK_COMMAND_PREFIX).trim() || PACK_COMMAND_PREFIX;
 const SITE_CANONICAL_HOST = String(process.env.SITE_CANONICAL_HOST || 'omnizap.shop').trim().toLowerCase() || 'omnizap.shop';
 const SITE_CANONICAL_SCHEME = String(process.env.SITE_CANONICAL_SCHEME || 'https').trim().toLowerCase() === 'http'
   ? 'http'
@@ -279,6 +292,11 @@ const MARKETPLACE_GLOBAL_STATS_CACHE = {
 };
 const HOME_MARKETPLACE_STATS_CACHE = new Map();
 const SYSTEM_SUMMARY_CACHE = {
+  expiresAt: 0,
+  value: null,
+  pending: null,
+};
+const README_SUMMARY_CACHE = {
   expiresAt: 0,
   value: null,
   pending: null,
@@ -3700,6 +3718,9 @@ const invalidateStickerCatalogDerivedCaches = () => {
   SYSTEM_SUMMARY_CACHE.expiresAt = 0;
   SYSTEM_SUMMARY_CACHE.value = null;
   SYSTEM_SUMMARY_CACHE.pending = null;
+  README_SUMMARY_CACHE.expiresAt = 0;
+  README_SUMMARY_CACHE.value = null;
+  README_SUMMARY_CACHE.pending = null;
 };
 
 const sendManagedMutationStatus = (req, res, status, extra = {}, statusCode = 200) => {
@@ -5736,6 +5757,253 @@ const parseMessageTypeFromRaw = (rawMessage) => {
   }
 };
 
+const formatPtBrInteger = (value) => Number(value || 0).toLocaleString('pt-BR');
+
+const extractCommandsFromMenuLine = (line, commandPrefix) => {
+  const normalizedLine = String(line || '').trim();
+  if (!normalizedLine.startsWith('→')) return [];
+
+  const commandParts = normalizedLine
+    .replace(/^→\s*/, '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter((part) => part.startsWith(commandPrefix));
+
+  return commandParts
+    .map((part) => {
+      const normalized = part.replace(/\s{2,}.*/, '').trim();
+      const withoutPrefix = normalized.slice(commandPrefix.length).trim();
+      if (!withoutPrefix) return '';
+
+      const tokens = withoutPrefix.split(/\s+/).filter(Boolean);
+      const selectedTokens = [];
+      for (const token of tokens) {
+        if (/^[<[(]/.test(token)) break;
+        selectedTokens.push(token);
+      }
+      if (!selectedTokens.length) return '';
+      return `${commandPrefix}${selectedTokens.join(' ')}`;
+    })
+    .filter(Boolean);
+};
+
+const collectAvailableMenuCommands = (commandPrefix = README_COMMAND_PREFIX) => {
+  const sections = [
+    buildMenuCaption('OmniZap', commandPrefix),
+    buildStickerMenu(commandPrefix),
+    buildMediaMenu(commandPrefix),
+    buildQuoteMenu(commandPrefix),
+    buildAnimeMenu(commandPrefix),
+    buildAiMenu(commandPrefix),
+    buildStatsMenu(commandPrefix),
+    buildAdminMenu(commandPrefix),
+  ];
+
+  const commands = new Set();
+  for (const section of sections) {
+    for (const line of String(section || '').split('\n')) {
+      const extracted = extractCommandsFromMenuLine(line, commandPrefix);
+      for (const command of extracted) {
+        commands.add(command);
+      }
+    }
+  }
+
+  return Array.from(commands).sort((left, right) => left.localeCompare(right, 'pt-BR'));
+};
+
+const renderReadmeSnapshotMarkdown = ({ generatedAt, totals, topMessageTypes, commands }) => {
+  const typeLines = topMessageTypes.length
+    ? topMessageTypes.map((entry, index) => `${index + 1}. \`${entry.type}\` - **${formatPtBrInteger(entry.total)}**`)
+    : ['1. `outros` - **0**'];
+
+  const commandLines = commands.length
+    ? commands.map((command) => `- \`${command}\``)
+    : ['- Nenhum comando identificado no menu atual.'];
+
+  return [
+    '## OmniZap System Snapshot',
+    '',
+    `Atualizado em: **${generatedAt}**`,
+    `Janela de atualização: **${README_SUMMARY_CACHE_SECONDS} segundos**`,
+    '',
+    '### Totais do sistema',
+    `- Usuários (lid_map): **${formatPtBrInteger(totals.total_users)}**`,
+    `- Grupos: **${formatPtBrInteger(totals.total_groups)}**`,
+    `- Packs: **${formatPtBrInteger(totals.total_packs)}**`,
+    `- Stickers: **${formatPtBrInteger(totals.total_stickers)}**`,
+    `- Mensagens registradas: **${formatPtBrInteger(totals.total_messages)}**`,
+    '',
+    `### Tipos de mensagem mais usados (amostra de ${formatPtBrInteger(totals.message_types_sample_size)} mensagens)`,
+    ...typeLines,
+    '',
+    '### Comandos disponíveis',
+    ...commandLines,
+    '',
+  ].join('\n');
+};
+
+const buildReadmeSummarySnapshot = async () => {
+  const [
+    lidMapTotalsRows,
+    chatsTotalsRows,
+    groupsMetadataTotalsRows,
+    packTotalsRows,
+    stickerTotalsRows,
+    messageTotalsRows,
+    messageTypeRows,
+  ] = await Promise.all([
+    executeQuery(`SELECT COUNT(*) AS total_users FROM ${TABLES.LID_MAP}`),
+    executeQuery(
+      `SELECT
+         COUNT(*) AS total_chats,
+         SUM(CASE WHEN id LIKE '%@g.us' THEN 1 ELSE 0 END) AS total_groups
+       FROM ${TABLES.CHATS}`,
+    ),
+    executeQuery(`SELECT COUNT(*) AS total_groups FROM ${TABLES.GROUPS_METADATA}`),
+    executeQuery(`SELECT COUNT(*) AS total_packs FROM ${TABLES.STICKER_PACK} WHERE deleted_at IS NULL`),
+    executeQuery(`SELECT COUNT(*) AS total_stickers FROM ${TABLES.STICKER_ASSET}`),
+    executeQuery(`SELECT COUNT(*) AS total_messages FROM ${TABLES.MESSAGES}`),
+    executeQuery(
+      `SELECT raw_message
+       FROM ${TABLES.MESSAGES}
+       WHERE raw_message IS NOT NULL
+       ORDER BY id DESC
+       LIMIT ${README_MESSAGE_TYPE_SAMPLE_LIMIT}`,
+    ),
+  ]);
+
+  const lidMapTotals = lidMapTotalsRows?.[0] || {};
+  const chatsTotals = chatsTotalsRows?.[0] || {};
+  const groupsMetadataTotals = groupsMetadataTotalsRows?.[0] || {};
+  const packTotals = packTotalsRows?.[0] || {};
+  const stickerTotals = stickerTotalsRows?.[0] || {};
+  const messageTotals = messageTotalsRows?.[0] || {};
+
+  const totalGroupsFromChats = Number(chatsTotals?.total_groups || 0);
+  const totalGroupsFromMetadata = Number(groupsMetadataTotals?.total_groups || 0);
+  const totalGroups = Math.max(totalGroupsFromChats, totalGroupsFromMetadata);
+  const totalMessages = Number(messageTotals?.total_messages || 0);
+
+  const typeCounts = new Map();
+  const sampledMessages = Array.isArray(messageTypeRows) ? messageTypeRows.length : 0;
+  for (const row of messageTypeRows || []) {
+    const type = parseMessageTypeFromRaw(row?.raw_message);
+    typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
+  }
+  const topMessageTypes = Array.from(typeCounts.entries())
+    .map(([type, total]) => ({ type, total: Number(total || 0) }))
+    .sort((left, right) => Number(right.total || 0) - Number(left.total || 0))
+    .slice(0, 8);
+
+  const commands = collectAvailableMenuCommands(README_COMMAND_PREFIX);
+  const generatedAt = new Date().toISOString();
+
+  const totals = {
+    total_users: Number(lidMapTotals?.total_users || 0),
+    total_groups: totalGroups,
+    total_groups_from_chats: totalGroupsFromChats,
+    total_groups_from_metadata: totalGroupsFromMetadata,
+    total_chats: Number(chatsTotals?.total_chats || 0),
+    total_packs: Number(packTotals?.total_packs || 0),
+    total_stickers: Number(stickerTotals?.total_stickers || 0),
+    total_messages: totalMessages,
+    message_types_sample_size: sampledMessages,
+    message_types_total_coverage_percent: totalMessages > 0 ? Number(((sampledMessages / totalMessages) * 100).toFixed(2)) : 0,
+  };
+
+  const markdown = renderReadmeSnapshotMarkdown({
+    generatedAt,
+    totals,
+    topMessageTypes,
+    commands,
+  });
+
+  return {
+    data: {
+      generated_at: generatedAt,
+      cache_seconds: README_SUMMARY_CACHE_SECONDS,
+      command_prefix: README_COMMAND_PREFIX,
+      totals,
+      top_message_types: topMessageTypes,
+      commands,
+      markdown,
+    },
+  };
+};
+
+const getReadmeSummaryCached = async () => {
+  const now = Date.now();
+  const hasValue = Boolean(README_SUMMARY_CACHE.value);
+
+  if (hasValue && now < README_SUMMARY_CACHE.expiresAt) {
+    return README_SUMMARY_CACHE.value;
+  }
+
+  if (!README_SUMMARY_CACHE.pending) {
+    README_SUMMARY_CACHE.pending = withTimeout(buildReadmeSummarySnapshot(), 7000)
+      .then((payload) => {
+        README_SUMMARY_CACHE.value = payload;
+        README_SUMMARY_CACHE.expiresAt = Date.now() + README_SUMMARY_CACHE_SECONDS * 1000;
+        return payload;
+      })
+      .finally(() => {
+        README_SUMMARY_CACHE.pending = null;
+      });
+  }
+
+  if (hasValue) return README_SUMMARY_CACHE.value;
+  return README_SUMMARY_CACHE.pending;
+};
+
+const handleReadmeSummaryRequest = async (req, res) => {
+  try {
+    const payload = await getReadmeSummaryCached();
+    sendJson(req, res, 200, payload);
+  } catch (error) {
+    logger.warn('Falha ao montar resumo markdown para README.', {
+      action: 'readme_summary_error',
+      error: error?.message,
+    });
+    if (README_SUMMARY_CACHE.value) {
+      sendJson(req, res, 200, {
+        ...README_SUMMARY_CACHE.value,
+        meta: {
+          stale: true,
+          error: error?.message || 'fallback_cache',
+        },
+      });
+      return;
+    }
+    sendJson(req, res, 503, { error: 'Resumo markdown indisponível no momento.' });
+  }
+};
+
+const handleReadmeMarkdownRequest = async (req, res) => {
+  try {
+    const payload = await getReadmeSummaryCached();
+    const markdown = String(payload?.data?.markdown || '').trim();
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.setHeader('Cache-Control', `public, max-age=${Math.min(README_SUMMARY_CACHE_SECONDS, 300)}`);
+    res.setHeader('X-Cache-Seconds', String(README_SUMMARY_CACHE_SECONDS));
+    sendText(req, res, 200, markdown ? `${markdown}\n` : '', 'text/markdown; charset=utf-8');
+  } catch (error) {
+    logger.warn('Falha ao renderizar markdown para README.', {
+      action: 'readme_markdown_error',
+      error: error?.message,
+    });
+    if (README_SUMMARY_CACHE.value) {
+      const markdown = String(README_SUMMARY_CACHE.value?.data?.markdown || '').trim();
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      res.setHeader('Cache-Control', `public, max-age=${Math.min(README_SUMMARY_CACHE_SECONDS, 300)}`);
+      res.setHeader('X-Cache-Seconds', String(README_SUMMARY_CACHE_SECONDS));
+      sendText(req, res, 200, markdown ? `${markdown}\n` : '', 'text/markdown; charset=utf-8');
+      return;
+    }
+    sendText(req, res, 503, 'Resumo markdown indisponivel no momento.\n', 'text/plain; charset=utf-8');
+  }
+};
+
 const resolveBotUserCandidates = (activeSocket) => {
   const candidates = new Set();
   const botJidFromSocket = resolveBotJid(activeSocket?.user?.id);
@@ -7152,6 +7420,24 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
       return true;
     }
     await handleGlobalRankingSummaryRequest(req, res);
+    return true;
+  }
+
+  if (segments.length === 1 && segments[0] === 'readme-summary') {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handleReadmeSummaryRequest(req, res);
+    return true;
+  }
+
+  if (segments.length === 1 && segments[0] === 'readme-markdown') {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    await handleReadmeMarkdownRequest(req, res);
     return true;
   }
 

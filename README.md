@@ -26,6 +26,24 @@ O **OmniZap System** é uma plataforma de automação para WhatsApp usando **Nod
 - Termos de uso: https://omnizap.shop/termos-de-uso/
 - Licença: https://omnizap.shop/licenca/
 
+## Snapshot dinâmico para README/NPM
+
+Use as rotas abaixo para consumir o bloco já renderizado com dados do sistema:
+
+- JSON: `GET /api/sticker-packs/readme-summary`
+- Markdown: `GET /api/sticker-packs/readme-markdown`
+
+Conteúdo incluído no snapshot:
+
+- total de usuários (`lid_map`)
+- total de grupos
+- total de packs e stickers
+- total de mensagens registradas
+- tipos de mensagem mais usados
+- lista de comandos disponíveis no menu
+
+Atualização em cache: **30 minutos** por padrão (`README_SUMMARY_CACHE_SECONDS=1800`).
+
 ## Recursos principais
 
 - Gerenciamento de grupos (admin, boas-vindas, despedida, anti-link, captcha).
