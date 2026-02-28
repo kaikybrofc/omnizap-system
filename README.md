@@ -53,25 +53,25 @@ Atualização em cache: **30 minutos** por padrão (`README_SUMMARY_CACHE_SECOND
 <!-- README_SNAPSHOT:START -->
 ### Snapshot do Sistema
 
-> Atualizado em `2026-02-28T04:28:50.529Z` | cache `1800s`
+> Atualizado em `2026-02-28T06:26:02.459Z` | cache `1800s`
 
 | Métrica | Valor |
 | --- | ---: |
 | Usuários (lid_map) | 5.504 |
 | Grupos | 116 |
-| Packs | 294 |
-| Stickers | 6.796 |
-| Mensagens registradas | 440.582 |
+| Packs | 293 |
+| Stickers | 6.775 |
+| Mensagens registradas | 440.765 |
 
 #### Tipos de mensagem mais usados (amostra: 25.000)
 | Tipo | Total |
 | --- | ---: |
-| `texto` | 16.293 |
-| `figurinha` | 4.718 |
-| `reacao` | 1.506 |
-| `imagem` | 1.286 |
-| `outros` | 744 |
-| `video` | 232 |
+| `texto` | 16.279 |
+| `figurinha` | 4.721 |
+| `reacao` | 1.504 |
+| `imagem` | 1.290 |
+| `outros` | 757 |
+| `video` | 228 |
 | `audio` | 216 |
 | `documento` | 5 |
 
