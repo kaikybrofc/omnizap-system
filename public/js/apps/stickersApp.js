@@ -1561,8 +1561,6 @@ function CreatorProfileDashboard({
   googleAuthBusy,
   googleAuthError,
   googleSessionChecked,
-  googleAuthUiReady,
-  googleButtonRef,
   myPacks,
   myPacksLoading,
   myPacksError,
@@ -1573,7 +1571,6 @@ function CreatorProfileDashboard({
   onOpenPublicPack,
   onOpenPackActions,
   onOpenManagePack,
-  onProfileAction,
   onRequestDeletePack,
   packActionBusyByKey = {},
 }) {
@@ -1649,8 +1646,7 @@ function CreatorProfileDashboard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button type="button" onClick=${onBack} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">← Catálogo</button>
         <div className="flex items-center gap-2">
-          <button type="button" onClick=${() => onProfileAction?.('edit-profile')} className="inline-flex h-10 items-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20">✏️ Editar perfil</button>
-          <button type="button" onClick=${() => onProfileAction?.('settings')} className="inline-flex h-10 items-center rounded-xl border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800">⚙️</button>
+          <a href="/user/" className="inline-flex h-10 items-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20">👤 Minha conta</a>
           <button type="button" onClick=${onRefresh} disabled=${myPacksLoading || googleAuthBusy} className="inline-flex h-10 items-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60">${myPacksLoading ? '...' : '⟳'}</button>
         </div>
       </div>
@@ -1667,10 +1663,10 @@ function CreatorProfileDashboard({
                 className="h-20 w-20 rounded-2xl border border-slate-700 bg-slate-900 object-cover sm:h-24 sm:w-24"
               />
               <div className="min-w-0">
-                <div className="mb-1 inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-100">✅ Criador verificado</div>
-                <h1 className="truncate text-2xl font-extrabold tracking-tight text-slate-100 sm:text-3xl">${googleAuth?.user?.name || 'Meu perfil de packs'}</h1>
-                <p className="truncate text-xs text-slate-400">${googleAuth?.user?.email || 'Faça login com Google para vincular seus packs.'}</p>
-                <p className="mt-0.5 text-[11px] text-slate-500">Sessão ${googleAuth?.expiresAt ? `até ${new Date(googleAuth.expiresAt).toLocaleString('pt-BR')}` : hasGoogleLogin ? 'ativa' : 'não autenticada'}</p>
+                <div className="mb-1 inline-flex items-center gap-1 rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-semibold text-cyan-100">🧩 Gestão de stickers</div>
+                <h1 className="truncate text-2xl font-extrabold tracking-tight text-slate-100 sm:text-3xl">Gerenciamento de Packs</h1>
+                <p className="truncate text-xs text-slate-400">Organize uploads, capa, ordem e publicação dos seus stickers.</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Área exclusiva para gerenciamento dos seus packs.</p>
               </div>
             </div>
             ${hasGoogleLogin
@@ -1715,24 +1711,15 @@ function CreatorProfileDashboard({
             <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
               <div className="space-y-2.5">
                 <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
-                  <p className="text-sm font-semibold text-cyan-200">Entrar com Google</p>
+                  <p className="text-sm font-semibold text-cyan-200">Sessão necessária para gerenciamento</p>
                   <p className="mt-1 text-xs text-slate-300">
                     ${googleLoginEnabled
-                      ? 'Use a mesma conta Google usada na criação de packs para carregar e gerenciar tudo aqui.'
+                      ? 'Esta área é exclusiva para gerenciar seus packs e stickers. Redirecionando para o login...'
                       : 'Login Google indisponível no momento.'}
                   </p>
                 </div>
-                ${googleLoginEnabled
-                  ? html`
-                      <div ref=${googleButtonRef} className="min-h-[42px] w-full max-w-[340px] overflow-hidden"></div>
-                      ${!googleSessionChecked
-                        ? html`<p className="text-xs text-slate-400">Verificando sessão Google...</p>`
-                        : googleAuthBusy
-                          ? html`<p className="text-xs text-slate-400">Conectando conta Google...</p>`
-                          : !googleAuthUiReady && !googleAuthError
-                            ? html`<p className="text-xs text-slate-400">Carregando login Google...</p>`
-                            : null}
-                    `
+                ${!googleSessionChecked
+                  ? html`<p className="text-xs text-slate-400">Verificando sessão...</p>`
                   : null}
                 ${googleAuthError ? html`<p className="text-xs text-rose-300">${googleAuthError}</p>` : null}
               </div>
@@ -2444,6 +2431,7 @@ function StickersApp() {
       webPath: root?.dataset.webPath || '/stickers',
       apiBasePath: root?.dataset.apiBasePath || '/api/sticker-packs',
       orphanApiPath: root?.dataset.orphanApiPath || '/api/sticker-packs/orphan-stickers',
+      loginPath: root?.dataset.loginPath || '/login',
       limit: parseIntSafe(root?.dataset.defaultLimit, 24),
       orphanLimit: parseIntSafe(root?.dataset.defaultOrphanLimit, 24),
     }),
@@ -2979,8 +2967,16 @@ function StickersApp() {
     if (!silent) setGoogleSessionChecked(false);
     try {
       const payload = await fetchJson(myProfileApiPath, { retry: 1 });
-      applyMyProfileData(payload);
+      const applied = applyMyProfileData(payload);
+      if (!applied?.authenticated) {
+        redirectToLogin(`${config.webPath}/perfil`);
+        return;
+      }
     } catch (err) {
+      if (Number(err?.status || 0) === 401 || Number(err?.status || 0) === 403) {
+        redirectToLogin(`${config.webPath}/perfil`);
+        return;
+      }
       setMyPacks([]);
       setMyProfileStats({ total: 0, published: 0, drafts: 0, private: 0, unlisted: 0, public: 0 });
       setGoogleSessionChecked(true);
@@ -3510,7 +3506,22 @@ function StickersApp() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const buildLoginRedirectUrl = (nextPath = '') => {
+    const next = String(nextPath || '').trim() || `${config.webPath}/perfil`;
+    const loginUrl = new URL(config.loginPath || '/login', window.location.origin);
+    loginUrl.searchParams.set('next', next);
+    return `${loginUrl.pathname}${loginUrl.search}`;
+  };
+
+  const redirectToLogin = (nextPath = '') => {
+    window.location.assign(buildLoginRedirectUrl(nextPath));
+  };
+
   const openProfile = (push = true) => {
+    if (!hasGoogleLogin) {
+      redirectToLogin(`${config.webPath}/perfil`);
+      return;
+    }
     googlePromptAttemptedRef.current = false;
     if (push) window.history.pushState({}, '', `${config.webPath}/perfil`);
     setCurrentView('profile');
@@ -3610,17 +3621,6 @@ function StickersApp() {
       pushProfileToast(err?.message || 'Falha ao apagar pack.', 'error');
     } finally {
       setConfirmDeleteBusy(false);
-    }
-  };
-
-  const handleProfileAction = (actionKey) => {
-    if (actionKey === 'edit-profile') {
-      pushProfileToast('Edição de perfil do criador será adicionada na próxima etapa.', 'warning');
-      return;
-    }
-    if (actionKey === 'settings') {
-      pushProfileToast('Configurações do criador ainda não têm tela dedicada.', 'warning');
-      return;
     }
   };
 
@@ -4348,8 +4348,6 @@ function StickersApp() {
                 googleAuthBusy=${googleAuthBusy}
                 googleAuthError=${googleAuthError}
                 googleSessionChecked=${googleSessionChecked}
-                googleAuthUiReady=${googleAuthUiReady}
-                googleButtonRef=${googleButtonRef}
                 myPacks=${myPacks}
                 myPacksLoading=${myPacksLoading}
                 myPacksError=${myPacksError}
@@ -4360,7 +4358,6 @@ function StickersApp() {
                 onOpenPublicPack=${openPack}
                 onOpenPackActions=${openPackActionsSheet}
                 onOpenManagePack=${(pack) => openManagePackByKey(pack?.pack_key || '')}
-                onProfileAction=${handleProfileAction}
                 onRequestDeletePack=${requestDeletePack}
                 packActionBusyByKey=${packActionBusyByKey}
               />

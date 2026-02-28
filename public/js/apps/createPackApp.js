@@ -1,4 +1,4 @@
-import { React, createRoot, useMemo, useState, useEffect, useRef } from '../runtime/react-runtime.js?v=20260226-googlefix1';
+import { React, createRoot, useMemo, useState, useEffect, useCallback } from '../runtime/react-runtime.js?v=20260228-runtime-usecallback1';
 import htm from 'https://esm.sh/htm@3.1.1';
 
 const html = htm.bind(React.createElement);
@@ -9,7 +9,6 @@ const GOOGLE_AUTH_CACHE_KEY = 'omnizap_google_web_auth_cache_v1';
 const GOOGLE_AUTH_CACHE_MAX_STALE_MS = 8 * 24 * 60 * 60 * 1000;
 const MAX_MANUAL_TAGS = 8;
 const DEFAULT_SUGGESTED_TAGS = ['anime', 'meme', 'game', 'texto', 'nsfw', 'dark', 'cartoon', 'foto-real', 'cyberpunk'];
-const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const PACK_STATUS_PUBLISHED = 'published';
 const FIXED_UPLOAD_QUEUE_CONCURRENCY = 3;
 const UPLOAD_AUTO_RETRY_ATTEMPTS = 2;
@@ -51,11 +50,6 @@ const sanitizePackName = (value, maxLength = 120) =>
     .slice(0, maxLength);
 
 const toBytesLabel = (bytes) => `${Math.round(Number(bytes || 0) / 1024)} KB`;
-const normalizePhoneDigits = (value) => String(value || '').replace(/\D+/g, '');
-const isValidPhone = (value) => {
-  const digits = normalizePhoneDigits(value);
-  return digits.length >= 10 && digits.length <= 15;
-};
 const normalizeTag = (value) =>
   String(value || '')
     .trim()
@@ -78,19 +72,6 @@ const mergeTags = (...groups) => {
     }
   }
   return ordered;
-};
-
-const decodeJwtPayload = (jwt) => {
-  const parts = String(jwt || '').split('.');
-  if (parts.length < 2) return null;
-  try {
-    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-    const decoded = atob(padded);
-    return JSON.parse(decoded);
-  } catch {
-    return null;
-  }
 };
 
 const normalizeGoogleAuthState = (value) => {
@@ -162,31 +143,6 @@ const clearGoogleAuthCache = () => {
     // ignore storage errors
   }
 };
-
-const loadScript = (src) =>
-  new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing) {
-      if (existing.dataset.loaded === '1') {
-        resolve();
-        return;
-      }
-      existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error(`Falha ao carregar script: ${src}`)), { once: true });
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = true;
-    script.defer = true;
-    script.addEventListener('load', () => {
-      script.dataset.loaded = '1';
-      resolve();
-    });
-    script.addEventListener('error', () => reject(new Error(`Falha ao carregar script: ${src}`)));
-    document.head.appendChild(script);
-  });
 
 const fetchJson = async (url, options = {}) => {
   const response = await fetch(url, { credentials: 'same-origin', ...options });
@@ -481,6 +437,7 @@ function CreatePackApp() {
   const root = document.getElementById('create-pack-react-root');
   const apiBasePath = root?.dataset?.apiBasePath || '/api/sticker-packs';
   const webPath = root?.dataset?.webPath || '/stickers';
+  const loginPath = root?.dataset?.loginPath || '/login';
   const googleSessionApiPath = `${apiBasePath}/auth/google/session`;
 
   const [step, setStep] = useState(1);
@@ -492,13 +449,9 @@ function CreatePackApp() {
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
   const [suggestedTags, setSuggestedTags] = useState(DEFAULT_SUGGESTED_TAGS);
-  const [accountId, setAccountId] = useState('');
-  const [googleAuthConfig, setGoogleAuthConfig] = useState({ enabled: false, required: false, clientId: '' });
   const [googleAuth, setGoogleAuth] = useState(() => readGoogleAuthCache() || { user: null, expiresAt: '' });
-  const [googleAuthUiReady, setGoogleAuthUiReady] = useState(false);
-  const [googleAuthError, setGoogleAuthError] = useState('');
-  const [googleAuthBusy, setGoogleAuthBusy] = useState(false);
   const [googleSessionChecked, setGoogleSessionChecked] = useState(false);
+  const [authRedirecting, setAuthRedirecting] = useState(false);
   const [files, setFiles] = useState([]);
   const [coverId, setCoverId] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -514,17 +467,31 @@ function CreatePackApp() {
   const [backendPublishState, setBackendPublishState] = useState(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
-  const googleButtonRef = useRef(null);
-  const googleLoginEnabled = Boolean(googleAuthConfig.enabled && googleAuthConfig.clientId);
-  const googleLoginRequired = Boolean(googleAuthConfig.required);
   const hasGoogleLogin = Boolean(googleAuth.user?.sub);
-  const shouldRenderGoogleButton = googleLoginEnabled && !hasGoogleLogin && googleSessionChecked && !googleAuthBusy;
+  const buildLoginRedirectUrl = useCallback(() => {
+    const nextPath = `${window.location.pathname || '/'}${window.location.search || ''}`;
+    const loginUrl = new URL(loginPath, window.location.origin);
+    loginUrl.searchParams.set('next', nextPath);
+    return `${loginUrl.pathname}${loginUrl.search}`;
+  }, [loginPath]);
+  const redirectToLogin = useCallback(
+    (reason = 'Sessão ausente. Redirecionando para login...') => {
+      if (authRedirecting) return;
+      setAuthRedirecting(true);
+      setStatus(reason);
+      setError('');
+      window.location.assign(buildLoginRedirectUrl());
+    },
+    [authRedirecting, buildLoginRedirectUrl],
+  );
 
   const canStep2 = useMemo(
     () =>
       sanitizePackName(name, limits.pack_name_max_length).length > 0 &&
-      (googleLoginRequired ? hasGoogleLogin : googleLoginEnabled ? hasGoogleLogin || isValidPhone(accountId) : isValidPhone(accountId)),
-    [name, accountId, limits.pack_name_max_length, googleLoginRequired, googleLoginEnabled, hasGoogleLogin],
+      hasGoogleLogin &&
+      googleSessionChecked &&
+      !authRedirecting,
+    [name, limits.pack_name_max_length, hasGoogleLogin, googleSessionChecked, authRedirecting],
   );
   const canStep3 = useMemo(() => files.length > 0, [files.length]);
   const publishReady = canStep2 && canStep3 && !busy;
@@ -632,16 +599,10 @@ function CreatePackApp() {
         const payload = await fetchJson(`${apiBasePath}/create-config`);
         const apiLimits = payload?.data?.limits || {};
         const apiSuggestions = payload?.data?.rules?.suggested_tags;
-        const apiGoogleAuth = payload?.data?.auth?.google || {};
         setLimits((prev) => ({ ...prev, ...apiLimits }));
         if (Array.isArray(apiSuggestions) && apiSuggestions.length) {
           setSuggestedTags(mergeTags(apiSuggestions).slice(0, 20));
         }
-        setGoogleAuthConfig({
-          enabled: Boolean(apiGoogleAuth?.enabled),
-          required: Boolean(apiGoogleAuth?.required),
-          clientId: String(apiGoogleAuth?.client_id || '').trim(),
-        });
       } catch {
         // keep default
       }
@@ -650,10 +611,6 @@ function CreatePackApp() {
   }, [apiBasePath]);
 
   useEffect(() => {
-    if (!googleLoginEnabled) {
-      setGoogleSessionChecked(true);
-      return;
-    }
     let cancelled = false;
     setGoogleSessionChecked(false);
 
@@ -661,9 +618,10 @@ function CreatePackApp() {
       .then((payload) => {
         if (cancelled) return;
         const sessionData = payload?.data || {};
-        if (!sessionData?.authenticated || !sessionData?.user?.sub) {
+        if (!sessionData?.authenticated || !sessionData?.user?.sub || !sessionData?.owner_jid) {
           setGoogleAuth({ user: null, expiresAt: '' });
           clearGoogleAuthCache();
+          redirectToLogin('Sessão inválida ou expirada. Redirecionando para login...');
           return;
         }
         const nextAuth = {
@@ -677,10 +635,10 @@ function CreatePackApp() {
         };
         setGoogleAuth(nextAuth);
         writeGoogleAuthCache(nextAuth);
-        setGoogleAuthError('');
       })
       .catch(() => {
-        // silent: endpoint may be unavailable in some setups
+        if (cancelled) return;
+        setError('Não foi possível validar sua sessão agora. Recarregue a página.');
       })
       .finally(() => {
         if (cancelled) return;
@@ -690,110 +648,7 @@ function CreatePackApp() {
     return () => {
       cancelled = true;
     };
-  }, [googleLoginEnabled, googleSessionApiPath]);
-
-  useEffect(() => {
-    const clearGoogleButton = () => {
-      if (googleButtonRef.current) googleButtonRef.current.innerHTML = '';
-      try {
-        window.google?.accounts?.id?.cancel?.();
-      } catch {
-        // ignore sdk errors
-      }
-    };
-
-    if (!shouldRenderGoogleButton) {
-      clearGoogleButton();
-      return;
-    }
-    if (!googleButtonRef.current) return;
-
-    let cancelled = false;
-    setGoogleAuthUiReady(false);
-    setGoogleAuthError('');
-
-    loadScript(GOOGLE_GSI_SCRIPT_SRC)
-      .then(() => {
-        if (cancelled) return;
-        const accounts = window.google?.accounts?.id;
-        if (!accounts) throw new Error('SDK do Google não disponível.');
-
-        accounts.initialize({
-          client_id: googleAuthConfig.clientId,
-          callback: (response) => {
-            const credential = String(response?.credential || '').trim();
-            const claims = decodeJwtPayload(credential);
-            if (!credential || !claims?.sub) {
-              setGoogleAuthError('Falha ao concluir login Google.');
-              return;
-            }
-            setGoogleAuthBusy(true);
-            fetchJson(googleSessionApiPath, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json; charset=utf-8' },
-              body: JSON.stringify({ google_id_token: credential }),
-            })
-              .then((sessionPayload) => {
-                const sessionData = sessionPayload?.data || {};
-                if (!sessionData?.authenticated || !sessionData?.user?.sub) {
-                  throw new Error('Sessão Google não foi criada.');
-                }
-                setGoogleAuth({
-                  user: {
-                    sub: String(sessionData.user.sub || claims.sub || ''),
-                    email: String(sessionData.user.email || claims.email || ''),
-                    name: String(sessionData.user.name || claims.name || claims.given_name || 'Conta Google'),
-                    picture: String(sessionData.user.picture || claims.picture || ''),
-                  },
-                  expiresAt: String(sessionData.expires_at || ''),
-                });
-                writeGoogleAuthCache({
-                  user: {
-                    sub: String(sessionData.user.sub || claims.sub || ''),
-                    email: String(sessionData.user.email || claims.email || ''),
-                    name: String(sessionData.user.name || claims.name || claims.given_name || 'Conta Google'),
-                    picture: String(sessionData.user.picture || claims.picture || ''),
-                  },
-                  expiresAt: String(sessionData.expires_at || ''),
-                });
-                setGoogleAuthError('');
-                setError('');
-              })
-              .catch((sessionError) => {
-                setGoogleAuthError(sessionError?.message || 'Falha ao salvar sessão Google.');
-              })
-              .finally(() => setGoogleAuthBusy(false));
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true,
-        });
-
-        if (googleButtonRef.current) {
-          googleButtonRef.current.innerHTML = '';
-          const measuredWidth = Math.floor(Number(googleButtonRef.current.clientWidth || 0));
-          const buttonWidth = Math.max(180, Math.min(320, measuredWidth || 320));
-          accounts.renderButton(googleButtonRef.current, {
-            type: 'standard',
-            theme: 'filled_black',
-            size: 'large',
-            text: 'signin_with',
-            shape: 'pill',
-            logo_alignment: 'left',
-            width: buttonWidth,
-          });
-        }
-        setGoogleAuthUiReady(true);
-      })
-      .catch((sdkError) => {
-        if (cancelled) return;
-        setGoogleAuthError(sdkError?.message || 'Falha ao carregar login Google.');
-      });
-
-    return () => {
-      cancelled = true;
-      clearGoogleButton();
-    };
-  }, [shouldRenderGoogleButton, googleAuthConfig.clientId, googleSessionApiPath]);
+  }, [googleSessionApiPath, redirectToLogin]);
 
   useEffect(() => {
     try {
@@ -814,7 +669,6 @@ function CreatePackApp() {
       if (typeof parsed.description === 'string') setDescription(parsed.description);
       if (typeof parsed.publisher === 'string') setPublisher(parsed.publisher);
       if (typeof parsed.visibility === 'string') setVisibility(parsed.visibility);
-      if (typeof parsed.accountId === 'string') setAccountId(parsed.accountId);
       if (Array.isArray(parsed.tags)) setTags(mergeTags(parsed.tags).slice(0, MAX_MANUAL_TAGS));
       const parsedStep = Number.isFinite(Number(parsed.step)) ? Math.max(1, Math.min(3, Number(parsed.step))) : 1;
 
@@ -885,7 +739,6 @@ function CreatePackApp() {
       description,
       publisher,
       visibility,
-      accountId,
       tags,
       coverId,
       activeSession: activeSession?.packKey && activeSession?.editToken ? activeSession : null,
@@ -911,7 +764,7 @@ function CreatePackApp() {
     } catch {
       // ignore storage errors
     }
-  }, [draftLoaded, busy, step, name, description, publisher, visibility, accountId, tags, coverId, files, activeSession]);
+  }, [draftLoaded, busy, step, name, description, publisher, visibility, tags, coverId, files, activeSession]);
 
   useEffect(() => {
     if (!draftLoaded) return;
@@ -1137,13 +990,8 @@ function CreatePackApp() {
       setStep(1);
       return;
     }
-    if (googleLoginRequired && !hasGoogleLogin) {
-      setError('Faça login com Google para publicar packs.');
-      setStep(1);
-      return;
-    }
-    if (!googleLoginRequired && !googleLoginEnabled && !isValidPhone(accountId)) {
-      setError('Informe seu número de celular com DDD para publicar.');
+    if (!hasGoogleLogin) {
+      redirectToLogin('Sua sessão expirou. Redirecionando para login...');
       setStep(1);
       return;
     }
@@ -1186,11 +1034,13 @@ function CreatePackApp() {
             description: finalDescription,
             tags,
             visibility,
-            owner_jid: hasGoogleLogin ? '' : clampText(accountId, 64),
           }),
         });
 
         const createPayload = await createResponse.json().catch(() => ({}));
+        if (createResponse.status === 401 || createResponse.status === 403) {
+          redirectToLogin('Sua sessão expirou. Redirecionando para login...');
+        }
         if (!createResponse.ok) throw new Error(createPayload?.error || 'Não foi possível criar o pack.');
 
         const created = createPayload?.data || {};
@@ -1466,13 +1316,11 @@ function CreatePackApp() {
         setError('Defina um nome para avançar.');
         return;
       }
-      setError(
-        googleLoginRequired
-          ? 'Faça login com Google para avançar.'
-          : googleLoginEnabled
-            ? 'Faça login com Google ou informe seu número de celular para avançar.'
-            : 'Informe seu número de celular com DDD para avançar.',
-      );
+      if (!googleSessionChecked) {
+        setError('Validando sua sessão. Aguarde alguns segundos...');
+        return;
+      }
+      redirectToLogin('Sessão não encontrada. Redirecionando para login...');
       return;
     }
     if (step === 2 && !canStep3) {
@@ -1488,23 +1336,6 @@ function CreatePackApp() {
     setStep((prev) => Math.max(1, prev - 1));
   };
 
-  const disconnectGoogleLogin = () => {
-    try {
-      window.google?.accounts?.id?.disableAutoSelect?.();
-    } catch {
-      // ignore sdk errors
-    }
-    setGoogleAuthBusy(true);
-    fetchJson(googleSessionApiPath, { method: 'DELETE' })
-      .catch(() => null)
-      .finally(() => {
-        clearGoogleAuthCache();
-        setGoogleAuth({ user: null, expiresAt: '' });
-        setGoogleAuthBusy(false);
-      });
-    setGoogleAuthError('');
-  };
-
   const restartCreateFlow = () => {
     if (busy) return;
     const confirmed = window.confirm('Recomeçar a criação? Isso vai limpar o rascunho local e o progresso salvo neste dispositivo.');
@@ -1518,7 +1349,6 @@ function CreatePackApp() {
     setVisibility('public');
     setTags([]);
     setTagInput('');
-    setAccountId('');
     setFiles([]);
     setCoverId('');
     setDragActive(false);
@@ -1671,69 +1501,26 @@ function CreatePackApp() {
                       hint="Como seu nome será exibido no catálogo."
                       onChange=${(e) => setPublisher(clampInputText(e.target.value, limits.publisher_max_length))}
                     />
-                    ${googleLoginEnabled
-                      ? html`
-                          <div className="rounded-2xl border border-line/70 bg-panel/70 p-3 md:p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-400">
-                                  ${googleLoginRequired ? 'Login obrigatório' : 'Login Google'}
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-100">Entrar com Google</p>
-                                <p className="mt-1 text-xs text-slate-400">
-                                  ${googleLoginRequired
-                                    ? 'Somente contas logadas podem criar packs nesta página.'
-                                    : 'Faça login para vincular o pack à sua conta Google.'}
-                                </p>
-                              </div>
-                              ${hasGoogleLogin
-                                ? html`<span className="rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">Conectado</span>`
-                                : null}
-                            </div>
-
-                            ${hasGoogleLogin
-                              ? html`
-                                  <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-line/70 bg-panelSoft/80 p-2.5 md:gap-3 md:p-3">
-                                    <div className="min-w-0">
-                                      <p className="truncate text-sm font-semibold text-slate-100">${googleAuth.user?.name || 'Conta Google'}</p>
-                                      <p className="truncate text-xs text-slate-400">${googleAuth.user?.email || ''}</p>
-                                    </div>
-                                    <button type="button" onClick=${disconnectGoogleLogin} className="h-10 rounded-lg border border-line/70 px-3 text-xs font-semibold text-slate-200">
-                                      Trocar conta
-                                    </button>
-                                  </div>
-                                `
-                              : html`
-                                  <div className="mt-3">
-                                    <div ref=${googleButtonRef} className="min-h-[42px] w-full max-w-full overflow-hidden"></div>
-                                    ${!googleSessionChecked
-                                      ? html`<p className="mt-2 text-xs text-slate-400">Verificando sessão Google...</p>`
-                                      : googleAuthBusy
-                                        ? html`<p className="mt-2 text-xs text-slate-400">Conectando conta Google...</p>`
-                                        : !googleAuthUiReady && !googleAuthError
-                                          ? html`<p className="mt-2 text-xs text-slate-400">Carregando login Google...</p>`
-                                          : null}
-                                    ${googleSessionChecked && !googleAuthBusy && !shouldRenderGoogleButton && !googleAuthError
-                                      ? html`<p className="mt-2 text-xs text-slate-400">Login Google indisponível no momento. Tente recarregar a página.</p>`
-                                      : null}
-                                  </div>
-                                `}
-
-                            ${googleAuthError ? html`<p className="mt-2 text-xs text-rose-300">${googleAuthError}</p>` : null}
-                          </div>
-                        `
-                      : html`
-                          <${FloatingField}
-                            label="Celular (WhatsApp)"
-                            value=${accountId}
-                            maxLength=${32}
-                            hint="Obrigatório para vincular o pack ao criador. Ex: 5511999998888"
-                            onChange=${(e) => setAccountId(String(e.target.value || '').replace(/[^\d+()\-\s]/g, '').slice(0, 32))}
-                          />
-                          ${accountId && !isValidPhone(accountId)
-                            ? html`<p className="text-xs text-rose-300">Informe um número válido com DDD (10 a 15 dígitos).</p>`
-                            : null}
-                        `}
+                    <div className="rounded-2xl border border-line/70 bg-panel/70 p-3 md:p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-400">Sessão da conta</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-100">Conta Google vinculada</p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            ${googleSessionChecked
+                              ? 'Sua sessão foi validada para criar packs.'
+                              : 'Validando sua sessão para liberar a criação.'}
+                          </p>
+                        </div>
+                        ${hasGoogleLogin
+                          ? html`<span className="rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">Conectado</span>`
+                          : html`<span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold text-amber-300">Validando</span>`}
+                      </div>
+                      <div className="mt-3 rounded-xl border border-line/70 bg-panelSoft/80 p-2.5 md:p-3">
+                        <p className="truncate text-sm font-semibold text-slate-100">${googleAuth.user?.name || 'Conta Google'}</p>
+                        <p className="truncate text-xs text-slate-400">${googleAuth.user?.email || 'Sessão será validada automaticamente.'}</p>
+                      </div>
+                    </div>
                     <label className="block">
                       <span className="mb-2 inline-block text-xs font-semibold text-slate-300">Tags do pack</span>
                       <div className="rounded-2xl border border-line/70 bg-panelSoft/80 px-3 py-3">

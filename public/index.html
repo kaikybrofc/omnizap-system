@@ -138,10 +138,10 @@
 
     .nav { display: flex; gap: 10px; flex-wrap: wrap; }
 
-    .nav-user-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+      .nav-user-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
       padding: 6px 10px 6px 6px;
       max-width: 270px;
       border-color: #3f5f8f;
@@ -184,17 +184,17 @@
       flex: 0 0 auto;
     }
 
-    .nav-user-name {
-      font-size: 12px;
-      font-weight: 700;
-      color: #dbe8fb;
-      white-space: nowrap;
+      .nav-user-name {
+        font-size: 12px;
+        font-weight: 700;
+        color: #dbe8fb;
+        white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .nav-toggle {
-      display: none;
+      .nav-toggle {
+        display: none;
       width: 42px;
       height: 42px;
       border-radius: 10px;
@@ -233,12 +233,12 @@
 
     .btn:hover { transform: translateY(-1px); border-color: #3f567f; }
 
-    .btn.primary {
-      color: #042511;
-      border-color: transparent;
-      background: linear-gradient(90deg, var(--primary), #16a34a);
-      box-shadow: 0 8px 22px #22c55e33;
-    }
+      .btn.primary {
+        color: #042511;
+        border-color: transparent;
+        background: linear-gradient(90deg, var(--primary), #16a34a);
+        box-shadow: 0 8px 22px #22c55e33;
+      }
 
     @media (max-width: 860px) {
       .top-inner {
@@ -285,6 +285,34 @@
 
       .nav-user-chip {
         justify-content: flex-start;
+      }
+
+      body.home-authenticated #main-nav #nav-auth-link.nav-user-chip {
+        width: 44px;
+        min-width: 44px;
+        max-width: 44px;
+        height: 44px;
+        padding: 4px;
+        border-radius: 999px;
+        justify-content: center;
+        justify-self: center;
+        align-self: center;
+        background: linear-gradient(120deg, #132544f0, #10203af0);
+      }
+
+      body.home-authenticated #main-nav #nav-auth-link.nav-user-chip .nav-user-name-bubble {
+        display: none;
+      }
+
+      body.home-authenticated #main-nav #nav-auth-link.nav-user-chip .nav-user-avatar-bubble {
+        width: 34px;
+        height: 34px;
+        border: 1px solid #4a6fa4;
+        box-shadow: 0 0 0 1px #1a2e4b, 0 0 12px #6aaaf236;
+      }
+
+      body.home-authenticated #main-nav #nav-scheduler-link {
+        display: none;
       }
 
     }
@@ -1116,7 +1144,7 @@
         >☰</button>
       </div>
       <nav id="main-nav" class="nav">
-        <a class="btn" href="/api-docs/"><i class="fa-solid fa-code icon-inline" aria-hidden="true"></i>API</a>
+        <a id="nav-scheduler-link" class="btn" href="/api-docs/"><i class="fa-solid fa-code icon-inline" aria-hidden="true"></i>API</a>
         <a id="nav-auth-link" class="btn" href="/login/"><i class="fa-solid fa-right-to-bracket icon-inline" aria-hidden="true"></i>Login</a>
         <a class="btn" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener"><i class="fa-brands fa-github icon-inline" aria-hidden="true"></i>GitHub</a>
       </nav>
@@ -1132,7 +1160,7 @@
       <div class="hero-cta">
         <a class="btn primary" href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener"><i class="fa-brands fa-github icon-inline" aria-hidden="true"></i>Ver no GitHub</a>
         <a class="btn" href="/api-docs/"><i class="fa-solid fa-book icon-inline" aria-hidden="true"></i>Documentação da API</a>
-        <a class="btn" href="/login/"><i class="fa-solid fa-right-to-bracket icon-inline" aria-hidden="true"></i>Login</a>
+        <a id="hero-login-cta" class="btn" href="/login/"><i class="fa-solid fa-right-to-bracket icon-inline" aria-hidden="true"></i>Login</a>
         <a class="btn" href="/stickers/"><i class="fa-solid fa-icons icon-inline" aria-hidden="true"></i>Ir para Stickers</a>
         <a class="btn" href="#infra-arquitetura"><i class="fa-solid fa-diagram-project icon-inline" aria-hidden="true"></i>Ver Arquitetura</a>
       </div>
@@ -1368,7 +1396,7 @@ curl -sS https://omnizap.shop/api/sticker-packs/system-summary | jq</code></pre>
   ><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></a>
 
   <div id="home-react-root" hidden></div>
-  <script type="module" src="/js/apps/homeApp.js?v=20260227c"></script>
+  <script type="module" src="/js/apps/homeApp.js?v=20260228-mobile-user-bubble2"></script>
   <script type="module" src="/js/github-panel/index.js?v=20260226a"></script>
 </body>
 </html>

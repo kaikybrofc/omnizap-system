@@ -162,6 +162,23 @@ const formatVisibilityLabel = (visibility) => {
 };
 
 /**
+ * Detecta packs automáticos para ocultar em listagens do usuário.
+ *
+ * @param {object|null|undefined} pack Pack retornado pelo serviço.
+ * @returns {boolean} Verdadeiro quando o pack é automático.
+ */
+const isAutomaticPack = (pack) => {
+  if (!pack || typeof pack !== 'object') return false;
+  if (pack.is_auto_pack === true || Number(pack.is_auto_pack || 0) === 1) return true;
+
+  const name = String(pack.name || '').trim();
+  if (/^\[auto\]/i.test(name)) return true;
+
+  const description = String(pack.description || '').toLowerCase();
+  return description.includes('[auto-theme:') || description.includes('[auto-tag:');
+};
+
+/**
  * Monta mensagem visual padronizada para comandos de pack.
  *
  * @param {{ intro?: unknown[], sections?: Array<{title?: string, lines?: unknown[]}>, footer?: unknown[] }} params Blocos da mensagem.
@@ -683,13 +700,14 @@ export async function handlePackCommand({
 
       case 'list': {
         const packs = await stickerPackService.listPacks({ ownerJid, limit: 100 });
+        const manualPacks = packs.filter((pack) => !isAutomaticPack(pack));
 
         await sendReply({
           sock,
           remoteJid,
           messageInfo,
           expirationMessage,
-          text: formatPackList(packs, commandPrefix),
+          text: formatPackList(manualPacks, commandPrefix),
         });
         return;
       }

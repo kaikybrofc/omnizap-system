@@ -233,6 +233,8 @@ function HomeEffects() {
 
   useEffect(() => {
     const authLink = document.getElementById('nav-auth-link');
+    const schedulerLink = document.getElementById('nav-scheduler-link');
+    const heroLoginCta = document.getElementById('hero-login-cta');
     if (!authLink) return;
 
     const fallbackAvatar = 'https://iili.io/FC3FABe.jpg';
@@ -243,11 +245,22 @@ function HomeEffects() {
     };
 
     const showLoginButton = () => {
+      document.body.classList.remove('home-authenticated');
       authLink.classList.remove('nav-user-chip');
       authLink.href = '/login/';
       authLink.removeAttribute('title');
       authLink.removeAttribute('aria-label');
       clearChildren(authLink);
+
+      if (schedulerLink) {
+        schedulerLink.hidden = false;
+        schedulerLink.removeAttribute('aria-hidden');
+      }
+
+      if (heroLoginCta) {
+        heroLoginCta.hidden = false;
+        heroLoginCta.removeAttribute('aria-hidden');
+      }
 
       const icon = document.createElement('i');
       icon.className = 'fa-solid fa-right-to-bracket icon-inline';
@@ -260,11 +273,22 @@ function HomeEffects() {
       const resolvedName = String(profile?.name || profile?.email || 'Conta Google').trim() || 'Conta Google';
       const resolvedPhoto = String(profile?.picture || '').trim() || fallbackAvatar;
 
+      document.body.classList.add('home-authenticated');
       authLink.classList.add('nav-user-chip');
-      authLink.href = '/login/';
+      authLink.href = '/user/';
       authLink.title = `${resolvedName} (sessão ativa)`;
       authLink.setAttribute('aria-label', `Sessão ativa de ${resolvedName}`);
       clearChildren(authLink);
+
+      if (schedulerLink) {
+        schedulerLink.hidden = true;
+        schedulerLink.setAttribute('aria-hidden', 'true');
+      }
+
+      if (heroLoginCta) {
+        heroLoginCta.hidden = true;
+        heroLoginCta.setAttribute('aria-hidden', 'true');
+      }
 
       const avatarBubble = document.createElement('span');
       avatarBubble.className = 'nav-user-avatar-bubble';

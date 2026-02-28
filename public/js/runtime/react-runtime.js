@@ -9,6 +9,7 @@ if (typeof document !== 'undefined' && !window.__omnizapTwindReady) {
 
 export {
   default as React,
+  useCallback,
   useEffect,
   useMemo,
   useRef,

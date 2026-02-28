@@ -8,7 +8,7 @@ import { getJidUser, normalizeJid, resolveBotJid } from '../../config/baileysCon
 import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../config/adminIdentity.js';
 import { getActiveSocket } from '../../services/socketState.js';
 import { extractUserIdInfo, resolveUserId } from '../../services/lidMapService.js';
-import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppPhoneDigits } from '../../services/whatsappLoginLinkService.js';
+import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppOwnerJid, toWhatsAppPhoneDigits } from '../../services/whatsappLoginLinkService.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
 import {
@@ -144,12 +144,15 @@ const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PAT
 const STICKER_ORPHAN_API_PATH = `${STICKER_API_BASE_PATH}/orphan-stickers`;
 const STICKER_CREATE_WEB_PATH = `${STICKER_WEB_PATH}/create`;
 const STICKER_ADMIN_WEB_PATH = `${STICKER_WEB_PATH}/admin`;
+const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
+const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
 const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
 const CATALOG_PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'index.html');
 const CREATE_PACK_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'create', 'index.html');
 const ADMIN_PANEL_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'admin', 'index.html');
+const USER_DASHBOARD_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'user', 'index.html');
 const CATALOG_STYLES_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'css', 'styles.css');
 const CATALOG_SCRIPT_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'js', 'catalog.js');
 const DEFAULT_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_LIMIT, 24, 1, 60);
@@ -2973,6 +2976,7 @@ const renderCatalogHtml = async ({ initialPackKey }) => {
     __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
     __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
     __STICKER_ORPHAN_API_PATH__: escapeHtmlAttribute(buildOrphanStickersApiUrl()),
+    __STICKER_LOGIN_WEB_PATH__: escapeHtmlAttribute(STICKER_LOGIN_WEB_PATH),
     __STICKER_DATA_PUBLIC_PATH__: escapeHtmlAttribute(STICKER_DATA_PUBLIC_PATH),
     __DEFAULT_LIST_LIMIT__: String(DEFAULT_LIST_LIMIT),
     __DEFAULT_ORPHAN_LIST_LIMIT__: String(DEFAULT_ORPHAN_LIST_LIMIT),
@@ -3118,11 +3122,12 @@ const renderPackSeoHtml = ({ packSummary }) => {
     data-web-path="${escapeHtmlAttribute(STICKER_WEB_PATH)}"
     data-api-base-path="${escapeHtmlAttribute(STICKER_API_BASE_PATH)}"
     data-orphan-api-path="${escapeHtmlAttribute(STICKER_ORPHAN_API_PATH)}"
+    data-login-path="${escapeHtmlAttribute(STICKER_LOGIN_WEB_PATH)}"
     data-default-limit="${DEFAULT_LIST_LIMIT}"
     data-default-orphan-limit="${DEFAULT_ORPHAN_LIST_LIMIT}"
     data-initial-pack-key="${escapeHtmlAttribute(packSummary?.pack_key || '')}"
   ></div>
-  <script type="module" src="/js/apps/stickersApp.js?v=20260227-ui-hotfix-v5"></script>
+  <script type="module" src="/js/apps/stickersApp.js?v=20260228-login-redirect-my-packs1"></script>
 </body>
 </html>`;
 };
@@ -3158,6 +3163,7 @@ const renderCreatePackHtml = async () => {
   const replacements = {
     __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
     __STICKER_CREATE_WEB_PATH__: escapeHtmlAttribute(STICKER_CREATE_WEB_PATH),
+    __STICKER_LOGIN_WEB_PATH__: escapeHtmlAttribute(STICKER_LOGIN_WEB_PATH),
     __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
     __PACK_COMMAND_PREFIX__: escapeHtmlAttribute(PACK_COMMAND_PREFIX),
     __CURRENT_YEAR__: String(new Date().getFullYear()),
@@ -3176,6 +3182,23 @@ const renderAdminPanelHtml = async () => {
     __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
     __STICKER_ADMIN_WEB_PATH__: escapeHtmlAttribute(STICKER_ADMIN_WEB_PATH),
     __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
+    __CURRENT_YEAR__: String(new Date().getFullYear()),
+  };
+
+  let html = template;
+  for (const [token, value] of Object.entries(replacements)) {
+    html = html.replaceAll(token, value);
+  }
+  return html;
+};
+
+const renderUserDashboardHtml = async () => {
+  const template = await fs.readFile(USER_DASHBOARD_TEMPLATE_PATH, 'utf8');
+  const replacements = {
+    __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
+    __STICKER_LOGIN_WEB_PATH__: escapeHtmlAttribute(STICKER_LOGIN_WEB_PATH),
+    __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
+    __USER_PROFILE_WEB_PATH__: escapeHtmlAttribute(USER_PROFILE_WEB_PATH),
     __CURRENT_YEAR__: String(new Date().getFullYear()),
   };
 
@@ -3754,7 +3777,182 @@ const mapGoogleSessionResponseData = (session) =>
         expires_at: null,
       };
 
-const handleMyProfileRequest = async (req, res) => {
+const buildOwnerLookupJids = (value) => {
+  const normalized = normalizeJid(value) || '';
+  if (!normalized || !normalized.includes('@')) return [];
+  const lookup = new Set([normalized]);
+  const phoneDigits = toWhatsAppPhoneDigits(normalized);
+  if (!phoneDigits) return Array.from(lookup);
+  lookup.add(normalizeJid(`${phoneDigits}@s.whatsapp.net`) || '');
+  lookup.add(normalizeJid(`${phoneDigits}@c.us`) || '');
+  lookup.add(normalizeJid(`${phoneDigits}@hosted`) || '');
+  return Array.from(lookup).filter(Boolean);
+};
+
+const appendMyProfileOwnerCandidate = (candidateSet, lookupSet, value) => {
+  const normalized = normalizeJid(value) || '';
+  if (!normalized || !normalized.includes('@')) return;
+
+  candidateSet.add(normalized);
+  for (const lookupJid of buildOwnerLookupJids(normalized)) {
+    lookupSet.add(lookupJid);
+  }
+
+  const phoneOwner = toWhatsAppOwnerJid(value);
+  if (phoneOwner) {
+    candidateSet.add(phoneOwner);
+    for (const lookupJid of buildOwnerLookupJids(phoneOwner)) {
+      lookupSet.add(lookupJid);
+    }
+  }
+};
+
+const buildPhoneSet = (...values) => {
+  const set = new Set();
+  for (const value of values) {
+    const digits = toWhatsAppPhoneDigits(value);
+    if (digits) set.add(digits);
+  }
+  return set;
+};
+
+const resolveMyProfileOwnerCandidates = async (session) => {
+  const candidates = new Set();
+  const lookupByJid = new Set();
+  const lidCandidates = new Set();
+  const appendCandidate = (value) => appendMyProfileOwnerCandidate(candidates, lookupByJid, value);
+  const trustedPhones = new Set();
+  const blockedJids = new Set();
+  const blockedPhones = new Set();
+
+  appendCandidate(session?.ownerJid);
+  appendCandidate(toWhatsAppOwnerJid(session?.ownerPhone || session?.ownerJid));
+  for (const phone of buildPhoneSet(session?.ownerPhone, session?.ownerJid)) {
+    trustedPhones.add(phone);
+  }
+
+  const activeSocket = getActiveSocket();
+  const botJid = normalizeJid(resolveBotJid(activeSocket?.user?.id || '') || '');
+  if (botJid) {
+    blockedJids.add(botJid);
+    for (const phone of buildPhoneSet(botJid)) {
+      blockedPhones.add(phone);
+    }
+  }
+
+  const legacyGoogleOwner = buildGoogleOwnerJid(session?.sub);
+  if (legacyGoogleOwner) appendCandidate(legacyGoogleOwner);
+
+  const sessionResolved = await resolveUserId(extractUserIdInfo(session?.ownerJid || session?.ownerPhone || null)).catch(() => null);
+  if (sessionResolved) {
+    appendCandidate(sessionResolved);
+    for (const phone of buildPhoneSet(sessionResolved)) {
+      trustedPhones.add(phone);
+    }
+  }
+
+  const normalizedSub = normalizeGoogleSubject(session?.sub);
+  if (normalizedSub) {
+    try {
+      const rows = await executeQuery(
+        `SELECT owner_jid, owner_phone
+           FROM ${TABLES.STICKER_WEB_GOOGLE_USER}
+          WHERE google_sub = ?
+          LIMIT 1`,
+        [normalizedSub],
+      );
+      const row = Array.isArray(rows) ? rows[0] : null;
+      appendCandidate(row?.owner_jid || '');
+      appendCandidate(row?.owner_phone || '');
+      const mappedResolved = await resolveUserId(extractUserIdInfo(row?.owner_jid || row?.owner_phone || null)).catch(() => null);
+      if (mappedResolved) appendCandidate(mappedResolved);
+    } catch (error) {
+      logger.warn('Falha ao resolver owners para perfil web.', {
+        action: 'sticker_pack_my_profile_owner_candidates_failed',
+        google_sub: normalizedSub,
+        error: error?.message,
+      });
+    }
+  }
+
+  for (const ownerJid of Array.from(candidates)) {
+    const identity = extractUserIdInfo(ownerJid);
+    if (identity?.lid) lidCandidates.add(identity.lid);
+    if (!identity?.lid && !identity?.jid) continue;
+    const resolved = await resolveUserId(identity).catch(() => null);
+    if (!resolved) continue;
+    appendCandidate(resolved);
+    const resolvedIdentity = extractUserIdInfo(resolved);
+    if (resolvedIdentity?.lid) lidCandidates.add(resolvedIdentity.lid);
+  }
+
+  const lookupValues = Array.from(lookupByJid).filter(Boolean);
+  for (let offset = 0; offset < lookupValues.length; offset += 200) {
+    const chunk = lookupValues.slice(offset, offset + 200);
+    if (!chunk.length) continue;
+    const placeholders = chunk.map(() => '?').join(', ');
+    const rows = await executeQuery(
+      `SELECT lid, jid
+         FROM ${TABLES.LID_MAP}
+        WHERE jid IN (${placeholders})
+        ORDER BY last_seen DESC
+        LIMIT 500`,
+      chunk,
+    ).catch(() => []);
+
+    for (const row of Array.isArray(rows) ? rows : []) {
+      appendCandidate(row?.jid || '');
+      const resolvedLid = normalizeJid(row?.lid || '');
+      if (resolvedLid) lidCandidates.add(resolvedLid);
+    }
+  }
+
+  for (const lid of lidCandidates) {
+    const resolved = await resolveUserId(extractUserIdInfo(lid)).catch(() => null);
+    if (resolved) {
+      appendCandidate(resolved);
+      appendCandidate(lid);
+    }
+  }
+
+  const filtered = [];
+  for (const candidate of Array.from(candidates)) {
+    const normalized = normalizeJid(candidate) || '';
+    if (!normalized || !normalized.includes('@')) continue;
+    if (blockedJids.has(normalized)) continue;
+
+    const directPhone = toWhatsAppPhoneDigits(normalized);
+    if (directPhone && blockedPhones.has(directPhone)) continue;
+
+    const isGoogleOwner = normalized.endsWith('@google.oauth');
+    if (trustedPhones.size === 0) {
+      filtered.push(normalized);
+      continue;
+    }
+
+    if (directPhone) {
+      if (!trustedPhones.has(directPhone)) continue;
+      filtered.push(normalized);
+      continue;
+    }
+
+    const resolved = await resolveUserId(extractUserIdInfo(normalized)).catch(() => null);
+    const resolvedPhone = toWhatsAppPhoneDigits(resolved || '');
+    if (resolvedPhone) {
+      if (!trustedPhones.has(resolvedPhone) || blockedPhones.has(resolvedPhone)) continue;
+      filtered.push(normalized);
+      continue;
+    }
+
+    if (isGoogleOwner) {
+      filtered.push(normalized);
+    }
+  }
+
+  return Array.from(new Set(filtered));
+};
+
+const handleMyProfileRequest = async (req, res, url = null) => {
   if (!['GET', 'HEAD'].includes(req.method || '')) {
     sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
     return;
@@ -3787,7 +3985,65 @@ const handleMyProfileRequest = async (req, res) => {
     return;
   }
 
-  const packs = await listStickerPacksByOwner(session.ownerJid, { limit: 200, offset: 0 });
+  const ownerCandidates = await resolveMyProfileOwnerCandidates(session);
+  if (!ownerCandidates.length) {
+    sendJson(req, res, 200, {
+      data: {
+        auth: { google: authGoogle },
+        session: mapGoogleSessionResponseData(session),
+        owner_jid: session.ownerJid,
+        owner_jids: [],
+        packs: [],
+        stats: {
+          total: 0,
+          published: 0,
+          drafts: 0,
+          private: 0,
+          unlisted: 0,
+          public: 0,
+        },
+      },
+    });
+    return;
+  }
+
+  const ownerPacks = await Promise.all(
+    ownerCandidates.map((ownerJid) => listStickerPacksByOwner(ownerJid, { limit: 200, offset: 0 })),
+  );
+  const includeAutoPacks = parseEnvBool(
+    url?.searchParams?.get('include_auto'),
+    parseEnvBool(process.env.STICKER_WEB_MY_PROFILE_INCLUDE_AUTO_PACKS, false),
+  );
+
+  const dedupPacks = new Map();
+  for (const packList of ownerPacks) {
+    for (const pack of Array.isArray(packList) ? packList : []) {
+      if (!pack?.id) continue;
+      if (!includeAutoPacks && pack?.is_auto_pack === true) continue;
+      const existing = dedupPacks.get(pack.id);
+      if (!existing) {
+        dedupPacks.set(pack.id, pack);
+        continue;
+      }
+      const currentUpdatedAt = Date.parse(String(pack.updated_at || pack.created_at || ''));
+      const existingUpdatedAt = Date.parse(String(existing.updated_at || existing.created_at || ''));
+      if (Number.isFinite(currentUpdatedAt) && (!Number.isFinite(existingUpdatedAt) || currentUpdatedAt > existingUpdatedAt)) {
+        dedupPacks.set(pack.id, pack);
+      }
+    }
+  }
+
+  const packs = Array.from(dedupPacks.values())
+    .sort((a, b) => {
+      const aUpdatedAt = Date.parse(String(a?.updated_at || a?.created_at || ''));
+      const bUpdatedAt = Date.parse(String(b?.updated_at || b?.created_at || ''));
+      if (!Number.isFinite(aUpdatedAt) && !Number.isFinite(bUpdatedAt)) return 0;
+      if (!Number.isFinite(aUpdatedAt)) return 1;
+      if (!Number.isFinite(bUpdatedAt)) return -1;
+      return bUpdatedAt - aUpdatedAt;
+    })
+    .slice(0, 300);
+
   const engagementByPackId = await listStickerPackEngagementByPackIds(packs.map((pack) => pack.id));
 
   const mappedPacks = packs.map((pack) => {
@@ -3820,6 +4076,7 @@ const handleMyProfileRequest = async (req, res) => {
       auth: { google: authGoogle },
       session: mapGoogleSessionResponseData(session),
       owner_jid: session.ownerJid,
+      owner_jids: ownerCandidates,
       packs: mappedPacks,
       stats,
     },
@@ -4009,23 +4266,39 @@ const loadOwnedPackForWebManagement = async (req, res, packKey, { allowMissing =
     return null;
   }
 
-  try {
-    const pack = await stickerPackService.getPackInfo({
-      ownerJid: session.ownerJid,
-      identifier: normalizedPackKey,
-    });
-    return { session, packKey: normalizedPackKey, pack };
-  } catch (error) {
-    if (allowMissing && error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND) {
-      return { session, packKey: normalizedPackKey, pack: null, missing: true };
+  const ownerCandidatesRaw = await resolveMyProfileOwnerCandidates(session).catch(() => []);
+  const ownerCandidates = Array.from(new Set([normalizeJid(session.ownerJid) || '', ...ownerCandidatesRaw].filter(Boolean)));
+  const fallbackOwnerJid = ownerCandidates[0] || normalizeJid(session.ownerJid) || '';
+
+  for (const ownerJid of ownerCandidates) {
+    try {
+      const pack = await stickerPackService.getPackInfo({
+        ownerJid,
+        identifier: normalizedPackKey,
+      });
+      return { session, ownerJid, ownerCandidates, packKey: normalizedPackKey, pack };
+    } catch (error) {
+      if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND) {
+        continue;
+      }
+      const mapped = mapStickerPackWebManageError(error);
+      sendJson(req, res, mapped.statusCode, {
+        error: mapped.message,
+        code: mapped.code,
+      });
+      return null;
     }
-    const mapped = mapStickerPackWebManageError(error);
-    sendJson(req, res, mapped.statusCode, {
-      error: mapped.message,
-      code: mapped.code,
-    });
-    return null;
   }
+
+  if (allowMissing) {
+    return { session, ownerJid: fallbackOwnerJid, ownerCandidates, packKey: normalizedPackKey, pack: null, missing: true };
+  }
+
+  sendJson(req, res, 404, {
+    error: 'Pack nao encontrado para este usuario.',
+    code: STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND,
+  });
+  return null;
 };
 
 const buildManagedPackAnalytics = async (pack) => {
@@ -4108,7 +4381,7 @@ const handleManagedPackRequest = async (req, res, packKey) => {
   const isMutableMethod = req.method === 'PATCH' || req.method === 'DELETE';
   const context = await loadOwnedPackForWebManagement(req, res, packKey, { allowMissing: isMutableMethod });
   if (!context) return;
-  const { session, packKey: normalizedPackKey } = context;
+  const { packKey: normalizedPackKey } = context;
 
   if (req.method === 'GET' || req.method === 'HEAD') {
     await sendManagedPackResponse(req, res, context.pack);
@@ -4126,7 +4399,7 @@ const handleManagedPackRequest = async (req, res, packKey) => {
 
     try {
       const result = await deleteManagedPackWithCleanup({
-        ownerJid: session.ownerJid,
+        ownerJid: context.ownerJid,
         identifier: normalizedPackKey,
         fallbackPack: context.pack,
       });
@@ -4177,13 +4450,13 @@ const handleManagedPackRequest = async (req, res, packKey) => {
       const currentName = sanitizeText(updatedPack?.name, PACK_CREATE_MAX_NAME_LENGTH, { allowEmpty: false });
       if (!nextName) {
         updatedPack = await stickerPackService.renamePack({
-          ownerJid: session.ownerJid,
+          ownerJid: context.ownerJid,
           identifier: normalizedPackKey,
           name: payload.name,
         });
       } else if (nextName !== currentName) {
         updatedPack = await stickerPackService.renamePack({
-          ownerJid: session.ownerJid,
+          ownerJid: context.ownerJid,
           identifier: normalizedPackKey,
           name: payload.name,
         });
@@ -4196,13 +4469,13 @@ const handleManagedPackRequest = async (req, res, packKey) => {
       const currentPublisher = sanitizeText(updatedPack?.publisher, PACK_CREATE_MAX_PUBLISHER_LENGTH, { allowEmpty: false });
       if (!nextPublisher) {
         updatedPack = await stickerPackService.setPackPublisher({
-          ownerJid: session.ownerJid,
+          ownerJid: context.ownerJid,
           identifier: normalizedPackKey,
           publisher: payload.publisher,
         });
       } else if (nextPublisher !== currentPublisher) {
         updatedPack = await stickerPackService.setPackPublisher({
-          ownerJid: session.ownerJid,
+          ownerJid: context.ownerJid,
           identifier: normalizedPackKey,
           publisher: payload.publisher,
         });
@@ -4215,13 +4488,13 @@ const handleManagedPackRequest = async (req, res, packKey) => {
       const currentVisibility = String(updatedPack?.visibility || '').trim().toLowerCase();
       if (!nextVisibility) {
         updatedPack = await stickerPackService.setPackVisibility({
-          ownerJid: session.ownerJid,
+          ownerJid: context.ownerJid,
           identifier: normalizedPackKey,
           visibility: payload.visibility,
         });
       } else if (nextVisibility !== currentVisibility) {
         updatedPack = await stickerPackService.setPackVisibility({
-          ownerJid: session.ownerJid,
+          ownerJid: context.ownerJid,
           identifier: normalizedPackKey,
           visibility: payload.visibility,
         });
@@ -4237,7 +4510,7 @@ const handleManagedPackRequest = async (req, res, packKey) => {
       const currentDescriptionWithTags = buildPackDescriptionWithTags(currentMeta.cleanDescription || '', currentMeta.tags);
       if (String(descriptionWithTags || '') !== String(currentDescriptionWithTags || '')) {
         updatedPack = await stickerPackService.setPackDescription({
-          ownerJid: session.ownerJid,
+          ownerJid: context.ownerJid,
           identifier: normalizedPackKey,
           description: descriptionWithTags || '',
         });
@@ -4285,7 +4558,7 @@ const handleManagedPackCloneRequest = async (req, res, packKey) => {
 
   try {
     const cloned = await stickerPackService.clonePack({
-      ownerJid: context.session.ownerJid,
+      ownerJid: context.ownerJid,
       identifier: context.packKey,
       newName,
     });
@@ -4323,7 +4596,7 @@ const handleManagedPackCoverRequest = async (req, res, packKey) => {
 
   try {
     const updated = await stickerPackService.setPackCover({
-      ownerJid: context.session.ownerJid,
+      ownerJid: context.ownerJid,
       identifier: context.packKey,
       stickerId: payload?.sticker_id,
     });
@@ -4336,7 +4609,7 @@ const handleManagedPackCoverRequest = async (req, res, packKey) => {
     }
     if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND) {
       const fresh = await stickerPackService
-        .getPackInfo({ ownerJid: context.session.ownerJid, identifier: context.packKey })
+        .getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey })
         .catch(() => context.pack);
       await sendManagedPackMutationStatus(req, res, 'already_deleted', fresh, {
         pack_key: context.packKey,
@@ -4388,7 +4661,7 @@ const handleManagedPackReorderRequest = async (req, res, packKey) => {
 
   try {
     const updated = await stickerPackService.reorderPackItems({
-      ownerJid: context.session.ownerJid,
+      ownerJid: context.ownerJid,
       identifier: context.packKey,
       orderStickerIds: requestedOrderIds,
     });
@@ -4401,7 +4674,7 @@ const handleManagedPackReorderRequest = async (req, res, packKey) => {
     }
     if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.INVALID_INPUT) {
       const fresh = await stickerPackService
-        .getPackInfo({ ownerJid: context.session.ownerJid, identifier: context.packKey })
+        .getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey })
         .catch(() => context.pack);
       await sendManagedPackMutationStatus(req, res, 'noop', fresh, {
         pack_key: context.packKey,
@@ -4431,7 +4704,7 @@ const handleManagedPackStickerDeleteRequest = async (req, res, packKey, stickerI
 
   try {
     const result = await stickerPackService.removeStickerFromPack({
-      ownerJid: context.session.ownerJid,
+      ownerJid: context.ownerJid,
       identifier: context.packKey,
       selector: stickerId,
     });
@@ -4454,7 +4727,7 @@ const handleManagedPackStickerDeleteRequest = async (req, res, packKey, stickerI
     }
     if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND) {
       const fresh = await stickerPackService
-        .getPackInfo({ ownerJid: context.session.ownerJid, identifier: context.packKey })
+        .getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey })
         .catch(() => context.pack);
       await sendManagedPackMutationStatus(req, res, 'already_deleted', fresh, {
         pack_key: context.packKey,
@@ -4508,19 +4781,19 @@ const handleManagedPackStickerCreateRequest = async (req, res, packKey) => {
   let uploadedAssetId = '';
   try {
     const normalizedUpload = await convertUploadMediaToWebp({
-      ownerJid: context.session.ownerJid,
+      ownerJid: context.ownerJid,
       buffer: decoded.buffer,
       mimetype: decoded.mimetype || 'image/webp',
     });
     const asset = await saveStickerAssetFromBuffer({
-      ownerJid: context.session.ownerJid,
+      ownerJid: context.ownerJid,
       buffer: normalizedUpload.buffer,
       mimetype: normalizedUpload.mimetype || 'image/webp',
     });
     uploadedAssetId = String(asset?.id || '').trim();
 
     let updatedPack = await stickerPackService.addStickerToPack({
-      ownerJid: context.session.ownerJid,
+      ownerJid: context.ownerJid,
       identifier: context.packKey,
       asset: { id: uploadedAssetId },
       emojis: [],
@@ -4529,7 +4802,7 @@ const handleManagedPackStickerCreateRequest = async (req, res, packKey) => {
 
     if (payload?.set_cover === true) {
       updatedPack = await stickerPackService.setPackCover({
-        ownerJid: context.session.ownerJid,
+        ownerJid: context.ownerJid,
         identifier: context.packKey,
         stickerId: uploadedAssetId,
       });
@@ -4608,7 +4881,7 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
   let uploadedAssetId = '';
   try {
     const originalPack = await stickerPackService.getPackInfo({
-      ownerJid: context.session.ownerJid,
+      ownerJid: context.ownerJid,
       identifier: context.packKey,
     });
     const originalItems = Array.isArray(originalPack?.items) ? originalPack.items : [];
@@ -4622,12 +4895,12 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
     }
 
     const normalizedUpload = await convertUploadMediaToWebp({
-      ownerJid: context.session.ownerJid,
+      ownerJid: context.ownerJid,
       buffer: decoded.buffer,
       mimetype: decoded.mimetype || 'image/webp',
     });
     const asset = await saveStickerAssetFromBuffer({
-      ownerJid: context.session.ownerJid,
+      ownerJid: context.ownerJid,
       buffer: normalizedUpload.buffer,
       mimetype: normalizedUpload.mimetype || 'image/webp',
     });
@@ -4643,7 +4916,7 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
     }
 
     const swapResult = await runSqlTransaction(async (connection) => {
-      const packRow = await findStickerPackByOwnerAndIdentifier(context.session.ownerJid, context.packKey, { connection });
+      const packRow = await findStickerPackByOwnerAndIdentifier(context.ownerJid, context.packKey, { connection });
       if (!packRow) return { status: 'pack_missing' };
 
       const liveOldItem = await getStickerPackItemByStickerId(packRow.id, normalizedStickerId, connection);
@@ -4695,7 +4968,7 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
 
     if (swapResult?.status === 'old_sticker_missing') {
       const fresh = await stickerPackService
-        .getPackInfo({ ownerJid: context.session.ownerJid, identifier: context.packKey })
+        .getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey })
         .catch(() => originalPack);
       await cleanupOrphanStickerAssets(uploadedAssetId ? [uploadedAssetId] : [], { reason: 'replace_sticker_old_missing' });
       await sendManagedPackMutationStatus(req, res, 'already_deleted', fresh, {
@@ -4707,7 +4980,7 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
 
     if (swapResult?.status === 'duplicate_target') {
       const fresh = await stickerPackService
-        .getPackInfo({ ownerJid: context.session.ownerJid, identifier: context.packKey })
+        .getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey })
         .catch(() => originalPack);
       await sendManagedPackMutationStatus(req, res, 'noop', fresh, {
         pack_key: context.packKey,
@@ -4720,7 +4993,7 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
 
     invalidateStickerCatalogDerivedCaches();
     const finalPack = await stickerPackService.getPackInfo({
-      ownerJid: context.session.ownerJid,
+      ownerJid: context.ownerJid,
       identifier: context.packKey,
     });
     await cleanupOrphanStickerAssets([normalizedStickerId], { reason: 'replace_sticker_old_cleanup' });
@@ -4833,54 +5106,36 @@ const handleCreatePackRequest = async (req, res) => {
   const manualTags = mergeUniqueTags(Array.isArray(payload?.tags) ? payload.tags : []).slice(0, 8);
   const persistedDescription = buildPackDescriptionWithTags(description, manualTags);
   const visibility = String(payload?.visibility || 'public').trim().toLowerCase();
-  const explicitOwnerJid = toOwnerJid(payload?.owner_jid);
   const googleSession = await resolveGoogleWebSessionFromRequest(req);
-  let googleCreator = null;
-
-  if (googleSession) {
-    googleCreator = {
-      ownerJid: googleSession.ownerJid,
-      sub: googleSession.sub,
-      email: googleSession.email,
-      name: googleSession.name,
-      picture: googleSession.picture,
-    };
-  } else if (STICKER_WEB_GOOGLE_AUTH_REQUIRED || payload?.google_id_token) {
-    try {
-      const googleClaims = await verifyGoogleIdToken(payload?.google_id_token);
-      const googleOwnerJid = buildGoogleOwnerJid(googleClaims.sub);
-      await assertGoogleIdentityNotBanned({
-        sub: googleClaims.sub,
-        email: googleClaims.email,
-        ownerJid: googleOwnerJid,
-      });
-      if (!googleOwnerJid) {
-        sendJson(req, res, 400, {
-          error: 'Não foi possível vincular a conta Google ao criador.',
-          code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-        });
-        return;
-      }
-      googleCreator = {
-        ownerJid: googleOwnerJid,
-        ...googleClaims,
-      };
-    } catch (error) {
-      sendJson(req, res, Number(error?.statusCode || 401), {
-        error: error?.message || 'Login Google inválido.',
-        code: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
-      });
-      return;
-    }
-  }
-
-  if (STICKER_WEB_GOOGLE_AUTH_REQUIRED && !googleCreator) {
-    sendJson(req, res, 400, {
-      error: 'Faça login com Google para criar packs nesta página.',
-      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
+  if (!googleSession?.ownerJid || !googleSession?.sub) {
+    sendJson(req, res, 401, {
+      error: 'Sessão expirada ou ausente. Faça login novamente para criar packs.',
+      code: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
     });
     return;
   }
+
+  try {
+    await assertGoogleIdentityNotBanned({
+      sub: googleSession.sub,
+      email: googleSession.email,
+      ownerJid: googleSession.ownerJid,
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 403), {
+      error: error?.message || 'Conta sem permissão para criar packs.',
+      code: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+    });
+    return;
+  }
+
+  const googleCreator = {
+    ownerJid: googleSession.ownerJid,
+    sub: googleSession.sub,
+    email: googleSession.email,
+    name: googleSession.name,
+    picture: googleSession.picture,
+  };
 
   if (googleCreator?.sub && googleCreator?.ownerJid) {
     await upsertGoogleWebUserRecord({
@@ -4897,17 +5152,7 @@ const handleCreatePackRequest = async (req, res) => {
     });
   }
 
-  const ownerJid = googleCreator?.ownerJid || explicitOwnerJid;
-
-  if (!ownerJid) {
-    sendJson(req, res, 400, {
-      error: STICKER_WEB_GOOGLE_AUTH_REQUIRED
-        ? 'Faça login com Google para criar packs nesta página.'
-        : 'Não foi possível resolver owner_jid para criar o pack.',
-      code: STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-    });
-    return;
-  }
+  const ownerJid = googleCreator.ownerJid;
 
   try {
     logPackWebFlow('info', 'create_pack_start', {
@@ -7438,7 +7683,7 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => {
   }
 
   if (pathname === `${STICKER_API_BASE_PATH}/me`) {
-    await handleMyProfileRequest(req, res);
+    await handleMyProfileRequest(req, res, url);
     return true;
   }
 
@@ -7764,6 +8009,20 @@ const handleCatalogPageRequest = async (req, res, pathname) => {
 
   if (normalizedPath === STICKER_CREATE_WEB_PATH) {
     try {
+      const googleSession = await resolveGoogleWebSessionFromRequest(req);
+      if (!googleSession?.ownerJid) {
+        const requestUrl = new URL(req.url || `${STICKER_CREATE_WEB_PATH}/`, SITE_ORIGIN);
+        const nextPath = `${requestUrl.pathname}${requestUrl.search}`;
+        const loginRedirectUrl = new URL(`${STICKER_LOGIN_WEB_PATH}/`, SITE_ORIGIN);
+        loginRedirectUrl.searchParams.set('next', nextPath);
+
+        res.statusCode = 302;
+        res.setHeader('Location', `${loginRedirectUrl.pathname}${loginRedirectUrl.search}`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.end();
+        return;
+      }
+
       const html = await renderCreatePackHtml();
       sendText(req, res, 200, html, 'text/html; charset=utf-8');
       return;
@@ -7851,6 +8110,7 @@ export const isStickerCatalogEnabled = () => STICKER_CATALOG_ENABLED;
 export const getStickerCatalogConfig = () => ({
   enabled: STICKER_CATALOG_ENABLED,
   webPath: STICKER_WEB_PATH,
+  userProfilePath: USER_PROFILE_WEB_PATH,
   apiBasePath: STICKER_API_BASE_PATH,
   orphanApiPath: STICKER_ORPHAN_API_PATH,
   dataPublicPath: STICKER_DATA_PUBLIC_PATH,
@@ -7873,6 +8133,29 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
   if (!STICKER_CATALOG_ENABLED) return false;
   if (!['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'].includes(req.method || '')) return false;
   if (maybeRedirectToCanonicalHost(req, res, url)) return true;
+
+  if (pathname === USER_PROFILE_WEB_PATH || pathname === `${USER_PROFILE_WEB_PATH}/`) {
+    if (!['GET', 'HEAD'].includes(req.method || '')) return false;
+    try {
+      const html = await renderUserDashboardHtml();
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      sendText(req, res, 200, html, 'text/html; charset=utf-8');
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        sendJson(req, res, 404, { error: 'Template da pagina de usuario nao encontrado.' });
+        return true;
+      }
+
+      logger.error('Falha ao renderizar pagina de usuario.', {
+        action: 'user_dashboard_page_render_failed',
+        path: pathname,
+        error: error?.message,
+      });
+      sendJson(req, res, 500, { error: 'Falha interna ao renderizar pagina de usuario.' });
+    }
+    return true;
+  }
 
   if (pathname === '/sitemap.xml') {
     if (!['GET', 'HEAD'].includes(req.method || '')) return false;
