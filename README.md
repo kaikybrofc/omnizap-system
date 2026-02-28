@@ -132,7 +132,7 @@ Variáveis legadas foram mantidas por compatibilidade (`QUOTE_API_URL`, `WAIFU_A
 - `npm run pm2:prod`: sobe com PM2 usando `ecosystem.prod.config.cjs`.
 - `npm run deploy`: deploy automático de `public/` com cache-bust, backup, validação e reload do Nginx.
 - `npm run deploy:dry-run`: simula o deploy sem publicar/recarregar serviços.
-- `npm run release`: bump de versão `patch` + deploy + publish do package (com auto commit/push git).
+- `npm run release`: bump de versão `patch` + deploy + publish + atualização da aba GitHub Releases.
 - `npm run release:minor`: bump `minor` + deploy + publish do package.
 - `npm run release:major`: bump `major` + deploy + publish do package.
 - `npm run test`: executa testes Node (`node --test`).
@@ -235,6 +235,15 @@ Variáveis do fluxo de release (git):
 - `RELEASE_GIT_PRE_COMMIT_MESSAGE` (default: `chore(release): auto-commit before release`)
 - `RELEASE_GIT_COMMIT_VERSION` (default: `1`) - commita alteração da versão após sucesso
 - `RELEASE_GIT_VERSION_COMMIT_PREFIX` (default: `chore(release): v`)
+- `RELEASE_GITHUB_RELEASE` (default: `1`) - cria/atualiza GitHub Release na aba Releases
+- `RELEASE_GITHUB_REPO` (opcional; ex.: `kaikybrofc/omnizap-system`)
+- `RELEASE_GITHUB_TOKEN` (opcional; fallback: `DEPLOY_GITHUB_TOKEN`/`GITHUB_TOKEN`/`GH_TOKEN`)
+- `RELEASE_GITHUB_TAG_PREFIX` (default: `v`) - prefixo da tag (`v2.1.9`)
+- `RELEASE_GITHUB_NAME_PREFIX` (default: `v`) - prefixo do nome exibido na release
+- `RELEASE_GITHUB_GENERATE_NOTES` (default: `1`) - usa notas automáticas do GitHub
+- `RELEASE_GITHUB_PRERELEASE` (default: auto) - vazio detecta `-` na versão como prerelease
+- `RELEASE_GITHUB_DRAFT` (default: `0`)
+- `RELEASE_GITHUB_TARGET` (opcional; vazio usa `HEAD`)
 
 ## Execução com PM2
 

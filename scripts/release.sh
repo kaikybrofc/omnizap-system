@@ -10,6 +10,13 @@ RELEASE_GIT_BRANCH="${RELEASE_GIT_BRANCH:-}"
 RELEASE_GIT_PRE_COMMIT_MESSAGE="${RELEASE_GIT_PRE_COMMIT_MESSAGE:-chore(release): auto-commit before release}"
 RELEASE_GIT_COMMIT_VERSION="${RELEASE_GIT_COMMIT_VERSION:-1}"
 RELEASE_GIT_VERSION_COMMIT_PREFIX="${RELEASE_GIT_VERSION_COMMIT_PREFIX:-chore(release): v}"
+RELEASE_GITHUB_RELEASE="${RELEASE_GITHUB_RELEASE:-1}"
+RELEASE_GITHUB_TAG_PREFIX="${RELEASE_GITHUB_TAG_PREFIX:-v}"
+RELEASE_GITHUB_NAME_PREFIX="${RELEASE_GITHUB_NAME_PREFIX:-v}"
+RELEASE_GITHUB_GENERATE_NOTES="${RELEASE_GITHUB_GENERATE_NOTES:-1}"
+RELEASE_GITHUB_PRERELEASE="${RELEASE_GITHUB_PRERELEASE:-}"
+RELEASE_GITHUB_DRAFT="${RELEASE_GITHUB_DRAFT:-0}"
+RELEASE_GITHUB_TARGET="${RELEASE_GITHUB_TARGET:-}"
 
 case "$RELEASE_TYPE" in
   patch|minor|major|prepatch|preminor|premajor|prerelease)
@@ -86,11 +93,25 @@ commit_and_push_if_dirty() {
 
 require_cmd git
 require_cmd npm
+require_cmd node
 
 if ! (cd "$PROJECT_ROOT" && git rev-parse --is-inside-work-tree >/dev/null 2>&1); then
   printf '[release] este diretório não é um repositório git válido.\n' >&2
   exit 1
 fi
+
+to_bool() {
+  local value
+  value="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$value" in
+    1|true|yes|on)
+      printf 'true'
+      ;;
+    *)
+      printf 'false'
+      ;;
+  esac
+}
 
 commit_and_push_if_dirty "$RELEASE_GIT_PRE_COMMIT_MESSAGE"
 
@@ -124,6 +145,48 @@ fi
 
 if [ "$RELEASE_GIT_COMMIT_VERSION" = "1" ]; then
   commit_and_push_if_dirty "${RELEASE_GIT_VERSION_COMMIT_PREFIX}${new_version}"
+fi
+
+if [ "$RELEASE_GITHUB_RELEASE" = "1" ]; then
+  if [ "$RELEASE_GIT_AUTO_PUSH" != "1" ]; then
+    printf '[release] RELEASE_GITHUB_RELEASE=1 requer RELEASE_GIT_AUTO_PUSH=1 para garantir commit acessível no GitHub.\n' >&2
+    exit 1
+  fi
+
+  local_tag="${RELEASE_GITHUB_TAG_PREFIX}${new_version}"
+  local_name="${RELEASE_GITHUB_NAME_PREFIX}${new_version}"
+  local_target="$RELEASE_GITHUB_TARGET"
+  if [ -z "$local_target" ]; then
+    local_target="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+  fi
+
+  local_prerelease="$RELEASE_GITHUB_PRERELEASE"
+  if [ -z "$local_prerelease" ]; then
+    if printf '%s' "$new_version" | grep -q '-'; then
+      local_prerelease="1"
+    else
+      local_prerelease="0"
+    fi
+  fi
+
+  local generate_notes_bool=""
+  generate_notes_bool="$(to_bool "$RELEASE_GITHUB_GENERATE_NOTES")"
+  local prerelease_bool=""
+  prerelease_bool="$(to_bool "$local_prerelease")"
+  local draft_bool=""
+  draft_bool="$(to_bool "$RELEASE_GITHUB_DRAFT")"
+
+  log "Criando/atualizando GitHub Release ($local_tag)"
+  release_output="$(
+    cd "$PROJECT_ROOT" && node ./scripts/github-release-notify.mjs upsert \
+      --tag "$local_tag" \
+      --target "$local_target" \
+      --name "$local_name" \
+      --generate-notes "$generate_notes_bool" \
+      --prerelease "$prerelease_bool" \
+      --draft "$draft_bool"
+  )"
+  log "GitHub Release atualizado: $release_output"
 fi
 
 log "Release concluída: $new_version"
