@@ -3648,19 +3648,28 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
   const visibility = normalizeCatalogVisibility(url?.searchParams?.get('visibility'));
   const fetchTimeoutMs = {
     support: 450,
+    bot_contact: 320,
     session: 450,
     stats: 700,
     system_summary: 700,
   };
   const errors = [];
 
-  const [supportResult, sessionResult, statsResult, systemSummaryResult] = await Promise.allSettled([withTimeout(buildSupportInfo(), fetchTimeoutMs.support), STICKER_WEB_GOOGLE_CLIENT_ID ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session) : Promise.resolve(null), withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats), withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary)]);
+  const [supportResult, botContactResult, sessionResult, statsResult, systemSummaryResult] = await Promise.allSettled([withTimeout(buildSupportInfo(), fetchTimeoutMs.support), withTimeout(Promise.resolve(buildBotContactInfo()), fetchTimeoutMs.bot_contact), STICKER_WEB_GOOGLE_CLIENT_ID ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session) : Promise.resolve(null), withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats), withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary)]);
 
   const support = supportResult.status === 'fulfilled' ? supportResult.value || null : null;
   if (supportResult.status !== 'fulfilled') {
     errors.push({
       source: 'support',
       message: supportResult.reason?.message || 'support_unavailable',
+    });
+  }
+
+  const botContact = botContactResult.status === 'fulfilled' ? botContactResult.value || null : null;
+  if (botContactResult.status !== 'fulfilled') {
+    errors.push({
+      source: 'bot_contact',
+      message: botContactResult.reason?.message || 'bot_contact_unavailable',
     });
   }
 
@@ -3691,6 +3700,7 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
   sendJson(req, res, 200, {
     data: {
       support,
+      bot_contact: botContact,
       session: mapGoogleSessionResponseData(session),
       stats: statsPayload?.data || null,
       stats_filters: statsPayload?.filters || null,

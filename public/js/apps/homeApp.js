@@ -163,8 +163,6 @@ const initNavToggle = () => {
 
 const initAuthSession = () => {
   const authLink = document.getElementById('nav-auth-link');
-  const heroLoginCta = document.getElementById('hero-login-cta');
-  const finalLoginCta = document.getElementById('final-login-cta');
   if (!authLink) return null;
 
   const clearChildren = (node) => {
@@ -181,15 +179,6 @@ const initAuthSession = () => {
     const icon = createIcon('icon-login');
 
     authLink.append(icon, document.createTextNode('Entrar'));
-
-    if (heroLoginCta) {
-      heroLoginCta.hidden = false;
-      heroLoginCta.removeAttribute('aria-hidden');
-    }
-    if (finalLoginCta) {
-      finalLoginCta.hidden = false;
-      finalLoginCta.removeAttribute('aria-hidden');
-    }
   };
 
   const setLoggedState = (sessionData) => {
@@ -218,27 +207,7 @@ const initAuthSession = () => {
       photo.src = FALLBACK_THUMB_URL;
     };
     avatarBubble.appendChild(photo);
-
-    const nameBubble = document.createElement('span');
-    nameBubble.className = 'nav-user-name-bubble';
-
-    const icon = createIcon('icon-user', 'icon nav-user-icon');
-
-    const name = document.createElement('span');
-    name.className = 'nav-user-name';
-    name.textContent = resolvedName;
-
-    nameBubble.append(icon, name);
-    authLink.append(avatarBubble, nameBubble);
-
-    if (heroLoginCta) {
-      heroLoginCta.hidden = true;
-      heroLoginCta.setAttribute('aria-hidden', 'true');
-    }
-    if (finalLoginCta) {
-      finalLoginCta.hidden = true;
-      finalLoginCta.setAttribute('aria-hidden', 'true');
-    }
+    authLink.append(avatarBubble);
   };
 
   return runAfterLoadIdle(
@@ -286,7 +255,7 @@ const initAddBotCtas = () => {
     () => {
       fetchHomeBootstrapPayload()
         .then((bootstrapData) => {
-          const url = String(bootstrapData?.support?.url || '').trim();
+          const url = String(bootstrapData?.bot_contact?.urls?.menu || '').trim();
           const applied = applyLink(url);
           if (!applied && floatButton) {
             floatButton.hidden = true;
