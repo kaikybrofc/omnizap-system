@@ -342,11 +342,11 @@ if [ "$RELEASE_GITHUB_RELEASE" = "1" ]; then
     fi
   fi
 
-  local generate_notes_bool=""
+  generate_notes_bool=""
   generate_notes_bool="$(to_bool "$RELEASE_GITHUB_GENERATE_NOTES")"
-  local prerelease_bool=""
+  prerelease_bool=""
   prerelease_bool="$(to_bool "$local_prerelease")"
-  local draft_bool=""
+  draft_bool=""
   draft_bool="$(to_bool "$RELEASE_GITHUB_DRAFT")"
 
   log "Criando/atualizando GitHub Release ($release_tag)"
