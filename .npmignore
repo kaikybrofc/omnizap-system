@@ -1,24 +1,16 @@
-# Never publish local/runtime artifacts
-.git/
-.tmp_inspect/
 node_modules/
 logs/
 temp/
-data/
-app/connection/auth/
-
-# Secrets
+.artifacts/
+.tmp_inspect/
+app/connection/auth
 .env
 .env.*
 !.env.example
+observability/mysql-exporter.cnf
+data/
 
-# Build/package artifacts
-*.tgz
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Python / ML local artifacts
+# Python / ML artifacts
 **/__pycache__/
 *.py[cod]
 *.pyo
@@ -28,6 +20,8 @@ yarn-error.log*
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Local virtualenvs
 .venv/
 venv/
 ml/clip_classifier/.venv/

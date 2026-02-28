@@ -10,8 +10,8 @@
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
   <meta name="theme-color" content="#0b1020" />
   <link rel="canonical" href="https://omnizap.shop/" />
-  <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
-  <link rel="apple-touch-icon" href="https://iili.io/FC3FABe.jpg" />
+  <link rel="icon" type="image/png" href="/assets/images/brand-icon-192.png" />
+  <link rel="apple-touch-icon" href="/assets/images/brand-icon-192.png" />
   <link rel="sitemap" type="application/xml" href="https://omnizap.shop/sitemap.xml" />
   <link rel="me" href="https://github.com/Kaikygr/omnizap-system" />
   <link rel="me" href="https://wa.me/?text=iniciar" />
@@ -22,19 +22,55 @@
   <meta property="og:title" content="OmniZap System | Plataforma Open Source de Automação WhatsApp" />
   <meta property="og:description" content="Infraestrutura técnica para bots WhatsApp com API, observabilidade e arquitetura modular pronta para produção." />
   <meta property="og:url" content="https://omnizap.shop/" />
-  <meta property="og:image" content="https://iili.io/fSNGag2.png" />
+  <meta property="og:image" content="https://omnizap.shop/assets/images/hero-banner-1280.jpg" />
   <meta property="og:image:alt" content="Banner OmniZap System com identidade visual tecnológica" />
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="OmniZap System" />
   <meta name="twitter:description" content="Plataforma open source de automação WhatsApp com API, telemetria e stack de produção." />
-  <meta name="twitter:image" content="https://iili.io/fSNGag2.png" />
+  <meta name="twitter:image" content="https://omnizap.shop/assets/images/hero-banner-1280.jpg" />
+
+  <link
+    rel="preload"
+    as="image"
+    href="/assets/images/hero-banner-720.webp"
+    imagesrcset="/assets/images/hero-banner-720.webp 720w, /assets/images/hero-banner-1280.webp 1280w"
+    imagesizes="(max-width: 860px) 92vw, 1150px"
+    fetchpriority="high"
+  />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
-  <link href="/css/github-project-panel.css?v=20260226c" rel="stylesheet" />
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap" />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap"
+    media="print"
+    onload="this.media='all'"
+  />
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
+  </noscript>
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    media="print"
+    onload="this.media='all'"
+  />
+  <noscript>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  </noscript>
+  <link rel="preload" as="style" href="/css/github-project-panel.css?v=20260226c" />
+  <link
+    rel="stylesheet"
+    href="/css/github-project-panel.css?v=20260226c"
+    media="print"
+    onload="this.media='all'"
+  />
+  <noscript>
+    <link href="/css/github-project-panel.css?v=20260226c" rel="stylesheet" />
+  </noscript>
 
   <script type="application/ld+json">
   {
@@ -58,7 +94,7 @@
     "@type": "Organization",
     "name": "OmniZap System",
     "url": "https://omnizap.shop/",
-    "logo": "https://iili.io/FC3FABe.jpg",
+    "logo": "https://omnizap.shop/assets/images/brand-icon-192.png",
     "sameAs": [
       "https://github.com/Kaikygr/omnizap-system",
       "https://wa.me/?text=iniciar"
@@ -369,7 +405,6 @@
       background: linear-gradient(150deg, #0f1a31ee, #101d35f0);
       box-shadow: 0 18px 48px #040c1f7a, inset 0 1px 0 #b7d3ff14;
       padding: clamp(16px, 3vw, 34px);
-      animation: rise .5s ease-out;
     }
 
     .hero::before {
@@ -396,14 +431,20 @@
       z-index: -1;
     }
 
+    .hero-banner-frame {
+      display: block;
+      margin-bottom: 15px;
+    }
+
     .hero-banner {
       display: block;
       width: 100%;
+      height: auto;
+      aspect-ratio: 1280 / 544;
       max-height: 238px;
       object-fit: cover;
       border-radius: 16px;
       border: 1px solid #3a5279;
-      margin-bottom: 15px;
       box-shadow: 0 12px 30px #00000052;
       filter: saturate(1.06) contrast(1.03);
       transition: transform 200ms cubic-bezier(.4, 0, .2, 1), box-shadow 200ms cubic-bezier(.4, 0, .2, 1), border-color 200ms cubic-bezier(.4, 0, .2, 1);
@@ -1154,9 +1195,11 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="https://iili.io/FC3FABe.jpg"
+            src="/assets/images/brand-logo-128.webp"
             alt="OmniZap"
-            loading="lazy"
+            loading="eager"
+            width="30"
+            height="30"
             decoding="async"
           />
           <span>OmniZap System</span>
@@ -1180,7 +1223,25 @@
 
   <main class="container">
     <section class="hero">
-      <img class="hero-banner" src="https://iili.io/fSNGag2.png" alt="Banner OmniZap System" loading="lazy" decoding="async" />
+      <picture class="hero-banner-frame">
+        <source
+          type="image/webp"
+          srcset="/assets/images/hero-banner-720.webp 720w, /assets/images/hero-banner-1280.webp 1280w"
+          sizes="(max-width: 860px) 92vw, 1150px"
+        />
+        <img
+          class="hero-banner"
+          src="/assets/images/hero-banner-720.webp"
+          srcset="/assets/images/hero-banner-720.webp 720w, /assets/images/hero-banner-1280.webp 1280w"
+          sizes="(max-width: 860px) 92vw, 1150px"
+          alt="Banner OmniZap System"
+          width="1280"
+          height="544"
+          loading="eager"
+          fetchpriority="high"
+          decoding="async"
+        />
+      </picture>
       <span class="eyebrow">Plataforma Open Source de Automação WhatsApp</span>
       <h1>Infraestrutura completa para bots, automação e gestão de WhatsApp em escala.</h1>
       <p class="lead">Foco em API, observabilidade, gestão de grupos, mídia, comandos automatizados e arquitetura pronta para produção.</p>
@@ -1422,8 +1483,22 @@ curl -sS https://omnizap.shop/api/sticker-packs/system-summary | jq</code></pre>
     hidden
   ><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></a>
 
-  <div id="home-react-root" hidden></div>
-  <script type="module" src="/js/apps/homeApp.js?v=20260228-mobile-user-bubble3"></script>
-  <script type="module" src="/js/github-panel/index.js?v=20260226a"></script>
+  <script type="module" src="/js/apps/homeApp.js?v=20260228-perf-lcp1"></script>
+  <script type="module">
+    const loadGithubPanel = () =>
+      import('/js/github-panel/index.js?v=20260228-perf-lcp1').catch(() => {});
+
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(() => {
+        void loadGithubPanel();
+      }, { timeout: 4000 });
+    } else {
+      window.addEventListener('load', () => {
+        window.setTimeout(() => {
+          void loadGithubPanel();
+        }, 900);
+      }, { once: true });
+    }
+  </script>
 </body>
 </html>

@@ -157,6 +157,7 @@ const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_P
 const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
 const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
+const STICKER_WEB_ASSET_VERSION = sanitizeText(process.env.STICKER_WEB_ASSET_VERSION || '', 64, { allowEmpty: true }) || '';
 const CATALOG_PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'index.html');
 const CREATE_PACK_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'create', 'index.html');
@@ -171,7 +172,19 @@ const MAX_ORPHAN_LIST_LIMIT = clampInt(process.env.STICKER_ORPHAN_LIST_MAX_LIMIT
 const DEFAULT_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_LIMIT, 50, 1, 200);
 const MAX_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_MAX_LIMIT, 200, 1, 500);
 const MAX_DATA_SCAN_FILES = clampInt(process.env.STICKER_DATA_SCAN_MAX_FILES, 10000, 100, 50000);
-const ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_ASSET_CACHE_SECONDS, 60 * 10, 0, 60 * 60 * 24 * 7);
+const ASSET_CACHE_SECONDS = clampInt(
+  process.env.STICKER_WEB_ASSET_CACHE_SECONDS,
+  60 * 60 * 24 * 30,
+  60 * 60,
+  60 * 60 * 24 * 365,
+);
+const STATIC_TEXT_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_STATIC_TEXT_CACHE_SECONDS, 60 * 60, 60, 60 * 60 * 24 * 30);
+const IMMUTABLE_ASSET_CACHE_SECONDS = clampInt(
+  process.env.STICKER_WEB_IMMUTABLE_ASSET_CACHE_SECONDS,
+  60 * 60 * 24 * 365,
+  60 * 60,
+  60 * 60 * 24 * 365,
+);
 const STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE =
   String(process.env.STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE || '/pack send {{pack_key}}').trim() ||
   '/pack send {{pack_key}}';
@@ -1972,10 +1985,15 @@ const clearGoogleWebSessionCookie = (req, res) => {
 };
 
 const sendAsset = (req, res, buffer, mimetype = 'image/webp') => {
+  const maxAgeSeconds = Math.max(60 * 60 * 24, ASSET_CACHE_SECONDS);
+  const staleWhileRevalidateSeconds = Math.min(60 * 60 * 24 * 7, Math.max(300, maxAgeSeconds));
   res.statusCode = 200;
   res.setHeader('Content-Type', mimetype);
   res.setHeader('Content-Length', String(buffer.length));
-  res.setHeader('Cache-Control', `public, max-age=${ASSET_CACHE_SECONDS}`);
+  res.setHeader(
+    'Cache-Control',
+    `public, max-age=${maxAgeSeconds}, stale-while-revalidate=${staleWhileRevalidateSeconds}`,
+  );
   if (req.method === 'HEAD') {
     res.end();
     return;
@@ -2214,8 +2232,12 @@ const buildStickerAssetUrl = (packKey, stickerId) =>
   `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}.webp`;
 const buildOrphanStickersApiUrl = () => STICKER_ORPHAN_API_PATH;
 const buildDataAssetApiBaseUrl = () => `${STICKER_API_BASE_PATH}/data-files`;
-const buildCatalogStylesUrl = () => `${STICKER_WEB_PATH}/assets/styles.css`;
-const buildCatalogScriptUrl = () => `${STICKER_WEB_PATH}/assets/catalog.js`;
+const CATALOG_STYLES_WEB_PATH = `${STICKER_WEB_PATH}/assets/styles.css`;
+const CATALOG_SCRIPT_WEB_PATH = `${STICKER_WEB_PATH}/assets/catalog.js`;
+const appendAssetVersionQuery = (assetPath) =>
+  STICKER_WEB_ASSET_VERSION ? `${assetPath}?v=${encodeURIComponent(STICKER_WEB_ASSET_VERSION)}` : assetPath;
+const buildCatalogStylesUrl = () => appendAssetVersionQuery(CATALOG_STYLES_WEB_PATH);
+const buildCatalogScriptUrl = () => appendAssetVersionQuery(CATALOG_SCRIPT_WEB_PATH);
 const buildDataAssetUrl = (relativePath) =>
   `${STICKER_DATA_PUBLIC_PATH}/${String(relativePath)
     .split('/')
@@ -3467,9 +3489,13 @@ const handleSitemapRequest = async (req, res) => {
 const sendStaticTextFile = async (req, res, filePath, contentType) => {
   try {
     const body = await fs.readFile(filePath, 'utf8');
+    const hasVersionQuery = /(?:\?|&)v=/.test(String(req.url || ''));
+    const cacheControl = hasVersionQuery
+      ? `public, max-age=${IMMUTABLE_ASSET_CACHE_SECONDS}, immutable`
+      : `public, max-age=${STATIC_TEXT_CACHE_SECONDS}, stale-while-revalidate=${Math.min(86400, STATIC_TEXT_CACHE_SECONDS * 4)}`;
     res.statusCode = 200;
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.setHeader('Cache-Control', cacheControl);
     if (req.method === 'HEAD') {
       res.end();
       return true;
@@ -3493,11 +3519,11 @@ const sendStaticTextFile = async (req, res, filePath, contentType) => {
 };
 
 const handleCatalogStaticAssetRequest = async (req, res, pathname) => {
-  if (pathname === buildCatalogStylesUrl()) {
+  if (pathname === CATALOG_STYLES_WEB_PATH) {
     return sendStaticTextFile(req, res, CATALOG_STYLES_FILE_PATH, 'text/css; charset=utf-8');
   }
 
-  if (pathname === buildCatalogScriptUrl()) {
+  if (pathname === CATALOG_SCRIPT_WEB_PATH) {
     return sendStaticTextFile(req, res, CATALOG_SCRIPT_FILE_PATH, 'application/javascript; charset=utf-8');
   }
 

@@ -8,6 +8,8 @@ const DEFAULT_AUTO_PACK_NAME = process.env.STICKER_PACK_AUTO_PACK_NAME || 'pack'
 const AUTO_PACK_TARGET_VISIBILITY = 'unlisted';
 const AUTO_COLLECT_ENABLED = process.env.STICKER_PACK_AUTO_COLLECT_ENABLED !== 'false';
 const AUTO_PACK_NAME_MAX_LENGTH = 120;
+const AUTO_PACK_DESCRIPTION_MARKER = '[auto-pack:collector]';
+const AUTO_PACK_DESCRIPTION_TEXT = 'Coleção automática de figurinhas criadas pelo usuário.';
 const normalizeVisibility = (value) => String(value || '').trim().toLowerCase();
 
 /**
@@ -41,6 +43,42 @@ const normalizeAutoPackName = (value, { fallback = 'pack', maxLength = AUTO_PACK
     .slice(0, maxLength);
 
   return normalized || fallback;
+};
+
+const buildAutoPackDescription = () => `${AUTO_PACK_DESCRIPTION_TEXT} ${AUTO_PACK_DESCRIPTION_MARKER}`.trim();
+
+const isThemeCurationAutoPack = (pack) => {
+  if (!pack || typeof pack !== 'object') return false;
+  const description = String(pack.description || '').toLowerCase();
+  if (description.includes('[auto-theme:') || description.includes('[auto-tag:')) return true;
+  if (String(pack.name || '').trim().toLowerCase().startsWith('[auto]')) return true;
+  return Boolean(String(pack.pack_theme_key || '').trim());
+};
+
+const isAutoCollectorPack = (pack) => {
+  if (!pack || typeof pack !== 'object') return false;
+  if (isThemeCurationAutoPack(pack)) return false;
+
+  const description = String(pack.description || '').toLowerCase();
+  if (description.includes(AUTO_PACK_DESCRIPTION_MARKER)) return true;
+  if (description.includes('coleção automática de figurinhas criadas pelo usuário.')) return true;
+
+  const normalizedName = normalizeAutoPackName(pack.name, { fallback: '', maxLength: AUTO_PACK_NAME_MAX_LENGTH });
+  if (!normalizedName) return false;
+
+  const base = normalizeAutoPackName(DEFAULT_AUTO_PACK_NAME, { fallback: 'pack', maxLength: AUTO_PACK_NAME_MAX_LENGTH });
+  const matcher = new RegExp(`^${escapeRegex(base.toLowerCase())}\\d+$`, 'i');
+  const looksLikeLegacyCollector = matcher.test(normalizedName);
+  if (looksLikeLegacyCollector) return true;
+
+  return pack.is_auto_pack === true || Number(pack.is_auto_pack || 0) === 1;
+};
+
+const isUserManagedPackCandidate = (pack) => {
+  if (!pack || typeof pack !== 'object') return false;
+  if (isThemeCurationAutoPack(pack)) return false;
+  if (isAutoCollectorPack(pack)) return false;
+  return Number(pack.is_auto_pack || 0) !== 1;
 };
 
 /**
@@ -177,21 +215,37 @@ export function createAutoPackCollector(options = {}) {
   const ensureTargetPack = async ({ ownerJid, senderName }) => {
     const packs = await deps.stickerPackService.listPacks({ ownerJid, limit: 30 });
     if (packs.length > 0) {
+      // Prioriza pack gerenciado pelo usuário (pack atual/manual).
+      const userManagedPacks = packs.filter((entry) => isUserManagedPackCandidate(entry));
+      if (userManagedPacks.length > 0) {
+        return {
+          pack: userManagedPacks[0],
+          packs,
+        };
+      }
+
+      const managedAutoPacks = packs.filter((entry) => isAutoCollectorPack(entry));
       const preferredPack =
-        packs.find((entry) => normalizeVisibility(entry?.visibility) === AUTO_PACK_TARGET_VISIBILITY) || packs[0];
-      const ensuredPack = await ensureAutoPackVisibility({ ownerJid, pack: preferredPack });
-      return {
-        pack: ensuredPack,
-        packs,
-      };
+        managedAutoPacks.find((entry) => normalizeVisibility(entry?.visibility) === AUTO_PACK_TARGET_VISIBILITY)
+        || managedAutoPacks[0]
+        || null;
+
+      if (preferredPack) {
+        const ensuredPack = await ensureAutoPackVisibility({ ownerJid, pack: preferredPack });
+        return {
+          pack: ensuredPack,
+          packs,
+        };
+      }
     }
 
     const created = await deps.stickerPackService.createPack({
       ownerJid,
       name: makeAutoPackName([]),
       publisher: sanitizeText(senderName, 120, { allowEmpty: true }) || 'OmniZap',
-      description: 'Coleção automática de figurinhas criadas pelo usuário.',
+      description: buildAutoPackDescription(),
       visibility: AUTO_PACK_TARGET_VISIBILITY,
+      isAutoPack: true,
     });
 
     return {
@@ -250,8 +304,9 @@ export function createAutoPackCollector(options = {}) {
           ownerJid,
           name: makeAutoPackName(packs),
           publisher: sanitizeText(senderName, 120, { allowEmpty: true }) || targetPack.publisher || 'OmniZap',
-          description: 'Coleção automática de figurinhas criadas pelo usuário.',
+          description: buildAutoPackDescription(),
           visibility: AUTO_PACK_TARGET_VISIBILITY,
+          isAutoPack: true,
         });
 
         const updated = await deps.stickerPackService.addStickerToPack({
