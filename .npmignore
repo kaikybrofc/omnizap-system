@@ -1,0 +1,33 @@
+# Never publish local/runtime artifacts
+.git/
+.tmp_inspect/
+node_modules/
+logs/
+temp/
+data/
+app/connection/auth/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Build/package artifacts
+*.tgz
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python / ML local artifacts
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+ml/clip_classifier/.venv/

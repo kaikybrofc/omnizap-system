@@ -132,6 +132,9 @@ Variáveis legadas foram mantidas por compatibilidade (`QUOTE_API_URL`, `WAIFU_A
 - `npm run pm2:prod`: sobe com PM2 usando `ecosystem.prod.config.cjs`.
 - `npm run deploy`: deploy automático de `public/` com cache-bust, backup, validação e reload do Nginx.
 - `npm run deploy:dry-run`: simula o deploy sem publicar/recarregar serviços.
+- `npm run release`: bump de versão `patch` + deploy + publish do package (com auto commit/push git).
+- `npm run release:minor`: bump `minor` + deploy + publish do package.
+- `npm run release:major`: bump `major` + deploy + publish do package.
 - `npm run test`: executa testes Node (`node --test`).
 - `npm run lint`: lint com ESLint.
 - `npm run lint:fix`: lint com correções automáticas.
@@ -156,6 +159,27 @@ Variáveis úteis:
 - `DEPLOY_GITHUB_ENVIRONMENT` (default: `production`)
 - `DEPLOY_GITHUB_REPO` (opcional, ex.: `kaikybrofc/omnizap-system`)
 - `DEPLOY_GITHUB_TOKEN` (opcional; se vazio usa `GITHUB_TOKEN`/`GH_TOKEN`)
+- `DEPLOY_PACKAGE_STEP` (default: `0`) - executa etapa de package durante o deploy
+- `DEPLOY_PACKAGE_INSTALL` (default: `1`) - instala dependências (`npm ci --omit=dev`)
+- `DEPLOY_PACKAGE_TEST` (default: `0`) - executa `npm test`
+- `DEPLOY_PACKAGE_PACK` (default: `0`) - gera artefato `npm pack`
+- `DEPLOY_PACKAGE_ARTIFACTS_DIR` (default: `.artifacts`) - pasta dos artefatos do pack
+- `DEPLOY_PACKAGE_PUBLISH` (default: `0`) - publica em registry npm
+- `DEPLOY_PACKAGE_REGISTRY` (default: `https://npm.pkg.github.com`)
+- `DEPLOY_PACKAGE_TOKEN` (opcional; fallback automático por tipo de registry)
+- `DEPLOY_PACKAGE_SCOPE_OWNER` (opcional) - owner esperado do scope para publish (ex.: `kaikybrofc` ou sua org)
+- `DEPLOY_PACKAGE_TAG` (default: `latest`)
+- `DEPLOY_PACKAGE_PUBLISH_SKIP_IF_EXISTS` (default: `1`) - evita erro se versão já existir
+- `DEPLOY_PACKAGE_PUBLISH_SECONDARY` (default: `0`) - habilita publish secundário (dual publish)
+- `DEPLOY_PACKAGE_SECONDARY_REGISTRY` (default: `https://registry.npmjs.org`)
+- `DEPLOY_PACKAGE_SECONDARY_TOKEN` (opcional; fallback: `NPM_TOKEN`/`NODE_AUTH_TOKEN`/demais tokens)
+- `DEPLOY_PACKAGE_SECONDARY_TAG` (default: `latest`)
+- `DEPLOY_PACKAGE_SECONDARY_ACCESS` (default: `public`) - usado para pacote escopado no npmjs
+- `DEPLOY_PACKAGE_SECONDARY_PUBLISH_SKIP_IF_EXISTS` (default: mesmo valor de `DEPLOY_PACKAGE_PUBLISH_SKIP_IF_EXISTS`)
+- `DEPLOY_PACKAGE_SECONDARY_TOKEN_KEYS` (opcional) - ordem customizada de fallback de tokens
+
+Para `npm.pkg.github.com`, prefira token do GitHub (`DEPLOY_GITHUB_TOKEN` ou `GITHUB_TOKEN`); `NPM_TOKEN` comum pode não autenticar no registry do GitHub.
+Para `npm.pkg.github.com`, o nome do pacote deve ser escopado com owner existente (`@owner/pacote`), por exemplo `@kaikybrofc/omnizap-system`.
 
 Exemplo sem restart do PM2:
 
@@ -168,6 +192,46 @@ Exemplo com marcação explícita no GitHub:
 ```bash
 DEPLOY_GITHUB_NOTIFY=1 DEPLOY_GITHUB_ENVIRONMENT=production npm run deploy
 ```
+
+Exemplo com etapa package completa:
+
+```bash
+DEPLOY_PACKAGE_STEP=1 DEPLOY_PACKAGE_TEST=1 DEPLOY_PACKAGE_PACK=1 npm run deploy
+```
+
+Exemplo publicando no GitHub Packages:
+
+```bash
+DEPLOY_PACKAGE_STEP=1 DEPLOY_PACKAGE_PUBLISH=1 DEPLOY_PACKAGE_TOKEN=seu_token npm run deploy
+```
+
+Exemplo de dual publish (GitHub Packages + npmjs):
+
+```bash
+DEPLOY_PACKAGE_STEP=1 \
+DEPLOY_PACKAGE_PUBLISH=1 \
+DEPLOY_PACKAGE_PUBLISH_SECONDARY=1 \
+DEPLOY_PACKAGE_SECONDARY_TOKEN=seu_token_npmjs \
+npm run deploy
+```
+
+Comando único de release (patch + deploy + publish):
+
+```bash
+npm run release
+```
+
+`npm run release` agora executa publish primário + secundário por padrão (você pode desativar com `DEPLOY_PACKAGE_PUBLISH_SECONDARY=0`).
+
+Variáveis do fluxo de release (git):
+
+- `RELEASE_GIT_AUTO_COMMIT` (default: `1`) - commit automático se houver alterações pendentes
+- `RELEASE_GIT_AUTO_PUSH` (default: `1`) - push automático dos commits gerados
+- `RELEASE_GIT_REMOTE` (default: `origin`)
+- `RELEASE_GIT_BRANCH` (opcional; vazio usa branch atual)
+- `RELEASE_GIT_PRE_COMMIT_MESSAGE` (default: `chore(release): auto-commit before release`)
+- `RELEASE_GIT_COMMIT_VERSION` (default: `1`) - commita alteração da versão após sucesso
+- `RELEASE_GIT_VERSION_COMMIT_PREFIX` (default: `chore(release): v`)
 
 ## Execução com PM2
 
