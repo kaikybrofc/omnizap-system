@@ -4,20 +4,18 @@ import { handleCatalogUploadRoutes } from './catalogHandlers/catalogUploadHttp.j
 import { handleCatalogPublicRoutes } from './catalogHandlers/catalogPublicHttp.js';
 
 const decodePathSegments = (suffix) =>
-  suffix.split('/').filter(Boolean).map((segment) => {
-    try {
-      return decodeURIComponent(segment);
-    } catch {
-      return segment;
-    }
-  });
+  suffix
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => {
+      try {
+        return decodeURIComponent(segment);
+      } catch {
+        return segment;
+      }
+    });
 
-export const createCatalogApiRouter = ({
-  apiBasePath,
-  orphanApiPath,
-  handlers,
-  sendJson,
-}) => {
+export const createCatalogApiRouter = ({ apiBasePath, orphanApiPath, handlers, sendJson }) => {
   if (!apiBasePath || typeof handlers !== 'object' || typeof sendJson !== 'function') {
     throw new Error('catalog_api_router_config_invalid');
   }

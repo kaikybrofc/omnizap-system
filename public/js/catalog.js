@@ -90,51 +90,11 @@
     packPageWhatsApp: document.getElementById('pack-page-whatsapp'),
   };
 
-  if (
-    !els.hero ||
-    !els.form ||
-    !els.search ||
-    !els.visibility ||
-    !els.categories ||
-    !els.categoriesPicker ||
-    !els.categoriesSearch ||
-    !els.categoriesChips ||
-    !els.categoriesOptions ||
-    !els.status ||
-    !els.grid ||
-    !els.more ||
-    !els.orphanStatus ||
-    !els.orphanGrid ||
-    !els.orphanPrev ||
-    !els.orphanNext ||
-    !els.orphanPageInfo ||
-    !els.panel ||
-    !els.panelTitle ||
-    !els.panelSub ||
-    !els.panelChip ||
-    !els.panelError ||
-    !els.panelPrev ||
-    !els.panelNext ||
-    !els.panelPageInfo ||
-    !els.copy ||
-    !els.useWhatsAppLink ||
-    !els.stickers ||
-    !els.packPage ||
-    !els.packPageTitle ||
-    !els.packPageSub ||
-    !els.packPageChip ||
-    !els.packPageStatus ||
-    !els.packPageGrid ||
-    !els.packPageBack ||
-    !els.packPageCopy ||
-    !els.packPageWhatsApp
-  ) {
+  if (!els.hero || !els.form || !els.search || !els.visibility || !els.categories || !els.categoriesPicker || !els.categoriesSearch || !els.categoriesChips || !els.categoriesOptions || !els.status || !els.grid || !els.more || !els.orphanStatus || !els.orphanGrid || !els.orphanPrev || !els.orphanNext || !els.orphanPageInfo || !els.panel || !els.panelTitle || !els.panelSub || !els.panelChip || !els.panelError || !els.panelPrev || !els.panelNext || !els.panelPageInfo || !els.copy || !els.useWhatsAppLink || !els.stickers || !els.packPage || !els.packPageTitle || !els.packPageSub || !els.packPageChip || !els.packPageStatus || !els.packPageGrid || !els.packPageBack || !els.packPageCopy || !els.packPageWhatsApp) {
     return;
   }
 
-  const panelModal = window.bootstrap?.Modal
-    ? window.bootstrap.Modal.getOrCreateInstance(els.panel)
-    : null;
+  const panelModal = window.bootstrap?.Modal ? window.bootstrap.Modal.getOrCreateInstance(els.panel) : null;
 
   let shouldReplaceStateOnHide = false;
 
@@ -208,10 +168,7 @@
       chip.className = 'category-chip';
       chip.dataset.value = value;
       chip.setAttribute('aria-label', 'Remover categoria ' + (entry?.label || value));
-      chip.innerHTML =
-        '<span class="category-chip-label">' +
-        (entry?.label || value) +
-        '</span><i class="fa-solid fa-xmark category-chip-remove" aria-hidden="true"></i>';
+      chip.innerHTML = '<span class="category-chip-label">' + (entry?.label || value) + '</span><i class="fa-solid fa-xmark category-chip-remove" aria-hidden="true"></i>';
       els.categoriesChips.appendChild(chip);
     });
   };
@@ -240,10 +197,7 @@
       button.type = 'button';
       button.className = 'category-option' + (selected.has(entry.value) ? ' selected' : '');
       button.dataset.value = entry.value;
-      button.innerHTML =
-        '<span class="category-option-label">' +
-        entry.label +
-        '</span><i class="fa-solid fa-check category-option-check" aria-hidden="true"></i>';
+      button.innerHTML = '<span class="category-option-label">' + entry.label + '</span><i class="fa-solid fa-check category-option-check" aria-hidden="true"></i>';
       els.categoriesOptions.appendChild(button);
     });
   };
@@ -401,9 +355,7 @@
       .map(([label]) => toTagToken(label))
       .filter(Boolean);
 
-    const merged = [...rankedFromScores, ...classificationTags, ...explicitTags]
-      .map((tag) => toTagToken(tag))
-      .filter(Boolean);
+    const merged = [...rankedFromScores, ...classificationTags, ...explicitTags].map((tag) => toTagToken(tag)).filter(Boolean);
 
     return Array.from(new Set(merged)).slice(0, 3);
   };
@@ -430,9 +382,7 @@
     const explicitTags = Array.isArray(pack?.tags) ? pack.tags : [];
     const classificationTags = Array.isArray(pack?.classification?.tags) ? pack.classification.tags : [];
 
-    const merged = [...classificationTags, ...explicitTags]
-      .map((tag) => toTagToken(tag))
-      .filter(Boolean);
+    const merged = [...classificationTags, ...explicitTags].map((tag) => toTagToken(tag)).filter(Boolean);
 
     return Array.from(new Set(merged)).slice(0, 3);
   };
@@ -473,8 +423,7 @@
     const visibilityBadge = document.createElement('span');
     visibilityBadge.className = 'pack-visibility-badge';
     const visibility = String(pack.visibility || '').toLowerCase();
-    visibilityBadge.textContent =
-      visibility === 'public' ? 'Público' : visibility === 'unlisted' ? 'Não listado' : 'Privado';
+    visibilityBadge.textContent = visibility === 'public' ? 'Público' : visibility === 'unlisted' ? 'Não listado' : 'Privado';
 
     const countBadge = document.createElement('span');
     countBadge.className = 'pack-count-badge';
@@ -546,13 +495,7 @@
     for (let index = 0; index < count; index += 1) {
       const col = document.createElement('div');
       col.className = 'col-4 col-sm-6 col-md-4 col-lg-3';
-      col.innerHTML =
-        '<div class="card h-100 bg-dark text-light shadow-sm pack-card">' +
-        '<div class="card-body d-flex flex-column gap-2">' +
-        '<div class="skeleton skeleton-thumb"></div>' +
-        '<div class="skeleton skeleton-line"></div>' +
-        '<div class="skeleton skeleton-line short"></div>' +
-        '</div></div>';
+      col.innerHTML = '<div class="card h-100 bg-dark text-light shadow-sm pack-card">' + '<div class="card-body d-flex flex-column gap-2">' + '<div class="skeleton skeleton-thumb"></div>' + '<div class="skeleton skeleton-line"></div>' + '<div class="skeleton skeleton-line short"></div>' + '</div></div>';
       els.grid.appendChild(col);
     }
   };
@@ -607,8 +550,7 @@
 
     els.packPageTitle.textContent = pack?.name || 'Pack';
     els.packPageSub.textContent = (pack?.publisher || '-') + ' | ' + (pack?.description || 'Sem descrição');
-    els.packPageChip.textContent =
-      String(pack?.sticker_count || items.length || 0) + ' itens | ' + (pack?.visibility || '-') + ' | ' + (pack?.pack_key || '-');
+    els.packPageChip.textContent = String(pack?.sticker_count || items.length || 0) + ' itens | ' + (pack?.visibility || '-') + ' | ' + (pack?.pack_key || '-');
     applyWhatsAppLink(els.packPageWhatsApp, pack?.whatsapp?.url);
 
     els.packPageGrid.innerHTML = '';
@@ -643,11 +585,7 @@
     for (let index = 0; index < count; index += 1) {
       const col = document.createElement('div');
       col.className = 'col-6 col-md-3 col-lg-2';
-      col.innerHTML =
-        '<article class="orphan-card card h-100"><div class="card-body p-2">' +
-        '<div class="skeleton skeleton-orphan"></div>' +
-        '<div class="skeleton skeleton-line short mt-2"></div>' +
-        '</div></article>';
+      col.innerHTML = '<article class="orphan-card card h-100"><div class="card-body p-2">' + '<div class="skeleton skeleton-orphan"></div>' + '<div class="skeleton skeleton-line short mt-2"></div>' + '</div></article>';
       els.orphanGrid.appendChild(col);
     }
   };
@@ -779,8 +717,7 @@
 
     els.panelPrev.disabled = state.panelPagination.page <= 1;
     els.panelNext.disabled = state.panelPagination.page >= totalPages;
-    els.panelPageInfo.textContent =
-      'Página ' + state.panelPagination.page + ' de ' + totalPages + ' - ' + safeTotal + ' stickers';
+    els.panelPageInfo.textContent = 'Página ' + state.panelPagination.page + ' de ' + totalPages + ' - ' + safeTotal + ' stickers';
   };
 
   const renderPanelStickersPage = () => {

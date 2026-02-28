@@ -92,15 +92,8 @@ export function GithubProjectPanel({ owner, repo, endpoint }) {
         ),
       ),
     ),
-    error
-      ? h('p', { className: 'ghp-inline-warning', role: 'status' }, error.rateLimited ? 'Limite da API do GitHub atingido; exibindo cache local.' : 'Exibindo último snapshot disponível.')
-      : null,
+    error ? h('p', { className: 'ghp-inline-warning', role: 'status' }, error.rateLimited ? 'Limite da API do GitHub atingido; exibindo cache local.' : 'Exibindo último snapshot disponível.') : null,
     h('div', { className: 'ghp-stat-grid' }, ...statCards.map((card) => h(StatCard, { key: card.label, ...card }))),
-    h(
-      'div',
-      { className: 'ghp-list-grid' },
-      h('section', { className: 'ghp-list-card' }, h('h4', { className: 'ghp-list-title' }, 'Últimos Commits'), h(CommitList, { items: data?.latest_commits || [], formatDate: fmtDate })),
-      h('section', { className: 'ghp-list-card' }, h('h4', { className: 'ghp-list-title' }, 'Últimas Releases'), h(ReleaseList, { items: data?.latest_releases || [], formatDate: fmtDate })),
-    ),
+    h('div', { className: 'ghp-list-grid' }, h('section', { className: 'ghp-list-card' }, h('h4', { className: 'ghp-list-title' }, 'Últimos Commits'), h(CommitList, { items: data?.latest_commits || [], formatDate: fmtDate })), h('section', { className: 'ghp-list-card' }, h('h4', { className: 'ghp-list-title' }, 'Últimas Releases'), h(ReleaseList, { items: data?.latest_releases || [], formatDate: fmtDate }))),
   );
 }

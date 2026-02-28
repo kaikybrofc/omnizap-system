@@ -11,12 +11,7 @@ const CAPTCHA_OK_EMOJI = process.env.CAPTCHA_OK_EMOJI || '✅';
 
 const pendingCaptchas = new Map();
 const captchaMessageState = new Map();
-const NON_HUMAN_CAPTCHA_MESSAGE_TEXTS = new Set([
-  'Mensagem vazia',
-  'Tipo de mensagem não suportado ou sem conteúdo.',
-  '[Histórico de mensagens]',
-  '[Aviso de histórico de mensagens]',
-]);
+const NON_HUMAN_CAPTCHA_MESSAGE_TEXTS = new Set(['Mensagem vazia', 'Tipo de mensagem não suportado ou sem conteúdo.', '[Histórico de mensagens]', '[Aviso de histórico de mensagens]']);
 
 const buildMessageStateKey = (groupId, messageId) => `${groupId}:${messageId}`;
 const normalizeMessageText = (messageText) => (typeof messageText === 'string' ? messageText.trim() : '');

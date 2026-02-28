@@ -38,7 +38,9 @@
     "release:major": "RELEASE_TYPE=major bash ./scripts/release.sh",
     "test": "node --test",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "format": "node ./scripts/run-prettier-all.mjs --write",
+    "format:check": "node ./scripts/run-prettier-all.mjs --check"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
@@ -68,7 +70,8 @@
   },
   "devDependencies": {
     "eslint": "^9.39.2",
-    "pm2": "^6.0.11"
+    "pm2": "^6.0.11",
+    "prettier": "^3.8.1"
   },
   "engines": {
     "node": ">=16.0.0"

@@ -1165,19 +1165,7 @@ export const getPvpWeeklyRankByOwner = async (weekRefDate, ownerJid, connection 
           OR (points = ? AND wins = ? AND matches_played > ?)
           OR (points = ? AND wins = ? AND matches_played = ? AND owner_jid < ?)
         )`,
-    [
-      weekRefDate,
-      stats.points,
-      stats.points,
-      stats.wins,
-      stats.points,
-      stats.wins,
-      stats.matches_played,
-      stats.points,
-      stats.wins,
-      stats.matches_played,
-      ownerJid,
-    ],
+    [weekRefDate, stats.points, stats.points, stats.wins, stats.points, stats.wins, stats.matches_played, stats.points, stats.wins, stats.matches_played, ownerJid],
     connection,
   );
 

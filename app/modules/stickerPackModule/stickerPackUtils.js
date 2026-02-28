@@ -54,7 +54,11 @@ export const slugify = (value, { fallback = 'pack', maxLength = 32 } = {}) => {
  * @param {number} [size=8] Quantidade de caracteres retornados.
  * @returns {string} Hash hexadecimal truncado.
  */
-export const shortHash = (value, size = 8) => createHash('sha256').update(String(value ?? '')).digest('hex').slice(0, size);
+export const shortHash = (value, size = 8) =>
+  createHash('sha256')
+    .update(String(value ?? ''))
+    .digest('hex')
+    .slice(0, size);
 
 /**
  * Normaliza o JID do dono mantendo fallback para o valor original.
@@ -72,7 +76,9 @@ export const normalizeOwnerJid = (jid) => normalizeJid(jid || '') || jid || '';
  * @returns {'private'|'public'|'unlisted'|null} Valor de visibilidade válido.
  */
 export const toVisibility = (value, fallback = 'private') => {
-  const normalized = String(value || '').trim().toLowerCase();
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
   if (normalized === 'public' || normalized === 'unlisted' || normalized === 'private') {
     return normalized;
   }
@@ -87,7 +93,11 @@ export const toVisibility = (value, fallback = 'private') => {
  */
 export const parseEmojiList = (value) => {
   if (!value) return [];
-  if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean).slice(0, 8);
+  if (Array.isArray(value))
+    return value
+      .map((item) => String(item))
+      .filter(Boolean)
+      .slice(0, 8);
 
   return String(value)
     .split(',')

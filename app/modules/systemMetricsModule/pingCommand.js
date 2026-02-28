@@ -2,9 +2,7 @@ import logger from '../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
-const METRICS_ENDPOINT =
-  process.env.METRICS_ENDPOINT ||
-  `http://localhost:${process.env.METRICS_PORT || 9102}${process.env.METRICS_PATH || '/metrics'}`;
+const METRICS_ENDPOINT = process.env.METRICS_ENDPOINT || `http://localhost:${process.env.METRICS_PORT || 9102}${process.env.METRICS_PATH || '/metrics'}`;
 const METRICS_TIMEOUT_MS = Number(process.env.METRICS_PING_TIMEOUT_MS || 1500);
 
 const formatLoadAverage = (values) => values.map((value) => value.toFixed(2)).join(' | ');
@@ -51,10 +49,7 @@ const formatStatusLevel = (status) => `${status.emoji} ${status.label}`;
 
 const padNumber = (value) => String(value).padStart(2, '0');
 
-const formatDateTime = (date = new Date()) =>
-  `${padNumber(date.getDate())}/${padNumber(date.getMonth() + 1)}/${date.getFullYear()} ${padNumber(
-    date.getHours(),
-  )}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}`;
+const formatDateTime = (date = new Date()) => `${padNumber(date.getDate())}/${padNumber(date.getMonth() + 1)}/${date.getFullYear()} ${padNumber(date.getHours())}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}`;
 
 const parseLabels = (raw) => {
   if (!raw) return {};
@@ -115,14 +110,7 @@ const getLabelValue = (series, name, labelKey) => {
   return entry ? entry.labels[labelKey] : null;
 };
 
-const buildPingMessage = ({
-  systemMetrics,
-  metricsSummary,
-  metricsOk,
-  metricsError,
-  latencyMs,
-  generatedAt,
-}) => {
+const buildPingMessage = ({ systemMetrics, metricsSummary, metricsOk, metricsError, latencyMs, generatedAt }) => {
   const responseTime = Number.isFinite(latencyMs) ? `${Math.max(0, Math.round(latencyMs))}ms` : 'n/a';
 
   const hostCpuStatus = getStatusLevel(systemMetrics.usoCpuPercentual, 65, 85);
@@ -177,9 +165,7 @@ ${systemPart}
   const dbStatus = getStatusLevel(slowRate, 5, 15);
   const slowRateText = slowRate === null ? 'n/a' : `${slowRate.toFixed(2)}%`;
 
-  const queueValues = [metricsSummary.queues.messages, metricsSummary.queues.chats, metricsSummary.queues.lid_map]
-    .map((value) => parseMetricNumber(value))
-    .filter((value) => value !== null);
+  const queueValues = [metricsSummary.queues.messages, metricsSummary.queues.chats, metricsSummary.queues.lid_map].map((value) => parseMetricNumber(value)).filter((value) => value !== null);
   const queuePeak = queueValues.length ? Math.max(...queueValues) : null;
   const queueStatus = getStatusLevel(queuePeak, 30, 120);
   const queuePeakText = queuePeak === null ? 'n/a' : String(Math.round(queuePeak));
@@ -252,10 +238,7 @@ ${glossaryPart}
 };
 
 const fetchMetricsSnapshot = async () => {
-  const controller =
-    typeof globalThis.AbortController === 'function'
-      ? new globalThis.AbortController()
-      : null;
+  const controller = typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null;
   const timeout = setTimeout(() => controller?.abort(), METRICS_TIMEOUT_MS);
   try {
     if (typeof globalThis.fetch !== 'function') {
@@ -329,8 +312,7 @@ const fetchMetricsSnapshot = async () => {
       upsertMessages[type] = (upsertMessages[type] || 0) + entry.value;
     });
 
-    const formatNumber = (value, digits = 2) =>
-      Number.isFinite(value) ? value.toFixed(digits) : 'n/a';
+    const formatNumber = (value, digits = 2) => (Number.isFinite(value) ? value.toFixed(digits) : 'n/a');
 
     return {
       processUptime,
@@ -356,9 +338,7 @@ const fetchMetricsSnapshot = async () => {
       lastQuery: {
         messages: Number.isFinite(lastQuery.messages) ? lastQuery.messages.toFixed(2) : 'n/a',
         lid_map: Number.isFinite(lastQuery.lid_map) ? lastQuery.lid_map.toFixed(2) : 'n/a',
-        groups_metadata: Number.isFinite(lastQuery.groups_metadata)
-          ? lastQuery.groups_metadata.toFixed(2)
-          : 'n/a',
+        groups_metadata: Number.isFinite(lastQuery.groups_metadata) ? lastQuery.groups_metadata.toFixed(2) : 'n/a',
       },
       queues: {
         messages: Math.round(queues.messages || 0),
@@ -403,19 +383,9 @@ export async function handlePingCommand({ sock, remoteJid, messageInfo, expirati
       latencyMs: Date.now() - startedAt,
       generatedAt: new Date(),
     });
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   } catch (error) {
     logger.error('Erro ao gerar status do sistema:', { error: error.message });
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: 'Erro ao obter informações do sistema.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: 'Erro ao obter informações do sistema.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   }
 }

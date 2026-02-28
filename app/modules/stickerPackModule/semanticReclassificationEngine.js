@@ -11,40 +11,15 @@ const parseEnvBool = (value, fallback) => {
 const clampNumber = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
 
 const RECLASSIFICATION_ENABLED = parseEnvBool(process.env.STICKER_SEMANTIC_RECLASSIFICATION_ENABLED, true);
-const RECLASSIFICATION_BATCH_SIZE = Math.max(
-  50,
-  Math.min(2000, Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_BATCH_SIZE) || 400),
-);
-const RECLASSIFICATION_MAX_PER_CYCLE = Math.max(
-  100,
-  Math.min(20_000, Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_MAX_PER_CYCLE) || 2000),
-);
-const RECLASSIFICATION_ENTROPY_THRESHOLD = Number.isFinite(Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_ENTROPY_THRESHOLD))
-  ? Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_ENTROPY_THRESHOLD)
-  : 0.8;
-const RECLASSIFICATION_AFFINITY_THRESHOLD = Number.isFinite(Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_AFFINITY_THRESHOLD))
-  ? Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_AFFINITY_THRESHOLD)
-  : 0.3;
+const RECLASSIFICATION_BATCH_SIZE = Math.max(50, Math.min(2000, Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_BATCH_SIZE) || 400));
+const RECLASSIFICATION_MAX_PER_CYCLE = Math.max(100, Math.min(20_000, Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_MAX_PER_CYCLE) || 2000));
+const RECLASSIFICATION_ENTROPY_THRESHOLD = Number.isFinite(Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_ENTROPY_THRESHOLD)) ? Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_ENTROPY_THRESHOLD) : 0.8;
+const RECLASSIFICATION_AFFINITY_THRESHOLD = Number.isFinite(Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_AFFINITY_THRESHOLD)) ? Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_AFFINITY_THRESHOLD) : 0.3;
 
-const STOPWORDS = [
-  'image',
-  'sticker',
-  'wallpaper',
-  'social_media',
-  'internet',
-  'picture',
-];
-const GENERIC_TERMS = [
-  'cool',
-  'nice',
-  'funny',
-  'random',
-  'art',
-];
+const STOPWORDS = ['image', 'sticker', 'wallpaper', 'social_media', 'internet', 'picture'];
+const GENERIC_TERMS = ['cool', 'nice', 'funny', 'random', 'art'];
 const SEMANTIC_GROUPS = ['anime', 'meme', 'kawaii', 'horror', 'reaction'];
-const OPPOSITE_THEME_PAIRS = [
-  ['kawaii', 'horror'],
-];
+const OPPOSITE_THEME_PAIRS = [['kawaii', 'horror']];
 
 const DICTIONARY_MAP = {
   'cute anime girl': 'kawaii_anime_girl',
@@ -66,15 +41,13 @@ const toSnakeCase = (value) =>
 
 const STOPWORD_PHRASES = new Set(STOPWORDS.map((value) => toSnakeCase(value)).filter(Boolean));
 const STOPWORD_WORDS = new Set(
-  STOPWORDS
-    .map((value) => toSnakeCase(value))
+  STOPWORDS.map((value) => toSnakeCase(value))
     .flatMap((value) => value.split('_'))
     .filter((value) => value.length >= 3),
 );
 const GENERIC_TERM_SET = new Set(GENERIC_TERMS.map((value) => toSnakeCase(value)).filter(Boolean));
 const GENERIC_TERM_WORDS = new Set(
-  GENERIC_TERMS
-    .map((value) => toSnakeCase(value))
+  GENERIC_TERMS.map((value) => toSnakeCase(value))
     .flatMap((value) => value.split('_'))
     .filter((value) => value.length >= 3),
 );
@@ -342,9 +315,7 @@ export const reclassify = (classification = {}) => {
     dominantTokens = mappedTokens.slice();
   }
 
-  const normalizedSubtags = dominantTokens
-    .map((entry) => normalizeTokenValue(entry.token))
-    .filter(Boolean);
+  const normalizedSubtags = dominantTokens.map((entry) => normalizeTokenValue(entry.token)).filter(Boolean);
 
   const outputSubtags = Array.from(new Set(normalizedSubtags));
   const updatedAffinityWeight = Number(clampNumber(cohesionScore / 100, 0, 1).toFixed(6));
@@ -358,12 +329,7 @@ export const reclassify = (classification = {}) => {
   };
 };
 
-export const batchReprocess = async ({
-  maxItems = RECLASSIFICATION_MAX_PER_CYCLE,
-  batchSize = RECLASSIFICATION_BATCH_SIZE,
-  entropyThreshold = RECLASSIFICATION_ENTROPY_THRESHOLD,
-  affinityThreshold = RECLASSIFICATION_AFFINITY_THRESHOLD,
-} = {}) => {
+export const batchReprocess = async ({ maxItems = RECLASSIFICATION_MAX_PER_CYCLE, batchSize = RECLASSIFICATION_BATCH_SIZE, entropyThreshold = RECLASSIFICATION_ENTROPY_THRESHOLD, affinityThreshold = RECLASSIFICATION_AFFINITY_THRESHOLD } = {}) => {
   const safeMaxItems = Math.max(0, Math.min(50_000, Number(maxItems) || RECLASSIFICATION_MAX_PER_CYCLE));
   const safeBatchSize = Math.max(1, Math.min(2000, Number(batchSize) || RECLASSIFICATION_BATCH_SIZE));
 
@@ -417,10 +383,7 @@ export const batchReprocess = async ({
         const currentAmbiguous = row?.ambiguous ? 1 : 0;
         const nextAmbiguous = output.ambiguous ? 1 : 0;
 
-        const shouldUpdate =
-          currentAmbiguous !== nextAmbiguous
-          || hasNumericDifference(currentAffinity, nextAffinity)
-          || !areListsEqual(currentSubtags, nextSubtags);
+        const shouldUpdate = currentAmbiguous !== nextAmbiguous || hasNumericDifference(currentAffinity, nextAffinity) || !areListsEqual(currentSubtags, nextSubtags);
 
         if (!shouldUpdate) {
           stats.skipped += 1;

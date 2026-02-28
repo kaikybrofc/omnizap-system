@@ -2,8 +2,7 @@ import groupConfigStore from './groupConfigStore.js';
 
 const PREMIUM_CONFIG_ID = 'system:premium_users';
 
-const normalizeList = (list) =>
-  Array.from(new Set((Array.isArray(list) ? list : []).filter(Boolean)));
+const normalizeList = (list) => Array.from(new Set((Array.isArray(list) ? list : []).filter(Boolean)));
 
 const premiumUserStore = {
   getPremiumUsers: async function () {

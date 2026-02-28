@@ -69,9 +69,7 @@ export const isAdminSenderAsync = async (senderIdentity) => {
   const normalizedCachedSender = normalizeJid(cachedSender || '');
   const resolvedSender = await resolveUserId(senderInfo).catch(() => null);
   const normalizedResolvedSender = normalizeJid(resolvedSender || '');
-  const senderCandidates = new Set(
-    [normalizedSender, normalizedCachedSender, normalizedResolvedSender].filter(Boolean),
-  );
+  const senderCandidates = new Set([normalizedSender, normalizedCachedSender, normalizedResolvedSender].filter(Boolean));
   if (!senderCandidates.size) return false;
 
   const adminJid = (await resolveAdminJid()) || getAdminJid();

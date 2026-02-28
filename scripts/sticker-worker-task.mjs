@@ -4,10 +4,7 @@ import 'dotenv/config';
 import logger from '../app/utils/logger/loggerModule.js';
 import initializeDatabase from '../database/init.js';
 import { closePool } from '../database/index.js';
-import {
-  isSupportedStickerWorkerTaskType,
-  startDedicatedStickerWorker,
-} from '../app/modules/stickerPackModule/stickerDedicatedTaskWorkerRuntime.js';
+import { isSupportedStickerWorkerTaskType, startDedicatedStickerWorker } from '../app/modules/stickerPackModule/stickerDedicatedTaskWorkerRuntime.js';
 
 const parseCliArgs = (argv = []) => {
   const args = new Map();

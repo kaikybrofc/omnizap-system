@@ -1,17 +1,9 @@
 import http from 'node:http';
 import logger from '../../app/utils/logger/loggerModule.js';
-import {
-  getMetricsServerConfig,
-  isMetricsEnabled,
-  recordHttpRequest,
-  resolveRouteGroup,
-} from '../../app/observability/metrics.js';
+import { getMetricsServerConfig, isMetricsEnabled, recordHttpRequest, resolveRouteGroup } from '../../app/observability/metrics.js';
 import { parseRequestUrl, normalizeRequestId } from './requestContext.js';
 import { maybeHandleMetricsRoute } from '../routes/metricsRoute.js';
-import {
-  getStickerCatalogRouteConfig,
-  maybeHandleStickerCatalogRoute,
-} from '../routes/stickerCatalogRoute.js';
+import { getStickerCatalogRouteConfig, maybeHandleStickerCatalogRoute } from '../routes/stickerCatalogRoute.js';
 
 let server = null;
 let serverStarted = false;

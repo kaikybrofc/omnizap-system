@@ -24,10 +24,7 @@ const STICKER_WEB_ORIGIN = resolveStickerWebOrigin();
 function normalizeBasePath(value, fallback) {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash =
-    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
-      ? withLeadingSlash.slice(0, -1)
-      : withLeadingSlash;
+  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 }
 
@@ -45,14 +42,7 @@ function normalizeOrigin(value) {
 }
 
 function resolveStickerWebOrigin() {
-  const candidates = [
-    process.env.STICKER_WEB_ORIGIN,
-    process.env.APP_BASE_URL,
-    process.env.PUBLIC_BASE_URL,
-    process.env.SITE_URL,
-    process.env.WEB_URL,
-    process.env.BASE_URL,
-  ];
+  const candidates = [process.env.STICKER_WEB_ORIGIN, process.env.APP_BASE_URL, process.env.PUBLIC_BASE_URL, process.env.SITE_URL, process.env.WEB_URL, process.env.BASE_URL];
 
   for (const candidate of candidates) {
     const normalized = normalizeOrigin(candidate);
@@ -71,9 +61,15 @@ function buildPackWebUrl(packKey) {
 }
 
 function isPackPubliclyVisible(pack) {
-  const visibility = String(pack?.visibility || '').trim().toLowerCase();
-  const status = String(pack?.status || 'published').trim().toLowerCase();
-  const packStatus = String(pack?.pack_status || 'ready').trim().toLowerCase();
+  const visibility = String(pack?.visibility || '')
+    .trim()
+    .toLowerCase();
+  const status = String(pack?.status || 'published')
+    .trim()
+    .toLowerCase();
+  const packStatus = String(pack?.pack_status || 'ready')
+    .trim()
+    .toLowerCase();
   return (visibility === 'public' || visibility === 'unlisted') && status === 'published' && packStatus === 'ready';
 }
 
@@ -218,10 +214,7 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
   const countLabel = itemCount > 0 ? ` (${itemCount}/${AUTO_PACK_MAX_ITEMS})` : '';
 
   if (result.status === 'duplicate') {
-    const duplicateLines = [
-      `ℹ️ Essa figurinha já estava no pack automático *${packName}*.`,
-      `Use *${commandPrefix}pack info ${packIdentifier}* para ver o pack ou *${commandPrefix}pack send ${packIdentifier}* para enviar.`,
-    ];
+    const duplicateLines = [`ℹ️ Essa figurinha já estava no pack automático *${packName}*.`, `Use *${commandPrefix}pack info ${packIdentifier}* para ver o pack ou *${commandPrefix}pack send ${packIdentifier}* para enviar.`];
     if (packWebUrl) {
       duplicateLines.push(`🌐 Link do pack no site: ${packWebUrl}`);
     } else {
@@ -230,11 +223,7 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
     return duplicateLines.join('\n');
   }
 
-  const savedLines = [
-    `📦 Figurinha salva automaticamente no pack *${packName}*${countLabel}.\n\n`,
-    `Dica: use *${commandPrefix}pack list* para gerenciar seus packs.`,
-    `Para enviar agora: *${commandPrefix}pack send ${packCommandTarget}*.`,
-  ];
+  const savedLines = [`📦 Figurinha salva automaticamente no pack *${packName}*${countLabel}.\n\n`, `Dica: use *${commandPrefix}pack list* para gerenciar seus packs.`, `Para enviar agora: *${commandPrefix}pack send ${packCommandTarget}*.`];
   if (packWebUrl) {
     savedLines.push(`🌐 Abrir no site: ${packWebUrl}`);
   } else {

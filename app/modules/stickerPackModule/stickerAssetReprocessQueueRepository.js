@@ -3,13 +3,17 @@ import { randomUUID } from 'node:crypto';
 import { executeQuery, TABLES } from '../../../database/index.js';
 
 const normalizeReason = (value) => {
-  const normalized = String(value || '').trim().toUpperCase();
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase();
   if (['MODEL_UPGRADE', 'LOW_CONFIDENCE', 'TREND_SHIFT', 'NSFW_REVIEW'].includes(normalized)) return normalized;
   return null;
 };
 
 const normalizeStatus = (value) => {
-  const normalized = String(value || '').trim().toLowerCase();
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
   if (['pending', 'processing', 'completed', 'failed'].includes(normalized)) return normalized;
   return null;
 };
@@ -40,10 +44,7 @@ const normalizeRow = (row) => {
   };
 };
 
-export async function enqueueStickerAssetReprocess(
-  { assetId, reason, priority = 50, scheduledAt = null, maxAttempts = 5 },
-  connection = null,
-) {
+export async function enqueueStickerAssetReprocess({ assetId, reason, priority = 50, scheduledAt = null, maxAttempts = 5 }, connection = null) {
   const normalizedReason = normalizeReason(reason);
   if (!assetId || !normalizedReason) return false;
 
@@ -80,9 +81,7 @@ export async function claimStickerAssetReprocessTask({ reasons = [], allowRetryF
   const normalizedReasons = Array.from(new Set((Array.isArray(reasons) ? reasons : []).map(normalizeReason).filter(Boolean)));
   const reasonFilter = normalizedReasons.length ? `AND reason IN (${normalizedReasons.map(() => '?').join(', ')})` : '';
 
-  const statusClause = allowRetryFailed
-    ? "(status = 'pending' OR (status = 'failed' AND attempts < max_attempts))"
-    : "status = 'pending'";
+  const statusClause = allowRetryFailed ? "(status = 'pending' OR (status = 'failed' AND attempts < max_attempts))" : "status = 'pending'";
 
   await executeQuery(
     `UPDATE ${TABLES.STICKER_ASSET_REPROCESS_QUEUE}
@@ -137,17 +136,13 @@ export async function completeStickerAssetReprocessTask(taskId, connection = nul
   return true;
 }
 
-export async function failStickerAssetReprocessTask(
-  taskId,
-  {
-    error = null,
-    retryDelaySeconds = 0,
-  } = {},
-  connection = null,
-) {
+export async function failStickerAssetReprocessTask(taskId, { error = null, retryDelaySeconds = 0 } = {}, connection = null) {
   if (!taskId) return false;
   const safeDelay = clampInt(retryDelaySeconds, 0, 0, 86400 * 7);
-  const message = String(error || '').trim().slice(0, 255) || null;
+  const message =
+    String(error || '')
+      .trim()
+      .slice(0, 255) || null;
 
   await executeQuery(
     `UPDATE ${TABLES.STICKER_ASSET_REPROCESS_QUEUE}

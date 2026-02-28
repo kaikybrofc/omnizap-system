@@ -98,23 +98,21 @@ OpenAI:
   "category": "anime illustration",
   "confidence": 0.82,
   "top_labels": [
-    {"label": "anime illustration", "score": 0.82, "logit": 18.10, "clip_score": 0.80},
-    {"label": "cartoon", "score": 0.09, "logit": 13.40, "clip_score": 0.10}
+    { "label": "anime illustration", "score": 0.82, "logit": 18.1, "clip_score": 0.8 },
+    { "label": "cartoon", "score": 0.09, "logit": 13.4, "clip_score": 0.1 }
   ],
   "entropy": 1.42,
   "confidence_margin": 0.73,
   "ambiguous": false,
   "nsfw_score": 0.01,
   "is_nsfw": false,
-  "raw_logits": {"anime illustration": 18.1, "cartoon": 13.4},
+  "raw_logits": { "anime illustration": 18.1, "cartoon": 13.4 },
   "llm_expansion": {
     "subtags": ["cel shading", "shonen vibe"],
     "style_traits": ["high contrast"],
     "emotions": ["energetic"],
     "pack_suggestions": ["anime-reaction"]
   },
-  "similar_images": [
-    {"image_hash": "...", "asset_id": "...", "similarity": 0.91}
-  ]
+  "similar_images": [{ "image_hash": "...", "asset_id": "...", "similarity": 0.91 }]
 }
 ```

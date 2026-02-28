@@ -1,49 +1,44 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OmniZap | Criar novo Pack</title>
-  <meta name="description" content="Crie um novo pack com fluxo visual passo a passo. Adicione stickers, escolha capa e publique no catálogo OmniZap." />
-  <meta name="robots" content="noindex, nofollow" />
-  <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Manrope', 'ui-sans-serif', 'system-ui'],
-            display: ['Sora', 'ui-sans-serif', 'system-ui']
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OmniZap | Criar novo Pack</title>
+    <meta name="description" content="Crie um novo pack com fluxo visual passo a passo. Adicione stickers, escolha capa e publique no catálogo OmniZap." />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Manrope', 'ui-sans-serif', 'system-ui'],
+              display: ['Sora', 'ui-sans-serif', 'system-ui'],
+            },
+            colors: {
+              base: '#0f172a',
+              panel: '#1e293b',
+              panelSoft: '#111827',
+              line: 'rgba(255,255,255,0.05)',
+              accent: '#2563eb',
+              accent2: '#7c3aed',
+              cta: '#22c55e',
+            },
+            boxShadow: {
+              panel: '0 20px 40px rgba(0,0,0,.35)',
+            },
           },
-          colors: {
-            base: '#0f172a',
-            panel: '#1e293b',
-            panelSoft: '#111827',
-            line: 'rgba(255,255,255,0.05)',
-            accent: '#2563eb',
-            accent2: '#7c3aed',
-            cta: '#22c55e',
-          },
-          boxShadow: {
-            panel: '0 20px 40px rgba(0,0,0,.35)'
-          }
-        }
-      }
-    };
-  </script>
-</head>
-<body class="bg-base text-slate-100 min-h-screen">
-  <div
-    id="create-pack-react-root"
-    data-api-base-path="/api/sticker-packs"
-    data-web-path="/stickers"
-    data-login-path="__STICKER_LOGIN_WEB_PATH__"
-  ></div>
+        },
+      };
+    </script>
+  </head>
+  <body class="bg-base text-slate-100 min-h-screen">
+    <div id="create-pack-react-root" data-api-base-path="/api/sticker-packs" data-web-path="/stickers" data-login-path="__STICKER_LOGIN_WEB_PATH__"></div>
 
-  <script type="module" src="/js/apps/createPackApp.js?v=20260228-create-pack-login-required1"></script>
-</body>
+    <script type="module" src="/js/apps/createPackApp.js?v=20260228-create-pack-login-required1"></script>
+  </body>
 </html>

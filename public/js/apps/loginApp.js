@@ -146,18 +146,12 @@ if (root) {
 
   const renderHint = () => {
     if (!state.hint.hasPayload) {
-      setText(
-        ui.hint,
-        'Voce abriu esta pagina direto. Por seguranca, gere seu link no WhatsApp clicando no botao abaixo e enviando "iniciar".',
-      );
+      setText(ui.hint, 'Voce abriu esta pagina direto. Por seguranca, gere seu link no WhatsApp clicando no botao abaixo e enviando "iniciar".');
       return;
     }
 
     if (!state.hint.phone) {
-      setText(
-        ui.hint,
-        'Este link nao trouxe um numero de WhatsApp valido. Ele pode ter sido alterado ou expirado. Gere um novo link enviando "iniciar".',
-      );
+      setText(ui.hint, 'Este link nao trouxe um numero de WhatsApp valido. Ele pode ter sido alterado ou expirado. Gere um novo link enviando "iniciar".');
       return;
     }
 
@@ -193,10 +187,7 @@ if (root) {
     }
 
     if (state.hint.phone) {
-      setText(
-        ui.summaryOwner,
-        `Numero detectado: +${formatPhone(state.hint.phone)}. Clique no botao do Google para concluir o vinculo.`,
-      );
+      setText(ui.summaryOwner, `Numero detectado: +${formatPhone(state.hint.phone)}. Clique no botao do Google para concluir o vinculo.`);
       renderWhatsAppCta();
       return;
     }

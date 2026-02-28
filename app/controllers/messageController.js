@@ -30,9 +30,10 @@ import { buildWhatsAppGoogleLoginUrl } from '../services/whatsappLoginLinkServic
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
-const START_LOGIN_TRIGGER = String(process.env.WHATSAPP_LOGIN_TRIGGER || 'iniciar')
-  .trim()
-  .toLowerCase() || 'iniciar';
+const START_LOGIN_TRIGGER =
+  String(process.env.WHATSAPP_LOGIN_TRIGGER || 'iniciar')
+    .trim()
+    .toLowerCase() || 'iniciar';
 const WHATSAPP_USER_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted']);
 const WHATSAPP_LID_SERVERS = new Set(['lid', 'hosted.lid']);
 
@@ -61,17 +62,7 @@ const resolveCanonicalWhatsAppJid = (...candidates) => {
   return '';
 };
 
-const maybeHandleStartLoginMessage = async ({
-  sock,
-  messageInfo,
-  extractedText,
-  senderName,
-  senderJid,
-  remoteJid,
-  expirationMessage,
-  isMessageFromBot,
-  isGroupMessage,
-}) => {
+const maybeHandleStartLoginMessage = async ({ sock, messageInfo, extractedText, senderName, senderJid, remoteJid, expirationMessage, isMessageFromBot, isGroupMessage }) => {
   if (isMessageFromBot || !isStartLoginTrigger(extractedText)) return false;
 
   if (isGroupMessage) {
@@ -88,15 +79,7 @@ const maybeHandleStartLoginMessage = async ({
 
   const key = messageInfo?.key || {};
   const senderInfo = extractSenderInfoFromMessage(messageInfo);
-  let canonicalUserId = resolveCanonicalWhatsAppJid(
-    senderInfo?.jid,
-    senderInfo?.lid,
-    senderInfo?.participantAlt,
-    key.participantAlt,
-    key.participant,
-    key.remoteJid,
-    senderJid,
-  );
+  let canonicalUserId = resolveCanonicalWhatsAppJid(senderInfo?.jid, senderInfo?.lid, senderInfo?.participantAlt, key.participantAlt, key.participant, key.remoteJid, senderJid);
   try {
     const resolvedUserId = await resolveUserId(senderInfo);
     canonicalUserId = resolveCanonicalWhatsAppJid(resolvedUserId, canonicalUserId, senderInfo?.jid, senderInfo?.lid);
@@ -133,11 +116,7 @@ const maybeHandleStartLoginMessage = async ({
     sock,
     remoteJid,
     {
-      text:
-        `${greeting}\n\n` +
-        'Para continuar no OmniZap, faca login com Google neste link:\n' +
-        `${loginUrl}\n\n` +
-        'Seu numero do WhatsApp sera vinculado automaticamente a conta logada.',
+      text: `${greeting}\n\n` + 'Para continuar no OmniZap, faca login com Google neste link:\n' + `${loginUrl}\n\n` + 'Seu numero do WhatsApp sera vinculado automaticamente a conta logada.',
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );

@@ -3,30 +3,11 @@ import { getActiveSocket } from '../../services/socketState.js';
 import { normalizeJid, resolveBotJid } from '../../config/baileysConfig.js';
 import { recordStickerAutoPackCycle } from '../../observability/metrics.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
-import {
-  countClassifiedStickerAssetsWithoutPack,
-  listClassifiedStickerAssetsForCuration,
-} from './stickerAssetRepository.js';
-import {
-  listClipImageEmbeddingsByImageHashes,
-  listStickerClassificationsByAssetIds,
-} from './stickerAssetClassificationRepository.js';
-import {
-  decorateStickerClassification,
-  submitStickerClassificationFeedback,
-} from './stickerClassificationService.js';
-import {
-  findStickerPackById,
-  listStickerAutoPacksForCuration,
-  listStickerPacksByOwner,
-  softDeleteStickerPack,
-  updateStickerPackFields,
-} from './stickerPackRepository.js';
-import {
-  listStickerPackItems,
-  listStickerPackItemsByPackIds,
-  removeStickerPackItemsByPackId,
-} from './stickerPackItemRepository.js';
+import { countClassifiedStickerAssetsWithoutPack, listClassifiedStickerAssetsForCuration } from './stickerAssetRepository.js';
+import { listClipImageEmbeddingsByImageHashes, listStickerClassificationsByAssetIds } from './stickerAssetClassificationRepository.js';
+import { decorateStickerClassification, submitStickerClassificationFeedback } from './stickerClassificationService.js';
+import { findStickerPackById, listStickerAutoPacksForCuration, listStickerPacksByOwner, softDeleteStickerPack, updateStickerPackFields } from './stickerPackRepository.js';
+import { listStickerPackItems, listStickerPackItemsByPackIds, removeStickerPackItemsByPackId } from './stickerPackItemRepository.js';
 import { listStickerPackEngagementByPackIds } from './stickerPackEngagementRepository.js';
 
 const parseEnvBool = (value, fallback) => {
@@ -58,16 +39,10 @@ const INTERVAL_MIN_MS_RAW = Number(process.env.STICKER_AUTO_PACK_BY_TAGS_INTERVA
 const INTERVAL_MAX_MS_RAW = Number(process.env.STICKER_AUTO_PACK_BY_TAGS_INTERVAL_MAX_MS);
 const DEFAULT_INTERVAL_MIN_MS = 5 * 60_000;
 const DEFAULT_INTERVAL_MAX_MS = 10 * 60_000;
-const INTERVAL_MIN_MS = Number.isFinite(INTERVAL_MIN_MS_RAW)
-  ? Math.max(60_000, Math.min(3_600_000, INTERVAL_MIN_MS_RAW))
-  : DEFAULT_INTERVAL_MIN_MS;
-const INTERVAL_MAX_MS_FROM_ENV = Number.isFinite(INTERVAL_MAX_MS_RAW)
-  ? Math.max(60_000, Math.min(3_600_000, INTERVAL_MAX_MS_RAW))
-  : DEFAULT_INTERVAL_MAX_MS;
+const INTERVAL_MIN_MS = Number.isFinite(INTERVAL_MIN_MS_RAW) ? Math.max(60_000, Math.min(3_600_000, INTERVAL_MIN_MS_RAW)) : DEFAULT_INTERVAL_MIN_MS;
+const INTERVAL_MAX_MS_FROM_ENV = Number.isFinite(INTERVAL_MAX_MS_RAW) ? Math.max(60_000, Math.min(3_600_000, INTERVAL_MAX_MS_RAW)) : DEFAULT_INTERVAL_MAX_MS;
 const INTERVAL_MAX_MS = Math.max(INTERVAL_MIN_MS, INTERVAL_MAX_MS_FROM_ENV);
-const LEGACY_FIXED_INTERVAL_MS = Number.isFinite(LEGACY_INTERVAL_MS) && LEGACY_INTERVAL_MS > 0
-  ? Math.max(60_000, Math.min(3_600_000, LEGACY_INTERVAL_MS))
-  : null;
+const LEGACY_FIXED_INTERVAL_MS = Number.isFinite(LEGACY_INTERVAL_MS) && LEGACY_INTERVAL_MS > 0 ? Math.max(60_000, Math.min(3_600_000, LEGACY_INTERVAL_MS)) : null;
 const EFFECTIVE_INTERVAL_MIN_MS = LEGACY_FIXED_INTERVAL_MS || INTERVAL_MIN_MS;
 const EFFECTIVE_INTERVAL_MAX_MS = LEGACY_FIXED_INTERVAL_MS || INTERVAL_MAX_MS;
 const TARGET_PACK_SIZE = Math.max(5, Math.min(30, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_TARGET_SIZE) || 30));
@@ -76,307 +51,119 @@ const MAX_TAG_GROUPS = Math.max(0, Math.min(500, Number(process.env.STICKER_AUTO
 const ENABLE_SEMANTIC_CLUSTERING = parseEnvBool(process.env.ENABLE_SEMANTIC_CLUSTERING, false);
 const MAX_SCAN_ASSETS = Math.max(0, Math.min(250_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_SCAN_ASSETS) || 0));
 const MAX_ADDITIONS_PER_CYCLE = Math.max(10, Math.min(2000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_ADDITIONS_PER_CYCLE) || 300));
-const AUTO_PACK_VISIBILITY = String(process.env.STICKER_AUTO_PACK_BY_TAGS_VISIBILITY || 'public').trim().toLowerCase() || 'public';
+const AUTO_PACK_VISIBILITY =
+  String(process.env.STICKER_AUTO_PACK_BY_TAGS_VISIBILITY || 'public')
+    .trim()
+    .toLowerCase() || 'public';
 const AUTO_PUBLISHER = String(process.env.STICKER_AUTO_PACK_BY_TAGS_PUBLISHER || 'OmniZap Auto').trim() || 'OmniZap Auto';
 const TOP_TAGS_PER_ASSET = Math.max(1, Math.min(5, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_TOP_TAGS_PER_ASSET) || 3));
 const SCAN_PASSES = Math.max(1, Math.min(9, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SCAN_PASSES) || 3));
-const SCAN_PASS_JITTER_PERCENT = Math.max(
-  0,
-  Math.min(35, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SCAN_PASS_JITTER_PERCENT) || 15),
-);
-const STABILITY_Z_SCORE = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_STABILITY_Z_SCORE))
-  ? Math.max(0, Math.min(3.5, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_STABILITY_Z_SCORE)))
-  : 1.282;
-const MIN_ASSET_ACCEPTANCE_RATE = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_ASSET_ACCEPTANCE_RATE))
-  ? Math.max(0, Math.min(1, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_ASSET_ACCEPTANCE_RATE)))
-  : 0.5;
-const MIN_THEME_DOMINANCE_RATIO = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_THEME_DOMINANCE_RATIO))
-  ? Math.max(0, Math.min(1, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_THEME_DOMINANCE_RATIO)))
-  : 0.55;
-const SCORE_STDDEV_PENALTY = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SCORE_STDDEV_PENALTY))
-  ? Math.max(0, Math.min(1.2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SCORE_STDDEV_PENALTY)))
-  : 0.18;
-const NSFW_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_THRESHOLD))
-  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_THRESHOLD)
-  : 0.7;
-const NSFW_SUGGESTIVE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_SUGGESTIVE_THRESHOLD))
-  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_SUGGESTIVE_THRESHOLD)
-  : 0.4;
-const NSFW_EXPLICIT_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_EXPLICIT_THRESHOLD))
-  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_EXPLICIT_THRESHOLD)
-  : 0.78;
+const SCAN_PASS_JITTER_PERCENT = Math.max(0, Math.min(35, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SCAN_PASS_JITTER_PERCENT) || 15));
+const STABILITY_Z_SCORE = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_STABILITY_Z_SCORE)) ? Math.max(0, Math.min(3.5, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_STABILITY_Z_SCORE))) : 1.282;
+const MIN_ASSET_ACCEPTANCE_RATE = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_ASSET_ACCEPTANCE_RATE)) ? Math.max(0, Math.min(1, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_ASSET_ACCEPTANCE_RATE))) : 0.5;
+const MIN_THEME_DOMINANCE_RATIO = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_THEME_DOMINANCE_RATIO)) ? Math.max(0, Math.min(1, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_THEME_DOMINANCE_RATIO))) : 0.55;
+const SCORE_STDDEV_PENALTY = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SCORE_STDDEV_PENALTY)) ? Math.max(0, Math.min(1.2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SCORE_STDDEV_PENALTY))) : 0.18;
+const NSFW_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_THRESHOLD)) ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_THRESHOLD) : 0.7;
+const NSFW_SUGGESTIVE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_SUGGESTIVE_THRESHOLD)) ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_SUGGESTIVE_THRESHOLD) : 0.4;
+const NSFW_EXPLICIT_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_EXPLICIT_THRESHOLD)) ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_NSFW_EXPLICIT_THRESHOLD) : 0.78;
 const MIN_ASSET_EDGE = Math.max(32, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_ASSET_EDGE) || 192);
 const MIN_ASSET_AREA = Math.max(32 * 32, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_ASSET_AREA) || 192 * 192);
 const MIN_ASSET_BYTES = Math.max(512, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MIN_ASSET_BYTES) || 6 * 1024);
-const MAX_BLURRY_SCORE = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_BLURRY_SCORE))
-  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_BLURRY_SCORE)
-  : 0.82;
-const MAX_LOW_QUALITY_SCORE = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_LOW_QUALITY_SCORE))
-  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_LOW_QUALITY_SCORE)
-  : 0.82;
+const MAX_BLURRY_SCORE = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_BLURRY_SCORE)) ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_BLURRY_SCORE) : 0.82;
+const MAX_LOW_QUALITY_SCORE = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_LOW_QUALITY_SCORE)) ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_LOW_QUALITY_SCORE) : 0.82;
 const REBUILD_ENABLED = parseEnvBool(process.env.STICKER_AUTO_PACK_BY_TAGS_REBUILD_ENABLED, true);
-const INCLUDE_PACKED_WHEN_REBUILD_DISABLED = parseEnvBool(
-  process.env.STICKER_AUTO_PACK_BY_TAGS_INCLUDE_PACKED_WHEN_REBUILD_DISABLED,
-  false,
-);
+const INCLUDE_PACKED_WHEN_REBUILD_DISABLED = parseEnvBool(process.env.STICKER_AUTO_PACK_BY_TAGS_INCLUDE_PACKED_WHEN_REBUILD_DISABLED, false);
 const MAX_REMOVALS_PER_CYCLE = Math.max(0, Math.min(500, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_REMOVALS_PER_CYCLE) || 120));
-const DEDUPE_SIMILARITY_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_DEDUPE_SIMILARITY_THRESHOLD))
-  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_DEDUPE_SIMILARITY_THRESHOLD)
-  : 0.985;
-const COHESION_REBUILD_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_COHESION_REBUILD_THRESHOLD))
-  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_COHESION_REBUILD_THRESHOLD)
-  : 0.56;
-const MOVE_OUT_THEME_SCORE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_OUT_THRESHOLD))
-  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_OUT_THRESHOLD)
-  : 0.22;
-const MOVE_IN_THEME_SCORE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_IN_THRESHOLD))
-  ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_IN_THRESHOLD)
-  : 0.12;
-const ENTROPY_THRESHOLD = Number.isFinite(Number(process.env.ENTROPY_THRESHOLD))
-  ? Number(process.env.ENTROPY_THRESHOLD)
-  : 2.5;
-const ENTROPY_NORMALIZED_THRESHOLD = Number.isFinite(Number(process.env.ENTROPY_NORMALIZED_THRESHOLD))
-  ? Math.max(0, Math.min(1, Number(process.env.ENTROPY_NORMALIZED_THRESHOLD)))
-  : 0.76;
-const ENTROPY_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ENTROPY_WEIGHT))
-  ? Math.max(0, Math.min(1.5, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ENTROPY_WEIGHT)))
-  : 0.09;
-const AMBIGUOUS_FLAG_PENALTY = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AMBIGUOUS_FLAG_PENALTY))
-  ? Math.max(0, Math.min(0.5, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AMBIGUOUS_FLAG_PENALTY)))
-  : 0.06;
-const ADAPTIVE_BONUS_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ADAPTIVE_BONUS_WEIGHT))
-  ? Math.max(0, Math.min(1.2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ADAPTIVE_BONUS_WEIGHT)))
-  : 0.18;
-const MARGIN_BONUS_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MARGIN_BONUS_WEIGHT))
-  ? Math.max(0, Math.min(1.2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MARGIN_BONUS_WEIGHT)))
-  : 0.12;
-const SIMILAR_IMAGES_PENALTY_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SIMILAR_IMAGES_PENALTY_WEIGHT))
-  ? Math.max(0, Math.min(1.2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SIMILAR_IMAGES_PENALTY_WEIGHT)))
-  : 0.08;
-const LLM_TRAIT_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_LLM_TRAIT_WEIGHT))
-  ? Math.max(0, Math.min(0.6, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_LLM_TRAIT_WEIGHT)))
-  : 0.1;
-const ASSET_QUALITY_W1 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W1))
-  ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W1)))
-  : 0.34;
-const ASSET_QUALITY_W2 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W2))
-  ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W2)))
-  : 0.24;
-const ASSET_QUALITY_W3 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W3))
-  ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W3)))
-  : 0.18;
-const ASSET_QUALITY_W4 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W4))
-  ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W4)))
-  : 0.24;
-const AFFINITY_WEIGHT_CAP = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_CAP))
-  ? Math.max(0, Math.min(1, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_CAP)))
-  : 0.85;
+const DEDUPE_SIMILARITY_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_DEDUPE_SIMILARITY_THRESHOLD)) ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_DEDUPE_SIMILARITY_THRESHOLD) : 0.985;
+const COHESION_REBUILD_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_COHESION_REBUILD_THRESHOLD)) ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_COHESION_REBUILD_THRESHOLD) : 0.56;
+const MOVE_OUT_THEME_SCORE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_OUT_THRESHOLD)) ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_OUT_THRESHOLD) : 0.22;
+const MOVE_IN_THEME_SCORE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_IN_THRESHOLD)) ? Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MOVE_IN_THRESHOLD) : 0.12;
+const ENTROPY_THRESHOLD = Number.isFinite(Number(process.env.ENTROPY_THRESHOLD)) ? Number(process.env.ENTROPY_THRESHOLD) : 2.5;
+const ENTROPY_NORMALIZED_THRESHOLD = Number.isFinite(Number(process.env.ENTROPY_NORMALIZED_THRESHOLD)) ? Math.max(0, Math.min(1, Number(process.env.ENTROPY_NORMALIZED_THRESHOLD))) : 0.76;
+const ENTROPY_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ENTROPY_WEIGHT)) ? Math.max(0, Math.min(1.5, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ENTROPY_WEIGHT))) : 0.09;
+const AMBIGUOUS_FLAG_PENALTY = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AMBIGUOUS_FLAG_PENALTY)) ? Math.max(0, Math.min(0.5, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AMBIGUOUS_FLAG_PENALTY))) : 0.06;
+const ADAPTIVE_BONUS_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ADAPTIVE_BONUS_WEIGHT)) ? Math.max(0, Math.min(1.2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ADAPTIVE_BONUS_WEIGHT))) : 0.18;
+const MARGIN_BONUS_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MARGIN_BONUS_WEIGHT)) ? Math.max(0, Math.min(1.2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MARGIN_BONUS_WEIGHT))) : 0.12;
+const SIMILAR_IMAGES_PENALTY_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SIMILAR_IMAGES_PENALTY_WEIGHT)) ? Math.max(0, Math.min(1.2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_SIMILAR_IMAGES_PENALTY_WEIGHT))) : 0.08;
+const LLM_TRAIT_WEIGHT = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_LLM_TRAIT_WEIGHT)) ? Math.max(0, Math.min(0.6, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_LLM_TRAIT_WEIGHT))) : 0.1;
+const ASSET_QUALITY_W1 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W1)) ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W1))) : 0.34;
+const ASSET_QUALITY_W2 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W2)) ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W2))) : 0.24;
+const ASSET_QUALITY_W3 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W3)) ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W3))) : 0.18;
+const ASSET_QUALITY_W4 = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W4)) ? Math.max(0, Math.min(2, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_ASSET_QUALITY_W4))) : 0.24;
+const AFFINITY_WEIGHT_CAP = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_CAP)) ? Math.max(0, Math.min(1, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_CAP))) : 0.85;
 const ENABLE_AFFINITY_LOG_SCALING = parseEnvBool(process.env.STICKER_AUTO_PACK_BY_TAGS_ENABLE_AFFINITY_LOG_SCALING, true);
-const AFFINITY_LOG_SCALE = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_LOG_SCALE))
-  ? Math.max(0.1, Math.min(20, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_LOG_SCALE)))
-  : 4;
-const REVIEW_SAMPLE_PERCENT = Math.max(
-  0,
-  Math.min(100, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_RECHECK_SAMPLE_PERCENT) || 5),
-);
+const AFFINITY_LOG_SCALE = Number.isFinite(Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_LOG_SCALE)) ? Math.max(0.1, Math.min(20, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_AFFINITY_LOG_SCALE))) : 4;
+const REVIEW_SAMPLE_PERCENT = Math.max(0, Math.min(100, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_RECHECK_SAMPLE_PERCENT) || 5));
 const REVIEW_VERSION_TARGET = String(process.env.STICKER_AUTO_PACK_BY_TAGS_REVIEW_CLASSIFICATION_VERSION || '').trim();
-const CURATION_OWNERS_POOL_RAW = String(
-  process.env.CURATION_OWNERS_POOL || process.env.STICKER_AUTO_PACK_CURATION_OWNERS_POOL || '',
-).trim();
-const MAX_PACKS_PER_OWNER = parseMaxPacksPerOwnerLimit(
-  process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_PACKS_PER_OWNER || process.env.STICKER_PACK_MAX_PACKS_PER_OWNER,
-  50,
-);
-const HARD_MIN_GROUP_SIZE = Math.max(
-  3,
-  Math.min(TARGET_PACK_SIZE, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_HARD_MIN_GROUP_SIZE) || 12),
-);
-const SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK = Math.max(
-  HARD_MIN_GROUP_SIZE,
-  Math.min(TARGET_PACK_SIZE, Number(process.env.SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK) || HARD_MIN_GROUP_SIZE),
-);
-const EFFECTIVE_HARD_MIN_GROUP_SIZE = ENABLE_SEMANTIC_CLUSTERING
-  ? Math.max(HARD_MIN_GROUP_SIZE, SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK)
-  : HARD_MIN_GROUP_SIZE;
-const HARD_MIN_PACK_ITEMS = Math.max(
-  1,
-  Math.min(TARGET_PACK_SIZE, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_HARD_MIN_PACK_ITEMS) || 12),
-);
-const READY_PACK_MIN_ITEMS = Math.max(
-  HARD_MIN_PACK_ITEMS,
-  Math.min(TARGET_PACK_SIZE, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_READY_MIN_ITEMS) || 20),
-);
-const MAX_PACKS_PER_THEME = Math.max(
-  1,
-  Math.min(10, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_PACKS_PER_THEME) || 1),
-);
-const GLOBAL_AUTO_PACK_LIMIT = Math.max(
-  10,
-  Math.min(10_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_GLOBAL_PACK_LIMIT) || 300),
-);
-const DYNAMIC_GROUP_LIMIT_BASE = Math.max(
-  3,
-  Math.min(500, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_DYNAMIC_GROUP_LIMIT_BASE) || 30),
-);
-const RETRO_CONSOLIDATION_ENABLED = parseEnvBool(
-  process.env.STICKER_AUTO_PACK_BY_TAGS_RETRO_CONSOLIDATION_ENABLED,
-  true,
-);
-const RETRO_CONSOLIDATION_THEME_LIMIT = Math.max(
-  1,
-  Math.min(2000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_RETRO_CONSOLIDATION_THEME_LIMIT) || 1000),
-);
-const RETRO_CONSOLIDATION_MUTATION_LIMIT = Math.max(
-  10,
-  Math.min(10_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_RETRO_CONSOLIDATION_MUTATION_LIMIT) || 2000),
-);
+const CURATION_OWNERS_POOL_RAW = String(process.env.CURATION_OWNERS_POOL || process.env.STICKER_AUTO_PACK_CURATION_OWNERS_POOL || '').trim();
+const MAX_PACKS_PER_OWNER = parseMaxPacksPerOwnerLimit(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_PACKS_PER_OWNER || process.env.STICKER_PACK_MAX_PACKS_PER_OWNER, 50);
+const HARD_MIN_GROUP_SIZE = Math.max(3, Math.min(TARGET_PACK_SIZE, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_HARD_MIN_GROUP_SIZE) || 12));
+const SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK = Math.max(HARD_MIN_GROUP_SIZE, Math.min(TARGET_PACK_SIZE, Number(process.env.SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK) || HARD_MIN_GROUP_SIZE));
+const EFFECTIVE_HARD_MIN_GROUP_SIZE = ENABLE_SEMANTIC_CLUSTERING ? Math.max(HARD_MIN_GROUP_SIZE, SEMANTIC_CLUSTER_MIN_SIZE_FOR_PACK) : HARD_MIN_GROUP_SIZE;
+const HARD_MIN_PACK_ITEMS = Math.max(1, Math.min(TARGET_PACK_SIZE, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_HARD_MIN_PACK_ITEMS) || 12));
+const READY_PACK_MIN_ITEMS = Math.max(HARD_MIN_PACK_ITEMS, Math.min(TARGET_PACK_SIZE, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_READY_MIN_ITEMS) || 20));
+const MAX_PACKS_PER_THEME = Math.max(1, Math.min(10, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_MAX_PACKS_PER_THEME) || 1));
+const GLOBAL_AUTO_PACK_LIMIT = Math.max(10, Math.min(10_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_GLOBAL_PACK_LIMIT) || 300));
+const DYNAMIC_GROUP_LIMIT_BASE = Math.max(3, Math.min(500, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_DYNAMIC_GROUP_LIMIT_BASE) || 30));
+const RETRO_CONSOLIDATION_ENABLED = parseEnvBool(process.env.STICKER_AUTO_PACK_BY_TAGS_RETRO_CONSOLIDATION_ENABLED, true);
+const RETRO_CONSOLIDATION_THEME_LIMIT = Math.max(1, Math.min(2000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_RETRO_CONSOLIDATION_THEME_LIMIT) || 1000));
+const RETRO_CONSOLIDATION_MUTATION_LIMIT = Math.max(10, Math.min(10_000, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_RETRO_CONSOLIDATION_MUTATION_LIMIT) || 2000));
 const PRIORITIZE_COMPLETION = parseEnvBool(process.env.STICKER_AUTO_PACK_BY_TAGS_PRIORITIZE_COMPLETION, true);
 const COMPLETION_TRANSFER_ENABLED = parseEnvBool(process.env.STICKER_AUTO_PACK_BY_TAGS_COMPLETION_TRANSFER_ENABLED, true);
-const COMPLETION_TRANSFER_MIN_DONOR_ITEMS = Math.max(
-  1,
-  Math.min(
-    TARGET_PACK_SIZE - 1,
-    Number(process.env.STICKER_AUTO_PACK_BY_TAGS_COMPLETION_TRANSFER_MIN_DONOR_ITEMS)
-      || Math.max(2, Math.min(TARGET_PACK_SIZE - 1, 8)),
-  ),
-);
+const COMPLETION_TRANSFER_MIN_DONOR_ITEMS = Math.max(1, Math.min(TARGET_PACK_SIZE - 1, Number(process.env.STICKER_AUTO_PACK_BY_TAGS_COMPLETION_TRANSFER_MIN_DONOR_ITEMS) || Math.max(2, Math.min(TARGET_PACK_SIZE - 1, 8))));
 const ENABLE_GLOBAL_OPTIMIZATION = parseEnvBool(process.env.ENABLE_GLOBAL_OPTIMIZATION, true);
 const OPTIMIZATION_CYCLES = Math.max(1, Math.min(8, Number(process.env.OPTIMIZATION_CYCLES) || 3));
-const OPTIMIZATION_EPSILON = Number.isFinite(Number(process.env.OPTIMIZATION_EPSILON))
-  ? Math.max(0.000001, Math.min(0.5, Number(process.env.OPTIMIZATION_EPSILON)))
-  : 0.001;
-const OPTIMIZATION_STABLE_CYCLES = Math.max(
-  1,
-  Math.min(5, Number(process.env.OPTIMIZATION_STABLE_CYCLES) || 2),
-);
-const TRANSFER_THRESHOLD = Number.isFinite(Number(process.env.TRANSFER_THRESHOLD))
-  ? Math.max(-0.2, Math.min(1, Number(process.env.TRANSFER_THRESHOLD)))
-  : 0.02;
-const MERGE_THRESHOLD = Number.isFinite(Number(process.env.MERGE_THRESHOLD))
-  ? Math.max(0, Math.min(1, Number(process.env.MERGE_THRESHOLD)))
-  : 0.75;
+const OPTIMIZATION_EPSILON = Number.isFinite(Number(process.env.OPTIMIZATION_EPSILON)) ? Math.max(0.000001, Math.min(0.5, Number(process.env.OPTIMIZATION_EPSILON))) : 0.001;
+const OPTIMIZATION_STABLE_CYCLES = Math.max(1, Math.min(5, Number(process.env.OPTIMIZATION_STABLE_CYCLES) || 2));
+const TRANSFER_THRESHOLD = Number.isFinite(Number(process.env.TRANSFER_THRESHOLD)) ? Math.max(-0.2, Math.min(1, Number(process.env.TRANSFER_THRESHOLD))) : 0.02;
+const MERGE_THRESHOLD = Number.isFinite(Number(process.env.MERGE_THRESHOLD)) ? Math.max(0, Math.min(1, Number(process.env.MERGE_THRESHOLD))) : 0.75;
 const MIN_PACK_SIZE = Math.max(1, Math.min(TARGET_PACK_SIZE, Number(process.env.MIN_PACK_SIZE) || 8));
-const AUTO_ARCHIVE_BELOW_PERCENTILE = Number.isFinite(Number(process.env.AUTO_ARCHIVE_BELOW_PERCENTILE))
-  ? Math.max(0, Math.min(100, Number(process.env.AUTO_ARCHIVE_BELOW_PERCENTILE)))
-  : 20;
-const SYSTEM_REDUNDANCY_LAMBDA = Number.isFinite(Number(process.env.SYSTEM_REDUNDANCY_LAMBDA))
-  ? Math.max(0, Math.min(2, Number(process.env.SYSTEM_REDUNDANCY_LAMBDA)))
-  : 0.2;
-const MATRIX_ALPHA = Number.isFinite(Number(process.env.STICKER_MATRIX_ALPHA))
-  ? Math.max(0, Math.min(3, Number(process.env.STICKER_MATRIX_ALPHA)))
-  : 0.38;
-const MATRIX_BETA = Number.isFinite(Number(process.env.STICKER_MATRIX_BETA))
-  ? Math.max(0, Math.min(3, Number(process.env.STICKER_MATRIX_BETA)))
-  : 0.27;
-const MATRIX_GAMMA = Number.isFinite(Number(process.env.STICKER_MATRIX_GAMMA))
-  ? Math.max(0, Math.min(3, Number(process.env.STICKER_MATRIX_GAMMA)))
-  : 0.23;
-const MATRIX_DELTA = Number.isFinite(Number(process.env.STICKER_MATRIX_DELTA))
-  ? Math.max(0, Math.min(3, Number(process.env.STICKER_MATRIX_DELTA)))
-  : 0.18;
-const PACK_QUALITY_W1 = Number.isFinite(Number(process.env.PACK_QUALITY_W1))
-  ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W1)))
-  : 0.32;
-const PACK_QUALITY_W2 = Number.isFinite(Number(process.env.PACK_QUALITY_W2))
-  ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W2)))
-  : 0.24;
-const PACK_QUALITY_W3 = Number.isFinite(Number(process.env.PACK_QUALITY_W3))
-  ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W3)))
-  : 0.16;
-const PACK_QUALITY_W4 = Number.isFinite(Number(process.env.PACK_QUALITY_W4))
-  ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W4)))
-  : 0.14;
-const PACK_QUALITY_W5 = Number.isFinite(Number(process.env.PACK_QUALITY_W5))
-  ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W5)))
-  : 0.09;
-const PACK_QUALITY_W6 = Number.isFinite(Number(process.env.PACK_QUALITY_W6))
-  ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W6)))
-  : 0.07;
-const MIGRATION_CANDIDATE_LIMIT = Number.isFinite(Number(process.env.MIGRATION_CANDIDATE_LIMIT))
-  ? Math.max(4, Math.min(64, Number(process.env.MIGRATION_CANDIDATE_LIMIT)))
-  : 16;
-const TRANSFER_CANDIDATE_SIMILARITY_FLOOR = Number.isFinite(Number(process.env.TRANSFER_CANDIDATE_SIMILARITY_FLOOR))
-  ? Math.max(0, Math.min(1, Number(process.env.TRANSFER_CANDIDATE_SIMILARITY_FLOOR)))
-  : 0.35;
-const INTER_PACK_SIMILARITY_THRESHOLD = Number.isFinite(Number(process.env.INTER_PACK_SIMILARITY_THRESHOLD))
-  ? Math.max(0, Math.min(1, Number(process.env.INTER_PACK_SIMILARITY_THRESHOLD)))
-  : 0.85;
-const PACK_TIER_QUALITY_W1 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W1))
-  ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W1)))
-  : 0.40;
-const PACK_TIER_QUALITY_W2 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W2))
-  ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W2)))
-  : 0.25;
-const PACK_TIER_QUALITY_W3 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W3))
-  ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W3)))
-  : 0.15;
-const PACK_TIER_QUALITY_W4 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W4))
-  ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W4)))
-  : 0.10;
-const PACK_TIER_QUALITY_W5 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W5))
-  ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W5)))
-  : 0.10;
-const AUTO_PACK_PROFILE = String(process.env.AUTO_PACK_PROFILE || 'BALANCED').trim().toUpperCase();
+const AUTO_ARCHIVE_BELOW_PERCENTILE = Number.isFinite(Number(process.env.AUTO_ARCHIVE_BELOW_PERCENTILE)) ? Math.max(0, Math.min(100, Number(process.env.AUTO_ARCHIVE_BELOW_PERCENTILE))) : 20;
+const SYSTEM_REDUNDANCY_LAMBDA = Number.isFinite(Number(process.env.SYSTEM_REDUNDANCY_LAMBDA)) ? Math.max(0, Math.min(2, Number(process.env.SYSTEM_REDUNDANCY_LAMBDA))) : 0.2;
+const MATRIX_ALPHA = Number.isFinite(Number(process.env.STICKER_MATRIX_ALPHA)) ? Math.max(0, Math.min(3, Number(process.env.STICKER_MATRIX_ALPHA))) : 0.38;
+const MATRIX_BETA = Number.isFinite(Number(process.env.STICKER_MATRIX_BETA)) ? Math.max(0, Math.min(3, Number(process.env.STICKER_MATRIX_BETA))) : 0.27;
+const MATRIX_GAMMA = Number.isFinite(Number(process.env.STICKER_MATRIX_GAMMA)) ? Math.max(0, Math.min(3, Number(process.env.STICKER_MATRIX_GAMMA))) : 0.23;
+const MATRIX_DELTA = Number.isFinite(Number(process.env.STICKER_MATRIX_DELTA)) ? Math.max(0, Math.min(3, Number(process.env.STICKER_MATRIX_DELTA))) : 0.18;
+const PACK_QUALITY_W1 = Number.isFinite(Number(process.env.PACK_QUALITY_W1)) ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W1))) : 0.32;
+const PACK_QUALITY_W2 = Number.isFinite(Number(process.env.PACK_QUALITY_W2)) ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W2))) : 0.24;
+const PACK_QUALITY_W3 = Number.isFinite(Number(process.env.PACK_QUALITY_W3)) ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W3))) : 0.16;
+const PACK_QUALITY_W4 = Number.isFinite(Number(process.env.PACK_QUALITY_W4)) ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W4))) : 0.14;
+const PACK_QUALITY_W5 = Number.isFinite(Number(process.env.PACK_QUALITY_W5)) ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W5))) : 0.09;
+const PACK_QUALITY_W6 = Number.isFinite(Number(process.env.PACK_QUALITY_W6)) ? Math.max(0, Math.min(3, Number(process.env.PACK_QUALITY_W6))) : 0.07;
+const MIGRATION_CANDIDATE_LIMIT = Number.isFinite(Number(process.env.MIGRATION_CANDIDATE_LIMIT)) ? Math.max(4, Math.min(64, Number(process.env.MIGRATION_CANDIDATE_LIMIT))) : 16;
+const TRANSFER_CANDIDATE_SIMILARITY_FLOOR = Number.isFinite(Number(process.env.TRANSFER_CANDIDATE_SIMILARITY_FLOOR)) ? Math.max(0, Math.min(1, Number(process.env.TRANSFER_CANDIDATE_SIMILARITY_FLOOR))) : 0.35;
+const INTER_PACK_SIMILARITY_THRESHOLD = Number.isFinite(Number(process.env.INTER_PACK_SIMILARITY_THRESHOLD)) ? Math.max(0, Math.min(1, Number(process.env.INTER_PACK_SIMILARITY_THRESHOLD))) : 0.85;
+const PACK_TIER_QUALITY_W1 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W1)) ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W1))) : 0.4;
+const PACK_TIER_QUALITY_W2 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W2)) ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W2))) : 0.25;
+const PACK_TIER_QUALITY_W3 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W3)) ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W3))) : 0.15;
+const PACK_TIER_QUALITY_W4 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W4)) ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W4))) : 0.1;
+const PACK_TIER_QUALITY_W5 = Number.isFinite(Number(process.env.PACK_TIER_QUALITY_W5)) ? Math.max(0, Math.min(1, Number(process.env.PACK_TIER_QUALITY_W5))) : 0.1;
+const AUTO_PACK_PROFILE = String(process.env.AUTO_PACK_PROFILE || 'BALANCED')
+  .trim()
+  .toUpperCase();
 const IS_AGGRESSIVE_PROFILE = AUTO_PACK_PROFILE === 'AGGRESSIVE';
-const AGGRESSIVE_MIGRATION_THRESHOLD = Number.isFinite(Number(process.env.AGGRESSIVE_MIGRATION_THRESHOLD))
-  ? Math.max(-0.1, Math.min(1, Number(process.env.AGGRESSIVE_MIGRATION_THRESHOLD)))
-  : 0.01;
-const ARCHIVE_LOW_SCORE_PACKS = parseEnvBool(
-  process.env.ARCHIVE_LOW_SCORE_PACKS,
-  IS_AGGRESSIVE_PROFILE,
-);
-const GLOBAL_ENERGY_W1 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W1))
-  ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W1)))
-  : 0.40;
-const GLOBAL_ENERGY_W2 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W2))
-  ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W2)))
-  : 0.25;
-const GLOBAL_ENERGY_W3 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W3))
-  ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W3)))
-  : 0.10;
-const GLOBAL_ENERGY_W4 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W4))
-  ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W4)))
-  : 0.15;
-const GLOBAL_ENERGY_W5 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W5))
-  ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W5)))
-  : 0.10;
-const PACK_TIER_GOLD_THRESHOLD = Number.isFinite(Number(process.env.PACK_TIER_GOLD_THRESHOLD))
-  ? Math.max(0, Math.min(2, Number(process.env.PACK_TIER_GOLD_THRESHOLD)))
-  : 0.80;
-const PACK_TIER_SILVER_THRESHOLD = Number.isFinite(Number(process.env.PACK_TIER_SILVER_THRESHOLD))
-  ? Math.max(0, Math.min(PACK_TIER_GOLD_THRESHOLD, Number(process.env.PACK_TIER_SILVER_THRESHOLD)))
-  : 0.65;
-const PACK_TIER_BRONZE_THRESHOLD = Number.isFinite(Number(process.env.PACK_TIER_BRONZE_THRESHOLD))
-  ? Math.max(0, Math.min(PACK_TIER_SILVER_THRESHOLD, Number(process.env.PACK_TIER_BRONZE_THRESHOLD)))
-  : 0.50;
+const AGGRESSIVE_MIGRATION_THRESHOLD = Number.isFinite(Number(process.env.AGGRESSIVE_MIGRATION_THRESHOLD)) ? Math.max(-0.1, Math.min(1, Number(process.env.AGGRESSIVE_MIGRATION_THRESHOLD))) : 0.01;
+const ARCHIVE_LOW_SCORE_PACKS = parseEnvBool(process.env.ARCHIVE_LOW_SCORE_PACKS, IS_AGGRESSIVE_PROFILE);
+const GLOBAL_ENERGY_W1 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W1)) ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W1))) : 0.4;
+const GLOBAL_ENERGY_W2 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W2)) ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W2))) : 0.25;
+const GLOBAL_ENERGY_W3 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W3)) ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W3))) : 0.1;
+const GLOBAL_ENERGY_W4 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W4)) ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W4))) : 0.15;
+const GLOBAL_ENERGY_W5 = Number.isFinite(Number(process.env.GLOBAL_ENERGY_W5)) ? Math.max(0, Math.min(2, Number(process.env.GLOBAL_ENERGY_W5))) : 0.1;
+const PACK_TIER_GOLD_THRESHOLD = Number.isFinite(Number(process.env.PACK_TIER_GOLD_THRESHOLD)) ? Math.max(0, Math.min(2, Number(process.env.PACK_TIER_GOLD_THRESHOLD))) : 0.8;
+const PACK_TIER_SILVER_THRESHOLD = Number.isFinite(Number(process.env.PACK_TIER_SILVER_THRESHOLD)) ? Math.max(0, Math.min(PACK_TIER_GOLD_THRESHOLD, Number(process.env.PACK_TIER_SILVER_THRESHOLD))) : 0.65;
+const PACK_TIER_BRONZE_THRESHOLD = Number.isFinite(Number(process.env.PACK_TIER_BRONZE_THRESHOLD)) ? Math.max(0, Math.min(PACK_TIER_SILVER_THRESHOLD, Number(process.env.PACK_TIER_BRONZE_THRESHOLD))) : 0.5;
 
-const EFFECTIVE_MIN_ASSET_ACCEPTANCE_RATE = IS_AGGRESSIVE_PROFILE
-  ? Math.max(0.3, MIN_ASSET_ACCEPTANCE_RATE * 0.82)
-  : MIN_ASSET_ACCEPTANCE_RATE;
-const EFFECTIVE_MIN_THEME_DOMINANCE_RATIO = IS_AGGRESSIVE_PROFILE
-  ? Math.max(0.35, MIN_THEME_DOMINANCE_RATIO * 0.82)
-  : MIN_THEME_DOMINANCE_RATIO;
-const EFFECTIVE_SCORE_STDDEV_PENALTY = IS_AGGRESSIVE_PROFILE
-  ? Math.max(0.05, SCORE_STDDEV_PENALTY * 0.82)
-  : SCORE_STDDEV_PENALTY;
-const EFFECTIVE_TRANSFER_THRESHOLD = IS_AGGRESSIVE_PROFILE
-  ? Math.min(TRANSFER_THRESHOLD, AGGRESSIVE_MIGRATION_THRESHOLD)
-  : TRANSFER_THRESHOLD;
-const EFFECTIVE_MERGE_THRESHOLD = IS_AGGRESSIVE_PROFILE
-  ? Math.max(MERGE_THRESHOLD, 0.85)
-  : MERGE_THRESHOLD;
+const EFFECTIVE_MIN_ASSET_ACCEPTANCE_RATE = IS_AGGRESSIVE_PROFILE ? Math.max(0.3, MIN_ASSET_ACCEPTANCE_RATE * 0.82) : MIN_ASSET_ACCEPTANCE_RATE;
+const EFFECTIVE_MIN_THEME_DOMINANCE_RATIO = IS_AGGRESSIVE_PROFILE ? Math.max(0.35, MIN_THEME_DOMINANCE_RATIO * 0.82) : MIN_THEME_DOMINANCE_RATIO;
+const EFFECTIVE_SCORE_STDDEV_PENALTY = IS_AGGRESSIVE_PROFILE ? Math.max(0.05, SCORE_STDDEV_PENALTY * 0.82) : SCORE_STDDEV_PENALTY;
+const EFFECTIVE_TRANSFER_THRESHOLD = IS_AGGRESSIVE_PROFILE ? Math.min(TRANSFER_THRESHOLD, AGGRESSIVE_MIGRATION_THRESHOLD) : TRANSFER_THRESHOLD;
+const EFFECTIVE_MERGE_THRESHOLD = IS_AGGRESSIVE_PROFILE ? Math.max(MERGE_THRESHOLD, 0.85) : MERGE_THRESHOLD;
 const EFFECTIVE_INTER_PACK_SIMILARITY_THRESHOLD = Math.max(EFFECTIVE_MERGE_THRESHOLD, INTER_PACK_SIMILARITY_THRESHOLD);
-const EFFECTIVE_AUTO_ARCHIVE_BELOW_PERCENTILE = ARCHIVE_LOW_SCORE_PACKS && IS_AGGRESSIVE_PROFILE
-  ? Math.max(AUTO_ARCHIVE_BELOW_PERCENTILE, 35)
-  : AUTO_ARCHIVE_BELOW_PERCENTILE;
+const EFFECTIVE_AUTO_ARCHIVE_BELOW_PERCENTILE = ARCHIVE_LOW_SCORE_PACKS && IS_AGGRESSIVE_PROFILE ? Math.max(AUTO_ARCHIVE_BELOW_PERCENTILE, 35) : AUTO_ARCHIVE_BELOW_PERCENTILE;
 const EFFECTIVE_PRIORITIZE_COMPLETION = PRIORITIZE_COMPLETION || IS_AGGRESSIVE_PROFILE;
 const EFFECTIVE_COMPLETION_TRANSFER_ENABLED = COMPLETION_TRANSFER_ENABLED || IS_AGGRESSIVE_PROFILE;
-const EFFECTIVE_MIGRATION_CANDIDATE_LIMIT = IS_AGGRESSIVE_PROFILE
-  ? Math.max(MIGRATION_CANDIDATE_LIMIT, 24)
-  : MIGRATION_CANDIDATE_LIMIT;
-const EFFECTIVE_TRANSFER_CANDIDATE_SIMILARITY_FLOOR = IS_AGGRESSIVE_PROFILE
-  ? Math.max(0.15, TRANSFER_CANDIDATE_SIMILARITY_FLOOR * 0.72)
-  : TRANSFER_CANDIDATE_SIMILARITY_FLOOR;
+const EFFECTIVE_MIGRATION_CANDIDATE_LIMIT = IS_AGGRESSIVE_PROFILE ? Math.max(MIGRATION_CANDIDATE_LIMIT, 24) : MIGRATION_CANDIDATE_LIMIT;
+const EFFECTIVE_TRANSFER_CANDIDATE_SIMILARITY_FLOOR = IS_AGGRESSIVE_PROFILE ? Math.max(0.15, TRANSFER_CANDIDATE_SIMILARITY_FLOOR * 0.72) : TRANSFER_CANDIDATE_SIMILARITY_FLOOR;
 
 const EXPLICIT_OWNER = String(process.env.STICKER_AUTO_PACK_OWNER_JID || process.env.USER_ADMIN || '').trim();
 
@@ -388,14 +175,7 @@ const LABEL_TO_TAG = {
   cartoon: 'cartoon',
 };
 
-const TECHNICAL_TAGS = new Set([
-  'low-quality-compressed-image',
-  'blurry-image',
-  'text-only-image',
-  'sticker-style-image',
-  'whatsapp-sticker-style',
-  'telegram-sticker-style',
-]);
+const TECHNICAL_TAGS = new Set(['low-quality-compressed-image', 'blurry-image', 'text-only-image', 'sticker-style-image', 'whatsapp-sticker-style', 'telegram-sticker-style']);
 
 const normalizeTag = (value) =>
   String(value || '')
@@ -416,7 +196,9 @@ const toNumericClusterId = (value) => {
 const isSemanticClusterSubthemeTag = (value) => /^cluster-\d+$/.test(normalizeTag(value));
 
 const toTagFromLabel = (label) => {
-  const key = String(label || '').trim().toLowerCase();
+  const key = String(label || '')
+    .trim()
+    .toLowerCase();
   return LABEL_TO_TAG[key] || normalizeTag(key);
 };
 
@@ -476,7 +258,9 @@ const buildThemeKey = (theme, subtheme = '') => {
   return normalizedSubtheme ? `${normalizedTheme}:${normalizedSubtheme}` : normalizedTheme;
 };
 const parseThemeKey = (raw) => {
-  const normalized = String(raw || '').trim().toLowerCase();
+  const normalized = String(raw || '')
+    .trim()
+    .toLowerCase();
   if (!normalized) return { theme: '', subtheme: '' };
   const [theme = '', subtheme = ''] = normalized.split(':', 2);
   return {
@@ -497,10 +281,7 @@ const buildAutoPackName = (theme, subtheme, index) => {
   return `${base} • Vol. ${index}`;
 };
 const buildAutoPackMarker = (themeKey) => `[auto-theme:${themeKey}]`;
-const buildAutoPackDescription = ({ theme, subtheme, themeKey, groupScore }) =>
-  `${buildAutoPackMarker(themeKey)} Curadoria automática por tema. Tema: ${theme}${
-    subtheme ? ` / ${subtheme}` : ''
-  }. score=${Number(groupScore || 0).toFixed(4)}.`;
+const buildAutoPackDescription = ({ theme, subtheme, themeKey, groupScore }) => `${buildAutoPackMarker(themeKey)} Curadoria automática por tema. Tema: ${theme}${subtheme ? ` / ${subtheme}` : ''}. score=${Number(groupScore || 0).toFixed(4)}.`;
 
 const clampNumber = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
 
@@ -556,10 +337,12 @@ const meanArray = (values) => {
 const varianceArray = (values) => {
   if (!Array.isArray(values) || values.length <= 1) return 0;
   const mean = meanArray(values);
-  return values.reduce((sum, value) => {
-    const delta = Number(value || 0) - mean;
-    return sum + delta * delta;
-  }, 0) / values.length;
+  return (
+    values.reduce((sum, value) => {
+      const delta = Number(value || 0) - mean;
+      return sum + delta * delta;
+    }, 0) / values.length
+  );
 };
 
 const percentileValue = (values, percentile) => {
@@ -645,12 +428,7 @@ const dominantTagRatio = (stickerIds, classificationByAssetId) => {
   return best / total;
 };
 
-const computeStickerPackMatrixScore = ({
-  stickerId,
-  packStickerIds,
-  classificationByAssetId,
-  centroidVector,
-}) => {
+const computeStickerPackMatrixScore = ({ stickerId, packStickerIds, classificationByAssetId, centroidVector }) => {
   const classification = classificationByAssetId.get(stickerId);
   if (!classification) return 0;
   const stickerVector = buildStickerFeatureVector(classification);
@@ -669,11 +447,13 @@ const computeStickerPackMatrixScore = ({
 
   const confidence = Number(classification.confidence || 0);
   const themeStrength = Number(buildTopTags(classification)[0]?.score || 0);
-  const entropyStability = 1 - normalizeEntropy({
-    entropy: classification.entropy,
-    entropyNormalized: classification.entropy_normalized,
-    topLabelCount: Array.isArray(classification.top_labels) ? classification.top_labels.length : 0,
-  });
+  const entropyStability =
+    1 -
+    normalizeEntropy({
+      entropy: classification.entropy,
+      entropyNormalized: classification.entropy_normalized,
+      topLabelCount: Array.isArray(classification.top_labels) ? classification.top_labels.length : 0,
+    });
   const affinityWeight = normalizeAffinityWeight(classification.affinity_weight);
   const impactOnGroupScore = confidence * 0.4 + themeStrength * 0.35 + entropyStability * 0.15 + affinityWeight * 0.1;
 
@@ -687,11 +467,7 @@ const computeStickerPackMatrixScore = ({
     duplicationPenalty = dupHits / Math.max(1, others.length);
   }
 
-  const matrixScore =
-    MATRIX_ALPHA * semanticSimilarity
-    + MATRIX_BETA * cohesion
-    + MATRIX_GAMMA * impactOnGroupScore
-    - MATRIX_DELTA * duplicationPenalty;
+  const matrixScore = MATRIX_ALPHA * semanticSimilarity + MATRIX_BETA * cohesion + MATRIX_GAMMA * impactOnGroupScore - MATRIX_DELTA * duplicationPenalty;
 
   return clampNumber(matrixScore, 0, 1.6);
 };
@@ -724,11 +500,7 @@ const buildNormalizedZScoreMap = (valueByKey = new Map()) => {
   return normalized;
 };
 
-const computePackCohesionScore = (profile) => clampNumber(
-  Number(profile?.semanticCohesion || 0) * 0.7 + Number(profile?.topicDominance || 0) * 0.3,
-  0,
-  1,
-);
+const computePackCohesionScore = (profile) => clampNumber(Number(profile?.semanticCohesion || 0) * 0.7 + Number(profile?.topicDominance || 0) * 0.3, 0, 1);
 
 const computePackObjectiveScore = ({ profile, engagementScore = 0 }) => {
   const meanAssetQuality = clampNumber(Number(profile?.meanAssetQuality || 0), 0, 1);
@@ -736,14 +508,7 @@ const computePackObjectiveScore = ({ profile, engagementScore = 0 }) => {
   const volumeScore = clampNumber(Number(profile?.volumeScore || 0), 0, 1);
   const engagementComponent = clampNumber(Number(engagementScore || 0), 0, 1);
 
-  return clampNumber(
-    GLOBAL_ENERGY_W1 * meanAssetQuality
-      + GLOBAL_ENERGY_W2 * cohesionScore
-      + GLOBAL_ENERGY_W3 * volumeScore
-      + GLOBAL_ENERGY_W4 * engagementComponent,
-    0,
-    2,
-  );
+  return clampNumber(GLOBAL_ENERGY_W1 * meanAssetQuality + GLOBAL_ENERGY_W2 * cohesionScore + GLOBAL_ENERGY_W3 * volumeScore + GLOBAL_ENERGY_W4 * engagementComponent, 0, 2);
 };
 
 const computePackOfficialQualityScore = ({ profile, engagementZscore = 0 }) => {
@@ -752,12 +517,7 @@ const computePackOfficialQualityScore = ({ profile, engagementZscore = 0 }) => {
   const completionRatio = clampNumber(Number(profile?.volumeScore || 0), 0, 1);
   const stabilityIndex = clampNumber(1 - Math.max(0, Number(profile?.internalVariance || 0)), 0, 1);
   const engagementComponent = clampNumber(Number(engagementZscore || 0), 0, 1);
-  const raw =
-    PACK_TIER_QUALITY_W1 * meanAssetQuality
-    + PACK_TIER_QUALITY_W2 * cohesionScore
-    + PACK_TIER_QUALITY_W3 * engagementComponent
-    + PACK_TIER_QUALITY_W4 * completionRatio
-    + PACK_TIER_QUALITY_W5 * stabilityIndex;
+  const raw = PACK_TIER_QUALITY_W1 * meanAssetQuality + PACK_TIER_QUALITY_W2 * cohesionScore + PACK_TIER_QUALITY_W3 * engagementComponent + PACK_TIER_QUALITY_W4 * completionRatio + PACK_TIER_QUALITY_W5 * stabilityIndex;
   return clampNumber(raw, 0, 1.2);
 };
 
@@ -767,12 +527,10 @@ const buildPackPairKey = (leftPackId, rightPackId) => {
   return left < right ? `${left}::${right}` : `${right}::${left}`;
 };
 
-const computePackSemanticSimilarity = (leftProfile, rightProfile) =>
-  clampNumber(cosineSimilarity(leftProfile?.centroidVector || {}, rightProfile?.centroidVector || {}), 0, 1);
+const computePackSemanticSimilarity = (leftProfile, rightProfile) => clampNumber(cosineSimilarity(leftProfile?.centroidVector || {}, rightProfile?.centroidVector || {}), 0, 1);
 
 const buildInterPackSimilarityMatrix = (profiles) => {
-  const profileList = Array.from((profiles instanceof Map ? profiles.values() : []))
-    .filter((profile) => Array.isArray(profile?.stickerIds) && profile.stickerIds.length > 0);
+  const profileList = Array.from(profiles instanceof Map ? profiles.values() : []).filter((profile) => Array.isArray(profile?.stickerIds) && profile.stickerIds.length > 0);
   const matrix = new Map();
   let sum = 0;
   let count = 0;
@@ -812,12 +570,7 @@ const computeMeanNormalizedEntropy = (stickerIds, classificationByAssetId) => {
   return count > 0 ? total / count : 0;
 };
 
-const computePackEnergyDelta = ({
-  baseEnergySnapshot,
-  profiles,
-  profileScores,
-  changes,
-}) => {
+const computePackEnergyDelta = ({ baseEnergySnapshot, profiles, profileScores, changes }) => {
   const updates = changes instanceof Map ? changes : new Map();
   if (!updates.size) {
     return {
@@ -880,12 +633,7 @@ const computePackEnergyDelta = ({
   };
 };
 
-const computePackProfile = ({
-  packId,
-  stickerIds,
-  themeKey,
-  classificationByAssetId,
-}) => {
+const computePackProfile = ({ packId, stickerIds, themeKey, classificationByAssetId }) => {
   const cleanStickerIds = Array.from(new Set((Array.isArray(stickerIds) ? stickerIds : []).filter(Boolean)));
   const centroidVector = buildPackCentroidVector(cleanStickerIds, classificationByAssetId);
   const matrixScores = cleanStickerIds.map((stickerId) =>
@@ -894,14 +642,18 @@ const computePackProfile = ({
       packStickerIds: cleanStickerIds,
       classificationByAssetId,
       centroidVector,
-    }));
+    }),
+  );
   const meanStickerScore = meanArray(matrixScores);
-  const semanticCohesion = cleanStickerIds.length <= 1
-    ? 1
-    : meanArray(cleanStickerIds.map((stickerId) => {
-        const classification = classificationByAssetId.get(stickerId);
-        return cosineSimilarity(buildStickerFeatureVector(classification), centroidVector);
-      }));
+  const semanticCohesion =
+    cleanStickerIds.length <= 1
+      ? 1
+      : meanArray(
+          cleanStickerIds.map((stickerId) => {
+            const classification = classificationByAssetId.get(stickerId);
+            return cosineSimilarity(buildStickerFeatureVector(classification), centroidVector);
+          }),
+        );
   const parsedThemeKey = parseThemeKey(themeKey);
   const meanAssetQuality = meanArray(
     cleanStickerIds.map((stickerId) => {
@@ -927,22 +679,13 @@ const computePackProfile = ({
       pairCount += 1;
       const leftClassification = classificationByAssetId.get(cleanStickerIds[i]);
       const rightClassification = classificationByAssetId.get(cleanStickerIds[j]);
-      const sim = cosineSimilarity(
-        buildStickerFeatureVector(leftClassification),
-        buildStickerFeatureVector(rightClassification),
-      );
+      const sim = cosineSimilarity(buildStickerFeatureVector(leftClassification), buildStickerFeatureVector(rightClassification));
       if (sim >= DEDUPE_SIMILARITY_THRESHOLD) duplicatePairs += 1;
     }
   }
   const duplicationRatio = pairCount > 0 ? duplicatePairs / pairCount : 0;
 
-  const qualityRaw =
-    PACK_QUALITY_W1 * meanStickerScore
-    + PACK_QUALITY_W2 * semanticCohesion
-    + PACK_QUALITY_W3 * topicDominance
-    + PACK_QUALITY_W4 * volumeScore
-    - PACK_QUALITY_W5 * internalVariance
-    - PACK_QUALITY_W6 * duplicationRatio;
+  const qualityRaw = PACK_QUALITY_W1 * meanStickerScore + PACK_QUALITY_W2 * semanticCohesion + PACK_QUALITY_W3 * topicDominance + PACK_QUALITY_W4 * volumeScore - PACK_QUALITY_W5 * internalVariance - PACK_QUALITY_W6 * duplicationRatio;
   const packQuality = clampNumber(qualityRaw, 0, 2.5);
 
   return {
@@ -962,8 +705,16 @@ const computePackProfile = ({
 };
 
 const computePackOverlap = (leftProfile, rightProfile) => {
-  const leftTags = new Set(String(leftProfile?.themeKey || '').split(':').filter(Boolean));
-  const rightTags = new Set(String(rightProfile?.themeKey || '').split(':').filter(Boolean));
+  const leftTags = new Set(
+    String(leftProfile?.themeKey || '')
+      .split(':')
+      .filter(Boolean),
+  );
+  const rightTags = new Set(
+    String(rightProfile?.themeKey || '')
+      .split(':')
+      .filter(Boolean),
+  );
   const intersection = Array.from(leftTags).filter((tag) => rightTags.has(tag)).length;
   const union = new Set([...leftTags, ...rightTags]).size;
   const jaccard = union > 0 ? intersection / union : 0;
@@ -1221,15 +972,7 @@ const deriveThemeFromClassification = (classification) => {
     const primary = semanticClusterSlug || categoryTag || fallbackPrimary || `cluster-${semanticClusterId}`;
     const secondary = topTags.find((entry) => entry.tag !== primary && entry.tag !== 'nsfw')?.tag || '';
     const semanticThemeKey = buildThemeKey(primary, `cluster-${semanticClusterId}`);
-    const semanticTopTags = withThemeInTopTags(
-      topTags,
-      primary,
-      Math.max(
-        Number(classification?.confidence || 0),
-        Number(topTags.find((entry) => entry.tag === primary)?.score || 0),
-        MOVE_IN_THEME_SCORE_THRESHOLD,
-      ),
-    );
+    const semanticTopTags = withThemeInTopTags(topTags, primary, Math.max(Number(classification?.confidence || 0), Number(topTags.find((entry) => entry.tag === primary)?.score || 0), MOVE_IN_THEME_SCORE_THRESHOLD));
     return {
       theme: primary,
       subtheme: secondary,
@@ -1243,15 +986,7 @@ const deriveThemeFromClassification = (classification) => {
 
   const primary = (ENABLE_SEMANTIC_CLUSTERING ? categoryTag : '') || fallbackPrimary;
   const secondary = topTags.find((entry) => entry.tag !== primary && entry.tag !== 'nsfw')?.tag || '';
-  const fallbackTopTags = withThemeInTopTags(
-    topTags,
-    primary,
-    Math.max(
-      Number(classification?.confidence || 0),
-      Number(topTags.find((entry) => entry.tag === primary)?.score || 0),
-      MOVE_IN_THEME_SCORE_THRESHOLD,
-    ),
-  );
+  const fallbackTopTags = withThemeInTopTags(topTags, primary, Math.max(Number(classification?.confidence || 0), Number(topTags.find((entry) => entry.tag === primary)?.score || 0), MOVE_IN_THEME_SCORE_THRESHOLD));
   return {
     theme: primary,
     subtheme: secondary,
@@ -1269,11 +1004,15 @@ const dedupeCandidatesByEmbedding = (candidates, { embeddingByImageHash = new Ma
   const deduped = [];
   let dropped = 0;
   for (const candidate of candidates) {
-    const candidateImageHash = String(candidate?.classification?.image_hash || '').trim().toLowerCase();
+    const candidateImageHash = String(candidate?.classification?.image_hash || '')
+      .trim()
+      .toLowerCase();
     const candidateDense = candidateImageHash ? embeddingByImageHash.get(candidateImageHash) : null;
     const candidateSparse = candidate?.classification?.all_scores || {};
     const isDuplicate = deduped.some((entry) => {
-      const entryImageHash = String(entry?.classification?.image_hash || '').trim().toLowerCase();
+      const entryImageHash = String(entry?.classification?.image_hash || '')
+        .trim()
+        .toLowerCase();
       const entryDense = entryImageHash ? embeddingByImageHash.get(entryImageHash) : null;
       if (candidateDense && entryDense) {
         return cosineSimilarityDense(candidateDense, entryDense) >= DEDUPE_SIMILARITY_THRESHOLD;
@@ -1315,11 +1054,7 @@ const computeAssetQualityForTheme = ({ classification, theme, subtheme, topTags 
   }, 0);
   const rankedThemeScore = Number((Array.isArray(topTags) ? topTags : []).find((entry) => entry.tag === theme)?.score || 0);
   const thematicAlignment = clampNumber(Math.max(rankedThemeScore, topLabelThemeScore), 0, 1.2);
-  const assetQuality =
-    ASSET_QUALITY_W1 * confidence
-    + ASSET_QUALITY_W2 * (1 - entropyNormalized)
-    + ASSET_QUALITY_W3 * affinityWeight
-    + ASSET_QUALITY_W4 * thematicAlignment;
+  const assetQuality = ASSET_QUALITY_W1 * confidence + ASSET_QUALITY_W2 * (1 - entropyNormalized) + ASSET_QUALITY_W3 * affinityWeight + ASSET_QUALITY_W4 * thematicAlignment;
 
   return {
     confidence,
@@ -1331,11 +1066,7 @@ const computeAssetQualityForTheme = ({ classification, theme, subtheme, topTags 
 };
 
 const scoreCandidate = ({ classification, theme, subtheme, topTags, qualityScore }) => {
-  const {
-    affinityWeight,
-    entropyNormalized,
-    assetQuality,
-  } = computeAssetQualityForTheme({ classification, theme, subtheme, topTags });
+  const { affinityWeight, entropyNormalized, assetQuality } = computeAssetQualityForTheme({ classification, theme, subtheme, topTags });
   const confidenceMargin = Math.max(0, Number(classification?.confidence_margin || 0));
   const ambiguityPenalty = (classification?.ambiguous ? AMBIGUOUS_FLAG_PENALTY : 0) + entropyNormalized * ENTROPY_WEIGHT;
 
@@ -1348,13 +1079,7 @@ const scoreCandidate = ({ classification, theme, subtheme, topTags, qualityScore
 
   const adaptiveBonus = affinityWeight * ADAPTIVE_BONUS_WEIGHT;
   const marginBonus = confidenceMargin * MARGIN_BONUS_WEIGHT;
-  const finalScore =
-    assetQuality * 0.65
-    + Number(qualityScore || 0) * 0.2
-    + adaptiveBonus
-    + marginBonus
-    - ambiguityPenalty
-    - similarImagesPenalty;
+  const finalScore = assetQuality * 0.65 + Number(qualityScore || 0) * 0.2 + adaptiveBonus + marginBonus - ambiguityPenalty - similarImagesPenalty;
   return Number(clampNumber(finalScore, 0, 1.2).toFixed(6));
 };
 
@@ -1455,25 +1180,7 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
     return current;
   };
 
-  const registerCandidate = ({
-    asset,
-    classification,
-    passIndex,
-    theme,
-    subtheme,
-    themeKey,
-    topTags,
-    qualityScore,
-    themeScore,
-    score,
-    nsfwScore,
-    nsfwLevel,
-    entropy,
-    confidenceMargin,
-    affinityWeight,
-    ambiguous,
-    similarPenalty,
-  }) => {
+  const registerCandidate = ({ asset, classification, passIndex, theme, subtheme, themeKey, topTags, qualityScore, themeScore, score, nsfwScore, nsfwLevel, entropy, confidenceMargin, affinityWeight, ambiguous, similarPenalty }) => {
     const assetStats = ensureAssetStats(asset, classification);
     const themeStats = ensureThemeStats(assetStats, { themeKey, theme, subtheme });
     const passWeight = resolvePassScoreWeight(asset.id, passIndex);
@@ -1545,14 +1252,7 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
         continue;
       }
 
-      const {
-        theme,
-        subtheme,
-        topTags,
-        nsfwScore,
-        nsfwLevel,
-        semanticThemeKey = '',
-      } = deriveThemeFromClassification(classification);
+      const { theme, subtheme, topTags, nsfwScore, nsfwLevel, semanticThemeKey = '' } = deriveThemeFromClassification(classification);
       if (!theme) {
         stats.assets_rejected_no_theme += 1;
         continue;
@@ -1598,10 +1298,7 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
         entropy: entropyNormalized,
         confidenceMargin: Number(classification?.confidence_margin || 0),
         affinityWeight: normalizeAffinityWeight(classification?.affinity_weight),
-        ambiguous:
-          classification?.ambiguous === true
-          || classification?.ambiguous === 1
-          || entropyNormalized > ENTROPY_NORMALIZED_THRESHOLD,
+        ambiguous: classification?.ambiguous === true || classification?.ambiguous === 1 || entropyNormalized > ENTROPY_NORMALIZED_THRESHOLD,
         similarPenalty: maxSimilarity * SIMILAR_IMAGES_PENALTY_WEIGHT,
       });
     }
@@ -1621,9 +1318,7 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
 
     if (REVIEW_VERSION_TARGET) {
       while (scannedInPass < effectiveCapPerPass) {
-        const remaining = Number.isFinite(effectiveCapPerPass)
-          ? Math.max(0, effectiveCapPerPass - scannedInPass)
-          : pageLimit;
+        const remaining = Number.isFinite(effectiveCapPerPass) ? Math.max(0, effectiveCapPerPass - scannedInPass) : pageLimit;
         const limit = Math.max(1, Math.min(pageLimit, remaining || pageLimit));
         const page = await listClassifiedStickerAssetsForCuration({
           limit,
@@ -1645,9 +1340,7 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
     }
 
     while (scannedInPass < effectiveCapPerPass) {
-      const remaining = Number.isFinite(effectiveCapPerPass)
-        ? Math.max(0, effectiveCapPerPass - scannedInPass)
-        : pageLimit;
+      const remaining = Number.isFinite(effectiveCapPerPass) ? Math.max(0, effectiveCapPerPass - scannedInPass) : pageLimit;
       const limit = Math.max(1, Math.min(pageLimit, remaining || pageLimit));
       const page = await listClassifiedStickerAssetsForCuration({
         limit,
@@ -1678,8 +1371,7 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
     stats.pass_assets_unique.push(passResult.uniqueSeenInPass);
   }
 
-  const meanPassScan =
-    stats.pass_assets_scanned.reduce((sum, value) => sum + Number(value || 0), 0) / Math.max(1, stats.pass_assets_scanned.length);
+  const meanPassScan = stats.pass_assets_scanned.reduce((sum, value) => sum + Number(value || 0), 0) / Math.max(1, stats.pass_assets_scanned.length);
   stats.assets_scanned_avg_per_pass = Number(meanPassScan.toFixed(2));
   stats.assets_unique_scanned = globalSeenAssetIds.size;
 
@@ -1687,15 +1379,13 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
     const themeEntries = Array.from(assetStats.themes.values());
     if (!themeEntries.length) continue;
 
-    const dominantTheme = themeEntries
-      .slice()
-      .sort((left, right) => {
-        if (right.votes !== left.votes) return right.votes - left.votes;
-        const leftMean = left.scoreSum / Math.max(1, left.votes);
-        const rightMean = right.scoreSum / Math.max(1, right.votes);
-        if (rightMean !== leftMean) return rightMean - leftMean;
-        return right.themeScoreSum - left.themeScoreSum;
-      })[0];
+    const dominantTheme = themeEntries.slice().sort((left, right) => {
+      if (right.votes !== left.votes) return right.votes - left.votes;
+      const leftMean = left.scoreSum / Math.max(1, left.votes);
+      const rightMean = right.scoreSum / Math.max(1, right.votes);
+      if (rightMean !== leftMean) return rightMean - leftMean;
+      return right.themeScoreSum - left.themeScoreSum;
+    })[0];
 
     if (!dominantTheme || dominantTheme.votes <= 0) continue;
 
@@ -1727,28 +1417,13 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
     const avgSimilarPenalty = dominantTheme.similarPenaltySum / acceptedVotes;
     const ambiguousRatio = dominantTheme.ambiguityVotes / acceptedVotes;
     const stabilityFactor = Math.sqrt(clampNumber(acceptanceRate, 0, 1));
-    const harmonicSignal = 3 / (
-      (1 / Math.max(0.01, avgQuality))
-      + (1 / Math.max(0.01, avgThemeScore))
-      + (1 / Math.max(0.01, avgConfidence))
-    );
-    const robustScoreRaw =
-      lowerBoundScore * 0.46
-      + meanScore * 0.16
-      + avgThemeScore * 0.14
-      + avgConfidence * 0.08
-      + harmonicSignal * 0.16
-      + avgConfidenceMargin * MARGIN_BONUS_WEIGHT * 0.45
-      + avgAffinityWeight * ADAPTIVE_BONUS_WEIGHT * 0.4
-      - Math.min(0.42, avgEntropy * ENTROPY_WEIGHT)
-      - ambiguousRatio * AMBIGUOUS_FLAG_PENALTY
-      - avgSimilarPenalty * 0.5;
+    const harmonicSignal = 3 / (1 / Math.max(0.01, avgQuality) + 1 / Math.max(0.01, avgThemeScore) + 1 / Math.max(0.01, avgConfidence));
+    const robustScoreRaw = lowerBoundScore * 0.46 + meanScore * 0.16 + avgThemeScore * 0.14 + avgConfidence * 0.08 + harmonicSignal * 0.16 + avgConfidenceMargin * MARGIN_BONUS_WEIGHT * 0.45 + avgAffinityWeight * ADAPTIVE_BONUS_WEIGHT * 0.4 - Math.min(0.42, avgEntropy * ENTROPY_WEIGHT) - ambiguousRatio * AMBIGUOUS_FLAG_PENALTY - avgSimilarPenalty * 0.5;
     const stabilityMultiplier = 0.72 + stabilityFactor * 0.28;
     const variancePenalty = Math.max(0.4, 1 - Math.min(0.55, stdDev * EFFECTIVE_SCORE_STDDEV_PENALTY));
     const robustScore = clampNumber(robustScoreRaw * stabilityMultiplier * variancePenalty, 0, 1.2);
 
-    const dominantSubtheme = Array.from(dominantTheme.subthemeVotes.entries())
-      .sort((left, right) => right[1] - left[1])[0]?.[0] || dominantTheme.subtheme || '';
+    const dominantSubtheme = Array.from(dominantTheme.subthemeVotes.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] || dominantTheme.subtheme || '';
     const topTags = buildTopTags(assetStats.classification);
     if (!topTags.some((entry) => entry?.tag === dominantTheme.theme)) {
       topTags.unshift({ tag: dominantTheme.theme, score: avgThemeScore });
@@ -1792,7 +1467,11 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
     new Set(
       Array.from(grouped.values())
         .flat()
-        .map((candidate) => String(candidate?.classification?.image_hash || '').trim().toLowerCase())
+        .map((candidate) =>
+          String(candidate?.classification?.image_hash || '')
+            .trim()
+            .toLowerCase(),
+        )
         .filter((hash) => hash.length === 64),
     ),
   );
@@ -1800,7 +1479,9 @@ const collectCuratableCandidates = async ({ includePacked = true, includeUnpacke
   if (imageHashes.length) {
     const rows = await listClipImageEmbeddingsByImageHashes(imageHashes);
     for (const row of rows) {
-      const imageHash = String(row?.image_hash || '').trim().toLowerCase();
+      const imageHash = String(row?.image_hash || '')
+        .trim()
+        .toLowerCase();
       if (!imageHash) continue;
       const embedding = parseFloat32EmbeddingBuffer(row?.embedding, Number(row?.embedding_dim || 0));
       if (!embedding?.length) continue;
@@ -1841,20 +1522,20 @@ const computeGroupMetrics = (themeKey, candidates) => {
     return { theme, subtheme, themeKey, groupScore: 0, cohesion: 0, avgConfidence: 0, avgQuality: 0 };
   }
 
-  const avgConfidence =
-    candidates.reduce((sum, candidate) => sum + Number(candidate.classification?.confidence || 0), 0) / size;
-  const avgEntropy = candidates.reduce((sum, candidate) => (
-    sum
-    + normalizeEntropy({
-      entropy: candidate.classification?.entropy,
-      entropyNormalized: candidate.classification?.entropy_normalized,
-      topLabelCount: Array.isArray(candidate.classification?.top_labels) ? candidate.classification.top_labels.length : 0,
-    })
-  ), 0) / size;
+  const avgConfidence = candidates.reduce((sum, candidate) => sum + Number(candidate.classification?.confidence || 0), 0) / size;
+  const avgEntropy =
+    candidates.reduce(
+      (sum, candidate) =>
+        sum +
+        normalizeEntropy({
+          entropy: candidate.classification?.entropy,
+          entropyNormalized: candidate.classification?.entropy_normalized,
+          topLabelCount: Array.isArray(candidate.classification?.top_labels) ? candidate.classification.top_labels.length : 0,
+        }),
+      0,
+    ) / size;
   const avgMargin = candidates.reduce((sum, candidate) => sum + Number(candidate.classification?.confidence_margin || 0), 0) / size;
-  const avgAffinity = candidates.reduce((sum, candidate) => (
-    sum + normalizeAffinityWeight(candidate.classification?.affinity_weight)
-  ), 0) / size;
+  const avgAffinity = candidates.reduce((sum, candidate) => sum + normalizeAffinityWeight(candidate.classification?.affinity_weight), 0) / size;
   const avgQuality = candidates.reduce((sum, candidate) => sum + Number(candidate.qualityScore || 0), 0) / size;
   const avgDuplicateRate = candidates.reduce((sum, candidate) => sum + Number(candidate.duplicateRate || 0), 0) / size;
   let semanticSimilaritySum = 0;
@@ -1868,9 +1549,7 @@ const computeGroupMetrics = (themeKey, candidates) => {
   const semanticCohesion = semanticPairs > 0 ? semanticSimilaritySum / semanticPairs : 1;
   const cooccurrence = new Map();
   for (const candidate of candidates) {
-    const localSecondary = (candidate.topTags || [])
-      .map((entry) => entry.tag)
-      .find((tag) => tag && tag !== theme && tag !== 'nsfw');
+    const localSecondary = (candidate.topTags || []).map((entry) => entry.tag).find((tag) => tag && tag !== theme && tag !== 'nsfw');
     if (!localSecondary) continue;
     cooccurrence.set(localSecondary, (cooccurrence.get(localSecondary) || 0) + 1);
   }
@@ -1883,9 +1562,7 @@ const computeGroupMetrics = (themeKey, candidates) => {
       traitVotes.set(token, (traitVotes.get(token) || 0) + 1);
     }
   }
-  const strongestTraitRatio = size
-    ? Math.max(0, ...Array.from(traitVotes.values()).map((value) => value / size))
-    : 0;
+  const strongestTraitRatio = size ? Math.max(0, ...Array.from(traitVotes.values()).map((value) => value / size)) : 0;
   const semanticBoost = strongestTraitRatio * LLM_TRAIT_WEIGHT;
   const subthemeFromCooccurrence = Array.from(cooccurrence.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] || subtheme;
   const volumeBoost = Math.min(1, size / Math.max(MIN_GROUP_SIZE, TARGET_PACK_SIZE));
@@ -1893,17 +1570,7 @@ const computeGroupMetrics = (themeKey, candidates) => {
   const entropyPenalty = Math.min(0.35, avgEntropy * ENTROPY_WEIGHT);
   const marginBoost = Math.max(0, avgMargin * MARGIN_BONUS_WEIGHT);
   const affinityBoost = Math.max(0, avgAffinity * ADAPTIVE_BONUS_WEIGHT);
-  const groupScore = Number(
-    (
-      avgConfidence
-      * (0.55 + cohesion * 0.45 + semanticBoost)
-      * avgQuality
-      * (0.75 + volumeBoost * 0.25 + marginBoost)
-      * duplicatePenalty
-      * (1 + affinityBoost)
-      * Math.max(0.45, 1 - entropyPenalty)
-    ).toFixed(6),
-  );
+  const groupScore = Number((avgConfidence * (0.55 + cohesion * 0.45 + semanticBoost) * avgQuality * (0.75 + volumeBoost * 0.25 + marginBoost) * duplicatePenalty * (1 + affinityBoost) * Math.max(0.45, 1 - entropyPenalty)).toFixed(6));
 
   return {
     theme,
@@ -2128,8 +1795,7 @@ const runRetroConsolidationCycle = async ({ ownerPool }) => {
   let themeLimitReached = false;
   let mutationLimitReached = false;
 
-  const themeEntries = Array.from(packsByTheme.entries())
-    .sort((left, right) => right[1].length - left[1].length);
+  const themeEntries = Array.from(packsByTheme.entries()).sort((left, right) => right[1].length - left[1].length);
 
   for (const [themeKey, themePacksRaw] of themeEntries) {
     if (processedThemes >= RETRO_CONSOLIDATION_THEME_LIMIT) {
@@ -2161,17 +1827,12 @@ const runRetroConsolidationCycle = async ({ ownerPool }) => {
 
     const anchorPack = themePacks[0];
     const anchorItemsInitial = itemsByPackId.get(anchorPack.id) || [];
-    const donorPacks = themePacks.filter((pack) => pack.id !== anchorPack.id && (
-      smallPacks.some((entry) => entry.id === pack.id) || overflowPacks.some((entry) => entry.id === pack.id)
-    ));
+    const donorPacks = themePacks.filter((pack) => pack.id !== anchorPack.id && (smallPacks.some((entry) => entry.id === pack.id) || overflowPacks.some((entry) => entry.id === pack.id)));
 
-    const desiredAnchorIds = Array.from(new Set([
-      ...anchorItemsInitial.map((item) => item.sticker_id).filter(Boolean),
-      ...donorPacks.flatMap((pack) => (itemsByPackId.get(pack.id) || []).map((item) => item.sticker_id).filter(Boolean)),
-    ])).slice(0, TARGET_PACK_SIZE);
+    const desiredAnchorIds = Array.from(new Set([...anchorItemsInitial.map((item) => item.sticker_id).filter(Boolean), ...donorPacks.flatMap((pack) => (itemsByPackId.get(pack.id) || []).map((item) => item.sticker_id).filter(Boolean))])).slice(0, TARGET_PACK_SIZE);
     const desiredAnchorSet = new Set(desiredAnchorIds);
 
-    let anchorItems = itemsByPackId.get(anchorPack.id) || await listStickerPackItems(anchorPack.id);
+    let anchorItems = itemsByPackId.get(anchorPack.id) || (await listStickerPackItems(anchorPack.id));
     const anchorCurrentSet = new Set(anchorItems.map((item) => item.sticker_id).filter(Boolean));
 
     for (const item of anchorItems) {
@@ -2235,10 +1896,7 @@ const runRetroConsolidationCycle = async ({ ownerPool }) => {
     itemsByPackId.set(anchorPack.id, anchorItems);
     const anchorOrder = anchorItems.map((item) => item.sticker_id);
     const finalDesiredOrder = desiredAnchorIds.filter((stickerId) => anchorOrder.includes(stickerId));
-    const needsReorder =
-      finalDesiredOrder.length > 1 &&
-      (finalDesiredOrder.length !== anchorOrder.length
-        || finalDesiredOrder.some((stickerId, index) => anchorOrder[index] !== stickerId));
+    const needsReorder = finalDesiredOrder.length > 1 && (finalDesiredOrder.length !== anchorOrder.length || finalDesiredOrder.some((stickerId, index) => anchorOrder[index] !== stickerId));
     if (needsReorder) {
       try {
         await stickerPackService.reorderPackItems({
@@ -2275,7 +1933,7 @@ const runRetroConsolidationCycle = async ({ ownerPool }) => {
       }
     }
 
-    anchorItems = itemsByPackId.get(anchorPack.id) || await listStickerPackItems(anchorPack.id);
+    anchorItems = itemsByPackId.get(anchorPack.id) || (await listStickerPackItems(anchorPack.id));
     const anchorCount = anchorItems.length;
     if (anchorCount < HARD_MIN_PACK_ITEMS) {
       if (mutations < RETRO_CONSOLIDATION_MUTATION_LIMIT) {
@@ -2331,12 +1989,7 @@ const runRetroConsolidationCycle = async ({ ownerPool }) => {
   };
 };
 
-const optimizePackEcosystem = ({
-  operations,
-  itemsByPackId,
-  classificationByAssetId,
-  packEngagementByPackId = new Map(),
-}) => {
+const optimizePackEcosystem = ({ operations, itemsByPackId, classificationByAssetId, packEngagementByPackId = new Map() }) => {
   if (!ENABLE_GLOBAL_OPTIMIZATION) {
     return {
       enabled: false,
@@ -2360,9 +2013,7 @@ const optimizePackEcosystem = ({
     };
   }
 
-  const scopedOps = (Array.isArray(operations) ? operations : [])
-    .filter((op) => op?.type === 'reconcile_volume' && op?.existingPackId)
-    .sort((left, right) => String(left.sort_key || '').localeCompare(String(right.sort_key || '')));
+  const scopedOps = (Array.isArray(operations) ? operations : []).filter((op) => op?.type === 'reconcile_volume' && op?.existingPackId).sort((left, right) => String(left.sort_key || '').localeCompare(String(right.sort_key || '')));
 
   if (!scopedOps.length) {
     return {
@@ -2391,44 +2042,50 @@ const optimizePackEcosystem = ({
     scopedOps.map((op) => {
       const initialItems = itemsByPackId.get(op.existingPackId) || [];
       const stickers = new Set(initialItems.map((item) => item?.sticker_id).filter(Boolean));
-      return [op.existingPackId, {
-        packId: op.existingPackId,
-        op,
-        themeKey: String(op.themeKey || ''),
-        stickers,
-        tier: 'BRONZE',
-      }];
+      return [
+        op.existingPackId,
+        {
+          packId: op.existingPackId,
+          op,
+          themeKey: String(op.themeKey || ''),
+          stickers,
+          tier: 'BRONZE',
+        },
+      ];
     }),
   );
 
   const computeProfiles = () => {
     const profiles = new Map();
     for (const [packId, state] of stateByPackId.entries()) {
-      profiles.set(packId, computePackProfile({
+      profiles.set(
         packId,
-        stickerIds: Array.from(state.stickers),
-        themeKey: state.themeKey,
-        classificationByAssetId,
-      }));
+        computePackProfile({
+          packId,
+          stickerIds: Array.from(state.stickers),
+          themeKey: state.themeKey,
+          classificationByAssetId,
+        }),
+      );
     }
     return profiles;
   };
 
   const getEngagementScore = (packId) => computePackEngagementScore(packEngagementByPackId.get(packId));
-  const engagementScoreByPackId = new Map(
-    Array.from(stateByPackId.keys()).map((packId) => [packId, Number(getEngagementScore(packId) || 0)]),
-  );
+  const engagementScoreByPackId = new Map(Array.from(stateByPackId.keys()).map((packId) => [packId, Number(getEngagementScore(packId) || 0)]));
   const engagementZscoreByPackId = buildNormalizedZScoreMap(engagementScoreByPackId);
   const getEngagementZscore = (packId) => Number(engagementZscoreByPackId.get(packId) || 0);
 
-  const scoreProfile = (profile) => computePackObjectiveScore({
-    profile,
-    engagementScore: Number(getEngagementScore(profile?.packId) || 0),
-  });
-  const scoreQualityProfile = (profile) => computePackOfficialQualityScore({
-    profile,
-    engagementZscore: getEngagementZscore(profile?.packId),
-  });
+  const scoreProfile = (profile) =>
+    computePackObjectiveScore({
+      profile,
+      engagementScore: Number(getEngagementScore(profile?.packId) || 0),
+    });
+  const scoreQualityProfile = (profile) =>
+    computePackOfficialQualityScore({
+      profile,
+      engagementZscore: getEngagementZscore(profile?.packId),
+    });
 
   const buildProfileScoreMap = (profiles) => {
     const map = new Map();
@@ -2585,10 +2242,7 @@ const optimizePackEcosystem = ({
         if (!sourceProfile || !Number.isFinite(sourceScore) || !Number.isFinite(sourceQuality)) continue;
 
         const recipientCandidates = packStates
-          .filter((recipient) =>
-            recipient.packId !== source.packId
-            && !recipient.stickers.has(stickerId)
-            && recipient.stickers.size < TARGET_PACK_SIZE)
+          .filter((recipient) => recipient.packId !== source.packId && !recipient.stickers.has(stickerId) && recipient.stickers.size < TARGET_PACK_SIZE)
           .map((recipient) => {
             const recipientProfile = profiles.get(recipient.packId);
             const recipientScore = Number(profileScores.get(recipient.packId) || 0);
@@ -2601,10 +2255,7 @@ const optimizePackEcosystem = ({
             if (!sameTheme && semanticSimilarity < EFFECTIVE_TRANSFER_CANDIDATE_SIMILARITY_FLOOR) {
               return null;
             }
-            const candidateRank =
-              semanticSimilarity * 0.85
-              + (sameTheme ? 0.15 : 0)
-              + Math.max(0, recipientQuality - sourceQuality) * 0.1;
+            const candidateRank = semanticSimilarity * 0.85 + (sameTheme ? 0.15 : 0) + Math.max(0, recipientQuality - sourceQuality) * 0.1;
             return {
               recipient,
               recipientScore,
@@ -2810,9 +2461,7 @@ const optimizePackEcosystem = ({
         });
         const nextScore = Number(scoreProfile(nextProfile).toFixed(6));
         const nextQuality = Number(scoreQualityProfile(nextProfile).toFixed(6));
-        const changes = new Map([
-          [state.packId, { profile: nextProfile, score: nextScore }],
-        ]);
+        const changes = new Map([[state.packId, { profile: nextProfile, score: nextScore }]]);
         const deltaPreview = computePackEnergyDelta({
           baseEnergySnapshot: energySnapshot,
           profiles,
@@ -2889,9 +2538,7 @@ const optimizePackEcosystem = ({
     const desiredSet = new Set(op.desiredAssetIds);
     const removedByOptimization = Array.from(currentSet).filter((stickerId) => !desiredSet.has(stickerId));
     if (removedByOptimization.length) {
-      op.forceRemoveAssetIds = Array.from(
-        new Set([...(Array.isArray(op.forceRemoveAssetIds) ? op.forceRemoveAssetIds : []), ...removedByOptimization]),
-      );
+      op.forceRemoveAssetIds = Array.from(new Set([...(Array.isArray(op.forceRemoveAssetIds) ? op.forceRemoveAssetIds : []), ...removedByOptimization]));
     }
     if (state.tier === 'ARCHIVE') {
       op.desiredAssetIds = [];
@@ -2902,9 +2549,7 @@ const optimizePackEcosystem = ({
     }
   }
 
-  const entropyMeanGlobal = Number(
-    computeMeanNormalizedEntropy(collectStickerIds(), classificationByAssetId).toFixed(6),
-  );
+  const entropyMeanGlobal = Number(computeMeanNormalizedEntropy(collectStickerIds(), classificationByAssetId).toFixed(6));
 
   return {
     enabled: true,
@@ -2979,15 +2624,8 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
       return extractVolumeFromPack(left) - extractVolumeFromPack(right);
     });
     const retainedThemePacks = rankedThemePacks.slice(0, MAX_PACKS_PER_THEME);
-    const packCountById = new Map(
-      retainedThemePacks.map((pack) => [pack.id, Number(itemsByPackId.get(pack.id)?.length || 0)]),
-    );
-    const packItemsById = new Map(
-      retainedThemePacks.map((pack) => [
-        pack.id,
-        new Set((itemsByPackId.get(pack.id) || []).map((item) => item.sticker_id).filter(Boolean)),
-      ]),
-    );
+    const packCountById = new Map(retainedThemePacks.map((pack) => [pack.id, Number(itemsByPackId.get(pack.id)?.length || 0)]));
+    const packItemsById = new Map(retainedThemePacks.map((pack) => [pack.id, new Set((itemsByPackId.get(pack.id) || []).map((item) => item.sticker_id).filter(Boolean))]));
     const incompleteExistingCount = retainedThemePacks.reduce((sum, pack) => {
       const count = Number(packCountById.get(pack.id) || 0);
       return sum + (count < TARGET_PACK_SIZE ? 1 : 0);
@@ -3001,19 +2639,14 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
           return extractVolumeFromPack(left) - extractVolumeFromPack(right);
         })
       : [];
-    const volumeCandidateChunks = chunkArray(
-      group.candidates.map((candidate) => candidate.asset.id).filter(Boolean),
-      TARGET_PACK_SIZE,
-    );
+    const volumeCandidateChunks = chunkArray(group.candidates.map((candidate) => candidate.asset.id).filter(Boolean), TARGET_PACK_SIZE);
     const groupFillAssetIds = group.candidates.map((candidate) => candidate.asset.id).filter(Boolean);
 
     const ownerCreateCapacity = ownerStates.reduce((sum, owner) => sum + Math.max(0, Number(owner.available || 0)), 0);
     const hasIncompleteExisting = incompleteExistingCount > 0;
     const themeCreateCapacity = Math.max(0, MAX_PACKS_PER_THEME - retainedThemePacks.length);
     const globalCreateCapacity = Math.max(0, GLOBAL_AUTO_PACK_LIMIT - (autoPacks.length + plannedCreates));
-    const maxCreatableForGroup = enableAdditions && !hasIncompleteExisting
-      ? Math.max(0, Math.min(ownerCreateCapacity, themeCreateCapacity, globalCreateCapacity))
-      : 0;
+    const maxCreatableForGroup = enableAdditions && !hasIncompleteExisting ? Math.max(0, Math.min(ownerCreateCapacity, themeCreateCapacity, globalCreateCapacity)) : 0;
     if (enableAdditions && !hasIncompleteExisting && themeCreateCapacity > 0 && globalCreateCapacity <= 0) {
       creationBlockedByGlobalCap += 1;
     }
@@ -3035,14 +2668,7 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
 
     for (let volumeIndex = 0; volumeIndex < targetVolumeCount; volumeIndex += 1) {
       const volume = volumeIndex + 1;
-      const existingPack = prioritizeGroupCompletion
-        ? completionPriorityPacks[volumeIndex]
-          || retainedThemePacks.find((pack) => extractVolumeFromPack(pack) === volume)
-          || retainedThemePacks[volumeIndex]
-          || null
-        : retainedThemePacks.find((pack) => extractVolumeFromPack(pack) === volume)
-          || retainedThemePacks[volumeIndex]
-          || null;
+      const existingPack = prioritizeGroupCompletion ? completionPriorityPacks[volumeIndex] || retainedThemePacks.find((pack) => extractVolumeFromPack(pack) === volume) || retainedThemePacks[volumeIndex] || null : retainedThemePacks.find((pack) => extractVolumeFromPack(pack) === volume) || retainedThemePacks[volumeIndex] || null;
       if (existingPack?.id) {
         selectedExistingPackIds.add(existingPack.id);
       }
@@ -3078,9 +2704,7 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
         fillAssetIds: groupFillAssetIds,
         existingPackId: existingPack?.id || null,
         ownerJid: existingPack?.owner_jid || createOwnerJid || null,
-        ownerCandidates: existingPack
-          ? [existingPack.owner_jid].filter(Boolean)
-          : [createOwnerJid, ...ownerPool.filter((owner) => owner && owner !== createOwnerJid)].filter(Boolean),
+        ownerCandidates: existingPack ? [existingPack.owner_jid].filter(Boolean) : [createOwnerJid, ...ownerPool.filter((owner) => owner && owner !== createOwnerJid)].filter(Boolean),
       });
     }
 
@@ -3124,9 +2748,7 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
         const recipientPackId = recipientOp.existingPackId;
         const recipientCount = Number(packCountById.get(recipientPackId) || 0);
         if (recipientCount <= 0) continue;
-        const recipientDesired = new Set(
-          (Array.isArray(recipientOp.desiredAssetIds) ? recipientOp.desiredAssetIds : []).filter(Boolean),
-        );
+        const recipientDesired = new Set((Array.isArray(recipientOp.desiredAssetIds) ? recipientOp.desiredAssetIds : []).filter(Boolean));
         if (!recipientDesired.size) continue;
 
         for (const assetId of recipientDesired) {
@@ -3141,13 +2763,9 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
             const donorItems = packItemsById.get(donorPackId);
             if (!donorItems || !donorItems.has(assetId)) continue;
 
-            donorOp.forceRemoveAssetIds = Array.from(
-              new Set([...(Array.isArray(donorOp.forceRemoveAssetIds) ? donorOp.forceRemoveAssetIds : []), assetId]),
-            );
-            donorOp.desiredAssetIds = (Array.isArray(donorOp.desiredAssetIds) ? donorOp.desiredAssetIds : [])
-              .filter((id) => id !== assetId);
-            donorOp.fillAssetIds = (Array.isArray(donorOp.fillAssetIds) ? donorOp.fillAssetIds : [])
-              .filter((id) => id !== assetId);
+            donorOp.forceRemoveAssetIds = Array.from(new Set([...(Array.isArray(donorOp.forceRemoveAssetIds) ? donorOp.forceRemoveAssetIds : []), assetId]));
+            donorOp.desiredAssetIds = (Array.isArray(donorOp.desiredAssetIds) ? donorOp.desiredAssetIds : []).filter((id) => id !== assetId);
+            donorOp.fillAssetIds = (Array.isArray(donorOp.fillAssetIds) ? donorOp.fillAssetIds : []).filter((id) => id !== assetId);
             packCountById.set(donorPackId, Math.max(0, donorCount - 1));
             groupTransfers += 1;
             break;
@@ -3195,9 +2813,7 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
     autoPackIndex,
     stats: {
       owner_pool_size: ownerPool.length,
-      owner_available_total: ownerStates.some((owner) => !Number.isFinite(Number(owner.available)))
-        ? 'unlimited'
-        : ownerStates.reduce((sum, owner) => sum + Math.max(0, Number(owner.available || 0)), 0),
+      owner_available_total: ownerStates.some((owner) => !Number.isFinite(Number(owner.available))) ? 'unlimited' : ownerStates.reduce((sum, owner) => sum + Math.max(0, Number(owner.available || 0)), 0),
       planned_creates: plannedCreates,
       completion_priority_groups: completionPriorityGroups,
       completion_transfers_planned: plannedCompletionTransfers,
@@ -3240,7 +2856,10 @@ const buildCurationExecutionPlan = async ({ curatedGroups, ownerPool, enableAddi
 };
 
 const updateAutoPackMetadata = async (packId, payload) => {
-  const normalizedPackStatus = String(payload?.pack_status || 'building').trim().toLowerCase() || 'building';
+  const normalizedPackStatus =
+    String(payload?.pack_status || 'building')
+      .trim()
+      .toLowerCase() || 'building';
   const resolvedWebStatus = String(payload?.status || (normalizedPackStatus === 'ready' ? 'published' : 'draft'))
     .trim()
     .toLowerCase();
@@ -3262,14 +2881,7 @@ const updateAutoPackMetadata = async (packId, payload) => {
   return updateStickerPackFields(packId, fields);
 };
 
-const createAutoPackVolume = async ({
-  ownerJid,
-  theme,
-  subtheme,
-  themeKey,
-  groupScore,
-  volume,
-}) => {
+const createAutoPackVolume = async ({ ownerJid, theme, subtheme, themeKey, groupScore, volume }) => {
   return stickerPackService.createPack({
     ownerJid,
     name: buildAutoPackName(theme, subtheme, volume),
@@ -3287,14 +2899,7 @@ const createAutoPackVolume = async ({
 
 const getThemeScoreForPack = (classification, theme) => getScoreByTag(classification, theme);
 
-const reconcileAutoPackVolume = async ({
-  op,
-  enableAdditions,
-  enableRebuild,
-  budgets,
-  itemsByPackId,
-  classificationByAssetId,
-}) => {
+const reconcileAutoPackVolume = async ({ op, enableAdditions, enableRebuild, budgets, itemsByPackId, classificationByAssetId }) => {
   let pack = op.existingPackId ? await findStickerPackById(op.existingPackId) : null;
 
   if (!pack && op.type === 'reconcile_volume') {
@@ -3344,8 +2949,7 @@ const reconcileAutoPackVolume = async ({
   }
 
   const desiredPrimaryIds = Array.from(new Set((Array.isArray(op.desiredAssetIds) ? op.desiredAssetIds : []).filter(Boolean)));
-  const fillPoolIds = Array.from(new Set((Array.isArray(op.fillAssetIds) ? op.fillAssetIds : []).filter(Boolean)))
-    .filter((assetId) => !desiredPrimaryIds.includes(assetId));
+  const fillPoolIds = Array.from(new Set((Array.isArray(op.fillAssetIds) ? op.fillAssetIds : []).filter(Boolean))).filter((assetId) => !desiredPrimaryIds.includes(assetId));
   const plannedIds = desiredPrimaryIds.slice();
   if (plannedIds.length < TARGET_PACK_SIZE) {
     for (const assetId of fillPoolIds) {
@@ -3361,7 +2965,9 @@ const reconcileAutoPackVolume = async ({
   const created = op.existingPackId ? 0 : 1;
   const feedbackPromises = [];
   const queueFeedback = ({ classification, accepted, assetId }) => {
-    const imageHash = String(classification?.image_hash || '').trim().toLowerCase();
+    const imageHash = String(classification?.image_hash || '')
+      .trim()
+      .toLowerCase();
     if (!imageHash) return;
     feedbackPromises.push(
       submitStickerClassificationFeedback({
@@ -3382,15 +2988,11 @@ const reconcileAutoPackVolume = async ({
     cover_sticker_id: pack.cover_sticker_id || null,
   });
 
-  let currentItems = itemsByPackId.get(pack.id) || await listStickerPackItems(pack.id);
+  let currentItems = itemsByPackId.get(pack.id) || (await listStickerPackItems(pack.id));
   const currentById = new Map(currentItems.map((item) => [item.sticker_id, item]));
   const forceRemoveSet = new Set((Array.isArray(op.forceRemoveAssetIds) ? op.forceRemoveAssetIds : []).filter(Boolean));
 
-  const shouldRebuildVolume =
-    enableRebuild
-    || op.type === 'archive_volume'
-    || Number(op.cohesion || 0) < COHESION_REBUILD_THRESHOLD
-    || forceRemoveSet.size > 0;
+  const shouldRebuildVolume = enableRebuild || op.type === 'archive_volume' || Number(op.cohesion || 0) < COHESION_REBUILD_THRESHOLD || forceRemoveSet.size > 0;
   if (shouldRebuildVolume && budgets.removed < MAX_REMOVALS_PER_CYCLE) {
     for (const item of currentItems) {
       if (budgets.removed >= MAX_REMOVALS_PER_CYCLE) break;
@@ -3503,14 +3105,8 @@ const reconcileAutoPackVolume = async ({
   const finalDesiredOrder = plannedIds.filter((assetId) => currentById.has(assetId));
   const currentOrder = currentItems.map((item) => item.sticker_id);
   const desiredReorderSet = new Set(finalDesiredOrder);
-  const projectedOrder = [
-    ...finalDesiredOrder,
-    ...currentOrder.filter((assetId) => !desiredReorderSet.has(assetId)),
-  ];
-  const needsReorder =
-    projectedOrder.length > 1
-    && projectedOrder.length === currentOrder.length
-    && projectedOrder.some((assetId, index) => currentOrder[index] !== assetId);
+  const projectedOrder = [...finalDesiredOrder, ...currentOrder.filter((assetId) => !desiredReorderSet.has(assetId))];
+  const needsReorder = projectedOrder.length > 1 && projectedOrder.length === currentOrder.length && projectedOrder.some((assetId, index) => currentOrder[index] !== assetId);
 
   if (needsReorder) {
     try {
@@ -3532,7 +3128,7 @@ const reconcileAutoPackVolume = async ({
     }
   }
 
-  const finalItems = itemsByPackId.get(pack.id) || await listStickerPackItems(pack.id);
+  const finalItems = itemsByPackId.get(pack.id) || (await listStickerPackItems(pack.id));
   const finalCount = finalItems.length;
   const finalCover = finalItems[0]?.sticker_id || null;
   const finalDesiredPresentCount = finalItems.filter((item) => desiredSet.has(item.sticker_id)).length;
@@ -3541,17 +3137,9 @@ const reconcileAutoPackVolume = async ({
   const allowExtraItemsForReady = !enableRebuild && op.type === 'reconcile_volume';
   const meetsHardMinimum = finalCount >= HARD_MIN_PACK_ITEMS;
   const meetsReadyMinimum = finalCount >= READY_PACK_MIN_ITEMS;
-  const packStatus =
-    finalCount === 0
-      ? 'archived'
-      : allDesiredPresent && (allowExtraItemsForReady || !hasExtraItems) && meetsReadyMinimum
-        ? 'ready'
-        : meetsHardMinimum
-          ? 'building'
-          : 'archived';
+  const packStatus = finalCount === 0 ? 'archived' : allDesiredPresent && (allowExtraItemsForReady || !hasExtraItems) && meetsReadyMinimum ? 'ready' : meetsHardMinimum ? 'building' : 'archived';
 
-  const shouldDeletePack =
-    packStatus === 'archived' && (op.type === 'archive_volume' || finalCount < HARD_MIN_PACK_ITEMS);
+  const shouldDeletePack = packStatus === 'archived' && (op.type === 'archive_volume' || finalCount < HARD_MIN_PACK_ITEMS);
   if (shouldDeletePack) {
     try {
       await deleteAutoPackWithItems(pack.id, itemsByPackId);
@@ -3635,8 +3223,7 @@ const resolveNextCycleDelayMs = () => {
     return EFFECTIVE_INTERVAL_MIN_MS;
   }
 
-  return EFFECTIVE_INTERVAL_MIN_MS
-    + Math.floor(Math.random() * (EFFECTIVE_INTERVAL_MAX_MS - EFFECTIVE_INTERVAL_MIN_MS + 1));
+  return EFFECTIVE_INTERVAL_MIN_MS + Math.floor(Math.random() * (EFFECTIVE_INTERVAL_MAX_MS - EFFECTIVE_INTERVAL_MIN_MS + 1));
 };
 
 const scheduleNextCycle = () => {
@@ -3662,10 +3249,7 @@ const scheduleNextCycle = () => {
   }
 };
 
-export const runStickerAutoPackByTagsCycle = async ({
-  enableAdditions = true,
-  enableRebuild = REBUILD_ENABLED,
-} = {}) => {
+export const runStickerAutoPackByTagsCycle = async ({ enableAdditions = true, enableRebuild = REBUILD_ENABLED } = {}) => {
   if (running) {
     return {
       executed: false,
@@ -3719,9 +3303,7 @@ export const runStickerAutoPackByTagsCycle = async ({
   };
   const classifiedWithoutPackBefore = await countClassifiedWithoutPackSafely({ phase: 'before_cycle' });
   const finalizeCycleResult = async (payload) => {
-    const withoutPackBefore = Number.isFinite(classifiedWithoutPackBefore)
-      ? Number(classifiedWithoutPackBefore)
-      : null;
+    const withoutPackBefore = Number.isFinite(classifiedWithoutPackBefore) ? Number(classifiedWithoutPackBefore) : null;
     if (!Number.isFinite(withoutPackBefore)) {
       return {
         ...payload,
@@ -3732,12 +3314,8 @@ export const runStickerAutoPackByTagsCycle = async ({
     }
 
     const classifiedWithoutPackAfter = await countClassifiedWithoutPackSafely({ phase: 'after_cycle' });
-    const withoutPackAfter = Number.isFinite(classifiedWithoutPackAfter)
-      ? Number(classifiedWithoutPackAfter)
-      : null;
-    const withoutPackDelta = Number.isFinite(withoutPackAfter)
-      ? withoutPackBefore - withoutPackAfter
-      : null;
+    const withoutPackAfter = Number.isFinite(classifiedWithoutPackAfter) ? Number(classifiedWithoutPackAfter) : null;
+    const withoutPackDelta = Number.isFinite(withoutPackAfter) ? withoutPackBefore - withoutPackAfter : null;
 
     return {
       ...payload,
@@ -3816,10 +3394,7 @@ export const runStickerAutoPackByTagsCycle = async ({
       if (result?.status === 'archived') archivedPacks += 1;
     }
 
-    const scanReferenceCount = Math.max(
-      1,
-      Number(stats.assets_unique_scanned || stats.assets_total_seen || stats.assets_scanned || 0),
-    );
+    const scanReferenceCount = Math.max(1, Number(stats.assets_unique_scanned || stats.assets_total_seen || stats.assets_scanned || 0));
     const rejectionReferenceCount = Math.max(1, Number(stats.assets_scanned || 0));
     const duplicateRate = Number(stats.assets_deduped || 0) / scanReferenceCount;
     const rejectedCount = Number(stats.assets_rejected_quality || 0) + Number(stats.assets_rejected_no_theme || 0);

@@ -17,7 +17,13 @@ const PACK_VISUAL_DIVIDER = '━━━━━━━━━━━━━━━━━
  * @param {unknown} value Valor de origem.
  * @returns {string[]} Emojis válidos.
  */
-const normalizeEmojis = (value) => (Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean).slice(0, 8) : []);
+const normalizeEmojis = (value) =>
+  Array.isArray(value)
+    ? value
+        .map((item) => String(item))
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
 
 /**
  * Renderiza linha textual de um item para o preview fallback.
@@ -45,33 +51,9 @@ const buildPreviewText = ({ pack, items, sentCount }) => {
     previewLines.push(`... e mais ${items.length - MAX_PREVIEW_LIST_LINES} figurinha(s).`);
   }
 
-  const compatibilityNote =
-    sentCount < items.length
-      ? `⚠️ Por compatibilidade, enviei ${sentCount}/${items.length} figurinha(s) neste fallback.`
-      : `✅ Envio completo no fallback: ${sentCount}/${items.length} figurinha(s).`;
+  const compatibilityNote = sentCount < items.length ? `⚠️ Por compatibilidade, enviei ${sentCount}/${items.length} figurinha(s) neste fallback.` : `✅ Envio completo no fallback: ${sentCount}/${items.length} figurinha(s).`;
 
-  return [
-    '📦 *GERENCIADOR DE PACKS DE FIGURINHAS*',
-    '',
-    '📤 *ENVIO EM MODO DE COMPATIBILIDADE*',
-    'Seu cliente não aceitou o pack nativo, então enviei preview + figurinhas individuais.',
-    '',
-    PACK_VISUAL_DIVIDER,
-    '📌 *RESUMO DO PACK*',
-    '',
-    `📛 Nome: *${pack.name}*`,
-    `👤 Publisher: *${pack.publisher}*`,
-    `🆔 ID: \`${pack.pack_key}\``,
-    `🧩 Figurinhas disponíveis: *${items.length}*`,
-    '',
-    PACK_VISUAL_DIVIDER,
-    '🖼 *PRÉVIA DAS FIGURINHAS*',
-    '',
-    previewLines.join('\n') || 'Nenhuma figurinha disponível para listar.',
-    '',
-    PACK_VISUAL_DIVIDER,
-    compatibilityNote,
-  ].join('\n');
+  return ['📦 *GERENCIADOR DE PACKS DE FIGURINHAS*', '', '📤 *ENVIO EM MODO DE COMPATIBILIDADE*', 'Seu cliente não aceitou o pack nativo, então enviei preview + figurinhas individuais.', '', PACK_VISUAL_DIVIDER, '📌 *RESUMO DO PACK*', '', `📛 Nome: *${pack.name}*`, `👤 Publisher: *${pack.publisher}*`, `🆔 ID: \`${pack.pack_key}\``, `🧩 Figurinhas disponíveis: *${items.length}*`, '', PACK_VISUAL_DIVIDER, '🖼 *PRÉVIA DAS FIGURINHAS*', '', previewLines.join('\n') || 'Nenhuma figurinha disponível para listar.', '', PACK_VISUAL_DIVIDER, compatibilityNote].join('\n');
 };
 
 /**
@@ -156,10 +138,7 @@ export async function buildStickerPackMessage(packDetails) {
   }
 
   if (!preparedItems.length) {
-    throw new StickerPackError(
-      STICKER_PACK_ERROR_CODES.STORAGE_ERROR,
-      'Nenhuma figurinha do pack está disponível para envio.',
-    );
+    throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, 'Nenhuma figurinha do pack está disponível para envio.');
   }
 
   const coverItem = preparedItems.find((item) => item.sticker_id === pack.cover_sticker_id) || preparedItems[0];
@@ -206,14 +185,7 @@ export async function buildStickerPackMessage(packDetails) {
  * }} params Contexto de envio.
  * @returns {Promise<{ mode: 'native'|'fallback', sentCount: number, total?: number, nativeError?: string|null }>}
  */
-export async function sendStickerPackWithFallback({
-  sock,
-  jid,
-  messageInfo,
-  expirationMessage,
-  packBuild,
-  fallbackLimit = FALLBACK_SEND_LIMIT,
-}) {
+export async function sendStickerPackWithFallback({ sock, jid, messageInfo, expirationMessage, packBuild, fallbackLimit = FALLBACK_SEND_LIMIT }) {
   const options = {
     quoted: messageInfo,
     ephemeralExpiration: expirationMessage,

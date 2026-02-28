@@ -17,8 +17,7 @@ const QUOTE_NAME_COLOR = process.env.QUOTE_NAME_COLOR || '#facc01';
 const QUOTE_TEXT_COLOR = process.env.QUOTE_TEXT_COLOR || '#e8eef6';
 const QUOTE_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_TIMEOUT_MS || '10000', 10);
 const QUOTE_EMOJI_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_EMOJI_TIMEOUT_MS || '4000', 10);
-const QUOTE_EMOJI_BASE_URL =
-  process.env.QUOTE_EMOJI_BASE_URL || 'https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/128';
+const QUOTE_EMOJI_BASE_URL = process.env.QUOTE_EMOJI_BASE_URL || 'https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/128';
 const QUOTE_FONT_FAMILY = process.env.QUOTE_FONT_FAMILY || '"Noto Sans","Segoe UI","Arial","Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif';
 
 const QUOTE_CANVAS_MAX_WIDTH = 920;
@@ -245,8 +244,7 @@ const buildEmojiAssetKeys = (segment) => {
  * @param {string} assetKey Chave de code points.
  * @returns {string} URL final para download.
  */
-const getEmojiAssetUrl = (assetKey) =>
-  `${QUOTE_EMOJI_BASE_URL.replace(/\/+$/, '')}/emoji_u${assetKey}.png`;
+const getEmojiAssetUrl = (assetKey) => `${QUOTE_EMOJI_BASE_URL.replace(/\/+$/, '')}/emoji_u${assetKey}.png`;
 
 /**
  * Busca um emoji do cache com TTL para sucesso/falha.

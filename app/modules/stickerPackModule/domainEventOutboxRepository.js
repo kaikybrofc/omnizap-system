@@ -4,7 +4,9 @@ import { executeQuery, TABLES } from '../../../database/index.js';
 import { normalizeDomainEventPayload } from './domainEvents.js';
 
 const normalizeStatus = (value) => {
-  const normalized = String(value || '').trim().toLowerCase();
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
   if (['pending', 'processing', 'completed', 'failed'].includes(normalized)) return normalized;
   return null;
 };
@@ -35,12 +37,7 @@ const clampInt = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, Math.floor(numeric)));
 };
 
-const CLAIM_LOCK_TIMEOUT_SECONDS = clampInt(
-  process.env.DOMAIN_EVENT_OUTBOX_LOCK_TIMEOUT_SECONDS,
-  15 * 60,
-  30,
-  24 * 60 * 60,
-);
+const CLAIM_LOCK_TIMEOUT_SECONDS = clampInt(process.env.DOMAIN_EVENT_OUTBOX_LOCK_TIMEOUT_SECONDS, 15 * 60, 30, 24 * 60 * 60);
 
 const normalizeRow = (row) => {
   if (!row) return null;
@@ -88,28 +85,13 @@ export async function enqueueDomainEvent(eventPayload, connection = null) {
       priority = GREATEST(priority, VALUES(priority)),
       available_at = LEAST(available_at, VALUES(available_at)),
       updated_at = CURRENT_TIMESTAMP`,
-    [
-      normalized.event_type,
-      normalized.aggregate_type,
-      normalized.aggregate_id,
-      JSON.stringify(normalized.payload ?? {}),
-      normalized.priority,
-      normalized.idempotency_key,
-      normalized.available_at,
-      normalized.max_attempts,
-    ],
+    [normalized.event_type, normalized.aggregate_type, normalized.aggregate_id, JSON.stringify(normalized.payload ?? {}), normalized.priority, normalized.idempotency_key, normalized.available_at, normalized.max_attempts],
     connection,
   );
   return true;
 }
 
-export async function claimDomainEvent(
-  {
-    eventTypes = [],
-    allowRetryFailed = true,
-  } = {},
-  connection = null,
-) {
+export async function claimDomainEvent({ eventTypes = [], allowRetryFailed = true } = {}, connection = null) {
   const workerToken = randomUUID();
   const statusClause = allowRetryFailed
     ? `(status = 'pending'
@@ -119,9 +101,15 @@ export async function claimDomainEvent(
       OR (status = 'processing' AND locked_at <= (UTC_TIMESTAMP() - INTERVAL ${CLAIM_LOCK_TIMEOUT_SECONDS} SECOND)))`;
 
   const normalizedTypes = Array.from(
-    new Set((Array.isArray(eventTypes) ? eventTypes : [])
-      .map((type) => String(type || '').trim().toUpperCase())
-      .filter(Boolean)),
+    new Set(
+      (Array.isArray(eventTypes) ? eventTypes : [])
+        .map((type) =>
+          String(type || '')
+            .trim()
+            .toUpperCase(),
+        )
+        .filter(Boolean),
+    ),
   );
 
   let eventTypeClause = '';
@@ -184,18 +172,14 @@ export async function completeDomainEvent(eventId, connection = null) {
   return true;
 }
 
-export async function failDomainEvent(
-  eventId,
-  {
-    error = null,
-    retryDelaySeconds = 0,
-  } = {},
-  connection = null,
-) {
+export async function failDomainEvent(eventId, { error = null, retryDelaySeconds = 0 } = {}, connection = null) {
   if (!eventId) return false;
 
   const safeDelay = clampInt(retryDelaySeconds, 0, 0, 86400 * 7);
-  const message = String(error || '').trim().slice(0, 255) || null;
+  const message =
+    String(error || '')
+      .trim()
+      .slice(0, 255) || null;
 
   await executeQuery(
     `UPDATE ${TABLES.DOMAIN_EVENT_OUTBOX}

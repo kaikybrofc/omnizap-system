@@ -43,11 +43,7 @@ const removeControlChars = (value) => String(value || '').replace(/[\u0000-\u001
 
 const sanitizePackNameInput = (value, maxLength = 120) => removeControlChars(value).slice(0, maxLength);
 
-const sanitizePackName = (value, maxLength = 120) =>
-  removeControlChars(value)
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, maxLength);
+const sanitizePackName = (value, maxLength = 120) => removeControlChars(value).replace(/\s+/g, ' ').trim().slice(0, maxLength);
 
 const toBytesLabel = (bytes) => `${Math.round(Number(bytes || 0) / 1024)} KB`;
 const normalizeTag = (value) =>
@@ -322,16 +318,8 @@ const uploadStickerWithRetry = async (params) => {
 
 function StepPill({ step, active, done }) {
   return html`
-    <div className=${`flex min-w-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 transition sm:gap-2 sm:rounded-2xl sm:px-3 sm:py-2 ${
-      active
-        ? 'border-accent/50 bg-accent/10 text-accent'
-        : done
-          ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
-          : 'border-line/70 bg-panelSoft/80 text-slate-300'
-    }`}>
-      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-black/25 text-[11px] font-extrabold sm:h-6 sm:w-6 sm:text-xs">
-        ${done ? '✓' : step.id}
-      </span>
+    <div className=${`flex min-w-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 transition sm:gap-2 sm:rounded-2xl sm:px-3 sm:py-2 ${active ? 'border-accent/50 bg-accent/10 text-accent' : done ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-line/70 bg-panelSoft/80 text-slate-300'}`}>
+      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-black/25 text-[11px] font-extrabold sm:h-6 sm:w-6 sm:text-xs"> ${done ? '✓' : step.id} </span>
       <p className="truncate text-[10px] font-semibold sm:text-[11px]">${step.title}</p>
     </div>
   `;
@@ -347,18 +335,8 @@ function FloatingField({ label, value, onChange, maxLength, hint = '', multiline
     <label className="block">
       <span className="mb-1.5 inline-block text-xs font-semibold text-slate-300">${label}</span>
       <div className="relative">
-        <${Tag}
-          className=${`w-full rounded-2xl border bg-panel/70 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-transparent md:bg-panel/80 md:px-4 md:py-3 ${
-            atLimit ? 'border-rose-400/60 focus:border-rose-300' : 'border-line focus:border-accent/60'
-          } ${multiline ? 'min-h-[96px] max-h-44 resize-none overflow-y-auto md:min-h-[110px] md:max-h-52' : 'h-11 md:h-12'}`}
-          placeholder=${label}
-          value=${value}
-          maxlength=${maxLength}
-          onInput=${onChange}
-        />
-        <span className="pointer-events-none absolute left-3.5 top-[-9px] rounded-md bg-base px-1.5 text-[10px] font-semibold uppercase tracking-[.08em] text-slate-400 md:left-4 md:bg-panel md:px-2">
-          ${label}
-        </span>
+        <${Tag} className=${`w-full rounded-2xl border bg-panel/70 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-transparent md:bg-panel/80 md:px-4 md:py-3 ${atLimit ? 'border-rose-400/60 focus:border-rose-300' : 'border-line focus:border-accent/60'} ${multiline ? 'min-h-[96px] max-h-44 resize-none overflow-y-auto md:min-h-[110px] md:max-h-52' : 'h-11 md:h-12'}`} placeholder=${label} value=${value} maxlength=${maxLength} onInput=${onChange} />
+        <span className="pointer-events-none absolute left-3.5 top-[-9px] rounded-md bg-base px-1.5 text-[10px] font-semibold uppercase tracking-[.08em] text-slate-400 md:left-4 md:bg-panel md:px-2"> ${label} </span>
       </div>
       <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px]">
         <span className="line-clamp-2 text-slate-400">${hint}</span>
@@ -370,27 +348,11 @@ function FloatingField({ label, value, onChange, maxLength, hint = '', multiline
 
 function StickerThumb({ item, index, selectedCoverId, onSetCover, onRemove, onDragStart, onDropOn }) {
   return html`
-    <article
-      draggable=${true}
-      onDragStart=${() => onDragStart(item.id)}
-      onDragOver=${(e) => e.preventDefault()}
-      onDrop=${() => onDropOn(item.id)}
-      className="group relative overflow-hidden rounded-2xl border border-line bg-panelSoft"
-    >
-      ${item.mediaKind === 'video'
-        ? html`<video src=${item.dataUrl} muted=${true} playsInline=${true} preload="metadata" className="aspect-square w-full object-cover bg-slate-900/80"></video>`
-        : html`<img src=${item.dataUrl} alt=${item.file.name} className="aspect-square w-full object-contain bg-slate-900/80" />`}
+    <article draggable=${true} onDragStart=${() => onDragStart(item.id)} onDragOver=${(e) => e.preventDefault()} onDrop=${() => onDropOn(item.id)} className="group relative overflow-hidden rounded-2xl border border-line bg-panelSoft">
+      ${item.mediaKind === 'video' ? html`<video src=${item.dataUrl} muted=${true} playsinline=${true} preload="metadata" className="aspect-square w-full object-cover bg-slate-900/80"></video>` : html`<img src=${item.dataUrl} alt=${item.file.name} className="aspect-square w-full object-contain bg-slate-900/80" />`}
       <span className="absolute left-2 top-2 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-bold">#${index + 1}</span>
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/80 to-transparent p-2">
-        <button
-          type="button"
-          onClick=${() => onSetCover(item.id)}
-          className=${`rounded-lg px-2 py-1 text-[10px] font-bold ${
-            selectedCoverId === item.id ? 'bg-accent text-slate-900' : 'bg-white/15 text-slate-100'
-          }`}
-        >
-          ${selectedCoverId === item.id ? 'Capa' : 'Definir capa'}
-        </button>
+        <button type="button" onClick=${() => onSetCover(item.id)} className=${`rounded-lg px-2 py-1 text-[10px] font-bold ${selectedCoverId === item.id ? 'bg-accent text-slate-900' : 'bg-white/15 text-slate-100'}`}>${selectedCoverId === item.id ? 'Capa' : 'Definir capa'}</button>
         <button type="button" onClick=${() => onRemove(item.id)} className="rounded-lg bg-rose-500/80 px-2 py-1 text-[10px] font-bold text-white">Remover</button>
       </div>
     </article>
@@ -406,11 +368,7 @@ function PackPreviewPanel({ preview, quality, compact = false }) {
           <p className=${`${compact ? 'text-base' : 'text-lg'} line-clamp-2 font-display font-bold`}>${preview.name}</p>
           <p className="line-clamp-2 text-sm text-slate-300">${preview.description || 'Descrição do pack aparecerá aqui.'}</p>
           <p className="text-xs text-slate-400">por ${preview.publisher}</p>
-          <div className="flex flex-wrap items-center gap-1">
-            ${preview.tags.length
-              ? preview.tags.map((tag) => html`<span key=${tag} className="rounded-full border border-line/70 px-2 py-0.5 text-[10px] text-slate-300">#${tag}</span>`)
-              : html`<span className="text-[10px] text-slate-500">Adicione tags para melhorar descoberta</span>`}
-          </div>
+          <div className="flex flex-wrap items-center gap-1">${preview.tags.length ? preview.tags.map((tag) => html`<span key=${tag} className="rounded-full border border-line/70 px-2 py-0.5 text-[10px] text-slate-300">#${tag}</span>`) : html`<span className="text-[10px] text-slate-500">Adicione tags para melhorar descoberta</span>`}</div>
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <span className="rounded-full border border-line/70 px-2 py-1 text-slate-300">${preview.visibility}</span>
             <span className="rounded-full border border-line/70 px-2 py-1 text-slate-300">🧩 ${preview.stickerCount}</span>
@@ -485,37 +443,15 @@ function CreatePackApp() {
     [authRedirecting, buildLoginRedirectUrl],
   );
 
-  const canStep2 = useMemo(
-    () =>
-      sanitizePackName(name, limits.pack_name_max_length).length > 0 &&
-      hasGoogleLogin &&
-      googleSessionChecked &&
-      !authRedirecting,
-    [name, limits.pack_name_max_length, hasGoogleLogin, googleSessionChecked, authRedirecting],
-  );
+  const canStep2 = useMemo(() => sanitizePackName(name, limits.pack_name_max_length).length > 0 && hasGoogleLogin && googleSessionChecked && !authRedirecting, [name, limits.pack_name_max_length, hasGoogleLogin, googleSessionChecked, authRedirecting]);
   const canStep3 = useMemo(() => files.length > 0, [files.length]);
   const publishReady = canStep2 && canStep3 && !busy;
   const completionPercentage = Math.round((step / STEPS.length) * 100);
-  const failedUploadsCount = useMemo(
-    () => files.reduce((acc, item) => (uploadMap[item.id]?.status === 'error' ? acc + 1 : acc), 0),
-    [files, uploadMap],
-  );
-  const pendingUploadsCount = useMemo(
-    () => files.reduce((acc, item) => (uploadMap[item.id]?.status === 'done' ? acc : acc + 1), 0),
-    [files, uploadMap],
-  );
+  const failedUploadsCount = useMemo(() => files.reduce((acc, item) => (uploadMap[item.id]?.status === 'error' ? acc + 1 : acc), 0), [files, uploadMap]);
+  const pendingUploadsCount = useMemo(() => files.reduce((acc, item) => (uploadMap[item.id]?.status === 'done' ? acc : acc + 1), 0), [files, uploadMap]);
   const hasPartialUploadedSession = Boolean(activeSession?.packKey && pendingUploadsCount > 0 && pendingUploadsCount < files.length);
-  const backendPackStatus = String(
-    backendPublishState?.status || result?.status || activeSession?.created?.status || '',
-  ).toLowerCase();
-  const publishLabel =
-    backendPackStatus === 'failed'
-      ? '🛠️ Reparar pack'
-      : failedUploadsCount > 0
-      ? `🔁 Reenviar falhas (${failedUploadsCount})`
-      : hasPartialUploadedSession
-        ? '▶ Retomar envio'
-      : '🚀 Publicar Pack';
+  const backendPackStatus = String(backendPublishState?.status || result?.status || activeSession?.created?.status || '').toLowerCase();
+  const publishLabel = backendPackStatus === 'failed' ? '🛠️ Reparar pack' : failedUploadsCount > 0 ? `🔁 Reenviar falhas (${failedUploadsCount})` : hasPartialUploadedSession ? '▶ Retomar envio' : '🚀 Publicar Pack';
 
   const suggestedFromText = useMemo(() => {
     const haystack = `${name} ${description}`
@@ -663,8 +599,7 @@ function CreatePackApp() {
         return;
       }
 
-      const restoredName =
-        typeof parsed.name === 'string' ? sanitizePackNameInput(parsed.name, DEFAULT_LIMITS.pack_name_max_length) : '';
+      const restoredName = typeof parsed.name === 'string' ? sanitizePackNameInput(parsed.name, DEFAULT_LIMITS.pack_name_max_length) : '';
       if (restoredName) setName(restoredName);
       if (typeof parsed.description === 'string') setDescription(parsed.description);
       if (typeof parsed.publisher === 'string') setPublisher(parsed.publisher);
@@ -685,8 +620,12 @@ function CreatePackApp() {
             },
             hash: /^[a-f0-9]{64}$/.test(String(item.hash || '').toLowerCase()) ? String(item.hash || '').toLowerCase() : '',
             mediaKind:
-              String(item.type || '').toLowerCase().startsWith('video/') ||
-              String(item.name || '').toLowerCase().match(/\.(mp4|webm|mov|m4v)$/i)
+              String(item.type || '')
+                .toLowerCase()
+                .startsWith('video/') ||
+              String(item.name || '')
+                .toLowerCase()
+                .match(/\.(mp4|webm|mov|m4v)$/i)
                 ? 'video'
                 : 'image',
             dataUrl: String(item.dataUrl),
@@ -809,9 +748,7 @@ function CreatePackApp() {
 
         const uploads = Array.isArray(publishState.uploads) ? publishState.uploads : [];
         const uploadsById = new Map(uploads.map((entry) => [String(entry.upload_id || ''), entry]));
-        const uploadsByHash = new Map(
-          uploads.filter((entry) => entry?.sticker_hash).map((entry) => [String(entry.sticker_hash || ''), entry]),
-        );
+        const uploadsByHash = new Map(uploads.filter((entry) => entry?.sticker_hash).map((entry) => [String(entry.sticker_hash || ''), entry]));
 
         setUploadMap((prev) => {
           const next = { ...prev };
@@ -887,23 +824,14 @@ function CreatePackApp() {
       const lowerName = String(file.name || '').toLowerCase();
       const lowerType = String(file.type || '').toLowerCase();
       const isImage = lowerType.startsWith('image/');
-      const isVideo =
-        lowerType.startsWith('video/') ||
-        lowerName.endsWith('.mp4') ||
-        lowerName.endsWith('.webm') ||
-        lowerName.endsWith('.mov') ||
-        lowerName.endsWith('.m4v');
+      const isVideo = lowerType.startsWith('video/') || lowerName.endsWith('.mp4') || lowerName.endsWith('.webm') || lowerName.endsWith('.mov') || lowerName.endsWith('.m4v');
       if (!isImage && !isVideo) return false;
       const maxBytes = Number(limits.sticker_upload_source_max_bytes || 0);
       return Number(file.size || 0) <= maxBytes;
     });
 
     if (!filtered.length) {
-      setError(
-        `Envie imagem ou vídeo até ${toBytesLabel(
-          limits.sticker_upload_source_max_bytes,
-        )}. O sistema converte automaticamente para webp.`,
-      );
+      setError(`Envie imagem ou vídeo até ${toBytesLabel(limits.sticker_upload_source_max_bytes)}. O sistema converte automaticamente para webp.`);
       return;
     }
 
@@ -923,8 +851,12 @@ function CreatePackApp() {
           file,
           hash: await computeDataUrlSha256(dataUrl),
           mediaKind:
-            String(file.type || '').toLowerCase().startsWith('video/') ||
-            String(file.name || '').toLowerCase().match(/\.(mp4|webm|mov|m4v)$/i)
+            String(file.type || '')
+              .toLowerCase()
+              .startsWith('video/') ||
+            String(file.name || '')
+              .toLowerCase()
+              .match(/\.(mp4|webm|mov|m4v)$/i)
               ? 'video'
               : 'image',
           dataUrl,
@@ -1395,33 +1327,20 @@ function CreatePackApp() {
     }
   };
 
-  const visibilityHelp =
-    visibility === 'private'
-      ? 'Privado: apenas você acessa este pack.'
-      : visibility === 'unlisted'
-        ? 'Não listado: acesso por link direto.'
-        : 'Público: aparece no catálogo para descoberta.';
+  const visibilityHelp = visibility === 'private' ? 'Privado: apenas você acessa este pack.' : visibility === 'unlisted' ? 'Não listado: acesso por link direto.' : 'Público: aparece no catálogo para descoberta.';
 
   const uploadProgressTotal = Math.max(0, Number(progress.total || files.length || 0));
   const uploadProgressDone = Math.max(0, Math.min(uploadProgressTotal || 0, Number(progress.current || 0)));
-  const uploadProgressPercent = Math.max(
-    0,
-    Math.min(100, Math.round((uploadProgressDone / Math.max(1, uploadProgressTotal || 1)) * 100)),
-  );
+  const uploadProgressPercent = Math.max(0, Math.min(100, Math.round((uploadProgressDone / Math.max(1, uploadProgressTotal || 1)) * 100)));
   const uploadHasFailures = failedUploadsCount > 0;
   const backendStateFailed = backendPackStatus === 'failed';
-  const publishCompleted = Boolean(
-    result && String(backendPackStatus || result?.status || '').toLowerCase() === PACK_STATUS_PUBLISHED && !busy,
-  );
+  const publishCompleted = Boolean(result && String(backendPackStatus || result?.status || '').toLowerCase() === PACK_STATUS_PUBLISHED && !busy);
   const showUploadProgressCard = step === 3 && busy;
   const showUploadFailureCard = step === 3 && !busy && (uploadHasFailures || backendStateFailed);
-  const publishedPackUrl =
-    String(result?.web_url || activeSession?.webUrl || '').trim() ||
-    (result?.pack_key ? `${webPath}/${encodeURIComponent(String(result.pack_key || ''))}` : '');
+  const publishedPackUrl = String(result?.web_url || activeSession?.webUrl || '').trim() || (result?.pack_key ? `${webPath}/${encodeURIComponent(String(result.pack_key || ''))}` : '');
   const finalStepPrimaryLabel = publishCompleted ? '👁 Ver pack criado' : publishLabel;
   const mobilePrimaryActionLabel = step < 3 ? 'Continuar' : finalStepPrimaryLabel;
-  const mobilePrimaryActionClass =
-    step < 3 ? 'bg-accent text-slate-900' : 'bg-accent2 text-slate-900';
+  const mobilePrimaryActionClass = step < 3 ? 'bg-accent text-slate-900' : 'bg-accent2 text-slate-900';
   const toggleMobilePreview = () => setMobilePreviewOpen((prev) => !prev);
   const openCreatedPack = () => {
     if (!publishedPackUrl) return;
@@ -1449,21 +1368,11 @@ function CreatePackApp() {
             <span className="hidden rounded-full border border-line/60 bg-panel/70 px-3 py-1 sm:inline-flex">🧩 Até ${limits.stickers_per_pack} stickers</span>
             <span className="hidden rounded-full border border-line/60 bg-panel/70 px-3 py-1 sm:inline-flex">📦 Até ${limits.packs_per_owner} packs</span>
             <span className="hidden rounded-full border border-line/60 bg-panel/70 px-3 py-1 md:inline-flex">✍ ${limits.pack_name_max_length} caracteres no nome</span>
-            <button
-              type="button"
-              onClick=${restartCreateFlow}
-              disabled=${busy}
-              className="h-8 rounded-full border border-line/70 bg-panel/70 px-3 text-[11px] font-semibold text-slate-200 disabled:opacity-60"
-              title="Limpar rascunho local e recomeçar"
-            >
-              Recomeçar
-            </button>
+            <button type="button" onClick=${restartCreateFlow} disabled=${busy} className="h-8 rounded-full border border-line/70 bg-panel/70 px-3 text-[11px] font-semibold text-slate-200 disabled:opacity-60" title="Limpar rascunho local e recomeçar">Recomeçar</button>
           </div>
         </header>
 
-        <div className="mb-3 grid grid-cols-3 gap-2 md:mb-5">
-          ${STEPS.map((item) => html`<${StepPill} key=${item.id} step=${item} active=${step === item.id} done=${step > item.id} />`)}
-        </div>
+        <div className="mb-3 grid grid-cols-3 gap-2 md:mb-5">${STEPS.map((item) => html`<${StepPill} key=${item.id} step=${item} active=${step === item.id} done=${step > item.id} />`)}</div>
         <div className="mb-4 md:mb-6">
           <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-400">
             <span>Progresso</span>
@@ -1479,42 +1388,17 @@ function CreatePackApp() {
             ${step === 1
               ? html`
                   <div className="space-y-3 md:space-y-4">
-                    <${FloatingField}
-                      label="Nome do pack"
-                      value=${name}
-                      maxLength=${limits.pack_name_max_length}
-                      hint="Use um nome curto e fácil de encontrar."
-                      onChange=${(e) => setName(sanitizePackNameInput(e.target.value, limits.pack_name_max_length))}
-                    />
-                    <${FloatingField}
-                      label="Descrição"
-                      value=${description}
-                      multiline=${true}
-                      maxLength=${limits.description_max_length}
-                      hint="Explique o tema do pack em uma frase curta"
-                      onChange=${(e) => setDescription(clampInputText(e.target.value, limits.description_max_length))}
-                    />
-                    <${FloatingField}
-                      label="Autor"
-                      value=${publisher}
-                      maxLength=${limits.publisher_max_length}
-                      hint="Como seu nome será exibido no catálogo."
-                      onChange=${(e) => setPublisher(clampInputText(e.target.value, limits.publisher_max_length))}
-                    />
+                    <${FloatingField} label="Nome do pack" value=${name} maxLength=${limits.pack_name_max_length} hint="Use um nome curto e fácil de encontrar." onChange=${(e) => setName(sanitizePackNameInput(e.target.value, limits.pack_name_max_length))} />
+                    <${FloatingField} label="Descrição" value=${description} multiline=${true} maxLength=${limits.description_max_length} hint="Explique o tema do pack em uma frase curta" onChange=${(e) => setDescription(clampInputText(e.target.value, limits.description_max_length))} />
+                    <${FloatingField} label="Autor" value=${publisher} maxLength=${limits.publisher_max_length} hint="Como seu nome será exibido no catálogo." onChange=${(e) => setPublisher(clampInputText(e.target.value, limits.publisher_max_length))} />
                     <div className="rounded-2xl border border-line/70 bg-panel/70 p-3 md:p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-400">Sessão da conta</p>
                           <p className="mt-1 text-sm font-semibold text-slate-100">Conta Google vinculada</p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            ${googleSessionChecked
-                              ? 'Sua sessão foi validada para criar packs.'
-                              : 'Validando sua sessão para liberar a criação.'}
-                          </p>
+                          <p className="mt-1 text-xs text-slate-400">${googleSessionChecked ? 'Sua sessão foi validada para criar packs.' : 'Validando sua sessão para liberar a criação.'}</p>
                         </div>
-                        ${hasGoogleLogin
-                          ? html`<span className="rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">Conectado</span>`
-                          : html`<span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold text-amber-300">Validando</span>`}
+                        ${hasGoogleLogin ? html`<span className="rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">Conectado</span>` : html`<span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold text-amber-300">Validando</span>`}
                       </div>
                       <div className="mt-3 rounded-xl border border-line/70 bg-panelSoft/80 p-2.5 md:p-3">
                         <p className="truncate text-sm font-semibold text-slate-100">${googleAuth.user?.name || 'Conta Google'}</p>
@@ -1525,30 +1409,16 @@ function CreatePackApp() {
                       <span className="mb-2 inline-block text-xs font-semibold text-slate-300">Tags do pack</span>
                       <div className="rounded-2xl border border-line/70 bg-panelSoft/80 px-3 py-3">
                         <div className="mb-2 flex flex-wrap gap-2">
-                          ${tags.map((tag) => html`
-                            <button
-                              key=${tag}
-                              type="button"
-                              onClick=${() => removeTag(tag)}
-                              className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent"
-                              title="Remover tag"
-                            >
-                              #${tag}
-                              <span aria-hidden="true">×</span>
-                            </button>
-                          `)}
+                          ${tags.map(
+                            (tag) => html`
+                              <button key=${tag} type="button" onClick=${() => removeTag(tag)} className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent" title="Remover tag">
+                                #${tag}
+                                <span aria-hidden="true">×</span>
+                              </button>
+                            `,
+                          )}
                         </div>
-                        <input
-                          type="text"
-                          value=${tagInput}
-                          maxlength=${40}
-                          onInput=${(e) => setTagInput(String(e.target.value || ''))}
-                          onKeyDown=${onTagInputKeyDown}
-                          onBlur=${() => addTag(tagInput)}
-                          placeholder=${tags.length >= MAX_MANUAL_TAGS ? `Limite de ${MAX_MANUAL_TAGS} tags` : 'Digite e pressione Enter para adicionar'}
-                          disabled=${tags.length >= MAX_MANUAL_TAGS}
-                          className="h-11 w-full rounded-xl border border-line/70 bg-panel/80 px-3 text-sm outline-none transition focus:border-accent/60 disabled:opacity-60"
-                        />
+                        <input type="text" value=${tagInput} maxlength=${40} onInput=${(e) => setTagInput(String(e.target.value || ''))} onKeyDown=${onTagInputKeyDown} onBlur=${() => addTag(tagInput)} placeholder=${tags.length >= MAX_MANUAL_TAGS ? `Limite de ${MAX_MANUAL_TAGS} tags` : 'Digite e pressione Enter para adicionar'} disabled=${tags.length >= MAX_MANUAL_TAGS} className="h-11 w-full rounded-xl border border-line/70 bg-panel/80 px-3 text-sm outline-none transition focus:border-accent/60 disabled:opacity-60" />
                         ${tagInput.trim() && tags.length < MAX_MANUAL_TAGS && tagTypeaheadSuggestions.length
                           ? html`
                               <div className="mt-2 rounded-xl border border-line/70 bg-panel/70 p-2">
@@ -1556,56 +1426,26 @@ function CreatePackApp() {
                                   <p className="text-[10px] font-semibold uppercase tracking-[.08em] text-slate-400">Sugestões</p>
                                   <p className="text-[10px] text-slate-500">Tab completa a primeira</p>
                                 </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  ${tagTypeaheadSuggestions.map((tag) => html`
-                                    <button
-                                      key=${`typeahead-${tag}`}
-                                      type="button"
-                                      onMouseDown=${(e) => e.preventDefault()}
-                                      onClick=${() => addTag(tag)}
-                                      className="rounded-full border border-accent/35 bg-accent/10 px-2 py-1 text-[10px] font-semibold text-accent transition hover:border-accent/60"
-                                    >
-                                      #${tag}
-                                    </button>
-                                  `)}
-                                </div>
+                                <div className="flex flex-wrap gap-1.5">${tagTypeaheadSuggestions.map((tag) => html` <button key=${`typeahead-${tag}`} type="button" onMouseDown=${(e) => e.preventDefault()} onClick=${() => addTag(tag)} className="rounded-full border border-accent/35 bg-accent/10 px-2 py-1 text-[10px] font-semibold text-accent transition hover:border-accent/60">#${tag}</button> `)}</div>
                               </div>
                             `
                           : null}
                         <p className="mt-2 text-[11px] text-slate-400">${tags.length}/${MAX_MANUAL_TAGS} tags selecionadas.</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          ${suggestedFromText.map((tag) => html`
-                            <button
-                              key=${tag}
-                              type="button"
-                              onMouseDown=${(e) => e.preventDefault()}
-                              onClick=${() => addTag(tag)}
-                              className="rounded-full border border-line bg-panel px-2 py-1 text-[10px] font-semibold text-slate-300 transition hover:border-accent/50 hover:text-accent"
-                            >
-                              + ${tag}
-                            </button>
-                          `)}
-                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">${suggestedFromText.map((tag) => html` <button key=${tag} type="button" onMouseDown=${(e) => e.preventDefault()} onClick=${() => addTag(tag)} className="rounded-full border border-line bg-panel px-2 py-1 text-[10px] font-semibold text-slate-300 transition hover:border-accent/50 hover:text-accent">+ ${tag}</button> `)}</div>
                       </div>
                     </label>
                     <label className="block">
                       <span className="mb-2 inline-block text-xs font-semibold text-slate-300">Visibilidade</span>
-                      <select
-                        value=${visibility}
-                        onChange=${(e) => setVisibility(String(e.target.value || 'public'))}
-                        className="h-11 w-full rounded-2xl border border-line/70 bg-panelSoft/80 px-4 text-sm outline-none focus:border-accent/60 md:h-12"
-                      >
+                      <select value=${visibility} onChange=${(e) => setVisibility(String(e.target.value || 'public'))} className="h-11 w-full rounded-2xl border border-line/70 bg-panelSoft/80 px-4 text-sm outline-none focus:border-accent/60 md:h-12">
                         <option value="public">Público</option>
                         <option value="unlisted">Não listado</option>
                         <option value="private">Privado</option>
                       </select>
                       <p className="mt-2 text-[11px] text-slate-400">${visibilityHelp}</p>
                     </label>
-
                   </div>
                 `
               : null}
-
             ${step === 2
               ? html`
                   <div className="space-y-3 md:space-y-4">
@@ -1619,11 +1459,7 @@ function CreatePackApp() {
                       className=${`rounded-2xl border border-dashed p-4 text-center transition md:rounded-3xl md:border-2 md:p-6 ${dragActive ? 'border-accent bg-accent/10' : 'border-line/70 bg-panelSoft/80'}`}
                     >
                       <p className="text-sm font-bold md:text-base">Arraste e solte seus stickers aqui</p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        Imagens e vídeos até ${toBytesLabel(
-                          limits.sticker_upload_source_max_bytes,
-                        )} cada (conversão automática para .webp)
-                      </p>
+                      <p className="mt-1 text-xs text-slate-400">Imagens e vídeos até ${toBytesLabel(limits.sticker_upload_source_max_bytes)} cada (conversão automática para .webp)</p>
                       <input
                         id="webp-upload"
                         type="file"
@@ -1643,26 +1479,10 @@ function CreatePackApp() {
                       <span>Arraste para reordenar • toque para definir capa</span>
                     </div>
 
-                    ${files.length
-                      ? html`
-                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
-                            ${files.map((item, index) => html`<${StickerThumb}
-                              key=${item.id}
-                              item=${item}
-                              index=${index}
-                              selectedCoverId=${coverId}
-                              onSetCover=${setCoverId}
-                              onRemove=${removeSticker}
-                              onDragStart=${setDraggingStickerId}
-                              onDropOn=${(targetId) => reorderStickers(draggingStickerId, targetId)}
-                            />`)}
-                          </div>
-                        `
-                      : html`<p className="rounded-2xl border border-line/70 bg-panelSoft/80 p-3 text-center text-sm text-slate-400 md:p-4">Nenhum sticker selecionado ainda.</p>`}
+                    ${files.length ? html` <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">${files.map((item, index) => html`<${StickerThumb} key=${item.id} item=${item} index=${index} selectedCoverId=${coverId} onSetCover=${setCoverId} onRemove=${removeSticker} onDragStart=${setDraggingStickerId} onDropOn=${(targetId) => reorderStickers(draggingStickerId, targetId)} />`)}</div> ` : html`<p className="rounded-2xl border border-line/70 bg-panelSoft/80 p-3 text-center text-sm text-slate-400 md:p-4">Nenhum sticker selecionado ainda.</p>`}
                   </div>
                 `
               : null}
-
             ${step === 3
               ? html`
                   <div className="space-y-3 md:space-y-4">
@@ -1672,9 +1492,7 @@ function CreatePackApp() {
                           <h3 className="font-display text-base font-bold md:text-lg">Revisão final</h3>
                           <p className="mt-0.5 text-xs text-slate-400">Confira os dados antes de publicar.</p>
                         </div>
-                        <span className="rounded-full border border-line/70 bg-panel/60 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
-                          ${files.length} stickers
-                        </span>
+                        <span className="rounded-full border border-line/70 bg-panel/60 px-2.5 py-1 text-[11px] font-semibold text-slate-300"> ${files.length} stickers </span>
                       </div>
                       <div className="mt-3 grid gap-1.5 text-sm text-slate-300">
                         <p className="truncate"><span className="text-slate-400">Nome:</span> <strong>${preview.name}</strong></p>
@@ -1693,38 +1511,18 @@ function CreatePackApp() {
                             <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-900/70">
                               <div className="h-full bg-accent transition-all" style=${{ width: `${uploadProgressPercent}%` }}></div>
                             </div>
-                            <p className="mt-2 text-xs text-slate-400">
-                              ${publishPhase === 'creating'
-                                ? 'Criando pack...'
-                                : publishPhase === 'uploading'
-                                  ? `${uploadProgressDone}/${uploadProgressTotal || files.length || 0} enviados`
-                                  : publishPhase === 'processing'
-                                    ? 'Validando consistência e capa do pack...'
-                                    : publishPhase === 'publishing'
-                                      ? 'Publicando pack no marketplace...'
-                                      : `${uploadProgressDone}/${uploadProgressTotal || files.length || 0} concluídos`}
-                            </p>
+                            <p className="mt-2 text-xs text-slate-400">${publishPhase === 'creating' ? 'Criando pack...' : publishPhase === 'uploading' ? `${uploadProgressDone}/${uploadProgressTotal || files.length || 0} enviados` : publishPhase === 'processing' ? 'Validando consistência e capa do pack...' : publishPhase === 'publishing' ? 'Publicando pack no marketplace...' : `${uploadProgressDone}/${uploadProgressTotal || files.length || 0} concluídos`}</p>
                           </div>
                         `
                       : null}
-
                     ${showUploadFailureCard
                       ? html`
                           <div className="rounded-2xl border border-rose-400/25 bg-rose-400/5 p-3 text-sm">
-                            <p className="font-semibold text-rose-200">
-                              ${backendStateFailed
-                                ? 'O pack entrou em estado de falha no backend.'
-                                : `${failedUploadsCount} sticker(s) falharam no envio.`}
-                            </p>
-                            <p className="mt-1 text-xs text-rose-200/80">
-                              ${backendStateFailed
-                                ? `Use "${publishLabel}" para reparar e concluir a publicação.`
-                                : `Toque em "${publishLabel}" para reenviar apenas as falhas.`}
-                            </p>
+                            <p className="font-semibold text-rose-200">${backendStateFailed ? 'O pack entrou em estado de falha no backend.' : `${failedUploadsCount} sticker(s) falharam no envio.`}</p>
+                            <p className="mt-1 text-xs text-rose-200/80">${backendStateFailed ? `Use "${publishLabel}" para reparar e concluir a publicação.` : `Toque em "${publishLabel}" para reenviar apenas as falhas.`}</p>
                           </div>
                         `
                       : null}
-
                     ${publishCompleted
                       ? html`
                           <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/5 p-3 text-sm text-emerald-100 md:p-4">
@@ -1753,98 +1551,37 @@ function CreatePackApp() {
 
         <div className="mt-3 lg:hidden">
           <div className="rounded-2xl border border-line/70 bg-panel/80 p-3">
-            <button
-              type="button"
-              onClick=${toggleMobilePreview}
-              className="flex h-11 w-full items-center justify-between gap-3 rounded-xl border border-line/70 bg-panelSoft/70 px-3 text-left"
-              aria-expanded=${mobilePreviewOpen ? 'true' : 'false'}
-            >
+            <button type="button" onClick=${toggleMobilePreview} className="flex h-11 w-full items-center justify-between gap-3 rounded-xl border border-line/70 bg-panelSoft/70 px-3 text-left" aria-expanded=${mobilePreviewOpen ? 'true' : 'false'}>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[.08em] text-slate-400">Preview</p>
                 <p className="text-sm font-semibold text-slate-100">${preview.name}</p>
               </div>
               <span className="text-xs font-semibold text-accent">${mobilePreviewOpen ? 'Ocultar' : 'Mostrar'}</span>
             </button>
-            ${mobilePreviewOpen
-              ? html`<div className="mt-3"><${PackPreviewPanel} preview=${preview} quality=${quality} compact=${true} /></div>`
-              : html`<p className="mt-2 text-xs text-slate-400">Toque para visualizar capa, descrição e score do pack.</p>`}
+            ${mobilePreviewOpen ? html`<div className="mt-3"><${PackPreviewPanel} preview=${preview} quality=${quality} compact=${true} /></div>` : html`<p className="mt-2 text-xs text-slate-400">Toque para visualizar capa, descrição e score do pack.</p>`}
           </div>
         </div>
 
-        ${error
-          ? html`<div className="mt-3 rounded-2xl border border-rose-400/25 bg-rose-400/5 px-3 py-2.5 text-sm text-rose-200 md:mt-4 md:px-4 md:py-3">${error}</div>`
-          : null}
+        ${error ? html`<div className="mt-3 rounded-2xl border border-rose-400/25 bg-rose-400/5 px-3 py-2.5 text-sm text-rose-200 md:mt-4 md:px-4 md:py-3">${error}</div>` : null}
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-panel/95 p-3 backdrop-blur md:hidden">
         <div className="mx-auto w-full max-w-7xl">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              className="h-8 rounded-full border border-line/70 bg-panelSoft/80 px-3 text-xs font-semibold text-slate-200 disabled:opacity-60"
-              onClick=${restartCreateFlow}
-              disabled=${busy}
-              title="Limpar rascunho local"
-            >
-              Recomeçar
-            </button>
-            <button
-              type="button"
-              className="h-8 rounded-full border border-line/70 bg-panelSoft/60 px-3 text-xs font-semibold text-slate-300"
-              onClick=${toggleMobilePreview}
-              aria-expanded=${mobilePreviewOpen ? 'true' : 'false'}
-            >
-              ${mobilePreviewOpen ? 'Ocultar preview' : 'Preview'}
-            </button>
+            <button type="button" className="h-8 rounded-full border border-line/70 bg-panelSoft/80 px-3 text-xs font-semibold text-slate-200 disabled:opacity-60" onClick=${restartCreateFlow} disabled=${busy} title="Limpar rascunho local">Recomeçar</button>
+            <button type="button" className="h-8 rounded-full border border-line/70 bg-panelSoft/60 px-3 text-xs font-semibold text-slate-300" onClick=${toggleMobilePreview} aria-expanded=${mobilePreviewOpen ? 'true' : 'false'}>${mobilePreviewOpen ? 'Ocultar preview' : 'Preview'}</button>
           </div>
           <div className="grid grid-cols-[1fr_1.45fr] gap-2">
-          <button
-            type="button"
-            className="h-11 rounded-xl border border-line/70 bg-panelSoft/80 text-sm font-bold disabled:opacity-60"
-            onClick=${prevStep}
-            disabled=${step === 1 || busy}
-          >
-            Voltar
-          </button>
-          ${step < 3
-            ? html`
-                <button
-                  type="button"
-                  className=${`h-11 rounded-xl text-sm font-extrabold disabled:opacity-60 ${mobilePrimaryActionClass}`}
-                  onClick=${nextStep}
-                  disabled=${busy}
-                >
-                  ${mobilePrimaryActionLabel}
-                </button>
-              `
-            : html`
-                <button
-                  type="button"
-                  className=${`h-11 rounded-xl text-sm font-extrabold disabled:opacity-60 ${mobilePrimaryActionClass}`}
-                  onClick=${handleFinalStepPrimaryAction}
-                  disabled=${finalStepPrimaryDisabled}
-                >
-                  ${mobilePrimaryActionLabel}
-                </button>
-              `}
+            <button type="button" className="h-11 rounded-xl border border-line/70 bg-panelSoft/80 text-sm font-bold disabled:opacity-60" onClick=${prevStep} disabled=${step === 1 || busy}>Voltar</button>
+            ${step < 3 ? html` <button type="button" className=${`h-11 rounded-xl text-sm font-extrabold disabled:opacity-60 ${mobilePrimaryActionClass}`} onClick=${nextStep} disabled=${busy}>${mobilePrimaryActionLabel}</button> ` : html` <button type="button" className=${`h-11 rounded-xl text-sm font-extrabold disabled:opacity-60 ${mobilePrimaryActionClass}`} onClick=${handleFinalStepPrimaryAction} disabled=${finalStepPrimaryDisabled}>${mobilePrimaryActionLabel}</button> `}
           </div>
         </div>
       </div>
 
       <div className="mt-6 hidden items-center justify-end gap-2 px-6 pb-6 md:flex">
-        <button
-          type="button"
-          className="h-10 rounded-xl border border-line/70 bg-panelSoft/80 px-4 text-sm font-bold disabled:opacity-60"
-          onClick=${restartCreateFlow}
-          disabled=${busy}
-          title="Limpar rascunho local e recomeçar"
-        >
-          Recomeçar
-        </button>
+        <button type="button" className="h-10 rounded-xl border border-line/70 bg-panelSoft/80 px-4 text-sm font-bold disabled:opacity-60" onClick=${restartCreateFlow} disabled=${busy} title="Limpar rascunho local e recomeçar">Recomeçar</button>
         <button type="button" className="h-11 rounded-xl border border-line/70 bg-panelSoft/80 px-5 text-sm font-bold" onClick=${prevStep} disabled=${step === 1 || busy}>Voltar</button>
-        ${step < 3
-          ? html`<button type="button" className="h-11 rounded-xl bg-accent px-5 text-sm font-extrabold text-slate-900" onClick=${nextStep} disabled=${busy}>Próximo passo</button>`
-          : html`<button type="button" className="h-11 rounded-xl bg-accent2 px-5 text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${handleFinalStepPrimaryAction} disabled=${finalStepPrimaryDisabled}>${finalStepPrimaryLabel}</button>`}
+        ${step < 3 ? html`<button type="button" className="h-11 rounded-xl bg-accent px-5 text-sm font-extrabold text-slate-900" onClick=${nextStep} disabled=${busy}>Próximo passo</button>` : html`<button type="button" className="h-11 rounded-xl bg-accent2 px-5 text-sm font-extrabold text-slate-900 disabled:opacity-60" onClick=${handleFinalStepPrimaryAction} disabled=${finalStepPrimaryDisabled}>${finalStepPrimaryLabel}</button>`}
       </div>
     </div>
   `;

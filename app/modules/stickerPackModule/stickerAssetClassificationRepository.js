@@ -71,10 +71,7 @@ const normalizeClassificationRow = (row) => {
     llm_style_traits: Array.isArray(llmStyleTraits) ? llmStyleTraits : [],
     llm_emotions: Array.isArray(llmEmotions) ? llmEmotions : [],
     llm_pack_suggestions: Array.isArray(llmPackSuggestions) ? llmPackSuggestions : [],
-    semantic_cluster_id:
-      row.semantic_cluster_id !== null && row.semantic_cluster_id !== undefined
-        ? Number(row.semantic_cluster_id)
-        : null,
+    semantic_cluster_id: row.semantic_cluster_id !== null && row.semantic_cluster_id !== undefined ? Number(row.semantic_cluster_id) : null,
     semantic_cluster_slug: row.semantic_cluster_slug || null,
     classified_at: row.classified_at,
     updated_at: row.updated_at,
@@ -82,11 +79,7 @@ const normalizeClassificationRow = (row) => {
 };
 
 export async function findStickerClassificationByAssetId(assetId, connection = null) {
-  const rows = await executeQuery(
-    `SELECT * FROM ${TABLES.STICKER_ASSET_CLASSIFICATION} WHERE asset_id = ? LIMIT 1`,
-    [assetId],
-    connection,
-  );
+  const rows = await executeQuery(`SELECT * FROM ${TABLES.STICKER_ASSET_CLASSIFICATION} WHERE asset_id = ? LIMIT 1`, [assetId], connection);
 
   return normalizeClassificationRow(rows?.[0] || null);
 }
@@ -98,11 +91,7 @@ export async function listStickerClassificationsByAssetIds(assetIds, connection 
   if (!uniqueIds.length) return [];
 
   const placeholders = uniqueIds.map(() => '?').join(', ');
-  const rows = await executeQuery(
-    `SELECT * FROM ${TABLES.STICKER_ASSET_CLASSIFICATION} WHERE asset_id IN (${placeholders})`,
-    uniqueIds,
-    connection,
-  );
+  const rows = await executeQuery(`SELECT * FROM ${TABLES.STICKER_ASSET_CLASSIFICATION} WHERE asset_id IN (${placeholders})`, uniqueIds, connection);
 
   const normalized = rows.map((row) => normalizeClassificationRow(row));
   const byAssetId = new Map(normalized.map((entry) => [entry.asset_id, entry]));
@@ -138,30 +127,7 @@ export async function upsertStickerAssetClassification(payload, connection = nul
       similar_images = VALUES(similar_images),
       classified_at = CURRENT_TIMESTAMP,
       updated_at = CURRENT_TIMESTAMP`,
-    [
-      payload.asset_id,
-      payload.provider || 'clip',
-      payload.model_name || null,
-      payload.classification_version || 'v1',
-      payload.category || null,
-      payload.confidence ?? null,
-      payload.entropy ?? null,
-      payload.confidence_margin ?? null,
-      payload.nsfw_score ?? null,
-      payload.is_nsfw ? 1 : 0,
-      payload.all_scores ? JSON.stringify(payload.all_scores) : JSON.stringify({}),
-      payload.top_labels ? JSON.stringify(payload.top_labels) : JSON.stringify([]),
-      payload.affinity_weight ?? null,
-      payload.image_hash || null,
-      payload.ambiguous ? 1 : 0,
-      payload.llm_subtags ? JSON.stringify(payload.llm_subtags) : JSON.stringify([]),
-      payload.llm_style_traits ? JSON.stringify(payload.llm_style_traits) : JSON.stringify([]),
-      payload.llm_emotions ? JSON.stringify(payload.llm_emotions) : JSON.stringify([]),
-      payload.llm_pack_suggestions ? JSON.stringify(payload.llm_pack_suggestions) : JSON.stringify([]),
-      payload.semantic_cluster_id ?? null,
-      payload.semantic_cluster_slug || null,
-      payload.similar_images ? JSON.stringify(payload.similar_images) : JSON.stringify([]),
-    ],
+    [payload.asset_id, payload.provider || 'clip', payload.model_name || null, payload.classification_version || 'v1', payload.category || null, payload.confidence ?? null, payload.entropy ?? null, payload.confidence_margin ?? null, payload.nsfw_score ?? null, payload.is_nsfw ? 1 : 0, payload.all_scores ? JSON.stringify(payload.all_scores) : JSON.stringify({}), payload.top_labels ? JSON.stringify(payload.top_labels) : JSON.stringify([]), payload.affinity_weight ?? null, payload.image_hash || null, payload.ambiguous ? 1 : 0, payload.llm_subtags ? JSON.stringify(payload.llm_subtags) : JSON.stringify([]), payload.llm_style_traits ? JSON.stringify(payload.llm_style_traits) : JSON.stringify([]), payload.llm_emotions ? JSON.stringify(payload.llm_emotions) : JSON.stringify([]), payload.llm_pack_suggestions ? JSON.stringify(payload.llm_pack_suggestions) : JSON.stringify([]), payload.semantic_cluster_id ?? null, payload.semantic_cluster_slug || null, payload.similar_images ? JSON.stringify(payload.similar_images) : JSON.stringify([])],
     connection,
   );
 
@@ -187,22 +153,14 @@ export async function upsertStickerAssetClassification(payload, connection = nul
   return findStickerClassificationByAssetId(payload.asset_id, connection);
 }
 
-export async function updateStickerClassificationSemanticCluster(
-  assetId,
-  { semanticClusterId = null, semanticClusterSlug = null } = {},
-  connection = null,
-) {
+export async function updateStickerClassificationSemanticCluster(assetId, { semanticClusterId = null, semanticClusterSlug = null } = {}, connection = null) {
   if (!assetId) return null;
 
   await executeQuery(
     `UPDATE ${TABLES.STICKER_ASSET_CLASSIFICATION}
      SET semantic_cluster_id = ?, semantic_cluster_slug = ?, updated_at = CURRENT_TIMESTAMP
      WHERE asset_id = ?`,
-    [
-      semanticClusterId ?? null,
-      semanticClusterSlug || null,
-      assetId,
-    ],
+    [semanticClusterId ?? null, semanticClusterSlug || null, assetId],
     connection,
   );
 
@@ -211,9 +169,15 @@ export async function updateStickerClassificationSemanticCluster(
 
 export async function listClipImageEmbeddingsByImageHashes(imageHashes, connection = null) {
   const uniqueHashes = Array.from(
-    new Set((Array.isArray(imageHashes) ? imageHashes : [])
-      .map((value) => String(value || '').trim().toLowerCase())
-      .filter((value) => value.length === 64)),
+    new Set(
+      (Array.isArray(imageHashes) ? imageHashes : [])
+        .map((value) =>
+          String(value || '')
+            .trim()
+            .toLowerCase(),
+        )
+        .filter((value) => value.length === 64),
+    ),
   );
   if (!uniqueHashes.length) return [];
 
@@ -249,10 +213,7 @@ const clampInt = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, Math.floor(numeric)));
 };
 
-export async function listAssetsForModelUpgradeReprocess(
-  { currentVersion, limit = 150, offset = 0 } = {},
-  connection = null,
-) {
+export async function listAssetsForModelUpgradeReprocess({ currentVersion, limit = 150, offset = 0 } = {}, connection = null) {
   const normalizedVersion = String(currentVersion || '').trim();
   if (!normalizedVersion) return [];
 
@@ -276,10 +237,7 @@ export async function listAssetsForModelUpgradeReprocess(
   return rows.map((row) => row.asset_id).filter(Boolean);
 }
 
-export async function listAssetsForLowConfidenceReprocess(
-  { confidenceThreshold = 0.65, staleHours = 48, limit = 150, offset = 0 } = {},
-  connection = null,
-) {
+export async function listAssetsForLowConfidenceReprocess({ confidenceThreshold = 0.65, staleHours = 48, limit = 150, offset = 0 } = {}, connection = null) {
   const threshold = Number(confidenceThreshold);
   if (!Number.isFinite(threshold)) return [];
 
@@ -307,10 +265,7 @@ export async function listAssetsForLowConfidenceReprocess(
   return rows.map((row) => row.asset_id).filter(Boolean);
 }
 
-export async function listAssetsForPrioritySignalBackfillReprocess(
-  { limit = 200, offset = 0 } = {},
-  connection = null,
-) {
+export async function listAssetsForPrioritySignalBackfillReprocess({ limit = 200, offset = 0 } = {}, connection = null) {
   const safeLimit = clampInt(limit, 200, 1, 2000);
   const safeOffset = clampInt(offset, 0, 0, 500000);
   const rows = await executeQuery(
@@ -358,23 +313,11 @@ export async function listAssetsForPrioritySignalBackfillReprocess(
   return rows.map((row) => row.asset_id).filter(Boolean);
 }
 
-export async function listStickerClassificationsForDeterministicReprocess(
-  {
-    limit = 250,
-    cursorAssetId = '',
-    entropyThreshold = 0.8,
-    affinityThreshold = 0.3,
-  } = {},
-  connection = null,
-) {
+export async function listStickerClassificationsForDeterministicReprocess({ limit = 250, cursorAssetId = '', entropyThreshold = 0.8, affinityThreshold = 0.3 } = {}, connection = null) {
   const safeLimit = clampInt(limit, 250, 1, 2000);
   const normalizedCursor = String(cursorAssetId || '').trim();
-  const normalizedEntropyThreshold = Number.isFinite(Number(entropyThreshold))
-    ? Number(entropyThreshold)
-    : 0.8;
-  const normalizedAffinityThreshold = Number.isFinite(Number(affinityThreshold))
-    ? Number(affinityThreshold)
-    : 0.3;
+  const normalizedEntropyThreshold = Number.isFinite(Number(entropyThreshold)) ? Number(entropyThreshold) : 0.8;
+  const normalizedAffinityThreshold = Number.isFinite(Number(affinityThreshold)) ? Number(affinityThreshold) : 0.3;
 
   const params = [normalizedEntropyThreshold, normalizedAffinityThreshold];
   const cursorClause = normalizedCursor ? 'AND c.asset_id > ?' : '';
@@ -409,30 +352,17 @@ export async function listStickerClassificationsForDeterministicReprocess(
   return rows.map((row) => normalizeClassificationRow(row));
 }
 
-export async function updateStickerClassificationDeterministicSignals(
-  assetId,
-  { llmSubtags = [], affinityWeight = null, ambiguous = 0 } = {},
-  connection = null,
-) {
+export async function updateStickerClassificationDeterministicSignals(assetId, { llmSubtags = [], affinityWeight = null, ambiguous = 0 } = {}, connection = null) {
   if (!assetId) return null;
-  const normalizedAffinityWeight = Number.isFinite(Number(affinityWeight))
-    ? Math.max(0, Math.min(1, Number(affinityWeight)))
-    : null;
+  const normalizedAffinityWeight = Number.isFinite(Number(affinityWeight)) ? Math.max(0, Math.min(1, Number(affinityWeight))) : null;
   const normalizedAmbiguous = ambiguous === 1 || ambiguous === true ? 1 : 0;
-  const normalizedSubtags = Array.isArray(llmSubtags)
-    ? llmSubtags.map((value) => String(value || '').trim()).filter(Boolean)
-    : [];
+  const normalizedSubtags = Array.isArray(llmSubtags) ? llmSubtags.map((value) => String(value || '').trim()).filter(Boolean) : [];
 
   await executeQuery(
     `UPDATE ${TABLES.STICKER_ASSET_CLASSIFICATION}
      SET llm_subtags = ?, affinity_weight = ?, ambiguous = ?, updated_at = CURRENT_TIMESTAMP
      WHERE asset_id = ?`,
-    [
-      JSON.stringify(normalizedSubtags),
-      normalizedAffinityWeight,
-      normalizedAmbiguous,
-      assetId,
-    ],
+    [JSON.stringify(normalizedSubtags), normalizedAffinityWeight, normalizedAmbiguous, assetId],
     connection,
   );
 

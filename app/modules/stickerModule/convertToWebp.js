@@ -224,9 +224,7 @@ function runProcess(command, args, { timeoutMs }) {
       }
 
       if (code !== 0) {
-        const processError = new Error(
-          `${command} finalizou com código ${code}${signal ? ` (sinal: ${signal})` : ''}.`,
-        );
+        const processError = new Error(`${command} finalizou com código ${code}${signal ? ` (sinal: ${signal})` : ''}.`);
         processError.code = code;
         processError.signal = signal;
         processError.stderr = stderr;
@@ -277,17 +275,7 @@ export async function convertToWebp(inputPath, mediaType, userId, uniqueId, opti
   const sanitizedUserId = String(userId || 'anon').replace(/[^a-zA-Z0-9._-]/g, '_');
   const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
   const outputPath = path.join(userStickerDir, `sticker_${uniqueId}.webp`);
-  const {
-    stretch = true,
-    videoMaxDurationSeconds = DEFAULT_VIDEO_MAX_DURATION_SECONDS,
-    videoFps = DEFAULT_VIDEO_FPS,
-    videoQuality = DEFAULT_VIDEO_QUALITY,
-    videoCompressionLevel = DEFAULT_VIDEO_COMPRESSION_LEVEL,
-    maxOutputSizeBytes,
-    maxOutputSizeBytesByType = DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE,
-    timeoutMsByType = DEFAULT_TIMEOUT_MS_BY_TYPE,
-    timeoutMs,
-  } = options;
+  const { stretch = true, videoMaxDurationSeconds = DEFAULT_VIDEO_MAX_DURATION_SECONDS, videoFps = DEFAULT_VIDEO_FPS, videoQuality = DEFAULT_VIDEO_QUALITY, videoCompressionLevel = DEFAULT_VIDEO_COMPRESSION_LEVEL, maxOutputSizeBytes, maxOutputSizeBytesByType = DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE, timeoutMsByType = DEFAULT_TIMEOUT_MS_BY_TYPE, timeoutMs } = options;
   const maxOutputLimit = resolveMaxOutputLimit(mediaType, maxOutputSizeBytes, maxOutputSizeBytesByType);
 
   try {
@@ -309,9 +297,7 @@ export async function convertToWebp(inputPath, mediaType, userId, uniqueId, opti
       return outputPath;
     }
 
-    const normalizedDuration = Math.trunc(
-      clampNumber(videoMaxDurationSeconds, 1, 30, DEFAULT_VIDEO_MAX_DURATION_SECONDS),
-    );
+    const normalizedDuration = Math.trunc(clampNumber(videoMaxDurationSeconds, 1, 30, DEFAULT_VIDEO_MAX_DURATION_SECONDS));
     const normalizedFps = Math.trunc(clampNumber(videoFps, 1, 30, DEFAULT_VIDEO_FPS));
     const normalizedQuality = Math.trunc(clampNumber(videoQuality, 0, 100, DEFAULT_VIDEO_QUALITY));
     const normalizedCompression = Math.trunc(clampNumber(videoCompressionLevel, 0, 6, DEFAULT_VIDEO_COMPRESSION_LEVEL));
@@ -331,16 +317,7 @@ export async function convertToWebp(inputPath, mediaType, userId, uniqueId, opti
     ffmpegArgs.push('-vcodec', 'libwebp', '-loop', '0', '-preset', 'default', '-an');
 
     if (mediaType === 'video') {
-      ffmpegArgs.push(
-        '-vsync',
-        '0',
-        '-lossless',
-        '0',
-        '-q:v',
-        String(normalizedQuality),
-        '-compression_level',
-        String(normalizedCompression),
-      );
+      ffmpegArgs.push('-vsync', '0', '-lossless', '0', '-q:v', String(normalizedQuality), '-compression_level', String(normalizedCompression));
     } else {
       ffmpegArgs.push('-lossless', '1');
     }

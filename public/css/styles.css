@@ -14,24 +14,19 @@
 }
 
 body.catalog-body {
-  font-family: "Manrope", "Bricolage Grotesque", sans-serif;
+  font-family: 'Manrope', 'Bricolage Grotesque', sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(58rem 24rem at -8% -12%, rgba(37, 99, 235, 0.14), transparent 60%),
-    radial-gradient(58rem 24rem at 112% -10%, rgba(124, 58, 237, 0.14), transparent 58%),
-    linear-gradient(165deg, var(--bg), var(--bg-2));
+  background: radial-gradient(58rem 24rem at -8% -12%, rgba(37, 99, 235, 0.14), transparent 60%), radial-gradient(58rem 24rem at 112% -10%, rgba(124, 58, 237, 0.14), transparent 58%), linear-gradient(165deg, var(--bg), var(--bg-2));
   min-height: 100vh;
   background-attachment: fixed;
 }
 
 body.catalog-body::before {
-  content: "";
+  content: '';
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+  background: linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
   background-size: 26px 26px;
   opacity: 0.2;
   z-index: -1;
@@ -82,7 +77,7 @@ body.catalog-body::before {
 .catalog-title,
 .section-title,
 #panel-title {
-  font-family: "Sora", "Instrument Serif", serif;
+  font-family: 'Sora', 'Instrument Serif', serif;
   color: var(--text);
 }
 
@@ -154,7 +149,9 @@ body.catalog-body::before {
 
 .categories-picker:focus-within {
   border-color: #4c72ac;
-  box-shadow: 0 0 0 0.2rem rgba(124, 58, 237, 0.2), inset 0 1px 0 rgba(190, 214, 255, 0.12);
+  box-shadow:
+    0 0 0 0.2rem rgba(124, 58, 237, 0.2),
+    inset 0 1px 0 rgba(190, 214, 255, 0.12);
 }
 
 .categories-search-wrap {
@@ -291,7 +288,10 @@ body.catalog-body::before {
   font-weight: 700;
   border-radius: 14px;
   box-shadow: 0 8px 24px rgba(24, 152, 88, 0.24);
-  transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    filter 180ms ease;
 }
 
 .btn-success:hover,
@@ -321,7 +321,10 @@ body.catalog-body::before {
   border-color: var(--line-soft) !important;
   border-radius: 14px !important;
   overflow: hidden;
-  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    border-color 220ms ease;
   animation: fadeInUp 260ms ease both;
 }
 
@@ -341,7 +344,9 @@ body.catalog-body::before {
 .pack-card:focus-visible {
   transform: translateY(-4px);
   border-color: #5171a6 !important;
-  box-shadow: 0 0 0 1px rgba(122, 168, 255, 0.22), 0 18px 36px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    0 0 0 1px rgba(122, 168, 255, 0.22),
+    0 18px 36px rgba(0, 0, 0, 0.4);
 }
 
 .pack-card .card-title {
@@ -362,7 +367,7 @@ body.catalog-body::before {
 }
 
 .pack-thumb::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(to top, rgba(8, 14, 28, 0.32), rgba(8, 14, 28, 0));
@@ -489,7 +494,9 @@ body.catalog-body::before {
   color: #eff7ff;
   background: linear-gradient(120deg, rgba(16, 31, 57, 0.92), rgba(28, 53, 94, 0.9));
   border: 1px solid rgba(111, 151, 220, 0.62);
-  box-shadow: 0 6px 14px rgba(2, 8, 22, 0.34), inset 0 1px 0 rgba(190, 216, 255, 0.2);
+  box-shadow:
+    0 6px 14px rgba(2, 8, 22, 0.34),
+    inset 0 1px 0 rgba(190, 216, 255, 0.2);
   backdrop-filter: blur(6px);
   text-transform: lowercase;
   letter-spacing: 0.015em;

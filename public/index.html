@@ -1,1059 +1,1147 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OmniZap Bot para WhatsApp | Adicione e use em 1 minuto</title>
-  <meta name="description" content="Adicione o OmniZap no seu grupo e comece em segundos. Bot pronto para organizar mensagens, moderar spam e automatizar tarefas sem configuração técnica." />
-  <meta name="keywords" content="bot whatsapp pronto, automação de grupos, moderação whatsapp, bot para comunidade, omnizap" />
-  <meta name="author" content="OmniZap System" />
-  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-  <meta name="theme-color" content="#0f172a" />
-  <link rel="canonical" href="https://omnizap.shop/" />
-  <link rel="icon" type="image/png" href="/assets/images/brand-icon-192.png" />
-  <link rel="apple-touch-icon" href="/assets/images/brand-icon-192.png" />
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OmniZap Bot para WhatsApp | Adicione e use em 1 minuto</title>
+    <meta name="description" content="Adicione o OmniZap no seu grupo e comece em segundos. Bot pronto para organizar mensagens, moderar spam e automatizar tarefas sem configuração técnica." />
+    <meta name="keywords" content="bot whatsapp pronto, automação de grupos, moderação whatsapp, bot para comunidade, omnizap" />
+    <meta name="author" content="OmniZap System" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="canonical" href="https://omnizap.shop/" />
+    <link rel="icon" type="image/png" href="/assets/images/brand-icon-192.png" />
+    <link rel="apple-touch-icon" href="/assets/images/brand-icon-192.png" />
 
-  <meta property="og:type" content="website" />
-  <meta property="og:locale" content="pt_BR" />
-  <meta property="og:site_name" content="OmniZap System" />
-  <meta property="og:title" content="Adicione o bot ao seu grupo e deixe ele fazer o resto" />
-  <meta property="og:description" content="Automação automática, organização de mensagens e recursos inteligentes prontos para usar em grupos WhatsApp." />
-  <meta property="og:url" content="https://omnizap.shop/" />
-  <meta property="og:image" content="https://omnizap.shop/assets/images/hero-banner-1280.jpg" />
-  <meta property="og:image:alt" content="OmniZap Bot em funcionamento em grupos WhatsApp" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="OmniZap System" />
+    <meta property="og:title" content="Adicione o bot ao seu grupo e deixe ele fazer o resto" />
+    <meta property="og:description" content="Automação automática, organização de mensagens e recursos inteligentes prontos para usar em grupos WhatsApp." />
+    <meta property="og:url" content="https://omnizap.shop/" />
+    <meta property="og:image" content="https://omnizap.shop/assets/images/hero-banner-1280.jpg" />
+    <meta property="og:image:alt" content="OmniZap Bot em funcionamento em grupos WhatsApp" />
 
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="OmniZap Bot para WhatsApp" />
-  <meta name="twitter:description" content="Você adiciona. Ele organiza. Bot pronto para grupos e comunidades." />
-  <meta name="twitter:image" content="https://omnizap.shop/assets/images/hero-banner-1280.jpg" />
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="OmniZap Bot para WhatsApp" />
+    <meta name="twitter:description" content="Você adiciona. Ele organiza. Bot pronto para grupos e comunidades." />
+    <meta name="twitter:image" content="https://omnizap.shop/assets/images/hero-banner-1280.jpg" />
+    <script type="application/ld+json">
       {
-        "@type": "Question",
-        "name": "Preciso configurar algo técnico para usar o OmniZap?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Não. Você só adiciona o bot ao grupo, autoriza e ele já começa a funcionar com recursos automáticos."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Em quanto tempo o bot começa a funcionar?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Normalmente em menos de 1 minuto após a adição e autorização no grupo."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "O OmniZap funciona para grupos e comunidades?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Sim. O OmniZap foi criado para facilitar moderação, avisos e organização em grupos e comunidades no WhatsApp."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Posso usar stickers junto com o bot?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Sim. Os stickers fazem parte do ecossistema OmniZap e podem ser usados como recurso extra para engajamento."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Preciso entender API para começar?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Não para uso comum. A área de API existe para casos avançados de integração, mas o uso padrão é pronto e simples."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Quantos comandos o OmniZap possui?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Você pode acessar mais de 50 comandos ativos no seu grupo digitando /menu."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Onde posso ver a documentação técnica?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "A documentação técnica está em https://omnizap.shop/api-docs/."
-        }
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Preciso configurar algo técnico para usar o OmniZap?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Não. Você só adiciona o bot ao grupo, autoriza e ele já começa a funcionar com recursos automáticos."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Em quanto tempo o bot começa a funcionar?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Normalmente em menos de 1 minuto após a adição e autorização no grupo."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "O OmniZap funciona para grupos e comunidades?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. O OmniZap foi criado para facilitar moderação, avisos e organização em grupos e comunidades no WhatsApp."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso usar stickers junto com o bot?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. Os stickers fazem parte do ecossistema OmniZap e podem ser usados como recurso extra para engajamento."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Preciso entender API para começar?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Não para uso comum. A área de API existe para casos avançados de integração, mas o uso padrão é pronto e simples."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Quantos comandos o OmniZap possui?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Você pode acessar mais de 50 comandos ativos no seu grupo digitando /menu."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Onde posso ver a documentação técnica?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "A documentação técnica está em https://omnizap.shop/api-docs/."
+            }
+          }
+        ]
       }
-    ]
-  }
-  </script>
-
-  <style>
-    :root {
-      --bg: #0f172a;
-      --bg-2: #111827;
-      --panel: #1e293bd9;
-      --line: rgba(255, 255, 255, 0.05);
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --accent: #2563eb;
-      --accent-2: #7c3aed;
-      --cta: #22c55e;
-      --cta-hover: #16a34a;
-      --radius: 18px;
-      --font-ui: "Segoe UI", "Noto Sans", "Helvetica Neue", Arial, sans-serif;
-      --font-display: "Trebuchet MS", "Segoe UI", "Noto Sans", "Helvetica Neue", Arial, sans-serif;
-    }
-
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
-
-    body {
-      font-family: var(--font-ui);
-      color: var(--text);
-      background:
-        radial-gradient(58rem 22rem at -10% -8%, #2563eb24, transparent 60%),
-        radial-gradient(62rem 26rem at 112% -12%, #7c3aed22, transparent 58%),
-        linear-gradient(165deg, var(--bg), var(--bg-2));
-      min-height: 100vh;
-    }
-
-    .container { width: min(1120px, 92vw); margin: 0 auto; }
-
-    .top {
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      backdrop-filter: blur(10px);
-      background: #090f1fcf;
-      border-bottom: 1px solid #203250;
-    }
-
-    .top-inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      padding: 12px 0;
-    }
-
-    .brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      font-family: var(--font-display);
-      font-weight: 700;
-      text-decoration: none;
-      color: var(--text);
-      letter-spacing: 0.2px;
-    }
-
-    .brand img {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 1px solid #365585;
-    }
-
-    .nav { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-
-    .nav-toggle {
-      display: none;
-      width: 40px;
-      height: 40px;
-      border-radius: 11px;
-      border: 1px solid var(--line);
-      background: #101a30;
-      color: var(--text);
-      font-size: 20px;
-      cursor: pointer;
-    }
-
-    .btn {
-      text-decoration: none;
-      color: var(--text);
-      border: 1px solid var(--line);
-      background: #121c31;
-      border-radius: 12px;
-      padding: 10px 14px;
-      font-size: 14px;
-      font-weight: 700;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-      transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
-      cursor: pointer;
-    }
-
-    .icon {
-      display: inline-flex;
-      width: 1em;
-      height: 1em;
-      line-height: 1;
-      flex: 0 0 auto;
-      color: currentColor;
-    }
-
-    .icon svg {
-      width: 1em;
-      height: 1em;
-      fill: currentColor;
-      display: block;
-    }
-
-    .btn .icon { font-size: 1.03em; }
-
-    .btn:hover { transform: translateY(-1px); border-color: #4f6f9f; }
-
-    .btn.primary {
-      color: #0f172a;
-      border-color: transparent;
-      background: var(--cta);
-      box-shadow: 0 10px 24px #22c55e30;
-    }
-
-    .btn.primary:hover { background: var(--cta-hover); }
-
-    .btn.secondary {
-      border-color: #2563eb;
-      background: transparent;
-      color: #2563eb;
-    }
-
-    .hero {
-      margin-top: 28px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 28px;
-      background: linear-gradient(150deg, #111827ed, #1e293bed);
-      box-shadow: 0 22px 52px #02091770;
-      padding: clamp(18px, 3.2vw, 36px);
-      display: grid;
-      grid-template-columns: 1.08fr .92fr;
-      gap: 22px;
-      align-items: center;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .hero::before {
-      content: "";
-      position: absolute;
-      width: 320px;
-      height: 320px;
-      border-radius: 50%;
-      right: -120px;
-      top: -120px;
-      background: radial-gradient(circle, #2563eb3a 0%, #2563eb00 72%);
-      pointer-events: none;
-    }
-
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      border: 1px solid #46679d;
-      border-radius: 999px;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: .28px;
-      text-transform: uppercase;
-      color: #cbe1ff;
-      background: #16274a96;
-      margin-bottom: 10px;
-    }
-
-    .hero h1 {
-      margin: 0;
-      font-family: var(--font-display);
-      font-size: clamp(30px, 4.2vw, 50px);
-      line-height: 1.04;
-      letter-spacing: -0.02em;
-      background: linear-gradient(92deg, #f3f8ff 0%, #60a5fa 45%, #a78bfa 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      max-width: 640px;
-    }
-
-    .hero p {
-      margin: 14px 0 0;
-      color: #c1d3ed;
-      font-size: clamp(15px, 1.8vw, 19px);
-      line-height: 1.62;
-      max-width: 620px;
-      font-weight: 500;
-    }
-
-    .hero-cta {
-      margin-top: 18px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .mockup {
-      border: 1px solid #3c5d95;
-      border-radius: 22px;
-      background: #091226cf;
-      padding: 12px;
-      box-shadow: inset 0 1px 0 #7fb5ff17;
-    }
-
-    .mockup-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-      color: #acc4e8;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .chat {
-      display: grid;
-      gap: 10px;
-      max-height: 360px;
-      overflow: hidden;
-    }
-
-    .msg {
-      max-width: 88%;
-      padding: 10px 11px;
-      border-radius: 14px;
-      line-height: 1.45;
-      font-size: 13px;
-      border: 1px solid #2d456f;
-      background: #152542;
-      color: #d8e7ff;
-    }
-
-    .msg.user {
-      margin-left: auto;
-      background: #1b2f52;
-      border-color: #41679f;
-    }
-
-    .msg.bot {
-      margin-right: auto;
-      border-color: #2c7f64;
-      background: #0f2d25;
-      color: #d9ffec;
-    }
-
-    .proof-grid {
-      margin-top: 16px;
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .proof {
-      border: 1px solid #39557f;
-      border-radius: 14px;
-      background: #12203b94;
-      padding: 11px;
-    }
-
-    .proof strong {
-      display: block;
-      font-family: var(--font-display);
-      font-size: clamp(20px, 2.2vw, 24px);
-      color: #eff6ff;
-    }
-
-    .proof span {
-      display: block;
-      margin-top: 3px;
-      font-size: 12px;
-      color: #aac0df;
-      font-weight: 600;
-    }
-
-    .section {
-      margin-top: 34px;
-      border: 1px solid #304b76;
-      border-radius: 22px;
-      background: linear-gradient(150deg, #111f39bf, #0f1c33bf);
-      padding: clamp(16px, 2.8vw, 26px);
-    }
-
-    .section h2 {
-      margin: 0;
-      font-family: var(--font-display);
-      font-size: clamp(24px, 2.8vw, 34px);
-      letter-spacing: -0.02em;
-    }
-
-    .section p.lead {
-      margin: 10px 0 0;
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.6;
-      max-width: 760px;
-    }
-
-    .steps,
-    .features,
-    .audience,
-    .benefits {
-      margin-top: 16px;
-      display: grid;
-      gap: 12px;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-    }
-
-    .card {
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 16px;
-      background: #1e293bb8;
-      padding: 14px;
-      transition: transform .18s ease, border-color .18s ease;
-    }
-
-    .card:hover { transform: translateY(-2px); border-color: #5d84bf; }
-
-    .card h3 {
-      margin: 0 0 6px;
-      font-size: 17px;
-      color: #f3f8ff;
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .card p {
-      margin: 0;
-      color: #bed0ea;
-      font-size: 14px;
-      line-height: 1.56;
-    }
-
-    .benefit-item {
-      border: 1px solid #2d7a5f;
-      border-radius: 16px;
-      background: #102f26a8;
-      padding: 13px;
-      color: #ddffee;
-      font-weight: 700;
-      font-size: 15px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .faq-list {
-      margin-top: 16px;
-      display: grid;
-      gap: 10px;
-    }
-
-    .guides-grid {
-      margin-top: 16px;
-      display: grid;
-      gap: 10px;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    }
-
-    .guide-link {
-      display: block;
-      text-decoration: none;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 14px;
-      background: #1e293bb8;
-      padding: 12px;
-      color: #ecf3ff;
-      font-weight: 800;
-      line-height: 1.4;
-      transition: transform .18s ease, border-color .18s ease;
-    }
-
-    .guide-link span {
-      display: block;
-      margin-top: 4px;
-      color: #bed0ea;
-      font-weight: 600;
-      font-size: 13px;
-    }
-
-    .guide-link:hover {
-      transform: translateY(-2px);
-      border-color: #5d84bf;
-    }
-
-    .commands-grid {
-      margin-top: 16px;
-      display: grid;
-      gap: 12px;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    }
-
-    .command-card {
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 16px;
-      background: #1e293bb8;
-      padding: 13px;
-    }
-
-    .command-card h3 {
-      margin: 0 0 8px;
-      color: #f0f7ff;
-      font-size: 16px;
-      letter-spacing: -0.01em;
-    }
-
-    .command-list {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      display: grid;
-      gap: 7px;
-    }
-
-    .command-list li {
-      color: #bdd0eb;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    .command-list code {
-      display: inline-block;
-      margin-right: 6px;
-      padding: 2px 6px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 7px;
-      background: #111827;
-      color: #f8fafc;
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.02em;
-    }
-
-    .commands-actions {
-      margin-top: 14px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .commands-actions p {
-      margin: 0;
-      color: #c2d4ee;
-      font-size: 14px;
-      font-weight: 700;
-    }
-
-    .faq-item {
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 14px;
-      background: #1e293bb8;
-      padding: 0 12px;
-    }
-
-    .faq-item summary {
-      cursor: pointer;
-      list-style: none;
-      font-weight: 800;
-      color: #ecf3ff;
-      padding: 13px 0;
-      font-size: 15px;
-    }
-
-    .faq-item summary::-webkit-details-marker { display: none; }
-
-    .faq-item p {
-      margin: 0;
-      color: #bed0ea;
-      font-size: 14px;
-      line-height: 1.58;
-      padding: 0 0 13px;
-    }
-
-    .faq-item a {
-      color: #2563eb;
-      text-decoration: none;
-      border-bottom: 1px dashed #2563eb;
-    }
-
-    .final-cta {
-      margin: 34px 0 26px;
-      border: 1px solid #3f5f92;
-      border-radius: 24px;
-      background: linear-gradient(145deg, #14284b, #12335f);
-      padding: clamp(18px, 2.8vw, 32px);
-      box-shadow: 0 20px 40px #02091766;
-      text-align: center;
-    }
-
-    .final-cta h2 {
-      margin: 0;
-      font-family: var(--font-display);
-      font-size: clamp(26px, 3vw, 38px);
-      letter-spacing: -0.02em;
-    }
-
-    .final-cta p {
-      margin: 10px auto 0;
-      max-width: 620px;
-      color: #c5d8f4;
-    }
-
-    .final-actions {
-      margin-top: 16px;
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    footer {
-      border-top: 1px solid #223653;
-      padding: 22px 0 30px;
-      color: #93a9c9;
-      font-size: 13px;
-    }
-
-    .foot {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .foot-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .foot a {
-      color: #9bc4f5;
-      text-decoration: none;
-      border: 1px solid #304b75;
-      border-radius: 10px;
-      padding: 7px 10px;
-      background: #101a2f;
-    }
-
-    .nav-user-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 10px 6px 6px;
-      max-width: 270px;
-      border-color: #3f5f8f;
-      background: linear-gradient(120deg, #132544d6, #10203ad6);
-    }
-
-    .nav-user-avatar-bubble {
-      display: inline-flex;
-      width: 30px;
-      height: 30px;
-      border-radius: 999px;
-      border: 1px solid #4a6fa4;
-      background: #132340;
-      box-shadow: 0 0 0 2px #1a2e4b, 0 0 16px #6aaaf236;
-      overflow: hidden;
-      flex: 0 0 auto;
-    }
-
-    .nav-user-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-    .nav-user-name-bubble {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-width: 0;
-      padding: 4px 8px;
-      border-radius: 999px;
-      border: 1px solid #34547f;
-      background: #12213ac9;
-    }
-
-    .nav-user-icon { font-size: 12px; color: #9bc6f5; flex: 0 0 auto; }
-
-    .nav-user-name {
-      font-size: 12px;
-      font-weight: 700;
-      color: #dbe8fb;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .wpp-float {
-      position: fixed;
-      right: 16px;
-      bottom: 16px;
-      width: 56px;
-      height: 56px;
-      border-radius: 999px;
-      border: 1px solid #2fb86f;
-      background: linear-gradient(135deg, #25d366, #1ea952);
-      color: #052111;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 10px 25px #25d3664d;
-      text-decoration: none;
-      z-index: 30;
-      line-height: 1;
-      transition: transform .2s ease, box-shadow .2s ease;
-    }
-
-    .wpp-float .icon { font-size: 28px; }
-
-    .icon-sprite {
-      position: absolute;
-      width: 0;
-      height: 0;
-      overflow: hidden;
-      pointer-events: none;
-    }
-
-    .wpp-float:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 14px 30px #25d36666;
-    }
-
-    @media (max-width: 920px) {
-      .hero {
-        grid-template-columns: 1fr;
-        gap: 18px;
+    </script>
+
+    <style>
+      :root {
+        --bg: #0f172a;
+        --bg-2: #111827;
+        --panel: #1e293bd9;
+        --line: rgba(255, 255, 255, 0.05);
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #2563eb;
+        --accent-2: #7c3aed;
+        --cta: #22c55e;
+        --cta-hover: #16a34a;
+        --radius: 18px;
+        --font-ui: 'Segoe UI', 'Noto Sans', 'Helvetica Neue', Arial, sans-serif;
+        --font-display: 'Trebuchet MS', 'Segoe UI', 'Noto Sans', 'Helvetica Neue', Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: var(--font-ui);
+        color: var(--text);
+        background: radial-gradient(58rem 22rem at -10% -8%, #2563eb24, transparent 60%), radial-gradient(62rem 26rem at 112% -12%, #7c3aed22, transparent 58%), linear-gradient(165deg, var(--bg), var(--bg-2));
+        min-height: 100vh;
+      }
+
+      .container {
+        width: min(1120px, 92vw);
+        margin: 0 auto;
+      }
+
+      .top {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        backdrop-filter: blur(10px);
+        background: #090f1fcf;
+        border-bottom: 1px solid #203250;
       }
 
       .top-inner {
-        flex-direction: column;
-        align-items: stretch;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 12px 0;
       }
 
-      .top-head {
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--font-display);
+        font-weight: 700;
+        text-decoration: none;
+        color: var(--text);
+        letter-spacing: 0.2px;
+      }
+
+      .brand img {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid #365585;
+      }
+
+      .nav {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .nav-toggle {
+        display: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        border: 1px solid var(--line);
+        background: #101a30;
+        color: var(--text);
+        font-size: 20px;
+        cursor: pointer;
+      }
+
+      .btn {
+        text-decoration: none;
+        color: var(--text);
+        border: 1px solid var(--line);
+        background: #121c31;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-size: 14px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        transition:
+          transform 0.18s ease,
+          border-color 0.18s ease,
+          box-shadow 0.18s ease;
+        cursor: pointer;
+      }
+
+      .icon {
+        display: inline-flex;
+        width: 1em;
+        height: 1em;
+        line-height: 1;
+        flex: 0 0 auto;
+        color: currentColor;
+      }
+
+      .icon svg {
+        width: 1em;
+        height: 1em;
+        fill: currentColor;
+        display: block;
+      }
+
+      .btn .icon {
+        font-size: 1.03em;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+        border-color: #4f6f9f;
+      }
+
+      .btn.primary {
+        color: #0f172a;
+        border-color: transparent;
+        background: var(--cta);
+        box-shadow: 0 10px 24px #22c55e30;
+      }
+
+      .btn.primary:hover {
+        background: var(--cta-hover);
+      }
+
+      .btn.secondary {
+        border-color: #2563eb;
+        background: transparent;
+        color: #2563eb;
+      }
+
+      .hero {
+        margin-top: 28px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 28px;
+        background: linear-gradient(150deg, #111827ed, #1e293bed);
+        box-shadow: 0 22px 52px #02091770;
+        padding: clamp(18px, 3.2vw, 36px);
+        display: grid;
+        grid-template-columns: 1.08fr 0.92fr;
+        gap: 22px;
+        align-items: center;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .hero::before {
+        content: '';
+        position: absolute;
+        width: 320px;
+        height: 320px;
+        border-radius: 50%;
+        right: -120px;
+        top: -120px;
+        background: radial-gradient(circle, #2563eb3a 0%, #2563eb00 72%);
+        pointer-events: none;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid #46679d;
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.28px;
+        text-transform: uppercase;
+        color: #cbe1ff;
+        background: #16274a96;
+        margin-bottom: 10px;
+      }
+
+      .hero h1 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: clamp(30px, 4.2vw, 50px);
+        line-height: 1.04;
+        letter-spacing: -0.02em;
+        background: linear-gradient(92deg, #f3f8ff 0%, #60a5fa 45%, #a78bfa 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        max-width: 640px;
+      }
+
+      .hero p {
+        margin: 14px 0 0;
+        color: #c1d3ed;
+        font-size: clamp(15px, 1.8vw, 19px);
+        line-height: 1.62;
+        max-width: 620px;
+        font-weight: 500;
+      }
+
+      .hero-cta {
+        margin-top: 18px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .mockup {
+        border: 1px solid #3c5d95;
+        border-radius: 22px;
+        background: #091226cf;
+        padding: 12px;
+        box-shadow: inset 0 1px 0 #7fb5ff17;
+      }
+
+      .mockup-head {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        margin-bottom: 10px;
+        color: #acc4e8;
+        font-size: 12px;
+        font-weight: 700;
       }
 
-      .nav-toggle { display: inline-flex; align-items: center; justify-content: center; }
+      .chat {
+        display: grid;
+        gap: 10px;
+        max-height: 360px;
+        overflow: hidden;
+      }
 
-      .nav {
-        display: none;
-        width: 100%;
-        grid-template-columns: 1fr;
+      .msg {
+        max-width: 88%;
+        padding: 10px 11px;
+        border-radius: 14px;
+        line-height: 1.45;
+        font-size: 13px;
+        border: 1px solid #2d456f;
+        background: #152542;
+        color: #d8e7ff;
+      }
+
+      .msg.user {
+        margin-left: auto;
+        background: #1b2f52;
+        border-color: #41679f;
+      }
+
+      .msg.bot {
+        margin-right: auto;
+        border-color: #2c7f64;
+        background: #0f2d25;
+        color: #d9ffec;
+      }
+
+      .proof-grid {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .proof {
+        border: 1px solid #39557f;
+        border-radius: 14px;
+        background: #12203b94;
+        padding: 11px;
+      }
+
+      .proof strong {
+        display: block;
+        font-family: var(--font-display);
+        font-size: clamp(20px, 2.2vw, 24px);
+        color: #eff6ff;
+      }
+
+      .proof span {
+        display: block;
+        margin-top: 3px;
+        font-size: 12px;
+        color: #aac0df;
+        font-weight: 600;
+      }
+
+      .section {
+        margin-top: 34px;
+        border: 1px solid #304b76;
+        border-radius: 22px;
+        background: linear-gradient(150deg, #111f39bf, #0f1c33bf);
+        padding: clamp(16px, 2.8vw, 26px);
+      }
+
+      .section h2 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: clamp(24px, 2.8vw, 34px);
+        letter-spacing: -0.02em;
+      }
+
+      .section p.lead {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.6;
+        max-width: 760px;
+      }
+
+      .steps,
+      .features,
+      .audience,
+      .benefits {
+        margin-top: 16px;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      }
+
+      .card {
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        background: #1e293bb8;
+        padding: 14px;
+        transition:
+          transform 0.18s ease,
+          border-color 0.18s ease;
+      }
+
+      .card:hover {
+        transform: translateY(-2px);
+        border-color: #5d84bf;
+      }
+
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 17px;
+        color: #f3f8ff;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .card p {
+        margin: 0;
+        color: #bed0ea;
+        font-size: 14px;
+        line-height: 1.56;
+      }
+
+      .benefit-item {
+        border: 1px solid #2d7a5f;
+        border-radius: 16px;
+        background: #102f26a8;
+        padding: 13px;
+        color: #ddffee;
+        font-weight: 700;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
         gap: 8px;
       }
 
-      .nav.open { display: grid; }
+      .faq-list {
+        margin-top: 16px;
+        display: grid;
+        gap: 10px;
+      }
 
-      .btn { width: 100%; }
-      .proof-grid { grid-template-columns: 1fr; }
-    }
-  </style>
-</head>
-<body>
-  <svg class="icon-sprite" aria-hidden="true" focusable="false">
-    <symbol id="icon-login" viewBox="0 0 24 24">
-      <path d="M3 4.5A2.5 2.5 0 0 1 5.5 2h8A2.5 2.5 0 0 1 16 4.5V8a1 1 0 1 1-2 0V4.5a.5.5 0 0 0-.5-.5h-8a.5.5 0 0 0-.5.5v15a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5V16a1 1 0 1 1 2 0v3.5a2.5 2.5 0 0 1-2.5 2.5h-8A2.5 2.5 0 0 1 3 19.5z" />
-      <path d="M19.293 8.293a1 1 0 0 1 1.414 0l3 3a1 1 0 0 1 0 1.414l-3 3a1 1 0 0 1-1.414-1.414L20.586 13H9a1 1 0 1 1 0-2h11.586l-1.293-1.293a1 1 0 0 1 0-1.414z" />
-    </symbol>
-    <symbol id="icon-user" viewBox="0 0 24 24">
-      <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM4 20a8 8 0 1 1 16 0z" />
-    </symbol>
-    <symbol id="icon-sparkles" viewBox="0 0 24 24">
-      <path d="m11.35 2.23 1.3.01 1.58 4.23 4.24 1.59v1.29l-4.24 1.59-1.58 4.23h-1.3l-1.58-4.23-4.24-1.59V8.06l4.24-1.59zM18.17 10l.83 2.03L21 12.86l-2 .83-.83 2.03-.83-2.03-2-.83 2-.83zM5 13.2l1.02 2.43 2.42 1.03-2.42 1.03L5 20.12l-1.02-2.43-2.42-1.03 2.42-1.03z" />
-    </symbol>
-    <symbol id="icon-whatsapp" viewBox="0 0 24 24">
-      <path d="M12 2a10 10 0 0 0-8.74 14.86L2 22l5.27-1.23A10 10 0 1 0 12 2zm0 18a7.92 7.92 0 0 1-4.03-1.1l-.58-.34-3.12.73.77-3.02-.37-.6A8 8 0 1 1 12 20z" />
-      <path d="M16.32 13.63c-.22-.11-1.32-.65-1.52-.73-.2-.08-.35-.12-.5.12-.14.23-.58.72-.7.87-.13.14-.25.16-.47.05-1.3-.65-2.15-1.16-3.02-2.63-.23-.4.23-.37.66-1.24.08-.16.04-.3-.02-.42-.06-.11-.5-1.21-.68-1.65-.18-.43-.37-.37-.5-.37h-.43c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2 0 1.17.86 2.3.98 2.46.12.16 1.68 2.57 4.08 3.6.57.25 1.01.4 1.36.52.57.18 1.08.15 1.48.09.46-.07 1.32-.54 1.5-1.07.19-.53.19-.98.13-1.08-.05-.1-.2-.16-.42-.27z" />
-    </symbol>
-  </svg>
+      .guides-grid {
+        margin-top: 16px;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      }
 
-  <header class="top">
-    <div class="container top-inner">
-      <div class="top-head">
-        <a class="brand" href="/" aria-label="OmniZap Home">
-          <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" width="30" height="30" decoding="async" />
-          <span>OmniZap Bot</span>
-        </a>
-        <button id="nav-toggle" class="nav-toggle" type="button" aria-expanded="false" aria-controls="main-nav" aria-label="Abrir menu">☰</button>
-      </div>
+      .guide-link {
+        display: block;
+        text-decoration: none;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 14px;
+        background: #1e293bb8;
+        padding: 12px;
+        color: #ecf3ff;
+        font-weight: 800;
+        line-height: 1.4;
+        transition:
+          transform 0.18s ease,
+          border-color 0.18s ease;
+      }
 
-      <nav id="main-nav" class="nav" aria-label="Navegação principal">
-        <a class="btn" href="#como-funciona">Como funciona</a>
-        <a class="btn" href="#recursos">Recursos</a>
-        <a class="btn" href="#comandos">Comandos</a>
-        <a class="btn" href="#para-quem">Para quem</a>
-        <a class="btn" href="/stickers/">Stickers</a>
-        <a class="btn" href="#guias">Guias</a>
-        <a class="btn" href="#faq">FAQ</a>
-        <a id="nav-scheduler-link" class="btn" href="#beneficios">Benefícios</a>
-        <a id="nav-auth-link" class="btn" href="/login/"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#icon-login"></use></svg></span>Entrar</a>
-      </nav>
-    </div>
-  </header>
+      .guide-link span {
+        display: block;
+        margin-top: 4px;
+        color: #bed0ea;
+        font-weight: 600;
+        font-size: 13px;
+      }
 
-  <main class="container">
-    <section class="hero" aria-labelledby="hero-title">
-      <div>
-        <span class="eyebrow">Bot pronto para grupos WhatsApp</span>
-        <h1 id="hero-title">Adicione o bot ao seu grupo e deixe ele fazer o resto.</h1>
-        <p>Automação automática, organização de mensagens e recursos inteligentes prontos para usar. Sem configuração técnica. Sem programação. Sem complicação.</p>
+      .guide-link:hover {
+        transform: translateY(-2px);
+        border-color: #5d84bf;
+      }
 
-        <div class="hero-cta">
-          <a class="btn primary" data-add-bot-cta href="/login/"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#icon-whatsapp"></use></svg></span>Adicionar ao Meu Grupo</a>
-          <a class="btn secondary" href="#recursos"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#icon-sparkles"></use></svg></span>Ver Recursos</a>
-          <a id="hero-login-cta" class="btn" href="/login/"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#icon-user"></use></svg></span>Entrar</a>
+      .commands-grid {
+        margin-top: 16px;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      }
+
+      .command-card {
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        background: #1e293bb8;
+        padding: 13px;
+      }
+
+      .command-card h3 {
+        margin: 0 0 8px;
+        color: #f0f7ff;
+        font-size: 16px;
+        letter-spacing: -0.01em;
+      }
+
+      .command-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 7px;
+      }
+
+      .command-list li {
+        color: #bdd0eb;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .command-list code {
+        display: inline-block;
+        margin-right: 6px;
+        padding: 2px 6px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 7px;
+        background: #111827;
+        color: #f8fafc;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+      }
+
+      .commands-actions {
+        margin-top: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .commands-actions p {
+        margin: 0;
+        color: #c2d4ee;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .faq-item {
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 14px;
+        background: #1e293bb8;
+        padding: 0 12px;
+      }
+
+      .faq-item summary {
+        cursor: pointer;
+        list-style: none;
+        font-weight: 800;
+        color: #ecf3ff;
+        padding: 13px 0;
+        font-size: 15px;
+      }
+
+      .faq-item summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .faq-item p {
+        margin: 0;
+        color: #bed0ea;
+        font-size: 14px;
+        line-height: 1.58;
+        padding: 0 0 13px;
+      }
+
+      .faq-item a {
+        color: #2563eb;
+        text-decoration: none;
+        border-bottom: 1px dashed #2563eb;
+      }
+
+      .final-cta {
+        margin: 34px 0 26px;
+        border: 1px solid #3f5f92;
+        border-radius: 24px;
+        background: linear-gradient(145deg, #14284b, #12335f);
+        padding: clamp(18px, 2.8vw, 32px);
+        box-shadow: 0 20px 40px #02091766;
+        text-align: center;
+      }
+
+      .final-cta h2 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: clamp(26px, 3vw, 38px);
+        letter-spacing: -0.02em;
+      }
+
+      .final-cta p {
+        margin: 10px auto 0;
+        max-width: 620px;
+        color: #c5d8f4;
+      }
+
+      .final-actions {
+        margin-top: 16px;
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      footer {
+        border-top: 1px solid #223653;
+        padding: 22px 0 30px;
+        color: #93a9c9;
+        font-size: 13px;
+      }
+
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .foot-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .foot a {
+        color: #9bc4f5;
+        text-decoration: none;
+        border: 1px solid #304b75;
+        border-radius: 10px;
+        padding: 7px 10px;
+        background: #101a2f;
+      }
+
+      .nav-user-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px 6px 6px;
+        max-width: 270px;
+        border-color: #3f5f8f;
+        background: linear-gradient(120deg, #132544d6, #10203ad6);
+      }
+
+      .nav-user-avatar-bubble {
+        display: inline-flex;
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        border: 1px solid #4a6fa4;
+        background: #132340;
+        box-shadow:
+          0 0 0 2px #1a2e4b,
+          0 0 16px #6aaaf236;
+        overflow: hidden;
+        flex: 0 0 auto;
+      }
+
+      .nav-user-photo {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      .nav-user-name-bubble {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid #34547f;
+        background: #12213ac9;
+      }
+
+      .nav-user-icon {
+        font-size: 12px;
+        color: #9bc6f5;
+        flex: 0 0 auto;
+      }
+
+      .nav-user-name {
+        font-size: 12px;
+        font-weight: 700;
+        color: #dbe8fb;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .wpp-float {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        width: 56px;
+        height: 56px;
+        border-radius: 999px;
+        border: 1px solid #2fb86f;
+        background: linear-gradient(135deg, #25d366, #1ea952);
+        color: #052111;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 25px #25d3664d;
+        text-decoration: none;
+        z-index: 30;
+        line-height: 1;
+        transition:
+          transform 0.2s ease,
+          box-shadow 0.2s ease;
+      }
+
+      .wpp-float .icon {
+        font-size: 28px;
+      }
+
+      .icon-sprite {
+        position: absolute;
+        width: 0;
+        height: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      .wpp-float:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 14px 30px #25d36666;
+      }
+
+      @media (max-width: 920px) {
+        .hero {
+          grid-template-columns: 1fr;
+          gap: 18px;
+        }
+
+        .top-inner {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .top-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .nav-toggle {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .nav {
+          display: none;
+          width: 100%;
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+
+        .nav.open {
+          display: grid;
+        }
+
+        .btn {
+          width: 100%;
+        }
+        .proof-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-login" viewBox="0 0 24 24">
+        <path d="M3 4.5A2.5 2.5 0 0 1 5.5 2h8A2.5 2.5 0 0 1 16 4.5V8a1 1 0 1 1-2 0V4.5a.5.5 0 0 0-.5-.5h-8a.5.5 0 0 0-.5.5v15a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5V16a1 1 0 1 1 2 0v3.5a2.5 2.5 0 0 1-2.5 2.5h-8A2.5 2.5 0 0 1 3 19.5z" />
+        <path d="M19.293 8.293a1 1 0 0 1 1.414 0l3 3a1 1 0 0 1 0 1.414l-3 3a1 1 0 0 1-1.414-1.414L20.586 13H9a1 1 0 1 1 0-2h11.586l-1.293-1.293a1 1 0 0 1 0-1.414z" />
+      </symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24">
+        <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM4 20a8 8 0 1 1 16 0z" />
+      </symbol>
+      <symbol id="icon-sparkles" viewBox="0 0 24 24">
+        <path d="m11.35 2.23 1.3.01 1.58 4.23 4.24 1.59v1.29l-4.24 1.59-1.58 4.23h-1.3l-1.58-4.23-4.24-1.59V8.06l4.24-1.59zM18.17 10l.83 2.03L21 12.86l-2 .83-.83 2.03-.83-2.03-2-.83 2-.83zM5 13.2l1.02 2.43 2.42 1.03-2.42 1.03L5 20.12l-1.02-2.43-2.42-1.03 2.42-1.03z" />
+      </symbol>
+      <symbol id="icon-whatsapp" viewBox="0 0 24 24">
+        <path d="M12 2a10 10 0 0 0-8.74 14.86L2 22l5.27-1.23A10 10 0 1 0 12 2zm0 18a7.92 7.92 0 0 1-4.03-1.1l-.58-.34-3.12.73.77-3.02-.37-.6A8 8 0 1 1 12 20z" />
+        <path d="M16.32 13.63c-.22-.11-1.32-.65-1.52-.73-.2-.08-.35-.12-.5.12-.14.23-.58.72-.7.87-.13.14-.25.16-.47.05-1.3-.65-2.15-1.16-3.02-2.63-.23-.4.23-.37.66-1.24.08-.16.04-.3-.02-.42-.06-.11-.5-1.21-.68-1.65-.18-.43-.37-.37-.5-.37h-.43c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2 0 1.17.86 2.3.98 2.46.12.16 1.68 2.57 4.08 3.6.57.25 1.01.4 1.36.52.57.18 1.08.15 1.48.09.46-.07 1.32-.54 1.5-1.07.19-.53.19-.98.13-1.08-.05-.1-.2-.16-.42-.27z" />
+      </symbol>
+    </svg>
+
+    <header class="top">
+      <div class="container top-inner">
+        <div class="top-head">
+          <a class="brand" href="/" aria-label="OmniZap Home">
+            <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" width="30" height="30" decoding="async" />
+            <span>OmniZap Bot</span>
+          </a>
+          <button id="nav-toggle" class="nav-toggle" type="button" aria-expanded="false" aria-controls="main-nav" aria-label="Abrir menu">☰</button>
         </div>
 
-        <div class="proof-grid" aria-label="Prova social">
-          <article class="proof">
-            <strong id="proof-packs">--</strong>
-            <span>rotinas e respostas prontas</span>
+        <nav id="main-nav" class="nav" aria-label="Navegação principal">
+          <a class="btn" href="#como-funciona">Como funciona</a>
+          <a class="btn" href="#recursos">Recursos</a>
+          <a class="btn" href="#comandos">Comandos</a>
+          <a class="btn" href="#para-quem">Para quem</a>
+          <a class="btn" href="/stickers/">Stickers</a>
+          <a class="btn" href="#guias">Guias</a>
+          <a class="btn" href="#faq">FAQ</a>
+          <a id="nav-scheduler-link" class="btn" href="#beneficios">Benefícios</a>
+          <a id="nav-auth-link" class="btn" href="/login/"
+            ><span class="icon" aria-hidden="true"
+              ><svg viewBox="0 0 24 24"><use href="#icon-login"></use></svg></span
+            >Entrar</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <span class="eyebrow">Bot pronto para grupos WhatsApp</span>
+          <h1 id="hero-title">Adicione o bot ao seu grupo e deixe ele fazer o resto.</h1>
+          <p>Automação automática, organização de mensagens e recursos inteligentes prontos para usar. Sem configuração técnica. Sem programação. Sem complicação.</p>
+
+          <div class="hero-cta">
+            <a class="btn primary" data-add-bot-cta href="/login/"
+              ><span class="icon" aria-hidden="true"
+                ><svg viewBox="0 0 24 24"><use href="#icon-whatsapp"></use></svg></span
+              >Adicionar ao Meu Grupo</a
+            >
+            <a class="btn secondary" href="#recursos"
+              ><span class="icon" aria-hidden="true"
+                ><svg viewBox="0 0 24 24"><use href="#icon-sparkles"></use></svg></span
+              >Ver Recursos</a
+            >
+            <a id="hero-login-cta" class="btn" href="/login/"
+              ><span class="icon" aria-hidden="true"
+                ><svg viewBox="0 0 24 24"><use href="#icon-user"></use></svg></span
+              >Entrar</a
+            >
+          </div>
+
+          <div class="proof-grid" aria-label="Prova social">
+            <article class="proof">
+              <strong id="proof-packs">--</strong>
+              <span>rotinas e respostas prontas</span>
+            </article>
+            <article class="proof">
+              <strong id="proof-stickers">--</strong>
+              <span>stickers disponíveis</span>
+            </article>
+            <article class="proof">
+              <strong id="proof-groups">--</strong>
+              <span>grupos ativos com o bot</span>
+            </article>
+          </div>
+        </div>
+
+        <aside class="mockup" aria-label="Exemplo de conversa com bot no grupo">
+          <div class="mockup-head">
+            <span>Comunidade OmniZap</span>
+            <span id="proof-status">bot online</span>
+          </div>
+          <div class="chat">
+            <div class="msg user">Pessoal, os links estão bagunçando o grupo 😅</div>
+            <div class="msg bot">✅ Pronto! Ativei moderação automática. Links suspeitos agora são bloqueados.</div>
+            <div class="msg user">Consegue mandar aviso de reunião amanhã às 9h?</div>
+            <div class="msg bot">📣 Aviso agendado para todo o grupo. Também vou lembrar 15 minutos antes.</div>
+            <div class="msg user">Top! E os comandos?</div>
+            <div class="msg bot">🤖 Já estão ativos. Digite /menu e veja mais de 50 comandos no seu grupo.</div>
+          </div>
+        </aside>
+      </section>
+
+      <section id="como-funciona" class="section" aria-labelledby="como-funciona-title">
+        <h2 id="como-funciona-title">Como funciona</h2>
+        <p class="lead">Ultra simples: três passos e o grupo já começa a rodar com automação.</p>
+        <div class="steps">
+          <article class="card">
+            <h3><span>1️⃣</span> Clique em adicionar</h3>
+            <p>Toque no botão e abra a conversa com o bot no WhatsApp.</p>
           </article>
-          <article class="proof">
-            <strong id="proof-stickers">--</strong>
-            <span>stickers disponíveis</span>
+          <article class="card">
+            <h3><span>2️⃣</span> Autorize no grupo</h3>
+            <p>Adicione o OmniZap no grupo ou comunidade em poucos toques.</p>
           </article>
-          <article class="proof">
-            <strong id="proof-groups">--</strong>
-            <span>grupos ativos com o bot</span>
+          <article class="card">
+            <h3><span>3️⃣</span> Pronto. Já funciona</h3>
+            <p>Moderação, avisos e respostas automáticas começam imediatamente.</p>
           </article>
         </div>
-      </div>
+      </section>
 
-      <aside class="mockup" aria-label="Exemplo de conversa com bot no grupo">
-        <div class="mockup-head">
-          <span>Comunidade OmniZap</span>
-          <span id="proof-status">bot online</span>
+      <section id="recursos" class="section" aria-labelledby="recursos-title">
+        <h2 id="recursos-title">O que o bot faz por você</h2>
+        <p class="lead">Tudo focado em resultado no grupo, sem linguagem técnica.</p>
+        <div class="features">
+          <article class="card">
+            <h3>🤖 Responde automaticamente</h3>
+            <p>Respostas rápidas para dúvidas repetidas e comandos prontos para o dia a dia.</p>
+          </article>
+          <article class="card">
+            <h3>📌 Organiza o grupo</h3>
+            <p>Ajuda a manter conversas úteis e reduz o caos de mensagens perdidas.</p>
+          </article>
+          <article class="card">
+            <h3>🛑 Moderação inteligente</h3>
+            <p>Bloqueia spam e comportamentos problemáticos para proteger sua comunidade.</p>
+          </article>
+          <article class="card">
+            <h3>📣 Envia avisos automáticos</h3>
+            <p>Agenda recados e lembretes para que ninguém perca informações importantes.</p>
+          </article>
+          <article class="card">
+            <h3>🎉 Recursos extras integrados</h3>
+            <p>Stickers, interações e utilidades prontas para aumentar o engajamento do grupo.</p>
+          </article>
         </div>
-        <div class="chat">
-          <div class="msg user">Pessoal, os links estão bagunçando o grupo 😅</div>
-          <div class="msg bot">✅ Pronto! Ativei moderação automática. Links suspeitos agora são bloqueados.</div>
-          <div class="msg user">Consegue mandar aviso de reunião amanhã às 9h?</div>
-          <div class="msg bot">📣 Aviso agendado para todo o grupo. Também vou lembrar 15 minutos antes.</div>
-          <div class="msg user">Top! E os comandos?</div>
-          <div class="msg bot">🤖 Já estão ativos. Digite /menu e veja mais de 50 comandos no seu grupo.</div>
+      </section>
+
+      <section id="comandos" class="section" aria-labelledby="comandos-title">
+        <h2 id="comandos-title">⚡ Veja tudo que o bot pode fazer no seu grupo</h2>
+        <p class="lead">Comandos simples que resolvem tarefas reais do dia a dia.</p>
+        <div class="commands-grid">
+          <article class="command-card">
+            <h3>🛡️ Moderação</h3>
+            <ul class="command-list">
+              <li><code>/ban</code>Remove membros problemáticos</li>
+              <li><code>/captcha</code>Proteção contra bots</li>
+              <li><code>/setgroup</code>Ativa modo restrito</li>
+              <li><code>/welcome</code>Boas-vindas automáticas</li>
+              <li><code>/farewell</code>Aviso quando alguém sai</li>
+            </ul>
+          </article>
+          <article class="command-card">
+            <h3>🎨 Figurinhas</h3>
+            <ul class="command-list">
+              <li><code>/sticker</code>Cria figurinha</li>
+              <li><code>/stickertext</code>Figurinha com texto</li>
+              <li><code>/pack create</code>Cria pack de stickers</li>
+              <li><code>/pack send</code>Envia pack no grupo</li>
+              <li><code>/toimg</code>Converte figurinha em imagem</li>
+            </ul>
+          </article>
+          <article class="command-card">
+            <h3>🎮 Engajamento</h3>
+            <ul class="command-list">
+              <li><code>/ranking</code>Ranking do grupo</li>
+              <li><code>/rankingglobal</code>Ranking global</li>
+              <li><code>/dado</code>Jogo de dados</li>
+              <li><code>/quote</code>Cita mensagem com estilo</li>
+              <li><code>/user perfil</code>Resumo do perfil</li>
+            </ul>
+          </article>
+          <article class="command-card">
+            <h3>🎵 Mídia</h3>
+            <ul class="command-list">
+              <li><code>/play</code>Toca música</li>
+              <li><code>/playvid</code>Toca vídeo</li>
+              <li><code>/tiktok</code>Baixa vídeo do TikTok</li>
+              <li><code>/down</code>Faz download de mídia</li>
+              <li><code>/menu</code>Atalho para todos os comandos</li>
+            </ul>
+          </article>
+          <article class="command-card">
+            <h3>🤖 Utilidades inteligentes</h3>
+            <ul class="command-list">
+              <li><code>/menu ia</code>Recursos de IA</li>
+              <li><code>/autorequests</code>Respostas automáticas</li>
+              <li><code>/noticias</code>Notícias no grupo</li>
+              <li><code>/metadata</code>Informações técnicas</li>
+              <li><code>/ping</code>Status do bot</li>
+            </ul>
+          </article>
         </div>
-      </aside>
-    </section>
+        <div class="commands-actions">
+          <p>+ dezenas de outros comandos disponíveis para sua operação.</p>
+          <a class="btn secondary" href="/comandos/">Ver lista completa</a>
+        </div>
+      </section>
 
-    <section id="como-funciona" class="section" aria-labelledby="como-funciona-title">
-      <h2 id="como-funciona-title">Como funciona</h2>
-      <p class="lead">Ultra simples: três passos e o grupo já começa a rodar com automação.</p>
-      <div class="steps">
-        <article class="card">
-          <h3><span>1️⃣</span> Clique em adicionar</h3>
-          <p>Toque no botão e abra a conversa com o bot no WhatsApp.</p>
-        </article>
-        <article class="card">
-          <h3><span>2️⃣</span> Autorize no grupo</h3>
-          <p>Adicione o OmniZap no grupo ou comunidade em poucos toques.</p>
-        </article>
-        <article class="card">
-          <h3><span>3️⃣</span> Pronto. Já funciona</h3>
-          <p>Moderação, avisos e respostas automáticas começam imediatamente.</p>
-        </article>
+      <section id="para-quem" class="section" aria-labelledby="para-quem-title">
+        <h2 id="para-quem-title">Para quem é</h2>
+        <p class="lead">Se você administra pessoas em grupo, o OmniZap foi feito para você.</p>
+        <div class="audience">
+          <article class="card">
+            <h3>👥 Donos de comunidade</h3>
+            <p>Mantenha regras e organização sem esforço manual constante.</p>
+          </article>
+          <article class="card">
+            <h3>🎬 Criadores de conteúdo</h3>
+            <p>Gerencie audiência e comunicados com mais consistência.</p>
+          </article>
+          <article class="card">
+            <h3>📚 Grupos de estudo</h3>
+            <p>Centralize avisos e reduza distrações para manter foco.</p>
+          </article>
+          <article class="card">
+            <h3>🛍️ Lojas online</h3>
+            <p>Automatize atendimento inicial e mensagens recorrentes.</p>
+          </article>
+          <article class="card">
+            <h3>🏢 Equipes internas</h3>
+            <p>Padronize comunicação e acompanhe rotinas com agilidade.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="beneficios" class="section" aria-labelledby="beneficios-title">
+        <h2 id="beneficios-title">Benefícios imediatos</h2>
+        <p class="lead">Você adiciona. Ele organiza.</p>
+        <div class="benefits">
+          <article class="benefit-item">✅ Economiza tempo da equipe</article>
+          <article class="benefit-item">✅ Evita spam e bagunça</article>
+          <article class="benefit-item">✅ Mantém o grupo organizado</article>
+          <article class="benefit-item">✅ Deixa sua comunidade mais profissional</article>
+        </div>
+      </section>
+
+      <section id="guias" class="section" aria-labelledby="guias-title">
+        <h2 id="guias-title">Guias rápidos para seu grupo crescer organizado</h2>
+        <p class="lead">Conteúdo satélite para resolver dores reais de operação e reforçar sua estratégia de comunidade.</p>
+        <div class="guides-grid">
+          <a class="guide-link" href="/bot-whatsapp-para-grupo/">Bot para grupo de WhatsApp<span>Guia de entrada rápida</span></a>
+          <a class="guide-link" href="/como-moderar-grupo-whatsapp/">Como moderar grupo no WhatsApp<span>Fluxo prático sem sobrecarga</span></a>
+          <a class="guide-link" href="/como-evitar-spam-no-whatsapp/">Como evitar spam no WhatsApp<span>Proteja o grupo com menos esforço</span></a>
+          <a class="guide-link" href="/como-organizar-comunidade-whatsapp/">Como organizar comunidade no WhatsApp<span>Estrutura para escala com qualidade</span></a>
+          <a class="guide-link" href="/como-automatizar-avisos-no-whatsapp/">Como automatizar avisos no WhatsApp<span>Recados certos no momento certo</span></a>
+          <a class="guide-link" href="/como-criar-comandos-whatsapp/">Como criar comandos no WhatsApp<span>Padronize respostas e rotinas</span></a>
+          <a class="guide-link" href="/melhor-bot-whatsapp-para-grupos/">Melhor bot para grupos<span>Comparativo orientado a resultado</span></a>
+          <a class="guide-link" href="/bot-whatsapp-sem-programar/">Bot para WhatsApp sem programar<span>Automação sem setup técnico</span></a>
+        </div>
+      </section>
+
+      <section id="faq" class="section" aria-labelledby="faq-title">
+        <h2 id="faq-title">Perguntas frequentes</h2>
+        <p class="lead">Tudo que você precisa para começar sem complicação.</p>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>Preciso configurar algo técnico para usar o OmniZap?</summary>
+            <p>Não. Você só adiciona o bot ao grupo, autoriza e ele já começa a funcionar com recursos automáticos.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Em quanto tempo o bot começa a funcionar?</summary>
+            <p>Normalmente em menos de 1 minuto após a adição e autorização no grupo.</p>
+          </details>
+          <details class="faq-item">
+            <summary>O OmniZap funciona para grupos e comunidades?</summary>
+            <p>Sim. O OmniZap foi criado para facilitar moderação, avisos e organização em grupos e comunidades no WhatsApp.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Posso usar stickers junto com o bot?</summary>
+            <p>Sim. Os stickers fazem parte do ecossistema OmniZap e podem ser usados como recurso extra para engajamento. Veja o catálogo em <a href="/stickers/">/stickers/</a>.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Preciso entender API para começar?</summary>
+            <p>Não para uso comum. A área de API existe para integrações avançadas e pode ser acessada em <a href="/api-docs/">/api-docs/</a>.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Quantos comandos o OmniZap possui?</summary>
+            <p>Você pode acessar mais de 50 comandos ativos no seu grupo digitando <strong>/menu</strong> ou consultando a página <a href="/comandos/">/comandos/</a>.</p>
+          </details>
+        </div>
+      </section>
+
+      <section class="final-cta" aria-labelledby="cta-final-title">
+        <h2 id="cta-final-title">Seu grupo mais organizado em menos de 1 minuto.</h2>
+        <p>Sem setup técnico. Sem curva de aprendizado. Clique e comece agora.</p>
+        <div class="final-actions">
+          <a class="btn primary" data-add-bot-cta href="/login/"
+            ><span class="icon" aria-hidden="true"
+              ><svg viewBox="0 0 24 24"><use href="#icon-whatsapp"></use></svg></span
+            >Adicionar Bot Agora</a
+          >
+          <a id="final-login-cta" class="btn" href="/login/"
+            ><span class="icon" aria-hidden="true"
+              ><svg viewBox="0 0 24 24"><use href="#icon-user"></use></svg></span
+            >Entrar</a
+          >
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container foot">
+        <div>OmniZap System 2026 · Bot pronto para grupos WhatsApp</div>
+        <nav class="foot-links" aria-label="Links de rodapé">
+          <a href="/termos-de-uso/">Termos</a>
+          <a href="/licenca/">Licença</a>
+          <a href="/stickers/">Stickers</a>
+          <a href="/comandos/">Comandos</a>
+          <a href="/api-docs/">Para desenvolvedores</a>
+          <a href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">Open Source</a>
+        </nav>
       </div>
-    </section>
+    </footer>
 
-    <section id="recursos" class="section" aria-labelledby="recursos-title">
-      <h2 id="recursos-title">O que o bot faz por você</h2>
-      <p class="lead">Tudo focado em resultado no grupo, sem linguagem técnica.</p>
-      <div class="features">
-        <article class="card">
-          <h3>🤖 Responde automaticamente</h3>
-          <p>Respostas rápidas para dúvidas repetidas e comandos prontos para o dia a dia.</p>
-        </article>
-        <article class="card">
-          <h3>📌 Organiza o grupo</h3>
-          <p>Ajuda a manter conversas úteis e reduz o caos de mensagens perdidas.</p>
-        </article>
-        <article class="card">
-          <h3>🛑 Moderação inteligente</h3>
-          <p>Bloqueia spam e comportamentos problemáticos para proteger sua comunidade.</p>
-        </article>
-        <article class="card">
-          <h3>📣 Envia avisos automáticos</h3>
-          <p>Agenda recados e lembretes para que ninguém perca informações importantes.</p>
-        </article>
-        <article class="card">
-          <h3>🎉 Recursos extras integrados</h3>
-          <p>Stickers, interações e utilidades prontas para aumentar o engajamento do grupo.</p>
-        </article>
-      </div>
-    </section>
+    <a id="wpp-float" class="wpp-float" href="#" target="_blank" rel="noreferrer noopener" aria-label="Adicionar bot no WhatsApp" title="Adicionar bot" hidden
+      ><span class="icon" aria-hidden="true"
+        ><svg viewBox="0 0 24 24"><use href="#icon-whatsapp"></use></svg></span
+    ></a>
 
-    <section id="comandos" class="section" aria-labelledby="comandos-title">
-      <h2 id="comandos-title">⚡ Veja tudo que o bot pode fazer no seu grupo</h2>
-      <p class="lead">Comandos simples que resolvem tarefas reais do dia a dia.</p>
-      <div class="commands-grid">
-        <article class="command-card">
-          <h3>🛡️ Moderação</h3>
-          <ul class="command-list">
-            <li><code>/ban</code>Remove membros problemáticos</li>
-            <li><code>/captcha</code>Proteção contra bots</li>
-            <li><code>/setgroup</code>Ativa modo restrito</li>
-            <li><code>/welcome</code>Boas-vindas automáticas</li>
-            <li><code>/farewell</code>Aviso quando alguém sai</li>
-          </ul>
-        </article>
-        <article class="command-card">
-          <h3>🎨 Figurinhas</h3>
-          <ul class="command-list">
-            <li><code>/sticker</code>Cria figurinha</li>
-            <li><code>/stickertext</code>Figurinha com texto</li>
-            <li><code>/pack create</code>Cria pack de stickers</li>
-            <li><code>/pack send</code>Envia pack no grupo</li>
-            <li><code>/toimg</code>Converte figurinha em imagem</li>
-          </ul>
-        </article>
-        <article class="command-card">
-          <h3>🎮 Engajamento</h3>
-          <ul class="command-list">
-            <li><code>/ranking</code>Ranking do grupo</li>
-            <li><code>/rankingglobal</code>Ranking global</li>
-            <li><code>/dado</code>Jogo de dados</li>
-            <li><code>/quote</code>Cita mensagem com estilo</li>
-            <li><code>/user perfil</code>Resumo do perfil</li>
-          </ul>
-        </article>
-        <article class="command-card">
-          <h3>🎵 Mídia</h3>
-          <ul class="command-list">
-            <li><code>/play</code>Toca música</li>
-            <li><code>/playvid</code>Toca vídeo</li>
-            <li><code>/tiktok</code>Baixa vídeo do TikTok</li>
-            <li><code>/down</code>Faz download de mídia</li>
-            <li><code>/menu</code>Atalho para todos os comandos</li>
-          </ul>
-        </article>
-        <article class="command-card">
-          <h3>🤖 Utilidades inteligentes</h3>
-          <ul class="command-list">
-            <li><code>/menu ia</code>Recursos de IA</li>
-            <li><code>/autorequests</code>Respostas automáticas</li>
-            <li><code>/noticias</code>Notícias no grupo</li>
-            <li><code>/metadata</code>Informações técnicas</li>
-            <li><code>/ping</code>Status do bot</li>
-          </ul>
-        </article>
-      </div>
-      <div class="commands-actions">
-        <p>+ dezenas de outros comandos disponíveis para sua operação.</p>
-        <a class="btn secondary" href="/comandos/">Ver lista completa</a>
-      </div>
-    </section>
-
-    <section id="para-quem" class="section" aria-labelledby="para-quem-title">
-      <h2 id="para-quem-title">Para quem é</h2>
-      <p class="lead">Se você administra pessoas em grupo, o OmniZap foi feito para você.</p>
-      <div class="audience">
-        <article class="card"><h3>👥 Donos de comunidade</h3><p>Mantenha regras e organização sem esforço manual constante.</p></article>
-        <article class="card"><h3>🎬 Criadores de conteúdo</h3><p>Gerencie audiência e comunicados com mais consistência.</p></article>
-        <article class="card"><h3>📚 Grupos de estudo</h3><p>Centralize avisos e reduza distrações para manter foco.</p></article>
-        <article class="card"><h3>🛍️ Lojas online</h3><p>Automatize atendimento inicial e mensagens recorrentes.</p></article>
-        <article class="card"><h3>🏢 Equipes internas</h3><p>Padronize comunicação e acompanhe rotinas com agilidade.</p></article>
-      </div>
-    </section>
-
-    <section id="beneficios" class="section" aria-labelledby="beneficios-title">
-      <h2 id="beneficios-title">Benefícios imediatos</h2>
-      <p class="lead">Você adiciona. Ele organiza.</p>
-      <div class="benefits">
-        <article class="benefit-item">✅ Economiza tempo da equipe</article>
-        <article class="benefit-item">✅ Evita spam e bagunça</article>
-        <article class="benefit-item">✅ Mantém o grupo organizado</article>
-        <article class="benefit-item">✅ Deixa sua comunidade mais profissional</article>
-      </div>
-    </section>
-
-    <section id="guias" class="section" aria-labelledby="guias-title">
-      <h2 id="guias-title">Guias rápidos para seu grupo crescer organizado</h2>
-      <p class="lead">Conteúdo satélite para resolver dores reais de operação e reforçar sua estratégia de comunidade.</p>
-      <div class="guides-grid">
-        <a class="guide-link" href="/bot-whatsapp-para-grupo/">Bot para grupo de WhatsApp<span>Guia de entrada rápida</span></a>
-        <a class="guide-link" href="/como-moderar-grupo-whatsapp/">Como moderar grupo no WhatsApp<span>Fluxo prático sem sobrecarga</span></a>
-        <a class="guide-link" href="/como-evitar-spam-no-whatsapp/">Como evitar spam no WhatsApp<span>Proteja o grupo com menos esforço</span></a>
-        <a class="guide-link" href="/como-organizar-comunidade-whatsapp/">Como organizar comunidade no WhatsApp<span>Estrutura para escala com qualidade</span></a>
-        <a class="guide-link" href="/como-automatizar-avisos-no-whatsapp/">Como automatizar avisos no WhatsApp<span>Recados certos no momento certo</span></a>
-        <a class="guide-link" href="/como-criar-comandos-whatsapp/">Como criar comandos no WhatsApp<span>Padronize respostas e rotinas</span></a>
-        <a class="guide-link" href="/melhor-bot-whatsapp-para-grupos/">Melhor bot para grupos<span>Comparativo orientado a resultado</span></a>
-        <a class="guide-link" href="/bot-whatsapp-sem-programar/">Bot para WhatsApp sem programar<span>Automação sem setup técnico</span></a>
-      </div>
-    </section>
-
-    <section id="faq" class="section" aria-labelledby="faq-title">
-      <h2 id="faq-title">Perguntas frequentes</h2>
-      <p class="lead">Tudo que você precisa para começar sem complicação.</p>
-      <div class="faq-list">
-        <details class="faq-item">
-          <summary>Preciso configurar algo técnico para usar o OmniZap?</summary>
-          <p>Não. Você só adiciona o bot ao grupo, autoriza e ele já começa a funcionar com recursos automáticos.</p>
-        </details>
-        <details class="faq-item">
-          <summary>Em quanto tempo o bot começa a funcionar?</summary>
-          <p>Normalmente em menos de 1 minuto após a adição e autorização no grupo.</p>
-        </details>
-        <details class="faq-item">
-          <summary>O OmniZap funciona para grupos e comunidades?</summary>
-          <p>Sim. O OmniZap foi criado para facilitar moderação, avisos e organização em grupos e comunidades no WhatsApp.</p>
-        </details>
-        <details class="faq-item">
-          <summary>Posso usar stickers junto com o bot?</summary>
-          <p>Sim. Os stickers fazem parte do ecossistema OmniZap e podem ser usados como recurso extra para engajamento. Veja o catálogo em <a href="/stickers/">/stickers/</a>.</p>
-        </details>
-        <details class="faq-item">
-          <summary>Preciso entender API para começar?</summary>
-          <p>Não para uso comum. A área de API existe para integrações avançadas e pode ser acessada em <a href="/api-docs/">/api-docs/</a>.</p>
-        </details>
-        <details class="faq-item">
-          <summary>Quantos comandos o OmniZap possui?</summary>
-          <p>Você pode acessar mais de 50 comandos ativos no seu grupo digitando <strong>/menu</strong> ou consultando a página <a href="/comandos/">/comandos/</a>.</p>
-        </details>
-      </div>
-    </section>
-
-    <section class="final-cta" aria-labelledby="cta-final-title">
-      <h2 id="cta-final-title">Seu grupo mais organizado em menos de 1 minuto.</h2>
-      <p>Sem setup técnico. Sem curva de aprendizado. Clique e comece agora.</p>
-      <div class="final-actions">
-        <a class="btn primary" data-add-bot-cta href="/login/"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#icon-whatsapp"></use></svg></span>Adicionar Bot Agora</a>
-        <a id="final-login-cta" class="btn" href="/login/"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#icon-user"></use></svg></span>Entrar</a>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <div class="container foot">
-      <div>OmniZap System 2026 · Bot pronto para grupos WhatsApp</div>
-      <nav class="foot-links" aria-label="Links de rodapé">
-        <a href="/termos-de-uso/">Termos</a>
-        <a href="/licenca/">Licença</a>
-        <a href="/stickers/">Stickers</a>
-        <a href="/comandos/">Comandos</a>
-        <a href="/api-docs/">Para desenvolvedores</a>
-        <a href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">Open Source</a>
-      </nav>
-    </div>
-  </footer>
-
-  <a
-    id="wpp-float"
-    class="wpp-float"
-    href="#"
-    target="_blank"
-    rel="noreferrer noopener"
-    aria-label="Adicionar bot no WhatsApp"
-    title="Adicionar bot"
-    hidden
-  ><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#icon-whatsapp"></use></svg></span></a>
-
-  <script type="module" src="/js/apps/homeApp.js?v=20260228-home-bootstrap-v4"></script>
-</body>
+    <script type="module" src="/js/apps/homeApp.js?v=20260228-home-bootstrap-v4"></script>
+  </body>
 </html>

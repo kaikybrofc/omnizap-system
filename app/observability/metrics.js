@@ -42,7 +42,9 @@ const normalizeLabel = (value, fallback = 'unknown') => {
 };
 
 const normalizeHttpMethod = (method) => {
-  const normalized = String(method || '').trim().toUpperCase();
+  const normalized = String(method || '')
+    .trim()
+    .toUpperCase();
   if (!normalized) return 'UNKNOWN';
   if (normalized.length > 12) return normalized.slice(0, 12);
   return normalized;
@@ -700,14 +702,7 @@ export const recordSocialXpCapHit = ({ scope = 'earn' } = {}) => {
   m.socialXpCapHitsTotal.inc({ scope: normalizeLabel(scope, 'earn') });
 };
 
-export const recordStickerAutoPackCycle = ({
-  durationMs,
-  assetsScanned = 0,
-  assetsAdded = 0,
-  duplicateRate = null,
-  rejectionRate = null,
-  fillRate = null,
-} = {}) => {
+export const recordStickerAutoPackCycle = ({ durationMs, assetsScanned = 0, assetsAdded = 0, duplicateRate = null, rejectionRate = null, fillRate = null } = {}) => {
   const m = ensureMetrics();
   if (!m) return;
 
@@ -742,13 +737,7 @@ export const recordStickerAutoPackCycle = ({
   }
 };
 
-export const recordStickerClassificationCycle = ({
-  status = 'ok',
-  durationMs,
-  processed = 0,
-  classified = 0,
-  failed = 0,
-} = {}) => {
+export const recordStickerClassificationCycle = ({ status = 'ok', durationMs, processed = 0, classified = 0, failed = 0 } = {}) => {
   const m = ensureMetrics();
   if (!m) return;
 

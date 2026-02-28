@@ -42,16 +42,14 @@ const parseEnvInt = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, Math.floor(parsed)));
 };
 
-const IS_PRODUCTION = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
+const IS_PRODUCTION =
+  String(process.env.NODE_ENV || '')
+    .trim()
+    .toLowerCase() === 'production';
 const MSG_RETRY_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_MSG_RETRY_CACHE_TTL_SECONDS, 600, 60, 24 * 60 * 60);
 const MSG_RETRY_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_MSG_RETRY_CACHE_CHECKPERIOD_SECONDS, 120, 30, 3600);
 const BAILEYS_EVENT_LOG_ENABLED = parseEnvBool(process.env.BAILEYS_EVENT_LOG_ENABLED, !IS_PRODUCTION);
-const BAILEYS_RECONNECT_ATTEMPT_RESET_MS = parseEnvInt(
-  process.env.BAILEYS_RECONNECT_ATTEMPT_RESET_MS,
-  10 * 60 * 1000,
-  60 * 1000,
-  24 * 60 * 60 * 1000,
-);
+const BAILEYS_RECONNECT_ATTEMPT_RESET_MS = parseEnvInt(process.env.BAILEYS_RECONNECT_ATTEMPT_RESET_MS, 10 * 60 * 1000, 60 * 1000, 24 * 60 * 60 * 1000);
 const GROUP_SYNC_ON_CONNECT = parseEnvBool(process.env.GROUP_SYNC_ON_CONNECT, true);
 const GROUP_SYNC_TIMEOUT_MS = parseEnvInt(process.env.GROUP_SYNC_TIMEOUT_MS, 30 * 1000, 5 * 1000, 120 * 1000);
 const GROUP_SYNC_MAX_GROUPS = parseEnvInt(process.env.GROUP_SYNC_MAX_GROUPS, 0, 0, 10_000);
@@ -193,9 +191,7 @@ const shouldLogBaileysEvent = (eventName) => {
 };
 
 const registerBaileysEventLoggers = (sock) => {
-  const eventsToLog = BAILEYS_EVENT_NAMES.filter(
-    (eventName) => !BAILEYS_EVENTS_WITH_INTERNAL_LOG.has(eventName) && shouldLogBaileysEvent(eventName),
-  );
+  const eventsToLog = BAILEYS_EVENT_NAMES.filter((eventName) => !BAILEYS_EVENTS_WITH_INTERNAL_LOG.has(eventName) && shouldLogBaileysEvent(eventName));
 
   for (const eventName of eventsToLog) {
     sock.ev.on(eventName, (payload) => {
@@ -388,16 +384,9 @@ const syncGroupsOnConnectionOpen = async (sock) => {
     return;
   }
 
-  const allGroups = await withTimeout(
-    sock.groupFetchAllParticipating(),
-    GROUP_SYNC_TIMEOUT_MS,
-    `groups_sync_timeout_${GROUP_SYNC_TIMEOUT_MS}ms`,
-  );
+  const allGroups = await withTimeout(sock.groupFetchAllParticipating(), GROUP_SYNC_TIMEOUT_MS, `groups_sync_timeout_${GROUP_SYNC_TIMEOUT_MS}ms`);
   const allGroupEntries = Object.values(allGroups || {});
-  const selectedGroups =
-    GROUP_SYNC_MAX_GROUPS > 0
-      ? allGroupEntries.slice(0, GROUP_SYNC_MAX_GROUPS)
-      : allGroupEntries;
+  const selectedGroups = GROUP_SYNC_MAX_GROUPS > 0 ? allGroupEntries.slice(0, GROUP_SYNC_MAX_GROUPS) : allGroupEntries;
 
   let syncedCount = 0;
   let failedCount = 0;
@@ -408,7 +397,8 @@ const syncGroupsOnConnectionOpen = async (sock) => {
       batch.map((group) =>
         upsertGroupMetadata(group.id, buildGroupMetadataFromGroup(group), {
           mergeExisting: false,
-        })),
+        }),
+      ),
     );
     for (const result of results) {
       if (result.status === 'fulfilled') syncedCount += 1;

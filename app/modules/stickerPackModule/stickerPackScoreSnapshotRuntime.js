@@ -1,19 +1,13 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
-import {
-  getEmptyStickerPackEngagement,
-  getStickerPackEngagementByPackId,
-} from './stickerPackEngagementRepository.js';
+import { getEmptyStickerPackEngagement, getStickerPackEngagementByPackId } from './stickerPackEngagementRepository.js';
 import { listStickerPackItems } from './stickerPackItemRepository.js';
 import { listStickerClassificationsByAssetIds } from './stickerAssetClassificationRepository.js';
 import { getPackClassificationSummaryByAssetIds } from './stickerClassificationService.js';
 import { listStickerPackInteractionStatsByPackIds } from './stickerPackInteractionEventRepository.js';
 import { getMarketplaceDriftSnapshot } from './stickerMarketplaceDriftService.js';
 import { computePackSignals } from './stickerPackMarketplaceService.js';
-import {
-  removeSnapshotsForDeletedPacks,
-  upsertStickerPackScoreSnapshots,
-} from './stickerPackScoreSnapshotRepository.js';
+import { removeSnapshotsForDeletedPacks, upsertStickerPackScoreSnapshots } from './stickerPackScoreSnapshotRepository.js';
 import { setQueueDepth } from '../../observability/metrics.js';
 
 const parseEnvBool = (value, fallback) => {
@@ -25,31 +19,13 @@ const parseEnvBool = (value, fallback) => {
 };
 
 const SNAPSHOT_ENABLED = parseEnvBool(process.env.STICKER_SCORE_SNAPSHOT_ENABLED, true);
-const SNAPSHOT_STARTUP_DELAY_MS = Math.max(
-  1_000,
-  Number(process.env.STICKER_SCORE_SNAPSHOT_STARTUP_DELAY_MS) || 20_000,
-);
-const SNAPSHOT_REFRESH_INTERVAL_MS = Math.max(
-  30_000,
-  Number(process.env.STICKER_SCORE_SNAPSHOT_REFRESH_INTERVAL_MS) || 5 * 60_000,
-);
-const SNAPSHOT_BATCH_SIZE = Math.max(
-  10,
-  Math.min(500, Number(process.env.STICKER_SCORE_SNAPSHOT_BATCH_SIZE) || 120),
-);
-const SNAPSHOT_TARGETED_BATCH_SIZE = Math.max(
-  5,
-  Math.min(200, Number(process.env.STICKER_SCORE_SNAPSHOT_TARGETED_BATCH_SIZE) || 60),
-);
+const SNAPSHOT_STARTUP_DELAY_MS = Math.max(1_000, Number(process.env.STICKER_SCORE_SNAPSHOT_STARTUP_DELAY_MS) || 20_000);
+const SNAPSHOT_REFRESH_INTERVAL_MS = Math.max(30_000, Number(process.env.STICKER_SCORE_SNAPSHOT_REFRESH_INTERVAL_MS) || 5 * 60_000);
+const SNAPSHOT_BATCH_SIZE = Math.max(10, Math.min(500, Number(process.env.STICKER_SCORE_SNAPSHOT_BATCH_SIZE) || 120));
+const SNAPSHOT_TARGETED_BATCH_SIZE = Math.max(5, Math.min(200, Number(process.env.STICKER_SCORE_SNAPSHOT_TARGETED_BATCH_SIZE) || 60));
 const SNAPSHOT_SOURCE_VERSION = String(process.env.STICKER_SCORE_SNAPSHOT_SOURCE_VERSION || 'v1').trim() || 'v1';
-const SNAPSHOT_MAX_PENDING_PACKS = Math.max(
-  20,
-  Math.min(20_000, Number(process.env.STICKER_SCORE_SNAPSHOT_MAX_PENDING_PACKS) || 2_000),
-);
-const SNAPSHOT_FULL_REBUILD_EVERY_CYCLES = Math.max(
-  1,
-  Math.min(500, Number(process.env.STICKER_SCORE_SNAPSHOT_FULL_REBUILD_EVERY_CYCLES) || 12),
-);
+const SNAPSHOT_MAX_PENDING_PACKS = Math.max(20, Math.min(20_000, Number(process.env.STICKER_SCORE_SNAPSHOT_MAX_PENDING_PACKS) || 2_000));
+const SNAPSHOT_FULL_REBUILD_EVERY_CYCLES = Math.max(1, Math.min(500, Number(process.env.STICKER_SCORE_SNAPSHOT_FULL_REBUILD_EVERY_CYCLES) || 12));
 
 let startupHandle = null;
 let cycleHandle = null;
@@ -94,12 +70,7 @@ const listPacksByIdsForSnapshot = async (packIds = []) => {
 const buildSnapshotForPack = async ({ pack, driftWeights }) => {
   const items = await listStickerPackItems(pack.id);
   const stickerIds = items.map((item) => item.sticker_id).filter(Boolean);
-  const [packClassification, itemClassifications, engagement, interactionStatsByPackId] = await Promise.all([
-    getPackClassificationSummaryByAssetIds(stickerIds),
-    stickerIds.length ? listStickerClassificationsByAssetIds(stickerIds) : Promise.resolve([]),
-    getStickerPackEngagementByPackId(pack.id),
-    listStickerPackInteractionStatsByPackIds([pack.id]),
-  ]);
+  const [packClassification, itemClassifications, engagement, interactionStatsByPackId] = await Promise.all([getPackClassificationSummaryByAssetIds(stickerIds), stickerIds.length ? listStickerClassificationsByAssetIds(stickerIds) : Promise.resolve([]), getStickerPackEngagementByPackId(pack.id), listStickerPackInteractionStatsByPackIds([pack.id])]);
 
   const byAssetId = new Map((Array.isArray(itemClassifications) ? itemClassifications : []).map((entry) => [entry.asset_id, entry]));
   const orderedClassifications = stickerIds.map((id) => byAssetId.get(id)).filter(Boolean);
@@ -199,8 +170,7 @@ export const runStickerPackScoreSnapshotCycle = async () => {
     }
 
     cycleCounter += 1;
-    fullRebuildExecuted =
-      cycleCounter % SNAPSHOT_FULL_REBUILD_EVERY_CYCLES === 0 || targetedPackIds.length === 0;
+    fullRebuildExecuted = cycleCounter % SNAPSHOT_FULL_REBUILD_EVERY_CYCLES === 0 || targetedPackIds.length === 0;
 
     if (fullRebuildExecuted) {
       let offset = 0;

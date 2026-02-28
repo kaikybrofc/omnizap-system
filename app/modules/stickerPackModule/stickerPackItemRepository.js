@@ -55,8 +55,7 @@ const normalizeItemRow = (row) => {
           is_animated: row.asset_is_animated === 1 || row.asset_is_animated === true,
           width: row.asset_width !== null && row.asset_width !== undefined ? Number(row.asset_width) : null,
           height: row.asset_height !== null && row.asset_height !== undefined ? Number(row.asset_height) : null,
-          size_bytes:
-            row.asset_size_bytes !== null && row.asset_size_bytes !== undefined ? Number(row.asset_size_bytes) : 0,
+          size_bytes: row.asset_size_bytes !== null && row.asset_size_bytes !== undefined ? Number(row.asset_size_bytes) : 0,
           storage_path: row.asset_storage_path,
           created_at: row.asset_created_at,
         }
@@ -181,11 +180,7 @@ export async function getStickerPackItemByPosition(packId, position, connection 
  * @returns {Promise<number>} Total de itens.
  */
 export async function countStickerPackItems(packId, connection = null) {
-  const rows = await executeQuery(
-    `SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK_ITEM} WHERE pack_id = ?`,
-    [packId],
-    connection,
-  );
+  const rows = await executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK_ITEM} WHERE pack_id = ?`, [packId], connection);
 
   return Number(rows?.[0]?.total || 0);
 }
@@ -198,11 +193,7 @@ export async function countStickerPackItems(packId, connection = null) {
  * @returns {Promise<number>} Total de referências em packs.
  */
 export async function countStickerPackItemRefsByStickerId(stickerId, connection = null) {
-  const rows = await executeQuery(
-    `SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK_ITEM} WHERE sticker_id = ?`,
-    [stickerId],
-    connection,
-  );
+  const rows = await executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK_ITEM} WHERE sticker_id = ?`, [stickerId], connection);
 
   return Number(rows?.[0]?.total || 0);
 }
@@ -233,11 +224,7 @@ export async function listPackIdsByStickerId(stickerId, connection = null) {
  * @returns {Promise<number>} Maior posição encontrada.
  */
 export async function getMaxStickerPackPosition(packId, connection = null) {
-  const rows = await executeQuery(
-    `SELECT MAX(position) AS max_position FROM ${TABLES.STICKER_PACK_ITEM} WHERE pack_id = ?`,
-    [packId],
-    connection,
-  );
+  const rows = await executeQuery(`SELECT MAX(position) AS max_position FROM ${TABLES.STICKER_PACK_ITEM} WHERE pack_id = ?`, [packId], connection);
 
   const maxValue = rows?.[0]?.max_position;
   return maxValue !== null && maxValue !== undefined ? Number(maxValue) : 0;
@@ -255,14 +242,7 @@ export async function createStickerPackItem(item, connection = null) {
     `INSERT INTO ${TABLES.STICKER_PACK_ITEM}
       (id, pack_id, sticker_id, position, emojis, accessibility_label)
      VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      item.id,
-      item.pack_id,
-      item.sticker_id,
-      item.position,
-      item.emojis ? JSON.stringify(item.emojis) : JSON.stringify([]),
-      item.accessibility_label ?? null,
-    ],
+    [item.id, item.pack_id, item.sticker_id, item.position, item.emojis ? JSON.stringify(item.emojis) : JSON.stringify([]), item.accessibility_label ?? null],
     connection,
   );
 
@@ -445,13 +425,7 @@ export async function cloneStickerPackItems(sourcePackId, targetPackId, connecti
       `INSERT INTO ${TABLES.STICKER_PACK_ITEM}
         (id, pack_id, sticker_id, position, emojis, accessibility_label)
        VALUES (UUID(), ?, ?, ?, ?, ?)`,
-      [
-        targetPackId,
-        item.sticker_id,
-        item.position,
-        item.emojis ? JSON.stringify(item.emojis) : JSON.stringify([]),
-        item.accessibility_label ?? null,
-      ],
+      [targetPackId, item.sticker_id, item.position, item.emojis ? JSON.stringify(item.emojis) : JSON.stringify([]), item.accessibility_label ?? null],
       connection,
     );
   }

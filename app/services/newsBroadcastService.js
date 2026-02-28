@@ -153,7 +153,6 @@ const scheduleNextRun = (groupId, delayMs) => {
   }, delayMs);
 };
 
-
 const stopGroupLoopInternal = (groupId) => {
   const state = groupLoops.get(groupId);
   if (!state) return;

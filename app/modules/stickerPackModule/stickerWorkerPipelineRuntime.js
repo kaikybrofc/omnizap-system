@@ -3,14 +3,7 @@ import { setQueueDepth } from '../../observability/metrics.js';
 import { isFeatureEnabled } from '../../services/featureFlagService.js';
 import { runStickerClassificationCycle } from './stickerClassificationBackgroundRuntime.js';
 import { runStickerAutoPackByTagsCycle } from './stickerAutoPackByTagsRuntime.js';
-import {
-  claimWorkerTask,
-  completeWorkerTask,
-  countWorkerTasksByStatus,
-  enqueueWorkerTask,
-  failWorkerTask,
-  hasPendingWorkerTask,
-} from './stickerWorkerTaskQueueRepository.js';
+import { claimWorkerTask, completeWorkerTask, countWorkerTasksByStatus, enqueueWorkerTask, failWorkerTask, hasPendingWorkerTask } from './stickerWorkerTaskQueueRepository.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -39,10 +32,7 @@ const TASK_PRIORITY = {
   curation_cycle: 55,
   rebuild_cycle: 50,
 };
-const PIPELINE_PROCESS_COHORT_KEY =
-  String(process.env.STICKER_WORKER_PIPELINE_COHORT_KEY || process.env.HOSTNAME || process.pid)
-    .trim()
-  || 'pipeline';
+const PIPELINE_PROCESS_COHORT_KEY = String(process.env.STICKER_WORKER_PIPELINE_COHORT_KEY || process.env.HOSTNAME || process.pid).trim() || 'pipeline';
 
 let startupHandle = null;
 let schedulerHandle = null;
@@ -59,11 +49,7 @@ const taskHandlers = {
 
 const refreshQueueDepthMetrics = async () => {
   if (!taskQueueAvailable) return;
-  const [pending, processing, failed] = await Promise.all([
-    countWorkerTasksByStatus('pending'),
-    countWorkerTasksByStatus('processing'),
-    countWorkerTasksByStatus('failed'),
-  ]);
+  const [pending, processing, failed] = await Promise.all([countWorkerTasksByStatus('pending'), countWorkerTasksByStatus('processing'), countWorkerTasksByStatus('failed')]);
   setQueueDepth('sticker_worker_tasks_pending', pending);
   setQueueDepth('sticker_worker_tasks_processing', processing);
   setQueueDepth('sticker_worker_tasks_failed', failed);
@@ -107,11 +93,7 @@ const schedulerTick = async () => {
   if (!PIPELINE_ENABLED) return;
 
   try {
-    await Promise.all([
-      scheduleTaskIfNeeded('classification_cycle'),
-      scheduleTaskIfNeeded('curation_cycle'),
-      scheduleTaskIfNeeded('rebuild_cycle'),
-    ]);
+    await Promise.all([scheduleTaskIfNeeded('classification_cycle'), scheduleTaskIfNeeded('curation_cycle'), scheduleTaskIfNeeded('rebuild_cycle')]);
     await refreshQueueDepthMetrics();
   } catch (error) {
     if (error?.code === 'ER_NO_SUCH_TABLE') {

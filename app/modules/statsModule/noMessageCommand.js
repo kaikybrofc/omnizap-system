@@ -2,16 +2,10 @@ import { executeQuery } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { getGroupParticipants, isUserAdmin } from '../../config/groupUtils.js';
 import { resolveBotJid } from '../../config/baileysConfig.js';
-import {
-  primeLidCache,
-  resolveUserIdCached,
-  isLidUserId,
-  isWhatsAppUserId,
-} from '../../services/lidMapService.js';
+import { primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../../services/lidMapService.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
-const getParticipantJid = (participant) =>
-  participant?.id || participant?.jid || participant?.lid || null;
+const getParticipantJid = (participant) => participant?.id || participant?.jid || participant?.lid || null;
 
 const MAX_MENTIONS_PER_MESSAGE = 80;
 const BATCH_DELAY_MS = 400;
@@ -71,13 +65,8 @@ const normalizeParticipant = (participant, sock) => {
     jid: rawId,
     participantAlt,
   });
-  const contact =
-    (canonical && sock?.contacts?.[canonical]) ||
-    (participantAlt && sock?.contacts?.[participantAlt]) ||
-    (rawId && sock?.contacts?.[rawId]) ||
-    null;
-  const displayName =
-    participant?.notify || participant?.name || contact?.notify || contact?.name || contact?.short;
+  const contact = (canonical && sock?.contacts?.[canonical]) || (participantAlt && sock?.contacts?.[participantAlt]) || (rawId && sock?.contacts?.[rawId]) || null;
+  const displayName = participant?.notify || participant?.name || contact?.notify || contact?.name || contact?.short;
   return {
     rawId,
     participantAlt,
@@ -86,28 +75,9 @@ const normalizeParticipant = (participant, sock) => {
   };
 };
 
-const buildNoMessageText = ({
-  minMessages,
-  periodLabel,
-  totalParticipants,
-  totalListed,
-  batchIndex = 1,
-  batchTotal = 1,
-  batchSize = 0,
-}) => {
-  const title =
-    minMessages <= 1 ? '🔇 *Membros sem mensagens no grupo*' : '🔇 *Membros abaixo do mínimo*';
-  const lines = [
-    title,
-    '',
-    `• Mínimo de mensagens: ${minMessages}`,
-    `• Período: ${periodLabel}`,
-    `• Participantes: ${totalParticipants}`,
-    `• Abaixo do mínimo: ${totalListed}`,
-    ...(batchTotal > 1
-      ? [`• Parte: ${batchIndex}/${batchTotal}`, `• Notificados nesta mensagem: ${batchSize}`]
-      : []),
-  ];
+const buildNoMessageText = ({ minMessages, periodLabel, totalParticipants, totalListed, batchIndex = 1, batchTotal = 1, batchSize = 0 }) => {
+  const title = minMessages <= 1 ? '🔇 *Membros sem mensagens no grupo*' : '🔇 *Membros abaixo do mínimo*';
+  const lines = [title, '', `• Mínimo de mensagens: ${minMessages}`, `• Período: ${periodLabel}`, `• Participantes: ${totalParticipants}`, `• Abaixo do mínimo: ${totalListed}`, ...(batchTotal > 1 ? [`• Parte: ${batchIndex}/${batchTotal}`, `• Notificados nesta mensagem: ${batchSize}`] : [])];
 
   if (!totalListed) {
     lines.push('', '✅ Todos os membros atingiram o mínimo.');
@@ -139,40 +109,20 @@ const splitEntriesByMentions = (entries, maxMentions) => {
   return batches;
 };
 
-export async function handleNoMessageCommand({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  isGroupMessage,
-  senderJid,
-  text,
-}) {
+export async function handleNoMessageCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, senderJid, text }) {
   if (!isGroupMessage) {
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: 'Este comando so pode ser usado em grupos.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: 'Este comando so pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
   if (!(await isUserAdmin(remoteJid, senderJid))) {
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: 'Você não tem permissão para usar este comando.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: 'Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   try {
     const participants = await getGroupParticipants(remoteJid);
     if (!participants || participants.length === 0) {
-      await sendAndStore(sock, 
-        remoteJid,
-        { text: 'Nao foi possivel obter os participantes do grupo.' },
-        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-      );
+      await sendAndStore(sock, remoteJid, { text: 'Nao foi possivel obter os participantes do grupo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       return;
     }
 
@@ -224,11 +174,7 @@ export async function handleNoMessageCommand({
       if (botCanonical && canonical === botCanonical) return;
       const total = countsByCanonical.get(canonical) || 0;
       if (total >= minMessages) return;
-      const mentionJid = isWhatsAppUserId(canonical)
-        ? canonical
-        : isWhatsAppUserId(participant.participantAlt)
-        ? participant.participantAlt
-        : null;
+      const mentionJid = isWhatsAppUserId(canonical) ? canonical : isWhatsAppUserId(participant.participantAlt) ? participant.participantAlt : null;
       entries.push({
         canonical,
         rawId: participant.rawId,
@@ -246,19 +192,13 @@ export async function handleNoMessageCommand({
         totalParticipants,
         totalListed,
       });
-      await sendAndStore(sock, 
-        remoteJid,
-        { text: responseText },
-        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-      );
+      await sendAndStore(sock, remoteJid, { text: responseText }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       return;
     }
 
     for (let index = 0; index < batches.length; index += 1) {
       const batch = batches[index];
-      const batchMentions = Array.from(
-        new Set(batch.map((entry) => entry.mentionJid).filter(Boolean)),
-      );
+      const batchMentions = Array.from(new Set(batch.map((entry) => entry.mentionJid).filter(Boolean)));
       const responseText = buildNoMessageText({
         minMessages,
         periodLabel,
@@ -268,21 +208,13 @@ export async function handleNoMessageCommand({
         batchTotal: batches.length,
         batchSize: batch.length,
       });
-      await sendAndStore(sock, 
-        remoteJid,
-        { text: responseText, mentions: batchMentions },
-        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-      );
+      await sendAndStore(sock, remoteJid, { text: responseText, mentions: batchMentions }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       if (index < batches.length - 1) {
         await sleep(BATCH_DELAY_MS);
       }
     }
   } catch (error) {
     logger.error('Erro ao buscar membros sem mensagens:', { error: error.message });
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: `Erro ao buscar membros sem mensagens: ${error.message}` },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: `Erro ao buscar membros sem mensagens: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   }
 }

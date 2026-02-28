@@ -23,10 +23,7 @@ const parseNumber = (value, fallback) => {
  *
  * @type {number}
  */
-const FLUSH_INTERVAL_MS = Math.min(
-  3000,
-  Math.max(1000, parseNumber(process.env.DB_WRITE_FLUSH_MS, 1500)),
-);
+const FLUSH_INTERVAL_MS = Math.min(3000, Math.max(1000, parseNumber(process.env.DB_WRITE_FLUSH_MS, 1500)));
 
 /**
  * Tamanho máximo do batch de mensagens por INSERT.
@@ -56,10 +53,7 @@ const CHAT_COOLDOWN_MS = Math.max(1000, Math.floor(parseNumber(process.env.DB_CH
  *
  * @type {number}
  */
-const MESSAGE_QUEUE_MAX = Math.max(
-  MESSAGE_BATCH_SIZE * 5,
-  Math.floor(parseNumber(process.env.DB_MESSAGE_QUEUE_MAX, 5000)),
-);
+const MESSAGE_QUEUE_MAX = Math.max(MESSAGE_BATCH_SIZE * 5, Math.floor(parseNumber(process.env.DB_MESSAGE_QUEUE_MAX, 5000)));
 
 /**
  * Regex de erro para payload JSON inválido no MySQL.
@@ -85,7 +79,6 @@ const messageQueue = [];
  */
 const messagePendingIds = new Set();
 
-
 /**
  * Fila (por chat.id) com atualizações pendentes de chats.
  * @type {Map<string, {id:string, name:(string|null), raw:(Object|null), rawHash:string, queuedAt:number, nextAllowedAt:number}>}
@@ -105,7 +98,6 @@ const chatQueue = new Map();
  * }>}
  */
 const chatCache = new Map();
-
 
 /**
  * Indica se já há um flush agendado via setImmediate.
@@ -237,14 +229,7 @@ const insertMessageBatch = async (batch) => {
   const placeholders = buildPlaceholders(batch.length, 6);
   const params = [];
   for (const message of batch) {
-    params.push(
-      message.message_id,
-      message.chat_id,
-      message.sender_id,
-      message.content,
-      message.raw_message,
-      message.timestamp,
-    );
+    params.push(message.message_id, message.chat_id, message.sender_id, message.content, message.raw_message, message.timestamp);
   }
 
   const sql = `INSERT IGNORE INTO ${TABLES.MESSAGES}

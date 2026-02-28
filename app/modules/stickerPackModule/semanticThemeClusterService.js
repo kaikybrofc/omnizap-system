@@ -4,10 +4,7 @@ import OpenAI from 'openai';
 
 import { executeQuery, TABLES } from '../../../database/index.js';
 import logger from '../../utils/logger/loggerModule.js';
-import {
-  findStickerClassificationByAssetId,
-  updateStickerClassificationSemanticCluster,
-} from './stickerAssetClassificationRepository.js';
+import { findStickerClassificationByAssetId, updateStickerClassificationSemanticCluster } from './stickerAssetClassificationRepository.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -19,12 +16,9 @@ const parseEnvBool = (value, fallback) => {
 
 const ENABLE_SEMANTIC_CLUSTERING = parseEnvBool(process.env.ENABLE_SEMANTIC_CLUSTERING, false);
 const OPENAI_TIMEOUT_MS = Math.max(1_000, Number(process.env.SEMANTIC_CLUSTER_OPENAI_TIMEOUT_MS) || 10_000);
-const EMBEDDING_MODEL = String(process.env.SEMANTIC_CLUSTER_EMBEDDING_MODEL || 'text-embedding-3-small').trim()
-  || 'text-embedding-3-small';
+const EMBEDDING_MODEL = String(process.env.SEMANTIC_CLUSTER_EMBEDDING_MODEL || 'text-embedding-3-small').trim() || 'text-embedding-3-small';
 const SLUG_MODEL = String(process.env.SEMANTIC_CLUSTER_SLUG_MODEL || 'gpt-4o-mini').trim() || 'gpt-4o-mini';
-const SIMILARITY_THRESHOLD = Number.isFinite(Number(process.env.SEMANTIC_CLUSTER_SIMILARITY_THRESHOLD))
-  ? Math.max(0.5, Math.min(0.99, Number(process.env.SEMANTIC_CLUSTER_SIMILARITY_THRESHOLD)))
-  : 0.87;
+const SIMILARITY_THRESHOLD = Number.isFinite(Number(process.env.SEMANTIC_CLUSTER_SIMILARITY_THRESHOLD)) ? Math.max(0.5, Math.min(0.99, Number(process.env.SEMANTIC_CLUSTER_SIMILARITY_THRESHOLD))) : 0.87;
 const MAX_CLUSTER_SCAN = Math.max(100, Math.min(20_000, Number(process.env.SEMANTIC_CLUSTER_MAX_SCAN) || 5_000));
 const MAX_SUGGESTIONS_PER_ASSET = Math.max(1, Math.min(20, Number(process.env.SEMANTIC_CLUSTER_MAX_SUGGESTIONS_PER_ASSET) || 8));
 const CLUSTERING_CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.SEMANTIC_CLUSTER_CONCURRENCY) || 2));
@@ -72,13 +66,13 @@ const fallbackSlugFromSuggestion = (suggestionText) => {
 };
 
 const hashSuggestion = (normalizedSuggestion) =>
-  createHash('sha256').update(String(normalizedSuggestion || ''), 'utf8').digest('hex');
+  createHash('sha256')
+    .update(String(normalizedSuggestion || ''), 'utf8')
+    .digest('hex');
 
 const serializeEmbedding = (embedding = []) => {
   const vector = Array.isArray(embedding) ? embedding : [];
-  const clean = vector
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value));
+  const clean = vector.map((value) => Number(value)).filter((value) => Number.isFinite(value));
   if (!clean.length) return { dim: 0, buffer: Buffer.alloc(0) };
   const buffer = Buffer.allocUnsafe(clean.length * 4);
   for (let index = 0; index < clean.length; index += 1) {
@@ -157,14 +151,7 @@ const getSuggestionCacheRow = async (normalizedSuggestion) => {
   };
 };
 
-const upsertSuggestionCacheRow = async ({
-  suggestionText,
-  normalizedText,
-  semanticClusterId,
-  canonicalSlug,
-  embedding = [],
-  similarity = null,
-}) => {
+const upsertSuggestionCacheRow = async ({ suggestionText, normalizedText, semanticClusterId, canonicalSlug, embedding = [], similarity = null }) => {
   const normalized = normalizeSuggestion(normalizedText || suggestionText);
   if (!normalized || !semanticClusterId) return false;
   const suggestionHash = hashSuggestion(normalized);
@@ -184,16 +171,7 @@ const upsertSuggestionCacheRow = async ({
       embedding = VALUES(embedding),
       last_similarity = VALUES(last_similarity),
       updated_at = CURRENT_TIMESTAMP`,
-    [
-      suggestionHash,
-      String(suggestionText || normalized).slice(0, 512),
-      normalized,
-      semanticClusterId,
-      canonicalSlug || null,
-      dim,
-      buffer,
-      similarity !== null && Number.isFinite(Number(similarity)) ? Number(Number(similarity).toFixed(6)) : null,
-    ],
+    [suggestionHash, String(suggestionText || normalized).slice(0, 512), normalized, semanticClusterId, canonicalSlug || null, dim, buffer, similarity !== null && Number.isFinite(Number(similarity)) ? Number(Number(similarity).toFixed(6)) : null],
   );
   return true;
 };
@@ -277,9 +255,7 @@ const generateEmbedding = async (text) => {
   });
   const vector = response?.data?.[0]?.embedding;
   if (!Array.isArray(vector) || !vector.length) return null;
-  const clean = vector
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value));
+  const clean = vector.map((value) => Number(value)).filter((value) => Number.isFinite(value));
   return clean.length ? clean : null;
 };
 
@@ -540,19 +516,16 @@ const drainSemanticClusterQueue = async () => {
   }
 };
 
-export const enqueueSemanticClusterResolution = ({
-  assetId,
-  suggestions = [],
-  fallbackText = '',
-  force = false,
-} = {}) => {
+export const enqueueSemanticClusterResolution = ({ assetId, suggestions = [], fallbackText = '', force = false } = {}) => {
   const normalizedAssetId = String(assetId || '').trim();
   if (!normalizedAssetId || !ENABLE_SEMANTIC_CLUSTERING) return false;
 
   pendingTasksByAssetId.set(normalizedAssetId, {
     assetId: normalizedAssetId,
     suggestions: sanitizeSuggestions(suggestions),
-    fallbackText: String(fallbackText || '').trim().slice(0, 255),
+    fallbackText: String(fallbackText || '')
+      .trim()
+      .slice(0, 255),
     force: Boolean(force),
   });
   scheduleQueueDrain();

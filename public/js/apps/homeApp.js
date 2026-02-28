@@ -241,20 +241,23 @@ const initAuthSession = () => {
     }
   };
 
-  return runAfterLoadIdle(() => {
-    fetchHomeBootstrapPayload()
-      .then((bootstrapData) => {
-        const sessionData = bootstrapData?.session || {};
-        if (!sessionData?.authenticated || !sessionData?.user?.sub) {
+  return runAfterLoadIdle(
+    () => {
+      fetchHomeBootstrapPayload()
+        .then((bootstrapData) => {
+          const sessionData = bootstrapData?.session || {};
+          if (!sessionData?.authenticated || !sessionData?.user?.sub) {
+            setLoginState();
+            return;
+          }
+          setLoggedState(sessionData);
+        })
+        .catch(() => {
           setLoginState();
-          return;
-        }
-        setLoggedState(sessionData);
-      })
-      .catch(() => {
-        setLoginState();
-      });
-  }, { delayMs: 520, timeoutMs: 1200 });
+        });
+    },
+    { delayMs: 520, timeoutMs: 1200 },
+  );
 };
 
 const initAddBotCtas = () => {
@@ -279,19 +282,22 @@ const initAddBotCtas = () => {
     return true;
   };
 
-  return runAfterLoadIdle(() => {
-    fetchHomeBootstrapPayload()
-      .then((bootstrapData) => {
-        const url = String(bootstrapData?.support?.url || '').trim();
-        const applied = applyLink(url);
-        if (!applied && floatButton) {
-          floatButton.hidden = true;
-        }
-      })
-      .catch(() => {
-        if (floatButton) floatButton.hidden = true;
-      });
-  }, { delayMs: 480, timeoutMs: 1400 });
+  return runAfterLoadIdle(
+    () => {
+      fetchHomeBootstrapPayload()
+        .then((bootstrapData) => {
+          const url = String(bootstrapData?.support?.url || '').trim();
+          const applied = applyLink(url);
+          if (!applied && floatButton) {
+            floatButton.hidden = true;
+          }
+        })
+        .catch(() => {
+          if (floatButton) floatButton.hidden = true;
+        });
+    },
+    { delayMs: 480, timeoutMs: 1400 },
+  );
 };
 
 const initSocialProof = () => {
@@ -310,7 +316,9 @@ const initSocialProof = () => {
   };
 
   const normalizeStatus = (value) => {
-    const normalized = String(value || '').trim().toLowerCase();
+    const normalized = String(value || '')
+      .trim()
+      .toLowerCase();
     if (!normalized) return 'pronto';
     if (['online', 'ok', 'healthy'].includes(normalized)) return 'online';
     if (['connecting', 'opening', 'reconnecting'].includes(normalized)) return 'conectando';
@@ -318,24 +326,27 @@ const initSocialProof = () => {
     return 'pronto';
   };
 
-  return runAfterLoadIdle(() => {
-    fetchHomeBootstrapPayload()
-      .then((bootstrapData) => {
-        const stats = bootstrapData?.stats || {};
-        const summary = bootstrapData?.system_summary || {};
+  return runAfterLoadIdle(
+    () => {
+      fetchHomeBootstrapPayload()
+        .then((bootstrapData) => {
+          const stats = bootstrapData?.stats || {};
+          const summary = bootstrapData?.system_summary || {};
 
-        animateCountUp(packsEl, Number(stats.packs_total || 0));
-        animateCountUp(stickersEl, Number(stats.stickers_total || 0));
-        animateCountUp(groupsEl, Number(summary?.platform?.total_groups || 0));
+          animateCountUp(packsEl, Number(stats.packs_total || 0));
+          animateCountUp(stickersEl, Number(stats.stickers_total || 0));
+          animateCountUp(groupsEl, Number(summary?.platform?.total_groups || 0));
 
-        if (statusEl) {
-          statusEl.textContent = `bot ${normalizeStatus(summary?.system_status || summary?.bot?.connection_status)}`;
-        }
-      })
-      .catch(() => {
-        setFallback();
-      });
-  }, { delayMs: 620, timeoutMs: 1500 });
+          if (statusEl) {
+            statusEl.textContent = `bot ${normalizeStatus(summary?.system_status || summary?.bot?.connection_status)}`;
+          }
+        })
+        .catch(() => {
+          setFallback();
+        });
+    },
+    { delayMs: 620, timeoutMs: 1500 },
+  );
 };
 
 const registerCleanup = (cleanups, cleanup) => {

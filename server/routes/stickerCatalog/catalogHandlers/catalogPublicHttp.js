@@ -2,17 +2,7 @@ const METHOD_NOT_ALLOWED_BODY = { error: 'Metodo nao permitido.' };
 
 const isReadMethod = (method) => method === 'GET' || method === 'HEAD';
 
-export const handleCatalogPublicRoutes = async ({
-  req,
-  res,
-  pathname,
-  url,
-  segments,
-  apiBasePath,
-  orphanApiPath,
-  handlers,
-  sendJson,
-}) => {
+export const handleCatalogPublicRoutes = async ({ req, res, pathname, url, segments, apiBasePath, orphanApiPath, handlers, sendJson }) => {
   if (pathname === apiBasePath) {
     if (!isReadMethod(req.method || '')) {
       sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);

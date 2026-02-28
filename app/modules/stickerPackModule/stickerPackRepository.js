@@ -86,11 +86,7 @@ export async function findStickerPackByPackKey(packKey, { includeDeleted = false
  * @param {{ includeDeleted?: boolean, connection?: import('mysql2/promise').PoolConnection|null }} [options]
  * @returns {Promise<object|null>} Pack encontrado.
  */
-export async function findStickerPackByOwnerAndIdentifier(
-  ownerJid,
-  identifier,
-  { includeDeleted = false, connection = null } = {},
-) {
+export async function findStickerPackByOwnerAndIdentifier(ownerJid, identifier, { includeDeleted = false, connection = null } = {}) {
   if (!identifier) return null;
 
   const idOrPack = await executeQuery(
@@ -133,10 +129,7 @@ export async function findStickerPackByOwnerAndIdentifier(
  * @param {{ includeDeleted?: boolean, limit?: number, offset?: number, connection?: import('mysql2/promise').PoolConnection|null }} [options]
  * @returns {Promise<object[]>} Lista de packs.
  */
-export async function listStickerPacksByOwner(
-  ownerJid,
-  { includeDeleted = false, limit = 50, offset = 0, connection = null } = {},
-) {
+export async function listStickerPacksByOwner(ownerJid, { includeDeleted = false, limit = 50, offset = 0, connection = null } = {}) {
   const safeLimit = Math.max(1, Number(limit) || 50);
   const safeOffset = Math.max(0, Number(offset) || 0);
 
@@ -167,15 +160,7 @@ export async function listStickerPacksByOwner(
  * }} [options]
  * @returns {Promise<object[]>}
  */
-export async function listStickerAutoPacksForCuration({
-  ownerJids = [],
-  includeArchived = true,
-  themeKey = '',
-  includeLegacyMarkers = true,
-  limit = 2000,
-  offset = 0,
-  connection = null,
-} = {}) {
+export async function listStickerAutoPacksForCuration({ ownerJids = [], includeArchived = true, themeKey = '', includeLegacyMarkers = true, limit = 2000, offset = 0, connection = null } = {}) {
   const owners = Array.from(new Set((Array.isArray(ownerJids) ? ownerJids : []).filter(Boolean)));
   if (!owners.length) return [];
 
@@ -183,10 +168,7 @@ export async function listStickerAutoPacksForCuration({
   const safeOffset = Math.max(0, Number(offset) || 0);
   const ownerPlaceholders = owners.map(() => '?').join(', ');
 
-  const whereClauses = [
-    'p.deleted_at IS NULL',
-    `p.owner_jid IN (${ownerPlaceholders})`,
-  ];
+  const whereClauses = ['p.deleted_at IS NULL', `p.owner_jid IN (${ownerPlaceholders})`];
   const params = [...owners];
 
   if (includeLegacyMarkers) {
@@ -195,9 +177,11 @@ export async function listStickerAutoPacksForCuration({
     whereClauses.push('p.is_auto_pack = 1');
   }
 
-  const normalizedThemeKey = String(themeKey || '').trim().toLowerCase();
+  const normalizedThemeKey = String(themeKey || '')
+    .trim()
+    .toLowerCase();
   if (normalizedThemeKey) {
-    whereClauses.push('LOWER(COALESCE(p.pack_theme_key, \'\')) = ?');
+    whereClauses.push("LOWER(COALESCE(p.pack_theme_key, '')) = ?");
     params.push(normalizedThemeKey);
   }
 
@@ -234,39 +218,26 @@ export async function listStickerAutoPacksForCuration({
  * }} [options] Filtros de listagem.
  * @returns {Promise<{ packs: object[], hasMore: boolean }>} Resultado paginado.
  */
-export async function listStickerPacksForCatalog({
-  visibility = 'public',
-  search = '',
-  limit = 24,
-  offset = 0,
-  connection = null,
-} = {}) {
+export async function listStickerPacksForCatalog({ visibility = 'public', search = '', limit = 24, offset = 0, connection = null } = {}) {
   const safeLimit = Math.max(1, Math.min(60, Number(limit) || 24));
   const safeOffset = Math.max(0, Number(offset) || 0);
   const safeLimitWithSentinel = safeLimit + 1;
 
-  const normalizedVisibility = String(visibility || 'public').trim().toLowerCase();
-  const visibilityValues =
-    normalizedVisibility === 'all'
-      ? ['public', 'unlisted']
-      : normalizedVisibility === 'unlisted'
-        ? ['unlisted']
-        : ['public'];
+  const normalizedVisibility = String(visibility || 'public')
+    .trim()
+    .toLowerCase();
+  const visibilityValues = normalizedVisibility === 'all' ? ['public', 'unlisted'] : normalizedVisibility === 'unlisted' ? ['unlisted'] : ['public'];
 
-  const normalizedSearch = String(search || '').trim().toLowerCase().slice(0, 120);
+  const normalizedSearch = String(search || '')
+    .trim()
+    .toLowerCase()
+    .slice(0, 120);
   const params = [...visibilityValues];
-  const whereClauses = [
-    'p.deleted_at IS NULL',
-    "p.status = 'published'",
-    "COALESCE(p.pack_status, 'ready') = 'ready'",
-    `p.visibility IN (${visibilityValues.map(() => '?').join(', ')})`,
-  ];
+  const whereClauses = ['p.deleted_at IS NULL', "p.status = 'published'", "COALESCE(p.pack_status, 'ready') = 'ready'", `p.visibility IN (${visibilityValues.map(() => '?').join(', ')})`];
 
   if (normalizedSearch) {
     const like = `%${normalizedSearch}%`;
-    whereClauses.push(
-      '(LOWER(p.name) LIKE ? OR LOWER(p.publisher) LIKE ? OR LOWER(COALESCE(p.description, \'\')) LIKE ? OR LOWER(p.pack_key) LIKE ?)',
-    );
+    whereClauses.push("(LOWER(p.name) LIKE ? OR LOWER(p.publisher) LIKE ? OR LOWER(COALESCE(p.description, '')) LIKE ? OR LOWER(p.pack_key) LIKE ?)");
     params.push(like, like, like, like);
   }
 
@@ -319,23 +290,7 @@ export async function createStickerPack(pack, connection = null) {
         version
       )
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      pack.id,
-      pack.owner_jid,
-      pack.name,
-      pack.publisher,
-      pack.description ?? null,
-      pack.pack_key,
-      pack.cover_sticker_id ?? null,
-      pack.visibility,
-      pack.status ?? 'published',
-      pack.pack_status ?? 'ready',
-      pack.pack_theme_key ?? null,
-      pack.pack_volume ?? null,
-      pack.is_auto_pack ? 1 : 0,
-      pack.last_rebalanced_at ?? null,
-      pack.version ?? 1,
-    ],
+    [pack.id, pack.owner_jid, pack.name, pack.publisher, pack.description ?? null, pack.pack_key, pack.cover_sticker_id ?? null, pack.visibility, pack.status ?? 'published', pack.pack_status ?? 'ready', pack.pack_theme_key ?? null, pack.pack_volume ?? null, pack.is_auto_pack ? 1 : 0, pack.last_rebalanced_at ?? null, pack.version ?? 1],
     connection,
   );
 
@@ -420,7 +375,9 @@ export async function updateStickerPackFields(packId, fields, connection = null)
         fields: Object.keys(fields || {}).slice(0, 30),
       },
       priority: 70,
-      idempotencyKey: `pack_updated:${packId}:${Object.keys(fields || {}).sort().join(',')}`,
+      idempotencyKey: `pack_updated:${packId}:${Object.keys(fields || {})
+        .sort()
+        .join(',')}`,
     },
     { connection },
   );

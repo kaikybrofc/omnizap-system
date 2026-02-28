@@ -3,12 +3,7 @@ import { setQueueDepth } from '../../observability/metrics.js';
 import { isFeatureEnabled } from '../../services/featureFlagService.js';
 import { runStickerClassificationCycle } from './stickerClassificationBackgroundRuntime.js';
 import { runStickerAutoPackByTagsCycle } from './stickerAutoPackByTagsRuntime.js';
-import {
-  claimWorkerTask,
-  completeWorkerTask,
-  countWorkerTasksByStatus,
-  failWorkerTask,
-} from './stickerWorkerTaskQueueRepository.js';
+import { claimWorkerTask, completeWorkerTask, countWorkerTasksByStatus, failWorkerTask } from './stickerWorkerTaskQueueRepository.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -26,36 +21,17 @@ const clampInt = (value, fallback, min, max) => {
 
 const DEDICATED_WORKERS_ENABLED = parseEnvBool(process.env.STICKER_DEDICATED_WORKERS_ENABLED, true);
 const DEDICATED_WORKERS_FORCE_ENABLED = parseEnvBool(process.env.STICKER_DEDICATED_WORKERS_FORCE_ENABLED, false);
-const DEDICATED_WORKER_RETRY_DELAY_SECONDS = clampInt(
-  process.env.STICKER_DEDICATED_WORKER_RETRY_DELAY_SECONDS,
-  60,
-  5,
-  3600,
-);
-const DEDICATED_WORKER_POLL_INTERVAL_MS = clampInt(
-  process.env.STICKER_DEDICATED_WORKER_POLL_INTERVAL_MS,
-  2500,
-  250,
-  60_000,
-);
-const DEDICATED_WORKER_MAX_TASKS_PER_TICK = clampInt(
-  process.env.STICKER_DEDICATED_WORKER_MAX_TASKS_PER_TICK,
-  1,
-  1,
-  25,
-);
-const DEDICATED_WORKER_COHORT_KEY =
-  String(process.env.STICKER_DEDICATED_WORKER_COHORT_KEY || process.env.HOSTNAME || process.pid).trim()
-  || 'worker';
+const DEDICATED_WORKER_RETRY_DELAY_SECONDS = clampInt(process.env.STICKER_DEDICATED_WORKER_RETRY_DELAY_SECONDS, 60, 5, 3600);
+const DEDICATED_WORKER_POLL_INTERVAL_MS = clampInt(process.env.STICKER_DEDICATED_WORKER_POLL_INTERVAL_MS, 2500, 250, 60_000);
+const DEDICATED_WORKER_MAX_TASKS_PER_TICK = clampInt(process.env.STICKER_DEDICATED_WORKER_MAX_TASKS_PER_TICK, 1, 1, 25);
+const DEDICATED_WORKER_COHORT_KEY = String(process.env.STICKER_DEDICATED_WORKER_COHORT_KEY || process.env.HOSTNAME || process.pid).trim() || 'worker';
 
-const SUPPORTED_TASK_TYPES = new Set([
-  'classification_cycle',
-  'curation_cycle',
-  'rebuild_cycle',
-]);
+const SUPPORTED_TASK_TYPES = new Set(['classification_cycle', 'curation_cycle', 'rebuild_cycle']);
 
 const normalizeTaskType = (value) => {
-  const normalized = String(value || '').trim().toLowerCase();
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
   return SUPPORTED_TASK_TYPES.has(normalized) ? normalized : null;
 };
 
@@ -86,11 +62,7 @@ const runTaskHandler = async (taskType, payload = {}) => {
 };
 
 const refreshQueueDepthMetrics = async () => {
-  const [pending, processing, failed] = await Promise.all([
-    countWorkerTasksByStatus('pending'),
-    countWorkerTasksByStatus('processing'),
-    countWorkerTasksByStatus('failed'),
-  ]);
+  const [pending, processing, failed] = await Promise.all([countWorkerTasksByStatus('pending'), countWorkerTasksByStatus('processing'), countWorkerTasksByStatus('failed')]);
   setQueueDepth('sticker_worker_tasks_pending', pending);
   setQueueDepth('sticker_worker_tasks_processing', processing);
   setQueueDepth('sticker_worker_tasks_failed', failed);
@@ -107,13 +79,7 @@ const canRunDedicatedWorkers = async (taskType) => {
 
 export const isSupportedStickerWorkerTaskType = (taskType) => Boolean(normalizeTaskType(taskType));
 
-export const runDedicatedStickerWorkerTick = async (
-  {
-    taskType,
-    maxTasks = DEDICATED_WORKER_MAX_TASKS_PER_TICK,
-    retryDelaySeconds = DEDICATED_WORKER_RETRY_DELAY_SECONDS,
-  } = {},
-) => {
+export const runDedicatedStickerWorkerTick = async ({ taskType, maxTasks = DEDICATED_WORKER_MAX_TASKS_PER_TICK, retryDelaySeconds = DEDICATED_WORKER_RETRY_DELAY_SECONDS } = {}) => {
   const normalizedTaskType = normalizeTaskType(taskType);
   if (!normalizedTaskType) {
     return { executed: false, reason: 'invalid_task_type', task_type: taskType || null };
@@ -167,13 +133,7 @@ export const runDedicatedStickerWorkerTick = async (
   return stats;
 };
 
-export const startDedicatedStickerWorker = ({
-  taskType,
-  pollIntervalMs = DEDICATED_WORKER_POLL_INTERVAL_MS,
-  maxTasksPerTick = DEDICATED_WORKER_MAX_TASKS_PER_TICK,
-  retryDelaySeconds = DEDICATED_WORKER_RETRY_DELAY_SECONDS,
-  label = '',
-} = {}) => {
+export const startDedicatedStickerWorker = ({ taskType, pollIntervalMs = DEDICATED_WORKER_POLL_INTERVAL_MS, maxTasksPerTick = DEDICATED_WORKER_MAX_TASKS_PER_TICK, retryDelaySeconds = DEDICATED_WORKER_RETRY_DELAY_SECONDS, label = '' } = {}) => {
   const normalizedTaskType = normalizeTaskType(taskType);
   if (!normalizedTaskType) {
     throw new Error(`invalid_task_type:${taskType}`);

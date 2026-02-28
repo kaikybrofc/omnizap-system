@@ -41,11 +41,7 @@ const normalizeStickerAssetRow = (row) => {
  * @returns {Promise<object|null>} Asset encontrado.
  */
 export async function findStickerAssetBySha256(sha256, connection = null) {
-  const rows = await executeQuery(
-    `SELECT * FROM ${TABLES.STICKER_ASSET} WHERE sha256 = ? LIMIT 1`,
-    [sha256],
-    connection,
-  );
+  const rows = await executeQuery(`SELECT * FROM ${TABLES.STICKER_ASSET} WHERE sha256 = ? LIMIT 1`, [sha256], connection);
   return normalizeStickerAssetRow(rows?.[0] || null);
 }
 
@@ -74,11 +70,7 @@ export async function findStickerAssetsByIds(ids, connection = null) {
   if (!uniqueIds.length) return [];
 
   const placeholders = uniqueIds.map(() => '?').join(', ');
-  const rows = await executeQuery(
-    `SELECT * FROM ${TABLES.STICKER_ASSET} WHERE id IN (${placeholders})`,
-    uniqueIds,
-    connection,
-  );
+  const rows = await executeQuery(`SELECT * FROM ${TABLES.STICKER_ASSET} WHERE id IN (${placeholders})`, uniqueIds, connection);
 
   const normalized = rows.map((row) => normalizeStickerAssetRow(row));
   const byId = new Map(normalized.map((row) => [row.id, row]));
@@ -143,7 +135,10 @@ export async function listStickerAssetsWithoutPack({ search = '', limit = 120, o
   const safeLimit = Math.max(1, Math.min(500, Number(limit) || 120));
   const safeOffset = Math.max(0, Number(offset) || 0);
   const safeLimitWithSentinel = safeLimit + 1;
-  const normalizedSearch = String(search || '').trim().toLowerCase().slice(0, 140);
+  const normalizedSearch = String(search || '')
+    .trim()
+    .toLowerCase()
+    .slice(0, 140);
 
   const whereClauses = ['i.sticker_id IS NULL'];
   const params = [];
@@ -198,7 +193,10 @@ export async function listClassifiedStickerAssetsWithoutPack({ search = '', limi
   const safeLimit = Math.max(1, Math.min(500, Number(limit) || 120));
   const safeOffset = Math.max(0, Number(offset) || 0);
   const safeLimitWithSentinel = safeLimit + 1;
-  const normalizedSearch = String(search || '').trim().toLowerCase().slice(0, 140);
+  const normalizedSearch = String(search || '')
+    .trim()
+    .toLowerCase()
+    .slice(0, 140);
 
   const whereClauses = ['i.sticker_id IS NULL'];
   const params = [];
@@ -274,14 +272,7 @@ export async function countClassifiedStickerAssetsWithoutPack(connection = null)
  * }} [options]
  * @returns {Promise<{ assets: object[], hasMore: boolean, total: number }>}
  */
-export async function listClassifiedStickerAssetsForCuration({
-  limit = 200,
-  offset = 0,
-  includePacked = true,
-  includeUnpacked = true,
-  onlyVersionMismatch = null,
-  connection = null,
-} = {}) {
+export async function listClassifiedStickerAssetsForCuration({ limit = 200, offset = 0, includePacked = true, includeUnpacked = true, onlyVersionMismatch = null, connection = null } = {}) {
   const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 200));
   const safeOffset = Math.max(0, Number(offset) || 0);
   const safeLimitWithSentinel = safeLimit + 1;
@@ -346,17 +337,7 @@ export async function createStickerAsset(asset, connection = null) {
     `INSERT INTO ${TABLES.STICKER_ASSET}
       (id, owner_jid, sha256, mimetype, is_animated, width, height, size_bytes, storage_path)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      asset.id,
-      asset.owner_jid,
-      asset.sha256,
-      asset.mimetype,
-      asset.is_animated ? 1 : 0,
-      asset.width ?? null,
-      asset.height ?? null,
-      asset.size_bytes,
-      asset.storage_path,
-    ],
+    [asset.id, asset.owner_jid, asset.sha256, asset.mimetype, asset.is_animated ? 1 : 0, asset.width ?? null, asset.height ?? null, asset.size_bytes, asset.storage_path],
     connection,
   );
 

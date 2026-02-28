@@ -545,15 +545,7 @@ export const enrichRankingRows = async ({ rows, scope, remoteJid, botJid }) => {
  * @param {{scope: 'group'|'global', remoteJid?: string|null, botJid?: string|null, limit?: number|null, includeTopType?: boolean, includeDbStart?: boolean, enrichRows?: boolean}} params
  * @returns {Promise<{rows: Array<any>, totalMessages: number, topType: {label: string, count: number}|null, topTotal: number, dbStart: any}>}
  */
-export const getRankingReport = async ({
-  scope,
-  remoteJid,
-  botJid,
-  limit = null,
-  includeTopType = true,
-  includeDbStart = true,
-  enrichRows = true,
-}) => {
+export const getRankingReport = async ({ scope, remoteJid, botJid, limit = null, includeTopType = true, includeDbStart = true, enrichRows = true }) => {
   const totalMessages = await getTotalMessages({ scope, remoteJid, botJid });
   const topType = includeTopType ? await getTopMessageType({ scope, remoteJid, botJid }) : null;
   const { rows } = await getRankingBase({ scope, remoteJid, botJid, limit });

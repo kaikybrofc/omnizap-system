@@ -1,24 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-  applyDictionaryMapping,
-  calculateCohesion,
-  detectConflict,
-  detectDominantTheme,
-  normalizeTokens,
-  reclassify,
-} from './semanticReclassificationEngine.js';
+import { applyDictionaryMapping, calculateCohesion, detectConflict, detectDominantTheme, normalizeTokens, reclassify } from './semanticReclassificationEngine.js';
 
 test('normalizeTokens deve limpar termos genéricos, stopwords e duplicatas', () => {
   const tokens = normalizeTokens({
-    llm_subtags: [
-      'Cute Anime Girl Sticker',
-      'cute anime girl',
-      'image',
-      'co',
-      'random art',
-    ],
+    llm_subtags: ['Cute Anime Girl Sticker', 'cute anime girl', 'image', 'co', 'random art'],
     llm_style_traits: ['Kawaii style'],
     llm_emotions: ['happy face'],
     llm_pack_suggestions: ['social media picture'],

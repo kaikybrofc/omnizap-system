@@ -1,11 +1,4 @@
-export const handleCatalogAdminRoutes = async ({
-  req,
-  res,
-  url,
-  segments,
-  handlers,
-  sendJson,
-}) => {
+export const handleCatalogAdminRoutes = async ({ req, res, url, segments, handlers, sendJson }) => {
   if (segments[0] !== 'admin') return false;
 
   if (segments.length === 2 && segments[1] === 'overview') {

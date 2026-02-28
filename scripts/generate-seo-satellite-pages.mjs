@@ -54,7 +54,12 @@ const ensurePageConfig = (page) => {
     h1: String(page.h1).trim(),
     intro: String(page.intro).trim(),
     intent_label: String(page.intent_label || 'Guia pratico').trim(),
-    keywords: Array.isArray(page.keywords) ? page.keywords.filter(Boolean).map((item) => String(item).trim()).filter(Boolean) : [],
+    keywords: Array.isArray(page.keywords)
+      ? page.keywords
+          .filter(Boolean)
+          .map((item) => String(item).trim())
+          .filter(Boolean)
+      : [],
     sections: Array.isArray(page.sections) ? page.sections : [],
     faq: Array.isArray(page.faq) ? page.faq : [],
     related_links: Array.isArray(page.related_links) ? page.related_links : [],
@@ -63,19 +68,13 @@ const ensurePageConfig = (page) => {
 
 const renderSection = (section) => {
   const title = String(section?.title || '').trim();
-  const paragraphs = Array.isArray(section?.paragraphs)
-    ? section.paragraphs.map((item) => String(item || '').trim()).filter(Boolean)
-    : [];
-  const bullets = Array.isArray(section?.bullets)
-    ? section.bullets.map((item) => String(item || '').trim()).filter(Boolean)
-    : [];
+  const paragraphs = Array.isArray(section?.paragraphs) ? section.paragraphs.map((item) => String(item || '').trim()).filter(Boolean) : [];
+  const bullets = Array.isArray(section?.bullets) ? section.bullets.map((item) => String(item || '').trim()).filter(Boolean) : [];
 
   if (!title && paragraphs.length === 0 && bullets.length === 0) return '';
 
   const paragraphsHtml = paragraphs.map((paragraph) => `        <p>${escapeHtml(paragraph)}</p>`).join('\n');
-  const bulletsHtml = bullets.length
-    ? `\n        <ul>\n${bullets.map((bullet) => `          <li>${escapeHtml(bullet)}</li>`).join('\n')}\n        </ul>`
-    : '';
+  const bulletsHtml = bullets.length ? `\n        <ul>\n${bullets.map((bullet) => `          <li>${escapeHtml(bullet)}</li>`).join('\n')}\n        </ul>` : '';
 
   return `<section class="card">\n      ${title ? `<h2>${escapeHtml(title)}</h2>` : ''}\n${paragraphsHtml}${bulletsHtml}\n    </section>`;
 };
@@ -122,9 +121,7 @@ const withRequiredLinks = (relatedLinks) => {
 const renderLinks = (links) => {
   if (!links.length) return '';
 
-  return `<section class="card">\n      <h2>Links úteis</h2>\n      <div class="links-grid">\n${links
-        .map((link) => `        <a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`)
-        .join('\n')}\n      </div>\n    </section>`;
+  return `<section class="card">\n      <h2>Links úteis</h2>\n      <div class="links-grid">\n${links.map((link) => `        <a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`).join('\n')}\n      </div>\n    </section>`;
 };
 
 const renderPageHtml = (page, generatedAt) => {

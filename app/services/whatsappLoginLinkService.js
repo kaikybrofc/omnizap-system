@@ -45,8 +45,12 @@ function buildHintSignature(phoneDigits, tsSeconds) {
 }
 
 function safeHexCompare(left, right) {
-  const leftHex = String(left || '').trim().toLowerCase();
-  const rightHex = String(right || '').trim().toLowerCase();
+  const leftHex = String(left || '')
+    .trim()
+    .toLowerCase();
+  const rightHex = String(right || '')
+    .trim()
+    .toLowerCase();
   if (!leftHex || !rightHex || leftHex.length !== rightHex.length) return false;
 
   try {
@@ -60,13 +64,7 @@ function safeHexCompare(left, right) {
 }
 
 function resolveLoginBaseUrl(explicitBaseUrl = '') {
-  const candidates = [
-    explicitBaseUrl,
-    process.env.WHATSAPP_LOGIN_BASE_URL,
-    process.env.SITE_ORIGIN,
-    process.env.PUBLIC_WEB_BASE_URL,
-    DEFAULT_LOGIN_BASE_URL,
-  ];
+  const candidates = [explicitBaseUrl, process.env.WHATSAPP_LOGIN_BASE_URL, process.env.SITE_ORIGIN, process.env.PUBLIC_WEB_BASE_URL, DEFAULT_LOGIN_BASE_URL];
 
   for (const candidate of candidates) {
     const raw = String(candidate || '').trim();

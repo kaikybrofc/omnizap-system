@@ -25,7 +25,7 @@
 
 .ghp-title {
   margin: 0 0 2px;
-  font-family: "Sora", sans-serif;
+  font-family: 'Sora', sans-serif;
   font-size: 24px;
 }
 
@@ -109,11 +109,12 @@
   align-content: start;
   border: 1px solid var(--gh-border);
   border-radius: 14px;
-  background:
-    radial-gradient(120% 120% at 0% 0%, #7c3aed16, transparent 60%),
-    linear-gradient(160deg, var(--gh-card), #101a31);
+  background: radial-gradient(120% 120% at 0% 0%, #7c3aed16, transparent 60%), linear-gradient(160deg, var(--gh-card), #101a31);
   padding: 14px;
-  transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .ghp-stat-card:hover {
@@ -137,7 +138,7 @@
   color: var(--gh-muted);
   font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: .35px;
+  letter-spacing: 0.35px;
 }
 
 .ghp-stat-value {
@@ -273,8 +274,12 @@
 }
 
 @keyframes ghp-shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 .ghp-repo-link:focus-visible,

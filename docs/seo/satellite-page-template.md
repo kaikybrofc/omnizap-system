@@ -5,6 +5,7 @@ Objetivo: publicar paginas satelite com estrutura consistente (SEO on-page, inte
 ## Como gerar paginas
 
 1. Edite o arquivo de configuracao:
+
 - `docs/seo/satellite-pages-phase1.json`
 
 2. Rode o gerador:
@@ -20,6 +21,7 @@ npm run seo:generate:satellites:phase1
 ```
 
 3. Confira os arquivos criados em:
+
 - `public/<slug>/index.html`
 
 ## Campos do template (por pagina)

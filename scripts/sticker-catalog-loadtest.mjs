@@ -6,11 +6,7 @@ import fs from 'node:fs/promises';
 import { URL } from 'node:url';
 
 const DEFAULT_BASE_URL = process.env.STICKER_LOADTEST_BASE_URL || 'http://127.0.0.1:9102';
-const DEFAULT_PATHS = [
-  '/api/sticker-packs?limit=24&offset=0&sort=popular',
-  '/api/sticker-packs/stats',
-  '/api/sticker-packs/creators?limit=25',
-];
+const DEFAULT_PATHS = ['/api/sticker-packs?limit=24&offset=0&sort=popular', '/api/sticker-packs/stats', '/api/sticker-packs/creators?limit=25'];
 const DEFAULT_DURATION_SECONDS = 30;
 const DEFAULT_CONCURRENCY = 20;
 const DEFAULT_TIMEOUT_MS = 12_000;
@@ -33,7 +29,9 @@ const parseCliArgs = (argv) => {
 };
 
 const args = parseCliArgs(process.argv.slice(2));
-const baseUrl = String(args.get('--base-url') || DEFAULT_BASE_URL).trim().replace(/\/+$/, '');
+const baseUrl = String(args.get('--base-url') || DEFAULT_BASE_URL)
+  .trim()
+  .replace(/\/+$/, '');
 const durationSeconds = Math.max(5, Number(args.get('--duration-seconds') || DEFAULT_DURATION_SECONDS));
 const concurrency = Math.max(1, Number(args.get('--concurrency') || DEFAULT_CONCURRENCY));
 const timeoutMs = Math.max(1000, Number(args.get('--timeout-ms') || DEFAULT_TIMEOUT_MS));
@@ -146,11 +144,15 @@ const main = async () => {
   console.log(`[loadtest] duration_seconds=${durationSeconds} concurrency=${concurrency} paths=${requestPaths.join(',')}`);
   await sleep(250);
 
-  await Promise.all(Array.from({ length: concurrency }).map((_, index) => runWorker({
-    deadlineMs,
-    workerIndex: index,
-    stats,
-  })));
+  await Promise.all(
+    Array.from({ length: concurrency }).map((_, index) =>
+      runWorker({
+        deadlineMs,
+        workerIndex: index,
+        stats,
+      }),
+    ),
+  );
 
   const elapsedSeconds = Math.max(0.001, (Date.now() - startedAt) / 1000);
   const sortedLatencies = [...stats.latencies].sort((a, b) => a - b);

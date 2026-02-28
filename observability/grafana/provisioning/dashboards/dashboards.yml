@@ -3,7 +3,7 @@ apiVersion: 1
 providers:
   - name: omnizap
     orgId: 1
-    folder: "OmniZap"
+    folder: 'OmniZap'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30

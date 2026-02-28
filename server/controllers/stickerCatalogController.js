@@ -3033,11 +3033,7 @@ const renderCatalogHtml = async ({ initialPackKey }) => {
 
 const renderPackSeoHtml = ({ packSummary }) => {
   const packName = truncateText(packSummary?.name || packSummary?.pack_key || 'Pack', 95);
-  const packDescription = truncateText(
-    packSummary?.description
-      || `Pack de stickers "${packName}" disponível no catálogo OmniZap para uso em bots e automações WhatsApp via API.`,
-    180,
-  );
+  const packDescription = truncateText(packSummary?.description || `Pack de stickers "${packName}" disponível no catálogo OmniZap para uso em bots e automações WhatsApp via API.`, 180);
   const canonicalUrl = toSiteAbsoluteUrl(buildPackWebUrl(packSummary?.pack_key || ''));
   const catalogUrl = toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`);
   const homeUrl = toSiteAbsoluteUrl('/');
@@ -3658,12 +3654,7 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
   };
   const errors = [];
 
-  const [supportResult, sessionResult, statsResult, systemSummaryResult] = await Promise.allSettled([
-    withTimeout(buildSupportInfo(), fetchTimeoutMs.support),
-    STICKER_WEB_GOOGLE_CLIENT_ID ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session) : Promise.resolve(null),
-    withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats),
-    withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary),
-  ]);
+  const [supportResult, sessionResult, statsResult, systemSummaryResult] = await Promise.allSettled([withTimeout(buildSupportInfo(), fetchTimeoutMs.support), STICKER_WEB_GOOGLE_CLIENT_ID ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session) : Promise.resolve(null), withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats), withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary)]);
 
   const support = supportResult.status === 'fulfilled' ? supportResult.value || null : null;
   if (supportResult.status !== 'fulfilled') {

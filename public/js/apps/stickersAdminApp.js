@@ -92,7 +92,10 @@ const includesToken = (parts, token) => {
 
 const isAdminAuthenticated = () => Boolean(state.adminStatus?.session?.authenticated);
 const canUnlockAdmin = () => Boolean(state.adminStatus?.eligible_google_login);
-const getAdminRole = () => String(state.adminStatus?.session?.role || '').trim().toLowerCase();
+const getAdminRole = () =>
+  String(state.adminStatus?.session?.role || '')
+    .trim()
+    .toLowerCase();
 const canManageModerators = () => Boolean(state.adminStatus?.session?.capabilities?.can_manage_moderators || getAdminRole() === 'owner');
 
 function setToast(type, message, timeoutMs = 3200) {
@@ -250,7 +253,9 @@ function renderPagination(key, page) {
 }
 
 function toneClassForStatus(status) {
-  const normalized = String(status || '').trim().toLowerCase();
+  const normalized = String(status || '')
+    .trim()
+    .toLowerCase();
   if (['published', 'ready', 'done', 'online', 'active'].includes(normalized)) return 'status-success';
   if (['failed', 'error', 'deleted'].includes(normalized)) return 'status-danger';
   if (['uploading', 'processing', 'pending', 'draft'].includes(normalized)) return 'status-warning';
@@ -373,9 +378,7 @@ function renderUsersTab() {
   const { activeSessions, users } = getOverviewData();
   const token = normalizeToken(state.usersQuery);
 
-  const filteredSessions = activeSessions.filter((row) =>
-    includesToken([row?.name, row?.email, row?.owner_jid, row?.google_sub], token),
-  );
+  const filteredSessions = activeSessions.filter((row) => includesToken([row?.name, row?.email, row?.owner_jid, row?.google_sub], token));
   const filteredUsers = users.filter((row) => includesToken([row?.name, row?.email, row?.owner_jid, row?.google_sub], token));
 
   const sessionsPage = paginate(filteredSessions, 'sessions');
@@ -383,13 +386,7 @@ function renderUsersTab() {
 
   const sessionRowsDesktop = sessionsPage.items
     .map((row) => {
-      const menu = renderMenuWrap(
-        'session',
-        row?.session_token || row?.google_sub || row?.email || Math.random(),
-        `<button class="row-menu-item danger" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(
-          row?.google_sub || '',
-        )}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir usuario</button>`,
-      );
+      const menu = renderMenuWrap('session', row?.session_token || row?.google_sub || row?.email || Math.random(), `<button class="row-menu-item danger" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(row?.google_sub || '')}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir usuario</button>`);
       return `
         <tr>
           <td>
@@ -406,13 +403,7 @@ function renderUsersTab() {
 
   const usersRowsDesktop = usersPage.items
     .map((row) => {
-      const menu = renderMenuWrap(
-        'user',
-        row?.google_sub || row?.email || row?.owner_jid || Math.random(),
-        `<button class="row-menu-item danger" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(
-          row?.google_sub || '',
-        )}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir usuario</button>`,
-      );
+      const menu = renderMenuWrap('user', row?.google_sub || row?.email || row?.owner_jid || Math.random(), `<button class="row-menu-item danger" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(row?.google_sub || '')}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir usuario</button>`);
       return `
         <tr>
           <td>
@@ -437,9 +428,7 @@ function renderUsersTab() {
           <p class="row-meta break-all">${escapeHtml(row?.owner_jid || '')}</p>
           <div class="mobile-card-foot">
             <span class="muted">${escapeHtml(fmtDate(row?.last_seen_at || row?.created_at))}</span>
-            <button class="danger-btn" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(
-        row?.google_sub || '',
-      )}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir</button>
+            <button class="danger-btn" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(row?.google_sub || '')}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir</button>
           </div>
         </article>
       `,
@@ -456,9 +445,7 @@ function renderUsersTab() {
           <p class="row-meta break-all mono">${escapeHtml(row?.google_sub || '')}</p>
           <div class="mobile-card-foot">
             <span class="muted">${escapeHtml(fmtDate(row?.last_login_at || row?.last_seen_at || row?.updated_at))}</span>
-            <button class="danger-btn" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(
-        row?.google_sub || '',
-      )}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir</button>
+            <button class="danger-btn" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(row?.google_sub || '')}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir</button>
           </div>
         </article>
       `,
@@ -529,11 +516,7 @@ function renderPacksTab() {
 
   const packRowsDesktop = packsPage.items
     .map((pack) => {
-      const statusBadges = [
-        renderStatusBadge(pack?.visibility || 'n/a'),
-        renderStatusBadge(pack?.status || 'n/a'),
-        renderStatusBadge(pack?.pack_status || 'ready'),
-      ].join('');
+      const statusBadges = [renderStatusBadge(pack?.visibility || 'n/a'), renderStatusBadge(pack?.status || 'n/a'), renderStatusBadge(pack?.pack_status || 'ready')].join('');
 
       const menu = renderMenuWrap(
         'pack',
@@ -634,8 +617,9 @@ function renderPacksTab() {
         <div class="panel-head slim">
           <h4 class="panel-title">Pack selecionado</h4>
         </div>
-        ${selectedPack
-          ? `
+        ${
+          selectedPack
+            ? `
             <div class="selected-pack-head">
               <div>
                 <p class="row-title break-words">${escapeHtml(selectedPack?.name || selectedPack?.pack_key || 'Pack')}</p>
@@ -655,7 +639,8 @@ function renderPacksTab() {
             </div>
             <div class="detail-list">${detailItems || '<div class="empty-box">Pack sem stickers.</div>'}</div>
           `
-          : '<div class="empty-box">Selecione um pack na tabela para visualizar e moderar stickers.</div>'}
+            : '<div class="empty-box">Selecione um pack na tabela para visualizar e moderar stickers.</div>'
+        }
       </section>
     </section>
   `;
@@ -670,13 +655,7 @@ function renderLogsTab() {
   const rowsDesktop = page.items
     .map((ban) => {
       const revoked = Boolean(ban?.revoked_at);
-      const menu = revoked
-        ? ''
-        : renderMenuWrap(
-            'ban',
-            ban?.id || Math.random(),
-            `<button class="row-menu-item" data-action="revoke-ban" data-ban-id="${escapeHtml(ban?.id || '')}">Revogar banimento</button>`,
-          );
+      const menu = revoked ? '' : renderMenuWrap('ban', ban?.id || Math.random(), `<button class="row-menu-item" data-action="revoke-ban" data-ban-id="${escapeHtml(ban?.id || '')}">Revogar banimento</button>`);
 
       return `
         <tr>
@@ -702,9 +681,7 @@ function renderLogsTab() {
           <p class="row-sub">${escapeHtml(ban?.reason || 'Sem motivo')}</p>
           <p class="row-meta">${escapeHtml(fmtDate(ban?.created_at))}</p>
           <div class="mobile-card-foot">
-            ${Boolean(ban?.revoked_at)
-              ? renderStatusBadge('revogado', 'status-neutral')
-              : `<button class="outline-btn" data-action="revoke-ban" data-ban-id="${escapeHtml(ban?.id || '')}">Revogar</button>`}
+            ${Boolean(ban?.revoked_at) ? renderStatusBadge('revogado', 'status-neutral') : `<button class="outline-btn" data-action="revoke-ban" data-ban-id="${escapeHtml(ban?.id || '')}">Revogar</button>`}
           </div>
         </article>
       `,
@@ -869,9 +846,7 @@ function renderSystemTab() {
           <p class="row-meta break-all">${escapeHtml(row?.owner_jid || '')}</p>
           <div class="mobile-card-foot">
             ${Boolean(row?.active && !row?.revoked_at) ? renderStatusBadge('ativo', 'status-success') : renderStatusBadge('revogado', 'status-neutral')}
-            ${Boolean(row?.active && !row?.revoked_at)
-              ? `<button class="danger-btn" data-action="revoke-moderator" data-google-sub="${escapeHtml(row?.google_sub || '')}">Remover</button>`
-              : ''}
+            ${Boolean(row?.active && !row?.revoked_at) ? `<button class="danger-btn" data-action="revoke-moderator" data-google-sub="${escapeHtml(row?.google_sub || '')}">Remover</button>` : ''}
           </div>
         </article>
       `,
@@ -930,8 +905,9 @@ function renderSystemTab() {
           <h3 class="panel-title">Moderadores</h3>
           <p class="panel-desc">Acesso secundario do painel com senha individual e sessao Google obrigatoria.</p>
         </div>
-        ${ownerMode
-          ? `
+        ${
+          ownerMode
+            ? `
             <form data-form="moderator-upsert" class="form-grid">
               <input class="search-input" list="moderator-target-list" name="target" placeholder="email, google_sub ou owner_jid do usuario logado" />
               <datalist id="moderator-target-list">${targetOptions}</datalist>
@@ -952,7 +928,8 @@ function renderSystemTab() {
             </div>
             <div class="mobile-list mobile-only">${moderatorRowsMobile || '<div class="empty-box">Nenhum moderador cadastrado.</div>'}</div>
           `
-          : '<div class="empty-box">Sessao atual de moderador. Apenas o owner pode cadastrar/remover moderadores.</div>'}
+            : '<div class="empty-box">Sessao atual de moderador. Apenas o owner pode cadastrar/remover moderadores.</div>'
+        }
       </article>
 
       <article class="panel">
@@ -1044,12 +1021,8 @@ function renderHeader() {
         </div>
         <div class="topbar-actions">
           <button class="ghost-btn" data-action="refresh-dashboard" ${state.busy ? 'disabled' : ''}>Atualizar</button>
-          ${isAdminAuthenticated()
-            ? `<span class="user-chip">${escapeHtml(`${roleLabel ? `${roleLabel} • ` : ''}${adminUser?.email || adminUser?.name || 'Admin'}`)}</span>`
-            : '<span class="user-chip muted">Nao autenticado</span>'}
-          ${isAdminAuthenticated()
-            ? `<button class="ghost-btn danger" data-action="logout-admin" ${state.busy ? 'disabled' : ''}>Sair</button>`
-            : `<button class="ghost-btn" data-action="refresh-admin-status" ${state.busy ? 'disabled' : ''}>Revalidar</button>`}
+          ${isAdminAuthenticated() ? `<span class="user-chip">${escapeHtml(`${roleLabel ? `${roleLabel} • ` : ''}${adminUser?.email || adminUser?.name || 'Admin'}`)}</span>` : '<span class="user-chip muted">Nao autenticado</span>'}
+          ${isAdminAuthenticated() ? `<button class="ghost-btn danger" data-action="logout-admin" ${state.busy ? 'disabled' : ''}>Sair</button>` : `<button class="ghost-btn" data-action="refresh-admin-status" ${state.busy ? 'disabled' : ''}>Revalidar</button>`}
         </div>
       </div>
     </header>
@@ -1108,31 +1081,33 @@ function renderUnlockView() {
               <button class="subtle-btn" data-action="refresh-admin-status" ${state.busy ? 'disabled' : ''}>Revalidar</button>
             </div>
 
-            ${googleSession?.authenticated
-              ? `
+            ${
+              googleSession?.authenticated
+                ? `
                 <div class="account-box">
                   <p class="row-title">${escapeHtml(googleSession.user?.name || 'Conta Google')}</p>
                   <p class="row-sub break-all">${escapeHtml(googleSession.user?.email || '')}</p>
                   <p class="row-meta">${canUnlockAdmin() ? 'Conta elegivel para admin.' : 'Conta Google logada nao bate com ADM_EMAIL.'}</p>
                 </div>
               `
-              : `
+                : `
                 <div class="account-box warning">
                   <p class="row-title">Nenhuma sessao Google ativa no servidor.</p>
-                  ${hasLocalCache
-                    ? `<p class="row-sub">Sessao local encontrada: ${escapeHtml(localGoogleCache.user?.email || localGoogleCache.user?.name || 'Conta Google')}.</p>`
-                    : '<p class="row-sub">Nao encontramos cache local de login Google.</p>'}
+                  ${hasLocalCache ? `<p class="row-sub">Sessao local encontrada: ${escapeHtml(localGoogleCache.user?.email || localGoogleCache.user?.name || 'Conta Google')}.</p>` : '<p class="row-sub">Nao encontramos cache local de login Google.</p>'}
                   <p class="row-meta">Renove o login Google abaixo para continuar.</p>
                 </div>
-                ${googleConfigEnabled
-                  ? `
+                ${
+                  googleConfigEnabled
+                    ? `
                     <div class="google-login-box">
                       <div data-google-admin-login-button class="google-login-slot"></div>
                       ${state.googleLoginUiReady ? '' : '<p class="row-meta">Carregando botao de login Google...</p>'}
                     </div>
                   `
-                  : `<p class="row-meta">Login Google indisponivel no painel (${escapeHtml(state.googleAuthConfigError || 'config nao encontrada')}).</p>`}
-              `}
+                    : `<p class="row-meta">Login Google indisponivel no painel (${escapeHtml(state.googleAuthConfigError || 'config nao encontrada')}).</p>`
+                }
+              `
+            }
           </article>
 
           <article class="panel inner">
@@ -1142,9 +1117,7 @@ function renderUnlockView() {
             <form data-form="admin-unlock" class="form-grid">
               <input class="search-input" type="password" name="password" placeholder="Digite a senha do painel" autocomplete="current-password" />
               <button class="primary-btn" type="submit" ${state.busy ? 'disabled' : ''}>${state.busy ? 'Validando...' : 'Desbloquear Painel'}</button>
-              ${!canUnlockAdmin()
-                ? `<p class="hint warning">A senha so desbloqueia apos sessao Google elegivel (${escapeHtml(adminEmail)} ou moderador autorizado).</p>`
-                : '<p class="hint">Sessao Google elegivel detectada. Informe a senha correspondente.</p>'}
+              ${!canUnlockAdmin() ? `<p class="hint warning">A senha so desbloqueia apos sessao Google elegivel (${escapeHtml(adminEmail)} ou moderador autorizado).</p>` : '<p class="hint">Sessao Google elegivel detectada. Informe a senha correspondente.</p>'}
             </form>
           </article>
         </div>
@@ -1296,81 +1269,96 @@ async function boot() {
 }
 
 async function refreshAdminStatusOnly() {
-  await runTask(async () => {
-    await Promise.all([loadAdminStatus(), loadGoogleAuthConfig()]);
-  }, { successMessage: 'Status de autenticacao atualizado.' });
+  await runTask(
+    async () => {
+      await Promise.all([loadAdminStatus(), loadGoogleAuthConfig()]);
+    },
+    { successMessage: 'Status de autenticacao atualizado.' },
+  );
 }
 
 async function refreshDashboard() {
-  await runTask(async () => {
-    await Promise.all([loadAdminStatus(), loadGoogleAuthConfig()]);
-    if (!isAdminAuthenticated()) {
+  await runTask(
+    async () => {
+      await Promise.all([loadAdminStatus(), loadGoogleAuthConfig()]);
+      if (!isAdminAuthenticated()) {
+        state.overview = null;
+        state.packs = [];
+        state.moderators = [];
+        state.selectedPack = null;
+        state.selectedPackKey = '';
+        return;
+      }
+      await bootstrapDashboardData();
+    },
+    { successMessage: 'Painel atualizado.' },
+  );
+}
+
+async function loginGoogleForAdmin(credential) {
+  await runTask(
+    async () => {
+      const payload = await fetchJson(googleSessionApiPath, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ google_id_token: credential }),
+      });
+      const data = payload?.data || {};
+      if (!data?.authenticated || !data?.user?.sub) {
+        throw new Error('Nao foi possivel criar sessao Google do site.');
+      }
+      await loadAdminStatus();
+    },
+    { successMessage: 'Sessao Google renovada.' },
+  );
+}
+
+async function unlockAdmin(password) {
+  await runTask(
+    async () => {
+      if (!canUnlockAdmin()) {
+        const google = state.adminStatus?.google || {};
+        const adminEmail = String(state.adminStatus?.admin_email || '').trim();
+        const loggedEmail = String(google?.user?.email || '').trim();
+        if (!google?.authenticated) {
+          const local = readLocalGoogleAuthCache();
+          if (local?.user?.email) {
+            throw new Error(`Sua sessao Google do servidor expirou. Renove o login Google (${local.user.email}) e tente novamente.`);
+          }
+          throw new Error('Faca login Google no site com o email admin antes de digitar a senha.');
+        }
+        if (loggedEmail && adminEmail && loggedEmail.toLowerCase() !== adminEmail.toLowerCase()) {
+          throw new Error(`Email logado (${loggedEmail}) e diferente do ADM_EMAIL (${adminEmail}).`);
+        }
+        throw new Error('Conta Google atual nao esta elegivel para desbloquear o painel.');
+      }
+
+      const payload = await fetchJson(`${adminApiBase}/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ password }),
+      });
+      state.adminStatus = payload?.data || null;
+      state.activeTab = 'users';
+      await bootstrapDashboardData();
+    },
+    { successMessage: 'Painel admin desbloqueado.' },
+  );
+}
+
+async function logoutAdmin() {
+  await runTask(
+    async () => {
+      await fetchJson(`${adminApiBase}/session`, { method: 'DELETE' });
+      await loadAdminStatus();
       state.overview = null;
       state.packs = [];
       state.moderators = [];
       state.selectedPack = null;
       state.selectedPackKey = '';
-      return;
-    }
-    await bootstrapDashboardData();
-  }, { successMessage: 'Painel atualizado.' });
-}
-
-async function loginGoogleForAdmin(credential) {
-  await runTask(async () => {
-    const payload = await fetchJson(googleSessionApiPath, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ google_id_token: credential }),
-    });
-    const data = payload?.data || {};
-    if (!data?.authenticated || !data?.user?.sub) {
-      throw new Error('Nao foi possivel criar sessao Google do site.');
-    }
-    await loadAdminStatus();
-  }, { successMessage: 'Sessao Google renovada.' });
-}
-
-async function unlockAdmin(password) {
-  await runTask(async () => {
-    if (!canUnlockAdmin()) {
-      const google = state.adminStatus?.google || {};
-      const adminEmail = String(state.adminStatus?.admin_email || '').trim();
-      const loggedEmail = String(google?.user?.email || '').trim();
-      if (!google?.authenticated) {
-        const local = readLocalGoogleAuthCache();
-        if (local?.user?.email) {
-          throw new Error(`Sua sessao Google do servidor expirou. Renove o login Google (${local.user.email}) e tente novamente.`);
-        }
-        throw new Error('Faca login Google no site com o email admin antes de digitar a senha.');
-      }
-      if (loggedEmail && adminEmail && loggedEmail.toLowerCase() !== adminEmail.toLowerCase()) {
-        throw new Error(`Email logado (${loggedEmail}) e diferente do ADM_EMAIL (${adminEmail}).`);
-      }
-      throw new Error('Conta Google atual nao esta elegivel para desbloquear o painel.');
-    }
-
-    const payload = await fetchJson(`${adminApiBase}/session`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ password }),
-    });
-    state.adminStatus = payload?.data || null;
-    state.activeTab = 'users';
-    await bootstrapDashboardData();
-  }, { successMessage: 'Painel admin desbloqueado.' });
-}
-
-async function logoutAdmin() {
-  await runTask(async () => {
-    await fetchJson(`${adminApiBase}/session`, { method: 'DELETE' });
-    await loadAdminStatus();
-    state.overview = null;
-    state.packs = [];
-    state.moderators = [];
-    state.selectedPack = null;
-    state.selectedPackKey = '';
-  }, { successMessage: 'Sessao admin encerrada.' });
+    },
+    { successMessage: 'Sessao admin encerrada.' },
+  );
 }
 
 async function searchPacks(query) {
@@ -1389,83 +1377,104 @@ async function openPackDetailsAdmin(packKey) {
 
 async function deletePackAdmin(packKey) {
   if (!window.confirm(`Apagar pack "${packKey}"?`)) return;
-  await runTask(async () => {
-    await fetchJson(`${adminApiBase}/packs/${encodeURIComponent(packKey)}/delete`, { method: 'DELETE' });
-    await loadPacks(state.packsQuery || '');
-    if (state.selectedPackKey === packKey) {
-      state.selectedPack = null;
-      state.selectedPackKey = '';
-    }
-    if (state.overview) await loadOverview();
-  }, { successMessage: 'Pack removido.' });
+  await runTask(
+    async () => {
+      await fetchJson(`${adminApiBase}/packs/${encodeURIComponent(packKey)}/delete`, { method: 'DELETE' });
+      await loadPacks(state.packsQuery || '');
+      if (state.selectedPackKey === packKey) {
+        state.selectedPack = null;
+        state.selectedPackKey = '';
+      }
+      if (state.overview) await loadOverview();
+    },
+    { successMessage: 'Pack removido.' },
+  );
 }
 
 async function removeStickerFromPackAdmin(packKey, stickerId) {
   if (!window.confirm(`Remover sticker ${stickerId} do pack ${packKey}?`)) return;
-  await runTask(async () => {
-    await fetchJson(`${adminApiBase}/packs/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}/delete`, {
-      method: 'DELETE',
-    });
-    await loadSelectedPack(packKey);
-    await loadPacks(state.packsQuery || '');
-    if (state.overview) await loadOverview();
-  }, { successMessage: 'Sticker removido do pack.' });
+  await runTask(
+    async () => {
+      await fetchJson(`${adminApiBase}/packs/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}/delete`, {
+        method: 'DELETE',
+      });
+      await loadSelectedPack(packKey);
+      await loadPacks(state.packsQuery || '');
+      if (state.overview) await loadOverview();
+    },
+    { successMessage: 'Sticker removido do pack.' },
+  );
 }
 
 async function forceDeleteStickerAdmin(stickerId) {
   if (!window.confirm(`Apagar sticker ${stickerId} globalmente (todas as referencias)?`)) return;
-  await runTask(async () => {
-    await fetchJson(`${adminApiBase}/stickers/${encodeURIComponent(stickerId)}/delete`, { method: 'DELETE' });
-    if (state.selectedPackKey) {
-      await loadSelectedPack(state.selectedPackKey).catch(() => {
-        state.selectedPack = null;
-      });
-    }
-    await loadPacks(state.packsQuery || '');
-    if (state.overview) await loadOverview();
-  }, { successMessage: 'Sticker removido globalmente.' });
+  await runTask(
+    async () => {
+      await fetchJson(`${adminApiBase}/stickers/${encodeURIComponent(stickerId)}/delete`, { method: 'DELETE' });
+      if (state.selectedPackKey) {
+        await loadSelectedPack(state.selectedPackKey).catch(() => {
+          state.selectedPack = null;
+        });
+      }
+      await loadPacks(state.packsQuery || '');
+      if (state.overview) await loadOverview();
+    },
+    { successMessage: 'Sticker removido globalmente.' },
+  );
 }
 
 async function createBanAdmin(payload) {
-  await runTask(async () => {
-    await fetchJson(`${adminApiBase}/bans`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify(payload),
-    });
-    await loadOverview();
-  }, { successMessage: 'Usuario banido.' });
+  await runTask(
+    async () => {
+      await fetchJson(`${adminApiBase}/bans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify(payload),
+      });
+      await loadOverview();
+    },
+    { successMessage: 'Usuario banido.' },
+  );
 }
 
 async function revokeBanAdmin(banId) {
   if (!window.confirm('Revogar este banimento?')) return;
-  await runTask(async () => {
-    await fetchJson(`${adminApiBase}/bans/${encodeURIComponent(banId)}/revoke`, { method: 'DELETE' });
-    await loadOverview();
-  }, { successMessage: 'Banimento revogado.' });
+  await runTask(
+    async () => {
+      await fetchJson(`${adminApiBase}/bans/${encodeURIComponent(banId)}/revoke`, { method: 'DELETE' });
+      await loadOverview();
+    },
+    { successMessage: 'Banimento revogado.' },
+  );
 }
 
 async function upsertModeratorAdmin(payload) {
-  await runTask(async () => {
-    await fetchJson(`${adminApiBase}/moderators`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify(payload),
-    });
-    await Promise.all([loadModerators(), loadOverview()]);
-  }, { successMessage: 'Moderador salvo com sucesso.' });
+  await runTask(
+    async () => {
+      await fetchJson(`${adminApiBase}/moderators`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify(payload),
+      });
+      await Promise.all([loadModerators(), loadOverview()]);
+    },
+    { successMessage: 'Moderador salvo com sucesso.' },
+  );
 }
 
 async function revokeModeratorAdmin(googleSub) {
   const normalized = String(googleSub || '').trim();
   if (!normalized) return;
   if (!window.confirm('Remover acesso deste moderador?')) return;
-  await runTask(async () => {
-    await fetchJson(`${adminApiBase}/moderators/${encodeURIComponent(normalized)}`, {
-      method: 'DELETE',
-    });
-    await Promise.all([loadModerators(), loadOverview()]);
-  }, { successMessage: 'Moderador removido.' });
+  await runTask(
+    async () => {
+      await fetchJson(`${adminApiBase}/moderators/${encodeURIComponent(normalized)}`, {
+        method: 'DELETE',
+      });
+      await Promise.all([loadModerators(), loadOverview()]);
+    },
+    { successMessage: 'Moderador removido.' },
+  );
 }
 
 async function ensureGoogleLoginButtonRendered() {

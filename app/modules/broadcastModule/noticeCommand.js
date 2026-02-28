@@ -45,38 +45,21 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const jitter = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
 const isRateLimitError = (error) => {
-  const status =
-    error?.status || error?.statusCode || error?.response?.status || error?.output?.statusCode;
+  const status = error?.status || error?.statusCode || error?.response?.status || error?.output?.statusCode;
   if (status === 429) return true;
   const message = String(error?.message || '').toLowerCase();
-  return (
-    message.includes('rate') ||
-    message.includes('flood') ||
-    message.includes('too many') ||
-    message.includes('spam') ||
-    message.includes('limit')
-  );
+  return message.includes('rate') || message.includes('flood') || message.includes('too many') || message.includes('spam') || message.includes('limit');
 };
 
 const isRetryableError = (error) => {
-  const status =
-    error?.status || error?.statusCode || error?.response?.status || error?.output?.statusCode;
+  const status = error?.status || error?.statusCode || error?.response?.status || error?.output?.statusCode;
   if (status && status >= 500) return true;
   if (isRateLimitError(error)) return true;
   const message = String(error?.message || '').toLowerCase();
-  return (
-    message.includes('timed out') ||
-    message.includes('timeout') ||
-    message.includes('network') ||
-    message.includes('connection') ||
-    message.includes('socket')
-  );
+  return message.includes('timed out') || message.includes('timeout') || message.includes('network') || message.includes('connection') || message.includes('socket');
 };
 
-const withRetry = async (
-  fn,
-  { retries = 2, baseDelayMs = 2000, jitterMin = 200, jitterMax = 800, onRateLimit } = {},
-) => {
+const withRetry = async (fn, { retries = 2, baseDelayMs = 2000, jitterMin = 200, jitterMax = 800, onRateLimit } = {}) => {
   let attempt = 0;
   while (true) {
     try {
@@ -169,8 +152,7 @@ const normalizeWhatsAppText = (input = '') => {
     if (!line) return '';
     const spaceRuns = line.match(/ {2,}/g);
     const hasMultipleSpaceRuns = spaceRuns && spaceRuns.length >= 2;
-    const isFormatted =
-      /^\s{2,}/.test(line) || /^\s*```/.test(line) || line.includes('|') || hasMultipleSpaceRuns;
+    const isFormatted = /^\s{2,}/.test(line) || /^\s*```/.test(line) || line.includes('|') || hasMultipleSpaceRuns;
     if (isFormatted) {
       return line.replace(/ {6,}/g, '  ');
     }
@@ -207,22 +189,10 @@ const buildGroupList = (groups) =>
  * @param {string} params.text
  * @returns {Promise<void>}
  */
-export async function handleNoticeCommand({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  senderJid,
-  text,
-  commandPrefix = DEFAULT_COMMAND_PREFIX,
-}) {
+export async function handleNoticeCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix = DEFAULT_COMMAND_PREFIX }) {
   const ownerJid = getAdminJid();
   if (!ownerJid) {
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: '❌ USER_ADMIN não configurado no ambiente.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: '❌ USER_ADMIN não configurado no ambiente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
@@ -233,55 +203,33 @@ export async function handleNoticeCommand({
       participant: messageInfo?.key?.participant || null,
     }))
   ) {
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: '❌ Você não tem permissão para usar este comando.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: '❌ Você não tem permissão para usar este comando.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   const { mode, message: rawNoticeText } = parseNoticeArgs(text || '');
   if (!rawNoticeText || !rawNoticeText.replace(/\s/g, '')) {
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: `Uso: ${commandPrefix}aviso [-fast|-safe] <mensagem>` },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: `Uso: ${commandPrefix}aviso [-fast|-safe] <mensagem>` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   const noticeStatsBefore = getTextStats(rawNoticeText);
   const unicodeSpaceCount = countMatches(rawNoticeText, UNICODE_SPACES_REGEX);
-  const invisibleCount =
-    countMatches(rawNoticeText, INVISIBLE_TO_SPACE_REGEX) +
-    countMatches(rawNoticeText, INVISIBLE_REMOVE_REGEX);
+  const invisibleCount = countMatches(rawNoticeText, INVISIBLE_TO_SPACE_REGEX) + countMatches(rawNoticeText, INVISIBLE_REMOVE_REGEX);
   const normalizedNoticeText = normalizeWhatsAppText(rawNoticeText);
   const noticeStatsAfter = getTextStats(normalizedNoticeText);
 
-  logger.info(
-    `handleNoticeCommand Normalizacao do aviso: tamanho ${noticeStatsBefore.length}->${noticeStatsAfter.length} | linhas ${noticeStatsBefore.lines}->${noticeStatsAfter.lines} | invisiveis ${invisibleCount} | espacosUnicode ${unicodeSpaceCount}`,
-  );
+  logger.info(`handleNoticeCommand Normalizacao do aviso: tamanho ${noticeStatsBefore.length}->${noticeStatsAfter.length} | linhas ${noticeStatsBefore.lines}->${noticeStatsAfter.lines} | invisiveis ${invisibleCount} | espacosUnicode ${unicodeSpaceCount}`);
 
   if (!normalizedNoticeText) {
-    logger.warn(
-      `handleNoticeCommand Aviso vazio apos normalizacao: tamanho ${noticeStatsBefore.length} | linhas ${noticeStatsBefore.lines}`,
-    );
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: '❌ A mensagem do aviso ficou vazia após a normalização.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    logger.warn(`handleNoticeCommand Aviso vazio apos normalizacao: tamanho ${noticeStatsBefore.length} | linhas ${noticeStatsBefore.lines}`);
+    await sendAndStore(sock, remoteJid, { text: '❌ A mensagem do aviso ficou vazia após a normalização.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   const imageUrl = process.env[MENU_IMAGE_ENV];
   if (!imageUrl) {
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: '❌ IMAGE_MENU não configurado no ambiente.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: '❌ IMAGE_MENU não configurado no ambiente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
@@ -290,27 +238,20 @@ export async function handleNoticeCommand({
     groupsMap = await getAllParticipatingGroups(sock);
   } catch (error) {
     logger.error(`handleNoticeCommand Erro ao obter grupos: ${error.message}`);
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: '❌ Não foi possível obter a lista de grupos.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: '❌ Não foi possível obter a lista de grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   const groups = Object.values(groupsMap || {});
   if (groups.length === 0) {
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: '⚠️ O bot não está em nenhum grupo.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: '⚠️ O bot não está em nenhum grupo.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   const groupListText = buildGroupList(groups);
   const config = MODE_CONFIG[mode] || MODE_CONFIG.default;
-  await sendAndStore(sock, 
+  await sendAndStore(
+    sock,
     remoteJid,
     {
       text: `📋 Grupos (${groups.length}):\n${groupListText}\n\n📣 Aviso:\n${normalizedNoticeText}\n\n🚀 Iniciando envio (modo ${mode}).\nConcorrência: ${config.concurrency} | Jitter: ${config.jitterMin}-${config.jitterMax}ms | Retries: ${config.retries}`,
@@ -323,11 +264,7 @@ export async function handleNoticeCommand({
     imageBuffer = await getImageBuffer(imageUrl);
   } catch (error) {
     logger.error(`handleNoticeCommand Erro ao baixar imagem do menu: ${error.message}`);
-    await sendAndStore(sock, 
-      remoteJid,
-      { text: '❌ Não foi possível baixar a imagem do menu.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: '❌ Não foi possível baixar a imagem do menu.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
@@ -373,18 +310,14 @@ export async function handleNoticeCommand({
         if (failureIds.length < MAX_FAILURE_SAMPLE && result.id) {
           failureIds.push(result.id);
         }
-        logger.error(
-          `handleNoticeCommand Falha ao enviar aviso para ${result.id}: ${result.error?.message || result.error}`,
-        );
+        logger.error(`handleNoticeCommand Falha ao enviar aviso para ${result.id}: ${result.error?.message || result.error}`);
       }
 
       const now = Date.now();
-      if (
-        processed % PROGRESS_EVERY === 0 ||
-        (now - lastProgressAt >= PROGRESS_INTERVAL_MS && processed < groups.length)
-      ) {
+      if (processed % PROGRESS_EVERY === 0 || (now - lastProgressAt >= PROGRESS_INTERVAL_MS && processed < groups.length)) {
         lastProgressAt = now;
-        await sendAndStore(sock, 
+        await sendAndStore(
+          sock,
           remoteJid,
           {
             text: `📣 Progresso: ${processed}/${groups.length}\n✅ Sucesso: ${successCount}\n❌ Falhas: ${failureCount}`,
@@ -396,14 +329,12 @@ export async function handleNoticeCommand({
 
     await runWithConcurrency(groups, config.concurrency, worker, onProgress);
 
-    const extraFailures =
-      failureCount > failureIds.length ? ` … +${failureCount - failureIds.length}` : '';
+    const extraFailures = failureCount > failureIds.length ? ` … +${failureCount - failureIds.length}` : '';
     const failureList = failureIds.length ? `\nFalhas: ${failureIds.join(', ')}${extraFailures}` : '';
-    const rateLimitText = rateLimitHits
-      ? `\n⚠️ Rate limit detectado: ${rateLimitHits}x (backoff aplicado)`
-      : '';
+    const rateLimitText = rateLimitHits ? `\n⚠️ Rate limit detectado: ${rateLimitHits}x (backoff aplicado)` : '';
 
-    await sendAndStore(sock, 
+    await sendAndStore(
+      sock,
       remoteJid,
       {
         text: `✅ Aviso finalizado.\nTotal: ${groups.length}\n✅ Sucesso: ${successCount}\n❌ Falhas: ${failureCount}${failureList}${rateLimitText}`,

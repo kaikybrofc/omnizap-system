@@ -5,12 +5,8 @@ const parseEnvList = (value) =>
     .filter(Boolean);
 
 const VERIFIED_PUBLISHERS = new Set(parseEnvList(process.env.STICKER_CREATOR_VERIFIED_PUBLISHERS).map((entry) => entry.toLowerCase()));
-const NSFW_EXPLICIT_THRESHOLD = Number.isFinite(Number(process.env.STICKER_NSFW_EXPLICIT_THRESHOLD))
-  ? Number(process.env.STICKER_NSFW_EXPLICIT_THRESHOLD)
-  : 0.78;
-const NSFW_SUGGESTIVE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_NSFW_SUGGESTIVE_THRESHOLD))
-  ? Number(process.env.STICKER_NSFW_SUGGESTIVE_THRESHOLD)
-  : 0.4;
+const NSFW_EXPLICIT_THRESHOLD = Number.isFinite(Number(process.env.STICKER_NSFW_EXPLICIT_THRESHOLD)) ? Number(process.env.STICKER_NSFW_EXPLICIT_THRESHOLD) : 0.78;
+const NSFW_SUGGESTIVE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_NSFW_SUGGESTIVE_THRESHOLD)) ? Number(process.env.STICKER_NSFW_SUGGESTIVE_THRESHOLD) : 0.4;
 const AGE_DECAY_DAYS = Math.max(1, Number(process.env.STICKER_PACK_AGE_DECAY_DAYS) || 45);
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -165,16 +161,7 @@ const computeDuplicatePenalty = ({ itemClassifications = [], duplicateRate = 0 }
   return Number(clamp(semanticDuplicateRate * 0.7 + safeNumber(duplicateRate) * 0.3, 0, 1).toFixed(6));
 };
 
-export const computePackSignals = ({
-  pack,
-  engagement,
-  packClassification,
-  itemClassifications = [],
-  interactionStats = null,
-  duplicateRate = 0,
-  scoringWeights = null,
-  ageDecayDays = AGE_DECAY_DAYS,
-}) => {
+export const computePackSignals = ({ pack, engagement, packClassification, itemClassifications = [], interactionStats = null, duplicateRate = 0, scoringWeights = null, ageDecayDays = AGE_DECAY_DAYS }) => {
   const resolvedWeights = {
     classification: clamp(safeNumber(scoringWeights?.classification, 0.4), 0.1, 0.7),
     engagement: clamp(safeNumber(scoringWeights?.engagement, 0.3), 0.1, 0.7),
@@ -194,12 +181,7 @@ export const computePackSignals = ({
   const trendScore = computeTrendScore(interactionStats);
   const nsfwLevel = resolveNsfwLevel(packClassification);
   const sensitiveContent = nsfwLevel !== 'safe';
-  const packScoreRaw =
-    classificationConfidence * resolvedWeights.classification +
-    engagementScore * resolvedWeights.engagement +
-    qualityScore * resolvedWeights.quality +
-    diversityScore * resolvedWeights.diversity -
-    duplicatePenalty * 0.25;
+  const packScoreRaw = classificationConfidence * resolvedWeights.classification + engagementScore * resolvedWeights.engagement + qualityScore * resolvedWeights.quality + diversityScore * resolvedWeights.diversity - duplicatePenalty * 0.25;
   const packScore = Number(clamp(packScoreRaw, 0, 1.5).toFixed(6));
   const referenceDate = pack?.updated_at || pack?.created_at || null;
   const ageMs = referenceDate ? Date.now() - Date.parse(referenceDate) : 0;
@@ -227,8 +209,7 @@ export const computePackSignals = ({
   };
 };
 
-const sortByScoreDesc = (list, field) =>
-  [...list].sort((left, right) => safeNumber(right?.signals?.[field]) - safeNumber(left?.signals?.[field]));
+const sortByScoreDesc = (list, field) => [...list].sort((left, right) => safeNumber(right?.signals?.[field]) - safeNumber(left?.signals?.[field]));
 
 const sortByUpdatedDesc = (list) =>
   [...list].sort((left, right) => {
@@ -246,14 +227,14 @@ export const buildIntentCollections = (entries, { limit = 18 } = {}) => {
   return {
     em_alta: pick(sortByScoreDesc(safeOnly, 'ranking_score')),
     novos: pick(sortByUpdatedDesc(safeOnly)),
-    crescendo_agora: pick(sortByScoreDesc(all.filter((entry) => entry?.signals?.trending_now), 'trend_score')),
-    mais_curtidos: pick([...safeOnly].sort((a, b) => safeNumber(b?.engagement?.like_count) - safeNumber(a?.engagement?.like_count))),
-    melhor_avaliados: pick(
-      [...safeOnly].sort(
-        (a, b) =>
-          safeNumber(b?.engagement?.like_count) - safeNumber(b?.engagement?.dislike_count) - (safeNumber(a?.engagement?.like_count) - safeNumber(a?.engagement?.dislike_count)),
+    crescendo_agora: pick(
+      sortByScoreDesc(
+        all.filter((entry) => entry?.signals?.trending_now),
+        'trend_score',
       ),
     ),
+    mais_curtidos: pick([...safeOnly].sort((a, b) => safeNumber(b?.engagement?.like_count) - safeNumber(a?.engagement?.like_count))),
+    melhor_avaliados: pick([...safeOnly].sort((a, b) => safeNumber(b?.engagement?.like_count) - safeNumber(b?.engagement?.dislike_count) - (safeNumber(a?.engagement?.like_count) - safeNumber(a?.engagement?.dislike_count)))),
   };
 };
 
@@ -313,12 +294,7 @@ export const buildViewerTagAffinity = ({ viewerEntries = [], packClassificationB
   return affinity;
 };
 
-export const buildPersonalizedRecommendations = ({
-  entries = [],
-  viewerAffinity = new Map(),
-  excludePackIds = new Set(),
-  limit = 18,
-}) => {
+export const buildPersonalizedRecommendations = ({ entries = [], viewerAffinity = new Map(), excludePackIds = new Set(), limit = 18 }) => {
   const safeLimit = Math.max(4, Math.min(50, Number(limit) || 18));
   const ranked = [];
   for (const entry of entries) {

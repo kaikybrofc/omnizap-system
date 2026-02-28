@@ -1,200 +1,227 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OmniZap API Docs | Área de Desenvolvedor da API WhatsApp</title>
-  <meta name="description" content="Área de desenvolvedor da API OmniZap para bots e automação WhatsApp: endpoints, casos de uso, exemplos práticos e integração do módulo de stickers." />
-  <meta name="keywords" content="omnizap api, api whatsapp, bot whatsapp api, automação whatsapp, documentação api, integração stickers" />
-  <meta name="author" content="OmniZap System" />
-  <meta name="robots" content="index, follow, max-snippet:-1" />
-  <link rel="canonical" href="https://omnizap.shop/api-docs/" />
-  <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
-  <link rel="apple-touch-icon" href="https://iili.io/FC3FABe.jpg" />
-  <link rel="sitemap" type="application/xml" href="https://omnizap.shop/sitemap.xml" />
-  <meta property="og:type" content="website" />
-  <meta property="og:locale" content="pt_BR" />
-  <meta property="og:site_name" content="OmniZap System" />
-  <meta property="og:title" content="OmniZap API Docs | Área de Desenvolvedor" />
-  <meta property="og:description" content="Documentação técnica da API OmniZap para bots WhatsApp, automações e integração com stickers." />
-  <meta property="og:url" content="https://omnizap.shop/api-docs/" />
-  <meta property="og:image" content="https://iili.io/fSNGag2.png" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="OmniZap API Docs | Área de Desenvolvedor" />
-  <meta name="twitter:description" content="Referência da API OmniZap para bots WhatsApp, automações e stickers." />
-  <meta name="twitter:image" content="https://iili.io/fSNGag2.png" />
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "OmniZap API",
-    "applicationCategory": "DeveloperApplication",
-    "operatingSystem": "Linux, Windows, macOS",
-    "url": "https://omnizap.shop/api-docs/",
-    "description": "API do OmniZap para bots e automação WhatsApp, com endpoints para catálogo de stickers, métricas e integrações técnicas.",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD"
-    }
-  }
-  </script>
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OmniZap API Docs | Área de Desenvolvedor da API WhatsApp</title>
+    <meta name="description" content="Área de desenvolvedor da API OmniZap para bots e automação WhatsApp: endpoints, casos de uso, exemplos práticos e integração do módulo de stickers." />
+    <meta name="keywords" content="omnizap api, api whatsapp, bot whatsapp api, automação whatsapp, documentação api, integração stickers" />
+    <meta name="author" content="OmniZap System" />
+    <meta name="robots" content="index, follow, max-snippet:-1" />
+    <link rel="canonical" href="https://omnizap.shop/api-docs/" />
+    <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
+    <link rel="apple-touch-icon" href="https://iili.io/FC3FABe.jpg" />
+    <link rel="sitemap" type="application/xml" href="https://omnizap.shop/sitemap.xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="OmniZap System" />
+    <meta property="og:title" content="OmniZap API Docs | Área de Desenvolvedor" />
+    <meta property="og:description" content="Documentação técnica da API OmniZap para bots WhatsApp, automações e integração com stickers." />
+    <meta property="og:url" content="https://omnizap.shop/api-docs/" />
+    <meta property="og:image" content="https://iili.io/fSNGag2.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="OmniZap API Docs | Área de Desenvolvedor" />
+    <meta name="twitter:description" content="Referência da API OmniZap para bots WhatsApp, automações e stickers." />
+    <meta name="twitter:image" content="https://iili.io/fSNGag2.png" />
+    <script type="application/ld+json">
       {
-        "@type": "Question",
-        "name": "Para que serve a API OmniZap?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "A API OmniZap permite integrar bots e fluxos de automação WhatsApp, incluindo catálogo de stickers, métricas e rotas para operações técnicas."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Consigo usar os packs de stickers no meu bot?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Sim. Os packs públicos podem ser consultados por API e utilizados em fluxos do seu bot ou integração server-to-server."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "A API tem exemplos práticos de integração?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Sim. A página inclui exemplos em cURL, JavaScript e Node.js para acelerar o início da integração."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Onde vejo o catálogo de stickers?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "O catálogo está disponível em https://omnizap.shop/stickers/ e funciona como módulo integrado à plataforma OmniZap."
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "OmniZap API",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Linux, Windows, macOS",
+        "url": "https://omnizap.shop/api-docs/",
+        "description": "API do OmniZap para bots e automação WhatsApp, com endpoints para catálogo de stickers, métricas e integrações técnicas.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
         }
       }
-    ]
-  }
-  </script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
-  <style>
-    body {
-      margin: 0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background: #0f172a;
-      color: #f8fafc;
-    }
-    .wrap { width: min(1024px, 92vw); margin: 0 auto; padding: 30px 0; }
-    h1, h2 { margin: 0 0 10px; }
-    h1 { font-size: 34px; }
-    h2 { font-size: 20px; margin-top: 22px; }
-    .section-title { margin: 22px 0 10px; }
-    .sub-title { font-size: 18px; margin: 0 0 10px; }
-    p { color: #94a3b8; }
-    .card {
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      background: #1e293b;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 12px;
-    }
-    .list {
-      margin: 0;
-      padding-left: 18px;
-      color: #c5d4ea;
-      line-height: 1.7;
-    }
-    .status-row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-bottom: 10px;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      padding: 6px 10px;
-      border: 1px solid transparent;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: .2px;
-    }
-    .badge-ok {
-      color: #d8ffea;
-      background: #103724;
-      border-color: #1f6a42;
-    }
-    .badge-warn {
-      color: #f5eed6;
-      background: #34280f;
-      border-color: #6b5422;
-    }
-    .badge-bad {
-      color: #ffd8de;
-      background: #3a141d;
-      border-color: #713041;
-    }
-    .status-meta {
-      color: #94a3b8;
-      font-size: 13px;
-    }
-    .status-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 8px;
-    }
-    .status-item {
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 10px;
-      padding: 10px;
-      background: #111827;
-      display: grid;
-      gap: 4px;
-    }
-    .status-item strong {
-      font-size: 12px;
-      color: #94a3b8;
-      text-transform: uppercase;
-      letter-spacing: .3px;
-    }
-    .status-item span {
-      font-size: 14px;
-      color: #f8fafc;
-    }
-    .status-error {
-      margin-top: 10px;
-      color: #ffb4c1;
-      font-size: 13px;
-    }
-    code, pre {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      background: #111827;
-      border-radius: 8px;
-    }
-    pre {
-      padding: 12px;
-      overflow: auto;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      color: #f8fafc;
-    }
-    .top a {
-      color: #2563eb;
-      text-decoration: none;
-      margin-right: 12px;
-    }
-    .icon {
-      margin-right: 8px;
-      color: #7c3aed;
-    }
-  </style>
-</head>
-<body>
-  <div id="api-docs-react-root"></div>
-  <script type="module" src="/js/apps/apiDocsApp.js?v=20260226-api-docs-plus"></script>
-</body>
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Para que serve a API OmniZap?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "A API OmniZap permite integrar bots e fluxos de automação WhatsApp, incluindo catálogo de stickers, métricas e rotas para operações técnicas."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Consigo usar os packs de stickers no meu bot?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. Os packs públicos podem ser consultados por API e utilizados em fluxos do seu bot ou integração server-to-server."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "A API tem exemplos práticos de integração?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. A página inclui exemplos em cURL, JavaScript e Node.js para acelerar o início da integração."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Onde vejo o catálogo de stickers?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "O catálogo está disponível em https://omnizap.shop/stickers/ e funciona como módulo integrado à plataforma OmniZap."
+            }
+          }
+        ]
+      }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+    <style>
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Arial,
+          sans-serif;
+        background: #0f172a;
+        color: #f8fafc;
+      }
+      .wrap {
+        width: min(1024px, 92vw);
+        margin: 0 auto;
+        padding: 30px 0;
+      }
+      h1,
+      h2 {
+        margin: 0 0 10px;
+      }
+      h1 {
+        font-size: 34px;
+      }
+      h2 {
+        font-size: 20px;
+        margin-top: 22px;
+      }
+      .section-title {
+        margin: 22px 0 10px;
+      }
+      .sub-title {
+        font-size: 18px;
+        margin: 0 0 10px;
+      }
+      p {
+        color: #94a3b8;
+      }
+      .card {
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: #1e293b;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      .list {
+        margin: 0;
+        padding-left: 18px;
+        color: #c5d4ea;
+        line-height: 1.7;
+      }
+      .status-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 6px 10px;
+        border: 1px solid transparent;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+      }
+      .badge-ok {
+        color: #d8ffea;
+        background: #103724;
+        border-color: #1f6a42;
+      }
+      .badge-warn {
+        color: #f5eed6;
+        background: #34280f;
+        border-color: #6b5422;
+      }
+      .badge-bad {
+        color: #ffd8de;
+        background: #3a141d;
+        border-color: #713041;
+      }
+      .status-meta {
+        color: #94a3b8;
+        font-size: 13px;
+      }
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 8px;
+      }
+      .status-item {
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 10px;
+        background: #111827;
+        display: grid;
+        gap: 4px;
+      }
+      .status-item strong {
+        font-size: 12px;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+      .status-item span {
+        font-size: 14px;
+        color: #f8fafc;
+      }
+      .status-error {
+        margin-top: 10px;
+        color: #ffb4c1;
+        font-size: 13px;
+      }
+      code,
+      pre {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        background: #111827;
+        border-radius: 8px;
+      }
+      pre {
+        padding: 12px;
+        overflow: auto;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: #f8fafc;
+      }
+      .top a {
+        color: #2563eb;
+        text-decoration: none;
+        margin-right: 12px;
+      }
+      .icon {
+        margin-right: 8px;
+        color: #7c3aed;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="api-docs-react-root"></div>
+    <script type="module" src="/js/apps/apiDocsApp.js?v=20260226-api-docs-plus"></script>
+  </body>
 </html>

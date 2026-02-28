@@ -979,86 +979,7 @@ const withVerticalSpacing = (lines = []) => lines.flatMap((line, index) => (inde
  * @param {object} data Dados agregados do usuário para renderização.
  * @returns {string} Texto completo enviado no comando de perfil.
  */
-const buildProfileMessage = ({
-  mentionLabel,
-  displayName,
-  phone,
-  canonicalTarget,
-  status,
-  firstMessage,
-  tempoDeCasa,
-  lastInteraction,
-  diasSemFalar,
-  totalMessages,
-  rankingLabel,
-  trendLabel,
-  avgPerDay,
-  activeDays,
-  streakDays,
-  activeHourLabel,
-  favoriteTypeLabel,
-  dominantTypeByPeriodLabel,
-  socialScore,
-  socialSent,
-  socialReceived,
-  responseRateLabel,
-  socialPartners,
-  topPartnerLabel,
-  topPartnersLabel,
-  topGroupsLabel,
-  globalShareLabel,
-  groupShareLabel,
-  tags,
-}) =>
-  [
-    '👤 *PERFIL DO USUÁRIO*',
-    '━━━━━━━━━━━━━━━━━━━━',
-    '',
-    '🧾 *Identificação*',
-    ...withVerticalSpacing([
-      `• Usuário: ${mentionLabel}`,
-      `• Nome: ${displayName}`,
-      `• Número: ${phone}`,
-      `• ID: ${canonicalTarget || 'N/D'}`,
-      `• Status: *${status}*`,
-    ]),
-    '',
-    '📈 *Mensagens e Ranking*',
-    ...withVerticalSpacing([
-      `• Primeira mensagem: ${firstMessage}`,
-      `• Tempo de casa no bot: ${tempoDeCasa}`,
-      `• Última interação: ${lastInteraction}`,
-      `• Dias sem falar: ${diasSemFalar}`,
-      `• Mensagens gerais registradas: ${totalMessages}`,
-      `• Participação global: ${globalShareLabel}`,
-      `• Participação no grupo atual: ${groupShareLabel}`,
-      `• Posição no ranking (mensagens): ${rankingLabel}`,
-      `• Tendência de mensagens: ${trendLabel}`,
-      `• Média/dia (global): ${avgPerDay}`,
-      `• Dias ativos (global): ${activeDays}`,
-      `• Streak (global): ${streakDays} dia(s)`,
-      `• Horário mais ativo: ${activeHourLabel}`,
-      `• Tipo favorito (global): ${favoriteTypeLabel}`,
-      `• Tipo dominante por período: ${dominantTypeByPeriodLabel}`,
-    ]),
-    '',
-    '🌐 *Interações Sociais*',
-    ...withVerticalSpacing([
-      `• Interações sociais (${SOCIAL_RECENT_DAYS}d): ${socialScore}`,
-      `• Respostas enviadas (${SOCIAL_RECENT_DAYS}d): ${socialSent}`,
-      `• Respostas recebidas (${SOCIAL_RECENT_DAYS}d): ${socialReceived}`,
-      `• Taxa de resposta (${SOCIAL_RECENT_DAYS}d): ${responseRateLabel}`,
-      `• Parceiros sociais (${SOCIAL_RECENT_DAYS}d): ${socialPartners}`,
-      `• Parceiro principal (${SOCIAL_RECENT_DAYS}d): ${topPartnerLabel}`,
-      `• Top 3 parceiros (${SOCIAL_RECENT_DAYS}d):\n${topPartnersLabel}`,
-    ]),
-    '',
-    '🏘️ *Presença em Grupos*',
-    ...withVerticalSpacing([`• Top grupos onde fala:\n${topGroupsLabel}`]),
-    '',
-    '🏷️ *Contexto*',
-    ...withVerticalSpacing([`• Tags: ${tags.length ? tags.join(', ') : 'sem tags'}`]),
-  ].join('\n');
+const buildProfileMessage = ({ mentionLabel, displayName, phone, canonicalTarget, status, firstMessage, tempoDeCasa, lastInteraction, diasSemFalar, totalMessages, rankingLabel, trendLabel, avgPerDay, activeDays, streakDays, activeHourLabel, favoriteTypeLabel, dominantTypeByPeriodLabel, socialScore, socialSent, socialReceived, responseRateLabel, socialPartners, topPartnerLabel, topPartnersLabel, topGroupsLabel, globalShareLabel, groupShareLabel, tags }) => ['👤 *PERFIL DO USUÁRIO*', '━━━━━━━━━━━━━━━━━━━━', '', '🧾 *Identificação*', ...withVerticalSpacing([`• Usuário: ${mentionLabel}`, `• Nome: ${displayName}`, `• Número: ${phone}`, `• ID: ${canonicalTarget || 'N/D'}`, `• Status: *${status}*`]), '', '📈 *Mensagens e Ranking*', ...withVerticalSpacing([`• Primeira mensagem: ${firstMessage}`, `• Tempo de casa no bot: ${tempoDeCasa}`, `• Última interação: ${lastInteraction}`, `• Dias sem falar: ${diasSemFalar}`, `• Mensagens gerais registradas: ${totalMessages}`, `• Participação global: ${globalShareLabel}`, `• Participação no grupo atual: ${groupShareLabel}`, `• Posição no ranking (mensagens): ${rankingLabel}`, `• Tendência de mensagens: ${trendLabel}`, `• Média/dia (global): ${avgPerDay}`, `• Dias ativos (global): ${activeDays}`, `• Streak (global): ${streakDays} dia(s)`, `• Horário mais ativo: ${activeHourLabel}`, `• Tipo favorito (global): ${favoriteTypeLabel}`, `• Tipo dominante por período: ${dominantTypeByPeriodLabel}`]), '', '🌐 *Interações Sociais*', ...withVerticalSpacing([`• Interações sociais (${SOCIAL_RECENT_DAYS}d): ${socialScore}`, `• Respostas enviadas (${SOCIAL_RECENT_DAYS}d): ${socialSent}`, `• Respostas recebidas (${SOCIAL_RECENT_DAYS}d): ${socialReceived}`, `• Taxa de resposta (${SOCIAL_RECENT_DAYS}d): ${responseRateLabel}`, `• Parceiros sociais (${SOCIAL_RECENT_DAYS}d): ${socialPartners}`, `• Parceiro principal (${SOCIAL_RECENT_DAYS}d): ${topPartnerLabel}`, `• Top 3 parceiros (${SOCIAL_RECENT_DAYS}d):\n${topPartnersLabel}`]), '', '🏘️ *Presença em Grupos*', ...withVerticalSpacing([`• Top grupos onde fala:\n${topGroupsLabel}`]), '', '🏷️ *Contexto*', ...withVerticalSpacing([`• Tags: ${tags.length ? tags.join(', ') : 'sem tags'}`])].join('\n');
 
 /**
  * Seleciona o primeiro ID de usuário válido dentro de uma lista.
@@ -1106,14 +1027,7 @@ export async function handleUserCommand({ sock, remoteJid, messageInfo, expirati
     const senderCanonical = resolveUserIdCached({ jid: senderJid, lid: senderJid, participantAlt: null });
     const rankingTargetId = mentionJid || canonicalTarget;
 
-    const [stats, ranking, latestPushName, premiumUsers, blocked, groupAdmin] = await Promise.all([
-      fetchUserStats({ canonicalId: rankingTargetId, senderIds: normalizedTargetIds }),
-      fetchUserRanking(rankingTargetId),
-      fetchLatestPushName(normalizedTargetIds),
-      premiumUserStore.getPremiumUsers(),
-      isTargetBlocked(sock, normalizedTargetIds),
-      isGroupMessage ? isUserAdmin(remoteJid, mentionJid || canonicalTarget) : Promise.resolve(false),
-    ]);
+    const [stats, ranking, latestPushName, premiumUsers, blocked, groupAdmin] = await Promise.all([fetchUserStats({ canonicalId: rankingTargetId, senderIds: normalizedTargetIds }), fetchUserRanking(rankingTargetId), fetchLatestPushName(normalizedTargetIds), premiumUserStore.getPremiumUsers(), isTargetBlocked(sock, normalizedTargetIds), isGroupMessage ? isUserAdmin(remoteJid, mentionJid || canonicalTarget) : Promise.resolve(false)]);
     const [globalInsights, socialInsights, trendInsights, activeHourInsights, dominantTypeByPeriod, topGroups, participationInsights] = await Promise.all([
       fetchUserGlobalRankingInsights({
         canonicalId: rankingTargetId,

@@ -5,20 +5,10 @@ import path from 'node:path';
 import { URLSearchParams } from 'node:url';
 
 const TARGET_SOURCE_EXTENSIONS = new Set(['.html', '.js', '.mjs', '.css']);
-const ASSET_SUFFIX_PATTERN =
-  String.raw`\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|ico|json|map|woff2?|ttf|eot)(?:\?[^"'#\s)]*)?(?:#[^"' \s)]*)?`;
-const HTML_ATTRIBUTE_ASSET_PATTERN = new RegExp(
-  String.raw`((?:src|href|poster)=["'])([^"']+?${ASSET_SUFFIX_PATTERN})(["'])`,
-  'gi',
-);
-const QUOTED_LOCAL_ASSET_PATTERN = new RegExp(
-  String.raw`(["'])((?:\/|\.{1,2}\/)[^"'\s]+?${ASSET_SUFFIX_PATTERN})\1`,
-  'gi',
-);
-const CSS_URL_ASSET_PATTERN = new RegExp(
-  String.raw`(url\(\s*["']?)([^"')\s]+?${ASSET_SUFFIX_PATTERN})(["']?\s*\))`,
-  'gi',
-);
+const ASSET_SUFFIX_PATTERN = String.raw`\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|ico|json|map|woff2?|ttf|eot)(?:\?[^"'#\s)]*)?(?:#[^"' \s)]*)?`;
+const HTML_ATTRIBUTE_ASSET_PATTERN = new RegExp(String.raw`((?:src|href|poster)=["'])([^"']+?${ASSET_SUFFIX_PATTERN})(["'])`, 'gi');
+const QUOTED_LOCAL_ASSET_PATTERN = new RegExp(String.raw`(["'])((?:\/|\.{1,2}\/)[^"'\s]+?${ASSET_SUFFIX_PATTERN})\1`, 'gi');
+const CSS_URL_ASSET_PATTERN = new RegExp(String.raw`(url\(\s*["']?)([^"')\s]+?${ASSET_SUFFIX_PATTERN})(["']?\s*\))`, 'gi');
 
 const usage = () => {
   console.error('Uso: node scripts/cache-bust.mjs --dir <diretorio> --version <build_id>');
@@ -77,16 +67,7 @@ const isLocalAssetPath = (assetPath) => {
   if (!value) return false;
 
   const lower = value.toLowerCase();
-  if (
-    lower.startsWith('http://') ||
-    lower.startsWith('https://') ||
-    lower.startsWith('//') ||
-    lower.startsWith('data:') ||
-    lower.startsWith('mailto:') ||
-    lower.startsWith('tel:') ||
-    lower.startsWith('javascript:') ||
-    lower.startsWith('#')
-  ) {
+  if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('//') || lower.startsWith('data:') || lower.startsWith('mailto:') || lower.startsWith('tel:') || lower.startsWith('javascript:') || lower.startsWith('#')) {
     return false;
   }
 

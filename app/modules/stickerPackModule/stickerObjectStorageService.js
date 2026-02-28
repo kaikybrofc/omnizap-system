@@ -14,15 +14,22 @@ const parseEnvBool = (value, fallback) => {
 const OBJECT_STORAGE_ENABLED = parseEnvBool(process.env.STICKER_OBJECT_STORAGE_ENABLED, false);
 const OBJECT_STORAGE_UPLOAD_ON_WRITE = parseEnvBool(process.env.STICKER_OBJECT_STORAGE_UPLOAD_ON_WRITE, true);
 const OBJECT_STORAGE_SIGNED_URL_ENABLED = parseEnvBool(process.env.STICKER_OBJECT_STORAGE_SIGNED_URL_ENABLED, true);
-const OBJECT_STORAGE_PROVIDER = String(process.env.STICKER_OBJECT_STORAGE_PROVIDER || 's3').trim().toLowerCase();
+const OBJECT_STORAGE_PROVIDER = String(process.env.STICKER_OBJECT_STORAGE_PROVIDER || 's3')
+  .trim()
+  .toLowerCase();
 const OBJECT_STORAGE_BUCKET = String(process.env.STICKER_OBJECT_STORAGE_BUCKET || '').trim();
 const OBJECT_STORAGE_REGION = String(process.env.STICKER_OBJECT_STORAGE_REGION || 'us-east-1').trim() || 'us-east-1';
 const OBJECT_STORAGE_ENDPOINT = String(process.env.STICKER_OBJECT_STORAGE_ENDPOINT || '').trim();
 const OBJECT_STORAGE_ACCESS_KEY_ID = String(process.env.STICKER_OBJECT_STORAGE_ACCESS_KEY_ID || '').trim();
 const OBJECT_STORAGE_SECRET_ACCESS_KEY = String(process.env.STICKER_OBJECT_STORAGE_SECRET_ACCESS_KEY || '').trim();
 const OBJECT_STORAGE_FORCE_PATH_STYLE = parseEnvBool(process.env.STICKER_OBJECT_STORAGE_FORCE_PATH_STYLE, true);
-const OBJECT_STORAGE_CDN_BASE_URL = String(process.env.STICKER_OBJECT_STORAGE_CDN_BASE_URL || '').trim().replace(/\/+$/, '');
-const OBJECT_STORAGE_KEY_PREFIX = String(process.env.STICKER_OBJECT_STORAGE_KEY_PREFIX || 'stickers').trim().replace(/^\/+|\/+$/g, '') || 'stickers';
+const OBJECT_STORAGE_CDN_BASE_URL = String(process.env.STICKER_OBJECT_STORAGE_CDN_BASE_URL || '')
+  .trim()
+  .replace(/\/+$/, '');
+const OBJECT_STORAGE_KEY_PREFIX =
+  String(process.env.STICKER_OBJECT_STORAGE_KEY_PREFIX || 'stickers')
+    .trim()
+    .replace(/^\/+|\/+$/g, '') || 'stickers';
 
 let sdkLoadState = {
   loaded: false,
@@ -36,7 +43,9 @@ let s3Client = null;
 
 const safeOwnerToken = (ownerJid) => {
   const normalized = normalizeOwnerJid(ownerJid);
-  const token = String(normalized || 'unknown').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
+  const token = String(normalized || 'unknown')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 100);
   return token || 'unknown';
 };
 
@@ -62,7 +71,9 @@ const resolveStickerObjectKey = (asset) => {
   const fromStoragePath = parseS3StoragePath(asset?.storage_path);
   if (fromStoragePath?.key) return fromStoragePath.key;
   const ownerToken = safeOwnerToken(asset?.owner_jid || 'unknown');
-  const sha256 = String(asset?.sha256 || '').trim().toLowerCase();
+  const sha256 = String(asset?.sha256 || '')
+    .trim()
+    .toLowerCase();
   if (!sha256) return '';
   return `${OBJECT_STORAGE_KEY_PREFIX}/${ownerToken}/${sha256}.webp`;
 };
@@ -70,10 +81,7 @@ const resolveStickerObjectKey = (asset) => {
 const loadAwsSdk = async () => {
   if (sdkLoadState.loaded) return sdkLoadState;
   try {
-    const [{ S3Client, PutObjectCommand, GetObjectCommand }, { getSignedUrl }] = await Promise.all([
-      import('@aws-sdk/client-s3'),
-      import('@aws-sdk/s3-request-presigner'),
-    ]);
+    const [{ S3Client, PutObjectCommand, GetObjectCommand }, { getSignedUrl }] = await Promise.all([import('@aws-sdk/client-s3'), import('@aws-sdk/s3-request-presigner')]);
     sdkLoadState = {
       loaded: true,
       warned: false,
@@ -149,15 +157,9 @@ const streamToBuffer = async (body) => {
   return null;
 };
 
-export const isStickerObjectStorageEnabled = () =>
-  Boolean(OBJECT_STORAGE_ENABLED && OBJECT_STORAGE_PROVIDER === 's3' && OBJECT_STORAGE_BUCKET);
+export const isStickerObjectStorageEnabled = () => Boolean(OBJECT_STORAGE_ENABLED && OBJECT_STORAGE_PROVIDER === 's3' && OBJECT_STORAGE_BUCKET);
 
-export const uploadStickerToObjectStorage = async ({
-  ownerJid,
-  sha256,
-  buffer,
-  mimetype = 'image/webp',
-} = {}) => {
+export const uploadStickerToObjectStorage = async ({ ownerJid, sha256, buffer, mimetype = 'image/webp' } = {}) => {
   if (!OBJECT_STORAGE_UPLOAD_ON_WRITE || !Buffer.isBuffer(buffer) || !buffer.length) {
     return { uploaded: false, key: null };
   }
@@ -165,7 +167,9 @@ export const uploadStickerToObjectStorage = async ({
     return { uploaded: false, key: null };
   }
 
-  const key = `${OBJECT_STORAGE_KEY_PREFIX}/${safeOwnerToken(ownerJid)}/${String(sha256 || '').trim().toLowerCase()}.webp`;
+  const key = `${OBJECT_STORAGE_KEY_PREFIX}/${safeOwnerToken(ownerJid)}/${String(sha256 || '')
+    .trim()
+    .toLowerCase()}.webp`;
   if (!key || key.endsWith('/.webp')) return { uploaded: false, key: null };
 
   try {
@@ -194,13 +198,7 @@ export const uploadStickerToObjectStorage = async ({
   }
 };
 
-export const getStickerObjectStorageUrl = async (
-  asset,
-  {
-    secure = true,
-    expiresInSeconds = 300,
-  } = {},
-) => {
+export const getStickerObjectStorageUrl = async (asset, { secure = true, expiresInSeconds = 300 } = {}) => {
   if (!isStickerObjectStorageEnabled()) return null;
 
   const key = resolveStickerObjectKey(asset);
@@ -279,7 +277,9 @@ export const toStickerStoragePath = ({ localPath, ownerJid, sha256 }) => {
   const normalizedLocalPath = path.resolve(String(localPath || ''));
   if (!isStickerObjectStorageEnabled()) return normalizedLocalPath;
   if (!OBJECT_STORAGE_UPLOAD_ON_WRITE) return normalizedLocalPath;
-  const key = `${OBJECT_STORAGE_KEY_PREFIX}/${safeOwnerToken(ownerJid)}/${String(sha256 || '').trim().toLowerCase()}.webp`;
+  const key = `${OBJECT_STORAGE_KEY_PREFIX}/${safeOwnerToken(ownerJid)}/${String(sha256 || '')
+    .trim()
+    .toLowerCase()}.webp`;
   if (!key || key.endsWith('/.webp')) return normalizedLocalPath;
   return `s3://${OBJECT_STORAGE_BUCKET}/${key}`;
 };

@@ -2,36 +2,30 @@ import logger from '../../utils/logger/loggerModule.js';
 import { isFeatureEnabled } from '../../services/featureFlagService.js';
 import { enqueueDomainEvent } from './domainEventOutboxRepository.js';
 
-const resolveDefaultIdempotencyKey = ({
-  eventType,
-  aggregateType,
-  aggregateId,
-  payload = null,
-}) => {
+const resolveDefaultIdempotencyKey = ({ eventType, aggregateType, aggregateId, payload = null }) => {
   const payloadKey = payload && typeof payload === 'object' ? JSON.stringify(payload).slice(0, 80) : '';
   return `${eventType}:${aggregateType}:${aggregateId}:${payloadKey}`.slice(0, 180);
 };
 
-export const publishStickerDomainEvent = async (
-  eventPayload,
-  { connection = null, force = false } = {},
-) => {
+export const publishStickerDomainEvent = async (eventPayload, { connection = null, force = false } = {}) => {
   const eventType = String(eventPayload?.eventType || '').trim();
   const aggregateType = String(eventPayload?.aggregateType || '').trim();
   const aggregateId = String(eventPayload?.aggregateId || '').trim();
 
   if (!eventType || !aggregateType || !aggregateId) return false;
 
-  const enabled = force ? true : await isFeatureEnabled('enable_domain_event_outbox', {
-    fallback: true,
-    subjectKey: `${aggregateType}:${aggregateId}`,
-  });
+  const enabled = force
+    ? true
+    : await isFeatureEnabled('enable_domain_event_outbox', {
+        fallback: true,
+        subjectKey: `${aggregateType}:${aggregateId}`,
+      });
   if (!enabled) return false;
 
   try {
     const idempotencyKey =
-      String(eventPayload?.idempotencyKey || '').trim()
-      || resolveDefaultIdempotencyKey({
+      String(eventPayload?.idempotencyKey || '').trim() ||
+      resolveDefaultIdempotencyKey({
         eventType,
         aggregateType,
         aggregateId,

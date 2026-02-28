@@ -10,7 +10,10 @@ const AUTO_COLLECT_ENABLED = process.env.STICKER_PACK_AUTO_COLLECT_ENABLED !== '
 const AUTO_PACK_NAME_MAX_LENGTH = 120;
 const AUTO_PACK_DESCRIPTION_MARKER = '[auto-pack:collector]';
 const AUTO_PACK_DESCRIPTION_TEXT = 'Coleção automática de figurinhas criadas pelo usuário.';
-const normalizeVisibility = (value) => String(value || '').trim().toLowerCase();
+const normalizeVisibility = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase();
 
 /**
  * Escapa texto para uso seguro em RegExp.
@@ -26,7 +29,10 @@ const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g
  * @param {unknown} value Valor de entrada.
  * @returns {string} Texto sem diacríticos.
  */
-const removeDiacritics = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const removeDiacritics = (value) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
 /**
  * Gera nome de pack automático válido no padrão aceito.
@@ -51,7 +57,13 @@ const isThemeCurationAutoPack = (pack) => {
   if (!pack || typeof pack !== 'object') return false;
   const description = String(pack.description || '').toLowerCase();
   if (description.includes('[auto-theme:') || description.includes('[auto-tag:')) return true;
-  if (String(pack.name || '').trim().toLowerCase().startsWith('[auto]')) return true;
+  if (
+    String(pack.name || '')
+      .trim()
+      .toLowerCase()
+      .startsWith('[auto]')
+  )
+    return true;
   return Boolean(String(pack.pack_theme_key || '').trim());
 };
 
@@ -225,10 +237,7 @@ export function createAutoPackCollector(options = {}) {
       }
 
       const managedAutoPacks = packs.filter((entry) => isAutoCollectorPack(entry));
-      const preferredPack =
-        managedAutoPacks.find((entry) => normalizeVisibility(entry?.visibility) === AUTO_PACK_TARGET_VISIBILITY)
-        || managedAutoPacks[0]
-        || null;
+      const preferredPack = managedAutoPacks.find((entry) => normalizeVisibility(entry?.visibility) === AUTO_PACK_TARGET_VISIBILITY) || managedAutoPacks[0] || null;
 
       if (preferredPack) {
         const ensuredPack = await ensureAutoPackVisibility({ ownerJid, pack: preferredPack });

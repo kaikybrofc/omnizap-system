@@ -3,17 +3,17 @@ services:
     image: prom/prometheus:${PROMETHEUS_IMAGE_TAG:-v2.52.0}
     restart: unless-stopped
     command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}"
-      - "--storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-20GB}"
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}'
+      - '--storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-20GB}'
     volumes:
       - ${PROMETHEUS_CONFIG_PATH:-./observability/prometheus.yml}:/etc/prometheus/prometheus.yml:ro
       - ${PROMETHEUS_ALERT_RULES_PATH:-./observability/alert-rules.yml}:/etc/prometheus/alert-rules.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - '${PROMETHEUS_PORT:-9090}:9090'
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
 
   grafana:
     image: grafana/grafana:${GRAFANA_IMAGE_TAG:-10.4.3}
@@ -30,7 +30,7 @@ services:
       - ${GRAFANA_PROVISIONING_PATH:-./observability/grafana/provisioning}:/etc/grafana/provisioning:ro
       - ${GRAFANA_DASHBOARDS_PATH:-./observability/grafana/dashboards}:/var/lib/grafana/dashboards:ro
     ports:
-      - "${GRAFANA_PORT:-3003}:3000"
+      - '${GRAFANA_PORT:-3003}:3000'
     depends_on:
       - prometheus
       - loki
@@ -43,7 +43,7 @@ services:
       - ${LOKI_CONFIG_PATH:-./observability/loki-config.yml}:/etc/loki/loki-config.yml:ro
       - loki_data:/loki
     ports:
-      - "${LOKI_PORT:-3100}:3100"
+      - '${LOKI_PORT:-3100}:3100'
 
   promtail:
     image: grafana/promtail:${PROMTAIL_IMAGE_TAG:-2.9.4}
@@ -54,11 +54,11 @@ services:
       - ${APP_LOGS_PATH:-./logs}:/var/log/omnizap:ro
       - ${MYSQL_LOGS_PATH:-/var/log/mysql}:/var/log/mysql:ro
     ports:
-      - "${PROMTAIL_PORT:-9080}:9080"
+      - '${PROMTAIL_PORT:-9080}:9080'
     depends_on:
       - loki
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
 
   mysql-exporter:
     image: prom/mysqld-exporter:${MYSQL_EXPORTER_IMAGE_TAG:-v0.15.1}
@@ -66,38 +66,38 @@ services:
     environment:
       - DATA_SOURCE_NAME=${MYSQL_EXPORTER_DSN:-exporter:exporter@(host.docker.internal:3306)/}
     command:
-      - "--config.my-cnf=/etc/mysql-exporter/my.cnf"
-      - "--collect.global_status"
-      - "--collect.global_variables"
-      - "--no-collect.slave_status"
-      - "--collect.info_schema.innodb_metrics"
-      - "--collect.info_schema.processlist"
-      - "--collect.info_schema.tables"
-      - "--collect.perf_schema.eventsstatements"
-      - "--collect.perf_schema.tableiowaits"
-      - "--collect.perf_schema.tablelocks"
+      - '--config.my-cnf=/etc/mysql-exporter/my.cnf'
+      - '--collect.global_status'
+      - '--collect.global_variables'
+      - '--no-collect.slave_status'
+      - '--collect.info_schema.innodb_metrics'
+      - '--collect.info_schema.processlist'
+      - '--collect.info_schema.tables'
+      - '--collect.perf_schema.eventsstatements'
+      - '--collect.perf_schema.tableiowaits'
+      - '--collect.perf_schema.tablelocks'
     volumes:
       - ${MYSQL_EXPORTER_CNF_PATH:-./observability/mysql-exporter.cnf}:/etc/mysql-exporter/my.cnf:ro
     ports:
-      - "${MYSQL_EXPORTER_PORT:-9104}:9104"
+      - '${MYSQL_EXPORTER_PORT:-9104}:9104'
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
 
   node-exporter:
     image: prom/node-exporter:${NODE_EXPORTER_IMAGE_TAG:-v1.7.0}
     restart: unless-stopped
-    pid: "host"
+    pid: 'host'
     command:
-      - "--path.rootfs=/host"
+      - '--path.rootfs=/host'
     volumes:
       - /:/host:ro,rslave
     ports:
-      - "${NODE_EXPORTER_PORT:-9100}:9100"
+      - '${NODE_EXPORTER_PORT:-9100}:9100'
 
 volumes:
   grafana_data:
-    name: "${STACK_NAME:-omnizap}_grafana_data"
+    name: '${STACK_NAME:-omnizap}_grafana_data'
   prometheus_data:
-    name: "${STACK_NAME:-omnizap}_prometheus_data"
+    name: '${STACK_NAME:-omnizap}_prometheus_data'
   loki_data:
-    name: "${STACK_NAME:-omnizap}_loki_data"
+    name: '${STACK_NAME:-omnizap}_loki_data'

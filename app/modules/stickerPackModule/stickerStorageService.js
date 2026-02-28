@@ -5,22 +5,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import logger from '../../utils/logger/loggerModule.js';
 import { downloadMediaMessage, extractMediaDetails } from '../../config/baileysConfig.js';
 import { isFeatureEnabled } from '../../services/featureFlagService.js';
-import {
-  createStickerAsset,
-  findLatestStickerAssetByOwner,
-  findStickerAssetById,
-  findStickerAssetBySha256,
-  updateStickerAssetStoragePath,
-} from './stickerAssetRepository.js';
+import { createStickerAsset, findLatestStickerAssetByOwner, findStickerAssetById, findStickerAssetBySha256, updateStickerAssetStoragePath } from './stickerAssetRepository.js';
 import { ensureStickerAssetClassified } from './stickerClassificationService.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { normalizeOwnerJid } from './stickerPackUtils.js';
-import {
-  getStickerObjectStorageUrl,
-  isStickerObjectStorageEnabled,
-  readStickerFromObjectStorage,
-  uploadStickerToObjectStorage,
-} from './stickerObjectStorageService.js';
+import { getStickerObjectStorageUrl, isStickerObjectStorageEnabled, readStickerFromObjectStorage, uploadStickerToObjectStorage } from './stickerObjectStorageService.js';
 
 /**
  * Camada de storage local para assets de figurinha do sistema de packs.
@@ -30,10 +19,7 @@ const TEMP_ROOT = path.join(process.cwd(), 'temp', 'sticker-pack-assets');
 const DEFAULT_MAX_STICKER_BYTES = 2 * 1024 * 1024;
 const MAX_STICKER_BYTES = Math.max(64 * 1024, Number(process.env.STICKER_PACK_MAX_STICKER_BYTES) || DEFAULT_MAX_STICKER_BYTES);
 const LAST_STICKER_TTL_MS = Math.max(60_000, Number(process.env.STICKER_PACK_LAST_CACHE_TTL_MS) || 6 * 60 * 60 * 1000);
-const OBJECT_STORAGE_UPLOAD_TIMEOUT_MS = Math.max(
-  1_000,
-  Number(process.env.STICKER_OBJECT_STORAGE_UPLOAD_TIMEOUT_MS) || 10_000,
-);
+const OBJECT_STORAGE_UPLOAD_TIMEOUT_MS = Math.max(1_000, Number(process.env.STICKER_OBJECT_STORAGE_UPLOAD_TIMEOUT_MS) || 10_000);
 
 const lastStickerCache = new Map();
 
@@ -61,7 +47,9 @@ const isObjectStorageDeliveryEnabled = async (subjectKey = '') =>
  */
 const safeOwnerToken = (ownerJid) => {
   const normalized = normalizeOwnerJid(ownerJid);
-  const token = String(normalized || 'unknown').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
+  const token = String(normalized || 'unknown')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 100);
   return token || 'unknown';
 };
 
@@ -263,17 +251,11 @@ const validateStickerBuffer = (buffer) => {
   }
 
   if (buffer.length > MAX_STICKER_BYTES) {
-    throw new StickerPackError(
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      `Figurinha excede o limite de ${(MAX_STICKER_BYTES / (1024 * 1024)).toFixed(1)} MB.`,
-    );
+    throw new StickerPackError(STICKER_PACK_ERROR_CODES.INVALID_INPUT, `Figurinha excede o limite de ${(MAX_STICKER_BYTES / (1024 * 1024)).toFixed(1)} MB.`);
   }
 
   if (!isLikelyWebp(buffer)) {
-    throw new StickerPackError(
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'A mídia precisa estar no formato WEBP para entrar no pack.',
-    );
+    throw new StickerPackError(STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'A mídia precisa estar no formato WEBP para entrar no pack.');
   }
 };
 
@@ -390,10 +372,7 @@ async function persistStickerAssetFromDetails({ mediaDetails, ownerJid }) {
   const mediaSize = Number(mediaDetails?.details?.fileLength || mediaDetails?.mediaKey?.fileLength || 0);
 
   if (mediaSize > MAX_STICKER_BYTES) {
-    throw new StickerPackError(
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      `Figurinha excede o limite de ${(MAX_STICKER_BYTES / (1024 * 1024)).toFixed(1)} MB.`,
-    );
+    throw new StickerPackError(STICKER_PACK_ERROR_CODES.INVALID_INPUT, `Figurinha excede o limite de ${(MAX_STICKER_BYTES / (1024 * 1024)).toFixed(1)} MB.`);
   }
 
   const tempOwnerDir = path.join(TEMP_ROOT, safeOwnerToken(normalizedOwner));
@@ -404,10 +383,7 @@ async function persistStickerAssetFromDetails({ mediaDetails, ownerJid }) {
   try {
     downloadedPath = await downloadMediaMessage(mediaDetails.mediaKey, 'sticker', tempOwnerDir);
     if (!downloadedPath) {
-      throw new StickerPackError(
-        STICKER_PACK_ERROR_CODES.STORAGE_ERROR,
-        'Não foi possível baixar a figurinha para armazenamento.',
-      );
+      throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, 'Não foi possível baixar a figurinha para armazenamento.');
     }
 
     const buffer = await fs.readFile(downloadedPath);
@@ -427,11 +403,7 @@ async function persistStickerAssetFromDetails({ mediaDetails, ownerJid }) {
       owner_jid: normalizedOwner,
       error: error.message,
     });
-    throw new StickerPackError(
-      STICKER_PACK_ERROR_CODES.STORAGE_ERROR,
-      'Falha ao salvar figurinha no servidor.',
-      error,
-    );
+    throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, 'Falha ao salvar figurinha no servidor.', error);
   } finally {
     if (downloadedPath) {
       await fs.unlink(downloadedPath).catch(() => {});
@@ -461,11 +433,7 @@ export async function saveStickerAssetFromBuffer({ ownerJid, buffer, mimetype = 
       error: error.message,
     });
 
-    throw new StickerPackError(
-      STICKER_PACK_ERROR_CODES.STORAGE_ERROR,
-      'Falha ao salvar figurinha gerada no servidor.',
-      error,
-    );
+    throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, 'Falha ao salvar figurinha gerada no servidor.', error);
   }
 }
 
@@ -525,12 +493,7 @@ export async function getLastStickerAssetForOwner(ownerJid) {
  * }} params Contexto de resolução.
  * @returns {Promise<object|null>} Asset resolvido.
  */
-export async function resolveStickerAssetForCommand({
-  messageInfo,
-  ownerJid,
-  includeQuoted = true,
-  fallbackToLast = true,
-}) {
+export async function resolveStickerAssetForCommand({ messageInfo, ownerJid, includeQuoted = true, fallbackToLast = true }) {
   const mediaDetails = resolveStickerMediaDetails(messageInfo, { includeQuoted });
 
   if (mediaDetails) {
@@ -560,11 +523,7 @@ export async function readStickerAssetBuffer(asset) {
       if (Buffer.isBuffer(externalBuffer) && externalBuffer.length) {
         return externalBuffer;
       }
-      throw new StickerPackError(
-        STICKER_PACK_ERROR_CODES.STORAGE_ERROR,
-        `Não foi possível ler a figurinha em disco (${asset.storage_path}).`,
-        error,
-      );
+      throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, `Não foi possível ler a figurinha em disco (${asset.storage_path}).`, error);
     }
   }
 
@@ -576,17 +535,9 @@ export async function readStickerAssetBuffer(asset) {
   throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, 'Caminho do sticker não encontrado no storage.');
 }
 
-export async function getStickerAssetExternalUrl(
-  asset,
-  {
-    secure = true,
-    expiresInSeconds = 300,
-  } = {},
-) {
+export async function getStickerAssetExternalUrl(asset, { secure = true, expiresInSeconds = 300 } = {}) {
   if (!asset) return null;
-  const canUseExternalDelivery = await isObjectStorageDeliveryEnabled(
-    normalizeOwnerJid(asset?.owner_jid || '') || String(asset?.id || asset?.sha256 || ''),
-  );
+  const canUseExternalDelivery = await isObjectStorageDeliveryEnabled(normalizeOwnerJid(asset?.owner_jid || '') || String(asset?.id || asset?.sha256 || ''));
   if (!canUseExternalDelivery) return null;
   return getStickerObjectStorageUrl(asset, {
     secure,
