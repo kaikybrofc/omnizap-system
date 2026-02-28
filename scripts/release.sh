@@ -13,6 +13,9 @@ RELEASE_GIT_BRANCH="${RELEASE_GIT_BRANCH:-}"
 RELEASE_GIT_PRE_COMMIT_MESSAGE="${RELEASE_GIT_PRE_COMMIT_MESSAGE:-chore(release): auto-commit before release}"
 RELEASE_GIT_COMMIT_VERSION="${RELEASE_GIT_COMMIT_VERSION:-1}"
 RELEASE_GIT_VERSION_COMMIT_PREFIX="${RELEASE_GIT_VERSION_COMMIT_PREFIX:-chore(release): v}"
+RELEASE_GIT_TAG_CREATE="${RELEASE_GIT_TAG_CREATE:-1}"
+RELEASE_GIT_TAG_PUSH="${RELEASE_GIT_TAG_PUSH:-1}"
+RELEASE_GIT_TAG_ANNOTATED="${RELEASE_GIT_TAG_ANNOTATED:-1}"
 RELEASE_GITHUB_RELEASE="${RELEASE_GITHUB_RELEASE:-1}"
 RELEASE_REQUIRE_GITHUB_RELEASE="${RELEASE_REQUIRE_GITHUB_RELEASE:-1}"
 RELEASE_GITHUB_TAG_PREFIX="${RELEASE_GITHUB_TAG_PREFIX:-v}"
@@ -21,6 +24,8 @@ RELEASE_GITHUB_GENERATE_NOTES="${RELEASE_GITHUB_GENERATE_NOTES:-1}"
 RELEASE_GITHUB_PRERELEASE="${RELEASE_GITHUB_PRERELEASE:-}"
 RELEASE_GITHUB_DRAFT="${RELEASE_GITHUB_DRAFT:-0}"
 RELEASE_GITHUB_TARGET="${RELEASE_GITHUB_TARGET:-}"
+RELEASE_GITHUB_RELEASE_INCLUDE_CHANGED_FILES="${RELEASE_GITHUB_RELEASE_INCLUDE_CHANGED_FILES:-1}"
+RELEASE_GITHUB_RELEASE_MAX_FILES="${RELEASE_GITHUB_RELEASE_MAX_FILES:-300}"
 RELEASE_REQUIRE_DUAL_PUBLISH="${RELEASE_REQUIRE_DUAL_PUBLISH:-1}"
 RELEASE_VERIFY_UNIFIED_VERSION="${RELEASE_VERIFY_UNIFIED_VERSION:-1}"
 RELEASE_VERIFY_PRIMARY_REGISTRY="${RELEASE_VERIFY_PRIMARY_REGISTRY:-${DEPLOY_PACKAGE_REGISTRY:-https://npm.pkg.github.com}}"
@@ -28,6 +33,7 @@ RELEASE_VERIFY_SECONDARY_REGISTRY="${RELEASE_VERIFY_SECONDARY_REGISTRY:-${DEPLOY
 RELEASE_VERIFY_PRIMARY_TOKEN_KEYS="${RELEASE_VERIFY_PRIMARY_TOKEN_KEYS:-DEPLOY_PACKAGE_TOKEN,DEPLOY_GITHUB_TOKEN,GITHUB_TOKEN,GH_TOKEN,NPM_TOKEN,NODE_AUTH_TOKEN}"
 RELEASE_VERIFY_SECONDARY_TOKEN_KEYS="${RELEASE_VERIFY_SECONDARY_TOKEN_KEYS:-DEPLOY_PACKAGE_SECONDARY_TOKEN,NPM_TOKEN,NODE_AUTH_TOKEN}"
 TMP_NPMRC_FILES=()
+TMP_MISC_FILES=()
 
 case "$RELEASE_TYPE" in
   patch|minor|major|prepatch|preminor|premajor|prerelease)
@@ -43,14 +49,19 @@ log() {
   printf '[release] %s\n' "$*"
 }
 
-cleanup_tmp_npmrcs() {
+cleanup_tmp_files() {
   for npmrc_tmp in "${TMP_NPMRC_FILES[@]:-}"; do
     if [ -n "$npmrc_tmp" ] && [ -f "$npmrc_tmp" ]; then
       rm -f "$npmrc_tmp"
     fi
   done
+  for tmp_file in "${TMP_MISC_FILES[@]:-}"; do
+    if [ -n "$tmp_file" ] && [ -f "$tmp_file" ]; then
+      rm -f "$tmp_file"
+    fi
+  done
 }
-trap cleanup_tmp_npmrcs EXIT
+trap cleanup_tmp_files EXIT
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -217,6 +228,119 @@ compute_target_version() {
   printf ''
 }
 
+resolve_previous_release_tag() {
+  local current_tag="$1"
+  (
+    cd "$PROJECT_ROOT" &&
+    git tag --list "${RELEASE_GITHUB_TAG_PREFIX}[0-9]*" --sort=-version:refname |
+      grep -Fvx "$current_tag" |
+      head -n 1
+  )
+}
+
+build_release_body_file() {
+  local current_tag="$1"
+  local target_ref="$2"
+  local body_file=""
+  body_file="$(mktemp /tmp/omnizap-release-body.XXXXXX.md)"
+  TMP_MISC_FILES+=("$body_file")
+
+  local previous_tag=""
+  previous_tag="$(resolve_previous_release_tag "$current_tag")"
+
+  local max_files=300
+  if [[ "$RELEASE_GITHUB_RELEASE_MAX_FILES" =~ ^[0-9]+$ ]] && [ "$RELEASE_GITHUB_RELEASE_MAX_FILES" -gt 0 ]; then
+    max_files="$RELEASE_GITHUB_RELEASE_MAX_FILES"
+  fi
+
+  local -a changed_files=()
+  if [ -n "$previous_tag" ]; then
+    mapfile -t changed_files < <(
+      cd "$PROJECT_ROOT" &&
+      git diff --name-only --diff-filter=ACMRTUXB "${previous_tag}..${target_ref}" |
+        sed '/^$/d'
+    )
+  fi
+
+  {
+    printf '## Arquivos alterados\n\n'
+    if [ -n "$previous_tag" ]; then
+      printf 'Comparação: `%s...%s`\n\n' "$previous_tag" "$current_tag"
+    else
+      printf 'Release inicial (sem tag anterior para comparação).\n\n'
+    fi
+
+    if [ "${#changed_files[@]}" -eq 0 ]; then
+      printf -- '- Nenhum arquivo alterado detectado.\n'
+    else
+      local total="${#changed_files[@]}"
+      local limit="$total"
+      if [ "$total" -gt "$max_files" ]; then
+        limit="$max_files"
+      fi
+
+      local i=0
+      while [ "$i" -lt "$limit" ]; do
+        printf -- '- `%s`\n' "${changed_files[$i]}"
+        i=$((i + 1))
+      done
+
+      if [ "$total" -gt "$max_files" ]; then
+        printf '\n_...e mais %s arquivo(s)._\n' "$((total - max_files))"
+      fi
+    fi
+  } > "$body_file"
+
+  printf '%s' "$body_file"
+}
+
+ensure_release_tag() {
+  local tag_name="$1"
+  local target_ref="$2"
+
+  local local_target_sha=""
+  local_target_sha="$(cd "$PROJECT_ROOT" && git rev-parse "${target_ref}^{}")"
+
+  if (cd "$PROJECT_ROOT" && git rev-parse --verify "refs/tags/${tag_name}" >/dev/null 2>&1); then
+    local local_tag_sha=""
+    local_tag_sha="$(cd "$PROJECT_ROOT" && git rev-parse "${tag_name}^{}")"
+    if [ "$local_tag_sha" != "$local_target_sha" ]; then
+      printf '[release] Tag %s já existe e aponta para outro commit (%s).\n' "$tag_name" "$local_tag_sha" >&2
+      exit 1
+    fi
+    log "Tag ${tag_name} já existe localmente."
+  else
+    if [ "$RELEASE_GIT_TAG_CREATE" != "1" ]; then
+      printf '[release] Tag %s não existe e RELEASE_GIT_TAG_CREATE=0.\n' "$tag_name" >&2
+      exit 1
+    fi
+    log "Criando tag ${tag_name}"
+    if [ "$RELEASE_GIT_TAG_ANNOTATED" = "1" ]; then
+      (cd "$PROJECT_ROOT" && git tag -a "$tag_name" -m "Release ${tag_name}" "$target_ref")
+    else
+      (cd "$PROJECT_ROOT" && git tag "$tag_name" "$target_ref")
+    fi
+  fi
+
+  if [ "$RELEASE_GIT_TAG_PUSH" = "1" ]; then
+    local remote_sha=""
+    remote_sha="$(cd "$PROJECT_ROOT" && git ls-remote --tags "$RELEASE_GIT_REMOTE" "refs/tags/${tag_name}^{}" | awk 'NR==1{print $1}')"
+    if [ -z "$remote_sha" ]; then
+      remote_sha="$(cd "$PROJECT_ROOT" && git ls-remote --tags "$RELEASE_GIT_REMOTE" "refs/tags/${tag_name}" | awk 'NR==1{print $1}')"
+    fi
+
+    if [ -z "$remote_sha" ]; then
+      log "Enviando tag ${tag_name} para ${RELEASE_GIT_REMOTE}"
+      (cd "$PROJECT_ROOT" && git push "$RELEASE_GIT_REMOTE" "refs/tags/${tag_name}")
+    elif [ "$remote_sha" != "$local_target_sha" ]; then
+      printf '[release] Tag remota %s já existe e aponta para outro commit (%s).\n' "$tag_name" "$remote_sha" >&2
+      exit 1
+    else
+      log "Tag ${tag_name} já existe no remoto ${RELEASE_GIT_REMOTE}."
+    fi
+  fi
+}
+
 commit_and_push_if_dirty() {
   local commit_message="$1"
 
@@ -320,6 +444,14 @@ if [ "$RELEASE_GIT_COMMIT_VERSION" = "1" ]; then
 fi
 
 release_tag="${RELEASE_GITHUB_TAG_PREFIX}${new_version}"
+release_target_ref="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+
+if [ -n "$(cd "$PROJECT_ROOT" && git status --porcelain --untracked-files=no)" ]; then
+  printf '[release] Working tree com alterações rastreadas antes de criar tag/release. Ajuste RELEASE_GIT_COMMIT_VERSION ou commite manualmente.\n' >&2
+  exit 1
+fi
+
+ensure_release_tag "$release_tag" "$release_target_ref"
 
 if [ "$RELEASE_GITHUB_RELEASE" = "1" ]; then
   if [ "$RELEASE_GIT_AUTO_PUSH" != "1" ]; then
@@ -330,7 +462,7 @@ if [ "$RELEASE_GITHUB_RELEASE" = "1" ]; then
   local_name="${RELEASE_GITHUB_NAME_PREFIX}${new_version}"
   local_target="$RELEASE_GITHUB_TARGET"
   if [ -z "$local_target" ]; then
-    local_target="$(cd "$PROJECT_ROOT" && git rev-parse HEAD)"
+    local_target="$release_target_ref"
   fi
 
   local_prerelease="$RELEASE_GITHUB_PRERELEASE"
@@ -348,17 +480,34 @@ if [ "$RELEASE_GITHUB_RELEASE" = "1" ]; then
   prerelease_bool="$(to_bool "$local_prerelease")"
   draft_bool=""
   draft_bool="$(to_bool "$RELEASE_GITHUB_DRAFT")"
+  release_body_file=""
+  if [ "$RELEASE_GITHUB_RELEASE_INCLUDE_CHANGED_FILES" = "1" ]; then
+    release_body_file="$(build_release_body_file "$release_tag" "$release_target_ref")"
+  fi
 
   log "Criando/atualizando GitHub Release ($release_tag)"
-  release_output="$(
-    cd "$PROJECT_ROOT" && node ./scripts/github-release-notify.mjs upsert \
-      --tag "$release_tag" \
-      --target "$local_target" \
-      --name "$local_name" \
-      --generate-notes "$generate_notes_bool" \
-      --prerelease "$prerelease_bool" \
-      --draft "$draft_bool"
-  )"
+  if [ -n "$release_body_file" ]; then
+    release_output="$(
+      cd "$PROJECT_ROOT" && node ./scripts/github-release-notify.mjs upsert \
+        --tag "$release_tag" \
+        --target "$local_target" \
+        --name "$local_name" \
+        --body-file "$release_body_file" \
+        --generate-notes "$generate_notes_bool" \
+        --prerelease "$prerelease_bool" \
+        --draft "$draft_bool"
+    )"
+  else
+    release_output="$(
+      cd "$PROJECT_ROOT" && node ./scripts/github-release-notify.mjs upsert \
+        --tag "$release_tag" \
+        --target "$local_target" \
+        --name "$local_name" \
+        --generate-notes "$generate_notes_bool" \
+        --prerelease "$prerelease_bool" \
+        --draft "$draft_bool"
+    )"
+  fi
   log "GitHub Release atualizado: $release_output"
 fi
 
@@ -375,6 +524,33 @@ if [ "$RELEASE_VERIFY_UNIFIED_VERSION" = "1" ]; then
     exit 1
   fi
   log "Verificado localmente: versão=$local_version_now"
+
+  tag_commit_now="$(cd "$PROJECT_ROOT" && git rev-parse "${release_tag}^{}" 2>/dev/null || true)"
+  if [ -z "$tag_commit_now" ]; then
+    printf '[release] Tag local ausente: %s\n' "$release_tag" >&2
+    exit 1
+  fi
+  if [ "$tag_commit_now" != "$release_target_ref" ]; then
+    printf '[release] Tag local %s aponta para commit divergente (%s).\n' "$release_tag" "$tag_commit_now" >&2
+    exit 1
+  fi
+  log "Verificada tag local: ${release_tag} -> ${tag_commit_now}"
+
+  if [ "$RELEASE_GIT_TAG_PUSH" = "1" ]; then
+    remote_tag_sha="$(cd "$PROJECT_ROOT" && git ls-remote --tags "$RELEASE_GIT_REMOTE" "refs/tags/${release_tag}^{}" | awk 'NR==1{print $1}')"
+    if [ -z "$remote_tag_sha" ]; then
+      remote_tag_sha="$(cd "$PROJECT_ROOT" && git ls-remote --tags "$RELEASE_GIT_REMOTE" "refs/tags/${release_tag}" | awk 'NR==1{print $1}')"
+    fi
+    if [ -z "$remote_tag_sha" ]; then
+      printf '[release] Tag remota ausente: %s em %s\n' "$release_tag" "$RELEASE_GIT_REMOTE" >&2
+      exit 1
+    fi
+    if [ "$remote_tag_sha" != "$release_target_ref" ]; then
+      printf '[release] Tag remota %s divergente (%s).\n' "$release_tag" "$remote_tag_sha" >&2
+      exit 1
+    fi
+    log "Verificada tag remota: ${release_tag} -> ${remote_tag_sha}"
+  fi
 
   verify_registry_version "$pkg_name" "$new_version" "$RELEASE_VERIFY_PRIMARY_REGISTRY" "$RELEASE_VERIFY_PRIMARY_TOKEN_KEYS" "1"
   verify_registry_version "$pkg_name" "$new_version" "$RELEASE_VERIFY_SECONDARY_REGISTRY" "$RELEASE_VERIFY_SECONDARY_TOKEN_KEYS" "0"

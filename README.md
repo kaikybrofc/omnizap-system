@@ -239,6 +239,9 @@ Variáveis do fluxo de release (git):
 - `RELEASE_GIT_PRE_COMMIT_MESSAGE` (default: `chore(release): auto-commit before release`)
 - `RELEASE_GIT_COMMIT_VERSION` (default: `1`) - commita alteração da versão após sucesso
 - `RELEASE_GIT_VERSION_COMMIT_PREFIX` (default: `chore(release): v`)
+- `RELEASE_GIT_TAG_CREATE` (default: `1`) - cria tag `vX.Y.Z` no release
+- `RELEASE_GIT_TAG_PUSH` (default: `1`) - envia a tag para o remoto
+- `RELEASE_GIT_TAG_ANNOTATED` (default: `1`) - usa tag anotada (`git tag -a`)
 - `RELEASE_GITHUB_RELEASE` (default: `1`) - cria/atualiza GitHub Release na aba Releases
 - `RELEASE_REQUIRE_GITHUB_RELEASE` (default: `1`) - falha se GitHub Release estiver desativado
 - `RELEASE_GITHUB_REPO` (opcional; ex.: `kaikybrofc/omnizap-system`)
@@ -246,6 +249,8 @@ Variáveis do fluxo de release (git):
 - `RELEASE_GITHUB_TAG_PREFIX` (default: `v`) - prefixo da tag (`v2.1.9`)
 - `RELEASE_GITHUB_NAME_PREFIX` (default: `v`) - prefixo do nome exibido na release
 - `RELEASE_GITHUB_GENERATE_NOTES` (default: `1`) - usa notas automáticas do GitHub
+- `RELEASE_GITHUB_RELEASE_INCLUDE_CHANGED_FILES` (default: `1`) - adiciona markdown com arquivos alterados no corpo da release
+- `RELEASE_GITHUB_RELEASE_MAX_FILES` (default: `300`) - limite de arquivos listados no markdown
 - `RELEASE_GITHUB_PRERELEASE` (default: auto) - vazio detecta `-` na versão como prerelease
 - `RELEASE_GITHUB_DRAFT` (default: `0`)
 - `RELEASE_GITHUB_TARGET` (opcional; vazio usa `HEAD`)

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -80,10 +81,21 @@ if (!repoOwner || !repoName) {
 const tag = getArg('--tag');
 const target = getArg('--target');
 const name = getArg('--name', tag);
-const body = getArg('--body', '');
+const bodyArg = getArg('--body', '');
+const bodyFile = getArg('--body-file', '');
 const generateNotes = toBool(getArg('--generate-notes', 'true'), true);
 const prerelease = toBool(getArg('--prerelease', 'false'), false);
 const draft = toBool(getArg('--draft', 'false'), false);
+
+let body = bodyArg;
+if (!body && bodyFile) {
+  try {
+    body = fs.readFileSync(bodyFile, 'utf8');
+  } catch (error) {
+    console.error(`Falha ao ler --body-file (${bodyFile}): ${error?.message || error}`);
+    process.exit(1);
+  }
+}
 
 if (!tag) {
   console.error('Parâmetro obrigatório ausente: --tag');
