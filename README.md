@@ -167,12 +167,14 @@ Variáveis úteis:
 - `DEPLOY_PACKAGE_PUBLISH` (default: `0`) - publica em registry npm
 - `DEPLOY_PACKAGE_REGISTRY` (default: `https://npm.pkg.github.com`)
 - `DEPLOY_PACKAGE_TOKEN` (opcional; fallback automático por tipo de registry)
+- `DEPLOY_PACKAGE_OTP` (opcional) - OTP para publish quando 2FA interativo for exigido
 - `DEPLOY_PACKAGE_SCOPE_OWNER` (opcional) - owner esperado do scope para publish (ex.: `kaikybrofc` ou sua org)
 - `DEPLOY_PACKAGE_TAG` (default: `latest`)
 - `DEPLOY_PACKAGE_PUBLISH_SKIP_IF_EXISTS` (default: `1`) - evita erro se versão já existir
 - `DEPLOY_PACKAGE_PUBLISH_SECONDARY` (default: `0`) - habilita publish secundário (dual publish)
 - `DEPLOY_PACKAGE_SECONDARY_REGISTRY` (default: `https://registry.npmjs.org`)
 - `DEPLOY_PACKAGE_SECONDARY_TOKEN` (opcional; fallback: `NPM_TOKEN`/`NODE_AUTH_TOKEN`/demais tokens)
+- `DEPLOY_PACKAGE_SECONDARY_OTP` (opcional) - OTP do npmjs para publish com 2FA
 - `DEPLOY_PACKAGE_SECONDARY_TAG` (default: `latest`)
 - `DEPLOY_PACKAGE_SECONDARY_ACCESS` (default: `public`) - usado para pacote escopado no npmjs
 - `DEPLOY_PACKAGE_SECONDARY_PUBLISH_SKIP_IF_EXISTS` (default: mesmo valor de `DEPLOY_PACKAGE_PUBLISH_SKIP_IF_EXISTS`)
@@ -180,6 +182,7 @@ Variáveis úteis:
 
 Para `npm.pkg.github.com`, prefira token do GitHub (`DEPLOY_GITHUB_TOKEN` ou `GITHUB_TOKEN`); `NPM_TOKEN` comum pode não autenticar no registry do GitHub.
 Para `npm.pkg.github.com`, o nome do pacote deve ser escopado com owner existente (`@owner/pacote`), por exemplo `@kaikybrofc/omnizap-system`.
+Para `registry.npmjs.org`, use token do npmjs (não token do GitHub). Se sua conta exigir 2FA para publish, use token granular com bypass 2FA habilitado ou informe OTP via `DEPLOY_PACKAGE_SECONDARY_OTP`.
 
 Exemplo sem restart do PM2:
 

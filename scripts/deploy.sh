@@ -25,10 +25,12 @@ PACKAGE_PUBLISH_SKIP_IF_EXISTS="${DEPLOY_PACKAGE_PUBLISH_SKIP_IF_EXISTS:-1}"
 PACKAGE_REGISTRY="${DEPLOY_PACKAGE_REGISTRY:-https://npm.pkg.github.com}"
 PACKAGE_TAG="${DEPLOY_PACKAGE_TAG:-latest}"
 PACKAGE_TOKEN="${DEPLOY_PACKAGE_TOKEN:-}"
+PACKAGE_OTP="${DEPLOY_PACKAGE_OTP:-}"
 PACKAGE_PUBLISH_SECONDARY="${DEPLOY_PACKAGE_PUBLISH_SECONDARY:-0}"
 PACKAGE_SECONDARY_REGISTRY="${DEPLOY_PACKAGE_SECONDARY_REGISTRY:-https://registry.npmjs.org}"
 PACKAGE_SECONDARY_TAG="${DEPLOY_PACKAGE_SECONDARY_TAG:-latest}"
 PACKAGE_SECONDARY_TOKEN="${DEPLOY_PACKAGE_SECONDARY_TOKEN:-}"
+PACKAGE_SECONDARY_OTP="${DEPLOY_PACKAGE_SECONDARY_OTP:-}"
 PACKAGE_SECONDARY_ACCESS="${DEPLOY_PACKAGE_SECONDARY_ACCESS:-public}"
 PACKAGE_SECONDARY_PUBLISH_SKIP_IF_EXISTS="${DEPLOY_PACKAGE_SECONDARY_PUBLISH_SKIP_IF_EXISTS:-$PACKAGE_PUBLISH_SKIP_IF_EXISTS}"
 PACKAGE_SECONDARY_TOKEN_KEYS="${DEPLOY_PACKAGE_SECONDARY_TOKEN_KEYS:-}"
@@ -104,7 +106,7 @@ default_token_keys_for_registry() {
   if printf '%s' "$registry" | grep -q 'npm.pkg.github.com'; then
     printf 'DEPLOY_PACKAGE_TOKEN,DEPLOY_GITHUB_TOKEN,GITHUB_TOKEN,GH_TOKEN,NPM_TOKEN,NODE_AUTH_TOKEN'
   else
-    printf 'DEPLOY_PACKAGE_SECONDARY_TOKEN,NPM_TOKEN,NODE_AUTH_TOKEN,DEPLOY_PACKAGE_TOKEN,DEPLOY_GITHUB_TOKEN,GITHUB_TOKEN,GH_TOKEN'
+    printf 'DEPLOY_PACKAGE_SECONDARY_TOKEN,NPM_TOKEN,NODE_AUTH_TOKEN'
   fi
 }
 
@@ -139,6 +141,7 @@ publish_package_to_registry() {
   local skip_if_exists="$6"
   local access="$7"
   local token_keys_override="$8"
+  local otp="$9"
 
   local token="$explicit_token"
   if [ -z "$token" ]; then
@@ -152,6 +155,14 @@ publish_package_to_registry() {
   if [ -z "$token" ]; then
     printf '[deploy] Publish habilitado para %s, mas nenhum token foi encontrado.\n' "$registry" >&2
     exit 1
+  fi
+
+  if printf '%s' "$registry" | grep -q 'registry.npmjs.org'; then
+    if printf '%s' "$token" | grep -Eq '^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_)'; then
+      printf '[deploy] Token incompatível para npmjs.org (parece token do GitHub).\n' >&2
+      printf '[deploy] Configure DEPLOY_PACKAGE_SECONDARY_TOKEN ou NPM_TOKEN com token do npmjs.\n' >&2
+      exit 1
+    fi
   fi
 
   local scope_owner=""
@@ -200,17 +211,17 @@ publish_package_to_registry() {
   fi
 
   log "Publicando ${pkg_name}@${pkg_version} em $registry (tag=$tag)"
+  local publish_cmd=(npm publish --registry "$registry" --tag "$tag" --userconfig "$npmrc_tmp")
   if [ -n "$access" ] && printf '%s' "$registry" | grep -q 'registry.npmjs.org' && printf '%s' "$pkg_name" | grep -q '^@'; then
-    (
-      cd "$PROJECT_ROOT" &&
-      npm_config_userconfig="$npmrc_tmp" npm publish --registry "$registry" --tag "$tag" --access "$access" --userconfig "$npmrc_tmp"
-    )
-  else
-    (
-      cd "$PROJECT_ROOT" &&
-      npm_config_userconfig="$npmrc_tmp" npm publish --registry "$registry" --tag "$tag" --userconfig "$npmrc_tmp"
-    )
+    publish_cmd+=(--access "$access")
   fi
+  if [ -n "$otp" ]; then
+    publish_cmd+=(--otp "$otp")
+  fi
+  (
+    cd "$PROJECT_ROOT" &&
+    npm_config_userconfig="$npmrc_tmp" "${publish_cmd[@]}"
+  )
   log "Publish concluído para ${pkg_name}@${pkg_version} em $registry."
 }
 
@@ -337,7 +348,8 @@ run_package_stage() {
         "$PACKAGE_TOKEN" \
         "$PACKAGE_PUBLISH_SKIP_IF_EXISTS" \
         "" \
-        ""
+        "" \
+        "$PACKAGE_OTP"
     fi
 
     if [ "$PACKAGE_PUBLISH_SECONDARY" = "1" ]; then
@@ -352,7 +364,8 @@ run_package_stage() {
           "$PACKAGE_SECONDARY_TOKEN" \
           "$PACKAGE_SECONDARY_PUBLISH_SKIP_IF_EXISTS" \
           "$PACKAGE_SECONDARY_ACCESS" \
-          "$PACKAGE_SECONDARY_TOKEN_KEYS"
+          "$PACKAGE_SECONDARY_TOKEN_KEYS" \
+          "$PACKAGE_SECONDARY_OTP"
       fi
     fi
   fi
