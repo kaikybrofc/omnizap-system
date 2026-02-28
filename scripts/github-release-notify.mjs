@@ -59,8 +59,8 @@ const parseRepoFromRemote = () => {
 const token = env('RELEASE_GITHUB_TOKEN', 'DEPLOY_GITHUB_TOKEN', 'GITHUB_TOKEN', 'GH_TOKEN');
 const repository = env('RELEASE_GITHUB_REPO', 'DEPLOY_GITHUB_REPO', 'GITHUB_REPOSITORY') || parseRepoFromRemote();
 
-if (!action || action !== 'upsert') {
-  console.error('Uso: node scripts/github-release-notify.mjs upsert --tag vX.Y.Z [opções]');
+if (!action || !['upsert', 'get'].includes(action)) {
+  console.error('Uso: node scripts/github-release-notify.mjs <upsert|get> --tag vX.Y.Z [opções]');
   process.exit(1);
 }
 
@@ -137,6 +137,15 @@ const run = async () => {
     failFromResponse(byTag, 'GitHub API');
   }
 
+  if (action === 'get') {
+    if (!existingRelease) {
+      throw new Error(`GitHub release não encontrada para tag ${tag}`);
+    }
+    const url = existingRelease.html_url || '';
+    process.stdout.write(`found id=${existingRelease.id} tag=${tag} url=${url}`);
+    return;
+  }
+
   const commonPayload = {
     tag_name: tag,
     target_commitish: target || undefined,
@@ -177,4 +186,3 @@ run().catch((error) => {
   console.error(error?.message || error);
   process.exit(1);
 });
-

@@ -132,7 +132,7 @@ Variáveis legadas foram mantidas por compatibilidade (`QUOTE_API_URL`, `WAIFU_A
 - `npm run pm2:prod`: sobe com PM2 usando `ecosystem.prod.config.cjs`.
 - `npm run deploy`: deploy automático de `public/` com cache-bust, backup, validação e reload do Nginx.
 - `npm run deploy:dry-run`: simula o deploy sem publicar/recarregar serviços.
-- `npm run release`: bump de versão `patch` + deploy + publish + atualização da aba GitHub Releases.
+- `npm run release`: release completo com versão unificada (npmjs + GitHub Packages + GitHub Release) e verificação final.
 - `npm run release:minor`: bump `minor` + deploy + publish do package.
 - `npm run release:major`: bump `major` + deploy + publish do package.
 - `npm run test`: executa testes Node (`node --test`).
@@ -224,10 +224,14 @@ Comando único de release (patch + deploy + publish):
 npm run release
 ```
 
-`npm run release` agora executa publish primário + secundário por padrão (você pode desativar com `DEPLOY_PACKAGE_PUBLISH_SECONDARY=0`).
+`npm run release` executa publish primário + secundário por padrão e valida consistência final de versão.
 
 Variáveis do fluxo de release (git):
 
+- `RELEASE_TYPE` (default: `patch`)
+- `RELEASE_FORCE_VERSION` (opcional) - força versão exata (ex.: `2.2.0`)
+- `RELEASE_PATCH_ROLLOVER_ENABLED` (default: `1`) - rollover automático de patch
+- `RELEASE_PATCH_ROLLOVER_AT` (default: `10`) - quando patch atingir este valor, próximo release vira `major.(minor+1).0`
 - `RELEASE_GIT_AUTO_COMMIT` (default: `1`) - commit automático se houver alterações pendentes
 - `RELEASE_GIT_AUTO_PUSH` (default: `1`) - push automático dos commits gerados
 - `RELEASE_GIT_REMOTE` (default: `origin`)
@@ -236,6 +240,7 @@ Variáveis do fluxo de release (git):
 - `RELEASE_GIT_COMMIT_VERSION` (default: `1`) - commita alteração da versão após sucesso
 - `RELEASE_GIT_VERSION_COMMIT_PREFIX` (default: `chore(release): v`)
 - `RELEASE_GITHUB_RELEASE` (default: `1`) - cria/atualiza GitHub Release na aba Releases
+- `RELEASE_REQUIRE_GITHUB_RELEASE` (default: `1`) - falha se GitHub Release estiver desativado
 - `RELEASE_GITHUB_REPO` (opcional; ex.: `kaikybrofc/omnizap-system`)
 - `RELEASE_GITHUB_TOKEN` (opcional; fallback: `DEPLOY_GITHUB_TOKEN`/`GITHUB_TOKEN`/`GH_TOKEN`)
 - `RELEASE_GITHUB_TAG_PREFIX` (default: `v`) - prefixo da tag (`v2.1.9`)
@@ -244,6 +249,16 @@ Variáveis do fluxo de release (git):
 - `RELEASE_GITHUB_PRERELEASE` (default: auto) - vazio detecta `-` na versão como prerelease
 - `RELEASE_GITHUB_DRAFT` (default: `0`)
 - `RELEASE_GITHUB_TARGET` (opcional; vazio usa `HEAD`)
+- `RELEASE_REQUIRE_DUAL_PUBLISH` (default: `1`) - exige publish em GitHub Packages e npmjs
+- `RELEASE_VERIFY_UNIFIED_VERSION` (default: `1`) - valida versão final em local + registries + GitHub Release
+- `RELEASE_VERIFY_PRIMARY_REGISTRY` (default: `https://npm.pkg.github.com`)
+- `RELEASE_VERIFY_SECONDARY_REGISTRY` (default: `https://registry.npmjs.org`)
+- `RELEASE_VERIFY_PRIMARY_TOKEN_KEYS` / `RELEASE_VERIFY_SECONDARY_TOKEN_KEYS` - ordem de fallback de tokens para verificação
+
+Exemplo de rollover automático:
+
+- `2.1.9` + `npm run release` -> `2.1.10`
+- `2.1.10` + `npm run release` -> `2.2.0`
 
 ## Execução com PM2
 
