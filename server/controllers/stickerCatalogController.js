@@ -2,7 +2,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { URL, URLSearchParams } from 'node:url';
-import axios from 'axios';
 
 import { executeQuery, pool, TABLES } from '../../database/index.js';
 import { getJidUser, normalizeJid, resolveBotJid } from '../../app/config/baileysConfig.js';
@@ -22,6 +21,7 @@ import { createStickerPackInteractionEvent, listStickerPackInteractionStatsByPac
 import { buildCreatorRanking, buildIntentCollections, buildPersonalizedRecommendations, buildViewerTagAffinity, computePackSignals } from '../../app/modules/stickerPackModule/stickerPackMarketplaceService.js';
 import { listStickerPackScoreSnapshotsByPackIds } from '../../app/modules/stickerPackModule/stickerPackScoreSnapshotRepository.js';
 import { createCatalogApiRouter } from '../routes/stickerCatalog/catalogRouter.js';
+import { createGoogleWebAuthService } from '../auth/googleWebAuth/googleWebAuthService.js';
 import { buildAdminMenu, buildAiMenu, buildAnimeMenu, buildMediaMenu, buildMenuCaption, buildQuoteMenu, buildStatsMenu, buildStickerMenu } from '../../app/modules/menuModule/common.js';
 import { getMarketplaceDriftSnapshot } from '../../app/modules/stickerPackModule/stickerMarketplaceDriftService.js';
 import { getStickerAssetExternalUrl, getStickerStorageConfig, readStickerAssetBuffer, saveStickerAssetFromBuffer } from '../../app/modules/stickerPackModule/stickerStorageService.js';
@@ -189,12 +189,10 @@ const { maxStickerBytes: MAX_STICKER_UPLOAD_BYTES } = getStickerStorageConfig();
 const MAX_STICKER_SOURCE_UPLOAD_BYTES = Math.max(MAX_STICKER_UPLOAD_BYTES, Number(process.env.STICKER_WEB_UPLOAD_SOURCE_MAX_BYTES) || 20 * 1024 * 1024);
 const ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v']);
 const webPackEditTokenMap = new Map();
-const webGoogleSessionMap = new Map();
 const adminPanelSessionMap = new Map();
-const GOOGLE_WEB_SESSION_COOKIE_NAME = 'omnizap_google_session';
 const ADMIN_PANEL_SESSION_COOKIE_NAME = 'omnizap_admin_panel_session';
-const GOOGLE_WEB_SESSION_DB_TOUCH_INTERVAL_MS = Math.max(30_000, Number(process.env.STICKER_WEB_GOOGLE_SESSION_DB_TOUCH_INTERVAL_MS) || 60_000);
-const GOOGLE_WEB_SESSION_DB_PRUNE_INTERVAL_MS = Math.max(5 * 60 * 1000, Number(process.env.STICKER_WEB_GOOGLE_SESSION_DB_PRUNE_INTERVAL_MS) || 60 * 60 * 1000);
+const WEB_VISITOR_COOKIE_NAME = 'omnizap_vid';
+const WEB_SESSION_COOKIE_NAME = 'omnizap_sid';
 const PACK_WEB_STATUS_VALUES = new Set(['draft', 'uploading', 'processing', 'published', 'failed']);
 const PACK_WEB_UPLOAD_STATUS_VALUES = new Set(['pending', 'processing', 'done', 'failed']);
 const WEB_UPLOAD_ERROR_MESSAGE_MAX = 255;
@@ -202,11 +200,12 @@ const WEB_UPLOAD_MAX_CONCURRENCY = Math.max(1, Math.min(6, Number(process.env.ST
 const WEB_DRAFT_CLEANUP_TTL_MS = Math.max(60 * 60 * 1000, Number(process.env.STICKER_WEB_DRAFT_CLEANUP_TTL_MS) || 24 * 60 * 60 * 1000);
 const WEB_DRAFT_CLEANUP_RUN_INTERVAL_MS = Math.max(60 * 1000, Number(process.env.STICKER_WEB_DRAFT_CLEANUP_RUN_INTERVAL_MS) || 15 * 60 * 1000);
 const WEB_UPLOAD_ID_MAX_LENGTH = 120;
-let staleDraftCleanupState = {
+const WEB_VISITOR_COOKIE_TTL_SECONDS = clampInt(process.env.WEB_VISITOR_COOKIE_TTL_SECONDS, 60 * 60 * 24 * 365, 60 * 60, 60 * 60 * 24 * 3650);
+const WEB_SESSION_COOKIE_TTL_SECONDS = clampInt(process.env.WEB_SESSION_COOKIE_TTL_SECONDS, 60 * 60 * 24 * 30, 30 * 60, 60 * 60 * 24 * 365);
+const staleDraftCleanupState = {
   running: false,
   lastRunAt: 0,
 };
-let googleWebSessionDbPruneAt = 0;
 let adminPanelSessionPruneAt = 0;
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -870,8 +869,6 @@ const triggerStaleDraftCleanup = () => {
   maybeCleanupStaleDraftPacks().catch(() => {});
 };
 
-const GOOGLE_TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
-
 const normalizeGoogleSubject = (value) =>
   String(value || '')
     .trim()
@@ -882,331 +879,6 @@ const buildGoogleOwnerJid = (googleSub) => {
   const normalizedSub = normalizeGoogleSubject(googleSub);
   if (!normalizedSub) return '';
   return normalizeJid(`g${normalizedSub}@google.oauth`) || '';
-};
-
-const verifyGoogleIdToken = async (idToken) => {
-  const token = String(idToken || '').trim();
-  if (!token) {
-    const error = new Error('Token Google ausente.');
-    error.statusCode = 401;
-    throw error;
-  }
-
-  let response;
-  try {
-    response = await axios.get(GOOGLE_TOKENINFO_URL, {
-      params: { id_token: token },
-      timeout: 5000,
-      validateStatus: () => true,
-    });
-  } catch (error) {
-    const wrapped = new Error('Falha ao validar login Google.');
-    wrapped.statusCode = 502;
-    wrapped.cause = error;
-    throw wrapped;
-  }
-
-  if (response.status < 200 || response.status >= 300) {
-    const reason = String(response?.data?.error_description || response?.data?.error || '').trim();
-    const error = new Error(reason || 'Token Google inválido.');
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const claims = response?.data && typeof response.data === 'object' ? response.data : {};
-  const aud = String(claims.aud || '').trim();
-  const iss = String(claims.iss || '').trim();
-  const sub = normalizeGoogleSubject(claims.sub);
-  const email = String(claims.email || '')
-    .trim()
-    .toLowerCase();
-  const emailVerified = String(claims.email_verified || '')
-    .trim()
-    .toLowerCase();
-
-  if (STICKER_WEB_GOOGLE_CLIENT_ID && aud !== STICKER_WEB_GOOGLE_CLIENT_ID) {
-    const error = new Error('Login Google não pertence a este aplicativo.');
-    error.statusCode = 403;
-    throw error;
-  }
-  if (iss && !['accounts.google.com', 'https://accounts.google.com'].includes(iss)) {
-    const error = new Error('Emissor do token Google inválido.');
-    error.statusCode = 401;
-    throw error;
-  }
-  if (!sub) {
-    const error = new Error('Token Google sem identificador de usuário.');
-    error.statusCode = 401;
-    throw error;
-  }
-  if (email && emailVerified && !['true', '1'].includes(emailVerified)) {
-    const error = new Error('Conta Google sem e-mail verificado.');
-    error.statusCode = 403;
-    throw error;
-  }
-
-  return {
-    sub,
-    email: email || null,
-    name: sanitizeText(claims.name || claims.given_name || '', 120, { allowEmpty: true }) || null,
-    picture: String(claims.picture || '').trim() || null,
-  };
-};
-
-const pruneExpiredGoogleSessions = () => {
-  const now = Date.now();
-  for (const [token, session] of webGoogleSessionMap.entries()) {
-    if (!session || Number(session.expiresAt || 0) <= now) {
-      webGoogleSessionMap.delete(token);
-    }
-  }
-};
-
-const getGoogleWebSessionTokensFromRequest = (req) => {
-  const direct = getCookieValuesFromRequest(req, GOOGLE_WEB_SESSION_COOKIE_NAME);
-  if (direct.length > 0) return direct;
-  const cookies = parseCookies(req);
-  const fallback = String(cookies[GOOGLE_WEB_SESSION_COOKIE_NAME] || '').trim();
-  return fallback ? [fallback] : [];
-};
-
-const getGoogleWebSessionTokenFromRequest = (req) => getGoogleWebSessionTokensFromRequest(req)[0] || '';
-
-const normalizeGoogleWebSessionRow = (row) => {
-  if (!row || typeof row !== 'object') return null;
-  const token = String(row.session_token || '').trim();
-  const sub = normalizeGoogleSubject(row.google_sub);
-  const ownerJid = normalizeJid(row.owner_jid) || '';
-  const ownerPhone = toWhatsAppPhoneDigits(row.owner_phone || ownerJid) || '';
-  const expiresAt = Number(new Date(row.expires_at || 0));
-  if (!token || !sub || !ownerJid || !Number.isFinite(expiresAt)) return null;
-  const createdAtRaw = Number(new Date(row.created_at || 0));
-  const lastSeenAtRaw = Number(new Date(row.last_seen_at || 0));
-  return {
-    token,
-    sub,
-    email:
-      String(row.email || '')
-        .trim()
-        .toLowerCase() || null,
-    name: sanitizeText(row.name || '', 120, { allowEmpty: true }) || null,
-    picture: String(row.picture_url || '').trim() || null,
-    ownerJid,
-    ownerPhone,
-    createdAt: Number.isFinite(createdAtRaw) ? createdAtRaw : Date.now(),
-    expiresAt,
-    lastSeenAt: Number.isFinite(lastSeenAtRaw) ? lastSeenAtRaw : 0,
-    lastDbTouchAt: Date.now(),
-  };
-};
-
-const maybePruneExpiredGoogleSessionsFromDb = async () => {
-  const now = Date.now();
-  if (now - googleWebSessionDbPruneAt < GOOGLE_WEB_SESSION_DB_PRUNE_INTERVAL_MS) return;
-  googleWebSessionDbPruneAt = now;
-  try {
-    await executeQuery(
-      `DELETE FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
-       WHERE revoked_at IS NOT NULL OR expires_at <= UTC_TIMESTAMP()`,
-    );
-  } catch (error) {
-    logger.warn('Falha ao limpar sessões Google web expiradas do banco.', {
-      action: 'sticker_pack_google_web_session_db_prune_failed',
-      error: error?.message,
-    });
-  }
-};
-
-const upsertGoogleWebUserRecord = async (user, connection = null) => {
-  const sub = normalizeGoogleSubject(user?.sub);
-  const ownerJid = normalizeJid(user?.ownerJid) || '';
-  if (!sub || !ownerJid) return;
-  const ownerPhone = toWhatsAppPhoneDigits(ownerJid) || null;
-  const email =
-    String(user?.email || '')
-      .trim()
-      .toLowerCase() || null;
-  const name = sanitizeText(user?.name || '', 120, { allowEmpty: true }) || null;
-  const pictureUrl =
-    String(user?.picture || '')
-      .trim()
-      .slice(0, 1024) || null;
-
-  // owner_jid e unico; removemos vinculos antigos desse numero antes do upsert para manter 1:1.
-  await executeQuery(
-    `DELETE FROM ${TABLES.STICKER_WEB_GOOGLE_USER}
-      WHERE owner_jid = ?
-        AND google_sub <> ?`,
-    [ownerJid, sub],
-    connection,
-  );
-
-  await executeQuery(
-    `INSERT INTO ${TABLES.STICKER_WEB_GOOGLE_USER}
-      (google_sub, owner_jid, email, name, picture_url, last_login_at, last_seen_at)
-     VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())
-     ON DUPLICATE KEY UPDATE
-      owner_jid = VALUES(owner_jid),
-      email = VALUES(email),
-      name = VALUES(name),
-      picture_url = VALUES(picture_url),
-      last_login_at = UTC_TIMESTAMP(),
-      last_seen_at = UTC_TIMESTAMP()`,
-    [sub, ownerJid, email, name, pictureUrl],
-    connection,
-  );
-
-  // Persistimos o telefone normalizado do owner para facilitar consultas administrativas.
-  await executeQuery(
-    `UPDATE ${TABLES.STICKER_WEB_GOOGLE_USER}
-        SET owner_phone = COALESCE(?, owner_phone)
-      WHERE google_sub = ?`,
-    [ownerPhone, sub],
-    connection,
-  ).catch(() => {});
-};
-
-const upsertGoogleWebSessionRecord = async (session, connection = null) => {
-  const token = String(session?.token || '').trim();
-  const sub = normalizeGoogleSubject(session?.sub);
-  const ownerJid = normalizeJid(session?.ownerJid) || '';
-  const ownerPhone = toWhatsAppPhoneDigits(session?.ownerPhone || ownerJid) || null;
-  const expiresAt = Number(session?.expiresAt || 0);
-  if (!token || !sub || !ownerJid || !Number.isFinite(expiresAt) || expiresAt <= 0) return;
-  const email =
-    String(session?.email || '')
-      .trim()
-      .toLowerCase() || null;
-  const name = sanitizeText(session?.name || '', 120, { allowEmpty: true }) || null;
-  const pictureUrl =
-    String(session?.picture || '')
-      .trim()
-      .slice(0, 1024) || null;
-
-  await executeQuery(
-    `INSERT INTO ${TABLES.STICKER_WEB_GOOGLE_SESSION}
-      (session_token, google_sub, owner_jid, email, name, picture_url, expires_at, revoked_at, last_seen_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, UTC_TIMESTAMP())
-     ON DUPLICATE KEY UPDATE
-      google_sub = VALUES(google_sub),
-      owner_jid = VALUES(owner_jid),
-      email = VALUES(email),
-      name = VALUES(name),
-      picture_url = VALUES(picture_url),
-      expires_at = VALUES(expires_at),
-      revoked_at = NULL,
-      last_seen_at = UTC_TIMESTAMP()`,
-    [token, sub, ownerJid, email, name, pictureUrl, new Date(expiresAt)],
-    connection,
-  );
-
-  await executeQuery(
-    `UPDATE ${TABLES.STICKER_WEB_GOOGLE_SESSION}
-        SET owner_phone = COALESCE(?, owner_phone)
-      WHERE session_token = ?`,
-    [ownerPhone, token],
-    connection,
-  ).catch(() => {});
-};
-
-const deleteOtherGoogleWebSessionsInDb = async ({ token = '', ownerJid = '', sub = '' } = {}, connection = null) => {
-  const sessionToken = String(token || '').trim();
-  const normalizedOwnerJid = normalizeJid(ownerJid) || '';
-  const normalizedSub = normalizeGoogleSubject(sub);
-  if (!sessionToken || (!normalizedOwnerJid && !normalizedSub)) return 0;
-
-  const clauses = [];
-  const params = [];
-  if (normalizedOwnerJid) {
-    clauses.push('owner_jid = ?');
-    params.push(normalizedOwnerJid);
-  }
-  if (normalizedSub) {
-    clauses.push('google_sub = ?');
-    params.push(normalizedSub);
-  }
-  if (!clauses.length) return 0;
-
-  const result = await executeQuery(
-    `DELETE FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
-      WHERE session_token <> ?
-        AND (${clauses.join(' OR ')})`,
-    [sessionToken, ...params],
-    connection,
-  );
-  return Number(result?.affectedRows || 0);
-};
-
-const persistGoogleWebSessionToDb = async (session) => {
-  if (!session?.token || !session?.sub || !session?.ownerJid) return;
-  await maybePruneExpiredGoogleSessionsFromDb();
-  await runSqlTransaction(async (connection) => {
-    await upsertGoogleWebUserRecord(
-      {
-        sub: session.sub,
-        ownerJid: session.ownerJid,
-        email: session.email,
-        name: session.name,
-        picture: session.picture,
-      },
-      connection,
-    );
-    await deleteOtherGoogleWebSessionsInDb(
-      {
-        token: session.token,
-        ownerJid: session.ownerJid,
-        sub: session.sub,
-      },
-      connection,
-    );
-    await upsertGoogleWebSessionRecord(session, connection);
-  });
-};
-
-const findGoogleWebSessionInDbByToken = async (sessionToken) => {
-  const token = String(sessionToken || '').trim();
-  if (!token) return null;
-  await maybePruneExpiredGoogleSessionsFromDb();
-  const rows = await executeQuery(
-    `SELECT session_token, google_sub, owner_jid, owner_phone, email, name, picture_url, created_at, expires_at, last_seen_at
-       FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
-      WHERE session_token = ?
-        AND revoked_at IS NULL
-        AND expires_at > UTC_TIMESTAMP()
-      LIMIT 1`,
-    [token],
-  );
-  return normalizeGoogleWebSessionRow(Array.isArray(rows) ? rows[0] : null);
-};
-
-const touchGoogleWebSessionSeenInDb = async (sessionToken) => {
-  const token = String(sessionToken || '').trim();
-  if (!token) return;
-  await executeQuery(
-    `UPDATE ${TABLES.STICKER_WEB_GOOGLE_SESSION}
-        SET last_seen_at = UTC_TIMESTAMP()
-      WHERE session_token = ?
-        AND revoked_at IS NULL`,
-    [token],
-  );
-};
-
-const touchGoogleWebUserSeenInDb = async (googleSub) => {
-  const sub = normalizeGoogleSubject(googleSub);
-  if (!sub) return;
-  await executeQuery(
-    `UPDATE ${TABLES.STICKER_WEB_GOOGLE_USER}
-        SET last_seen_at = UTC_TIMESTAMP()
-      WHERE google_sub = ?`,
-    [sub],
-  );
-};
-
-const deleteGoogleWebSessionFromDb = async (sessionToken) => {
-  const token = String(sessionToken || '').trim();
-  if (!token) return 0;
-  const result = await executeQuery(`DELETE FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION} WHERE session_token = ?`, [token]);
-  return Number(result?.affectedRows || 0);
 };
 
 const mapAdminBanRow = (row) => {
@@ -1294,37 +966,11 @@ const createAdminBanRecord = async ({ googleSub = '', email = '', ownerJid = '',
   );
 
   if (normalizedSub || normalizedEmail || normalizedOwnerJid) {
-    // Revoke matching Google web sessions immediately.
-    const clauses = [];
-    const params = [];
-    if (normalizedSub) {
-      clauses.push('google_sub = ?');
-      params.push(normalizedSub);
-    }
-    if (normalizedEmail) {
-      clauses.push('email = ?');
-      params.push(normalizedEmail);
-    }
-    if (normalizedOwnerJid) {
-      clauses.push('owner_jid = ?');
-      params.push(normalizedOwnerJid);
-    }
-    if (clauses.length) {
-      await executeQuery(
-        `DELETE FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
-          WHERE ${clauses.join(' OR ')}`,
-        params,
-      ).catch(() => {});
-      for (const [token, session] of webGoogleSessionMap.entries()) {
-        if (!session) continue;
-        const sessionSub = normalizeGoogleSubject(session.sub);
-        const sessionEmail = normalizeEmail(session.email);
-        const sessionOwner = normalizeJid(session.ownerJid) || '';
-        if ((normalizedSub && sessionSub === normalizedSub) || (normalizedEmail && sessionEmail === normalizedEmail) || (normalizedOwnerJid && sessionOwner === normalizedOwnerJid)) {
-          webGoogleSessionMap.delete(token);
-        }
-      }
-    }
+    await revokeGoogleWebSessionsByIdentity({
+      googleSub: normalizedSub,
+      email: normalizedEmail,
+      ownerJid: normalizedOwnerJid,
+    }).catch(() => {});
   }
 
   const rows = await executeQuery(`SELECT * FROM ${TABLES.STICKER_WEB_ADMIN_BAN} WHERE id = ? LIMIT 1`, [banId]);
@@ -1357,6 +1003,42 @@ const assertGoogleIdentityNotBanned = async ({ sub = '', email = '', ownerJid = 
   error.ban = ban;
   throw error;
 };
+
+const googleWebSessionDbTouchIntervalMs = Math.max(30_000, Number(process.env.STICKER_WEB_GOOGLE_SESSION_DB_TOUCH_INTERVAL_MS) || 60_000);
+const googleWebSessionDbPruneIntervalMs = Math.max(5 * 60 * 1000, Number(process.env.STICKER_WEB_GOOGLE_SESSION_DB_PRUNE_INTERVAL_MS) || 60 * 60 * 1000);
+const googleWebSessionCookiePath = normalizeBasePath(process.env.STICKER_WEB_GOOGLE_SESSION_COOKIE_PATH, '/');
+const googleWebLegacyCookiePaths = [STICKER_API_BASE_PATH, `${STICKER_API_BASE_PATH}/auth`, STICKER_WEB_PATH, STICKER_LOGIN_WEB_PATH];
+
+const googleWebAuth = createGoogleWebAuthService({
+  executeQuery,
+  runSqlTransaction,
+  tables: TABLES,
+  logger,
+  sendJson,
+  readJsonBody,
+  parseCookies,
+  getCookieValuesFromRequest,
+  appendSetCookie,
+  buildCookieString,
+  normalizeGoogleSubject,
+  normalizeEmail,
+  normalizeJid,
+  sanitizeText,
+  toIsoOrNull,
+  toWhatsAppPhoneDigits,
+  resolveWhatsAppOwnerJidFromLoginPayload,
+  buildGoogleOwnerJid,
+  assertGoogleIdentityNotBanned,
+  googleClientId: STICKER_WEB_GOOGLE_CLIENT_ID,
+  sessionTtlMs: STICKER_WEB_GOOGLE_SESSION_TTL_MS,
+  sessionDbTouchIntervalMs: googleWebSessionDbTouchIntervalMs,
+  sessionDbPruneIntervalMs: googleWebSessionDbPruneIntervalMs,
+  notAllowedErrorCode: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+  sessionCookiePath: googleWebSessionCookiePath,
+  legacyCookiePaths: googleWebLegacyCookiePaths,
+});
+
+const { upsertGoogleWebUserRecord, resolveGoogleWebSessionFromRequest, mapGoogleSessionResponseData, handleGoogleAuthSessionRequest, revokeGoogleWebSessionsByIdentity } = googleWebAuth;
 
 const mapAdminModeratorRow = (row) => {
   if (!row || typeof row !== 'object') return null;
@@ -1732,124 +1414,6 @@ const requireOwnerAdminPanelSession = (req, res) => {
   return session;
 };
 
-const createGoogleWebSession = (claims, { ownerJid } = {}) => {
-  pruneExpiredGoogleSessions();
-  const token = randomUUID();
-  const now = Date.now();
-  const resolvedOwnerJid = normalizeJid(ownerJid) || buildGoogleOwnerJid(claims.sub);
-  const resolvedOwnerPhone = toWhatsAppPhoneDigits(resolvedOwnerJid) || '';
-  const session = {
-    token,
-    sub: claims.sub,
-    email: claims.email || null,
-    name: claims.name || null,
-    picture: claims.picture || null,
-    ownerJid: resolvedOwnerJid,
-    ownerPhone: resolvedOwnerPhone,
-    createdAt: now,
-    expiresAt: now + STICKER_WEB_GOOGLE_SESSION_TTL_MS,
-    lastSeenAt: now,
-    lastDbTouchAt: 0,
-  };
-  return session;
-};
-
-const activateGoogleWebSession = (session) => {
-  if (!session?.token) return;
-  pruneExpiredGoogleSessions();
-  webGoogleSessionMap.set(session.token, session);
-  for (const [token, existing] of webGoogleSessionMap.entries()) {
-    if (!existing || token === session.token) continue;
-    const sameOwner = normalizeJid(existing.ownerJid) === normalizeJid(session.ownerJid);
-    const sameSub = normalizeGoogleSubject(existing.sub) === normalizeGoogleSubject(session.sub);
-    if (sameOwner || sameSub) {
-      webGoogleSessionMap.delete(token);
-    }
-  }
-};
-
-const resolveGoogleWebSessionFromRequest = async (req) => {
-  pruneExpiredGoogleSessions();
-  const sessionTokens = getGoogleWebSessionTokensFromRequest(req);
-  if (!sessionTokens.length) return null;
-
-  for (const sessionToken of sessionTokens) {
-    const session = webGoogleSessionMap.get(sessionToken);
-    if (!session) continue;
-    if (Number(session.expiresAt || 0) <= Date.now()) {
-      webGoogleSessionMap.delete(sessionToken);
-      continue;
-    }
-
-    const now = Date.now();
-    session.lastSeenAt = now;
-    if (now - Number(session.lastDbTouchAt || 0) >= GOOGLE_WEB_SESSION_DB_TOUCH_INTERVAL_MS) {
-      session.lastDbTouchAt = now;
-      void touchGoogleWebSessionSeenInDb(sessionToken).catch((error) => {
-        logger.warn('Falha ao atualizar last_seen da sessão Google web.', {
-          action: 'sticker_pack_google_web_session_touch_failed',
-          error: error?.message,
-        });
-      });
-      void touchGoogleWebUserSeenInDb(session.sub).catch(() => {});
-    }
-    try {
-      await assertGoogleIdentityNotBanned({
-        sub: session.sub,
-        email: session.email,
-        ownerJid: session.ownerJid,
-      });
-      return session;
-    } catch {
-      webGoogleSessionMap.delete(sessionToken);
-      void deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
-    }
-  }
-
-  for (const sessionToken of sessionTokens) {
-    try {
-      const persistedSession = await findGoogleWebSessionInDbByToken(sessionToken);
-      if (!persistedSession) continue;
-      try {
-        await assertGoogleIdentityNotBanned({
-          sub: persistedSession.sub,
-          email: persistedSession.email,
-          ownerJid: persistedSession.ownerJid,
-        });
-      } catch {
-        await deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
-        continue;
-      }
-      webGoogleSessionMap.set(sessionToken, persistedSession);
-      return persistedSession;
-    } catch (error) {
-      logger.warn('Falha ao resolver sessão Google web no banco.', {
-        action: 'sticker_pack_google_web_session_db_resolve_failed',
-        error: error?.message,
-      });
-    }
-  }
-
-  return null;
-};
-
-const clearGoogleWebSessionCookie = (req, res) => {
-  appendSetCookie(
-    res,
-    buildCookieString(GOOGLE_WEB_SESSION_COOKIE_NAME, '', req, {
-      maxAgeSeconds: 0,
-    }),
-  );
-  // Also clear host-only variant (legacy cookie written without Domain).
-  appendSetCookie(
-    res,
-    buildCookieString(GOOGLE_WEB_SESSION_COOKIE_NAME, '', req, {
-      maxAgeSeconds: 0,
-      domain: false,
-    }),
-  );
-};
-
 const sendAsset = (req, res, buffer, mimetype = 'image/webp') => {
   const maxAgeSeconds = Math.max(60 * 60 * 24, ASSET_CACHE_SECONDS);
   const staleWhileRevalidateSeconds = Math.min(60 * 60 * 24 * 7, Math.max(300, maxAgeSeconds));
@@ -2171,7 +1735,7 @@ const toOwnerJid = (value) => {
   return normalizeJid(`${digits}@s.whatsapp.net`) || '';
 };
 
-const resolveWebCreateOwnerJid = async (explicitOwner = '') => {
+const _resolveWebCreateOwnerJid = async (explicitOwner = '') => {
   const explicit = toOwnerJid(explicitOwner);
   if (explicit) return explicit;
 
@@ -2722,6 +2286,96 @@ const normalizeViewerKey = (raw) =>
     .trim()
     .replace(/[^a-zA-Z0-9._:@-]+/g, '')
     .slice(0, 120);
+
+const normalizeVisitToken = (raw) =>
+  String(raw || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '')
+    .slice(0, 80);
+
+const normalizeVisitPath = (raw) => {
+  const normalized = String(raw || '')
+    .trim()
+    .replace(/\s+/g, '')
+    .slice(0, 255);
+  if (!normalized) return '/';
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+};
+
+const normalizeVisitSource = (raw) =>
+  String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '')
+    .slice(0, 32) || 'web';
+
+const normalizeVisitReferrer = (raw) =>
+  String(raw || '')
+    .trim()
+    .slice(0, 1024) || null;
+
+const normalizeVisitUserAgent = (raw) =>
+  String(raw || '')
+    .trim()
+    .slice(0, 512) || null;
+
+const resolveVisitPathFromReferrer = (req) => {
+  const rawReferrer = String(req?.headers?.referer || req?.headers?.referrer || '').trim();
+  if (!rawReferrer) return '/';
+  try {
+    const parsed = new URL(rawReferrer);
+    const requestHost = toRequestHost(req);
+    if (requestHost && parsed.host && parsed.host.toLowerCase() !== requestHost.toLowerCase()) return '/';
+    return normalizeVisitPath(parsed.pathname || '/');
+  } catch {
+    return '/';
+  }
+};
+
+const ensureWebVisitCookies = (req, res) => {
+  const cookies = parseCookies(req);
+  const currentVisitor = normalizeVisitToken(cookies[WEB_VISITOR_COOKIE_NAME]);
+  const currentSession = normalizeVisitToken(cookies[WEB_SESSION_COOKIE_NAME]);
+  const visitorKey = currentVisitor || randomUUID();
+  const sessionKey = currentSession || randomUUID();
+
+  if (!currentVisitor) {
+    appendSetCookie(
+      res,
+      buildCookieString(WEB_VISITOR_COOKIE_NAME, visitorKey, req, {
+        maxAgeSeconds: WEB_VISITOR_COOKIE_TTL_SECONDS,
+      }),
+    );
+  }
+
+  appendSetCookie(
+    res,
+    buildCookieString(WEB_SESSION_COOKIE_NAME, sessionKey, req, {
+      maxAgeSeconds: WEB_SESSION_COOKIE_TTL_SECONDS,
+    }),
+  );
+
+  return { visitorKey, sessionKey };
+};
+
+const trackWebVisitMetric = (req, res, { pagePath = '/', source = 'web' } = {}) => {
+  if ((req.method || '').toUpperCase() === 'HEAD') return Promise.resolve(false);
+  const { visitorKey, sessionKey } = ensureWebVisitCookies(req, res);
+  const safePath = normalizeVisitPath(pagePath || resolveVisitPathFromReferrer(req));
+  const safeSource = normalizeVisitSource(source);
+  const safeReferrer = normalizeVisitReferrer(req?.headers?.referer || req?.headers?.referrer || '');
+  const safeUserAgent = normalizeVisitUserAgent(req?.headers?.['user-agent'] || '');
+
+  return executeQuery(
+    `INSERT INTO ${TABLES.WEB_VISIT_EVENT}
+      (visitor_key, session_key, page_path, referrer, user_agent, source)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [visitorKey, sessionKey, safePath, safeReferrer, safeUserAgent, safeSource],
+  ).catch((error) => {
+    if (error?.code === 'ER_NO_SUCH_TABLE') return false;
+    throw error;
+  });
+};
 
 const resolveActorKeysFromRequest = (req, url) => {
   const queryViewer = normalizeViewerKey(url.searchParams.get('viewer_key'));
@@ -3655,6 +3309,15 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
   };
   const errors = [];
 
+  const visitPath = resolveVisitPathFromReferrer(req);
+  void trackWebVisitMetric(req, res, { pagePath: visitPath, source: 'home_bootstrap' }).catch((error) => {
+    logger.warn('Falha ao registrar visita da home bootstrap.', {
+      action: 'web_visit_track_home_bootstrap_failed',
+      error: error?.message,
+      page_path: visitPath,
+    });
+  });
+
   const [supportResult, botContactResult, sessionResult, statsResult, systemSummaryResult] = await Promise.allSettled([withTimeout(buildSupportInfo(), fetchTimeoutMs.support), withTimeout(Promise.resolve(buildBotContactInfo()), fetchTimeoutMs.bot_contact), STICKER_WEB_GOOGLE_CLIENT_ID ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session) : Promise.resolve(null), withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats), withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary)]);
 
   const support = supportResult.status === 'fulfilled' ? supportResult.value || null : null;
@@ -3773,148 +3436,6 @@ const handleCreatePackConfigRequest = async (req, res) => {
     },
   });
 };
-
-const handleGoogleAuthSessionRequest = async (req, res) => {
-  if (!STICKER_WEB_GOOGLE_CLIENT_ID) {
-    sendJson(req, res, 404, { error: 'Login Google desabilitado.' });
-    return;
-  }
-
-  if (req.method === 'GET' || req.method === 'HEAD') {
-    const session = await resolveGoogleWebSessionFromRequest(req);
-    sendJson(req, res, 200, {
-      data: mapGoogleSessionResponseData(session),
-    });
-    return;
-  }
-
-  if (req.method === 'DELETE') {
-    const tokens = getGoogleWebSessionTokensFromRequest(req);
-    for (const token of tokens) {
-      webGoogleSessionMap.delete(token);
-      await deleteGoogleWebSessionFromDb(token).catch((error) => {
-        logger.warn('Falha ao remover sessão Google web do banco.', {
-          action: 'sticker_pack_google_web_session_db_delete_failed',
-          error: error?.message,
-        });
-      });
-    }
-    clearGoogleWebSessionCookie(req, res);
-    sendJson(req, res, 200, { data: { cleared: true } });
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-    return;
-  }
-
-  let payload = {};
-  try {
-    payload = await readJsonBody(req);
-  } catch (error) {
-    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
-    return;
-  }
-
-  try {
-    const claims = await verifyGoogleIdToken(payload?.google_id_token || payload?.id_token);
-    const linkedOwner = resolveWhatsAppOwnerJidFromLoginPayload(payload);
-    if (!linkedOwner.ownerJid) {
-      if (!linkedOwner.hasPayload) {
-        sendJson(req, res, 400, {
-          error: 'Abra esta pagina pelo link enviado no WhatsApp. Envie "iniciar" no bot para gerar o link de login.',
-          code: 'WHATSAPP_LOGIN_LINK_REQUIRED',
-          reason: 'missing_link',
-        });
-        return;
-      }
-
-      const reason = String(linkedOwner.reason || '')
-        .trim()
-        .toLowerCase();
-      const isUnauthorizedAttempt = ['invalid_signature', 'missing_signature'].includes(reason);
-      const statusCode = isUnauthorizedAttempt ? 403 : 400;
-      const errorMessage = reason === 'expired' ? 'Link de login expirado. Envie "iniciar" novamente no WhatsApp.' : isUnauthorizedAttempt ? 'Tentativa de login sem permissao detectada. Gere um novo link enviando "iniciar" no privado do bot.' : 'Link de login invalido. Envie "iniciar" novamente no WhatsApp.';
-
-      logger.warn('Tentativa de login web bloqueada por validacao do link WhatsApp.', {
-        action: 'sticker_pack_google_web_login_link_blocked',
-        reason: reason || 'unknown',
-        remote_ip: req.socket?.remoteAddress || null,
-        user_agent: req.headers?.['user-agent'] || null,
-      });
-
-      sendJson(req, res, statusCode, {
-        error: errorMessage,
-        code: 'WHATSAPP_LOGIN_LINK_INVALID',
-        reason: reason || 'invalid_link',
-      });
-      return;
-    }
-    const ownerJid = linkedOwner.ownerJid;
-
-    await assertGoogleIdentityNotBanned({
-      sub: claims.sub,
-      email: claims.email,
-      ownerJid,
-    });
-    const session = createGoogleWebSession(claims, { ownerJid });
-    if (!session.ownerJid) {
-      sendJson(req, res, 400, { error: 'Nao foi possivel vincular a conta Google.' });
-      return;
-    }
-    try {
-      await persistGoogleWebSessionToDb(session);
-      activateGoogleWebSession(session);
-    } catch (persistError) {
-      logger.error('Falha ao persistir sessão Google web no banco.', {
-        action: 'sticker_pack_google_web_session_db_persist_failed',
-        error: persistError?.message,
-      });
-      sendJson(req, res, 500, { error: 'Falha ao salvar sessão Google. Tente novamente.' });
-      return;
-    }
-
-    appendSetCookie(
-      res,
-      buildCookieString(GOOGLE_WEB_SESSION_COOKIE_NAME, session.token, req, {
-        maxAgeSeconds: Math.floor(STICKER_WEB_GOOGLE_SESSION_TTL_MS / 1000),
-      }),
-    );
-    sendJson(req, res, 200, {
-      data: mapGoogleSessionResponseData(session),
-    });
-  } catch (error) {
-    sendJson(req, res, Number(error?.statusCode || 401), {
-      error: error?.message || 'Login Google inválido.',
-      code: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
-    });
-  }
-};
-
-const mapGoogleSessionResponseData = (session) =>
-  session
-    ? {
-        authenticated: true,
-        provider: 'google',
-        user: {
-          sub: session.sub,
-          email: session.email,
-          name: session.name,
-          picture: session.picture,
-        },
-        owner_jid: session.ownerJid,
-        owner_phone: toWhatsAppPhoneDigits(session.ownerPhone || session.ownerJid) || null,
-        expires_at: toIsoOrNull(session.expiresAt),
-      }
-    : {
-        authenticated: false,
-        provider: 'google',
-        user: null,
-        owner_jid: null,
-        owner_phone: null,
-        expires_at: null,
-      };
 
 const buildOwnerLookupJids = (value) => {
   const normalized = normalizeJid(value) || '';
@@ -7209,6 +6730,52 @@ const listAdminKnownGoogleUsers = async ({ limit = 200 } = {}) => {
   }));
 };
 
+const getWebVisitSummary = async ({ rangeDays = 7, topPathsLimit = 10 } = {}) => {
+  const safeRangeDays = Math.max(1, Math.min(90, Number(rangeDays || 7)));
+  const safeTopPathsLimit = Math.max(1, Math.min(30, Number(topPathsLimit || 10)));
+
+  try {
+    const [countersRows, topPathsRows] = await Promise.all([
+      executeQuery(
+        `SELECT
+            COUNT(*) AS total_events,
+            SUM(CASE WHEN created_at >= (UTC_TIMESTAMP() - INTERVAL 1 DAY) THEN 1 ELSE 0 END) AS events_24h,
+            SUM(CASE WHEN created_at >= (UTC_TIMESTAMP() - INTERVAL ${safeRangeDays} DAY) THEN 1 ELSE 0 END) AS events_range,
+            COUNT(DISTINCT CASE WHEN created_at >= (UTC_TIMESTAMP() - INTERVAL ${safeRangeDays} DAY) THEN visitor_key END) AS unique_visitors_range,
+            COUNT(DISTINCT CASE WHEN created_at >= (UTC_TIMESTAMP() - INTERVAL ${safeRangeDays} DAY) THEN session_key END) AS unique_sessions_range
+         FROM ${TABLES.WEB_VISIT_EVENT}`,
+      ),
+      executeQuery(
+        `SELECT page_path, COUNT(*) AS total
+           FROM ${TABLES.WEB_VISIT_EVENT}
+          WHERE created_at >= (UTC_TIMESTAMP() - INTERVAL ${safeRangeDays} DAY)
+          GROUP BY page_path
+          ORDER BY total DESC
+          LIMIT ${safeTopPathsLimit}`,
+      ),
+    ]);
+
+    const counters = Array.isArray(countersRows) ? countersRows[0] || {} : {};
+    const topPaths = (Array.isArray(topPathsRows) ? topPathsRows : []).map((row) => ({
+      page_path: normalizeVisitPath(row?.page_path || '/'),
+      total: Number(row?.total || 0),
+    }));
+
+    return {
+      range_days: safeRangeDays,
+      total_events: Number(counters?.total_events || 0),
+      events_24h: Number(counters?.events_24h || 0),
+      events_range: Number(counters?.events_range || 0),
+      unique_visitors_range: Number(counters?.unique_visitors_range || 0),
+      unique_sessions_range: Number(counters?.unique_sessions_range || 0),
+      top_paths: topPaths,
+    };
+  } catch (error) {
+    if (error?.code === 'ER_NO_SUCH_TABLE') return null;
+    throw error;
+  }
+};
+
 const listAdminPacks = async (url) => {
   const q = sanitizeText(url?.searchParams?.get('q') || '', 120, { allowEmpty: true }) || '';
   const owner = normalizeJid(url?.searchParams?.get('owner_jid') || '') || '';
@@ -7383,7 +6950,7 @@ const handleAdminOverviewRequest = async (req, res) => {
     return;
   }
 
-  const [marketplaceStats, activeSessions, knownUsers, bans, packsCountRows, stickersCountRows, recentPacks] = await Promise.all([getMarketplaceGlobalStatsCached().catch(() => null), listAdminActiveGoogleWebSessions({ limit: 50 }), listAdminKnownGoogleUsers({ limit: 50 }), listAdminBans({ activeOnly: true, limit: 50 }), executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK} WHERE deleted_at IS NULL`), executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_ASSET}`), listAdminPacks({ searchParams: new URLSearchParams([['limit', '20']]) })]);
+  const [marketplaceStats, activeSessions, knownUsers, bans, packsCountRows, stickersCountRows, recentPacks, visitSummary] = await Promise.all([getMarketplaceGlobalStatsCached().catch(() => null), listAdminActiveGoogleWebSessions({ limit: 50 }), listAdminKnownGoogleUsers({ limit: 50 }), listAdminBans({ activeOnly: true, limit: 50 }), executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK} WHERE deleted_at IS NULL`), executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_ASSET}`), listAdminPacks({ searchParams: new URLSearchParams([['limit', '20']]) }), getWebVisitSummary({ rangeDays: 7, topPathsLimit: 10 }).catch(() => null)]);
 
   sendJson(req, res, 200, {
     data: {
@@ -7395,11 +6962,15 @@ const handleAdminOverviewRequest = async (req, res) => {
         active_google_sessions: Number(activeSessions.length || 0),
         known_google_users: Number(knownUsers.length || 0),
         active_bans: Number(bans.length || 0),
+        visit_events_24h: Number(visitSummary?.events_24h || 0),
+        visit_events_7d: Number(visitSummary?.events_range || 0),
+        unique_visitors_7d: Number(visitSummary?.unique_visitors_range || 0),
       },
       active_sessions: activeSessions,
       users: knownUsers,
       bans,
       recent_packs: recentPacks,
+      visit_metrics: visitSummary,
     },
   });
 };
@@ -7738,6 +7309,14 @@ const handleCatalogApiRequest = async (req, res, pathname, url) => catalogApiRou
 
 const handleCatalogPageRequest = async (req, res, pathname) => {
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  void trackWebVisitMetric(req, res, { pagePath: normalizedPath || STICKER_WEB_PATH, source: 'catalog_page' }).catch((error) => {
+    logger.warn('Falha ao registrar visita de página do catálogo.', {
+      action: 'web_visit_track_catalog_page_failed',
+      error: error?.message,
+      page_path: normalizedPath || STICKER_WEB_PATH,
+    });
+  });
+
   if (normalizedPath === STICKER_ADMIN_WEB_PATH) {
     try {
       const html = await renderAdminPanelHtml();

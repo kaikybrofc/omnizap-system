@@ -104,6 +104,7 @@ export const TABLES = {
   SEMANTIC_THEME_SUGGESTION_CACHE: 'semantic_theme_suggestion_cache',
   STICKER_PACK_ENGAGEMENT: 'sticker_pack_engagement',
   STICKER_PACK_INTERACTION_EVENT: 'sticker_pack_interaction_event',
+  WEB_VISIT_EVENT: 'web_visit_event',
   STICKER_PACK_SCORE_SNAPSHOT: 'sticker_pack_score_snapshot',
   STICKER_ASSET_REPROCESS_QUEUE: 'sticker_asset_reprocess_queue',
   STICKER_WORKER_TASK_QUEUE: 'sticker_worker_task_queue',
