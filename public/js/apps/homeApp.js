@@ -1,4 +1,22 @@
 const FALLBACK_THUMB_URL = '/assets/images/brand-logo-128.webp';
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+const createIcon = (iconId, className = 'icon') => {
+  const wrapper = document.createElement('span');
+  wrapper.className = className;
+  wrapper.setAttribute('aria-hidden', 'true');
+
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('focusable', 'false');
+
+  const use = document.createElementNS(SVG_NS, 'use');
+  use.setAttribute('href', `#${iconId}`);
+
+  svg.appendChild(use);
+  wrapper.appendChild(svg);
+  return wrapper;
+};
 
 const shortNum = (value) =>
   new Intl.NumberFormat('pt-BR', {
@@ -142,9 +160,7 @@ const initAuthSession = () => {
     authLink.removeAttribute('aria-label');
     clearChildren(authLink);
 
-    const icon = document.createElement('i');
-    icon.className = 'fa-solid fa-right-to-bracket';
-    icon.setAttribute('aria-hidden', 'true');
+    const icon = createIcon('icon-login');
 
     authLink.append(icon, document.createTextNode('Entrar'));
 
@@ -188,9 +204,7 @@ const initAuthSession = () => {
     const nameBubble = document.createElement('span');
     nameBubble.className = 'nav-user-name-bubble';
 
-    const icon = document.createElement('i');
-    icon.className = 'fa-solid fa-user nav-user-icon';
-    icon.setAttribute('aria-hidden', 'true');
+    const icon = createIcon('icon-user', 'icon nav-user-icon');
 
     const name = document.createElement('span');
     name.className = 'nav-user-name';
