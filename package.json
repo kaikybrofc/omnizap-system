@@ -1,6 +1,6 @@
 {
   "name": "@kaikybrofc/omnizap-system",
-  "version": "2.1.7",
+  "version": "2.1.8",
   "description": "Sistema profissional de automação WhatsApp com tecnologia Baileys",
   "main": "index.js",
   "publishConfig": {
