@@ -9,7 +9,6 @@ app/connection/auth
 !.env.example
 observability/mysql-exporter.cnf
 data/
-*.tgz
 
 # Python / ML artifacts
 **/__pycache__/
@@ -21,7 +20,7 @@ data/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-
+*.tgz
 # Local virtualenvs
 .venv/
 venv/
