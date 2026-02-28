@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 
 import logger from '../../utils/logger/loggerModule.js';
-import { setQueueDepth } from '../../observability/metrics.js';
+import { recordStickerClassificationCycle, setQueueDepth } from '../../observability/metrics.js';
 import { listStickerAssetsPendingClassification, findStickerAssetById } from './stickerAssetRepository.js';
 import { classifierConfig, ensureStickerAssetClassified } from './stickerClassificationService.js';
 import {
@@ -351,30 +351,70 @@ export const runStickerClassificationCycle = async ({
   processReprocess = true,
   processDeterministic = true,
 } = {}) => {
+  const startedAt = Date.now();
   const shouldProcessClassifier = classifierConfig.enabled;
   const shouldProcessDeterministic = deterministicReclassificationConfig.enabled;
 
   if (!BACKGROUND_ENABLED || (!shouldProcessClassifier && !shouldProcessDeterministic)) {
+    recordStickerClassificationCycle({
+      status: 'skipped',
+      durationMs: Date.now() - startedAt,
+      processed: 0,
+      classified: 0,
+      failed: 0,
+    });
     return {
       skipped: true,
       reason: !BACKGROUND_ENABLED ? 'background_disabled' : 'no_active_processors',
     };
   }
 
-  const startedAt = Date.now();
-  const reprocessStats = processReprocess && shouldProcessClassifier ? await processReprocessQueue() : null;
-  const pendingStats = processPending && shouldProcessClassifier ? await processPendingAssets() : null;
-  const deterministicStats = processDeterministic
-    ? await processDeterministicReclassification()
-    : null;
+  try {
+    const reprocessStats = processReprocess && shouldProcessClassifier ? await processReprocessQueue() : null;
+    const pendingStats = processPending && shouldProcessClassifier ? await processPendingAssets() : null;
+    const deterministicStats = processDeterministic
+      ? await processDeterministicReclassification()
+      : null;
 
-  return {
-    skipped: false,
-    duration_ms: Date.now() - startedAt,
-    pending: pendingStats,
-    reprocess: reprocessStats,
-    deterministic_reclassification: deterministicStats,
-  };
+    const processed =
+      Number(pendingStats?.processed || 0)
+      + Number(reprocessStats?.processed || 0)
+      + Number(deterministicStats?.processed || 0);
+    const classified =
+      Number(pendingStats?.classified || 0)
+      + Number(reprocessStats?.classified || 0)
+      + Number(deterministicStats?.updated || 0);
+    const failed =
+      Number(pendingStats?.failed || 0)
+      + Number(reprocessStats?.failed || 0)
+      + Number(deterministicStats?.failed || 0);
+    const durationMs = Date.now() - startedAt;
+
+    recordStickerClassificationCycle({
+      status: 'ok',
+      durationMs,
+      processed,
+      classified,
+      failed,
+    });
+
+    return {
+      skipped: false,
+      duration_ms: durationMs,
+      pending: pendingStats,
+      reprocess: reprocessStats,
+      deterministic_reclassification: deterministicStats,
+    };
+  } catch (error) {
+    recordStickerClassificationCycle({
+      status: 'failed',
+      durationMs: Date.now() - startedAt,
+      processed: 0,
+      classified: 0,
+      failed: 1,
+    });
+    throw error;
+  }
 };
 
 const clearCycleHandle = () => {

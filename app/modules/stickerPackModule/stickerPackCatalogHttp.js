@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
+import { URL, URLSearchParams } from 'node:url';
 import axios from 'axios';
 
 import { executeQuery, pool, TABLES } from '../../../database/index.js';
@@ -64,6 +65,7 @@ import {
   buildViewerTagAffinity,
   computePackSignals,
 } from './stickerPackMarketplaceService.js';
+import { createCatalogApiRouter } from './catalogRouter.js';
 import {
   buildAdminMenu,
   buildAiMenu,
@@ -203,6 +205,19 @@ const GITHUB_REPOSITORY = String(process.env.GITHUB_REPOSITORY || 'Kaikygr/omniz
 const GITHUB_TOKEN = String(process.env.GITHUB_TOKEN || '').trim();
 const GITHUB_PROJECT_CACHE_SECONDS = clampInt(process.env.GITHUB_PROJECT_CACHE_SECONDS, 300, 30, 3600);
 const GLOBAL_RANK_REFRESH_SECONDS = clampInt(process.env.GLOBAL_RANK_REFRESH_SECONDS, 600, 60, 3600);
+const CATALOG_LIST_CACHE_SECONDS = clampInt(process.env.STICKER_CATALOG_LIST_CACHE_SECONDS, 90, 15, 900);
+const CATALOG_CREATOR_RANKING_CACHE_SECONDS = clampInt(
+  process.env.STICKER_CATALOG_CREATOR_RANKING_CACHE_SECONDS,
+  120,
+  15,
+  900,
+);
+const CATALOG_PACK_PAYLOAD_CACHE_SECONDS = clampInt(
+  process.env.STICKER_CATALOG_PACK_PAYLOAD_CACHE_SECONDS,
+  300,
+  30,
+  1800,
+);
 const MARKETPLACE_GLOBAL_STATS_API_PATH = '/api/marketplace/stats';
 const MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS = clampInt(process.env.MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS, 45, 30, 60);
 const HOME_MARKETPLACE_STATS_CACHE_SECONDS = clampInt(process.env.HOME_MARKETPLACE_STATS_CACHE_SECONDS, 45, 10, 300);
@@ -295,6 +310,9 @@ const MARKETPLACE_GLOBAL_STATS_CACHE = {
   pending: null,
 };
 const HOME_MARKETPLACE_STATS_CACHE = new Map();
+const CATALOG_LIST_CACHE = new Map();
+const CATALOG_CREATOR_RANKING_CACHE = new Map();
+const CATALOG_PACK_PAYLOAD_CACHE = new Map();
 const SYSTEM_SUMMARY_CACHE = {
   expiresAt: 0,
   value: null,
@@ -322,6 +340,63 @@ const formatDuration = (totalSeconds) => {
   const seconds = total % 60;
   const hhmmss = [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
   return days > 0 ? `${days}d ${hhmmss}` : hhmmss;
+};
+
+const buildCacheKey = (parts) => JSON.stringify(parts);
+
+const getCacheBucket = (cacheMap, key) => {
+  let bucket = cacheMap.get(key);
+  if (!bucket) {
+    bucket = {
+      expiresAt: 0,
+      value: null,
+      pending: null,
+    };
+    cacheMap.set(key, bucket);
+  }
+  return bucket;
+};
+
+const getCachedSnapshot = async ({
+  cacheMap,
+  key,
+  ttlSeconds,
+  staleWhileRefresh = true,
+  staleOnError = true,
+  load,
+}) => {
+  const bucket = getCacheBucket(cacheMap, key);
+  const now = Date.now();
+  const hasValue = bucket.value !== null;
+  const hasFreshValue = hasValue && now < bucket.expiresAt;
+
+  if (hasFreshValue) {
+    return bucket.value;
+  }
+
+  if (!bucket.pending) {
+    bucket.pending = Promise.resolve()
+      .then(load)
+      .then((value) => {
+        bucket.value = value;
+        bucket.expiresAt = Date.now() + ttlSeconds * 1000;
+        return value;
+      })
+      .finally(() => {
+        bucket.pending = null;
+      });
+  }
+
+  if (hasValue && staleWhileRefresh) {
+    return bucket.value;
+  }
+
+  try {
+    return await bucket.pending;
+  } catch (error) {
+    if (hasValue && staleOnError) return bucket.value;
+    throw error;
+  }
 };
 
 const sendJson = (req, res, statusCode, payload) => {
@@ -2146,7 +2221,9 @@ const resolveWebCreateOwnerJid = async (explicitOwner = '') => {
     const resolvedAdminJid = await resolveAdminJid();
     const fromAdmin = toOwnerJid(resolvedAdminJid);
     if (fromAdmin) return fromAdmin;
-  } catch {}
+  } catch {
+    // Ignore fallback errors while resolving owner identity.
+  }
 
   const adminCandidates = [
     getAdminRawValue(),
@@ -2316,14 +2393,18 @@ const resolveSupportAdminPhone = async () => {
       const resolvedFromLidMap = await resolveUserId(extractUserIdInfo(adminRaw));
       const resolvedPhoneFromLidMap = isPlausibleWhatsAppPhone(getJidUser(resolvedFromLidMap || ''));
       if (resolvedPhoneFromLidMap) return resolvedPhoneFromLidMap;
-    } catch {}
+    } catch {
+      // Ignore and fallback to other admin sources.
+    }
   }
 
   try {
     const resolvedAdminJid = await resolveAdminJid();
     const resolvedPhone = isPlausibleWhatsAppPhone(getJidUser(resolvedAdminJid || ''));
     if (resolvedPhone) return resolvedPhone;
-  } catch {}
+  } catch {
+    // Ignore and fallback to static admin phone sources.
+  }
 
   const rawPhone = isPlausibleWhatsAppPhone(getJidUser(adminRaw) || adminRaw);
   if (rawPhone) return rawPhone;
@@ -3321,95 +3402,118 @@ const handleListRequest = async (req, res, url) => {
   const limit = clampInt(url.searchParams.get('limit'), DEFAULT_LIST_LIMIT, 1, MAX_LIST_LIMIT);
   const offset = clampInt(url.searchParams.get('offset'), 0, 0, 100000);
   const normalizedIntent = normalizeCategoryToken(intent).replace(/-/g, '_');
-  const batchLimit = Math.max(limit, Math.min(MAX_LIST_LIMIT, 24));
-  const maxPagesToScan = 8;
   const googleSession = await resolveGoogleWebSessionFromRequest(req);
   const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
-  const seenPackIds = new Set();
-  const collectedEntries = [];
-  const driftSnapshot = await getMarketplaceDriftSnapshot();
-  let sourceHasMore = true;
-  let cursorOffset = offset;
-  let pagesScanned = 0;
+  const cacheKey = buildCacheKey([
+    'list',
+    q,
+    visibility,
+    sort,
+    categories.join(','),
+    normalizedIntent,
+    includeSensitive ? 1 : 0,
+    limit,
+    offset,
+    hasNsfwAccess ? 1 : 0,
+  ]);
+  const payload = await getCachedSnapshot({
+    cacheMap: CATALOG_LIST_CACHE,
+    key: cacheKey,
+    ttlSeconds: CATALOG_LIST_CACHE_SECONDS,
+    staleWhileRefresh: true,
+    staleOnError: true,
+    load: async () => {
+      const batchLimit = Math.max(limit, Math.min(MAX_LIST_LIMIT, 24));
+      const maxPagesToScan = 8;
+      const seenPackIds = new Set();
+      const collectedEntries = [];
+      const driftSnapshot = await getMarketplaceDriftSnapshot();
+      let sourceHasMore = true;
+      let cursorOffset = offset;
+      let pagesScanned = 0;
 
-  while (collectedEntries.length < limit && sourceHasMore && pagesScanned < maxPagesToScan) {
-    pagesScanned += 1;
-    const { packs, hasMore } = await listStickerPacksForCatalog({
-      visibility,
-      search: q,
-      limit: batchLimit,
-      offset: cursorOffset,
-    });
-    sourceHasMore = hasMore;
-    cursorOffset += batchLimit;
-    if (!packs.length) break;
+      while (collectedEntries.length < limit && sourceHasMore && pagesScanned < maxPagesToScan) {
+        pagesScanned += 1;
+        const { packs, hasMore } = await listStickerPacksForCatalog({
+          visibility,
+          search: q,
+          limit: batchLimit,
+          offset: cursorOffset,
+        });
+        sourceHasMore = hasMore;
+        cursorOffset += batchLimit;
+        if (!packs.length) break;
 
-    const { entries } = await hydrateMarketplaceEntries(packs, { driftSnapshot });
-    const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED
-      ? entries.filter((entry) => isPackClassified(entry.packClassification))
-      : entries;
-    const entriesByCategory = categories.length
-      ? entriesClassified.filter((entry) => hasAnyCategory(entry.packClassification?.tags || [], categories))
-      : entriesClassified;
-    const entriesBySensitivity = includeSensitive
-      ? entriesByCategory
-      : entriesByCategory.filter((entry) => entry.signals?.nsfw_level === 'safe');
-    const entriesByIntent = intent
-      ? entriesBySensitivity.filter((entry) => classifyPackIntent(entry) === normalizedIntent)
-      : entriesBySensitivity;
-    const sortedEntries = [...entriesByIntent].sort((left, right) => {
-      const completenessDelta = compareEntriesByPackCompleteness(left, right);
-      if (completenessDelta !== 0) return completenessDelta;
-      if (sort === 'recent') {
-        return Date.parse(right?.pack?.created_at || right?.pack?.updated_at || 0) - Date.parse(left?.pack?.created_at || left?.pack?.updated_at || 0);
-      }
-      if (sort === 'likes') {
-        return Number(right?.engagement?.like_count || 0) - Number(left?.engagement?.like_count || 0);
-      }
-      if (sort === 'downloads') {
-        return Number(right?.engagement?.open_count || 0) - Number(left?.engagement?.open_count || 0);
-      }
-      if (sort === 'comments') {
-        const commentDelta = Number(right?.engagement?.comment_count || 0) - Number(left?.engagement?.comment_count || 0);
-        if (commentDelta !== 0) return commentDelta;
-        return Number(right?.engagement?.like_count || 0) - Number(left?.engagement?.like_count || 0);
-      }
-      if (sort === 'trending') {
-        const trendDelta = Number(right?.signals?.trend_score || 0) - Number(left?.signals?.trend_score || 0);
-        if (trendDelta !== 0) return trendDelta;
-      }
-      const leftScore = Number(left?.signals?.ranking_score || 0);
-      const rightScore = Number(right?.signals?.ranking_score || 0);
-      if (rightScore !== leftScore) return rightScore - leftScore;
-      return Date.parse(right?.pack?.updated_at || 0) - Date.parse(left?.pack?.updated_at || 0);
-    });
+        const { entries } = await hydrateMarketplaceEntries(packs, { driftSnapshot });
+        const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED
+          ? entries.filter((entry) => isPackClassified(entry.packClassification))
+          : entries;
+        const entriesByCategory = categories.length
+          ? entriesClassified.filter((entry) => hasAnyCategory(entry.packClassification?.tags || [], categories))
+          : entriesClassified;
+        const entriesBySensitivity = includeSensitive
+          ? entriesByCategory
+          : entriesByCategory.filter((entry) => entry.signals?.nsfw_level === 'safe');
+        const entriesByIntent = intent
+          ? entriesBySensitivity.filter((entry) => classifyPackIntent(entry) === normalizedIntent)
+          : entriesBySensitivity;
+        const sortedEntries = [...entriesByIntent].sort((left, right) => {
+          const completenessDelta = compareEntriesByPackCompleteness(left, right);
+          if (completenessDelta !== 0) return completenessDelta;
+          if (sort === 'recent') {
+            return Date.parse(right?.pack?.created_at || right?.pack?.updated_at || 0) - Date.parse(left?.pack?.created_at || left?.pack?.updated_at || 0);
+          }
+          if (sort === 'likes') {
+            return Number(right?.engagement?.like_count || 0) - Number(left?.engagement?.like_count || 0);
+          }
+          if (sort === 'downloads') {
+            return Number(right?.engagement?.open_count || 0) - Number(left?.engagement?.open_count || 0);
+          }
+          if (sort === 'comments') {
+            const commentDelta = Number(right?.engagement?.comment_count || 0) - Number(left?.engagement?.comment_count || 0);
+            if (commentDelta !== 0) return commentDelta;
+            return Number(right?.engagement?.like_count || 0) - Number(left?.engagement?.like_count || 0);
+          }
+          if (sort === 'trending') {
+            const trendDelta = Number(right?.signals?.trend_score || 0) - Number(left?.signals?.trend_score || 0);
+            if (trendDelta !== 0) return trendDelta;
+          }
+          const leftScore = Number(left?.signals?.ranking_score || 0);
+          const rightScore = Number(right?.signals?.ranking_score || 0);
+          if (rightScore !== leftScore) return rightScore - leftScore;
+          return Date.parse(right?.pack?.updated_at || 0) - Date.parse(left?.pack?.updated_at || 0);
+        });
 
-    for (const entry of sortedEntries) {
-      if (!entry?.pack?.id) continue;
-      if (seenPackIds.has(entry.pack.id)) continue;
-      seenPackIds.add(entry.pack.id);
-      collectedEntries.push(entry);
-      if (collectedEntries.length >= limit) break;
-    }
-  }
+        for (const entry of sortedEntries) {
+          if (!entry?.pack?.id) continue;
+          if (seenPackIds.has(entry.pack.id)) continue;
+          seenPackIds.add(entry.pack.id);
+          collectedEntries.push(entry);
+          if (collectedEntries.length >= limit) break;
+        }
+      }
 
-  sendJson(req, res, 200, {
-    data: collectedEntries.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
-    pagination: {
-      limit,
-      offset,
-      has_more: sourceHasMore,
-      next_offset: sourceHasMore ? cursorOffset : null,
-    },
-    filters: {
-      q,
-      visibility,
-      sort,
-      categories,
-      intent: intent || null,
-      include_sensitive: includeSensitive,
+      return {
+        data: collectedEntries.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
+        pagination: {
+          limit,
+          offset,
+          has_more: sourceHasMore,
+          next_offset: sourceHasMore ? cursorOffset : null,
+        },
+        filters: {
+          q,
+          visibility,
+          sort,
+          categories,
+          intent: intent || null,
+          include_sensitive: includeSensitive,
+        },
+      };
     },
   });
+
+  sendJson(req, res, 200, payload);
 };
 
 const handleIntentCollectionsRequest = async (req, res, url) => {
@@ -4090,6 +4194,9 @@ const invalidateStickerCatalogDerivedCaches = () => {
   GLOBAL_RANK_CACHE.value = null;
   GLOBAL_RANK_CACHE.pending = null;
   HOME_MARKETPLACE_STATS_CACHE.clear();
+  CATALOG_LIST_CACHE.clear();
+  CATALOG_CREATOR_RANKING_CACHE.clear();
+  CATALOG_PACK_PAYLOAD_CACHE.clear();
   SYSTEM_SUMMARY_CACHE.expiresAt = 0;
   SYSTEM_SUMMARY_CACHE.value = null;
   SYSTEM_SUMMARY_CACHE.pending = null;
@@ -5753,46 +5860,63 @@ const handleCreatorRankingRequest = async (req, res, url) => {
   const limit = clampInt(url.searchParams.get('limit'), 50, 5, 200);
   const googleSession = await resolveGoogleWebSessionFromRequest(req);
   const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
-
-  const { packs } = await listStickerPacksForCatalog({
+  const cacheKey = buildCacheKey([
+    'creator_ranking',
     visibility,
-    search: q,
-    limit: 120,
-    offset: 0,
-  });
-  const driftSnapshot = await getMarketplaceDriftSnapshot();
-  const { entries } = await hydrateMarketplaceEntries(packs, { driftSnapshot });
-  const ranking = buildCreatorRanking(
-    STICKER_CATALOG_ONLY_CLASSIFIED ? entries.filter((entry) => isPackClassified(entry.packClassification)) : entries,
-    { limit },
-  );
+    q,
+    limit,
+    hasNsfwAccess ? 1 : 0,
+  ]);
+  const payload = await getCachedSnapshot({
+    cacheMap: CATALOG_CREATOR_RANKING_CACHE,
+    key: cacheKey,
+    ttlSeconds: CATALOG_CREATOR_RANKING_CACHE_SECONDS,
+    staleWhileRefresh: true,
+    staleOnError: true,
+    load: async () => {
+      const { packs } = await listStickerPacksForCatalog({
+        visibility,
+        search: q,
+        limit: 120,
+        offset: 0,
+      });
+      const driftSnapshot = await getMarketplaceDriftSnapshot();
+      const { entries } = await hydrateMarketplaceEntries(packs, { driftSnapshot });
+      const ranking = buildCreatorRanking(
+        STICKER_CATALOG_ONLY_CLASSIFIED ? entries.filter((entry) => isPackClassified(entry.packClassification)) : entries,
+        { limit },
+      );
 
-  sendJson(req, res, 200, {
-    data: ranking.map((creator) => ({
-      creator_score: Number(
-        (
-          Number(creator.avg_pack_score || 0) * 0.45 +
-          Number(creator.total_likes || 0) * 0.0008 +
-          Number(creator.total_opens || 0) * 0.00015
-        ).toFixed(6),
-      ),
-      publisher: creator.publisher,
-      verified: Boolean(creator.verified),
-      badges: creator.verified ? ['verified_creator'] : [],
-      stats: {
-        packs_count: Number(creator.packs_count || 0),
-        total_likes: Number(creator.total_likes || 0),
-        total_opens: Number(creator.total_opens || 0),
-        avg_pack_score: Number(creator.avg_pack_score || 0),
-      },
-      top_pack: creator.top_pack ? toSummaryEntry(creator.top_pack, { hideSensitiveCover: !hasNsfwAccess }) : null,
-    })),
-    filters: {
-      visibility,
-      q,
-      limit,
+      return {
+        data: ranking.map((creator) => ({
+          creator_score: Number(
+            (
+              Number(creator.avg_pack_score || 0) * 0.45 +
+              Number(creator.total_likes || 0) * 0.0008 +
+              Number(creator.total_opens || 0) * 0.00015
+            ).toFixed(6),
+          ),
+          publisher: creator.publisher,
+          verified: Boolean(creator.verified),
+          badges: creator.verified ? ['verified_creator'] : [],
+          stats: {
+            packs_count: Number(creator.packs_count || 0),
+            total_likes: Number(creator.total_likes || 0),
+            total_opens: Number(creator.total_opens || 0),
+            avg_pack_score: Number(creator.avg_pack_score || 0),
+          },
+          top_pack: creator.top_pack ? toSummaryEntry(creator.top_pack, { hideSensitiveCover: !hasNsfwAccess }) : null,
+        })),
+        filters: {
+          visibility,
+          q,
+          limit,
+        },
+      };
     },
   });
+
+  sendJson(req, res, 200, payload);
 };
 
 const handleRecommendationsRequest = async (req, res, url) => {
@@ -6934,42 +7058,52 @@ const handlePublicDataAssetRequest = async (req, res, pathname) => {
 };
 
 const fetchPublicPackPayload = async (normalizedPackKey) => {
-  const pack = await findStickerPackByPackKey(normalizedPackKey);
-  if (!pack || !isPackPubliclyVisible(pack)) return null;
+  const cacheKey = buildCacheKey(['pack_payload', normalizedPackKey]);
+  return getCachedSnapshot({
+    cacheMap: CATALOG_PACK_PAYLOAD_CACHE,
+    key: cacheKey,
+    ttlSeconds: CATALOG_PACK_PAYLOAD_CACHE_SECONDS,
+    staleWhileRefresh: true,
+    staleOnError: true,
+    load: async () => {
+      const pack = await findStickerPackByPackKey(normalizedPackKey);
+      if (!pack || !isPackPubliclyVisible(pack)) return null;
 
-  const items = await listStickerPackItems(pack.id);
-  const stickerIds = items.map((item) => item.sticker_id);
-  const [classifications, packClassification, engagement] = await Promise.all([
-    listStickerClassificationsByAssetIds(stickerIds),
-    getPackClassificationSummaryByAssetIds(stickerIds),
-    getStickerPackEngagementByPackId(pack.id),
-  ]);
+      const items = await listStickerPackItems(pack.id);
+      const stickerIds = items.map((item) => item.sticker_id);
+      const [classifications, packClassification, engagement] = await Promise.all([
+        listStickerClassificationsByAssetIds(stickerIds),
+        getPackClassificationSummaryByAssetIds(stickerIds),
+        getStickerPackEngagementByPackId(pack.id),
+      ]);
 
-  if (STICKER_CATALOG_ONLY_CLASSIFIED && !isPackClassified(packClassification)) {
-    return null;
-  }
+      if (STICKER_CATALOG_ONLY_CLASSIFIED && !isPackClassified(packClassification)) {
+        return null;
+      }
 
-  const interactionStatsByPack = await listStickerPackInteractionStatsByPackIds([pack.id]);
-  const driftSnapshot = await getMarketplaceDriftSnapshot();
-  const byAssetClassification = new Map(classifications.map((entry) => [entry.asset_id, entry]));
-  const orderedClassifications = stickerIds.map((stickerId) => byAssetClassification.get(stickerId)).filter(Boolean);
-  const signals = computePackSignals({
-    pack: { ...pack, items },
-    engagement,
-    packClassification,
-    itemClassifications: orderedClassifications,
-    interactionStats: interactionStatsByPack.get(pack.id) || null,
-    scoringWeights: driftSnapshot.weights,
+      const interactionStatsByPack = await listStickerPackInteractionStatsByPackIds([pack.id]);
+      const driftSnapshot = await getMarketplaceDriftSnapshot();
+      const byAssetClassification = new Map(classifications.map((entry) => [entry.asset_id, entry]));
+      const orderedClassifications = stickerIds.map((stickerId) => byAssetClassification.get(stickerId)).filter(Boolean);
+      const signals = computePackSignals({
+        pack: { ...pack, items },
+        engagement,
+        packClassification,
+        itemClassifications: orderedClassifications,
+        interactionStats: interactionStatsByPack.get(pack.id) || null,
+        scoringWeights: driftSnapshot.weights,
+      });
+
+      return {
+        pack,
+        items,
+        byAssetClassification,
+        packClassification,
+        engagement,
+        signals,
+      };
+    },
   });
-
-  return {
-    pack,
-    items,
-    byAssetClassification,
-    packClassification,
-    engagement,
-    signals,
-  };
 };
 
 const handleDetailsRequest = async (req, res, packKey, url) => {
@@ -7667,323 +7801,60 @@ const handleAdminBanRevokeRequest = async (req, res, banId) => {
   }
 };
 
-const handleCatalogApiRequest = async (req, res, pathname, url) => {
-  if (pathname === `${STICKER_API_BASE_PATH}/create`) {
-    if (req.method !== 'POST') {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleCreatePackRequest(req, res);
-    return true;
-  }
+const catalogApiRouter = createCatalogApiRouter({
+  apiBasePath: STICKER_API_BASE_PATH,
+  orphanApiPath: STICKER_ORPHAN_API_PATH,
+  sendJson,
+  handlers: {
+    handleCreatePackRequest,
+    handleGoogleAuthSessionRequest,
+    handleMyProfileRequest,
+    handleAdminPanelSessionRequest,
+    handleListRequest,
+    handleIntentCollectionsRequest,
+    handleCreatorRankingRequest,
+    handleRecommendationsRequest,
+    handleMarketplaceStatsRequest,
+    handleCreatePackConfigRequest,
+    handleOrphanStickerListRequest,
+    handleDataFileListRequest,
+    handleSystemSummaryRequest,
+    handleGitHubProjectSummaryRequest,
+    handleGlobalRankingSummaryRequest,
+    handleReadmeSummaryRequest,
+    handleReadmeMarkdownRequest,
+    handleSupportInfoRequest,
+    handleBotContactInfoRequest,
+    handleAdminOverviewRequest,
+    handleAdminUsersRequest,
+    handleAdminModeratorsRequest,
+    handleAdminModeratorDeleteRequest,
+    handleAdminPacksRequest,
+    handleAdminPackDetailsRequest,
+    handleAdminPackDeleteRequest,
+    handleAdminPackStickerDeleteRequest,
+    handleAdminGlobalStickerDeleteRequest,
+    handleAdminBansRequest,
+    handleAdminBanRevokeRequest,
+    handleDetailsRequest,
+    handlePackInteractionRequest,
+    handleManagedPackRequest,
+    handleManagedPackCloneRequest,
+    handleManagedPackCoverRequest,
+    handleManagedPackReorderRequest,
+    handleManagedPackAnalyticsRequest,
+    handleManagedPackStickerCreateRequest,
+    handleManagedPackStickerDeleteRequest,
+    handleManagedPackStickerReplaceRequest,
+    handlePackPublishStateRequest,
+    handleFinalizePackRequest,
+    handleUploadStickerToPackRequest,
+    handleAssetRequest,
+  },
+});
 
-  if (pathname === `${STICKER_API_BASE_PATH}/auth/google/session`) {
-    await handleGoogleAuthSessionRequest(req, res);
-    return true;
-  }
-
-  if (pathname === `${STICKER_API_BASE_PATH}/me`) {
-    await handleMyProfileRequest(req, res, url);
-    return true;
-  }
-
-  if (pathname === `${STICKER_API_BASE_PATH}/admin/session`) {
-    await handleAdminPanelSessionRequest(req, res);
-    return true;
-  }
-
-  if (pathname === STICKER_API_BASE_PATH) {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleListRequest(req, res, url);
-    return true;
-  }
-
-  if (pathname === `${STICKER_API_BASE_PATH}/intents`) {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleIntentCollectionsRequest(req, res, url);
-    return true;
-  }
-
-  if (pathname === `${STICKER_API_BASE_PATH}/creators`) {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleCreatorRankingRequest(req, res, url);
-    return true;
-  }
-
-  if (pathname === `${STICKER_API_BASE_PATH}/recommendations`) {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleRecommendationsRequest(req, res, url);
-    return true;
-  }
-
-  if (pathname === `${STICKER_API_BASE_PATH}/stats`) {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleMarketplaceStatsRequest(req, res, url);
-    return true;
-  }
-
-  if (pathname === `${STICKER_API_BASE_PATH}/create-config`) {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleCreatePackConfigRequest(req, res);
-    return true;
-  }
-
-  if (pathname === STICKER_ORPHAN_API_PATH) {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleOrphanStickerListRequest(req, res, url);
-    return true;
-  }
-
-  const suffix = pathname.slice(STICKER_API_BASE_PATH.length).replace(/^\/+/, '');
-  if (!suffix) return false;
-
-  const segments = suffix.split('/').filter(Boolean).map((segment) => {
-    try {
-      return decodeURIComponent(segment);
-    } catch {
-      return segment;
-    }
-  });
-
-  if (segments.length === 1 && segments[0] === 'data-files') {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleDataFileListRequest(req, res, url);
-    return true;
-  }
-
-  if (segments.length === 1 && segments[0] === 'system-summary') {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleSystemSummaryRequest(req, res);
-    return true;
-  }
-
-  if (segments.length === 1 && segments[0] === 'project-summary') {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleGitHubProjectSummaryRequest(req, res);
-    return true;
-  }
-
-  if (segments.length === 1 && segments[0] === 'global-ranking-summary') {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleGlobalRankingSummaryRequest(req, res);
-    return true;
-  }
-
-  if (segments.length === 1 && segments[0] === 'readme-summary') {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleReadmeSummaryRequest(req, res);
-    return true;
-  }
-
-  if (segments.length === 1 && segments[0] === 'readme-markdown') {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleReadmeMarkdownRequest(req, res);
-    return true;
-  }
-
-  if (segments.length === 1 && segments[0] === 'support') {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleSupportInfoRequest(req, res);
-    return true;
-  }
-
-  if (segments.length === 1 && segments[0] === 'bot-contact') {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleBotContactInfoRequest(req, res);
-    return true;
-  }
-
-  if (segments[0] === 'admin') {
-    if (segments.length === 2 && segments[1] === 'overview') {
-      await handleAdminOverviewRequest(req, res);
-      return true;
-    }
-    if (segments.length === 2 && segments[1] === 'users') {
-      await handleAdminUsersRequest(req, res, url);
-      return true;
-    }
-    if (segments.length === 2 && segments[1] === 'moderators') {
-      await handleAdminModeratorsRequest(req, res);
-      return true;
-    }
-    if (segments.length === 3 && segments[1] === 'moderators') {
-      await handleAdminModeratorDeleteRequest(req, res, segments[2]);
-      return true;
-    }
-    if (segments.length === 2 && segments[1] === 'packs') {
-      await handleAdminPacksRequest(req, res, url);
-      return true;
-    }
-    if (segments.length === 3 && segments[1] === 'packs') {
-      await handleAdminPackDetailsRequest(req, res, segments[2]);
-      return true;
-    }
-    if (segments.length === 4 && segments[1] === 'packs' && segments[3] === 'delete') {
-      await handleAdminPackDeleteRequest(req, res, segments[2]);
-      return true;
-    }
-    if (segments.length === 6 && segments[1] === 'packs' && segments[3] === 'stickers' && segments[5] === 'delete') {
-      await handleAdminPackStickerDeleteRequest(req, res, segments[2], segments[4]);
-      return true;
-    }
-    if (segments.length === 4 && segments[1] === 'stickers' && segments[3] === 'delete') {
-      await handleAdminGlobalStickerDeleteRequest(req, res, segments[2]);
-      return true;
-    }
-    if (segments.length === 2 && segments[1] === 'bans') {
-      await handleAdminBansRequest(req, res);
-      return true;
-    }
-    if (segments.length === 4 && segments[1] === 'bans' && segments[3] === 'revoke') {
-      await handleAdminBanRevokeRequest(req, res, segments[2]);
-      return true;
-    }
-    sendJson(req, res, 404, { error: 'Rota admin nao encontrada.' });
-    return true;
-  }
-
-  if (segments.length === 1) {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleDetailsRequest(req, res, segments[0], url);
-    return true;
-  }
-
-  if (segments.length === 2 && ['open', 'like', 'dislike'].includes(segments[1])) {
-    if (req.method !== 'POST') {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handlePackInteractionRequest(req, res, segments[0], segments[1], url);
-    return true;
-  }
-
-  if (segments.length === 2 && segments[1] === 'manage') {
-    await handleManagedPackRequest(req, res, segments[0]);
-    return true;
-  }
-
-  if (segments.length === 3 && segments[1] === 'manage' && segments[2] === 'clone') {
-    await handleManagedPackCloneRequest(req, res, segments[0]);
-    return true;
-  }
-
-  if (segments.length === 3 && segments[1] === 'manage' && segments[2] === 'cover') {
-    await handleManagedPackCoverRequest(req, res, segments[0]);
-    return true;
-  }
-
-  if (segments.length === 3 && segments[1] === 'manage' && segments[2] === 'reorder') {
-    await handleManagedPackReorderRequest(req, res, segments[0]);
-    return true;
-  }
-
-  if (segments.length === 3 && segments[1] === 'manage' && segments[2] === 'analytics') {
-    await handleManagedPackAnalyticsRequest(req, res, segments[0]);
-    return true;
-  }
-
-  if (segments.length === 3 && segments[1] === 'manage' && segments[2] === 'stickers') {
-    await handleManagedPackStickerCreateRequest(req, res, segments[0]);
-    return true;
-  }
-
-  if (segments.length === 4 && segments[1] === 'manage' && segments[2] === 'stickers') {
-    await handleManagedPackStickerDeleteRequest(req, res, segments[0], segments[3]);
-    return true;
-  }
-
-  if (segments.length === 5 && segments[1] === 'manage' && segments[2] === 'stickers' && segments[4] === 'replace') {
-    await handleManagedPackStickerReplaceRequest(req, res, segments[0], segments[3]);
-    return true;
-  }
-
-  if (segments.length === 2 && segments[1] === 'publish-state') {
-    if (!['GET', 'HEAD', 'POST'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handlePackPublishStateRequest(req, res, segments[0], url);
-    return true;
-  }
-
-  if (segments.length === 2 && segments[1] === 'finalize') {
-    if (req.method !== 'POST') {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleFinalizePackRequest(req, res, segments[0]);
-    return true;
-  }
-
-  if (segments.length === 2 && segments[1] === 'stickers-upload') {
-    if (req.method !== 'POST') {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleUploadStickerToPackRequest(req, res, segments[0]);
-    return true;
-  }
-
-  if (segments.length === 3 && segments[1] === 'stickers') {
-    if (!['GET', 'HEAD'].includes(req.method || '')) {
-      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
-      return true;
-    }
-    await handleAssetRequest(req, res, segments[0], segments[2]);
-    return true;
-  }
-
-  sendJson(req, res, 404, { error: 'Rota de sticker pack nao encontrada.' });
-  return true;
-};
+const handleCatalogApiRequest = async (req, res, pathname, url) =>
+  catalogApiRouter({ req, res, pathname, url });
 
 const handleCatalogPageRequest = async (req, res, pathname) => {
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;

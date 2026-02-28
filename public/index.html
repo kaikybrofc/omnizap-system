@@ -276,6 +276,33 @@
         display: grid;
       }
 
+      body.home-authenticated .top-inner {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      body.home-authenticated .top-head {
+        flex: 1 1 auto;
+      }
+
+      body.home-authenticated #nav-toggle {
+        display: none;
+      }
+
+      body.home-authenticated #main-nav {
+        display: flex;
+        width: auto;
+        grid-template-columns: none;
+        gap: 8px;
+        flex-wrap: nowrap;
+      }
+
+      body.home-authenticated #main-nav .btn:not(#nav-auth-link) {
+        display: none;
+      }
+
       .btn {
         width: 100%;
         text-align: center;
@@ -295,8 +322,8 @@
         padding: 4px;
         border-radius: 999px;
         justify-content: center;
-        justify-self: center;
-        align-self: center;
+        justify-self: auto;
+        align-self: auto;
         background: linear-gradient(120deg, #132544f0, #10203af0);
       }
 
@@ -1396,7 +1423,7 @@ curl -sS https://omnizap.shop/api/sticker-packs/system-summary | jq</code></pre>
   ><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></a>
 
   <div id="home-react-root" hidden></div>
-  <script type="module" src="/js/apps/homeApp.js?v=20260228-mobile-user-bubble2"></script>
+  <script type="module" src="/js/apps/homeApp.js?v=20260228-mobile-user-bubble3"></script>
   <script type="module" src="/js/github-panel/index.js?v=20260226a"></script>
 </body>
 </html>

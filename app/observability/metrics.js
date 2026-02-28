@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 import http from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { URL } from 'node:url';
 import client from 'prom-client';
 import logger from '../utils/logger/loggerModule.js';
@@ -32,6 +33,7 @@ const METRICS_PORT = parseEnvNumber(process.env.METRICS_PORT, 9102);
 const METRICS_HOST = process.env.METRICS_HOST || '0.0.0.0';
 const METRICS_PATH = process.env.METRICS_PATH || '/metrics';
 const METRICS_SERVICE = process.env.METRICS_SERVICE_NAME || process.env.ECOSYSTEM_NAME || 'omnizap';
+const HTTP_SLO_TARGET_MS = Math.max(50, parseEnvNumber(process.env.HTTP_SLO_TARGET_MS, 750));
 
 const QUERY_THRESHOLDS_MS = parseThresholds(process.env.DB_QUERY_ALERT_THRESHOLDS, [500, 1000]);
 
@@ -44,6 +46,55 @@ let stickerCatalogModulePromise = null;
 const normalizeLabel = (value, fallback = 'unknown') => {
   if (value === undefined || value === null || value === '') return fallback;
   return String(value);
+};
+
+const normalizeRequestId = (value) => {
+  const token = String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9._:-]/g, '')
+    .slice(0, 120);
+  return token || randomUUID();
+};
+
+const normalizeHttpMethod = (method) => {
+  const normalized = String(method || '').trim().toUpperCase();
+  if (!normalized) return 'UNKNOWN';
+  if (normalized.length > 12) return normalized.slice(0, 12);
+  return normalized;
+};
+
+const toStatusClass = (statusCode) => {
+  const numeric = Number(statusCode);
+  if (!Number.isFinite(numeric) || numeric < 100) return 'unknown';
+  const head = Math.floor(numeric / 100);
+  return `${head}xx`;
+};
+
+const resolveRouteGroup = ({ pathname, metricsPath, catalogConfig = null } = {}) => {
+  if (pathname?.startsWith(metricsPath)) return 'metrics';
+  if (pathname === '/sitemap.xml') return 'sitemap';
+  if (pathname === '/api/marketplace/stats') return 'marketplace_stats';
+
+  const apiBasePath = catalogConfig?.apiBasePath || '';
+  const webPath = catalogConfig?.webPath || '';
+  const dataPublicPath = catalogConfig?.dataPublicPath || '';
+  const userProfilePath = catalogConfig?.userProfilePath || '';
+
+  if (apiBasePath && (pathname === apiBasePath || pathname?.startsWith(`${apiBasePath}/`))) {
+    if (pathname === `${apiBasePath}/auth/google/session` || pathname === `${apiBasePath}/me` || pathname === `${apiBasePath}/admin/session`) {
+      return 'catalog_api_auth';
+    }
+    if (pathname === `${apiBasePath}/create` || /\/(manage|finalize|stickers-upload|publish-state)(\/|$)/.test(pathname || '')) {
+      return 'catalog_api_upload';
+    }
+    if (pathname?.startsWith(`${apiBasePath}/admin`)) return 'catalog_api_admin';
+    return 'catalog_api_public';
+  }
+  if (dataPublicPath && (pathname === dataPublicPath || pathname?.startsWith(`${dataPublicPath}/`))) return 'catalog_data_asset';
+  if (userProfilePath && (pathname === userProfilePath || pathname === `${userProfilePath}/`)) return 'catalog_user_profile';
+  if (webPath && (pathname === webPath || pathname?.startsWith(`${webPath}/`))) return 'catalog_web';
+
+  return 'other';
 };
 
 const ensureMetrics = () => {
@@ -106,6 +157,25 @@ const ensureMetrics = () => {
       name: 'omnizap_queue_depth',
       help: 'Backlog das filas internas',
       labelNames: ['queue'],
+      registers: [registry],
+    }),
+    httpRequestsTotal: new client.Counter({
+      name: 'omnizap_http_requests_total',
+      help: 'Total de requests HTTP por rota lógica',
+      labelNames: ['route_group', 'method', 'status_class'],
+      registers: [registry],
+    }),
+    httpRequestDurationMs: new client.Histogram({
+      name: 'omnizap_http_request_duration_ms',
+      help: 'Latência de requests HTTP em ms por rota lógica',
+      buckets: [5, 10, 20, 40, 75, 120, 200, 350, 500, 750, 1000, 2000, 5000, 10000],
+      labelNames: ['route_group', 'method', 'status_class'],
+      registers: [registry],
+    }),
+    httpSloViolationTotal: new client.Counter({
+      name: 'omnizap_http_slo_violation_total',
+      help: 'Total de requests HTTP acima do SLO de latência',
+      labelNames: ['route_group', 'method'],
       registers: [registry],
     }),
     messagesUpsertDurationMs: new client.Histogram({
@@ -296,6 +366,25 @@ const ensureMetrics = () => {
       help: 'Taxa de packs completos em relacao ao target_size (0-1)',
       registers: [registry],
     }),
+    stickerClassificationCycleDurationMs: new client.Histogram({
+      name: 'omnizap_sticker_classification_cycle_duration_ms',
+      help: 'Duração do ciclo de classificação de sticker em ms',
+      buckets: [50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000],
+      labelNames: ['status'],
+      registers: [registry],
+    }),
+    stickerClassificationCycleTotal: new client.Counter({
+      name: 'omnizap_sticker_classification_cycle_total',
+      help: 'Total de ciclos de classificação de sticker',
+      labelNames: ['status'],
+      registers: [registry],
+    }),
+    stickerClassificationAssetsTotal: new client.Counter({
+      name: 'omnizap_sticker_classification_assets_total',
+      help: 'Total de assets processados/classificados/falhos por ciclo',
+      labelNames: ['outcome'],
+      registers: [registry],
+    }),
   };
 
   return metrics;
@@ -314,6 +403,10 @@ export const startMetricsServer = () => {
   if (!METRICS_ENABLED || serverStarted) return;
   ensureMetrics();
   server = http.createServer(async (req, res) => {
+    const requestStartedAt = Date.now();
+    const requestId = normalizeRequestId(req.headers['x-request-id']);
+    res.setHeader('X-Request-Id', requestId);
+
     const host = req.headers.host || `${METRICS_HOST}:${METRICS_PORT}`;
     let parsedUrl;
     try {
@@ -322,9 +415,32 @@ export const startMetricsServer = () => {
       parsedUrl = new URL(req.url || '/', 'http://localhost');
     }
     const pathname = parsedUrl.pathname;
+    let routeGroup = resolveRouteGroup({
+      pathname,
+      metricsPath: METRICS_PATH,
+      catalogConfig: null,
+    });
+
+    res.once('finish', () => {
+      recordHttpRequest({
+        durationMs: Date.now() - requestStartedAt,
+        method: req.method,
+        statusCode: res.statusCode,
+        routeGroup,
+      });
+    });
 
     try {
       const stickerCatalogModule = await loadStickerCatalogModule();
+      const catalogConfig =
+        typeof stickerCatalogModule.getStickerCatalogConfig === 'function'
+          ? stickerCatalogModule.getStickerCatalogConfig()
+          : null;
+      routeGroup = resolveRouteGroup({
+        pathname,
+        metricsPath: METRICS_PATH,
+        catalogConfig,
+      });
       const handledByCatalog = await stickerCatalogModule.maybeHandleStickerCatalogRequest(req, res, {
         pathname,
         url: parsedUrl,
@@ -420,6 +536,28 @@ export const setQueueDepth = (queue, depth) => {
   const value = Number(depth);
   if (!Number.isFinite(value)) return;
   m.queueDepth.set({ queue: normalizeLabel(queue, 'unknown') }, value);
+};
+
+export const recordHttpRequest = ({ durationMs, method, statusCode, routeGroup }) => {
+  const m = ensureMetrics();
+  if (!m) return;
+  const duration = Number(durationMs);
+  if (!Number.isFinite(duration) || duration < 0) return;
+
+  const labels = {
+    route_group: normalizeLabel(routeGroup, 'other'),
+    method: normalizeHttpMethod(method),
+    status_class: toStatusClass(statusCode),
+  };
+
+  m.httpRequestsTotal.inc(labels);
+  m.httpRequestDurationMs.observe(labels, duration);
+  if (duration >= HTTP_SLO_TARGET_MS) {
+    m.httpSloViolationTotal.inc({
+      route_group: labels.route_group,
+      method: labels.method,
+    });
+  }
 };
 
 export const setDbInFlight = (value) => {
@@ -730,5 +868,36 @@ export const recordStickerAutoPackCycle = ({
   const fill = Number(fillRate);
   if (Number.isFinite(fill)) {
     m.stickerAutoPackFillRate.set(Math.max(0, Math.min(1, fill)));
+  }
+};
+
+export const recordStickerClassificationCycle = ({
+  status = 'ok',
+  durationMs,
+  processed = 0,
+  classified = 0,
+  failed = 0,
+} = {}) => {
+  const m = ensureMetrics();
+  if (!m) return;
+
+  const cycleStatus = normalizeLabel(status, 'ok').slice(0, 24);
+  const duration = Number(durationMs);
+  if (Number.isFinite(duration) && duration >= 0) {
+    m.stickerClassificationCycleDurationMs.observe({ status: cycleStatus }, duration);
+  }
+  m.stickerClassificationCycleTotal.inc({ status: cycleStatus });
+
+  const processedValue = Number(processed);
+  if (Number.isFinite(processedValue) && processedValue > 0) {
+    m.stickerClassificationAssetsTotal.inc({ outcome: 'processed' }, processedValue);
+  }
+  const classifiedValue = Number(classified);
+  if (Number.isFinite(classifiedValue) && classifiedValue > 0) {
+    m.stickerClassificationAssetsTotal.inc({ outcome: 'classified' }, classifiedValue);
+  }
+  const failedValue = Number(failed);
+  if (Number.isFinite(failedValue) && failedValue > 0) {
+    m.stickerClassificationAssetsTotal.inc({ outcome: 'failed' }, failedValue);
   }
 };
