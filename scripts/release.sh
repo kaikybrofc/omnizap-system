@@ -203,7 +203,7 @@ compute_target_version() {
   fi
 
   if [ "$RELEASE_TYPE" = "patch" ] && [ "$RELEASE_PATCH_ROLLOVER_ENABLED" = "1" ]; then
-    if [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] && [[ "$RELEASE_PATCH_ROLLOVER_AT" =~ ^[0-9]+$ ]]; then
+    if [[ "$RELEASE_PATCH_ROLLOVER_AT" =~ ^[0-9]+$ ]] && [[ "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
       local major="${BASH_REMATCH[1]}"
       local minor="${BASH_REMATCH[2]}"
       local patch="${BASH_REMATCH[3]}"
