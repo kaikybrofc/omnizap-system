@@ -64,10 +64,59 @@
       h1 {
         font-size: clamp(28px, 4.2vw, 38px);
       }
+      h2 {
+        font-size: 20px;
+        margin-top: 8px;
+      }
       p {
         color: var(--muted);
         line-height: 1.6;
         margin: 0 0 10px;
+      }
+      li {
+        color: var(--muted);
+        line-height: 1.6;
+      }
+      ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+      a {
+        color: #2563eb;
+      }
+      .note {
+        font-size: 14px;
+        color: #c7d8f4;
+      }
+      .updated {
+        color: #bcd1ef;
+        font-size: 14px;
+      }
+      .contact-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 10px 0 6px;
+      }
+      .contact-btn {
+        text-decoration: none;
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-size: 14px;
+        font-weight: 700;
+        border: 1px solid var(--line);
+        display: inline-flex;
+        align-items: center;
+      }
+      .contact-btn.wa {
+        background: linear-gradient(180deg, #163528, #112a1f);
+        color: #ddffec;
+        border-color: #2ba66b88;
+      }
+      .contact-btn.ig {
+        background: linear-gradient(180deg, #3f1d29, #2f1720);
+        color: #ffe5ef;
+        border-color: #d14b7888;
       }
       pre {
         margin: 0;
@@ -93,12 +142,51 @@
 
       <section class="card">
         <h1>Licença</h1>
-        <p>Este projeto é distribuído sob a licença MIT. Abaixo está o texto da licença usada no repositório.</p>
+        <p class="updated">Última atualização: 28/02/2026</p>
+        <p><strong>Resumo rápido:</strong> o código deste projeto é disponibilizado sob a licença MIT, que permite uso, cópia, modificação e distribuição.</p>
+        <p class="note"><strong>Para usar este projeto, você precisa estar ciente de que:</strong> ele é um projeto não oficial para estudo, sem autorização, afiliação ou endosso da Meta.</p>
+        <div class="contact-actions" aria-label="Canais oficiais de contato">
+          <a class="contact-btn wa" href="https://wa.me/559591122954" target="_blank" rel="noreferrer noopener">WhatsApp oficial</a>
+          <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">Instagram @kaikybrofc</a>
+        </div>
+        <p class="note"><strong>Contato direto:</strong> +55 95 9112-2954 (número no link: 559591122954).</p>
         <p>Copyright (c) 2025 Kaiky Brito</p>
       </section>
 
       <section class="card">
-        <h2>MIT License (texto original)</h2>
+        <h2>1. O que a licença MIT permite</h2>
+        <ul>
+          <li>Usar o software para fins pessoais, estudo e comerciais.</li>
+          <li>Copiar, modificar, publicar e distribuir o código.</li>
+          <li>Incluir o software em outros projetos, inclusive proprietários.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>2. O que você precisa manter</h2>
+        <ul>
+          <li>Manter o aviso de copyright e o texto da licença MIT em cópias ou partes relevantes do software.</li>
+          <li>Respeitar leis aplicáveis e direitos de terceiros ao usar ou distribuir versões modificadas.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>3. Limites importantes da licença</h2>
+        <ul>
+          <li>O software é fornecido "como está", sem garantias de funcionamento contínuo, desempenho ou adequação a um objetivo específico.</li>
+          <li>Os autores não se responsabilizam por danos indiretos, perdas financeiras, interrupções ou falhas decorrentes do uso do software.</li>
+          <li>A licença MIT cobre o código do projeto; marcas, nomes de terceiros, APIs externas e plataformas como WhatsApp/Meta seguem seus próprios termos.</li>
+        </ul>
+        <p class="note"><strong>Em termos simples:</strong> você pode usar e adaptar o código livremente, mas assume os riscos do uso e deve manter os avisos da licença.</p>
+      </section>
+
+      <section class="card">
+        <h2>4. Projeto não oficial</h2>
+        <p>O OmniZap System é um projeto independente e não oficial, criado para estudo, aprendizado e experimentação técnica. Não há vínculo, autorização formal, parceria comercial ou endosso da Meta Platforms.</p>
+      </section>
+
+      <section class="card">
+        <h2>5. Texto oficial da MIT License</h2>
         <pre>
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -118,6 +206,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.</pre
         >
+      </section>
+
+      <section class="card">
+        <h2>6. Histórico de alterações</h2>
+        <ul>
+          <li><strong>28/02/2026:</strong> revisão da página de licença com resumo em linguagem simples, direitos/obrigações da MIT, limites legais, aviso de projeto não oficial e contatos rápidos.</li>
+          <li><strong>26/02/2026:</strong> versão inicial da página de licença publicada.</li>
+        </ul>
       </section>
     </main>
   </body>
