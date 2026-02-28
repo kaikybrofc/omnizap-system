@@ -1,0 +1,42 @@
+CREATE TABLE IF NOT EXISTS domain_event_outbox (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  event_type VARCHAR(96) NOT NULL,
+  aggregate_type VARCHAR(96) NOT NULL,
+  aggregate_id VARCHAR(128) NOT NULL,
+  payload JSON NULL,
+  status ENUM('pending', 'processing', 'completed', 'failed') NOT NULL DEFAULT 'pending',
+  priority TINYINT UNSIGNED NOT NULL DEFAULT 50,
+  idempotency_key VARCHAR(180) NULL,
+  available_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  max_attempts TINYINT UNSIGNED NOT NULL DEFAULT 10,
+  worker_token CHAR(36) NULL,
+  last_error VARCHAR(255) NULL,
+  locked_at TIMESTAMP NULL DEFAULT NULL,
+  processed_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_domain_event_outbox_idempotency_key (idempotency_key),
+  INDEX idx_domain_event_outbox_status_sched (status, available_at, priority),
+  INDEX idx_domain_event_outbox_event_type (event_type, status, available_at),
+  INDEX idx_domain_event_outbox_aggregate (aggregate_type, aggregate_id, created_at),
+  INDEX idx_domain_event_outbox_worker_token (worker_token)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS domain_event_outbox_dlq (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  outbox_event_id BIGINT UNSIGNED NULL,
+  event_type VARCHAR(96) NOT NULL,
+  aggregate_type VARCHAR(96) NOT NULL,
+  aggregate_id VARCHAR(128) NOT NULL,
+  payload JSON NULL,
+  attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  max_attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  last_error VARCHAR(255) NULL,
+  failed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_domain_event_outbox_dlq_outbox_event (outbox_event_id),
+  INDEX idx_domain_event_outbox_dlq_event (event_type, failed_at),
+  INDEX idx_domain_event_outbox_dlq_aggregate (aggregate_type, aggregate_id, failed_at),
+  INDEX idx_domain_event_outbox_dlq_outbox_event_id (outbox_event_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

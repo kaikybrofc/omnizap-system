@@ -1,4 +1,6 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
+import { STICKER_DOMAIN_EVENTS } from './domainEvents.js';
+import { publishStickerDomainEvent } from './stickerDomainEventBus.js';
 
 const normalizeEngagementRow = (row) => ({
   pack_id: row?.pack_id || null,
@@ -70,6 +72,20 @@ export async function incrementStickerPackOpen(packId, connection = null) {
     connection,
   );
 
+  await publishStickerDomainEvent(
+    {
+      eventType: STICKER_DOMAIN_EVENTS.ENGAGEMENT_RECORDED,
+      aggregateType: 'sticker_pack',
+      aggregateId: packId,
+      payload: {
+        action: 'open',
+        pack_id: packId,
+      },
+      priority: 55,
+    },
+    { connection },
+  );
+
   return getStickerPackEngagementByPackId(packId, connection);
 }
 
@@ -87,6 +103,20 @@ export async function incrementStickerPackLike(packId, connection = null) {
     connection,
   );
 
+  await publishStickerDomainEvent(
+    {
+      eventType: STICKER_DOMAIN_EVENTS.ENGAGEMENT_RECORDED,
+      aggregateType: 'sticker_pack',
+      aggregateId: packId,
+      payload: {
+        action: 'like',
+        pack_id: packId,
+      },
+      priority: 55,
+    },
+    { connection },
+  );
+
   return getStickerPackEngagementByPackId(packId, connection);
 }
 
@@ -102,6 +132,20 @@ export async function incrementStickerPackDislike(packId, connection = null) {
        updated_at = CURRENT_TIMESTAMP`,
     [packId],
     connection,
+  );
+
+  await publishStickerDomainEvent(
+    {
+      eventType: STICKER_DOMAIN_EVENTS.ENGAGEMENT_RECORDED,
+      aggregateType: 'sticker_pack',
+      aggregateId: packId,
+      payload: {
+        action: 'dislike',
+        pack_id: packId,
+      },
+      priority: 55,
+    },
+    { connection },
   );
 
   return getStickerPackEngagementByPackId(packId, connection);

@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import logger from '../../utils/logger/loggerModule.js';
 import { downloadMediaMessage, extractMediaDetails } from '../../config/baileysConfig.js';
+import { isFeatureEnabled } from '../../services/featureFlagService.js';
 import {
   createStickerAsset,
   findLatestStickerAssetByOwner,
@@ -14,6 +15,12 @@ import {
 import { ensureStickerAssetClassified } from './stickerClassificationService.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { normalizeOwnerJid } from './stickerPackUtils.js';
+import {
+  getStickerObjectStorageUrl,
+  isStickerObjectStorageEnabled,
+  readStickerFromObjectStorage,
+  uploadStickerToObjectStorage,
+} from './stickerObjectStorageService.js';
 
 /**
  * Camada de storage local para assets de figurinha do sistema de packs.
@@ -23,8 +30,28 @@ const TEMP_ROOT = path.join(process.cwd(), 'temp', 'sticker-pack-assets');
 const DEFAULT_MAX_STICKER_BYTES = 2 * 1024 * 1024;
 const MAX_STICKER_BYTES = Math.max(64 * 1024, Number(process.env.STICKER_PACK_MAX_STICKER_BYTES) || DEFAULT_MAX_STICKER_BYTES);
 const LAST_STICKER_TTL_MS = Math.max(60_000, Number(process.env.STICKER_PACK_LAST_CACHE_TTL_MS) || 6 * 60 * 60 * 1000);
+const OBJECT_STORAGE_UPLOAD_TIMEOUT_MS = Math.max(
+  1_000,
+  Number(process.env.STICKER_OBJECT_STORAGE_UPLOAD_TIMEOUT_MS) || 10_000,
+);
 
 const lastStickerCache = new Map();
+
+const withTimeout = (promise, ms) =>
+  Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`timeout_after_${ms}ms`));
+      }, ms);
+    }),
+  ]);
+
+const isObjectStorageDeliveryEnabled = async (subjectKey = '') =>
+  isFeatureEnabled('enable_object_storage_delivery', {
+    fallback: false,
+    subjectKey: subjectKey || 'object_storage_delivery',
+  });
 
 /**
  * Converte JID para um token seguro no caminho de disco.
@@ -182,6 +209,31 @@ const ensureStorageForAsset = async ({ ownerJid, sha256, buffer }) => {
   return targetPath;
 };
 
+const uploadExternalStorageBestEffort = async ({ ownerJid, sha256, buffer, mimetype = 'image/webp', assetId = null }) => {
+  if (!isStickerObjectStorageEnabled()) return;
+  const canUpload = await isObjectStorageDeliveryEnabled(normalizeOwnerJid(ownerJid) || sha256);
+  if (!canUpload) return;
+  try {
+    await withTimeout(
+      uploadStickerToObjectStorage({
+        ownerJid,
+        sha256,
+        buffer,
+        mimetype,
+      }),
+      OBJECT_STORAGE_UPLOAD_TIMEOUT_MS,
+    );
+  } catch (error) {
+    logger.warn('Falha no upload best-effort para object storage.', {
+      action: 'sticker_object_storage_upload_best_effort_failed',
+      owner_jid: ownerJid || null,
+      asset_id: assetId || null,
+      sha256: sha256 || null,
+      error: error?.message,
+    });
+  }
+};
+
 /**
  * Extrai detalhes de mídia sticker de uma mensagem.
  *
@@ -253,6 +305,13 @@ async function persistStickerAssetBuffer({ ownerJid, buffer, mimetype = 'image/w
           error: error?.message,
         });
       });
+      await uploadExternalStorageBestEffort({
+        ownerJid: normalizedOwner,
+        sha256,
+        buffer,
+        mimetype,
+        assetId: repaired.id,
+      });
       return repaired;
     }
 
@@ -264,6 +323,13 @@ async function persistStickerAssetBuffer({ ownerJid, buffer, mimetype = 'image/w
         owner_jid: normalizedOwner,
         error: error?.message,
       });
+    });
+    await uploadExternalStorageBestEffort({
+      ownerJid: normalizedOwner,
+      sha256,
+      buffer,
+      mimetype,
+      assetId: existing.id,
     });
     return existing;
   }
@@ -292,6 +358,13 @@ async function persistStickerAssetBuffer({ ownerJid, buffer, mimetype = 'image/w
         owner_jid: normalizedOwner,
         error: error?.message,
       });
+    });
+    await uploadExternalStorageBestEffort({
+      ownerJid: normalizedOwner,
+      sha256,
+      buffer,
+      mimetype,
+      assetId: created.id,
     });
     return created;
   } catch (error) {
@@ -479,19 +552,46 @@ export async function resolveStickerAssetForCommand({
  * @throws {StickerPackError} Quando o arquivo não puder ser lido.
  */
 export async function readStickerAssetBuffer(asset) {
-  if (!asset?.storage_path) {
-    throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, 'Caminho do sticker não encontrado no storage.');
+  if (asset?.storage_path) {
+    try {
+      return await fs.readFile(asset.storage_path);
+    } catch (error) {
+      const externalBuffer = await readStickerFromObjectStorage(asset).catch(() => null);
+      if (Buffer.isBuffer(externalBuffer) && externalBuffer.length) {
+        return externalBuffer;
+      }
+      throw new StickerPackError(
+        STICKER_PACK_ERROR_CODES.STORAGE_ERROR,
+        `Não foi possível ler a figurinha em disco (${asset.storage_path}).`,
+        error,
+      );
+    }
   }
 
-  try {
-    return await fs.readFile(asset.storage_path);
-  } catch (error) {
-    throw new StickerPackError(
-      STICKER_PACK_ERROR_CODES.STORAGE_ERROR,
-      `Não foi possível ler a figurinha em disco (${asset.storage_path}).`,
-      error,
-    );
+  const externalBuffer = await readStickerFromObjectStorage(asset).catch(() => null);
+  if (Buffer.isBuffer(externalBuffer) && externalBuffer.length) {
+    return externalBuffer;
   }
+
+  throw new StickerPackError(STICKER_PACK_ERROR_CODES.STORAGE_ERROR, 'Caminho do sticker não encontrado no storage.');
+}
+
+export async function getStickerAssetExternalUrl(
+  asset,
+  {
+    secure = true,
+    expiresInSeconds = 300,
+  } = {},
+) {
+  if (!asset) return null;
+  const canUseExternalDelivery = await isObjectStorageDeliveryEnabled(
+    normalizeOwnerJid(asset?.owner_jid || '') || String(asset?.id || asset?.sha256 || ''),
+  );
+  if (!canUseExternalDelivery) return null;
+  return getStickerObjectStorageUrl(asset, {
+    secure,
+    expiresInSeconds,
+  });
 }
 
 /**
@@ -503,5 +603,6 @@ export function getStickerStorageConfig() {
   return {
     storageRoot: STORAGE_ROOT,
     maxStickerBytes: MAX_STICKER_BYTES,
+    objectStorageEnabled: isStickerObjectStorageEnabled(),
   };
 }

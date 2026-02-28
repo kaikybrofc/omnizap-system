@@ -20,6 +20,19 @@ const clampInt = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, Math.floor(numeric)));
 };
 
+const CLAIM_LOCK_TIMEOUT_SECONDS = clampInt(
+  process.env.STICKER_WORKER_TASK_LOCK_TIMEOUT_SECONDS,
+  15 * 60,
+  30,
+  24 * 60 * 60,
+);
+
+const normalizeIdempotencyKey = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_:-]/g, '')
+    .slice(0, 180);
+
 const parseJson = (value, fallback = null) => {
   if (value === null || value === undefined) return fallback;
   if (typeof value === 'object') return value;
@@ -48,6 +61,7 @@ const normalizeRow = (row) => {
     id: Number(row.id),
     task_type: row.task_type,
     payload: parseJson(row.payload, {}),
+    idempotency_key: row.idempotency_key || null,
     priority: Number(row.priority || 0),
     scheduled_at: row.scheduled_at || null,
     status: row.status,
@@ -63,7 +77,7 @@ const normalizeRow = (row) => {
 };
 
 export async function enqueueWorkerTask(
-  { taskType, payload = {}, priority = 50, scheduledAt = null, maxAttempts = 5 },
+  { taskType, payload = {}, priority = 50, scheduledAt = null, maxAttempts = 5, idempotencyKey = '' },
   connection = null,
 ) {
   const normalizedTaskType = normalizeTaskType(taskType);
@@ -73,12 +87,26 @@ export async function enqueueWorkerTask(
   const safeMaxAttempts = clampInt(maxAttempts, 5, 1, 20);
   const safeScheduledAt = scheduledAt ? new Date(scheduledAt) : null;
   const scheduledValue = safeScheduledAt && Number.isFinite(safeScheduledAt.valueOf()) ? safeScheduledAt : null;
+  const normalizedIdempotencyKey = normalizeIdempotencyKey(idempotencyKey) || null;
 
   await executeQuery(
     `INSERT INTO ${TABLES.STICKER_WORKER_TASK_QUEUE}
-      (task_type, payload, priority, scheduled_at, status, attempts, max_attempts)
-     VALUES (?, ?, ?, COALESCE(?, UTC_TIMESTAMP()), 'pending', 0, ?)`,
-    [normalizedTaskType, JSON.stringify(payload || {}), safePriority, scheduledValue, safeMaxAttempts],
+      (task_type, idempotency_key, payload, priority, scheduled_at, status, attempts, max_attempts)
+     VALUES (?, ?, ?, ?, COALESCE(?, UTC_TIMESTAMP()), 'pending', 0, ?)
+     ON DUPLICATE KEY UPDATE
+      payload = IF(status IN ('pending', 'failed'), VALUES(payload), payload),
+      priority = GREATEST(priority, VALUES(priority)),
+      scheduled_at = LEAST(scheduled_at, VALUES(scheduled_at)),
+      status = IF(status = 'failed' AND attempts < max_attempts, 'pending', status),
+      updated_at = UTC_TIMESTAMP()`,
+    [
+      normalizedTaskType,
+      normalizedIdempotencyKey,
+      JSON.stringify(payload || {}),
+      safePriority,
+      scheduledValue,
+      safeMaxAttempts,
+    ],
     connection,
   );
   return true;
@@ -92,7 +120,10 @@ export async function hasPendingWorkerTask(taskType, connection = null) {
     `SELECT id
      FROM ${TABLES.STICKER_WORKER_TASK_QUEUE}
      WHERE task_type = ?
-       AND status IN ('pending', 'processing')
+       AND (
+         status IN ('pending', 'processing')
+         OR (status = 'failed' AND attempts < max_attempts)
+       )
      LIMIT 1`,
     [normalizedTaskType],
     connection,
@@ -106,8 +137,11 @@ export async function claimWorkerTask({ taskType, allowRetryFailed = true } = {}
 
   const workerToken = randomUUID();
   const statusClause = allowRetryFailed
-    ? "(status = 'pending' OR (status = 'failed' AND attempts < max_attempts))"
-    : "status = 'pending'";
+    ? `(status = 'pending'
+      OR (status = 'failed' AND attempts < max_attempts)
+      OR (status = 'processing' AND locked_at <= (UTC_TIMESTAMP() - INTERVAL ${CLAIM_LOCK_TIMEOUT_SECONDS} SECOND)))`
+    : `(status = 'pending'
+      OR (status = 'processing' AND locked_at <= (UTC_TIMESTAMP() - INTERVAL ${CLAIM_LOCK_TIMEOUT_SECONDS} SECOND)))`;
 
   await executeQuery(
     `UPDATE ${TABLES.STICKER_WORKER_TASK_QUEUE}
@@ -187,6 +221,24 @@ export async function failWorkerTask(
     [message, taskId],
     connection,
   );
+
+  await executeQuery(
+    `INSERT INTO ${TABLES.STICKER_WORKER_TASK_DLQ}
+      (task_id, task_type, payload, idempotency_key, attempts, max_attempts, priority, last_error)
+     SELECT id, task_type, payload, idempotency_key, attempts, max_attempts, priority, last_error
+       FROM ${TABLES.STICKER_WORKER_TASK_QUEUE}
+      WHERE id = ?
+        AND status = 'failed'
+     ON DUPLICATE KEY UPDATE
+      attempts = VALUES(attempts),
+      max_attempts = VALUES(max_attempts),
+      priority = VALUES(priority),
+      last_error = VALUES(last_error),
+      failed_at = CURRENT_TIMESTAMP`,
+    [taskId],
+    connection,
+  ).catch(() => null);
+
   return true;
 }
 

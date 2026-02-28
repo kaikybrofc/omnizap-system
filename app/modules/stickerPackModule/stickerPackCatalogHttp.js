@@ -65,6 +65,7 @@ import {
   buildViewerTagAffinity,
   computePackSignals,
 } from './stickerPackMarketplaceService.js';
+import { listStickerPackScoreSnapshotsByPackIds } from './stickerPackScoreSnapshotRepository.js';
 import { createCatalogApiRouter } from './catalogRouter.js';
 import {
   buildAdminMenu,
@@ -77,11 +78,17 @@ import {
   buildStickerMenu,
 } from '../menuModule/common.js';
 import { getMarketplaceDriftSnapshot } from './stickerMarketplaceDriftService.js';
-import { getStickerStorageConfig, readStickerAssetBuffer, saveStickerAssetFromBuffer } from './stickerStorageService.js';
+import {
+  getStickerAssetExternalUrl,
+  getStickerStorageConfig,
+  readStickerAssetBuffer,
+  saveStickerAssetFromBuffer,
+} from './stickerStorageService.js';
 import { convertToWebp } from '../stickerModule/convertToWebp.js';
 import { sanitizeText } from './stickerPackUtils.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
+import { isFeatureEnabled } from '../../services/featureFlagService.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -398,6 +405,12 @@ const getCachedSnapshot = async ({
     throw error;
   }
 };
+
+const canUseRankingSnapshotRead = async (subjectKey = 'catalog') =>
+  isFeatureEnabled('enable_ranking_snapshot_read', {
+    fallback: true,
+    subjectKey,
+  });
 
 const sendJson = (req, res, statusCode, payload) => {
   const body = JSON.stringify(payload);
@@ -2806,6 +2819,10 @@ const hydrateMarketplaceEntries = async (packs, { includeItems = true, driftSnap
   const packIds = packs.map((pack) => pack.id);
   const engagementByPackId = await listStickerPackEngagementByPackIds(packIds);
   const interactionStatsByPackId = await listStickerPackInteractionStatsByPackIds(packIds);
+  const useSnapshot = await canUseRankingSnapshotRead(`hydrate:${packIds.length}:${includeItems ? 1 : 0}`);
+  const snapshotByPackId = useSnapshot
+    ? await listStickerPackScoreSnapshotsByPackIds(packIds).catch(() => new Map())
+    : new Map();
 
   const entries = [];
   const packClassificationById = new Map();
@@ -2824,14 +2841,24 @@ const hydrateMarketplaceEntries = async (packs, { includeItems = true, driftSnap
     const packMetadata = parsePackDescriptionMetadata(pack.description);
     const decoratedClassification = decoratePackClassificationSummary(packClassification);
     const mergedPackTags = mergeUniqueTags(decoratedClassification?.tags || [], packMetadata.tags);
-    const signals = computePackSignals({
-      pack: { ...pack, items },
-      engagement,
-      packClassification,
-      itemClassifications: orderedClassifications,
-      interactionStats,
-      scoringWeights: driftSnapshot?.weights || null,
-    });
+    const snapshot = snapshotByPackId.get(pack.id);
+    const signals = snapshot?.signals
+      ? {
+          ...snapshot.signals,
+          ranking_score: Number(snapshot?.signals?.ranking_score || 0),
+          pack_score: Number(snapshot?.signals?.pack_score || 0),
+          trend_score: Number(snapshot?.signals?.trend_score || 0),
+          nsfw_level: String(snapshot?.signals?.nsfw_level || 'safe'),
+          sensitive_content: Boolean(snapshot?.signals?.sensitive_content),
+        }
+      : computePackSignals({
+          pack: { ...pack, items },
+          engagement,
+          packClassification,
+          itemClassifications: orderedClassifications,
+          interactionStats,
+          scoringWeights: driftSnapshot?.weights || null,
+        });
 
     const entry = {
       pack,
@@ -7081,18 +7108,26 @@ const fetchPublicPackPayload = async (normalizedPackKey) => {
         return null;
       }
 
-      const interactionStatsByPack = await listStickerPackInteractionStatsByPackIds([pack.id]);
-      const driftSnapshot = await getMarketplaceDriftSnapshot();
+      const [interactionStatsByPack, driftSnapshot, snapshotByPackId] = await Promise.all([
+        listStickerPackInteractionStatsByPackIds([pack.id]),
+        getMarketplaceDriftSnapshot(),
+        canUseRankingSnapshotRead(`pack_payload:${pack.id}`)
+          .then((enabled) => (enabled ? listStickerPackScoreSnapshotsByPackIds([pack.id]) : new Map()))
+          .catch(() => new Map()),
+      ]);
       const byAssetClassification = new Map(classifications.map((entry) => [entry.asset_id, entry]));
       const orderedClassifications = stickerIds.map((stickerId) => byAssetClassification.get(stickerId)).filter(Boolean);
-      const signals = computePackSignals({
-        pack: { ...pack, items },
-        engagement,
-        packClassification,
-        itemClassifications: orderedClassifications,
-        interactionStats: interactionStatsByPack.get(pack.id) || null,
-        scoringWeights: driftSnapshot.weights,
-      });
+      const snapshot = snapshotByPackId.get(pack.id);
+      const signals = snapshot?.signals
+        ? snapshot.signals
+        : computePackSignals({
+            pack: { ...pack, items },
+            engagement,
+            packClassification,
+            itemClassifications: orderedClassifications,
+            interactionStats: interactionStatsByPack.get(pack.id) || null,
+            scoringWeights: driftSnapshot.weights,
+          });
 
       return {
         pack,
@@ -7194,6 +7229,23 @@ const handleAssetRequest = async (req, res, packKey, stickerToken) => {
         return;
       }
     }
+
+    const externalAssetUrl = await getStickerAssetExternalUrl(item.asset, {
+      secure: true,
+      expiresInSeconds: Math.max(60, Math.min(3600, Number(process.env.STICKER_OBJECT_STORAGE_SIGNED_URL_TTL_SECONDS) || 300)),
+    }).catch(() => null);
+    if (externalAssetUrl) {
+      res.statusCode = 302;
+      res.setHeader('Location', externalAssetUrl);
+      res.setHeader('Cache-Control', 'private, max-age=45');
+      if (req.method === 'HEAD') {
+        res.end();
+        return;
+      }
+      res.end();
+      return;
+    }
+
     if (decorated) {
       res.setHeader('X-Sticker-Category', String(decorated?.category || 'unknown'));
       res.setHeader('X-Sticker-NSFW', decorated?.is_nsfw ? '1' : '0');

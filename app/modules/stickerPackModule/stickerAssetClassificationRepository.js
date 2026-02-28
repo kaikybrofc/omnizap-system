@@ -1,4 +1,6 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
+import { STICKER_DOMAIN_EVENTS } from './domainEvents.js';
+import { publishStickerDomainEvent } from './stickerDomainEventBus.js';
 
 const parseJson = (value, fallback = null) => {
   if (value === null || value === undefined) return fallback;
@@ -161,6 +163,25 @@ export async function upsertStickerAssetClassification(payload, connection = nul
       payload.similar_images ? JSON.stringify(payload.similar_images) : JSON.stringify([]),
     ],
     connection,
+  );
+
+  await publishStickerDomainEvent(
+    {
+      eventType: STICKER_DOMAIN_EVENTS.STICKER_CLASSIFIED,
+      aggregateType: 'sticker_asset',
+      aggregateId: payload.asset_id,
+      payload: {
+        asset_id: payload.asset_id,
+        category: payload.category || null,
+        confidence: payload.confidence ?? null,
+        nsfw_score: payload.nsfw_score ?? null,
+        is_nsfw: Boolean(payload.is_nsfw),
+        classification_version: payload.classification_version || 'v1',
+      },
+      priority: 80,
+      idempotencyKey: `sticker_classified:${payload.asset_id}:${payload.classification_version || 'v1'}`,
+    },
+    { connection },
   );
 
   return findStickerClassificationByAssetId(payload.asset_id, connection);

@@ -1,4 +1,6 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
+import { STICKER_DOMAIN_EVENTS } from './domainEvents.js';
+import { publishStickerDomainEvent } from './stickerDomainEventBus.js';
 
 /**
  * Converte valores numéricos/booleanos vindos do banco para booleano.
@@ -356,6 +358,23 @@ export async function createStickerAsset(asset, connection = null) {
       asset.storage_path,
     ],
     connection,
+  );
+
+  await publishStickerDomainEvent(
+    {
+      eventType: STICKER_DOMAIN_EVENTS.STICKER_ASSET_CREATED,
+      aggregateType: 'sticker_asset',
+      aggregateId: asset.id,
+      payload: {
+        asset_id: asset.id,
+        owner_jid: asset.owner_jid,
+        sha256: asset.sha256,
+        mimetype: asset.mimetype,
+      },
+      priority: 85,
+      idempotencyKey: `sticker_asset_created:${asset.id}`,
+    },
+    { connection },
   );
 
   return findStickerAssetById(asset.id, connection);

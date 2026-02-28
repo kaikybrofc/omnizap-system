@@ -39,6 +39,14 @@ import {
   startStickerWorkerPipeline,
   stopStickerWorkerPipeline,
 } from './app/modules/stickerPackModule/stickerWorkerPipelineRuntime.js';
+import {
+  startStickerPackScoreSnapshotRuntime,
+  stopStickerPackScoreSnapshotRuntime,
+} from './app/modules/stickerPackModule/stickerPackScoreSnapshotRuntime.js';
+import {
+  startStickerDomainEventConsumer,
+  stopStickerDomainEventConsumer,
+} from './app/modules/stickerPackModule/stickerDomainEventConsumerRuntime.js';
 
 /**
  * Timeout máximo para inicialização do banco (criar/verificar DB + tabelas).
@@ -216,6 +224,8 @@ async function startApp() {
       startStickerClassificationBackground();
       startStickerAutoPackByTagsBackground();
     }
+    startStickerPackScoreSnapshotRuntime();
+    startStickerDomainEventConsumer();
 
     // Backfill é opcional, rodando em background.
     const shouldBackfill = process.env.LID_BACKFILL_ON_START !== 'false';
@@ -360,6 +370,22 @@ async function shutdown(signal, error) {
     } catch (workerError) {
       logger.warn('Falha ao encerrar worker de auto-pack por tags.', {
         error: workerError?.message,
+      });
+    }
+
+    try {
+      stopStickerPackScoreSnapshotRuntime();
+    } catch (snapshotError) {
+      logger.warn('Falha ao encerrar runtime de snapshot de score dos packs.', {
+        error: snapshotError?.message,
+      });
+    }
+
+    try {
+      stopStickerDomainEventConsumer();
+    } catch (consumerError) {
+      logger.warn('Falha ao encerrar consumidor interno de eventos de domínio.', {
+        error: consumerError?.message,
       });
     }
 

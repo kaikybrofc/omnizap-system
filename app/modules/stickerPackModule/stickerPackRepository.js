@@ -1,4 +1,6 @@
 import { executeQuery, TABLES } from '../../../database/index.js';
+import { STICKER_DOMAIN_EVENTS } from './domainEvents.js';
+import { publishStickerDomainEvent } from './stickerDomainEventBus.js';
 
 const CATALOG_COMPLETE_PACK_TARGET = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
 
@@ -337,6 +339,24 @@ export async function createStickerPack(pack, connection = null) {
     connection,
   );
 
+  await publishStickerDomainEvent(
+    {
+      eventType: STICKER_DOMAIN_EVENTS.PACK_UPDATED,
+      aggregateType: 'sticker_pack',
+      aggregateId: pack.id,
+      payload: {
+        action: 'created',
+        pack_id: pack.id,
+        pack_key: pack.pack_key,
+        owner_jid: pack.owner_jid,
+        visibility: pack.visibility,
+      },
+      priority: 75,
+      idempotencyKey: `pack_created:${pack.id}`,
+    },
+    { connection },
+  );
+
   return findStickerPackById(pack.id, { includeDeleted: true, connection });
 }
 
@@ -389,6 +409,22 @@ export async function updateStickerPackFields(packId, fields, connection = null)
     connection,
   );
 
+  await publishStickerDomainEvent(
+    {
+      eventType: STICKER_DOMAIN_EVENTS.PACK_UPDATED,
+      aggregateType: 'sticker_pack',
+      aggregateId: packId,
+      payload: {
+        action: 'updated',
+        pack_id: packId,
+        fields: Object.keys(fields || {}).slice(0, 30),
+      },
+      priority: 70,
+      idempotencyKey: `pack_updated:${packId}:${Object.keys(fields || {}).sort().join(',')}`,
+    },
+    { connection },
+  );
+
   return findStickerPackById(packId, { includeDeleted: true, connection });
 }
 
@@ -436,6 +472,21 @@ export async function bumpStickerPackVersion(packId, connection = null) {
      WHERE id = ?`,
     [packId],
     connection,
+  );
+
+  await publishStickerDomainEvent(
+    {
+      eventType: STICKER_DOMAIN_EVENTS.PACK_UPDATED,
+      aggregateType: 'sticker_pack',
+      aggregateId: packId,
+      payload: {
+        action: 'version_bumped',
+        pack_id: packId,
+      },
+      priority: 65,
+      idempotencyKey: `pack_version_bumped:${packId}`,
+    },
+    { connection },
   );
 
   return findStickerPackById(packId, { includeDeleted: true, connection });

@@ -1,5 +1,6 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { setQueueDepth } from '../../observability/metrics.js';
+import { isFeatureEnabled } from '../../services/featureFlagService.js';
 import { runStickerClassificationCycle } from './stickerClassificationBackgroundRuntime.js';
 import { runStickerAutoPackByTagsCycle } from './stickerAutoPackByTagsRuntime.js';
 import {
@@ -24,6 +25,8 @@ const STARTUP_DELAY_MS = Math.max(1_000, Number(process.env.STICKER_WORKER_PIPEL
 const SCHEDULER_INTERVAL_MS = Math.max(2_000, Number(process.env.STICKER_WORKER_PIPELINE_SCHEDULER_INTERVAL_MS) || 15_000);
 const POLLER_INTERVAL_MS = Math.max(1_000, Number(process.env.STICKER_WORKER_PIPELINE_POLLER_INTERVAL_MS) || 4_000);
 const WORKER_RETRY_DELAY_SECONDS = Math.max(5, Math.min(3600, Number(process.env.STICKER_WORKER_PIPELINE_RETRY_DELAY_SECONDS) || 45));
+const INLINE_POLLER_ENABLED = parseEnvBool(process.env.STICKER_WORKER_PIPELINE_INLINE_POLLER_ENABLED, true);
+const INLINE_POLLER_FORCE_ENABLED = parseEnvBool(process.env.STICKER_WORKER_PIPELINE_INLINE_POLLER_FORCE_ENABLED, false);
 
 const TASK_CADENCE_MS = {
   classification_cycle: Math.max(10_000, Number(process.env.STICKER_WORKER_CLASSIFICATION_CADENCE_MS) || 120_000),
@@ -36,6 +39,10 @@ const TASK_PRIORITY = {
   curation_cycle: 55,
   rebuild_cycle: 50,
 };
+const PIPELINE_PROCESS_COHORT_KEY =
+  String(process.env.STICKER_WORKER_PIPELINE_COHORT_KEY || process.env.HOSTNAME || process.pid)
+    .trim()
+  || 'pipeline';
 
 let startupHandle = null;
 let schedulerHandle = null;
@@ -62,6 +69,16 @@ const refreshQueueDepthMetrics = async () => {
   setQueueDepth('sticker_worker_tasks_failed', failed);
 };
 
+const canRunInlinePoller = async () => {
+  if (!INLINE_POLLER_ENABLED) return false;
+  if (INLINE_POLLER_FORCE_ENABLED) return true;
+  const dedicatedWorkersEnabled = await isFeatureEnabled('enable_worker_dedicated_processes', {
+    fallback: false,
+    subjectKey: `pipeline:inline_poller:${PIPELINE_PROCESS_COHORT_KEY}`,
+  });
+  return !dedicatedWorkersEnabled;
+};
+
 const scheduleTaskIfNeeded = async (taskType) => {
   if (!taskQueueAvailable) return;
   const cadence = TASK_CADENCE_MS[taskType];
@@ -81,6 +98,7 @@ const scheduleTaskIfNeeded = async (taskType) => {
     taskType,
     payload: { scheduled_by: 'sticker_worker_pipeline' },
     priority: TASK_PRIORITY[taskType] || 50,
+    idempotencyKey: `pipeline:${taskType}:${Math.floor(now / cadence)}`,
   });
   nextScheduleByTask.set(taskType, now + cadence);
 };
@@ -150,6 +168,8 @@ const pollerTick = async () => {
   runningPoll = true;
 
   try {
+    if (!(await canRunInlinePoller())) return;
+
     let progressed = false;
 
     progressed = (await processSingleTaskType('classification_cycle')) || progressed;
@@ -191,6 +211,7 @@ export const startStickerWorkerPipeline = () => {
     startup_delay_ms: STARTUP_DELAY_MS,
     scheduler_interval_ms: SCHEDULER_INTERVAL_MS,
     poller_interval_ms: POLLER_INTERVAL_MS,
+    inline_poller_enabled: INLINE_POLLER_ENABLED,
     cadence_ms: TASK_CADENCE_MS,
   });
 

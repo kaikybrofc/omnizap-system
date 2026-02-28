@@ -208,6 +208,24 @@ export async function countStickerPackItemRefsByStickerId(stickerId, connection 
 }
 
 /**
+ * Lista IDs de packs que referenciam um sticker.
+ *
+ * @param {string} stickerId ID do sticker/asset.
+ * @param {import('mysql2/promise').PoolConnection|null} [connection=null]
+ * @returns {Promise<string[]>}
+ */
+export async function listPackIdsByStickerId(stickerId, connection = null) {
+  const rows = await executeQuery(
+    `SELECT DISTINCT pack_id
+     FROM ${TABLES.STICKER_PACK_ITEM}
+     WHERE sticker_id = ?`,
+    [stickerId],
+    connection,
+  );
+  return (Array.isArray(rows) ? rows : []).map((row) => String(row?.pack_id || '')).filter(Boolean);
+}
+
+/**
  * Obtém a maior posição atualmente usada no pack.
  *
  * @param {string} packId ID do pack.
