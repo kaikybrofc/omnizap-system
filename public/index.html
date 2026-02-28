@@ -8,7 +8,7 @@
   <meta name="keywords" content="bot whatsapp pronto, automação de grupos, moderação whatsapp, bot para comunidade, omnizap" />
   <meta name="author" content="OmniZap System" />
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-  <meta name="theme-color" content="#0b1020" />
+  <meta name="theme-color" content="#0f172a" />
   <link rel="canonical" href="https://omnizap.shop/" />
   <link rel="icon" type="image/png" href="/assets/images/brand-icon-192.png" />
   <link rel="apple-touch-icon" href="/assets/images/brand-icon-192.png" />
@@ -73,6 +73,14 @@
       },
       {
         "@type": "Question",
+        "name": "Quantos comandos o OmniZap possui?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Você pode acessar mais de 50 comandos ativos no seu grupo digitando /menu."
+        }
+      },
+      {
+        "@type": "Question",
         "name": "Onde posso ver a documentação técnica?",
         "acceptedAnswer": {
           "@type": "Answer",
@@ -96,14 +104,16 @@
 
   <style>
     :root {
-      --bg: #070b16;
-      --bg-2: #0f172e;
-      --panel: #111b35d9;
-      --line: #2d436d;
-      --text: #ebf2ff;
-      --muted: #a5b9d9;
-      --accent: #2dd4bf;
-      --accent-2: #22c55e;
+      --bg: #0f172a;
+      --bg-2: #111827;
+      --panel: #1e293bd9;
+      --line: rgba(255, 255, 255, 0.05);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #2563eb;
+      --accent-2: #7c3aed;
+      --cta: #22c55e;
+      --cta-hover: #16a34a;
       --radius: 18px;
     }
 
@@ -114,8 +124,8 @@
       font-family: "Manrope", system-ui, -apple-system, sans-serif;
       color: var(--text);
       background:
-        radial-gradient(58rem 22rem at -10% -8%, #22c55e24, transparent 60%),
-        radial-gradient(62rem 26rem at 112% -12%, #2dd4bf22, transparent 58%),
+        radial-gradient(58rem 22rem at -10% -8%, #2563eb24, transparent 60%),
+        radial-gradient(62rem 26rem at 112% -12%, #7c3aed22, transparent 58%),
         linear-gradient(165deg, var(--bg), var(--bg-2));
       min-height: 100vh;
     }
@@ -192,22 +202,25 @@
     .btn:hover { transform: translateY(-1px); border-color: #4f6f9f; }
 
     .btn.primary {
-      color: #042519;
+      color: #0f172a;
       border-color: transparent;
-      background: linear-gradient(90deg, var(--accent), var(--accent-2));
-      box-shadow: 0 10px 24px #22c55e38;
+      background: var(--cta);
+      box-shadow: 0 10px 24px #22c55e30;
     }
 
+    .btn.primary:hover { background: var(--cta-hover); }
+
     .btn.secondary {
-      border-color: #3d5f97;
-      background: #132241;
+      border-color: #2563eb;
+      background: transparent;
+      color: #2563eb;
     }
 
     .hero {
       margin-top: 28px;
-      border: 1px solid #35517f;
+      border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 28px;
-      background: linear-gradient(150deg, #0f1c34ed, #111f3aed);
+      background: linear-gradient(150deg, #111827ed, #1e293bed);
       box-shadow: 0 22px 52px #02091770;
       padding: clamp(18px, 3.2vw, 36px);
       display: grid;
@@ -226,7 +239,7 @@
       border-radius: 50%;
       right: -120px;
       top: -120px;
-      background: radial-gradient(circle, #2dd4bf3a 0%, #2dd4bf00 72%);
+      background: radial-gradient(circle, #2563eb3a 0%, #2563eb00 72%);
       pointer-events: none;
     }
 
@@ -251,7 +264,7 @@
       font-size: clamp(30px, 4.2vw, 50px);
       line-height: 1.04;
       letter-spacing: -0.02em;
-      background: linear-gradient(92deg, #f3f8ff 0%, #b5e7ff 45%, #8effd1 100%);
+      background: linear-gradient(92deg, #f3f8ff 0%, #60a5fa 45%, #a78bfa 100%);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
@@ -386,9 +399,9 @@
     }
 
     .card {
-      border: 1px solid #3a5784;
+      border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 16px;
-      background: #13233fb8;
+      background: #1e293bb8;
       padding: 14px;
       transition: transform .18s ease, border-color .18s ease;
     }
@@ -430,10 +443,107 @@
       gap: 10px;
     }
 
-    .faq-item {
-      border: 1px solid #3a5784;
+    .guides-grid {
+      margin-top: 16px;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    }
+
+    .guide-link {
+      display: block;
+      text-decoration: none;
+      border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 14px;
-      background: #13233fb8;
+      background: #1e293bb8;
+      padding: 12px;
+      color: #ecf3ff;
+      font-weight: 800;
+      line-height: 1.4;
+      transition: transform .18s ease, border-color .18s ease;
+    }
+
+    .guide-link span {
+      display: block;
+      margin-top: 4px;
+      color: #bed0ea;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .guide-link:hover {
+      transform: translateY(-2px);
+      border-color: #5d84bf;
+    }
+
+    .commands-grid {
+      margin-top: 16px;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    }
+
+    .command-card {
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      background: #1e293bb8;
+      padding: 13px;
+    }
+
+    .command-card h3 {
+      margin: 0 0 8px;
+      color: #f0f7ff;
+      font-size: 16px;
+      letter-spacing: -0.01em;
+    }
+
+    .command-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 7px;
+    }
+
+    .command-list li {
+      color: #bdd0eb;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .command-list code {
+      display: inline-block;
+      margin-right: 6px;
+      padding: 2px 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 7px;
+      background: #111827;
+      color: #f8fafc;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+
+    .commands-actions {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .commands-actions p {
+      margin: 0;
+      color: #c2d4ee;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .faq-item {
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 14px;
+      background: #1e293bb8;
       padding: 0 12px;
     }
 
@@ -457,9 +567,9 @@
     }
 
     .faq-item a {
-      color: #9fd8ff;
+      color: #2563eb;
       text-decoration: none;
-      border-bottom: 1px dashed #6ea7d6;
+      border-bottom: 1px dashed #2563eb;
     }
 
     .final-cta {
@@ -642,8 +752,10 @@
       <nav id="main-nav" class="nav" aria-label="Navegação principal">
         <a class="btn" href="#como-funciona">Como funciona</a>
         <a class="btn" href="#recursos">Recursos</a>
+        <a class="btn" href="#comandos">Comandos</a>
         <a class="btn" href="#para-quem">Para quem</a>
         <a class="btn" href="/stickers/">Stickers</a>
+        <a class="btn" href="#guias">Guias</a>
         <a class="btn" href="#faq">FAQ</a>
         <a id="nav-scheduler-link" class="btn" href="#beneficios">Benefícios</a>
         <a id="nav-auth-link" class="btn" href="/login/"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>Entrar</a>
@@ -691,7 +803,7 @@
           <div class="msg user">Consegue mandar aviso de reunião amanhã às 9h?</div>
           <div class="msg bot">📣 Aviso agendado para todo o grupo. Também vou lembrar 15 minutos antes.</div>
           <div class="msg user">Top! E os comandos?</div>
-          <div class="msg bot">🤖 Já estão ativos. Digite /menu para ver tudo que posso fazer.</div>
+          <div class="msg bot">🤖 Já estão ativos. Digite /menu e veja mais de 50 comandos no seu grupo.</div>
         </div>
       </aside>
     </section>
@@ -742,6 +854,67 @@
       </div>
     </section>
 
+    <section id="comandos" class="section" aria-labelledby="comandos-title">
+      <h2 id="comandos-title">⚡ Veja tudo que o bot pode fazer no seu grupo</h2>
+      <p class="lead">Comandos simples que resolvem tarefas reais do dia a dia.</p>
+      <div class="commands-grid">
+        <article class="command-card">
+          <h3>🛡️ Moderação</h3>
+          <ul class="command-list">
+            <li><code>/ban</code>Remove membros problemáticos</li>
+            <li><code>/captcha</code>Proteção contra bots</li>
+            <li><code>/setgroup</code>Ativa modo restrito</li>
+            <li><code>/welcome</code>Boas-vindas automáticas</li>
+            <li><code>/farewell</code>Aviso quando alguém sai</li>
+          </ul>
+        </article>
+        <article class="command-card">
+          <h3>🎨 Figurinhas</h3>
+          <ul class="command-list">
+            <li><code>/sticker</code>Cria figurinha</li>
+            <li><code>/stickertext</code>Figurinha com texto</li>
+            <li><code>/pack create</code>Cria pack de stickers</li>
+            <li><code>/pack send</code>Envia pack no grupo</li>
+            <li><code>/toimg</code>Converte figurinha em imagem</li>
+          </ul>
+        </article>
+        <article class="command-card">
+          <h3>🎮 Engajamento</h3>
+          <ul class="command-list">
+            <li><code>/ranking</code>Ranking do grupo</li>
+            <li><code>/rankingglobal</code>Ranking global</li>
+            <li><code>/dado</code>Jogo de dados</li>
+            <li><code>/quote</code>Cita mensagem com estilo</li>
+            <li><code>/user perfil</code>Resumo do perfil</li>
+          </ul>
+        </article>
+        <article class="command-card">
+          <h3>🎵 Mídia</h3>
+          <ul class="command-list">
+            <li><code>/play</code>Toca música</li>
+            <li><code>/playvid</code>Toca vídeo</li>
+            <li><code>/tiktok</code>Baixa vídeo do TikTok</li>
+            <li><code>/down</code>Faz download de mídia</li>
+            <li><code>/menu</code>Atalho para todos os comandos</li>
+          </ul>
+        </article>
+        <article class="command-card">
+          <h3>🤖 Utilidades inteligentes</h3>
+          <ul class="command-list">
+            <li><code>/menu ia</code>Recursos de IA</li>
+            <li><code>/autorequests</code>Respostas automáticas</li>
+            <li><code>/noticias</code>Notícias no grupo</li>
+            <li><code>/metadata</code>Informações técnicas</li>
+            <li><code>/ping</code>Status do bot</li>
+          </ul>
+        </article>
+      </div>
+      <div class="commands-actions">
+        <p>+ dezenas de outros comandos disponíveis para sua operação.</p>
+        <a class="btn secondary" href="/comandos/">Ver lista completa</a>
+      </div>
+    </section>
+
     <section id="para-quem" class="section" aria-labelledby="para-quem-title">
       <h2 id="para-quem-title">Para quem é</h2>
       <p class="lead">Se você administra pessoas em grupo, o OmniZap foi feito para você.</p>
@@ -762,6 +935,21 @@
         <article class="benefit-item">✅ Evita spam e bagunça</article>
         <article class="benefit-item">✅ Mantém o grupo organizado</article>
         <article class="benefit-item">✅ Deixa sua comunidade mais profissional</article>
+      </div>
+    </section>
+
+    <section id="guias" class="section" aria-labelledby="guias-title">
+      <h2 id="guias-title">Guias rápidos para seu grupo crescer organizado</h2>
+      <p class="lead">Conteúdo satélite para resolver dores reais de operação e reforçar sua estratégia de comunidade.</p>
+      <div class="guides-grid">
+        <a class="guide-link" href="/bot-whatsapp-para-grupo/">Bot para grupo de WhatsApp<span>Guia de entrada rápida</span></a>
+        <a class="guide-link" href="/como-moderar-grupo-whatsapp/">Como moderar grupo no WhatsApp<span>Fluxo prático sem sobrecarga</span></a>
+        <a class="guide-link" href="/como-evitar-spam-no-whatsapp/">Como evitar spam no WhatsApp<span>Proteja o grupo com menos esforço</span></a>
+        <a class="guide-link" href="/como-organizar-comunidade-whatsapp/">Como organizar comunidade no WhatsApp<span>Estrutura para escala com qualidade</span></a>
+        <a class="guide-link" href="/como-automatizar-avisos-no-whatsapp/">Como automatizar avisos no WhatsApp<span>Recados certos no momento certo</span></a>
+        <a class="guide-link" href="/como-criar-comandos-whatsapp/">Como criar comandos no WhatsApp<span>Padronize respostas e rotinas</span></a>
+        <a class="guide-link" href="/melhor-bot-whatsapp-para-grupos/">Melhor bot para grupos<span>Comparativo orientado a resultado</span></a>
+        <a class="guide-link" href="/bot-whatsapp-sem-programar/">Bot para WhatsApp sem programar<span>Automação sem setup técnico</span></a>
       </div>
     </section>
 
@@ -789,6 +977,10 @@
           <summary>Preciso entender API para começar?</summary>
           <p>Não para uso comum. A área de API existe para integrações avançadas e pode ser acessada em <a href="/api-docs/">/api-docs/</a>.</p>
         </details>
+        <details class="faq-item">
+          <summary>Quantos comandos o OmniZap possui?</summary>
+          <p>Você pode acessar mais de 50 comandos ativos no seu grupo digitando <strong>/menu</strong> ou consultando a página <a href="/comandos/">/comandos/</a>.</p>
+        </details>
       </div>
     </section>
 
@@ -809,6 +1001,7 @@
         <a href="/termos-de-uso/">Termos</a>
         <a href="/licenca/">Licença</a>
         <a href="/stickers/">Stickers</a>
+        <a href="/comandos/">Comandos</a>
         <a href="/api-docs/">Para desenvolvedores</a>
         <a href="https://github.com/Kaikygr/omnizap-system" target="_blank" rel="noreferrer noopener">Open Source</a>
       </nav>

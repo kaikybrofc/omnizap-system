@@ -20,7 +20,7 @@ data/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-
+*.tgz
 # Local virtualenvs
 .venv/
 venv/

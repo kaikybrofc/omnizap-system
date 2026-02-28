@@ -9,7 +9,7 @@
     content="Login OmniZap System com Google para vincular sua conta ao numero do WhatsApp."
   />
   <meta name="robots" content="noindex, nofollow" />
-  <meta name="theme-color" content="#0b1020" />
+  <meta name="theme-color" content="#0f172a" />
   <link rel="canonical" href="https://omnizap.shop/login/" />
   <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -31,12 +31,12 @@
   </script>
   <style>
     :root {
-      --bg: #0b1020;
-      --bg-2: #121a2f;
-      --card: #121f39cf;
-      --line: #2f466f;
-      --text: #e6edf7;
-      --muted: #9bb0cf;
+      --bg: #0f172a;
+      --bg-2: #111827;
+      --card: #1e293bcf;
+      --line: rgba(255, 255, 255, 0.05);
+      --text: #f8fafc;
+      --muted: #94a3b8;
       --primary: #22c55e;
       --error: #f87171;
       --radius: 18px;
@@ -57,8 +57,8 @@
       color: var(--text);
       font-family: "Manrope", system-ui, sans-serif;
       background:
-        radial-gradient(55rem 22rem at -10% -10%, #1fce6f30, transparent 60%),
-        radial-gradient(55rem 22rem at 110% -8%, #43b8ff22, transparent 56%),
+        radial-gradient(55rem 22rem at -10% -10%, #2563eb30, transparent 60%),
+        radial-gradient(55rem 22rem at 110% -8%, #7c3aed22, transparent 56%),
         linear-gradient(160deg, var(--bg), var(--bg-2));
       min-height: 100vh;
       display: flex;
@@ -69,15 +69,15 @@
 
     .page {
       width: min(760px, 100%);
-      border: 1px solid #314b74;
+      border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 24px;
-      background: linear-gradient(150deg, #0f1a31e8, #0f1b34ee);
+      background: linear-gradient(150deg, #111827e8, #1e293bee);
       box-shadow: 0 18px 44px #0209166e, inset 0 1px 0 #95c1ff1a;
       overflow: hidden;
     }
 
     .head {
-      border-bottom: 1px solid #2a3f63;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       padding: 20px 22px;
       display: flex;
       align-items: center;
@@ -101,7 +101,7 @@
       width: 30px;
       height: 30px;
       border-radius: 50%;
-      border: 1px solid #33507e;
+      border: 1px solid rgba(255, 255, 255, 0.05);
       object-fit: cover;
     }
 
@@ -120,15 +120,19 @@
 
     .btn:hover {
       transform: translateY(-1px);
-      border-color: #4e6ea1;
+      border-color: #2563eb;
       box-shadow: 0 10px 20px #02091650;
     }
 
     .btn.primary {
       border-color: transparent;
-      background: linear-gradient(90deg, var(--primary), #16a34a);
-      color: #052412;
+      background: #22c55e;
+      color: #0f172a;
       box-shadow: 0 10px 22px #22c55e30;
+    }
+
+    .btn.primary:hover {
+      background: #16a34a;
     }
 
     .content {
@@ -143,7 +147,7 @@
       font-size: clamp(26px, 3.6vw, 36px);
       line-height: 1.08;
       letter-spacing: -0.02em;
-      background: linear-gradient(90deg, #eef5ff 0%, #8fd7ff 46%, #6ce8b5 100%);
+      background: linear-gradient(90deg, #eef5ff 0%, #60a5fa 46%, #a78bfa 100%);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
@@ -193,7 +197,7 @@
     .google-area {
       border: 1px dashed #3c5b8d;
       border-radius: 14px;
-      background: #0f1930a3;
+      background: #111827a3;
       padding: 12px;
       display: grid;
       gap: 10px;
@@ -218,7 +222,7 @@
     .summary {
       border: 1px solid #2b8b5d9c;
       border-radius: 12px;
-      background: #112d2094;
+      background: #11302294;
       padding: 10px;
       display: grid;
       gap: 6px;
@@ -229,7 +233,7 @@
     .whatsapp-cta {
       border: 1px solid #2d7d57a8;
       border-radius: 14px;
-      background: #1032248f;
+      background: #1130228f;
       padding: 12px;
       display: grid;
       gap: 10px;
@@ -248,7 +252,7 @@
 
     .btn.whatsapp {
       border-color: #1e9a5f;
-      background: linear-gradient(90deg, #1fc86a, #16a34a);
+      background: linear-gradient(90deg, #22c55e, #16a34a);
       color: #04230f;
       text-align: center;
     }

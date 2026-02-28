@@ -3123,9 +3123,11 @@ const renderPackSeoHtml = ({ packSummary }) => {
           },
           colors: {
             slateApp: '#0f172a',
-            slateCard: '#111827',
-            borderApp: '#22304a',
-            accent: '#22c55e'
+            slateCard: '#1e293b',
+            borderApp: 'rgba(255,255,255,0.05)',
+            accent: '#2563eb',
+            accentTech: '#7c3aed',
+            cta: '#22c55e'
           },
           boxShadow: {
             soft: '0 8px 24px rgba(2, 6, 23, 0.22)'
@@ -3152,14 +3154,14 @@ const renderPackSeoHtml = ({ packSummary }) => {
   <script type="application/ld+json">${schemaJson}</script>
   <script type="application/ld+json">${faqSchemaJson}</script>
   <style>
-    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif; background: #020617; color: #e5e7eb; }
+    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif; background: #0f172a; color: #f8fafc; }
     .seo-shell { max-width: 880px; margin: 0 auto; padding: 18px 14px 12px; }
-    .seo-card { border: 1px solid #1e293b; border-radius: 12px; background: #0b1220; padding: 16px; }
+    .seo-card { border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; background: #1e293b; padding: 16px; }
     .seo-card h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; }
-    .seo-card p { margin: 0 0 10px; line-height: 1.55; color: #cbd5e1; }
+    .seo-card p { margin: 0 0 10px; line-height: 1.55; color: #94a3b8; }
     .seo-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-    .seo-row a { color: #a5f3fc; text-decoration: none; border: 1px solid #334155; border-radius: 8px; padding: 8px 10px; }
-    .seo-row a:hover { background: #0f172a; }
+    .seo-row a { color: #2563eb; text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 8px 10px; }
+    .seo-row a:hover { background: #111827; }
   </style>
 </head>
 <body class="bg-slateApp text-slate-100 font-sans min-h-screen">
@@ -3206,10 +3208,10 @@ const renderPackNotFoundHtml = (packKey = '') => `<!doctype html>
   <meta name="robots" content="noindex, nofollow" />
   <link rel="canonical" href="${escapeHtmlAttribute(toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`))}" />
   <style>
-    body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #020617; color: #e5e7eb; }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #0f172a; color: #f8fafc; }
     main { max-width: 760px; margin: 0 auto; padding: 20px 14px; }
-    article { border: 1px solid #1e293b; border-radius: 12px; background: #0b1220; padding: 16px; }
-    a { color: #67e8f9; text-decoration: none; }
+    article { border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; background: #1e293b; padding: 16px; }
+    a { color: #2563eb; text-decoration: none; }
   </style>
 </head>
 <body>
@@ -3283,8 +3285,17 @@ const buildSitemapXml = async () => {
     { loc: toSiteAbsoluteUrl('/'), changefreq: 'daily', priority: '1.0' },
     { loc: toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`), changefreq: 'hourly', priority: '0.9' },
     { loc: toSiteAbsoluteUrl('/api-docs/'), changefreq: 'weekly', priority: '0.8' },
+    { loc: toSiteAbsoluteUrl('/comandos/'), changefreq: 'weekly', priority: '0.78' },
     { loc: toSiteAbsoluteUrl('/termos-de-uso/'), changefreq: 'monthly', priority: '0.5' },
     { loc: toSiteAbsoluteUrl('/licenca/'), changefreq: 'monthly', priority: '0.5' },
+    { loc: toSiteAbsoluteUrl('/bot-whatsapp-para-grupo/'), changefreq: 'weekly', priority: '0.75' },
+    { loc: toSiteAbsoluteUrl('/como-moderar-grupo-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
+    { loc: toSiteAbsoluteUrl('/como-evitar-spam-no-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
+    { loc: toSiteAbsoluteUrl('/como-organizar-comunidade-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
+    { loc: toSiteAbsoluteUrl('/como-automatizar-avisos-no-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
+    { loc: toSiteAbsoluteUrl('/como-criar-comandos-whatsapp/'), changefreq: 'weekly', priority: '0.71' },
+    { loc: toSiteAbsoluteUrl('/melhor-bot-whatsapp-para-grupos/'), changefreq: 'weekly', priority: '0.74' },
+    { loc: toSiteAbsoluteUrl('/bot-whatsapp-sem-programar/'), changefreq: 'weekly', priority: '0.73' },
   ];
 
   const packRows = await executeQuery(

@@ -31,6 +31,8 @@
     "worker:sticker:classification": "node ./scripts/sticker-worker-task.mjs --task-type classification_cycle",
     "worker:sticker:curation": "node ./scripts/sticker-worker-task.mjs --task-type curation_cycle",
     "worker:sticker:rebuild": "node ./scripts/sticker-worker-task.mjs --task-type rebuild_cycle",
+    "seo:generate:satellites": "node ./scripts/generate-seo-satellite-pages.mjs",
+    "seo:generate:satellites:phase1": "node ./scripts/generate-seo-satellite-pages.mjs --config docs/seo/satellite-pages-phase1.json --out public",
     "release": "bash ./scripts/release.sh",
     "release:minor": "RELEASE_TYPE=minor bash ./scripts/release.sh",
     "release:major": "RELEASE_TYPE=major bash ./scripts/release.sh",

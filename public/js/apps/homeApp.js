@@ -96,13 +96,33 @@ const initNavToggle = () => {
   const nav = document.getElementById('main-nav');
   if (!toggle || !nav) return null;
 
+  const closeMenu = () => {
+    nav.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+
   const onClick = () => {
     const isOpen = nav.classList.toggle('open');
     toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
   };
 
+  const onNavClick = (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const link = target.closest('a[href]');
+    if (!link) return;
+
+    closeMenu();
+  };
+
   toggle.addEventListener('click', onClick);
-  return () => toggle.removeEventListener('click', onClick);
+  nav.addEventListener('click', onNavClick);
+
+  return () => {
+    toggle.removeEventListener('click', onClick);
+    nav.removeEventListener('click', onNavClick);
+  };
 };
 
 const initAuthSession = () => {

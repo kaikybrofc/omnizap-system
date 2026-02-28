@@ -2,6 +2,24 @@
 
 Objetivo: posicionar OmniZap como "bot pronto para WhatsApp" para usuario final, mantendo stickers como feature de aquisicao e expansao.
 
+## Status de execucao (2026-02-28)
+
+- Primeira leva de satelites fase 1 publicada:
+  - `/bot-whatsapp-para-grupo/`
+  - `/como-moderar-grupo-whatsapp/`
+  - `/como-evitar-spam-no-whatsapp/`
+  - `/como-organizar-comunidade-whatsapp/`
+  - `/como-automatizar-avisos-no-whatsapp/`
+  - `/como-criar-comandos-whatsapp/`
+  - `/melhor-bot-whatsapp-para-grupos/`
+  - `/bot-whatsapp-sem-programar/`
+- Hub comercial publicado para conversao de comandos:
+  - `/comandos/`
+- Template padrao para escala em lote:
+  - Gerador: `scripts/generate-seo-satellite-pages.mjs`
+  - Config principal: `docs/seo/satellite-pages-phase1.json`
+  - Guia de uso: `docs/seo/satellite-page-template.md`
+
 ## 1) FAQ + JSON-LD pronta
 
 Status implementado no projeto:
@@ -17,7 +35,7 @@ Checklist tecnico para manter:
 
 ## 2) Estrategia de paginas satelite para dominar Google
 
-Observacao: abaixo esta o mapa estrategico de novas paginas para backlog SEO. Nao foi criada rota nova neste commit.
+Observacao: abaixo esta o mapa estrategico de satelites. A fase 1 foi publicada e os demais itens seguem como backlog de expansao.
 
 ### Cluster principal (comercial)
 - `/bot-whatsapp-para-grupo/`

@@ -1,11 +1,11 @@
 :root {
-  --gh-bg: rgba(14, 22, 41, 0.9);
-  --gh-card: rgba(20, 30, 54, 0.86);
-  --gh-border: #2a3b60;
-  --gh-border-hover: #47689a;
-  --gh-text: #dfe8f7;
-  --gh-muted: #9fb0cc;
-  --gh-accent: #38bdf8;
+  --gh-bg: rgba(15, 23, 42, 0.9);
+  --gh-card: rgba(30, 41, 59, 0.86);
+  --gh-border: rgba(255, 255, 255, 0.05);
+  --gh-border-hover: #2563eb;
+  --gh-text: #f8fafc;
+  --gh-muted: #94a3b8;
+  --gh-accent: #2563eb;
   --gh-accent-2: #22c55e;
 }
 
@@ -110,7 +110,7 @@
   border: 1px solid var(--gh-border);
   border-radius: 14px;
   background:
-    radial-gradient(120% 120% at 0% 0%, #38bdf816, transparent 60%),
+    radial-gradient(120% 120% at 0% 0%, #7c3aed16, transparent 60%),
     linear-gradient(160deg, var(--gh-card), #101a31);
   padding: 14px;
   transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
