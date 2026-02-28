@@ -110,16 +110,33 @@ function ApiDocsApp() {
       h('a', { href: '/licenca/' }, h(Icon, { cls: 'fa-solid fa-scale-balanced' }), 'Licença'),
       h('a', { href: 'https://github.com/Kaikygr/omnizap-system', target: '_blank', rel: 'noreferrer noopener' }, h(Icon, { cls: 'fa-brands fa-github' }), 'GitHub'),
     ),
-    h('h1', null, h(Icon, { cls: 'fa-solid fa-code' }), 'OmniZap API Docs'),
-    h('p', null, 'API pública para catálogo de packs, stickers, métricas e interações em tempo real.'),
-    h(SectionTitle, { iconClass: 'fa-solid fa-route' }, 'Maneiras de uso'),
+    h('h1', null, h(Icon, { cls: 'fa-solid fa-code' }), 'OmniZap API | Área de Desenvolvedor'),
+    h('p', null, 'Documentação técnica da API OmniZap para bots e automação WhatsApp, com o catálogo de stickers como módulo integrável.'),
+    h(SectionTitle, { iconClass: 'fa-solid fa-route' }, 'Casos de uso'),
     h(
       'section',
       { className: 'card' },
       h('ul', { className: 'list' },
-        h('li', null, 'Uso direto no front-end web para catálogo e busca de packs.'),
-        h('li', null, 'Integração server-to-server para sincronização com sistemas próprios.'),
-        h('li', null, 'Consumo em bots/automação para abrir pack, baixar sticker e montar fluxos.')
+        h('li', null, 'Operar bot WhatsApp com endpoints públicos para conteúdo e interação.'),
+        h('li', null, 'Integrar server-to-server para sincronizar packs, stickers e métricas.'),
+        h('li', null, 'Conectar automações internas (CRM, suporte, marketing e comunidades).')
+      ),
+    ),
+    h(
+      'section',
+      { className: 'card' },
+      h('h2', null, h(Icon, { cls: 'fa-solid fa-diagram-project' }), 'Mapa da plataforma'),
+      h(
+        'p',
+        null,
+        'O domínio principal é a plataforma de bot + API. O catálogo de stickers funciona como feature integrada para distribuição e engajamento.',
+      ),
+      h(
+        'ul',
+        { className: 'list' },
+        h('li', null, 'Página principal: / (plataforma OmniZap)'),
+        h('li', null, 'Catálogo: /stickers/ (módulo de stickers)'),
+        h('li', null, 'Packs públicos: /stickers/{packKey} (landing de conteúdo)'),
       ),
     ),
     h(StatusPanel),
@@ -289,6 +306,22 @@ function ApiDocsApp() {
         '  return response.json();\n' +
         '}',
       iconClass: 'fa-solid fa-server',
+    }),
+    h(SectionTitle, { iconClass: 'fa-solid fa-circle-question' }, 'FAQ rápido'),
+    h(Card, {
+      title: 'Para que serve a API OmniZap?',
+      code: 'Ela permite integrar bots e automações WhatsApp com catálogo de stickers, métricas e fluxos técnicos.',
+      iconClass: 'fa-solid fa-circle-question',
+    }),
+    h(Card, {
+      title: 'Posso usar packs no meu bot?',
+      code: 'Sim. Consulte packs públicos, detalhe itens e registre interações para montar experiências no seu bot.',
+      iconClass: 'fa-solid fa-puzzle-piece',
+    }),
+    h(Card, {
+      title: 'Onde ver o catálogo web?',
+      code: 'https://omnizap.shop/stickers/',
+      iconClass: 'fa-solid fa-icons',
     }),
     h(Card, {
       title: 'Checklist de produção',

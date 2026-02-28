@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OmniZap Sticker Catalog</title>
-  <meta name="description" content="Catálogo de stickers e packs OmniZap em estilo app." />
+  <title>Catálogo de Stickers OmniZap | Módulo Integrável via API</title>
+  <meta name="description" content="Catálogo de stickers do OmniZap com packs públicos integráveis por API em bots e automações WhatsApp." />
+  <meta name="keywords" content="stickers omnizap, catálogo stickers, packs whatsapp, api stickers, bot whatsapp stickers" />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://omnizap.shop/stickers/" />
   <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
@@ -32,6 +33,46 @@
       }
     };
   </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "O catálogo de stickers faz parte do OmniZap?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Sim. O catálogo de stickers é um módulo oficial do OmniZap para uso em automações e bots."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Posso usar os packs em um bot de WhatsApp?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Sim. Os packs públicos podem ser usados em fluxos de bot e integrações com a API OmniZap."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Onde encontro documentação técnica para integração?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A documentação técnica está em https://omnizap.shop/api-docs/."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Onde vejo a visão geral da plataforma?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A página principal da plataforma está em https://omnizap.shop/."
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body class="bg-slateApp text-slate-100 font-sans min-h-screen">
   <div id="stickers-react-root"
@@ -43,6 +84,30 @@
     data-default-orphan-limit="24"
     data-initial-pack-key=""
   ></div>
+
+  <noscript>
+    <main class="mx-auto w-[min(960px,92vw)] py-8">
+      <section class="rounded-xl border border-slate-700 bg-slate-900 p-4">
+        <h1 class="text-2xl font-extrabold">Catálogo de Stickers OmniZap</h1>
+        <p class="mt-2 text-slate-300">
+          Este catálogo é um módulo da plataforma OmniZap para bots e automação WhatsApp.
+          Você pode usar packs públicos e integrar fluxos com a API.
+        </p>
+        <div class="mt-4 rounded-lg border border-slate-700 bg-slate-800/60 p-3">
+          <h2 class="text-lg font-bold">FAQ rápido</h2>
+          <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">
+            <li>Os packs públicos podem ser integrados em bots de WhatsApp.</li>
+            <li>Documentação técnica disponível na Área de Desenvolvedor.</li>
+            <li>O catálogo é integrado ao ecossistema OmniZap.</li>
+          </ul>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <a class="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-cyan-200" href="/api-docs/">Área de Desenvolvedor</a>
+          <a class="rounded-lg border border-slate-600 px-3 py-2 text-slate-200" href="/">Página principal do OmniZap</a>
+        </div>
+      </section>
+    </main>
+  </noscript>
 
   <script type="module" src="/js/apps/stickersApp.js?v=20260228-login-redirect-my-packs1"></script>
 </body>
