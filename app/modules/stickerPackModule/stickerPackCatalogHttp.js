@@ -240,6 +240,14 @@ const SITE_CANONICAL_REDIRECT_ENABLED = parseEnvBool(process.env.SITE_CANONICAL_
 const SITE_ORIGIN = String(process.env.SITE_ORIGIN || `${SITE_CANONICAL_SCHEME}://${SITE_CANONICAL_HOST}`)
   .trim()
   .replace(/\/+$/, '');
+const SITE_COOKIE_DOMAIN = String(process.env.SITE_COOKIE_DOMAIN || SITE_CANONICAL_HOST)
+  .trim()
+  .toLowerCase()
+  .replace(/^https?:\/\//, '')
+  .split('/')[0]
+  .split(':')[0]
+  .replace(/^\.+/, '')
+  .replace(/\.+$/, '');
 const SITEMAP_MAX_PACKS = clampInt(process.env.STICKER_SITEMAP_MAX_PACKS, 45000, 100, 50000);
 const SITEMAP_CACHE_SECONDS = clampInt(process.env.STICKER_SITEMAP_CACHE_SECONDS, 180, 30, 3600);
 const SEO_DISCOVERY_LINK_LIMIT = clampInt(process.env.STICKER_SEO_DISCOVERY_LINK_LIMIT, 60, 10, 200);
@@ -450,6 +458,22 @@ const toRequestHost = (req) =>
     .replace(/\.$/, '')
     .split(':')[0];
 
+const isIpLiteralHost = (value) => {
+  const host = String(value || '').trim().toLowerCase();
+  if (!host) return false;
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return true;
+  return host.includes(':');
+};
+
+const resolveCookieDomainForRequest = (req) => {
+  if (!SITE_COOKIE_DOMAIN || isIpLiteralHost(SITE_COOKIE_DOMAIN)) return '';
+  const requestHost = toRequestHost(req);
+  if (!requestHost || isIpLiteralHost(requestHost) || requestHost === 'localhost') return '';
+  if (requestHost === SITE_COOKIE_DOMAIN) return SITE_COOKIE_DOMAIN;
+  if (requestHost.endsWith(`.${SITE_COOKIE_DOMAIN}`)) return SITE_COOKIE_DOMAIN;
+  return '';
+};
+
 const maybeRedirectToCanonicalHost = (req, res, url) => {
   if (!SITE_CANONICAL_REDIRECT_ENABLED) return false;
   if (!['GET', 'HEAD'].includes(req.method || '')) return false;
@@ -481,6 +505,33 @@ const parseCookies = (req) => {
     }
     return acc;
   }, {});
+};
+
+const getCookieValuesFromRequest = (req, cookieName) => {
+  const target = String(cookieName || '').trim();
+  if (!target) return [];
+  const raw = String(req?.headers?.cookie || '');
+  if (!raw) return [];
+
+  const values = [];
+  for (const chunk of raw.split(';')) {
+    const trimmed = String(chunk || '').trim();
+    if (!trimmed) continue;
+    const separatorIndex = trimmed.indexOf('=');
+    if (separatorIndex <= 0) continue;
+    const key = trimmed.slice(0, separatorIndex).trim();
+    if (key !== target) continue;
+    const encodedValue = trimmed.slice(separatorIndex + 1).trim();
+    if (!encodedValue) continue;
+    let decodedValue = encodedValue;
+    try {
+      decodedValue = decodeURIComponent(encodedValue);
+    } catch {}
+    const normalizedValue = String(decodedValue || '').trim();
+    if (!normalizedValue) continue;
+    if (!values.includes(normalizedValue)) values.push(normalizedValue);
+  }
+  return values;
 };
 
 const isRequestSecure = (req) => {
@@ -591,6 +642,11 @@ const runSqlTransaction = async (handler) => {
 const buildCookieString = (name, value, req, options = {}) => {
   const parts = [`${name}=${encodeURIComponent(String(value ?? ''))}`];
   parts.push(`Path=${options.path || '/'}`);
+  const cookieDomain =
+    options.domain === false
+      ? ''
+      : String(options.domain || resolveCookieDomainForRequest(req)).trim();
+  if (cookieDomain) parts.push(`Domain=${cookieDomain}`);
   if (options.httpOnly !== false) parts.push('HttpOnly');
   parts.push(`SameSite=${options.sameSite || 'Lax'}`);
   if (isRequestSecure(req)) parts.push('Secure');
@@ -1002,10 +1058,15 @@ const pruneExpiredGoogleSessions = () => {
   }
 };
 
-const getGoogleWebSessionTokenFromRequest = (req) => {
+const getGoogleWebSessionTokensFromRequest = (req) => {
+  const direct = getCookieValuesFromRequest(req, GOOGLE_WEB_SESSION_COOKIE_NAME);
+  if (direct.length > 0) return direct;
   const cookies = parseCookies(req);
-  return String(cookies[GOOGLE_WEB_SESSION_COOKIE_NAME] || '').trim();
+  const fallback = String(cookies[GOOGLE_WEB_SESSION_COOKIE_NAME] || '').trim();
+  return fallback ? [fallback] : [];
 };
+
+const getGoogleWebSessionTokenFromRequest = (req) => getGoogleWebSessionTokensFromRequest(req)[0] || '';
 
 const normalizeGoogleWebSessionRow = (row) => {
   if (!row || typeof row !== 'object') return null;
@@ -1662,6 +1723,8 @@ const pruneExpiredAdminPanelSessions = () => {
 };
 
 const getAdminPanelSessionTokenFromRequest = (req) => {
+  const direct = getCookieValuesFromRequest(req, ADMIN_PANEL_SESSION_COOKIE_NAME);
+  if (direct.length > 0) return direct[0];
   const cookies = parseCookies(req);
   return String(cookies[ADMIN_PANEL_SESSION_COOKIE_NAME] || '').trim();
 };
@@ -1671,6 +1734,14 @@ const clearAdminPanelSessionCookie = (req, res) => {
     res,
     buildCookieString(ADMIN_PANEL_SESSION_COOKIE_NAME, '', req, {
       maxAgeSeconds: 0,
+    }),
+  );
+  // Also clear host-only variant (legacy cookie written without Domain).
+  appendSetCookie(
+    res,
+    buildCookieString(ADMIN_PANEL_SESSION_COOKIE_NAME, '', req, {
+      maxAgeSeconds: 0,
+      domain: false,
     }),
   );
 };
@@ -1820,61 +1891,67 @@ const activateGoogleWebSession = (session) => {
 
 const resolveGoogleWebSessionFromRequest = async (req) => {
   pruneExpiredGoogleSessions();
-  const sessionToken = getGoogleWebSessionTokenFromRequest(req);
-  if (!sessionToken) return null;
-  const session = webGoogleSessionMap.get(sessionToken);
-  if (session) {
+  const sessionTokens = getGoogleWebSessionTokensFromRequest(req);
+  if (!sessionTokens.length) return null;
+
+  for (const sessionToken of sessionTokens) {
+    const session = webGoogleSessionMap.get(sessionToken);
+    if (!session) continue;
     if (Number(session.expiresAt || 0) <= Date.now()) {
       webGoogleSessionMap.delete(sessionToken);
-    } else {
-      const now = Date.now();
-      session.lastSeenAt = now;
-      if (now - Number(session.lastDbTouchAt || 0) >= GOOGLE_WEB_SESSION_DB_TOUCH_INTERVAL_MS) {
-        session.lastDbTouchAt = now;
-        void touchGoogleWebSessionSeenInDb(sessionToken).catch((error) => {
-          logger.warn('Falha ao atualizar last_seen da sessão Google web.', {
-            action: 'sticker_pack_google_web_session_touch_failed',
-            error: error?.message,
-          });
-        });
-        void touchGoogleWebUserSeenInDb(session.sub).catch(() => {});
-      }
-      try {
-        await assertGoogleIdentityNotBanned({
-          sub: session.sub,
-          email: session.email,
-          ownerJid: session.ownerJid,
-        });
-      } catch (banError) {
-        webGoogleSessionMap.delete(sessionToken);
-        void deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
-        return null;
-      }
-      return session;
+      continue;
     }
-  }
-  try {
-    const persistedSession = await findGoogleWebSessionInDbByToken(sessionToken);
-    if (!persistedSession) return null;
+
+    const now = Date.now();
+    session.lastSeenAt = now;
+    if (now - Number(session.lastDbTouchAt || 0) >= GOOGLE_WEB_SESSION_DB_TOUCH_INTERVAL_MS) {
+      session.lastDbTouchAt = now;
+      void touchGoogleWebSessionSeenInDb(sessionToken).catch((error) => {
+        logger.warn('Falha ao atualizar last_seen da sessão Google web.', {
+          action: 'sticker_pack_google_web_session_touch_failed',
+          error: error?.message,
+        });
+      });
+      void touchGoogleWebUserSeenInDb(session.sub).catch(() => {});
+    }
     try {
       await assertGoogleIdentityNotBanned({
-        sub: persistedSession.sub,
-        email: persistedSession.email,
-        ownerJid: persistedSession.ownerJid,
+        sub: session.sub,
+        email: session.email,
+        ownerJid: session.ownerJid,
       });
+      return session;
     } catch {
-      await deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
-      return null;
+      webGoogleSessionMap.delete(sessionToken);
+      void deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
     }
-    webGoogleSessionMap.set(sessionToken, persistedSession);
-    return persistedSession;
-  } catch (error) {
-    logger.warn('Falha ao resolver sessão Google web no banco.', {
-      action: 'sticker_pack_google_web_session_db_resolve_failed',
-      error: error?.message,
-    });
-    return null;
   }
+
+  for (const sessionToken of sessionTokens) {
+    try {
+      const persistedSession = await findGoogleWebSessionInDbByToken(sessionToken);
+      if (!persistedSession) continue;
+      try {
+        await assertGoogleIdentityNotBanned({
+          sub: persistedSession.sub,
+          email: persistedSession.email,
+          ownerJid: persistedSession.ownerJid,
+        });
+      } catch {
+        await deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
+        continue;
+      }
+      webGoogleSessionMap.set(sessionToken, persistedSession);
+      return persistedSession;
+    } catch (error) {
+      logger.warn('Falha ao resolver sessão Google web no banco.', {
+        action: 'sticker_pack_google_web_session_db_resolve_failed',
+        error: error?.message,
+      });
+    }
+  }
+
+  return null;
 };
 
 const clearGoogleWebSessionCookie = (req, res) => {
@@ -1882,6 +1959,14 @@ const clearGoogleWebSessionCookie = (req, res) => {
     res,
     buildCookieString(GOOGLE_WEB_SESSION_COOKIE_NAME, '', req, {
       maxAgeSeconds: 0,
+    }),
+  );
+  // Also clear host-only variant (legacy cookie written without Domain).
+  appendSetCookie(
+    res,
+    buildCookieString(GOOGLE_WEB_SESSION_COOKIE_NAME, '', req, {
+      maxAgeSeconds: 0,
+      domain: false,
     }),
   );
 };
@@ -3778,9 +3863,9 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
   }
 
   if (req.method === 'DELETE') {
-    const token = getGoogleWebSessionTokenFromRequest(req);
-    if (token) webGoogleSessionMap.delete(token);
-    if (token) {
+    const tokens = getGoogleWebSessionTokensFromRequest(req);
+    for (const token of tokens) {
+      webGoogleSessionMap.delete(token);
       await deleteGoogleWebSessionFromDb(token).catch((error) => {
         logger.warn('Falha ao remover sessão Google web do banco.', {
           action: 'sticker_pack_google_web_session_db_delete_failed',
