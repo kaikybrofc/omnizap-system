@@ -51,91 +51,35 @@ Conteúdo incluído no snapshot:
 Atualização em cache: **30 minutos** por padrão (`README_SUMMARY_CACHE_SECONDS=1800`).
 
 <!-- README_SNAPSHOT:START -->
-## OmniZap System Snapshot
+### Snapshot do Sistema
 
-Atualizado em: **2026-02-28T01:11:03.592Z**
-Janela de atualização: **1800 segundos**
+> Atualizado em `2026-02-28T01:18:30.283Z` | cache `1800s`
 
-### Totais do sistema
-- Usuários (lid_map): **5.502**
-- Grupos: **116**
-- Packs: **295**
-- Stickers: **6.313**
-- Mensagens registradas: **438.964**
+| Métrica | Valor |
+| --- | ---: |
+| Usuários (lid_map) | 5.502 |
+| Grupos | 116 |
+| Packs | 295 |
+| Stickers | 6.314 |
+| Mensagens registradas | 438.975 |
 
-### Tipos de mensagem mais usados (amostra de 25.000 mensagens)
-1. `texto` - **16.530**
-2. `figurinha` - **4.262**
-3. `reacao` - **1.619**
-4. `imagem` - **1.326**
-5. `outros` - **799**
-6. `video` - **245**
-7. `audio` - **213**
-8. `documento` - **6**
+#### Tipos de mensagem mais usados (amostra: 25.000)
+| Tipo | Total |
+| --- | ---: |
+| `texto` | 16.526 |
+| `figurinha` | 4.263 |
+| `reacao` | 1.619 |
+| `imagem` | 1.326 |
+| `outros` | 800 |
+| `video` | 245 |
+| `audio` | 215 |
+| `documento` | 6 |
 
-### Comandos disponíveis
-- `/add @user`
-- `/addmode`
-- `/autorequests`
-- `/autosticker`
-- `/ban @user`
-- `/captcha`
-- `/cat`
-- `/catimg`
-- `/catprompt`
-- `/catprompt reset`
-- `/dado`
-- `/down @user`
-- `/farewell`
-- `/groups`
-- `/info`
-- `/invite`
-- `/join`
-- `/leave`
-- `/menu anime`
-- `/menu figurinhas`
-- `/menu ia`
-- `/menu midia`
-- `/menu quote`
-- `/menu stats`
-- `/menuadm`
-- `/metadata`
-- `/newgroup`
-- `/noticias`
-- `/nsfw`
-- `/pack add`
-- `/pack create "Meu Pack"`
-- `/pack list`
-- `/pack send`
-- `/ping`
-- `/play`
-- `/playvid`
-- `/prefix`
-- `/premium`
-- `/quote`
-- `/ranking`
-- `/rankingglobal`
-- `/requests`
-- `/revoke`
-- `/s`
-- `/semmsg`
-- `/setdesc`
-- `/setgroup`
-- `/setsubject`
-- `/st`
-- `/stb`
-- `/sticker`
-- `/stickertext`
-- `/stickertextblink`
-- `/stickertextwhite`
-- `/stw`
-- `/temp`
-- `/tiktok`
-- `/toimg`
-- `/up @user`
-- `/updaterequests`
-- `/user perfil`
-- `/welcome`
+<details><summary>Comandos disponíveis (62)</summary>
+
+`/add` · `/addmode` · `/autorequests` · `/autosticker` · `/ban` · `/captcha` · `/cat` · `/catimg` · `/catprompt` · `/catprompt reset` · `/dado` · `/down` · `/farewell` · `/groups` · `/info` · `/invite` · `/join` · `/leave` · `/menu anime` · `/menu figurinhas` · `/menu ia` · `/menu midia` · `/menu quote` · `/menu stats` · `/menuadm` · `/metadata` · `/newgroup` · `/noticias` · `/nsfw` · `/pack add` · `/pack create` · `/pack list` · `/pack send` · `/ping` · `/play` · `/playvid` · `/prefix` · `/premium` · `/quote` · `/ranking` · `/rankingglobal` · `/requests` · `/revoke` · `/s` · `/semmsg` · `/setdesc` · `/setgroup` · `/setsubject` · `/st` · `/stb` · `/sticker` · `/stickertext` · `/stickertextblink` · `/stickertextwhite` · `/stw` · `/temp` · `/tiktok` · `/toimg` · `/up` · `/updaterequests` · `/user perfil` · `/welcome`
+
+</details>
 <!-- README_SNAPSHOT:END -->
 
 ## Recursos principais
