@@ -58,6 +58,7 @@
     "pm2:prod": "pm2 start ecosystem.prod.config.cjs",
     "deploy": "bash ./scripts/deploy.sh",
     "deploy:dry-run": "DEPLOY_DRY_RUN=1 bash ./scripts/deploy.sh",
+    "readme:sync-snapshot": "node ./scripts/sync-readme-snapshot.mjs",
     "release": "bash ./scripts/release.sh",
     "release:minor": "RELEASE_TYPE=minor bash ./scripts/release.sh",
     "release:major": "RELEASE_TYPE=major bash ./scripts/release.sh",

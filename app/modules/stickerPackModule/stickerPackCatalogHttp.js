@@ -5778,7 +5778,7 @@ const extractCommandsFromMenuLine = (line, commandPrefix) => {
       const tokens = withoutPrefix.split(/\s+/).filter(Boolean);
       const selectedTokens = [];
       for (const token of tokens) {
-        if (/^[<[(]/.test(token)) break;
+        if (!/^[a-z0-9_-]+$/i.test(token)) break;
         selectedTokens.push(token);
       }
       if (!selectedTokens.length) return '';
@@ -5813,32 +5813,35 @@ const collectAvailableMenuCommands = (commandPrefix = README_COMMAND_PREFIX) => 
 };
 
 const renderReadmeSnapshotMarkdown = ({ generatedAt, totals, topMessageTypes, commands }) => {
-  const typeLines = topMessageTypes.length
-    ? topMessageTypes.map((entry, index) => `${index + 1}. \`${entry.type}\` - **${formatPtBrInteger(entry.total)}**`)
-    : ['1. `outros` - **0**'];
+  const typeRows = topMessageTypes.length
+    ? topMessageTypes.map((entry) => `| \`${entry.type}\` | ${formatPtBrInteger(entry.total)} |`)
+    : ['| `outros` | 0 |'];
 
-  const commandLines = commands.length
-    ? commands.map((command) => `- \`${command}\``)
-    : ['- Nenhum comando identificado no menu atual.'];
+  const commandInline = commands.length ? commands.map((command) => `\`${command}\``).join(' · ') : 'Nenhum comando identificado no menu atual.';
 
   return [
-    '## OmniZap System Snapshot',
+    '### Snapshot do Sistema',
     '',
-    `Atualizado em: **${generatedAt}**`,
-    `Janela de atualização: **${README_SUMMARY_CACHE_SECONDS} segundos**`,
+    `> Atualizado em \`${generatedAt}\` | cache \`${README_SUMMARY_CACHE_SECONDS}s\``,
     '',
-    '### Totais do sistema',
-    `- Usuários (lid_map): **${formatPtBrInteger(totals.total_users)}**`,
-    `- Grupos: **${formatPtBrInteger(totals.total_groups)}**`,
-    `- Packs: **${formatPtBrInteger(totals.total_packs)}**`,
-    `- Stickers: **${formatPtBrInteger(totals.total_stickers)}**`,
-    `- Mensagens registradas: **${formatPtBrInteger(totals.total_messages)}**`,
+    '| Métrica | Valor |',
+    '| --- | ---: |',
+    `| Usuários (lid_map) | ${formatPtBrInteger(totals.total_users)} |`,
+    `| Grupos | ${formatPtBrInteger(totals.total_groups)} |`,
+    `| Packs | ${formatPtBrInteger(totals.total_packs)} |`,
+    `| Stickers | ${formatPtBrInteger(totals.total_stickers)} |`,
+    `| Mensagens registradas | ${formatPtBrInteger(totals.total_messages)} |`,
     '',
-    `### Tipos de mensagem mais usados (amostra de ${formatPtBrInteger(totals.message_types_sample_size)} mensagens)`,
-    ...typeLines,
+    `#### Tipos de mensagem mais usados (amostra: ${formatPtBrInteger(totals.message_types_sample_size)})`,
+    '| Tipo | Total |',
+    '| --- | ---: |',
+    ...typeRows,
     '',
-    '### Comandos disponíveis',
-    ...commandLines,
+    `<details><summary>Comandos disponíveis (${formatPtBrInteger(commands.length)})</summary>`,
+    '',
+    commandInline,
+    '',
+    '</details>',
     '',
   ].join('\n');
 };
