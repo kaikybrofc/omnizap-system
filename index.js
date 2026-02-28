@@ -3,7 +3,7 @@
  *
  * Responsabilidades principais:
  * - Inicializar o banco (garantindo DB e tabelas).
- * - Subir servidor de métricas.
+ * - Subir servidor HTTP (catálogo web + endpoint de métricas).
  * - Rodar backfill do lid_map (opcional, em background).
  * - Conectar ao WhatsApp (Baileys).
  * - Iniciar serviços auxiliares (ex: broadcast de notícias).
@@ -25,7 +25,7 @@ import {
   stopNewsBroadcastService,
 } from './app/services/newsBroadcastService.js';
 import initializeDatabase from './database/init.js';
-import { startMetricsServer, stopMetricsServer } from './app/observability/metrics.js';
+import { startHttpServer, stopHttpServer } from './server/index.js';
 import {
   startStickerClassificationBackground,
   stopStickerClassificationBackground,
@@ -198,7 +198,7 @@ async function closeDatabasePool() {
  *
  * Fluxo de startup:
  * 1) Inicializa DB (cria/verifica DB/tabelas)
- * 2) Sobe servidor de métricas
+ * 2) Sobe servidor HTTP (catálogo + métricas)
  * 3) Inicia backfill (opcional) em background
  * 4) Conecta no WhatsApp
  * 5) Inicia serviços auxiliares (news broadcast)
@@ -216,8 +216,8 @@ async function startApp() {
     await withTimeout(initializeDatabase(), DB_INIT_TIMEOUT_MS, 'Inicializacao do banco');
     logger.info('Banco de dados pronto.');
 
-    logger.info('Inicializando servidor de metricas...');
-    startMetricsServer();
+    logger.info('Inicializando servidor HTTP...');
+    startHttpServer();
     if (isStickerWorkerPipelineEnabled()) {
       startStickerWorkerPipeline();
     } else {
@@ -274,7 +274,7 @@ startApp();
  * - serviço de notícias (se stop existir)
  * - aguarda backfill (com timeout curto)
  * - encerra socket do WhatsApp
- * - encerra servidor de métricas
+ * - encerra servidor HTTP
  * - encerra pool do MySQL
  *
  * Regras:
@@ -339,14 +339,14 @@ async function shutdown(signal, error) {
       }
     }
 
-    // 4) Encerrar servidor de métricas
-    if (typeof stopMetricsServer === 'function') {
+    // 4) Encerrar servidor HTTP
+    if (typeof stopHttpServer === 'function') {
       try {
-        logger.info('Encerrando servidor de metricas...');
-        await withTimeout(stopMetricsServer(), 8000, 'Encerramento metricas');
-        logger.info('Servidor de metricas encerrado.');
-      } catch (metricsError) {
-        logger.warn('Falha ao encerrar servidor de metricas.', { error: metricsError.message });
+        logger.info('Encerrando servidor HTTP...');
+        await withTimeout(stopHttpServer(), 8000, 'Encerramento HTTP');
+        logger.info('Servidor HTTP encerrado.');
+      } catch (httpError) {
+        logger.warn('Falha ao encerrar servidor HTTP.', { error: httpError.message });
       }
     }
 

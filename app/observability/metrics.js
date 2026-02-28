@@ -1,10 +1,6 @@
 import 'dotenv/config';
 
-import http from 'node:http';
-import { randomUUID } from 'node:crypto';
-import { URL } from 'node:url';
 import client from 'prom-client';
-import logger from '../utils/logger/loggerModule.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -39,21 +35,10 @@ const QUERY_THRESHOLDS_MS = parseThresholds(process.env.DB_QUERY_ALERT_THRESHOLD
 
 const registry = new client.Registry();
 let metrics = null;
-let server = null;
-let serverStarted = false;
-let stickerCatalogModulePromise = null;
 
 const normalizeLabel = (value, fallback = 'unknown') => {
   if (value === undefined || value === null || value === '') return fallback;
   return String(value);
-};
-
-const normalizeRequestId = (value) => {
-  const token = String(value || '')
-    .trim()
-    .replace(/[^a-zA-Z0-9._:-]/g, '')
-    .slice(0, 120);
-  return token || randomUUID();
 };
 
 const normalizeHttpMethod = (method) => {
@@ -70,7 +55,7 @@ const toStatusClass = (statusCode) => {
   return `${head}xx`;
 };
 
-const resolveRouteGroup = ({ pathname, metricsPath, catalogConfig = null } = {}) => {
+export const resolveRouteGroup = ({ pathname, metricsPath, catalogConfig = null } = {}) => {
   if (pathname?.startsWith(metricsPath)) return 'metrics';
   if (pathname === '/sitemap.xml') return 'sitemap';
   if (pathname === '/api/marketplace/stats') return 'marketplace_stats';
@@ -390,137 +375,23 @@ const ensureMetrics = () => {
   return metrics;
 };
 
-const loadStickerCatalogModule = async () => {
-  if (!stickerCatalogModulePromise) {
-    stickerCatalogModulePromise = import('../modules/stickerPackModule/stickerPackCatalogHttp.js');
-  }
-  return stickerCatalogModulePromise;
-};
-
 export const isMetricsEnabled = () => METRICS_ENABLED;
 
-export const startMetricsServer = () => {
-  if (!METRICS_ENABLED || serverStarted) return;
+export const getMetricsServerConfig = () => ({
+  enabled: METRICS_ENABLED,
+  host: METRICS_HOST,
+  port: METRICS_PORT,
+  path: METRICS_PATH,
+});
+
+export const getMetricsPayload = async () => {
+  if (!METRICS_ENABLED) return null;
   ensureMetrics();
-  server = http.createServer(async (req, res) => {
-    const requestStartedAt = Date.now();
-    const requestId = normalizeRequestId(req.headers['x-request-id']);
-    res.setHeader('X-Request-Id', requestId);
-
-    const host = req.headers.host || `${METRICS_HOST}:${METRICS_PORT}`;
-    let parsedUrl;
-    try {
-      parsedUrl = new URL(req.url || '/', `http://${host}`);
-    } catch {
-      parsedUrl = new URL(req.url || '/', 'http://localhost');
-    }
-    const pathname = parsedUrl.pathname;
-    let routeGroup = resolveRouteGroup({
-      pathname,
-      metricsPath: METRICS_PATH,
-      catalogConfig: null,
-    });
-
-    res.once('finish', () => {
-      recordHttpRequest({
-        durationMs: Date.now() - requestStartedAt,
-        method: req.method,
-        statusCode: res.statusCode,
-        routeGroup,
-      });
-    });
-
-    try {
-      const stickerCatalogModule = await loadStickerCatalogModule();
-      const catalogConfig =
-        typeof stickerCatalogModule.getStickerCatalogConfig === 'function'
-          ? stickerCatalogModule.getStickerCatalogConfig()
-          : null;
-      routeGroup = resolveRouteGroup({
-        pathname,
-        metricsPath: METRICS_PATH,
-        catalogConfig,
-      });
-      const handledByCatalog = await stickerCatalogModule.maybeHandleStickerCatalogRequest(req, res, {
-        pathname,
-        url: parsedUrl,
-      });
-
-      if (handledByCatalog) {
-        return;
-      }
-    } catch (error) {
-      logger.error('Erro ao inicializar rotas web de sticker packs.', {
-        error: error.message,
-      });
-    }
-
-    if (!pathname.startsWith(METRICS_PATH)) {
-      res.statusCode = 404;
-      res.end('Not Found');
-      return;
-    }
-
-    try {
-      const body = await registry.metrics();
-      res.statusCode = 200;
-      res.setHeader('Content-Type', registry.contentType);
-      res.end(body);
-    } catch (error) {
-      res.statusCode = 500;
-      res.end('Metrics error');
-      logger.error('Erro ao gerar /metrics', { error: error.message });
-    }
-  });
-
-  server.listen(METRICS_PORT, METRICS_HOST, () => {
-    serverStarted = true;
-    logger.info('Servidor /metrics iniciado', {
-      host: METRICS_HOST,
-      port: METRICS_PORT,
-      path: METRICS_PATH,
-    });
-
-    loadStickerCatalogModule()
-      .then((module) => {
-        const config = typeof module.getStickerCatalogConfig === 'function' ? module.getStickerCatalogConfig() : null;
-        if (!config?.enabled) return;
-        logger.info('Catalogo web de sticker packs habilitado', {
-          web_path: config.webPath,
-          api_base_path: config.apiBasePath,
-          orphan_api_path: config.orphanApiPath,
-          data_public_path: config.dataPublicPath,
-          data_public_dir: config.dataPublicDir,
-          host: METRICS_HOST,
-          port: METRICS_PORT,
-        });
-      })
-      .catch((error) => {
-        logger.warn('Nao foi possivel carregar configuracao do catalogo de sticker packs.', {
-          error: error.message,
-        });
-      });
-  });
-
-  server.on('error', (error) => {
-    logger.error('Falha ao iniciar servidor /metrics', { error: error.message });
-  });
-};
-
-export const stopMetricsServer = async () => {
-  if (!serverStarted || !server) return;
-  const current = server;
-  server = null;
-  serverStarted = false;
-  await new Promise((resolve, reject) => {
-    current.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-  });
+  const body = await registry.metrics();
+  return {
+    body,
+    contentType: registry.contentType,
+  };
 };
 
 export const recordError = (scope = 'app') => {

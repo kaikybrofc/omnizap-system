@@ -4,14 +4,18 @@ import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from
 import { URL, URLSearchParams } from 'node:url';
 import axios from 'axios';
 
-import { executeQuery, pool, TABLES } from '../../../database/index.js';
-import { getJidUser, normalizeJid, resolveBotJid } from '../../config/baileysConfig.js';
-import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../config/adminIdentity.js';
-import { getActiveSocket } from '../../services/socketState.js';
-import { extractUserIdInfo, resolveUserId } from '../../services/lidMapService.js';
-import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppOwnerJid, toWhatsAppPhoneDigits } from '../../services/whatsappLoginLinkService.js';
-import logger from '../../utils/logger/loggerModule.js';
-import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
+import { executeQuery, pool, TABLES } from '../../database/index.js';
+import { getJidUser, normalizeJid, resolveBotJid } from '../../app/config/baileysConfig.js';
+import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../app/config/adminIdentity.js';
+import { getActiveSocket } from '../../app/services/socketState.js';
+import { extractUserIdInfo, resolveUserId } from '../../app/services/lidMapService.js';
+import {
+  resolveWhatsAppOwnerJidFromLoginPayload,
+  toWhatsAppOwnerJid,
+  toWhatsAppPhoneDigits,
+} from '../../app/services/whatsappLoginLinkService.js';
+import logger from '../../app/utils/logger/loggerModule.js';
+import { getSystemMetrics } from '../../app/utils/systemMetrics/systemMetricsModule.js';
 import {
   listStickerPacksForCatalog,
   findStickerPackByPackKey,
@@ -20,7 +24,7 @@ import {
   findStickerPackByOwnerAndIdentifier,
   softDeleteStickerPack,
   updateStickerPackFields,
-} from './stickerPackRepository.js';
+} from '../../app/modules/stickerPackModule/stickerPackRepository.js';
 import {
   listStickerPackItems,
   countStickerPackItemRefsByStickerId,
@@ -28,23 +32,23 @@ import {
   getStickerPackItemByStickerId,
   removeStickerPackItemByStickerId,
   removeStickerPackItemsByPackId,
-} from './stickerPackItemRepository.js';
+} from '../../app/modules/stickerPackModule/stickerPackItemRepository.js';
 import {
   listClassifiedStickerAssetsWithoutPack,
   listStickerAssetsWithoutPack,
   deleteStickerAssetById,
   findStickerAssetsByIds,
-} from './stickerAssetRepository.js';
+} from '../../app/modules/stickerPackModule/stickerAssetRepository.js';
 import {
   deleteStickerAssetClassificationByAssetId,
   findStickerClassificationByAssetId,
   listStickerClassificationsByAssetIds,
-} from './stickerAssetClassificationRepository.js';
+} from '../../app/modules/stickerPackModule/stickerAssetClassificationRepository.js';
 import {
   decoratePackClassificationSummary,
   decorateStickerClassification,
   getPackClassificationSummaryByAssetIds,
-} from './stickerClassificationService.js';
+} from '../../app/modules/stickerPackModule/stickerClassificationService.js';
 import {
   getEmptyStickerPackEngagement,
   getStickerPackEngagementByPackId,
@@ -52,21 +56,21 @@ import {
   incrementStickerPackLike,
   incrementStickerPackOpen,
   listStickerPackEngagementByPackIds,
-} from './stickerPackEngagementRepository.js';
+} from '../../app/modules/stickerPackModule/stickerPackEngagementRepository.js';
 import {
   createStickerPackInteractionEvent,
   listStickerPackInteractionStatsByPackIds,
   listViewerRecentPackIds,
-} from './stickerPackInteractionEventRepository.js';
+} from '../../app/modules/stickerPackModule/stickerPackInteractionEventRepository.js';
 import {
   buildCreatorRanking,
   buildIntentCollections,
   buildPersonalizedRecommendations,
   buildViewerTagAffinity,
   computePackSignals,
-} from './stickerPackMarketplaceService.js';
-import { listStickerPackScoreSnapshotsByPackIds } from './stickerPackScoreSnapshotRepository.js';
-import { createCatalogApiRouter } from './catalogRouter.js';
+} from '../../app/modules/stickerPackModule/stickerPackMarketplaceService.js';
+import { listStickerPackScoreSnapshotsByPackIds } from '../../app/modules/stickerPackModule/stickerPackScoreSnapshotRepository.js';
+import { createCatalogApiRouter } from '../routes/stickerCatalog/catalogRouter.js';
 import {
   buildAdminMenu,
   buildAiMenu,
@@ -76,19 +80,19 @@ import {
   buildQuoteMenu,
   buildStatsMenu,
   buildStickerMenu,
-} from '../menuModule/common.js';
-import { getMarketplaceDriftSnapshot } from './stickerMarketplaceDriftService.js';
+} from '../../app/modules/menuModule/common.js';
+import { getMarketplaceDriftSnapshot } from '../../app/modules/stickerPackModule/stickerMarketplaceDriftService.js';
 import {
   getStickerAssetExternalUrl,
   getStickerStorageConfig,
   readStickerAssetBuffer,
   saveStickerAssetFromBuffer,
-} from './stickerStorageService.js';
-import { convertToWebp } from '../stickerModule/convertToWebp.js';
-import { sanitizeText } from './stickerPackUtils.js';
-import stickerPackService from './stickerPackServiceRuntime.js';
-import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
-import { isFeatureEnabled } from '../../services/featureFlagService.js';
+} from '../../app/modules/stickerPackModule/stickerStorageService.js';
+import { convertToWebp } from '../../app/modules/stickerModule/convertToWebp.js';
+import { sanitizeText } from '../../app/modules/stickerPackModule/stickerPackUtils.js';
+import stickerPackService from '../../app/modules/stickerPackModule/stickerPackServiceRuntime.js';
+import { STICKER_PACK_ERROR_CODES, StickerPackError } from '../../app/modules/stickerPackModule/stickerPackErrors.js';
+import { isFeatureEnabled } from '../../app/services/featureFlagService.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -539,7 +543,9 @@ const getCookieValuesFromRequest = (req, cookieName) => {
     let decodedValue = encodedValue;
     try {
       decodedValue = decodeURIComponent(encodedValue);
-    } catch {}
+    } catch (_error) {
+      decodedValue = encodedValue;
+    }
     const normalizedValue = String(decodedValue || '').trim();
     if (!normalizedValue) continue;
     if (!values.includes(normalizedValue)) values.push(normalizedValue);
