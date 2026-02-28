@@ -10,6 +10,7 @@ if (root) {
     status: document.getElementById('login-status'),
     hint: document.getElementById('login-hint'),
     error: document.getElementById('login-error'),
+    googleArea: document.getElementById('google-login-area'),
     googleButton: document.querySelector('[data-google-login-button]'),
     googleState: document.getElementById('google-login-state'),
     summary: document.getElementById('login-summary'),
@@ -99,6 +100,8 @@ if (root) {
     return normalizeDigits(user);
   };
 
+  const canUseGoogleLogin = () => Boolean(state.hint.phone);
+
   const renderSuccessActions = (sessionData) => {
     if (!ui.successActions) return;
     const authenticated = Boolean(sessionData?.authenticated);
@@ -162,6 +165,15 @@ if (root) {
   };
 
   const renderSessionSummary = (sessionData) => {
+    if (!canUseGoogleLogin()) {
+      state.authenticated = false;
+      state.sessionOwnerPhone = '';
+      if (ui.summary) ui.summary.hidden = true;
+      renderSuccessActions(null);
+      renderWhatsAppCta();
+      return;
+    }
+
     const authenticated = Boolean(sessionData?.authenticated);
     state.authenticated = authenticated;
     renderSuccessActions(sessionData);
@@ -285,6 +297,7 @@ if (root) {
     });
 
   const mountGoogleButton = async () => {
+    if (!canUseGoogleLogin()) return;
     if (!state.googleEnabled || !state.googleClientId) {
       setText(ui.googleState, 'Login Google desabilitado neste ambiente.');
       return;
@@ -378,6 +391,10 @@ if (root) {
   };
 
   const loadCurrentSession = async () => {
+    if (!canUseGoogleLogin()) {
+      renderSessionSummary(null);
+      return;
+    }
     try {
       const payload = await fetchJson(sessionApiPath, { method: 'GET' });
       const sessionData = payload?.data || {};
@@ -394,6 +411,21 @@ if (root) {
     }
   };
 
+  const renderGoogleLoginGate = () => {
+    const allowed = canUseGoogleLogin();
+    if (ui.googleArea) {
+      ui.googleArea.hidden = !allowed;
+    }
+    if (!allowed) {
+      setText(ui.status, 'Para fazer login, abra esta pagina pelo link do WhatsApp (envie "iniciar" no bot).');
+      setText(ui.googleState, '');
+      if (ui.summary) ui.summary.hidden = true;
+      renderSuccessActions(null);
+      showError('');
+    }
+    return allowed;
+  };
+
   const init = async () => {
     renderHint();
     if (ui.whatsappCta && state.hint.phone) {
@@ -401,8 +433,10 @@ if (root) {
     }
     renderWhatsAppCta();
     renderSuccessActions(null);
-    await loadConfig();
+    const allowGoogleLogin = renderGoogleLoginGate();
     await loadBotPhone();
+    if (!allowGoogleLogin) return;
+    await loadConfig();
     await loadCurrentSession();
     await mountGoogleButton();
   };

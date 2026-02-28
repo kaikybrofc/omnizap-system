@@ -921,6 +921,7 @@ const normalizeGoogleWebSessionRow = (row) => {
   const token = String(row.session_token || '').trim();
   const sub = normalizeGoogleSubject(row.google_sub);
   const ownerJid = normalizeJid(row.owner_jid) || '';
+  const ownerPhone = toWhatsAppPhoneDigits(row.owner_phone || ownerJid) || '';
   const expiresAt = Number(new Date(row.expires_at || 0));
   if (!token || !sub || !ownerJid || !Number.isFinite(expiresAt)) return null;
   const createdAtRaw = Number(new Date(row.created_at || 0));
@@ -932,6 +933,7 @@ const normalizeGoogleWebSessionRow = (row) => {
     name: sanitizeText(row.name || '', 120, { allowEmpty: true }) || null,
     picture: String(row.picture_url || '').trim() || null,
     ownerJid,
+    ownerPhone,
     createdAt: Number.isFinite(createdAtRaw) ? createdAtRaw : Date.now(),
     expiresAt,
     lastSeenAt: Number.isFinite(lastSeenAtRaw) ? lastSeenAtRaw : 0,
@@ -960,6 +962,7 @@ const upsertGoogleWebUserRecord = async (user, connection = null) => {
   const sub = normalizeGoogleSubject(user?.sub);
   const ownerJid = normalizeJid(user?.ownerJid) || '';
   if (!sub || !ownerJid) return;
+  const ownerPhone = toWhatsAppPhoneDigits(ownerJid) || null;
   const email = String(user?.email || '').trim().toLowerCase() || null;
   const name = sanitizeText(user?.name || '', 120, { allowEmpty: true }) || null;
   const pictureUrl = String(user?.picture || '').trim().slice(0, 1024) || null;
@@ -987,12 +990,22 @@ const upsertGoogleWebUserRecord = async (user, connection = null) => {
     [sub, ownerJid, email, name, pictureUrl],
     connection,
   );
+
+  // Persistimos o telefone normalizado do owner para facilitar consultas administrativas.
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_WEB_GOOGLE_USER}
+        SET owner_phone = COALESCE(?, owner_phone)
+      WHERE google_sub = ?`,
+    [ownerPhone, sub],
+    connection,
+  ).catch(() => {});
 };
 
 const upsertGoogleWebSessionRecord = async (session, connection = null) => {
   const token = String(session?.token || '').trim();
   const sub = normalizeGoogleSubject(session?.sub);
   const ownerJid = normalizeJid(session?.ownerJid) || '';
+  const ownerPhone = toWhatsAppPhoneDigits(session?.ownerPhone || ownerJid) || null;
   const expiresAt = Number(session?.expiresAt || 0);
   if (!token || !sub || !ownerJid || !Number.isFinite(expiresAt) || expiresAt <= 0) return;
   const email = String(session?.email || '').trim().toLowerCase() || null;
@@ -1015,6 +1028,42 @@ const upsertGoogleWebSessionRecord = async (session, connection = null) => {
     [token, sub, ownerJid, email, name, pictureUrl, new Date(expiresAt)],
     connection,
   );
+
+  await executeQuery(
+    `UPDATE ${TABLES.STICKER_WEB_GOOGLE_SESSION}
+        SET owner_phone = COALESCE(?, owner_phone)
+      WHERE session_token = ?`,
+    [ownerPhone, token],
+    connection,
+  ).catch(() => {});
+};
+
+const deleteOtherGoogleWebSessionsInDb = async ({ token = '', ownerJid = '', sub = '' } = {}, connection = null) => {
+  const sessionToken = String(token || '').trim();
+  const normalizedOwnerJid = normalizeJid(ownerJid) || '';
+  const normalizedSub = normalizeGoogleSubject(sub);
+  if (!sessionToken || (!normalizedOwnerJid && !normalizedSub)) return 0;
+
+  const clauses = [];
+  const params = [];
+  if (normalizedOwnerJid) {
+    clauses.push('owner_jid = ?');
+    params.push(normalizedOwnerJid);
+  }
+  if (normalizedSub) {
+    clauses.push('google_sub = ?');
+    params.push(normalizedSub);
+  }
+  if (!clauses.length) return 0;
+
+  const result = await executeQuery(
+    `DELETE FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
+      WHERE session_token <> ?
+        AND (${clauses.join(' OR ')})`,
+    [sessionToken, ...params],
+    connection,
+  );
+  return Number(result?.affectedRows || 0);
 };
 
 const persistGoogleWebSessionToDb = async (session) => {
@@ -1031,6 +1080,14 @@ const persistGoogleWebSessionToDb = async (session) => {
       },
       connection,
     );
+    await deleteOtherGoogleWebSessionsInDb(
+      {
+        token: session.token,
+        ownerJid: session.ownerJid,
+        sub: session.sub,
+      },
+      connection,
+    );
     await upsertGoogleWebSessionRecord(session, connection);
   });
 };
@@ -1040,7 +1097,7 @@ const findGoogleWebSessionInDbByToken = async (sessionToken) => {
   if (!token) return null;
   await maybePruneExpiredGoogleSessionsFromDb();
   const rows = await executeQuery(
-    `SELECT session_token, google_sub, owner_jid, email, name, picture_url, created_at, expires_at, last_seen_at
+    `SELECT session_token, google_sub, owner_jid, owner_phone, email, name, picture_url, created_at, expires_at, last_seen_at
        FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
       WHERE session_token = ?
         AND revoked_at IS NULL
@@ -1639,6 +1696,7 @@ const createGoogleWebSession = (claims, { ownerJid } = {}) => {
   const token = randomUUID();
   const now = Date.now();
   const resolvedOwnerJid = normalizeJid(ownerJid) || buildGoogleOwnerJid(claims.sub);
+  const resolvedOwnerPhone = toWhatsAppPhoneDigits(resolvedOwnerJid) || '';
   const session = {
     token,
     sub: claims.sub,
@@ -1646,13 +1704,27 @@ const createGoogleWebSession = (claims, { ownerJid } = {}) => {
     name: claims.name || null,
     picture: claims.picture || null,
     ownerJid: resolvedOwnerJid,
+    ownerPhone: resolvedOwnerPhone,
     createdAt: now,
     expiresAt: now + STICKER_WEB_GOOGLE_SESSION_TTL_MS,
     lastSeenAt: now,
     lastDbTouchAt: 0,
   };
-  webGoogleSessionMap.set(token, session);
   return session;
+};
+
+const activateGoogleWebSession = (session) => {
+  if (!session?.token) return;
+  pruneExpiredGoogleSessions();
+  webGoogleSessionMap.set(session.token, session);
+  for (const [token, existing] of webGoogleSessionMap.entries()) {
+    if (!existing || token === session.token) continue;
+    const sameOwner = normalizeJid(existing.ownerJid) === normalizeJid(session.ownerJid);
+    const sameSub = normalizeGoogleSubject(existing.sub) === normalizeGoogleSubject(session.sub);
+    if (sameOwner || sameSub) {
+      webGoogleSessionMap.delete(token);
+    }
+  }
 };
 
 const resolveGoogleWebSessionFromRequest = async (req) => {
@@ -3583,7 +3655,16 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
   try {
     const claims = await verifyGoogleIdToken(payload?.google_id_token || payload?.id_token);
     const linkedOwner = resolveWhatsAppOwnerJidFromLoginPayload(payload);
-    if (linkedOwner.hasPayload && !linkedOwner.ownerJid) {
+    if (!linkedOwner.ownerJid) {
+      if (!linkedOwner.hasPayload) {
+        sendJson(req, res, 400, {
+          error: 'Abra esta pagina pelo link enviado no WhatsApp. Envie "iniciar" no bot para gerar o link de login.',
+          code: 'WHATSAPP_LOGIN_LINK_REQUIRED',
+          reason: 'missing_link',
+        });
+        return;
+      }
+
       const reason = String(linkedOwner.reason || '').trim().toLowerCase();
       const isUnauthorizedAttempt = ['invalid_signature', 'missing_signature'].includes(reason);
       const statusCode = isUnauthorizedAttempt ? 403 : 400;
@@ -3608,7 +3689,7 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
       });
       return;
     }
-    const ownerJid = linkedOwner.ownerJid || buildGoogleOwnerJid(claims.sub);
+    const ownerJid = linkedOwner.ownerJid;
 
     await assertGoogleIdentityNotBanned({
       sub: claims.sub,
@@ -3622,8 +3703,8 @@ const handleGoogleAuthSessionRequest = async (req, res) => {
     }
     try {
       await persistGoogleWebSessionToDb(session);
+      activateGoogleWebSession(session);
     } catch (persistError) {
-      webGoogleSessionMap.delete(session.token);
       logger.error('Falha ao persistir sessão Google web no banco.', {
         action: 'sticker_pack_google_web_session_db_persist_failed',
         error: persistError?.message,
@@ -3661,7 +3742,7 @@ const mapGoogleSessionResponseData = (session) =>
           picture: session.picture,
         },
         owner_jid: session.ownerJid,
-        owner_phone: toWhatsAppPhoneDigits(session.ownerJid) || null,
+        owner_phone: toWhatsAppPhoneDigits(session.ownerPhone || session.ownerJid) || null,
         expires_at: toIsoOrNull(session.expiresAt),
       }
     : {
@@ -6807,7 +6888,7 @@ const handlePackInteractionRequest = async (req, res, packKey, interaction, url)
 const listAdminActiveGoogleWebSessions = async ({ limit = 200 } = {}) => {
   const safeLimit = Math.max(1, Math.min(500, Number(limit || 200)));
   const rows = await executeQuery(
-    `SELECT session_token, google_sub, owner_jid, email, name, picture_url, created_at, last_seen_at, expires_at
+    `SELECT session_token, google_sub, owner_jid, owner_phone, email, name, picture_url, created_at, last_seen_at, expires_at
        FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
       WHERE revoked_at IS NULL
         AND expires_at > UTC_TIMESTAMP()
@@ -6818,6 +6899,7 @@ const listAdminActiveGoogleWebSessions = async ({ limit = 200 } = {}) => {
     session_token: String(row.session_token || '').trim(),
     google_sub: normalizeGoogleSubject(row.google_sub),
     owner_jid: normalizeJid(row.owner_jid) || null,
+    owner_phone: toWhatsAppPhoneDigits(row.owner_phone || row.owner_jid) || null,
     email: normalizeEmail(row.email) || null,
     name: sanitizeText(row.name || '', 120, { allowEmpty: true }) || null,
     picture: String(row.picture_url || '').trim() || null,
@@ -6830,7 +6912,7 @@ const listAdminActiveGoogleWebSessions = async ({ limit = 200 } = {}) => {
 const listAdminKnownGoogleUsers = async ({ limit = 200 } = {}) => {
   const safeLimit = Math.max(1, Math.min(500, Number(limit || 200)));
   const rows = await executeQuery(
-    `SELECT google_sub, owner_jid, email, name, picture_url, created_at, updated_at, last_login_at, last_seen_at
+    `SELECT google_sub, owner_jid, owner_phone, email, name, picture_url, created_at, updated_at, last_login_at, last_seen_at
        FROM ${TABLES.STICKER_WEB_GOOGLE_USER}
       ORDER BY COALESCE(last_seen_at, last_login_at, updated_at, created_at) DESC
       LIMIT ${safeLimit}`,
@@ -6838,6 +6920,7 @@ const listAdminKnownGoogleUsers = async ({ limit = 200 } = {}) => {
   return (Array.isArray(rows) ? rows : []).map((row) => ({
     google_sub: normalizeGoogleSubject(row.google_sub),
     owner_jid: normalizeJid(row.owner_jid) || null,
+    owner_phone: toWhatsAppPhoneDigits(row.owner_phone || row.owner_jid) || null,
     email: normalizeEmail(row.email) || null,
     name: sanitizeText(row.name || '', 120, { allowEmpty: true }) || null,
     picture: String(row.picture_url || '').trim() || null,

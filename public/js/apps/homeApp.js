@@ -232,6 +232,88 @@ function HomeEffects() {
   }, []);
 
   useEffect(() => {
+    const authLink = document.getElementById('nav-auth-link');
+    if (!authLink) return;
+
+    const fallbackAvatar = 'https://iili.io/FC3FABe.jpg';
+    const clearChildren = (node) => {
+      while (node.firstChild) {
+        node.removeChild(node.firstChild);
+      }
+    };
+
+    const showLoginButton = () => {
+      authLink.classList.remove('nav-user-chip');
+      authLink.href = '/login/';
+      authLink.removeAttribute('title');
+      authLink.removeAttribute('aria-label');
+      clearChildren(authLink);
+
+      const icon = document.createElement('i');
+      icon.className = 'fa-solid fa-right-to-bracket icon-inline';
+      icon.setAttribute('aria-hidden', 'true');
+      authLink.append(icon, document.createTextNode('Login'));
+    };
+
+    const showLoggedUser = (sessionData) => {
+      const profile = sessionData?.user || {};
+      const resolvedName = String(profile?.name || profile?.email || 'Conta Google').trim() || 'Conta Google';
+      const resolvedPhoto = String(profile?.picture || '').trim() || fallbackAvatar;
+
+      authLink.classList.add('nav-user-chip');
+      authLink.href = '/login/';
+      authLink.title = `${resolvedName} (sessão ativa)`;
+      authLink.setAttribute('aria-label', `Sessão ativa de ${resolvedName}`);
+      clearChildren(authLink);
+
+      const avatarBubble = document.createElement('span');
+      avatarBubble.className = 'nav-user-avatar-bubble';
+
+      const photo = document.createElement('img');
+      photo.className = 'nav-user-photo';
+      photo.src = resolvedPhoto;
+      photo.alt = `Foto de ${resolvedName}`;
+      photo.loading = 'lazy';
+      photo.decoding = 'async';
+      photo.onerror = () => {
+        photo.src = fallbackAvatar;
+      };
+      avatarBubble.appendChild(photo);
+
+      const nameBubble = document.createElement('span');
+      nameBubble.className = 'nav-user-name-bubble';
+
+      const icon = document.createElement('i');
+      icon.className = 'fa-solid fa-user nav-user-icon';
+      icon.setAttribute('aria-hidden', 'true');
+
+      const name = document.createElement('span');
+      name.className = 'nav-user-name';
+      name.textContent = resolvedName;
+
+      nameBubble.append(icon, name);
+      authLink.append(avatarBubble, nameBubble);
+    };
+
+    fetch('/api/sticker-packs/auth/google/session', { credentials: 'include' })
+      .then((response) => {
+        if (!response.ok) throw new Error('Sessão indisponível');
+        return response.json();
+      })
+      .then((payload) => {
+        const sessionData = payload?.data || {};
+        if (!sessionData?.authenticated || !sessionData?.user?.sub) {
+          showLoginButton();
+          return;
+        }
+        showLoggedUser(sessionData);
+      })
+      .catch(() => {
+        showLoginButton();
+      });
+  }, []);
+
+  useEffect(() => {
     const wppButton = document.getElementById('wpp-float');
     if (!wppButton) return;
 

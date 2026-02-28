@@ -200,6 +200,10 @@
       align-items: stretch;
     }
 
+    html:not([data-login-has-wa="1"]) #google-login-area {
+      display: none !important;
+    }
+
     [data-google-login-button] {
       width: 100%;
       min-height: 40px;
@@ -297,7 +301,7 @@
         <p id="login-hint" class="hint"></p>
         <p id="login-error" class="error" hidden></p>
 
-        <div class="google-area">
+        <div id="google-login-area" class="google-area" hidden>
           <div data-google-login-button></div>
           <p id="google-login-state" class="google-state">Carregando login Google...</p>
         </div>
@@ -324,6 +328,6 @@
     </section>
   </main>
 
-  <script type="module" src="/js/apps/loginApp.js?v=20260228e"></script>
+  <script type="module" src="/js/apps/loginApp.js?v=20260228f"></script>
 </body>
 </html>
