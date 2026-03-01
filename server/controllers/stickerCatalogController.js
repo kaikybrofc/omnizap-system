@@ -100,6 +100,7 @@ const STICKER_CREATE_WEB_PATH = `${STICKER_WEB_PATH}/create`;
 const STICKER_ADMIN_WEB_PATH = `${STICKER_WEB_PATH}/admin`;
 const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
 const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
+const STICKER_ADMIN_REDIRECT_TO_USER = parseEnvBool(process.env.STICKER_ADMIN_REDIRECT_TO_USER, true);
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
 const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
 const STICKER_WEB_ASSET_VERSION = sanitizeText(process.env.STICKER_WEB_ASSET_VERSION || '', 64, { allowEmpty: true }) || '';
@@ -7318,6 +7319,19 @@ const handleCatalogPageRequest = async (req, res, pathname) => {
   });
 
   if (normalizedPath === STICKER_ADMIN_WEB_PATH) {
+    if (STICKER_ADMIN_REDIRECT_TO_USER) {
+      const requestUrl = new URL(req.url || `${STICKER_ADMIN_WEB_PATH}/`, SITE_ORIGIN);
+      const userUrl = new URL(`${USER_PROFILE_WEB_PATH}/`, SITE_ORIGIN);
+      for (const [key, value] of requestUrl.searchParams.entries()) {
+        userUrl.searchParams.append(key, value);
+      }
+      res.statusCode = 302;
+      res.setHeader('Location', `${userUrl.pathname}${userUrl.search}`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.end();
+      return;
+    }
+
     try {
       const html = await renderAdminPanelHtml();
       sendText(req, res, 200, html, 'text/html; charset=utf-8');

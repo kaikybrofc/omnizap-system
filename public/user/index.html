@@ -253,6 +253,120 @@
         color: #f4fff8;
       }
 
+      .admin-panel {
+        border: 1px solid #5b4a8f8f;
+        border-radius: 12px;
+        background: #1a1d3aa8;
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .admin-headline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .admin-title {
+        margin: 0;
+        font-size: 17px;
+        color: #eef3ff;
+      }
+
+      .admin-role {
+        border: 1px solid #6f5cc2;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #dad1ff;
+        background: #2a2155;
+      }
+
+      .admin-note {
+        margin: 0;
+        color: #d8d2ff;
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .admin-error {
+        margin: 0;
+        border: 1px solid #a74949;
+        border-radius: 10px;
+        background: #3b181899;
+        color: #ffd7d7;
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+
+      .admin-form {
+        display: grid;
+        gap: 8px;
+      }
+
+      .admin-label {
+        color: #d8d2ff;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .admin-form-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+      }
+
+      .admin-input {
+        min-height: 40px;
+        border: 1px solid #4f4a77;
+        border-radius: 10px;
+        background: #11162f;
+        color: #f4f7ff;
+        font-size: 14px;
+        padding: 0 10px;
+      }
+
+      .admin-input:focus {
+        outline: none;
+        border-color: #7c6be0;
+      }
+
+      .admin-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .admin-metric {
+        border: 1px solid #45409d7d;
+        border-radius: 10px;
+        background: #1a2044bf;
+        padding: 9px;
+      }
+
+      .admin-metric-label {
+        margin: 0 0 4px;
+        color: #b9b3e8;
+        font-size: 12px;
+      }
+
+      .admin-metric-value {
+        margin: 0;
+        color: #f4f6ff;
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      .admin-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
       .actions {
         display: flex;
         flex-wrap: wrap;
@@ -267,6 +381,10 @@
 
       @media (max-width: 760px) {
         .grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .admin-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
       }
@@ -292,6 +410,10 @@
         .actions .btn {
           width: 100%;
           text-align: center;
+        }
+
+        .admin-form-row {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -351,6 +473,64 @@
             <div><strong>Sessão expira:</strong> <span id="user-expires-at"></span></div>
           </div>
 
+          <section id="user-admin-panel" class="admin-panel" hidden>
+            <div class="admin-headline">
+              <h3 class="admin-title">Área Admin</h3>
+              <span id="user-admin-role" class="admin-role">admin</span>
+            </div>
+            <p id="user-admin-status" class="admin-note"></p>
+            <p id="user-admin-error" class="admin-error" hidden></p>
+
+            <form id="user-admin-unlock-form" class="admin-form" hidden>
+              <label for="user-admin-password" class="admin-label">Senha do painel admin</label>
+              <div class="admin-form-row">
+                <input id="user-admin-password" class="admin-input" type="password" autocomplete="current-password" placeholder="Digite sua senha" />
+                <button id="user-admin-unlock-btn" type="submit" class="btn">Desbloquear</button>
+              </div>
+            </form>
+
+            <div id="user-admin-overview" hidden>
+              <div class="admin-grid">
+                <article class="admin-metric">
+                  <p class="admin-metric-label">Packs (total)</p>
+                  <p id="user-admin-total-packs" class="admin-metric-value">0</p>
+                </article>
+                <article class="admin-metric">
+                  <p class="admin-metric-label">Stickers (total)</p>
+                  <p id="user-admin-total-stickers" class="admin-metric-value">0</p>
+                </article>
+                <article class="admin-metric">
+                  <p class="admin-metric-label">Bans ativos</p>
+                  <p id="user-admin-active-bans" class="admin-metric-value">0</p>
+                </article>
+                <article class="admin-metric">
+                  <p class="admin-metric-label">Usuários Google</p>
+                  <p id="user-admin-known-users" class="admin-metric-value">0</p>
+                </article>
+                <article class="admin-metric">
+                  <p class="admin-metric-label">Sessões Google</p>
+                  <p id="user-admin-active-sessions" class="admin-metric-value">0</p>
+                </article>
+                <article class="admin-metric">
+                  <p class="admin-metric-label">Visitas 24h</p>
+                  <p id="user-admin-visits-24h" class="admin-metric-value">0</p>
+                </article>
+                <article class="admin-metric">
+                  <p class="admin-metric-label">Visitas 7d</p>
+                  <p id="user-admin-visits-7d" class="admin-metric-value">0</p>
+                </article>
+                <article class="admin-metric">
+                  <p class="admin-metric-label">Visitantes 7d</p>
+                  <p id="user-admin-unique-visitors-7d" class="admin-metric-value">0</p>
+                </article>
+              </div>
+              <div class="admin-actions">
+                <button id="user-admin-refresh-btn" type="button" class="btn">Atualizar dados admin</button>
+                <button id="user-admin-logout-btn" type="button" class="btn">Sair do admin</button>
+              </div>
+            </div>
+          </section>
+
           <div id="user-actions" class="actions" hidden>
             <a id="user-chat-link" class="btn primary" href="https://api.whatsapp.com/send/?text=%2Fmenu&type=custom_url&app_absent=0" target="_blank" rel="noreferrer noopener"> Voltar ao chat do bot (/menu) </a>
             <a id="user-manage-main-link" class="btn" href="/stickers/perfil">Gerenciar meus stickers</a>
@@ -363,6 +543,6 @@
       </section>
     </main>
 
-    <script type="module" src="/js/apps/userApp.js?v=20260228-user-page-v1"></script>
+    <script type="module" src="/js/apps/userApp.js?v=20260228-user-page-admin-merge-v1"></script>
   </body>
 </html>

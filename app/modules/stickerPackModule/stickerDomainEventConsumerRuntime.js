@@ -19,6 +19,9 @@ const CONSUMER_ENABLED = parseEnvBool(process.env.STICKER_DOMAIN_EVENT_CONSUMER_
 const STARTUP_DELAY_MS = Math.max(1_000, Number(process.env.STICKER_DOMAIN_EVENT_CONSUMER_STARTUP_DELAY_MS) || 8_000);
 const POLLER_INTERVAL_MS = Math.max(1_000, Number(process.env.STICKER_DOMAIN_EVENT_CONSUMER_POLLER_INTERVAL_MS) || 2_000);
 const RETRY_DELAY_SECONDS = Math.max(5, Math.min(3600, Number(process.env.STICKER_DOMAIN_EVENT_CONSUMER_RETRY_DELAY_SECONDS) || 45));
+const CLASSIFICATION_COALESCE_WINDOW_SECONDS = Math.max(30, Math.min(3600, Number(process.env.STICKER_DOMAIN_EVENT_CLASSIFICATION_COALESCE_WINDOW_SECONDS) || 60));
+const CURATION_COALESCE_WINDOW_SECONDS = Math.max(30, Math.min(3600, Number(process.env.STICKER_DOMAIN_EVENT_CURATION_COALESCE_WINDOW_SECONDS) || 60));
+const REBUILD_COALESCE_WINDOW_SECONDS = Math.max(30, Math.min(3600, Number(process.env.STICKER_DOMAIN_EVENT_REBUILD_COALESCE_WINDOW_SECONDS) || 120));
 const CONSUMER_COHORT_KEY = String(process.env.STICKER_DOMAIN_EVENT_CONSUMER_COHORT_KEY || process.env.HOSTNAME || process.pid).trim() || 'consumer';
 
 let startupHandle = null;
@@ -47,6 +50,18 @@ const enqueueTaskSafely = async ({ taskType, payload, priority, idempotencyKey }
   });
 };
 
+const toUnixSeconds = (value) => {
+  if (!value) return Math.floor(Date.now() / 1000);
+  const numeric = Date.parse(value);
+  if (!Number.isFinite(numeric)) return Math.floor(Date.now() / 1000);
+  return Math.floor(numeric / 1000);
+};
+
+const toWindowBucket = (value, windowSeconds) => {
+  const safeWindow = Math.max(1, Math.floor(windowSeconds || 1));
+  return Math.floor(toUnixSeconds(value) / safeWindow);
+};
+
 const handleDomainEvent = async (event) => {
   const eventType = String(event?.event_type || '')
     .trim()
@@ -55,16 +70,18 @@ const handleDomainEvent = async (event) => {
   const payload = event?.payload && typeof event.payload === 'object' ? event.payload : {};
 
   if (eventType === STICKER_DOMAIN_EVENTS.STICKER_ASSET_CREATED) {
+    const coalesceBucket = toWindowBucket(event?.created_at, CLASSIFICATION_COALESCE_WINDOW_SECONDS);
     await enqueueTaskSafely({
       taskType: 'classification_cycle',
-      payload: { reason: 'domain_event', event_type: eventType, aggregate_id: aggregateId },
+      payload: { reason: 'domain_event', event_type: eventType, aggregate_id: aggregateId, coalesced: true },
       priority: 80,
-      idempotencyKey: `evt:${event.id}:classification_cycle`,
+      idempotencyKey: `evt:${eventType}:${coalesceBucket}:classification_cycle`,
     });
     return;
   }
 
   if (eventType === STICKER_DOMAIN_EVENTS.STICKER_CLASSIFIED) {
+    const coalesceBucket = toWindowBucket(event?.created_at, CURATION_COALESCE_WINDOW_SECONDS);
     const assetId = String(payload?.asset_id || aggregateId || '').trim();
     const relatedPackIds = assetId ? await listPackIdsByStickerId(assetId).catch(() => []) : [];
     if (relatedPackIds.length) {
@@ -77,23 +94,28 @@ const handleDomainEvent = async (event) => {
         event_type: eventType,
         aggregate_id: aggregateId,
         related_pack_ids: relatedPackIds,
+        coalesced: true,
       },
       priority: 65,
-      idempotencyKey: `evt:${event.id}:curation_cycle`,
+      idempotencyKey: `evt:${eventType}:${coalesceBucket}:curation_cycle`,
     });
     return;
   }
 
   if (eventType === STICKER_DOMAIN_EVENTS.PACK_UPDATED) {
+    const coalesceBucket = toWindowBucket(event?.created_at, REBUILD_COALESCE_WINDOW_SECONDS);
     const packId = String(payload?.pack_id || aggregateId || '').trim();
     if (packId) {
       enqueuePackScoreSnapshotRefresh([packId]);
     }
+    const rebuildIdempotency = packId
+      ? `evt:${eventType}:${packId}:${coalesceBucket}:rebuild_cycle`
+      : `evt:${eventType}:${coalesceBucket}:rebuild_cycle`;
     await enqueueTaskSafely({
       taskType: 'rebuild_cycle',
-      payload: { reason: 'domain_event', event_type: eventType, aggregate_id: aggregateId, pack_id: packId || null },
+      payload: { reason: 'domain_event', event_type: eventType, aggregate_id: aggregateId, pack_id: packId || null, coalesced: true },
       priority: 60,
-      idempotencyKey: `evt:${event.id}:rebuild_cycle`,
+      idempotencyKey: rebuildIdempotency,
     });
     return;
   }

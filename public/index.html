@@ -184,6 +184,32 @@
         cursor: pointer;
       }
 
+      .nav-toggle.nav-toggle-user {
+        padding: 0;
+        border-color: #3f5f8f;
+        background: linear-gradient(120deg, #132544d6, #10203ad6);
+        box-shadow: 0 0 0 2px #1a2e4b;
+        overflow: hidden;
+      }
+
+      .nav-toggle.nav-toggle-login {
+        width: auto;
+        min-width: 92px;
+        padding: 0 14px;
+        border-color: #38598b;
+        background: linear-gradient(120deg, #132544d6, #10203ad6);
+        box-shadow: 0 0 0 2px #1a2e4b;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .nav-toggle-photo {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
       .btn {
         text-decoration: none;
         color: var(--text);
@@ -778,6 +804,10 @@
         .btn {
           width: 100%;
         }
+
+        .btn.nav-mobile-hidden {
+          display: none;
+        }
         .proof-grid {
           grid-template-columns: 1fr;
         }
@@ -1102,6 +1132,6 @@
         ><svg viewBox="0 0 24 24"><use href="#icon-whatsapp"></use></svg></span
     ></a>
 
-    <script type="module" src="/js/apps/homeApp.js?v=20260228-home-bootstrap-v6"></script>
+    <script type="module" src="/js/apps/homeApp.js?v=20260228-home-bootstrap-v10"></script>
   </body>
 </html>

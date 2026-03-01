@@ -137,7 +137,21 @@ const initNavToggle = () => {
     toggle.setAttribute('aria-expanded', 'false');
   };
 
-  const onClick = () => {
+  const onClick = (event) => {
+    if (toggle.classList.contains('nav-toggle-login')) {
+      if (event) event.preventDefault();
+      closeMenu();
+      const loginUrl = String(toggle.dataset.loginUrl || '/login/').trim() || '/login/';
+      window.location.assign(loginUrl);
+      return;
+    }
+    if (toggle.classList.contains('nav-toggle-user')) {
+      if (event) event.preventDefault();
+      closeMenu();
+      const profileUrl = String(toggle.dataset.profileUrl || '/user/').trim() || '/user/';
+      window.location.assign(profileUrl);
+      return;
+    }
     const isOpen = nav.classList.toggle('open');
     toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
   };
@@ -163,14 +177,138 @@ const initNavToggle = () => {
 
 const initAuthSession = () => {
   const authLink = document.getElementById('nav-auth-link');
+  const schedulerLink = document.getElementById('nav-scheduler-link');
+  const navToggle = document.getElementById('nav-toggle');
   if (!authLink) return null;
+
+  const mobileQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 920px)') : null;
+  let currentSessionData = null;
+  let isAuthenticated = false;
+  const isMobileViewport = () => {
+    const byMedia = Boolean(mobileQuery?.matches);
+    const viewportWidth = Math.max(Number(window.innerWidth || 0), Number(document.documentElement?.clientWidth || 0));
+    return byMedia || (viewportWidth > 0 && viewportWidth <= 920);
+  };
+  const schedulerDefaultHref = String(schedulerLink?.getAttribute('href') || '#beneficios').trim() || '#beneficios';
+  const schedulerDefaultLabel = String(schedulerLink?.textContent || 'Benefícios').trim() || 'Benefícios';
+  const navToggleDefaultLabel = String(navToggle?.textContent || '☰').trim() || '☰';
 
   const clearChildren = (node) => {
     while (node.firstChild) node.removeChild(node.firstChild);
   };
 
+  const setSchedulerDefaultState = () => {
+    if (!schedulerLink) return;
+    schedulerLink.classList.remove('nav-user-chip');
+    schedulerLink.href = schedulerDefaultHref;
+    schedulerLink.removeAttribute('title');
+    schedulerLink.removeAttribute('aria-label');
+    clearChildren(schedulerLink);
+    schedulerLink.append(document.createTextNode(schedulerDefaultLabel));
+  };
+
+  const setToggleDefaultState = () => {
+    if (!navToggle) return;
+    navToggle.classList.remove('nav-toggle-user', 'nav-toggle-login');
+    delete navToggle.dataset.profileUrl;
+    delete navToggle.dataset.loginUrl;
+    navToggle.setAttribute('aria-label', 'Abrir menu');
+    navToggle.setAttribute('aria-controls', 'main-nav');
+    navToggle.setAttribute('aria-expanded', 'false');
+    clearChildren(navToggle);
+    navToggle.append(document.createTextNode(navToggleDefaultLabel));
+  };
+
+  const setToggleLoginState = () => {
+    if (!navToggle) return;
+    navToggle.classList.remove('nav-toggle-user');
+    navToggle.classList.add('nav-toggle-login');
+    delete navToggle.dataset.profileUrl;
+    navToggle.dataset.loginUrl = '/login/';
+    navToggle.setAttribute('aria-label', 'Entrar');
+    navToggle.removeAttribute('aria-controls');
+    navToggle.removeAttribute('aria-expanded');
+    clearChildren(navToggle);
+    navToggle.append(document.createTextNode('Entrar'));
+  };
+
+  const setSchedulerAsUserBubble = (sessionData) => {
+    if (!schedulerLink) return;
+
+    const profile = sessionData?.user || {};
+    const resolvedName = String(profile?.name || profile?.email || 'Conta Google').trim() || 'Conta Google';
+    const resolvedPhoto = String(profile?.picture || '').trim() || FALLBACK_THUMB_URL;
+
+    schedulerLink.classList.add('nav-user-chip');
+    schedulerLink.href = '/user/';
+    schedulerLink.title = `${resolvedName} (sessão ativa)`;
+    schedulerLink.setAttribute('aria-label', `Sessão ativa de ${resolvedName}`);
+    clearChildren(schedulerLink);
+
+    const avatarBubble = document.createElement('span');
+    avatarBubble.className = 'nav-user-avatar-bubble';
+
+    const photo = document.createElement('img');
+    photo.className = 'nav-user-photo';
+    photo.src = resolvedPhoto;
+    photo.alt = `Foto de ${resolvedName}`;
+    photo.loading = 'lazy';
+    photo.decoding = 'async';
+    photo.width = 34;
+    photo.height = 34;
+    photo.onerror = () => {
+      photo.src = FALLBACK_THUMB_URL;
+    };
+    avatarBubble.appendChild(photo);
+    schedulerLink.append(avatarBubble);
+  };
+
+  const setToggleAsUserBubble = (sessionData) => {
+    if (!navToggle) return;
+
+    const profile = sessionData?.user || {};
+    const resolvedName = String(profile?.name || profile?.email || 'Conta Google').trim() || 'Conta Google';
+    const resolvedPhoto = String(profile?.picture || '').trim() || FALLBACK_THUMB_URL;
+
+    navToggle.classList.remove('nav-toggle-login');
+    navToggle.classList.add('nav-toggle-user');
+    navToggle.dataset.profileUrl = '/user/';
+    delete navToggle.dataset.loginUrl;
+    navToggle.setAttribute('aria-label', `Abrir perfil de ${resolvedName}`);
+    navToggle.removeAttribute('aria-controls');
+    navToggle.removeAttribute('aria-expanded');
+    clearChildren(navToggle);
+
+    const photo = document.createElement('img');
+    photo.className = 'nav-toggle-photo';
+    photo.src = resolvedPhoto;
+    photo.alt = `Foto de ${resolvedName}`;
+    photo.loading = 'lazy';
+    photo.decoding = 'async';
+    photo.width = 40;
+    photo.height = 40;
+    photo.onerror = () => {
+      photo.src = FALLBACK_THUMB_URL;
+    };
+    navToggle.append(photo);
+  };
+
+  const applyLoggedOutLayout = () => {
+    setSchedulerDefaultState();
+    if (isMobileViewport()) {
+      authLink.classList.add('nav-mobile-hidden');
+      setToggleLoginState();
+      return;
+    }
+    authLink.classList.remove('nav-mobile-hidden');
+    setToggleDefaultState();
+  };
+
   const setLoginState = () => {
+    currentSessionData = null;
+    isAuthenticated = false;
     authLink.classList.remove('nav-user-chip');
+    authLink.classList.remove('nav-mobile-hidden');
     authLink.href = '/login/';
     authLink.removeAttribute('title');
     authLink.removeAttribute('aria-label');
@@ -179,9 +317,13 @@ const initAuthSession = () => {
     const icon = createIcon('icon-login');
 
     authLink.append(icon, document.createTextNode('Entrar'));
+    applyLoggedOutLayout();
   };
 
-  const setLoggedState = (sessionData) => {
+  const applyLoggedLayout = () => {
+    if (!currentSessionData) return;
+
+    const sessionData = currentSessionData;
     const profile = sessionData?.user || {};
     const resolvedName = String(profile?.name || profile?.email || 'Conta Google').trim() || 'Conta Google';
     const resolvedPhoto = String(profile?.picture || '').trim() || FALLBACK_THUMB_URL;
@@ -208,9 +350,41 @@ const initAuthSession = () => {
     };
     avatarBubble.appendChild(photo);
     authLink.append(avatarBubble);
+
+    if (isMobileViewport()) {
+      setSchedulerAsUserBubble(sessionData);
+      setToggleAsUserBubble(sessionData);
+      authLink.classList.add('nav-mobile-hidden');
+      return;
+    }
+
+    authLink.classList.remove('nav-mobile-hidden');
+    setSchedulerDefaultState();
+    setToggleDefaultState();
   };
 
-  return runAfterLoadIdle(
+  const setLoggedState = (sessionData) => {
+    currentSessionData = sessionData || null;
+    isAuthenticated = true;
+    applyLoggedLayout();
+  };
+
+  const onViewportChange = () => {
+    if (isAuthenticated) {
+      applyLoggedLayout();
+      return;
+    }
+    applyLoggedOutLayout();
+  };
+
+  if (mobileQuery && typeof mobileQuery.addEventListener === 'function') {
+    mobileQuery.addEventListener('change', onViewportChange);
+  } else if (mobileQuery && typeof mobileQuery.addListener === 'function') {
+    mobileQuery.addListener(onViewportChange);
+  }
+  window.addEventListener('resize', onViewportChange);
+
+  const stopBootstrap = runAfterLoadIdle(
     () => {
       fetchHomeBootstrapPayload()
         .then((bootstrapData) => {
@@ -227,6 +401,16 @@ const initAuthSession = () => {
     },
     { delayMs: 520, timeoutMs: 1200 },
   );
+
+  return () => {
+    stopBootstrap();
+    window.removeEventListener('resize', onViewportChange);
+    if (mobileQuery && typeof mobileQuery.removeEventListener === 'function') {
+      mobileQuery.removeEventListener('change', onViewportChange);
+    } else if (mobileQuery && typeof mobileQuery.removeListener === 'function') {
+      mobileQuery.removeListener(onViewportChange);
+    }
+  };
 };
 
 const initAddBotCtas = () => {

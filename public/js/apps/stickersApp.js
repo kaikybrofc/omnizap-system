@@ -1729,7 +1729,6 @@ function PackPage({ pack, relatedPacks, onBack, onOpenRelated, onLike, onDislike
   const packLockedByNsfw = isPackMarkedNsfw(pack) && !hasNsfwAccess;
   const cover = packLockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : pack?.cover_url || items?.[0]?.asset_url || DEFAULT_STICKER_PLACEHOLDER_URL;
   const whatsappUrl = String(pack?.whatsapp?.url || '').trim();
-  const packApiPath = `/api/sticker-packs/${encodeURIComponent(String(pack?.pack_key || '').trim())}`;
   const engagement = getPackEngagement(pack);
   const hasReactionRequest = Boolean(reactionLoading);
   const [previewIndex, setPreviewIndex] = useState(-1);
@@ -1779,23 +1778,6 @@ function PackPage({ pack, relatedPacks, onBack, onOpenRelated, onLike, onDislike
           </div>
 
           ${pack?.description ? html`<p className="text-sm leading-6 text-slate-300">${pack.description}</p>` : null}
-
-          <section className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-3">
-            <p className="text-[11px] uppercase tracking-wide text-cyan-200">Use este pack no seu bot</p>
-            <p className="mt-1 text-sm text-slate-200">Este pack faz parte do módulo de stickers da plataforma OmniZap. Você pode consumir por API e conectar ao seu fluxo de automação WhatsApp.</p>
-            <pre className="mt-2 overflow-auto rounded-lg border border-slate-800 bg-slate-950/60 p-2 text-[11px] text-slate-300">
-GET ${packApiPath}
-POST ${packApiPath}/open
-POST ${packApiPath}/like
-            </pre
-            >
-            <div className="mt-2 flex flex-wrap gap-2">
-              <a href="/api-docs/" className="inline-flex h-8 items-center rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-500/20"> Ver API e exemplos </a>
-              <a href="/" className="inline-flex h-8 items-center rounded-lg border border-slate-700 bg-slate-900/70 px-3 text-[11px] text-slate-200 hover:bg-slate-800"> Plataforma OmniZap </a>
-              <a href="/stickers/" className="inline-flex h-8 items-center rounded-lg border border-slate-700 bg-slate-900/70 px-3 text-[11px] text-slate-200 hover:bg-slate-800"> Voltar ao catálogo </a>
-            </div>
-          </section>
-
           ${tags.length
             ? html`
                 <div className="space-y-1">
@@ -3765,16 +3747,6 @@ function StickersApp() {
             : currentPackKey
               ? html` ${packLoading ? html`<${PackPageSkeleton} />` : html`<${PackPage} pack=${currentPack} relatedPacks=${relatedPacks} onBack=${goCatalog} onOpenRelated=${openPack} onLike=${handleLike} onDislike=${handleDislike} onTagClick=${openCatalogTagFilter} reactionLoading=${reactionLoading} reactionNotice=${reactionNotice} hasNsfwAccess=${hasNsfwAccess} onRequireLogin=${requestNsfwUnlock} />`} `
               : html`
-                  <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 sm:p-4">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Módulo de stickers da plataforma OmniZap</p>
-                    <h1 className="mt-1 text-lg sm:text-xl font-extrabold tracking-tight text-slate-100">Catálogo de stickers integrável via API</h1>
-                    <p className="mt-1 text-sm text-slate-300">Os stickers são uma feature do OmniZap para bots e automação WhatsApp. Explore packs públicos e integre no seu sistema com endpoints documentados.</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <a href="/api-docs/" className="inline-flex h-8 items-center rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-500/20"> Área de Desenvolvedor </a>
-                      <a href="/" className="inline-flex h-8 items-center rounded-lg border border-slate-700 bg-slate-900/70 px-3 text-[11px] text-slate-200 hover:bg-slate-800"> Página principal OmniZap </a>
-                    </div>
-                  </section>
-
                   <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-4">
                     <aside className="hidden lg:block">
                       <div className="sticky top-[72px] space-y-2.5 rounded-2xl border border-slate-800 bg-slate-900/80 p-2.5">
