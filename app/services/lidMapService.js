@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import logger from '../utils/logger/loggerModule.js';
 import { executeQuery, TABLES } from '../../database/index.js';
 import { getJidServer, normalizeJid, isGroupJid } from '../config/baileysConfig.js';
@@ -10,12 +13,16 @@ const STORE_COOLDOWN_MS = 10 * 60 * 1000;
 const BATCH_LIMIT = 800;
 const BACKFILL_DEFAULT_BATCH = 50000;
 const BACKFILL_SOURCE = 'backfill';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const BAILEYS_AUTH_DIR = path.resolve(__dirname, '../connection/auth');
 
 const LID_SERVERS = new Set(['lid', 'hosted.lid']);
 const PN_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted']);
 
 const lidCache = new Map();
 const lidWriteBuffer = new Map();
+const authReverseLidCache = new Map();
 
 let backfillPromise = null;
 
@@ -53,6 +60,54 @@ const normalizeWhatsAppJid = (jid) => {
   if (!jid || !isWhatsAppJid(jid)) return null;
   const normalized = normalizeJid(jid);
   return normalized || null;
+};
+
+const toDigits = (value) => String(value || '').replace(/\D+/g, '');
+
+const parseReverseMappingPhoneDigits = (content) => {
+  const raw = String(content || '').trim();
+  if (!raw) return '';
+
+  let parsed = raw;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = raw;
+  }
+
+  const digits = toDigits(parsed);
+  return digits.length >= 10 && digits.length <= 15 ? digits : '';
+};
+
+const resolveAuthStoreJidByLid = async (lid) => {
+  const normalizedLid = normalizeLid(lid);
+  if (!normalizedLid) return null;
+
+  const [rawUser] = normalizedLid.split('@');
+  const rootUser = rawUser ? rawUser.split(':')[0] : '';
+  if (!rootUser || !/^\d+$/.test(rootUser)) return null;
+
+  if (authReverseLidCache.has(rootUser)) {
+    return authReverseLidCache.get(rootUser);
+  }
+
+  const reverseFilePath = path.join(BAILEYS_AUTH_DIR, `lid-mapping-${rootUser}_reverse.json`);
+  try {
+    const content = await readFile(reverseFilePath, 'utf8');
+    const phoneDigits = parseReverseMappingPhoneDigits(content);
+    const resolvedJid = phoneDigits ? normalizeWhatsAppJid(`${phoneDigits}@s.whatsapp.net`) : null;
+    authReverseLidCache.set(rootUser, resolvedJid);
+    return resolvedJid;
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      logger.warn('Falha ao resolver LID via auth store local.', {
+        lid: normalizedLid,
+        error: error?.message,
+      });
+    }
+    authReverseLidCache.set(rootUser, null);
+    return null;
+  }
 };
 
 /**
@@ -191,8 +246,21 @@ export const primeLidCache = async (lids = []) => {
     const base = baseByLid.get(lid);
     const direct = rowMap.has(lid) ? rowMap.get(lid) : undefined;
     const baseValue = base && base !== lid && rowMap.has(base) ? rowMap.get(base) : undefined;
-    const resolved = direct ?? baseValue ?? null;
-    setCacheEntry(lid, resolved, resolved ? CACHE_TTL_MS : NEGATIVE_TTL_MS);
+    let resolved = direct ?? baseValue ?? null;
+
+    if (!resolved) {
+      const authStoreResolved = await resolveAuthStoreJidByLid(lid);
+      if (authStoreResolved) {
+        resolved = authStoreResolved;
+      }
+    }
+
+    const directHasJid = typeof direct === 'string' && direct.length > 0;
+    const shouldSeed = Boolean(resolved && (!directHasJid || direct !== resolved));
+    setCacheEntry(lid, resolved, resolved ? CACHE_TTL_MS : NEGATIVE_TTL_MS, shouldSeed ? 0 : undefined);
+    if (shouldSeed) {
+      queueLidUpdate(lid, resolved, 'prime');
+    }
     results.set(lid, resolved);
   }
 
@@ -379,6 +447,15 @@ const fetchJidByLid = async (lid) => {
   const direct = rowMap.has(lid) ? rowMap.get(lid) : undefined;
   const baseValue = base && base !== lid && rowMap.has(base) ? rowMap.get(base) : undefined;
   let resolved = direct ?? baseValue ?? null;
+  let resolveSource = 'db';
+
+  if (!resolved) {
+    const authStoreResolved = await resolveAuthStoreJidByLid(lid);
+    if (authStoreResolved) {
+      resolved = authStoreResolved;
+      resolveSource = 'auth-store';
+    }
+  }
 
   if (!resolved) {
     const normalized = base || lid;
@@ -404,16 +481,18 @@ const fetchJidByLid = async (lid) => {
       const derivedJid = derivedRows?.[0]?.jid;
       if (derivedJid && isWhatsAppJid(derivedJid)) {
         resolved = normalizeJid(derivedJid);
+        resolveSource = 'derived';
       }
     }
   }
 
-  const shouldSeedDerived = Boolean(resolved && direct === undefined);
+  const directHasJid = typeof direct === 'string' && direct.length > 0;
+  const shouldSeedDerived = Boolean(resolved && (!directHasJid || direct !== resolved));
 
   setCacheEntry(lid, resolved, resolved ? CACHE_TTL_MS : NEGATIVE_TTL_MS, shouldSeedDerived ? 0 : undefined);
 
   if (shouldSeedDerived) {
-    queueLidUpdate(lid, resolved, 'derived');
+    queueLidUpdate(lid, resolved, resolveSource === 'auth-store' ? 'auth-store' : 'derived');
   }
 
   return resolved;

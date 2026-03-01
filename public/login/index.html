@@ -40,6 +40,10 @@
         box-sizing: border-box;
       }
 
+      [hidden] {
+        display: none !important;
+      }
+
       html,
       body {
         margin: 0;
@@ -277,6 +281,7 @@
         border-radius: 14px;
         background: #ffffff;
         padding: 8px;
+        overflow: hidden;
         box-shadow:
           0 8px 18px #02091624,
           inset 0 1px 0 #ffffff;
@@ -294,7 +299,14 @@
 
       [data-google-login-button] {
         width: 100%;
+        max-width: 100%;
         min-height: 44px;
+        overflow: hidden;
+      }
+
+      [data-google-login-button] > div,
+      [data-google-login-button] iframe {
+        max-width: 100% !important;
       }
 
       .google-state {
@@ -592,7 +604,7 @@
         <h1>Acesse sua conta</h1>
         <p class="lead">Vincule seu WhatsApp e libere os recursos do OmniZap.</p>
 
-        <article class="card">
+        <article id="login-main-card" class="card">
           <p id="login-status" class="status">Verificando conta Google...</p>
           <p id="login-hint" class="hint"></p>
           <p id="login-error" class="error" hidden></p>
@@ -602,7 +614,7 @@
           </div>
 
           <div id="google-login-area" class="google-area" hidden>
-            <div class="google-button-shell">
+            <div id="google-login-button-shell" class="google-button-shell" hidden>
               <div data-google-login-button></div>
             </div>
             <p id="google-login-state" class="google-state">Carregando login Google...</p>
@@ -646,6 +658,6 @@
       </div>
     </div>
 
-    <script type="module" src="/js/apps/loginApp.js?v=20260301d"></script>
+    <script type="module" src="/js/apps/loginApp.js?v=20260301j"></script>
   </body>
 </html>

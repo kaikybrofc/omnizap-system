@@ -150,9 +150,14 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
     return duplicateLines.join('\n');
   }
 
-  const savedLines = [`📦 Figurinha salva automaticamente no pack *${packName}*${countLabel}.\n\n`, `Dica: use *${commandPrefix}pack list* para gerenciar seus packs.`, `Para enviar agora: *${commandPrefix}pack send ${packCommandTarget}*.`];
+  const savedLines = [
+    `✅ Figurinha adicionada ao pack *${packName}*${countLabel}.`,
+    '',
+    `📋 Gerencie seus packs com *${commandPrefix}pack list*.`,
+    `🚀 Envie agora com *${commandPrefix}pack send ${packCommandTarget}*.`,
+  ];
   if (packWebUrl) {
-    savedLines.push(`🌐 Abrir no site: ${packWebUrl}`);
+    savedLines.push(`🌐 Veja no site: ${packWebUrl}`);
   } else {
     savedLines.push(`🔒 Pack privado/não publicado. Gerencie em: ${profileUrl}`);
   }

@@ -6,17 +6,18 @@ const LOGIN_CONSENT_STORAGE_KEY = 'omnizap_login_terms_consent_v1';
 const LOGIN_CONSENT_HINT = 'Aceite os Termos de Uso e a Politica de Privacidade para continuar.';
 const DEFAULT_SUCCESS_CHAT_LABEL = 'Abrir WhatsApp do bot';
 const DEFAULT_SUCCESS_HOME_LABEL = 'Ir para o painel';
-const ALREADY_LOGGED_STATUS_TEXT = 'Voce ja esta logado neste navegador.';
 const ALREADY_LOGGED_HINT_TEXT = 'Nao e necessario fazer login novamente. Escolha uma opcao abaixo.';
 
 const root = document.getElementById('login-app-root');
 
 if (root) {
   const ui = {
+    loginCard: document.getElementById('login-main-card'),
     status: document.getElementById('login-status'),
     hint: document.getElementById('login-hint'),
     error: document.getElementById('login-error'),
     googleArea: document.getElementById('google-login-area'),
+    googleButtonShell: document.getElementById('google-login-button-shell'),
     googleButton: document.querySelector('[data-google-login-button]'),
     googleState: document.getElementById('google-login-state'),
     consentBox: document.getElementById('login-consent-box'),
@@ -59,6 +60,25 @@ if (root) {
     element.textContent = String(value || '');
   };
 
+  const isAuthenticatedFlagEnabled = (value) => {
+    if (value === true || value === 1) return true;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      return normalized === 'true' || normalized === '1';
+    }
+    return false;
+  };
+
+  const isAuthenticatedGoogleSession = (sessionData) => {
+    if (!sessionData || typeof sessionData !== 'object') return false;
+    if (!isAuthenticatedFlagEnabled(sessionData.authenticated)) return false;
+    const provider = String(sessionData.provider || '').trim().toLowerCase();
+    if (provider && provider !== 'google') return false;
+    const ownerJid = String(sessionData.owner_jid || '').trim();
+    const userSub = String(sessionData?.user?.sub || '').trim();
+    return Boolean(ownerJid || userSub);
+  };
+
   const normalizeDigits = (value) => String(value || '').replace(/\D+/g, '');
 
   const showError = (message) => {
@@ -82,7 +102,9 @@ if (root) {
       } else {
         window.localStorage.removeItem(LOGIN_CONSENT_STORAGE_KEY);
       }
-    } catch {}
+    } catch {
+      // Ignore storage errors (private mode or blocked storage).
+    }
   };
 
   const readConsentState = () => {
@@ -131,6 +153,47 @@ if (root) {
     setText(ui.googleState, state.busy ? 'Finalizando login...' : state.consentAccepted ? (state.googleReady ? '' : 'Carregando login Google...') : LOGIN_CONSENT_HINT);
   };
 
+  const renderGoogleLoginControls = () => {
+    const hideLoginControls = state.authenticated;
+    if (ui.consentBox) {
+      ui.consentBox.hidden = hideLoginControls;
+    }
+    if (ui.googleButtonShell) {
+      ui.googleButtonShell.hidden = hideLoginControls || !state.consentAccepted;
+    }
+  };
+
+  const renderLoginCardVisibility = () => {
+    if (!ui.loginCard) return;
+    ui.loginCard.hidden = Boolean(state.authenticated);
+  };
+
+  const resolveGoogleButtonWidth = () => {
+    const directWidth = Math.floor(Number(ui.googleButton?.clientWidth || 0));
+    if (directWidth > 0) {
+      return Math.max(180, Math.min(320, directWidth));
+    }
+
+    const areaWidth = Math.floor(Number(ui.googleArea?.clientWidth || 0));
+    if (areaWidth > 0) {
+      const areaStyles = ui.googleArea ? window.getComputedStyle(ui.googleArea) : null;
+      const shellStyles = ui.googleButtonShell ? window.getComputedStyle(ui.googleButtonShell) : null;
+      const areaPaddingX = areaStyles ? Number.parseFloat(areaStyles.paddingLeft || '0') + Number.parseFloat(areaStyles.paddingRight || '0') : 0;
+      const shellPaddingX = shellStyles ? Number.parseFloat(shellStyles.paddingLeft || '0') + Number.parseFloat(shellStyles.paddingRight || '0') : 16;
+      const shellBorderX = shellStyles ? Number.parseFloat(shellStyles.borderLeftWidth || '0') + Number.parseFloat(shellStyles.borderRightWidth || '0') : 2;
+      const available = Math.floor(areaWidth - areaPaddingX - shellPaddingX - shellBorderX);
+      if (available > 0) {
+        return Math.max(180, Math.min(320, available));
+      }
+    }
+
+    const viewportAvailable = Math.floor(Number(window.innerWidth || 0)) - 96;
+    if (viewportAvailable > 0) {
+      return Math.max(180, Math.min(320, viewportAvailable));
+    }
+    return 280;
+  };
+
   const formatPhone = (digits) => {
     const value = normalizeDigits(digits);
     if (!value) return '';
@@ -174,7 +237,7 @@ if (root) {
 
   const renderSuccessActions = (sessionData, options = {}) => {
     if (!ui.successActions) return;
-    const authenticated = Boolean(sessionData?.authenticated);
+    const authenticated = isAuthenticatedFlagEnabled(sessionData?.authenticated);
     ui.successActions.hidden = !authenticated;
     if (!authenticated) return;
 
@@ -209,28 +272,10 @@ if (root) {
     state.authenticated = true;
     state.sessionOwnerPhone = ownerPhone;
 
-    setText(ui.status, ALREADY_LOGGED_STATUS_TEXT);
-    if (ownerPhone) {
-      setText(ui.hint, `Sessao ativa para +${formatPhone(ownerPhone)}.`);
-    } else {
-      setText(ui.hint, ALREADY_LOGGED_HINT_TEXT);
-    }
-
     showError('');
     showConsentError('');
-    renderAlreadyLoggedBanner({ visible: true, ownerPhone });
     hideSuccessCelebration();
-    if (ui.googleArea) ui.googleArea.hidden = true;
-    if (ui.summary) ui.summary.hidden = true;
-    if (ui.whatsappCta) ui.whatsappCta.hidden = true;
-    renderSuccessActions(
-      { authenticated: true },
-      {
-        chatLabel: 'Abrir WPP no bot',
-        homeLabel: 'Voltar para tela inicial',
-        homeHref: '/',
-      },
-    );
+    renderSessionSummary(sessionData);
   };
 
   const renderWhatsAppCta = () => {
@@ -280,14 +325,18 @@ if (root) {
     if (!canUseGoogleLogin()) {
       state.authenticated = false;
       state.sessionOwnerPhone = '';
+      renderGoogleLoginControls();
+      renderLoginCardVisibility();
       if (ui.summary) ui.summary.hidden = true;
       renderSuccessActions(null);
       renderWhatsAppCta();
       return;
     }
 
-    const authenticated = Boolean(sessionData?.authenticated);
+    const authenticated = isAuthenticatedGoogleSession(sessionData);
     state.authenticated = authenticated;
+    renderGoogleLoginControls();
+    renderLoginCardVisibility();
     renderSuccessActions(sessionData);
     if (ui.summary) ui.summary.hidden = !authenticated;
     if (!authenticated) {
@@ -364,6 +413,7 @@ if (root) {
     if (state.consentAccepted) {
       showConsentError('');
     }
+    renderGoogleLoginControls();
     setBusy(state.busy);
   };
 
@@ -391,7 +441,7 @@ if (root) {
         body: JSON.stringify(buildSessionPayload(token)),
       });
       const sessionData = sessionPayload?.data || {};
-      if (!sessionData?.authenticated) {
+      if (!isAuthenticatedGoogleSession(sessionData)) {
         throw new Error('Nao foi possivel criar a sessao Google.');
       }
       setText(ui.status, 'Conta Google detectada');
@@ -454,8 +504,7 @@ if (root) {
       });
 
       ui.googleButton.innerHTML = '';
-      const measuredWidth = Math.floor(Number(ui.googleButton.clientWidth || 0));
-      const buttonWidth = Math.max(180, Math.min(320, measuredWidth || 320));
+      const buttonWidth = resolveGoogleButtonWidth();
       accounts.renderButton(ui.googleButton, {
         type: 'standard',
         theme: 'outline',
@@ -529,7 +578,7 @@ if (root) {
     try {
       const payload = await fetchJson(sessionApiPath, { method: 'GET' });
       const sessionData = payload?.data || {};
-      if (sessionData?.authenticated) {
+      if (isAuthenticatedGoogleSession(sessionData)) {
         renderAlreadyLoggedInState(sessionData);
         return true;
       }
@@ -554,6 +603,7 @@ if (root) {
     if (ui.googleArea) {
       ui.googleArea.hidden = !allowed;
     }
+    renderGoogleLoginControls();
     if (!allowed) {
       renderAlreadyLoggedBanner({ visible: false });
     }
@@ -568,6 +618,7 @@ if (root) {
   };
 
   const init = async () => {
+    renderAlreadyLoggedBanner({ visible: false });
     if (ui.consentCheckbox) {
       ui.consentCheckbox.checked = readConsentState();
       ui.consentCheckbox.addEventListener('change', syncConsentState);
@@ -581,8 +632,12 @@ if (root) {
     renderSuccessActions(null);
     const allowGoogleLogin = renderGoogleLoginGate();
     await loadBotPhone();
+    if (!allowGoogleLogin) {
+      renderSessionSummary(null);
+      return;
+    }
     const alreadyLogged = await loadCurrentSession();
-    if (alreadyLogged || !allowGoogleLogin) return;
+    if (alreadyLogged) return;
     await loadConfig();
     await mountGoogleButton();
   };

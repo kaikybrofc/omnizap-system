@@ -141,7 +141,7 @@ const clearGoogleAuthCache = () => {
 };
 
 const fetchJson = async (url, options = {}) => {
-  const response = await fetch(url, { credentials: 'same-origin', ...options });
+  const response = await fetch(url, { credentials: 'include', ...options });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(payload?.error || 'Falha na requisição.');
@@ -730,7 +730,7 @@ function CreatePackApp() {
       try {
         const response = await fetch(`${apiBasePath}/${encodeURIComponent(activeSession.packKey)}/publish-state`, {
           method: 'POST',
-          credentials: 'same-origin',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
           body: JSON.stringify({ edit_token: activeSession.editToken }),
         });
@@ -958,7 +958,7 @@ function CreatePackApp() {
 
         const createResponse = await fetch(`${apiBasePath}/create`, {
           method: 'POST',
-          credentials: 'same-origin',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
           body: JSON.stringify({
             name: finalName,
@@ -1151,7 +1151,7 @@ function CreatePackApp() {
       setStatus('Publicando pack...');
       const finalizeResponse = await fetch(`${apiBasePath}/${encodeURIComponent(session.packKey)}/finalize`, {
         method: 'POST',
-        credentials: 'same-origin',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({ edit_token: session.editToken }),
       });

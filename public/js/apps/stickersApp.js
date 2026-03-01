@@ -2293,7 +2293,7 @@ function StickersApp() {
     let attempt = 0;
     while (true) {
       try {
-        const response = await fetch(url, { credentials: 'same-origin', ...opts });
+        const response = await fetch(url, { credentials: 'include', ...opts });
         const rawText = await response.text().catch(() => '');
         let payload = {};
         if (rawText) {

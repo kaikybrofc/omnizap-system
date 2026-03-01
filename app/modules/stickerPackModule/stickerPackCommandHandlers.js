@@ -1,11 +1,14 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
-import { isUserJid } from '../../config/baileysConfig.js';
+import { getJidServer, isUserJid, normalizeJid } from '../../config/baileysConfig.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { captureIncomingStickerAsset, resolveStickerAssetForCommand } from './stickerStorageService.js';
 import { buildStickerPackMessage, sendStickerPackWithFallback } from './stickerPackMessageService.js';
 import { sanitizeText } from './stickerPackUtils.js';
+import { executeQuery, TABLES } from '../../../database/index.js';
+import { extractSenderInfoFromMessage, extractUserIdInfo, resolveUserId } from '../../services/lidMapService.js';
+import { toWhatsAppPhoneDigits } from '../../services/whatsappLoginLinkService.js';
 
 /**
  * Handlers de comando textual para gerenciamento de packs de figurinha.
@@ -14,6 +17,7 @@ const RATE_WINDOW_MS = Math.max(10_000, Number(process.env.STICKER_PACK_RATE_WIN
 const RATE_MAX_ACTIONS = Math.max(1, Number(process.env.STICKER_PACK_RATE_MAX_ACTIONS) || 20);
 const MAX_PACK_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
 const MAX_PACK_NAME_LENGTH = 120;
+const LID_SERVERS = new Set(['lid', 'hosted.lid']);
 
 const rateMap = new Map();
 
@@ -159,20 +163,23 @@ const formatVisibilityLabel = (visibility) => {
 };
 
 /**
- * Detecta packs automáticos para ocultar em listagens do usuário.
+ * Detecta packs automáticos de curadoria temática para ocultar em listagens padrão.
+ * Mantém visível o auto-pack coletor do usuário (ex.: "minhasfigurinhas1").
  *
  * @param {object|null|undefined} pack Pack retornado pelo serviço.
- * @returns {boolean} Verdadeiro quando o pack é automático.
+ * @returns {boolean} Verdadeiro quando for auto-pack temático/curadoria.
  */
-const isAutomaticPack = (pack) => {
+const isThemeCurationPack = (pack) => {
   if (!pack || typeof pack !== 'object') return false;
-  if (pack.is_auto_pack === true || Number(pack.is_auto_pack || 0) === 1) return true;
 
   const name = String(pack.name || '').trim();
   if (/^\[auto\]/i.test(name)) return true;
 
   const description = String(pack.description || '').toLowerCase();
-  return description.includes('[auto-theme:') || description.includes('[auto-tag:');
+  if (description.includes('[auto-theme:') || description.includes('[auto-tag:')) return true;
+
+  const themeKey = String(pack.pack_theme_key || '').trim();
+  return Boolean(themeKey);
 };
 
 /**
@@ -448,6 +455,142 @@ const readSingleArgument = (input) => {
   return value ? value : null;
 };
 
+const buildOwnerLookupJids = (value) => {
+  const normalized = normalizeJid(value) || '';
+  if (!normalized || !normalized.includes('@')) return [];
+  const lookup = new Set([normalized]);
+  const digits = toWhatsAppPhoneDigits(normalized);
+  if (!digits) return Array.from(lookup);
+  lookup.add(normalizeJid(`${digits}@s.whatsapp.net`) || '');
+  lookup.add(normalizeJid(`${digits}@c.us`) || '');
+  lookup.add(normalizeJid(`${digits}@hosted`) || '');
+  return Array.from(lookup).filter(Boolean);
+};
+
+const appendOwnerCandidate = (candidateSet, lookupSet, value) => {
+  const normalized = normalizeJid(value) || '';
+  if (!normalized || !normalized.includes('@')) return;
+  candidateSet.add(normalized);
+  for (const lookupJid of buildOwnerLookupJids(normalized)) {
+    lookupSet.add(lookupJid);
+  }
+};
+
+const dedupePacksById = (packs = []) => {
+  const dedup = new Map();
+  for (const pack of Array.isArray(packs) ? packs : []) {
+    if (!pack?.id) continue;
+    const existing = dedup.get(pack.id);
+    if (!existing) {
+      dedup.set(pack.id, pack);
+      continue;
+    }
+    const currentUpdatedAt = Date.parse(String(pack.updated_at || pack.created_at || ''));
+    const existingUpdatedAt = Date.parse(String(existing.updated_at || existing.created_at || ''));
+    if (Number.isFinite(currentUpdatedAt) && (!Number.isFinite(existingUpdatedAt) || currentUpdatedAt > existingUpdatedAt)) {
+      dedup.set(pack.id, pack);
+    }
+  }
+
+  return Array.from(dedup.values()).sort((a, b) => {
+    const aUpdatedAt = Date.parse(String(a?.updated_at || a?.created_at || ''));
+    const bUpdatedAt = Date.parse(String(b?.updated_at || b?.created_at || ''));
+    if (!Number.isFinite(aUpdatedAt) && !Number.isFinite(bUpdatedAt)) return 0;
+    if (!Number.isFinite(aUpdatedAt)) return 1;
+    if (!Number.isFinite(bUpdatedAt)) return -1;
+    return bUpdatedAt - aUpdatedAt;
+  });
+};
+
+const resolveOwnerCandidatesForPackCommand = async ({ senderJid, messageInfo }) => {
+  const candidates = new Set();
+  const lookupByJid = new Set();
+
+  const senderInfo = extractSenderInfoFromMessage(messageInfo);
+  appendOwnerCandidate(candidates, lookupByJid, senderJid);
+  appendOwnerCandidate(candidates, lookupByJid, senderInfo?.jid);
+  appendOwnerCandidate(candidates, lookupByJid, senderInfo?.participantAlt);
+  appendOwnerCandidate(candidates, lookupByJid, senderInfo?.lid);
+
+  const directResolved = await resolveUserId(extractUserIdInfo(senderJid)).catch(() => null);
+  if (directResolved) {
+    appendOwnerCandidate(candidates, lookupByJid, directResolved);
+  }
+
+  const senderResolved = await resolveUserId({
+    lid: senderInfo?.lid,
+    jid: senderInfo?.jid || senderJid || null,
+    participantAlt: senderInfo?.participantAlt || null,
+  }).catch(() => null);
+  if (senderResolved) {
+    appendOwnerCandidate(candidates, lookupByJid, senderResolved);
+  }
+
+  const lookupValues = Array.from(lookupByJid).filter(Boolean);
+  for (let offset = 0; offset < lookupValues.length; offset += 200) {
+    const chunk = lookupValues.slice(offset, offset + 200);
+    if (!chunk.length) continue;
+    const placeholders = chunk.map(() => '?').join(', ');
+    const lookupParams = [...chunk, ...chunk];
+    const rows = await executeQuery(
+      `SELECT lid, jid
+         FROM ${TABLES.LID_MAP}
+        WHERE jid IN (${placeholders})
+           OR lid IN (${placeholders})
+        ORDER BY last_seen DESC
+        LIMIT 500`,
+      lookupParams,
+    ).catch(() => []);
+
+    for (const row of Array.isArray(rows) ? rows : []) {
+      appendOwnerCandidate(candidates, lookupByJid, row?.jid || '');
+      appendOwnerCandidate(candidates, lookupByJid, row?.lid || '');
+    }
+  }
+
+  const lidCandidates = Array.from(candidates).filter((candidate) => LID_SERVERS.has(getJidServer(candidate)));
+  for (const lidValue of lidCandidates) {
+    const resolved = await resolveUserId(extractUserIdInfo(lidValue)).catch(() => null);
+    if (resolved) {
+      appendOwnerCandidate(candidates, lookupByJid, resolved);
+    }
+  }
+
+  return Array.from(candidates);
+};
+
+const pickPrimaryOwnerCandidate = (ownerCandidates, senderJid) => {
+  const preferred = (Array.isArray(ownerCandidates) ? ownerCandidates : []).find((candidate) => {
+    const server = getJidServer(candidate);
+    if (!server || LID_SERVERS.has(server)) return false;
+    return server !== 'google.oauth';
+  });
+  if (preferred) return preferred;
+
+  const normalizedSender = normalizeJid(senderJid) || '';
+  if (normalizedSender) return normalizedSender;
+  return Array.isArray(ownerCandidates) && ownerCandidates.length ? ownerCandidates[0] : senderJid;
+};
+
+const runWithOwnerFallback = async (ownerCandidates, action) => {
+  const owners = Array.isArray(ownerCandidates) && ownerCandidates.length ? ownerCandidates : [];
+  let notFoundError = null;
+  for (const candidateOwner of owners) {
+    try {
+      return await action(candidateOwner);
+    } catch (error) {
+      if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND) {
+        notFoundError = notFoundError || error;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (notFoundError) throw notFoundError;
+  throw new StickerPackError(STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND, 'Pack não encontrado para este usuário.');
+};
+
 /**
  * Normaliza e valida nome de pack (permite espaços e emojis).
  *
@@ -530,7 +673,9 @@ const resolveStickerFromCommandContext = async ({ messageInfo, ownerJid, include
  * @returns {Promise<void>}
  */
 export async function handlePackCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, text, commandPrefix }) {
-  const ownerJid = senderJid;
+  const ownerCandidatesRaw = await resolveOwnerCandidatesForPackCommand({ senderJid, messageInfo }).catch(() => []);
+  const ownerJid = pickPrimaryOwnerCandidate(ownerCandidatesRaw, senderJid);
+  const ownerCandidates = Array.from(new Set([ownerJid, ...ownerCandidatesRaw].filter(Boolean)));
   const rate = checkRateLimit(ownerJid);
 
   if (rate.limited) {
@@ -590,8 +735,9 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
       }
 
       case 'list': {
-        const packs = await stickerPackService.listPacks({ ownerJid, limit: 100 });
-        const manualPacks = packs.filter((pack) => !isAutomaticPack(pack));
+        const packLists = await Promise.all(ownerCandidates.map((candidateOwner) => stickerPackService.listPacks({ ownerJid: candidateOwner, limit: 100 })));
+        const packs = dedupePacksById(packLists.flatMap((items) => (Array.isArray(items) ? items : [])));
+        const manualPacks = packs.filter((pack) => !isThemeCurationPack(pack));
 
         await sendReply({
           sock,
@@ -605,7 +751,7 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
 
       case 'info': {
         const identifier = readSingleArgument(rest);
-        const pack = await stickerPackService.getPackInfo({ ownerJid, identifier });
+        const pack = await runWithOwnerFallback(ownerCandidates, (candidateOwner) => stickerPackService.getPackInfo({ ownerJid: candidateOwner, identifier }));
 
         await sendReply({
           sock,
@@ -620,7 +766,7 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
       case 'rename': {
         const { identifier, value } = parseIdentifierAndValue(rest);
         const normalizedName = normalizePackName(value, { label: 'Novo nome do pack' });
-        const updated = await stickerPackService.renamePack({ ownerJid, identifier, name: normalizedName });
+        const updated = await runWithOwnerFallback(ownerCandidates, (candidateOwner) => stickerPackService.renamePack({ ownerJid: candidateOwner, identifier, name: normalizedName }));
 
         await sendReply({
           sock,
@@ -639,7 +785,7 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
 
       case 'setpub': {
         const { identifier, value } = parseIdentifierAndValue(rest);
-        const updated = await stickerPackService.setPackPublisher({ ownerJid, identifier, publisher: value });
+        const updated = await runWithOwnerFallback(ownerCandidates, (candidateOwner) => stickerPackService.setPackPublisher({ ownerJid: candidateOwner, identifier, publisher: value }));
 
         await sendReply({
           sock,
@@ -659,7 +805,7 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
       case 'setdesc': {
         const { identifier, value } = parseIdentifierAndValue(rest);
         const description = value === '-' || value.toLowerCase() === 'clear' ? '' : value;
-        const updated = await stickerPackService.setPackDescription({ ownerJid, identifier, description });
+        const updated = await runWithOwnerFallback(ownerCandidates, (candidateOwner) => stickerPackService.setPackDescription({ ownerJid: candidateOwner, identifier, description }));
 
         await sendReply({
           sock,
@@ -684,11 +830,13 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
           throw new StickerPackError(STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND, 'Não encontrei uma figurinha para definir como capa.');
         }
 
-        const updated = await stickerPackService.setPackCover({
-          ownerJid,
-          identifier,
-          stickerId: asset.id,
-        });
+        const updated = await runWithOwnerFallback(ownerCandidates, (candidateOwner) =>
+          stickerPackService.setPackCover({
+            ownerJid: candidateOwner,
+            identifier,
+            stickerId: asset.id,
+          }),
+        );
 
         await sendReply({
           sock,
@@ -715,13 +863,15 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
           throw new StickerPackError(STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND, 'Não encontrei uma figurinha para adicionar.');
         }
 
-        const updated = await stickerPackService.addStickerToPack({
-          ownerJid,
-          identifier,
-          asset,
-          emojis: options.emojis,
-          accessibilityLabel: options.label || options.accessibility || null,
-        });
+        const updated = await runWithOwnerFallback(ownerCandidates, (candidateOwner) =>
+          stickerPackService.addStickerToPack({
+            ownerJid: candidateOwner,
+            identifier,
+            asset,
+            emojis: options.emojis,
+            accessibilityLabel: options.label || options.accessibility || null,
+          }),
+        );
 
         await sendReply({
           sock,
@@ -742,11 +892,13 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
         const { token: identifier, rest: selectorRest } = readToken(rest);
         const { token: selector } = readToken(selectorRest);
 
-        const result = await stickerPackService.removeStickerFromPack({
-          ownerJid,
-          identifier,
-          selector,
-        });
+        const result = await runWithOwnerFallback(ownerCandidates, (candidateOwner) =>
+          stickerPackService.removeStickerFromPack({
+            ownerJid: candidateOwner,
+            identifier,
+            selector,
+          }),
+        );
 
         await sendReply({
           sock,
@@ -765,16 +917,18 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
 
       case 'reorder': {
         const { token: identifier, rest: rawOrder } = readToken(rest);
-        const orderStickerIds = await parseReorderInput({
-          ownerJid,
-          identifier,
-          rawOrder,
-        });
+        const updated = await runWithOwnerFallback(ownerCandidates, async (candidateOwner) => {
+          const orderStickerIds = await parseReorderInput({
+            ownerJid: candidateOwner,
+            identifier,
+            rawOrder,
+          });
 
-        const updated = await stickerPackService.reorderPackItems({
-          ownerJid,
-          identifier,
-          orderStickerIds,
+          return stickerPackService.reorderPackItems({
+            ownerJid: candidateOwner,
+            identifier,
+            orderStickerIds,
+          });
         });
 
         await sendReply({
@@ -796,11 +950,13 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
         const { token: identifier, rest: cloneNameRaw } = readToken(rest);
         const cloneName = normalizePackName(cloneNameRaw, { label: 'Novo nome do clone' });
 
-        const cloned = await stickerPackService.clonePack({
-          ownerJid,
-          identifier,
-          newName: cloneName,
-        });
+        const cloned = await runWithOwnerFallback(ownerCandidates, (candidateOwner) =>
+          stickerPackService.clonePack({
+            ownerJid: candidateOwner,
+            identifier,
+            newName: cloneName,
+          }),
+        );
 
         await sendReply({
           sock,
@@ -819,7 +975,7 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
 
       case 'delete': {
         const identifier = readSingleArgument(rest);
-        const deleted = await stickerPackService.deletePack({ ownerJid, identifier });
+        const deleted = await runWithOwnerFallback(ownerCandidates, (candidateOwner) => stickerPackService.deletePack({ ownerJid: candidateOwner, identifier }));
 
         await sendReply({
           sock,
@@ -840,11 +996,13 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
         const { token: identifier, rest: visibilityRaw } = readToken(rest);
         const visibility = unquote(visibilityRaw);
 
-        const updated = await stickerPackService.setPackVisibility({
-          ownerJid,
-          identifier,
-          visibility,
-        });
+        const updated = await runWithOwnerFallback(ownerCandidates, (candidateOwner) =>
+          stickerPackService.setPackVisibility({
+            ownerJid: candidateOwner,
+            identifier,
+            visibility,
+          }),
+        );
 
         await sendReply({
           sock,
@@ -863,7 +1021,7 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
 
       case 'send': {
         const identifier = readSingleArgument(rest);
-        const packDetails = await stickerPackService.getPackInfoForSend({ ownerJid, identifier });
+        const packDetails = await runWithOwnerFallback(ownerCandidates, (candidateOwner) => stickerPackService.getPackInfoForSend({ ownerJid: candidateOwner, identifier }));
         const packBuild = await buildStickerPackMessage(packDetails);
         const sendResult = await sendStickerPackWithFallback({
           sock,
@@ -942,15 +1100,28 @@ export async function maybeCaptureIncomingSticker({ messageInfo, senderJid, isMe
   if (isMessageFromBot) return null;
   if (!isUserJid(senderJid)) return null;
 
+  const senderInfo = extractSenderInfoFromMessage(messageInfo);
+  let ownerJid = normalizeJid(senderJid) || senderJid;
+  try {
+    const resolvedOwner = await resolveUserId({
+      lid: senderInfo?.lid,
+      jid: senderInfo?.jid || senderJid || null,
+      participantAlt: senderInfo?.participantAlt || null,
+    });
+    ownerJid = normalizeJid(resolvedOwner || ownerJid) || ownerJid;
+  } catch {
+    ownerJid = normalizeJid(senderJid) || senderJid;
+  }
+
   try {
     return await captureIncomingStickerAsset({
       messageInfo,
-      ownerJid: senderJid,
+      ownerJid,
     });
   } catch (error) {
     logger.warn('Falha ao capturar figurinha recebida para storage.', {
       action: 'pack_capture_warning',
-      owner_jid: senderJid,
+      owner_jid: ownerJid,
       error: error.message,
     });
     return null;

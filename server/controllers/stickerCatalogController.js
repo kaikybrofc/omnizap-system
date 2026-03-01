@@ -1003,8 +1003,11 @@ const assertGoogleIdentityNotBanned = async ({ sub = '', email = '', ownerJid = 
 
 const googleWebSessionDbTouchIntervalMs = Math.max(30_000, Number(process.env.STICKER_WEB_GOOGLE_SESSION_DB_TOUCH_INTERVAL_MS) || 60_000);
 const googleWebSessionDbPruneIntervalMs = Math.max(5 * 60 * 1000, Number(process.env.STICKER_WEB_GOOGLE_SESSION_DB_PRUNE_INTERVAL_MS) || 60 * 60 * 1000);
-const googleWebSessionCookiePath = normalizeBasePath(process.env.STICKER_WEB_GOOGLE_SESSION_COOKIE_PATH, '/');
-const googleWebLegacyCookiePaths = [STICKER_API_BASE_PATH, `${STICKER_API_BASE_PATH}/auth`, STICKER_WEB_PATH, STICKER_LOGIN_WEB_PATH];
+const configuredGoogleWebSessionCookiePath = normalizeBasePath(process.env.STICKER_WEB_GOOGLE_SESSION_COOKIE_PATH, '/');
+const googleWebSessionCookiePath = '/';
+const googleWebLegacyCookiePaths = Array.from(
+  new Set([configuredGoogleWebSessionCookiePath, STICKER_API_BASE_PATH, `${STICKER_API_BASE_PATH}/auth`, STICKER_WEB_PATH, STICKER_LOGIN_WEB_PATH]),
+);
 
 const googleWebAuth = createGoogleWebAuthService({
   executeQuery,
@@ -2086,6 +2089,8 @@ const listDataImageFiles = async () => {
 const PACK_TAG_MARKER_REGEX = /\[pack-tags:([^\]]+)\]/i;
 const AUTO_PACK_MARKER_REGEX = /\[(?:auto-theme|auto-tag):[^\]]+\]/gi;
 const AUTO_PACK_MARKER_TEST_REGEX = /\[(?:auto-theme|auto-tag):[^\]]+\]/i;
+const AUTO_PACK_COLLECTOR_MARKER = '[auto-pack:collector]';
+const AUTO_PACK_COLLECTOR_LEGACY_TEXT = 'coleção automática de figurinhas criadas pelo usuário.';
 const AUTO_PACK_DESCRIPTION_PREFIX_REGEX = /^curadoria automática por tema\.\s*tema:\s*[^.]+\.?\s*(?:score\s*=\s*-?\d+(?:\.\d+)?\.?\s*)?/i;
 const AUTO_PACK_SCORE_FRAGMENT_REGEX = /\bscore\s*=\s*-?\d+(?:\.\d+)?\.?/gi;
 const normalizePackTag = (value) =>
@@ -2142,6 +2147,31 @@ const parsePackDescriptionMetadata = (description) => {
     cleanDescription,
     tags: mergeUniqueTags(markerTags).slice(0, 8),
   };
+};
+
+const isCollectorAutoPack = (pack) => {
+  if (!pack || typeof pack !== 'object') return false;
+  const description = String(pack.description || '').toLowerCase();
+  return description.includes(AUTO_PACK_COLLECTOR_MARKER) || description.includes(AUTO_PACK_COLLECTOR_LEGACY_TEXT);
+};
+
+const isThemeCurationAutoPack = (pack) => {
+  if (!pack || typeof pack !== 'object') return false;
+  const name = String(pack.name || '').trim();
+  if (/^\[auto\]/i.test(name)) return true;
+
+  const description = String(pack.description || '').toLowerCase();
+  if (description.includes('[auto-theme:') || description.includes('[auto-tag:')) return true;
+
+  return Boolean(String(pack.pack_theme_key || '').trim());
+};
+
+const shouldHidePackFromMyProfileDefault = (pack, { includeAutoPacks = false } = {}) => {
+  if (!pack || typeof pack !== 'object') return false;
+  if (includeAutoPacks) return false;
+  if (isCollectorAutoPack(pack)) return false;
+  if (isThemeCurationAutoPack(pack)) return true;
+  return pack.is_auto_pack === true || Number(pack.is_auto_pack || 0) === 1;
 };
 
 const buildPackDescriptionWithTags = (description, tags = []) => {
@@ -3559,6 +3589,10 @@ const resolveMyProfileOwnerCandidates = async (session) => {
   const trustedPhones = new Set();
   const blockedJids = new Set();
   const blockedPhones = new Set();
+  const normalizedSub = normalizeGoogleSubject(session?.sub);
+  const normalizedEmail = normalizeEmail(session?.email);
+  const normalizedSessionOwnerJid = normalizeJid(session?.ownerJid || '') || '';
+  const normalizedSessionOwnerPhone = toWhatsAppPhoneDigits(session?.ownerPhone || session?.ownerJid) || '';
 
   appendCandidate(session?.ownerJid);
   appendCandidate(toWhatsAppOwnerJid(session?.ownerPhone || session?.ownerJid));
@@ -3586,25 +3620,69 @@ const resolveMyProfileOwnerCandidates = async (session) => {
     }
   }
 
-  const normalizedSub = normalizeGoogleSubject(session?.sub);
+  const identityClauses = [];
+  const identityParams = [];
   if (normalizedSub) {
+    identityClauses.push('google_sub = ?');
+    identityParams.push(normalizedSub);
+  }
+  if (normalizedEmail) {
+    identityClauses.push('email = ?');
+    identityParams.push(normalizedEmail);
+  }
+  if (normalizedSessionOwnerJid) {
+    identityClauses.push('owner_jid = ?');
+    identityParams.push(normalizedSessionOwnerJid);
+  }
+  if (normalizedSessionOwnerPhone) {
+    identityClauses.push('owner_phone = ?');
+    identityParams.push(normalizedSessionOwnerPhone);
+  }
+
+  if (identityClauses.length) {
     try {
-      const rows = await executeQuery(
+      const userRows = await executeQuery(
         `SELECT owner_jid, owner_phone
            FROM ${TABLES.STICKER_WEB_GOOGLE_USER}
-          WHERE google_sub = ?
-          LIMIT 1`,
-        [normalizedSub],
+          WHERE ${identityClauses.join(' OR ')}
+          ORDER BY COALESCE(last_seen_at, last_login_at, updated_at, created_at) DESC
+          LIMIT 10`,
+        identityParams,
       );
-      const row = Array.isArray(rows) ? rows[0] : null;
-      appendCandidate(row?.owner_jid || '');
-      appendCandidate(row?.owner_phone || '');
-      const mappedResolved = await resolveUserId(extractUserIdInfo(row?.owner_jid || row?.owner_phone || null)).catch(() => null);
-      if (mappedResolved) appendCandidate(mappedResolved);
+
+      for (const row of Array.isArray(userRows) ? userRows : []) {
+        appendCandidate(row?.owner_jid || '');
+        appendCandidate(row?.owner_phone || '');
+        for (const phone of buildPhoneSet(row?.owner_jid, row?.owner_phone)) {
+          trustedPhones.add(phone);
+        }
+        const mappedResolved = await resolveUserId(extractUserIdInfo(row?.owner_jid || row?.owner_phone || null)).catch(() => null);
+        if (mappedResolved) appendCandidate(mappedResolved);
+      }
+
+      const sessionRows = await executeQuery(
+        `SELECT owner_jid, owner_phone
+           FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
+          WHERE revoked_at IS NULL
+            AND expires_at > UTC_TIMESTAMP()
+            AND (${identityClauses.join(' OR ')})
+          ORDER BY COALESCE(last_seen_at, created_at) DESC
+          LIMIT 20`,
+        identityParams,
+      ).catch(() => []);
+
+      for (const row of Array.isArray(sessionRows) ? sessionRows : []) {
+        appendCandidate(row?.owner_jid || '');
+        appendCandidate(row?.owner_phone || '');
+        for (const phone of buildPhoneSet(row?.owner_jid, row?.owner_phone)) {
+          trustedPhones.add(phone);
+        }
+      }
     } catch (error) {
       logger.warn('Falha ao resolver owners para perfil web.', {
         action: 'sticker_pack_my_profile_owner_candidates_failed',
         google_sub: normalizedSub,
+        email: normalizedEmail,
         error: error?.message,
       });
     }
@@ -3626,19 +3704,42 @@ const resolveMyProfileOwnerCandidates = async (session) => {
     const chunk = lookupValues.slice(offset, offset + 200);
     if (!chunk.length) continue;
     const placeholders = chunk.map(() => '?').join(', ');
+    const lookupParams = [...chunk, ...chunk];
     const rows = await executeQuery(
       `SELECT lid, jid
          FROM ${TABLES.LID_MAP}
         WHERE jid IN (${placeholders})
+           OR lid IN (${placeholders})
         ORDER BY last_seen DESC
         LIMIT 500`,
-      chunk,
+      lookupParams,
     ).catch(() => []);
 
     for (const row of Array.isArray(rows) ? rows : []) {
       appendCandidate(row?.jid || '');
       const resolvedLid = normalizeJid(row?.lid || '');
       if (resolvedLid) lidCandidates.add(resolvedLid);
+    }
+
+    const packOwnerRows = await executeQuery(
+      `SELECT DISTINCT p.owner_jid
+         FROM ${TABLES.STICKER_PACK} p
+         INNER JOIN ${TABLES.LID_MAP} lm
+                 ON lm.lid = p.owner_jid
+        WHERE p.deleted_at IS NULL
+          AND (
+            lm.jid IN (${placeholders})
+            OR lm.lid IN (${placeholders})
+          )
+        LIMIT 500`,
+      lookupParams,
+    ).catch(() => []);
+
+    for (const row of Array.isArray(packOwnerRows) ? packOwnerRows : []) {
+      const packOwnerLid = normalizeJid(row?.owner_jid || '');
+      if (!packOwnerLid) continue;
+      appendCandidate(packOwnerLid);
+      lidCandidates.add(packOwnerLid);
     }
   }
 
@@ -3700,7 +3801,7 @@ const handleMyProfileRequest = async (req, res, url = null) => {
     client_id: STICKER_WEB_GOOGLE_CLIENT_ID || null,
   };
 
-  if (!session?.ownerJid) {
+  if (!session?.ownerJid && !session?.email && !session?.ownerPhone) {
     sendJson(req, res, 200, {
       data: {
         auth: { google: authGoogle },
@@ -3721,12 +3822,13 @@ const handleMyProfileRequest = async (req, res, url = null) => {
   }
 
   const ownerCandidates = await resolveMyProfileOwnerCandidates(session);
+  const primaryOwnerJid = normalizeJid(session?.ownerJid || '') || ownerCandidates[0] || null;
   if (!ownerCandidates.length) {
     sendJson(req, res, 200, {
       data: {
         auth: { google: authGoogle },
         session: mapGoogleSessionResponseData(session),
-        owner_jid: session.ownerJid,
+        owner_jid: primaryOwnerJid,
         owner_jids: [],
         packs: [],
         stats: {
@@ -3749,7 +3851,7 @@ const handleMyProfileRequest = async (req, res, url = null) => {
   for (const packList of ownerPacks) {
     for (const pack of Array.isArray(packList) ? packList : []) {
       if (!pack?.id) continue;
-      if (!includeAutoPacks && pack?.is_auto_pack === true) continue;
+      if (shouldHidePackFromMyProfileDefault(pack, { includeAutoPacks })) continue;
       const existing = dedupPacks.get(pack.id);
       if (!existing) {
         dedupPacks.set(pack.id, pack);
@@ -3805,7 +3907,7 @@ const handleMyProfileRequest = async (req, res, url = null) => {
     data: {
       auth: { google: authGoogle },
       session: mapGoogleSessionResponseData(session),
-      owner_jid: session.ownerJid,
+      owner_jid: primaryOwnerJid,
       owner_jids: ownerCandidates,
       packs: mappedPacks,
       stats,

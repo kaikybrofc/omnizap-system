@@ -188,7 +188,7 @@ function loadScript(src) {
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
-    credentials: 'same-origin',
+    credentials: 'include',
     ...options,
   });
 
