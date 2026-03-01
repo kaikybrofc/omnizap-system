@@ -1,29 +1,4 @@
-export const createStickerCatalogNonCatalogHandlers = ({
-  sendJson,
-  sendText,
-  logger,
-  getSystemSummaryCached,
-  systemSummaryCache,
-  systemSummaryCacheSeconds,
-  getReadmeSummaryCached,
-  readmeSummaryCache,
-  readmeSummaryCacheSeconds,
-  getGlobalRankingSummaryCached,
-  globalRankRefreshSeconds,
-  globalRankCache,
-  sanitizeRankingPayloadByBot,
-  getActiveSocket,
-  resolveBotUserCandidates,
-  getMarketplaceGlobalStatsCached,
-  marketplaceGlobalStatsCacheSeconds,
-  marketplaceGlobalStatsCache,
-  githubRepoInfo,
-  githubToken,
-  githubProjectCacheSeconds,
-  fetchGitHubProjectSummary,
-  buildSupportInfo,
-  buildBotContactInfo,
-}) => {
+export const createStickerCatalogNonCatalogHandlers = ({ sendJson, sendText, logger, getSystemSummaryCached, systemSummaryCache, systemSummaryCacheSeconds, getReadmeSummaryCached, readmeSummaryCache, readmeSummaryCacheSeconds, getGlobalRankingSummaryCached, globalRankRefreshSeconds, globalRankCache, sanitizeRankingPayloadByBot, getActiveSocket, resolveBotUserCandidates, getMarketplaceGlobalStatsCached, marketplaceGlobalStatsCacheSeconds, marketplaceGlobalStatsCache, githubRepoInfo, githubToken, githubProjectCacheSeconds, fetchGitHubProjectSummary, buildSupportInfo, buildBotContactInfo }) => {
   const handleSystemSummaryRequest = async (req, res) => {
     try {
       const payload = await getSystemSummaryCached();

@@ -19,11 +19,10 @@ const fetchHomeBootstrapPayload = async ({ forceRefresh = false } = {}) => {
   }
 
   if (!homeBootstrapPayloadPromise) {
-    homeBootstrapPayloadPromise = loadHomeBootstrapPayload()
-      .catch((error) => {
-        homeBootstrapPayloadPromise = null;
-        throw error;
-      });
+    homeBootstrapPayloadPromise = loadHomeBootstrapPayload().catch((error) => {
+      homeBootstrapPayloadPromise = null;
+      throw error;
+    });
   }
   return homeBootstrapPayloadPromise;
 };

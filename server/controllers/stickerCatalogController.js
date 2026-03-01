@@ -6316,16 +6316,7 @@ const getMarketplaceGlobalStatsCached = async () => {
   return MARKETPLACE_GLOBAL_STATS_CACHE.pending;
 };
 
-const {
-  handleSystemSummaryRequest,
-  handleReadmeSummaryRequest,
-  handleReadmeMarkdownRequest,
-  handleGlobalRankingSummaryRequest,
-  handleMarketplaceGlobalStatsRequest,
-  handleGitHubProjectSummaryRequest,
-  handleSupportInfoRequest,
-  handleBotContactInfoRequest,
-} = createStickerCatalogNonCatalogHandlers({
+const { handleSystemSummaryRequest, handleReadmeSummaryRequest, handleReadmeMarkdownRequest, handleGlobalRankingSummaryRequest, handleMarketplaceGlobalStatsRequest, handleGitHubProjectSummaryRequest, handleSupportInfoRequest, handleBotContactInfoRequest } = createStickerCatalogNonCatalogHandlers({
   sendJson,
   sendText,
   logger,
@@ -6859,7 +6850,9 @@ const listRecentModerationEvents = async ({ limit = 40 } = {}) => {
     );
 
     return (Array.isArray(rows) ? rows : []).map((row) => {
-      const processingResult = String(row?.processing_result || '').trim().toLowerCase();
+      const processingResult = String(row?.processing_result || '')
+        .trim()
+        .toLowerCase();
       const metadata = safeParseJsonObject(row?.metadata);
       const isAntiLink = processingResult === 'blocked_antilink';
       const title = isAntiLink ? 'Anti-link bloqueou mensagem' : 'Tentativa suspeita detectada';
@@ -6890,10 +6883,7 @@ const listRecentModerationEvents = async ({ limit = 40 } = {}) => {
 };
 
 const buildModerationQueueSnapshot = async ({ limit = 50 } = {}) => {
-  const [analysisEvents, bans] = await Promise.all([
-    listRecentModerationEvents({ limit: Math.max(10, limit) }),
-    listAdminBans({ activeOnly: false, limit: Math.max(10, Math.floor(limit / 2)) }),
-  ]);
+  const [analysisEvents, bans] = await Promise.all([listRecentModerationEvents({ limit: Math.max(10, limit) }), listAdminBans({ activeOnly: false, limit: Math.max(10, Math.floor(limit / 2)) })]);
 
   const banEvents = (Array.isArray(bans) ? bans : []).map((ban) => ({
     id: `ban:${ban?.id || ''}`,
@@ -7142,21 +7132,7 @@ const listAdminPacks = async (url) => {
 };
 
 const buildAdminOverviewPayload = async ({ adminSession = null } = {}) => {
-  const [marketplaceStats, activeSessions, knownUsers, bans, packsCountRows, stickersCountRows, recentPacks, visitSummary, systemSummaryPayload, messageFlowDaily, moderationQueue, auditLog, featureFlags] = await Promise.all([
-    getMarketplaceGlobalStatsCached().catch(() => null),
-    listAdminActiveGoogleWebSessions({ limit: 80 }),
-    listAdminKnownGoogleUsers({ limit: 120 }),
-    listAdminBans({ activeOnly: true, limit: 120 }),
-    executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK} WHERE deleted_at IS NULL`),
-    executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_ASSET}`),
-    listAdminPacks({ searchParams: new URLSearchParams([['limit', '30']]) }),
-    getWebVisitSummary({ rangeDays: 7, topPathsLimit: 10 }).catch(() => null),
-    getSystemSummaryCached().catch(() => null),
-    getAdminMessageFlowDailyStats().catch(() => ({ messages_today: null, spam_blocked_today: null, suspicious_today: null, available: false })),
-    buildModerationQueueSnapshot({ limit: 80 }).catch(() => []),
-    listAdminAuditLog({ limit: 120 }).catch(() => []),
-    listAdminFeatureFlagsDetailed({ limit: 300 }).catch(() => []),
-  ]);
+  const [marketplaceStats, activeSessions, knownUsers, bans, packsCountRows, stickersCountRows, recentPacks, visitSummary, systemSummaryPayload, messageFlowDaily, moderationQueue, auditLog, featureFlags] = await Promise.all([getMarketplaceGlobalStatsCached().catch(() => null), listAdminActiveGoogleWebSessions({ limit: 80 }), listAdminKnownGoogleUsers({ limit: 120 }), listAdminBans({ activeOnly: true, limit: 120 }), executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK} WHERE deleted_at IS NULL`), executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_ASSET}`), listAdminPacks({ searchParams: new URLSearchParams([['limit', '30']]) }), getWebVisitSummary({ rangeDays: 7, topPathsLimit: 10 }).catch(() => null), getSystemSummaryCached().catch(() => null), getAdminMessageFlowDailyStats().catch(() => ({ messages_today: null, spam_blocked_today: null, suspicious_today: null, available: false })), buildModerationQueueSnapshot({ limit: 80 }).catch(() => []), listAdminAuditLog({ limit: 120 }).catch(() => []), listAdminFeatureFlagsDetailed({ limit: 300 }).catch(() => [])]);
 
   const systemSummary = systemSummaryPayload?.data || null;
   const systemMeta = systemSummaryPayload?.meta || null;
@@ -7636,7 +7612,12 @@ const handleAdminSearchRequest = async (req, res, url) => {
        LIMIT ${limit}`,
       [like, like, like, like],
     ).catch(() => []),
-    listAdminPacks({ searchParams: new URLSearchParams([['q', q], ['limit', String(limit)]]) }).catch(() => []),
+    listAdminPacks({
+      searchParams: new URLSearchParams([
+        ['q', q],
+        ['limit', String(limit)],
+      ]),
+    }).catch(() => []),
   ]);
 
   const users = (Array.isArray(usersRows) ? usersRows : []).map((row) => ({
@@ -7807,13 +7788,7 @@ const handleAdminExportRequest = async (req, res, url) => {
     const health = exportData?.system_health || {};
     const alerts = Array.isArray(exportData?.alerts) ? exportData.alerts : [];
     const flags = Array.isArray(exportData?.feature_flags) ? exportData.feature_flags : [];
-    rows = [
-      ...Object.entries(dashboard).map(([key, value]) => ({ section: 'dashboard_quick', key, value })),
-      ...Object.entries(counters).map(([key, value]) => ({ section: 'counters', key, value })),
-      ...Object.entries(health).map(([key, value]) => ({ section: 'system_health', key, value })),
-      ...alerts.map((alert, index) => ({ section: 'alerts', key: `${index + 1}:${alert?.code || 'alert'}`, value: `${alert?.severity || ''} ${alert?.title || ''}`.trim() })),
-      ...flags.map((flag) => ({ section: 'feature_flags', key: flag?.flag_name || '', value: `${flag?.is_enabled ? 'on' : 'off'} (${flag?.rollout_percent || 0}%)` })),
-    ];
+    rows = [...Object.entries(dashboard).map(([key, value]) => ({ section: 'dashboard_quick', key, value })), ...Object.entries(counters).map(([key, value]) => ({ section: 'counters', key, value })), ...Object.entries(health).map(([key, value]) => ({ section: 'system_health', key, value })), ...alerts.map((alert, index) => ({ section: 'alerts', key: `${index + 1}:${alert?.code || 'alert'}`, value: `${alert?.severity || ''} ${alert?.title || ''}`.trim() })), ...flags.map((flag) => ({ section: 'feature_flags', key: flag?.flag_name || '', value: `${flag?.is_enabled ? 'on' : 'off'} (${flag?.rollout_percent || 0}%)` }))];
   }
 
   const csv = buildCsv(rows, headers);

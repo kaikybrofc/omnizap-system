@@ -7,13 +7,20 @@ const parseNumber = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, Math.floor(parsed)));
 };
 
-const RATE_LIMIT_TRUST_PROXY = ['1', 'true', 'yes', 'on'].includes(String(process.env.RATE_LIMIT_TRUST_PROXY || '').trim().toLowerCase());
+const RATE_LIMIT_TRUST_PROXY = ['1', 'true', 'yes', 'on'].includes(
+  String(process.env.RATE_LIMIT_TRUST_PROXY || '')
+    .trim()
+    .toLowerCase(),
+);
 
 const getClientIp = (req) => {
   if (RATE_LIMIT_TRUST_PROXY) {
     const forwarded = req.headers['x-forwarded-for'];
     if (typeof forwarded === 'string' && forwarded.trim()) {
-      const [first] = forwarded.split(',').map((part) => part.trim()).filter(Boolean);
+      const [first] = forwarded
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean);
       if (first) return first;
     }
   }

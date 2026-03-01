@@ -640,10 +640,7 @@ if (root) {
       const severity = normalizeString(event?.severity) || 'low';
       const badgeLabel = severity.toUpperCase();
       const createdAt = formatDateTime(event?.created_at || event?.revoked_at);
-      const meta = [
-        normalizeString(event?.subtitle),
-        `Tipo: ${normalizeString(event?.event_type) || 'evento'} • ${createdAt}`,
-      ];
+      const meta = [normalizeString(event?.subtitle), `Tipo: ${normalizeString(event?.event_type) || 'evento'} • ${createdAt}`];
 
       if (normalizeString(event?.reason)) meta.push(`Motivo: ${normalizeString(event.reason)}`);
 
@@ -691,11 +688,7 @@ if (root) {
     for (const session of list) {
       const identity = compactIdentityPayload(session);
       const title = normalizeString(session?.name || session?.email || session?.owner_jid || 'Sessão ativa');
-      const meta = [
-        `Email: ${normalizeString(session?.email) || 'n/d'}`,
-        `Owner: ${normalizeString(session?.owner_jid) || 'n/d'}`,
-        `Último acesso: ${formatDateTime(session?.last_seen_at)} • Expira: ${formatDateTime(session?.expires_at)}`,
-      ];
+      const meta = [`Email: ${normalizeString(session?.email) || 'n/d'}`, `Owner: ${normalizeString(session?.owner_jid) || 'n/d'}`, `Último acesso: ${formatDateTime(session?.last_seen_at)} • Expira: ${formatDateTime(session?.expires_at)}`];
       const actions = [];
       if (Object.keys(identity).length) {
         actions.push(createMiniButton('Forçar logout', () => handleAdminForceLogout(identity, buildIdentityLabel(identity))));
@@ -723,11 +716,7 @@ if (root) {
     for (const user of list) {
       const identity = buildForceLogoutPayloadFromAny(user);
       const title = normalizeString(user?.name || user?.email || user?.owner_jid || 'Usuário');
-      const meta = [
-        `Email: ${normalizeString(user?.email) || 'n/d'}`,
-        `Owner: ${normalizeString(user?.owner_jid) || 'n/d'}`,
-        `Último login: ${formatDateTime(user?.last_login_at)} • Último acesso: ${formatDateTime(user?.last_seen_at)}`,
-      ];
+      const meta = [`Email: ${normalizeString(user?.email) || 'n/d'}`, `Owner: ${normalizeString(user?.owner_jid) || 'n/d'}`, `Último login: ${formatDateTime(user?.last_login_at)} • Último acesso: ${formatDateTime(user?.last_seen_at)}`];
       const actions = [];
       if (Object.keys(identity).length) {
         actions.push(createMiniButton('Forçar logout', () => handleAdminForceLogout(identity, buildIdentityLabel(identity))));
@@ -755,10 +744,7 @@ if (root) {
     for (const ban of list) {
       const identity = normalizeString(ban?.email || ban?.owner_jid || ban?.google_sub || `ban:${ban?.id || ''}`);
       const isRevoked = Boolean(ban?.revoked_at);
-      const meta = [
-        `Criado: ${formatDateTime(ban?.created_at)}${isRevoked ? ` • Revogado: ${formatDateTime(ban?.revoked_at)}` : ''}`,
-        `Motivo: ${normalizeString(ban?.reason) || 'não informado'}`,
-      ];
+      const meta = [`Criado: ${formatDateTime(ban?.created_at)}${isRevoked ? ` • Revogado: ${formatDateTime(ban?.revoked_at)}` : ''}`, `Motivo: ${normalizeString(ban?.reason) || 'não informado'}`];
       const actions = [];
       if (!isRevoked && normalizeString(ban?.id)) {
         actions.push(createMiniButton('Revogar ban', () => handleAdminBanRevoke(ban.id)));
@@ -791,10 +777,7 @@ if (root) {
       const details = isObject(item?.details) ? Object.entries(item.details).slice(0, 3) : [];
       const detailLine = details.length ? `Detalhes: ${details.map(([key, value]) => `${key}=${value}`).join(' • ')}` : '';
 
-      const meta = [
-        `Admin: ${normalizeString(item?.admin_email || item?.admin_google_sub || item?.admin_owner_jid || 'n/d')} (${formatAdminRole(normalizeString(item?.admin_role || 'admin'))})`,
-        `Alvo: ${targetType}${targetId ? ` / ${targetId}` : ''} • Em: ${formatDateTime(item?.created_at)}`,
-      ];
+      const meta = [`Admin: ${normalizeString(item?.admin_email || item?.admin_google_sub || item?.admin_owner_jid || 'n/d')} (${formatAdminRole(normalizeString(item?.admin_role || 'admin'))})`, `Alvo: ${targetType}${targetId ? ` / ${targetId}` : ''} • Em: ${formatDateTime(item?.created_at)}`];
       if (detailLine) meta.push(detailLine);
 
       appendListItem({
@@ -868,11 +851,7 @@ if (root) {
         title: flagName || 'feature_flag',
         severity: isEnabled ? 'low' : 'medium',
         badgeLabel: isEnabled ? 'ON' : 'OFF',
-        meta: [
-          `Rollout: ${rollout}%`,
-          description ? `Descrição: ${description}` : 'Descrição: n/d',
-          `Atualizado por: ${updatedBy || 'n/d'} • ${formatDateTime(flag?.updated_at)}`,
-        ],
+        meta: [`Rollout: ${rollout}%`, description ? `Descrição: ${description}` : 'Descrição: n/d', `Atualizado por: ${updatedBy || 'n/d'} • ${formatDateTime(flag?.updated_at)}`],
         actions,
         customNode: rolloutForm,
       });
@@ -891,10 +870,7 @@ if (root) {
     for (const alert of list) {
       const severity = normalizeString(alert?.severity || 'low');
       const title = normalizeString(alert?.title || alert?.code || 'Alerta');
-      const meta = [
-        normalizeString(alert?.message || ''),
-        `Código: ${normalizeString(alert?.code || 'n/d')} • ${formatDateTime(alert?.created_at)}`,
-      ];
+      const meta = [normalizeString(alert?.message || ''), `Código: ${normalizeString(alert?.code || 'n/d')} • ${formatDateTime(alert?.created_at)}`];
       appendListItem({
         container: ui.adminAlertsList,
         title,
@@ -923,12 +899,7 @@ if (root) {
       title: `Resultado para "${q || 'consulta'}"`,
       severity: 'low',
       badgeLabel: 'BUSCA',
-      meta: [
-        `Usuários: ${formatIntegerOrNd(totals.users)}`,
-        `Sessões: ${formatIntegerOrNd(totals.sessions)}`,
-        `Grupos: ${formatIntegerOrNd(totals.groups)}`,
-        `Packs: ${formatIntegerOrNd(totals.packs)}`,
-      ],
+      meta: [`Usuários: ${formatIntegerOrNd(totals.users)}`, `Sessões: ${formatIntegerOrNd(totals.sessions)}`, `Grupos: ${formatIntegerOrNd(totals.groups)}`, `Packs: ${formatIntegerOrNd(totals.packs)}`],
     });
 
     const users = Array.isArray(results.users) ? results.users : [];

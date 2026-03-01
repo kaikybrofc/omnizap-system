@@ -98,13 +98,7 @@ const loadStickerApiConfigSafe = async () => {
 
 export const getIndexRouteConfigs = async () => {
   if (!indexRouteConfigsPromise) {
-    indexRouteConfigsPromise = Promise.all([
-      loadUserConfigSafe(),
-      loadSystemAdminConfigSafe(),
-      loadStickerSiteConfigSafe(),
-      loadStickerDataConfigSafe(),
-      loadStickerApiConfigSafe(),
-    ]).then(([userConfig, systemAdminConfig, stickerSiteConfig, stickerDataConfig, stickerApiConfig]) => ({
+    indexRouteConfigsPromise = Promise.all([loadUserConfigSafe(), loadSystemAdminConfigSafe(), loadStickerSiteConfigSafe(), loadStickerDataConfigSafe(), loadStickerApiConfigSafe()]).then(([userConfig, systemAdminConfig, stickerSiteConfig, stickerDataConfig, stickerApiConfig]) => ({
       userConfig,
       systemAdminConfig,
       stickerConfig: {
