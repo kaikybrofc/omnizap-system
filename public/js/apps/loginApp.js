@@ -4,6 +4,10 @@ const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const DEFAULT_API_BASE_PATH = '/api/sticker-packs';
 const LOGIN_CONSENT_STORAGE_KEY = 'omnizap_login_terms_consent_v1';
 const LOGIN_CONSENT_HINT = 'Aceite os Termos de Uso e a Politica de Privacidade para continuar.';
+const DEFAULT_SUCCESS_CHAT_LABEL = 'Abrir WhatsApp do bot';
+const DEFAULT_SUCCESS_HOME_LABEL = 'Ir para o painel';
+const ALREADY_LOGGED_STATUS_TEXT = 'Voce ja esta logado neste navegador.';
+const ALREADY_LOGGED_HINT_TEXT = 'Nao e necessario fazer login novamente. Escolha uma opcao abaixo.';
 
 const root = document.getElementById('login-app-root');
 
@@ -18,6 +22,9 @@ if (root) {
     consentBox: document.getElementById('login-consent-box'),
     consentCheckbox: document.getElementById('login-consent-checkbox'),
     consentError: document.getElementById('login-consent-error'),
+    alreadyLoggedBanner: document.getElementById('already-logged-banner'),
+    alreadyLoggedTitle: document.getElementById('already-logged-title'),
+    alreadyLoggedDetail: document.getElementById('already-logged-detail'),
     summary: document.getElementById('login-summary'),
     summaryTitle: document.getElementById('login-summary-title'),
     summaryOwner: document.getElementById('login-summary-owner'),
@@ -27,6 +34,7 @@ if (root) {
     successActions: document.getElementById('login-success-actions'),
     successChat: document.getElementById('login-success-chat'),
     successHome: document.getElementById('login-success-home'),
+    successCelebration: document.getElementById('login-success-celebration'),
   };
 
   const state = {
@@ -37,6 +45,7 @@ if (root) {
     busy: false,
     authenticated: false,
     consentAccepted: false,
+    successAnimationTimer: 0,
     botPhone: '',
     sessionOwnerPhone: '',
     hint: readWhatsAppHintFromUrl(window.location.search),
@@ -82,6 +91,34 @@ if (root) {
     } catch {
       return false;
     }
+  };
+
+  const hideSuccessCelebration = () => {
+    if (!ui.successCelebration) return;
+    ui.successCelebration.classList.remove('is-visible');
+    window.setTimeout(() => {
+      if (!ui.successCelebration?.classList.contains('is-visible')) {
+        ui.successCelebration.hidden = true;
+      }
+    }, 320);
+  };
+
+  const playSuccessCelebration = () => {
+    if (!ui.successCelebration) return;
+    if (state.successAnimationTimer) {
+      window.clearTimeout(state.successAnimationTimer);
+      state.successAnimationTimer = 0;
+    }
+
+    ui.successCelebration.hidden = false;
+    ui.successCelebration.classList.remove('is-visible');
+    void ui.successCelebration.offsetWidth;
+    ui.successCelebration.classList.add('is-visible');
+
+    state.successAnimationTimer = window.setTimeout(() => {
+      hideSuccessCelebration();
+      state.successAnimationTimer = 0;
+    }, 2300);
   };
 
   const setBusy = (value) => {
@@ -135,18 +172,65 @@ if (root) {
 
   const canUseGoogleLogin = () => Boolean(state.hint.phone);
 
-  const renderSuccessActions = (sessionData) => {
+  const renderSuccessActions = (sessionData, options = {}) => {
     if (!ui.successActions) return;
     const authenticated = Boolean(sessionData?.authenticated);
     ui.successActions.hidden = !authenticated;
     if (!authenticated) return;
 
+    const chatLabel = String(options.chatLabel || DEFAULT_SUCCESS_CHAT_LABEL);
+    const homeLabel = String(options.homeLabel || DEFAULT_SUCCESS_HOME_LABEL);
+    const homeHref = String(options.homeHref || '/user/');
+
     if (ui.successChat) {
       ui.successChat.href = buildWhatsappMenuUrl(state.botPhone);
+      setText(ui.successChat, chatLabel);
     }
     if (ui.successHome) {
-      ui.successHome.href = '/user/';
+      ui.successHome.href = homeHref;
+      setText(ui.successHome, homeLabel);
     }
+  };
+
+  const renderAlreadyLoggedBanner = ({ visible = false, ownerPhone = '' } = {}) => {
+    if (!ui.alreadyLoggedBanner) return;
+    ui.alreadyLoggedBanner.hidden = !visible;
+    if (!visible) return;
+    setText(ui.alreadyLoggedTitle, 'Voce ja esta logado neste navegador.');
+    if (ownerPhone) {
+      setText(ui.alreadyLoggedDetail, `Sessao ativa para +${formatPhone(ownerPhone)}. Nao e necessario fazer login novamente.`);
+      return;
+    }
+    setText(ui.alreadyLoggedDetail, ALREADY_LOGGED_HINT_TEXT);
+  };
+
+  const renderAlreadyLoggedInState = (sessionData) => {
+    const ownerPhone = String(sessionData?.owner_phone || '').trim();
+    state.authenticated = true;
+    state.sessionOwnerPhone = ownerPhone;
+
+    setText(ui.status, ALREADY_LOGGED_STATUS_TEXT);
+    if (ownerPhone) {
+      setText(ui.hint, `Sessao ativa para +${formatPhone(ownerPhone)}.`);
+    } else {
+      setText(ui.hint, ALREADY_LOGGED_HINT_TEXT);
+    }
+
+    showError('');
+    showConsentError('');
+    renderAlreadyLoggedBanner({ visible: true, ownerPhone });
+    hideSuccessCelebration();
+    if (ui.googleArea) ui.googleArea.hidden = true;
+    if (ui.summary) ui.summary.hidden = true;
+    if (ui.whatsappCta) ui.whatsappCta.hidden = true;
+    renderSuccessActions(
+      { authenticated: true },
+      {
+        chatLabel: 'Abrir WPP no bot',
+        homeLabel: 'Voltar para tela inicial',
+        homeHref: '/',
+      },
+    );
   };
 
   const renderWhatsAppCta = () => {
@@ -192,6 +276,7 @@ if (root) {
   };
 
   const renderSessionSummary = (sessionData) => {
+    renderAlreadyLoggedBanner({ visible: false });
     if (!canUseGoogleLogin()) {
       state.authenticated = false;
       state.sessionOwnerPhone = '';
@@ -312,10 +397,12 @@ if (root) {
       setText(ui.status, 'Conta Google detectada');
       renderSessionSummary(sessionData);
       setText(ui.googleState, 'Login Google ativo.');
+      playSuccessCelebration();
     } catch (error) {
       showError(error?.message || 'Falha ao concluir login Google.');
       setText(ui.status, 'Falha ao validar conta Google');
       renderSessionSummary(null);
+      hideSuccessCelebration();
     } finally {
       setBusy(false);
     }
@@ -439,30 +526,36 @@ if (root) {
   };
 
   const loadCurrentSession = async () => {
-    if (!canUseGoogleLogin()) {
-      renderSessionSummary(null);
-      return;
-    }
     try {
       const payload = await fetchJson(sessionApiPath, { method: 'GET' });
       const sessionData = payload?.data || {};
       if (sessionData?.authenticated) {
-        setText(ui.status, 'Conta Google detectada');
-        renderSessionSummary(sessionData);
-      } else {
-        setText(ui.status, 'Entre com Google para continuar');
-        renderSessionSummary(null);
+        renderAlreadyLoggedInState(sessionData);
+        return true;
       }
+      if (canUseGoogleLogin()) {
+        setText(ui.status, 'Entre com Google para continuar');
+      } else {
+        state.authenticated = false;
+        state.sessionOwnerPhone = '';
+      }
+      renderSessionSummary(null);
     } catch {
-      setText(ui.status, 'Nao foi possivel validar sua sessao');
+      if (canUseGoogleLogin()) {
+        setText(ui.status, 'Nao foi possivel validar sua sessao');
+      }
       renderSessionSummary(null);
     }
+    return false;
   };
 
   const renderGoogleLoginGate = () => {
     const allowed = canUseGoogleLogin();
     if (ui.googleArea) {
       ui.googleArea.hidden = !allowed;
+    }
+    if (!allowed) {
+      renderAlreadyLoggedBanner({ visible: false });
     }
     if (!allowed) {
       setText(ui.status, 'Abra o link enviado no WhatsApp para continuar');
@@ -488,9 +581,9 @@ if (root) {
     renderSuccessActions(null);
     const allowGoogleLogin = renderGoogleLoginGate();
     await loadBotPhone();
-    if (!allowGoogleLogin) return;
+    const alreadyLogged = await loadCurrentSession();
+    if (alreadyLogged || !allowGoogleLogin) return;
     await loadConfig();
-    await loadCurrentSession();
     await mountGoogleButton();
   };
 
