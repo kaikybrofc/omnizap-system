@@ -75,4 +75,3 @@ export const isWhatsAppUserLinkedToGoogleWebAccount = async ({ ownerJid = '', ow
   setCachedGoogleLinkStatus(cacheKey, linked);
   return linked;
 };
-

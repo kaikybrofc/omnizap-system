@@ -51,29 +51,31 @@ Conteúdo incluído no snapshot:
 Atualização em cache: **30 minutos** por padrão (`README_SUMMARY_CACHE_SECONDS=1800`).
 
 <!-- README_SNAPSHOT:START -->
+
 ### Snapshot do Sistema
 
 > Atualizado em `2026-03-01T00:19:39.897Z` | cache `1800s`
 
-| Métrica | Valor |
-| --- | ---: |
-| Usuários (lid_map) | 5.516 |
-| Grupos | 116 |
-| Packs | 307 |
-| Stickers | 7.216 |
+| Métrica               |   Valor |
+| --------------------- | ------: |
+| Usuários (lid_map)    |   5.516 |
+| Grupos                |     116 |
+| Packs                 |     307 |
+| Stickers              |   7.216 |
 | Mensagens registradas | 445.538 |
 
 #### Tipos de mensagem mais usados (amostra: 25.000)
-| Tipo | Total |
-| --- | ---: |
-| `texto` | 15.762 |
-| `figurinha` | 4.789 |
-| `reacao` | 1.663 |
-| `imagem` | 1.421 |
-| `outros` | 940 |
-| `video` | 221 |
-| `audio` | 197 |
-| `documento` | 7 |
+
+| Tipo        |  Total |
+| ----------- | -----: |
+| `texto`     | 15.762 |
+| `figurinha` |  4.789 |
+| `reacao`    |  1.663 |
+| `imagem`    |  1.421 |
+| `outros`    |    940 |
+| `video`     |    221 |
+| `audio`     |    197 |
+| `documento` |      7 |
 
 <details><summary>Comandos disponíveis (62)</summary>
 

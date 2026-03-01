@@ -58,58 +58,7 @@ const SITE_ORIGIN =
 const SITE_LOGIN_URL = `${SITE_ORIGIN}/login/`;
 const SITE_GROUP_LOGIN_URL = `${SITE_ORIGIN}/login`;
 
-const KNOWN_MESSAGE_COMMANDS = new Set([
-  'menu',
-  'sticker',
-  's',
-  'pack',
-  'packs',
-  'toimg',
-  'tovideo',
-  'tovid',
-  'play',
-  'playvid',
-  'tiktok',
-  'tt',
-  'cat',
-  'catimg',
-  'catimage',
-  'catprompt',
-  'iaprompt',
-  'promptia',
-  'quote',
-  'qc',
-  'wp',
-  'waifupics',
-  'wpnsfw',
-  'waifupicsnsfw',
-  'wppicshelp',
-  'stickertext',
-  'st',
-  'stickertextwhite',
-  'stw',
-  'stickertextblink',
-  'stb',
-  'ranking',
-  'rank',
-  'top5',
-  'rankingglobal',
-  'rankglobal',
-  'globalrank',
-  'globalranking',
-  'semmsg',
-  'zeromsg',
-  'nomsg',
-  'inativos',
-  'ping',
-  'dado',
-  'dice',
-  'user',
-  'usuario',
-  'rpg',
-  'aviso',
-  'notice',
-]);
+const KNOWN_MESSAGE_COMMANDS = new Set(['menu', 'sticker', 's', 'pack', 'packs', 'toimg', 'tovideo', 'tovid', 'play', 'playvid', 'tiktok', 'tt', 'cat', 'catimg', 'catimage', 'catprompt', 'iaprompt', 'promptia', 'quote', 'qc', 'wp', 'waifupics', 'wpnsfw', 'waifupicsnsfw', 'wppicshelp', 'stickertext', 'st', 'stickertextwhite', 'stw', 'stickertextblink', 'stb', 'ranking', 'rank', 'top5', 'rankingglobal', 'rankglobal', 'globalrank', 'globalranking', 'semmsg', 'zeromsg', 'nomsg', 'inativos', 'ping', 'dado', 'dice', 'user', 'usuario', 'rpg', 'aviso', 'notice']);
 
 let messageAnalyticsTableMissingLogged = false;
 
@@ -253,12 +202,7 @@ const normalizeMessageKind = (mediaEntries, extractedText) => {
   const safeText = String(extractedText || '').trim();
   if (!safeText || safeText === 'Mensagem vazia') return 'empty';
   if (safeText.startsWith('[') && safeText.endsWith(']')) {
-    return safeText
-      .slice(1, -1)
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '_')
-      .slice(0, 48);
+    return safeText.slice(1, -1).trim().toLowerCase().replace(/\s+/g, '_').slice(0, 48);
   }
   return 'text';
 };
@@ -320,9 +264,7 @@ const ensureUserHasGoogleWebLoginForCommand = async ({ sock, messageInfo, sender
   }
 
   const loginUrl = isGroupMessage ? SITE_GROUP_LOGIN_URL : buildSiteLoginUrlForUser(canonicalUserId || senderJid);
-  const loginMessage = isGroupMessage
-    ? `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nAcesse:\n${loginUrl}`
-    : `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nCadastre-se / faça login em:\n${loginUrl}\n\nDepois volte aqui e envie o comando novamente (ex.: ${commandPrefix}menu).`;
+  const loginMessage = isGroupMessage ? `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nAcesse:\n${loginUrl}` : `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nCadastre-se / faça login em:\n${loginUrl}\n\nDepois volte aqui e envie o comando novamente (ex.: ${commandPrefix}menu).`;
 
   await sendAndStore(
     sock,

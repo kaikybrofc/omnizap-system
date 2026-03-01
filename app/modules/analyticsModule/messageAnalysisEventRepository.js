@@ -75,31 +75,9 @@ export async function createMessageAnalysisEvent(payload = {}, connection = null
         metadata
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      messageId,
-      chatId,
-      senderId,
-      senderName,
-      upsertType,
-      source,
-      sanitizeBool(payload.isGroup),
-      sanitizeBool(payload.isFromBot),
-      sanitizeBool(payload.isCommand),
-      commandName,
-      clampInt(payload.commandArgsCount, 0, 0, 64),
-      payload.commandKnown === null || payload.commandKnown === undefined ? null : sanitizeBool(payload.commandKnown),
-      commandPrefix,
-      messageKind,
-      sanitizeBool(payload.hasMedia),
-      clampInt(payload.mediaCount, 0, 0, 25),
-      clampInt(payload.textLength, 0, 0, 16_000),
-      processingResult,
-      errorCode,
-      metadata,
-    ],
+    [messageId, chatId, senderId, senderName, upsertType, source, sanitizeBool(payload.isGroup), sanitizeBool(payload.isFromBot), sanitizeBool(payload.isCommand), commandName, clampInt(payload.commandArgsCount, 0, 0, 64), payload.commandKnown === null || payload.commandKnown === undefined ? null : sanitizeBool(payload.commandKnown), commandPrefix, messageKind, sanitizeBool(payload.hasMedia), clampInt(payload.mediaCount, 0, 0, 25), clampInt(payload.textLength, 0, 0, 16_000), processingResult, errorCode, metadata],
     connection,
   );
 
   return true;
 }
-

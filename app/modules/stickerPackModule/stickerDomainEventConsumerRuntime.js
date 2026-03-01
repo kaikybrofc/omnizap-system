@@ -108,9 +108,7 @@ const handleDomainEvent = async (event) => {
     if (packId) {
       enqueuePackScoreSnapshotRefresh([packId]);
     }
-    const rebuildIdempotency = packId
-      ? `evt:${eventType}:${packId}:${coalesceBucket}:rebuild_cycle`
-      : `evt:${eventType}:${coalesceBucket}:rebuild_cycle`;
+    const rebuildIdempotency = packId ? `evt:${eventType}:${packId}:${coalesceBucket}:rebuild_cycle` : `evt:${eventType}:${coalesceBucket}:rebuild_cycle`;
     await enqueueTaskSafely({
       taskType: 'rebuild_cycle',
       payload: { reason: 'domain_event', event_type: eventType, aggregate_id: aggregateId, pack_id: packId || null, coalesced: true },
