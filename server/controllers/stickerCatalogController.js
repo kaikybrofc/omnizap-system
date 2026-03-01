@@ -1727,10 +1727,31 @@ const toImageMimeType = (filePath) => {
 };
 
 const normalizePhoneDigits = (value) => String(value || '').replace(/\D+/g, '');
+const resolveActiveSocketBotJid = (activeSocket) => {
+  if (!activeSocket) return '';
+  const candidates = [activeSocket?.user?.id, activeSocket?.authState?.creds?.me?.id, activeSocket?.authState?.creds?.me?.lid];
+  for (const candidate of candidates) {
+    const resolved = resolveBotJid(candidate) || '';
+    if (resolved) return resolved;
+  }
+  return '';
+};
+const resolveSocketReadyState = (activeSocket) => {
+  const raw = activeSocket?.ws?.readyState;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  const normalized = String(raw || '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'open') return 1;
+  if (normalized === 'connecting') return 0;
+  if (normalized === 'closing') return 2;
+  if (normalized === 'closed') return 3;
+  return null;
+};
 
 const resolveCatalogBotPhone = () => {
   const activeSocket = getActiveSocket();
-  const botJid = resolveBotJid(activeSocket?.user?.id);
+  const botJid = resolveActiveSocketBotJid(activeSocket);
   const jidUser = getJidUser(botJid || '');
   const fromSocket = normalizePhoneDigits(jidUser);
   if (fromSocket) return fromSocket;
@@ -1782,7 +1803,7 @@ const _resolveWebCreateOwnerJid = async (explicitOwner = '') => {
   if (explicit) return explicit;
 
   const activeSocket = getActiveSocket();
-  const botJid = resolveBotJid(activeSocket?.user?.id);
+  const botJid = resolveActiveSocketBotJid(activeSocket);
   const fromSocket = toOwnerJid(botJid);
   if (fromSocket) return fromSocket;
 
@@ -3546,7 +3567,7 @@ const resolveMyProfileOwnerCandidates = async (session) => {
   }
 
   const activeSocket = getActiveSocket();
-  const botJid = normalizeJid(resolveBotJid(activeSocket?.user?.id || '') || '');
+  const botJid = normalizeJid(resolveActiveSocketBotJid(activeSocket) || '');
   if (botJid) {
     blockedJids.add(botJid);
     for (const phone of buildPhoneSet(botJid)) {
@@ -5580,10 +5601,10 @@ const buildSystemSummarySnapshot = async () => {
   let prometheusError = null;
   let platformError = null;
 
-  const socketReadyState = Number(activeSocket?.ws?.readyState);
-  const botJid = resolveBotJid(activeSocket?.user?.id) || null;
+  const socketReadyState = resolveSocketReadyState(activeSocket);
+  const botJid = resolveActiveSocketBotJid(activeSocket) || null;
   const botPhone = String(resolveCatalogBotPhone() || '').replace(/\D+/g, '') || null;
-  const botConnected = Boolean(botJid) && socketReadyState === 1;
+  const botConnected = socketReadyState === 1 || (socketReadyState === null && Boolean(botJid));
   const botConnectionStatus = botConnected ? 'online' : socketReadyState === 0 ? 'connecting' : 'offline';
 
   let platform = {
@@ -5645,7 +5666,7 @@ const buildSystemSummarySnapshot = async () => {
         connection_status: botConnectionStatus,
         jid: botJid,
         phone: botPhone,
-        ready_state: Number.isFinite(socketReadyState) ? socketReadyState : null,
+        ready_state: socketReadyState,
       },
       platform,
       host: {
@@ -5888,7 +5909,7 @@ const getReadmeSummaryCached = async () => {
 
 const resolveBotUserCandidates = (activeSocket) => {
   const candidates = new Set();
-  const botJidFromSocket = resolveBotJid(activeSocket?.user?.id);
+  const botJidFromSocket = resolveActiveSocketBotJid(activeSocket);
   const botUserFromSocket = getJidUser(botJidFromSocket || '');
   if (botUserFromSocket) candidates.add(String(botUserFromSocket).trim());
   const botPhoneFromCatalog = String(resolveCatalogBotPhone() || '').replace(/\D+/g, '');
