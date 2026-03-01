@@ -9,7 +9,7 @@ import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleGlobalRankingCommand } from '../modules/statsModule/globalRankingCommand.js';
 import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
 import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js';
-import { extractMessageContent, getExpiration, getJidServer, getJidUser, isGroupJid, isSameJidUser, normalizeJid, resolveBotJid } from '../config/baileysConfig.js';
+import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, getJidUser, isGroupJid, isSameJidUser, normalizeJid, resolveBotJid } from '../config/baileysConfig.js';
 import logger from '../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { handleCatCommand, handleCatImageCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
@@ -27,6 +27,8 @@ import { sendAndStore } from '../services/messagePersistenceService.js';
 import { resolveCaptchaByMessage } from '../services/captchaService.js';
 import { extractSenderInfoFromMessage, resolveUserId } from '../services/lidMapService.js';
 import { buildWhatsAppGoogleLoginUrl } from '../services/whatsappLoginLinkService.js';
+import { isWhatsAppUserLinkedToGoogleWebAccount } from '../services/googleWebLinkService.js';
+import { createMessageAnalysisEvent } from '../modules/analyticsModule/messageAnalysisEventRepository.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
@@ -36,6 +38,80 @@ const START_LOGIN_TRIGGER =
     .toLowerCase() || 'iniciar';
 const WHATSAPP_USER_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted']);
 const WHATSAPP_LID_SERVERS = new Set(['lid', 'hosted.lid']);
+const parseEnvBool = (value, fallback) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+  return fallback;
+};
+const MESSAGE_ANALYTICS_ENABLED = parseEnvBool(process.env.MESSAGE_ANALYTICS_ENABLED, true);
+const MESSAGE_ANALYTICS_SOURCE =
+  String(process.env.MESSAGE_ANALYTICS_SOURCE || 'whatsapp')
+    .trim()
+    .slice(0, 32) || 'whatsapp';
+const WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN = parseEnvBool(process.env.WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN, true);
+const SITE_ORIGIN =
+  String(process.env.SITE_ORIGIN || process.env.WHATSAPP_LOGIN_BASE_URL || 'https://omnizap.shop')
+    .trim()
+    .replace(/\/+$/, '') || 'https://omnizap.shop';
+const SITE_LOGIN_URL = `${SITE_ORIGIN}/login/`;
+const SITE_GROUP_LOGIN_URL = `${SITE_ORIGIN}/login`;
+
+const KNOWN_MESSAGE_COMMANDS = new Set([
+  'menu',
+  'sticker',
+  's',
+  'pack',
+  'packs',
+  'toimg',
+  'tovideo',
+  'tovid',
+  'play',
+  'playvid',
+  'tiktok',
+  'tt',
+  'cat',
+  'catimg',
+  'catimage',
+  'catprompt',
+  'iaprompt',
+  'promptia',
+  'quote',
+  'qc',
+  'wp',
+  'waifupics',
+  'wpnsfw',
+  'waifupicsnsfw',
+  'wppicshelp',
+  'stickertext',
+  'st',
+  'stickertextwhite',
+  'stw',
+  'stickertextblink',
+  'stb',
+  'ranking',
+  'rank',
+  'top5',
+  'rankingglobal',
+  'rankglobal',
+  'globalrank',
+  'globalranking',
+  'semmsg',
+  'zeromsg',
+  'nomsg',
+  'inativos',
+  'ping',
+  'dado',
+  'dice',
+  'user',
+  'usuario',
+  'rpg',
+  'aviso',
+  'notice',
+]);
+
+let messageAnalyticsTableMissingLogged = false;
 
 const normalizeTriggerText = (value) =>
   String(value || '')
@@ -62,6 +138,24 @@ const resolveCanonicalWhatsAppJid = (...candidates) => {
   return '';
 };
 
+const resolveCanonicalSenderJidFromMessage = async ({ messageInfo, senderJid }) => {
+  const key = messageInfo?.key || {};
+  const senderInfo = extractSenderInfoFromMessage(messageInfo);
+  let canonicalUserId = resolveCanonicalWhatsAppJid(senderInfo?.jid, senderInfo?.lid, senderInfo?.participantAlt, key.participantAlt, key.participant, key.remoteJid, senderJid);
+
+  try {
+    const resolvedUserId = await resolveUserId(senderInfo);
+    canonicalUserId = resolveCanonicalWhatsAppJid(resolvedUserId, canonicalUserId, senderInfo?.jid, senderInfo?.lid);
+  } catch (error) {
+    logger.warn('Falha ao resolver ID canonico do remetente.', {
+      action: 'resolve_sender_canonical_id_failed',
+      error: error?.message,
+    });
+  }
+
+  return canonicalUserId;
+};
+
 const maybeHandleStartLoginMessage = async ({ sock, messageInfo, extractedText, senderName, senderJid, remoteJid, expirationMessage, isMessageFromBot, isGroupMessage }) => {
   if (isMessageFromBot || !isStartLoginTrigger(extractedText)) return false;
 
@@ -79,15 +173,7 @@ const maybeHandleStartLoginMessage = async ({ sock, messageInfo, extractedText, 
 
   const key = messageInfo?.key || {};
   const senderInfo = extractSenderInfoFromMessage(messageInfo);
-  let canonicalUserId = resolveCanonicalWhatsAppJid(senderInfo?.jid, senderInfo?.lid, senderInfo?.participantAlt, key.participantAlt, key.participant, key.remoteJid, senderJid);
-  try {
-    const resolvedUserId = await resolveUserId(senderInfo);
-    canonicalUserId = resolveCanonicalWhatsAppJid(resolvedUserId, canonicalUserId, senderInfo?.jid, senderInfo?.lid);
-  } catch (error) {
-    logger.warn('Falha ao resolver ID canonico para fluxo de login do WhatsApp.', {
-      error: error?.message,
-    });
-  }
+  const canonicalUserId = await resolveCanonicalSenderJidFromMessage({ messageInfo, senderJid });
 
   const loginUrl = buildWhatsAppGoogleLoginUrl({ userId: canonicalUserId });
   if (!loginUrl) {
@@ -155,6 +241,105 @@ const runCommand = (label, handler) => {
   }
 };
 
+const normalizeMessageKind = (mediaEntries, extractedText) => {
+  if (Array.isArray(mediaEntries) && mediaEntries.length > 0) {
+    const primaryType =
+      String(mediaEntries[0]?.mediaType || '')
+        .trim()
+        .toLowerCase() || 'media';
+    return primaryType.slice(0, 48);
+  }
+
+  const safeText = String(extractedText || '').trim();
+  if (!safeText || safeText === 'Mensagem vazia') return 'empty';
+  if (safeText.startsWith('[') && safeText.endsWith(']')) {
+    return safeText
+      .slice(1, -1)
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .slice(0, 48);
+  }
+  return 'text';
+};
+
+const normalizeAnalysisErrorCode = (error) =>
+  String(error?.code || error?.name || 'processing_error')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_')
+    .slice(0, 96) || 'processing_error';
+
+const persistMessageAnalysisEvent = (payload) => {
+  if (!MESSAGE_ANALYTICS_ENABLED) return;
+  void createMessageAnalysisEvent(payload).catch((error) => {
+    if (error?.code === 'ER_NO_SUCH_TABLE') {
+      if (messageAnalyticsTableMissingLogged) return;
+      messageAnalyticsTableMissingLogged = true;
+      logger.warn('Tabela de analytics de mensagens ainda não existe. Execute a migracao 20260301_0028.', {
+        action: 'message_analysis_table_missing',
+      });
+      return;
+    }
+
+    logger.warn('Falha ao persistir analytics de mensagem.', {
+      action: 'message_analysis_insert_failed',
+      error: error?.message,
+    });
+  });
+};
+
+const buildSiteLoginUrlForUser = (canonicalUserId) => buildWhatsAppGoogleLoginUrl({ userId: canonicalUserId }) || SITE_LOGIN_URL;
+
+const ensureUserHasGoogleWebLoginForCommand = async ({ sock, messageInfo, senderJid, remoteJid, expirationMessage, commandPrefix }) => {
+  const isGroupMessage = isGroupJid(remoteJid);
+  const canonicalUserId = await resolveCanonicalSenderJidFromMessage({ messageInfo, senderJid });
+  let linked = false;
+  try {
+    linked = await isWhatsAppUserLinkedToGoogleWebAccount({
+      ownerJid: canonicalUserId || senderJid,
+    });
+  } catch (error) {
+    logger.warn('Falha ao validar vínculo Google Web para comando do WhatsApp. Comando liberado por fallback.', {
+      action: 'whatsapp_command_google_link_check_failed',
+      error: error?.message,
+    });
+    return {
+      allowed: true,
+      canonicalUserId,
+      loginUrl: '',
+    };
+  }
+
+  if (linked) {
+    return {
+      allowed: true,
+      canonicalUserId,
+      loginUrl: '',
+    };
+  }
+
+  const loginUrl = isGroupMessage ? SITE_GROUP_LOGIN_URL : buildSiteLoginUrlForUser(canonicalUserId || senderJid);
+  const loginMessage = isGroupMessage
+    ? `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nAcesse:\n${loginUrl}`
+    : `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nCadastre-se / faça login em:\n${loginUrl}\n\nDepois volte aqui e envie o comando novamente (ex.: ${commandPrefix}menu).`;
+
+  await sendAndStore(
+    sock,
+    remoteJid,
+    {
+      text: loginMessage,
+    },
+    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+  );
+
+  return {
+    allowed: false,
+    canonicalUserId,
+    loginUrl,
+  };
+};
+
 /**
  * Lida com atualizações do WhatsApp, sejam mensagens ou eventos genéricos.
  *
@@ -180,236 +365,311 @@ export const handleMessages = async (update, sock) => {
         const botJid = resolveBotJid(sock?.user?.id);
         const isMessageFromBot = Boolean(messageInfo?.key?.fromMe) || (botJid ? isSameJidUser(senderJid, botJid) : false);
         let commandPrefix = DEFAULT_COMMAND_PREFIX;
+        const mediaEntries = detectAllMediaTypes(messageInfo?.message, false);
+        const mediaTypes = mediaEntries
+          .map((entry) =>
+            String(entry?.mediaType || '')
+              .trim()
+              .toLowerCase(),
+          )
+          .filter(Boolean)
+          .slice(0, 10);
+        const analysisPayload = {
+          messageId: messageInfo?.key?.id || null,
+          chatId: remoteJid || null,
+          senderId: senderJid || null,
+          senderName,
+          upsertType: update?.type || null,
+          source: MESSAGE_ANALYTICS_SOURCE,
+          isGroup: isGroupMessage,
+          isFromBot: isMessageFromBot,
+          isCommand: false,
+          commandName: null,
+          commandArgsCount: 0,
+          commandKnown: null,
+          commandPrefix,
+          messageKind: normalizeMessageKind(mediaEntries, extractedText),
+          hasMedia: mediaEntries.length > 0,
+          mediaCount: mediaEntries.length,
+          textLength: String(extractedText || '').length,
+          processingResult: 'processed',
+          errorCode: null,
+          metadata: {
+            media_types: mediaTypes,
+            start_login_trigger: isStartLoginTrigger(extractedText),
+          },
+        };
 
-        /**
-         * Executa validações de grupo.
-         * Aplica o Anti-Link e resolve o prefixo do grupo.
-         * Se a mensagem for bloqueada, interrompe o processamento.
-         */
-        if (isGroupMessage) {
-          const shouldSkip = await handleAntiLink({ sock, messageInfo, extractedText, remoteJid, senderJid, botJid });
+        try {
+          /**
+           * Executa validações de grupo.
+           * Aplica o Anti-Link e resolve o prefixo do grupo.
+           * Se a mensagem for bloqueada, interrompe o processamento.
+           */
+          if (isGroupMessage) {
+            const shouldSkip = await handleAntiLink({ sock, messageInfo, extractedText, remoteJid, senderJid, botJid });
 
-          if (shouldSkip) {
-            continue;
+            if (shouldSkip) {
+              analysisPayload.processingResult = 'blocked_antilink';
+              analysisPayload.metadata = {
+                ...analysisPayload.metadata,
+                blocked_by: 'anti_link',
+              };
+              continue;
+            }
+            commandPrefix = await resolveCommandPrefix(true, remoteJid);
+            analysisPayload.commandPrefix = commandPrefix;
           }
-          commandPrefix = await resolveCommandPrefix(true, remoteJid);
-        }
 
-        if (isGroupMessage && !isMessageFromBot) {
-          await resolveCaptchaByMessage({
-            groupId: remoteJid,
-            senderJid,
-            senderIdentity,
-            messageKey: messageInfo.key,
+          if (isGroupMessage && !isMessageFromBot) {
+            await resolveCaptchaByMessage({
+              groupId: remoteJid,
+              senderJid,
+              senderIdentity,
+              messageKey: messageInfo.key,
+              messageInfo,
+              extractedText,
+            });
+          }
+
+          const handledStartLogin = await maybeHandleStartLoginMessage({
+            sock,
             messageInfo,
             extractedText,
+            senderName,
+            senderJid,
+            remoteJid,
+            expirationMessage,
+            isMessageFromBot,
+            isGroupMessage,
           });
-        }
 
-        const handledStartLogin = await maybeHandleStartLoginMessage({
-          sock,
-          messageInfo,
-          extractedText,
-          senderName,
-          senderJid,
-          remoteJid,
-          expirationMessage,
-          isMessageFromBot,
-          isGroupMessage,
-        });
-
-        if (handledStartLogin) {
-          continue;
-        }
-
-        /**
-         * Envia uma reação automática quando a mensagem começa com o prefixo de comando.
-         * A falha no envio da reação não interrompe o processamento do comando.
-         */
-        const isCommandMessage = extractedText.startsWith(commandPrefix);
-
-        if (isCommandMessage) {
-          if (COMMAND_REACT_EMOJI) {
-            try {
-              await sendAndStore(sock, remoteJid, {
-                react: {
-                  text: COMMAND_REACT_EMOJI,
-                  key: messageInfo.key,
-                },
-              });
-            } catch (error) {
-              logger.warn('Falha ao enviar reação de comando:', error.message);
-            }
+          if (handledStartLogin) {
+            analysisPayload.processingResult = 'handled_start_login';
+            analysisPayload.metadata = {
+              ...analysisPayload.metadata,
+              flow: 'whatsapp_google_login',
+            };
+            continue;
           }
 
-          const commandBody = extractedText.substring(commandPrefix.length);
-          const match = commandBody.match(/^(\S+)([\s\S]*)$/);
-          const command = match ? match[1].toLowerCase() : '';
-          const rawArgs = match && match[2] !== undefined ? match[2].trim() : '';
-          const args = rawArgs ? rawArgs.split(/\s+/) : [];
-          const text = match && match[2] !== undefined ? match[2] : '';
+          /**
+           * Envia uma reação automática quando a mensagem começa com o prefixo de comando.
+           * A falha no envio da reação não interrompe o processamento do comando.
+           */
+          const isCommandMessage = extractedText.startsWith(commandPrefix);
+          analysisPayload.isCommand = isCommandMessage;
+          analysisPayload.commandPrefix = commandPrefix;
 
-          switch (command) {
-            case 'menu':
-              runCommand('menu', () => handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, commandPrefix, args));
-              break;
+          if (isCommandMessage) {
+            const commandBody = extractedText.substring(commandPrefix.length);
+            const match = commandBody.match(/^(\S+)([\s\S]*)$/);
+            const command = match ? match[1].toLowerCase() : '';
+            const rawArgs = match && match[2] !== undefined ? match[2].trim() : '';
+            const args = rawArgs ? rawArgs.split(/\s+/) : [];
+            const text = match && match[2] !== undefined ? match[2] : '';
+            const isAdminCommandRoute = isAdminCommand(command);
 
-            case 'sticker':
-            case 's':
-              runCommand('sticker', () => processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '), { commandPrefix }));
-              break;
+            analysisPayload.commandName = command || null;
+            analysisPayload.commandArgsCount = args.length;
+            analysisPayload.commandKnown = KNOWN_MESSAGE_COMMANDS.has(command) || isAdminCommandRoute;
 
-            case 'pack':
-            case 'packs':
-              runCommand('pack', () => handlePackCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, text, commandPrefix }));
-              break;
+            if (!isMessageFromBot && WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN) {
+              const authCheck = await ensureUserHasGoogleWebLoginForCommand({
+                sock,
+                messageInfo,
+                senderJid,
+                remoteJid,
+                expirationMessage,
+                commandPrefix,
+              });
 
-            case 'toimg':
-            case 'tovideo':
-            case 'tovid':
-              runCommand('toimg', () => handleStickerConvertCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid }));
-              break;
-
-            case 'play':
-              runCommand('play', () => handlePlayCommand(sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix));
-              break;
-
-            case 'playvid':
-              runCommand('playvid', () => handlePlayVidCommand(sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix));
-              break;
-
-            case 'tiktok':
-            case 'tt':
-              runCommand('tiktok', () => handleTikTokCommand({ sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix }));
-              break;
-
-            case 'cat':
-              runCommand('cat', () => handleCatCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
-              break;
-
-            case 'catimg':
-            case 'catimage':
-              runCommand('catimg', () => handleCatImageCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
-              break;
-
-            case 'catprompt':
-            case 'iaprompt':
-            case 'promptia':
-              runCommand('catprompt', () => handleCatPromptCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
-              break;
-
-            case 'quote':
-            case 'qc':
-              runCommand('quote', () => handleQuoteCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, text, commandPrefix }));
-              break;
-
-            case 'wp':
-            case 'waifupics':
-              runCommand('waifupics', () => handleWaifuPicsCommand({ sock, remoteJid, messageInfo, expirationMessage, text, type: 'sfw', commandPrefix }));
-              break;
-
-            case 'wpnsfw':
-            case 'waifupicsnsfw':
-              runCommand('waifupicsnsfw', () => handleWaifuPicsCommand({ sock, remoteJid, messageInfo, expirationMessage, text, type: 'nsfw', commandPrefix }));
-              break;
-
-            case 'wppicshelp':
-              runCommand('wppicshelp', () => sendAndStore(sock, remoteJid, { text: getWaifuPicsUsageText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }));
-              break;
-
-            case 'stickertext':
-            case 'st':
-              runCommand('stickertext', () => processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'black', commandPrefix }));
-              break;
-
-            case 'stickertextwhite':
-            case 'stw':
-              runCommand('stickertextwhite', () => processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'white', commandPrefix }));
-              break;
-
-            case 'stickertextblink':
-            case 'stb':
-              runCommand('stickertextblink', () => processBlinkingTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'white', commandPrefix }));
-              break;
-
-            case 'ranking':
-            case 'rank':
-            case 'top5':
-              runCommand('ranking', () => handleRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }));
-              break;
-
-            case 'rankingglobal':
-            case 'rankglobal':
-            case 'globalrank':
-            case 'globalranking':
-              runCommand('rankingglobal', () => handleGlobalRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }));
-              break;
-
-            case 'semmsg':
-            case 'zeromsg':
-            case 'nomsg':
-            case 'inativos':
-              runCommand('semmsg', () => handleNoMessageCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, senderJid, text }));
-              break;
-
-            case 'ping':
-              runCommand('ping', () => handlePingCommand({ sock, remoteJid, messageInfo, expirationMessage }));
-              break;
-
-            case 'dado':
-            case 'dice':
-              runCommand('dado', () => handleDiceCommand({ sock, remoteJid, messageInfo, expirationMessage, args, commandPrefix }));
-              break;
-
-            case 'user':
-            case 'usuario':
-              runCommand('user', () =>
-                handleUserCommand({
-                  sock,
-                  remoteJid,
-                  messageInfo,
-                  expirationMessage,
-                  senderJid,
-                  args,
-                  isGroupMessage,
-                  commandPrefix,
-                }),
-              );
-              break;
-
-            case 'rpg':
-              runCommand('rpg', () =>
-                handleRpgPokemonCommand({
-                  sock,
-                  remoteJid,
-                  messageInfo,
-                  expirationMessage,
-                  senderJid,
-                  senderIdentity,
-                  args,
-                  commandPrefix,
-                }),
-              );
-              break;
-
-            case 'aviso':
-            case 'notice':
-              runCommand('aviso', () => handleNoticeCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
-              break;
-
-            default:
-              if (isAdminCommand(command)) {
-                runCommand('admin', () => handleAdminCommand({ command, args, text, sock, messageInfo, remoteJid, senderJid, botJid, isGroupMessage, expirationMessage, commandPrefix }));
-                break;
+              if (!authCheck.allowed) {
+                analysisPayload.processingResult = 'auth_required';
+                analysisPayload.metadata = {
+                  ...analysisPayload.metadata,
+                  auth_required_for_command: command || null,
+                  auth_login_url: authCheck.loginUrl || SITE_LOGIN_URL,
+                };
+                continue;
               }
+            }
 
-              logger.info(`Comando desconhecido recebido: ${command}`);
-              runCommand('unknown', () =>
-                sendAndStore(
-                  sock,
-                  remoteJid,
-                  {
-                    text: `❌ *Comando não reconhecido*
+            if (COMMAND_REACT_EMOJI) {
+              try {
+                await sendAndStore(sock, remoteJid, {
+                  react: {
+                    text: COMMAND_REACT_EMOJI,
+                    key: messageInfo.key,
+                  },
+                });
+              } catch (error) {
+                logger.warn('Falha ao enviar reação de comando:', error.message);
+              }
+            }
+
+            switch (command) {
+              case 'menu':
+                runCommand('menu', () => handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, commandPrefix, args));
+                break;
+
+              case 'sticker':
+              case 's':
+                runCommand('sticker', () => processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '), { commandPrefix }));
+                break;
+
+              case 'pack':
+              case 'packs':
+                runCommand('pack', () => handlePackCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, text, commandPrefix }));
+                break;
+
+              case 'toimg':
+              case 'tovideo':
+              case 'tovid':
+                runCommand('toimg', () => handleStickerConvertCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid }));
+                break;
+
+              case 'play':
+                runCommand('play', () => handlePlayCommand(sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix));
+                break;
+
+              case 'playvid':
+                runCommand('playvid', () => handlePlayVidCommand(sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix));
+                break;
+
+              case 'tiktok':
+              case 'tt':
+                runCommand('tiktok', () => handleTikTokCommand({ sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix }));
+                break;
+
+              case 'cat':
+                runCommand('cat', () => handleCatCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
+                break;
+
+              case 'catimg':
+              case 'catimage':
+                runCommand('catimg', () => handleCatImageCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
+                break;
+
+              case 'catprompt':
+              case 'iaprompt':
+              case 'promptia':
+                runCommand('catprompt', () => handleCatPromptCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
+                break;
+
+              case 'quote':
+              case 'qc':
+                runCommand('quote', () => handleQuoteCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, text, commandPrefix }));
+                break;
+
+              case 'wp':
+              case 'waifupics':
+                runCommand('waifupics', () => handleWaifuPicsCommand({ sock, remoteJid, messageInfo, expirationMessage, text, type: 'sfw', commandPrefix }));
+                break;
+
+              case 'wpnsfw':
+              case 'waifupicsnsfw':
+                runCommand('waifupicsnsfw', () => handleWaifuPicsCommand({ sock, remoteJid, messageInfo, expirationMessage, text, type: 'nsfw', commandPrefix }));
+                break;
+
+              case 'wppicshelp':
+                runCommand('wppicshelp', () => sendAndStore(sock, remoteJid, { text: getWaifuPicsUsageText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }));
+                break;
+
+              case 'stickertext':
+              case 'st':
+                runCommand('stickertext', () => processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'black', commandPrefix }));
+                break;
+
+              case 'stickertextwhite':
+              case 'stw':
+                runCommand('stickertextwhite', () => processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'white', commandPrefix }));
+                break;
+
+              case 'stickertextblink':
+              case 'stb':
+                runCommand('stickertextblink', () => processBlinkingTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'white', commandPrefix }));
+                break;
+
+              case 'ranking':
+              case 'rank':
+              case 'top5':
+                runCommand('ranking', () => handleRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }));
+                break;
+
+              case 'rankingglobal':
+              case 'rankglobal':
+              case 'globalrank':
+              case 'globalranking':
+                runCommand('rankingglobal', () => handleGlobalRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }));
+                break;
+
+              case 'semmsg':
+              case 'zeromsg':
+              case 'nomsg':
+              case 'inativos':
+                runCommand('semmsg', () => handleNoMessageCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, senderJid, text }));
+                break;
+
+              case 'ping':
+                runCommand('ping', () => handlePingCommand({ sock, remoteJid, messageInfo, expirationMessage }));
+                break;
+
+              case 'dado':
+              case 'dice':
+                runCommand('dado', () => handleDiceCommand({ sock, remoteJid, messageInfo, expirationMessage, args, commandPrefix }));
+                break;
+
+              case 'user':
+              case 'usuario':
+                runCommand('user', () =>
+                  handleUserCommand({
+                    sock,
+                    remoteJid,
+                    messageInfo,
+                    expirationMessage,
+                    senderJid,
+                    args,
+                    isGroupMessage,
+                    commandPrefix,
+                  }),
+                );
+                break;
+
+              case 'rpg':
+                runCommand('rpg', () =>
+                  handleRpgPokemonCommand({
+                    sock,
+                    remoteJid,
+                    messageInfo,
+                    expirationMessage,
+                    senderJid,
+                    senderIdentity,
+                    args,
+                    commandPrefix,
+                  }),
+                );
+                break;
+
+              case 'aviso':
+              case 'notice':
+                runCommand('aviso', () => handleNoticeCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
+                break;
+
+              default:
+                if (isAdminCommandRoute) {
+                  runCommand('admin', () => handleAdminCommand({ command, args, text, sock, messageInfo, remoteJid, senderJid, botJid, isGroupMessage, expirationMessage, commandPrefix }));
+                  break;
+                }
+
+                analysisPayload.processingResult = 'unknown_command';
+                logger.info(`Comando desconhecido recebido: ${command}`);
+                runCommand('unknown', () =>
+                  sendAndStore(
+                    sock,
+                    remoteJid,
+                    {
+                      text: `❌ *Comando não reconhecido*
 
 O comando *${command}* não está configurado ou ainda não existe.
 
@@ -418,39 +678,55 @@ Digite *${commandPrefix}menu* para ver a lista de comandos disponíveis.
 
 🚧 *Fase Beta*  
 O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.`,
-                  },
-                  { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                ),
-              );
-              break;
-          }
-        }
-
-        if (!isMessageFromBot) {
-          runCommand('pack-capture', () =>
-            maybeCaptureIncomingSticker({
-              messageInfo,
-              senderJid,
-              isMessageFromBot,
-            }),
-          );
-        }
-
-        if (isGroupMessage && !isCommandMessage && !isMessageFromBot) {
-          const autoStickerMedia = extractSupportedStickerMediaDetails(messageInfo, { includeQuoted: false });
-
-          if (autoStickerMedia && autoStickerMedia.mediaType !== 'sticker') {
-            const groupConfig = await groupConfigStore.getGroupConfig(remoteJid);
-            if (groupConfig.autoStickerEnabled) {
-              runCommand('autosticker', () =>
-                processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, '', {
-                  includeQuotedMedia: false,
-                  showAutoPackNotice: false,
-                  commandPrefix,
-                }),
-              );
+                    },
+                    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                  ),
+                );
+                break;
             }
           }
+
+          if (!isMessageFromBot) {
+            runCommand('pack-capture', () =>
+              maybeCaptureIncomingSticker({
+                messageInfo,
+                senderJid,
+                isMessageFromBot,
+              }),
+            );
+          }
+
+          if (isGroupMessage && !isCommandMessage && !isMessageFromBot) {
+            const autoStickerMedia = extractSupportedStickerMediaDetails(messageInfo, { includeQuoted: false });
+
+            if (autoStickerMedia && autoStickerMedia.mediaType !== 'sticker') {
+              const groupConfig = await groupConfigStore.getGroupConfig(remoteJid);
+              if (groupConfig.autoStickerEnabled) {
+                analysisPayload.processingResult = 'autosticker_triggered';
+                analysisPayload.metadata = {
+                  ...analysisPayload.metadata,
+                  auto_sticker_media_type: autoStickerMedia.mediaType || null,
+                };
+                runCommand('autosticker', () =>
+                  processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, '', {
+                    includeQuotedMedia: false,
+                    showAutoPackNotice: false,
+                    commandPrefix,
+                  }),
+                );
+              }
+            }
+          }
+        } catch (messageError) {
+          analysisPayload.processingResult = 'error';
+          analysisPayload.errorCode = normalizeAnalysisErrorCode(messageError);
+          logger.error('Erro ao processar mensagem individual:', {
+            error: messageError?.message,
+            messageId: messageInfo?.key?.id || null,
+            remoteJid,
+          });
+        } finally {
+          persistMessageAnalysisEvent(analysisPayload);
         }
       }
     } catch (error) {
