@@ -25,15 +25,15 @@
     </script>
     <style>
       :root {
-        --bg: #0f172a;
-        --bg-2: #111827;
-        --card: #1e293bcf;
-        --line: rgba(255, 255, 255, 0.05);
+        --bg: #070f20;
+        --bg-2: #0b1730;
+        --card: #10213dcc;
+        --line: rgba(148, 163, 184, 0.28);
         --text: #f8fafc;
-        --muted: #94a3b8;
+        --muted: #9eb1cf;
         --primary: #22c55e;
         --error: #f87171;
-        --radius: 18px;
+        --radius: 20px;
       }
 
       * {
@@ -50,28 +50,31 @@
       body {
         color: var(--text);
         font-family: 'Manrope', system-ui, sans-serif;
-        background: radial-gradient(55rem 22rem at -10% -10%, #2563eb30, transparent 60%), radial-gradient(55rem 22rem at 110% -8%, #7c3aed22, transparent 56%), linear-gradient(160deg, var(--bg), var(--bg-2));
+        background:
+          radial-gradient(56rem 25rem at -8% -16%, #2563eb2f, transparent 62%),
+          radial-gradient(54rem 22rem at 108% -8%, #22c55e1f, transparent 60%),
+          linear-gradient(165deg, var(--bg), var(--bg-2));
         min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 24px 14px;
+        padding: 28px 14px;
       }
 
       .page {
-        width: min(760px, 100%);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 24px;
-        background: linear-gradient(150deg, #111827e8, #1e293bee);
+        width: min(780px, 100%);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 26px;
+        background: linear-gradient(150deg, #0a1429f0, #0f1f3ce8);
         box-shadow:
-          0 18px 44px #0209166e,
-          inset 0 1px 0 #95c1ff1a;
+          0 24px 52px #02091682,
+          inset 0 1px 0 #95c1ff1c;
         overflow: hidden;
       }
 
       .head {
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        padding: 20px 22px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+        padding: 18px 24px;
         display: flex;
         align-items: center;
         justify-content: flex-start;
@@ -94,56 +97,79 @@
         width: 30px;
         height: 30px;
         border-radius: 50%;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(148, 163, 184, 0.24);
         object-fit: cover;
       }
 
       .btn {
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        background: #101a2f;
-        color: var(--text);
+        border: 1px solid #385180;
+        border-radius: 13px;
+        background: #122446;
+        color: #d6e8ff;
         text-decoration: none;
-        padding: 9px 12px;
+        padding: 11px 14px;
         font-size: 14px;
-        font-weight: 600;
+        font-weight: 700;
+        text-align: center;
         transition:
           transform 0.2s ease,
           border-color 0.2s ease,
-          box-shadow 0.2s ease;
+          box-shadow 0.2s ease,
+          background-color 0.2s ease;
         cursor: pointer;
       }
 
       .btn:hover {
-        transform: translateY(-1px);
-        border-color: #2563eb;
-        box-shadow: 0 10px 20px #02091650;
+        transform: translateY(-2px);
+        border-color: #60a5fa;
+        box-shadow: 0 14px 28px #02091666;
       }
 
       .btn.primary {
-        border-color: transparent;
-        background: #22c55e;
-        color: #0f172a;
-        box-shadow: 0 10px 22px #22c55e30;
+        border-color: #2fdc74;
+        background: linear-gradient(98deg, #22c55e, #1ea853);
+        color: #0a1a11;
+        box-shadow:
+          0 0 0 1px #6ee7b733 inset,
+          0 14px 26px #22c55e42,
+          0 0 22px #2563eb2f;
       }
 
       .btn.primary:hover {
-        background: #16a34a;
+        background: linear-gradient(98deg, #2ad668, #1fa857);
+        box-shadow:
+          0 0 0 1px #86efac44 inset,
+          0 18px 30px #22c55e4f,
+          0 0 24px #2563eb40;
       }
 
       .content {
-        padding: 24px 22px;
+        padding: 30px 24px 26px;
         display: grid;
-        gap: 14px;
+        gap: 16px;
+      }
+
+      .eyebrow {
+        margin: 0;
+        width: fit-content;
+        border: 1px solid #315486;
+        border-radius: 999px;
+        padding: 6px 11px;
+        background: #10264a;
+        color: #c0d9ff;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
       }
 
       h1 {
         margin: 0;
         font-family: 'Sora', sans-serif;
-        font-size: clamp(26px, 3.6vw, 36px);
-        line-height: 1.08;
+        font-size: clamp(30px, 4vw, 40px);
+        line-height: 1.04;
         letter-spacing: -0.02em;
-        background: linear-gradient(90deg, #eef5ff 0%, #60a5fa 46%, #a78bfa 100%);
+        background: linear-gradient(90deg, #f5f9ff 0%, #9cc8ff 46%, #bbd8ff 100%);
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
@@ -151,26 +177,47 @@
 
       .lead {
         margin: 0;
-        color: #bfd1ea;
-        line-height: 1.6;
-        font-size: 16px;
+        color: #c8d9f4;
+        line-height: 1.55;
+        font-size: 17px;
       }
 
       .card {
-        border: 1px solid #334f7bc7;
+        border: 1px solid #365584c4;
         border-radius: var(--radius);
-        background: var(--card);
-        padding: 16px;
+        background: linear-gradient(150deg, var(--card), #0d1c37d9);
+        padding: 20px;
         display: grid;
-        gap: 10px;
-        backdrop-filter: blur(8px);
+        gap: 12px;
+        backdrop-filter: blur(12px);
+        box-shadow:
+          0 16px 32px #02091652,
+          inset 0 1px 0 #9cc8ff1c;
       }
 
       .status {
         margin: 0;
-        color: #dce8fa;
-        font-size: 15px;
+        width: fit-content;
+        border: 1px solid #4170aa;
+        border-radius: 999px;
+        background: #0f274b;
+        color: #e6f1ff;
+        padding: 8px 12px;
+        font-size: 14px;
+        font-weight: 700;
         line-height: 1.5;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .status::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #60a5fa;
+        box-shadow: 0 0 0 4px #60a5fa24;
       }
 
       .hint {
@@ -182,57 +229,160 @@
 
       .error {
         margin: 0;
-        border: 1px solid #a74949;
+        border: 1px solid #b15050;
         border-radius: 12px;
-        background: #3b181899;
+        background: #411b1b9e;
         color: #ffd7d7;
-        padding: 9px 10px;
+        padding: 10px 12px;
         font-size: 14px;
       }
 
       .google-area {
-        border: 1px dashed #3c5b8d;
+        border: 1px dashed #456da4;
         border-radius: 14px;
-        background: #111827a3;
+        background: #0d1b34cc;
+        padding: 14px;
+        display: grid;
+        gap: 12px;
+        align-items: stretch;
+      }
+
+      .google-button-shell {
+        border: 1px solid #bfd5ff6b;
+        border-radius: 14px;
+        background: #ffffff;
+        padding: 8px;
+        box-shadow:
+          0 8px 18px #02091624,
+          inset 0 1px 0 #ffffff;
+        transition:
+          transform 0.2s ease,
+          box-shadow 0.2s ease;
+      }
+
+      .google-button-shell:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          0 12px 22px #0209163b,
+          inset 0 1px 0 #ffffff;
+      }
+
+      [data-google-login-button] {
+        width: 100%;
+        min-height: 44px;
+      }
+
+      .google-state {
+        margin: 0;
+        color: #9db6d9;
+        font-size: 12px;
+      }
+
+      .consent {
+        border: 1px solid #3d5b87;
+        border-radius: 12px;
+        background: #0f213fcf;
         padding: 12px;
         display: grid;
+        gap: 6px;
+        transition:
+          border-color 0.2s ease,
+          box-shadow 0.2s ease,
+          background-color 0.2s ease;
+      }
+
+      .consent:hover {
+        border-color: #6ea4ef;
+      }
+
+      .consent.is-checked {
+        border-color: #22c55e;
+        background: #102f21d4;
+        box-shadow: inset 0 0 0 1px #22c55e33;
+      }
+
+      .consent-row {
+        display: grid;
+        grid-template-columns: 22px 1fr;
+        align-items: start;
         gap: 10px;
-        align-items: stretch;
+        margin: 0;
+        color: #deebff;
+        font-size: 14px;
+        line-height: 1.5;
+        cursor: pointer;
+      }
+
+      .consent-row input {
+        margin: 0;
+        width: 18px;
+        height: 18px;
+        accent-color: #22c55e;
+        margin-top: 1px;
+      }
+
+      .consent-row a {
+        color: #a7ccff;
+        font-weight: 600;
+      }
+
+      .consent-row a:hover {
+        color: #d5e7ff;
+      }
+
+      .consent-error {
+        margin: 0;
+        color: #fecaca;
+        font-size: 12px;
       }
 
       html:not([data-login-has-wa='1']) #google-login-area {
         display: none !important;
       }
 
-      [data-google-login-button] {
-        width: 100%;
-        min-height: 40px;
-      }
-
-      .google-state {
-        margin: 0;
-        color: var(--muted);
-        font-size: 13px;
-      }
-
       .summary {
-        border: 1px solid #2b8b5d9c;
+        border: 1px solid #2f9461bf;
         border-radius: 12px;
-        background: #11302294;
-        padding: 10px;
+        background: linear-gradient(150deg, #113223cf, #0f2c1fd4);
+        padding: 12px;
         display: grid;
-        gap: 6px;
-        color: #dfffe8;
+        gap: 4px;
+        color: #dcffe9;
         font-size: 14px;
       }
 
+      .summary-title {
+        margin: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: #b8f7d1;
+      }
+
+      .summary-title::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #22c55e;
+        box-shadow: 0 0 0 4px #22c55e2b;
+      }
+
+      .summary[data-state='pending'] .summary-title::before {
+        background: #facc15;
+        box-shadow: 0 0 0 4px #facc152b;
+      }
+
       .whatsapp-cta {
-        border: 1px solid #2d7d57a8;
+        border: 1px solid #355d90bf;
         border-radius: 14px;
-        background: #1130228f;
-        padding: 12px;
+        background: linear-gradient(150deg, #0d1f3bcc, #12223fa8);
+        padding: 13px;
         display: grid;
-        gap: 10px;
+        gap: 11px;
       }
 
       html[data-login-has-wa='1'] #whatsapp-cta {
@@ -241,28 +391,28 @@
 
       .whatsapp-cta p {
         margin: 0;
-        color: #d5ffdf;
+        color: #d5e6ff;
         font-size: 14px;
         line-height: 1.5;
       }
 
       .btn.whatsapp {
-        border-color: #1e9a5f;
-        background: linear-gradient(90deg, #22c55e, #16a34a);
-        color: #04230f;
+        border-color: #3a67a6;
+        background: #16315a;
+        color: #d9ebff;
         text-align: center;
       }
 
       .whatsapp-meta {
         margin: 0;
-        color: #b7e9ca;
+        color: #9eb5d8;
         font-size: 13px;
       }
 
       .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       }
 
       @media (max-width: 620px) {
@@ -271,12 +421,15 @@
         }
 
         .content {
-          padding: 18px 16px;
+          padding: 22px 16px 18px;
         }
 
-        .actions .btn {
-          width: 100%;
-          text-align: center;
+        .card {
+          padding: 16px;
+        }
+
+        .actions {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -291,37 +444,51 @@
       </header>
 
       <section class="content">
-        <h1>Login da Plataforma</h1>
-        <p class="lead">Entre com Google para vincular sua conta ao seu numero do WhatsApp e liberar os recursos web do OmniZap.</p>
+        <p class="eyebrow">Login seguro OmniZap</p>
+        <h1>Acesse sua conta</h1>
+        <p class="lead">Vincule seu WhatsApp e libere os recursos do OmniZap.</p>
 
         <article class="card">
-          <p id="login-status" class="status">Carregando estado de login...</p>
+          <p id="login-status" class="status">Verificando conta Google...</p>
           <p id="login-hint" class="hint"></p>
           <p id="login-error" class="error" hidden></p>
 
           <div id="google-login-area" class="google-area" hidden>
-            <div data-google-login-button></div>
+            <div class="google-button-shell">
+              <div data-google-login-button></div>
+            </div>
             <p id="google-login-state" class="google-state">Carregando login Google...</p>
-          </div>
-
-          <div id="login-summary" class="summary" hidden>
-            <div id="login-summary-owner">WhatsApp vinculado:</div>
-          </div>
-
-          <div id="whatsapp-cta" class="whatsapp-cta" hidden>
-            <p>Abriu esta página direto? Inicie a conversa no WhatsApp para gerar o link com seu número automaticamente.</p>
-            <a id="whatsapp-cta-link" class="btn whatsapp" href="https://wa.me/?text=iniciar" target="_blank" rel="noreferrer noopener"> Abrir WhatsApp e enviar "iniciar" </a>
-            <p id="whatsapp-cta-meta" class="whatsapp-meta"></p>
-          </div>
-
-          <div id="login-success-actions" class="actions" hidden>
-            <a id="login-success-chat" class="btn primary" href="https://wa.me/?text=%2Fmenu" target="_blank" rel="noreferrer noopener"> Voltar ao chat do bot (/menu) </a>
-            <a id="login-success-home" class="btn" href="/">Voltar para Home</a>
+            <div id="login-consent-box" class="consent">
+              <label class="consent-row" for="login-consent-checkbox">
+                <input id="login-consent-checkbox" type="checkbox" />
+                <span>
+                  Li e aceito os <a href="/termos-de-uso/" target="_blank" rel="noreferrer noopener">Termos de Uso</a> e a
+                  <a href="/termos-de-uso/#politica-de-privacidade" target="_blank" rel="noreferrer noopener">Politica de Privacidade</a>.
+                </span>
+              </label>
+              <p id="login-consent-error" class="consent-error" hidden></p>
+            </div>
           </div>
         </article>
+
+        <div id="login-summary" class="summary" hidden>
+          <p id="login-summary-title" class="summary-title">WhatsApp conectado</p>
+          <div id="login-summary-owner"></div>
+        </div>
+
+        <div id="whatsapp-cta" class="whatsapp-cta" hidden>
+          <p>Para liberar o login neste navegador, inicie no WhatsApp e gere seu link seguro.</p>
+          <a id="whatsapp-cta-link" class="btn whatsapp" href="https://wa.me/?text=iniciar" target="_blank" rel="noreferrer noopener"> Gerar link de login no WhatsApp </a>
+          <p id="whatsapp-cta-meta" class="whatsapp-meta"></p>
+        </div>
+
+        <div id="login-success-actions" class="actions" hidden>
+          <a id="login-success-home" class="btn primary" href="/user/">Ir para o painel</a>
+          <a id="login-success-chat" class="btn" href="https://wa.me/?text=%2Fmenu" target="_blank" rel="noreferrer noopener">Abrir WhatsApp do bot</a>
+        </div>
       </section>
     </main>
 
-    <script type="module" src="/js/apps/loginApp.js?v=20260228f"></script>
+    <script type="module" src="/js/apps/loginApp.js?v=20260301b"></script>
   </body>
 </html>

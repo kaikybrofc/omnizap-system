@@ -2,6 +2,8 @@
 
 const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const DEFAULT_API_BASE_PATH = '/api/sticker-packs';
+const LOGIN_CONSENT_STORAGE_KEY = 'omnizap_login_terms_consent_v1';
+const LOGIN_CONSENT_HINT = 'Aceite os Termos de Uso e a Politica de Privacidade para continuar.';
 
 const root = document.getElementById('login-app-root');
 
@@ -13,7 +15,11 @@ if (root) {
     googleArea: document.getElementById('google-login-area'),
     googleButton: document.querySelector('[data-google-login-button]'),
     googleState: document.getElementById('google-login-state'),
+    consentBox: document.getElementById('login-consent-box'),
+    consentCheckbox: document.getElementById('login-consent-checkbox'),
+    consentError: document.getElementById('login-consent-error'),
     summary: document.getElementById('login-summary'),
+    summaryTitle: document.getElementById('login-summary-title'),
     summaryOwner: document.getElementById('login-summary-owner'),
     whatsappCta: document.getElementById('whatsapp-cta'),
     whatsappCtaLink: document.getElementById('whatsapp-cta-link'),
@@ -30,6 +36,7 @@ if (root) {
     googleReady: false,
     busy: false,
     authenticated: false,
+    consentAccepted: false,
     botPhone: '',
     sessionOwnerPhone: '',
     hint: readWhatsAppHintFromUrl(window.location.search),
@@ -52,13 +59,39 @@ if (root) {
     if (safe) ui.error.textContent = safe;
   };
 
+  const showConsentError = (message) => {
+    if (!ui.consentError) return;
+    const safe = String(message || '').trim();
+    ui.consentError.hidden = !safe;
+    if (safe) ui.consentError.textContent = safe;
+  };
+
+  const persistConsentState = (accepted) => {
+    try {
+      if (accepted) {
+        window.localStorage.setItem(LOGIN_CONSENT_STORAGE_KEY, '1');
+      } else {
+        window.localStorage.removeItem(LOGIN_CONSENT_STORAGE_KEY);
+      }
+    } catch {}
+  };
+
+  const readConsentState = () => {
+    try {
+      return window.localStorage.getItem(LOGIN_CONSENT_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  };
+
   const setBusy = (value) => {
     state.busy = Boolean(value);
     if (ui.googleButton) {
-      ui.googleButton.style.opacity = state.busy ? '0.55' : '1';
-      ui.googleButton.style.pointerEvents = state.busy ? 'none' : 'auto';
+      const canInteract = !state.busy && state.consentAccepted;
+      ui.googleButton.style.opacity = canInteract ? '1' : '0.55';
+      ui.googleButton.style.pointerEvents = canInteract ? 'auto' : 'none';
     }
-    setText(ui.googleState, state.busy ? 'Finalizando login...' : state.googleReady ? '' : 'Carregando login Google...');
+    setText(ui.googleState, state.busy ? 'Finalizando login...' : state.consentAccepted ? (state.googleReady ? '' : 'Carregando login Google...') : LOGIN_CONSENT_HINT);
   };
 
   const formatPhone = (digits) => {
@@ -112,7 +145,7 @@ if (root) {
       ui.successChat.href = buildWhatsappMenuUrl(state.botPhone);
     }
     if (ui.successHome) {
-      ui.successHome.href = '/';
+      ui.successHome.href = '/user/';
     }
   };
 
@@ -146,16 +179,16 @@ if (root) {
 
   const renderHint = () => {
     if (!state.hint.hasPayload) {
-      setText(ui.hint, 'Voce abriu esta pagina direto. Por seguranca, gere seu link no WhatsApp clicando no botao abaixo e enviando "iniciar".');
+      setText(ui.hint, 'Abra o link que o bot envia no WhatsApp para liberar o login neste navegador.');
       return;
     }
 
     if (!state.hint.phone) {
-      setText(ui.hint, 'Este link nao trouxe um numero de WhatsApp valido. Ele pode ter sido alterado ou expirado. Gere um novo link enviando "iniciar".');
+      setText(ui.hint, 'Este link nao tem um numero valido. Gere um novo enviando "iniciar" no bot.');
       return;
     }
 
-    setText(ui.hint, `Numero detectado para vinculo: +${formatPhone(state.hint.phone)}.`);
+    setText(ui.hint, `Numero detectado: +${formatPhone(state.hint.phone)}.`);
   };
 
   const renderSessionSummary = (sessionData) => {
@@ -181,18 +214,24 @@ if (root) {
     const ownerPhone = String(sessionData?.owner_phone || '').trim();
     state.sessionOwnerPhone = ownerPhone;
     if (ownerPhone) {
-      setText(ui.summaryOwner, `WhatsApp vinculado: +${formatPhone(ownerPhone)}`);
+      if (ui.summary) ui.summary.dataset.state = 'ok';
+      setText(ui.summaryTitle, 'WhatsApp conectado');
+      setText(ui.summaryOwner, `+${formatPhone(ownerPhone)}`);
       renderWhatsAppCta();
       return;
     }
 
     if (state.hint.phone) {
-      setText(ui.summaryOwner, `Numero detectado: +${formatPhone(state.hint.phone)}. Clique no botao do Google para concluir o vinculo.`);
+      if (ui.summary) ui.summary.dataset.state = 'pending';
+      setText(ui.summaryTitle, 'Vinculo em andamento');
+      setText(ui.summaryOwner, `Numero detectado: +${formatPhone(state.hint.phone)}`);
       renderWhatsAppCta();
       return;
     }
 
-    setText(ui.summaryOwner, 'Conta Google ativa. Vincule o WhatsApp abrindo o link pelo "iniciar".');
+    if (ui.summary) ui.summary.dataset.state = 'ok';
+    setText(ui.summaryTitle, 'Conta ativa');
+    setText(ui.summaryOwner, 'Abra o link do WhatsApp para concluir o vinculo.');
     renderWhatsAppCta();
   };
 
@@ -231,7 +270,25 @@ if (root) {
     return payload;
   };
 
+  const syncConsentState = () => {
+    state.consentAccepted = Boolean(ui.consentCheckbox?.checked);
+    persistConsentState(state.consentAccepted);
+    if (ui.consentBox) {
+      ui.consentBox.classList.toggle('is-checked', state.consentAccepted);
+    }
+    if (state.consentAccepted) {
+      showConsentError('');
+    }
+    setBusy(state.busy);
+  };
+
   const handleGoogleCredential = async (credential) => {
+    if (!state.consentAccepted) {
+      showConsentError(LOGIN_CONSENT_HINT);
+      setBusy(false);
+      return;
+    }
+
     const token = String(credential || '').trim();
     if (!token) {
       showError('Falha ao receber token do Google. Tente novamente.');
@@ -252,12 +309,12 @@ if (root) {
       if (!sessionData?.authenticated) {
         throw new Error('Nao foi possivel criar a sessao Google.');
       }
-      setText(ui.status, 'Login concluido. Seu acesso foi vinculado com sucesso.');
+      setText(ui.status, 'Conta Google detectada');
       renderSessionSummary(sessionData);
       setText(ui.googleState, 'Login Google ativo.');
     } catch (error) {
       showError(error?.message || 'Falha ao concluir login Google.');
-      setText(ui.status, 'Nao foi possivel concluir o login agora.');
+      setText(ui.status, 'Falha ao validar conta Google');
       renderSessionSummary(null);
     } finally {
       setBusy(false);
@@ -314,18 +371,18 @@ if (root) {
       const buttonWidth = Math.max(180, Math.min(320, measuredWidth || 320));
       accounts.renderButton(ui.googleButton, {
         type: 'standard',
-        theme: 'filled_black',
+        theme: 'outline',
         size: 'large',
-        text: 'signin_with',
+        text: 'continue_with',
         shape: 'pill',
         width: buttonWidth,
       });
 
       state.googleReady = true;
-      setText(ui.googleState, '');
+      setBusy(state.busy);
     } catch (error) {
       state.googleReady = false;
-      setText(ui.googleState, '');
+      setBusy(state.busy);
       showError(error?.message || 'Falha ao carregar login Google.');
     }
   };
@@ -390,14 +447,14 @@ if (root) {
       const payload = await fetchJson(sessionApiPath, { method: 'GET' });
       const sessionData = payload?.data || {};
       if (sessionData?.authenticated) {
-        setText(ui.status, 'Sessao Google ativa neste navegador.');
+        setText(ui.status, 'Conta Google detectada');
         renderSessionSummary(sessionData);
       } else {
-        setText(ui.status, 'Use o login Google abaixo para entrar no OmniZap.');
+        setText(ui.status, 'Entre com Google para continuar');
         renderSessionSummary(null);
       }
     } catch {
-      setText(ui.status, 'Nao foi possivel validar sua sessao atual.');
+      setText(ui.status, 'Nao foi possivel validar sua sessao');
       renderSessionSummary(null);
     }
   };
@@ -408,7 +465,7 @@ if (root) {
       ui.googleArea.hidden = !allowed;
     }
     if (!allowed) {
-      setText(ui.status, 'Para fazer login, abra esta pagina pelo link do WhatsApp (envie "iniciar" no bot).');
+      setText(ui.status, 'Abra o link enviado no WhatsApp para continuar');
       setText(ui.googleState, '');
       if (ui.summary) ui.summary.hidden = true;
       renderSuccessActions(null);
@@ -418,6 +475,11 @@ if (root) {
   };
 
   const init = async () => {
+    if (ui.consentCheckbox) {
+      ui.consentCheckbox.checked = readConsentState();
+      ui.consentCheckbox.addEventListener('change', syncConsentState);
+    }
+    syncConsentState();
     renderHint();
     if (ui.whatsappCta && state.hint.phone) {
       ui.whatsappCta.hidden = true;
