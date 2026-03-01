@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OmniZap System | System Admin</title>
+    <meta name="description" content="Painel System Admin do OmniZap com moderação, saúde, auditoria e operações." />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="canonical" href="https://omnizap.shop/user/systemadm/" />
+    <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #0f172a;
+        --bg-2: #111827;
+        --card: #1e293bcf;
+        --line: rgba(255, 255, 255, 0.05);
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --primary: #22c55e;
+        --radius: 18px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+      }
+
+      body {
+        color: var(--text);
+        font-family: 'Manrope', system-ui, sans-serif;
+        background: radial-gradient(55rem 22rem at -10% -10%, #2563eb30, transparent 60%), radial-gradient(55rem 22rem at 110% -8%, #7c3aed22, transparent 56%), linear-gradient(160deg, var(--bg), var(--bg-2));
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 14px;
+      }
+
+      .page {
+        width: min(840px, 100%);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 24px;
+        background: linear-gradient(150deg, #111827e8, #1e293bee);
+        box-shadow:
+          0 18px 44px #0209166e,
+          inset 0 1px 0 #95c1ff1a;
+        overflow: hidden;
+      }
+
+      .head {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 20px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-family: 'Sora', sans-serif;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        text-decoration: none;
+        color: var(--text);
+      }
+
+      .brand img {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        object-fit: cover;
+      }
+
+      .head-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .btn {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #101a2f;
+        color: var(--text);
+        text-decoration: none;
+        padding: 9px 12px;
+        font-size: 14px;
+        font-weight: 600;
+        transition:
+          transform 0.2s ease,
+          border-color 0.2s ease,
+          box-shadow 0.2s ease;
+        cursor: pointer;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+        border-color: #2563eb;
+        box-shadow: 0 10px 20px #02091650;
+      }
+
+      .btn.primary {
+        border-color: transparent;
+        background: #22c55e;
+        color: #0f172a;
+        box-shadow: 0 10px 22px #22c55e30;
+      }
+
+      .btn.primary:hover {
+        background: #16a34a;
+      }
+
+      .content {
+        padding: 24px 22px;
+        display: grid;
+        gap: 14px;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: 'Sora', sans-serif;
+        font-size: clamp(26px, 3.6vw, 36px);
+        line-height: 1.08;
+        letter-spacing: -0.02em;
+        background: linear-gradient(90deg, #eef5ff 0%, #60a5fa 46%, #a78bfa 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .lead {
+        margin: 0;
+        color: #bfd1ea;
+        line-height: 1.6;
+        font-size: 16px;
+      }
+
+      .card {
+        border: 1px solid #334f7bc7;
+        border-radius: var(--radius);
+        background: var(--card);
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+        backdrop-filter: blur(8px);
+      }
+
+      .status {
+        margin: 0;
+        color: #dce8fa;
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .error {
+        margin: 0;
+        border: 1px solid #a74949;
+        border-radius: 12px;
+        background: #3b181899;
+        color: #ffd7d7;
+        padding: 9px 10px;
+        font-size: 14px;
+      }
+
+      .profile {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 12px;
+        align-items: center;
+        border: 1px solid #31517fb5;
+        border-radius: 14px;
+        background: #1e293bbf;
+        padding: 12px;
+      }
+
+      .avatar {
+        width: 66px;
+        height: 66px;
+        border-radius: 16px;
+        border: 1px solid #3c5a89;
+        object-fit: cover;
+        background: #0b1323;
+      }
+
+      .profile-meta h2 {
+        margin: 0 0 4px;
+        font-size: 20px;
+        line-height: 1.2;
+      }
+
+      .profile-meta p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+        word-break: break-word;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .metric {
+        border: 1px solid #31517fb5;
+        border-radius: 12px;
+        background: #1e293bbf;
+        padding: 10px;
+      }
+
+      .metric-label {
+        margin: 0 0 4px;
+        color: #94a3b8;
+        font-size: 12px;
+      }
+
+      .metric-value {
+        margin: 0;
+        color: #e8f1ff;
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+
+      .summary {
+        border: 1px solid #2b8b5d9c;
+        border-radius: 12px;
+        background: #11302294;
+        padding: 10px;
+        display: grid;
+        gap: 6px;
+        color: #dfffe8;
+        font-size: 14px;
+      }
+
+      .summary strong {
+        color: #f4fff8;
+      }
+
+      .admin-panel {
+        border: 1px solid #5b4a8f8f;
+        border-radius: 12px;
+        background: #1a1d3aa8;
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .admin-headline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .admin-title {
+        margin: 0;
+        font-size: 17px;
+        color: #eef3ff;
+      }
+
+      .admin-role {
+        border: 1px solid #6f5cc2;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #dad1ff;
+        background: #2a2155;
+      }
+
+      .admin-note {
+        margin: 0;
+        color: #d8d2ff;
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .admin-error {
+        margin: 0;
+        border: 1px solid #a74949;
+        border-radius: 10px;
+        background: #3b181899;
+        color: #ffd7d7;
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+
+      .admin-form {
+        display: grid;
+        gap: 8px;
+      }
+
+      .admin-label {
+        color: #d8d2ff;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .admin-form-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+      }
+
+      .admin-input {
+        min-height: 40px;
+        border: 1px solid #4f4a77;
+        border-radius: 10px;
+        background: #11162f;
+        color: #f4f7ff;
+        font-size: 14px;
+        padding: 0 10px;
+      }
+
+      .admin-input:focus {
+        outline: none;
+        border-color: #7c6be0;
+      }
+
+      .admin-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .admin-metric {
+        border: 1px solid #45409d7d;
+        border-radius: 10px;
+        background: #1a2044bf;
+        padding: 9px;
+      }
+
+      .admin-metric-label {
+        margin: 0 0 4px;
+        color: #b9b3e8;
+        font-size: 12px;
+      }
+
+      .admin-metric-value {
+        margin: 0;
+        color: #f4f6ff;
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      .admin-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .admin-section {
+        margin-top: 10px;
+        border: 1px solid #433b74;
+        border-radius: 10px;
+        background: #141936b3;
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .admin-section-title {
+        margin: 0;
+        font-size: 14px;
+        color: #ede9ff;
+        letter-spacing: 0.01em;
+      }
+
+      .admin-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .admin-item {
+        border: 1px solid #4a4684;
+        border-radius: 9px;
+        background: #0f1431d4;
+        padding: 8px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .admin-item-title {
+        margin: 0;
+        color: #f4f7ff;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .admin-item-meta {
+        margin: 0;
+        color: #c9c3ec;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .admin-item-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .admin-mini-btn {
+        border: 1px solid #4a5ea4;
+        border-radius: 8px;
+        background: #18244a;
+        color: #e4edff;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 6px 8px;
+        cursor: pointer;
+      }
+
+      .admin-mini-btn:hover {
+        border-color: #7089d0;
+      }
+
+      .admin-inline-form {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+      }
+
+      .admin-inline-form .admin-input {
+        min-height: 36px;
+      }
+
+      .admin-badge {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid #5f6aa5;
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        width: fit-content;
+      }
+
+      .admin-badge.critical {
+        border-color: #aa4d4d;
+        background: #4a1f1f;
+        color: #ffd7d7;
+      }
+
+      .admin-badge.high {
+        border-color: #ad6739;
+        background: #4b2b14;
+        color: #ffe0c8;
+      }
+
+      .admin-badge.medium {
+        border-color: #a9882f;
+        background: #44380d;
+        color: #fff2c6;
+      }
+
+      .admin-badge.low {
+        border-color: #516aa8;
+        background: #1d2b4c;
+        color: #d9e6ff;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .footer {
+        margin: 0;
+        color: #7f94b8;
+        font-size: 12px;
+      }
+
+      @media (max-width: 760px) {
+        .grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .admin-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 620px) {
+        .head {
+          padding: 16px;
+        }
+
+        .content {
+          padding: 18px 16px;
+        }
+
+        .profile {
+          grid-template-columns: 1fr;
+          text-align: center;
+        }
+
+        .avatar {
+          margin-inline: auto;
+        }
+
+        .actions .btn {
+          width: 100%;
+          text-align: center;
+        }
+
+        .admin-form-row {
+          grid-template-columns: 1fr;
+        }
+
+        .admin-inline-form {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="user-app-root" class="page" data-api-base-path="/api/sticker-packs" data-login-path="/login" data-stickers-path="/stickers">
+      <header class="head">
+        <a href="/" class="brand">
+          <img src="https://iili.io/FC3FABe.jpg" alt="OmniZap" loading="lazy" decoding="async" />
+          <span>OmniZap System</span>
+        </a>
+        <div class="head-actions">
+          <a class="btn" href="/">Home</a>
+          <a class="btn" href="/user/">Minha Conta</a>
+          <a id="user-manage-head-link" class="btn" href="/stickers/perfil">Gerenciar Stickers</a>
+        </div>
+      </header>
+
+      <section class="content">
+        <h1>System Admin</h1>
+        <p class="lead">Painel administrativo do sistema com moderação, saúde operacional, auditoria e exportação.</p>
+
+        <article class="card">
+          <p id="user-status" class="status">Carregando dados da conta...</p>
+          <p id="user-error" class="error" hidden></p>
+
+          <div id="user-profile" class="profile" hidden>
+            <img id="user-avatar" class="avatar" src="https://iili.io/FC3FABe.jpg" alt="Avatar do usuário" />
+            <div class="profile-meta">
+              <h2 id="user-name">Conta</h2>
+              <p id="user-email"></p>
+              <p id="user-whatsapp"></p>
+            </div>
+          </div>
+
+          <div id="user-grid" class="grid" hidden>
+            <article class="metric">
+              <p class="metric-label">Packs</p>
+              <p id="metric-packs" class="metric-value">0</p>
+            </article>
+            <article class="metric">
+              <p class="metric-label">Stickers</p>
+              <p id="metric-stickers" class="metric-value">0</p>
+            </article>
+            <article class="metric">
+              <p class="metric-label">Downloads</p>
+              <p id="metric-downloads" class="metric-value">0</p>
+            </article>
+            <article class="metric">
+              <p class="metric-label">Likes</p>
+              <p id="metric-likes" class="metric-value">0</p>
+            </article>
+          </div>
+
+          <div id="user-summary" class="summary" hidden>
+            <div><strong>Owner JID:</strong> <span id="user-owner-jid"></span></div>
+            <div><strong>Google ID:</strong> <span id="user-google-sub"></span></div>
+            <div><strong>Sessão expira:</strong> <span id="user-expires-at"></span></div>
+          </div>
+
+          <section id="user-admin-panel" class="admin-panel" hidden>
+            <div class="admin-headline">
+              <h3 class="admin-title">Área Admin</h3>
+              <span id="user-admin-role" class="admin-role">admin</span>
+            </div>
+            <p id="user-admin-status" class="admin-note"></p>
+            <p id="user-admin-error" class="admin-error" hidden></p>
+
+            <form id="user-admin-unlock-form" class="admin-form" hidden>
+              <label for="user-admin-password" class="admin-label">Senha do painel admin</label>
+              <div class="admin-form-row">
+                <input id="user-admin-password" class="admin-input" type="password" autocomplete="current-password" placeholder="Digite sua senha" />
+                <button id="user-admin-unlock-btn" type="submit" class="btn">Desbloquear</button>
+              </div>
+            </form>
+
+            <div id="user-admin-overview" hidden>
+              <section class="admin-section">
+                <h4 class="admin-section-title">Dashboard rápido</h4>
+                <div class="admin-grid">
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Bots online</p>
+                    <p id="user-admin-bots-online" class="admin-metric-value">0</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Mensagens hoje</p>
+                    <p id="user-admin-messages-today" class="admin-metric-value">0</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Spam bloqueado</p>
+                    <p id="user-admin-spam-blocked" class="admin-metric-value">0</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Uptime</p>
+                    <p id="user-admin-uptime" class="admin-metric-value">n/d</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Erros 5xx</p>
+                    <p id="user-admin-errors-5xx" class="admin-metric-value">0</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Packs (total)</p>
+                    <p id="user-admin-total-packs" class="admin-metric-value">0</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Stickers (total)</p>
+                    <p id="user-admin-total-stickers" class="admin-metric-value">0</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Bans ativos</p>
+                    <p id="user-admin-active-bans" class="admin-metric-value">0</p>
+                  </article>
+                </div>
+              </section>
+
+              <section class="admin-section">
+                <h4 class="admin-section-title">Moderação</h4>
+                <div id="user-admin-moderation-list" class="admin-list"></div>
+              </section>
+
+              <section class="admin-section">
+                <h4 class="admin-section-title">Usuários e sessões</h4>
+                <div class="admin-grid">
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Usuários Google</p>
+                    <p id="user-admin-known-users" class="admin-metric-value">0</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Sessões Google</p>
+                    <p id="user-admin-active-sessions" class="admin-metric-value">0</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Visitas 24h</p>
+                    <p id="user-admin-visits-24h" class="admin-metric-value">0</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Visitas 7d</p>
+                    <p id="user-admin-visits-7d" class="admin-metric-value">0</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Visitantes 7d</p>
+                    <p id="user-admin-unique-visitors-7d" class="admin-metric-value">0</p>
+                  </article>
+                </div>
+                <div id="user-admin-sessions-list" class="admin-list"></div>
+                <div id="user-admin-users-list" class="admin-list"></div>
+                <div id="user-admin-bans-list" class="admin-list"></div>
+              </section>
+
+              <section class="admin-section">
+                <h4 class="admin-section-title">Saúde do sistema</h4>
+                <div class="admin-grid">
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">CPU</p>
+                    <p id="user-admin-health-cpu" class="admin-metric-value">n/d</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">RAM</p>
+                    <p id="user-admin-health-ram" class="admin-metric-value">n/d</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Latência p95</p>
+                    <p id="user-admin-health-latency" class="admin-metric-value">n/d</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Fila pendente</p>
+                    <p id="user-admin-health-queue" class="admin-metric-value">n/d</p>
+                  </article>
+                  <article class="admin-metric">
+                    <p class="admin-metric-label">Status DB</p>
+                    <p id="user-admin-health-db" class="admin-metric-value">n/d</p>
+                  </article>
+                </div>
+              </section>
+
+              <section class="admin-section">
+                <h4 class="admin-section-title">Auditoria</h4>
+                <div id="user-admin-audit-list" class="admin-list"></div>
+              </section>
+
+              <section class="admin-section">
+                <h4 class="admin-section-title">Controle de recursos</h4>
+                <div id="user-admin-flags-list" class="admin-list"></div>
+              </section>
+
+              <section class="admin-section">
+                <h4 class="admin-section-title">Alertas</h4>
+                <div id="user-admin-alerts-list" class="admin-list"></div>
+              </section>
+
+              <section class="admin-section">
+                <h4 class="admin-section-title">Atalhos operacionais</h4>
+                <div class="admin-item-actions">
+                  <button type="button" class="admin-mini-btn" data-admin-op-action="restart_worker">Reiniciar worker</button>
+                  <button type="button" class="admin-mini-btn" data-admin-op-action="clear_cache">Limpar cache</button>
+                  <button type="button" class="admin-mini-btn" data-admin-op-action="reprocess_jobs">Reprocessar jobs</button>
+                </div>
+                <p id="user-admin-ops-status" class="admin-item-meta"></p>
+              </section>
+
+              <section class="admin-section">
+                <h4 class="admin-section-title">Busca global</h4>
+                <form id="user-admin-search-form" class="admin-inline-form">
+                  <input id="user-admin-search-input" class="admin-input" type="text" placeholder="Buscar por usuário, grupo, pack ou sessão" />
+                  <button id="user-admin-search-btn" type="submit" class="btn">Buscar</button>
+                </form>
+                <div id="user-admin-search-results" class="admin-list"></div>
+              </section>
+
+              <section class="admin-section">
+                <h4 class="admin-section-title">Exportação</h4>
+                <div class="admin-item-actions">
+                  <button id="user-admin-export-metrics-json" type="button" class="admin-mini-btn">Métricas JSON</button>
+                  <button id="user-admin-export-metrics-csv" type="button" class="admin-mini-btn">Métricas CSV</button>
+                  <button id="user-admin-export-events-json" type="button" class="admin-mini-btn">Eventos JSON</button>
+                  <button id="user-admin-export-events-csv" type="button" class="admin-mini-btn">Eventos CSV</button>
+                </div>
+              </section>
+
+              <div class="admin-actions">
+                <button id="user-admin-refresh-btn" type="button" class="btn">Atualizar dados admin</button>
+                <button id="user-admin-logout-btn" type="button" class="btn">Sair do admin</button>
+              </div>
+            </div>
+          </section>
+
+          <div id="user-actions" class="actions" hidden>
+            <a id="user-chat-link" class="btn primary" href="https://api.whatsapp.com/send/?text=%2Fmenu&type=custom_url&app_absent=0" target="_blank" rel="noreferrer noopener"> Voltar ao chat do bot (/menu) </a>
+            <a class="btn" href="/user/">Voltar para Minha Conta</a>
+            <a id="user-manage-main-link" class="btn" href="/stickers/perfil">Gerenciar meus stickers</a>
+            <a class="btn" href="/">Voltar para Home</a>
+            <button id="user-logout-btn" type="button" class="btn">Encerrar sessão</button>
+          </div>
+        </article>
+
+        <p class="footer">OmniZap System · <span id="user-current-year"></span></p>
+      </section>
+    </main>
+
+    <script type="module" src="/js/apps/userApp.js?v=20260301-user-systemadm-v1"></script>
+  </body>
+</html>

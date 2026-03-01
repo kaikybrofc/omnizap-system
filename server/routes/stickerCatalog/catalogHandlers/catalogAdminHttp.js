@@ -11,6 +11,31 @@ export const handleCatalogAdminRoutes = async ({ req, res, url, segments, handle
     return true;
   }
 
+  if (segments.length === 3 && segments[1] === 'users' && segments[2] === 'force-logout') {
+    await handlers.handleAdminForceLogoutRequest(req, res);
+    return true;
+  }
+
+  if (segments.length === 2 && segments[1] === 'feature-flags') {
+    await handlers.handleAdminFeatureFlagsRequest(req, res);
+    return true;
+  }
+
+  if (segments.length === 2 && segments[1] === 'ops') {
+    await handlers.handleAdminOpsActionRequest(req, res);
+    return true;
+  }
+
+  if (segments.length === 2 && segments[1] === 'search') {
+    await handlers.handleAdminSearchRequest(req, res, url);
+    return true;
+  }
+
+  if (segments.length === 2 && segments[1] === 'export') {
+    await handlers.handleAdminExportRequest(req, res, url);
+    return true;
+  }
+
   if (segments.length === 2 && segments[1] === 'moderators') {
     await handlers.handleAdminModeratorsRequest(req, res);
     return true;

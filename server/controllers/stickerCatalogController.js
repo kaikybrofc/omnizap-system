@@ -21,6 +21,7 @@ import { createStickerPackInteractionEvent, listStickerPackInteractionStatsByPac
 import { buildCreatorRanking, buildIntentCollections, buildPersonalizedRecommendations, buildViewerTagAffinity, computePackSignals } from '../../app/modules/stickerPackModule/stickerPackMarketplaceService.js';
 import { listStickerPackScoreSnapshotsByPackIds } from '../../app/modules/stickerPackModule/stickerPackScoreSnapshotRepository.js';
 import { createCatalogApiRouter } from '../routes/stickerCatalog/catalogRouter.js';
+import { createStickerCatalogNonCatalogHandlers } from './stickerCatalog/nonCatalogHandlers.js';
 import { createGoogleWebAuthService } from '../auth/googleWebAuth/googleWebAuthService.js';
 import { buildAdminMenu, buildAiMenu, buildAnimeMenu, buildMediaMenu, buildMenuCaption, buildQuoteMenu, buildStatsMenu, buildStickerMenu } from '../../app/modules/menuModule/common.js';
 import { getMarketplaceDriftSnapshot } from '../../app/modules/stickerPackModule/stickerMarketplaceDriftService.js';
@@ -29,7 +30,7 @@ import { convertToWebp } from '../../app/modules/stickerModule/convertToWebp.js'
 import { sanitizeText } from '../../app/modules/stickerPackModule/stickerPackUtils.js';
 import stickerPackService from '../../app/modules/stickerPackModule/stickerPackServiceRuntime.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from '../../app/modules/stickerPackModule/stickerPackErrors.js';
-import { isFeatureEnabled } from '../../app/services/featureFlagService.js';
+import { getFeatureFlagsSnapshot, isFeatureEnabled, refreshFeatureFlags } from '../../app/services/featureFlagService.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -100,6 +101,7 @@ const STICKER_CREATE_WEB_PATH = `${STICKER_WEB_PATH}/create`;
 const STICKER_ADMIN_WEB_PATH = `${STICKER_WEB_PATH}/admin`;
 const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
 const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
+const USER_SYSTEMADM_WEB_PATH = `${USER_PROFILE_WEB_PATH}/systemadm`;
 const STICKER_ADMIN_REDIRECT_TO_USER = parseEnvBool(process.env.STICKER_ADMIN_REDIRECT_TO_USER, true);
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
 const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
@@ -109,6 +111,7 @@ const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'index.h
 const CREATE_PACK_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'create', 'index.html');
 const ADMIN_PANEL_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'admin', 'index.html');
 const USER_DASHBOARD_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'user', 'index.html');
+const USER_SYSTEMADM_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'user', 'systemadm', 'index.html');
 const CATALOG_STYLES_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'css', 'styles.css');
 const CATALOG_SCRIPT_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'js', 'catalog.js');
 const DEFAULT_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_LIMIT, 24, 1, 60);
@@ -1598,6 +1601,47 @@ const sumMetricValues = (series, name) => {
   return list.reduce((sum, entry) => sum + (Number.isFinite(entry.value) ? entry.value : 0), 0);
 };
 
+const sumMetricValuesByLabel = (series, name, matchLabels = {}) => {
+  const list = series.get(name) || [];
+  return list.reduce((sum, entry) => {
+    if (!Number.isFinite(entry.value)) return sum;
+    for (const [labelKey, expectedValue] of Object.entries(matchLabels || {})) {
+      if (String(entry?.labels?.[labelKey] || '') !== String(expectedValue)) return sum;
+    }
+    return sum + entry.value;
+  }, 0);
+};
+
+const estimateHistogramQuantileMs = (series, metricBaseName, quantile = 0.95) => {
+  const bucketSeries = series.get(`${metricBaseName}_bucket`) || [];
+  if (!bucketSeries.length) return null;
+
+  const cumulativeByLe = new Map();
+  for (const entry of bucketSeries) {
+    const leRaw = String(entry?.labels?.le || '').trim();
+    if (!leRaw) continue;
+    const le = leRaw === '+Inf' ? Number.POSITIVE_INFINITY : Number(leRaw);
+    if (!Number.isFinite(le) && le !== Number.POSITIVE_INFINITY) continue;
+    cumulativeByLe.set(le, (cumulativeByLe.get(le) || 0) + Number(entry.value || 0));
+  }
+
+  const sorted = Array.from(cumulativeByLe.entries()).sort((left, right) => left[0] - right[0]);
+  if (!sorted.length) return null;
+
+  const total = Number(sorted[sorted.length - 1]?.[1] || 0);
+  if (!Number.isFinite(total) || total <= 0) return null;
+  const target = total * Math.max(0, Math.min(1, Number(quantile) || 0.95));
+
+  for (const [upperBound, cumulative] of sorted) {
+    if (cumulative >= target) {
+      if (!Number.isFinite(upperBound)) return null;
+      return Number(upperBound.toFixed(2));
+    }
+  }
+
+  return null;
+};
+
 const fetchPrometheusSummary = async () => {
   if (typeof globalThis.fetch !== 'function') {
     throw new Error('fetch indisponivel');
@@ -1622,6 +1666,8 @@ const fetchPrometheusSummary = async () => {
     const lagP99 = pickMetricValue(series, 'omnizap_nodejs_eventloop_lag_p99_seconds');
     const dbTotal = sumMetricValues(series, 'omnizap_db_query_total');
     const dbSlow = sumMetricValues(series, 'omnizap_db_slow_queries_total');
+    const http5xx = sumMetricValuesByLabel(series, 'omnizap_http_requests_total', { status_class: '5xx' });
+    const httpLatencyP95 = estimateHistogramQuantileMs(series, 'omnizap_http_request_duration_ms', 0.95);
 
     const queueDepthSeries = series.get('omnizap_queue_depth') || [];
     const queuePeak = queueDepthSeries.reduce((max, entry) => {
@@ -1634,6 +1680,8 @@ const fetchPrometheusSummary = async () => {
       lag_p99_ms: Number.isFinite(lagP99) ? Number((lagP99 * 1000).toFixed(2)) : null,
       db_total: Math.round(dbTotal || 0),
       db_slow: Math.round(dbSlow || 0),
+      http_5xx_total: Math.round(http5xx || 0),
+      http_latency_p95_ms: Number.isFinite(httpLatencyP95) ? Number(httpLatencyP95) : null,
       queue_peak: Math.round(queuePeak || 0),
     };
   } finally {
@@ -2927,6 +2975,24 @@ const renderUserDashboardHtml = async () => {
   return html;
 };
 
+const renderUserSystemAdminHtml = async () => {
+  const template = await fs.readFile(USER_SYSTEMADM_TEMPLATE_PATH, 'utf8');
+  const replacements = {
+    __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
+    __STICKER_LOGIN_WEB_PATH__: escapeHtmlAttribute(STICKER_LOGIN_WEB_PATH),
+    __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
+    __USER_PROFILE_WEB_PATH__: escapeHtmlAttribute(USER_PROFILE_WEB_PATH),
+    __USER_SYSTEMADM_WEB_PATH__: escapeHtmlAttribute(USER_SYSTEMADM_WEB_PATH),
+    __CURRENT_YEAR__: String(new Date().getFullYear()),
+  };
+
+  let html = template;
+  for (const [token, value] of Object.entries(replacements)) {
+    html = html.replaceAll(token, value);
+  }
+  return html;
+};
+
 const buildSitemapXml = async () => {
   if (SITEMAP_CACHE.expiresAt > Date.now() && SITEMAP_CACHE.xml) {
     return SITEMAP_CACHE.xml;
@@ -3299,6 +3365,39 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
   }
 };
 
+const buildHomeRealtimeSnapshot = async ({ systemSummary = null } = {}) => {
+  let messagesToday = null;
+  let spamBlockedToday = null;
+  let analyticsError = null;
+
+  try {
+    const [row] = await executeQuery(
+      `SELECT
+         COUNT(*) AS messages_today,
+         SUM(CASE WHEN processing_result = 'blocked_antilink' THEN 1 ELSE 0 END) AS spam_blocked_today
+       FROM ${TABLES.MESSAGE_ANALYSIS_EVENT}
+       WHERE created_at >= UTC_DATE()`,
+    );
+    messagesToday = Number(row?.messages_today || 0);
+    spamBlockedToday = Number(row?.spam_blocked_today || 0);
+  } catch (error) {
+    analyticsError = error?.message || 'message_analysis_event_unavailable';
+  }
+
+  const botsOnline = systemSummary?.bot?.connected ? 1 : 0;
+  const uptime = String(systemSummary?.process?.uptime || '').trim() || null;
+
+  return {
+    bots_online: botsOnline,
+    messages_today: messagesToday,
+    spam_blocked_today: spamBlockedToday,
+    uptime,
+    analytics_ok: analyticsError === null,
+    analytics_error: analyticsError,
+    updated_at: new Date().toISOString(),
+  };
+};
+
 const handleHomeBootstrapRequest = async (req, res, url) => {
   const visibility = normalizeCatalogVisibility(url?.searchParams?.get('visibility'));
   const fetchTimeoutMs = {
@@ -3307,6 +3406,7 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
     session: 450,
     stats: 700,
     system_summary: 700,
+    home_realtime: 700,
   };
   const errors = [];
 
@@ -3361,6 +3461,16 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
     });
   }
 
+  let homeRealtimePayload = null;
+  try {
+    homeRealtimePayload = await withTimeout(buildHomeRealtimeSnapshot({ systemSummary: systemSummaryPayload?.data || null }), fetchTimeoutMs.home_realtime);
+  } catch (error) {
+    errors.push({
+      source: 'home_realtime',
+      message: error?.message || 'home_realtime_unavailable',
+    });
+  }
+
   sendJson(req, res, 200, {
     data: {
       support,
@@ -3369,6 +3479,7 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
       stats: statsPayload?.data || null,
       stats_filters: statsPayload?.filters || null,
       system_summary: systemSummaryPayload?.data || null,
+      home_realtime: homeRealtimePayload,
     },
     meta: {
       visibility,
@@ -5610,6 +5721,8 @@ const buildSystemSummarySnapshot = async () => {
         lag_p99_ms: prometheus?.lag_p99_ms ?? null,
         db_total: prometheus?.db_total ?? null,
         db_slow: prometheus?.db_slow ?? null,
+        http_5xx_total: prometheus?.http_5xx_total ?? null,
+        http_latency_p95_ms: prometheus?.http_latency_p95_ms ?? null,
         queue_peak: prometheus?.queue_peak ?? null,
       },
       updated_at: new Date().toISOString(),
@@ -5645,37 +5758,6 @@ const getSystemSummaryCached = async () => {
 
   if (hasValue) return SYSTEM_SUMMARY_CACHE.value;
   return SYSTEM_SUMMARY_CACHE.pending;
-};
-
-const handleSystemSummaryRequest = async (req, res) => {
-  try {
-    const payload = await getSystemSummaryCached();
-    sendJson(req, res, 200, {
-      ...payload,
-      meta: {
-        ...(payload.meta || {}),
-        cache_seconds: SYSTEM_SUMMARY_CACHE_SECONDS,
-      },
-    });
-  } catch (error) {
-    logger.warn('Falha ao montar resumo do sistema.', {
-      action: 'system_summary_error',
-      error: error?.message,
-    });
-    if (SYSTEM_SUMMARY_CACHE.value) {
-      sendJson(req, res, 200, {
-        ...SYSTEM_SUMMARY_CACHE.value,
-        meta: {
-          ...(SYSTEM_SUMMARY_CACHE.value.meta || {}),
-          cache_seconds: SYSTEM_SUMMARY_CACHE_SECONDS,
-          stale: true,
-          error: error?.message || 'fallback_cache',
-        },
-      });
-      return;
-    }
-    sendJson(req, res, 503, { error: 'Resumo do sistema indisponível no momento.' });
-  }
 };
 
 const withTimeout = (promise, timeoutMs) =>
@@ -5860,54 +5942,6 @@ const getReadmeSummaryCached = async () => {
 
   if (hasValue) return README_SUMMARY_CACHE.value;
   return README_SUMMARY_CACHE.pending;
-};
-
-const handleReadmeSummaryRequest = async (req, res) => {
-  try {
-    const payload = await getReadmeSummaryCached();
-    sendJson(req, res, 200, payload);
-  } catch (error) {
-    logger.warn('Falha ao montar resumo markdown para README.', {
-      action: 'readme_summary_error',
-      error: error?.message,
-    });
-    if (README_SUMMARY_CACHE.value) {
-      sendJson(req, res, 200, {
-        ...README_SUMMARY_CACHE.value,
-        meta: {
-          stale: true,
-          error: error?.message || 'fallback_cache',
-        },
-      });
-      return;
-    }
-    sendJson(req, res, 503, { error: 'Resumo markdown indisponível no momento.' });
-  }
-};
-
-const handleReadmeMarkdownRequest = async (req, res) => {
-  try {
-    const payload = await getReadmeSummaryCached();
-    const markdown = String(payload?.data?.markdown || '').trim();
-    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-    res.setHeader('Cache-Control', `public, max-age=${Math.min(README_SUMMARY_CACHE_SECONDS, 300)}`);
-    res.setHeader('X-Cache-Seconds', String(README_SUMMARY_CACHE_SECONDS));
-    sendText(req, res, 200, markdown ? `${markdown}\n` : '', 'text/markdown; charset=utf-8');
-  } catch (error) {
-    logger.warn('Falha ao renderizar markdown para README.', {
-      action: 'readme_markdown_error',
-      error: error?.message,
-    });
-    if (README_SUMMARY_CACHE.value) {
-      const markdown = String(README_SUMMARY_CACHE.value?.data?.markdown || '').trim();
-      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-      res.setHeader('Cache-Control', `public, max-age=${Math.min(README_SUMMARY_CACHE_SECONDS, 300)}`);
-      res.setHeader('X-Cache-Seconds', String(README_SUMMARY_CACHE_SECONDS));
-      sendText(req, res, 200, markdown ? `${markdown}\n` : '', 'text/markdown; charset=utf-8');
-      return;
-    }
-    sendText(req, res, 503, 'Resumo markdown indisponivel no momento.\n', 'text/plain; charset=utf-8');
-  }
 };
 
 const resolveBotUserCandidates = (activeSocket) => {
@@ -6152,29 +6186,6 @@ const scheduleGlobalRankingPreload = () => {
   }
 };
 
-const handleGlobalRankingSummaryRequest = async (req, res) => {
-  const activeSocket = getActiveSocket();
-  const botUsers = resolveBotUserCandidates(activeSocket);
-  try {
-    const rawData = await getGlobalRankingSummaryCached();
-    const data = sanitizeRankingPayloadByBot(rawData, botUsers);
-    sendJson(req, res, 200, { data, meta: { cache_seconds: GLOBAL_RANK_REFRESH_SECONDS } });
-  } catch (error) {
-    logger.warn('Falha ao montar resumo do ranking global.', {
-      action: 'global_ranking_summary_error',
-      error: error?.message,
-    });
-    if (GLOBAL_RANK_CACHE.value) {
-      sendJson(req, res, 200, {
-        data: sanitizeRankingPayloadByBot(GLOBAL_RANK_CACHE.value, botUsers),
-        meta: { cache_seconds: GLOBAL_RANK_REFRESH_SECONDS, stale: true, error: error?.message || 'fallback_cache' },
-      });
-      return;
-    }
-    sendJson(req, res, 503, { error: 'Ranking global indisponível no momento.' });
-  }
-};
-
 const buildLastSevenUtcDateKeys = () => {
   const now = new Date();
   const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
@@ -6342,74 +6353,41 @@ const getMarketplaceGlobalStatsCached = async () => {
   return MARKETPLACE_GLOBAL_STATS_CACHE.pending;
 };
 
-const handleMarketplaceGlobalStatsRequest = async (req, res) => {
-  try {
-    const data = await getMarketplaceGlobalStatsCached();
-    sendJson(req, res, 200, {
-      ...data,
-      cache_seconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
-    });
-  } catch (error) {
-    logger.warn('Falha ao montar stats globais do marketplace.', {
-      action: 'marketplace_global_stats_error',
-      error: error?.message,
-    });
-    if (MARKETPLACE_GLOBAL_STATS_CACHE.value) {
-      sendJson(req, res, 200, {
-        ...MARKETPLACE_GLOBAL_STATS_CACHE.value,
-        cache_seconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
-        stale: true,
-      });
-      return;
-    }
-    sendJson(req, res, 503, { error: 'Stats globais do marketplace indisponíveis no momento.' });
-  }
-};
-
-const handleGitHubProjectSummaryRequest = async (req, res) => {
-  if (!GITHUB_REPO_INFO) {
-    sendJson(req, res, 500, { error: 'Configuracao de repositorio GitHub invalida.' });
-    return;
-  }
-
-  try {
-    const data = await fetchGitHubProjectSummary();
-    sendJson(req, res, 200, {
-      data,
-      meta: {
-        repository: GITHUB_REPO_INFO.fullName,
-        token_configured: Boolean(GITHUB_TOKEN),
-        cache_seconds: GITHUB_PROJECT_CACHE_SECONDS,
-      },
-    });
-  } catch (error) {
-    logger.warn('Falha ao consultar resumo do repositorio no GitHub.', {
-      action: 'github_project_summary_error',
-      repository: GITHUB_REPO_INFO.fullName,
-      error: error?.message,
-      status_code: error?.statusCode || null,
-    });
-    sendJson(req, res, 502, { error: 'Falha ao consultar dados do projeto no GitHub.' });
-  }
-};
-
-const handleSupportInfoRequest = async (req, res) => {
-  const data = await buildSupportInfo();
-  if (!data) {
-    sendJson(req, res, 404, { error: 'Contato de suporte indisponível.' });
-    return;
-  }
-  sendJson(req, res, 200, { data });
-};
-
-const handleBotContactInfoRequest = async (req, res) => {
-  const data = buildBotContactInfo();
-  if (!data) {
-    sendJson(req, res, 404, { error: 'Contato do bot indisponivel no momento.' });
-    return;
-  }
-  sendJson(req, res, 200, { data });
-};
+const {
+  handleSystemSummaryRequest,
+  handleReadmeSummaryRequest,
+  handleReadmeMarkdownRequest,
+  handleGlobalRankingSummaryRequest,
+  handleMarketplaceGlobalStatsRequest,
+  handleGitHubProjectSummaryRequest,
+  handleSupportInfoRequest,
+  handleBotContactInfoRequest,
+} = createStickerCatalogNonCatalogHandlers({
+  sendJson,
+  sendText,
+  logger,
+  getSystemSummaryCached,
+  systemSummaryCache: SYSTEM_SUMMARY_CACHE,
+  systemSummaryCacheSeconds: SYSTEM_SUMMARY_CACHE_SECONDS,
+  getReadmeSummaryCached,
+  readmeSummaryCache: README_SUMMARY_CACHE,
+  readmeSummaryCacheSeconds: README_SUMMARY_CACHE_SECONDS,
+  getGlobalRankingSummaryCached,
+  globalRankRefreshSeconds: GLOBAL_RANK_REFRESH_SECONDS,
+  globalRankCache: GLOBAL_RANK_CACHE,
+  sanitizeRankingPayloadByBot,
+  getActiveSocket,
+  resolveBotUserCandidates,
+  getMarketplaceGlobalStatsCached,
+  marketplaceGlobalStatsCacheSeconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
+  marketplaceGlobalStatsCache: MARKETPLACE_GLOBAL_STATS_CACHE,
+  githubRepoInfo: GITHUB_REPO_INFO,
+  githubToken: GITHUB_TOKEN,
+  githubProjectCacheSeconds: GITHUB_PROJECT_CACHE_SECONDS,
+  fetchGitHubProjectSummary,
+  buildSupportInfo,
+  buildBotContactInfo,
+});
 
 const handlePublicDataAssetRequest = async (req, res, pathname) => {
   const suffix = pathname.slice(STICKER_DATA_PUBLIC_PATH.length).replace(/^\/+/, '');
@@ -6685,6 +6663,364 @@ const handlePackInteractionRequest = async (req, res, packKey, interaction, url)
   });
 };
 
+const safeParseJsonObject = (value) => {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try {
+    const parsed = JSON.parse(String(value));
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const sanitizeAuditActionText = (value, max = 96) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_:-]/g, '_')
+    .slice(0, max);
+
+const createAdminActionAuditEvent = async ({ adminSession = null, action = '', targetType = '', targetId = '', status = 'success', details = null } = {}) => {
+  const normalizedAction = sanitizeAuditActionText(action, 96);
+  if (!normalizedAction) return false;
+  const normalizedTargetType = sanitizeAuditActionText(targetType, 64) || null;
+  const normalizedStatus = sanitizeAuditActionText(status, 32) || 'success';
+  const detailsJson = details && typeof details === 'object' ? JSON.stringify(details) : null;
+  const adminRole = normalizeAdminPanelRole(adminSession?.role, 'owner');
+  const adminGoogleSub = normalizeGoogleSubject(adminSession?.googleSub) || null;
+  const adminEmail = normalizeEmail(adminSession?.email) || null;
+  const adminOwnerJid = normalizeJid(adminSession?.ownerJid) || null;
+
+  try {
+    await executeQuery(
+      `INSERT INTO ${TABLES.ADMIN_ACTION_AUDIT}
+        (
+          id,
+          admin_role,
+          admin_google_sub,
+          admin_email,
+          admin_owner_jid,
+          action,
+          target_type,
+          target_id,
+          status,
+          details
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), adminRole, adminGoogleSub, adminEmail, adminOwnerJid, normalizedAction, normalizedTargetType, sanitizeText(targetId || '', 255, { allowEmpty: true }) || null, normalizedStatus, detailsJson],
+    );
+    return true;
+  } catch (error) {
+    if (error?.code === 'ER_NO_SUCH_TABLE') return false;
+    logger.warn('Falha ao registrar auditoria admin.', {
+      action: 'admin_audit_insert_failed',
+      error: error?.message,
+      audit_action: normalizedAction,
+    });
+    return false;
+  }
+};
+
+const listAdminAuditLog = async ({ limit = 80 } = {}) => {
+  const safeLimit = Math.max(1, Math.min(500, Number(limit || 80)));
+  try {
+    const rows = await executeQuery(
+      `SELECT
+          id,
+          admin_role,
+          admin_google_sub,
+          admin_email,
+          admin_owner_jid,
+          action,
+          target_type,
+          target_id,
+          status,
+          details,
+          created_at
+       FROM ${TABLES.ADMIN_ACTION_AUDIT}
+       ORDER BY created_at DESC
+       LIMIT ${safeLimit}`,
+    );
+
+    return (Array.isArray(rows) ? rows : []).map((row) => ({
+      id: String(row?.id || '').trim(),
+      admin_role: normalizeAdminPanelRole(row?.admin_role, 'owner'),
+      admin_google_sub: normalizeGoogleSubject(row?.admin_google_sub),
+      admin_email: normalizeEmail(row?.admin_email) || null,
+      admin_owner_jid: normalizeJid(row?.admin_owner_jid) || null,
+      action: String(row?.action || '').trim(),
+      target_type: String(row?.target_type || '').trim() || null,
+      target_id: String(row?.target_id || '').trim() || null,
+      status: String(row?.status || '').trim() || 'success',
+      details: safeParseJsonObject(row?.details),
+      created_at: toIsoOrNull(row?.created_at),
+    }));
+  } catch (error) {
+    if (error?.code === 'ER_NO_SUCH_TABLE') return [];
+    throw error;
+  }
+};
+
+const listAdminFeatureFlagsDetailed = async ({ limit = 300 } = {}) => {
+  const safeLimit = Math.max(1, Math.min(500, Number(limit || 300)));
+  try {
+    const rows = await executeQuery(
+      `SELECT
+          flag_name,
+          is_enabled,
+          rollout_percent,
+          description,
+          updated_by,
+          updated_at
+       FROM ${TABLES.FEATURE_FLAG}
+       ORDER BY flag_name ASC
+       LIMIT ${safeLimit}`,
+    );
+    return (Array.isArray(rows) ? rows : []).map((row) => ({
+      flag_name: sanitizeText(row?.flag_name || '', 120, { allowEmpty: false }) || '',
+      is_enabled: Number(row?.is_enabled || 0) === 1,
+      rollout_percent: Math.max(0, Math.min(100, Number(row?.rollout_percent || 0))),
+      description: sanitizeText(row?.description || '', 255, { allowEmpty: true }) || null,
+      updated_by: sanitizeText(row?.updated_by || '', 120, { allowEmpty: true }) || null,
+      updated_at: toIsoOrNull(row?.updated_at),
+    }));
+  } catch (error) {
+    if (error?.code === 'ER_NO_SUCH_TABLE') {
+      const fallback = await getFeatureFlagsSnapshot().catch(() => []);
+      return (Array.isArray(fallback) ? fallback : []).map((entry) => ({
+        flag_name: sanitizeText(entry?.flag_name || '', 120, { allowEmpty: false }) || '',
+        is_enabled: Boolean(entry?.is_enabled),
+        rollout_percent: Math.max(0, Math.min(100, Number(entry?.rollout_percent || 0))),
+        description: null,
+        updated_by: null,
+        updated_at: null,
+      }));
+    }
+    throw error;
+  }
+};
+
+const upsertAdminFeatureFlagRecord = async ({ adminSession = null, flagName = '', isEnabled = false, rolloutPercent = 100, description = '' } = {}) => {
+  const normalizedFlagName = sanitizeAuditActionText(flagName, 120);
+  if (!normalizedFlagName) {
+    const error = new Error('flag_name invalido.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const normalizedRollout = Math.max(0, Math.min(100, Math.floor(Number(rolloutPercent) || 0)));
+  const normalizedEnabled = isEnabled ? 1 : 0;
+  const normalizedDescription = sanitizeText(description || '', 255, { allowEmpty: true }) || null;
+  const updatedBy = normalizeEmail(adminSession?.email) || normalizeGoogleSubject(adminSession?.googleSub) || 'admin';
+
+  await executeQuery(
+    `INSERT INTO ${TABLES.FEATURE_FLAG}
+      (flag_name, is_enabled, rollout_percent, description, updated_by)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+      is_enabled = VALUES(is_enabled),
+      rollout_percent = VALUES(rollout_percent),
+      description = COALESCE(VALUES(description), description),
+      updated_by = VALUES(updated_by),
+      updated_at = CURRENT_TIMESTAMP`,
+    [normalizedFlagName, normalizedEnabled, normalizedRollout, normalizedDescription, sanitizeText(updatedBy, 120, { allowEmpty: true }) || null],
+  );
+
+  await refreshFeatureFlags({ force: true }).catch(() => {});
+  const rows = await executeQuery(
+    `SELECT flag_name, is_enabled, rollout_percent, description, updated_by, updated_at
+       FROM ${TABLES.FEATURE_FLAG}
+      WHERE flag_name = ?
+      LIMIT 1`,
+    [normalizedFlagName],
+  );
+  const row = Array.isArray(rows) ? rows[0] : null;
+  return {
+    flag_name: sanitizeText(row?.flag_name || normalizedFlagName, 120, { allowEmpty: false }) || normalizedFlagName,
+    is_enabled: Number(row?.is_enabled || 0) === 1,
+    rollout_percent: Math.max(0, Math.min(100, Number(row?.rollout_percent ?? normalizedRollout))),
+    description: sanitizeText(row?.description || '', 255, { allowEmpty: true }) || null,
+    updated_by: sanitizeText(row?.updated_by || '', 120, { allowEmpty: true }) || null,
+    updated_at: toIsoOrNull(row?.updated_at) || new Date().toISOString(),
+  };
+};
+
+const getAdminMessageFlowDailyStats = async () => {
+  try {
+    const [row] = await executeQuery(
+      `SELECT
+         COUNT(*) AS messages_today,
+         SUM(CASE WHEN processing_result = 'blocked_antilink' THEN 1 ELSE 0 END) AS spam_blocked_today,
+         SUM(CASE WHEN processing_result = 'auth_required' THEN 1 ELSE 0 END) AS suspicious_today
+       FROM ${TABLES.MESSAGE_ANALYSIS_EVENT}
+       WHERE created_at >= UTC_DATE()`,
+    );
+    return {
+      messages_today: Number(row?.messages_today || 0),
+      spam_blocked_today: Number(row?.spam_blocked_today || 0),
+      suspicious_today: Number(row?.suspicious_today || 0),
+      available: true,
+    };
+  } catch (error) {
+    if (error?.code === 'ER_NO_SUCH_TABLE') {
+      return {
+        messages_today: null,
+        spam_blocked_today: null,
+        suspicious_today: null,
+        available: false,
+      };
+    }
+    throw error;
+  }
+};
+
+const listRecentModerationEvents = async ({ limit = 40 } = {}) => {
+  const safeLimit = Math.max(1, Math.min(200, Number(limit || 40)));
+  try {
+    const rows = await executeQuery(
+      `SELECT
+          id,
+          message_id,
+          chat_id,
+          sender_id,
+          sender_name,
+          processing_result,
+          command_name,
+          error_code,
+          metadata,
+          created_at
+       FROM ${TABLES.MESSAGE_ANALYSIS_EVENT}
+       WHERE processing_result IN ('blocked_antilink', 'auth_required')
+       ORDER BY created_at DESC
+       LIMIT ${safeLimit}`,
+    );
+
+    return (Array.isArray(rows) ? rows : []).map((row) => {
+      const processingResult = String(row?.processing_result || '').trim().toLowerCase();
+      const metadata = safeParseJsonObject(row?.metadata);
+      const isAntiLink = processingResult === 'blocked_antilink';
+      const title = isAntiLink ? 'Anti-link bloqueou mensagem' : 'Tentativa suspeita detectada';
+      const severity = isAntiLink ? 'medium' : 'high';
+      const sender = sanitizeText(row?.sender_name || row?.sender_id || '', 120, { allowEmpty: true }) || String(row?.sender_id || '').trim() || 'desconhecido';
+      const chatId = String(row?.chat_id || '').trim() || 'chat_desconhecido';
+      return {
+        id: `mae:${row?.id || ''}`,
+        event_type: isAntiLink ? 'anti_link' : 'suspicious',
+        severity,
+        title,
+        subtitle: `${sender} em ${chatId}`,
+        chat_id: chatId,
+        sender_id: String(row?.sender_id || '').trim() || null,
+        sender_name: sanitizeText(row?.sender_name || '', 120, { allowEmpty: true }) || null,
+        message_id: String(row?.message_id || '').trim() || null,
+        processing_result: processingResult,
+        command_name: sanitizeText(row?.command_name || '', 64, { allowEmpty: true }) || null,
+        error_code: sanitizeText(row?.error_code || '', 96, { allowEmpty: true }) || null,
+        metadata,
+        created_at: toIsoOrNull(row?.created_at),
+      };
+    });
+  } catch (error) {
+    if (error?.code === 'ER_NO_SUCH_TABLE') return [];
+    throw error;
+  }
+};
+
+const buildModerationQueueSnapshot = async ({ limit = 50 } = {}) => {
+  const [analysisEvents, bans] = await Promise.all([
+    listRecentModerationEvents({ limit: Math.max(10, limit) }),
+    listAdminBans({ activeOnly: false, limit: Math.max(10, Math.floor(limit / 2)) }),
+  ]);
+
+  const banEvents = (Array.isArray(bans) ? bans : []).map((ban) => ({
+    id: `ban:${ban?.id || ''}`,
+    event_type: 'ban',
+    severity: ban?.revoked_at ? 'low' : 'critical',
+    title: ban?.revoked_at ? 'Ban revogado' : 'Conta bloqueada',
+    subtitle: sanitizeText(ban?.email || ban?.owner_jid || ban?.google_sub || '', 160, { allowEmpty: true }) || 'identidade indisponivel',
+    ban_id: String(ban?.id || '').trim(),
+    reason: sanitizeText(ban?.reason || '', 255, { allowEmpty: true }) || null,
+    created_at: toIsoOrNull(ban?.created_at),
+    revoked_at: toIsoOrNull(ban?.revoked_at),
+    metadata: {
+      google_sub: ban?.google_sub || null,
+      email: ban?.email || null,
+      owner_jid: ban?.owner_jid || null,
+    },
+  }));
+
+  const combined = [...(Array.isArray(analysisEvents) ? analysisEvents : []), ...banEvents];
+  combined.sort((left, right) => {
+    const leftTs = Date.parse(String(left?.created_at || left?.revoked_at || 0)) || 0;
+    const rightTs = Date.parse(String(right?.created_at || right?.revoked_at || 0)) || 0;
+    return rightTs - leftTs;
+  });
+  return combined.slice(0, Math.max(1, Math.min(200, Number(limit || 50))));
+};
+
+const buildAdminSystemHealthSnapshot = ({ systemSummary = null, systemMeta = null } = {}) => {
+  const hostCpu = Number(systemSummary?.host?.cpu_percent);
+  const hostRam = Number(systemSummary?.host?.memory_percent);
+  const latencyP95 = Number(systemSummary?.observability?.http_latency_p95_ms);
+  const queuePending = Number(systemSummary?.observability?.queue_peak);
+  const hasMetricsError = Boolean(systemMeta?.metrics_error);
+  const hasPlatformError = Boolean(systemMeta?.platform_error);
+  const dbStatus = hasPlatformError ? 'degraded' : hasMetricsError ? 'unknown' : 'ok';
+
+  return {
+    cpu_percent: Number.isFinite(hostCpu) ? hostCpu : null,
+    ram_percent: Number.isFinite(hostRam) ? hostRam : null,
+    http_latency_p95_ms: Number.isFinite(latencyP95) ? latencyP95 : null,
+    queue_pending: Number.isFinite(queuePending) ? queuePending : null,
+    db_status: dbStatus,
+    db_total_queries: Number(systemSummary?.observability?.db_total ?? 0) || 0,
+    db_slow_queries: Number(systemSummary?.observability?.db_slow ?? 0) || 0,
+    bot_status: String(systemSummary?.bot?.connection_status || '').trim() || 'unknown',
+    updated_at: toIsoOrNull(systemSummary?.updated_at),
+  };
+};
+
+const buildAdminAlertSnapshot = ({ dashboardQuick = null, systemHealth = null, systemSummary = null, systemMeta = null } = {}) => {
+  const alerts = [];
+  const updatedAt = toIsoOrNull(systemSummary?.updated_at) || new Date().toISOString();
+  const pushAlert = (severity, code, title, message) => {
+    alerts.push({
+      id: `${code}:${severity}`,
+      severity,
+      code,
+      title,
+      message,
+      created_at: updatedAt,
+    });
+  };
+
+  const botStatus = String(systemSummary?.bot?.connection_status || '').toLowerCase();
+  if (botStatus && botStatus !== 'online') {
+    pushAlert('critical', 'bot_offline', 'Bot fora do ar', `Status atual: ${botStatus}.`);
+  }
+
+  if (Number.isFinite(systemHealth?.cpu_percent) && systemHealth.cpu_percent >= 90) {
+    pushAlert('high', 'cpu_high', 'CPU alta', `Uso de CPU em ${systemHealth.cpu_percent.toFixed(1)}%.`);
+  }
+  if (Number.isFinite(systemHealth?.ram_percent) && systemHealth.ram_percent >= 90) {
+    pushAlert('high', 'ram_high', 'RAM alta', `Uso de RAM em ${systemHealth.ram_percent.toFixed(1)}%.`);
+  }
+  if (Number.isFinite(systemHealth?.queue_pending) && systemHealth.queue_pending >= 100) {
+    pushAlert('medium', 'queue_high', 'Fila pendente alta', `Backlog detectado (${Math.round(systemHealth.queue_pending)}).`);
+  }
+  if (Number.isFinite(dashboardQuick?.errors_5xx) && dashboardQuick.errors_5xx > 0) {
+    pushAlert('medium', 'http_5xx', 'Erros HTTP 5xx detectados', `${Math.round(dashboardQuick.errors_5xx)} eventos 5xx desde o boot de métricas.`);
+  }
+  if (systemMeta?.platform_error) {
+    pushAlert('high', 'db_platform_error', 'Erro de banco/plataforma', String(systemMeta.platform_error).slice(0, 200));
+  }
+  if (systemMeta?.metrics_error) {
+    pushAlert('low', 'metrics_unavailable', 'Métricas indisponíveis', String(systemMeta.metrics_error).slice(0, 200));
+  }
+
+  return alerts;
+};
+
 const listAdminActiveGoogleWebSessions = async ({ limit = 200 } = {}) => {
   const safeLimit = Math.max(1, Math.min(500, Number(limit || 200)));
   const rows = await executeQuery(
@@ -6842,6 +7178,78 @@ const listAdminPacks = async (url) => {
   }));
 };
 
+const buildAdminOverviewPayload = async ({ adminSession = null } = {}) => {
+  const [marketplaceStats, activeSessions, knownUsers, bans, packsCountRows, stickersCountRows, recentPacks, visitSummary, systemSummaryPayload, messageFlowDaily, moderationQueue, auditLog, featureFlags] = await Promise.all([
+    getMarketplaceGlobalStatsCached().catch(() => null),
+    listAdminActiveGoogleWebSessions({ limit: 80 }),
+    listAdminKnownGoogleUsers({ limit: 120 }),
+    listAdminBans({ activeOnly: true, limit: 120 }),
+    executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK} WHERE deleted_at IS NULL`),
+    executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_ASSET}`),
+    listAdminPacks({ searchParams: new URLSearchParams([['limit', '30']]) }),
+    getWebVisitSummary({ rangeDays: 7, topPathsLimit: 10 }).catch(() => null),
+    getSystemSummaryCached().catch(() => null),
+    getAdminMessageFlowDailyStats().catch(() => ({ messages_today: null, spam_blocked_today: null, suspicious_today: null, available: false })),
+    buildModerationQueueSnapshot({ limit: 80 }).catch(() => []),
+    listAdminAuditLog({ limit: 120 }).catch(() => []),
+    listAdminFeatureFlagsDetailed({ limit: 300 }).catch(() => []),
+  ]);
+
+  const systemSummary = systemSummaryPayload?.data || null;
+  const systemMeta = systemSummaryPayload?.meta || null;
+  const botsOnline = systemSummary?.bot?.connected ? 1 : 0;
+  const errors5xx = Number(systemSummary?.observability?.http_5xx_total ?? 0);
+  const dashboardQuick = {
+    bots_online: botsOnline,
+    messages_today: Number(messageFlowDaily?.messages_today ?? 0),
+    spam_blocked_today: Number(messageFlowDaily?.spam_blocked_today ?? 0),
+    uptime: String(systemSummary?.process?.uptime || '').trim() || 'n/d',
+    errors_5xx: Number.isFinite(errors5xx) ? Math.max(0, errors5xx) : 0,
+  };
+  const systemHealth = buildAdminSystemHealthSnapshot({ systemSummary, systemMeta });
+  const alerts = buildAdminAlertSnapshot({ dashboardQuick, systemHealth, systemSummary, systemMeta });
+
+  return {
+    admin_session: mapAdminPanelSessionResponseData(adminSession),
+    marketplace_stats: marketplaceStats,
+    counters: {
+      total_packs_any_status: Number(packsCountRows?.[0]?.total || 0),
+      total_stickers_any_status: Number(stickersCountRows?.[0]?.total || 0),
+      active_google_sessions: Number(activeSessions.length || 0),
+      known_google_users: Number(knownUsers.length || 0),
+      active_bans: Number(bans.length || 0),
+      visit_events_24h: Number(visitSummary?.events_24h || 0),
+      visit_events_7d: Number(visitSummary?.events_range || 0),
+      unique_visitors_7d: Number(visitSummary?.unique_visitors_range || 0),
+    },
+    dashboard_quick: dashboardQuick,
+    moderation_queue: moderationQueue,
+    users_sessions: {
+      active_sessions: activeSessions,
+      users: knownUsers,
+      blocked_accounts: bans,
+    },
+    system_health: systemHealth,
+    audit_log: auditLog,
+    feature_flags: featureFlags,
+    alerts,
+    operational_shortcuts: [
+      { action: 'restart_worker', label: 'Reiniciar worker', description: 'Destrava filas em processamento e recoloca em pending.' },
+      { action: 'clear_cache', label: 'Limpar cache', description: 'Invalida caches internos de catálogo, ranking e resumo.' },
+      { action: 'reprocess_jobs', label: 'Reprocessar jobs', description: 'Agenda ciclos de classificação/curadoria no worker.' },
+    ],
+    active_sessions: activeSessions,
+    users: knownUsers,
+    bans,
+    recent_packs: recentPacks,
+    visit_metrics: visitSummary,
+    system_summary: systemSummary,
+    system_meta: systemMeta,
+    message_flow_daily: messageFlowDaily,
+    updated_at: new Date().toISOString(),
+  };
+};
+
 const findAdminPackContextByKey = async (rawPackKey) => {
   const packKey = sanitizeText(rawPackKey, 160, { allowEmpty: false });
   if (!packKey) return null;
@@ -6878,8 +7286,15 @@ const handleAdminPanelSessionRequest = async (req, res) => {
 
   if (req.method === 'DELETE') {
     const token = getAdminPanelSessionTokenFromRequest(req);
+    const adminSession = resolveAdminPanelSessionFromRequest(req);
     if (token) adminPanelSessionMap.delete(token);
     clearAdminPanelSessionCookie(req, res);
+    await createAdminActionAuditEvent({
+      adminSession,
+      action: 'admin_session_logout',
+      targetType: 'admin_session',
+      targetId: token || 'cookie_clear',
+    });
     sendJson(req, res, 200, { data: { cleared: true } });
     return;
   }
@@ -6941,6 +7356,13 @@ const handleAdminPanelSessionRequest = async (req, res) => {
       session: mapAdminPanelSessionResponseData(session),
     },
   });
+  await createAdminActionAuditEvent({
+    adminSession: session,
+    action: 'admin_session_login',
+    targetType: 'admin_session',
+    targetId: session.token,
+    details: { role: sessionRole },
+  });
 };
 
 const handleAdminOverviewRequest = async (req, res) => {
@@ -6951,29 +7373,8 @@ const handleAdminOverviewRequest = async (req, res) => {
     return;
   }
 
-  const [marketplaceStats, activeSessions, knownUsers, bans, packsCountRows, stickersCountRows, recentPacks, visitSummary] = await Promise.all([getMarketplaceGlobalStatsCached().catch(() => null), listAdminActiveGoogleWebSessions({ limit: 50 }), listAdminKnownGoogleUsers({ limit: 50 }), listAdminBans({ activeOnly: true, limit: 50 }), executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_PACK} WHERE deleted_at IS NULL`), executeQuery(`SELECT COUNT(*) AS total FROM ${TABLES.STICKER_ASSET}`), listAdminPacks({ searchParams: new URLSearchParams([['limit', '20']]) }), getWebVisitSummary({ rangeDays: 7, topPathsLimit: 10 }).catch(() => null)]);
-
-  sendJson(req, res, 200, {
-    data: {
-      admin_session: mapAdminPanelSessionResponseData(adminSession),
-      marketplace_stats: marketplaceStats,
-      counters: {
-        total_packs_any_status: Number(packsCountRows?.[0]?.total || 0),
-        total_stickers_any_status: Number(stickersCountRows?.[0]?.total || 0),
-        active_google_sessions: Number(activeSessions.length || 0),
-        known_google_users: Number(knownUsers.length || 0),
-        active_bans: Number(bans.length || 0),
-        visit_events_24h: Number(visitSummary?.events_24h || 0),
-        visit_events_7d: Number(visitSummary?.events_range || 0),
-        unique_visitors_7d: Number(visitSummary?.unique_visitors_range || 0),
-      },
-      active_sessions: activeSessions,
-      users: knownUsers,
-      bans,
-      recent_packs: recentPacks,
-      visit_metrics: visitSummary,
-    },
-  });
+  const overview = await buildAdminOverviewPayload({ adminSession });
+  sendJson(req, res, 200, { data: overview });
 };
 
 const handleAdminUsersRequest = async (req, res, url) => {
@@ -6986,6 +7387,482 @@ const handleAdminUsersRequest = async (req, res, url) => {
   const limit = Math.max(1, Math.min(500, Number(url?.searchParams?.get('limit') || 200)));
   const [activeSessions, users] = await Promise.all([listAdminActiveGoogleWebSessions({ limit }), listAdminKnownGoogleUsers({ limit })]);
   sendJson(req, res, 200, { data: { active_sessions: activeSessions, users } });
+};
+
+const handleAdminForceLogoutRequest = async (req, res) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  let googleSub = normalizeGoogleSubject(payload?.google_sub || '');
+  let email = normalizeEmail(payload?.email || '');
+  let ownerJid = normalizeJid(payload?.owner_jid || '') || '';
+  const sessionToken = sanitizeText(payload?.session_token || '', 36, { allowEmpty: true }) || '';
+
+  if (sessionToken) {
+    const rows = await executeQuery(
+      `SELECT google_sub, email, owner_jid
+         FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
+        WHERE session_token = ?
+        LIMIT 1`,
+      [sessionToken],
+    ).catch(() => []);
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (row) {
+      googleSub = normalizeGoogleSubject(row.google_sub || googleSub);
+      email = normalizeEmail(row.email || email);
+      ownerJid = normalizeJid(row.owner_jid || ownerJid) || ownerJid;
+    }
+  }
+
+  if (!googleSub && !email && !ownerJid) {
+    sendJson(req, res, 400, { error: 'Informe session_token, google_sub, email ou owner_jid.' });
+    return;
+  }
+
+  const removed = await revokeGoogleWebSessionsByIdentity({
+    googleSub,
+    email,
+    ownerJid,
+  }).catch(() => 0);
+
+  await createAdminActionAuditEvent({
+    adminSession,
+    action: 'force_logout',
+    targetType: 'google_web_session',
+    targetId: sessionToken || googleSub || email || ownerJid,
+    details: { removed_sessions: Number(removed || 0), google_sub: googleSub || null, email: email || null, owner_jid: ownerJid || null },
+  });
+
+  sendJson(req, res, 200, {
+    data: {
+      removed_sessions: Number(removed || 0),
+      target: {
+        session_token: sessionToken || null,
+        google_sub: googleSub || null,
+        email: email || null,
+        owner_jid: ownerJid || null,
+      },
+    },
+  });
+};
+
+const handleAdminFeatureFlagsRequest = async (req, res) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    const flags = await listAdminFeatureFlagsDetailed({ limit: 400 }).catch(() => []);
+    sendJson(req, res, 200, { data: { flags } });
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  try {
+    const flag = await upsertAdminFeatureFlagRecord({
+      adminSession,
+      flagName: payload?.flag_name,
+      isEnabled: Boolean(payload?.is_enabled),
+      rolloutPercent: payload?.rollout_percent,
+      description: payload?.description,
+    });
+    await createAdminActionAuditEvent({
+      adminSession,
+      action: 'feature_flag_update',
+      targetType: 'feature_flag',
+      targetId: flag.flag_name,
+      details: {
+        is_enabled: flag.is_enabled,
+        rollout_percent: flag.rollout_percent,
+      },
+    });
+    sendJson(req, res, 200, { data: { flag } });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Falha ao atualizar feature flag.' });
+  }
+};
+
+const handleAdminOpsActionRequest = async (req, res) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+    return;
+  }
+
+  const action = sanitizeAuditActionText(payload?.action || '', 64);
+  if (!action) {
+    sendJson(req, res, 400, { error: 'Informe a ação operacional.' });
+    return;
+  }
+
+  try {
+    if (action === 'clear_cache') {
+      invalidateStickerCatalogDerivedCaches();
+      await createAdminActionAuditEvent({
+        adminSession,
+        action: 'ops_clear_cache',
+        targetType: 'cache',
+        targetId: 'global',
+      });
+      sendJson(req, res, 200, { data: { action, success: true, message: 'Caches internos invalidados com sucesso.', updated_at: new Date().toISOString() } });
+      return;
+    }
+
+    if (action === 'restart_worker') {
+      const [tasksResult, reprocessResult] = await Promise.all([
+        executeQuery(
+          `UPDATE ${TABLES.STICKER_WORKER_TASK_QUEUE}
+              SET status = 'pending',
+                  worker_token = NULL,
+                  locked_at = NULL,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE status = 'processing'`,
+        ).catch(() => ({ affectedRows: 0 })),
+        executeQuery(
+          `UPDATE ${TABLES.STICKER_ASSET_REPROCESS_QUEUE}
+              SET status = 'pending',
+                  worker_token = NULL,
+                  locked_at = NULL,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE status = 'processing'`,
+        ).catch(() => ({ affectedRows: 0 })),
+      ]);
+
+      const released = Number(tasksResult?.affectedRows || 0) + Number(reprocessResult?.affectedRows || 0);
+      await createAdminActionAuditEvent({
+        adminSession,
+        action: 'ops_restart_worker',
+        targetType: 'worker',
+        targetId: 'queues',
+        details: {
+          released_tasks: released,
+          task_queue: Number(tasksResult?.affectedRows || 0),
+          reprocess_queue: Number(reprocessResult?.affectedRows || 0),
+        },
+      });
+      sendJson(req, res, 200, {
+        data: {
+          action,
+          success: true,
+          released_processing_items: released,
+          message: released > 0 ? 'Itens em processamento foram recolocados em pending.' : 'Nenhum item travado encontrado nas filas.',
+          updated_at: new Date().toISOString(),
+        },
+      });
+      return;
+    }
+
+    if (action === 'reprocess_jobs') {
+      const payloadJson = JSON.stringify({
+        source: 'admin_panel',
+        requested_by: normalizeEmail(adminSession?.email) || normalizeGoogleSubject(adminSession?.googleSub) || 'admin',
+        requested_at: new Date().toISOString(),
+      });
+      await executeQuery(
+        `INSERT INTO ${TABLES.STICKER_WORKER_TASK_QUEUE}
+          (task_type, payload, priority, scheduled_at, status, max_attempts)
+         VALUES
+          ('classification_cycle', ?, 10, UTC_TIMESTAMP(), 'pending', 5),
+          ('curation_cycle', ?, 12, UTC_TIMESTAMP(), 'pending', 5)`,
+        [payloadJson, payloadJson],
+      );
+      await createAdminActionAuditEvent({
+        adminSession,
+        action: 'ops_reprocess_jobs',
+        targetType: 'worker',
+        targetId: 'classification_cycle,curation_cycle',
+      });
+      sendJson(req, res, 200, {
+        data: {
+          action,
+          success: true,
+          enqueued_tasks: 2,
+          message: 'Ciclos de classificação e curadoria foram agendados.',
+          updated_at: new Date().toISOString(),
+        },
+      });
+      return;
+    }
+
+    sendJson(req, res, 400, { error: 'Ação operacional inválida.' });
+  } catch (error) {
+    sendJson(req, res, 500, { error: error?.message || 'Falha ao executar ação operacional.' });
+  }
+};
+
+const handleAdminSearchRequest = async (req, res, url) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (!['GET', 'HEAD'].includes(req.method || '')) {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  const q = sanitizeText(url?.searchParams?.get('q') || '', 120, { allowEmpty: true }) || '';
+  const limit = Math.max(1, Math.min(30, Number(url?.searchParams?.get('limit') || 12)));
+  if (!q) {
+    sendJson(req, res, 200, {
+      data: {
+        q: '',
+        totals: { users: 0, sessions: 0, groups: 0, packs: 0 },
+        results: { users: [], sessions: [], groups: [], packs: [] },
+      },
+    });
+    return;
+  }
+
+  const like = `%${q}%`;
+
+  const [usersRows, sessionsRows, groupsRows, packs] = await Promise.all([
+    executeQuery(
+      `SELECT google_sub, email, name, owner_jid, owner_phone, last_seen_at, last_login_at
+         FROM ${TABLES.STICKER_WEB_GOOGLE_USER}
+        WHERE google_sub LIKE ? OR email LIKE ? OR name LIKE ? OR owner_jid LIKE ? OR owner_phone LIKE ?
+        ORDER BY COALESCE(last_seen_at, last_login_at, created_at) DESC
+        LIMIT ${limit}`,
+      [like, like, like, like, like],
+    ).catch(() => []),
+    executeQuery(
+      `SELECT session_token, google_sub, email, name, owner_jid, owner_phone, last_seen_at, expires_at
+         FROM ${TABLES.STICKER_WEB_GOOGLE_SESSION}
+        WHERE revoked_at IS NULL
+          AND expires_at > UTC_TIMESTAMP()
+          AND (session_token LIKE ? OR google_sub LIKE ? OR email LIKE ? OR name LIKE ? OR owner_jid LIKE ? OR owner_phone LIKE ?)
+        ORDER BY COALESCE(last_seen_at, created_at) DESC
+        LIMIT ${limit}`,
+      [like, like, like, like, like, like],
+    ).catch(() => []),
+    executeQuery(
+      `SELECT
+          gm.id,
+          COALESCE(NULLIF(gm.subject, ''), ch.name, gm.id) AS subject,
+          gm.owner_jid,
+          gm.updated_at
+       FROM ${TABLES.GROUPS_METADATA} gm
+       LEFT JOIN ${TABLES.CHATS} ch ON ch.id = gm.id
+       WHERE gm.id LIKE ? OR gm.subject LIKE ? OR ch.name LIKE ? OR gm.owner_jid LIKE ?
+       ORDER BY gm.updated_at DESC
+       LIMIT ${limit}`,
+      [like, like, like, like],
+    ).catch(() => []),
+    listAdminPacks({ searchParams: new URLSearchParams([['q', q], ['limit', String(limit)]]) }).catch(() => []),
+  ]);
+
+  const users = (Array.isArray(usersRows) ? usersRows : []).map((row) => ({
+    google_sub: normalizeGoogleSubject(row?.google_sub),
+    email: normalizeEmail(row?.email) || null,
+    name: sanitizeText(row?.name || '', 120, { allowEmpty: true }) || null,
+    owner_jid: normalizeJid(row?.owner_jid) || null,
+    owner_phone: toWhatsAppPhoneDigits(row?.owner_phone || row?.owner_jid) || null,
+    last_seen_at: toIsoOrNull(row?.last_seen_at),
+    last_login_at: toIsoOrNull(row?.last_login_at),
+  }));
+
+  const sessions = (Array.isArray(sessionsRows) ? sessionsRows : []).map((row) => ({
+    session_token: String(row?.session_token || '').trim() || null,
+    google_sub: normalizeGoogleSubject(row?.google_sub),
+    email: normalizeEmail(row?.email) || null,
+    name: sanitizeText(row?.name || '', 120, { allowEmpty: true }) || null,
+    owner_jid: normalizeJid(row?.owner_jid) || null,
+    owner_phone: toWhatsAppPhoneDigits(row?.owner_phone || row?.owner_jid) || null,
+    last_seen_at: toIsoOrNull(row?.last_seen_at),
+    expires_at: toIsoOrNull(row?.expires_at),
+  }));
+
+  const groups = (Array.isArray(groupsRows) ? groupsRows : []).map((row) => ({
+    id: String(row?.id || '').trim(),
+    subject: sanitizeText(row?.subject || row?.id || '', 255, { allowEmpty: true }) || String(row?.id || '').trim(),
+    owner_jid: normalizeJid(row?.owner_jid) || null,
+    updated_at: toIsoOrNull(row?.updated_at),
+  }));
+
+  sendJson(req, res, 200, {
+    data: {
+      q,
+      totals: {
+        users: users.length,
+        sessions: sessions.length,
+        groups: groups.length,
+        packs: Array.isArray(packs) ? packs.length : 0,
+      },
+      results: {
+        users,
+        sessions,
+        groups,
+        packs: Array.isArray(packs) ? packs : [],
+      },
+    },
+  });
+};
+
+const toCsvValue = (value) => {
+  const normalized = value === null || value === undefined ? '' : String(value);
+  if (/[",\n;]/.test(normalized)) {
+    return `"${normalized.replaceAll('"', '""')}"`;
+  }
+  return normalized;
+};
+
+const buildCsv = (rows = [], headers = []) => {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const safeHeaders = Array.isArray(headers) ? headers : [];
+  const lines = [];
+  lines.push(safeHeaders.map((header) => toCsvValue(header)).join(','));
+  for (const row of safeRows) {
+    lines.push(
+      safeHeaders
+        .map((header) => {
+          const value = row && typeof row === 'object' ? row[header] : '';
+          return toCsvValue(value);
+        })
+        .join(','),
+    );
+  }
+  return `${lines.join('\n')}\n`;
+};
+
+const handleAdminExportRequest = async (req, res, url) => {
+  const adminSession = requireAdminPanelSession(req, res);
+  if (!adminSession) return;
+  if (!['GET', 'HEAD'].includes(req.method || '')) {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  const format = String(url?.searchParams?.get('format') || 'json')
+    .trim()
+    .toLowerCase();
+  const type = String(url?.searchParams?.get('type') || 'metrics')
+    .trim()
+    .toLowerCase();
+
+  const overview = await buildAdminOverviewPayload({ adminSession });
+  const exportData =
+    type === 'events'
+      ? {
+          moderation_queue: overview?.moderation_queue || [],
+          audit_log: overview?.audit_log || [],
+          blocked_accounts: overview?.users_sessions?.blocked_accounts || [],
+        }
+      : {
+          dashboard_quick: overview?.dashboard_quick || null,
+          counters: overview?.counters || null,
+          system_health: overview?.system_health || null,
+          alerts: overview?.alerts || [],
+          feature_flags: overview?.feature_flags || [],
+        };
+
+  await createAdminActionAuditEvent({
+    adminSession,
+    action: 'export_data',
+    targetType: 'admin_export',
+    targetId: `${type}.${format}`,
+    details: { type, format },
+  });
+
+  if (format !== 'csv') {
+    sendJson(req, res, 200, {
+      data: {
+        type,
+        format: 'json',
+        exported_at: new Date().toISOString(),
+        payload: exportData,
+      },
+    });
+    return;
+  }
+
+  let headers = [];
+  let rows = [];
+
+  if (type === 'events') {
+    headers = ['section', 'id', 'event_type', 'severity', 'title', 'subtitle', 'status', 'created_at'];
+    rows = [
+      ...(Array.isArray(exportData?.moderation_queue) ? exportData.moderation_queue : []).map((item) => ({
+        section: 'moderation_queue',
+        id: item?.id || '',
+        event_type: item?.event_type || '',
+        severity: item?.severity || '',
+        title: item?.title || '',
+        subtitle: item?.subtitle || '',
+        status: item?.revoked_at ? 'revoked' : item?.status || '',
+        created_at: item?.created_at || item?.revoked_at || '',
+      })),
+      ...(Array.isArray(exportData?.audit_log) ? exportData.audit_log : []).map((item) => ({
+        section: 'audit_log',
+        id: item?.id || '',
+        event_type: item?.action || '',
+        severity: item?.status || '',
+        title: item?.target_type || '',
+        subtitle: item?.target_id || '',
+        status: item?.status || '',
+        created_at: item?.created_at || '',
+      })),
+      ...(Array.isArray(exportData?.blocked_accounts) ? exportData.blocked_accounts : []).map((item) => ({
+        section: 'blocked_accounts',
+        id: item?.id || '',
+        event_type: 'ban',
+        severity: item?.revoked_at ? 'low' : 'critical',
+        title: item?.email || item?.owner_jid || item?.google_sub || '',
+        subtitle: item?.reason || '',
+        status: item?.revoked_at ? 'revoked' : 'active',
+        created_at: item?.created_at || '',
+      })),
+    ];
+  } else {
+    headers = ['section', 'key', 'value'];
+    const dashboard = exportData?.dashboard_quick || {};
+    const counters = exportData?.counters || {};
+    const health = exportData?.system_health || {};
+    const alerts = Array.isArray(exportData?.alerts) ? exportData.alerts : [];
+    const flags = Array.isArray(exportData?.feature_flags) ? exportData.feature_flags : [];
+    rows = [
+      ...Object.entries(dashboard).map(([key, value]) => ({ section: 'dashboard_quick', key, value })),
+      ...Object.entries(counters).map(([key, value]) => ({ section: 'counters', key, value })),
+      ...Object.entries(health).map(([key, value]) => ({ section: 'system_health', key, value })),
+      ...alerts.map((alert, index) => ({ section: 'alerts', key: `${index + 1}:${alert?.code || 'alert'}`, value: `${alert?.severity || ''} ${alert?.title || ''}`.trim() })),
+      ...flags.map((flag) => ({ section: 'feature_flags', key: flag?.flag_name || '', value: `${flag?.is_enabled ? 'on' : 'off'} (${flag?.rollout_percent || 0}%)` })),
+    ];
+  }
+
+  const csv = buildCsv(rows, headers);
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="admin-${type}-${stamp}.csv"`);
+  res.end(csv);
 };
 
 const handleAdminModeratorsRequest = async (req, res) => {
@@ -7019,6 +7896,13 @@ const handleAdminModeratorsRequest = async (req, res) => {
       password: payload?.password,
       adminSession,
     });
+    await createAdminActionAuditEvent({
+      adminSession,
+      action: result.created ? 'moderator_create' : 'moderator_update',
+      targetType: 'moderator',
+      targetId: result?.moderator?.google_sub || payload?.google_sub || '',
+      details: { created: Boolean(result.created) },
+    });
     sendJson(req, res, result.created ? 201 : 200, {
       data: {
         created: result.created,
@@ -7039,6 +7923,12 @@ const handleAdminModeratorDeleteRequest = async (req, res, googleSub) => {
   }
   try {
     const moderator = await revokeAdminModeratorRecord(googleSub, adminSession);
+    await createAdminActionAuditEvent({
+      adminSession,
+      action: 'moderator_revoke',
+      targetType: 'moderator',
+      targetId: moderator?.google_sub || googleSub,
+    });
     sendJson(req, res, 200, { data: { revoked: true, moderator } });
   } catch (error) {
     sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Falha ao remover moderador.' });
@@ -7094,6 +7984,16 @@ const handleAdminPackDeleteRequest = async (req, res, packKey) => {
     identifier: context.packKey,
     fallbackPack: context.fullPack,
   });
+  await createAdminActionAuditEvent({
+    adminSession,
+    action: 'pack_delete',
+    targetType: 'pack',
+    targetId: result?.deletedPack?.pack_key || context.packKey || packKey,
+    details: {
+      removed_sticker_count: Number(result?.removedCount || 0),
+      missing: Boolean(result?.missing),
+    },
+  });
   sendManagedMutationStatus(req, res, 'deleted', {
     admin: true,
     deleted: !result?.missing,
@@ -7131,6 +8031,15 @@ const handleAdminPackStickerDeleteRequest = async (req, res, packKey, stickerId)
     if (normalizedStickerId) {
       await cleanupOrphanStickerAssets([normalizedStickerId], { reason: 'admin_remove_sticker' });
     }
+    await createAdminActionAuditEvent({
+      adminSession,
+      action: 'pack_sticker_delete',
+      targetType: 'sticker',
+      targetId: normalizedStickerId || stickerId,
+      details: {
+        pack_key: context.packKey,
+      },
+    });
     await sendManagedPackMutationStatus(req, res, 'updated', result?.pack || context.fullPack, {
       admin: true,
       pack_key: context.packKey,
@@ -7184,6 +8093,17 @@ const handleAdminGlobalStickerDeleteRequest = async (req, res, stickerId) => {
 
   const cleanup = await cleanupOrphanStickerAssets([normalizedStickerId], { reason: 'admin_delete_sticker_global' });
   invalidateStickerCatalogDerivedCaches();
+  await createAdminActionAuditEvent({
+    adminSession,
+    action: 'global_sticker_delete',
+    targetType: 'sticker',
+    targetId: normalizedStickerId,
+    details: {
+      removed_from_packs: removedFromPacks,
+      remove_errors: removeErrors,
+      cleanup_deleted: Number(cleanup?.deleted || 0),
+    },
+  });
   sendJson(req, res, 200, {
     data: {
       success: true,
@@ -7227,6 +8147,17 @@ const handleAdminBansRequest = async (req, res) => {
       reason: payload?.reason,
       adminSession,
     });
+    await createAdminActionAuditEvent({
+      adminSession,
+      action: result.created ? 'ban_create' : 'ban_existing',
+      targetType: 'ban',
+      targetId: result?.ban?.id || '',
+      details: {
+        google_sub: result?.ban?.google_sub || payload?.google_sub || null,
+        email: result?.ban?.email || payload?.email || null,
+        owner_jid: result?.ban?.owner_jid || payload?.owner_jid || null,
+      },
+    });
     sendJson(req, res, result.created ? 201 : 200, {
       data: {
         created: result.created,
@@ -7247,6 +8178,12 @@ const handleAdminBanRevokeRequest = async (req, res, banId) => {
   }
   try {
     const ban = await revokeAdminBanRecord(banId);
+    await createAdminActionAuditEvent({
+      adminSession,
+      action: 'ban_revoke',
+      targetType: 'ban',
+      targetId: ban?.id || banId,
+    });
     sendJson(req, res, 200, { data: { revoked: true, ban } });
   } catch (error) {
     sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Falha ao revogar ban.' });
@@ -7280,6 +8217,11 @@ const catalogApiRouter = createCatalogApiRouter({
     handleBotContactInfoRequest,
     handleAdminOverviewRequest,
     handleAdminUsersRequest,
+    handleAdminForceLogoutRequest,
+    handleAdminFeatureFlagsRequest,
+    handleAdminOpsActionRequest,
+    handleAdminSearchRequest,
+    handleAdminExportRequest,
     handleAdminModeratorsRequest,
     handleAdminModeratorDeleteRequest,
     handleAdminPacksRequest,
@@ -7321,7 +8263,7 @@ const handleCatalogPageRequest = async (req, res, pathname) => {
   if (normalizedPath === STICKER_ADMIN_WEB_PATH) {
     if (STICKER_ADMIN_REDIRECT_TO_USER) {
       const requestUrl = new URL(req.url || `${STICKER_ADMIN_WEB_PATH}/`, SITE_ORIGIN);
-      const userUrl = new URL(`${USER_PROFILE_WEB_PATH}/`, SITE_ORIGIN);
+      const userUrl = new URL(`${USER_SYSTEMADM_WEB_PATH}/`, SITE_ORIGIN);
       for (const [key, value] of requestUrl.searchParams.entries()) {
         userUrl.searchParams.append(key, value);
       }
@@ -7457,6 +8399,7 @@ export const getStickerCatalogConfig = () => ({
   enabled: STICKER_CATALOG_ENABLED,
   webPath: STICKER_WEB_PATH,
   userProfilePath: USER_PROFILE_WEB_PATH,
+  userSystemAdminPath: USER_SYSTEMADM_WEB_PATH,
   apiBasePath: STICKER_API_BASE_PATH,
   orphanApiPath: STICKER_ORPHAN_API_PATH,
   dataPublicPath: STICKER_DATA_PUBLIC_PATH,
@@ -7479,6 +8422,29 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
   if (!STICKER_CATALOG_ENABLED) return false;
   if (!['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'].includes(req.method || '')) return false;
   if (maybeRedirectToCanonicalHost(req, res, url)) return true;
+
+  if (pathname === USER_SYSTEMADM_WEB_PATH || pathname === `${USER_SYSTEMADM_WEB_PATH}/`) {
+    if (!['GET', 'HEAD'].includes(req.method || '')) return false;
+    try {
+      const html = await renderUserSystemAdminHtml();
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      sendText(req, res, 200, html, 'text/html; charset=utf-8');
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        sendJson(req, res, 404, { error: 'Template da pagina system admin nao encontrado.' });
+        return true;
+      }
+
+      logger.error('Falha ao renderizar pagina system admin.', {
+        action: 'user_system_admin_page_render_failed',
+        path: pathname,
+        error: error?.message,
+      });
+      sendJson(req, res, 500, { error: 'Falha interna ao renderizar pagina system admin.' });
+    }
+    return true;
+  }
 
   if (pathname === USER_PROFILE_WEB_PATH || pathname === `${USER_PROFILE_WEB_PATH}/`) {
     if (!['GET', 'HEAD'].includes(req.method || '')) return false;

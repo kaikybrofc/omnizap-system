@@ -1,16 +1,25 @@
 const FALLBACK_THUMB_URL = '/assets/images/brand-logo-128.webp';
 const HOME_BOOTSTRAP_ENDPOINT = '/api/sticker-packs/home-bootstrap';
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const SOCIAL_PROOF_REFRESH_MS = 15_000;
 let homeBootstrapPayloadPromise = null;
 
-const fetchHomeBootstrapPayload = async () => {
+const loadHomeBootstrapPayload = async () => {
+  const response = await fetch(HOME_BOOTSTRAP_ENDPOINT, { credentials: 'include' });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload = await response.json();
+  return payload?.data || {};
+};
+
+const fetchHomeBootstrapPayload = async ({ forceRefresh = false } = {}) => {
+  if (forceRefresh) {
+    const freshData = await loadHomeBootstrapPayload();
+    homeBootstrapPayloadPromise = Promise.resolve(freshData);
+    return freshData;
+  }
+
   if (!homeBootstrapPayloadPromise) {
-    homeBootstrapPayloadPromise = fetch(HOME_BOOTSTRAP_ENDPOINT, { credentials: 'include' })
-      .then((response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
-      })
-      .then((payload) => payload?.data || {})
+    homeBootstrapPayloadPromise = loadHomeBootstrapPayload()
       .catch((error) => {
         homeBootstrapPayloadPromise = null;
         throw error;
@@ -454,17 +463,19 @@ const initAddBotCtas = () => {
 };
 
 const initSocialProof = () => {
-  const packsEl = document.getElementById('proof-packs');
-  const stickersEl = document.getElementById('proof-stickers');
-  const groupsEl = document.getElementById('proof-groups');
+  const botsOnlineEl = document.getElementById('proof-bots-online');
+  const messagesTodayEl = document.getElementById('proof-messages-today');
+  const spamBlockedEl = document.getElementById('proof-spam-blocked');
+  const uptimeEl = document.getElementById('proof-uptime');
   const statusEl = document.getElementById('proof-status');
 
-  if (!packsEl || !stickersEl || !groupsEl) return null;
+  if (!botsOnlineEl || !messagesTodayEl || !spamBlockedEl || !uptimeEl) return null;
 
   const setFallback = () => {
-    packsEl.textContent = 'n/d';
-    stickersEl.textContent = 'n/d';
-    groupsEl.textContent = 'n/d';
+    botsOnlineEl.textContent = 'n/d';
+    messagesTodayEl.textContent = 'n/d';
+    spamBlockedEl.textContent = 'n/d';
+    uptimeEl.textContent = 'n/d';
     if (statusEl) statusEl.textContent = 'bot pronto';
   };
 
@@ -479,27 +490,61 @@ const initSocialProof = () => {
     return 'pronto';
   };
 
-  return runAfterLoadIdle(
+  const setNumericMetric = (element, value, { animate = true } = {}) => {
+    const hasValue = value !== null && value !== undefined && value !== '';
+    const numeric = hasValue ? Number(value) : Number.NaN;
+    if (!hasValue || !Number.isFinite(numeric)) {
+      element.textContent = 'n/d';
+      return;
+    }
+    if (!animate) {
+      element.textContent = shortNum(numeric);
+      element.dataset.value = String(Math.max(0, numeric));
+      return;
+    }
+    animateCountUp(element, numeric);
+  };
+
+  const refreshMetrics = async ({ forceRefresh = false, animate = false } = {}) => {
+    const bootstrapData = await fetchHomeBootstrapPayload({ forceRefresh });
+    const summary = bootstrapData?.system_summary || {};
+    const realtime = bootstrapData?.home_realtime || {};
+
+    const botsOnline = Number(realtime?.bots_online);
+    const messagesToday = Number(realtime?.messages_today);
+    const spamBlockedToday = Number(realtime?.spam_blocked_today);
+    const uptime = String(realtime?.uptime || summary?.process?.uptime || '').trim() || 'n/d';
+
+    setNumericMetric(botsOnlineEl, botsOnline, { animate });
+    setNumericMetric(messagesTodayEl, messagesToday, { animate });
+    setNumericMetric(spamBlockedEl, spamBlockedToday, { animate });
+    uptimeEl.textContent = uptime;
+
+    if (statusEl) {
+      statusEl.textContent = `bot ${normalizeStatus(summary?.system_status || summary?.bot?.connection_status)}`;
+    }
+  };
+
+  let intervalId = null;
+  const stopBootstrap = runAfterLoadIdle(
     () => {
-      fetchHomeBootstrapPayload()
-        .then((bootstrapData) => {
-          const stats = bootstrapData?.stats || {};
-          const summary = bootstrapData?.system_summary || {};
-
-          animateCountUp(packsEl, Number(stats.packs_total || 0));
-          animateCountUp(stickersEl, Number(stats.stickers_total || 0));
-          animateCountUp(groupsEl, Number(summary?.platform?.total_groups || 0));
-
-          if (statusEl) {
-            statusEl.textContent = `bot ${normalizeStatus(summary?.system_status || summary?.bot?.connection_status)}`;
-          }
-        })
-        .catch(() => {
-          setFallback();
-        });
+      void refreshMetrics({ forceRefresh: false, animate: true }).catch(() => {
+        setFallback();
+      });
     },
     { delayMs: 620, timeoutMs: 1500 },
   );
+
+  intervalId = window.setInterval(() => {
+    void refreshMetrics({ forceRefresh: true, animate: false }).catch(() => {});
+  }, SOCIAL_PROOF_REFRESH_MS);
+
+  return () => {
+    stopBootstrap();
+    if (intervalId !== null) {
+      window.clearInterval(intervalId);
+    }
+  };
 };
 
 const registerCleanup = (cleanups, cleanup) => {

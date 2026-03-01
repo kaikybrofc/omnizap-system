@@ -395,7 +395,7 @@
       .proof-grid {
         margin-top: 16px;
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 10px;
       }
 
@@ -879,16 +879,20 @@
 
           <div class="proof-grid" aria-label="Prova social">
             <article class="proof">
-              <strong id="proof-packs">--</strong>
-              <span>rotinas e respostas prontas</span>
+              <strong id="proof-bots-online">--</strong>
+              <span>bots online agora</span>
             </article>
             <article class="proof">
-              <strong id="proof-stickers">--</strong>
-              <span>stickers disponíveis</span>
+              <strong id="proof-messages-today">--</strong>
+              <span>mensagens hoje</span>
             </article>
             <article class="proof">
-              <strong id="proof-groups">--</strong>
-              <span>grupos ativos com o bot</span>
+              <strong id="proof-spam-blocked">--</strong>
+              <span>spam bloqueado hoje</span>
+            </article>
+            <article class="proof">
+              <strong id="proof-uptime">--</strong>
+              <span>uptime do bot</span>
             </article>
           </div>
         </div>
@@ -1132,6 +1136,6 @@
         ><svg viewBox="0 0 24 24"><use href="#icon-whatsapp"></use></svg></span
     ></a>
 
-    <script type="module" src="/js/apps/homeApp.js?v=20260228-home-bootstrap-v10"></script>
+    <script type="module" src="/js/apps/homeApp.js?v=20260301-home-realtime-v11"></script>
   </body>
 </html>
