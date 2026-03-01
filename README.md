@@ -76,33 +76,31 @@ O prefixo pode variar no seu grupo. Nos exemplos abaixo, foi usado `/`.
 Este bloco pode ser atualizado automaticamente pela API (`/api/sticker-packs/readme-markdown`).
 
 <!-- README_SNAPSHOT:START -->
-
 ### Snapshot do Sistema
 
-> Atualizado em `2026-03-01T02:48:19.346Z` | cache `1800s`
+> Atualizado em `2026-03-01T08:23:02.911Z` | cache `1800s`
 
-| Metrica               |   Valor |
-| --------------------- | ------: |
-| Usuarios (lid_map)    |   5.516 |
-| Grupos                |     116 |
-| Packs                 |     307 |
-| Stickers              |   7.245 |
-| Mensagens registradas | 446.542 |
+| Métrica | Valor |
+| --- | ---: |
+| Usuários (lid_map) | 5.518 |
+| Grupos | 116 |
+| Packs | 309 |
+| Stickers | 7.334 |
+| Mensagens registradas | 447.648 |
 
 #### Tipos de mensagem mais usados (amostra: 25.000)
+| Tipo | Total |
+| --- | ---: |
+| `texto` | 16.014 |
+| `figurinha` | 4.502 |
+| `reacao` | 1.680 |
+| `imagem` | 1.390 |
+| `outros` | 1.000 |
+| `video` | 226 |
+| `audio` | 180 |
+| `documento` | 8 |
 
-| Tipo        |  Total |
-| ----------- | -----: |
-| `texto`     | 15.772 |
-| `figurinha` |  4.775 |
-| `reacao`    |  1.652 |
-| `imagem`    |  1.386 |
-| `outros`    |  1.000 |
-| `video`     |    225 |
-| `audio`     |    183 |
-| `documento` |      7 |
-
-<details><summary>Comandos disponiveis (62)</summary>
+<details><summary>Comandos disponíveis (62)</summary>
 
 `/add` · `/addmode` · `/autorequests` · `/autosticker` · `/ban` · `/captcha` · `/cat` · `/catimg` · `/catprompt` · `/catprompt reset` · `/dado` · `/down` · `/farewell` · `/groups` · `/info` · `/invite` · `/join` · `/leave` · `/menu anime` · `/menu figurinhas` · `/menu ia` · `/menu midia` · `/menu quote` · `/menu stats` · `/menuadm` · `/metadata` · `/newgroup` · `/noticias` · `/nsfw` · `/pack add` · `/pack create` · `/pack list` · `/pack send` · `/ping` · `/play` · `/playvid` · `/prefix` · `/premium` · `/quote` · `/ranking` · `/rankingglobal` · `/requests` · `/revoke` · `/s` · `/semmsg` · `/setdesc` · `/setgroup` · `/setsubject` · `/st` · `/stb` · `/sticker` · `/stickertext` · `/stickertextblink` · `/stickertextwhite` · `/stw` · `/temp` · `/tiktok` · `/toimg` · `/up` · `/updaterequests` · `/user perfil` · `/welcome`
 
