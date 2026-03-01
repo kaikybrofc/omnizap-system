@@ -98,20 +98,13 @@ const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stick
 const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PATH, '/api/sticker-packs');
 const STICKER_ORPHAN_API_PATH = `${STICKER_API_BASE_PATH}/orphan-stickers`;
 const STICKER_CREATE_WEB_PATH = `${STICKER_WEB_PATH}/create`;
-const STICKER_ADMIN_WEB_PATH = `${STICKER_WEB_PATH}/admin`;
 const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
-const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
-const USER_SYSTEMADM_WEB_PATH = `${USER_PROFILE_WEB_PATH}/systemadm`;
-const STICKER_ADMIN_REDIRECT_TO_USER = parseEnvBool(process.env.STICKER_ADMIN_REDIRECT_TO_USER, true);
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
 const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
 const STICKER_WEB_ASSET_VERSION = sanitizeText(process.env.STICKER_WEB_ASSET_VERSION || '', 64, { allowEmpty: true }) || '';
 const CATALOG_PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'index.html');
 const CREATE_PACK_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'create', 'index.html');
-const ADMIN_PANEL_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'admin', 'index.html');
-const USER_DASHBOARD_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'user', 'index.html');
-const USER_SYSTEMADM_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'user', 'systemadm', 'index.html');
 const CATALOG_STYLES_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'css', 'styles.css');
 const CATALOG_SCRIPT_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'js', 'catalog.js');
 const DEFAULT_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_LIMIT, 24, 1, 60);
@@ -2932,57 +2925,6 @@ const renderCreatePackHtml = async () => {
     __STICKER_LOGIN_WEB_PATH__: escapeHtmlAttribute(STICKER_LOGIN_WEB_PATH),
     __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
     __PACK_COMMAND_PREFIX__: escapeHtmlAttribute(PACK_COMMAND_PREFIX),
-    __CURRENT_YEAR__: String(new Date().getFullYear()),
-  };
-
-  let html = template;
-  for (const [token, value] of Object.entries(replacements)) {
-    html = html.replaceAll(token, value);
-  }
-  return html;
-};
-
-const renderAdminPanelHtml = async () => {
-  const template = await fs.readFile(ADMIN_PANEL_TEMPLATE_PATH, 'utf8');
-  const replacements = {
-    __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
-    __STICKER_ADMIN_WEB_PATH__: escapeHtmlAttribute(STICKER_ADMIN_WEB_PATH),
-    __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
-    __CURRENT_YEAR__: String(new Date().getFullYear()),
-  };
-
-  let html = template;
-  for (const [token, value] of Object.entries(replacements)) {
-    html = html.replaceAll(token, value);
-  }
-  return html;
-};
-
-const renderUserDashboardHtml = async () => {
-  const template = await fs.readFile(USER_DASHBOARD_TEMPLATE_PATH, 'utf8');
-  const replacements = {
-    __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
-    __STICKER_LOGIN_WEB_PATH__: escapeHtmlAttribute(STICKER_LOGIN_WEB_PATH),
-    __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
-    __USER_PROFILE_WEB_PATH__: escapeHtmlAttribute(USER_PROFILE_WEB_PATH),
-    __CURRENT_YEAR__: String(new Date().getFullYear()),
-  };
-
-  let html = template;
-  for (const [token, value] of Object.entries(replacements)) {
-    html = html.replaceAll(token, value);
-  }
-  return html;
-};
-
-const renderUserSystemAdminHtml = async () => {
-  const template = await fs.readFile(USER_SYSTEMADM_TEMPLATE_PATH, 'utf8');
-  const replacements = {
-    __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
-    __STICKER_LOGIN_WEB_PATH__: escapeHtmlAttribute(STICKER_LOGIN_WEB_PATH),
-    __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
-    __USER_PROFILE_WEB_PATH__: escapeHtmlAttribute(USER_PROFILE_WEB_PATH),
-    __USER_SYSTEMADM_WEB_PATH__: escapeHtmlAttribute(USER_SYSTEMADM_WEB_PATH),
     __CURRENT_YEAR__: String(new Date().getFullYear()),
   };
 
@@ -7273,8 +7215,6 @@ const handleAdminPanelSessionRequest = async (req, res) => {
     const eligibility = await resolveAdminPanelLoginEligibility(googleSession);
     sendJson(req, res, 200, {
       data: {
-        enabled: true,
-        admin_email: ADMIN_PANEL_EMAIL || null,
         google: mapGoogleSessionResponseData(googleSession),
         eligible_google_login: Boolean(eligibility.eligible),
         eligible_role: eligibility.role || null,
@@ -7348,8 +7288,6 @@ const handleAdminPanelSessionRequest = async (req, res) => {
   );
   sendJson(req, res, 200, {
     data: {
-      enabled: true,
-      admin_email: ADMIN_PANEL_EMAIL,
       google: mapGoogleSessionResponseData(googleSession),
       eligible_google_login: true,
       eligible_role: sessionRole,
@@ -8260,39 +8198,6 @@ const handleCatalogPageRequest = async (req, res, pathname) => {
     });
   });
 
-  if (normalizedPath === STICKER_ADMIN_WEB_PATH) {
-    if (STICKER_ADMIN_REDIRECT_TO_USER) {
-      const requestUrl = new URL(req.url || `${STICKER_ADMIN_WEB_PATH}/`, SITE_ORIGIN);
-      const userUrl = new URL(`${USER_SYSTEMADM_WEB_PATH}/`, SITE_ORIGIN);
-      for (const [key, value] of requestUrl.searchParams.entries()) {
-        userUrl.searchParams.append(key, value);
-      }
-      res.statusCode = 302;
-      res.setHeader('Location', `${userUrl.pathname}${userUrl.search}`);
-      res.setHeader('Cache-Control', 'no-store');
-      res.end();
-      return;
-    }
-
-    try {
-      const html = await renderAdminPanelHtml();
-      sendText(req, res, 200, html, 'text/html; charset=utf-8');
-      return;
-    } catch (error) {
-      if (error?.code === 'ENOENT') {
-        sendJson(req, res, 404, { error: 'Template do painel admin nao encontrado.' });
-        return;
-      }
-      logger.error('Falha ao renderizar pagina do painel admin.', {
-        action: 'sticker_catalog_admin_page_render_failed',
-        path: pathname,
-        error: error?.message,
-      });
-      sendJson(req, res, 500, { error: 'Falha interna ao renderizar painel admin.' });
-      return;
-    }
-  }
-
   if (normalizedPath === STICKER_CREATE_WEB_PATH) {
     try {
       const googleSession = await resolveGoogleWebSessionFromRequest(req);
@@ -8398,8 +8303,6 @@ export const isStickerCatalogEnabled = () => STICKER_CATALOG_ENABLED;
 export const getStickerCatalogConfig = () => ({
   enabled: STICKER_CATALOG_ENABLED,
   webPath: STICKER_WEB_PATH,
-  userProfilePath: USER_PROFILE_WEB_PATH,
-  userSystemAdminPath: USER_SYSTEMADM_WEB_PATH,
   apiBasePath: STICKER_API_BASE_PATH,
   orphanApiPath: STICKER_ORPHAN_API_PATH,
   dataPublicPath: STICKER_DATA_PUBLIC_PATH,
@@ -8422,52 +8325,6 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
   if (!STICKER_CATALOG_ENABLED) return false;
   if (!['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'].includes(req.method || '')) return false;
   if (maybeRedirectToCanonicalHost(req, res, url)) return true;
-
-  if (pathname === USER_SYSTEMADM_WEB_PATH || pathname === `${USER_SYSTEMADM_WEB_PATH}/`) {
-    if (!['GET', 'HEAD'].includes(req.method || '')) return false;
-    try {
-      const html = await renderUserSystemAdminHtml();
-      res.setHeader('Cache-Control', 'no-store');
-      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-      sendText(req, res, 200, html, 'text/html; charset=utf-8');
-    } catch (error) {
-      if (error?.code === 'ENOENT') {
-        sendJson(req, res, 404, { error: 'Template da pagina system admin nao encontrado.' });
-        return true;
-      }
-
-      logger.error('Falha ao renderizar pagina system admin.', {
-        action: 'user_system_admin_page_render_failed',
-        path: pathname,
-        error: error?.message,
-      });
-      sendJson(req, res, 500, { error: 'Falha interna ao renderizar pagina system admin.' });
-    }
-    return true;
-  }
-
-  if (pathname === USER_PROFILE_WEB_PATH || pathname === `${USER_PROFILE_WEB_PATH}/`) {
-    if (!['GET', 'HEAD'].includes(req.method || '')) return false;
-    try {
-      const html = await renderUserDashboardHtml();
-      res.setHeader('Cache-Control', 'no-store');
-      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-      sendText(req, res, 200, html, 'text/html; charset=utf-8');
-    } catch (error) {
-      if (error?.code === 'ENOENT') {
-        sendJson(req, res, 404, { error: 'Template da pagina de usuario nao encontrado.' });
-        return true;
-      }
-
-      logger.error('Falha ao renderizar pagina de usuario.', {
-        action: 'user_dashboard_page_render_failed',
-        path: pathname,
-        error: error?.message,
-      });
-      sendJson(req, res, 500, { error: 'Falha interna ao renderizar pagina de usuario.' });
-    }
-    return true;
-  }
 
   if (pathname === '/sitemap.xml') {
     if (!['GET', 'HEAD'].includes(req.method || '')) return false;

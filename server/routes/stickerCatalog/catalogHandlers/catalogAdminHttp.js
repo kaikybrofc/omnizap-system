@@ -52,6 +52,10 @@ export const handleCatalogAdminRoutes = async ({ req, res, url, segments, handle
   }
 
   if (segments.length === 3 && segments[1] === 'packs') {
+    if (req.method === 'DELETE') {
+      await handlers.handleAdminPackDeleteRequest(req, res, segments[2]);
+      return true;
+    }
     await handlers.handleAdminPackDetailsRequest(req, res, segments[2]);
     return true;
   }
@@ -61,8 +65,18 @@ export const handleCatalogAdminRoutes = async ({ req, res, url, segments, handle
     return true;
   }
 
+  if (segments.length === 5 && segments[1] === 'packs' && segments[3] === 'stickers') {
+    await handlers.handleAdminPackStickerDeleteRequest(req, res, segments[2], segments[4]);
+    return true;
+  }
+
   if (segments.length === 6 && segments[1] === 'packs' && segments[3] === 'stickers' && segments[5] === 'delete') {
     await handlers.handleAdminPackStickerDeleteRequest(req, res, segments[2], segments[4]);
+    return true;
+  }
+
+  if (segments.length === 3 && segments[1] === 'stickers') {
+    await handlers.handleAdminGlobalStickerDeleteRequest(req, res, segments[2]);
     return true;
   }
 
@@ -77,6 +91,11 @@ export const handleCatalogAdminRoutes = async ({ req, res, url, segments, handle
   }
 
   if (segments.length === 4 && segments[1] === 'bans' && segments[3] === 'revoke') {
+    await handlers.handleAdminBanRevokeRequest(req, res, segments[2]);
+    return true;
+  }
+
+  if (segments.length === 3 && segments[1] === 'bans') {
     await handlers.handleAdminBanRevokeRequest(req, res, segments[2]);
     return true;
   }

@@ -57,15 +57,17 @@ const toStatusClass = (statusCode) => {
   return `${head}xx`;
 };
 
-export const resolveRouteGroup = ({ pathname, metricsPath, catalogConfig = null } = {}) => {
+export const resolveRouteGroup = ({ pathname, metricsPath, catalogConfig = null, userConfig = null, systemAdminConfig = null } = {}) => {
   if (pathname?.startsWith(metricsPath)) return 'metrics';
+  if (pathname === '/healthz' || pathname === '/readyz') return 'health';
   if (pathname === '/sitemap.xml') return 'sitemap';
   if (pathname === '/api/marketplace/stats') return 'marketplace_stats';
 
-  const apiBasePath = catalogConfig?.apiBasePath || '';
+  const apiBasePath = catalogConfig?.apiBasePath || userConfig?.apiBasePath || '';
   const webPath = catalogConfig?.webPath || '';
   const dataPublicPath = catalogConfig?.dataPublicPath || '';
-  const userProfilePath = catalogConfig?.userProfilePath || '';
+  const userProfilePath = userConfig?.webPath || '';
+  const systemAdminPath = systemAdminConfig?.webPath || '';
 
   if (apiBasePath && (pathname === apiBasePath || pathname?.startsWith(`${apiBasePath}/`))) {
     if (pathname === `${apiBasePath}/auth/google/session` || pathname === `${apiBasePath}/me` || pathname === `${apiBasePath}/admin/session`) {
@@ -78,6 +80,7 @@ export const resolveRouteGroup = ({ pathname, metricsPath, catalogConfig = null 
     return 'catalog_api_public';
   }
   if (dataPublicPath && (pathname === dataPublicPath || pathname?.startsWith(`${dataPublicPath}/`))) return 'catalog_data_asset';
+  if (systemAdminPath && (pathname === systemAdminPath || pathname === `${systemAdminPath}/`)) return 'system_admin_web';
   if (userProfilePath && (pathname === userProfilePath || pathname === `${userProfilePath}/`)) return 'catalog_user_profile';
   if (webPath && (pathname === webPath || pathname?.startsWith(`${webPath}/`))) return 'catalog_web';
 

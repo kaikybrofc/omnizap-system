@@ -890,7 +890,7 @@ function renderSystemTab() {
             <h3 class="panel-title">Autenticacao admin</h3>
           </div>
           <div class="kv-grid">
-            <div class="kv-item"><span class="kv-key">Admin email</span><span class="kv-value break-all">${escapeHtml(state.adminStatus?.admin_email || '-')}</span></div>
+            <div class="kv-item"><span class="kv-key">Login provider</span><span class="kv-value">${escapeHtml(state.adminStatus?.session?.authenticated ? 'Google + senha' : 'Google')}</span></div>
             <div class="kv-item"><span class="kv-key">Google session</span><span class="kv-value">${authGoogle?.authenticated ? 'Ativa' : 'Inativa'}</span></div>
             <div class="kv-item"><span class="kv-key">Elegivel</span><span class="kv-value">${canUnlockAdmin() ? 'Sim' : 'Nao'}</span></div>
             <div class="kv-item"><span class="kv-key">Seu papel</span><span class="kv-value">${escapeHtml(getAdminRole() || 'owner')}</span></div>
@@ -1060,7 +1060,6 @@ function renderUnlockView() {
   const googleSession = google?.user ? google : { authenticated: false };
   const localGoogleCache = readLocalGoogleAuthCache();
   const hasLocalCache = Boolean(localGoogleCache?.user?.sub);
-  const adminEmail = String(adminStatus?.admin_email || 'ADM_EMAIL');
   const googleConfigEnabled = Boolean(state.googleAuthConfig?.enabled && state.googleAuthConfig?.clientId);
 
   return `
@@ -1087,7 +1086,7 @@ function renderUnlockView() {
                 <div class="account-box">
                   <p class="row-title">${escapeHtml(googleSession.user?.name || 'Conta Google')}</p>
                   <p class="row-sub break-all">${escapeHtml(googleSession.user?.email || '')}</p>
-                  <p class="row-meta">${canUnlockAdmin() ? 'Conta elegivel para admin.' : 'Conta Google logada nao bate com ADM_EMAIL.'}</p>
+                  <p class="row-meta">${canUnlockAdmin() ? 'Conta elegivel para admin.' : 'Conta Google logada nao esta elegivel para admin.'}</p>
                 </div>
               `
                 : `
@@ -1117,7 +1116,7 @@ function renderUnlockView() {
             <form data-form="admin-unlock" class="form-grid">
               <input class="search-input" type="password" name="password" placeholder="Digite a senha do painel" autocomplete="current-password" />
               <button class="primary-btn" type="submit" ${state.busy ? 'disabled' : ''}>${state.busy ? 'Validando...' : 'Desbloquear Painel'}</button>
-              ${!canUnlockAdmin() ? `<p class="hint warning">A senha so desbloqueia apos sessao Google elegivel (${escapeHtml(adminEmail)} ou moderador autorizado).</p>` : '<p class="hint">Sessao Google elegivel detectada. Informe a senha correspondente.</p>'}
+              ${!canUnlockAdmin() ? '<p class="hint warning">A senha so desbloqueia apos sessao Google elegivel (owner ou moderador autorizado).</p>' : '<p class="hint">Sessao Google elegivel detectada. Informe a senha correspondente.</p>'}
             </form>
           </article>
         </div>
@@ -1318,17 +1317,12 @@ async function unlockAdmin(password) {
     async () => {
       if (!canUnlockAdmin()) {
         const google = state.adminStatus?.google || {};
-        const adminEmail = String(state.adminStatus?.admin_email || '').trim();
-        const loggedEmail = String(google?.user?.email || '').trim();
         if (!google?.authenticated) {
           const local = readLocalGoogleAuthCache();
           if (local?.user?.email) {
             throw new Error(`Sua sessao Google do servidor expirou. Renove o login Google (${local.user.email}) e tente novamente.`);
           }
           throw new Error('Faca login Google no site com o email admin antes de digitar a senha.');
-        }
-        if (loggedEmail && adminEmail && loggedEmail.toLowerCase() !== adminEmail.toLowerCase()) {
-          throw new Error(`Email logado (${loggedEmail}) e diferente do ADM_EMAIL (${adminEmail}).`);
         }
         throw new Error('Conta Google atual nao esta elegivel para desbloquear o painel.');
       }
