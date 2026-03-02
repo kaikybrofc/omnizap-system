@@ -78,7 +78,7 @@ Este bloco pode ser atualizado automaticamente pela API (`/api/sticker-packs/rea
 <!-- README_SNAPSHOT:START -->
 ### Snapshot do Sistema
 
-> Atualizado em `2026-03-02T03:59:47.711Z` | cache `1800s`
+> Atualizado em `2026-03-02T04:00:50.043Z` | cache `1800s`
 
 | Métrica | Valor |
 | --- | ---: |
