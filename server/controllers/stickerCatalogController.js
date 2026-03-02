@@ -3359,34 +3359,23 @@ const handleMarketplaceStatsRequest = async (req, res, url) => {
 };
 
 const buildHomeRealtimeSnapshot = async ({ systemSummary = null } = {}) => {
-  let messagesToday = null;
-  let spamBlockedToday = null;
-  let analyticsError = null;
+  const totalUsersRaw = Number(systemSummary?.platform?.total_users);
+  const totalMessagesRaw = Number(systemSummary?.usage?.total_messages);
+  const totalCommandsRaw = Number(systemSummary?.usage?.total_commands);
+  const httpLatencyP95Ms = Number(systemSummary?.observability?.http_latency_p95_ms);
+  const lagP99Ms = Number(systemSummary?.observability?.lag_p99_ms);
+  const resolvedLatencyMs = Number.isFinite(httpLatencyP95Ms) ? httpLatencyP95Ms : Number.isFinite(lagP99Ms) ? lagP99Ms : null;
 
-  try {
-    const [row] = await executeQuery(
-      `SELECT
-         COUNT(*) AS messages_today,
-         SUM(CASE WHEN processing_result = 'blocked_antilink' THEN 1 ELSE 0 END) AS spam_blocked_today
-       FROM ${TABLES.MESSAGE_ANALYSIS_EVENT}
-       WHERE created_at >= UTC_DATE()`,
-    );
-    messagesToday = Number(row?.messages_today || 0);
-    spamBlockedToday = Number(row?.spam_blocked_today || 0);
-  } catch (error) {
-    analyticsError = error?.message || 'message_analysis_event_unavailable';
-  }
-
-  const botsOnline = systemSummary?.bot?.connected ? 1 : 0;
-  const uptime = String(systemSummary?.process?.uptime || '').trim() || null;
+  const totalUsers = Number.isFinite(totalUsersRaw) ? Math.max(0, Math.round(totalUsersRaw)) : null;
+  const totalMessages = Number.isFinite(totalMessagesRaw) ? Math.max(0, Math.round(totalMessagesRaw)) : null;
+  const totalCommands = Number.isFinite(totalCommandsRaw) ? Math.max(0, Math.round(totalCommandsRaw)) : null;
+  const systemLatencyMs = Number.isFinite(resolvedLatencyMs) ? Math.max(0, Number(resolvedLatencyMs.toFixed(2))) : null;
 
   return {
-    bots_online: botsOnline,
-    messages_today: messagesToday,
-    spam_blocked_today: spamBlockedToday,
-    uptime,
-    analytics_ok: analyticsError === null,
-    analytics_error: analyticsError,
+    total_users: totalUsers,
+    total_messages: totalMessages,
+    total_commands: totalCommands,
+    system_latency_ms: systemLatencyMs,
     updated_at: new Date().toISOString(),
   };
 };
@@ -5702,6 +5691,7 @@ const buildSystemSummarySnapshot = async () => {
   let prometheus = null;
   let prometheusError = null;
   let platformError = null;
+  let usageError = null;
 
   const socketReadyState = resolveSocketReadyState(activeSocket);
   const botJid = resolveActiveSocketBotJid(activeSocket) || null;
@@ -5713,6 +5703,11 @@ const buildSystemSummarySnapshot = async () => {
     total_users: null,
     total_groups: null,
     total_chats: null,
+  };
+  let usage = {
+    total_messages: null,
+    total_commands: null,
+    total_commands_source: TABLES.MESSAGE_ANALYSIS_EVENT,
   };
 
   try {
@@ -5750,6 +5745,27 @@ const buildSystemSummarySnapshot = async () => {
     platformError = error?.message || 'Falha ao consultar totais de usuários/grupos';
   }
 
+  try {
+    const [messageTotalsRows, commandTotalsRows] = await Promise.all([
+      executeQuery(`SELECT COUNT(*) AS total_messages FROM ${TABLES.MESSAGES}`),
+      executeQuery(
+        `SELECT COUNT(*) AS total_commands
+           FROM ${TABLES.MESSAGE_ANALYSIS_EVENT}
+          WHERE is_command = 1
+            AND COALESCE(is_from_bot, 0) = 0`,
+      ),
+    ]);
+    const messageTotals = messageTotalsRows?.[0] || {};
+    const commandTotals = commandTotalsRows?.[0] || {};
+    usage = {
+      ...usage,
+      total_messages: Number(messageTotals?.total_messages || 0),
+      total_commands: Number(commandTotals?.total_commands || 0),
+    };
+  } catch (error) {
+    usageError = error?.message || 'Falha ao consultar totais de mensagens/comandos';
+  }
+
   const hostCpuPercent = Number(system.usoCpuPercentual);
   const hostMemoryPercent = Number(system.usoMemoriaPercentual);
   const statusReasons = [];
@@ -5771,6 +5787,7 @@ const buildSystemSummarySnapshot = async () => {
         ready_state: socketReadyState,
       },
       platform,
+      usage,
       host: {
         cpu_percent: system.usoCpuPercentual,
         memory_percent: system.usoMemoriaPercentual,
@@ -5797,6 +5814,7 @@ const buildSystemSummarySnapshot = async () => {
       metrics_ok: Boolean(prometheus),
       metrics_error: prometheusError,
       platform_error: platformError,
+      usage_error: usageError,
     },
   };
 };

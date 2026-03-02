@@ -462,19 +462,19 @@ const initAddBotCtas = () => {
 };
 
 const initSocialProof = () => {
-  const botsOnlineEl = document.getElementById('proof-bots-online');
-  const messagesTodayEl = document.getElementById('proof-messages-today');
-  const spamBlockedEl = document.getElementById('proof-spam-blocked');
-  const uptimeEl = document.getElementById('proof-uptime');
+  const usersTotalEl = document.getElementById('proof-users-total');
+  const messagesTotalEl = document.getElementById('proof-messages-total');
+  const commandsTotalEl = document.getElementById('proof-commands-total');
+  const latencyEl = document.getElementById('proof-system-latency');
   const statusEl = document.getElementById('proof-status');
 
-  if (!botsOnlineEl || !messagesTodayEl || !spamBlockedEl || !uptimeEl) return null;
+  if (!usersTotalEl || !messagesTotalEl || !commandsTotalEl || !latencyEl) return null;
 
   const setFallback = () => {
-    botsOnlineEl.textContent = 'n/d';
-    messagesTodayEl.textContent = 'n/d';
-    spamBlockedEl.textContent = 'n/d';
-    uptimeEl.textContent = 'n/d';
+    usersTotalEl.textContent = 'n/d';
+    messagesTotalEl.textContent = 'n/d';
+    commandsTotalEl.textContent = 'n/d';
+    latencyEl.textContent = 'n/d';
     if (statusEl) statusEl.textContent = 'bot pronto';
   };
 
@@ -504,20 +504,24 @@ const initSocialProof = () => {
     animateCountUp(element, numeric);
   };
 
+  const setLatencyMetric = (element, value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      element.textContent = 'n/d';
+      return;
+    }
+    element.textContent = `${Math.max(0, Math.round(numeric))} ms`;
+  };
+
   const refreshMetrics = async ({ forceRefresh = false, animate = false } = {}) => {
     const bootstrapData = await fetchHomeBootstrapPayload({ forceRefresh });
     const summary = bootstrapData?.system_summary || {};
     const realtime = bootstrapData?.home_realtime || {};
 
-    const botsOnline = Number(realtime?.bots_online);
-    const messagesToday = Number(realtime?.messages_today);
-    const spamBlockedToday = Number(realtime?.spam_blocked_today);
-    const uptime = String(realtime?.uptime || summary?.process?.uptime || '').trim() || 'n/d';
-
-    setNumericMetric(botsOnlineEl, botsOnline, { animate });
-    setNumericMetric(messagesTodayEl, messagesToday, { animate });
-    setNumericMetric(spamBlockedEl, spamBlockedToday, { animate });
-    uptimeEl.textContent = uptime;
+    setNumericMetric(usersTotalEl, realtime?.total_users, { animate });
+    setNumericMetric(messagesTotalEl, realtime?.total_messages, { animate });
+    setNumericMetric(commandsTotalEl, realtime?.total_commands, { animate });
+    setLatencyMetric(latencyEl, realtime?.system_latency_ms);
 
     if (statusEl) {
       statusEl.textContent = `bot ${normalizeStatus(summary?.system_status || summary?.bot?.connection_status)}`;
