@@ -76,31 +76,29 @@ O prefixo pode variar no seu grupo. Nos exemplos abaixo, foi usado `/`.
 Este bloco pode ser atualizado automaticamente pela API (`/api/sticker-packs/readme-markdown`).
 
 <!-- README_SNAPSHOT:START -->
-
 ### Snapshot do Sistema
 
-> Atualizado em `2026-03-01T08:39:44.896Z` | cache `1800s`
+> Atualizado em `2026-03-02T03:59:47.711Z` | cache `1800s`
 
-| Métrica               |   Valor |
-| --------------------- | ------: |
-| Usuários (lid_map)    |   5.518 |
-| Grupos                |     116 |
-| Packs                 |     309 |
-| Stickers              |   7.334 |
-| Mensagens registradas | 447.651 |
+| Métrica | Valor |
+| --- | ---: |
+| Usuários (lid_map) | 5.529 |
+| Grupos | 118 |
+| Packs | 318 |
+| Stickers | 8.020 |
+| Mensagens registradas | 453.847 |
 
 #### Tipos de mensagem mais usados (amostra: 25.000)
-
-| Tipo        |  Total |
-| ----------- | -----: |
-| `texto`     | 16.016 |
-| `figurinha` |  4.501 |
-| `reacao`    |  1.678 |
-| `imagem`    |  1.390 |
-| `outros`    |  1.001 |
-| `video`     |    226 |
-| `audio`     |    180 |
-| `documento` |      8 |
+| Tipo | Total |
+| --- | ---: |
+| `texto` | 15.317 |
+| `figurinha` | 4.895 |
+| `reacao` | 1.810 |
+| `imagem` | 1.511 |
+| `outros` | 1.079 |
+| `video` | 205 |
+| `audio` | 178 |
+| `documento` | 5 |
 
 <details><summary>Comandos disponíveis (62)</summary>
 
