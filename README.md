@@ -78,24 +78,24 @@ Este bloco pode ser atualizado automaticamente pela API (`/api/sticker-packs/rea
 <!-- README_SNAPSHOT:START -->
 ### Snapshot do Sistema
 
-> Atualizado em `2026-03-02T04:00:50.043Z` | cache `1800s`
+> Atualizado em `2026-03-02T04:56:50.656Z` | cache `1800s`
 
 | Métrica | Valor |
 | --- | ---: |
 | Usuários (lid_map) | 5.529 |
 | Grupos | 118 |
-| Packs | 318 |
-| Stickers | 8.020 |
-| Mensagens registradas | 453.847 |
+| Packs | 319 |
+| Stickers | 8.026 |
+| Mensagens registradas | 453.904 |
 
 #### Tipos de mensagem mais usados (amostra: 25.000)
 | Tipo | Total |
 | --- | ---: |
-| `texto` | 15.317 |
-| `figurinha` | 4.895 |
-| `reacao` | 1.810 |
-| `imagem` | 1.511 |
-| `outros` | 1.079 |
+| `texto` | 15.337 |
+| `figurinha` | 4.863 |
+| `reacao` | 1.818 |
+| `imagem` | 1.513 |
+| `outros` | 1.081 |
 | `video` | 205 |
 | `audio` | 178 |
 | `documento` | 5 |
