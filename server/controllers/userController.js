@@ -19,7 +19,7 @@ const USER_API_PATHS = new Set([`${STICKER_API_BASE_PATH}/auth/google/session`, 
 let stickerCatalogControllerPromise = null;
 const loadStickerCatalogController = async () => {
   if (!stickerCatalogControllerPromise) {
-    stickerCatalogControllerPromise = import('./stickerCatalogController.js');
+    stickerCatalogControllerPromise = import('./sticker/stickerCatalogController.js');
   }
   return stickerCatalogControllerPromise;
 };

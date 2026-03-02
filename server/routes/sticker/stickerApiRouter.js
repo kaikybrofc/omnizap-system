@@ -5,7 +5,7 @@ let stickerCatalogControllerPromise = null;
 
 const loadStickerCatalogController = async () => {
   if (!stickerCatalogControllerPromise) {
-    stickerCatalogControllerPromise = import('../../controllers/stickerCatalogController.js');
+    stickerCatalogControllerPromise = import('../../controllers/sticker/stickerCatalogController.js');
   }
   return stickerCatalogControllerPromise;
 };

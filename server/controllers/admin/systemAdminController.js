@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URL } from 'node:url';
 
-import logger from '../../app/utils/logger/loggerModule.js';
+import logger from '../../../app/utils/logger/loggerModule.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -35,7 +35,7 @@ const LEGACY_STICKER_ADMIN_TEMPLATE_PATH = path.join(process.cwd(), 'public', 's
 let stickerCatalogControllerPromise = null;
 const loadStickerCatalogController = async () => {
   if (!stickerCatalogControllerPromise) {
-    stickerCatalogControllerPromise = import('./stickerCatalogController.js');
+    stickerCatalogControllerPromise = import('../sticker/stickerCatalogController.js');
   }
   return stickerCatalogControllerPromise;
 };

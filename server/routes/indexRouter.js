@@ -4,9 +4,9 @@ import { maybeHandleMetricsRequest } from './metrics/metricsRouter.js';
 import { maybeHandleHealthRequest, shouldHandleHealthPath } from './health/healthRouter.js';
 import { buildUserApiPaths, getUserRouterConfig, maybeHandleUserRequest, shouldHandleUserPath } from './user/userRouter.js';
 import { getSystemAdminRouterConfig, maybeHandleSystemAdminRequest, shouldHandleSystemAdminPath } from './admin/systemAdminRouter.js';
-import { getStickerSiteRouterConfig, maybeHandleStickerSiteRequest, shouldHandleStickerSitePath } from './stickerCatalog/stickerSiteRouter.js';
-import { getStickerDataRouterConfig, maybeHandleStickerDataRequest, shouldHandleStickerDataPath } from './stickerCatalog/stickerDataRouter.js';
-import { getStickerApiRouterConfig, maybeHandleStickerApiRequest, shouldHandleStickerApiPath } from './stickerCatalog/stickerApiRouter.js';
+import { getStickerSiteRouterConfig, maybeHandleStickerSiteRequest, shouldHandleStickerSitePath } from './sticker/stickerSiteRouter.js';
+import { getStickerDataRouterConfig, maybeHandleStickerDataRequest, shouldHandleStickerDataPath } from './sticker/stickerDataRouter.js';
+import { getStickerApiRouterConfig, maybeHandleStickerApiRequest, shouldHandleStickerApiPath } from './sticker/stickerApiRouter.js';
 
 const startsWithPath = (pathname, prefix) => {
   if (!pathname || !prefix) return false;

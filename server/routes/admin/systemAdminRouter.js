@@ -2,7 +2,7 @@ let systemAdminControllerPromise = null;
 
 const loadSystemAdminController = async () => {
   if (!systemAdminControllerPromise) {
-    systemAdminControllerPromise = import('../../controllers/systemAdminController.js');
+    systemAdminControllerPromise = import('../../controllers/admin/systemAdminController.js');
   }
   return systemAdminControllerPromise;
 };
