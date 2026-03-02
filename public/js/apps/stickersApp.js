@@ -2609,12 +2609,21 @@ function StickersApp() {
     setCatalogPage(nextPage);
   };
 
+  const scrollToTopIfMobile = ({ behavior = 'smooth' } = {}) => {
+    const isMobile = window.matchMedia ? window.matchMedia('(max-width: 1023px)').matches : window.innerWidth < 1024;
+    if (!isMobile) return;
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior });
+    });
+  };
+
   const openPack = (packKey, push = true) => {
     if (!packKey) return;
     if (push) window.history.pushState({}, '', `${config.webPath}/${encodeURIComponent(packKey)}`);
     setCurrentView('pack');
     setCurrentPackKey(packKey);
     setSortPickerOpen(false);
+    scrollToTopIfMobile({ behavior: 'smooth' });
   };
 
   const goCatalog = (push = true) => {
@@ -3133,9 +3142,7 @@ function StickersApp() {
         return;
       }
       if (route.view === 'pack' && route.packKey) {
-        setCurrentView('pack');
-        setCurrentPackKey(route.packKey);
-        setSortPickerOpen(false);
+        openPack(route.packKey, false);
         return;
       }
       applyCatalogViewState(parseCatalogSearchState(window.location.search));
