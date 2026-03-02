@@ -150,12 +150,7 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
     return duplicateLines.join('\n');
   }
 
-  const savedLines = [
-    `✅ Figurinha adicionada ao pack *${packName}*${countLabel}.`,
-    '',
-    `📋 Gerencie seus packs com *${commandPrefix}pack list*.`,
-    `🚀 Envie agora com *${commandPrefix}pack send ${packCommandTarget}*.`,
-  ];
+  const savedLines = [`✅ Figurinha adicionada ao pack *${packName}*${countLabel}.`, '', `📋 Gerencie seus packs com *${commandPrefix}pack list*.`, `🚀 Envie agora com *${commandPrefix}pack send ${packCommandTarget}*.`];
   if (packWebUrl) {
     savedLines.push(`🌐 Veja no site: ${packWebUrl}`);
   } else {

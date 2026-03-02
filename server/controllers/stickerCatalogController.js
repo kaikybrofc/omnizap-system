@@ -843,9 +843,7 @@ const googleWebSessionDbTouchIntervalMs = Math.max(30_000, Number(process.env.ST
 const googleWebSessionDbPruneIntervalMs = Math.max(5 * 60 * 1000, Number(process.env.STICKER_WEB_GOOGLE_SESSION_DB_PRUNE_INTERVAL_MS) || 60 * 60 * 1000);
 const configuredGoogleWebSessionCookiePath = normalizeBasePath(process.env.STICKER_WEB_GOOGLE_SESSION_COOKIE_PATH, '/');
 const googleWebSessionCookiePath = '/';
-const googleWebLegacyCookiePaths = Array.from(
-  new Set([configuredGoogleWebSessionCookiePath, STICKER_API_BASE_PATH, `${STICKER_API_BASE_PATH}/auth`, STICKER_WEB_PATH, STICKER_LOGIN_WEB_PATH]),
-);
+const googleWebLegacyCookiePaths = Array.from(new Set([configuredGoogleWebSessionCookiePath, STICKER_API_BASE_PATH, `${STICKER_API_BASE_PATH}/auth`, STICKER_WEB_PATH, STICKER_LOGIN_WEB_PATH]));
 
 const googleWebAuth = createGoogleWebAuthService({
   executeQuery,
@@ -6202,25 +6200,7 @@ const handlePackInteractionRequest = async (req, res, packKey, interaction, url)
   });
 };
 
-const {
-  handleAdminPanelSessionRequest,
-  handleAdminOverviewRequest,
-  handleAdminUsersRequest,
-  handleAdminForceLogoutRequest,
-  handleAdminFeatureFlagsRequest,
-  handleAdminOpsActionRequest,
-  handleAdminSearchRequest,
-  handleAdminExportRequest,
-  handleAdminModeratorsRequest,
-  handleAdminModeratorDeleteRequest,
-  handleAdminPacksRequest,
-  handleAdminPackDetailsRequest,
-  handleAdminPackDeleteRequest,
-  handleAdminPackStickerDeleteRequest,
-  handleAdminGlobalStickerDeleteRequest,
-  handleAdminBansRequest,
-  handleAdminBanRevokeRequest,
-} = createStickerCatalogAdminHandlers({
+const { handleAdminPanelSessionRequest, handleAdminOverviewRequest, handleAdminUsersRequest, handleAdminForceLogoutRequest, handleAdminFeatureFlagsRequest, handleAdminOpsActionRequest, handleAdminSearchRequest, handleAdminExportRequest, handleAdminModeratorsRequest, handleAdminModeratorDeleteRequest, handleAdminPacksRequest, handleAdminPackDetailsRequest, handleAdminPackDeleteRequest, handleAdminPackStickerDeleteRequest, handleAdminGlobalStickerDeleteRequest, handleAdminBansRequest, handleAdminBanRevokeRequest } = createStickerCatalogAdminHandlers({
   executeQuery,
   tables: TABLES,
   logger,

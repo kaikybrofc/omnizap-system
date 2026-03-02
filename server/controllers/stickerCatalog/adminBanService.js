@@ -1,15 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-export const createStickerCatalogAdminBanService = ({
-  executeQuery,
-  tables,
-  sanitizeText,
-  normalizeGoogleSubject,
-  normalizeEmail,
-  normalizeJid,
-  toIsoOrNull,
-  revokeGoogleWebSessionsByIdentity = async () => 0,
-}) => {
+export const createStickerCatalogAdminBanService = ({ executeQuery, tables, sanitizeText, normalizeGoogleSubject, normalizeEmail, normalizeJid, toIsoOrNull, revokeGoogleWebSessionsByIdentity = async () => 0 }) => {
   const TABLES = tables;
 
   const mapAdminBanRow = (row) => {

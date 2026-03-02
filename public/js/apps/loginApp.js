@@ -72,7 +72,9 @@ if (root) {
   const isAuthenticatedGoogleSession = (sessionData) => {
     if (!sessionData || typeof sessionData !== 'object') return false;
     if (!isAuthenticatedFlagEnabled(sessionData.authenticated)) return false;
-    const provider = String(sessionData.provider || '').trim().toLowerCase();
+    const provider = String(sessionData.provider || '')
+      .trim()
+      .toLowerCase();
     if (provider && provider !== 'google') return false;
     const ownerJid = String(sessionData.owner_jid || '').trim();
     const userSub = String(sessionData?.user?.sub || '').trim();
