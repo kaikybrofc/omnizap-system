@@ -21,10 +21,6 @@ if (root) {
     metricStickers: document.getElementById('metric-stickers'),
     metricDownloads: document.getElementById('metric-downloads'),
     metricLikes: document.getElementById('metric-likes'),
-    summary: document.getElementById('user-summary'),
-    ownerJid: document.getElementById('user-owner-jid'),
-    googleSub: document.getElementById('user-google-sub'),
-    expiresAt: document.getElementById('user-expires-at'),
     actions: document.getElementById('user-actions'),
     chatLink: document.getElementById('user-chat-link'),
     logoutBtn: document.getElementById('user-logout-btn'),
@@ -150,12 +146,7 @@ if (root) {
       };
     }
 
-    setText(ui.ownerJid, ownerJid || 'n/d');
-    setText(ui.googleSub, String(user?.sub || '').trim() || 'n/d');
-    setText(ui.expiresAt, formatDateTime(sessionData?.expires_at));
-
     if (ui.profile) ui.profile.hidden = false;
-    if (ui.summary) ui.summary.hidden = false;
     if (ui.actions) ui.actions.hidden = false;
   };
 
