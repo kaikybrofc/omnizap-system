@@ -22,6 +22,7 @@ const CATALOG_SORT_OPTIONS = [
 
 const DEFAULT_CATALOG_SORT = 'trending';
 const DEFAULT_CREATORS_SORT = 'popular';
+const FIRST_CATALOG_PAGE = 1;
 
 const safeNumber = (value, fallback = 0) => {
   const numeric = Number(value);
@@ -250,17 +251,6 @@ const shortNum = (value) => {
   return String(n);
 };
 
-const formatFullNum = (value) =>
-  new Intl.NumberFormat('pt-BR', {
-    maximumFractionDigits: 0,
-  }).format(Math.max(0, Math.round(Number(value || 0))));
-
-const toMiniBars = (values = [], { minHeight = 3, maxHeight = 16 } = {}) => {
-  const source = Array.isArray(values) && values.length ? values.map((value) => Math.max(0, Number(value || 0))) : [0, 0, 0, 0, 0, 0, 0];
-  const max = Math.max(...source, 1);
-  return source.map((value) => Math.max(minHeight, Math.min(maxHeight, Math.round((value / max) * (maxHeight - 2)) + 2)));
-};
-
 const getPackEngagement = (pack) => {
   const engagement = pack?.engagement || {};
   const likeCount = Number(engagement.like_count || 0);
@@ -280,6 +270,8 @@ const getAvatarUrl = (name) => `https://api.dicebear.com/8.x/thumbs/svg?seed=${e
 
 const parseCatalogSearchState = (search = '') => {
   const params = new URLSearchParams(String(search || ''));
+  const pageParam = Number.parseInt(String(params.get('page') || ''), 10);
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : FIRST_CATALOG_PAGE;
   const filter = String(params.get('filter') || '')
     .trim()
     .toLowerCase();
@@ -294,6 +286,7 @@ const parseCatalogSearchState = (search = '') => {
   return {
     q,
     category,
+    page,
     filter: hasTrendingFilter ? 'trending' : '',
     sort: hasTrendingFilter ? 'trending' : normalizeCatalogSort(params.get('sort') || ''),
   };
@@ -419,12 +412,6 @@ const isRecent = (dateString) => {
 
 const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 
-const primaryTag = (item) => {
-  const tags = Array.isArray(item?.tags) ? item.tags : [];
-  if (!tags.length) return '';
-  return String(tags[0] || '').replace(/-/g, ' ');
-};
-
 const tagLabel = (tag) => {
   const normalized = String(tag || '').toLowerCase();
   if (normalized.includes('nsfw')) return `🔞 ${String(tag).replace(/-/g, ' ').toUpperCase()}`;
@@ -531,65 +518,6 @@ function PackCard({ pack, index, onOpen, hasNsfwAccess = true, onRequireLogin })
         <span className="inline-flex h-[34px] w-full items-center justify-center rounded-xl border border-emerald-400/30 bg-emerald-400/10 text-xs font-semibold text-emerald-200 transition group-active:brightness-110"> ${lockedByNsfw ? 'Entrar para desbloquear' : 'Abrir pack'} </span>
       </div>
     </button>
-  `;
-}
-
-function CatalogMetricCard({ label, value = '', valueRaw = null, numberFormat = 'compact', icon = '📊', hint = '', bars = [], tone = 'slate' }) {
-  const toneMap = {
-    slate: 'border-slate-800 bg-slate-900/60',
-    emerald: 'border-emerald-500/20 bg-emerald-500/5',
-    cyan: 'border-cyan-500/20 bg-cyan-500/5',
-    amber: 'border-amber-500/20 bg-amber-500/5',
-  };
-  const numericTarget = valueRaw === null || valueRaw === undefined ? null : Math.max(0, Number(valueRaw || 0));
-  const [animatedValue, setAnimatedValue] = useState(numericTarget ?? 0);
-  const animatedFromRef = useRef(numericTarget ?? 0);
-
-  useEffect(() => {
-    if (numericTarget === null || !Number.isFinite(numericTarget)) return undefined;
-    const startValue = Number.isFinite(animatedFromRef.current) ? animatedFromRef.current : 0;
-    const endValue = numericTarget;
-    if (startValue === endValue) {
-      setAnimatedValue(endValue);
-      animatedFromRef.current = endValue;
-      return undefined;
-    }
-
-    let frameId = 0;
-    const startAt = performance.now();
-    const durationMs = 520;
-    const tick = (now) => {
-      const progress = Math.min(1, (now - startAt) / durationMs);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const next = startValue + (endValue - startValue) * eased;
-      setAnimatedValue(next);
-      if (progress < 1) {
-        frameId = window.requestAnimationFrame(tick);
-        return;
-      }
-      animatedFromRef.current = endValue;
-      setAnimatedValue(endValue);
-    };
-
-    frameId = window.requestAnimationFrame(tick);
-    return () => {
-      if (frameId) window.cancelAnimationFrame(frameId);
-      animatedFromRef.current = endValue;
-    };
-  }, [numericTarget]);
-
-  const resolvedValue = numericTarget === null ? String(value || '0') : numberFormat === 'full' ? formatFullNum(animatedValue) : shortNum(animatedValue);
-
-  return html`
-    <article className=${`rounded-xl border p-2.5 ${toneMap[tone] || toneMap.slate}`} title=${hint || label}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm">${icon}</span>
-        <div className="flex items-end gap-0.5">${(Array.isArray(bars) ? bars : []).slice(0, 7).map((bar, index) => html` <span key=${index} className="w-1 rounded-full bg-white/15" style=${{ height: `${Math.max(4, Math.min(16, Number(bar || 0)))}px` }}></span> `)}</div>
-      </div>
-      <p className="mt-1 text-base font-bold text-slate-100">${resolvedValue}</p>
-      <p className="text-[11px] text-slate-400">${label}</p>
-      ${hint ? html`<p className="mt-0.5 text-[10px] text-slate-500">${hint}</p>` : null}
-    </article>
   `;
 }
 
@@ -1467,25 +1395,6 @@ function CreatorProfileDashboard({ googleAuthConfig, googleAuth, googleAuthBusy,
   `;
 }
 
-function OrphanCard({ sticker, hasNsfwAccess = true, onRequireLogin }) {
-  const lockedByNsfw = isStickerMarkedNsfw(sticker) && !hasNsfwAccess;
-  return html`
-    <article className="group rounded-2xl border border-slate-700/80 bg-slate-800/70 shadow-soft overflow-hidden transition-all duration-200 hover:-translate-y-0.5">
-      <div className="relative aspect-square bg-slate-900 overflow-hidden">
-        <img src=${lockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : sticker.url || DEFAULT_STICKER_PLACEHOLDER_URL} alt="Sticker sem pack" className=${`w-full h-full object-contain transition-transform duration-300 ${lockedByNsfw ? 'blur-md scale-105' : 'group-hover:scale-110'}`} loading="lazy" />
-        ${lockedByNsfw
-          ? html`
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-950/35 p-2">
-                <button type="button" onClick=${() => onRequireLogin?.()} className="inline-flex h-8 items-center rounded-lg border border-amber-400/35 bg-amber-500/15 px-2.5 text-[10px] font-semibold text-amber-100">Entrar para desbloquear</button>
-              </div>
-            `
-          : null}
-      </div>
-      <div className="p-2">${primaryTag(sticker) ? html`<span className="inline-flex rounded-full border border-slate-600 bg-slate-900/80 px-2 py-0.5 text-[10px] text-slate-300">${primaryTag(sticker)}</span>` : html`<span className="inline-flex rounded-full border border-slate-600 bg-slate-900/80 px-2 py-0.5 text-[10px] text-slate-400">sticker</span>`}</div>
-    </article>
-  `;
-}
-
 function SkeletonGrid({ count = 10 }) {
   return html`
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
@@ -1853,10 +1762,8 @@ function StickersApp() {
     () => ({
       webPath: root?.dataset.webPath || '/stickers',
       apiBasePath: root?.dataset.apiBasePath || '/api/sticker-packs',
-      orphanApiPath: root?.dataset.orphanApiPath || '/api/sticker-packs/orphan-stickers',
       loginPath: root?.dataset.loginPath || '/login',
       limit: parseIntSafe(root?.dataset.defaultLimit, 24),
-      orphanLimit: parseIntSafe(root?.dataset.defaultOrphanLimit, 24),
     }),
     [root],
   );
@@ -1869,6 +1776,7 @@ function StickersApp() {
   const [sortBy, setSortBy] = useState(normalizeCatalogSort(initialCatalogSearch.sort || DEFAULT_CATALOG_SORT));
   const [activeCategory, setActiveCategory] = useState(initialCatalogSearch.category || '');
   const [catalogFilter, setCatalogFilter] = useState(initialCatalogSearch.filter || '');
+  const [catalogPage, setCatalogPage] = useState(Math.max(FIRST_CATALOG_PAGE, Number(initialCatalogSearch.page || FIRST_CATALOG_PAGE)));
   const [discoverTab, setDiscoverTab] = useState('growing');
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const [recentSearches, setRecentSearches] = useState([]);
@@ -1876,16 +1784,10 @@ function StickersApp() {
   const [sortPickerBusy, setSortPickerBusy] = useState(false);
 
   const [packs, setPacks] = useState([]);
-  const [packOffset, setPackOffset] = useState(0);
   const [packHasMore, setPackHasMore] = useState(true);
   const [packsLoading, setPacksLoading] = useState(false);
-  const [packsLoadingMore, setPacksLoadingMore] = useState(false);
-
-  const [orphans, setOrphans] = useState([]);
-  const [orphansLoading, setOrphansLoading] = useState(false);
 
   const [error, setError] = useState('');
-  const [sentinel, setSentinel] = useState(null);
 
   const [currentView, setCurrentView] = useState(initialRoute.view || 'catalog');
   const [currentPackKey, setCurrentPackKey] = useState(initialRoute.packKey || '');
@@ -1954,9 +1856,6 @@ function StickersApp() {
       const scoreBoost = 1 + engagement.openCount * 0.02 + engagement.likeCount * 0.08;
       (Array.isArray(pack?.tags) ? pack.tags : []).forEach((tag) => ensureTag(tag, scoreBoost));
     });
-    orphans.forEach((asset) => {
-      (Array.isArray(asset?.tags) ? asset.tags : []).forEach((tag) => ensureTag(tag, 1));
-    });
 
     const sortedTags = Array.from(scoreByTag.entries())
       .sort((a, b) => b[1] - a[1])
@@ -1974,7 +1873,7 @@ function StickersApp() {
     }
 
     return [{ value: '', label: '🔥 Em alta', icon: '🔥' }, ...sortedTags];
-  }, [packs, orphans, activeCategory]);
+  }, [packs, activeCategory]);
 
   const tagSuggestions = useMemo(() => {
     const options = new Map();
@@ -2003,12 +1902,9 @@ function StickersApp() {
     packs.forEach((pack) => {
       (Array.isArray(pack?.tags) ? pack.tags : []).forEach(addTag);
     });
-    orphans.forEach((sticker) => {
-      (Array.isArray(sticker?.tags) ? sticker.tags : []).forEach(addTag);
-    });
 
     return Array.from(options.values());
-  }, [dynamicCategoryOptions, packs, orphans]);
+  }, [dynamicCategoryOptions, packs]);
 
   const filteredSuggestions = useMemo(() => {
     const q = normalizeToken(query);
@@ -2148,24 +2044,6 @@ function StickersApp() {
     list.sort((a, b) => b.creatorScore - a.creatorScore);
     return list;
   }, [creatorRanking, creatorSort]);
-  const platformStats = useMemo(() => {
-    const totals = packs.reduce(
-      (acc, pack) => {
-        const engagement = getPackEngagement(pack);
-        acc.stickers += Number(pack?.sticker_count || 0);
-        acc.opens += engagement.openCount;
-        acc.likes += engagement.likeCount;
-        return acc;
-      },
-      { stickers: 0, opens: 0, likes: 0 },
-    );
-    return {
-      packs: packs.length,
-      stickers: totals.stickers + orphans.length,
-      opens: totals.opens,
-      likes: totals.likes,
-    };
-  }, [packs, orphans.length]);
   const recentPublishedPacks = useMemo(
     () =>
       [...packs]
@@ -2177,102 +2055,10 @@ function StickersApp() {
         .slice(0, 10),
     [packs],
   );
-  const localTrendBars = useMemo(() => {
-    const sample = topWeekPacks.slice(0, 7).map((pack) => {
-      const engagement = getPackEngagement(pack);
-      return Number(engagement.openCount || 0) + Number(engagement.likeCount || 0) * 2;
-    });
-    return toMiniBars(sample);
-  }, [topWeekPacks]);
-  const globalMarketplaceSeries = useMemo(() => {
-    const rows = Array.isArray(globalMarketplaceStats?.seriesLast7Days) ? globalMarketplaceStats.seriesLast7Days : [];
-    return {
-      packs: rows.map((entry) => safeNumber(entry?.packsPublished)),
-      stickers: rows.map((entry) => safeNumber(entry?.stickersCreated)),
-      clicks: rows.map((entry) => safeNumber(entry?.clicks)),
-      likes: rows.map((entry) => safeNumber(entry?.likes)),
-    };
-  }, [globalMarketplaceStats]);
-  const catalogMetricCards = useMemo(() => {
-    const localTrendingLikes = growingNowPacks.reduce((acc, pack) => acc + getPackEngagement(pack).likeCount, 0);
-    const hasGlobalStats = Boolean(globalMarketplaceStats);
-    const metrics = hasGlobalStats
-      ? {
-          packs: safeNumber(globalMarketplaceStats?.totalPacks),
-          stickers: safeNumber(globalMarketplaceStats?.totalStickers),
-          clicks: safeNumber(globalMarketplaceStats?.totalClicks),
-          likes: safeNumber(globalMarketplaceStats?.totalLikes),
-          packsLast7Days: safeNumber(globalMarketplaceStats?.packsLast7Days),
-          stickersWithoutPack: safeNumber(globalMarketplaceStats?.stickersWithoutPack),
-          likesLast7Days: safeNumber(globalMarketplaceStats?.likesLast7Days),
-          bars: {
-            packs: toMiniBars(globalMarketplaceSeries.packs),
-            stickers: toMiniBars(globalMarketplaceSeries.stickers),
-            clicks: toMiniBars(globalMarketplaceSeries.clicks),
-            likes: toMiniBars(globalMarketplaceSeries.likes),
-          },
-        }
-      : {
-          packs: safeNumber(platformStats.packs),
-          stickers: safeNumber(platformStats.stickers),
-          clicks: safeNumber(platformStats.opens),
-          likes: safeNumber(platformStats.likes),
-          packsLast7Days: recentPublishedPacks.slice(0, 7).length,
-          stickersWithoutPack: safeNumber(orphans.length),
-          likesLast7Days: safeNumber(localTrendingLikes),
-          bars: {
-            packs: localTrendBars,
-            stickers: [...localTrendBars].reverse(),
-            clicks: localTrendBars.map((v, i) => Math.max(3, v - (i % 3))),
-            likes: localTrendBars.map((v, i) => Math.max(3, Math.min(16, v - 2 + (i % 2)))),
-          },
-        };
 
-    return [
-      {
-        key: 'packs',
-        label: 'Packs globais',
-        valueRaw: metrics.packs,
-        numberFormat: 'full',
-        icon: '📦',
-        tone: 'slate',
-        hint: `+${formatFullNum(metrics.packsLast7Days)} esta semana`,
-        bars: metrics.bars.packs,
-      },
-      {
-        key: 'stickers',
-        label: 'Stickers globais',
-        valueRaw: metrics.stickers,
-        numberFormat: 'full',
-        icon: '🧩',
-        tone: 'cyan',
-        hint: `${formatFullNum(metrics.stickersWithoutPack)} sem pack`,
-        bars: metrics.bars.stickers,
-      },
-      {
-        key: 'opens',
-        label: 'Cliques globais',
-        valueRaw: metrics.clicks,
-        numberFormat: 'full',
-        icon: '👁',
-        tone: 'emerald',
-        hint: 'Engajamento total',
-        bars: metrics.bars.clicks,
-      },
-      {
-        key: 'likes',
-        label: 'Likes globais',
-        valueRaw: metrics.likes,
-        numberFormat: 'full',
-        icon: '❤️',
-        tone: 'amber',
-        hint: `+${formatFullNum(metrics.likesLast7Days)} em tendência`,
-        bars: metrics.bars.likes,
-      },
-    ];
-  }, [globalMarketplaceStats, globalMarketplaceSeries, platformStats, recentPublishedPacks, orphans.length, growingNowPacks, localTrendBars]);
-
-  const hasAnyResult = packs.length > 0 || orphans.length > 0;
+  const hasAnyResult = packs.length > 0;
+  const canGoCatalogPrev = catalogPage > FIRST_CATALOG_PAGE && !packsLoading;
+  const canGoCatalogNext = packHasMore && !packsLoading;
   const marketplaceGlobalStatsApiPath = '/api/marketplace/stats';
   const googleSessionApiPath = `${config.apiBasePath}/auth/google/session`;
   const myProfileApiPath = `${config.apiBasePath}/me`;
@@ -2608,19 +2394,12 @@ function StickersApp() {
     return params;
   };
 
-  const loadPacks = async ({ reset = false } = {}) => {
-    if (reset) {
-      setPacksLoading(true);
-      setPackOffset(0);
-      setPackHasMore(true);
-    } else {
-      if (packsLoadingMore || !packHasMore) return;
-      setPacksLoadingMore(true);
-    }
-
+  const loadPacks = async ({ page = catalogPage } = {}) => {
+    const safePage = Math.max(FIRST_CATALOG_PAGE, Number(page || FIRST_CATALOG_PAGE));
+    const nextOffset = (safePage - 1) * config.limit;
+    setPacksLoading(true);
     setError('');
     try {
-      const nextOffset = reset ? 0 : packOffset;
       const effectiveSort = catalogFilter === 'trending' ? 'trending' : sortBy;
       const params = buildParams({
         q: catalogFilter === 'trending' ? '' : appliedQuery,
@@ -2634,34 +2413,14 @@ function StickersApp() {
       const payload = await fetchJson(`${config.apiBasePath}?${params.toString()}`);
       const data = Array.isArray(payload?.data) ? payload.data : [];
       const hasMore = Boolean(payload?.pagination?.has_more);
-      const next = Number(payload?.pagination?.next_offset);
-
-      setPacks((prev) => (reset ? data : prev.concat(data)));
+      setPacks(data);
       setPackHasMore(hasMore);
-      setPackOffset(Number.isFinite(next) ? next : reset ? data.length : nextOffset + data.length);
     } catch (err) {
       setError(err?.message || 'Falha ao carregar packs');
-      if (reset) setPacks([]);
+      setPacks([]);
+      setPackHasMore(false);
     } finally {
-      if (reset) setPacksLoading(false);
-      else setPacksLoadingMore(false);
-    }
-  };
-
-  const loadOrphans = async () => {
-    setOrphansLoading(true);
-    try {
-      const params = buildParams({
-        q: catalogFilter === 'trending' ? '' : appliedQuery,
-        category: catalogFilter === 'trending' ? '' : activeCategory,
-        limit: config.orphanLimit,
-      });
-      const payload = await fetchJson(`${config.orphanApiPath}?${params.toString()}`);
-      setOrphans(Array.isArray(payload?.data) ? payload.data : []);
-    } catch {
-      setOrphans([]);
-    } finally {
-      setOrphansLoading(false);
+      setPacksLoading(false);
     }
   };
 
@@ -2798,8 +2557,9 @@ function StickersApp() {
     }
   };
 
-  const buildCatalogWebUrl = ({ q = appliedQuery, category = activeCategory, sort = sortBy, filter = catalogFilter } = {}) => {
+  const buildCatalogWebUrl = ({ q = appliedQuery, category = activeCategory, sort = sortBy, filter = catalogFilter, page = catalogPage } = {}) => {
     const params = new URLSearchParams();
+    const safePage = Math.max(FIRST_CATALOG_PAGE, Number(page || FIRST_CATALOG_PAGE));
     const normalizedFilter =
       String(filter || '')
         .trim()
@@ -2814,6 +2574,7 @@ function StickersApp() {
       if (String(category || '').trim()) params.set('category', String(category).trim().toLowerCase());
       if (normalizedSort && normalizedSort !== DEFAULT_CATALOG_SORT) params.set('sort', normalizedSort);
     }
+    if (safePage > FIRST_CATALOG_PAGE) params.set('page', String(safePage));
     const qs = params.toString();
     return `${config.webPath}/${qs ? `?${qs}` : ''}`;
   };
@@ -2824,7 +2585,7 @@ function StickersApp() {
     return `${config.webPath}/creators?${params.toString()}`;
   };
 
-  const applyCatalogViewState = ({ q = '', category = '', sort = DEFAULT_CATALOG_SORT, filter = '' } = {}) => {
+  const applyCatalogViewState = ({ q = '', category = '', sort = DEFAULT_CATALOG_SORT, filter = '', page = FIRST_CATALOG_PAGE } = {}) => {
     const normalizedFilter =
       String(filter || '')
         .trim()
@@ -2838,12 +2599,14 @@ function StickersApp() {
       : String(category || '')
           .trim()
           .toLowerCase();
+    const nextPage = Math.max(FIRST_CATALOG_PAGE, Number(page || FIRST_CATALOG_PAGE));
 
     setCatalogFilter(normalizedFilter);
     setSortBy(normalizedSort);
     setQuery(nextQ);
     setAppliedQuery(nextQ);
     setActiveCategory(nextCategory);
+    setCatalogPage(nextPage);
   };
 
   const openPack = (packKey, push = true) => {
@@ -2863,11 +2626,12 @@ function StickersApp() {
     setSortPickerOpen(false);
   };
 
-  const openCatalogWithState = ({ q = '', category = '', sort = DEFAULT_CATALOG_SORT, filter = '', push = true } = {}) => {
+  const openCatalogWithState = ({ q = '', category = '', sort = DEFAULT_CATALOG_SORT, filter = '', page = FIRST_CATALOG_PAGE, push = true } = {}) => {
     const nextState = {
       q,
       category,
       sort: normalizeCatalogSort(sort || DEFAULT_CATALOG_SORT),
+      page: Math.max(FIRST_CATALOG_PAGE, Number(page || FIRST_CATALOG_PAGE)),
       filter:
         String(filter || '')
           .trim()
@@ -2885,9 +2649,42 @@ function StickersApp() {
     setSortPickerOpen(false);
   };
 
+  const goToCatalogPage = (nextPage, { push = true } = {}) => {
+    const safePage = Math.max(FIRST_CATALOG_PAGE, Number(nextPage || FIRST_CATALOG_PAGE));
+    if (safePage === catalogPage && currentView === 'catalog' && !currentPackKey) return;
+    openCatalogWithState({
+      q: catalogFilter === 'trending' ? '' : appliedQuery,
+      category: catalogFilter === 'trending' ? '' : activeCategory,
+      sort: sortBy,
+      filter: catalogFilter,
+      page: safePage,
+      push,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const scrollToCatalogPacksSection = ({ behavior = 'smooth' } = {}) => {
+    const tryScroll = () => {
+      const section = document.getElementById('catalog-packs-section');
+      if (!section) return false;
+      section.scrollIntoView({ behavior, block: 'start' });
+      return true;
+    };
+
+    if (tryScroll()) return;
+    let tries = 0;
+    const retry = () => {
+      tries += 1;
+      if (tryScroll() || tries >= 8) return;
+      window.setTimeout(retry, 80);
+    };
+    window.setTimeout(retry, 80);
+  };
+
   const openTrendingCatalog = () => {
     openCatalogWithState({ q: '', category: '', sort: 'trending', filter: 'trending', push: true });
     setDiscoverTab('growing');
+    scrollToCatalogPacksSection({ behavior: 'smooth' });
   };
 
   const openCreatorsRanking = (sort = DEFAULT_CREATORS_SORT, push = true) => {
@@ -3218,11 +3015,11 @@ function StickersApp() {
     if (sortPickerBusy || sortPickerLockRef.current) return;
     sortPickerLockRef.current = true;
     setSortPickerBusy(true);
-    const previousScrollY = window.scrollY || 0;
     if (catalogFilter) setCatalogFilter('');
     setSortBy(nextSort);
+    setCatalogPage(FIRST_CATALOG_PAGE);
     setSortPickerOpen(false);
-    window.requestAnimationFrame(() => window.scrollTo({ top: previousScrollY }));
+    scrollToCatalogPacksSection({ behavior: 'smooth' });
     window.setTimeout(() => {
       sortPickerLockRef.current = false;
       setSortPickerBusy(false);
@@ -3426,7 +3223,7 @@ function StickersApp() {
     if (nextUrl !== currentUrl) {
       window.history.replaceState({}, '', nextUrl);
     }
-  }, [currentView, currentPackKey, appliedQuery, activeCategory, sortBy, catalogFilter, config.webPath]);
+  }, [currentView, currentPackKey, appliedQuery, activeCategory, sortBy, catalogFilter, catalogPage, config.webPath]);
 
   useEffect(() => {
     if (currentView !== 'creators') return;
@@ -3447,32 +3244,16 @@ function StickersApp() {
       return;
     }
     if (currentView !== 'catalog') return;
-    void loadPacks({ reset: true });
-    void loadOrphans();
-  }, [appliedQuery, activeCategory, sortBy, catalogFilter, currentView, currentPackKey, creatorSort]);
+    void loadPacks({ page: catalogPage });
+  }, [appliedQuery, activeCategory, sortBy, catalogFilter, currentView, currentPackKey, creatorSort, catalogPage]);
 
   useEffect(() => {
     if (currentView !== 'catalog' || currentPackKey) return undefined;
     const timer = setInterval(() => {
-      void loadPacks({ reset: true });
-      void loadOrphans();
+      void loadPacks({ page: catalogPage });
     }, 60 * 1000);
     return () => clearInterval(timer);
-  }, [currentView, currentPackKey, appliedQuery, activeCategory, sortBy, catalogFilter]);
-
-  useEffect(() => {
-    if (currentView !== 'catalog' || !sentinel || !packHasMore || packsLoading || packsLoadingMore || currentPackKey) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          void loadPacks({ reset: false });
-        }
-      },
-      { rootMargin: '220px 0px' },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [sentinel, packHasMore, packsLoading, packsLoadingMore, packOffset, appliedQuery, activeCategory, sortBy, catalogFilter, currentView, currentPackKey]);
+  }, [currentView, currentPackKey, appliedQuery, activeCategory, sortBy, catalogFilter, catalogPage]);
 
   useEffect(() => {
     const sync = () => setUploadTask(readUploadTask());
@@ -3613,6 +3394,7 @@ function StickersApp() {
     setShowAutocomplete(false);
     const next = query.trim();
     setCatalogFilter('');
+    setCatalogPage(FIRST_CATALOG_PAGE);
     setAppliedQuery(next);
     if (next) {
       const nextHistory = [next, ...recentSearches.filter((entry) => entry !== next)].slice(0, 8);
@@ -3628,6 +3410,7 @@ function StickersApp() {
     if (!value) return;
     setQuery(value);
     setCatalogFilter('');
+    setCatalogPage(FIRST_CATALOG_PAGE);
     setAppliedQuery(value);
     if (dynamicCategoryOptions.some((entry) => entry.value === value)) {
       setActiveCategory(value);
@@ -3640,6 +3423,7 @@ function StickersApp() {
     setAppliedQuery('');
     setActiveCategory('');
     setCatalogFilter('');
+    setCatalogPage(FIRST_CATALOG_PAGE);
   };
 
   return html`
@@ -3755,7 +3539,7 @@ function StickersApp() {
                             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-300">Filtros</h3>
                             <button type="button" onClick=${clearFilters} className="h-8 rounded-lg border border-slate-700 px-2 text-[11px] text-slate-200 hover:bg-slate-800">Limpar</button>
                           </div>
-                          <p className="mt-1 text-[11px] text-slate-500">${packs.length}${packHasMore ? '+' : ''} packs · ${orphans.length} sem pack</p>
+                          <p className="mt-1 text-[11px] text-slate-500">${packs.length} packs nesta página</p>
                         </div>
 
                         <details open className="rounded-xl border border-slate-800 bg-slate-950/40 p-2">
@@ -3784,11 +3568,9 @@ function StickersApp() {
                                   <div>
                                     <p className="text-[11px] uppercase tracking-wide text-slate-400">Descobrir</p>
                                     <h3 className="text-sm font-semibold text-slate-100">Painel oficial do marketplace</h3>
-                                    <p className="text-[11px] text-slate-500">Métricas globais reais da plataforma (cache ~${globalMarketplaceStats?.cacheSeconds || 45}s, atualização automática).</p>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     ${globalMarketplaceStatsLoading && !globalMarketplaceStats ? html`<span className="inline-flex h-8 items-center rounded-lg border border-slate-700 bg-slate-900/60 px-3 text-[11px] text-slate-300">Carregando métricas...</span>` : null} ${globalMarketplaceStatsError ? html`<span className="inline-flex h-8 items-center rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 text-[11px] text-amber-100">Fallback local</span>` : null}
-                                    <a href="/stickers/create/" className="inline-flex h-8 items-center rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-3 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/20"> ✨ Criar pack agora </a>
                                   </div>
                                 </div>
 
@@ -3826,13 +3608,37 @@ function StickersApp() {
                                 <div className="mt-2 lg:hidden">
                                   ${discoverTab === 'growing'
                                     ? html`
-                                        <section className="space-y-1.5">
-                                          <div className="flex items-center justify-between">
-                                            <h4 className="text-xs font-semibold text-slate-200">🔥 Em alta agora</h4>
-                                            <button type="button" onClick=${openTrendingCatalog} className="text-[10px] text-cyan-300">ver lista</button>
-                                          </div>
-                                          <div className="flex gap-2 overflow-x-auto pb-1">${growingNowPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-grow-${entry.pack_key}`} pack=${entry} onOpen=${openPack} hasNsfwAccess=${hasNsfwAccess} onRequireLogin=${requestNsfwUnlock} />`)}</div>
-                                        </section>
+                                        <div className="space-y-2">
+                                          <section className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                              <h4 className="text-xs font-semibold text-slate-200">🔥 Em alta agora</h4>
+                                              <button
+                                                type="button"
+                                                onClick=${openTrendingCatalog}
+                                                className="inline-flex h-7 items-center gap-1 rounded-full border border-cyan-400/35 bg-cyan-500/10 px-2.5 text-[10px] font-semibold text-cyan-100 transition hover:bg-cyan-500/20 active:scale-[0.98]"
+                                              >
+                                                <span>ver lista</span>
+                                                <span aria-hidden="true">↗</span>
+                                              </button>
+                                            </div>
+                                            <div className="flex gap-2 overflow-x-auto pb-1">${growingNowPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-grow-${entry.pack_key}`} pack=${entry} onOpen=${openPack} hasNsfwAccess=${hasNsfwAccess} onRequireLogin=${requestNsfwUnlock} />`)}</div>
+                                          </section>
+                                          <section className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                              <h4 className="text-xs font-semibold text-slate-200">🆕 Recém publicados</h4>
+                                              <button
+                                                type="button"
+                                                onClick=${openSortPicker}
+                                                disabled=${sortPickerBusy}
+                                                className="inline-flex h-7 items-center gap-1 rounded-full border border-emerald-400/35 bg-emerald-500/10 px-2.5 text-[10px] font-semibold text-emerald-100 transition hover:bg-emerald-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
+                                              >
+                                                <span>ordenar</span>
+                                                <span aria-hidden="true">⇅</span>
+                                              </button>
+                                            </div>
+                                            <div className="flex gap-2 overflow-x-auto pb-1">${recentPublishedPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-new-${entry.pack_key}`} pack=${entry} onOpen=${openPack} hasNsfwAccess=${hasNsfwAccess} onRequireLogin=${requestNsfwUnlock} />`)}</div>
+                                          </section>
+                                        </div>
                                       `
                                     : discoverTab === 'top'
                                       ? html`
@@ -3856,18 +3662,6 @@ function StickersApp() {
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">${catalogMetricCards.map((card) => html`<${CatalogMetricCard} key=${card.key} label=${card.label} value=${card.value} valueRaw=${card.valueRaw} numberFormat=${card.numberFormat} icon=${card.icon} hint=${card.hint} bars=${card.bars} tone=${card.tone} />`)}</div>
-
-                              <div className="lg:hidden space-y-2">
-                                <section className="space-y-1.5">
-                                  <div className="flex items-center justify-between">
-                                    <h4 className="text-xs font-semibold text-slate-200">🆕 Recém publicados</h4>
-                                    <button type="button" onClick=${openSortPicker} disabled=${sortPickerBusy} className="text-[10px] text-cyan-300 disabled:opacity-50">ordenar</button>
-                                  </div>
-                                  <div className="flex gap-2 overflow-x-auto pb-1">${recentPublishedPacks.slice(0, 8).map((entry) => html`<${DiscoverPackMiniCard} key=${`mobile-new-${entry.pack_key}`} pack=${entry} onOpen=${openPack} hasNsfwAccess=${hasNsfwAccess} onRequireLogin=${requestNsfwUnlock} />`)}</div>
-                                </section>
-                              </div>
-
                               <div className="hidden lg:block rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 to-cyan-500/5 p-2.5">
                                 <div className="flex items-center justify-between gap-3">
                                   <div>
@@ -3882,11 +3676,11 @@ function StickersApp() {
                         : null}
                       ${packs.length
                         ? html`
-                            <section className="space-y-3 min-w-0">
+                            <section id="catalog-packs-section" className="space-y-3 min-w-0">
                               <div className="flex items-end justify-between gap-3">
                                 <div>
                                   <h2 className="text-lg sm:text-xl font-bold">Packs</h2>
-                                  <p className="text-xs text-slate-400">${sortedPacks.length}${packHasMore ? '+' : ''} resultados · ${categoryActiveLabel}</p>
+                                  <p className="text-xs text-slate-400">Página ${catalogPage} · ${sortedPacks.length} resultados · ${categoryActiveLabel}</p>
                                 </div>
                                 <div className="hidden md:flex items-center gap-2">
                                   <span className="text-xs text-slate-400">Ordenar por</span>
@@ -3896,21 +3690,53 @@ function StickersApp() {
                                   </button>
                                 </div>
                               </div>
+                              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+                                <span className="text-xs text-slate-400">Página ${catalogPage}${packHasMore ? ' · há mais resultados' : ' · fim da lista'}</span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick=${() => goToCatalogPage(catalogPage - 1, { push: true })}
+                                    disabled=${!canGoCatalogPrev}
+                                    className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Anterior
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick=${() => goToCatalogPage(catalogPage + 1, { push: true })}
+                                    disabled=${!canGoCatalogNext}
+                                    className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Próxima
+                                  </button>
+                                </div>
+                              </div>
                               <div className="grid min-w-0 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5 sm:gap-3">${sortedPacks.map((pack, index) => html`<div key=${pack.pack_key || pack.id} className="fade-card"><${PackCard} pack=${pack} index=${index} onOpen=${openPack} hasNsfwAccess=${hasNsfwAccess} onRequireLogin=${requestNsfwUnlock} /></div>`)}</div>
-                              <div ref=${setSentinel} className="h-8 flex items-center justify-center text-xs text-slate-500">${packsLoadingMore ? 'Carregando mais packs...' : packHasMore ? 'Role para carregar mais' : 'Fim da lista'}</div>
+                              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+                                <span className="text-xs text-slate-400">Página ${catalogPage}${packHasMore ? ' · há mais resultados' : ' · fim da lista'}</span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick=${() => goToCatalogPage(catalogPage - 1, { push: true })}
+                                    disabled=${!canGoCatalogPrev}
+                                    className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Anterior
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick=${() => goToCatalogPage(catalogPage + 1, { push: true })}
+                                    disabled=${!canGoCatalogNext}
+                                    className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Próxima
+                                  </button>
+                                </div>
+                              </div>
                             </section>
                           `
                         : null}
                       ${packsLoading ? html`<${SkeletonGrid} count=${10} />` : null} ${!packsLoading && !hasAnyResult ? html`<${EmptyState} onClear=${clearFilters} />` : null}
-
-                      <section className="space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <h2 className="text-base sm:text-lg font-bold">Stickers sem pack</h2>
-                          <span className="text-xs text-slate-400">${orphans.length} resultados</span>
-                        </div>
-
-                        ${orphansLoading ? html`<div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-2.5 sm:gap-3">${Array.from({ length: 16 }).map((_, i) => html`<div key=${i} className="rounded-2xl border border-slate-700 bg-slate-800 animate-pulse aspect-square"></div>`)}</div>` : html` <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-2.5 sm:gap-3">${orphans.map((item) => html`<div key=${item.id} className="fade-card"><${OrphanCard} sticker=${item} hasNsfwAccess=${hasNsfwAccess} onRequireLogin=${requestNsfwUnlock} /></div>`)}</div> `}
-                      </section>
                     </div>
                   </div>
                 `}
