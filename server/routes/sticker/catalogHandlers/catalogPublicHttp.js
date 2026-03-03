@@ -170,7 +170,7 @@ export const handleCatalogPublicRoutes = async ({ req, res, pathname, url, segme
       sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
       return true;
     }
-    await handlers.handleAssetRequest(req, res, segments[0], segments[2]);
+    await handlers.handleAssetRequest(req, res, segments[0], segments[2], url);
     return true;
   }
 

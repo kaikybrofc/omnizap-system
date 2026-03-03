@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { URL } from 'node:url';
 
 import { executeQuery, pool, TABLES } from '../../../database/index.js';
@@ -109,7 +110,7 @@ const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'index.h
 const CREATE_PACK_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'create', 'index.html');
 const CATALOG_STYLES_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'css', 'styles.css');
 const CATALOG_SCRIPT_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'js', 'catalog.js');
-const DEFAULT_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_LIMIT, 24, 1, 60);
+const DEFAULT_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_LIMIT, 16, 1, 60);
 const MAX_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_MAX_LIMIT, 60, 1, 100);
 const DEFAULT_ORPHAN_LIST_LIMIT = clampInt(process.env.STICKER_ORPHAN_LIST_LIMIT, 120, 1, 300);
 const MAX_ORPHAN_LIST_LIMIT = clampInt(process.env.STICKER_ORPHAN_LIST_MAX_LIMIT, 300, 1, 500);
@@ -192,6 +193,12 @@ const WEB_DRAFT_CLEANUP_RUN_INTERVAL_MS = Math.max(60 * 1000, Number(process.env
 const WEB_UPLOAD_ID_MAX_LENGTH = 120;
 const WEB_VISITOR_COOKIE_TTL_SECONDS = clampInt(process.env.WEB_VISITOR_COOKIE_TTL_SECONDS, 60 * 60 * 24 * 365, 60 * 60, 60 * 60 * 24 * 3650);
 const WEB_SESSION_COOKIE_TTL_SECONDS = clampInt(process.env.WEB_SESSION_COOKIE_TTL_SECONDS, 60 * 60 * 24 * 30, 30 * 60, 60 * 60 * 24 * 365);
+const STICKER_PREVIEW_SIDE_PX = clampInt(process.env.STICKER_PREVIEW_SIDE_PX, 112, 96, 512);
+const STICKER_PREVIEW_QUALITY = clampInt(process.env.STICKER_PREVIEW_QUALITY, 20, 10, 80);
+const STICKER_PREVIEW_TIMEOUT_MS = clampInt(process.env.STICKER_PREVIEW_TIMEOUT_MS, 2500, 500, 12000);
+const STICKER_PREVIEW_CACHE_TTL_MS = clampInt(process.env.STICKER_PREVIEW_CACHE_TTL_MS, 6 * 60 * 60 * 1000, 60 * 1000, 7 * 24 * 60 * 60 * 1000);
+const STICKER_PREVIEW_CACHE_MAX_ITEMS = clampInt(process.env.STICKER_PREVIEW_CACHE_MAX_ITEMS, 2000, 100, 20000);
+const STICKER_PREVIEW_TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers', 'web-preview');
 const staleDraftCleanupState = {
   running: false,
   lastRunAt: 0,
@@ -226,6 +233,7 @@ const HOME_MARKETPLACE_STATS_CACHE = new Map();
 const CATALOG_LIST_CACHE = new Map();
 const CATALOG_CREATOR_RANKING_CACHE = new Map();
 const CATALOG_PACK_PAYLOAD_CACHE = new Map();
+const STICKER_PREVIEW_CACHE = new Map();
 const SYSTEM_SUMMARY_CACHE = {
   expiresAt: 0,
   value: null,
@@ -877,13 +885,13 @@ const googleWebAuth = createGoogleWebAuthService({
 const { upsertGoogleWebUserRecord, resolveGoogleWebSessionFromRequest, mapGoogleSessionResponseData, handleGoogleAuthSessionRequest, revokeGoogleWebSessionsByIdentity } = googleWebAuth;
 revokeGoogleWebSessionsByIdentityBridge = revokeGoogleWebSessionsByIdentity;
 
-const sendAsset = (req, res, buffer, mimetype = 'image/webp') => {
+const sendAsset = (req, res, buffer, mimetype = 'image/webp', cacheControlOverride = '') => {
   const maxAgeSeconds = Math.max(60 * 60 * 24, ASSET_CACHE_SECONDS);
   const staleWhileRevalidateSeconds = Math.min(60 * 60 * 24 * 7, Math.max(300, maxAgeSeconds));
   res.statusCode = 200;
   res.setHeader('Content-Type', mimetype);
   res.setHeader('Content-Length', String(buffer.length));
-  res.setHeader('Cache-Control', `public, max-age=${maxAgeSeconds}, stale-while-revalidate=${staleWhileRevalidateSeconds}`);
+  res.setHeader('Cache-Control', cacheControlOverride || `public, max-age=${maxAgeSeconds}, stale-while-revalidate=${staleWhileRevalidateSeconds}`);
   if (req.method === 'HEAD') {
     res.end();
     return;
@@ -1151,6 +1159,15 @@ const fetchPrometheusSummary = async () => {
 const buildPackApiUrl = (packKey) => `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}`;
 const buildPackWebUrl = (packKey) => `${STICKER_WEB_PATH}/${encodeURIComponent(packKey)}`;
 const buildStickerAssetUrl = (packKey, stickerId) => `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}.webp`;
+const buildStickerAssetPreviewUrl = (packKey, stickerId, versionToken = '') => {
+  const params = new URLSearchParams();
+  params.set('variant', 'preview');
+  params.set('sz', String(STICKER_PREVIEW_SIDE_PX));
+  params.set('q', String(STICKER_PREVIEW_QUALITY));
+  const normalizedVersion = String(versionToken || '').trim();
+  if (normalizedVersion) params.set('v', normalizedVersion);
+  return `${buildStickerAssetUrl(packKey, stickerId)}?${params.toString()}`;
+};
 const buildOrphanStickersApiUrl = () => STICKER_ORPHAN_API_PATH;
 const buildDataAssetApiBaseUrl = () => `${STICKER_API_BASE_PATH}/data-files`;
 const CATALOG_STYLES_WEB_PATH = `${STICKER_WEB_PATH}/assets/styles.css`;
@@ -1357,6 +1374,122 @@ const resolveExtensionFromMimetype = (mimetype) => {
   if (normalized === 'video/mp4') return 'mp4';
   if (normalized === 'image/webp') return 'webp';
   return 'bin';
+};
+
+const isPreviewVariantRequested = (url) => {
+  const variant = String(url?.searchParams?.get('variant') || url?.searchParams?.get('mode') || '')
+    .trim()
+    .toLowerCase();
+  if (['preview', 'thumb', 'thumbnail', 'small'].includes(variant)) return true;
+
+  const previewFlag = String(url?.searchParams?.get('preview') || '')
+    .trim()
+    .toLowerCase();
+  return ['1', 'true', 'yes', 'y', 'on'].includes(previewFlag);
+};
+
+const getStickerPreviewFromCache = (cacheKey) => {
+  const entry = STICKER_PREVIEW_CACHE.get(cacheKey);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    STICKER_PREVIEW_CACHE.delete(cacheKey);
+    return null;
+  }
+  return entry.buffer;
+};
+
+const saveStickerPreviewToCache = (cacheKey, buffer) => {
+  if (!cacheKey || !Buffer.isBuffer(buffer) || !buffer.length) return;
+  if (STICKER_PREVIEW_CACHE.size >= STICKER_PREVIEW_CACHE_MAX_ITEMS) {
+    const overflow = STICKER_PREVIEW_CACHE.size - STICKER_PREVIEW_CACHE_MAX_ITEMS + 1;
+    const keys = STICKER_PREVIEW_CACHE.keys();
+    for (let index = 0; index < overflow; index += 1) {
+      const next = keys.next();
+      if (next.done) break;
+      STICKER_PREVIEW_CACHE.delete(next.value);
+    }
+  }
+  STICKER_PREVIEW_CACHE.set(cacheKey, {
+    buffer,
+    expiresAt: Date.now() + STICKER_PREVIEW_CACHE_TTL_MS,
+  });
+};
+
+const runPreviewFfmpeg = (args, timeoutMs = STICKER_PREVIEW_TIMEOUT_MS) =>
+  new Promise((resolve, reject) => {
+    const child = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    let timedOut = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        child.kill('SIGTERM');
+      } catch {}
+      setTimeout(() => {
+        try {
+          child.kill('SIGKILL');
+        } catch {}
+      }, 1200);
+    }, Math.max(400, Number(timeoutMs || STICKER_PREVIEW_TIMEOUT_MS)));
+
+    child.stderr.on('data', (chunk) => {
+      stderr = `${stderr}${String(chunk || '')}`.slice(-16 * 1024);
+    });
+
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (timedOut) {
+        const timeoutError = new Error('preview_ffmpeg_timeout');
+        timeoutError.code = 'ETIMEDOUT';
+        timeoutError.stderr = stderr;
+        reject(timeoutError);
+        return;
+      }
+      if (code !== 0) {
+        const processError = new Error(`preview_ffmpeg_failed_code_${code}`);
+        processError.code = code;
+        processError.stderr = stderr;
+        reject(processError);
+        return;
+      }
+      resolve();
+    });
+  });
+
+const generateStickerPreviewBuffer = async ({ sourceBuffer, mimetype = 'image/webp', cacheKey = '' } = {}) => {
+  if (!Buffer.isBuffer(sourceBuffer) || !sourceBuffer.length) return null;
+  if (cacheKey) {
+    const cached = getStickerPreviewFromCache(cacheKey);
+    if (cached) return cached;
+  }
+
+  const uniqueId = randomUUID();
+  const extension = resolveExtensionFromMimetype(mimetype || 'image/webp');
+  const inputPath = path.join(STICKER_PREVIEW_TEMP_DIR, `${uniqueId}.in.${extension}`);
+  const outputPath = path.join(STICKER_PREVIEW_TEMP_DIR, `${uniqueId}.preview.webp`);
+
+  try {
+    await fs.mkdir(STICKER_PREVIEW_TEMP_DIR, { recursive: true });
+    await fs.writeFile(inputPath, sourceBuffer);
+    const side = Math.max(96, Math.min(512, Number(STICKER_PREVIEW_SIDE_PX || 112)));
+    const quality = Math.max(10, Math.min(80, Number(STICKER_PREVIEW_QUALITY || 20)));
+    const filter = `scale=if(gte(iw,ih),${side},-1):if(gte(iw,ih),-1,${side}):flags=lanczos`;
+    await runPreviewFfmpeg(['-y', '-i', inputPath, '-vf', filter, '-frames:v', '1', '-vcodec', 'libwebp', '-lossless', '0', '-q:v', String(quality), '-compression_level', '6', '-preset', 'picture', '-an', outputPath], STICKER_PREVIEW_TIMEOUT_MS);
+    const previewBuffer = await fs.readFile(outputPath);
+    if (cacheKey && previewBuffer.length) {
+      saveStickerPreviewToCache(cacheKey, previewBuffer);
+    }
+    return previewBuffer.length ? previewBuffer : null;
+  } finally {
+    await fs.unlink(inputPath).catch(() => {});
+    await fs.unlink(outputPath).catch(() => {});
+  }
 };
 
 const convertUploadMediaToWebp = async ({ ownerJid, buffer, mimetype }) => {
@@ -1649,6 +1782,7 @@ const mapPackSummary = (pack, engagement = null, signals = null) => {
   const safeEngagement = engagement || getEmptyStickerPackEngagement();
   const metadata = parsePackDescriptionMetadata(pack.description);
   const stickerCount = Number(pack.sticker_count || 0);
+  const coverVersionToken = toIsoOrNull(pack.updated_at) || toIsoOrNull(pack.created_at) || '';
   return {
     id: pack.id,
     pack_key: pack.pack_key,
@@ -1661,6 +1795,7 @@ const mapPackSummary = (pack, engagement = null, signals = null) => {
     is_complete: stickerCount >= PACK_CREATE_MAX_ITEMS,
     cover_sticker_id: pack.cover_sticker_id || null,
     cover_url: pack.cover_sticker_id ? buildStickerAssetUrl(pack.pack_key, pack.cover_sticker_id) : null,
+    cover_preview_url: pack.cover_sticker_id ? buildStickerAssetPreviewUrl(pack.pack_key, pack.cover_sticker_id, coverVersionToken) : null,
     api_url: buildPackApiUrl(pack.pack_key),
     web_url: buildPackWebUrl(pack.pack_key),
     whatsapp: buildPackWhatsAppInfo(pack),
@@ -1756,7 +1891,7 @@ const mapPackDetails = (pack, items, { byAssetClassification = new Map(), packCl
     tags: mergedTags,
   };
   const packIsNsfw = isPackSummaryMarkedNsfw(packPreview);
-  const safeSummary = hideSensitiveAssets && packIsNsfw ? { ...summary, cover_url: null } : summary;
+  const safeSummary = hideSensitiveAssets && packIsNsfw ? { ...summary, cover_url: null, cover_preview_url: null } : summary;
 
   return {
     ...safeSummary,
@@ -1764,6 +1899,8 @@ const mapPackDetails = (pack, items, { byAssetClassification = new Map(), packCl
     items: items.map((item) => {
       const decoratedItemClassification = decorateStickerClassification(byAssetClassification.get(item.sticker_id) || null);
       const itemIsNsfw = isClassificationMarkedNsfw(decoratedItemClassification);
+      const hideAsset = hideSensitiveAssets && (packIsNsfw || itemIsNsfw);
+      const previewVersionToken = String(item?.asset?.id || item?.asset?.size_bytes || item?.created_at || pack?.updated_at || '').trim();
       return {
         // `tags` facilita renderização direta no front sem precisar reprocessar score.
         id: item.id,
@@ -1772,7 +1909,8 @@ const mapPackDetails = (pack, items, { byAssetClassification = new Map(), packCl
         emojis: Array.isArray(item.emojis) ? item.emojis : [],
         accessibility_label: item.accessibility_label || null,
         created_at: toIsoOrNull(item.created_at),
-        asset_url: hideSensitiveAssets && (packIsNsfw || itemIsNsfw) ? null : buildStickerAssetUrl(pack.pack_key, item.sticker_id),
+        asset_url: hideAsset ? null : buildStickerAssetUrl(pack.pack_key, item.sticker_id),
+        asset_preview_url: hideAsset ? null : buildStickerAssetPreviewUrl(pack.pack_key, item.sticker_id, previewVersionToken),
         tags: decoratedItemClassification?.tags || [],
         is_nsfw: itemIsNsfw,
         asset: item.asset
@@ -1823,7 +1961,7 @@ const toSummaryEntry = (entry, { hideSensitiveCover = false } = {}) => {
     tags: mergeUniqueTags(entry.packClassification?.tags || [], parsePackDescriptionMetadata(entry.pack?.description).tags),
   };
   const isNsfw = isPackSummaryMarkedNsfw(summary);
-  const safeSummary = hideSensitiveCover && isNsfw ? { ...summary, cover_url: null } : summary;
+  const safeSummary = hideSensitiveCover && isNsfw ? { ...summary, cover_url: null, cover_preview_url: null } : summary;
   return {
     ...safeSummary,
     is_nsfw: isNsfw,
@@ -3337,6 +3475,7 @@ const handleMyProfileRequest = async (req, res, url = null) => {
       ...safeSummary,
       is_publicly_visible: publicVisible,
       cover_url: publicVisible ? safeSummary.cover_url : null,
+      cover_preview_url: publicVisible ? safeSummary.cover_preview_url : null,
     };
   });
 
@@ -6062,9 +6201,10 @@ const handleDetailsRequest = async (req, res, packKey, url) => {
   });
 };
 
-const handleAssetRequest = async (req, res, packKey, stickerToken) => {
+const handleAssetRequest = async (req, res, packKey, stickerToken, url) => {
   const normalizedPackKey = sanitizeText(packKey, 160, { allowEmpty: false });
   const normalizedStickerId = sanitizeText(stripWebpExtension(stickerToken), 36, { allowEmpty: false });
+  const previewVariant = isPreviewVariantRequested(url);
 
   if (!normalizedPackKey || !normalizedStickerId) {
     sendJson(req, res, 400, { error: 'Parametros invalidos.' });
@@ -6114,11 +6254,13 @@ const handleAssetRequest = async (req, res, packKey, stickerToken) => {
       }
     }
 
-    const externalAssetUrl = await getStickerAssetExternalUrl(item.asset, {
-      secure: true,
-      expiresInSeconds: Math.max(60, Math.min(3600, Number(process.env.STICKER_OBJECT_STORAGE_SIGNED_URL_TTL_SECONDS) || 300)),
-    }).catch(() => null);
-    if (externalAssetUrl) {
+    const externalAssetUrl = previewVariant
+      ? null
+      : await getStickerAssetExternalUrl(item.asset, {
+          secure: true,
+          expiresInSeconds: Math.max(60, Math.min(3600, Number(process.env.STICKER_OBJECT_STORAGE_SIGNED_URL_TTL_SECONDS) || 300)),
+        }).catch(() => null);
+    if (!previewVariant && externalAssetUrl) {
       res.statusCode = 302;
       res.setHeader('Location', externalAssetUrl);
       res.setHeader('Cache-Control', 'private, max-age=45');
@@ -6135,6 +6277,27 @@ const handleAssetRequest = async (req, res, packKey, stickerToken) => {
       res.setHeader('X-Sticker-NSFW', decorated?.is_nsfw ? '1' : '0');
       if (Array.isArray(decorated?.tags) && decorated.tags.length) {
         res.setHeader('X-Sticker-Tags', decorated.tags.join(','));
+      }
+    }
+    if (previewVariant) {
+      const previewCacheKey = [normalizedPackKey, normalizedStickerId, Number(item.asset?.size_bytes || 0), STICKER_PREVIEW_SIDE_PX, STICKER_PREVIEW_QUALITY].join(':');
+      const previewBuffer = await generateStickerPreviewBuffer({
+        sourceBuffer: buffer,
+        mimetype: item.asset?.mimetype || 'image/webp',
+        cacheKey: previewCacheKey,
+      }).catch((previewError) => {
+        logger.warn('Falha ao gerar preview de sticker para catálogo.', {
+          action: 'sticker_catalog_preview_generate_failed',
+          pack_key: normalizedPackKey,
+          sticker_id: normalizedStickerId,
+          error: previewError?.message,
+        });
+        return null;
+      });
+      if (previewBuffer && previewBuffer.length) {
+        res.setHeader('X-Sticker-Preview', '1');
+        sendAsset(req, res, previewBuffer, 'image/webp', `public, max-age=${IMMUTABLE_ASSET_CACHE_SECONDS}, immutable`);
+        return;
       }
     }
     sendAsset(req, res, buffer, item.asset.mimetype || 'image/webp');
