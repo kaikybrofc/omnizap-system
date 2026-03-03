@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { URL } from 'node:url';
 import logger from '../../utils/logger/loggerModule.js';
 import { downloadMediaMessage, extractMediaDetails, getJidUser } from '../../config/baileysConfig.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
@@ -208,8 +209,7 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
   const packIdentifier = pack.pack_key || pack.id || '<pack>';
   const packWebUrl = isPackPubliclyVisible(pack) ? buildPackWebUrl(pack.pack_key) : null;
   const profileUrl = `${STICKER_WEB_ORIGIN}${STICKER_WEB_PATH}/profile`;
-  const escapedPackName = packName.replace(/"/g, '\\"');
-  const packCommandTarget = escapedPackName ? `"${escapedPackName}"` : packIdentifier;
+  const packCommandTarget = String(packIdentifier || '').trim() || '<pack>';
   const itemCount = Array.isArray(pack.items) ? pack.items.length : Number(pack.sticker_count || 0);
   const countLabel = itemCount > 0 ? ` (${itemCount}/${AUTO_PACK_MAX_ITEMS})` : '';
 

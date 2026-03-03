@@ -9,8 +9,13 @@ const extractAdminTokenFromRequest = (req) => {
   const authorizationHeader = String(req.headers.authorization || '').trim();
   if (!authorizationHeader) return '';
 
-  const match = authorizationHeader.match(/^Bearer\s+(.+)$/i);
-  return String(match?.[1] || '').trim();
+  const firstSpaceIndex = authorizationHeader.indexOf(' ');
+  if (firstSpaceIndex <= 0) return '';
+
+  const authScheme = authorizationHeader.slice(0, firstSpaceIndex).trim().toLowerCase();
+  if (authScheme !== 'bearer') return '';
+
+  return authorizationHeader.slice(firstSpaceIndex + 1).trim();
 };
 
 const sendUnauthorized = (res) => {

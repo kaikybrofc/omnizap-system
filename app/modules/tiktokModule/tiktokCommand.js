@@ -24,6 +24,7 @@ const TEMP_DIR = path.join(os.tmpdir(), 'omnizap-tiktok');
 const URL_REGEX = /https?:\/\/[^\s<>"']+/gi;
 const IMAGE_PATH_HINTS = ['image', 'images', 'img', 'photo', 'photos', 'pic', 'pics', 'slide', 'slideshow', 'gallery', 'carousel', 'album'];
 const ALBUM_KIND_HINTS = ['slide', 'album', 'image', 'images', 'photo', 'carousel'];
+const TIKTOK_HOSTNAME = 'tiktok.com';
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -64,7 +65,7 @@ const isTikTokUrl = (value) => {
   if (!isHttpUrl(value)) return false;
   try {
     const host = new URL(value).hostname.toLowerCase();
-    return host.endsWith('tiktok.com');
+    return host === TIKTOK_HOSTNAME || host.endsWith(`.${TIKTOK_HOSTNAME}`);
   } catch {
     return false;
   }

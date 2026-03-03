@@ -9,6 +9,7 @@ const ASSET_SUFFIX_PATTERN = String.raw`\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|we
 const HTML_ATTRIBUTE_ASSET_PATTERN = new RegExp(String.raw`((?:src|href|poster)=["'])([^"']+?${ASSET_SUFFIX_PATTERN})(["'])`, 'gi');
 const QUOTED_LOCAL_ASSET_PATTERN = new RegExp(String.raw`(["'])((?:\/|\.{1,2}\/)[^"'\s]+?${ASSET_SUFFIX_PATTERN})\1`, 'gi');
 const CSS_URL_ASSET_PATTERN = new RegExp(String.raw`(url\(\s*["']?)([^"')\s]+?${ASSET_SUFFIX_PATTERN})(["']?\s*\))`, 'gi');
+const URL_SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 
 const usage = () => {
   console.error('Uso: node scripts/cache-bust.mjs --dir <diretorio> --version <build_id>');
@@ -66,8 +67,7 @@ const isLocalAssetPath = (assetPath) => {
   const value = String(assetPath || '').trim();
   if (!value) return false;
 
-  const lower = value.toLowerCase();
-  if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('//') || lower.startsWith('data:') || lower.startsWith('mailto:') || lower.startsWith('tel:') || lower.startsWith('javascript:') || lower.startsWith('#')) {
+  if (value.startsWith('//') || value.startsWith('#') || URL_SCHEME_PATTERN.test(value)) {
     return false;
   }
 
