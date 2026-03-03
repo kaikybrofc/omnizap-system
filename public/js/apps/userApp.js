@@ -13,6 +13,14 @@ if (root) {
     error: document.getElementById('user-error'),
     profile: document.getElementById('user-profile'),
     avatar: document.getElementById('user-avatar'),
+    topAvatar: document.getElementById('user-top-avatar'),
+    topAdminName: document.getElementById('user-top-admin-name'),
+    envBadge: document.getElementById('user-env-badge'),
+    globalStatus: document.getElementById('user-global-status'),
+    globalStatusText: document.getElementById('user-global-status-text'),
+    compactToggle: document.getElementById('user-compact-toggle'),
+    navLinks: Array.from(document.querySelectorAll('#user-admin-nav .nav-link')),
+    toastStack: document.getElementById('user-admin-toast-stack'),
     name: document.getElementById('user-name'),
     email: document.getElementById('user-email'),
     whatsapp: document.getElementById('user-whatsapp'),
@@ -56,21 +64,57 @@ if (root) {
     adminVisits24h: document.getElementById('user-admin-visits-24h'),
     adminVisits7d: document.getElementById('user-admin-visits-7d'),
     adminUniqueVisitors7d: document.getElementById('user-admin-unique-visitors-7d'),
+    adminBotsOnlineContext: document.getElementById('user-admin-bots-online-context'),
+    adminMessagesTodayContext: document.getElementById('user-admin-messages-today-context'),
+    adminUptimeContext: document.getElementById('user-admin-uptime-context'),
+    adminErrors5xxContext: document.getElementById('user-admin-errors-5xx-context'),
+    adminTotalPacksContext: document.getElementById('user-admin-total-packs-context'),
+    adminTotalStickersContext: document.getElementById('user-admin-total-stickers-context'),
+    adminSpamBlockedContext: document.getElementById('user-admin-spam-blocked-context'),
+    adminActiveBansContext: document.getElementById('user-admin-active-bans-context'),
+    adminKnownUsersContext: document.getElementById('user-admin-known-users-context'),
+    adminActiveSessionsContext: document.getElementById('user-admin-active-sessions-context'),
+    adminVisits24hContext: document.getElementById('user-admin-visits-24h-context'),
+    adminVisits7dContext: document.getElementById('user-admin-visits-7d-context'),
+    adminUniqueVisitors7dContext: document.getElementById('user-admin-unique-visitors-7d-context'),
+    adminLastUpdated: document.getElementById('user-admin-last-updated'),
+    securitySession: document.getElementById('user-security-session'),
+    securityEncryption: document.getElementById('user-security-encryption'),
+    securityIp: document.getElementById('user-security-ip'),
+    security2fa: document.getElementById('user-security-2fa'),
 
     adminHealthCpu: document.getElementById('user-admin-health-cpu'),
     adminHealthRam: document.getElementById('user-admin-health-ram'),
     adminHealthLatency: document.getElementById('user-admin-health-latency'),
     adminHealthQueue: document.getElementById('user-admin-health-queue'),
     adminHealthDb: document.getElementById('user-admin-health-db'),
+    adminHealthCpuMeta: document.getElementById('user-admin-health-cpu-meta'),
+    adminHealthRamMeta: document.getElementById('user-admin-health-ram-meta'),
+    adminHealthLatencyMeta: document.getElementById('user-admin-health-latency-meta'),
+    adminHealthQueueMeta: document.getElementById('user-admin-health-queue-meta'),
+    adminHealthDbMeta: document.getElementById('user-admin-health-db-meta'),
+    adminHealthCpuBar: document.getElementById('user-admin-health-cpu-bar'),
+    adminHealthRamBar: document.getElementById('user-admin-health-ram-bar'),
+    adminHealthLatencyBar: document.getElementById('user-admin-health-latency-bar'),
+    adminHealthQueueBar: document.getElementById('user-admin-health-queue-bar'),
+    adminHealthDbBadge: document.getElementById('user-admin-health-db-badge'),
 
     adminModerationList: document.getElementById('user-admin-moderation-list'),
+    adminModerationFilterSeverity: document.getElementById('user-admin-moderation-filter-severity'),
+    adminModerationFilterType: document.getElementById('user-admin-moderation-filter-type'),
     adminSessionsList: document.getElementById('user-admin-sessions-list'),
     adminUsersList: document.getElementById('user-admin-users-list'),
     adminBansList: document.getElementById('user-admin-bans-list'),
     adminAuditList: document.getElementById('user-admin-audit-list'),
+    adminAuditFilterStatus: document.getElementById('user-admin-audit-filter-status'),
+    adminAuditSearch: document.getElementById('user-admin-audit-search'),
     adminFlagsList: document.getElementById('user-admin-flags-list'),
     adminAlertsList: document.getElementById('user-admin-alerts-list'),
     adminOpsStatus: document.getElementById('user-admin-ops-status'),
+    riskCpu: document.getElementById('user-risk-cpu'),
+    riskSpam: document.getElementById('user-risk-spam'),
+    riskBans: document.getElementById('user-risk-bans'),
+    riskErrors: document.getElementById('user-risk-errors'),
 
     adminSearchForm: document.getElementById('user-admin-search-form'),
     adminSearchInput: document.getElementById('user-admin-search-input'),
@@ -92,8 +136,14 @@ if (root) {
     adminBusy: false,
     adminStatusPayload: null,
     adminOverviewPayload: null,
+    previousAdminOverviewPayload: null,
     adminSearchPayload: null,
     adminOpsMessage: '',
+    compactMode: false,
+    moderationFilterSeverity: 'all',
+    moderationFilterType: 'all',
+    auditFilterStatus: 'all',
+    auditSearchQuery: '',
   };
 
   const sessionApiPath = `${state.apiBasePath}/auth/google/session`;
@@ -107,6 +157,8 @@ if (root) {
   const adminSearchApiPath = `${state.apiBasePath}/admin/search`;
   const adminExportApiPath = `${state.apiBasePath}/admin/export`;
   const adminBansApiPath = `${state.apiBasePath}/admin/bans`;
+  const COMPACT_MODE_STORAGE_KEY = 'omnizap_admin_compact_mode_v1';
+  const CRITICAL_ADMIN_ACTIONS = new Set(['restart_worker', 'clear_cache']);
 
   const setText = (el, value) => {
     if (!el) return;
@@ -129,7 +181,64 @@ if (root) {
     if (!ui.adminError) return;
     const safeMessage = String(message || '').trim();
     ui.adminError.hidden = !safeMessage;
-    if (safeMessage) ui.adminError.textContent = safeMessage;
+    if (safeMessage) {
+      ui.adminError.textContent = safeMessage;
+      showToast({ kind: 'error', title: 'Erro', message: safeMessage });
+    }
+  };
+
+  const normalizeSeverity = (value, fallback = 'low') => {
+    const normalized = String(value || '')
+      .trim()
+      .toLowerCase();
+    if (['critical', 'high', 'medium', 'low'].includes(normalized)) return normalized;
+    if (normalized === 'error') return 'high';
+    if (normalized === 'warn' || normalized === 'warning') return 'medium';
+    return fallback;
+  };
+
+  const setRiskPill = (el, text, tone = 'normal') => {
+    if (!el) return;
+    el.textContent = text;
+    el.title = text;
+    el.classList.remove('warn', 'danger');
+    if (tone === 'warn') el.classList.add('warn');
+    if (tone === 'danger') el.classList.add('danger');
+  };
+
+  const setHealthMeter = (el, value, { max = 100, warnAt = 70, dangerAt = 90 } = {}) => {
+    if (!el) return;
+    const numeric = Number(value);
+    const percent = Number.isFinite(numeric) ? Math.max(0, Math.min(100, (numeric / max) * 100)) : 0;
+    el.style.width = `${percent.toFixed(1)}%`;
+    el.classList.remove('warn', 'danger');
+    if (percent >= dangerAt) {
+      el.classList.add('danger');
+    } else if (percent >= warnAt) {
+      el.classList.add('warn');
+    }
+  };
+
+  const showToast = ({ kind = 'success', title = 'Status', message = '' } = {}) => {
+    if (!ui.toastStack) return;
+    const text = String(message || '').trim();
+    if (!text) return;
+
+    const toast = document.createElement('article');
+    toast.className = `toast ${kind}`;
+
+    const headline = document.createElement('strong');
+    headline.textContent = String(title || 'Status').trim() || 'Status';
+    toast.appendChild(headline);
+
+    const body = document.createElement('p');
+    body.textContent = text;
+    toast.appendChild(body);
+
+    ui.toastStack.appendChild(toast);
+    window.setTimeout(() => {
+      toast.remove();
+    }, 3800);
   };
 
   const normalizeDigits = (value) => String(value || '').replace(/\D+/g, '');
@@ -154,6 +263,23 @@ if (root) {
     return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(ms));
   };
 
+  const formatRelativeTime = (value) => {
+    const ms = Date.parse(String(value || ''));
+    if (!Number.isFinite(ms)) return 'n/d';
+    const deltaMs = Date.now() - ms;
+    const absMs = Math.abs(deltaMs);
+    const suffix = deltaMs >= 0 ? 'atrás' : 'à frente';
+    if (absMs < 1000) return 'agora';
+    const seconds = Math.round(absMs / 1000);
+    if (seconds < 60) return `${seconds}s ${suffix}`;
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${suffix}`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours}h ${suffix}`;
+    const days = Math.round(hours / 24);
+    return `${days}d ${suffix}`;
+  };
+
   const formatPercent = (value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return 'n/d';
@@ -171,6 +297,128 @@ if (root) {
     if (!Number.isFinite(numeric)) return 'n/d';
     return formatNumber(numeric);
   };
+
+  const toFiniteNumber = (value, fallback = 0) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  };
+
+  const formatDeltaLabel = (current, previous, { percent = true, suffix = '' } = {}) => {
+    const curr = Number(current);
+    const prev = Number(previous);
+    if (!Number.isFinite(curr) || !Number.isFinite(prev)) return 'n/d';
+
+    const delta = curr - prev;
+    const prefix = delta > 0 ? '+' : '';
+    if (!percent) {
+      return `${prefix}${formatNumber(delta)}${suffix}`.trim();
+    }
+    if (prev === 0) {
+      return delta === 0 ? '0.0%' : `${prefix}100.0%`;
+    }
+    const ratio = (delta / Math.abs(prev)) * 100;
+    return `${ratio >= 0 ? '+' : ''}${ratio.toFixed(1)}%`;
+  };
+
+  const setMetricContext = (el, value) => {
+    if (!el) return;
+    el.textContent = String(value || '').trim() || 'n/d';
+  };
+
+  const setButtonProcessing = (button, processingText = 'Processando...') => {
+    if (!button) return;
+    if (!button.dataset.idleText) {
+      button.dataset.idleText = button.textContent || '';
+    }
+    button.disabled = true;
+    button.dataset.state = 'processing';
+    button.textContent = processingText;
+  };
+
+  const setButtonIdle = (button) => {
+    if (!button) return;
+    button.disabled = false;
+    button.dataset.state = 'idle';
+    if (button.dataset.idleText) {
+      button.textContent = button.dataset.idleText;
+    }
+  };
+
+  const flashButtonSuccess = (button, successText = 'Concluído', timeoutMs = 1200) => {
+    if (!button) return;
+    const idleText = button.dataset.idleText || button.textContent || '';
+    button.textContent = successText;
+    button.dataset.state = 'success';
+    window.setTimeout(() => {
+      button.dataset.state = 'idle';
+      button.textContent = idleText;
+    }, timeoutMs);
+  };
+
+  const resolveEnvironmentLabel = () => {
+    const host = String(window.location.hostname || '').toLowerCase();
+    if (host.includes('localhost') || host.includes('127.0.0.1') || host.includes('staging') || host.includes('dev')) return 'Staging';
+    return 'Production';
+  };
+
+  const applyEnvironmentBadge = () => {
+    if (!ui.envBadge) return;
+    ui.envBadge.textContent = resolveEnvironmentLabel();
+  };
+
+  const setGlobalStatusChip = (tone = 'online', text = 'Online') => {
+    if (!ui.globalStatus || !ui.globalStatusText) return;
+    ui.globalStatus.classList.remove('warning', 'incident');
+    if (tone === 'warning') ui.globalStatus.classList.add('warning');
+    if (tone === 'incident') ui.globalStatus.classList.add('incident');
+    ui.globalStatusText.textContent = text;
+  };
+
+  const updateSecurityStrip = (sessionData = null) => {
+    const ownerJid = normalizeString(sessionData?.owner_jid);
+    const secureProtocol = window.location.protocol === 'https:';
+    const ipLabel = 'IP mascarado';
+    const isTwoFactorPossible = Boolean(ownerJid);
+
+    setText(ui.securitySession, secureProtocol ? 'Sessão segura (HTTPS)' : 'Sessão sem HTTPS');
+    setText(ui.securityEncryption, secureProtocol ? 'Criptografia ativa TLS' : 'Criptografia limitada');
+    setText(ui.securityIp, ipLabel);
+    setText(ui.security2fa, isTwoFactorPossible ? '2FA: disponível' : '2FA: n/d');
+  };
+
+  const buildRegex = (query) => {
+    const source = String(query || '').trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!source) return null;
+    return new RegExp(source, 'ig');
+  };
+
+  const appendHighlightedText = (target, text, query) => {
+    if (!target) return;
+    const content = String(text || '');
+    const pattern = buildRegex(query);
+    if (!pattern) {
+      target.textContent = content;
+      return;
+    }
+
+    target.textContent = '';
+    let lastIndex = 0;
+    for (const match of content.matchAll(pattern)) {
+      const start = match.index || 0;
+      if (start > lastIndex) {
+        target.appendChild(document.createTextNode(content.slice(lastIndex, start)));
+      }
+      const mark = document.createElement('mark');
+      mark.textContent = content.slice(start, start + match[0].length);
+      target.appendChild(mark);
+      lastIndex = start + match[0].length;
+    }
+    if (lastIndex < content.length) {
+      target.appendChild(document.createTextNode(content.slice(lastIndex)));
+    }
+  };
+
+  const confirmCriticalAction = (message) => window.confirm(message);
 
   const buildLoginRedirectUrl = () => {
     const loginUrl = new URL(state.loginPath, window.location.origin);
@@ -324,15 +572,18 @@ if (root) {
     container.appendChild(createItemMeta(message));
   };
 
-  const appendListItem = ({ container, title, severity = '', badgeLabel = '', meta = [], actions = [], customNode = null }) => {
+  const appendListItem = ({ container, title, severity = '', badgeLabel = '', meta = [], actions = [], customNode = null, itemData = {}, highlightQuery = '' }) => {
     if (!container) return;
 
     const item = document.createElement('article');
     item.className = 'admin-item';
+    for (const [key, value] of Object.entries(itemData || {})) {
+      item.dataset[key] = String(value || '');
+    }
 
     const titleEl = document.createElement('p');
     titleEl.className = 'admin-item-title';
-    titleEl.textContent = title;
+    appendHighlightedText(titleEl, title, highlightQuery);
     item.appendChild(titleEl);
 
     if (badgeLabel) {
@@ -342,7 +593,9 @@ if (root) {
     for (const line of meta) {
       const text = normalizeString(line);
       if (!text) continue;
-      item.appendChild(createItemMeta(text));
+      const metaNode = createItemMeta('');
+      appendHighlightedText(metaNode, text, highlightQuery);
+      item.appendChild(metaNode);
     }
 
     if (customNode) item.appendChild(customNode);
@@ -364,6 +617,7 @@ if (root) {
   const setAdminBusy = (value) => {
     const busy = Boolean(value);
     state.adminBusy = busy;
+    document.body.dataset.adminBusy = busy ? 'true' : 'false';
 
     const authenticated = isAdminAuthenticated();
     const eligible = isAdminEligible();
@@ -412,7 +666,16 @@ if (root) {
       ui.avatar.onerror = () => {
         ui.avatar.src = FALLBACK_AVATAR;
       };
+      if (ui.topAvatar) {
+        ui.topAvatar.src = picture;
+        ui.topAvatar.onerror = () => {
+          ui.topAvatar.src = FALLBACK_AVATAR;
+        };
+      }
     }
+
+    setText(ui.topAdminName, normalizeString(user?.name) || 'Admin');
+    updateSecurityStrip(sessionData);
 
     setText(ui.ownerJid, ownerJid || 'n/d');
     setText(ui.googleSub, normalizeString(user?.sub) || 'n/d');
@@ -459,12 +722,39 @@ if (root) {
     setText(ui.adminVisits24h, '0');
     setText(ui.adminVisits7d, '0');
     setText(ui.adminUniqueVisitors7d, '0');
+    setMetricContext(ui.adminBotsOnlineContext, 'vs ontem: n/d');
+    setMetricContext(ui.adminMessagesTodayContext, 'vs ontem: n/d');
+    setMetricContext(ui.adminUptimeContext, 'janela: processo atual');
+    setMetricContext(ui.adminErrors5xxContext, 'vs ontem: n/d');
+    setMetricContext(ui.adminTotalPacksContext, 'delta 24h: n/d');
+    setMetricContext(ui.adminTotalStickersContext, 'delta 24h: n/d');
+    setMetricContext(ui.adminSpamBlockedContext, 'vs ontem: n/d');
+    setMetricContext(ui.adminActiveBansContext, 'delta 24h: n/d');
+    setMetricContext(ui.adminKnownUsersContext, 'delta 7d: n/d');
+    setMetricContext(ui.adminActiveSessionsContext, 'agora: n/d');
+    setMetricContext(ui.adminVisits24hContext, 'janela: 24h');
+    setMetricContext(ui.adminVisits7dContext, 'janela: 7 dias');
+    setMetricContext(ui.adminUniqueVisitors7dContext, 'janela: 7 dias');
 
     setText(ui.adminHealthCpu, 'n/d');
     setText(ui.adminHealthRam, 'n/d');
     setText(ui.adminHealthLatency, 'n/d');
     setText(ui.adminHealthQueue, 'n/d');
     setText(ui.adminHealthDb, 'n/d');
+    setText(ui.adminHealthCpuMeta, 'Limite recomendado: 88%');
+    setText(ui.adminHealthRamMeta, 'Limite recomendado: 90%');
+    setText(ui.adminHealthLatencyMeta, 'Alerta acima de 300ms');
+    setText(ui.adminHealthQueueMeta, 'Ideal: abaixo de 120 jobs');
+    setText(ui.adminHealthDbMeta, 'SLA alvo: 99.95%');
+    setText(ui.adminLastUpdated, 'n/d');
+    if (ui.adminHealthDbBadge) {
+      ui.adminHealthDbBadge.classList.remove('healthy', 'degraded', 'down');
+      ui.adminHealthDbBadge.textContent = 'Unknown';
+    }
+    setHealthMeter(ui.adminHealthCpuBar, 0);
+    setHealthMeter(ui.adminHealthRamBar, 0);
+    setHealthMeter(ui.adminHealthLatencyBar, 0);
+    setHealthMeter(ui.adminHealthQueueBar, 0);
 
     renderListPlaceholder(ui.adminModerationList, 'Nenhum evento recente de moderação.');
     renderListPlaceholder(ui.adminSessionsList, 'Nenhuma sessão ativa encontrada.');
@@ -475,6 +765,12 @@ if (root) {
     renderListPlaceholder(ui.adminAlertsList, 'Sem alertas ativos no momento.');
     renderListPlaceholder(ui.adminSearchResults, 'Faça uma busca para ver usuários, grupos, packs e sessões.');
     setText(ui.adminOpsStatus, state.adminOpsMessage || 'Ações operacionais disponíveis.');
+    setRiskPill(ui.riskCpu, 'CPU normal');
+    setRiskPill(ui.riskSpam, 'Spam sob controle');
+    setRiskPill(ui.riskBans, 'Bans estáveis');
+    setRiskPill(ui.riskErrors, 'Erros baixos');
+    updateSecurityStrip(null);
+    setGlobalStatusChip('online', 'Online');
   };
 
   const buildBanPayloadFromEvent = (event) => {
@@ -505,6 +801,11 @@ if (root) {
     }
     if (state.adminBusy) return;
 
+    const label = normalizeString(contextLabel) || buildIdentityLabel(payload);
+    if (!confirmCriticalAction(`Forçar logout de ${label}?`)) {
+      return;
+    }
+
     showAdminError('');
     setAdminBusy(true);
     try {
@@ -514,8 +815,8 @@ if (root) {
         body: JSON.stringify(payload),
       });
       const removed = Number(response?.data?.removed_sessions || 0);
-      const label = normalizeString(contextLabel) || buildIdentityLabel(payload);
       state.adminOpsMessage = `Logout forçado concluído para ${label}. Sessões removidas: ${removed}.`;
+      showToast({ kind: 'success', title: 'Sessão', message: state.adminOpsMessage });
       await refreshAdminArea({ keepCurrentError: true });
     } catch (error) {
       showAdminError(error?.message || 'Falha ao forçar logout.');
@@ -537,6 +838,11 @@ if (root) {
     }
     if (state.adminBusy) return;
 
+    const label = normalizeString(contextLabel) || buildIdentityLabel(payload);
+    if (!confirmCriticalAction(`Confirmar bloqueio da conta ${label}?`)) {
+      return;
+    }
+
     showAdminError('');
     setAdminBusy(true);
     try {
@@ -546,8 +852,12 @@ if (root) {
         body: JSON.stringify(payload),
       });
       const created = Boolean(response?.data?.created);
-      const label = normalizeString(contextLabel) || buildIdentityLabel(payload);
       state.adminOpsMessage = created ? `Conta banida: ${label}.` : `Conta já estava banida: ${label}.`;
+      showToast({
+        kind: created ? 'warn' : 'success',
+        title: 'Ban',
+        message: state.adminOpsMessage,
+      });
       await refreshAdminArea({ keepCurrentError: true });
     } catch (error) {
       showAdminError(error?.message || 'Falha ao criar ban.');
@@ -560,12 +870,14 @@ if (root) {
   const handleAdminBanRevoke = async (banId) => {
     const normalizedId = normalizeString(banId);
     if (!normalizedId || state.adminBusy) return;
+    if (!confirmCriticalAction(`Revogar ban ${normalizedId}?`)) return;
 
     showAdminError('');
     setAdminBusy(true);
     try {
       await fetchJson(`${adminBansApiPath}/${encodeURIComponent(normalizedId)}/revoke`, { method: 'DELETE' });
       state.adminOpsMessage = `Ban ${normalizedId} revogado com sucesso.`;
+      showToast({ kind: 'success', title: 'Ban', message: state.adminOpsMessage });
       await refreshAdminArea({ keepCurrentError: true });
     } catch (error) {
       showAdminError(error?.message || 'Falha ao revogar ban.');
@@ -593,6 +905,7 @@ if (root) {
         }),
       });
       state.adminOpsMessage = `Feature flag ${normalizedName} atualizada.`;
+      showToast({ kind: 'success', title: 'Feature Flag', message: state.adminOpsMessage });
       await refreshAdminArea({ keepCurrentError: true });
     } catch (error) {
       showAdminError(error?.message || 'Falha ao atualizar feature flag.');
@@ -602,12 +915,18 @@ if (root) {
     }
   };
 
-  const handleAdminOpsAction = async (action) => {
+  const handleAdminOpsAction = async (action, triggerButton = null) => {
     const normalizedAction = normalizeString(action);
     if (!normalizedAction || state.adminBusy) return;
+    if (CRITICAL_ADMIN_ACTIONS.has(normalizedAction)) {
+      const confirmed = confirmCriticalAction(`Executar ação crítica: ${normalizedAction.replace(/_/g, ' ')}?`);
+      if (!confirmed) return;
+    }
 
     showAdminError('');
+    setButtonProcessing(triggerButton, 'Executando...');
     setAdminBusy(true);
+    let success = false;
     try {
       const response = await fetchJson(adminOpsApiPath, {
         method: 'POST',
@@ -617,27 +936,40 @@ if (root) {
       const message = normalizeString(response?.data?.message) || `Ação ${normalizedAction} concluída.`;
       state.adminOpsMessage = `${message} (${formatDateTime(response?.data?.updated_at)})`;
       setText(ui.adminOpsStatus, state.adminOpsMessage);
+      showToast({ kind: 'success', title: 'Operação', message: state.adminOpsMessage });
       await refreshAdminArea({ keepCurrentError: true });
+      success = true;
     } catch (error) {
       showAdminError(error?.message || 'Falha ao executar ação operacional.');
     } finally {
       setAdminBusy(false);
+      setButtonIdle(triggerButton);
+      if (success) flashButtonSuccess(triggerButton, 'Executado');
       renderAdminPanel();
     }
   };
 
   const renderModerationQueue = (events) => {
     const list = Array.isArray(events) ? events : [];
+    const severityFilter = normalizeString(state.moderationFilterSeverity || 'all').toLowerCase();
+    const typeFilter = normalizeString(state.moderationFilterType || 'all').toLowerCase();
+    const filtered = list.filter((event) => {
+      const eventSeverity = normalizeSeverity(event?.severity);
+      const eventType = normalizeString(event?.event_type || '').toLowerCase();
+      const severityOk = severityFilter === 'all' || eventSeverity === severityFilter;
+      const typeOk = typeFilter === 'all' || eventType.includes(typeFilter);
+      return severityOk && typeOk;
+    });
     clearNode(ui.adminModerationList);
 
-    if (!list.length) {
+    if (!filtered.length) {
       renderListPlaceholder(ui.adminModerationList, 'Nenhum evento recente de moderação.');
       return;
     }
 
-    for (const event of list) {
+    for (const event of filtered) {
       const title = normalizeString(event?.title) || 'Evento de moderação';
-      const severity = normalizeString(event?.severity) || 'low';
+      const severity = normalizeSeverity(event?.severity);
       const badgeLabel = severity.toUpperCase();
       const createdAt = formatDateTime(event?.created_at || event?.revoked_at);
       const meta = [normalizeString(event?.subtitle), `Tipo: ${normalizeString(event?.event_type) || 'evento'} • ${createdAt}`];
@@ -672,6 +1004,10 @@ if (root) {
         badgeLabel,
         meta,
         actions,
+        itemData: {
+          severity,
+          type: normalizeString(event?.event_type || '').toLowerCase(),
+        },
       });
     }
   };
@@ -762,14 +1098,36 @@ if (root) {
 
   const renderAuditLog = (events) => {
     const list = Array.isArray(events) ? events : [];
+    const statusFilter = normalizeString(state.auditFilterStatus || 'all').toLowerCase();
+    const query = normalizeString(state.auditSearchQuery).toLowerCase();
+    const filtered = list.filter((item) => {
+      const status = normalizeString(item?.status || 'success').toLowerCase();
+      const statusOk = statusFilter === 'all' || status === statusFilter;
+      if (!statusOk) return false;
+      if (!query) return true;
+
+      const details = isObject(item?.details) ? Object.entries(item.details).slice(0, 3) : [];
+      const haystack = [
+        normalizeString(item?.action),
+        normalizeString(item?.target_type),
+        normalizeString(item?.target_id),
+        normalizeString(item?.admin_email),
+        normalizeString(item?.admin_google_sub),
+        normalizeString(item?.admin_owner_jid),
+        details.map(([key, value]) => `${key}=${value}`).join(' '),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
     clearNode(ui.adminAuditList);
 
-    if (!list.length) {
+    if (!filtered.length) {
       renderListPlaceholder(ui.adminAuditList, 'Sem eventos de auditoria recentes.');
       return;
     }
 
-    for (const item of list.slice(0, 80)) {
+    for (const item of filtered.slice(0, 80)) {
       const action = normalizeString(item?.action || 'action');
       const targetType = normalizeString(item?.target_type || 'target');
       const targetId = normalizeString(item?.target_id || '');
@@ -786,6 +1144,7 @@ if (root) {
         severity: status === 'success' ? 'low' : 'high',
         badgeLabel: status.toUpperCase(),
         meta,
+        highlightQuery: query,
       });
     }
   };
@@ -868,7 +1227,7 @@ if (root) {
     }
 
     for (const alert of list) {
-      const severity = normalizeString(alert?.severity || 'low');
+      const severity = normalizeSeverity(alert?.severity);
       const title = normalizeString(alert?.title || alert?.code || 'Alerta');
       const meta = [normalizeString(alert?.message || ''), `Código: ${normalizeString(alert?.code || 'n/d')} • ${formatDateTime(alert?.created_at)}`];
       appendListItem({
@@ -900,6 +1259,7 @@ if (root) {
       severity: 'low',
       badgeLabel: 'BUSCA',
       meta: [`Usuários: ${formatIntegerOrNd(totals.users)}`, `Sessões: ${formatIntegerOrNd(totals.sessions)}`, `Grupos: ${formatIntegerOrNd(totals.groups)}`, `Packs: ${formatIntegerOrNd(totals.packs)}`],
+      highlightQuery: q,
     });
 
     const users = Array.isArray(results.users) ? results.users : [];
@@ -916,6 +1276,7 @@ if (root) {
         badgeLabel: 'USER',
         meta: [`Email: ${normalizeString(user?.email) || 'n/d'}`, `Owner: ${normalizeString(user?.owner_jid) || 'n/d'}`],
         actions,
+        highlightQuery: q,
       });
     }
 
@@ -933,6 +1294,7 @@ if (root) {
         badgeLabel: 'SESSÃO',
         meta: [`Email: ${normalizeString(session?.email) || 'n/d'}`, `Expira: ${formatDateTime(session?.expires_at)}`],
         actions,
+        highlightQuery: q,
       });
     }
 
@@ -944,6 +1306,7 @@ if (root) {
         severity: 'medium',
         badgeLabel: 'GRUPO',
         meta: [`ID: ${normalizeString(group?.id) || 'n/d'}`, `Atualizado: ${formatDateTime(group?.updated_at)}`],
+        highlightQuery: q,
       });
     }
 
@@ -959,6 +1322,7 @@ if (root) {
         badgeLabel: normalizeString(pack?.visibility || 'pack').toUpperCase(),
         meta: [`Owner: ${normalizeString(pack?.owner_jid) || 'n/d'}`, `Stickers: ${formatIntegerOrNd(pack?.stickers_count)}`],
         actions,
+        highlightQuery: q,
       });
     }
 
@@ -974,41 +1338,169 @@ if (root) {
   };
 
   const renderSystemHealth = (health) => {
-    const statusMap = {
-      ok: 'OK',
-      degraded: 'Degradado',
-      unknown: 'Indefinido',
-    };
-    setText(ui.adminHealthCpu, formatPercent(health?.cpu_percent));
-    setText(ui.adminHealthRam, formatPercent(health?.ram_percent));
-    setText(ui.adminHealthLatency, formatMilliseconds(health?.http_latency_p95_ms));
-    setText(ui.adminHealthQueue, formatIntegerOrNd(health?.queue_pending));
-    setText(ui.adminHealthDb, statusMap[normalizeString(health?.db_status)] || 'n/d');
+    const cpu = Number(health?.cpu_percent);
+    const ram = Number(health?.ram_percent);
+    const latency = Number(health?.http_latency_p95_ms);
+    const queue = Number(health?.queue_pending);
+    const dbStatus = normalizeString(health?.db_status).toLowerCase();
+
+    setText(ui.adminHealthCpu, formatPercent(cpu));
+    setText(ui.adminHealthRam, formatPercent(ram));
+    setText(ui.adminHealthLatency, formatMilliseconds(latency));
+    setText(ui.adminHealthQueue, formatIntegerOrNd(queue));
+
+    setHealthMeter(ui.adminHealthCpuBar, cpu, { max: 100, warnAt: 70, dangerAt: 88 });
+    setHealthMeter(ui.adminHealthRamBar, ram, { max: 100, warnAt: 75, dangerAt: 90 });
+    setHealthMeter(ui.adminHealthLatencyBar, latency, { max: 900, warnAt: 35, dangerAt: 60 });
+    setHealthMeter(ui.adminHealthQueueBar, queue, { max: 400, warnAt: 30, dangerAt: 55 });
+
+    let dbBadgeClass = '';
+    let dbLabel = 'Unknown';
+    if (dbStatus === 'ok') {
+      dbBadgeClass = 'healthy';
+      dbLabel = 'Healthy';
+    } else if (dbStatus === 'degraded') {
+      dbBadgeClass = 'degraded';
+      dbLabel = 'Degraded';
+    } else if (dbStatus === 'down') {
+      dbBadgeClass = 'down';
+      dbLabel = 'Down';
+    }
+
+    setText(ui.adminHealthDb, dbLabel);
+    if (ui.adminHealthDbBadge) {
+      ui.adminHealthDbBadge.classList.remove('healthy', 'degraded', 'down');
+      if (dbBadgeClass) ui.adminHealthDbBadge.classList.add(dbBadgeClass);
+      ui.adminHealthDbBadge.textContent = dbLabel;
+    }
+
+    return { cpu, ram, latency, queue, dbStatus };
+  };
+
+  const updateOperationalSignals = ({ counters = {}, dashboard = {}, health = {}, alerts = [] } = {}) => {
+    const normalizedAlerts = Array.isArray(alerts) ? alerts : [];
+    const hasCriticalAlert = normalizedAlerts.some((entry) => {
+      const severity = normalizeSeverity(entry?.severity);
+      return severity === 'critical' || severity === 'high';
+    });
+    const hasMediumAlert = normalizedAlerts.some((entry) => normalizeSeverity(entry?.severity) === 'medium');
+
+    const cpuPercent = Number(health?.cpu_percent);
+    const spamBlocked = Number(dashboard?.spam_blocked_today || 0);
+    const activeBans = Number(counters?.active_bans || 0);
+    const errors5xx = Number(dashboard?.errors_5xx || 0);
+    const dbStatus = normalizeString(health?.db_status).toLowerCase();
+
+    if (Number.isFinite(cpuPercent) && cpuPercent >= 88) {
+      setRiskPill(ui.riskCpu, `CPU alta: ${cpuPercent.toFixed(1)}%`, 'danger');
+    } else if (Number.isFinite(cpuPercent) && cpuPercent >= 75) {
+      setRiskPill(ui.riskCpu, `CPU atenção: ${cpuPercent.toFixed(1)}%`, 'warn');
+    } else {
+      setRiskPill(ui.riskCpu, 'CPU normal');
+    }
+
+    if (spamBlocked >= 220) {
+      setRiskPill(ui.riskSpam, `Spam elevado: ${formatNumber(spamBlocked)}`, 'danger');
+    } else if (spamBlocked >= 90) {
+      setRiskPill(ui.riskSpam, `Spam em atenção: ${formatNumber(spamBlocked)}`, 'warn');
+    } else {
+      setRiskPill(ui.riskSpam, 'Spam sob controle');
+    }
+
+    if (activeBans >= 30) {
+      setRiskPill(ui.riskBans, `Bans críticos: ${formatNumber(activeBans)}`, 'danger');
+    } else if (activeBans >= 10) {
+      setRiskPill(ui.riskBans, `Bans em alta: ${formatNumber(activeBans)}`, 'warn');
+    } else {
+      setRiskPill(ui.riskBans, 'Bans estáveis');
+    }
+
+    if (errors5xx >= 30) {
+      setRiskPill(ui.riskErrors, `Erros críticos: ${formatNumber(errors5xx)}`, 'danger');
+    } else if (errors5xx >= 10) {
+      setRiskPill(ui.riskErrors, `Erros em atenção: ${formatNumber(errors5xx)}`, 'warn');
+    } else {
+      setRiskPill(ui.riskErrors, 'Erros baixos');
+    }
+
+    if (dbStatus === 'down' || hasCriticalAlert || errors5xx >= 30 || (Number.isFinite(cpuPercent) && cpuPercent >= 92)) {
+      setGlobalStatusChip('incident', 'Incident');
+      return;
+    }
+    if (dbStatus === 'degraded' || hasMediumAlert || errors5xx >= 10 || (Number.isFinite(cpuPercent) && cpuPercent >= 75)) {
+      setGlobalStatusChip('warning', 'Warning');
+      return;
+    }
+    setGlobalStatusChip('online', 'Online');
   };
 
   const renderAdminOverview = () => {
     const payload = state.adminOverviewPayload || {};
+    const previousPayload = state.previousAdminOverviewPayload || null;
     const counters = isObject(payload?.counters) ? payload.counters : {};
     const dashboard = isObject(payload?.dashboard_quick) ? payload.dashboard_quick : {};
     const usersSessions = isObject(payload?.users_sessions) ? payload.users_sessions : {};
     const health = isObject(payload?.system_health) ? payload.system_health : {};
+    const previousCounters = isObject(previousPayload?.counters) ? previousPayload.counters : {};
+    const previousDashboard = isObject(previousPayload?.dashboard_quick) ? previousPayload.dashboard_quick : {};
+    const hasPrevious = Boolean(previousPayload);
+    const lastUpdated = normalizeString(payload?.updated_at);
+    const lastUpdatedLabel = lastUpdated ? `${formatDateTime(lastUpdated)} (${formatRelativeTime(lastUpdated)})` : 'n/d';
 
-    setText(ui.adminBotsOnline, formatIntegerOrNd(dashboard?.bots_online || 0));
-    setText(ui.adminMessagesToday, formatIntegerOrNd(dashboard?.messages_today));
-    setText(ui.adminSpamBlocked, formatIntegerOrNd(dashboard?.spam_blocked_today));
+    state.moderationFilterSeverity = normalizeString(ui.adminModerationFilterSeverity?.value || state.moderationFilterSeverity || 'all').toLowerCase();
+    state.moderationFilterType = normalizeString(ui.adminModerationFilterType?.value || state.moderationFilterType || 'all').toLowerCase();
+    state.auditFilterStatus = normalizeString(ui.adminAuditFilterStatus?.value || state.auditFilterStatus || 'all').toLowerCase();
+    state.auditSearchQuery = normalizeString(ui.adminAuditSearch?.value || state.auditSearchQuery || '');
+
+    const botsOnline = toFiniteNumber(dashboard?.bots_online, 0);
+    const messagesToday = toFiniteNumber(dashboard?.messages_today, 0);
+    const spamBlockedToday = toFiniteNumber(dashboard?.spam_blocked_today, 0);
+    const errors5xx = toFiniteNumber(dashboard?.errors_5xx, 0);
+    const totalPacks = toFiniteNumber(counters?.total_packs_any_status, 0);
+    const totalStickers = toFiniteNumber(counters?.total_stickers_any_status, 0);
+    const activeBans = toFiniteNumber(counters?.active_bans, 0);
+    const knownUsers = toFiniteNumber(counters?.known_google_users, 0);
+    const activeSessions = toFiniteNumber(counters?.active_google_sessions, 0);
+    const visits24h = toFiniteNumber(counters?.visit_events_24h, 0);
+    const visits7d = toFiniteNumber(counters?.visit_events_7d, 0);
+    const uniqueVisitors7d = toFiniteNumber(counters?.unique_visitors_7d, 0);
+
+    setText(ui.adminBotsOnline, formatIntegerOrNd(botsOnline));
+    setText(ui.adminMessagesToday, formatIntegerOrNd(messagesToday));
+    setText(ui.adminSpamBlocked, formatIntegerOrNd(spamBlockedToday));
     setText(ui.adminUptime, normalizeString(dashboard?.uptime) || 'n/d');
-    setText(ui.adminErrors5xx, formatIntegerOrNd(dashboard?.errors_5xx || 0));
+    setText(ui.adminErrors5xx, formatIntegerOrNd(errors5xx));
+    setText(ui.adminTotalPacks, formatIntegerOrNd(totalPacks));
+    setText(ui.adminTotalStickers, formatIntegerOrNd(totalStickers));
+    setText(ui.adminActiveBans, formatIntegerOrNd(activeBans));
+    setText(ui.adminKnownUsers, formatIntegerOrNd(knownUsers));
+    setText(ui.adminActiveSessions, formatIntegerOrNd(activeSessions));
+    setText(ui.adminVisits24h, formatIntegerOrNd(visits24h));
+    setText(ui.adminVisits7d, formatIntegerOrNd(visits7d));
+    setText(ui.adminUniqueVisitors7d, formatIntegerOrNd(uniqueVisitors7d));
 
-    setText(ui.adminTotalPacks, formatIntegerOrNd(counters?.total_packs_any_status || 0));
-    setText(ui.adminTotalStickers, formatIntegerOrNd(counters?.total_stickers_any_status || 0));
-    setText(ui.adminActiveBans, formatIntegerOrNd(counters?.active_bans || 0));
-    setText(ui.adminKnownUsers, formatIntegerOrNd(counters?.known_google_users || 0));
-    setText(ui.adminActiveSessions, formatIntegerOrNd(counters?.active_google_sessions || 0));
-    setText(ui.adminVisits24h, formatIntegerOrNd(counters?.visit_events_24h || 0));
-    setText(ui.adminVisits7d, formatIntegerOrNd(counters?.visit_events_7d || 0));
-    setText(ui.adminUniqueVisitors7d, formatIntegerOrNd(counters?.unique_visitors_7d || 0));
+    const deltaOrNd = (current, previous, options) => (hasPrevious ? formatDeltaLabel(current, previous, options) : 'n/d');
+    setMetricContext(ui.adminBotsOnlineContext, `vs leitura anterior: ${deltaOrNd(botsOnline, toFiniteNumber(previousDashboard?.bots_online, botsOnline))}`);
+    setMetricContext(ui.adminMessagesTodayContext, `vs leitura anterior: ${deltaOrNd(messagesToday, toFiniteNumber(previousDashboard?.messages_today, messagesToday))}`);
+    setMetricContext(ui.adminUptimeContext, 'janela: processo atual');
+    setMetricContext(ui.adminErrors5xxContext, `vs leitura anterior: ${deltaOrNd(errors5xx, toFiniteNumber(previousDashboard?.errors_5xx, errors5xx), { percent: false, suffix: ' eventos' })}`);
+    setMetricContext(ui.adminTotalPacksContext, `delta leitura: ${deltaOrNd(totalPacks, toFiniteNumber(previousCounters?.total_packs_any_status, totalPacks), { percent: false })}`);
+    setMetricContext(ui.adminTotalStickersContext, `delta leitura: ${deltaOrNd(totalStickers, toFiniteNumber(previousCounters?.total_stickers_any_status, totalStickers), { percent: false })}`);
+    setMetricContext(ui.adminSpamBlockedContext, `vs leitura anterior: ${deltaOrNd(spamBlockedToday, toFiniteNumber(previousDashboard?.spam_blocked_today, spamBlockedToday))}`);
+    setMetricContext(ui.adminActiveBansContext, `delta leitura: ${deltaOrNd(activeBans, toFiniteNumber(previousCounters?.active_bans, activeBans), { percent: false })}`);
+    setMetricContext(ui.adminKnownUsersContext, `delta leitura: ${deltaOrNd(knownUsers, toFiniteNumber(previousCounters?.known_google_users, knownUsers), { percent: false })}`);
+    setMetricContext(ui.adminActiveSessionsContext, `delta leitura: ${deltaOrNd(activeSessions, toFiniteNumber(previousCounters?.active_google_sessions, activeSessions), { percent: false })}`);
+    setMetricContext(ui.adminVisits24hContext, `leitura atual: ${formatNumber(visits24h)} eventos`);
+    setMetricContext(ui.adminVisits7dContext, `leitura atual: ${formatNumber(visits7d)} eventos`);
+    setMetricContext(ui.adminUniqueVisitors7dContext, `leitura atual: ${formatNumber(uniqueVisitors7d)} visitantes`);
+    setText(ui.adminLastUpdated, lastUpdatedLabel);
 
     renderSystemHealth(health);
+    setText(ui.adminHealthCpuMeta, `Limite: 88% • Atualizado ${formatRelativeTime(lastUpdated)}`);
+    setText(ui.adminHealthRamMeta, `Limite: 90% • Atualizado ${formatRelativeTime(lastUpdated)}`);
+    setText(ui.adminHealthLatencyMeta, `Alerta: >300ms • Atualizado ${formatRelativeTime(lastUpdated)}`);
+    setText(ui.adminHealthQueueMeta, `Ideal: <120 jobs • Atualizado ${formatRelativeTime(lastUpdated)}`);
+    setText(ui.adminHealthDbMeta, `SLA alvo: 99.95% • Atualizado ${formatRelativeTime(lastUpdated)}`);
     renderModerationQueue(payload?.moderation_queue);
     renderActiveSessions(usersSessions?.active_sessions);
     renderKnownUsers(usersSessions?.users);
@@ -1016,6 +1508,12 @@ if (root) {
     renderAuditLog(payload?.audit_log);
     renderFeatureFlags(payload?.feature_flags);
     renderAlerts(payload?.alerts);
+    updateOperationalSignals({
+      counters,
+      dashboard,
+      health,
+      alerts: payload?.alerts,
+    });
     renderSearchResults();
     setText(ui.adminOpsStatus, state.adminOpsMessage || 'Ações operacionais disponíveis.');
   };
@@ -1071,10 +1569,12 @@ if (root) {
 
   const loadAdminOverview = async () => {
     if (!isAdminAuthenticated()) {
+      state.previousAdminOverviewPayload = null;
       state.adminOverviewPayload = null;
       return;
     }
     const payload = await fetchJson(adminOverviewApiPath, { method: 'GET' });
+    state.previousAdminOverviewPayload = state.adminOverviewPayload || null;
     state.adminOverviewPayload = payload?.data || null;
   };
 
@@ -1086,12 +1586,87 @@ if (root) {
     } catch (error) {
       if (error?.statusCode === 404) {
         state.adminStatusPayload = { enabled: false };
+        state.previousAdminOverviewPayload = null;
         state.adminOverviewPayload = null;
       } else {
         showAdminError(error?.message || 'Falha ao carregar área admin.');
       }
     }
     renderAdminPanel();
+  };
+
+  const setCompactMode = (enabled, { persist = true } = {}) => {
+    state.compactMode = Boolean(enabled);
+    document.body.classList.toggle('compact', state.compactMode);
+    if (ui.compactToggle) {
+      ui.compactToggle.textContent = state.compactMode ? 'Modo confortável' : 'Modo compacto';
+    }
+    if (!persist) return;
+    try {
+      window.localStorage.setItem(COMPACT_MODE_STORAGE_KEY, state.compactMode ? '1' : '0');
+    } catch {
+      // noop
+    }
+  };
+
+  const restoreCompactMode = () => {
+    try {
+      const raw = window.localStorage.getItem(COMPACT_MODE_STORAGE_KEY);
+      setCompactMode(raw === '1', { persist: false });
+    } catch {
+      setCompactMode(false, { persist: false });
+    }
+  };
+
+  const bindSectionObserver = () => {
+    if (!ui.navLinks.length) return;
+    const entries = [];
+    for (const link of ui.navLinks) {
+      const href = normalizeString(link.getAttribute('href'));
+      if (!href.startsWith('#')) continue;
+      const target = document.querySelector(href);
+      if (target) entries.push({ link, target });
+    }
+    if (!entries.length) return;
+
+    const activate = (targetId) => {
+      for (const item of entries) {
+        item.link.classList.toggle('active', item.target.id === targetId);
+      }
+    };
+
+    if (!('IntersectionObserver' in window)) {
+      activate(entries[0].target.id);
+      return;
+    }
+
+    const observer = new window.IntersectionObserver(
+      (observed) => {
+        const visible = observed
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target?.id) activate(visible.target.id);
+      },
+      {
+        root: null,
+        rootMargin: '-35% 0px -55% 0px',
+        threshold: [0.1, 0.25, 0.45, 0.7],
+      },
+    );
+
+    for (const item of entries) observer.observe(item.target);
+    activate(entries[0].target.id);
+  };
+
+  const bindKeyboardShortcuts = () => {
+    window.addEventListener('keydown', (event) => {
+      const isModKey = event.ctrlKey || event.metaKey;
+      if (isModKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        ui.adminSearchInput?.focus();
+        ui.adminSearchInput?.select();
+      }
+    });
   };
 
   const handleAdminUnlock = async () => {
@@ -1103,7 +1678,9 @@ if (root) {
     if (state.adminBusy) return;
 
     showAdminError('');
+    setButtonProcessing(ui.adminUnlockBtn, 'Desbloqueando...');
     setAdminBusy(true);
+    let unlocked = false;
     try {
       const payload = await fetchJson(adminSessionApiPath, {
         method: 'POST',
@@ -1115,41 +1692,56 @@ if (root) {
       state.adminSearchPayload = null;
       if (ui.adminPassword) ui.adminPassword.value = '';
       await loadAdminOverview();
+      showToast({ kind: 'success', title: 'Admin', message: 'Área administrativa desbloqueada com sucesso.' });
+      unlocked = true;
     } catch (error) {
       showAdminError(error?.message || 'Falha ao desbloquear área admin.');
       await loadAdminStatus().catch(() => {});
+      state.previousAdminOverviewPayload = null;
       state.adminOverviewPayload = null;
     } finally {
       setAdminBusy(false);
+      setButtonIdle(ui.adminUnlockBtn);
+      if (unlocked) flashButtonSuccess(ui.adminUnlockBtn, 'Liberado');
       renderAdminPanel();
     }
   };
 
-  const handleAdminLogout = async () => {
+  const handleAdminLogout = async (triggerButton = null) => {
     if (state.adminBusy) return;
+    if (!confirmCriticalAction('Encerrar sessão administrativa atual?')) return;
     showAdminError('');
+    setButtonProcessing(triggerButton, 'Saindo...');
     setAdminBusy(true);
     try {
       await fetchJson(adminSessionApiPath, { method: 'DELETE' });
     } catch {
       // no-op
     }
+    state.previousAdminOverviewPayload = null;
     state.adminOverviewPayload = null;
     state.adminSearchPayload = null;
     state.adminOpsMessage = '';
     await loadAdminStatus().catch(() => {
       state.adminStatusPayload = null;
     });
+    showToast({ kind: 'success', title: 'Admin', message: 'Sessão administrativa encerrada.' });
     setAdminBusy(false);
+    setButtonIdle(triggerButton);
+    flashButtonSuccess(triggerButton, 'Encerrado');
     renderAdminPanel();
   };
 
-  const handleAdminRefresh = async () => {
+  const handleAdminRefresh = async (triggerButton = null) => {
     if (state.adminBusy) return;
+    setButtonProcessing(triggerButton, 'Atualizando...');
     setAdminBusy(true);
     await refreshAdminArea({ keepCurrentError: false });
     setAdminBusy(false);
+    setButtonIdle(triggerButton);
+    flashButtonSuccess(triggerButton, 'Atualizado');
     renderAdminPanel();
+    showToast({ kind: 'success', title: 'Atualização', message: 'Dados administrativos atualizados.' });
   };
 
   const handleAdminSearchSubmit = async () => {
@@ -1163,6 +1755,7 @@ if (root) {
     }
 
     showAdminError('');
+    setButtonProcessing(ui.adminSearchBtn, 'Buscando...');
     setAdminBusy(true);
     try {
       const query = new URLSearchParams({ q, limit: '12' }).toString();
@@ -1171,10 +1764,13 @@ if (root) {
       state.adminOpsMessage = `Busca concluída para "${q}".`;
       renderSearchResults();
       setText(ui.adminOpsStatus, state.adminOpsMessage);
+      showToast({ kind: 'success', title: 'Busca', message: state.adminOpsMessage });
     } catch (error) {
       showAdminError(error?.message || 'Falha ao buscar dados.');
     } finally {
       setAdminBusy(false);
+      setButtonIdle(ui.adminSearchBtn);
+      flashButtonSuccess(ui.adminSearchBtn, 'Concluído');
       renderAdminPanel();
     }
   };
@@ -1202,7 +1798,7 @@ if (root) {
     return fallbackName;
   };
 
-  const handleAdminExport = async ({ type = 'metrics', format = 'json' } = {}) => {
+  const handleAdminExport = async ({ type = 'metrics', format = 'json', triggerButton = null } = {}) => {
     if (state.adminBusy) return;
 
     const normalizedType = normalizeString(type || 'metrics').toLowerCase();
@@ -1210,7 +1806,9 @@ if (root) {
     const fallbackName = `admin-${normalizedType}-${Date.now()}.${normalizedFormat === 'csv' ? 'csv' : 'json'}`;
 
     showAdminError('');
+    setButtonProcessing(triggerButton, 'Exportando...');
     setAdminBusy(true);
+    let exported = false;
     try {
       const query = new URLSearchParams({
         type: normalizedType,
@@ -1231,18 +1829,22 @@ if (root) {
 
       state.adminOpsMessage = `Exportação ${normalizedType.toUpperCase()} (${normalizedFormat.toUpperCase()}) concluída.`;
       setText(ui.adminOpsStatus, state.adminOpsMessage);
+      showToast({ kind: 'success', title: 'Exportação', message: state.adminOpsMessage });
+      exported = true;
     } catch (error) {
       showAdminError(error?.message || 'Falha ao exportar dados.');
     } finally {
       setAdminBusy(false);
+      setButtonIdle(triggerButton);
+      if (exported) flashButtonSuccess(triggerButton, 'Baixado');
       renderAdminPanel();
     }
   };
 
   const handleLogout = async () => {
     if (!ui.logoutBtn) return;
-    ui.logoutBtn.disabled = true;
-    ui.logoutBtn.textContent = 'Encerrando...';
+    if (!confirmCriticalAction('Encerrar sessão da conta atual?')) return;
+    setButtonProcessing(ui.logoutBtn, 'Encerrando...');
     try {
       await fetchJson(sessionApiPath, { method: 'DELETE' });
     } catch {
@@ -1256,6 +1858,10 @@ if (root) {
     if (ui.manageHeadLink) ui.manageHeadLink.href = manageHref;
     if (ui.manageMainLink) ui.manageMainLink.href = manageHref;
     if (ui.currentYear) ui.currentYear.textContent = String(new Date().getFullYear());
+    applyEnvironmentBadge();
+    restoreCompactMode();
+    bindSectionObserver();
+    bindKeyboardShortcuts();
 
     setText(ui.status, 'Validando sua sessão...');
     showError('');
@@ -1308,14 +1914,16 @@ if (root) {
   }
 
   if (ui.adminLogoutBtn) {
-    ui.adminLogoutBtn.addEventListener('click', () => {
-      void handleAdminLogout();
+    ui.adminLogoutBtn.addEventListener('click', (event) => {
+      const button = event.currentTarget instanceof Element ? event.currentTarget : ui.adminLogoutBtn;
+      void handleAdminLogout(button);
     });
   }
 
   if (ui.adminRefreshBtn) {
-    ui.adminRefreshBtn.addEventListener('click', () => {
-      void handleAdminRefresh();
+    ui.adminRefreshBtn.addEventListener('click', (event) => {
+      const button = event.currentTarget instanceof Element ? event.currentTarget : ui.adminRefreshBtn;
+      void handleAdminRefresh(button);
     });
   }
 
@@ -1326,34 +1934,68 @@ if (root) {
     });
   }
 
+  if (ui.compactToggle) {
+    ui.compactToggle.addEventListener('click', () => {
+      setCompactMode(!state.compactMode);
+    });
+  }
+
+  if (ui.adminModerationFilterSeverity) {
+    ui.adminModerationFilterSeverity.addEventListener('change', () => {
+      state.moderationFilterSeverity = normalizeString(ui.adminModerationFilterSeverity?.value || 'all').toLowerCase();
+      renderModerationQueue(state.adminOverviewPayload?.moderation_queue);
+    });
+  }
+
+  if (ui.adminModerationFilterType) {
+    ui.adminModerationFilterType.addEventListener('change', () => {
+      state.moderationFilterType = normalizeString(ui.adminModerationFilterType?.value || 'all').toLowerCase();
+      renderModerationQueue(state.adminOverviewPayload?.moderation_queue);
+    });
+  }
+
+  if (ui.adminAuditFilterStatus) {
+    ui.adminAuditFilterStatus.addEventListener('change', () => {
+      state.auditFilterStatus = normalizeString(ui.adminAuditFilterStatus?.value || 'all').toLowerCase();
+      renderAuditLog(state.adminOverviewPayload?.audit_log);
+    });
+  }
+
+  if (ui.adminAuditSearch) {
+    ui.adminAuditSearch.addEventListener('input', () => {
+      state.auditSearchQuery = normalizeString(ui.adminAuditSearch?.value || '');
+      renderAuditLog(state.adminOverviewPayload?.audit_log);
+    });
+  }
+
   if (ui.adminOpButtons.length) {
     for (const button of ui.adminOpButtons) {
       button.addEventListener('click', () => {
         const action = normalizeString(button.dataset.adminOpAction);
         if (!action) return;
-        void handleAdminOpsAction(action);
+        void handleAdminOpsAction(action, button);
       });
     }
   }
 
   if (ui.adminExportMetricsJsonBtn) {
     ui.adminExportMetricsJsonBtn.addEventListener('click', () => {
-      void handleAdminExport({ type: 'metrics', format: 'json' });
+      void handleAdminExport({ type: 'metrics', format: 'json', triggerButton: ui.adminExportMetricsJsonBtn });
     });
   }
   if (ui.adminExportMetricsCsvBtn) {
     ui.adminExportMetricsCsvBtn.addEventListener('click', () => {
-      void handleAdminExport({ type: 'metrics', format: 'csv' });
+      void handleAdminExport({ type: 'metrics', format: 'csv', triggerButton: ui.adminExportMetricsCsvBtn });
     });
   }
   if (ui.adminExportEventsJsonBtn) {
     ui.adminExportEventsJsonBtn.addEventListener('click', () => {
-      void handleAdminExport({ type: 'events', format: 'json' });
+      void handleAdminExport({ type: 'events', format: 'json', triggerButton: ui.adminExportEventsJsonBtn });
     });
   }
   if (ui.adminExportEventsCsvBtn) {
     ui.adminExportEventsCsvBtn.addEventListener('click', () => {
-      void handleAdminExport({ type: 'events', format: 'csv' });
+      void handleAdminExport({ type: 'events', format: 'csv', triggerButton: ui.adminExportEventsCsvBtn });
     });
   }
 

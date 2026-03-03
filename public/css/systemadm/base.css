@@ -1,0 +1,71 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: 'Manrope', system-ui, sans-serif;
+  color: var(--text-main);
+  background:
+    radial-gradient(62rem 32rem at 8% -10%, rgba(37, 139, 255, 0.24), transparent 62%),
+    radial-gradient(54rem 28rem at 92% -18%, rgba(38, 222, 175, 0.16), transparent 64%),
+    linear-gradient(170deg, #060b16 0%, #081022 50%, #060d19 100%);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body[data-admin-busy='true'] .top-status-dot {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+body.compact .section {
+  padding: 14px;
+}
+
+body.compact .metric-card,
+body.compact .health-card,
+body.compact .admin-item {
+  padding: 10px;
+}
+
+body.compact .panel-title {
+  font-size: 15px;
+}
+
+mark {
+  background: rgba(93, 170, 255, 0.24);
+  color: #eff7ff;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.28);
+    opacity: 0.5;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
