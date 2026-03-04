@@ -14,11 +14,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/css/systemadm/tokens.css?v=20260303-1" />
-    <link rel="stylesheet" href="/css/systemadm/base.css?v=20260303-1" />
-    <link rel="stylesheet" href="/css/systemadm/layout.css?v=20260303-1" />
-    <link rel="stylesheet" href="/css/systemadm/components.css?v=20260303-1" />
-    <link rel="stylesheet" href="/css/systemadm/admin.css?v=20260303-1" />
+    <link rel="stylesheet" href="/css/systemadm/tokens.css?v=20260303-7" />
+    <link rel="stylesheet" href="/css/systemadm/base.css?v=20260303-7" />
+    <link rel="stylesheet" href="/css/systemadm/layout.css?v=20260303-7" />
+    <link rel="stylesheet" href="/css/systemadm/components.css?v=20260303-7" />
+    <link rel="stylesheet" href="/css/systemadm/admin.css?v=20260303-7" />
   </head>
   <body>
     <main id="user-app-root" class="admin-shell" data-api-base-path="/api/sticker-packs" data-login-path="/login" data-stickers-path="/stickers">
@@ -33,7 +33,7 @@
         </div>
 
         <ul class="nav-list" id="user-admin-nav">
-          <li><a class="nav-link" href="#dashboard">Dashboard <span class="nav-kbd">1</span></a></li>
+          <li><a class="nav-link" href="#overview">Dashboard <span class="nav-kbd">1</span></a></li>
           <li><a class="nav-link" href="#moderacao">Moderação <span class="nav-kbd">2</span></a></li>
           <li><a class="nav-link" href="#usuarios">Usuários <span class="nav-kbd">3</span></a></li>
           <li><a class="nav-link" href="#sessoes">Sessões <span class="nav-kbd">4</span></a></li>
@@ -53,7 +53,7 @@
 
       <div class="workspace">
         <header class="topbar">
-          <div>
+          <div class="topbar-left">
             <h2 class="topbar-title">System Admin</h2>
             <div class="topbar-meta">
               <span id="user-env-badge" class="chip env">Production</span>
@@ -71,97 +71,8 @@
         </header>
 
         <div class="viewport">
-          <section class="hero" id="dashboard">
-            <h1>System Admin Console</h1>
-            <p class="lead">Visão operacional completa com monitoramento de bots, segurança de sessões, auditoria e governança de recursos em tempo real.</p>
-            <p id="user-status" class="status">Carregando dados da conta...</p>
-            <p id="user-error" class="error" hidden></p>
-            <div class="hero-actions">
-              <a id="user-chat-link" class="btn primary" href="https://api.whatsapp.com/send/?text=%2Fmenu&type=custom_url&app_absent=0" target="_blank" rel="noreferrer noopener">Voltar ao chat do bot</a>
-              <a id="user-manage-main-link" class="btn" href="/stickers/perfil">Gerenciar meus stickers</a>
-              <a class="btn" href="/user/">Minha Conta</a>
-            </div>
-          </section>
-
-          <section class="section">
-            <div class="section-head">
-              <div>
-                <h3 class="panel-title">Identidade da Conta</h3>
-                <p class="panel-subtitle">Contexto da sessão autenticada e vínculo principal.</p>
-              </div>
-            </div>
-
-            <div id="user-profile" class="profile" hidden>
-              <img id="user-avatar" class="avatar" src="https://iili.io/FC3FABe.jpg" alt="Avatar do usuário" />
-              <div class="profile-meta">
-                <h2 id="user-name">Conta</h2>
-                <p id="user-email"></p>
-                <p id="user-whatsapp"></p>
-              </div>
-            </div>
-
-            <div id="user-grid" class="grid" hidden>
-              <article class="metric">
-                <p class="metric-label">Packs</p>
-                <p id="metric-packs" class="metric-value">0</p>
-                <div class="metric-foot">
-                  <span class="trend up">↑ 12%</span>
-                  <svg class="sparkline" viewBox="0 0 120 26" aria-hidden="true">
-                    <path class="fill" d="M0 25 L0 18 L18 17 L36 14 L54 16 L72 10 L90 12 L108 7 L120 9 L120 25 Z"></path>
-                    <path d="M0 18 L18 17 L36 14 L54 16 L72 10 L90 12 L108 7 L120 9"></path>
-                  </svg>
-                </div>
-              </article>
-              <article class="metric">
-                <p class="metric-label">Stickers</p>
-                <p id="metric-stickers" class="metric-value">0</p>
-                <div class="metric-foot">
-                  <span class="trend up">↑ 7%</span>
-                  <svg class="sparkline" viewBox="0 0 120 26" aria-hidden="true">
-                    <path class="fill" d="M0 25 L0 20 L18 18 L36 19 L54 16 L72 14 L90 11 L108 10 L120 8 L120 25 Z"></path>
-                    <path d="M0 20 L18 18 L36 19 L54 16 L72 14 L90 11 L108 10 L120 8"></path>
-                  </svg>
-                </div>
-              </article>
-              <article class="metric">
-                <p class="metric-label">Downloads</p>
-                <p id="metric-downloads" class="metric-value">0</p>
-                <div class="metric-foot">
-                  <span class="trend warn">↗ 3%</span>
-                  <svg class="sparkline" viewBox="0 0 120 26" aria-hidden="true">
-                    <path class="fill" d="M0 25 L0 22 L18 20 L36 18 L54 19 L72 17 L90 13 L108 14 L120 12 L120 25 Z"></path>
-                    <path d="M0 22 L18 20 L36 18 L54 19 L72 17 L90 13 L108 14 L120 12"></path>
-                  </svg>
-                </div>
-              </article>
-              <article class="metric">
-                <p class="metric-label">Likes</p>
-                <p id="metric-likes" class="metric-value">0</p>
-                <div class="metric-foot">
-                  <span class="trend up">↑ 9%</span>
-                  <svg class="sparkline" viewBox="0 0 120 26" aria-hidden="true">
-                    <path class="fill" d="M0 25 L0 21 L18 20 L36 16 L54 15 L72 13 L90 10 L108 12 L120 9 L120 25 Z"></path>
-                    <path d="M0 21 L18 20 L36 16 L54 15 L72 13 L90 10 L108 12 L120 9"></path>
-                  </svg>
-                </div>
-              </article>
-            </div>
-
-            <div id="user-summary" class="summary" hidden>
-              <div><strong>Owner JID:</strong> <span id="user-owner-jid"></span></div>
-              <div><strong>Google ID:</strong> <span id="user-google-sub"></span></div>
-              <div><strong>Sessão expira:</strong> <span id="user-expires-at"></span></div>
-            </div>
-          </section>
-
           <section id="user-admin-panel" class="section admin-panel" hidden>
-            <div class="admin-headline">
-              <div>
-                <h3 class="admin-title">Admin Core</h3>
-                <p id="user-admin-status" class="admin-note"></p>
-              </div>
-              <span id="user-admin-role" class="admin-role">admin</span>
-            </div>
+            <p id="user-admin-status" class="admin-note" hidden></p>
 
             <p id="user-admin-error" class="admin-error" hidden></p>
 
@@ -177,6 +88,11 @@
               <div class="admin-toolbar">
                 <div class="admin-toolbar-meta">
                   <p class="admin-last-updated">Última atualização: <span id="user-admin-last-updated">n/d</span></p>
+                  <div id="user-admin-carousel-nav" class="admin-carousel-nav" aria-label="Navegação do carrossel administrativo">
+                    <button id="user-admin-carousel-prev" type="button" class="admin-carousel-btn" aria-label="Slide anterior">Anterior</button>
+                    <span id="user-admin-carousel-counter" class="admin-carousel-counter">1 / 1</span>
+                    <button id="user-admin-carousel-next" type="button" class="admin-carousel-btn" aria-label="Próximo slide">Próximo</button>
+                  </div>
                 </div>
 
                 <form id="user-admin-search-form" class="admin-inline-form">
@@ -201,8 +117,8 @@
                 <p id="user-admin-ops-status" class="admin-item-meta">Ações operacionais disponíveis.</p>
               </div>
 
-              <div class="admin-layout">
-                <section class="section span-12">
+              <div id="user-admin-layout" class="admin-layout admin-layout--enterprise is-carousel is-subpage">
+                <section id="overview" class="section section-kpis span-12" data-admin-page="overview">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Dashboard Estratégico</h4>
@@ -292,7 +208,7 @@
                   </div>
                 </section>
 
-                <section id="saude" class="section span-12">
+                <section id="saude" class="section section-health span-12" data-admin-page="saude">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Saúde do Sistema</h4>
@@ -344,7 +260,7 @@
                   </div>
                 </section>
 
-                <section id="moderacao" class="section span-6">
+                <section id="moderacao" class="section section-security span-6" data-admin-page="moderacao">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Moderação</h4>
@@ -375,9 +291,17 @@
                   </div>
 
                   <div id="user-admin-moderation-list" class="admin-list timeline"></div>
+                  <div id="user-admin-moderation-pagination" class="list-pagination" hidden>
+                    <p id="user-admin-moderation-page-meta" class="list-pagination-meta"></p>
+                    <div class="list-pagination-controls">
+                      <button id="user-admin-moderation-prev" type="button" class="admin-mini-btn">Anterior</button>
+                      <span id="user-admin-moderation-page-counter" class="list-pagination-counter">1 / 1</span>
+                      <button id="user-admin-moderation-next" type="button" class="admin-mini-btn">Próxima</button>
+                    </div>
+                  </div>
                 </section>
 
-                <section id="auditoria" class="section span-6">
+                <section id="auditoria" class="section section-security span-6" data-admin-page="auditoria">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Auditoria</h4>
@@ -401,9 +325,17 @@
                   </div>
 
                   <div id="user-admin-audit-list" class="admin-list timeline"></div>
+                  <div id="user-admin-audit-pagination" class="list-pagination" hidden>
+                    <p id="user-admin-audit-page-meta" class="list-pagination-meta"></p>
+                    <div class="list-pagination-controls">
+                      <button id="user-admin-audit-prev" type="button" class="admin-mini-btn">Anterior</button>
+                      <span id="user-admin-audit-page-counter" class="list-pagination-counter">1 / 1</span>
+                      <button id="user-admin-audit-next" type="button" class="admin-mini-btn">Próxima</button>
+                    </div>
+                  </div>
                 </section>
 
-                <section id="usuarios" class="section span-6">
+                <section id="usuarios" class="section section-users span-6" data-admin-page="usuarios">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Usuários</h4>
@@ -411,9 +343,17 @@
                     </div>
                   </div>
                   <div id="user-admin-users-list" class="admin-list"></div>
+                  <div id="user-admin-users-pagination" class="list-pagination" hidden>
+                    <p id="user-admin-users-page-meta" class="list-pagination-meta"></p>
+                    <div class="list-pagination-controls">
+                      <button id="user-admin-users-prev" type="button" class="admin-mini-btn">Anterior</button>
+                      <span id="user-admin-users-page-counter" class="list-pagination-counter">1 / 1</span>
+                      <button id="user-admin-users-next" type="button" class="admin-mini-btn">Próxima</button>
+                    </div>
+                  </div>
                 </section>
 
-                <section id="sessoes" class="section span-6">
+                <section id="sessoes" class="section section-users span-6" data-admin-page="sessoes">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Sessões Ativas</h4>
@@ -421,9 +361,17 @@
                     </div>
                   </div>
                   <div id="user-admin-sessions-list" class="admin-list"></div>
+                  <div id="user-admin-sessions-pagination" class="list-pagination" hidden>
+                    <p id="user-admin-sessions-page-meta" class="list-pagination-meta"></p>
+                    <div class="list-pagination-controls">
+                      <button id="user-admin-sessions-prev" type="button" class="admin-mini-btn">Anterior</button>
+                      <span id="user-admin-sessions-page-counter" class="list-pagination-counter">1 / 1</span>
+                      <button id="user-admin-sessions-next" type="button" class="admin-mini-btn">Próxima</button>
+                    </div>
+                  </div>
                 </section>
 
-                <section id="alertas" class="section span-6">
+                <section id="alertas" class="section section-security span-6" data-admin-page="alertas">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Alertas</h4>
@@ -431,9 +379,17 @@
                     </div>
                   </div>
                   <div id="user-admin-alerts-list" class="admin-list timeline"></div>
+                  <div id="user-admin-alerts-pagination" class="list-pagination" hidden>
+                    <p id="user-admin-alerts-page-meta" class="list-pagination-meta"></p>
+                    <div class="list-pagination-controls">
+                      <button id="user-admin-alerts-prev" type="button" class="admin-mini-btn">Anterior</button>
+                      <span id="user-admin-alerts-page-counter" class="list-pagination-counter">1 / 1</span>
+                      <button id="user-admin-alerts-next" type="button" class="admin-mini-btn">Próxima</button>
+                    </div>
+                  </div>
                 </section>
 
-                <section id="configuracoes" class="section span-6">
+                <section id="configuracoes" class="section section-governance span-6" data-admin-page="configuracoes">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Controle de Recursos</h4>
@@ -443,7 +399,7 @@
                   <div id="user-admin-flags-list" class="admin-list"></div>
                 </section>
 
-                <section class="section span-6">
+                <section class="section section-security span-6" data-admin-page="configuracoes">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Bans</h4>
@@ -453,7 +409,7 @@
                   <div id="user-admin-bans-list" class="admin-list"></div>
                 </section>
 
-                <section class="section span-6">
+                <section class="section section-governance span-6" data-admin-page="usuarios">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Busca Global</h4>
@@ -463,7 +419,7 @@
                   <div id="user-admin-search-results" class="admin-list"></div>
                 </section>
 
-                <section class="section span-12">
+                <section class="section section-governance span-12" data-admin-page="configuracoes">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Atalhos Operacionais</h4>
@@ -477,7 +433,7 @@
                   </div>
                 </section>
 
-                <section id="exportacao" class="section span-12">
+                <section id="exportacao" class="section section-governance span-12" data-admin-page="exportacao">
                   <div class="section-head">
                     <div>
                       <h4 class="panel-title">Exportação</h4>
@@ -500,19 +456,6 @@
             </div>
           </section>
 
-          <section class="section">
-            <div class="section-head">
-              <div>
-                <h4 class="panel-title">Ações de Conta</h4>
-                <p class="panel-subtitle">Acesso rápido para navegação e encerramento de sessão.</p>
-              </div>
-            </div>
-            <div id="user-actions" class="actions" hidden>
-              <a class="btn" href="/">Voltar para Home</a>
-              <button id="user-logout-btn" type="button" class="btn">Encerrar sessão</button>
-            </div>
-          </section>
-
           <p class="footer">OmniZap System · <span id="user-current-year"></span></p>
         </div>
       </div>
@@ -520,6 +463,6 @@
 
     <div id="user-admin-toast-stack" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
 
-    <script type="module" src="/js/apps/userApp.js?v=20260303-user-systemadm-v3"></script>
+    <script type="module" src="/js/apps/userApp.js?v=20260303-user-systemadm-v11"></script>
   </body>
 </html>

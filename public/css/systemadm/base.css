@@ -10,12 +10,16 @@ body {
 }
 
 body {
-  font-family: 'Manrope', system-ui, sans-serif;
+  font-family: var(--font-body);
+  font-size: var(--fs-16);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   color: var(--text-main);
   background:
-    radial-gradient(62rem 32rem at 8% -10%, rgba(37, 139, 255, 0.24), transparent 62%),
-    radial-gradient(54rem 28rem at 92% -18%, rgba(38, 222, 175, 0.16), transparent 64%),
-    linear-gradient(170deg, #060b16 0%, #081022 50%, #060d19 100%);
+    radial-gradient(44rem 22rem at 8% -16%, rgba(72, 132, 220, 0.2), transparent 65%),
+    linear-gradient(180deg, #070d18 0%, #081122 100%);
 }
 
 [hidden] {
@@ -27,24 +31,24 @@ body[data-admin-busy='true'] .top-status-dot {
 }
 
 body.compact .section {
-  padding: 14px;
+  padding: var(--space-3);
 }
 
 body.compact .metric-card,
 body.compact .health-card,
 body.compact .admin-item {
-  padding: 10px;
+  padding: var(--space-3);
 }
 
 body.compact .panel-title {
-  font-size: 15px;
+  font-size: var(--fs-14);
 }
 
 mark {
-  background: rgba(93, 170, 255, 0.24);
-  color: #eff7ff;
-  border-radius: 4px;
-  padding: 0 2px;
+  background: rgba(94, 169, 255, 0.22);
+  color: var(--text-main);
+  border-radius: var(--space-1);
+  padding: 0 var(--space-1);
 }
 
 @keyframes pulse {

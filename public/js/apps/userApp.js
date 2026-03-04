@@ -20,6 +20,7 @@ if (root) {
     globalStatusText: document.getElementById('user-global-status-text'),
     compactToggle: document.getElementById('user-compact-toggle'),
     navLinks: Array.from(document.querySelectorAll('#user-admin-nav .nav-link')),
+    viewport: document.querySelector('.viewport'),
     toastStack: document.getElementById('user-admin-toast-stack'),
     name: document.getElementById('user-name'),
     email: document.getElementById('user-email'),
@@ -48,8 +49,13 @@ if (root) {
     adminPassword: document.getElementById('user-admin-password'),
     adminUnlockBtn: document.getElementById('user-admin-unlock-btn'),
     adminOverview: document.getElementById('user-admin-overview'),
+    adminLayout: document.getElementById('user-admin-layout'),
     adminRefreshBtn: document.getElementById('user-admin-refresh-btn'),
     adminLogoutBtn: document.getElementById('user-admin-logout-btn'),
+    adminCarouselNav: document.getElementById('user-admin-carousel-nav'),
+    adminCarouselPrevBtn: document.getElementById('user-admin-carousel-prev'),
+    adminCarouselNextBtn: document.getElementById('user-admin-carousel-next'),
+    adminCarouselCounter: document.getElementById('user-admin-carousel-counter'),
 
     adminBotsOnline: document.getElementById('user-admin-bots-online'),
     adminMessagesToday: document.getElementById('user-admin-messages-today'),
@@ -102,14 +108,39 @@ if (root) {
     adminModerationList: document.getElementById('user-admin-moderation-list'),
     adminModerationFilterSeverity: document.getElementById('user-admin-moderation-filter-severity'),
     adminModerationFilterType: document.getElementById('user-admin-moderation-filter-type'),
+    adminModerationPagination: document.getElementById('user-admin-moderation-pagination'),
+    adminModerationPageMeta: document.getElementById('user-admin-moderation-page-meta'),
+    adminModerationPageCounter: document.getElementById('user-admin-moderation-page-counter'),
+    adminModerationPrevBtn: document.getElementById('user-admin-moderation-prev'),
+    adminModerationNextBtn: document.getElementById('user-admin-moderation-next'),
     adminSessionsList: document.getElementById('user-admin-sessions-list'),
+    adminSessionsPagination: document.getElementById('user-admin-sessions-pagination'),
+    adminSessionsPageMeta: document.getElementById('user-admin-sessions-page-meta'),
+    adminSessionsPageCounter: document.getElementById('user-admin-sessions-page-counter'),
+    adminSessionsPrevBtn: document.getElementById('user-admin-sessions-prev'),
+    adminSessionsNextBtn: document.getElementById('user-admin-sessions-next'),
     adminUsersList: document.getElementById('user-admin-users-list'),
+    adminUsersPagination: document.getElementById('user-admin-users-pagination'),
+    adminUsersPageMeta: document.getElementById('user-admin-users-page-meta'),
+    adminUsersPageCounter: document.getElementById('user-admin-users-page-counter'),
+    adminUsersPrevBtn: document.getElementById('user-admin-users-prev'),
+    adminUsersNextBtn: document.getElementById('user-admin-users-next'),
     adminBansList: document.getElementById('user-admin-bans-list'),
     adminAuditList: document.getElementById('user-admin-audit-list'),
     adminAuditFilterStatus: document.getElementById('user-admin-audit-filter-status'),
     adminAuditSearch: document.getElementById('user-admin-audit-search'),
+    adminAuditPagination: document.getElementById('user-admin-audit-pagination'),
+    adminAuditPageMeta: document.getElementById('user-admin-audit-page-meta'),
+    adminAuditPageCounter: document.getElementById('user-admin-audit-page-counter'),
+    adminAuditPrevBtn: document.getElementById('user-admin-audit-prev'),
+    adminAuditNextBtn: document.getElementById('user-admin-audit-next'),
     adminFlagsList: document.getElementById('user-admin-flags-list'),
     adminAlertsList: document.getElementById('user-admin-alerts-list'),
+    adminAlertsPagination: document.getElementById('user-admin-alerts-pagination'),
+    adminAlertsPageMeta: document.getElementById('user-admin-alerts-page-meta'),
+    adminAlertsPageCounter: document.getElementById('user-admin-alerts-page-counter'),
+    adminAlertsPrevBtn: document.getElementById('user-admin-alerts-prev'),
+    adminAlertsNextBtn: document.getElementById('user-admin-alerts-next'),
     adminOpsStatus: document.getElementById('user-admin-ops-status'),
     riskCpu: document.getElementById('user-risk-cpu'),
     riskSpam: document.getElementById('user-risk-spam'),
@@ -142,8 +173,19 @@ if (root) {
     compactMode: false,
     moderationFilterSeverity: 'all',
     moderationFilterType: 'all',
+    moderationPage: 1,
+    moderationPageSize: 6,
+    usersPage: 1,
+    usersPageSize: 6,
+    sessionsPage: 1,
+    sessionsPageSize: 6,
     auditFilterStatus: 'all',
     auditSearchQuery: '',
+    auditPage: 1,
+    auditPageSize: 6,
+    alertsPage: 1,
+    alertsPageSize: 6,
+    adminCarouselIndex: 0,
   };
 
   const sessionApiPath = `${state.apiBasePath}/auth/google/session`;
@@ -244,6 +286,256 @@ if (root) {
   const normalizeDigits = (value) => String(value || '').replace(/\D+/g, '');
   const normalizeString = (value) => String(value || '').trim();
   const isObject = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
+  const toPositiveInt = (value, fallback = 1) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 1) return fallback;
+    return Math.floor(numeric);
+  };
+
+  const setActiveNavLink = (targetId) => {
+    if (!ui.navLinks.length) return;
+    const normalizedTarget = normalizeString(targetId).replace(/^#/, '');
+    for (const link of ui.navLinks) {
+      const href = normalizeString(link.getAttribute('href'));
+      const linkTarget = href.startsWith('#') ? href.slice(1) : '';
+      link.classList.toggle('active', Boolean(linkTarget) && linkTarget === normalizedTarget);
+    }
+  };
+
+  const getAdminSubpageSections = () => {
+    if (!ui.adminLayout) return [];
+    return Array.from(ui.adminLayout.querySelectorAll('.section[data-admin-page]'));
+  };
+
+  const resolveAdminSubpageTarget = (value) => {
+    const sections = getAdminSubpageSections();
+    if (!sections.length) return '';
+    const requested = normalizeString(value).replace(/^#/, '');
+    if (requested) {
+      const hasMatch = sections.some((section) => {
+        const pageKey = normalizeString(section.dataset.adminPage || section.id).replace(/^#/, '');
+        return pageKey === requested || normalizeString(section.id).replace(/^#/, '') === requested;
+      });
+      if (hasMatch) return requested;
+    }
+    const first = sections[0];
+    return normalizeString(first?.dataset?.adminPage || first?.id).replace(/^#/, '');
+  };
+
+  const activateAdminSubpage = (value, { syncHash = false, resetScroll = true } = {}) => {
+    const sections = getAdminSubpageSections();
+    if (!sections.length) return false;
+
+    const target = resolveAdminSubpageTarget(value);
+    if (!target) return false;
+
+    for (const section of sections) {
+      const pageKey = normalizeString(section.dataset.adminPage || section.id).replace(/^#/, '');
+      const sectionId = normalizeString(section.id).replace(/^#/, '');
+      const visible = pageKey === target || sectionId === target;
+      section.hidden = !visible;
+      section.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+
+    setActiveNavLink(target);
+    if (syncHash) {
+      const nextHash = `#${target}`;
+      if (window.location.hash !== nextHash) {
+        window.history.replaceState(null, '', nextHash);
+      }
+    }
+    if (resetScroll && ui.viewport) {
+      ui.viewport.scrollTo({ top: 0, behavior: 'auto' });
+    }
+    return true;
+  };
+
+  const getAdminCarouselSlides = () => {
+    if (!ui.adminLayout) return [];
+    return Array.from(ui.adminLayout.children).filter((node) => node instanceof Element && node.classList.contains('section'));
+  };
+
+  const isCarouselMode = () =>
+    Boolean(ui.adminLayout && ui.adminLayout.dataset.carouselEnabled === 'true' && document.body.classList.contains('compact'));
+
+  const updateAdminCarouselControls = (slides = getAdminCarouselSlides()) => {
+    const carouselMode = isCarouselMode();
+    const total = slides.length;
+    if (ui.adminCarouselNav) ui.adminCarouselNav.hidden = !carouselMode || total <= 1;
+    if (!carouselMode) {
+      if (ui.adminLayout) ui.adminLayout.style.blockSize = '';
+      if (ui.adminCarouselPrevBtn) ui.adminCarouselPrevBtn.disabled = true;
+      if (ui.adminCarouselNextBtn) ui.adminCarouselNextBtn.disabled = true;
+      if (ui.adminCarouselCounter) ui.adminCarouselCounter.textContent = `${Math.min(state.adminCarouselIndex + 1, Math.max(total, 1))} / ${Math.max(total, 1)}`;
+      return;
+    }
+
+    if (!total) {
+      if (ui.adminCarouselCounter) ui.adminCarouselCounter.textContent = '0 / 0';
+      if (ui.adminCarouselPrevBtn) ui.adminCarouselPrevBtn.disabled = true;
+      if (ui.adminCarouselNextBtn) ui.adminCarouselNextBtn.disabled = true;
+      state.adminCarouselIndex = 0;
+      return;
+    }
+
+    const nextIndex = Math.max(0, Math.min(state.adminCarouselIndex, total - 1));
+    state.adminCarouselIndex = nextIndex;
+    const activeSlide = slides[nextIndex];
+    if (ui.adminLayout && activeSlide) {
+      const viewportRatio = state.compactMode ? 0.62 : 0.68;
+      const maxHeight = Math.max(300, Math.round(window.innerHeight * viewportRatio));
+      const targetHeight = Math.min(Math.max(activeSlide.scrollHeight, 300), maxHeight);
+      ui.adminLayout.style.blockSize = `${targetHeight}px`;
+    }
+
+    if (ui.adminCarouselCounter) {
+      ui.adminCarouselCounter.textContent = `${nextIndex + 1} / ${total}`;
+    }
+    if (ui.adminCarouselPrevBtn) ui.adminCarouselPrevBtn.disabled = nextIndex <= 0;
+    if (ui.adminCarouselNextBtn) ui.adminCarouselNextBtn.disabled = nextIndex >= total - 1;
+  };
+
+  const scrollAdminCarouselToIndex = (index, { behavior = 'smooth' } = {}) => {
+    if (!isCarouselMode()) return false;
+    const slides = getAdminCarouselSlides();
+    if (!slides.length || !ui.adminLayout) return false;
+
+    const boundedIndex = Math.max(0, Math.min(Number(index) || 0, slides.length - 1));
+    state.adminCarouselIndex = boundedIndex;
+    const targetSlide = slides[boundedIndex];
+    ui.adminLayout.scrollTo({
+      left: targetSlide.offsetLeft,
+      behavior,
+    });
+    updateAdminCarouselControls(slides);
+    if (targetSlide.id) setActiveNavLink(targetSlide.id);
+    return true;
+  };
+
+  const scrollAdminCarouselToId = (targetId, options = {}) => {
+    if (!isCarouselMode()) return false;
+    const normalizedTarget = normalizeString(targetId).replace(/^#/, '');
+    if (!normalizedTarget) return false;
+    const slides = getAdminCarouselSlides();
+    const nextIndex = slides.findIndex((slide) => slide.id === normalizedTarget);
+    if (nextIndex < 0) return false;
+    return scrollAdminCarouselToIndex(nextIndex, options);
+  };
+
+  const bindAdminCarousel = () => {
+    if (!ui.adminLayout) return;
+    const slides = getAdminCarouselSlides();
+    if (!slides.length) return;
+
+    let rafToken = 0;
+    const syncFromScroll = () => {
+      if (!isCarouselMode()) return;
+      if (!ui.adminLayout) return;
+      const currentLeft = ui.adminLayout.scrollLeft;
+      let closestIndex = state.adminCarouselIndex;
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      for (let index = 0; index < slides.length; index += 1) {
+        const distance = Math.abs(slides[index].offsetLeft - currentLeft);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIndex = index;
+        }
+      }
+
+      if (closestIndex !== state.adminCarouselIndex) {
+        state.adminCarouselIndex = closestIndex;
+        if (slides[closestIndex]?.id) setActiveNavLink(slides[closestIndex].id);
+      }
+      updateAdminCarouselControls(slides);
+    };
+
+    ui.adminLayout.addEventListener(
+      'scroll',
+      () => {
+        if (rafToken) return;
+        rafToken = window.requestAnimationFrame(() => {
+          rafToken = 0;
+          syncFromScroll();
+        });
+      },
+      { passive: true },
+    );
+
+    if (ui.adminCarouselPrevBtn) {
+      ui.adminCarouselPrevBtn.addEventListener('click', () => {
+        if (!isCarouselMode()) return;
+        scrollAdminCarouselToIndex(state.adminCarouselIndex - 1);
+      });
+    }
+
+    if (ui.adminCarouselNextBtn) {
+      ui.adminCarouselNextBtn.addEventListener('click', () => {
+        if (!isCarouselMode()) return;
+        scrollAdminCarouselToIndex(state.adminCarouselIndex + 1);
+      });
+    }
+
+    for (const link of ui.navLinks) {
+      const href = normalizeString(link.getAttribute('href'));
+      if (!href.startsWith('#')) continue;
+      const targetId = href.slice(1);
+      if (!targetId) continue;
+      link.addEventListener('click', (event) => {
+        if (!isCarouselMode()) return;
+        if (!scrollAdminCarouselToId(targetId)) return;
+        event.preventDefault();
+      });
+    }
+
+    window.addEventListener('resize', () => {
+      if (!isCarouselMode()) {
+        updateAdminCarouselControls();
+        return;
+      }
+      scrollAdminCarouselToIndex(state.adminCarouselIndex, { behavior: 'auto' });
+    });
+
+    const hashTarget = normalizeString(window.location.hash);
+    if (isCarouselMode() && hashTarget && scrollAdminCarouselToId(hashTarget, { behavior: 'auto' })) {
+      return;
+    }
+    updateAdminCarouselControls(slides);
+  };
+
+  const setPaginationHidden = ({ wrapper, counter, meta }) => {
+    if (wrapper) wrapper.hidden = true;
+    if (counter) counter.textContent = '1 / 1';
+    if (meta) meta.textContent = '';
+  };
+
+  const paginateItems = ({ items = [], statePageKey = '', pageSize = 10, wrapper = null, counter = null, meta = null, prevBtn = null, nextBtn = null } = {}) => {
+    const safeItems = Array.isArray(items) ? items : [];
+    const safePageSize = toPositiveInt(pageSize, 10);
+
+    if (!safeItems.length) {
+      setPaginationHidden({ wrapper, counter, meta });
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      return [];
+    }
+
+    const totalPages = Math.max(1, Math.ceil(safeItems.length / safePageSize));
+    const page = Math.min(Math.max(1, toPositiveInt(state[statePageKey], 1)), totalPages);
+    state[statePageKey] = page;
+
+    const startIndex = (page - 1) * safePageSize;
+    const endIndex = Math.min(startIndex + safePageSize, safeItems.length);
+    const pageItems = safeItems.slice(startIndex, endIndex);
+
+    if (wrapper) wrapper.hidden = safeItems.length <= safePageSize;
+    if (counter) counter.textContent = `${page} / ${totalPages}`;
+    if (meta) meta.textContent = `Mostrando ${startIndex + 1}-${endIndex} de ${safeItems.length}`;
+    if (prevBtn) prevBtn.disabled = page <= 1;
+    if (nextBtn) nextBtn.disabled = page >= totalPages;
+
+    return pageItems;
+  };
 
   const formatPhone = (digits) => {
     const value = normalizeDigits(digits);
@@ -747,6 +1039,11 @@ if (root) {
     setText(ui.adminHealthQueueMeta, 'Ideal: abaixo de 120 jobs');
     setText(ui.adminHealthDbMeta, 'SLA alvo: 99.95%');
     setText(ui.adminLastUpdated, 'n/d');
+    state.moderationPage = 1;
+    state.auditPage = 1;
+    state.usersPage = 1;
+    state.sessionsPage = 1;
+    state.alertsPage = 1;
     if (ui.adminHealthDbBadge) {
       ui.adminHealthDbBadge.classList.remove('healthy', 'degraded', 'down');
       ui.adminHealthDbBadge.textContent = 'Unknown';
@@ -761,6 +1058,31 @@ if (root) {
     renderListPlaceholder(ui.adminUsersList, 'Nenhum usuário encontrado.');
     renderListPlaceholder(ui.adminBansList, 'Nenhuma conta bloqueada.');
     renderListPlaceholder(ui.adminAuditList, 'Sem eventos de auditoria recentes.');
+    setPaginationHidden({
+      wrapper: ui.adminModerationPagination,
+      counter: ui.adminModerationPageCounter,
+      meta: ui.adminModerationPageMeta,
+    });
+    setPaginationHidden({
+      wrapper: ui.adminAuditPagination,
+      counter: ui.adminAuditPageCounter,
+      meta: ui.adminAuditPageMeta,
+    });
+    setPaginationHidden({
+      wrapper: ui.adminUsersPagination,
+      counter: ui.adminUsersPageCounter,
+      meta: ui.adminUsersPageMeta,
+    });
+    setPaginationHidden({
+      wrapper: ui.adminSessionsPagination,
+      counter: ui.adminSessionsPageCounter,
+      meta: ui.adminSessionsPageMeta,
+    });
+    setPaginationHidden({
+      wrapper: ui.adminAlertsPagination,
+      counter: ui.adminAlertsPageCounter,
+      meta: ui.adminAlertsPageMeta,
+    });
     renderListPlaceholder(ui.adminFlagsList, 'Nenhuma feature flag disponível.');
     renderListPlaceholder(ui.adminAlertsList, 'Sem alertas ativos no momento.');
     renderListPlaceholder(ui.adminSearchResults, 'Faça uma busca para ver usuários, grupos, packs e sessões.');
@@ -964,10 +1286,28 @@ if (root) {
 
     if (!filtered.length) {
       renderListPlaceholder(ui.adminModerationList, 'Nenhum evento recente de moderação.');
+      setPaginationHidden({
+        wrapper: ui.adminModerationPagination,
+        counter: ui.adminModerationPageCounter,
+        meta: ui.adminModerationPageMeta,
+      });
+      if (ui.adminModerationPrevBtn) ui.adminModerationPrevBtn.disabled = true;
+      if (ui.adminModerationNextBtn) ui.adminModerationNextBtn.disabled = true;
       return;
     }
 
-    for (const event of filtered) {
+    const pageItems = paginateItems({
+      items: filtered,
+      statePageKey: 'moderationPage',
+      pageSize: state.moderationPageSize,
+      wrapper: ui.adminModerationPagination,
+      counter: ui.adminModerationPageCounter,
+      meta: ui.adminModerationPageMeta,
+      prevBtn: ui.adminModerationPrevBtn,
+      nextBtn: ui.adminModerationNextBtn,
+    });
+
+    for (const event of pageItems) {
       const title = normalizeString(event?.title) || 'Evento de moderação';
       const severity = normalizeSeverity(event?.severity);
       const badgeLabel = severity.toUpperCase();
@@ -1018,10 +1358,28 @@ if (root) {
 
     if (!list.length) {
       renderListPlaceholder(ui.adminSessionsList, 'Nenhuma sessão ativa encontrada.');
+      setPaginationHidden({
+        wrapper: ui.adminSessionsPagination,
+        counter: ui.adminSessionsPageCounter,
+        meta: ui.adminSessionsPageMeta,
+      });
+      if (ui.adminSessionsPrevBtn) ui.adminSessionsPrevBtn.disabled = true;
+      if (ui.adminSessionsNextBtn) ui.adminSessionsNextBtn.disabled = true;
       return;
     }
 
-    for (const session of list) {
+    const pageItems = paginateItems({
+      items: list,
+      statePageKey: 'sessionsPage',
+      pageSize: state.sessionsPageSize,
+      wrapper: ui.adminSessionsPagination,
+      counter: ui.adminSessionsPageCounter,
+      meta: ui.adminSessionsPageMeta,
+      prevBtn: ui.adminSessionsPrevBtn,
+      nextBtn: ui.adminSessionsNextBtn,
+    });
+
+    for (const session of pageItems) {
       const identity = compactIdentityPayload(session);
       const title = normalizeString(session?.name || session?.email || session?.owner_jid || 'Sessão ativa');
       const meta = [`Email: ${normalizeString(session?.email) || 'n/d'}`, `Owner: ${normalizeString(session?.owner_jid) || 'n/d'}`, `Último acesso: ${formatDateTime(session?.last_seen_at)} • Expira: ${formatDateTime(session?.expires_at)}`];
@@ -1046,10 +1404,28 @@ if (root) {
 
     if (!list.length) {
       renderListPlaceholder(ui.adminUsersList, 'Nenhum usuário encontrado.');
+      setPaginationHidden({
+        wrapper: ui.adminUsersPagination,
+        counter: ui.adminUsersPageCounter,
+        meta: ui.adminUsersPageMeta,
+      });
+      if (ui.adminUsersPrevBtn) ui.adminUsersPrevBtn.disabled = true;
+      if (ui.adminUsersNextBtn) ui.adminUsersNextBtn.disabled = true;
       return;
     }
 
-    for (const user of list) {
+    const pageItems = paginateItems({
+      items: list,
+      statePageKey: 'usersPage',
+      pageSize: state.usersPageSize,
+      wrapper: ui.adminUsersPagination,
+      counter: ui.adminUsersPageCounter,
+      meta: ui.adminUsersPageMeta,
+      prevBtn: ui.adminUsersPrevBtn,
+      nextBtn: ui.adminUsersNextBtn,
+    });
+
+    for (const user of pageItems) {
       const identity = buildForceLogoutPayloadFromAny(user);
       const title = normalizeString(user?.name || user?.email || user?.owner_jid || 'Usuário');
       const meta = [`Email: ${normalizeString(user?.email) || 'n/d'}`, `Owner: ${normalizeString(user?.owner_jid) || 'n/d'}`, `Último login: ${formatDateTime(user?.last_login_at)} • Último acesso: ${formatDateTime(user?.last_seen_at)}`];
@@ -1124,10 +1500,28 @@ if (root) {
 
     if (!filtered.length) {
       renderListPlaceholder(ui.adminAuditList, 'Sem eventos de auditoria recentes.');
+      setPaginationHidden({
+        wrapper: ui.adminAuditPagination,
+        counter: ui.adminAuditPageCounter,
+        meta: ui.adminAuditPageMeta,
+      });
+      if (ui.adminAuditPrevBtn) ui.adminAuditPrevBtn.disabled = true;
+      if (ui.adminAuditNextBtn) ui.adminAuditNextBtn.disabled = true;
       return;
     }
 
-    for (const item of filtered.slice(0, 80)) {
+    const pageItems = paginateItems({
+      items: filtered,
+      statePageKey: 'auditPage',
+      pageSize: state.auditPageSize,
+      wrapper: ui.adminAuditPagination,
+      counter: ui.adminAuditPageCounter,
+      meta: ui.adminAuditPageMeta,
+      prevBtn: ui.adminAuditPrevBtn,
+      nextBtn: ui.adminAuditNextBtn,
+    });
+
+    for (const item of pageItems) {
       const action = normalizeString(item?.action || 'action');
       const targetType = normalizeString(item?.target_type || 'target');
       const targetId = normalizeString(item?.target_id || '');
@@ -1223,10 +1617,28 @@ if (root) {
 
     if (!list.length) {
       renderListPlaceholder(ui.adminAlertsList, 'Sem alertas ativos no momento.');
+      setPaginationHidden({
+        wrapper: ui.adminAlertsPagination,
+        counter: ui.adminAlertsPageCounter,
+        meta: ui.adminAlertsPageMeta,
+      });
+      if (ui.adminAlertsPrevBtn) ui.adminAlertsPrevBtn.disabled = true;
+      if (ui.adminAlertsNextBtn) ui.adminAlertsNextBtn.disabled = true;
       return;
     }
 
-    for (const alert of list) {
+    const pageItems = paginateItems({
+      items: list,
+      statePageKey: 'alertsPage',
+      pageSize: state.alertsPageSize,
+      wrapper: ui.adminAlertsPagination,
+      counter: ui.adminAlertsPageCounter,
+      meta: ui.adminAlertsPageMeta,
+      prevBtn: ui.adminAlertsPrevBtn,
+      nextBtn: ui.adminAlertsNextBtn,
+    });
+
+    for (const alert of pageItems) {
       const severity = normalizeSeverity(alert?.severity);
       const title = normalizeString(alert?.title || alert?.code || 'Alerta');
       const meta = [normalizeString(alert?.message || ''), `Código: ${normalizeString(alert?.code || 'n/d')} • ${formatDateTime(alert?.created_at)}`];
@@ -1516,6 +1928,7 @@ if (root) {
     });
     renderSearchResults();
     setText(ui.adminOpsStatus, state.adminOpsMessage || 'Ações operacionais disponíveis.');
+    updateAdminCarouselControls();
   };
 
   const renderAdminPanel = () => {
@@ -1601,6 +2014,20 @@ if (root) {
     if (ui.compactToggle) {
       ui.compactToggle.textContent = state.compactMode ? 'Modo confortável' : 'Modo compacto';
     }
+
+    const activeLink = ui.navLinks.find((link) => link.classList.contains('active'));
+    const activeTarget = normalizeString(activeLink?.getAttribute('href')).replace(/^#/, '');
+    if (isCarouselMode()) {
+      if (activeTarget) {
+        scrollAdminCarouselToId(activeTarget, { behavior: 'auto' });
+      } else {
+        scrollAdminCarouselToIndex(state.adminCarouselIndex, { behavior: 'auto' });
+      }
+    } else if (ui.adminLayout) {
+      ui.adminLayout.style.blockSize = '';
+    }
+
+    updateAdminCarouselControls();
     if (!persist) return;
     try {
       window.localStorage.setItem(COMPACT_MODE_STORAGE_KEY, state.compactMode ? '1' : '0');
@@ -1620,6 +2047,28 @@ if (root) {
 
   const bindSectionObserver = () => {
     if (!ui.navLinks.length) return;
+    const subpageSections = getAdminSubpageSections();
+    if (subpageSections.length) {
+      const handleRouteChange = () => {
+        activateAdminSubpage(window.location.hash || 'overview', { syncHash: true, resetScroll: false });
+      };
+
+      for (const link of ui.navLinks) {
+        const href = normalizeString(link.getAttribute('href'));
+        if (!href.startsWith('#')) continue;
+        link.addEventListener('click', (event) => {
+          const targetId = href.slice(1);
+          if (!targetId) return;
+          if (!activateAdminSubpage(targetId, { syncHash: true })) return;
+          event.preventDefault();
+        });
+      }
+
+      window.addEventListener('hashchange', handleRouteChange);
+      handleRouteChange();
+      return;
+    }
+
     const entries = [];
     for (const link of ui.navLinks) {
       const href = normalizeString(link.getAttribute('href'));
@@ -1629,23 +2078,18 @@ if (root) {
     }
     if (!entries.length) return;
 
-    const activate = (targetId) => {
-      for (const item of entries) {
-        item.link.classList.toggle('active', item.target.id === targetId);
-      }
-    };
-
     if (!('IntersectionObserver' in window)) {
-      activate(entries[0].target.id);
+      setActiveNavLink(entries[0].target.id);
       return;
     }
 
     const observer = new window.IntersectionObserver(
       (observed) => {
+        if (isCarouselMode()) return;
         const visible = observed
           .filter((entry) => entry.isIntersecting)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (visible?.target?.id) activate(visible.target.id);
+        if (visible?.target?.id) setActiveNavLink(visible.target.id);
       },
       {
         root: null,
@@ -1655,7 +2099,7 @@ if (root) {
     );
 
     for (const item of entries) observer.observe(item.target);
-    activate(entries[0].target.id);
+    setActiveNavLink(entries[0].target.id);
   };
 
   const bindKeyboardShortcuts = () => {
@@ -1860,6 +2304,7 @@ if (root) {
     if (ui.currentYear) ui.currentYear.textContent = String(new Date().getFullYear());
     applyEnvironmentBadge();
     restoreCompactMode();
+    bindAdminCarousel();
     bindSectionObserver();
     bindKeyboardShortcuts();
 
@@ -1943,6 +2388,7 @@ if (root) {
   if (ui.adminModerationFilterSeverity) {
     ui.adminModerationFilterSeverity.addEventListener('change', () => {
       state.moderationFilterSeverity = normalizeString(ui.adminModerationFilterSeverity?.value || 'all').toLowerCase();
+      state.moderationPage = 1;
       renderModerationQueue(state.adminOverviewPayload?.moderation_queue);
     });
   }
@@ -1950,6 +2396,7 @@ if (root) {
   if (ui.adminModerationFilterType) {
     ui.adminModerationFilterType.addEventListener('change', () => {
       state.moderationFilterType = normalizeString(ui.adminModerationFilterType?.value || 'all').toLowerCase();
+      state.moderationPage = 1;
       renderModerationQueue(state.adminOverviewPayload?.moderation_queue);
     });
   }
@@ -1957,6 +2404,7 @@ if (root) {
   if (ui.adminAuditFilterStatus) {
     ui.adminAuditFilterStatus.addEventListener('change', () => {
       state.auditFilterStatus = normalizeString(ui.adminAuditFilterStatus?.value || 'all').toLowerCase();
+      state.auditPage = 1;
       renderAuditLog(state.adminOverviewPayload?.audit_log);
     });
   }
@@ -1964,7 +2412,78 @@ if (root) {
   if (ui.adminAuditSearch) {
     ui.adminAuditSearch.addEventListener('input', () => {
       state.auditSearchQuery = normalizeString(ui.adminAuditSearch?.value || '');
+      state.auditPage = 1;
       renderAuditLog(state.adminOverviewPayload?.audit_log);
+    });
+  }
+
+  if (ui.adminModerationPrevBtn) {
+    ui.adminModerationPrevBtn.addEventListener('click', () => {
+      state.moderationPage = Math.max(1, state.moderationPage - 1);
+      renderModerationQueue(state.adminOverviewPayload?.moderation_queue);
+    });
+  }
+
+  if (ui.adminModerationNextBtn) {
+    ui.adminModerationNextBtn.addEventListener('click', () => {
+      state.moderationPage += 1;
+      renderModerationQueue(state.adminOverviewPayload?.moderation_queue);
+    });
+  }
+
+  if (ui.adminAuditPrevBtn) {
+    ui.adminAuditPrevBtn.addEventListener('click', () => {
+      state.auditPage = Math.max(1, state.auditPage - 1);
+      renderAuditLog(state.adminOverviewPayload?.audit_log);
+    });
+  }
+
+  if (ui.adminAuditNextBtn) {
+    ui.adminAuditNextBtn.addEventListener('click', () => {
+      state.auditPage += 1;
+      renderAuditLog(state.adminOverviewPayload?.audit_log);
+    });
+  }
+
+  if (ui.adminUsersPrevBtn) {
+    ui.adminUsersPrevBtn.addEventListener('click', () => {
+      state.usersPage = Math.max(1, state.usersPage - 1);
+      renderKnownUsers(state.adminOverviewPayload?.users_sessions?.users);
+    });
+  }
+
+  if (ui.adminUsersNextBtn) {
+    ui.adminUsersNextBtn.addEventListener('click', () => {
+      state.usersPage += 1;
+      renderKnownUsers(state.adminOverviewPayload?.users_sessions?.users);
+    });
+  }
+
+  if (ui.adminSessionsPrevBtn) {
+    ui.adminSessionsPrevBtn.addEventListener('click', () => {
+      state.sessionsPage = Math.max(1, state.sessionsPage - 1);
+      renderActiveSessions(state.adminOverviewPayload?.users_sessions?.active_sessions);
+    });
+  }
+
+  if (ui.adminSessionsNextBtn) {
+    ui.adminSessionsNextBtn.addEventListener('click', () => {
+      state.sessionsPage += 1;
+      renderActiveSessions(state.adminOverviewPayload?.users_sessions?.active_sessions);
+    });
+  }
+
+  if (ui.adminAlertsPrevBtn) {
+    ui.adminAlertsPrevBtn.addEventListener('click', () => {
+      state.alertsPage = Math.max(1, state.alertsPage - 1);
+      renderAlerts(state.adminOverviewPayload?.alerts);
+    });
+  }
+
+  if (ui.adminAlertsNextBtn) {
+    ui.adminAlertsNextBtn.addEventListener('click', () => {
+      state.alertsPage += 1;
+      renderAlerts(state.adminOverviewPayload?.alerts);
     });
   }
 
