@@ -89,26 +89,11 @@ const resolveCanonicalWhatsAppJid = (...candidates) => {
 const resolveCanonicalSenderJidFromMessage = async ({ messageInfo, senderJid }) => {
   const key = messageInfo?.key || {};
   const senderInfo = extractSenderInfoFromMessage(messageInfo);
-  let canonicalUserId = resolveCanonicalWhatsAppJid(
-    senderInfo?.jid,
-    senderInfo?.remoteJidAlt,
-    senderInfo?.participantAlt,
-    key.remoteJidAlt,
-    key.participantAlt,
-    key.participant,
-    key.remoteJid,
-    senderJid,
-  );
+  let canonicalUserId = resolveCanonicalWhatsAppJid(senderInfo?.jid, senderInfo?.remoteJidAlt, senderInfo?.participantAlt, key.remoteJidAlt, key.participantAlt, key.participant, key.remoteJid, senderJid);
 
   try {
     const resolvedUserId = await resolveUserId(senderInfo);
-    canonicalUserId = resolveCanonicalWhatsAppJid(
-      resolvedUserId,
-      canonicalUserId,
-      senderInfo?.jid,
-      senderInfo?.remoteJidAlt,
-      senderInfo?.participantAlt,
-    );
+    canonicalUserId = resolveCanonicalWhatsAppJid(resolvedUserId, canonicalUserId, senderInfo?.jid, senderInfo?.remoteJidAlt, senderInfo?.participantAlt);
   } catch (error) {
     logger.warn('Falha ao resolver ID canonico do remetente.', {
       action: 'resolve_sender_canonical_id_failed',

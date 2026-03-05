@@ -56,20 +56,7 @@ const resolveEmailBodyFromPayload = ({ templateKey = '', templateData = {}, subj
   };
 };
 
-export const queueAutomatedEmail = async ({
-  to,
-  name = '',
-  templateKey = '',
-  templateData = {},
-  subject = '',
-  text = '',
-  html = '',
-  metadata = {},
-  priority = 50,
-  scheduledAt = null,
-  maxAttempts = 5,
-  idempotencyKey = '',
-} = {}) => {
+export const queueAutomatedEmail = async ({ to, name = '', templateKey = '', templateData = {}, subject = '', text = '', html = '', metadata = {}, priority = 50, scheduledAt = null, maxAttempts = 5, idempotencyKey = '' } = {}) => {
   const normalizedEmail = normalizeEmail(to);
   if (!normalizedEmail || !normalizedEmail.includes('@')) {
     const error = new Error('Destinatário de e-mail inválido.');

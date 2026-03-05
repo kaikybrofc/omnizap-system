@@ -24,9 +24,7 @@ const DEFAULT_EMAIL_AUTOMATION_API_BASE_PATH = '/api/email';
 
 export const getEmailAutomationRouterConfig = async () => {
   const controller = await loadEmailAutomationController();
-  const routeConfig =
-    (typeof controller?.getEmailAutomationRouteConfig === 'function' ? controller.getEmailAutomationRouteConfig() : null) ||
-    {};
+  const routeConfig = (typeof controller?.getEmailAutomationRouteConfig === 'function' ? controller.getEmailAutomationRouteConfig() : null) || {};
 
   return {
     apiBasePath: normalizeBasePath(routeConfig.apiBasePath, DEFAULT_EMAIL_AUTOMATION_API_BASE_PATH),

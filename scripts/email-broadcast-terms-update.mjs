@@ -63,16 +63,7 @@ const subjectArg = normalizeText(args.get('--subject') || 'Atualização dos Ter
 const broadcastTag = normalizeTag(args.get('--tag') || process.env.EMAIL_TERMS_BROADCAST_TAG, nowIsoDate) || nowIsoDate;
 
 const fetchRecipients = async ({ maxRows = 0 } = {}) => {
-  const sqlParts = [
-    `SELECT LOWER(TRIM(email)) AS recipient_email,`,
-    `       MAX(COALESCE(NULLIF(TRIM(name), ''), '')) AS recipient_name,`,
-    `       MAX(COALESCE(last_seen_at, last_login_at, updated_at, created_at)) AS activity_at`,
-    `  FROM ${TABLES.STICKER_WEB_GOOGLE_USER}`,
-    ` WHERE email IS NOT NULL`,
-    `   AND TRIM(email) <> ''`,
-    ` GROUP BY LOWER(TRIM(email))`,
-    ` ORDER BY activity_at DESC`,
-  ];
+  const sqlParts = [`SELECT LOWER(TRIM(email)) AS recipient_email,`, `       MAX(COALESCE(NULLIF(TRIM(name), ''), '')) AS recipient_name,`, `       MAX(COALESCE(last_seen_at, last_login_at, updated_at, created_at)) AS activity_at`, `  FROM ${TABLES.STICKER_WEB_GOOGLE_USER}`, ` WHERE email IS NOT NULL`, `   AND TRIM(email) <> ''`, ` GROUP BY LOWER(TRIM(email))`, ` ORDER BY activity_at DESC`];
 
   const params = [];
   if (maxRows > 0) {

@@ -1453,21 +1453,24 @@ const runPreviewFfmpeg = (args, timeoutMs = STICKER_PREVIEW_TIMEOUT_MS) =>
     let stderr = '';
     let timedOut = false;
 
-    const timer = setTimeout(() => {
-      timedOut = true;
-      try {
-        child.kill('SIGTERM');
-      } catch {
-        // Processo já encerrado.
-      }
-      setTimeout(() => {
+    const timer = setTimeout(
+      () => {
+        timedOut = true;
         try {
-          child.kill('SIGKILL');
+          child.kill('SIGTERM');
         } catch {
           // Processo já encerrado.
         }
-      }, 1200);
-    }, Math.max(400, Number(timeoutMs || STICKER_PREVIEW_TIMEOUT_MS)));
+        setTimeout(() => {
+          try {
+            child.kill('SIGKILL');
+          } catch {
+            // Processo já encerrado.
+          }
+        }, 1200);
+      },
+      Math.max(400, Number(timeoutMs || STICKER_PREVIEW_TIMEOUT_MS)),
+    );
 
     child.stderr.on('data', (chunk) => {
       stderr = `${stderr}${String(chunk || '')}`.slice(-16 * 1024);

@@ -76,29 +76,31 @@ O prefixo pode variar no seu grupo. Nos exemplos abaixo, foi usado `/`.
 Este bloco pode ser atualizado automaticamente pela API (`/api/sticker-packs/readme-markdown`).
 
 <!-- README_SNAPSHOT:START -->
+
 ### Snapshot do Sistema
 
 > Atualizado em `2026-03-05T04:25:46.484Z` | cache `1800s`
 
-| Métrica | Valor |
-| --- | ---: |
-| Usuários (lid_map) | 5.568 |
-| Grupos | 119 |
-| Packs | 333 |
-| Stickers | 9.816 |
+| Métrica               |   Valor |
+| --------------------- | ------: |
+| Usuários (lid_map)    |   5.568 |
+| Grupos                |     119 |
+| Packs                 |     333 |
+| Stickers              |   9.816 |
 | Mensagens registradas | 475.740 |
 
 #### Tipos de mensagem mais usados (amostra: 25.000)
-| Tipo | Total |
-| --- | ---: |
-| `texto` | 15.442 |
-| `figurinha` | 4.659 |
-| `imagem` | 2.255 |
-| `outros` | 1.282 |
-| `reacao` | 1.008 |
-| `video` | 182 |
-| `audio` | 171 |
-| `documento` | 1 |
+
+| Tipo        |  Total |
+| ----------- | -----: |
+| `texto`     | 15.442 |
+| `figurinha` |  4.659 |
+| `imagem`    |  2.255 |
+| `outros`    |  1.282 |
+| `reacao`    |  1.008 |
+| `video`     |    182 |
+| `audio`     |    171 |
+| `documento` |      1 |
 
 <details><summary>Comandos disponíveis (62)</summary>
 

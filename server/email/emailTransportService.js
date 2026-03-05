@@ -78,16 +78,7 @@ export const verifyEmailTransport = async () => {
   return true;
 };
 
-export const sendEmailMessage = async ({
-  to,
-  subject,
-  text = null,
-  html = null,
-  replyTo = null,
-  cc = null,
-  bcc = null,
-  headers = null,
-} = {}) => {
+export const sendEmailMessage = async ({ to, subject, text = null, html = null, replyTo = null, cc = null, bcc = null, headers = null } = {}) => {
   if (!isEmailTransportConfigured()) {
     const error = new Error('Transporte SMTP não configurado.');
     error.code = 'EMAIL_TRANSPORT_NOT_CONFIGURED';

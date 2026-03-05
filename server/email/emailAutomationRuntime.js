@@ -165,10 +165,7 @@ const runLoopOnce = async () => {
   if (claimed > 0) {
     nextDelayMs = EMAIL_AUTOMATION_POLL_INTERVAL_MS;
   } else {
-    nextDelayMs = Math.min(
-      EMAIL_AUTOMATION_IDLE_MAX_POLL_INTERVAL_MS,
-      Math.max(EMAIL_AUTOMATION_POLL_INTERVAL_MS, Math.floor(nextDelayMs * EMAIL_AUTOMATION_IDLE_BACKOFF_MULTIPLIER)),
-    );
+    nextDelayMs = Math.min(EMAIL_AUTOMATION_IDLE_MAX_POLL_INTERVAL_MS, Math.max(EMAIL_AUTOMATION_POLL_INTERVAL_MS, Math.floor(nextDelayMs * EMAIL_AUTOMATION_IDLE_BACKOFF_MULTIPLIER)));
   }
 
   scheduleNextTick(nextDelayMs);

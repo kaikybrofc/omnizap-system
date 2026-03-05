@@ -150,16 +150,7 @@ const applyDelayJitter = (delayMs, jitterPercent) => {
   return Math.max(250, Math.floor(baseDelay * (1 + variation)));
 };
 
-export const startDedicatedStickerWorker = ({
-  taskType,
-  pollIntervalMs = DEDICATED_WORKER_POLL_INTERVAL_MS,
-  maxTasksPerTick = DEDICATED_WORKER_MAX_TASKS_PER_TICK,
-  retryDelaySeconds = DEDICATED_WORKER_RETRY_DELAY_SECONDS,
-  idleBackoffMultiplier = DEDICATED_WORKER_IDLE_BACKOFF_MULTIPLIER,
-  idleMaxPollIntervalMs = DEDICATED_WORKER_IDLE_MAX_POLL_INTERVAL_MS,
-  idleJitterPercent = DEDICATED_WORKER_IDLE_JITTER_PERCENT,
-  label = '',
-} = {}) => {
+export const startDedicatedStickerWorker = ({ taskType, pollIntervalMs = DEDICATED_WORKER_POLL_INTERVAL_MS, maxTasksPerTick = DEDICATED_WORKER_MAX_TASKS_PER_TICK, retryDelaySeconds = DEDICATED_WORKER_RETRY_DELAY_SECONDS, idleBackoffMultiplier = DEDICATED_WORKER_IDLE_BACKOFF_MULTIPLIER, idleMaxPollIntervalMs = DEDICATED_WORKER_IDLE_MAX_POLL_INTERVAL_MS, idleJitterPercent = DEDICATED_WORKER_IDLE_JITTER_PERCENT, label = '' } = {}) => {
   const normalizedTaskType = normalizeTaskType(taskType);
   if (!normalizedTaskType) {
     throw new Error(`invalid_task_type:${taskType}`);
@@ -167,12 +158,7 @@ export const startDedicatedStickerWorker = ({
 
   const safePollIntervalMs = clampInt(pollIntervalMs, DEDICATED_WORKER_POLL_INTERVAL_MS, 250, 60_000);
   const safeIdleBackoffMultiplier = clampNumber(idleBackoffMultiplier, DEDICATED_WORKER_IDLE_BACKOFF_MULTIPLIER, 1, 5);
-  const safeIdleMaxPollIntervalMs = clampInt(
-    idleMaxPollIntervalMs,
-    Math.max(DEDICATED_WORKER_IDLE_MAX_POLL_INTERVAL_MS, safePollIntervalMs),
-    safePollIntervalMs,
-    300_000,
-  );
+  const safeIdleMaxPollIntervalMs = clampInt(idleMaxPollIntervalMs, Math.max(DEDICATED_WORKER_IDLE_MAX_POLL_INTERVAL_MS, safePollIntervalMs), safePollIntervalMs, 300_000);
   const safeIdleJitterPercent = clampInt(idleJitterPercent, DEDICATED_WORKER_IDLE_JITTER_PERCENT, 0, 60);
   let tickInFlight = false;
   let stopped = false;

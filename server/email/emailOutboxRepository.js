@@ -103,23 +103,7 @@ const normalizeRow = (row) => {
   };
 };
 
-export async function enqueueEmailOutbox(
-  {
-    recipientEmail,
-    recipientName = '',
-    subject,
-    textBody = null,
-    htmlBody = null,
-    templateKey = '',
-    templatePayload = {},
-    metadata = {},
-    priority = 50,
-    scheduledAt = null,
-    maxAttempts = 5,
-    idempotencyKey = '',
-  } = {},
-  connection = null,
-) {
+export async function enqueueEmailOutbox({ recipientEmail, recipientName = '', subject, textBody = null, htmlBody = null, templateKey = '', templatePayload = {}, metadata = {}, priority = 50, scheduledAt = null, maxAttempts = 5, idempotencyKey = '' } = {}, connection = null) {
   const normalizedRecipientEmail = normalizeEmail(recipientEmail);
   const normalizedSubject = normalizeSubject(subject);
   const normalizedTextBody = normalizeNullableText(textBody, 120_000);
@@ -134,8 +118,7 @@ export async function enqueueEmailOutbox(
       .trim()
       .slice(0, 120) || null;
   const normalizedTemplateKey = normalizeTemplateKey(templateKey) || null;
-  const normalizedTemplatePayload =
-    templatePayload && typeof templatePayload === 'object' && !Array.isArray(templatePayload) ? templatePayload : {};
+  const normalizedTemplatePayload = templatePayload && typeof templatePayload === 'object' && !Array.isArray(templatePayload) ? templatePayload : {};
   const normalizedMetadata = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
   const safePriority = clampInt(priority, 50, 1, 100);
   const safeMaxAttempts = clampInt(maxAttempts, 5, 1, 20);
@@ -159,20 +142,7 @@ export async function enqueueEmailOutbox(
       available_at = LEAST(available_at, VALUES(available_at)),
       status = IF(status = 'failed' AND attempts < max_attempts, 'pending', status),
       updated_at = UTC_TIMESTAMP()`,
-    [
-      normalizedRecipientEmail,
-      normalizedRecipientName,
-      normalizedSubject,
-      normalizedTextBody,
-      normalizedHtmlBody,
-      normalizedTemplateKey,
-      JSON.stringify(normalizedTemplatePayload),
-      JSON.stringify(normalizedMetadata),
-      safePriority,
-      normalizedIdempotencyKey,
-      scheduledValue,
-      safeMaxAttempts,
-    ],
+    [normalizedRecipientEmail, normalizedRecipientName, normalizedSubject, normalizedTextBody, normalizedHtmlBody, normalizedTemplateKey, JSON.stringify(normalizedTemplatePayload), JSON.stringify(normalizedMetadata), safePriority, normalizedIdempotencyKey, scheduledValue, safeMaxAttempts],
     connection,
   );
 

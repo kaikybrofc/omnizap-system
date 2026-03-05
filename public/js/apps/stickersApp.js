@@ -567,15 +567,7 @@ function LazyCatalogImage({ src, alt = '', className = '', eager = false, fallba
     return () => observer.disconnect();
   }, [eager, shouldLoad, resolvedSrc, rootMargin, threshold]);
 
-  return html`<img
-    ref=${imageRef}
-    src=${shouldLoad ? resolvedSrc : LAZY_IMAGE_PLACEHOLDER_DATA_URL}
-    alt=${alt}
-    className=${className}
-    loading=${eager ? 'eager' : 'lazy'}
-    decoding="async"
-    fetchpriority=${eager ? 'high' : 'low'}
-  />`;
+  return html`<img ref=${imageRef} src=${shouldLoad ? resolvedSrc : LAZY_IMAGE_PLACEHOLDER_DATA_URL} alt=${alt} className=${className} loading=${eager ? 'eager' : 'lazy'} decoding="async" fetchpriority=${eager ? 'high' : 'low'} />`;
 }
 
 function PackCard({ pack, index, onOpen, hasNsfwAccess = true, onRequireLogin }) {
@@ -595,11 +587,7 @@ function PackCard({ pack, index, onOpen, hasNsfwAccess = true, onRequireLogin })
   return html`
     <button type="button" onClick=${handleOpen} className="group w-full text-left rounded-2xl border border-slate-800 bg-slate-900/90 shadow-soft overflow-hidden transition-all duration-200 active:scale-[0.985] md:hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-lg touch-manipulation">
       <div className="relative aspect-[5/6] sm:aspect-[4/5] bg-slate-900 overflow-hidden">
-        <${LazyCatalogImage}
-          src=${coverUrl}
-          alt=${`Capa de ${pack.name}`}
-          className=${`w-full h-full object-cover transition-transform duration-300 ${lockedByNsfw ? 'blur-md scale-105' : 'md:group-hover:scale-[1.05] group-active:scale-[1.02]'}`}
-        />
+        <${LazyCatalogImage} src=${coverUrl} alt=${`Capa de ${pack.name}`} className=${`w-full h-full object-cover transition-transform duration-300 ${lockedByNsfw ? 'blur-md scale-105' : 'md:group-hover:scale-[1.05] group-active:scale-[1.02]'}`} />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent"></div>
         <div className="absolute top-2 left-2 flex items-center gap-1">${lockedByNsfw ? html`<span className="rounded-full border border-amber-300/35 bg-amber-500/25 backdrop-blur px-1.5 py-0.5 text-[9px] font-bold text-amber-100">🔞 Login</span>` : null} ${isTrending ? html`<span className="rounded-full border border-emerald-300/30 bg-emerald-400/80 backdrop-blur px-1.5 py-0.5 text-[9px] font-bold text-slate-900">Trending</span>` : null} ${isNew ? html`<span className="rounded-full border border-white/15 bg-black/45 backdrop-blur px-1.5 py-0.5 text-[9px] font-semibold text-slate-100">Novo</span>` : null}</div>
 
@@ -647,11 +635,7 @@ function DiscoverPackRowItem({ pack, onOpen, rank = 0, hasNsfwAccess = true, onR
   };
   return html`
     <button type="button" onClick=${handleOpen} className="w-full flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-2 py-1.5 text-left hover:bg-slate-800/90">
-      <${LazyCatalogImage}
-        src=${lockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : pack.cover_preview_url || pack.cover_url || DEFAULT_STICKER_PLACEHOLDER_URL}
-        alt=""
-        className=${`h-9 w-9 rounded-lg object-cover bg-slate-800 ${lockedByNsfw ? 'blur-sm' : ''}`}
-      />
+      <${LazyCatalogImage} src=${lockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : pack.cover_preview_url || pack.cover_url || DEFAULT_STICKER_PLACEHOLDER_URL} alt="" className=${`h-9 w-9 rounded-lg object-cover bg-slate-800 ${lockedByNsfw ? 'blur-sm' : ''}`} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs font-medium text-slate-100">${rank > 0 ? `${rank}. ` : ''}${pack.name || 'Pack'}</span>
         <span className="block truncate text-[10px] text-slate-400"> ${lockedByNsfw ? '🔒 Entrar para desbloquear' : `${pack.publisher || '-'} · ❤️ ${shortNum(getPackEngagement(pack).likeCount)}`} </span>
@@ -675,11 +659,7 @@ function DiscoverPackMiniCard({ pack, onOpen, hasNsfwAccess = true, onRequireLog
   return html`
     <button type="button" onClick=${handleOpen} className="group w-[170px] shrink-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 text-left">
       <div className="relative h-24 bg-slate-900">
-        <${LazyCatalogImage}
-          src=${lockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : pack.cover_preview_url || pack.cover_url || DEFAULT_STICKER_PLACEHOLDER_URL}
-          alt=""
-          className=${`h-full w-full object-cover transition-transform duration-200 ${lockedByNsfw ? 'blur-sm scale-105' : 'group-active:scale-[1.02]'}`}
-        />
+        <${LazyCatalogImage} src=${lockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : pack.cover_preview_url || pack.cover_url || DEFAULT_STICKER_PLACEHOLDER_URL} alt="" className=${`h-full w-full object-cover transition-transform duration-200 ${lockedByNsfw ? 'blur-sm scale-105' : 'group-active:scale-[1.02]'}`} />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 to-transparent"></div>
         ${lockedByNsfw ? html`<span className="absolute top-1.5 left-1.5 rounded-full border border-amber-300/35 bg-amber-500/25 px-1.5 py-0.5 text-[9px] font-semibold text-amber-100">🔞 Login</span>` : null}
       </div>
@@ -1852,13 +1832,7 @@ function PackPage({ pack, relatedPacks, relatedLoading = false, onLoadRelated, o
                     const stickerSrc = item?.asset_preview_url || item?.asset_url || DEFAULT_STICKER_PLACEHOLDER_URL;
                     return html`
                       <button key=${item.sticker_id || item.position || index} type="button" onClick=${() => (stickerLockedByNsfw ? onRequireLogin?.() : setPreviewIndex(index))} className="pack-sticker-card group relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 text-left transition hover:-translate-y-0.5 hover:border-slate-600">
-                        <${LazyCatalogImage}
-                          src=${stickerLockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : stickerSrc}
-                          alt=${item.accessibility_label || 'Sticker'}
-                          className=${`w-full aspect-square object-contain bg-slate-950 transition-transform duration-300 ${stickerLockedByNsfw ? 'blur-md scale-105' : 'group-hover:scale-105'}`}
-                          rootMargin="40px 0px"
-                          threshold=${0.05}
-                        />
+                        <${LazyCatalogImage} src=${stickerLockedByNsfw ? NSFW_STICKER_PLACEHOLDER_URL : stickerSrc} alt=${item.accessibility_label || 'Sticker'} className=${`w-full aspect-square object-contain bg-slate-950 transition-transform duration-300 ${stickerLockedByNsfw ? 'blur-md scale-105' : 'group-hover:scale-105'}`} rootMargin="40px 0px" threshold=${0.05} />
                         ${stickerLockedByNsfw
                           ? html`
                               <div className="absolute inset-0 flex items-center justify-center bg-slate-950/35 p-2">
@@ -1873,13 +1847,7 @@ function PackPage({ pack, relatedPacks, relatedLoading = false, onLoadRelated, o
                 ${hasMoreVisibleItems
                   ? html`
                       <div className="flex justify-center pt-1">
-                        <button
-                          type="button"
-                          onClick=${() => setVisibleStickerCount((prev) => Math.min(items.length, Math.max(1, Number(prev || 0)) + PACK_STICKERS_LOAD_STEP))}
-                          className="inline-flex h-9 items-center rounded-xl border border-slate-700 bg-slate-900/80 px-3 text-xs text-slate-200 hover:bg-slate-800"
-                        >
-                          Carregar mais (${items.length - visibleItems.length} restantes)
-                        </button>
+                        <button type="button" onClick=${() => setVisibleStickerCount((prev) => Math.min(items.length, Math.max(1, Number(prev || 0)) + PACK_STICKERS_LOAD_STEP))} className="inline-flex h-9 items-center rounded-xl border border-slate-700 bg-slate-900/80 px-3 text-xs text-slate-200 hover:bg-slate-800">Carregar mais (${items.length - visibleItems.length} restantes)</button>
                       </div>
                     `
                   : null}
@@ -1892,7 +1860,7 @@ function PackPage({ pack, relatedPacks, relatedLoading = false, onLoadRelated, o
               `}
       </section>
 
-      ${(relatedPacks.length || typeof onLoadRelated === 'function' || relatedLoading)
+      ${relatedPacks.length || typeof onLoadRelated === 'function' || relatedLoading
         ? html`
             <section className="space-y-3">
               <div className="flex items-center justify-between gap-2">
@@ -1903,29 +1871,13 @@ function PackPage({ pack, relatedPacks, relatedLoading = false, onLoadRelated, o
                 ? html`<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3">${relatedPacks.map((entry, index) => html`<div key=${entry.pack_key || entry.id} className="fade-card"><${PackCard} pack=${entry} index=${index} onOpen=${onOpenRelated} hasNsfwAccess=${hasNsfwAccess} onRequireLogin=${onRequireLogin} /></div>`)}</div>`
                 : html`
                     <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-center">
-                      <button
-                        type="button"
-                        onClick=${() => onLoadRelated?.()}
-                        disabled=${relatedLoading}
-                        className="inline-flex h-9 items-center rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        ${relatedLoading ? 'Carregando relacionados...' : 'Carregar packs relacionados'}
-                      </button>
+                      <button type="button" onClick=${() => onLoadRelated?.()} disabled=${relatedLoading} className="inline-flex h-9 items-center rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">${relatedLoading ? 'Carregando relacionados...' : 'Carregar packs relacionados'}</button>
                     </div>
                   `}
             </section>
           `
         : null}
-      ${previewIndex >= 0
-        ? html` <${StickerPreview}
-            item=${currentPreviewItem}
-            onClose=${() => setPreviewIndex(-1)}
-            onPrev=${() => setPreviewIndex((value) => (value <= 0 ? visibleItems.length - 1 : value - 1))}
-            onNext=${() => setPreviewIndex((value) => (value >= visibleItems.length - 1 ? 0 : value + 1))}
-            hasNsfwAccess=${hasNsfwAccess}
-            onRequireLogin=${onRequireLogin}
-          /> `
-        : null}
+      ${previewIndex >= 0 ? html` <${StickerPreview} item=${currentPreviewItem} onClose=${() => setPreviewIndex(-1)} onPrev=${() => setPreviewIndex((value) => (value <= 0 ? visibleItems.length - 1 : value - 1))} onNext=${() => setPreviewIndex((value) => (value >= visibleItems.length - 1 ? 0 : value + 1))} hasNsfwAccess=${hasNsfwAccess} onRequireLogin=${onRequireLogin} /> ` : null}
     </section>
   `;
 }
@@ -3761,11 +3713,7 @@ function StickersApp() {
                                           <section className="space-y-1.5">
                                             <div className="flex items-center justify-between">
                                               <h4 className="text-xs font-semibold text-slate-200">🔥 Em alta agora</h4>
-                                              <button
-                                                type="button"
-                                                onClick=${openTrendingCatalog}
-                                                className="inline-flex h-7 items-center gap-1 rounded-full border border-cyan-400/35 bg-cyan-500/10 px-2.5 text-[10px] font-semibold text-cyan-100 transition hover:bg-cyan-500/20 active:scale-[0.98]"
-                                              >
+                                              <button type="button" onClick=${openTrendingCatalog} className="inline-flex h-7 items-center gap-1 rounded-full border border-cyan-400/35 bg-cyan-500/10 px-2.5 text-[10px] font-semibold text-cyan-100 transition hover:bg-cyan-500/20 active:scale-[0.98]">
                                                 <span>ver lista</span>
                                                 <span aria-hidden="true">↗</span>
                                               </button>
@@ -3775,12 +3723,7 @@ function StickersApp() {
                                           <section className="space-y-1.5">
                                             <div className="flex items-center justify-between">
                                               <h4 className="text-xs font-semibold text-slate-200">🆕 Recém publicados</h4>
-                                              <button
-                                                type="button"
-                                                onClick=${openSortPicker}
-                                                disabled=${sortPickerBusy}
-                                                className="inline-flex h-7 items-center gap-1 rounded-full border border-emerald-400/35 bg-emerald-500/10 px-2.5 text-[10px] font-semibold text-emerald-100 transition hover:bg-emerald-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
-                                              >
+                                              <button type="button" onClick=${openSortPicker} disabled=${sortPickerBusy} className="inline-flex h-7 items-center gap-1 rounded-full border border-emerald-400/35 bg-emerald-500/10 px-2.5 text-[10px] font-semibold text-emerald-100 transition hover:bg-emerald-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100">
                                                 <span>ordenar</span>
                                                 <span aria-hidden="true">⇅</span>
                                               </button>
@@ -3842,44 +3785,16 @@ function StickersApp() {
                               <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
                                 <span className="text-xs text-slate-400">Página ${catalogPage}${packHasMore ? ' · há mais resultados' : ' · fim da lista'}</span>
                                 <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick=${() => goToCatalogPage(catalogPage - 1, { push: true })}
-                                    disabled=${!canGoCatalogPrev}
-                                    className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    Anterior
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick=${() => goToCatalogPage(catalogPage + 1, { push: true })}
-                                    disabled=${!canGoCatalogNext}
-                                    className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    Próxima
-                                  </button>
+                                  <button type="button" onClick=${() => goToCatalogPage(catalogPage - 1, { push: true })} disabled=${!canGoCatalogPrev} className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Anterior</button>
+                                  <button type="button" onClick=${() => goToCatalogPage(catalogPage + 1, { push: true })} disabled=${!canGoCatalogNext} className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Próxima</button>
                                 </div>
                               </div>
                               <div className="grid min-w-0 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5 sm:gap-3">${sortedPacks.map((pack, index) => html`<div key=${pack.pack_key || pack.id} className="fade-card"><${PackCard} pack=${pack} index=${index} onOpen=${openPack} hasNsfwAccess=${hasNsfwAccess} onRequireLogin=${requestNsfwUnlock} /></div>`)}</div>
                               <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
                                 <span className="text-xs text-slate-400">Página ${catalogPage}${packHasMore ? ' · há mais resultados' : ' · fim da lista'}</span>
                                 <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick=${() => goToCatalogPage(catalogPage - 1, { push: true })}
-                                    disabled=${!canGoCatalogPrev}
-                                    className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    Anterior
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick=${() => goToCatalogPage(catalogPage + 1, { push: true })}
-                                    disabled=${!canGoCatalogNext}
-                                    className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    Próxima
-                                  </button>
+                                  <button type="button" onClick=${() => goToCatalogPage(catalogPage - 1, { push: true })} disabled=${!canGoCatalogPrev} className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Anterior</button>
+                                  <button type="button" onClick=${() => goToCatalogPage(catalogPage + 1, { push: true })} disabled=${!canGoCatalogNext} className="inline-flex h-8 items-center rounded-lg border border-slate-700 px-3 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Próxima</button>
                                 </div>
                               </div>
                             </section>

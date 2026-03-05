@@ -355,8 +355,7 @@ if (root) {
     return Array.from(ui.adminLayout.children).filter((node) => node instanceof Element && node.classList.contains('section'));
   };
 
-  const isCarouselMode = () =>
-    Boolean(ui.adminLayout && ui.adminLayout.dataset.carouselEnabled === 'true' && document.body.classList.contains('compact'));
+  const isCarouselMode = () => Boolean(ui.adminLayout && ui.adminLayout.dataset.carouselEnabled === 'true' && document.body.classList.contains('compact'));
 
   const updateAdminCarouselControls = (slides = getAdminCarouselSlides()) => {
     const carouselMode = isCarouselMode();
@@ -679,7 +678,9 @@ if (root) {
   };
 
   const buildRegex = (query) => {
-    const source = String(query || '').trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const source = String(query || '')
+      .trim()
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     if (!source) return null;
     return new RegExp(source, 'ig');
   };
@@ -1483,17 +1484,7 @@ if (root) {
       if (!query) return true;
 
       const details = isObject(item?.details) ? Object.entries(item.details).slice(0, 3) : [];
-      const haystack = [
-        normalizeString(item?.action),
-        normalizeString(item?.target_type),
-        normalizeString(item?.target_id),
-        normalizeString(item?.admin_email),
-        normalizeString(item?.admin_google_sub),
-        normalizeString(item?.admin_owner_jid),
-        details.map(([key, value]) => `${key}=${value}`).join(' '),
-      ]
-        .join(' ')
-        .toLowerCase();
+      const haystack = [normalizeString(item?.action), normalizeString(item?.target_type), normalizeString(item?.target_id), normalizeString(item?.admin_email), normalizeString(item?.admin_google_sub), normalizeString(item?.admin_owner_jid), details.map(([key, value]) => `${key}=${value}`).join(' ')].join(' ').toLowerCase();
       return haystack.includes(query);
     });
     clearNode(ui.adminAuditList);
@@ -2086,9 +2077,7 @@ if (root) {
     const observer = new window.IntersectionObserver(
       (observed) => {
         if (isCarouselMode()) return;
-        const visible = observed
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        const visible = observed.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
         if (visible?.target?.id) setActiveNavLink(visible.target.id);
       },
       {
