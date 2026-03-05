@@ -11,7 +11,7 @@ Objetivo: publicar paginas satelite com estrutura consistente (SEO on-page, inte
 2. Rode o gerador:
 
 ```bash
-node scripts/generate-seo-satellite-pages.mjs --config docs/seo/satellite-pages-phase1.json --out public
+node scripts/generate-seo-satellite-pages.mjs --config docs/seo/satellite-pages-phase1.json --out public/seo --route-prefix /seo
 ```
 
 Opcao via npm script:
@@ -22,11 +22,11 @@ npm run seo:generate:satellites:phase1
 
 3. Confira os arquivos criados em:
 
-- `public/<slug>/index.html`
+- `public/seo/<slug>/index.html`
 
 ## Campos do template (por pagina)
 
-- `slug`: caminho da rota sem barras (ex: `como-evitar-spam-no-whatsapp`)
+- `slug`: identificador sem barras (ex: `como-evitar-spam-no-whatsapp`; rota final padrao: `/seo/<slug>/`)
 - `title`: title tag SEO
 - `description`: meta description
 - `keywords`: lista de palavras-chave

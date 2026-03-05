@@ -5,14 +5,14 @@ Objetivo: posicionar OmniZap como "bot pronto para WhatsApp" para usuario final,
 ## Status de execucao (2026-02-28)
 
 - Primeira leva de satelites fase 1 publicada:
-  - `/bot-whatsapp-para-grupo/`
-  - `/como-moderar-grupo-whatsapp/`
-  - `/como-evitar-spam-no-whatsapp/`
-  - `/como-organizar-comunidade-whatsapp/`
-  - `/como-automatizar-avisos-no-whatsapp/`
-  - `/como-criar-comandos-whatsapp/`
-  - `/melhor-bot-whatsapp-para-grupos/`
-  - `/bot-whatsapp-sem-programar/`
+  - `/seo/bot-whatsapp-para-grupo/`
+  - `/seo/como-moderar-grupo-whatsapp/`
+  - `/seo/como-evitar-spam-no-whatsapp/`
+  - `/seo/como-organizar-comunidade-whatsapp/`
+  - `/seo/como-automatizar-avisos-no-whatsapp/`
+  - `/seo/como-criar-comandos-whatsapp/`
+  - `/seo/melhor-bot-whatsapp-para-grupos/`
+  - `/seo/bot-whatsapp-sem-programar/`
 - Hub comercial publicado para conversao de comandos:
   - `/comandos/`
 - Template padrao para escala em lote:

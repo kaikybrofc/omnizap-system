@@ -2638,14 +2638,14 @@ const buildSitemapXml = async () => {
     { loc: toSiteAbsoluteUrl('/comandos/'), changefreq: 'weekly', priority: '0.78' },
     { loc: toSiteAbsoluteUrl('/termos-de-uso/'), changefreq: 'monthly', priority: '0.5' },
     { loc: toSiteAbsoluteUrl('/licenca/'), changefreq: 'monthly', priority: '0.5' },
-    { loc: toSiteAbsoluteUrl('/bot-whatsapp-para-grupo/'), changefreq: 'weekly', priority: '0.75' },
-    { loc: toSiteAbsoluteUrl('/como-moderar-grupo-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
-    { loc: toSiteAbsoluteUrl('/como-evitar-spam-no-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
-    { loc: toSiteAbsoluteUrl('/como-organizar-comunidade-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
-    { loc: toSiteAbsoluteUrl('/como-automatizar-avisos-no-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
-    { loc: toSiteAbsoluteUrl('/como-criar-comandos-whatsapp/'), changefreq: 'weekly', priority: '0.71' },
-    { loc: toSiteAbsoluteUrl('/melhor-bot-whatsapp-para-grupos/'), changefreq: 'weekly', priority: '0.74' },
-    { loc: toSiteAbsoluteUrl('/bot-whatsapp-sem-programar/'), changefreq: 'weekly', priority: '0.73' },
+    { loc: toSiteAbsoluteUrl('/seo/bot-whatsapp-para-grupo/'), changefreq: 'weekly', priority: '0.75' },
+    { loc: toSiteAbsoluteUrl('/seo/como-moderar-grupo-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
+    { loc: toSiteAbsoluteUrl('/seo/como-evitar-spam-no-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
+    { loc: toSiteAbsoluteUrl('/seo/como-organizar-comunidade-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
+    { loc: toSiteAbsoluteUrl('/seo/como-automatizar-avisos-no-whatsapp/'), changefreq: 'weekly', priority: '0.72' },
+    { loc: toSiteAbsoluteUrl('/seo/como-criar-comandos-whatsapp/'), changefreq: 'weekly', priority: '0.71' },
+    { loc: toSiteAbsoluteUrl('/seo/melhor-bot-whatsapp-para-grupos/'), changefreq: 'weekly', priority: '0.74' },
+    { loc: toSiteAbsoluteUrl('/seo/bot-whatsapp-sem-programar/'), changefreq: 'weekly', priority: '0.73' },
   ];
 
   const packRows = await executeQuery(

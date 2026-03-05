@@ -82,14 +82,14 @@ const COMMAND_BLOCKS = [
 ];
 
 const GUIDES = [
-  ['/bot-whatsapp-para-grupo/', 'Bot para grupo de WhatsApp', 'Guia de entrada rápida'],
-  ['/como-moderar-grupo-whatsapp/', 'Como moderar grupo no WhatsApp', 'Fluxo prático sem sobrecarga'],
-  ['/como-evitar-spam-no-whatsapp/', 'Como evitar spam no WhatsApp', 'Proteja o grupo com menos esforço'],
-  ['/como-organizar-comunidade-whatsapp/', 'Como organizar comunidade no WhatsApp', 'Estrutura para escala com qualidade'],
-  ['/como-automatizar-avisos-no-whatsapp/', 'Como automatizar avisos no WhatsApp', 'Recados certos no momento certo'],
-  ['/como-criar-comandos-whatsapp/', 'Como criar comandos no WhatsApp', 'Padronize respostas e rotinas'],
-  ['/melhor-bot-whatsapp-para-grupos/', 'Melhor bot para grupos', 'Comparativo orientado a resultado'],
-  ['/bot-whatsapp-sem-programar/', 'Bot para WhatsApp sem programar', 'Automação sem setup técnico'],
+  ['/seo/bot-whatsapp-para-grupo/', 'Bot para grupo de WhatsApp', 'Guia de entrada rápida'],
+  ['/seo/como-moderar-grupo-whatsapp/', 'Como moderar grupo no WhatsApp', 'Fluxo prático sem sobrecarga'],
+  ['/seo/como-evitar-spam-no-whatsapp/', 'Como evitar spam no WhatsApp', 'Proteja o grupo com menos esforço'],
+  ['/seo/como-organizar-comunidade-whatsapp/', 'Como organizar comunidade no WhatsApp', 'Estrutura para escala com qualidade'],
+  ['/seo/como-automatizar-avisos-no-whatsapp/', 'Como automatizar avisos no WhatsApp', 'Recados certos no momento certo'],
+  ['/seo/como-criar-comandos-whatsapp/', 'Como criar comandos no WhatsApp', 'Padronize respostas e rotinas'],
+  ['/seo/melhor-bot-whatsapp-para-grupos/', 'Melhor bot para grupos', 'Comparativo orientado a resultado'],
+  ['/seo/bot-whatsapp-sem-programar/', 'Bot para WhatsApp sem programar', 'Automação sem setup técnico'],
 ];
 
 const FAQS = [

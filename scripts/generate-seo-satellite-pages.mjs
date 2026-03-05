@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const DEFAULT_CONFIG_PATH = 'docs/seo/satellite-pages-phase1.json';
-const DEFAULT_OUTPUT_DIR = 'public';
+const DEFAULT_OUTPUT_DIR = 'public/seo';
+const DEFAULT_ROUTE_PREFIX = '/seo';
 const SITE_ORIGIN = 'https://omnizap.shop';
 
 const getArgValue = (name) => {
@@ -14,6 +15,7 @@ const getArgValue = (name) => {
 
 const configPath = getArgValue('--config') || DEFAULT_CONFIG_PATH;
 const outputDir = getArgValue('--out') || DEFAULT_OUTPUT_DIR;
+const routePrefix = getArgValue('--route-prefix') || DEFAULT_ROUTE_PREFIX;
 
 const escapeHtml = (value) =>
   String(value || '')
@@ -31,6 +33,29 @@ const normalizeSlug = (slug) =>
     .replace(/^\/+/, '')
     .replace(/\/+$/, '')
     .toLowerCase();
+
+const normalizeRoutePrefix = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw || raw === '/') return '';
+  const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  return withLeadingSlash.replace(/\/+$/, '');
+};
+
+const buildPageRoutePath = (slug, prefix = '') => {
+  const normalizedPrefix = normalizeRoutePrefix(prefix);
+  const normalizedSlug = normalizeSlug(slug);
+  if (!normalizedSlug) return normalizedPrefix || '/';
+  return normalizedPrefix ? `${normalizedPrefix}/${normalizedSlug}/` : `/${normalizedSlug}/`;
+};
+
+const rewriteSatelliteHref = (href, slugSet, prefix) => {
+  const rawHref = String(href || '').trim();
+  if (!rawHref || !rawHref.startsWith('/')) return rawHref;
+  const pathOnly = rawHref.split('#')[0].split('?')[0];
+  const maybeSlug = normalizeSlug(pathOnly);
+  if (!maybeSlug || !slugSet.has(maybeSlug)) return rawHref;
+  return buildPageRoutePath(maybeSlug, prefix);
+};
 
 const ensurePageConfig = (page) => {
   const slug = normalizeSlug(page?.slug);
@@ -97,7 +122,7 @@ const renderFaq = (faqEntries) => {
   return `<section class="card">\n      <h2>Perguntas frequentes</h2>\n      <div class="faq-list">\n${items}\n      </div>\n    </section>`;
 };
 
-const withRequiredLinks = (relatedLinks) => {
+const withRequiredLinks = (relatedLinks, { slugSet, prefix }) => {
   const requiredLinks = [
     { href: '/', label: 'OmniZap Home' },
     { href: '/stickers/', label: 'Catálogo de Stickers' },
@@ -109,7 +134,7 @@ const withRequiredLinks = (relatedLinks) => {
   const allLinks = [...requiredLinks, ...relatedLinks];
   const dedup = new Map();
   for (const link of allLinks) {
-    const href = String(link?.href || '').trim();
+    const href = rewriteSatelliteHref(link?.href, slugSet, prefix);
     const label = String(link?.label || '').trim();
     if (!href || !label) continue;
     if (!dedup.has(href)) dedup.set(href, { href, label });
@@ -124,8 +149,8 @@ const renderLinks = (links) => {
   return `<section class="card">\n      <h2>Links úteis</h2>\n      <div class="links-grid">\n${links.map((link) => `        <a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`).join('\n')}\n      </div>\n    </section>`;
 };
 
-const renderPageHtml = (page, generatedAt) => {
-  const canonicalPath = `/${page.slug}/`;
+const renderPageHtml = (page, generatedAt, { slugSet, prefix }) => {
+  const canonicalPath = buildPageRoutePath(page.slug, prefix);
   const canonicalUrl = `${SITE_ORIGIN}${canonicalPath}`;
   const keywordsContent = page.keywords.join(', ');
 
@@ -162,7 +187,7 @@ const renderPageHtml = (page, generatedAt) => {
 
   const sectionsHtml = page.sections.map(renderSection).filter(Boolean).join('\n\n');
   const faqHtml = renderFaq(page.faq);
-  const linksHtml = renderLinks(withRequiredLinks(page.related_links));
+  const linksHtml = renderLinks(withRequiredLinks(page.related_links, { slugSet, prefix }));
 
   return `<!doctype html>
 <html lang="pt-BR">
@@ -396,6 +421,7 @@ ${linksHtml}
 const run = async () => {
   const absoluteConfigPath = path.resolve(configPath);
   const absoluteOutputDir = path.resolve(outputDir);
+  const normalizedRoutePrefix = normalizeRoutePrefix(routePrefix);
 
   const rawConfig = await fs.readFile(absoluteConfigPath, 'utf8');
   const parsedConfig = JSON.parse(rawConfig);
@@ -406,11 +432,15 @@ const run = async () => {
     throw new Error('config sem paginas');
   }
 
+  const resolvedPages = pages.map(ensurePageConfig);
+  const slugSet = new Set(resolvedPages.map((entry) => entry.slug));
   const generatedFiles = [];
 
-  for (const pageConfig of pages) {
-    const page = ensurePageConfig(pageConfig);
-    const html = renderPageHtml(page, generatedAt);
+  for (const page of resolvedPages) {
+    const html = renderPageHtml(page, generatedAt, {
+      slugSet,
+      prefix: normalizedRoutePrefix,
+    });
     const targetDir = path.join(absoluteOutputDir, page.slug);
     const targetFile = path.join(targetDir, 'index.html');
 
@@ -420,6 +450,8 @@ const run = async () => {
   }
 
   process.stdout.write(`Paginas geradas: ${generatedFiles.length}\n`);
+  process.stdout.write(`Prefixo de rota: ${normalizedRoutePrefix || '/'}\n`);
+  process.stdout.write(`Diretorio de saida: ${path.relative(process.cwd(), absoluteOutputDir)}\n`);
   for (const filePath of generatedFiles) {
     process.stdout.write(`- ${path.relative(process.cwd(), filePath)}\n`);
   }
