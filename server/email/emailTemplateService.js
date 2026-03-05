@@ -285,8 +285,6 @@ const buildProjectUpdateTemplate = (payload = {}) => {
   }
   textLines.push('', 'Mensagem automatica do OmniZap.');
 
-  const body = details ? `${message}\n\n${details}` : message;
-
   return {
     subject,
     text: textLines.join('\n'),
@@ -306,7 +304,58 @@ const buildProjectUpdateTemplate = (payload = {}) => {
   };
 };
 
+const buildStandardTemplate = (payload = {}) => {
+  const name = normalizeText(payload?.name || payload?.firstName || '', 80);
+  const subject = normalizeText(payload?.subject || payload?.title || 'Comunicado OmniZap', 180) || 'Comunicado OmniZap';
+  const heading = normalizeText(payload?.heading || payload?.title || 'Atualizacao OmniZap', 120) || 'Atualizacao OmniZap';
+  const intro = normalizeText(payload?.intro || payload?.message || payload?.summary || 'Temos uma nova comunicacao para voce.', 2_000);
+  const details = normalizeText(payload?.body || payload?.details || '', 6_000);
+  const ctaUrl = normalizeHttpUrl(payload?.ctaUrl || payload?.link || payload?.loginUrl || '', '');
+  const ctaLabel = normalizeText(payload?.ctaLabel || (ctaUrl ? 'Abrir OmniZap' : ''), 80);
+  const securityNote =
+    normalizeText(payload?.securityNote || 'Se nao reconhece esta mensagem, ignore e entre em contato com o suporte.', 220) ||
+    'Se nao reconhece esta mensagem, ignore e entre em contato com o suporte.';
+  const footerMessage = normalizeText(payload?.footerMessage || 'Mensagem automatica do projeto OmniZap.', 220);
+  const greeting = name ? `Ola, ${name}!` : '';
+
+  const textLines = [];
+  if (greeting) {
+    textLines.push(greeting, '');
+  }
+  textLines.push(heading, '');
+  if (intro) {
+    textLines.push(intro);
+  }
+  if (details) {
+    textLines.push('', details);
+  }
+  if (ctaUrl) {
+    textLines.push('', `Acesse: ${ctaUrl}`);
+  }
+  textLines.push('', 'Mensagem automatica do OmniZap.');
+
+  return {
+    subject,
+    text: textLines.join('\n'),
+    html: renderEmailLayout({
+      payload,
+      preheader: heading,
+      heading,
+      greeting,
+      intro,
+      body: details,
+      ctaLabel: ctaUrl ? ctaLabel : '',
+      ctaUrl,
+      ctaHint: ctaUrl ? 'Abra o link para ver as informacoes completas.' : '',
+      securityNote,
+      footerMessage,
+    }),
+  };
+};
+
 const TEMPLATE_BUILDERS = {
+  standard: buildStandardTemplate,
+  default: buildStandardTemplate,
   welcome: buildWelcomeTemplate,
   magic_link: buildMagicLinkTemplate,
   project_update: buildProjectUpdateTemplate,
