@@ -13,11 +13,14 @@ export default defineConfig({
     minify: 'esbuild',
     sourcemap: false,
     rollupOptions: {
-      input: path.join(projectRoot, 'public', 'js', 'apps', 'homeReactApp.js'),
+      input: {
+        'home-react': path.join(projectRoot, 'public', 'js', 'apps', 'homeReactApp.js'),
+        'user-react': path.join(projectRoot, 'public', 'js', 'apps', 'userReactApp.js'),
+      },
       output: {
         format: 'es',
-        entryFileNames: 'home-react.bundle.js',
-        inlineDynamicImports: true,
+        entryFileNames: '[name].bundle.js',
+        chunkFileNames: 'chunks/[name]-[hash].js',
       },
     },
   },
