@@ -34,6 +34,8 @@ PACKAGE_SECONDARY_OTP="${DEPLOY_PACKAGE_SECONDARY_OTP:-}"
 PACKAGE_SECONDARY_ACCESS="${DEPLOY_PACKAGE_SECONDARY_ACCESS:-public}"
 PACKAGE_SECONDARY_PUBLISH_SKIP_IF_EXISTS="${DEPLOY_PACKAGE_SECONDARY_PUBLISH_SKIP_IF_EXISTS:-$PACKAGE_PUBLISH_SKIP_IF_EXISTS}"
 PACKAGE_SECONDARY_TOKEN_KEYS="${DEPLOY_PACKAGE_SECONDARY_TOKEN_KEYS:-}"
+ASSET_BUILD_ENABLED="${DEPLOY_BUILD_ASSETS:-1}"
+ASSET_BUILD_CMD="${DEPLOY_BUILD_ASSETS_CMD:-npm run build:frontend}"
 NPMRC_TMP_FILES=()
 
 log() {
@@ -373,6 +375,20 @@ run_package_stage() {
   log "Etapa package concluída."
 }
 
+run_assets_build_stage() {
+  if [ "$ASSET_BUILD_ENABLED" != "1" ]; then
+    log "Build de assets desativado (DEPLOY_BUILD_ASSETS=$ASSET_BUILD_ENABLED)."
+    return 0
+  fi
+
+  require_cmd npm
+  log "Compilando assets frontend: $ASSET_BUILD_CMD"
+  (
+    cd "$PROJECT_ROOT" &&
+    bash -lc "$ASSET_BUILD_CMD"
+  )
+}
+
 finalize() {
   local exit_code=$?
   if [ "$exit_code" -eq 0 ]; then
@@ -390,6 +406,7 @@ finalize() {
 trap finalize EXIT
 
 log "build_id=$BUILD_ID"
+run_assets_build_stage
 log "Preparando staging em $STAGING_DIR"
 rsync -a --delete "$SOURCE_DIR"/ "$STAGING_DIR"/
 node "$PROJECT_ROOT/scripts/cache-bust.mjs" --dir "$STAGING_DIR" --version "$BUILD_ID"
@@ -438,9 +455,9 @@ fi
 
 if [ -f "$DEPLOY_DIR/index.html" ]; then
   if command -v rg >/dev/null 2>&1; then
-    DEPLOYED_REF="$(rg -o '/js/apps/homeApp.js\\?v=[^"]+' "$DEPLOY_DIR/index.html" -m 1 || true)"
+    DEPLOYED_REF="$(rg -o '/assets/js/home-react\\.bundle\\.js\\?v=[^"]+' "$DEPLOY_DIR/index.html" -m 1 || true)"
   else
-    DEPLOYED_REF="$(grep -oE '/js/apps/homeApp\\.js\\?v=[^"]+' "$DEPLOY_DIR/index.html" | head -n 1 || true)"
+    DEPLOYED_REF="$(grep -oE '/assets/js/home-react\\.bundle\\.js\\?v=[^"]+' "$DEPLOY_DIR/index.html" | head -n 1 || true)"
   fi
   if [ -n "$DEPLOYED_REF" ]; then
     log "Cache-bust aplicado: $DEPLOYED_REF"

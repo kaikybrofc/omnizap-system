@@ -1,0 +1,58 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: night --default;
+}
+
+@source "../../index.html";
+@source "../../js/apps/homeReactApp.js";
+
+@layer base {
+  html[data-theme='night'] {
+    /* DaisyUI semantic tokens with broad browser compatibility (HSL numbers). */
+    --b1: 222 47% 11%;
+    --b2: 222 44% 9%;
+    --b3: 222 40% 8%;
+    --bc: 210 40% 96%;
+    --p: 217 91% 60%;
+    --pc: 222 47% 11%;
+    --s: 262 83% 58%;
+    --sc: 210 40% 98%;
+    --a: 174 72% 44%;
+    --ac: 222 47% 11%;
+    --n: 222 44% 14%;
+    --nc: 210 40% 96%;
+    --in: 199 89% 58%;
+    --inc: 222 47% 11%;
+    --su: 142 71% 45%;
+    --suc: 222 47% 11%;
+    --wa: 38 92% 50%;
+    --wac: 222 47% 11%;
+    --er: 0 84% 60%;
+    --erc: 210 40% 98%;
+    --rounded-box: 1rem;
+    --rounded-btn: 0.75rem;
+    --rounded-badge: 9999px;
+  }
+
+  body {
+    color: hsl(var(--bc));
+    background:
+      radial-gradient(70rem 40rem at -10% -10%, rgb(37 99 235 / 0.2), transparent 62%),
+      radial-gradient(60rem 30rem at 110% -10%, rgb(124 58 237 / 0.18), transparent 60%),
+      #020617;
+  }
+
+  #home-react-root {
+    color: hsl(var(--bc));
+  }
+}
+
+@layer components {
+  #main-nav {
+    overscroll-behavior: contain;
+  }
+
+  #wpp-float {
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+}
