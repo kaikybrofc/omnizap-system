@@ -20,6 +20,7 @@ const POLLER_INTERVAL_MS = Math.max(1_000, Number(process.env.STICKER_WORKER_PIP
 const WORKER_RETRY_DELAY_SECONDS = Math.max(5, Math.min(3600, Number(process.env.STICKER_WORKER_PIPELINE_RETRY_DELAY_SECONDS) || 45));
 const INLINE_POLLER_ENABLED = parseEnvBool(process.env.STICKER_WORKER_PIPELINE_INLINE_POLLER_ENABLED, true);
 const INLINE_POLLER_FORCE_ENABLED = parseEnvBool(process.env.STICKER_WORKER_PIPELINE_INLINE_POLLER_FORCE_ENABLED, false);
+const INLINE_POLLER_LOOP_ACTIVE = INLINE_POLLER_ENABLED || INLINE_POLLER_FORCE_ENABLED;
 
 const TASK_CADENCE_MS = {
   classification_cycle: Math.max(10_000, Number(process.env.STICKER_WORKER_CLASSIFICATION_CADENCE_MS) || 120_000),
@@ -194,6 +195,7 @@ export const startStickerWorkerPipeline = () => {
     scheduler_interval_ms: SCHEDULER_INTERVAL_MS,
     poller_interval_ms: POLLER_INTERVAL_MS,
     inline_poller_enabled: INLINE_POLLER_ENABLED,
+    inline_poller_loop_active: INLINE_POLLER_LOOP_ACTIVE,
     cadence_ms: TASK_CADENCE_MS,
   });
 
@@ -201,18 +203,22 @@ export const startStickerWorkerPipeline = () => {
     startupHandle = null;
 
     void schedulerTick();
-    void pollerTick();
+    if (INLINE_POLLER_LOOP_ACTIVE) {
+      void pollerTick();
+    }
 
     schedulerHandle = setInterval(() => {
       void schedulerTick();
     }, SCHEDULER_INTERVAL_MS);
 
-    pollerHandle = setInterval(() => {
-      void pollerTick();
-    }, POLLER_INTERVAL_MS);
+    if (INLINE_POLLER_LOOP_ACTIVE) {
+      pollerHandle = setInterval(() => {
+        void pollerTick();
+      }, POLLER_INTERVAL_MS);
+    }
 
     if (typeof schedulerHandle.unref === 'function') schedulerHandle.unref();
-    if (typeof pollerHandle.unref === 'function') pollerHandle.unref();
+    if (typeof pollerHandle?.unref === 'function') pollerHandle.unref();
   }, STARTUP_DELAY_MS);
 
   if (typeof startupHandle.unref === 'function') startupHandle.unref();

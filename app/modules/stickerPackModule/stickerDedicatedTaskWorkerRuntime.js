@@ -19,11 +19,20 @@ const clampInt = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, Math.floor(numeric)));
 };
 
+const clampNumber = (value, fallback, min, max) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(min, Math.min(max, numeric));
+};
+
 const DEDICATED_WORKERS_ENABLED = parseEnvBool(process.env.STICKER_DEDICATED_WORKERS_ENABLED, true);
 const DEDICATED_WORKERS_FORCE_ENABLED = parseEnvBool(process.env.STICKER_DEDICATED_WORKERS_FORCE_ENABLED, false);
 const DEDICATED_WORKER_RETRY_DELAY_SECONDS = clampInt(process.env.STICKER_DEDICATED_WORKER_RETRY_DELAY_SECONDS, 60, 5, 3600);
 const DEDICATED_WORKER_POLL_INTERVAL_MS = clampInt(process.env.STICKER_DEDICATED_WORKER_POLL_INTERVAL_MS, 2500, 250, 60_000);
 const DEDICATED_WORKER_MAX_TASKS_PER_TICK = clampInt(process.env.STICKER_DEDICATED_WORKER_MAX_TASKS_PER_TICK, 1, 1, 25);
+const DEDICATED_WORKER_IDLE_BACKOFF_MULTIPLIER = clampNumber(process.env.STICKER_DEDICATED_WORKER_IDLE_BACKOFF_MULTIPLIER, 1.7, 1, 5);
+const DEDICATED_WORKER_IDLE_MAX_POLL_INTERVAL_MS = clampInt(process.env.STICKER_DEDICATED_WORKER_IDLE_MAX_POLL_INTERVAL_MS, Math.max(30_000, DEDICATED_WORKER_POLL_INTERVAL_MS * 8), 1_000, 300_000);
+const DEDICATED_WORKER_IDLE_JITTER_PERCENT = clampInt(process.env.STICKER_DEDICATED_WORKER_IDLE_JITTER_PERCENT, 12, 0, 60);
 const DEDICATED_WORKER_COHORT_KEY = String(process.env.STICKER_DEDICATED_WORKER_COHORT_KEY || process.env.HOSTNAME || process.pid).trim() || 'worker';
 
 const SUPPORTED_TASK_TYPES = new Set(['classification_cycle', 'curation_cycle', 'rebuild_cycle']);
@@ -133,21 +142,67 @@ export const runDedicatedStickerWorkerTick = async ({ taskType, maxTasks = DEDIC
   return stats;
 };
 
-export const startDedicatedStickerWorker = ({ taskType, pollIntervalMs = DEDICATED_WORKER_POLL_INTERVAL_MS, maxTasksPerTick = DEDICATED_WORKER_MAX_TASKS_PER_TICK, retryDelaySeconds = DEDICATED_WORKER_RETRY_DELAY_SECONDS, label = '' } = {}) => {
+const applyDelayJitter = (delayMs, jitterPercent) => {
+  const baseDelay = Math.max(250, Math.floor(Number(delayMs) || 0));
+  const safeJitterPercent = clampInt(jitterPercent, DEDICATED_WORKER_IDLE_JITTER_PERCENT, 0, 60);
+  if (safeJitterPercent <= 0) return baseDelay;
+  const variation = (Math.random() * 2 - 1) * (safeJitterPercent / 100);
+  return Math.max(250, Math.floor(baseDelay * (1 + variation)));
+};
+
+export const startDedicatedStickerWorker = ({
+  taskType,
+  pollIntervalMs = DEDICATED_WORKER_POLL_INTERVAL_MS,
+  maxTasksPerTick = DEDICATED_WORKER_MAX_TASKS_PER_TICK,
+  retryDelaySeconds = DEDICATED_WORKER_RETRY_DELAY_SECONDS,
+  idleBackoffMultiplier = DEDICATED_WORKER_IDLE_BACKOFF_MULTIPLIER,
+  idleMaxPollIntervalMs = DEDICATED_WORKER_IDLE_MAX_POLL_INTERVAL_MS,
+  idleJitterPercent = DEDICATED_WORKER_IDLE_JITTER_PERCENT,
+  label = '',
+} = {}) => {
   const normalizedTaskType = normalizeTaskType(taskType);
   if (!normalizedTaskType) {
     throw new Error(`invalid_task_type:${taskType}`);
   }
 
   const safePollIntervalMs = clampInt(pollIntervalMs, DEDICATED_WORKER_POLL_INTERVAL_MS, 250, 60_000);
+  const safeIdleBackoffMultiplier = clampNumber(idleBackoffMultiplier, DEDICATED_WORKER_IDLE_BACKOFF_MULTIPLIER, 1, 5);
+  const safeIdleMaxPollIntervalMs = clampInt(
+    idleMaxPollIntervalMs,
+    Math.max(DEDICATED_WORKER_IDLE_MAX_POLL_INTERVAL_MS, safePollIntervalMs),
+    safePollIntervalMs,
+    300_000,
+  );
+  const safeIdleJitterPercent = clampInt(idleJitterPercent, DEDICATED_WORKER_IDLE_JITTER_PERCENT, 0, 60);
   let tickInFlight = false;
   let stopped = false;
+  let tickHandle = null;
+  let nextDelayMs = safePollIntervalMs;
+
+  const scheduleNextTick = (delayMs = safePollIntervalMs) => {
+    if (stopped) return;
+    if (tickHandle) {
+      clearTimeout(tickHandle);
+      tickHandle = null;
+    }
+
+    const effectiveDelayMs = applyDelayJitter(delayMs, safeIdleJitterPercent);
+    tickHandle = setTimeout(() => {
+      tickHandle = null;
+      void runTick();
+    }, effectiveDelayMs);
+
+    if (typeof tickHandle?.unref === 'function') {
+      tickHandle.unref();
+    }
+  };
 
   const runTick = async () => {
     if (stopped || tickInFlight) return;
     tickInFlight = true;
+    let tickResult = null;
     try {
-      await runDedicatedStickerWorkerTick({
+      tickResult = await runDedicatedStickerWorkerTick({
         taskType: normalizedTaskType,
         maxTasks: maxTasksPerTick,
         retryDelaySeconds,
@@ -163,14 +218,18 @@ export const startDedicatedStickerWorker = ({ taskType, pollIntervalMs = DEDICAT
     } finally {
       tickInFlight = false;
     }
-  };
 
-  const intervalHandle = setInterval(() => {
-    void runTick();
-  }, safePollIntervalMs);
-  if (typeof intervalHandle?.unref === 'function') {
-    intervalHandle.unref();
-  }
+    if (stopped) return;
+
+    const claimedTasks = Number(tickResult?.claimed || 0);
+    if (claimedTasks > 0) {
+      nextDelayMs = safePollIntervalMs;
+    } else {
+      nextDelayMs = Math.min(safeIdleMaxPollIntervalMs, Math.max(safePollIntervalMs, Math.floor(nextDelayMs * safeIdleBackoffMultiplier)));
+    }
+
+    scheduleNextTick(nextDelayMs);
+  };
 
   void runTick();
 
@@ -178,6 +237,9 @@ export const startDedicatedStickerWorker = ({ taskType, pollIntervalMs = DEDICAT
     action: 'sticker_dedicated_worker_started',
     task_type: normalizedTaskType,
     poll_interval_ms: safePollIntervalMs,
+    idle_backoff_multiplier: safeIdleBackoffMultiplier,
+    idle_max_poll_interval_ms: safeIdleMaxPollIntervalMs,
+    idle_jitter_percent: safeIdleJitterPercent,
     max_tasks_per_tick: maxTasksPerTick,
     label: label || null,
   });
@@ -187,7 +249,10 @@ export const startDedicatedStickerWorker = ({ taskType, pollIntervalMs = DEDICAT
     stop: () => {
       if (stopped) return;
       stopped = true;
-      clearInterval(intervalHandle);
+      if (tickHandle) {
+        clearTimeout(tickHandle);
+        tickHandle = null;
+      }
       logger.info('Worker dedicado de sticker encerrado.', {
         action: 'sticker_dedicated_worker_stopped',
         task_type: normalizedTaskType,
