@@ -62,7 +62,35 @@ if (root) {
     element.textContent = String(value || '');
   };
 
+  const resolveNextRedirectPathFromUrl = () => {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const rawNext = String(params.get('next') || '').trim();
+      if (!rawNext) return '';
+
+      if (/^[a-z][a-z0-9+.-]*:/i.test(rawNext) || rawNext.startsWith('//')) {
+        return '';
+      }
+
+      const parsed = new URL(rawNext, window.location.origin);
+      if (parsed.origin !== window.location.origin) return '';
+      if (!parsed.pathname.startsWith('/')) return '';
+
+      const normalizedPath = String(parsed.pathname || '')
+        .replace(/\/+$/, '')
+        .toLowerCase();
+      if (normalizedPath === '/login') return '';
+
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch {
+      return '';
+    }
+  };
+
   const resolveAuthenticatedRedirectPath = () => {
+    const nextPath = resolveNextRedirectPathFromUrl();
+    if (nextPath) return nextPath;
+
     const successHomeHref = String(ui.successHome?.getAttribute('href') || '').trim();
     if (successHomeHref.startsWith('/')) {
       return successHomeHref;
@@ -269,7 +297,7 @@ if (root) {
 
     const chatLabel = String(options.chatLabel || DEFAULT_SUCCESS_CHAT_LABEL);
     const homeLabel = String(options.homeLabel || DEFAULT_SUCCESS_HOME_LABEL);
-    const homeHref = String(options.homeHref || '/user/');
+    const homeHref = String(options.homeHref || resolveAuthenticatedRedirectPath());
 
     if (ui.successChat) {
       ui.successChat.href = buildWhatsappMenuUrl(state.botPhone);
