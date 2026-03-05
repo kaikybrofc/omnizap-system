@@ -114,7 +114,7 @@ export const queueAutomatedEmail = async ({
   };
 };
 
-export const queueWelcomeEmail = async ({ to, name = '', loginUrl = '', metadata = {} } = {}) =>
+export const queueWelcomeEmail = async ({ to, name = '', loginUrl = '', redirectUrl = '', homeUrl = '', metadata = {}, idempotencyKey = '' } = {}) =>
   queueAutomatedEmail({
     to,
     name,
@@ -122,8 +122,11 @@ export const queueWelcomeEmail = async ({ to, name = '', loginUrl = '', metadata
     templateData: {
       name,
       loginUrl,
+      redirectUrl,
+      homeUrl,
     },
     metadata,
+    idempotencyKey,
   });
 
 export const getEmailAutomationStatusSnapshot = async () => {

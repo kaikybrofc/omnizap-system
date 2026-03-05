@@ -189,6 +189,8 @@ export const maybeHandleEmailAutomationRequest = async (req, res, { pathname }) 
         templateData: {
           name: testName,
           loginUrl: body.loginUrl,
+          redirectUrl: body.redirectUrl,
+          homeUrl: body.homeUrl,
           siteOrigin: body.siteOrigin,
         },
         metadata: {

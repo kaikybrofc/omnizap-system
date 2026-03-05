@@ -46,20 +46,57 @@ const normalizeEmailAddress = (value) => {
   return candidate.slice(0, 255);
 };
 
+const normalizePhoneDigits = (value, maxLength = 20) =>
+  String(value || '')
+    .replace(/\D+/g, '')
+    .slice(0, maxLength);
+
+const isLikelyPhoneDigits = (digits) => {
+  const normalized = normalizePhoneDigits(digits, 20);
+  return normalized.length >= 10 && normalized.length <= 15;
+};
+
+const formatPhonePn = (digits) => {
+  const normalized = normalizePhoneDigits(digits, 20);
+  if (!normalized) return '';
+
+  if (normalized.length === 13 && normalized.startsWith('55')) {
+    return `+${normalized.slice(0, 2)} ${normalized.slice(2, 4)} ${normalized.slice(4, 9)}-${normalized.slice(9, 13)}`;
+  }
+
+  if (normalized.length === 12 && normalized.startsWith('55')) {
+    return `+${normalized.slice(0, 2)} ${normalized.slice(2, 4)} ${normalized.slice(4, 8)}-${normalized.slice(8, 12)}`;
+  }
+
+  return `+${normalized}`;
+};
+
 const resolveBrandConfig = (payload = {}) => {
   const siteOrigin = normalizeHttpUrl(payload?.siteOrigin || resolveSiteOrigin(), resolveSiteOrigin());
   const supportFallback = `${siteOrigin}/termos-de-uso/`;
   const replyToAddress = normalizeEmailAddress(payload?.replyTo || process.env.SMTP_REPLY_TO || process.env.EMAIL_REPLY_TO || process.env.MAIL_REPLY_TO || '');
   const fromAddress = normalizeEmailAddress(process.env.SMTP_FROM || process.env.EMAIL_FROM || process.env.MAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER || process.env.MAIL_USER || '');
+  const supportPhoneCandidate = normalizePhoneDigits(
+    payload?.supportPhone || process.env.EMAIL_BRAND_SUPPORT_PHONE || process.env.WHATSAPP_SUPPORT_NUMBER || process.env.OWNER_NUMBER || '',
+    20,
+  );
+  const supportPhoneDigits = isLikelyPhoneDigits(supportPhoneCandidate) ? supportPhoneCandidate : '';
+  const supportPhonePn = formatPhonePn(supportPhoneDigits);
+  const supportWhatsappUrl = supportPhoneDigits ? `https://wa.me/${supportPhoneDigits}` : '';
+  const resolvedSupportUrl = normalizeHttpUrl(payload?.supportUrl || supportWhatsappUrl || process.env.EMAIL_BRAND_SUPPORT_URL || supportFallback, supportFallback);
+  const resolvedSupportLabel = normalizeText(
+    payload?.supportLabel || supportPhonePn || process.env.EMAIL_BRAND_SUPPORT_LABEL || 'Central de suporte',
+    80,
+  );
 
   return {
     siteOrigin,
     brandName: normalizeText(payload?.brandName || process.env.EMAIL_BRAND_NAME || DEFAULT_BRAND_NAME, 80) || DEFAULT_BRAND_NAME,
     brandTagline:
-      normalizeText(payload?.brandTagline || process.env.EMAIL_BRAND_TAGLINE || 'Automacao profissional para WhatsApp.', 120) || null,
+      normalizeText(payload?.brandTagline || process.env.EMAIL_BRAND_TAGLINE || 'Automação profissional para WhatsApp.', 120) || null,
     brandLogoUrl: normalizeHttpUrl(payload?.brandLogoUrl || payload?.logoUrl || process.env.EMAIL_BRAND_LOGO_URL || '', ''),
-    supportUrl: normalizeHttpUrl(payload?.supportUrl || process.env.EMAIL_BRAND_SUPPORT_URL || supportFallback, supportFallback),
-    supportLabel: normalizeText(payload?.supportLabel || process.env.EMAIL_BRAND_SUPPORT_LABEL || 'Central de suporte', 80) || 'Central de suporte',
+    supportUrl: resolvedSupportUrl,
+    supportLabel: resolvedSupportLabel || 'Central de suporte',
     supportEmail: replyToAddress || fromAddress || '',
   };
 };
@@ -92,6 +129,8 @@ const renderEmailLayout = ({
   ctaLabel = '',
   ctaUrl = '',
   ctaHint = '',
+  secondaryCtaLabel = '',
+  secondaryCtaUrl = '',
   securityNote = '',
   footerMessage = '',
 } = {}) => {
@@ -103,6 +142,8 @@ const renderEmailLayout = ({
   const safeCtaLabel = normalizeText(ctaLabel, 80);
   const safeCtaUrl = normalizeHttpUrl(ctaUrl, '');
   const safeCtaHint = normalizeText(ctaHint, 220);
+  const safeSecondaryCtaLabel = normalizeText(secondaryCtaLabel, 80);
+  const safeSecondaryCtaUrl = normalizeHttpUrl(secondaryCtaUrl, '');
   const safeSecurityNote = normalizeText(securityNote, 220);
   const safeFooterMessage = normalizeText(footerMessage, 220);
   const year = new Date().getUTCFullYear();
@@ -133,8 +174,12 @@ const renderEmailLayout = ({
       : '';
 
   const ctaHintBlock = safeCtaHint ? `<p style="margin:4px 0 0;color:#64748b;font-size:13px;line-height:1.55;">${escapeHtml(safeCtaHint)}</p>` : '';
+  const secondaryCtaBlock =
+    safeSecondaryCtaLabel && safeSecondaryCtaUrl
+      ? `<p style="margin:10px 0 0;color:#1e293b;font-size:14px;line-height:1.6;">${escapeHtml(safeSecondaryCtaLabel)}: <a href="${escapeHtml(safeSecondaryCtaUrl)}" style="color:#2563eb;text-decoration:none;">${escapeHtml(safeSecondaryCtaUrl)}</a></p>`
+      : '';
   const fallbackLinkBlock = safeCtaUrl
-    ? `<p style="margin:12px 0 0;color:#64748b;font-size:12px;line-height:1.6;word-break:break-all;">Se o botao nao funcionar, copie e cole este link no navegador: ${escapeHtml(safeCtaUrl)}</p>`
+    ? `<p style="margin:12px 0 0;color:#64748b;font-size:12px;line-height:1.6;word-break:break-all;">Se o botão não funcionar, copie e cole este link no navegador: ${escapeHtml(safeCtaUrl)}</p>`
     : '';
   const securityNoteBlock = safeSecurityNote
     ? `<p style="margin:16px 0 0;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;color:#475569;font-size:12px;line-height:1.6;">${escapeHtml(safeSecurityNote)}</p>`
@@ -173,6 +218,7 @@ const renderEmailLayout = ({
                 ${bodyBlock}
                 ${ctaBlock}
                 ${ctaHintBlock}
+                ${secondaryCtaBlock}
                 ${fallbackLinkBlock}
                 ${securityNoteBlock}
               </td>
@@ -180,7 +226,7 @@ const renderEmailLayout = ({
             <tr>
               <td style="padding:14px 2px 0;color:#64748b;font-size:12px;line-height:1.7;text-align:left;">
                 <span style="display:block;">${escapeHtml(brand.brandName)} © ${year}. Todos os direitos reservados.</span>
-                <span style="display:block;margin-top:6px;">Suporte: <a href="${escapeHtml(brand.supportUrl)}" style="color:#2563eb;text-decoration:none;">${escapeHtml(brand.supportLabel)}</a></span>
+                <span style="display:block;margin-top:6px;">Central de suporte: <a href="${escapeHtml(brand.supportUrl)}" style="color:#2563eb;text-decoration:none;">${escapeHtml(brand.supportLabel)}</a></span>
                 ${supportEmailLine}
                 ${footerMessageBlock}
               </td>
@@ -194,39 +240,86 @@ const renderEmailLayout = ({
   `.trim();
 };
 
-const buildWelcomeTemplate = (payload = {}) => {
-  const name = normalizeText(payload?.name || payload?.firstName || '', 80) || 'voce';
+const resolveNavigationLinks = (payload = {}) => {
   const siteOrigin = normalizeHttpUrl(payload?.siteOrigin || resolveSiteOrigin(), resolveSiteOrigin());
-  const loginUrl = normalizeHttpUrl(payload?.loginUrl || `${siteOrigin}/login/`, `${siteOrigin}/login/`);
+  const defaultRedirectUrl = normalizeHttpUrl(process.env.EMAIL_DEFAULT_REDIRECT_URL || `${siteOrigin}/user/`, `${siteOrigin}/user/`);
+  const defaultHomeUrl = normalizeHttpUrl(process.env.EMAIL_DEFAULT_CTA_URL || `${siteOrigin}/`, `${siteOrigin}/`);
+  const redirectUrl = normalizeHttpUrl(payload?.redirectUrl || payload?.userUrl || payload?.loginUrl || defaultRedirectUrl, defaultRedirectUrl);
+  const homeUrl = normalizeHttpUrl(payload?.ctaUrl || payload?.homeUrl || payload?.link || defaultHomeUrl, defaultHomeUrl);
+
+  return {
+    siteOrigin,
+    redirectUrl,
+    homeUrl,
+  };
+};
+
+const resolveWelcomeBotWhatsApp = (payload = {}) => {
+  const botPhoneCandidate = normalizePhoneDigits(
+    payload?.botPhone ||
+      payload?.botNumber ||
+      process.env.EMAIL_WELCOME_BOT_PHONE ||
+      process.env.WHATSAPP_BOT_NUMBER ||
+      process.env.BOT_NUMBER ||
+      process.env.BOT_PHONE_NUMBER ||
+      process.env.PHONE_NUMBER ||
+      process.env.EMAIL_BRAND_SUPPORT_PHONE ||
+      '',
+    20,
+  );
+  const botPhoneDigits = isLikelyPhoneDigits(botPhoneCandidate) ? botPhoneCandidate : '';
+  const botPhonePn = formatPhonePn(botPhoneDigits);
+  const botWhatsAppUrl = botPhoneDigits ? `https://wa.me/${botPhoneDigits}` : '';
+
+  return {
+    botPhonePn,
+    botWhatsAppUrl,
+  };
+};
+
+const resolveTermsUrl = (payload = {}) => {
+  const siteOrigin = normalizeHttpUrl(payload?.siteOrigin || resolveSiteOrigin(), resolveSiteOrigin());
+  const defaultTermsUrl = normalizeHttpUrl(`${siteOrigin}/termos-de-uso/`, `${DEFAULT_SITE_ORIGIN}/termos-de-uso/`);
+  return normalizeHttpUrl(payload?.termsUrl || process.env.EMAIL_TERMS_URL || defaultTermsUrl, defaultTermsUrl);
+};
+
+const buildWelcomeTemplate = (payload = {}) => {
+  const name = normalizeText(payload?.name || payload?.firstName || '', 80) || 'você';
+  const { redirectUrl, homeUrl } = resolveNavigationLinks(payload);
+  const { botPhonePn, botWhatsAppUrl } = resolveWelcomeBotWhatsApp(payload);
+  const ctaUrl = botWhatsAppUrl || homeUrl;
+  const ctaLabel = botWhatsAppUrl ? 'Abrir WhatsApp do Bot' : 'Abrir OmniZap';
+  const ctaHint = botPhonePn ? `WhatsApp do bot: ${botPhonePn}` : `Link de redirecionamento: ${redirectUrl}`;
   const subject = 'Bem-vindo(a) ao OmniZap';
 
   return {
     subject,
     text: [
-      `Ola, ${name}!`,
+      `Olá, ${name}!`,
       '',
-      'Sua conta no OmniZap foi preparada e ja esta pronta para uso.',
-      `Acesse agora: ${loginUrl}`,
+      'Sua conta no OmniZap foi preparada e já está pronta para uso.',
+      `Redirecionamento da conta: ${redirectUrl}`,
+      botWhatsAppUrl ? `WhatsApp do bot: ${botWhatsAppUrl}` : `Abrir plataforma: ${homeUrl}`,
       '',
-      'Se voce nao solicitou este e-mail, desconsidere esta mensagem.',
+      'Se você não solicitou este e-mail, desconsidere esta mensagem.',
     ].join('\n'),
     html: renderEmailLayout({
       payload,
-      preheader: 'Sua conta no OmniZap esta pronta para uso.',
+      preheader: 'Sua conta no OmniZap está pronta para uso.',
       heading: 'Bem-vindo(a) ao OmniZap',
-      greeting: `Ola, ${name}!`,
-      intro: 'Sua conta foi preparada com sucesso. Use o botao abaixo para entrar com seguranca.',
-      ctaLabel: 'Entrar no OmniZap',
-      ctaUrl: loginUrl,
-      ctaHint: 'Recomendamos acessar por um dispositivo confiavel.',
-      securityNote: 'Se voce nao reconhece esta acao, ignore este e-mail.',
+      greeting: `Olá, ${name}!`,
+      intro: 'Sua conta foi preparada com sucesso. Use o botão abaixo para abrir o WhatsApp do bot.',
+      ctaLabel,
+      ctaUrl,
+      ctaHint,
+      securityNote: 'Se você não reconhece esta ação, ignore este e-mail.',
       footerMessage: 'Este e-mail foi enviado automaticamente pelo sistema.',
     }),
   };
 };
 
 const buildMagicLinkTemplate = (payload = {}) => {
-  const name = normalizeText(payload?.name || payload?.firstName || '', 80) || 'voce';
+  const name = normalizeText(payload?.name || payload?.firstName || '', 80) || 'você';
   const link = normalizeHttpUrl(payload?.link || payload?.magicLink || payload?.loginUrl || '', '');
   if (!link) return null;
 
@@ -240,50 +333,50 @@ const buildMagicLinkTemplate = (payload = {}) => {
   return {
     subject,
     text: [
-      `Ola, ${name}!`,
+      `Olá, ${name}!`,
       '',
-      'Use o link abaixo para acessar sua conta com seguranca:',
+      'Use o link abaixo para acessar sua conta com segurança:',
       link,
       '',
       expirationMessage,
-      'Se voce nao solicitou este acesso, ignore esta mensagem.',
+      'Se você não solicitou este acesso, ignore esta mensagem.',
     ].join('\n'),
     html: renderEmailLayout({
       payload,
       preheader: 'Use seu link de acesso seguro do OmniZap.',
       heading: 'Seu link de acesso',
-      greeting: `Ola, ${name}!`,
-      intro: 'Clique no botao abaixo para entrar na sua conta.',
+      greeting: `Olá, ${name}!`,
+      intro: 'Clique no botão abaixo para entrar na sua conta.',
       ctaLabel: 'Acessar conta',
       ctaUrl: link,
       ctaHint: expirationMessage,
-      securityNote: 'Nao compartilhe este link com terceiros.',
-      footerMessage: 'Para sua seguranca, este link e pessoal e temporario.',
+      securityNote: 'Não compartilhe este link com terceiros.',
+      footerMessage: 'Para sua segurança, este link é pessoal e temporário.',
     }),
   };
 };
 
 const buildProjectUpdateTemplate = (payload = {}) => {
-  const name = normalizeText(payload?.name || payload?.firstName || '', 80) || 'usuario';
-  const title = normalizeText(payload?.title || payload?.heading || 'Atualizacao do projeto OmniZap', 120) || 'Atualizacao do projeto OmniZap';
+  const name = normalizeText(payload?.name || payload?.firstName || '', 80) || 'usuário';
+  const title = normalizeText(payload?.title || payload?.heading || 'Atualização do projeto OmniZap', 120) || 'Atualização do projeto OmniZap';
   const message =
     normalizeText(
-      payload?.message || payload?.body || 'Temos uma nova atualizacao do projeto. Confira os detalhes no painel.',
+      payload?.message || payload?.body || 'Temos uma nova atualização do projeto. Confira os detalhes no painel.',
       6_000,
-    ) || 'Temos uma nova atualizacao do projeto. Confira os detalhes no painel.';
+    ) || 'Temos uma nova atualização do projeto. Confira os detalhes no painel.';
   const details = normalizeText(payload?.details || '', 6_000);
   const ctaUrl = normalizeHttpUrl(payload?.ctaUrl || payload?.link || payload?.loginUrl || '', '');
-  const ctaLabel = normalizeText(payload?.ctaLabel || 'Ver atualizacao', 80) || 'Ver atualizacao';
+  const ctaLabel = normalizeText(payload?.ctaLabel || 'Ver atualização', 80) || 'Ver atualização';
   const subject = normalizeText(payload?.subject || title, 180) || title;
 
-  const textLines = [`Ola, ${name}!`, '', title, '', message];
+  const textLines = [`Olá, ${name}!`, '', title, '', message];
   if (details) {
     textLines.push('', details);
   }
   if (ctaUrl) {
     textLines.push('', `Acesse: ${ctaUrl}`);
   }
-  textLines.push('', 'Mensagem automatica do OmniZap.');
+  textLines.push('', 'Mensagem automática do OmniZap.');
 
   return {
     subject,
@@ -292,31 +385,33 @@ const buildProjectUpdateTemplate = (payload = {}) => {
       payload,
       preheader: title,
       heading: title,
-      greeting: `Ola, ${name}!`,
+      greeting: `Olá, ${name}!`,
       intro: message,
       body: details,
       ctaLabel: ctaUrl ? ctaLabel : '',
       ctaUrl,
       ctaHint: ctaUrl ? 'Abra o link para ver os detalhes completos.' : '',
-      securityNote: 'Se voce nao reconhece esta comunicacao, entre em contato com o suporte.',
+      securityNote: 'Se você não reconhece esta comunicação, entre em contato com o suporte.',
       footerMessage: 'Comunicado oficial do projeto OmniZap.',
     }),
   };
 };
 
 const buildStandardTemplate = (payload = {}) => {
+  const { redirectUrl, homeUrl } = resolveNavigationLinks(payload);
   const name = normalizeText(payload?.name || payload?.firstName || '', 80);
   const subject = normalizeText(payload?.subject || payload?.title || 'Comunicado OmniZap', 180) || 'Comunicado OmniZap';
-  const heading = normalizeText(payload?.heading || payload?.title || 'Atualizacao OmniZap', 120) || 'Atualizacao OmniZap';
-  const intro = normalizeText(payload?.intro || payload?.message || payload?.summary || 'Temos uma nova comunicacao para voce.', 2_000);
+  const heading = normalizeText(payload?.heading || payload?.title || 'Atualização OmniZap', 120) || 'Atualização OmniZap';
+  const intro = normalizeText(payload?.intro || payload?.message || payload?.summary || 'Temos uma nova comunicação para você.', 2_000);
   const details = normalizeText(payload?.body || payload?.details || '', 6_000);
-  const ctaUrl = normalizeHttpUrl(payload?.ctaUrl || payload?.link || payload?.loginUrl || '', '');
-  const ctaLabel = normalizeText(payload?.ctaLabel || (ctaUrl ? 'Abrir OmniZap' : ''), 80);
+  const ctaUrl = homeUrl;
+  const ctaLabel = normalizeText(payload?.ctaLabel || 'Abrir OmniZap', 80) || 'Abrir OmniZap';
+  const ctaHint = normalizeText(payload?.ctaHint || `Link de redirecionamento: ${redirectUrl}`, 220);
   const securityNote =
-    normalizeText(payload?.securityNote || 'Se nao reconhece esta mensagem, ignore e entre em contato com o suporte.', 220) ||
-    'Se nao reconhece esta mensagem, ignore e entre em contato com o suporte.';
-  const footerMessage = normalizeText(payload?.footerMessage || 'Mensagem automatica do projeto OmniZap.', 220);
-  const greeting = name ? `Ola, ${name}!` : '';
+    normalizeText(payload?.securityNote || 'Se não reconhece esta mensagem, ignore e entre em contato com o suporte.', 220) ||
+    'Se não reconhece esta mensagem, ignore e entre em contato com o suporte.';
+  const footerMessage = normalizeText(payload?.footerMessage || 'Mensagem automática do projeto OmniZap.', 220);
+  const greeting = name ? `Olá, ${name}!` : '';
 
   const textLines = [];
   if (greeting) {
@@ -329,10 +424,13 @@ const buildStandardTemplate = (payload = {}) => {
   if (details) {
     textLines.push('', details);
   }
-  if (ctaUrl) {
-    textLines.push('', `Acesse: ${ctaUrl}`);
+  if (redirectUrl) {
+    textLines.push('', `Redirecionamento da conta: ${redirectUrl}`);
   }
-  textLines.push('', 'Mensagem automatica do OmniZap.');
+  if (ctaUrl) {
+    textLines.push('', `Abrir plataforma: ${ctaUrl}`);
+  }
+  textLines.push('', 'Mensagem automática do OmniZap.');
 
   return {
     subject,
@@ -346,9 +444,74 @@ const buildStandardTemplate = (payload = {}) => {
       body: details,
       ctaLabel: ctaUrl ? ctaLabel : '',
       ctaUrl,
-      ctaHint: ctaUrl ? 'Abra o link para ver as informacoes completas.' : '',
+      ctaHint: ctaUrl ? ctaHint : '',
       securityNote,
       footerMessage,
+    }),
+  };
+};
+
+const buildTermsUpdateTemplate = (payload = {}) => {
+  const name = normalizeText(payload?.name || payload?.firstName || '', 80) || 'usuário';
+  const { botPhonePn, botWhatsAppUrl } = resolveWelcomeBotWhatsApp(payload);
+  const termsUrl = resolveTermsUrl(payload);
+  const fallbackOpenUrl = normalizeHttpUrl(process.env.EMAIL_DEFAULT_CTA_URL || `${resolveSiteOrigin()}/`, `${resolveSiteOrigin()}/`);
+  const ctaUrl = botWhatsAppUrl || fallbackOpenUrl;
+  const ctaLabel = botWhatsAppUrl ? 'Abrir WhatsApp do Bot' : 'Abrir OmniZap';
+  const subject =
+    normalizeText(payload?.subject || 'Atualização dos Termos de Serviço do OmniZap', 180) || 'Atualização dos Termos de Serviço do OmniZap';
+  const heading =
+    normalizeText(payload?.heading || 'Atualização dos Termos de Serviço', 120) || 'Atualização dos Termos de Serviço';
+  const intro =
+    normalizeText(
+      payload?.intro ||
+        payload?.message ||
+        'Atualizamos nossos Termos de Serviço para refletir melhorias operacionais, de segurança e de comunicação do projeto.',
+      2_000,
+    ) ||
+    'Atualizamos nossos Termos de Serviço para refletir melhorias operacionais, de segurança e de comunicação do projeto.';
+  const body =
+    normalizeText(
+      payload?.body ||
+        'Recomendamos a leitura da nova versão para entender como tratamos os dados de login e os comunicados enviados por e-mail.',
+      6_000,
+    ) || 'Recomendamos a leitura da nova versão para entender como tratamos os dados de login e os comunicados enviados por e-mail.';
+  const securityNote =
+    normalizeText(payload?.securityNote || 'Se você tiver dúvidas sobre os novos termos, fale com nosso suporte oficial.', 220) ||
+    'Se você tiver dúvidas sobre os novos termos, fale com nosso suporte oficial.';
+
+  const textLines = [
+    `Olá, ${name}!`,
+    '',
+    heading,
+    '',
+    intro,
+    '',
+    body,
+    '',
+    `WhatsApp do bot: ${ctaUrl}`,
+    `Novos Termos de Serviço: ${termsUrl}`,
+    '',
+    'Mensagem automática do OmniZap.',
+  ];
+
+  return {
+    subject,
+    text: textLines.join('\n'),
+    html: renderEmailLayout({
+      payload,
+      preheader: 'Atualizamos os Termos de Serviço do OmniZap.',
+      heading,
+      greeting: `Olá, ${name}!`,
+      intro,
+      body,
+      ctaLabel,
+      ctaUrl,
+      ctaHint: botPhonePn ? `WhatsApp do bot: ${botPhonePn}` : '',
+      secondaryCtaLabel: 'Ver novos Termos de Serviço',
+      secondaryCtaUrl: termsUrl,
+      securityNote,
+      footerMessage: 'Comunicado oficial sobre atualização de termos.',
     }),
   };
 };
@@ -359,6 +522,7 @@ const TEMPLATE_BUILDERS = {
   welcome: buildWelcomeTemplate,
   magic_link: buildMagicLinkTemplate,
   project_update: buildProjectUpdateTemplate,
+  terms_update: buildTermsUpdateTemplate,
 };
 
 export const renderEmailTemplate = (templateKey, payload = {}) => {

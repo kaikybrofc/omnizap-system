@@ -865,7 +865,8 @@ const enqueueGoogleWebWelcomeEmail = ({ email, name, ownerJid }) => {
   void queueWelcomeEmail({
     to: normalizedEmail,
     name: safeName,
-    loginUrl: `${SITE_ORIGIN}/login/`,
+    redirectUrl: `${SITE_ORIGIN}/user/`,
+    homeUrl: `${SITE_ORIGIN}/`,
     metadata: {
       trigger: 'google_web_auth',
       owner_jid: normalizedOwnerJid,
