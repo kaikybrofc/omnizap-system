@@ -775,16 +775,6 @@
     clearPanelError();
   };
 
-  const showPanel = () => {
-    if (panelModal) {
-      panelModal.show();
-      return;
-    }
-    els.panel.classList.add('show');
-    els.panel.style.display = 'block';
-    els.panel.removeAttribute('aria-hidden');
-  };
-
   const closePanel = ({ replaceState = false } = {}) => {
     shouldReplaceStateOnHide = replaceState;
     if (panelModal) {
@@ -799,19 +789,6 @@
     if (replaceState) {
       history.replaceState({}, '', CONFIG.webPath);
     }
-  };
-
-  const renderPack = (pack) => {
-    state.selectedPack = pack || null;
-    state.panelPagination.page = 1;
-
-    els.panelTitle.textContent = pack.name || 'Pack';
-    els.panelSub.textContent = (pack.publisher || '-') + ' | ' + (pack.description || 'Sem descrição');
-    els.panelChip.textContent = pack.sticker_count + ' itens | ' + pack.visibility + ' | ' + pack.pack_key;
-    applyWhatsAppLink(els.useWhatsAppLink, pack?.whatsapp?.url);
-    renderPanelStickersPage();
-
-    showPanel();
   };
 
   const openPack = async (packKey, { pushState = false } = {}) => {

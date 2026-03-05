@@ -710,141 +710,6 @@ const formatStatusPill = (status) => {
   return { label: `ℹ️ ${normalized || 'desconhecido'}`, className: 'border-slate-600 bg-slate-900/80 text-slate-300' };
 };
 
-function MyPackCard({ pack, onOpenPublic }) {
-  const visibilityPill = formatVisibilityPill(pack?.visibility);
-  const statusPill = formatStatusPill(pack?.status);
-  const shareable = isShareablePack(pack) && Boolean(pack?.pack_key);
-  const engagement = getPackEngagement(pack);
-  const coverUrl = pack?.cover_url || 'https://iili.io/fSNGag2.png';
-
-  return html`
-    <article className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
-      <div className="flex gap-3">
-        <img src=${coverUrl} alt=${`Capa de ${pack?.name || 'Pack'}`} className="h-20 w-20 rounded-xl border border-slate-800 bg-slate-950 object-cover shrink-0" loading="lazy" />
-        <div className="min-w-0 flex-1 space-y-2">
-          <div>
-            <p className="truncate text-sm font-semibold text-slate-100">${pack?.name || 'Pack sem nome'}</p>
-            <p className="truncate text-[11px] text-slate-400">ID: ${pack?.pack_key || '-'}</p>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <span className=${`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${statusPill.className}`}>${statusPill.label}</span>
-            <span className=${`inline-flex rounded-full border px-2 py-0.5 text-[10px] ${visibilityPill.className}`}>${visibilityPill.label}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-            <span>🧩 ${Number(pack?.sticker_count || 0)}</span>
-            <span>👍 ${shortNum(engagement.likeCount)}</span>
-            <span>👆 ${shortNum(engagement.openCount)}</span>
-            <span>${pack?.updated_at ? new Date(pack.updated_at).toLocaleDateString('pt-BR') : '-'}</span>
-          </div>
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        ${shareable ? html` <button type="button" onClick=${() => onOpenPublic(pack.pack_key)} className="inline-flex h-9 items-center justify-center rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/20">Abrir no catálogo</button> ` : html` <span className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-900/70 px-3 text-xs text-slate-400"> Não visível no catálogo </span> `}
-        <a href="/stickers/create/" className="inline-flex h-9 items-center justify-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20"> Criar/gerenciar packs </a>
-      </div>
-    </article>
-  `;
-}
-
-function ProfilePage({ googleAuthConfig, googleAuth, googleAuthBusy, googleAuthError, googleSessionChecked, googleAuthUiReady, googleButtonRef, myPacks, myPacksLoading, myPacksError, myProfileStats, onBack, onRefresh, onLogout, onOpenPublicPack }) {
-  const hasGoogleLogin = Boolean(googleAuth?.user?.sub);
-  const googleLoginEnabled = Boolean(googleAuthConfig?.enabled && googleAuthConfig?.clientId);
-
-  return html`
-    <section className="space-y-4 pb-20 sm:pb-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <button type="button" onClick=${onBack} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">← Voltar para catálogo</button>
-        <button type="button" onClick=${onRefresh} disabled=${myPacksLoading || googleAuthBusy} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-60">${myPacksLoading ? 'Atualizando...' : 'Atualizar'}</button>
-      </div>
-
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-400">Perfil de criador</p>
-            <h1 className="mt-1 text-xl font-bold">Meus packs</h1>
-            <p className="mt-1 text-sm text-slate-400">Faça login com Google para ver e vincular os packs criados pela sua conta.</p>
-          </div>
-          ${hasGoogleLogin ? html` <button type="button" onClick=${onLogout} disabled=${googleAuthBusy} className="inline-flex h-10 items-center rounded-xl border border-slate-700 px-3 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-60">${googleAuthBusy ? 'Saindo...' : 'Sair'}</button> ` : null}
-        </div>
-
-        <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/50 p-3">
-          ${hasGoogleLogin
-            ? html`
-                <div className="flex flex-wrap items-center gap-3">
-                  <img src=${googleAuth.user?.picture || getAvatarUrl(googleAuth.user?.name)} alt="Avatar do Google" className="h-12 w-12 rounded-full border border-slate-700 bg-slate-900 object-cover" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-100">${googleAuth.user?.name || 'Conta Google'}</p>
-                    <p className="truncate text-xs text-slate-400">${googleAuth.user?.email || ''}</p>
-                    <p className="truncate text-[11px] text-slate-500">${googleAuth.expiresAt ? `Sessão válida até ${new Date(googleAuth.expiresAt).toLocaleString('pt-BR')}` : 'Sessão ativa'}</p>
-                  </div>
-                </div>
-              `
-            : html`
-                <div className="space-y-3">
-                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
-                    <p className="text-sm font-semibold text-cyan-200">Entrar com Google</p>
-                    <p className="mt-1 text-xs text-slate-300">${googleLoginEnabled ? 'Use a mesma conta Google usada na criação de packs para carregar seus dados e packs automaticamente.' : 'Login Google indisponível no momento.'}</p>
-                  </div>
-                  ${googleLoginEnabled
-                    ? html`
-                        <div ref=${googleButtonRef} className="min-h-[42px] w-full max-w-[320px] overflow-hidden"></div>
-                        ${!googleSessionChecked ? html`<p className="text-xs text-slate-400">Verificando sessão Google...</p>` : googleAuthBusy ? html`<p className="text-xs text-slate-400">Conectando conta Google...</p>` : !googleAuthUiReady && !googleAuthError ? html`<p className="text-xs text-slate-400">Carregando login Google...</p>` : null}
-                      `
-                    : null}
-                </div>
-              `}
-          ${googleAuthError ? html`<p className="mt-2 text-xs text-rose-300">${googleAuthError}</p>` : null}
-        </div>
-      </section>
-
-      ${myPacksError ? html`<div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">${myPacksError}</div>` : null}
-      ${hasGoogleLogin
-        ? html`
-            <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-              <article className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
-                <p className="text-[11px] text-slate-400">Total</p>
-                <p className="text-lg font-semibold">${shortNum(myProfileStats?.total || 0)}</p>
-              </article>
-              <article className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
-                <p className="text-[11px] text-slate-400">Publicados</p>
-                <p className="text-lg font-semibold">${shortNum(myProfileStats?.published || 0)}</p>
-              </article>
-              <article className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
-                <p className="text-[11px] text-slate-400">Rascunhos</p>
-                <p className="text-lg font-semibold">${shortNum(myProfileStats?.drafts || 0)}</p>
-              </article>
-              <article className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
-                <p className="text-[11px] text-slate-400">Privados</p>
-                <p className="text-lg font-semibold">${shortNum(myProfileStats?.private || 0)}</p>
-              </article>
-              <article className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
-                <p className="text-[11px] text-slate-400">Não listados</p>
-                <p className="text-lg font-semibold">${shortNum(myProfileStats?.unlisted || 0)}</p>
-              </article>
-            </section>
-
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-lg font-bold">Packs criados por você</h2>
-                <span className="text-xs text-slate-400">${myPacksLoading ? 'Carregando...' : `${myPacks.length} pack(s)`}</span>
-              </div>
-              ${myPacksLoading
-                ? html` <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">${Array.from({ length: 6 }).map((_, index) => html`<div key=${index} className="h-40 rounded-2xl border border-slate-800 bg-slate-900/70 animate-pulse"></div>`)}</div> `
-                : myPacks.length
-                  ? html` <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">${myPacks.map((pack) => html`<${MyPackCard} key=${pack.id || pack.pack_key} pack=${pack} onOpenPublic=${onOpenPublicPack} />`)}</div> `
-                  : html`
-                      <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/60 p-6 text-center">
-                        <p className="text-sm font-semibold text-slate-100">Nenhum pack encontrado para esta conta.</p>
-                        <p className="mt-1 text-xs text-slate-400">Crie um pack com essa conta Google em <a href="/stickers/create/" className="text-cyan-300 underline">/stickers/create</a> e volte aqui.</p>
-                      </div>
-                    `}
-            </section>
-          `
-        : null}
-    </section>
-  `;
-}
-
 function ToastStack({ toasts = [], onDismiss }) {
   if (!Array.isArray(toasts) || !toasts.length) return null;
   return html`
@@ -979,28 +844,6 @@ function PackAnalyticsModal({ open = false, pack = null, data = null, loading = 
               `}
       </section>
     </div>
-  `;
-}
-
-function CreatorStatCard({ icon, label, value, tone = 'slate', sublabel = '' }) {
-  const toneMap = {
-    emerald: 'border-emerald-500/25 bg-emerald-500/8',
-    cyan: 'border-cyan-500/25 bg-cyan-500/8',
-    amber: 'border-amber-500/25 bg-amber-500/8',
-    rose: 'border-rose-500/25 bg-rose-500/8',
-    slate: 'border-slate-800 bg-slate-900/70',
-    indigo: 'border-indigo-500/25 bg-indigo-500/8',
-  };
-  return html`
-    <article className=${`rounded-2xl border p-3 ${toneMap[tone] || toneMap.slate}`}>
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-xl">${icon || '📊'}</span>
-        <span className="h-8 w-16 rounded-full bg-white/5"></span>
-      </div>
-      <p className="mt-2 text-xl font-bold text-slate-100">${value}</p>
-      <p className="text-xs text-slate-300">${label}</p>
-      ${sublabel ? html`<p className="mt-1 text-[11px] text-slate-500">${sublabel}</p>` : null}
-    </article>
   `;
 }
 
@@ -1935,7 +1778,6 @@ function StickersApp() {
   const [uploadTask, setUploadTask] = useState(null);
   const [googleAuthConfig, setGoogleAuthConfig] = useState({ enabled: false, required: false, clientId: '' });
   const [googleAuth, setGoogleAuth] = useState(() => readGoogleAuthCache() || { user: null, expiresAt: '' });
-  const [googleAuthUiReady, setGoogleAuthUiReady] = useState(false);
   const [googleAuthError, setGoogleAuthError] = useState('');
   const [googleAuthBusy, setGoogleAuthBusy] = useState(false);
   const [googleSessionChecked, setGoogleSessionChecked] = useState(false);
@@ -3410,7 +3252,6 @@ function StickersApp() {
     if (!googleButtonRef.current) return;
 
     let cancelled = false;
-    setGoogleAuthUiReady(false);
     setGoogleAuthError('');
 
     loadScript(GOOGLE_GSI_SCRIPT_SRC)
@@ -3472,8 +3313,6 @@ function StickersApp() {
             // prompt may be blocked by browser/privacy settings
           }
         }
-
-        setGoogleAuthUiReady(true);
       })
       .catch((sdkError) => {
         if (cancelled) return;
