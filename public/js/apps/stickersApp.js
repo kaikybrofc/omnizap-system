@@ -1690,7 +1690,9 @@ function StickerPreview({ item, onClose, onPrev, onNext, hasNsfwAccess = true, o
     if (!item?.asset_url) return;
     try {
       await navigator.clipboard.writeText(item.asset_url);
-    } catch {}
+    } catch {
+      // ignore clipboard API errors
+    }
   };
 
   return html`
@@ -2408,7 +2410,9 @@ function StickersApp() {
     if (!managePackTargetKey) return;
     try {
       await loadManagePackData(managePackTargetKey, { openModal: true, silent: true });
-    } catch {}
+    } catch {
+      // ignore transient refresh failures
+    }
   };
 
   const applyManagedMutationResult = async (payloadData, { successMessage = '' } = {}) => {
@@ -3004,7 +3008,9 @@ function StickersApp() {
       pushProfileToast(err?.message || 'Falha ao atualizar pack.', 'error');
       try {
         err.handledByUi = true;
-      } catch {}
+      } catch {
+        // ignore assignment failures on unknown error objects
+      }
       throw err;
     } finally {
       setManagePackBusyAction('');
@@ -3290,7 +3296,9 @@ function StickersApp() {
             .slice(0, 8),
         );
       }
-    } catch {}
+    } catch {
+      // ignore malformed local storage payloads
+    }
   }, []);
 
   useEffect(() => {
@@ -3506,7 +3514,9 @@ function StickersApp() {
       setRecentSearches(nextHistory);
       try {
         localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(nextHistory));
-      } catch {}
+      } catch {
+        // ignore storage quota/security errors
+      }
     }
   };
 
@@ -3811,7 +3821,9 @@ function StickersApp() {
         onClose=${() => {
           try {
             localStorage.removeItem(PACK_UPLOAD_TASK_KEY);
-          } catch {}
+          } catch {
+            // ignore storage cleanup errors
+          }
           setUploadTask(null);
         }}
       />

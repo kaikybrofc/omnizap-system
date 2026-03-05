@@ -40,7 +40,13 @@ const clampText = (value, maxLength) =>
 
 const clampInputText = (value, maxLength) => String(value || '').slice(0, maxLength);
 
-const removeControlChars = (value) => String(value || '').replace(/[\u0000-\u001F\u007F]/g, '');
+const removeControlChars = (value) =>
+  Array.from(String(value || ''))
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code > 0x1f && code !== 0x7f;
+    })
+    .join('');
 
 const sanitizePackNameInput = (value, maxLength = 120) => removeControlChars(value).slice(0, maxLength);
 

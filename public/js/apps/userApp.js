@@ -1,5 +1,3 @@
-/* global document, window, fetch, URL, URLSearchParams, Blob, Element */
-
 const DEFAULT_API_BASE_PATH = '/api/sticker-packs';
 const DEFAULT_STICKERS_PATH = '/stickers';
 const DEFAULT_LOGIN_PATH = '/login';

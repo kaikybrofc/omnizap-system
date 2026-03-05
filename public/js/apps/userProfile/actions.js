@@ -1,5 +1,3 @@
-/* global URL, URLSearchParams, window */
-
 export const normalizeDigits = (value) => String(value || '').replace(/\D+/g, '');
 
 export const formatPhone = (value) => {

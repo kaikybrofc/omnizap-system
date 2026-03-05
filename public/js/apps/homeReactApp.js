@@ -1,5 +1,3 @@
-/* global document, window, fetch */
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import htm from 'htm';

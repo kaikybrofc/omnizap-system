@@ -681,7 +681,7 @@ function renderLogsTab() {
           <p class="row-sub">${escapeHtml(ban?.reason || 'Sem motivo')}</p>
           <p class="row-meta">${escapeHtml(fmtDate(ban?.created_at))}</p>
           <div class="mobile-card-foot">
-            ${Boolean(ban?.revoked_at) ? renderStatusBadge('revogado', 'status-neutral') : `<button class="outline-btn" data-action="revoke-ban" data-ban-id="${escapeHtml(ban?.id || '')}">Revogar</button>`}
+            ${ban?.revoked_at ? renderStatusBadge('revogado', 'status-neutral') : `<button class="outline-btn" data-action="revoke-ban" data-ban-id="${escapeHtml(ban?.id || '')}">Revogar</button>`}
           </div>
         </article>
       `,
@@ -845,8 +845,8 @@ function renderSystemTab() {
           <p class="row-meta break-all mono">${escapeHtml(row?.google_sub || '')}</p>
           <p class="row-meta break-all">${escapeHtml(row?.owner_jid || '')}</p>
           <div class="mobile-card-foot">
-            ${Boolean(row?.active && !row?.revoked_at) ? renderStatusBadge('ativo', 'status-success') : renderStatusBadge('revogado', 'status-neutral')}
-            ${Boolean(row?.active && !row?.revoked_at) ? `<button class="danger-btn" data-action="revoke-moderator" data-google-sub="${escapeHtml(row?.google_sub || '')}">Remover</button>` : ''}
+            ${row?.active && !row?.revoked_at ? renderStatusBadge('ativo', 'status-success') : renderStatusBadge('revogado', 'status-neutral')}
+            ${row?.active && !row?.revoked_at ? `<button class="danger-btn" data-action="revoke-moderator" data-google-sub="${escapeHtml(row?.google_sub || '')}">Remover</button>` : ''}
           </div>
         </article>
       `,
