@@ -393,10 +393,11 @@ export const resolveUserIdCached = ({ lid, jid, participantAlt } = {}) => {
 /**
  * Extrai informacoes do remetente a partir de uma mensagem do Baileys.
  * @param {import('@whiskeysockets/baileys').WAMessage} msg
- * @returns {{lid: string|null, jid: string|null, participantAlt: string|null, remoteJid: string|null, groupMessage: boolean}}
+ * @returns {{lid: string|null, jid: string|null, participantAlt: string|null, remoteJid: string|null, remoteJidAlt: string|null, groupMessage: boolean}}
  */
 export const extractSenderInfoFromMessage = (msg) => {
   const remoteJid = msg?.key?.remoteJid || null;
+  const remoteJidAlt = msg?.key?.remoteJidAlt || null;
   const participant = msg?.key?.participant || null;
   const participantAlt = msg?.key?.participantAlt || null;
   const groupMessage = isGroupJid(remoteJid);
@@ -411,6 +412,7 @@ export const extractSenderInfoFromMessage = (msg) => {
     if (!lid && isLidJid(participantAlt)) lid = participantAlt;
   } else {
     if (isWhatsAppJid(remoteJid)) jid = remoteJid;
+    if (!jid && isWhatsAppJid(remoteJidAlt)) jid = remoteJidAlt;
     if (!jid && isWhatsAppJid(participant)) jid = participant;
     if (!jid && isWhatsAppJid(participantAlt)) jid = participantAlt;
     if (isLidJid(participant)) lid = participant;
@@ -418,7 +420,7 @@ export const extractSenderInfoFromMessage = (msg) => {
     if (!lid && isLidJid(participantAlt)) lid = participantAlt;
   }
 
-  return { lid, jid, participantAlt, remoteJid, groupMessage };
+  return { lid, jid, participantAlt, remoteJid, remoteJidAlt, groupMessage };
 };
 
 /**
@@ -621,14 +623,16 @@ export const extractUserIdInfo = (value) => {
   }
 
   const participantAlt = typeof value.participantAlt === 'string' ? value.participantAlt : null;
+  const remoteJidAlt = typeof value.remoteJidAlt === 'string' ? value.remoteJidAlt : null;
+  const alternateJid = participantAlt || remoteJidAlt;
   const participant = typeof value.participant === 'string' ? value.participant : null;
-  const jidCandidate = value.jid || value.id || participantAlt || participant || null;
-  const lidCandidate = value.lid || participant || participantAlt || value.id || value.jid || null;
+  const jidCandidate = value.jid || value.id || alternateJid || participant || value.remoteJid || null;
+  const lidCandidate = value.lid || participant || value.remoteJid || alternateJid || value.id || value.jid || null;
 
   return {
-    lid: pickLid(lidCandidate, participantAlt, participant),
-    jid: pickWhatsAppJid(jidCandidate, participantAlt, participant),
-    participantAlt,
+    lid: pickLid(lidCandidate, alternateJid, participant),
+    jid: pickWhatsAppJid(jidCandidate, alternateJid, participant),
+    participantAlt: alternateJid,
     raw: jidCandidate || lidCandidate,
   };
 };

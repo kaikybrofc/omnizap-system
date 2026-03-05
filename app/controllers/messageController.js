@@ -37,7 +37,6 @@ const START_LOGIN_TRIGGER =
     .trim()
     .toLowerCase() || 'iniciar';
 const WHATSAPP_USER_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted']);
-const WHATSAPP_LID_SERVERS = new Set(['lid', 'hosted.lid']);
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
   const normalized = String(value).trim().toLowerCase();
@@ -76,7 +75,7 @@ const resolveCanonicalWhatsAppJid = (...candidates) => {
     const normalized = normalizeJid(String(candidate || '').trim());
     if (!normalized) continue;
     const server = getJidServer(normalized);
-    if (!WHATSAPP_USER_SERVERS.has(server) && !WHATSAPP_LID_SERVERS.has(server)) continue;
+    if (!WHATSAPP_USER_SERVERS.has(server)) continue;
     const user = String(getJidUser(normalized) || '')
       .split(':')[0]
       .replace(/\D+/g, '');
@@ -90,11 +89,26 @@ const resolveCanonicalWhatsAppJid = (...candidates) => {
 const resolveCanonicalSenderJidFromMessage = async ({ messageInfo, senderJid }) => {
   const key = messageInfo?.key || {};
   const senderInfo = extractSenderInfoFromMessage(messageInfo);
-  let canonicalUserId = resolveCanonicalWhatsAppJid(senderInfo?.jid, senderInfo?.lid, senderInfo?.participantAlt, key.participantAlt, key.participant, key.remoteJid, senderJid);
+  let canonicalUserId = resolveCanonicalWhatsAppJid(
+    senderInfo?.jid,
+    senderInfo?.remoteJidAlt,
+    senderInfo?.participantAlt,
+    key.remoteJidAlt,
+    key.participantAlt,
+    key.participant,
+    key.remoteJid,
+    senderJid,
+  );
 
   try {
     const resolvedUserId = await resolveUserId(senderInfo);
-    canonicalUserId = resolveCanonicalWhatsAppJid(resolvedUserId, canonicalUserId, senderInfo?.jid, senderInfo?.lid);
+    canonicalUserId = resolveCanonicalWhatsAppJid(
+      resolvedUserId,
+      canonicalUserId,
+      senderInfo?.jid,
+      senderInfo?.remoteJidAlt,
+      senderInfo?.participantAlt,
+    );
   } catch (error) {
     logger.warn('Falha ao resolver ID canonico do remetente.', {
       action: 'resolve_sender_canonical_id_failed',
@@ -129,6 +143,7 @@ const maybeHandleStartLoginMessage = async ({ sock, messageInfo, extractedText, 
     logger.warn('Nao foi possivel montar link de login para mensagem "iniciar".', {
       action: 'login_link_missing_user_phone',
       remoteServer: getJidServer(key.remoteJid || ''),
+      remoteAltServer: getJidServer(key.remoteJidAlt || ''),
       participantServer: getJidServer(key.participant || ''),
       participantAltServer: getJidServer(key.participantAlt || ''),
       hasLid: Boolean(senderInfo?.lid),
@@ -294,7 +309,7 @@ export const handleMessages = async (update, sock) => {
         const extractedText = extractMessageContent(messageInfo);
         const remoteJid = messageInfo.key.remoteJid;
         const isGroupMessage = isGroupJid(remoteJid);
-        const senderJid = isGroupMessage ? messageInfo.key.participant : remoteJid;
+        const senderJid = isGroupMessage ? messageInfo.key.participant : messageInfo.key?.remoteJidAlt || remoteJid;
         const senderIdentity = isGroupMessage
           ? {
               participant: messageInfo.key?.participant || null,
