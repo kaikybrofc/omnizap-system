@@ -16,6 +16,7 @@ export default defineConfig({
       input: {
         'home-react': path.join(projectRoot, 'public', 'js', 'apps', 'homeReactApp.js'),
         'user-react': path.join(projectRoot, 'public', 'js', 'apps', 'userReactApp.js'),
+        'login-react': path.join(projectRoot, 'public', 'js', 'apps', 'loginReactApp.js'),
       },
       output: {
         format: 'es',
