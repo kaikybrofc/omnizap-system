@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { getJidUser } from '../../config/baileysConfig.js';
 import { resolveUserId } from '../../services/lidMapService.js';
 import { convertToWebp } from '../stickerModule/convertToWebp.js';

@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../utils/systemMetrics/systemMetricsModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 

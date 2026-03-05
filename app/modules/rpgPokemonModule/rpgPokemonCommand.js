@@ -1,6 +1,6 @@
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { resolveUserIdCached } from '../../services/lidMapService.js';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { buildRpgHelpText, buildUsageText } from './rpgPokemonMessages.js';
 import { executeRpgPokemonAction } from './rpgPokemonService.js';
 

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { createCanvas, loadImage } from 'canvas';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 
 const CANVAS_SIZE = 1024;
 const PANEL_RADIUS = 24;

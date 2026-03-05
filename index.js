@@ -17,7 +17,7 @@
 
 import 'dotenv/config';
 
-import logger from './app/utils/logger/loggerModule.js';
+import logger from './utils/logger/loggerModule.js';
 import { connectToWhatsApp, getActiveSocket } from './app/connection/socketController.js';
 import { backfillLidMapFromMessagesOnce } from './app/services/lidMapService.js';
 import { initializeNewsBroadcastService, stopNewsBroadcastService } from './app/services/newsBroadcastService.js';

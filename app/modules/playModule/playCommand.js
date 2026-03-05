@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { getAdminJid } from '../../config/adminIdentity.js';
 

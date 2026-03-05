@@ -1,5 +1,5 @@
 import groupConfigStore from '../../store/groupConfigStore.js';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { getGroupMetadata, getGroupInviteCode, getGroupRequestParticipantsList, updateGroupRequestParticipants } from '../../config/groupUtils.js';
 import { getJidUser, isSameJidUser, resolveBotJid } from '../../config/baileysConfig.js';
 import { updateGroupParticipantsFromAction } from '../../services/groupMetadataService.js';

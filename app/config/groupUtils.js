@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import logger from '../utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { findById, findAll, TABLES } from '../../database/index.js';
 import { extractUserIdInfo, resolveUserIdCached } from '../services/lidMapService.js';
 

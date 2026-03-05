@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 

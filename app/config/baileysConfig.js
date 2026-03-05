@@ -2,7 +2,7 @@
 /* eslint-disable no-useless-escape */
 import { fetchLatestBaileysVersion, downloadContentFromMessage, jidNormalizedUser, jidEncode, jidDecode, areJidsSameUser, normalizeMessageContent, isJidMetaAI, isPnUser, isLidUser, isJidBroadcast, isJidGroup, isJidStatusBroadcast, isJidNewsletter, isHostedPnUser, isHostedLidUser, isJidBot, SERVER_JID, PSA_WID, STORIES_JID, META_AI_JID } from '@whiskeysockets/baileys';
 
-import logger from '../utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { createWriteStream } from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';

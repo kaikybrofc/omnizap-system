@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { downloadMediaMessage, extractMediaDetails } from '../../config/baileysConfig.js';
 import { isFeatureEnabled } from '../../services/featureFlagService.js';
 import { createStickerAsset, findLatestStickerAssetByOwner, findStickerAssetById, findStickerAssetBySha256, updateStickerAssetStoragePath } from './stickerAssetRepository.js';

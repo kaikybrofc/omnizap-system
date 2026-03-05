@@ -2,7 +2,7 @@ import { URL } from 'node:url';
 import { isUserAdmin, updateGroupParticipants } from '../../config/groupUtils.js';
 import { getJidUser } from '../../config/baileysConfig.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
-import logger from '../logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 /**

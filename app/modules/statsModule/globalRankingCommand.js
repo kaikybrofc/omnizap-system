@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { resolveBotJid } from '../../config/baileysConfig.js';
 import { isWhatsAppUserId } from '../../services/lidMapService.js';
 import { buildRankingMessage, getRankingReport, renderRankingImage } from './rankingCommon.js';

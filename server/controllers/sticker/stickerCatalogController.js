@@ -10,7 +10,7 @@ import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../../app/c
 import { getActiveSocket } from '../../../app/services/socketState.js';
 import { extractUserIdInfo, resolveUserId } from '../../../app/services/lidMapService.js';
 import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppOwnerJid, toWhatsAppPhoneDigits } from '../../../app/services/whatsappLoginLinkService.js';
-import logger from '../../../app/utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../../app/utils/systemMetrics/systemMetricsModule.js';
 import { listStickerPacksForCatalog, findStickerPackByPackKey, listStickerPacksByOwner, bumpStickerPackVersion, findStickerPackByOwnerAndIdentifier, softDeleteStickerPack, updateStickerPackFields } from '../../../app/modules/stickerPackModule/stickerPackRepository.js';
 import { listStickerPackItems, countStickerPackItemRefsByStickerId, createStickerPackItem, getStickerPackItemByStickerId, removeStickerPackItemByStickerId, removeStickerPackItemsByPackId } from '../../../app/modules/stickerPackModule/stickerPackItemRepository.js';

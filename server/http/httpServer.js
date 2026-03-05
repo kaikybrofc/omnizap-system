@@ -1,6 +1,6 @@
 import http from 'node:http';
 
-import logger from '../../app/utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { getMetricsServerConfig, isMetricsEnabled, recordHttpRequest, resolveRouteGroup } from '../../app/observability/metrics.js';
 import { applyCachePolicy } from '../middleware/cachePolicy.js';
 import { applySecurityHeaders } from '../middleware/securityHeaders.js';

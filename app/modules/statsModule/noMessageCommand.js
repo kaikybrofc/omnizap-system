@@ -1,5 +1,5 @@
 import { executeQuery } from '../../../database/index.js';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { getGroupParticipants, isUserAdmin } from '../../config/groupUtils.js';
 import { resolveBotJid } from '../../config/baileysConfig.js';
 import { primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../../services/lidMapService.js';

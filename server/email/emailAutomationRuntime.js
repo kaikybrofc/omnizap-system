@@ -1,4 +1,4 @@
-import logger from '../../app/utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { setQueueDepth } from '../../app/observability/metrics.js';
 import { claimEmailOutboxTask, completeEmailOutboxTask, countEmailOutboxByStatus, failEmailOutboxTask } from './emailOutboxRepository.js';
 import { isEmailTransportConfigured, sendEmailMessage } from './emailTransportService.js';

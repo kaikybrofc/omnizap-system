@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import { once } from 'node:events';
 import path from 'node:path';
 import { promises as fsPromises } from 'node:fs';
-import logger from '../app/utils/logger/loggerModule.js';
+import logger from '../utils/logger/loggerModule.js';
 import { isMetricsEnabled, recordDbQuery, recordDbWrite, recordError, setDbInFlight } from '../app/observability/metrics.js';
 
 const { NODE_ENV } = process.env;

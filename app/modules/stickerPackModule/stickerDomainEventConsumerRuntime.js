@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { setQueueDepth } from '../../observability/metrics.js';
 import { isFeatureEnabled } from '../../services/featureFlagService.js';
 import { claimDomainEvent, completeDomainEvent, countDomainEventsByStatus, failDomainEvent } from './domainEventOutboxRepository.js';

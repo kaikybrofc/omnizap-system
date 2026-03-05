@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URL } from 'node:url';
 import { promisify } from 'node:util';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 
 import { v4 as uuidv4 } from 'uuid';
 

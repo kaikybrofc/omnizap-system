@@ -1,4 +1,4 @@
-import logger from '../../app/utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 
 export const attachRequestLogger = (req, res, { pathname = '', requestId = '', startedAt = Date.now() } = {}) => {
   if (req.__requestLoggerAttached) return;

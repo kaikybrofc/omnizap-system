@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import logger from '../utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { executeQuery, TABLES } from '../../database/index.js';
 import { getJidServer, normalizeJid, isGroupJid } from '../config/baileysConfig.js';
 import { buildRowPlaceholders, createFlushRunner } from './queueUtils.js';

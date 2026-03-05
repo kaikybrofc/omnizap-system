@@ -1,4 +1,4 @@
-import logger from '../../app/utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { getMetricsPayload } from '../../app/observability/metrics.js';
 
 export const sendMetricsResponse = async (res) => {

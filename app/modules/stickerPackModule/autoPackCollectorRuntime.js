@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { createAutoPackCollector } from './autoPackCollectorService.js';
 import stickerPackService from './stickerPackServiceRuntime.js';
 import { saveStickerAssetFromBuffer } from './stickerStorageService.js';

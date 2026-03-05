@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import getImageBuffer from '../../utils/http/getImageBufferModule.js';
 import { getAllParticipatingGroups } from '../../config/groupUtils.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';

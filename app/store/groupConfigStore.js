@@ -1,4 +1,4 @@
-import logger from '../utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { findById, upsert } from '../../database/index.js';
 
 const groupConfigStore = {

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { URL } from 'node:url';
 
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';

@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import logger from '../app/utils/logger/loggerModule.js';
+import logger from '../utils/logger/loggerModule.js';
 import { dbConfig } from './index.js';
 
 const dbToCreate = dbConfig.database;

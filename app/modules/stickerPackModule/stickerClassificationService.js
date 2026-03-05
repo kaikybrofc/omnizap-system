@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { findStickerClassificationByAssetId, listStickerClassificationsByAssetIds, upsertStickerAssetClassification } from './stickerAssetClassificationRepository.js';
 import { enqueueSemanticClusterResolution } from './semanticThemeClusterService.js';
 

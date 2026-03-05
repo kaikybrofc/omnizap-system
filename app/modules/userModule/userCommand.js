@@ -4,7 +4,7 @@ import { isUserAdmin } from '../../config/groupUtils.js';
 import { extractUserIdInfo, isWhatsAppUserId, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { MESSAGE_TYPE_SQL, TIMESTAMP_TO_DATETIME_SQL } from '../statsModule/rankingCommon.js';
 import { getAdminJid } from '../../config/adminIdentity.js';
 

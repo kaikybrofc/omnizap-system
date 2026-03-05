@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { getPackClassificationSummaryByAssetIds } from './stickerClassificationService.js';
 import { normalizeOwnerJid, parseEmojiList, sanitizeText, slugify, toVisibility } from './stickerPackUtils.js';

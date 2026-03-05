@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URL } from 'node:url';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { downloadMediaMessage, extractMediaDetails, getJidUser } from '../../config/baileysConfig.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
 import { convertToWebp } from './convertToWebp.js';

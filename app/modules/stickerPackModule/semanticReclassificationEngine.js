@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;

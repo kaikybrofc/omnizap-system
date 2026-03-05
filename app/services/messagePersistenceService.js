@@ -1,4 +1,4 @@
-import logger from '../utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { queueMessageInsert } from './dbWriteQueue.js';
 
 /**

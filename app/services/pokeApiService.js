@@ -1,5 +1,5 @@
 import axios from 'axios';
-import logger from '../utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { recordPokeApiCacheHit } from '../observability/metrics.js';
 
 const BASE_URL = 'https://pokeapi.co/api/v2';

@@ -3,7 +3,7 @@ import NodeCache from 'node-cache';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import aiPromptStore from '../../store/aiPromptStore.js';
 import { downloadMediaMessage, extractAllMediaDetails, getJidUser, normalizeJid } from '../../config/baileysConfig.js';

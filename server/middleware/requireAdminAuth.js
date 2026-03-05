@@ -1,4 +1,4 @@
-import logger from '../../app/utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 
 const ADMIN_TOKEN = String(process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '').trim();
 

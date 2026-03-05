@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URL } from 'node:url';
 
-import logger from '../../../app/utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;

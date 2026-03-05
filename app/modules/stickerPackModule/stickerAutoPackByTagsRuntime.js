@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { getActiveSocket } from '../../services/socketState.js';
 import { normalizeJid, resolveBotJid } from '../../config/baileysConfig.js';
 import { recordStickerAutoPackCycle } from '../../observability/metrics.js';

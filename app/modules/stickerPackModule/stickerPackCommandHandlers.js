@@ -1,4 +1,4 @@
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { getJidServer, isUserJid, normalizeJid } from '../../config/baileysConfig.js';
 import stickerPackService from './stickerPackServiceRuntime.js';

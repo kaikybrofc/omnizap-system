@@ -8,7 +8,7 @@ import qrcode from 'qrcode-terminal';
 import path from 'node:path';
 
 import pino from 'pino';
-import logger from '../utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { handleMessages } from '../controllers/messageController.js';
 import { syncNewsBroadcastService } from '../services/newsBroadcastService.js';
 import { setActiveSocket as storeActiveSocket } from '../services/socketState.js';

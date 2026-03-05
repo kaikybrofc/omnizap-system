@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import OpenAI from 'openai';
 
 import { executeQuery, TABLES } from '../../../database/index.js';
-import logger from '../../utils/logger/loggerModule.js';
+import logger from '../../../utils/logger/loggerModule.js';
 import { findStickerClassificationByAssetId, updateStickerClassificationSemanticCluster } from './stickerAssetClassificationRepository.js';
 
 const parseEnvBool = (value, fallback) => {

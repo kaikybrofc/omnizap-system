@@ -10,7 +10,7 @@ import { handleGlobalRankingCommand } from '../modules/statsModule/globalRanking
 import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
 import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js';
 import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, getJidUser, isGroupJid, isSameJidUser, normalizeJid, resolveBotJid } from '../config/baileysConfig.js';
-import logger from '../utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { handleCatCommand, handleCatImageCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
 import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js';

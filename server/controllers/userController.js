@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import logger from '../../app/utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 
 const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;

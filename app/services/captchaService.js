@@ -1,4 +1,4 @@
-import logger from '../utils/logger/loggerModule.js';
+import logger from '../../utils/logger/loggerModule.js';
 import { getJidUser } from '../config/baileysConfig.js';
 import { isUserAdmin, updateGroupParticipants } from '../config/groupUtils.js';
 import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from './lidMapService.js';
