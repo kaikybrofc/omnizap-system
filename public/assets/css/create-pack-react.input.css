@@ -1,0 +1,34 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: night --default;
+}
+
+@source "../../stickers/create/index.html";
+@source "../../js/apps/createPackApp.js";
+
+@theme {
+  --font-sans: "Manrope", ui-sans-serif, system-ui;
+  --font-display: "Sora", ui-sans-serif, system-ui;
+  --color-app-base: #0f172a;
+  --color-panel: #1e293b;
+  --color-panelSoft: #111827;
+  --color-line: rgb(255 255 255 / 0.07);
+  --color-accent: #2563eb;
+  --color-accent2: #7c3aed;
+  --color-cta: #22c55e;
+  --shadow-panel: 0 20px 40px rgba(0, 0, 0, 0.35);
+}
+
+@layer base {
+  body {
+    color: hsl(var(--bc));
+    background:
+      radial-gradient(64rem 36rem at -12% -18%, rgb(37 99 235 / 0.18), transparent 64%),
+      radial-gradient(52rem 28rem at 114% -8%, rgb(124 58 237 / 0.16), transparent 66%),
+      #020617;
+  }
+
+  #create-pack-react-root {
+    color: hsl(var(--bc));
+  }
+}

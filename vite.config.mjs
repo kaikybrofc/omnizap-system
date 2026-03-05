@@ -17,6 +17,11 @@ export default defineConfig({
         'home-react': path.join(projectRoot, 'public', 'js', 'apps', 'homeReactApp.js'),
         'user-react': path.join(projectRoot, 'public', 'js', 'apps', 'userReactApp.js'),
         'login-react': path.join(projectRoot, 'public', 'js', 'apps', 'loginReactApp.js'),
+        'api-docs': path.join(projectRoot, 'public', 'js', 'apps', 'apiDocsApp.js'),
+        'stickers-react': path.join(projectRoot, 'public', 'js', 'apps', 'stickersApp.js'),
+        'create-pack-react': path.join(projectRoot, 'public', 'js', 'apps', 'createPackApp.js'),
+        'stickers-admin': path.join(projectRoot, 'public', 'js', 'apps', 'stickersAdminApp.js'),
+        'user-systemadm': path.join(projectRoot, 'public', 'js', 'apps', 'userApp.js'),
       },
       output: {
         format: 'es',

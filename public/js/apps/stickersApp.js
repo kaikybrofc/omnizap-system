@@ -1,5 +1,6 @@
-import { React, createRoot, useEffect, useMemo, useRef, useState } from '../runtime/react-runtime.js?v=20260227-runtime-twind-v1';
-import htm from 'https://esm.sh/htm@3.1.1';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import htm from 'htm';
 
 const html = htm.bind(React.createElement);
 const SEARCH_HISTORY_KEY = 'omnizap_stickers_search_history_v1';

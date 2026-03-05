@@ -35,7 +35,7 @@ PACKAGE_SECONDARY_ACCESS="${DEPLOY_PACKAGE_SECONDARY_ACCESS:-public}"
 PACKAGE_SECONDARY_PUBLISH_SKIP_IF_EXISTS="${DEPLOY_PACKAGE_SECONDARY_PUBLISH_SKIP_IF_EXISTS:-$PACKAGE_PUBLISH_SKIP_IF_EXISTS}"
 PACKAGE_SECONDARY_TOKEN_KEYS="${DEPLOY_PACKAGE_SECONDARY_TOKEN_KEYS:-}"
 ASSET_BUILD_ENABLED="${DEPLOY_BUILD_ASSETS:-1}"
-ASSET_BUILD_CMD="${DEPLOY_BUILD_ASSETS_CMD:-npm run build:frontend}"
+ASSET_BUILD_CMD="${DEPLOY_BUILD_ASSETS_CMD:-npm run build:all}"
 NPMRC_TMP_FILES=()
 
 log() {
@@ -389,6 +389,77 @@ run_assets_build_stage() {
   )
 }
 
+verify_compiled_asset_refs() {
+  local verify_assets="${DEPLOY_VERIFY_ASSETS:-1}"
+  if [ "$verify_assets" != "1" ]; then
+    log "Verificação de assets desativada (DEPLOY_VERIFY_ASSETS=$verify_assets)."
+    return 0
+  fi
+
+  log "Validando referências de assets compilados em $SOURCE_DIR"
+  (
+    SOURCE_DIR="$SOURCE_DIR" node --input-type=module <<'NODE'
+import fs from 'node:fs';
+import path from 'node:path';
+
+const sourceDir = process.env.SOURCE_DIR;
+if (!sourceDir) {
+  console.error('[deploy] SOURCE_DIR ausente para validação de assets.');
+  process.exit(1);
+}
+if (!fs.existsSync(sourceDir)) {
+  console.error(`[deploy] SOURCE_DIR inexistente: ${sourceDir}`);
+  process.exit(1);
+}
+
+const htmlFiles = [];
+const stack = [sourceDir];
+while (stack.length > 0) {
+  const current = stack.pop();
+  const entries = fs.readdirSync(current, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(current, entry.name);
+    if (entry.isDirectory()) {
+      stack.push(fullPath);
+      continue;
+    }
+    if (entry.isFile() && entry.name.endsWith('.html')) {
+      htmlFiles.push(fullPath);
+    }
+  }
+}
+
+const refRegex = /\b(?:src|href)=["'](\/assets\/(?:css|js)\/[^"'?#]+)(?:\?[^"']*)?["']/g;
+const missing = [];
+
+for (const filePath of htmlFiles) {
+  const html = fs.readFileSync(filePath, 'utf8');
+  let match = null;
+  while ((match = refRegex.exec(html)) !== null) {
+    const assetRef = match[1];
+    const diskPath = path.join(sourceDir, assetRef.replace(/^\//, ''));
+    if (!fs.existsSync(diskPath)) {
+      missing.push({
+        file: path.relative(sourceDir, filePath),
+        asset: assetRef,
+      });
+    }
+  }
+}
+
+if (missing.length > 0) {
+  console.error('[deploy] Assets ausentes referenciados em HTML:');
+  for (const item of missing) {
+    console.error(`[deploy] - ${item.file} -> ${item.asset}`);
+  }
+  process.exit(1);
+}
+
+console.log('[deploy] Referências de assets compilados OK.');
+NODE
+  )
+}
+
 finalize() {
   local exit_code=$?
   if [ "$exit_code" -eq 0 ]; then
@@ -407,6 +478,7 @@ trap finalize EXIT
 
 log "build_id=$BUILD_ID"
 run_assets_build_stage
+verify_compiled_asset_refs
 log "Preparando staging em $STAGING_DIR"
 rsync -a --delete "$SOURCE_DIR"/ "$STAGING_DIR"/
 node "$PROJECT_ROOT/scripts/cache-bust.mjs" --dir "$STAGING_DIR" --version "$BUILD_ID"

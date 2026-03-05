@@ -1,5 +1,6 @@
-import { React, createRoot, useMemo, useState, useEffect, useCallback } from '../runtime/react-runtime.js?v=20260228-runtime-usecallback1';
-import htm from 'https://esm.sh/htm@3.1.1';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import htm from 'htm';
 
 const html = htm.bind(React.createElement);
 const CREATE_PACK_DRAFT_KEY = 'omnizap_create_pack_draft_v1';
@@ -336,7 +337,7 @@ function FloatingField({ label, value, onChange, maxLength, hint = '', multiline
       <span className="mb-1.5 inline-block text-xs font-semibold text-slate-300">${label}</span>
       <div className="relative">
         <${Tag} className=${`w-full rounded-2xl border bg-panel/70 px-3.5 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-transparent md:bg-panel/80 md:px-4 md:py-3 ${atLimit ? 'border-rose-400/60 focus:border-rose-300' : 'border-line focus:border-accent/60'} ${multiline ? 'min-h-[96px] max-h-44 resize-none overflow-y-auto md:min-h-[110px] md:max-h-52' : 'h-11 md:h-12'}`} placeholder=${label} value=${value} maxlength=${maxLength} onInput=${onChange} />
-        <span className="pointer-events-none absolute left-3.5 top-[-9px] rounded-md bg-base px-1.5 text-[10px] font-semibold uppercase tracking-[.08em] text-slate-400 md:left-4 md:bg-panel md:px-2"> ${label} </span>
+        <span className="pointer-events-none absolute left-3.5 top-[-9px] rounded-md bg-app-base px-1.5 text-[10px] font-semibold uppercase tracking-[.08em] text-slate-400 md:left-4 md:bg-panel md:px-2"> ${label} </span>
       </div>
       <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px]">
         <span className="line-clamp-2 text-slate-400">${hint}</span>
