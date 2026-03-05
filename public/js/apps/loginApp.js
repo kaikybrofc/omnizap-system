@@ -1,7 +1,8 @@
-/* global document, window, fetch, URLSearchParams */
+/* global document, window, fetch, URLSearchParams, URL */
 
 const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const DEFAULT_API_BASE_PATH = '/api/sticker-packs';
+const DEFAULT_AUTHENTICATED_REDIRECT_PATH = '/user/';
 const LOGIN_CONSENT_STORAGE_KEY = 'omnizap_login_terms_consent_v1';
 const LOGIN_CONSENT_HINT = 'Aceite os Termos de Uso e a Politica de Privacidade para continuar.';
 const DEFAULT_SUCCESS_CHAT_LABEL = 'Abrir WhatsApp do bot';
@@ -49,6 +50,7 @@ if (root) {
     successAnimationTimer: 0,
     botPhone: '',
     sessionOwnerPhone: '',
+    redirecting: false,
     hint: readWhatsAppHintFromUrl(window.location.search),
   };
 
@@ -58,6 +60,28 @@ if (root) {
   const setText = (element, value) => {
     if (!element) return;
     element.textContent = String(value || '');
+  };
+
+  const resolveAuthenticatedRedirectPath = () => {
+    const successHomeHref = String(ui.successHome?.getAttribute('href') || '').trim();
+    if (successHomeHref.startsWith('/')) {
+      return successHomeHref;
+    }
+    return DEFAULT_AUTHENTICATED_REDIRECT_PATH;
+  };
+
+  const redirectAuthenticatedUser = () => {
+    if (state.redirecting) return;
+    const targetPath = resolveAuthenticatedRedirectPath();
+    const targetUrl = new URL(targetPath, window.location.origin);
+    const currentUrl = new URL(window.location.href);
+    if (targetUrl.pathname === currentUrl.pathname && targetUrl.search === currentUrl.search) return;
+
+    state.redirecting = true;
+    setText(ui.status, 'Sessao ativa detectada. Redirecionando...');
+    window.setTimeout(() => {
+      window.location.replace(`${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+    }, 120);
   };
 
   const isAuthenticatedFlagEnabled = (value) => {
@@ -582,6 +606,7 @@ if (root) {
       const sessionData = payload?.data || {};
       if (isAuthenticatedGoogleSession(sessionData)) {
         renderAlreadyLoggedInState(sessionData);
+        redirectAuthenticatedUser();
         return true;
       }
       if (canUseGoogleLogin()) {
@@ -633,13 +658,13 @@ if (root) {
     renderWhatsAppCta();
     renderSuccessActions(null);
     const allowGoogleLogin = renderGoogleLoginGate();
+    const alreadyLogged = await loadCurrentSession();
+    if (alreadyLogged) return;
     await loadBotPhone();
     if (!allowGoogleLogin) {
       renderSessionSummary(null);
       return;
     }
-    const alreadyLogged = await loadCurrentSession();
-    if (alreadyLogged) return;
     await loadConfig();
     await mountGoogleButton();
   };
