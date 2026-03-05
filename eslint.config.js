@@ -59,7 +59,6 @@ export default [
       '**/.venv/**',
       'ml/**/.venv/**',
       'public/assets/js/**',
-      'public/js/github-panel/vendor/**',
     ],
   },
   js.configs.recommended,
