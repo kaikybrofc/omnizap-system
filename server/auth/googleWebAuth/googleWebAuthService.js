@@ -12,7 +12,7 @@ const normalizeCookiePath = (value, fallback = '/') => {
   return withSlash || '/';
 };
 
-export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, tables, logger, sendJson, readJsonBody, parseCookies, getCookieValuesFromRequest, appendSetCookie, buildCookieString, normalizeGoogleSubject, normalizeEmail, normalizeJid, sanitizeText, toIsoOrNull, toWhatsAppPhoneDigits, resolveWhatsAppOwnerJidFromLoginPayload, buildGoogleOwnerJid, assertGoogleIdentityNotBanned, googleClientId, sessionTtlMs, sessionDbTouchIntervalMs, sessionDbPruneIntervalMs, notAllowedErrorCode, sessionCookiePath = '/', legacyCookiePaths = [] }) => {
+export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, tables, logger, sendJson, readJsonBody, parseCookies, getCookieValuesFromRequest, appendSetCookie, buildCookieString, normalizeGoogleSubject, normalizeEmail, normalizeJid, sanitizeText, toIsoOrNull, toWhatsAppPhoneDigits, resolveWhatsAppOwnerJidFromLoginPayload, buildGoogleOwnerJid, assertGoogleIdentityNotBanned, googleClientId, sessionTtlMs, sessionDbTouchIntervalMs, sessionDbPruneIntervalMs, notAllowedErrorCode, onGoogleWebSessionCreated = null, sessionCookiePath = '/', legacyCookiePaths = [] }) => {
   const webGoogleSessionMap = new Map();
   let googleWebSessionDbPruneAt = 0;
   const normalizedSessionCookiePath = normalizeCookiePath(sessionCookiePath, '/');
@@ -580,6 +580,28 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
         });
         sendJson(req, res, 500, { error: 'Falha ao salvar sessão Google. Tente novamente.' });
         return;
+      }
+
+      if (typeof onGoogleWebSessionCreated === 'function') {
+        Promise.resolve(
+          onGoogleWebSessionCreated({
+            sub: session.sub,
+            email: session.email,
+            name: session.name,
+            ownerJid: session.ownerJid,
+            ownerPhone: session.ownerPhone,
+            expiresAt: session.expiresAt,
+            request: {
+              remoteIp: req.socket?.remoteAddress || null,
+              userAgent: req.headers?.['user-agent'] || null,
+            },
+          }),
+        ).catch((hookError) => {
+          logger.warn('Falha ao executar callback pós-login Google web.', {
+            action: 'sticker_pack_google_web_session_created_hook_failed',
+            error: hookError?.message,
+          });
+        });
       }
 
       appendSetCookie(

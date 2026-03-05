@@ -72,6 +72,36 @@ CREATE TABLE IF NOT EXISTS `domain_event_outbox_dlq` (
   KEY `idx_domain_event_outbox_dlq_outbox_event_id` (`outbox_event_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `email_outbox` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `recipient_email` varchar(255) NOT NULL,
+  `recipient_name` varchar(120) DEFAULT NULL,
+  `subject` varchar(180) NOT NULL,
+  `text_body` text DEFAULT NULL,
+  `html_body` mediumtext DEFAULT NULL,
+  `template_key` varchar(64) DEFAULT NULL,
+  `template_payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`template_payload`)),
+  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
+  `status` enum('pending','processing','sent','failed') NOT NULL DEFAULT 'pending',
+  `priority` tinyint(3) unsigned NOT NULL DEFAULT 50,
+  `idempotency_key` varchar(180) DEFAULT NULL,
+  `available_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `attempts` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `max_attempts` tinyint(3) unsigned NOT NULL DEFAULT 5,
+  `worker_token` char(36) DEFAULT NULL,
+  `provider_message_id` varchar(255) DEFAULT NULL,
+  `last_error` varchar(255) DEFAULT NULL,
+  `locked_at` timestamp NULL DEFAULT NULL,
+  `sent_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_email_outbox_idempotency` (`idempotency_key`),
+  KEY `idx_email_outbox_status_available_priority` (`status`,`available_at`,`priority`),
+  KEY `idx_email_outbox_recipient_created` (`recipient_email`,`created_at`),
+  KEY `idx_email_outbox_worker_token` (`worker_token`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `feature_flag` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `flag_name` varchar(120) NOT NULL,

@@ -1,0 +1,135 @@
+import { enqueueEmailOutbox, getEmailOutboxStatusSnapshot } from './emailOutboxRepository.js';
+import { renderEmailTemplate } from './emailTemplateService.js';
+import { getEmailTransportMetadata } from './emailTransportService.js';
+
+const normalizeEmail = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .slice(0, 255);
+
+const normalizeOptionalText = (value, maxLength = 500_000) => {
+  const normalized =
+    String(value || '')
+      .trim()
+      .slice(0, maxLength) || '';
+  return normalized || null;
+};
+
+const normalizeTemplateKey = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_:-]/g, '')
+    .slice(0, 64);
+
+const normalizePayloadObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+
+const resolveEmailBodyFromPayload = ({ templateKey = '', templateData = {}, subject = '', text = '', html = '' } = {}) => {
+  const normalizedTemplateKey = normalizeTemplateKey(templateKey);
+  const normalizedTemplateData = normalizePayloadObject(templateData);
+
+  const renderedTemplate = normalizedTemplateKey ? renderEmailTemplate(normalizedTemplateKey, normalizedTemplateData) : null;
+
+  const normalizedSubject = normalizeOptionalText(subject, 180) || renderedTemplate?.subject || '';
+  const normalizedText = normalizeOptionalText(text, 120_000) || renderedTemplate?.text || null;
+  const normalizedHtml = normalizeOptionalText(html, 500_000) || renderedTemplate?.html || null;
+
+  if (!normalizedSubject) {
+    const error = new Error('Informe o assunto ou use um template válido.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!normalizedText && !normalizedHtml) {
+    const error = new Error('Informe conteúdo de e-mail (text/html) ou use um template válido.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    template_key: renderedTemplate?.template_key || normalizedTemplateKey || null,
+    template_payload: renderedTemplate ? normalizedTemplateData : {},
+    subject: normalizedSubject,
+    text_body: normalizedText,
+    html_body: normalizedHtml,
+  };
+};
+
+export const queueAutomatedEmail = async ({
+  to,
+  name = '',
+  templateKey = '',
+  templateData = {},
+  subject = '',
+  text = '',
+  html = '',
+  metadata = {},
+  priority = 50,
+  scheduledAt = null,
+  maxAttempts = 5,
+  idempotencyKey = '',
+} = {}) => {
+  const normalizedEmail = normalizeEmail(to);
+  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+    const error = new Error('Destinatário de e-mail inválido.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const body = resolveEmailBodyFromPayload({
+    templateKey,
+    templateData,
+    subject,
+    text,
+    html,
+  });
+
+  const taskId = await enqueueEmailOutbox({
+    recipientEmail: normalizedEmail,
+    recipientName: normalizeOptionalText(name, 120),
+    subject: body.subject,
+    textBody: body.text_body,
+    htmlBody: body.html_body,
+    templateKey: body.template_key,
+    templatePayload: body.template_payload,
+    metadata: normalizePayloadObject(metadata),
+    priority,
+    scheduledAt,
+    maxAttempts,
+    idempotencyKey,
+  });
+
+  if (!taskId) {
+    const error = new Error('Não foi possível enfileirar o e-mail.');
+    error.statusCode = 500;
+    throw error;
+  }
+
+  return {
+    task_id: taskId,
+    recipient_email: normalizedEmail,
+    subject: body.subject,
+    template_key: body.template_key || null,
+  };
+};
+
+export const queueWelcomeEmail = async ({ to, name = '', loginUrl = '', metadata = {} } = {}) =>
+  queueAutomatedEmail({
+    to,
+    name,
+    templateKey: 'welcome',
+    templateData: {
+      name,
+      loginUrl,
+    },
+    metadata,
+  });
+
+export const getEmailAutomationStatusSnapshot = async () => {
+  const queue = await getEmailOutboxStatusSnapshot();
+  return {
+    queue,
+    transport: getEmailTransportMetadata(),
+  };
+};

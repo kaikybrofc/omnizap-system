@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { maybeHandleMetricsRequest } from './metrics/metricsRouter.js';
 import { maybeHandleHealthRequest, shouldHandleHealthPath } from './health/healthRouter.js';
+import { getEmailAutomationRouterConfig, maybeHandleEmailAutomationRequest, shouldHandleEmailAutomationPath } from './email/emailAutomationRouter.js';
 import { buildUserApiPaths, getUserRouterConfig, maybeHandleUserRequest, shouldHandleUserPath } from './user/userRouter.js';
 import { getSystemAdminRouterConfig, maybeHandleSystemAdminRequest, shouldHandleSystemAdminPath } from './admin/systemAdminRouter.js';
 import { getStickerSiteRouterConfig, maybeHandleStickerSiteRequest, shouldHandleStickerSitePath } from './sticker/stickerSiteRouter.js';
@@ -59,6 +60,16 @@ const loadSystemAdminConfigSafe = async () => {
   }
 };
 
+const loadEmailAutomationConfigSafe = async () => {
+  try {
+    return await getEmailAutomationRouterConfig();
+  } catch {
+    return {
+      apiBasePath: '/api/email',
+    };
+  }
+};
+
 const loadStickerSiteConfigSafe = async () => {
   try {
     return await getStickerSiteRouterConfig();
@@ -98,9 +109,10 @@ const loadStickerApiConfigSafe = async () => {
 
 export const getIndexRouteConfigs = async () => {
   if (!indexRouteConfigsPromise) {
-    indexRouteConfigsPromise = Promise.all([loadUserConfigSafe(), loadSystemAdminConfigSafe(), loadStickerSiteConfigSafe(), loadStickerDataConfigSafe(), loadStickerApiConfigSafe()]).then(([userConfig, systemAdminConfig, stickerSiteConfig, stickerDataConfig, stickerApiConfig]) => ({
+    indexRouteConfigsPromise = Promise.all([loadUserConfigSafe(), loadSystemAdminConfigSafe(), loadEmailAutomationConfigSafe(), loadStickerSiteConfigSafe(), loadStickerDataConfigSafe(), loadStickerApiConfigSafe()]).then(([userConfig, systemAdminConfig, emailAutomationConfig, stickerSiteConfig, stickerDataConfig, stickerApiConfig]) => ({
       userConfig,
       systemAdminConfig,
+      emailAutomationConfig,
       stickerConfig: {
         ...stickerSiteConfig,
         ...stickerDataConfig,
@@ -122,6 +134,7 @@ export const routeRequest = async (req, res, { pathname, url, metricsPath = '/me
   const resolvedConfigs = configs || (await getIndexRouteConfigs());
   const userConfig = resolvedConfigs?.userConfig || null;
   const systemAdminConfig = resolvedConfigs?.systemAdminConfig || null;
+  const emailAutomationConfig = resolvedConfigs?.emailAutomationConfig || null;
   const stickerConfig = resolvedConfigs?.stickerConfig || null;
 
   // 1) Metrics
@@ -138,7 +151,14 @@ export const routeRequest = async (req, res, { pathname, url, metricsPath = '/me
     return sendNotFound(req, res);
   }
 
-  // 3) User
+  // 3) Email automation API
+  if (shouldHandleEmailAutomationPath(pathname, emailAutomationConfig)) {
+    const handled = await maybeHandleEmailAutomationRequest(req, res, { pathname, url });
+    if (handled) return true;
+    return sendNotFound(req, res);
+  }
+
+  // 4) User
   const systemAdminCandidate = shouldHandleSystemAdminStep(pathname, systemAdminConfig);
   if (shouldHandleUserStep(pathname, userConfig)) {
     const handled = await maybeHandleUserRequest(req, res, { pathname, url });
@@ -148,14 +168,14 @@ export const routeRequest = async (req, res, { pathname, url, metricsPath = '/me
     if (!systemAdminCandidate) return sendNotFound(req, res);
   }
 
-  // 4) System admin + legacy /stickers/admin
+  // 5) System admin + legacy /stickers/admin
   if (systemAdminCandidate) {
     const handled = await maybeHandleSystemAdminRequest(req, res, { pathname, url });
     if (handled) return true;
     return sendNotFound(req, res);
   }
 
-  // 5) Sticker catalog apenas nos prefixes permitidos
+  // 6) Sticker catalog apenas nos prefixes permitidos
   if (shouldHandleStickerSitePath(pathname, stickerConfig)) {
     const handled = await maybeHandleStickerSiteRequest(req, res, { pathname, url });
     if (handled) return true;
@@ -187,7 +207,7 @@ export const routeRequest = async (req, res, { pathname, url, metricsPath = '/me
     return sendNotFound(req, res);
   }
 
-  // 6) 404 global
+  // 7) 404 global
   return sendNotFound(req, res);
 };
 

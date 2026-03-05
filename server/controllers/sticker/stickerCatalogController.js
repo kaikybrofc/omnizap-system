@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { URL } from 'node:url';
+import { URL, URLSearchParams } from 'node:url';
 
 import { executeQuery, pool, TABLES } from '../../../database/index.js';
 import { getJidUser, normalizeJid, resolveBotJid } from '../../../app/config/baileysConfig.js';
@@ -24,6 +24,7 @@ import { listStickerPackScoreSnapshotsByPackIds } from '../../../app/modules/sti
 import { createCatalogApiRouter } from '../../routes/sticker/catalogRouter.js';
 import { createStickerCatalogNonCatalogHandlers } from './nonCatalogHandlers.js';
 import { createGoogleWebAuthService } from '../../auth/googleWebAuth/googleWebAuthService.js';
+import { queueWelcomeEmail } from '../../email/emailAutomationService.js';
 import { createStickerCatalogAdminBanService } from '../admin/adminBanService.js';
 import { createStickerCatalogAdminHandlers } from '../admin/adminPanelHandlers.js';
 import { buildAdminMenu, buildAiMenu, buildAnimeMenu, buildMediaMenu, buildMenuCaption, buildQuoteMenu, buildStatsMenu, buildStickerMenu } from '../../../app/modules/menuModule/common.js';
@@ -853,6 +854,33 @@ const configuredGoogleWebSessionCookiePath = normalizeBasePath(process.env.STICK
 const googleWebSessionCookiePath = '/';
 const googleWebLegacyCookiePaths = Array.from(new Set([configuredGoogleWebSessionCookiePath, STICKER_API_BASE_PATH, `${STICKER_API_BASE_PATH}/auth`, STICKER_WEB_PATH, STICKER_LOGIN_WEB_PATH]));
 
+const enqueueGoogleWebWelcomeEmail = ({ email, name, ownerJid }) => {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail || !normalizedEmail.includes('@')) return;
+
+  const safeName = sanitizeText(name || '', 80, { allowEmpty: true }) || '';
+  const normalizedOwnerJid = normalizeJid(ownerJid) || null;
+  const idempotencyKey = `google_web_welcome:${normalizedEmail}:${new Date().toISOString().slice(0, 10)}`;
+
+  void queueWelcomeEmail({
+    to: normalizedEmail,
+    name: safeName,
+    loginUrl: `${SITE_ORIGIN}/login/`,
+    metadata: {
+      trigger: 'google_web_auth',
+      owner_jid: normalizedOwnerJid,
+    },
+    idempotencyKey,
+  }).catch((error) => {
+    logger.warn('Falha ao enfileirar e-mail de boas-vindas pós-login Google Web.', {
+      action: 'google_web_welcome_email_enqueue_failed',
+      email: normalizedEmail,
+      owner_jid: normalizedOwnerJid,
+      error: error?.message,
+    });
+  });
+};
+
 const googleWebAuth = createGoogleWebAuthService({
   executeQuery,
   runSqlTransaction,
@@ -878,6 +906,9 @@ const googleWebAuth = createGoogleWebAuthService({
   sessionDbTouchIntervalMs: googleWebSessionDbTouchIntervalMs,
   sessionDbPruneIntervalMs: googleWebSessionDbPruneIntervalMs,
   notAllowedErrorCode: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+  onGoogleWebSessionCreated: ({ email, name, ownerJid }) => {
+    enqueueGoogleWebWelcomeEmail({ email, name, ownerJid });
+  },
   sessionCookiePath: googleWebSessionCookiePath,
   legacyCookiePaths: googleWebLegacyCookiePaths,
 });
@@ -1425,11 +1456,15 @@ const runPreviewFfmpeg = (args, timeoutMs = STICKER_PREVIEW_TIMEOUT_MS) =>
       timedOut = true;
       try {
         child.kill('SIGTERM');
-      } catch {}
+      } catch {
+        // Processo já encerrado.
+      }
       setTimeout(() => {
         try {
           child.kill('SIGKILL');
-        } catch {}
+        } catch {
+          // Processo já encerrado.
+        }
       }, 1200);
     }, Math.max(400, Number(timeoutMs || STICKER_PREVIEW_TIMEOUT_MS)));
 

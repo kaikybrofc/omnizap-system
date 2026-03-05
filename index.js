@@ -23,6 +23,7 @@ import { backfillLidMapFromMessagesOnce } from './app/services/lidMapService.js'
 import { initializeNewsBroadcastService, stopNewsBroadcastService } from './app/services/newsBroadcastService.js';
 import initializeDatabase from './database/init.js';
 import { startHttpServer, stopHttpServer } from './server/index.js';
+import { startEmailAutomationRuntime, stopEmailAutomationRuntime } from './server/email/emailAutomationRuntime.js';
 import { startStickerClassificationBackground, stopStickerClassificationBackground } from './app/modules/stickerPackModule/stickerClassificationBackgroundRuntime.js';
 import { startStickerAutoPackByTagsBackground, stopStickerAutoPackByTagsBackground } from './app/modules/stickerPackModule/stickerAutoPackByTagsRuntime.js';
 import { isStickerWorkerPipelineEnabled, startStickerWorkerPipeline, stopStickerWorkerPipeline } from './app/modules/stickerPackModule/stickerWorkerPipelineRuntime.js';
@@ -190,6 +191,7 @@ async function startApp() {
 
     logger.info('Inicializando servidor HTTP...');
     startHttpServer();
+    startEmailAutomationRuntime();
     if (isStickerWorkerPipelineEnabled()) {
       startStickerWorkerPipeline();
     } else {
@@ -358,6 +360,14 @@ async function shutdown(signal, error) {
     } catch (consumerError) {
       logger.warn('Falha ao encerrar consumidor interno de eventos de domínio.', {
         error: consumerError?.message,
+      });
+    }
+
+    try {
+      stopEmailAutomationRuntime();
+    } catch (emailRuntimeError) {
+      logger.warn('Falha ao encerrar runtime de automação de e-mail.', {
+        error: emailRuntimeError?.message,
       });
     }
 

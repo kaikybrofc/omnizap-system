@@ -112,6 +112,7 @@ export const TABLES = {
   STICKER_WORKER_TASK_DLQ: 'sticker_worker_task_dlq',
   DOMAIN_EVENT_OUTBOX: 'domain_event_outbox',
   DOMAIN_EVENT_OUTBOX_DLQ: 'domain_event_outbox_dlq',
+  EMAIL_OUTBOX: 'email_outbox',
   FEATURE_FLAG: 'feature_flag',
   STICKER_WEB_GOOGLE_USER: 'web_google_user',
   STICKER_WEB_GOOGLE_SESSION: 'web_google_session',
