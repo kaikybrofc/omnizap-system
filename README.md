@@ -78,26 +78,26 @@ Este bloco pode ser atualizado automaticamente pela API (`/api/sticker-packs/rea
 <!-- README_SNAPSHOT:START -->
 ### Snapshot do Sistema
 
-> Atualizado em `2026-03-05T07:39:08.434Z` | cache `1800s`
+> Atualizado em `2026-03-05T20:24:52.474Z` | cache `1800s`
 
 | Métrica | Valor |
 | --- | ---: |
-| Usuários (lid_map) | 5.568 |
+| Usuários (lid_map) | 5.576 |
 | Grupos | 119 |
-| Packs | 342 |
-| Stickers | 9.822 |
-| Mensagens registradas | 475.877 |
+| Packs | 349 |
+| Stickers | 9.933 |
+| Mensagens registradas | 477.386 |
 
 #### Tipos de mensagem mais usados (amostra: 25.000)
 | Tipo | Total |
 | --- | ---: |
-| `texto` | 15.398 |
-| `figurinha` | 4.670 |
-| `imagem` | 2.261 |
-| `outros` | 1.290 |
-| `reacao` | 1.022 |
-| `video` | 185 |
-| `audio` | 173 |
+| `texto` | 15.367 |
+| `figurinha` | 4.510 |
+| `imagem` | 2.413 |
+| `outros` | 1.332 |
+| `reacao` | 1.003 |
+| `video` | 199 |
+| `audio` | 175 |
 | `documento` | 1 |
 
 <details><summary>Comandos disponíveis (62)</summary>
