@@ -25,7 +25,7 @@ const DEFAULT_STICKER_API_BASE_PATH = '/api/sticker-packs';
 
 export const buildUserApiPaths = (apiBasePath) => {
   const resolvedApiBasePath = normalizeBasePath(apiBasePath, DEFAULT_STICKER_API_BASE_PATH);
-  return new Set([`${resolvedApiBasePath}/auth/google/session`, `${resolvedApiBasePath}/me`, `${resolvedApiBasePath}/bot-contact`]);
+  return new Set([`${resolvedApiBasePath}/auth/google/session`, `${resolvedApiBasePath}/me`, `${resolvedApiBasePath}/bot-contact`, `${resolvedApiBasePath}/support`]);
 };
 
 export const getUserRouterConfig = async () => {

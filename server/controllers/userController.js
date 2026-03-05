@@ -14,7 +14,7 @@ const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PAT
 const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
 const USER_DASHBOARD_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'user', 'index.html');
 
-const USER_API_PATHS = new Set([`${STICKER_API_BASE_PATH}/auth/google/session`, `${STICKER_API_BASE_PATH}/me`, `${STICKER_API_BASE_PATH}/bot-contact`]);
+const USER_API_PATHS = new Set([`${STICKER_API_BASE_PATH}/auth/google/session`, `${STICKER_API_BASE_PATH}/me`, `${STICKER_API_BASE_PATH}/bot-contact`, `${STICKER_API_BASE_PATH}/support`]);
 
 let stickerCatalogControllerPromise = null;
 const loadStickerCatalogController = async () => {

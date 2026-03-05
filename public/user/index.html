@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OmniZap System | Minha Conta</title>
-    <meta name="description" content="Painel de conta do OmniZap System com dados do usuário vinculado ao WhatsApp." />
+    <title>OmniZap System | Área do Usuário</title>
+    <meta name="description" content="Área do usuário OmniZap com navegação lateral retrátil, conta e suporte." />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#0b1a31" />
     <link rel="canonical" href="https://omnizap.shop/user/" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="manifest" href="/site.webmanifest" />
@@ -16,21 +16,21 @@
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
     <style>
       :root {
-        --bg: #060d1a;
-        --bg-2: #0c1a31;
-        --bg-3: #102542;
-        --surface: #132340d6;
-        --surface-2: #152948f0;
-        --line: #8ab4ff2b;
-        --line-strong: #9fc4ff61;
-        --text: #f5f9ff;
-        --muted: #9eb2ce;
+        --bg: #061023;
+        --bg-2: #0a1935;
+        --bg-3: #12294a;
+        --surface: #122644df;
+        --surface-2: #10253f;
+        --line: #8ab4ff3d;
+        --line-strong: #97c2ff77;
+        --text: #f3f8ff;
+        --muted: #9db3d2;
         --primary: #1fd08b;
-        --accent: #5a8fff;
-        --danger: #ffb3b3;
-        --radius-xl: 26px;
-        --radius-lg: 18px;
-        --radius-md: 14px;
+        --primary-text: #06231b;
+        --danger: #ffb2b2;
+        --radius-xl: 24px;
+        --radius-lg: 16px;
+        --radius-md: 12px;
       }
 
       * {
@@ -40,48 +40,44 @@
       html,
       body {
         margin: 0;
-        padding: 0;
         min-height: 100%;
       }
 
       body {
         color: var(--text);
         font-family: 'Manrope', system-ui, sans-serif;
-        background: radial-gradient(70rem 40rem at -12% -18%, #1d4ed855, transparent 62%), radial-gradient(55rem 30rem at 108% -6%, #0ea5e941, transparent 66%), linear-gradient(160deg, var(--bg), var(--bg-2) 52%, var(--bg-3));
-        min-height: 100vh;
-        padding: clamp(12px, 2.2vw, 28px);
+        background: radial-gradient(75rem 45rem at -18% -25%, #2f76fb4d, transparent 64%), radial-gradient(55rem 32rem at 112% -8%, #27c58f35, transparent 68%), linear-gradient(158deg, var(--bg), var(--bg-2) 52%, var(--bg-3));
+        padding: clamp(12px, 2vw, 24px);
       }
 
       .page {
-        width: min(1080px, 100%);
+        width: min(1220px, 100%);
         margin-inline: auto;
-        border: 1px solid #8ab4ff1f;
+        border: 1px solid #8ab4ff24;
         border-radius: var(--radius-xl);
-        background: linear-gradient(145deg, #101d37ef 2%, #0f1b33f3 44%, #13294af2 100%);
-        box-shadow:
-          0 25px 70px #01091585,
-          inset 0 1px 0 #d3e4ff2e;
+        background: linear-gradient(148deg, #0f1f3ade 2%, #10243edf 44%, #133358e3 100%);
+        box-shadow: 0 30px 80px #010a1f82;
         overflow: hidden;
       }
 
-      .head {
+      .navbar {
         border-bottom: 1px solid var(--line);
-        padding: clamp(16px, 2.1vw, 24px);
+        padding: clamp(16px, 2vw, 24px);
         display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 12px 16px;
+        grid-template-columns: auto 1fr auto;
         align-items: center;
+        gap: 12px;
       }
 
       .brand {
         display: inline-flex;
         align-items: center;
         gap: 10px;
-        font-family: 'Sora', sans-serif;
-        font-weight: 700;
-        letter-spacing: 0.03em;
         text-decoration: none;
         color: var(--text);
+        font-family: 'Sora', sans-serif;
+        font-weight: 700;
+        letter-spacing: 0.02em;
       }
 
       .brand img {
@@ -90,20 +86,40 @@
         border-radius: 12px;
         border: 1px solid var(--line);
         object-fit: cover;
-        box-shadow: 0 10px 22px #0000004b;
+      }
+
+      .navbar-links {
+        display: inline-flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .nav-link {
+        color: #d3e5ff;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 8px 12px;
+        border: 1px solid #7aa7e043;
+        border-radius: 11px;
+        background: #0f20398f;
+      }
+
+      .nav-link:hover {
+        border-color: var(--line-strong);
       }
 
       .head-actions {
         display: grid;
         grid-auto-flow: column;
-        grid-auto-columns: max-content;
         gap: 8px;
       }
 
       .btn {
         border: 1px solid var(--line);
         border-radius: 12px;
-        background: #0e1b33;
+        background: #0d1d35;
         color: var(--text);
         text-decoration: none;
         padding: 10px 14px;
@@ -114,35 +130,164 @@
         display: inline-flex;
         justify-content: center;
         align-items: center;
-        transition:
-          transform 0.2s ease,
-          border-color 0.2s ease,
-          box-shadow 0.2s ease,
-          background-color 0.2s ease;
         cursor: pointer;
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
       }
 
       .btn:hover {
         transform: translateY(-1px);
         border-color: var(--line-strong);
-        box-shadow: 0 12px 24px #01091557;
+        box-shadow: 0 10px 24px #010a1d66;
+      }
+
+      .btn:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
       }
 
       .btn.primary {
         border-color: transparent;
-        background: linear-gradient(120deg, #1fd08b, #22c55e);
-        color: #072116;
-        box-shadow: 0 12px 24px #22c55e3d;
+        background: linear-gradient(120deg, #1fd08b, #2bd16e);
+        color: var(--primary-text);
       }
 
-      .btn.primary:hover {
-        background: linear-gradient(120deg, #2be09b, #33d46d);
+      .layout {
+        position: relative;
+        display: block;
+        padding: clamp(14px, 2vw, 22px);
+      }
+
+      .side-panel {
+        display: none;
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        bottom: 10px;
+        width: min(84vw, 320px);
+        z-index: 40;
+        overflow-y: auto;
+        box-shadow: 0 18px 40px #020810a3;
+        border: 1px solid #709fdc4d;
+        border-radius: var(--radius-lg);
+        background: linear-gradient(180deg, #0f203aef, #0d1d34f1);
+        padding: clamp(14px, 1.8vw, 20px);
+        align-content: start;
+        gap: 12px;
+      }
+
+      .side-head {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .side-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: #c6dcff;
+      }
+
+      .side-close-btn {
+        padding: 8px 10px;
+        font-size: 12px;
+      }
+
+      .side-card {
+        border: 1px solid #709fdc4d;
+        border-radius: var(--radius-md);
+        background: #0f1f39b6;
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .side-label {
+        margin: 0;
+        color: #98b5dd;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+      }
+
+      .side-nav {
+        display: grid;
+        gap: 8px;
+      }
+
+      .tab-btn {
+        width: 100%;
+        border: 1px solid #6f99d75c;
+        border-radius: 11px;
+        background: #102341;
+        color: #d9e8ff;
+        font-family: 'Manrope', system-ui, sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        padding: 11px 10px;
+        cursor: pointer;
+        transition: border-color 0.2s ease, transform 0.2s ease;
+      }
+
+      .tab-btn:hover {
+        transform: translateY(-1px);
+        border-color: var(--line-strong);
+      }
+
+      .tab-btn[aria-selected='true'] {
+        border-color: #3ed49b8f;
+        background: linear-gradient(120deg, #1dcf8a2e, #5f9dff36);
+      }
+
+      .quick-actions {
+        display: grid;
+        gap: 8px;
+      }
+
+      .quick-actions .btn {
+        width: 100%;
+      }
+
+      .side-note {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .side-links {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .side-links a {
+        color: #9dc7ff;
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .side-links a:hover {
+        text-decoration: underline;
+      }
+
+      .content-panel {
+        border: 1px solid #6b97d54d;
+        border-radius: var(--radius-lg);
+        background: linear-gradient(148deg, var(--surface), var(--surface-2));
       }
 
       .content {
         padding: clamp(18px, 2.6vw, 30px);
         display: grid;
-        gap: clamp(14px, 2vw, 22px);
+        gap: 14px;
       }
 
       .intro {
@@ -154,18 +299,18 @@
         margin: 0;
         font-family: 'Sora', sans-serif;
         font-size: 12px;
-        letter-spacing: 0.16em;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: #95b8ff;
+        color: #97bcff;
       }
 
       h1 {
         margin: 0;
         font-family: 'Sora', sans-serif;
-        font-size: clamp(28px, 4vw, 46px);
-        line-height: 1.05;
+        font-size: clamp(28px, 4vw, 42px);
         letter-spacing: -0.03em;
-        background: linear-gradient(100deg, #f6fbff 0%, #9bc5ff 52%, #77b4ff 100%);
+        line-height: 1.05;
+        background: linear-gradient(100deg, #f6fbff 0%, #a9cbff 48%, #74b8ff 100%);
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
@@ -174,68 +319,66 @@
       .lead {
         margin: 0;
         color: #bfd3ef;
-        line-height: 1.6;
-        font-size: 16px;
-        max-width: 68ch;
+        font-size: 15px;
       }
 
-      .card {
-        border: 1px solid #5d8dd23b;
-        border-radius: var(--radius-lg);
-        background: linear-gradient(150deg, var(--surface) 0%, var(--surface-2) 100%);
-        padding: clamp(14px, 2.2vw, 20px);
+      .feedback {
         display: grid;
-        gap: 12px;
-        backdrop-filter: blur(9px);
-      }
-
-      .dashboard-card {
-        position: relative;
-        overflow: hidden;
-      }
-
-      .dashboard-card::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        background: linear-gradient(160deg, #8fb3ff10 0%, transparent 36%, #1fd08b0f 100%);
+        gap: 10px;
       }
 
       .status {
-        position: relative;
         margin: 0;
-        color: #e7f0ff;
-        font-size: 15px;
-        font-weight: 600;
-        line-height: 1.5;
-        padding: 12px 14px;
-        border: 1px solid #6d9de440;
+        border: 1px solid #7da8e34d;
         border-radius: var(--radius-md);
-        background: #112647d1;
+        background: #0f2444d4;
+        color: #e8f1ff;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.45;
+        padding: 12px 14px;
+      }
+
+      .status[data-tone='loading'] {
+        border-color: #7da8e36c;
+      }
+
+      .status[data-tone='success'] {
+        border-color: #2dd58f6e;
+      }
+
+      .status[data-tone='warning'] {
+        border-color: #ffcf726e;
       }
 
       .error {
-        position: relative;
         margin: 0;
-        border: 1px solid #ff8f8f87;
+        border: 1px solid #ff8a8a8a;
         border-radius: var(--radius-md);
-        background: #3d1e2fb0;
+        background: #3f1f31bc;
         color: var(--danger);
         padding: 10px 12px;
         font-size: 14px;
       }
 
+      .card {
+        border: 1px solid #6b97d54d;
+        border-radius: var(--radius-lg);
+        background: linear-gradient(148deg, #152a4ca6, #10233fb3);
+        padding: clamp(14px, 1.8vw, 18px);
+        backdrop-filter: blur(8px);
+      }
+
+      .tab-panel {
+        display: grid;
+        gap: 12px;
+      }
+
       .profile {
-        position: relative;
         display: grid;
         grid-template-columns: auto 1fr;
-        gap: 12px 14px;
+        gap: 14px;
         align-items: center;
-        border: 1px solid #7facf249;
-        border-radius: var(--radius-md);
-        background: #0f1f38bf;
-        padding: clamp(12px, 1.8vw, 16px);
       }
 
       .avatar {
@@ -244,69 +387,92 @@
         border-radius: 16px;
         border: 1px solid #7ca8e178;
         object-fit: cover;
-        background: #0b1528;
-        box-shadow: 0 10px 24px #030b1961;
+        background: #091527;
       }
 
       .profile-meta h2 {
-        margin: 0 0 6px;
-        font-size: clamp(20px, 2.1vw, 26px);
-        line-height: 1.2;
+        margin: 0 0 4px;
+        font-size: clamp(19px, 2vw, 26px);
         letter-spacing: -0.02em;
       }
 
       .profile-meta p {
         margin: 0;
         color: var(--muted);
-        font-size: 14px;
-        line-height: 1.5;
+        line-height: 1.45;
         word-break: break-word;
       }
 
-      .grid {
-        position: relative;
+      .summary-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
       }
 
-      .metric {
-        border: 1px solid #7facf242;
+      .info {
+        border: 1px solid #709fdc4d;
         border-radius: var(--radius-md);
-        background: #0f1f39b8;
-        padding: 12px;
-        min-height: 94px;
-        display: grid;
-        align-content: space-between;
+        background: #0f1f39c4;
+        padding: 10px 12px;
       }
 
-      .metric-label {
+      .label {
         margin: 0;
-        color: #9bb2d2;
-        font-size: 12px;
-        font-weight: 600;
-        letter-spacing: 0.05em;
+        color: #98b5dd;
+        font-size: 11px;
         text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
       }
 
-      .metric-value {
+      .value {
         margin: 6px 0 0;
-        color: #f1f7ff;
-        font-size: clamp(22px, 3vw, 28px);
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        line-height: 1.05;
+        color: #f2f8ff;
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.4;
+        word-break: break-word;
       }
 
-      .actions {
-        position: relative;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+      .inline-links {
+        display: inline-flex;
+        flex-wrap: wrap;
         gap: 10px;
       }
 
-      #user-chat-link {
-        grid-column: 1 / -1;
+      .inline-links a {
+        color: #9dc7ff;
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      .inline-links a:hover {
+        text-decoration: underline;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .skeleton {
+        position: relative;
+        overflow: hidden;
+        border-radius: 10px;
+        color: transparent;
+        min-height: 1.1em;
+        background: linear-gradient(90deg, #193358 24%, #274671 50%, #193358 76%);
+        background-size: 280% 100%;
+        animation: skeletonPulse 1.4s ease infinite;
+      }
+
+      @keyframes skeletonPulse {
+        0% {
+          background-position: 100% 0;
+        }
+
+        100% {
+          background-position: 0 0;
+        }
       }
 
       .footer {
@@ -316,58 +482,42 @@
         text-align: center;
       }
 
-      @media (min-width: 920px) {
-        .dashboard-card {
-          grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-          grid-template-areas:
-            'status status'
-            'error error'
-            'profile grid'
-            'actions actions';
-          gap: 14px;
-        }
-
-        #user-status {
-          grid-area: status;
-        }
-
-        #user-error {
-          grid-area: error;
-        }
-
-        #user-profile {
-          grid-area: profile;
-        }
-
-        #user-grid {
-          grid-area: grid;
-          align-self: start;
-        }
-
-        #user-actions {
-          grid-area: actions;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-
-        #user-chat-link {
-          grid-column: span 2;
-        }
+      .sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 38;
+        border: 0;
+        background: #010917ab;
+        cursor: pointer;
       }
 
-      @media (max-width: 840px) {
-        .head {
+      .page[data-sidebar='open'] .side-panel {
+        display: grid;
+      }
+
+      .page[data-sidebar='open'] .sidebar-overlay {
+        display: block;
+      }
+
+      @media (max-width: 1020px) {
+        .navbar {
           grid-template-columns: 1fr;
         }
 
-        .head-actions {
-          width: 100%;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          grid-auto-flow: row;
-          grid-auto-columns: 1fr;
+        .navbar-links {
+          justify-content: flex-start;
         }
 
-        .head-actions .btn {
-          width: 100%;
+        .head-actions {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-auto-flow: row;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .head-actions {
+          grid-template-columns: 1fr;
         }
       }
 
@@ -381,92 +531,176 @@
           margin-inline: auto;
         }
 
-        .actions {
+        .summary-grid {
           grid-template-columns: 1fr;
         }
 
-        #user-chat-link {
-          grid-column: auto;
-        }
-
-        .actions .btn,
-        .actions button.btn {
+        .btn,
+        .tab-btn {
           width: 100%;
-        }
-      }
-
-      @media (max-width: 430px) {
-        .grid {
-          grid-template-columns: 1fr;
         }
       }
     </style>
   </head>
   <body>
-    <main id="user-app-root" class="page" data-api-base-path="/api/sticker-packs" data-login-path="/login" data-stickers-path="/stickers">
-      <header class="head">
+    <main
+      id="user-app-root"
+      class="page"
+      data-sidebar="closed"
+      data-api-base-path="/api/sticker-packs"
+      data-login-path="/login"
+      data-terms-url="/termos-de-uso/"
+      data-privacy-url="/termos-de-uso/#politica-de-privacidade"
+    >
+      <header class="navbar">
         <a href="/" class="brand">
           <img src="https://iili.io/FC3FABe.jpg" alt="OmniZap" loading="lazy" decoding="async" />
           <span>OmniZap System</span>
         </a>
+
+        <nav class="navbar-links" aria-label="Navegação principal">
+          <a class="nav-link" href="/user/">Área do Usuário</a>
+          <a class="nav-link" href="/termos-de-uso/" target="_blank" rel="noreferrer noopener">Termos</a>
+          <a class="nav-link" href="/termos-de-uso/#politica-de-privacidade" target="_blank" rel="noreferrer noopener">Privacidade</a>
+        </nav>
+
         <div class="head-actions">
-          <a class="btn" href="/">Home</a>
-          <a id="user-manage-head-link" class="btn" href="/stickers/perfil">Gerenciar Stickers</a>
+          <button id="sidebar-toggle-btn" type="button" class="btn">Menu lateral</button>
+          <a class="btn" href="/">Voltar ao início</a>
+          <button id="user-logout-btn" type="button" class="btn">Encerrar sessão</button>
         </div>
       </header>
 
-      <section class="content">
-        <div class="intro">
-          <p class="eyebrow">Painel do usuário</p>
-          <h1>Minha Conta</h1>
-          <p class="lead">Informações da sua conta vinculada ao OmniZap e atalhos rápidos para gerenciar seus stickers com agilidade no desktop e no celular.</p>
-        </div>
+      <div class="layout">
+        <aside id="user-side-panel" class="side-panel" aria-hidden="false">
+          <div class="side-head">
+            <p class="side-title">Navegação</p>
+            <button id="sidebar-close-btn" type="button" class="btn side-close-btn">Fechar</button>
+          </div>
 
-        <article class="card dashboard-card">
-          <p id="user-status" class="status">Carregando dados da conta...</p>
-          <p id="user-error" class="error" hidden></p>
-
-          <div id="user-profile" class="profile" hidden>
-            <img id="user-avatar" class="avatar" src="https://iili.io/FC3FABe.jpg" alt="Avatar do usuário" />
-            <div class="profile-meta">
-              <h2 id="user-name">Conta</h2>
-              <p id="user-email"></p>
-              <p id="user-whatsapp"></p>
+          <section class="side-card">
+            <p class="side-label">Menu da conta</p>
+            <div class="side-nav" role="tablist" aria-label="Seções da conta">
+              <button class="tab-btn" type="button" data-tab-target="summary" aria-selected="true">Resumo</button>
+              <button class="tab-btn" type="button" data-tab-target="account" aria-selected="false">Conta</button>
+              <button class="tab-btn" type="button" data-tab-target="support" aria-selected="false">Suporte</button>
             </div>
-          </div>
+          </section>
 
-          <div id="user-grid" class="grid" hidden>
-            <article class="metric">
-              <p class="metric-label">Packs</p>
-              <p id="metric-packs" class="metric-value">0</p>
-            </article>
-            <article class="metric">
-              <p class="metric-label">Stickers</p>
-              <p id="metric-stickers" class="metric-value">0</p>
-            </article>
-            <article class="metric">
-              <p class="metric-label">Downloads</p>
-              <p id="metric-downloads" class="metric-value">0</p>
-            </article>
-            <article class="metric">
-              <p class="metric-label">Likes</p>
-              <p id="metric-likes" class="metric-value">0</p>
-            </article>
-          </div>
+          <section id="user-quick-actions" class="side-card quick-actions" hidden>
+            <a id="quick-action-bot" class="btn primary" href="https://api.whatsapp.com/send/?text=%2Fmenu&type=custom_url&app_absent=0" target="_blank" rel="noreferrer noopener">Abrir bot no WhatsApp</a>
+            <a id="quick-action-support" class="btn" href="/termos-de-uso/" target="_blank" rel="noreferrer noopener">Falar com suporte</a>
+          </section>
 
-          <div id="user-actions" class="actions" hidden>
-            <a id="user-chat-link" class="btn primary" href="https://api.whatsapp.com/send/?text=%2Fmenu&type=custom_url&app_absent=0" target="_blank" rel="noreferrer noopener"> Voltar ao chat do bot (/menu) </a>
-            <a id="user-manage-main-link" class="btn" href="/stickers/perfil">Gerenciar meus stickers</a>
-            <a class="btn" href="/user/systemadm/">System Admin</a>
-            <a class="btn" href="/">Voltar para Home</a>
-            <button id="user-logout-btn" type="button" class="btn">Encerrar sessão</button>
-          </div>
-        </article>
+          <section class="side-card">
+            <p class="side-label">Atendimento</p>
+            <p class="side-note">Use os atalhos para abrir o bot ou falar com o suporte quando precisar.</p>
+            <div class="side-links">
+              <a id="footer-terms-link" href="/termos-de-uso/" target="_blank" rel="noreferrer noopener">Termos de Serviço</a>
+              <a id="footer-privacy-link" href="/termos-de-uso/#politica-de-privacidade" target="_blank" rel="noreferrer noopener">Política de Privacidade</a>
+            </div>
+          </section>
+        </aside>
 
-        <p class="footer">OmniZap System · <span id="user-current-year"></span></p>
-      </section>
+        <section class="content-panel">
+          <div class="content">
+            <div class="intro">
+              <p class="eyebrow">Painel do usuário</p>
+              <h1>Minha Conta</h1>
+              <p class="lead">Resumo da sua conta e canais diretos de suporte.</p>
+            </div>
+
+            <div class="feedback">
+              <p id="user-status" class="status" data-tone="loading">Carregando dados da conta...</p>
+              <p id="user-error" class="error" hidden></p>
+              <button id="user-retry-btn" type="button" class="btn" hidden>Tentar novamente</button>
+            </div>
+
+            <section id="tab-summary" class="card tab-panel" data-tab-panel="summary">
+              <div class="profile">
+                <img id="summary-avatar" class="avatar" src="https://iili.io/FC3FABe.jpg" alt="Avatar do usuário" />
+                <div class="profile-meta">
+                  <h2 id="summary-name" class="skeleton">Carregando</h2>
+                  <p id="summary-email" class="skeleton">email@exemplo.com</p>
+                  <p id="summary-whatsapp" class="skeleton">WhatsApp vinculado</p>
+                </div>
+              </div>
+
+              <div class="summary-grid">
+                <article class="info">
+                  <p class="label">Plano</p>
+                  <p id="summary-plan" class="value skeleton">Plano</p>
+                </article>
+                <article class="info">
+                  <p class="label">Status</p>
+                  <p id="summary-status" class="value skeleton">Ativa</p>
+                </article>
+                <article class="info">
+                  <p class="label">Último login</p>
+                  <p id="summary-last-login" class="value skeleton">--</p>
+                </article>
+                <article class="info">
+                  <p class="label">Sessão expira em</p>
+                  <p id="summary-expires" class="value skeleton">--</p>
+                </article>
+              </div>
+            </section>
+
+            <section id="tab-account" class="card tab-panel" data-tab-panel="account" hidden>
+              <div class="summary-grid">
+                <article class="info">
+                  <p class="label">Status da sessão</p>
+                  <p id="account-session-status" class="value skeleton">Ativa</p>
+                </article>
+                <article class="info">
+                  <p class="label">Owner vinculado</p>
+                  <p id="account-owner-jid" class="value skeleton">--</p>
+                </article>
+                <article class="info">
+                  <p class="label">Último login</p>
+                  <p id="account-last-login" class="value skeleton">--</p>
+                </article>
+                <article class="info">
+                  <p class="label">Expiração da sessão</p>
+                  <p id="account-expires-at" class="value skeleton">--</p>
+                </article>
+              </div>
+
+              <p class="muted">Ao usar o login você concorda com os termos e regras de privacidade do projeto.</p>
+              <div class="inline-links" aria-label="Links de política e termos">
+                <a id="account-terms-link" href="/termos-de-uso/" target="_blank" rel="noreferrer noopener">Termos de Serviço</a>
+                <a id="account-privacy-link" href="/termos-de-uso/#politica-de-privacidade" target="_blank" rel="noreferrer noopener">Política de Privacidade</a>
+              </div>
+            </section>
+
+            <section id="tab-support" class="card tab-panel" data-tab-panel="support" hidden>
+              <p class="muted">Canal oficial para dúvidas sobre login e uso geral do OmniZap.</p>
+
+              <div class="summary-grid">
+                <article class="info">
+                  <p class="label">Contato</p>
+                  <p id="support-phone" class="value skeleton">--</p>
+                </article>
+                <article class="info">
+                  <p class="label">Mensagem padrão</p>
+                  <p id="support-message" class="value skeleton">--</p>
+                </article>
+              </div>
+
+              <div class="head-actions">
+                <a id="support-whatsapp-link" class="btn primary" href="/termos-de-uso/" target="_blank" rel="noreferrer noopener">Abrir suporte no WhatsApp</a>
+                <a id="support-terms-link" class="btn" href="/termos-de-uso/" target="_blank" rel="noreferrer noopener">Ver novos Termos</a>
+              </div>
+            </section>
+
+            <p class="footer">OmniZap System · <span id="user-current-year"></span></p>
+          </div>
+        </section>
+      </div>
+
+      <button id="sidebar-overlay" type="button" class="sidebar-overlay" aria-label="Fechar menu lateral"></button>
     </main>
 
-    <script type="module" src="/js/apps/userProfileApp.js?v=20260301-user-profile-v1"></script>
+    <script type="module" src="/js/apps/userProfileApp.js?v=20260305-user-profile-v4"></script>
   </body>
 </html>

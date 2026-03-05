@@ -3417,6 +3417,83 @@ const resolveMyProfileOwnerCandidates = async (session) => {
   return Array.from(new Set(filtered));
 };
 
+const MY_PROFILE_DEFAULT_STATS = Object.freeze({
+  total: 0,
+  published: 0,
+  drafts: 0,
+  private: 0,
+  unlisted: 0,
+  public: 0,
+});
+
+const buildMyProfileStatsTemplate = () => ({ ...MY_PROFILE_DEFAULT_STATS });
+
+const normalizeMyProfileView = (value) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'summary') return 'summary';
+  if (normalized === 'packs') return 'packs';
+  return 'full';
+};
+
+const resolveMyProfileAccountSummary = async (session) => {
+  if (!session) return null;
+
+  const planLabel = sanitizeText(process.env.STICKER_WEB_USER_PLAN_LABEL || '', 80, { allowEmpty: true }) || 'Conta padrao';
+  const normalizedSub = normalizeGoogleSubject(session?.sub);
+  const normalizedEmail = normalizeEmail(session?.email);
+  const normalizedOwnerJid = normalizeJid(session?.ownerJid || '') || '';
+  const identityClauses = [];
+  const identityParams = [];
+
+  if (normalizedSub) {
+    identityClauses.push('google_sub = ?');
+    identityParams.push(normalizedSub);
+  }
+  if (normalizedEmail) {
+    identityClauses.push('email = ?');
+    identityParams.push(normalizedEmail);
+  }
+  if (normalizedOwnerJid) {
+    identityClauses.push('owner_jid = ?');
+    identityParams.push(normalizedOwnerJid);
+  }
+
+  let lastLoginAt = null;
+  let lastSeenAt = null;
+
+  if (identityClauses.length) {
+    try {
+      const rows = await executeQuery(
+        `SELECT last_login_at, last_seen_at
+           FROM ${TABLES.STICKER_WEB_GOOGLE_USER}
+          WHERE ${identityClauses.join(' OR ')}
+          ORDER BY COALESCE(last_login_at, last_seen_at, updated_at, created_at) DESC
+          LIMIT 1`,
+        identityParams,
+      );
+      const entry = Array.isArray(rows) ? rows[0] : null;
+      lastLoginAt = toIsoOrNull(entry?.last_login_at);
+      lastSeenAt = toIsoOrNull(entry?.last_seen_at);
+    } catch (error) {
+      logger.warn('Falha ao resolver resumo de conta do perfil web.', {
+        action: 'sticker_pack_my_profile_account_summary_failed',
+        google_sub: normalizedSub,
+        owner_jid: normalizedOwnerJid,
+        error: error?.message,
+      });
+    }
+  }
+
+  return {
+    plan_label: planLabel,
+    status: 'active',
+    last_login_at: lastLoginAt,
+    last_seen_at: lastSeenAt,
+  };
+};
+
 const handleMyProfileRequest = async (req, res, url = null) => {
   if (!['GET', 'HEAD'].includes(req.method || '')) {
     sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
@@ -3429,6 +3506,8 @@ const handleMyProfileRequest = async (req, res, url = null) => {
     required: Boolean(STICKER_WEB_GOOGLE_AUTH_REQUIRED),
     client_id: STICKER_WEB_GOOGLE_CLIENT_ID || null,
   };
+  const view = normalizeMyProfileView(url?.searchParams?.get('view'));
+  const shouldIncludePacks = view !== 'summary';
 
   if (!session?.ownerJid && !session?.email && !session?.ownerPhone) {
     sendJson(req, res, 200, {
@@ -3436,22 +3515,23 @@ const handleMyProfileRequest = async (req, res, url = null) => {
         auth: { google: authGoogle },
         session: mapGoogleSessionResponseData(null),
         owner_jid: null,
+        owner_jids: [],
+        account: null,
         packs: [],
-        stats: {
-          total: 0,
-          published: 0,
-          drafts: 0,
-          private: 0,
-          unlisted: 0,
-          public: 0,
+        stats: shouldIncludePacks ? buildMyProfileStatsTemplate() : null,
+        meta: {
+          view,
+          lazy: !shouldIncludePacks,
         },
       },
     });
     return;
   }
 
+  const account = await resolveMyProfileAccountSummary(session);
   const ownerCandidates = await resolveMyProfileOwnerCandidates(session);
   const primaryOwnerJid = normalizeJid(session?.ownerJid || '') || ownerCandidates[0] || null;
+
   if (!ownerCandidates.length) {
     sendJson(req, res, 200, {
       data: {
@@ -3459,20 +3539,38 @@ const handleMyProfileRequest = async (req, res, url = null) => {
         session: mapGoogleSessionResponseData(session),
         owner_jid: primaryOwnerJid,
         owner_jids: [],
+        account,
         packs: [],
-        stats: {
-          total: 0,
-          published: 0,
-          drafts: 0,
-          private: 0,
-          unlisted: 0,
-          public: 0,
+        stats: shouldIncludePacks ? buildMyProfileStatsTemplate() : null,
+        meta: {
+          view,
+          lazy: !shouldIncludePacks,
         },
       },
     });
     return;
   }
 
+  if (!shouldIncludePacks) {
+    sendJson(req, res, 200, {
+      data: {
+        auth: { google: authGoogle },
+        session: mapGoogleSessionResponseData(session),
+        owner_jid: primaryOwnerJid,
+        owner_jids: ownerCandidates,
+        account,
+        packs: [],
+        stats: null,
+        meta: {
+          view,
+          lazy: true,
+        },
+      },
+    });
+    return;
+  }
+
+  const packLimit = clampInt(url?.searchParams?.get('limit'), view === 'packs' ? 120 : 300, 1, 300);
   const ownerPacks = await Promise.all(ownerCandidates.map((ownerJid) => listStickerPacksByOwner(ownerJid, { limit: 200, offset: 0 })));
   const includeAutoPacks = parseEnvBool(url?.searchParams?.get('include_auto'), parseEnvBool(process.env.STICKER_WEB_MY_PROFILE_INCLUDE_AUTO_PACKS, false));
 
@@ -3503,7 +3601,7 @@ const handleMyProfileRequest = async (req, res, url = null) => {
       if (!Number.isFinite(bUpdatedAt)) return -1;
       return bUpdatedAt - aUpdatedAt;
     })
-    .slice(0, 300);
+    .slice(0, packLimit);
 
   const engagementByPackId = await listStickerPackEngagementByPackIds(packs.map((pack) => pack.id));
 
@@ -3530,7 +3628,7 @@ const handleMyProfileRequest = async (req, res, url = null) => {
       if (visibility === 'public') acc.public += 1;
       return acc;
     },
-    { total: 0, published: 0, drafts: 0, private: 0, unlisted: 0, public: 0 },
+    buildMyProfileStatsTemplate(),
   );
 
   sendJson(req, res, 200, {
@@ -3539,8 +3637,13 @@ const handleMyProfileRequest = async (req, res, url = null) => {
       session: mapGoogleSessionResponseData(session),
       owner_jid: primaryOwnerJid,
       owner_jids: ownerCandidates,
+      account,
       packs: mappedPacks,
       stats,
+      meta: {
+        view,
+        lazy: view === 'packs',
+      },
     },
   });
 };
