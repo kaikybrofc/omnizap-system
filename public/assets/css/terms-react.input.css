@@ -1,0 +1,114 @@
+:root {
+  --bg: #0f172a;
+  --bg-2: #111827;
+  --line: rgba(255, 255, 255, 0.05);
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --card: #1e293bcc;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family:
+    'Manrope',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  color: var(--text);
+  background: radial-gradient(58rem 24rem at -8% -12%, #2563eb26, transparent 60%), radial-gradient(58rem 24rem at 112% -10%, #7c3aed22, transparent 58%), linear-gradient(165deg, var(--bg), var(--bg-2));
+}
+.wrap {
+  width: min(960px, 92vw);
+  margin: 0 auto;
+  padding: 24px 0 42px;
+}
+.top {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.top a {
+  color: var(--text);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #111827;
+}
+.card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  padding: 18px;
+  margin-bottom: 12px;
+}
+h1,
+h2 {
+  margin: 0 0 10px;
+}
+h1 {
+  font-size: clamp(28px, 4.2vw, 38px);
+}
+h2 {
+  font-size: 20px;
+  margin-top: 8px;
+}
+h3 {
+  margin: 8px 0 6px;
+  color: #dbeafe;
+  font-size: 16px;
+}
+p,
+li {
+  color: var(--muted);
+  line-height: 1.6;
+}
+a {
+  color: #2563eb;
+}
+ul,
+ol {
+  margin: 0;
+  padding-left: 18px;
+}
+.note {
+  font-size: 14px;
+  color: #c7d8f4;
+}
+.updated {
+  color: #bcd1ef;
+  font-size: 14px;
+}
+.contact-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0 6px;
+}
+.contact-btn {
+  text-decoration: none;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+}
+.contact-btn.wa {
+  background: linear-gradient(180deg, #163528, #112a1f);
+  color: #ddffec;
+  border-color: #2ba66b88;
+}
+.contact-btn.ig {
+  background: linear-gradient(180deg, #3f1d29, #2f1720);
+  color: #ffe5ef;
+  border-color: #d14b7888;
+}
+
+#terms-react-root {
+  min-height: 100dvh;
+}

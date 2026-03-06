@@ -438,6 +438,7 @@ const requiredJsBundles = [
   'home-react.bundle.js',
   'user-react.bundle.js',
   'login-react.bundle.js',
+  'terms-react.bundle.js',
   'api-docs.bundle.js',
   'stickers-react.bundle.js',
   'create-pack-react.bundle.js',
@@ -448,6 +449,7 @@ const requiredCssBundles = [
   'home-react.css',
   'user-react.css',
   'login-react.css',
+  'terms-react.css',
   'api-docs.css',
   'stickers-react.css',
   'create-pack-react.css',
@@ -698,6 +700,7 @@ verify_post_sync_cache_bust() {
     "index.html"
     "login/index.html"
     "user/index.html"
+    "termos-de-uso/index.html"
     "stickers/index.html"
     "stickers/create/index.html"
     "stickers/admin/index.html"
