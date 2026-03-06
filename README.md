@@ -321,31 +321,28 @@ Arquivo base: [`docker-compose.yml`](./docker-compose.yml)
 Este bloco é alimentado automaticamente pela API (`/api/sticker-packs/readme-markdown`) via script `npm run readme:sync-snapshot`.
 
 <!-- README_SNAPSHOT:START -->
-
 ### Snapshot do Sistema
 
-> Atualizado em `2026-03-06T11:52:27.370Z` | cache `1800s`
+> Atualizado em `2026-03-06T22:42:43.839Z` | cache `1800s`
 
-| Métrica               |   Valor |
-| --------------------- | ------: |
-| Usuários (lid_map)    |   5.601 |
-| Grupos                |     119 |
-| Packs                 |     357 |
-| Stickers              |  10.549 |
-| Mensagens registradas | 484.108 |
+| Métrica | Valor |
+| --- | ---: |
+| Usuários (lid_map) | 5.616 |
+| Grupos | 120 |
+| Packs | 367 |
+| Stickers | 11.131 |
+| Mensagens registradas | 489.061 |
 
 #### Tipos de mensagem mais usados (amostra: 25.000)
-
-| Tipo        |  Total |
-| ----------- | -----: |
-| `texto`     | 15.410 |
-| `figurinha` |  4.742 |
-| `imagem`    |  2.091 |
-| `outros`    |  1.277 |
-| `reacao`    |  1.089 |
-| `video`     |    226 |
-| `audio`     |    164 |
-| `documento` |      1 |
+| Tipo | Total |
+| --- | ---: |
+| `texto` | 15.283 |
+| `figurinha` | 4.865 |
+| `imagem` | 1.790 |
+| `outros` | 1.469 |
+| `reacao` | 1.186 |
+| `video` | 230 |
+| `audio` | 177 |
 
 <details><summary>Comandos disponíveis (64)</summary>
 
