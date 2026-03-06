@@ -186,10 +186,6 @@ Ranking do grupo (top 5)
 💡 Exemplo: ${commandPrefix}rankingglobal
 Ranking geral do bot
 
-→ ${commandPrefix}semmsg  
-💡 Exemplo: ${commandPrefix}semmsg
-Membros inativos
-
 → ${commandPrefix}ping  
 💡 Exemplo: ${commandPrefix}ping
 Status do sistema

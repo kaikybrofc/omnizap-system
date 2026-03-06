@@ -7,14 +7,12 @@ import { processBlinkingTextSticker, processTextSticker } from '../modules/stick
 import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/playCommand.js';
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleGlobalRankingCommand } from '../modules/statsModule/globalRankingCommand.js';
-import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
 import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js';
 import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, getJidUser, isGroupJid, isSameJidUser, normalizeJid, resolveBotJid } from '../config/baileysConfig.js';
 import { isUserAdmin } from '../config/groupUtils.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { handleCatCommand, handleCatImageCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
-import { handleNoticeCommand } from '../modules/broadcastModule/noticeCommand.js';
 import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
 import { handleStickerConvertCommand } from '../modules/stickerModule/stickerConvertCommand.js';
 import { handleWaifuPicsCommand, getWaifuPicsUsageText } from '../modules/waifuPicsModule/waifuPicsCommand.js';
@@ -71,7 +69,7 @@ const SITE_ORIGIN =
 const SITE_LOGIN_URL = `${SITE_ORIGIN}/login/`;
 const SITE_GROUP_LOGIN_URL = `${SITE_ORIGIN}/login`;
 
-const KNOWN_MESSAGE_COMMANDS = new Set(['menu', 'sticker', 's', 'pack', 'packs', 'toimg', 'tovideo', 'tovid', 'play', 'playvid', 'tiktok', 'tt', 'cat', 'catimg', 'catimage', 'catprompt', 'iaprompt', 'promptia', 'quote', 'qc', 'wp', 'waifupics', 'wpnsfw', 'waifupicsnsfw', 'wppicshelp', 'stickertext', 'st', 'stickertextwhite', 'stw', 'stickertextblink', 'stb', 'ranking', 'rank', 'top5', 'rankingglobal', 'rankglobal', 'globalrank', 'globalranking', 'semmsg', 'zeromsg', 'nomsg', 'inativos', 'ping', 'dado', 'dice', 'user', 'usuario', 'rpg', 'aviso', 'notice']);
+const KNOWN_MESSAGE_COMMANDS = new Set(['menu', 'sticker', 's', 'pack', 'packs', 'toimg', 'tovideo', 'tovid', 'play', 'playvid', 'tiktok', 'tt', 'cat', 'catimg', 'catimage', 'catprompt', 'iaprompt', 'promptia', 'quote', 'qc', 'wp', 'waifupics', 'wpnsfw', 'waifupicsnsfw', 'wppicshelp', 'stickertext', 'st', 'stickertextwhite', 'stw', 'stickertextblink', 'stb', 'ranking', 'rank', 'top5', 'rankingglobal', 'rankglobal', 'globalrank', 'globalranking', 'ping', 'dado', 'dice', 'user', 'usuario', 'rpg']);
 
 let messageAnalyticsTableMissingLogged = false;
 const recentCommandExecutions = new Map();
@@ -782,12 +780,6 @@ export const handleMessages = async (update, sock) => {
               case 'globalranking':
                 commandResult = await runCommand('rankingglobal', () => handleGlobalRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }));
                 break;
-              case 'semmsg':
-              case 'zeromsg':
-              case 'nomsg':
-              case 'inativos':
-                commandResult = await runCommand('semmsg', () => handleNoMessageCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, senderJid, text }));
-                break;
               case 'ping':
                 commandResult = await runCommand('ping', () => handlePingCommand({ sock, remoteJid, messageInfo, expirationMessage }));
                 break;
@@ -823,10 +815,6 @@ export const handleMessages = async (update, sock) => {
                     commandPrefix,
                   }),
                 );
-                break;
-              case 'aviso':
-              case 'notice':
-                commandResult = await runCommand('aviso', () => handleNoticeCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
                 break;
               default:
                 if (isAdminCommandRoute) {
