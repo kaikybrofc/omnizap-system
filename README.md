@@ -78,31 +78,31 @@ Este bloco pode ser atualizado automaticamente pela API (`/api/sticker-packs/rea
 <!-- README_SNAPSHOT:START -->
 ### Snapshot do Sistema
 
-> Atualizado em `2026-03-05T20:35:26.152Z` | cache `1800s`
+> Atualizado em `2026-03-06T05:20:44.321Z` | cache `1800s`
 
 | Métrica | Valor |
 | --- | ---: |
-| Usuários (lid_map) | 5.576 |
+| Usuários (lid_map) | 5.595 |
 | Grupos | 119 |
-| Packs | 349 |
-| Stickers | 9.934 |
-| Mensagens registradas | 477.431 |
+| Packs | 354 |
+| Stickers | 10.459 |
+| Mensagens registradas | 482.499 |
 
 #### Tipos de mensagem mais usados (amostra: 25.000)
 | Tipo | Total |
 | --- | ---: |
-| `texto` | 15.396 |
-| `figurinha` | 4.467 |
-| `imagem` | 2.413 |
-| `outros` | 1.342 |
-| `reacao` | 1.007 |
-| `video` | 199 |
-| `audio` | 175 |
+| `texto` | 15.277 |
+| `figurinha` | 4.649 |
+| `imagem` | 2.035 |
+| `outros` | 1.547 |
+| `reacao` | 1.079 |
+| `video` | 234 |
+| `audio` | 178 |
 | `documento` | 1 |
 
-<details><summary>Comandos disponíveis (62)</summary>
+<details><summary>Comandos disponíveis (65)</summary>
 
-`/add` · `/addmode` · `/autorequests` · `/autosticker` · `/ban` · `/captcha` · `/cat` · `/catimg` · `/catprompt` · `/catprompt reset` · `/dado` · `/down` · `/farewell` · `/groups` · `/info` · `/invite` · `/join` · `/leave` · `/menu anime` · `/menu figurinhas` · `/menu ia` · `/menu midia` · `/menu quote` · `/menu stats` · `/menuadm` · `/metadata` · `/newgroup` · `/noticias` · `/nsfw` · `/pack add` · `/pack create` · `/pack list` · `/pack send` · `/ping` · `/play` · `/playvid` · `/prefix` · `/premium` · `/quote` · `/ranking` · `/rankingglobal` · `/requests` · `/revoke` · `/s` · `/semmsg` · `/setdesc` · `/setgroup` · `/setsubject` · `/st` · `/stb` · `/sticker` · `/stickertext` · `/stickertextblink` · `/stickertextwhite` · `/stw` · `/temp` · `/tiktok` · `/toimg` · `/up` · `/updaterequests` · `/user perfil` · `/welcome`
+`/add` · `/addmode` · `/autorequests` · `/autosticker` · `/ban` · `/captcha` · `/cat` · `/catimg` · `/catprompt` · `/catprompt reset` · `/chatwindow` · `/dado` · `/down` · `/farewell` · `/groups` · `/info` · `/invite` · `/join` · `/leave` · `/menu anime` · `/menu figurinhas` · `/menu ia` · `/menu midia` · `/menu quote` · `/menu stats` · `/menuadm` · `/metadata` · `/newgroup` · `/noticias` · `/nsfw` · `/pack add` · `/pack create` · `/pack list` · `/pack send` · `/ping` · `/play` · `/playvid` · `/prefix` · `/premium` · `/quote` · `/ranking` · `/rankingglobal` · `/requests` · `/revoke` · `/s` · `/semmsg` · `/setdesc` · `/setgroup` · `/setsubject` · `/st` · `/stb` · `/sticker` · `/stickermode` · `/stickermsglimit` · `/stickertext` · `/stickertextblink` · `/stickertextwhite` · `/stw` · `/temp` · `/tiktok` · `/toimg` · `/up` · `/updaterequests` · `/user perfil` · `/welcome`
 
 </details>
 <!-- README_SNAPSHOT:END -->
