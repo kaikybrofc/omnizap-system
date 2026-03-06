@@ -1,4 +1,13 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser } from '@whiskeysockets/baileys';
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  Browsers,
+  getAggregateVotesInPollMessage,
+  areJidsSameUser,
+  WAMessageStatus,
+  WAMessageStubType,
+  WAMessageAddressingMode,
+} from '@whiskeysockets/baileys';
 
 import NodeCache from 'node-cache';
 import { resolveBaileysVersion } from '../config/baileysConfig.js';
@@ -94,6 +103,59 @@ const DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS = [
 const BAILEYS_EVENT_JOURNAL_EVENT_LIST = parseEnvCsv(process.env.BAILEYS_EVENT_JOURNAL_EVENTS, DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS);
 const BAILEYS_EVENT_JOURNAL_ALL_EVENTS = BAILEYS_EVENT_JOURNAL_EVENT_LIST.includes('*');
 const BAILEYS_EVENT_JOURNAL_EVENTS = new Set(BAILEYS_EVENT_JOURNAL_EVENT_LIST.filter((eventName) => eventName !== '*'));
+const MESSAGE_RECEIPT_TYPES = new Set(['read', 'read-self', 'hist_sync', 'peer_msg', 'sender', 'inactive', 'played']);
+const MESSAGE_STATUS_CODE_TO_NAME = new Map(
+  Object.entries(WAMessageStatus)
+    .filter(([, value]) => typeof value === 'number')
+    .map(([name, value]) => [value, name]),
+);
+const MESSAGE_STUB_CODE_TO_NAME = new Map(
+  Object.entries(WAMessageStubType)
+    .filter(([, value]) => typeof value === 'number')
+    .map(([name, value]) => [value, name]),
+);
+
+const normalizeAddressingMode = (value) => {
+  if (value === WAMessageAddressingMode.LID) return WAMessageAddressingMode.LID;
+  if (value === WAMessageAddressingMode.PN) return WAMessageAddressingMode.PN;
+  return undefined;
+};
+
+const resolveAddressingModeFromMessageKey = (key) => {
+  const explicit = normalizeAddressingMode(key?.addressingMode);
+  if (explicit) return explicit;
+
+  const identityCandidate = key?.participant || key?.participantAlt || key?.remoteJid || key?.remoteJidAlt || '';
+  if (isLidUserId(identityCandidate)) return WAMessageAddressingMode.LID;
+  if (isWhatsAppUserId(identityCandidate)) return WAMessageAddressingMode.PN;
+  return undefined;
+};
+
+const normalizeMessageStatus = (status) => {
+  const statusCode = Number(status);
+  if (!Number.isFinite(statusCode)) return null;
+  return {
+    code: statusCode,
+    name: MESSAGE_STATUS_CODE_TO_NAME.get(statusCode) || null,
+  };
+};
+
+const normalizeMessageStubType = (stubType) => {
+  const stubTypeCode = Number(stubType);
+  if (!Number.isFinite(stubTypeCode)) return null;
+  return {
+    code: stubTypeCode,
+    name: MESSAGE_STUB_CODE_TO_NAME.get(stubTypeCode) || null,
+  };
+};
+
+const normalizeMessageReceiptType = (receiptType) => {
+  if (receiptType === undefined) return undefined;
+  if (typeof receiptType !== 'string') return undefined;
+  const normalizedType = receiptType.trim();
+  if (!normalizedType) return undefined;
+  return MESSAGE_RECEIPT_TYPES.has(normalizedType) ? normalizedType : undefined;
+};
 
 let activeSocket = null;
 let connectionAttempts = 0;
@@ -124,7 +186,16 @@ let reconnectTimeout = null;
 let connectPromise = null;
 let socketGeneration = 0;
 const BAILEYS_EVENT_NAMES = ['connection.update', 'creds.update', 'messaging-history.set', 'chats.upsert', 'chats.update', 'lid-mapping.update', 'chats.delete', 'presence.update', 'contacts.upsert', 'contacts.update', 'messages.delete', 'messages.update', 'messages.media-update', 'messages.upsert', 'messages.reaction', 'message-receipt.update', 'groups.upsert', 'groups.update', 'group-participants.update', 'group.join-request', 'group.member-tag.update', 'blocklist.set', 'blocklist.update', 'call', 'labels.edit', 'labels.association', 'newsletter.reaction', 'newsletter.view', 'newsletter-participants.update', 'newsletter-settings.update', 'chats.lock', 'settings.update'];
-const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set(['creds.update', 'connection.update', 'messages.upsert', 'messages.update', 'groups.update', 'group-participants.update']);
+const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set([
+  'creds.update',
+  'connection.update',
+  'messages.upsert',
+  'messages.update',
+  'messages.media-update',
+  'message-receipt.update',
+  'groups.update',
+  'group-participants.update',
+]);
 const BAILEYS_NOISY_EVENTS_IN_PRODUCTION = new Set(['presence.update']);
 
 const createCacheStoreAdapter = (cache) => ({
@@ -236,7 +307,7 @@ const resolveCachedGroupMetadata = async (jid) => {
       owner: data.owner_jid || data.owner || undefined,
       creation: Number.isFinite(Number(data.creation)) ? Number(data.creation) : undefined,
       participants,
-      addressingMode: data.addressing_mode || data.addressingMode || undefined,
+      addressingMode: normalizeAddressingMode(data.addressing_mode || data.addressingMode),
       ephemeralDuration: Number.isFinite(Number(data.ephemeral_duration ?? data.ephemeralDuration)) ? Number(data.ephemeral_duration ?? data.ephemeralDuration) : undefined,
     };
 
@@ -307,6 +378,39 @@ const summarizeBaileysEventPayload = (eventName, payload) => {
         summary.jid = payload.jid ?? null;
       } else if (Array.isArray(payload.keys)) {
         summary.keysCount = payload.keys.length;
+      }
+      break;
+    case 'messages.update':
+      if (Array.isArray(payload)) {
+        summary.updatesCount = payload.length;
+        const firstUpdate = payload[0];
+        const status = normalizeMessageStatus(firstUpdate?.update?.status);
+        const stubType = normalizeMessageStubType(firstUpdate?.update?.messageStubType ?? firstUpdate?.update?.stubType);
+        const addressingMode = resolveAddressingModeFromMessageKey(firstUpdate?.key);
+        summary.pollUpdatesCount = payload.filter((entry) => Array.isArray(entry?.update?.pollUpdates) && entry.update.pollUpdates.length > 0).length;
+        summary.firstStatusCode = status?.code ?? null;
+        summary.firstStatusName = status?.name ?? null;
+        summary.firstStubTypeCode = stubType?.code ?? null;
+        summary.firstStubTypeName = stubType?.name ?? null;
+        summary.firstAddressingMode = addressingMode ?? null;
+      }
+      break;
+    case 'messages.media-update':
+      if (Array.isArray(payload)) {
+        summary.updatesCount = payload.length;
+        summary.withMediaCount = payload.filter((entry) => Boolean(entry?.media)).length;
+        summary.withErrorCount = payload.filter((entry) => Boolean(entry?.error)).length;
+      }
+      break;
+    case 'message-receipt.update':
+      if (Array.isArray(payload)) {
+        summary.receiptsCount = payload.length;
+        const receiptTypes = new Set();
+        for (const entry of payload) {
+          const type = normalizeMessageReceiptType(entry?.receipt?.type);
+          if (type) receiptTypes.add(type);
+        }
+        summary.receiptTypes = Array.from(receiptTypes).slice(0, 8);
       }
       break;
     case 'blocklist.set':
@@ -587,9 +691,20 @@ async function persistIncomingMessages(incomingMessages, type) {
 
   for (const msg of incomingMessages) {
     if (!msg.message || msg.key.remoteJid === 'status@broadcast') continue;
-    const senderInfo = extractSenderInfoFromMessage(msg);
+    const resolvedAddressingMode = resolveAddressingModeFromMessageKey(msg?.key);
+    const normalizedMsg = resolvedAddressingMode && msg?.key && msg.key.addressingMode !== resolvedAddressingMode
+      ? {
+          ...msg,
+          key: {
+            ...msg.key,
+            addressingMode: resolvedAddressingMode,
+          },
+        }
+      : msg;
+
+    const senderInfo = extractSenderInfoFromMessage(normalizedMsg);
     if (senderInfo.lid) lidsToPrime.add(senderInfo.lid);
-    entries.push({ msg, senderInfo });
+    entries.push({ msg: normalizedMsg, senderInfo });
   }
 
   if (lidsToPrime.size > 0) {
@@ -962,6 +1077,55 @@ export async function connectToWhatsApp() {
       }
     });
 
+    sock.ev.on('messages.media-update', (updates) => {
+      if (!isCurrentSocket()) return;
+      if (!Array.isArray(updates)) return;
+
+      const erroredUpdates = updates.filter((entry) => entry?.error);
+      if (erroredUpdates.length > 0) {
+        const firstError = erroredUpdates[0]?.error;
+        logger.warn('Falha reportada em atualização de mídia.', {
+          action: 'messages_media_update_error',
+          updatesCount: updates.length,
+          errorCount: erroredUpdates.length,
+          firstMessageId: erroredUpdates[0]?.key?.id || null,
+          firstRemoteJid: erroredUpdates[0]?.key?.remoteJid || null,
+          firstErrorMessage: firstError?.message || null,
+        });
+        return;
+      }
+
+      logger.debug('Atualização de mídia de mensagem recebida.', {
+        action: 'messages_media_update',
+        updatesCount: updates.length,
+      });
+    });
+
+    sock.ev.on('message-receipt.update', (updates) => {
+      if (!isCurrentSocket()) return;
+      if (!Array.isArray(updates) || updates.length === 0) return;
+
+      const receiptTypes = new Set();
+      let invalidReceiptTypeCount = 0;
+      for (const update of updates) {
+        const receiptType = normalizeMessageReceiptType(update?.receipt?.type);
+        if (receiptType) {
+          receiptTypes.add(receiptType);
+        } else if (update?.receipt?.type !== undefined) {
+          invalidReceiptTypeCount += 1;
+        }
+      }
+
+      logger.debug('Atualização de recibos de mensagem recebida.', {
+        action: 'message_receipt_update',
+        updatesCount: updates.length,
+        receiptTypes: Array.from(receiptTypes),
+        invalidReceiptTypeCount,
+        sampleMessageId: updates[0]?.key?.id || null,
+        sampleRemoteJid: updates[0]?.key?.remoteJid || null,
+      });
+    });
+
     sock.ev.on('messages.reaction', async (updates) => {
       if (!isCurrentSocket()) return;
       try {
@@ -1206,12 +1370,32 @@ async function handleConnectionUpdate(update, sock) {
 /**
  * Processa atualizações em mensagens existentes, como votos em enquetes.
  * @async
- * @param {Array<import('@whiskeysockets/baileys').MessageUpdate>} updates - Atualizações de mensagens.
+ * @param {Array<import('@whiskeysockets/baileys').WAMessageUpdate>} updates - Atualizações de mensagens.
  * @param {import('@whiskeysockets/baileys').WASocket} sock - Instância do socket do WhatsApp.
  * @returns {Promise<void>} Conclusão do processamento das atualizações.
  */
 async function handleMessageUpdate(updates, sock) {
   for (const { key, update } of updates) {
+    const status = normalizeMessageStatus(update?.status);
+    const stubType = normalizeMessageStubType(update?.messageStubType ?? update?.stubType);
+    const addressingMode = resolveAddressingModeFromMessageKey(key);
+
+    if (status || stubType || addressingMode) {
+      logger.debug('Atualização de estado da mensagem recebida.', {
+        action: 'message_state_update',
+        remoteJid: key?.remoteJid || null,
+        messageId: key?.id || null,
+        participant: key?.participant || null,
+        participantAlt: key?.participantAlt || null,
+        addressingMode: addressingMode || null,
+        statusCode: status?.code ?? null,
+        statusName: status?.name ?? null,
+        stubTypeCode: stubType?.code ?? null,
+        stubTypeName: stubType?.name ?? null,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     if (update.pollUpdates) {
       try {
         const pollCreation = await sock.getMessage(key);

@@ -9,6 +9,74 @@ const parseEnvInt = (value, fallback, min, max) => {
 
 const BAILEYS_SEND_RETRY_ATTEMPTS = parseEnvInt(process.env.BAILEYS_SEND_RETRY_ATTEMPTS, 2, 1, 5);
 const BAILEYS_SEND_RETRY_BASE_DELAY_MS = parseEnvInt(process.env.BAILEYS_SEND_RETRY_BASE_DELAY_MS, 600, 100, 10_000);
+const BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS = parseEnvInt(process.env.BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS, 0, 0, 120_000);
+
+const isPlainObject = (value) => Object.prototype.toString.call(value) === '[object Object]';
+
+const ANY_MESSAGE_CONTENT_PRIMARY_KEYS = new Set([
+  'text',
+  'image',
+  'video',
+  'audio',
+  'sticker',
+  'document',
+  'event',
+  'poll',
+  'contacts',
+  'location',
+  'react',
+  'buttonReply',
+  'groupInvite',
+  'listReply',
+  'pin',
+  'product',
+  'sharePhoneNumber',
+  'requestPhoneNumber',
+  'forward',
+  'delete',
+  'disappearingMessagesInChat',
+  'limitSharing',
+]);
+
+/**
+ * Verifica se o payload se parece com AnyMessageContent do Baileys.
+ * @param {unknown} content
+ * @returns {boolean}
+ */
+const hasKnownAnyMessageContentShape = (content) => {
+  if (!isPlainObject(content)) return false;
+  return Object.keys(content).some((key) => ANY_MESSAGE_CONTENT_PRIMARY_KEYS.has(key));
+};
+
+/**
+ * Normaliza opções de envio aceitas pelo Baileys (MiscMessageGenerationOptions).
+ * @param {unknown} options
+ * @returns {import('@whiskeysockets/baileys').MiscMessageGenerationOptions|undefined}
+ */
+const normalizeSendOptions = (options) => {
+  if (!isPlainObject(options)) return undefined;
+
+  const normalized = { ...options };
+
+  if (typeof normalized.messageId === 'string') {
+    const trimmedMessageId = normalized.messageId.trim();
+    if (trimmedMessageId) {
+      normalized.messageId = trimmedMessageId;
+    } else {
+      delete normalized.messageId;
+    }
+  }
+
+  if (typeof normalized.mediaUploadTimeoutMs !== 'number' && BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS > 0) {
+    normalized.mediaUploadTimeoutMs = BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS;
+  }
+
+  if (normalized.statusJidList !== undefined && !Array.isArray(normalized.statusJidList)) {
+    delete normalized.statusJidList;
+  }
+
+  return normalized;
+};
 
 /**
  * Converte um timestamp da mensagem para ms com fallback seguro.
@@ -66,11 +134,25 @@ const shouldRefreshMediaConnection = (error) => {
  * Envia uma mensagem via Baileys e persiste imediatamente o retorno.
  * @param {import('@whiskeysockets/baileys').WASocket} sock
  * @param {string} jid
- * @param {Object} content
- * @param {Object} [options]
+ * @param {import('@whiskeysockets/baileys').AnyMessageContent} content
+ * @param {import('@whiskeysockets/baileys').MiscMessageGenerationOptions} [options]
  * @returns {Promise<import('@whiskeysockets/baileys').WAMessage|undefined>}
  */
 export async function sendAndStore(sock, jid, content, options) {
+  if (!sock || typeof sock.sendMessage !== 'function') {
+    throw new TypeError('Socket Baileys inválido: sendMessage indisponível.');
+  }
+
+  if (!jid || typeof jid !== 'string') {
+    throw new TypeError('JID inválido para envio de mensagem.');
+  }
+
+  if (!hasKnownAnyMessageContentShape(content)) {
+    const payloadKeys = isPlainObject(content) ? Object.keys(content).slice(0, 10) : [];
+    throw new TypeError(`Payload de mensagem inválido. Chaves recebidas: ${payloadKeys.join(', ') || 'nenhuma'}`);
+  }
+
+  const normalizedOptions = normalizeSendOptions(options);
   let attempt = 0;
   let sent;
   let lastError;
@@ -78,7 +160,7 @@ export async function sendAndStore(sock, jid, content, options) {
   while (attempt < BAILEYS_SEND_RETRY_ATTEMPTS) {
     attempt += 1;
     try {
-      sent = await sock.sendMessage(jid, content, options);
+      sent = await sock.sendMessage(jid, content, normalizedOptions);
       break;
     } catch (error) {
       lastError = error;

@@ -52,11 +52,17 @@ const parseEnvBool = (value, fallback) => {
   if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
   return fallback;
 };
+const parseEnvInt = (value, fallback, min, max) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(parsed)));
+};
 const MESSAGE_ANALYTICS_ENABLED = parseEnvBool(process.env.MESSAGE_ANALYTICS_ENABLED, true);
 const MESSAGE_ANALYTICS_SOURCE =
   String(process.env.MESSAGE_ANALYTICS_SOURCE || 'whatsapp')
     .trim()
     .slice(0, 32) || 'whatsapp';
+const MESSAGE_COMMAND_DEDUPE_TTL_MS = parseEnvInt(process.env.MESSAGE_COMMAND_DEDUPE_TTL_MS, 120_000, 15_000, 30 * 60 * 1000);
 const WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN = parseEnvBool(process.env.WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN, true);
 const SITE_ORIGIN =
   String(process.env.SITE_ORIGIN || process.env.WHATSAPP_LOGIN_BASE_URL || 'https://omnizap.shop')
@@ -68,6 +74,43 @@ const SITE_GROUP_LOGIN_URL = `${SITE_ORIGIN}/login`;
 const KNOWN_MESSAGE_COMMANDS = new Set(['menu', 'sticker', 's', 'pack', 'packs', 'toimg', 'tovideo', 'tovid', 'play', 'playvid', 'tiktok', 'tt', 'cat', 'catimg', 'catimage', 'catprompt', 'iaprompt', 'promptia', 'quote', 'qc', 'wp', 'waifupics', 'wpnsfw', 'waifupicsnsfw', 'wppicshelp', 'stickertext', 'st', 'stickertextwhite', 'stw', 'stickertextblink', 'stb', 'ranking', 'rank', 'top5', 'rankingglobal', 'rankglobal', 'globalrank', 'globalranking', 'semmsg', 'zeromsg', 'nomsg', 'inativos', 'ping', 'dado', 'dice', 'user', 'usuario', 'rpg', 'aviso', 'notice']);
 
 let messageAnalyticsTableMissingLogged = false;
+const recentCommandExecutions = new Map();
+
+const pruneRecentCommandExecutions = (nowMs = Date.now()) => {
+  for (const [cacheKey, expiresAt] of recentCommandExecutions.entries()) {
+    if (expiresAt <= nowMs) {
+      recentCommandExecutions.delete(cacheKey);
+    }
+  }
+};
+
+const buildCommandExecutionCacheKey = (chatId, messageId) => {
+  const normalizedChatId = String(chatId || '').trim();
+  const normalizedMessageId = String(messageId || '').trim();
+  if (!normalizedChatId || !normalizedMessageId) return '';
+  return `${normalizedChatId}:${normalizedMessageId}`;
+};
+
+const isDuplicateCommandExecution = (chatId, messageId) => {
+  const cacheKey = buildCommandExecutionCacheKey(chatId, messageId);
+  if (!cacheKey) return false;
+
+  const nowMs = Date.now();
+  const expiresAt = recentCommandExecutions.get(cacheKey) || 0;
+  if (expiresAt <= nowMs) {
+    recentCommandExecutions.delete(cacheKey);
+    return false;
+  }
+
+  return true;
+};
+
+const markCommandExecution = (chatId, messageId) => {
+  const cacheKey = buildCommandExecutionCacheKey(chatId, messageId);
+  if (!cacheKey) return;
+  pruneRecentCommandExecutions(Date.now());
+  recentCommandExecutions.set(cacheKey, Date.now() + MESSAGE_COMMAND_DEDUPE_TTL_MS);
+};
 
 const normalizeTriggerText = (value) =>
   String(value || '')
@@ -112,17 +155,85 @@ const resolveCanonicalSenderJidFromMessage = async ({ messageInfo, senderJid }) 
   return canonicalUserId;
 };
 
+const resolveAddressingModeFromMessageKey = (key = {}, senderInfo = {}) => {
+  const explicit = String(key?.addressingMode || '')
+    .trim()
+    .toLowerCase();
+  if (explicit === 'lid') return 'lid';
+  if (explicit === 'pn') return 'pn';
+
+  const candidates = [senderInfo?.lid, key?.participant, key?.participantAlt, key?.remoteJid, key?.remoteJidAlt];
+  for (const candidate of candidates) {
+    const normalized = normalizeJid(String(candidate || '').trim());
+    if (!normalized) continue;
+    const server = String(getJidServer(normalized) || '').trim().toLowerCase();
+    if (server === 'lid') return 'lid';
+    if (WHATSAPP_USER_SERVERS.has(server)) return 'pn';
+  }
+
+  return undefined;
+};
+
+const resolveSenderContext = async ({ messageInfo, isGroupMessage, remoteJid }) => {
+  const key = messageInfo?.key || {};
+  const senderInfo = extractSenderInfoFromMessage(messageInfo);
+  let resolvedUserId = '';
+
+  try {
+    const resolved = await resolveUserId(senderInfo);
+    resolvedUserId = String(resolved || '').trim();
+  } catch (error) {
+    logger.debug('Falha ao resolver senderId via lidMapService.', {
+      action: 'resolve_sender_context_failed',
+      error: error?.message,
+    });
+  }
+
+  const senderJidCandidates = isGroupMessage
+    ? [resolvedUserId, senderInfo?.jid, senderInfo?.participantAlt, key.participantAlt, key.participant, key.remoteJidAlt, remoteJid]
+    : [resolvedUserId, senderInfo?.jid, senderInfo?.participantAlt, key.remoteJidAlt, key.remoteJid, remoteJid];
+
+  const canonicalSender = resolveCanonicalWhatsAppJid(...senderJidCandidates);
+  const fallbackSender = senderJidCandidates.find((candidate) => String(candidate || '').trim()) || '';
+  const senderJid = canonicalSender || String(fallbackSender || '').trim();
+  const addressingMode = resolveAddressingModeFromMessageKey(key, senderInfo);
+
+  const senderIdentity = isGroupMessage
+    ? {
+        participant: key?.participant || null,
+        participantAlt: key?.participantAlt || null,
+        jid: senderJid || null,
+      }
+    : senderJid;
+
+  return {
+    senderJid,
+    senderIdentity,
+    senderInfo,
+    resolvedUserId,
+    addressingMode,
+  };
+};
+
+const sendReply = (sock, remoteJid, messageInfo, expirationMessage, content, options = {}) =>
+  sendAndStore(sock, remoteJid, content, {
+    quoted: messageInfo,
+    ephemeralExpiration: expirationMessage,
+    ...(options || {}),
+  });
+
 const maybeHandleStartLoginMessage = async ({ sock, messageInfo, extractedText, senderName, senderJid, remoteJid, expirationMessage, isMessageFromBot, isGroupMessage }) => {
   if (isMessageFromBot || !isStartLoginTrigger(extractedText)) return false;
 
   if (isGroupMessage) {
-    await sendAndStore(
+    await sendReply(
       sock,
       remoteJid,
+      messageInfo,
+      expirationMessage,
       {
         text: 'Por seguranca, envie *iniciar* no privado do bot para receber seu link de login.',
       },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return true;
   }
@@ -142,26 +253,28 @@ const maybeHandleStartLoginMessage = async ({ sock, messageInfo, extractedText, 
       hasLid: Boolean(senderInfo?.lid),
       hasJid: Boolean(senderInfo?.jid),
     });
-    await sendAndStore(
+    await sendReply(
       sock,
       remoteJid,
+      messageInfo,
+      expirationMessage,
       {
         text: 'Nao consegui identificar seu numero de WhatsApp para o login. Tente novamente em alguns segundos.',
       },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
     return true;
   }
 
   const safeName = String(senderName || '').trim();
   const greeting = safeName ? `Oi, *${safeName}*!` : 'Oi!';
-  await sendAndStore(
+  await sendReply(
     sock,
     remoteJid,
+    messageInfo,
+    expirationMessage,
     {
       text: `${greeting}\n\n` + 'Para continuar no OmniZap, faca login com Google neste link:\n' + `${loginUrl}\n\n` + 'Seu numero do WhatsApp sera vinculado automaticamente a conta logada.',
     },
-    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 
   return true;
@@ -193,14 +306,15 @@ const formatRemainingMinutesLabel = (remainingMs) => {
  */
 const runCommand = (label, handler) => {
   try {
-    const result = handler();
-    if (result && typeof result.catch === 'function') {
-      result.catch((error) => {
-        logger.error(`Erro ao executar comando ${label}:`, error.message);
+    return Promise.resolve(handler())
+      .then(() => ({ ok: true }))
+      .catch((error) => {
+        logger.error(`Erro ao executar comando ${label}:`, error?.message);
+        return { ok: false, error };
       });
-    }
   } catch (error) {
-    logger.error(`Erro ao executar comando ${label}:`, error.message);
+    logger.error(`Erro ao executar comando ${label}:`, error?.message);
+    return Promise.resolve({ ok: false, error });
   }
 };
 
@@ -280,13 +394,14 @@ const ensureUserHasGoogleWebLoginForCommand = async ({ sock, messageInfo, sender
   const loginUrl = isGroupMessage ? SITE_GROUP_LOGIN_URL : buildSiteLoginUrlForUser(canonicalUserId || senderJid);
   const loginMessage = isGroupMessage ? `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nAcesse:\n${loginUrl}` : `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nCadastre-se / faça login em:\n${loginUrl}\n\nDepois volte aqui e envie o comando novamente (ex.: ${commandPrefix}menu).`;
 
-  await sendAndStore(
+  await sendReply(
     sock,
     remoteJid,
+    messageInfo,
+    expirationMessage,
     {
       text: loginMessage,
     },
-    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 
   return {
@@ -304,22 +419,26 @@ const ensureUserHasGoogleWebLoginForCommand = async ({ sock, messageInfo, sender
 export const handleMessages = async (update, sock) => {
   if (update.messages && Array.isArray(update.messages)) {
     try {
+      const upsertType = update?.type || null;
+      const isNotifyUpsert = upsertType === 'notify';
+
       for (const messageInfo of update.messages) {
-        const extractedText = extractMessageContent(messageInfo);
-        const remoteJid = messageInfo.key.remoteJid;
+        const key = messageInfo?.key || {};
+        const remoteJid = key?.remoteJid;
+        if (!remoteJid) continue;
+
         const isGroupMessage = isGroupJid(remoteJid);
-        const senderJid = isGroupMessage ? messageInfo.key.participant : messageInfo.key?.remoteJidAlt || remoteJid;
-        const senderIdentity = isGroupMessage
-          ? {
-              participant: messageInfo.key?.participant || null,
-              participantAlt: messageInfo.key?.participantAlt || null,
-              jid: senderJid || null,
-            }
-          : senderJid;
-        const senderName = messageInfo.pushName;
+        const extractedText = extractMessageContent(messageInfo);
+        const { senderJid, senderIdentity, addressingMode } = await resolveSenderContext({
+          messageInfo,
+          isGroupMessage,
+          remoteJid,
+        });
+
+        const senderName = messageInfo?.pushName;
         const expirationMessage = getExpiration(messageInfo);
         const botJid = resolveBotJid(sock?.user?.id);
-        const isMessageFromBot = Boolean(messageInfo?.key?.fromMe) || (botJid ? isSameJidUser(senderJid, botJid) : false);
+        const isMessageFromBot = Boolean(key?.fromMe) || (botJid ? isSameJidUser(senderJid, botJid) : false);
         let commandPrefix = DEFAULT_COMMAND_PREFIX;
         let groupConfig = null;
         const mediaEntries = detectAllMediaTypes(messageInfo?.message, false);
@@ -331,12 +450,13 @@ export const handleMessages = async (update, sock) => {
           )
           .filter(Boolean)
           .slice(0, 10);
+
         const analysisPayload = {
-          messageId: messageInfo?.key?.id || null,
+          messageId: key?.id || null,
           chatId: remoteJid || null,
           senderId: senderJid || null,
           senderName,
-          upsertType: update?.type || null,
+          upsertType,
           source: MESSAGE_ANALYTICS_SOURCE,
           isGroup: isGroupMessage,
           isFromBot: isMessageFromBot,
@@ -354,18 +474,38 @@ export const handleMessages = async (update, sock) => {
           metadata: {
             media_types: mediaTypes,
             start_login_trigger: isStartLoginTrigger(extractedText),
+            upsert_type: upsertType,
+            is_notify_upsert: isNotifyUpsert,
+            is_history_append: upsertType === 'append',
+            addressing_mode: addressingMode || null,
+            participant_alt: key?.participantAlt || null,
+            remote_jid_alt: key?.remoteJidAlt || null,
           },
         };
 
         try {
-          /**
-           * Executa validações de grupo.
-           * Aplica o Anti-Link e resolve o prefixo do grupo.
-           * Se a mensagem for bloqueada, interrompe o processamento.
-           */
+          const isStatusBroadcast = remoteJid === 'status@broadcast';
+          const isStubMessage = typeof messageInfo?.messageStubType === 'number';
+          const isProtocolMessage = Boolean(messageInfo?.message?.protocolMessage);
+          const isMissingMessage = !messageInfo?.message;
+
+          if (isStatusBroadcast || isStubMessage || isProtocolMessage || isMissingMessage) {
+            analysisPayload.processingResult = 'ignored_unprocessable';
+            analysisPayload.metadata = {
+              ...analysisPayload.metadata,
+              ignored_reason: isStatusBroadcast
+                ? 'status_broadcast'
+                : isStubMessage
+                  ? 'stub_message'
+                  : isProtocolMessage
+                    ? 'protocol_message'
+                    : 'missing_message_node',
+            };
+            continue;
+          }
+
           if (isGroupMessage) {
             const shouldSkip = await handleAntiLink({ sock, messageInfo, extractedText, remoteJid, senderJid, botJid });
-
             if (shouldSkip) {
               analysisPayload.processingResult = 'blocked_antilink';
               analysisPayload.metadata = {
@@ -374,6 +514,7 @@ export const handleMessages = async (update, sock) => {
               };
               continue;
             }
+
             groupConfig = await groupConfigStore.getGroupConfig(remoteJid);
             commandPrefix = await resolveCommandPrefix(true, remoteJid, groupConfig);
             analysisPayload.commandPrefix = commandPrefix;
@@ -384,23 +525,25 @@ export const handleMessages = async (update, sock) => {
               groupId: remoteJid,
               senderJid,
               senderIdentity,
-              messageKey: messageInfo.key,
+              messageKey: key,
               messageInfo,
               extractedText,
             });
           }
 
-          const handledStartLogin = await maybeHandleStartLoginMessage({
-            sock,
-            messageInfo,
-            extractedText,
-            senderName,
-            senderJid,
-            remoteJid,
-            expirationMessage,
-            isMessageFromBot,
-            isGroupMessage,
-          });
+          const handledStartLogin = isNotifyUpsert
+            ? await maybeHandleStartLoginMessage({
+                sock,
+                messageInfo,
+                extractedText,
+                senderName,
+                senderJid,
+                remoteJid,
+                expirationMessage,
+                isMessageFromBot,
+                isGroupMessage,
+              })
+            : false;
 
           if (handledStartLogin) {
             analysisPayload.processingResult = 'handled_start_login';
@@ -411,13 +554,17 @@ export const handleMessages = async (update, sock) => {
             continue;
           }
 
-          /**
-           * Envia uma reação automática quando a mensagem começa com o prefixo de comando.
-           * A falha no envio da reação não interrompe o processamento do comando.
-           */
-          const isCommandMessage = extractedText.startsWith(commandPrefix);
+          const hasCommandPrefix = extractedText.startsWith(commandPrefix);
+          const isCommandMessage = hasCommandPrefix && isNotifyUpsert;
           analysisPayload.isCommand = isCommandMessage;
           analysisPayload.commandPrefix = commandPrefix;
+
+          if (hasCommandPrefix && !isNotifyUpsert) {
+            analysisPayload.metadata = {
+              ...analysisPayload.metadata,
+              command_suppressed_reason: 'non_notify_upsert',
+            };
+          }
 
           if (isGroupMessage && !isCommandMessage && !isMessageFromBot) {
             const activeGroupConfig = groupConfig || (await groupConfigStore.getGroupConfig(remoteJid));
@@ -433,71 +580,65 @@ export const handleMessages = async (update, sock) => {
 
               if (messageClassification.isThrottleCandidate) {
                 const senderIsAdmin = await isUserAdmin(remoteJid, senderJid);
-                if (!senderIsAdmin) {
-                  if (!stickerFocusState.isChatWindowOpen) {
-                    const messageGate = canSendMessageInStickerFocus({
-                      groupId: remoteJid,
-                      senderJid,
-                      messageCooldownMs: stickerFocusState.messageCooldownMs,
-                    });
+                if (!senderIsAdmin && !stickerFocusState.isChatWindowOpen) {
+                  const messageGate = canSendMessageInStickerFocus({
+                    groupId: remoteJid,
+                    senderJid,
+                    messageCooldownMs: stickerFocusState.messageCooldownMs,
+                  });
 
-                    if (!messageGate.allowed) {
-                      analysisPayload.processingResult = 'blocked_sticker_focus_message';
-                      analysisPayload.metadata = {
-                        ...analysisPayload.metadata,
-                        blocked_by: 'sticker_focus_mode',
-                        sticker_focus_message_type: messageClassification.messageType,
-                        sticker_focus_message_cooldown_minutes: stickerFocusState.messageCooldownMinutes,
-                        sticker_focus_remaining_minutes: formatRemainingMinutesLabel(messageGate.remainingMs),
-                      };
+                  if (!messageGate.allowed) {
+                    analysisPayload.processingResult = 'blocked_sticker_focus_message';
+                    analysisPayload.metadata = {
+                      ...analysisPayload.metadata,
+                      blocked_by: 'sticker_focus_mode',
+                      sticker_focus_message_type: messageClassification.messageType,
+                      sticker_focus_message_cooldown_minutes: stickerFocusState.messageCooldownMinutes,
+                      sticker_focus_remaining_minutes: formatRemainingMinutesLabel(messageGate.remainingMs),
+                    };
 
+                    try {
+                      await sendAndStore(sock, remoteJid, { delete: key });
+                    } catch (error) {
+                      logger.warn('Falha ao apagar mensagem fora da politica de sticker focus.', {
+                        action: 'sticker_focus_delete_failed',
+                        groupId: remoteJid,
+                        senderJid,
+                        error: error?.message,
+                      });
+                    }
+
+                    if (shouldSendStickerFocusWarning({ groupId: remoteJid, senderJid })) {
                       try {
-                        await sendAndStore(sock, remoteJid, { delete: messageInfo.key });
+                        await sendReply(
+                          sock,
+                          remoteJid,
+                          messageInfo,
+                          expirationMessage,
+                          {
+                            text:
+                              '🖼️ Este grupo está em *modo sticker*.\n' +
+                              `Fora da janela de chat, cada usuário pode enviar mensagem a cada *${stickerFocusState.messageCooldownMinutes} min*.\n` +
+                              `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${commandPrefix}chatwindow on*.`,
+                          },
+                        );
                       } catch (error) {
-                        logger.warn('Falha ao apagar mensagem fora da politica de sticker focus.', {
-                          action: 'sticker_focus_delete_failed',
+                        logger.warn('Falha ao enviar aviso de sticker focus.', {
+                          action: 'sticker_focus_warning_failed',
                           groupId: remoteJid,
                           senderJid,
                           error: error?.message,
                         });
                       }
-
-                      if (
-                        shouldSendStickerFocusWarning({
-                          groupId: remoteJid,
-                          senderJid,
-                        })
-                      ) {
-                        try {
-                          await sendAndStore(
-                            sock,
-                            remoteJid,
-                            {
-                              text:
-                                '🖼️ Este grupo está em *modo sticker*.\n' +
-                                `Fora da janela de chat, cada usuário pode enviar mensagem a cada *${stickerFocusState.messageCooldownMinutes} min*.\n` +
-                                `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${commandPrefix}chatwindow on*.`,
-                            },
-                            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                          );
-                        } catch (error) {
-                          logger.warn('Falha ao enviar aviso de sticker focus.', {
-                            action: 'sticker_focus_warning_failed',
-                            groupId: remoteJid,
-                            senderJid,
-                            error: error?.message,
-                          });
-                        }
-                      }
-
-                      continue;
                     }
 
-                    registerMessageUsageInStickerFocus({
-                      groupId: remoteJid,
-                      senderJid,
-                    });
+                    continue;
                   }
+
+                  registerMessageUsageInStickerFocus({
+                    groupId: remoteJid,
+                    senderJid,
+                  });
                 }
               }
             }
@@ -511,10 +652,21 @@ export const handleMessages = async (update, sock) => {
             const args = rawArgs ? rawArgs.split(/\s+/) : [];
             const text = match && match[2] !== undefined ? match[2] : '';
             const isAdminCommandRoute = isAdminCommand(command);
+            const isKnownCommand = KNOWN_MESSAGE_COMMANDS.has(command) || isAdminCommandRoute;
 
             analysisPayload.commandName = command || null;
             analysisPayload.commandArgsCount = args.length;
-            analysisPayload.commandKnown = KNOWN_MESSAGE_COMMANDS.has(command) || isAdminCommandRoute;
+            analysisPayload.commandKnown = isKnownCommand;
+
+            if (isDuplicateCommandExecution(remoteJid, key?.id)) {
+              analysisPayload.processingResult = 'duplicate_command_ignored';
+              analysisPayload.metadata = {
+                ...analysisPayload.metadata,
+                dedupe_ttl_ms: MESSAGE_COMMAND_DEDUPE_TTL_MS,
+              };
+              continue;
+            }
+            markCommandExecution(remoteJid, key?.id);
 
             if (!isMessageFromBot && WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN) {
               const authCheck = await ensureUserHasGoogleWebLoginForCommand({
@@ -542,129 +694,110 @@ export const handleMessages = async (update, sock) => {
                 await sendAndStore(sock, remoteJid, {
                   react: {
                     text: COMMAND_REACT_EMOJI,
-                    key: messageInfo.key,
+                    key,
                   },
                 });
               } catch (error) {
-                logger.warn('Falha ao enviar reação de comando:', error.message);
+                logger.warn('Falha ao enviar reação de comando:', error?.message);
               }
             }
 
+            let commandResult = { ok: true };
+            let commandRoute = command || 'unknown';
+
             switch (command) {
               case 'menu':
-                runCommand('menu', () => handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, commandPrefix, args));
+                commandResult = await runCommand('menu', () => handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, commandPrefix, args));
                 break;
-
               case 'sticker':
               case 's':
-                runCommand('sticker', () => processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '), { commandPrefix }));
+                commandResult = await runCommand('sticker', () => processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, args.join(' '), { commandPrefix }));
                 break;
-
               case 'pack':
               case 'packs':
-                runCommand('pack', () => handlePackCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, text, commandPrefix }));
+                commandResult = await runCommand('pack', () => handlePackCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, text, commandPrefix }));
                 break;
-
               case 'toimg':
               case 'tovideo':
               case 'tovid':
-                runCommand('toimg', () => handleStickerConvertCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid }));
+                commandResult = await runCommand('toimg', () => handleStickerConvertCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid }));
                 break;
-
               case 'play':
-                runCommand('play', () => handlePlayCommand(sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix));
+                commandResult = await runCommand('play', () => handlePlayCommand(sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix));
                 break;
-
               case 'playvid':
-                runCommand('playvid', () => handlePlayVidCommand(sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix));
+                commandResult = await runCommand('playvid', () => handlePlayVidCommand(sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix));
                 break;
-
               case 'tiktok':
               case 'tt':
-                runCommand('tiktok', () => handleTikTokCommand({ sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix }));
+                commandResult = await runCommand('tiktok', () => handleTikTokCommand({ sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix }));
                 break;
-
               case 'cat':
-                runCommand('cat', () => handleCatCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
+                commandResult = await runCommand('cat', () => handleCatCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
                 break;
-
               case 'catimg':
               case 'catimage':
-                runCommand('catimg', () => handleCatImageCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
+                commandResult = await runCommand('catimg', () => handleCatImageCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
                 break;
-
               case 'catprompt':
               case 'iaprompt':
               case 'promptia':
-                runCommand('catprompt', () => handleCatPromptCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
+                commandResult = await runCommand('catprompt', () => handleCatPromptCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
                 break;
-
               case 'quote':
               case 'qc':
-                runCommand('quote', () => handleQuoteCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, text, commandPrefix }));
+                commandResult = await runCommand('quote', () => handleQuoteCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, text, commandPrefix }));
                 break;
-
               case 'wp':
               case 'waifupics':
-                runCommand('waifupics', () => handleWaifuPicsCommand({ sock, remoteJid, messageInfo, expirationMessage, text, type: 'sfw', commandPrefix }));
+                commandResult = await runCommand('waifupics', () => handleWaifuPicsCommand({ sock, remoteJid, messageInfo, expirationMessage, text, type: 'sfw', commandPrefix }));
                 break;
-
               case 'wpnsfw':
               case 'waifupicsnsfw':
-                runCommand('waifupicsnsfw', () => handleWaifuPicsCommand({ sock, remoteJid, messageInfo, expirationMessage, text, type: 'nsfw', commandPrefix }));
+                commandResult = await runCommand('waifupicsnsfw', () => handleWaifuPicsCommand({ sock, remoteJid, messageInfo, expirationMessage, text, type: 'nsfw', commandPrefix }));
                 break;
-
               case 'wppicshelp':
-                runCommand('wppicshelp', () => sendAndStore(sock, remoteJid, { text: getWaifuPicsUsageText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage }));
+                commandResult = await runCommand('wppicshelp', () => sendReply(sock, remoteJid, messageInfo, expirationMessage, { text: getWaifuPicsUsageText(commandPrefix) }));
                 break;
-
               case 'stickertext':
               case 'st':
-                runCommand('stickertext', () => processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'black', commandPrefix }));
+                commandResult = await runCommand('stickertext', () => processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'black', commandPrefix }));
                 break;
-
               case 'stickertextwhite':
               case 'stw':
-                runCommand('stickertextwhite', () => processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'white', commandPrefix }));
+                commandResult = await runCommand('stickertextwhite', () => processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'white', commandPrefix }));
                 break;
-
               case 'stickertextblink':
               case 'stb':
-                runCommand('stickertextblink', () => processBlinkingTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'white', commandPrefix }));
+                commandResult = await runCommand('stickertextblink', () => processBlinkingTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, extraText: 'PackZoeira', expirationMessage, color: 'white', commandPrefix }));
                 break;
-
               case 'ranking':
               case 'rank':
               case 'top5':
-                runCommand('ranking', () => handleRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }));
+                commandResult = await runCommand('ranking', () => handleRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }));
                 break;
-
               case 'rankingglobal':
               case 'rankglobal':
               case 'globalrank':
               case 'globalranking':
-                runCommand('rankingglobal', () => handleGlobalRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }));
+                commandResult = await runCommand('rankingglobal', () => handleGlobalRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }));
                 break;
-
               case 'semmsg':
               case 'zeromsg':
               case 'nomsg':
               case 'inativos':
-                runCommand('semmsg', () => handleNoMessageCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, senderJid, text }));
+                commandResult = await runCommand('semmsg', () => handleNoMessageCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage, senderJid, text }));
                 break;
-
               case 'ping':
-                runCommand('ping', () => handlePingCommand({ sock, remoteJid, messageInfo, expirationMessage }));
+                commandResult = await runCommand('ping', () => handlePingCommand({ sock, remoteJid, messageInfo, expirationMessage }));
                 break;
-
               case 'dado':
               case 'dice':
-                runCommand('dado', () => handleDiceCommand({ sock, remoteJid, messageInfo, expirationMessage, args, commandPrefix }));
+                commandResult = await runCommand('dado', () => handleDiceCommand({ sock, remoteJid, messageInfo, expirationMessage, args, commandPrefix }));
                 break;
-
               case 'user':
               case 'usuario':
-                runCommand('user', () =>
+                commandResult = await runCommand('user', () =>
                   handleUserCommand({
                     sock,
                     remoteJid,
@@ -677,9 +810,8 @@ export const handleMessages = async (update, sock) => {
                   }),
                 );
                 break;
-
               case 'rpg':
-                runCommand('rpg', () =>
+                commandResult = await runCommand('rpg', () =>
                   handleRpgPokemonCommand({
                     sock,
                     remoteJid,
@@ -692,26 +824,23 @@ export const handleMessages = async (update, sock) => {
                   }),
                 );
                 break;
-
               case 'aviso':
               case 'notice':
-                runCommand('aviso', () => handleNoticeCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
+                commandResult = await runCommand('aviso', () => handleNoticeCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix }));
                 break;
-
               default:
                 if (isAdminCommandRoute) {
-                  runCommand('admin', () => handleAdminCommand({ command, args, text, sock, messageInfo, remoteJid, senderJid, botJid, isGroupMessage, expirationMessage, commandPrefix }));
+                  commandRoute = 'admin';
+                  commandResult = await runCommand('admin', () => handleAdminCommand({ command, args, text, sock, messageInfo, remoteJid, senderJid, botJid, isGroupMessage, expirationMessage, commandPrefix }));
                   break;
                 }
 
+                commandRoute = 'unknown';
                 analysisPayload.processingResult = 'unknown_command';
                 logger.info(`Comando desconhecido recebido: ${command}`);
-                runCommand('unknown', () =>
-                  sendAndStore(
-                    sock,
-                    remoteJid,
-                    {
-                      text: `❌ *Comando não reconhecido*
+                commandResult = await runCommand('unknown', () =>
+                  sendReply(sock, remoteJid, messageInfo, expirationMessage, {
+                    text: `❌ *Comando não reconhecido*
 
 O comando *${command}* não está configurado ou ainda não existe.
 
@@ -720,16 +849,27 @@ Digite *${commandPrefix}menu* para ver a lista de comandos disponíveis.
 
 🚧 *Fase Beta*  
 O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.`,
-                    },
-                    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-                  ),
+                  }),
                 );
                 break;
+            }
+
+            analysisPayload.metadata = {
+              ...analysisPayload.metadata,
+              command_route: commandRoute,
+            };
+
+            if (analysisPayload.processingResult === 'processed') {
+              analysisPayload.processingResult = commandResult.ok ? 'command_executed' : 'command_error';
+            }
+
+            if (!commandResult.ok) {
+              analysisPayload.errorCode = normalizeAnalysisErrorCode(commandResult.error);
             }
           }
 
           if (!isMessageFromBot) {
-            runCommand('pack-capture', () =>
+            await runCommand('pack-capture', () =>
               maybeCaptureIncomingSticker({
                 messageInfo,
                 senderJid,
@@ -750,13 +890,17 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
                   ...analysisPayload.metadata,
                   auto_sticker_media_type: autoStickerMedia.mediaType || null,
                 };
-                runCommand('autosticker', () =>
+                const autoStickerResult = await runCommand('autosticker', () =>
                   processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, '', {
                     includeQuotedMedia: false,
                     showAutoPackNotice: false,
                     commandPrefix,
                   }),
                 );
+
+                if (!autoStickerResult.ok) {
+                  analysisPayload.errorCode = normalizeAnalysisErrorCode(autoStickerResult.error);
+                }
               }
             }
           }
@@ -765,7 +909,7 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
           analysisPayload.errorCode = normalizeAnalysisErrorCode(messageError);
           logger.error('Erro ao processar mensagem individual:', {
             error: messageError?.message,
-            messageId: messageInfo?.key?.id || null,
+            messageId: key?.id || null,
             remoteJid,
           });
         } finally {
@@ -773,7 +917,7 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
         }
       }
     } catch (error) {
-      logger.error('Erro ao processar mensagens:', error.message);
+      logger.error('Erro ao processar mensagens:', error?.message);
     }
   } else {
     logger.info('🔄 Processando evento recebido:', {
