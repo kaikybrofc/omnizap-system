@@ -20,7 +20,7 @@ import { handleGroupUpdate as handleGroupParticipantsEvent, handleGroupJoinReque
 import { findBy, findById, remove } from '../../database/index.js';
 import { extractSenderInfoFromMessage, primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../services/lidMapService.js';
 import { queueBaileysEventInsert, queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
-import { buildGroupMetadataFromGroup, buildGroupMetadataFromUpdate, upsertGroupMetadata } from '../services/groupMetadataService.js';
+import { buildGroupMetadataFromGroup, buildGroupMetadataFromUpdate, upsertGroupMetadata, parseParticipantsFromDb } from '../services/groupMetadataService.js';
 import { buildMessageData } from '../services/messagePersistenceService.js';
 
 import { fileURLToPath } from 'node:url';
@@ -64,6 +64,16 @@ const GROUP_SYNC_TIMEOUT_MS = parseEnvInt(process.env.GROUP_SYNC_TIMEOUT_MS, 30 
 const GROUP_SYNC_MAX_GROUPS = parseEnvInt(process.env.GROUP_SYNC_MAX_GROUPS, 0, 0, 10_000);
 const GROUP_SYNC_BATCH_SIZE = parseEnvInt(process.env.GROUP_SYNC_BATCH_SIZE, 50, 1, 1000);
 const BAILEYS_AUTO_REJECT_CALLS = parseEnvBool(process.env.BAILEYS_AUTO_REJECT_CALLS, true);
+const BAILEYS_ENABLE_AUTO_SESSION_RECREATION = parseEnvBool(process.env.BAILEYS_ENABLE_AUTO_SESSION_RECREATION, true);
+const BAILEYS_ENABLE_RECENT_MESSAGE_CACHE = parseEnvBool(process.env.BAILEYS_ENABLE_RECENT_MESSAGE_CACHE, true);
+const BAILEYS_GENERATE_HIGH_QUALITY_LINK_PREVIEW = parseEnvBool(process.env.BAILEYS_GENERATE_HIGH_QUALITY_LINK_PREVIEW, false);
+const BAILEYS_PATCH_MESSAGE_BEFORE_SENDING = parseEnvBool(process.env.BAILEYS_PATCH_MESSAGE_BEFORE_SENDING, true);
+const BAILEYS_USER_DEVICES_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_USER_DEVICES_CACHE_TTL_SECONDS, 300, 30, 24 * 60 * 60);
+const BAILEYS_USER_DEVICES_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_USER_DEVICES_CACHE_CHECKPERIOD_SECONDS, 60, 15, 3600);
+const BAILEYS_MEDIA_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_MEDIA_CACHE_TTL_SECONDS, 3600, 60, 7 * 24 * 60 * 60);
+const BAILEYS_MEDIA_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_MEDIA_CACHE_CHECKPERIOD_SECONDS, 300, 30, 3600);
+const BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS, 120, 10, 3600);
+const BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS, 60, 10, 1800);
 const BAILEYS_EVENT_JOURNAL_ENABLED = parseEnvBool(process.env.BAILEYS_EVENT_JOURNAL_ENABLED, false);
 const DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS = [
   'connection.update',
@@ -93,6 +103,21 @@ const msgRetryCounterCache = new NodeCache({
   checkperiod: MSG_RETRY_CACHE_CHECKPERIOD_SECONDS,
   useClones: false,
 });
+const userDevicesCacheBackend = new NodeCache({
+  stdTTL: BAILEYS_USER_DEVICES_CACHE_TTL_SECONDS,
+  checkperiod: BAILEYS_USER_DEVICES_CACHE_CHECKPERIOD_SECONDS,
+  useClones: false,
+});
+const mediaCacheBackend = new NodeCache({
+  stdTTL: BAILEYS_MEDIA_CACHE_TTL_SECONDS,
+  checkperiod: BAILEYS_MEDIA_CACHE_CHECKPERIOD_SECONDS,
+  useClones: false,
+});
+const groupMetadataCache = new NodeCache({
+  stdTTL: BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS,
+  checkperiod: BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS,
+  useClones: false,
+});
 const MAX_CONNECTION_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 3000;
 let reconnectTimeout = null;
@@ -101,6 +126,136 @@ let socketGeneration = 0;
 const BAILEYS_EVENT_NAMES = ['connection.update', 'creds.update', 'messaging-history.set', 'chats.upsert', 'chats.update', 'lid-mapping.update', 'chats.delete', 'presence.update', 'contacts.upsert', 'contacts.update', 'messages.delete', 'messages.update', 'messages.media-update', 'messages.upsert', 'messages.reaction', 'message-receipt.update', 'groups.upsert', 'groups.update', 'group-participants.update', 'group.join-request', 'group.member-tag.update', 'blocklist.set', 'blocklist.update', 'call', 'labels.edit', 'labels.association', 'newsletter.reaction', 'newsletter.view', 'newsletter-participants.update', 'newsletter-settings.update', 'chats.lock', 'settings.update'];
 const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set(['creds.update', 'connection.update', 'messages.upsert', 'messages.update', 'groups.update', 'group-participants.update']);
 const BAILEYS_NOISY_EVENTS_IN_PRODUCTION = new Set(['presence.update']);
+
+const createCacheStoreAdapter = (cache) => ({
+  get: (key) => cache.get(key),
+  set: (key, value) => cache.set(key, value),
+  del: (key) => cache.del(key),
+  flushAll: () => cache.flushAll(),
+});
+
+const createExtendedCacheStoreAdapter = (cache) => ({
+  ...createCacheStoreAdapter(cache),
+  mget: (keys) => cache.mget(keys),
+  mset: (entries) => {
+    if (!Array.isArray(entries) || entries.length === 0) return;
+    cache.mset(
+      entries
+        .filter((entry) => entry && typeof entry.key === 'string')
+        .map((entry) => ({
+          key: entry.key,
+          val: entry.value,
+        })),
+    );
+  },
+  mdel: (keys) => cache.del(keys),
+});
+
+const userDevicesCache = createExtendedCacheStoreAdapter(userDevicesCacheBackend);
+const mediaCache = createCacheStoreAdapter(mediaCacheBackend);
+
+const isPlainObject = (value) => Object.prototype.toString.call(value) === '[object Object]';
+
+const sanitizeMessagePayload = (value, seen = new WeakSet()) => {
+  if (value === undefined || typeof value === 'function') return undefined;
+  if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'bigint') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  if (Buffer.isBuffer(value) || value instanceof Uint8Array || value instanceof Date) return value;
+  if (typeof value !== 'object') return value;
+  if (seen.has(value)) return undefined;
+
+  seen.add(value);
+  if (Array.isArray(value)) {
+    const sanitizedArray = [];
+    for (const item of value) {
+      const sanitized = sanitizeMessagePayload(item, seen);
+      if (typeof sanitized !== 'undefined') sanitizedArray.push(sanitized);
+    }
+    return sanitizedArray;
+  }
+
+  if (!isPlainObject(value)) return value;
+
+  const sanitizedObject = {};
+  for (const [key, item] of Object.entries(value)) {
+    const sanitized = sanitizeMessagePayload(item, seen);
+    if (typeof sanitized !== 'undefined') {
+      sanitizedObject[key] = sanitized;
+    }
+  }
+
+  return sanitizedObject;
+};
+
+const patchMessageBeforeSending = async (message) => {
+  if (!BAILEYS_PATCH_MESSAGE_BEFORE_SENDING) return message;
+  try {
+    const sanitized = sanitizeMessagePayload(message);
+    if (!sanitized || typeof sanitized !== 'object') return message;
+    return sanitized;
+  } catch (error) {
+    logger.warn('Falha ao sanitizar payload de mensagem antes do envio. Usando payload original.', {
+      action: 'patch_message_before_sending_error',
+      error: error?.message,
+    });
+    return message;
+  }
+};
+
+const buildCachedParticipants = (participantsRaw) => {
+  const participants = parseParticipantsFromDb(participantsRaw);
+  if (!Array.isArray(participants) || participants.length === 0) return [];
+  return participants
+    .map((entry) => {
+      const id = entry?.id || entry?.jid || entry?.lid || null;
+      if (!id) return null;
+      const admin = entry?.admin === 'admin' || entry?.admin === 'superadmin' ? entry.admin : entry?.isAdmin ? 'admin' : undefined;
+      return admin ? { id, admin } : { id };
+    })
+    .filter(Boolean);
+};
+
+const resolveCachedGroupMetadata = async (jid) => {
+  if (!jid || typeof jid !== 'string' || !jid.endsWith('@g.us')) return undefined;
+
+  const cached = groupMetadataCache.get(jid);
+  if (cached) return cached;
+
+  try {
+    const row = await findById('groups_metadata', jid);
+    const data = Array.isArray(row) ? row[0] : row;
+    if (!data) return undefined;
+
+    const participants = buildCachedParticipants(data.participants || data.participants_json);
+    if (participants.length === 0) return undefined;
+
+    const metadata = {
+      id: data.id || jid,
+      subject: data.subject || data.name || '',
+      desc: data.description || data.desc || '',
+      owner: data.owner_jid || data.owner || undefined,
+      creation: Number.isFinite(Number(data.creation)) ? Number(data.creation) : undefined,
+      participants,
+      addressingMode: data.addressing_mode || data.addressingMode || undefined,
+      ephemeralDuration: Number.isFinite(Number(data.ephemeral_duration ?? data.ephemeralDuration)) ? Number(data.ephemeral_duration ?? data.ephemeralDuration) : undefined,
+    };
+
+    groupMetadataCache.set(jid, metadata);
+    return metadata;
+  } catch (error) {
+    logger.debug('Falha ao resolver metadados de grupo do cache local.', {
+      action: 'cached_group_metadata_lookup_error',
+      jid,
+      error: error?.message,
+    });
+    return undefined;
+  }
+};
+
+const invalidateCachedGroupMetadata = (groupId) => {
+  if (!groupId || typeof groupId !== 'string') return;
+  groupMetadataCache.del(groupId);
+};
 
 const summarizeBaileysEventPayload = (eventName, payload) => {
   if (payload === null) return { payloadType: 'null' };
@@ -558,6 +713,9 @@ const syncGroupsOnConnectionOpen = async (sock) => {
       batch.map((group) =>
         upsertGroupMetadata(group.id, buildGroupMetadataFromGroup(group), {
           mergeExisting: false,
+        }).then((result) => {
+          invalidateCachedGroupMetadata(group.id);
+          return result;
         }),
       ),
     );
@@ -626,6 +784,13 @@ export async function connectToWhatsApp() {
       maxMsgRetryCount: 5,
       retryRequestDelayMs: 250,
       getMessage: getStoredMessage,
+      userDevicesCache,
+      mediaCache,
+      cachedGroupMetadata: resolveCachedGroupMetadata,
+      patchMessageBeforeSending,
+      enableAutoSessionRecreation: BAILEYS_ENABLE_AUTO_SESSION_RECREATION,
+      enableRecentMessageCache: BAILEYS_ENABLE_RECENT_MESSAGE_CACHE,
+      generateHighQualityLinkPreview: BAILEYS_GENERATE_HIGH_QUALITY_LINK_PREVIEW,
     });
 
     activeSocket = sock;
@@ -740,6 +905,7 @@ export async function connectToWhatsApp() {
           await upsertGroupMetadata(group.id, buildGroupMetadataFromGroup(group), {
             mergeExisting: false,
           });
+          invalidateCachedGroupMetadata(group.id);
         } catch (error) {
           logger.error('Erro no upsert do grupo:', {
             error: error.message,
@@ -855,6 +1021,7 @@ export async function connectToWhatsApp() {
           actionType: update.action,
           participants: update.participants,
         });
+        invalidateCachedGroupMetadata(update.id);
         handleGroupParticipantsEvent(sock, update.id, update.participants, update.action);
       } catch (err) {
         logger.error('Erro no evento group-participants.update:', {
@@ -1103,6 +1270,7 @@ async function handleGroupUpdate(updates) {
         const updatedData = buildGroupMetadataFromUpdate(event, oldData);
 
         await upsertGroupMetadata(groupId, updatedData, { mergeExisting: false });
+        invalidateCachedGroupMetadata(groupId);
 
         const changedFields = Object.keys(event).filter((k) => event[k] !== oldData[k]);
         logger.info('📦 Metadados do grupo atualizados', {
