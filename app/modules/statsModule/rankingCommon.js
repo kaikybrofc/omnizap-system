@@ -12,6 +12,9 @@ const RANKING_IMAGE_WIDTH = 1600;
 const RANKING_IMAGE_HEIGHT = 900;
 const RANKING_IMAGE_SCALE = 2;
 const PROFILE_FETCH_TIMEOUT_MS = 4000;
+const ELLIPSIS = '…';
+const CANVAS_FONT_STACK = "'Noto Color Emoji', 'Segoe UI Emoji', 'Apple Color Emoji', 'Segoe UI Symbol', 'Noto Sans', 'DejaVu Sans', 'Arial Unicode MS', Arial, sans-serif";
+const GRAPHEME_SEGMENTER = typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('pt-BR', { granularity: 'grapheme' }) : null;
 
 export const MESSAGE_TYPE_SQL = `
   CASE
@@ -88,9 +91,9 @@ export const getDisplayName = (pushName, mentionId) => {
 };
 
 const getShortName = (row) => {
-  if (row?.display_name && row.display_name.trim()) return row.display_name.trim();
+  if (row?.display_name && row.display_name.trim()) return toSafeCanvasText(row.display_name);
   const mentionUser = getJidUser(row?.mention_id || row?.sender_id);
-  return mentionUser ? `@${mentionUser}` : 'Desconhecido';
+  return mentionUser ? toSafeCanvasText(`@${mentionUser}`) : 'Desconhecido';
 };
 
 const resolveSenderIdsCanonical = (rawJid) => {
@@ -204,9 +207,9 @@ const drawRoundedRect = (ctx, x, y, w, h, r) => {
 };
 
 const drawTrackedText = (ctx, text, x, y, tracking = 0) => {
-  if (!text) return 0;
+  const chars = splitGraphemes(text);
+  if (!chars.length) return 0;
   let cursor = x;
-  const chars = String(text).split('');
   chars.forEach((char) => {
     ctx.fillText(char, cursor, y);
     cursor += ctx.measureText(char).width + tracking;
@@ -214,25 +217,60 @@ const drawTrackedText = (ctx, text, x, y, tracking = 0) => {
   return cursor - x;
 };
 
-const fitText = (ctx, text, maxWidth) => {
-  if (!text) return '';
-  const base = String(text);
-  if (ctx.measureText(base).width <= maxWidth) return base;
-  let trimmed = base;
-  while (trimmed.length > 0 && ctx.measureText(`${trimmed}…`).width > maxWidth) {
-    trimmed = trimmed.slice(0, -1);
+const replaceControlCharsBySpace = (text) => {
+  let normalized = '';
+  for (const char of String(text || '')) {
+    const code = char.codePointAt(0) || 0;
+    if ((code >= 0x00 && code <= 0x1f) || (code >= 0x7f && code <= 0x9f)) {
+      normalized += ' ';
+      continue;
+    }
+    normalized += char;
   }
-  return trimmed ? `${trimmed}…` : '';
+  return normalized;
+};
+
+const toSafeCanvasText = (value) => {
+  if (value === null || value === undefined) return '';
+  const normalized = String(value)
+    .normalize('NFC')
+    .replace(/\r?\n/g, ' ');
+  return replaceControlCharsBySpace(normalized).replace(/\s+/g, ' ').trim();
+};
+
+const splitGraphemes = (value) => {
+  const text = toSafeCanvasText(value);
+  if (!text) return [];
+  if (GRAPHEME_SEGMENTER) {
+    return Array.from(GRAPHEME_SEGMENTER.segment(text), (entry) => entry.segment);
+  }
+  return Array.from(text);
+};
+
+const getCanvasFont = (size, weight = 'normal') => `${weight} ${Math.max(10, Number(size) || 10)}px ${CANVAS_FONT_STACK}`;
+
+const fitText = (ctx, text, maxWidth) => {
+  const base = toSafeCanvasText(text);
+  if (!base) return '';
+  if (ctx.measureText(base).width <= maxWidth) return base;
+  const graphemes = splitGraphemes(base);
+  while (graphemes.length > 0 && ctx.measureText(`${graphemes.join('')}${ELLIPSIS}`).width > maxWidth) {
+    graphemes.pop();
+  }
+  return graphemes.length ? `${graphemes.join('')}${ELLIPSIS}` : '';
 };
 
 const getInitials = (label) => {
   if (!label) return '?';
-  const clean = label.replace('@', '').trim();
+  const clean = toSafeCanvasText(label).replace(/^@/, '');
   if (!clean) return '?';
   const parts = clean.split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  if (parts.length === 1) return splitGraphemes(parts[0]).slice(0, 2).join('').toUpperCase();
+  const first = splitGraphemes(parts[0])[0] || '';
+  const second = splitGraphemes(parts[1])[0] || '';
+  const value = `${first}${second}`.toUpperCase();
+  return value || '?';
 };
 
 const formatCompactNumber = (value) => {
@@ -274,7 +312,7 @@ const drawAvatar = (ctx, { x, y, radius, image, fallbackLabel, borderColor = '#3
     ctx.fillStyle = gradient;
     ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
     ctx.fillStyle = '#f8fafc';
-    ctx.font = `bold ${Math.max(16, radius * 0.7)}px Poppins, Arial`;
+    ctx.font = getCanvasFont(Math.max(16, radius * 0.7), 'bold');
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(getInitials(fallbackLabel), x, y);
@@ -291,16 +329,47 @@ const drawAvatar = (ctx, { x, y, radius, image, fallbackLabel, borderColor = '#3
 };
 
 const buildCanonicalWhere = ({ scope, remoteJid, botJid, canonicalId }) => {
-  const where = ['COALESCE(lm.jid, m.sender_id) = ?'];
-  const params = [canonicalId];
+  const canonical = normalizeJid(canonicalId) || canonicalId;
+  const senderExpr = 'COALESCE(lm.jid, m.sender_id)';
+  const where = [];
+  const params = [];
+
+  if (isWhatsAppUserId(canonical)) {
+    const user = getJidUser(canonical);
+    if (user) {
+      // Inclui variações com dispositivo: user:device@server.
+      where.push(`(${senderExpr} = ? OR ${senderExpr} LIKE ? OR ${senderExpr} LIKE ?)`);
+      params.push(canonical, `${user}@%`, `${user}:%`);
+    } else {
+      where.push(`${senderExpr} = ?`);
+      params.push(canonical);
+    }
+  } else {
+    where.push(`${senderExpr} = ?`);
+    params.push(canonical);
+  }
+
   if (scope === 'group') {
     where.push('m.chat_id = ?');
     params.push(remoteJid);
   }
   if (botJid) {
-    where.push('COALESCE(lm.jid, m.sender_id) <> ?');
-    params.push(botJid);
+    const normalizedBotJid = normalizeJid(botJid) || botJid;
+    where.push(`${senderExpr} <> ?`);
+    params.push(normalizedBotJid);
+    if (botJid !== normalizedBotJid) {
+      where.push(`${senderExpr} <> ?`);
+      params.push(botJid);
+    }
+    const botUser = getJidUser(normalizedBotJid);
+    if (botUser) {
+      where.push(`${senderExpr} NOT LIKE ?`);
+      params.push(`${botUser}@%`);
+      where.push(`${senderExpr} NOT LIKE ?`);
+      params.push(`${botUser}:%`);
+    }
   }
+
   return { where, params };
 };
 
@@ -453,13 +522,40 @@ export const getRankingBase = async ({ scope, remoteJid, botJid, limit = null })
   return { rows: limit ? rows.slice(0, limit) : rows };
 };
 
+const normalizeDayKey = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toISOString().slice(0, 10);
+  }
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const dateOnlyMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (dateOnlyMatch?.[1]) return dateOnlyMatch[1];
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+};
+
+const dayKeyToUtcMs = (dayKey) => {
+  const match = String(dayKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  return Date.UTC(year, month - 1, day);
+};
+
 const computeStreak = (days) => {
   if (!days.length) return 0;
   let best = 1;
   let current = 1;
-  let prev = new Date(`${days[0]}T00:00:00Z`).getTime();
+  let prev = dayKeyToUtcMs(days[0]);
+  if (prev === null) return days.length ? 1 : 0;
   for (let i = 1; i < days.length; i += 1) {
-    const currentDay = new Date(`${days[i]}T00:00:00Z`).getTime();
+    const currentDay = dayKeyToUtcMs(days[i]);
+    if (currentDay === null) continue;
     const diff = currentDay - prev;
     if (diff === DAY_MS) {
       current += 1;
@@ -505,7 +601,7 @@ export const enrichRankingRows = async ({ rows, scope, remoteJid, botJid }) => {
       params,
     );
 
-    const days = (daysRows || []).map((item) => item.day).filter(Boolean);
+    const days = Array.from(new Set((daysRows || []).map((item) => normalizeDayKey(item?.day)).filter(Boolean))).sort();
     row.active_days = days.length;
     row.streak = computeStreak(days);
 
@@ -664,7 +760,7 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
 
   const title = scope === 'global' ? `Ranking Global Top ${limit}` : `Ranking do Grupo Top ${limit}`;
   ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 40px Poppins, Arial';
+  ctx.font = getCanvasFont(40, 'bold');
   ctx.textAlign = 'left';
   const titleWidth = drawTrackedText(ctx, title, 40, 60, 1.2);
   const titleAccentX = 40 + titleWidth + 12;
@@ -676,11 +772,11 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
   ctx.stroke();
   if (scope === 'global') {
     ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
-    ctx.font = '22px Poppins, Arial';
+    ctx.font = getCanvasFont(22);
     ctx.fillText('🌍', titleAccentX + 42, 56);
   }
 
-  ctx.font = '16px Poppins, Arial';
+  ctx.font = getCanvasFont(16);
   ctx.fillStyle = 'rgba(148, 163, 184, 0.75)';
   const topTypeLabel = topType?.label ? `${topType.label} (${topType.count})` : 'N/D';
   ctx.fillText(`${formatCompactNumber(totalMessages)} mensagens • Tipo mais usado: ${topTypeLabel}`, 40, 92);
@@ -721,7 +817,7 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
     ctx.save();
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.font = '18px Poppins, Arial';
+    ctx.font = getCanvasFont(18);
     ctx.fillStyle = iconColor || 'rgba(148, 163, 184, 0.75)';
     ctx.fillText(icon, x, y);
     const iconWidth = ctx.measureText(icon).width;
@@ -769,14 +865,14 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
     ctx.arc(x + pad + rankBadgeSize / 2, y + pad + rankBadgeSize / 2, rankBadgeSize / 2, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 20px Poppins, Arial';
+    ctx.font = getCanvasFont(20, 'bold');
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(rank), x + pad + rankBadgeSize / 2, y + pad + rankBadgeSize / 2);
     ctx.restore();
     if (rank === 1) {
       ctx.save();
-      ctx.font = '18px Poppins, Arial';
+      ctx.font = getCanvasFont(18);
       ctx.fillStyle = '#f8fafc';
       ctx.fillText('👑', x + pad + rankBadgeSize + 6, y + pad + 16);
       const badgeW = 64;
@@ -790,7 +886,7 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.fillStyle = '#facc15';
-      ctx.font = 'bold 12px Poppins, Arial';
+      ctx.font = getCanvasFont(12, 'bold');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('TOP 1', badgeX + badgeW / 2, badgeY + badgeH / 2);
@@ -801,7 +897,7 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
     const textWidth = x + w - pad - textX;
 
     ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 28px Poppins, Arial';
+    ctx.font = getCanvasFont(28, 'bold');
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(fitText(ctx, label, textWidth), textX, y + h / 2 - 40);
@@ -816,7 +912,7 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
       y: lineOneY,
       iconColor: 'rgba(148, 163, 184, 0.75)',
       textColor: '#e2e8f0',
-      font: 'bold 20px Poppins, Arial',
+      font: getCanvasFont(20, 'bold'),
     });
     drawMetricLine({
       icon: '📊',
@@ -825,7 +921,7 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
       y: lineOneY + 26,
       iconColor: 'rgba(148, 163, 184, 0.75)',
       textColor: 'rgba(148, 163, 184, 0.85)',
-      font: '18px Poppins, Arial',
+      font: getCanvasFont(18),
     });
   };
 
@@ -868,7 +964,7 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
 
   const footerY = height - 34;
   ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
-  ctx.font = '14px Poppins, Arial';
+  ctx.font = getCanvasFont(14);
   const updatedAt = formatDate(new Date());
   ctx.textAlign = 'left';
   ctx.fillText(`📅 Atualizado em: ${updatedAt}`, 40, footerY);

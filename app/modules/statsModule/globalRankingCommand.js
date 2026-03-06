@@ -32,8 +32,7 @@ export async function handleGlobalRankingCommand({ sock, remoteJid, messageInfo,
       scope: 'global',
       botJid,
       limit: RANKING_LIMIT,
-      includeTopType: false,
-      enrichRows: false,
+      enrichRows: true,
     });
     const text = buildRankingMessage({ scope: 'global', limit: RANKING_LIMIT, ...report });
     const mentions = report.rows.map((row) => row.mention_id).filter((jid) => isWhatsAppUserId(jid));
