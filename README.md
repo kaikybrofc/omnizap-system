@@ -320,26 +320,26 @@ Este bloco é alimentado automaticamente pela API (`/api/sticker-packs/readme-ma
 <!-- README_SNAPSHOT:START -->
 ### Snapshot do Sistema
 
-> Atualizado em `2026-03-06T09:30:23.851Z` | cache `1800s`
+> Atualizado em `2026-03-06T10:28:39.113Z` | cache `1800s`
 
 | Métrica | Valor |
 | --- | ---: |
 | Usuários (lid_map) | 5.598 |
 | Grupos | 119 |
-| Packs | 355 |
-| Stickers | 10.532 |
-| Mensagens registradas | 483.863 |
+| Packs | 357 |
+| Stickers | 10.546 |
+| Mensagens registradas | 484.010 |
 
 #### Tipos de mensagem mais usados (amostra: 25.000)
 | Tipo | Total |
 | --- | ---: |
-| `texto` | 15.480 |
-| `figurinha` | 4.712 |
-| `imagem` | 2.072 |
-| `outros` | 1.256 |
-| `reacao` | 1.089 |
-| `video` | 229 |
-| `audio` | 161 |
+| `texto` | 15.450 |
+| `figurinha` | 4.727 |
+| `imagem` | 2.084 |
+| `outros` | 1.268 |
+| `reacao` | 1.079 |
+| `video` | 226 |
+| `audio` | 165 |
 | `documento` | 1 |
 
 <details><summary>Comandos disponíveis (65)</summary>
