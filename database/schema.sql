@@ -178,6 +178,24 @@ CREATE TABLE IF NOT EXISTS `message_analysis_event` (
   KEY `idx_message_analysis_is_command_created` (`is_command`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `baileys_event_journal` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `event_name` varchar(64) NOT NULL,
+  `socket_generation` int(10) unsigned DEFAULT NULL,
+  `chat_id` varchar(255) DEFAULT NULL,
+  `message_id` varchar(255) DEFAULT NULL,
+  `participant_id` varchar(255) DEFAULT NULL,
+  `payload_summary` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`payload_summary`)),
+  `event_timestamp` timestamp NULL DEFAULT current_timestamp(),
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_baileys_event_created` (`created_at`),
+  KEY `idx_baileys_event_name_created` (`event_name`,`created_at`),
+  KEY `idx_baileys_event_chat_created` (`chat_id`,`created_at`),
+  KEY `idx_baileys_event_message_created` (`message_id`,`created_at`),
+  KEY `idx_baileys_event_participant_created` (`participant_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `messages` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `message_id` varchar(255) NOT NULL,

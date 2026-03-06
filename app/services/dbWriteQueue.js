@@ -56,6 +56,36 @@ const CHAT_COOLDOWN_MS = Math.max(1000, Math.floor(parseNumber(process.env.DB_CH
 const MESSAGE_QUEUE_MAX = Math.max(MESSAGE_BATCH_SIZE * 5, Math.floor(parseNumber(process.env.DB_MESSAGE_QUEUE_MAX, 5000)));
 
 /**
+ * Tamanho máximo do batch de eventos do Baileys por INSERT.
+ * @type {number}
+ */
+const BAILEYS_EVENT_BATCH_SIZE = Math.max(1, Math.floor(parseNumber(process.env.BAILEYS_EVENT_BATCH_SIZE, 100)));
+
+/**
+ * Capacidade máxima da fila de eventos do Baileys.
+ * @type {number}
+ */
+const BAILEYS_EVENT_QUEUE_MAX = Math.max(BAILEYS_EVENT_BATCH_SIZE * 5, Math.floor(parseNumber(process.env.BAILEYS_EVENT_QUEUE_MAX, 4000)));
+
+/**
+ * Retenção do journal de eventos em dias (0 desativa prune).
+ * @type {number}
+ */
+const BAILEYS_EVENT_JOURNAL_RETENTION_DAYS = Math.max(0, Math.floor(parseNumber(process.env.BAILEYS_EVENT_JOURNAL_RETENTION_DAYS, 14)));
+
+/**
+ * Intervalo entre execuções de prune do journal de eventos.
+ * @type {number}
+ */
+const BAILEYS_EVENT_JOURNAL_PRUNE_INTERVAL_MS = Math.max(60_000, Math.floor(parseNumber(process.env.BAILEYS_EVENT_JOURNAL_PRUNE_INTERVAL_MS, 6 * 60 * 60 * 1000)));
+
+/**
+ * Limite de deleções por rodada de prune (protege lock longo).
+ * @type {number}
+ */
+const BAILEYS_EVENT_JOURNAL_PRUNE_DELETE_LIMIT = Math.max(500, Math.floor(parseNumber(process.env.BAILEYS_EVENT_JOURNAL_PRUNE_DELETE_LIMIT, 10_000)));
+
+/**
  * Regex de erro para payload JSON inválido no MySQL.
  * @type {RegExp}
  */
@@ -100,10 +130,18 @@ const chatQueue = new Map();
 const chatCache = new Map();
 
 /**
+ * Fila em memória com eventos do Baileys pendentes de persistência.
+ * @type {Array<{event_name:string, socket_generation:(number|null), chat_id:(string|null), message_id:(string|null), participant_id:(string|null), payload_summary:(string|null), event_timestamp:Date}>}
+ */
+const baileysEventQueue = [];
+
+/**
  * Indica se já há um flush agendado via setImmediate.
  * @type {boolean}
  */
 let flushScheduled = false;
+let baileysEventTableMissingLogged = false;
+let nextBaileysEventPruneAt = 0;
 
 /**
  * Atualiza as métricas de profundidade das filas (monitoramento).
@@ -113,6 +151,7 @@ let flushScheduled = false;
 const updateQueueMetrics = () => {
   setQueueDepth('messages', messageQueue.length);
   setQueueDepth('chats', chatQueue.size);
+  setQueueDepth('baileys_events', baileysEventQueue.length);
 };
 
 /**
@@ -218,6 +257,43 @@ const normalizeMessageForQueue = (messageData) => ({
   content: typeof messageData?.content === 'string' ? sanitizeUnicodeString(messageData.content) : messageData?.content,
   raw_message: toSafeJsonColumnValue(messageData?.raw_message),
 });
+
+const normalizeTextForColumn = (value, maxLength = 255) => {
+  if (value === null || value === undefined) return null;
+  const normalized = sanitizeUnicodeString(String(value).trim()).slice(0, maxLength);
+  return normalized || null;
+};
+
+const normalizeTimestampForColumn = (value) => {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value;
+  const parsed = new Date(value);
+  if (Number.isFinite(parsed.getTime())) return parsed;
+  return new Date();
+};
+
+const normalizeBaileysEventForQueue = (eventData) => ({
+  event_name: normalizeTextForColumn(eventData?.event_name, 64),
+  socket_generation: Number.isFinite(Number(eventData?.socket_generation)) ? Math.max(0, Math.floor(Number(eventData.socket_generation))) : null,
+  chat_id: normalizeTextForColumn(eventData?.chat_id, 255),
+  message_id: normalizeTextForColumn(eventData?.message_id, 255),
+  participant_id: normalizeTextForColumn(eventData?.participant_id, 255),
+  payload_summary: toSafeJsonColumnValue(eventData?.payload_summary),
+  event_timestamp: normalizeTimestampForColumn(eventData?.event_timestamp),
+});
+
+const insertBaileysEventBatch = async (batch) => {
+  const placeholders = buildPlaceholders(batch.length, 7);
+  const params = [];
+  for (const entry of batch) {
+    params.push(entry.event_name, entry.socket_generation, entry.chat_id, entry.message_id, entry.participant_id, entry.payload_summary, entry.event_timestamp);
+  }
+
+  const sql = `INSERT INTO ${TABLES.BAILEYS_EVENT_JOURNAL}
+      (event_name, socket_generation, chat_id, message_id, participant_id, payload_summary, event_timestamp)
+      VALUES ${placeholders}`;
+
+  await executeQuery(sql, params);
+};
 
 /**
  * Executa INSERT IGNORE de um batch de mensagens.
@@ -374,6 +450,72 @@ const flushChatQueueCore = async () => {
   }
 };
 
+const pruneBaileysEventJournal = async () => {
+  if (BAILEYS_EVENT_JOURNAL_RETENTION_DAYS <= 0) return;
+
+  const now = Date.now();
+  if (now < nextBaileysEventPruneAt) return;
+  nextBaileysEventPruneAt = now + BAILEYS_EVENT_JOURNAL_PRUNE_INTERVAL_MS;
+
+  let totalDeleted = 0;
+  const maxRounds = 5;
+  for (let round = 0; round < maxRounds; round += 1) {
+    const result = await executeQuery(
+      `DELETE FROM ${TABLES.BAILEYS_EVENT_JOURNAL}
+        WHERE created_at < (UTC_TIMESTAMP() - INTERVAL ? DAY)
+        LIMIT ?`,
+      [BAILEYS_EVENT_JOURNAL_RETENTION_DAYS, BAILEYS_EVENT_JOURNAL_PRUNE_DELETE_LIMIT],
+    );
+
+    const affectedRows = Number(result?.affectedRows || 0);
+    if (affectedRows <= 0) break;
+    totalDeleted += affectedRows;
+
+    if (affectedRows < BAILEYS_EVENT_JOURNAL_PRUNE_DELETE_LIMIT) {
+      break;
+    }
+  }
+
+  if (totalDeleted > 0) {
+    logger.info('Prune do journal de eventos Baileys concluído.', {
+      deletedRows: totalDeleted,
+      retentionDays: BAILEYS_EVENT_JOURNAL_RETENTION_DAYS,
+    });
+  }
+};
+
+const flushBaileysEventQueueCore = async () => {
+  while (baileysEventQueue.length > 0) {
+    const batch = baileysEventQueue.splice(0, BAILEYS_EVENT_BATCH_SIZE);
+    try {
+      await insertBaileysEventBatch(batch);
+    } catch (error) {
+      if (error?.code === 'ER_NO_SUCH_TABLE') {
+        if (!baileysEventTableMissingLogged) {
+          baileysEventTableMissingLogged = true;
+          logger.warn('Tabela baileys_event_journal não encontrada. Execute db:init para habilitar o journal.', {
+            action: 'baileys_event_journal_table_missing',
+          });
+        }
+        continue;
+      }
+
+      logger.error('Falha ao inserir batch de eventos do Baileys.', { error: error.message });
+      recordError('db_write_queue');
+      baileysEventQueue.unshift(...batch);
+      break;
+    }
+  }
+
+  try {
+    await pruneBaileysEventJournal();
+  } catch (error) {
+    if (error?.code === 'ER_NO_SUCH_TABLE') return;
+    logger.error('Falha ao executar prune do journal de eventos Baileys.', { error: error.message });
+    recordError('db_write_queue');
+  }
+};
+
 const messageFlushRunner = createFlushRunner({
   onFlush: flushMessageQueueCore,
   onError: (error) => {
@@ -389,6 +531,17 @@ const chatFlushRunner = createFlushRunner({
   onFlush: flushChatQueueCore,
   onError: (error) => {
     logger.error('Falha ao executar flush da fila de chats.', { error: error.message });
+    recordError('db_write_queue');
+  },
+  onFinally: () => {
+    updateQueueMetrics();
+  },
+});
+
+const baileysEventFlushRunner = createFlushRunner({
+  onFlush: flushBaileysEventQueueCore,
+  onError: (error) => {
+    logger.error('Falha ao executar flush da fila de eventos do Baileys.', { error: error.message });
     recordError('db_write_queue');
   },
   onFinally: () => {
@@ -499,6 +652,34 @@ export function queueChatUpdate(chat, options = {}) {
 }
 
 /**
+ * Enfileira um evento resumido do Baileys para o journal de auditoria.
+ *
+ * @param {{event_name:string, socket_generation?:(number|null), chat_id?:(string|null), message_id?:(string|null), participant_id?:(string|null), payload_summary?:any, event_timestamp?:(string|number|Date)}} eventData
+ * @returns {boolean}
+ */
+export function queueBaileysEventInsert(eventData) {
+  const normalizedEvent = normalizeBaileysEventForQueue(eventData);
+  if (!normalizedEvent.event_name) return false;
+
+  if (baileysEventQueue.length >= BAILEYS_EVENT_QUEUE_MAX) {
+    logger.warn('Fila de eventos Baileys cheia, descartando item mais antigo.', {
+      size: baileysEventQueue.length,
+      max: BAILEYS_EVENT_QUEUE_MAX,
+    });
+    baileysEventQueue.shift();
+  }
+
+  baileysEventQueue.push(normalizedEvent);
+  updateQueueMetrics();
+
+  if (baileysEventQueue.length >= BAILEYS_EVENT_BATCH_SIZE) {
+    scheduleFlush();
+  }
+
+  return true;
+}
+
+/**
  * Faz flush da fila de mensagens:
  * - Processa em batches (MESSAGE_BATCH_SIZE).
  * - Usa INSERT IGNORE para evitar duplicidade.
@@ -523,13 +704,22 @@ async function flushChatQueue() {
 }
 
 /**
- * Executa flush de todas as filas (mensagens, chats e LID).
+ * Faz flush da fila de eventos do Baileys.
+ *
+ * @returns {Promise<void>}
+ */
+async function flushBaileysEventQueue() {
+  await baileysEventFlushRunner.run();
+}
+
+/**
+ * Executa flush de todas as filas (mensagens, chats, eventos do Baileys e LID).
  * Usa Promise.allSettled para não “matar” as outras filas caso uma falhe.
  *
  * @returns {Promise<void>}
  */
 export async function flushQueues() {
-  await Promise.allSettled([flushMessageQueue(), flushChatQueue(), flushLidQueue()]);
+  await Promise.allSettled([flushMessageQueue(), flushChatQueue(), flushBaileysEventQueue(), flushLidQueue()]);
 }
 
 updateQueueMetrics();

@@ -92,6 +92,7 @@ logger.info(`Configuração de banco de dados carregada para o ambiente: ${envir
 export const TABLES = {
   MESSAGES: 'messages',
   MESSAGE_ANALYSIS_EVENT: 'message_analysis_event',
+  BAILEYS_EVENT_JOURNAL: 'baileys_event_journal',
   CHATS: 'chats',
   GROUPS_METADATA: 'groups_metadata',
   GROUP_CONFIGS: 'group_configs',

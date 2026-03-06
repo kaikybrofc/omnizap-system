@@ -19,7 +19,7 @@ import { handleGroupUpdate as handleGroupParticipantsEvent, handleGroupJoinReque
 
 import { findBy, findById, remove } from '../../database/index.js';
 import { extractSenderInfoFromMessage, primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../services/lidMapService.js';
-import { queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
+import { queueBaileysEventInsert, queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
 import { buildGroupMetadataFromGroup, buildGroupMetadataFromUpdate, upsertGroupMetadata } from '../services/groupMetadataService.js';
 import { buildMessageData } from '../services/messagePersistenceService.js';
 
@@ -42,6 +42,15 @@ const parseEnvInt = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, Math.floor(parsed)));
 };
 
+const parseEnvCsv = (value, fallback) => {
+  if (value === undefined || value === null || value === '') return [...fallback];
+  const parsed = String(value)
+    .split(',')
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean);
+  return parsed.length > 0 ? parsed : [...fallback];
+};
+
 const IS_PRODUCTION =
   String(process.env.NODE_ENV || '')
     .trim()
@@ -54,6 +63,26 @@ const GROUP_SYNC_ON_CONNECT = parseEnvBool(process.env.GROUP_SYNC_ON_CONNECT, tr
 const GROUP_SYNC_TIMEOUT_MS = parseEnvInt(process.env.GROUP_SYNC_TIMEOUT_MS, 30 * 1000, 5 * 1000, 120 * 1000);
 const GROUP_SYNC_MAX_GROUPS = parseEnvInt(process.env.GROUP_SYNC_MAX_GROUPS, 0, 0, 10_000);
 const GROUP_SYNC_BATCH_SIZE = parseEnvInt(process.env.GROUP_SYNC_BATCH_SIZE, 50, 1, 1000);
+const BAILEYS_EVENT_JOURNAL_ENABLED = parseEnvBool(process.env.BAILEYS_EVENT_JOURNAL_ENABLED, false);
+const DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS = [
+  'connection.update',
+  'messages.upsert',
+  'messages.update',
+  'messages.delete',
+  'messages.reaction',
+  'message-receipt.update',
+  'chats.upsert',
+  'chats.update',
+  'chats.delete',
+  'groups.upsert',
+  'groups.update',
+  'group-participants.update',
+  'group.join-request',
+  'lid-mapping.update',
+];
+const BAILEYS_EVENT_JOURNAL_EVENT_LIST = parseEnvCsv(process.env.BAILEYS_EVENT_JOURNAL_EVENTS, DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS);
+const BAILEYS_EVENT_JOURNAL_ALL_EVENTS = BAILEYS_EVENT_JOURNAL_EVENT_LIST.includes('*');
+const BAILEYS_EVENT_JOURNAL_EVENTS = new Set(BAILEYS_EVENT_JOURNAL_EVENT_LIST.filter((eventName) => eventName !== '*'));
 
 let activeSocket = null;
 let connectionAttempts = 0;
@@ -210,6 +239,143 @@ const registerBaileysEventLoggers = (sock) => {
     enabled: BAILEYS_EVENT_LOG_ENABLED,
     eventsCount: eventsToLog.length,
     events: eventsToLog,
+  });
+};
+
+const shouldPersistBaileysEvent = (eventName) => {
+  if (!BAILEYS_EVENT_JOURNAL_ENABLED) return false;
+  if (BAILEYS_EVENT_JOURNAL_ALL_EVENTS) return BAILEYS_EVENT_NAMES.includes(eventName);
+  return BAILEYS_EVENT_JOURNAL_EVENTS.has(eventName);
+};
+
+const takeFirstString = (...values) => {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const normalized = value.trim();
+    if (normalized) return normalized;
+  }
+  return null;
+};
+
+const extractBaileysEventReferences = (payload) => {
+  const refs = {
+    chatId: null,
+    messageId: null,
+    participantId: null,
+  };
+
+  const assignChat = (...values) => {
+    if (refs.chatId) return;
+    refs.chatId = takeFirstString(...values);
+  };
+
+  const assignMessage = (...values) => {
+    if (refs.messageId) return;
+    refs.messageId = takeFirstString(...values);
+  };
+
+  const assignParticipant = (...values) => {
+    if (refs.participantId) return;
+    refs.participantId = takeFirstString(...values);
+  };
+
+  const applyFromKey = (key) => {
+    if (!key || typeof key !== 'object') return;
+    assignChat(key.remoteJid, key.remoteJidAlt);
+    assignMessage(key.id);
+    assignParticipant(key.participant, key.participantAlt);
+  };
+
+  const applyFromObject = (value) => {
+    if (!value || typeof value !== 'object') return;
+
+    applyFromKey(value.key);
+    applyFromKey(value.msg?.key);
+    applyFromKey(value.reaction?.key);
+    applyFromKey(value.reactionMessage?.key);
+    applyFromKey(value.reactedKey);
+
+    assignChat(value.id, value.groupId, value.jid, value.chatId);
+    assignMessage(value.messageId, value.msgId, value.server_id);
+    assignParticipant(value.participant, value.user, value.lid, value.pn);
+
+    if (Array.isArray(value.participants) && value.participants.length > 0) {
+      assignParticipant(value.participants[0]);
+    }
+    if (Array.isArray(value.keys) && value.keys.length > 0) {
+      applyFromKey(value.keys[0]);
+    }
+    if (Array.isArray(value.messages) && value.messages.length > 0) {
+      applyFromObject(value.messages[0]);
+    }
+  };
+
+  if (Array.isArray(payload)) {
+    for (const item of payload) {
+      applyFromObject(item);
+      if (refs.chatId && refs.messageId && refs.participantId) break;
+    }
+  } else {
+    applyFromObject(payload);
+  }
+
+  return refs;
+};
+
+const registerBaileysEventJournal = (sock, generation) => {
+  if (!BAILEYS_EVENT_JOURNAL_ENABLED) {
+    logger.debug('Journal de eventos Baileys desativado por configuração.', {
+      action: 'baileys_event_journal_disabled',
+    });
+    return;
+  }
+
+  const unknownEvents = BAILEYS_EVENT_JOURNAL_EVENT_LIST.filter((eventName) => eventName !== '*' && !BAILEYS_EVENT_NAMES.includes(eventName));
+  if (unknownEvents.length > 0) {
+    logger.warn('Alguns eventos configurados para journal não existem na lista conhecida do Baileys.', {
+      action: 'baileys_event_journal_unknown_events',
+      unknownEvents,
+    });
+  }
+
+  const eventsToPersist = BAILEYS_EVENT_NAMES.filter((eventName) => shouldPersistBaileysEvent(eventName));
+  if (eventsToPersist.length === 0) {
+    logger.warn('Journal de eventos Baileys habilitado sem eventos válidos para persistir.', {
+      action: 'baileys_event_journal_empty',
+      configuredEvents: BAILEYS_EVENT_JOURNAL_EVENT_LIST,
+    });
+    return;
+  }
+
+  for (const eventName of eventsToPersist) {
+    sock.ev.on(eventName, (payload) => {
+      try {
+        const summary = summarizeBaileysEventPayload(eventName, payload);
+        const refs = extractBaileysEventReferences(payload);
+        queueBaileysEventInsert({
+          event_name: eventName,
+          socket_generation: generation,
+          chat_id: refs.chatId,
+          message_id: refs.messageId,
+          participant_id: refs.participantId,
+          payload_summary: summary,
+          event_timestamp: new Date(),
+        });
+      } catch (error) {
+        logger.warn('Falha ao enfileirar evento Baileys para journal.', {
+          action: 'baileys_event_journal_enqueue_failed',
+          eventName,
+          error: error?.message,
+        });
+      }
+    });
+  }
+
+  logger.info('Journal de eventos Baileys habilitado.', {
+    action: 'baileys_event_journal_ready',
+    generation,
+    eventsCount: eventsToPersist.length,
+    events: eventsToPersist,
   });
 };
 
@@ -725,6 +891,7 @@ export async function connectToWhatsApp() {
     });
 
     registerBaileysEventLoggers(sock);
+    registerBaileysEventJournal(sock, generation);
 
     logger.info('Conexão com o WhatsApp estabelecida com sucesso.', {
       action: 'connect_success',
