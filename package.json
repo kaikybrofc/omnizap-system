@@ -51,6 +51,7 @@
     "build:css:user-systemadm": "cat ./public/css/systemadm/tokens.css ./public/css/systemadm/base.css ./public/css/systemadm/layout.css ./public/css/systemadm/components.css ./public/css/systemadm/admin.css > ./public/assets/css/user-systemadm.css",
     "build:css:home:watch": "tailwindcss -i ./public/assets/css/home-react.input.css -o ./public/assets/css/home-react.css --watch",
     "readme:sync-snapshot": "node ./scripts/sync-readme-snapshot.mjs",
+    "wiki:sync": "bash ./scripts/wiki-sync.sh",
     "loadtest:stickers": "node ./scripts/sticker-catalog-loadtest.mjs",
     "worker:sticker:classification": "node ./scripts/sticker-worker-task.mjs --task-type classification_cycle",
     "worker:sticker:curation": "node ./scripts/sticker-worker-task.mjs --task-type curation_cycle",

@@ -226,6 +226,7 @@ Isso permite ler `x-forwarded-for`/`x-real-ip` corretamente em rotas protegidas.
 - `npm run deploy`: pipeline de deploy com validações.
 - `npm run deploy:dry-run`: simula deploy sem alterar o ambiente.
 - `npm run readme:sync-snapshot`: atualiza o bloco dinâmico do README.
+- `npm run wiki:sync`: sincroniza `docs/wiki/` com a GitHub Wiki do repositório.
 - `npm run loadtest:stickers`: load test de endpoints de sticker.
 - `npm run worker:sticker:classification`: worker dedicado de classificação.
 - `npm run worker:sticker:curation`: worker dedicado de curadoria.
@@ -282,6 +283,8 @@ O script [`scripts/deploy.sh`](./scripts/deploy.sh) cobre:
 - hooks opcionais de notificação GitHub Deployments.
 
 Variáveis de deploy comuns: `DEPLOY_TARGET_DIR`, `DEPLOY_SOURCE_DIR`, `DEPLOY_DRY_RUN`, `DEPLOY_PM2_APP_NAME`, `DEPLOY_NGINX_SERVICE`.
+
+No pipeline de `npm run release`, também há sincronização automática de wiki via `scripts/wiki-sync.sh` (controlada por `RELEASE_WIKI_SYNC`, `RELEASE_WIKI_SYNC_REQUIRED` e `RELEASE_WIKI_SYNC_COMMAND`).
 
 ## Observabilidade
 

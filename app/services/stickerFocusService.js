@@ -17,7 +17,7 @@ export const DEFAULT_STICKER_FOCUS_CHAT_WINDOW_MINUTES = parseEnvInt(process.env
 const STICKER_FOCUS_WARNING_COOLDOWN_MS = parseEnvInt(process.env.STICKER_FOCUS_WARNING_COOLDOWN_MS, 45_000, 10_000, 5 * 60_000);
 const NON_HUMAN_PLACEHOLDERS = new Set(['Mensagem vazia', 'Tipo de mensagem não suportado ou sem conteúdo.']);
 const IGNORED_MESSAGE_TYPES = new Set(['messagehistorybundle', 'messagehistorynotice', 'keydistribution', 'senderkeydistribution', 'reaction', 'devicesent', 'contextinfo', 'protocol', 'botinvoke']);
-const NON_THROTTLED_MESSAGE_TYPES = new Set(['sticker', 'image', 'video']);
+const NON_THROTTLED_MESSAGE_TYPES = new Set(['sticker', 'image', 'video', 'stickerpack', 'stickerpackmessage']);
 const MESSAGE_WRAPPER_KEYS = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'deviceSentMessage', 'editedMessage'];
 
 const sharedMessageAllowance = globalThis.__omnizapStickerFocusMessageAllowance instanceof Map ? globalThis.__omnizapStickerFocusMessageAllowance : new Map();
@@ -61,6 +61,29 @@ const hasExplicitTextPayload = (messagePayload) => {
 
     const extendedText = typeof current.extendedTextMessage?.text === 'string' ? current.extendedTextMessage.text.trim() : '';
     if (extendedText) return true;
+
+    for (const wrapperKey of MESSAGE_WRAPPER_KEYS) {
+      const nestedMessage = current?.[wrapperKey]?.message;
+      if (nestedMessage && typeof nestedMessage === 'object') {
+        queue.push(nestedMessage);
+      }
+    }
+  }
+
+  return false;
+};
+
+const hasStickerPackPayload = (messagePayload) => {
+  if (!messagePayload || typeof messagePayload !== 'object') return false;
+
+  const queue = [messagePayload];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') continue;
+
+    if (current.stickerPackMessage && typeof current.stickerPackMessage === 'object') {
+      return true;
+    }
 
     for (const wrapperKey of MESSAGE_WRAPPER_KEYS) {
       const nestedMessage = current?.[wrapperKey]?.message;
@@ -136,6 +159,14 @@ export const resolveStickerFocusMessageClassification = ({ messageInfo, extracte
       isThrottleCandidate: false,
       messageType: 'system_stub',
       reason: 'stub',
+    };
+  }
+
+  if (hasStickerPackPayload(messageInfo?.message)) {
+    return {
+      isThrottleCandidate: false,
+      messageType: 'sticker_pack',
+      reason: 'sticker_pack_payload',
     };
   }
 

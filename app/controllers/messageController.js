@@ -572,18 +572,8 @@ export const handleMessages = async (update, sock) => {
                       sticker_focus_message_type: messageClassification.messageType,
                       sticker_focus_message_cooldown_minutes: stickerFocusState.messageCooldownMinutes,
                       sticker_focus_remaining_minutes: formatRemainingMinutesLabel(messageGate.remainingMs),
+                      sticker_focus_alert_only: true,
                     };
-
-                    try {
-                      await sendAndStore(sock, remoteJid, { delete: key });
-                    } catch (error) {
-                      logger.warn('Falha ao apagar mensagem fora da politica de sticker focus.', {
-                        action: 'sticker_focus_delete_failed',
-                        groupId: remoteJid,
-                        senderJid,
-                        error: error?.message,
-                      });
-                    }
 
                     if (shouldSendStickerFocusWarning({ groupId: remoteJid, senderJid })) {
                       try {
