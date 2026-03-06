@@ -208,7 +208,7 @@ const extractPhoneFromJid = (jid) => {
 
 const resolveHintMessage = (hint) => {
   if (!hint.hasPayload) {
-    return 'Abra o link que o bot envia no WhatsApp para liberar o login neste navegador.';
+    return 'Use e-mail/senha ou abra o link que o bot envia no WhatsApp para liberar o login Google.';
   }
   if (!hint.phone) {
     return 'Este link nao tem um numero valido. Gere um novo enviando "iniciar" no bot.';
@@ -252,8 +252,21 @@ const resolveSummaryState = ({ canUseGoogleLogin, authenticated, sessionOwnerPho
   };
 };
 
+const resolvePasswordConfigured = (payload) => Boolean(payload?.data?.password?.configured);
+
+const toSafeEmail = (value) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  return normalized.includes('@') ? normalized : '';
+};
+
 const createLoginApi = (apiBasePath) => {
   const sessionPath = `${apiBasePath}/auth/google/session`;
+  const passwordLoginPath = `${apiBasePath}/auth/login`;
+  const passwordPath = `${apiBasePath}/auth/password`;
+  const passwordRecoveryRequestPath = `${apiBasePath}/auth/password/recovery/request`;
+  const passwordRecoveryVerifyPath = `${apiBasePath}/auth/password/recovery/verify`;
   const configPath = `${apiBasePath}/create-config`;
   const botContactPath = `${apiBasePath}/bot-contact`;
   const systemSummaryPath = `${apiBasePath}/system-summary`;
@@ -291,6 +304,39 @@ const createLoginApi = (apiBasePath) => {
           'Content-Type': 'application/json; charset=utf-8',
         },
         body: JSON.stringify(body),
+      }),
+    loginWithPassword: (body) =>
+      fetchJson(passwordLoginPath, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify(body || {}),
+      }),
+    getPasswordState: () => fetchJson(passwordPath, { method: 'GET' }),
+    updatePassword: (password) =>
+      fetchJson(passwordPath, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify({ password }),
+      }),
+    requestPasswordRecoveryCode: (body) =>
+      fetchJson(passwordRecoveryRequestPath, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify(body || {}),
+      }),
+    verifyPasswordRecoveryCode: (body) =>
+      fetchJson(passwordRecoveryVerifyPath, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify(body || {}),
       }),
     getConfig: () => fetchJson(configPath, { method: 'GET' }),
     getBotContact: () => fetchJson(botContactPath, { method: 'GET' }),
@@ -342,6 +388,30 @@ const LoginApp = ({ config }) => {
   const [googleClientId, setGoogleClientId] = useState('');
   const [googleReady, setGoogleReady] = useState(false);
   const [showSuccessCelebration, setShowSuccessCelebration] = useState(false);
+  const [, setPasswordConfigured] = useState(true);
+  const [passwordSetupRequired, setPasswordSetupRequired] = useState(false);
+  const [passwordSetupBusy, setPasswordSetupBusy] = useState(false);
+  const [passwordSetupError, setPasswordSetupError] = useState('');
+  const [passwordSetupForm, setPasswordSetupForm] = useState({
+    password: '',
+    confirm: '',
+  });
+  const [passwordLoginBusy, setPasswordLoginBusy] = useState(false);
+  const [passwordLoginError, setPasswordLoginError] = useState('');
+  const [passwordLoginForm, setPasswordLoginForm] = useState({
+    email: '',
+    password: '',
+  });
+  const [passwordRecoveryStep, setPasswordRecoveryStep] = useState('idle');
+  const [passwordRecoveryBusy, setPasswordRecoveryBusy] = useState(false);
+  const [passwordRecoveryError, setPasswordRecoveryError] = useState('');
+  const [passwordRecoveryMessage, setPasswordRecoveryMessage] = useState('');
+  const [passwordRecoveryForm, setPasswordRecoveryForm] = useState({
+    email: '',
+    code: '',
+    password: '',
+    confirm: '',
+  });
 
   const summary = useMemo(
     () =>
@@ -448,6 +518,20 @@ const LoginApp = ({ config }) => {
     }, 2300);
   }, []);
 
+  const refreshPasswordSetupState = useCallback(async () => {
+    try {
+      const payload = await api.getPasswordState();
+      const configured = resolvePasswordConfigured(payload);
+      setPasswordConfigured(configured);
+      setPasswordSetupRequired(!configured);
+      return configured;
+    } catch {
+      setPasswordConfigured(true);
+      setPasswordSetupRequired(false);
+      return true;
+    }
+  }, [api]);
+
   const handleGoogleCredential = useCallback(
     async (credential) => {
       if (!consentAccepted) {
@@ -466,6 +550,7 @@ const LoginApp = ({ config }) => {
       setErrorMessage('');
       setConsentErrorMessage('');
       setAlreadyLoggedVisible(false);
+      setPasswordSetupError('');
 
       try {
         const payload = await api.createSession(buildSessionPayload(token, hint));
@@ -476,19 +561,22 @@ const LoginApp = ({ config }) => {
 
         setAuthenticated(true);
         setSessionOwnerPhone(String(sessionData?.owner_phone || '').trim());
-        setStatusMessage('Conta Google detectada');
+        const configured = await refreshPasswordSetupState();
+        setStatusMessage(configured ? 'Conta Google detectada' : 'Conta Google validada. Crie sua senha para proximos acessos.');
         playSuccessCelebration();
       } catch (error) {
         setErrorMessage(error?.message || 'Falha ao concluir login Google.');
         setStatusMessage('Falha ao validar conta Google');
         setAuthenticated(false);
         setSessionOwnerPhone('');
+        setPasswordConfigured(true);
+        setPasswordSetupRequired(false);
         setShowSuccessCelebration(false);
       } finally {
         setBusy(false);
       }
     },
-    [api, consentAccepted, hint, playSuccessCelebration],
+    [api, consentAccepted, hint, playSuccessCelebration, refreshPasswordSetupState],
   );
 
   useEffect(() => {
@@ -545,7 +633,7 @@ const LoginApp = ({ config }) => {
       setErrorMessage('');
       setConsentErrorMessage('');
       setAlreadyLoggedVisible(false);
-      setStatusMessage(canUseGoogleLogin ? 'Verificando conta Google...' : 'Abra o link enviado no WhatsApp para continuar');
+      setStatusMessage(canUseGoogleLogin ? 'Verificando conta Google...' : 'Entre com e-mail e senha ou gere o link no WhatsApp para login Google');
 
       try {
         const sessionPayload = await api.getSession();
@@ -556,12 +644,20 @@ const LoginApp = ({ config }) => {
           setAuthenticated(true);
           setSessionOwnerPhone(String(sessionData?.owner_phone || '').trim());
           setAlreadyLoggedVisible(true);
-          triggerAuthenticatedRedirect();
+          const configured = await refreshPasswordSetupState();
+          if (!active) return;
+          if (configured) {
+            triggerAuthenticatedRedirect();
+          } else {
+            setStatusMessage('Sessao ativa detectada. Crie sua senha para concluir o setup.');
+          }
           return;
         }
 
         setAuthenticated(false);
         setSessionOwnerPhone('');
+        setPasswordConfigured(true);
+        setPasswordSetupRequired(false);
         if (canUseGoogleLogin) {
           setStatusMessage('Entre com Google para continuar');
         }
@@ -569,6 +665,8 @@ const LoginApp = ({ config }) => {
         if (!active) return;
         setAuthenticated(false);
         setSessionOwnerPhone('');
+        setPasswordConfigured(true);
+        setPasswordSetupRequired(false);
         if (canUseGoogleLogin) {
           setStatusMessage('Nao foi possivel validar sua sessao');
         }
@@ -598,7 +696,7 @@ const LoginApp = ({ config }) => {
     return () => {
       active = false;
     };
-  }, [api, canUseGoogleLogin, triggerAuthenticatedRedirect]);
+  }, [api, canUseGoogleLogin, refreshPasswordSetupState, triggerAuthenticatedRedirect]);
 
   useEffect(() => {
     let active = true;
@@ -696,6 +794,179 @@ const LoginApp = ({ config }) => {
     if (accepted) setConsentErrorMessage('');
   };
 
+  const handlePasswordSetupSubmit = async () => {
+    if (passwordSetupBusy) return;
+    if (!passwordSetupForm.password || !passwordSetupForm.confirm) {
+      setPasswordSetupError('Preencha senha e confirmacao.');
+      return;
+    }
+    if (passwordSetupForm.password !== passwordSetupForm.confirm) {
+      setPasswordSetupError('A confirmacao da senha nao confere.');
+      return;
+    }
+
+    setPasswordSetupBusy(true);
+    setPasswordSetupError('');
+    setErrorMessage('');
+
+    try {
+      await api.updatePassword(passwordSetupForm.password);
+      setPasswordConfigured(true);
+      setPasswordSetupRequired(false);
+      setPasswordSetupForm({
+        password: '',
+        confirm: '',
+      });
+      setStatusMessage('Senha criada com sucesso. Redirecionando...');
+      triggerAuthenticatedRedirect();
+    } catch (error) {
+      setPasswordSetupError(error?.message || 'Falha ao criar senha.');
+    } finally {
+      setPasswordSetupBusy(false);
+    }
+  };
+
+  const handlePasswordLoginSubmit = async () => {
+    if (passwordLoginBusy) return;
+    const email = toSafeEmail(passwordLoginForm.email);
+    const password = String(passwordLoginForm.password || '');
+
+    if (!email || !password) {
+      setPasswordLoginError('Informe e-mail e senha para continuar.');
+      return;
+    }
+
+    setPasswordLoginBusy(true);
+    setPasswordLoginError('');
+    setPasswordRecoveryError('');
+    setPasswordRecoveryMessage('');
+    setErrorMessage('');
+
+    try {
+      const payload = await api.loginWithPassword({
+        email,
+        password,
+      });
+      const sessionData = payload?.data?.session || {};
+      if (!isAuthenticatedGoogleSession(sessionData)) {
+        throw new Error('Falha ao abrir sessao por senha.');
+      }
+
+      setAuthenticated(true);
+      setSessionOwnerPhone(String(sessionData?.owner_phone || '').trim());
+      setPasswordConfigured(true);
+      setPasswordSetupRequired(false);
+      setStatusMessage('Login por senha concluido. Redirecionando...');
+      triggerAuthenticatedRedirect();
+    } catch (error) {
+      const responseCode = String(error?.payload?.code || '').trim().toUpperCase();
+      if (responseCode === 'PASSWORD_NOT_CONFIGURED') {
+        setPasswordRecoveryStep('code_request');
+        setPasswordRecoveryForm((current) => ({
+          ...current,
+          email,
+        }));
+        setPasswordRecoveryMessage('Sua conta ainda nao tem senha. Solicite o codigo para criar sua senha.');
+        setPasswordLoginError('Conta sem senha configurada. Use o fluxo de criacao abaixo.');
+      } else {
+        setPasswordLoginError(error?.message || 'Falha no login por senha.');
+      }
+    } finally {
+      setPasswordLoginBusy(false);
+    }
+  };
+
+  const handleRecoveryRequestSubmit = async () => {
+    if (passwordRecoveryBusy) return;
+    const email = toSafeEmail(passwordRecoveryForm.email || passwordLoginForm.email);
+    if (!email) {
+      setPasswordRecoveryError('Informe um e-mail valido para receber o codigo.');
+      return;
+    }
+
+    setPasswordRecoveryBusy(true);
+    setPasswordRecoveryError('');
+    setPasswordRecoveryMessage('');
+
+    try {
+      const payload = await api.requestPasswordRecoveryCode({
+        email,
+        purpose: 'setup',
+      });
+      const masked = String(payload?.data?.masked_email || '').trim();
+      setPasswordRecoveryStep('code_sent');
+      setPasswordRecoveryForm((current) => ({
+        ...current,
+        email,
+      }));
+      setPasswordRecoveryMessage(masked ? `Codigo enviado para ${masked}.` : 'Codigo enviado por e-mail.');
+    } catch (error) {
+      setPasswordRecoveryError(error?.message || 'Falha ao enviar codigo.');
+    } finally {
+      setPasswordRecoveryBusy(false);
+    }
+  };
+
+  const handleRecoveryVerifySubmit = async () => {
+    if (passwordRecoveryBusy) return;
+    const email = toSafeEmail(passwordRecoveryForm.email || passwordLoginForm.email);
+    const code = String(passwordRecoveryForm.code || '')
+      .replace(/\D+/g, '')
+      .slice(0, 6);
+    const password = String(passwordRecoveryForm.password || '');
+    const confirm = String(passwordRecoveryForm.confirm || '');
+
+    if (!email) {
+      setPasswordRecoveryError('Informe um e-mail valido.');
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      setPasswordRecoveryError('Informe um codigo de 6 digitos.');
+      return;
+    }
+    if (!password || !confirm) {
+      setPasswordRecoveryError('Informe a nova senha e a confirmacao.');
+      return;
+    }
+    if (password !== confirm) {
+      setPasswordRecoveryError('A confirmacao da senha nao confere.');
+      return;
+    }
+
+    setPasswordRecoveryBusy(true);
+    setPasswordRecoveryError('');
+    setPasswordRecoveryMessage('');
+
+    try {
+      const payload = await api.verifyPasswordRecoveryCode({
+        email,
+        code,
+        password,
+        purpose: 'setup',
+      });
+      const sessionData = payload?.data?.session || {};
+      if (!isAuthenticatedGoogleSession(sessionData)) {
+        throw new Error('Senha criada, mas nao foi possivel abrir sessao automaticamente.');
+      }
+      setAuthenticated(true);
+      setSessionOwnerPhone(String(sessionData?.owner_phone || '').trim());
+      setPasswordConfigured(true);
+      setPasswordSetupRequired(false);
+      setPasswordRecoveryForm({
+        email,
+        code: '',
+        password: '',
+        confirm: '',
+      });
+      setStatusMessage('Senha criada com sucesso. Redirecionando...');
+      triggerAuthenticatedRedirect();
+    } catch (error) {
+      setPasswordRecoveryError(error?.message || 'Falha ao validar codigo.');
+    } finally {
+      setPasswordRecoveryBusy(false);
+    }
+  };
+
   return html`
     <div className="login-page-container relative min-h-screen overflow-hidden px-3 py-6 text-base-content sm:px-4 sm:py-10">
       <main className="mx-auto w-full max-w-3xl overflow-hidden rounded-3xl border border-base-300/70 bg-base-100/75 shadow-2xl backdrop-blur-md">
@@ -785,6 +1056,232 @@ const LoginApp = ({ config }) => {
                 `
               : null}
           </article>
+
+          ${authenticated && passwordSetupRequired
+            ? html`
+                <section className="grid gap-3 rounded-2xl border border-warning/45 bg-warning/10 p-4 sm:p-5">
+                  <p className="text-sm font-bold text-warning-content">Senha ainda nao configurada</p>
+                  <p className="text-sm text-base-content/80">
+                    Para concluir o primeiro acesso, crie sua senha agora. Nos proximos logins voce pode entrar direto por e-mail e senha.
+                  </p>
+                  ${passwordSetupError
+                    ? html`
+                        <div role="alert" className="alert alert-error text-sm">
+                          <span>${passwordSetupError}</span>
+                        </div>
+                      `
+                    : null}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="form-control">
+                      <span className="label-text text-xs">Nova senha</span>
+                      <input
+                        type="password"
+                        className="input input-bordered w-full"
+                        name="new_password"
+                        value=${passwordSetupForm.password}
+                        onInput=${(event) => {
+                          const nextValue = String(event.currentTarget?.value || '');
+                          setPasswordSetupForm((current) => ({ ...current, password: nextValue }));
+                        }}
+                        autoComplete="new-password"
+                      />
+                    </label>
+                    <label className="form-control">
+                      <span className="label-text text-xs">Confirmar senha</span>
+                      <input
+                        type="password"
+                        className="input input-bordered w-full"
+                        name="new_password_confirm"
+                        value=${passwordSetupForm.confirm}
+                        onInput=${(event) => {
+                          const nextValue = String(event.currentTarget?.value || '');
+                          setPasswordSetupForm((current) => ({ ...current, confirm: nextValue }));
+                        }}
+                        autoComplete="new-password"
+                      />
+                    </label>
+                  </div>
+                  <button type="button" className="btn btn-primary w-full sm:w-auto" disabled=${passwordSetupBusy} onClick=${handlePasswordSetupSubmit}>
+                    ${passwordSetupBusy ? 'Salvando...' : 'Criar senha agora'}
+                  </button>
+                </section>
+              `
+            : null}
+
+          ${!authenticated
+            ? html`
+                <section className="grid gap-3 rounded-2xl border border-base-300/80 bg-base-100/55 p-4 sm:p-5">
+                  <p className="text-sm font-bold">Entrar com senha</p>
+                  <p className="text-sm text-base-content/75">Use e-mail + senha se sua conta ja estiver configurada.</p>
+                  ${passwordLoginError
+                    ? html`
+                        <div role="alert" className="alert alert-error text-sm">
+                          <span>${passwordLoginError}</span>
+                        </div>
+                      `
+                    : null}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="form-control">
+                      <span className="label-text text-xs">E-mail</span>
+                      <input
+                        type="email"
+                        className="input input-bordered w-full"
+                        name="username"
+                        value=${passwordLoginForm.email}
+                        onInput=${(event) => {
+                          const nextValue = String(event.currentTarget?.value || '');
+                          setPasswordLoginForm((current) => ({
+                            ...current,
+                            email: nextValue,
+                          }));
+                        }}
+                        autoComplete="email"
+                      />
+                    </label>
+                    <label className="form-control">
+                      <span className="label-text text-xs">Senha</span>
+                      <input
+                        type="password"
+                        className="input input-bordered w-full"
+                        name="password"
+                        value=${passwordLoginForm.password}
+                        onInput=${(event) => {
+                          const nextValue = String(event.currentTarget?.value || '');
+                          setPasswordLoginForm((current) => ({
+                            ...current,
+                            password: nextValue,
+                          }));
+                        }}
+                        autoComplete="current-password"
+                      />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" className="btn btn-secondary w-full sm:w-auto" disabled=${passwordLoginBusy} onClick=${handlePasswordLoginSubmit}>
+                      ${passwordLoginBusy ? 'Entrando...' : 'Entrar com senha'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick=${() => {
+                        setPasswordRecoveryStep((step) => (step === 'idle' ? 'code_request' : 'idle'));
+                        setPasswordRecoveryError('');
+                        setPasswordRecoveryMessage('');
+                        setPasswordRecoveryForm((current) => ({
+                          ...current,
+                          email: current.email || String(passwordLoginForm.email || '').trim(),
+                        }));
+                      }}
+                    >
+                      Esqueci / criar senha
+                    </button>
+                  </div>
+
+                  ${passwordRecoveryStep !== 'idle'
+                    ? html`
+                        <div className="grid gap-3 rounded-xl border border-base-300/80 bg-base-200/55 p-3">
+                          <p className="text-xs font-bold uppercase tracking-wider text-base-content/70">Recuperacao por codigo (6 digitos)</p>
+                          ${passwordRecoveryMessage
+                            ? html`
+                                <div role="status" className="alert alert-success text-sm">
+                                  <span>${passwordRecoveryMessage}</span>
+                                </div>
+                              `
+                            : null}
+                          ${passwordRecoveryError
+                            ? html`
+                                <div role="alert" className="alert alert-error text-sm">
+                                  <span>${passwordRecoveryError}</span>
+                                </div>
+                              `
+                            : null}
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <label className="form-control">
+                              <span className="label-text text-xs">E-mail da conta</span>
+                              <input
+                                type="email"
+                                className="input input-bordered w-full"
+                                name="username"
+                                value=${passwordRecoveryForm.email}
+                                onInput=${(event) => {
+                                  const nextValue = String(event.currentTarget?.value || '');
+                                  setPasswordRecoveryForm((current) => ({
+                                    ...current,
+                                    email: nextValue,
+                                  }));
+                                }}
+                                autoComplete="email"
+                              />
+                            </label>
+                            <label className="form-control">
+                              <span className="label-text text-xs">Codigo</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                className="input input-bordered w-full"
+                                name="verification_code"
+                                value=${passwordRecoveryForm.code}
+                                onInput=${(event) => {
+                                  const nextValue = String(event.currentTarget?.value || '')
+                                    .replace(/\D+/g, '')
+                                    .slice(0, 6);
+                                  setPasswordRecoveryForm((current) => ({
+                                    ...current,
+                                    code: nextValue,
+                                  }));
+                                }}
+                                autoComplete="one-time-code"
+                              />
+                            </label>
+                            <label className="form-control">
+                              <span className="label-text text-xs">Nova senha</span>
+                              <input
+                                type="password"
+                                className="input input-bordered w-full"
+                                name="new_password"
+                                value=${passwordRecoveryForm.password}
+                                onInput=${(event) => {
+                                  const nextValue = String(event.currentTarget?.value || '');
+                                  setPasswordRecoveryForm((current) => ({
+                                    ...current,
+                                    password: nextValue,
+                                  }));
+                                }}
+                                autoComplete="new-password"
+                              />
+                            </label>
+                            <label className="form-control">
+                              <span className="label-text text-xs">Confirmar senha</span>
+                              <input
+                                type="password"
+                                className="input input-bordered w-full"
+                                name="new_password_confirm"
+                                value=${passwordRecoveryForm.confirm}
+                                onInput=${(event) => {
+                                  const nextValue = String(event.currentTarget?.value || '');
+                                  setPasswordRecoveryForm((current) => ({
+                                    ...current,
+                                    confirm: nextValue,
+                                  }));
+                                }}
+                                autoComplete="new-password"
+                              />
+                            </label>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" className="btn btn-outline w-full sm:w-auto" disabled=${passwordRecoveryBusy} onClick=${handleRecoveryRequestSubmit}>
+                              ${passwordRecoveryBusy ? 'Enviando...' : 'Enviar codigo por e-mail'}
+                            </button>
+                            <button type="button" className="btn btn-primary w-full sm:w-auto" disabled=${passwordRecoveryBusy} onClick=${handleRecoveryVerifySubmit}>
+                              ${passwordRecoveryBusy ? 'Validando...' : 'Validar codigo e criar senha'}
+                            </button>
+                          </div>
+                        </div>
+                      `
+                    : null}
+                </section>
+              `
+            : null}
 
           ${summary.visible
             ? html`

@@ -36,10 +36,23 @@ PACKAGE_SECONDARY_PUBLISH_SKIP_IF_EXISTS="${DEPLOY_PACKAGE_SECONDARY_PUBLISH_SKI
 PACKAGE_SECONDARY_TOKEN_KEYS="${DEPLOY_PACKAGE_SECONDARY_TOKEN_KEYS:-}"
 ASSET_BUILD_ENABLED="${DEPLOY_BUILD_ASSETS:-1}"
 ASSET_BUILD_CMD="${DEPLOY_BUILD_ASSETS_CMD:-npm run build:all}"
+BACKEND_CACHE_BUST_ENABLED="${DEPLOY_BACKEND_CACHE_BUST_ENABLED:-1}"
+BACKEND_BUILD_ID_ENV="${DEPLOY_BACKEND_BUILD_ID_ENV:-OMNIZAP_BUILD_ID}"
+BACKEND_BUILD_ID_VALUE="${DEPLOY_BACKEND_BUILD_ID_VALUE:-$BUILD_ID}"
+BACKEND_ASSET_VERSION_ENV="${DEPLOY_BACKEND_ASSET_VERSION_ENV:-STICKER_WEB_ASSET_VERSION}"
+BACKEND_ASSET_VERSION_VALUE="${DEPLOY_BACKEND_ASSET_VERSION_VALUE:-$BUILD_ID}"
+VERIFY_BUILD_OUTPUTS_ENABLED="${DEPLOY_VERIFY_BUILD_OUTPUTS:-1}"
+VERIFY_CACHE_BUST_ENABLED="${DEPLOY_VERIFY_CACHE_BUST:-1}"
+REQUIRE_CACHE_BUST_REFERENCES="${DEPLOY_REQUIRE_CACHE_BUST_REFERENCES:-1}"
+VERIFY_POST_SYNC_CACHE_BUST_ENABLED="${DEPLOY_VERIFY_POST_SYNC_CACHE_BUST:-1}"
 NPMRC_TMP_FILES=()
 
 log() {
   printf '[deploy] %s\n' "$*"
+}
+
+is_valid_env_key() {
+  [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]
 }
 
 resolve_github_repo() {
@@ -253,6 +266,20 @@ if [ ! -d "$SOURCE_DIR" ]; then
 fi
 
 STAGING_DIR="$(mktemp -d /tmp/omnizap-deploy.XXXXXX)"
+PM2_RESTART_ENV_ARGS=()
+
+if [ "$BACKEND_CACHE_BUST_ENABLED" = "1" ]; then
+  if ! is_valid_env_key "$BACKEND_BUILD_ID_ENV"; then
+    printf '[deploy] nome inválido para DEPLOY_BACKEND_BUILD_ID_ENV: %s\n' "$BACKEND_BUILD_ID_ENV" >&2
+    exit 1
+  fi
+  if ! is_valid_env_key "$BACKEND_ASSET_VERSION_ENV"; then
+    printf '[deploy] nome inválido para DEPLOY_BACKEND_ASSET_VERSION_ENV: %s\n' "$BACKEND_ASSET_VERSION_ENV" >&2
+    exit 1
+  fi
+  PM2_RESTART_ENV_ARGS+=("${BACKEND_BUILD_ID_ENV}=${BACKEND_BUILD_ID_VALUE}")
+  PM2_RESTART_ENV_ARGS+=("${BACKEND_ASSET_VERSION_ENV}=${BACKEND_ASSET_VERSION_VALUE}")
+fi
 
 github_deploy_start() {
   if [ "$DRY_RUN" = "1" ] || [ "$GITHUB_NOTIFY" != "1" ]; then
@@ -389,6 +416,93 @@ run_assets_build_stage() {
   )
 }
 
+verify_build_outputs() {
+  if [ "$VERIFY_BUILD_OUTPUTS_ENABLED" != "1" ]; then
+    log "Validação de artefatos de build desativada (DEPLOY_VERIFY_BUILD_OUTPUTS=$VERIFY_BUILD_OUTPUTS_ENABLED)."
+    return 0
+  fi
+
+  log "Validando artefatos obrigatórios de build em $SOURCE_DIR"
+  (
+    SOURCE_DIR="$SOURCE_DIR" node --input-type=module <<'NODE'
+import fs from 'node:fs';
+import path from 'node:path';
+
+const sourceDir = process.env.SOURCE_DIR;
+if (!sourceDir) {
+  console.error('[deploy] SOURCE_DIR ausente para validação de build.');
+  process.exit(1);
+}
+
+const requiredJsBundles = [
+  'home-react.bundle.js',
+  'user-react.bundle.js',
+  'login-react.bundle.js',
+  'api-docs.bundle.js',
+  'stickers-react.bundle.js',
+  'create-pack-react.bundle.js',
+  'stickers-admin.bundle.js',
+  'user-systemadm.bundle.js',
+];
+const requiredCssBundles = [
+  'home-react.css',
+  'user-react.css',
+  'login-react.css',
+  'api-docs.css',
+  'stickers-react.css',
+  'create-pack-react.css',
+  'stickers-admin.css',
+  'user-systemadm.css',
+];
+
+const missing = [];
+const empty = [];
+const inspectFile = (absolutePath, label) => {
+  if (!fs.existsSync(absolutePath)) {
+    missing.push(label);
+    return;
+  }
+  const stats = fs.statSync(absolutePath);
+  if (!stats.isFile() || stats.size <= 0) {
+    empty.push(label);
+  }
+};
+
+for (const file of requiredJsBundles) {
+  inspectFile(path.join(sourceDir, 'assets', 'js', file), `assets/js/${file}`);
+}
+for (const file of requiredCssBundles) {
+  inspectFile(path.join(sourceDir, 'assets', 'css', file), `assets/css/${file}`);
+}
+
+if (missing.length > 0) {
+  console.error('[deploy] Artefatos ausentes após build:');
+  for (const item of missing) {
+    console.error(`[deploy] - ${item}`);
+  }
+  process.exit(1);
+}
+
+if (empty.length > 0) {
+  console.error('[deploy] Artefatos vazios ou inválidos após build:');
+  for (const item of empty) {
+    console.error(`[deploy] - ${item}`);
+  }
+  process.exit(1);
+}
+
+let chunkCount = 0;
+const chunksDir = path.join(sourceDir, 'assets', 'js', 'chunks');
+if (fs.existsSync(chunksDir)) {
+  const entries = fs.readdirSync(chunksDir, { withFileTypes: true });
+  chunkCount = entries.filter((entry) => entry.isFile() && entry.name.endsWith('.js')).length;
+}
+
+console.log(`[deploy] Artefatos de build OK. js=${requiredJsBundles.length} css=${requiredCssBundles.length} chunks=${chunkCount}`);
+NODE
+  )
+}
+
 verify_compiled_asset_refs() {
   local verify_assets="${DEPLOY_VERIFY_ASSETS:-1}"
   if [ "$verify_assets" != "1" ]; then
@@ -460,6 +574,166 @@ NODE
   )
 }
 
+verify_cache_bust_refs() {
+  local target_dir="$1"
+  local label="${2:-cache-bust}"
+  if [ "$VERIFY_CACHE_BUST_ENABLED" != "1" ]; then
+    log "Verificação de cache-bust desativada (DEPLOY_VERIFY_CACHE_BUST=$VERIFY_CACHE_BUST_ENABLED)."
+    return 0
+  fi
+
+  log "Validando cache-bust ($label) em $target_dir (v=$BUILD_ID)"
+  (
+    SOURCE_DIR="$target_dir" BUILD_ID="$BUILD_ID" REQUIRE_REFS="$REQUIRE_CACHE_BUST_REFERENCES" node --input-type=module <<'NODE'
+import fs from 'node:fs';
+import path from 'node:path';
+import { URLSearchParams } from 'node:url';
+
+const sourceDir = process.env.SOURCE_DIR;
+const buildId = String(process.env.BUILD_ID || '').trim();
+const requireRefs = String(process.env.REQUIRE_REFS || '1') === '1';
+if (!sourceDir || !buildId) {
+  console.error('[deploy] SOURCE_DIR/BUILD_ID ausentes para validação de cache-bust.');
+  process.exit(1);
+}
+if (!fs.existsSync(sourceDir)) {
+  console.error(`[deploy] Diretório inexistente para validação de cache-bust: ${sourceDir}`);
+  process.exit(1);
+}
+
+const targetExtensions = new Set(['.html', '.js', '.mjs', '.css']);
+const assetPathPattern = /\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|ico|json|map|woff2?|ttf|eot)(?:\?[^"'#\s)]*)?(?:#[^"' \s)]*)?$/i;
+const sourcePatterns = [
+  { regex: /\b(?:src|href|poster)=["']([^"']+)["']/gi, index: 1 },
+  { regex: /(["'])((?:\/|\.{1,2}\/)[^"'\s]+)\1/gi, index: 2 },
+  { regex: /url\(\s*["']?([^"')\s]+)["']?\s*\)/gi, index: 1 },
+];
+const urlSchemePattern = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
+
+const isLocalAssetPath = (assetPath) => {
+  const value = String(assetPath || '').trim();
+  if (!value) return false;
+  if (value.startsWith('//') || value.startsWith('#') || urlSchemePattern.test(value)) return false;
+  return value.startsWith('/') || value.startsWith('./') || value.startsWith('../');
+};
+
+const hasExpectedVersion = (assetPath) => {
+  const [withoutHash] = String(assetPath || '').split('#', 1);
+  const queryIndex = withoutHash.indexOf('?');
+  if (queryIndex < 0) return false;
+  const params = new URLSearchParams(withoutHash.slice(queryIndex + 1));
+  return params.get('v') === buildId;
+};
+
+const listFiles = [];
+const stack = [sourceDir];
+while (stack.length > 0) {
+  const current = stack.pop();
+  const entries = fs.readdirSync(current, { withFileTypes: true });
+  for (const entry of entries) {
+    const absolute = path.join(current, entry.name);
+    if (entry.isDirectory()) {
+      stack.push(absolute);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    if (targetExtensions.has(path.extname(absolute).toLowerCase())) {
+      listFiles.push(absolute);
+    }
+  }
+}
+
+let totalRefs = 0;
+let versionedRefs = 0;
+const missingVersion = [];
+
+for (const filePath of listFiles) {
+  const source = fs.readFileSync(filePath, 'utf8');
+  const relativeFile = path.relative(sourceDir, filePath);
+  for (const { regex, index } of sourcePatterns) {
+    regex.lastIndex = 0;
+    let match = null;
+    while ((match = regex.exec(source)) !== null) {
+      const assetPath = String(match[index] || '').trim();
+      if (!assetPathPattern.test(assetPath)) continue;
+      if (!isLocalAssetPath(assetPath)) continue;
+      totalRefs += 1;
+      if (hasExpectedVersion(assetPath)) {
+        versionedRefs += 1;
+        continue;
+      }
+      if (missingVersion.length < 80) {
+        missingVersion.push({ file: relativeFile, asset: assetPath });
+      }
+    }
+  }
+}
+
+if (requireRefs && totalRefs === 0) {
+  console.error('[deploy] Nenhuma referência local de asset encontrada para validar cache-bust.');
+  process.exit(1);
+}
+
+if (missingVersion.length > 0) {
+  console.error(`[deploy] Referências sem ?v=${buildId}:`);
+  for (const item of missingVersion) {
+    console.error(`[deploy] - ${item.file} -> ${item.asset}`);
+  }
+  process.exit(1);
+}
+
+console.log(`[deploy] Cache-bust validado. refs=${totalRefs} versioned=${versionedRefs} build_id=${buildId}`);
+NODE
+  )
+}
+
+verify_post_sync_cache_bust() {
+  if [ "$VERIFY_POST_SYNC_CACHE_BUST_ENABLED" != "1" ]; then
+    log "Verificação pós-sync de cache-bust desativada (DEPLOY_VERIFY_POST_SYNC_CACHE_BUST=$VERIFY_POST_SYNC_CACHE_BUST_ENABLED)."
+    return 0
+  fi
+
+  log "Validando cache-bust em páginas-chave no diretório de deploy"
+  local sample_files=(
+    "index.html"
+    "login/index.html"
+    "user/index.html"
+    "stickers/index.html"
+    "stickers/create/index.html"
+    "stickers/admin/index.html"
+    "api-docs/index.html"
+    "user/systemadm/index.html"
+  )
+  local missing_samples=()
+
+  for sample in "${sample_files[@]}"; do
+    local absolute_path="$DEPLOY_DIR/$sample"
+    if [ ! -f "$absolute_path" ]; then
+      continue
+    fi
+
+    if command -v rg >/dev/null 2>&1; then
+      if ! rg -q "/assets/(css|js)/[^\"']*\\?[^\"']*v=${BUILD_ID}" "$absolute_path"; then
+        missing_samples+=("$sample")
+      fi
+    else
+      if ! grep -Eq "/assets/(css|js)/[^\"']*\\?[^\"']*v=${BUILD_ID}" "$absolute_path"; then
+        missing_samples+=("$sample")
+      fi
+    fi
+  done
+
+  if [ "${#missing_samples[@]}" -gt 0 ]; then
+    printf '[deploy] páginas sem marker de cache-bust esperado (v=%s):\n' "$BUILD_ID" >&2
+    for sample in "${missing_samples[@]}"; do
+      printf '[deploy] - %s\n' "$sample" >&2
+    done
+    exit 1
+  fi
+
+  log "Cache-bust pós-sync validado nas páginas-chave."
+}
+
 finalize() {
   local exit_code=$?
   if [ "$exit_code" -eq 0 ]; then
@@ -477,11 +751,31 @@ finalize() {
 trap finalize EXIT
 
 log "build_id=$BUILD_ID"
+if [ "$BACKEND_CACHE_BUST_ENABLED" = "1" ]; then
+  log "Cache-bust backend ativo: ${BACKEND_BUILD_ID_ENV}=${BACKEND_BUILD_ID_VALUE} | ${BACKEND_ASSET_VERSION_ENV}=${BACKEND_ASSET_VERSION_VALUE}"
+else
+  log "Cache-bust backend desativado (DEPLOY_BACKEND_CACHE_BUST_ENABLED=$BACKEND_CACHE_BUST_ENABLED)."
+fi
 run_assets_build_stage
+verify_build_outputs
 verify_compiled_asset_refs
 log "Preparando staging em $STAGING_DIR"
 rsync -a --delete "$SOURCE_DIR"/ "$STAGING_DIR"/
-node "$PROJECT_ROOT/scripts/cache-bust.mjs" --dir "$STAGING_DIR" --version "$BUILD_ID"
+log "Aplicando cache-bust de frontend (versão=$BUILD_ID)"
+CACHE_BUST_OUTPUT="$(node "$PROJECT_ROOT/scripts/cache-bust.mjs" --dir "$STAGING_DIR" --version "$BUILD_ID")"
+printf '%s\n' "$CACHE_BUST_OUTPUT"
+if [ "$REQUIRE_CACHE_BUST_REFERENCES" = "1" ]; then
+  CACHE_BUST_REFS="$(printf '%s' "$CACHE_BUST_OUTPUT" | sed -nE 's/.* refs=([0-9]+).*/\1/p' | tail -n 1)"
+  if [ -z "$CACHE_BUST_REFS" ] || ! [[ "$CACHE_BUST_REFS" =~ ^[0-9]+$ ]]; then
+    printf '[deploy] Não foi possível validar o total de refs do cache-bust.\n' >&2
+    exit 1
+  fi
+  if [ "$CACHE_BUST_REFS" -le 0 ]; then
+    printf '[deploy] Cache-bust não alterou nenhuma referência (refs=%s).\n' "$CACHE_BUST_REFS" >&2
+    exit 1
+  fi
+fi
+verify_cache_bust_refs "$STAGING_DIR" "staging"
 
 if [ "$BACKUP_ENABLED" = "1" ] && [ "$DRY_RUN" != "1" ] && [ -d "$DEPLOY_DIR" ]; then
   BACKUP_STAMP="$(date -u +%Y%m%d-%H%M%S)"
@@ -508,6 +802,7 @@ run_package_stage
 
 log "Sincronizando arquivos para $DEPLOY_DIR"
 as_root rsync -a --delete --exclude '.backup/' "$STAGING_DIR"/ "$DEPLOY_DIR"/
+verify_post_sync_cache_bust
 
 log "Validando configuração do nginx"
 as_root nginx -t
@@ -519,7 +814,11 @@ as_root systemctl is-active --quiet "$NGINX_SERVICE"
 if [ "$RESTART_PM2" = "1" ] && command -v pm2 >/dev/null 2>&1; then
   if as_root pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
     log "Reiniciando PM2 app $PM2_APP_NAME"
-    as_root pm2 restart "$PM2_APP_NAME" --update-env >/dev/null
+    if [ "${#PM2_RESTART_ENV_ARGS[@]}" -gt 0 ]; then
+      as_root env "${PM2_RESTART_ENV_ARGS[@]}" pm2 restart "$PM2_APP_NAME" --update-env >/dev/null
+    else
+      as_root pm2 restart "$PM2_APP_NAME" --update-env >/dev/null
+    fi
   else
     log "PM2 app '$PM2_APP_NAME' não encontrada. Restart ignorado."
   fi

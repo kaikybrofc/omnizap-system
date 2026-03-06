@@ -22,6 +22,12 @@ const startsWithPath = (pathname, prefix) => {
 
 const DEFAULT_USER_WEB_PATH = '/user';
 const DEFAULT_STICKER_API_BASE_PATH = '/api/sticker-packs';
+const DEFAULT_USER_PASSWORD_RESET_WEB_PATH = `${DEFAULT_USER_WEB_PATH}/password-reset`;
+const resolveDefaultPasswordResetWebPath = (webPath) => {
+  const normalizedWebPath = normalizeBasePath(webPath, DEFAULT_USER_WEB_PATH);
+  if (normalizedWebPath === '/') return DEFAULT_USER_PASSWORD_RESET_WEB_PATH;
+  return normalizeBasePath(`${normalizedWebPath}/password-reset`, DEFAULT_USER_PASSWORD_RESET_WEB_PATH);
+};
 
 export const buildUserApiPaths = (apiBasePath) => {
   const resolvedApiBasePath = normalizeBasePath(apiBasePath, DEFAULT_STICKER_API_BASE_PATH);
@@ -31,8 +37,11 @@ export const buildUserApiPaths = (apiBasePath) => {
 export const getUserRouterConfig = async () => {
   const controller = await loadUserController();
   const legacyConfig = (typeof controller?.getUserRouteConfig === 'function' ? controller.getUserRouteConfig() : null) || {};
+  const webPath = normalizeBasePath(legacyConfig.webPath, DEFAULT_USER_WEB_PATH);
+  const fallbackPasswordResetWebPath = resolveDefaultPasswordResetWebPath(webPath);
   return {
-    webPath: normalizeBasePath(legacyConfig.webPath, DEFAULT_USER_WEB_PATH),
+    webPath,
+    passwordResetWebPath: normalizeBasePath(legacyConfig.passwordResetWebPath, fallbackPasswordResetWebPath),
     apiBasePath: normalizeBasePath(legacyConfig.apiBasePath, DEFAULT_STICKER_API_BASE_PATH),
   };
 };
@@ -40,10 +49,14 @@ export const getUserRouterConfig = async () => {
 export const shouldHandleUserPath = (pathname, userConfig = null) => {
   const resolvedConfig = userConfig || {
     webPath: DEFAULT_USER_WEB_PATH,
+    passwordResetWebPath: DEFAULT_USER_PASSWORD_RESET_WEB_PATH,
     apiBasePath: DEFAULT_STICKER_API_BASE_PATH,
   };
+  const webPath = normalizeBasePath(resolvedConfig.webPath, DEFAULT_USER_WEB_PATH);
+  const fallbackPasswordResetWebPath = resolveDefaultPasswordResetWebPath(webPath);
+  const passwordResetWebPath = normalizeBasePath(resolvedConfig.passwordResetWebPath, fallbackPasswordResetWebPath);
 
-  if (startsWithPath(pathname, resolvedConfig.webPath)) return true;
+  if (startsWithPath(pathname, webPath) || startsWithPath(pathname, passwordResetWebPath)) return true;
 
   const userApiPaths = buildUserApiPaths(resolvedConfig.apiBasePath);
   return userApiPaths.has(pathname);

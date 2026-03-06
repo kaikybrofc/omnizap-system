@@ -3,6 +3,7 @@ import http from 'node:http';
 import logger from '../../utils/logger/loggerModule.js';
 import { getMetricsServerConfig, isMetricsEnabled, recordHttpRequest, resolveRouteGroup } from '../../app/observability/metrics.js';
 import { applyCachePolicy } from '../middleware/cachePolicy.js';
+import { applySensitiveRouteRateLimit } from '../middleware/endpointRateLimit.js';
 import { applySecurityHeaders } from '../middleware/securityHeaders.js';
 import { getIndexRouteConfigs, routeRequest } from '../routes/indexRouter.js';
 import { parseRequestUrl, normalizeRequestId } from './requestContext.js';
@@ -52,6 +53,8 @@ export const startHttpServer = () => {
     try {
       applySecurityHeaders(req, res);
       applyCachePolicy(req, res, { pathname });
+      const allowedByRateLimit = await applySensitiveRouteRateLimit(req, res, { pathname });
+      if (!allowedByRateLimit) return;
 
       await routeRequest(req, res, {
         pathname,

@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import axios from 'axios';
 
+import { signWebAuthJwt, verifyWebAuthJwt, extractBearerTokenFromRequest } from '../jwt/webJwtService.js';
+import { parseGoogleAuthSessionPayload } from '../validation/authSchemas.js';
+
 const GOOGLE_TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
 const GOOGLE_WEB_SESSION_COOKIE_NAME = 'omnizap_google_session';
 
@@ -330,10 +333,156 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
     webGoogleSessionMap.set(session.token, session);
   };
 
+  const issueAccessTokenForSession = (session) => {
+    if (!session?.sub) return '';
+    const expiresInSeconds = Math.max(60, Math.floor((Number(session.expiresAt || 0) - Date.now()) / 1000));
+    return (
+      signWebAuthJwt(
+        {
+          sub: session.sub,
+          sessionToken: session.token,
+          ownerJid: session.ownerJid,
+          ownerPhone: session.ownerPhone,
+          email: session.email,
+          name: session.name,
+          authMethod: 'google',
+        },
+        { expiresInSeconds },
+      ) || ''
+    );
+  };
+
+  const setGoogleWebSessionCookie = (req, res, sessionToken, maxAgeSeconds = Math.floor(sessionTtlMs / 1000)) => {
+    const token = String(sessionToken || '').trim();
+    if (!token) return;
+    appendSetCookie(
+      res,
+      buildCookieString(GOOGLE_WEB_SESSION_COOKIE_NAME, token, req, {
+        path: normalizedSessionCookiePath,
+        maxAgeSeconds,
+      }),
+    );
+  };
+
+  const createPersistedGoogleWebSessionFromIdentity = async ({
+    sub = '',
+    email = '',
+    name = '',
+    picture = '',
+    ownerJid = '',
+    requestMeta = null,
+  } = {}) => {
+    const normalizedSub = normalizeGoogleSubject(sub);
+    const normalizedOwnerJid = normalizeJid(ownerJid) || '';
+    if (!normalizedSub || !normalizedOwnerJid) {
+      const error = new Error('Nao foi possivel criar sessao para a identidade informada.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await assertGoogleIdentityNotBanned({
+      sub: normalizedSub,
+      email: normalizeEmail(email),
+      ownerJid: normalizedOwnerJid,
+    });
+
+    const session = createGoogleWebSession(
+      {
+        sub: normalizedSub,
+        email: normalizeEmail(email) || null,
+        name: sanitizeText(name || '', 120, { allowEmpty: true }) || null,
+        picture: String(picture || '').trim() || null,
+      },
+      { ownerJid: normalizedOwnerJid },
+    );
+
+    if (!session.ownerJid) {
+      const error = new Error('Nao foi possivel vincular a conta ao owner informado.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await persistGoogleWebSessionToDb(session);
+    activateGoogleWebSession(session);
+
+    if (typeof onGoogleWebSessionCreated === 'function') {
+      Promise.resolve(
+        onGoogleWebSessionCreated({
+          sub: session.sub,
+          email: session.email,
+          name: session.name,
+          ownerJid: session.ownerJid,
+          ownerPhone: session.ownerPhone,
+          expiresAt: session.expiresAt,
+          request: requestMeta || null,
+        }),
+      ).catch((hookError) => {
+        logger.warn('Falha ao executar callback pós-criacao de sessao Google web.', {
+          action: 'sticker_pack_google_web_session_created_hook_failed',
+          error: hookError?.message,
+        });
+      });
+    }
+
+    return session;
+  };
+
+  const resolveGoogleWebSessionFromBearerToken = async (req) => {
+    const bearerToken = extractBearerTokenFromRequest(req);
+    if (!bearerToken) return null;
+
+    const claims = verifyWebAuthJwt(bearerToken);
+    if (!claims?.sub) return null;
+
+    const sessionToken = String(claims.sid || '').trim();
+    if (!sessionToken) return null;
+
+    const inMemory = webGoogleSessionMap.get(sessionToken);
+    if (inMemory && Number(inMemory.expiresAt || 0) > Date.now()) {
+      if (normalizeGoogleSubject(inMemory.sub) !== normalizeGoogleSubject(claims.sub)) {
+        return null;
+      }
+      try {
+        await assertGoogleIdentityNotBanned({
+          sub: inMemory.sub,
+          email: inMemory.email,
+          ownerJid: inMemory.ownerJid,
+        });
+        return inMemory;
+      } catch {
+        webGoogleSessionMap.delete(sessionToken);
+        await deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
+        return null;
+      }
+    }
+
+    const persistedSession = await findGoogleWebSessionInDbByToken(sessionToken);
+    if (!persistedSession) return null;
+    if (normalizeGoogleSubject(persistedSession.sub) !== normalizeGoogleSubject(claims.sub)) {
+      return null;
+    }
+
+    try {
+      await assertGoogleIdentityNotBanned({
+        sub: persistedSession.sub,
+        email: persistedSession.email,
+        ownerJid: persistedSession.ownerJid,
+      });
+    } catch {
+      await deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
+      return null;
+    }
+
+    activateGoogleWebSession(persistedSession);
+    return persistedSession;
+  };
+
   const resolveGoogleWebSessionFromRequest = async (req) => {
     pruneExpiredGoogleSessions();
     const sessionTokens = getGoogleWebSessionTokensFromRequest(req);
-    if (!sessionTokens.length) return null;
+    if (!sessionTokens.length) {
+      return resolveGoogleWebSessionFromBearerToken(req);
+    }
 
     for (const sessionToken of sessionTokens) {
       const session = webGoogleSessionMap.get(sessionToken);
@@ -392,7 +541,7 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
       }
     }
 
-    return null;
+    return resolveGoogleWebSessionFromBearerToken(req);
   };
 
   const clearGoogleWebSessionCookie = (req, res) => {
@@ -415,29 +564,40 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
     }
   };
 
-  const mapGoogleSessionResponseData = (session) =>
-    session
-      ? {
-          authenticated: true,
-          provider: 'google',
-          user: {
-            sub: session.sub,
-            email: session.email,
-            name: session.name,
-            picture: session.picture,
-          },
-          owner_jid: session.ownerJid,
-          owner_phone: toWhatsAppPhoneDigits(session.ownerPhone || session.ownerJid) || null,
-          expires_at: toIsoOrNull(session.expiresAt),
-        }
-      : {
-          authenticated: false,
-          provider: 'google',
-          user: null,
-          owner_jid: null,
-          owner_phone: null,
-          expires_at: null,
-        };
+  const mapGoogleSessionResponseData = (session, { accessToken = '' } = {}) => {
+    if (!session) {
+      return {
+        authenticated: false,
+        provider: 'google',
+        user: null,
+        owner_jid: null,
+        owner_phone: null,
+        expires_at: null,
+      };
+    }
+
+    const payload = {
+      authenticated: true,
+      provider: 'google',
+      user: {
+        sub: session.sub,
+        email: session.email,
+        name: session.name,
+        picture: session.picture,
+      },
+      owner_jid: session.ownerJid,
+      owner_phone: toWhatsAppPhoneDigits(session.ownerPhone || session.ownerJid) || null,
+      expires_at: toIsoOrNull(session.expiresAt),
+    };
+
+    const normalizedAccessToken = String(accessToken || '').trim();
+    if (normalizedAccessToken) {
+      payload.token_type = 'Bearer';
+      payload.access_token = normalizedAccessToken;
+    }
+
+    return payload;
+  };
 
   const revokeGoogleWebSessionsByIdentity = async ({ googleSub = '', email = '', ownerJid = '' } = {}) => {
     const normalizedSub = normalizeGoogleSubject(googleSub);
@@ -525,6 +685,17 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
     }
 
     try {
+      payload = parseGoogleAuthSessionPayload(payload);
+    } catch (error) {
+      sendJson(req, res, Number(error?.statusCode || 400), {
+        error: error?.message || 'Payload de login invalido.',
+        code: error?.code || 'INVALID_PAYLOAD',
+        details: Array.isArray(error?.details) ? error.details : undefined,
+      });
+      return;
+    }
+
+    try {
       const claims = await verifyGoogleIdToken(payload?.google_id_token || payload?.id_token);
       const linkedOwner = resolveWhatsAppOwnerJidFromLoginPayload(payload);
       if (!linkedOwner.ownerJid) {
@@ -560,64 +731,28 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
       }
       const ownerJid = linkedOwner.ownerJid;
 
-      await assertGoogleIdentityNotBanned({
+      const session = await createPersistedGoogleWebSessionFromIdentity({
         sub: claims.sub,
-        email: claims.email,
+        email: claims.email || '',
+        name: claims.name || '',
+        picture: claims.picture || '',
         ownerJid,
+        requestMeta: {
+          remoteIp: req.socket?.remoteAddress || null,
+          userAgent: req.headers?.['user-agent'] || null,
+        },
       });
-      const session = createGoogleWebSession(claims, { ownerJid });
-      if (!session.ownerJid) {
-        sendJson(req, res, 400, { error: 'Nao foi possivel vincular a conta Google.' });
-        return;
-      }
-      try {
-        await persistGoogleWebSessionToDb(session);
-        activateGoogleWebSession(session);
-      } catch (persistError) {
-        logger.error('Falha ao persistir sessão Google web no banco.', {
-          action: 'sticker_pack_google_web_session_db_persist_failed',
-          error: persistError?.message,
-        });
-        sendJson(req, res, 500, { error: 'Falha ao salvar sessão Google. Tente novamente.' });
-        return;
-      }
 
-      if (typeof onGoogleWebSessionCreated === 'function') {
-        Promise.resolve(
-          onGoogleWebSessionCreated({
-            sub: session.sub,
-            email: session.email,
-            name: session.name,
-            ownerJid: session.ownerJid,
-            ownerPhone: session.ownerPhone,
-            expiresAt: session.expiresAt,
-            request: {
-              remoteIp: req.socket?.remoteAddress || null,
-              userAgent: req.headers?.['user-agent'] || null,
-            },
-          }),
-        ).catch((hookError) => {
-          logger.warn('Falha ao executar callback pós-login Google web.', {
-            action: 'sticker_pack_google_web_session_created_hook_failed',
-            error: hookError?.message,
-          });
-        });
-      }
-
-      appendSetCookie(
-        res,
-        buildCookieString(GOOGLE_WEB_SESSION_COOKIE_NAME, session.token, req, {
-          path: normalizedSessionCookiePath,
-          maxAgeSeconds: Math.floor(sessionTtlMs / 1000),
-        }),
-      );
+      setGoogleWebSessionCookie(req, res, session.token, Math.floor(sessionTtlMs / 1000));
+      const accessToken = issueAccessTokenForSession(session);
       sendJson(req, res, 200, {
-        data: mapGoogleSessionResponseData(session),
+        data: mapGoogleSessionResponseData(session, { accessToken }),
       });
     } catch (error) {
-      sendJson(req, res, Number(error?.statusCode || 401), {
+      const statusCode = Number(error?.statusCode || 500);
+      sendJson(req, res, statusCode, {
         error: error?.message || 'Login Google inválido.',
-        code: notAllowedErrorCode,
+        code: statusCode >= 500 ? 'INTERNAL_ERROR' : notAllowedErrorCode,
       });
     }
   };
@@ -628,8 +763,11 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
     upsertGoogleWebUserRecord,
     resolveGoogleWebSessionFromRequest,
     clearGoogleWebSessionCookie,
+    setGoogleWebSessionCookie,
     deleteGoogleWebSessionFromDb,
     mapGoogleSessionResponseData,
+    issueAccessTokenForSession,
+    createPersistedGoogleWebSessionFromIdentity,
     handleGoogleAuthSessionRequest,
     revokeGoogleWebSessionsByIdentity,
   };

@@ -24,4 +24,23 @@
   #user-react-root .skeleton {
     border-radius: 0.6rem;
   }
+
+  #user-react-root .input,
+  #user-react-root .input > input {
+    color: hsl(var(--bc));
+    caret-color: hsl(var(--bc));
+  }
+
+  #user-react-root .input > input::placeholder {
+    color: rgb(148 163 184 / 0.75);
+  }
+
+  #user-react-root .input > input:-webkit-autofill,
+  #user-react-root .input > input:-webkit-autofill:hover,
+  #user-react-root .input > input:-webkit-autofill:focus {
+    -webkit-text-fill-color: hsl(var(--bc));
+    caret-color: hsl(var(--bc));
+    box-shadow: 0 0 0 1000px hsl(var(--b1)) inset;
+    transition: background-color 9999s ease-out;
+  }
 }

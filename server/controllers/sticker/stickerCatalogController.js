@@ -24,7 +24,16 @@ import { listStickerPackScoreSnapshotsByPackIds } from '../../../app/modules/sti
 import { createCatalogApiRouter } from '../../routes/sticker/catalogRouter.js';
 import { createStickerCatalogNonCatalogHandlers } from './nonCatalogHandlers.js';
 import { createGoogleWebAuthService } from '../../auth/googleWebAuth/googleWebAuthService.js';
-import { queueWelcomeEmail } from '../../email/emailAutomationService.js';
+import { isWebAuthJwtEnabled, signWebAuthJwt, verifyWebAuthJwt } from '../../auth/jwt/webJwtService.js';
+import userPasswordAuthService from '../../auth/userPassword/index.js';
+import { createUserPasswordRecoveryService } from '../../auth/userPassword/userPasswordRecoveryService.js';
+import {
+  parseUserPasswordLoginPayload,
+  parseUserPasswordRecoveryRequestPayload,
+  parseUserPasswordRecoveryVerifyPayload,
+  parseUserPasswordUpsertPayload,
+} from '../../auth/validation/authSchemas.js';
+import { queueAutomatedEmail, queueWelcomeEmail } from '../../email/emailAutomationService.js';
 import { createStickerCatalogAdminBanService } from '../admin/adminBanService.js';
 import { createStickerCatalogAdminHandlers } from '../admin/adminPanelHandlers.js';
 import { buildAdminMenu, buildAiMenu, buildAnimeMenu, buildMediaMenu, buildMenuCaption, buildQuoteMenu, buildStatsMenu, buildStickerMenu } from '../../../app/modules/menuModule/common.js';
@@ -103,9 +112,12 @@ const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PAT
 const STICKER_ORPHAN_API_PATH = `${STICKER_API_BASE_PATH}/orphan-stickers`;
 const STICKER_CREATE_WEB_PATH = `${STICKER_WEB_PATH}/create`;
 const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
+const USER_PASSWORD_RESET_WEB_PATH = normalizeBasePath(process.env.USER_PASSWORD_RESET_WEB_PATH, '/user/password-reset');
+const PASSWORD_RECOVERY_SESSION_AUTH_METHOD = 'password_recovery_session';
+const PASSWORD_RECOVERY_SESSION_TTL_SECONDS = clampInt(process.env.WEB_PASSWORD_RECOVERY_SESSION_TTL_SECONDS, 15 * 60, 60, 24 * 60 * 60);
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
 const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
-const STICKER_WEB_ASSET_VERSION = sanitizeText(process.env.STICKER_WEB_ASSET_VERSION || '', 64, { allowEmpty: true }) || '';
+const STICKER_WEB_ASSET_VERSION = sanitizeText(process.env.STICKER_WEB_ASSET_VERSION || process.env.OMNIZAP_BUILD_ID || '', 64, { allowEmpty: true }) || '';
 const CATALOG_PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'index.html');
 const CREATE_PACK_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'create', 'index.html');
@@ -914,8 +926,26 @@ const googleWebAuth = createGoogleWebAuthService({
   legacyCookiePaths: googleWebLegacyCookiePaths,
 });
 
-const { upsertGoogleWebUserRecord, resolveGoogleWebSessionFromRequest, mapGoogleSessionResponseData, handleGoogleAuthSessionRequest, revokeGoogleWebSessionsByIdentity } = googleWebAuth;
+const {
+  upsertGoogleWebUserRecord,
+  resolveGoogleWebSessionFromRequest,
+  mapGoogleSessionResponseData,
+  setGoogleWebSessionCookie,
+  issueAccessTokenForSession,
+  createPersistedGoogleWebSessionFromIdentity,
+  handleGoogleAuthSessionRequest,
+  revokeGoogleWebSessionsByIdentity,
+} = googleWebAuth;
 revokeGoogleWebSessionsByIdentityBridge = revokeGoogleWebSessionsByIdentity;
+
+const userPasswordRecoveryService = createUserPasswordRecoveryService({
+  executeQuery,
+  userPasswordAuthService,
+  queueAutomatedEmail,
+  tables: TABLES,
+  logger,
+  runSqlTransaction,
+});
 
 const sendAsset = (req, res, buffer, mimetype = 'image/webp', cacheControlOverride = '') => {
   const maxAgeSeconds = Math.max(60 * 60 * 24, ASSET_CACHE_SECONDS);
@@ -3437,6 +3467,671 @@ const normalizeMyProfileView = (value) => {
   return 'full';
 };
 
+const toUserPasswordStatePayload = (credential) => {
+  if (!credential) {
+    return {
+      configured: false,
+      failed_attempts: 0,
+      last_failed_at: null,
+      last_login_at: null,
+      password_changed_at: null,
+      revoked_at: null,
+    };
+  }
+
+  return {
+    configured: Boolean(credential.has_password && !credential.revoked_at),
+    failed_attempts: Number(credential.failed_attempts || 0),
+    last_failed_at: credential.last_failed_at || null,
+    last_login_at: credential.last_login_at || null,
+    password_changed_at: credential.password_changed_at || null,
+    revoked_at: credential.revoked_at || null,
+  };
+};
+
+const maskEmailForResponse = (value) => {
+  const normalized = normalizeEmail(value);
+  if (!normalized || !normalized.includes('@')) return null;
+  const [localPart, domainPart] = normalized.split('@');
+  if (!localPart || !domainPart) return null;
+  const safeLocal = localPart.length <= 2 ? `${localPart.charAt(0) || '*'}*` : `${localPart.slice(0, 2)}***`;
+  const domainSegments = domainPart.split('.');
+  const domainHead = String(domainSegments.shift() || '');
+  const safeDomainHead = domainHead.length <= 2 ? `${domainHead.charAt(0) || '*'}*` : `${domainHead.slice(0, 2)}***`;
+  const suffix = domainSegments.length ? `.${domainSegments.join('.')}` : '';
+  return `${safeLocal}@${safeDomainHead}${suffix}`;
+};
+
+const normalizePasswordRecoverySessionToken = (value) =>
+  String(value || '')
+    .trim()
+    .slice(0, 4096);
+
+const buildPasswordRecoverySessionPath = (sessionToken) => `${USER_PASSWORD_RESET_WEB_PATH}/${encodeURIComponent(String(sessionToken || ''))}`;
+
+const toPasswordRecoverySessionExpiresAt = (claims) => {
+  const expUnix = Number(claims?.exp || 0);
+  if (!Number.isFinite(expUnix) || expUnix <= 0) return null;
+  return new Date(expUnix * 1000).toISOString();
+};
+
+const toPasswordRecoverySessionExpiresIn = (claims) => {
+  const expUnix = Number(claims?.exp || 0);
+  if (!Number.isFinite(expUnix) || expUnix <= 0) return null;
+  return Math.max(0, Math.floor(expUnix - Date.now() / 1000));
+};
+
+const signPasswordRecoverySessionToken = ({ sub = '', email = '', ownerJid = '' } = {}) => {
+  if (!isWebAuthJwtEnabled()) return '';
+  return signWebAuthJwt(
+    {
+      sub,
+      email,
+      ownerJid,
+      authMethod: PASSWORD_RECOVERY_SESSION_AUTH_METHOD,
+    },
+    {
+      expiresInSeconds: PASSWORD_RECOVERY_SESSION_TTL_SECONDS,
+    },
+  );
+};
+
+const resolvePasswordRecoverySessionClaims = (sessionToken) => {
+  if (!isWebAuthJwtEnabled()) {
+    return {
+      ok: false,
+      statusCode: 503,
+      error: 'JWT de autenticacao nao configurado no servidor.',
+      code: 'JWT_NOT_CONFIGURED',
+    };
+  }
+
+  const normalizedSessionToken = normalizePasswordRecoverySessionToken(sessionToken);
+  if (!normalizedSessionToken) {
+    return {
+      ok: false,
+      statusCode: 400,
+      error: 'Sessao de redefinicao invalida.',
+      code: 'PASSWORD_RECOVERY_SESSION_INVALID',
+    };
+  }
+
+  const claims = verifyWebAuthJwt(normalizedSessionToken);
+  if (!claims?.sub || claims.amr !== PASSWORD_RECOVERY_SESSION_AUTH_METHOD) {
+    return {
+      ok: false,
+      statusCode: 401,
+      error: 'Sessao de redefinicao invalida ou expirada.',
+      code: 'PASSWORD_RECOVERY_SESSION_EXPIRED',
+    };
+  }
+
+  const normalizedOwnerJid = normalizeJid(claims.owner_jid || '');
+  const normalizedEmail = normalizeEmail(claims.email || '');
+  if (!normalizedOwnerJid || !normalizedEmail || !normalizedEmail.includes('@')) {
+    return {
+      ok: false,
+      statusCode: 401,
+      error: 'Sessao de redefinicao invalida.',
+      code: 'PASSWORD_RECOVERY_SESSION_INVALID',
+    };
+  }
+
+  return {
+    ok: true,
+    claims,
+    identity: {
+      googleSub: claims.sub,
+      email: normalizedEmail,
+      ownerJid: normalizedOwnerJid,
+      purpose: 'reset',
+    },
+  };
+};
+
+const handlePasswordAuthRequest = async (req, res) => {
+  if (!['GET', 'HEAD', 'POST', 'DELETE'].includes(req.method || '')) {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  const googleSession = await resolveGoogleWebSessionFromRequest(req);
+  if (!googleSession?.sub || !googleSession?.ownerJid) {
+    sendJson(req, res, 401, { error: 'Sessao Google invalida ou expirada.' });
+    return;
+  }
+
+  const identity = {
+    googleSub: googleSession.sub,
+    email: googleSession.email,
+    ownerJid: googleSession.ownerJid,
+  };
+
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    const credential = await userPasswordAuthService.findCredentialByIdentity(identity, { includeRevoked: true });
+    sendJson(req, res, 200, {
+      data: {
+        session: mapGoogleSessionResponseData(googleSession),
+        password: toUserPasswordStatePayload(credential),
+      },
+    });
+    return;
+  }
+
+  if (req.method === 'DELETE') {
+    const revoked = await userPasswordAuthService.revokePasswordForIdentity(identity);
+    sendJson(req, res, 200, {
+      data: {
+        revoked: Boolean(revoked),
+        session: mapGoogleSessionResponseData(googleSession),
+        password: toUserPasswordStatePayload(revoked),
+      },
+    });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body invalido.' });
+    return;
+  }
+
+  try {
+    payload = parseUserPasswordUpsertPayload(payload);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), {
+      error: error?.message || 'Payload de senha invalido.',
+      code: error?.code || 'INVALID_PAYLOAD',
+      details: Array.isArray(error?.details) ? error.details : undefined,
+    });
+    return;
+  }
+
+  try {
+    const credential = await userPasswordAuthService.setPasswordForIdentity({
+      ...identity,
+      password: payload.password,
+    });
+    sendJson(req, res, 200, {
+      data: {
+        updated: true,
+        session: mapGoogleSessionResponseData(googleSession),
+        password: toUserPasswordStatePayload(credential),
+      },
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), {
+      error: error?.message || 'Falha ao salvar senha.',
+      code: error?.code || 'PASSWORD_UPDATE_FAILED',
+      details: Array.isArray(error?.details) ? error.details : undefined,
+    });
+  }
+};
+
+const handlePasswordRecoveryRequest = async (req, res) => {
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body invalido.' });
+    return;
+  }
+
+  try {
+    payload = parseUserPasswordRecoveryRequestPayload(payload);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), {
+      error: error?.message || 'Payload de recuperacao de senha invalido.',
+      code: error?.code || 'INVALID_PAYLOAD',
+      details: Array.isArray(error?.details) ? error.details : undefined,
+    });
+    return;
+  }
+
+  try {
+    const result = await userPasswordRecoveryService.requestPasswordRecoveryCode({
+      googleSub: payload.google_sub,
+      email: payload.email,
+      ownerJid: payload.owner_jid,
+      purpose: payload.purpose || 'reset',
+      requestMeta: {
+        remoteIp: req.socket?.remoteAddress || null,
+        userAgent: req.headers?.['user-agent'] || null,
+      },
+    });
+
+    sendJson(req, res, 200, {
+      data: {
+        accepted: true,
+        queued: Boolean(result?.queued),
+        cooldown_active: Boolean(result?.cooldown_active),
+        rate_limited: Boolean(result?.rate_limited),
+        expires_in_seconds: Number(result?.expires_in_seconds || 0) || null,
+        masked_email: result?.masked_email || maskEmailForResponse(payload.email) || null,
+      },
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), {
+      error: error?.message || 'Falha ao solicitar codigo de verificacao.',
+      code: error?.code || 'PASSWORD_RECOVERY_REQUEST_FAILED',
+      details: Array.isArray(error?.details) ? error.details : undefined,
+    });
+  }
+};
+
+const handlePasswordRecoveryVerifyRequest = async (req, res) => {
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body invalido.' });
+    return;
+  }
+
+  try {
+    payload = parseUserPasswordRecoveryVerifyPayload(payload);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), {
+      error: error?.message || 'Payload de verificacao invalido.',
+      code: error?.code || 'INVALID_PAYLOAD',
+      details: Array.isArray(error?.details) ? error.details : undefined,
+    });
+    return;
+  }
+
+  try {
+    const recoveryResult = await userPasswordRecoveryService.verifyPasswordRecoveryCode({
+      googleSub: payload.google_sub,
+      email: payload.email,
+      ownerJid: payload.owner_jid,
+      purpose: payload.purpose || '',
+      code: payload.code,
+      password: payload.password,
+      requestMeta: {
+        remoteIp: req.socket?.remoteAddress || null,
+        userAgent: req.headers?.['user-agent'] || null,
+      },
+    });
+
+    let sessionPayload = mapGoogleSessionResponseData(null);
+    if (recoveryResult?.credential?.google_sub && recoveryResult?.credential?.owner_jid) {
+      try {
+        const session = await createPersistedGoogleWebSessionFromIdentity({
+          sub: recoveryResult.credential.google_sub,
+          email: recoveryResult.credential.email || '',
+          name: recoveryResult.credential.name || '',
+          ownerJid: recoveryResult.credential.owner_jid,
+          requestMeta: {
+            remoteIp: req.socket?.remoteAddress || null,
+            userAgent: req.headers?.['user-agent'] || null,
+          },
+        });
+        setGoogleWebSessionCookie(req, res, session.token);
+        const accessToken = issueAccessTokenForSession(session);
+        sessionPayload = mapGoogleSessionResponseData(session, { accessToken });
+      } catch (sessionError) {
+        logger.warn('Senha redefinida, mas sessao automatica nao foi criada.', {
+          action: 'web_password_recovery_session_create_failed',
+          error: sessionError?.message,
+          google_sub: recoveryResult?.credential?.google_sub || null,
+        });
+      }
+    }
+
+    sendJson(req, res, 200, {
+      data: {
+        updated: true,
+        auth_method: 'password_recovery',
+        session: sessionPayload,
+        password: toUserPasswordStatePayload(recoveryResult?.credential || null),
+        masked_email: recoveryResult?.masked_email || maskEmailForResponse(payload.email) || null,
+      },
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), {
+      error: error?.message || 'Falha ao validar codigo de verificacao.',
+      code: error?.code || 'PASSWORD_RECOVERY_VERIFY_FAILED',
+      details: Array.isArray(error?.details) ? error.details : undefined,
+    });
+  }
+};
+
+const handlePasswordRecoverySessionCreateRequest = async (req, res) => {
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  const googleSession = await resolveGoogleWebSessionFromRequest(req);
+  if (!googleSession?.sub || !googleSession?.ownerJid) {
+    sendJson(req, res, 401, { error: 'Sessao Google invalida ou expirada.' });
+    return;
+  }
+
+  const normalizedEmail = normalizeEmail(googleSession.email || '');
+  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+    sendJson(req, res, 400, {
+      error: 'Conta sem e-mail valido para recuperacao.',
+      code: 'PASSWORD_RECOVERY_EMAIL_REQUIRED',
+    });
+    return;
+  }
+
+  const sessionToken = signPasswordRecoverySessionToken({
+    sub: googleSession.sub,
+    email: normalizedEmail,
+    ownerJid: googleSession.ownerJid,
+  });
+
+  if (!sessionToken) {
+    sendJson(req, res, 503, {
+      error: 'JWT de autenticacao nao configurado no servidor.',
+      code: 'JWT_NOT_CONFIGURED',
+    });
+    return;
+  }
+
+  const claims = verifyWebAuthJwt(sessionToken);
+  const sessionPath = buildPasswordRecoverySessionPath(sessionToken);
+  const sessionUrl = toSiteAbsoluteUrl(sessionPath);
+
+  sendJson(req, res, 200, {
+    data: {
+      created: true,
+      purpose: 'reset',
+      session_path: sessionPath,
+      session_url: sessionUrl,
+      masked_email: maskEmailForResponse(normalizedEmail),
+      expires_at: toPasswordRecoverySessionExpiresAt(claims),
+      expires_in_seconds: toPasswordRecoverySessionExpiresIn(claims),
+    },
+  });
+};
+
+const handlePasswordRecoverySessionStatusRequest = async (req, res, { sessionToken = '' } = {}) => {
+  if (!['GET', 'HEAD'].includes(req.method || '')) {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  const resolvedSession = resolvePasswordRecoverySessionClaims(sessionToken);
+  if (!resolvedSession.ok) {
+    sendJson(req, res, resolvedSession.statusCode, {
+      error: resolvedSession.error,
+      code: resolvedSession.code,
+    });
+    return;
+  }
+
+  const credential = await userPasswordAuthService.findCredentialByIdentity(
+    {
+      googleSub: resolvedSession.identity.googleSub,
+      email: resolvedSession.identity.email,
+      ownerJid: resolvedSession.identity.ownerJid,
+    },
+    { includeRevoked: true },
+  );
+
+  sendJson(req, res, 200, {
+    data: {
+      valid: true,
+      purpose: resolvedSession.identity.purpose,
+      masked_email: maskEmailForResponse(resolvedSession.identity.email),
+      expires_at: toPasswordRecoverySessionExpiresAt(resolvedSession.claims),
+      expires_in_seconds: toPasswordRecoverySessionExpiresIn(resolvedSession.claims),
+      password: toUserPasswordStatePayload(credential),
+    },
+  });
+};
+
+const handlePasswordRecoverySessionRequest = async (req, res, { sessionToken = '' } = {}) => {
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  const resolvedSession = resolvePasswordRecoverySessionClaims(sessionToken);
+  if (!resolvedSession.ok) {
+    sendJson(req, res, resolvedSession.statusCode, {
+      error: resolvedSession.error,
+      code: resolvedSession.code,
+    });
+    return;
+  }
+
+  try {
+    const result = await userPasswordRecoveryService.requestPasswordRecoveryCode({
+      googleSub: resolvedSession.identity.googleSub,
+      email: resolvedSession.identity.email,
+      ownerJid: resolvedSession.identity.ownerJid,
+      purpose: resolvedSession.identity.purpose,
+      requestMeta: {
+        remoteIp: req.socket?.remoteAddress || null,
+        userAgent: req.headers?.['user-agent'] || null,
+      },
+    });
+
+    sendJson(req, res, 200, {
+      data: {
+        accepted: true,
+        queued: Boolean(result?.queued),
+        cooldown_active: Boolean(result?.cooldown_active),
+        rate_limited: Boolean(result?.rate_limited),
+        expires_in_seconds: Number(result?.expires_in_seconds || 0) || null,
+        masked_email: result?.masked_email || maskEmailForResponse(resolvedSession.identity.email) || null,
+      },
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), {
+      error: error?.message || 'Falha ao solicitar codigo de verificacao.',
+      code: error?.code || 'PASSWORD_RECOVERY_REQUEST_FAILED',
+      details: Array.isArray(error?.details) ? error.details : undefined,
+    });
+  }
+};
+
+const handlePasswordRecoverySessionVerifyRequest = async (req, res, { sessionToken = '' } = {}) => {
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  const resolvedSession = resolvePasswordRecoverySessionClaims(sessionToken);
+  if (!resolvedSession.ok) {
+    sendJson(req, res, resolvedSession.statusCode, {
+      error: resolvedSession.error,
+      code: resolvedSession.code,
+    });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body invalido.' });
+    return;
+  }
+
+  try {
+    payload = parseUserPasswordRecoveryVerifyPayload({
+      ...payload,
+      google_sub: resolvedSession.identity.googleSub,
+      email: resolvedSession.identity.email,
+      owner_jid: resolvedSession.identity.ownerJid,
+      purpose: resolvedSession.identity.purpose,
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), {
+      error: error?.message || 'Payload de verificacao invalido.',
+      code: error?.code || 'INVALID_PAYLOAD',
+      details: Array.isArray(error?.details) ? error.details : undefined,
+    });
+    return;
+  }
+
+  try {
+    const recoveryResult = await userPasswordRecoveryService.verifyPasswordRecoveryCode({
+      googleSub: payload.google_sub,
+      email: payload.email,
+      ownerJid: payload.owner_jid,
+      purpose: payload.purpose || '',
+      code: payload.code,
+      password: payload.password,
+      requestMeta: {
+        remoteIp: req.socket?.remoteAddress || null,
+        userAgent: req.headers?.['user-agent'] || null,
+      },
+    });
+
+    let sessionPayload = mapGoogleSessionResponseData(null);
+    if (recoveryResult?.credential?.google_sub && recoveryResult?.credential?.owner_jid) {
+      try {
+        const session = await createPersistedGoogleWebSessionFromIdentity({
+          sub: recoveryResult.credential.google_sub,
+          email: recoveryResult.credential.email || '',
+          name: recoveryResult.credential.name || '',
+          ownerJid: recoveryResult.credential.owner_jid,
+          requestMeta: {
+            remoteIp: req.socket?.remoteAddress || null,
+            userAgent: req.headers?.['user-agent'] || null,
+          },
+        });
+        setGoogleWebSessionCookie(req, res, session.token);
+        const accessToken = issueAccessTokenForSession(session);
+        sessionPayload = mapGoogleSessionResponseData(session, { accessToken });
+      } catch (sessionError) {
+        logger.warn('Senha redefinida por sessao, mas login automatico nao foi criado.', {
+          action: 'web_password_recovery_session_login_create_failed',
+          error: sessionError?.message,
+          google_sub: recoveryResult?.credential?.google_sub || null,
+        });
+      }
+    }
+
+    sendJson(req, res, 200, {
+      data: {
+        updated: true,
+        auth_method: 'password_recovery_session',
+        session: sessionPayload,
+        password: toUserPasswordStatePayload(recoveryResult?.credential || null),
+        masked_email: recoveryResult?.masked_email || maskEmailForResponse(payload.email) || null,
+      },
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), {
+      error: error?.message || 'Falha ao validar codigo de verificacao.',
+      code: error?.code || 'PASSWORD_RECOVERY_VERIFY_FAILED',
+      details: Array.isArray(error?.details) ? error.details : undefined,
+    });
+  }
+};
+
+const handlePasswordLoginRequest = async (req, res) => {
+  if (req.method !== 'POST') {
+    sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+    return;
+  }
+
+  let payload = {};
+  try {
+    payload = await readJsonBody(req);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body invalido.' });
+    return;
+  }
+
+  try {
+    payload = parseUserPasswordLoginPayload(payload);
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 400), {
+      error: error?.message || 'Payload de login por senha invalido.',
+      code: error?.code || 'INVALID_PAYLOAD',
+      details: Array.isArray(error?.details) ? error.details : undefined,
+    });
+    return;
+  }
+
+  const authResult = await userPasswordAuthService.verifyPasswordForIdentity({
+    googleSub: payload.google_sub,
+    email: payload.email,
+    ownerJid: payload.owner_jid,
+    password: payload.password,
+  });
+
+  if (!authResult?.authenticated || !authResult?.credential?.google_sub || !authResult?.credential?.owner_jid) {
+    let errorCode = authResult?.reason || 'INVALID_PASSWORD';
+    let passwordSetupRequired = false;
+    let suggestedMaskedEmail = null;
+
+    if (errorCode === 'CREDENTIAL_NOT_FOUND') {
+      const knownUser = await userPasswordAuthService.findKnownGoogleUserByIdentity({
+        googleSub: payload.google_sub,
+        email: payload.email,
+        ownerJid: payload.owner_jid,
+      });
+
+      if (knownUser?.google_sub) {
+        errorCode = 'PASSWORD_NOT_CONFIGURED';
+        passwordSetupRequired = true;
+        suggestedMaskedEmail = maskEmailForResponse(knownUser.email || payload.email);
+      }
+    }
+
+    sendJson(req, res, 401, {
+      error: 'Credenciais invalidas.',
+      code: errorCode,
+      data: {
+        password: toUserPasswordStatePayload(authResult?.credential || null),
+        password_setup_required: passwordSetupRequired,
+        masked_email: suggestedMaskedEmail,
+      },
+    });
+    return;
+  }
+
+  try {
+    const credential = authResult.credential;
+    const session = await createPersistedGoogleWebSessionFromIdentity({
+      sub: credential.google_sub,
+      email: credential.email || '',
+      name: credential.name || '',
+      ownerJid: credential.owner_jid,
+      requestMeta: {
+        remoteIp: req.socket?.remoteAddress || null,
+        userAgent: req.headers?.['user-agent'] || null,
+      },
+    });
+
+    setGoogleWebSessionCookie(req, res, session.token);
+    const accessToken = issueAccessTokenForSession(session);
+    sendJson(req, res, 200, {
+      data: {
+        auth_method: 'password',
+        session: mapGoogleSessionResponseData(session, { accessToken }),
+        password: toUserPasswordStatePayload(credential),
+      },
+    });
+  } catch (error) {
+    sendJson(req, res, Number(error?.statusCode || 500), {
+      error: error?.message || 'Falha ao finalizar login por senha.',
+      code: error?.code || 'PASSWORD_LOGIN_FAILED',
+    });
+  }
+};
+
 const resolveMyProfileAccountSummary = async (session) => {
   if (!session) return null;
 
@@ -3506,6 +4201,16 @@ const handleMyProfileRequest = async (req, res, url = null) => {
     required: Boolean(STICKER_WEB_GOOGLE_AUTH_REQUIRED),
     client_id: STICKER_WEB_GOOGLE_CLIENT_ID || null,
   };
+  const sessionIdentity = {
+    googleSub: normalizeGoogleSubject(session?.sub),
+    email: normalizeEmail(session?.email),
+    ownerJid: normalizeJid(session?.ownerJid || ''),
+  };
+  const credential =
+    sessionIdentity.googleSub || sessionIdentity.email || sessionIdentity.ownerJid
+      ? await userPasswordAuthService.findCredentialByIdentity(sessionIdentity, { includeRevoked: true }).catch(() => null)
+      : null;
+  const passwordState = toUserPasswordStatePayload(credential);
   const view = normalizeMyProfileView(url?.searchParams?.get('view'));
   const shouldIncludePacks = view !== 'summary';
 
@@ -3517,6 +4222,7 @@ const handleMyProfileRequest = async (req, res, url = null) => {
         owner_jid: null,
         owner_jids: [],
         account: null,
+        password: passwordState,
         packs: [],
         stats: shouldIncludePacks ? buildMyProfileStatsTemplate() : null,
         meta: {
@@ -3540,6 +4246,7 @@ const handleMyProfileRequest = async (req, res, url = null) => {
         owner_jid: primaryOwnerJid,
         owner_jids: [],
         account,
+        password: passwordState,
         packs: [],
         stats: shouldIncludePacks ? buildMyProfileStatsTemplate() : null,
         meta: {
@@ -3559,6 +4266,7 @@ const handleMyProfileRequest = async (req, res, url = null) => {
         owner_jid: primaryOwnerJid,
         owner_jids: ownerCandidates,
         account,
+        password: passwordState,
         packs: [],
         stats: null,
         meta: {
@@ -3638,6 +4346,7 @@ const handleMyProfileRequest = async (req, res, url = null) => {
       owner_jid: primaryOwnerJid,
       owner_jids: ownerCandidates,
       account,
+      password: passwordState,
       packs: mappedPacks,
       stats,
       meta: {
@@ -6551,6 +7260,14 @@ const catalogApiRouter = createCatalogApiRouter({
   handlers: {
     handleCreatePackRequest,
     handleGoogleAuthSessionRequest,
+    handlePasswordLoginRequest,
+    handlePasswordAuthRequest,
+    handlePasswordRecoveryRequest,
+    handlePasswordRecoveryVerifyRequest,
+    handlePasswordRecoverySessionCreateRequest,
+    handlePasswordRecoverySessionStatusRequest,
+    handlePasswordRecoverySessionRequest,
+    handlePasswordRecoverySessionVerifyRequest,
     handleMyProfileRequest,
     handleAdminPanelSessionRequest,
     handleListRequest,

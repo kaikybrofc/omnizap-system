@@ -42,6 +42,7 @@ const loadUserConfigSafe = async () => {
   } catch {
     return {
       webPath: '/user',
+      passwordResetWebPath: '/user/password-reset',
       apiBasePath: '/api/sticker-packs',
     };
   }

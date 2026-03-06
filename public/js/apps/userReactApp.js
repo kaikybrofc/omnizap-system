@@ -18,6 +18,7 @@ const DEFAULT_LOGIN_PATH = '/login';
 const DEFAULT_TERMS_URL = '/termos-de-uso/';
 const DEFAULT_PRIVACY_URL = '/termos-de-uso/#politica-de-privacidade';
 const DEFAULT_FALLBACK_AVATAR = '/assets/images/brand-logo-128.webp';
+const DEFAULT_PASSWORD_RESET_WEB_PATH = '/user/password-reset';
 const DEFAULT_SUPPORT_TEXT = 'Ol\u00e1! Preciso de suporte no OmniZap.';
 
 const TABS = [
@@ -40,6 +41,42 @@ const normalizeUrlPath = (value, fallback) => {
   return raw;
 };
 
+const normalizeRoutePath = (value, fallback = '/') => {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  const normalized = withSlash.length > 1 && withSlash.endsWith('/') ? withSlash.slice(0, -1) : withSlash;
+  return normalized || fallback;
+};
+
+const decodePathToken = (value) => {
+  try {
+    return decodeURIComponent(String(value || ''));
+  } catch {
+    return String(value || '');
+  }
+};
+
+const resolvePasswordRecoveryRoute = (pathname, passwordResetWebPath) => {
+  const safePathname = normalizeRoutePath(pathname, '/');
+  const safeResetPath = normalizeRoutePath(passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH);
+
+  if (safePathname === safeResetPath) {
+    return { active: true, token: '' };
+  }
+
+  if (!safePathname.startsWith(`${safeResetPath}/`)) {
+    return { active: false, token: '' };
+  }
+
+  const remainder = safePathname.slice(safeResetPath.length + 1);
+  const [rawToken = ''] = String(remainder || '').split('/');
+  return {
+    active: true,
+    token: decodePathToken(rawToken).trim(),
+  };
+};
+
 const resolveLogoutPath = (loginPath) => {
   const safe = String(loginPath || '/login').trim() || '/login';
   return safe.endsWith('/') ? safe : `${safe}/`;
@@ -50,11 +87,32 @@ const resolveAuthenticatedSession = (payload) => {
   return session && session.authenticated ? session : null;
 };
 
+const resolvePasswordState = (payload) => {
+  const password = payload?.data?.password || {};
+  return {
+    configured: Boolean(password?.configured),
+    failedAttempts: Number(password?.failed_attempts || 0),
+    lastFailedAt: formatDateTime(password?.last_failed_at),
+    lastLoginAt: formatDateTime(password?.last_login_at),
+    passwordChangedAt: formatDateTime(password?.password_changed_at),
+    revokedAt: formatDateTime(password?.revoked_at),
+  };
+};
+
 const createUserApi = (apiBasePath) => {
   const sessionPath = `${apiBasePath}/auth/google/session`;
   const profilePath = `${apiBasePath}/me`;
   const botContactPath = `${apiBasePath}/bot-contact`;
   const supportPath = `${apiBasePath}/support`;
+  const passwordPath = `${apiBasePath}/auth/password`;
+  const passwordRecoveryRequestPath = `${apiBasePath}/auth/password/recovery/request`;
+  const passwordRecoveryVerifyPath = `${apiBasePath}/auth/password/recovery/verify`;
+  const passwordRecoverySessionPath = `${apiBasePath}/auth/password/recovery/session`;
+  const buildSessionPath = (sessionToken, action = '') => {
+    const token = encodeURIComponent(String(sessionToken || '').trim());
+    const base = `${passwordRecoverySessionPath}/${token}`;
+    return action ? `${base}/${action}` : base;
+  };
 
   const fetchJson = async (url, init = {}) => {
     const response = await fetch(url, {
@@ -72,6 +130,7 @@ const createUserApi = (apiBasePath) => {
     if (!response.ok) {
       const error = new Error(payload?.error || `Falha HTTP ${response.status}`);
       error.statusCode = response.status;
+      error.payload = payload;
       throw error;
     }
 
@@ -82,6 +141,48 @@ const createUserApi = (apiBasePath) => {
     fetchSummary: () => fetchJson(`${profilePath}?view=summary`, { method: 'GET' }),
     fetchBotContact: () => fetchJson(botContactPath, { method: 'GET' }),
     fetchSupport: () => fetchJson(supportPath, { method: 'GET' }),
+    fetchPasswordState: () => fetchJson(passwordPath, { method: 'GET' }),
+    updatePassword: (password) =>
+      fetchJson(passwordPath, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify({ password }),
+      }),
+    requestPasswordRecoveryCode: (body) =>
+      fetchJson(passwordRecoveryRequestPath, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify(body || {}),
+      }),
+    verifyPasswordRecoveryCode: (body) =>
+      fetchJson(passwordRecoveryVerifyPath, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify(body || {}),
+      }),
+    createPasswordRecoverySession: () =>
+      fetchJson(passwordRecoverySessionPath, {
+        method: 'POST',
+      }),
+    fetchPasswordRecoverySessionStatus: (sessionToken) => fetchJson(buildSessionPath(sessionToken), { method: 'GET' }),
+    requestPasswordRecoveryCodeBySession: (sessionToken) =>
+      fetchJson(buildSessionPath(sessionToken, 'request'), {
+        method: 'POST',
+      }),
+    verifyPasswordRecoveryCodeBySession: (sessionToken, body) =>
+      fetchJson(buildSessionPath(sessionToken, 'verify'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify(body || {}),
+      }),
     logout: () => fetchJson(sessionPath, { method: 'DELETE' }),
   };
 };
@@ -120,8 +221,14 @@ const toneClassMap = {
 
 const UserApp = ({ config }) => {
   const api = useMemo(() => createUserApi(config.apiBasePath), [config.apiBasePath]);
+  const recoveryRoute = useMemo(
+    () => resolvePasswordRecoveryRoute(window.location.pathname, config.passwordResetWebPath),
+    [config.passwordResetWebPath],
+  );
+  const isRecoveryRoute = recoveryRoute.active;
+  const recoverySessionToken = recoveryRoute.token;
 
-  const [activeTab, setActiveTab] = useState('summary');
+  const [activeTab, setActiveTab] = useState('account');
   const [isMobile, setMobile] = useState(Boolean(window.matchMedia?.('(max-width: 1020px)')?.matches));
   const [isSidebarOpen, setSidebarOpen] = useState(Boolean(!window.matchMedia?.('(max-width: 1020px)')?.matches));
   const [isLoadingSummary, setLoadingSummary] = useState(true);
@@ -152,6 +259,36 @@ const UserApp = ({ config }) => {
     botUrl: buildWhatsAppUrl('', '/menu'),
     supportUrl: config.termsUrl,
   });
+  const [passwordState, setPasswordState] = useState({
+    configured: false,
+    failedAttempts: 0,
+    lastFailedAt: 'N\u00e3o informado',
+    lastLoginAt: 'N\u00e3o informado',
+    passwordChangedAt: 'N\u00e3o informado',
+    revokedAt: 'N\u00e3o informado',
+  });
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [passwordFeedback, setPasswordFeedback] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [recoveryFeedback, setRecoveryFeedback] = useState('');
+  const [recoveryError, setRecoveryError] = useState('');
+  const [recoverySessionLoading, setRecoverySessionLoading] = useState(Boolean(isRecoveryRoute));
+  const [recoverySessionError, setRecoverySessionError] = useState('');
+  const [recoverySessionState, setRecoverySessionState] = useState({
+    valid: false,
+    maskedEmail: '',
+    expiresAt: 'N\u00e3o informado',
+    expiresInSeconds: null,
+  });
+  const accountEmail = String(summary.email || '').trim().toLowerCase().includes('@') ? String(summary.email || '').trim().toLowerCase() : '';
+
+  const readNamedInputValue = (formElement, inputName) => {
+    if (!formElement || typeof formElement.elements?.namedItem !== 'function') return '';
+    const field = formElement.elements.namedItem(inputName);
+    if (!field || typeof field !== 'object' || !('value' in field)) return '';
+    return String(field.value || '');
+  };
 
   useEffect(() => {
     const mediaQuery = window.matchMedia?.('(max-width: 1020px)');
@@ -198,11 +335,25 @@ const UserApp = ({ config }) => {
   }, [isMobile, isSidebarOpen]);
 
   useEffect(() => {
+    if (isRecoveryRoute) {
+      setLoadingSummary(false);
+      setErrorMessage('');
+      setStatus({
+        tone: 'loading',
+        message: 'Sessao temporaria de redefinicao carregada.',
+      });
+      return undefined;
+    }
+
     let active = true;
 
     const loadProfile = async () => {
       setLoadingSummary(true);
       setErrorMessage('');
+      setPasswordError('');
+      setPasswordFeedback('');
+      setRecoveryError('');
+      setRecoveryFeedback('');
       setStatus({
         tone: 'loading',
         message: 'Validando sess\u00e3o e carregando resumo da conta...',
@@ -219,6 +370,7 @@ const UserApp = ({ config }) => {
         }
 
         setSummary(resolveSummaryView(summaryPayload, config.fallbackAvatar));
+        setPasswordState(resolvePasswordState(summaryPayload));
         setStatus({
           tone: 'success',
           message: 'Resumo da conta carregado com sucesso.',
@@ -273,7 +425,72 @@ const UserApp = ({ config }) => {
     return () => {
       active = false;
     };
-  }, [api, config.fallbackAvatar, config.loginPath, config.termsUrl, reloadKey]);
+  }, [api, config.fallbackAvatar, config.loginPath, config.termsUrl, isRecoveryRoute, reloadKey]);
+
+  useEffect(() => {
+    if (!isRecoveryRoute) {
+      setRecoverySessionLoading(false);
+      setRecoverySessionError('');
+      setRecoverySessionState({
+        valid: false,
+        maskedEmail: '',
+        expiresAt: 'Nao informado',
+        expiresInSeconds: null,
+      });
+      return undefined;
+    }
+
+    let active = true;
+
+    const loadRecoverySession = async () => {
+      setRecoverySessionLoading(true);
+      setRecoverySessionError('');
+      setRecoveryFeedback('');
+      setRecoveryError('');
+
+      if (!recoverySessionToken) {
+        if (!active) return;
+        setRecoverySessionState({
+          valid: false,
+          maskedEmail: '',
+          expiresAt: 'Nao informado',
+          expiresInSeconds: null,
+        });
+        setRecoverySessionError('Link de redefinicao invalido ou incompleto.');
+        setRecoverySessionLoading(false);
+        return;
+      }
+
+      try {
+        const payload = await api.fetchPasswordRecoverySessionStatus(recoverySessionToken);
+        if (!active) return;
+        const data = payload?.data || {};
+        setRecoverySessionState({
+          valid: Boolean(data?.valid),
+          maskedEmail: String(data?.masked_email || '').trim(),
+          expiresAt: formatDateTime(data?.expires_at),
+          expiresInSeconds: Number(data?.expires_in_seconds || 0) || null,
+        });
+      } catch (error) {
+        if (!active) return;
+        setRecoverySessionState({
+          valid: false,
+          maskedEmail: '',
+          expiresAt: 'Nao informado',
+          expiresInSeconds: null,
+        });
+        setRecoverySessionError(error?.message || 'Sessao de redefinicao invalida ou expirada.');
+      } finally {
+        if (active) setRecoverySessionLoading(false);
+      }
+    };
+
+    void loadRecoverySession();
+
+    return () => {
+      active = false;
+    };
+  }, [api, isRecoveryRoute, recoverySessionToken]);
 
   const closeSidebarOnMobile = () => {
     if (isMobile) setSidebarOpen(false);
@@ -298,6 +515,274 @@ const UserApp = ({ config }) => {
     }
     window.location.assign(resolveLogoutPath(config.loginPath));
   };
+
+  const handlePasswordUpdate = async (event) => {
+    event?.preventDefault?.();
+    const formElement = event?.currentTarget || null;
+    const typedPassword = readNamedInputValue(formElement, 'new_password');
+    const typedConfirm = readNamedInputValue(formElement, 'new_password_confirm');
+    const resolvedPassword = String(typedPassword || '');
+    const resolvedConfirm = String(typedConfirm || '');
+
+    if (passwordBusy) return;
+    if (!resolvedPassword || !resolvedConfirm) {
+      setPasswordError('Preencha senha e confirmacao.');
+      setPasswordFeedback('');
+      return;
+    }
+    if (resolvedPassword !== resolvedConfirm) {
+      setPasswordError('A confirmacao nao confere com a senha.');
+      setPasswordFeedback('');
+      return;
+    }
+
+    setPasswordBusy(true);
+    setPasswordError('');
+    setPasswordFeedback('');
+
+    try {
+      const payload = await api.updatePassword(resolvedPassword);
+      setPasswordState(resolvePasswordState(payload));
+      if (formElement && typeof formElement.reset === 'function') formElement.reset();
+      setPasswordFeedback('Senha salva com sucesso.');
+    } catch (error) {
+      setPasswordError(error?.message || 'Falha ao salvar senha.');
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
+
+  const handleOpenRecoverySession = async () => {
+    if (recoveryBusy) return;
+    if (!passwordState.configured) {
+      setRecoveryError('Defina sua senha inicial antes de usar a redefinicao por e-mail.');
+      setRecoveryFeedback('');
+      return;
+    }
+
+    setRecoveryBusy(true);
+    setRecoveryError('');
+    setRecoveryFeedback('');
+
+    try {
+      const payload = await api.createPasswordRecoverySession();
+      const sessionPath = String(payload?.data?.session_path || '').trim();
+      const sessionUrl = String(payload?.data?.session_url || '').trim();
+      const destination = sessionPath || sessionUrl;
+
+      if (!destination) {
+        throw new Error('Nao foi possivel abrir a sessao de redefinicao.');
+      }
+
+      window.location.assign(destination);
+    } catch (error) {
+      setRecoveryError(error?.message || 'Falha ao iniciar sessao de redefinicao.');
+    } finally {
+      setRecoveryBusy(false);
+    }
+  };
+
+  const handleRequestRecoveryCodeBySession = async () => {
+    if (recoveryBusy || !recoverySessionToken) return;
+    if (!recoverySessionState.valid) {
+      setRecoveryError('A sessao de redefinicao nao esta valida.');
+      setRecoveryFeedback('');
+      return;
+    }
+
+    setRecoveryBusy(true);
+    setRecoveryError('');
+    setRecoveryFeedback('');
+
+    try {
+      const payload = await api.requestPasswordRecoveryCodeBySession(recoverySessionToken);
+      const masked = String(payload?.data?.masked_email || '').trim() || recoverySessionState.maskedEmail;
+      setRecoveryFeedback(masked ? `Codigo enviado para ${masked}.` : 'Codigo enviado por e-mail.');
+    } catch (error) {
+      setRecoveryError(error?.message || 'Falha ao enviar codigo de verificacao.');
+    } finally {
+      setRecoveryBusy(false);
+    }
+  };
+
+  const handleVerifyRecoveryCodeBySession = async (event) => {
+    event?.preventDefault?.();
+    const formElement = event?.currentTarget || null;
+    const resolvedCode = readNamedInputValue(formElement, 'verification_code')
+      .replace(/\D+/g, '')
+      .slice(0, 6);
+    const resolvedPassword = readNamedInputValue(formElement, 'new_password');
+    const resolvedConfirm = readNamedInputValue(formElement, 'new_password_confirm');
+
+    if (recoveryBusy || !recoverySessionToken) return;
+    if (!recoverySessionState.valid) {
+      setRecoveryError('A sessao de redefinicao nao esta valida.');
+      setRecoveryFeedback('');
+      return;
+    }
+    if (!/^\d{6}$/.test(resolvedCode)) {
+      setRecoveryError('Informe um codigo com 6 digitos.');
+      setRecoveryFeedback('');
+      return;
+    }
+    if (!resolvedPassword || !resolvedConfirm) {
+      setRecoveryError('Preencha a nova senha e a confirmacao.');
+      setRecoveryFeedback('');
+      return;
+    }
+    if (resolvedPassword !== resolvedConfirm) {
+      setRecoveryError('A confirmacao nao confere com a nova senha.');
+      setRecoveryFeedback('');
+      return;
+    }
+
+    setRecoveryBusy(true);
+    setRecoveryError('');
+    setRecoveryFeedback('');
+
+    try {
+      const payload = await api.verifyPasswordRecoveryCodeBySession(recoverySessionToken, {
+        code: resolvedCode,
+        password: resolvedPassword,
+      });
+      setPasswordState(resolvePasswordState(payload));
+      if (formElement && typeof formElement.reset === 'function') formElement.reset();
+      setRecoveryFeedback('Senha redefinida com sucesso. Redirecionando...');
+      window.setTimeout(() => {
+        window.location.assign('/user/');
+      }, 900);
+    } catch (error) {
+      setRecoveryError(error?.message || 'Falha ao validar codigo de verificacao.');
+    } finally {
+      setRecoveryBusy(false);
+    }
+  };
+
+  if (isRecoveryRoute) {
+    return html`
+      <div className="relative min-h-screen text-base-content">
+        <header className="sticky top-0 z-40 border-b border-base-300 bg-base-100/90 backdrop-blur-md">
+          <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-3 py-2 sm:px-4 lg:px-6">
+            <a className="btn btn-ghost h-10 min-h-0 justify-start gap-2 px-2 text-sm normal-case" href="/">
+              <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" className="h-8 w-8 rounded-full border border-base-300 object-cover" loading="lazy" decoding="async" />
+              <span className="truncate font-bold tracking-wide">OmniZap System</span>
+            </a>
+            <div className="flex items-center gap-2">
+              <a className="btn btn-ghost btn-sm" href="/user/">Minha conta</a>
+              <button type="button" className="btn btn-error btn-sm" onClick=${handleLogout} disabled=${isLogoutBusy}>
+                ${isLogoutBusy ? 'Encerrando...' : 'Encerrar sessao'}
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto w-full max-w-4xl px-3 pb-16 pt-6 sm:px-4 lg:px-6">
+          <section className="rounded-2xl border border-base-300 bg-base-100/80 p-4 shadow-xl sm:p-6">
+            <p className="text-xs font-bold uppercase tracking-widest text-error">Sessao temporaria</p>
+            <h1 className="mt-1 text-2xl font-black sm:text-3xl">Redefinir senha</h1>
+            <p className="mt-2 text-sm text-base-content/75">
+              Esta rota expira automaticamente. Envie o codigo de 6 digitos para confirmar a redefinicao.
+            </p>
+
+            <div className="mt-4 grid gap-2">
+              ${recoveryFeedback
+                ? html`
+                    <div role="status" className="alert alert-success text-sm">
+                      <span>${recoveryFeedback}</span>
+                    </div>
+                  `
+                : null}
+              ${recoveryError
+                ? html`
+                    <div role="alert" className="alert alert-error text-sm">
+                      <span>${recoveryError}</span>
+                    </div>
+                  `
+                : null}
+              ${recoverySessionError
+                ? html`
+                    <div role="alert" className="alert alert-error text-sm">
+                      <span>${recoverySessionError}</span>
+                    </div>
+                  `
+                : null}
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Destino do codigo</p>
+                <p className="mt-1 text-base font-semibold">
+                  ${recoverySessionLoading ? 'Carregando...' : recoverySessionState.maskedEmail || 'Nao informado'}
+                </p>
+              </article>
+              <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Expira em</p>
+                <p className="mt-1 text-base font-semibold">
+                  ${recoverySessionLoading ? 'Carregando...' : recoverySessionState.expiresAt || 'Nao informado'}
+                </p>
+              </article>
+            </div>
+
+            ${recoverySessionState.valid
+              ? html`
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" className="btn btn-error w-full sm:w-auto" disabled=${recoveryBusy} onClick=${handleRequestRecoveryCodeBySession}>
+                      ${recoveryBusy ? 'Enviando...' : 'Enviar codigo por e-mail'}
+                    </button>
+                    <a className="btn btn-outline w-full sm:w-auto" href="/user/">Voltar para minha conta</a>
+                  </div>
+
+                  <form className="mt-4" onSubmit=${handleVerifyRecoveryCodeBySession}>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <label className="form-control">
+                        <span className="label-text text-xs">Codigo (6 digitos)</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength="6"
+                          className="input input-bordered w-full"
+                          name="verification_code"
+                          autoComplete="one-time-code"
+                        />
+                      </label>
+                      <label className="form-control">
+                        <span className="label-text text-xs">Nova senha</span>
+                        <input
+                          type="password"
+                          className="input input-bordered w-full"
+                          name="new_password"
+                          autoComplete="new-password"
+                        />
+                      </label>
+                      <label className="form-control">
+                        <span className="label-text text-xs">Confirmar senha</span>
+                        <input
+                          type="password"
+                          className="input input-bordered w-full"
+                          name="new_password_confirm"
+                          autoComplete="new-password"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-3">
+                      <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled=${recoveryBusy}>
+                        ${recoveryBusy ? 'Validando...' : 'Validar codigo e redefinir'}
+                      </button>
+                    </div>
+                  </form>
+                `
+              : html`
+                  <div className="mt-4">
+                    <a className="btn btn-outline w-full sm:w-auto" href="/user/">Voltar para minha conta</a>
+                  </div>
+                `}
+          </section>
+        </main>
+      </div>
+    `;
+  }
 
   return html`
     <div className="relative min-h-screen text-base-content">
@@ -477,6 +962,114 @@ const UserApp = ({ config }) => {
                         <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.expiresAt}</p>
                       </article>
                     </div>
+
+                    <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
+                      <p className="text-xs font-bold uppercase tracking-widest text-base-content/60">Seguranca da senha</p>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
+                          <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Status</p>
+                          <p className="mt-1 text-base font-semibold">${passwordState.configured ? 'Senha configurada' : 'Senha nao configurada'}</p>
+                        </article>
+                        <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
+                          <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Ultima alteracao</p>
+                          <p className="mt-1 text-base font-semibold">${passwordState.passwordChangedAt}</p>
+                        </article>
+                        <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
+                          <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Falhas recentes</p>
+                          <p className="mt-1 text-base font-semibold">${String(passwordState.failedAttempts)}</p>
+                        </article>
+                        <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
+                          <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Ultimo login por senha</p>
+                          <p className="mt-1 text-base font-semibold">${passwordState.lastLoginAt}</p>
+                        </article>
+                      </div>
+
+                      <div className="mt-4 grid gap-2">
+                        ${passwordFeedback
+                          ? html`
+                              <div role="status" className="alert alert-success text-sm">
+                                <span>${passwordFeedback}</span>
+                              </div>
+                            `
+                          : null}
+                        ${passwordError
+                          ? html`
+                              <div role="alert" className="alert alert-error text-sm">
+                                <span>${passwordError}</span>
+                              </div>
+                            `
+                          : null}
+                      </div>
+
+                      ${!passwordState.configured
+                        ? html`
+                            <form className="mt-3" onSubmit=${handlePasswordUpdate}>
+                              <input type="email" className="hidden" name="username" autoComplete="username" value=${accountEmail} readOnly />
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <label className="form-control">
+                                  <span className="label-text text-xs">Nova senha</span>
+                                  <input type="password" className="input input-bordered w-full" name="new_password" autoComplete="new-password" />
+                                </label>
+                                <label className="form-control">
+                                  <span className="label-text text-xs">Confirmar senha</span>
+                                  <input type="password" className="input input-bordered w-full" name="new_password_confirm" autoComplete="new-password" />
+                                </label>
+                              </div>
+
+                              <div className="mt-3">
+                                <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled=${passwordBusy}>
+                                  ${passwordBusy ? 'Salvando...' : 'Criar senha'}
+                                </button>
+                              </div>
+                            </form>
+                          `
+                        : html`
+                            <p className="mt-3 text-sm text-base-content/75">
+                              Para alterar sua senha, use a sessao segura de redefinicao por e-mail abaixo.
+                            </p>
+                          `}
+                    </section>
+
+                    <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
+                      <p className="text-xs font-bold uppercase tracking-widest text-base-content/60">Redefinicao por e-mail</p>
+                      <p className="mt-1 text-sm text-base-content/75">
+                        Abra uma sessao temporaria com expiracao automatica para redefinir sua senha com codigo de 6 digitos.
+                      </p>
+
+                      <div className="mt-3 grid gap-2">
+                        ${recoveryFeedback
+                          ? html`
+                              <div role="status" className="alert alert-success text-sm">
+                                <span>${recoveryFeedback}</span>
+                              </div>
+                            `
+                          : null}
+                        ${recoveryError
+                          ? html`
+                              <div role="alert" className="alert alert-error text-sm">
+                                <span>${recoveryError}</span>
+                              </div>
+                            `
+                          : null}
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-error"
+                          disabled=${recoveryBusy || !passwordState.configured || !accountEmail}
+                          onClick=${handleOpenRecoverySession}
+                        >
+                          ${recoveryBusy ? 'Abrindo...' : 'Redefinir senha em sessao segura'}
+                        </button>
+                        ${!passwordState.configured
+                          ? html`<span className="text-xs text-base-content/65 self-center">Disponivel apos configurar a senha inicial.</span>`
+                          : accountEmail
+                            ? html`<span className="text-xs text-base-content/65 self-center">Destino: ${accountEmail}</span>`
+                            : html`<span className="text-xs text-warning self-center">Conta sem e-mail valido para recuperacao.</span>`}
+                      </div>
+                    </section>
+
                     <p className="text-sm text-base-content/70">
                       Ao usar o login voc\u00ea concorda com os termos e regras de privacidade do projeto.
                     </p>
@@ -532,6 +1125,7 @@ if (rootElement) {
   const config = {
     apiBasePath: normalizeBasePath(rootElement.dataset.apiBasePath, DEFAULT_API_BASE_PATH),
     loginPath: normalizeBasePath(rootElement.dataset.loginPath, DEFAULT_LOGIN_PATH),
+    passwordResetWebPath: normalizeBasePath(rootElement.dataset.passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH),
     termsUrl: normalizeUrlPath(rootElement.dataset.termsUrl, DEFAULT_TERMS_URL),
     privacyUrl: normalizeUrlPath(rootElement.dataset.privacyUrl, DEFAULT_PRIVACY_URL),
     fallbackAvatar: normalizeUrlPath(rootElement.dataset.fallbackAvatar, DEFAULT_FALLBACK_AVATAR),

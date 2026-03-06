@@ -21,6 +21,25 @@
 }
 
 @layer components {
+  #login-react-root .input,
+  #login-react-root .input > input {
+    color: hsl(var(--bc));
+    caret-color: hsl(var(--bc));
+  }
+
+  #login-react-root .input > input::placeholder {
+    color: rgb(148 163 184 / 0.75);
+  }
+
+  #login-react-root .input > input:-webkit-autofill,
+  #login-react-root .input > input:-webkit-autofill:hover,
+  #login-react-root .input > input:-webkit-autofill:focus {
+    -webkit-text-fill-color: hsl(var(--bc));
+    caret-color: hsl(var(--bc));
+    box-shadow: 0 0 0 1000px hsl(var(--b1)) inset;
+    transition: background-color 9999s ease-out;
+  }
+
   .login-success-overlay {
     position: fixed;
     inset: 0;

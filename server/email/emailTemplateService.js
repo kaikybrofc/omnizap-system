@@ -286,6 +286,47 @@ const buildMagicLinkTemplate = (payload = {}) => {
   };
 };
 
+const buildPasswordResetCodeTemplate = (payload = {}) => {
+  const name = normalizeText(payload?.name || payload?.firstName || '', 80) || 'você';
+  const codeDigits = String(payload?.code || '')
+    .replace(/\D+/g, '')
+    .slice(0, 6);
+  if (!/^\d{6}$/.test(codeDigits)) return null;
+
+  const purpose = normalizeText(payload?.purpose || 'reset', 24).toLowerCase() === 'setup' ? 'setup' : 'reset';
+  const expiresInMinutesRaw = Number(payload?.expiresInMinutes);
+  const expiresInMinutes = Number.isFinite(expiresInMinutesRaw) ? Math.max(1, Math.min(60, Math.floor(expiresInMinutesRaw))) : 15;
+  const purposeLabel = purpose === 'setup' ? 'criação de senha' : 'redefinição de senha';
+  const subject = purpose === 'setup' ? 'Codigo para criar sua senha no OmniZap' : 'Codigo para redefinir sua senha no OmniZap';
+  const codeDisplay = `${codeDigits.slice(0, 3)} ${codeDigits.slice(3, 6)}`;
+
+  return {
+    subject,
+    text: [
+      `Olá, ${name}!`,
+      '',
+      `Use este código para concluir a ${purposeLabel}:`,
+      codeDigits,
+      '',
+      `Este código expira em ${expiresInMinutes} minuto(s).`,
+      'Se você não solicitou esta ação, ignore este e-mail.',
+    ].join('\n'),
+    html: renderEmailLayout({
+      payload,
+      preheader: `Seu código de ${purposeLabel} do OmniZap.`,
+      heading: purpose === 'setup' ? 'Criacao de senha' : 'Redefinicao de senha',
+      greeting: `Olá, ${name}!`,
+      intro: `Use o codigo abaixo para concluir a ${purposeLabel}.`,
+      body: `Codigo de verificacao: ${codeDisplay}\nValidade: ${expiresInMinutes} minuto(s).`,
+      ctaLabel: '',
+      ctaUrl: '',
+      ctaHint: '',
+      securityNote: 'Nao compartilhe este codigo com terceiros. A equipe OmniZap nunca pede esse codigo por mensagem.',
+      footerMessage: 'Mensagem automatica de seguranca do OmniZap.',
+    }),
+  };
+};
+
 const buildProjectUpdateTemplate = (payload = {}) => {
   const name = normalizeText(payload?.name || payload?.firstName || '', 80) || 'usuário';
   const title = normalizeText(payload?.title || payload?.heading || 'Atualização do projeto OmniZap', 120) || 'Atualização do projeto OmniZap';
@@ -416,6 +457,7 @@ const TEMPLATE_BUILDERS = {
   default: buildStandardTemplate,
   welcome: buildWelcomeTemplate,
   magic_link: buildMagicLinkTemplate,
+  password_reset_code: buildPasswordResetCodeTemplate,
   project_update: buildProjectUpdateTemplate,
   terms_update: buildTermsUpdateTemplate,
 };

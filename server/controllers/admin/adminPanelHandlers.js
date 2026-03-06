@@ -1,6 +1,8 @@
 import { randomUUID, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { URLSearchParams } from 'node:url';
 
+import { parseAdminModeratorUpsertPayload, parseAdminSessionPasswordPayload } from '../../auth/validation/authSchemas.js';
+
 export const createStickerCatalogAdminHandlers = ({ executeQuery, tables, logger, sendJson, readJsonBody, parseCookies, getCookieValuesFromRequest, appendSetCookie, buildCookieString, sanitizeText, normalizeGoogleSubject, normalizeEmail, normalizeJid, toIsoOrNull, toWhatsAppPhoneDigits, mapGoogleSessionResponseData, resolveGoogleWebSessionFromRequest, revokeGoogleWebSessionsByIdentity, getMarketplaceGlobalStatsCached, getSystemSummaryCached, getFeatureFlagsSnapshot, refreshFeatureFlags, listAdminBans, createAdminBanRecord, revokeAdminBanRecord, normalizeVisitPath, stickerWebPath, findStickerPackByPackKey, stickerPackService, buildManagedPackResponseData, sendManagedMutationStatus, sendManagedPackMutationStatus, deleteManagedPackWithCleanup, mapStickerPackWebManageError, cleanupOrphanStickerAssets, invalidateStickerCatalogDerivedCaches }) => {
   const TABLES = tables;
   const STICKER_WEB_PATH = String(stickerWebPath || '/stickers').trim() || '/stickers';
@@ -1067,6 +1069,16 @@ export const createStickerCatalogAdminHandlers = ({ executeQuery, tables, logger
       sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
       return;
     }
+    try {
+      payload = parseAdminSessionPasswordPayload(payload);
+    } catch (error) {
+      sendJson(req, res, Number(error?.statusCode || 400), {
+        error: error?.message || 'Payload de sessao admin invalido.',
+        code: error?.code || 'INVALID_PAYLOAD',
+        details: Array.isArray(error?.details) ? error.details : undefined,
+      });
+      return;
+    }
 
     const googleSession = await resolveGoogleWebSessionFromRequest(req);
     const eligibility = await resolveAdminPanelLoginEligibility(googleSession);
@@ -1638,6 +1650,16 @@ export const createStickerCatalogAdminHandlers = ({ executeQuery, tables, logger
       payload = await readJsonBody(req);
     } catch (error) {
       sendJson(req, res, Number(error?.statusCode || 400), { error: error?.message || 'Body inválido.' });
+      return;
+    }
+    try {
+      payload = parseAdminModeratorUpsertPayload(payload);
+    } catch (error) {
+      sendJson(req, res, Number(error?.statusCode || 400), {
+        error: error?.message || 'Payload de moderador invalido.',
+        code: error?.code || 'INVALID_PAYLOAD',
+        details: Array.isArray(error?.details) ? error.details : undefined,
+      });
       return;
     }
 
