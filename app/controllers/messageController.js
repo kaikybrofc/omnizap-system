@@ -281,6 +281,13 @@ const formatRemainingMinutesLabel = (remainingMs) => {
   return Math.max(1, remainingMinutes);
 };
 
+const formatStickerFocusRuleLabel = ({ messageAllowanceCount, messageCooldownMinutes }) => {
+  const allowanceCount = Math.max(1, Math.floor(Number(messageAllowanceCount) || 1));
+  const cooldownMinutes = Math.max(1, Math.floor(Number(messageCooldownMinutes) || 1));
+  const messageLabel = allowanceCount === 1 ? 'mensagem' : 'mensagens';
+  return `${allowanceCount} ${messageLabel} a cada ${cooldownMinutes} min`;
+};
+
 /**
  * Executa um comando com tratamento de erro.
  * Captura erros síncronos e promessas rejeitadas.
@@ -562,6 +569,7 @@ export const handleMessages = async (update, sock) => {
                     groupId: remoteJid,
                     senderJid,
                     messageCooldownMs: stickerFocusState.messageCooldownMs,
+                    messageAllowanceCount: stickerFocusState.messageAllowanceCount,
                   });
 
                   if (!messageGate.allowed) {
@@ -570,6 +578,7 @@ export const handleMessages = async (update, sock) => {
                       ...analysisPayload.metadata,
                       blocked_by: 'sticker_focus_mode',
                       sticker_focus_message_type: messageClassification.messageType,
+                      sticker_focus_message_allowance_count: stickerFocusState.messageAllowanceCount,
                       sticker_focus_message_cooldown_minutes: stickerFocusState.messageCooldownMinutes,
                       sticker_focus_remaining_minutes: formatRemainingMinutesLabel(messageGate.remainingMs),
                       sticker_focus_alert_only: true,
@@ -578,7 +587,10 @@ export const handleMessages = async (update, sock) => {
                     if (shouldSendStickerFocusWarning({ groupId: remoteJid, senderJid })) {
                       try {
                         await sendReply(sock, remoteJid, messageInfo, expirationMessage, {
-                          text: '🖼️ Este grupo está em *modo sticker*.\n' + `Fora da janela de chat, cada usuário pode enviar mensagem a cada *${stickerFocusState.messageCooldownMinutes} min*.\n` + `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${commandPrefix}chatwindow on*.`,
+                          text: '🖼️ Este chat está com *foco em sticker* ativo.\n'
+                            + 'Siga o padrão: envie apenas *imagens* ou *vídeos* para criação automática, ou compartilhe seus *stickers*.\n'
+                            + `Mensagens como texto e áudio seguem uma janela de tempo: *${formatStickerFocusRuleLabel(stickerFocusState)}*.\n`
+                            + `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${commandPrefix}chatwindow on*.`,
                         });
                       } catch (error) {
                         logger.warn('Falha ao enviar aviso de sticker focus.', {
@@ -596,6 +608,8 @@ export const handleMessages = async (update, sock) => {
                   registerMessageUsageInStickerFocus({
                     groupId: remoteJid,
                     senderJid,
+                    messageCooldownMs: stickerFocusState.messageCooldownMs,
+                    messageAllowanceCount: stickerFocusState.messageAllowanceCount,
                   });
                 }
               }

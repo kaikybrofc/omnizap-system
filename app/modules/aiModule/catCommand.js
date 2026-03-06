@@ -6,9 +6,10 @@ import path from 'node:path';
 import logger from '../../../utils/logger/loggerModule.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import aiPromptStore from '../../store/aiPromptStore.js';
-import { downloadMediaMessage, extractAllMediaDetails, getJidUser, normalizeJid } from '../../config/baileysConfig.js';
+import { downloadMediaMessage, extractAllMediaDetails, getJidUser, isSameJidUser, normalizeJid } from '../../config/baileysConfig.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { getAdminJid, resolveAdminJid } from '../../config/adminIdentity.js';
+import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || OPENAI_MODEL;
@@ -220,13 +221,40 @@ const reactToMessage = async (sock, remoteJid, messageInfo) => {
 };
 
 const isPremiumAllowed = async (senderJid) => {
+  const senderInfo = extractUserIdInfo({
+    jid: senderJid,
+    lid: senderJid,
+    participantAlt: senderJid,
+  });
+  const cachedSender = resolveUserIdCached(senderInfo);
+  const resolvedSender = await resolveUserId(senderInfo).catch(() => null);
+  const senderCandidates = Array.from(
+    new Set(
+      [senderJid, senderInfo.jid, senderInfo.lid, senderInfo.participantAlt, senderInfo.raw, cachedSender, resolvedSender]
+        .map((value) => normalizeJid(value || ''))
+        .filter(Boolean),
+    ),
+  );
+
+  if (!senderCandidates.length) return false;
+
   const adminJid = (await resolveAdminJid()) || OWNER_JID;
-  if (!adminJid) return true;
-  const normalizedSender = normalizeJid(senderJid);
-  if (normalizedSender && normalizedSender === adminJid) return true;
+  const normalizedAdmin = normalizeJid(adminJid || '');
+  if (!normalizedAdmin) return true;
+  if (senderCandidates.some((sender) => sender === normalizedAdmin || isSameJidUser(sender, normalizedAdmin))) return true;
+
   const premiumUsers = await premiumUserStore.getPremiumUsers();
   if (!Array.isArray(premiumUsers) || premiumUsers.length === 0) return false;
-  return premiumUsers.map((jid) => normalizeJid(jid)).includes(normalizedSender);
+  const premiumCandidates = Array.from(
+    new Set(
+      premiumUsers
+        .map((jid) => normalizeJid(jid || ''))
+        .filter(Boolean),
+    ),
+  );
+  if (!premiumCandidates.length) return false;
+
+  return senderCandidates.some((sender) => premiumCandidates.some((premium) => premium === sender || isSameJidUser(premium, sender)));
 };
 
 const sendPremiumOnly = async (sock, remoteJid, messageInfo, expirationMessage) => {

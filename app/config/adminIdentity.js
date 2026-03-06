@@ -69,16 +69,23 @@ export const isAdminSenderAsync = async (senderIdentity) => {
   const normalizedCachedSender = normalizeJid(cachedSender || '');
   const resolvedSender = await resolveUserId(senderInfo).catch(() => null);
   const normalizedResolvedSender = normalizeJid(resolvedSender || '');
-  const senderCandidates = new Set([normalizedSender, normalizedCachedSender, normalizedResolvedSender].filter(Boolean));
+  const normalizedSenderLid = normalizeJid(senderInfo.lid || '');
+  const normalizedSenderAlt = normalizeJid(senderInfo.participantAlt || '');
+  const senderCandidates = new Set([normalizedSender, normalizedCachedSender, normalizedResolvedSender, normalizedSenderLid, normalizedSenderAlt].filter(Boolean));
   if (!senderCandidates.size) return false;
 
-  const adminJid = (await resolveAdminJid()) || getAdminJid();
-  if (!adminJid) return false;
-  const normalizedAdmin = normalizeJid(adminJid) || adminJid;
+  const rawAdminValue = getAdminRawValue();
+  const adminJid = getAdminJid();
+  const resolvedAdminJid = await resolveAdminJid();
+  const normalizedRawAdmin = rawAdminValue.includes('@') ? normalizeJid(rawAdminValue) || rawAdminValue : '';
+  const adminCandidates = new Set([adminJid, resolvedAdminJid, normalizedRawAdmin].filter(Boolean).map((candidate) => normalizeJid(candidate) || candidate));
+  if (!adminCandidates.size) return false;
 
   for (const senderCandidate of senderCandidates) {
-    if (isSameJidUser(senderCandidate, normalizedAdmin) || senderCandidate === normalizedAdmin) {
-      return true;
+    for (const adminCandidate of adminCandidates) {
+      if (isSameJidUser(senderCandidate, adminCandidate) || senderCandidate === adminCandidate) {
+        return true;
+      }
     }
   }
   return false;

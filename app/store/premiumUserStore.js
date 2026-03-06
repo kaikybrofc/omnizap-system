@@ -1,8 +1,27 @@
 import groupConfigStore from './groupConfigStore.js';
+import { isSameJidUser, normalizeJid } from '../config/baileysConfig.js';
 
 const PREMIUM_CONFIG_ID = 'system:premium_users';
 
-const normalizeList = (list) => Array.from(new Set((Array.isArray(list) ? list : []).filter(Boolean)));
+const normalizePremiumEntry = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return normalizeJid(raw) || raw;
+};
+
+const normalizeList = (list) => {
+  const normalizedList = [];
+  const values = Array.isArray(list) ? list : [];
+
+  for (const value of values) {
+    const normalized = normalizePremiumEntry(value);
+    if (!normalized) continue;
+    if (normalizedList.some((entry) => entry === normalized || isSameJidUser(entry, normalized))) continue;
+    normalizedList.push(normalized);
+  }
+
+  return normalizedList;
+};
 
 const premiumUserStore = {
   getPremiumUsers: async function () {
@@ -25,8 +44,8 @@ const premiumUserStore = {
 
   removePremiumUsers: async function (usersToRemove) {
     const current = await this.getPremiumUsers();
-    const removeSet = new Set(usersToRemove);
-    const updated = current.filter((jid) => !removeSet.has(jid));
+    const normalizedTargets = normalizeList(usersToRemove);
+    const updated = current.filter((jid) => !normalizedTargets.some((target) => target === jid || isSameJidUser(target, jid)));
     await groupConfigStore.updateGroupConfig(PREMIUM_CONFIG_ID, { premiumUsers: updated });
     return updated;
   },
