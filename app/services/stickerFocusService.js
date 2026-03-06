@@ -279,13 +279,7 @@ export const canSendMessageInStickerFocus = ({ groupId, senderJid, messageCooldo
   };
 };
 
-export const registerMessageUsageInStickerFocus = ({
-  groupId,
-  senderJid,
-  messageCooldownMs = minutesToMs(DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES),
-  messageAllowanceCount = DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE,
-  now = Date.now(),
-}) => {
+export const registerMessageUsageInStickerFocus = ({ groupId, senderJid, messageCooldownMs = minutesToMs(DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES), messageAllowanceCount = DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE, now = Date.now() }) => {
   const senderKey = buildSenderKey({ groupId, senderJid });
   if (!senderKey) return;
   const normalizedCooldownMs = Math.max(0, Math.floor(Number(messageCooldownMs) || 0));

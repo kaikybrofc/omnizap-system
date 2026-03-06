@@ -3,14 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import logger from '../../utils/logger/loggerModule.js';
 import { executeQuery, TABLES } from '../../database/index.js';
-import {
-  normalizeJid,
-  isGroupJid,
-  isLidJid,
-  isWhatsAppJid,
-  LID_USER_JID_SERVERS,
-  WHATSAPP_USER_JID_SERVERS,
-} from '../config/baileysConfig.js';
+import { normalizeJid, isGroupJid, isLidJid, isWhatsAppJid, LID_USER_JID_SERVERS, WHATSAPP_USER_JID_SERVERS } from '../config/baileysConfig.js';
 import { buildRowPlaceholders, createFlushRunner } from './queueUtils.js';
 import { recordError, setQueueDepth } from '../observability/metrics.js';
 

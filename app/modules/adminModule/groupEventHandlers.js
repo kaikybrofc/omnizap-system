@@ -136,7 +136,9 @@ const extractJoinRequestParticipants = (payload) => {
 
 export const handleGroupUpdate = async (sock, groupId, participants, action) => {
   const normalizedParticipants = normalizeParticipantsInput(participants);
-  const normalizedAction = String(action || '').trim().toLowerCase();
+  const normalizedAction = String(action || '')
+    .trim()
+    .toLowerCase();
 
   logger.debug('Iniciando tratamento de evento de atualização de grupo.', {
     groupId,

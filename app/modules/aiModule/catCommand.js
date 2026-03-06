@@ -228,13 +228,7 @@ const isPremiumAllowed = async (senderJid) => {
   });
   const cachedSender = resolveUserIdCached(senderInfo);
   const resolvedSender = await resolveUserId(senderInfo).catch(() => null);
-  const senderCandidates = Array.from(
-    new Set(
-      [senderJid, senderInfo.jid, senderInfo.lid, senderInfo.participantAlt, senderInfo.raw, cachedSender, resolvedSender]
-        .map((value) => normalizeJid(value || ''))
-        .filter(Boolean),
-    ),
-  );
+  const senderCandidates = Array.from(new Set([senderJid, senderInfo.jid, senderInfo.lid, senderInfo.participantAlt, senderInfo.raw, cachedSender, resolvedSender].map((value) => normalizeJid(value || '')).filter(Boolean)));
 
   if (!senderCandidates.length) return false;
 
@@ -245,13 +239,7 @@ const isPremiumAllowed = async (senderJid) => {
 
   const premiumUsers = await premiumUserStore.getPremiumUsers();
   if (!Array.isArray(premiumUsers) || premiumUsers.length === 0) return false;
-  const premiumCandidates = Array.from(
-    new Set(
-      premiumUsers
-        .map((jid) => normalizeJid(jid || ''))
-        .filter(Boolean),
-    ),
-  );
+  const premiumCandidates = Array.from(new Set(premiumUsers.map((jid) => normalizeJid(jid || '')).filter(Boolean)));
   if (!premiumCandidates.length) return false;
 
   return senderCandidates.some((sender) => premiumCandidates.some((premium) => premium === sender || isSameJidUser(premium, sender)));

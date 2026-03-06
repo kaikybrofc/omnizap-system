@@ -8,19 +8,7 @@ import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/p
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleGlobalRankingCommand } from '../modules/statsModule/globalRankingCommand.js';
 import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js';
-import {
-  detectAllMediaTypes,
-  extractMessageContent,
-  getExpiration,
-  getJidServer,
-  getJidUser,
-  isGroupJid,
-  isLidJid,
-  isSameJidUser,
-  isWhatsAppJid,
-  normalizeJid,
-  resolveBotJid,
-} from '../config/baileysConfig.js';
+import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, getJidUser, isGroupJid, isLidJid, isSameJidUser, isWhatsAppJid, normalizeJid, resolveBotJid } from '../config/baileysConfig.js';
 import { isUserAdmin } from '../config/groupUtils.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
@@ -587,10 +575,7 @@ export const handleMessages = async (update, sock) => {
                     if (shouldSendStickerFocusWarning({ groupId: remoteJid, senderJid })) {
                       try {
                         await sendReply(sock, remoteJid, messageInfo, expirationMessage, {
-                          text: '🖼️ Este chat está com *foco em sticker* ativo.\n'
-                            + 'Siga o padrão: envie apenas *imagens* ou *vídeos* para criação automática, ou compartilhe seus *stickers*.\n'
-                            + `Mensagens como texto e áudio seguem uma janela de tempo: *${formatStickerFocusRuleLabel(stickerFocusState)}*.\n`
-                            + `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${commandPrefix}chatwindow on*.`,
+                          text: '🖼️ Este chat está com *foco em sticker* ativo.\n' + 'Siga o padrão: envie apenas *imagens* ou *vídeos* para criação automática, ou compartilhe seus *stickers*.\n' + `Mensagens como texto e áudio seguem uma janela de tempo: *${formatStickerFocusRuleLabel(stickerFocusState)}*.\n` + `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${commandPrefix}chatwindow on*.`,
                         });
                       } catch (error) {
                         logger.warn('Falha ao enviar aviso de sticker focus.', {

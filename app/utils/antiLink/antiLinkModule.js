@@ -548,20 +548,7 @@ const resolveSenderContextForAntiLink = async ({ messageInfo, senderJid, senderI
   const senderInfoLid = normalizeOptionalJid(senderInfo?.lid);
   const senderInfoAlt = normalizeOptionalJid(senderInfo?.participantAlt);
 
-  const senderCandidates = uniqueNormalizedJids([
-    explicitSender,
-    resolvedByMessage,
-    keyParticipant,
-    keyParticipantAlt,
-    keyRemoteAlt,
-    senderInfoJid,
-    senderInfoLid,
-    senderInfoAlt,
-    identityParticipant,
-    identityParticipantAlt,
-    identityJid,
-    identityRaw,
-  ]);
+  const senderCandidates = uniqueNormalizedJids([explicitSender, resolvedByMessage, keyParticipant, keyParticipantAlt, keyRemoteAlt, senderInfoJid, senderInfoLid, senderInfoAlt, identityParticipant, identityParticipantAlt, identityJid, identityRaw]);
 
   const removalCandidates = [];
   const lidCandidates = [];
