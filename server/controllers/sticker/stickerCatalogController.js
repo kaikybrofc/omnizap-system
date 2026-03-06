@@ -25,6 +25,7 @@ import { createCatalogApiRouter } from '../../routes/sticker/catalogRouter.js';
 import { createStickerCatalogNonCatalogHandlers } from './nonCatalogHandlers.js';
 import { createGoogleWebAuthService } from '../../auth/googleWebAuth/googleWebAuthService.js';
 import { isWebAuthJwtEnabled, signWebAuthJwt, verifyWebAuthJwt } from '../../auth/jwt/webJwtService.js';
+import { resolveClientIp } from '../../http/clientIp.js';
 import userPasswordAuthService from '../../auth/userPassword/index.js';
 import { createUserPasswordRecoveryService } from '../../auth/userPassword/userPasswordRecoveryService.js';
 import {
@@ -112,7 +113,9 @@ const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PAT
 const STICKER_ORPHAN_API_PATH = `${STICKER_API_BASE_PATH}/orphan-stickers`;
 const STICKER_CREATE_WEB_PATH = `${STICKER_WEB_PATH}/create`;
 const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
+const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
 const USER_PASSWORD_RESET_WEB_PATH = normalizeBasePath(process.env.USER_PASSWORD_RESET_WEB_PATH, '/user/password-reset');
+const USER_PASSWORD_RECOVERY_SESSION_QUERY_PARAM = String(process.env.USER_PASSWORD_RECOVERY_SESSION_QUERY_PARAM || 'password_recovery_session').trim() || 'password_recovery_session';
 const PASSWORD_RECOVERY_SESSION_AUTH_METHOD = 'password_recovery_session';
 const PASSWORD_RECOVERY_SESSION_TTL_SECONDS = clampInt(process.env.WEB_PASSWORD_RECOVERY_SESSION_TTL_SECONDS, 15 * 60, 60, 24 * 60 * 60);
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
@@ -458,6 +461,8 @@ const isRequestSecure = (req) => {
   if (proto) return proto === 'https';
   return Boolean(req?.socket?.encrypted);
 };
+
+const resolveRequestRemoteIp = (req) => resolveClientIp(req, { fallback: null });
 
 const appendSetCookie = (res, cookieValue) => {
   const current = res.getHeader('Set-Cookie');
@@ -3507,7 +3512,17 @@ const normalizePasswordRecoverySessionToken = (value) =>
     .trim()
     .slice(0, 4096);
 
-const buildPasswordRecoverySessionPath = (sessionToken) => `${USER_PASSWORD_RESET_WEB_PATH}/${encodeURIComponent(String(sessionToken || ''))}`;
+const buildPasswordRecoverySessionLegacyPath = (sessionToken) => `${USER_PASSWORD_RESET_WEB_PATH}/${encodeURIComponent(String(sessionToken || ''))}`;
+
+const buildPasswordRecoverySessionPath = (sessionToken) => {
+  const rawToken = String(sessionToken || '').trim();
+  if (!rawToken) return `${USER_PROFILE_WEB_PATH}/`;
+  const safeProfilePath = USER_PROFILE_WEB_PATH.endsWith('/') ? USER_PROFILE_WEB_PATH : `${USER_PROFILE_WEB_PATH}/`;
+  const search = new URLSearchParams({
+    [USER_PASSWORD_RECOVERY_SESSION_QUERY_PARAM]: rawToken,
+  }).toString();
+  return `${safeProfilePath}?${search}`;
+};
 
 const toPasswordRecoverySessionExpiresAt = (claims) => {
   const expUnix = Number(claims?.exp || 0);
@@ -3702,7 +3717,7 @@ const handlePasswordRecoveryRequest = async (req, res) => {
       ownerJid: payload.owner_jid,
       purpose: payload.purpose || 'reset',
       requestMeta: {
-        remoteIp: req.socket?.remoteAddress || null,
+        remoteIp: resolveRequestRemoteIp(req),
         userAgent: req.headers?.['user-agent'] || null,
       },
     });
@@ -3718,10 +3733,19 @@ const handlePasswordRecoveryRequest = async (req, res) => {
       },
     });
   } catch (error) {
+    const retryAfterSeconds = Math.max(0, Number(error?.details?.retry_after_seconds || 0));
+    const errorDetails = Array.isArray(error?.details)
+      ? error.details
+      : error?.details && typeof error.details === 'object'
+        ? error.details
+        : undefined;
+    if (retryAfterSeconds > 0) {
+      res.setHeader('Retry-After', String(retryAfterSeconds));
+    }
     sendJson(req, res, Number(error?.statusCode || 400), {
       error: error?.message || 'Falha ao solicitar codigo de verificacao.',
       code: error?.code || 'PASSWORD_RECOVERY_REQUEST_FAILED',
-      details: Array.isArray(error?.details) ? error.details : undefined,
+      details: errorDetails,
     });
   }
 };
@@ -3760,7 +3784,7 @@ const handlePasswordRecoveryVerifyRequest = async (req, res) => {
       code: payload.code,
       password: payload.password,
       requestMeta: {
-        remoteIp: req.socket?.remoteAddress || null,
+        remoteIp: resolveRequestRemoteIp(req),
         userAgent: req.headers?.['user-agent'] || null,
       },
     });
@@ -3772,9 +3796,10 @@ const handlePasswordRecoveryVerifyRequest = async (req, res) => {
           sub: recoveryResult.credential.google_sub,
           email: recoveryResult.credential.email || '',
           name: recoveryResult.credential.name || '',
+          picture: recoveryResult.credential.picture || '',
           ownerJid: recoveryResult.credential.owner_jid,
           requestMeta: {
-            remoteIp: req.socket?.remoteAddress || null,
+            remoteIp: resolveRequestRemoteIp(req),
             userAgent: req.headers?.['user-agent'] || null,
           },
         });
@@ -3846,6 +3871,8 @@ const handlePasswordRecoverySessionCreateRequest = async (req, res) => {
   const claims = verifyWebAuthJwt(sessionToken);
   const sessionPath = buildPasswordRecoverySessionPath(sessionToken);
   const sessionUrl = toSiteAbsoluteUrl(sessionPath);
+  const sessionPathLegacy = buildPasswordRecoverySessionLegacyPath(sessionToken);
+  const sessionUrlLegacy = toSiteAbsoluteUrl(sessionPathLegacy);
 
   sendJson(req, res, 200, {
     data: {
@@ -3853,6 +3880,8 @@ const handlePasswordRecoverySessionCreateRequest = async (req, res) => {
       purpose: 'reset',
       session_path: sessionPath,
       session_url: sessionUrl,
+      session_path_legacy: sessionPathLegacy,
+      session_url_legacy: sessionUrlLegacy,
       masked_email: maskEmailForResponse(normalizedEmail),
       expires_at: toPasswordRecoverySessionExpiresAt(claims),
       expires_in_seconds: toPasswordRecoverySessionExpiresIn(claims),
@@ -3918,7 +3947,7 @@ const handlePasswordRecoverySessionRequest = async (req, res, { sessionToken = '
       ownerJid: resolvedSession.identity.ownerJid,
       purpose: resolvedSession.identity.purpose,
       requestMeta: {
-        remoteIp: req.socket?.remoteAddress || null,
+        remoteIp: resolveRequestRemoteIp(req),
         userAgent: req.headers?.['user-agent'] || null,
       },
     });
@@ -3934,10 +3963,19 @@ const handlePasswordRecoverySessionRequest = async (req, res, { sessionToken = '
       },
     });
   } catch (error) {
+    const retryAfterSeconds = Math.max(0, Number(error?.details?.retry_after_seconds || 0));
+    const errorDetails = Array.isArray(error?.details)
+      ? error.details
+      : error?.details && typeof error.details === 'object'
+        ? error.details
+        : undefined;
+    if (retryAfterSeconds > 0) {
+      res.setHeader('Retry-After', String(retryAfterSeconds));
+    }
     sendJson(req, res, Number(error?.statusCode || 400), {
       error: error?.message || 'Falha ao solicitar codigo de verificacao.',
       code: error?.code || 'PASSWORD_RECOVERY_REQUEST_FAILED',
-      details: Array.isArray(error?.details) ? error.details : undefined,
+      details: errorDetails,
     });
   }
 };
@@ -3991,7 +4029,7 @@ const handlePasswordRecoverySessionVerifyRequest = async (req, res, { sessionTok
       code: payload.code,
       password: payload.password,
       requestMeta: {
-        remoteIp: req.socket?.remoteAddress || null,
+        remoteIp: resolveRequestRemoteIp(req),
         userAgent: req.headers?.['user-agent'] || null,
       },
     });
@@ -4003,9 +4041,10 @@ const handlePasswordRecoverySessionVerifyRequest = async (req, res, { sessionTok
           sub: recoveryResult.credential.google_sub,
           email: recoveryResult.credential.email || '',
           name: recoveryResult.credential.name || '',
+          picture: recoveryResult.credential.picture || '',
           ownerJid: recoveryResult.credential.owner_jid,
           requestMeta: {
-            remoteIp: req.socket?.remoteAddress || null,
+            remoteIp: resolveRequestRemoteIp(req),
             userAgent: req.headers?.['user-agent'] || null,
           },
         });
@@ -4108,9 +4147,10 @@ const handlePasswordLoginRequest = async (req, res) => {
       sub: credential.google_sub,
       email: credential.email || '',
       name: credential.name || '',
+      picture: credential.picture || '',
       ownerJid: credential.owner_jid,
       requestMeta: {
-        remoteIp: req.socket?.remoteAddress || null,
+        remoteIp: resolveRequestRemoteIp(req),
         userAgent: req.headers?.['user-agent'] || null,
       },
     });

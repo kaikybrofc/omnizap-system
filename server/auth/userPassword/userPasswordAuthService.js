@@ -83,6 +83,10 @@ const mapCredentialRow = (row, { includeHash = false } = {}) => {
     email: normalizeEmail(row.email),
     owner_jid: normalizeJid(row.owner_jid),
     name: normalizeName(row.name),
+    picture:
+      String(row.picture_url || '')
+        .trim()
+        .slice(0, 1024) || null,
     password_algo:
       String(row.password_algo || '')
         .trim()
@@ -124,7 +128,7 @@ export const createUserPasswordAuthService = ({ executeQuery, tables = {}, logge
     if (!filter) return null;
 
     const rows = await executeQuery(
-      `SELECT u.google_sub, u.email, u.owner_jid, u.name, u.last_login_at, u.last_seen_at, u.created_at, u.updated_at
+      `SELECT u.google_sub, u.email, u.owner_jid, u.name, u.picture_url, u.last_login_at, u.last_seen_at, u.created_at, u.updated_at
          FROM ${GOOGLE_USER_TABLE} u
         WHERE ${filter.clause}
         ORDER BY COALESCE(u.last_seen_at, u.last_login_at, u.updated_at, u.created_at) DESC
@@ -141,6 +145,10 @@ export const createUserPasswordAuthService = ({ executeQuery, tables = {}, logge
       email: normalizeEmail(row.email),
       owner_jid: normalizeJid(row.owner_jid),
       name: normalizeName(row.name),
+      picture:
+        String(row.picture_url || '')
+          .trim()
+          .slice(0, 1024) || null,
       last_login_at: toIsoOrNull(row.last_login_at),
       last_seen_at: toIsoOrNull(row.last_seen_at),
       created_at: toIsoOrNull(row.created_at),
@@ -172,7 +180,8 @@ export const createUserPasswordAuthService = ({ executeQuery, tables = {}, logge
          p.updated_at,
          u.email,
          u.owner_jid,
-         u.name
+         u.name,
+         u.picture_url
        FROM ${USER_PASSWORD_TABLE} p
        INNER JOIN ${GOOGLE_USER_TABLE} u ON u.google_sub = p.google_sub
       WHERE (${filter.clause})

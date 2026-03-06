@@ -1,30 +1,10 @@
 import { rateLimit } from 'express-rate-limit';
+import { resolveClientIp } from '../http/clientIp.js';
 
 const parseNumber = (value, fallback, min, max) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(parsed)));
-};
-
-const RATE_LIMIT_TRUST_PROXY = ['1', 'true', 'yes', 'on'].includes(
-  String(process.env.RATE_LIMIT_TRUST_PROXY || '')
-    .trim()
-    .toLowerCase(),
-);
-
-const getClientIp = (req) => {
-  if (RATE_LIMIT_TRUST_PROXY) {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string' && forwarded.trim()) {
-      const [first] = forwarded
-        .split(',')
-        .map((part) => part.trim())
-        .filter(Boolean);
-      if (first) return first;
-    }
-  }
-
-  return req.socket?.remoteAddress || 'unknown';
 };
 
 const buildLimiter = ({ keyPrefix, windowMs, max }) => {
@@ -38,7 +18,7 @@ const buildLimiter = ({ keyPrefix, windowMs, max }) => {
     standardHeaders: false,
     legacyHeaders: false,
     validate: false,
-    keyGenerator: (req) => `${safeKeyPrefix}:${getClientIp(req)}`,
+    keyGenerator: (req) => `${safeKeyPrefix}:${resolveClientIp(req)}`,
     handler: (req, res, _next, options) => {
       if (res.writableEnded) return;
       req.__endpointRateLimitBlocked = true;
@@ -70,6 +50,12 @@ const authPasswordLimiter = buildLimiter({
   keyPrefix: 'auth_password',
   windowMs: parseNumber(process.env.AUTH_PASSWORD_RATE_LIMIT_WINDOW_MS, 60_000, 1_000, 60 * 60 * 1000),
   max: parseNumber(process.env.AUTH_PASSWORD_RATE_LIMIT_MAX, 8, 1, 100_000),
+});
+
+const authPasswordRecoveryRequestLimiter = buildLimiter({
+  keyPrefix: 'auth_password_recovery_request',
+  windowMs: parseNumber(process.env.AUTH_PASSWORD_RECOVERY_RATE_LIMIT_WINDOW_MS, 60_000, 1_000, 60 * 60 * 1000),
+  max: parseNumber(process.env.AUTH_PASSWORD_RECOVERY_RATE_LIMIT_MAX, 4, 1, 100_000),
 });
 
 const adminSessionLimiter = buildLimiter({
@@ -135,12 +121,20 @@ const isSensitivePostPath = (pathname) => {
     return 'auth_password';
   }
 
-  if (safePath.endsWith('/auth/password/recovery/request') || safePath.endsWith('/auth/password/recovery/verify')) {
+  if (safePath.endsWith('/auth/password/recovery/request')) {
+    return 'auth_password_recovery_request';
+  }
+
+  if (safePath.endsWith('/auth/password/recovery/verify')) {
     return 'auth_password';
   }
 
   if (safePath.endsWith('/auth/password/recovery/session')) {
     return 'auth_password';
+  }
+
+  if (/\/auth\/password\/recovery\/session\/[^/]+\/request$/.test(safePath)) {
+    return 'auth_password_recovery_request';
   }
 
   if (/\/auth\/password\/recovery\/session\/[^/]+\/(?:request|verify)$/.test(safePath)) {
@@ -167,6 +161,10 @@ export const applySensitiveRouteRateLimit = async (req, res, { pathname }) => {
 
   if (routeType === 'auth_password') {
     return runLimiter(authPasswordLimiter, req, res);
+  }
+
+  if (routeType === 'auth_password_recovery_request') {
+    return runLimiter(authPasswordRecoveryRequestLimiter, req, res);
   }
 
   if (routeType === 'admin_session') {

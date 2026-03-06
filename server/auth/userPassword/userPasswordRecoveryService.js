@@ -160,6 +160,7 @@ const secureHexEquals = (leftHex, rightHex) => {
 const DEFAULT_CODE_TTL_SECONDS = 15 * 60;
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_RESEND_COOLDOWN_SECONDS = 60;
+const DEFAULT_HOURLY_REQUEST_LIMIT = 4;
 const DEFAULT_DAILY_REQUEST_LIMIT = 8;
 
 export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAuthService, queueAutomatedEmail = null, tables = {}, logger = null, runSqlTransaction = null } = {}) => {
@@ -175,6 +176,7 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
   const ttlSeconds = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_CODE_TTL_SECONDS, DEFAULT_CODE_TTL_SECONDS, 180, 60 * 60);
   const maxAttempts = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_CODE_MAX_ATTEMPTS, DEFAULT_MAX_ATTEMPTS, 1, 10);
   const resendCooldownSeconds = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_CODE_RESEND_COOLDOWN_SECONDS, DEFAULT_RESEND_COOLDOWN_SECONDS, 15, 10 * 60);
+  const hourlyRequestLimit = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_CODE_HOURLY_LIMIT, DEFAULT_HOURLY_REQUEST_LIMIT, 1, 30);
   const dailyRequestLimit = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_CODE_DAILY_LIMIT, DEFAULT_DAILY_REQUEST_LIMIT, 1, 40);
   const hashSecret =
     String(process.env.WEB_USER_PASSWORD_RECOVERY_HASH_SECRET || process.env.WEB_AUTH_JWT_SECRET || process.env.WHATSAPP_LOGIN_LINK_SECRET || '')
@@ -243,19 +245,44 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
     return normalizeRecoveryRow(Array.isArray(rows) ? rows[0] : null);
   };
 
-  const countDailyRequestsByGoogleSub = async (googleSub, connection = null) => {
+  const countRequestsByGoogleSubInWindow = async (googleSub, windowSeconds, connection = null) => {
     const normalizedGoogleSub = normalizeGoogleSubject(googleSub);
     if (!normalizedGoogleSub) return 0;
+    const safeWindowSeconds = clampInt(windowSeconds, 24 * 60 * 60, 60, 7 * 24 * 60 * 60);
 
     const rows = await executeQuery(
       `SELECT COUNT(*) AS total
          FROM ${recoveryTable}
         WHERE google_sub = ?
-          AND created_at >= (UTC_TIMESTAMP() - INTERVAL 1 DAY)`,
+          AND created_at >= (UTC_TIMESTAMP() - INTERVAL ${safeWindowSeconds} SECOND)`,
       [normalizedGoogleSub],
       connection,
     );
     return Math.max(0, Number(rows?.[0]?.total || 0));
+  };
+
+  const countDailyRequestsByGoogleSub = async (googleSub, connection = null) => countRequestsByGoogleSubInWindow(googleSub, 24 * 60 * 60, connection);
+
+  const countHourlyRequestsByGoogleSub = async (googleSub, connection = null) => countRequestsByGoogleSubInWindow(googleSub, 60 * 60, connection);
+
+  const getRetryAfterForWindowByGoogleSub = async (googleSub, windowSeconds, connection = null) => {
+    const normalizedGoogleSub = normalizeGoogleSubject(googleSub);
+    if (!normalizedGoogleSub) return clampInt(windowSeconds, 60, 1, 7 * 24 * 60 * 60);
+    const safeWindowSeconds = clampInt(windowSeconds, 24 * 60 * 60, 60, 7 * 24 * 60 * 60);
+
+    const rows = await executeQuery(
+      `SELECT MIN(created_at) AS oldest_created_at
+         FROM ${recoveryTable}
+        WHERE google_sub = ?
+          AND created_at >= (UTC_TIMESTAMP() - INTERVAL ${safeWindowSeconds} SECOND)`,
+      [normalizedGoogleSub],
+      connection,
+    );
+    const oldestCreatedAt = rows?.[0]?.oldest_created_at ? Date.parse(rows[0].oldest_created_at) : NaN;
+    if (!Number.isFinite(oldestCreatedAt)) return safeWindowSeconds;
+
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - oldestCreatedAt) / 1000));
+    return Math.max(1, safeWindowSeconds - elapsedSeconds);
   };
 
   const getRecentRequestWithinCooldown = async (googleSub, connection = null) => {
@@ -275,9 +302,13 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
 
     const row = Array.isArray(rows) ? rows[0] : null;
     if (!row) return null;
+    const createdAtMs = row.created_at ? Date.parse(row.created_at) : NaN;
+    const elapsedSeconds = Number.isFinite(createdAtMs) ? Math.max(0, Math.floor((Date.now() - createdAtMs) / 1000)) : resendCooldownSeconds;
+    const retryAfterSeconds = Math.max(0, resendCooldownSeconds - elapsedSeconds);
     return {
       id: Number(row.id || 0),
       created_at: row.created_at ? new Date(row.created_at).toISOString() : null,
+      retry_after_seconds: retryAfterSeconds,
     };
   };
 
@@ -338,24 +369,43 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
 
     const requestsInLastDay = await countDailyRequestsByGoogleSub(knownUser.google_sub, connection);
     if (requestsInLastDay >= dailyRequestLimit) {
-      return {
-        accepted: true,
-        queued: false,
-        rate_limited: true,
-        expires_in_seconds: ttlSeconds,
-        masked_email: maskEmail(recipientEmail),
-      };
+      const retryAfterSeconds = await getRetryAfterForWindowByGoogleSub(knownUser.google_sub, 24 * 60 * 60, connection).catch(() => 24 * 60 * 60);
+      throw buildHttpError('Limite diario de solicitacoes atingido. Tente novamente amanha.', {
+        statusCode: 429,
+        code: 'PASSWORD_RECOVERY_DAILY_LIMIT',
+        details: {
+          retry_after_seconds: retryAfterSeconds,
+          limit: dailyRequestLimit,
+          window_seconds: 24 * 60 * 60,
+        },
+      });
+    }
+
+    const requestsInLastHour = await countHourlyRequestsByGoogleSub(knownUser.google_sub, connection);
+    if (requestsInLastHour >= hourlyRequestLimit) {
+      const retryAfterSeconds = await getRetryAfterForWindowByGoogleSub(knownUser.google_sub, 60 * 60, connection).catch(() => 60 * 60);
+      throw buildHttpError('Muitas solicitacoes em pouco tempo. Aguarde alguns minutos para tentar novamente.', {
+        statusCode: 429,
+        code: 'PASSWORD_RECOVERY_HOURLY_LIMIT',
+        details: {
+          retry_after_seconds: retryAfterSeconds,
+          limit: hourlyRequestLimit,
+          window_seconds: 60 * 60,
+        },
+      });
     }
 
     const recentRequest = await getRecentRequestWithinCooldown(knownUser.google_sub, connection);
     if (recentRequest?.id) {
-      return {
-        accepted: true,
-        queued: false,
-        cooldown_active: true,
-        expires_in_seconds: ttlSeconds,
-        masked_email: maskEmail(recipientEmail),
-      };
+      const retryAfterSeconds = Math.max(1, Number(recentRequest.retry_after_seconds || resendCooldownSeconds));
+      throw buildHttpError(`Aguarde ${retryAfterSeconds}s antes de solicitar um novo codigo.`, {
+        statusCode: 429,
+        code: 'PASSWORD_RECOVERY_COOLDOWN_ACTIVE',
+        details: {
+          retry_after_seconds: retryAfterSeconds,
+          cooldown_seconds: resendCooldownSeconds,
+        },
+      });
     }
 
     const verificationCode = generateSixDigitCode();
@@ -585,6 +635,7 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
       code_ttl_seconds: ttlSeconds,
       max_attempts: maxAttempts,
       resend_cooldown_seconds: resendCooldownSeconds,
+      hourly_request_limit: hourlyRequestLimit,
       daily_request_limit: dailyRequestLimit,
     }),
     requestPasswordRecoveryCode,

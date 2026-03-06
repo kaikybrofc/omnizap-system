@@ -461,9 +461,10 @@ const App = () => {
   const navContainerClass = isMobile
     ? `nav ${isNavOpen ? 'grid' : 'hidden'} fixed inset-x-3 top-[4.5rem] z-50 max-h-[calc(100dvh-5.5rem)] grid-cols-1 gap-2 overflow-y-auto rounded-2xl border border-base-300 bg-base-100/98 p-3 shadow-2xl backdrop-blur`
     : 'nav flex w-full flex-wrap items-center gap-2 lg:w-auto';
-  const authButtonClass = isMobile
-    ? 'btn btn-primary h-11 min-h-0 justify-start gap-2 px-3 text-sm font-semibold'
-    : `btn ${authInfo.image ? 'btn-circle p-0' : 'btn-primary'} justify-center`;
+  const desktopAuthButtonClass = `btn ${authInfo.image ? 'btn-circle p-0' : 'btn-primary'} justify-center`;
+  const mobileAuthButtonClass = authInfo.image
+    ? 'btn btn-circle h-10 min-h-0 w-10 border border-base-300 bg-base-100 p-0 shadow-sm hover:bg-base-200'
+    : 'btn btn-primary h-10 min-h-0 px-3 text-sm font-semibold';
 
   return html`
     <div className="home-page relative text-base-content">
@@ -474,17 +475,31 @@ const App = () => {
               <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" width="30" height="30" decoding="async" className="h-8 w-8 rounded-full border border-base-300 object-cover" />
               <span className="truncate font-bold tracking-wide">OmniZap Bot</span>
             </a>
-            <button
-              id="nav-toggle"
-              className="btn btn-square h-10 min-h-0 border border-base-300 bg-base-200/70 text-base-content shadow-sm hover:bg-base-200 lg:hidden"
-              type="button"
-              aria-expanded=${isNavOpen ? 'true' : 'false'}
-              aria-controls="main-nav"
-              aria-label="Abrir menu"
-              onClick=${() => setNavOpen((current) => !current)}
-            >
-              ${isNavOpen ? '✕' : '☰'}
-            </button>
+            <div className="flex items-center gap-2 lg:hidden">
+              <a
+                id="nav-auth-link-mobile"
+                className=${mobileAuthButtonClass}
+                href=${authInfo.href}
+                title=${authInfo.title}
+                aria-label=${authInfo.image ? authInfo.title : 'Entrar'}
+                onClick=${closeMobileNav}
+              >
+                ${authInfo.image
+                  ? html`<img className="h-full w-full rounded-full object-cover" src=${authInfo.image} alt=${authInfo.label} loading="lazy" decoding="async" />`
+                  : html`Entrar`}
+              </a>
+              <button
+                id="nav-toggle"
+                className="btn btn-square h-10 min-h-0 border border-base-300 bg-base-200/70 text-base-content shadow-sm hover:bg-base-200 lg:hidden"
+                type="button"
+                aria-expanded=${isNavOpen ? 'true' : 'false'}
+                aria-controls="main-nav"
+                aria-label="Abrir menu"
+                onClick=${() => setNavOpen((current) => !current)}
+              >
+                ${isNavOpen ? '✕' : '☰'}
+              </button>
+            </div>
           </div>
 
           <nav id="main-nav" className=${navContainerClass} aria-label="Navegação principal">
@@ -499,20 +514,22 @@ const App = () => {
                   ${item.label}
                 </a>`,
             )}
-            <a
-              id="nav-auth-link"
-              className=${authButtonClass}
-              href=${authInfo.href}
-              title=${authInfo.title}
-              aria-label=${authInfo.image && !isMobile ? authInfo.title : 'Entrar'}
-              onClick=${closeMobileNav}
-            >
-              ${authInfo.image
-                ? isMobile
-                  ? html`<img className="h-7 w-7 rounded-full object-cover" src=${authInfo.image} alt=${authInfo.label} loading="lazy" decoding="async" /><span className="truncate">${authInfo.label}</span>`
-                  : html`<img className="h-full w-full rounded-full object-cover" src=${authInfo.image} alt=${authInfo.label} loading="lazy" decoding="async" />`
-                : html`Entrar`}
-            </a>
+            ${!isMobile
+              ? html`
+                  <a
+                    id="nav-auth-link"
+                    className=${desktopAuthButtonClass}
+                    href=${authInfo.href}
+                    title=${authInfo.title}
+                    aria-label=${authInfo.image ? authInfo.title : 'Entrar'}
+                    onClick=${closeMobileNav}
+                  >
+                    ${authInfo.image
+                      ? html`<img className="h-full w-full rounded-full object-cover" src=${authInfo.image} alt=${authInfo.label} loading="lazy" decoding="async" />`
+                      : html`Entrar`}
+                  </a>
+                `
+              : null}
           </nav>
         </div>
       </header>

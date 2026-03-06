@@ -20,6 +20,7 @@ const DEFAULT_PRIVACY_URL = '/termos-de-uso/#politica-de-privacidade';
 const DEFAULT_FALLBACK_AVATAR = '/assets/images/brand-logo-128.webp';
 const DEFAULT_PASSWORD_RESET_WEB_PATH = '/user/password-reset';
 const DEFAULT_SUPPORT_TEXT = 'Ol\u00e1! Preciso de suporte no OmniZap.';
+const PASSWORD_RECOVERY_QUERY_KEYS = ['password_recovery_session', 'recovery_session', 'reset_session', 'session_token'];
 
 const TABS = [
   { key: 'summary', label: 'Resumo' },
@@ -57,7 +58,27 @@ const decodePathToken = (value) => {
   }
 };
 
-const resolvePasswordRecoveryRoute = (pathname, passwordResetWebPath) => {
+const resolveRecoveryTokenFromSearch = (search = '') => {
+  try {
+    const params = new URLSearchParams(String(search || ''));
+    for (const key of PASSWORD_RECOVERY_QUERY_KEYS) {
+      const rawValue = String(params.get(key) || '').trim();
+      if (!rawValue) continue;
+      const decoded = decodePathToken(rawValue).trim();
+      if (decoded) return decoded;
+    }
+  } catch {
+    return '';
+  }
+  return '';
+};
+
+const resolvePasswordRecoveryRoute = (pathname, search, passwordResetWebPath) => {
+  const queryToken = resolveRecoveryTokenFromSearch(search);
+  if (queryToken) {
+    return { active: true, token: queryToken };
+  }
+
   const safePathname = normalizeRoutePath(pathname, '/');
   const safeResetPath = normalizeRoutePath(passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH);
 
@@ -222,7 +243,7 @@ const toneClassMap = {
 const UserApp = ({ config }) => {
   const api = useMemo(() => createUserApi(config.apiBasePath), [config.apiBasePath]);
   const recoveryRoute = useMemo(
-    () => resolvePasswordRecoveryRoute(window.location.pathname, config.passwordResetWebPath),
+    () => resolvePasswordRecoveryRoute(window.location.pathname, window.location.search, config.passwordResetWebPath),
     [config.passwordResetWebPath],
   );
   const isRecoveryRoute = recoveryRoute.active;

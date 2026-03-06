@@ -1,4 +1,5 @@
 import logger from '../../utils/logger/loggerModule.js';
+import { resolveClientIp } from '../http/clientIp.js';
 
 const ADMIN_TOKEN = String(process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '').trim();
 
@@ -40,7 +41,7 @@ export const requireAdminAuth = (req, res) => {
     action: 'admin_auth_token_invalid',
     method: req.method || 'UNKNOWN',
     path: req.url || '',
-    remote_address: req.socket?.remoteAddress || null,
+    remote_address: resolveClientIp(req, { fallback: null }),
   });
   sendUnauthorized(res);
   return false;

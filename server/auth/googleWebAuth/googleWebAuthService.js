@@ -3,6 +3,7 @@ import axios from 'axios';
 
 import { signWebAuthJwt, verifyWebAuthJwt, extractBearerTokenFromRequest } from '../jwt/webJwtService.js';
 import { parseGoogleAuthSessionPayload } from '../validation/authSchemas.js';
+import { resolveClientIp } from '../../http/clientIp.js';
 
 const GOOGLE_TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
 const GOOGLE_WEB_SESSION_COOKIE_NAME = 'omnizap_google_session';
@@ -718,7 +719,7 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
         logger.warn('Tentativa de login web bloqueada por validacao do link WhatsApp.', {
           action: 'sticker_pack_google_web_login_link_blocked',
           reason: reason || 'unknown',
-          remote_ip: req.socket?.remoteAddress || null,
+          remote_ip: resolveClientIp(req, { fallback: null }),
           user_agent: req.headers?.['user-agent'] || null,
         });
 
@@ -738,7 +739,7 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
         picture: claims.picture || '',
         ownerJid,
         requestMeta: {
-          remoteIp: req.socket?.remoteAddress || null,
+          remoteIp: resolveClientIp(req, { fallback: null }),
           userAgent: req.headers?.['user-agent'] || null,
         },
       });

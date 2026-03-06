@@ -1,3 +1,5 @@
+import { resolveClientIp } from '../http/clientIp.js';
+
 const rateLimitBuckets = new Map();
 let pruneAt = 0;
 
@@ -5,27 +7,6 @@ const parseNumber = (value, fallback, min, max) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(parsed)));
-};
-
-const RATE_LIMIT_TRUST_PROXY = ['1', 'true', 'yes', 'on'].includes(
-  String(process.env.RATE_LIMIT_TRUST_PROXY || '')
-    .trim()
-    .toLowerCase(),
-);
-
-const getClientIp = (req) => {
-  if (RATE_LIMIT_TRUST_PROXY) {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string' && forwarded.trim()) {
-      const [first] = forwarded
-        .split(',')
-        .map((part) => part.trim())
-        .filter(Boolean);
-      if (first) return first;
-    }
-  }
-
-  return req.socket?.remoteAddress || 'unknown';
 };
 
 const pruneBuckets = (windowMs, nowMs) => {
@@ -60,7 +41,7 @@ export const createRateLimit = ({ windowMs = 60_000, max = 60, keyPrefix = 'glob
     const nowMs = Date.now();
     pruneBuckets(safeWindowMs, nowMs);
 
-    const ip = getClientIp(req);
+    const ip = resolveClientIp(req);
     const key = `${safeKeyPrefix}:${ip}`;
     const existing = rateLimitBuckets.get(key);
 
