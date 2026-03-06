@@ -908,6 +908,24 @@ CREATE TABLE IF NOT EXISTS `web_google_user` (
   KEY `idx_web_google_user_owner_phone` (`owner_phone`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `web_user_password` (
+  `google_sub` varchar(80) NOT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `password_algo` varchar(24) NOT NULL DEFAULT 'bcrypt',
+  `password_cost` tinyint(3) unsigned NOT NULL DEFAULT 12,
+  `failed_attempts` smallint(5) unsigned NOT NULL DEFAULT 0,
+  `last_failed_at` timestamp NULL DEFAULT NULL,
+  `last_login_at` timestamp NULL DEFAULT NULL,
+  `password_changed_at` timestamp NULL DEFAULT current_timestamp(),
+  `revoked_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`google_sub`),
+  KEY `idx_web_user_password_revoked_updated` (`revoked_at`,`updated_at`),
+  KEY `idx_web_user_password_last_login` (`last_login_at`),
+  CONSTRAINT `fk_web_user_password_google_user` FOREIGN KEY (`google_sub`) REFERENCES `web_google_user` (`google_sub`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `web_visit_event` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `visitor_key` varchar(80) NOT NULL,

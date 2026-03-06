@@ -117,6 +117,7 @@ export const TABLES = {
   FEATURE_FLAG: 'feature_flag',
   STICKER_WEB_GOOGLE_USER: 'web_google_user',
   STICKER_WEB_GOOGLE_SESSION: 'web_google_session',
+  STICKER_WEB_USER_PASSWORD: 'web_user_password',
   STICKER_WEB_ADMIN_BAN: 'web_admin_ban',
   STICKER_WEB_ADMIN_MODERATOR: 'web_admin_moderator',
   ADMIN_ACTION_AUDIT: 'admin_action_audit',
