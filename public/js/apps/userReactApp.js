@@ -251,7 +251,7 @@ const UserApp = ({ config }) => {
 
   const [activeTab, setActiveTab] = useState('account');
   const [isMobile, setMobile] = useState(Boolean(window.matchMedia?.('(max-width: 1020px)')?.matches));
-  const [isSidebarOpen, setSidebarOpen] = useState(Boolean(!window.matchMedia?.('(max-width: 1020px)')?.matches));
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isLoadingSummary, setLoadingSummary] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [isLogoutBusy, setLogoutBusy] = useState(false);
@@ -318,7 +318,6 @@ const UserApp = ({ config }) => {
     const applyViewport = () => {
       const mobile = Boolean(mediaQuery.matches);
       setMobile(mobile);
-      setSidebarOpen(!mobile);
     };
 
     applyViewport();
@@ -337,7 +336,7 @@ const UserApp = ({ config }) => {
   }, []);
 
   useEffect(() => {
-    if (!isMobile) {
+    if (!isSidebarOpen) {
       document.body.style.overflow = '';
       return undefined;
     }
@@ -345,9 +344,8 @@ const UserApp = ({ config }) => {
     const onKeyDown = (event) => {
       if (event.key === 'Escape') setSidebarOpen(false);
     };
-
-    document.body.style.overflow = isSidebarOpen ? 'hidden' : '';
-    if (isSidebarOpen) window.addEventListener('keydown', onKeyDown);
+    document.body.style.overflow = isMobile ? 'hidden' : '';
+    window.addEventListener('keydown', onKeyDown);
 
     return () => {
       document.body.style.overflow = '';
@@ -513,13 +511,17 @@ const UserApp = ({ config }) => {
     };
   }, [api, isRecoveryRoute, recoverySessionToken]);
 
-  const closeSidebarOnMobile = () => {
-    if (isMobile) setSidebarOpen(false);
-  };
-
   const handleTabSelect = (tabKey) => {
     setActiveTab(tabKey);
-    closeSidebarOnMobile();
+    setSidebarOpen(false);
+  };
+
+  const toggleSidebar = () => {
+    setSidebarOpen((open) => !open);
+  };
+
+  const closeSidebar = () => {
+    setSidebarOpen(false);
   };
 
   const handleRetry = () => {
@@ -729,7 +731,7 @@ const UserApp = ({ config }) => {
                 : null}
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 min-[520px]:grid-cols-2">
               <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Destino do codigo</p>
                 <p className="mt-1 text-base font-semibold">
@@ -812,10 +814,10 @@ const UserApp = ({ config }) => {
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
-              className="btn btn-square h-10 min-h-0 border border-base-300 bg-base-200/70 lg:hidden"
-              aria-label="Abrir menu lateral"
+              className="btn btn-square h-10 min-h-0 border border-base-300 bg-base-200/70"
+              aria-label=${isSidebarOpen ? 'Fechar barra lateral' : 'Abrir barra lateral'}
               aria-expanded=${isSidebarOpen ? 'true' : 'false'}
-              onClick=${() => setSidebarOpen((open) => !open)}
+              onClick=${toggleSidebar}
             >
               ${isSidebarOpen ? '\u2715' : '\u2630'}
             </button>
@@ -823,6 +825,12 @@ const UserApp = ({ config }) => {
               <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" className="h-8 w-8 rounded-full border border-base-300 object-cover" loading="lazy" decoding="async" />
               <span className="truncate font-bold tracking-wide">OmniZap System</span>
             </a>
+          </div>
+
+          <div className="lg:hidden">
+            <button type="button" className="btn btn-ghost btn-sm" onClick=${handleLogout} disabled=${isLogoutBusy}>
+              ${isLogoutBusy ? 'Saindo...' : 'Sair'}
+            </button>
           </div>
 
           <nav className="hidden items-center gap-2 lg:flex" aria-label="Navega\u00e7\u00e3o da conta">
@@ -836,25 +844,48 @@ const UserApp = ({ config }) => {
         </div>
       </header>
 
-      ${isMobile && isSidebarOpen
-        ? html`<button type="button" className="fixed inset-0 z-40 bg-slate-950/60" aria-label="Fechar menu lateral" onClick=${() => setSidebarOpen(false)}></button>`
-        : null}
-
-      <main className="mx-auto w-full max-w-7xl px-3 pb-24 pt-5 sm:px-4 sm:pb-14 sm:pt-6 lg:px-6">
-        <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside
-            className=${`z-50 rounded-2xl border border-base-300 bg-base-100/95 p-3 shadow-xl backdrop-blur sm:p-4 ${
-              isMobile
-                ? `fixed inset-y-3 left-3 w-[min(84vw,320px)] transform overflow-y-auto transition-transform ${
-                    isSidebarOpen ? 'translate-x-0' : '-translate-x-[120%]'
-                  }`
-                : 'sticky top-24 h-fit'
+      <main
+        className=${`mx-auto w-full max-w-[min(96vw,1740px)] px-2 pb-20 pt-3 transition-[padding-left] duration-300 sm:px-4 sm:pb-14 sm:pt-6 lg:px-6 xl:px-8 ${
+          !isMobile && isSidebarOpen ? 'lg:pl-[372px]' : 'lg:pl-0'
+        }`}
+      >
+        <aside
+          className=${`fixed left-0 top-16 z-[60] h-[calc(100dvh-4rem)] w-[min(88vw,340px)] lg:w-[360px] px-2 pb-3 transition-transform duration-300 ease-out ${
+            isSidebarOpen ? 'translate-x-0' : '-translate-x-[108%]'
+          }`}
+          aria-hidden=${isSidebarOpen ? 'false' : 'true'}
+        >
+          <div
+            className=${`h-full overflow-y-auto rounded-r-2xl border border-base-300 bg-base-100/95 shadow-2xl backdrop-blur ${
+              isMobile ? 'border-base-300/70 p-3' : 'p-5'
             }`}
           >
             <div className="mb-3 flex items-center justify-between gap-2">
               <p className="text-xs font-bold uppercase tracking-wide text-base-content/70">Navega\u00e7\u00e3o</p>
-              <button type="button" className="btn btn-ghost btn-xs lg:hidden" onClick=${() => setSidebarOpen(false)}>Fechar</button>
+              <button type="button" className="btn btn-ghost btn-xs" onClick=${closeSidebar}>Fechar</button>
             </div>
+
+            ${!isMobile
+              ? html`
+                  <div className="mb-4 rounded-2xl border border-base-300 bg-base-200/60 p-3">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src=${summary.avatar}
+                        alt="Avatar da conta"
+                        className="h-12 w-12 rounded-xl border border-base-300 object-cover"
+                        onError=${(event) => {
+                          const image = event.currentTarget;
+                          image.src = config.fallbackAvatar;
+                        }}
+                      />
+                      <div className="min-w-0">
+                        <p className=${`truncate text-sm font-bold ${isLoadingSummary ? 'skeleton h-5 w-32 text-transparent' : ''}`}>${isLoadingSummary ? 'Carregando...' : summary.name}</p>
+                        <p className=${`truncate text-xs text-base-content/70 ${isLoadingSummary ? 'skeleton mt-1 h-4 w-40 text-transparent' : ''}`}>${isLoadingSummary ? 'email@exemplo.com' : summary.email}</p>
+                      </div>
+                    </div>
+                  </div>
+                `
+              : null}
 
             <div className="space-y-2">
               ${TABS.map(
@@ -872,36 +903,41 @@ const UserApp = ({ config }) => {
             </div>
 
             <div className="divider my-3"></div>
-
             <div className="grid gap-2">
-              <a className="btn btn-success w-full justify-start" href=${links.botUrl} target="_blank" rel="noreferrer noopener">Abrir bot no WhatsApp</a>
-              <a className="btn btn-outline w-full justify-start" href=${links.supportUrl} target="_blank" rel="noreferrer noopener">Falar com suporte</a>
+              <a className="btn btn-success w-full justify-start" href=${links.botUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Abrir bot no WhatsApp</a>
+              <a className="btn btn-outline w-full justify-start" href=${links.supportUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Falar com suporte</a>
             </div>
 
             <div className="divider my-3"></div>
-
             <p className="text-xs leading-relaxed text-base-content/65">
               Use os atalhos para abrir o bot ou falar com o suporte quando precisar.
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <a className="link link-info text-xs" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Termos de Servi\u00e7o</a>
-              <a className="link link-info text-xs" href=${config.privacyUrl} target="_blank" rel="noreferrer noopener">Pol\u00edtica de Privacidade</a>
+              <a className="link link-info text-xs" href=${config.termsUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Termos de Servi\u00e7o</a>
+              <a className="link link-info text-xs" href=${config.privacyUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Pol\u00edtica de Privacidade</a>
             </div>
-          </aside>
+          </div>
+        </aside>
 
-          <section className="rounded-2xl border border-base-300 bg-base-100/80 p-3 shadow-xl sm:p-5">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        ${isMobile && isSidebarOpen
+          ? html`<button type="button" className="fixed inset-0 z-50 bg-slate-950/55" aria-label="Fechar barra lateral" onClick=${closeSidebar}></button>`
+          : null}
+
+        <section className="rounded-2xl border border-base-300 bg-base-100/80 p-2.5 shadow-xl sm:p-5 lg:p-7">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-info">Painel do usu\u00e1rio</p>
-                <h1 className="mt-1 text-2xl font-black sm:text-3xl">Minha Conta</h1>
-                <p className="mt-1 text-sm text-base-content/70">Resumo da sua conta e canais diretos de suporte.</p>
+                ${!isMobile ? html`<p className="text-xs font-bold uppercase tracking-widest text-info">Painel do usu\u00e1rio</p>` : null}
+                <h1 className="mt-1 text-xl font-black sm:text-3xl lg:text-4xl">Minha Conta</h1>
+                ${!isMobile ? html`<p className="mt-1 text-sm text-base-content/70">Resumo da sua conta e canais diretos de suporte.</p>` : null}
               </div>
-              <div className="flex w-full gap-2 sm:w-auto lg:hidden">
-                <a className="btn btn-outline flex-1 sm:flex-none" href="/">Voltar ao in\u00edcio</a>
-                <button type="button" className="btn btn-error flex-1 sm:flex-none" onClick=${handleLogout} disabled=${isLogoutBusy}>
-                  ${isLogoutBusy ? 'Encerrando...' : 'Sair'}
-                </button>
-              </div>
+              ${!isMobile
+                ? html`
+                    <div className="hidden lg:flex items-center gap-2">
+                      <a className="btn btn-success" href=${links.botUrl} target="_blank" rel="noreferrer noopener">Abrir bot</a>
+                      <a className="btn btn-outline" href=${links.supportUrl} target="_blank" rel="noreferrer noopener">Suporte</a>
+                    </div>
+                  `
+                : null}
             </div>
 
             <div className="mb-4 grid gap-2">
@@ -922,7 +958,7 @@ const UserApp = ({ config }) => {
               ? html`
                   <div className="space-y-4">
                     <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
-                      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+                      <div className="flex flex-col items-start gap-3 min-[520px]:flex-row min-[520px]:items-center">
                         <img
                           src=${summary.avatar}
                           alt="Avatar do usu\u00e1rio"
@@ -940,7 +976,7 @@ const UserApp = ({ config }) => {
                       </div>
                     </section>
 
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
                       <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
                         <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Plano</p>
                         <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-32 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.plan}</p>
@@ -965,7 +1001,7 @@ const UserApp = ({ config }) => {
             ${activeTab === 'account'
               ? html`
                   <div className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
                       <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
                         <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Status da sess\u00e3o</p>
                         <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.sessionStatus}</p>
@@ -986,7 +1022,7 @@ const UserApp = ({ config }) => {
 
                     <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
                       <p className="text-xs font-bold uppercase tracking-widest text-base-content/60">Seguranca da senha</p>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div className="mt-3 grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
                         <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
                           <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Status</p>
                           <p className="mt-1 text-base font-semibold">${passwordState.configured ? 'Senha configurada' : 'Senha nao configurada'}</p>
@@ -1026,7 +1062,7 @@ const UserApp = ({ config }) => {
                         ? html`
                             <form className="mt-3" onSubmit=${handlePasswordUpdate}>
                               <input type="email" className="hidden" name="username" autoComplete="username" value=${accountEmail} readOnly />
-                              <div className="grid gap-2 sm:grid-cols-2">
+                              <div className="grid gap-2 min-[520px]:grid-cols-2">
                                 <label className="form-control">
                                   <span className="label-text text-xs">Nova senha</span>
                                   <input type="password" className="input input-bordered w-full" name="new_password" autoComplete="new-password" />
@@ -1107,7 +1143,7 @@ const UserApp = ({ config }) => {
                   <div className="space-y-4">
                     <p className="text-sm text-base-content/70">Canal oficial para d\u00favidas sobre login e uso geral do OmniZap.</p>
 
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 min-[520px]:grid-cols-2">
                       <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
                         <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Contato</p>
                         <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>
@@ -1122,7 +1158,7 @@ const UserApp = ({ config }) => {
                       </article>
                     </div>
 
-                    <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="grid gap-2 min-[520px]:grid-cols-2">
                       <a className="btn btn-success w-full" href=${links.supportUrl} target="_blank" rel="noreferrer noopener">Abrir suporte no WhatsApp</a>
                       <a className="btn btn-outline w-full" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Ver novos Termos</a>
                     </div>
@@ -1134,7 +1170,6 @@ const UserApp = ({ config }) => {
               OmniZap System · ${String(new Date().getFullYear())}
             </p>
           </section>
-        </div>
       </main>
     </div>
   `;

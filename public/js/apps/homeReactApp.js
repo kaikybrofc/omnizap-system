@@ -200,7 +200,6 @@ const normalizeStatus = (value) => {
 };
 
 const App = () => {
-  const [isNavOpen, setNavOpen] = useState(false);
   const [isMobile, setMobile] = useState(Boolean(window.matchMedia?.('(max-width: 920px)')?.matches));
   const [session, setSession] = useState(null);
   const [botMenuUrl, setBotMenuUrl] = useState('/login/');
@@ -379,29 +378,6 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (!isMobile) setNavOpen(false);
-  }, [isMobile]);
-
-  useEffect(() => {
-    if (!isMobile) {
-      document.body.style.overflow = '';
-      return undefined;
-    }
-
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') setNavOpen(false);
-    };
-
-    document.body.style.overflow = isNavOpen ? 'hidden' : '';
-    if (isNavOpen) window.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      document.body.style.overflow = '';
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [isMobile, isNavOpen]);
-
-  useEffect(() => {
     const revealTargets = Array.from(document.querySelectorAll('[data-reveal]'));
     if (!revealTargets.length) return undefined;
 
@@ -454,13 +430,13 @@ const App = () => {
     };
   }, [session]);
 
-  const closeMobileNav = () => {
-    if (isMobile) setNavOpen(false);
-  };
-
   const navContainerClass = isMobile
-    ? `nav ${isNavOpen ? 'grid' : 'hidden'} fixed inset-x-3 top-[4.5rem] z-50 max-h-[calc(100dvh-5.5rem)] grid-cols-1 gap-2 overflow-y-auto rounded-2xl border border-base-300 bg-base-100/98 p-3 shadow-2xl backdrop-blur`
+    ? 'nav flex w-full items-center gap-2 overflow-x-auto pb-1 pr-1'
     : 'nav flex w-full flex-wrap items-center gap-2 lg:w-auto';
+  const headerInnerClass = isMobile ? 'mx-auto flex w-full max-w-7xl flex-col gap-2' : 'mx-auto flex w-full max-w-7xl items-center justify-between gap-3';
+  const navLinkClass = isMobile
+    ? 'btn btn-outline h-9 min-h-0 shrink-0 rounded-full border-base-300 bg-base-200/60 px-3 text-xs font-semibold whitespace-nowrap'
+    : 'btn btn-ghost justify-center';
   const desktopAuthButtonClass = `btn ${authInfo.image ? 'btn-circle p-0' : 'btn-primary'} justify-center`;
   const mobileAuthButtonClass = authInfo.image
     ? 'btn btn-circle h-10 min-h-0 w-10 border border-base-300 bg-base-100 p-0 shadow-sm hover:bg-base-200'
@@ -469,7 +445,7 @@ const App = () => {
   return html`
     <div className="home-page relative text-base-content">
       <header className="navbar sticky top-0 z-50 border-b border-base-300 bg-base-100/90 px-3 py-2 backdrop-blur-md sm:px-4 lg:px-6">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
+        <div className=${headerInnerClass}>
           <div className="flex w-full min-w-0 items-center justify-between gap-2 lg:w-auto">
             <a className="btn btn-ghost h-10 min-h-0 max-w-[78vw] justify-start gap-2 px-2 text-sm normal-case sm:max-w-none sm:px-3" href="/" aria-label="OmniZap Home">
               <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" width="30" height="30" decoding="async" className="h-8 w-8 rounded-full border border-base-300 object-cover" />
@@ -482,23 +458,11 @@ const App = () => {
                 href=${authInfo.href}
                 title=${authInfo.title}
                 aria-label=${authInfo.image ? authInfo.title : 'Entrar'}
-                onClick=${closeMobileNav}
               >
                 ${authInfo.image
                   ? html`<img className="h-full w-full rounded-full object-cover" src=${authInfo.image} alt=${authInfo.label} loading="lazy" decoding="async" />`
                   : html`Entrar`}
               </a>
-              <button
-                id="nav-toggle"
-                className="btn btn-square h-10 min-h-0 border border-base-300 bg-base-200/70 text-base-content shadow-sm hover:bg-base-200 lg:hidden"
-                type="button"
-                aria-expanded=${isNavOpen ? 'true' : 'false'}
-                aria-controls="main-nav"
-                aria-label="Abrir menu"
-                onClick=${() => setNavOpen((current) => !current)}
-              >
-                ${isNavOpen ? '✕' : '☰'}
-              </button>
             </div>
           </div>
 
@@ -507,9 +471,8 @@ const App = () => {
               (item) =>
                 html`<a
                   id=${item.id || null}
-                  className=${`btn ${isMobile ? 'btn-outline justify-start border-base-300 bg-base-200/50 text-sm font-semibold' : 'btn-ghost justify-center'}`}
+                  className=${navLinkClass}
                   href=${item.href}
-                  onClick=${closeMobileNav}
                 >
                   ${item.label}
                 </a>`,
@@ -522,7 +485,6 @@ const App = () => {
                     href=${authInfo.href}
                     title=${authInfo.title}
                     aria-label=${authInfo.image ? authInfo.title : 'Entrar'}
-                    onClick=${closeMobileNav}
                   >
                     ${authInfo.image
                       ? html`<img className="h-full w-full rounded-full object-cover" src=${authInfo.image} alt=${authInfo.label} loading="lazy" decoding="async" />`
@@ -533,10 +495,6 @@ const App = () => {
           </nav>
         </div>
       </header>
-
-      ${isMobile && isNavOpen
-        ? html`<button type="button" className="fixed inset-0 z-40 bg-slate-950/55 lg:hidden" aria-label="Fechar menu" onClick=${closeMobileNav}></button>`
-        : null}
 
       <main className="mx-auto w-full max-w-7xl px-3 pb-28 pt-5 sm:px-4 sm:pb-16 sm:pt-7 lg:px-6">
         <section data-reveal data-reveal-delay="0" className="hero home-hero reveal rounded-2xl border border-base-300 bg-base-200/70 p-3 shadow-2xl sm:rounded-3xl sm:p-6" aria-labelledby="hero-title">
@@ -552,7 +510,7 @@ const App = () => {
                 <a className="home-cta-btn btn btn-success btn-md w-full sm:btn-lg sm:w-auto" data-add-bot-cta href=${botMenuUrl} target="_blank" rel="noreferrer noopener">
                   Adicionar ao Meu Grupo
                 </a>
-                <a className="home-cta-btn btn btn-outline btn-info btn-md w-full sm:btn-lg sm:w-auto" href="#recursos" onClick=${closeMobileNav}>
+                <a className="home-cta-btn btn btn-outline btn-info btn-md w-full sm:btn-lg sm:w-auto" href="#recursos">
                   Ver Recursos
                 </a>
               </div>
