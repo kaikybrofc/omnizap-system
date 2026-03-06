@@ -9,6 +9,8 @@ const HOME_BOOTSTRAP_ENDPOINT = '/api/sticker-packs/home-bootstrap';
 const SOCIAL_PROOF_REFRESH_MS = 15_000;
 const COUNTUP_DURATION_MS = 780;
 const COUNTABLE_METRICS = ['users', 'messages', 'commands'];
+const REVEAL_STAGGER_MS = 72;
+const MAX_REVEAL_DELAY_MS = 360;
 const DEFAULT_METRICS = {
   users: 'n/d',
   messages: 'n/d',
@@ -399,6 +401,39 @@ const App = () => {
     };
   }, [isMobile, isNavOpen]);
 
+  useEffect(() => {
+    const revealTargets = Array.from(document.querySelectorAll('[data-reveal]'));
+    if (!revealTargets.length) return undefined;
+
+    revealTargets.forEach((target, index) => {
+      const explicitDelay = Number(target.getAttribute('data-reveal-delay'));
+      const revealDelay = Number.isFinite(explicitDelay) ? explicitDelay : Math.min((index % 6) * REVEAL_STAGGER_MS, MAX_REVEAL_DELAY_MS);
+      target.style.setProperty('--reveal-delay', `${revealDelay}ms`);
+    });
+
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || typeof window.IntersectionObserver !== 'function') {
+      revealTargets.forEach((target) => target.classList.add('is-visible'));
+      return undefined;
+    }
+
+    const revealObserver = new window.IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-visible');
+          revealObserver.unobserve(entry.target);
+        });
+      },
+      {
+        threshold: 0.18,
+        rootMargin: '0px 0px -12% 0px',
+      },
+    );
+
+    revealTargets.forEach((target) => revealObserver.observe(target));
+    return () => revealObserver.disconnect();
+  }, []);
+
   const authInfo = useMemo(() => {
     const authenticated = Boolean(session?.authenticated && session?.user?.sub);
     if (!authenticated) {
@@ -431,7 +466,7 @@ const App = () => {
     : `btn ${authInfo.image ? 'btn-circle p-0' : 'btn-primary'} justify-center`;
 
   return html`
-    <div className="relative text-base-content">
+    <div className="home-page relative text-base-content">
       <header className="navbar sticky top-0 z-50 border-b border-base-300 bg-base-100/90 px-3 py-2 backdrop-blur-md sm:px-4 lg:px-6">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
           <div className="flex w-full min-w-0 items-center justify-between gap-2 lg:w-auto">
@@ -487,66 +522,66 @@ const App = () => {
         : null}
 
       <main className="mx-auto w-full max-w-7xl px-3 pb-28 pt-5 sm:px-4 sm:pb-16 sm:pt-7 lg:px-6">
-        <section className="hero rounded-2xl border border-base-300 bg-base-200/70 p-3 shadow-2xl sm:rounded-3xl sm:p-6" aria-labelledby="hero-title">
+        <section data-reveal data-reveal-delay="0" className="hero home-hero reveal rounded-2xl border border-base-300 bg-base-200/70 p-3 shadow-2xl sm:rounded-3xl sm:p-6" aria-labelledby="hero-title">
           <div className="hero-content flex-col gap-5 sm:gap-8 lg:flex-row lg:items-start lg:justify-between">
             <div className="w-full max-w-2xl">
-              <span className="badge badge-outline badge-info mb-3 px-3 py-2 text-[11px] font-bold uppercase tracking-wide sm:px-3 sm:py-3 sm:text-xs">Bot pronto para grupos WhatsApp</span>
-              <h1 id="hero-title" className="text-balance text-2xl font-black leading-tight sm:text-4xl lg:text-5xl">Adicione o bot ao seu grupo e deixe ele fazer o resto.</h1>
-              <p className="mt-3 text-sm leading-relaxed text-base-content/80 sm:mt-4 sm:text-base lg:text-lg">
+              <span className="hero-pill badge badge-outline badge-info mb-3 px-3 py-2 text-[11px] font-bold uppercase tracking-wide sm:px-3 sm:py-3 sm:text-xs">Bot pronto para grupos WhatsApp</span>
+              <h1 id="hero-title" className="hero-title text-balance text-2xl font-black leading-tight sm:text-4xl lg:text-5xl">Adicione o bot ao seu grupo e deixe ele fazer o resto.</h1>
+              <p className="hero-copy mt-3 text-sm leading-relaxed text-base-content/80 sm:mt-4 sm:text-base lg:text-lg">
                 Automação automática, organização de mensagens e recursos inteligentes prontos para usar. Sem configuração técnica. Sem programação. Sem complicação.
               </p>
 
               <div className="mt-5 grid grid-cols-1 gap-2 sm:mt-6 sm:flex sm:flex-wrap sm:gap-3">
-                <a className="btn btn-success btn-md w-full sm:btn-lg sm:w-auto" data-add-bot-cta href=${botMenuUrl} target="_blank" rel="noreferrer noopener">
+                <a className="home-cta-btn btn btn-success btn-md w-full sm:btn-lg sm:w-auto" data-add-bot-cta href=${botMenuUrl} target="_blank" rel="noreferrer noopener">
                   Adicionar ao Meu Grupo
                 </a>
-                <a className="btn btn-outline btn-info btn-md w-full sm:btn-lg sm:w-auto" href="#recursos" onClick=${closeMobileNav}>
+                <a className="home-cta-btn btn btn-outline btn-info btn-md w-full sm:btn-lg sm:w-auto" href="#recursos" onClick=${closeMobileNav}>
                   Ver Recursos
                 </a>
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-2 sm:mt-6 sm:gap-3 lg:grid-cols-4">
-                <article className="rounded-xl border border-base-300 bg-base-100 p-3 shadow">
+              <div className="hero-metrics mt-5 grid grid-cols-2 gap-2 sm:mt-6 sm:gap-3 lg:grid-cols-4">
+                <article className="metric-card motion-card rounded-xl border border-base-300 bg-base-100 p-3 shadow">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60 sm:text-xs">Usuários</p>
                   <p id="proof-users-total" className="mt-1 text-xl font-black sm:text-2xl">${metrics.users}</p>
                 </article>
-                <article className="rounded-xl border border-base-300 bg-base-100 p-3 shadow">
+                <article className="metric-card motion-card rounded-xl border border-base-300 bg-base-100 p-3 shadow">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60 sm:text-xs">Mensagens</p>
                   <p id="proof-messages-total" className="mt-1 text-xl font-black sm:text-2xl">${metrics.messages}</p>
                 </article>
-                <article className="rounded-xl border border-base-300 bg-base-100 p-3 shadow">
+                <article className="metric-card motion-card rounded-xl border border-base-300 bg-base-100 p-3 shadow">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60 sm:text-xs">Comandos</p>
                   <p id="proof-commands-total" className="mt-1 text-xl font-black sm:text-2xl">${metrics.commands}</p>
                 </article>
-                <article className="rounded-xl border border-base-300 bg-base-100 p-3 shadow">
+                <article className="metric-card motion-card rounded-xl border border-base-300 bg-base-100 p-3 shadow">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60 sm:text-xs">Latência</p>
                   <p id="proof-system-latency" className="mt-1 text-xl font-black sm:text-2xl">${metrics.latency}</p>
                 </article>
               </div>
             </div>
 
-            <aside className="w-full max-w-none rounded-2xl border border-base-300 bg-base-100 p-3 shadow-xl sm:p-4 lg:max-w-md">
+            <aside className="home-chat-panel motion-card w-full max-w-none rounded-2xl border border-base-300 bg-base-100 p-3 shadow-xl sm:p-4 lg:max-w-md">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-base-content/70 sm:text-xs">Comunidade OmniZap</p>
                 <span id="proof-status" className="badge badge-success badge-outline whitespace-nowrap">${metrics.status}</span>
               </div>
-              <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1 sm:max-h-none sm:pr-0">
-                <div className="chat chat-start">
+              <div className="chat-thread space-y-3 max-h-[260px] overflow-y-auto pr-1 sm:max-h-none sm:pr-0">
+                <div className="chat chat-start chat-entry">
                   <div className="chat-bubble chat-bubble-neutral text-sm sm:text-base">Pessoal, os links estão bagunçando o grupo 😅</div>
                 </div>
-                <div className="chat chat-end">
+                <div className="chat chat-end chat-entry">
                   <div className="chat-bubble chat-bubble-success text-sm sm:text-base">✅ Pronto! Ativei moderação automática. Links suspeitos agora são bloqueados.</div>
                 </div>
-                <div className="chat chat-start">
+                <div className="chat chat-start chat-entry">
                   <div className="chat-bubble chat-bubble-neutral text-sm sm:text-base">Consegue mandar aviso de reunião amanhã às 9h?</div>
                 </div>
-                <div className="chat chat-end">
+                <div className="chat chat-end chat-entry">
                   <div className="chat-bubble chat-bubble-success text-sm sm:text-base">📣 Aviso agendado para todo o grupo. Também vou lembrar 15 minutos antes.</div>
                 </div>
-                <div className="chat chat-start">
+                <div className="chat chat-start chat-entry">
                   <div className="chat-bubble chat-bubble-neutral text-sm sm:text-base">Top! E os comandos?</div>
                 </div>
-                <div className="chat chat-end">
+                <div className="chat chat-end chat-entry">
                   <div className="chat-bubble chat-bubble-success text-sm sm:text-base">🤖 Já estão ativos. Digite /menu e veja mais de 50 comandos no seu grupo.</div>
                 </div>
               </div>
@@ -554,35 +589,35 @@ const App = () => {
           </div>
         </section>
 
-        <section id="como-funciona" className="mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
+        <section id="como-funciona" data-reveal className="home-section reveal mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
           <h2 className="text-2xl font-black sm:text-3xl">Como funciona</h2>
           <p className="text-sm text-base-content/75 sm:text-base">Ultra simples: três passos e o grupo já começa a rodar com automação.</p>
           <div className="grid gap-4 md:grid-cols-3">
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">1️⃣ Clique em adicionar</h3><p className="text-sm sm:text-base">Toque no botão e abra a conversa com o bot no WhatsApp.</p></div></article>
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">2️⃣ Autorize no grupo</h3><p className="text-sm sm:text-base">Adicione o OmniZap no grupo ou comunidade em poucos toques.</p></div></article>
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">3️⃣ Pronto. Já funciona</h3><p className="text-sm sm:text-base">Moderação, avisos e respostas automáticas começam imediatamente.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">1️⃣ Clique em adicionar</h3><p className="text-sm sm:text-base">Toque no botão e abra a conversa com o bot no WhatsApp.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">2️⃣ Autorize no grupo</h3><p className="text-sm sm:text-base">Adicione o OmniZap no grupo ou comunidade em poucos toques.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">3️⃣ Pronto. Já funciona</h3><p className="text-sm sm:text-base">Moderação, avisos e respostas automáticas começam imediatamente.</p></div></article>
           </div>
         </section>
 
-        <section id="recursos" className="mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
+        <section id="recursos" data-reveal className="home-section reveal mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
           <h2 className="text-2xl font-black sm:text-3xl">O que o bot faz por você</h2>
           <p className="text-sm text-base-content/75 sm:text-base">Tudo focado em resultado no grupo, sem linguagem técnica.</p>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🤖 Responde automaticamente</h3><p className="text-sm sm:text-base">Respostas rápidas para dúvidas repetidas e comandos prontos para o dia a dia.</p></div></article>
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">📌 Organiza o grupo</h3><p className="text-sm sm:text-base">Ajuda a manter conversas úteis e reduz o caos de mensagens perdidas.</p></div></article>
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🛑 Moderação inteligente</h3><p className="text-sm sm:text-base">Bloqueia spam e comportamentos problemáticos para proteger sua comunidade.</p></div></article>
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">📣 Envia avisos automáticos</h3><p className="text-sm sm:text-base">Agenda recados e lembretes para que ninguém perca informações importantes.</p></div></article>
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🎉 Recursos extras integrados</h3><p className="text-sm sm:text-base">Stickers, interações e utilidades prontas para aumentar o engajamento do grupo.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🤖 Responde automaticamente</h3><p className="text-sm sm:text-base">Respostas rápidas para dúvidas repetidas e comandos prontos para o dia a dia.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">📌 Organiza o grupo</h3><p className="text-sm sm:text-base">Ajuda a manter conversas úteis e reduz o caos de mensagens perdidas.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🛑 Moderação inteligente</h3><p className="text-sm sm:text-base">Bloqueia spam e comportamentos problemáticos para proteger sua comunidade.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">📣 Envia avisos automáticos</h3><p className="text-sm sm:text-base">Agenda recados e lembretes para que ninguém perca informações importantes.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🎉 Recursos extras integrados</h3><p className="text-sm sm:text-base">Stickers, interações e utilidades prontas para aumentar o engajamento do grupo.</p></div></article>
           </div>
         </section>
 
-        <section id="comandos" className="mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
+        <section id="comandos" data-reveal className="home-section reveal mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
           <h2 className="text-2xl font-black sm:text-3xl">⚡ Veja tudo que o bot pode fazer no seu grupo</h2>
           <p className="text-sm text-base-content/75 sm:text-base">Comandos simples que resolvem tarefas reais do dia a dia.</p>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             ${COMMAND_BLOCKS.map(
               (block) => html`
-                <article className="card card-compact bg-base-200 shadow sm:card-normal">
+                <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
                   <div className="card-body">
                     <h3 className="card-title text-base sm:text-lg">${block.title}</h3>
                     <ul className="space-y-1.5 text-sm text-base-content/80">
@@ -595,42 +630,42 @@ const App = () => {
               `,
             )}
           </div>
-          <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-base-300 bg-base-200 p-4 sm:flex-row sm:items-center">
+          <div className="motion-card flex flex-col items-start justify-between gap-3 rounded-2xl border border-base-300 bg-base-200 p-4 sm:flex-row sm:items-center">
             <p className="text-sm font-semibold text-base-content/80">+ dezenas de outros comandos disponíveis para sua operação.</p>
             <a className="btn btn-outline btn-info w-full sm:w-auto" href="/comandos/">Ver lista completa</a>
           </div>
         </section>
 
-        <section id="para-quem" className="mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
+        <section id="para-quem" data-reveal className="home-section reveal mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
           <h2 className="text-2xl font-black sm:text-3xl">Para quem é</h2>
           <p className="text-sm text-base-content/75 sm:text-base">Se você administra pessoas em grupo, o OmniZap foi feito para você.</p>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">👥 Donos de comunidade</h3><p className="text-sm sm:text-base">Mantenha regras e organização sem esforço manual constante.</p></div></article>
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🎬 Criadores de conteúdo</h3><p className="text-sm sm:text-base">Gerencie audiência e comunicados com mais consistência.</p></div></article>
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">📚 Grupos de estudo</h3><p className="text-sm sm:text-base">Centralize avisos e reduza distrações para manter foco.</p></div></article>
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🛍️ Lojas online</h3><p className="text-sm sm:text-base">Automatize atendimento inicial e mensagens recorrentes.</p></div></article>
-            <article className="card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🏢 Equipes internas</h3><p className="text-sm sm:text-base">Padronize comunicação e acompanhe rotinas com agilidade.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">👥 Donos de comunidade</h3><p className="text-sm sm:text-base">Mantenha regras e organização sem esforço manual constante.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🎬 Criadores de conteúdo</h3><p className="text-sm sm:text-base">Gerencie audiência e comunicados com mais consistência.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">📚 Grupos de estudo</h3><p className="text-sm sm:text-base">Centralize avisos e reduza distrações para manter foco.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🛍️ Lojas online</h3><p className="text-sm sm:text-base">Automatize atendimento inicial e mensagens recorrentes.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🏢 Equipes internas</h3><p className="text-sm sm:text-base">Padronize comunicação e acompanhe rotinas com agilidade.</p></div></article>
           </div>
         </section>
 
-        <section id="beneficios" className="mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
+        <section id="beneficios" data-reveal className="home-section reveal mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
           <h2 className="text-2xl font-black sm:text-3xl">Benefícios imediatos</h2>
           <p className="text-sm text-base-content/75 sm:text-base">Você adiciona. Ele organiza.</p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <article className="rounded-2xl border border-success/40 bg-success/10 p-3 text-sm font-bold text-success-content">✅ Economiza tempo da equipe</article>
-            <article className="rounded-2xl border border-success/40 bg-success/10 p-3 text-sm font-bold text-success-content">✅ Evita spam e bagunça</article>
-            <article className="rounded-2xl border border-success/40 bg-success/10 p-3 text-sm font-bold text-success-content">✅ Mantém o grupo organizado</article>
-            <article className="rounded-2xl border border-success/40 bg-success/10 p-3 text-sm font-bold text-success-content">✅ Deixa sua comunidade mais profissional</article>
+            <article className="motion-card rounded-2xl border border-success/40 bg-success/10 p-3 text-sm font-bold text-success">✅ Economiza tempo da equipe</article>
+            <article className="motion-card rounded-2xl border border-success/40 bg-success/10 p-3 text-sm font-bold text-success">✅ Evita spam e bagunça</article>
+            <article className="motion-card rounded-2xl border border-success/40 bg-success/10 p-3 text-sm font-bold text-success">✅ Mantém o grupo organizado</article>
+            <article className="motion-card rounded-2xl border border-success/40 bg-success/10 p-3 text-sm font-bold text-success">✅ Deixa sua comunidade mais profissional</article>
           </div>
         </section>
 
-        <section id="guias" className="mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
+        <section id="guias" data-reveal className="home-section reveal mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
           <h2 className="text-2xl font-black sm:text-3xl">Guias rápidos para seu grupo crescer organizado</h2>
           <p className="text-sm text-base-content/75 sm:text-base">Conteúdo satélite para resolver dores reais de operação e reforçar sua estratégia de comunidade.</p>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             ${GUIDES.map(
               ([href, title, subtitle]) => html`
-                <a className="card border border-base-300 bg-base-200 shadow transition hover:-translate-y-0.5 hover:border-info" href=${href}>
+                <a className="motion-card card border border-base-300 bg-base-200 shadow transition hover:-translate-y-0.5 hover:border-info" href=${href}>
                   <div className="card-body p-3 sm:p-4">
                     <h3 className="text-sm font-extrabold leading-snug text-base-content">${title}</h3>
                     <p className="text-xs font-semibold text-base-content/70">${subtitle}</p>
@@ -641,13 +676,13 @@ const App = () => {
           </div>
         </section>
 
-        <section id="faq" className="mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
+        <section id="faq" data-reveal className="home-section reveal mt-8 scroll-mt-24 space-y-3 sm:mt-10 sm:space-y-4">
           <h2 className="text-2xl font-black sm:text-3xl">Perguntas frequentes</h2>
           <p className="text-sm text-base-content/75 sm:text-base">Tudo que você precisa para começar sem complicação.</p>
           <div className="space-y-2">
             ${FAQS.map(
               ([question, answer]) => html`
-                <div className="collapse collapse-plus border border-base-300 bg-base-200">
+                <div className="motion-card collapse collapse-plus border border-base-300 bg-base-200">
                   <input type="checkbox" />
                   <div className="collapse-title text-sm font-extrabold sm:text-base">${question}</div>
                   <div className="collapse-content text-sm text-base-content/80">${answer}</div>
@@ -657,11 +692,11 @@ const App = () => {
           </div>
         </section>
 
-        <section className="mt-10 rounded-2xl border border-primary/40 bg-gradient-to-r from-primary/30 to-secondary/30 p-5 text-center shadow-xl sm:mt-12 sm:rounded-3xl sm:p-8" aria-labelledby="cta-final-title">
+        <section data-reveal className="home-section reveal mt-10 rounded-2xl border border-primary/40 bg-gradient-to-r from-primary/30 to-secondary/30 p-5 text-center shadow-xl sm:mt-12 sm:rounded-3xl sm:p-8" aria-labelledby="cta-final-title">
           <h2 id="cta-final-title" className="text-balance text-2xl font-black leading-tight sm:text-4xl">Seu grupo mais organizado em menos de 1 minuto.</h2>
           <p className="mx-auto mt-3 max-w-2xl text-sm text-base-content/85 sm:text-base">Sem setup técnico. Sem curva de aprendizado. Clique e comece agora.</p>
           <div className="mt-5 sm:mt-6">
-            <a className="btn btn-success btn-lg w-full sm:w-auto" data-add-bot-cta href=${botMenuUrl} target="_blank" rel="noreferrer noopener">Adicionar Bot Agora</a>
+            <a className="home-cta-btn btn btn-success btn-lg w-full sm:w-auto" data-add-bot-cta href=${botMenuUrl} target="_blank" rel="noreferrer noopener">Adicionar Bot Agora</a>
           </div>
         </section>
       </main>
