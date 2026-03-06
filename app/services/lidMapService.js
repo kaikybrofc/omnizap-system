@@ -3,7 +3,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import logger from '../../utils/logger/loggerModule.js';
 import { executeQuery, TABLES } from '../../database/index.js';
-import { getJidServer, normalizeJid, isGroupJid } from '../config/baileysConfig.js';
+import {
+  normalizeJid,
+  isGroupJid,
+  isLidJid,
+  isWhatsAppJid,
+  LID_USER_JID_SERVERS,
+  WHATSAPP_USER_JID_SERVERS,
+} from '../config/baileysConfig.js';
 import { buildRowPlaceholders, createFlushRunner } from './queueUtils.js';
 import { recordError, setQueueDepth } from '../observability/metrics.js';
 
@@ -16,9 +23,6 @@ const BACKFILL_SOURCE = 'backfill';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const BAILEYS_AUTH_DIR = path.resolve(__dirname, '../connection/auth');
-
-const LID_SERVERS = new Set(['lid', 'hosted.lid']);
-const PN_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted']);
 
 const lidCache = new Map();
 const lidWriteBuffer = new Map();
@@ -35,20 +39,6 @@ const updateLidQueueMetric = () => {
  * @returns {number}
  */
 const now = () => Date.now();
-
-/**
- * Verifica se o JID e do tipo LID (lid/hosted.lid).
- * @param {string|null|undefined} jid
- * @returns {boolean}
- */
-const isLidJid = (jid) => LID_SERVERS.has(getJidServer(jid));
-
-/**
- * Verifica se o JID e do WhatsApp (s.whatsapp.net/c.us/hosted).
- * @param {string|null|undefined} jid
- * @returns {boolean}
- */
-const isWhatsAppJid = (jid) => PN_SERVERS.has(getJidServer(jid));
 
 const normalizeLid = (lid) => {
   if (!lid || !isLidJid(lid)) return null;
@@ -281,7 +271,8 @@ export const primeLidCache = async (lids = []) => {
 const pickWhatsAppJid = (...candidates) => {
   for (const candidate of candidates) {
     if (!candidate || typeof candidate !== 'string') continue;
-    if (isWhatsAppJid(candidate)) return normalizeJid(candidate);
+    const normalized = normalizeWhatsAppJid(candidate);
+    if (normalized) return normalized;
   }
   return null;
 };
@@ -294,9 +285,59 @@ const pickWhatsAppJid = (...candidates) => {
 const pickLid = (...candidates) => {
   for (const candidate of candidates) {
     if (!candidate || typeof candidate !== 'string') continue;
-    if (isLidJid(candidate)) return candidate;
+    const normalized = normalizeLid(candidate);
+    if (normalized) return normalized;
   }
   return null;
+};
+
+/**
+ * Monta filtro SQL por sufixo de servidor JID.
+ * @param {string} column
+ * @param {Iterable<string>} servers
+ * @returns {{clause: string, params: Array<string>}}
+ */
+const buildServerLikeFilter = (column, servers) => {
+  const values = Array.from(new Set(Array.from(servers || []).filter(Boolean)));
+  if (!values.length) {
+    return { clause: '1 = 0', params: [] };
+  }
+
+  const clause = values.map(() => `${column} LIKE ?`).join(' OR ');
+  const params = values.map((server) => `%@${server}`);
+  return { clause: `(${clause})`, params };
+};
+
+/**
+ * Resolve candidatos principais de identidade de usuário.
+ * Centraliza regra usada por `resolveUserIdCached` e `resolveUserId`.
+ * @param {{lid?: string|null, jid?: string|null, participantAlt?: string|null}} [params]
+ * @returns {{directJid: string|null, lidValue: string|null, fallback: string|null}}
+ */
+const resolveIdentityCandidates = ({ lid, jid, participantAlt } = {}) => {
+  const directJid = pickWhatsAppJid(jid, participantAlt, lid);
+  if (directJid) {
+    return {
+      directJid,
+      lidValue: null,
+      fallback: directJid,
+    };
+  }
+
+  const lidValue = pickLid(lid, jid, participantAlt);
+  if (lidValue) {
+    return {
+      directJid: null,
+      lidValue,
+      fallback: lidValue,
+    };
+  }
+
+  return {
+    directJid: null,
+    lidValue: null,
+    fallback: jid || participantAlt || lid || null,
+  };
 };
 
 const buildLidUpsertSql = (rows) => {
@@ -379,11 +420,9 @@ export const queueLidUpdate = (lid, jid, source = 'message') => {
  * @returns {string|null}
  */
 export const resolveUserIdCached = ({ lid, jid, participantAlt } = {}) => {
-  const directJid = pickWhatsAppJid(jid, participantAlt, lid);
+  const { directJid, lidValue, fallback } = resolveIdentityCandidates({ lid, jid, participantAlt });
   if (directJid) return directJid;
-
-  const lidValue = pickLid(lid, jid, participantAlt);
-  if (!lidValue) return jid || participantAlt || lid || null;
+  if (!lidValue) return fallback;
 
   const mapped = getCachedJidForLid(lidValue);
   if (mapped !== undefined) return mapped || lidValue;
@@ -396,10 +435,10 @@ export const resolveUserIdCached = ({ lid, jid, participantAlt } = {}) => {
  * @returns {{lid: string|null, jid: string|null, participantAlt: string|null, remoteJid: string|null, remoteJidAlt: string|null, groupMessage: boolean}}
  */
 export const extractSenderInfoFromMessage = (msg) => {
-  const remoteJid = msg?.key?.remoteJid || null;
-  const remoteJidAlt = msg?.key?.remoteJidAlt || null;
-  const participant = msg?.key?.participant || null;
-  const participantAlt = msg?.key?.participantAlt || null;
+  const remoteJid = normalizeJid(msg?.key?.remoteJid || '') || null;
+  const remoteJidAlt = normalizeJid(msg?.key?.remoteJidAlt || '') || null;
+  const participant = normalizeJid(msg?.key?.participant || '') || null;
+  const participantAlt = normalizeJid(msg?.key?.participantAlt || '') || null;
   const groupMessage = isGroupJid(remoteJid);
 
   let lid = null;
@@ -506,11 +545,9 @@ const fetchJidByLid = async (lid) => {
  * @returns {Promise<string|null>}
  */
 export const resolveUserId = async ({ lid, jid, participantAlt } = {}) => {
-  const directJid = pickWhatsAppJid(jid, participantAlt, lid);
+  const { directJid, lidValue, fallback } = resolveIdentityCandidates({ lid, jid, participantAlt });
   if (directJid) return directJid;
-
-  const lidValue = pickLid(lid, jid, participantAlt);
-  if (!lidValue) return jid || participantAlt || lid || null;
+  if (!lidValue) return fallback;
 
   const mapped = await fetchJidByLid(lidValue);
   return mapped || lidValue;
@@ -615,19 +652,25 @@ export const extractUserIdInfo = (value) => {
   if (!value) return { lid: null, jid: null, participantAlt: null, raw: null };
   if (typeof value === 'string') {
     return {
-      lid: isLidJid(value) ? value : null,
-      jid: isWhatsAppJid(value) ? value : null,
+      lid: normalizeLid(value),
+      jid: normalizeWhatsAppJid(value),
       participantAlt: null,
       raw: value,
     };
   }
 
-  const participantAlt = typeof value.participantAlt === 'string' ? value.participantAlt : null;
-  const remoteJidAlt = typeof value.remoteJidAlt === 'string' ? value.remoteJidAlt : null;
+  const readJid = (entry) => (typeof entry === 'string' ? normalizeJid(entry) || null : null);
+
+  const participantAlt = readJid(value.participantAlt);
+  const remoteJidAlt = readJid(value.remoteJidAlt);
   const alternateJid = participantAlt || remoteJidAlt;
-  const participant = typeof value.participant === 'string' ? value.participant : null;
-  const jidCandidate = value.jid || value.id || alternateJid || participant || value.remoteJid || null;
-  const lidCandidate = value.lid || participant || value.remoteJid || alternateJid || value.id || value.jid || null;
+  const participant = readJid(value.participant);
+  const remoteJid = readJid(value.remoteJid);
+  const jidValue = readJid(value.jid);
+  const lidValue = readJid(value.lid);
+  const idValue = typeof value.id === 'string' ? value.id : null;
+  const jidCandidate = jidValue || idValue || alternateJid || participant || remoteJid || null;
+  const lidCandidate = lidValue || participant || remoteJid || alternateJid || idValue || jidValue || null;
 
   return {
     lid: pickLid(lidCandidate, alternateJid, participant),
@@ -676,6 +719,9 @@ const getMessageIdRange = async () => {
  * @returns {Promise<any>}
  */
 const runBackfillBatch = async (fromId, toId) => {
+  const lidFilter = buildServerLikeFilter('s.lid', LID_USER_JID_SERVERS);
+  const jidFilter = buildServerLikeFilter('s.jid', WHATSAPP_USER_JID_SERVERS);
+
   const sql = `
     INSERT INTO ${TABLES.LID_MAP} (lid, jid, first_seen, last_seen, source)
     SELECT
@@ -694,8 +740,8 @@ const runBackfillBatch = async (fromId, toId) => {
         AND m.raw_message IS NOT NULL
         AND m.timestamp IS NOT NULL
     ) s
-    WHERE (s.lid LIKE '%@lid' OR s.lid LIKE '%@hosted.lid')
-      AND (s.jid LIKE '%@s.whatsapp.net' OR s.jid LIKE '%@c.us' OR s.jid LIKE '%@hosted')
+    WHERE ${lidFilter.clause}
+      AND ${jidFilter.clause}
     GROUP BY s.lid, s.jid
     ON DUPLICATE KEY UPDATE
       jid = COALESCE(VALUES(jid), ${TABLES.LID_MAP}.jid),
@@ -703,7 +749,7 @@ const runBackfillBatch = async (fromId, toId) => {
       source = VALUES(source)
   `;
 
-  return executeQuery(sql, [BACKFILL_SOURCE, fromId, toId]);
+  return executeQuery(sql, [BACKFILL_SOURCE, fromId, toId, ...lidFilter.params, ...jidFilter.params]);
 };
 
 /**

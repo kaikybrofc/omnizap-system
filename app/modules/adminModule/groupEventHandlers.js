@@ -100,6 +100,18 @@ const shouldAutoApproveAction = (action) => {
   return !ACTIONS_TO_SKIP_AUTO_APPROVE.has(action);
 };
 
+const normalizeParticipantsInput = (participants) => {
+  if (Array.isArray(participants)) return participants.filter(Boolean);
+  if (!participants) return [];
+  return [participants];
+};
+
+const resolveParticipantJid = (participant) => {
+  if (!participant) return '';
+  if (typeof participant === 'string') return participant;
+  return participant.id || participant.jid || participant.participant || participant.participantAlt || participant.lid || participant.phoneNumber || '';
+};
+
 const extractJoinRequestParticipants = (payload) => {
   const rawParticipants = [];
 
@@ -115,7 +127,7 @@ const extractJoinRequestParticipants = (payload) => {
     .map((participant) => {
       if (!participant) return null;
       if (typeof participant === 'string') return participant;
-      return participant.id || participant.jid || participant.participant || participant.lid || null;
+      return participant.id || participant.jid || participant.participant || participant.participantAlt || participant.lid || null;
     })
     .filter(Boolean);
 
@@ -123,19 +135,22 @@ const extractJoinRequestParticipants = (payload) => {
 };
 
 export const handleGroupUpdate = async (sock, groupId, participants, action) => {
+  const normalizedParticipants = normalizeParticipantsInput(participants);
+  const normalizedAction = String(action || '').trim().toLowerCase();
+
   logger.debug('Iniciando tratamento de evento de atualização de grupo.', {
     groupId,
-    participants,
-    action,
+    participants: normalizedParticipants,
+    action: normalizedAction,
   });
 
   try {
     try {
-      await updateGroupParticipantsFromAction(groupId, participants, action);
+      await updateGroupParticipantsFromAction(groupId, normalizedParticipants, normalizedAction);
     } catch (error) {
       logger.error('Erro ao atualizar participantes do grupo no banco.', {
         groupId,
-        action,
+        action: normalizedAction,
         errorMessage: error.message,
         stack: error.stack,
       });
@@ -150,14 +165,14 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
     const captchaEnabled = Boolean(groupConfig.captchaEnabled);
     const botJid = resolveBotJid(sock?.user?.id);
 
-    for (const participant of participants) {
-      const jid = typeof participant === 'string' ? participant : participant?.id || participant?.jid || participant?.phoneNumber || '';
+    for (const participant of normalizedParticipants) {
+      const jid = resolveParticipantJid(participant);
 
       const participantName = getJidUser(jid) || participant?.phoneNumber || 'user';
 
       if (jid) allMentions.push(jid);
 
-      switch (action) {
+      switch (normalizedAction) {
         case 'add':
           {
             const shouldRequestCaptcha = captchaEnabled && jid && (!botJid || !isSameJidUser(jid, botJid));
@@ -204,7 +219,7 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
     }
 
     if (message) {
-      logger.debug('Mensagem de evento de grupo gerada.', { groupId, action, message });
+      logger.debug('Mensagem de evento de grupo gerada.', { groupId, action: normalizedAction, message });
       let messageOptions = {};
       let mediaPath = null;
 
@@ -218,15 +233,15 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
         finalMentionsCount: finalMentions.length,
       });
 
-      if (action === 'add' && groupConfig.welcomeMedia && groupConfig.welcomeMessageEnabled) {
+      if (normalizedAction === 'add' && groupConfig.welcomeMedia && groupConfig.welcomeMessageEnabled) {
         mediaPath = groupConfig.welcomeMedia;
-      } else if (action === 'remove' && groupConfig.farewellMedia) {
+      } else if (normalizedAction === 'remove' && groupConfig.farewellMedia) {
         mediaPath = groupConfig.farewellMedia;
       }
 
       if (mediaPath) {
         logger.info(`Tentando enviar mensagem com mídia para o grupo ${groupId}.`, {
-          action,
+          action: normalizedAction,
           mediaPath,
         });
         const absoluteMediaPath = path.resolve(mediaPath);
@@ -251,18 +266,18 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
             };
           }
         } else {
-          logger.warn(`Arquivo de mídia não encontrado em ${absoluteMediaPath} para o grupo ${groupId}. Ação: ${action}. Enviando apenas a mensagem de texto.`);
+          logger.warn(`Arquivo de mídia não encontrado em ${absoluteMediaPath} para o grupo ${groupId}. Ação: ${normalizedAction}. Enviando apenas a mensagem de texto.`);
           messageOptions = { text: message.trim(), mentions: finalMentions };
         }
       } else {
         logger.debug('Nenhuma mídia configurada para este evento. Enviando apenas texto.', {
           groupId,
-          action,
+          action: normalizedAction,
         });
         messageOptions = { text: message.trim(), mentions: finalMentions };
       }
       const sentMessage = await sendAndStore(sock, groupId, messageOptions);
-      if (action === 'add' && captchaEnabled && captchaParticipants.length > 0 && sentMessage?.key) {
+      if (normalizedAction === 'add' && captchaEnabled && captchaParticipants.length > 0 && sentMessage?.key) {
         for (const participantJid of captchaParticipants) {
           registerCaptchaChallenge({
             groupId,
@@ -274,14 +289,14 @@ export const handleGroupUpdate = async (sock, groupId, participants, action) => 
         }
       }
       logger.info(`Mensagem de atualização de grupo enviada com sucesso para o grupo ${groupId}.`, {
-        action,
-        participants,
+        action: normalizedAction,
+        participants: normalizedParticipants,
       });
     } else {
-      logger.debug('Nenhuma mensagem de evento de grupo para enviar.', { groupId, action });
+      logger.debug('Nenhuma mensagem de evento de grupo para enviar.', { groupId, action: normalizedAction });
     }
   } catch (error) {
-    logger.error(`Erro ao tratar atualização de grupo para o grupo ${groupId}, ação ${action}:`, {
+    logger.error(`Erro ao tratar atualização de grupo para o grupo ${groupId}, ação ${normalizedAction}:`, {
       errorMessage: error.message,
       stack: error.stack,
       error,

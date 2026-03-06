@@ -8,7 +8,19 @@ import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/p
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
 import { handleGlobalRankingCommand } from '../modules/statsModule/globalRankingCommand.js';
 import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js';
-import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, getJidUser, isGroupJid, isSameJidUser, normalizeJid, resolveBotJid } from '../config/baileysConfig.js';
+import {
+  detectAllMediaTypes,
+  extractMessageContent,
+  getExpiration,
+  getJidServer,
+  getJidUser,
+  isGroupJid,
+  isLidJid,
+  isSameJidUser,
+  isWhatsAppJid,
+  normalizeJid,
+  resolveBotJid,
+} from '../config/baileysConfig.js';
 import { isUserAdmin } from '../config/groupUtils.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
@@ -36,7 +48,6 @@ const START_LOGIN_TRIGGER =
   String(process.env.WHATSAPP_LOGIN_TRIGGER || 'iniciar')
     .trim()
     .toLowerCase() || 'iniciar';
-const WHATSAPP_USER_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted']);
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
   const normalized = String(value).trim().toLowerCase();
@@ -117,8 +128,7 @@ const resolveCanonicalWhatsAppJid = (...candidates) => {
   for (const candidate of candidates) {
     const normalized = normalizeJid(String(candidate || '').trim());
     if (!normalized) continue;
-    const server = getJidServer(normalized);
-    if (!WHATSAPP_USER_SERVERS.has(server)) continue;
+    if (!isWhatsAppJid(normalized)) continue;
     const user = String(getJidUser(normalized) || '')
       .split(':')[0]
       .replace(/\D+/g, '');
@@ -158,11 +168,8 @@ const resolveAddressingModeFromMessageKey = (key = {}, senderInfo = {}) => {
   for (const candidate of candidates) {
     const normalized = normalizeJid(String(candidate || '').trim());
     if (!normalized) continue;
-    const server = String(getJidServer(normalized) || '')
-      .trim()
-      .toLowerCase();
-    if (server === 'lid') return 'lid';
-    if (WHATSAPP_USER_SERVERS.has(server)) return 'pn';
+    if (isLidJid(normalized)) return 'lid';
+    if (isWhatsAppJid(normalized)) return 'pn';
   }
 
   return undefined;
@@ -467,7 +474,15 @@ export const handleMessages = async (update, sock) => {
           }
 
           if (isGroupMessage) {
-            const shouldSkip = await handleAntiLink({ sock, messageInfo, extractedText, remoteJid, senderJid, botJid });
+            const shouldSkip = await handleAntiLink({
+              sock,
+              messageInfo,
+              extractedText,
+              remoteJid,
+              senderJid,
+              senderIdentity,
+              botJid,
+            });
             if (shouldSkip) {
               analysisPayload.processingResult = 'blocked_antilink';
               analysisPayload.metadata = {

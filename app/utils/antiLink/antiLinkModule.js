@@ -1,9 +1,10 @@
 import { URL } from 'node:url';
 import { isUserAdmin, updateGroupParticipants } from '../../config/groupUtils.js';
-import { getJidUser } from '../../config/baileysConfig.js';
+import { getJidUser, isLidJid, isSameJidUser, isWhatsAppJid, normalizeJid } from '../../config/baileysConfig.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { extractSenderInfoFromMessage, resolveUserId } from '../../services/lidMapService.js';
 
 /**
  * Base de redes conhecidas e seus domínios oficiais para permitir por categoria.
@@ -499,6 +500,110 @@ export const isLinkDetected = (text, normalizedAllowedDomains = []) => {
   return domains.some((domain) => !isDomainAllowed(domain, normalizedAllowedDomains));
 };
 
+const normalizeOptionalJid = (value) => {
+  if (typeof value !== 'string') return '';
+  return normalizeJid(value.trim());
+};
+
+const uniqueNormalizedJids = (values = []) => {
+  const unique = [];
+  const seen = new Set();
+  for (const value of values) {
+    const normalized = normalizeOptionalJid(value);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    unique.push(normalized);
+  }
+  return unique;
+};
+
+const isSameUserSafe = (jidA, jidB) => {
+  if (!jidA || !jidB) return false;
+  try {
+    return isSameJidUser(jidA, jidB);
+  } catch {
+    return false;
+  }
+};
+
+const isSenderBot = (botJid, candidates) => {
+  const normalizedBot = normalizeOptionalJid(botJid);
+  if (!normalizedBot) return false;
+  return candidates.some((candidate) => isSameUserSafe(candidate, normalizedBot));
+};
+
+const resolveSenderContextForAntiLink = async ({ messageInfo, senderJid, senderIdentity }) => {
+  const key = messageInfo?.key || {};
+  const senderInfo = extractSenderInfoFromMessage(messageInfo);
+  const resolvedByMessage = normalizeOptionalJid(await resolveUserId(senderInfo).catch(() => ''));
+  const identityRaw = typeof senderIdentity === 'string' ? normalizeOptionalJid(senderIdentity) : '';
+  const keyParticipant = normalizeOptionalJid(key?.participant);
+  const keyParticipantAlt = normalizeOptionalJid(key?.participantAlt);
+  const keyRemoteAlt = normalizeOptionalJid(key?.remoteJidAlt);
+  const identityParticipant = normalizeOptionalJid(senderIdentity?.participant);
+  const identityParticipantAlt = normalizeOptionalJid(senderIdentity?.participantAlt);
+  const identityJid = normalizeOptionalJid(senderIdentity?.jid);
+  const explicitSender = normalizeOptionalJid(senderJid);
+  const senderInfoJid = normalizeOptionalJid(senderInfo?.jid);
+  const senderInfoLid = normalizeOptionalJid(senderInfo?.lid);
+  const senderInfoAlt = normalizeOptionalJid(senderInfo?.participantAlt);
+
+  const senderCandidates = uniqueNormalizedJids([
+    explicitSender,
+    resolvedByMessage,
+    keyParticipant,
+    keyParticipantAlt,
+    keyRemoteAlt,
+    senderInfoJid,
+    senderInfoLid,
+    senderInfoAlt,
+    identityParticipant,
+    identityParticipantAlt,
+    identityJid,
+    identityRaw,
+  ]);
+
+  const removalCandidates = [];
+  const lidCandidates = [];
+  const pnCandidates = [];
+  for (const candidate of senderCandidates) {
+    if (isLidJid(candidate)) lidCandidates.push(candidate);
+    else if (isWhatsAppJid(candidate)) pnCandidates.push(candidate);
+  }
+  removalCandidates.push(...lidCandidates, ...pnCandidates);
+
+  const mentionJid = pnCandidates[0] || removalCandidates[0] || senderCandidates[0] || '';
+  const primarySenderId = resolvedByMessage || explicitSender || senderInfoJid || senderInfoLid || senderCandidates[0] || '';
+
+  return {
+    senderInfo,
+    senderCandidates,
+    removalCandidates,
+    mentionJid,
+    primarySenderId,
+  };
+};
+
+const removeParticipantWithFallback = async (sock, remoteJid, candidates = []) => {
+  let lastError = null;
+  for (const candidate of candidates) {
+    try {
+      await updateGroupParticipants(sock, remoteJid, [candidate], 'remove');
+      return candidate;
+    } catch (error) {
+      lastError = error;
+      logger.debug('Falha ao remover participante com ID candidato. Tentando próximo.', {
+        action: 'antilink_remove_candidate_failed',
+        groupId: remoteJid,
+        participantId: candidate,
+        error: error?.message,
+      });
+    }
+  }
+  if (lastError) throw lastError;
+  return '';
+};
+
 /**
  * Aplica a regra de antilink do grupo. Retorna true quando removeu e deve pular o restante.
  * @param {Object} params
@@ -507,12 +612,11 @@ export const isLinkDetected = (text, normalizedAllowedDomains = []) => {
  * @param {string} params.extractedText
  * @param {string} params.remoteJid
  * @param {string} params.senderJid
+ * @param {{participant?: string|null, participantAlt?: string|null, jid?: string|null}|string|null} [params.senderIdentity]
  * @param {string} params.botJid
  * @returns {Promise<boolean>}
  */
-export const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, senderJid, botJid }) => {
-  if (!senderJid) return false;
-  if (senderJid === botJid) return false;
+export const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, senderJid, senderIdentity, botJid }) => {
   const groupConfig = await groupConfigStore.getGroupConfig(remoteJid);
   if (!groupConfig || !groupConfig.antilinkEnabled) return false;
 
@@ -520,23 +624,56 @@ export const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJ
   const normalizedAllowedDomains = normalizeAllowedDomains(allowedDomains);
   if (!isLinkDetected(extractedText, normalizedAllowedDomains)) return false;
 
-  const isAdmin = await isUserAdmin(remoteJid, senderJid);
-  const senderIsBot = senderJid === botJid;
+  const senderContext = await resolveSenderContextForAntiLink({
+    messageInfo,
+    senderJid,
+    senderIdentity,
+  });
+  if (!senderContext.primarySenderId && senderContext.senderCandidates.length === 0) return false;
+
+  let isAdmin = await isUserAdmin(remoteJid, {
+    id: senderContext.primarySenderId || null,
+    jid: senderContext.senderInfo?.jid || senderContext.primarySenderId || null,
+    lid: senderContext.senderInfo?.lid || null,
+    participantAlt: senderContext.senderInfo?.participantAlt || null,
+    participant: messageInfo?.key?.participant || null,
+    remoteJidAlt: messageInfo?.key?.remoteJidAlt || null,
+  });
+
+  if (!isAdmin && senderContext.primarySenderId) {
+    isAdmin = await isUserAdmin(remoteJid, senderContext.primarySenderId);
+  }
+
+  const senderIsBot = isSenderBot(botJid, senderContext.senderCandidates);
 
   if (!isAdmin && !senderIsBot) {
+    if (senderContext.removalCandidates.length === 0) {
+      logger.warn('Antilink detectou link, mas não encontrou ID válido para remoção.', {
+        action: 'antilink_no_removal_candidate',
+        groupId: remoteJid,
+        senderCandidates: senderContext.senderCandidates,
+      });
+      return false;
+    }
+
     try {
-      await updateGroupParticipants(sock, remoteJid, [senderJid], 'remove');
-      const senderUser = getJidUser(senderJid);
+      const removedParticipantId = await removeParticipantWithFallback(sock, remoteJid, senderContext.removalCandidates);
+      if (!removedParticipantId) {
+        throw new Error('Nenhum candidato de participante pôde ser removido.');
+      }
+      const senderMention = senderContext.mentionJid || removedParticipantId || senderContext.primarySenderId;
+      const senderUser = getJidUser(senderMention);
       await sendAndStore(sock, remoteJid, {
         text: `🚫 @${senderUser || 'usuario'} foi removido por enviar um link.`,
-        mentions: senderUser ? [senderJid] : [],
+        mentions: senderMention ? [senderMention] : [],
       });
       await sendAndStore(sock, remoteJid, { delete: messageInfo.key });
 
-      logger.info(`Usuário ${senderJid} removido do grupo ${remoteJid} por enviar link.`, {
+      logger.info(`Usuário ${removedParticipantId || senderContext.primarySenderId} removido do grupo ${remoteJid} por enviar link.`, {
         action: 'antilink_remove',
         groupId: remoteJid,
-        userId: senderJid,
+        userId: removedParticipantId || senderContext.primarySenderId,
+        senderCandidates: senderContext.senderCandidates,
       });
 
       return true;
@@ -544,27 +681,29 @@ export const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJ
       logger.error(`Falha ao remover usuário com antilink: ${error.message}`, {
         action: 'antilink_error',
         groupId: remoteJid,
-        userId: senderJid,
+        userId: senderContext.primarySenderId,
+        senderCandidates: senderContext.senderCandidates,
         error: error.stack,
       });
     }
   } else if (isAdmin && !senderIsBot) {
     try {
-      const senderUser = getJidUser(senderJid);
+      const senderMention = senderContext.mentionJid || senderContext.primarySenderId;
+      const senderUser = getJidUser(senderMention);
       await sendAndStore(sock, remoteJid, {
         text: `ⓘ @${senderUser || 'admin'} (admin) enviou um link.`,
-        mentions: senderUser ? [senderJid] : [],
+        mentions: senderMention ? [senderMention] : [],
       });
-      logger.info(`Admin ${senderJid} enviou um link no grupo ${remoteJid} (aviso enviado).`, {
+      logger.info(`Admin ${senderContext.primarySenderId} enviou um link no grupo ${remoteJid} (aviso enviado).`, {
         action: 'antilink_admin_link_detected',
         groupId: remoteJid,
-        userId: senderJid,
+        userId: senderContext.primarySenderId,
       });
     } catch (error) {
       logger.error(`Falha ao enviar aviso de link de admin: ${error.message}`, {
         action: 'antilink_admin_warning_error',
         groupId: remoteJid,
-        userId: senderJid,
+        userId: senderContext.primarySenderId,
         error: error.stack,
       });
     }

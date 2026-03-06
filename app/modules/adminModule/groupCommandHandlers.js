@@ -1,5 +1,5 @@
 import { handleMenuAdmCommand } from '../menuModule/menus.js';
-import { downloadMediaMessage, getJidServer } from '../../config/baileysConfig.js';
+import { downloadMediaMessage, getJidServer, isSameJidUser, normalizeJid } from '../../config/baileysConfig.js';
 import { isUserAdmin, createGroup, acceptGroupInvite, getGroupInfo, getGroupRequestParticipantsList, updateGroupAddMode, updateGroupSettings, updateGroupParticipants, leaveGroup, getGroupInviteCode, revokeGroupInviteCode, getGroupInfoFromInvite, updateGroupRequestParticipants, updateGroupSubject, updateGroupDescription, toggleEphemeral } from '../../config/groupUtils.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
@@ -17,17 +17,47 @@ const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const GROUP_ONLY_COMMAND_MESSAGE = 'Este comando está disponível apenas em conversas de grupo. Execute-o em um grupo para continuar.';
 const NO_PERMISSION_COMMAND_MESSAGE = 'Permissão insuficiente para executar este comando. Solicite suporte a um administrador do grupo.';
 const OWNER_ONLY_COMMAND_MESSAGE = 'Você não possui permissão para executar este comando. Este recurso é exclusivo do administrador principal do bot.';
+const USER_JID_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted', 'lid']);
+
+const normalizeParticipantJid = (value) => {
+  const normalized = normalizeJid(String(value || '').trim());
+  if (!normalized) return '';
+  const server = getJidServer(normalized);
+  if (!USER_JID_SERVERS.has(server || '')) return '';
+  return normalized;
+};
+
+const dedupeParticipantJids = (values = []) => {
+  const deduped = [];
+  for (const value of values) {
+    const normalized = normalizeParticipantJid(value);
+    if (!normalized) continue;
+    if (deduped.some((entry) => isSameJidUser(entry, normalized) || entry === normalized)) continue;
+    deduped.push(normalized);
+  }
+  return deduped;
+};
+
+const containsParticipantJid = (participants = [], targetJid = '') => {
+  const normalizedTarget = normalizeParticipantJid(targetJid);
+  if (!normalizedTarget) return false;
+  return participants.some((participantJid) => {
+    const normalizedParticipant = normalizeParticipantJid(participantJid);
+    if (!normalizedParticipant) return false;
+    return isSameJidUser(normalizedParticipant, normalizedTarget) || normalizedParticipant === normalizedTarget;
+  });
+};
 
 const getParticipantJids = (messageInfo, args) => {
   const mentionedJids = messageInfo.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
   if (mentionedJids.length > 0) {
-    return mentionedJids;
+    return dedupeParticipantJids(mentionedJids);
   }
   const repliedTo = messageInfo.message?.extendedTextMessage?.contextInfo?.participant;
   if (repliedTo && args.length === 0) {
-    return [repliedTo];
+    return dedupeParticipantJids([repliedTo]);
   }
-  return args.filter((arg) => getJidServer(arg) === 's.whatsapp.net');
+  return dedupeParticipantJids(args);
 };
 
 const parsePositiveInteger = (value) => {
@@ -52,6 +82,12 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
   if (!isAdminCommand(command)) {
     return false;
   }
+  const senderIdentity = {
+    jid: senderJid || null,
+    participant: messageInfo?.key?.participant || null,
+    participantAlt: messageInfo?.key?.participantAlt || null,
+    remoteJidAlt: messageInfo?.key?.remoteJidAlt || null,
+  };
 
   switch (command) {
     case 'menuadm': {
@@ -59,7 +95,7 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -68,7 +104,7 @@ export async function handleAdminCommand({ command, args, text, sock, messageInf
     }
 
     case 'premium': {
-      if (!OWNER_JID || !(await isAdminSenderAsync(senderJid))) {
+      if (!OWNER_JID || !(await isAdminSenderAsync(senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: OWNER_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -124,7 +160,7 @@ ${commandPrefix}premium <add|remove> @usuario1 @usuario2 ...\nTambém é possív
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -161,7 +197,7 @@ ${commandPrefix}nsfw <on|off|status>`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -213,7 +249,7 @@ ${commandPrefix}autosticker <on|off|status>`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -275,7 +311,7 @@ ${commandPrefix}autosticker <on|off|status>`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -372,7 +408,7 @@ ${commandPrefix}autosticker <on|off|status>`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -485,7 +521,7 @@ ${commandPrefix}newgroup <titulo> <participante1> <participante2> ...`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -517,7 +553,7 @@ ${commandPrefix}add @participante1 @participante2 ...\nTambém é possível info
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -535,7 +571,7 @@ ${commandPrefix}ban @participante1 @participante2 ...\nTambém é possível resp
         );
         break;
       }
-      if (participants.includes(botJid)) {
+      if (containsParticipantJid(participants, botJid)) {
         await sendAndStore(sock, remoteJid, { text: 'Operação cancelada: o bot não pode remover a própria conta.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -543,7 +579,7 @@ ${commandPrefix}ban @participante1 @participante2 ...\nTambém é possível resp
         await updateGroupParticipants(sock, remoteJid, participants, 'remove');
         await sendAndStore(sock, remoteJid, { text: 'Participantes removidos com sucesso.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         const repliedTo = messageInfo.message?.extendedTextMessage?.contextInfo;
-        if (repliedTo && participants.includes(repliedTo.participant)) {
+        if (repliedTo && containsParticipantJid(participants, repliedTo.participant)) {
           await sendAndStore(sock, remoteJid, {
             delete: messageInfo.message?.extendedTextMessage?.contextInfo?.key,
           });
@@ -559,7 +595,7 @@ ${commandPrefix}ban @participante1 @participante2 ...\nTambém é possível resp
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -577,7 +613,7 @@ ${commandPrefix}up @participante1 @participante2 ...\nTambém é possível infor
         );
         break;
       }
-      if (participants.includes(botJid)) {
+      if (containsParticipantJid(participants, botJid)) {
         await sendAndStore(sock, remoteJid, { text: 'Operação cancelada: o bot não pode promover a própria conta.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -595,7 +631,7 @@ ${commandPrefix}up @participante1 @participante2 ...\nTambém é possível infor
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -613,7 +649,7 @@ ${commandPrefix}down @participante1 @participante2 ...\nTambém é possível inf
         );
         break;
       }
-      if (participants.includes(botJid)) {
+      if (containsParticipantJid(participants, botJid)) {
         await sendAndStore(sock, remoteJid, { text: 'Operação cancelada: o bot não pode rebaixar a própria conta.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -631,7 +667,7 @@ ${commandPrefix}down @participante1 @participante2 ...\nTambém é possível inf
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -663,7 +699,7 @@ ${commandPrefix}setsubject <novo_assunto>`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -695,7 +731,7 @@ ${commandPrefix}setdesc <nova_descricao>`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -727,7 +763,7 @@ ${commandPrefix}setgroup <announcement|not_announcement|locked|unlocked>`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -745,7 +781,7 @@ ${commandPrefix}setgroup <announcement|not_announcement|locked|unlocked>`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -772,7 +808,7 @@ ${code}`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -868,7 +904,7 @@ ${JSON.stringify(metadata, null, 2)}`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -895,7 +931,7 @@ ${JSON.stringify(response, null, 2)}`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -948,7 +984,7 @@ ${JSON.stringify(response, null, 2)}`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -993,7 +1029,7 @@ ${JSON.stringify(response, null, 2)}`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -1025,7 +1061,7 @@ ${commandPrefix}temp <duracao_em_segundos>`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -1057,7 +1093,7 @@ ${commandPrefix}addmode <all_member_add|admin_add>`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -1152,7 +1188,7 @@ ${commandPrefix}welcome <on|off|set> [mensagem ou caminho da midia]`,
         break;
       }
 
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -1231,7 +1267,7 @@ ${commandPrefix}welcome set <mensagem ou caminho da midia>\nTambém é possível
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -1326,7 +1362,7 @@ ${commandPrefix}farewell set <mensagem ou caminho da midia>\nTambém é possíve
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -1372,7 +1408,7 @@ ${commandPrefix}farewell set <mensagem ou caminho da midia>\nTambém é possíve
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
@@ -1506,7 +1542,7 @@ ${commandPrefix}antilink ${subCommand} <dominio>`,
         await sendAndStore(sock, remoteJid, { text: GROUP_ONLY_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }
-      if (!(await isUserAdmin(remoteJid, senderJid))) {
+      if (!(await isUserAdmin(remoteJid, senderIdentity))) {
         await sendAndStore(sock, remoteJid, { text: NO_PERMISSION_COMMAND_MESSAGE }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         break;
       }

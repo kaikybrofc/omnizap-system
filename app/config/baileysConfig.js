@@ -22,6 +22,20 @@ export const JID_CONSTANTS = {
   META_AI_JID,
 };
 
+/**
+ * Servidores válidos para IDs de usuário WhatsApp (PN).
+ * Exportado para evitar duplicação de regras em outros serviços.
+ * @type {ReadonlySet<string>}
+ */
+export const WHATSAPP_USER_JID_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted']);
+
+/**
+ * Servidores válidos para IDs do tipo LID.
+ * Exportado para evitar duplicação de regras em outros serviços.
+ * @type {ReadonlySet<string>}
+ */
+export const LID_USER_JID_SERVERS = new Set(['lid', 'hosted.lid']);
+
 const decodeJidParts = (() => {
   let lastJid = null;
   let lastDecoded = null;
@@ -286,6 +300,26 @@ export function getJidUser(jid) {
  */
 export function getJidServer(jid) {
   return decodeJidParts(jid)?.server || null;
+}
+
+/**
+ * Verifica se o JID pertence ao namespace LID.
+ * @param {string} jid - JID a validar.
+ * @returns {boolean} `true` quando for LID.
+ */
+export function isLidJid(jid) {
+  const server = getJidServer(jid);
+  return Boolean(server && LID_USER_JID_SERVERS.has(server));
+}
+
+/**
+ * Verifica se o JID pertence ao namespace PN do WhatsApp.
+ * @param {string} jid - JID a validar.
+ * @returns {boolean} `true` quando for usuário WhatsApp.
+ */
+export function isWhatsAppJid(jid) {
+  const server = getJidServer(jid);
+  return Boolean(server && WHATSAPP_USER_JID_SERVERS.has(server));
 }
 
 /**
