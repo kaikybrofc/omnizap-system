@@ -300,6 +300,15 @@ Outros
 → ${commandPrefix}autosticker <on|off|status>  
 💡 Exemplo: ${commandPrefix}autosticker on
 
+→ ${commandPrefix}stickermode <on|off|status>  
+💡 Exemplo: ${commandPrefix}stickermode on
+
+→ ${commandPrefix}chatwindow <on|off|status> [min]  
+💡 Exemplo: ${commandPrefix}chatwindow on 15
+
+→ ${commandPrefix}stickermsglimit <minutos|status|reset>  
+💡 Exemplo: ${commandPrefix}stickermsglimit 60
+
 → ${commandPrefix}noticias <on|off|status>  
 💡 Exemplo: ${commandPrefix}noticias on
 

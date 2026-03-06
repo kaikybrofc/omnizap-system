@@ -10,6 +10,7 @@ import { handleGlobalRankingCommand } from '../modules/statsModule/globalRanking
 import { handleNoMessageCommand } from '../modules/statsModule/noMessageCommand.js';
 import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js';
 import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, getJidUser, isGroupJid, isSameJidUser, normalizeJid, resolveBotJid } from '../config/baileysConfig.js';
+import { isUserAdmin } from '../config/groupUtils.js';
 import logger from '../../utils/logger/loggerModule.js';
 import { handleAntiLink } from '../utils/antiLink/antiLinkModule.js';
 import { handleCatCommand, handleCatImageCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
@@ -29,6 +30,13 @@ import { extractSenderInfoFromMessage, resolveUserId } from '../services/lidMapS
 import { buildWhatsAppGoogleLoginUrl } from '../services/whatsappLoginLinkService.js';
 import { isWhatsAppUserLinkedToGoogleWebAccount } from '../services/googleWebLinkService.js';
 import { createMessageAnalysisEvent } from '../modules/analyticsModule/messageAnalysisEventRepository.js';
+import {
+  canSendMessageInStickerFocus,
+  registerMessageUsageInStickerFocus,
+  resolveStickerFocusMessageClassification,
+  resolveStickerFocusState,
+  shouldSendStickerFocusWarning,
+} from '../services/stickerFocusService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
@@ -163,14 +171,20 @@ const maybeHandleStartLoginMessage = async ({ sock, messageInfo, extractedText, 
  * Resolve o prefixo de comandos.
  * Usa o prefixo do grupo quando existir, senão usa o padrão.
  */
-const resolveCommandPrefix = async (isGroupMessage, remoteJid) => {
+const resolveCommandPrefix = async (isGroupMessage, remoteJid, groupConfig = null) => {
   if (!isGroupMessage) return DEFAULT_COMMAND_PREFIX;
-  const config = await groupConfigStore.getGroupConfig(remoteJid);
+  const config = groupConfig || (await groupConfigStore.getGroupConfig(remoteJid));
   if (!config || typeof config.commandPrefix !== 'string') {
     return DEFAULT_COMMAND_PREFIX;
   }
   const prefix = config.commandPrefix.trim();
   return prefix || DEFAULT_COMMAND_PREFIX;
+};
+
+const formatRemainingMinutesLabel = (remainingMs) => {
+  const safeMs = Math.max(0, Number(remainingMs) || 0);
+  const remainingMinutes = Math.ceil(safeMs / (60 * 1000));
+  return Math.max(1, remainingMinutes);
 };
 
 /**
@@ -307,6 +321,7 @@ export const handleMessages = async (update, sock) => {
         const botJid = resolveBotJid(sock?.user?.id);
         const isMessageFromBot = Boolean(messageInfo?.key?.fromMe) || (botJid ? isSameJidUser(senderJid, botJid) : false);
         let commandPrefix = DEFAULT_COMMAND_PREFIX;
+        let groupConfig = null;
         const mediaEntries = detectAllMediaTypes(messageInfo?.message, false);
         const mediaTypes = mediaEntries
           .map((entry) =>
@@ -359,7 +374,8 @@ export const handleMessages = async (update, sock) => {
               };
               continue;
             }
-            commandPrefix = await resolveCommandPrefix(true, remoteJid);
+            groupConfig = await groupConfigStore.getGroupConfig(remoteJid);
+            commandPrefix = await resolveCommandPrefix(true, remoteJid, groupConfig);
             analysisPayload.commandPrefix = commandPrefix;
           }
 
@@ -402,6 +418,90 @@ export const handleMessages = async (update, sock) => {
           const isCommandMessage = extractedText.startsWith(commandPrefix);
           analysisPayload.isCommand = isCommandMessage;
           analysisPayload.commandPrefix = commandPrefix;
+
+          if (isGroupMessage && !isCommandMessage && !isMessageFromBot) {
+            const activeGroupConfig = groupConfig || (await groupConfigStore.getGroupConfig(remoteJid));
+            groupConfig = activeGroupConfig;
+            const stickerFocusState = resolveStickerFocusState(activeGroupConfig);
+
+            if (stickerFocusState.enabled) {
+              const messageClassification = resolveStickerFocusMessageClassification({
+                messageInfo,
+                extractedText,
+                mediaEntries,
+              });
+
+              if (messageClassification.isThrottleCandidate) {
+                const senderIsAdmin = await isUserAdmin(remoteJid, senderJid);
+                if (!senderIsAdmin) {
+                  if (!stickerFocusState.isChatWindowOpen) {
+                    const messageGate = canSendMessageInStickerFocus({
+                      groupId: remoteJid,
+                      senderJid,
+                      messageCooldownMs: stickerFocusState.messageCooldownMs,
+                    });
+
+                    if (!messageGate.allowed) {
+                      analysisPayload.processingResult = 'blocked_sticker_focus_message';
+                      analysisPayload.metadata = {
+                        ...analysisPayload.metadata,
+                        blocked_by: 'sticker_focus_mode',
+                        sticker_focus_message_type: messageClassification.messageType,
+                        sticker_focus_message_cooldown_minutes: stickerFocusState.messageCooldownMinutes,
+                        sticker_focus_remaining_minutes: formatRemainingMinutesLabel(messageGate.remainingMs),
+                      };
+
+                      try {
+                        await sendAndStore(sock, remoteJid, { delete: messageInfo.key });
+                      } catch (error) {
+                        logger.warn('Falha ao apagar mensagem fora da politica de sticker focus.', {
+                          action: 'sticker_focus_delete_failed',
+                          groupId: remoteJid,
+                          senderJid,
+                          error: error?.message,
+                        });
+                      }
+
+                      if (
+                        shouldSendStickerFocusWarning({
+                          groupId: remoteJid,
+                          senderJid,
+                        })
+                      ) {
+                        try {
+                          await sendAndStore(
+                            sock,
+                            remoteJid,
+                            {
+                              text:
+                                '🖼️ Este grupo está em *modo sticker*.\n' +
+                                `Fora da janela de chat, cada usuário pode enviar mensagem a cada *${stickerFocusState.messageCooldownMinutes} min*.\n` +
+                                `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${commandPrefix}chatwindow on*.`,
+                            },
+                            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+                          );
+                        } catch (error) {
+                          logger.warn('Falha ao enviar aviso de sticker focus.', {
+                            action: 'sticker_focus_warning_failed',
+                            groupId: remoteJid,
+                            senderJid,
+                            error: error?.message,
+                          });
+                        }
+                      }
+
+                      continue;
+                    }
+
+                    registerMessageUsageInStickerFocus({
+                      groupId: remoteJid,
+                      senderJid,
+                    });
+                  }
+                }
+              }
+            }
+          }
 
           if (isCommandMessage) {
             const commandBody = extractedText.substring(commandPrefix.length);
@@ -642,8 +742,9 @@ O omnizap-system ainda está em desenvolvimento e novos comandos estão sendo ad
             const autoStickerMedia = extractSupportedStickerMediaDetails(messageInfo, { includeQuoted: false });
 
             if (autoStickerMedia && autoStickerMedia.mediaType !== 'sticker') {
-              const groupConfig = await groupConfigStore.getGroupConfig(remoteJid);
-              if (groupConfig.autoStickerEnabled) {
+              const activeGroupConfig = groupConfig || (await groupConfigStore.getGroupConfig(remoteJid));
+              groupConfig = activeGroupConfig;
+              if (activeGroupConfig.autoStickerEnabled) {
                 analysisPayload.processingResult = 'autosticker_triggered';
                 analysisPayload.metadata = {
                   ...analysisPayload.metadata,
