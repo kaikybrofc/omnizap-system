@@ -1,4 +1,7 @@
-import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { pbkdf2 as pbkdf2Callback, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
+
+const pbkdf2 = promisify(pbkdf2Callback);
 
 const clampInt = (value, fallback, min, max) => {
   const numeric = Number(value);
@@ -162,6 +165,10 @@ const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_RESEND_COOLDOWN_SECONDS = 60;
 const DEFAULT_HOURLY_REQUEST_LIMIT = 4;
 const DEFAULT_DAILY_REQUEST_LIMIT = 8;
+const DEFAULT_RECOVERY_HASH_ITERATIONS = 210_000;
+const MIN_RECOVERY_HASH_ITERATIONS = 100_000;
+const MAX_RECOVERY_HASH_ITERATIONS = 2_000_000;
+const RECOVERY_HASH_KEYLEN_BYTES = 32;
 
 export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAuthService, queueAutomatedEmail = null, tables = {}, logger = null, runSqlTransaction = null } = {}) => {
   if (typeof executeQuery !== 'function') {
@@ -178,6 +185,12 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
   const resendCooldownSeconds = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_CODE_RESEND_COOLDOWN_SECONDS, DEFAULT_RESEND_COOLDOWN_SECONDS, 15, 10 * 60);
   const hourlyRequestLimit = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_CODE_HOURLY_LIMIT, DEFAULT_HOURLY_REQUEST_LIMIT, 1, 30);
   const dailyRequestLimit = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_CODE_DAILY_LIMIT, DEFAULT_DAILY_REQUEST_LIMIT, 1, 40);
+  const recoveryHashIterations = clampInt(
+    process.env.WEB_USER_PASSWORD_RECOVERY_HASH_ITERATIONS,
+    DEFAULT_RECOVERY_HASH_ITERATIONS,
+    MIN_RECOVERY_HASH_ITERATIONS,
+    MAX_RECOVERY_HASH_ITERATIONS,
+  );
   const hashSecret =
     String(process.env.WEB_USER_PASSWORD_RECOVERY_HASH_SECRET || process.env.WEB_AUTH_JWT_SECRET || process.env.WHATSAPP_LOGIN_LINK_SECRET || '')
       .trim()
@@ -197,10 +210,17 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
     return handler(null);
   };
 
-  const buildCodeHash = ({ code = '', googleSub = '', email = '', purpose = 'reset' } = {}) =>
-    createHash('sha256')
-      .update(`${hashSecret}|${normalizePurpose(purpose)}|${normalizeGoogleSubject(googleSub)}|${normalizeEmail(email)}|${normalizeCode(code)}`)
-      .digest('hex');
+  const buildCodeHash = async ({ code = '', googleSub = '', email = '', purpose = 'reset' } = {}) => {
+    const normalizedPurpose = normalizePurpose(purpose);
+    const normalizedGoogleSub = normalizeGoogleSubject(googleSub);
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedCode = normalizeCode(code);
+
+    const material = `${normalizedPurpose}|${normalizedGoogleSub}|${normalizedEmail}|${normalizedCode}`;
+    const salt = `${hashSecret}|web_user_password_recovery_code|v2`;
+    const derived = await pbkdf2(material, salt, recoveryHashIterations, RECOVERY_HASH_KEYLEN_BYTES, 'sha256');
+    return Buffer.from(derived).toString('hex');
+  };
 
   const findLatestActiveCodeByIdentity = async ({ googleSub = '', email = '', ownerJid = '', purpose = '' } = {}, connection = null) => {
     const normalizedIdentity = normalizeIdentity({ googleSub, email, ownerJid });
@@ -410,7 +430,7 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
 
     const verificationCode = generateSixDigitCode();
     const normalizedPurpose = normalizePurpose(purpose);
-    const codeHash = buildCodeHash({
+    const codeHash = await buildCodeHash({
       code: verificationCode,
       googleSub: knownUser.google_sub,
       email: recipientEmail,
@@ -546,7 +566,7 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
       });
     }
 
-    const expectedHash = buildCodeHash({
+    const expectedHash = await buildCodeHash({
       code: normalizedCode,
       googleSub: activeCode.google_sub,
       email: activeCode.email,
