@@ -10,13 +10,52 @@ const parseEnvBool = (value, fallback = false) => {
   return fallback;
 };
 
-const HELMET_CSP_ENABLED = parseEnvBool(process.env.HELMET_CONTENT_SECURITY_POLICY_ENABLED, false);
+const HELMET_CSP_ENFORCE = parseEnvBool(process.env.HELMET_CONTENT_SECURITY_POLICY_ENABLED, true);
 const BACKEND_BUILD_ID = String(process.env.OMNIZAP_BUILD_ID || '')
   .trim()
   .slice(0, 80);
 
+const HELMET_CSP_DIRECTIVES = {
+  defaultSrc: ["'self'"],
+  baseUri: ["'self'"],
+  objectSrc: ["'none'"],
+  frameAncestors: ["'self'"],
+  formAction: ["'self'"],
+  scriptSrc: ["'self'", "'unsafe-inline'", 'https://accounts.google.com', 'https://cdn.tailwindcss.com'],
+  styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
+  imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+  fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com'],
+  connectSrc: ["'self'", 'https://accounts.google.com', 'https://oauth2.googleapis.com', 'https://api.github.com'],
+  frameSrc: ["'self'", 'https://accounts.google.com'],
+  workerSrc: ["'self'", 'blob:'],
+  manifestSrc: ["'self'"],
+};
+
+const serializeCspDirectives = (directives = {}) =>
+  Object.entries(directives)
+    .map(([directive, values]) => {
+      const kebabDirective = String(directive || '')
+        .trim()
+        .replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
+      if (!kebabDirective) return '';
+      const normalizedValues = Array.isArray(values)
+        ? values
+            .map((value) => String(value || '').trim())
+            .filter(Boolean)
+        : [];
+      return normalizedValues.length ? `${kebabDirective} ${normalizedValues.join(' ')}` : kebabDirective;
+    })
+    .filter(Boolean)
+    .join('; ');
+
+const FALLBACK_CSP_HEADER = serializeCspDirectives(HELMET_CSP_DIRECTIVES);
+
 const helmetMiddleware = helmet({
-  contentSecurityPolicy: HELMET_CSP_ENABLED ? undefined : false,
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: HELMET_CSP_DIRECTIVES,
+    reportOnly: !HELMET_CSP_ENFORCE,
+  },
   crossOriginEmbedderPolicy: false,
   // Mantemos permissões explícitas para browser APIs sensíveis.
   permissionsPolicy: {
@@ -33,6 +72,10 @@ const applyFallbackHeaders = (res) => {
   if (!res.getHeader('X-Frame-Options')) res.setHeader('X-Frame-Options', 'DENY');
   if (!res.getHeader('Referrer-Policy')) res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   if (!res.getHeader('Permissions-Policy')) res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  if (FALLBACK_CSP_HEADER && !res.getHeader('Content-Security-Policy') && !res.getHeader('Content-Security-Policy-Report-Only')) {
+    const cspHeaderName = HELMET_CSP_ENFORCE ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only';
+    res.setHeader(cspHeaderName, FALLBACK_CSP_HEADER);
+  }
   if (BACKEND_BUILD_ID && !res.getHeader('X-Omnizap-Build')) res.setHeader('X-Omnizap-Build', BACKEND_BUILD_ID);
 };
 
