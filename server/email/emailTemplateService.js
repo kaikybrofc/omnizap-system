@@ -302,15 +302,7 @@ const buildPasswordResetCodeTemplate = (payload = {}) => {
 
   return {
     subject,
-    text: [
-      `Olá, ${name}!`,
-      '',
-      `Use este código para concluir a ${purposeLabel}:`,
-      codeDigits,
-      '',
-      `Este código expira em ${expiresInMinutes} minuto(s).`,
-      'Se você não solicitou esta ação, ignore este e-mail.',
-    ].join('\n'),
+    text: [`Olá, ${name}!`, '', `Use este código para concluir a ${purposeLabel}:`, codeDigits, '', `Este código expira em ${expiresInMinutes} minuto(s).`, 'Se você não solicitou esta ação, ignore este e-mail.'].join('\n'),
     html: renderEmailLayout({
       payload,
       preheader: `Seu código de ${purposeLabel} do OmniZap.`,

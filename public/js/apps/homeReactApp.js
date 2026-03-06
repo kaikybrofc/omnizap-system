@@ -430,17 +430,11 @@ const App = () => {
     };
   }, [session]);
 
-  const navContainerClass = isMobile
-    ? 'nav flex w-full items-center gap-2 overflow-x-auto pb-1 pr-1'
-    : 'nav flex w-full flex-wrap items-center gap-2 lg:w-auto';
+  const navContainerClass = isMobile ? 'nav flex w-full items-center gap-2 overflow-x-auto pb-1 pr-1' : 'nav flex w-full flex-wrap items-center gap-2 lg:w-auto';
   const headerInnerClass = isMobile ? 'mx-auto flex w-full max-w-7xl flex-col gap-2' : 'mx-auto flex w-full max-w-7xl items-center justify-between gap-3';
-  const navLinkClass = isMobile
-    ? 'btn btn-outline h-9 min-h-0 shrink-0 rounded-full border-base-300 bg-base-200/60 px-3 text-xs font-semibold whitespace-nowrap'
-    : 'btn btn-ghost justify-center';
+  const navLinkClass = isMobile ? 'btn btn-outline h-9 min-h-0 shrink-0 rounded-full border-base-300 bg-base-200/60 px-3 text-xs font-semibold whitespace-nowrap' : 'btn btn-ghost justify-center';
   const desktopAuthButtonClass = `btn ${authInfo.image ? 'btn-circle p-0' : 'btn-primary'} justify-center`;
-  const mobileAuthButtonClass = authInfo.image
-    ? 'btn btn-circle h-10 min-h-0 w-10 border border-base-300 bg-base-100 p-0 shadow-sm hover:bg-base-200'
-    : 'btn btn-primary h-10 min-h-0 px-3 text-sm font-semibold';
+  const mobileAuthButtonClass = authInfo.image ? 'btn btn-circle h-10 min-h-0 w-10 border border-base-300 bg-base-100 p-0 shadow-sm hover:bg-base-200' : 'btn btn-primary h-10 min-h-0 px-3 text-sm font-semibold';
 
   return html`
     <div className="home-page relative text-base-content">
@@ -452,47 +446,11 @@ const App = () => {
               <span className="truncate font-bold tracking-wide">OmniZap Bot</span>
             </a>
             <div className="flex items-center gap-2 lg:hidden">
-              <a
-                id="nav-auth-link-mobile"
-                className=${mobileAuthButtonClass}
-                href=${authInfo.href}
-                title=${authInfo.title}
-                aria-label=${authInfo.image ? authInfo.title : 'Entrar'}
-              >
-                ${authInfo.image
-                  ? html`<img className="h-full w-full rounded-full object-cover" src=${authInfo.image} alt=${authInfo.label} loading="lazy" decoding="async" />`
-                  : html`Entrar`}
-              </a>
+              <a id="nav-auth-link-mobile" className=${mobileAuthButtonClass} href=${authInfo.href} title=${authInfo.title} aria-label=${authInfo.image ? authInfo.title : 'Entrar'}> ${authInfo.image ? html`<img className="h-full w-full rounded-full object-cover" src=${authInfo.image} alt=${authInfo.label} loading="lazy" decoding="async" />` : html`Entrar`} </a>
             </div>
           </div>
 
-          <nav id="main-nav" className=${navContainerClass} aria-label="Navegação principal">
-            ${NAV_ITEMS.map(
-              (item) =>
-                html`<a
-                  id=${item.id || null}
-                  className=${navLinkClass}
-                  href=${item.href}
-                >
-                  ${item.label}
-                </a>`,
-            )}
-            ${!isMobile
-              ? html`
-                  <a
-                    id="nav-auth-link"
-                    className=${desktopAuthButtonClass}
-                    href=${authInfo.href}
-                    title=${authInfo.title}
-                    aria-label=${authInfo.image ? authInfo.title : 'Entrar'}
-                  >
-                    ${authInfo.image
-                      ? html`<img className="h-full w-full rounded-full object-cover" src=${authInfo.image} alt=${authInfo.label} loading="lazy" decoding="async" />`
-                      : html`Entrar`}
-                  </a>
-                `
-              : null}
-          </nav>
+          <nav id="main-nav" className=${navContainerClass} aria-label="Navegação principal">${NAV_ITEMS.map((item) => html`<a id=${item.id || null} className=${navLinkClass} href=${item.href}> ${item.label} </a>`)} ${!isMobile ? html` <a id="nav-auth-link" className=${desktopAuthButtonClass} href=${authInfo.href} title=${authInfo.title} aria-label=${authInfo.image ? authInfo.title : 'Entrar'}> ${authInfo.image ? html`<img className="h-full w-full rounded-full object-cover" src=${authInfo.image} alt=${authInfo.label} loading="lazy" decoding="async" />` : html`Entrar`} </a> ` : null}</nav>
         </div>
       </header>
 
@@ -502,17 +460,11 @@ const App = () => {
             <div className="w-full max-w-2xl">
               <span className="hero-pill badge badge-outline badge-info mb-3 px-3 py-2 text-[11px] font-bold uppercase tracking-wide sm:px-3 sm:py-3 sm:text-xs">Bot pronto para grupos WhatsApp</span>
               <h1 id="hero-title" className="hero-title text-balance text-2xl font-black leading-tight sm:text-4xl lg:text-5xl">Adicione o bot ao seu grupo e deixe ele fazer o resto.</h1>
-              <p className="hero-copy mt-3 text-sm leading-relaxed text-base-content/80 sm:mt-4 sm:text-base lg:text-lg">
-                Automação automática, organização de mensagens e recursos inteligentes prontos para usar. Sem configuração técnica. Sem programação. Sem complicação.
-              </p>
+              <p className="hero-copy mt-3 text-sm leading-relaxed text-base-content/80 sm:mt-4 sm:text-base lg:text-lg">Automação automática, organização de mensagens e recursos inteligentes prontos para usar. Sem configuração técnica. Sem programação. Sem complicação.</p>
 
               <div className="mt-5 grid grid-cols-1 gap-2 sm:mt-6 sm:flex sm:flex-wrap sm:gap-3">
-                <a className="home-cta-btn btn btn-success btn-md w-full sm:btn-lg sm:w-auto" data-add-bot-cta href=${botMenuUrl} target="_blank" rel="noreferrer noopener">
-                  Adicionar ao Meu Grupo
-                </a>
-                <a className="home-cta-btn btn btn-outline btn-info btn-md w-full sm:btn-lg sm:w-auto" href="#recursos">
-                  Ver Recursos
-                </a>
+                <a className="home-cta-btn btn btn-success btn-md w-full sm:btn-lg sm:w-auto" data-add-bot-cta href=${botMenuUrl} target="_blank" rel="noreferrer noopener"> Adicionar ao Meu Grupo </a>
+                <a className="home-cta-btn btn btn-outline btn-info btn-md w-full sm:btn-lg sm:w-auto" href="#recursos"> Ver Recursos </a>
               </div>
 
               <div className="hero-metrics mt-5 grid grid-cols-2 gap-2 sm:mt-6 sm:gap-3 lg:grid-cols-4">
@@ -568,9 +520,24 @@ const App = () => {
           <h2 className="text-2xl font-black sm:text-3xl">Como funciona</h2>
           <p className="text-sm text-base-content/75 sm:text-base">Ultra simples: três passos e o grupo já começa a rodar com automação.</p>
           <div className="grid gap-4 md:grid-cols-3">
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">1️⃣ Clique em adicionar</h3><p className="text-sm sm:text-base">Toque no botão e abra a conversa com o bot no WhatsApp.</p></div></article>
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">2️⃣ Autorize no grupo</h3><p className="text-sm sm:text-base">Adicione o OmniZap no grupo ou comunidade em poucos toques.</p></div></article>
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">3️⃣ Pronto. Já funciona</h3><p className="text-sm sm:text-base">Moderação, avisos e respostas automáticas começam imediatamente.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">1️⃣ Clique em adicionar</h3>
+                <p className="text-sm sm:text-base">Toque no botão e abra a conversa com o bot no WhatsApp.</p>
+              </div>
+            </article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">2️⃣ Autorize no grupo</h3>
+                <p className="text-sm sm:text-base">Adicione o OmniZap no grupo ou comunidade em poucos toques.</p>
+              </div>
+            </article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">3️⃣ Pronto. Já funciona</h3>
+                <p className="text-sm sm:text-base">Moderação, avisos e respostas automáticas começam imediatamente.</p>
+              </div>
+            </article>
           </div>
         </section>
 
@@ -578,11 +545,36 @@ const App = () => {
           <h2 className="text-2xl font-black sm:text-3xl">O que o bot faz por você</h2>
           <p className="text-sm text-base-content/75 sm:text-base">Tudo focado em resultado no grupo, sem linguagem técnica.</p>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🤖 Responde automaticamente</h3><p className="text-sm sm:text-base">Respostas rápidas para dúvidas repetidas e comandos prontos para o dia a dia.</p></div></article>
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">📌 Organiza o grupo</h3><p className="text-sm sm:text-base">Ajuda a manter conversas úteis e reduz o caos de mensagens perdidas.</p></div></article>
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🛑 Moderação inteligente</h3><p className="text-sm sm:text-base">Bloqueia spam e comportamentos problemáticos para proteger sua comunidade.</p></div></article>
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">📣 Envia avisos automáticos</h3><p className="text-sm sm:text-base">Agenda recados e lembretes para que ninguém perca informações importantes.</p></div></article>
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🎉 Recursos extras integrados</h3><p className="text-sm sm:text-base">Stickers, interações e utilidades prontas para aumentar o engajamento do grupo.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">🤖 Responde automaticamente</h3>
+                <p className="text-sm sm:text-base">Respostas rápidas para dúvidas repetidas e comandos prontos para o dia a dia.</p>
+              </div>
+            </article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">📌 Organiza o grupo</h3>
+                <p className="text-sm sm:text-base">Ajuda a manter conversas úteis e reduz o caos de mensagens perdidas.</p>
+              </div>
+            </article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">🛑 Moderação inteligente</h3>
+                <p className="text-sm sm:text-base">Bloqueia spam e comportamentos problemáticos para proteger sua comunidade.</p>
+              </div>
+            </article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">📣 Envia avisos automáticos</h3>
+                <p className="text-sm sm:text-base">Agenda recados e lembretes para que ninguém perca informações importantes.</p>
+              </div>
+            </article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">🎉 Recursos extras integrados</h3>
+                <p className="text-sm sm:text-base">Stickers, interações e utilidades prontas para aumentar o engajamento do grupo.</p>
+              </div>
+            </article>
           </div>
         </section>
 
@@ -596,9 +588,7 @@ const App = () => {
                   <div className="card-body">
                     <h3 className="card-title text-base sm:text-lg">${block.title}</h3>
                     <ul className="space-y-1.5 text-sm text-base-content/80">
-                      ${block.items.map(
-                        ([command, label]) => html`<li><code className="rounded border border-base-300 bg-base-100 px-1.5 py-0.5 text-xs font-bold">${command}</code> ${label}</li>`,
-                      )}
+                      ${block.items.map(([command, label]) => html`<li><code className="rounded border border-base-300 bg-base-100 px-1.5 py-0.5 text-xs font-bold">${command}</code> ${label}</li>`)}
                     </ul>
                   </div>
                 </article>
@@ -615,11 +605,36 @@ const App = () => {
           <h2 className="text-2xl font-black sm:text-3xl">Para quem é</h2>
           <p className="text-sm text-base-content/75 sm:text-base">Se você administra pessoas em grupo, o OmniZap foi feito para você.</p>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">👥 Donos de comunidade</h3><p className="text-sm sm:text-base">Mantenha regras e organização sem esforço manual constante.</p></div></article>
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🎬 Criadores de conteúdo</h3><p className="text-sm sm:text-base">Gerencie audiência e comunicados com mais consistência.</p></div></article>
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">📚 Grupos de estudo</h3><p className="text-sm sm:text-base">Centralize avisos e reduza distrações para manter foco.</p></div></article>
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🛍️ Lojas online</h3><p className="text-sm sm:text-base">Automatize atendimento inicial e mensagens recorrentes.</p></div></article>
-            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal"><div className="card-body"><h3 className="card-title text-base sm:text-lg">🏢 Equipes internas</h3><p className="text-sm sm:text-base">Padronize comunicação e acompanhe rotinas com agilidade.</p></div></article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">👥 Donos de comunidade</h3>
+                <p className="text-sm sm:text-base">Mantenha regras e organização sem esforço manual constante.</p>
+              </div>
+            </article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">🎬 Criadores de conteúdo</h3>
+                <p className="text-sm sm:text-base">Gerencie audiência e comunicados com mais consistência.</p>
+              </div>
+            </article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">📚 Grupos de estudo</h3>
+                <p className="text-sm sm:text-base">Centralize avisos e reduza distrações para manter foco.</p>
+              </div>
+            </article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">🛍️ Lojas online</h3>
+                <p className="text-sm sm:text-base">Automatize atendimento inicial e mensagens recorrentes.</p>
+              </div>
+            </article>
+            <article className="motion-card card card-compact bg-base-200 shadow sm:card-normal">
+              <div className="card-body">
+                <h3 className="card-title text-base sm:text-lg">🏢 Equipes internas</h3>
+                <p className="text-sm sm:text-base">Padronize comunicação e acompanhe rotinas com agilidade.</p>
+              </div>
+            </article>
           </div>
         </section>
 
@@ -690,21 +705,7 @@ const App = () => {
         </div>
       </footer>
 
-      ${hasBotMenuLink
-        ? html`
-            <a
-              id="wpp-float"
-              className="btn btn-success btn-circle fixed bottom-3 right-3 z-30 text-2xl shadow-xl sm:right-4"
-              href=${botMenuUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              aria-label="Adicionar bot no WhatsApp"
-              title="Adicionar bot"
-            >
-              💬
-            </a>
-          `
-        : null}
+      ${hasBotMenuLink ? html` <a id="wpp-float" className="btn btn-success btn-circle fixed bottom-3 right-3 z-30 text-2xl shadow-xl sm:right-4" href=${botMenuUrl} target="_blank" rel="noreferrer noopener" aria-label="Adicionar bot no WhatsApp" title="Adicionar bot"> 💬 </a> ` : null}
     </div>
   `;
 };

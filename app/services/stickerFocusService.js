@@ -8,35 +8,15 @@ const parseEnvInt = (value, fallback, min, max) => {
 
 export const MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES = 1;
 export const MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES = 24 * 60;
-export const DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES = parseEnvInt(
-  process.env.STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES ?? process.env.STICKER_FOCUS_TEXT_COOLDOWN_MINUTES,
-  60,
-  MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES,
-  MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES,
-);
+export const DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES = parseEnvInt(process.env.STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES ?? process.env.STICKER_FOCUS_TEXT_COOLDOWN_MINUTES, 60, MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES, MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES);
 
 export const MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES = 1;
 export const MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES = 6 * 60;
-export const DEFAULT_STICKER_FOCUS_CHAT_WINDOW_MINUTES = parseEnvInt(
-  process.env.STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-  15,
-  MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-  MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-);
+export const DEFAULT_STICKER_FOCUS_CHAT_WINDOW_MINUTES = parseEnvInt(process.env.STICKER_FOCUS_CHAT_WINDOW_MINUTES, 15, MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES, MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES);
 
 const STICKER_FOCUS_WARNING_COOLDOWN_MS = parseEnvInt(process.env.STICKER_FOCUS_WARNING_COOLDOWN_MS, 45_000, 10_000, 5 * 60_000);
 const NON_HUMAN_PLACEHOLDERS = new Set(['Mensagem vazia', 'Tipo de mensagem não suportado ou sem conteúdo.']);
-const IGNORED_MESSAGE_TYPES = new Set([
-  'messagehistorybundle',
-  'messagehistorynotice',
-  'keydistribution',
-  'senderkeydistribution',
-  'reaction',
-  'devicesent',
-  'contextinfo',
-  'protocol',
-  'botinvoke',
-]);
+const IGNORED_MESSAGE_TYPES = new Set(['messagehistorybundle', 'messagehistorynotice', 'keydistribution', 'senderkeydistribution', 'reaction', 'devicesent', 'contextinfo', 'protocol', 'botinvoke']);
 const NON_THROTTLED_MESSAGE_TYPES = new Set(['sticker', 'image', 'video']);
 const MESSAGE_WRAPPER_KEYS = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'deviceSentMessage', 'editedMessage'];
 
@@ -123,11 +103,9 @@ const isIgnoredSystemMessageType = (type) => {
   return false;
 };
 
-export const clampStickerFocusMessageCooldownMinutes = (value, fallback = DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES) =>
-  normalizeMinutes(value, fallback, MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES, MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES);
+export const clampStickerFocusMessageCooldownMinutes = (value, fallback = DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES) => normalizeMinutes(value, fallback, MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES, MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES);
 
-export const clampStickerFocusChatWindowMinutes = (value, fallback = DEFAULT_STICKER_FOCUS_CHAT_WINDOW_MINUTES) =>
-  normalizeMinutes(value, fallback, MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES, MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES);
+export const clampStickerFocusChatWindowMinutes = (value, fallback = DEFAULT_STICKER_FOCUS_CHAT_WINDOW_MINUTES) => normalizeMinutes(value, fallback, MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES, MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES);
 
 export const minutesToMs = (minutes) => Math.max(0, Math.floor(Number(minutes) || 0) * 60 * 1000);
 

@@ -28,12 +28,7 @@ import { isWebAuthJwtEnabled, signWebAuthJwt, verifyWebAuthJwt } from '../../aut
 import { resolveClientIp } from '../../http/clientIp.js';
 import userPasswordAuthService from '../../auth/userPassword/index.js';
 import { createUserPasswordRecoveryService } from '../../auth/userPassword/userPasswordRecoveryService.js';
-import {
-  parseUserPasswordLoginPayload,
-  parseUserPasswordRecoveryRequestPayload,
-  parseUserPasswordRecoveryVerifyPayload,
-  parseUserPasswordUpsertPayload,
-} from '../../auth/validation/authSchemas.js';
+import { parseUserPasswordLoginPayload, parseUserPasswordRecoveryRequestPayload, parseUserPasswordRecoveryVerifyPayload, parseUserPasswordUpsertPayload } from '../../auth/validation/authSchemas.js';
 import { queueAutomatedEmail, queueWelcomeEmail } from '../../email/emailAutomationService.js';
 import { createStickerCatalogAdminBanService } from '../admin/adminBanService.js';
 import { createStickerCatalogAdminHandlers } from '../admin/adminPanelHandlers.js';
@@ -931,16 +926,7 @@ const googleWebAuth = createGoogleWebAuthService({
   legacyCookiePaths: googleWebLegacyCookiePaths,
 });
 
-const {
-  upsertGoogleWebUserRecord,
-  resolveGoogleWebSessionFromRequest,
-  mapGoogleSessionResponseData,
-  setGoogleWebSessionCookie,
-  issueAccessTokenForSession,
-  createPersistedGoogleWebSessionFromIdentity,
-  handleGoogleAuthSessionRequest,
-  revokeGoogleWebSessionsByIdentity,
-} = googleWebAuth;
+const { upsertGoogleWebUserRecord, resolveGoogleWebSessionFromRequest, mapGoogleSessionResponseData, setGoogleWebSessionCookie, issueAccessTokenForSession, createPersistedGoogleWebSessionFromIdentity, handleGoogleAuthSessionRequest, revokeGoogleWebSessionsByIdentity } = googleWebAuth;
 revokeGoogleWebSessionsByIdentityBridge = revokeGoogleWebSessionsByIdentity;
 
 const userPasswordRecoveryService = createUserPasswordRecoveryService({
@@ -3734,11 +3720,7 @@ const handlePasswordRecoveryRequest = async (req, res) => {
     });
   } catch (error) {
     const retryAfterSeconds = Math.max(0, Number(error?.details?.retry_after_seconds || 0));
-    const errorDetails = Array.isArray(error?.details)
-      ? error.details
-      : error?.details && typeof error.details === 'object'
-        ? error.details
-        : undefined;
+    const errorDetails = Array.isArray(error?.details) ? error.details : error?.details && typeof error.details === 'object' ? error.details : undefined;
     if (retryAfterSeconds > 0) {
       res.setHeader('Retry-After', String(retryAfterSeconds));
     }
@@ -3964,11 +3946,7 @@ const handlePasswordRecoverySessionRequest = async (req, res, { sessionToken = '
     });
   } catch (error) {
     const retryAfterSeconds = Math.max(0, Number(error?.details?.retry_after_seconds || 0));
-    const errorDetails = Array.isArray(error?.details)
-      ? error.details
-      : error?.details && typeof error.details === 'object'
-        ? error.details
-        : undefined;
+    const errorDetails = Array.isArray(error?.details) ? error.details : error?.details && typeof error.details === 'object' ? error.details : undefined;
     if (retryAfterSeconds > 0) {
       res.setHeader('Retry-After', String(retryAfterSeconds));
     }
@@ -4246,10 +4224,7 @@ const handleMyProfileRequest = async (req, res, url = null) => {
     email: normalizeEmail(session?.email),
     ownerJid: normalizeJid(session?.ownerJid || ''),
   };
-  const credential =
-    sessionIdentity.googleSub || sessionIdentity.email || sessionIdentity.ownerJid
-      ? await userPasswordAuthService.findCredentialByIdentity(sessionIdentity, { includeRevoked: true }).catch(() => null)
-      : null;
+  const credential = sessionIdentity.googleSub || sessionIdentity.email || sessionIdentity.ownerJid ? await userPasswordAuthService.findCredentialByIdentity(sessionIdentity, { includeRevoked: true }).catch(() => null) : null;
   const passwordState = toUserPasswordStatePayload(credential);
   const view = normalizeMyProfileView(url?.searchParams?.get('view'));
   const shouldIncludePacks = view !== 'summary';
@@ -4364,20 +4339,17 @@ const handleMyProfileRequest = async (req, res, url = null) => {
     };
   });
 
-  const stats = mappedPacks.reduce(
-    (acc, pack) => {
-      acc.total += 1;
-      const status = String(pack.status || '').toLowerCase();
-      const visibility = String(pack.visibility || '').toLowerCase();
-      if (status === 'published') acc.published += 1;
-      if (status === 'draft') acc.drafts += 1;
-      if (visibility === 'private') acc.private += 1;
-      if (visibility === 'unlisted') acc.unlisted += 1;
-      if (visibility === 'public') acc.public += 1;
-      return acc;
-    },
-    buildMyProfileStatsTemplate(),
-  );
+  const stats = mappedPacks.reduce((acc, pack) => {
+    acc.total += 1;
+    const status = String(pack.status || '').toLowerCase();
+    const visibility = String(pack.visibility || '').toLowerCase();
+    if (status === 'published') acc.published += 1;
+    if (status === 'draft') acc.drafts += 1;
+    if (visibility === 'private') acc.private += 1;
+    if (visibility === 'unlisted') acc.unlisted += 1;
+    if (visibility === 'public') acc.public += 1;
+    return acc;
+  }, buildMyProfileStatsTemplate());
 
   sendJson(req, res, 200, {
     data: {

@@ -28,13 +28,7 @@ import { extractSenderInfoFromMessage, resolveUserId } from '../services/lidMapS
 import { buildWhatsAppGoogleLoginUrl } from '../services/whatsappLoginLinkService.js';
 import { isWhatsAppUserLinkedToGoogleWebAccount } from '../services/googleWebLinkService.js';
 import { createMessageAnalysisEvent } from '../modules/analyticsModule/messageAnalysisEventRepository.js';
-import {
-  canSendMessageInStickerFocus,
-  registerMessageUsageInStickerFocus,
-  resolveStickerFocusMessageClassification,
-  resolveStickerFocusState,
-  shouldSendStickerFocusWarning,
-} from '../services/stickerFocusService.js';
+import { canSendMessageInStickerFocus, registerMessageUsageInStickerFocus, resolveStickerFocusMessageClassification, resolveStickerFocusState, shouldSendStickerFocusWarning } from '../services/stickerFocusService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
@@ -164,7 +158,9 @@ const resolveAddressingModeFromMessageKey = (key = {}, senderInfo = {}) => {
   for (const candidate of candidates) {
     const normalized = normalizeJid(String(candidate || '').trim());
     if (!normalized) continue;
-    const server = String(getJidServer(normalized) || '').trim().toLowerCase();
+    const server = String(getJidServer(normalized) || '')
+      .trim()
+      .toLowerCase();
     if (server === 'lid') return 'lid';
     if (WHATSAPP_USER_SERVERS.has(server)) return 'pn';
   }
@@ -187,9 +183,7 @@ const resolveSenderContext = async ({ messageInfo, isGroupMessage, remoteJid }) 
     });
   }
 
-  const senderJidCandidates = isGroupMessage
-    ? [resolvedUserId, senderInfo?.jid, senderInfo?.participantAlt, key.participantAlt, key.participant, key.remoteJidAlt, remoteJid]
-    : [resolvedUserId, senderInfo?.jid, senderInfo?.participantAlt, key.remoteJidAlt, key.remoteJid, remoteJid];
+  const senderJidCandidates = isGroupMessage ? [resolvedUserId, senderInfo?.jid, senderInfo?.participantAlt, key.participantAlt, key.participant, key.remoteJidAlt, remoteJid] : [resolvedUserId, senderInfo?.jid, senderInfo?.participantAlt, key.remoteJidAlt, key.remoteJid, remoteJid];
 
   const canonicalSender = resolveCanonicalWhatsAppJid(...senderJidCandidates);
   const fallbackSender = senderJidCandidates.find((candidate) => String(candidate || '').trim()) || '';
@@ -224,15 +218,9 @@ const maybeHandleStartLoginMessage = async ({ sock, messageInfo, extractedText, 
   if (isMessageFromBot || !isStartLoginTrigger(extractedText)) return false;
 
   if (isGroupMessage) {
-    await sendReply(
-      sock,
-      remoteJid,
-      messageInfo,
-      expirationMessage,
-      {
-        text: 'Por seguranca, envie *iniciar* no privado do bot para receber seu link de login.',
-      },
-    );
+    await sendReply(sock, remoteJid, messageInfo, expirationMessage, {
+      text: 'Por seguranca, envie *iniciar* no privado do bot para receber seu link de login.',
+    });
     return true;
   }
 
@@ -251,29 +239,17 @@ const maybeHandleStartLoginMessage = async ({ sock, messageInfo, extractedText, 
       hasLid: Boolean(senderInfo?.lid),
       hasJid: Boolean(senderInfo?.jid),
     });
-    await sendReply(
-      sock,
-      remoteJid,
-      messageInfo,
-      expirationMessage,
-      {
-        text: 'Nao consegui identificar seu numero de WhatsApp para o login. Tente novamente em alguns segundos.',
-      },
-    );
+    await sendReply(sock, remoteJid, messageInfo, expirationMessage, {
+      text: 'Nao consegui identificar seu numero de WhatsApp para o login. Tente novamente em alguns segundos.',
+    });
     return true;
   }
 
   const safeName = String(senderName || '').trim();
   const greeting = safeName ? `Oi, *${safeName}*!` : 'Oi!';
-  await sendReply(
-    sock,
-    remoteJid,
-    messageInfo,
-    expirationMessage,
-    {
-      text: `${greeting}\n\n` + 'Para continuar no OmniZap, faca login com Google neste link:\n' + `${loginUrl}\n\n` + 'Seu numero do WhatsApp sera vinculado automaticamente a conta logada.',
-    },
-  );
+  await sendReply(sock, remoteJid, messageInfo, expirationMessage, {
+    text: `${greeting}\n\n` + 'Para continuar no OmniZap, faca login com Google neste link:\n' + `${loginUrl}\n\n` + 'Seu numero do WhatsApp sera vinculado automaticamente a conta logada.',
+  });
 
   return true;
 };
@@ -392,15 +368,9 @@ const ensureUserHasGoogleWebLoginForCommand = async ({ sock, messageInfo, sender
   const loginUrl = isGroupMessage ? SITE_GROUP_LOGIN_URL : buildSiteLoginUrlForUser(canonicalUserId || senderJid);
   const loginMessage = isGroupMessage ? `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nAcesse:\n${loginUrl}` : `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nCadastre-se / faça login em:\n${loginUrl}\n\nDepois volte aqui e envie o comando novamente (ex.: ${commandPrefix}menu).`;
 
-  await sendReply(
-    sock,
-    remoteJid,
-    messageInfo,
-    expirationMessage,
-    {
-      text: loginMessage,
-    },
-  );
+  await sendReply(sock, remoteJid, messageInfo, expirationMessage, {
+    text: loginMessage,
+  });
 
   return {
     allowed: false,
@@ -491,13 +461,7 @@ export const handleMessages = async (update, sock) => {
             analysisPayload.processingResult = 'ignored_unprocessable';
             analysisPayload.metadata = {
               ...analysisPayload.metadata,
-              ignored_reason: isStatusBroadcast
-                ? 'status_broadcast'
-                : isStubMessage
-                  ? 'stub_message'
-                  : isProtocolMessage
-                    ? 'protocol_message'
-                    : 'missing_message_node',
+              ignored_reason: isStatusBroadcast ? 'status_broadcast' : isStubMessage ? 'stub_message' : isProtocolMessage ? 'protocol_message' : 'missing_message_node',
             };
             continue;
           }
@@ -608,18 +572,9 @@ export const handleMessages = async (update, sock) => {
 
                     if (shouldSendStickerFocusWarning({ groupId: remoteJid, senderJid })) {
                       try {
-                        await sendReply(
-                          sock,
-                          remoteJid,
-                          messageInfo,
-                          expirationMessage,
-                          {
-                            text:
-                              '🖼️ Este grupo está em *modo sticker*.\n' +
-                              `Fora da janela de chat, cada usuário pode enviar mensagem a cada *${stickerFocusState.messageCooldownMinutes} min*.\n` +
-                              `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${commandPrefix}chatwindow on*.`,
-                          },
-                        );
+                        await sendReply(sock, remoteJid, messageInfo, expirationMessage, {
+                          text: '🖼️ Este grupo está em *modo sticker*.\n' + `Fora da janela de chat, cada usuário pode enviar mensagem a cada *${stickerFocusState.messageCooldownMinutes} min*.\n` + `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${commandPrefix}chatwindow on*.`,
+                        });
                       } catch (error) {
                         logger.warn('Falha ao enviar aviso de sticker focus.', {
                           action: 'sticker_focus_warning_failed',

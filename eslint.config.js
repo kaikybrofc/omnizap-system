@@ -46,20 +46,7 @@ const browserGlobals = {
 
 export default [
   {
-    ignores: [
-      'node_modules/**',
-      'logs/**',
-      'temp/**',
-      '.eslintcache',
-      '*.log',
-      '**/*.min.js',
-      'coverage/**',
-      'dist/**',
-      'build/**',
-      '**/.venv/**',
-      'ml/**/.venv/**',
-      'public/assets/js/**',
-    ],
+    ignores: ['node_modules/**', 'logs/**', 'temp/**', '.eslintcache', '*.log', '**/*.min.js', 'coverage/**', 'dist/**', 'build/**', '**/.venv/**', 'ml/**/.venv/**', 'public/assets/js/**'],
   },
   js.configs.recommended,
   {

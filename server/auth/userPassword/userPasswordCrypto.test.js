@@ -22,7 +22,10 @@ test('validateUserPassword reprova senha curta', () => {
   });
 
   assert.equal(result.valid, false);
-  assert.equal(result.errors.some((item) => item.code === 'PASSWORD_TOO_SHORT'), true);
+  assert.equal(
+    result.errors.some((item) => item.code === 'PASSWORD_TOO_SHORT'),
+    true,
+  );
 });
 
 test('hashUserPassword + verifyUserPasswordHash validam senha correta', async () => {

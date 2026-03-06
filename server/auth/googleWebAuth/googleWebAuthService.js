@@ -365,14 +365,7 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
     );
   };
 
-  const createPersistedGoogleWebSessionFromIdentity = async ({
-    sub = '',
-    email = '',
-    name = '',
-    picture = '',
-    ownerJid = '',
-    requestMeta = null,
-  } = {}) => {
+  const createPersistedGoogleWebSessionFromIdentity = async ({ sub = '', email = '', name = '', picture = '', ownerJid = '', requestMeta = null } = {}) => {
     const normalizedSub = normalizeGoogleSubject(sub);
     const normalizedOwnerJid = normalizeJid(ownerJid) || '';
     if (!normalizedSub || !normalizedOwnerJid) {

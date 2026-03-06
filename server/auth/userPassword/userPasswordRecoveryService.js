@@ -185,17 +185,11 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
   const resendCooldownSeconds = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_CODE_RESEND_COOLDOWN_SECONDS, DEFAULT_RESEND_COOLDOWN_SECONDS, 15, 10 * 60);
   const hourlyRequestLimit = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_CODE_HOURLY_LIMIT, DEFAULT_HOURLY_REQUEST_LIMIT, 1, 30);
   const dailyRequestLimit = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_CODE_DAILY_LIMIT, DEFAULT_DAILY_REQUEST_LIMIT, 1, 40);
-  const recoveryHashIterations = clampInt(
-    process.env.WEB_USER_PASSWORD_RECOVERY_HASH_ITERATIONS,
-    DEFAULT_RECOVERY_HASH_ITERATIONS,
-    MIN_RECOVERY_HASH_ITERATIONS,
-    MAX_RECOVERY_HASH_ITERATIONS,
-  );
+  const recoveryHashIterations = clampInt(process.env.WEB_USER_PASSWORD_RECOVERY_HASH_ITERATIONS, DEFAULT_RECOVERY_HASH_ITERATIONS, MIN_RECOVERY_HASH_ITERATIONS, MAX_RECOVERY_HASH_ITERATIONS);
   const hashSecret =
     String(process.env.WEB_USER_PASSWORD_RECOVERY_HASH_SECRET || process.env.WEB_AUTH_JWT_SECRET || process.env.WHATSAPP_LOGIN_LINK_SECRET || '')
       .trim()
-      .slice(0, 512) ||
-    randomUUID();
+      .slice(0, 512) || randomUUID();
 
   if (!process.env.WEB_USER_PASSWORD_RECOVERY_HASH_SECRET && !process.env.WEB_AUTH_JWT_SECRET && !process.env.WHATSAPP_LOGIN_LINK_SECRET && logger && typeof logger.warn === 'function') {
     logger.warn('Segredo dedicado de recuperacao de senha nao configurado. Usando segredo efemero em memoria.', {
@@ -443,16 +437,7 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
       `INSERT INTO ${recoveryTable}
         (google_sub, email, owner_jid, purpose, code_hash, attempts, max_attempts, requested_ip, requested_user_agent, expires_at)
        VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, UTC_TIMESTAMP() + INTERVAL ${ttlSeconds} SECOND)`,
-      [
-        knownUser.google_sub,
-        recipientEmail,
-        normalizeJid(knownUser.owner_jid || identity.ownerJid) || null,
-        normalizedPurpose,
-        codeHash,
-        maxAttempts,
-        normalizeIp(requestMeta?.remoteIp),
-        normalizeUserAgent(requestMeta?.userAgent),
-      ],
+      [knownUser.google_sub, recipientEmail, normalizeJid(knownUser.owner_jid || identity.ownerJid) || null, normalizedPurpose, codeHash, maxAttempts, normalizeIp(requestMeta?.remoteIp), normalizeUserAgent(requestMeta?.userAgent)],
       connection,
     );
 
@@ -622,12 +607,14 @@ export const createUserPasswordRecoveryService = ({ executeQuery, userPasswordAu
         connection,
       );
 
-      await userPasswordAuthService.clearFailuresForIdentity(
-        {
-          googleSub: activeCode.google_sub,
-        },
-        connection,
-      ).catch(() => null);
+      await userPasswordAuthService
+        .clearFailuresForIdentity(
+          {
+            googleSub: activeCode.google_sub,
+          },
+          connection,
+        )
+        .catch(() => null);
 
       await executeQuery(
         `UPDATE ${recoveryTable}

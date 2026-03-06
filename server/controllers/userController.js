@@ -24,8 +24,7 @@ const escapeHtmlAttribute = (value) =>
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-const replaceDataAttribute = (html, attributeName, value) =>
-  String(html || '').replace(new RegExp(`(${attributeName}=")([^"]*)(")`, 'i'), `$1${escapeHtmlAttribute(value)}$3`);
+const replaceDataAttribute = (html, attributeName, value) => String(html || '').replace(new RegExp(`(${attributeName}=")([^"]*)(")`, 'i'), `$1${escapeHtmlAttribute(value)}$3`);
 
 const renderUserDashboardHtml = async () => {
   const template = await fs.readFile(USER_DASHBOARD_TEMPLATE_PATH, 'utf8');

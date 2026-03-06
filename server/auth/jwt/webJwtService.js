@@ -68,24 +68,18 @@ export const extractBearerTokenFromRequest = (req) => {
   return String(token || '').trim();
 };
 
-export const signWebAuthJwt = (
-  {
-    sub = '',
-    sessionToken = '',
-    ownerJid = '',
-    ownerPhone = '',
-    email = '',
-    name = '',
-    authMethod = 'google',
-  } = {},
-  { expiresInSeconds = null } = {},
-) => {
+export const signWebAuthJwt = ({ sub = '', sessionToken = '', ownerJid = '', ownerPhone = '', email = '', name = '', authMethod = 'google' } = {}, { expiresInSeconds = null } = {}) => {
   if (!isWebAuthJwtEnabled()) return '';
 
   const normalizedSub = normalizeGoogleSubject(sub);
-  const normalizedSessionToken = String(sessionToken || '').trim().slice(0, 36);
+  const normalizedSessionToken = String(sessionToken || '')
+    .trim()
+    .slice(0, 36);
   const normalizedOwnerJid = normalizeJid(ownerJid);
-  const normalizedOwnerPhone = String(ownerPhone || '').trim().replace(/\D+/g, '').slice(0, 20);
+  const normalizedOwnerPhone = String(ownerPhone || '')
+    .trim()
+    .replace(/\D+/g, '')
+    .slice(0, 20);
   const normalizedEmail = normalizeEmail(email);
   const normalizedName = normalizeName(name);
 
@@ -93,7 +87,10 @@ export const signWebAuthJwt = (
 
   const payload = {
     sub: normalizedSub,
-    amr: String(authMethod || 'google').trim().toLowerCase() || 'google',
+    amr:
+      String(authMethod || 'google')
+        .trim()
+        .toLowerCase() || 'google',
   };
 
   if (normalizedSessionToken) payload.sid = normalizedSessionToken;
@@ -128,9 +125,13 @@ export const verifyWebAuthJwt = (token) => {
 
     return {
       sub: normalizedSub,
-      sid: String(decoded.sid || '').trim().slice(0, 36),
+      sid: String(decoded.sid || '')
+        .trim()
+        .slice(0, 36),
       owner_jid: normalizeJid(decoded.owner_jid),
-      owner_phone: String(decoded.owner_phone || '').replace(/\D+/g, '').slice(0, 20),
+      owner_phone: String(decoded.owner_phone || '')
+        .replace(/\D+/g, '')
+        .slice(0, 20),
       email: normalizeEmail(decoded.email),
       name: normalizeName(decoded.name),
       amr:

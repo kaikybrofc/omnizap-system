@@ -232,9 +232,7 @@ const replaceControlCharsBySpace = (text) => {
 
 const toSafeCanvasText = (value) => {
   if (value === null || value === undefined) return '';
-  const normalized = String(value)
-    .normalize('NFC')
-    .replace(/\r?\n/g, ' ');
+  const normalized = String(value).normalize('NFC').replace(/\r?\n/g, ' ');
   return replaceControlCharsBySpace(normalized).replace(/\s+/g, ' ').trim();
 };
 

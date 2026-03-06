@@ -442,15 +442,11 @@ const LoginApp = ({ config }) => {
     return true;
   }, [authenticated, canUseGoogleLogin, sessionOwnerPhone]);
 
-  const whatsappMeta = botPhone
-    ? `Bot detectado: +${formatPhone(botPhone)}.`
-    : 'Se necessario, escolha o contato do bot no WhatsApp e envie "iniciar".';
+  const whatsappMeta = botPhone ? `Bot detectado: +${formatPhone(botPhone)}.` : 'Se necessario, escolha o contato do bot no WhatsApp e envie "iniciar".';
   const whatsappCtaHref = buildWhatsappStartUrl(botPhone);
   const successChatHref = buildWhatsappMenuUrl(botPhone);
   const successHomeHref = authenticatedRedirectPath;
-  const alreadyLoggedDetail = sessionOwnerPhone
-    ? `Sessao ativa para +${formatPhone(sessionOwnerPhone)}. Nao e necessario fazer login novamente.`
-    : ALREADY_LOGGED_HINT_TEXT;
+  const alreadyLoggedDetail = sessionOwnerPhone ? `Sessao ativa para +${formatPhone(sessionOwnerPhone)}. Nao e necessario fazer login novamente.` : ALREADY_LOGGED_HINT_TEXT;
 
   const clearResizeBinding = useCallback(() => {
     if (resizeObserverRef.current && typeof resizeObserverRef.current.disconnect === 'function') {
@@ -859,7 +855,9 @@ const LoginApp = ({ config }) => {
       setStatusMessage('Login por senha concluido. Redirecionando...');
       triggerAuthenticatedRedirect();
     } catch (error) {
-      const responseCode = String(error?.payload?.code || '').trim().toUpperCase();
+      const responseCode = String(error?.payload?.code || '')
+        .trim()
+        .toUpperCase();
       if (responseCode === 'PASSWORD_NOT_CONFIGURED') {
         setPasswordRecoveryStep('code_request');
         setPasswordRecoveryForm((current) => ({
@@ -972,13 +970,7 @@ const LoginApp = ({ config }) => {
       <main className="mx-auto w-full max-w-3xl overflow-hidden rounded-3xl border border-base-300/70 bg-base-100/75 shadow-2xl backdrop-blur-md">
         <header className="border-b border-base-300/70 px-4 py-4 sm:px-6">
           <a href=${config.homePath} className="inline-flex items-center gap-3 text-base-content no-underline">
-            <img
-              src=${config.brandLogo}
-              alt=${config.brandName}
-              className="h-9 w-9 rounded-full border border-base-300/80 object-cover"
-              loading="lazy"
-              decoding="async"
-            />
+            <img src=${config.brandLogo} alt=${config.brandName} className="h-9 w-9 rounded-full border border-base-300/80 object-cover" loading="lazy" decoding="async" />
             <span className="text-base font-extrabold tracking-wide sm:text-lg">${config.brandName}</span>
           </a>
         </header>
@@ -1003,7 +995,6 @@ const LoginApp = ({ config }) => {
                   </div>
                 `
               : null}
-
             ${alreadyLoggedVisible
               ? html`
                   <div className="rounded-xl border border-success/45 bg-success/15 p-3">
@@ -1012,15 +1003,12 @@ const LoginApp = ({ config }) => {
                   </div>
                 `
               : null}
-
             ${canUseGoogleLogin
               ? html`
                   <div ref=${googleAreaRef} className="grid gap-3 rounded-xl border border-base-300/80 bg-base-100/60 p-3">
                     ${!authenticated
                       ? html`
-                          <div className=${`rounded-xl border border-base-300/80 bg-white p-2 transition-opacity ${
-                            isBusy ? 'pointer-events-none opacity-60' : 'opacity-100'
-                          } ${consentAccepted ? '' : 'hidden'}`}>
+                          <div className=${`rounded-xl border border-base-300/80 bg-white p-2 transition-opacity ${isBusy ? 'pointer-events-none opacity-60' : 'opacity-100'} ${consentAccepted ? '' : 'hidden'}`}>
                             <div ref=${googleButtonRef}></div>
                           </div>
                         `
@@ -1030,17 +1018,9 @@ const LoginApp = ({ config }) => {
 
                     ${!authenticated
                       ? html`
-                          <div className=${`rounded-xl border p-3 transition-colors ${
-                            consentAccepted ? 'border-success/60 bg-success/10' : 'border-base-300/80 bg-base-100/45'
-                          }`}>
+                          <div className=${`rounded-xl border p-3 transition-colors ${consentAccepted ? 'border-success/60 bg-success/10' : 'border-base-300/80 bg-base-100/45'}`}>
                             <label className="grid cursor-pointer grid-cols-[20px_minmax(0,1fr)] items-start gap-2 text-sm leading-relaxed text-base-content/90">
-                              <input
-                                type="checkbox"
-                                className="checkbox checkbox-success checkbox-sm mt-0.5"
-                                checked=${consentAccepted}
-                                disabled=${isBusy}
-                                onChange=${onConsentChange}
-                              />
+                              <input type="checkbox" className="checkbox checkbox-success checkbox-sm mt-0.5" checked=${consentAccepted} disabled=${isBusy} onChange=${onConsentChange} />
                               <span>
                                 Li e aceito os
                                 <a className="link link-info ml-1" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Termos de Uso</a>
@@ -1061,9 +1041,7 @@ const LoginApp = ({ config }) => {
             ? html`
                 <section className="grid gap-3 rounded-2xl border border-warning/45 bg-warning/10 p-4 sm:p-5">
                   <p className="text-sm font-bold text-warning-content">Senha ainda nao configurada</p>
-                  <p className="text-sm text-base-content/80">
-                    Para concluir o primeiro acesso, crie sua senha agora. Nos proximos logins voce pode entrar direto por e-mail e senha.
-                  </p>
+                  <p className="text-sm text-base-content/80">Para concluir o primeiro acesso, crie sua senha agora. Nos proximos logins voce pode entrar direto por e-mail e senha.</p>
                   ${passwordSetupError
                     ? html`
                         <div role="alert" className="alert alert-error text-sm">
@@ -1083,7 +1061,7 @@ const LoginApp = ({ config }) => {
                           const nextValue = String(event.currentTarget?.value || '');
                           setPasswordSetupForm((current) => ({ ...current, password: nextValue }));
                         }}
-                        autoComplete="new-password"
+                        autocomplete="new-password"
                       />
                     </label>
                     <label className="form-control">
@@ -1097,17 +1075,14 @@ const LoginApp = ({ config }) => {
                           const nextValue = String(event.currentTarget?.value || '');
                           setPasswordSetupForm((current) => ({ ...current, confirm: nextValue }));
                         }}
-                        autoComplete="new-password"
+                        autocomplete="new-password"
                       />
                     </label>
                   </div>
-                  <button type="button" className="btn btn-primary w-full sm:w-auto" disabled=${passwordSetupBusy} onClick=${handlePasswordSetupSubmit}>
-                    ${passwordSetupBusy ? 'Salvando...' : 'Criar senha agora'}
-                  </button>
+                  <button type="button" className="btn btn-primary w-full sm:w-auto" disabled=${passwordSetupBusy} onClick=${handlePasswordSetupSubmit}>${passwordSetupBusy ? 'Salvando...' : 'Criar senha agora'}</button>
                 </section>
               `
             : null}
-
           ${!authenticated
             ? html`
                 <section className="grid gap-3 rounded-2xl border border-base-300/80 bg-base-100/55 p-4 sm:p-5">
@@ -1135,7 +1110,7 @@ const LoginApp = ({ config }) => {
                             email: nextValue,
                           }));
                         }}
-                        autoComplete="email"
+                        autocomplete="email"
                       />
                     </label>
                     <label className="form-control">
@@ -1152,14 +1127,12 @@ const LoginApp = ({ config }) => {
                             password: nextValue,
                           }));
                         }}
-                        autoComplete="current-password"
+                        autocomplete="current-password"
                       />
                     </label>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" className="btn btn-secondary w-full sm:w-auto" disabled=${passwordLoginBusy} onClick=${handlePasswordLoginSubmit}>
-                      ${passwordLoginBusy ? 'Entrando...' : 'Entrar com senha'}
-                    </button>
+                    <button type="button" className="btn btn-secondary w-full sm:w-auto" disabled=${passwordLoginBusy} onClick=${handlePasswordLoginSubmit}>${passwordLoginBusy ? 'Entrando...' : 'Entrar com senha'}</button>
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
@@ -1210,14 +1183,14 @@ const LoginApp = ({ config }) => {
                                     email: nextValue,
                                   }));
                                 }}
-                                autoComplete="email"
+                                autocomplete="email"
                               />
                             </label>
                             <label className="form-control">
                               <span className="label-text text-xs">Codigo</span>
                               <input
                                 type="text"
-                                inputMode="numeric"
+                                inputmode="numeric"
                                 className="input input-bordered w-full"
                                 name="verification_code"
                                 value=${passwordRecoveryForm.code}
@@ -1230,7 +1203,7 @@ const LoginApp = ({ config }) => {
                                     code: nextValue,
                                   }));
                                 }}
-                                autoComplete="one-time-code"
+                                autocomplete="one-time-code"
                               />
                             </label>
                             <label className="form-control">
@@ -1247,7 +1220,7 @@ const LoginApp = ({ config }) => {
                                     password: nextValue,
                                   }));
                                 }}
-                                autoComplete="new-password"
+                                autocomplete="new-password"
                               />
                             </label>
                             <label className="form-control">
@@ -1264,17 +1237,13 @@ const LoginApp = ({ config }) => {
                                     confirm: nextValue,
                                   }));
                                 }}
-                                autoComplete="new-password"
+                                autocomplete="new-password"
                               />
                             </label>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <button type="button" className="btn btn-outline w-full sm:w-auto" disabled=${passwordRecoveryBusy} onClick=${handleRecoveryRequestSubmit}>
-                              ${passwordRecoveryBusy ? 'Enviando...' : 'Enviar codigo por e-mail'}
-                            </button>
-                            <button type="button" className="btn btn-primary w-full sm:w-auto" disabled=${passwordRecoveryBusy} onClick=${handleRecoveryVerifySubmit}>
-                              ${passwordRecoveryBusy ? 'Validando...' : 'Validar codigo e criar senha'}
-                            </button>
+                            <button type="button" className="btn btn-outline w-full sm:w-auto" disabled=${passwordRecoveryBusy} onClick=${handleRecoveryRequestSubmit}>${passwordRecoveryBusy ? 'Enviando...' : 'Enviar codigo por e-mail'}</button>
+                            <button type="button" className="btn btn-primary w-full sm:w-auto" disabled=${passwordRecoveryBusy} onClick=${handleRecoveryVerifySubmit}>${passwordRecoveryBusy ? 'Validando...' : 'Validar codigo e criar senha'}</button>
                           </div>
                         </div>
                       `
@@ -1282,32 +1251,23 @@ const LoginApp = ({ config }) => {
                 </section>
               `
             : null}
-
           ${summary.visible
             ? html`
-                <div className=${`rounded-xl border p-3 ${
-                  summary.state === 'pending' ? 'border-warning/45 bg-warning/15 text-warning-content' : 'border-success/45 bg-success/15 text-success-content'
-                }`}>
+                <div className=${`rounded-xl border p-3 ${summary.state === 'pending' ? 'border-warning/45 bg-warning/15 text-warning-content' : 'border-success/45 bg-success/15 text-success-content'}`}>
                   <p className="text-xs font-bold uppercase tracking-wider">${summary.title}</p>
                   <p className="mt-1 text-sm font-semibold">${summary.owner}</p>
                 </div>
               `
             : null}
-
           ${whatsappCtaVisible
             ? html`
                 <div className="grid gap-3 rounded-xl border border-base-300/80 bg-base-100/55 p-3 sm:p-4">
-                  <p className="text-sm leading-relaxed text-base-content/85">
-                    Para liberar o login neste navegador, inicie no WhatsApp e gere seu link seguro.
-                  </p>
-                  <a className="btn btn-outline w-full justify-center sm:w-auto sm:justify-start" href=${whatsappCtaHref} target="_blank" rel="noreferrer noopener">
-                    Gerar link de login no WhatsApp
-                  </a>
+                  <p className="text-sm leading-relaxed text-base-content/85">Para liberar o login neste navegador, inicie no WhatsApp e gere seu link seguro.</p>
+                  <a className="btn btn-outline w-full justify-center sm:w-auto sm:justify-start" href=${whatsappCtaHref} target="_blank" rel="noreferrer noopener"> Gerar link de login no WhatsApp </a>
                   <p className="text-xs text-base-content/70">${whatsappMeta}</p>
                 </div>
               `
             : null}
-
           ${authenticated
             ? html`
                 <div className="grid gap-2 sm:grid-cols-2">

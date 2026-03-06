@@ -110,7 +110,9 @@ const runLimiter = async (limiter, req, res) => {
 };
 
 const isSensitivePostPath = (pathname) => {
-  const safePath = String(pathname || '').trim().toLowerCase();
+  const safePath = String(pathname || '')
+    .trim()
+    .toLowerCase();
   if (!safePath) return null;
 
   if (safePath.endsWith('/auth/google/session') || safePath.endsWith('/auth/login')) {

@@ -1,15 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import htm from 'htm';
-import {
-  buildLoginRedirectPath,
-  buildSupportWhatsAppUrl,
-  buildWhatsAppUrl,
-  formatDateTime,
-  formatPhone,
-  getSessionStatusLabel,
-  normalizeDigits,
-} from './userProfile/actions.js';
+import { buildLoginRedirectPath, buildSupportWhatsAppUrl, buildWhatsAppUrl, formatDateTime, formatPhone, getSessionStatusLabel, normalizeDigits } from './userProfile/actions.js';
 
 const html = htm.bind(React.createElement);
 
@@ -220,11 +212,7 @@ const resolveSummaryView = (payload, fallbackAvatar) => {
     avatar: String(user?.picture || '').trim() || fallbackAvatar,
     name: String(user?.name || '').trim() || 'Conta Google',
     email: String(user?.email || '').trim() || 'E-mail n\u00e3o dispon\u00edvel',
-    whatsapp: ownerPhone
-      ? `WhatsApp vinculado: +${formatPhone(ownerPhone)}`
-      : ownerJid
-        ? `Owner vinculado: ${ownerJid}`
-        : 'WhatsApp ainda n\u00e3o vinculado.',
+    whatsapp: ownerPhone ? `WhatsApp vinculado: +${formatPhone(ownerPhone)}` : ownerJid ? `Owner vinculado: ${ownerJid}` : 'WhatsApp ainda n\u00e3o vinculado.',
     plan: account?.plan_label || 'Conta padr\u00e3o',
     status: account?.status === 'active' ? 'Ativa' : 'Pendente',
     lastLogin: formatDateTime(account?.last_login_at || account?.last_seen_at),
@@ -242,10 +230,7 @@ const toneClassMap = {
 
 const UserApp = ({ config }) => {
   const api = useMemo(() => createUserApi(config.apiBasePath), [config.apiBasePath]);
-  const recoveryRoute = useMemo(
-    () => resolvePasswordRecoveryRoute(window.location.pathname, window.location.search, config.passwordResetWebPath),
-    [config.passwordResetWebPath],
-  );
+  const recoveryRoute = useMemo(() => resolvePasswordRecoveryRoute(window.location.pathname, window.location.search, config.passwordResetWebPath), [config.passwordResetWebPath]);
   const isRecoveryRoute = recoveryRoute.active;
   const recoverySessionToken = recoveryRoute.token;
 
@@ -302,7 +287,14 @@ const UserApp = ({ config }) => {
     expiresAt: 'N\u00e3o informado',
     expiresInSeconds: null,
   });
-  const accountEmail = String(summary.email || '').trim().toLowerCase().includes('@') ? String(summary.email || '').trim().toLowerCase() : '';
+  const accountEmail = String(summary.email || '')
+    .trim()
+    .toLowerCase()
+    .includes('@')
+    ? String(summary.email || '')
+        .trim()
+        .toLowerCase()
+    : '';
 
   const readNamedInputValue = (formElement, inputName) => {
     if (!formElement || typeof formElement.elements?.namedItem !== 'function') return '';
@@ -631,9 +623,7 @@ const UserApp = ({ config }) => {
   const handleVerifyRecoveryCodeBySession = async (event) => {
     event?.preventDefault?.();
     const formElement = event?.currentTarget || null;
-    const resolvedCode = readNamedInputValue(formElement, 'verification_code')
-      .replace(/\D+/g, '')
-      .slice(0, 6);
+    const resolvedCode = readNamedInputValue(formElement, 'verification_code').replace(/\D+/g, '').slice(0, 6);
     const resolvedPassword = readNamedInputValue(formElement, 'new_password');
     const resolvedConfirm = readNamedInputValue(formElement, 'new_password_confirm');
 
@@ -692,9 +682,7 @@ const UserApp = ({ config }) => {
             </a>
             <div className="flex items-center gap-2">
               <a className="btn btn-ghost btn-sm" href="/user/">Minha conta</a>
-              <button type="button" className="btn btn-error btn-sm" onClick=${handleLogout} disabled=${isLogoutBusy}>
-                ${isLogoutBusy ? 'Encerrando...' : 'Encerrar sessao'}
-              </button>
+              <button type="button" className="btn btn-error btn-sm" onClick=${handleLogout} disabled=${isLogoutBusy}>${isLogoutBusy ? 'Encerrando...' : 'Encerrar sessao'}</button>
             </div>
           </div>
         </header>
@@ -703,9 +691,7 @@ const UserApp = ({ config }) => {
           <section className="rounded-2xl border border-base-300 bg-base-100/80 p-4 shadow-xl sm:p-6">
             <p className="text-xs font-bold uppercase tracking-widest text-error">Sessao temporaria</p>
             <h1 className="mt-1 text-2xl font-black sm:text-3xl">Redefinir senha</h1>
-            <p className="mt-2 text-sm text-base-content/75">
-              Esta rota expira automaticamente. Envie o codigo de 6 digitos para confirmar a redefinicao.
-            </p>
+            <p className="mt-2 text-sm text-base-content/75">Esta rota expira automaticamente. Envie o codigo de 6 digitos para confirmar a redefinicao.</p>
 
             <div className="mt-4 grid gap-2">
               ${recoveryFeedback
@@ -734,24 +720,18 @@ const UserApp = ({ config }) => {
             <div className="mt-4 grid gap-3 min-[520px]:grid-cols-2">
               <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Destino do codigo</p>
-                <p className="mt-1 text-base font-semibold">
-                  ${recoverySessionLoading ? 'Carregando...' : recoverySessionState.maskedEmail || 'Nao informado'}
-                </p>
+                <p className="mt-1 text-base font-semibold">${recoverySessionLoading ? 'Carregando...' : recoverySessionState.maskedEmail || 'Nao informado'}</p>
               </article>
               <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Expira em</p>
-                <p className="mt-1 text-base font-semibold">
-                  ${recoverySessionLoading ? 'Carregando...' : recoverySessionState.expiresAt || 'Nao informado'}
-                </p>
+                <p className="mt-1 text-base font-semibold">${recoverySessionLoading ? 'Carregando...' : recoverySessionState.expiresAt || 'Nao informado'}</p>
               </article>
             </div>
 
             ${recoverySessionState.valid
               ? html`
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button type="button" className="btn btn-error w-full sm:w-auto" disabled=${recoveryBusy} onClick=${handleRequestRecoveryCodeBySession}>
-                      ${recoveryBusy ? 'Enviando...' : 'Enviar codigo por e-mail'}
-                    </button>
+                    <button type="button" className="btn btn-error w-full sm:w-auto" disabled=${recoveryBusy} onClick=${handleRequestRecoveryCodeBySession}>${recoveryBusy ? 'Enviando...' : 'Enviar codigo por e-mail'}</button>
                     <a className="btn btn-outline w-full sm:w-auto" href="/user/">Voltar para minha conta</a>
                   </div>
 
@@ -759,40 +739,20 @@ const UserApp = ({ config }) => {
                     <div className="grid gap-2 sm:grid-cols-3">
                       <label className="form-control">
                         <span className="label-text text-xs">Codigo (6 digitos)</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          maxLength="6"
-                          className="input input-bordered w-full"
-                          name="verification_code"
-                          autoComplete="one-time-code"
-                        />
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" className="input input-bordered w-full" name="verification_code" autocomplete="one-time-code" />
                       </label>
                       <label className="form-control">
                         <span className="label-text text-xs">Nova senha</span>
-                        <input
-                          type="password"
-                          className="input input-bordered w-full"
-                          name="new_password"
-                          autoComplete="new-password"
-                        />
+                        <input type="password" className="input input-bordered w-full" name="new_password" autocomplete="new-password" />
                       </label>
                       <label className="form-control">
                         <span className="label-text text-xs">Confirmar senha</span>
-                        <input
-                          type="password"
-                          className="input input-bordered w-full"
-                          name="new_password_confirm"
-                          autoComplete="new-password"
-                        />
+                        <input type="password" className="input input-bordered w-full" name="new_password_confirm" autocomplete="new-password" />
                       </label>
                     </div>
 
                     <div className="mt-3">
-                      <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled=${recoveryBusy}>
-                        ${recoveryBusy ? 'Validando...' : 'Validar codigo e redefinir'}
-                      </button>
+                      <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled=${recoveryBusy}>${recoveryBusy ? 'Validando...' : 'Validar codigo e redefinir'}</button>
                     </div>
                   </form>
                 `
@@ -812,15 +772,7 @@ const UserApp = ({ config }) => {
       <header className="sticky top-0 z-50 border-b border-base-300 bg-base-100/90 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-3 py-2 sm:px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              className="btn btn-square h-10 min-h-0 border border-base-300 bg-base-200/70"
-              aria-label=${isSidebarOpen ? 'Fechar barra lateral' : 'Abrir barra lateral'}
-              aria-expanded=${isSidebarOpen ? 'true' : 'false'}
-              onClick=${toggleSidebar}
-            >
-              ${isSidebarOpen ? '\u2715' : '\u2630'}
-            </button>
+            <button type="button" className="btn btn-square h-10 min-h-0 border border-base-300 bg-base-200/70" aria-label=${isSidebarOpen ? 'Fechar barra lateral' : 'Abrir barra lateral'} aria-expanded=${isSidebarOpen ? 'true' : 'false'} onClick=${toggleSidebar}>${isSidebarOpen ? '\u2715' : '\u2630'}</button>
             <a className="btn btn-ghost h-10 min-h-0 max-w-[74vw] justify-start gap-2 px-2 text-sm normal-case sm:max-w-none" href="/">
               <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" className="h-8 w-8 rounded-full border border-base-300 object-cover" loading="lazy" decoding="async" />
               <span className="truncate font-bold tracking-wide">OmniZap System</span>
@@ -828,40 +780,23 @@ const UserApp = ({ config }) => {
           </div>
 
           <div className="lg:hidden">
-            <button type="button" className="btn btn-ghost btn-sm" onClick=${handleLogout} disabled=${isLogoutBusy}>
-              ${isLogoutBusy ? 'Saindo...' : 'Sair'}
-            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick=${handleLogout} disabled=${isLogoutBusy}>${isLogoutBusy ? 'Saindo...' : 'Sair'}</button>
           </div>
 
-          <nav className="hidden items-center gap-2 lg:flex" aria-label="Navega\u00e7\u00e3o da conta">
-            <a className="btn btn-ghost btn-sm" href="/user/">\u00c1rea do Usu\u00e1rio</a>
+          <nav className="hidden items-center gap-2 lg:flex" aria-label="Navegação da conta">
+            <a className="btn btn-ghost btn-sm" href="/user/">Área do Usuário</a>
             <a className="btn btn-ghost btn-sm" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Termos</a>
             <a className="btn btn-ghost btn-sm" href=${config.privacyUrl} target="_blank" rel="noreferrer noopener">Privacidade</a>
-            <button type="button" className="btn btn-error btn-sm" onClick=${handleLogout} disabled=${isLogoutBusy}>
-              ${isLogoutBusy ? 'Encerrando...' : 'Encerrar sess\u00e3o'}
-            </button>
+            <button type="button" className="btn btn-error btn-sm" onClick=${handleLogout} disabled=${isLogoutBusy}>${isLogoutBusy ? 'Encerrando...' : 'Encerrar sess\u00e3o'}</button>
           </nav>
         </div>
       </header>
 
-      <main
-        className=${`mx-auto w-full max-w-[min(96vw,1740px)] px-2 pb-20 pt-3 transition-[padding-left] duration-300 sm:px-4 sm:pb-14 sm:pt-6 lg:px-6 xl:px-8 ${
-          !isMobile && isSidebarOpen ? 'lg:pl-[372px]' : 'lg:pl-0'
-        }`}
-      >
-        <aside
-          className=${`fixed left-0 top-16 z-[60] h-[calc(100dvh-4rem)] w-[min(88vw,340px)] lg:w-[360px] px-2 pb-3 transition-transform duration-300 ease-out ${
-            isSidebarOpen ? 'translate-x-0' : '-translate-x-[108%]'
-          }`}
-          aria-hidden=${isSidebarOpen ? 'false' : 'true'}
-        >
-          <div
-            className=${`h-full overflow-y-auto rounded-r-2xl border border-base-300 bg-base-100/95 shadow-2xl backdrop-blur ${
-              isMobile ? 'border-base-300/70 p-3' : 'p-5'
-            }`}
-          >
+      <main className=${`mx-auto w-full max-w-[min(96vw,1740px)] px-2 pb-20 pt-3 transition-[padding-left] duration-300 sm:px-4 sm:pb-14 sm:pt-6 lg:px-6 xl:px-8 ${!isMobile && isSidebarOpen ? 'lg:pl-[372px]' : 'lg:pl-0'}`}>
+        <aside className=${`fixed left-0 top-16 z-[60] h-[calc(100dvh-4rem)] w-[min(88vw,340px)] lg:w-[360px] px-2 pb-3 transition-transform duration-300 ease-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-[108%]'}`} aria-hidden=${isSidebarOpen ? 'false' : 'true'}>
+          <div className=${`h-full overflow-y-auto rounded-r-2xl border border-base-300 bg-base-100/95 shadow-2xl backdrop-blur ${isMobile ? 'border-base-300/70 p-3' : 'p-5'}`}>
             <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-xs font-bold uppercase tracking-wide text-base-content/70">Navega\u00e7\u00e3o</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-base-content/70">Navegação</p>
               <button type="button" className="btn btn-ghost btn-xs" onClick=${closeSidebar}>Fechar</button>
             </div>
 
@@ -887,20 +822,7 @@ const UserApp = ({ config }) => {
                 `
               : null}
 
-            <div className="space-y-2">
-              ${TABS.map(
-                (tab) => html`
-                  <button
-                    type="button"
-                    className=${`btn w-full justify-start ${activeTab === tab.key ? 'btn-primary' : 'btn-outline'}`}
-                    aria-selected=${activeTab === tab.key ? 'true' : 'false'}
-                    onClick=${() => handleTabSelect(tab.key)}
-                  >
-                    ${tab.label}
-                  </button>
-                `,
-              )}
-            </div>
+            <div className="space-y-2">${TABS.map((tab) => html` <button type="button" className=${`btn w-full justify-start ${activeTab === tab.key ? 'btn-primary' : 'btn-outline'}`} aria-selected=${activeTab === tab.key ? 'true' : 'false'} onClick=${() => handleTabSelect(tab.key)}>${tab.label}</button> `)}</div>
 
             <div className="divider my-3"></div>
             <div className="grid gap-2">
@@ -909,267 +831,234 @@ const UserApp = ({ config }) => {
             </div>
 
             <div className="divider my-3"></div>
-            <p className="text-xs leading-relaxed text-base-content/65">
-              Use os atalhos para abrir o bot ou falar com o suporte quando precisar.
-            </p>
+            <p className="text-xs leading-relaxed text-base-content/65">Use os atalhos para abrir o bot ou falar com o suporte quando precisar.</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <a className="link link-info text-xs" href=${config.termsUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Termos de Servi\u00e7o</a>
-              <a className="link link-info text-xs" href=${config.privacyUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Pol\u00edtica de Privacidade</a>
+              <a className="link link-info text-xs" href=${config.termsUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Termos de Serviço</a>
+              <a className="link link-info text-xs" href=${config.privacyUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Política de Privacidade</a>
             </div>
           </div>
         </aside>
 
-        ${isMobile && isSidebarOpen
-          ? html`<button type="button" className="fixed inset-0 z-50 bg-slate-950/55" aria-label="Fechar barra lateral" onClick=${closeSidebar}></button>`
-          : null}
+        ${isMobile && isSidebarOpen ? html`<button type="button" className="fixed inset-0 z-50 bg-slate-950/55" aria-label="Fechar barra lateral" onClick=${closeSidebar}></button>` : null}
 
         <section className="rounded-2xl border border-base-300 bg-base-100/80 p-2.5 shadow-xl sm:p-5 lg:p-7">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-4">
-              <div>
-                ${!isMobile ? html`<p className="text-xs font-bold uppercase tracking-widest text-info">Painel do usu\u00e1rio</p>` : null}
-                <h1 className="mt-1 text-xl font-black sm:text-3xl lg:text-4xl">Minha Conta</h1>
-                ${!isMobile ? html`<p className="mt-1 text-sm text-base-content/70">Resumo da sua conta e canais diretos de suporte.</p>` : null}
-              </div>
-              ${!isMobile
-                ? html`
-                    <div className="hidden lg:flex items-center gap-2">
-                      <a className="btn btn-success" href=${links.botUrl} target="_blank" rel="noreferrer noopener">Abrir bot</a>
-                      <a className="btn btn-outline" href=${links.supportUrl} target="_blank" rel="noreferrer noopener">Suporte</a>
-                    </div>
-                  `
-                : null}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-4">
+            <div>
+              ${!isMobile ? html`<p className="text-xs font-bold uppercase tracking-widest text-info">Painel do usuário</p>` : null}
+              <h1 className="mt-1 text-xl font-black sm:text-3xl lg:text-4xl">Minha Conta</h1>
+              ${!isMobile ? html`<p className="mt-1 text-sm text-base-content/70">Resumo da sua conta e canais diretos de suporte.</p>` : null}
             </div>
-
-            <div className="mb-4 grid gap-2">
-              <div role="status" className=${`alert ${toneClassMap[status.tone] || 'alert-info'} text-sm`}>
-                <span>${status.message}</span>
-              </div>
-              ${errorMessage
-                ? html`
-                    <div role="alert" className="alert alert-error text-sm">
-                      <span>${errorMessage}</span>
-                    </div>
-                    <button type="button" className="btn btn-outline w-full sm:w-auto" onClick=${handleRetry}>Tentar novamente</button>
-                  `
-                : null}
-            </div>
-
-            ${activeTab === 'summary'
+            ${!isMobile
               ? html`
-                  <div className="space-y-4">
-                    <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
-                      <div className="flex flex-col items-start gap-3 min-[520px]:flex-row min-[520px]:items-center">
-                        <img
-                          src=${summary.avatar}
-                          alt="Avatar do usu\u00e1rio"
-                          className="h-16 w-16 rounded-xl border border-base-300 object-cover sm:h-20 sm:w-20"
-                          onError=${(event) => {
-                            const image = event.currentTarget;
-                            image.src = config.fallbackAvatar;
-                          }}
-                        />
-                        <div className="min-w-0 space-y-1">
-                          <p className=${`text-xl font-black sm:text-2xl ${isLoadingSummary ? 'skeleton h-7 w-44 text-transparent' : ''}`}>${isLoadingSummary ? 'Carregando' : summary.name}</p>
-                          <p className=${`text-sm text-base-content/75 ${isLoadingSummary ? 'skeleton h-5 w-56 text-transparent' : ''}`}>${isLoadingSummary ? 'email@exemplo.com' : summary.email}</p>
-                          <p className=${`text-sm text-base-content/75 ${isLoadingSummary ? 'skeleton h-5 w-64 text-transparent' : ''}`}>${isLoadingSummary ? 'WhatsApp vinculado' : summary.whatsapp}</p>
-                        </div>
-                      </div>
-                    </section>
+                  <div className="hidden lg:flex items-center gap-2">
+                    <a className="btn btn-success" href=${links.botUrl} target="_blank" rel="noreferrer noopener">Abrir bot</a>
+                    <a className="btn btn-outline" href=${links.supportUrl} target="_blank" rel="noreferrer noopener">Suporte</a>
+                  </div>
+                `
+              : null}
+          </div>
 
-                    <div className="grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
-                      <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Plano</p>
-                        <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-32 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.plan}</p>
-                      </article>
-                      <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+          <div className="mb-4 grid gap-2">
+            <div role="status" className=${`alert ${toneClassMap[status.tone] || 'alert-info'} text-sm`}>
+              <span>${status.message}</span>
+            </div>
+            ${errorMessage
+              ? html`
+                  <div role="alert" className="alert alert-error text-sm">
+                    <span>${errorMessage}</span>
+                  </div>
+                  <button type="button" className="btn btn-outline w-full sm:w-auto" onClick=${handleRetry}>Tentar novamente</button>
+                `
+              : null}
+          </div>
+
+          ${activeTab === 'summary'
+            ? html`
+                <div className="space-y-4">
+                  <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
+                    <div className="flex flex-col items-start gap-3 min-[520px]:flex-row min-[520px]:items-center">
+                      <img
+                        src=${summary.avatar}
+                        alt="Avatar do usuário"
+                        className="h-16 w-16 rounded-xl border border-base-300 object-cover sm:h-20 sm:w-20"
+                        onError=${(event) => {
+                          const image = event.currentTarget;
+                          image.src = config.fallbackAvatar;
+                        }}
+                      />
+                      <div className="min-w-0 space-y-1">
+                        <p className=${`text-xl font-black sm:text-2xl ${isLoadingSummary ? 'skeleton h-7 w-44 text-transparent' : ''}`}>${isLoadingSummary ? 'Carregando' : summary.name}</p>
+                        <p className=${`text-sm text-base-content/75 ${isLoadingSummary ? 'skeleton h-5 w-56 text-transparent' : ''}`}>${isLoadingSummary ? 'email@exemplo.com' : summary.email}</p>
+                        <p className=${`text-sm text-base-content/75 ${isLoadingSummary ? 'skeleton h-5 w-64 text-transparent' : ''}`}>${isLoadingSummary ? 'WhatsApp vinculado' : summary.whatsapp}</p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div className="grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
+                    <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Plano</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-32 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.plan}</p>
+                    </article>
+                    <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Status</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-24 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.status}</p>
+                    </article>
+                    <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Último login</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.lastLogin}</p>
+                    </article>
+                    <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Sessão expira em</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.expiresAt}</p>
+                    </article>
+                  </div>
+                </div>
+              `
+            : null}
+          ${activeTab === 'account'
+            ? html`
+                <div className="space-y-4">
+                  <div className="grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
+                    <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Status da sessão</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.sessionStatus}</p>
+                    </article>
+                    <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Owner vinculado</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-40 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.ownerJid}</p>
+                    </article>
+                    <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Último login</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.lastLogin}</p>
+                    </article>
+                    <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Expiração da sessão</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.expiresAt}</p>
+                    </article>
+                  </div>
+
+                  <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
+                    <p className="text-xs font-bold uppercase tracking-widest text-base-content/60">Seguranca da senha</p>
+                    <div className="mt-3 grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
+                      <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
                         <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Status</p>
-                        <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-24 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.status}</p>
+                        <p className="mt-1 text-base font-semibold">${passwordState.configured ? 'Senha configurada' : 'Senha nao configurada'}</p>
                       </article>
-                      <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">\u00daltimo login</p>
-                        <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.lastLogin}</p>
+                      <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Ultima alteracao</p>
+                        <p className="mt-1 text-base font-semibold">${passwordState.passwordChangedAt}</p>
                       </article>
-                      <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Sess\u00e3o expira em</p>
-                        <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.expiresAt}</p>
+                      <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Falhas recentes</p>
+                        <p className="mt-1 text-base font-semibold">${String(passwordState.failedAttempts)}</p>
                       </article>
-                    </div>
-                  </div>
-                `
-              : null}
-
-            ${activeTab === 'account'
-              ? html`
-                  <div className="space-y-4">
-                    <div className="grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
-                      <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Status da sess\u00e3o</p>
-                        <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.sessionStatus}</p>
-                      </article>
-                      <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Owner vinculado</p>
-                        <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-40 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.ownerJid}</p>
-                      </article>
-                      <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">\u00daltimo login</p>
-                        <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.lastLogin}</p>
-                      </article>
-                      <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Expira\u00e7\u00e3o da sess\u00e3o</p>
-                        <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.expiresAt}</p>
+                      <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Ultimo login por senha</p>
+                        <p className="mt-1 text-base font-semibold">${passwordState.lastLoginAt}</p>
                       </article>
                     </div>
 
-                    <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
-                      <p className="text-xs font-bold uppercase tracking-widest text-base-content/60">Seguranca da senha</p>
-                      <div className="mt-3 grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
-                        <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
-                          <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Status</p>
-                          <p className="mt-1 text-base font-semibold">${passwordState.configured ? 'Senha configurada' : 'Senha nao configurada'}</p>
-                        </article>
-                        <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
-                          <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Ultima alteracao</p>
-                          <p className="mt-1 text-base font-semibold">${passwordState.passwordChangedAt}</p>
-                        </article>
-                        <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
-                          <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Falhas recentes</p>
-                          <p className="mt-1 text-base font-semibold">${String(passwordState.failedAttempts)}</p>
-                        </article>
-                        <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
-                          <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Ultimo login por senha</p>
-                          <p className="mt-1 text-base font-semibold">${passwordState.lastLoginAt}</p>
-                        </article>
-                      </div>
-
-                      <div className="mt-4 grid gap-2">
-                        ${passwordFeedback
-                          ? html`
-                              <div role="status" className="alert alert-success text-sm">
-                                <span>${passwordFeedback}</span>
-                              </div>
-                            `
-                          : null}
-                        ${passwordError
-                          ? html`
-                              <div role="alert" className="alert alert-error text-sm">
-                                <span>${passwordError}</span>
-                              </div>
-                            `
-                          : null}
-                      </div>
-
-                      ${!passwordState.configured
+                    <div className="mt-4 grid gap-2">
+                      ${passwordFeedback
                         ? html`
-                            <form className="mt-3" onSubmit=${handlePasswordUpdate}>
-                              <input type="email" className="hidden" name="username" autoComplete="username" value=${accountEmail} readOnly />
-                              <div className="grid gap-2 min-[520px]:grid-cols-2">
-                                <label className="form-control">
-                                  <span className="label-text text-xs">Nova senha</span>
-                                  <input type="password" className="input input-bordered w-full" name="new_password" autoComplete="new-password" />
-                                </label>
-                                <label className="form-control">
-                                  <span className="label-text text-xs">Confirmar senha</span>
-                                  <input type="password" className="input input-bordered w-full" name="new_password_confirm" autoComplete="new-password" />
-                                </label>
-                              </div>
-
-                              <div className="mt-3">
-                                <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled=${passwordBusy}>
-                                  ${passwordBusy ? 'Salvando...' : 'Criar senha'}
-                                </button>
-                              </div>
-                            </form>
+                            <div role="status" className="alert alert-success text-sm">
+                              <span>${passwordFeedback}</span>
+                            </div>
                           `
-                        : html`
-                            <p className="mt-3 text-sm text-base-content/75">
-                              Para alterar sua senha, use a sessao segura de redefinicao por e-mail abaixo.
-                            </p>
-                          `}
-                    </section>
-
-                    <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
-                      <p className="text-xs font-bold uppercase tracking-widest text-base-content/60">Redefinicao por e-mail</p>
-                      <p className="mt-1 text-sm text-base-content/75">
-                        Abra uma sessao temporaria com expiracao automatica para redefinir sua senha com codigo de 6 digitos.
-                      </p>
-
-                      <div className="mt-3 grid gap-2">
-                        ${recoveryFeedback
-                          ? html`
-                              <div role="status" className="alert alert-success text-sm">
-                                <span>${recoveryFeedback}</span>
-                              </div>
-                            `
-                          : null}
-                        ${recoveryError
-                          ? html`
-                              <div role="alert" className="alert alert-error text-sm">
-                                <span>${recoveryError}</span>
-                              </div>
-                            `
-                          : null}
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          className="btn btn-error"
-                          disabled=${recoveryBusy || !passwordState.configured || !accountEmail}
-                          onClick=${handleOpenRecoverySession}
-                        >
-                          ${recoveryBusy ? 'Abrindo...' : 'Redefinir senha em sessao segura'}
-                        </button>
-                        ${!passwordState.configured
-                          ? html`<span className="text-xs text-base-content/65 self-center">Disponivel apos configurar a senha inicial.</span>`
-                          : accountEmail
-                            ? html`<span className="text-xs text-base-content/65 self-center">Destino: ${accountEmail}</span>`
-                            : html`<span className="text-xs text-warning self-center">Conta sem e-mail valido para recuperacao.</span>`}
-                      </div>
-                    </section>
-
-                    <p className="text-sm text-base-content/70">
-                      Ao usar o login voc\u00ea concorda com os termos e regras de privacidade do projeto.
-                    </p>
-                    <div className="flex flex-wrap gap-3 text-sm">
-                      <a className="link link-info" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Termos de Servi\u00e7o</a>
-                      <a className="link link-info" href=${config.privacyUrl} target="_blank" rel="noreferrer noopener">Pol\u00edtica de Privacidade</a>
+                        : null}
+                      ${passwordError
+                        ? html`
+                            <div role="alert" className="alert alert-error text-sm">
+                              <span>${passwordError}</span>
+                            </div>
+                          `
+                        : null}
                     </div>
+
+                    ${!passwordState.configured
+                      ? html`
+                          <form className="mt-3" onSubmit=${handlePasswordUpdate}>
+                            <input type="email" className="hidden" name="username" autocomplete="username" value=${accountEmail} readonly />
+                            <div className="grid gap-2 min-[520px]:grid-cols-2">
+                              <label className="form-control">
+                                <span className="label-text text-xs">Nova senha</span>
+                                <input type="password" className="input input-bordered w-full" name="new_password" autocomplete="new-password" />
+                              </label>
+                              <label className="form-control">
+                                <span className="label-text text-xs">Confirmar senha</span>
+                                <input type="password" className="input input-bordered w-full" name="new_password_confirm" autocomplete="new-password" />
+                              </label>
+                            </div>
+
+                            <div className="mt-3">
+                              <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled=${passwordBusy}>${passwordBusy ? 'Salvando...' : 'Criar senha'}</button>
+                            </div>
+                          </form>
+                        `
+                      : html` <p className="mt-3 text-sm text-base-content/75">Para alterar sua senha, use a sessao segura de redefinicao por e-mail abaixo.</p> `}
+                  </section>
+
+                  <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
+                    <p className="text-xs font-bold uppercase tracking-widest text-base-content/60">Redefinicao por e-mail</p>
+                    <p className="mt-1 text-sm text-base-content/75">Abra uma sessao temporaria com expiracao automatica para redefinir sua senha com codigo de 6 digitos.</p>
+
+                    <div className="mt-3 grid gap-2">
+                      ${recoveryFeedback
+                        ? html`
+                            <div role="status" className="alert alert-success text-sm">
+                              <span>${recoveryFeedback}</span>
+                            </div>
+                          `
+                        : null}
+                      ${recoveryError
+                        ? html`
+                            <div role="alert" className="alert alert-error text-sm">
+                              <span>${recoveryError}</span>
+                            </div>
+                          `
+                        : null}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="button" className="btn btn-error" disabled=${recoveryBusy || !passwordState.configured || !accountEmail} onClick=${handleOpenRecoverySession}>${recoveryBusy ? 'Abrindo...' : 'Redefinir senha em sessao segura'}</button>
+                      ${!passwordState.configured ? html`<span className="text-xs text-base-content/65 self-center">Disponivel apos configurar a senha inicial.</span>` : accountEmail ? html`<span className="text-xs text-base-content/65 self-center">Destino: ${accountEmail}</span>` : html`<span className="text-xs text-warning self-center">Conta sem e-mail valido para recuperacao.</span>`}
+                    </div>
+                  </section>
+
+                  <p className="text-sm text-base-content/70">Ao usar o login você concorda com os termos e regras de privacidade do projeto.</p>
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    <a className="link link-info" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Termos de Serviço</a>
+                    <a className="link link-info" href=${config.privacyUrl} target="_blank" rel="noreferrer noopener">Política de Privacidade</a>
                   </div>
-                `
-              : null}
+                </div>
+              `
+            : null}
+          ${activeTab === 'support'
+            ? html`
+                <div className="space-y-4">
+                  <p className="text-sm text-base-content/70">Canal oficial para dúvidas sobre login e uso geral do OmniZap.</p>
 
-            ${activeTab === 'support'
-              ? html`
-                  <div className="space-y-4">
-                    <p className="text-sm text-base-content/70">Canal oficial para d\u00favidas sobre login e uso geral do OmniZap.</p>
-
-                    <div className="grid gap-3 min-[520px]:grid-cols-2">
-                      <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Contato</p>
-                        <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>
-                          ${isLoadingSummary ? '--' : support.phone ? `+${formatPhone(support.phone)}` : 'N\u00e3o informado'}
-                        </p>
-                      </article>
-                      <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Mensagem padr\u00e3o</p>
-                        <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-40 text-transparent' : ''}`}>
-                          ${isLoadingSummary ? '--' : support.text}
-                        </p>
-                      </article>
-                    </div>
-
-                    <div className="grid gap-2 min-[520px]:grid-cols-2">
-                      <a className="btn btn-success w-full" href=${links.supportUrl} target="_blank" rel="noreferrer noopener">Abrir suporte no WhatsApp</a>
-                      <a className="btn btn-outline w-full" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Ver novos Termos</a>
-                    </div>
+                  <div className="grid gap-3 min-[520px]:grid-cols-2">
+                    <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Contato</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : support.phone ? `+${formatPhone(support.phone)}` : 'N\u00e3o informado'}</p>
+                    </article>
+                    <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Mensagem padrão</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-40 text-transparent' : ''}`}>${isLoadingSummary ? '--' : support.text}</p>
+                    </article>
                   </div>
-                `
-              : null}
 
-            <p className="mt-5 text-center text-xs text-base-content/60">
-              OmniZap System · ${String(new Date().getFullYear())}
-            </p>
-          </section>
+                  <div className="grid gap-2 min-[520px]:grid-cols-2">
+                    <a className="btn btn-success w-full" href=${links.supportUrl} target="_blank" rel="noreferrer noopener">Abrir suporte no WhatsApp</a>
+                    <a className="btn btn-outline w-full" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Ver novos Termos</a>
+                  </div>
+                </div>
+              `
+            : null}
+
+          <p className="mt-5 text-center text-xs text-base-content/60">OmniZap System · ${String(new Date().getFullYear())}</p>
+        </section>
       </main>
     </div>
   `;

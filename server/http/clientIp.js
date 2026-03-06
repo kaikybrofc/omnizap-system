@@ -93,4 +93,3 @@ export const resolveClientIp = (req, { fallback = 'unknown', trustProxy = undefi
   if (socketIp) return socketIp;
   return fallback;
 };
-

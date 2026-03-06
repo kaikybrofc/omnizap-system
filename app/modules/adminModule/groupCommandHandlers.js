@@ -9,17 +9,7 @@ import { getNewsStatusForGroup, startNewsBroadcastForGroup, stopNewsBroadcastFor
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { clearCaptchasForGroup } from '../../services/captchaService.js';
 import { getAdminJid, isAdminSenderAsync } from '../../config/adminIdentity.js';
-import {
-  DEFAULT_STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-  DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES,
-  MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-  MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES,
-  MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-  MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES,
-  clampStickerFocusChatWindowMinutes,
-  clampStickerFocusMessageCooldownMinutes,
-  resolveStickerFocusState,
-} from '../../services/stickerFocusService.js';
+import { DEFAULT_STICKER_FOCUS_CHAT_WINDOW_MINUTES, DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES, MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES, MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES, MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES, MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES, clampStickerFocusChatWindowMinutes, clampStickerFocusMessageCooldownMinutes, resolveStickerFocusState } from '../../services/stickerFocusService.js';
 
 const ADMIN_COMMANDS = new Set(['menuadm', 'newgroup', 'add', 'ban', 'up', 'down', 'setsubject', 'setdesc', 'setgroup', 'leave', 'invite', 'revoke', 'join', 'infofrominvite', 'metadata', 'requests', 'updaterequests', 'autorequests', 'temp', 'addmode', 'welcome', 'farewell', 'captcha', 'antilink', 'premium', 'nsfw', 'autosticker', 'noticias', 'news', 'prefix', 'stickermode', 'smode', 'chatwindow', 'chat', 'stickermsglimit', 'smsglimit', 'stickertextlimit', 'stextlimit']);
 const OWNER_JID = getAdminJid();
@@ -53,18 +43,7 @@ const buildStickerFocusStatusText = ({ state, commandPrefix }) => {
   const remainingMinutes = state.isChatWindowOpen ? Math.max(1, Math.ceil(state.chatWindowRemainingMs / (60 * 1000))) : 0;
   const chatWindowStatus = state.isChatWindowOpen ? `aberta (restam ~${remainingMinutes} min)` : 'fechada';
 
-  return [
-    '🖼️ *Status do modo Sticker*',
-    '',
-    `Modo sticker: *${state.enabled ? 'ativado' : 'desativado'}*`,
-    `Janela de chat: *${chatWindowStatus}*`,
-    `Intervalo de mensagem por usuário: *${state.messageCooldownMinutes} min*`,
-    '',
-    `Comandos:`,
-    `${commandPrefix}stickermode <on|off|status>`,
-    `${commandPrefix}chatwindow <on|off|status> [minutos]`,
-    `${commandPrefix}stickermsglimit <minutos|status|reset>`,
-  ].join('\n');
+  return ['🖼️ *Status do modo Sticker*', '', `Modo sticker: *${state.enabled ? 'ativado' : 'desativado'}*`, `Janela de chat: *${chatWindowStatus}*`, `Intervalo de mensagem por usuário: *${state.messageCooldownMinutes} min*`, '', `Comandos:`, `${commandPrefix}stickermode <on|off|status>`, `${commandPrefix}chatwindow <on|off|status> [minutos]`, `${commandPrefix}stickermsglimit <minutos|status|reset>`].join('\n');
 };
 
 export const isAdminCommand = (command) => ADMIN_COMMANDS.has(command);
@@ -274,11 +253,7 @@ ${commandPrefix}autosticker <on|off|status>`,
       if (enabled) {
         const config = await groupConfigStore.getGroupConfig(remoteJid);
         const state = resolveStickerFocusState(config);
-        const enabledText = [
-          '✅ Modo sticker ativado neste grupo.',
-          `Fora da janela de chat, cada usuário pode enviar *1 mensagem a cada ${state.messageCooldownMinutes} min*.`,
-          `Use *${commandPrefix}chatwindow on* para abrir conversa livre temporária.`,
-        ].join('\n');
+        const enabledText = ['✅ Modo sticker ativado neste grupo.', `Fora da janela de chat, cada usuário pode enviar *1 mensagem a cada ${state.messageCooldownMinutes} min*.`, `Use *${commandPrefix}chatwindow on* para abrir conversa livre temporária.`].join('\n');
         await sendAndStore(sock, remoteJid, { text: enabledText }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       } else {
         await sendAndStore(
@@ -326,10 +301,7 @@ ${commandPrefix}autosticker <on|off|status>`,
           sock,
           remoteJid,
           {
-            text:
-              `💬 Janela de chat está *${state.isChatWindowOpen ? 'aberta' : 'fechada'}*.` +
-              (state.isChatWindowOpen ? `\nTempo restante: ~${remainingMinutes} min.` : '') +
-              `\nModo sticker: *${state.enabled ? 'ativado' : 'desativado'}*.`,
+            text: `💬 Janela de chat está *${state.isChatWindowOpen ? 'aberta' : 'fechada'}*.` + (state.isChatWindowOpen ? `\nTempo restante: ~${remainingMinutes} min.` : '') + `\nModo sticker: *${state.enabled ? 'ativado' : 'desativado'}*.`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
@@ -387,11 +359,7 @@ ${commandPrefix}autosticker <on|off|status>`,
 
       const config = await groupConfigStore.getGroupConfig(remoteJid);
       const state = resolveStickerFocusState(config);
-      const openText = [
-        `✅ Janela de chat aberta por *${minutes} min*.`,
-        'Durante esse período, mensagens ficam liberadas para todos.',
-        `Modo sticker: *${state.enabled ? 'ativado' : 'desativado'}*.`,
-      ].join('\n');
+      const openText = [`✅ Janela de chat aberta por *${minutes} min*.`, 'Durante esse período, mensagens ficam liberadas para todos.', `Modo sticker: *${state.enabled ? 'ativado' : 'desativado'}*.`].join('\n');
       await sendAndStore(sock, remoteJid, { text: openText }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       break;
     }
@@ -421,10 +389,7 @@ ${commandPrefix}autosticker <on|off|status>`,
           sock,
           remoteJid,
           {
-            text:
-              `🧩 Intervalo atual de mensagem por usuário: *${state.messageCooldownMinutes} min*.` +
-              `\nModo sticker: *${state.enabled ? 'ativado' : 'desativado'}*.` +
-              `\nUse *${commandPrefix}stickermsglimit <minutos>* para alterar.`,
+            text: `🧩 Intervalo atual de mensagem por usuário: *${state.messageCooldownMinutes} min*.` + `\nModo sticker: *${state.enabled ? 'ativado' : 'desativado'}*.` + `\nUse *${commandPrefix}stickermsglimit <minutos>* para alterar.`,
           },
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );

@@ -38,11 +38,7 @@ const serializeCspDirectives = (directives = {}) =>
         .trim()
         .replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
       if (!kebabDirective) return '';
-      const normalizedValues = Array.isArray(values)
-        ? values
-            .map((value) => String(value || '').trim())
-            .filter(Boolean)
-        : [];
+      const normalizedValues = Array.isArray(values) ? values.map((value) => String(value || '').trim()).filter(Boolean) : [];
       return normalizedValues.length ? `${kebabDirective} ${normalizedValues.join(' ')}` : kebabDirective;
     })
     .filter(Boolean)

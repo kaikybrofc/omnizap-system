@@ -292,14 +292,14 @@ const TERMS_CONTENT_HTML = String.raw`
       </section>
 `;
 
-const TermsReactApp = () => html`
-  <main className="wrap" dangerouslySetInnerHTML=${{ __html: TERMS_CONTENT_HTML }}></main>
-`;
+const TermsReactApp = () => html` <main className="wrap" dangerouslySetInnerHTML=${{ __html: TERMS_CONTENT_HTML }}></main> `;
 
 const useHashAnchorSync = () => {
   React.useEffect(() => {
     const scrollToAnchor = () => {
-      const rawHash = String(window.location.hash || '').replace(/^#/, '').trim();
+      const rawHash = String(window.location.hash || '')
+        .replace(/^#/, '')
+        .trim();
       if (!rawHash) return;
       const targetId = decodeURIComponent(rawHash);
       const target = document.getElementById(targetId);

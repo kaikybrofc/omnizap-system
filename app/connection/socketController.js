@@ -1,13 +1,4 @@
-import makeWASocket, {
-  useMultiFileAuthState,
-  DisconnectReason,
-  Browsers,
-  getAggregateVotesInPollMessage,
-  areJidsSameUser,
-  WAMessageStatus,
-  WAMessageStubType,
-  WAMessageAddressingMode,
-} from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser, WAMessageStatus, WAMessageStubType, WAMessageAddressingMode } from '@whiskeysockets/baileys';
 
 import NodeCache from 'node-cache';
 import { resolveBaileysVersion } from '../config/baileysConfig.js';
@@ -84,22 +75,7 @@ const BAILEYS_MEDIA_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_
 const BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS, 120, 10, 3600);
 const BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS, 60, 10, 1800);
 const BAILEYS_EVENT_JOURNAL_ENABLED = parseEnvBool(process.env.BAILEYS_EVENT_JOURNAL_ENABLED, false);
-const DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS = [
-  'connection.update',
-  'messages.upsert',
-  'messages.update',
-  'messages.delete',
-  'messages.reaction',
-  'message-receipt.update',
-  'chats.upsert',
-  'chats.update',
-  'chats.delete',
-  'groups.upsert',
-  'groups.update',
-  'group-participants.update',
-  'group.join-request',
-  'lid-mapping.update',
-];
+const DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS = ['connection.update', 'messages.upsert', 'messages.update', 'messages.delete', 'messages.reaction', 'message-receipt.update', 'chats.upsert', 'chats.update', 'chats.delete', 'groups.upsert', 'groups.update', 'group-participants.update', 'group.join-request', 'lid-mapping.update'];
 const BAILEYS_EVENT_JOURNAL_EVENT_LIST = parseEnvCsv(process.env.BAILEYS_EVENT_JOURNAL_EVENTS, DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS);
 const BAILEYS_EVENT_JOURNAL_ALL_EVENTS = BAILEYS_EVENT_JOURNAL_EVENT_LIST.includes('*');
 const BAILEYS_EVENT_JOURNAL_EVENTS = new Set(BAILEYS_EVENT_JOURNAL_EVENT_LIST.filter((eventName) => eventName !== '*'));
@@ -186,16 +162,7 @@ let reconnectTimeout = null;
 let connectPromise = null;
 let socketGeneration = 0;
 const BAILEYS_EVENT_NAMES = ['connection.update', 'creds.update', 'messaging-history.set', 'chats.upsert', 'chats.update', 'lid-mapping.update', 'chats.delete', 'presence.update', 'contacts.upsert', 'contacts.update', 'messages.delete', 'messages.update', 'messages.media-update', 'messages.upsert', 'messages.reaction', 'message-receipt.update', 'groups.upsert', 'groups.update', 'group-participants.update', 'group.join-request', 'group.member-tag.update', 'blocklist.set', 'blocklist.update', 'call', 'labels.edit', 'labels.association', 'newsletter.reaction', 'newsletter.view', 'newsletter-participants.update', 'newsletter-settings.update', 'chats.lock', 'settings.update'];
-const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set([
-  'creds.update',
-  'connection.update',
-  'messages.upsert',
-  'messages.update',
-  'messages.media-update',
-  'message-receipt.update',
-  'groups.update',
-  'group-participants.update',
-]);
+const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set(['creds.update', 'connection.update', 'messages.upsert', 'messages.update', 'messages.media-update', 'message-receipt.update', 'groups.update', 'group-participants.update']);
 const BAILEYS_NOISY_EVENTS_IN_PRODUCTION = new Set(['presence.update']);
 
 const createCacheStoreAdapter = (cache) => ({
@@ -692,15 +659,16 @@ async function persistIncomingMessages(incomingMessages, type) {
   for (const msg of incomingMessages) {
     if (!msg.message || msg.key.remoteJid === 'status@broadcast') continue;
     const resolvedAddressingMode = resolveAddressingModeFromMessageKey(msg?.key);
-    const normalizedMsg = resolvedAddressingMode && msg?.key && msg.key.addressingMode !== resolvedAddressingMode
-      ? {
-          ...msg,
-          key: {
-            ...msg.key,
-            addressingMode: resolvedAddressingMode,
-          },
-        }
-      : msg;
+    const normalizedMsg =
+      resolvedAddressingMode && msg?.key && msg.key.addressingMode !== resolvedAddressingMode
+        ? {
+            ...msg,
+            key: {
+              ...msg.key,
+              addressingMode: resolvedAddressingMode,
+            },
+          }
+        : msg;
 
     const senderInfo = extractSenderInfoFromMessage(normalizedMsg);
     if (senderInfo.lid) lidsToPrime.add(senderInfo.lid);

@@ -54,7 +54,13 @@ export const getSessionStatusLabel = (session) => {
 };
 
 export const formatPackStatus = (status, visibility) => {
-  const safeStatus = String(status || '').trim().toLowerCase() || 'desconhecido';
-  const safeVisibility = String(visibility || '').trim().toLowerCase() || 'sem visibilidade';
+  const safeStatus =
+    String(status || '')
+      .trim()
+      .toLowerCase() || 'desconhecido';
+  const safeVisibility =
+    String(visibility || '')
+      .trim()
+      .toLowerCase() || 'sem visibilidade';
   return `${safeStatus} · ${safeVisibility}`;
 };

@@ -13,30 +13,7 @@ const BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS = parseEnvInt(process.env.BAILEYS_SEN
 
 const isPlainObject = (value) => Object.prototype.toString.call(value) === '[object Object]';
 
-const ANY_MESSAGE_CONTENT_PRIMARY_KEYS = new Set([
-  'text',
-  'image',
-  'video',
-  'audio',
-  'sticker',
-  'document',
-  'event',
-  'poll',
-  'contacts',
-  'location',
-  'react',
-  'buttonReply',
-  'groupInvite',
-  'listReply',
-  'pin',
-  'product',
-  'sharePhoneNumber',
-  'requestPhoneNumber',
-  'forward',
-  'delete',
-  'disappearingMessagesInChat',
-  'limitSharing',
-]);
+const ANY_MESSAGE_CONTENT_PRIMARY_KEYS = new Set(['text', 'image', 'video', 'audio', 'sticker', 'document', 'event', 'poll', 'contacts', 'location', 'react', 'buttonReply', 'groupInvite', 'listReply', 'pin', 'product', 'sharePhoneNumber', 'requestPhoneNumber', 'forward', 'delete', 'disappearingMessagesInChat', 'limitSharing']);
 
 /**
  * Verifica se o payload se parece com AnyMessageContent do Baileys.
@@ -115,7 +92,9 @@ const isTransientSendError = (error) => {
   const statusCode = Number(error?.output?.statusCode || error?.statusCode || 0);
   if ([408, 409, 425, 429, 500, 502, 503, 504].includes(statusCode)) return true;
 
-  const code = String(error?.code || '').trim().toUpperCase();
+  const code = String(error?.code || '')
+    .trim()
+    .toUpperCase();
   if (['ETIMEDOUT', 'ECONNRESET', 'ECONNABORTED', 'EAI_AGAIN', 'ENOTFOUND', 'ERR_SOCKET_CLOSED', 'ERR_NETWORK'].includes(code)) {
     return true;
   }
