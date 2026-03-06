@@ -43,7 +43,7 @@ const normalizeRow = (row) => ({
 const resolveCohortBucket = (subjectKey) => {
   const normalized = String(subjectKey || '').trim();
   if (!normalized) return 0;
-  const digest = createHash('sha1').update(normalized).digest();
+  const digest = createHash('sha256').update(normalized).digest();
   const value = digest.readUInt32BE(0);
   return value % 100;
 };
