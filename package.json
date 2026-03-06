@@ -70,7 +70,7 @@
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
-    "@whiskeysockets/baileys": "github:WhiskeySockets/Baileys",
+    "@whiskeysockets/baileys": "github:jlucaso1/Baileys#feat-add-stickerpack-support",
     "axios": "^1.13.5",
     "bcrypt": "^6.0.0",
     "canvas": "^3.2.1",

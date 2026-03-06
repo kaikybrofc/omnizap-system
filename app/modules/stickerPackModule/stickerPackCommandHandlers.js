@@ -1038,10 +1038,8 @@ export async function handlePackCommand({ sock, remoteJid, messageInfo, expirati
             messageInfo,
             expirationMessage,
             text: buildActionMessage({
-              title: '📤 *Pack enviado!*',
-              explanation: ['Enviei no formato nativo (melhor experiência e compatibilidade).'],
-              details: [`📦 Pack: *${packDetails.name}*`, `🆔 ID: \`${packDetails.pack_key}\``, `🧩 Enviadas: *${sendResult.sentCount} figurinha(s)*`],
-              nextSteps: [`Ver detalhes: \`${commandPrefix}pack info ${packDetails.pack_key}\`.`, `Editar: \`${commandPrefix}pack add ${packDetails.pack_key}\` ou \`${commandPrefix}pack remove ${packDetails.pack_key} <item>\`.`],
+              title: '📤 *Aqui está seu pack!*',
+              explanation: ['Se não carregar de imediato, aguarde um momento até os stickers carregarem.', 'Isso pode ser influenciado pela sua internet.'],
             }),
           });
         } else {
