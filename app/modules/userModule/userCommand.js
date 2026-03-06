@@ -2,6 +2,7 @@ import { executeQuery, TABLES } from '../../../database/index.js';
 import { getJidUser, getProfilePicBuffer, normalizeJid } from '../../config/baileysConfig.js';
 import { isUserAdmin } from '../../config/groupUtils.js';
 import { extractUserIdInfo, isWhatsAppUserId, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
+import { fetchBlocklistFromActiveSocket } from '../../services/socketState.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import logger from '../../../utils/logger/loggerModule.js';
@@ -856,14 +857,12 @@ const hasRecentInteraction = (lastMessage) => {
 
 /**
  * Consulta se algum dos IDs do usuário está bloqueado no WhatsApp.
- * @param {object} sock Instância do socket Baileys.
  * @param {string[]} targetIds IDs que representam o usuário alvo.
  * @returns {Promise<boolean>} `true` quando o alvo consta na blocklist.
  */
-const isTargetBlocked = async (sock, targetIds) => {
-  if (!sock || typeof sock.fetchBlocklist !== 'function') return false;
+const isTargetBlocked = async (targetIds) => {
   try {
-    const blocklist = await sock.fetchBlocklist();
+    const blocklist = await fetchBlocklistFromActiveSocket();
     if (!Array.isArray(blocklist) || blocklist.length === 0) return false;
     const normalizedBlocked = new Set(blocklist.map((jid) => normalizeJid(jid) || jid).filter(Boolean));
     return targetIds.some((id) => normalizedBlocked.has(normalizeJid(id) || id));
@@ -1027,7 +1026,7 @@ export async function handleUserCommand({ sock, remoteJid, messageInfo, expirati
     const senderCanonical = resolveUserIdCached({ jid: senderJid, lid: senderJid, participantAlt: null });
     const rankingTargetId = mentionJid || canonicalTarget;
 
-    const [stats, ranking, latestPushName, premiumUsers, blocked, groupAdmin] = await Promise.all([fetchUserStats({ canonicalId: rankingTargetId, senderIds: normalizedTargetIds }), fetchUserRanking(rankingTargetId), fetchLatestPushName(normalizedTargetIds), premiumUserStore.getPremiumUsers(), isTargetBlocked(sock, normalizedTargetIds), isGroupMessage ? isUserAdmin(remoteJid, mentionJid || canonicalTarget) : Promise.resolve(false)]);
+    const [stats, ranking, latestPushName, premiumUsers, blocked, groupAdmin] = await Promise.all([fetchUserStats({ canonicalId: rankingTargetId, senderIds: normalizedTargetIds }), fetchUserRanking(rankingTargetId), fetchLatestPushName(normalizedTargetIds), premiumUserStore.getPremiumUsers(), isTargetBlocked(normalizedTargetIds), isGroupMessage ? isUserAdmin(remoteJid, mentionJid || canonicalTarget) : Promise.resolve(false)]);
     const [globalInsights, socialInsights, trendInsights, activeHourInsights, dominantTypeByPeriod, topGroups, participationInsights] = await Promise.all([
       fetchUserGlobalRankingInsights({
         canonicalId: rankingTargetId,

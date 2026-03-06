@@ -7,7 +7,7 @@ import { URL, URLSearchParams } from 'node:url';
 import { executeQuery, pool, TABLES } from '../../../database/index.js';
 import { getJidUser, normalizeJid, resolveBotJid } from '../../../app/config/baileysConfig.js';
 import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../../app/config/adminIdentity.js';
-import { getActiveSocket } from '../../../app/services/socketState.js';
+import { getActiveSocket, profilePictureUrlFromActiveSocket } from '../../../app/services/socketState.js';
 import { extractUserIdInfo, resolveUserId } from '../../../app/services/lidMapService.js';
 import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppOwnerJid, toWhatsAppPhoneDigits } from '../../../app/services/whatsappLoginLinkService.js';
 import logger from '../../../utils/logger/loggerModule.js';
@@ -6602,12 +6602,11 @@ const resolveRankingDisplayName = async (senderId) => {
   return fallback;
 };
 
-const resolveRankingAvatarUrl = async (sock, senderId) => {
-  if (!sock || !senderId || typeof sock.profilePictureUrl !== 'function') return null;
+const resolveRankingAvatarUrl = async (senderId) => {
+  if (!senderId) return null;
   const normalized = normalizeJid(senderId) || senderId;
   try {
-    const url = await sock.profilePictureUrl(normalized, 'image');
-    return typeof url === 'string' && url.trim() ? url : null;
+    return await profilePictureUrlFromActiveSocket(normalized, 'image');
   } catch {
     return null;
   }
@@ -6684,7 +6683,7 @@ const buildGlobalRankingSummary = async () => {
       const percent = totalMessages > 0 ? Number(((total / totalMessages) * 100).toFixed(2)) : 0;
       const senderId = row?.sender_id || null;
       const displayName = await resolveRankingDisplayName(senderId);
-      const avatarUrl = await resolveRankingAvatarUrl(activeSocket, senderId);
+      const avatarUrl = await resolveRankingAvatarUrl(senderId);
       return {
         position: index + 1,
         sender_id: senderId,

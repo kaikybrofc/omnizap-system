@@ -3,6 +3,7 @@
 import { fetchLatestBaileysVersion, downloadContentFromMessage, jidNormalizedUser, jidEncode, jidDecode, areJidsSameUser, normalizeMessageContent, isJidMetaAI, isPnUser, isLidUser, isJidBroadcast, isJidGroup, isJidStatusBroadcast, isJidNewsletter, isHostedPnUser, isHostedLidUser, isJidBot, SERVER_JID, PSA_WID, STORIES_JID, META_AI_JID } from '@whiskeysockets/baileys';
 
 import logger from '../../utils/logger/loggerModule.js';
+import { runSocketMethod } from '../services/socketState.js';
 import { createWriteStream } from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -415,7 +416,7 @@ export async function getProfilePicBuffer(sock, msg) {
   const jid = jidNormalizedUser(rawJid);
 
   try {
-    const url = await sock.profilePictureUrl(jid, 'image');
+    const url = await runSocketMethod(sock, 'profilePictureUrl', jid, 'image');
     if (!url) return null;
 
     const response = await fetch(url);

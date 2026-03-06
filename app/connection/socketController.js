@@ -1,4 +1,4 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage } from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser } from '@whiskeysockets/baileys';
 
 import NodeCache from 'node-cache';
 import { resolveBaileysVersion } from '../config/baileysConfig.js';
@@ -11,7 +11,7 @@ import pino from 'pino';
 import logger from '../../utils/logger/loggerModule.js';
 import { handleMessages } from '../controllers/messageController.js';
 import { syncNewsBroadcastService } from '../services/newsBroadcastService.js';
-import { setActiveSocket as storeActiveSocket } from '../services/socketState.js';
+import { setActiveSocket as storeActiveSocket, runActiveSocketMethod, isSocketOpen } from '../services/socketState.js';
 import { recordError, recordMessagesUpsert } from '../observability/metrics.js';
 import { resolveCaptchaByReaction } from '../services/captchaService.js';
 
@@ -63,6 +63,7 @@ const GROUP_SYNC_ON_CONNECT = parseEnvBool(process.env.GROUP_SYNC_ON_CONNECT, tr
 const GROUP_SYNC_TIMEOUT_MS = parseEnvInt(process.env.GROUP_SYNC_TIMEOUT_MS, 30 * 1000, 5 * 1000, 120 * 1000);
 const GROUP_SYNC_MAX_GROUPS = parseEnvInt(process.env.GROUP_SYNC_MAX_GROUPS, 0, 0, 10_000);
 const GROUP_SYNC_BATCH_SIZE = parseEnvInt(process.env.GROUP_SYNC_BATCH_SIZE, 50, 1, 1000);
+const BAILEYS_AUTO_REJECT_CALLS = parseEnvBool(process.env.BAILEYS_AUTO_REJECT_CALLS, true);
 const BAILEYS_EVENT_JOURNAL_ENABLED = parseEnvBool(process.env.BAILEYS_EVENT_JOURNAL_ENABLED, false);
 const DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS = [
   'connection.update',
@@ -527,12 +528,6 @@ const scheduleReconnect = (delay) => {
   );
 };
 
-const isSocketOpen = (socket) => {
-  if (!socket?.ws) return false;
-  if (typeof socket.ws.isOpen === 'boolean') return socket.ws.isOpen;
-  return socket.ws.readyState === 1;
-};
-
 const withTimeout = (promise, timeoutMs, timeoutLabel = 'operation_timeout') =>
   Promise.race([
     promise,
@@ -890,6 +885,41 @@ export async function connectToWhatsApp() {
       }
     });
 
+    sock.ev.on('call', async (calls) => {
+      if (!isCurrentSocket()) return;
+      if (!BAILEYS_AUTO_REJECT_CALLS) return;
+      if (!Array.isArray(calls)) return;
+
+      for (const call of calls) {
+        try {
+          if (!call || call.status !== 'offer') continue;
+          if (!call.id || !call.from) continue;
+
+          const myJid = sock.user?.id || null;
+          if (myJid && areJidsSameUser(call.from, myJid)) {
+            continue;
+          }
+
+          await sock.rejectCall(call.id, call.from);
+          logger.info('Chamada recebida rejeitada automaticamente.', {
+            action: 'call_auto_reject',
+            callId: call.id,
+            from: call.from,
+            isGroup: call.isGroup || false,
+            isVideo: call.isVideo || false,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (error) {
+          logger.warn('Falha ao rejeitar chamada automaticamente.', {
+            action: 'call_auto_reject_failed',
+            callId: call?.id || null,
+            from: call?.from || null,
+            error: error?.message,
+          });
+        }
+      }
+    });
+
     registerBaileysEventLoggers(sock);
     registerBaileysEventJournal(sock, generation);
 
@@ -1106,6 +1136,224 @@ export function getActiveSocket() {
     timestamp: new Date().toISOString(),
   });
   return activeSocket;
+}
+
+/**
+ * Executa método centralizado do socket ativo com mapeamento para erros HTTP.
+ * @param {string} methodName Nome do método no socket.
+ * @param {...any} args Argumentos repassados ao método.
+ * @returns {Promise<any>}
+ */
+async function runControllerSocketMethod(methodName, ...args) {
+  try {
+    return await runActiveSocketMethod(methodName, ...args);
+  } catch (error) {
+    const message = String(error?.message || '');
+    if (message.includes('Socket do WhatsApp indisponível')) {
+      logger.warn('Socket ativo indisponível para operação.', {
+        action: methodName,
+        socketExists: !!activeSocket,
+        socketOpen: isSocketOpen(activeSocket),
+        timestamp: new Date().toISOString(),
+      });
+      throw new Boom('Socket do WhatsApp indisponível no momento.', { statusCode: 503 });
+    }
+    if (message.includes('não disponível no socket')) {
+      throw new Boom(`Método "${methodName}" não disponível neste socket.`, { statusCode: 501 });
+    }
+    throw error;
+  }
+}
+
+/**
+ * Retorna as configurações de privacidade da conta.
+ * @param {boolean} [force=false] Força refresh no servidor.
+ * @returns {Promise<Record<string, string>>}
+ */
+export async function fetchPrivacySettings(force = false) {
+  return runControllerSocketMethod('fetchPrivacySettings', force);
+}
+
+/**
+ * Atualiza privacidade de mensagens.
+ * @param {import('@whiskeysockets/baileys').WAPrivacyMessagesValue} value
+ * @returns {Promise<void>}
+ */
+export async function updateMessagesPrivacy(value) {
+  return runControllerSocketMethod('updateMessagesPrivacy', value);
+}
+
+/**
+ * Atualiza privacidade de chamadas.
+ * @param {import('@whiskeysockets/baileys').WAPrivacyCallValue} value
+ * @returns {Promise<void>}
+ */
+export async function updateCallPrivacy(value) {
+  return runControllerSocketMethod('updateCallPrivacy', value);
+}
+
+/**
+ * Atualiza privacidade de visto por último.
+ * @param {import('@whiskeysockets/baileys').WAPrivacyValue} value
+ * @returns {Promise<void>}
+ */
+export async function updateLastSeenPrivacy(value) {
+  return runControllerSocketMethod('updateLastSeenPrivacy', value);
+}
+
+/**
+ * Atualiza privacidade de online.
+ * @param {import('@whiskeysockets/baileys').WAPrivacyOnlineValue} value
+ * @returns {Promise<void>}
+ */
+export async function updateOnlinePrivacy(value) {
+  return runControllerSocketMethod('updateOnlinePrivacy', value);
+}
+
+/**
+ * Atualiza privacidade da foto de perfil.
+ * @param {import('@whiskeysockets/baileys').WAPrivacyValue} value
+ * @returns {Promise<void>}
+ */
+export async function updateProfilePicturePrivacy(value) {
+  return runControllerSocketMethod('updateProfilePicturePrivacy', value);
+}
+
+/**
+ * Atualiza privacidade de status.
+ * @param {import('@whiskeysockets/baileys').WAPrivacyValue} value
+ * @returns {Promise<void>}
+ */
+export async function updateStatusPrivacy(value) {
+  return runControllerSocketMethod('updateStatusPrivacy', value);
+}
+
+/**
+ * Atualiza configuração de confirmação de leitura.
+ * @param {import('@whiskeysockets/baileys').WAReadReceiptsValue} value
+ * @returns {Promise<void>}
+ */
+export async function updateReadReceiptsPrivacy(value) {
+  return runControllerSocketMethod('updateReadReceiptsPrivacy', value);
+}
+
+/**
+ * Atualiza privacidade para adição em grupos.
+ * @param {import('@whiskeysockets/baileys').WAPrivacyGroupAddValue} value
+ * @returns {Promise<void>}
+ */
+export async function updateGroupsAddPrivacy(value) {
+  return runControllerSocketMethod('updateGroupsAddPrivacy', value);
+}
+
+/**
+ * Atualiza privacidade de pré-visualização de links.
+ * @param {boolean} isPreviewsDisabled
+ * @returns {Promise<void>}
+ */
+export async function updateDisableLinkPreviewsPrivacy(isPreviewsDisabled) {
+  return runControllerSocketMethod('updateDisableLinkPreviewsPrivacy', isPreviewsDisabled);
+}
+
+/**
+ * Atualiza modo padrão de mensagens temporárias.
+ * @param {number} duration Duração em segundos.
+ * @returns {Promise<void>}
+ */
+export async function updateDefaultDisappearingMode(duration) {
+  return runControllerSocketMethod('updateDefaultDisappearingMode', duration);
+}
+
+/**
+ * Envia atualização de presença.
+ * @param {import('@whiskeysockets/baileys').WAPresence} type
+ * @param {string} [toJid]
+ * @returns {Promise<void>}
+ */
+export async function sendPresenceUpdate(type, toJid) {
+  return runControllerSocketMethod('sendPresenceUpdate', type, toJid);
+}
+
+/**
+ * Inscreve presença de um JID.
+ * @param {string} toJid
+ * @returns {Promise<void>}
+ */
+export async function presenceSubscribe(toJid) {
+  return runControllerSocketMethod('presenceSubscribe', toJid);
+}
+
+/**
+ * Executa alteração de chat via app patch.
+ * @param {import('@whiskeysockets/baileys').ChatModification} mod
+ * @param {string} jid
+ * @returns {Promise<void>}
+ */
+export async function chatModify(mod, jid) {
+  return runControllerSocketMethod('chatModify', mod, jid);
+}
+
+/**
+ * Atalho para arquivar/desarquivar chat.
+ * @param {string} jid
+ * @param {Array<import('@whiskeysockets/baileys').proto.IWebMessageInfo>} [lastMessages=[]]
+ * @param {boolean} [archive=true]
+ * @returns {Promise<void>}
+ */
+export async function setChatArchived(jid, lastMessages = [], archive = true) {
+  return chatModify({ archive, lastMessages }, jid);
+}
+
+/**
+ * Atalho para marcar chat como lido/não lido.
+ * @param {string} jid
+ * @param {Array<import('@whiskeysockets/baileys').proto.IWebMessageInfo>} [lastMessages=[]]
+ * @param {boolean} [markRead=true]
+ * @returns {Promise<void>}
+ */
+export async function setChatRead(jid, lastMessages = [], markRead = true) {
+  return chatModify({ markRead, lastMessages }, jid);
+}
+
+/**
+ * Atalho para mutar/desmutar chat.
+ * @param {string} jid
+ * @param {number|null} muteMs Use `null` para desmutar.
+ * @returns {Promise<void>}
+ */
+export async function setChatMute(jid, muteMs) {
+  return chatModify({ mute: muteMs }, jid);
+}
+
+/**
+ * Busca histórico de mensagens sob demanda (até 50 por consulta).
+ * @param {number} count Quantidade solicitada.
+ * @param {import('@whiskeysockets/baileys').WAMessageKey} oldestMsgKey Chave da mensagem mais antiga.
+ * @param {number|import('long').default} oldestMsgTimestamp Timestamp da mensagem mais antiga.
+ * @returns {Promise<string>} Request id da operação.
+ */
+export async function fetchMessageHistory(count, oldestMsgKey, oldestMsgTimestamp) {
+  return runControllerSocketMethod('fetchMessageHistory', count, oldestMsgKey, oldestMsgTimestamp);
+}
+
+/**
+ * Solicita resend de placeholder para mensagem indisponível.
+ * @param {import('@whiskeysockets/baileys').WAMessageKey} messageKey Chave da mensagem.
+ * @param {Partial<import('@whiskeysockets/baileys').WAMessage>} [msgData] Dados auxiliares.
+ * @returns {Promise<string|undefined>}
+ */
+export async function requestPlaceholderResend(messageKey, msgData) {
+  return runControllerSocketMethod('requestPlaceholderResend', messageKey, msgData);
+}
+
+/**
+ * Rejeita chamada recebida.
+ * @param {string} callId ID da chamada.
+ * @param {string} callFrom JID de origem da chamada.
+ * @returns {Promise<void>}
+ */
+export async function rejectCall(callId, callFrom) {
+  return runControllerSocketMethod('rejectCall', callId, callFrom);
 }
 
 /**
