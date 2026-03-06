@@ -30,6 +30,8 @@ const IGNORED_MESSAGE_TYPES = new Set([
   'messagehistorybundle',
   'messagehistorynotice',
   'keydistribution',
+  'senderkeydistribution',
+  'reaction',
   'devicesent',
   'contextinfo',
   'protocol',
@@ -109,6 +111,18 @@ const normalizeMessageTypes = (mediaEntries = []) => {
     .filter(Boolean);
 };
 
+const isIgnoredSystemMessageType = (type) => {
+  const normalized = String(type || '')
+    .trim()
+    .toLowerCase();
+  if (!normalized) return true;
+  if (IGNORED_MESSAGE_TYPES.has(normalized)) return true;
+  // Cobre variações do Baileys/proto para eventos internos de distribuição de chave.
+  if (normalized.includes('keydistribution')) return true;
+  if (normalized.includes('senderkeydistribution')) return true;
+  return false;
+};
+
 export const clampStickerFocusMessageCooldownMinutes = (value, fallback = DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES) =>
   normalizeMinutes(value, fallback, MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES, MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES);
 
@@ -148,7 +162,7 @@ export const resolveStickerFocusMessageClassification = ({ messageInfo, extracte
   }
 
   const messageTypes = normalizeMessageTypes(mediaEntries);
-  const filteredTypes = messageTypes.filter((type) => !IGNORED_MESSAGE_TYPES.has(type));
+  const filteredTypes = messageTypes.filter((type) => !isIgnoredSystemMessageType(type));
   const primaryType = filteredTypes[0] || messageTypes[0] || 'unknown';
 
   if (filteredTypes.some((type) => NON_THROTTLED_MESSAGE_TYPES.has(type))) {
