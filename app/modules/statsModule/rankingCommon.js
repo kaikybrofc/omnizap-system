@@ -150,7 +150,9 @@ const buildWhere = ({ scope, remoteJid, botJid, useCanonicalSender = false }) =>
 };
 
 const isMissingMessageActivityDailyError = (error) => {
-  const code = String(error?.code || '').trim().toUpperCase();
+  const code = String(error?.code || '')
+    .trim()
+    .toUpperCase();
   if (code === 'ER_NO_SUCH_TABLE') return true;
   const errno = Number(error?.errno || 0);
   if (errno === 1146) return true;
@@ -272,12 +274,7 @@ const replaceControlCharsBySpace = (text) => {
 const toSafeCanvasText = (value) => {
   if (value === null || value === undefined) return '';
   const normalized = String(value).normalize('NFKC').replace(/\r?\n/g, ' ');
-  return replaceControlCharsBySpace(normalized)
-    .replace(ZERO_WIDTH_UNICODE_REGEX, '')
-    .replace(PRIVATE_USE_UNICODE_REGEX, '')
-    .replace(EMOJI_AND_PICTO_REGEX, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return replaceControlCharsBySpace(normalized).replace(ZERO_WIDTH_UNICODE_REGEX, '').replace(PRIVATE_USE_UNICODE_REGEX, '').replace(EMOJI_AND_PICTO_REGEX, '').replace(/\s+/g, ' ').trim();
 };
 
 const toSafeCanvasDisplayName = (value) => {
@@ -920,7 +917,13 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
   const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
   const hexToRgba = (hex, alpha = 1) => {
     const clean = String(hex || '').replace('#', '');
-    const normalized = clean.length === 3 ? clean.split('').map((value) => `${value}${value}`).join('') : clean;
+    const normalized =
+      clean.length === 3
+        ? clean
+            .split('')
+            .map((value) => `${value}${value}`)
+            .join('')
+        : clean;
     if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(148, 163, 184, ${alpha})`;
     const int = Number.parseInt(normalized, 16);
     const r = (int >> 16) & 255;
