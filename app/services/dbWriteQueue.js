@@ -361,7 +361,9 @@ const buildMessageActivityDailyKeys = (batch) => {
 };
 
 const isMessageActivityDailyMissing = (error) => {
-  const code = String(error?.code || '').trim().toUpperCase();
+  const code = String(error?.code || '')
+    .trim()
+    .toUpperCase();
   if (code === 'ER_NO_SUCH_TABLE') return true;
   const errno = Number(error?.errno || 0);
   if (errno === 1146) return true;
