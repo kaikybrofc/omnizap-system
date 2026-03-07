@@ -5,7 +5,7 @@ import htm from 'htm';
 const html = htm.bind(React.createElement);
 
 const FALLBACK_THUMB_URL = '/assets/images/brand-logo-128.webp';
-const HOME_BOOTSTRAP_ENDPOINT = '/api/sticker-packs/home-bootstrap';
+const HOME_BOOTSTRAP_ENDPOINT = '/api/home-bootstrap';
 const SOCIAL_PROOF_REFRESH_MS = 15_000;
 const COUNTUP_DURATION_MS = 780;
 const COUNTABLE_METRICS = ['users', 'messages', 'commands'];

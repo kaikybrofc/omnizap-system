@@ -65,10 +65,7 @@ const buildPasswordRecoverySessionLegacyPath = (sessionToken, { userPasswordRese
 
 const buildPasswordRecoverySessionPath = (
   sessionToken,
-  {
-    userProfileWebPath,
-    userPasswordRecoverySessionQueryParam,
-  },
+  { userProfileWebPath, userPasswordRecoverySessionQueryParam },
 ) => {
   const rawToken = String(sessionToken || '').trim();
   if (!rawToken) return `${userProfileWebPath}/`;
@@ -1016,9 +1013,16 @@ export const createWebAccountAuthHandlers = ({
       return;
     }
 
-    const packLimit = clampInt(url?.searchParams?.get('limit'), view === 'packs' ? 120 : 300, 1, 300);
+    const packLimit = clampInt(
+      url?.searchParams?.get('limit'),
+      view === 'packs' ? 120 : 300,
+      1,
+      300,
+    );
     const ownerPacks = await Promise.all(
-      ownerCandidates.map((ownerJid) => listStickerPacksByOwner(ownerJid, { limit: 200, offset: 0 })),
+      ownerCandidates.map((ownerJid) =>
+        listStickerPacksByOwner(ownerJid, { limit: 200, offset: 0 }),
+      ),
     );
     const includeAutoPacks = parseEnvBool(
       url?.searchParams?.get('include_auto'),

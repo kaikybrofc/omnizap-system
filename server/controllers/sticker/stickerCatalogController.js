@@ -79,30 +79,31 @@ import {
 import { listStickerPackScoreSnapshotsByPackIds } from '../../../app/modules/stickerPackModule/stickerPackScoreSnapshotRepository.js';
 import { createCatalogApiRouter } from '../../routes/sticker/catalogRouter.js';
 import { createStickerCatalogNonCatalogHandlers } from './nonCatalogHandlers.js';
+import { normalizeGoogleSubject } from '../../auth/googleWebAuth/googleWebAuthRuntime.js';
 import {
-  createGoogleWebAuthRuntime,
-  normalizeGoogleSubject,
-} from '../../auth/googleWebAuth/googleWebAuthRuntime.js';
+  appendSetCookie,
+  buildCookieString,
+  getCookieValuesFromRequest,
+  parseCookies,
+  readJsonBody,
+  resolveRequestRemoteIp,
+  sendJson,
+  sendText,
+} from '../../http/httpRequestUtils.js';
 import {
-  isWebAuthJwtEnabled,
-  signWebAuthJwt,
-  verifyWebAuthJwt,
-} from '../../auth/jwt/webJwtService.js';
-import { resolveClientIp } from '../../http/clientIp.js';
-import userPasswordAuthService from '../../auth/userPassword/index.js';
-import { createUserPasswordRecoveryService } from '../../auth/userPassword/userPasswordRecoveryService.js';
-import { createTermsAcceptanceHandler } from '../../auth/termsAcceptance/termsAcceptanceHandler.js';
-import { createWebAccountAuthHandlers } from '../../auth/webAccount/webAccountHandlers.js';
-import {
-  parseUserPasswordLoginPayload,
-  parseUserPasswordRecoveryRequestPayload,
-  parseUserPasswordRecoveryVerifyPayload,
-  parseTermsAcceptancePayload,
-  parseUserPasswordUpsertPayload,
-} from '../../auth/validation/authSchemas.js';
+  getSiteRoutingConfig,
+  maybeRedirectToCanonicalHost,
+  toRequestHost,
+  toSiteAbsoluteUrl,
+} from '../../http/siteRoutingUtils.js';
+import { createStickerCatalogAuthContext } from '../../auth/stickerCatalogAuthContext.js';
 import { queueAutomatedEmail, queueWelcomeEmail } from '../../email/emailAutomationService.js';
-import { createStickerCatalogAdminBanService } from '../admin/adminBanService.js';
-import { createStickerCatalogAdminHandlers } from '../admin/adminPanelHandlers.js';
+import {
+  createStickerCatalogAdminBanContext,
+  createStickerCatalogAdminHandlersContext,
+} from '../admin/stickerCatalogAdminContext.js';
+import { createStickerCatalogSeoContext } from '../seo/stickerCatalogSeoContext.js';
+import { createStickerCatalogSystemContext } from '../system/stickerCatalogSystemContext.js';
 import {
   buildAdminMenu,
   buildAiMenu,
@@ -204,6 +205,10 @@ const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stick
 const STICKER_API_BASE_PATH = normalizeBasePath(
   process.env.STICKER_API_BASE_PATH,
   '/api/sticker-packs',
+);
+const USER_API_BASE_PATH = normalizeBasePath(
+  process.env.USER_API_BASE_PATH || process.env.AUTH_API_BASE_PATH,
+  '/api',
 );
 const STICKER_ORPHAN_API_PATH = `${STICKER_API_BASE_PATH}/orphan-stickers`;
 const STICKER_CREATE_WEB_PATH = `${STICKER_WEB_PATH}/create`;
@@ -361,33 +366,7 @@ const README_MESSAGE_TYPE_SAMPLE_LIMIT = clampInt(
 );
 const README_COMMAND_PREFIX =
   String(process.env.README_COMMAND_PREFIX || PACK_COMMAND_PREFIX).trim() || PACK_COMMAND_PREFIX;
-const SITE_CANONICAL_HOST =
-  String(process.env.SITE_CANONICAL_HOST || 'omnizap.shop')
-    .trim()
-    .toLowerCase() || 'omnizap.shop';
-const SITE_CANONICAL_SCHEME =
-  String(process.env.SITE_CANONICAL_SCHEME || 'https')
-    .trim()
-    .toLowerCase() === 'http'
-    ? 'http'
-    : 'https';
-const SITE_CANONICAL_REDIRECT_ENABLED = parseEnvBool(
-  process.env.SITE_CANONICAL_REDIRECT_ENABLED,
-  true,
-);
-const SITE_ORIGIN = String(
-  process.env.SITE_ORIGIN || `${SITE_CANONICAL_SCHEME}://${SITE_CANONICAL_HOST}`,
-)
-  .trim()
-  .replace(/\/+$/, '');
-const SITE_COOKIE_DOMAIN = String(process.env.SITE_COOKIE_DOMAIN || SITE_CANONICAL_HOST)
-  .trim()
-  .toLowerCase()
-  .replace(/^https?:\/\//, '')
-  .split('/')[0]
-  .split(':')[0]
-  .replace(/^\.+/, '')
-  .replace(/\.+$/, '');
+const SITE_ORIGIN = getSiteRoutingConfig().origin;
 const SITEMAP_MAX_PACKS = clampInt(process.env.STICKER_SITEMAP_MAX_PACKS, 45000, 100, 50000);
 const SITEMAP_CACHE_SECONDS = clampInt(process.env.STICKER_SITEMAP_CACHE_SECONDS, 180, 30, 3600);
 const SEO_DISCOVERY_LINK_LIMIT = clampInt(
@@ -516,15 +495,6 @@ const README_SUMMARY_CACHE = {
   value: null,
   pending: null,
 };
-const SITEMAP_CACHE = {
-  expiresAt: 0,
-  xml: '',
-};
-const SEO_DISCOVERY_CACHE = {
-  expiresAt: 0,
-  html: '',
-};
-let globalRankRefreshTimer = null;
 const formatDuration = (totalSeconds) => {
   const total = Math.max(0, Math.floor(Number(totalSeconds) || 0));
   const days = Math.floor(total / 86400);
@@ -598,148 +568,6 @@ const canUseRankingSnapshotRead = async (subjectKey = 'catalog') =>
     subjectKey,
   });
 
-const sendJson = (req, res, statusCode, payload) => {
-  const body = JSON.stringify(payload);
-  res.statusCode = statusCode;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-  if (req.method === 'HEAD') {
-    res.end();
-    return;
-  }
-  res.end(body);
-};
-
-const sendText = (req, res, statusCode, body, contentType) => {
-  res.statusCode = statusCode;
-  res.setHeader('Content-Type', contentType);
-  if (req.method === 'HEAD') {
-    res.end();
-    return;
-  }
-  res.end(body);
-};
-
-const toSiteAbsoluteUrl = (value) => {
-  const raw = String(value || '').trim();
-  if (!raw) return SITE_ORIGIN;
-  if (/^https?:\/\//i.test(raw)) return raw;
-  return `${SITE_ORIGIN}${raw.startsWith('/') ? raw : `/${raw}`}`;
-};
-
-const toRequestHost = (req) =>
-  String(req?.headers?.host || '')
-    .split(',')[0]
-    .trim()
-    .toLowerCase()
-    .replace(/\.$/, '')
-    .split(':')[0];
-
-const isIpLiteralHost = (value) => {
-  const host = String(value || '')
-    .trim()
-    .toLowerCase();
-  if (!host) return false;
-  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return true;
-  return host.includes(':');
-};
-
-const resolveCookieDomainForRequest = (req) => {
-  if (!SITE_COOKIE_DOMAIN || isIpLiteralHost(SITE_COOKIE_DOMAIN)) return '';
-  const requestHost = toRequestHost(req);
-  if (!requestHost || isIpLiteralHost(requestHost) || requestHost === 'localhost') return '';
-  if (requestHost === SITE_COOKIE_DOMAIN) return SITE_COOKIE_DOMAIN;
-  if (requestHost.endsWith(`.${SITE_COOKIE_DOMAIN}`)) return SITE_COOKIE_DOMAIN;
-  return '';
-};
-
-const maybeRedirectToCanonicalHost = (req, res, url) => {
-  if (!SITE_CANONICAL_REDIRECT_ENABLED) return false;
-  if (!['GET', 'HEAD'].includes(req.method || '')) return false;
-  if (!SITE_CANONICAL_HOST) return false;
-
-  const requestHost = toRequestHost(req);
-  if (requestHost !== `www.${SITE_CANONICAL_HOST}`) return false;
-
-  const location = `${SITE_CANONICAL_SCHEME}://${SITE_CANONICAL_HOST}${url.pathname}${url.search || ''}`;
-  res.statusCode = 301;
-  res.setHeader('Location', location);
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.end();
-  return true;
-};
-
-const parseCookies = (req) => {
-  const raw = String(req?.headers?.cookie || '');
-  if (!raw) return {};
-  return raw.split(';').reduce((acc, chunk) => {
-    const [k, ...rest] = chunk.split('=');
-    const key = String(k || '').trim();
-    if (!key) return acc;
-    const value = rest.join('=').trim();
-    try {
-      acc[key] = decodeURIComponent(value);
-    } catch {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
-};
-
-const getCookieValuesFromRequest = (req, cookieName) => {
-  const target = String(cookieName || '').trim();
-  if (!target) return [];
-  const raw = String(req?.headers?.cookie || '');
-  if (!raw) return [];
-
-  const values = [];
-  for (const chunk of raw.split(';')) {
-    const trimmed = String(chunk || '').trim();
-    if (!trimmed) continue;
-    const separatorIndex = trimmed.indexOf('=');
-    if (separatorIndex <= 0) continue;
-    const key = trimmed.slice(0, separatorIndex).trim();
-    if (key !== target) continue;
-    const encodedValue = trimmed.slice(separatorIndex + 1).trim();
-    if (!encodedValue) continue;
-    let decodedValue = encodedValue;
-    try {
-      decodedValue = decodeURIComponent(encodedValue);
-    } catch (error) {
-      if (error) decodedValue = encodedValue;
-    }
-    const normalizedValue = String(decodedValue || '').trim();
-    if (!normalizedValue) continue;
-    if (!values.includes(normalizedValue)) values.push(normalizedValue);
-  }
-  return values;
-};
-
-const isRequestSecure = (req) => {
-  const proto = String(req?.headers?.['x-forwarded-proto'] || '')
-    .split(',')[0]
-    .trim()
-    .toLowerCase();
-  if (proto) return proto === 'https';
-  return Boolean(req?.socket?.encrypted);
-};
-
-const resolveRequestRemoteIp = (req) => resolveClientIp(req, { fallback: null });
-
-const appendSetCookie = (res, cookieValue) => {
-  const current = res.getHeader('Set-Cookie');
-  if (!current) {
-    res.setHeader('Set-Cookie', cookieValue);
-    return;
-  }
-  if (Array.isArray(current)) {
-    res.setHeader('Set-Cookie', [...current, cookieValue]);
-    return;
-  }
-  res.setHeader('Set-Cookie', [String(current), cookieValue]);
-};
-
 const logPackWebFlow = (level, phase, payload = {}) => {
   const method =
     typeof logger?.[level] === 'function' ? logger[level].bind(logger) : logger.info.bind(logger);
@@ -790,58 +618,6 @@ const runSqlTransaction = async (handler) => {
     connection.release();
   }
 };
-
-const buildCookieString = (name, value, req, options = {}) => {
-  const parts = [`${name}=${encodeURIComponent(String(value ?? ''))}`];
-  parts.push(`Path=${options.path || '/'}`);
-  const cookieDomain =
-    options.domain === false
-      ? ''
-      : String(options.domain || resolveCookieDomainForRequest(req)).trim();
-  if (cookieDomain) parts.push(`Domain=${cookieDomain}`);
-  if (options.httpOnly !== false) parts.push('HttpOnly');
-  parts.push(`SameSite=${options.sameSite || 'Lax'}`);
-  if (isRequestSecure(req)) parts.push('Secure');
-  if (Number.isFinite(options.maxAgeSeconds))
-    parts.push(`Max-Age=${Math.max(0, Math.floor(options.maxAgeSeconds))}`);
-  return parts.join('; ');
-};
-
-const readJsonBody = async (req, { maxBytes = 64 * 1024 } = {}) =>
-  new Promise((resolve, reject) => {
-    const chunks = [];
-    let total = 0;
-
-    req.on('data', (chunk) => {
-      total += chunk.length;
-      if (total > maxBytes) {
-        const error = new Error('Payload excedeu limite permitido.');
-        error.statusCode = 413;
-        reject(error);
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-
-    req.on('end', () => {
-      const raw = Buffer.concat(chunks).toString('utf8').trim();
-      if (!raw) {
-        resolve({});
-        return;
-      }
-
-      try {
-        resolve(JSON.parse(raw));
-      } catch {
-        const error = new Error('JSON invalido.');
-        error.statusCode = 400;
-        reject(error);
-      }
-    });
-
-    req.on('error', (error) => reject(error));
-  });
 
 const normalizeWebUploadId = (value) =>
   String(value || '')
@@ -1132,7 +908,7 @@ const triggerStaleDraftCleanup = () => {
 
 let revokeGoogleWebSessionsByIdentityBridge = async () => 0;
 
-const adminBanService = createStickerCatalogAdminBanService({
+const adminBanContext = createStickerCatalogAdminBanContext({
   executeQuery,
   tables: TABLES,
   sanitizeText,
@@ -1144,104 +920,7 @@ const adminBanService = createStickerCatalogAdminBanService({
 });
 
 const { listAdminBans, createAdminBanRecord, revokeAdminBanRecord, assertGoogleIdentityNotBanned } =
-  adminBanService;
-
-const enqueueGoogleWebWelcomeEmail = ({ email, name, ownerJid }) => {
-  const normalizedEmail = normalizeEmail(email);
-  if (!normalizedEmail || !normalizedEmail.includes('@')) return;
-
-  const safeName = sanitizeText(name || '', 80, { allowEmpty: true }) || '';
-  const normalizedOwnerJid = normalizeJid(ownerJid) || null;
-  const idempotencyKey = `google_web_welcome:${normalizedEmail}:${new Date().toISOString().slice(0, 10)}`;
-
-  void queueWelcomeEmail({
-    to: normalizedEmail,
-    name: safeName,
-    redirectUrl: `${SITE_ORIGIN}/user/`,
-    homeUrl: `${SITE_ORIGIN}/`,
-    metadata: {
-      trigger: 'google_web_auth',
-      owner_jid: normalizedOwnerJid,
-    },
-    idempotencyKey,
-  }).catch((error) => {
-    logger.warn('Falha ao enfileirar e-mail de boas-vindas pós-login Google Web.', {
-      action: 'google_web_welcome_email_enqueue_failed',
-      email: normalizedEmail,
-      owner_jid: normalizedOwnerJid,
-      error: error?.message,
-    });
-  });
-};
-
-const googleWebAuth = createGoogleWebAuthRuntime({
-  executeQuery,
-  runSqlTransaction,
-  tables: TABLES,
-  logger,
-  sendJson,
-  readJsonBody,
-  parseCookies,
-  getCookieValuesFromRequest,
-  appendSetCookie,
-  buildCookieString,
-  normalizeEmail,
-  normalizeJid,
-  sanitizeText,
-  toIsoOrNull,
-  toWhatsAppPhoneDigits,
-  resolveWhatsAppOwnerJidFromLoginPayload,
-  assertGoogleIdentityNotBanned,
-  googleClientId: STICKER_WEB_GOOGLE_CLIENT_ID,
-  sessionTtlMs: STICKER_WEB_GOOGLE_SESSION_TTL_MS,
-  apiBasePath: STICKER_API_BASE_PATH,
-  webPath: STICKER_WEB_PATH,
-  loginWebPath: STICKER_LOGIN_WEB_PATH,
-  configuredSessionCookiePath: process.env.STICKER_WEB_GOOGLE_SESSION_COOKIE_PATH,
-  notAllowedErrorCode: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
-  onGoogleWebSessionCreated: ({ email, name, ownerJid }) => {
-    enqueueGoogleWebWelcomeEmail({ email, name, ownerJid });
-  },
-});
-
-const {
-  upsertGoogleWebUserRecord,
-  resolveGoogleWebSessionFromRequest,
-  mapGoogleSessionResponseData,
-  setGoogleWebSessionCookie,
-  issueAccessTokenForSession,
-  createPersistedGoogleWebSessionFromIdentity,
-  handleGoogleAuthSessionRequest,
-  revokeGoogleWebSessionsByIdentity,
-  buildGoogleOwnerJid,
-} = googleWebAuth;
-revokeGoogleWebSessionsByIdentityBridge = revokeGoogleWebSessionsByIdentity;
-
-const userPasswordRecoveryService = createUserPasswordRecoveryService({
-  executeQuery,
-  userPasswordAuthService,
-  queueAutomatedEmail,
-  tables: TABLES,
-  logger,
-  runSqlTransaction,
-});
-
-const handleTermsAcceptanceRequest = createTermsAcceptanceHandler({
-  executeQuery,
-  tables: TABLES,
-  logger,
-  sendJson,
-  readJsonBody,
-  parseTermsAcceptancePayload,
-  parseCookies,
-  resolveGoogleWebSessionFromRequest,
-  normalizeGoogleSubject,
-  normalizeEmail,
-  normalizeJid,
-  resolveRequestRemoteIp,
-  sanitizeText,
-  webSessionCookieName: WEB_SESSION_COOKIE_NAME,
-});
+  adminBanContext;
 
 const sendAsset = (req, res, buffer, mimetype = 'image/webp', cacheControlOverride = '') => {
   const maxAgeSeconds = Math.max(60 * 60 * 24, ASSET_CACHE_SECONDS);
@@ -1564,16 +1243,9 @@ const buildStickerAssetPreviewUrl = (packKey, stickerId, versionToken = '') => {
   if (normalizedVersion) params.set('v', normalizedVersion);
   return `${buildStickerAssetUrl(packKey, stickerId)}?${params.toString()}`;
 };
-const buildOrphanStickersApiUrl = () => STICKER_ORPHAN_API_PATH;
 const buildDataAssetApiBaseUrl = () => `${STICKER_API_BASE_PATH}/data-files`;
 const CATALOG_STYLES_WEB_PATH = `${STICKER_WEB_PATH}/assets/styles.css`;
 const CATALOG_SCRIPT_WEB_PATH = `${STICKER_WEB_PATH}/assets/catalog.js`;
-const appendAssetVersionQuery = (assetPath) =>
-  STICKER_WEB_ASSET_VERSION
-    ? `${assetPath}?v=${encodeURIComponent(STICKER_WEB_ASSET_VERSION)}`
-    : assetPath;
-const buildCatalogStylesUrl = () => appendAssetVersionQuery(CATALOG_STYLES_WEB_PATH);
-const buildCatalogScriptUrl = () => appendAssetVersionQuery(CATALOG_SCRIPT_WEB_PATH);
 const buildDataAssetUrl = (relativePath) =>
   `${STICKER_DATA_PUBLIC_PATH}/${String(relativePath)
     .split('/')
@@ -2848,508 +2520,52 @@ export const extractPackKeyFromWebPath = (pathname) => {
   }
 };
 
-const escapeHtmlAttribute = (value) =>
-  String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+const seoContext = createStickerCatalogSeoContext({
+  executeQuery,
+  tables: TABLES,
+  listStickerPacksForCatalog,
+  logger,
+  sendJson,
+  toSiteAbsoluteUrl,
+  isPackPubliclyVisible,
+  buildPackWebUrl,
+  config: {
+    stickerWebPath: STICKER_WEB_PATH,
+    stickerApiBasePath: STICKER_API_BASE_PATH,
+    stickerOrphanApiPath: STICKER_ORPHAN_API_PATH,
+    stickerLoginWebPath: STICKER_LOGIN_WEB_PATH,
+    stickerCreateWebPath: STICKER_CREATE_WEB_PATH,
+    stickerDataPublicPath: STICKER_DATA_PUBLIC_PATH,
+    defaultListLimit: DEFAULT_LIST_LIMIT,
+    defaultOrphanListLimit: DEFAULT_ORPHAN_LIST_LIMIT,
+    catalogTemplatePath: CATALOG_TEMPLATE_PATH,
+    createPackTemplatePath: CREATE_PACK_TEMPLATE_PATH,
+    catalogStylesFilePath: CATALOG_STYLES_FILE_PATH,
+    catalogScriptFilePath: CATALOG_SCRIPT_FILE_PATH,
+    stickerWebAssetVersion: STICKER_WEB_ASSET_VERSION,
+    catalogStylesWebPath: CATALOG_STYLES_WEB_PATH,
+    catalogScriptWebPath: CATALOG_SCRIPT_WEB_PATH,
+    nsfwStickerPlaceholderUrl: NSFW_STICKER_PLACEHOLDER_URL,
+    packCommandPrefix: PACK_COMMAND_PREFIX,
+    staticTextCacheSeconds: STATIC_TEXT_CACHE_SECONDS,
+    immutableAssetCacheSeconds: IMMUTABLE_ASSET_CACHE_SECONDS,
+    sitemapMaxPacks: SITEMAP_MAX_PACKS,
+    sitemapCacheSeconds: SITEMAP_CACHE_SECONDS,
+    seoDiscoveryLinkLimit: SEO_DISCOVERY_LINK_LIMIT,
+    seoDiscoveryCacheSeconds: SEO_DISCOVERY_CACHE_SECONDS,
+  },
+});
 
-const escapeXml = (value) =>
-  String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-
-const normalizeWhitespace = (value) =>
-  String(value || '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const truncateText = (value, maxLength = 160) => {
-  const normalized = normalizeWhitespace(value);
-  if (normalized.length <= maxLength) return normalized;
-  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
-};
-
-const toDateOnly = (value) => {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString().slice(0, 10);
-};
-
-const buildCatalogDiscoveryLinksHtml = async () => {
-  if (SEO_DISCOVERY_CACHE.expiresAt > Date.now() && SEO_DISCOVERY_CACHE.html) {
-    return SEO_DISCOVERY_CACHE.html;
-  }
-
-  try {
-    const { packs } = await listStickerPacksForCatalog({
-      visibility: 'public',
-      search: '',
-      limit: SEO_DISCOVERY_LINK_LIMIT,
-      offset: 0,
-    });
-
-    const links = (Array.isArray(packs) ? packs : [])
-      .filter((pack) => pack?.pack_key && isPackPubliclyVisible(pack))
-      .slice(0, SEO_DISCOVERY_LINK_LIMIT);
-
-    if (!links.length) {
-      SEO_DISCOVERY_CACHE.expiresAt = Date.now() + SEO_DISCOVERY_CACHE_SECONDS * 1000;
-      SEO_DISCOVERY_CACHE.html = '';
-      return '';
-    }
-
-    const linksMarkup = links
-      .map((pack) => {
-        const href = escapeHtmlAttribute(buildPackWebUrl(pack.pack_key));
-        const label = escapeHtmlAttribute(truncateText(pack.name || pack.pack_key, 80));
-        return `<li><a href="${href}">${label}</a></li>`;
-      })
-      .join('');
-
-    const html = `
-<noscript>
-  <section id="seo-discovery-links" style="padding:16px;color:#e5e7eb;background:#020617;">
-    <h2 style="margin:0 0 8px;font-size:18px;">Packs populares</h2>
-    <p style="margin:0 0 12px;">Navegue direto pelos packs mais recentes:</p>
-    <ul style="margin:0;padding-left:18px;display:grid;gap:6px;">
-      ${linksMarkup}
-    </ul>
-  </section>
-</noscript>`;
-
-    SEO_DISCOVERY_CACHE.expiresAt = Date.now() + SEO_DISCOVERY_CACHE_SECONDS * 1000;
-    SEO_DISCOVERY_CACHE.html = html;
-    return html;
-  } catch (error) {
-    logger.warn('Falha ao gerar links SEO de descoberta do catalogo.', {
-      action: 'sticker_catalog_seo_discovery_links_failed',
-      error: error?.message,
-    });
-    return '';
-  }
-};
-
-const renderCatalogHtml = async ({ initialPackKey }) => {
-  const template = await fs.readFile(CATALOG_TEMPLATE_PATH, 'utf8');
-  const replacements = {
-    __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
-    __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
-    __STICKER_ORPHAN_API_PATH__: escapeHtmlAttribute(buildOrphanStickersApiUrl()),
-    __STICKER_LOGIN_WEB_PATH__: escapeHtmlAttribute(STICKER_LOGIN_WEB_PATH),
-    __STICKER_DATA_PUBLIC_PATH__: escapeHtmlAttribute(STICKER_DATA_PUBLIC_PATH),
-    __DEFAULT_LIST_LIMIT__: String(DEFAULT_LIST_LIMIT),
-    __DEFAULT_ORPHAN_LIST_LIMIT__: String(DEFAULT_ORPHAN_LIST_LIMIT),
-    __INITIAL_PACK_KEY__: escapeHtmlAttribute(initialPackKey || ''),
-    __CATALOG_STYLES_PATH__: escapeHtmlAttribute(buildCatalogStylesUrl()),
-    __CATALOG_SCRIPT_PATH__: escapeHtmlAttribute(buildCatalogScriptUrl()),
-    __CURRENT_YEAR__: String(new Date().getFullYear()),
-  };
-
-  let html = template;
-  for (const [token, value] of Object.entries(replacements)) {
-    html = html.replaceAll(token, value);
-  }
-
-  const initialPackKeyAttr = `data-initial-pack-key="${escapeHtmlAttribute(initialPackKey || '')}"`;
-  html = html.replace(/data-initial-pack-key="[^"]*"/i, initialPackKeyAttr);
-
-  if (!/rel="canonical"/i.test(html)) {
-    html = html.replace(
-      '</head>',
-      `  <link rel="canonical" href="${escapeHtmlAttribute(toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`))}" />\n</head>`,
-    );
-  }
-
-  const discoveryLinks = await buildCatalogDiscoveryLinksHtml();
-  if (discoveryLinks && html.includes('</body>')) {
-    html = html.replace('</body>', `${discoveryLinks}\n</body>`);
-  }
-
-  return html;
-};
-
-const renderPackSeoHtml = ({ packSummary }) => {
-  const packName = truncateText(packSummary?.name || packSummary?.pack_key || 'Pack', 95);
-  const packDescription = truncateText(
-    packSummary?.description ||
-      `Pack de stickers "${packName}" disponível no catálogo OmniZap para uso em bots e automações WhatsApp via API.`,
-    180,
-  );
-  const canonicalUrl = toSiteAbsoluteUrl(buildPackWebUrl(packSummary?.pack_key || ''));
-  const catalogUrl = toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`);
-  const homeUrl = toSiteAbsoluteUrl('/');
-  const apiDocsUrl = toSiteAbsoluteUrl('/api-docs/');
-  const fallbackCoverUrl = packSummary?.is_nsfw
-    ? NSFW_STICKER_PLACEHOLDER_URL
-    : 'https://iili.io/fSNGag2.png';
-  const coverUrl = toSiteAbsoluteUrl(packSummary?.cover_url || fallbackCoverUrl);
-  const publisher = truncateText(packSummary?.publisher || 'Criador OmniZap', 80);
-  const stickerCount = Math.max(0, Number(packSummary?.sticker_count || 0));
-  const updatedAt = packSummary?.updated_at || packSummary?.created_at || new Date().toISOString();
-  const schemaJson = JSON.stringify(
-    {
-      '@context': 'https://schema.org',
-      '@type': 'CreativeWork',
-      name: packName,
-      description: packDescription,
-      url: canonicalUrl,
-      image: coverUrl,
-      dateModified: updatedAt,
-      author: {
-        '@type': 'Person',
-        name: publisher,
-      },
-      inLanguage: 'pt-BR',
-    },
-    null,
-    0,
-  ).replace(/</g, '\\u003c');
-  const faqSchemaJson = JSON.stringify(
-    {
-      '@context': 'https://schema.org',
-      '@type': 'FAQPage',
-      mainEntity: [
-        {
-          '@type': 'Question',
-          name: `Como usar o pack ${packName} no meu bot?`,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: `Use o pack ${packName} como recurso de engajamento e consulte exemplos de integração em ${apiDocsUrl}.`,
-          },
-        },
-        {
-          '@type': 'Question',
-          name: 'Onde encontro mais packs de stickers?',
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: `Veja o catálogo completo em ${catalogUrl}.`,
-          },
-        },
-        {
-          '@type': 'Question',
-          name: 'Onde vejo a plataforma principal do OmniZap?',
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: `A página principal do OmniZap está em ${homeUrl}.`,
-          },
-        },
-      ],
-    },
-    null,
-    0,
-  ).replace(/</g, '\\u003c');
-
-  return `<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtmlAttribute(`${packName} | Stickers para Bot WhatsApp OmniZap`)}</title>
-  <meta name="description" content="${escapeHtmlAttribute(packDescription)}" />
-  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
-  <link rel="canonical" href="${escapeHtmlAttribute(canonicalUrl)}" />
-  <link rel="icon" type="image/jpeg" href="https://iili.io/FC3FABe.jpg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji']
-          },
-          colors: {
-            slateApp: '#0f172a',
-            slateCard: '#1e293b',
-            borderApp: 'rgba(255,255,255,0.05)',
-            accent: '#2563eb',
-            accentTech: '#7c3aed',
-            cta: '#22c55e'
-          },
-          boxShadow: {
-            soft: '0 8px 24px rgba(2, 6, 23, 0.22)'
-          }
-        }
-      }
-    };
-  </script>
-
-  <meta property="og:type" content="website" />
-  <meta property="og:locale" content="pt_BR" />
-  <meta property="og:site_name" content="OmniZap System" />
-  <meta property="og:title" content="${escapeHtmlAttribute(packName)}" />
-  <meta property="og:description" content="${escapeHtmlAttribute(packDescription)}" />
-  <meta property="og:url" content="${escapeHtmlAttribute(canonicalUrl)}" />
-  <meta property="og:image" content="${escapeHtmlAttribute(coverUrl)}" />
-  <meta property="og:image:alt" content="${escapeHtmlAttribute(`Capa do pack ${packName}`)}" />
-
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="${escapeHtmlAttribute(packName)}" />
-  <meta name="twitter:description" content="${escapeHtmlAttribute(packDescription)}" />
-  <meta name="twitter:image" content="${escapeHtmlAttribute(coverUrl)}" />
-
-  <script type="application/ld+json">${schemaJson}</script>
-  <script type="application/ld+json">${faqSchemaJson}</script>
-  <style>
-    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif; background: #0f172a; color: #f8fafc; }
-    .seo-shell { max-width: 880px; margin: 0 auto; padding: 18px 14px 12px; }
-    .seo-card { border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; background: #1e293b; padding: 16px; }
-    .seo-card h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; }
-    .seo-card p { margin: 0 0 10px; line-height: 1.55; color: #94a3b8; }
-    .seo-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-    .seo-row a { color: #2563eb; text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 8px 10px; }
-    .seo-row a:hover { background: #111827; }
-  </style>
-</head>
-<body class="bg-slateApp text-slate-100 font-sans min-h-screen">
-  <noscript>
-    <main class="seo-shell">
-      <section class="seo-card">
-        <h1>${escapeHtmlAttribute(packName)}</h1>
-        <p>${escapeHtmlAttribute(packDescription)}</p>
-        <p>Criador: <strong>${escapeHtmlAttribute(publisher)}</strong> • Stickers: <strong>${stickerCount}</strong></p>
-        <p>Use este pack como recurso integrado no seu bot. Consulte endpoints e exemplos na área de desenvolvedor da API OmniZap.</p>
-        <h2 style="margin:12px 0 6px;font-size:18px;">FAQ rápido</h2>
-        <p style="margin-bottom:6px;"><strong>Como usar no bot?</strong> Consulte a documentação técnica e exemplos na área de desenvolvedor.</p>
-        <p style="margin-bottom:6px;"><strong>Tem mais packs?</strong> Sim, explore o catálogo completo para encontrar packs relacionados.</p>
-        <div class="seo-row">
-          <a href="${escapeHtmlAttribute(canonicalUrl)}">Abrir este pack</a>
-          <a href="${escapeHtmlAttribute(catalogUrl)}">Voltar ao catálogo</a>
-          <a href="${escapeHtmlAttribute(apiDocsUrl)}">Área de Desenvolvedor</a>
-          <a href="${escapeHtmlAttribute(homeUrl)}">Plataforma OmniZap</a>
-        </div>
-      </section>
-    </main>
-  </noscript>
-
-  <div id="stickers-react-root"
-    data-web-path="${escapeHtmlAttribute(STICKER_WEB_PATH)}"
-    data-api-base-path="${escapeHtmlAttribute(STICKER_API_BASE_PATH)}"
-    data-orphan-api-path="${escapeHtmlAttribute(STICKER_ORPHAN_API_PATH)}"
-    data-login-path="${escapeHtmlAttribute(STICKER_LOGIN_WEB_PATH)}"
-    data-default-limit="${DEFAULT_LIST_LIMIT}"
-    data-default-orphan-limit="${DEFAULT_ORPHAN_LIST_LIMIT}"
-    data-initial-pack-key="${escapeHtmlAttribute(packSummary?.pack_key || '')}"
-  ></div>
-  <script type="module" src="/js/apps/stickersApp.js?v=20260228-login-redirect-my-packs1"></script>
-</body>
-</html>`;
-};
-
-const renderPackNotFoundHtml = (packKey = '') => `<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Pack não encontrado | OmniZap</title>
-  <meta name="robots" content="noindex, nofollow" />
-  <link rel="canonical" href="${escapeHtmlAttribute(toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`))}" />
-  <style>
-    body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #0f172a; color: #f8fafc; }
-    main { max-width: 760px; margin: 0 auto; padding: 20px 14px; }
-    article { border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; background: #1e293b; padding: 16px; }
-    a { color: #2563eb; text-decoration: none; }
-  </style>
-</head>
-<body>
-  <main>
-    <article>
-      <h1>Pack não encontrado</h1>
-      <p>Não localizamos o pack <strong>${escapeHtmlAttribute(packKey || 'informado')}</strong>.</p>
-      <p><a href="${escapeHtmlAttribute(toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`))}">Ir para o catálogo</a></p>
-    </article>
-  </main>
-</body>
-</html>`;
-
-const renderCreatePackHtml = async () => {
-  const template = await fs.readFile(CREATE_PACK_TEMPLATE_PATH, 'utf8');
-  const replacements = {
-    __STICKER_WEB_PATH__: escapeHtmlAttribute(STICKER_WEB_PATH),
-    __STICKER_CREATE_WEB_PATH__: escapeHtmlAttribute(STICKER_CREATE_WEB_PATH),
-    __STICKER_LOGIN_WEB_PATH__: escapeHtmlAttribute(STICKER_LOGIN_WEB_PATH),
-    __STICKER_API_BASE_PATH__: escapeHtmlAttribute(STICKER_API_BASE_PATH),
-    __PACK_COMMAND_PREFIX__: escapeHtmlAttribute(PACK_COMMAND_PREFIX),
-    __CURRENT_YEAR__: String(new Date().getFullYear()),
-  };
-
-  let html = template;
-  for (const [token, value] of Object.entries(replacements)) {
-    html = html.replaceAll(token, value);
-  }
-  return html;
-};
-
-const buildSitemapXml = async () => {
-  if (SITEMAP_CACHE.expiresAt > Date.now() && SITEMAP_CACHE.xml) {
-    return SITEMAP_CACHE.xml;
-  }
-
-  const staticUrls = [
-    { loc: toSiteAbsoluteUrl('/'), changefreq: 'daily', priority: '1.0' },
-    { loc: toSiteAbsoluteUrl(`${STICKER_WEB_PATH}/`), changefreq: 'hourly', priority: '0.9' },
-    { loc: toSiteAbsoluteUrl('/api-docs/'), changefreq: 'weekly', priority: '0.8' },
-    { loc: toSiteAbsoluteUrl('/comandos/'), changefreq: 'weekly', priority: '0.78' },
-    { loc: toSiteAbsoluteUrl('/termos-de-uso/'), changefreq: 'monthly', priority: '0.5' },
-    { loc: toSiteAbsoluteUrl('/politica-de-privacidade/'), changefreq: 'monthly', priority: '0.5' },
-    { loc: toSiteAbsoluteUrl('/aup/'), changefreq: 'monthly', priority: '0.45' },
-    { loc: toSiteAbsoluteUrl('/dpa/'), changefreq: 'monthly', priority: '0.45' },
-    { loc: toSiteAbsoluteUrl('/notice-and-takedown/'), changefreq: 'monthly', priority: '0.45' },
-    { loc: toSiteAbsoluteUrl('/suboperadores/'), changefreq: 'monthly', priority: '0.45' },
-    { loc: toSiteAbsoluteUrl('/licenca/'), changefreq: 'monthly', priority: '0.5' },
-    {
-      loc: toSiteAbsoluteUrl('/seo/bot-whatsapp-para-grupo/'),
-      changefreq: 'weekly',
-      priority: '0.75',
-    },
-    {
-      loc: toSiteAbsoluteUrl('/seo/como-moderar-grupo-whatsapp/'),
-      changefreq: 'weekly',
-      priority: '0.72',
-    },
-    {
-      loc: toSiteAbsoluteUrl('/seo/como-evitar-spam-no-whatsapp/'),
-      changefreq: 'weekly',
-      priority: '0.72',
-    },
-    {
-      loc: toSiteAbsoluteUrl('/seo/como-organizar-comunidade-whatsapp/'),
-      changefreq: 'weekly',
-      priority: '0.72',
-    },
-    {
-      loc: toSiteAbsoluteUrl('/seo/como-automatizar-avisos-no-whatsapp/'),
-      changefreq: 'weekly',
-      priority: '0.72',
-    },
-    {
-      loc: toSiteAbsoluteUrl('/seo/como-criar-comandos-whatsapp/'),
-      changefreq: 'weekly',
-      priority: '0.71',
-    },
-    {
-      loc: toSiteAbsoluteUrl('/seo/melhor-bot-whatsapp-para-grupos/'),
-      changefreq: 'weekly',
-      priority: '0.74',
-    },
-    {
-      loc: toSiteAbsoluteUrl('/seo/bot-whatsapp-sem-programar/'),
-      changefreq: 'weekly',
-      priority: '0.73',
-    },
-  ];
-
-  const packRows = await executeQuery(
-    `SELECT pack_key, updated_at, created_at
-     FROM ${TABLES.STICKER_PACK}
-     WHERE deleted_at IS NULL
-       AND status = 'published'
-       AND COALESCE(pack_status, 'ready') = 'ready'
-       AND visibility IN ('public', 'unlisted')
-     ORDER BY updated_at DESC
-     LIMIT ?`,
-    [SITEMAP_MAX_PACKS],
-  );
-
-  const packUrls = (Array.isArray(packRows) ? packRows : [])
-    .filter((row) => String(row?.pack_key || '').trim())
-    .map((row) => ({
-      loc: toSiteAbsoluteUrl(buildPackWebUrl(row.pack_key)),
-      lastmod: toDateOnly(row.updated_at || row.created_at || null),
-      changefreq: 'daily',
-      priority: '0.7',
-    }));
-
-  const xmlItems = [...staticUrls, ...packUrls]
-    .map((entry) => {
-      const lastmod = entry.lastmod ? `\n    <lastmod>${escapeXml(entry.lastmod)}</lastmod>` : '';
-      const changefreq = entry.changefreq
-        ? `\n    <changefreq>${escapeXml(entry.changefreq)}</changefreq>`
-        : '';
-      const priority = entry.priority
-        ? `\n    <priority>${escapeXml(entry.priority)}</priority>`
-        : '';
-      return `  <url>\n    <loc>${escapeXml(entry.loc)}</loc>${lastmod}${changefreq}${priority}\n  </url>`;
-    })
-    .join('\n');
-
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${xmlItems}\n</urlset>\n`;
-  SITEMAP_CACHE.expiresAt = Date.now() + SITEMAP_CACHE_SECONDS * 1000;
-  SITEMAP_CACHE.xml = xml;
-  return xml;
-};
-
-const handleSitemapRequest = async (req, res) => {
-  const xml = await buildSitemapXml();
-  res.statusCode = 200;
-  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-  res.setHeader('Cache-Control', `public, max-age=${SITEMAP_CACHE_SECONDS}`);
-  if (req.method === 'HEAD') {
-    res.end();
-    return true;
-  }
-  res.end(xml);
-  return true;
-};
-
-const sendStaticTextFile = async (req, res, filePath, contentType) => {
-  try {
-    const body = await fs.readFile(filePath, 'utf8');
-    const hasVersionQuery = /(?:\?|&)v=/.test(String(req.url || ''));
-    const cacheControl = hasVersionQuery
-      ? `public, max-age=${IMMUTABLE_ASSET_CACHE_SECONDS}, immutable`
-      : `public, max-age=${STATIC_TEXT_CACHE_SECONDS}, stale-while-revalidate=${Math.min(86400, STATIC_TEXT_CACHE_SECONDS * 4)}`;
-    res.statusCode = 200;
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', cacheControl);
-    if (req.method === 'HEAD') {
-      res.end();
-      return true;
-    }
-    res.end(body);
-    return true;
-  } catch (error) {
-    if (error?.code === 'ENOENT') {
-      sendJson(req, res, 404, { error: 'Arquivo estatico nao encontrado.' });
-      return true;
-    }
-
-    logger.error('Falha ao servir asset estatico do catalogo.', {
-      action: 'sticker_catalog_static_asset_failed',
-      path: filePath,
-      error: error?.message,
-    });
-    sendJson(req, res, 500, { error: 'Falha ao servir arquivo estatico.' });
-    return true;
-  }
-};
-
-const handleCatalogStaticAssetRequest = async (req, res, pathname) => {
-  if (pathname === CATALOG_STYLES_WEB_PATH) {
-    return sendStaticTextFile(req, res, CATALOG_STYLES_FILE_PATH, 'text/css; charset=utf-8');
-  }
-
-  if (pathname === CATALOG_SCRIPT_WEB_PATH) {
-    return sendStaticTextFile(
-      req,
-      res,
-      CATALOG_SCRIPT_FILE_PATH,
-      'application/javascript; charset=utf-8',
-    );
-  }
-
-  return false;
-};
-
+const {
+  buildCatalogStylesUrl,
+  buildCatalogScriptUrl,
+  handleCatalogStaticAssetRequest,
+  renderCatalogHtml,
+  renderPackSeoHtml,
+  renderPackNotFoundHtml,
+  renderCreatePackHtml,
+  handleSitemapRequest,
+} = seoContext;
 const handleListRequest = async (req, res, url) => {
   const q = sanitizeText(url.searchParams.get('q') || '', 120, { allowEmpty: true }) || '';
   const visibility = normalizeCatalogVisibility(url.searchParams.get('visibility'));
@@ -4127,7 +3343,60 @@ const resolveMyProfileOwnerCandidates = async (session) => {
   return Array.from(new Set(filtered));
 };
 
+const authContext = createStickerCatalogAuthContext({
+  executeQuery,
+  runSqlTransaction,
+  tables: TABLES,
+  logger,
+  sendJson,
+  readJsonBody,
+  parseCookies,
+  getCookieValuesFromRequest,
+  appendSetCookie,
+  buildCookieString,
+  normalizeEmail,
+  normalizeJid,
+  sanitizeText,
+  toIsoOrNull,
+  toWhatsAppPhoneDigits,
+  resolveWhatsAppOwnerJidFromLoginPayload,
+  assertGoogleIdentityNotBanned,
+  queueAutomatedEmail,
+  queueWelcomeEmail,
+  resolveRequestRemoteIp,
+  toSiteAbsoluteUrl,
+  listStickerPacksByOwner,
+  listStickerPackEngagementByPackIds,
+  mapPackSummary,
+  isPackPubliclyVisible,
+  resolveMyProfileOwnerCandidates,
+  shouldHidePackFromMyProfileDefault,
+  parseEnvBool,
+  clampInt,
+  userPasswordResetWebPath: USER_PASSWORD_RESET_WEB_PATH,
+  userProfileWebPath: USER_PROFILE_WEB_PATH,
+  userPasswordRecoverySessionQueryParam: USER_PASSWORD_RECOVERY_SESSION_QUERY_PARAM,
+  passwordRecoverySessionAuthMethod: PASSWORD_RECOVERY_SESSION_AUTH_METHOD,
+  passwordRecoverySessionTtlSeconds: PASSWORD_RECOVERY_SESSION_TTL_SECONDS,
+  webSessionCookieName: WEB_SESSION_COOKIE_NAME,
+  notAllowedErrorCode: STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
+  stickerWebGoogleClientId: STICKER_WEB_GOOGLE_CLIENT_ID,
+  stickerWebGoogleAuthRequired: STICKER_WEB_GOOGLE_AUTH_REQUIRED,
+  stickerWebGoogleSessionTtlMs: STICKER_WEB_GOOGLE_SESSION_TTL_MS,
+  stickerApiBasePath: STICKER_API_BASE_PATH,
+  stickerWebPath: STICKER_WEB_PATH,
+  stickerLoginWebPath: STICKER_LOGIN_WEB_PATH,
+  siteOrigin: SITE_ORIGIN,
+});
+
 const {
+  upsertGoogleWebUserRecord,
+  resolveGoogleWebSessionFromRequest,
+  mapGoogleSessionResponseData,
+  handleGoogleAuthSessionRequest,
+  revokeGoogleWebSessionsByIdentity,
+  buildGoogleOwnerJid,
+  handleTermsAcceptanceRequest,
   handlePasswordAuthRequest,
   handlePasswordRecoveryRequest,
   handlePasswordRecoveryVerifyRequest,
@@ -4137,49 +3406,8 @@ const {
   handlePasswordRecoverySessionVerifyRequest,
   handlePasswordLoginRequest,
   handleMyProfileRequest,
-} = createWebAccountAuthHandlers({
-  sendJson,
-  readJsonBody,
-  logger,
-  parseUserPasswordUpsertPayload,
-  parseUserPasswordRecoveryRequestPayload,
-  parseUserPasswordRecoveryVerifyPayload,
-  parseUserPasswordLoginPayload,
-  resolveGoogleWebSessionFromRequest,
-  mapGoogleSessionResponseData,
-  createPersistedGoogleWebSessionFromIdentity,
-  setGoogleWebSessionCookie,
-  issueAccessTokenForSession,
-  userPasswordAuthService,
-  userPasswordRecoveryService,
-  resolveRequestRemoteIp,
-  normalizeEmail,
-  normalizeGoogleSubject,
-  normalizeJid,
-  isWebAuthJwtEnabled,
-  signWebAuthJwt,
-  verifyWebAuthJwt,
-  passwordRecoverySessionAuthMethod: PASSWORD_RECOVERY_SESSION_AUTH_METHOD,
-  passwordRecoverySessionTtlSeconds: PASSWORD_RECOVERY_SESSION_TTL_SECONDS,
-  userPasswordResetWebPath: USER_PASSWORD_RESET_WEB_PATH,
-  userProfileWebPath: USER_PROFILE_WEB_PATH,
-  userPasswordRecoverySessionQueryParam: USER_PASSWORD_RECOVERY_SESSION_QUERY_PARAM,
-  toSiteAbsoluteUrl,
-  executeQuery,
-  tables: TABLES,
-  toIsoOrNull,
-  sanitizeText,
-  listStickerPacksByOwner,
-  listStickerPackEngagementByPackIds,
-  mapPackSummary,
-  isPackPubliclyVisible,
-  resolveMyProfileOwnerCandidates,
-  shouldHidePackFromMyProfileDefault,
-  parseEnvBool,
-  clampInt,
-  stickerWebGoogleClientId: STICKER_WEB_GOOGLE_CLIENT_ID,
-  stickerWebGoogleAuthRequired: STICKER_WEB_GOOGLE_AUTH_REQUIRED,
-});
+} = authContext;
+revokeGoogleWebSessionsByIdentityBridge = revokeGoogleWebSessionsByIdentity;
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
 
@@ -6288,838 +5516,50 @@ const handleDataFileListRequest = async (req, res, url) => {
   });
 };
 
-const buildSystemSummarySnapshot = async () => {
-  const system = getSystemMetrics();
-  const activeSocket = getActiveSocket();
-  let prometheus = null;
-  let prometheusError = null;
-  let platformError = null;
-  let usageError = null;
-
-  const socketReadyState = resolveSocketReadyState(activeSocket);
-  const botJid = resolveActiveSocketBotJid(activeSocket) || null;
-  const botPhone = String(resolveCatalogBotPhone() || '').replace(/\D+/g, '') || null;
-  const botConnected = socketReadyState === 1 || (socketReadyState === null && Boolean(botJid));
-  const botConnectionStatus = botConnected
-    ? 'online'
-    : socketReadyState === 0
-      ? 'connecting'
-      : 'offline';
-
-  let platform = {
-    total_users: null,
-    total_groups: null,
-    total_chats: null,
-  };
-  let usage = {
-    total_messages: null,
-    total_commands: null,
-    total_commands_source: TABLES.MESSAGE_ANALYSIS_EVENT,
-  };
-
-  try {
-    prometheus = await fetchPrometheusSummary();
-  } catch (error) {
-    prometheusError = error?.message || 'Falha ao consultar /metrics';
-  }
-
-  try {
-    const [chatTotalsRows, groupsMetadataTotalsRows, lidMapTotalsRows] = await Promise.all([
-      executeQuery(
-        `SELECT
-           COUNT(*) AS total_chats,
-           SUM(CASE WHEN id LIKE '%@g.us' THEN 1 ELSE 0 END) AS total_groups
-         FROM ${TABLES.CHATS}`,
-      ),
-      executeQuery(`SELECT COUNT(*) AS total_groups FROM ${TABLES.GROUPS_METADATA}`),
-      executeQuery(`SELECT COUNT(*) AS total_users FROM ${TABLES.LID_MAP}`),
-    ]);
-
-    const chatsTotals = chatTotalsRows?.[0] || {};
-    const groupsMetadataTotals = groupsMetadataTotalsRows?.[0] || {};
-    const lidMapTotals = lidMapTotalsRows?.[0] || {};
-    const totalGroupsFromChats = Number(chatsTotals?.total_groups || 0);
-    const totalGroupsFromMetadata = Number(groupsMetadataTotals?.total_groups || 0);
-    const totalUsersFromLidMap = Number(lidMapTotals?.total_users || 0);
-
-    platform = {
-      total_users: totalUsersFromLidMap,
-      total_users_source: 'lid_map',
-      total_groups: Math.max(totalGroupsFromChats, totalGroupsFromMetadata),
-      total_chats: Number(chatsTotals?.total_chats || 0),
-    };
-  } catch (error) {
-    platformError = error?.message || 'Falha ao consultar totais de usuários/grupos';
-  }
-
-  try {
-    const [messageTotalsRows, commandTotalsRows] = await Promise.all([
-      executeQuery(`SELECT COUNT(*) AS total_messages FROM ${TABLES.MESSAGES}`),
-      executeQuery(
-        `SELECT COUNT(*) AS total_commands
-           FROM ${TABLES.MESSAGE_ANALYSIS_EVENT}
-          WHERE is_command = 1
-            AND COALESCE(is_from_bot, 0) = 0`,
-      ),
-    ]);
-    const messageTotals = messageTotalsRows?.[0] || {};
-    const commandTotals = commandTotalsRows?.[0] || {};
-    usage = {
-      ...usage,
-      total_messages: Number(messageTotals?.total_messages || 0),
-      total_commands: Number(commandTotals?.total_commands || 0),
-    };
-  } catch (error) {
-    usageError = error?.message || 'Falha ao consultar totais de mensagens/comandos';
-  }
-
-  const hostCpuPercent = Number(system.usoCpuPercentual);
-  const hostMemoryPercent = Number(system.usoMemoriaPercentual);
-  const statusReasons = [];
-  if (!botConnected) statusReasons.push('bot_disconnected');
-  if (!prometheus) statusReasons.push('metrics_unavailable');
-  if (Number.isFinite(hostCpuPercent) && hostCpuPercent >= 90) statusReasons.push('host_cpu_high');
-  if (Number.isFinite(hostMemoryPercent) && hostMemoryPercent >= 90)
-    statusReasons.push('host_memory_high');
-  const systemStatus = statusReasons.length ? 'degraded' : 'online';
-
-  return {
-    data: {
-      system_status: systemStatus,
-      status_reasons: statusReasons,
-      bot: {
-        connected: botConnected,
-        connection_status: botConnectionStatus,
-        jid: botJid,
-        phone: botPhone,
-        ready_state: socketReadyState,
-      },
-      platform,
-      usage,
-      host: {
-        cpu_percent: system.usoCpuPercentual,
-        memory_percent: system.usoMemoriaPercentual,
-        memory_used: system.memoriaUsada,
-        memory_total: system.memoriaTotal,
-        uptime: system.uptimeSistema,
-      },
-      process: {
-        uptime: prometheus?.process_uptime || system.uptime,
-        node_version: system.versaoNode,
-      },
-      observability: {
-        lag_p99_ms: prometheus?.lag_p99_ms ?? null,
-        db_total: prometheus?.db_total ?? null,
-        db_slow: prometheus?.db_slow ?? null,
-        http_5xx_total: prometheus?.http_5xx_total ?? null,
-        http_latency_p95_ms: prometheus?.http_latency_p95_ms ?? null,
-        queue_peak: prometheus?.queue_peak ?? null,
-      },
-      updated_at: new Date().toISOString(),
-    },
-    meta: {
-      metrics_endpoint: METRICS_ENDPOINT,
-      metrics_ok: Boolean(prometheus),
-      metrics_error: prometheusError,
-      platform_error: platformError,
-      usage_error: usageError,
-    },
-  };
-};
-
-const getSystemSummaryCached = async () => {
-  const now = Date.now();
-  const hasValue = Boolean(SYSTEM_SUMMARY_CACHE.value);
-
-  if (hasValue && now < SYSTEM_SUMMARY_CACHE.expiresAt) {
-    return SYSTEM_SUMMARY_CACHE.value;
-  }
-
-  if (!SYSTEM_SUMMARY_CACHE.pending) {
-    SYSTEM_SUMMARY_CACHE.pending = withTimeout(buildSystemSummarySnapshot(), 5000)
-      .then((payload) => {
-        SYSTEM_SUMMARY_CACHE.value = payload;
-        SYSTEM_SUMMARY_CACHE.expiresAt = Date.now() + SYSTEM_SUMMARY_CACHE_SECONDS * 1000;
-        return payload;
-      })
-      .finally(() => {
-        SYSTEM_SUMMARY_CACHE.pending = null;
-      });
-  }
-
-  if (hasValue) return SYSTEM_SUMMARY_CACHE.value;
-  return SYSTEM_SUMMARY_CACHE.pending;
-};
-
-const withTimeout = (promise, timeoutMs) =>
-  Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`timeout_${timeoutMs}ms`)), timeoutMs);
-    }),
-  ]);
-
-const parseMessageTypeFromRaw = (rawMessage) => {
-  try {
-    const message = JSON.parse(rawMessage || '{}')?.message || {};
-    if (message.conversation || message.extendedTextMessage) return 'texto';
-    if (message.imageMessage) return 'imagem';
-    if (message.videoMessage) return 'video';
-    if (message.audioMessage) return 'audio';
-    if (message.stickerMessage) return 'figurinha';
-    if (message.documentMessage) return 'documento';
-    if (message.locationMessage) return 'localizacao';
-    if (message.reactionMessage) return 'reacao';
-    return 'outros';
-  } catch {
-    return 'outros';
-  }
-};
-
-const formatPtBrInteger = (value) => Number(value || 0).toLocaleString('pt-BR');
-
-const extractCommandsFromMenuLine = (line, commandPrefix) => {
-  const normalizedLine = String(line || '').trim();
-  if (!normalizedLine.startsWith('→')) return [];
-
-  const commandParts = normalizedLine
-    .replace(/^→\s*/, '')
-    .split('|')
-    .map((part) => part.trim())
-    .filter((part) => part.startsWith(commandPrefix));
-
-  return commandParts
-    .map((part) => {
-      const normalized = part.replace(/\s{2,}.*/, '').trim();
-      const withoutPrefix = normalized.slice(commandPrefix.length).trim();
-      if (!withoutPrefix) return '';
-
-      const tokens = withoutPrefix.split(/\s+/).filter(Boolean);
-      const selectedTokens = [];
-      for (const token of tokens) {
-        if (!/^[a-z0-9_-]+$/i.test(token)) break;
-        selectedTokens.push(token);
-      }
-      if (!selectedTokens.length) return '';
-      return `${commandPrefix}${selectedTokens.join(' ')}`;
-    })
-    .filter(Boolean);
-};
-
-const collectAvailableMenuCommands = (commandPrefix = README_COMMAND_PREFIX) => {
-  const sections = [
-    buildMenuCaption('OmniZap', commandPrefix),
-    buildStickerMenu(commandPrefix),
-    buildMediaMenu(commandPrefix),
-    buildQuoteMenu(commandPrefix),
-    buildAnimeMenu(commandPrefix),
-    buildAiMenu(commandPrefix),
-    buildStatsMenu(commandPrefix),
-    buildAdminMenu(commandPrefix),
-  ];
-
-  const commands = new Set();
-  for (const section of sections) {
-    for (const line of String(section || '').split('\n')) {
-      const extracted = extractCommandsFromMenuLine(line, commandPrefix);
-      for (const command of extracted) {
-        commands.add(command);
-      }
-    }
-  }
-
-  return Array.from(commands).sort((left, right) => left.localeCompare(right, 'pt-BR'));
-};
-
-const renderReadmeSnapshotMarkdown = ({ generatedAt, totals, topMessageTypes, commands }) => {
-  const typeRows = topMessageTypes.length
-    ? topMessageTypes.map((entry) => `| \`${entry.type}\` | ${formatPtBrInteger(entry.total)} |`)
-    : ['| `outros` | 0 |'];
-
-  const commandInline = commands.length
-    ? commands.map((command) => `\`${command}\``).join(' · ')
-    : 'Nenhum comando identificado no menu atual.';
-
-  return [
-    '### Snapshot do Sistema',
-    '',
-    `> Atualizado em \`${generatedAt}\` | cache \`${README_SUMMARY_CACHE_SECONDS}s\``,
-    '',
-    '| Métrica | Valor |',
-    '| --- | ---: |',
-    `| Usuários (lid_map) | ${formatPtBrInteger(totals.total_users)} |`,
-    `| Grupos | ${formatPtBrInteger(totals.total_groups)} |`,
-    `| Packs | ${formatPtBrInteger(totals.total_packs)} |`,
-    `| Stickers | ${formatPtBrInteger(totals.total_stickers)} |`,
-    `| Mensagens registradas | ${formatPtBrInteger(totals.total_messages)} |`,
-    '',
-    `#### Tipos de mensagem mais usados (amostra: ${formatPtBrInteger(totals.message_types_sample_size)})`,
-    '| Tipo | Total |',
-    '| --- | ---: |',
-    ...typeRows,
-    '',
-    `<details><summary>Comandos disponíveis (${formatPtBrInteger(commands.length)})</summary>`,
-    '',
-    commandInline,
-    '',
-    '</details>',
-    '',
-  ].join('\n');
-};
-
-const buildReadmeSummarySnapshot = async () => {
-  const [
-    lidMapTotalsRows,
-    chatsTotalsRows,
-    groupsMetadataTotalsRows,
-    packTotalsRows,
-    stickerTotalsRows,
-    messageTotalsRows,
-    messageTypeRows,
-  ] = await Promise.all([
-    executeQuery(`SELECT COUNT(*) AS total_users FROM ${TABLES.LID_MAP}`),
-    executeQuery(
-      `SELECT
-         COUNT(*) AS total_chats,
-         SUM(CASE WHEN id LIKE '%@g.us' THEN 1 ELSE 0 END) AS total_groups
-       FROM ${TABLES.CHATS}`,
-    ),
-    executeQuery(`SELECT COUNT(*) AS total_groups FROM ${TABLES.GROUPS_METADATA}`),
-    executeQuery(
-      `SELECT COUNT(*) AS total_packs FROM ${TABLES.STICKER_PACK} WHERE deleted_at IS NULL`,
-    ),
-    executeQuery(`SELECT COUNT(*) AS total_stickers FROM ${TABLES.STICKER_ASSET}`),
-    executeQuery(`SELECT COUNT(*) AS total_messages FROM ${TABLES.MESSAGES}`),
-    executeQuery(
-      `SELECT raw_message
-       FROM ${TABLES.MESSAGES}
-       WHERE raw_message IS NOT NULL
-       ORDER BY id DESC
-       LIMIT ${README_MESSAGE_TYPE_SAMPLE_LIMIT}`,
-    ),
-  ]);
-
-  const lidMapTotals = lidMapTotalsRows?.[0] || {};
-  const chatsTotals = chatsTotalsRows?.[0] || {};
-  const groupsMetadataTotals = groupsMetadataTotalsRows?.[0] || {};
-  const packTotals = packTotalsRows?.[0] || {};
-  const stickerTotals = stickerTotalsRows?.[0] || {};
-  const messageTotals = messageTotalsRows?.[0] || {};
-
-  const totalGroupsFromChats = Number(chatsTotals?.total_groups || 0);
-  const totalGroupsFromMetadata = Number(groupsMetadataTotals?.total_groups || 0);
-  const totalGroups = Math.max(totalGroupsFromChats, totalGroupsFromMetadata);
-  const totalMessages = Number(messageTotals?.total_messages || 0);
-
-  const typeCounts = new Map();
-  const sampledMessages = Array.isArray(messageTypeRows) ? messageTypeRows.length : 0;
-  for (const row of messageTypeRows || []) {
-    const type = parseMessageTypeFromRaw(row?.raw_message);
-    typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
-  }
-  const topMessageTypes = Array.from(typeCounts.entries())
-    .map(([type, total]) => ({ type, total: Number(total || 0) }))
-    .sort((left, right) => Number(right.total || 0) - Number(left.total || 0))
-    .slice(0, 8);
-
-  const commands = collectAvailableMenuCommands(README_COMMAND_PREFIX);
-  const generatedAt = new Date().toISOString();
-
-  const totals = {
-    total_users: Number(lidMapTotals?.total_users || 0),
-    total_groups: totalGroups,
-    total_groups_from_chats: totalGroupsFromChats,
-    total_groups_from_metadata: totalGroupsFromMetadata,
-    total_chats: Number(chatsTotals?.total_chats || 0),
-    total_packs: Number(packTotals?.total_packs || 0),
-    total_stickers: Number(stickerTotals?.total_stickers || 0),
-    total_messages: totalMessages,
-    message_types_sample_size: sampledMessages,
-    message_types_total_coverage_percent:
-      totalMessages > 0 ? Number(((sampledMessages / totalMessages) * 100).toFixed(2)) : 0,
-  };
-
-  const markdown = renderReadmeSnapshotMarkdown({
-    generatedAt,
-    totals,
-    topMessageTypes,
-    commands,
-  });
-
-  return {
-    data: {
-      generated_at: generatedAt,
-      cache_seconds: README_SUMMARY_CACHE_SECONDS,
-      command_prefix: README_COMMAND_PREFIX,
-      totals,
-      top_message_types: topMessageTypes,
-      commands,
-      markdown,
-    },
-  };
-};
-
-const getReadmeSummaryCached = async () => {
-  const now = Date.now();
-  const hasValue = Boolean(README_SUMMARY_CACHE.value);
-
-  if (hasValue && now < README_SUMMARY_CACHE.expiresAt) {
-    return README_SUMMARY_CACHE.value;
-  }
-
-  if (!README_SUMMARY_CACHE.pending) {
-    README_SUMMARY_CACHE.pending = withTimeout(buildReadmeSummarySnapshot(), 7000)
-      .then((payload) => {
-        README_SUMMARY_CACHE.value = payload;
-        README_SUMMARY_CACHE.expiresAt = Date.now() + README_SUMMARY_CACHE_SECONDS * 1000;
-        return payload;
-      })
-      .finally(() => {
-        README_SUMMARY_CACHE.pending = null;
-      });
-  }
-
-  if (hasValue) return README_SUMMARY_CACHE.value;
-  return README_SUMMARY_CACHE.pending;
-};
-
-const resolveBotUserCandidates = (activeSocket) => {
-  const candidates = new Set();
-  const botJidFromSocket = resolveActiveSocketBotJid(activeSocket);
-  const botUserFromSocket = getJidUser(botJidFromSocket || '');
-  if (botUserFromSocket) candidates.add(String(botUserFromSocket).trim());
-  const botPhoneFromCatalog = String(resolveCatalogBotPhone() || '').replace(/\D+/g, '');
-  if (botPhoneFromCatalog) candidates.add(botPhoneFromCatalog);
-
-  const envCandidates = [
-    process.env.WHATSAPP_BOT_NUMBER,
-    process.env.BOT_NUMBER,
-    process.env.PHONE_NUMBER,
-    process.env.BOT_PHONE_NUMBER,
-  ];
-
-  for (const candidate of envCandidates) {
-    const digits = String(candidate || '').replace(/\D+/g, '');
-    if (digits) candidates.add(digits);
-  }
-
-  return Array.from(candidates).filter((value) => value.length >= 8);
-};
-
-const isSenderFromAnyBotUser = (senderId, botUsers) => {
-  const normalizedSender = String(senderId || '').trim();
-  if (!normalizedSender) return false;
-  return botUsers.some((botUser) => {
-    const safe = String(botUser || '').trim();
-    if (!safe) return false;
-    return (
-      normalizedSender === `${safe}@s.whatsapp.net` ||
-      normalizedSender.startsWith(`${safe}:`) ||
-      normalizedSender.startsWith(`${safe}@`)
-    );
-  });
-};
-
-const sanitizeRankingPayloadByBot = (payload, botUsers) => {
-  const sourceRows = Array.isArray(payload?.rows) ? payload.rows : [];
-  const filteredRows = sourceRows.filter(
-    (row) => !isSenderFromAnyBotUser(row?.sender_id, botUsers),
-  );
-  const normalizedRows = filteredRows.slice(0, Number(payload?.limit || 5)).map((row, index) => ({
-    ...row,
-    position: index + 1,
-  }));
-  const totalMessages = Number(payload?.total_messages || 0);
-  const topTotal = normalizedRows.reduce((acc, row) => acc + Number(row?.total_messages || 0), 0);
-  const topShare = totalMessages > 0 ? Number(((topTotal / totalMessages) * 100).toFixed(2)) : 0;
-
-  return {
-    ...payload,
-    rows: normalizedRows,
-    top_share_percent: topShare,
-  };
-};
-
-const extractPushNameFromRaw = (rawMessage) => {
-  try {
-    const parsed = JSON.parse(rawMessage || '{}');
-    const direct = String(parsed?.pushName || '').trim();
-    if (direct) return direct;
-
-    const nested = String(
-      parsed?.message?.extendedTextMessage?.contextInfo?.participantName || '',
-    ).trim();
-    if (nested) return nested;
-  } catch {
-    return '';
-  }
-  return '';
-};
-
-const resolveRankingDisplayName = async (senderId) => {
-  if (!senderId) return 'Desconhecido';
-  const fallback = `@${String(getJidUser(senderId) || senderId).trim()}`;
-  try {
-    const rows = await executeQuery(
-      `SELECT raw_message FROM messages
-       WHERE sender_id = ?
-         AND raw_message IS NOT NULL
-       ORDER BY id DESC
-       LIMIT 12`,
-      [senderId],
-    );
-    for (const row of rows) {
-      const name = extractPushNameFromRaw(row?.raw_message);
-      if (name) return name;
-    }
-  } catch {
-    return fallback;
-  }
-  return fallback;
-};
-
-const resolveRankingAvatarUrl = async (senderId) => {
-  if (!senderId) return null;
-  const normalized = normalizeJid(senderId) || senderId;
-  try {
-    return await profilePictureUrlFromActiveSocket(normalized, 'image');
-  } catch {
-    return null;
-  }
-};
-
-const buildGlobalRankingSummary = async () => {
-  const LIMIT = 5;
-  const QUERY_LIMIT = 12;
-  const SAMPLE_LIMIT = 50000;
-  const activeSocket = getActiveSocket();
-  const botUsers = resolveBotUserCandidates(activeSocket);
-
-  const whereClauses = ['sender_id IS NOT NULL'];
-  const params = [];
-  for (const botUser of botUsers) {
-    whereClauses.push('sender_id <> ?');
-    params.push(`${botUser}@s.whatsapp.net`);
-    whereClauses.push('sender_id NOT LIKE ?');
-    whereClauses.push('sender_id NOT LIKE ?');
-    params.push(`${botUser}@%`, `${botUser}:%`);
-  }
-
-  const where = whereClauses.join(' AND ');
-  const recentScopeSql = `SELECT id, sender_id, timestamp, raw_message FROM messages WHERE ${where} ORDER BY id DESC LIMIT ${SAMPLE_LIMIT}`;
-
-  const [totalRow] = await executeQuery(
-    `SELECT COUNT(*) AS total FROM (${recentScopeSql}) recent_scope`,
-    params,
-  );
-  const totalMessages = Number(totalRow?.total || 0);
-
-  const rows = await executeQuery(
-    `SELECT
-      recent_scope.sender_id,
-      CONCAT('@', SUBSTRING_INDEX(recent_scope.sender_id, '@', 1)) AS display_name,
-      COUNT(*) AS total_messages,
-      MAX(
-        CASE
-          WHEN recent_scope.timestamp > 1000000000000 THEN FROM_UNIXTIME(recent_scope.timestamp / 1000)
-          WHEN recent_scope.timestamp > 1000000000 THEN FROM_UNIXTIME(recent_scope.timestamp)
-          ELSE recent_scope.timestamp
-        END
-      ) AS last_message
-    FROM (${recentScopeSql}) recent_scope
-    GROUP BY recent_scope.sender_id
-    ORDER BY total_messages DESC
-    LIMIT ${QUERY_LIMIT}`,
-    params,
-  );
-
-  const typeRows = await executeQuery(
-    `SELECT recent_scope.raw_message
-     FROM (${recentScopeSql}) recent_scope
-     WHERE recent_scope.raw_message IS NOT NULL
-     ORDER BY recent_scope.id DESC
-     LIMIT 300`,
-    params,
-  );
-
-  const typeCounts = new Map();
-  for (const row of typeRows) {
-    const type = parseMessageTypeFromRaw(row?.raw_message);
-    typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
-  }
-  const sortedTypes = Array.from(typeCounts.entries()).sort((left, right) => right[1] - left[1]);
-  const topType = sortedTypes[0]?.[0] || null;
-  const topTypeCount = Number(sortedTypes[0]?.[1] || 0);
-
-  const topTotal = rows.reduce((acc, row) => acc + Number(row?.total_messages || 0), 0);
-  const topShare = totalMessages > 0 ? Number(((topTotal / totalMessages) * 100).toFixed(2)) : 0;
-
-  const rowsWithoutBot = rows
-    .filter((row) => !isSenderFromAnyBotUser(row?.sender_id, botUsers))
-    .slice(0, LIMIT);
-
-  const rowsEnriched = await Promise.all(
-    rowsWithoutBot.map(async (row, index) => {
-      const total = Number(row?.total_messages || 0);
-      const percent = totalMessages > 0 ? Number(((total / totalMessages) * 100).toFixed(2)) : 0;
-      const senderId = row?.sender_id || null;
-      const displayName = await resolveRankingDisplayName(senderId);
-      const avatarUrl = await resolveRankingAvatarUrl(senderId);
-      return {
-        position: index + 1,
-        sender_id: senderId,
-        mention_id: senderId,
-        display_name: displayName || row?.display_name || senderId || 'Desconhecido',
-        avatar_url: avatarUrl,
-        total_messages: total,
-        percent_of_total: percent,
-        last_message: row?.last_message ? new Date(row.last_message).toISOString() : null,
-      };
-    }),
-  );
-
-  return {
-    limit: LIMIT,
-    sample_limit: SAMPLE_LIMIT,
-    total_messages: totalMessages,
-    top_share_percent: topShare,
-    top_type: topType,
-    top_type_count: topTypeCount,
-    rows: rowsEnriched,
-    updated_at: new Date().toISOString(),
-  };
-};
-
-const getGlobalRankingSummaryCached = async () => {
-  const now = Date.now();
-  const hasValue = Boolean(GLOBAL_RANK_CACHE.value);
-
-  if (hasValue && now < GLOBAL_RANK_CACHE.expiresAt) {
-    return GLOBAL_RANK_CACHE.value;
-  }
-
-  if (!GLOBAL_RANK_CACHE.pending) {
-    GLOBAL_RANK_CACHE.pending = withTimeout(buildGlobalRankingSummary(), 5000)
-      .then((data) => {
-        GLOBAL_RANK_CACHE.value = data;
-        GLOBAL_RANK_CACHE.expiresAt = Date.now() + GLOBAL_RANK_REFRESH_SECONDS * 1000;
-        return data;
-      })
-      .finally(() => {
-        GLOBAL_RANK_CACHE.pending = null;
-      });
-  }
-
-  if (hasValue) {
-    return GLOBAL_RANK_CACHE.value;
-  }
-
-  return GLOBAL_RANK_CACHE.pending;
-};
-
-const scheduleGlobalRankingPreload = () => {
-  if (globalRankRefreshTimer) return;
-
-  getGlobalRankingSummaryCached().catch((error) => {
-    logger.warn('Falha no preload inicial do ranking global.', {
-      action: 'global_ranking_preload_init_error',
-      error: error?.message,
-    });
-  });
-
-  globalRankRefreshTimer = setInterval(() => {
-    GLOBAL_RANK_CACHE.expiresAt = 0;
-    getGlobalRankingSummaryCached().catch((error) => {
-      logger.warn('Falha ao atualizar cache do ranking global em background.', {
-        action: 'global_ranking_preload_refresh_error',
-        error: error?.message,
-      });
-    });
-  }, GLOBAL_RANK_REFRESH_SECONDS * 1000);
-
-  if (typeof globalRankRefreshTimer?.unref === 'function') {
-    globalRankRefreshTimer.unref();
-  }
-};
-
-const buildLastSevenUtcDateKeys = () => {
-  const now = new Date();
-  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return Array.from({ length: 7 }).map((_, index) => {
-    const date = new Date(todayUtc - (6 - index) * 24 * 60 * 60 * 1000);
-    return date.toISOString().slice(0, 10);
-  });
-};
-
-const toUtcDayKey = (value) => {
-  if (!value) return '';
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  const text = String(value || '').trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
-  const parsed = Date.parse(text);
-  return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : '';
-};
-
-const mapRowsByDayKey = (rows, valueField = 'total') => {
-  const map = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const dayKey = toUtcDayKey(row?.day_key);
-    if (!dayKey) return;
-    map.set(dayKey, Number(row?.[valueField] || 0));
-  });
-  return map;
-};
-
-const buildMarketplaceGlobalStatsSnapshot = async () => {
-  const visiblePublishedVisibility = ['public', 'unlisted'];
-  const placeholders = visiblePublishedVisibility.map(() => '?').join(', ');
-  const dayKeys = buildLastSevenUtcDateKeys();
-  const dayFilterSql = `UTC_DATE() - INTERVAL 6 DAY`;
-
-  const [
-    packTotalsRows,
-    stickerTotalsRows,
-    stickersWithoutPackRows,
-    engagementTotalsRows,
-    dailyPacksRows,
-    dailyStickersRows,
-    dailyInteractionRows,
-  ] = await Promise.all([
-    executeQuery(
-      `SELECT
-         COUNT(*) AS total_packs,
-         COUNT(DISTINCT publisher) AS creators_total,
-         SUM(CASE WHEN created_at >= (UTC_TIMESTAMP() - INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS packs_last_7_days
-       FROM ${TABLES.STICKER_PACK}
-       WHERE deleted_at IS NULL
-         AND status = 'published'
-         AND COALESCE(pack_status, 'ready') = 'ready'
-         AND visibility IN (${placeholders})`,
-      visiblePublishedVisibility,
-    ),
-    executeQuery(`SELECT COUNT(*) AS total_stickers FROM ${TABLES.STICKER_ASSET}`),
-    executeQuery(
-      `SELECT COUNT(*) AS stickers_without_pack
-       FROM ${TABLES.STICKER_ASSET} a
-       LEFT JOIN ${TABLES.STICKER_PACK_ITEM} i ON i.sticker_id = a.id
-       WHERE i.sticker_id IS NULL`,
-    ),
-    executeQuery(
-      `SELECT
-         COALESCE(SUM(e.open_count), 0) AS total_clicks,
-         COALESCE(SUM(e.like_count), 0) AS total_likes
-       FROM ${TABLES.STICKER_PACK_ENGAGEMENT} e
-       INNER JOIN ${TABLES.STICKER_PACK} p ON p.id = e.pack_id
-       WHERE p.deleted_at IS NULL
-         AND p.status = 'published'
-         AND COALESCE(p.pack_status, 'ready') = 'ready'
-         AND p.visibility IN (${placeholders})`,
-      visiblePublishedVisibility,
-    ),
-    executeQuery(
-      `SELECT DATE(created_at) AS day_key, COUNT(*) AS total
-       FROM ${TABLES.STICKER_PACK}
-       WHERE deleted_at IS NULL
-         AND status = 'published'
-         AND COALESCE(pack_status, 'ready') = 'ready'
-         AND visibility IN (${placeholders})
-         AND created_at >= (${dayFilterSql})
-       GROUP BY DATE(created_at)`,
-      visiblePublishedVisibility,
-    ),
-    executeQuery(
-      `SELECT DATE(created_at) AS day_key, COUNT(*) AS total
-       FROM ${TABLES.STICKER_ASSET}
-       WHERE created_at >= (${dayFilterSql})
-       GROUP BY DATE(created_at)`,
-    ),
-    executeQuery(
-      `SELECT DATE(ev.created_at) AS day_key, ev.interaction, COUNT(*) AS total
-       FROM ${TABLES.STICKER_PACK_INTERACTION_EVENT} ev
-       INNER JOIN ${TABLES.STICKER_PACK} p ON p.id = ev.pack_id
-       WHERE ev.created_at >= (${dayFilterSql})
-         AND ev.interaction IN ('open', 'like')
-         AND p.deleted_at IS NULL
-         AND p.status = 'published'
-         AND COALESCE(p.pack_status, 'ready') = 'ready'
-         AND p.visibility IN (${placeholders})
-       GROUP BY DATE(ev.created_at), ev.interaction`,
-      visiblePublishedVisibility,
-    ),
-  ]);
-
-  const packTotals = packTotalsRows?.[0] || {};
-  const stickerTotals = stickerTotalsRows?.[0] || {};
-  const stickersWithoutPack = stickersWithoutPackRows?.[0] || {};
-  const engagementTotals = engagementTotalsRows?.[0] || {};
-
-  const dailyPacksByDay = mapRowsByDayKey(dailyPacksRows, 'total');
-  const dailyStickersByDay = mapRowsByDayKey(dailyStickersRows, 'total');
-  const dailyOpensByDay = new Map();
-  const dailyLikesByDay = new Map();
-  (Array.isArray(dailyInteractionRows) ? dailyInteractionRows : []).forEach((row) => {
-    const dayKey = toUtcDayKey(row?.day_key);
-    const interaction = String(row?.interaction || '')
-      .trim()
-      .toLowerCase();
-    const total = Number(row?.total || 0);
-    if (!dayKey) return;
-    if (interaction === 'open') dailyOpensByDay.set(dayKey, total);
-    if (interaction === 'like') dailyLikesByDay.set(dayKey, total);
-  });
-
-  const seriesLast7Days = dayKeys.map((day) => ({
-    date: day,
-    packs_published: Number(dailyPacksByDay.get(day) || 0),
-    stickers_created: Number(dailyStickersByDay.get(day) || 0),
-    clicks: Number(dailyOpensByDay.get(day) || 0),
-    likes: Number(dailyLikesByDay.get(day) || 0),
-  }));
-
-  const likesLast7Days = seriesLast7Days.reduce((acc, row) => acc + Number(row.likes || 0), 0);
-  const clicksLast7Days = seriesLast7Days.reduce((acc, row) => acc + Number(row.clicks || 0), 0);
-
-  return {
-    total_packs: Number(packTotals?.total_packs || 0),
-    total_stickers: Number(stickerTotals?.total_stickers || 0),
-    total_clicks: Number(engagementTotals?.total_clicks || 0),
-    total_likes: Number(engagementTotals?.total_likes || 0),
-    packs_last_7_days: Number(packTotals?.packs_last_7_days || 0),
-    stickers_without_pack: Number(stickersWithoutPack?.stickers_without_pack || 0),
-    creators_total: Number(packTotals?.creators_total || 0),
-    clicks_last_7_days: Number(clicksLast7Days || 0),
-    likes_last_7_days: Number(likesLast7Days || 0),
-    series_last_7_days: seriesLast7Days,
-    updated_at: new Date().toISOString(),
-  };
-};
-
-const getMarketplaceGlobalStatsCached = async () => {
-  const now = Date.now();
-  const hasValue = Boolean(MARKETPLACE_GLOBAL_STATS_CACHE.value);
-  if (hasValue && now < MARKETPLACE_GLOBAL_STATS_CACHE.expiresAt) {
-    return MARKETPLACE_GLOBAL_STATS_CACHE.value;
-  }
-
-  if (!MARKETPLACE_GLOBAL_STATS_CACHE.pending) {
-    MARKETPLACE_GLOBAL_STATS_CACHE.pending = withTimeout(
-      buildMarketplaceGlobalStatsSnapshot(),
-      5000,
-    )
-      .then((data) => {
-        MARKETPLACE_GLOBAL_STATS_CACHE.value = data;
-        MARKETPLACE_GLOBAL_STATS_CACHE.expiresAt =
-          Date.now() + MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS * 1000;
-        return data;
-      })
-      .finally(() => {
-        MARKETPLACE_GLOBAL_STATS_CACHE.pending = null;
-      });
-  }
-
-  if (hasValue) return MARKETPLACE_GLOBAL_STATS_CACHE.value;
-  return MARKETPLACE_GLOBAL_STATS_CACHE.pending;
-};
+const systemContext = createStickerCatalogSystemContext({
+  executeQuery,
+  tables: TABLES,
+  logger,
+  getSystemMetrics,
+  getActiveSocket,
+  resolveSocketReadyState,
+  resolveActiveSocketBotJid,
+  resolveCatalogBotPhone,
+  fetchPrometheusSummary,
+  metricsEndpoint: METRICS_ENDPOINT,
+  systemSummaryCache: SYSTEM_SUMMARY_CACHE,
+  systemSummaryCacheSeconds: SYSTEM_SUMMARY_CACHE_SECONDS,
+  readmeSummaryCache: README_SUMMARY_CACHE,
+  readmeSummaryCacheSeconds: README_SUMMARY_CACHE_SECONDS,
+  readmeMessageTypeSampleLimit: README_MESSAGE_TYPE_SAMPLE_LIMIT,
+  readmeCommandPrefix: README_COMMAND_PREFIX,
+  buildMenuCaption,
+  buildStickerMenu,
+  buildMediaMenu,
+  buildQuoteMenu,
+  buildAnimeMenu,
+  buildAiMenu,
+  buildStatsMenu,
+  buildAdminMenu,
+  profilePictureUrlFromActiveSocket,
+  normalizeJid,
+  getJidUser,
+  globalRankCache: GLOBAL_RANK_CACHE,
+  globalRankRefreshSeconds: GLOBAL_RANK_REFRESH_SECONDS,
+  marketplaceGlobalStatsCache: MARKETPLACE_GLOBAL_STATS_CACHE,
+  marketplaceGlobalStatsCacheSeconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
+});
+
+const {
+  withTimeout,
+  getSystemSummaryCached,
+  getReadmeSummaryCached,
+  resolveBotUserCandidates,
+  sanitizeRankingPayloadByBot,
+  getGlobalRankingSummaryCached,
+  scheduleGlobalRankingPreload,
+  getMarketplaceGlobalStatsCached,
+} = systemContext;
 
 const {
   handleSystemSummaryRequest,
@@ -7519,7 +5959,7 @@ const {
   handleAdminGlobalStickerDeleteRequest,
   handleAdminBansRequest,
   handleAdminBanRevokeRequest,
-} = createStickerCatalogAdminHandlers({
+} = createStickerCatalogAdminHandlersContext({
   executeQuery,
   tables: TABLES,
   logger,
@@ -7812,6 +6252,73 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
       sendJson(req, res, 500, { error: 'Falha interna ao processar a requisicao.' });
     }
     return true;
+  }
+
+  const handleUserApiReadRoute = async (handler, action) => {
+    if (!['GET', 'HEAD'].includes(req.method || '')) {
+      sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
+      return true;
+    }
+    try {
+      await handler();
+    } catch (error) {
+      logger.error('Erro ao processar rota utilitaria da API de usuario.', {
+        action,
+        path: pathname,
+        error: error?.message,
+      });
+      sendJson(req, res, 500, { error: 'Falha interna ao processar a requisicao.' });
+    }
+    return true;
+  };
+
+  if (pathname === `${USER_API_BASE_PATH}/home-bootstrap`) {
+    return handleUserApiReadRoute(
+      () => handleHomeBootstrapRequest(req, res, url),
+      'user_home_bootstrap_api_error',
+    );
+  }
+
+  if (pathname === `${USER_API_BASE_PATH}/system-summary`) {
+    return handleUserApiReadRoute(
+      () => handleSystemSummaryRequest(req, res),
+      'user_system_summary_api_error',
+    );
+  }
+
+  if (pathname === `${USER_API_BASE_PATH}/project-summary`) {
+    return handleUserApiReadRoute(
+      () => handleGitHubProjectSummaryRequest(req, res),
+      'user_project_summary_api_error',
+    );
+  }
+
+  if (pathname === `${USER_API_BASE_PATH}/global-ranking-summary`) {
+    return handleUserApiReadRoute(
+      () => handleGlobalRankingSummaryRequest(req, res),
+      'user_global_ranking_summary_api_error',
+    );
+  }
+
+  if (pathname === `${USER_API_BASE_PATH}/readme-markdown`) {
+    return handleUserApiReadRoute(
+      () => handleReadmeMarkdownRequest(req, res),
+      'user_readme_markdown_api_error',
+    );
+  }
+
+  if (pathname === `${USER_API_BASE_PATH}/support`) {
+    return handleUserApiReadRoute(
+      () => handleSupportInfoRequest(req, res),
+      'user_support_api_error',
+    );
+  }
+
+  if (pathname === `${USER_API_BASE_PATH}/bot-contact`) {
+    return handleUserApiReadRoute(
+      () => handleBotContactInfoRequest(req, res),
+      'user_bot_contact_api_error',
+    );
   }
 
   if (hasPathPrefix(pathname, STICKER_API_BASE_PATH)) {

@@ -80,7 +80,7 @@ export const shouldHandleUserPath = (pathname, userConfig = null) => {
     resolvedConfig.legacyApiBasePath,
     DEFAULT_USER_LEGACY_API_BASE_PATH,
   );
-  return isUserApiPath(pathname, legacyApiBasePath);
+  return isUserApiPath(pathname, legacyApiBasePath, { legacyCompatible: true });
 };
 
 export const maybeHandleUserRequest = async (req, res, { pathname, url }) => {

@@ -44,11 +44,11 @@ Este DPA define as obrigacoes de protecao de dados para tratamentos realizados e
 
 ## Anexo I - Suboperadores (resumo tecnico)
 
-| Categoria | Finalidade | Exemplo de fornecedor | Dados afetados |
-| --- | --- | --- | --- |
-| Cloud/Infra | Hospedagem, banco e disponibilidade | Provedor cloud contratado | Dados de conta, logs, conteudo operacional |
-| E-mail transacional | Recuperacao de senha e comunicacao operacional | Provedor SMTP/e-mail | E-mail, metadados de envio |
-| Monitoramento | Logs, metricas, alertas | Stack observabilidade | Logs tecnicos e telemetria |
+| Categoria           | Finalidade                                     | Exemplo de fornecedor     | Dados afetados                             |
+| ------------------- | ---------------------------------------------- | ------------------------- | ------------------------------------------ |
+| Cloud/Infra         | Hospedagem, banco e disponibilidade            | Provedor cloud contratado | Dados de conta, logs, conteudo operacional |
+| E-mail transacional | Recuperacao de senha e comunicacao operacional | Provedor SMTP/e-mail      | E-mail, metadados de envio                 |
+| Monitoramento       | Logs, metricas, alertas                        | Stack observabilidade     | Logs tecnicos e telemetria                 |
 
 ## Anexo II - Medidas de seguranca
 
@@ -69,12 +69,12 @@ Este DPA define as obrigacoes de protecao de dados para tratamentos realizados e
 
 ## Anexo IV - SLA de cooperacao (DSAR e incidente)
 
-| Evento | SLA alvo |
-| --- | --- |
-| Ack de incidente critico | ate 4h uteis |
-| Atualizacao inicial de incidente | ate 24h |
-| Evidencias tecnicas preliminares | ate 48h |
-| Apoio para DSAR simples | ate 5 dias corridos |
-| Apoio para DSAR complexo | ate 10 dias corridos |
+| Evento                           | SLA alvo             |
+| -------------------------------- | -------------------- |
+| Ack de incidente critico         | ate 4h uteis         |
+| Atualizacao inicial de incidente | ate 24h              |
+| Evidencias tecnicas preliminares | ate 48h              |
+| Apoio para DSAR simples          | ate 5 dias corridos  |
+| Apoio para DSAR complexo         | ate 10 dias corridos |
 
 Observacao: prazos legais do controlador prevalecem quando menores.

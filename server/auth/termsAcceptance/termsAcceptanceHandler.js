@@ -163,7 +163,9 @@ export const createTermsAcceptanceHandler = ({
       legal_document_registry: legalDocumentRegistry,
     });
 
-    const valueRows = acceptedDocuments.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+    const valueRows = acceptedDocuments
+      .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .join(', ');
     const params = [];
     for (const doc of acceptedDocuments) {
       params.push(

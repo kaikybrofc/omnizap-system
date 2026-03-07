@@ -49,11 +49,31 @@ const USER_API_EXACT_ROUTE_SUFFIXES = Object.freeze([
   '/home-bootstrap',
 ]);
 
+const USER_API_PRIMARY_ONLY_ROUTE_SUFFIXES = Object.freeze([
+  '/home-bootstrap',
+  '/system-summary',
+  '/project-summary',
+  '/global-ranking-summary',
+  '/readme-markdown',
+  '/support',
+  '/bot-contact',
+]);
+const USER_API_PRIMARY_ONLY_ROUTE_SUFFIX_SET = new Set(USER_API_PRIMARY_ONLY_ROUTE_SUFFIXES);
+
+const USER_API_LEGACY_EXACT_ROUTE_SUFFIXES = Object.freeze(
+  USER_API_EXACT_ROUTE_SUFFIXES.filter(
+    (suffix) => !USER_API_PRIMARY_ONLY_ROUTE_SUFFIX_SET.has(suffix),
+  ),
+);
+
 const USER_API_PREFIX_ROUTE_SUFFIXES = Object.freeze(['/auth/password/recovery/session/']);
 
-const buildUserApiMatcher = (apiBasePath) => {
+const buildUserApiMatcher = (apiBasePath, { legacyCompatible = false } = {}) => {
+  const exactRouteSuffixes = legacyCompatible
+    ? USER_API_LEGACY_EXACT_ROUTE_SUFFIXES
+    : USER_API_EXACT_ROUTE_SUFFIXES;
   const basePath = normalizeBasePath(apiBasePath, DEFAULT_USER_API_BASE_PATH);
-  const exactPaths = new Set(USER_API_EXACT_ROUTE_SUFFIXES.map((suffix) => `${basePath}${suffix}`));
+  const exactPaths = new Set(exactRouteSuffixes.map((suffix) => `${basePath}${suffix}`));
   const prefixPaths = USER_API_PREFIX_ROUTE_SUFFIXES.map((suffix) => `${basePath}${suffix}`);
   return {
     basePath,
@@ -62,11 +82,12 @@ const buildUserApiMatcher = (apiBasePath) => {
   };
 };
 
-export const buildUserApiPaths = (apiBasePath) => buildUserApiMatcher(apiBasePath).exactPaths;
+export const buildUserApiPaths = (apiBasePath, options = {}) =>
+  buildUserApiMatcher(apiBasePath, options).exactPaths;
 
-export const isUserApiPath = (pathname, apiBasePath) => {
+export const isUserApiPath = (pathname, apiBasePath, options = {}) => {
   const normalizedPathname = normalizePathname(pathname);
-  const matcher = buildUserApiMatcher(apiBasePath);
+  const matcher = buildUserApiMatcher(apiBasePath, options);
   if (matcher.exactPaths.has(normalizedPathname)) return true;
   return matcher.prefixPaths.some((prefixPath) => hasPathPrefix(normalizedPathname, prefixPath));
 };
@@ -76,6 +97,7 @@ export const resolveLegacyUserApiPath = (
   {
     apiBasePath = DEFAULT_USER_API_BASE_PATH,
     legacyApiBasePath = DEFAULT_LEGACY_STICKER_API_BASE_PATH,
+    legacyCompatible = false,
   } = {},
 ) => {
   const normalizedPathname = normalizePathname(pathname);
@@ -85,7 +107,7 @@ export const resolveLegacyUserApiPath = (
     DEFAULT_LEGACY_STICKER_API_BASE_PATH,
   );
 
-  if (!isUserApiPath(normalizedPathname, resolvedApiBasePath)) return null;
+  if (!isUserApiPath(normalizedPathname, resolvedApiBasePath, { legacyCompatible })) return null;
   if (resolvedApiBasePath === resolvedLegacyBasePath) return normalizedPathname;
   if (normalizedPathname === resolvedApiBasePath) return resolvedLegacyBasePath;
 

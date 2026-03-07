@@ -40,10 +40,13 @@ const optionalSignature = z.preprocess((value) => {
   return String(value).trim();
 }, z.string().max(256).optional());
 
-const optionalIsoDatetime = z.preprocess((value) => {
-  if (value === undefined || value === null || value === '') return undefined;
-  return String(value).trim();
-}, z.string().datetime({ offset: true }).optional());
+const optionalIsoDatetime = z.preprocess(
+  (value) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    return String(value).trim();
+  },
+  z.string().datetime({ offset: true }).optional(),
+);
 
 const googleAuthSessionPayloadSchema = z
   .object({
@@ -228,17 +231,17 @@ const userPasswordRecoveryVerifyPayloadSchema = z
 
 const termsAcceptanceDocumentSchema = z.object({
   document_key: z.preprocess(
-    (value) => String(value || '').trim().toLowerCase(),
+    (value) =>
+      String(value || '')
+        .trim()
+        .toLowerCase(),
     z
       .string()
       .min(3)
       .max(64)
       .regex(/^[a-z0-9_-]+$/, 'document_key invalido.'),
   ),
-  document_version: z.preprocess(
-    (value) => String(value || '').trim(),
-    z.string().min(1).max(64),
-  ),
+  document_version: z.preprocess((value) => String(value || '').trim(), z.string().min(1).max(64)),
 });
 
 const termsAcceptancePayloadSchema = z
@@ -313,8 +316,4 @@ export const parseUserPasswordRecoveryVerifyPayload = (payload) =>
   );
 
 export const parseTermsAcceptancePayload = (payload) =>
-  parseWithSchema(
-    termsAcceptancePayloadSchema,
-    payload,
-    'Payload de aceite juridico invalido.',
-  );
+  parseWithSchema(termsAcceptancePayloadSchema, payload, 'Payload de aceite juridico invalido.');

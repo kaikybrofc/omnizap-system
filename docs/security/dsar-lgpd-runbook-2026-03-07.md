@@ -20,13 +20,13 @@ Padronizar resposta para direitos do titular: acesso, correcao, exclusao, oposic
 
 ## 4) Prazos operacionais
 
-| Tipo de solicitacao | Prazo alvo interno |
-| --- | --- |
-| Confirmacao de recebimento | ate 2 dias corridos |
-| Acesso/confirmacao de tratamento | ate 7 dias corridos |
-| Correcao | ate 7 dias corridos |
-| Exclusao/anonimizacao (quando cabivel) | ate 15 dias corridos |
-| Oposicao/revisao | ate 10 dias corridos |
+| Tipo de solicitacao                        | Prazo alvo interno   |
+| ------------------------------------------ | -------------------- |
+| Confirmacao de recebimento                 | ate 2 dias corridos  |
+| Acesso/confirmacao de tratamento           | ate 7 dias corridos  |
+| Correcao                                   | ate 7 dias corridos  |
+| Exclusao/anonimizacao (quando cabivel)     | ate 15 dias corridos |
+| Oposicao/revisao                           | ate 10 dias corridos |
 | Portabilidade (quando tecnicamente viavel) | ate 15 dias corridos |
 
 Observacao: prevalecem prazos legais aplicaveis quando menores.

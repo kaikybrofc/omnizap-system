@@ -1,6 +1,15 @@
 const METHOD_NOT_ALLOWED_BODY = { error: 'Metodo nao permitido.' };
 
 const isReadMethod = (method) => method === 'GET' || method === 'HEAD';
+const RESERVED_NON_STICKER_SEGMENTS = new Set([
+  'home-bootstrap',
+  'system-summary',
+  'project-summary',
+  'global-ranking-summary',
+  'readme-markdown',
+  'support',
+  'bot-contact',
+]);
 
 export const handleCatalogPublicRoutes = async ({
   req,
@@ -58,15 +67,6 @@ export const handleCatalogPublicRoutes = async ({
     return true;
   }
 
-  if (pathname === `${apiBasePath}/home-bootstrap`) {
-    if (!isReadMethod(req.method || '')) {
-      sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
-      return true;
-    }
-    await handlers.handleHomeBootstrapRequest(req, res, url);
-    return true;
-  }
-
   if (pathname === `${apiBasePath}/create-config`) {
     if (!isReadMethod(req.method || '')) {
       sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
@@ -94,33 +94,6 @@ export const handleCatalogPublicRoutes = async ({
     return true;
   }
 
-  if (segments.length === 1 && segments[0] === 'system-summary') {
-    if (!isReadMethod(req.method || '')) {
-      sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
-      return true;
-    }
-    await handlers.handleSystemSummaryRequest(req, res);
-    return true;
-  }
-
-  if (segments.length === 1 && segments[0] === 'project-summary') {
-    if (!isReadMethod(req.method || '')) {
-      sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
-      return true;
-    }
-    await handlers.handleGitHubProjectSummaryRequest(req, res);
-    return true;
-  }
-
-  if (segments.length === 1 && segments[0] === 'global-ranking-summary') {
-    if (!isReadMethod(req.method || '')) {
-      sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
-      return true;
-    }
-    await handlers.handleGlobalRankingSummaryRequest(req, res);
-    return true;
-  }
-
   if (segments.length === 1 && segments[0] === 'readme-summary') {
     if (!isReadMethod(req.method || '')) {
       sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
@@ -130,31 +103,8 @@ export const handleCatalogPublicRoutes = async ({
     return true;
   }
 
-  if (segments.length === 1 && segments[0] === 'readme-markdown') {
-    if (!isReadMethod(req.method || '')) {
-      sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
-      return true;
-    }
-    await handlers.handleReadmeMarkdownRequest(req, res);
-    return true;
-  }
-
-  if (segments.length === 1 && segments[0] === 'support') {
-    if (!isReadMethod(req.method || '')) {
-      sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
-      return true;
-    }
-    await handlers.handleSupportInfoRequest(req, res);
-    return true;
-  }
-
-  if (segments.length === 1 && segments[0] === 'bot-contact') {
-    if (!isReadMethod(req.method || '')) {
-      sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
-      return true;
-    }
-    await handlers.handleBotContactInfoRequest(req, res);
-    return true;
+  if (segments.length === 1 && RESERVED_NON_STICKER_SEGMENTS.has(segments[0])) {
+    return false;
   }
 
   if (segments.length === 1) {

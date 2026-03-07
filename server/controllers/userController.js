@@ -53,16 +53,18 @@ const remapUrlPathname = (url, pathname) => {
 
 const isSupportedUserApiPath = (pathname) =>
   isUserApiPath(pathname, USER_API_BASE_PATH) ||
-  isUserApiPath(pathname, LEGACY_STICKER_API_BASE_PATH);
+  isUserApiPath(pathname, LEGACY_STICKER_API_BASE_PATH, { legacyCompatible: true });
 
 const mapUserApiPathToLegacy = (pathname) =>
   resolveLegacyUserApiPath(pathname, {
     apiBasePath: USER_API_BASE_PATH,
     legacyApiBasePath: LEGACY_STICKER_API_BASE_PATH,
+    legacyCompatible: true,
   }) ||
   resolveLegacyUserApiPath(pathname, {
     apiBasePath: LEGACY_STICKER_API_BASE_PATH,
     legacyApiBasePath: LEGACY_STICKER_API_BASE_PATH,
+    legacyCompatible: true,
   });
 
 const renderUserDashboardHtml = async () => {
@@ -150,14 +152,13 @@ export const maybeHandleUserRequest = async (req, res, { pathname, url }) => {
   }
 
   if (isSupportedUserApiPath(pathname)) {
-    const legacyPathname = mapUserApiPathToLegacy(pathname);
-    if (!legacyPathname) return false;
+    const routedPathname = mapUserApiPathToLegacy(pathname) || pathname;
 
     const controller = await loadStickerCatalogController();
     if (typeof controller?.maybeHandleStickerCatalogRequest !== 'function') return false;
     return controller.maybeHandleStickerCatalogRequest(req, res, {
-      pathname: legacyPathname,
-      url: remapUrlPathname(url, legacyPathname),
+      pathname: routedPathname,
+      url: remapUrlPathname(url, routedPathname),
     });
   }
 

@@ -269,7 +269,7 @@ export const getUserApiPathsFromConfig = (userConfig = null) => {
   const apiBasePath = userConfig?.apiBasePath || '/api';
   const paths = new Set(buildUserApiPaths(apiBasePath));
   const legacyApiBasePath = userConfig?.legacyApiBasePath || '/api/sticker-packs';
-  for (const path of buildUserApiPaths(legacyApiBasePath)) {
+  for (const path of buildUserApiPaths(legacyApiBasePath, { legacyCompatible: true })) {
     paths.add(path);
   }
   return paths;
