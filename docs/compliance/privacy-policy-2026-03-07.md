@@ -3,11 +3,18 @@
 Data da versao: 2026-03-07  
 Escopo: site, login web, painel, API e operacao de automacao do OmniZap System.
 
+## 0) Escopo desta politica (servico oficial)
+
+- Esta politica se aplica ao servico oficial operado pelos canais do OmniZap System (incluindo dominio omnizap.shop e endpoints oficiais).
+- Forks, redistribuicoes e instancias auto-hospedadas por terceiros nao se vinculam automaticamente a este documento.
+- Em instancia derivada/self-host, o operador da instancia atua como controlador independente e deve publicar sua propria politica de privacidade.
+
 ## 1) Controlador e contato
 
 - Controlador: 59.034.123 KAIKY BRITO RIBEIRO (CNPJ 59.034.123/0001-96).
 - Contato de privacidade: https://wa.me/559591122954
 - Canal para titulares (LGPD): mensagem com assunto "DSAR LGPD" no contato oficial.
+- Para servicos de terceiros baseados em fork/self-host, o contato de privacidade deve ser solicitado diretamente ao operador da respectiva instancia.
 
 ## 1.1) Encarregado pelo tratamento (LGPD art. 41)
 

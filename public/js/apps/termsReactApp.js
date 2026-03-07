@@ -51,6 +51,8 @@ const TERMS_CONTENT_HTML = String.raw`
         <h2>3. Definições contratuais</h2>
         <ul>
           <li><strong>Plataforma:</strong> ambiente digital OmniZap System (site, API, integrações e painel).</li>
+          <li><strong>Serviço oficial:</strong> operação hospedada e controlada pelos canais oficiais do OmniZap System (incluindo domínio omnizap.shop e endpoints oficiais).</li>
+          <li><strong>Instância derivada/self-host:</strong> fork, redistribuição ou implantação independente feita por terceiro a partir do código-fonte open source.</li>
           <li><strong>Usuário:</strong> pessoa natural ou jurídica que acessa ou utiliza a plataforma.</li>
           <li><strong>Conta:</strong> credencial de acesso vinculada a usuário, e-mail e/ou identificadores técnicos.</li>
           <li><strong>Dados pessoais:</strong> informações relacionadas a pessoa natural identificada ou identificável, nos termos da LGPD.</li>
@@ -61,7 +63,9 @@ const TERMS_CONTENT_HTML = String.raw`
       <section class="card">
         <h2>4. Objeto e escopo de uso</h2>
         <ul>
-          <li>Estes Termos se aplicam a todo uso do site, API, painel administrativo e módulos de automação do OmniZap System.</li>
+          <li>Estes Termos se aplicam ao uso do serviço oficial do OmniZap System (site, API, painel administrativo e módulos de automação operados pelos canais oficiais).</li>
+          <li>Forks, redistribuições e instâncias auto-hospedadas por terceiros não se vinculam automaticamente a estes Termos.</li>
+          <li>Em instância derivada/self-host, o operador dessa instância é responsável por publicar seus próprios termos, política de privacidade e instrumentos de conformidade.</li>
           <li>A plataforma possui finalidade técnica e educacional, sem prejuízo de usos operacionais legítimos pelo usuário.</li>
           <li>O usuário é integralmente responsável pela regularidade jurídica do uso que fizer do sistema em seu contexto de negócio.</li>
         </ul>
@@ -88,7 +92,8 @@ const TERMS_CONTENT_HTML = String.raw`
         <ul>
           <li>É permitido utilizar a plataforma para automação e integração, desde que observadas a legislação aplicável e as políticas de terceiros integrados.</li>
           <li>É vedado o uso para spam, fraude, phishing, engenharia social, assédio, malware, invasão de sistemas ou qualquer prática ilícita.</li>
-          <li>É vedado burlar controles técnicos, limitações comerciais, políticas de uso ou termos de plataformas terceiras (incluindo provedores de mensageria) por engenharia reversa, mascaramento indevido de origem ou automações não autorizadas.</li>
+          <li>É vedado burlar controles técnicos, limitações comerciais, políticas de uso ou termos de plataformas terceiras (incluindo provedores de mensageria) no contexto do serviço oficial, por mascaramento indevido de origem ou automações não autorizadas.</li>
+          <li>Esta vedação não restringe, por si só, os direitos de uso, estudo, modificação e redistribuição do código-fonte licenciado sob MIT fora da operação oficial, desde que observadas a legislação aplicável e as licenças de terceiros.</li>
           <li>É vedada a coleta, o tratamento ou o compartilhamento de dados de terceiros sem base legal adequada.</li>
           <li>É vedado o uso para monitoramento clandestino de comunicações sem ciência dos envolvidos ou sem base legal aplicável.</li>
           <li>É vedado testar vulnerabilidades, realizar varreduras agressivas ou provocar degradação de serviço sem autorização formal prévia.</li>
@@ -203,7 +208,7 @@ const TERMS_CONTENT_HTML = String.raw`
         <ul>
           <li>O usuário declara possuir direitos, licenças e autorizações necessárias sobre os conteúdos submetidos à plataforma.</li>
           <li>Conteúdo que infrinja direitos autorais, marca, imagem, privacidade ou legislação poderá ser removido, sem aviso prévio, para mitigação de risco jurídico.</li>
-          <li>O software, código-fonte, documentação, layout, sinais distintivos e demais ativos do OmniZap System permanecem protegidos pela legislação aplicável.</li>
+          <li>O software, documentação, layout, sinais distintivos e demais ativos do OmniZap System permanecem protegidos pela legislação aplicável, sem prejuízo dos direitos concedidos pela licença MIT sobre o código-fonte publicado no repositório oficial.</li>
           <li>Pedidos de remoção por violação de direitos poderão ser enviados aos canais oficiais, com documentação mínima comprobatória.</li>
         </ul>
       </section>
@@ -369,6 +374,7 @@ const TERMS_CONTENT_HTML = String.raw`
 
       <section class="card">
         <h2>24. Programa reforçado de conformidade e governança</h2>
+        <p>As obrigações desta seção se aplicam à operação do serviço oficial. Operadores de instâncias derivadas/self-host devem implementar governança equivalente sob sua própria responsabilidade jurídica.</p>
         <h3>24.1 Política de conteúdo e categorias reguladas</h3>
         <ul>
           <li>O usuário declara que somente utilizará a plataforma em atividades permitidas por lei e por políticas das plataformas integradas.</li>
@@ -383,7 +389,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
         <h3>24.3 Contratação corporativa, DPA e alocação de risco</h3>
         <ul>
-          <li>Para operação corporativa em escala, o OmniZap System poderá exigir contrato específico com cláusulas de proteção de dados, incluindo DPA (Data Processing Addendum).</li>
+          <li>Para operação corporativa em escala do serviço oficial, o OmniZap System poderá exigir contrato específico com cláusulas de proteção de dados, incluindo DPA (Data Processing Addendum).</li>
           <li>O contrato poderá prever garantias expressas de base legal, dever de cooperação regulatória, indenização regressiva e limitação de responsabilidade em parâmetros economicamente proporcionais.</li>
           <li>A recusa em firmar os instrumentos jurídicos mínimos poderá ensejar suspensão de funcionalidades de alto risco até regularização contratual.</li>
         </ul>
@@ -413,7 +419,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </ul>
         <h3>24.8 Comitê mensal de compliance</h3>
         <ul>
-          <li>Será mantido comitê mensal de compliance com representantes de jurídico, produto e segurança da informação, com ata e plano de ação.</li>
+          <li>Na operação oficial, será mantido comitê mensal de compliance com representantes de jurídico, produto e segurança da informação, com ata e plano de ação.</li>
           <li>O comitê revisará aderência regulatória, termos de terceiros, incidentes, métricas de segurança, solicitações de takedown e pendências contratuais.</li>
         </ul>
       </section>
@@ -421,7 +427,7 @@ const TERMS_CONTENT_HTML = String.raw`
       <section class="card">
         <h2>25. Histórico de alterações</h2>
         <ul>
-          <li><strong>07/03/2026:</strong> revisão jurídica complementar com reforço de direitos do titular (incluindo prazo do art. 19), transparência de transferência internacional (Res. 19/2024), encarregado (Res. 18/2024), ajustes de foro para relações de consumo, critérios de proporcionalidade em cláusula penal e detalhamento da comunicação de incidentes (Res. 15/2024).</li>
+          <li><strong>07/03/2026:</strong> revisão jurídica complementar com reforço de direitos do titular (incluindo prazo do art. 19), transparência de transferência internacional (Res. 19/2024), encarregado (Res. 18/2024), ajustes de foro para relações de consumo, critérios de proporcionalidade em cláusula penal, detalhamento da comunicação de incidentes (Res. 15/2024) e delimitação expressa entre serviço oficial e instâncias derivadas/self-host do projeto open source.</li>
           <li><strong>06/03/2026:</strong> inclusão de cláusulas sobre autenticação por senha, redefinição por e-mail com controles antiabuso, filosofia open source, comunidade e reforço das diretrizes de segurança de dados.</li>
           <li><strong>05/03/2026:</strong> inclusão de cláusula sobre uso do e-mail de login para envio de informações do projeto, comunicados operacionais e avisos de segurança.</li>
           <li><strong>28/02/2026:</strong> inclusão de contatos explícitos, aviso de projeto não oficial, termos complementares de privacidade, exemplos práticos de uso proibido e linguagem simplificada em seções jurídicas.</li>
