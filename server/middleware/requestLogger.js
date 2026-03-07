@@ -10,6 +10,12 @@ const redactTokenSegment = (rawPath, marker) => {
   const suffix = rawPath.slice(tokenStart);
   const nextSlashIndex = suffix.indexOf('/');
   if (nextSlashIndex < 0) {
+    const rawSegment = String(suffix || '')
+      .trim()
+      .toLowerCase();
+    if (rawSegment === 'request' || rawSegment === 'verify') {
+      return rawPath;
+    }
     return `${rawPath.slice(0, tokenStart)}[redacted]`;
   }
   return `${rawPath.slice(0, tokenStart)}[redacted]${suffix.slice(nextSlashIndex)}`;

@@ -33,6 +33,8 @@ const USER_API_EXACT_ROUTE_SUFFIXES = Object.freeze([
   '/auth/password/recovery/request',
   '/auth/password/recovery/verify',
   '/auth/password/recovery/session',
+  '/auth/password/recovery/session/request',
+  '/auth/password/recovery/session/verify',
   '/me',
   '/bot-contact',
   '/support',
@@ -66,7 +68,7 @@ const USER_API_LEGACY_EXACT_ROUTE_SUFFIXES = Object.freeze(
   ),
 );
 
-const USER_API_PREFIX_ROUTE_SUFFIXES = Object.freeze(['/auth/password/recovery/session/']);
+const USER_API_PREFIX_ROUTE_SUFFIXES = Object.freeze([]);
 
 const buildUserApiMatcher = (apiBasePath, { legacyCompatible = false } = {}) => {
   const exactRouteSuffixes = legacyCompatible

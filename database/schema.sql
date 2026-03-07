@@ -965,17 +965,32 @@ CREATE TABLE IF NOT EXISTS `web_user_password` (
   CONSTRAINT `fk_web_user_password_google_user` FOREIGN KEY (`google_sub`) REFERENCES `web_google_user` (`google_sub`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `web_user_password_login_throttle` (
+  `identity_hash` binary(32) NOT NULL,
+  `failed_attempts` smallint(5) unsigned NOT NULL DEFAULT 0,
+  `last_failed_at` timestamp NULL DEFAULT NULL,
+  `locked_until` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`identity_hash`),
+  KEY `idx_web_user_password_login_throttle_locked_until` (`locked_until`),
+  KEY `idx_web_user_password_login_throttle_failed` (`failed_attempts`,`last_failed_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `web_user_password_recovery_code` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `google_sub` varchar(80) NOT NULL,
   `email` varchar(255) NOT NULL,
+  `email_hash` binary(32) DEFAULT NULL,
   `owner_jid` varchar(120) DEFAULT NULL,
   `purpose` varchar(24) NOT NULL DEFAULT 'reset',
   `code_hash` char(64) NOT NULL,
   `attempts` smallint(5) unsigned NOT NULL DEFAULT 0,
   `max_attempts` smallint(5) unsigned NOT NULL DEFAULT 5,
   `requested_ip` varchar(64) DEFAULT NULL,
+  `requested_ip_hash` binary(32) DEFAULT NULL,
   `requested_user_agent` varchar(255) DEFAULT NULL,
+  `requested_user_agent_hash` binary(32) DEFAULT NULL,
   `last_attempt_at` timestamp NULL DEFAULT NULL,
   `expires_at` timestamp NOT NULL,
   `consumed_at` timestamp NULL DEFAULT NULL,
@@ -985,6 +1000,7 @@ CREATE TABLE IF NOT EXISTS `web_user_password_recovery_code` (
   PRIMARY KEY (`id`),
   KEY `idx_web_user_password_recovery_sub_created` (`google_sub`,`created_at`),
   KEY `idx_web_user_password_recovery_email_created` (`email`,`created_at`),
+  KEY `idx_web_user_password_recovery_email_hash_created` (`email_hash`,`created_at`),
   KEY `idx_web_user_password_recovery_status` (`revoked_at`,`consumed_at`,`expires_at`),
   KEY `idx_web_user_password_recovery_purpose` (`purpose`,`created_at`),
   CONSTRAINT `fk_web_user_password_recovery_google_user` FOREIGN KEY (`google_sub`) REFERENCES `web_google_user` (`google_sub`) ON DELETE CASCADE ON UPDATE CASCADE

@@ -1,4 +1,10 @@
-import { pbkdf2 as pbkdf2Callback, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import {
+  createHash,
+  pbkdf2 as pbkdf2Callback,
+  randomInt,
+  randomUUID,
+  timingSafeEqual,
+} from 'node:crypto';
 import { promisify } from 'node:util';
 
 const pbkdf2 = promisify(pbkdf2Callback);
@@ -272,7 +278,15 @@ export const createUserPasswordRecoveryService = ({
     return handler(null);
   };
 
-  const buildCodeHash = async ({
+  const buildSensitiveMetadataHash = (value, { scope = 'generic' } = {}) => {
+    const normalizedValue = String(value || '').trim();
+    if (!normalizedValue) return null;
+    return createHash('sha256')
+      .update(`${hashSecret}|recovery_sensitive|${scope}|${normalizedValue}`)
+      .digest();
+  };
+
+  const buildCodeHashV2 = async ({
     code = '',
     googleSub = '',
     email = '',
@@ -285,6 +299,23 @@ export const createUserPasswordRecoveryService = ({
 
     const material = `${normalizedPurpose}|${normalizedGoogleSub}|${normalizedEmail}|${normalizedCode}`;
     const salt = `${hashSecret}|web_user_password_recovery_code|v2`;
+    const derived = await pbkdf2(
+      material,
+      salt,
+      recoveryHashIterations,
+      RECOVERY_HASH_KEYLEN_BYTES,
+      'sha256',
+    );
+    return Buffer.from(derived).toString('hex');
+  };
+
+  const buildCodeHashV3 = async ({ code = '', googleSub = '', purpose = 'reset' } = {}) => {
+    const normalizedPurpose = normalizePurpose(purpose);
+    const normalizedGoogleSub = normalizeGoogleSubject(googleSub);
+    const normalizedCode = normalizeCode(code);
+
+    const material = `${normalizedPurpose}|${normalizedGoogleSub}|${normalizedCode}`;
+    const salt = `${hashSecret}|web_user_password_recovery_code|v3`;
     const derived = await pbkdf2(
       material,
       salt,
@@ -535,28 +566,52 @@ export const createUserPasswordRecoveryService = ({
 
     const verificationCode = generateSixDigitCode();
     const normalizedPurpose = normalizePurpose(purpose);
-    const codeHash = await buildCodeHash({
+    const codeHash = await buildCodeHashV3({
       code: verificationCode,
       googleSub: knownUser.google_sub,
-      email: recipientEmail,
       purpose: normalizedPurpose,
     });
+    const recipientEmailHash = buildSensitiveMetadataHash(recipientEmail, { scope: 'email' });
+    const requestIpHash = buildSensitiveMetadataHash(normalizeIp(requestMeta?.remoteIp), {
+      scope: 'ip',
+    });
+    const requestUserAgentHash = buildSensitiveMetadataHash(
+      normalizeUserAgent(requestMeta?.userAgent),
+      { scope: 'user_agent' },
+    );
 
     await revokeActiveCodesForGoogleSub(knownUser.google_sub, connection);
 
     await executeQuery(
       `INSERT INTO ${recoveryTable}
-        (google_sub, email, owner_jid, purpose, code_hash, attempts, max_attempts, requested_ip, requested_user_agent, expires_at)
-       VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, UTC_TIMESTAMP() + INTERVAL ${ttlSeconds} SECOND)`,
+        (
+          google_sub,
+          email,
+          email_hash,
+          owner_jid,
+          purpose,
+          code_hash,
+          attempts,
+          max_attempts,
+          requested_ip,
+          requested_ip_hash,
+          requested_user_agent,
+          requested_user_agent_hash,
+          expires_at
+        )
+       VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, UTC_TIMESTAMP() + INTERVAL ${ttlSeconds} SECOND)`,
       [
         knownUser.google_sub,
-        recipientEmail,
+        '',
+        recipientEmailHash,
         normalizeJid(knownUser.owner_jid || identity.ownerJid) || null,
         normalizedPurpose,
         codeHash,
         maxAttempts,
-        normalizeIp(requestMeta?.remoteIp),
-        normalizeUserAgent(requestMeta?.userAgent),
+        null,
+        requestIpHash,
+        null,
+        requestUserAgentHash,
       ],
       connection,
     );
@@ -672,20 +727,29 @@ export const createUserPasswordRecoveryService = ({
       null,
     );
 
-    if (!activeCode?.id || !activeCode.google_sub || !activeCode.email) {
+    if (!activeCode?.id || !activeCode.google_sub) {
       throw buildHttpError('Codigo de verificacao invalido ou expirado.', {
         statusCode: 401,
         code: 'INVALID_VERIFICATION_CODE',
       });
     }
 
-    const expectedHash = await buildCodeHash({
+    const expectedHashV3 = await buildCodeHashV3({
       code: normalizedCode,
       googleSub: activeCode.google_sub,
-      email: activeCode.email,
       purpose: activeCode.purpose,
     });
-    const isCodeValid = secureHexEquals(expectedHash, activeCode.code_hash);
+    let isCodeValid = secureHexEquals(expectedHashV3, activeCode.code_hash);
+
+    if (!isCodeValid && activeCode.email) {
+      const expectedHashV2 = await buildCodeHashV2({
+        code: normalizedCode,
+        googleSub: activeCode.google_sub,
+        email: activeCode.email,
+        purpose: activeCode.purpose,
+      });
+      isCodeValid = secureHexEquals(expectedHashV2, activeCode.code_hash);
+    }
 
     if (!isCodeValid) {
       await executeQuery(
@@ -728,8 +792,8 @@ export const createUserPasswordRecoveryService = ({
       const updatedCredential = await userPasswordAuthService.setPasswordForIdentity(
         {
           googleSub: activeCode.google_sub,
-          email: activeCode.email,
-          ownerJid: activeCode.owner_jid,
+          email: knownUser.email || activeCode.email,
+          ownerJid: activeCode.owner_jid || knownUser.owner_jid,
           password,
         },
         connection,
@@ -746,13 +810,19 @@ export const createUserPasswordRecoveryService = ({
 
       await executeQuery(
         `UPDATE ${recoveryTable}
-            SET requested_ip = COALESCE(?, requested_ip),
-                requested_user_agent = COALESCE(?, requested_user_agent),
+            SET requested_ip = NULL,
+                requested_ip_hash = COALESCE(?, requested_ip_hash),
+                requested_user_agent = NULL,
+                requested_user_agent_hash = COALESCE(?, requested_user_agent_hash),
                 updated_at = UTC_TIMESTAMP()
           WHERE id = ?`,
         [
-          normalizeIp(requestMeta?.remoteIp) || null,
-          normalizeUserAgent(requestMeta?.userAgent) || null,
+          buildSensitiveMetadataHash(normalizeIp(requestMeta?.remoteIp), {
+            scope: 'ip',
+          }),
+          buildSensitiveMetadataHash(normalizeUserAgent(requestMeta?.userAgent), {
+            scope: 'user_agent',
+          }),
           activeCode.id,
         ],
         connection,
@@ -765,8 +835,8 @@ export const createUserPasswordRecoveryService = ({
       try {
         await revokeWebSessionsByIdentity({
           googleSub: credential.google_sub,
-          email: credential.email || activeCode.email,
-          ownerJid: credential.owner_jid || activeCode.owner_jid,
+          email: credential.email || knownUser.email || activeCode.email,
+          ownerJid: credential.owner_jid || activeCode.owner_jid || knownUser.owner_jid,
         });
       } catch (error) {
         if (logger && typeof logger.warn === 'function') {
@@ -787,7 +857,7 @@ export const createUserPasswordRecoveryService = ({
       updated: true,
       credential,
       purpose: activeCode.purpose,
-      masked_email: maskEmail(activeCode.email),
+      masked_email: maskEmail(knownUser.email || activeCode.email),
     };
   };
 

@@ -157,11 +157,11 @@ const isSensitivePostPath = (pathname) => {
     return 'auth_password';
   }
 
-  if (/\/auth\/password\/recovery\/session\/[^/]+\/request$/.test(safePath)) {
+  if (safePath.endsWith('/auth/password/recovery/session/request')) {
     return 'auth_password_recovery_request';
   }
 
-  if (/\/auth\/password\/recovery\/session\/[^/]+\/(?:request|verify)$/.test(safePath)) {
+  if (safePath.endsWith('/auth/password/recovery/session/verify')) {
     return 'auth_password';
   }
 

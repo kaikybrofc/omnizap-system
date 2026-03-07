@@ -553,29 +553,56 @@ export const createGoogleWebAuthService = ({
 
     const sessionToken = String(claims.sid || '').trim();
     if (!sessionToken) return null;
+    return resolvePersistedGoogleWebSessionByToken(sessionToken, {
+      expectedSub: claims.sub,
+    });
+  };
 
-    const inMemory = webGoogleSessionMap.get(sessionToken);
-    if (inMemory && Number(inMemory.expiresAt || 0) > Date.now()) {
-      if (normalizeGoogleSubject(inMemory.sub) !== normalizeGoogleSubject(claims.sub)) {
-        return null;
-      }
-      try {
-        await assertGoogleIdentityNotBanned({
-          sub: inMemory.sub,
-          email: inMemory.email,
-          ownerJid: inMemory.ownerJid,
-        });
-        return inMemory;
-      } catch {
-        webGoogleSessionMap.delete(sessionToken);
-        await deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
-        return null;
-      }
+  const touchGoogleWebSessionActivity = (session) => {
+    if (!session?.token || !session?.sub) return;
+    const now = Date.now();
+    session.lastSeenAt = now;
+    if (now - Number(session.lastDbTouchAt || 0) < sessionDbTouchIntervalMs) {
+      return;
+    }
+    session.lastDbTouchAt = now;
+    void touchGoogleWebSessionSeenInDb(session.token).catch((error) => {
+      logger.warn('Falha ao atualizar last_seen da sessão Google web.', {
+        action: 'sticker_pack_google_web_session_touch_failed',
+        error: error?.message,
+      });
+    });
+    void touchGoogleWebUserSeenInDb(session.sub).catch(() => {});
+  };
+
+  const resolvePersistedGoogleWebSessionByToken = async (
+    sessionToken,
+    { expectedSub = '' } = {},
+  ) => {
+    const token = String(sessionToken || '').trim();
+    if (!token) return null;
+    const normalizedExpectedSub = normalizeGoogleSubject(expectedSub);
+
+    let persistedSession = null;
+    try {
+      persistedSession = await findGoogleWebSessionInDbByToken(token);
+    } catch (error) {
+      logger.warn('Falha ao resolver sessão Google web no banco.', {
+        action: 'sticker_pack_google_web_session_db_resolve_failed',
+        error: error?.message,
+      });
+      return null;
     }
 
-    const persistedSession = await findGoogleWebSessionInDbByToken(sessionToken);
-    if (!persistedSession) return null;
-    if (normalizeGoogleSubject(persistedSession.sub) !== normalizeGoogleSubject(claims.sub)) {
+    if (!persistedSession) {
+      webGoogleSessionMap.delete(token);
+      return null;
+    }
+
+    if (
+      normalizedExpectedSub &&
+      normalizeGoogleSubject(persistedSession.sub) !== normalizedExpectedSub
+    ) {
       return null;
     }
 
@@ -586,10 +613,12 @@ export const createGoogleWebAuthService = ({
         ownerJid: persistedSession.ownerJid,
       });
     } catch {
-      await deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
+      webGoogleSessionMap.delete(token);
+      await deleteGoogleWebSessionFromDb(token).catch(() => {});
       return null;
     }
 
+    touchGoogleWebSessionActivity(persistedSession);
     activateGoogleWebSession(persistedSession);
     return persistedSession;
   };
@@ -602,60 +631,8 @@ export const createGoogleWebAuthService = ({
     }
 
     for (const sessionToken of sessionTokens) {
-      const session = webGoogleSessionMap.get(sessionToken);
-      if (!session) continue;
-      if (Number(session.expiresAt || 0) <= Date.now()) {
-        webGoogleSessionMap.delete(sessionToken);
-        continue;
-      }
-
-      const now = Date.now();
-      session.lastSeenAt = now;
-      if (now - Number(session.lastDbTouchAt || 0) >= sessionDbTouchIntervalMs) {
-        session.lastDbTouchAt = now;
-        void touchGoogleWebSessionSeenInDb(sessionToken).catch((error) => {
-          logger.warn('Falha ao atualizar last_seen da sessão Google web.', {
-            action: 'sticker_pack_google_web_session_touch_failed',
-            error: error?.message,
-          });
-        });
-        void touchGoogleWebUserSeenInDb(session.sub).catch(() => {});
-      }
-      try {
-        await assertGoogleIdentityNotBanned({
-          sub: session.sub,
-          email: session.email,
-          ownerJid: session.ownerJid,
-        });
-        return session;
-      } catch {
-        webGoogleSessionMap.delete(sessionToken);
-        void deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
-      }
-    }
-
-    for (const sessionToken of sessionTokens) {
-      try {
-        const persistedSession = await findGoogleWebSessionInDbByToken(sessionToken);
-        if (!persistedSession) continue;
-        try {
-          await assertGoogleIdentityNotBanned({
-            sub: persistedSession.sub,
-            email: persistedSession.email,
-            ownerJid: persistedSession.ownerJid,
-          });
-        } catch {
-          await deleteGoogleWebSessionFromDb(sessionToken).catch(() => {});
-          continue;
-        }
-        webGoogleSessionMap.set(sessionToken, persistedSession);
-        return persistedSession;
-      } catch (error) {
-        logger.warn('Falha ao resolver sessão Google web no banco.', {
-          action: 'sticker_pack_google_web_session_db_resolve_failed',
-          error: error?.message,
-        });
-      }
+      const resolvedSession = await resolvePersistedGoogleWebSessionByToken(sessionToken);
+      if (resolvedSession) return resolvedSession;
     }
 
     return resolveGoogleWebSessionFromBearerToken(req);
@@ -741,12 +718,6 @@ export const createGoogleWebAuthService = ({
     }
     if (!clauses.length) return 0;
 
-    await executeQuery(
-      `DELETE FROM ${tables.STICKER_WEB_GOOGLE_SESSION}
-        WHERE ${clauses.join(' OR ')}`,
-      params,
-    ).catch(() => {});
-
     let removed = 0;
     for (const [token, session] of webGoogleSessionMap.entries()) {
       if (!session) continue;
@@ -761,6 +732,20 @@ export const createGoogleWebAuthService = ({
         webGoogleSessionMap.delete(token);
         removed += 1;
       }
+    }
+
+    try {
+      await executeQuery(
+        `DELETE FROM ${tables.STICKER_WEB_GOOGLE_SESSION}
+          WHERE ${clauses.join(' OR ')}`,
+        params,
+      );
+    } catch (error) {
+      const wrapped = new Error('Nao foi possivel revogar sessoes web persistidas.');
+      wrapped.statusCode = 503;
+      wrapped.code = 'SESSION_REVOKE_FAILED';
+      wrapped.cause = error;
+      throw wrapped;
     }
 
     return removed;

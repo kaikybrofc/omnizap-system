@@ -1,13 +1,6 @@
 const METHOD_NOT_ALLOWED_BODY = { error: 'Metodo nao permitido.' };
 
 const isReadMethod = (method) => method === 'GET' || method === 'HEAD';
-const decodePathSegment = (segment) => {
-  try {
-    return decodeURIComponent(String(segment || ''));
-  } catch {
-    return String(segment || '');
-  }
-};
 
 export const handleCatalogAuthRoutes = async ({
   req,
@@ -50,80 +43,27 @@ export const handleCatalogAuthRoutes = async ({
 
   const passwordRecoverySessionBasePath = `${apiBasePath}/auth/password/recovery/session`;
   if (pathname === passwordRecoverySessionBasePath) {
-    const querySessionToken = decodePathSegment(
-      String(url?.searchParams?.get('session_token') || url?.searchParams?.get('token') || ''),
-    );
-    const queryAction = String(url?.searchParams?.get('action') || '')
-      .trim()
-      .toLowerCase();
-
-    if (querySessionToken) {
-      if (!queryAction) {
-        await handlers.handlePasswordRecoverySessionStatusRequest(req, res, {
-          sessionToken: querySessionToken,
-        });
-        return true;
-      }
-
-      if (queryAction === 'request') {
-        await handlers.handlePasswordRecoverySessionRequest(req, res, {
-          sessionToken: querySessionToken,
-        });
-        return true;
-      }
-
-      if (queryAction === 'verify') {
-        await handlers.handlePasswordRecoverySessionVerifyRequest(req, res, {
-          sessionToken: querySessionToken,
-        });
-        return true;
-      }
-
-      sendJson(req, res, 400, { error: 'Acao de sessao de redefinicao invalida.' });
+    if (isReadMethod(req.method || '')) {
+      await handlers.handlePasswordRecoverySessionStatusRequest(req, res);
       return true;
     }
 
-    await handlers.handlePasswordRecoverySessionCreateRequest(req, res);
+    if (req.method === 'POST') {
+      await handlers.handlePasswordRecoverySessionCreateRequest(req, res);
+      return true;
+    }
+
+    sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
     return true;
   }
 
-  if (pathname.startsWith(`${passwordRecoverySessionBasePath}/`)) {
-    const suffix = pathname.slice(passwordRecoverySessionBasePath.length).replace(/^\/+/, '');
-    const [rawSessionToken = '', action = '', extra = ''] = String(suffix).split('/');
-    const sessionToken = decodePathSegment(rawSessionToken);
+  if (pathname === `${passwordRecoverySessionBasePath}/request`) {
+    await handlers.handlePasswordRecoverySessionRequest(req, res);
+    return true;
+  }
 
-    if (!sessionToken) {
-      sendJson(req, res, 400, { error: 'Sessao de redefinicao invalida.' });
-      return true;
-    }
-
-    if (!action) {
-      await handlers.handlePasswordRecoverySessionStatusRequest(req, res, {
-        sessionToken,
-      });
-      return true;
-    }
-
-    if (extra) {
-      sendJson(req, res, 404, { error: 'Rota de autenticacao nao encontrada.' });
-      return true;
-    }
-
-    if (action === 'request') {
-      await handlers.handlePasswordRecoverySessionRequest(req, res, {
-        sessionToken,
-      });
-      return true;
-    }
-
-    if (action === 'verify') {
-      await handlers.handlePasswordRecoverySessionVerifyRequest(req, res, {
-        sessionToken,
-      });
-      return true;
-    }
-
-    sendJson(req, res, 404, { error: 'Rota de autenticacao nao encontrada.' });
+  if (pathname === `${passwordRecoverySessionBasePath}/verify`) {
+    await handlers.handlePasswordRecoverySessionVerifyRequest(req, res);
     return true;
   }
 

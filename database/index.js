@@ -126,6 +126,7 @@ export const TABLES = {
   STICKER_WEB_GOOGLE_USER: 'web_google_user',
   STICKER_WEB_GOOGLE_SESSION: 'web_google_session',
   STICKER_WEB_USER_PASSWORD: 'web_user_password',
+  STICKER_WEB_USER_PASSWORD_LOGIN_THROTTLE: 'web_user_password_login_throttle',
   STICKER_WEB_USER_PASSWORD_RECOVERY_CODE: 'web_user_password_recovery_code',
   STICKER_WEB_TERMS_ACCEPTANCE_EVENT: 'web_terms_acceptance_event',
   STICKER_WEB_ADMIN_BAN: 'web_admin_ban',

@@ -218,10 +218,6 @@ const USER_PASSWORD_RESET_WEB_PATH = normalizeBasePath(
   process.env.USER_PASSWORD_RESET_WEB_PATH,
   '/user/password-reset',
 );
-const USER_PASSWORD_RECOVERY_SESSION_QUERY_PARAM =
-  String(
-    process.env.USER_PASSWORD_RECOVERY_SESSION_QUERY_PARAM || 'password_recovery_session',
-  ).trim() || 'password_recovery_session';
 const PASSWORD_RECOVERY_SESSION_AUTH_METHOD = 'password_recovery_session';
 const PASSWORD_RECOVERY_SESSION_TTL_SECONDS = clampInt(
   process.env.WEB_PASSWORD_RECOVERY_SESSION_TTL_SECONDS,
@@ -3507,7 +3503,6 @@ const authContext = createStickerCatalogAuthContext({
   clampInt,
   userPasswordResetWebPath: USER_PASSWORD_RESET_WEB_PATH,
   userProfileWebPath: USER_PROFILE_WEB_PATH,
-  userPasswordRecoverySessionQueryParam: USER_PASSWORD_RECOVERY_SESSION_QUERY_PARAM,
   passwordRecoverySessionAuthMethod: PASSWORD_RECOVERY_SESSION_AUTH_METHOD,
   passwordRecoverySessionTtlSeconds: PASSWORD_RECOVERY_SESSION_TTL_SECONDS,
   webSessionCookieName: WEB_SESSION_COOKIE_NAME,

@@ -20,7 +20,8 @@ const DEFAULT_PRIVACY_URL = '/politica-de-privacidade/';
 const DEFAULT_FALLBACK_AVATAR = '/assets/images/brand-logo-128.webp';
 const DEFAULT_PASSWORD_RESET_WEB_PATH = '/user/password-reset';
 const DEFAULT_SUPPORT_TEXT = 'Ol\u00e1! Preciso de suporte no OmniZap.';
-const PASSWORD_RECOVERY_QUERY_KEYS = [
+const PASSWORD_RECOVERY_STORAGE_KEY = 'omnizap_password_recovery_session_token';
+const LEGACY_PASSWORD_RECOVERY_QUERY_KEYS = [
   'password_recovery_session',
   'recovery_session',
   'reset_session',
@@ -56,52 +57,56 @@ const normalizeRoutePath = (value, fallback = '/') => {
   return normalized || fallback;
 };
 
-const decodePathToken = (value) => {
-  try {
-    return decodeURIComponent(String(value || ''));
-  } catch {
-    return String(value || '');
-  }
-};
-
-const resolveRecoveryTokenFromSearch = (search = '') => {
+const hasLegacyRecoveryTokenInSearch = (search = '') => {
   try {
     const params = new URLSearchParams(String(search || ''));
-    for (const key of PASSWORD_RECOVERY_QUERY_KEYS) {
-      const rawValue = String(params.get(key) || '').trim();
-      if (!rawValue) continue;
-      const decoded = decodePathToken(rawValue).trim();
-      if (decoded) return decoded;
+    for (const key of LEGACY_PASSWORD_RECOVERY_QUERY_KEYS) {
+      if (String(params.get(key) || '').trim()) {
+        return true;
+      }
     }
   } catch {
-    return '';
+    return false;
   }
-  return '';
+  return false;
+};
+
+const readRecoverySessionTokenFromStorage = () => {
+  if (typeof window === 'undefined' || !window.sessionStorage) return '';
+  return String(window.sessionStorage.getItem(PASSWORD_RECOVERY_STORAGE_KEY) || '')
+    .trim()
+    .slice(0, 4096);
+};
+
+const writeRecoverySessionTokenToStorage = (token) => {
+  if (typeof window === 'undefined' || !window.sessionStorage) return;
+  const normalizedToken = String(token || '')
+    .trim()
+    .slice(0, 4096);
+  if (!normalizedToken) return;
+  window.sessionStorage.setItem(PASSWORD_RECOVERY_STORAGE_KEY, normalizedToken);
+};
+
+const clearRecoverySessionTokenFromStorage = () => {
+  if (typeof window === 'undefined' || !window.sessionStorage) return;
+  window.sessionStorage.removeItem(PASSWORD_RECOVERY_STORAGE_KEY);
 };
 
 const resolvePasswordRecoveryRoute = (pathname, search, passwordResetWebPath) => {
-  const queryToken = resolveRecoveryTokenFromSearch(search);
-  if (queryToken) {
-    return { active: true, token: queryToken };
-  }
-
   const safePathname = normalizeRoutePath(pathname, '/');
   const safeResetPath = normalizeRoutePath(passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH);
+  const hasLegacyQueryToken = hasLegacyRecoveryTokenInSearch(search);
+  const hasLegacyPathToken = safePathname.startsWith(`${safeResetPath}/`);
 
-  if (safePathname === safeResetPath) {
-    return { active: true, token: '' };
+  if (safePathname === safeResetPath || hasLegacyPathToken || hasLegacyQueryToken) {
+    return {
+      active: true,
+      normalizedPath: safeResetPath,
+      shouldNormalizeUrl: hasLegacyPathToken || hasLegacyQueryToken,
+    };
   }
 
-  if (!safePathname.startsWith(`${safeResetPath}/`)) {
-    return { active: false, token: '' };
-  }
-
-  const remainder = safePathname.slice(safeResetPath.length + 1);
-  const [rawToken = ''] = String(remainder || '').split('/');
-  return {
-    active: true,
-    token: decodePathToken(rawToken).trim(),
-  };
+  return { active: false, normalizedPath: safeResetPath, shouldNormalizeUrl: false };
 };
 
 const resolveLogoutPath = (loginPath) => {
@@ -135,13 +140,17 @@ const createUserApi = (apiBasePath) => {
   const passwordRecoveryRequestPath = `${apiBasePath}/auth/password/recovery/request`;
   const passwordRecoveryVerifyPath = `${apiBasePath}/auth/password/recovery/verify`;
   const passwordRecoverySessionPath = `${apiBasePath}/auth/password/recovery/session`;
-  const buildSessionPath = (sessionToken, action = '') => {
-    const url = new URL(passwordRecoverySessionPath, window.location.origin);
-    url.searchParams.set('session_token', String(sessionToken || '').trim());
-    if (action) {
-      url.searchParams.set('action', String(action || '').trim());
-    }
-    return `${url.pathname}${url.search}`;
+  const passwordRecoverySessionRequestPath = `${passwordRecoverySessionPath}/request`;
+  const passwordRecoverySessionVerifyPath = `${passwordRecoverySessionPath}/verify`;
+  const buildRecoverySessionHeaders = (sessionToken, baseHeaders = {}) => {
+    const token = String(sessionToken || '')
+      .trim()
+      .slice(0, 4096);
+    if (!token) return { ...baseHeaders };
+    return {
+      ...baseHeaders,
+      'X-Password-Recovery-Session': token,
+    };
   };
 
   const fetchJson = async (url, init = {}) => {
@@ -201,17 +210,21 @@ const createUserApi = (apiBasePath) => {
         method: 'POST',
       }),
     fetchPasswordRecoverySessionStatus: (sessionToken) =>
-      fetchJson(buildSessionPath(sessionToken), { method: 'GET' }),
+      fetchJson(passwordRecoverySessionPath, {
+        method: 'GET',
+        headers: buildRecoverySessionHeaders(sessionToken),
+      }),
     requestPasswordRecoveryCodeBySession: (sessionToken) =>
-      fetchJson(buildSessionPath(sessionToken, 'request'), {
+      fetchJson(passwordRecoverySessionRequestPath, {
         method: 'POST',
+        headers: buildRecoverySessionHeaders(sessionToken),
       }),
     verifyPasswordRecoveryCodeBySession: (sessionToken, body) =>
-      fetchJson(buildSessionPath(sessionToken, 'verify'), {
+      fetchJson(passwordRecoverySessionVerifyPath, {
         method: 'POST',
-        headers: {
+        headers: buildRecoverySessionHeaders(sessionToken, {
           'Content-Type': 'application/json; charset=utf-8',
-        },
+        }),
         body: JSON.stringify(body || {}),
       }),
     logout: () => fetchJson(sessionPath, { method: 'DELETE' }),
@@ -262,7 +275,9 @@ const UserApp = ({ config }) => {
     [config.passwordResetWebPath],
   );
   const isRecoveryRoute = recoveryRoute.active;
-  const recoverySessionToken = recoveryRoute.token;
+  const [recoverySessionToken, setRecoverySessionToken] = useState(() =>
+    isRecoveryRoute ? readRecoverySessionTokenFromStorage() : '',
+  );
 
   const [activeTab, setActiveTab] = useState('account');
   const [isMobile, setMobile] = useState(
@@ -376,6 +391,28 @@ const UserApp = ({ config }) => {
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [isMobile, isSidebarOpen]);
+
+  useEffect(() => {
+    if (!isRecoveryRoute) {
+      setRecoverySessionToken('');
+      return;
+    }
+
+    if (recoveryRoute.shouldNormalizeUrl && typeof window.history?.replaceState === 'function') {
+      const normalizedPath = normalizeRoutePath(
+        recoveryRoute.normalizedPath,
+        normalizeRoutePath(config.passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH),
+      );
+      window.history.replaceState({}, '', normalizedPath);
+    }
+
+    setRecoverySessionToken(readRecoverySessionTokenFromStorage());
+  }, [
+    config.passwordResetWebPath,
+    isRecoveryRoute,
+    recoveryRoute.normalizedPath,
+    recoveryRoute.shouldNormalizeUrl,
+  ]);
 
   useEffect(() => {
     if (isRecoveryRoute) {
@@ -505,7 +542,9 @@ const UserApp = ({ config }) => {
           expiresAt: 'Nao informado',
           expiresInSeconds: null,
         });
-        setRecoverySessionError('Link de redefinicao invalido ou incompleto.');
+        setRecoverySessionError(
+          'Sessao de redefinicao ausente ou expirada. Solicite uma nova sessao.',
+        );
         setRecoverySessionLoading(false);
         return;
       }
@@ -522,6 +561,8 @@ const UserApp = ({ config }) => {
         });
       } catch (error) {
         if (!active) return;
+        clearRecoverySessionTokenFromStorage();
+        setRecoverySessionToken('');
         setRecoverySessionState({
           valid: false,
           maskedEmail: '',
@@ -566,6 +607,7 @@ const UserApp = ({ config }) => {
     } catch {
       // no-op
     }
+    clearRecoverySessionTokenFromStorage();
     window.location.assign(resolveLogoutPath(config.loginPath));
   };
 
@@ -619,14 +661,19 @@ const UserApp = ({ config }) => {
 
     try {
       const payload = await api.createPasswordRecoverySession();
+      const sessionToken = String(payload?.data?.session_token || '').trim();
       const sessionPath = String(payload?.data?.session_path || '').trim();
       const sessionUrl = String(payload?.data?.session_url || '').trim();
-      const destination = sessionPath || sessionUrl;
+      const destination =
+        sessionPath ||
+        sessionUrl ||
+        normalizeRoutePath(config.passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH);
 
-      if (!destination) {
+      if (!sessionToken || !destination) {
         throw new Error('Nao foi possivel abrir a sessao de redefinicao.');
       }
 
+      writeRecoverySessionTokenToStorage(sessionToken);
       window.location.assign(destination);
     } catch (error) {
       setRecoveryError(error?.message || 'Falha ao iniciar sessao de redefinicao.');
@@ -702,6 +749,7 @@ const UserApp = ({ config }) => {
       setPasswordState(resolvePasswordState(payload));
       if (formElement && typeof formElement.reset === 'function') formElement.reset();
       setRecoveryFeedback('Senha redefinida com sucesso. Redirecionando...');
+      clearRecoverySessionTokenFromStorage();
       window.setTimeout(() => {
         window.location.assign('/user/');
       }, 900);
