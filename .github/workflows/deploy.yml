@@ -1,0 +1,92 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run deploy in dry-run mode"
+        required: true
+        default: true
+        type: boolean
+      environment_name:
+        description: "Deployment environment label"
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
+      verify_url:
+        description: "Post-deploy health URL"
+        required: true
+        default: https://omnizap.shop/
+        type: string
+      target_dir:
+        description: "Optional DEPLOY_TARGET_DIR override"
+        required: false
+        default: ""
+        type: string
+      pm2_app_name:
+        description: "Optional DEPLOY_PM2_APP_NAME override"
+        required: false
+        default: ""
+        type: string
+      publish_secondary:
+        description: "Publish package to secondary registry (npmjs)"
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: deploy-${{ inputs.environment_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  deployments: write
+  packages: write
+
+jobs:
+  deploy:
+    name: Run deploy.sh
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+    timeout-minutes: 60
+    environment: ${{ inputs.environment_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Rewrite GitHub SSH URLs to HTTPS
+        run: |
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Execute deploy pipeline
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_PACKAGE_TOKEN: ${{ secrets.DEPLOY_PACKAGE_TOKEN }}
+          DEPLOY_PACKAGE_SECONDARY_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DEPLOY_DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          DEPLOY_GITHUB_ENVIRONMENT: ${{ inputs.environment_name }}
+          DEPLOY_VERIFY_URL: ${{ inputs.verify_url }}
+          DEPLOY_TARGET_DIR: ${{ inputs.target_dir }}
+          DEPLOY_PM2_APP_NAME: ${{ inputs.pm2_app_name }}
+          DEPLOY_PACKAGE_PUBLISH_SECONDARY: ${{ inputs.publish_secondary && '1' || '0' }}
+        run: npm run deploy

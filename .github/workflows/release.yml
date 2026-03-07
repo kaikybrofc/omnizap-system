@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Semver release type"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prepatch
+          - preminor
+          - premajor
+          - prerelease
+      force_version:
+        description: "Optional forced version (e.g. 2.5.0)"
+        required: false
+        default: ""
+        type: string
+      release_branch:
+        description: "Git branch for commit/tag push"
+        required: true
+        default: main
+        type: string
+      publish_secondary:
+        description: "Publish to secondary registry (npmjs)"
+        required: true
+        default: false
+        type: boolean
+      require_dual_publish:
+        description: "Fail if both registries are not published"
+        required: true
+        default: false
+        type: boolean
+      skip_wiki_sync:
+        description: "Skip docs/wiki sync during release"
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: Run release.sh
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+    timeout-minutes: 90
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Rewrite GitHub SSH URLs to HTTPS
+        run: |
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Execute release pipeline
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOY_PACKAGE_TOKEN: ${{ secrets.DEPLOY_PACKAGE_TOKEN }}
+          DEPLOY_PACKAGE_SECONDARY_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          RELEASE_FORCE_VERSION: ${{ inputs.force_version }}
+          RELEASE_GIT_BRANCH: ${{ inputs.release_branch }}
+          DEPLOY_PACKAGE_PUBLISH_SECONDARY: ${{ inputs.publish_secondary && '1' || '0' }}
+          RELEASE_REQUIRE_DUAL_PUBLISH: ${{ inputs.require_dual_publish && '1' || '0' }}
+          RELEASE_VERIFY_UNIFIED_VERSION: ${{ inputs.publish_secondary && '1' || '0' }}
+          RELEASE_WIKI_SYNC: ${{ inputs.skip_wiki_sync && '0' || '1' }}
+        run: npm run release

@@ -1,0 +1,96 @@
+name: DB Migration Check
+
+on:
+  pull_request:
+    paths:
+      - "database/**"
+      - "docs/database/**"
+  workflow_dispatch:
+
+concurrency:
+  group: db-migration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    name: Validate schema + migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.0
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      NODE_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: omnizap_migration_dev
+      DB_POOL_LIMIT: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Rewrite GitHub SSH URLs to HTTPS
+        run: |
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install MySQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mysql-client
+
+      - name: Initialize database from consolidated schema
+        run: npm run db:init
+
+      - name: Apply migrations (D0 -> D+7 -> D+30)
+        run: |
+          mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < database/migrations/20260307_d0_hardening_up.sql
+          mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < database/migrations/20260314_d7_canonical_sender_up.sql
+          mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < database/migrations/20260406_d30_security_analytics_up.sql
+
+      - name: Validate migration log
+        run: |
+          mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" -e "
+            SELECT migration_key, phase, status
+            FROM schema_change_log
+            WHERE migration_key IN (
+              '20260307_d0_hardening',
+              '20260314_d7_canonical_sender',
+              '20260406_d30_security_analytics'
+            )
+            ORDER BY migration_key;
+          "
+
+      - name: Rollback migrations (D+30 -> D+7 -> D0)
+        run: |
+          mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < database/migrations/20260406_d30_security_analytics_down.sql
+          mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < database/migrations/20260314_d7_canonical_sender_down.sql
+          mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < database/migrations/20260307_d0_hardening_down.sql
+
+      - name: Re-apply migrations after rollback
+        run: |
+          mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < database/migrations/20260307_d0_hardening_up.sql
+          mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < database/migrations/20260314_d7_canonical_sender_up.sql
+          mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < database/migrations/20260406_d30_security_analytics_up.sql
