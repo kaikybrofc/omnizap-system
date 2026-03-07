@@ -339,8 +339,9 @@ run_package_stage() {
       log "Instalando dependências com npm ci --omit=dev"
       (cd "$PROJECT_ROOT" && npm ci --omit=dev)
     else
-      log "Instalando dependências com npm install --omit=dev"
-      (cd "$PROJECT_ROOT" && npm install --omit=dev)
+      printf '[deploy] package-lock.json ausente; npm install foi bloqueado por segurança.\n' >&2
+      printf '[deploy] Gere/commite o lockfile e mantenha instalação reprodutível via npm ci.\n' >&2
+      exit 1
     fi
   fi
 

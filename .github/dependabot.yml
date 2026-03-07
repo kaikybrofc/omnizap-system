@@ -7,6 +7,10 @@ updates:
       day: 'monday'
       time: '06:00'
       timezone: 'UTC'
+    cooldown:
+      semver-major-days: 14
+      semver-minor-days: 3
+      semver-patch-days: 1
     open-pull-requests-limit: 10
     labels:
       - 'dependencies'
@@ -20,6 +24,10 @@ updates:
       day: 'monday'
       time: '06:30'
       timezone: 'UTC'
+    cooldown:
+      semver-major-days: 14
+      semver-minor-days: 3
+      semver-patch-days: 1
     open-pull-requests-limit: 10
     labels:
       - 'dependencies'

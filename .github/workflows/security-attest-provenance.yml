@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: read
-  attestations: write
-  id-token: write
 
 concurrency:
   group: security-attest-${{ github.workflow }}-${{ github.ref }}
@@ -20,12 +18,16 @@ jobs:
     name: Attest NPM Package Provenance
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
 
@@ -36,12 +38,12 @@ jobs:
           echo "package_file=$PACKAGE_FILE" >> "$GITHUB_OUTPUT"
 
       - name: Upload package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: npm-package
           path: ${{ steps.pack.outputs.package_file }}
 
       - name: Generate build provenance attestation
-        uses: actions/attest-build-provenance@v4.1.0
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
         with:
           subject-path: ${{ steps.pack.outputs.package_file }}

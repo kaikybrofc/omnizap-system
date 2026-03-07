@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: security-zap-baseline-${{ github.workflow }}-${{ github.ref }}
@@ -24,14 +23,17 @@ jobs:
     name: DAST Baseline
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
     env:
       TARGET_URL: ${{ inputs.target_url || vars.SECURITY_SCAN_TARGET_URL || 'https://omnizap.shop/' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Run ZAP baseline scan
-        uses: zaproxy/action-baseline@v0.9.0
+        uses: zaproxy/action-baseline@41aee98ebc7cf2802c3beae4e7d4336413a21e43
         with:
           target: ${{ env.TARGET_URL }}
           fail_action: false

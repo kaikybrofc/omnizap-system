@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: security-zap-full-${{ github.workflow }}-${{ github.ref }}
@@ -24,14 +23,17 @@ jobs:
     name: DAST Full Scan
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: read
+      issues: write
     env:
       TARGET_URL: ${{ inputs.target_url || vars.SECURITY_SCAN_TARGET_URL || 'https://omnizap.shop/' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Run ZAP full scan
-        uses: zaproxy/action-full-scan@v0.9.0
+        uses: zaproxy/action-full-scan@bdd21ad4090d552d299261226c553efbc216f5ee
         with:
           target: ${{ env.TARGET_URL }}
           fail_action: false
