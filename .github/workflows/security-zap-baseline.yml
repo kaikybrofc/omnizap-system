@@ -31,6 +31,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
 
       - name: Run ZAP baseline scan
         uses: zaproxy/action-baseline@41aee98ebc7cf2802c3beae4e7d4336413a21e43
