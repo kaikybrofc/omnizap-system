@@ -2,6 +2,29 @@
 
 # OmniZap System
 
+[![CI](https://github.com/kaikybrofc/omnizap-system/actions/workflows/ci.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/kaikybrofc/omnizap-system/actions/workflows/codeql.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/codeql.yml)
+[![Dependency Review](https://github.com/kaikybrofc/omnizap-system/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/dependency-review.yml)
+[![Gitleaks](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-gitleaks.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-gitleaks.yml)
+[![Scorecard](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-scorecard.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-scorecard.yml)
+[![Zizmor](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-zizmor.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-zizmor.yml)
+[![ZAP Baseline](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-zap-baseline.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-zap-baseline.yml)
+[![ZAP Full Scan](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-zap-full-scan.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-zap-full-scan.yml)
+[![Provenance](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-attest-provenance.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-attest-provenance.yml)
+[![Runner Hardening](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-runner-hardening.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/security-runner-hardening.yml)
+[![DB Migration Check](https://github.com/kaikybrofc/omnizap-system/actions/workflows/db-migration-check.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/db-migration-check.yml)
+[![Deploy](https://github.com/kaikybrofc/omnizap-system/actions/workflows/deploy.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/deploy.yml)
+[![Release](https://github.com/kaikybrofc/omnizap-system/actions/workflows/release.yml/badge.svg)](https://github.com/kaikybrofc/omnizap-system/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/kaikybrofc/omnizap-system/blob/main/LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![GitHub tag](https://img.shields.io/github/v/tag/kaikybrofc/omnizap-system)](https://github.com/kaikybrofc/omnizap-system/tags)
+[![GitHub stars](https://img.shields.io/github/stars/kaikybrofc/omnizap-system?style=social)](https://github.com/kaikybrofc/omnizap-system/stargazers)
+[![GitHub last commit](https://img.shields.io/github/last-commit/kaikybrofc/omnizap-system)](https://github.com/kaikybrofc/omnizap-system/commits/main)
+[![Open issues](https://img.shields.io/github/issues/kaikybrofc/omnizap-system)](https://github.com/kaikybrofc/omnizap-system/issues)
+[![Open PRs](https://img.shields.io/github/issues-pr/kaikybrofc/omnizap-system)](https://github.com/kaikybrofc/omnizap-system/pulls)
+[![Contributors](https://img.shields.io/github/contributors/kaikybrofc/omnizap-system)](https://github.com/kaikybrofc/omnizap-system/graphs/contributors)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/kaikybrofc/omnizap-system/badge)](https://securityscorecards.dev/viewer/?uri=github.com/kaikybrofc/omnizap-system)
+
 Plataforma open source de automação para WhatsApp, com foco em figurinhas, catálogo web, painel de usuário, autenticação web e operação observável em produção.
 
 ## Sumário
