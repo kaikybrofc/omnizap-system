@@ -11,6 +11,9 @@ const DEFAULT_PANEL_PATH = '/user/';
 const DEFAULT_TERMS_URL = '/termos-de-uso/';
 const DEFAULT_PRIVACY_URL = '/politica-de-privacidade/';
 const DEFAULT_AUP_URL = '/aup/';
+const DEFAULT_SUPPORT_URL = 'https://wa.me/559591122954';
+const DEFAULT_DOCS_URL = '/api-docs/';
+const DEFAULT_STATUS_URL = '/healthz';
 const DEFAULT_BRAND_NAME = 'OmniZap System';
 const DEFAULT_BRAND_LOGO = '/assets/images/brand-logo-128.webp';
 const LOGIN_CONSENT_STORAGE_KEY = 'omnizap_login_terms_consent_v1';
@@ -56,6 +59,8 @@ const normalizeUrlPath = (value, fallback) => {
   if (!raw) return fallback;
   return raw;
 };
+
+const isAbsoluteHttpUrl = (value) => /^https?:\/\//i.test(String(value || '').trim());
 
 const readConsentState = () => {
   try {
@@ -291,7 +296,7 @@ const extractPhoneFromJid = (jid) => {
 
 const resolveHintMessage = (hint) => {
   if (!hint.hasPayload) {
-    return 'Use e-mail/senha ou abra o link que o bot envia no WhatsApp para liberar o login Google.';
+    return 'Abra o WhatsApp do bot e envie "iniciar" para receber seu link seguro de login.';
   }
   if (!hint.phone) {
     return 'Este link nao tem um numero valido. Gere um novo enviando "iniciar" no bot.';
@@ -347,6 +352,73 @@ const toSafeEmail = (value) => {
     .trim()
     .toLowerCase();
   return normalized.includes('@') ? normalized : '';
+};
+
+const decodeBase64UrlToText = (value) => {
+  const normalized = String(value || '')
+    .trim()
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  if (!normalized) return '';
+
+  const padding = (4 - (normalized.length % 4)) % 4;
+  const padded = `${normalized}${'='.repeat(padding)}`;
+
+  try {
+    const binary = window.atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    if (typeof window.TextDecoder === 'function') {
+      return new window.TextDecoder().decode(bytes);
+    }
+    return binary;
+  } catch {
+    return '';
+  }
+};
+
+const decodeGoogleCredentialPayload = (credential) => {
+  const rawToken = String(credential || '').trim();
+  if (!rawToken) return null;
+  const parts = rawToken.split('.');
+  if (parts.length < 2) return null;
+  const payloadRaw = decodeBase64UrlToText(parts[1]);
+  if (!payloadRaw) return null;
+
+  try {
+    const parsed = JSON.parse(payloadRaw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const buildGoogleAccountPreview = (credential) => {
+  const payload = decodeGoogleCredentialPayload(credential);
+  if (!payload) return null;
+
+  const sub = String(payload.sub || '')
+    .trim()
+    .slice(0, 80);
+  const email = toSafeEmail(payload.email).slice(0, 255);
+  const name = String(payload.name || payload.given_name || email || 'Conta Google')
+    .trim()
+    .slice(0, 120);
+  const pictureRaw = String(payload.picture || '')
+    .trim()
+    .slice(0, 512);
+  const picture = /^https?:\/\//i.test(pictureRaw) ? pictureRaw : '';
+  const initialSource = name || email || 'G';
+  const initial = String(initialSource).trim().slice(0, 1).toUpperCase() || 'G';
+
+  if (!sub && !email && !name) return null;
+  return {
+    sub,
+    name,
+    email,
+    picture,
+    initial,
+  };
 };
 
 const createLoginApi = (apiBasePath) => {
@@ -474,9 +546,8 @@ const LoginApp = ({ config }) => {
   const resizeObserverRef = useRef(null);
   const resizeListenerRef = useRef(null);
   const redirectingRef = useRef(false);
-  const autoConsentSyncAttemptRef = useRef(false);
 
-  const [statusMessage, setStatusMessage] = useState('Verificando conta Google...');
+  const [statusMessage, setStatusMessage] = useState('Ambiente seguro pronto para login.');
   const [errorMessage, setErrorMessage] = useState('');
   const [consentErrorMessage, setConsentErrorMessage] = useState('');
   const [consentAccepted, setConsentAccepted] = useState(() => readConsentState());
@@ -490,6 +561,8 @@ const LoginApp = ({ config }) => {
   const [googleEnabled, setGoogleEnabled] = useState(false);
   const [googleClientId, setGoogleClientId] = useState('');
   const [googleReady, setGoogleReady] = useState(false);
+  const [pendingGoogleCredential, setPendingGoogleCredential] = useState('');
+  const [selectedGoogleAccount, setSelectedGoogleAccount] = useState(null);
   const [showSuccessCelebration, setShowSuccessCelebration] = useState(false);
   const [, setPasswordConfigured] = useState(true);
   const [passwordSetupRequired, setPasswordSetupRequired] = useState(false);
@@ -515,7 +588,6 @@ const LoginApp = ({ config }) => {
     password: '',
     confirm: '',
   });
-  const [activeAuthMethod, setActiveAuthMethod] = useState('whatsapp');
 
   const summary = useMemo(
     () =>
@@ -538,9 +610,18 @@ const LoginApp = ({ config }) => {
     if (!canUseGoogleLogin) return '';
     if (!googleEnabled || !googleClientId) return 'Login Google desabilitado neste ambiente.';
     if (isBusy || consentSaving) return 'Finalizando login...';
-    if (!consentAccepted) return LOGIN_CONSENT_HINT;
-    if (!hasConsentReceipt) return 'Registrando aceite juridico...';
     if (!googleReady) return 'Carregando login Google...';
+    if (pendingGoogleCredential) {
+      if (!consentAccepted) {
+        if (selectedGoogleAccount?.email) {
+          return `Conta ${selectedGoogleAccount.email} selecionada. Aceite os termos e clique em Finalizar.`;
+        }
+        return 'Conta Google selecionada. Aceite os termos e clique em Finalizar.';
+      }
+      return 'Tudo pronto. Clique em Finalizar para concluir o login.';
+    }
+    if (!consentAccepted) return 'Selecione sua conta Google para continuar.';
+    if (!hasConsentReceipt) return 'Registrando aceite juridico...';
     return '';
   }, [
     canUseGoogleLogin,
@@ -551,18 +632,22 @@ const LoginApp = ({ config }) => {
     googleReady,
     hasConsentReceipt,
     isBusy,
+    pendingGoogleCredential,
+    selectedGoogleAccount,
   ]);
 
-  useEffect(() => {
-    if (authenticated) return;
-    if (activeAuthMethod === 'google' && !canUseGoogleLogin) {
-      setActiveAuthMethod('password');
-    }
-  }, [activeAuthMethod, authenticated, canUseGoogleLogin]);
-
-  const showPasswordMethod = !authenticated && activeAuthMethod === 'password';
-  const showWhatsappMethod = !authenticated && activeAuthMethod === 'whatsapp';
-  const showGoogleMethod = !authenticated && activeAuthMethod === 'google';
+  const showLinkGoogleFlow = !authenticated && hint.hasPayload;
+  const showPasswordMethod = false;
+  const showGoogleMethod = showLinkGoogleFlow;
+  const showDirectWhatsAppOnly = !authenticated && !hint.hasPayload;
+  const shouldShowConsentCard =
+    showLinkGoogleFlow &&
+    (Boolean(pendingGoogleCredential) ||
+      consentAccepted ||
+      consentSaving ||
+      Boolean(consentErrorMessage));
+  const shouldShowStatusCard =
+    !showDirectWhatsAppOnly || Boolean(errorMessage) || alreadyLoggedVisible;
 
   const whatsappMeta = botPhone
     ? `Bot detectado: +${formatPhone(botPhone)}.`
@@ -570,6 +655,9 @@ const LoginApp = ({ config }) => {
   const whatsappCtaHref = buildWhatsappStartUrl(botPhone);
   const successChatHref = buildWhatsappMenuUrl(botPhone);
   const successHomeHref = authenticatedRedirectPath;
+  const supportLinkExternal = isAbsoluteHttpUrl(config.supportUrl);
+  const docsLinkExternal = isAbsoluteHttpUrl(config.docsUrl);
+  const statusLinkExternal = isAbsoluteHttpUrl(config.statusUrl);
   const alreadyLoggedDetail = sessionOwnerPhone
     ? `Sessao ativa para +${formatPhone(sessionOwnerPhone)}. Nao e necessario fazer login novamente.`
     : ALREADY_LOGGED_HINT_TEXT;
@@ -690,22 +778,10 @@ const LoginApp = ({ config }) => {
     }
   }, [consentAccepted, consentReceipt, registerConsentReceipt]);
 
-  const handleGoogleCredential = useCallback(
-    async (credential) => {
-      if (!consentAccepted) {
-        setConsentErrorMessage(LOGIN_CONSENT_HINT);
-        setBusy(false);
-        return;
-      }
-
-      const consentReady = await ensureConsentReceipt();
-      if (!consentReady) {
-        setBusy(false);
-        return;
-      }
-
-      const token = String(credential || '').trim();
-      if (!token) {
+  const finalizeGoogleCredential = useCallback(
+    async (token) => {
+      const normalizedToken = String(token || '').trim();
+      if (!normalizedToken) {
         setErrorMessage('Falha ao receber token do Google. Tente novamente.');
         return;
       }
@@ -715,9 +791,10 @@ const LoginApp = ({ config }) => {
       setConsentErrorMessage('');
       setAlreadyLoggedVisible(false);
       setPasswordSetupError('');
+      setPendingGoogleCredential('');
 
       try {
-        const payload = await api.createSession(buildSessionPayload(token, hint));
+        const payload = await api.createSession(buildSessionPayload(normalizedToken, hint));
         const sessionData = payload?.data || {};
         if (!isAuthenticatedGoogleSession(sessionData)) {
           throw new Error('Nao foi possivel criar a sessao Google.');
@@ -744,48 +821,69 @@ const LoginApp = ({ config }) => {
         setBusy(false);
       }
     },
-    [
-      api,
-      consentAccepted,
-      ensureConsentReceipt,
-      hint,
-      playSuccessCelebration,
-      refreshPasswordSetupState,
-    ],
+    [api, hint, playSuccessCelebration, refreshPasswordSetupState],
   );
+
+  const handleGoogleCredential = useCallback(
+    async (credential) => {
+      const token = String(credential || '').trim();
+      if (!token) {
+        setErrorMessage('Falha ao receber token do Google. Tente novamente.');
+        setSelectedGoogleAccount(null);
+        return;
+      }
+
+      setSelectedGoogleAccount(buildGoogleAccountPreview(token));
+
+      if (showLinkGoogleFlow && !consentAccepted) {
+        setPendingGoogleCredential(token);
+        setStatusMessage('Conta Google selecionada. Aceite os termos para concluir o login.');
+        setConsentErrorMessage('');
+        return;
+      }
+
+      const consentReady = await ensureConsentReceipt();
+      if (!consentReady) return;
+
+      await finalizeGoogleCredential(token);
+    },
+    [consentAccepted, ensureConsentReceipt, finalizeGoogleCredential, showLinkGoogleFlow],
+  );
+
+  const handleFinalizeGoogleLogin = useCallback(async () => {
+    if (isBusy || consentSaving) return;
+
+    if (!pendingGoogleCredential) {
+      setConsentErrorMessage('');
+      setErrorMessage('Selecione sua conta Google para continuar.');
+      return;
+    }
+
+    if (!consentAccepted) {
+      setConsentErrorMessage(LOGIN_CONSENT_HINT);
+      return;
+    }
+
+    setStatusMessage('Concluindo login Google...');
+    setErrorMessage('');
+    const consentReady = await ensureConsentReceipt();
+    if (!consentReady) return;
+
+    await finalizeGoogleCredential(pendingGoogleCredential);
+  }, [
+    consentAccepted,
+    consentSaving,
+    ensureConsentReceipt,
+    finalizeGoogleCredential,
+    isBusy,
+    pendingGoogleCredential,
+  ]);
 
   useEffect(() => {
     googleInitializedRef.current = false;
     setGoogleReady(false);
     clearResizeBinding();
   }, [clearResizeBinding, googleClientId]);
-
-  useEffect(() => {
-    if (autoConsentSyncAttemptRef.current) return;
-    if (authenticated) return;
-    if (!consentAccepted) return;
-    if (hasConsentReceipt) return;
-    autoConsentSyncAttemptRef.current = true;
-
-    let active = true;
-    setConsentSaving(true);
-    setConsentErrorMessage('');
-    void registerConsentReceipt()
-      .catch((error) => {
-        if (!active) return;
-        setConsentErrorMessage(
-          error?.message || 'Falha ao registrar aceite juridico. Tente novamente.',
-        );
-      })
-      .finally(() => {
-        if (!active) return;
-        setConsentSaving(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [authenticated, consentAccepted, hasConsentReceipt, registerConsentReceipt]);
 
   useEffect(() => {
     let active = true;
@@ -838,7 +936,7 @@ const LoginApp = ({ config }) => {
       setStatusMessage(
         canUseGoogleLogin
           ? 'Verificando conta Google...'
-          : 'Entre com e-mail e senha ou gere o link no WhatsApp para login Google',
+          : 'Abra o WhatsApp do bot para receber seu link de login.',
       );
 
       try {
@@ -914,10 +1012,6 @@ const LoginApp = ({ config }) => {
         setGoogleReady(false);
         return;
       }
-      if (!consentAccepted || consentSaving || !hasConsentReceipt) {
-        setGoogleReady(false);
-        return;
-      }
       if (!googleEnabled || !googleClientId) {
         setGoogleReady(false);
         return;
@@ -978,12 +1072,9 @@ const LoginApp = ({ config }) => {
     authenticated,
     canUseGoogleLogin,
     clearResizeBinding,
-    consentAccepted,
-    consentSaving,
     googleClientId,
     googleEnabled,
     handleGoogleCredential,
-    hasConsentReceipt,
     renderGoogleButton,
   ]);
 
@@ -1004,33 +1095,15 @@ const LoginApp = ({ config }) => {
     [clearResizeBinding],
   );
 
-  const onConsentChange = async (event) => {
+  const onConsentChange = (event) => {
     const accepted = Boolean(event.currentTarget?.checked);
     setConsentAccepted(accepted);
     persistConsentState(accepted);
-    if (!accepted) {
-      setConsentErrorMessage('');
-      setConsentReceipt(null);
-      persistConsentReceiptState(null);
-      autoConsentSyncAttemptRef.current = false;
-      return;
-    }
-
-    autoConsentSyncAttemptRef.current = true;
-    setConsentSaving(true);
     setConsentErrorMessage('');
-    try {
-      await registerConsentReceipt();
-    } catch (error) {
-      setConsentAccepted(false);
-      persistConsentState(false);
+
+    if (!accepted) {
       setConsentReceipt(null);
       persistConsentReceiptState(null);
-      setConsentErrorMessage(
-        error?.message || 'Falha ao registrar aceite juridico. Tente novamente.',
-      );
-    } finally {
-      setConsentSaving(false);
     }
   };
 
@@ -1212,519 +1285,637 @@ const LoginApp = ({ config }) => {
       <div className="login-bg-noise" aria-hidden="true"></div>
 
       <main className="login-shell">
-        <section className="login-card">
-          <header className="login-card-header">
-            <a href=${config.homePath} className="login-brand" aria-label="Voltar para a home">
-              <img
-                src=${config.brandLogo}
-                alt=${config.brandName}
-                className="login-brand-logo"
-                loading="lazy"
-                decoding="async"
-              />
-              <span className="login-brand-name">${config.brandName}</span>
-            </a>
-          </header>
+        <div className="login-stage">
+          <aside className="login-showcase" aria-label="Visao geral OmniZap">
+            <p className="login-showcase-badge">OmniZap Platform</p>
+            <h2 className="login-showcase-title">
+              Controle seus grupos com automacao inteligente e acesso seguro.
+            </h2>
+            <p className="login-showcase-subtitle">
+              Em desktop, esta area mostra o contexto da plataforma para aproveitar melhor o espaco
+              da tela sem poluir o fluxo principal de login.
+            </p>
 
-          <section className="login-card-body">
-            <p className="login-badge">Login Seguro OmniZap</p>
-            <h1 className="login-title">Acesse sua conta</h1>
-            <p className="login-subtitle">Vincule seu WhatsApp e libere os recursos do OmniZap.</p>
+            <div className="login-showcase-grid">
+              <article className="login-showcase-item">
+                <p className="login-showcase-item-label">Operacao centralizada</p>
+                <p className="login-showcase-item-text">
+                  Dashboard unico para grupos, catalogo e automacoes.
+                </p>
+              </article>
+              <article className="login-showcase-item">
+                <p className="login-showcase-item-label">Seguranca ativa</p>
+                <p className="login-showcase-item-text">
+                  Cookies protegidos, sessao segura e autenticacao criptografada.
+                </p>
+              </article>
+              <article className="login-showcase-item">
+                <p className="login-showcase-item-label">Onboarding rapido</p>
+                <p className="login-showcase-item-text">
+                  Fluxo com WhatsApp em poucos passos para acelerar o primeiro acesso.
+                </p>
+              </article>
+              <article className="login-showcase-item">
+                <p className="login-showcase-item-label">Fallback completo</p>
+                <p className="login-showcase-item-text">
+                  Google e email/senha disponiveis para continuidade operacional.
+                </p>
+              </article>
+            </div>
 
-            <article className="login-status-card">
-              <p className="login-status-chip">
-                <span className="login-status-dot"></span>
-                ${statusMessage}
+            <ol className="login-showcase-flow" aria-label="Passo a passo do login">
+              <li>1. Clique em "Entrar com WhatsApp".</li>
+              <li>2. Receba o link seguro no WhatsApp.</li>
+              <li>3. Confirme o acesso e finalize o login.</li>
+              <li>4. Abra o painel e gerencie suas automacoes.</li>
+            </ol>
+
+            <div className="login-showcase-links">
+              <a
+                className="login-showcase-link"
+                href=${config.docsUrl}
+                target=${docsLinkExternal ? '_blank' : null}
+                rel=${docsLinkExternal ? 'noreferrer noopener' : null}
+              >
+                Ver documentacao
+              </a>
+              <a
+                className="login-showcase-link"
+                href=${config.supportUrl}
+                target=${supportLinkExternal ? '_blank' : null}
+                rel=${supportLinkExternal ? 'noreferrer noopener' : null}
+              >
+                Falar com suporte
+              </a>
+            </div>
+          </aside>
+
+          <section className="login-card">
+            <header className="login-card-header">
+              <a href=${config.homePath} className="login-brand" aria-label="Voltar para a home">
+                <img
+                  src=${config.brandLogo}
+                  alt=${config.brandName}
+                  className="login-brand-logo"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span className="login-brand-name">${config.brandName}</span>
+              </a>
+            </header>
+
+            <section className="login-card-body">
+              <p className="login-badge">OmniZap Secure Access</p>
+              <h1 className="login-title">Entrar no OmniZap</h1>
+              <p className="login-subtitle">
+                Conecte seu WhatsApp e gerencie seus grupos com automação inteligente.
               </p>
-              <p className="login-helper-text">${hintMessage}</p>
 
-              ${errorMessage
-                ? html`<p role="alert" className="login-inline-message is-error">
-                    ${errorMessage}
-                  </p>`
-                : null}
-              ${alreadyLoggedVisible
+              ${shouldShowStatusCard
                 ? html`
-                    <div className="login-inline-message is-success">
-                      <p className="font-semibold">Voce ja esta logado neste navegador.</p>
-                      <p>${alreadyLoggedDetail}</p>
+                    <article className="login-status-card">
+                      <p className="login-status-chip">
+                        <span className="login-status-dot"></span>
+                        ${statusMessage}
+                      </p>
+                      <p className="login-helper-text">${hintMessage}</p>
+
+                      ${errorMessage
+                        ? html`<p role="alert" className="login-inline-message is-error">
+                            ${errorMessage}
+                          </p>`
+                        : null}
+                      ${alreadyLoggedVisible
+                        ? html`
+                            <div className="login-inline-message is-success">
+                              <p className="font-semibold">Voce ja esta logado neste navegador.</p>
+                              <p>${alreadyLoggedDetail}</p>
+                            </div>
+                          `
+                        : null}
+                    </article>
+                  `
+                : null}
+              ${showDirectWhatsAppOnly
+                ? html`
+                    <section className="login-method-panel login-method-panel-primary">
+                      <div className="login-method-head">
+                        <h2>Entrar com WhatsApp</h2>
+                        <p>Receba um link seguro no WhatsApp e finalize o acesso.</p>
+                      </div>
+                      <a
+                        className="login-btn-whatsapp login-btn-whatsapp-main"
+                        href=${whatsappCtaHref}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                      >
+                        Entrar com WhatsApp
+                      </a>
+                      <p className="login-helper-text">${whatsappMeta}</p>
+                    </section>
+                  `
+                : null}
+              ${showGoogleMethod
+                ? html`
+                    <section className="login-method-panel" data-method="google">
+                      <div className="login-method-head">
+                        <h2>Selecione sua conta Google</h2>
+                        <p>Depois confirme os termos para finalizar o login com seguranca.</p>
+                      </div>
+
+                      ${canUseGoogleLogin
+                        ? html`
+                            <div ref=${googleAreaRef} className="login-google-area">
+                              <div
+                                className=${`login-google-slot ${isBusy || consentSaving ? 'is-busy' : ''}`}
+                              >
+                                <div ref=${googleButtonRef}></div>
+                              </div>
+                              ${selectedGoogleAccount
+                                ? html`
+                                    <div className="login-google-account-preview">
+                                      ${selectedGoogleAccount.picture
+                                        ? html`
+                                            <img
+                                              src=${selectedGoogleAccount.picture}
+                                              alt="Foto do perfil Google selecionado"
+                                              className="login-google-account-avatar"
+                                              loading="lazy"
+                                              referrerPolicy="no-referrer"
+                                            />
+                                          `
+                                        : html`
+                                            <span className="login-google-account-avatar login-google-account-avatar-fallback">
+                                              ${selectedGoogleAccount.initial}
+                                            </span>
+                                          `}
+                                      <div className="login-google-account-content">
+                                        <p className="login-google-account-label">
+                                          Conta selecionada
+                                        </p>
+                                        <p className="login-google-account-name">
+                                          ${selectedGoogleAccount.name || 'Conta Google'}
+                                        </p>
+                                        ${selectedGoogleAccount.email
+                                          ? html`
+                                              <p className="login-google-account-email">
+                                                ${selectedGoogleAccount.email}
+                                              </p>
+                                            `
+                                          : null}
+                                      </div>
+                                    </div>
+                                  `
+                                : null}
+                              <p className="login-helper-text">
+                                ${googleStateMessage ||
+                                'Continue com sua conta Google para entrar.'}
+                              </p>
+                            </div>
+                          `
+                        : html`
+                            <div className="login-inline-message is-warning">
+                              <p>
+                                Este navegador não recebeu um link válido do WhatsApp para Google.
+                              </p>
+                            </div>
+                          `}
+                    </section>
+                  `
+                : null}
+              ${shouldShowConsentCard
+                ? html`
+                    <article
+                      className=${`login-consent-card${consentAccepted ? ' is-accepted' : ''}`}
+                    >
+                      <label className="login-consent-label">
+                        <input
+                          type="checkbox"
+                          className="login-consent-checkbox"
+                          checked=${consentAccepted}
+                          disabled=${isBusy || consentSaving}
+                          onChange=${onConsentChange}
+                        />
+                        <span className="login-consent-text">
+                          Eu concordo com os
+                          <a href=${config.termsUrl} target="_blank" rel="noreferrer noopener"
+                            >Termos de Uso</a
+                          >
+                          , a
+                          <a href=${config.privacyUrl} target="_blank" rel="noreferrer noopener"
+                            >Politica de Privacidade</a
+                          >
+                          e a
+                          <a href=${config.aupUrl} target="_blank" rel="noreferrer noopener"
+                            >Politica de Uso Aceitavel (AUP)</a
+                          >.
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        className="login-btn-primary login-consent-submit"
+                        disabled=${!pendingGoogleCredential || !consentAccepted || isBusy || consentSaving}
+                        onClick=${() => {
+                          void handleFinalizeGoogleLogin();
+                        }}
+                      >
+                        ${isBusy || consentSaving ? 'Finalizando...' : 'Finalizar'}
+                      </button>
+                      ${!isBusy && !consentSaving && !pendingGoogleCredential
+                        ? html`<p className="login-consent-helper">
+                            Selecione uma conta Google para habilitar a finalizacao.
+                          </p>`
+                        : null}
+                      ${!isBusy &&
+                      !consentSaving &&
+                      pendingGoogleCredential &&
+                      !consentAccepted
+                        ? html`<p className="login-consent-helper">
+                            Marque os termos para habilitar o botao Finalizar.
+                          </p>`
+                        : null}
+                      ${consentAccepted && hasConsentReceipt
+                        ? html`<p className="login-consent-meta">
+                            Aceite juridico registrado com hash de versao.
+                          </p>`
+                        : null}
+                      ${consentErrorMessage
+                        ? html`<p className="login-field-error">${consentErrorMessage}</p>`
+                        : null}
+                    </article>
+                  `
+                : null}
+              ${showPasswordMethod
+                ? html`
+                    <section className="login-method-panel" data-method="password">
+                      <div className="login-method-head">
+                        <h2>Entrar com Email e Senha</h2>
+                        <p>Use sua credencial para acessar rapidamente a conta.</p>
+                      </div>
+
+                      <form
+                        className="login-form-grid"
+                        onSubmit=${(event) => {
+                          event.preventDefault();
+                          void handlePasswordLoginSubmit();
+                        }}
+                      >
+                        <label className="login-field-group">
+                          <span className="login-field-label">Email</span>
+                          <span className="login-input-wrap">
+                            <span className="login-input-icon" aria-hidden="true">@</span>
+                            <input
+                              type="email"
+                              className="login-input-control"
+                              name="username"
+                              value=${passwordLoginForm.email}
+                              onInput=${(event) => {
+                                const nextValue = String(event.currentTarget?.value || '');
+                                setPasswordLoginForm((current) => ({
+                                  ...current,
+                                  email: nextValue,
+                                }));
+                              }}
+                              autocomplete="email"
+                              placeholder="voce@empresa.com"
+                            />
+                          </span>
+                        </label>
+
+                        <label className="login-field-group">
+                          <span className="login-field-label">Senha</span>
+                          <span className="login-input-wrap">
+                            <span className="login-input-icon" aria-hidden="true">•</span>
+                            <input
+                              type="password"
+                              className="login-input-control"
+                              name="password"
+                              value=${passwordLoginForm.password}
+                              onInput=${(event) => {
+                                const nextValue = String(event.currentTarget?.value || '');
+                                setPasswordLoginForm((current) => ({
+                                  ...current,
+                                  password: nextValue,
+                                }));
+                              }}
+                              autocomplete="current-password"
+                              placeholder="Sua senha"
+                            />
+                          </span>
+                        </label>
+
+                        ${passwordLoginError
+                          ? html`<p role="alert" className="login-field-error">
+                              ${passwordLoginError}
+                            </p>`
+                          : null}
+
+                        <button
+                          type="submit"
+                          className="login-btn-primary"
+                          disabled=${passwordLoginBusy || consentSaving}
+                        >
+                          ${passwordLoginBusy ? 'Entrando...' : 'Entrar'}
+                        </button>
+                      </form>
+
+                      <button
+                        type="button"
+                        className="login-link-button"
+                        onClick=${() => {
+                          setPasswordRecoveryStep((step) =>
+                            step === 'idle' ? 'code_request' : 'idle',
+                          );
+                          setPasswordRecoveryError('');
+                          setPasswordRecoveryMessage('');
+                          setPasswordRecoveryForm((current) => ({
+                            ...current,
+                            email: current.email || String(passwordLoginForm.email || '').trim(),
+                          }));
+                        }}
+                      >
+                        Esqueci minha senha
+                      </button>
+
+                      ${passwordRecoveryStep !== 'idle'
+                        ? html`
+                            <div className="login-recovery-card">
+                              <p className="login-recovery-title">
+                                Recuperação por código (6 dígitos)
+                              </p>
+                              ${passwordRecoveryMessage
+                                ? html`<p className="login-inline-message is-success">
+                                    ${passwordRecoveryMessage}
+                                  </p>`
+                                : null}
+                              ${passwordRecoveryError
+                                ? html`<p role="alert" className="login-field-error">
+                                    ${passwordRecoveryError}
+                                  </p>`
+                                : null}
+
+                              <div className="login-recovery-grid">
+                                <label className="login-field-group">
+                                  <span className="login-field-label">Email da conta</span>
+                                  <span className="login-input-wrap">
+                                    <span className="login-input-icon" aria-hidden="true">@</span>
+                                    <input
+                                      type="email"
+                                      className="login-input-control"
+                                      name="username"
+                                      value=${passwordRecoveryForm.email}
+                                      onInput=${(event) => {
+                                        const nextValue = String(event.currentTarget?.value || '');
+                                        setPasswordRecoveryForm((current) => ({
+                                          ...current,
+                                          email: nextValue,
+                                        }));
+                                      }}
+                                      autocomplete="email"
+                                      placeholder="voce@empresa.com"
+                                    />
+                                  </span>
+                                </label>
+
+                                <label className="login-field-group">
+                                  <span className="login-field-label">Código</span>
+                                  <span className="login-input-wrap">
+                                    <span className="login-input-icon" aria-hidden="true">#</span>
+                                    <input
+                                      type="text"
+                                      inputmode="numeric"
+                                      className="login-input-control"
+                                      name="verification_code"
+                                      value=${passwordRecoveryForm.code}
+                                      onInput=${(event) => {
+                                        const nextValue = String(event.currentTarget?.value || '')
+                                          .replace(/\D+/g, '')
+                                          .slice(0, 6);
+                                        setPasswordRecoveryForm((current) => ({
+                                          ...current,
+                                          code: nextValue,
+                                        }));
+                                      }}
+                                      autocomplete="one-time-code"
+                                      placeholder="000000"
+                                    />
+                                  </span>
+                                </label>
+
+                                <label className="login-field-group">
+                                  <span className="login-field-label">Nova senha</span>
+                                  <span className="login-input-wrap">
+                                    <span className="login-input-icon" aria-hidden="true">•</span>
+                                    <input
+                                      type="password"
+                                      className="login-input-control"
+                                      name="new_password"
+                                      value=${passwordRecoveryForm.password}
+                                      onInput=${(event) => {
+                                        const nextValue = String(event.currentTarget?.value || '');
+                                        setPasswordRecoveryForm((current) => ({
+                                          ...current,
+                                          password: nextValue,
+                                        }));
+                                      }}
+                                      autocomplete="new-password"
+                                      placeholder="Nova senha"
+                                    />
+                                  </span>
+                                </label>
+
+                                <label className="login-field-group">
+                                  <span className="login-field-label">Confirmar senha</span>
+                                  <span className="login-input-wrap">
+                                    <span className="login-input-icon" aria-hidden="true">•</span>
+                                    <input
+                                      type="password"
+                                      className="login-input-control"
+                                      name="new_password_confirm"
+                                      value=${passwordRecoveryForm.confirm}
+                                      onInput=${(event) => {
+                                        const nextValue = String(event.currentTarget?.value || '');
+                                        setPasswordRecoveryForm((current) => ({
+                                          ...current,
+                                          confirm: nextValue,
+                                        }));
+                                      }}
+                                      autocomplete="new-password"
+                                      placeholder="Repita a senha"
+                                    />
+                                  </span>
+                                </label>
+                              </div>
+
+                              <div className="login-recovery-actions">
+                                <button
+                                  type="button"
+                                  className="login-btn-secondary"
+                                  disabled=${passwordRecoveryBusy}
+                                  onClick=${handleRecoveryRequestSubmit}
+                                >
+                                  ${passwordRecoveryBusy
+                                    ? 'Enviando...'
+                                    : 'Enviar código por email'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="login-btn-primary"
+                                  disabled=${passwordRecoveryBusy}
+                                  onClick=${handleRecoveryVerifySubmit}
+                                >
+                                  ${passwordRecoveryBusy
+                                    ? 'Validando...'
+                                    : 'Validar código e criar senha'}
+                                </button>
+                              </div>
+                            </div>
+                          `
+                        : null}
+                    </section>
+                  `
+                : null}
+              ${authenticated && passwordSetupRequired
+                ? html`
+                    <section className="login-method-panel is-warning">
+                      <div className="login-method-head">
+                        <h2>Senha ainda não configurada</h2>
+                        <p>
+                          Para concluir o primeiro acesso, crie sua senha agora. Nos próximos logins
+                          você pode entrar direto por email e senha.
+                        </p>
+                      </div>
+                      ${passwordSetupError
+                        ? html`<p role="alert" className="login-field-error">
+                            ${passwordSetupError}
+                          </p>`
+                        : null}
+                      <div className="login-recovery-grid">
+                        <label className="login-field-group">
+                          <span className="login-field-label">Nova senha</span>
+                          <span className="login-input-wrap">
+                            <span className="login-input-icon" aria-hidden="true">•</span>
+                            <input
+                              type="password"
+                              className="login-input-control"
+                              name="new_password"
+                              value=${passwordSetupForm.password}
+                              onInput=${(event) => {
+                                const nextValue = String(event.currentTarget?.value || '');
+                                setPasswordSetupForm((current) => ({
+                                  ...current,
+                                  password: nextValue,
+                                }));
+                              }}
+                              autocomplete="new-password"
+                              placeholder="Nova senha"
+                            />
+                          </span>
+                        </label>
+                        <label className="login-field-group">
+                          <span className="login-field-label">Confirmar senha</span>
+                          <span className="login-input-wrap">
+                            <span className="login-input-icon" aria-hidden="true">•</span>
+                            <input
+                              type="password"
+                              className="login-input-control"
+                              name="new_password_confirm"
+                              value=${passwordSetupForm.confirm}
+                              onInput=${(event) => {
+                                const nextValue = String(event.currentTarget?.value || '');
+                                setPasswordSetupForm((current) => ({
+                                  ...current,
+                                  confirm: nextValue,
+                                }));
+                              }}
+                              autocomplete="new-password"
+                              placeholder="Repita a senha"
+                            />
+                          </span>
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        className="login-btn-primary"
+                        disabled=${passwordSetupBusy}
+                        onClick=${handlePasswordSetupSubmit}
+                      >
+                        ${passwordSetupBusy ? 'Salvando...' : 'Criar senha agora'}
+                      </button>
+                    </section>
+                  `
+                : null}
+              ${summary.visible
+                ? html`
+                    <div
+                      className=${`login-inline-message ${summary.state === 'pending' ? 'is-warning' : 'is-success'}`}
+                    >
+                      <p className="font-semibold">${summary.title}</p>
+                      <p>${summary.owner}</p>
                     </div>
                   `
                 : null}
-            </article>
-
-            ${!authenticated
-              ? html`
-                  <nav className="login-method-switch" role="tablist" aria-label="Métodos de login">
-                    <button
-                      type="button"
-                      role="tab"
-                      className=${`login-method-tab${activeAuthMethod === 'password' ? ' is-active' : ''}`}
-                      aria-selected=${activeAuthMethod === 'password' ? 'true' : 'false'}
-                      onClick=${() => setActiveAuthMethod('password')}
-                    >
-                      Email e senha
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      className=${`login-method-tab${activeAuthMethod === 'whatsapp' ? ' is-active' : ''}`}
-                      aria-selected=${activeAuthMethod === 'whatsapp' ? 'true' : 'false'}
-                      onClick=${() => setActiveAuthMethod('whatsapp')}
-                    >
-                      Login via WhatsApp
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      className=${`login-method-tab${activeAuthMethod === 'google' ? ' is-active' : ''}`}
-                      aria-selected=${activeAuthMethod === 'google' ? 'true' : 'false'}
-                      disabled=${!canUseGoogleLogin}
-                      onClick=${() => setActiveAuthMethod('google')}
-                    >
-                      Login Google
-                    </button>
-                  </nav>
-                `
-              : null}
-            ${!authenticated
-              ? html`
-                  <article
-                    className=${`login-consent-card${consentAccepted ? ' is-accepted' : ''}`}
-                  >
-                    <label className="login-consent-label">
-                      <input
-                        type="checkbox"
-                        className="login-consent-checkbox"
-                        checked=${consentAccepted}
-                        disabled=${isBusy || consentSaving || passwordLoginBusy}
-                        onChange=${onConsentChange}
-                      />
-                      <span>
-                        Li e aceito os
-                        <a href=${config.termsUrl} target="_blank" rel="noreferrer noopener"
-                          >Termos de Uso</a
-                        >
-                        e a
-                        <a href=${config.privacyUrl} target="_blank" rel="noreferrer noopener"
-                          >Politica de Privacidade</a
-                        >, alem da
-                        <a href=${config.aupUrl} target="_blank" rel="noreferrer noopener"
-                          >Politica de Uso Aceitavel (AUP)</a
-                        >.
-                      </span>
-                    </label>
-                    ${consentAccepted && hasConsentReceipt
-                      ? html`<p className="login-consent-meta">
-                          Aceite juridico registrado com hash de versao.
-                        </p>`
-                      : null}
-                    ${consentErrorMessage
-                      ? html`<p className="login-field-error">${consentErrorMessage}</p>`
-                      : null}
-                  </article>
-                `
-              : null}
-            ${showGoogleMethod
-              ? html`
-                  <section className="login-method-panel" data-method="google">
-                    <div className="login-method-head">
-                      <h2>Login Google</h2>
-                      <p>Ideal para validar o vínculo do WhatsApp com sessão segura.</p>
-                    </div>
-
-                    ${canUseGoogleLogin
-                      ? html`
-                          <div ref=${googleAreaRef} className="login-google-area">
-                            <div
-                              className=${`login-google-slot ${isBusy || consentSaving ? 'is-busy' : ''} ${consentAccepted ? '' : 'is-hidden'}`}
-                            >
-                              <div ref=${googleButtonRef}></div>
-                            </div>
-                            <p className="login-helper-text">
-                              ${googleStateMessage || 'Continue com sua conta Google para entrar.'}
-                            </p>
-                          </div>
-                        `
-                      : html`
-                          <div className="login-inline-message is-warning">
-                            <p>
-                              Este navegador não recebeu um link válido do WhatsApp para Google.
-                            </p>
-                          </div>
-                        `}
-                  </section>
-                `
-              : null}
-            ${showPasswordMethod
-              ? html`
-                  <section className="login-method-panel" data-method="password">
-                    <div className="login-method-head">
-                      <h2>Email e senha</h2>
-                      <p>Acesse rápido com sua credencial já configurada.</p>
-                    </div>
-
-                    <form
-                      className="login-form-grid"
-                      onSubmit=${(event) => {
-                        event.preventDefault();
-                        void handlePasswordLoginSubmit();
-                      }}
-                    >
-                      <label className="login-field-group">
-                        <span className="login-field-label">Email</span>
-                        <span className="login-input-wrap">
-                          <span className="login-input-icon" aria-hidden="true">@</span>
-                          <input
-                            type="email"
-                            className="login-input-control"
-                            name="username"
-                            value=${passwordLoginForm.email}
-                            onInput=${(event) => {
-                              const nextValue = String(event.currentTarget?.value || '');
-                              setPasswordLoginForm((current) => ({
-                                ...current,
-                                email: nextValue,
-                              }));
-                            }}
-                            autocomplete="email"
-                            placeholder="voce@empresa.com"
-                          />
-                        </span>
-                      </label>
-
-                      <label className="login-field-group">
-                        <span className="login-field-label">Senha</span>
-                        <span className="login-input-wrap">
-                          <span className="login-input-icon" aria-hidden="true">•</span>
-                          <input
-                            type="password"
-                            className="login-input-control"
-                            name="password"
-                            value=${passwordLoginForm.password}
-                            onInput=${(event) => {
-                              const nextValue = String(event.currentTarget?.value || '');
-                              setPasswordLoginForm((current) => ({
-                                ...current,
-                                password: nextValue,
-                              }));
-                            }}
-                            autocomplete="current-password"
-                            placeholder="Sua senha"
-                          />
-                        </span>
-                      </label>
-
-                      ${passwordLoginError
-                        ? html`<p role="alert" className="login-field-error">
-                            ${passwordLoginError}
-                          </p>`
-                        : null}
-
-                      <button
-                        type="submit"
-                        className="login-btn-primary"
-                        disabled=${passwordLoginBusy || consentSaving}
+              ${authenticated
+                ? html`
+                    <div className="login-success-actions">
+                      <a className="login-btn-primary" href=${successHomeHref}
+                        >${DEFAULT_SUCCESS_HOME_LABEL}</a
                       >
-                        ${passwordLoginBusy ? 'Entrando...' : 'Entrar na conta'}
-                      </button>
-                    </form>
-
-                    <button
-                      type="button"
-                      className="login-link-button"
-                      onClick=${() => {
-                        setPasswordRecoveryStep((step) =>
-                          step === 'idle' ? 'code_request' : 'idle',
-                        );
-                        setPasswordRecoveryError('');
-                        setPasswordRecoveryMessage('');
-                        setPasswordRecoveryForm((current) => ({
-                          ...current,
-                          email: current.email || String(passwordLoginForm.email || '').trim(),
-                        }));
-                      }}
-                    >
-                      Esqueci minha senha
-                    </button>
-
-                    <div className="login-divider"><span>ou</span></div>
-                    <a
-                      className="login-btn-whatsapp"
-                      href=${whatsappCtaHref}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                    >
-                      Gerar link de login no WhatsApp
-                    </a>
-                    <p className="login-helper-text">${whatsappMeta}</p>
-
-                    ${passwordRecoveryStep !== 'idle'
-                      ? html`
-                          <div className="login-recovery-card">
-                            <p className="login-recovery-title">
-                              Recuperação por código (6 dígitos)
-                            </p>
-                            ${passwordRecoveryMessage
-                              ? html`<p className="login-inline-message is-success">
-                                  ${passwordRecoveryMessage}
-                                </p>`
-                              : null}
-                            ${passwordRecoveryError
-                              ? html`<p role="alert" className="login-field-error">
-                                  ${passwordRecoveryError}
-                                </p>`
-                              : null}
-
-                            <div className="login-recovery-grid">
-                              <label className="login-field-group">
-                                <span className="login-field-label">Email da conta</span>
-                                <span className="login-input-wrap">
-                                  <span className="login-input-icon" aria-hidden="true">@</span>
-                                  <input
-                                    type="email"
-                                    className="login-input-control"
-                                    name="username"
-                                    value=${passwordRecoveryForm.email}
-                                    onInput=${(event) => {
-                                      const nextValue = String(event.currentTarget?.value || '');
-                                      setPasswordRecoveryForm((current) => ({
-                                        ...current,
-                                        email: nextValue,
-                                      }));
-                                    }}
-                                    autocomplete="email"
-                                    placeholder="voce@empresa.com"
-                                  />
-                                </span>
-                              </label>
-
-                              <label className="login-field-group">
-                                <span className="login-field-label">Código</span>
-                                <span className="login-input-wrap">
-                                  <span className="login-input-icon" aria-hidden="true">#</span>
-                                  <input
-                                    type="text"
-                                    inputmode="numeric"
-                                    className="login-input-control"
-                                    name="verification_code"
-                                    value=${passwordRecoveryForm.code}
-                                    onInput=${(event) => {
-                                      const nextValue = String(event.currentTarget?.value || '')
-                                        .replace(/\D+/g, '')
-                                        .slice(0, 6);
-                                      setPasswordRecoveryForm((current) => ({
-                                        ...current,
-                                        code: nextValue,
-                                      }));
-                                    }}
-                                    autocomplete="one-time-code"
-                                    placeholder="000000"
-                                  />
-                                </span>
-                              </label>
-
-                              <label className="login-field-group">
-                                <span className="login-field-label">Nova senha</span>
-                                <span className="login-input-wrap">
-                                  <span className="login-input-icon" aria-hidden="true">•</span>
-                                  <input
-                                    type="password"
-                                    className="login-input-control"
-                                    name="new_password"
-                                    value=${passwordRecoveryForm.password}
-                                    onInput=${(event) => {
-                                      const nextValue = String(event.currentTarget?.value || '');
-                                      setPasswordRecoveryForm((current) => ({
-                                        ...current,
-                                        password: nextValue,
-                                      }));
-                                    }}
-                                    autocomplete="new-password"
-                                    placeholder="Nova senha"
-                                  />
-                                </span>
-                              </label>
-
-                              <label className="login-field-group">
-                                <span className="login-field-label">Confirmar senha</span>
-                                <span className="login-input-wrap">
-                                  <span className="login-input-icon" aria-hidden="true">•</span>
-                                  <input
-                                    type="password"
-                                    className="login-input-control"
-                                    name="new_password_confirm"
-                                    value=${passwordRecoveryForm.confirm}
-                                    onInput=${(event) => {
-                                      const nextValue = String(event.currentTarget?.value || '');
-                                      setPasswordRecoveryForm((current) => ({
-                                        ...current,
-                                        confirm: nextValue,
-                                      }));
-                                    }}
-                                    autocomplete="new-password"
-                                    placeholder="Repita a senha"
-                                  />
-                                </span>
-                              </label>
-                            </div>
-
-                            <div className="login-recovery-actions">
-                              <button
-                                type="button"
-                                className="login-btn-secondary"
-                                disabled=${passwordRecoveryBusy}
-                                onClick=${handleRecoveryRequestSubmit}
-                              >
-                                ${passwordRecoveryBusy ? 'Enviando...' : 'Enviar código por email'}
-                              </button>
-                              <button
-                                type="button"
-                                className="login-btn-primary"
-                                disabled=${passwordRecoveryBusy}
-                                onClick=${handleRecoveryVerifySubmit}
-                              >
-                                ${passwordRecoveryBusy
-                                  ? 'Validando...'
-                                  : 'Validar código e criar senha'}
-                              </button>
-                            </div>
-                          </div>
-                        `
-                      : null}
-                  </section>
-                `
-              : null}
-            ${showWhatsappMethod
-              ? html`
-                  <section className="login-method-panel" data-method="whatsapp">
-                    <div className="login-method-head">
-                      <h2>Login via WhatsApp</h2>
-                      <p>Gere seu link seguro e volte para concluir o acesso.</p>
+                      <a
+                        className="login-btn-secondary"
+                        href=${successChatHref}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        >${DEFAULT_SUCCESS_CHAT_LABEL}</a
+                      >
                     </div>
-                    <a
-                      className="login-btn-whatsapp"
-                      href=${whatsappCtaHref}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                    >
-                      Gerar link de login no WhatsApp
-                    </a>
-                    <p className="login-helper-text">${whatsappMeta}</p>
-                    ${canUseGoogleLogin
-                      ? html`
-                          <p className="login-inline-message is-info">
-                            Link detectado. Se preferir, volte para a aba "Login Google".
-                          </p>
-                        `
-                      : null}
-                  </section>
-                `
-              : null}
-            ${authenticated && passwordSetupRequired
-              ? html`
-                  <section className="login-method-panel is-warning">
-                    <div className="login-method-head">
-                      <h2>Senha ainda não configurada</h2>
-                      <p>
-                        Para concluir o primeiro acesso, crie sua senha agora. Nos próximos logins
-                        você pode entrar direto por email e senha.
-                      </p>
-                    </div>
-                    ${passwordSetupError
-                      ? html`<p role="alert" className="login-field-error">
-                          ${passwordSetupError}
-                        </p>`
-                      : null}
-                    <div className="login-recovery-grid">
-                      <label className="login-field-group">
-                        <span className="login-field-label">Nova senha</span>
-                        <span className="login-input-wrap">
-                          <span className="login-input-icon" aria-hidden="true">•</span>
-                          <input
-                            type="password"
-                            className="login-input-control"
-                            name="new_password"
-                            value=${passwordSetupForm.password}
-                            onInput=${(event) => {
-                              const nextValue = String(event.currentTarget?.value || '');
-                              setPasswordSetupForm((current) => ({
-                                ...current,
-                                password: nextValue,
-                              }));
-                            }}
-                            autocomplete="new-password"
-                            placeholder="Nova senha"
-                          />
-                        </span>
-                      </label>
-                      <label className="login-field-group">
-                        <span className="login-field-label">Confirmar senha</span>
-                        <span className="login-input-wrap">
-                          <span className="login-input-icon" aria-hidden="true">•</span>
-                          <input
-                            type="password"
-                            className="login-input-control"
-                            name="new_password_confirm"
-                            value=${passwordSetupForm.confirm}
-                            onInput=${(event) => {
-                              const nextValue = String(event.currentTarget?.value || '');
-                              setPasswordSetupForm((current) => ({
-                                ...current,
-                                confirm: nextValue,
-                              }));
-                            }}
-                            autocomplete="new-password"
-                            placeholder="Repita a senha"
-                          />
-                        </span>
-                      </label>
-                    </div>
-                    <button
-                      type="button"
-                      className="login-btn-primary"
-                      disabled=${passwordSetupBusy}
-                      onClick=${handlePasswordSetupSubmit}
-                    >
-                      ${passwordSetupBusy ? 'Salvando...' : 'Criar senha agora'}
-                    </button>
-                  </section>
-                `
-              : null}
-            ${summary.visible
-              ? html`
-                  <div
-                    className=${`login-inline-message ${summary.state === 'pending' ? 'is-warning' : 'is-success'}`}
-                  >
-                    <p className="font-semibold">${summary.title}</p>
-                    <p>${summary.owner}</p>
-                  </div>
-                `
-              : null}
-            ${authenticated
-              ? html`
-                  <div className="login-success-actions">
-                    <a className="login-btn-primary" href=${successHomeHref}
-                      >${DEFAULT_SUCCESS_HOME_LABEL}</a
-                    >
-                    <a
-                      className="login-btn-secondary"
-                      href=${successChatHref}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      >${DEFAULT_SUCCESS_CHAT_LABEL}</a
-                    >
-                  </div>
-                `
-              : null}
+                  `
+                : null}
 
-            <footer className="login-trust-footer">
-              <p>🔒 Conexão segura</p>
-              <p>Privacidade protegida</p>
-              <p>Login criptografado</p>
-            </footer>
+              <section className="login-security-grid" aria-label="Indicadores de seguranca">
+                <p className="login-security-badge">
+                  <span className="login-security-icon" aria-hidden="true">SSL</span>
+                  Conexao segura SSL
+                </p>
+                <p className="login-security-badge">
+                  <span className="login-security-icon" aria-hidden="true">D</span>
+                  Dados protegidos
+                </p>
+                <p className="login-security-badge">
+                  <span className="login-security-icon" aria-hidden="true">K</span>
+                  Autenticacao criptografada
+                </p>
+              </section>
+
+              <footer className="login-trust-footer">
+                <a
+                  className="login-footer-link"
+                  href=${config.supportUrl}
+                  target=${supportLinkExternal ? '_blank' : null}
+                  rel=${supportLinkExternal ? 'noreferrer noopener' : null}
+                >
+                  Suporte
+                </a>
+                <a
+                  className="login-footer-link"
+                  href=${config.docsUrl}
+                  target=${docsLinkExternal ? '_blank' : null}
+                  rel=${docsLinkExternal ? 'noreferrer noopener' : null}
+                >
+                  Documentacao
+                </a>
+                <a
+                  className="login-footer-link"
+                  href=${config.statusUrl}
+                  target=${statusLinkExternal ? '_blank' : null}
+                  rel=${statusLinkExternal ? 'noreferrer noopener' : null}
+                >
+                  Status do sistema
+                </a>
+              </footer>
+            </section>
           </section>
-        </section>
+        </div>
       </main>
 
       <div
@@ -1759,6 +1950,9 @@ if (rootElement) {
     termsUrl: normalizeUrlPath(rootElement.dataset.termsUrl, DEFAULT_TERMS_URL),
     privacyUrl: normalizeUrlPath(rootElement.dataset.privacyUrl, DEFAULT_PRIVACY_URL),
     aupUrl: normalizeUrlPath(rootElement.dataset.aupUrl, DEFAULT_AUP_URL),
+    supportUrl: normalizeUrlPath(rootElement.dataset.supportUrl, DEFAULT_SUPPORT_URL),
+    docsUrl: normalizeUrlPath(rootElement.dataset.docsUrl, DEFAULT_DOCS_URL),
+    statusUrl: normalizeUrlPath(rootElement.dataset.statusUrl, DEFAULT_STATUS_URL),
     brandName: String(rootElement.dataset.brandName || '').trim() || DEFAULT_BRAND_NAME,
     brandLogo: normalizeUrlPath(rootElement.dataset.brandLogo, DEFAULT_BRAND_LOGO),
   };
