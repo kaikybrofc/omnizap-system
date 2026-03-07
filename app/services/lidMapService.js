@@ -553,7 +553,23 @@ export const resolveUserId = async ({ lid, jid, participantAlt } = {}) => {
  */
 export const reconcileLidToJid = async ({ lid, jid, source = 'map' } = {}) => {
   if (!lid || !jid) return { updated: 0 };
-  const result = await executeQuery(`UPDATE ${TABLES.MESSAGES} SET sender_id = ? WHERE sender_id = ?`, [jid, lid]);
+  let result;
+  try {
+    result = await executeQuery(
+      `UPDATE ${TABLES.MESSAGES}
+          SET sender_id = ?,
+              canonical_sender_id = ?
+        WHERE sender_id = ?
+           OR canonical_sender_id = ?`,
+      [jid, jid, lid, lid],
+    );
+  } catch (error) {
+    // Compatibilidade para ambientes legados sem a coluna canonical_sender_id.
+    const badField = String(error?.code || '').toUpperCase() === 'ER_BAD_FIELD_ERROR' || Number(error?.errno || 0) === 1054;
+    if (!badField) throw error;
+    result = await executeQuery(`UPDATE ${TABLES.MESSAGES} SET sender_id = ? WHERE sender_id = ?`, [jid, lid]);
+  }
+
   const updated = Number(result?.affectedRows || 0);
   if (updated > 0) {
     logger.info('Reconciliação lid->jid aplicada.', {

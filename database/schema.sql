@@ -27,6 +27,17 @@ CREATE TABLE IF NOT EXISTS `chats` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `schema_change_log` (
+  `migration_key` varchar(128) NOT NULL,
+  `phase` varchar(32) NOT NULL,
+  `status` enum('applied','rolled_back') NOT NULL DEFAULT 'applied',
+  `notes` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`migration_key`),
+  KEY `idx_schema_change_log_phase_status` (`phase`,`status`,`updated_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `domain_event_outbox` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `event_type` varchar(96) NOT NULL,
@@ -50,7 +61,9 @@ CREATE TABLE IF NOT EXISTS `domain_event_outbox` (
   KEY `idx_domain_event_outbox_status_sched` (`status`,`available_at`,`priority`),
   KEY `idx_domain_event_outbox_event_type` (`event_type`,`status`,`available_at`),
   KEY `idx_domain_event_outbox_aggregate` (`aggregate_type`,`aggregate_id`,`created_at`),
-  KEY `idx_domain_event_outbox_worker_token` (`worker_token`)
+  KEY `idx_domain_event_outbox_worker_token` (`worker_token`),
+  KEY `idx_domain_event_outbox_status_locked` (`status`,`locked_at`),
+  CONSTRAINT `chk_domain_event_outbox_attempts` CHECK (`attempts` <= `max_attempts`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `domain_event_outbox_dlq` (
@@ -68,8 +81,7 @@ CREATE TABLE IF NOT EXISTS `domain_event_outbox_dlq` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_domain_event_outbox_dlq_outbox_event` (`outbox_event_id`),
   KEY `idx_domain_event_outbox_dlq_event` (`event_type`,`failed_at`),
-  KEY `idx_domain_event_outbox_dlq_aggregate` (`aggregate_type`,`aggregate_id`,`failed_at`),
-  KEY `idx_domain_event_outbox_dlq_outbox_event_id` (`outbox_event_id`)
+  KEY `idx_domain_event_outbox_dlq_aggregate` (`aggregate_type`,`aggregate_id`,`failed_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `email_outbox` (
@@ -99,7 +111,9 @@ CREATE TABLE IF NOT EXISTS `email_outbox` (
   UNIQUE KEY `uq_email_outbox_idempotency` (`idempotency_key`),
   KEY `idx_email_outbox_status_available_priority` (`status`,`available_at`,`priority`),
   KEY `idx_email_outbox_recipient_created` (`recipient_email`,`created_at`),
-  KEY `idx_email_outbox_worker_token` (`worker_token`)
+  KEY `idx_email_outbox_worker_token` (`worker_token`),
+  KEY `idx_email_outbox_status_locked` (`status`,`locked_at`),
+  CONSTRAINT `chk_email_outbox_attempts` CHECK (`attempts` <= `max_attempts`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `feature_flag` (
@@ -113,7 +127,8 @@ CREATE TABLE IF NOT EXISTS `feature_flag` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_feature_flag_name` (`flag_name`),
-  KEY `idx_feature_flag_enabled` (`is_enabled`,`rollout_percent`)
+  KEY `idx_feature_flag_enabled` (`is_enabled`,`rollout_percent`),
+  CONSTRAINT `chk_feature_flag_rollout_percent` CHECK (`rollout_percent` between 0 and 100)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `group_configs` (
@@ -201,6 +216,7 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `message_id` varchar(255) NOT NULL,
   `chat_id` varchar(255) NOT NULL,
   `sender_id` varchar(255) DEFAULT NULL,
+  `canonical_sender_id` varchar(255) DEFAULT NULL,
   `content` text DEFAULT NULL,
   `raw_message` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`raw_message`)),
   `timestamp` timestamp NULL DEFAULT NULL,
@@ -209,7 +225,25 @@ CREATE TABLE IF NOT EXISTS `messages` (
   UNIQUE KEY `message_id` (`message_id`),
   KEY `idx_chat_timestamp` (`chat_id`,`timestamp`),
   KEY `idx_sender` (`sender_id`),
-  KEY `idx_timestamp` (`timestamp`)
+  KEY `idx_timestamp` (`timestamp`),
+  KEY `idx_messages_sender_timestamp` (`sender_id`,`timestamp`),
+  KEY `idx_messages_chat_sender_timestamp` (`chat_id`,`sender_id`,`timestamp`),
+  KEY `idx_messages_canonical_sender_timestamp` (`canonical_sender_id`,`timestamp`),
+  KEY `idx_messages_chat_canonical_sender_timestamp` (`chat_id`,`canonical_sender_id`,`timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `message_activity_daily` (
+  `day_ref_date` date NOT NULL,
+  `chat_id` varchar(255) NOT NULL,
+  `canonical_sender_id` varchar(255) NOT NULL,
+  `total_messages` int(10) unsigned NOT NULL DEFAULT 0,
+  `first_message_at` datetime DEFAULT NULL,
+  `last_message_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`day_ref_date`,`chat_id`,`canonical_sender_id`),
+  KEY `idx_message_activity_daily_sender_day` (`canonical_sender_id`,`day_ref_date`),
+  KEY `idx_message_activity_daily_chat_day` (`chat_id`,`day_ref_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `rpg_battle_state` (
@@ -337,7 +371,8 @@ CREATE TABLE IF NOT EXISTS `rpg_karma_vote_history` (
   KEY `idx_rpg_karma_target_week` (`target_jid`,`week_ref_date`),
   KEY `fk_rpg_karma_vote_voter` (`voter_jid`),
   CONSTRAINT `fk_rpg_karma_vote_target` FOREIGN KEY (`target_jid`) REFERENCES `rpg_player` (`jid`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_rpg_karma_vote_voter` FOREIGN KEY (`voter_jid`) REFERENCES `rpg_player` (`jid`) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT `fk_rpg_karma_vote_voter` FOREIGN KEY (`voter_jid`) REFERENCES `rpg_player` (`jid`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `chk_rpg_karma_vote_value` CHECK (`vote_value` in (-1,1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `rpg_player` (
@@ -655,7 +690,9 @@ CREATE TABLE IF NOT EXISTS `sticker_asset_reprocess_queue` (
   KEY `idx_sticker_reprocess_status_schedule` (`status`,`scheduled_at`,`priority`),
   KEY `idx_sticker_reprocess_asset_reason` (`asset_id`,`reason`),
   KEY `idx_sticker_reprocess_worker_token` (`worker_token`),
-  CONSTRAINT `fk_sticker_reprocess_asset` FOREIGN KEY (`asset_id`) REFERENCES `sticker_asset` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  KEY `idx_sticker_asset_reprocess_queue_status_locked` (`status`,`locked_at`),
+  CONSTRAINT `fk_sticker_reprocess_asset` FOREIGN KEY (`asset_id`) REFERENCES `sticker_asset` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `chk_sticker_asset_reprocess_queue_attempts` CHECK (`attempts` <= `max_attempts`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `sticker_pack` (
@@ -732,7 +769,6 @@ CREATE TABLE IF NOT EXISTS `sticker_pack_item` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_sticker_pack_item_pack_sticker` (`pack_id`,`sticker_id`),
   UNIQUE KEY `uq_sticker_pack_item_pack_position` (`pack_id`,`position`),
-  KEY `idx_sticker_pack_item_pack_position` (`pack_id`,`position`),
   KEY `fk_sticker_pack_item_asset` (`sticker_id`),
   KEY `idx_sticker_pack_item_sticker_id` (`sticker_id`),
   CONSTRAINT `fk_sticker_pack_item_asset` FOREIGN KEY (`sticker_id`) REFERENCES `sticker_asset` (`id`) ON UPDATE CASCADE,
@@ -803,7 +839,6 @@ CREATE TABLE IF NOT EXISTS `sticker_worker_task_dlq` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_sticker_worker_task_dlq_task_id` (`task_id`),
   KEY `idx_sticker_worker_task_dlq_type_failed_at` (`task_type`,`failed_at`),
-  KEY `idx_sticker_worker_task_dlq_task_id` (`task_id`),
   KEY `idx_sticker_worker_task_dlq_idempotency_key` (`idempotency_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -827,7 +862,9 @@ CREATE TABLE IF NOT EXISTS `sticker_worker_task_queue` (
   UNIQUE KEY `uq_sticker_worker_task_idempotency_key` (`idempotency_key`),
   KEY `idx_sticker_worker_task_type_status_schedule` (`task_type`,`status`,`scheduled_at`,`priority`),
   KEY `idx_sticker_worker_task_status_schedule` (`status`,`scheduled_at`,`priority`),
-  KEY `idx_sticker_worker_task_worker_token` (`worker_token`)
+  KEY `idx_sticker_worker_task_worker_token` (`worker_token`),
+  KEY `idx_sticker_worker_task_queue_status_locked` (`status`,`locked_at`),
+  CONSTRAINT `chk_sticker_worker_task_queue_attempts` CHECK (`attempts` <= `max_attempts`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `web_admin_ban` (
@@ -871,6 +908,7 @@ CREATE TABLE IF NOT EXISTS `web_admin_moderator` (
 
 CREATE TABLE IF NOT EXISTS `web_google_session` (
   `session_token` char(36) NOT NULL,
+  `session_token_hash` binary(32) DEFAULT NULL,
   `google_sub` varchar(80) NOT NULL,
   `owner_jid` varchar(120) NOT NULL,
   `owner_phone` varchar(20) DEFAULT NULL,
@@ -883,6 +921,7 @@ CREATE TABLE IF NOT EXISTS `web_google_session` (
   `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `last_seen_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`session_token`),
+  UNIQUE KEY `uq_web_google_session_token_hash` (`session_token_hash`),
   KEY `idx_web_google_session_google_sub` (`google_sub`),
   KEY `idx_web_google_session_owner_jid` (`owner_jid`),
   KEY `idx_web_google_session_expires_at` (`expires_at`),

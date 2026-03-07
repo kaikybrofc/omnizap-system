@@ -1,6 +1,6 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { executeQuery, TABLES } from '../../database/index.js';
-import { queueLidUpdate, flushLidQueue } from './lidMapService.js';
+import { queueLidUpdate, flushLidQueue, resolveUserIdCached } from './lidMapService.js';
 import { buildPlaceholders, createFlushRunner } from './queueUtils.js';
 import { recordError, setQueueDepth } from '../observability/metrics.js';
 import { sanitizeUnicodeString, toSafeJsonColumnValue } from '../utils/json/jsonSanitizer.js';
@@ -141,6 +141,7 @@ const baileysEventQueue = [];
  */
 let flushScheduled = false;
 let baileysEventTableMissingLogged = false;
+let messageActivityDailyTableMissingLogged = false;
 let nextBaileysEventPruneAt = 0;
 
 /**
@@ -249,14 +250,36 @@ const isInvalidJsonPayloadError = (error) => {
  * - content: remove surrogate inválido
  * - raw_message: serializa JSON seguro para coluna JSON
  *
- * @param {{message_id:string, chat_id:string, sender_id:string, content:(string|null), raw_message:(Object|string|null), timestamp:(number|string|Date)}} messageData
- * @returns {{message_id:string, chat_id:string, sender_id:string, content:(string|null), raw_message:(string|null), timestamp:(number|string|Date)}}
+ * @param {{message_id:string, chat_id:string, sender_id:string, canonical_sender_id?:(string|null), content:(string|null), raw_message:(Object|string|null), timestamp:(number|string|Date)}} messageData
+ * @returns {{message_id:string, chat_id:string, sender_id:(string|null), canonical_sender_id:(string|null), content:(string|null), raw_message:(string|null), timestamp:(number|string|Date)}}
  */
-const normalizeMessageForQueue = (messageData) => ({
-  ...messageData,
-  content: typeof messageData?.content === 'string' ? sanitizeUnicodeString(messageData.content) : messageData?.content,
-  raw_message: toSafeJsonColumnValue(messageData?.raw_message),
-});
+const normalizeUserIdForColumn = (value, maxLength = 255) => {
+  if (value === null || value === undefined) return null;
+  const normalized = sanitizeUnicodeString(String(value).trim()).slice(0, maxLength);
+  return normalized || null;
+};
+
+const resolveCanonicalSenderIdForMessage = (messageData) => {
+  const explicitCanonical = normalizeUserIdForColumn(messageData?.canonical_sender_id, 255);
+  if (explicitCanonical) return explicitCanonical;
+
+  const senderId = normalizeUserIdForColumn(messageData?.sender_id, 255);
+  if (!senderId) return null;
+
+  const cachedCanonical = resolveUserIdCached({ lid: senderId, jid: senderId, participantAlt: null });
+  return normalizeUserIdForColumn(cachedCanonical || senderId, 255);
+};
+
+const normalizeMessageForQueue = (messageData) => {
+  const senderId = normalizeUserIdForColumn(messageData?.sender_id, 255);
+  return {
+    ...messageData,
+    sender_id: senderId,
+    canonical_sender_id: resolveCanonicalSenderIdForMessage({ ...messageData, sender_id: senderId }),
+    content: typeof messageData?.content === 'string' ? sanitizeUnicodeString(messageData.content) : messageData?.content,
+    raw_message: toSafeJsonColumnValue(messageData?.raw_message),
+  };
+};
 
 const normalizeTextForColumn = (value, maxLength = 255) => {
   if (value === null || value === undefined) return null;
@@ -298,19 +321,92 @@ const insertBaileysEventBatch = async (batch) => {
 /**
  * Executa INSERT IGNORE de um batch de mensagens.
  *
- * @param {Array<{message_id:string, chat_id:string, sender_id:string, content:(string|null), raw_message:(string|null), timestamp:(number|string|Date)}>} batch
+ * @param {Array<{message_id:string, chat_id:string, sender_id:(string|null), canonical_sender_id:(string|null), content:(string|null), raw_message:(string|null), timestamp:(number|string|Date)}>} batch
  * @returns {Promise<void>}
  */
 const insertMessageBatch = async (batch) => {
-  const placeholders = buildPlaceholders(batch.length, 6);
+  const placeholders = buildPlaceholders(batch.length, 7);
   const params = [];
   for (const message of batch) {
-    params.push(message.message_id, message.chat_id, message.sender_id, message.content, message.raw_message, message.timestamp);
+    params.push(message.message_id, message.chat_id, message.sender_id, message.canonical_sender_id, message.content, message.raw_message, message.timestamp);
   }
 
   const sql = `INSERT IGNORE INTO ${TABLES.MESSAGES}
-      (message_id, chat_id, sender_id, content, raw_message, timestamp)
+      (message_id, chat_id, sender_id, canonical_sender_id, content, raw_message, timestamp)
       VALUES ${placeholders}`;
+
+  await executeQuery(sql, params);
+};
+
+const toUtcDateKey = (value) => {
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+};
+
+const buildMessageActivityDailyKeys = (batch) => {
+  const keyMap = new Map();
+  for (const message of batch) {
+    const dayRefDate = toUtcDateKey(message?.timestamp);
+    const chatId = normalizeUserIdForColumn(message?.chat_id, 255);
+    const canonicalSenderId = normalizeUserIdForColumn(message?.canonical_sender_id || message?.sender_id, 255);
+    if (!dayRefDate || !chatId || !canonicalSenderId) continue;
+
+    const key = `${dayRefDate}\u001f${chatId}\u001f${canonicalSenderId}`;
+    if (!keyMap.has(key)) {
+      keyMap.set(key, { dayRefDate, chatId, canonicalSenderId });
+    }
+  }
+  return Array.from(keyMap.values());
+};
+
+const isMessageActivityDailyMissing = (error) => {
+  const code = String(error?.code || '').trim().toUpperCase();
+  if (code === 'ER_NO_SUCH_TABLE') return true;
+  const errno = Number(error?.errno || 0);
+  if (errno === 1146) return true;
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('message_activity_daily') && message.includes("doesn't exist");
+};
+
+const refreshMessageActivityDailyForBatch = async (batch) => {
+  const keys = buildMessageActivityDailyKeys(batch);
+  if (!keys.length) return;
+
+  const keyRowsSql = keys.map((_, index) => (index === 0 ? 'SELECT ? AS day_ref_date, ? AS chat_id, ? AS canonical_sender_id' : 'UNION ALL SELECT ?, ?, ?')).join('\n');
+  const params = [];
+  for (const keyRow of keys) {
+    params.push(keyRow.dayRefDate, keyRow.chatId, keyRow.canonicalSenderId);
+  }
+
+  const sql = `INSERT INTO message_activity_daily (
+      day_ref_date,
+      chat_id,
+      canonical_sender_id,
+      total_messages,
+      first_message_at,
+      last_message_at
+    )
+    SELECT
+      k.day_ref_date,
+      k.chat_id,
+      k.canonical_sender_id,
+      COUNT(*) AS total_messages,
+      MIN(m.timestamp) AS first_message_at,
+      MAX(m.timestamp) AS last_message_at
+    FROM (
+      ${keyRowsSql}
+    ) k
+    JOIN ${TABLES.MESSAGES} m
+      ON DATE(m.timestamp) = k.day_ref_date
+     AND m.chat_id = k.chat_id
+     AND COALESCE(m.canonical_sender_id, m.sender_id) = k.canonical_sender_id
+    GROUP BY k.day_ref_date, k.chat_id, k.canonical_sender_id
+    ON DUPLICATE KEY UPDATE
+      total_messages = VALUES(total_messages),
+      first_message_at = VALUES(first_message_at),
+      last_message_at = VALUES(last_message_at),
+      updated_at = CURRENT_TIMESTAMP`;
 
   await executeQuery(sql, params);
 };
@@ -332,7 +428,7 @@ const clearPendingMessageIds = (batch) => {
  * - Mensagem inválida é descartada para não travar a fila inteira.
  * - Em erro transitório, re-enfileira o restante e interrompe.
  *
- * @param {Array<{message_id:string, chat_id:string, sender_id:string, content:(string|null), raw_message:(string|null), timestamp:(number|string|Date)}>} batch
+ * @param {Array<{message_id:string, chat_id:string, sender_id:(string|null), canonical_sender_id:(string|null), content:(string|null), raw_message:(string|null), timestamp:(number|string|Date)}>} batch
  * @returns {Promise<void>}
  */
 const salvageJsonErrorBatch = async (batch) => {
@@ -364,6 +460,24 @@ const flushMessageQueueCore = async () => {
     const batch = messageQueue.splice(0, MESSAGE_BATCH_SIZE);
     try {
       await insertMessageBatch(batch);
+      try {
+        await refreshMessageActivityDailyForBatch(batch);
+      } catch (error) {
+        if (isMessageActivityDailyMissing(error)) {
+          if (!messageActivityDailyTableMissingLogged) {
+            messageActivityDailyTableMissingLogged = true;
+            logger.warn('Tabela message_activity_daily ausente; rollup incremental desativado.', {
+              action: 'message_activity_daily_missing',
+            });
+          }
+        } else {
+          logger.warn('Falha ao atualizar rollup message_activity_daily apos flush de mensagens.', {
+            action: 'message_activity_daily_upsert_failed',
+            error: error?.message,
+          });
+          recordError('db_write_queue');
+        }
+      }
       clearPendingMessageIds(batch);
     } catch (error) {
       logger.error('Falha ao inserir batch de mensagens.', { error: error.message });
@@ -555,7 +669,7 @@ const baileysEventFlushRunner = createFlushRunner({
  * - Força flush se a fila estiver muito grande.
  * - Agenda flush quando atinge o tamanho de batch.
  *
- * @param {{message_id:string, chat_id:string, sender_id:string, content:(string|null), raw_message:(Object|string|null), timestamp:(number|string)}} messageData
+ * @param {{message_id:string, chat_id:string, sender_id:string, canonical_sender_id?:(string|null), content:(string|null), raw_message:(Object|string|null), timestamp:(number|string)}} messageData
  *   Objeto com os campos necessários para persistência.
  * @returns {boolean} true se foi enfileirada; false se inválida/duplicada.
  */

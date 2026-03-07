@@ -22,6 +22,7 @@ const ASCII_PRINTABLE_REGEX = /^[\x20-\x7E]$/u;
 const LATIN_CHAR_REGEX = /^\p{Script=Latin}$/u;
 const NUMBER_CHAR_REGEX = /^\p{Number}$/u;
 const MARK_CHAR_REGEX = /^\p{Mark}$/u;
+let messageActivityDailyAvailable = null;
 
 export const MESSAGE_TYPE_SQL = `
   CASE
@@ -105,8 +106,8 @@ const getShortName = (row) => {
   return mentionUser ? toSafeCanvasText(`@${mentionUser}`) : 'Desconhecido';
 };
 
-const CANONICAL_SENDER_SQL = 'COALESCE(lm.jid, m.sender_id)';
-const LID_MAP_JOIN_SQL = 'LEFT JOIN lid_map lm ON lm.lid = m.sender_id AND lm.jid IS NOT NULL';
+const CANONICAL_SENDER_SQL = 'COALESCE(m.canonical_sender_id, m.sender_id)';
+const LID_MAP_JOIN_SQL = '';
 
 const resolveSenderIdsCanonical = (rawJid) => {
   if (!rawJid) return { displayId: null, mentionId: null, key: null };
@@ -146,6 +147,30 @@ const buildWhere = ({ scope, remoteJid, botJid, useCanonicalSender = false }) =>
     }
   }
   return { where, params, senderExpr, joinSql };
+};
+
+const isMissingMessageActivityDailyError = (error) => {
+  const code = String(error?.code || '').trim().toUpperCase();
+  if (code === 'ER_NO_SUCH_TABLE') return true;
+  const errno = Number(error?.errno || 0);
+  if (errno === 1146) return true;
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('message_activity_daily') && message.includes("doesn't exist");
+};
+
+const canUseMessageActivityDaily = async () => {
+  if (messageActivityDailyAvailable !== null) return messageActivityDailyAvailable;
+  try {
+    await executeQuery('SELECT 1 FROM message_activity_daily LIMIT 1');
+    messageActivityDailyAvailable = true;
+  } catch (error) {
+    if (isMissingMessageActivityDailyError(error)) {
+      messageActivityDailyAvailable = false;
+    } else {
+      throw error;
+    }
+  }
+  return messageActivityDailyAvailable;
 };
 
 const getCachedProfilePic = (jid) => {
@@ -372,7 +397,7 @@ const drawAvatar = (ctx, { x, y, radius, image, fallbackLabel, borderColor = '#3
 
 const buildCanonicalWhere = ({ scope, remoteJid, botJid, canonicalId }) => {
   const canonical = normalizeJid(canonicalId) || canonicalId;
-  const senderExpr = 'COALESCE(lm.jid, m.sender_id)';
+  const senderExpr = CANONICAL_SENDER_SQL;
   const where = [];
   const params = [];
 
@@ -415,12 +440,77 @@ const buildCanonicalWhere = ({ scope, remoteJid, botJid, canonicalId }) => {
   return { where, params };
 };
 
+const buildDailyWhere = ({ scope, remoteJid, botJid, canonicalId = null }) => {
+  const senderExpr = 'd.canonical_sender_id';
+  const where = [`${senderExpr} IS NOT NULL`];
+  const params = [];
+
+  if (canonicalId) {
+    const canonical = normalizeJid(canonicalId) || canonicalId;
+    if (isWhatsAppUserId(canonical)) {
+      const user = getJidUser(canonical);
+      if (user) {
+        where.push(`(${senderExpr} = ? OR ${senderExpr} LIKE ? OR ${senderExpr} LIKE ?)`);
+        params.push(canonical, `${user}@%`, `${user}:%`);
+      } else {
+        where.push(`${senderExpr} = ?`);
+        params.push(canonical);
+      }
+    } else {
+      where.push(`${senderExpr} = ?`);
+      params.push(canonical);
+    }
+  }
+
+  if (scope === 'group') {
+    where.push('d.chat_id = ?');
+    params.push(remoteJid);
+  }
+  if (botJid) {
+    const normalizedBotJid = normalizeJid(botJid) || botJid;
+    where.push(`${senderExpr} <> ?`);
+    params.push(normalizedBotJid);
+    if (botJid !== normalizedBotJid) {
+      where.push(`${senderExpr} <> ?`);
+      params.push(botJid);
+    }
+    const botUser = getJidUser(normalizedBotJid);
+    if (botUser) {
+      where.push(`${senderExpr} NOT LIKE ?`);
+      params.push(`${botUser}@%`);
+      where.push(`${senderExpr} NOT LIKE ?`);
+      params.push(`${botUser}:%`);
+    }
+  }
+
+  return { where, params };
+};
+
 /**
  * Busca total de mensagens conforme escopo.
  * @param {{scope: 'group'|'global', remoteJid?: string|null, botJid?: string|null}} params
  * @returns {Promise<number>}
  */
 export const getTotalMessages = async ({ scope, remoteJid, botJid }) => {
+  if (await canUseMessageActivityDaily()) {
+    try {
+      const { where, params } = buildDailyWhere({ scope, remoteJid, botJid });
+      const [row] = await executeQuery(
+        `SELECT COALESCE(SUM(d.total_messages), 0) AS total
+           FROM message_activity_daily d
+          WHERE ${where.join(' AND ')}`,
+        params,
+      );
+      return Number(row?.total || 0);
+    } catch (error) {
+      if (isMissingMessageActivityDailyError(error)) {
+        messageActivityDailyAvailable = false;
+      } else {
+        throw error;
+      }
+    }
+  }
+
   const { where, params, joinSql } = buildWhere({ scope, remoteJid, botJid, useCanonicalSender: true });
   const sql = `SELECT COUNT(*) AS total FROM messages m ${joinSql} WHERE ${where.join(' AND ')}`;
   const [row] = await executeQuery(sql, params);
@@ -475,12 +565,12 @@ export const fetchLatestPushNames = async (senderIds) => {
     `SELECT t.sender_id,
             JSON_UNQUOTE(JSON_EXTRACT(m.raw_message, '$.pushName')) AS pushName
        FROM (
-         SELECT sender_id, MAX(id) AS max_id
-           FROM messages
-          WHERE sender_id IN (${placeholders})
+         SELECT ${CANONICAL_SENDER_SQL} AS sender_id, MAX(id) AS max_id
+           FROM messages m
+          WHERE ${CANONICAL_SENDER_SQL} IN (${placeholders})
             AND raw_message IS NOT NULL
             AND JSON_EXTRACT(raw_message, '$.pushName') IS NOT NULL
-          GROUP BY sender_id
+          GROUP BY ${CANONICAL_SENDER_SQL}
        ) t
        JOIN messages m ON m.id = t.max_id`,
     senderIds,
@@ -495,27 +585,56 @@ export const fetchLatestPushNames = async (senderIds) => {
 };
 
 /**
- * Monta ranking base com normalizacao por lid_map.
+ * Monta ranking base por remetente canônico.
  * @param {{scope: 'group'|'global', remoteJid?: string|null, botJid?: string|null, limit?: number|null}} params
  * @returns {Promise<{rows: Array<any>}>}
  */
 export const getRankingBase = async ({ scope, remoteJid, botJid, limit = null }) => {
-  const { where, params, joinSql } = buildWhere({ scope, remoteJid, botJid, useCanonicalSender: true });
   const limitClause = limit ? `LIMIT ${Number(limit)}` : '';
-  const rankingRows = await executeQuery(
-    `SELECT
-        m.sender_id,
-        COUNT(*) AS total_messages,
-        MIN(m.timestamp) AS first_message,
-        MAX(m.timestamp) AS last_message
-      FROM messages m
-      ${joinSql}
-      WHERE ${where.join(' AND ')}
-      GROUP BY m.sender_id
-      ORDER BY total_messages DESC
-      ${limitClause}`,
-    params,
-  );
+  let rankingRows = [];
+
+  if (await canUseMessageActivityDaily()) {
+    try {
+      const { where, params } = buildDailyWhere({ scope, remoteJid, botJid });
+      rankingRows = await executeQuery(
+        `SELECT
+            d.canonical_sender_id AS sender_id,
+            SUM(d.total_messages) AS total_messages,
+            MIN(d.first_message_at) AS first_message,
+            MAX(d.last_message_at) AS last_message
+          FROM message_activity_daily d
+          WHERE ${where.join(' AND ')}
+          GROUP BY d.canonical_sender_id
+          ORDER BY total_messages DESC
+          ${limitClause}`,
+        params,
+      );
+    } catch (error) {
+      if (isMissingMessageActivityDailyError(error)) {
+        messageActivityDailyAvailable = false;
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  if (!rankingRows.length) {
+    const { where, params, joinSql, senderExpr } = buildWhere({ scope, remoteJid, botJid, useCanonicalSender: true });
+    rankingRows = await executeQuery(
+      `SELECT
+          ${senderExpr} AS sender_id,
+          COUNT(*) AS total_messages,
+          MIN(m.timestamp) AS first_message,
+          MAX(m.timestamp) AS last_message
+        FROM messages m
+        ${joinSql}
+        WHERE ${where.join(' AND ')}
+        GROUP BY ${senderExpr}
+        ORDER BY total_messages DESC
+        ${limitClause}`,
+      params,
+    );
+  }
 
   const senderIds = rankingRows.map((row) => row.sender_id).filter(Boolean);
   const lidsToPrime = senderIds.filter((id) => isLidUserId(id));
@@ -629,21 +748,45 @@ export const enrichRankingRows = async ({ rows, scope, remoteJid, botJid }) => {
       canonicalId: rawJid,
     });
 
-    const daysRows = await executeQuery(
-      `SELECT DISTINCT DATE(ts) AS day
-         FROM (
-           SELECT ${TIMESTAMP_TO_DATETIME_SQL} AS ts
-             FROM messages m
-             LEFT JOIN lid_map lm
-               ON lm.lid = m.sender_id
-              AND lm.jid IS NOT NULL
-            WHERE ${where.join(' AND ')}
-              AND m.timestamp IS NOT NULL
-         ) d
-        WHERE d.ts IS NOT NULL
-        ORDER BY day ASC`,
-      params,
-    );
+    let daysRows = [];
+    if (await canUseMessageActivityDaily()) {
+      try {
+        const { where: dailyWhere, params: dailyParams } = buildDailyWhere({
+          scope,
+          remoteJid,
+          botJid,
+          canonicalId: rawJid,
+        });
+        daysRows = await executeQuery(
+          `SELECT d.day_ref_date AS day
+             FROM message_activity_daily d
+            WHERE ${dailyWhere.join(' AND ')}
+            ORDER BY d.day_ref_date ASC`,
+          dailyParams,
+        );
+      } catch (error) {
+        if (isMissingMessageActivityDailyError(error)) {
+          messageActivityDailyAvailable = false;
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (!daysRows.length) {
+      daysRows = await executeQuery(
+        `SELECT DISTINCT DATE(ts) AS day
+           FROM (
+             SELECT ${TIMESTAMP_TO_DATETIME_SQL} AS ts
+               FROM messages m
+              WHERE ${where.join(' AND ')}
+                AND m.timestamp IS NOT NULL
+           ) d
+          WHERE d.ts IS NOT NULL
+          ORDER BY day ASC`,
+        params,
+      );
+    }
 
     const days = Array.from(new Set((daysRows || []).map((item) => normalizeDayKey(item?.day)).filter(Boolean))).sort();
     row.active_days = days.length;
@@ -664,9 +807,6 @@ export const enrichRankingRows = async ({ rows, scope, remoteJid, botJid }) => {
           ${MESSAGE_TYPE_SQL} AS message_type,
           COUNT(*) AS total
         FROM messages m
-        LEFT JOIN lid_map lm
-          ON lm.lid = m.sender_id
-         AND lm.jid IS NOT NULL
         WHERE ${where.join(' AND ')}
           AND m.raw_message IS NOT NULL
         GROUP BY message_type

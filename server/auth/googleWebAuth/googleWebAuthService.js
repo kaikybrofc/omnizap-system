@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import axios from 'axios';
 
 import { signWebAuthJwt, verifyWebAuthJwt, extractBearerTokenFromRequest } from '../jwt/webJwtService.js';
@@ -7,6 +7,12 @@ import { resolveClientIp } from '../../http/clientIp.js';
 
 const GOOGLE_TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
 const GOOGLE_WEB_SESSION_COOKIE_NAME = 'omnizap_google_session';
+
+const hashSessionToken = (value) => {
+  const token = String(value || '').trim();
+  if (!token) return null;
+  return createHash('sha256').update(token).digest();
+};
 
 const normalizeCookiePath = (value, fallback = '/') => {
   const raw = String(value || '').trim();
@@ -202,11 +208,12 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
 
   const upsertGoogleWebSessionRecord = async (session, connection = null) => {
     const token = String(session?.token || '').trim();
+    const tokenHash = hashSessionToken(token);
     const sub = normalizeGoogleSubject(session?.sub);
     const ownerJid = normalizeJid(session?.ownerJid) || '';
     const ownerPhone = toWhatsAppPhoneDigits(session?.ownerPhone || ownerJid) || null;
     const expiresAt = Number(session?.expiresAt || 0);
-    if (!token || !sub || !ownerJid || !Number.isFinite(expiresAt) || expiresAt <= 0) return;
+    if (!token || !tokenHash || !sub || !ownerJid || !Number.isFinite(expiresAt) || expiresAt <= 0) return;
     const email =
       String(session?.email || '')
         .trim()
@@ -219,9 +226,10 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
 
     await executeQuery(
       `INSERT INTO ${tables.STICKER_WEB_GOOGLE_SESSION}
-        (session_token, google_sub, owner_jid, email, name, picture_url, expires_at, revoked_at, last_seen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, UTC_TIMESTAMP())
+        (session_token, session_token_hash, google_sub, owner_jid, email, name, picture_url, expires_at, revoked_at, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, UTC_TIMESTAMP())
        ON DUPLICATE KEY UPDATE
+        session_token_hash = VALUES(session_token_hash),
         google_sub = VALUES(google_sub),
         owner_jid = VALUES(owner_jid),
         email = VALUES(email),
@@ -230,15 +238,16 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
         expires_at = VALUES(expires_at),
         revoked_at = NULL,
         last_seen_at = UTC_TIMESTAMP()`,
-      [token, sub, ownerJid, email, name, pictureUrl, new Date(expiresAt)],
+      [token, tokenHash, sub, ownerJid, email, name, pictureUrl, new Date(expiresAt)],
       connection,
     );
 
     await executeQuery(
       `UPDATE ${tables.STICKER_WEB_GOOGLE_SESSION}
           SET owner_phone = COALESCE(?, owner_phone)
-        WHERE session_token = ?`,
-      [ownerPhone, token],
+        WHERE session_token_hash = ?
+           OR session_token = ?`,
+      [ownerPhone, tokenHash, token],
       connection,
     ).catch(() => {});
   };
@@ -263,29 +272,31 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
 
   const findGoogleWebSessionInDbByToken = async (sessionToken) => {
     const token = String(sessionToken || '').trim();
+    const tokenHash = hashSessionToken(token);
     if (!token) return null;
     await maybePruneExpiredGoogleSessionsFromDb();
     const rows = await executeQuery(
       `SELECT session_token, google_sub, owner_jid, owner_phone, email, name, picture_url, created_at, expires_at, last_seen_at
          FROM ${tables.STICKER_WEB_GOOGLE_SESSION}
-        WHERE session_token = ?
+        WHERE (session_token_hash = ? OR session_token = ?)
           AND revoked_at IS NULL
           AND expires_at > UTC_TIMESTAMP()
         LIMIT 1`,
-      [token],
+      [tokenHash, token],
     );
     return normalizeGoogleWebSessionRow(Array.isArray(rows) ? rows[0] : null);
   };
 
   const touchGoogleWebSessionSeenInDb = async (sessionToken) => {
     const token = String(sessionToken || '').trim();
+    const tokenHash = hashSessionToken(token);
     if (!token) return;
     await executeQuery(
       `UPDATE ${tables.STICKER_WEB_GOOGLE_SESSION}
           SET last_seen_at = UTC_TIMESTAMP()
-        WHERE session_token = ?
+        WHERE (session_token_hash = ? OR session_token = ?)
           AND revoked_at IS NULL`,
-      [token],
+      [tokenHash, token],
     );
   };
 
@@ -302,8 +313,14 @@ export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, ta
 
   const deleteGoogleWebSessionFromDb = async (sessionToken) => {
     const token = String(sessionToken || '').trim();
+    const tokenHash = hashSessionToken(token);
     if (!token) return 0;
-    const result = await executeQuery(`DELETE FROM ${tables.STICKER_WEB_GOOGLE_SESSION} WHERE session_token = ?`, [token]);
+    const result = await executeQuery(
+      `DELETE FROM ${tables.STICKER_WEB_GOOGLE_SESSION}
+        WHERE session_token_hash = ?
+           OR session_token = ?`,
+      [tokenHash, token],
+    );
     return Number(result?.affectedRows || 0);
   };
 
