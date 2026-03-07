@@ -90,3 +90,9 @@ Ao realizar testes de segurança, não é permitido:
 - realizar testes destrutivos em ambientes de produção.
 
 Reportes realizados de boa-fé, com respeito a esta política, serão tratados com prioridade técnica e comunicação responsável.
+
+## Baseline de Hardening de Produção
+
+Para hardening de rede e redução de superfície exposta (portas públicas, SSH e Nginx), consulte:
+
+- [`docs/security/network-hardening-runbook-2026-03-07.md`](./docs/security/network-hardening-runbook-2026-03-07.md)

@@ -11,7 +11,7 @@ services:
       - ${PROMETHEUS_ALERT_RULES_PATH:-./observability/alert-rules.yml}:/etc/prometheus/alert-rules.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - "${PROMETHEUS_BIND_HOST:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -30,7 +30,7 @@ services:
       - ${GRAFANA_PROVISIONING_PATH:-./observability/grafana/provisioning}:/etc/grafana/provisioning:ro
       - ${GRAFANA_DASHBOARDS_PATH:-./observability/grafana/dashboards}:/var/lib/grafana/dashboards:ro
     ports:
-      - "${GRAFANA_PORT:-3003}:3000"
+      - "${GRAFANA_BIND_HOST:-127.0.0.1}:${GRAFANA_PORT:-3003}:3000"
     depends_on:
       - prometheus
       - loki
@@ -43,7 +43,7 @@ services:
       - ${LOKI_CONFIG_PATH:-./observability/loki-config.yml}:/etc/loki/loki-config.yml:ro
       - loki_data:/loki
     ports:
-      - "${LOKI_PORT:-3100}:3100"
+      - "${LOKI_BIND_HOST:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
 
   promtail:
     image: grafana/promtail:${PROMTAIL_IMAGE_TAG:-2.9.4}
@@ -54,7 +54,7 @@ services:
       - ${APP_LOGS_PATH:-./logs}:/var/log/omnizap:ro
       - ${MYSQL_LOGS_PATH:-/var/log/mysql}:/var/log/mysql:ro
     ports:
-      - "${PROMTAIL_PORT:-9080}:9080"
+      - "${PROMTAIL_BIND_HOST:-127.0.0.1}:${PROMTAIL_PORT:-9080}:9080"
     depends_on:
       - loki
     extra_hosts:
@@ -79,7 +79,7 @@ services:
     volumes:
       - ${MYSQL_EXPORTER_CNF_PATH:-./observability/mysql-exporter.cnf}:/etc/mysql-exporter/my.cnf:ro
     ports:
-      - "${MYSQL_EXPORTER_PORT:-9104}:9104"
+      - "${MYSQL_EXPORTER_BIND_HOST:-127.0.0.1}:${MYSQL_EXPORTER_PORT:-9104}:9104"
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -92,7 +92,7 @@ services:
     volumes:
       - /:/host:ro,rslave
     ports:
-      - "${NODE_EXPORTER_PORT:-9100}:9100"
+      - "${NODE_EXPORTER_BIND_HOST:-127.0.0.1}:${NODE_EXPORTER_PORT:-9100}:9100"
 
 volumes:
   grafana_data:

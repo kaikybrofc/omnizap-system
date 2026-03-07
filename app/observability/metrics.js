@@ -26,7 +26,7 @@ const parseThresholds = (value, fallback) => {
 
 const METRICS_ENABLED = parseEnvBool(process.env.METRICS_ENABLED, true);
 const METRICS_PORT = parseEnvNumber(process.env.METRICS_PORT, 9102);
-const METRICS_HOST = process.env.METRICS_HOST || '0.0.0.0';
+const METRICS_HOST = process.env.METRICS_HOST || '127.0.0.1';
 const METRICS_PATH = process.env.METRICS_PATH || '/metrics';
 const METRICS_SERVICE = process.env.METRICS_SERVICE_NAME || process.env.ECOSYSTEM_NAME || 'omnizap';
 const HTTP_SLO_TARGET_MS = Math.max(50, parseEnvNumber(process.env.HTTP_SLO_TARGET_MS, 750));

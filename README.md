@@ -324,7 +324,7 @@ No pipeline de `npm run release`, também há sincronização automática de wik
 Config padrão (via `.env`):
 
 - `METRICS_ENABLED=true`
-- `METRICS_HOST=0.0.0.0`
+- `METRICS_HOST=127.0.0.1`
 - `METRICS_PORT=9102`
 - `METRICS_PATH=/metrics`
 
@@ -346,6 +346,26 @@ Serviços padrão:
 - Node Exporter: `:9100`
 
 Arquivo base: [`docker-compose.yml`](./docker-compose.yml)
+
+Por padrão, as portas da stack de observabilidade são publicadas apenas em loopback (`127.0.0.1`) via variáveis `*_BIND_HOST`.
+
+### Hardening de rede (produção)
+
+Para reduzir superfície de ataque externa, mantenha publicados apenas `22`, `80` e `443`:
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow from <SEU_IP_ADMIN>/32 to any port 22 proto tcp
+sudo ufw deny 3001/tcp
+sudo ufw deny 8007/tcp
+sudo ufw --force enable
+sudo ufw status numbered
+```
+
+Se Node/Uvicorn precisarem continuar ativos no host, faça bind local (`127.0.0.1`) e exponha apenas via Nginx reverse proxy.
 
 ## Governança e segurança de supply chain
 
