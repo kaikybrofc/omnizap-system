@@ -15,6 +15,13 @@ const PROFILE_FETCH_TIMEOUT_MS = 4000;
 const ELLIPSIS = '…';
 const CANVAS_FONT_STACK = "'Noto Color Emoji', 'Segoe UI Emoji', 'Apple Color Emoji', 'Segoe UI Symbol', 'Noto Sans', 'DejaVu Sans', 'Arial Unicode MS', Arial, sans-serif";
 const GRAPHEME_SEGMENTER = typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('pt-BR', { granularity: 'grapheme' }) : null;
+const ZERO_WIDTH_UNICODE_REGEX = /[\u200B-\u200D\u2060\uFE00-\uFE0F]/gu;
+const PRIVATE_USE_UNICODE_REGEX = /[\uE000-\uF8FF]/gu;
+const EMOJI_AND_PICTO_REGEX = /[\u{1F000}-\u{1FAFF}\u2600-\u27BF]/gu;
+const ASCII_PRINTABLE_REGEX = /^[\x20-\x7E]$/u;
+const LATIN_CHAR_REGEX = /^\p{Script=Latin}$/u;
+const NUMBER_CHAR_REGEX = /^\p{Number}$/u;
+const MARK_CHAR_REGEX = /^\p{Mark}$/u;
 
 export const MESSAGE_TYPE_SQL = `
   CASE
@@ -36,9 +43,10 @@ export const MESSAGE_TYPE_SQL = `
 
 export const TIMESTAMP_TO_DATETIME_SQL = `
   CASE
-    WHEN m.timestamp > 1000000000000 THEN FROM_UNIXTIME(m.timestamp / 1000)
-    WHEN m.timestamp > 1000000000 THEN FROM_UNIXTIME(m.timestamp)
-    ELSE m.timestamp
+    WHEN m.timestamp IS NULL THEN NULL
+    WHEN CAST(m.timestamp AS CHAR) REGEXP '^[0-9]{13,}$' THEN FROM_UNIXTIME(CAST(m.timestamp AS DECIMAL(20,0)) / 1000)
+    WHEN CAST(m.timestamp AS CHAR) REGEXP '^[0-9]{10}$' THEN FROM_UNIXTIME(CAST(m.timestamp AS DECIMAL(20,0)))
+    ELSE CAST(m.timestamp AS DATETIME)
   END
 `;
 
@@ -91,10 +99,14 @@ export const getDisplayName = (pushName, mentionId) => {
 };
 
 const getShortName = (row) => {
-  if (row?.display_name && row.display_name.trim()) return toSafeCanvasText(row.display_name);
+  const displayName = toSafeCanvasDisplayName(row?.display_name);
+  if (displayName) return displayName;
   const mentionUser = getJidUser(row?.mention_id || row?.sender_id);
   return mentionUser ? toSafeCanvasText(`@${mentionUser}`) : 'Desconhecido';
 };
+
+const CANONICAL_SENDER_SQL = 'COALESCE(lm.jid, m.sender_id)';
+const LID_MAP_JOIN_SQL = 'LEFT JOIN lid_map lm ON lm.lid = m.sender_id AND lm.jid IS NOT NULL';
 
 const resolveSenderIdsCanonical = (rawJid) => {
   if (!rawJid) return { displayId: null, mentionId: null, key: null };
@@ -105,8 +117,10 @@ const resolveSenderIdsCanonical = (rawJid) => {
   return { displayId, mentionId, key };
 };
 
-const buildWhere = ({ scope, remoteJid, botJid }) => {
-  const where = ['m.sender_id IS NOT NULL'];
+const buildWhere = ({ scope, remoteJid, botJid, useCanonicalSender = false }) => {
+  const senderExpr = useCanonicalSender ? CANONICAL_SENDER_SQL : 'm.sender_id';
+  const joinSql = useCanonicalSender ? LID_MAP_JOIN_SQL : '';
+  const where = [`${senderExpr} IS NOT NULL`];
   const params = [];
   if (scope === 'group') {
     where.push('m.chat_id = ?');
@@ -118,20 +132,20 @@ const buildWhere = ({ scope, remoteJid, botJid }) => {
 
     // Exclui por JID exato (normalizado e bruto) e pelo usuário base
     // para cobrir formatos como numero:dispositivo@s.whatsapp.net.
-    where.push('m.sender_id <> ?');
+    where.push(`${senderExpr} <> ?`);
     params.push(normalizedBotJid);
     if (botJid !== normalizedBotJid) {
-      where.push('m.sender_id <> ?');
+      where.push(`${senderExpr} <> ?`);
       params.push(botJid);
     }
     if (botUser) {
-      where.push('m.sender_id NOT LIKE ?');
+      where.push(`${senderExpr} NOT LIKE ?`);
       params.push(`${botUser}@%`);
-      where.push('m.sender_id NOT LIKE ?');
+      where.push(`${senderExpr} NOT LIKE ?`);
       params.push(`${botUser}:%`);
     }
   }
-  return { where, params };
+  return { where, params, senderExpr, joinSql };
 };
 
 const getCachedProfilePic = (jid) => {
@@ -232,8 +246,29 @@ const replaceControlCharsBySpace = (text) => {
 
 const toSafeCanvasText = (value) => {
   if (value === null || value === undefined) return '';
-  const normalized = String(value).normalize('NFC').replace(/\r?\n/g, ' ');
-  return replaceControlCharsBySpace(normalized).replace(/\s+/g, ' ').trim();
+  const normalized = String(value).normalize('NFKC').replace(/\r?\n/g, ' ');
+  return replaceControlCharsBySpace(normalized)
+    .replace(ZERO_WIDTH_UNICODE_REGEX, '')
+    .replace(PRIVATE_USE_UNICODE_REGEX, '')
+    .replace(EMOJI_AND_PICTO_REGEX, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const toSafeCanvasDisplayName = (value) => {
+  const base = toSafeCanvasText(value);
+  if (!base) return '';
+  let safe = '';
+  for (const char of base) {
+    if (ASCII_PRINTABLE_REGEX.test(char) || LATIN_CHAR_REGEX.test(char) || NUMBER_CHAR_REGEX.test(char)) {
+      safe += char;
+      continue;
+    }
+    if (MARK_CHAR_REGEX.test(char) && safe) {
+      safe += char;
+    }
+  }
+  return safe.replace(/\s+/g, ' ').trim();
 };
 
 const splitGraphemes = (value) => {
@@ -260,7 +295,7 @@ const fitText = (ctx, text, maxWidth) => {
 
 const getInitials = (label) => {
   if (!label) return '?';
-  const clean = toSafeCanvasText(label).replace(/^@/, '');
+  const clean = toSafeCanvasDisplayName(label).replace(/^@/, '');
   if (!clean) return '?';
   const parts = clean.split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
@@ -285,7 +320,16 @@ const pickAvatarJid = (row) => {
   return null;
 };
 
-const drawAvatar = (ctx, { x, y, radius, image, fallbackLabel, borderColor = '#38bdf8' }) => {
+const drawAvatar = (ctx, { x, y, radius, image, fallbackLabel, borderColor = '#38bdf8', glowColor = null, glowBlur = 14 }) => {
+  ctx.save();
+  ctx.shadowColor = glowColor || borderColor;
+  ctx.shadowBlur = Math.max(0, Number(glowBlur) || 0);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.32)';
+  ctx.beginPath();
+  ctx.arc(x, y, radius + 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
   const glow = ctx.createRadialGradient(x - radius * 0.2, y - radius * 0.2, radius * 0.4, x, y, radius * 1.2);
   glow.addColorStop(0, 'rgba(226, 232, 240, 0.25)');
   glow.addColorStop(1, 'rgba(15, 23, 42, 0)');
@@ -377,8 +421,8 @@ const buildCanonicalWhere = ({ scope, remoteJid, botJid, canonicalId }) => {
  * @returns {Promise<number>}
  */
 export const getTotalMessages = async ({ scope, remoteJid, botJid }) => {
-  const { where, params } = buildWhere({ scope, remoteJid, botJid });
-  const sql = `SELECT COUNT(*) AS total FROM messages m WHERE ${where.join(' AND ')}`;
+  const { where, params, joinSql } = buildWhere({ scope, remoteJid, botJid, useCanonicalSender: true });
+  const sql = `SELECT COUNT(*) AS total FROM messages m ${joinSql} WHERE ${where.join(' AND ')}`;
   const [row] = await executeQuery(sql, params);
   return Number(row?.total || 0);
 };
@@ -389,12 +433,13 @@ export const getTotalMessages = async ({ scope, remoteJid, botJid }) => {
  * @returns {Promise<{label: string, count: number}|null>}
  */
 export const getTopMessageType = async ({ scope, remoteJid, botJid }) => {
-  const { where, params } = buildWhere({ scope, remoteJid, botJid });
+  const { where, params, joinSql } = buildWhere({ scope, remoteJid, botJid, useCanonicalSender: true });
   const [row] = await executeQuery(
     `SELECT
         ${MESSAGE_TYPE_SQL} AS message_type,
         COUNT(*) AS total
       FROM messages m
+      ${joinSql}
       WHERE ${where.join(' AND ')}
         AND m.raw_message IS NOT NULL
       GROUP BY message_type
@@ -412,8 +457,8 @@ export const getTopMessageType = async ({ scope, remoteJid, botJid }) => {
  * @returns {Promise<any>}
  */
 export const getDbStart = async ({ scope, remoteJid, botJid }) => {
-  const { where, params } = buildWhere({ scope, remoteJid, botJid });
-  const sql = `SELECT MIN(m.timestamp) AS db_start FROM messages m WHERE ${where.join(' AND ')}`;
+  const { where, params, joinSql } = buildWhere({ scope, remoteJid, botJid, useCanonicalSender: true });
+  const sql = `SELECT MIN(m.timestamp) AS db_start FROM messages m ${joinSql} WHERE ${where.join(' AND ')}`;
   const rows = await executeQuery(sql, params);
   return rows?.[0]?.db_start || null;
 };
@@ -455,7 +500,7 @@ export const fetchLatestPushNames = async (senderIds) => {
  * @returns {Promise<{rows: Array<any>}>}
  */
 export const getRankingBase = async ({ scope, remoteJid, botJid, limit = null }) => {
-  const { where, params } = buildWhere({ scope, remoteJid, botJid });
+  const { where, params, joinSql } = buildWhere({ scope, remoteJid, botJid, useCanonicalSender: true });
   const limitClause = limit ? `LIMIT ${Number(limit)}` : '';
   const rankingRows = await executeQuery(
     `SELECT
@@ -464,6 +509,7 @@ export const getRankingBase = async ({ scope, remoteJid, botJid, limit = null })
         MIN(m.timestamp) AS first_message,
         MAX(m.timestamp) AS last_message
       FROM messages m
+      ${joinSql}
       WHERE ${where.join(' AND ')}
       GROUP BY m.sender_id
       ORDER BY total_messages DESC
@@ -709,143 +755,235 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
   ctx.scale(scale, scale);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
+  const rankColors = {
+    1: '#facc15',
+    2: '#38bdf8',
+    3: '#34d399',
+    4: '#64748b',
+    5: '#64748b',
+  };
+  const progressGradientByRank = {
+    1: ['#facc15', '#eab308'],
+    2: ['#38bdf8', '#0284c7'],
+    3: ['#34d399', '#059669'],
+    4: ['#64748b', '#475569'],
+    5: ['#64748b', '#475569'],
+  };
+  const medalLabelByRank = {
+    1: 'GOLD',
+    2: 'SILVER',
+    3: 'BRONZE',
+  };
+
+  const uiFontStack = "'Inter', 'Poppins', 'Segoe UI', 'Noto Sans', 'DejaVu Sans', Arial, sans-serif";
+  const uiFont = (size, weight = 500) => `${weight} ${Math.max(10, Number(size) || 10)}px ${uiFontStack}`;
+  const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+  const hexToRgba = (hex, alpha = 1) => {
+    const clean = String(hex || '').replace('#', '');
+    const normalized = clean.length === 3 ? clean.split('').map((value) => `${value}${value}`).join('') : clean;
+    if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(148, 163, 184, ${alpha})`;
+    const int = Number.parseInt(normalized, 16);
+    const r = (int >> 16) & 255;
+    const g = (int >> 8) & 255;
+    const b = int & 255;
+    return `rgba(${r}, ${g}, ${b}, ${clamp01(alpha)})`;
+  };
 
   const baseGradient = ctx.createLinearGradient(0, 0, width, height);
   baseGradient.addColorStop(0, '#0f172a');
-  baseGradient.addColorStop(1, '#111827');
+  baseGradient.addColorStop(1, '#020617');
   ctx.fillStyle = baseGradient;
   ctx.fillRect(0, 0, width, height);
 
-  const radial = ctx.createRadialGradient(width * 0.3, height * 0.15, 120, width * 0.5, height * 0.45, width);
-  radial.addColorStop(0, 'rgba(148, 163, 184, 0.2)');
-  radial.addColorStop(1, 'rgba(15, 23, 42, 0)');
-  ctx.fillStyle = radial;
-  ctx.fillRect(0, 0, width, height);
-
-  const drawBlob = (x, y, r, color, alpha) => {
+  const drawRadialShape = (x, y, radius, color, alpha = 1) => {
+    const radial = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    radial.addColorStop(0, hexToRgba(color, alpha));
+    radial.addColorStop(1, hexToRgba(color, 0));
     ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = color;
+    ctx.fillStyle = radial;
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   };
 
-  drawBlob(width * 0.82, height * 0.22, 180, '#1d4ed8', 0.08);
-  drawBlob(width * 0.12, height * 0.75, 220, '#22c55e', 0.05);
+  drawRadialShape(width * 0.84, height * 0.19, 230, '#38bdf8', 0.11);
+  drawRadialShape(width * 0.2, height * 0.78, 270, '#34d399', 0.07);
+  drawRadialShape(width * 0.56, height * 0.42, 300, '#1e293b', 0.2);
 
-  const noiseSize = 180;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(100, 116, 139, 0.08)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= width; x += 96) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= height; y += 96) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  const noiseSize = 140;
   const noiseCanvas = createCanvas(noiseSize, noiseSize);
   const noiseCtx = noiseCanvas.getContext('2d');
   const noiseData = noiseCtx.createImageData(noiseSize, noiseSize);
   for (let i = 0; i < noiseData.data.length; i += 4) {
-    const value = 200 + Math.floor(Math.random() * 55);
+    const value = 215 + Math.floor(Math.random() * 40);
     noiseData.data[i] = value;
     noiseData.data[i + 1] = value;
     noiseData.data[i + 2] = value;
-    noiseData.data[i + 3] = 12;
+    noiseData.data[i + 3] = 10;
   }
   noiseCtx.putImageData(noiseData, 0, 0);
   const noisePattern = ctx.createPattern(noiseCanvas, 'repeat');
   if (noisePattern) {
     ctx.save();
-    ctx.globalAlpha = 0.04;
+    ctx.globalAlpha = 0.05;
     ctx.fillStyle = noisePattern;
     ctx.fillRect(0, 0, width, height);
     ctx.restore();
   }
 
-  const title = scope === 'global' ? `Ranking Global Top ${limit}` : `Ranking do Grupo Top ${limit}`;
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = getCanvasFont(40, 'bold');
+  const margin = 42;
+  const gap = 24;
+  const headerTop = 44;
+  const gridTop = 160;
+  const title = scope === 'global' ? `Ranking Global - Top ${limit}` : `Ranking do Grupo - Top ${limit}`;
+  const topTypeLabel = toSafeCanvasText(topType?.label || 'N/D').toLowerCase() || 'n/d';
+  const subtitle = `${formatCompactNumber(totalMessages)} mensagens • tipo mais usado: ${topTypeLabel}`;
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = uiFont(48, 700);
   ctx.textAlign = 'left';
-  const titleWidth = drawTrackedText(ctx, title, 40, 60, 1.2);
-  const titleAccentX = 40 + titleWidth + 12;
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.6)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(titleAccentX, 48);
-  ctx.lineTo(titleAccentX + 36, 48);
-  ctx.stroke();
-  if (scope === 'global') {
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
-    ctx.font = getCanvasFont(22);
-    ctx.fillText('🌍', titleAccentX + 42, 56);
-  }
+  ctx.textBaseline = 'top';
+  drawTrackedText(ctx, title, margin, headerTop + 10, 1.15);
 
-  ctx.font = getCanvasFont(16);
-  ctx.fillStyle = 'rgba(148, 163, 184, 0.75)';
-  const topTypeLabel = topType?.label ? `${topType.label} (${topType.count})` : 'N/D';
-  ctx.fillText(`${formatCompactNumber(totalMessages)} mensagens • Tipo mais usado: ${topTypeLabel}`, 40, 92);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = uiFont(22, 500);
+  ctx.fillText(subtitle, margin, headerTop + 72);
 
-  const topRows = rows.slice(0, 2);
-  const restRows = rows.slice(2);
+  ctx.save();
+  const accentBarY = headerTop + 62;
+  drawRoundedRect(ctx, margin, accentBarY, 16, 4, 2);
+  ctx.fillStyle = 'rgba(250, 204, 21, 0.9)';
+  ctx.fill();
+  drawRoundedRect(ctx, margin + 22, accentBarY, 32, 4, 2);
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
+  ctx.fill();
+  drawRoundedRect(ctx, margin + 60, accentBarY, 22, 4, 2);
+  ctx.fillStyle = 'rgba(52, 211, 153, 0.85)';
+  ctx.fill();
+  ctx.restore();
+
   const avatarJids = rows.map((row) => pickAvatarJid(row)).filter(Boolean);
   const avatars = await loadProfileImages({ sock, jids: avatarJids, remoteJid });
 
-  const margin = 40;
-  const gap = 24;
-  const headerHeight = 130;
-  const podiumHeight = 300;
-
   const availableWidth = width - margin * 2;
-  const baseTopCardWidth = (availableWidth - gap) / 2;
-  const baseTopCardHeight = podiumHeight;
-  const topCardY = headerHeight;
-  const baseBottom = topCardY + baseTopCardHeight;
-  const rank1Scale = 1.05;
-  const rank2Scale = 0.96;
-  const rank1Width = baseTopCardWidth * rank1Scale;
-  const rank2Width = baseTopCardWidth * rank2Scale;
-  const topRowWidth = rank1Width + rank2Width + gap;
-  const topRowStartX = margin + Math.max(0, (availableWidth - topRowWidth) / 2);
-  const rank1Height = baseTopCardHeight * rank1Scale;
-  const rank2Height = baseTopCardHeight * rank2Scale;
+  const rank1Scale = 1.21;
+  const rank2Scale = 0.94;
+  const topBaseWidth = (availableWidth - gap) / (rank1Scale + rank2Scale);
+  const topBaseHeight = 280;
+  const rank1Width = topBaseWidth * rank1Scale;
+  const rank2Width = topBaseWidth * rank2Scale;
+  const rank1Height = topBaseHeight * rank1Scale;
+  const rank2Height = topBaseHeight * rank2Scale;
+  const topCombinedWidth = rank1Width + rank2Width + gap;
+  const topStartX = margin + Math.max(0, (availableWidth - topCombinedWidth) / 2);
+  const topRowBottom = gridTop + rank1Height;
 
-  const rankColors = {
-    1: '#facc15',
-    2: '#38bdf8',
-    3: '#34d399',
-    4: '#94a3b8',
-    5: '#64748b',
-  };
-
-  const drawMetricLine = ({ icon, label, x, y, iconColor, textColor, font }) => {
+  const drawProgressBar = ({ x, y, w, h, ratio, accentColor, rank }) => {
+    const safeRatio = clamp01(ratio);
+    const [startColor, endColor] = progressGradientByRank[rank] || [accentColor, accentColor];
     ctx.save();
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.font = getCanvasFont(18);
-    ctx.fillStyle = iconColor || 'rgba(148, 163, 184, 0.75)';
-    ctx.fillText(icon, x, y);
-    const iconWidth = ctx.measureText(icon).width;
-    ctx.font = font;
-    ctx.fillStyle = textColor;
-    ctx.fillText(label, x + iconWidth + 6, y);
+    drawRoundedRect(ctx, x, y, w, h, h / 2);
+    ctx.fillStyle = 'rgba(100, 116, 139, 0.23)';
+    ctx.fill();
+
+    const fillWidth = safeRatio > 0 ? Math.max(2, Math.min(w, w * safeRatio)) : 0;
+    if (fillWidth > 0) {
+      const fillGradient = ctx.createLinearGradient(x, y, x + fillWidth, y + h);
+      fillGradient.addColorStop(0, hexToRgba(startColor, 0.98));
+      fillGradient.addColorStop(1, hexToRgba(endColor, 0.84));
+      drawRoundedRect(ctx, x, y, fillWidth, h, h / 2);
+      ctx.fillStyle = fillGradient;
+      ctx.fill();
+
+      const gloss = ctx.createLinearGradient(x, y, x, y + h);
+      gloss.addColorStop(0, 'rgba(255, 255, 255, 0.24)');
+      gloss.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      drawRoundedRect(ctx, x, y, fillWidth, h / 2, h / 2);
+      ctx.fillStyle = gloss;
+      ctx.fill();
+    }
     ctx.restore();
   };
 
   const drawCard = ({ row, x, y, w, h, rank }) => {
     if (!row) return;
-    const accentColor = rankColors[rank] || '#94a3b8';
+    const accentColor = rankColors[rank] || rankColors[5];
     const isTop = rank === 1;
+    const share = totalMessages > 0 ? Number(row.total_messages || 0) / totalMessages : 0;
+    const percent = (clamp01(share) * 100).toFixed(1);
+    const label = getShortName(row);
+
     ctx.save();
-    ctx.shadowColor = isTop ? 'rgba(250, 204, 21, 0.55)' : 'rgba(15, 23, 42, 0.35)';
-    ctx.shadowBlur = isTop ? 32 : 18;
-    drawRoundedRect(ctx, x, y, w, h, 24);
-    ctx.fillStyle = '#111827';
+    ctx.shadowColor = hexToRgba(accentColor, isTop ? 0.58 : 0.34);
+    ctx.shadowBlur = isTop ? 38 : 30;
+    ctx.shadowOffsetY = 6;
+    drawRoundedRect(ctx, x, y, w, h, 20);
+    ctx.fillStyle = isTop ? 'rgba(15, 23, 42, 0.74)' : 'rgba(15, 23, 42, 0.68)';
     ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = accentColor || '#1f2937';
-    ctx.stroke();
     ctx.restore();
 
-    const pad = 22;
-    const avatarRadius = Math.min(74, h * 0.36);
+    ctx.save();
+    drawRoundedRect(ctx, x, y, w, h, 20);
+    const cardGradient = ctx.createLinearGradient(x, y, x + w, y + h);
+    cardGradient.addColorStop(0, isTop ? 'rgba(30, 41, 59, 0.76)' : 'rgba(30, 41, 59, 0.64)');
+    cardGradient.addColorStop(1, 'rgba(15, 23, 42, 0.62)');
+    ctx.fillStyle = cardGradient;
+    ctx.fill();
+    ctx.lineWidth = isTop ? 2.2 : 1.7;
+    ctx.strokeStyle = hexToRgba(accentColor, isTop ? 0.9 : 0.72);
+    ctx.stroke();
+
+    ctx.clip();
+    const shine = ctx.createLinearGradient(x - 120, y - 80, x + w * 0.68, y + h * 0.42);
+    shine.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    shine.addColorStop(0.45, isTop ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.06)');
+    shine.addColorStop(0.9, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = shine;
+    ctx.fillRect(x - 120, y - 120, w + 300, h + 200);
+    ctx.restore();
+
+    ctx.save();
+    drawRoundedRect(ctx, x + 1, y + 1, w - 2, h - 2, 18);
+    ctx.clip();
+    const insetShade = ctx.createLinearGradient(x, y, x, y + h);
+    insetShade.addColorStop(0, 'rgba(255, 255, 255, 0.06)');
+    insetShade.addColorStop(0.35, 'rgba(255, 255, 255, 0.01)');
+    insetShade.addColorStop(1, 'rgba(0, 0, 0, 0.42)');
+    ctx.fillStyle = insetShade;
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+
+    if (isTop) {
+      ctx.save();
+      drawRoundedRect(ctx, x - 3, y - 3, w + 6, h + 6, 24);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.25)';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    const pad = Math.round(Math.max(20, Math.min(30, w * 0.035)));
+    const avatarRadius = Math.min(isTop ? 76 : 64, h * 0.29);
     const avatarX = x + pad + avatarRadius;
-    const avatarY = y + h / 2;
-    const label = getShortName(row);
+    const avatarY = y + h * 0.5;
     const avatarImage = avatars.get(pickAvatarJid(row)) || null;
     drawAvatar(ctx, {
       x: avatarX,
@@ -854,121 +992,150 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
       image: avatarImage,
       fallbackLabel: label,
       borderColor: accentColor,
+      glowColor: accentColor,
+      glowBlur: isTop ? 18 : 14,
     });
 
-    const rankBadgeSize = 46;
+    const rankBadgeSize = isTop ? 50 : 44;
     ctx.save();
-    ctx.fillStyle = accentColor || '#22d3ee';
+    ctx.fillStyle = hexToRgba(accentColor, 0.96);
     ctx.beginPath();
     ctx.arc(x + pad + rankBadgeSize / 2, y + pad + rankBadgeSize / 2, rankBadgeSize / 2, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#0f172a';
-    ctx.font = getCanvasFont(20, 'bold');
+    ctx.fillStyle = '#020617';
+    ctx.font = uiFont(rankBadgeSize * 0.48, 700);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(rank), x + pad + rankBadgeSize / 2, y + pad + rankBadgeSize / 2);
+    ctx.fillText(String(rank), x + pad + rankBadgeSize / 2, y + pad + rankBadgeSize / 2 + 1);
     ctx.restore();
-    if (rank === 1) {
-      ctx.save();
-      ctx.font = getCanvasFont(18);
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillText('👑', x + pad + rankBadgeSize + 6, y + pad + 16);
-      const badgeW = 64;
-      const badgeH = 24;
+
+    if (isTop) {
+      const badgeW = 90;
+      const badgeH = 32;
       const badgeX = x + w - pad - badgeW;
-      const badgeY = y + pad - 2;
-      drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 12);
-      ctx.fillStyle = 'rgba(250, 204, 21, 0.15)';
+      const badgeY = y + pad + 2;
+      ctx.save();
+      drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 14);
+      const topBadgeGradient = ctx.createLinearGradient(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH);
+      topBadgeGradient.addColorStop(0, 'rgba(250, 204, 21, 0.24)');
+      topBadgeGradient.addColorStop(1, 'rgba(234, 179, 8, 0.14)');
+      ctx.fillStyle = topBadgeGradient;
       ctx.fill();
-      ctx.strokeStyle = 'rgba(250, 204, 21, 0.7)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.78)';
+      ctx.lineWidth = 1.2;
       ctx.stroke();
       ctx.fillStyle = '#facc15';
-      ctx.font = getCanvasFont(12, 'bold');
+      ctx.font = uiFont(14, 700);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('TOP 1', badgeX + badgeW / 2, badgeY + badgeH / 2);
+      ctx.fillText('TOP 1', badgeX + badgeW / 2, badgeY + badgeH / 2 + 1);
       ctx.restore();
     }
 
-    const textX = avatarX + avatarRadius + 18;
-    const textWidth = x + w - pad - textX;
+    const medalLabel = medalLabelByRank[rank];
+    if (medalLabel) {
+      const medalW = 86;
+      const medalH = 24;
+      const medalX = x + w - pad - medalW;
+      const medalY = y + h - pad - 52;
+      ctx.save();
+      drawRoundedRect(ctx, medalX, medalY, medalW, medalH, 12);
+      ctx.fillStyle = hexToRgba(accentColor, 0.17);
+      ctx.fill();
+      ctx.strokeStyle = hexToRgba(accentColor, 0.65);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = hexToRgba(accentColor, 0.95);
+      ctx.font = uiFont(12, 700);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(medalLabel, medalX + medalW / 2, medalY + medalH / 2 + 1);
+      ctx.restore();
+    }
 
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = getCanvasFont(28, 'bold');
+    const textX = avatarX + avatarRadius + (isTop ? 24 : 20);
+    const textWidth = x + w - pad - textX;
+    const nameY = y + h * 0.24;
+    const nameSize = Math.max(26, Math.min(40, h * 0.12));
+    const messageSize = Math.max(20, Math.min(34, h * 0.1));
+    const secondarySize = Math.max(16, Math.min(22, h * 0.07));
+
+    ctx.save();
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = uiFont(nameSize, 700);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(fitText(ctx, label, textWidth), textX, y + h / 2 - 40);
+    ctx.fillText(fitText(ctx, label, textWidth), textX, nameY);
 
-    const total = formatCompactNumber(row.total_messages || 0);
-    const percent = totalMessages > 0 ? ((Number(row.total_messages || 0) / totalMessages) * 100).toFixed(1) : '0.0';
-    const lineOneY = y + h / 2 + 6;
-    drawMetricLine({
-      icon: '💬',
-      label: `Mensagens: ${total}`,
+    const totalLabel = formatCompactNumber(row.total_messages || 0);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = uiFont(messageSize, 600);
+    ctx.fillText(`${totalLabel} mensagens`, textX, nameY + messageSize + 10);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = uiFont(secondarySize, 500);
+    ctx.fillText(`${percent}% do grupo`, textX, nameY + messageSize + secondarySize + 24);
+    ctx.restore();
+
+    const progressY = y + h - pad - 16;
+    drawProgressBar({
       x: textX,
-      y: lineOneY,
-      iconColor: 'rgba(148, 163, 184, 0.75)',
-      textColor: '#e2e8f0',
-      font: getCanvasFont(20, 'bold'),
-    });
-    drawMetricLine({
-      icon: '📊',
-      label: `% do total: ${percent}%`,
-      x: textX,
-      y: lineOneY + 26,
-      iconColor: 'rgba(148, 163, 184, 0.75)',
-      textColor: 'rgba(148, 163, 184, 0.85)',
-      font: getCanvasFont(18),
+      y: progressY,
+      w: textWidth,
+      h: 11,
+      ratio: share,
+      accentColor,
+      rank,
     });
   };
 
   drawCard({
-    row: topRows[0],
-    x: topRowStartX,
-    y: baseBottom - rank1Height,
+    row: rows[0],
+    x: topStartX,
+    y: gridTop,
     w: rank1Width,
     h: rank1Height,
     rank: 1,
   });
+
   drawCard({
-    row: topRows[1],
-    x: topRowStartX + rank1Width + gap,
-    y: baseBottom - rank2Height,
+    row: rows[1],
+    x: topStartX + rank1Width + gap,
+    y: topRowBottom - rank2Height,
     w: rank2Width,
     h: rank2Height,
     rank: 2,
   });
 
-  const restTop = headerHeight + podiumHeight + 40;
+  const restRows = rows.slice(2, 5);
+  const restTop = topRowBottom + 28;
   if (restRows.length) {
     const restCount = restRows.length;
-    const restGap = 18;
-    const restWidth = (width - margin * 2 - restGap * (restCount - 1)) / restCount;
-    const restHeight = Math.min(220, height - restTop - margin);
-    restRows.forEach((row, idx) => {
-      const x = margin + idx * (restWidth + restGap);
-      const y = restTop;
+    const restGap = 20;
+    const restWidth = (availableWidth - restGap * Math.max(0, restCount - 1)) / Math.max(1, restCount);
+    const restHeight = Math.min(228, height - restTop - 116);
+    const usedWidth = restWidth * restCount + restGap * Math.max(0, restCount - 1);
+    const restStartX = margin + Math.max(0, (availableWidth - usedWidth) / 2);
+    restRows.forEach((row, index) => {
       drawCard({
         row,
-        x,
-        y,
+        x: restStartX + index * (restWidth + restGap),
+        y: restTop,
         w: restWidth,
         h: restHeight,
-        rank: idx + 3,
+        rank: index + 3,
       });
     });
   }
 
-  const footerY = height - 34;
-  ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
-  ctx.font = getCanvasFont(14);
+  const footerY = height - 36;
   const updatedAt = formatDate(new Date());
+  ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
+  ctx.font = uiFont(15, 500);
   ctx.textAlign = 'left';
-  ctx.fillText(`📅 Atualizado em: ${updatedAt}`, 40, footerY);
-  ctx.fillText('⚙️ Dados coletados automaticamente', 40, footerY + 18);
+  ctx.fillText(`Atualizado em: ${updatedAt}`, margin, footerY);
   ctx.textAlign = 'right';
-  ctx.fillText('🤖 Powered by OmniZap System', width - 40, footerY + 18);
+  ctx.fillText('Powered by OmniZap', width - margin, footerY);
   ctx.textAlign = 'left';
 
   return canvas.toBuffer('image/png');

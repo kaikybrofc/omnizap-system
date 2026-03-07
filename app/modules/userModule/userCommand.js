@@ -250,6 +250,26 @@ const toIntegerDays = (fromMs, toMs = Date.now()) => {
 };
 
 /**
+ * Normaliza um valor de data para chave `YYYY-MM-DD`.
+ * @param {Date|string|number|null|undefined} value Valor retornado do banco.
+ * @returns {string|null} Chave normalizada ou `null` quando inválida.
+ */
+const normalizeDayKey = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toISOString().slice(0, 10);
+  }
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match?.[1]) return match[1];
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+};
+
+/**
  * Calcula a maior sequência de dias consecutivos com atividade.
  * @param {string[]} days Dias ativos ordenados no formato `YYYY-MM-DD`.
  * @returns {number} Melhor sequência contínua em dias.
@@ -305,7 +325,7 @@ const fetchUserGlobalRankingInsights = async ({ canonicalId, totalMessages = 0, 
       ORDER BY day ASC`,
     [canonicalId],
   );
-  const days = (daysRows || []).map((item) => item.day).filter(Boolean);
+  const days = Array.from(new Set((daysRows || []).map((item) => normalizeDayKey(item?.day)).filter(Boolean))).sort();
   const activeDays = days.length;
   const streakDays = computeStreak(days);
 
