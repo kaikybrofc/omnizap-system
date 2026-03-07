@@ -9,11 +9,7 @@ on:
       - main
   workflow_dispatch:
 
-permissions:
-  security-events: write
-  id-token: write
-  contents: read
-  actions: read
+permissions: read-all
 
 concurrency:
   group: security-scorecard-${{ github.workflow }}-${{ github.ref }}
@@ -24,6 +20,11 @@ jobs:
     name: Scorecard Analysis
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+      actions: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
