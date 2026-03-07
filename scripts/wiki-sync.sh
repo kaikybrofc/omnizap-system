@@ -13,6 +13,8 @@ WIKI_SYNC_KEEP_TMP="${WIKI_SYNC_KEEP_TMP:-0}"
 WIKI_SYNC_RELEASE_VERSION="${WIKI_SYNC_RELEASE_VERSION:-}"
 WIKI_SYNC_COMMIT_MESSAGE="${WIKI_SYNC_COMMIT_MESSAGE:-docs(wiki): sync from docs/wiki}"
 WIKI_SYNC_GITHUB_TOKEN="${WIKI_SYNC_GITHUB_TOKEN:-${RELEASE_GITHUB_TOKEN:-${DEPLOY_GITHUB_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-}}}}}"
+WIKI_SYNC_GIT_USER_NAME="${WIKI_SYNC_GIT_USER_NAME:-}"
+WIKI_SYNC_GIT_USER_EMAIL="${WIKI_SYNC_GIT_USER_EMAIL:-}"
 
 log() {
   printf '[wiki-sync] %s\n' "$*"
@@ -61,6 +63,52 @@ build_wiki_remote() {
     return 0
   fi
   printf 'https://github.com/%s.wiki.git' "$repo"
+}
+
+resolve_git_identity_field() {
+  local key="$1"
+  local explicit_value="$2"
+  local value=""
+
+  if [ -n "$explicit_value" ]; then
+    printf '%s' "$explicit_value"
+    return 0
+  fi
+
+  value="$(git -C "$PROJECT_ROOT" config --get "$key" 2>/dev/null || true)"
+  if [ -n "$value" ]; then
+    printf '%s' "$value"
+    return 0
+  fi
+
+  value="$(git config --global --get "$key" 2>/dev/null || true)"
+  printf '%s' "$value"
+}
+
+configure_wiki_git_identity() {
+  local git_user_name=""
+  local git_user_email=""
+
+  git_user_name="$(resolve_git_identity_field "user.name" "$WIKI_SYNC_GIT_USER_NAME")"
+  git_user_email="$(resolve_git_identity_field "user.email" "$WIKI_SYNC_GIT_USER_EMAIL")"
+
+  if [ -z "$git_user_name" ] && [ -n "${GITHUB_ACTOR:-}" ]; then
+    git_user_name="$GITHUB_ACTOR"
+  fi
+  if [ -z "$git_user_email" ] && [ -n "${GITHUB_ACTOR:-}" ]; then
+    git_user_email="${GITHUB_ACTOR}@users.noreply.github.com"
+  fi
+
+  if [ -z "$git_user_name" ]; then
+    git_user_name="github-actions[bot]"
+  fi
+  if [ -z "$git_user_email" ]; then
+    git_user_email="41898282+github-actions[bot]@users.noreply.github.com"
+  fi
+
+  git -C "$WIKI_TMP_DIR" config user.name "$git_user_name"
+  git -C "$WIKI_TMP_DIR" config user.email "$git_user_email"
+  log "Identidade git configurada para wiki: $git_user_name <$git_user_email>"
 }
 
 cleanup_tmp_dir() {
@@ -112,6 +160,7 @@ fi
 
 log "Sincronizando conteúdo de $WIKI_SOURCE_DIR"
 rsync "${sync_args[@]}" "$WIKI_SOURCE_DIR"/ "$WIKI_TMP_DIR"/
+configure_wiki_git_identity
 
 git -C "$WIKI_TMP_DIR" add -A
 if git -C "$WIKI_TMP_DIR" diff --cached --quiet; then

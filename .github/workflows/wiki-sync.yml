@@ -38,5 +38,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WIKI_SYNC_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WIKI_SYNC_GIT_USER_NAME: github-actions[bot]
+          WIKI_SYNC_GIT_USER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
           WIKI_SYNC_DELETE: "1"
         run: bash ./scripts/wiki-sync.sh
