@@ -1045,6 +1045,7 @@ const App = () => {
           <div>OmniZap System 2026 · Bot pronto para grupos WhatsApp</div>
           <nav className="flex w-full flex-wrap gap-2 lg:w-auto" aria-label="Links de rodapé">
             <a className="btn btn-ghost btn-sm" href="/termos-de-uso/">Termos</a>
+            <a className="btn btn-ghost btn-sm" href="/politica-de-privacidade/">Privacidade</a>
             <a className="btn btn-ghost btn-sm" href="/licenca/">Licença</a>
             <a className="btn btn-ghost btn-sm" href="/stickers/">Stickers</a>
             <a className="btn btn-ghost btn-sm" href="/comandos/">Comandos</a>

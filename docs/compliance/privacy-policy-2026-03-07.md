@@ -9,6 +9,12 @@ Escopo: site, login web, painel, API e operacao de automacao do OmniZap System.
 - Contato de privacidade: https://wa.me/559591122954
 - Canal para titulares (LGPD): mensagem com assunto "DSAR LGPD" no contato oficial.
 
+## 1.1) Encarregado pelo tratamento (LGPD art. 41)
+
+- Encarregado (DPO): Kaiky Brito Ribeiro (59.034.123 KAIKY BRITO RIBEIRO, CNPJ 59.034.123/0001-96).
+- Contato do encarregado: https://wa.me/559591122954 (assunto recomendado: "ENCARREGADO LGPD").
+- Divulgacao publica mantida para transparencia regulatoria.
+
 ## 2) Tabela de tratamento de dados
 
 | Categoria de dados                                                           | Finalidade principal                                   | Base legal (LGPD art. 7)                                                            | Prazo de retencao                                                        | Compartilhamentos                               | Transferencia internacional                                         |
@@ -28,7 +34,8 @@ Escopo: site, login web, painel, API e operacao de automacao do OmniZap System.
 ## 4) Transferencias internacionais
 
 - Alguns fornecedores podem processar dados fora do Brasil.
-- As transferencias internacionais seguem salvaguardas contratuais, controles tecnicos e avaliacao de risco compativeis com a LGPD.
+- As transferencias internacionais seguem salvaguardas contratuais, controles tecnicos e avaliacao de risco compativeis com a LGPD e regulamentacao da ANPD.
+- Mecanismos adotados podem incluir clausulas contratuais e avaliacao por finalidade/risco.
 - O inventario de suboperadores publicado em `/suboperadores/` informa categoria e status de localizacao/regiao.
 
 ## 5) Retencao e descarte
@@ -43,6 +50,8 @@ Escopo: site, login web, painel, API e operacao de automacao do OmniZap System.
 - Anonimizacao, bloqueio ou eliminacao quando cabivel.
 - Portabilidade (quando tecnicamente viavel).
 - Oposicao e revisao de tratamento nas hipoteses legais.
+- Peticao perante ANPD e autoridades competentes, quando cabivel.
+- Quando aplicavel, declaracao clara e completa em ate 15 dias (LGPD art. 19), sem prejuizo de resposta simplificada imediata quando possivel.
 
 Prazos operacionais e fluxo completo: ver `docs/security/dsar-lgpd-runbook-2026-03-07.md`.
 
@@ -50,6 +59,8 @@ Prazos operacionais e fluxo completo: ver `docs/security/dsar-lgpd-runbook-2026-
 
 - Criptografia em transito (TLS), controles de acesso por privilegio minimo, logs e trilhas de auditoria.
 - Monitoramento tecnico e resposta a incidentes com criterio LGPD/ANPD.
+- Havendo incidente com risco ou dano relevante aos titulares, comunicacao a ANPD e aos titulares sera avaliada e realizada quando exigida por lei/regulamentacao.
+- Quando aplicavel ao controlador, observar prazo regulatorio vigente para comunicacao de incidente (incluindo 3 dias uteis previstos no regulamento atual da ANPD).
 
 ## 8) Atualizacoes desta politica
 

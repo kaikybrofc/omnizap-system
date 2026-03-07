@@ -72,7 +72,7 @@ const TERMS_CONTENT_HTML = String.raw`
         <ul>
           <li>O usuário deve fornecer dados verdadeiros, atualizados e completos para cadastro e manutenção da conta.</li>
           <li>Credenciais, tokens e sessões são pessoais e intransferíveis, cabendo ao usuário o dever de guarda e sigilo.</li>
-          <li>O responsável pela conta responde pelas ações realizadas com suas credenciais, inclusive por terceiros autorizados ou não.</li>
+          <li>O responsável pela conta responde pelas ações realizadas com suas credenciais, ressalvadas hipóteses de falha de segurança comprovadamente atribuível à plataforma ou fraude sem culpa do usuário.</li>
           <li>Podem ser aplicadas medidas adicionais de verificação de identidade em hipóteses de risco, fraude, abuso ou exigência legal.</li>
         </ul>
         <h3>5.1 Redefinição de senha e controles antiabuso</h3>
@@ -139,8 +139,8 @@ const TERMS_CONTENT_HTML = String.raw`
         <ul>
           <li>O usuário, seus prepostos, colaboradores e terceiros por ele autorizados assumem dever de sigilo profissional sobre dados, mensagens, credenciais e informações confidenciais acessadas por meio da plataforma.</li>
           <li>É vedada a divulgação, cópia, compartilhamento, comercialização, publicação ou uso para finalidade diversa daquela legitimamente autorizada.</li>
-          <li>A violação comprovada do dever de sigilo, por ação ou omissão, sujeitará o infrator ao pagamento de multa contratual não compensatória de <strong>R$ 10.000,00 (dez mil reais) por incidente comprovado</strong>, sem prejuízo de perdas e danos, lucros cessantes, medidas inibitórias e demais cominações legais cabíveis.</li>
-          <li>Quando aplicável, a multa prevista nesta cláusula será interpretada e executada em conformidade com normas de ordem pública e legislação protetiva do consumidor.</li>
+          <li>A violação comprovada do dever de sigilo, por ação ou omissão, poderá sujeitar o infrator ao pagamento de multa contratual de <strong>até R$ 10.000,00 (dez mil reais) por incidente comprovado</strong>, graduada por gravidade, extensão do dano e cooperação na mitigação, sem prejuízo de perdas e danos e medidas legais cabíveis.</li>
+          <li>Em relações de consumo, a aplicação de multa e indenização observará proporcionalidade, boa-fé objetiva, normas de ordem pública e direitos inderrogáveis do consumidor.</li>
         </ul>
       </section>
 
@@ -152,8 +152,10 @@ const TERMS_CONTENT_HTML = String.raw`
           <li>correção de dados incompletos, inexatos ou desatualizados;</li>
           <li>anonimização, bloqueio ou eliminação de dados desnecessários, excessivos ou tratados em desconformidade;</li>
           <li>portabilidade, eliminação de dados tratados com consentimento e informação sobre compartilhamentos;</li>
-          <li>revogação do consentimento e oposição ao tratamento, observados os limites legais.</li>
+          <li>revogação do consentimento e oposição ao tratamento, observados os limites legais;</li>
+          <li>peticionar perante a ANPD e demais autoridades competentes, nos termos da lei.</li>
         </ul>
+        <p>Quando aplicável, o atendimento observará resposta simplificada imediata e declaração clara/completa em até 15 (quinze) dias, conforme LGPD art. 19.</p>
         <p>Para exercício de direitos e demandas de privacidade:</p>
         <div class="contact-actions" aria-label="Contatos para privacidade">
           <a class="contact-btn wa" href="https://wa.me/559591122954?text=Ol%C3%A1%2C%20gostaria%20de%20exercer%20meus%20direitos%20de%20titular%20de%20dados%20(LGPD)." target="_blank" rel="noreferrer noopener">Solicitar via WhatsApp</a>
@@ -168,7 +170,8 @@ const TERMS_CONTENT_HTML = String.raw`
           <li>Compartilhamentos com terceiros ocorrerão no limite necessário para execução das finalidades legítimas da plataforma.</li>
           <li>Operadores que tratem conteúdo de mensagens deverão observar dever de confidencialidade, segurança da informação e uso restrito à finalidade contratada.</li>
           <li>Dados poderão ser fornecidos a autoridades públicas mediante obrigação legal, ordem judicial ou requisição válida.</li>
-          <li>Em transferências internacionais, serão adotadas salvaguardas compatíveis com a legislação brasileira de proteção de dados.</li>
+          <li>Em transferências internacionais, serão adotados mecanismos compatíveis com a LGPD e regulamentação da ANPD, incluindo cláusulas contratuais e medidas técnicas de segurança.</li>
+          <li>O inventário público de suboperadores em <a href="/suboperadores/">/suboperadores/</a> descreve categorias, escopo de dados, região de processamento e status de atualização.</li>
         </ul>
       </section>
 
@@ -249,7 +252,7 @@ const TERMS_CONTENT_HTML = String.raw`
 
       <section class="card">
         <h2>19. Alterações destes Termos</h2>
-        <p>Estes Termos poderão ser atualizados a qualquer tempo para refletir mudanças legais, regulatórias, jurisprudenciais, técnicas ou operacionais. A versão vigente será aquela publicada nesta página, com data de atualização.</p>
+        <p>Estes Termos poderão ser atualizados para refletir mudanças legais, regulatórias, jurisprudenciais, técnicas ou operacionais. Em alterações materiais, será publicado aviso com antecedência razoável e registro de versão/data nesta página. A continuidade de uso após vigência da nova versão caracteriza novo aceite, sem prejuízo dos direitos legais do usuário.</p>
       </section>
 
       <section class="card">
@@ -263,7 +266,9 @@ const TERMS_CONTENT_HTML = String.raw`
           <li>WhatsApp oficial: <strong>+55 95 9112-2954</strong>.</li>
           <li>Link direto: <a href="https://wa.me/559591122954" target="_blank" rel="noreferrer noopener">https://wa.me/559591122954</a>.</li>
           <li>Instagram oficial: <a href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">https://www.instagram.com/kaikybrofc/</a>.</li>
-          <li>Fica eleito o foro da Comarca de Boa Vista/RR, com renúncia a qualquer outro, por mais privilegiado que seja, ressalvadas hipóteses legais de competência absoluta e normas protetivas aplicáveis ao consumidor.</li>
+          <li>Contato complementar para notificações formais: privacidade@omnizap.shop.</li>
+          <li>Encarregado (LGPD art. 41): Kaiky Brito Ribeiro, contato pelo canal oficial de privacidade.</li>
+          <li>Para relações empresariais (B2B), fica eleito o foro da Comarca de Boa Vista/RR, ressalvadas hipóteses legais de competência absoluta. Em relações de consumo, prevalece o foro do domicílio do consumidor quando a legislação assim determinar.</li>
         </ul>
       </section>
 
@@ -280,6 +285,10 @@ const TERMS_CONTENT_HTML = String.raw`
           <li>Lei nº 9.609/1998 (Lei de Software): <a href="https://www.planalto.gov.br/ccivil_03/leis/l9609.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
           <li>ANPD - direitos do titular e canais institucionais: <a href="https://www.gov.br/anpd/pt-br" target="_blank" rel="noreferrer noopener">gov.br/anpd</a>.</li>
           <li>ANPD - comunicação de incidente de segurança (CIS): <a href="https://www.gov.br/anpd/pt-br/canais_atendimento/agente-de-tratamento/comunicado-de-incidente-de-seguranca-cis" target="_blank" rel="noreferrer noopener">gov.br/anpd/cis</a>.</li>
+          <li>Resolução CD/ANPD nº 15/2024 (comunicação de incidente): <a href="https://dspace.mj.gov.br/handle/1/12879" target="_blank" rel="noreferrer noopener">dspace.mj.gov.br/handle/1/12879</a>.</li>
+          <li>Resolução CD/ANPD nº 18/2024 (encarregado): <a href="https://dspace.mj.gov.br/handle/1/13151" target="_blank" rel="noreferrer noopener">dspace.mj.gov.br/handle/1/13151</a>.</li>
+          <li>Resolução CD/ANPD nº 19/2024 (transferência internacional): <a href="https://dspace.mj.gov.br/handle/1/13458" target="_blank" rel="noreferrer noopener">dspace.mj.gov.br/handle/1/13458</a>.</li>
+          <li>Resolução CD/ANPD nº 32/2026 (adequação da União Europeia): <a href="https://www.gov.br/anpd/pt-br/acesso-a-informacao/institucional/atos-normativos/regulamentacoes_anpd" target="_blank" rel="noreferrer noopener">gov.br/anpd/regulamentacoes_anpd</a>.</li>
           <li>WhatsApp Business Terms: <a href="https://www.whatsapp.com/legal/business-terms/" target="_blank" rel="noreferrer noopener">whatsapp.com/legal/business-terms</a>.</li>
           <li>WhatsApp Business Messaging Policy: <a href="https://business.whatsapp.com/policy" target="_blank" rel="noreferrer noopener">business.whatsapp.com/policy</a>.</li>
           <li>WhatsApp Brand Guidelines: <a href="https://about.meta.com/brand/resources/whatsapp/whatsapp-brand/" target="_blank" rel="noreferrer noopener">about.meta.com/brand/resources</a>.</li>
@@ -387,8 +396,9 @@ const TERMS_CONTENT_HTML = String.raw`
         <h3>24.5 Plano formal de incidentes e gatilho ANPD/titulares</h3>
         <ul>
           <li>O OmniZap System manterá plano formal de resposta a incidentes com etapas de detecção, contenção, erradicação, recuperação e lições aprendidas.</li>
-          <li>Quando houver risco ou dano relevante aos titulares, poderá ser acionado fluxo de comunicação à ANPD e aos titulares potencialmente afetados, nos termos da legislação vigente.</li>
+          <li>Quando houver incidente com risco ou dano relevante aos titulares, será acionado fluxo formal de comunicação à ANPD e aos titulares potencialmente afetados, nos termos da legislação vigente.</li>
           <li>Quando aplicável ao controlador, a comunicação regulatória observará os prazos legais vigentes, incluindo o prazo de 3 (três) dias úteis previsto no regulamento da ANPD, ressalvada legislação específica superveniente.</li>
+          <li>As comunicações incluirão, quando exigido, descrição do incidente, dados afetados, medidas técnicas/administrativas adotadas, riscos envolvidos, justificativa para eventual atraso e medidas para mitigar efeitos.</li>
         </ul>
         <h3>24.6 Separação patrimonial e seguro de riscos cibernéticos</h3>
         <ul>
@@ -411,7 +421,7 @@ const TERMS_CONTENT_HTML = String.raw`
       <section class="card">
         <h2>25. Histórico de alterações</h2>
         <ul>
-          <li><strong>07/03/2026:</strong> revisão integral em tom jurídico, inclusão de cláusulas de validade eletrônica, indenização regressiva, disposições gerais, referências legais oficiais (Planalto/ANPD), cláusulas específicas sobre coleta integral de mensagens e compromisso de sigilo/confidencialidade, cláusula autônoma de dever de sigilo profissional com penalidade contratual, 12 cláusulas adicionais de proteção jurídica e programa reforçado de compliance (conteúdo regulado, branding, DPA, governança de dados, incidentes com gatilho ANPD/titulares, separação patrimonial, seguro cyber/E&O, canal de notice-and-takedown com SLA, inventário público de suboperadores e separação da política de privacidade).</li>
+          <li><strong>07/03/2026:</strong> revisão jurídica complementar com reforço de direitos do titular (incluindo prazo do art. 19), transparência de transferência internacional (Res. 19/2024), encarregado (Res. 18/2024), ajustes de foro para relações de consumo, critérios de proporcionalidade em cláusula penal e detalhamento da comunicação de incidentes (Res. 15/2024).</li>
           <li><strong>06/03/2026:</strong> inclusão de cláusulas sobre autenticação por senha, redefinição por e-mail com controles antiabuso, filosofia open source, comunidade e reforço das diretrizes de segurança de dados.</li>
           <li><strong>05/03/2026:</strong> inclusão de cláusula sobre uso do e-mail de login para envio de informações do projeto, comunicados operacionais e avisos de segurança.</li>
           <li><strong>28/02/2026:</strong> inclusão de contatos explícitos, aviso de projeto não oficial, termos complementares de privacidade, exemplos práticos de uso proibido e linguagem simplificada em seções jurídicas.</li>

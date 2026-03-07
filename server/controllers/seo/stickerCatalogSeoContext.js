@@ -86,6 +86,8 @@ export const createStickerCatalogSeoContext = ({
       : assetPath;
   const buildCatalogStylesUrl = () => appendAssetVersionQuery(catalogStylesWebPath);
   const buildCatalogScriptUrl = () => appendAssetVersionQuery(catalogScriptWebPath);
+  const buildStickersReactBundleUrl = () =>
+    appendAssetVersionQuery('/assets/js/stickers-react.bundle.js');
 
   const buildCatalogDiscoveryLinksHtml = async () => {
     if (SEO_DISCOVERY_CACHE.expiresAt > Date.now() && SEO_DISCOVERY_CACHE.html) {
@@ -346,7 +348,7 @@ export const createStickerCatalogSeoContext = ({
     data-default-orphan-limit="${defaultOrphanListLimit}"
     data-initial-pack-key="${escapeHtmlAttribute(packSummary?.pack_key || '')}"
   ></div>
-  <script type="module" src="/js/apps/stickersApp.js?v=20260228-login-redirect-my-packs1"></script>
+  <script type="module" src="${escapeHtmlAttribute(buildStickersReactBundleUrl())}"></script>
 </body>
 </html>`;
   };

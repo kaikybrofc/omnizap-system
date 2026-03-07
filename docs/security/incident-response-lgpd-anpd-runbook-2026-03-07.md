@@ -47,7 +47,7 @@ Acionar avaliação formal de notificação quando houver, por indício mínimo:
 - indisponibilidade relevante com potencial de prejuízo material a titulares/clientes.
 
 Critério jurídico: observar a LGPD (Lei nº 13.709/2018, art. 48) e regulamentações vigentes da ANPD.
-Quando aplicável, considerar o prazo regulatório de 3 (três) dias úteis para comunicação, sem prejuízo de obrigações setoriais específicas.
+Quando aplicável ao controlador, observar o prazo regulatório de 3 (três) dias úteis para comunicação, sem prejuízo de obrigações setoriais específicas.
 
 ## 6) Evidências mínimas obrigatórias
 
@@ -56,6 +56,7 @@ Quando aplicável, considerar o prazo regulatório de 3 (três) dias úteis para
 - amostras de logs, hashes e identificadores técnicos;
 - decisão técnica e jurídica de notificação (com justificativa);
 - ações de contenção, correção e verificação pós-incidente.
+- conteúdo mínimo da comunicação regulatória (natureza do incidente, categorias/dados afetados, titulares envolvidos, medidas técnicas/administrativas, riscos, motivo de eventual atraso e medidas de mitigação).
 
 ## 7) Comunicação e rastreabilidade
 

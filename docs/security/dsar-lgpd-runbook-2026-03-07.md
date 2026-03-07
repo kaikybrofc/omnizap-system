@@ -30,6 +30,7 @@ Padronizar resposta para direitos do titular: acesso, correcao, exclusao, oposic
 | Portabilidade (quando tecnicamente viavel) | ate 15 dias corridos |
 
 Observacao: prevalecem prazos legais aplicaveis quando menores.
+Para pedidos enquadrados no art. 19 da LGPD, observar resposta simplificada imediata quando possivel e declaracao clara/completa em ate 15 dias.
 
 ## 5) Fluxo operacional
 

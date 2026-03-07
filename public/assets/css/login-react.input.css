@@ -26,12 +26,7 @@
     margin: 0;
     min-height: 100vh;
     color: var(--login-text);
-    font-family:
-      'Space Grotesk',
-      'Sora',
-      'Manrope',
-      'Segoe UI',
-      sans-serif;
+    font-family: 'Space Grotesk', 'Sora', 'Manrope', 'Segoe UI', sans-serif;
     background:
       radial-gradient(76rem 38rem at -14% -26%, rgb(37 99 235 / 0.32), transparent 64%),
       radial-gradient(64rem 36rem at 112% -20%, rgb(124 58 237 / 0.3), transparent 62%),

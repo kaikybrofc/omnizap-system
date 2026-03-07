@@ -10,14 +10,16 @@ const DEFAULT_HOME_PATH = '/';
 const DEFAULT_PANEL_PATH = '/user/';
 const DEFAULT_TERMS_URL = '/termos-de-uso/';
 const DEFAULT_PRIVACY_URL = '/politica-de-privacidade/';
+const DEFAULT_AUP_URL = '/aup/';
 const DEFAULT_BRAND_NAME = 'OmniZap System';
 const DEFAULT_BRAND_LOGO = '/assets/images/brand-logo-128.webp';
 const LOGIN_CONSENT_STORAGE_KEY = 'omnizap_login_terms_consent_v1';
 const LOGIN_CONSENT_RECEIPT_STORAGE_KEY = 'omnizap_login_terms_consent_receipt_v1';
-const LOGIN_CONSENT_HINT = 'Aceite os Termos de Uso e a Politica de Privacidade para continuar.';
+const LOGIN_CONSENT_HINT = 'Aceite os Termos de Uso, Politica de Privacidade e AUP para continuar.';
 const LEGAL_ACCEPTANCE_DOCUMENTS = Object.freeze([
   { document_key: 'termos_de_uso', document_version: '2026-03-07' },
   { document_key: 'politica_de_privacidade', document_version: '2026-03-07' },
+  { document_key: 'politica_uso_aceitavel', document_version: '2026-03-07' },
 ]);
 const DEFAULT_SUCCESS_CHAT_LABEL = 'Abrir WhatsApp do bot';
 const DEFAULT_SUCCESS_HOME_LABEL = 'Ir para o painel';
@@ -1239,9 +1241,7 @@ const LoginApp = ({ config }) => {
           <section className="login-card-body">
             <p className="login-badge">Login Seguro OmniZap</p>
             <h1 className="login-title">Acesse sua conta</h1>
-            <p className="login-subtitle">
-              Vincule seu WhatsApp e libere os recursos do OmniZap.
-            </p>
+            <p className="login-subtitle">Vincule seu WhatsApp e libere os recursos do OmniZap.</p>
 
             <article className="login-status-card">
               <p className="login-status-chip">
@@ -1251,7 +1251,9 @@ const LoginApp = ({ config }) => {
               <p className="login-helper-text">${hintMessage}</p>
 
               ${errorMessage
-                ? html`<p role="alert" className="login-inline-message is-error">${errorMessage}</p>`
+                ? html`<p role="alert" className="login-inline-message is-error">
+                    ${errorMessage}
+                  </p>`
                 : null}
               ${alreadyLoggedVisible
                 ? html`
@@ -1297,7 +1299,6 @@ const LoginApp = ({ config }) => {
                   </nav>
                 `
               : null}
-
             ${!authenticated
               ? html`
                   <article
@@ -1319,6 +1320,9 @@ const LoginApp = ({ config }) => {
                         e a
                         <a href=${config.privacyUrl} target="_blank" rel="noreferrer noopener"
                           >Politica de Privacidade</a
+                        >, alem da
+                        <a href=${config.aupUrl} target="_blank" rel="noreferrer noopener"
+                          >Politica de Uso Aceitavel (AUP)</a
                         >.
                       </span>
                     </label>
@@ -1333,7 +1337,6 @@ const LoginApp = ({ config }) => {
                   </article>
                 `
               : null}
-
             ${showGoogleMethod
               ? html`
                   <section className="login-method-panel" data-method="google">
@@ -1357,13 +1360,14 @@ const LoginApp = ({ config }) => {
                         `
                       : html`
                           <div className="login-inline-message is-warning">
-                            <p>Este navegador não recebeu um link válido do WhatsApp para Google.</p>
+                            <p>
+                              Este navegador não recebeu um link válido do WhatsApp para Google.
+                            </p>
                           </div>
                         `}
                   </section>
                 `
               : null}
-
             ${showPasswordMethod
               ? html`
                   <section className="login-method-panel" data-method="password">
@@ -1424,7 +1428,9 @@ const LoginApp = ({ config }) => {
                       </label>
 
                       ${passwordLoginError
-                        ? html`<p role="alert" className="login-field-error">${passwordLoginError}</p>`
+                        ? html`<p role="alert" className="login-field-error">
+                            ${passwordLoginError}
+                          </p>`
                         : null}
 
                       <button
@@ -1440,7 +1446,9 @@ const LoginApp = ({ config }) => {
                       type="button"
                       className="login-link-button"
                       onClick=${() => {
-                        setPasswordRecoveryStep((step) => (step === 'idle' ? 'code_request' : 'idle'));
+                        setPasswordRecoveryStep((step) =>
+                          step === 'idle' ? 'code_request' : 'idle',
+                        );
                         setPasswordRecoveryError('');
                         setPasswordRecoveryMessage('');
                         setPasswordRecoveryForm((current) => ({
@@ -1466,14 +1474,18 @@ const LoginApp = ({ config }) => {
                     ${passwordRecoveryStep !== 'idle'
                       ? html`
                           <div className="login-recovery-card">
-                            <p className="login-recovery-title">Recuperação por código (6 dígitos)</p>
+                            <p className="login-recovery-title">
+                              Recuperação por código (6 dígitos)
+                            </p>
                             ${passwordRecoveryMessage
                               ? html`<p className="login-inline-message is-success">
                                   ${passwordRecoveryMessage}
                                 </p>`
                               : null}
                             ${passwordRecoveryError
-                              ? html`<p role="alert" className="login-field-error">${passwordRecoveryError}</p>`
+                              ? html`<p role="alert" className="login-field-error">
+                                  ${passwordRecoveryError}
+                                </p>`
                               : null}
 
                             <div className="login-recovery-grid">
@@ -1584,7 +1596,9 @@ const LoginApp = ({ config }) => {
                                 disabled=${passwordRecoveryBusy}
                                 onClick=${handleRecoveryVerifySubmit}
                               >
-                                ${passwordRecoveryBusy ? 'Validando...' : 'Validar código e criar senha'}
+                                ${passwordRecoveryBusy
+                                  ? 'Validando...'
+                                  : 'Validar código e criar senha'}
                               </button>
                             </div>
                           </div>
@@ -1593,7 +1607,6 @@ const LoginApp = ({ config }) => {
                   </section>
                 `
               : null}
-
             ${showWhatsappMethod
               ? html`
                   <section className="login-method-panel" data-method="whatsapp">
@@ -1620,7 +1633,6 @@ const LoginApp = ({ config }) => {
                   </section>
                 `
               : null}
-
             ${authenticated && passwordSetupRequired
               ? html`
                   <section className="login-method-panel is-warning">
@@ -1632,7 +1644,9 @@ const LoginApp = ({ config }) => {
                       </p>
                     </div>
                     ${passwordSetupError
-                      ? html`<p role="alert" className="login-field-error">${passwordSetupError}</p>`
+                      ? html`<p role="alert" className="login-field-error">
+                          ${passwordSetupError}
+                        </p>`
                       : null}
                     <div className="login-recovery-grid">
                       <label className="login-field-group">
@@ -1646,7 +1660,10 @@ const LoginApp = ({ config }) => {
                             value=${passwordSetupForm.password}
                             onInput=${(event) => {
                               const nextValue = String(event.currentTarget?.value || '');
-                              setPasswordSetupForm((current) => ({ ...current, password: nextValue }));
+                              setPasswordSetupForm((current) => ({
+                                ...current,
+                                password: nextValue,
+                              }));
                             }}
                             autocomplete="new-password"
                             placeholder="Nova senha"
@@ -1664,7 +1681,10 @@ const LoginApp = ({ config }) => {
                             value=${passwordSetupForm.confirm}
                             onInput=${(event) => {
                               const nextValue = String(event.currentTarget?.value || '');
-                              setPasswordSetupForm((current) => ({ ...current, confirm: nextValue }));
+                              setPasswordSetupForm((current) => ({
+                                ...current,
+                                confirm: nextValue,
+                              }));
                             }}
                             autocomplete="new-password"
                             placeholder="Repita a senha"
@@ -1683,16 +1703,16 @@ const LoginApp = ({ config }) => {
                   </section>
                 `
               : null}
-
             ${summary.visible
               ? html`
-                  <div className=${`login-inline-message ${summary.state === 'pending' ? 'is-warning' : 'is-success'}`}>
+                  <div
+                    className=${`login-inline-message ${summary.state === 'pending' ? 'is-warning' : 'is-success'}`}
+                  >
                     <p className="font-semibold">${summary.title}</p>
                     <p>${summary.owner}</p>
                   </div>
                 `
               : null}
-
             ${authenticated
               ? html`
                   <div className="login-success-actions">
@@ -1750,6 +1770,7 @@ if (rootElement) {
     panelPath: normalizeRoutePath(rootElement.dataset.panelPath, DEFAULT_PANEL_PATH),
     termsUrl: normalizeUrlPath(rootElement.dataset.termsUrl, DEFAULT_TERMS_URL),
     privacyUrl: normalizeUrlPath(rootElement.dataset.privacyUrl, DEFAULT_PRIVACY_URL),
+    aupUrl: normalizeUrlPath(rootElement.dataset.aupUrl, DEFAULT_AUP_URL),
     brandName: String(rootElement.dataset.brandName || '').trim() || DEFAULT_BRAND_NAME,
     brandLogo: normalizeUrlPath(rootElement.dataset.brandLogo, DEFAULT_BRAND_LOGO),
   };

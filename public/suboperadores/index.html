@@ -60,28 +60,40 @@
           <thead>
             <tr>
               <th>Categoria</th>
+              <th>Suboperador (tipo)</th>
               <th>Finalidade</th>
               <th>Escopo de dados</th>
+              <th>Regiao principal</th>
+              <th>Mecanismo de transferencia internacional</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td>Cloud/Infra</td>
+              <td>Fornecedor de hospedagem e banco (IaaS/PaaS)</td>
               <td>Hospedagem, banco e disponibilidade</td>
               <td>Dados de conta, logs e operacao</td>
+              <td>Brasil e/ou multiplas regioes globais do fornecedor</td>
+              <td>Clausulas contratuais + avaliacao de risco por finalidade</td>
               <td>Ativo</td>
             </tr>
             <tr>
               <td>E-mail transacional</td>
+              <td>Fornecedor SMTP/API de e-mail</td>
               <td>Recuperacao de senha e comunicados</td>
               <td>E-mail e metadados de envio</td>
+              <td>Brasil e/ou EUA conforme arquitetura do fornecedor</td>
+              <td>Clausulas contratuais + controles tecnicos de seguranca</td>
               <td>Ativo</td>
             </tr>
             <tr>
               <td>Monitoramento</td>
+              <td>Fornecedor de observabilidade/metricas/logs</td>
               <td>Metricas, logs e alertas</td>
               <td>Telemetria tecnica</td>
+              <td>Brasil e/ou infraestrutura global do fornecedor</td>
+              <td>Clausulas contratuais + minimizacao de dados tecnicos</td>
               <td>Ativo</td>
             </tr>
           </tbody>
@@ -94,8 +106,16 @@
             Este inventario e atualizado quando houver mudanca relevante de fornecedor/escopo.
           </li>
           <li>
+            Revisao periodica: mensal no comite interno de compliance, ou antes em caso de mudanca
+            material.
+          </li>
+          <li>
             Processamento internacional pode ocorrer conforme arquitetura dos provedores
             contratados.
+          </li>
+          <li>
+            Quando houver mudanca de suboperador com impacto relevante, os documentos de privacidade
+            e termos podem ser atualizados.
           </li>
         </ul>
       </section>

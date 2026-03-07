@@ -14,27 +14,42 @@
     <link rel="manifest" href="/site.webmanifest" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="/assets/css/terms-react.css" />
+    <script>
+      document.documentElement.classList.add('js');
+    </script>
+    <style>
+      #terms-react-root {
+        display: none;
+      }
+      #terms-static-shell {
+        min-height: 100dvh;
+      }
+      .js #terms-react-root {
+        display: block;
+      }
+      .js #terms-static-shell {
+        display: none;
+      }
+      .terms-static-frame {
+        width: 100%;
+        min-height: 100dvh;
+        border: 0;
+      }
+    </style>
   </head>
   <body>
     <div id="terms-react-root"></div>
-
-    <noscript>
-      <main
-        style="
-          color: #e2e8f0;
-          font-family: sans-serif;
-          max-width: 960px;
-          margin: 48px auto;
-          padding: 0 16px;
-        "
-      >
-        <h1>Termos de Uso</h1>
-        <p>Ative o JavaScript para visualizar os termos completos em versão React.</p>
-        <p>
-          <a href="/">Início</a> · <a href="/licenca/">Licença</a> · <a href="/api-docs/">API</a>
-        </p>
-      </main>
-    </noscript>
+    <main id="terms-static-shell" class="wrap">
+      <iframe
+        class="terms-static-frame"
+        src="/termos-de-uso/texto-integral.html"
+        title="Termos de Uso (texto integral)"
+      ></iframe>
+      <p class="note">
+        Se o seu navegador bloquear o iframe, abra
+        <a href="/termos-de-uso/texto-integral.html">/termos-de-uso/texto-integral.html</a>.
+      </p>
+    </main>
 
     <script type="module" src="/assets/js/terms-react.bundle.js"></script>
   </body>
