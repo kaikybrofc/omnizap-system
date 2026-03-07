@@ -20,13 +20,13 @@ const DEFAULT_PRIVACY_URL = '/politica-de-privacidade/';
 const DEFAULT_FALLBACK_AVATAR = '/assets/images/brand-logo-128.webp';
 const DEFAULT_PASSWORD_RESET_WEB_PATH = '/user/password-reset';
 const DEFAULT_SUPPORT_TEXT = 'Ol\u00e1! Preciso de suporte no OmniZap.';
-const PASSWORD_RECOVERY_STORAGE_KEY = 'omnizap_password_recovery_session_token';
 const LEGACY_PASSWORD_RECOVERY_QUERY_KEYS = [
   'password_recovery_session',
   'recovery_session',
   'reset_session',
   'session_token',
 ];
+const PASSWORD_RECOVERY_HASH_KEY = 'password_recovery_session';
 
 const TABS = [
   { key: 'summary', label: 'Resumo' },
@@ -71,25 +71,159 @@ const hasLegacyRecoveryTokenInSearch = (search = '') => {
   return false;
 };
 
-const readRecoverySessionTokenFromStorage = () => {
-  if (typeof window === 'undefined' || !window.sessionStorage) return '';
-  return String(window.sessionStorage.getItem(PASSWORD_RECOVERY_STORAGE_KEY) || '')
+const normalizeRecoverySessionToken = (value) =>
+  String(value || '')
     .trim()
     .slice(0, 4096);
+
+const readRecoverySessionTokenFromSearch = (search = '') => {
+  try {
+    const params = new URLSearchParams(String(search || ''));
+    for (const key of LEGACY_PASSWORD_RECOVERY_QUERY_KEYS) {
+      const token = normalizeRecoverySessionToken(params.get(key));
+      if (token) return token;
+    }
+  } catch {
+    return '';
+  }
+  return '';
 };
 
-const writeRecoverySessionTokenToStorage = (token) => {
-  if (typeof window === 'undefined' || !window.sessionStorage) return;
-  const normalizedToken = String(token || '')
-    .trim()
-    .slice(0, 4096);
-  if (!normalizedToken) return;
-  window.sessionStorage.setItem(PASSWORD_RECOVERY_STORAGE_KEY, normalizedToken);
+const readRecoverySessionTokenFromHash = (hash = '') => {
+  const normalizedHash = String(hash || '').trim();
+  if (!normalizedHash) return '';
+
+  const hashPayload = normalizedHash.startsWith('#') ? normalizedHash.slice(1) : normalizedHash;
+  if (!hashPayload) return '';
+
+  const params = new URLSearchParams(
+    hashPayload.startsWith('?') ? hashPayload.slice(1) : hashPayload,
+  );
+  const tokenFromPrimaryKey = normalizeRecoverySessionToken(params.get(PASSWORD_RECOVERY_HASH_KEY));
+  if (tokenFromPrimaryKey) return tokenFromPrimaryKey;
+
+  for (const key of LEGACY_PASSWORD_RECOVERY_QUERY_KEYS) {
+    const token = normalizeRecoverySessionToken(params.get(key));
+    if (token) return token;
+  }
+
+  return '';
 };
 
-const clearRecoverySessionTokenFromStorage = () => {
-  if (typeof window === 'undefined' || !window.sessionStorage) return;
-  window.sessionStorage.removeItem(PASSWORD_RECOVERY_STORAGE_KEY);
+const resolveRecoverySessionTokenFromLocation = (locationLike) => {
+  const tokenFromHash = readRecoverySessionTokenFromHash(locationLike?.hash);
+  if (tokenFromHash) return tokenFromHash;
+  return readRecoverySessionTokenFromSearch(locationLike?.search);
+};
+
+const stripRecoverySessionTokenFromSearch = (search = '') => {
+  const params = new URLSearchParams(String(search || ''));
+  let changed = false;
+  for (const key of LEGACY_PASSWORD_RECOVERY_QUERY_KEYS) {
+    if (!params.has(key)) continue;
+    params.delete(key);
+    changed = true;
+  }
+  return {
+    changed,
+    search: params.toString() ? `?${params.toString()}` : '',
+  };
+};
+
+const stripRecoverySessionTokenFromHash = (hash = '') => {
+  const normalizedHash = String(hash || '').trim();
+  if (!normalizedHash) return { changed: false, hash: '' };
+
+  const hashPayload = normalizedHash.startsWith('#') ? normalizedHash.slice(1) : normalizedHash;
+  if (!hashPayload) return { changed: false, hash: '' };
+
+  const params = new URLSearchParams(
+    hashPayload.startsWith('?') ? hashPayload.slice(1) : hashPayload,
+  );
+  let changed = false;
+  if (params.has(PASSWORD_RECOVERY_HASH_KEY)) {
+    params.delete(PASSWORD_RECOVERY_HASH_KEY);
+    changed = true;
+  }
+  for (const key of LEGACY_PASSWORD_RECOVERY_QUERY_KEYS) {
+    if (!params.has(key)) continue;
+    params.delete(key);
+    changed = true;
+  }
+
+  if (!changed) {
+    return {
+      changed: false,
+      hash: normalizedHash.startsWith('#') ? normalizedHash : `#${normalizedHash}`,
+    };
+  }
+
+  const nextHash = params.toString();
+  return {
+    changed: true,
+    hash: nextHash ? `#${nextHash}` : '',
+  };
+};
+
+const sanitizeRecoverySessionUrl = ({ normalizedPath = '', shouldNormalizePath = false } = {}) => {
+  if (
+    typeof window === 'undefined' ||
+    typeof window.location?.href !== 'string' ||
+    typeof window.history?.replaceState !== 'function'
+  ) {
+    return;
+  }
+
+  const currentUrl = new URL(window.location.href);
+  let changed = false;
+
+  if (shouldNormalizePath) {
+    const safePath = normalizeRoutePath(normalizedPath, DEFAULT_PASSWORD_RESET_WEB_PATH);
+    if (currentUrl.pathname !== safePath) {
+      currentUrl.pathname = safePath;
+      changed = true;
+    }
+  }
+
+  const cleanedSearch = stripRecoverySessionTokenFromSearch(currentUrl.search);
+  if (cleanedSearch.changed) {
+    currentUrl.search = cleanedSearch.search;
+    changed = true;
+  }
+
+  const cleanedHash = stripRecoverySessionTokenFromHash(currentUrl.hash);
+  if (cleanedHash.changed) {
+    currentUrl.hash = cleanedHash.hash;
+    changed = true;
+  }
+
+  if (changed) {
+    window.history.replaceState(
+      {},
+      '',
+      `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
+    );
+  }
+};
+
+const buildRecoverySessionDestinationUrl = (destination, sessionToken) => {
+  const token = normalizeRecoverySessionToken(sessionToken);
+  if (!token) return '';
+
+  const parsedDestination = new URL(String(destination || ''), window.location.origin);
+  if (parsedDestination.origin !== window.location.origin) {
+    throw new Error('Destino de redefinicao invalido.');
+  }
+
+  const hashParams = new URLSearchParams(
+    parsedDestination.hash.startsWith('#')
+      ? parsedDestination.hash.slice(1)
+      : String(parsedDestination.hash || ''),
+  );
+  hashParams.set(PASSWORD_RECOVERY_HASH_KEY, token);
+  parsedDestination.hash = hashParams.toString();
+
+  return `${parsedDestination.pathname}${parsedDestination.search}${parsedDestination.hash}`;
 };
 
 const resolvePasswordRecoveryRoute = (pathname, search, passwordResetWebPath) => {
@@ -276,7 +410,7 @@ const UserApp = ({ config }) => {
   );
   const isRecoveryRoute = recoveryRoute.active;
   const [recoverySessionToken, setRecoverySessionToken] = useState(() =>
-    isRecoveryRoute ? readRecoverySessionTokenFromStorage() : '',
+    isRecoveryRoute ? resolveRecoverySessionTokenFromLocation(window.location) : '',
   );
 
   const [activeTab, setActiveTab] = useState('account');
@@ -398,15 +532,15 @@ const UserApp = ({ config }) => {
       return;
     }
 
-    if (recoveryRoute.shouldNormalizeUrl && typeof window.history?.replaceState === 'function') {
-      const normalizedPath = normalizeRoutePath(
+    const locationToken = resolveRecoverySessionTokenFromLocation(window.location);
+    setRecoverySessionToken(locationToken);
+    sanitizeRecoverySessionUrl({
+      normalizedPath: normalizeRoutePath(
         recoveryRoute.normalizedPath,
         normalizeRoutePath(config.passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH),
-      );
-      window.history.replaceState({}, '', normalizedPath);
-    }
-
-    setRecoverySessionToken(readRecoverySessionTokenFromStorage());
+      ),
+      shouldNormalizePath: recoveryRoute.shouldNormalizeUrl,
+    });
   }, [
     config.passwordResetWebPath,
     isRecoveryRoute,
@@ -561,7 +695,6 @@ const UserApp = ({ config }) => {
         });
       } catch (error) {
         if (!active) return;
-        clearRecoverySessionTokenFromStorage();
         setRecoverySessionToken('');
         setRecoverySessionState({
           valid: false,
@@ -607,7 +740,6 @@ const UserApp = ({ config }) => {
     } catch {
       // no-op
     }
-    clearRecoverySessionTokenFromStorage();
     window.location.assign(resolveLogoutPath(config.loginPath));
   };
 
@@ -673,8 +805,11 @@ const UserApp = ({ config }) => {
         throw new Error('Nao foi possivel abrir a sessao de redefinicao.');
       }
 
-      writeRecoverySessionTokenToStorage(sessionToken);
-      window.location.assign(destination);
+      const navigationTarget = buildRecoverySessionDestinationUrl(destination, sessionToken);
+      if (!navigationTarget) {
+        throw new Error('Nao foi possivel abrir a sessao de redefinicao.');
+      }
+      window.location.assign(navigationTarget);
     } catch (error) {
       setRecoveryError(error?.message || 'Falha ao iniciar sessao de redefinicao.');
     } finally {
@@ -749,7 +884,6 @@ const UserApp = ({ config }) => {
       setPasswordState(resolvePasswordState(payload));
       if (formElement && typeof formElement.reset === 'function') formElement.reset();
       setRecoveryFeedback('Senha redefinida com sucesso. Redirecionando...');
-      clearRecoverySessionTokenFromStorage();
       window.setTimeout(() => {
         window.location.assign('/user/');
       }, 900);

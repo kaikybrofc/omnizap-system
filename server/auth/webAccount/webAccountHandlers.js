@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { scryptSync } from 'node:crypto';
 
 const MY_PROFILE_DEFAULT_STATS = Object.freeze({
   total: 0,
@@ -74,13 +74,23 @@ const PASSWORD_RECOVERY_SESSION_BODY_KEYS = Object.freeze([
 ]);
 
 const PASSWORD_LOGIN_IDENTITY_HASH_NAMESPACE = 'web_user_password_login_identity';
+const PASSWORD_LOGIN_IDENTITY_KDF_SALT = 'web_user_password_login_identity_salt_v1';
+const PASSWORD_LOGIN_IDENTITY_KDF_OPTIONS = Object.freeze({
+  N: 1 << 14,
+  r: 8,
+  p: 1,
+  maxmem: 64 * 1024 * 1024,
+});
 
 const hashPasswordLoginIdentityKey = (identityKey) => {
   const normalizedKey = String(identityKey || '').trim();
   if (!normalizedKey) return null;
-  return createHash('sha256')
-    .update(`${PASSWORD_LOGIN_IDENTITY_HASH_NAMESPACE}|${normalizedKey}`)
-    .digest();
+  return scryptSync(
+    `${PASSWORD_LOGIN_IDENTITY_HASH_NAMESPACE}|${normalizedKey}`,
+    PASSWORD_LOGIN_IDENTITY_KDF_SALT,
+    32,
+    PASSWORD_LOGIN_IDENTITY_KDF_OPTIONS,
+  );
 };
 
 const buildPasswordRecoverySessionPath = ({

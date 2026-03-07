@@ -1441,11 +1441,13 @@ const LoginApp = ({ config }) => {
                                               alt="Foto do perfil Google selecionado"
                                               className="login-google-account-avatar"
                                               loading="lazy"
-                                              referrerPolicy="no-referrer"
+                                              referrerpolicy="no-referrer"
                                             />
                                           `
                                         : html`
-                                            <span className="login-google-account-avatar login-google-account-avatar-fallback">
+                                            <span
+                                              className="login-google-account-avatar login-google-account-avatar-fallback"
+                                            >
                                               ${selectedGoogleAccount.initial}
                                             </span>
                                           `}
@@ -1514,7 +1516,10 @@ const LoginApp = ({ config }) => {
                       <button
                         type="button"
                         className="login-btn-primary login-consent-submit"
-                        disabled=${!pendingGoogleCredential || !consentAccepted || isBusy || consentSaving}
+                        disabled=${!pendingGoogleCredential ||
+                        !consentAccepted ||
+                        isBusy ||
+                        consentSaving}
                         onClick=${() => {
                           void handleFinalizeGoogleLogin();
                         }}
@@ -1526,10 +1531,7 @@ const LoginApp = ({ config }) => {
                             Selecione uma conta Google para habilitar a finalizacao.
                           </p>`
                         : null}
-                      ${!isBusy &&
-                      !consentSaving &&
-                      pendingGoogleCredential &&
-                      !consentAccepted
+                      ${!isBusy && !consentSaving && pendingGoogleCredential && !consentAccepted
                         ? html`<p className="login-consent-helper">
                             Marque os termos para habilitar o botao Finalizar.
                           </p>`
