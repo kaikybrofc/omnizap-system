@@ -14,276 +14,257 @@ const TERMS_CONTENT_HTML = String.raw`
 
       <section class="card">
         <h1>Termos de Uso</h1>
-        <p class="updated">Última atualização: 06/03/2026</p>
+        <p class="updated">Última atualização: 07/03/2026</p>
         <p class="note"><strong>Contato oficial (WhatsApp):</strong> +55 95 9112-2954 (número no link: 559591122954).</p>
         <div class="contact-actions" aria-label="Acesso rápido aos contatos">
           <a class="contact-btn wa" href="https://wa.me/559591122954" target="_blank" rel="noreferrer noopener">WhatsApp oficial</a>
           <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">Instagram @kaikybrofc</a>
         </div>
-        <p class="note"><strong>Aviso importante:</strong> o OmniZap System é um <strong>projeto não oficial</strong>, <strong>sem autorização, afiliação ou endosso da Meta</strong>. O projeto tem foco em <strong>estudo, aprendizado e experimentação técnica</strong>.</p>
-        <p>Ao usar o OmniZap System, você concorda com estas regras de uso e com as práticas de privacidade descritas nesta página.</p>
-        <p class="note">Escrevemos este documento em linguagem direta para explicar, de forma clara, quais dados são mantidos, por quanto tempo e para quais finalidades.</p>
-        <p><strong>Para usar o OmniZap System, você precisa estar ciente de que:</strong> este é um projeto não oficial para estudo; o uso deve seguir a lei e as políticas das plataformas; e alguns dados de uso são mantidos para segurança, suporte e métricas.</p>
-        <p class="note"><strong>Resumo rápido para você, usuário final:</strong> guardamos dados de uso para manter o serviço funcionando, proteger sua conta e gerar métricas que ajudam a melhorar estabilidade e desempenho.</p>
-        <p class="note"><strong>Atualização importante:</strong> com a autenticação por senha no sistema, este termo inclui regras específicas de login, redefinição de senha por e-mail, limites antiabuso e responsabilidades do usuário para proteção da conta.</p>
+        <p class="note"><strong>Aviso institucional:</strong> o OmniZap System é um <strong>projeto independente e não oficial</strong>, sem autorização, afiliação ou endosso da Meta Platforms, Inc.</p>
+        <p>Este instrumento regula o acesso e uso do site, API, painel e funcionalidades de automação disponibilizadas pelo OmniZap System.</p>
+        <p>Ao utilizar a plataforma, o usuário declara ciência e concordância integral com estes Termos de Uso e com a seção de privacidade constante neste documento.</p>
       </section>
 
       <section class="card">
-        <h2>1. Sobre o dono e responsável pelo serviço</h2>
+        <h2>1. Identificação do responsável</h2>
         <ul>
           <li>Responsável/Titular: <strong>Kaiky Brito Ribeiro</strong>.</li>
           <li>Nome empresarial: <strong>59.034.123 KAIKY BRITO RIBEIRO</strong>.</li>
           <li>CNPJ: <strong>59.034.123/0001-96</strong>.</li>
-          <li>Situação cadastral do registro: <strong>Ativa</strong>.</li>
           <li>UF do registro: <strong>RR</strong>.</li>
-          <li>Fonte dos dados cadastrais: documento <code>empresa.pdf</code> (Consulta por CNPJ/Redesim).</li>
-          <li>Instagram informado para contato/perfil público: <a href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">https://www.instagram.com/kaikybrofc/</a>.</li>
+          <li>Canal de contato principal: <a href="https://wa.me/559591122954" target="_blank" rel="noreferrer noopener">https://wa.me/559591122954</a>.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>2. Aceitação e escopo</h2>
+        <h2>2. Aceitação, vigência e capacidade civil</h2>
         <ul>
-          <li>Estes termos se aplicam a todo uso do site, API, painel administrativo e recursos de automação do OmniZap System.</li>
-          <li>O OmniZap System é um projeto independente e não oficial, sem vínculo contratual, autorização ou endosso da Meta Platforms.</li>
-          <li>O uso da plataforma é direcionado a fins de estudo, aprendizado e desenvolvimento técnico.</li>
-          <li>Se você não concordar com qualquer cláusula, não utilize a plataforma.</li>
-          <li>Ao usar o serviço em nome de empresa ou equipe, você declara possuir autorização para aceitar estes termos em nome dessa organização.</li>
+          <li>O uso da plataforma caracteriza aceite eletrônico, livre e informado destes Termos.</li>
+          <li>O usuário declara possuir capacidade civil para contratar ou, quando aplicável, estar assistido/representado por responsável legal.</li>
+          <li>Se o usuário atuar em nome de pessoa jurídica, declara possuir poderes para vincular a organização a este instrumento.</li>
+          <li>Estes Termos permanecem vigentes enquanto houver uso da plataforma ou obrigações legais/contratuais pendentes.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>3. Cadastro, acesso e responsabilidade da conta</h2>
+        <h2>3. Definições contratuais</h2>
         <ul>
-          <li>Você deve fornecer informações verdadeiras e atualizadas ao criar ou manter sua conta.</li>
-          <li>Você é responsável por manter credenciais, tokens e sessões protegidos.</li>
-          <li>Atividades realizadas na sua conta são de sua responsabilidade, inclusive ações feitas por terceiros com seu acesso.</li>
-          <li>Podemos solicitar validações adicionais de identidade para prevenção de fraude e proteção da plataforma.</li>
-        </ul>
-        <h3>3.1 Autenticação por senha</h3>
-        <ul>
-          <li>O acesso ao painel pode exigir e-mail e senha cadastrados na plataforma.</li>
-          <li>Você deve usar senha forte, exclusiva e não reutilizada em outros serviços.</li>
-          <li>Você não deve compartilhar sua senha com terceiros, inclusive equipe sem autorização formal.</li>
-          <li>Recomendamos habilitar boas práticas adicionais de segurança no seu ambiente (por exemplo: navegador atualizado e proteção do dispositivo).</li>
-        </ul>
-        <h3>3.2 Redefinição de senha e e-mail transacional</h3>
-        <ul>
-          <li>A redefinição de senha ocorre por link enviado ao e-mail da conta e depende do controle desse e-mail pelo titular.</li>
-          <li>Links de redefinição podem ser temporários e de uso único, para reduzir risco de reutilização indevida.</li>
-          <li>Podemos aplicar tempo mínimo entre novos envios, limite de tentativas e bloqueios temporários para prevenir spam e abuso do recurso.</li>
-          <li>Solicitações suspeitas de reset podem ser registradas em log e analisadas para proteção da conta e da infraestrutura.</li>
-        </ul>
-        <h3>3.3 Deveres do usuário sobre a conta</h3>
-        <ul>
-          <li>Manter o e-mail da conta atualizado e sob seu controle é responsabilidade do usuário.</li>
-          <li>Você deve encerrar sessões em dispositivos compartilhados e comunicar suspeitas de invasão imediatamente pelos canais oficiais.</li>
-          <li>O OmniZap System pode exigir confirmação adicional de identidade antes de restaurar acesso em casos sensíveis.</li>
+          <li><strong>Plataforma:</strong> ambiente digital OmniZap System (site, API, integrações e painel).</li>
+          <li><strong>Usuário:</strong> pessoa natural ou jurídica que acessa ou utiliza a plataforma.</li>
+          <li><strong>Conta:</strong> credencial de acesso vinculada a usuário, e-mail e/ou identificadores técnicos.</li>
+          <li><strong>Dados pessoais:</strong> informações relacionadas a pessoa natural identificada ou identificável, nos termos da LGPD.</li>
+          <li><strong>Operador:</strong> terceiro que trata dados em nome do controlador, conforme art. 5º, VII, da LGPD.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>4. Uso permitido e condutas proibidas</h2>
+        <h2>4. Objeto e escopo de uso</h2>
         <ul>
-          <li>É permitido usar o sistema para automação e integração com WhatsApp conforme a legislação aplicável e políticas das plataformas envolvidas.</li>
-          <li>É proibido uso para spam, fraude, engenharia social, assédio, violação de privacidade, distribuição de malware ou qualquer atividade ilícita.</li>
-          <li>É proibido tentar obter acesso não autorizado, testar vulnerabilidades sem permissão ou prejudicar a disponibilidade do serviço.</li>
-          <li>Você é responsável pelo conteúdo, comandos, campanhas e mensagens disparadas por sua operação.</li>
-        </ul>
-        <p class="note"><strong>Exemplos práticos de uso proibido:</strong></p>
-        <ul>
-          <li>Disparar mensagens em massa para números sem consentimento (spam).</li>
-          <li>Usar automações para golpes, clonagem de identidade, phishing ou promessa enganosa.</li>
-          <li>Coletar/compartilhar dados pessoais de terceiros sem base legal ou autorização.</li>
-          <li>Tentar derrubar o serviço com sobrecarga de requisições ou burlar limites técnicos.</li>
+          <li>Estes Termos se aplicam a todo uso do site, API, painel administrativo e módulos de automação do OmniZap System.</li>
+          <li>A plataforma possui finalidade técnica e educacional, sem prejuízo de usos operacionais legítimos pelo usuário.</li>
+          <li>O usuário é integralmente responsável pela regularidade jurídica do uso que fizer do sistema em seu contexto de negócio.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>5. Quais dados mantemos sobre o uso</h2>
-        <p class="note">Esta seção foi escrita para ser objetiva: estes são os dados que podem ser mantidos quando você usa o OmniZap System.</p>
-        <h3>5.1 Dados informados por você</h3>
+        <h2>5. Cadastro, autenticação e segurança da conta</h2>
         <ul>
-          <li>Nome, e-mail, telefone, identificadores de conta e demais dados informados em formulários, suporte ou cadastro.</li>
-          <li>O e-mail de login pode ser utilizado para autenticação da conta e para envio de comunicações do projeto (como avisos operacionais, atualizações de funcionalidades, manutenção e segurança).</li>
-          <li>Configurações de automação, preferências do painel, integrações habilitadas e parâmetros definidos por você.</li>
+          <li>O usuário deve fornecer dados verdadeiros, atualizados e completos para cadastro e manutenção da conta.</li>
+          <li>Credenciais, tokens e sessões são pessoais e intransferíveis, cabendo ao usuário o dever de guarda e sigilo.</li>
+          <li>O responsável pela conta responde pelas ações realizadas com suas credenciais, inclusive por terceiros autorizados ou não.</li>
+          <li>Podem ser aplicadas medidas adicionais de verificação de identidade em hipóteses de risco, fraude, abuso ou exigência legal.</li>
         </ul>
-        <h3>5.2 Dados coletados automaticamente</h3>
+        <h3>5.1 Redefinição de senha e controles antiabuso</h3>
         <ul>
-          <li>Logs técnicos como IP, data e hora de acesso, user-agent, tipo de dispositivo, sistema operacional, páginas/rotas utilizadas, eventos de erro e desempenho.</li>
-          <li>Identificadores técnicos de sessão e segurança para autenticação, prevenção de abuso e auditoria operacional.</li>
-        </ul>
-        <h3>5.3 Dados operacionais de mensagens e mídia</h3>
-        <ul>
-          <li>Mensagens, comandos, anexos e metadados processados quando necessários para executar funcionalidades do bot, automações, estatísticas e organização de packs.</li>
-          <li>Ao adicionar o bot em grupos, você declara ciência de que interações do grupo podem ser processadas para o funcionamento dos recursos contratados.</li>
-        </ul>
-        <h3>5.4 Dados de pagamento (quando aplicável)</h3>
-        <ul>
-          <li>Informações de cobrança e status de assinatura podem ser processados por provedores de pagamento parceiros.</li>
-          <li>O OmniZap System não armazena número completo de cartão quando o processamento ocorre por gateway terceirizado.</li>
-        </ul>
-        <p class="note">Resumo: mantemos dados de uso necessários para operar o serviço com segurança e qualidade.</p>
-      </section>
-
-      <section class="card">
-        <h2>6. Como usamos esses dados</h2>
-        <ol>
-          <li>Prestar, manter e melhorar os serviços, incluindo API, painel, bot e recursos de automação.</li>
-          <li>Executar autenticação, controle de acesso, prevenção a fraude, segurança e resposta a incidentes.</li>
-          <li>Fornecer suporte, responder solicitações e enviar comunicações para o e-mail de login sobre o projeto, incluindo atualizações técnicas, novidades relevantes, manutenção e avisos de segurança.</li>
-          <li>Cumprir obrigações legais, regulatórias e ordens de autoridades competentes.</li>
-          <li>Gerar métricas de uso para acompanhar desempenho, estabilidade e evolução do produto (por exemplo: volume de comandos, funcionalidades mais usadas, taxa de erros e capacidade da infraestrutura).</li>
-        </ol>
-        <p>Essas métricas são usadas para melhorar a experiência do usuário final e manter o sistema estável. Sempre que possível, usamos dados agregados/estatísticos para análises de produto e operação. O tratamento de dados pessoais pode se basear em execução de contrato, legítimo interesse, cumprimento de obrigação legal e consentimento, conforme a LGPD.</p>
-        <p class="note">Quando aplicável por lei, você pode solicitar o descadastramento de comunicações informativas não essenciais. Comunicados obrigatórios de conta, segurança e operação podem continuar sendo enviados.</p>
-      </section>
-
-      <section class="card">
-        <h2>7. Compartilhamento de dados</h2>
-        <ul>
-          <li>Com operadores e fornecedores que apoiam infraestrutura, hospedagem, monitoramento, autenticação, mensagens e cobrança.</li>
-          <li>Com parceiros de integração, quando necessário para executar funcionalidades solicitadas por você.</li>
-          <li>Com autoridades públicas, quando houver obrigação legal, ordem judicial ou requisição válida.</li>
-          <li>Não comercializamos dados pessoais como produto.</li>
+          <li>Fluxos de recuperação de acesso podem exigir e-mail válido, token temporário, expiração automática e uso único do link.</li>
+          <li>Podem ser aplicados limite de tentativas, janela mínima entre solicitações e bloqueio temporário por comportamento suspeito.</li>
+          <li>Eventos críticos de segurança podem ser registrados para trilha de auditoria e prevenção de incidentes.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>8. Onde e por quanto tempo os dados ficam armazenados</h2>
+        <h2>6. Uso permitido e condutas proibidas</h2>
         <ul>
-          <li>Os dados de uso ficam armazenados em infraestrutura de hospedagem e banco de dados utilizados para operação do OmniZap System.</li>
-          <li>Registros técnicos (logs) podem ficar em serviços de monitoramento e auditoria para segurança, diagnóstico e geração de métricas.</li>
-          <li>Os dados são mantidos pelo tempo necessário para cumprir as finalidades informadas, obrigações legais e proteção contra fraudes/abusos.</li>
-          <li>Quando possível e solicitado, dados podem ser anonimizados, bloqueados ou excluídos, respeitados prazos legais e obrigações de guarda.</li>
-          <li>Backups e logs podem permanecer por períodos adicionais de segurança e continuidade do serviço.</li>
+          <li>É permitido utilizar a plataforma para automação e integração, desde que observadas a legislação aplicável e as políticas de terceiros integrados.</li>
+          <li>É vedado o uso para spam, fraude, phishing, engenharia social, assédio, malware, invasão de sistemas ou qualquer prática ilícita.</li>
+          <li>É vedada a coleta, o tratamento ou o compartilhamento de dados de terceiros sem base legal adequada.</li>
+          <li>É vedado testar vulnerabilidades, realizar varreduras agressivas ou provocar degradação de serviço sem autorização formal prévia.</li>
+          <li>O usuário responderá civil, administrativa e criminalmente por conteúdo e operações executadas por sua conta.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>9. Segurança da informação</h2>
+        <h2>7. Tratamento de dados e fundamentos jurídicos</h2>
+        <p>O tratamento de dados pessoais poderá ocorrer, conforme o caso concreto, com fundamento nas bases legais do art. 7º da LGPD, incluindo:</p>
         <ul>
-          <li>Adotamos controles técnicos e organizacionais razoáveis para proteger dados contra acesso não autorizado, perda, alteração ou vazamento.</li>
-          <li>Os mecanismos incluem controles de acesso, monitoramento, segregação de ambientes e medidas de hardening, quando aplicável.</li>
-          <li>Para conta com senha, aplicamos camadas de proteção de autenticação, monitoramento de tentativas e medidas de mitigação contra abuso.</li>
-          <li>O fluxo de recuperação de senha por e-mail pode incluir expiração de token, invalidação após uso e trilha de auditoria.</li>
-          <li>Podemos usar limitação de taxa (rate limit), bloqueios temporários e filtros de tráfego para conter spam, força bruta e automações maliciosas.</li>
-          <li>Dados de produção e credenciais operacionais não fazem parte do conteúdo público do projeto open source.</li>
-          <li>Nenhum sistema é totalmente imune a falhas; portanto, não é possível garantir segurança absoluta.</li>
-        </ul>
-        <p class="note"><strong>Boas práticas do usuário:</strong> use senha forte, não compartilhe credenciais, revise sessões ativas e mantenha seu e-mail protegido com verificação em duas etapas quando disponível.</p>
-      </section>
-
-      <section class="card">
-        <h2>10. Projeto Open Source, comunidade e colaboração</h2>
-        <ul>
-          <li>O OmniZap System segue uma filosofia open source: o código-fonte pode ser estudado, auditado, evoluído e adaptado, conforme os termos da licença do repositório.</li>
-          <li>Nosso objetivo é criar tecnologia útil para que mais pessoas possam aprender, usar, contribuir e melhorar o projeto coletivamente.</li>
-          <li>A comunidade open source acelera correções, aumenta transparência técnica e incentiva revisão pública de qualidade e segurança.</li>
-          <li>Contribuições da comunidade (issues, pull requests, documentação e testes) são bem-vindas quando respeitam padrões técnicos, legais e éticos.</li>
-          <li>Conteúdo enviado para contribuição não pode incluir malware, backdoors, violações de direitos autorais ou dados pessoais sem base legal.</li>
-          <li>Open source não significa ausência de regras: uso em produção continua sujeito a estes termos, à legislação aplicável e às políticas das plataformas integradas.</li>
+          <li>execução de contrato e de procedimentos preliminares relacionados à contratação;</li>
+          <li>cumprimento de obrigação legal ou regulatória;</li>
+          <li>exercício regular de direitos em processo judicial, administrativo ou arbitral;</li>
+          <li>legítimo interesse do controlador, observados direitos e liberdades fundamentais do titular;</li>
+          <li>consentimento, quando exigido pela legislação aplicável.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>11. Cookies e tecnologias semelhantes</h2>
+        <h2 id="politica-de-privacidade">8. Política de Privacidade (termos complementares)</h2>
         <ul>
-          <li>Utilizamos cookies e identificadores técnicos para autenticação, sessão, segurança e funcionamento essencial da plataforma.</li>
-          <li>Também podem ser usados recursos analíticos para entender uso e desempenho, respeitadas exigências legais aplicáveis.</li>
-          <li>Você pode gerenciar cookies no navegador, ciente de que certas funcionalidades podem deixar de operar corretamente.</li>
+          <li><strong>Finalidade:</strong> dados são tratados para operação da plataforma, autenticação, segurança, suporte e evolução técnica do serviço.</li>
+          <li><strong>Necessidade:</strong> coleta limitada ao mínimo necessário para execução das funcionalidades contratadas/ativadas.</li>
+          <li><strong>Transparência:</strong> este documento descreve categorias de dados, finalidades e hipóteses de compartilhamento.</li>
+          <li><strong>Qualidade dos dados:</strong> o titular poderá solicitar correções de dados incompletos, inexatos ou desatualizados.</li>
+          <li><strong>Segurança:</strong> são adotadas medidas técnicas e administrativas razoáveis para redução de risco de acesso indevido ou vazamento.</li>
+          <li><strong>Não comercialização:</strong> dados pessoais não são comercializados como produto.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>12. Direitos do titular de dados (LGPD)</h2>
-        <p>Nos termos da Lei nº 13.709/2018 (LGPD), você pode solicitar:</p>
+        <h2>9. Direitos do titular (LGPD)</h2>
+        <p>Nos termos do art. 18 da Lei nº 13.709/2018 (LGPD), o titular poderá requerer, quando cabível:</p>
         <ul>
-          <li>Confirmação da existência de tratamento e acesso aos dados.</li>
-          <li>Correção de dados incompletos, inexatos ou desatualizados.</li>
-          <li>Anonimização, bloqueio ou eliminação de dados desnecessários ou tratados em desconformidade.</li>
-          <li>Portabilidade, revogação de consentimento e oposição ao tratamento, quando cabível.</li>
+          <li>confirmação da existência de tratamento e acesso aos dados;</li>
+          <li>correção de dados incompletos, inexatos ou desatualizados;</li>
+          <li>anonimização, bloqueio ou eliminação de dados desnecessários, excessivos ou tratados em desconformidade;</li>
+          <li>portabilidade, eliminação de dados tratados com consentimento e informação sobre compartilhamentos;</li>
+          <li>revogação do consentimento e oposição ao tratamento, observados os limites legais.</li>
         </ul>
-        <p>Para exercer direitos, solicitar remoção de dados ou esclarecer dúvidas, entre em contato com o administrador:</p>
-        <p><strong>WhatsApp (contato direto):</strong> +55 95 9112-2954 <br /><strong>Número no link:</strong> 559591122954</p>
+        <p>Para exercício de direitos e demandas de privacidade:</p>
         <div class="contact-actions" aria-label="Contatos para privacidade">
-          <a class="contact-btn wa" href="https://wa.me/559591122954?text=Ol%C3%A1%2C%20gostaria%20de%20solicitar%20a%20remo%C3%A7%C3%A3o%20dos%20meus%20dados%20do%20OmniZap%20System." target="_blank" rel="noreferrer noopener">Solicitar via WhatsApp</a>
+          <a class="contact-btn wa" href="https://wa.me/559591122954?text=Ol%C3%A1%2C%20gostaria%20de%20exercer%20meus%20direitos%20de%20titular%20de%20dados%20(LGPD)." target="_blank" rel="noreferrer noopener">Solicitar via WhatsApp</a>
           <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">Contato no Instagram</a>
         </div>
       </section>
 
       <section class="card">
-        <h2 id="politica-de-privacidade">13. Política de Privacidade (termos complementares)</h2>
+        <h2>10. Compartilhamento, operadores e transferência internacional</h2>
         <ul>
-          <li><strong>Minimização:</strong> coletamos e mantemos apenas os dados necessários para operação, segurança, suporte e melhoria dos serviços.</li>
-          <li><strong>Finalidade e transparência:</strong> o tratamento de dados é feito para finalidades legítimas, específicas e informadas neste documento.</li>
-          <li><strong>Bases legais:</strong> o tratamento pode ocorrer com base em execução de contrato, legítimo interesse, cumprimento de obrigação legal/regulatória e consentimento, quando exigido.</li>
-          <li><strong>Controle do titular:</strong> pedidos de acesso, correção, oposição e exclusão são avaliados conforme a LGPD e atendidos nos prazos legais aplicáveis.</li>
-          <li><strong>Retenção e descarte:</strong> dados são eliminados, anonimizados ou bloqueados ao fim da finalidade, salvo hipóteses legais de retenção.</li>
-          <li><strong>Segurança e prevenção:</strong> adotamos medidas técnicas e administrativas para reduzir risco de acesso indevido, vazamento, alteração ou indisponibilidade.</li>
-          <li><strong>Incidentes:</strong> em caso de incidente relevante de segurança envolvendo dados pessoais, as medidas cabíveis serão adotadas, inclusive comunicação às autoridades e titulares quando exigido por lei.</li>
-          <li><strong>Crianças e adolescentes:</strong> o usuário que utiliza o serviço declara ter capacidade legal para contratação ou autorização do responsável legal, quando aplicável.</li>
+          <li>Poderá haver compartilhamento com operadores e fornecedores de infraestrutura, monitoramento, autenticação, comunicação e suporte.</li>
+          <li>Compartilhamentos com terceiros ocorrerão no limite necessário para execução das finalidades legítimas da plataforma.</li>
+          <li>Dados poderão ser fornecidos a autoridades públicas mediante obrigação legal, ordem judicial ou requisição válida.</li>
+          <li>Em transferências internacionais, serão adotadas salvaguardas compatíveis com a legislação brasileira de proteção de dados.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>14. Transferência internacional de dados</h2>
-        <p>Alguns fornecedores e serviços podem operar fora do Brasil. Nesses casos, medidas contratuais e salvaguardas adequadas são adotadas para proteção dos dados, conforme legislação aplicável.</p>
-      </section>
-
-      <section class="card">
-        <h2>15. Conteúdo, propriedade intelectual e direitos de terceiros</h2>
+        <h2>11. Retenção, registros e evidências digitais</h2>
         <ul>
-          <li>Você deve possuir direitos e autorizações sobre mídias, textos e materiais enviados para processamento.</li>
-          <li>Conteúdo que viole direitos autorais, marca, imagem, privacidade ou legislação poderá ser removido e poderá resultar em suspensão de acesso.</li>
-          <li>O OmniZap System, sua marca, código e elementos de interface são protegidos por direitos de propriedade intelectual.</li>
+          <li>Dados e logs podem ser armazenados pelo período necessário para cumprimento de finalidades contratuais, segurança e obrigações legais.</li>
+          <li>Quando aplicável ao modelo operacional da plataforma, registros de acesso a aplicações poderão ser mantidos nos termos do Marco Civil da Internet.</li>
+          <li>Backups e registros de auditoria podem subsistir por prazo adicional para continuidade, recuperação e integridade probatória.</li>
+          <li>Após o término da finalidade, os dados poderão ser eliminados, bloqueados ou anonimizados, ressalvadas hipóteses legais de retenção.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>16. API, disponibilidade e mudanças técnicas</h2>
+        <h2>12. Segurança da informação e resposta a incidentes</h2>
         <ul>
-          <li>A API e os recursos podem ter limites de uso, janelas de manutenção, alterações de versão e ajustes de capacidade.</li>
-          <li>Não garantimos disponibilidade ininterrupta, latência mínima ou ausência de falhas em ambiente de internet.</li>
+          <li>São adotadas práticas de hardening, controle de acesso, limitação de taxa, segregação de ambientes e monitoramento de eventos críticos.</li>
+          <li>Nenhum ambiente computacional é integralmente imune a falhas; por isso, não há garantia de invulnerabilidade absoluta.</li>
+          <li>Na hipótese de incidente relevante envolvendo dados pessoais, serão adotadas as medidas técnicas, administrativas e legais cabíveis.</li>
+          <li>Quando exigido em lei, serão realizadas comunicações às autoridades competentes e aos titulares afetados.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>17. Suspensão e encerramento</h2>
+        <h2>13. Propriedade intelectual e conteúdo de terceiros</h2>
         <ul>
-          <li>Podemos suspender ou encerrar acesso em caso de violação destes termos, risco de segurança, ordem legal ou uso abusivo da infraestrutura.</li>
-          <li>Você pode interromper o uso do serviço a qualquer momento, sujeito às condições contratuais aplicáveis.</li>
+          <li>O usuário declara possuir direitos, licenças e autorizações necessárias sobre os conteúdos submetidos à plataforma.</li>
+          <li>Conteúdo que infrinja direitos autorais, marca, imagem, privacidade ou legislação poderá ser removido, sem aviso prévio, para mitigação de risco jurídico.</li>
+          <li>O software, código-fonte, documentação, layout, sinais distintivos e demais ativos do OmniZap System permanecem protegidos pela legislação aplicável.</li>
+          <li>Pedidos de remoção por violação de direitos poderão ser enviados aos canais oficiais, com documentação mínima comprobatória.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>18. Limitação de responsabilidade</h2>
-        <p>O OmniZap System é fornecido no estado em que se encontra. Na extensão permitida por lei, não nos responsabilizamos por danos indiretos, lucros cessantes, perda de oportunidade, bloqueios de conta de terceiros, indisponibilidade externa, falhas de integração ou uso indevido da plataforma por usuários.</p>
-        <p class="note"><strong>Em termos simples:</strong> vamos trabalhar para manter tudo estável, mas não conseguimos garantir ausência total de falhas e não cobrimos prejuízos causados por fatores externos, decisões de terceiros ou uso indevido da conta.</p>
+        <h2>14. API, disponibilidade e alterações técnicas</h2>
+        <ul>
+          <li>A API e demais recursos podem sofrer evolução, descontinuidade, limitação de uso, versionamento e janelas de manutenção.</li>
+          <li>Não se garante disponibilidade contínua, latência mínima, compatibilidade irrestrita com terceiros ou ausência completa de falhas.</li>
+          <li>Integrações com serviços de terceiros dependem de condições externas e podem ser alteradas sem controle direto da plataforma.</li>
+        </ul>
       </section>
 
       <section class="card">
-        <h2>19. Alterações destes termos</h2>
-        <p>Podemos atualizar este documento periodicamente para refletir mudanças legais, técnicas e operacionais. A versão vigente sempre será a publicada nesta página, com a data de atualização correspondente.</p>
+        <h2>15. Suspensão, bloqueio cautelar e encerramento</h2>
+        <ul>
+          <li>Poderá ocorrer suspensão ou bloqueio cautelar em caso de indício de abuso, fraude, violação de segurança, risco regulatório ou ordem de autoridade competente.</li>
+          <li>O acesso poderá ser encerrado em caso de descumprimento contratual, uso ilícito, inobservância de políticas técnicas ou determinação legal.</li>
+          <li>O usuário poderá encerrar o uso a qualquer momento, observadas obrigações pendentes e retenções legalmente obrigatórias.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>16. Responsabilidade do usuário e indenização regressiva</h2>
+        <ul>
+          <li>O usuário compromete-se a indenizar regressivamente o OmniZap System por danos, custos e despesas decorrentes de uso ilícito ou violação destes Termos.</li>
+          <li>Incluem-se, quando aplicável, custos de defesa, perícia, cumprimento de ordem judicial e sanções atribuíveis à conduta do usuário.</li>
+          <li>Esta cláusula não afasta direitos inderrogáveis previstos em lei.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>17. Limitação de responsabilidade</h2>
+        <p>Na extensão máxima permitida pela legislação aplicável, o OmniZap System não será responsável por danos indiretos, lucros cessantes, perdas de oportunidade, indisponibilidade de terceiros, bloqueios externos de conta, força maior, caso fortuito, atos de terceiros ou uso indevido da plataforma pelo usuário.</p>
+        <p class="note"><strong>Nota:</strong> nada neste instrumento exclui responsabilidade nos casos em que a legislação brasileira expressamente proíba limitação ou exclusão.</p>
+      </section>
+
+      <section class="card">
+        <h2>18. Comunicações, notificações e validade eletrônica</h2>
+        <ul>
+          <li>Comunicações operacionais e de segurança podem ser realizadas por e-mail, painéis internos, avisos no site e canais oficiais de atendimento.</li>
+          <li>O usuário reconhece validade jurídica de registros eletrônicos, logs, comprovantes de envio e trilhas de auditoria como meios de prova.</li>
+          <li>Notificações devem conter identificação mínima do solicitante e descrição objetiva da demanda para tratamento adequado.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>19. Alterações destes Termos</h2>
+        <p>Estes Termos poderão ser atualizados a qualquer tempo para refletir mudanças legais, regulatórias, jurisprudenciais, técnicas ou operacionais. A versão vigente será aquela publicada nesta página, com data de atualização.</p>
       </section>
 
       <section class="card">
         <h2>20. Contato e foro</h2>
-        <p>Para questões relacionadas a estes termos, privacidade ou proteção de dados, utilize os canais oficiais abaixo. Fica eleito o foro competente no Brasil, conforme legislação aplicável, para dirimir eventuais controvérsias.</p>
+        <p>Para questões contratuais, privacidade e proteção de dados, utilize os canais oficiais abaixo.</p>
         <div class="contact-actions" aria-label="Canais oficiais de contato">
           <a class="contact-btn wa" href="https://wa.me/559591122954" target="_blank" rel="noreferrer noopener">WhatsApp oficial</a>
           <a class="contact-btn ig" href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">Instagram oficial</a>
         </div>
         <ul>
-          <li>WhatsApp oficial: <strong>+55 95 9112-2954</strong> (número do link: <strong>559591122954</strong>).</li>
+          <li>WhatsApp oficial: <strong>+55 95 9112-2954</strong>.</li>
           <li>Link direto: <a href="https://wa.me/559591122954" target="_blank" rel="noreferrer noopener">https://wa.me/559591122954</a>.</li>
           <li>Instagram oficial: <a href="https://www.instagram.com/kaikybrofc/" target="_blank" rel="noreferrer noopener">https://www.instagram.com/kaikybrofc/</a>.</li>
+          <li>Fica eleito o foro da Comarca de Boa Vista/RR, com renúncia a qualquer outro, por mais privilegiado que seja, ressalvadas hipóteses legais de competência absoluta e normas protetivas aplicáveis ao consumidor.</li>
         </ul>
       </section>
 
       <section class="card">
-        <h2>21. Histórico de alterações</h2>
+        <h2>21. Referências legais oficiais (Brasil)</h2>
         <ul>
+          <li>Constituição Federal de 1988 (direitos e garantias fundamentais): <a href="https://www.planalto.gov.br/ccivil_03/constituicao/constituicao.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
+          <li>Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais - LGPD): <a href="https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
+          <li>Lei nº 12.965/2014 (Marco Civil da Internet): <a href="https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2014/lei/l12965.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
+          <li>Decreto nº 8.771/2016 (regulamenta o Marco Civil da Internet): <a href="https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2016/decreto/d8771.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
+          <li>Lei nº 8.078/1990 (Código de Defesa do Consumidor): <a href="https://www.planalto.gov.br/ccivil_03/leis/l8078compilado.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
+          <li>Lei nº 10.406/2002 (Código Civil): <a href="https://www.planalto.gov.br/ccivil_03/leis/2002/l10406compilada.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
+          <li>Lei nº 9.610/1998 (Direitos Autorais): <a href="https://www.planalto.gov.br/ccivil_03/leis/l9610.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
+          <li>Lei nº 9.609/1998 (Lei de Software): <a href="https://www.planalto.gov.br/ccivil_03/leis/l9609.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
+          <li>ANPD - direitos do titular e canais institucionais: <a href="https://www.gov.br/anpd/pt-br" target="_blank" rel="noreferrer noopener">gov.br/anpd</a>.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>22. Disposições gerais</h2>
+        <ul>
+          <li>A eventual tolerância quanto ao descumprimento de obrigação não importará novação, renúncia de direito ou alteração contratual tácita.</li>
+          <li>A nulidade ou inexequibilidade de cláusula específica não invalidará as demais disposições, que permanecerão em pleno vigor.</li>
+          <li>Este instrumento representa o acordo integral entre as partes sobre seu objeto, prevalecendo sobre entendimentos anteriores conflitantes.</li>
+          <li>Os títulos das cláusulas possuem finalidade apenas organizacional e não restringem a interpretação do conteúdo jurídico.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>23. Histórico de alterações</h2>
+        <ul>
+          <li><strong>07/03/2026:</strong> revisão integral em tom jurídico, inclusão de cláusulas de validade eletrônica, indenização regressiva, disposições gerais e seção de referências legais oficiais (Planalto/ANPD).</li>
           <li><strong>06/03/2026:</strong> inclusão de cláusulas sobre autenticação por senha, redefinição por e-mail com controles antiabuso, filosofia open source, comunidade e reforço das diretrizes de segurança de dados.</li>
           <li><strong>05/03/2026:</strong> inclusão de cláusula sobre uso do e-mail de login para envio de informações do projeto, comunicados operacionais e avisos de segurança.</li>
           <li><strong>28/02/2026:</strong> inclusão de contatos explícitos, aviso de projeto não oficial, termos complementares de privacidade, exemplos práticos de uso proibido e linguagem simplificada em seções jurídicas.</li>
