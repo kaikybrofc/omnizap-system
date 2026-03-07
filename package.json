@@ -106,7 +106,7 @@
   "devDependencies": {
     "@tailwindcss/cli": "^4.2.1",
     "daisyui": "^5.5.19",
-    "eslint": "^9.39.2",
+    "eslint": "^10.0.1",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.2.1",
     "vite": "^6.4.1"
