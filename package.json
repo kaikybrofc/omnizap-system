@@ -101,7 +101,7 @@
     "webp-conv": "github:kaikybrofc/webp-conv",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
-    "zod": "^3.25.76"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.2.1",
