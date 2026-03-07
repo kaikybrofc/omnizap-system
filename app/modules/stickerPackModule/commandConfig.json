@@ -1,0 +1,119 @@
+{
+  "schema_version": "1.1.0",
+  "module": "stickerPackModule",
+  "enabled": true,
+  "source_files": [
+    "stickerPackCommandHandlers.js"
+  ],
+  "commands": [
+    {
+      "name": "pack",
+      "aliases": [
+        "packs"
+      ],
+      "descricao": "Gerencia packs de figurinhas (criar, listar, adicionar, enviar).",
+      "metodos_de_uso": [
+        "<prefix>pack help",
+        "<prefix>pack create meupack",
+        "<prefix>pack list",
+        "<prefix>pack add <pack>",
+        "<prefix>pack send <pack>"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "rate limit por janela e limite de itens por pack",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "subcomando e argumentos do pack",
+        "figurinha da mensagem atual/citada (para add/setcover)",
+        "estado de rate limit por usuario",
+        "dados de packs do usuario no armazenamento interno"
+      ],
+      "enabled": true,
+      "categoria": "figurinhas",
+      "subcomandos": [
+        "help",
+        "create",
+        "list",
+        "info",
+        "add",
+        "setcover",
+        "setdesc",
+        "setpublisher",
+        "send",
+        "rename",
+        "remove",
+        "delete",
+        "reorder"
+      ],
+      "argumentos": [
+        {
+          "nome": "subcomando",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "ação de gerenciamento de pack",
+          "default": null
+        },
+        {
+          "nome": "parametros",
+          "tipo": "array<string>",
+          "obrigatorio": false,
+          "validacao": "dependente do subcomando",
+          "default": []
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": 20,
+        "janela_ms": 60000,
+        "escopo": "usuario"
+      },
+      "dependencias_externas": [
+        "banco de dados de packs",
+        "armazenamento de assets de figurinha"
+      ],
+      "efeitos_colaterais": [
+        "cria/atualiza packs no banco",
+        "pode armazenar/remover assets de figurinha"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_pack",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "stickerPackModule",
+          "pack"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do remetente",
+          "conteúdo de figurinhas adicionadas ao pack",
+          "metadados de packs do usuário"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    }
+  ]
+}

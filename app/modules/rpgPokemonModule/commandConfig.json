@@ -1,0 +1,131 @@
+{
+  "schema_version": "1.1.0",
+  "module": "rpgPokemonModule",
+  "enabled": true,
+  "source_files": [
+    "rpgPokemonCommand.js"
+  ],
+  "commands": [
+    {
+      "name": "rpg",
+      "aliases": [],
+      "descricao": "Comando principal do RPG Pokemon (exploracao, batalha, loja e social).",
+      "metodos_de_uso": [
+        "<prefix>rpg help",
+        "<prefix>rpg start",
+        "<prefix>rpg explorar",
+        "<prefix>rpg atacar 1"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "subcomandos permitidos pelo modulo",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "acao/subcomando do RPG e argumentos complementares",
+        "mencoes usadas em interacoes sociais/PvP",
+        "estado do jogador e da sessao RPG no backend"
+      ],
+      "enabled": true,
+      "categoria": "jogos",
+      "subcomandos": [
+        "help",
+        "ajuda",
+        "start",
+        "perfil",
+        "explorar",
+        "atacar",
+        "capturar",
+        "fugir",
+        "time",
+        "escolher",
+        "loja",
+        "comprar",
+        "usar",
+        "bolsa",
+        "pokedex",
+        "evolucao",
+        "missoes",
+        "viajar",
+        "tm",
+        "berry",
+        "raid",
+        "desafiar",
+        "pvp",
+        "ginasio",
+        "trade",
+        "coop",
+        "evento",
+        "social",
+        "karma",
+        "engajamento"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "subcomando permitido do RPG",
+          "default": null
+        },
+        {
+          "nome": "parametros",
+          "tipo": "array<string>",
+          "obrigatorio": false,
+          "validacao": "dependente da ação",
+          "default": []
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "serviços internos de RPG"
+      ],
+      "efeitos_colaterais": [
+        "altera estado de jogo no backend",
+        "envia retorno de ação"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_rpg",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "rpgPokemonModule",
+          "rpg"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    }
+  ]
+}

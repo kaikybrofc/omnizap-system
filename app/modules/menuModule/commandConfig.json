@@ -1,0 +1,102 @@
+{
+  "schema_version": "1.1.0",
+  "module": "menuModule",
+  "enabled": true,
+  "source_files": [
+    "menus.js"
+  ],
+  "commands": [
+    {
+      "name": "menu",
+      "aliases": [],
+      "descricao": "Exibe o menu principal ou um menu por categoria.",
+      "metodos_de_uso": [
+        "<prefix>menu",
+        "<prefix>menu anime",
+        "<prefix>menu stats"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "categoria solicitada no menu (quando informada)"
+      ],
+      "enabled": true,
+      "categoria": "menu",
+      "subcomandos": [
+        "figurinhas",
+        "sticker",
+        "stickers",
+        "midia",
+        "media",
+        "quote",
+        "quotes",
+        "ia",
+        "ai",
+        "stats",
+        "estatisticas",
+        "anime"
+      ],
+      "argumentos": [
+        {
+          "nome": "categoria",
+          "tipo": "string",
+          "obrigatorio": false,
+          "validacao": "categoria suportada do menu",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "URL de imagem do menu (quando configurada)"
+      ],
+      "efeitos_colaterais": [
+        "envia menu no chat"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_menu",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "menuModule",
+          "menu"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    }
+  ]
+}

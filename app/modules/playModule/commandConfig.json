@@ -1,0 +1,176 @@
+{
+  "schema_version": "1.1.0",
+  "module": "playModule",
+  "enabled": true,
+  "source_files": [
+    "playCommand.js"
+  ],
+  "commands": [
+    {
+      "name": "play",
+      "aliases": [],
+      "descricao": "Baixa/gera audio a partir de link ou busca no YouTube.",
+      "metodos_de_uso": [
+        "<prefix>play <link>",
+        "<prefix>play <termo de busca>"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "arquivo ate PLAY_MAX_MB (padrao 100 MB)",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "link ou termo de busca enviado no comando",
+        "metadados de fila/download retornados pelo servico de midia",
+        "informacoes de tamanho do arquivo para validacao de limite"
+      ],
+      "enabled": true,
+      "categoria": "midia",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "consulta",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "URL YouTube ou termo de busca",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "serviço YTDLS/Downloader",
+        "ffmpeg",
+        "ffprobe"
+      ],
+      "efeitos_colaterais": [
+        "baixa mídia temporária",
+        "envia áudio no chat"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_play",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "playModule",
+          "play"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "playvid",
+      "aliases": [],
+      "descricao": "Baixa video a partir de link ou busca no YouTube.",
+      "metodos_de_uso": [
+        "<prefix>playvid <link>",
+        "<prefix>playvid <termo de busca>"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "arquivo ate PLAY_MAX_MB (padrao 100 MB)",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "link ou termo de busca enviado no comando",
+        "metadados de fila/download retornados pelo servico de midia",
+        "informacoes de tamanho e formato de video para validacao"
+      ],
+      "enabled": true,
+      "categoria": "midia",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "consulta",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "URL YouTube ou termo de busca",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "serviço YTDLS/Downloader",
+        "ffmpeg",
+        "ffprobe"
+      ],
+      "efeitos_colaterais": [
+        "baixa mídia temporária",
+        "envia vídeo no chat"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_playvid",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "playModule",
+          "playvid"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    }
+  ]
+}

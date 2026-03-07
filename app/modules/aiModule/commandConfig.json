@@ -1,0 +1,286 @@
+{
+  "schema_version": "1.1.0",
+  "module": "aiModule",
+  "enabled": true,
+  "source_files": [
+    "catCommand.js"
+  ],
+  "commands": [
+    {
+      "name": "cat",
+      "aliases": [],
+      "descricao": "Perguntas para IA com suporte opcional a resposta em audio.",
+      "metodos_de_uso": [
+        "<prefix>cat sua pergunta",
+        "<prefix>cat --audio sua pergunta"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "texto sujeito a limites da API",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "prompt textual enviado ao modelo de IA",
+        "flags de resposta (ex.: audio/voz)",
+        "midia anexada/citada para analise multimodal (quando houver)",
+        "identidade do usuario para sessao e contexto de conversa"
+      ],
+      "enabled": true,
+      "categoria": "ia",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "prompt",
+          "tipo": "string",
+          "obrigatorio": false,
+          "validacao": "texto livre; pode usar contexto de mídia",
+          "default": null
+        },
+        {
+          "nome": "flags",
+          "tipo": "array<string>",
+          "obrigatorio": false,
+          "validacao": "aliases de áudio/texto suportados",
+          "default": []
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "OpenAI API"
+      ],
+      "efeitos_colaterais": [
+        "envia resposta textual/áudio de IA"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_cat",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "aiModule",
+          "cat"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "prompt textual enviado",
+          "conteúdo de mídia anexada/citada (quando houver)"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "catimg",
+      "aliases": [
+        "catimage"
+      ],
+      "descricao": "Gera/edita imagem com IA por prompt.",
+      "metodos_de_uso": [
+        "<prefix>catimg seu prompt",
+        "<prefix>catimg --size 1536x1024 seu prompt"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "imagem de entrada ate OPENAI_MAX_IMAGE_MB (padrao 50 MB)",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "prompt de geracao/edicao de imagem",
+        "opcoes de geracao (size, quality, format, background)",
+        "imagem enviada/citada para edicao (quando houver)"
+      ],
+      "enabled": true,
+      "categoria": "ia",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "prompt",
+          "tipo": "string",
+          "obrigatorio": false,
+          "validacao": "texto livre para gerar/editar imagem",
+          "default": null
+        },
+        {
+          "nome": "size",
+          "tipo": "string",
+          "obrigatorio": false,
+          "validacao": "auto|1024x1024|1024x1536|1536x1024",
+          "default": "auto"
+        },
+        {
+          "nome": "quality",
+          "tipo": "string",
+          "obrigatorio": false,
+          "validacao": "auto|low|medium|high",
+          "default": "auto"
+        },
+        {
+          "nome": "format",
+          "tipo": "string",
+          "obrigatorio": false,
+          "validacao": "png|jpeg|webp",
+          "default": "png"
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "OpenAI API"
+      ],
+      "efeitos_colaterais": [
+        "envia imagem gerada/editada por IA"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_catimg",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "aiModule",
+          "catimg"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "prompt de imagem",
+          "imagem anexada/citada (quando houver)"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "catprompt",
+      "aliases": [
+        "iaprompt",
+        "promptia"
+      ],
+      "descricao": "Define ou reseta o prompt personalizado da IA para o usuario.",
+      "metodos_de_uso": [
+        "<prefix>catprompt novo prompt",
+        "<prefix>catprompt reset"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "1 prompt por usuario (atualizavel)",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "prompt personalizado informado pelo usuario",
+        "identidade do usuario para salvar/atualizar preferencia"
+      ],
+      "enabled": true,
+      "categoria": "ia",
+      "subcomandos": [
+        "reset"
+      ],
+      "argumentos": [
+        {
+          "nome": "conteudo",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "texto do prompt ou reset",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "store interno de prompt de IA"
+      ],
+      "efeitos_colaterais": [
+        "salva ou reseta prompt personalizado do usuário"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_catprompt",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "aiModule",
+          "catprompt"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do remetente",
+          "prompt personalizado salvo pelo usuário"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    }
+  ]
+}

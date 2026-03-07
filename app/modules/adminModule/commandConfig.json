@@ -1,0 +1,2650 @@
+{
+  "schema_version": "1.1.0",
+  "module": "adminModule",
+  "enabled": true,
+  "source_files": [
+    "groupCommandHandlers.js"
+  ],
+  "commands": [
+    {
+      "name": "menuadm",
+      "aliases": [],
+      "descricao": "Exibe menu administrativo do bot para o grupo.",
+      "metodos_de_uso": [
+        "<prefix>menuadm"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "contexto de grupo e validacao de permissao de admin"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_menuadm",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "menuadm"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "premium",
+      "aliases": [],
+      "descricao": "Gerencia usuarios premium do sistema.",
+      "metodos_de_uso": [
+        "<prefix>premium list",
+        "<prefix>premium add @usuario",
+        "<prefix>premium remove @usuario"
+      ],
+      "permissao_necessaria": "admin principal do bot",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "participantes mencionados/reply para add/remove",
+        "lista atual de usuarios premium no store",
+        "validacao de identidade de administrador principal"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "add",
+        "remove",
+        "list"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "add|remove|list",
+          "default": null
+        },
+        {
+          "nome": "usuarios",
+          "tipo": "array<string>",
+          "obrigatorio": false,
+          "validacao": "menções/JIDs para add/remove",
+          "default": []
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": true,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_premium",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "premium"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do remetente administrador",
+          "identificadores dos usuários premium gerenciados"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "nsfw",
+      "aliases": [],
+      "descricao": "Ativa/desativa status de NSFW no grupo.",
+      "metodos_de_uso": [
+        "<prefix>nsfw on",
+        "<prefix>nsfw off",
+        "<prefix>nsfw status"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "estado NSFW atual do grupo",
+        "acao solicitada (on/off/status)"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "on",
+        "off",
+        "status"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "on|off|status",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_nsfw",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "nsfw"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "autosticker",
+      "aliases": [],
+      "descricao": "Ativa/desativa a geracao automatica de figurinhas no grupo.",
+      "metodos_de_uso": [
+        "<prefix>autosticker on",
+        "<prefix>autosticker off",
+        "<prefix>autosticker status"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "estado de auto figurinha no grupo",
+        "acao solicitada (on/off/status)"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "on",
+        "off",
+        "status"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "on|off|status",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_autosticker",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "autosticker"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "stickermode",
+      "aliases": [
+        "smode"
+      ],
+      "descricao": "Controla modo foco em figurinhas no grupo.",
+      "metodos_de_uso": [
+        "<prefix>stickermode on",
+        "<prefix>stickermode off",
+        "<prefix>stickermode status"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "estado atual do modo sticker no grupo",
+        "acao solicitada (on/off/status)"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "on",
+        "off",
+        "status"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "on|off|status",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_stickermode",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "stickermode"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "chatwindow",
+      "aliases": [
+        "chat"
+      ],
+      "descricao": "Abre/fecha janela temporaria de chat livre no modo sticker.",
+      "metodos_de_uso": [
+        "<prefix>chatwindow on",
+        "<prefix>chatwindow off",
+        "<prefix>chatwindow status",
+        "<prefix>chatwindow on 15"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "tempo limitado por configuracao do modulo",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "acao da janela de chat (on/off/status)",
+        "duracao em minutos quando informada"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "on",
+        "off",
+        "status"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "on|off|status",
+          "default": null
+        },
+        {
+          "nome": "minutos",
+          "tipo": "integer",
+          "obrigatorio": false,
+          "validacao": "inteiro positivo dentro dos limites do módulo",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_chatwindow",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "chatwindow"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "stickermsglimit",
+      "aliases": [
+        "smsglimit",
+        "stickertextlimit",
+        "stextlimit"
+      ],
+      "descricao": "Define limite de mensagens por usuario no modo sticker.",
+      "metodos_de_uso": [
+        "<prefix>stickermsglimit 5",
+        "<prefix>stickermsglimit status",
+        "<prefix>stickermsglimit reset"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "intervalo validado pelo modulo",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "minutos/acao informados para limite de mensagens",
+        "configuracao atual de cooldown do grupo"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "<minutos>",
+        "status",
+        "reset"
+      ],
+      "argumentos": [
+        {
+          "nome": "valor",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "minutos|status|reset",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_stickermsglimit",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "stickermsglimit"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "newgroup",
+      "aliases": [],
+      "descricao": "Cria um novo grupo com participantes informados.",
+      "metodos_de_uso": [
+        "<prefix>newgroup <titulo> <participante1> <participante2>"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "minimo de titulo e participantes",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "titulo do novo grupo",
+        "lista de participantes informados no comando"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "titulo",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "texto não vazio",
+          "default": null
+        },
+        {
+          "nome": "participantes",
+          "tipo": "array<string>",
+          "obrigatorio": true,
+          "validacao": "mínimo 1 participante",
+          "default": []
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_newgroup",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "newgroup"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "add",
+      "aliases": [],
+      "descricao": "Adiciona participantes ao grupo atual.",
+      "metodos_de_uso": [
+        "<prefix>add @participante"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "depende de permissoes do WhatsApp",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "lista de participantes mencionados/extraidos para adicionar"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "participantes",
+          "tipo": "array<string>",
+          "obrigatorio": true,
+          "validacao": "menções/JIDs válidos",
+          "default": []
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_add",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "add"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "ban",
+      "aliases": [],
+      "descricao": "Remove participantes do grupo atual.",
+      "metodos_de_uso": [
+        "<prefix>ban @participante"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "depende de permissoes do WhatsApp",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "lista de participantes mencionados/extraidos para remover"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "participantes",
+          "tipo": "array<string>",
+          "obrigatorio": true,
+          "validacao": "menções/JIDs válidos",
+          "default": []
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_ban",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "ban"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "up",
+      "aliases": [],
+      "descricao": "Promove participantes a administradores do grupo.",
+      "metodos_de_uso": [
+        "<prefix>up @participante"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "depende de permissoes do WhatsApp",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "lista de participantes mencionados/extraidos para promover"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "participantes",
+          "tipo": "array<string>",
+          "obrigatorio": true,
+          "validacao": "menções/JIDs válidos",
+          "default": []
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_up",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "up"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "down",
+      "aliases": [],
+      "descricao": "Rebaixa administradores para membros comuns.",
+      "metodos_de_uso": [
+        "<prefix>down @participante"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "depende de permissoes do WhatsApp",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "lista de participantes mencionados/extraidos para rebaixar"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "participantes",
+          "tipo": "array<string>",
+          "obrigatorio": true,
+          "validacao": "menções/JIDs válidos",
+          "default": []
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_down",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "down"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "setsubject",
+      "aliases": [],
+      "descricao": "Altera assunto do grupo.",
+      "metodos_de_uso": [
+        "<prefix>setsubject novo assunto"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "texto sujeito a limite do WhatsApp",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "novo assunto do grupo informado no comando"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "assunto",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "texto não vazio",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_setsubject",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "setsubject"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "setdesc",
+      "aliases": [],
+      "descricao": "Altera descricao do grupo.",
+      "metodos_de_uso": [
+        "<prefix>setdesc nova descricao"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "texto sujeito a limite do WhatsApp",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "nova descricao do grupo informada no comando"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "descricao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "texto não vazio",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_setdesc",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "setdesc"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "setgroup",
+      "aliases": [],
+      "descricao": "Define estado do grupo (anuncio/aberto/locked/unlocked).",
+      "metodos_de_uso": [
+        "<prefix>setgroup announcement",
+        "<prefix>setgroup not_announcement",
+        "<prefix>setgroup locked",
+        "<prefix>setgroup unlocked"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "apenas modos suportados",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "modo de configuracao do grupo (announcement/locked etc.)"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "announcement",
+        "not_announcement",
+        "locked",
+        "unlocked"
+      ],
+      "argumentos": [
+        {
+          "nome": "modo",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "announcement|not_announcement|locked|unlocked",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_setgroup",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "setgroup"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "leave",
+      "aliases": [],
+      "descricao": "Faz o bot sair do grupo.",
+      "metodos_de_uso": [
+        "<prefix>leave"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "id do grupo atual para saida do bot"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_leave",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "leave"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "invite",
+      "aliases": [],
+      "descricao": "Mostra codigo de convite atual do grupo.",
+      "metodos_de_uso": [
+        "<prefix>invite"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "id do grupo para obter codigo de convite"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_invite",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "invite"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "revoke",
+      "aliases": [],
+      "descricao": "Revoga o codigo de convite e gera novo codigo.",
+      "metodos_de_uso": [
+        "<prefix>revoke"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "id do grupo para revogar codigo de convite"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_revoke",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "revoke"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "join",
+      "aliases": [],
+      "descricao": "Faz o bot entrar em grupo por codigo de convite.",
+      "metodos_de_uso": [
+        "<prefix>join <codigo_de_convite>"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "codigo valido obrigatorio",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "codigo de convite informado no argumento"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "codigo_convite",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "token de convite válido",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_join",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "join"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "infofrominvite",
+      "aliases": [],
+      "descricao": "Consulta dados de um grupo usando codigo de convite.",
+      "metodos_de_uso": [
+        "<prefix>infofrominvite <codigo_de_convite>"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "codigo valido obrigatorio",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "codigo de convite para consulta de metadados"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "codigo_convite",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "token de convite válido",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_infofrominvite",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "infofrominvite"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "metadata",
+      "aliases": [],
+      "descricao": "Retorna metadados de um grupo informado ou do grupo atual.",
+      "metodos_de_uso": [
+        "<prefix>metadata",
+        "<prefix>metadata <group_jid>"
+      ],
+      "permissao_necessaria": "admin do grupo alvo",
+      "limite_de_uso": "acesso restrito por permissao",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "id do grupo alvo (argumento ou grupo atual)",
+        "metadados do grupo retornados pela API do WhatsApp"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "group_id",
+          "tipo": "string",
+          "obrigatorio": false,
+          "validacao": "JID de grupo válido",
+          "default": "grupo atual"
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_metadata",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "metadata"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "requests",
+      "aliases": [],
+      "descricao": "Lista solicitacoes pendentes para entrar no grupo.",
+      "metodos_de_uso": [
+        "<prefix>requests"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "lista de solicitacoes pendentes de entrada no grupo"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_requests",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "requests"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "updaterequests",
+      "aliases": [],
+      "descricao": "Aprova ou rejeita solicitacoes de entrada no grupo.",
+      "metodos_de_uso": [
+        "<prefix>updaterequests approve @participante",
+        "<prefix>updaterequests reject @participante"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "acao valida + mencao obrigatoria",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "acao solicitada (approve/reject)",
+        "participantes mencionados para atualizar solicitacoes"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "approve",
+        "reject"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "approve|reject",
+          "default": null
+        },
+        {
+          "nome": "participantes",
+          "tipo": "array<string>",
+          "obrigatorio": true,
+          "validacao": "menções/JIDs válidos",
+          "default": []
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_updaterequests",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "updaterequests"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "autorequests",
+      "aliases": [],
+      "descricao": "Ativa/desativa auto aprovacao de solicitacoes no grupo.",
+      "metodos_de_uso": [
+        "<prefix>autorequests on",
+        "<prefix>autorequests off",
+        "<prefix>autorequests status"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "estado da aprovacao automatica do grupo",
+        "acao solicitada (on/off/status)"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "on",
+        "off",
+        "status"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "on|off|status",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_autorequests",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "autorequests"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "temp",
+      "aliases": [],
+      "descricao": "Define tempo de mensagens temporarias (ephemeral) no grupo.",
+      "metodos_de_uso": [
+        "<prefix>temp <duracao_em_segundos>"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "duracao em segundos obrigatoria",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "duracao em segundos para mensagens temporarias"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "duracao_segundos",
+          "tipo": "integer",
+          "obrigatorio": true,
+          "validacao": "inteiro positivo",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_temp",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "temp"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "addmode",
+      "aliases": [],
+      "descricao": "Define quem pode adicionar participantes no grupo.",
+      "metodos_de_uso": [
+        "<prefix>addmode all_member_add",
+        "<prefix>addmode admin_add"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "apenas modos validos",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "modo de adicao de participantes (all_member_add/admin_add)"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "modo",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "all_member_add|admin_add",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_addmode",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "addmode"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "prefix",
+      "aliases": [],
+      "descricao": "Define prefixo personalizado de comandos para o grupo.",
+      "metodos_de_uso": [
+        "<prefix>prefix <novo_prefixo>",
+        "<prefix>prefix status",
+        "<prefix>prefix reset"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "prefixo unico validado pelo modulo",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "novo prefixo informado ou acao (status/reset)",
+        "prefixo atual salvo na configuracao do grupo"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "<novo_prefixo>",
+        "status",
+        "reset"
+      ],
+      "argumentos": [
+        {
+          "nome": "valor",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "novo prefixo|status|reset",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_prefix",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "prefix"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "welcome",
+      "aliases": [],
+      "descricao": "Configura mensagens/midia de boas-vindas no grupo.",
+      "metodos_de_uso": [
+        "<prefix>welcome on",
+        "<prefix>welcome off",
+        "<prefix>welcome set <mensagem_ou_midia>"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "set exige mensagem ou midia",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "subcomando (on/off/set)",
+        "mensagem textual ou caminho de midia informado",
+        "midia anexada/citada para salvar na configuracao do grupo"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "on",
+        "off",
+        "set"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "on|off|set",
+          "default": null
+        },
+        {
+          "nome": "mensagem_ou_midia",
+          "tipo": "string",
+          "obrigatorio": false,
+          "validacao": "texto, caminho local ou mídia anexada",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_welcome",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "welcome"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "farewell",
+      "aliases": [],
+      "descricao": "Configura mensagens/midia de despedida no grupo.",
+      "metodos_de_uso": [
+        "<prefix>farewell on",
+        "<prefix>farewell off",
+        "<prefix>farewell set <mensagem_ou_midia>"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "set exige mensagem ou midia",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "subcomando (on/off/set)",
+        "mensagem textual ou caminho de midia informado",
+        "midia anexada/citada para salvar na configuracao do grupo"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "on",
+        "off",
+        "set"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "on|off|set",
+          "default": null
+        },
+        {
+          "nome": "mensagem_ou_midia",
+          "tipo": "string",
+          "obrigatorio": false,
+          "validacao": "texto, caminho local ou mídia anexada",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_farewell",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "farewell"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "captcha",
+      "aliases": [],
+      "descricao": "Ativa/desativa captcha para novos membros no grupo.",
+      "metodos_de_uso": [
+        "<prefix>captcha on",
+        "<prefix>captcha off",
+        "<prefix>captcha status"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "status atual de captcha do grupo",
+        "acao solicitada (on/off/status)"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "on",
+        "off",
+        "status"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "on|off|status",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_captcha",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "captcha"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "antilink",
+      "aliases": [],
+      "descricao": "Gerencia bloqueio de links permitidos no grupo.",
+      "metodos_de_uso": [
+        "<prefix>antilink on",
+        "<prefix>antilink off",
+        "<prefix>antilink list",
+        "<prefix>antilink allow <rede>",
+        "<prefix>antilink disallow <rede>",
+        "<prefix>antilink add <dominio>",
+        "<prefix>antilink remove <dominio>"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "subcomandos e argumentos validados",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "subcomando e argumentos (rede/dominio)",
+        "listas atuais de redes e dominios permitidos no grupo"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "on",
+        "off",
+        "list",
+        "allow",
+        "disallow",
+        "add",
+        "remove"
+      ],
+      "argumentos": [
+        {
+          "nome": "subcomando",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "on|off|list|allow|disallow|add|remove",
+          "default": null
+        },
+        {
+          "nome": "alvos",
+          "tipo": "array<string>",
+          "obrigatorio": false,
+          "validacao": "redes ou domínios",
+          "default": []
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_antilink",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "antilink"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "noticias",
+      "aliases": [
+        "news"
+      ],
+      "descricao": "Ativa/desativa envio automatico de noticias no grupo.",
+      "metodos_de_uso": [
+        "<prefix>noticias on",
+        "<prefix>noticias off",
+        "<prefix>noticias status",
+        "<prefix>news status"
+      ],
+      "permissao_necessaria": "admin do grupo",
+      "limite_de_uso": "sem limite especifico",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "status atual de noticias do grupo",
+        "acao solicitada (on/off/status)"
+      ],
+      "enabled": true,
+      "categoria": "admin",
+      "subcomandos": [
+        "on",
+        "off",
+        "status"
+      ],
+      "argumentos": [
+        {
+          "nome": "acao",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "on|off|status",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": true,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "API do WhatsApp (ações de grupo)",
+        "stores/configuração interna"
+      ],
+      "efeitos_colaterais": [
+        "altera configurações de grupo e permissões",
+        "envia mensagens administrativas"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_noticias",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "adminModule",
+          "noticias"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    }
+  ]
+}

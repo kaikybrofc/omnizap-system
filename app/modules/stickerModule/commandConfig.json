@@ -1,0 +1,421 @@
+{
+  "schema_version": "1.1.0",
+  "module": "stickerModule",
+  "enabled": true,
+  "source_files": [
+    "stickerCommand.js",
+    "stickerConvertCommand.js",
+    "stickerTextCommand.js"
+  ],
+  "commands": [
+    {
+      "name": "sticker",
+      "aliases": [
+        "s"
+      ],
+      "descricao": "Converte imagem/video em figurinha.",
+      "metodos_de_uso": [
+        "<prefix>sticker",
+        "<prefix>s"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "midia ate 1 MB",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "metadados de midia (tipo, tamanho e origem da midia)",
+        "arquivo de midia baixado temporariamente para conversao"
+      ],
+      "enabled": true,
+      "categoria": "figurinhas",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "texto_extra",
+          "tipo": "string",
+          "obrigatorio": false,
+          "validacao": "texto livre opcional",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": true,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "conversão de mídia local",
+        "armazenamento temporário"
+      ],
+      "efeitos_colaterais": [
+        "faz download/conversão temporária de mídia",
+        "envia figurinha"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_sticker",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "stickerModule",
+          "sticker"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "toimg",
+      "aliases": [
+        "tovideo",
+        "tovid"
+      ],
+      "descricao": "Converte figurinha para imagem ou video quando aplicavel.",
+      "metodos_de_uso": [
+        "<prefix>toimg",
+        "<prefix>tovideo",
+        "<prefix>tovid"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "figurinha ate 2 MB",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "metadados da figurinha (incluindo se e animada)",
+        "arquivo de figurinha baixado temporariamente para conversao"
+      ],
+      "enabled": true,
+      "categoria": "figurinhas",
+      "subcomandos": [],
+      "argumentos": [],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": true,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "conversão de mídia local",
+        "armazenamento temporário"
+      ],
+      "efeitos_colaterais": [
+        "faz download/conversão temporária de figurinha",
+        "envia mídia convertida"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_toimg",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "stickerModule",
+          "toimg"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "stickertext",
+      "aliases": [
+        "st"
+      ],
+      "descricao": "Gera figurinha com texto (tema escuro).",
+      "metodos_de_uso": [
+        "<prefix>stickertext seu texto",
+        "<prefix>st seu texto"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "ate 80 caracteres e 4 linhas",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "texto informado para compor a figurinha",
+        "opcoes de estilo/cor do texto"
+      ],
+      "enabled": true,
+      "categoria": "figurinhas",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "texto",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "até 80 caracteres, máximo 4 linhas",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "conversão de mídia local",
+        "armazenamento temporário"
+      ],
+      "efeitos_colaterais": [
+        "gera mídia temporária de figurinha com texto",
+        "envia figurinha"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_stickertext",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "stickerModule",
+          "stickertext"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "stickertextwhite",
+      "aliases": [
+        "stw"
+      ],
+      "descricao": "Gera figurinha com texto (tema claro).",
+      "metodos_de_uso": [
+        "<prefix>stickertextwhite seu texto",
+        "<prefix>stw seu texto"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "ate 80 caracteres e 4 linhas",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "texto informado para compor a figurinha",
+        "opcoes de estilo/cor do texto"
+      ],
+      "enabled": true,
+      "categoria": "figurinhas",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "texto",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "até 80 caracteres, máximo 4 linhas",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "conversão de mídia local",
+        "armazenamento temporário"
+      ],
+      "efeitos_colaterais": [
+        "gera mídia temporária de figurinha com texto",
+        "envia figurinha"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_stickertextwhite",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "stickerModule",
+          "stickertextwhite"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "stickertextblink",
+      "aliases": [
+        "stb"
+      ],
+      "descricao": "Gera figurinha animada de texto piscante.",
+      "metodos_de_uso": [
+        "<prefix>stickertextblink seu texto",
+        "<prefix>stb seu texto"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "ate 80 caracteres e 4 linhas",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "texto informado para compor a figurinha",
+        "parametros de animacao piscante"
+      ],
+      "enabled": true,
+      "categoria": "figurinhas",
+      "subcomandos": [],
+      "argumentos": [
+        {
+          "nome": "texto",
+          "tipo": "string",
+          "obrigatorio": true,
+          "validacao": "até 80 caracteres, máximo 4 linhas",
+          "default": null
+        }
+      ],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "conversão de mídia local",
+        "armazenamento temporário"
+      ],
+      "efeitos_colaterais": [
+        "gera mídia temporária animada",
+        "envia figurinha"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_stickertextblink",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "stickerModule",
+          "stickertextblink"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    }
+  ]
+}

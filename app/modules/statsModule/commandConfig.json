@@ -1,0 +1,163 @@
+{
+  "schema_version": "1.1.0",
+  "module": "statsModule",
+  "enabled": true,
+  "source_files": [
+    "rankingCommand.js",
+    "globalRankingCommand.js"
+  ],
+  "commands": [
+    {
+      "name": "ranking",
+      "aliases": [
+        "rank",
+        "top5"
+      ],
+      "descricao": "Mostra top 5 mais ativos do grupo.",
+      "metodos_de_uso": [
+        "<prefix>ranking",
+        "<prefix>rank",
+        "<prefix>top5"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "retorna top 5",
+      "local_de_uso": [
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "escopo do grupo (group id)",
+        "estatisticas de mensagens agregadas no banco",
+        "nomes de exibicao para composicao do ranking"
+      ],
+      "enabled": true,
+      "categoria": "estatisticas",
+      "subcomandos": [],
+      "argumentos": [],
+      "pre_condicoes": {
+        "requer_grupo": true,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "banco de dados de mensagens"
+      ],
+      "efeitos_colaterais": [
+        "consulta agregações no banco",
+        "envia ranking"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_ranking",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "statsModule",
+          "ranking"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    },
+    {
+      "name": "rankingglobal",
+      "aliases": [
+        "rankglobal",
+        "globalrank",
+        "globalranking"
+      ],
+      "descricao": "Mostra top 5 global de atividade.",
+      "metodos_de_uso": [
+        "<prefix>rankingglobal",
+        "<prefix>globalrank"
+      ],
+      "permissao_necessaria": "usuario comum",
+      "limite_de_uso": "retorna top 5",
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
+      "informacoes_coletadas": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "estatisticas globais de mensagens agregadas no banco",
+        "nomes de exibicao para composicao do ranking"
+      ],
+      "enabled": true,
+      "categoria": "estatisticas",
+      "subcomandos": [],
+      "argumentos": [],
+      "pre_condicoes": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      },
+      "rate_limit": {
+        "max": null,
+        "janela_ms": null,
+        "escopo": "sem_rate_limit_explicito"
+      },
+      "dependencias_externas": [
+        "banco de dados de mensagens"
+      ],
+      "efeitos_colaterais": [
+        "consulta agregações no banco",
+        "envia ranking"
+      ],
+      "respostas_padrao": {
+        "sucesso": "Comando executado com sucesso.",
+        "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+        "erro_permissao": "Permissão insuficiente para executar este comando."
+      },
+      "observabilidade": {
+        "evento_analytics": "whatsapp_command_rankingglobal",
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "statsModule",
+          "rankingglobal"
+        ],
+        "nivel_log": "info"
+      },
+      "privacidade": {
+        "dados_sensiveis": [
+          "identificador do chat",
+          "identificador do remetente",
+          "conteudo textual do comando"
+        ],
+        "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+      }
+    }
+  ]
+}
