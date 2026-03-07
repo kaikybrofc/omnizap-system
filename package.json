@@ -95,7 +95,7 @@
     "proper-lockfile": "^4.1.2",
     "qrcode-terminal": "^0.12.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^19.2.4",
     "stream-json": "^1.9.1",
     "uuid": "^13.0.0",
     "webp-conv": "github:kaikybrofc/webp-conv",
