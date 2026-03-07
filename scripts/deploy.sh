@@ -701,6 +701,7 @@ verify_post_sync_cache_bust() {
     "index.html"
     "login/index.html"
     "user/index.html"
+    "user/password-reset/index.html"
     "termos-de-uso/index.html"
     "stickers/index.html"
     "stickers/create/index.html"

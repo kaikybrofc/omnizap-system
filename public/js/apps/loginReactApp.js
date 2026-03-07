@@ -1872,21 +1872,6 @@ const LoginApp = ({ config }) => {
                   `
                 : null}
 
-              <section className="login-security-grid" aria-label="Indicadores de seguranca">
-                <p className="login-security-badge">
-                  <span className="login-security-icon" aria-hidden="true">SSL</span>
-                  Conexao segura SSL
-                </p>
-                <p className="login-security-badge">
-                  <span className="login-security-icon" aria-hidden="true">D</span>
-                  Dados protegidos
-                </p>
-                <p className="login-security-badge">
-                  <span className="login-security-icon" aria-hidden="true">K</span>
-                  Autenticacao criptografada
-                </p>
-              </section>
-
               <footer className="login-trust-footer">
                 <a
                   className="login-footer-link"

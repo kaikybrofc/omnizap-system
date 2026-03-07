@@ -245,7 +245,7 @@
 
   .login-showcase-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 0.72rem;
     width: 100%;
   }
@@ -257,6 +257,7 @@
     box-shadow: inset 0 1px 0 rgb(226 232 240 / 0.08);
     padding: 0.78rem 0.82rem;
     display: grid;
+    grid-template-rows: auto 1fr;
     gap: 0.34rem;
     min-height: 108px;
   }
@@ -1158,7 +1159,8 @@
   }
 
   .login-stage {
-    grid-template-columns: minmax(0, 1fr) minmax(460px, 520px);
+    width: min(96vw, 1220px);
+    grid-template-columns: minmax(0, 1fr) minmax(430px, 520px);
     align-items: start;
     justify-items: stretch;
     gap: 2rem;
@@ -1167,8 +1169,40 @@
   .login-showcase {
     display: grid;
     align-content: start;
-    gap: 0.9rem;
-    padding: 0.25rem 0.6rem 0.5rem 0.2rem;
+    gap: 1rem;
+    padding: 0.3rem 0.75rem 0.55rem 0.2rem;
+  }
+
+  .login-showcase-title {
+    font-size: clamp(2rem, 2.3vw, 2.6rem);
+    max-width: 19ch;
+  }
+
+  .login-showcase-subtitle {
+    max-width: 56ch;
+    font-size: clamp(0.98rem, 0.92vw, 1.08rem);
+    line-height: 1.68;
+  }
+
+  .login-showcase-item {
+    min-height: 118px;
+    padding: 0.9rem 0.95rem;
+    gap: 0.42rem;
+  }
+
+  .login-showcase-item-label {
+    font-size: clamp(0.72rem, 0.62vw, 0.79rem);
+  }
+
+  .login-showcase-item-text {
+    font-size: clamp(0.85rem, 0.72vw, 0.95rem);
+    line-height: 1.52;
+  }
+
+  .login-showcase-flow li {
+    font-size: clamp(0.84rem, 0.68vw, 0.92rem);
+    line-height: 1.5;
+    padding: 0.56rem 0.72rem;
   }
 
   .login-card {
@@ -1176,17 +1210,53 @@
     max-width: 520px;
     justify-self: end;
   }
+
+  .login-card-body {
+    gap: 1rem;
+    padding: 2.2rem 2.1rem 2rem;
+  }
+
+  .login-title {
+    font-size: clamp(2rem, 2.05vw, 2.55rem);
+  }
+
+  .login-subtitle {
+    font-size: clamp(0.97rem, 0.82vw, 1.05rem);
+    line-height: 1.62;
+  }
+
+  .login-method-panel,
+  .login-status-card,
+  .login-consent-card,
+  .login-recovery-card {
+    padding: 1rem;
+  }
+
+  .login-method-head h2 {
+    font-size: clamp(1.02rem, 0.95vw, 1.15rem);
+  }
+
+  .login-method-head p,
+  .login-helper-text,
+  .login-inline-message {
+    font-size: clamp(0.8rem, 0.68vw, 0.9rem);
+  }
 }
 
 @media (min-width: 1400px) {
   .login-stage {
-    width: min(95vw, 1280px);
-    grid-template-columns: minmax(0, 1.05fr) minmax(500px, 560px);
-    gap: 2.6rem;
+    width: min(95vw, 1340px);
+    grid-template-columns: minmax(0, 1.08fr) minmax(500px, 570px);
+    gap: 2.8rem;
   }
 
   .login-showcase {
-    padding-right: 1.35rem;
+    gap: 1.08rem;
+    padding-right: 1.55rem;
+  }
+
+  .login-card-body {
+    padding: 2.35rem 2.3rem 2.2rem;
   }
 }
 
