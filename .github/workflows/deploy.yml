@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Run deploy in dry-run mode"
+        description: 'Run deploy in dry-run mode'
         required: true
         default: true
         type: boolean
       environment_name:
-        description: "Deployment environment label"
+        description: 'Deployment environment label'
         required: true
         default: production
         type: choice
@@ -17,22 +17,22 @@ on:
           - production
           - staging
       verify_url:
-        description: "Post-deploy health URL"
+        description: 'Post-deploy health URL'
         required: true
         default: https://omnizap.shop/
         type: string
       target_dir:
-        description: "Optional DEPLOY_TARGET_DIR override"
+        description: 'Optional DEPLOY_TARGET_DIR override'
         required: false
-        default: ""
+        default: ''
         type: string
       pm2_app_name:
-        description: "Optional DEPLOY_PM2_APP_NAME override"
+        description: 'Optional DEPLOY_PM2_APP_NAME override'
         required: false
-        default: ""
+        default: ''
         type: string
       publish_secondary:
-        description: "Publish package to secondary registry (npmjs)"
+        description: 'Publish package to secondary registry (npmjs)'
         required: true
         default: false
         type: boolean
