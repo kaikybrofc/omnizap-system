@@ -35,7 +35,7 @@ jobs:
           persist-credentials: false
 
       - name: Run ZAP full scan
-        uses: zaproxy/action-full-scan@bdd21ad4090d552d299261226c553efbc216f5ee
+        uses: zaproxy/action-full-scan@3c58388149901b9a03b7718852c5ba889646c27c
         with:
           target: ${{ env.TARGET_URL }}
           fail_action: false
