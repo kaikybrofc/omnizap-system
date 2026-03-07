@@ -3,6 +3,7 @@
 Scope: phased schema hardening and evolution for MySQL/InnoDB with zero destructive changes in early phases.
 
 Target files:
+
 - `database/migrations/20260307_d0_hardening_up.sql`
 - `database/migrations/20260307_d0_hardening_down.sql`
 - `database/migrations/20260314_d7_canonical_sender_up.sql`
@@ -13,22 +14,28 @@ Target files:
 ## 1) Preconditions
 
 1. Confirm engine/version:
+
 ```sql
 SELECT VERSION() AS mysql_version;
 ```
+
 Recommended: MySQL 8.0.16+ (for CHECK constraints and `DROP CHECK`).
 
 2. Confirm event scheduler policy:
+
 ```sql
 SHOW VARIABLES LIKE 'event_scheduler';
 ```
+
 If your policy allows DB-driven retention/rollup jobs, set `event_scheduler=ON` at server level.
 
 3. Backup before each phase:
+
 - Logical backup of target schema.
 - Point-in-time recovery configured (binlog/backup chain).
 
 4. Maintenance posture:
+
 - Execute during low write pressure windows.
 - Keep app online for D0.
 - D+7 and D+30 can run online, but monitor write latency.
@@ -44,11 +51,13 @@ mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migration
 ## 3) Phase D0 - Non-breaking hardening
 
 ### Apply
+
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260307_d0_hardening_up.sql
 ```
 
 ### Validate
+
 ```sql
 SELECT migration_key, phase, status, updated_at
   FROM schema_change_log
@@ -62,6 +71,7 @@ SHOW INDEX FROM sticker_asset_reprocess_queue;
 ```
 
 ### Rollback
+
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260307_d0_hardening_down.sql
 ```
@@ -69,11 +79,13 @@ mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migration
 ## 4) Phase D+7 - Canonical sender migration
 
 ### Apply
+
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260314_d7_canonical_sender_up.sql
 ```
 
 ### Validate
+
 ```sql
 SELECT migration_key, phase, status, updated_at
   FROM schema_change_log
@@ -88,9 +100,11 @@ SELECT COUNT(*) AS null_canonical_sender
 ```
 
 ### App rollout checkpoint
+
 After D+7, deploy app/query changes that prefer `messages.canonical_sender_id` in ranking/analytics paths.
 
 ### Rollback
+
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260314_d7_canonical_sender_down.sql
 ```
@@ -98,11 +112,13 @@ mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migration
 ## 5) Phase D+30 - Security + analytics + retention
 
 ### Apply
+
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260406_d30_security_analytics_up.sql
 ```
 
 ### Validate
+
 ```sql
 SELECT migration_key, phase, status, updated_at
   FROM schema_change_log
@@ -130,9 +146,11 @@ SHOW EVENTS
 ```
 
 ### Constraint post-checks
+
 If any CHECK was skipped, the migration script prints `SKIPPED` messages. Fix violating data, then re-run D+30 `up`.
 
 ### Rollback
+
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260406_d30_security_analytics_down.sql
 ```
@@ -140,11 +158,13 @@ mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migration
 ## 6) Monitoring checklist (all phases)
 
 Track for 30-60 minutes after each phase:
+
 - `Threads_running`, InnoDB row lock waits, query latency p95/p99.
 - Queue depth and stuck workers (`status='processing' AND locked_at` stale).
 - Slow query log spikes on `messages` and queue tables.
 
 Recommended quick checks:
+
 ```sql
 SELECT status, COUNT(*) FROM domain_event_outbox GROUP BY status;
 SELECT status, COUNT(*) FROM email_outbox GROUP BY status;
@@ -154,6 +174,7 @@ SELECT status, COUNT(*) FROM sticker_worker_task_queue GROUP BY status;
 ## 7) Roll-forward policy
 
 If rollback is not strictly required and data is healthy:
+
 1. Keep phase applied.
 2. Patch app queries to use new indexes/columns.
 3. Re-run validation queries.
