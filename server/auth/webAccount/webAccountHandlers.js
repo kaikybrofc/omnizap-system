@@ -229,7 +229,9 @@ export const createWebAccountAuthHandlers = ({
   stickerWebGoogleAuthRequired,
 }) => {
   const passwordPolicy =
-    typeof userPasswordAuthService?.getPolicy === 'function' ? userPasswordAuthService.getPolicy() : {};
+    typeof userPasswordAuthService?.getPolicy === 'function'
+      ? userPasswordAuthService.getPolicy()
+      : {};
   const passwordLoginIdentityMaxAttempts = clampInt(
     process.env.WEB_USER_PASSWORD_LOGIN_IDENTITY_MAX_ATTEMPTS,
     Number(passwordPolicy?.maxFailedAttempts || 8) || 8,
