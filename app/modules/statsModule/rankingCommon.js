@@ -15,7 +15,7 @@ const PROFILE_FETCH_TIMEOUT_MS = 4000;
 const ELLIPSIS = '…';
 const CANVAS_FONT_STACK = "'Noto Color Emoji', 'Segoe UI Emoji', 'Apple Color Emoji', 'Segoe UI Symbol', 'Noto Sans', 'DejaVu Sans', 'Arial Unicode MS', Arial, sans-serif";
 const GRAPHEME_SEGMENTER = typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('pt-BR', { granularity: 'grapheme' }) : null;
-const ZERO_WIDTH_UNICODE_REGEX = /[\u200B-\u200D\u2060\uFE00-\uFE0F]/gu;
+const ZERO_WIDTH_UNICODE_REGEX = /(?:\u200B|\u200C|\u200D|\u2060|\uFE00|\uFE01|\uFE02|\uFE03|\uFE04|\uFE05|\uFE06|\uFE07|\uFE08|\uFE09|\uFE0A|\uFE0B|\uFE0C|\uFE0D|\uFE0E|\uFE0F)/gu;
 const PRIVATE_USE_UNICODE_REGEX = /[\uE000-\uF8FF]/gu;
 const EMOJI_AND_PICTO_REGEX = /[\u{1F000}-\u{1FAFF}\u2600-\u27BF]/gu;
 const ASCII_PRINTABLE_REGEX = /^[\x20-\x7E]$/u;
