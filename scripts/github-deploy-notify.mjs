@@ -68,8 +68,14 @@ const currentRef = () => {
 const token = env('DEPLOY_GITHUB_TOKEN', 'GITHUB_TOKEN', 'GH_TOKEN');
 const repository = env('DEPLOY_GITHUB_REPO', 'GITHUB_REPOSITORY') || parseRepoFromRemote();
 const environment = getArg('--environment', env('DEPLOY_GITHUB_ENVIRONMENT') || 'production');
-const environmentUrl = getArg('--environment-url', env('DEPLOY_GITHUB_ENV_URL', 'DEPLOY_VERIFY_URL') || '');
-const logUrl = getArg('--log-url', env('DEPLOY_GITHUB_LOG_URL', 'DEPLOY_VERIFY_URL') || environmentUrl);
+const environmentUrl = getArg(
+  '--environment-url',
+  env('DEPLOY_GITHUB_ENV_URL', 'DEPLOY_VERIFY_URL') || '',
+);
+const logUrl = getArg(
+  '--log-url',
+  env('DEPLOY_GITHUB_LOG_URL', 'DEPLOY_VERIFY_URL') || environmentUrl,
+);
 const buildId = getArg('--build-id', env('DEPLOY_BUILD_ID') || '');
 const deploymentId = getArg('--deployment-id', '');
 const state = getArg('--state', '');
@@ -89,7 +95,9 @@ const [repoOwnerRaw, repoNameRaw] = repository.split('/', 2);
 const repoOwner = String(repoOwnerRaw || '').trim();
 const repoName = String(repoNameRaw || '').trim();
 if (!repoOwner || !repoName) {
-  console.error('GitHub deploy notify ignorado: formato de repositório inválido (esperado owner/repo).');
+  console.error(
+    'GitHub deploy notify ignorado: formato de repositório inválido (esperado owner/repo).',
+  );
   process.exit(2);
 }
 

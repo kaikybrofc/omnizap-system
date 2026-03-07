@@ -1,7 +1,12 @@
 import http from 'node:http';
 
 import logger from '../../utils/logger/loggerModule.js';
-import { getMetricsServerConfig, isMetricsEnabled, recordHttpRequest, resolveRouteGroup } from '../../app/observability/metrics.js';
+import {
+  getMetricsServerConfig,
+  isMetricsEnabled,
+  recordHttpRequest,
+  resolveRouteGroup,
+} from '../../app/observability/metrics.js';
 import { applyCachePolicy } from '../middleware/cachePolicy.js';
 import { applySensitiveRouteRateLimit } from '../middleware/endpointRateLimit.js';
 import { applySecurityHeaders } from '../middleware/securityHeaders.js';

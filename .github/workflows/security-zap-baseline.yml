@@ -2,13 +2,13 @@ name: Security - ZAP Baseline
 
 on:
   schedule:
-    - cron: '30 4 * * 1'
+    - cron: "30 4 * * 1"
   workflow_dispatch:
     inputs:
       target_url:
-        description: 'Target URL for baseline scan'
+        description: "Target URL for baseline scan"
         required: false
-        default: ''
+        default: ""
         type: string
 
 permissions:
@@ -39,6 +39,6 @@ jobs:
         with:
           target: ${{ env.TARGET_URL }}
           fail_action: false
-          cmd_options: '-a'
+          cmd_options: "-a"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

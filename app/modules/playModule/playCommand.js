@@ -14,21 +14,37 @@ import { getAdminJid } from '../../config/adminIdentity.js';
 
 const adminJid = getAdminJid();
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
-const YTDLS_BASE_URL = (process.env.YTDLS_BASE_URL || process.env.YT_DLS_BASE_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
+const YTDLS_BASE_URL = (
+  process.env.YTDLS_BASE_URL ||
+  process.env.YT_DLS_BASE_URL ||
+  'http://127.0.0.1:3000'
+).replace(/\/$/, '');
 
 const DEFAULT_TIMEOUT_MS = Number.parseInt(process.env.PLAY_API_TIMEOUT_MS || '900000', 10);
-const DOWNLOAD_API_TIMEOUT_MS = Number.parseInt(process.env.PLAY_API_DOWNLOAD_TIMEOUT_MS || '1800000', 10);
-const QUEUE_STATUS_TIMEOUT_MS = Number.parseInt(process.env.PLAY_QUEUE_STATUS_TIMEOUT_MS || '8000', 10);
+const DOWNLOAD_API_TIMEOUT_MS = Number.parseInt(
+  process.env.PLAY_API_DOWNLOAD_TIMEOUT_MS || '1800000',
+  10,
+);
+const QUEUE_STATUS_TIMEOUT_MS = Number.parseInt(
+  process.env.PLAY_QUEUE_STATUS_TIMEOUT_MS || '8000',
+  10,
+);
 
 const MAX_MEDIA_MB = Number.parseInt(process.env.PLAY_MAX_MB || '100', 10);
-const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB * 1024 * 1024 : 100 * 1024 * 1024;
+const MAX_MEDIA_BYTES = Number.isFinite(MAX_MEDIA_MB)
+  ? MAX_MEDIA_MB * 1024 * 1024
+  : 100 * 1024 * 1024;
 const MAX_MEDIA_MB_LABEL = Number.isFinite(MAX_MEDIA_MB) ? MAX_MEDIA_MB : 100;
 
 const QUICK_QUEUE_LOOKUP_MS = 1500;
 const THUMBNAIL_TIMEOUT_MS = 15000;
 const MAX_THUMB_BYTES = 5 * 1024 * 1024;
-const VIDEO_PROCESS_TIMEOUT_MS = Number.parseInt(process.env.PLAY_VIDEO_PROCESS_TIMEOUT_MS || '420000', 10);
-const VIDEO_FORCE_TRANSCODE = String(process.env.PLAY_VIDEO_FORCE_TRANSCODE || 'true').toLowerCase() !== 'false';
+const VIDEO_PROCESS_TIMEOUT_MS = Number.parseInt(
+  process.env.PLAY_VIDEO_PROCESS_TIMEOUT_MS || '420000',
+  10,
+);
+const VIDEO_FORCE_TRANSCODE =
+  String(process.env.PLAY_VIDEO_FORCE_TRANSCODE || 'true').toLowerCase() !== 'false';
 const FFMPEG_BIN = (process.env.FFMPEG_PATH || 'ffmpeg').trim();
 const FFPROBE_BIN = (process.env.FFPROBE_PATH || 'ffprobe').trim();
 const SEARCH_CACHE_TTL_MS = 60 * 1000;
@@ -88,7 +104,8 @@ const withErrorMeta = (error, meta) => {
   return error;
 };
 
-const isAbortError = (error) => error?.name === 'AbortError' || error?.code === 'ABORT_ERR' || error?.code === 'ECONNABORTED';
+const isAbortError = (error) =>
+  error?.name === 'AbortError' || error?.code === 'ABORT_ERR' || error?.code === 'ECONNABORTED';
 
 const normalizeRequestError = (error, { timeoutMessage, fallbackMessage, fallbackCode }) => {
   if (KNOWN_ERROR_CODES.has(error?.code) && error?.message) return error;
@@ -190,7 +207,16 @@ const formatVideoInfo = (videoInfo) => {
 const getThumbnailUrl = (videoInfo) => {
   if (!videoInfo || typeof videoInfo !== 'object') return null;
 
-  const direct = pickFirstString(videoInfo, ['thumbnail', 'thumb', 'thumbnail_url', 'thumbnailUrl', 'thumb_url', 'image', 'cover', 'artwork']);
+  const direct = pickFirstString(videoInfo, [
+    'thumbnail',
+    'thumb',
+    'thumbnail_url',
+    'thumbnailUrl',
+    'thumb_url',
+    'image',
+    'cover',
+    'artwork',
+  ]);
   const directUrl = ensureHttpUrl(direct);
   if (directUrl) return directUrl;
 
@@ -278,7 +304,10 @@ const getHeaderValue = (headers, key) => {
   return normalizeHeaderValue(raw);
 };
 
-const hasHeader = (headers, name) => (headers && typeof headers === 'object' ? Object.keys(headers).some((headerName) => headerName.toLowerCase() === name.toLowerCase()) : false);
+const hasHeader = (headers, name) =>
+  headers && typeof headers === 'object'
+    ? Object.keys(headers).some((headerName) => headerName.toLowerCase() === name.toLowerCase())
+    : false;
 
 const normalizeMimeType = (value) => {
   if (typeof value !== 'string' || !value.trim()) return null;
@@ -290,11 +319,15 @@ const resolveMediaMimeType = (type, contentType) => {
   const normalized = normalizeMimeType(contentType);
 
   if (type === 'audio') {
-    return normalized && normalized.startsWith('audio/') ? normalized : TYPE_CONFIG.audio.mimeFallback;
+    return normalized && normalized.startsWith('audio/')
+      ? normalized
+      : TYPE_CONFIG.audio.mimeFallback;
   }
 
   if (type === 'video') {
-    return normalized && normalized.startsWith('video/') ? normalized : TYPE_CONFIG.video.mimeFallback;
+    return normalized && normalized.startsWith('video/')
+      ? normalized
+      : TYPE_CONFIG.video.mimeFallback;
   }
 
   return normalized || 'application/octet-stream';
@@ -369,7 +402,10 @@ const runBinaryCommand = (command, args, { timeoutMs = VIDEO_PROCESS_TIMEOUT_MS 
     });
   });
 
-const normalizeBinaryError = (error, { timeoutMessage, fallbackMessage, endpoint, requestId, command, outputPath }) => {
+const normalizeBinaryError = (
+  error,
+  { timeoutMessage, fallbackMessage, endpoint, requestId, command, outputPath },
+) => {
   if (KNOWN_ERROR_CODES.has(error?.code) && error?.message) return error;
   if (error?.code === 'ETIMEDOUT') {
     return createError(ERROR_CODES.TIMEOUT, timeoutMessage, {
@@ -393,7 +429,14 @@ const normalizeBinaryError = (error, { timeoutMessage, fallbackMessage, endpoint
 
 const probeVideoStreams = async (filePath, requestId, endpoint) => {
   try {
-    const result = await runBinaryCommand(FFPROBE_BIN, ['-v', 'error', '-print_format', 'json', '-show_streams', filePath]);
+    const result = await runBinaryCommand(FFPROBE_BIN, [
+      '-v',
+      'error',
+      '-print_format',
+      'json',
+      '-show_streams',
+      filePath,
+    ]);
     const parsed = JSON.parse(result.stdout || '{}');
     const streams = Array.isArray(parsed?.streams) ? parsed.streams : [];
     const videoStream = streams.find((stream) => stream?.codec_type === 'video') || null;
@@ -423,7 +466,36 @@ const transcodeVideoForWhatsapp = async (filePath, requestId, endpoint) => {
   try {
     await safeUnlink(outputPath);
 
-    await runBinaryCommand(FFMPEG_BIN, ['-y', '-i', filePath, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-ac', '2', outputPath], { timeoutMs: VIDEO_PROCESS_TIMEOUT_MS });
+    await runBinaryCommand(
+      FFMPEG_BIN,
+      [
+        '-y',
+        '-i',
+        filePath,
+        '-map',
+        '0:v:0',
+        '-map',
+        '0:a:0?',
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        '-pix_fmt',
+        'yuv420p',
+        '-movflags',
+        '+faststart',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-ar',
+        '44100',
+        '-ac',
+        '2',
+        outputPath,
+      ],
+      { timeoutMs: VIDEO_PROCESS_TIMEOUT_MS },
+    );
 
     const stats = await fs.promises.stat(outputPath);
     const transcodedBytes = Number(stats?.size || 0);
@@ -437,11 +509,15 @@ const transcodeVideoForWhatsapp = async (filePath, requestId, endpoint) => {
     }
 
     if (transcodedBytes > MAX_MEDIA_BYTES) {
-      throw createError(ERROR_CODES.TOO_BIG, `O arquivo excede o limite permitido de ${MAX_MEDIA_MB_LABEL} MB.`, {
-        endpoint,
-        requestId,
-        bytes: transcodedBytes,
-      });
+      throw createError(
+        ERROR_CODES.TOO_BIG,
+        `O arquivo excede o limite permitido de ${MAX_MEDIA_MB_LABEL} MB.`,
+        {
+          endpoint,
+          requestId,
+          bytes: transcodedBytes,
+        },
+      );
     }
 
     await fs.promises.rename(outputPath, filePath);
@@ -462,7 +538,8 @@ const transcodeVideoForWhatsapp = async (filePath, requestId, endpoint) => {
 
 const resolveHttpModule = (urlObj) => (urlObj.protocol === 'https:' ? https : http);
 
-const shouldFollowRedirect = (status, location, redirectCount, maxRedirects) => status >= 300 && status < 400 && Boolean(location) && redirectCount < maxRedirects;
+const shouldFollowRedirect = (status, location, redirectCount, maxRedirects) =>
+  status >= 300 && status < 400 && Boolean(location) && redirectCount < maxRedirects;
 
 const preparePayload = (body, headers) => {
   if (body === null || body === undefined) return null;
@@ -490,7 +567,11 @@ const readResponseBuffer = async (stream, { maxBytes = Infinity, tooBigMessage }
 
     if (Number.isFinite(maxBytes) && total > maxBytes) {
       stream.destroy();
-      throw createError(ERROR_CODES.TOO_BIG, tooBigMessage || 'Conteúdo excede o limite permitido.', { bytes: total });
+      throw createError(
+        ERROR_CODES.TOO_BIG,
+        tooBigMessage || 'Conteúdo excede o limite permitido.',
+        { bytes: total },
+      );
     }
 
     chunks.push(current);
@@ -574,7 +655,19 @@ const createByteLimitTransform = (maxBytes, tooBigMessage) => {
   };
 };
 
-const httpRequest = ({ method, url, headers = {}, body = null, timeoutMs = DEFAULT_TIMEOUT_MS, maxRedirects = 0, redirectCount = 0, endpoint = 'unknown', timeoutMessage = 'Timeout ao comunicar com a API yt-dls.', fallbackMessage = 'Falha ao comunicar com a API yt-dls.', onResponse }) =>
+const httpRequest = ({
+  method,
+  url,
+  headers = {},
+  body = null,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  maxRedirects = 0,
+  redirectCount = 0,
+  endpoint = 'unknown',
+  timeoutMessage = 'Timeout ao comunicar com a API yt-dls.',
+  fallbackMessage = 'Falha ao comunicar com a API yt-dls.',
+  onResponse,
+}) =>
   new Promise((resolve, reject) => {
     const urlObj = new URL(url);
     const requestHeaders = { ...headers };
@@ -670,7 +763,13 @@ const httpRequest = ({ method, url, headers = {}, body = null, timeoutMs = DEFAU
     req.end();
   });
 
-const requestJson = async ({ method, url, body = null, timeoutMs = DEFAULT_TIMEOUT_MS, endpoint }) =>
+const requestJson = async ({
+  method,
+  url,
+  body = null,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  endpoint,
+}) =>
   httpRequest({
     method,
     url,
@@ -706,7 +805,12 @@ const requestJson = async ({ method, url, body = null, timeoutMs = DEFAULT_TIMEO
     },
   });
 
-const requestBuffer = async ({ url, timeoutMs = THUMBNAIL_TIMEOUT_MS, maxBytes = MAX_THUMB_BYTES, endpoint = YTDLS_ENDPOINTS.thumbnail }) =>
+const requestBuffer = async ({
+  url,
+  timeoutMs = THUMBNAIL_TIMEOUT_MS,
+  maxBytes = MAX_THUMB_BYTES,
+  endpoint = YTDLS_ENDPOINTS.thumbnail,
+}) =>
   httpRequest({
     method: 'GET',
     url,
@@ -793,7 +897,9 @@ const pruneSearchCache = () => {
     return;
   }
 
-  const ordered = [...searchCache.entries()].sort((a, b) => (a[1]?.createdAt || 0) - (b[1]?.createdAt || 0));
+  const ordered = [...searchCache.entries()].sort(
+    (a, b) => (a[1]?.createdAt || 0) - (b[1]?.createdAt || 0),
+  );
   const toRemove = searchCache.size - MAX_SEARCH_CACHE_ENTRIES;
   for (let i = 0; i < toRemove; i += 1) {
     searchCache.delete(ordered[i][0]);
@@ -835,7 +941,11 @@ const buildYtdlsUrl = (endpoint, queryParams = null) => {
 const fetchSearchResult = async (query) => {
   const normalized = typeof query === 'string' ? query.trim() : '';
   if (!normalized) {
-    throw createError(ERROR_CODES.INVALID_INPUT, 'Você precisa informar um link do YouTube ou termo de busca.', { endpoint: YTDLS_ENDPOINTS.search });
+    throw createError(
+      ERROR_CODES.INVALID_INPUT,
+      'Você precisa informar um link do YouTube ou termo de busca.',
+      { endpoint: YTDLS_ENDPOINTS.search },
+    );
   }
 
   const cacheKey = normalized.toLowerCase();
@@ -856,7 +966,11 @@ const fetchSearchResult = async (query) => {
       });
 
       if (!payload?.sucesso) {
-        throw createError(ERROR_CODES.API, payload?.mensagem || 'Não foi possível buscar o vídeo agora.', { endpoint });
+        throw createError(
+          ERROR_CODES.API,
+          payload?.mensagem || 'Não foi possível buscar o vídeo agora.',
+          { endpoint },
+        );
       }
 
       return payload;
@@ -883,7 +997,11 @@ const resolveYoutubeLink = async (query) => {
   const normalized = query ? query.trim() : '';
 
   if (!normalized) {
-    throw createError(ERROR_CODES.INVALID_INPUT, 'Você precisa informar um link do YouTube ou termo de busca.', { endpoint: YTDLS_ENDPOINTS.search });
+    throw createError(
+      ERROR_CODES.INVALID_INPUT,
+      'Você precisa informar um link do YouTube ou termo de busca.',
+      { endpoint: YTDLS_ENDPOINTS.search },
+    );
   }
 
   if (/^https?:\/\//i.test(normalized)) {
@@ -980,11 +1098,15 @@ const requestDownloadToFile = async (link, type, requestId) => {
 
         if (contentLength !== null && contentLength > MAX_MEDIA_BYTES) {
           res.resume();
-          throw createError(ERROR_CODES.TOO_BIG, `O arquivo excede o limite permitido de ${MAX_MEDIA_MB_LABEL} MB.`, {
-            endpoint: currentEndpoint,
-            status,
-            bytes: contentLength,
-          });
+          throw createError(
+            ERROR_CODES.TOO_BIG,
+            `O arquivo excede o limite permitido de ${MAX_MEDIA_MB_LABEL} MB.`,
+            {
+              endpoint: currentEndpoint,
+              status,
+              bytes: contentLength,
+            },
+          );
         }
 
         if (status < 200 || status >= 300) {
@@ -998,7 +1120,10 @@ const requestDownloadToFile = async (link, type, requestId) => {
         }
 
         writeStream = fs.createWriteStream(filePath);
-        const limiter = createByteLimitTransform(MAX_MEDIA_BYTES, `O arquivo excede o limite permitido de ${MAX_MEDIA_MB_LABEL} MB.`);
+        const limiter = createByteLimitTransform(
+          MAX_MEDIA_BYTES,
+          `O arquivo excede o limite permitido de ${MAX_MEDIA_MB_LABEL} MB.`,
+        );
 
         try {
           await pipeline(res, limiter.stream, writeStream);
@@ -1019,7 +1144,10 @@ const requestDownloadToFile = async (link, type, requestId) => {
           if (!streamInfo.hasVideo) {
             if (streamInfo.hasAudio) {
               finalMediaType = 'audio';
-              finalMimeType = normalizedContentType === 'video/mp4' ? 'audio/mp4' : resolveMediaMimeType('audio', contentType);
+              finalMimeType =
+                normalizedContentType === 'video/mp4'
+                  ? 'audio/mp4'
+                  : resolveMediaMimeType('audio', contentType);
 
               logger.warn('Play vídeo: fonte retornou somente áudio, fallback ativado.', {
                 requestId,
@@ -1029,19 +1157,27 @@ const requestDownloadToFile = async (link, type, requestId) => {
                 audioCodec: streamInfo.audioCodec || null,
               });
             } else {
-              throw createError(ERROR_CODES.API, 'Não foi possível enviar como vídeo: a mídia não possui faixa de vídeo nem áudio.', {
-                endpoint: currentEndpoint,
-                status,
-                requestId,
-                hasAudio: streamInfo.hasAudio,
-                videoCodec: streamInfo.videoCodec,
-                audioCodec: streamInfo.audioCodec,
-              });
+              throw createError(
+                ERROR_CODES.API,
+                'Não foi possível enviar como vídeo: a mídia não possui faixa de vídeo nem áudio.',
+                {
+                  endpoint: currentEndpoint,
+                  status,
+                  requestId,
+                  hasAudio: streamInfo.hasAudio,
+                  videoCodec: streamInfo.videoCodec,
+                  audioCodec: streamInfo.audioCodec,
+                },
+              );
             }
           }
 
           if (finalMediaType === 'video') {
-            if (VIDEO_FORCE_TRANSCODE || streamInfo.videoCodec !== 'h264' || (streamInfo.hasAudio && streamInfo.audioCodec !== 'aac')) {
+            if (
+              VIDEO_FORCE_TRANSCODE ||
+              streamInfo.videoCodec !== 'h264' ||
+              (streamInfo.hasAudio && streamInfo.audioCodec !== 'aac')
+            ) {
               finalBytes = await transcodeVideoForWhatsapp(filePath, requestId, currentEndpoint);
               finalMimeType = TYPE_CONFIG.video.mimeFallback;
               logger.info('Play vídeo normalizado para compatibilidade.', {
@@ -1141,7 +1277,12 @@ const getUserErrorMessage = (error) => {
 const notifyFailure = async (sock, remoteJid, messageInfo, expirationMessage, error, context) => {
   const errorMessage = getUserErrorMessage(error);
 
-  await sendAndStore(sock, remoteJid, { text: `❌ Erro: ${errorMessage}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+  await sendAndStore(
+    sock,
+    remoteJid,
+    { text: `❌ Erro: ${errorMessage}` },
+    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+  );
 
   if (adminJid) {
     await sendAndStore(sock, adminJid, {
@@ -1150,7 +1291,14 @@ const notifyFailure = async (sock, remoteJid, messageInfo, expirationMessage, er
   }
 };
 
-const processPlayRequest = async ({ sock, remoteJid, messageInfo, expirationMessage, text, type }) => {
+const processPlayRequest = async ({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  text,
+  type,
+}) => {
   const startTime = Date.now();
   const requestId = buildRequestId();
   const config = TYPE_CONFIG[type];
@@ -1174,9 +1322,16 @@ const processPlayRequest = async ({ sock, remoteJid, messageInfo, expirationMess
     const queueStatusPromise = ytdlsClient.fetchQueueStatus(requestId);
     const queueStatus = await Promise.race([queueStatusPromise, delay(QUICK_QUEUE_LOOKUP_MS)]);
     const queueText = formatters.buildQueueStatusText(queueStatus);
-    const waitText = queueText ? `${config.queueWaitText || config.waitText}\n${queueText}` : config.waitText;
+    const waitText = queueText
+      ? `${config.queueWaitText || config.waitText}\n${queueText}`
+      : config.waitText;
 
-    await sendAndStore(sock, remoteJid, { text: waitText }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: waitText },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
 
     if (queueStatus?.fila) {
       logger.info('Play fila consultada.', {
@@ -1189,7 +1344,10 @@ const processPlayRequest = async ({ sock, remoteJid, messageInfo, expirationMess
       });
     }
 
-    const [downloadResult, videoInfo] = await Promise.all([ytdlsClient.requestDownloadToFile(link, type, requestId), ytdlsClient.fetchVideoInfo(text, link)]);
+    const [downloadResult, videoInfo] = await Promise.all([
+      ytdlsClient.requestDownloadToFile(link, type, requestId),
+      ytdlsClient.fetchVideoInfo(text, link),
+    ]);
 
     filePath = downloadResult.filePath;
     const deliveredType = downloadResult.mediaType || type;
@@ -1208,7 +1366,12 @@ const processPlayRequest = async ({ sock, remoteJid, messageInfo, expirationMess
     });
 
     if (fallbackToAudio) {
-      await sendAndStore(sock, remoteJid, { text: '⚠️ Este link retornou somente áudio. Enviando no formato de áudio.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sendAndStore(
+        sock,
+        remoteJid,
+        { text: '⚠️ Este link retornou somente áudio. Enviando no formato de áudio.' },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
     }
 
     if (deliveredType === 'audio') {
@@ -1238,7 +1401,12 @@ const processPlayRequest = async ({ sock, remoteJid, messageInfo, expirationMess
 
       if (thumbBuffer) {
         try {
-          await sendAndStore(sock, remoteJid, { image: thumbBuffer, caption }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+          await sendAndStore(
+            sock,
+            remoteJid,
+            { image: thumbBuffer, caption },
+            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+          );
           previewDelivered = true;
         } catch (error) {
           logger.warn('Falha ao enviar thumbnail de áudio.', {
@@ -1255,7 +1423,12 @@ const processPlayRequest = async ({ sock, remoteJid, messageInfo, expirationMess
 
       if (!previewDelivered && caption) {
         try {
-          await sendAndStore(sock, remoteJid, { text: caption }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+          await sendAndStore(
+            sock,
+            remoteJid,
+            { text: caption },
+            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+          );
           previewDelivered = true;
         } catch (error) {
           logger.warn('Falha ao enviar preview textual do áudio.', {
@@ -1348,12 +1521,28 @@ const playService = {
   processPlayRequest,
 };
 
-const handleTypedPlayCommand = async ({ sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix, type }) => {
+const handleTypedPlayCommand = async ({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  text,
+  commandPrefix,
+  type,
+}) => {
   try {
     if (!text?.trim()) {
-      const usageText = type === 'audio' ? `🎵 Uso: ${commandPrefix}play <link do YouTube ou termo de busca>` : `🎬 Uso: ${commandPrefix}playvid <link do YouTube ou termo de busca>`;
+      const usageText =
+        type === 'audio'
+          ? `🎵 Uso: ${commandPrefix}play <link do YouTube ou termo de busca>`
+          : `🎬 Uso: ${commandPrefix}playvid <link do YouTube ou termo de busca>`;
 
-      await sendAndStore(sock, remoteJid, { text: usageText }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sendAndStore(
+        sock,
+        remoteJid,
+        { text: usageText },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       return;
     }
 
@@ -1382,7 +1571,14 @@ const handleTypedPlayCommand = async ({ sock, remoteJid, messageInfo, expiration
  * @param {string} text
  * @returns {Promise<void>}
  */
-export const handlePlayCommand = async (sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix = DEFAULT_COMMAND_PREFIX) =>
+export const handlePlayCommand = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) =>
   handleTypedPlayCommand({
     sock,
     remoteJid,
@@ -1402,7 +1598,14 @@ export const handlePlayCommand = async (sock, remoteJid, messageInfo, expiration
  * @param {string} text
  * @returns {Promise<void>}
  */
-export const handlePlayVidCommand = async (sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix = DEFAULT_COMMAND_PREFIX) =>
+export const handlePlayVidCommand = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) =>
   handleTypedPlayCommand({
     sock,
     remoteJid,

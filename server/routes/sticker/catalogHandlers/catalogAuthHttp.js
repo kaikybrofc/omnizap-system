@@ -9,7 +9,15 @@ const decodePathSegment = (segment) => {
   }
 };
 
-export const handleCatalogAuthRoutes = async ({ req, res, pathname, url, apiBasePath, handlers, sendJson }) => {
+export const handleCatalogAuthRoutes = async ({
+  req,
+  res,
+  pathname,
+  url,
+  apiBasePath,
+  handlers,
+  sendJson,
+}) => {
   if (pathname === `${apiBasePath}/auth/google/session`) {
     await handlers.handleGoogleAuthSessionRequest(req, res);
     return true;

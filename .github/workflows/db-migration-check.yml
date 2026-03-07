@@ -3,8 +3,8 @@ name: DB Migration Check
 on:
   pull_request:
     paths:
-      - 'database/**'
-      - 'docs/database/**'
+      - "database/**"
+      - "docs/database/**"
   workflow_dispatch:
 
 concurrency:

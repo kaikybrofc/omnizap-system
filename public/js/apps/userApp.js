@@ -158,8 +158,10 @@ if (root) {
   };
 
   const state = {
-    apiBasePath: String(root.dataset.apiBasePath || DEFAULT_API_BASE_PATH).trim() || DEFAULT_API_BASE_PATH,
-    stickersPath: String(root.dataset.stickersPath || DEFAULT_STICKERS_PATH).trim() || DEFAULT_STICKERS_PATH,
+    apiBasePath:
+      String(root.dataset.apiBasePath || DEFAULT_API_BASE_PATH).trim() || DEFAULT_API_BASE_PATH,
+    stickersPath:
+      String(root.dataset.stickersPath || DEFAULT_STICKERS_PATH).trim() || DEFAULT_STICKERS_PATH,
     loginPath: String(root.dataset.loginPath || DEFAULT_LOGIN_PATH).trim() || DEFAULT_LOGIN_PATH,
     botPhone: '',
     adminBusy: false,
@@ -249,7 +251,9 @@ if (root) {
   const setHealthMeter = (el, value, { max = 100, warnAt = 70, dangerAt = 90 } = {}) => {
     if (!el) return;
     const numeric = Number(value);
-    const percent = Number.isFinite(numeric) ? Math.max(0, Math.min(100, (numeric / max) * 100)) : 0;
+    const percent = Number.isFinite(numeric)
+      ? Math.max(0, Math.min(100, (numeric / max) * 100))
+      : 0;
     el.style.width = `${percent.toFixed(1)}%`;
     el.classList.remove('warn', 'danger');
     if (percent >= dangerAt) {
@@ -350,10 +354,17 @@ if (root) {
 
   const getAdminCarouselSlides = () => {
     if (!ui.adminLayout) return [];
-    return Array.from(ui.adminLayout.children).filter((node) => node instanceof Element && node.classList.contains('section'));
+    return Array.from(ui.adminLayout.children).filter(
+      (node) => node instanceof Element && node.classList.contains('section'),
+    );
   };
 
-  const isCarouselMode = () => Boolean(ui.adminLayout && ui.adminLayout.dataset.carouselEnabled === 'true' && document.body.classList.contains('compact'));
+  const isCarouselMode = () =>
+    Boolean(
+      ui.adminLayout &&
+      ui.adminLayout.dataset.carouselEnabled === 'true' &&
+      document.body.classList.contains('compact'),
+    );
 
   const updateAdminCarouselControls = (slides = getAdminCarouselSlides()) => {
     const carouselMode = isCarouselMode();
@@ -363,7 +374,8 @@ if (root) {
       if (ui.adminLayout) ui.adminLayout.style.blockSize = '';
       if (ui.adminCarouselPrevBtn) ui.adminCarouselPrevBtn.disabled = true;
       if (ui.adminCarouselNextBtn) ui.adminCarouselNextBtn.disabled = true;
-      if (ui.adminCarouselCounter) ui.adminCarouselCounter.textContent = `${Math.min(state.adminCarouselIndex + 1, Math.max(total, 1))} / ${Math.max(total, 1)}`;
+      if (ui.adminCarouselCounter)
+        ui.adminCarouselCounter.textContent = `${Math.min(state.adminCarouselIndex + 1, Math.max(total, 1))} / ${Math.max(total, 1)}`;
       return;
     }
 
@@ -494,7 +506,11 @@ if (root) {
     });
 
     const hashTarget = normalizeString(window.location.hash);
-    if (isCarouselMode() && hashTarget && scrollAdminCarouselToId(hashTarget, { behavior: 'auto' })) {
+    if (
+      isCarouselMode() &&
+      hashTarget &&
+      scrollAdminCarouselToId(hashTarget, { behavior: 'auto' })
+    ) {
       return;
     }
     updateAdminCarouselControls(slides);
@@ -506,7 +522,16 @@ if (root) {
     if (meta) meta.textContent = '';
   };
 
-  const paginateItems = ({ items = [], statePageKey = '', pageSize = 10, wrapper = null, counter = null, meta = null, prevBtn = null, nextBtn = null } = {}) => {
+  const paginateItems = ({
+    items = [],
+    statePageKey = '',
+    pageSize = 10,
+    wrapper = null,
+    counter = null,
+    meta = null,
+    prevBtn = null,
+    nextBtn = null,
+  } = {}) => {
     const safeItems = Array.isArray(items) ? items : [];
     const safePageSize = toPositiveInt(pageSize, 10);
 
@@ -549,7 +574,9 @@ if (root) {
   const formatDateTime = (value) => {
     const ms = Date.parse(String(value || ''));
     if (!Number.isFinite(ms)) return 'n/d';
-    return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(ms));
+    return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
+      new Date(ms),
+    );
   };
 
   const formatRelativeTime = (value) => {
@@ -646,7 +673,13 @@ if (root) {
 
   const resolveEnvironmentLabel = () => {
     const host = String(window.location.hostname || '').toLowerCase();
-    if (host.includes('localhost') || host.includes('127.0.0.1') || host.includes('staging') || host.includes('dev')) return 'Staging';
+    if (
+      host.includes('localhost') ||
+      host.includes('127.0.0.1') ||
+      host.includes('staging') ||
+      host.includes('dev')
+    )
+      return 'Staging';
     return 'Production';
   };
 
@@ -670,7 +703,10 @@ if (root) {
     const isTwoFactorPossible = Boolean(ownerJid);
 
     setText(ui.securitySession, secureProtocol ? 'Sessão segura (HTTPS)' : 'Sessão sem HTTPS');
-    setText(ui.securityEncryption, secureProtocol ? 'Criptografia ativa TLS' : 'Criptografia limitada');
+    setText(
+      ui.securityEncryption,
+      secureProtocol ? 'Criptografia ativa TLS' : 'Criptografia limitada',
+    );
     setText(ui.securityIp, ipLabel);
     setText(ui.security2fa, isTwoFactorPossible ? '2FA: disponível' : '2FA: n/d');
   };
@@ -808,7 +844,8 @@ if (root) {
 
   const getAdminSession = () => state.adminStatusPayload?.session || null;
   const isAdminAuthenticated = () => Boolean(getAdminSession()?.authenticated);
-  const isAdminEligible = () => Boolean(state.adminStatusPayload?.eligible_google_login || isAdminAuthenticated());
+  const isAdminEligible = () =>
+    Boolean(state.adminStatusPayload?.eligible_google_login || isAdminAuthenticated());
 
   const resolveAdminRole = () =>
     String(getAdminSession()?.role || state.adminStatusPayload?.eligible_role || '')
@@ -829,7 +866,9 @@ if (root) {
   };
 
   const createBadge = (label, severity = 'low') => {
-    const normalizedSeverity = ['critical', 'high', 'medium', 'low'].includes(String(severity)) ? String(severity) : 'low';
+    const normalizedSeverity = ['critical', 'high', 'medium', 'low'].includes(String(severity))
+      ? String(severity)
+      : 'low';
     const badge = document.createElement('span');
     badge.className = `admin-badge ${normalizedSeverity}`;
     badge.textContent = String(label || '').trim() || normalizedSeverity.toUpperCase();
@@ -863,7 +902,17 @@ if (root) {
     container.appendChild(createItemMeta(message));
   };
 
-  const appendListItem = ({ container, title, severity = '', badgeLabel = '', meta = [], actions = [], customNode = null, itemData = {}, highlightQuery = '' }) => {
+  const appendListItem = ({
+    container,
+    title,
+    severity = '',
+    badgeLabel = '',
+    meta = [],
+    actions = [],
+    customNode = null,
+    itemData = {},
+    highlightQuery = '',
+  }) => {
     if (!container) return;
 
     const item = document.createElement('article');
@@ -930,8 +979,10 @@ if (root) {
       }
     }
 
-    if (ui.adminPassword) ui.adminPassword.disabled = busy || !isAdminEligible() || isAdminAuthenticated();
-    if (ui.adminUnlockBtn) ui.adminUnlockBtn.disabled = busy || !isAdminEligible() || isAdminAuthenticated();
+    if (ui.adminPassword)
+      ui.adminPassword.disabled = busy || !isAdminEligible() || isAdminAuthenticated();
+    if (ui.adminUnlockBtn)
+      ui.adminUnlockBtn.disabled = busy || !isAdminEligible() || isAdminAuthenticated();
     if (ui.adminRefreshBtn) ui.adminRefreshBtn.disabled = busy || !isAdminAuthenticated();
     if (ui.adminLogoutBtn) ui.adminLogoutBtn.disabled = busy || !isAdminAuthenticated();
   };
@@ -1084,7 +1135,10 @@ if (root) {
     });
     renderListPlaceholder(ui.adminFlagsList, 'Nenhuma feature flag disponível.');
     renderListPlaceholder(ui.adminAlertsList, 'Sem alertas ativos no momento.');
-    renderListPlaceholder(ui.adminSearchResults, 'Faça uma busca para ver usuários, grupos, packs e sessões.');
+    renderListPlaceholder(
+      ui.adminSearchResults,
+      'Faça uma busca para ver usuários, grupos, packs e sessões.',
+    );
     setText(ui.adminOpsStatus, state.adminOpsMessage || 'Ações operacionais disponíveis.');
     setRiskPill(ui.riskCpu, 'CPU normal');
     setRiskPill(ui.riskSpam, 'Spam sob controle');
@@ -1173,7 +1227,9 @@ if (root) {
         body: JSON.stringify(payload),
       });
       const created = Boolean(response?.data?.created);
-      state.adminOpsMessage = created ? `Conta banida: ${label}.` : `Conta já estava banida: ${label}.`;
+      state.adminOpsMessage = created
+        ? `Conta banida: ${label}.`
+        : `Conta já estava banida: ${label}.`;
       showToast({
         kind: created ? 'warn' : 'success',
         title: 'Ban',
@@ -1196,7 +1252,9 @@ if (root) {
     showAdminError('');
     setAdminBusy(true);
     try {
-      await fetchJson(`${adminBansApiPath}/${encodeURIComponent(normalizedId)}/revoke`, { method: 'DELETE' });
+      await fetchJson(`${adminBansApiPath}/${encodeURIComponent(normalizedId)}/revoke`, {
+        method: 'DELETE',
+      });
       state.adminOpsMessage = `Ban ${normalizedId} revogado com sucesso.`;
       showToast({ kind: 'success', title: 'Ban', message: state.adminOpsMessage });
       await refreshAdminArea({ keepCurrentError: true });
@@ -1208,7 +1266,12 @@ if (root) {
     }
   };
 
-  const handleAdminFeatureFlagUpdate = async ({ flagName = '', isEnabled = false, rolloutPercent = 100, description = '' } = {}) => {
+  const handleAdminFeatureFlagUpdate = async ({
+    flagName = '',
+    isEnabled = false,
+    rolloutPercent = 100,
+    description = '',
+  } = {}) => {
     const normalizedName = normalizeString(flagName);
     if (!normalizedName || state.adminBusy) return;
 
@@ -1240,7 +1303,9 @@ if (root) {
     const normalizedAction = normalizeString(action);
     if (!normalizedAction || state.adminBusy) return;
     if (CRITICAL_ADMIN_ACTIONS.has(normalizedAction)) {
-      const confirmed = confirmCriticalAction(`Executar ação crítica: ${normalizedAction.replace(/_/g, ' ')}?`);
+      const confirmed = confirmCriticalAction(
+        `Executar ação crítica: ${normalizedAction.replace(/_/g, ' ')}?`,
+      );
       if (!confirmed) return;
     }
 
@@ -1254,7 +1319,8 @@ if (root) {
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({ action: normalizedAction }),
       });
-      const message = normalizeString(response?.data?.message) || `Ação ${normalizedAction} concluída.`;
+      const message =
+        normalizeString(response?.data?.message) || `Ação ${normalizedAction} concluída.`;
       state.adminOpsMessage = `${message} (${formatDateTime(response?.data?.updated_at)})`;
       setText(ui.adminOpsStatus, state.adminOpsMessage);
       showToast({ kind: 'success', title: 'Operação', message: state.adminOpsMessage });
@@ -1311,7 +1377,10 @@ if (root) {
       const severity = normalizeSeverity(event?.severity);
       const badgeLabel = severity.toUpperCase();
       const createdAt = formatDateTime(event?.created_at || event?.revoked_at);
-      const meta = [normalizeString(event?.subtitle), `Tipo: ${normalizeString(event?.event_type) || 'evento'} • ${createdAt}`];
+      const meta = [
+        normalizeString(event?.subtitle),
+        `Tipo: ${normalizeString(event?.event_type) || 'evento'} • ${createdAt}`,
+      ];
 
       if (normalizeString(event?.reason)) meta.push(`Motivo: ${normalizeString(event.reason)}`);
 
@@ -1323,7 +1392,11 @@ if (root) {
       } else {
         const banPayload = buildBanPayloadFromEvent(event);
         if (banPayload) {
-          actions.push(createMiniButton('Banir conta', () => handleAdminBanCreate(banPayload, buildIdentityLabel(banPayload))));
+          actions.push(
+            createMiniButton('Banir conta', () =>
+              handleAdminBanCreate(banPayload, buildIdentityLabel(banPayload)),
+            ),
+          );
         }
         const logoutPayload = compactIdentityPayload({
           session_token: event?.metadata?.session_token,
@@ -1332,7 +1405,11 @@ if (root) {
           owner_jid: event?.sender_id || event?.metadata?.owner_jid,
         });
         if (Object.keys(logoutPayload).length) {
-          actions.push(createMiniButton('Forçar logout', () => handleAdminForceLogout(logoutPayload, buildIdentityLabel(logoutPayload))));
+          actions.push(
+            createMiniButton('Forçar logout', () =>
+              handleAdminForceLogout(logoutPayload, buildIdentityLabel(logoutPayload)),
+            ),
+          );
         }
       }
 
@@ -1380,11 +1457,21 @@ if (root) {
 
     for (const session of pageItems) {
       const identity = compactIdentityPayload(session);
-      const title = normalizeString(session?.name || session?.email || session?.owner_jid || 'Sessão ativa');
-      const meta = [`Email: ${normalizeString(session?.email) || 'n/d'}`, `Owner: ${normalizeString(session?.owner_jid) || 'n/d'}`, `Último acesso: ${formatDateTime(session?.last_seen_at)} • Expira: ${formatDateTime(session?.expires_at)}`];
+      const title = normalizeString(
+        session?.name || session?.email || session?.owner_jid || 'Sessão ativa',
+      );
+      const meta = [
+        `Email: ${normalizeString(session?.email) || 'n/d'}`,
+        `Owner: ${normalizeString(session?.owner_jid) || 'n/d'}`,
+        `Último acesso: ${formatDateTime(session?.last_seen_at)} • Expira: ${formatDateTime(session?.expires_at)}`,
+      ];
       const actions = [];
       if (Object.keys(identity).length) {
-        actions.push(createMiniButton('Forçar logout', () => handleAdminForceLogout(identity, buildIdentityLabel(identity))));
+        actions.push(
+          createMiniButton('Forçar logout', () =>
+            handleAdminForceLogout(identity, buildIdentityLabel(identity)),
+          ),
+        );
       }
       appendListItem({
         container: ui.adminSessionsList,
@@ -1427,10 +1514,18 @@ if (root) {
     for (const user of pageItems) {
       const identity = buildForceLogoutPayloadFromAny(user);
       const title = normalizeString(user?.name || user?.email || user?.owner_jid || 'Usuário');
-      const meta = [`Email: ${normalizeString(user?.email) || 'n/d'}`, `Owner: ${normalizeString(user?.owner_jid) || 'n/d'}`, `Último login: ${formatDateTime(user?.last_login_at)} • Último acesso: ${formatDateTime(user?.last_seen_at)}`];
+      const meta = [
+        `Email: ${normalizeString(user?.email) || 'n/d'}`,
+        `Owner: ${normalizeString(user?.owner_jid) || 'n/d'}`,
+        `Último login: ${formatDateTime(user?.last_login_at)} • Último acesso: ${formatDateTime(user?.last_seen_at)}`,
+      ];
       const actions = [];
       if (Object.keys(identity).length) {
-        actions.push(createMiniButton('Forçar logout', () => handleAdminForceLogout(identity, buildIdentityLabel(identity))));
+        actions.push(
+          createMiniButton('Forçar logout', () =>
+            handleAdminForceLogout(identity, buildIdentityLabel(identity)),
+          ),
+        );
       }
       appendListItem({
         container: ui.adminUsersList,
@@ -1453,9 +1548,14 @@ if (root) {
     }
 
     for (const ban of list) {
-      const identity = normalizeString(ban?.email || ban?.owner_jid || ban?.google_sub || `ban:${ban?.id || ''}`);
+      const identity = normalizeString(
+        ban?.email || ban?.owner_jid || ban?.google_sub || `ban:${ban?.id || ''}`,
+      );
       const isRevoked = Boolean(ban?.revoked_at);
-      const meta = [`Criado: ${formatDateTime(ban?.created_at)}${isRevoked ? ` • Revogado: ${formatDateTime(ban?.revoked_at)}` : ''}`, `Motivo: ${normalizeString(ban?.reason) || 'não informado'}`];
+      const meta = [
+        `Criado: ${formatDateTime(ban?.created_at)}${isRevoked ? ` • Revogado: ${formatDateTime(ban?.revoked_at)}` : ''}`,
+        `Motivo: ${normalizeString(ban?.reason) || 'não informado'}`,
+      ];
       const actions = [];
       if (!isRevoked && normalizeString(ban?.id)) {
         actions.push(createMiniButton('Revogar ban', () => handleAdminBanRevoke(ban.id)));
@@ -1482,7 +1582,17 @@ if (root) {
       if (!query) return true;
 
       const details = isObject(item?.details) ? Object.entries(item.details).slice(0, 3) : [];
-      const haystack = [normalizeString(item?.action), normalizeString(item?.target_type), normalizeString(item?.target_id), normalizeString(item?.admin_email), normalizeString(item?.admin_google_sub), normalizeString(item?.admin_owner_jid), details.map(([key, value]) => `${key}=${value}`).join(' ')].join(' ').toLowerCase();
+      const haystack = [
+        normalizeString(item?.action),
+        normalizeString(item?.target_type),
+        normalizeString(item?.target_id),
+        normalizeString(item?.admin_email),
+        normalizeString(item?.admin_google_sub),
+        normalizeString(item?.admin_owner_jid),
+        details.map(([key, value]) => `${key}=${value}`).join(' '),
+      ]
+        .join(' ')
+        .toLowerCase();
       return haystack.includes(query);
     });
     clearNode(ui.adminAuditList);
@@ -1516,9 +1626,14 @@ if (root) {
       const targetId = normalizeString(item?.target_id || '');
       const status = normalizeString(item?.status || 'success');
       const details = isObject(item?.details) ? Object.entries(item.details).slice(0, 3) : [];
-      const detailLine = details.length ? `Detalhes: ${details.map(([key, value]) => `${key}=${value}`).join(' • ')}` : '';
+      const detailLine = details.length
+        ? `Detalhes: ${details.map(([key, value]) => `${key}=${value}`).join(' • ')}`
+        : '';
 
-      const meta = [`Admin: ${normalizeString(item?.admin_email || item?.admin_google_sub || item?.admin_owner_jid || 'n/d')} (${formatAdminRole(normalizeString(item?.admin_role || 'admin'))})`, `Alvo: ${targetType}${targetId ? ` / ${targetId}` : ''} • Em: ${formatDateTime(item?.created_at)}`];
+      const meta = [
+        `Admin: ${normalizeString(item?.admin_email || item?.admin_google_sub || item?.admin_owner_jid || 'n/d')} (${formatAdminRole(normalizeString(item?.admin_role || 'admin'))})`,
+        `Alvo: ${targetType}${targetId ? ` / ${targetId}` : ''} • Em: ${formatDateTime(item?.created_at)}`,
+      ];
       if (detailLine) meta.push(detailLine);
 
       appendListItem({
@@ -1593,7 +1708,11 @@ if (root) {
         title: flagName || 'feature_flag',
         severity: isEnabled ? 'low' : 'medium',
         badgeLabel: isEnabled ? 'ON' : 'OFF',
-        meta: [`Rollout: ${rollout}%`, description ? `Descrição: ${description}` : 'Descrição: n/d', `Atualizado por: ${updatedBy || 'n/d'} • ${formatDateTime(flag?.updated_at)}`],
+        meta: [
+          `Rollout: ${rollout}%`,
+          description ? `Descrição: ${description}` : 'Descrição: n/d',
+          `Atualizado por: ${updatedBy || 'n/d'} • ${formatDateTime(flag?.updated_at)}`,
+        ],
         actions,
         customNode: rolloutForm,
       });
@@ -1630,7 +1749,10 @@ if (root) {
     for (const alert of pageItems) {
       const severity = normalizeSeverity(alert?.severity);
       const title = normalizeString(alert?.title || alert?.code || 'Alerta');
-      const meta = [normalizeString(alert?.message || ''), `Código: ${normalizeString(alert?.code || 'n/d')} • ${formatDateTime(alert?.created_at)}`];
+      const meta = [
+        normalizeString(alert?.message || ''),
+        `Código: ${normalizeString(alert?.code || 'n/d')} • ${formatDateTime(alert?.created_at)}`,
+      ];
       appendListItem({
         container: ui.adminAlertsList,
         title,
@@ -1646,7 +1768,10 @@ if (root) {
     clearNode(ui.adminSearchResults);
 
     if (!payload || !isObject(payload)) {
-      renderListPlaceholder(ui.adminSearchResults, 'Faça uma busca para ver usuários, grupos, packs e sessões.');
+      renderListPlaceholder(
+        ui.adminSearchResults,
+        'Faça uma busca para ver usuários, grupos, packs e sessões.',
+      );
       return;
     }
 
@@ -1659,7 +1784,12 @@ if (root) {
       title: `Resultado para "${q || 'consulta'}"`,
       severity: 'low',
       badgeLabel: 'BUSCA',
-      meta: [`Usuários: ${formatIntegerOrNd(totals.users)}`, `Sessões: ${formatIntegerOrNd(totals.sessions)}`, `Grupos: ${formatIntegerOrNd(totals.groups)}`, `Packs: ${formatIntegerOrNd(totals.packs)}`],
+      meta: [
+        `Usuários: ${formatIntegerOrNd(totals.users)}`,
+        `Sessões: ${formatIntegerOrNd(totals.sessions)}`,
+        `Grupos: ${formatIntegerOrNd(totals.groups)}`,
+        `Packs: ${formatIntegerOrNd(totals.packs)}`,
+      ],
       highlightQuery: q,
     });
 
@@ -1668,14 +1798,21 @@ if (root) {
       const identity = buildForceLogoutPayloadFromAny(user);
       const actions = [];
       if (Object.keys(identity).length) {
-        actions.push(createMiniButton('Forçar logout', () => handleAdminForceLogout(identity, buildIdentityLabel(identity))));
+        actions.push(
+          createMiniButton('Forçar logout', () =>
+            handleAdminForceLogout(identity, buildIdentityLabel(identity)),
+          ),
+        );
       }
       appendListItem({
         container: ui.adminSearchResults,
         title: `[Usuário] ${normalizeString(user?.name || user?.email || user?.owner_jid || 'registro')}`,
         severity: 'low',
         badgeLabel: 'USER',
-        meta: [`Email: ${normalizeString(user?.email) || 'n/d'}`, `Owner: ${normalizeString(user?.owner_jid) || 'n/d'}`],
+        meta: [
+          `Email: ${normalizeString(user?.email) || 'n/d'}`,
+          `Owner: ${normalizeString(user?.owner_jid) || 'n/d'}`,
+        ],
         actions,
         highlightQuery: q,
       });
@@ -1686,14 +1823,21 @@ if (root) {
       const identity = buildForceLogoutPayloadFromAny(session);
       const actions = [];
       if (Object.keys(identity).length) {
-        actions.push(createMiniButton('Forçar logout', () => handleAdminForceLogout(identity, buildIdentityLabel(identity))));
+        actions.push(
+          createMiniButton('Forçar logout', () =>
+            handleAdminForceLogout(identity, buildIdentityLabel(identity)),
+          ),
+        );
       }
       appendListItem({
         container: ui.adminSearchResults,
         title: `[Sessão] ${normalizeString(session?.name || session?.email || session?.owner_jid || 'ativa')}`,
         severity: 'low',
         badgeLabel: 'SESSÃO',
-        meta: [`Email: ${normalizeString(session?.email) || 'n/d'}`, `Expira: ${formatDateTime(session?.expires_at)}`],
+        meta: [
+          `Email: ${normalizeString(session?.email) || 'n/d'}`,
+          `Expira: ${formatDateTime(session?.expires_at)}`,
+        ],
         actions,
         highlightQuery: q,
       });
@@ -1706,7 +1850,10 @@ if (root) {
         title: `[Grupo] ${normalizeString(group?.subject || group?.id || 'grupo')}`,
         severity: 'medium',
         badgeLabel: 'GRUPO',
-        meta: [`ID: ${normalizeString(group?.id) || 'n/d'}`, `Atualizado: ${formatDateTime(group?.updated_at)}`],
+        meta: [
+          `ID: ${normalizeString(group?.id) || 'n/d'}`,
+          `Atualizado: ${formatDateTime(group?.updated_at)}`,
+        ],
         highlightQuery: q,
       });
     }
@@ -1721,7 +1868,10 @@ if (root) {
         title: `[Pack] ${normalizeString(pack?.name || pack?.pack_key || 'pack')}`,
         severity: 'low',
         badgeLabel: normalizeString(pack?.visibility || 'pack').toUpperCase(),
-        meta: [`Owner: ${normalizeString(pack?.owner_jid) || 'n/d'}`, `Stickers: ${formatIntegerOrNd(pack?.stickers_count)}`],
+        meta: [
+          `Owner: ${normalizeString(pack?.owner_jid) || 'n/d'}`,
+          `Stickers: ${formatIntegerOrNd(pack?.stickers_count)}`,
+        ],
         actions,
         highlightQuery: q,
       });
@@ -1778,13 +1928,20 @@ if (root) {
     return { cpu, ram, latency, queue, dbStatus };
   };
 
-  const updateOperationalSignals = ({ counters = {}, dashboard = {}, health = {}, alerts = [] } = {}) => {
+  const updateOperationalSignals = ({
+    counters = {},
+    dashboard = {},
+    health = {},
+    alerts = [],
+  } = {}) => {
     const normalizedAlerts = Array.isArray(alerts) ? alerts : [];
     const hasCriticalAlert = normalizedAlerts.some((entry) => {
       const severity = normalizeSeverity(entry?.severity);
       return severity === 'critical' || severity === 'high';
     });
-    const hasMediumAlert = normalizedAlerts.some((entry) => normalizeSeverity(entry?.severity) === 'medium');
+    const hasMediumAlert = normalizedAlerts.some(
+      (entry) => normalizeSeverity(entry?.severity) === 'medium',
+    );
 
     const cpuPercent = Number(health?.cpu_percent);
     const spamBlocked = Number(dashboard?.spam_blocked_today || 0);
@@ -1824,11 +1981,21 @@ if (root) {
       setRiskPill(ui.riskErrors, 'Erros baixos');
     }
 
-    if (dbStatus === 'down' || hasCriticalAlert || errors5xx >= 30 || (Number.isFinite(cpuPercent) && cpuPercent >= 92)) {
+    if (
+      dbStatus === 'down' ||
+      hasCriticalAlert ||
+      errors5xx >= 30 ||
+      (Number.isFinite(cpuPercent) && cpuPercent >= 92)
+    ) {
       setGlobalStatusChip('incident', 'Incident');
       return;
     }
-    if (dbStatus === 'degraded' || hasMediumAlert || errors5xx >= 10 || (Number.isFinite(cpuPercent) && cpuPercent >= 75)) {
+    if (
+      dbStatus === 'degraded' ||
+      hasMediumAlert ||
+      errors5xx >= 10 ||
+      (Number.isFinite(cpuPercent) && cpuPercent >= 75)
+    ) {
       setGlobalStatusChip('warning', 'Warning');
       return;
     }
@@ -1843,15 +2010,27 @@ if (root) {
     const usersSessions = isObject(payload?.users_sessions) ? payload.users_sessions : {};
     const health = isObject(payload?.system_health) ? payload.system_health : {};
     const previousCounters = isObject(previousPayload?.counters) ? previousPayload.counters : {};
-    const previousDashboard = isObject(previousPayload?.dashboard_quick) ? previousPayload.dashboard_quick : {};
+    const previousDashboard = isObject(previousPayload?.dashboard_quick)
+      ? previousPayload.dashboard_quick
+      : {};
     const hasPrevious = Boolean(previousPayload);
     const lastUpdated = normalizeString(payload?.updated_at);
-    const lastUpdatedLabel = lastUpdated ? `${formatDateTime(lastUpdated)} (${formatRelativeTime(lastUpdated)})` : 'n/d';
+    const lastUpdatedLabel = lastUpdated
+      ? `${formatDateTime(lastUpdated)} (${formatRelativeTime(lastUpdated)})`
+      : 'n/d';
 
-    state.moderationFilterSeverity = normalizeString(ui.adminModerationFilterSeverity?.value || state.moderationFilterSeverity || 'all').toLowerCase();
-    state.moderationFilterType = normalizeString(ui.adminModerationFilterType?.value || state.moderationFilterType || 'all').toLowerCase();
-    state.auditFilterStatus = normalizeString(ui.adminAuditFilterStatus?.value || state.auditFilterStatus || 'all').toLowerCase();
-    state.auditSearchQuery = normalizeString(ui.adminAuditSearch?.value || state.auditSearchQuery || '');
+    state.moderationFilterSeverity = normalizeString(
+      ui.adminModerationFilterSeverity?.value || state.moderationFilterSeverity || 'all',
+    ).toLowerCase();
+    state.moderationFilterType = normalizeString(
+      ui.adminModerationFilterType?.value || state.moderationFilterType || 'all',
+    ).toLowerCase();
+    state.auditFilterStatus = normalizeString(
+      ui.adminAuditFilterStatus?.value || state.auditFilterStatus || 'all',
+    ).toLowerCase();
+    state.auditSearchQuery = normalizeString(
+      ui.adminAuditSearch?.value || state.auditSearchQuery || '',
+    );
 
     const botsOnline = toFiniteNumber(dashboard?.bots_online, 0);
     const messagesToday = toFiniteNumber(dashboard?.messages_today, 0);
@@ -1880,28 +2059,68 @@ if (root) {
     setText(ui.adminVisits7d, formatIntegerOrNd(visits7d));
     setText(ui.adminUniqueVisitors7d, formatIntegerOrNd(uniqueVisitors7d));
 
-    const deltaOrNd = (current, previous, options) => (hasPrevious ? formatDeltaLabel(current, previous, options) : 'n/d');
-    setMetricContext(ui.adminBotsOnlineContext, `vs leitura anterior: ${deltaOrNd(botsOnline, toFiniteNumber(previousDashboard?.bots_online, botsOnline))}`);
-    setMetricContext(ui.adminMessagesTodayContext, `vs leitura anterior: ${deltaOrNd(messagesToday, toFiniteNumber(previousDashboard?.messages_today, messagesToday))}`);
+    const deltaOrNd = (current, previous, options) =>
+      hasPrevious ? formatDeltaLabel(current, previous, options) : 'n/d';
+    setMetricContext(
+      ui.adminBotsOnlineContext,
+      `vs leitura anterior: ${deltaOrNd(botsOnline, toFiniteNumber(previousDashboard?.bots_online, botsOnline))}`,
+    );
+    setMetricContext(
+      ui.adminMessagesTodayContext,
+      `vs leitura anterior: ${deltaOrNd(messagesToday, toFiniteNumber(previousDashboard?.messages_today, messagesToday))}`,
+    );
     setMetricContext(ui.adminUptimeContext, 'janela: processo atual');
-    setMetricContext(ui.adminErrors5xxContext, `vs leitura anterior: ${deltaOrNd(errors5xx, toFiniteNumber(previousDashboard?.errors_5xx, errors5xx), { percent: false, suffix: ' eventos' })}`);
-    setMetricContext(ui.adminTotalPacksContext, `delta leitura: ${deltaOrNd(totalPacks, toFiniteNumber(previousCounters?.total_packs_any_status, totalPacks), { percent: false })}`);
-    setMetricContext(ui.adminTotalStickersContext, `delta leitura: ${deltaOrNd(totalStickers, toFiniteNumber(previousCounters?.total_stickers_any_status, totalStickers), { percent: false })}`);
-    setMetricContext(ui.adminSpamBlockedContext, `vs leitura anterior: ${deltaOrNd(spamBlockedToday, toFiniteNumber(previousDashboard?.spam_blocked_today, spamBlockedToday))}`);
-    setMetricContext(ui.adminActiveBansContext, `delta leitura: ${deltaOrNd(activeBans, toFiniteNumber(previousCounters?.active_bans, activeBans), { percent: false })}`);
-    setMetricContext(ui.adminKnownUsersContext, `delta leitura: ${deltaOrNd(knownUsers, toFiniteNumber(previousCounters?.known_google_users, knownUsers), { percent: false })}`);
-    setMetricContext(ui.adminActiveSessionsContext, `delta leitura: ${deltaOrNd(activeSessions, toFiniteNumber(previousCounters?.active_google_sessions, activeSessions), { percent: false })}`);
+    setMetricContext(
+      ui.adminErrors5xxContext,
+      `vs leitura anterior: ${deltaOrNd(errors5xx, toFiniteNumber(previousDashboard?.errors_5xx, errors5xx), { percent: false, suffix: ' eventos' })}`,
+    );
+    setMetricContext(
+      ui.adminTotalPacksContext,
+      `delta leitura: ${deltaOrNd(totalPacks, toFiniteNumber(previousCounters?.total_packs_any_status, totalPacks), { percent: false })}`,
+    );
+    setMetricContext(
+      ui.adminTotalStickersContext,
+      `delta leitura: ${deltaOrNd(totalStickers, toFiniteNumber(previousCounters?.total_stickers_any_status, totalStickers), { percent: false })}`,
+    );
+    setMetricContext(
+      ui.adminSpamBlockedContext,
+      `vs leitura anterior: ${deltaOrNd(spamBlockedToday, toFiniteNumber(previousDashboard?.spam_blocked_today, spamBlockedToday))}`,
+    );
+    setMetricContext(
+      ui.adminActiveBansContext,
+      `delta leitura: ${deltaOrNd(activeBans, toFiniteNumber(previousCounters?.active_bans, activeBans), { percent: false })}`,
+    );
+    setMetricContext(
+      ui.adminKnownUsersContext,
+      `delta leitura: ${deltaOrNd(knownUsers, toFiniteNumber(previousCounters?.known_google_users, knownUsers), { percent: false })}`,
+    );
+    setMetricContext(
+      ui.adminActiveSessionsContext,
+      `delta leitura: ${deltaOrNd(activeSessions, toFiniteNumber(previousCounters?.active_google_sessions, activeSessions), { percent: false })}`,
+    );
     setMetricContext(ui.adminVisits24hContext, `leitura atual: ${formatNumber(visits24h)} eventos`);
     setMetricContext(ui.adminVisits7dContext, `leitura atual: ${formatNumber(visits7d)} eventos`);
-    setMetricContext(ui.adminUniqueVisitors7dContext, `leitura atual: ${formatNumber(uniqueVisitors7d)} visitantes`);
+    setMetricContext(
+      ui.adminUniqueVisitors7dContext,
+      `leitura atual: ${formatNumber(uniqueVisitors7d)} visitantes`,
+    );
     setText(ui.adminLastUpdated, lastUpdatedLabel);
 
     renderSystemHealth(health);
     setText(ui.adminHealthCpuMeta, `Limite: 88% • Atualizado ${formatRelativeTime(lastUpdated)}`);
     setText(ui.adminHealthRamMeta, `Limite: 90% • Atualizado ${formatRelativeTime(lastUpdated)}`);
-    setText(ui.adminHealthLatencyMeta, `Alerta: >300ms • Atualizado ${formatRelativeTime(lastUpdated)}`);
-    setText(ui.adminHealthQueueMeta, `Ideal: <120 jobs • Atualizado ${formatRelativeTime(lastUpdated)}`);
-    setText(ui.adminHealthDbMeta, `SLA alvo: 99.95% • Atualizado ${formatRelativeTime(lastUpdated)}`);
+    setText(
+      ui.adminHealthLatencyMeta,
+      `Alerta: >300ms • Atualizado ${formatRelativeTime(lastUpdated)}`,
+    );
+    setText(
+      ui.adminHealthQueueMeta,
+      `Ideal: <120 jobs • Atualizado ${formatRelativeTime(lastUpdated)}`,
+    );
+    setText(
+      ui.adminHealthDbMeta,
+      `SLA alvo: 99.95% • Atualizado ${formatRelativeTime(lastUpdated)}`,
+    );
     renderModerationQueue(payload?.moderation_queue);
     renderActiveSessions(usersSessions?.active_sessions);
     renderKnownUsers(usersSessions?.users);
@@ -1940,12 +2159,18 @@ if (root) {
     setText(ui.adminRole, formatAdminRole(role));
 
     if (authenticated) {
-      setText(ui.adminStatus, `Sessão admin ativa como ${formatAdminRole(role)}. Ferramentas operacionais liberadas abaixo.`);
+      setText(
+        ui.adminStatus,
+        `Sessão admin ativa como ${formatAdminRole(role)}. Ferramentas operacionais liberadas abaixo.`,
+      );
       if (ui.adminUnlockForm) ui.adminUnlockForm.hidden = true;
       if (ui.adminOverview) ui.adminOverview.hidden = false;
       renderAdminOverview();
     } else {
-      setText(ui.adminStatus, `Conta elegível para admin (${formatAdminRole(role)}). Informe a senha para liberar os dados sensíveis.`);
+      setText(
+        ui.adminStatus,
+        `Conta elegível para admin (${formatAdminRole(role)}). Informe a senha para liberar os dados sensíveis.`,
+      );
       if (ui.adminUnlockForm) ui.adminUnlockForm.hidden = false;
       if (ui.adminOverview) ui.adminOverview.hidden = true;
       setAdminMetricsDefaults();
@@ -2039,7 +2264,10 @@ if (root) {
     const subpageSections = getAdminSubpageSections();
     if (subpageSections.length) {
       const handleRouteChange = () => {
-        activateAdminSubpage(window.location.hash || 'overview', { syncHash: true, resetScroll: false });
+        activateAdminSubpage(window.location.hash || 'overview', {
+          syncHash: true,
+          resetScroll: false,
+        });
       };
 
       for (const link of ui.navLinks) {
@@ -2075,7 +2303,9 @@ if (root) {
     const observer = new window.IntersectionObserver(
       (observed) => {
         if (isCarouselMode()) return;
-        const visible = observed.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        const visible = observed
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
         if (visible?.target?.id) setActiveNavLink(visible.target.id);
       },
       {
@@ -2123,7 +2353,11 @@ if (root) {
       state.adminSearchPayload = null;
       if (ui.adminPassword) ui.adminPassword.value = '';
       await loadAdminOverview();
-      showToast({ kind: 'success', title: 'Admin', message: 'Área administrativa desbloqueada com sucesso.' });
+      showToast({
+        kind: 'success',
+        title: 'Admin',
+        message: 'Área administrativa desbloqueada com sucesso.',
+      });
       unlocked = true;
     } catch (error) {
       showAdminError(error?.message || 'Falha ao desbloquear área admin.');
@@ -2172,7 +2406,11 @@ if (root) {
     setButtonIdle(triggerButton);
     flashButtonSuccess(triggerButton, 'Atualizado');
     renderAdminPanel();
-    showToast({ kind: 'success', title: 'Atualização', message: 'Dados administrativos atualizados.' });
+    showToast({
+      kind: 'success',
+      title: 'Atualização',
+      message: 'Dados administrativos atualizados.',
+    });
   };
 
   const handleAdminSearchSubmit = async () => {
@@ -2229,7 +2467,11 @@ if (root) {
     return fallbackName;
   };
 
-  const handleAdminExport = async ({ type = 'metrics', format = 'json', triggerButton = null } = {}) => {
+  const handleAdminExport = async ({
+    type = 'metrics',
+    format = 'json',
+    triggerButton = null,
+  } = {}) => {
     if (state.adminBusy) return;
 
     const normalizedType = normalizeString(type || 'metrics').toLowerCase();
@@ -2254,7 +2496,9 @@ if (root) {
         downloadBlob(blob, filename);
       } else {
         const payload = await response.json().catch(() => ({}));
-        const blob = new Blob([JSON.stringify(payload?.data || payload || {}, null, 2)], { type: 'application/json; charset=utf-8' });
+        const blob = new Blob([JSON.stringify(payload?.data || payload || {}, null, 2)], {
+          type: 'application/json; charset=utf-8',
+        });
         downloadBlob(blob, fallbackName);
       }
 
@@ -2347,14 +2591,16 @@ if (root) {
 
   if (ui.adminLogoutBtn) {
     ui.adminLogoutBtn.addEventListener('click', (event) => {
-      const button = event.currentTarget instanceof Element ? event.currentTarget : ui.adminLogoutBtn;
+      const button =
+        event.currentTarget instanceof Element ? event.currentTarget : ui.adminLogoutBtn;
       void handleAdminLogout(button);
     });
   }
 
   if (ui.adminRefreshBtn) {
     ui.adminRefreshBtn.addEventListener('click', (event) => {
-      const button = event.currentTarget instanceof Element ? event.currentTarget : ui.adminRefreshBtn;
+      const button =
+        event.currentTarget instanceof Element ? event.currentTarget : ui.adminRefreshBtn;
       void handleAdminRefresh(button);
     });
   }
@@ -2374,7 +2620,9 @@ if (root) {
 
   if (ui.adminModerationFilterSeverity) {
     ui.adminModerationFilterSeverity.addEventListener('change', () => {
-      state.moderationFilterSeverity = normalizeString(ui.adminModerationFilterSeverity?.value || 'all').toLowerCase();
+      state.moderationFilterSeverity = normalizeString(
+        ui.adminModerationFilterSeverity?.value || 'all',
+      ).toLowerCase();
       state.moderationPage = 1;
       renderModerationQueue(state.adminOverviewPayload?.moderation_queue);
     });
@@ -2382,7 +2630,9 @@ if (root) {
 
   if (ui.adminModerationFilterType) {
     ui.adminModerationFilterType.addEventListener('change', () => {
-      state.moderationFilterType = normalizeString(ui.adminModerationFilterType?.value || 'all').toLowerCase();
+      state.moderationFilterType = normalizeString(
+        ui.adminModerationFilterType?.value || 'all',
+      ).toLowerCase();
       state.moderationPage = 1;
       renderModerationQueue(state.adminOverviewPayload?.moderation_queue);
     });
@@ -2390,7 +2640,9 @@ if (root) {
 
   if (ui.adminAuditFilterStatus) {
     ui.adminAuditFilterStatus.addEventListener('change', () => {
-      state.auditFilterStatus = normalizeString(ui.adminAuditFilterStatus?.value || 'all').toLowerCase();
+      state.auditFilterStatus = normalizeString(
+        ui.adminAuditFilterStatus?.value || 'all',
+      ).toLowerCase();
       state.auditPage = 1;
       renderAuditLog(state.adminOverviewPayload?.audit_log);
     });
@@ -2486,22 +2738,38 @@ if (root) {
 
   if (ui.adminExportMetricsJsonBtn) {
     ui.adminExportMetricsJsonBtn.addEventListener('click', () => {
-      void handleAdminExport({ type: 'metrics', format: 'json', triggerButton: ui.adminExportMetricsJsonBtn });
+      void handleAdminExport({
+        type: 'metrics',
+        format: 'json',
+        triggerButton: ui.adminExportMetricsJsonBtn,
+      });
     });
   }
   if (ui.adminExportMetricsCsvBtn) {
     ui.adminExportMetricsCsvBtn.addEventListener('click', () => {
-      void handleAdminExport({ type: 'metrics', format: 'csv', triggerButton: ui.adminExportMetricsCsvBtn });
+      void handleAdminExport({
+        type: 'metrics',
+        format: 'csv',
+        triggerButton: ui.adminExportMetricsCsvBtn,
+      });
     });
   }
   if (ui.adminExportEventsJsonBtn) {
     ui.adminExportEventsJsonBtn.addEventListener('click', () => {
-      void handleAdminExport({ type: 'events', format: 'json', triggerButton: ui.adminExportEventsJsonBtn });
+      void handleAdminExport({
+        type: 'events',
+        format: 'json',
+        triggerButton: ui.adminExportEventsJsonBtn,
+      });
     });
   }
   if (ui.adminExportEventsCsvBtn) {
     ui.adminExportEventsCsvBtn.addEventListener('click', () => {
-      void handleAdminExport({ type: 'events', format: 'csv', triggerButton: ui.adminExportEventsCsvBtn });
+      void handleAdminExport({
+        type: 'events',
+        format: 'csv',
+        triggerButton: ui.adminExportEventsCsvBtn,
+      });
     });
   }
 

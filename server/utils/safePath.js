@@ -11,14 +11,21 @@ export const safeJoin = (baseDir, unsafePath) => {
     .replace(/^\/+/, '');
 
   const normalizedRelativePath = path.posix.normalize(normalizedUnsafePath);
-  if (normalizedRelativePath === '..' || normalizedRelativePath.startsWith('../') || normalizedRelativePath.includes('/../')) {
+  if (
+    normalizedRelativePath === '..' ||
+    normalizedRelativePath.startsWith('../') ||
+    normalizedRelativePath.includes('/../')
+  ) {
     return null;
   }
 
   const safeRelativePath = normalizedRelativePath === '.' ? '' : normalizedRelativePath;
   const resolvedPath = path.resolve(baseAbsolutePath, safeRelativePath);
 
-  if (resolvedPath !== baseAbsolutePath && !resolvedPath.startsWith(`${baseAbsolutePath}${path.sep}`)) {
+  if (
+    resolvedPath !== baseAbsolutePath &&
+    !resolvedPath.startsWith(`${baseAbsolutePath}${path.sep}`)
+  ) {
     return null;
   }
 

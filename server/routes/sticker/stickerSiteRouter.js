@@ -2,7 +2,8 @@ let stickerCatalogControllerPromise = null;
 
 const loadStickerCatalogController = async () => {
   if (!stickerCatalogControllerPromise) {
-    stickerCatalogControllerPromise = import('../../controllers/sticker/stickerCatalogController.js');
+    stickerCatalogControllerPromise =
+      import('../../controllers/sticker/stickerCatalogController.js');
   }
   return stickerCatalogControllerPromise;
 };
@@ -10,7 +11,10 @@ const loadStickerCatalogController = async () => {
 const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
+  const withoutTrailingSlash =
+    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
+      ? withLeadingSlash.slice(0, -1)
+      : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 };
 
@@ -24,7 +28,10 @@ const DEFAULT_STICKER_WEB_PATH = '/stickers';
 
 export const getStickerSiteRouterConfig = async () => {
   const controller = await loadStickerCatalogController();
-  const legacyConfig = (typeof controller?.getStickerCatalogConfig === 'function' ? controller.getStickerCatalogConfig() : null) || {};
+  const legacyConfig =
+    (typeof controller?.getStickerCatalogConfig === 'function'
+      ? controller.getStickerCatalogConfig()
+      : null) || {};
   return {
     ...legacyConfig,
     webPath: normalizeBasePath(legacyConfig.webPath, DEFAULT_STICKER_WEB_PATH),

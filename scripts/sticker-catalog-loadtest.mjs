@@ -6,7 +6,11 @@ import fs from 'node:fs/promises';
 import { URL } from 'node:url';
 
 const DEFAULT_BASE_URL = process.env.STICKER_LOADTEST_BASE_URL || 'http://127.0.0.1:9102';
-const DEFAULT_PATHS = ['/api/sticker-packs?limit=24&offset=0&sort=popular', '/api/sticker-packs/stats', '/api/sticker-packs/creators?limit=25'];
+const DEFAULT_PATHS = [
+  '/api/sticker-packs?limit=24&offset=0&sort=popular',
+  '/api/sticker-packs/stats',
+  '/api/sticker-packs/creators?limit=25',
+];
 const DEFAULT_DURATION_SECONDS = 30;
 const DEFAULT_CONCURRENCY = 20;
 const DEFAULT_TIMEOUT_MS = 12_000;
@@ -32,7 +36,10 @@ const args = parseCliArgs(process.argv.slice(2));
 const baseUrl = String(args.get('--base-url') || DEFAULT_BASE_URL)
   .trim()
   .replace(/\/+$/, '');
-const durationSeconds = Math.max(5, Number(args.get('--duration-seconds') || DEFAULT_DURATION_SECONDS));
+const durationSeconds = Math.max(
+  5,
+  Number(args.get('--duration-seconds') || DEFAULT_DURATION_SECONDS),
+);
 const concurrency = Math.max(1, Number(args.get('--concurrency') || DEFAULT_CONCURRENCY));
 const timeoutMs = Math.max(1000, Number(args.get('--timeout-ms') || DEFAULT_TIMEOUT_MS));
 const outFile = String(args.get('--out') || '').trim();
@@ -51,7 +58,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const quantile = (sortedValues, q) => {
   if (!sortedValues.length) return 0;
-  const index = Math.max(0, Math.min(sortedValues.length - 1, Math.floor((sortedValues.length - 1) * q)));
+  const index = Math.max(
+    0,
+    Math.min(sortedValues.length - 1, Math.floor((sortedValues.length - 1) * q)),
+  );
   return sortedValues[index];
 };
 
@@ -141,7 +151,9 @@ const main = async () => {
   };
 
   console.log(`[loadtest] base_url=${baseUrl}`);
-  console.log(`[loadtest] duration_seconds=${durationSeconds} concurrency=${concurrency} paths=${requestPaths.join(',')}`);
+  console.log(
+    `[loadtest] duration_seconds=${durationSeconds} concurrency=${concurrency} paths=${requestPaths.join(',')}`,
+  );
   await sleep(250);
 
   await Promise.all(

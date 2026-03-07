@@ -14,11 +14,16 @@ const projectRoot = path.resolve(__dirname, '..');
 const START_MARKER = '<!-- README_SNAPSHOT:START -->';
 const END_MARKER = '<!-- README_SNAPSHOT:END -->';
 
-const readmePath = path.resolve(projectRoot, process.env.README_SNAPSHOT_TARGET_PATH || 'README.md');
+const readmePath = path.resolve(
+  projectRoot,
+  process.env.README_SNAPSHOT_TARGET_PATH || 'README.md',
+);
 const siteOrigin = String(process.env.SITE_ORIGIN || 'https://omnizap.shop')
   .trim()
   .replace(/\/+$/, '');
-const sourceUrl = String(process.env.README_SNAPSHOT_SOURCE_URL || `${siteOrigin}/api/sticker-packs/readme-markdown`).trim();
+const sourceUrl = String(
+  process.env.README_SNAPSHOT_SOURCE_URL || `${siteOrigin}/api/sticker-packs/readme-markdown`,
+).trim();
 const timeoutMs = Math.max(1000, Number(process.env.README_SNAPSHOT_TIMEOUT_MS) || 15000);
 
 const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -49,9 +54,14 @@ const syncReadmeSnapshot = async () => {
   const markdown = await fetchWithTimeout(sourceUrl, timeoutMs);
   const readme = await fs.readFile(readmePath, 'utf8');
 
-  const blockRegex = new RegExp(`${escapeRegExp(START_MARKER)}[\\s\\S]*?${escapeRegExp(END_MARKER)}`, 'm');
+  const blockRegex = new RegExp(
+    `${escapeRegExp(START_MARKER)}[\\s\\S]*?${escapeRegExp(END_MARKER)}`,
+    'm',
+  );
   if (!blockRegex.test(readme)) {
-    throw new Error(`Marcadores não encontrados em ${path.relative(projectRoot, readmePath)} (${START_MARKER} ... ${END_MARKER})`);
+    throw new Error(
+      `Marcadores não encontrados em ${path.relative(projectRoot, readmePath)} (${START_MARKER} ... ${END_MARKER})`,
+    );
   }
 
   const replacement = `${START_MARKER}\n${markdown}\n${END_MARKER}`;

@@ -25,7 +25,13 @@ const withTimeout = (promise, timeoutMs) =>
  * @param {boolean|undefined} params.isGroupMessage
  * @returns {Promise<void>}
  */
-export async function handleGlobalRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage: _isGroupMessage }) {
+export async function handleGlobalRankingCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  isGroupMessage: _isGroupMessage,
+}) {
   try {
     const botJid = resolveBotJid(sock?.user?.id);
     const report = await getRankingReport({
@@ -35,7 +41,9 @@ export async function handleGlobalRankingCommand({ sock, remoteJid, messageInfo,
       enrichRows: true,
     });
     const text = buildRankingMessage({ scope: 'global', limit: RANKING_LIMIT, ...report });
-    const mentions = report.rows.map((row) => row.mention_id).filter((jid) => isWhatsAppUserId(jid));
+    const mentions = report.rows
+      .map((row) => row.mention_id)
+      .filter((jid) => isWhatsAppUserId(jid));
 
     try {
       const imageBuffer = await withTimeout(
@@ -50,15 +58,30 @@ export async function handleGlobalRankingCommand({ sock, remoteJid, messageInfo,
         }),
         RENDER_TIMEOUT_MS,
       );
-      await sendAndStore(sock, remoteJid, { image: imageBuffer, caption: text, ...(mentions.length ? { mentions } : {}) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sendAndStore(
+        sock,
+        remoteJid,
+        { image: imageBuffer, caption: text, ...(mentions.length ? { mentions } : {}) },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
     } catch (renderError) {
       logger.warn('Falha/timeout ao renderizar imagem do ranking global; enviando somente texto.', {
         error: renderError?.message,
       });
-      await sendAndStore(sock, remoteJid, { text, ...(mentions.length ? { mentions } : {}) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sendAndStore(
+        sock,
+        remoteJid,
+        { text, ...(mentions.length ? { mentions } : {}) },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
     }
   } catch (error) {
     logger.error('Erro ao gerar ranking global:', { error: error.message });
-    await sendAndStore(sock, remoteJid, { text: `Erro ao gerar ranking global: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: `Erro ao gerar ranking global: ${error.message}` },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   }
 }

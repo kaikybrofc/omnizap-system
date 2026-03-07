@@ -9,15 +9,15 @@
 # the `language` matrix defined below to confirm you have the correct set of
 # supported CodeQL languages.
 #
-name: 'CodeQL Advanced'
+name: "CodeQL Advanced"
 
 on:
   push:
-    branches: ['main']
+    branches: ["main"]
   pull_request:
-    branches: ['main']
+    branches: ["main"]
   schedule:
-    - cron: '19 14 * * 5'
+    - cron: "19 14 * * 5"
 
 permissions: read-all
 
@@ -102,4 +102,4 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@0d579ffd059c29b07949a3cce3983f0780820c98
         with:
-          category: '/language:${{matrix.language}}'
+          category: "/language:${{matrix.language}}"

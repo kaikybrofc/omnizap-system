@@ -9,19 +9,32 @@ const parseEnvBool = (value, fallback) => {
 };
 
 const resolveSmtpConfig = () => {
-  const host = String(process.env.SMTP_HOST || process.env.EMAIL_HOST || process.env.MAIL_HOST || '').trim();
-  const port = Number(process.env.SMTP_PORT || process.env.EMAIL_PORT || process.env.MAIL_PORT || 465);
-  const user = String(process.env.SMTP_USER || process.env.EMAIL_USER || process.env.MAIL_USER || '').trim();
-  const pass = String(process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.MAIL_PASS || '').trim();
+  const host = String(
+    process.env.SMTP_HOST || process.env.EMAIL_HOST || process.env.MAIL_HOST || '',
+  ).trim();
+  const port = Number(
+    process.env.SMTP_PORT || process.env.EMAIL_PORT || process.env.MAIL_PORT || 465,
+  );
+  const user = String(
+    process.env.SMTP_USER || process.env.EMAIL_USER || process.env.MAIL_USER || '',
+  ).trim();
+  const pass = String(
+    process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.MAIL_PASS || '',
+  ).trim();
   const from =
     String(process.env.SMTP_FROM || process.env.EMAIL_FROM || process.env.MAIL_FROM || '')
       .trim()
       .slice(0, 255) || '';
   const replyTo =
-    String(process.env.SMTP_REPLY_TO || process.env.EMAIL_REPLY_TO || process.env.MAIL_REPLY_TO || '')
+    String(
+      process.env.SMTP_REPLY_TO || process.env.EMAIL_REPLY_TO || process.env.MAIL_REPLY_TO || '',
+    )
       .trim()
       .slice(0, 255) || '';
-  const secure = parseEnvBool(process.env.SMTP_SECURE || process.env.EMAIL_SECURE || process.env.MAIL_SECURE, Number(port) === 465);
+  const secure = parseEnvBool(
+    process.env.SMTP_SECURE || process.env.EMAIL_SECURE || process.env.MAIL_SECURE,
+    Number(port) === 465,
+  );
 
   return {
     host,
@@ -78,7 +91,16 @@ export const verifyEmailTransport = async () => {
   return true;
 };
 
-export const sendEmailMessage = async ({ to, subject, text = null, html = null, replyTo = null, cc = null, bcc = null, headers = null } = {}) => {
+export const sendEmailMessage = async ({
+  to,
+  subject,
+  text = null,
+  html = null,
+  replyTo = null,
+  cc = null,
+  bcc = null,
+  headers = null,
+} = {}) => {
   if (!isEmailTransportConfigured()) {
     const error = new Error('Transporte SMTP não configurado.');
     error.code = 'EMAIL_TRANSPORT_NOT_CONFIGURED';

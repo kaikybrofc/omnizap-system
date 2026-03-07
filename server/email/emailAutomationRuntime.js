@@ -1,6 +1,11 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { setQueueDepth } from '../../app/observability/metrics.js';
-import { claimEmailOutboxTask, completeEmailOutboxTask, countEmailOutboxByStatus, failEmailOutboxTask } from './emailOutboxRepository.js';
+import {
+  claimEmailOutboxTask,
+  completeEmailOutboxTask,
+  countEmailOutboxByStatus,
+  failEmailOutboxTask,
+} from './emailOutboxRepository.js';
 import { isEmailTransportConfigured, sendEmailMessage } from './emailTransportService.js';
 
 const parseEnvBool = (value, fallback) => {
@@ -24,13 +29,41 @@ const clampNumber = (value, fallback, min, max) => {
 };
 
 const EMAIL_AUTOMATION_ENABLED = parseEnvBool(process.env.EMAIL_AUTOMATION_ENABLED, true);
-const EMAIL_AUTOMATION_WORKER_ENABLED = parseEnvBool(process.env.EMAIL_AUTOMATION_WORKER_ENABLED, true);
-const EMAIL_AUTOMATION_POLL_INTERVAL_MS = clampInt(process.env.EMAIL_AUTOMATION_POLL_INTERVAL_MS, 12_000, 1_000, 300_000);
-const EMAIL_AUTOMATION_IDLE_BACKOFF_MULTIPLIER = clampNumber(process.env.EMAIL_AUTOMATION_IDLE_BACKOFF_MULTIPLIER, 1.7, 1, 5);
-const EMAIL_AUTOMATION_IDLE_MAX_POLL_INTERVAL_MS = clampInt(process.env.EMAIL_AUTOMATION_IDLE_MAX_POLL_INTERVAL_MS, Math.max(60_000, EMAIL_AUTOMATION_POLL_INTERVAL_MS * 8), 1_000, 900_000);
-const EMAIL_AUTOMATION_IDLE_JITTER_PERCENT = clampInt(process.env.EMAIL_AUTOMATION_IDLE_JITTER_PERCENT, 12, 0, 60);
+const EMAIL_AUTOMATION_WORKER_ENABLED = parseEnvBool(
+  process.env.EMAIL_AUTOMATION_WORKER_ENABLED,
+  true,
+);
+const EMAIL_AUTOMATION_POLL_INTERVAL_MS = clampInt(
+  process.env.EMAIL_AUTOMATION_POLL_INTERVAL_MS,
+  12_000,
+  1_000,
+  300_000,
+);
+const EMAIL_AUTOMATION_IDLE_BACKOFF_MULTIPLIER = clampNumber(
+  process.env.EMAIL_AUTOMATION_IDLE_BACKOFF_MULTIPLIER,
+  1.7,
+  1,
+  5,
+);
+const EMAIL_AUTOMATION_IDLE_MAX_POLL_INTERVAL_MS = clampInt(
+  process.env.EMAIL_AUTOMATION_IDLE_MAX_POLL_INTERVAL_MS,
+  Math.max(60_000, EMAIL_AUTOMATION_POLL_INTERVAL_MS * 8),
+  1_000,
+  900_000,
+);
+const EMAIL_AUTOMATION_IDLE_JITTER_PERCENT = clampInt(
+  process.env.EMAIL_AUTOMATION_IDLE_JITTER_PERCENT,
+  12,
+  0,
+  60,
+);
 const EMAIL_AUTOMATION_MAX_PER_TICK = clampInt(process.env.EMAIL_AUTOMATION_MAX_PER_TICK, 3, 1, 20);
-const EMAIL_AUTOMATION_RETRY_DELAY_SECONDS = clampInt(process.env.EMAIL_AUTOMATION_RETRY_DELAY_SECONDS, 120, 5, 86_400);
+const EMAIL_AUTOMATION_RETRY_DELAY_SECONDS = clampInt(
+  process.env.EMAIL_AUTOMATION_RETRY_DELAY_SECONDS,
+  120,
+  5,
+  86_400,
+);
 
 let started = false;
 let stopping = false;
@@ -46,7 +79,11 @@ const applyDelayJitter = (delayMs) => {
 };
 
 const refreshQueueDepthMetrics = async () => {
-  const [pending, processing, failed] = await Promise.all([countEmailOutboxByStatus('pending'), countEmailOutboxByStatus('processing'), countEmailOutboxByStatus('failed')]);
+  const [pending, processing, failed] = await Promise.all([
+    countEmailOutboxByStatus('pending'),
+    countEmailOutboxByStatus('processing'),
+    countEmailOutboxByStatus('failed'),
+  ]);
   setQueueDepth('email_outbox_pending', pending);
   setQueueDepth('email_outbox_processing', processing);
   setQueueDepth('email_outbox_failed', failed);
@@ -69,7 +106,10 @@ const scheduleNextTick = (delayMs = EMAIL_AUTOMATION_POLL_INTERVAL_MS) => {
   }
 };
 
-export const runEmailAutomationTick = async ({ maxPerTick = EMAIL_AUTOMATION_MAX_PER_TICK, retryDelaySeconds = EMAIL_AUTOMATION_RETRY_DELAY_SECONDS } = {}) => {
+export const runEmailAutomationTick = async ({
+  maxPerTick = EMAIL_AUTOMATION_MAX_PER_TICK,
+  retryDelaySeconds = EMAIL_AUTOMATION_RETRY_DELAY_SECONDS,
+} = {}) => {
   if (!EMAIL_AUTOMATION_ENABLED || !EMAIL_AUTOMATION_WORKER_ENABLED) {
     return {
       executed: false,
@@ -91,7 +131,12 @@ export const runEmailAutomationTick = async ({ maxPerTick = EMAIL_AUTOMATION_MAX
   }
 
   const safeMaxPerTick = clampInt(maxPerTick, EMAIL_AUTOMATION_MAX_PER_TICK, 1, 20);
-  const safeRetryDelay = clampInt(retryDelaySeconds, EMAIL_AUTOMATION_RETRY_DELAY_SECONDS, 5, 86_400);
+  const safeRetryDelay = clampInt(
+    retryDelaySeconds,
+    EMAIL_AUTOMATION_RETRY_DELAY_SECONDS,
+    5,
+    86_400,
+  );
   const stats = {
     executed: true,
     reason: 'ok',
@@ -165,7 +210,13 @@ const runLoopOnce = async () => {
   if (claimed > 0) {
     nextDelayMs = EMAIL_AUTOMATION_POLL_INTERVAL_MS;
   } else {
-    nextDelayMs = Math.min(EMAIL_AUTOMATION_IDLE_MAX_POLL_INTERVAL_MS, Math.max(EMAIL_AUTOMATION_POLL_INTERVAL_MS, Math.floor(nextDelayMs * EMAIL_AUTOMATION_IDLE_BACKOFF_MULTIPLIER)));
+    nextDelayMs = Math.min(
+      EMAIL_AUTOMATION_IDLE_MAX_POLL_INTERVAL_MS,
+      Math.max(
+        EMAIL_AUTOMATION_POLL_INTERVAL_MS,
+        Math.floor(nextDelayMs * EMAIL_AUTOMATION_IDLE_BACKOFF_MULTIPLIER),
+      ),
+    );
   }
 
   scheduleNextTick(nextDelayMs);
@@ -221,5 +272,6 @@ export const stopEmailAutomationRuntime = () => {
   });
 };
 
-export const isEmailAutomationRuntimeEnabled = () => EMAIL_AUTOMATION_ENABLED && EMAIL_AUTOMATION_WORKER_ENABLED;
+export const isEmailAutomationRuntimeEnabled = () =>
+  EMAIL_AUTOMATION_ENABLED && EMAIL_AUTOMATION_WORKER_ENABLED;
 export const isEmailAutomationRuntimeRunning = () => started && !stopping;

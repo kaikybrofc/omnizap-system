@@ -1,4 +1,17 @@
-import { getEffectText, getAbility, getEvolutionChain, getFlavorText, getLocalizedGenus, getLocalizedName, getMove, getNature, getPokemon, getPokemonImage, getSpecies, getType } from '../../services/pokeApiService.js';
+import {
+  getEffectText,
+  getAbility,
+  getEvolutionChain,
+  getFlavorText,
+  getLocalizedGenus,
+  getLocalizedName,
+  getMove,
+  getNature,
+  getPokemon,
+  getPokemonImage,
+  getSpecies,
+  getType,
+} from '../../services/pokeApiService.js';
 import logger from '../../../utils/logger/loggerModule.js';
 
 const MIN_LEVEL = 1;
@@ -9,11 +22,22 @@ const DEFAULT_WILD_MAX_ID = Math.max(1025, Number(process.env.RPG_WILD_MAX_POKE_
 const MOVE_SAMPLE_LIMIT = Math.max(12, Number(process.env.RPG_MOVE_SAMPLE_LIMIT) || 24);
 const DEFAULT_SHINY_CHANCE = 0.01;
 const RAW_SHINY_CHANCE = Number(process.env.RPG_SHINY_CHANCE ?? DEFAULT_SHINY_CHANCE);
-const SHINY_CHANCE = Number.isFinite(RAW_SHINY_CHANCE) ? Math.max(0, Math.min(1, RAW_SHINY_CHANCE)) : DEFAULT_SHINY_CHANCE;
+const SHINY_CHANCE = Number.isFinite(RAW_SHINY_CHANCE)
+  ? Math.max(0, Math.min(1, RAW_SHINY_CHANCE))
+  : DEFAULT_SHINY_CHANCE;
 const MAX_BIOME_LOOKUP_ATTEMPTS = Math.max(2, Number(process.env.RPG_BIOME_LOOKUP_ATTEMPTS) || 6);
-const MAX_SPECIES_FILTER_ATTEMPTS = Math.max(2, Number(process.env.RPG_SPECIES_FILTER_ATTEMPTS) || 5);
-const LEGENDARY_SPAWN_CHANCE = Math.max(0.005, Math.min(1, Number(process.env.RPG_LEGENDARY_SPAWN_CHANCE) || 0.06));
-const MYTHICAL_SPAWN_CHANCE = Math.max(0.001, Math.min(1, Number(process.env.RPG_MYTHICAL_SPAWN_CHANCE) || 0.03));
+const MAX_SPECIES_FILTER_ATTEMPTS = Math.max(
+  2,
+  Number(process.env.RPG_SPECIES_FILTER_ATTEMPTS) || 5,
+);
+const LEGENDARY_SPAWN_CHANCE = Math.max(
+  0.005,
+  Math.min(1, Number(process.env.RPG_LEGENDARY_SPAWN_CHANCE) || 0.06),
+);
+const MYTHICAL_SPAWN_CHANCE = Math.max(
+  0.001,
+  Math.min(1, Number(process.env.RPG_MYTHICAL_SPAWN_CHANCE) || 0.03),
+);
 const MAX_ENCOUNTER_LEVEL_DIFF = 1;
 
 const PHYSICAL_CLASS = 'physical';
@@ -24,7 +48,15 @@ const MOVESET_BACKUP_CANDIDATES = ['struggle'];
 const MOVESET_NEUTRAL_FALLBACK_NAME = 'neutral-strike';
 
 const BASE_STAT_NAMES = ['hp', 'attack', 'defense', 'special-attack', 'special-defense', 'speed'];
-const STAT_STAGE_KEYS = ['attack', 'defense', 'specialAttack', 'specialDefense', 'speed', 'accuracy', 'evasion'];
+const STAT_STAGE_KEYS = [
+  'attack',
+  'defense',
+  'specialAttack',
+  'specialDefense',
+  'speed',
+  'accuracy',
+  'evasion',
+];
 const MIN_STAT_STAGE = -6;
 const MAX_STAT_STAGE = 6;
 const PARALYSIS_SKIP_CHANCE = 0.25;
@@ -37,10 +69,22 @@ const SLEEP_MAX_TURNS = 3;
 const BURN_DAMAGE_RATIO = 1 / 16;
 const POISON_DAMAGE_RATIO = 1 / 8;
 const TOXIC_BASE_DAMAGE_RATIO = 1 / 16;
-const BATTLE_DAMAGE_SCALE = Math.max(0.35, Math.min(1.25, Number(process.env.RPG_BATTLE_DAMAGE_SCALE) || 0.68));
-const BATTLE_DAMAGE_MAX_HP_RATIO = Math.max(0.2, Math.min(0.95, Number(process.env.RPG_BATTLE_DAMAGE_MAX_HP_RATIO) || 0.5));
-const BATTLE_DAMAGE_SUPER_EFFECTIVE_BONUS_RATIO = Math.max(0, Math.min(0.45, Number(process.env.RPG_BATTLE_DAMAGE_SUPER_EFFECTIVE_BONUS_RATIO) || 0.2));
-const BATTLE_DAMAGE_ULTRA_EFFECTIVE_BONUS_RATIO = Math.max(0, Math.min(0.5, Number(process.env.RPG_BATTLE_DAMAGE_ULTRA_EFFECTIVE_BONUS_RATIO) || 0.25));
+const BATTLE_DAMAGE_SCALE = Math.max(
+  0.35,
+  Math.min(1.25, Number(process.env.RPG_BATTLE_DAMAGE_SCALE) || 0.68),
+);
+const BATTLE_DAMAGE_MAX_HP_RATIO = Math.max(
+  0.2,
+  Math.min(0.95, Number(process.env.RPG_BATTLE_DAMAGE_MAX_HP_RATIO) || 0.5),
+);
+const BATTLE_DAMAGE_SUPER_EFFECTIVE_BONUS_RATIO = Math.max(
+  0,
+  Math.min(0.45, Number(process.env.RPG_BATTLE_DAMAGE_SUPER_EFFECTIVE_BONUS_RATIO) || 0.2),
+);
+const BATTLE_DAMAGE_ULTRA_EFFECTIVE_BONUS_RATIO = Math.max(
+  0,
+  Math.min(0.5, Number(process.env.RPG_BATTLE_DAMAGE_ULTRA_EFFECTIVE_BONUS_RATIO) || 0.25),
+);
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const randomInt = (min, max) => {
@@ -194,10 +238,16 @@ const syncPokemonCombatState = (pokemon = {}) => {
   if (!pokemon || typeof pokemon !== 'object') return pokemon;
   const maxHpRaw = toInt(pokemon?.maxHp, NaN);
   const currentHpRaw = toInt(pokemon?.currentHp, NaN);
-  pokemon.maxHp = Number.isFinite(maxHpRaw) && maxHpRaw > 0 ? maxHpRaw : Math.max(1, Number.isFinite(currentHpRaw) ? currentHpRaw : 1);
-  pokemon.currentHp = Number.isFinite(currentHpRaw) ? clamp(currentHpRaw, 0, pokemon.maxHp) : pokemon.maxHp;
+  pokemon.maxHp =
+    Number.isFinite(maxHpRaw) && maxHpRaw > 0
+      ? maxHpRaw
+      : Math.max(1, Number.isFinite(currentHpRaw) ? currentHpRaw : 1);
+  pokemon.currentHp = Number.isFinite(currentHpRaw)
+    ? clamp(currentHpRaw, 0, pokemon.maxHp)
+    : pokemon.maxHp;
 
-  const sourceStages = pokemon?.statStages && typeof pokemon.statStages === 'object' ? pokemon.statStages : {};
+  const sourceStages =
+    pokemon?.statStages && typeof pokemon.statStages === 'object' ? pokemon.statStages : {};
   const nextStages = createDefaultStatStages();
   for (const key of STAT_STAGE_KEYS) {
     nextStages[key] = clamp(toInt(sourceStages[key], 0), MIN_STAT_STAGE, MAX_STAT_STAGE);
@@ -279,7 +329,11 @@ const resolveEffectiveAccuracy = ({ move, attacker, defender }) => {
   const evasionStage = resolveStatStage(defender, 'evasion');
   const accuracyMultiplier = stageMultiplier(accuracyStage);
   const evasionMultiplier = stageMultiplier(evasionStage);
-  return clamp(Math.round(baseAccuracy * (accuracyMultiplier / Math.max(0.1, evasionMultiplier))), 1, 100);
+  return clamp(
+    Math.round(baseAccuracy * (accuracyMultiplier / Math.max(0.1, evasionMultiplier))),
+    1,
+    100,
+  );
 };
 
 const isAilmentBlockedByType = (pokemon = {}, ailmentKey) => {
@@ -294,7 +348,11 @@ const isAilmentBlockedByType = (pokemon = {}, ailmentKey) => {
     : [];
 
   if (ailmentKey === 'burn' && types.includes('fire')) return true;
-  if ((ailmentKey === 'poison' || ailmentKey === 'toxic') && (types.includes('poison') || types.includes('steel'))) return true;
+  if (
+    (ailmentKey === 'poison' || ailmentKey === 'toxic') &&
+    (types.includes('poison') || types.includes('steel'))
+  )
+    return true;
   if (ailmentKey === 'paralysis' && types.includes('electric')) return true;
   if (ailmentKey === 'freeze' && types.includes('ice')) return true;
   return false;
@@ -352,7 +410,11 @@ const normalizeMove = (move, index) => {
   const type = String(move?.type || 'normal').toLowerCase();
   const moveName = String(move?.name || `move-${index + 1}`).toLowerCase();
   const effectMeta = move?.effectMeta && typeof move.effectMeta === 'object' ? move.effectMeta : {};
-  const rawStatChanges = Array.isArray(move?.statChanges) ? move.statChanges : Array.isArray(effectMeta.statChanges) ? effectMeta.statChanges : [];
+  const rawStatChanges = Array.isArray(move?.statChanges)
+    ? move.statChanges
+    : Array.isArray(effectMeta.statChanges)
+      ? effectMeta.statChanges
+      : [];
   const statChanges = rawStatChanges
     .map((entry) => {
       const key = normalizeStatKey(entry?.stat || entry?.name || entry?.stat?.name);
@@ -367,7 +429,11 @@ const normalizeMove = (move, index) => {
     .toLowerCase();
   const rawAilmentChance = toNumber(move?.ailmentChance ?? effectMeta?.ailmentChance, NaN);
   const rawStatChance = toNumber(move?.statChance ?? effectMeta?.statChance, NaN);
-  const ailmentChance = Number.isFinite(rawAilmentChance) ? clamp(rawAilmentChance, 0, 100) : normalizedAilment && damageClass === STATUS_CLASS ? 100 : 0;
+  const ailmentChance = Number.isFinite(rawAilmentChance)
+    ? clamp(rawAilmentChance, 0, 100)
+    : normalizedAilment && damageClass === STATUS_CLASS
+      ? 100
+      : 0;
   const rawHealing = toNumber(move?.healing ?? effectMeta?.healing, 0);
   const rawDrain = toNumber(move?.drain ?? effectMeta?.drain, 0);
 
@@ -378,7 +444,9 @@ const normalizeMove = (move, index) => {
     power,
     accuracy,
     pp: toPositiveInt(move?.pp, 35),
-    damageClass: [PHYSICAL_CLASS, SPECIAL_CLASS, STATUS_CLASS].includes(damageClass) ? damageClass : STATUS_CLASS,
+    damageClass: [PHYSICAL_CLASS, SPECIAL_CLASS, STATUS_CLASS].includes(damageClass)
+      ? damageClass
+      : STATUS_CLASS,
     type,
     typeDamage: {
       doubleTo: Array.isArray(move?.typeDamage?.doubleTo) ? move.typeDamage.doubleTo : [],
@@ -433,7 +501,9 @@ const loadMoveSnapshot = async (idOrName) => {
 };
 
 const ensureFourMoves = async (moves) => {
-  const normalized = (moves || []).map((move, index) => normalizeMove(move, index)).slice(0, MOVESET_SIZE);
+  const normalized = (moves || [])
+    .map((move, index) => normalizeMove(move, index))
+    .slice(0, MOVESET_SIZE);
 
   if (!normalized.length) {
     normalized.push(await loadMoveSnapshot('struggle'));
@@ -474,7 +544,10 @@ const resolvePokemonTypeList = (pokemonData) => {
 };
 
 const isOffensiveMove = (move) => {
-  return toPositiveInt(move?.power, 0) > 0 && String(move?.damageClass || '').toLowerCase() !== STATUS_CLASS;
+  return (
+    toPositiveInt(move?.power, 0) > 0 &&
+    String(move?.damageClass || '').toLowerCase() !== STATUS_CLASS
+  );
 };
 
 const normalizeMoveType = (move) =>
@@ -536,7 +609,8 @@ const sortSupportMovesByScore = (moves = []) => {
 };
 
 const countNormalOffensiveMoves = (moves = []) => {
-  return moves.filter((move) => isOffensiveMove(move) && normalizeMoveType(move) === 'normal').length;
+  return moves.filter((move) => isOffensiveMove(move) && normalizeMoveType(move) === 'normal')
+    .length;
 };
 
 const buildNeutralFallbackMove = (suffix = '') =>
@@ -589,11 +663,17 @@ const pickReplacementIndexForMove = ({ selected = [], pokemonTypeSet, keepOneSta
   const supportIndex = findFirstIndex(selected, (move) => !isOffensiveMove(move));
   if (supportIndex >= 0) return supportIndex;
 
-  const offensiveIndexes = selected.map((move, index) => ({ move, index })).filter((entry) => isOffensiveMove(entry.move));
+  const offensiveIndexes = selected
+    .map((move, index) => ({ move, index }))
+    .filter((entry) => isOffensiveMove(entry.move));
   if (!offensiveIndexes.length) return selected.length - 1;
 
-  const stabIndexes = offensiveIndexes.filter((entry) => pokemonTypeSet.has(normalizeMoveType(entry.move)));
-  const canReplace = offensiveIndexes.filter((entry) => !(keepOneStab && stabIndexes.length <= 1 && stabIndexes[0]?.index === entry.index));
+  const stabIndexes = offensiveIndexes.filter((entry) =>
+    pokemonTypeSet.has(normalizeMoveType(entry.move)),
+  );
+  const canReplace = offensiveIndexes.filter(
+    (entry) => !(keepOneStab && stabIndexes.length <= 1 && stabIndexes[0]?.index === entry.index),
+  );
   const candidates = canReplace.length ? canReplace : offensiveIndexes;
 
   candidates.sort((left, right) => {
@@ -605,7 +685,15 @@ const pickReplacementIndexForMove = ({ selected = [], pokemonTypeSet, keepOneSta
   return candidates[0]?.index ?? selected.length - 1;
 };
 
-const tryAddMove = ({ selected, move, usedNames, allowMultipleNormal, pokemonTypeSet, forceReplace = false, keepOneStab = false }) => {
+const tryAddMove = ({
+  selected,
+  move,
+  usedNames,
+  allowMultipleNormal,
+  pokemonTypeSet,
+  forceReplace = false,
+  keepOneStab = false,
+}) => {
   if (!move) return false;
   const moveName = String(move?.name || '')
     .trim()
@@ -639,14 +727,26 @@ const tryAddMove = ({ selected, move, usedNames, allowMultipleNormal, pokemonTyp
   return true;
 };
 
-const pickBestCoverageCandidate = ({ selectedOffensive = [], offensivePool = [], usedNames, pokemonTypeSet, allowMultipleNormal, stabType = null }) => {
+const pickBestCoverageCandidate = ({
+  selectedOffensive = [],
+  offensivePool = [],
+  usedNames,
+  pokemonTypeSet,
+  allowMultipleNormal,
+  stabType = null,
+}) => {
   const blockedTypes = resolveBlockedTypesByNoDamageIntersection(selectedOffensive);
   const candidates = offensivePool.filter((move) => {
     const name = String(move?.name || '')
       .trim()
       .toLowerCase();
     if (!name || usedNames.has(name)) return false;
-    if (!allowMultipleNormal && normalizeMoveType(move) === 'normal' && countNormalOffensiveMoves(selectedOffensive) >= 1) return false;
+    if (
+      !allowMultipleNormal &&
+      normalizeMoveType(move) === 'normal' &&
+      countNormalOffensiveMoves(selectedOffensive) >= 1
+    )
+      return false;
     return true;
   });
 
@@ -783,7 +883,10 @@ const pickBattleMoves = async (pokemonData) => {
     });
   }
 
-  if (stabPool.length > 0 && !selected.some((move) => isOffensiveMove(move) && pokemonTypeSet.has(normalizeMoveType(move)))) {
+  if (
+    stabPool.length > 0 &&
+    !selected.some((move) => isOffensiveMove(move) && pokemonTypeSet.has(normalizeMoveType(move)))
+  ) {
     tryAddMove({
       selected,
       move: stabPool[0],
@@ -850,7 +953,10 @@ const pickBattleMoves = async (pokemonData) => {
   if (!allowMultipleNormal) {
     let neutralIndex = 1;
     while (countNormalOffensiveMoves(selected) > 1) {
-      const replaceIndex = findFirstIndex(selected, (move) => isOffensiveMove(move) && normalizeMoveType(move) === 'normal');
+      const replaceIndex = findFirstIndex(
+        selected,
+        (move) => isOffensiveMove(move) && normalizeMoveType(move) === 'normal',
+      );
       if (replaceIndex < 0) break;
       const replacement = buildNeutralFallbackMove(`normal-limit-${neutralIndex}`);
       const previousName = String(selected[replaceIndex]?.name || '')
@@ -956,10 +1062,19 @@ const formatAilmentLabel = (ailmentKey) => {
 const calculateConfusionSelfDamage = (pokemon = {}) => {
   const level = clamp(toPositiveInt(pokemon?.level, 1), MIN_LEVEL, MAX_LEVEL);
   const attackStat = resolveEffectiveStat({ pokemon, statKey: 'attack', applyBurnPenalty: false });
-  const defenseStat = resolveEffectiveStat({ pokemon, statKey: 'defense', applyBurnPenalty: false });
-  const baseDamage = (((2 * level) / 5 + 2) * 40 * (attackStat / Math.max(1, defenseStat))) / 50 + 2;
+  const defenseStat = resolveEffectiveStat({
+    pokemon,
+    statKey: 'defense',
+    applyBurnPenalty: false,
+  });
+  const baseDamage =
+    (((2 * level) / 5 + 2) * 40 * (attackStat / Math.max(1, defenseStat))) / 50 + 2;
   const finalDamage = Math.max(1, Math.floor(baseDamage * randomFloat(0.85, 1)));
-  pokemon.currentHp = clamp(toPositiveInt(pokemon.currentHp, 0) - finalDamage, 0, toPositiveInt(pokemon.maxHp, 1));
+  pokemon.currentHp = clamp(
+    toPositiveInt(pokemon.currentHp, 0) - finalDamage,
+    0,
+    toPositiveInt(pokemon.maxHp, 1),
+  );
   return finalDamage;
 };
 
@@ -997,7 +1112,10 @@ const processTurnStartStatus = ({ actor, actorLabel }) => {
     }
   }
 
-  if (normalizeAilmentKey(actor?.nonVolatileStatus) === 'paralysis' && shouldApplyChance(PARALYSIS_SKIP_CHANCE * 100)) {
+  if (
+    normalizeAilmentKey(actor?.nonVolatileStatus) === 'paralysis' &&
+    shouldApplyChance(PARALYSIS_SKIP_CHANCE * 100)
+  ) {
     logs.push(`${actorLabel} está paralisado e não conseguiu agir.`);
     actor.statusEffects = buildStatusEffectList(actor);
     return { canAct: false, logs };
@@ -1056,7 +1174,12 @@ const applyResidualDamageToPokemon = ({ pokemon, label, logs = [] }) => {
   }
 };
 
-const applyEndTurnResidualEffects = ({ snapshot, logs = [], myLabel = 'Seu Pokémon', enemyLabel = 'Inimigo' }) => {
+const applyEndTurnResidualEffects = ({
+  snapshot,
+  logs = [],
+  myLabel = 'Seu Pokémon',
+  enemyLabel = 'Inimigo',
+}) => {
   applyResidualDamageToPokemon({
     pokemon: snapshot?.my,
     label: myLabel,
@@ -1069,7 +1192,14 @@ const applyEndTurnResidualEffects = ({ snapshot, logs = [], myLabel = 'Seu Poké
   });
 };
 
-const applyMoveStatChanges = ({ attacker, defender, move, attackerLabel, defenderLabel, logs = [] }) => {
+const applyMoveStatChanges = ({
+  attacker,
+  defender,
+  move,
+  attackerLabel,
+  defenderLabel,
+  logs = [],
+}) => {
   const changes = Array.isArray(move?.effectMeta?.statChanges) ? move.effectMeta.statChanges : [];
   if (!changes.length) return;
   const statChance = clamp(toNumber(move?.effectMeta?.statChance, 100), 0, 100);
@@ -1085,19 +1215,31 @@ const applyMoveStatChanges = ({ attacker, defender, move, attackerLabel, defende
     if (!statKey || delta === 0) continue;
     const applied = applyStatStageDelta(targetPokemon, statKey, delta);
     if (applied === 0) {
-      logs.push(`${targetLabel} não pode ter ${formatStageLabel(statKey)} alterado além do limite.`);
+      logs.push(
+        `${targetLabel} não pode ter ${formatStageLabel(statKey)} alterado além do limite.`,
+      );
       continue;
     }
-    logs.push(`${targetLabel} ${applied > 0 ? 'aumentou' : 'reduziu'} ${formatStageLabel(statKey)} em ${Math.abs(applied)} estágio(s).`);
+    logs.push(
+      `${targetLabel} ${applied > 0 ? 'aumentou' : 'reduziu'} ${formatStageLabel(statKey)} em ${Math.abs(applied)} estágio(s).`,
+    );
   }
 };
 
-const applyMoveAilment = ({ attacker, defender, move, attackerLabel, defenderLabel, logs = [] }) => {
+const applyMoveAilment = ({
+  attacker,
+  defender,
+  move,
+  attackerLabel,
+  defenderLabel,
+  logs = [],
+}) => {
   const ailment = normalizeAilmentKey(move?.effectMeta?.ailment);
   if (!ailment) return;
 
   const rawChance = toNumber(move?.effectMeta?.ailmentChance, 0);
-  const defaultChance = ailment && String(move?.damageClass || '').toLowerCase() === STATUS_CLASS ? 100 : 0;
+  const defaultChance =
+    ailment && String(move?.damageClass || '').toLowerCase() === STATUS_CLASS ? 100 : 0;
   const chance = rawChance > 0 ? clamp(rawChance, 0, 100) : defaultChance;
   if (!shouldApplyChance(chance)) return;
 
@@ -1130,7 +1272,13 @@ const applyMoveAilment = ({ attacker, defender, move, attackerLabel, defenderLab
   }
 };
 
-const applyMoveRecoveryAndRecoil = ({ attacker, move, damageDone = 0, attackerLabel, logs = [] }) => {
+const applyMoveRecoveryAndRecoil = ({
+  attacker,
+  move,
+  damageDone = 0,
+  attackerLabel,
+  logs = [],
+}) => {
   syncPokemonCombatState(attacker);
   if (toPositiveInt(attacker?.currentHp, 0) <= 0) return;
 
@@ -1194,11 +1342,26 @@ const applyDamage = ({ attacker, defender, move }) => {
   }
 
   const damageClass = String(move?.damageClass || PHYSICAL_CLASS).toLowerCase();
-  const attackStat = damageClass === SPECIAL_CLASS ? resolveEffectiveStat({ pokemon: attacker, statKey: 'specialAttack', applyBurnPenalty: false }) : resolveEffectiveStat({ pokemon: attacker, statKey: 'attack', applyBurnPenalty: true });
-  const defenseStat = damageClass === SPECIAL_CLASS ? resolveEffectiveStat({ pokemon: defender, statKey: 'specialDefense', applyBurnPenalty: false }) : resolveEffectiveStat({ pokemon: defender, statKey: 'defense', applyBurnPenalty: false });
+  const attackStat =
+    damageClass === SPECIAL_CLASS
+      ? resolveEffectiveStat({
+          pokemon: attacker,
+          statKey: 'specialAttack',
+          applyBurnPenalty: false,
+        })
+      : resolveEffectiveStat({ pokemon: attacker, statKey: 'attack', applyBurnPenalty: true });
+  const defenseStat =
+    damageClass === SPECIAL_CLASS
+      ? resolveEffectiveStat({
+          pokemon: defender,
+          statKey: 'specialDefense',
+          applyBurnPenalty: false,
+        })
+      : resolveEffectiveStat({ pokemon: defender, statKey: 'defense', applyBurnPenalty: false });
 
   const level = clamp(toPositiveInt(attacker?.level, 1), MIN_LEVEL, MAX_LEVEL);
-  const baseDamage = (((2 * level) / 5 + 2) * power * (attackStat / Math.max(1, defenseStat))) / 50 + 2;
+  const baseDamage =
+    (((2 * level) / 5 + 2) * power * (attackStat / Math.max(1, defenseStat))) / 50 + 2;
   const stab = Array.isArray(attacker?.types) && attacker.types.includes(move?.type) ? 1.2 : 1;
   const multiplier = resolveTypeMultiplier(move, defender?.types || []);
   const randomFactor = randomFloat(0.85, 1);
@@ -1374,7 +1537,9 @@ const pickPokemonByPreferredTypes = async (preferredTypes = []) => {
     const selectedType = normalizedTypes[randomInt(0, normalizedTypes.length - 1)];
     try {
       const typeData = await getType(selectedType);
-      const pokemonIds = (typeData?.pokemon || []).map(parsePokemonIdFromTypeEntry).filter((id) => Number.isFinite(id) && id > 0 && id <= DEFAULT_WILD_MAX_ID);
+      const pokemonIds = (typeData?.pokemon || [])
+        .map(parsePokemonIdFromTypeEntry)
+        .filter((id) => Number.isFinite(id) && id > 0 && id <= DEFAULT_WILD_MAX_ID);
 
       if (!pokemonIds.length) continue;
       const chosenId = pokemonIds[randomInt(0, pokemonIds.length - 1)];
@@ -1434,7 +1599,24 @@ const isBlockedEvolutionDetail = (detail = {}) => {
   if (!detail || typeof detail !== 'object') return true;
   const hasValue = (value) => value !== null && value !== undefined;
 
-  return Boolean(detail?.item || detail?.held_item || detail?.known_move || detail?.known_move_type || detail?.location || detail?.party_species || detail?.party_type || detail?.trade_species || detail?.needs_overworld_rain || detail?.turn_upside_down || String(detail?.time_of_day || '').trim() || hasValue(detail?.min_happiness) || hasValue(detail?.min_affection) || hasValue(detail?.min_beauty) || hasValue(detail?.gender) || hasValue(detail?.relative_physical_stats));
+  return Boolean(
+    detail?.item ||
+    detail?.held_item ||
+    detail?.known_move ||
+    detail?.known_move_type ||
+    detail?.location ||
+    detail?.party_species ||
+    detail?.party_type ||
+    detail?.trade_species ||
+    detail?.needs_overworld_rain ||
+    detail?.turn_upside_down ||
+    String(detail?.time_of_day || '').trim() ||
+    hasValue(detail?.min_happiness) ||
+    hasValue(detail?.min_affection) ||
+    hasValue(detail?.min_beauty) ||
+    hasValue(detail?.gender) ||
+    hasValue(detail?.relative_physical_stats),
+  );
 };
 
 const resolveEligibleEvolution = (chainNode, level) => {
@@ -1519,7 +1701,17 @@ export const applyPokemonXpGain = ({ currentLevel, currentXp, gainedXp }) => {
   return { level, xp };
 };
 
-export const buildPokemonSnapshot = async ({ pokemonData, speciesData = null, level, currentHp = null, ivs = null, storedMoves = null, natureData = null, abilityData = null, isShiny = false }) => {
+export const buildPokemonSnapshot = async ({
+  pokemonData,
+  speciesData = null,
+  level,
+  currentHp = null,
+  ivs = null,
+  storedMoves = null,
+  natureData = null,
+  abilityData = null,
+  isShiny = false,
+}) => {
   const safeLevel = clamp(toPositiveInt(level, 5), MIN_LEVEL, MAX_LEVEL);
   const resolvedIvs = normalizeIvs(ivs || createRandomIvs());
   const baseStats = getBaseStats(pokemonData);
@@ -1533,8 +1725,16 @@ export const buildPokemonSnapshot = async ({ pokemonData, speciesData = null, le
   const baseCalculatedStats = {
     attack: calculateStat({ base: baseStats.attack, iv: resolvedIvs.attack, level: safeLevel }),
     defense: calculateStat({ base: baseStats.defense, iv: resolvedIvs.defense, level: safeLevel }),
-    specialAttack: calculateStat({ base: baseStats.specialAttack, iv: resolvedIvs.specialAttack, level: safeLevel }),
-    specialDefense: calculateStat({ base: baseStats.specialDefense, iv: resolvedIvs.specialDefense, level: safeLevel }),
+    specialAttack: calculateStat({
+      base: baseStats.specialAttack,
+      iv: resolvedIvs.specialAttack,
+      level: safeLevel,
+    }),
+    specialDefense: calculateStat({
+      base: baseStats.specialDefense,
+      iv: resolvedIvs.specialDefense,
+      level: safeLevel,
+    }),
     speed: calculateStat({ base: baseStats.speed, iv: resolvedIvs.speed, level: safeLevel }),
   };
   const abilityKey =
@@ -1554,12 +1754,16 @@ export const buildPokemonSnapshot = async ({ pokemonData, speciesData = null, le
     .map((name) => String(name).toLowerCase());
 
   const moves = await resolveMoveSet(pokemonData, storedMoves);
-  const speciesId = extractIdFromUrl(pokemonData?.species?.url) || toPositiveInt(speciesData?.id, 0);
+  const speciesId =
+    extractIdFromUrl(pokemonData?.species?.url) || toPositiveInt(speciesData?.id, 0);
   const localizedName = getLocalizedName(speciesData?.names, pokemonData?.name);
   const localizedGenus = getLocalizedGenus(speciesData?.genera);
   const flavorText = getFlavorText(speciesData?.flavor_text_entries);
   const abilityEffectText = getEffectText(abilityData?.effect_entries, { preferLong: false });
-  const resolvedCurrentHp = currentHp === null || currentHp === undefined ? maxHp : clamp(toPositiveInt(currentHp, maxHp), 0, maxHp);
+  const resolvedCurrentHp =
+    currentHp === null || currentHp === undefined
+      ? maxHp
+      : clamp(toPositiveInt(currentHp, maxHp), 0, maxHp);
 
   return {
     pokeId: toPositiveInt(pokemonData?.id, 0),
@@ -1662,7 +1866,12 @@ export const buildPlayerBattleSnapshot = async ({ playerPokemonRow }) => {
   });
 };
 
-export const createWildEncounter = async ({ playerLevel, preferredTypes = [], preferredHabitats = [], encounterPool = [] }) => {
+export const createWildEncounter = async ({
+  playerLevel,
+  preferredTypes = [],
+  preferredHabitats = [],
+  encounterPool = [],
+}) => {
   const referenceLevel = clamp(toPositiveInt(playerLevel, 1), MIN_LEVEL, MAX_LEVEL);
   const minLevel = clamp(referenceLevel - MAX_ENCOUNTER_LEVEL_DIFF, MIN_WILD_LEVEL, MAX_LEVEL);
   const maxLevel = clamp(referenceLevel + MAX_ENCOUNTER_LEVEL_DIFF, minLevel, MAX_LEVEL);
@@ -1673,7 +1882,9 @@ export const createWildEncounter = async ({ playerLevel, preferredTypes = [], pr
   let selectedSpecies = null;
 
   for (let attempt = 0; attempt < MAX_SPECIES_FILTER_ATTEMPTS; attempt += 1) {
-    let candidate = (await pickPokemonFromEncounterPool(encounterPool)) || (await pickPokemonByPreferredTypes(preferredTypes));
+    let candidate =
+      (await pickPokemonFromEncounterPool(encounterPool)) ||
+      (await pickPokemonByPreferredTypes(preferredTypes));
 
     if (!candidate) {
       const wildId = randomInt(1, DEFAULT_WILD_MAX_ID);
@@ -1699,12 +1910,15 @@ export const createWildEncounter = async ({ playerLevel, preferredTypes = [], pr
 
   if (!selectedPokemon) {
     selectedPokemon = await getPokemon(25);
-    const fallbackSpeciesId = extractIdFromUrl(selectedPokemon?.species?.url) || selectedPokemon?.id;
+    const fallbackSpeciesId =
+      extractIdFromUrl(selectedPokemon?.species?.url) || selectedPokemon?.id;
     selectedSpecies = await getSpecies(fallbackSpeciesId);
   }
 
   const abilities = (selectedPokemon?.abilities || []).filter((entry) => !entry?.is_hidden);
-  const abilityEntry = abilities.length ? abilities[randomInt(0, abilities.length - 1)] : selectedPokemon?.abilities?.[0];
+  const abilityEntry = abilities.length
+    ? abilities[randomInt(0, abilities.length - 1)]
+    : selectedPokemon?.abilities?.[0];
   const abilityKey =
     String(abilityEntry?.ability?.name || '')
       .trim()
@@ -1784,8 +1998,12 @@ export const resolveBattleTurn = ({ battleSnapshot, playerMoveSlot }) => {
     const isPlayerAction = action.actor === 'my';
     const attacker = isPlayerAction ? snapshot.my : snapshot.enemy;
     const defender = isPlayerAction ? snapshot.enemy : snapshot.my;
-    const attackerLabel = isPlayerAction ? `Seu ${snapshot.my.displayName}` : ` ${snapshot.enemy.displayName}`.trim();
-    const defenderLabel = isPlayerAction ? ` ${snapshot.enemy.displayName}`.trim() : `Seu ${snapshot.my.displayName}`;
+    const attackerLabel = isPlayerAction
+      ? `Seu ${snapshot.my.displayName}`
+      : ` ${snapshot.enemy.displayName}`.trim();
+    const defenderLabel = isPlayerAction
+      ? ` ${snapshot.enemy.displayName}`.trim()
+      : `Seu ${snapshot.my.displayName}`;
 
     const preMoveStatus = processTurnStartStatus({
       actor: attacker,
@@ -1823,7 +2041,13 @@ export const resolveBattleTurn = ({ battleSnapshot, playerMoveSlot }) => {
   };
 };
 
-export const resolveSingleAttack = ({ attackerSnapshot, defenderSnapshot, moveSlot = 1, attackerLabel = 'Atacante', defenderLabel = 'Defensor' }) => {
+export const resolveSingleAttack = ({
+  attackerSnapshot,
+  defenderSnapshot,
+  moveSlot = 1,
+  attackerLabel = 'Atacante',
+  defenderLabel = 'Defensor',
+}) => {
   const attacker = cloneSnapshot(attackerSnapshot || {});
   const defender = cloneSnapshot(defenderSnapshot || {});
   syncPokemonCombatState(attacker);
@@ -1919,8 +2143,14 @@ export const resolveCaptureAttempt = ({ battleSnapshot }) => {
   const captureBonus = clamp(toNumber(snapshot?.my?.captureBonus, 0), 0, 1);
   const guaranteedCapture = Boolean(snapshot?.my?.guaranteedCapture);
   const hpFactor = clamp((enemy.maxHp - enemy.currentHp) / Math.max(1, enemy.maxHp), 0, 1);
-  const captureRateFactor = clamp(toPositiveInt(enemy.captureRate, DEFAULT_CAPTURE_RATE) / 255, 0, 1);
-  const chance = guaranteedCapture ? 1 : clamp(0.1 + hpFactor * 0.6 + captureRateFactor * 0.25 + captureBonus, 0.05, 0.95);
+  const captureRateFactor = clamp(
+    toPositiveInt(enemy.captureRate, DEFAULT_CAPTURE_RATE) / 255,
+    0,
+    1,
+  );
+  const chance = guaranteedCapture
+    ? 1
+    : clamp(0.1 + hpFactor * 0.6 + captureRateFactor * 0.25 + captureBonus, 0.05, 0.95);
   const success = guaranteedCapture || Math.random() <= chance;
 
   if (success) {
@@ -1990,7 +2220,8 @@ export const buildMoveSnapshotByName = async (idOrName) => {
 
 export const resolveEvolutionByLevel = async ({ pokeId, level }) => {
   const currentPokemon = await getPokemon(pokeId);
-  const currentSpeciesId = extractIdFromUrl(currentPokemon?.species?.url) || toPositiveInt(currentPokemon?.id, 0);
+  const currentSpeciesId =
+    extractIdFromUrl(currentPokemon?.species?.url) || toPositiveInt(currentPokemon?.id, 0);
   if (!currentSpeciesId) return null;
 
   const speciesData = await getSpecies(currentSpeciesId);
@@ -1998,7 +2229,10 @@ export const resolveEvolutionByLevel = async ({ pokeId, level }) => {
   if (!chainId) return null;
 
   const chainData = await getEvolutionChain(chainId);
-  let currentNode = findEvolutionNodeBySpeciesName(chainData?.chain, currentPokemon?.species?.name || currentPokemon?.name);
+  let currentNode = findEvolutionNodeBySpeciesName(
+    chainData?.chain,
+    currentPokemon?.species?.name || currentPokemon?.name,
+  );
   if (!currentNode) return null;
 
   let evolvedPokemon = null;
@@ -2009,7 +2243,8 @@ export const resolveEvolutionByLevel = async ({ pokeId, level }) => {
     if (!nextEvolution) break;
 
     const nextSpeciesId = resolveSpeciesIdFromNode(nextEvolution.node);
-    const nextLookup = nextSpeciesId || String(nextEvolution.node?.species?.name || '').toLowerCase();
+    const nextLookup =
+      nextSpeciesId || String(nextEvolution.node?.species?.name || '').toLowerCase();
     if (!nextLookup) break;
 
     try {
@@ -2047,7 +2282,8 @@ export const resolveEvolutionByItem = async ({ pokeId, itemKey }) => {
   if (!normalizedItem) return null;
 
   const currentPokemon = await getPokemon(pokeId);
-  const currentSpeciesId = extractIdFromUrl(currentPokemon?.species?.url) || toPositiveInt(currentPokemon?.id, 0);
+  const currentSpeciesId =
+    extractIdFromUrl(currentPokemon?.species?.url) || toPositiveInt(currentPokemon?.id, 0);
   if (!currentSpeciesId) return null;
 
   const speciesData = await getSpecies(currentSpeciesId);
@@ -2055,7 +2291,10 @@ export const resolveEvolutionByItem = async ({ pokeId, itemKey }) => {
   if (!chainId) return null;
 
   const chainData = await getEvolutionChain(chainId);
-  const currentNode = findEvolutionNodeBySpeciesName(chainData?.chain, currentPokemon?.species?.name || currentPokemon?.name);
+  const currentNode = findEvolutionNodeBySpeciesName(
+    chainData?.chain,
+    currentPokemon?.species?.name || currentPokemon?.name,
+  );
   if (!currentNode) return null;
 
   const nextNode = resolveEligibleEvolutionByItem(currentNode, normalizedItem);

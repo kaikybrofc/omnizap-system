@@ -3,11 +3,27 @@ import os from 'node:os';
 
 import logger from '../../../utils/logger/loggerModule.js';
 import { recordStickerClassificationCycle, setQueueDepth } from '../../observability/metrics.js';
-import { listStickerAssetsPendingClassification, findStickerAssetById } from './stickerAssetRepository.js';
+import {
+  listStickerAssetsPendingClassification,
+  findStickerAssetById,
+} from './stickerAssetRepository.js';
 import { classifierConfig, ensureStickerAssetClassified } from './stickerClassificationService.js';
-import { listAssetsForPrioritySignalBackfillReprocess, listAssetsForLowConfidenceReprocess, listAssetsForModelUpgradeReprocess } from './stickerAssetClassificationRepository.js';
-import { claimStickerAssetReprocessTask, completeStickerAssetReprocessTask, countStickerAssetReprocessQueueByStatus, enqueueStickerAssetReprocess, failStickerAssetReprocessTask } from './stickerAssetReprocessQueueRepository.js';
-import { batchReprocess as runDeterministicSemanticReclassification, deterministicReclassificationConfig } from './semanticReclassificationEngine.js';
+import {
+  listAssetsForPrioritySignalBackfillReprocess,
+  listAssetsForLowConfidenceReprocess,
+  listAssetsForModelUpgradeReprocess,
+} from './stickerAssetClassificationRepository.js';
+import {
+  claimStickerAssetReprocessTask,
+  completeStickerAssetReprocessTask,
+  countStickerAssetReprocessQueueByStatus,
+  enqueueStickerAssetReprocess,
+  failStickerAssetReprocessTask,
+} from './stickerAssetReprocessQueueRepository.js';
+import {
+  batchReprocess as runDeterministicSemanticReclassification,
+  deterministicReclassificationConfig,
+} from './semanticReclassificationEngine.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -17,33 +33,83 @@ const parseEnvBool = (value, fallback) => {
   return fallback;
 };
 
-const BACKGROUND_ENABLED = parseEnvBool(process.env.STICKER_CLASSIFICATION_BACKGROUND_ENABLED, true);
-const STARTUP_DELAY_MS = Math.max(1_000, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_STARTUP_DELAY_MS) || 15_000);
+const BACKGROUND_ENABLED = parseEnvBool(
+  process.env.STICKER_CLASSIFICATION_BACKGROUND_ENABLED,
+  true,
+);
+const STARTUP_DELAY_MS = Math.max(
+  1_000,
+  Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_STARTUP_DELAY_MS) || 15_000,
+);
 const LEGACY_INTERVAL_MS = Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_INTERVAL_MS);
 const INTERVAL_MIN_MS_RAW = Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_INTERVAL_MIN_MS);
 const INTERVAL_MAX_MS_RAW = Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_INTERVAL_MAX_MS);
 const DEFAULT_INTERVAL_MIN_MS = 5 * 60_000;
 const DEFAULT_INTERVAL_MAX_MS = 10 * 60_000;
-const INTERVAL_MIN_MS = Number.isFinite(INTERVAL_MIN_MS_RAW) ? Math.max(60_000, Math.min(3_600_000, INTERVAL_MIN_MS_RAW)) : DEFAULT_INTERVAL_MIN_MS;
-const INTERVAL_MAX_MS_FROM_ENV = Number.isFinite(INTERVAL_MAX_MS_RAW) ? Math.max(60_000, Math.min(3_600_000, INTERVAL_MAX_MS_RAW)) : DEFAULT_INTERVAL_MAX_MS;
+const INTERVAL_MIN_MS = Number.isFinite(INTERVAL_MIN_MS_RAW)
+  ? Math.max(60_000, Math.min(3_600_000, INTERVAL_MIN_MS_RAW))
+  : DEFAULT_INTERVAL_MIN_MS;
+const INTERVAL_MAX_MS_FROM_ENV = Number.isFinite(INTERVAL_MAX_MS_RAW)
+  ? Math.max(60_000, Math.min(3_600_000, INTERVAL_MAX_MS_RAW))
+  : DEFAULT_INTERVAL_MAX_MS;
 const INTERVAL_MAX_MS = Math.max(INTERVAL_MIN_MS, INTERVAL_MAX_MS_FROM_ENV);
-const LEGACY_FIXED_INTERVAL_MS = Number.isFinite(LEGACY_INTERVAL_MS) && LEGACY_INTERVAL_MS > 0 ? Math.max(60_000, Math.min(3_600_000, LEGACY_INTERVAL_MS)) : null;
+const LEGACY_FIXED_INTERVAL_MS =
+  Number.isFinite(LEGACY_INTERVAL_MS) && LEGACY_INTERVAL_MS > 0
+    ? Math.max(60_000, Math.min(3_600_000, LEGACY_INTERVAL_MS))
+    : null;
 const EFFECTIVE_INTERVAL_MIN_MS = LEGACY_FIXED_INTERVAL_MS || INTERVAL_MIN_MS;
 const EFFECTIVE_INTERVAL_MAX_MS = LEGACY_FIXED_INTERVAL_MS || INTERVAL_MAX_MS;
 const cpuCount = Math.max(1, Number(os.cpus()?.length || 1));
-const BACKGROUND_CONCURRENCY = Math.max(1, Math.min(16, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_CONCURRENCY) || cpuCount));
-const BATCH_SIZE = Math.max(1, Math.min(300, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_BATCH_SIZE) || BACKGROUND_CONCURRENCY * 2));
+const BACKGROUND_CONCURRENCY = Math.max(
+  1,
+  Math.min(16, Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_CONCURRENCY) || cpuCount),
+);
+const BATCH_SIZE = Math.max(
+  1,
+  Math.min(
+    300,
+    Number(process.env.STICKER_CLASSIFICATION_BACKGROUND_BATCH_SIZE) || BACKGROUND_CONCURRENCY * 2,
+  ),
+);
 
 const REPROCESS_ENABLED = parseEnvBool(process.env.STICKER_REPROCESS_QUEUE_ENABLED, true);
-const REPROCESS_MAX_PER_CYCLE = Math.max(0, Math.min(300, Number(process.env.STICKER_REPROCESS_MAX_PER_CYCLE) || BATCH_SIZE));
-const REPROCESS_MODEL_UPGRADE_SCAN_LIMIT = Math.max(0, Math.min(2000, Number(process.env.STICKER_REPROCESS_MODEL_UPGRADE_SCAN_LIMIT) || 350));
-const REPROCESS_LOW_CONFIDENCE_SCAN_LIMIT = Math.max(0, Math.min(2000, Number(process.env.STICKER_REPROCESS_LOW_CONFIDENCE_SCAN_LIMIT) || 250));
-const REPROCESS_LOW_CONFIDENCE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_REPROCESS_LOW_CONFIDENCE_THRESHOLD)) ? Number(process.env.STICKER_REPROCESS_LOW_CONFIDENCE_THRESHOLD) : 0.65;
-const REPROCESS_LOW_CONFIDENCE_STALE_HOURS = Math.max(1, Math.min(24 * 365, Number(process.env.STICKER_REPROCESS_LOW_CONFIDENCE_STALE_HOURS) || 48));
-const REPROCESS_PRIORITY_BACKFILL_ENABLED = parseEnvBool(process.env.STICKER_REPROCESS_PRIORITY_BACKFILL_ENABLED, true);
-const REPROCESS_PRIORITY_BACKFILL_SCAN_LIMIT = Math.max(0, Math.min(3000, Number(process.env.STICKER_REPROCESS_PRIORITY_BACKFILL_SCAN_LIMIT) || 300));
-const REPROCESS_PRIORITY_BACKFILL_PRIORITY = Math.max(1, Math.min(100, Number(process.env.STICKER_REPROCESS_PRIORITY_BACKFILL_PRIORITY) || 95));
-const REPROCESS_RETRY_DELAY_SECONDS = Math.max(5, Math.min(3600, Number(process.env.STICKER_REPROCESS_RETRY_DELAY_SECONDS) || 120));
+const REPROCESS_MAX_PER_CYCLE = Math.max(
+  0,
+  Math.min(300, Number(process.env.STICKER_REPROCESS_MAX_PER_CYCLE) || BATCH_SIZE),
+);
+const REPROCESS_MODEL_UPGRADE_SCAN_LIMIT = Math.max(
+  0,
+  Math.min(2000, Number(process.env.STICKER_REPROCESS_MODEL_UPGRADE_SCAN_LIMIT) || 350),
+);
+const REPROCESS_LOW_CONFIDENCE_SCAN_LIMIT = Math.max(
+  0,
+  Math.min(2000, Number(process.env.STICKER_REPROCESS_LOW_CONFIDENCE_SCAN_LIMIT) || 250),
+);
+const REPROCESS_LOW_CONFIDENCE_THRESHOLD = Number.isFinite(
+  Number(process.env.STICKER_REPROCESS_LOW_CONFIDENCE_THRESHOLD),
+)
+  ? Number(process.env.STICKER_REPROCESS_LOW_CONFIDENCE_THRESHOLD)
+  : 0.65;
+const REPROCESS_LOW_CONFIDENCE_STALE_HOURS = Math.max(
+  1,
+  Math.min(24 * 365, Number(process.env.STICKER_REPROCESS_LOW_CONFIDENCE_STALE_HOURS) || 48),
+);
+const REPROCESS_PRIORITY_BACKFILL_ENABLED = parseEnvBool(
+  process.env.STICKER_REPROCESS_PRIORITY_BACKFILL_ENABLED,
+  true,
+);
+const REPROCESS_PRIORITY_BACKFILL_SCAN_LIMIT = Math.max(
+  0,
+  Math.min(3000, Number(process.env.STICKER_REPROCESS_PRIORITY_BACKFILL_SCAN_LIMIT) || 300),
+);
+const REPROCESS_PRIORITY_BACKFILL_PRIORITY = Math.max(
+  1,
+  Math.min(100, Number(process.env.STICKER_REPROCESS_PRIORITY_BACKFILL_PRIORITY) || 95),
+);
+const REPROCESS_RETRY_DELAY_SECONDS = Math.max(
+  5,
+  Math.min(3600, Number(process.env.STICKER_REPROCESS_RETRY_DELAY_SECONDS) || 120),
+);
 
 let cycleHandle = null;
 let startupTimeoutHandle = null;
@@ -77,33 +143,35 @@ const processPendingAssets = async () => {
   }
 
   let cursor = 0;
-  const workers = Array.from({ length: Math.min(BACKGROUND_CONCURRENCY, assets.length) }).map(async () => {
-    while (true) {
-      const index = cursor;
-      cursor += 1;
-      if (index >= assets.length) break;
+  const workers = Array.from({ length: Math.min(BACKGROUND_CONCURRENCY, assets.length) }).map(
+    async () => {
+      while (true) {
+        const index = cursor;
+        cursor += 1;
+        if (index >= assets.length) break;
 
-      const asset = assets[index];
-      stats.processed += 1;
+        const asset = assets[index];
+        stats.processed += 1;
 
-      try {
-        const result = await classifyAsset({ asset, force: false });
-        if (result.ok) {
-          stats.classified += 1;
-        } else {
+        try {
+          const result = await classifyAsset({ asset, force: false });
+          if (result.ok) {
+            stats.classified += 1;
+          } else {
+            stats.failed += 1;
+          }
+        } catch (error) {
           stats.failed += 1;
+          logger.warn('Falha ao classificar asset no worker de background.', {
+            action: 'sticker_classification_background_asset_failed',
+            asset_id: asset?.id || null,
+            storage_path: asset?.storage_path || null,
+            error: error?.message,
+          });
         }
-      } catch (error) {
-        stats.failed += 1;
-        logger.warn('Falha ao classificar asset no worker de background.', {
-          action: 'sticker_classification_background_asset_failed',
-          asset_id: asset?.id || null,
-          storage_path: asset?.storage_path || null,
-          error: error?.message,
-        });
       }
-    }
-  });
+    },
+  );
 
   await Promise.all(workers);
   return stats;
@@ -194,9 +262,12 @@ const processReprocessQueue = async ({ limit = REPROCESS_MAX_PER_CYCLE } = {}) =
   } catch (error) {
     if (error?.code === 'ER_NO_SUCH_TABLE') {
       reprocessQueueAvailable = false;
-      logger.warn('Fila de reprocessamento indisponivel (migração pendente). Seguindo sem reprocessar.', {
-        action: 'sticker_reprocess_queue_unavailable',
-      });
+      logger.warn(
+        'Fila de reprocessamento indisponivel (migração pendente). Seguindo sem reprocessar.',
+        {
+          action: 'sticker_reprocess_queue_unavailable',
+        },
+      );
       return {
         processed: 0,
         classified: 0,
@@ -261,7 +332,10 @@ const processReprocessQueue = async ({ limit = REPROCESS_MAX_PER_CYCLE } = {}) =
   }
 
   try {
-    const [pendingDepth, processingDepth] = await Promise.all([countStickerAssetReprocessQueueByStatus('pending'), countStickerAssetReprocessQueueByStatus('processing')]);
+    const [pendingDepth, processingDepth] = await Promise.all([
+      countStickerAssetReprocessQueueByStatus('pending'),
+      countStickerAssetReprocessQueueByStatus('processing'),
+    ]);
     setQueueDepth('sticker_reprocess_pending', pendingDepth);
     setQueueDepth('sticker_reprocess_processing', processingDepth);
   } catch (error) {
@@ -298,7 +372,11 @@ const processDeterministicReclassification = async () => {
   });
 };
 
-export const runStickerClassificationCycle = async ({ processPending = true, processReprocess = true, processDeterministic = true } = {}) => {
+export const runStickerClassificationCycle = async ({
+  processPending = true,
+  processReprocess = true,
+  processDeterministic = true,
+} = {}) => {
   const startedAt = Date.now();
   const shouldProcessClassifier = classifierConfig.enabled;
   const shouldProcessDeterministic = deterministicReclassificationConfig.enabled;
@@ -318,13 +396,26 @@ export const runStickerClassificationCycle = async ({ processPending = true, pro
   }
 
   try {
-    const reprocessStats = processReprocess && shouldProcessClassifier ? await processReprocessQueue() : null;
-    const pendingStats = processPending && shouldProcessClassifier ? await processPendingAssets() : null;
-    const deterministicStats = processDeterministic ? await processDeterministicReclassification() : null;
+    const reprocessStats =
+      processReprocess && shouldProcessClassifier ? await processReprocessQueue() : null;
+    const pendingStats =
+      processPending && shouldProcessClassifier ? await processPendingAssets() : null;
+    const deterministicStats = processDeterministic
+      ? await processDeterministicReclassification()
+      : null;
 
-    const processed = Number(pendingStats?.processed || 0) + Number(reprocessStats?.processed || 0) + Number(deterministicStats?.processed || 0);
-    const classified = Number(pendingStats?.classified || 0) + Number(reprocessStats?.classified || 0) + Number(deterministicStats?.updated || 0);
-    const failed = Number(pendingStats?.failed || 0) + Number(reprocessStats?.failed || 0) + Number(deterministicStats?.failed || 0);
+    const processed =
+      Number(pendingStats?.processed || 0) +
+      Number(reprocessStats?.processed || 0) +
+      Number(deterministicStats?.processed || 0);
+    const classified =
+      Number(pendingStats?.classified || 0) +
+      Number(reprocessStats?.classified || 0) +
+      Number(deterministicStats?.updated || 0);
+    const failed =
+      Number(pendingStats?.failed || 0) +
+      Number(reprocessStats?.failed || 0) +
+      Number(deterministicStats?.failed || 0);
     const durationMs = Date.now() - startedAt;
 
     recordStickerClassificationCycle({
@@ -365,7 +456,10 @@ const resolveNextCycleDelayMs = () => {
     return EFFECTIVE_INTERVAL_MIN_MS;
   }
 
-  return EFFECTIVE_INTERVAL_MIN_MS + Math.floor(Math.random() * (EFFECTIVE_INTERVAL_MAX_MS - EFFECTIVE_INTERVAL_MIN_MS + 1));
+  return (
+    EFFECTIVE_INTERVAL_MIN_MS +
+    Math.floor(Math.random() * (EFFECTIVE_INTERVAL_MAX_MS - EFFECTIVE_INTERVAL_MIN_MS + 1))
+  );
 };
 
 const scheduleNextCycle = () => {
@@ -398,7 +492,10 @@ const classifyBatch = async () => {
       gain_count: 0,
     };
   }
-  if (!BACKGROUND_ENABLED || (!classifierConfig.enabled && !deterministicReclassificationConfig.enabled)) {
+  if (
+    !BACKGROUND_ENABLED ||
+    (!classifierConfig.enabled && !deterministicReclassificationConfig.enabled)
+  ) {
     return {
       executed: false,
       reason: 'disabled',
@@ -436,12 +533,27 @@ const classifyBatch = async () => {
       affinity_threshold: deterministicReclassificationConfig.affinity_threshold,
     };
 
-    const processed = Number(pending.processed || 0) + Number(reprocess.processed || 0) + Number(deterministic.processed || 0);
-    const classified = Number(pending.classified || 0) + Number(reprocess.classified || 0) + Number(deterministic.updated || 0);
-    const failed = Number(pending.failed || 0) + Number(reprocess.failed || 0) + Number(deterministic.failed || 0);
+    const processed =
+      Number(pending.processed || 0) +
+      Number(reprocess.processed || 0) +
+      Number(deterministic.processed || 0);
+    const classified =
+      Number(pending.classified || 0) +
+      Number(reprocess.classified || 0) +
+      Number(deterministic.updated || 0);
+    const failed =
+      Number(pending.failed || 0) +
+      Number(reprocess.failed || 0) +
+      Number(deterministic.failed || 0);
     const gainCount = classified;
 
-    if (processed > 0 || reprocess.enqueued_priority_backfill > 0 || reprocess.enqueued_model_upgrade > 0 || reprocess.enqueued_low_confidence > 0 || deterministic.updated > 0) {
+    if (
+      processed > 0 ||
+      reprocess.enqueued_priority_backfill > 0 ||
+      reprocess.enqueued_model_upgrade > 0 ||
+      reprocess.enqueued_low_confidence > 0 ||
+      deterministic.updated > 0
+    ) {
       logger.info('Worker de classificação executado.', {
         action: 'sticker_classification_background_cycle',
         processed,
@@ -526,8 +638,10 @@ export const startStickerClassificationBackground = () => {
     deterministic_reclassification_enabled: deterministicReclassificationConfig.enabled,
     deterministic_reclassification_batch_size: deterministicReclassificationConfig.batch_size,
     deterministic_reclassification_max_per_cycle: deterministicReclassificationConfig.max_per_cycle,
-    deterministic_reclassification_entropy_threshold: deterministicReclassificationConfig.entropy_threshold,
-    deterministic_reclassification_affinity_threshold: deterministicReclassificationConfig.affinity_threshold,
+    deterministic_reclassification_entropy_threshold:
+      deterministicReclassificationConfig.entropy_threshold,
+    deterministic_reclassification_affinity_threshold:
+      deterministicReclassificationConfig.affinity_threshold,
   });
 
   startupTimeoutHandle = setTimeout(() => {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-const ensureObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+const ensureObject = (value) =>
+  value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 
 const sanitizeIssuePath = (issuePath) => {
   if (!Array.isArray(issuePath) || !issuePath.length) return 'payload';
@@ -23,7 +24,11 @@ const buildValidationError = (error, fallbackMessage = 'Payload invalido.') => {
   return wrapped;
 };
 
-const optionalTrimmedString = (maxLength) => z.preprocess((value) => (typeof value === 'string' ? value.trim() : value), z.string().max(maxLength).optional());
+const optionalTrimmedString = (maxLength) =>
+  z.preprocess(
+    (value) => (typeof value === 'string' ? value.trim() : value),
+    z.string().max(maxLength).optional(),
+  );
 
 const optionalTimestamp = z.preprocess((value) => {
   if (value === undefined || value === null || value === '') return undefined;
@@ -67,18 +72,37 @@ const googleAuthSessionPayloadSchema = z
   });
 
 const adminSessionPasswordPayloadSchema = z.object({
-  password: z.preprocess((value) => (typeof value === 'string' ? value.trim() : value), z.string().min(1).max(256)).refine((value) => value.length > 0, 'Senha obrigatoria.'),
+  password: z
+    .preprocess(
+      (value) => (typeof value === 'string' ? value.trim() : value),
+      z.string().min(1).max(256),
+    )
+    .refine((value) => value.length > 0, 'Senha obrigatoria.'),
 });
 
 const adminModeratorUpsertPayloadSchema = z
   .object({
     google_sub: optionalTrimmedString(80),
-    email: z.preprocess((value) => (typeof value === 'string' ? value.trim().toLowerCase() : value), z.string().email().max(255).optional()).optional(),
+    email: z
+      .preprocess(
+        (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+        z.string().email().max(255).optional(),
+      )
+      .optional(),
     owner_jid: optionalTrimmedString(255),
-    password: z.preprocess((value) => (typeof value === 'string' ? value.trim() : value), z.string().min(1).max(256)).refine((value) => value.length > 0, 'Senha obrigatoria.'),
+    password: z
+      .preprocess(
+        (value) => (typeof value === 'string' ? value.trim() : value),
+        z.string().min(1).max(256),
+      )
+      .refine((value) => value.length > 0, 'Senha obrigatoria.'),
   })
   .superRefine((data, ctx) => {
-    const hasIdentity = Boolean(String(data.google_sub || '').trim() || String(data.email || '').trim() || String(data.owner_jid || '').trim());
+    const hasIdentity = Boolean(
+      String(data.google_sub || '').trim() ||
+      String(data.email || '').trim() ||
+      String(data.owner_jid || '').trim(),
+    );
     if (!hasIdentity) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -89,18 +113,31 @@ const adminModeratorUpsertPayloadSchema = z
   });
 
 const userPasswordUpsertPayloadSchema = z.object({
-  password: z.preprocess((value) => (typeof value === 'string' ? value : ''), z.string().min(1).max(256)).refine((value) => value.trim().length > 0, 'Senha obrigatoria.'),
+  password: z
+    .preprocess((value) => (typeof value === 'string' ? value : ''), z.string().min(1).max(256))
+    .refine((value) => value.trim().length > 0, 'Senha obrigatoria.'),
 });
 
 const userPasswordLoginPayloadSchema = z
   .object({
     google_sub: optionalTrimmedString(80),
-    email: z.preprocess((value) => (typeof value === 'string' ? value.trim().toLowerCase() : value), z.string().email().max(255).optional()).optional(),
+    email: z
+      .preprocess(
+        (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+        z.string().email().max(255).optional(),
+      )
+      .optional(),
     owner_jid: optionalTrimmedString(255),
-    password: z.preprocess((value) => (typeof value === 'string' ? value : ''), z.string().min(1).max(256)).refine((value) => value.trim().length > 0, 'Senha obrigatoria.'),
+    password: z
+      .preprocess((value) => (typeof value === 'string' ? value : ''), z.string().min(1).max(256))
+      .refine((value) => value.trim().length > 0, 'Senha obrigatoria.'),
   })
   .superRefine((data, ctx) => {
-    const hasIdentity = Boolean(String(data.google_sub || '').trim() || String(data.email || '').trim() || String(data.owner_jid || '').trim());
+    const hasIdentity = Boolean(
+      String(data.google_sub || '').trim() ||
+      String(data.email || '').trim() ||
+      String(data.owner_jid || '').trim(),
+    );
     if (!hasIdentity) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -113,12 +150,26 @@ const userPasswordLoginPayloadSchema = z
 const userPasswordRecoveryRequestPayloadSchema = z
   .object({
     google_sub: optionalTrimmedString(80),
-    email: z.preprocess((value) => (typeof value === 'string' ? value.trim().toLowerCase() : value), z.string().email().max(255).optional()).optional(),
+    email: z
+      .preprocess(
+        (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+        z.string().email().max(255).optional(),
+      )
+      .optional(),
     owner_jid: optionalTrimmedString(255),
-    purpose: z.preprocess((value) => (typeof value === 'string' ? value.trim().toLowerCase() : value), z.enum(['reset', 'setup']).optional()).optional(),
+    purpose: z
+      .preprocess(
+        (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+        z.enum(['reset', 'setup']).optional(),
+      )
+      .optional(),
   })
   .superRefine((data, ctx) => {
-    const hasIdentity = Boolean(String(data.google_sub || '').trim() || String(data.email || '').trim() || String(data.owner_jid || '').trim());
+    const hasIdentity = Boolean(
+      String(data.google_sub || '').trim() ||
+      String(data.email || '').trim() ||
+      String(data.owner_jid || '').trim(),
+    );
     if (!hasIdentity) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -131,9 +182,19 @@ const userPasswordRecoveryRequestPayloadSchema = z
 const userPasswordRecoveryVerifyPayloadSchema = z
   .object({
     google_sub: optionalTrimmedString(80),
-    email: z.preprocess((value) => (typeof value === 'string' ? value.trim().toLowerCase() : value), z.string().email().max(255).optional()).optional(),
+    email: z
+      .preprocess(
+        (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+        z.string().email().max(255).optional(),
+      )
+      .optional(),
     owner_jid: optionalTrimmedString(255),
-    purpose: z.preprocess((value) => (typeof value === 'string' ? value.trim().toLowerCase() : value), z.enum(['reset', 'setup']).optional()).optional(),
+    purpose: z
+      .preprocess(
+        (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+        z.enum(['reset', 'setup']).optional(),
+      )
+      .optional(),
     code: z.preprocess(
       (value) =>
         String(value || '')
@@ -141,10 +202,16 @@ const userPasswordRecoveryVerifyPayloadSchema = z
           .slice(0, 6),
       z.string().regex(/^\d{6}$/, 'Codigo de verificacao deve conter 6 digitos.'),
     ),
-    password: z.preprocess((value) => (typeof value === 'string' ? value : ''), z.string().min(1).max(256)).refine((value) => value.trim().length > 0, 'Senha obrigatoria.'),
+    password: z
+      .preprocess((value) => (typeof value === 'string' ? value : ''), z.string().min(1).max(256))
+      .refine((value) => value.trim().length > 0, 'Senha obrigatoria.'),
   })
   .superRefine((data, ctx) => {
-    const hasIdentity = Boolean(String(data.google_sub || '').trim() || String(data.email || '').trim() || String(data.owner_jid || '').trim());
+    const hasIdentity = Boolean(
+      String(data.google_sub || '').trim() ||
+      String(data.email || '').trim() ||
+      String(data.owner_jid || '').trim(),
+    );
     if (!hasIdentity) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -162,16 +229,31 @@ const parseWithSchema = (schema, payload, fallbackMessage) => {
   return parsed.data;
 };
 
-export const parseGoogleAuthSessionPayload = (payload) => parseWithSchema(googleAuthSessionPayloadSchema, payload, 'Payload de login Google invalido.');
+export const parseGoogleAuthSessionPayload = (payload) =>
+  parseWithSchema(googleAuthSessionPayloadSchema, payload, 'Payload de login Google invalido.');
 
-export const parseAdminSessionPasswordPayload = (payload) => parseWithSchema(adminSessionPasswordPayloadSchema, payload, 'Payload de sessao admin invalido.');
+export const parseAdminSessionPasswordPayload = (payload) =>
+  parseWithSchema(adminSessionPasswordPayloadSchema, payload, 'Payload de sessao admin invalido.');
 
-export const parseAdminModeratorUpsertPayload = (payload) => parseWithSchema(adminModeratorUpsertPayloadSchema, payload, 'Payload de moderador invalido.');
+export const parseAdminModeratorUpsertPayload = (payload) =>
+  parseWithSchema(adminModeratorUpsertPayloadSchema, payload, 'Payload de moderador invalido.');
 
-export const parseUserPasswordUpsertPayload = (payload) => parseWithSchema(userPasswordUpsertPayloadSchema, payload, 'Payload de senha invalido.');
+export const parseUserPasswordUpsertPayload = (payload) =>
+  parseWithSchema(userPasswordUpsertPayloadSchema, payload, 'Payload de senha invalido.');
 
-export const parseUserPasswordLoginPayload = (payload) => parseWithSchema(userPasswordLoginPayloadSchema, payload, 'Payload de login por senha invalido.');
+export const parseUserPasswordLoginPayload = (payload) =>
+  parseWithSchema(userPasswordLoginPayloadSchema, payload, 'Payload de login por senha invalido.');
 
-export const parseUserPasswordRecoveryRequestPayload = (payload) => parseWithSchema(userPasswordRecoveryRequestPayloadSchema, payload, 'Payload de recuperacao de senha invalido.');
+export const parseUserPasswordRecoveryRequestPayload = (payload) =>
+  parseWithSchema(
+    userPasswordRecoveryRequestPayloadSchema,
+    payload,
+    'Payload de recuperacao de senha invalido.',
+  );
 
-export const parseUserPasswordRecoveryVerifyPayload = (payload) => parseWithSchema(userPasswordRecoveryVerifyPayloadSchema, payload, 'Payload de verificacao de codigo invalido.');
+export const parseUserPasswordRecoveryVerifyPayload = (payload) =>
+  parseWithSchema(
+    userPasswordRecoveryVerifyPayloadSchema,
+    payload,
+    'Payload de verificacao de codigo invalido.',
+  );

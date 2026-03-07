@@ -3,7 +3,10 @@ import { createHash } from 'node:crypto';
 import logger from '../../utils/logger/loggerModule.js';
 import { executeQuery, TABLES } from '../../database/index.js';
 
-const FEATURE_FLAG_CACHE_TTL_MS = Math.max(5_000, Number(process.env.FEATURE_FLAG_CACHE_TTL_MS) || 30_000);
+const FEATURE_FLAG_CACHE_TTL_MS = Math.max(
+  5_000,
+  Number(process.env.FEATURE_FLAG_CACHE_TTL_MS) || 30_000,
+);
 
 let cacheState = {
   loadedAt: 0,

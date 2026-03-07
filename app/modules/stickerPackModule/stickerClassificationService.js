@@ -1,5 +1,9 @@
 import logger from '../../../utils/logger/loggerModule.js';
-import { findStickerClassificationByAssetId, listStickerClassificationsByAssetIds, upsertStickerAssetClassification } from './stickerAssetClassificationRepository.js';
+import {
+  findStickerClassificationByAssetId,
+  listStickerClassificationsByAssetIds,
+  upsertStickerAssetClassification,
+} from './stickerAssetClassificationRepository.js';
 import { enqueueSemanticClusterResolution } from './semanticThemeClusterService.js';
 
 const parseEnvBool = (value, fallback) => {
@@ -11,15 +15,42 @@ const parseEnvBool = (value, fallback) => {
 };
 
 const CLIP_CLASSIFIER_ENABLED = parseEnvBool(process.env.CLIP_CLASSIFIER_ENABLED, true);
-const CLIP_CLASSIFIER_API_URL = String(process.env.CLIP_CLASSIFIER_API_URL || 'http://127.0.0.1:8008/classify').trim() || 'http://127.0.0.1:8008/classify';
-const CLIP_CLASSIFIER_FEEDBACK_API_URL = String(process.env.CLIP_CLASSIFIER_FEEDBACK_API_URL || CLIP_CLASSIFIER_API_URL.replace(/\/classify\/?$/i, '/feedback')).trim();
-const CLIP_CLASSIFIER_TIMEOUT_MS = Math.max(500, Number(process.env.CLIP_CLASSIFIER_TIMEOUT_MS) || 3000);
-const CLIP_CLASSIFIER_PROVIDER = String(process.env.CLIP_CLASSIFIER_PROVIDER || 'clip').trim() || 'clip';
-const CLIP_CLASSIFIER_CLASSIFICATION_VERSION = String(process.env.CLIP_CLASSIFIER_CLASSIFICATION_VERSION || process.env.CLIP_CLASSIFIER_MODEL_VERSION || 'v1').trim() || 'v1';
-const CLIP_CLASSIFIER_NSFW_THRESHOLD = Number.isFinite(Number(process.env.CLIP_CLASSIFIER_NSFW_THRESHOLD)) ? Number(process.env.CLIP_CLASSIFIER_NSFW_THRESHOLD) : null;
-const STICKER_TAG_MIN_SCORE = Number.isFinite(Number(process.env.STICKER_CLASSIFICATION_TAG_MIN_SCORE)) ? Number(process.env.STICKER_CLASSIFICATION_TAG_MIN_SCORE) : 0.2;
-const PACK_TAG_MIN_SCORE = Number.isFinite(Number(process.env.PACK_CLASSIFICATION_TAG_MIN_SCORE)) ? Number(process.env.PACK_CLASSIFICATION_TAG_MIN_SCORE) : 0.18;
-const MAX_TAGS_PER_ENTITY = Math.max(1, Math.min(10, Number(process.env.CLASSIFICATION_MAX_TAGS) || 6));
+const CLIP_CLASSIFIER_API_URL =
+  String(process.env.CLIP_CLASSIFIER_API_URL || 'http://127.0.0.1:8008/classify').trim() ||
+  'http://127.0.0.1:8008/classify';
+const CLIP_CLASSIFIER_FEEDBACK_API_URL = String(
+  process.env.CLIP_CLASSIFIER_FEEDBACK_API_URL ||
+    CLIP_CLASSIFIER_API_URL.replace(/\/classify\/?$/i, '/feedback'),
+).trim();
+const CLIP_CLASSIFIER_TIMEOUT_MS = Math.max(
+  500,
+  Number(process.env.CLIP_CLASSIFIER_TIMEOUT_MS) || 3000,
+);
+const CLIP_CLASSIFIER_PROVIDER =
+  String(process.env.CLIP_CLASSIFIER_PROVIDER || 'clip').trim() || 'clip';
+const CLIP_CLASSIFIER_CLASSIFICATION_VERSION =
+  String(
+    process.env.CLIP_CLASSIFIER_CLASSIFICATION_VERSION ||
+      process.env.CLIP_CLASSIFIER_MODEL_VERSION ||
+      'v1',
+  ).trim() || 'v1';
+const CLIP_CLASSIFIER_NSFW_THRESHOLD = Number.isFinite(
+  Number(process.env.CLIP_CLASSIFIER_NSFW_THRESHOLD),
+)
+  ? Number(process.env.CLIP_CLASSIFIER_NSFW_THRESHOLD)
+  : null;
+const STICKER_TAG_MIN_SCORE = Number.isFinite(
+  Number(process.env.STICKER_CLASSIFICATION_TAG_MIN_SCORE),
+)
+  ? Number(process.env.STICKER_CLASSIFICATION_TAG_MIN_SCORE)
+  : 0.2;
+const PACK_TAG_MIN_SCORE = Number.isFinite(Number(process.env.PACK_CLASSIFICATION_TAG_MIN_SCORE))
+  ? Number(process.env.PACK_CLASSIFICATION_TAG_MIN_SCORE)
+  : 0.18;
+const MAX_TAGS_PER_ENTITY = Math.max(
+  1,
+  Math.min(10, Number(process.env.CLASSIFICATION_MAX_TAGS) || 6),
+);
 
 const LABEL_TO_TAG = {
   'anime illustration': 'anime',
@@ -50,7 +81,9 @@ const mapLabelToTag = (label) => {
 };
 
 const normalizeScores = (scores) => {
-  const entries = Object.entries(scores || {}).filter(([, value]) => Number.isFinite(Number(value)));
+  const entries = Object.entries(scores || {}).filter(([, value]) =>
+    Number.isFinite(Number(value)),
+  );
   entries.sort((left, right) => Number(right[1]) - Number(left[1]));
 
   const normalized = {};
@@ -87,7 +120,9 @@ const normalizeTopLabels = (entries) => {
       label,
       score: Number(score.toFixed(6)),
       logit: Number.isFinite(Number(entry?.logit)) ? Number(Number(entry.logit).toFixed(6)) : null,
-      clip_score: Number.isFinite(Number(entry?.clip_score)) ? Number(Number(entry.clip_score).toFixed(6)) : null,
+      clip_score: Number.isFinite(Number(entry?.clip_score))
+        ? Number(Number(entry.clip_score).toFixed(6))
+        : null,
     });
   }
   normalized.sort((a, b) => b.score - a.score || String(a.label).localeCompare(String(b.label)));
@@ -102,18 +137,39 @@ const normalizeClassificationResult = (payload) => {
   const topFromScores = scoreEntries[0] || null;
   const topFromLabels = topLabels[0] || null;
   const category = explicitCategory || topFromLabels?.label || topFromScores?.[0] || null;
-  const confidence = Number.isFinite(Number(payload?.confidence)) ? Number(Number(payload.confidence).toFixed(6)) : Number.isFinite(Number(topFromLabels?.score)) ? Number(Number(topFromLabels.score).toFixed(6)) : topFromScores ? Number(Number(topFromScores[1]).toFixed(6)) : null;
-  const nsfwScore = Number.isFinite(Number(payload?.nsfw_score)) ? Number(Number(payload.nsfw_score).toFixed(6)) : null;
-  const entropy = Number.isFinite(Number(payload?.entropy)) ? Number(Number(payload.entropy).toFixed(6)) : null;
-  const entropyNormalized = Number.isFinite(Number(payload?.entropy_normalized)) ? Number(Number(payload.entropy_normalized).toFixed(6)) : null;
-  const confidenceMargin = Number.isFinite(Number(payload?.confidence_margin)) ? Number(Number(payload.confidence_margin).toFixed(6)) : null;
-  const affinityWeight = Number.isFinite(Number(payload?.affinity_weight)) ? Number(Number(payload.affinity_weight).toFixed(6)) : null;
-  const affinityWeightRaw = Number.isFinite(Number(payload?.affinity_weight_raw)) ? Number(Number(payload.affinity_weight_raw).toFixed(6)) : null;
+  const confidence = Number.isFinite(Number(payload?.confidence))
+    ? Number(Number(payload.confidence).toFixed(6))
+    : Number.isFinite(Number(topFromLabels?.score))
+      ? Number(Number(topFromLabels.score).toFixed(6))
+      : topFromScores
+        ? Number(Number(topFromScores[1]).toFixed(6))
+        : null;
+  const nsfwScore = Number.isFinite(Number(payload?.nsfw_score))
+    ? Number(Number(payload.nsfw_score).toFixed(6))
+    : null;
+  const entropy = Number.isFinite(Number(payload?.entropy))
+    ? Number(Number(payload.entropy).toFixed(6))
+    : null;
+  const entropyNormalized = Number.isFinite(Number(payload?.entropy_normalized))
+    ? Number(Number(payload.entropy_normalized).toFixed(6))
+    : null;
+  const confidenceMargin = Number.isFinite(Number(payload?.confidence_margin))
+    ? Number(Number(payload.confidence_margin).toFixed(6))
+    : null;
+  const affinityWeight = Number.isFinite(Number(payload?.affinity_weight))
+    ? Number(Number(payload.affinity_weight).toFixed(6))
+    : null;
+  const affinityWeightRaw = Number.isFinite(Number(payload?.affinity_weight_raw))
+    ? Number(Number(payload.affinity_weight_raw).toFixed(6))
+    : null;
   const imageHash = String(payload?.image_hash || '')
     .trim()
     .toLowerCase();
 
-  const llmExpansion = payload?.llm_expansion && typeof payload.llm_expansion === 'object' ? payload.llm_expansion : {};
+  const llmExpansion =
+    payload?.llm_expansion && typeof payload.llm_expansion === 'object'
+      ? payload.llm_expansion
+      : {};
   const llmSubtags = normalizeListOfStrings(llmExpansion?.subtags, 40);
   const llmStyleTraits = normalizeListOfStrings(llmExpansion?.style_traits, 20);
   const llmEmotions = normalizeListOfStrings(llmExpansion?.emotions, 20);
@@ -126,7 +182,9 @@ const normalizeClassificationResult = (payload) => {
             .trim()
             .toLowerCase(),
           asset_id: entry?.asset_id ? String(entry.asset_id) : null,
-          similarity: Number.isFinite(Number(entry?.similarity)) ? Number(Number(entry.similarity).toFixed(6)) : null,
+          similarity: Number.isFinite(Number(entry?.similarity))
+            ? Number(Number(entry.similarity).toFixed(6))
+            : null,
         }))
         .filter((entry) => entry.image_hash && Number.isFinite(Number(entry.similarity)))
         .slice(0, 40)
@@ -162,12 +220,19 @@ const isClassifierNonRetryableError = (error) => {
   if (NON_RETRYABLE_CLASSIFIER_HTTP_STATUSES.has(status)) return true;
 
   const message = String(error?.message || '').toLowerCase();
-  return message.includes('could not create decoder object') || message.includes('nao foi possivel decodificar a imagem') || message.includes('não foi possível decodificar a imagem');
+  return (
+    message.includes('could not create decoder object') ||
+    message.includes('nao foi possivel decodificar a imagem') ||
+    message.includes('não foi possível decodificar a imagem')
+  );
 };
 
 const buildFallbackClassificationFromError = ({ asset, error }) => {
   const message = String(error?.message || '').toLowerCase();
-  const reasonTag = message.includes('decoder') || message.includes('decodificar') ? 'decoder-error' : 'non-retryable-error';
+  const reasonTag =
+    message.includes('decoder') || message.includes('decodificar')
+      ? 'decoder-error'
+      : 'non-retryable-error';
 
   return {
     asset_id: asset.id,
@@ -261,7 +326,8 @@ const classifyBufferViaHttp = async (buffer, filename = 'sticker.webp', metadata
     form.append('theme', String(metadata.theme));
   }
 
-  const controller = typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null;
+  const controller =
+    typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null;
   const timeout = setTimeout(() => controller?.abort(), CLIP_CLASSIFIER_TIMEOUT_MS);
 
   try {
@@ -273,7 +339,9 @@ const classifyBufferViaHttp = async (buffer, filename = 'sticker.webp', metadata
 
     if (!response.ok) {
       const raw = await response.text().catch(() => '');
-      const error = new Error(`Classifier HTTP ${response.status}${raw ? `: ${raw.slice(0, 200)}` : ''}`);
+      const error = new Error(
+        `Classifier HTTP ${response.status}${raw ? `: ${raw.slice(0, 200)}` : ''}`,
+      );
       error.status = Number(response.status || 0);
       error.response_body = raw ? String(raw).slice(0, 500) : '';
       throw error;
@@ -321,13 +389,16 @@ export async function ensureStickerAssetClassified({ asset, buffer, force = fals
     const fallbackPayload = buildFallbackClassificationFromError({ asset, error });
     const persistedFallback = await upsertStickerAssetClassification(fallbackPayload);
 
-    logger.warn('Asset marcado com classificação fallback após erro não recuperável do classificador.', {
-      action: 'sticker_asset_classify_non_retryable_fallback',
-      asset_id: asset.id,
-      owner_jid: asset.owner_jid || null,
-      status: Number(error?.status || 0) || null,
-      error: error?.message,
-    });
+    logger.warn(
+      'Asset marcado com classificação fallback após erro não recuperável do classificador.',
+      {
+        action: 'sticker_asset_classify_non_retryable_fallback',
+        asset_id: asset.id,
+        owner_jid: asset.owner_jid || null,
+        status: Number(error?.status || 0) || null,
+        error: error?.message,
+      },
+    );
 
     return persistedFallback;
   }
@@ -443,7 +514,11 @@ const aggregateClassifications = (entries = [], totalItems = 0) => {
     total_items: totalItems,
     classified_items: classifiedItems,
     category: topAverage?.[0] || majority?.label || null,
-    confidence: topAverage ? Number(topAverage[1].toFixed(6)) : majority ? Number(majority.ratio.toFixed(6)) : null,
+    confidence: topAverage
+      ? Number(topAverage[1].toFixed(6))
+      : majority
+        ? Number(majority.ratio.toFixed(6))
+        : null,
     majority_category: majority?.label || null,
     majority_ratio: majority ? Number(majority.ratio.toFixed(6)) : null,
     average_scores: averageScores,
@@ -495,11 +570,15 @@ export const decoratePackClassificationSummary = (aggregation) => {
 };
 
 export async function getPackClassificationSummaryByAssetIds(assetIds) {
-  const normalizedIds = Array.from(new Set((Array.isArray(assetIds) ? assetIds : []).filter(Boolean)));
+  const normalizedIds = Array.from(
+    new Set((Array.isArray(assetIds) ? assetIds : []).filter(Boolean)),
+  );
   if (!normalizedIds.length) return emptyAggregation(0);
 
   const classifications = await listStickerClassificationsByAssetIds(normalizedIds);
-  return decoratePackClassificationSummary(aggregateClassifications(classifications, normalizedIds.length));
+  return decoratePackClassificationSummary(
+    aggregateClassifications(classifications, normalizedIds.length),
+  );
 }
 
 export const classifierConfig = {
@@ -511,7 +590,12 @@ export const classifierConfig = {
   classification_version: CLIP_CLASSIFIER_CLASSIFICATION_VERSION,
 };
 
-export const submitStickerClassificationFeedback = async ({ imageHash, theme, accepted, assetId = null }) => {
+export const submitStickerClassificationFeedback = async ({
+  imageHash,
+  theme,
+  accepted,
+  assetId = null,
+}) => {
   if (!CLIP_CLASSIFIER_ENABLED) return false;
   const normalizedHash = String(imageHash || '')
     .trim()
@@ -522,7 +606,8 @@ export const submitStickerClassificationFeedback = async ({ imageHash, theme, ac
   if (!normalizedHash || !normalizedTheme) return false;
   if (typeof globalThis.fetch !== 'function') return false;
 
-  const controller = typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null;
+  const controller =
+    typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null;
   const timeout = setTimeout(() => controller?.abort(), Math.max(500, CLIP_CLASSIFIER_TIMEOUT_MS));
   try {
     const response = await globalThis.fetch(CLIP_CLASSIFIER_FEEDBACK_API_URL, {

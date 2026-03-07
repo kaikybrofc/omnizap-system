@@ -10,7 +10,10 @@ const loadSystemAdminController = async () => {
 const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
+  const withoutTrailingSlash =
+    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
+      ? withLeadingSlash.slice(0, -1)
+      : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 };
 
@@ -27,12 +30,24 @@ const DEFAULT_STICKER_ADMIN_API_SESSION_PATH = '/api/sticker-packs/admin/session
 
 export const getSystemAdminRouterConfig = async () => {
   const controller = await loadSystemAdminController();
-  const legacyConfig = (typeof controller?.getSystemAdminRouteConfig === 'function' ? controller.getSystemAdminRouteConfig() : null) || {};
+  const legacyConfig =
+    (typeof controller?.getSystemAdminRouteConfig === 'function'
+      ? controller.getSystemAdminRouteConfig()
+      : null) || {};
   return {
     webPath: normalizeBasePath(legacyConfig.webPath, DEFAULT_USER_SYSTEM_ADMIN_WEB_PATH),
-    legacyWebPath: normalizeBasePath(legacyConfig.legacyWebPath, DEFAULT_LEGACY_STICKER_ADMIN_WEB_PATH),
-    apiAdminBasePath: normalizeBasePath(legacyConfig.apiAdminBasePath, DEFAULT_STICKER_ADMIN_API_BASE_PATH),
-    apiAdminSessionPath: normalizeBasePath(legacyConfig.apiAdminSessionPath, DEFAULT_STICKER_ADMIN_API_SESSION_PATH),
+    legacyWebPath: normalizeBasePath(
+      legacyConfig.legacyWebPath,
+      DEFAULT_LEGACY_STICKER_ADMIN_WEB_PATH,
+    ),
+    apiAdminBasePath: normalizeBasePath(
+      legacyConfig.apiAdminBasePath,
+      DEFAULT_STICKER_ADMIN_API_BASE_PATH,
+    ),
+    apiAdminSessionPath: normalizeBasePath(
+      legacyConfig.apiAdminSessionPath,
+      DEFAULT_STICKER_ADMIN_API_SESSION_PATH,
+    ),
   };
 };
 

@@ -10,7 +10,10 @@ const loadUserController = async () => {
 const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
+  const withoutTrailingSlash =
+    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
+      ? withLeadingSlash.slice(0, -1)
+      : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 };
 
@@ -26,22 +29,36 @@ const DEFAULT_USER_PASSWORD_RESET_WEB_PATH = `${DEFAULT_USER_WEB_PATH}/password-
 const resolveDefaultPasswordResetWebPath = (webPath) => {
   const normalizedWebPath = normalizeBasePath(webPath, DEFAULT_USER_WEB_PATH);
   if (normalizedWebPath === '/') return DEFAULT_USER_PASSWORD_RESET_WEB_PATH;
-  return normalizeBasePath(`${normalizedWebPath}/password-reset`, DEFAULT_USER_PASSWORD_RESET_WEB_PATH);
+  return normalizeBasePath(
+    `${normalizedWebPath}/password-reset`,
+    DEFAULT_USER_PASSWORD_RESET_WEB_PATH,
+  );
 };
 
 export const buildUserApiPaths = (apiBasePath) => {
   const resolvedApiBasePath = normalizeBasePath(apiBasePath, DEFAULT_STICKER_API_BASE_PATH);
-  return new Set([`${resolvedApiBasePath}/auth/google/session`, `${resolvedApiBasePath}/me`, `${resolvedApiBasePath}/bot-contact`, `${resolvedApiBasePath}/support`]);
+  return new Set([
+    `${resolvedApiBasePath}/auth/google/session`,
+    `${resolvedApiBasePath}/me`,
+    `${resolvedApiBasePath}/bot-contact`,
+    `${resolvedApiBasePath}/support`,
+  ]);
 };
 
 export const getUserRouterConfig = async () => {
   const controller = await loadUserController();
-  const legacyConfig = (typeof controller?.getUserRouteConfig === 'function' ? controller.getUserRouteConfig() : null) || {};
+  const legacyConfig =
+    (typeof controller?.getUserRouteConfig === 'function'
+      ? controller.getUserRouteConfig()
+      : null) || {};
   const webPath = normalizeBasePath(legacyConfig.webPath, DEFAULT_USER_WEB_PATH);
   const fallbackPasswordResetWebPath = resolveDefaultPasswordResetWebPath(webPath);
   return {
     webPath,
-    passwordResetWebPath: normalizeBasePath(legacyConfig.passwordResetWebPath, fallbackPasswordResetWebPath),
+    passwordResetWebPath: normalizeBasePath(
+      legacyConfig.passwordResetWebPath,
+      fallbackPasswordResetWebPath,
+    ),
     apiBasePath: normalizeBasePath(legacyConfig.apiBasePath, DEFAULT_STICKER_API_BASE_PATH),
   };
 };
@@ -54,9 +71,13 @@ export const shouldHandleUserPath = (pathname, userConfig = null) => {
   };
   const webPath = normalizeBasePath(resolvedConfig.webPath, DEFAULT_USER_WEB_PATH);
   const fallbackPasswordResetWebPath = resolveDefaultPasswordResetWebPath(webPath);
-  const passwordResetWebPath = normalizeBasePath(resolvedConfig.passwordResetWebPath, fallbackPasswordResetWebPath);
+  const passwordResetWebPath = normalizeBasePath(
+    resolvedConfig.passwordResetWebPath,
+    fallbackPasswordResetWebPath,
+  );
 
-  if (startsWithPath(pathname, webPath) || startsWithPath(pathname, passwordResetWebPath)) return true;
+  if (startsWithPath(pathname, webPath) || startsWithPath(pathname, passwordResetWebPath))
+    return true;
 
   const userApiPaths = buildUserApiPaths(resolvedConfig.apiBasePath);
   return userApiPaths.has(pathname);

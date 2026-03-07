@@ -11,4 +11,10 @@ const userPasswordAuthService = createUserPasswordAuthService({
 
 export default userPasswordAuthService;
 export { createUserPasswordAuthService };
-export { DEFAULT_USER_PASSWORD_POLICY, hashUserPassword, resolveUserPasswordPolicy, validateUserPassword, verifyUserPasswordHash } from './userPasswordCrypto.js';
+export {
+  DEFAULT_USER_PASSWORD_POLICY,
+  hashUserPassword,
+  resolveUserPasswordPolicy,
+  validateUserPassword,
+  verifyUserPasswordHash,
+} from './userPasswordCrypto.js';

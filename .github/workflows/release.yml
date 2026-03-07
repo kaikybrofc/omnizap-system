@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_type:
-        description: 'Semver release type'
+        description: "Semver release type"
         required: true
         default: patch
         type: choice
@@ -17,27 +17,27 @@ on:
           - premajor
           - prerelease
       force_version:
-        description: 'Optional forced version (e.g. 2.5.0)'
+        description: "Optional forced version (e.g. 2.5.0)"
         required: false
-        default: ''
+        default: ""
         type: string
       release_branch:
-        description: 'Git branch for commit/tag push'
+        description: "Git branch for commit/tag push"
         required: true
         default: main
         type: string
       publish_secondary:
-        description: 'Publish to secondary registry (npmjs)'
+        description: "Publish to secondary registry (npmjs)"
         required: true
         default: false
         type: boolean
       require_dual_publish:
-        description: 'Fail if both registries are not published'
+        description: "Fail if both registries are not published"
         required: true
         default: false
         type: boolean
       skip_wiki_sync:
-        description: 'Skip docs/wiki sync during release'
+        description: "Skip docs/wiki sync during release"
         required: true
         default: false
         type: boolean

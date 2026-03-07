@@ -1,6 +1,25 @@
 import { createStickerPackService } from './stickerPackService.js';
-import { bumpStickerPackVersion, createStickerPack, ensureUniquePackKey, findStickerPackByPackKey, findStickerPackByOwnerAndIdentifier, listStickerPacksByOwner, softDeleteStickerPack, updateStickerPackFields } from './stickerPackRepository.js';
-import { bulkUpdateStickerPackPositions, countStickerPackItems, createStickerPackItem, getMaxStickerPackPosition, getStickerPackItemByPosition, getStickerPackItemByStickerId, listStickerPackItems, removeStickerPackItemByStickerId, shiftStickerPackPositionsAfter } from './stickerPackItemRepository.js';
+import {
+  bumpStickerPackVersion,
+  createStickerPack,
+  ensureUniquePackKey,
+  findStickerPackByPackKey,
+  findStickerPackByOwnerAndIdentifier,
+  listStickerPacksByOwner,
+  softDeleteStickerPack,
+  updateStickerPackFields,
+} from './stickerPackRepository.js';
+import {
+  bulkUpdateStickerPackPositions,
+  countStickerPackItems,
+  createStickerPackItem,
+  getMaxStickerPackPosition,
+  getStickerPackItemByPosition,
+  getStickerPackItemByStickerId,
+  listStickerPackItems,
+  removeStickerPackItemByStickerId,
+  shiftStickerPackPositionsAfter,
+} from './stickerPackItemRepository.js';
 
 /**
  * Serviço principal de sticker pack com dependências concretas de runtime.

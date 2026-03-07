@@ -1,9 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createWildEncounter, resolveBattleTurn, resolveCaptureAttempt, resolveEvolutionByItem, resolveEvolutionByLevel, resolveSingleAttack } from './rpgBattleService.js';
+import {
+  createWildEncounter,
+  resolveBattleTurn,
+  resolveCaptureAttempt,
+  resolveEvolutionByItem,
+  resolveEvolutionByLevel,
+  resolveSingleAttack,
+} from './rpgBattleService.js';
 
-const PREFERRED_MOVE_NAMES = ['tackle', 'quick-attack', 'scratch', 'pound', 'ember', 'water-gun', 'vine-whip', 'bite', 'gust', 'swift', 'struggle'];
+const PREFERRED_MOVE_NAMES = [
+  'tackle',
+  'quick-attack',
+  'scratch',
+  'pound',
+  'ember',
+  'water-gun',
+  'vine-whip',
+  'bite',
+  'gust',
+  'swift',
+  'struggle',
+];
 
 const ensurePokeApiCache = () => {
   if (!(globalThis.__omnizapPokeApiCache instanceof Map)) {
@@ -19,7 +38,12 @@ const setCache = (cache, key, data) => {
   });
 };
 
-const buildTypeData = ({ pokemonIds = [], doubleDamageTo = [], halfDamageTo = [], noDamageTo = [] } = {}) => ({
+const buildTypeData = ({
+  pokemonIds = [],
+  doubleDamageTo = [],
+  halfDamageTo = [],
+  noDamageTo = [],
+} = {}) => ({
   damage_relations: {
     double_damage_to: doubleDamageTo.map((name) => ({ name })),
     half_damage_to: halfDamageTo.map((name) => ({ name })),
@@ -43,7 +67,19 @@ const buildMoveData = (name, type = 'normal', power = 40) => ({
   type: { name: type },
 });
 
-const buildPokemonData = ({ id, name, speciesId = id, primaryType = 'normal', moves = PREFERRED_MOVE_NAMES, hp = 45, attack = 49, defense = 49, specialAttack = 65, specialDefense = 65, speed = 45 }) => ({
+const buildPokemonData = ({
+  id,
+  name,
+  speciesId = id,
+  primaryType = 'normal',
+  moves = PREFERRED_MOVE_NAMES,
+  hp = 45,
+  attack = 49,
+  defense = 49,
+  specialAttack = 65,
+  specialDefense = 65,
+  speed = 45,
+}) => ({
   id,
   name,
   species: {
@@ -72,12 +108,42 @@ const buildPokemonData = ({ id, name, speciesId = id, primaryType = 'normal', mo
 });
 
 const seedCorePokemonData = (cache) => {
-  setCache(cache, 'pokemon:1', buildPokemonData({ id: 1, name: 'bulbasaur', primaryType: 'grass', speed: 45 }));
-  setCache(cache, 'pokemon:4', buildPokemonData({ id: 4, name: 'charmander', primaryType: 'fire', speed: 65 }));
-  setCache(cache, 'pokemon:5', buildPokemonData({ id: 5, name: 'charmeleon', primaryType: 'fire', speciesId: 5, speed: 80 }));
-  setCache(cache, 'pokemon:6', buildPokemonData({ id: 6, name: 'charizard', primaryType: 'fire', speciesId: 6, speed: 100 }));
-  setCache(cache, 'pokemon:25', buildPokemonData({ id: 25, name: 'pikachu', primaryType: 'electric', speed: 90 }));
-  setCache(cache, 'pokemon:26', buildPokemonData({ id: 26, name: 'raichu', primaryType: 'electric', speciesId: 26, speed: 110 }));
+  setCache(
+    cache,
+    'pokemon:1',
+    buildPokemonData({ id: 1, name: 'bulbasaur', primaryType: 'grass', speed: 45 }),
+  );
+  setCache(
+    cache,
+    'pokemon:4',
+    buildPokemonData({ id: 4, name: 'charmander', primaryType: 'fire', speed: 65 }),
+  );
+  setCache(
+    cache,
+    'pokemon:5',
+    buildPokemonData({ id: 5, name: 'charmeleon', primaryType: 'fire', speciesId: 5, speed: 80 }),
+  );
+  setCache(
+    cache,
+    'pokemon:6',
+    buildPokemonData({ id: 6, name: 'charizard', primaryType: 'fire', speciesId: 6, speed: 100 }),
+  );
+  setCache(
+    cache,
+    'pokemon:25',
+    buildPokemonData({ id: 25, name: 'pikachu', primaryType: 'electric', speed: 90 }),
+  );
+  setCache(
+    cache,
+    'pokemon:26',
+    buildPokemonData({
+      id: 26,
+      name: 'raichu',
+      primaryType: 'electric',
+      speciesId: 26,
+      speed: 110,
+    }),
+  );
 
   setCache(cache, 'species:1', {
     id: 1,
@@ -156,7 +222,11 @@ const seedCoreTypeAndMoveData = (cache) => {
   setCache(cache, 'type:dark', buildTypeData());
 
   for (const moveName of PREFERRED_MOVE_NAMES) {
-    setCache(cache, `move:${moveName}`, buildMoveData(moveName, 'normal', moveName === 'struggle' ? 50 : 40));
+    setCache(
+      cache,
+      `move:${moveName}`,
+      buildMoveData(moveName, 'normal', moveName === 'struggle' ? 50 : 40),
+    );
   }
 
   for (let id = 1; id <= 25; id += 1) {
@@ -187,7 +257,15 @@ const withRandomSequence = async (values, fn) => {
   }
 };
 
-const buildMoveSnapshot = ({ name = 'tackle', displayName = 'Tackle', power = 40, accuracy = 100, damageClass = 'physical', type = 'normal', effectMeta = {} } = {}) => ({
+const buildMoveSnapshot = ({
+  name = 'tackle',
+  displayName = 'Tackle',
+  power = 40,
+  accuracy = 100,
+  damageClass = 'physical',
+  type = 'normal',
+  effectMeta = {},
+} = {}) => ({
   name,
   displayName,
   power,
@@ -198,127 +276,139 @@ const buildMoveSnapshot = ({ name = 'tackle', displayName = 'Tackle', power = 40
   effectMeta: {
     target: effectMeta.target || 'selected-pokemon',
     statChanges: Array.isArray(effectMeta.statChanges) ? effectMeta.statChanges : [],
-    statChance: Number.isFinite(Number(effectMeta.statChance)) ? Number(effectMeta.statChance) : 100,
+    statChance: Number.isFinite(Number(effectMeta.statChance))
+      ? Number(effectMeta.statChance)
+      : 100,
     ailment: effectMeta.ailment || null,
-    ailmentChance: Number.isFinite(Number(effectMeta.ailmentChance)) ? Number(effectMeta.ailmentChance) : 0,
+    ailmentChance: Number.isFinite(Number(effectMeta.ailmentChance))
+      ? Number(effectMeta.ailmentChance)
+      : 0,
     healing: Number.isFinite(Number(effectMeta.healing)) ? Number(effectMeta.healing) : 0,
     drain: Number.isFinite(Number(effectMeta.drain)) ? Number(effectMeta.drain) : 0,
   },
 });
 
-test('fluxo crítico: explorar -> batalha -> capturar deve ser executável com snapshot válido', { concurrency: false }, async () => {
-  const cache = ensurePokeApiCache();
-  cache.clear();
-  seedCoreTypeAndMoveData(cache);
-  seedCorePokemonData(cache);
+test(
+  'fluxo crítico: explorar -> batalha -> capturar deve ser executável com snapshot válido',
+  { concurrency: false },
+  async () => {
+    const cache = ensurePokeApiCache();
+    cache.clear();
+    seedCoreTypeAndMoveData(cache);
+    seedCorePokemonData(cache);
 
-  const encounter = await withRandomSequence([0.4, 0.8, 0.0, 0.0], async () =>
-    createWildEncounter({
-      playerLevel: 8,
-      preferredTypes: ['grass'],
-    }),
-  );
+    const encounter = await withRandomSequence([0.4, 0.8, 0.0, 0.0], async () =>
+      createWildEncounter({
+        playerLevel: 8,
+        preferredTypes: ['grass'],
+      }),
+    );
 
-  assert.equal(encounter.enemySnapshot.pokeId, 1);
-  assert.equal(encounter.enemySnapshot.isShiny, false);
+    assert.equal(encounter.enemySnapshot.pokeId, 1);
+    assert.equal(encounter.enemySnapshot.isShiny, false);
 
-  const battleSnapshot = {
-    my: {
-      displayName: 'Pikachu',
-      level: 12,
-      currentHp: 55,
-      maxHp: 55,
-      types: ['electric'],
-      stats: {
-        attack: 80,
-        defense: 60,
-        specialAttack: 80,
-        specialDefense: 60,
-        speed: 110,
+    const battleSnapshot = {
+      my: {
+        displayName: 'Pikachu',
+        level: 12,
+        currentHp: 55,
+        maxHp: 55,
+        types: ['electric'],
+        stats: {
+          attack: 80,
+          defense: 60,
+          specialAttack: 80,
+          specialDefense: 60,
+          speed: 110,
+        },
+        moves: [
+          {
+            displayName: 'Tackle',
+            name: 'tackle',
+            power: 40,
+            accuracy: 100,
+            damageClass: 'physical',
+            type: 'normal',
+            typeDamage: { doubleTo: [], halfTo: [], noTo: [] },
+          },
+          {
+            displayName: 'Tackle',
+            name: 'tackle',
+            power: 40,
+            accuracy: 100,
+            damageClass: 'physical',
+            type: 'normal',
+            typeDamage: { doubleTo: [], halfTo: [], noTo: [] },
+          },
+          {
+            displayName: 'Tackle',
+            name: 'tackle',
+            power: 40,
+            accuracy: 100,
+            damageClass: 'physical',
+            type: 'normal',
+            typeDamage: { doubleTo: [], halfTo: [], noTo: [] },
+          },
+          {
+            displayName: 'Tackle',
+            name: 'tackle',
+            power: 40,
+            accuracy: 100,
+            damageClass: 'physical',
+            type: 'normal',
+            typeDamage: { doubleTo: [], halfTo: [], noTo: [] },
+          },
+        ],
       },
-      moves: [
-        {
-          displayName: 'Tackle',
-          name: 'tackle',
-          power: 40,
-          accuracy: 100,
-          damageClass: 'physical',
-          type: 'normal',
-          typeDamage: { doubleTo: [], halfTo: [], noTo: [] },
-        },
-        {
-          displayName: 'Tackle',
-          name: 'tackle',
-          power: 40,
-          accuracy: 100,
-          damageClass: 'physical',
-          type: 'normal',
-          typeDamage: { doubleTo: [], halfTo: [], noTo: [] },
-        },
-        {
-          displayName: 'Tackle',
-          name: 'tackle',
-          power: 40,
-          accuracy: 100,
-          damageClass: 'physical',
-          type: 'normal',
-          typeDamage: { doubleTo: [], halfTo: [], noTo: [] },
-        },
-        {
-          displayName: 'Tackle',
-          name: 'tackle',
-          power: 40,
-          accuracy: 100,
-          damageClass: 'physical',
-          type: 'normal',
-          typeDamage: { doubleTo: [], halfTo: [], noTo: [] },
-        },
-      ],
-    },
-    enemy: encounter.enemySnapshot,
-  };
+      enemy: encounter.enemySnapshot,
+    };
 
-  const turnResult = await withRandomSequence([0.0, 0.0, 0.0, 0.0], async () =>
-    resolveBattleTurn({
-      battleSnapshot,
-      playerMoveSlot: 1,
-    }),
-  );
+    const turnResult = await withRandomSequence([0.0, 0.0, 0.0, 0.0], async () =>
+      resolveBattleTurn({
+        battleSnapshot,
+        playerMoveSlot: 1,
+      }),
+    );
 
-  assert.equal(turnResult.validTurn, true);
-  assert.ok(turnResult.logs.length > 0);
+    assert.equal(turnResult.validTurn, true);
+    assert.ok(turnResult.logs.length > 0);
 
-  turnResult.snapshot.enemy.currentHp = 1;
-  turnResult.snapshot.my.currentHp = Math.max(1, turnResult.snapshot.my.currentHp);
+    turnResult.snapshot.enemy.currentHp = 1;
+    turnResult.snapshot.my.currentHp = Math.max(1, turnResult.snapshot.my.currentHp);
 
-  const captureResult = await withRandomSequence([0.0], async () =>
-    resolveCaptureAttempt({
-      battleSnapshot: turnResult.snapshot,
-    }),
-  );
+    const captureResult = await withRandomSequence([0.0], async () =>
+      resolveCaptureAttempt({
+        battleSnapshot: turnResult.snapshot,
+      }),
+    );
 
-  assert.equal(captureResult.validAction, true);
-  assert.equal(captureResult.success, true);
-  assert.equal(captureResult.winner, 'player');
-});
+    assert.equal(captureResult.validAction, true);
+    assert.equal(captureResult.success, true);
+    assert.equal(captureResult.winner, 'player');
+  },
+);
 
-test('deve marcar encontro como shiny e usar sprite shiny quando o roll atender a chance', { concurrency: false }, async () => {
-  const cache = ensurePokeApiCache();
-  cache.clear();
-  seedCoreTypeAndMoveData(cache);
-  seedCorePokemonData(cache);
+test(
+  'deve marcar encontro como shiny e usar sprite shiny quando o roll atender a chance',
+  { concurrency: false },
+  async () => {
+    const cache = ensurePokeApiCache();
+    cache.clear();
+    seedCoreTypeAndMoveData(cache);
+    seedCorePokemonData(cache);
 
-  const encounter = await withRandomSequence([0.4, 0.0, 0.0, 0.0], async () =>
-    createWildEncounter({
-      playerLevel: 10,
-      preferredTypes: ['grass'],
-    }),
-  );
+    const encounter = await withRandomSequence([0.4, 0.0, 0.0, 0.0], async () =>
+      createWildEncounter({
+        playerLevel: 10,
+        preferredTypes: ['grass'],
+      }),
+    );
 
-  assert.equal(encounter.isShiny, true);
-  assert.equal(encounter.enemySnapshot.isShiny, true);
-  assert.equal(encounter.enemySnapshot.imageUrl, 'https://img.local/1-shiny.png');
-});
+    assert.equal(encounter.isShiny, true);
+    assert.equal(encounter.enemySnapshot.isShiny, true);
+    assert.equal(encounter.enemySnapshot.imageUrl, 'https://img.local/1-shiny.png');
+  },
+);
 
 test('bioma deve priorizar spawn por tipo preferencial', { concurrency: false }, async () => {
   const cache = ensurePokeApiCache();
@@ -337,131 +427,159 @@ test('bioma deve priorizar spawn por tipo preferencial', { concurrency: false },
   assert.ok(encounter.enemySnapshot.types.includes('electric'));
 });
 
-test('moveset inicial deve garantir STAB e limitar normal quando houver alternativas', { concurrency: false }, async () => {
-  const cache = ensurePokeApiCache();
-  cache.clear();
-  seedCoreTypeAndMoveData(cache);
+test(
+  'moveset inicial deve garantir STAB e limitar normal quando houver alternativas',
+  { concurrency: false },
+  async () => {
+    const cache = ensurePokeApiCache();
+    cache.clear();
+    seedCoreTypeAndMoveData(cache);
 
-  setCache(
-    cache,
-    'pokemon:1',
-    buildPokemonData({
+    setCache(
+      cache,
+      'pokemon:1',
+      buildPokemonData({
+        id: 1,
+        name: 'bulbasaur',
+        primaryType: 'grass',
+        moves: ['tackle', 'scratch', 'vine-whip', 'bite', 'growl', 'struggle'],
+      }),
+    );
+    setCache(cache, 'species:1', {
       id: 1,
-      name: 'bulbasaur',
-      primaryType: 'grass',
-      moves: ['tackle', 'scratch', 'vine-whip', 'bite', 'growl', 'struggle'],
-    }),
-  );
-  setCache(cache, 'species:1', {
-    id: 1,
-    capture_rate: 45,
-    evolution_chain: { url: 'https://pokeapi.co/api/v2/evolution-chain/1/' },
-  });
+      capture_rate: 45,
+      evolution_chain: { url: 'https://pokeapi.co/api/v2/evolution-chain/1/' },
+    });
 
-  setCache(cache, 'type:grass', buildTypeData({ pokemonIds: [1] }));
-  setCache(cache, 'type:normal', buildTypeData({ noDamageTo: ['ghost'] }));
-  setCache(cache, 'type:dark', buildTypeData());
+    setCache(cache, 'type:grass', buildTypeData({ pokemonIds: [1] }));
+    setCache(cache, 'type:normal', buildTypeData({ noDamageTo: ['ghost'] }));
+    setCache(cache, 'type:dark', buildTypeData());
 
-  setCache(cache, 'move:tackle', buildMoveData('tackle', 'normal', 40));
-  setCache(cache, 'move:scratch', buildMoveData('scratch', 'normal', 40));
-  setCache(cache, 'move:vine-whip', buildMoveData('vine-whip', 'grass', 45));
-  setCache(cache, 'move:bite', buildMoveData('bite', 'dark', 60));
-  setCache(cache, 'move:growl', buildMoveData('growl', 'normal', 0));
-  setCache(cache, 'move:struggle', buildMoveData('struggle', 'normal', 50));
+    setCache(cache, 'move:tackle', buildMoveData('tackle', 'normal', 40));
+    setCache(cache, 'move:scratch', buildMoveData('scratch', 'normal', 40));
+    setCache(cache, 'move:vine-whip', buildMoveData('vine-whip', 'grass', 45));
+    setCache(cache, 'move:bite', buildMoveData('bite', 'dark', 60));
+    setCache(cache, 'move:growl', buildMoveData('growl', 'normal', 0));
+    setCache(cache, 'move:struggle', buildMoveData('struggle', 'normal', 50));
 
-  const encounter = await withRandomSequence([0.8, 0.4, 0.2, 0.1], async () =>
-    createWildEncounter({
-      playerLevel: 10,
-      preferredTypes: ['grass'],
-    }),
-  );
+    const encounter = await withRandomSequence([0.8, 0.4, 0.2, 0.1], async () =>
+      createWildEncounter({
+        playerLevel: 10,
+        preferredTypes: ['grass'],
+      }),
+    );
 
-  const offensiveMoves = encounter.enemySnapshot.moves.filter((move) => Number(move?.power) > 0 && move?.damageClass !== 'status');
-  const hasStab = offensiveMoves.some((move) => String(move?.type || '').toLowerCase() === 'grass');
-  const normalCount = offensiveMoves.filter((move) => String(move?.type || '').toLowerCase() === 'normal').length;
+    const offensiveMoves = encounter.enemySnapshot.moves.filter(
+      (move) => Number(move?.power) > 0 && move?.damageClass !== 'status',
+    );
+    const hasStab = offensiveMoves.some(
+      (move) => String(move?.type || '').toLowerCase() === 'grass',
+    );
+    const normalCount = offensiveMoves.filter(
+      (move) => String(move?.type || '').toLowerCase() === 'normal',
+    ).length;
 
-  assert.equal(hasStab, true);
-  assert.ok(normalCount <= 1);
-});
+    assert.equal(hasStab, true);
+    assert.ok(normalCount <= 1);
+  },
+);
 
-test('moveset inicial deve evitar softlock por imunidade com fallback neutro', { concurrency: false }, async () => {
-  const cache = ensurePokeApiCache();
-  cache.clear();
-  seedCoreTypeAndMoveData(cache);
+test(
+  'moveset inicial deve evitar softlock por imunidade com fallback neutro',
+  { concurrency: false },
+  async () => {
+    const cache = ensurePokeApiCache();
+    cache.clear();
+    seedCoreTypeAndMoveData(cache);
 
-  setCache(
-    cache,
-    'pokemon:66',
-    buildPokemonData({
+    setCache(
+      cache,
+      'pokemon:66',
+      buildPokemonData({
+        id: 66,
+        name: 'machop',
+        primaryType: 'fighting',
+        moves: ['karate-chop', 'tackle', 'leer', 'struggle'],
+      }),
+    );
+    setCache(cache, 'species:66', {
       id: 66,
-      name: 'machop',
-      primaryType: 'fighting',
-      moves: ['karate-chop', 'tackle', 'leer', 'struggle'],
-    }),
-  );
-  setCache(cache, 'species:66', {
-    id: 66,
-    capture_rate: 180,
-    evolution_chain: { url: 'https://pokeapi.co/api/v2/evolution-chain/23/' },
-  });
+      capture_rate: 180,
+      evolution_chain: { url: 'https://pokeapi.co/api/v2/evolution-chain/23/' },
+    });
 
-  setCache(cache, 'type:fighting', buildTypeData({ pokemonIds: [66], noDamageTo: ['ghost'] }));
-  setCache(cache, 'type:normal', buildTypeData({ noDamageTo: ['ghost'] }));
+    setCache(cache, 'type:fighting', buildTypeData({ pokemonIds: [66], noDamageTo: ['ghost'] }));
+    setCache(cache, 'type:normal', buildTypeData({ noDamageTo: ['ghost'] }));
 
-  setCache(cache, 'move:karate-chop', buildMoveData('karate-chop', 'fighting', 50));
-  setCache(cache, 'move:tackle', buildMoveData('tackle', 'normal', 40));
-  setCache(cache, 'move:leer', buildMoveData('leer', 'normal', 0));
-  setCache(cache, 'move:struggle', buildMoveData('struggle', 'normal', 50));
+    setCache(cache, 'move:karate-chop', buildMoveData('karate-chop', 'fighting', 50));
+    setCache(cache, 'move:tackle', buildMoveData('tackle', 'normal', 40));
+    setCache(cache, 'move:leer', buildMoveData('leer', 'normal', 0));
+    setCache(cache, 'move:struggle', buildMoveData('struggle', 'normal', 50));
 
-  const encounter = await withRandomSequence([0.8, 0.4, 0.2, 0.1], async () =>
-    createWildEncounter({
-      playerLevel: 14,
-      preferredTypes: ['fighting'],
-    }),
-  );
+    const encounter = await withRandomSequence([0.8, 0.4, 0.2, 0.1], async () =>
+      createWildEncounter({
+        playerLevel: 14,
+        preferredTypes: ['fighting'],
+      }),
+    );
 
-  const offensiveMoves = encounter.enemySnapshot.moves.filter((move) => Number(move?.power) > 0 && move?.damageClass !== 'status');
-  const canHitGhost = offensiveMoves.some((move) => !(move?.typeDamage?.noTo || []).includes('ghost'));
-  const hasNeutralFallback = encounter.enemySnapshot.moves.some((move) => String(move?.name || '').startsWith('neutral-strike'));
+    const offensiveMoves = encounter.enemySnapshot.moves.filter(
+      (move) => Number(move?.power) > 0 && move?.damageClass !== 'status',
+    );
+    const canHitGhost = offensiveMoves.some(
+      (move) => !(move?.typeDamage?.noTo || []).includes('ghost'),
+    );
+    const hasNeutralFallback = encounter.enemySnapshot.moves.some((move) =>
+      String(move?.name || '').startsWith('neutral-strike'),
+    );
 
-  assert.equal(canHitGhost, true);
-  assert.equal(hasNeutralFallback, true);
-});
+    assert.equal(canHitGhost, true);
+    assert.equal(hasNeutralFallback, true);
+  },
+);
 
-test('evolução automática por nível deve seguir evolution-chain da PokéAPI', { concurrency: false }, async () => {
-  const cache = ensurePokeApiCache();
-  cache.clear();
-  seedCoreTypeAndMoveData(cache);
-  seedCorePokemonData(cache);
+test(
+  'evolução automática por nível deve seguir evolution-chain da PokéAPI',
+  { concurrency: false },
+  async () => {
+    const cache = ensurePokeApiCache();
+    cache.clear();
+    seedCoreTypeAndMoveData(cache);
+    seedCorePokemonData(cache);
 
-  const atLevel16 = await resolveEvolutionByLevel({
-    pokeId: 4,
-    level: 16,
-  });
-  assert.equal(atLevel16?.from?.pokeId, 4);
-  assert.equal(atLevel16?.to?.pokeId, 5);
-  assert.equal(atLevel16?.to?.name, 'Charmeleon');
+    const atLevel16 = await resolveEvolutionByLevel({
+      pokeId: 4,
+      level: 16,
+    });
+    assert.equal(atLevel16?.from?.pokeId, 4);
+    assert.equal(atLevel16?.to?.pokeId, 5);
+    assert.equal(atLevel16?.to?.name, 'Charmeleon');
 
-  const atLevel40 = await resolveEvolutionByLevel({
-    pokeId: 4,
-    level: 40,
-  });
-  assert.equal(atLevel40?.to?.pokeId, 6);
-  assert.equal(atLevel40?.to?.name, 'Charizard');
-});
+    const atLevel40 = await resolveEvolutionByLevel({
+      pokeId: 4,
+      level: 40,
+    });
+    assert.equal(atLevel40?.to?.pokeId, 6);
+    assert.equal(atLevel40?.to?.name, 'Charizard');
+  },
+);
 
-test('evolução por nível deve retornar nulo quando ainda não atingiu requisito', { concurrency: false }, async () => {
-  const cache = ensurePokeApiCache();
-  cache.clear();
-  seedCoreTypeAndMoveData(cache);
-  seedCorePokemonData(cache);
+test(
+  'evolução por nível deve retornar nulo quando ainda não atingiu requisito',
+  { concurrency: false },
+  async () => {
+    const cache = ensurePokeApiCache();
+    cache.clear();
+    seedCoreTypeAndMoveData(cache);
+    seedCorePokemonData(cache);
 
-  const noEvolution = await resolveEvolutionByLevel({
-    pokeId: 1,
-    level: 15,
-  });
-  assert.equal(noEvolution, null);
-});
+    const noEvolution = await resolveEvolutionByLevel({
+      pokeId: 1,
+      level: 15,
+    });
+    assert.equal(noEvolution, null);
+  },
+);
 
 test('evolução por item deve falhar para item inválido', { concurrency: false }, async () => {
   const cache = ensurePokeApiCache();

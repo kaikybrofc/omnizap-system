@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { applyDictionaryMapping, calculateCohesion, detectConflict, detectDominantTheme, normalizeTokens, reclassify } from './semanticReclassificationEngine.js';
+import {
+  applyDictionaryMapping,
+  calculateCohesion,
+  detectConflict,
+  detectDominantTheme,
+  normalizeTokens,
+  reclassify,
+} from './semanticReclassificationEngine.js';
 
 test('normalizeTokens deve limpar termos genéricos, stopwords e duplicatas', () => {
   const tokens = normalizeTokens({

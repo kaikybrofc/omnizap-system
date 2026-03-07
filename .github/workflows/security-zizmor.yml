@@ -3,12 +3,12 @@ name: Security - Zizmor
 on:
   pull_request:
     paths:
-      - '.github/workflows/**'
+      - ".github/workflows/**"
   push:
     branches:
       - main
     paths:
-      - '.github/workflows/**'
+      - ".github/workflows/**"
   workflow_dispatch:
 
 permissions:

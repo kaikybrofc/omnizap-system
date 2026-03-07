@@ -1,4 +1,13 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, getAggregateVotesInPollMessage, areJidsSameUser, WAMessageStatus, WAMessageStubType, WAMessageAddressingMode } from '@whiskeysockets/baileys';
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  Browsers,
+  getAggregateVotesInPollMessage,
+  areJidsSameUser,
+  WAMessageStatus,
+  WAMessageStubType,
+  WAMessageAddressingMode,
+} from '@whiskeysockets/baileys';
 
 import NodeCache from 'node-cache';
 import { resolveBaileysVersion } from '../config/baileysConfig.js';
@@ -11,16 +20,39 @@ import pino from 'pino';
 import logger from '../../utils/logger/loggerModule.js';
 import { handleMessages } from '../controllers/messageController.js';
 import { syncNewsBroadcastService } from '../services/newsBroadcastService.js';
-import { setActiveSocket as storeActiveSocket, runActiveSocketMethod, isSocketOpen } from '../services/socketState.js';
+import {
+  setActiveSocket as storeActiveSocket,
+  runActiveSocketMethod,
+  isSocketOpen,
+} from '../services/socketState.js';
 import { recordError, recordMessagesUpsert } from '../observability/metrics.js';
 import { resolveCaptchaByReaction } from '../services/captchaService.js';
 
-import { handleGroupUpdate as handleGroupParticipantsEvent, handleGroupJoinRequest } from '../modules/adminModule/groupEventHandlers.js';
+import {
+  handleGroupUpdate as handleGroupParticipantsEvent,
+  handleGroupJoinRequest,
+} from '../modules/adminModule/groupEventHandlers.js';
 
 import { findBy, findById, remove } from '../../database/index.js';
-import { extractSenderInfoFromMessage, primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../services/lidMapService.js';
-import { queueBaileysEventInsert, queueChatUpdate, queueLidUpdate, queueMessageInsert } from '../services/dbWriteQueue.js';
-import { buildGroupMetadataFromGroup, buildGroupMetadataFromUpdate, upsertGroupMetadata, parseParticipantsFromDb } from '../services/groupMetadataService.js';
+import {
+  extractSenderInfoFromMessage,
+  primeLidCache,
+  resolveUserIdCached,
+  isLidUserId,
+  isWhatsAppUserId,
+} from '../services/lidMapService.js';
+import {
+  queueBaileysEventInsert,
+  queueChatUpdate,
+  queueLidUpdate,
+  queueMessageInsert,
+} from '../services/dbWriteQueue.js';
+import {
+  buildGroupMetadataFromGroup,
+  buildGroupMetadataFromUpdate,
+  upsertGroupMetadata,
+  parseParticipantsFromDb,
+} from '../services/groupMetadataService.js';
 import { buildMessageData } from '../services/messagePersistenceService.js';
 
 import { fileURLToPath } from 'node:url';
@@ -55,31 +87,127 @@ const IS_PRODUCTION =
   String(process.env.NODE_ENV || '')
     .trim()
     .toLowerCase() === 'production';
-const MSG_RETRY_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_MSG_RETRY_CACHE_TTL_SECONDS, 600, 60, 24 * 60 * 60);
-const MSG_RETRY_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_MSG_RETRY_CACHE_CHECKPERIOD_SECONDS, 120, 30, 3600);
-const BAILEYS_EVENT_LOG_ENABLED = parseEnvBool(process.env.BAILEYS_EVENT_LOG_ENABLED, !IS_PRODUCTION);
-const BAILEYS_RECONNECT_ATTEMPT_RESET_MS = parseEnvInt(process.env.BAILEYS_RECONNECT_ATTEMPT_RESET_MS, 10 * 60 * 1000, 60 * 1000, 24 * 60 * 60 * 1000);
+const MSG_RETRY_CACHE_TTL_SECONDS = parseEnvInt(
+  process.env.BAILEYS_MSG_RETRY_CACHE_TTL_SECONDS,
+  600,
+  60,
+  24 * 60 * 60,
+);
+const MSG_RETRY_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(
+  process.env.BAILEYS_MSG_RETRY_CACHE_CHECKPERIOD_SECONDS,
+  120,
+  30,
+  3600,
+);
+const BAILEYS_EVENT_LOG_ENABLED = parseEnvBool(
+  process.env.BAILEYS_EVENT_LOG_ENABLED,
+  !IS_PRODUCTION,
+);
+const BAILEYS_RECONNECT_ATTEMPT_RESET_MS = parseEnvInt(
+  process.env.BAILEYS_RECONNECT_ATTEMPT_RESET_MS,
+  10 * 60 * 1000,
+  60 * 1000,
+  24 * 60 * 60 * 1000,
+);
 const GROUP_SYNC_ON_CONNECT = parseEnvBool(process.env.GROUP_SYNC_ON_CONNECT, true);
-const GROUP_SYNC_TIMEOUT_MS = parseEnvInt(process.env.GROUP_SYNC_TIMEOUT_MS, 30 * 1000, 5 * 1000, 120 * 1000);
+const GROUP_SYNC_TIMEOUT_MS = parseEnvInt(
+  process.env.GROUP_SYNC_TIMEOUT_MS,
+  30 * 1000,
+  5 * 1000,
+  120 * 1000,
+);
 const GROUP_SYNC_MAX_GROUPS = parseEnvInt(process.env.GROUP_SYNC_MAX_GROUPS, 0, 0, 10_000);
 const GROUP_SYNC_BATCH_SIZE = parseEnvInt(process.env.GROUP_SYNC_BATCH_SIZE, 50, 1, 1000);
 const BAILEYS_AUTO_REJECT_CALLS = parseEnvBool(process.env.BAILEYS_AUTO_REJECT_CALLS, true);
-const BAILEYS_ENABLE_AUTO_SESSION_RECREATION = parseEnvBool(process.env.BAILEYS_ENABLE_AUTO_SESSION_RECREATION, true);
-const BAILEYS_ENABLE_RECENT_MESSAGE_CACHE = parseEnvBool(process.env.BAILEYS_ENABLE_RECENT_MESSAGE_CACHE, true);
-const BAILEYS_GENERATE_HIGH_QUALITY_LINK_PREVIEW = parseEnvBool(process.env.BAILEYS_GENERATE_HIGH_QUALITY_LINK_PREVIEW, false);
-const BAILEYS_PATCH_MESSAGE_BEFORE_SENDING = parseEnvBool(process.env.BAILEYS_PATCH_MESSAGE_BEFORE_SENDING, true);
-const BAILEYS_USER_DEVICES_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_USER_DEVICES_CACHE_TTL_SECONDS, 300, 30, 24 * 60 * 60);
-const BAILEYS_USER_DEVICES_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_USER_DEVICES_CACHE_CHECKPERIOD_SECONDS, 60, 15, 3600);
-const BAILEYS_MEDIA_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_MEDIA_CACHE_TTL_SECONDS, 3600, 60, 7 * 24 * 60 * 60);
-const BAILEYS_MEDIA_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_MEDIA_CACHE_CHECKPERIOD_SECONDS, 300, 30, 3600);
-const BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS = parseEnvInt(process.env.BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS, 120, 10, 3600);
-const BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(process.env.BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS, 60, 10, 1800);
-const BAILEYS_EVENT_JOURNAL_ENABLED = parseEnvBool(process.env.BAILEYS_EVENT_JOURNAL_ENABLED, false);
-const DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS = ['connection.update', 'messages.upsert', 'messages.update', 'messages.delete', 'messages.reaction', 'message-receipt.update', 'chats.upsert', 'chats.update', 'chats.delete', 'groups.upsert', 'groups.update', 'group-participants.update', 'group.join-request', 'lid-mapping.update'];
-const BAILEYS_EVENT_JOURNAL_EVENT_LIST = parseEnvCsv(process.env.BAILEYS_EVENT_JOURNAL_EVENTS, DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS);
+const BAILEYS_ENABLE_AUTO_SESSION_RECREATION = parseEnvBool(
+  process.env.BAILEYS_ENABLE_AUTO_SESSION_RECREATION,
+  true,
+);
+const BAILEYS_ENABLE_RECENT_MESSAGE_CACHE = parseEnvBool(
+  process.env.BAILEYS_ENABLE_RECENT_MESSAGE_CACHE,
+  true,
+);
+const BAILEYS_GENERATE_HIGH_QUALITY_LINK_PREVIEW = parseEnvBool(
+  process.env.BAILEYS_GENERATE_HIGH_QUALITY_LINK_PREVIEW,
+  false,
+);
+const BAILEYS_PATCH_MESSAGE_BEFORE_SENDING = parseEnvBool(
+  process.env.BAILEYS_PATCH_MESSAGE_BEFORE_SENDING,
+  true,
+);
+const BAILEYS_USER_DEVICES_CACHE_TTL_SECONDS = parseEnvInt(
+  process.env.BAILEYS_USER_DEVICES_CACHE_TTL_SECONDS,
+  300,
+  30,
+  24 * 60 * 60,
+);
+const BAILEYS_USER_DEVICES_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(
+  process.env.BAILEYS_USER_DEVICES_CACHE_CHECKPERIOD_SECONDS,
+  60,
+  15,
+  3600,
+);
+const BAILEYS_MEDIA_CACHE_TTL_SECONDS = parseEnvInt(
+  process.env.BAILEYS_MEDIA_CACHE_TTL_SECONDS,
+  3600,
+  60,
+  7 * 24 * 60 * 60,
+);
+const BAILEYS_MEDIA_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(
+  process.env.BAILEYS_MEDIA_CACHE_CHECKPERIOD_SECONDS,
+  300,
+  30,
+  3600,
+);
+const BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS = parseEnvInt(
+  process.env.BAILEYS_GROUP_METADATA_CACHE_TTL_SECONDS,
+  120,
+  10,
+  3600,
+);
+const BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS = parseEnvInt(
+  process.env.BAILEYS_GROUP_METADATA_CACHE_CHECKPERIOD_SECONDS,
+  60,
+  10,
+  1800,
+);
+const BAILEYS_EVENT_JOURNAL_ENABLED = parseEnvBool(
+  process.env.BAILEYS_EVENT_JOURNAL_ENABLED,
+  false,
+);
+const DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS = [
+  'connection.update',
+  'messages.upsert',
+  'messages.update',
+  'messages.delete',
+  'messages.reaction',
+  'message-receipt.update',
+  'chats.upsert',
+  'chats.update',
+  'chats.delete',
+  'groups.upsert',
+  'groups.update',
+  'group-participants.update',
+  'group.join-request',
+  'lid-mapping.update',
+];
+const BAILEYS_EVENT_JOURNAL_EVENT_LIST = parseEnvCsv(
+  process.env.BAILEYS_EVENT_JOURNAL_EVENTS,
+  DEFAULT_BAILEYS_EVENT_JOURNAL_EVENTS,
+);
 const BAILEYS_EVENT_JOURNAL_ALL_EVENTS = BAILEYS_EVENT_JOURNAL_EVENT_LIST.includes('*');
-const BAILEYS_EVENT_JOURNAL_EVENTS = new Set(BAILEYS_EVENT_JOURNAL_EVENT_LIST.filter((eventName) => eventName !== '*'));
-const MESSAGE_RECEIPT_TYPES = new Set(['read', 'read-self', 'hist_sync', 'peer_msg', 'sender', 'inactive', 'played']);
+const BAILEYS_EVENT_JOURNAL_EVENTS = new Set(
+  BAILEYS_EVENT_JOURNAL_EVENT_LIST.filter((eventName) => eventName !== '*'),
+);
+const MESSAGE_RECEIPT_TYPES = new Set([
+  'read',
+  'read-self',
+  'hist_sync',
+  'peer_msg',
+  'sender',
+  'inactive',
+  'played',
+]);
 const MESSAGE_STATUS_CODE_TO_NAME = new Map(
   Object.entries(WAMessageStatus)
     .filter(([, value]) => typeof value === 'number')
@@ -101,7 +229,8 @@ const resolveAddressingModeFromMessageKey = (key) => {
   const explicit = normalizeAddressingMode(key?.addressingMode);
   if (explicit) return explicit;
 
-  const identityCandidate = key?.participant || key?.participantAlt || key?.remoteJid || key?.remoteJidAlt || '';
+  const identityCandidate =
+    key?.participant || key?.participantAlt || key?.remoteJid || key?.remoteJidAlt || '';
   if (isLidUserId(identityCandidate)) return WAMessageAddressingMode.LID;
   if (isWhatsAppUserId(identityCandidate)) return WAMessageAddressingMode.PN;
   return undefined;
@@ -161,8 +290,50 @@ const INITIAL_RECONNECT_DELAY = 3000;
 let reconnectTimeout = null;
 let connectPromise = null;
 let socketGeneration = 0;
-const BAILEYS_EVENT_NAMES = ['connection.update', 'creds.update', 'messaging-history.set', 'chats.upsert', 'chats.update', 'lid-mapping.update', 'chats.delete', 'presence.update', 'contacts.upsert', 'contacts.update', 'messages.delete', 'messages.update', 'messages.media-update', 'messages.upsert', 'messages.reaction', 'message-receipt.update', 'groups.upsert', 'groups.update', 'group-participants.update', 'group.join-request', 'group.member-tag.update', 'blocklist.set', 'blocklist.update', 'call', 'labels.edit', 'labels.association', 'newsletter.reaction', 'newsletter.view', 'newsletter-participants.update', 'newsletter-settings.update', 'chats.lock', 'settings.update'];
-const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set(['creds.update', 'connection.update', 'messages.upsert', 'messages.update', 'messages.media-update', 'message-receipt.update', 'groups.update', 'group-participants.update']);
+const BAILEYS_EVENT_NAMES = [
+  'connection.update',
+  'creds.update',
+  'messaging-history.set',
+  'chats.upsert',
+  'chats.update',
+  'lid-mapping.update',
+  'chats.delete',
+  'presence.update',
+  'contacts.upsert',
+  'contacts.update',
+  'messages.delete',
+  'messages.update',
+  'messages.media-update',
+  'messages.upsert',
+  'messages.reaction',
+  'message-receipt.update',
+  'groups.upsert',
+  'groups.update',
+  'group-participants.update',
+  'group.join-request',
+  'group.member-tag.update',
+  'blocklist.set',
+  'blocklist.update',
+  'call',
+  'labels.edit',
+  'labels.association',
+  'newsletter.reaction',
+  'newsletter.view',
+  'newsletter-participants.update',
+  'newsletter-settings.update',
+  'chats.lock',
+  'settings.update',
+];
+const BAILEYS_EVENTS_WITH_INTERNAL_LOG = new Set([
+  'creds.update',
+  'connection.update',
+  'messages.upsert',
+  'messages.update',
+  'messages.media-update',
+  'message-receipt.update',
+  'groups.update',
+  'group-participants.update',
+]);
 const BAILEYS_NOISY_EVENTS_IN_PRODUCTION = new Set(['presence.update']);
 
 const createCacheStoreAdapter = (cache) => ({
@@ -196,7 +367,13 @@ const isPlainObject = (value) => Object.prototype.toString.call(value) === '[obj
 
 const sanitizeMessagePayload = (value, seen = new WeakSet()) => {
   if (value === undefined || typeof value === 'function') return undefined;
-  if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'bigint') return value;
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  )
+    return value;
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
   if (Buffer.isBuffer(value) || value instanceof Uint8Array || value instanceof Date) return value;
   if (typeof value !== 'object') return value;
@@ -247,7 +424,12 @@ const buildCachedParticipants = (participantsRaw) => {
     .map((entry) => {
       const id = entry?.id || entry?.jid || entry?.lid || null;
       if (!id) return null;
-      const admin = entry?.admin === 'admin' || entry?.admin === 'superadmin' ? entry.admin : entry?.isAdmin ? 'admin' : undefined;
+      const admin =
+        entry?.admin === 'admin' || entry?.admin === 'superadmin'
+          ? entry.admin
+          : entry?.isAdmin
+            ? 'admin'
+            : undefined;
       return admin ? { id, admin } : { id };
     })
     .filter(Boolean);
@@ -275,7 +457,9 @@ const resolveCachedGroupMetadata = async (jid) => {
       creation: Number.isFinite(Number(data.creation)) ? Number(data.creation) : undefined,
       participants,
       addressingMode: normalizeAddressingMode(data.addressing_mode || data.addressingMode),
-      ephemeralDuration: Number.isFinite(Number(data.ephemeral_duration ?? data.ephemeralDuration)) ? Number(data.ephemeral_duration ?? data.ephemeralDuration) : undefined,
+      ephemeralDuration: Number.isFinite(Number(data.ephemeral_duration ?? data.ephemeralDuration))
+        ? Number(data.ephemeral_duration ?? data.ephemeralDuration)
+        : undefined,
     };
 
     groupMetadataCache.set(jid, metadata);
@@ -352,9 +536,14 @@ const summarizeBaileysEventPayload = (eventName, payload) => {
         summary.updatesCount = payload.length;
         const firstUpdate = payload[0];
         const status = normalizeMessageStatus(firstUpdate?.update?.status);
-        const stubType = normalizeMessageStubType(firstUpdate?.update?.messageStubType ?? firstUpdate?.update?.stubType);
+        const stubType = normalizeMessageStubType(
+          firstUpdate?.update?.messageStubType ?? firstUpdate?.update?.stubType,
+        );
         const addressingMode = resolveAddressingModeFromMessageKey(firstUpdate?.key);
-        summary.pollUpdatesCount = payload.filter((entry) => Array.isArray(entry?.update?.pollUpdates) && entry.update.pollUpdates.length > 0).length;
+        summary.pollUpdatesCount = payload.filter(
+          (entry) =>
+            Array.isArray(entry?.update?.pollUpdates) && entry.update.pollUpdates.length > 0,
+        ).length;
         summary.firstStatusCode = status?.code ?? null;
         summary.firstStatusName = status?.name ?? null;
         summary.firstStubTypeCode = stubType?.code ?? null;
@@ -447,7 +636,10 @@ const shouldLogBaileysEvent = (eventName) => {
 };
 
 const registerBaileysEventLoggers = (sock) => {
-  const eventsToLog = BAILEYS_EVENT_NAMES.filter((eventName) => !BAILEYS_EVENTS_WITH_INTERNAL_LOG.has(eventName) && shouldLogBaileysEvent(eventName));
+  const eventsToLog = BAILEYS_EVENT_NAMES.filter(
+    (eventName) =>
+      !BAILEYS_EVENTS_WITH_INTERNAL_LOG.has(eventName) && shouldLogBaileysEvent(eventName),
+  );
 
   for (const eventName of eventsToLog) {
     sock.ev.on(eventName, (payload) => {
@@ -557,15 +749,22 @@ const registerBaileysEventJournal = (sock, generation) => {
     return;
   }
 
-  const unknownEvents = BAILEYS_EVENT_JOURNAL_EVENT_LIST.filter((eventName) => eventName !== '*' && !BAILEYS_EVENT_NAMES.includes(eventName));
+  const unknownEvents = BAILEYS_EVENT_JOURNAL_EVENT_LIST.filter(
+    (eventName) => eventName !== '*' && !BAILEYS_EVENT_NAMES.includes(eventName),
+  );
   if (unknownEvents.length > 0) {
-    logger.warn('Alguns eventos configurados para journal não existem na lista conhecida do Baileys.', {
-      action: 'baileys_event_journal_unknown_events',
-      unknownEvents,
-    });
+    logger.warn(
+      'Alguns eventos configurados para journal não existem na lista conhecida do Baileys.',
+      {
+        action: 'baileys_event_journal_unknown_events',
+        unknownEvents,
+      },
+    );
   }
 
-  const eventsToPersist = BAILEYS_EVENT_NAMES.filter((eventName) => shouldPersistBaileysEvent(eventName));
+  const eventsToPersist = BAILEYS_EVENT_NAMES.filter((eventName) =>
+    shouldPersistBaileysEvent(eventName),
+  );
   if (eventsToPersist.length === 0) {
     logger.warn('Journal de eventos Baileys habilitado sem eventos válidos para persistir.', {
       action: 'baileys_event_journal_empty',
@@ -688,7 +887,8 @@ async function persistIncomingMessages(incomingMessages, type) {
       queueLidUpdate(senderInfo.lid, senderInfo.jid, 'message');
     }
 
-    const canonicalSenderId = resolveUserIdCached(senderInfo) || msg.key.participant || msg.key.remoteJid;
+    const canonicalSenderId =
+      resolveUserIdCached(senderInfo) || msg.key.participant || msg.key.remoteJid;
 
     const messageData = buildMessageData(msg, canonicalSenderId);
     queueMessageInsert(messageData);
@@ -707,7 +907,11 @@ async function getStoredMessage(key) {
   if (!messageId || !remoteJid) return undefined;
 
   try {
-    const results = await findBy('messages', { message_id: messageId, chat_id: remoteJid }, { limit: 1 });
+    const results = await findBy(
+      'messages',
+      { message_id: messageId, chat_id: remoteJid },
+      { limit: 1 },
+    );
     const record = results?.[0];
     const stored = safeJsonParse(record?.raw_message, null);
     if (record?.raw_message && !stored) {
@@ -740,7 +944,10 @@ const resetReconnectState = () => {
 
 const getNextReconnectAttempt = () => {
   const now = Date.now();
-  if (!reconnectWindowStartedAt || now - reconnectWindowStartedAt >= BAILEYS_RECONNECT_ATTEMPT_RESET_MS) {
+  if (
+    !reconnectWindowStartedAt ||
+    now - reconnectWindowStartedAt >= BAILEYS_RECONNECT_ATTEMPT_RESET_MS
+  ) {
     reconnectWindowStartedAt = now;
     connectionAttempts = 0;
   }
@@ -783,9 +990,14 @@ const syncGroupsOnConnectionOpen = async (sock) => {
     return;
   }
 
-  const allGroups = await withTimeout(sock.groupFetchAllParticipating(), GROUP_SYNC_TIMEOUT_MS, `groups_sync_timeout_${GROUP_SYNC_TIMEOUT_MS}ms`);
+  const allGroups = await withTimeout(
+    sock.groupFetchAllParticipating(),
+    GROUP_SYNC_TIMEOUT_MS,
+    `groups_sync_timeout_${GROUP_SYNC_TIMEOUT_MS}ms`,
+  );
   const allGroupEntries = Object.values(allGroups || {});
-  const selectedGroups = GROUP_SYNC_MAX_GROUPS > 0 ? allGroupEntries.slice(0, GROUP_SYNC_MAX_GROUPS) : allGroupEntries;
+  const selectedGroups =
+    GROUP_SYNC_MAX_GROUPS > 0 ? allGroupEntries.slice(0, GROUP_SYNC_MAX_GROUPS) : allGroupEntries;
 
   let syncedCount = 0;
   let failedCount = 0;
@@ -917,12 +1129,14 @@ export async function connectToWhatsApp() {
           messagesCount: update.messages.length,
           remoteJid: update.messages[0]?.key.remoteJid || null,
         });
-        const persistPromise = persistIncomingMessages(update.messages, update.type).catch((error) => {
-          logger.error('Erro ao persistir mensagens no banco de dados:', {
-            error: error.message,
-          });
-          recordError('messages_upsert');
-        });
+        const persistPromise = persistIncomingMessages(update.messages, update.type).catch(
+          (error) => {
+            logger.error('Erro ao persistir mensagens no banco de dados:', {
+              error: error.message,
+            });
+            recordError('messages_upsert');
+          },
+        );
         const handlePromise = handleMessages(update, sock).catch((error) => {
           recordError('messages_upsert');
           throw error;
@@ -1006,7 +1220,11 @@ export async function connectToWhatsApp() {
           const jidCandidate = update?.id || update?.jid || null;
           const lidCandidate = update?.lid || null;
           const jid = isWhatsAppUserId(jidCandidate) ? jidCandidate : null;
-          const lid = isLidUserId(lidCandidate) ? lidCandidate : isLidUserId(jidCandidate) ? jidCandidate : null;
+          const lid = isLidUserId(lidCandidate)
+            ? lidCandidate
+            : isLidUserId(jidCandidate)
+              ? jidCandidate
+              : null;
           if (lid) {
             queueLidUpdate(lid, jid, 'contacts');
           }
@@ -1024,7 +1242,9 @@ export async function connectToWhatsApp() {
         if (!lid || !pnJid) return;
         queueLidUpdate(lid, pnJid, 'lid-mapping');
       } catch (error) {
-        logger.warn('Falha ao processar lid-mapping.update para lid_map.', { error: error.message });
+        logger.warn('Falha ao processar lid-mapping.update para lid_map.', {
+          error: error.message,
+        });
       }
     });
 
@@ -1100,21 +1320,34 @@ export async function connectToWhatsApp() {
         const reactions = Array.isArray(updates) ? updates : [updates];
         for (const update of reactions) {
           const key = update?.key || update?.msg?.key || update?.reaction?.key || null;
-          const reaction = update?.reaction || update?.msg?.reaction || update?.reactionMessage || null;
-          const reactedKey = reaction?.key || update?.reactedKey || update?.reactionMessage?.key || null;
+          const reaction =
+            update?.reaction || update?.msg?.reaction || update?.reactionMessage || null;
+          const reactedKey =
+            reaction?.key || update?.reactedKey || update?.reactionMessage?.key || null;
 
           const groupId = key?.remoteJid || reactedKey?.remoteJid || null;
           const senderJid = key?.participant || update?.participant || reaction?.sender || null;
           const senderIdentity = {
             participant: key?.participant || update?.participant || reaction?.sender || null,
-            participantAlt: key?.participantAlt || update?.participantAlt || reaction?.participantAlt || reaction?.key?.participantAlt || null,
+            participantAlt:
+              key?.participantAlt ||
+              update?.participantAlt ||
+              reaction?.participantAlt ||
+              reaction?.key?.participantAlt ||
+              null,
             jid: senderJid,
           };
           const reactedMessageId = reactedKey?.id || null;
           const reactionText = typeof reaction?.text === 'string' ? reaction.text : '';
 
           if (groupId && (senderJid || senderIdentity.participantAlt)) {
-            await resolveCaptchaByReaction({ groupId, senderJid, senderIdentity, reactedMessageId, reactionText });
+            await resolveCaptchaByReaction({
+              groupId,
+              senderJid,
+              senderIdentity,
+              reactedMessageId,
+              reactionText,
+            });
           }
         }
       } catch (error) {
@@ -1260,7 +1493,8 @@ async function handleConnectionUpdate(update, sock) {
     const disconnectCode = lastDisconnect?.error?.output?.statusCode || 'unknown';
     const errorMessage = lastDisconnect?.error?.message || 'Sem mensagem de erro';
 
-    const shouldReconnect = lastDisconnect?.error instanceof Boom && disconnectCode !== DisconnectReason.loggedOut;
+    const shouldReconnect =
+      lastDisconnect?.error instanceof Boom && disconnectCode !== DisconnectReason.loggedOut;
 
     if (shouldReconnect) {
       const attempt = getNextReconnectAttempt();

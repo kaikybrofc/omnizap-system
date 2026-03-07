@@ -4,9 +4,17 @@ const parseEnvList = (value) =>
     .map((entry) => entry.trim())
     .filter(Boolean);
 
-const VERIFIED_PUBLISHERS = new Set(parseEnvList(process.env.STICKER_CREATOR_VERIFIED_PUBLISHERS).map((entry) => entry.toLowerCase()));
-const NSFW_EXPLICIT_THRESHOLD = Number.isFinite(Number(process.env.STICKER_NSFW_EXPLICIT_THRESHOLD)) ? Number(process.env.STICKER_NSFW_EXPLICIT_THRESHOLD) : 0.78;
-const NSFW_SUGGESTIVE_THRESHOLD = Number.isFinite(Number(process.env.STICKER_NSFW_SUGGESTIVE_THRESHOLD)) ? Number(process.env.STICKER_NSFW_SUGGESTIVE_THRESHOLD) : 0.4;
+const VERIFIED_PUBLISHERS = new Set(
+  parseEnvList(process.env.STICKER_CREATOR_VERIFIED_PUBLISHERS).map((entry) => entry.toLowerCase()),
+);
+const NSFW_EXPLICIT_THRESHOLD = Number.isFinite(Number(process.env.STICKER_NSFW_EXPLICIT_THRESHOLD))
+  ? Number(process.env.STICKER_NSFW_EXPLICIT_THRESHOLD)
+  : 0.78;
+const NSFW_SUGGESTIVE_THRESHOLD = Number.isFinite(
+  Number(process.env.STICKER_NSFW_SUGGESTIVE_THRESHOLD),
+)
+  ? Number(process.env.STICKER_NSFW_SUGGESTIVE_THRESHOLD)
+  : 0.4;
 const AGE_DECAY_DAYS = Math.max(1, Number(process.env.STICKER_PACK_AGE_DECAY_DAYS) || 45);
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -99,7 +107,11 @@ const computeQualityScore = ({ items = [], itemClassifications = [] }) => {
     itemClassifications.length > 0
       ? itemClassifications.reduce((acc, classification) => {
           const scores = classification?.all_scores || {};
-          return acc + safeNumber(scores['blurry image']) * 0.3 + safeNumber(scores['low quality compressed image']) * 0.35;
+          return (
+            acc +
+            safeNumber(scores['blurry image']) * 0.3 +
+            safeNumber(scores['low quality compressed image']) * 0.35
+          );
         }, 0) / itemClassifications.length
       : 0;
 
@@ -109,20 +121,29 @@ const computeQualityScore = ({ items = [], itemClassifications = [] }) => {
 const computeDiversityScore = ({ tags = [], itemClassifications = [] }) => {
   if (!itemClassifications.length) return tags.length > 0 ? 0.45 : 0.25;
 
-  const uniqueTags = new Set((Array.isArray(tags) ? tags : []).map((tag) => normalizeTag(tag)).filter(Boolean));
+  const uniqueTags = new Set(
+    (Array.isArray(tags) ? tags : []).map((tag) => normalizeTag(tag)).filter(Boolean),
+  );
   let pairCount = 0;
   let similaritySum = 0;
 
   for (let i = 0; i < itemClassifications.length; i += 1) {
     for (let j = i + 1; j < itemClassifications.length; j += 1) {
       pairCount += 1;
-      similaritySum += cosineSimilarity(itemClassifications[i]?.all_scores || {}, itemClassifications[j]?.all_scores || {});
+      similaritySum += cosineSimilarity(
+        itemClassifications[i]?.all_scores || {},
+        itemClassifications[j]?.all_scores || {},
+      );
     }
   }
 
   const avgSimilarity = pairCount > 0 ? similaritySum / pairCount : 0.5;
   const diversityFromSimilarity = clamp(1 - avgSimilarity, 0, 1);
-  const diversityFromTags = clamp(uniqueTags.size / Math.max(3, Math.min(12, itemClassifications.length)), 0, 1);
+  const diversityFromTags = clamp(
+    uniqueTags.size / Math.max(3, Math.min(12, itemClassifications.length)),
+    0,
+    1,
+  );
   return Number((diversityFromSimilarity * 0.7 + diversityFromTags * 0.3).toFixed(6));
 };
 
@@ -134,7 +155,10 @@ const computeCohesionScore = (itemClassifications = []) => {
   for (let i = 0; i < itemClassifications.length; i += 1) {
     for (let j = i + 1; j < itemClassifications.length; j += 1) {
       pairCount += 1;
-      similaritySum += cosineSimilarity(itemClassifications[i]?.all_scores || {}, itemClassifications[j]?.all_scores || {});
+      similaritySum += cosineSimilarity(
+        itemClassifications[i]?.all_scores || {},
+        itemClassifications[j]?.all_scores || {},
+      );
     }
   }
 
@@ -158,10 +182,21 @@ const computeDuplicatePenalty = ({ itemClassifications = [], duplicateRate = 0 }
   }
 
   const semanticDuplicateRate = pairCount > 0 ? nearDuplicates / pairCount : 0;
-  return Number(clamp(semanticDuplicateRate * 0.7 + safeNumber(duplicateRate) * 0.3, 0, 1).toFixed(6));
+  return Number(
+    clamp(semanticDuplicateRate * 0.7 + safeNumber(duplicateRate) * 0.3, 0, 1).toFixed(6),
+  );
 };
 
-export const computePackSignals = ({ pack, engagement, packClassification, itemClassifications = [], interactionStats = null, duplicateRate = 0, scoringWeights = null, ageDecayDays = AGE_DECAY_DAYS }) => {
+export const computePackSignals = ({
+  pack,
+  engagement,
+  packClassification,
+  itemClassifications = [],
+  interactionStats = null,
+  duplicateRate = 0,
+  scoringWeights = null,
+  ageDecayDays = AGE_DECAY_DAYS,
+}) => {
   const resolvedWeights = {
     classification: clamp(safeNumber(scoringWeights?.classification, 0.4), 0.1, 0.7),
     engagement: clamp(safeNumber(scoringWeights?.engagement, 0.3), 0.1, 0.7),
@@ -181,14 +216,21 @@ export const computePackSignals = ({ pack, engagement, packClassification, itemC
   const trendScore = computeTrendScore(interactionStats);
   const nsfwLevel = resolveNsfwLevel(packClassification);
   const sensitiveContent = nsfwLevel !== 'safe';
-  const packScoreRaw = classificationConfidence * resolvedWeights.classification + engagementScore * resolvedWeights.engagement + qualityScore * resolvedWeights.quality + diversityScore * resolvedWeights.diversity - duplicatePenalty * 0.25;
+  const packScoreRaw =
+    classificationConfidence * resolvedWeights.classification +
+    engagementScore * resolvedWeights.engagement +
+    qualityScore * resolvedWeights.quality +
+    diversityScore * resolvedWeights.diversity -
+    duplicatePenalty * 0.25;
   const packScore = Number(clamp(packScoreRaw, 0, 1.5).toFixed(6));
   const referenceDate = pack?.updated_at || pack?.created_at || null;
   const ageMs = referenceDate ? Date.now() - Date.parse(referenceDate) : 0;
   const ageDays = Number.isFinite(ageMs) && ageMs > 0 ? ageMs / (24 * 60 * 60 * 1000) : 0;
   const decayWindow = Math.max(1, Number(ageDecayDays) || AGE_DECAY_DAYS);
   const ageDecayFactor = Number(Math.exp(-ageDays / decayWindow).toFixed(6));
-  const rankingScore = Number((packScore * ageDecayFactor + trendScore * 0.08 + cohesionScore * 0.05).toFixed(6));
+  const rankingScore = Number(
+    (packScore * ageDecayFactor + trendScore * 0.08 + cohesionScore * 0.05).toFixed(6),
+  );
 
   return {
     classification_confidence: Number(classificationConfidence.toFixed(6)),
@@ -209,7 +251,10 @@ export const computePackSignals = ({ pack, engagement, packClassification, itemC
   };
 };
 
-const sortByScoreDesc = (list, field) => [...list].sort((left, right) => safeNumber(right?.signals?.[field]) - safeNumber(left?.signals?.[field]));
+const sortByScoreDesc = (list, field) =>
+  [...list].sort(
+    (left, right) => safeNumber(right?.signals?.[field]) - safeNumber(left?.signals?.[field]),
+  );
 
 const sortByUpdatedDesc = (list) =>
   [...list].sort((left, right) => {
@@ -233,8 +278,19 @@ export const buildIntentCollections = (entries, { limit = 18 } = {}) => {
         'trend_score',
       ),
     ),
-    mais_curtidos: pick([...safeOnly].sort((a, b) => safeNumber(b?.engagement?.like_count) - safeNumber(a?.engagement?.like_count))),
-    melhor_avaliados: pick([...safeOnly].sort((a, b) => safeNumber(b?.engagement?.like_count) - safeNumber(b?.engagement?.dislike_count) - (safeNumber(a?.engagement?.like_count) - safeNumber(a?.engagement?.dislike_count)))),
+    mais_curtidos: pick(
+      [...safeOnly].sort(
+        (a, b) => safeNumber(b?.engagement?.like_count) - safeNumber(a?.engagement?.like_count),
+      ),
+    ),
+    melhor_avaliados: pick(
+      [...safeOnly].sort(
+        (a, b) =>
+          safeNumber(b?.engagement?.like_count) -
+          safeNumber(b?.engagement?.dislike_count) -
+          (safeNumber(a?.engagement?.like_count) - safeNumber(a?.engagement?.dislike_count)),
+      ),
+    ),
   };
 };
 
@@ -258,7 +314,10 @@ export const buildCreatorRanking = (entries, { limit = 50 } = {}) => {
     current.total_likes += safeNumber(entry?.engagement?.like_count);
     current.total_opens += safeNumber(entry?.engagement?.open_count);
     current.avg_pack_score += safeNumber(entry?.signals?.pack_score);
-    if (!current.top_pack || safeNumber(entry?.signals?.pack_score) > safeNumber(current?.top_pack?.signals?.pack_score)) {
+    if (
+      !current.top_pack ||
+      safeNumber(entry?.signals?.pack_score) > safeNumber(current?.top_pack?.signals?.pack_score)
+    ) {
       current.top_pack = entry;
     }
     grouped.set(key, current);
@@ -270,8 +329,10 @@ export const buildCreatorRanking = (entries, { limit = 50 } = {}) => {
       avg_pack_score: Number((entry.avg_pack_score / Math.max(1, entry.packs_count)).toFixed(6)),
     }))
     .sort((left, right) => {
-      const leftScore = left.avg_pack_score * 0.45 + left.total_likes * 0.0008 + left.total_opens * 0.00015;
-      const rightScore = right.avg_pack_score * 0.45 + right.total_likes * 0.0008 + right.total_opens * 0.00015;
+      const leftScore =
+        left.avg_pack_score * 0.45 + left.total_likes * 0.0008 + left.total_opens * 0.00015;
+      const rightScore =
+        right.avg_pack_score * 0.45 + right.total_likes * 0.0008 + right.total_opens * 0.00015;
       return rightScore - leftScore;
     })
     .slice(0, safeLimit);
@@ -279,7 +340,10 @@ export const buildCreatorRanking = (entries, { limit = 50 } = {}) => {
   return ranking;
 };
 
-export const buildViewerTagAffinity = ({ viewerEntries = [], packClassificationById = new Map() }) => {
+export const buildViewerTagAffinity = ({
+  viewerEntries = [],
+  packClassificationById = new Map(),
+}) => {
   const affinity = new Map();
   for (const viewerEntry of viewerEntries) {
     const summary = packClassificationById.get(viewerEntry.pack_id);
@@ -294,7 +358,12 @@ export const buildViewerTagAffinity = ({ viewerEntries = [], packClassificationB
   return affinity;
 };
 
-export const buildPersonalizedRecommendations = ({ entries = [], viewerAffinity = new Map(), excludePackIds = new Set(), limit = 18 }) => {
+export const buildPersonalizedRecommendations = ({
+  entries = [],
+  viewerAffinity = new Map(),
+  excludePackIds = new Set(),
+  limit = 18,
+}) => {
   const safeLimit = Math.max(4, Math.min(50, Number(limit) || 18));
   const ranked = [];
   for (const entry of entries) {
@@ -302,9 +371,17 @@ export const buildPersonalizedRecommendations = ({ entries = [], viewerAffinity 
     if (!packId || excludePackIds.has(packId)) continue;
     if (entry?.signals?.nsfw_level !== 'safe') continue;
 
-    const tags = Array.isArray(entry?.packClassification?.tags) ? entry.packClassification.tags : [];
-    const affinityBoost = tags.reduce((sum, rawTag) => sum + safeNumber(viewerAffinity.get(normalizeTag(rawTag))), 0);
-    const score = safeNumber(entry?.signals?.pack_score) * 0.7 + affinityBoost * 0.04 + safeNumber(entry?.signals?.trend_score) * 0.2;
+    const tags = Array.isArray(entry?.packClassification?.tags)
+      ? entry.packClassification.tags
+      : [];
+    const affinityBoost = tags.reduce(
+      (sum, rawTag) => sum + safeNumber(viewerAffinity.get(normalizeTag(rawTag))),
+      0,
+    );
+    const score =
+      safeNumber(entry?.signals?.pack_score) * 0.7 +
+      affinityBoost * 0.04 +
+      safeNumber(entry?.signals?.trend_score) * 0.2;
     ranked.push({ entry, score });
   }
 

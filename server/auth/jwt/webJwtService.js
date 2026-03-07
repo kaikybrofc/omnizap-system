@@ -15,8 +15,10 @@ const clampInt = (value, fallback, min, max) => {
 };
 
 const WEB_AUTH_JWT_SECRET = String(process.env.WEB_AUTH_JWT_SECRET || '').trim();
-const WEB_AUTH_JWT_ISSUER = String(process.env.WEB_AUTH_JWT_ISSUER || 'omnizap-system').trim() || 'omnizap-system';
-const WEB_AUTH_JWT_AUDIENCE = String(process.env.WEB_AUTH_JWT_AUDIENCE || 'omnizap-web').trim() || 'omnizap-web';
+const WEB_AUTH_JWT_ISSUER =
+  String(process.env.WEB_AUTH_JWT_ISSUER || 'omnizap-system').trim() || 'omnizap-system';
+const WEB_AUTH_JWT_AUDIENCE =
+  String(process.env.WEB_AUTH_JWT_AUDIENCE || 'omnizap-web').trim() || 'omnizap-web';
 const WEB_AUTH_JWT_EXPIRES_IN = String(process.env.WEB_AUTH_JWT_EXPIRES_IN || '7d').trim() || '7d';
 const WEB_AUTH_JWT_DISABLED = parseEnvBool(process.env.WEB_AUTH_JWT_DISABLED, false);
 
@@ -52,7 +54,8 @@ const resolveExpiresIn = ({ expiresInSeconds = null } = {}) => {
   return WEB_AUTH_JWT_EXPIRES_IN;
 };
 
-export const isWebAuthJwtEnabled = () => !WEB_AUTH_JWT_DISABLED && isNonEmptyString(WEB_AUTH_JWT_SECRET);
+export const isWebAuthJwtEnabled = () =>
+  !WEB_AUTH_JWT_DISABLED && isNonEmptyString(WEB_AUTH_JWT_SECRET);
 
 export const extractBearerTokenFromRequest = (req) => {
   const headerValue = req?.headers?.authorization;
@@ -68,7 +71,18 @@ export const extractBearerTokenFromRequest = (req) => {
   return String(token || '').trim();
 };
 
-export const signWebAuthJwt = ({ sub = '', sessionToken = '', ownerJid = '', ownerPhone = '', email = '', name = '', authMethod = 'google' } = {}, { expiresInSeconds = null } = {}) => {
+export const signWebAuthJwt = (
+  {
+    sub = '',
+    sessionToken = '',
+    ownerJid = '',
+    ownerPhone = '',
+    email = '',
+    name = '',
+    authMethod = 'google',
+  } = {},
+  { expiresInSeconds = null } = {},
+) => {
   if (!isWebAuthJwtEnabled()) return '';
 
   const normalizedSub = normalizeGoogleSubject(sub);

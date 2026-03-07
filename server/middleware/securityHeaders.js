@@ -21,11 +21,26 @@ const HELMET_CSP_DIRECTIVES = {
   objectSrc: ["'none'"],
   frameAncestors: ["'self'"],
   formAction: ["'self'"],
-  scriptSrc: ["'self'", "'unsafe-inline'", 'https://accounts.google.com', 'https://cdn.tailwindcss.com'],
-  styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
+  scriptSrc: [
+    "'self'",
+    "'unsafe-inline'",
+    'https://accounts.google.com',
+    'https://cdn.tailwindcss.com',
+  ],
+  styleSrc: [
+    "'self'",
+    "'unsafe-inline'",
+    'https://fonts.googleapis.com',
+    'https://cdnjs.cloudflare.com',
+  ],
   imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
   fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com'],
-  connectSrc: ["'self'", 'https://accounts.google.com', 'https://oauth2.googleapis.com', 'https://api.github.com'],
+  connectSrc: [
+    "'self'",
+    'https://accounts.google.com',
+    'https://oauth2.googleapis.com',
+    'https://api.github.com',
+  ],
   frameSrc: ["'self'", 'https://accounts.google.com'],
   workerSrc: ["'self'", 'blob:'],
   manifestSrc: ["'self'"],
@@ -38,8 +53,12 @@ const serializeCspDirectives = (directives = {}) =>
         .trim()
         .replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
       if (!kebabDirective) return '';
-      const normalizedValues = Array.isArray(values) ? values.map((value) => String(value || '').trim()).filter(Boolean) : [];
-      return normalizedValues.length ? `${kebabDirective} ${normalizedValues.join(' ')}` : kebabDirective;
+      const normalizedValues = Array.isArray(values)
+        ? values.map((value) => String(value || '').trim()).filter(Boolean)
+        : [];
+      return normalizedValues.length
+        ? `${kebabDirective} ${normalizedValues.join(' ')}`
+        : kebabDirective;
     })
     .filter(Boolean)
     .join('; ');
@@ -66,13 +85,22 @@ const helmetMiddleware = helmet({
 const applyFallbackHeaders = (res) => {
   if (!res.getHeader('X-Content-Type-Options')) res.setHeader('X-Content-Type-Options', 'nosniff');
   if (!res.getHeader('X-Frame-Options')) res.setHeader('X-Frame-Options', 'DENY');
-  if (!res.getHeader('Referrer-Policy')) res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  if (!res.getHeader('Permissions-Policy')) res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
-  if (FALLBACK_CSP_HEADER && !res.getHeader('Content-Security-Policy') && !res.getHeader('Content-Security-Policy-Report-Only')) {
-    const cspHeaderName = HELMET_CSP_ENFORCE ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only';
+  if (!res.getHeader('Referrer-Policy'))
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (!res.getHeader('Permissions-Policy'))
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  if (
+    FALLBACK_CSP_HEADER &&
+    !res.getHeader('Content-Security-Policy') &&
+    !res.getHeader('Content-Security-Policy-Report-Only')
+  ) {
+    const cspHeaderName = HELMET_CSP_ENFORCE
+      ? 'Content-Security-Policy'
+      : 'Content-Security-Policy-Report-Only';
     res.setHeader(cspHeaderName, FALLBACK_CSP_HEADER);
   }
-  if (BACKEND_BUILD_ID && !res.getHeader('X-Omnizap-Build')) res.setHeader('X-Omnizap-Build', BACKEND_BUILD_ID);
+  if (BACKEND_BUILD_ID && !res.getHeader('X-Omnizap-Build'))
+    res.setHeader('X-Omnizap-Build', BACKEND_BUILD_ID);
 };
 
 export const applySecurityHeaders = (req, res) => {

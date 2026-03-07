@@ -6,8 +6,14 @@ const WHATSAPP_USER_SERVERS = new Set(['s.whatsapp.net', 'c.us', 'hosted']);
 const DEFAULT_LOGIN_BASE_URL = 'https://omnizap.shop';
 const SIGNING_SECRET = String(process.env.WHATSAPP_LOGIN_LINK_SECRET || '').trim();
 const SIGNED_LINKS_ENABLED = Boolean(SIGNING_SECRET);
-const REQUIRE_SIGNATURE = parseEnvBool(process.env.WHATSAPP_LOGIN_REQUIRE_SIGNATURE, SIGNED_LINKS_ENABLED);
-const LOGIN_TTL_SECONDS = Math.max(60, Number(process.env.WHATSAPP_LOGIN_LINK_TTL_SECONDS) || 15 * 60);
+const REQUIRE_SIGNATURE = parseEnvBool(
+  process.env.WHATSAPP_LOGIN_REQUIRE_SIGNATURE,
+  SIGNED_LINKS_ENABLED,
+);
+const LOGIN_TTL_SECONDS = Math.max(
+  60,
+  Number(process.env.WHATSAPP_LOGIN_LINK_TTL_SECONDS) || 15 * 60,
+);
 const LOGIN_PATH = normalizeLoginPath(process.env.WHATSAPP_LOGIN_PATH || '/login/');
 
 function parseEnvBool(value, fallback) {
@@ -41,7 +47,9 @@ function buildSignaturePayload(phoneDigits, tsSeconds) {
 
 function buildHintSignature(phoneDigits, tsSeconds) {
   if (!SIGNED_LINKS_ENABLED) return '';
-  return createHmac('sha256', SIGNING_SECRET).update(buildSignaturePayload(phoneDigits, tsSeconds)).digest('hex');
+  return createHmac('sha256', SIGNING_SECRET)
+    .update(buildSignaturePayload(phoneDigits, tsSeconds))
+    .digest('hex');
 }
 
 function safeHexCompare(left, right) {
@@ -64,7 +72,13 @@ function safeHexCompare(left, right) {
 }
 
 function resolveLoginBaseUrl(explicitBaseUrl = '') {
-  const candidates = [explicitBaseUrl, process.env.WHATSAPP_LOGIN_BASE_URL, process.env.SITE_ORIGIN, process.env.PUBLIC_WEB_BASE_URL, DEFAULT_LOGIN_BASE_URL];
+  const candidates = [
+    explicitBaseUrl,
+    process.env.WHATSAPP_LOGIN_BASE_URL,
+    process.env.SITE_ORIGIN,
+    process.env.PUBLIC_WEB_BASE_URL,
+    DEFAULT_LOGIN_BASE_URL,
+  ];
 
   for (const candidate of candidates) {
     const raw = String(candidate || '').trim();
@@ -133,11 +147,28 @@ export const buildWhatsAppGoogleLoginUrl = ({ userId, baseUrl } = {}) => {
 
 export const extractWhatsAppLoginHint = (payload = {}) => {
   const source = payload && typeof payload === 'object' ? payload : {};
-  const nested = source.whatsapp_login && typeof source.whatsapp_login === 'object' ? source.whatsapp_login : {};
+  const nested =
+    source.whatsapp_login && typeof source.whatsapp_login === 'object' ? source.whatsapp_login : {};
   return {
-    wa: String(source.wa ?? source.whatsapp_phone ?? source.owner_phone ?? nested.wa ?? nested.phone ?? '').trim(),
-    wa_ts: String(source.wa_ts ?? source.whatsapp_ts ?? source.owner_phone_ts ?? nested.wa_ts ?? nested.ts ?? '').trim(),
-    wa_sig: String(source.wa_sig ?? source.whatsapp_sig ?? source.owner_phone_sig ?? nested.wa_sig ?? nested.sig ?? '').trim(),
+    wa: String(
+      source.wa ?? source.whatsapp_phone ?? source.owner_phone ?? nested.wa ?? nested.phone ?? '',
+    ).trim(),
+    wa_ts: String(
+      source.wa_ts ??
+        source.whatsapp_ts ??
+        source.owner_phone_ts ??
+        nested.wa_ts ??
+        nested.ts ??
+        '',
+    ).trim(),
+    wa_sig: String(
+      source.wa_sig ??
+        source.whatsapp_sig ??
+        source.owner_phone_sig ??
+        nested.wa_sig ??
+        nested.sig ??
+        '',
+    ).trim(),
   };
 };
 

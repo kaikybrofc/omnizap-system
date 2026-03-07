@@ -16,7 +16,8 @@ const LOGIN_CONSENT_STORAGE_KEY = 'omnizap_login_terms_consent_v1';
 const LOGIN_CONSENT_HINT = 'Aceite os Termos de Uso e a Politica de Privacidade para continuar.';
 const DEFAULT_SUCCESS_CHAT_LABEL = 'Abrir WhatsApp do bot';
 const DEFAULT_SUCCESS_HOME_LABEL = 'Ir para o painel';
-const ALREADY_LOGGED_HINT_TEXT = 'Nao e necessario fazer login novamente. Escolha uma opcao abaixo.';
+const ALREADY_LOGGED_HINT_TEXT =
+  'Nao e necessario fazer login novamente. Escolha uma opcao abaixo.';
 
 const normalizeDigits = (value) => String(value || '').replace(/\D+/g, '');
 
@@ -159,7 +160,10 @@ const resolveGoogleButtonWidth = (buttonElement, areaElement) => {
   const areaWidth = Math.floor(Number(areaElement?.clientWidth || 0));
   if (areaWidth > 0) {
     const areaStyles = areaElement ? window.getComputedStyle(areaElement) : null;
-    const areaPaddingX = areaStyles ? Number.parseFloat(areaStyles.paddingLeft || '0') + Number.parseFloat(areaStyles.paddingRight || '0') : 0;
+    const areaPaddingX = areaStyles
+      ? Number.parseFloat(areaStyles.paddingLeft || '0') +
+        Number.parseFloat(areaStyles.paddingRight || '0')
+      : 0;
     const available = Math.floor(areaWidth - areaPaddingX - 20);
     if (available > 0) return Math.max(180, Math.min(320, available));
   }
@@ -178,8 +182,12 @@ const loadGoogleScript = () => {
   googleScriptPromise = new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[src="${GOOGLE_GSI_SCRIPT_SRC}"]`);
     if (existing) {
-      existing.addEventListener('load', () => resolve(window.google?.accounts?.id || null), { once: true });
-      existing.addEventListener('error', () => reject(new Error('Falha ao carregar SDK Google.')), { once: true });
+      existing.addEventListener('load', () => resolve(window.google?.accounts?.id || null), {
+        once: true,
+      });
+      existing.addEventListener('error', () => reject(new Error('Falha ao carregar SDK Google.')), {
+        once: true,
+      });
       return;
     }
 
@@ -216,7 +224,12 @@ const resolveHintMessage = (hint) => {
   return `Numero detectado: +${formatPhone(hint.phone)}.`;
 };
 
-const resolveSummaryState = ({ canUseGoogleLogin, authenticated, sessionOwnerPhone, hintPhone }) => {
+const resolveSummaryState = ({
+  canUseGoogleLogin,
+  authenticated,
+  sessionOwnerPhone,
+  hintPhone,
+}) => {
   if (!canUseGoogleLogin || !authenticated) {
     return {
       visible: false,
@@ -363,7 +376,10 @@ const LoginApp = ({ config }) => {
   const api = useMemo(() => createLoginApi(config.apiBasePath), [config.apiBasePath]);
   const hint = useMemo(() => readWhatsAppHintFromSearch(window.location.search), []);
   const canUseGoogleLogin = Boolean(hint.phone);
-  const authenticatedRedirectPath = useMemo(() => resolveAuthenticatedRedirectPath(window.location.search, config.panelPath), [config.panelPath]);
+  const authenticatedRedirectPath = useMemo(
+    () => resolveAuthenticatedRedirectPath(window.location.search, config.panelPath),
+    [config.panelPath],
+  );
 
   const googleButtonRef = useRef(null);
   const googleAreaRef = useRef(null);
@@ -442,11 +458,15 @@ const LoginApp = ({ config }) => {
     return true;
   }, [authenticated, canUseGoogleLogin, sessionOwnerPhone]);
 
-  const whatsappMeta = botPhone ? `Bot detectado: +${formatPhone(botPhone)}.` : 'Se necessario, escolha o contato do bot no WhatsApp e envie "iniciar".';
+  const whatsappMeta = botPhone
+    ? `Bot detectado: +${formatPhone(botPhone)}.`
+    : 'Se necessario, escolha o contato do bot no WhatsApp e envie "iniciar".';
   const whatsappCtaHref = buildWhatsappStartUrl(botPhone);
   const successChatHref = buildWhatsappMenuUrl(botPhone);
   const successHomeHref = authenticatedRedirectPath;
-  const alreadyLoggedDetail = sessionOwnerPhone ? `Sessao ativa para +${formatPhone(sessionOwnerPhone)}. Nao e necessario fazer login novamente.` : ALREADY_LOGGED_HINT_TEXT;
+  const alreadyLoggedDetail = sessionOwnerPhone
+    ? `Sessao ativa para +${formatPhone(sessionOwnerPhone)}. Nao e necessario fazer login novamente.`
+    : ALREADY_LOGGED_HINT_TEXT;
 
   const clearResizeBinding = useCallback(() => {
     if (resizeObserverRef.current && typeof resizeObserverRef.current.disconnect === 'function') {
@@ -558,7 +578,11 @@ const LoginApp = ({ config }) => {
         setAuthenticated(true);
         setSessionOwnerPhone(String(sessionData?.owner_phone || '').trim());
         const configured = await refreshPasswordSetupState();
-        setStatusMessage(configured ? 'Conta Google detectada' : 'Conta Google validada. Crie sua senha para proximos acessos.');
+        setStatusMessage(
+          configured
+            ? 'Conta Google detectada'
+            : 'Conta Google validada. Crie sua senha para proximos acessos.',
+        );
         playSuccessCelebration();
       } catch (error) {
         setErrorMessage(error?.message || 'Falha ao concluir login Google.');
@@ -629,7 +653,11 @@ const LoginApp = ({ config }) => {
       setErrorMessage('');
       setConsentErrorMessage('');
       setAlreadyLoggedVisible(false);
-      setStatusMessage(canUseGoogleLogin ? 'Verificando conta Google...' : 'Entre com e-mail e senha ou gere o link no WhatsApp para login Google');
+      setStatusMessage(
+        canUseGoogleLogin
+          ? 'Verificando conta Google...'
+          : 'Entre com e-mail e senha ou gere o link no WhatsApp para login Google',
+      );
 
       try {
         const sessionPayload = await api.getSession();
@@ -764,7 +792,16 @@ const LoginApp = ({ config }) => {
       active = false;
       clearResizeBinding();
     };
-  }, [authenticated, canUseGoogleLogin, clearResizeBinding, consentAccepted, googleClientId, googleEnabled, handleGoogleCredential, renderGoogleButton]);
+  }, [
+    authenticated,
+    canUseGoogleLogin,
+    clearResizeBinding,
+    consentAccepted,
+    googleClientId,
+    googleEnabled,
+    handleGoogleCredential,
+    renderGoogleButton,
+  ]);
 
   useEffect(
     () => () => {
@@ -864,7 +901,9 @@ const LoginApp = ({ config }) => {
           ...current,
           email,
         }));
-        setPasswordRecoveryMessage('Sua conta ainda nao tem senha. Solicite o codigo para criar sua senha.');
+        setPasswordRecoveryMessage(
+          'Sua conta ainda nao tem senha. Solicite o codigo para criar sua senha.',
+        );
         setPasswordLoginError('Conta sem senha configurada. Use o fluxo de criacao abaixo.');
       } else {
         setPasswordLoginError(error?.message || 'Falha no login por senha.');
@@ -897,7 +936,9 @@ const LoginApp = ({ config }) => {
         ...current,
         email,
       }));
-      setPasswordRecoveryMessage(masked ? `Codigo enviado para ${masked}.` : 'Codigo enviado por e-mail.');
+      setPasswordRecoveryMessage(
+        masked ? `Codigo enviado para ${masked}.` : 'Codigo enviado por e-mail.',
+      );
     } catch (error) {
       setPasswordRecoveryError(error?.message || 'Falha ao enviar codigo.');
     } finally {
@@ -966,23 +1007,52 @@ const LoginApp = ({ config }) => {
   };
 
   return html`
-    <div className="login-page-container relative min-h-screen overflow-hidden px-3 py-6 text-base-content sm:px-4 sm:py-10">
-      <main className="mx-auto w-full max-w-3xl overflow-hidden rounded-3xl border border-base-300/70 bg-base-100/75 shadow-2xl backdrop-blur-md">
+    <div
+      className="login-page-container relative min-h-screen overflow-hidden px-3 py-6 text-base-content sm:px-4 sm:py-10"
+    >
+      <main
+        className="mx-auto w-full max-w-3xl overflow-hidden rounded-3xl border border-base-300/70 bg-base-100/75 shadow-2xl backdrop-blur-md"
+      >
         <header className="border-b border-base-300/70 px-4 py-4 sm:px-6">
-          <a href=${config.homePath} className="inline-flex items-center gap-3 text-base-content no-underline">
-            <img src=${config.brandLogo} alt=${config.brandName} className="h-9 w-9 rounded-full border border-base-300/80 object-cover" loading="lazy" decoding="async" />
-            <span className="text-base font-extrabold tracking-wide sm:text-lg">${config.brandName}</span>
+          <a
+            href=${config.homePath}
+            className="inline-flex items-center gap-3 text-base-content no-underline"
+          >
+            <img
+              src=${config.brandLogo}
+              alt=${config.brandName}
+              className="h-9 w-9 rounded-full border border-base-300/80 object-cover"
+              loading="lazy"
+              decoding="async"
+            />
+            <span className="text-base font-extrabold tracking-wide sm:text-lg"
+              >${config.brandName}</span
+            >
           </a>
         </header>
 
         <section className="grid gap-4 px-4 py-5 sm:px-6 sm:py-7">
-          <p className="badge badge-info badge-outline w-fit px-3 py-3 font-semibold uppercase tracking-wider">Login seguro OmniZap</p>
-          <h1 className="text-balance text-3xl font-black leading-tight sm:text-4xl">Acesse sua conta</h1>
-          <p className="text-sm text-base-content/80 sm:text-base">Vincule seu WhatsApp e libere os recursos do OmniZap.</p>
+          <p
+            className="badge badge-info badge-outline w-fit px-3 py-3 font-semibold uppercase tracking-wider"
+          >
+            Login seguro OmniZap
+          </p>
+          <h1 className="text-balance text-3xl font-black leading-tight sm:text-4xl">
+            Acesse sua conta
+          </h1>
+          <p className="text-sm text-base-content/80 sm:text-base">
+            Vincule seu WhatsApp e libere os recursos do OmniZap.
+          </p>
 
-          <article className="grid gap-3 rounded-2xl border border-base-300/80 bg-base-200/50 p-4 sm:p-5">
-            <p className="inline-flex w-fit items-center gap-2 rounded-full border border-info/50 bg-info/15 px-3 py-1 text-sm font-semibold text-info">
-              <span className="h-2.5 w-2.5 rounded-full bg-info shadow-[0_0_0_4px_rgba(56,189,248,0.2)]"></span>
+          <article
+            className="grid gap-3 rounded-2xl border border-base-300/80 bg-base-200/50 p-4 sm:p-5"
+          >
+            <p
+              className="inline-flex w-fit items-center gap-2 rounded-full border border-info/50 bg-info/15 px-3 py-1 text-sm font-semibold text-info"
+            >
+              <span
+                className="h-2.5 w-2.5 rounded-full bg-info shadow-[0_0_0_4px_rgba(56,189,248,0.2)]"
+              ></span>
               ${statusMessage}
             </p>
 
@@ -998,17 +1068,26 @@ const LoginApp = ({ config }) => {
             ${alreadyLoggedVisible
               ? html`
                   <div className="rounded-xl border border-success/45 bg-success/15 p-3">
-                    <p className="text-sm font-bold text-success">Voce ja esta logado neste navegador.</p>
-                    <p className="mt-1 text-sm leading-relaxed text-success/90">${alreadyLoggedDetail}</p>
+                    <p className="text-sm font-bold text-success">
+                      Voce ja esta logado neste navegador.
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-success/90">
+                      ${alreadyLoggedDetail}
+                    </p>
                   </div>
                 `
               : null}
             ${canUseGoogleLogin
               ? html`
-                  <div ref=${googleAreaRef} className="grid gap-3 rounded-xl border border-base-300/80 bg-base-100/60 p-3">
+                  <div
+                    ref=${googleAreaRef}
+                    className="grid gap-3 rounded-xl border border-base-300/80 bg-base-100/60 p-3"
+                  >
                     ${!authenticated
                       ? html`
-                          <div className=${`rounded-xl border border-base-300/80 bg-white p-2 transition-opacity ${isBusy ? 'pointer-events-none opacity-60' : 'opacity-100'} ${consentAccepted ? '' : 'hidden'}`}>
+                          <div
+                            className=${`rounded-xl border border-base-300/80 bg-white p-2 transition-opacity ${isBusy ? 'pointer-events-none opacity-60' : 'opacity-100'} ${consentAccepted ? '' : 'hidden'}`}
+                          >
                             <div ref=${googleButtonRef}></div>
                           </div>
                         `
@@ -1018,17 +1097,43 @@ const LoginApp = ({ config }) => {
 
                     ${!authenticated
                       ? html`
-                          <div className=${`rounded-xl border p-3 transition-colors ${consentAccepted ? 'border-success/60 bg-success/10' : 'border-base-300/80 bg-base-100/45'}`}>
-                            <label className="grid cursor-pointer grid-cols-[20px_minmax(0,1fr)] items-start gap-2 text-sm leading-relaxed text-base-content/90">
-                              <input type="checkbox" className="checkbox checkbox-success checkbox-sm mt-0.5" checked=${consentAccepted} disabled=${isBusy} onChange=${onConsentChange} />
+                          <div
+                            className=${`rounded-xl border p-3 transition-colors ${consentAccepted ? 'border-success/60 bg-success/10' : 'border-base-300/80 bg-base-100/45'}`}
+                          >
+                            <label
+                              className="grid cursor-pointer grid-cols-[20px_minmax(0,1fr)] items-start gap-2 text-sm leading-relaxed text-base-content/90"
+                            >
+                              <input
+                                type="checkbox"
+                                className="checkbox checkbox-success checkbox-sm mt-0.5"
+                                checked=${consentAccepted}
+                                disabled=${isBusy}
+                                onChange=${onConsentChange}
+                              />
                               <span>
                                 Li e aceito os
-                                <a className="link link-info ml-1" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Termos de Uso</a>
+                                <a
+                                  className="link link-info ml-1"
+                                  href=${config.termsUrl}
+                                  target="_blank"
+                                  rel="noreferrer noopener"
+                                  >Termos de Uso</a
+                                >
                                 e a
-                                <a className="link link-info ml-1" href=${config.privacyUrl} target="_blank" rel="noreferrer noopener">Politica de Privacidade</a>.
+                                <a
+                                  className="link link-info ml-1"
+                                  href=${config.privacyUrl}
+                                  target="_blank"
+                                  rel="noreferrer noopener"
+                                  >Politica de Privacidade</a
+                                >.
                               </span>
                             </label>
-                            ${consentErrorMessage ? html`<p className="mt-2 text-xs text-error">${consentErrorMessage}</p>` : null}
+                            ${consentErrorMessage
+                              ? html`<p className="mt-2 text-xs text-error">
+                                  ${consentErrorMessage}
+                                </p>`
+                              : null}
                           </div>
                         `
                       : null}
@@ -1039,9 +1144,16 @@ const LoginApp = ({ config }) => {
 
           ${authenticated && passwordSetupRequired
             ? html`
-                <section className="grid gap-3 rounded-2xl border border-warning/45 bg-warning/10 p-4 sm:p-5">
-                  <p className="text-sm font-bold text-warning-content">Senha ainda nao configurada</p>
-                  <p className="text-sm text-base-content/80">Para concluir o primeiro acesso, crie sua senha agora. Nos proximos logins voce pode entrar direto por e-mail e senha.</p>
+                <section
+                  className="grid gap-3 rounded-2xl border border-warning/45 bg-warning/10 p-4 sm:p-5"
+                >
+                  <p className="text-sm font-bold text-warning-content">
+                    Senha ainda nao configurada
+                  </p>
+                  <p className="text-sm text-base-content/80">
+                    Para concluir o primeiro acesso, crie sua senha agora. Nos proximos logins voce
+                    pode entrar direto por e-mail e senha.
+                  </p>
                   ${passwordSetupError
                     ? html`
                         <div role="alert" className="alert alert-error text-sm">
@@ -1079,15 +1191,26 @@ const LoginApp = ({ config }) => {
                       />
                     </label>
                   </div>
-                  <button type="button" className="btn btn-primary w-full sm:w-auto" disabled=${passwordSetupBusy} onClick=${handlePasswordSetupSubmit}>${passwordSetupBusy ? 'Salvando...' : 'Criar senha agora'}</button>
+                  <button
+                    type="button"
+                    className="btn btn-primary w-full sm:w-auto"
+                    disabled=${passwordSetupBusy}
+                    onClick=${handlePasswordSetupSubmit}
+                  >
+                    ${passwordSetupBusy ? 'Salvando...' : 'Criar senha agora'}
+                  </button>
                 </section>
               `
             : null}
           ${!authenticated
             ? html`
-                <section className="grid gap-3 rounded-2xl border border-base-300/80 bg-base-100/55 p-4 sm:p-5">
+                <section
+                  className="grid gap-3 rounded-2xl border border-base-300/80 bg-base-100/55 p-4 sm:p-5"
+                >
                   <p className="text-sm font-bold">Entrar com senha</p>
-                  <p className="text-sm text-base-content/75">Use e-mail + senha se sua conta ja estiver configurada.</p>
+                  <p className="text-sm text-base-content/75">
+                    Use e-mail + senha se sua conta ja estiver configurada.
+                  </p>
                   ${passwordLoginError
                     ? html`
                         <div role="alert" className="alert alert-error text-sm">
@@ -1132,12 +1255,21 @@ const LoginApp = ({ config }) => {
                     </label>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" className="btn btn-secondary w-full sm:w-auto" disabled=${passwordLoginBusy} onClick=${handlePasswordLoginSubmit}>${passwordLoginBusy ? 'Entrando...' : 'Entrar com senha'}</button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary w-full sm:w-auto"
+                      disabled=${passwordLoginBusy}
+                      onClick=${handlePasswordLoginSubmit}
+                    >
+                      ${passwordLoginBusy ? 'Entrando...' : 'Entrar com senha'}
+                    </button>
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
                       onClick=${() => {
-                        setPasswordRecoveryStep((step) => (step === 'idle' ? 'code_request' : 'idle'));
+                        setPasswordRecoveryStep((step) =>
+                          step === 'idle' ? 'code_request' : 'idle',
+                        );
                         setPasswordRecoveryError('');
                         setPasswordRecoveryMessage('');
                         setPasswordRecoveryForm((current) => ({
@@ -1152,8 +1284,14 @@ const LoginApp = ({ config }) => {
 
                   ${passwordRecoveryStep !== 'idle'
                     ? html`
-                        <div className="grid gap-3 rounded-xl border border-base-300/80 bg-base-200/55 p-3">
-                          <p className="text-xs font-bold uppercase tracking-wider text-base-content/70">Recuperacao por codigo (6 digitos)</p>
+                        <div
+                          className="grid gap-3 rounded-xl border border-base-300/80 bg-base-200/55 p-3"
+                        >
+                          <p
+                            className="text-xs font-bold uppercase tracking-wider text-base-content/70"
+                          >
+                            Recuperacao por codigo (6 digitos)
+                          </p>
                           ${passwordRecoveryMessage
                             ? html`
                                 <div role="status" className="alert alert-success text-sm">
@@ -1242,8 +1380,24 @@ const LoginApp = ({ config }) => {
                             </label>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <button type="button" className="btn btn-outline w-full sm:w-auto" disabled=${passwordRecoveryBusy} onClick=${handleRecoveryRequestSubmit}>${passwordRecoveryBusy ? 'Enviando...' : 'Enviar codigo por e-mail'}</button>
-                            <button type="button" className="btn btn-primary w-full sm:w-auto" disabled=${passwordRecoveryBusy} onClick=${handleRecoveryVerifySubmit}>${passwordRecoveryBusy ? 'Validando...' : 'Validar codigo e criar senha'}</button>
+                            <button
+                              type="button"
+                              className="btn btn-outline w-full sm:w-auto"
+                              disabled=${passwordRecoveryBusy}
+                              onClick=${handleRecoveryRequestSubmit}
+                            >
+                              ${passwordRecoveryBusy ? 'Enviando...' : 'Enviar codigo por e-mail'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-primary w-full sm:w-auto"
+                              disabled=${passwordRecoveryBusy}
+                              onClick=${handleRecoveryVerifySubmit}
+                            >
+                              ${passwordRecoveryBusy
+                                ? 'Validando...'
+                                : 'Validar codigo e criar senha'}
+                            </button>
                           </div>
                         </div>
                       `
@@ -1253,7 +1407,9 @@ const LoginApp = ({ config }) => {
             : null}
           ${summary.visible
             ? html`
-                <div className=${`rounded-xl border p-3 ${summary.state === 'pending' ? 'border-warning/45 bg-warning/15 text-warning-content' : 'border-success/45 bg-success/15 text-success-content'}`}>
+                <div
+                  className=${`rounded-xl border p-3 ${summary.state === 'pending' ? 'border-warning/45 bg-warning/15 text-warning-content' : 'border-success/45 bg-success/15 text-success-content'}`}
+                >
                   <p className="text-xs font-bold uppercase tracking-wider">${summary.title}</p>
                   <p className="mt-1 text-sm font-semibold">${summary.owner}</p>
                 </div>
@@ -1261,9 +1417,20 @@ const LoginApp = ({ config }) => {
             : null}
           ${whatsappCtaVisible
             ? html`
-                <div className="grid gap-3 rounded-xl border border-base-300/80 bg-base-100/55 p-3 sm:p-4">
-                  <p className="text-sm leading-relaxed text-base-content/85">Para liberar o login neste navegador, inicie no WhatsApp e gere seu link seguro.</p>
-                  <a className="btn btn-outline w-full justify-center sm:w-auto sm:justify-start" href=${whatsappCtaHref} target="_blank" rel="noreferrer noopener"> Gerar link de login no WhatsApp </a>
+                <div
+                  className="grid gap-3 rounded-xl border border-base-300/80 bg-base-100/55 p-3 sm:p-4"
+                >
+                  <p className="text-sm leading-relaxed text-base-content/85">
+                    Para liberar o login neste navegador, inicie no WhatsApp e gere seu link seguro.
+                  </p>
+                  <a
+                    className="btn btn-outline w-full justify-center sm:w-auto sm:justify-start"
+                    href=${whatsappCtaHref}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    Gerar link de login no WhatsApp
+                  </a>
                   <p className="text-xs text-base-content/70">${whatsappMeta}</p>
                 </div>
               `
@@ -1271,15 +1438,28 @@ const LoginApp = ({ config }) => {
           ${authenticated
             ? html`
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <a className="btn btn-primary w-full" href=${successHomeHref}>${DEFAULT_SUCCESS_HOME_LABEL}</a>
-                  <a className="btn btn-outline w-full" href=${successChatHref} target="_blank" rel="noreferrer noopener">${DEFAULT_SUCCESS_CHAT_LABEL}</a>
+                  <a className="btn btn-primary w-full" href=${successHomeHref}
+                    >${DEFAULT_SUCCESS_HOME_LABEL}</a
+                  >
+                  <a
+                    className="btn btn-outline w-full"
+                    href=${successChatHref}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    >${DEFAULT_SUCCESS_CHAT_LABEL}</a
+                  >
                 </div>
               `
             : null}
         </section>
       </main>
 
-      <div className=${`login-success-overlay${showSuccessCelebration ? ' is-visible' : ''}`} aria-live="polite" aria-atomic="true" aria-hidden=${showSuccessCelebration ? 'false' : 'true'}>
+      <div
+        className=${`login-success-overlay${showSuccessCelebration ? ' is-visible' : ''}`}
+        aria-live="polite"
+        aria-atomic="true"
+        aria-hidden=${showSuccessCelebration ? 'false' : 'true'}
+      >
         <div className="login-success-card" role="status">
           <div className="login-success-icon" aria-hidden="true">
             <svg className="h-9 w-9" viewBox="0 0 24 24" focusable="false">
@@ -1287,7 +1467,9 @@ const LoginApp = ({ config }) => {
             </svg>
           </div>
           <p className="text-lg font-extrabold">Login concluido</p>
-          <p className="text-center text-sm text-base-content/80">Sua conta foi vinculada com sucesso.</p>
+          <p className="text-center text-sm text-base-content/80">
+            Sua conta foi vinculada com sucesso.
+          </p>
         </div>
       </div>
     </div>

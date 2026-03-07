@@ -90,11 +90,51 @@
     packPageWhatsApp: document.getElementById('pack-page-whatsapp'),
   };
 
-  if (!els.hero || !els.form || !els.search || !els.visibility || !els.categories || !els.categoriesPicker || !els.categoriesSearch || !els.categoriesChips || !els.categoriesOptions || !els.status || !els.grid || !els.more || !els.orphanStatus || !els.orphanGrid || !els.orphanPrev || !els.orphanNext || !els.orphanPageInfo || !els.panel || !els.panelTitle || !els.panelSub || !els.panelChip || !els.panelError || !els.panelPrev || !els.panelNext || !els.panelPageInfo || !els.copy || !els.useWhatsAppLink || !els.stickers || !els.packPage || !els.packPageTitle || !els.packPageSub || !els.packPageChip || !els.packPageStatus || !els.packPageGrid || !els.packPageBack || !els.packPageCopy || !els.packPageWhatsApp) {
+  if (
+    !els.hero ||
+    !els.form ||
+    !els.search ||
+    !els.visibility ||
+    !els.categories ||
+    !els.categoriesPicker ||
+    !els.categoriesSearch ||
+    !els.categoriesChips ||
+    !els.categoriesOptions ||
+    !els.status ||
+    !els.grid ||
+    !els.more ||
+    !els.orphanStatus ||
+    !els.orphanGrid ||
+    !els.orphanPrev ||
+    !els.orphanNext ||
+    !els.orphanPageInfo ||
+    !els.panel ||
+    !els.panelTitle ||
+    !els.panelSub ||
+    !els.panelChip ||
+    !els.panelError ||
+    !els.panelPrev ||
+    !els.panelNext ||
+    !els.panelPageInfo ||
+    !els.copy ||
+    !els.useWhatsAppLink ||
+    !els.stickers ||
+    !els.packPage ||
+    !els.packPageTitle ||
+    !els.packPageSub ||
+    !els.packPageChip ||
+    !els.packPageStatus ||
+    !els.packPageGrid ||
+    !els.packPageBack ||
+    !els.packPageCopy ||
+    !els.packPageWhatsApp
+  ) {
     return;
   }
 
-  const panelModal = window.bootstrap?.Modal ? window.bootstrap.Modal.getOrCreateInstance(els.panel) : null;
+  const panelModal = window.bootstrap?.Modal
+    ? window.bootstrap.Modal.getOrCreateInstance(els.panel)
+    : null;
 
   let shouldReplaceStateOnHide = false;
 
@@ -144,7 +184,9 @@
   }));
 
   const syncCategorySelect = (selectedValues) => {
-    const selected = new Set((selectedValues || []).map((value) => String(value || '').trim()).filter(Boolean));
+    const selected = new Set(
+      (selectedValues || []).map((value) => String(value || '').trim()).filter(Boolean),
+    );
     Array.from(els.categories.options || []).forEach((option) => {
       option.selected = selected.has(String(option.value || '').trim());
     });
@@ -168,7 +210,10 @@
       chip.className = 'category-chip';
       chip.dataset.value = value;
       chip.setAttribute('aria-label', 'Remover categoria ' + (entry?.label || value));
-      chip.innerHTML = '<span class="category-chip-label">' + (entry?.label || value) + '</span><i class="fa-solid fa-xmark category-chip-remove" aria-hidden="true"></i>';
+      chip.innerHTML =
+        '<span class="category-chip-label">' +
+        (entry?.label || value) +
+        '</span><i class="fa-solid fa-xmark category-chip-remove" aria-hidden="true"></i>';
       els.categoriesChips.appendChild(chip);
     });
   };
@@ -179,7 +224,10 @@
     const filtered = categoryCatalog.filter((entry) => {
       if (!entry.value) return false;
       if (!query) return true;
-      return normalizeCategorySearch(entry.label).includes(query) || normalizeCategorySearch(entry.value).includes(query);
+      return (
+        normalizeCategorySearch(entry.label).includes(query) ||
+        normalizeCategorySearch(entry.value).includes(query)
+      );
     });
 
     els.categoriesOptions.innerHTML = '';
@@ -197,7 +245,10 @@
       button.type = 'button';
       button.className = 'category-option' + (selected.has(entry.value) ? ' selected' : '');
       button.dataset.value = entry.value;
-      button.innerHTML = '<span class="category-option-label">' + entry.label + '</span><i class="fa-solid fa-check category-option-check" aria-hidden="true"></i>';
+      button.innerHTML =
+        '<span class="category-option-label">' +
+        entry.label +
+        '</span><i class="fa-solid fa-check category-option-check" aria-hidden="true"></i>';
       els.categoriesOptions.appendChild(button);
     });
   };
@@ -355,7 +406,9 @@
       .map(([label]) => toTagToken(label))
       .filter(Boolean);
 
-    const merged = [...rankedFromScores, ...classificationTags, ...explicitTags].map((tag) => toTagToken(tag)).filter(Boolean);
+    const merged = [...rankedFromScores, ...classificationTags, ...explicitTags]
+      .map((tag) => toTagToken(tag))
+      .filter(Boolean);
 
     return Array.from(new Set(merged)).slice(0, 3);
   };
@@ -380,9 +433,13 @@
 
   const resolveTopPackTags = (pack) => {
     const explicitTags = Array.isArray(pack?.tags) ? pack.tags : [];
-    const classificationTags = Array.isArray(pack?.classification?.tags) ? pack.classification.tags : [];
+    const classificationTags = Array.isArray(pack?.classification?.tags)
+      ? pack.classification.tags
+      : [];
 
-    const merged = [...classificationTags, ...explicitTags].map((tag) => toTagToken(tag)).filter(Boolean);
+    const merged = [...classificationTags, ...explicitTags]
+      .map((tag) => toTagToken(tag))
+      .filter(Boolean);
 
     return Array.from(new Set(merged)).slice(0, 3);
   };
@@ -423,7 +480,8 @@
     const visibilityBadge = document.createElement('span');
     visibilityBadge.className = 'pack-visibility-badge';
     const visibility = String(pack.visibility || '').toLowerCase();
-    visibilityBadge.textContent = visibility === 'public' ? 'Público' : visibility === 'unlisted' ? 'Não listado' : 'Privado';
+    visibilityBadge.textContent =
+      visibility === 'public' ? 'Público' : visibility === 'unlisted' ? 'Não listado' : 'Privado';
 
     const countBadge = document.createElement('span');
     countBadge.className = 'pack-count-badge';
@@ -495,7 +553,13 @@
     for (let index = 0; index < count; index += 1) {
       const col = document.createElement('div');
       col.className = 'col-4 col-sm-6 col-md-4 col-lg-3';
-      col.innerHTML = '<div class="card h-100 bg-dark text-light shadow-sm pack-card">' + '<div class="card-body d-flex flex-column gap-2">' + '<div class="skeleton skeleton-thumb"></div>' + '<div class="skeleton skeleton-line"></div>' + '<div class="skeleton skeleton-line short"></div>' + '</div></div>';
+      col.innerHTML =
+        '<div class="card h-100 bg-dark text-light shadow-sm pack-card">' +
+        '<div class="card-body d-flex flex-column gap-2">' +
+        '<div class="skeleton skeleton-thumb"></div>' +
+        '<div class="skeleton skeleton-line"></div>' +
+        '<div class="skeleton skeleton-line short"></div>' +
+        '</div></div>';
       els.grid.appendChild(col);
     }
   };
@@ -549,8 +613,14 @@
     state.selectedPack = pack || null;
 
     els.packPageTitle.textContent = pack?.name || 'Pack';
-    els.packPageSub.textContent = (pack?.publisher || '-') + ' | ' + (pack?.description || 'Sem descrição');
-    els.packPageChip.textContent = String(pack?.sticker_count || items.length || 0) + ' itens | ' + (pack?.visibility || '-') + ' | ' + (pack?.pack_key || '-');
+    els.packPageSub.textContent =
+      (pack?.publisher || '-') + ' | ' + (pack?.description || 'Sem descrição');
+    els.packPageChip.textContent =
+      String(pack?.sticker_count || items.length || 0) +
+      ' itens | ' +
+      (pack?.visibility || '-') +
+      ' | ' +
+      (pack?.pack_key || '-');
     applyWhatsAppLink(els.packPageWhatsApp, pack?.whatsapp?.url);
 
     els.packPageGrid.innerHTML = '';
@@ -585,7 +655,11 @@
     for (let index = 0; index < count; index += 1) {
       const col = document.createElement('div');
       col.className = 'col-6 col-md-3 col-lg-2';
-      col.innerHTML = '<article class="orphan-card card h-100"><div class="card-body p-2">' + '<div class="skeleton skeleton-orphan"></div>' + '<div class="skeleton skeleton-line short mt-2"></div>' + '</div></article>';
+      col.innerHTML =
+        '<article class="orphan-card card h-100"><div class="card-body p-2">' +
+        '<div class="skeleton skeleton-orphan"></div>' +
+        '<div class="skeleton skeleton-line short mt-2"></div>' +
+        '</div></article>';
       els.orphanGrid.appendChild(col);
     }
   };
@@ -604,7 +678,8 @@
 
     els.orphanPrev.disabled = page <= 1 || state.orphan.loading;
     els.orphanNext.disabled = page >= totalPages || state.orphan.loading;
-    els.orphanPageInfo.textContent = 'Página ' + page + ' de ' + totalPages + ' - ' + totalItems + ' figurinhas';
+    els.orphanPageInfo.textContent =
+      'Página ' + page + ' de ' + totalPages + ' - ' + totalItems + ' figurinhas';
   };
 
   const listPacks = async ({ reset = false } = {}) => {
@@ -633,7 +708,8 @@
       const packs = Array.isArray(payload.data) ? payload.data : [];
       state.packs.items = reset ? packs : state.packs.items.concat(packs);
       state.packs.items = rankPacksByCompleteness(state.packs.items);
-      state.packs.offset = (payload.pagination && payload.pagination.next_offset) || state.packs.items.length;
+      state.packs.offset =
+        (payload.pagination && payload.pagination.next_offset) || state.packs.items.length;
       state.packs.hasMore = Boolean(payload.pagination && payload.pagination.has_more);
 
       renderGrid();
@@ -679,7 +755,10 @@
 
       const stickers = Array.isArray(payload.data) ? payload.data : [];
       const totalItems = Math.max(0, Number(payload?.pagination?.total || 0));
-      const totalPages = Math.max(1, Number(payload?.pagination?.total_pages || Math.ceil(totalItems / currentLimit) || 1));
+      const totalPages = Math.max(
+        1,
+        Number(payload?.pagination?.total_pages || Math.ceil(totalItems / currentLimit) || 1),
+      );
 
       state.orphan.items = stickers;
       state.orphan.totalItems = totalItems;
@@ -693,7 +772,15 @@
       } else {
         const from = offset + 1;
         const to = offset + state.orphan.items.length;
-        setOrphanStatus('Mostrando ' + from + '-' + to + ' de ' + state.orphan.totalItems + ' figurinha(s) sem pack.');
+        setOrphanStatus(
+          'Mostrando ' +
+            from +
+            '-' +
+            to +
+            ' de ' +
+            state.orphan.totalItems +
+            ' figurinha(s) sem pack.',
+        );
       }
     } catch (error) {
       setOrphanStatus(error.message || 'Não foi possível listar figurinhas sem pack.');
@@ -717,7 +804,14 @@
 
     els.panelPrev.disabled = state.panelPagination.page <= 1;
     els.panelNext.disabled = state.panelPagination.page >= totalPages;
-    els.panelPageInfo.textContent = 'Página ' + state.panelPagination.page + ' de ' + totalPages + ' - ' + safeTotal + ' stickers';
+    els.panelPageInfo.textContent =
+      'Página ' +
+      state.panelPagination.page +
+      ' de ' +
+      totalPages +
+      ' - ' +
+      safeTotal +
+      ' stickers';
   };
 
   const renderPanelStickersPage = () => {
@@ -863,7 +957,11 @@
   els.copy.addEventListener('click', async () => {
     if (!state.selectedPack) return;
 
-    const url = window.location.origin + CONFIG.webPath + '/' + encodeURIComponent(state.selectedPack.pack_key);
+    const url =
+      window.location.origin +
+      CONFIG.webPath +
+      '/' +
+      encodeURIComponent(state.selectedPack.pack_key);
     try {
       await navigator.clipboard.writeText(url);
       els.copy.textContent = 'Link copiado';
@@ -877,7 +975,11 @@
 
   els.packPageCopy.addEventListener('click', async () => {
     if (!state.selectedPack) return;
-    const url = window.location.origin + CONFIG.webPath + '/' + encodeURIComponent(state.selectedPack.pack_key);
+    const url =
+      window.location.origin +
+      CONFIG.webPath +
+      '/' +
+      encodeURIComponent(state.selectedPack.pack_key);
     try {
       await navigator.clipboard.writeText(url);
       els.packPageCopy.textContent = 'Link copiado';

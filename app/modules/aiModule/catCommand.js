@@ -6,10 +6,20 @@ import path from 'node:path';
 import logger from '../../../utils/logger/loggerModule.js';
 import premiumUserStore from '../../store/premiumUserStore.js';
 import aiPromptStore from '../../store/aiPromptStore.js';
-import { downloadMediaMessage, extractAllMediaDetails, getJidUser, isSameJidUser, normalizeJid } from '../../config/baileysConfig.js';
+import {
+  downloadMediaMessage,
+  extractAllMediaDetails,
+  getJidUser,
+  isSameJidUser,
+  normalizeJid,
+} from '../../config/baileysConfig.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { getAdminJid, resolveAdminJid } from '../../config/adminIdentity.js';
-import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../../services/lidMapService.js';
+import {
+  extractUserIdInfo,
+  resolveUserId,
+  resolveUserIdCached,
+} from '../../services/lidMapService.js';
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-nano';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || OPENAI_MODEL;
@@ -20,7 +30,10 @@ const OPENAI_TTS_PTT = process.env.OPENAI_TTS_PTT === 'true';
 const OPENAI_TTS_MAX_CHARS = Number.parseInt(process.env.OPENAI_TTS_MAX_CHARS || '4096', 10);
 const OPENAI_MAX_IMAGE_MB = Number.parseFloat(process.env.OPENAI_MAX_IMAGE_MB || '50');
 const OPENAI_TIMEOUT_MS = Number.parseInt(process.env.OPENAI_TIMEOUT_MS || '30000', 10);
-const OPENAI_IMAGE_TIMEOUT_MS = Number.parseInt(process.env.OPENAI_IMAGE_TIMEOUT_MS || '120000', 10);
+const OPENAI_IMAGE_TIMEOUT_MS = Number.parseInt(
+  process.env.OPENAI_IMAGE_TIMEOUT_MS || '120000',
+  10,
+);
 const OPENAI_MAX_RETRIES = Number.parseInt(process.env.OPENAI_MAX_RETRIES || '2', 10);
 const OPENAI_RETRY_BASE_MS = Number.parseInt(process.env.OPENAI_RETRY_BASE_MS || '500', 10);
 const OPENAI_RETRY_MAX_MS = Number.parseInt(process.env.OPENAI_RETRY_MAX_MS || '4000', 10);
@@ -109,14 +122,25 @@ const AUDIO_MIME_BY_FORMAT = {
 const SAFE_TTS_FORMAT = AUDIO_MIME_BY_FORMAT[OPENAI_TTS_FORMAT_RAW] ? OPENAI_TTS_FORMAT_RAW : 'mp3';
 const TTS_OUTPUT_FORMAT = OPENAI_TTS_PTT ? 'opus' : SAFE_TTS_FORMAT;
 const TTS_MIME_TYPE = AUDIO_MIME_BY_FORMAT[TTS_OUTPUT_FORMAT] || 'audio/mpeg';
-const TTS_MAX_CHARS = Number.isFinite(OPENAI_TTS_MAX_CHARS) && OPENAI_TTS_MAX_CHARS > 0 ? OPENAI_TTS_MAX_CHARS : 4096;
-const OPENAI_TIMEOUT = Number.isFinite(OPENAI_TIMEOUT_MS) && OPENAI_TIMEOUT_MS > 0 ? OPENAI_TIMEOUT_MS : 30000;
-const OPENAI_IMAGE_TIMEOUT = Number.isFinite(OPENAI_IMAGE_TIMEOUT_MS) && OPENAI_IMAGE_TIMEOUT_MS > 0 ? OPENAI_IMAGE_TIMEOUT_MS : 120000;
+const TTS_MAX_CHARS =
+  Number.isFinite(OPENAI_TTS_MAX_CHARS) && OPENAI_TTS_MAX_CHARS > 0 ? OPENAI_TTS_MAX_CHARS : 4096;
+const OPENAI_TIMEOUT =
+  Number.isFinite(OPENAI_TIMEOUT_MS) && OPENAI_TIMEOUT_MS > 0 ? OPENAI_TIMEOUT_MS : 30000;
+const OPENAI_IMAGE_TIMEOUT =
+  Number.isFinite(OPENAI_IMAGE_TIMEOUT_MS) && OPENAI_IMAGE_TIMEOUT_MS > 0
+    ? OPENAI_IMAGE_TIMEOUT_MS
+    : 120000;
 const OPENAI_CLIENT_TIMEOUT = Math.max(OPENAI_TIMEOUT, OPENAI_IMAGE_TIMEOUT);
-const OPENAI_RETRIES = Number.isFinite(OPENAI_MAX_RETRIES) && OPENAI_MAX_RETRIES >= 0 ? OPENAI_MAX_RETRIES : 2;
-const OPENAI_RETRY_BASE = Number.isFinite(OPENAI_RETRY_BASE_MS) && OPENAI_RETRY_BASE_MS > 0 ? OPENAI_RETRY_BASE_MS : 500;
-const OPENAI_RETRY_MAX = Number.isFinite(OPENAI_RETRY_MAX_MS) && OPENAI_RETRY_MAX_MS > 0 ? OPENAI_RETRY_MAX_MS : 4000;
-const MAX_IMAGE_BYTES = Number.isFinite(OPENAI_MAX_IMAGE_MB) && OPENAI_MAX_IMAGE_MB > 0 ? OPENAI_MAX_IMAGE_MB * 1024 * 1024 : 50 * 1024 * 1024;
+const OPENAI_RETRIES =
+  Number.isFinite(OPENAI_MAX_RETRIES) && OPENAI_MAX_RETRIES >= 0 ? OPENAI_MAX_RETRIES : 2;
+const OPENAI_RETRY_BASE =
+  Number.isFinite(OPENAI_RETRY_BASE_MS) && OPENAI_RETRY_BASE_MS > 0 ? OPENAI_RETRY_BASE_MS : 500;
+const OPENAI_RETRY_MAX =
+  Number.isFinite(OPENAI_RETRY_MAX_MS) && OPENAI_RETRY_MAX_MS > 0 ? OPENAI_RETRY_MAX_MS : 4000;
+const MAX_IMAGE_BYTES =
+  Number.isFinite(OPENAI_MAX_IMAGE_MB) && OPENAI_MAX_IMAGE_MB > 0
+    ? OPENAI_MAX_IMAGE_MB * 1024 * 1024
+    : 50 * 1024 * 1024;
 
 const getClient = () => {
   if (cachedClient) return cachedClient;
@@ -139,7 +163,9 @@ const isRetryableOpenAIError = (error) => {
   const status = error?.status || error?.statusCode || error?.response?.status;
   if ([408, 409, 429, 500, 502, 503, 504].includes(status)) return true;
   const code = error?.code || error?.cause?.code;
-  if (['ETIMEDOUT', 'ECONNRESET', 'EAI_AGAIN', 'ENOTFOUND', 'ECONNREFUSED', 'EPIPE'].includes(code)) {
+  if (
+    ['ETIMEDOUT', 'ECONNRESET', 'EAI_AGAIN', 'ENOTFOUND', 'ECONNREFUSED', 'EPIPE'].includes(code)
+  ) {
     return true;
   }
   if (error?.name === 'AbortError') return true;
@@ -195,12 +221,32 @@ const callOpenAI = async (operationFactory, label, timeoutMs) => {
   }
 };
 
-const sendUsage = async (sock, remoteJid, messageInfo, expirationMessage, commandPrefix = DEFAULT_COMMAND_PREFIX) => {
+const sendUsage = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) => {
   await sendAndStore(
     sock,
     remoteJid,
     {
-      text: ['🤖 *Comando CAT*', '', 'Use assim:', `*${commandPrefix}cat* [--audio] sua pergunta`, `*${commandPrefix}cat* (responda ou envie uma imagem com legenda)`, '', 'Opções:', '--audio | --texto', '--detail low | high | auto', '', 'Exemplo:', `*${commandPrefix}cat* Explique como funciona a fotossíntese.`, `*${commandPrefix}cat* --audio Resuma a imagem.`].join('\n'),
+      text: [
+        '🤖 *Comando CAT*',
+        '',
+        'Use assim:',
+        `*${commandPrefix}cat* [--audio] sua pergunta`,
+        `*${commandPrefix}cat* (responda ou envie uma imagem com legenda)`,
+        '',
+        'Opções:',
+        '--audio | --texto',
+        '--detail low | high | auto',
+        '',
+        'Exemplo:',
+        `*${commandPrefix}cat* Explique como funciona a fotossíntese.`,
+        `*${commandPrefix}cat* --audio Resuma a imagem.`,
+      ].join('\n'),
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
@@ -228,21 +274,44 @@ const isPremiumAllowed = async (senderJid) => {
   });
   const cachedSender = resolveUserIdCached(senderInfo);
   const resolvedSender = await resolveUserId(senderInfo).catch(() => null);
-  const senderCandidates = Array.from(new Set([senderJid, senderInfo.jid, senderInfo.lid, senderInfo.participantAlt, senderInfo.raw, cachedSender, resolvedSender].map((value) => normalizeJid(value || '')).filter(Boolean)));
+  const senderCandidates = Array.from(
+    new Set(
+      [
+        senderJid,
+        senderInfo.jid,
+        senderInfo.lid,
+        senderInfo.participantAlt,
+        senderInfo.raw,
+        cachedSender,
+        resolvedSender,
+      ]
+        .map((value) => normalizeJid(value || ''))
+        .filter(Boolean),
+    ),
+  );
 
   if (!senderCandidates.length) return false;
 
   const adminJid = (await resolveAdminJid()) || OWNER_JID;
   const normalizedAdmin = normalizeJid(adminJid || '');
   if (!normalizedAdmin) return true;
-  if (senderCandidates.some((sender) => sender === normalizedAdmin || isSameJidUser(sender, normalizedAdmin))) return true;
+  if (
+    senderCandidates.some(
+      (sender) => sender === normalizedAdmin || isSameJidUser(sender, normalizedAdmin),
+    )
+  )
+    return true;
 
   const premiumUsers = await premiumUserStore.getPremiumUsers();
   if (!Array.isArray(premiumUsers) || premiumUsers.length === 0) return false;
-  const premiumCandidates = Array.from(new Set(premiumUsers.map((jid) => normalizeJid(jid || '')).filter(Boolean)));
+  const premiumCandidates = Array.from(
+    new Set(premiumUsers.map((jid) => normalizeJid(jid || '')).filter(Boolean)),
+  );
   if (!premiumCandidates.length) return false;
 
-  return senderCandidates.some((sender) => premiumCandidates.some((premium) => premium === sender || isSameJidUser(premium, sender)));
+  return senderCandidates.some((sender) =>
+    premiumCandidates.some((premium) => premium === sender || isSameJidUser(premium, sender)),
+  );
 };
 
 const sendPremiumOnly = async (sock, remoteJid, messageInfo, expirationMessage) => {
@@ -250,29 +319,70 @@ const sendPremiumOnly = async (sock, remoteJid, messageInfo, expirationMessage) 
     sock,
     remoteJid,
     {
-      text: ['⭐ *Comando Premium*', '', 'Este comando é exclusivo para usuários premium.', 'Fale com o administrador para liberar o acesso.'].join('\n'),
+      text: [
+        '⭐ *Comando Premium*',
+        '',
+        'Este comando é exclusivo para usuários premium.',
+        'Fale com o administrador para liberar o acesso.',
+      ].join('\n'),
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 };
 
-const sendPromptUsage = async (sock, remoteJid, messageInfo, expirationMessage, commandPrefix = DEFAULT_COMMAND_PREFIX) => {
+const sendPromptUsage = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) => {
   await sendAndStore(
     sock,
     remoteJid,
     {
-      text: ['🧠 *Prompt da IA*', '', 'Use assim:', `*${commandPrefix}catprompt* seu novo prompt`, '', 'Para voltar ao padrão:', `*${commandPrefix}catprompt reset*`].join('\n'),
+      text: [
+        '🧠 *Prompt da IA*',
+        '',
+        'Use assim:',
+        `*${commandPrefix}catprompt* seu novo prompt`,
+        '',
+        'Para voltar ao padrão:',
+        `*${commandPrefix}catprompt reset*`,
+      ].join('\n'),
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 };
 
-const sendImageUsage = async (sock, remoteJid, messageInfo, expirationMessage, commandPrefix = DEFAULT_COMMAND_PREFIX) => {
+const sendImageUsage = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) => {
   await sendAndStore(
     sock,
     remoteJid,
     {
-      text: ['🖼️ *Imagem IA*', '', 'Use assim:', `*${commandPrefix}catimg* seu prompt`, `*${commandPrefix}catimg* (responda uma imagem com legenda para editar)`, '', 'Opções:', '--size 1024x1024 | 1024x1536 | 1536x1024 | auto', '--quality low | medium | high | auto', '--format png | jpeg | webp', '--background transparent | opaque | auto', '--compression 0-100', '', 'Exemplo:', `*${commandPrefix}catimg* --size 1536x1024 Um gato astronauta em aquarela.`].join('\n'),
+      text: [
+        '🖼️ *Imagem IA*',
+        '',
+        'Use assim:',
+        `*${commandPrefix}catimg* seu prompt`,
+        `*${commandPrefix}catimg* (responda uma imagem com legenda para editar)`,
+        '',
+        'Opções:',
+        '--size 1024x1024 | 1024x1536 | 1536x1024 | auto',
+        '--quality low | medium | high | auto',
+        '--format png | jpeg | webp',
+        '--background transparent | opaque | auto',
+        '--compression 0-100',
+        '',
+        'Exemplo:',
+        `*${commandPrefix}catimg* --size 1536x1024 Um gato astronauta em aquarela.`,
+      ].join('\n'),
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
@@ -537,7 +647,15 @@ const buildImageDataUrl = async (imageMedia, senderJid) => {
   }
 };
 
-export async function handleCatCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix = DEFAULT_COMMAND_PREFIX }) {
+export async function handleCatCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  senderJid,
+  text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+}) {
   const { prompt: rawPrompt, wantsAudio, imageDetail } = parseCatOptions(text || '');
 
   if (!process.env.OPENAI_API_KEY) {
@@ -546,7 +664,11 @@ export async function handleCatCommand({ sock, remoteJid, messageInfo, expiratio
       sock,
       remoteJid,
       {
-        text: ['⚠️ *OpenAI não configurada*', '', 'Defina a variável *OPENAI_API_KEY* no `.env` para usar o comando *cat*.'].join('\n'),
+        text: [
+          '⚠️ *OpenAI não configurada*',
+          '',
+          'Defina a variável *OPENAI_API_KEY* no `.env` para usar o comando *cat*.',
+        ].join('\n'),
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -576,7 +698,12 @@ export async function handleCatCommand({ sock, remoteJid, messageInfo, expiratio
   }
 
   if (imageResult.error === 'download_failed') {
-    await sendAndStore(sock, remoteJid, { text: '⚠️ Não consegui baixar a imagem. Tente reenviar.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: '⚠️ Não consegui baixar a imagem. Tente reenviar.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
@@ -625,7 +752,11 @@ export async function handleCatCommand({ sock, remoteJid, messageInfo, expiratio
 
   try {
     const client = getClient();
-    const response = await callOpenAI(() => client.responses.create(payload), 'responses.create', OPENAI_TIMEOUT);
+    const response = await callOpenAI(
+      () => client.responses.create(payload),
+      'responses.create',
+      OPENAI_TIMEOUT,
+    );
     const outputText = response.output_text?.trim();
 
     sessionCache.set(sessionKey, {
@@ -634,13 +765,23 @@ export async function handleCatCommand({ sock, remoteJid, messageInfo, expiratio
     });
 
     if (!outputText) {
-      await sendAndStore(sock, remoteJid, { text: '⚠️ Não consegui gerar uma resposta agora. Tente novamente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sendAndStore(
+        sock,
+        remoteJid,
+        { text: '⚠️ Não consegui gerar uma resposta agora. Tente novamente.' },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       return;
     }
 
     if (wantsAudio) {
       if (outputText.length > TTS_MAX_CHARS) {
-        await sendAndStore(sock, remoteJid, { text: '⚠️ A resposta ficou longa demais para áudio. Enviando em texto.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+        await sendAndStore(
+          sock,
+          remoteJid,
+          { text: '⚠️ A resposta ficou longa demais para áudio. Enviando em texto.' },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
       } else {
         try {
           const audioResponse = await callOpenAI(
@@ -668,12 +809,22 @@ export async function handleCatCommand({ sock, remoteJid, messageInfo, expiratio
           return;
         } catch (audioError) {
           logger.error('handleCatCommand: erro ao gerar audio.', audioError);
-          await sendAndStore(sock, remoteJid, { text: '⚠️ Não consegui gerar o áudio agora. Enviando texto.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+          await sendAndStore(
+            sock,
+            remoteJid,
+            { text: '⚠️ Não consegui gerar o áudio agora. Enviando texto.' },
+            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+          );
         }
       }
     }
 
-    await sendAndStore(sock, remoteJid, { text: `🐈‍⬛ ${outputText}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: `🐈‍⬛ ${outputText}` },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   } catch (error) {
     logger.error('handleCatCommand: erro ao chamar OpenAI.', error);
     await sendAndStore(
@@ -687,7 +838,15 @@ export async function handleCatCommand({ sock, remoteJid, messageInfo, expiratio
   }
 }
 
-export async function handleCatImageCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix = DEFAULT_COMMAND_PREFIX }) {
+export async function handleCatImageCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  senderJid,
+  text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+}) {
   const { prompt, toolOptions, errors } = parseImageGenOptions(text || '');
 
   if (!process.env.OPENAI_API_KEY) {
@@ -696,7 +855,11 @@ export async function handleCatImageCommand({ sock, remoteJid, messageInfo, expi
       sock,
       remoteJid,
       {
-        text: ['⚠️ *OpenAI não configurada*', '', 'Defina a variável *OPENAI_API_KEY* no `.env` para usar o comando *catimg*.'].join('\n'),
+        text: [
+          '⚠️ *OpenAI não configurada*',
+          '',
+          'Defina a variável *OPENAI_API_KEY* no `.env` para usar o comando *catimg*.',
+        ].join('\n'),
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -726,7 +889,12 @@ export async function handleCatImageCommand({ sock, remoteJid, messageInfo, expi
   }
 
   if (imageResult.error === 'download_failed') {
-    await sendAndStore(sock, remoteJid, { text: '⚠️ Não consegui baixar a imagem. Tente reenviar.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: '⚠️ Não consegui baixar a imagem. Tente reenviar.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
@@ -740,7 +908,12 @@ export async function handleCatImageCommand({ sock, remoteJid, messageInfo, expi
       sock,
       remoteJid,
       {
-        text: ['⚠️ Opções inválidas no comando.', `Detalhes: ${errors.join(', ')}`, '', `Use *${commandPrefix}catimg* sem opções para ver o formato correto.`].join('\n'),
+        text: [
+          '⚠️ Opções inválidas no comando.',
+          `Detalhes: ${errors.join(', ')}`,
+          '',
+          `Use *${commandPrefix}catimg* sem opções para ver o formato correto.`,
+        ].join('\n'),
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -785,7 +958,11 @@ export async function handleCatImageCommand({ sock, remoteJid, messageInfo, expi
 
   try {
     const client = getClient();
-    const response = await callOpenAI(() => client.responses.create(payload), 'responses.create.image', OPENAI_IMAGE_TIMEOUT);
+    const response = await callOpenAI(
+      () => client.responses.create(payload),
+      'responses.create.image',
+      OPENAI_IMAGE_TIMEOUT,
+    );
     const outputText = response.output_text?.trim();
 
     sessionCache.set(sessionKey, {
@@ -793,16 +970,28 @@ export async function handleCatImageCommand({ sock, remoteJid, messageInfo, expi
       updatedAt: Date.now(),
     });
 
-    const imageOutputs = Array.isArray(response.output) ? response.output.filter((output) => output.type === 'image_generation_call' && output.result) : [];
+    const imageOutputs = Array.isArray(response.output)
+      ? response.output.filter((output) => output.type === 'image_generation_call' && output.result)
+      : [];
     const imageBase64 = imageOutputs[0]?.result;
 
     if (!imageBase64) {
       if (outputText) {
-        await sendAndStore(sock, remoteJid, { text: `🖼️ ${outputText}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+        await sendAndStore(
+          sock,
+          remoteJid,
+          { text: `🖼️ ${outputText}` },
+          { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+        );
         return;
       }
 
-      await sendAndStore(sock, remoteJid, { text: '⚠️ Não consegui gerar a imagem agora. Tente novamente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sendAndStore(
+        sock,
+        remoteJid,
+        { text: '⚠️ Não consegui gerar a imagem agora. Tente novamente.' },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       return;
     }
 
@@ -816,7 +1005,12 @@ export async function handleCatImageCommand({ sock, remoteJid, messageInfo, expi
     const imageBuffer = Buffer.from(imageBase64, 'base64');
     const caption = outputText ? `🖼️ ${outputText}` : '🖼️ Imagem gerada.';
 
-    await sendAndStore(sock, remoteJid, { image: imageBuffer, caption, mimetype }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { image: imageBuffer, caption, mimetype },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   } catch (error) {
     logger.error('handleCatImageCommand: erro ao chamar OpenAI.', error);
     await sendAndStore(
@@ -830,7 +1024,15 @@ export async function handleCatImageCommand({ sock, remoteJid, messageInfo, expi
   }
 }
 
-export async function handleCatPromptCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, text, commandPrefix = DEFAULT_COMMAND_PREFIX }) {
+export async function handleCatPromptCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  senderJid,
+  text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+}) {
   const promptText = text?.trim();
   if (!promptText) {
     await sendPromptUsage(sock, remoteJid, messageInfo, expirationMessage, commandPrefix);
@@ -845,15 +1047,30 @@ export async function handleCatPromptCommand({ sock, remoteJid, messageInfo, exp
   const lower = promptText.toLowerCase();
   if (lower === 'reset' || lower === 'default' || lower === 'padrao' || lower === 'padrão') {
     await aiPromptStore.clearPrompt(senderJid);
-    await sendAndStore(sock, remoteJid, { text: '✅ Prompt da IA restaurado para o padrão.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: '✅ Prompt da IA restaurado para o padrão.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
   if (promptText.length > 2000) {
-    await sendAndStore(sock, remoteJid, { text: '⚠️ Prompt muito longo. Limite: 2000 caracteres.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: '⚠️ Prompt muito longo. Limite: 2000 caracteres.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
   await aiPromptStore.setPrompt(senderJid, promptText);
-  await sendAndStore(sock, remoteJid, { text: '✅ Prompt da IA atualizado para você.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+  await sendAndStore(
+    sock,
+    remoteJid,
+    { text: '✅ Prompt da IA atualizado para você.' },
+    { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+  );
 }

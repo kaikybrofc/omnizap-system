@@ -58,7 +58,8 @@ const parseRepoFromRemote = () => {
 };
 
 const token = env('RELEASE_GITHUB_TOKEN', 'DEPLOY_GITHUB_TOKEN', 'GITHUB_TOKEN', 'GH_TOKEN');
-const repository = env('RELEASE_GITHUB_REPO', 'DEPLOY_GITHUB_REPO', 'GITHUB_REPOSITORY') || parseRepoFromRemote();
+const repository =
+  env('RELEASE_GITHUB_REPO', 'DEPLOY_GITHUB_REPO', 'GITHUB_REPOSITORY') || parseRepoFromRemote();
 
 if (!action || !['upsert', 'get'].includes(action)) {
   console.error('Uso: node scripts/github-release-notify.mjs <upsert|get> --tag vX.Y.Z [opções]');
@@ -74,7 +75,9 @@ const [repoOwnerRaw, repoNameRaw] = repository.split('/', 2);
 const repoOwner = String(repoOwnerRaw || '').trim();
 const repoName = String(repoNameRaw || '').trim();
 if (!repoOwner || !repoName) {
-  console.error('GitHub release notify ignorado: formato de repositório inválido (esperado owner/repo).');
+  console.error(
+    'GitHub release notify ignorado: formato de repositório inválido (esperado owner/repo).',
+  );
   process.exit(2);
 }
 
@@ -171,7 +174,11 @@ const run = async () => {
   }
 
   if (existingRelease) {
-    const update = await request(`${baseUrl}/releases/${existingRelease.id}`, 'PATCH', commonPayload);
+    const update = await request(
+      `${baseUrl}/releases/${existingRelease.id}`,
+      'PATCH',
+      commonPayload,
+    );
     if (!update.ok) {
       failFromResponse(update, 'GitHub API');
     }

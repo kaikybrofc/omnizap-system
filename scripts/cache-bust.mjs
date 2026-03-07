@@ -6,9 +6,18 @@ import { URLSearchParams } from 'node:url';
 
 const TARGET_SOURCE_EXTENSIONS = new Set(['.html', '.js', '.mjs', '.css']);
 const ASSET_SUFFIX_PATTERN = String.raw`\.(?:js|mjs|cjs|css|png|jpe?g|gif|svg|webp|ico|json|map|woff2?|ttf|eot)(?:\?[^"'#\s)]*)?(?:#[^"' \s)]*)?`;
-const HTML_ATTRIBUTE_ASSET_PATTERN = new RegExp(String.raw`((?:src|href|poster)=["'])([^"']+?${ASSET_SUFFIX_PATTERN})(["'])`, 'gi');
-const QUOTED_LOCAL_ASSET_PATTERN = new RegExp(String.raw`(["'])((?:\/|\.{1,2}\/)[^"'\s]+?${ASSET_SUFFIX_PATTERN})\1`, 'gi');
-const CSS_URL_ASSET_PATTERN = new RegExp(String.raw`(url\(\s*["']?)([^"')\s]+?${ASSET_SUFFIX_PATTERN})(["']?\s*\))`, 'gi');
+const HTML_ATTRIBUTE_ASSET_PATTERN = new RegExp(
+  String.raw`((?:src|href|poster)=["'])([^"']+?${ASSET_SUFFIX_PATTERN})(["'])`,
+  'gi',
+);
+const QUOTED_LOCAL_ASSET_PATTERN = new RegExp(
+  String.raw`(["'])((?:\/|\.{1,2}\/)[^"'\s]+?${ASSET_SUFFIX_PATTERN})\1`,
+  'gi',
+);
+const CSS_URL_ASSET_PATTERN = new RegExp(
+  String.raw`(url\(\s*["']?)([^"')\s]+?${ASSET_SUFFIX_PATTERN})(["']?\s*\))`,
+  'gi',
+);
 const URL_SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 
 const usage = () => {
@@ -92,10 +101,13 @@ const applyCacheBustToSource = (source, version) => {
     return nextPath;
   };
 
-  let output = source.replace(HTML_ATTRIBUTE_ASSET_PATTERN, (fullMatch, prefix, assetPath, suffix) => {
-    const nextPath = rewrite(assetPath);
-    return `${prefix}${nextPath}${suffix}`;
-  });
+  let output = source.replace(
+    HTML_ATTRIBUTE_ASSET_PATTERN,
+    (fullMatch, prefix, assetPath, suffix) => {
+      const nextPath = rewrite(assetPath);
+      return `${prefix}${nextPath}${suffix}`;
+    },
+  );
 
   output = output.replace(QUOTED_LOCAL_ASSET_PATTERN, (fullMatch, quote, assetPath) => {
     const nextPath = rewrite(assetPath);
@@ -125,7 +137,10 @@ const main = async () => {
 
   for (const filePath of sourceFiles) {
     const current = await fs.readFile(filePath, 'utf8');
-    const { output, referencesUpdated: fileRefs } = applyCacheBustToSource(current, options.version);
+    const { output, referencesUpdated: fileRefs } = applyCacheBustToSource(
+      current,
+      options.version,
+    );
     if (output !== current) {
       await fs.writeFile(filePath, output, 'utf8');
       filesUpdated += 1;
@@ -133,7 +148,9 @@ const main = async () => {
     referencesUpdated += fileRefs;
   }
 
-  console.log(`[cache-bust] version=${options.version} scanned=${sourceFiles.length} files=${filesUpdated} refs=${referencesUpdated}`);
+  console.log(
+    `[cache-bust] version=${options.version} scanned=${sourceFiles.length} files=${filesUpdated} refs=${referencesUpdated}`,
+  );
 };
 
 main().catch((error) => {

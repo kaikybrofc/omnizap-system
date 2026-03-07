@@ -9,7 +9,9 @@
 @layer base {
   body {
     color: hsl(var(--bc));
-    background: radial-gradient(72rem 42rem at -14% -20%, rgb(59 130 246 / 0.2), transparent 62%), radial-gradient(55rem 30rem at 116% -8%, rgb(14 165 233 / 0.12), transparent 64%), #020617;
+    background:
+      radial-gradient(72rem 42rem at -14% -20%, rgb(59 130 246 / 0.2), transparent 62%),
+      radial-gradient(55rem 30rem at 116% -8%, rgb(14 165 233 / 0.12), transparent 64%), #020617;
   }
 
   #stickers-react-root {

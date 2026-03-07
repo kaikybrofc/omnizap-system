@@ -2,7 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URL } from 'node:url';
 import logger from '../../../utils/logger/loggerModule.js';
-import { downloadMediaMessage, extractMediaDetails, getJidUser } from '../../config/baileysConfig.js';
+import {
+  downloadMediaMessage,
+  extractMediaDetails,
+  getJidUser,
+} from '../../config/baileysConfig.js';
 import { addStickerMetadata } from './addStickerMetadata.js';
 import { convertToWebp } from './convertToWebp.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,7 +20,8 @@ const TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers');
 const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
 const SUPPORTED_MEDIA_TYPES = new Set(['image', 'video', 'sticker']);
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
-const DEFAULT_STICKER_PACK_NAME = (process.env.STICKER_DEFAULT_PACK_NAME || '').trim() || 'https://omnizap.shop/';
+const DEFAULT_STICKER_PACK_NAME =
+  (process.env.STICKER_DEFAULT_PACK_NAME || '').trim() || 'https://omnizap.shop/';
 const AUTO_PACK_NOTICE_ENABLED = process.env.STICKER_PACK_AUTO_COLLECT_NOTIFY !== 'false';
 const AUTO_PACK_MAX_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
 const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stickers');
@@ -25,7 +30,10 @@ const STICKER_WEB_ORIGIN = resolveStickerWebOrigin();
 function normalizeBasePath(value, fallback) {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
+  const withoutTrailingSlash =
+    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
+      ? withLeadingSlash.slice(0, -1)
+      : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 }
 
@@ -43,7 +51,14 @@ function normalizeOrigin(value) {
 }
 
 function resolveStickerWebOrigin() {
-  const candidates = [process.env.STICKER_WEB_ORIGIN, process.env.APP_BASE_URL, process.env.PUBLIC_BASE_URL, process.env.SITE_URL, process.env.WEB_URL, process.env.BASE_URL];
+  const candidates = [
+    process.env.STICKER_WEB_ORIGIN,
+    process.env.APP_BASE_URL,
+    process.env.PUBLIC_BASE_URL,
+    process.env.SITE_URL,
+    process.env.WEB_URL,
+    process.env.BASE_URL,
+  ];
 
   for (const candidate of candidates) {
     const normalized = normalizeOrigin(candidate);
@@ -71,7 +86,11 @@ function isPackPubliclyVisible(pack) {
   const packStatus = String(pack?.pack_status || 'ready')
     .trim()
     .toLowerCase();
-  return (visibility === 'public' || visibility === 'unlisted') && status === 'published' && packStatus === 'ready';
+  return (
+    (visibility === 'public' || visibility === 'unlisted') &&
+    status === 'published' &&
+    packStatus === 'ready'
+  );
 }
 
 /**
@@ -165,7 +184,9 @@ async function ensureDirectories(userId) {
 function checkMediaSize(mediaKey, mediaType, maxFileSize = MAX_FILE_SIZE) {
   const fileLength = mediaKey?.fileLength || 0;
   const formatBytes = (bytes) => (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  logger.debug(`checkMediaSize Verificando tamanho da mídia (${mediaType}): ${formatBytes(fileLength)}`);
+  logger.debug(
+    `checkMediaSize Verificando tamanho da mídia (${mediaType}): ${formatBytes(fileLength)}`,
+  );
   if (fileLength > maxFileSize) {
     logger.warn(`checkMediaSize Mídia (${mediaType}) muito grande: ${formatBytes(fileLength)}`);
     return false;
@@ -214,7 +235,10 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
   const countLabel = itemCount > 0 ? ` (${itemCount}/${AUTO_PACK_MAX_ITEMS})` : '';
 
   if (result.status === 'duplicate') {
-    const duplicateLines = [`ℹ️ Essa figurinha já estava no pack automático *${packName}*.`, `Use *${commandPrefix}pack info ${packIdentifier}* para ver o pack ou *${commandPrefix}pack send ${packIdentifier}* para enviar.`];
+    const duplicateLines = [
+      `ℹ️ Essa figurinha já estava no pack automático *${packName}*.`,
+      `Use *${commandPrefix}pack info ${packIdentifier}* para ver o pack ou *${commandPrefix}pack send ${packIdentifier}* para enviar.`,
+    ];
     if (packWebUrl) {
       duplicateLines.push(`🌐 Link do pack no site: ${packWebUrl}`);
     } else {
@@ -223,7 +247,12 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
     return duplicateLines.join('\n');
   }
 
-  const savedLines = [`✅ Figurinha adicionada ao pack *${packName}*${countLabel}.`, '', `📋 Gerencie seus packs com *${commandPrefix}pack list*.`, `🚀 Envie agora com *${commandPrefix}pack send ${packCommandTarget}*.`];
+  const savedLines = [
+    `✅ Figurinha adicionada ao pack *${packName}*${countLabel}.`,
+    '',
+    `📋 Gerencie seus packs com *${commandPrefix}pack list*.`,
+    `🚀 Envie agora com *${commandPrefix}pack send ${packCommandTarget}*.`,
+  ];
   if (packWebUrl) {
     savedLines.push(`🌐 Veja no site: ${packWebUrl}`);
   } else {
@@ -232,7 +261,14 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
   return savedLines.join('\n');
 }
 
-async function notifyAutoPackCollection({ sock, remoteJid, messageInfo, expirationMessage, result, commandPrefix }) {
+async function notifyAutoPackCollection({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  result,
+  commandPrefix,
+}) {
   if (!AUTO_PACK_NOTICE_ENABLED) return;
 
   const noticeText = buildAutoPackNoticeText(result, commandPrefix);
@@ -265,8 +301,21 @@ async function notifyAutoPackCollection({ sock, remoteJid, messageInfo, expirati
  * @param {ProcessStickerOptions} [options={}] - Comportamento avançado do fluxo.
  * @returns {Promise<void>}
  */
-export async function processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, extraText = '', options = {}) {
-  const { includeQuotedMedia = true, showAutoPackNotice = true, commandPrefix = DEFAULT_COMMAND_PREFIX } = options;
+export async function processSticker(
+  sock,
+  messageInfo,
+  senderJid,
+  remoteJid,
+  expirationMessage,
+  senderName,
+  extraText = '',
+  options = {},
+) {
+  const {
+    includeQuotedMedia = true,
+    showAutoPackNotice = true,
+    commandPrefix = DEFAULT_COMMAND_PREFIX,
+  } = options;
   const uniqueId = uuidv4();
 
   let tempMediaPath = null;
@@ -298,7 +347,11 @@ export async function processSticker(sock, messageInfo, senderJid, remoteJid, ex
         sock,
         from,
         {
-          text: `Olá ${senderName} \n\n*❌ Não foi possível processar sua solicitação.*\n\n` + '> Você não enviou nem marcou nenhuma mídia.\n\n' + `📌 Por favor, envie ou marque um arquivo de mídia com *tamanho máximo de ${maxSizeLabel}*.\n\n` + '> _*💡 Dica: desative o modo HD antes de enviar para reduzir o tamanho do arquivo e evitar falhas.*_',
+          text:
+            `Olá ${senderName} \n\n*❌ Não foi possível processar sua solicitação.*\n\n` +
+            '> Você não enviou nem marcou nenhuma mídia.\n\n' +
+            `📌 Por favor, envie ou marque um arquivo de mídia com *tamanho máximo de ${maxSizeLabel}*.\n\n` +
+            '> _*💡 Dica: desative o modo HD antes de enviar para reduzir o tamanho do arquivo e evitar falhas.*_',
         },
         { quoted: message, ephemeralExpiration: expirationMessage },
       );
@@ -312,7 +365,10 @@ export async function processSticker(sock, messageInfo, senderJid, remoteJid, ex
         sock,
         from,
         {
-          text: '*❌ Tipo de mídia não suportado para criar sticker.*' + '\n\n- Tipos aceitos: *imagem, vídeo ou figurinha*.' + '\n\n- 📌 Envie a mídia novamente em um desses formatos.',
+          text:
+            '*❌ Tipo de mídia não suportado para criar sticker.*' +
+            '\n\n- Tipos aceitos: *imagem, vídeo ou figurinha*.' +
+            '\n\n- 📌 Envie a mídia novamente em um desses formatos.',
         },
         { quoted: message, ephemeralExpiration: expirationMessage },
       );
@@ -335,7 +391,11 @@ export async function processSticker(sock, messageInfo, senderJid, remoteJid, ex
         sock,
         from,
         {
-          text: '*❌ Não foi possível processar a mídia.*' + `\n\n- O arquivo enviado tem *${enviado}* e o limite permitido é de *${limite}*.` + '\n\n- 📌 Por favor, envie um arquivo menor ou reduza a qualidade antes de reenviar.' + sugestaoTempo,
+          text:
+            '*❌ Não foi possível processar a mídia.*' +
+            `\n\n- O arquivo enviado tem *${enviado}* e o limite permitido é de *${limite}*.` +
+            '\n\n- 📌 Por favor, envie um arquivo menor ou reduza a qualidade antes de reenviar.' +
+            sugestaoTempo,
         },
         { quoted: message, ephemeralExpiration: expirationMessage },
       );
@@ -345,8 +405,14 @@ export async function processSticker(sock, messageInfo, senderJid, remoteJid, ex
     const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
     tempMediaPath = await downloadMediaMessage(mediaKey, mediaType, userStickerDir);
     if (!tempMediaPath) {
-      const msgErro = '*❌ Não foi possível baixar a mídia enviada.*\n\n- Isso pode ocorrer por instabilidade na rede, mídia expirada ou formato não suportado.\n- Por favor, tente reenviar a mídia ou envie outro arquivo.';
-      await sendAndStore(sock, from, { text: msgErro }, { quoted: message, ephemeralExpiration: expirationMessage });
+      const msgErro =
+        '*❌ Não foi possível baixar a mídia enviada.*\n\n- Isso pode ocorrer por instabilidade na rede, mídia expirada ou formato não suportado.\n- Por favor, tente reenviar a mídia ou envie outro arquivo.';
+      await sendAndStore(
+        sock,
+        from,
+        { text: msgErro },
+        { quoted: message, ephemeralExpiration: expirationMessage },
+      );
       if (adminJid) {
         await sendAndStore(sock, adminJid, {
           text: `🚨 Falha no download da mídia para sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nTipo: ${mediaType}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
@@ -373,8 +439,14 @@ export async function processSticker(sock, messageInfo, senderJid, remoteJid, ex
       stickerBuffer = await fs.readFile(stickerPath);
     } catch (bufferErr) {
       logger.error(`processSticker Erro ao ler buffer do sticker: ${bufferErr.message}`);
-      const msgErro = '*❌ Não foi possível finalizar o sticker.*\n\n- Ocorreu um erro ao acessar o arquivo temporário do sticker.\n- Tente reenviar a mídia ou envie outro arquivo.';
-      await sendAndStore(sock, from, { text: msgErro }, { quoted: message, ephemeralExpiration: expirationMessage });
+      const msgErro =
+        '*❌ Não foi possível finalizar o sticker.*\n\n- Ocorreu um erro ao acessar o arquivo temporário do sticker.\n- Tente reenviar a mídia ou envie outro arquivo.';
+      await sendAndStore(
+        sock,
+        from,
+        { text: msgErro },
+        { quoted: message, ephemeralExpiration: expirationMessage },
+      );
       if (adminJid) {
         await sendAndStore(sock, adminJid, {
           text: `🚨 Erro ao ler buffer do sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nErro: ${bufferErr.message}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
@@ -384,7 +456,12 @@ export async function processSticker(sock, messageInfo, senderJid, remoteJid, ex
     }
 
     try {
-      await sendAndStore(sock, from, { sticker: stickerBuffer }, { quoted: message, ephemeralExpiration: expirationMessage });
+      await sendAndStore(
+        sock,
+        from,
+        { sticker: stickerBuffer },
+        { quoted: message, ephemeralExpiration: expirationMessage },
+      );
 
       // Coleta automática: toda figurinha gerada pelo usuário é adicionada ao pack dele.
       setImmediate(() => {
@@ -415,8 +492,14 @@ export async function processSticker(sock, messageInfo, senderJid, remoteJid, ex
       });
     } catch (sendErr) {
       logger.error(`processSticker Erro ao enviar o sticker: ${sendErr.message}`);
-      const msgErro = '*❌ Não foi possível enviar o sticker ao chat.*\n\n- Ocorreu um erro inesperado ao tentar enviar o arquivo.\n- Tente novamente ou envie outra mídia.';
-      await sendAndStore(sock, from, { text: msgErro }, { quoted: message, ephemeralExpiration: expirationMessage });
+      const msgErro =
+        '*❌ Não foi possível enviar o sticker ao chat.*\n\n- Ocorreu um erro inesperado ao tentar enviar o arquivo.\n- Tente novamente ou envie outra mídia.';
+      await sendAndStore(
+        sock,
+        from,
+        { text: msgErro },
+        { quoted: message, ephemeralExpiration: expirationMessage },
+      );
       if (adminJid) {
         await sendAndStore(sock, adminJid, {
           text: `🚨 Erro ao enviar sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nErro: ${sendErr.message}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
@@ -427,17 +510,29 @@ export async function processSticker(sock, messageInfo, senderJid, remoteJid, ex
     logger.error(`processSticker Erro ao processar sticker: ${error.message}`, {
       error: error.stack,
     });
-    const msgErro = '*❌ Não foi possível criar o sticker.*\n\n- Ocorreu um erro inesperado durante o processamento.\n- Tente novamente ou envie outra mídia.';
-    await sendAndStore(sock, remoteJid, { text: msgErro }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    const msgErro =
+      '*❌ Não foi possível criar o sticker.*\n\n- Ocorreu um erro inesperado durante o processamento.\n- Tente novamente ou envie outra mídia.';
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: msgErro },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     if (adminJid) {
       await sendAndStore(sock, adminJid, {
         text: `🚨 Erro fatal ao processar sticker.\nUsuário: ${senderJid}\nChat: ${remoteJid}\nErro: ${error.message}\nStack: ${error.stack}\nMensagem: ${JSON.stringify(messageInfo)}\n`,
       });
     }
   } finally {
-    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath, convertedPath].filter(Boolean);
+    const filesToClean = [tempMediaPath, processingMediaPath, stickerPath, convertedPath].filter(
+      Boolean,
+    );
     for (const file of filesToClean) {
-      await fs.unlink(file).catch((err) => logger.warn(`processSticker Falha ao limpar arquivo temporário ${file}: ${err.message}`));
+      await fs
+        .unlink(file)
+        .catch((err) =>
+          logger.warn(`processSticker Falha ao limpar arquivo temporário ${file}: ${err.message}`),
+        );
     }
   }
 }

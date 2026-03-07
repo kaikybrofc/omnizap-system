@@ -88,7 +88,9 @@ function runProcess(command, args, { timeoutMs }) {
       }
 
       if (code !== 0) {
-        const processError = new Error(`${command} finalizou com código ${code}${signal ? ` (sinal: ${signal})` : ''}.`);
+        const processError = new Error(
+          `${command} finalizou com código ${code}${signal ? ` (sinal: ${signal})` : ''}.`,
+        );
         processError.code = code;
         processError.signal = signal;
         processError.stderr = stderr;
@@ -172,7 +174,9 @@ export async function addStickerMetadata(stickerPath, packName, packAuthor, repl
   const finalPackName = normalizeMetadataText(doReplaces(packName), 'OmniZap System');
   const finalPackAuthor = normalizeMetadataText(doReplaces(packAuthor), baseSenderName);
 
-  logger.info(`addStickerMetadata Adicionando metadados ao sticker. Nome: "${finalPackName}", Autor: "${finalPackAuthor}"`);
+  logger.info(
+    `addStickerMetadata Adicionando metadados ao sticker. Nome: "${finalPackName}", Autor: "${finalPackAuthor}"`,
+  );
 
   let exifPath = null;
   let outputPath = null;
@@ -193,7 +197,10 @@ export async function addStickerMetadata(stickerPath, packName, packAuthor, repl
 
     const fileTag = randomUUID();
     exifPath = path.join(TEMP_DIR, `exif_${fileTag}.exif`);
-    const exifAttr = Buffer.from([0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00]);
+    const exifAttr = Buffer.from([
+      0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00,
+    ]);
     const jsonBuffer = Buffer.from(JSON.stringify(exifData), 'utf8');
     const exifBuffer = Buffer.concat([exifAttr, jsonBuffer]);
     exifBuffer.writeUIntLE(jsonBuffer.length, 14, 4);
@@ -211,7 +218,9 @@ export async function addStickerMetadata(stickerPath, packName, packAuthor, repl
     }
 
     shouldKeepOutput = true;
-    logger.info(`addStickerMetadata Metadados adicionados com sucesso. Sticker final: ${outputPath}`);
+    logger.info(
+      `addStickerMetadata Metadados adicionados com sucesso. Sticker final: ${outputPath}`,
+    );
     return outputPath;
   } catch (error) {
     if (error.code === 'ENOENT') {
@@ -231,7 +240,9 @@ export async function addStickerMetadata(stickerPath, packName, packAuthor, repl
     for (const filePath of filesToClean.filter(Boolean)) {
       await fs.unlink(filePath).catch((cleanupError) => {
         if (cleanupError?.code !== 'ENOENT') {
-          logger.warn(`addStickerMetadata Falha ao limpar arquivo temporário ${filePath}: ${cleanupError.message}`);
+          logger.warn(
+            `addStickerMetadata Falha ao limpar arquivo temporário ${filePath}: ${cleanupError.message}`,
+          );
         }
       });
     }

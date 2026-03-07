@@ -18,8 +18,12 @@ const QUOTE_NAME_COLOR = process.env.QUOTE_NAME_COLOR || '#facc01';
 const QUOTE_TEXT_COLOR = process.env.QUOTE_TEXT_COLOR || '#e8eef6';
 const QUOTE_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_TIMEOUT_MS || '10000', 10);
 const QUOTE_EMOJI_TIMEOUT_MS = Number.parseInt(process.env.QUOTE_EMOJI_TIMEOUT_MS || '4000', 10);
-const QUOTE_EMOJI_BASE_URL = process.env.QUOTE_EMOJI_BASE_URL || 'https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/128';
-const QUOTE_FONT_FAMILY = process.env.QUOTE_FONT_FAMILY || '"Noto Sans","Segoe UI","Arial","Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif';
+const QUOTE_EMOJI_BASE_URL =
+  process.env.QUOTE_EMOJI_BASE_URL ||
+  'https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/128';
+const QUOTE_FONT_FAMILY =
+  process.env.QUOTE_FONT_FAMILY ||
+  '"Noto Sans","Segoe UI","Arial","Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif';
 
 const QUOTE_CANVAS_MAX_WIDTH = 920;
 const QUOTE_CANVAS_MIN_WIDTH = 520;
@@ -47,7 +51,10 @@ const QUOTE_MAX_LINES = 6;
 const QUOTE_NAME_TEXT_GAP = 12;
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'quotes');
-const GRAPHEME_SEGMENTER = typeof Intl?.Segmenter === 'function' ? new Intl.Segmenter('en', { granularity: 'grapheme' }) : null;
+const GRAPHEME_SEGMENTER =
+  typeof Intl?.Segmenter === 'function'
+    ? new Intl.Segmenter('en', { granularity: 'grapheme' })
+    : null;
 const EMOJI_SEGMENT_REGEX = /\p{Extended_Pictographic}/u;
 const EMOJI_VARIATION_SELECTOR = 'fe0f';
 const EMOJI_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
@@ -56,7 +63,8 @@ const EMOJI_IMAGE_CACHE = globalThis.__omnizapQuoteEmojiImageCache || new Map();
 globalThis.__omnizapQuoteEmojiImageCache = EMOJI_IMAGE_CACHE;
 
 const isValidJid = (jid) => typeof jid === 'string' && jid.includes('@');
-const normalizeMentionedJids = (mentionedJids) => (Array.isArray(mentionedJids) ? mentionedJids.filter(Boolean) : []);
+const normalizeMentionedJids = (mentionedJids) =>
+  Array.isArray(mentionedJids) ? mentionedJids.filter(Boolean) : [];
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 /**
@@ -169,7 +177,11 @@ const buildJidFromMention = (mention) => {
 const resolveQuotedTarget = (contextInfo = {}) => {
   const participant = contextInfo?.participant || null;
   const participantAlt = contextInfo?.participantAlt || null;
-  const quotedKey = contextInfo?.quotedMessageKey || contextInfo?.quotedMessage?.key || contextInfo?.quotedMessage?.contextInfo?.quotedMessageKey || null;
+  const quotedKey =
+    contextInfo?.quotedMessageKey ||
+    contextInfo?.quotedMessage?.key ||
+    contextInfo?.quotedMessage?.contextInfo?.quotedMessageKey ||
+    null;
   const keyParticipant = quotedKey?.participant || null;
   const keyParticipantAlt = quotedKey?.participantAlt || null;
   return {
@@ -245,7 +257,8 @@ const buildEmojiAssetKeys = (segment) => {
  * @param {string} assetKey Chave de code points.
  * @returns {string} URL final para download.
  */
-const getEmojiAssetUrl = (assetKey) => `${QUOTE_EMOJI_BASE_URL.replace(/\/+$/, '')}/emoji_u${assetKey}.png`;
+const getEmojiAssetUrl = (assetKey) =>
+  `${QUOTE_EMOJI_BASE_URL.replace(/\/+$/, '')}/emoji_u${assetKey}.png`;
 
 /**
  * Busca um emoji do cache com TTL para sucesso/falha.
@@ -467,7 +480,10 @@ const ellipsizeLine = (ctx, line, maxWidth, fontSize) => {
 
   const ellipsis = '...';
   let trimmed = safeLine;
-  while (trimmed.length > 0 && measureTextVisualWidth(ctx, `${trimmed}${ellipsis}`, fontSize) > maxWidth) {
+  while (
+    trimmed.length > 0 &&
+    measureTextVisualWidth(ctx, `${trimmed}${ellipsis}`, fontSize) > maxWidth
+  ) {
     trimmed = trimmed.slice(0, -1).trimEnd();
   }
   return trimmed ? `${trimmed}${ellipsis}` : ellipsis;
@@ -516,7 +532,12 @@ const fitQuoteLines = (ctx, quoteText, maxWidth) => {
   lines = wrapTextLines(ctx, quoteText, maxWidth, QUOTE_TEXT_FONT_MIN);
   if (lines.length > QUOTE_MAX_LINES) {
     lines = lines.slice(0, QUOTE_MAX_LINES);
-    lines[QUOTE_MAX_LINES - 1] = ellipsizeLine(ctx, lines[QUOTE_MAX_LINES - 1], maxWidth, QUOTE_TEXT_FONT_MIN);
+    lines[QUOTE_MAX_LINES - 1] = ellipsizeLine(
+      ctx,
+      lines[QUOTE_MAX_LINES - 1],
+      maxWidth,
+      QUOTE_TEXT_FONT_MIN,
+    );
   }
 
   return { fontSize: QUOTE_TEXT_FONT_MIN, lines };
@@ -597,7 +618,9 @@ const clearNearWhiteEdges = (ctx, size) => {
     if (visited[pixelIndex]) return;
 
     const dataIndex = pixelIndex * 4;
-    if (!isNearWhite(data[dataIndex], data[dataIndex + 1], data[dataIndex + 2], data[dataIndex + 3])) {
+    if (
+      !isNearWhite(data[dataIndex], data[dataIndex + 1], data[dataIndex + 2], data[dataIndex + 3])
+    ) {
       return;
     }
 
@@ -675,7 +698,11 @@ const renderQuoteImage = async ({ authorName, quoteText, avatarBuffer }) => {
   const measureCanvas = createCanvas(QUOTE_CANVAS_MAX_WIDTH, 320);
   const measureCtx = measureCanvas.getContext('2d');
 
-  const maxInnerWidth = QUOTE_CANVAS_MAX_WIDTH - QUOTE_BUBBLE_X - QUOTE_BUBBLE_RIGHT_MARGIN - QUOTE_BUBBLE_PADDING_X * 2;
+  const maxInnerWidth =
+    QUOTE_CANVAS_MAX_WIDTH -
+    QUOTE_BUBBLE_X -
+    QUOTE_BUBBLE_RIGHT_MARGIN -
+    QUOTE_BUBBLE_PADDING_X * 2;
 
   const nameFontSize = fitAuthorFontSize(measureCtx, safeAuthorName, maxInnerWidth);
   const quoteFit = fitQuoteLines(measureCtx, safeQuoteText, maxInnerWidth);
@@ -686,24 +713,50 @@ const renderQuoteImage = async ({ authorName, quoteText, avatarBuffer }) => {
   const measuredNameWidth = measureTextVisualWidth(measureCtx, safeAuthorName, nameFontSize);
 
   measureCtx.font = `500 ${quoteFit.fontSize}px ${QUOTE_FONT_FAMILY}`;
-  const measuredTextWidth = Math.max(...quoteFit.lines.map((line) => measureTextVisualWidth(measureCtx, line, quoteFit.fontSize)));
+  const measuredTextWidth = Math.max(
+    ...quoteFit.lines.map((line) => measureTextVisualWidth(measureCtx, line, quoteFit.fontSize)),
+  );
 
-  const innerContentWidth = clamp(Math.ceil(Math.max(measuredNameWidth, measuredTextWidth)), 180, maxInnerWidth);
+  const innerContentWidth = clamp(
+    Math.ceil(Math.max(measuredNameWidth, measuredTextWidth)),
+    180,
+    maxInnerWidth,
+  );
   const bubbleWidth = innerContentWidth + QUOTE_BUBBLE_PADDING_X * 2;
 
   const nameLineHeight = Math.round(nameFontSize * 1.08);
   const textLineHeight = Math.round(quoteFit.fontSize * 1.22);
 
-  const bubbleHeight = QUOTE_BUBBLE_PADDING_TOP + nameLineHeight + QUOTE_NAME_TEXT_GAP + quoteFit.lines.length * textLineHeight + QUOTE_BUBBLE_PADDING_BOTTOM;
+  const bubbleHeight =
+    QUOTE_BUBBLE_PADDING_TOP +
+    nameLineHeight +
+    QUOTE_NAME_TEXT_GAP +
+    quoteFit.lines.length * textLineHeight +
+    QUOTE_BUBBLE_PADDING_BOTTOM;
 
-  const canvasWidth = clamp(Math.ceil(QUOTE_BUBBLE_X + bubbleWidth + QUOTE_BUBBLE_RIGHT_MARGIN), QUOTE_CANVAS_MIN_WIDTH, QUOTE_CANVAS_MAX_WIDTH);
-  const canvasHeight = clamp(Math.ceil(QUOTE_BUBBLE_Y + bubbleHeight + QUOTE_BUBBLE_BOTTOM_MARGIN), QUOTE_CANVAS_MIN_HEIGHT, QUOTE_CANVAS_MAX_HEIGHT);
+  const canvasWidth = clamp(
+    Math.ceil(QUOTE_BUBBLE_X + bubbleWidth + QUOTE_BUBBLE_RIGHT_MARGIN),
+    QUOTE_CANVAS_MIN_WIDTH,
+    QUOTE_CANVAS_MAX_WIDTH,
+  );
+  const canvasHeight = clamp(
+    Math.ceil(QUOTE_BUBBLE_Y + bubbleHeight + QUOTE_BUBBLE_BOTTOM_MARGIN),
+    QUOTE_CANVAS_MIN_HEIGHT,
+    QUOTE_CANVAS_MAX_HEIGHT,
+  );
 
   const canvas = createCanvas(canvasWidth, canvasHeight);
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  drawRoundedRect(ctx, QUOTE_BUBBLE_X, QUOTE_BUBBLE_Y, bubbleWidth, bubbleHeight, QUOTE_BUBBLE_RADIUS);
+  drawRoundedRect(
+    ctx,
+    QUOTE_BUBBLE_X,
+    QUOTE_BUBBLE_Y,
+    bubbleWidth,
+    bubbleHeight,
+    QUOTE_BUBBLE_RADIUS,
+  );
   ctx.fillStyle = QUOTE_BUBBLE_COLOR;
   ctx.fill();
 
@@ -756,18 +809,41 @@ const writeTempFile = async (buffer, extension) => {
   return filePath;
 };
 
-const sendUsage = async (sock, remoteJid, messageInfo, expirationMessage, commandPrefix = DEFAULT_COMMAND_PREFIX) => {
+const sendUsage = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) => {
   await sendAndStore(
     sock,
     remoteJid,
     {
-      text: ['🖼️ *Quote*', '', 'Use assim:', `*${commandPrefix}quote* sua mensagem`, '', 'Ou responda uma mensagem com:', `*${commandPrefix}quote*`].join('\n'),
+      text: [
+        '🖼️ *Quote*',
+        '',
+        'Use assim:',
+        `*${commandPrefix}quote* sua mensagem`,
+        '',
+        'Ou responda uma mensagem com:',
+        `*${commandPrefix}quote*`,
+      ].join('\n'),
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 };
 
-export async function handleQuoteCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, text, commandPrefix = DEFAULT_COMMAND_PREFIX }) {
+export async function handleQuoteCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  senderJid,
+  senderName,
+  text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+}) {
   const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
   const quotedMessage = contextInfo?.quotedMessage;
   const hasQuoted = Boolean(quotedMessage || contextInfo?.stanzaId);
@@ -838,13 +914,28 @@ export async function handleQuoteCommand({ sock, remoteJid, messageInfo, expirat
 
     if (stickerPath) {
       const stickerBuffer = await fs.readFile(stickerPath);
-      await sendAndStore(sock, remoteJid, { sticker: stickerBuffer }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sendAndStore(
+        sock,
+        remoteJid,
+        { sticker: stickerBuffer },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       return;
     }
 
-    await sendAndStore(sock, remoteJid, { image: imageBuffer, caption: '🖼️ Quote' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { image: imageBuffer, caption: '🖼️ Quote' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   } catch (error) {
     logger.error('handleQuoteCommand: erro ao gerar quote.', error);
-    await sendAndStore(sock, remoteJid, { text: '❌ Não foi possível gerar o quote agora. Tente novamente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: '❌ Não foi possível gerar o quote agora. Tente novamente.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   }
 }

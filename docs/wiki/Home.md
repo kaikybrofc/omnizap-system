@@ -1,24 +1,26 @@
 # OmniZap Wiki
 
-Bem-vindo a wiki oficial do **OmniZap System**.
+Bem-vindo à wiki oficial do **OmniZap System**.
 
-Esta pagina e o ponto de entrada para entender o projeto, subir o ambiente local e navegar pelos principais fluxos tecnicos.
+Esta página é o ponto de entrada para entender o projeto, subir o ambiente local e navegar pelos principais fluxos técnicos e operacionais.
 
-## Links rapidos
+## Links rápidos
 
-- Repositorio: https://github.com/kaikybrofc/omnizap-system
+- Repositório: https://github.com/kaikybrofc/omnizap-system
 - Site: https://omnizap.shop/
 - Login web: https://omnizap.shop/login/
 - API Docs: https://omnizap.shop/api-docs/
 - Termos: https://omnizap.shop/termos-de-uso/
+- Segurança: https://github.com/kaikybrofc/omnizap-system/blob/main/SECURITY.md
+- Código de Conduta: https://github.com/kaikybrofc/omnizap-system/blob/main/CODE_OF_CONDUCT.md
 
-## O que e o OmniZap
+## O que é o OmniZap
 
-O OmniZap e uma plataforma open source com 3 camadas principais:
+O OmniZap é uma plataforma open source com 3 camadas principais:
 
-1. Bot WhatsApp (Baileys): comandos, automacoes e eventos.
-2. Camada web: login, painel de usuario e catalogo de stickers.
-3. Camada de dados e operacao: MySQL, workers, metricas e deploy.
+1. Bot WhatsApp (Baileys): comandos, automações e eventos.
+2. Camada web: login, painel de usuário e catálogo de stickers.
+3. Camada de dados e operação: MySQL, workers, métricas e deploy.
 
 ## Quick Start (local)
 
@@ -30,32 +32,32 @@ npm run build:frontend
 npm run dev
 ```
 
-Rotas uteis apos subir:
+Rotas úteis após subir:
 
 - `http://localhost:3000/healthz`
 - `http://localhost:3000/readyz`
 - `http://localhost:3000/metrics`
 
-## Mapa rapido de arquitetura
+## Mapa rápido de arquitetura
 
 ```text
 WhatsApp (Baileys)
   -> app/connection + app/controllers + app/modules
-  -> app/services (persistencia, filas, login-link, integracoes)
+  -> app/services (persistência, filas, login-link, integrações)
   -> database/ (MySQL)
 
 HTTP Server
   -> server/routes/*
-  -> public/ (paginas web)
+  -> public/ (páginas web)
 
-Operacao
+Operação
   -> scripts/
   -> observability/ (Prometheus, Grafana, Loki)
 ```
 
-## Navegacao da wiki
+## Navegação da wiki
 
-Paginas recomendadas para criar em seguida:
+Páginas recomendadas para criar/expandir em seguida:
 
 - `[[Arquitetura]]`
 - `[[Setup-Local]]`
@@ -66,14 +68,30 @@ Paginas recomendadas para criar em seguida:
 - `[[Observabilidade]]`
 - `[[Troubleshooting]]`
 - `[[Contribuicao-e-Padroes]]`
+- `[[Seguranca-e-Resposta-a-Incidentes]]`
 
-## Diretrizes de documentacao
+## Governança de documentação
 
-- Prefira exemplos executaveis (comandos reais).
-- Sempre documente impacto de configuracoes em `.env`.
-- Ao mudar fluxo de modulo/servico, atualize README + wiki.
-- Evite duplicar regra de negocio: referencie arquivo fonte quando possivel.
+- Prefira exemplos executáveis (comandos reais e verificáveis).
+- Sempre documente impacto de configurações em `.env`.
+- Ao mudar fluxo de módulo/serviço, atualize README + wiki + runbooks.
+- Evite duplicar regra de negócio: referencie arquivo-fonte quando possível.
+- Mantenha data de atualização ao final da página.
+
+## Referências internas
+
+- README principal: `README.md`
+- Runbook de evolução de banco: `docs/database/production-db-evolution-runbook-2026q1.md`
+- Playbook SEO BR: `docs/seo/omnizap-seo-playbook-br-2026-02-28.md`
+- Template de páginas satélite: `docs/seo/satellite-page-template.md`
+
+## Referências externas úteis
+
+- Node.js Docs: https://nodejs.org/docs/latest/api/
+- MySQL 8.0 Reference Manual: https://dev.mysql.com/doc/refman/8.0/en/
+- Prometheus Docs: https://prometheus.io/docs/introduction/overview/
+- Grafana Docs: https://grafana.com/docs/
 
 ---
 
-Ultima atualizacao: `2026-03-06`
+Última atualização: `2026-03-07`

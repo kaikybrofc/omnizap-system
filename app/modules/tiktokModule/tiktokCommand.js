@@ -10,24 +10,51 @@ import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
-const TIKTOK_EXTRACT_BASE_URL = (process.env.TIKTOK_EXTRACT_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+const TIKTOK_EXTRACT_BASE_URL = (
+  process.env.TIKTOK_EXTRACT_BASE_URL || 'http://127.0.0.1:8000'
+).replace(/\/$/, '');
 const TIKTOK_EXTRACT_PATH = process.env.TIKTOK_EXTRACT_PATH || '/extract';
-const TIKTOK_EXTRACT_TIMEOUT_SECONDS = Number.parseInt(process.env.TIKTOK_EXTRACT_TIMEOUT_SECONDS || '60', 10);
+const TIKTOK_EXTRACT_TIMEOUT_SECONDS = Number.parseInt(
+  process.env.TIKTOK_EXTRACT_TIMEOUT_SECONDS || '60',
+  10,
+);
 const TIKTOK_HTTP_TIMEOUT_MS = Number.parseInt(process.env.TIKTOK_HTTP_TIMEOUT_MS || '120000', 10);
 const TIKTOK_MAX_MB = Number.parseInt(process.env.TIKTOK_MAX_MB || '80', 10);
-const TIKTOK_MAX_BYTES = Number.isFinite(TIKTOK_MAX_MB) ? TIKTOK_MAX_MB * 1024 * 1024 : 80 * 1024 * 1024;
-const TIKTOK_MAX_URLS_PER_COMMAND = Number.parseInt(process.env.TIKTOK_MAX_URLS_PER_COMMAND || '5', 10);
-const TIKTOK_MAX_IMAGES_PER_POST = Number.parseInt(process.env.TIKTOK_MAX_IMAGES_PER_POST || '10', 10);
+const TIKTOK_MAX_BYTES = Number.isFinite(TIKTOK_MAX_MB)
+  ? TIKTOK_MAX_MB * 1024 * 1024
+  : 80 * 1024 * 1024;
+const TIKTOK_MAX_URLS_PER_COMMAND = Number.parseInt(
+  process.env.TIKTOK_MAX_URLS_PER_COMMAND || '5',
+  10,
+);
+const TIKTOK_MAX_IMAGES_PER_POST = Number.parseInt(
+  process.env.TIKTOK_MAX_IMAGES_PER_POST || '10',
+  10,
+);
 const CAPTION_MAX_CHARS = 950;
 
 const TEMP_DIR = path.join(os.tmpdir(), 'omnizap-tiktok');
 const URL_REGEX = /https?:\/\/[^\s<>"']+/gi;
-const IMAGE_PATH_HINTS = ['image', 'images', 'img', 'photo', 'photos', 'pic', 'pics', 'slide', 'slideshow', 'gallery', 'carousel', 'album'];
+const IMAGE_PATH_HINTS = [
+  'image',
+  'images',
+  'img',
+  'photo',
+  'photos',
+  'pic',
+  'pics',
+  'slide',
+  'slideshow',
+  'gallery',
+  'carousel',
+  'album',
+];
 const ALBUM_KIND_HINTS = ['slide', 'album', 'image', 'images', 'photo', 'carousel'];
 const TIKTOK_HOSTNAME = 'tiktok.com';
 
 const HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'User-Agent':
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   Accept: '*/*',
 };
 
@@ -108,9 +135,25 @@ const buildCaption = ({ requestedUrl, video, tiktok, mediaType = 'video' }) => {
   const likes = formatStat(video?.stats?.likes);
   const comments = formatStat(video?.stats?.comments);
   const shares = formatStat(video?.stats?.shares);
-  const title = mediaType === 'images' ? "┏━〔 🖼️ TikTok Imagens Sem Marca d'Água 〕━⬣" : "┏━〔 🎬 TikTok Sem Marca d'Água 〕━⬣";
+  const title =
+    mediaType === 'images'
+      ? "┏━〔 🖼️ TikTok Imagens Sem Marca d'Água 〕━⬣"
+      : "┏━〔 🎬 TikTok Sem Marca d'Água 〕━⬣";
 
-  const lines = [title, `┃ 👤 Autor: *${author}*`, username ? `┃ 🆔 Perfil: *@${username.replace(/^@+/, '')}*` : null, `┃ ❤️ Curtidas: *${likes}*`, `┃ 💬 Comentários: *${comments}*`, `┃ 🔁 Compart.: *${shares}*`, '┗━━━━━━━━━━━━━━━⬣', '', '📝 *Descrição*', description, '', `🔗 ${requestedUrl}`].filter(Boolean);
+  const lines = [
+    title,
+    `┃ 👤 Autor: *${author}*`,
+    username ? `┃ 🆔 Perfil: *@${username.replace(/^@+/, '')}*` : null,
+    `┃ ❤️ Curtidas: *${likes}*`,
+    `┃ 💬 Comentários: *${comments}*`,
+    `┃ 🔁 Compart.: *${shares}*`,
+    '┗━━━━━━━━━━━━━━━⬣',
+    '',
+    '📝 *Descrição*',
+    description,
+    '',
+    `🔗 ${requestedUrl}`,
+  ].filter(Boolean);
 
   return truncate(lines.join('\n'), CAPTION_MAX_CHARS);
 };
@@ -182,7 +225,11 @@ const collectDownloadCandidates = (payload) => {
 
   const candidates = [
     { kind: 'without_watermark', url: resolveUrl(noWm?.url, pageUrl), isHd: false },
-    { kind: preferred?.kind || 'preferred_download', url: resolveUrl(preferred?.url, pageUrl), isHd: `${preferred?.kind || ''}`.toLowerCase().includes('hd') },
+    {
+      kind: preferred?.kind || 'preferred_download',
+      url: resolveUrl(preferred?.url, pageUrl),
+      isHd: `${preferred?.kind || ''}`.toLowerCase().includes('hd'),
+    },
     { kind: 'without_watermark_hd', url: resolveUrl(hd?.url, pageUrl), isHd: true },
     { kind: 'without_watermark_hd', url: resolveUrl(hd?.data_directurl, pageUrl), isHd: true },
   ];
@@ -248,7 +295,14 @@ const isAlbumPayload = (payload) => {
   const postType = payload?.tiktok?.post_type;
   const slideButtonAvailable = Boolean(payload?.download_buttons?.slide?.available);
 
-  return albumCount > 0 || slideImageCount > 0 || slideDownloadCount > 0 || isAlbumKind(preferredKind) || isAlbumKind(postType) || slideButtonAvailable;
+  return (
+    albumCount > 0 ||
+    slideImageCount > 0 ||
+    slideDownloadCount > 0 ||
+    isAlbumKind(preferredKind) ||
+    isAlbumKind(postType) ||
+    slideButtonAvailable
+  );
 };
 
 const hasImagePathHint = (pathSegments) => {
@@ -258,7 +312,10 @@ const hasImagePathHint = (pathSegments) => {
 
 const isLikelyImageUrl = (value) => {
   if (!value || typeof value !== 'string') return false;
-  return /(\.jpe?g|\.png|\.webp|\.gif|\.bmp|\.avif|\.heic)(\?|$)/i.test(value) || /[?&]format=(jpg|jpeg|png|webp|gif)\b/i.test(value);
+  return (
+    /(\.jpe?g|\.png|\.webp|\.gif|\.bmp|\.avif|\.heic)(\?|$)/i.test(value) ||
+    /[?&]format=(jpg|jpeg|png|webp|gif)\b/i.test(value)
+  );
 };
 
 const collectImageCandidates = (payload) => {
@@ -307,7 +364,14 @@ const collectImageCandidates = (payload) => {
   return filtered;
 };
 
-const sendImageCollection = async ({ sock, remoteJid, messageInfo, expirationMessage, imageUrls, caption }) => {
+const sendImageCollection = async ({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  imageUrls,
+  caption,
+}) => {
   const maxImages = toPositiveInt(TIKTOK_MAX_IMAGES_PER_POST, 10);
   const selected = imageUrls.slice(0, maxImages);
   const skipped = Math.max(0, imageUrls.length - selected.length);
@@ -316,7 +380,10 @@ const sendImageCollection = async ({ sock, remoteJid, messageInfo, expirationMes
   for (let index = 0; index < selected.length; index += 1) {
     const imageUrl = selected[index];
     const indexLabel = `🖼️ Imagem ${index + 1}/${selected.length}`;
-    const firstCaption = skipped > 0 ? `${caption}\n\n${indexLabel}\n⚠️ Mostrando ${selected.length}/${imageUrls.length} imagens.` : `${caption}\n\n${indexLabel}`;
+    const firstCaption =
+      skipped > 0
+        ? `${caption}\n\n${indexLabel}\n⚠️ Mostrando ${selected.length}/${imageUrls.length} imagens.`
+        : `${caption}\n\n${indexLabel}`;
 
     try {
       await sendAndStore(
@@ -362,7 +429,11 @@ const downloadToTempFile = async (url) => {
     });
 
     const contentType = `${response.headers?.['content-type'] || ''}`.toLowerCase();
-    const looksLikeMedia = !contentType || contentType.includes('video') || contentType.includes('octet-stream') || contentType.includes('mp4');
+    const looksLikeMedia =
+      !contentType ||
+      contentType.includes('video') ||
+      contentType.includes('octet-stream') ||
+      contentType.includes('mp4');
     if (!looksLikeMedia) {
       throw new Error(`Content-Type inválido para vídeo: ${contentType || 'desconhecido'}`);
     }
@@ -392,7 +463,11 @@ const downloadToTempFile = async (url) => {
       throw new Error('Download vazio.');
     }
 
-    return { filePath, bytes: totalBytes, contentType: response.headers?.['content-type'] || 'video/mp4' };
+    return {
+      filePath,
+      bytes: totalBytes,
+      contentType: response.headers?.['content-type'] || 'video/mp4',
+    };
   } catch (error) {
     await safeUnlink(filePath);
     throw error;
@@ -424,7 +499,14 @@ const tryDownloadCandidates = async (candidates) => {
   throw new Error(detailed || 'Nenhum link de download disponível.');
 };
 
-const trySendDirectCandidates = async ({ sock, remoteJid, messageInfo, expirationMessage, caption, candidates }) => {
+const trySendDirectCandidates = async ({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  caption,
+  candidates,
+}) => {
   const failures = [];
 
   for (const candidate of candidates) {
@@ -464,7 +546,15 @@ const sendUsage = async ({ sock, remoteJid, messageInfo, expirationMessage, comm
     sock,
     remoteJid,
     {
-      text: ['🎬 *TikTok Downloader*', '', `Uso: *${commandPrefix}tiktok <link1> [link2 ...]*`, '', `Exemplo: *${commandPrefix}tiktok https://www.tiktok.com/@usuario/video/123*`, '', '✅ Suporta múltiplos links e posts de imagem (carrossel).'].join('\n'),
+      text: [
+        '🎬 *TikTok Downloader*',
+        '',
+        `Uso: *${commandPrefix}tiktok <link1> [link2 ...]*`,
+        '',
+        `Exemplo: *${commandPrefix}tiktok https://www.tiktok.com/@usuario/video/123*`,
+        '',
+        '✅ Suporta múltiplos links e posts de imagem (carrossel).',
+      ].join('\n'),
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
@@ -475,7 +565,10 @@ const processTikTokUrl = async ({ sock, remoteJid, messageInfo, expirationMessag
     const payload = await requestExtract(inputUrl);
 
     if (!payload?.ok) {
-      const reason = truncate(payload?.error || payload?.message || 'A API não retornou um download válido.', 220);
+      const reason = truncate(
+        payload?.error || payload?.message || 'A API não retornou um download válido.',
+        220,
+      );
       throw new Error(reason);
     }
 
@@ -483,7 +576,8 @@ const processTikTokUrl = async ({ sock, remoteJid, messageInfo, expirationMessag
     const albumPost = isAlbumPayload(payload);
     if (albumPost) {
       const albumCandidates = collectAlbumImageCandidates(payload);
-      const imageCandidates = albumCandidates.length > 0 ? albumCandidates : collectImageCandidates(payload);
+      const imageCandidates =
+        albumCandidates.length > 0 ? albumCandidates : collectImageCandidates(payload);
       if (!imageCandidates.length) {
         throw new Error('A API indicou álbum de imagens, mas não retornou URLs válidas.');
       }
@@ -607,7 +701,14 @@ const processTikTokUrl = async ({ sock, remoteJid, messageInfo, expirationMessag
   }
 };
 
-export async function handleTikTokCommand({ sock, remoteJid, messageInfo, expirationMessage, text, commandPrefix = DEFAULT_COMMAND_PREFIX }) {
+export async function handleTikTokCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  text,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+}) {
   const inputUrls = collectInputUrls({ text, messageInfo });
   if (!inputUrls.length) {
     await sendUsage({ sock, remoteJid, messageInfo, expirationMessage, commandPrefix });
@@ -619,13 +720,19 @@ export async function handleTikTokCommand({ sock, remoteJid, messageInfo, expira
   const ignoredCount = Math.max(0, inputUrls.length - urls.length);
 
   try {
-    const startText = urls.length === 1 ? "⏳ Baixando TikTok sem marca d'água, aguarde..." : `⏳ Processando ${urls.length} links do TikTok...`;
+    const startText =
+      urls.length === 1
+        ? "⏳ Baixando TikTok sem marca d'água, aguarde..."
+        : `⏳ Processando ${urls.length} links do TikTok...`;
 
     await sendAndStore(
       sock,
       remoteJid,
       {
-        text: ignoredCount > 0 ? `${startText}\n⚠️ Limite por comando: ${maxUrls}. Ignorados: ${ignoredCount}.` : startText,
+        text:
+          ignoredCount > 0
+            ? `${startText}\n⚠️ Limite por comando: ${maxUrls}. Ignorados: ${ignoredCount}.`
+            : startText,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -680,13 +787,23 @@ export async function handleTikTokCommand({ sock, remoteJid, messageInfo, expira
         throw new Error(failureDetails || 'Nenhum link foi processado com sucesso.');
       }
 
-      const summaryLines = ['✅ Processamento do TikTok concluído.', `• Itens enviados: ${deliveredCount}/${urls.length}`, `• Vídeos: ${videosSent}`, `• Posts de imagem: ${imagesSent}`];
+      const summaryLines = [
+        '✅ Processamento do TikTok concluído.',
+        `• Itens enviados: ${deliveredCount}/${urls.length}`,
+        `• Vídeos: ${videosSent}`,
+        `• Posts de imagem: ${imagesSent}`,
+      ];
 
       if (failures.length > 0) {
         summaryLines.push(`• Falhas: ${failures.length}`);
       }
 
-      await sendAndStore(sock, remoteJid, { text: summaryLines.join('\n') }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sendAndStore(
+        sock,
+        remoteJid,
+        { text: summaryLines.join('\n') },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
     }
   } catch (error) {
     logger.error('tiktok: falha ao processar comando.', {
@@ -699,7 +816,11 @@ export async function handleTikTokCommand({ sock, remoteJid, messageInfo, expira
       sock,
       remoteJid,
       {
-        text: ['❌ Não consegui baixar esse TikTok agora.', '', `Motivo: ${truncate(error?.message || 'falha desconhecida', 240)}`].join('\n'),
+        text: [
+          '❌ Não consegui baixar esse TikTok agora.',
+          '',
+          `Motivo: ${truncate(error?.message || 'falha desconhecida', 240)}`,
+        ].join('\n'),
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );

@@ -4,12 +4,23 @@ import { recordPokeApiCacheHit } from '../observability/metrics.js';
 
 const BASE_URL = 'https://pokeapi.co/api/v2';
 const MIN_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const CACHE_TTL_MS = Math.max(MIN_CACHE_TTL_MS, Number(process.env.POKEAPI_CACHE_TTL_MS) || MIN_CACHE_TTL_MS);
+const CACHE_TTL_MS = Math.max(
+  MIN_CACHE_TTL_MS,
+  Number(process.env.POKEAPI_CACHE_TTL_MS) || MIN_CACHE_TTL_MS,
+);
 const REQUEST_TIMEOUT_MS = Math.max(3_000, Number(process.env.POKEAPI_TIMEOUT_MS) || 10_000);
 const REQUEST_RETRY_ATTEMPTS = Math.max(0, Number(process.env.POKEAPI_RETRY_ATTEMPTS) || 2);
-const REQUEST_RETRY_BASE_DELAY_MS = Math.max(120, Number(process.env.POKEAPI_RETRY_BASE_DELAY_MS) || 350);
-const DNS_FAMILY = [0, 4, 6].includes(Number(process.env.POKEAPI_DNS_FAMILY)) ? Number(process.env.POKEAPI_DNS_FAMILY) : 4;
-const REQUEST_USER_AGENT = String(process.env.POKEAPI_USER_AGENT || 'omnizap-system/2.1 (+https://github.com/Kaikygr/omnizap-system)').trim();
+const REQUEST_RETRY_BASE_DELAY_MS = Math.max(
+  120,
+  Number(process.env.POKEAPI_RETRY_BASE_DELAY_MS) || 350,
+);
+const DNS_FAMILY = [0, 4, 6].includes(Number(process.env.POKEAPI_DNS_FAMILY))
+  ? Number(process.env.POKEAPI_DNS_FAMILY)
+  : 4;
+const REQUEST_USER_AGENT = String(
+  process.env.POKEAPI_USER_AGENT ||
+    'omnizap-system/2.1 (+https://github.com/Kaikygr/omnizap-system)',
+).trim();
 const DEFAULT_LORE_LANGUAGES = String(process.env.POKEAPI_LORE_LANGS || 'pt-br,pt,en')
   .split(',')
   .map((entry) =>
@@ -19,8 +30,12 @@ const DEFAULT_LORE_LANGUAGES = String(process.env.POKEAPI_LORE_LANGS || 'pt-br,p
   )
   .filter(Boolean);
 
-const sharedCache = globalThis.__omnizapPokeApiCache instanceof Map ? globalThis.__omnizapPokeApiCache : new Map();
-const sharedInflight = globalThis.__omnizapPokeApiInflight instanceof Map ? globalThis.__omnizapPokeApiInflight : new Map();
+const sharedCache =
+  globalThis.__omnizapPokeApiCache instanceof Map ? globalThis.__omnizapPokeApiCache : new Map();
+const sharedInflight =
+  globalThis.__omnizapPokeApiInflight instanceof Map
+    ? globalThis.__omnizapPokeApiInflight
+    : new Map();
 
 globalThis.__omnizapPokeApiCache = sharedCache;
 globalThis.__omnizapPokeApiInflight = sharedInflight;
@@ -55,7 +70,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const hasErrorMessage = (value) => typeof value === 'string' && value.trim().length > 0;
 
 const extractCauseMessages = (error) => {
-  const causes = Array.isArray(error?.cause?.errors) ? error.cause.errors : Array.isArray(error?.errors) ? error.errors : [];
+  const causes = Array.isArray(error?.cause?.errors)
+    ? error.cause.errors
+    : Array.isArray(error?.errors)
+      ? error.errors
+      : [];
 
   const messages = causes.map((entry) => String(entry?.message || '').trim()).filter(Boolean);
   return messages;
@@ -68,7 +87,13 @@ const summarizeRequestError = (error) => {
   const code = String(error?.code || error?.cause?.code || '').trim() || null;
   const causeMessages = extractCauseMessages(error);
 
-  const message = directMessage || causeMessage || causeMessages[0] || (Number.isFinite(status) ? `HTTP ${status}` : null) || (code ? `Erro de rede (${code})` : null) || 'erro-desconhecido';
+  const message =
+    directMessage ||
+    causeMessage ||
+    causeMessages[0] ||
+    (Number.isFinite(status) ? `HTTP ${status}` : null) ||
+    (code ? `Erro de rede (${code})` : null) ||
+    'erro-desconhecido';
 
   return {
     message,
@@ -88,7 +113,15 @@ const isRetryableRequestError = (error) => {
     .trim()
     .toUpperCase();
   if (!code) return false;
-  return ['ETIMEDOUT', 'ECONNRESET', 'ECONNABORTED', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'EPIPE'].includes(code);
+  return [
+    'ETIMEDOUT',
+    'ECONNRESET',
+    'ECONNABORTED',
+    'EAI_AGAIN',
+    'ENETUNREACH',
+    'EHOSTUNREACH',
+    'EPIPE',
+  ].includes(code);
 };
 
 const calculateRetryDelay = (attempt) => {
@@ -118,13 +151,21 @@ const pickEntryByLangPriority = (entries = [], languages = DEFAULT_LORE_LANGUAGE
   return list[0] || null;
 };
 
-export const getLocalizedName = (names = [], fallback = null, languages = DEFAULT_LORE_LANGUAGES) => {
+export const getLocalizedName = (
+  names = [],
+  fallback = null,
+  languages = DEFAULT_LORE_LANGUAGES,
+) => {
   const entry = pickEntryByLangPriority(names, languages);
   const value = normalizeApiText(entry?.name || '');
   return value || normalizeApiText(fallback || '') || null;
 };
 
-export const getLocalizedGenus = (genera = [], fallback = null, languages = DEFAULT_LORE_LANGUAGES) => {
+export const getLocalizedGenus = (
+  genera = [],
+  fallback = null,
+  languages = DEFAULT_LORE_LANGUAGES,
+) => {
   const entry = pickEntryByLangPriority(genera, languages);
   const value = normalizeApiText(entry?.genus || '');
   return value || normalizeApiText(fallback || '') || null;

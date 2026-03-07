@@ -1,7 +1,12 @@
 import { createCanvas, loadImage } from 'canvas';
 import { executeQuery } from '../../../database/index.js';
 import { getJidUser, getProfilePicBuffer, normalizeJid } from '../../config/baileysConfig.js';
-import { primeLidCache, resolveUserIdCached, isLidUserId, isWhatsAppUserId } from '../../services/lidMapService.js';
+import {
+  primeLidCache,
+  resolveUserIdCached,
+  isLidUserId,
+  isWhatsAppUserId,
+} from '../../services/lidMapService.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -13,9 +18,14 @@ const RANKING_IMAGE_HEIGHT = 900;
 const RANKING_IMAGE_SCALE = 2;
 const PROFILE_FETCH_TIMEOUT_MS = 4000;
 const ELLIPSIS = '…';
-const CANVAS_FONT_STACK = "'Noto Color Emoji', 'Segoe UI Emoji', 'Apple Color Emoji', 'Segoe UI Symbol', 'Noto Sans', 'DejaVu Sans', 'Arial Unicode MS', Arial, sans-serif";
-const GRAPHEME_SEGMENTER = typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('pt-BR', { granularity: 'grapheme' }) : null;
-const ZERO_WIDTH_UNICODE_REGEX = /(?:\u200B|\u200C|\u200D|\u2060|\uFE00|\uFE01|\uFE02|\uFE03|\uFE04|\uFE05|\uFE06|\uFE07|\uFE08|\uFE09|\uFE0A|\uFE0B|\uFE0C|\uFE0D|\uFE0E|\uFE0F)/gu;
+const CANVAS_FONT_STACK =
+  "'Noto Color Emoji', 'Segoe UI Emoji', 'Apple Color Emoji', 'Segoe UI Symbol', 'Noto Sans', 'DejaVu Sans', 'Arial Unicode MS', Arial, sans-serif";
+const GRAPHEME_SEGMENTER =
+  typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function'
+    ? new Intl.Segmenter('pt-BR', { granularity: 'grapheme' })
+    : null;
+const ZERO_WIDTH_UNICODE_REGEX =
+  /(?:\u200B|\u200C|\u200D|\u2060|\uFE00|\uFE01|\uFE02|\uFE03|\uFE04|\uFE05|\uFE06|\uFE07|\uFE08|\uFE09|\uFE0A|\uFE0B|\uFE0C|\uFE0D|\uFE0E|\uFE0F)/gu;
 const PRIVATE_USE_UNICODE_REGEX = /[\uE000-\uF8FF]/gu;
 const EMOJI_AND_PICTO_REGEX = /[\u{1F000}-\u{1FAFF}\u2600-\u27BF]/gu;
 const ASCII_PRINTABLE_REGEX = /^[\x20-\x7E]$/u;
@@ -191,7 +201,9 @@ const setCachedProfilePic = (jid, buffer) => {
   if (!jid || !buffer) return;
   PROFILE_PIC_CACHE.set(jid, { buffer, createdAt: Date.now(), lastAccess: Date.now() });
   if (PROFILE_PIC_CACHE.size > PROFILE_CACHE_LIMIT) {
-    const oldestKey = Array.from(PROFILE_PIC_CACHE.entries()).sort((a, b) => (a[1].lastAccess || a[1].createdAt || 0) - (b[1].lastAccess || b[1].createdAt || 0))[0]?.[0];
+    const oldestKey = Array.from(PROFILE_PIC_CACHE.entries()).sort(
+      (a, b) => (a[1].lastAccess || a[1].createdAt || 0) - (b[1].lastAccess || b[1].createdAt || 0),
+    )[0]?.[0];
     if (oldestKey) PROFILE_PIC_CACHE.delete(oldestKey);
   }
 };
@@ -274,7 +286,12 @@ const replaceControlCharsBySpace = (text) => {
 const toSafeCanvasText = (value) => {
   if (value === null || value === undefined) return '';
   const normalized = String(value).normalize('NFKC').replace(/\r?\n/g, ' ');
-  return replaceControlCharsBySpace(normalized).replace(ZERO_WIDTH_UNICODE_REGEX, '').replace(PRIVATE_USE_UNICODE_REGEX, '').replace(EMOJI_AND_PICTO_REGEX, '').replace(/\s+/g, ' ').trim();
+  return replaceControlCharsBySpace(normalized)
+    .replace(ZERO_WIDTH_UNICODE_REGEX, '')
+    .replace(PRIVATE_USE_UNICODE_REGEX, '')
+    .replace(EMOJI_AND_PICTO_REGEX, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 };
 
 const toSafeCanvasDisplayName = (value) => {
@@ -282,7 +299,11 @@ const toSafeCanvasDisplayName = (value) => {
   if (!base) return '';
   let safe = '';
   for (const char of base) {
-    if (ASCII_PRINTABLE_REGEX.test(char) || LATIN_CHAR_REGEX.test(char) || NUMBER_CHAR_REGEX.test(char)) {
+    if (
+      ASCII_PRINTABLE_REGEX.test(char) ||
+      LATIN_CHAR_REGEX.test(char) ||
+      NUMBER_CHAR_REGEX.test(char)
+    ) {
       safe += char;
       continue;
     }
@@ -302,14 +323,18 @@ const splitGraphemes = (value) => {
   return Array.from(text);
 };
 
-const getCanvasFont = (size, weight = 'normal') => `${weight} ${Math.max(10, Number(size) || 10)}px ${CANVAS_FONT_STACK}`;
+const getCanvasFont = (size, weight = 'normal') =>
+  `${weight} ${Math.max(10, Number(size) || 10)}px ${CANVAS_FONT_STACK}`;
 
 const fitText = (ctx, text, maxWidth) => {
   const base = toSafeCanvasText(text);
   if (!base) return '';
   if (ctx.measureText(base).width <= maxWidth) return base;
   const graphemes = splitGraphemes(base);
-  while (graphemes.length > 0 && ctx.measureText(`${graphemes.join('')}${ELLIPSIS}`).width > maxWidth) {
+  while (
+    graphemes.length > 0 &&
+    ctx.measureText(`${graphemes.join('')}${ELLIPSIS}`).width > maxWidth
+  ) {
     graphemes.pop();
   }
   return graphemes.length ? `${graphemes.join('')}${ELLIPSIS}` : '';
@@ -342,7 +367,10 @@ const pickAvatarJid = (row) => {
   return null;
 };
 
-const drawAvatar = (ctx, { x, y, radius, image, fallbackLabel, borderColor = '#38bdf8', glowColor = null, glowBlur = 14 }) => {
+const drawAvatar = (
+  ctx,
+  { x, y, radius, image, fallbackLabel, borderColor = '#38bdf8', glowColor = null, glowBlur = 14 },
+) => {
   ctx.save();
   ctx.shadowColor = glowColor || borderColor;
   ctx.shadowBlur = Math.max(0, Number(glowBlur) || 0);
@@ -352,7 +380,14 @@ const drawAvatar = (ctx, { x, y, radius, image, fallbackLabel, borderColor = '#3
   ctx.fill();
   ctx.restore();
 
-  const glow = ctx.createRadialGradient(x - radius * 0.2, y - radius * 0.2, radius * 0.4, x, y, radius * 1.2);
+  const glow = ctx.createRadialGradient(
+    x - radius * 0.2,
+    y - radius * 0.2,
+    radius * 0.4,
+    x,
+    y,
+    radius * 1.2,
+  );
   glow.addColorStop(0, 'rgba(226, 232, 240, 0.25)');
   glow.addColorStop(1, 'rgba(15, 23, 42, 0)');
   ctx.save();
@@ -508,7 +543,12 @@ export const getTotalMessages = async ({ scope, remoteJid, botJid }) => {
     }
   }
 
-  const { where, params, joinSql } = buildWhere({ scope, remoteJid, botJid, useCanonicalSender: true });
+  const { where, params, joinSql } = buildWhere({
+    scope,
+    remoteJid,
+    botJid,
+    useCanonicalSender: true,
+  });
   const sql = `SELECT COUNT(*) AS total FROM messages m ${joinSql} WHERE ${where.join(' AND ')}`;
   const [row] = await executeQuery(sql, params);
   return Number(row?.total || 0);
@@ -520,7 +560,12 @@ export const getTotalMessages = async ({ scope, remoteJid, botJid }) => {
  * @returns {Promise<{label: string, count: number}|null>}
  */
 export const getTopMessageType = async ({ scope, remoteJid, botJid }) => {
-  const { where, params, joinSql } = buildWhere({ scope, remoteJid, botJid, useCanonicalSender: true });
+  const { where, params, joinSql } = buildWhere({
+    scope,
+    remoteJid,
+    botJid,
+    useCanonicalSender: true,
+  });
   const [row] = await executeQuery(
     `SELECT
         ${MESSAGE_TYPE_SQL} AS message_type,
@@ -544,7 +589,12 @@ export const getTopMessageType = async ({ scope, remoteJid, botJid }) => {
  * @returns {Promise<any>}
  */
 export const getDbStart = async ({ scope, remoteJid, botJid }) => {
-  const { where, params, joinSql } = buildWhere({ scope, remoteJid, botJid, useCanonicalSender: true });
+  const { where, params, joinSql } = buildWhere({
+    scope,
+    remoteJid,
+    botJid,
+    useCanonicalSender: true,
+  });
   const sql = `SELECT MIN(m.timestamp) AS db_start FROM messages m ${joinSql} WHERE ${where.join(' AND ')}`;
   const rows = await executeQuery(sql, params);
   return rows?.[0]?.db_start || null;
@@ -616,7 +666,12 @@ export const getRankingBase = async ({ scope, remoteJid, botJid, limit = null })
   }
 
   if (!rankingRows.length) {
-    const { where, params, joinSql, senderExpr } = buildWhere({ scope, remoteJid, botJid, useCanonicalSender: true });
+    const { where, params, joinSql, senderExpr } = buildWhere({
+      scope,
+      remoteJid,
+      botJid,
+      useCanonicalSender: true,
+    });
     rankingRows = await executeQuery(
       `SELECT
           ${senderExpr} AS sender_id,
@@ -660,10 +715,12 @@ export const getRankingBase = async ({ scope, remoteJid, botJid, limit = null })
     };
     current.total_messages += total;
     if (firstMs !== null) {
-      current.first_message = current.first_message === null ? firstMs : Math.min(current.first_message, firstMs);
+      current.first_message =
+        current.first_message === null ? firstMs : Math.min(current.first_message, firstMs);
     }
     if (lastMs !== null) {
-      current.last_message = current.last_message === null ? lastMs : Math.max(current.last_message, lastMs);
+      current.last_message =
+        current.last_message === null ? lastMs : Math.max(current.last_message, lastMs);
     }
     if (!current.mention_id && mentionId) {
       current.mention_id = mentionId;
@@ -678,7 +735,9 @@ export const getRankingBase = async ({ scope, remoteJid, botJid, limit = null })
     normalizedTotals.set(key, current);
   });
 
-  const rows = Array.from(normalizedTotals.values()).sort((a, b) => b.total_messages - a.total_messages);
+  const rows = Array.from(normalizedTotals.values()).sort(
+    (a, b) => b.total_messages - a.total_messages,
+  );
   return { rows: limit ? rows.slice(0, limit) : rows };
 };
 
@@ -785,7 +844,9 @@ export const enrichRankingRows = async ({ rows, scope, remoteJid, botJid }) => {
       );
     }
 
-    const days = Array.from(new Set((daysRows || []).map((item) => normalizeDayKey(item?.day)).filter(Boolean))).sort();
+    const days = Array.from(
+      new Set((daysRows || []).map((item) => normalizeDayKey(item?.day)).filter(Boolean)),
+    ).sort();
     row.active_days = days.length;
     row.streak = computeStreak(days);
 
@@ -822,7 +883,15 @@ export const enrichRankingRows = async ({ rows, scope, remoteJid, botJid }) => {
  * @param {{scope: 'group'|'global', remoteJid?: string|null, botJid?: string|null, limit?: number|null, includeTopType?: boolean, includeDbStart?: boolean, enrichRows?: boolean}} params
  * @returns {Promise<{rows: Array<any>, totalMessages: number, topType: {label: string, count: number}|null, topTotal: number, dbStart: any}>}
  */
-export const getRankingReport = async ({ scope, remoteJid, botJid, limit = null, includeTopType = true, includeDbStart = true, enrichRows = true }) => {
+export const getRankingReport = async ({
+  scope,
+  remoteJid,
+  botJid,
+  limit = null,
+  includeTopType = true,
+  includeDbStart = true,
+  enrichRows = true,
+}) => {
   const totalMessages = await getTotalMessages({ scope, remoteJid, botJid });
   const topType = includeTopType ? await getTopMessageType({ scope, remoteJid, botJid }) : null;
   const { rows } = await getRankingBase({ scope, remoteJid, botJid, limit });
@@ -839,7 +908,15 @@ export const getRankingReport = async ({ scope, remoteJid, botJid, limit = null,
  * @param {{scope: 'group'|'global', limit: number, rows: Array<any>, totalMessages: number, topTotal: number, topType: {label: string, count: number}|null, dbStart: any}} params
  * @returns {string}
  */
-export const buildRankingMessage = ({ scope, limit, rows, totalMessages, topTotal, topType, dbStart }) => {
+export const buildRankingMessage = ({
+  scope,
+  limit,
+  rows,
+  totalMessages,
+  topTotal,
+  topType,
+  dbStart,
+}) => {
   const scopeTitle = scope === 'global' ? 'Global' : 'Grupo';
   const scopeLabel = scope === 'global' ? 'global' : 'grupo';
 
@@ -848,10 +925,17 @@ export const buildRankingMessage = ({ scope, limit, rows, totalMessages, topTota
   }
 
   const totalLabel = Number(totalMessages || 0);
-  const topShare = totalLabel > 0 ? ((Number(topTotal || 0) / totalLabel) * 100).toFixed(2) : '0.00';
+  const topShare =
+    totalLabel > 0 ? ((Number(topTotal || 0) / totalLabel) * 100).toFixed(2) : '0.00';
   const topTypeLabel = topType?.label ? `${topType.label} (${topType.count})` : 'N/D';
 
-  const lines = [`🏆 *Ranking ${scopeTitle} Top ${limit} (mensagens)*`, `📦 Total de mensagens (${scopeLabel}): ${totalLabel}`, `📊 Top ${limit} = ${topShare}% do total`, `🔥 Tipo mais usado: ${topTypeLabel}`, ''];
+  const lines = [
+    `🏆 *Ranking ${scopeTitle} Top ${limit} (mensagens)*`,
+    `📦 Total de mensagens (${scopeLabel}): ${totalLabel}`,
+    `📊 Top ${limit} = ${topShare}% do total`,
+    `🔥 Tipo mais usado: ${topTypeLabel}`,
+    '',
+  ];
 
   rows.forEach((row, index) => {
     const handle = getDisplayName(row.display_name, row.mention_id || row.sender_id);
@@ -862,9 +946,22 @@ export const buildRankingMessage = ({ scope, limit, rows, totalMessages, topTota
     const avgPerDay = row.avg_per_day || '0.00';
     const activeDays = row.active_days ?? 0;
     const streak = row.streak ?? 0;
-    const favoriteType = row.favorite_type ? `${row.favorite_type} (${row.favorite_count || 0})` : 'N/D';
+    const favoriteType = row.favorite_type
+      ? `${row.favorite_type} (${row.favorite_count || 0})`
+      : 'N/D';
     const position = `${index + 1}`.padStart(2, '0');
-    lines.push(`${position}. ${handle}`, `   💬 ${total} msg(s)`, `   📊 ${percent}% do total`, `   📆 dias ativos: ${activeDays}`, `   📈 media/dia: ${avgPerDay}`, `   🔥 favorito: ${favoriteType}`, `   🔗 streak: ${streak} dia(s)`, `   📅 primeira: ${first}`, `   🕘 ultima: ${last}`, '');
+    lines.push(
+      `${position}. ${handle}`,
+      `   💬 ${total} msg(s)`,
+      `   📊 ${percent}% do total`,
+      `   📆 dias ativos: ${activeDays}`,
+      `   📈 media/dia: ${avgPerDay}`,
+      `   🔥 favorito: ${favoriteType}`,
+      `   🔗 streak: ${streak} dia(s)`,
+      `   📅 primeira: ${first}`,
+      `   🕘 ultima: ${last}`,
+      '',
+    );
   });
 
   lines.push(`Inicio do banco (primeira mensagem): ${formatDate(dbStart)}`);
@@ -883,7 +980,15 @@ export const buildRankingMessage = ({ scope, limit, rows, totalMessages, topTota
  * @param {number} params.limit
  * @returns {Promise<Buffer>}
  */
-export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages, topType, scope, limit }) => {
+export const renderRankingImage = async ({
+  sock,
+  remoteJid,
+  rows,
+  totalMessages,
+  topType,
+  scope,
+  limit,
+}) => {
   const width = RANKING_IMAGE_WIDTH;
   const height = RANKING_IMAGE_HEIGHT;
   const scale = RANKING_IMAGE_SCALE;
@@ -912,8 +1017,10 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
     3: 'BRONZE',
   };
 
-  const uiFontStack = "'Inter', 'Poppins', 'Segoe UI', 'Noto Sans', 'DejaVu Sans', Arial, sans-serif";
-  const uiFont = (size, weight = 500) => `${weight} ${Math.max(10, Number(size) || 10)}px ${uiFontStack}`;
+  const uiFontStack =
+    "'Inter', 'Poppins', 'Segoe UI', 'Noto Sans', 'DejaVu Sans', Arial, sans-serif";
+  const uiFont = (size, weight = 500) =>
+    `${weight} ${Math.max(10, Number(size) || 10)}px ${uiFontStack}`;
   const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
   const hexToRgba = (hex, alpha = 1) => {
     const clean = String(hex || '').replace('#', '');
@@ -996,7 +1103,8 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
   const gap = 24;
   const headerTop = 44;
   const gridTop = 160;
-  const title = scope === 'global' ? `Ranking Global - Top ${limit}` : `Ranking do Grupo - Top ${limit}`;
+  const title =
+    scope === 'global' ? `Ranking Global - Top ${limit}` : `Ranking do Grupo - Top ${limit}`;
   const topTypeLabel = toSafeCanvasText(topType?.label || 'N/D').toLowerCase() || 'n/d';
   const subtitle = `${formatCompactNumber(totalMessages)} mensagens • tipo mais usado: ${topTypeLabel}`;
 
@@ -1143,7 +1251,13 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
     ctx.save();
     ctx.fillStyle = hexToRgba(accentColor, 0.96);
     ctx.beginPath();
-    ctx.arc(x + pad + rankBadgeSize / 2, y + pad + rankBadgeSize / 2, rankBadgeSize / 2, 0, Math.PI * 2);
+    ctx.arc(
+      x + pad + rankBadgeSize / 2,
+      y + pad + rankBadgeSize / 2,
+      rankBadgeSize / 2,
+      0,
+      Math.PI * 2,
+    );
     ctx.fill();
     ctx.fillStyle = '#020617';
     ctx.font = uiFont(rankBadgeSize * 0.48, 700);
@@ -1159,7 +1273,12 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
       const badgeY = y + pad + 2;
       ctx.save();
       drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 14);
-      const topBadgeGradient = ctx.createLinearGradient(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH);
+      const topBadgeGradient = ctx.createLinearGradient(
+        badgeX,
+        badgeY,
+        badgeX + badgeW,
+        badgeY + badgeH,
+      );
       topBadgeGradient.addColorStop(0, 'rgba(250, 204, 21, 0.24)');
       topBadgeGradient.addColorStop(1, 'rgba(234, 179, 8, 0.14)');
       ctx.fillStyle = topBadgeGradient;
@@ -1255,7 +1374,8 @@ export const renderRankingImage = async ({ sock, remoteJid, rows, totalMessages,
   if (restRows.length) {
     const restCount = restRows.length;
     const restGap = 20;
-    const restWidth = (availableWidth - restGap * Math.max(0, restCount - 1)) / Math.max(1, restCount);
+    const restWidth =
+      (availableWidth - restGap * Math.max(0, restCount - 1)) / Math.max(1, restCount);
     const restHeight = Math.min(228, height - restTop - 116);
     const usedWidth = restWidth * restCount + restGap * Math.max(0, restCount - 1);
     const restStartX = margin + Math.max(0, (availableWidth - usedWidth) / 2);

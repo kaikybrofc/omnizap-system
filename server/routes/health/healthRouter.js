@@ -12,7 +12,8 @@ const sendJson = (req, res, statusCode, payload) => {
 
 const isAllowedMethod = (method) => method === 'GET' || method === 'HEAD';
 
-export const shouldHandleHealthPath = (pathname) => pathname === '/healthz' || pathname === '/readyz';
+export const shouldHandleHealthPath = (pathname) =>
+  pathname === '/healthz' || pathname === '/readyz';
 
 export const maybeHandleHealthRequest = async (req, res, { pathname }) => {
   if (!shouldHandleHealthPath(pathname)) return false;

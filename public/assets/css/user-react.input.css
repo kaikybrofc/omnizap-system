@@ -9,7 +9,9 @@
 @layer base {
   body {
     color: hsl(var(--bc));
-    background: radial-gradient(72rem 42rem at -18% -22%, rgb(37 99 235 / 0.2), transparent 64%), radial-gradient(55rem 30rem at 112% -8%, rgb(29 210 140 / 0.18), transparent 68%), #020617;
+    background:
+      radial-gradient(72rem 42rem at -18% -22%, rgb(37 99 235 / 0.2), transparent 64%),
+      radial-gradient(55rem 30rem at 112% -8%, rgb(29 210 140 / 0.18), transparent 68%), #020617;
   }
 
   #user-react-root {

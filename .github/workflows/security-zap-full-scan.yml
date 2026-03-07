@@ -2,13 +2,13 @@ name: Security - ZAP Full Scan
 
 on:
   schedule:
-    - cron: '0 5 * * 0'
+    - cron: "0 5 * * 0"
   workflow_dispatch:
     inputs:
       target_url:
-        description: 'Target URL for full scan'
+        description: "Target URL for full scan"
         required: false
-        default: ''
+        default: ""
         type: string
 
 permissions:

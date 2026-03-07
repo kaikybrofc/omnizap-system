@@ -1,8 +1,12 @@
-# Production DB Evolution Runbook (2026 Q1)
+# Runbook de Evolução de Banco em Produção (2026 Q1)
 
-Scope: phased schema hardening and evolution for MySQL/InnoDB with zero destructive changes in early phases.
+Escopo: hardening e evolução gradual de esquema em MySQL/InnoDB, com foco em mudanças não destrutivas nas fases iniciais.
 
-Target files:
+## Objetivo
+
+Este runbook define o processo operacional para aplicar, validar e, se necessário, reverter as migrações planejadas para o ciclo 2026 Q1, minimizando risco de indisponibilidade e regressão de desempenho.
+
+## Arquivos alvo
 
 - `database/migrations/20260307_d0_hardening_up.sql`
 - `database/migrations/20260307_d0_hardening_down.sql`
@@ -11,52 +15,53 @@ Target files:
 - `database/migrations/20260406_d30_security_analytics_up.sql`
 - `database/migrations/20260406_d30_security_analytics_down.sql`
 
-## 1) Preconditions
+## 1) Pré-requisitos
 
-1. Confirm engine/version:
+1. Confirmar engine e versão do MySQL:
 
 ```sql
 SELECT VERSION() AS mysql_version;
 ```
 
-Recommended: MySQL 8.0.16+ (for CHECK constraints and `DROP CHECK`).
+Recomendado: MySQL 8.0.16+ (suporte consistente a `CHECK` e `DROP CHECK`).
 
-2. Confirm event scheduler policy:
+2. Confirmar política de scheduler de eventos:
 
 ```sql
 SHOW VARIABLES LIKE 'event_scheduler';
 ```
 
-If your policy allows DB-driven retention/rollup jobs, set `event_scheduler=ON` at server level.
+Se a política do ambiente permitir jobs de retenção/rollup no banco, mantenha `event_scheduler=ON` em nível de servidor.
 
-3. Backup before each phase:
+3. Garantir estratégia de backup antes de cada fase:
 
-- Logical backup of target schema.
-- Point-in-time recovery configured (binlog/backup chain).
+- backup lógico do schema de destino;
+- cadeia de recuperação point-in-time (binlog + snapshots);
+- teste de restauração em ambiente de homologação.
 
-4. Maintenance posture:
+4. Postura operacional:
 
-- Execute during low write pressure windows.
-- Keep app online for D0.
-- D+7 and D+30 can run online, but monitor write latency.
+- executar em janelas de menor pressão de escrita;
+- manter a aplicação online na D0;
+- D+7 e D+30 podem ser online, com monitoramento ativo de latência.
 
-## 2) Execution commands
+## 2) Comando padrão de execução
 
-Use mysql CLI (recommended):
+Uso recomendado via `mysql` CLI:
 
 ```bash
-mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/<file>.sql
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/<arquivo>.sql
 ```
 
-## 3) Phase D0 - Non-breaking hardening
+## 3) Fase D0 - Hardening não disruptivo
 
-### Apply
+### Aplicar
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260307_d0_hardening_up.sql
 ```
 
-### Validate
+### Validar
 
 ```sql
 SELECT migration_key, phase, status, updated_at
@@ -70,21 +75,21 @@ SHOW INDEX FROM sticker_worker_task_queue;
 SHOW INDEX FROM sticker_asset_reprocess_queue;
 ```
 
-### Rollback
+### Rollback lógico
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260307_d0_hardening_down.sql
 ```
 
-## 4) Phase D+7 - Canonical sender migration
+## 4) Fase D+7 - Migração para remetente canônico
 
-### Apply
+### Aplicar
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260314_d7_canonical_sender_up.sql
 ```
 
-### Validate
+### Validar
 
 ```sql
 SELECT migration_key, phase, status, updated_at
@@ -99,25 +104,25 @@ SELECT COUNT(*) AS null_canonical_sender
  WHERE canonical_sender_id IS NULL;
 ```
 
-### App rollout checkpoint
+### Checkpoint de rollout da aplicação
 
-After D+7, deploy app/query changes that prefer `messages.canonical_sender_id` in ranking/analytics paths.
+Após D+7, publicar ajustes de aplicação/queries que priorizem `messages.canonical_sender_id` em caminhos de ranking e analytics.
 
-### Rollback
+### Rollback lógico
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260314_d7_canonical_sender_down.sql
 ```
 
-## 5) Phase D+30 - Security + analytics + retention
+## 5) Fase D+30 - Segurança, analytics e retenção
 
-### Apply
+### Aplicar
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260406_d30_security_analytics_up.sql
 ```
 
-### Validate
+### Validar
 
 ```sql
 SELECT migration_key, phase, status, updated_at
@@ -145,25 +150,29 @@ SHOW EVENTS
    );
 ```
 
-### Constraint post-checks
+### Pós-checagem de constraints
 
-If any CHECK was skipped, the migration script prints `SKIPPED` messages. Fix violating data, then re-run D+30 `up`.
+Se alguma `CHECK` for ignorada, o script emitirá mensagens `SKIPPED`. Nesse caso:
 
-### Rollback
+1. corrigir os dados violadores;
+2. reexecutar a migração D+30 (`up`);
+3. repetir as validações da fase.
+
+### Rollback lógico
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260406_d30_security_analytics_down.sql
 ```
 
-## 6) Monitoring checklist (all phases)
+## 6) Checklist de monitoramento (todas as fases)
 
-Track for 30-60 minutes after each phase:
+Monitorar por 30-60 minutos após cada fase:
 
-- `Threads_running`, InnoDB row lock waits, query latency p95/p99.
-- Queue depth and stuck workers (`status='processing' AND locked_at` stale).
-- Slow query log spikes on `messages` and queue tables.
+- `Threads_running`, waits de lock InnoDB e latência p95/p99;
+- profundidade de filas e workers presos (`status='processing'` com `locked_at` obsoleto);
+- picos em slow query log para `messages` e tabelas de fila.
 
-Recommended quick checks:
+Consultas rápidas recomendadas:
 
 ```sql
 SELECT status, COUNT(*) FROM domain_event_outbox GROUP BY status;
@@ -171,17 +180,39 @@ SELECT status, COUNT(*) FROM email_outbox GROUP BY status;
 SELECT status, COUNT(*) FROM sticker_worker_task_queue GROUP BY status;
 ```
 
-## 7) Roll-forward policy
+## 7) Critério de avanço (go/no-go)
 
-If rollback is not strictly required and data is healthy:
+Prosseguir para a próxima fase somente se:
 
-1. Keep phase applied.
-2. Patch app queries to use new indexes/columns.
-3. Re-run validation queries.
-4. Register postmortem notes in `schema_change_log.notes`.
+- status da migração atual estiver `applied` em `schema_change_log`;
+- validações obrigatórias estiverem consistentes;
+- não houver degradação sustentada de latência/erros.
 
-## 8) Safety notes
+Suspender avanço se houver:
 
-- DDL in MySQL auto-commits. Rollback scripts are logical rollbacks, not transaction undo.
-- Do not run `db:init` as a migration mechanism in production, because it replays consolidated schema and can mask drift.
-- Keep migration files immutable after production execution. If changes are needed, create new migration files.
+- aumento persistente de lock waits;
+- crescimento anômalo de filas sem drenagem;
+- erros de aplicação relacionados às colunas/índices alterados.
+
+## 8) Política de roll-forward
+
+Quando rollback não for estritamente necessário e os dados estiverem íntegros:
+
+1. manter a fase aplicada;
+2. ajustar queries da aplicação para os novos índices/colunas;
+3. repetir validações;
+4. registrar postmortem e observações em `schema_change_log.notes`.
+
+## 9) Notas de segurança operacional
+
+- DDL no MySQL faz auto-commit. Scripts de `down` são rollbacks lógicos, não undo transacional.
+- Não usar `db:init` como mecanismo de migração em produção, pois ele aplica schema consolidado e pode mascarar drift.
+- Após execução em produção, tratar arquivos de migração como imutáveis. Mudanças devem entrar em novos arquivos/versionamentos.
+
+## 10) Referências
+
+- MySQL 8.0 Reference Manual (DDL): https://dev.mysql.com/doc/refman/8.0/en/sql-data-definition-statements.html
+- MySQL `CHECK` constraints: https://dev.mysql.com/doc/refman/8.0/en/create-table-check-constraints.html
+- MySQL Event Scheduler: https://dev.mysql.com/doc/refman/8.0/en/event-scheduler.html
+- InnoDB locking e monitoramento: https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html
+- Guia interno de banco (projeto): `database/` e `docs/database/`

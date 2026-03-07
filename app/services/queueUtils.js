@@ -4,7 +4,8 @@
  * @param {number} cols
  * @returns {string}
  */
-export const buildPlaceholders = (rows, cols) => Array.from({ length: rows }, () => `(${Array(cols).fill('?').join(', ')})`).join(', ');
+export const buildPlaceholders = (rows, cols) =>
+  Array.from({ length: rows }, () => `(${Array(cols).fill('?').join(', ')})`).join(', ');
 
 /**
  * Cria placeholders repetindo um template por linha.
@@ -12,7 +13,8 @@ export const buildPlaceholders = (rows, cols) => Array.from({ length: rows }, ()
  * @param {string} rowTemplate
  * @returns {string}
  */
-export const buildRowPlaceholders = (rows, rowTemplate) => Array.from({ length: rows }, () => rowTemplate).join(', ');
+export const buildRowPlaceholders = (rows, rowTemplate) =>
+  Array.from({ length: rows }, () => rowTemplate).join(', ');
 
 /**
  * Cria um executor de flush com controle de concorrencia e re-try imediato.

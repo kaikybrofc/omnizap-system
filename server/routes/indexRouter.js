@@ -2,12 +2,37 @@ import path from 'node:path';
 
 import { maybeHandleMetricsRequest } from './metrics/metricsRouter.js';
 import { maybeHandleHealthRequest, shouldHandleHealthPath } from './health/healthRouter.js';
-import { getEmailAutomationRouterConfig, maybeHandleEmailAutomationRequest, shouldHandleEmailAutomationPath } from './email/emailAutomationRouter.js';
-import { buildUserApiPaths, getUserRouterConfig, maybeHandleUserRequest, shouldHandleUserPath } from './user/userRouter.js';
-import { getSystemAdminRouterConfig, maybeHandleSystemAdminRequest, shouldHandleSystemAdminPath } from './admin/systemAdminRouter.js';
-import { getStickerSiteRouterConfig, maybeHandleStickerSiteRequest, shouldHandleStickerSitePath } from './sticker/stickerSiteRouter.js';
-import { getStickerDataRouterConfig, maybeHandleStickerDataRequest, shouldHandleStickerDataPath } from './sticker/stickerDataRouter.js';
-import { getStickerApiRouterConfig, maybeHandleStickerApiRequest, shouldHandleStickerApiPath } from './sticker/stickerApiRouter.js';
+import {
+  getEmailAutomationRouterConfig,
+  maybeHandleEmailAutomationRequest,
+  shouldHandleEmailAutomationPath,
+} from './email/emailAutomationRouter.js';
+import {
+  buildUserApiPaths,
+  getUserRouterConfig,
+  maybeHandleUserRequest,
+  shouldHandleUserPath,
+} from './user/userRouter.js';
+import {
+  getSystemAdminRouterConfig,
+  maybeHandleSystemAdminRequest,
+  shouldHandleSystemAdminPath,
+} from './admin/systemAdminRouter.js';
+import {
+  getStickerSiteRouterConfig,
+  maybeHandleStickerSiteRequest,
+  shouldHandleStickerSitePath,
+} from './sticker/stickerSiteRouter.js';
+import {
+  getStickerDataRouterConfig,
+  maybeHandleStickerDataRequest,
+  shouldHandleStickerDataPath,
+} from './sticker/stickerDataRouter.js';
+import {
+  getStickerApiRouterConfig,
+  maybeHandleStickerApiRequest,
+  shouldHandleStickerApiPath,
+} from './sticker/stickerApiRouter.js';
 
 const startsWithPath = (pathname, prefix) => {
   if (!pathname || !prefix) return false;
@@ -18,7 +43,10 @@ const startsWithPath = (pathname, prefix) => {
 const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
+  const withoutTrailingSlash =
+    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
+      ? withLeadingSlash.slice(0, -1)
+      : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 };
 
@@ -110,28 +138,50 @@ const loadStickerApiConfigSafe = async () => {
 
 export const getIndexRouteConfigs = async () => {
   if (!indexRouteConfigsPromise) {
-    indexRouteConfigsPromise = Promise.all([loadUserConfigSafe(), loadSystemAdminConfigSafe(), loadEmailAutomationConfigSafe(), loadStickerSiteConfigSafe(), loadStickerDataConfigSafe(), loadStickerApiConfigSafe()]).then(([userConfig, systemAdminConfig, emailAutomationConfig, stickerSiteConfig, stickerDataConfig, stickerApiConfig]) => ({
-      userConfig,
-      systemAdminConfig,
-      emailAutomationConfig,
-      stickerConfig: {
-        ...stickerSiteConfig,
-        ...stickerDataConfig,
-        ...stickerApiConfig,
-      },
-    }));
+    indexRouteConfigsPromise = Promise.all([
+      loadUserConfigSafe(),
+      loadSystemAdminConfigSafe(),
+      loadEmailAutomationConfigSafe(),
+      loadStickerSiteConfigSafe(),
+      loadStickerDataConfigSafe(),
+      loadStickerApiConfigSafe(),
+    ]).then(
+      ([
+        userConfig,
+        systemAdminConfig,
+        emailAutomationConfig,
+        stickerSiteConfig,
+        stickerDataConfig,
+        stickerApiConfig,
+      ]) => ({
+        userConfig,
+        systemAdminConfig,
+        emailAutomationConfig,
+        stickerConfig: {
+          ...stickerSiteConfig,
+          ...stickerDataConfig,
+          ...stickerApiConfig,
+        },
+      }),
+    );
   }
 
   return indexRouteConfigsPromise;
 };
 
-const shouldHandleSystemAdminStep = (pathname, systemAdminConfig) => shouldHandleSystemAdminPath(pathname, systemAdminConfig);
+const shouldHandleSystemAdminStep = (pathname, systemAdminConfig) =>
+  shouldHandleSystemAdminPath(pathname, systemAdminConfig);
 
 const shouldHandleUserStep = (pathname, userConfig) => shouldHandleUserPath(pathname, userConfig);
 
-const shouldHandleMetricsStep = (pathname, metricsPath) => startsWithPath(pathname, normalizeBasePath(metricsPath, '/metrics'));
+const shouldHandleMetricsStep = (pathname, metricsPath) =>
+  startsWithPath(pathname, normalizeBasePath(metricsPath, '/metrics'));
 
-export const routeRequest = async (req, res, { pathname, url, metricsPath = '/metrics', configs = null } = {}) => {
+export const routeRequest = async (
+  req,
+  res,
+  { pathname, url, metricsPath = '/metrics', configs = null } = {},
+) => {
   const resolvedConfigs = configs || (await getIndexRouteConfigs());
   const userConfig = resolvedConfigs?.userConfig || null;
   const systemAdminConfig = resolvedConfigs?.systemAdminConfig || null;

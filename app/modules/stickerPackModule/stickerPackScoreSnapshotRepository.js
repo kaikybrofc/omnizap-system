@@ -80,7 +80,8 @@ const normalizeSnapshotInput = (entry) => {
     engagement_score: clampScore(signals.engagement_score),
     diversity_score: clampScore(signals.diversity_score),
     cohesion_score: clampScore(signals.cohesion_score),
-    sensitive_content: signals.sensitive_content === true || signals.sensitive_content === 1 ? 1 : 0,
+    sensitive_content:
+      signals.sensitive_content === true || signals.sensitive_content === 1 ? 1 : 0,
     nsfw_level: normalizeNsfwLevel(signals.nsfw_level),
     sticker_count: Math.max(0, Number(entry.sticker_count || 0)),
     tags: Array.isArray(entry.tags) ? entry.tags.slice(0, 30) : [],
@@ -93,14 +94,33 @@ const normalizeSnapshotInput = (entry) => {
 };
 
 export async function upsertStickerPackScoreSnapshots(entries = [], connection = null) {
-  const normalized = (Array.isArray(entries) ? entries : []).map((entry) => normalizeSnapshotInput(entry)).filter(Boolean);
+  const normalized = (Array.isArray(entries) ? entries : [])
+    .map((entry) => normalizeSnapshotInput(entry))
+    .filter(Boolean);
   if (!normalized.length) return 0;
 
   let written = 0;
   for (let offset = 0; offset < normalized.length; offset += 100) {
     const chunk = normalized.slice(offset, offset + 100);
-    const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())').join(', ');
-    const params = chunk.flatMap((entry) => [entry.pack_id, entry.ranking_score, entry.pack_score, entry.trend_score, entry.quality_score, entry.engagement_score, entry.diversity_score, entry.cohesion_score, entry.sensitive_content, entry.nsfw_level, entry.sticker_count, JSON.stringify(entry.tags || []), JSON.stringify(entry.scores_json || {}), entry.source_version]);
+    const placeholders = chunk
+      .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())')
+      .join(', ');
+    const params = chunk.flatMap((entry) => [
+      entry.pack_id,
+      entry.ranking_score,
+      entry.pack_score,
+      entry.trend_score,
+      entry.quality_score,
+      entry.engagement_score,
+      entry.diversity_score,
+      entry.cohesion_score,
+      entry.sensitive_content,
+      entry.nsfw_level,
+      entry.sticker_count,
+      JSON.stringify(entry.tags || []),
+      JSON.stringify(entry.scores_json || {}),
+      entry.source_version,
+    ]);
     const result = await executeQuery(
       `INSERT INTO ${TABLES.STICKER_PACK_SCORE_SNAPSHOT}
         (

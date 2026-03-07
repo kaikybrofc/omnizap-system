@@ -8,7 +8,10 @@ const parseEnvBool = (value, fallback = false) => {
   return fallback;
 };
 
-const TRUST_PROXY_HEADERS = parseEnvBool(process.env.APP_TRUST_PROXY, parseEnvBool(process.env.RATE_LIMIT_TRUST_PROXY, false));
+const TRUST_PROXY_HEADERS = parseEnvBool(
+  process.env.APP_TRUST_PROXY,
+  parseEnvBool(process.env.RATE_LIMIT_TRUST_PROXY, false),
+);
 const LOOPBACK_IPS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
 const normalizeIpCandidate = (value) => {

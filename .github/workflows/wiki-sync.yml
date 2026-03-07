@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'docs/wiki/**'
+      - "docs/wiki/**"
   workflow_dispatch:
 
 concurrency:
@@ -38,5 +38,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WIKI_SYNC_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WIKI_SYNC_DELETE: '1'
+          WIKI_SYNC_DELETE: "1"
         run: bash ./scripts/wiki-sync.sh

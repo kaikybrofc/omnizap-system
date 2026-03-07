@@ -49,7 +49,8 @@ export const runSocketMethod = async (socket, methodName, ...args) => {
  * @param {...any} args Argumentos do método.
  * @returns {Promise<any>}
  */
-export const runActiveSocketMethod = async (methodName, ...args) => runSocketMethod(activeSocket, methodName, ...args);
+export const runActiveSocketMethod = async (methodName, ...args) =>
+  runSocketMethod(activeSocket, methodName, ...args);
 
 /**
  * Recupera a blocklist da conta conectada.

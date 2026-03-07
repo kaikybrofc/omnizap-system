@@ -40,6 +40,7 @@ Plataforma open source de automação para WhatsApp, com foco em figurinhas, cat
 - [Rotas e endpoints principais](#rotas-e-endpoints-principais)
 - [Deploy em produção](#deploy-em-produção)
 - [Observabilidade](#observabilidade)
+- [Governança e segurança de supply chain](#governança-e-segurança-de-supply-chain)
 - [Snapshot dinâmico do sistema](#snapshot-dinâmico-do-sistema)
 - [Estrutura de pastas](#estrutura-de-pastas)
 - [Segurança e boas práticas](#segurança-e-boas-práticas)
@@ -136,7 +137,7 @@ Bootstrap principal em [`index.js`](./index.js):
 
 ## Stack técnica
 
-- Runtime: Node.js (engine mínima no projeto: `>=16`)
+- Runtime: Node.js (engine mínima no projeto: `>=18`)
 - Linguagem: JavaScript ESM
 - Bot WhatsApp: `@whiskeysockets/baileys`
 - Web server: `node:http` (router próprio em `server/routes`)
@@ -151,10 +152,11 @@ Bootstrap principal em [`index.js`](./index.js):
 
 ### 1) Requisitos
 
-- Node.js 18+ recomendado (16+ mínimo suportado pelo projeto)
+- Node.js 18+ (LTS recomendado)
 - npm
 - MySQL ativo
 - Conta/número para conexão do bot WhatsApp
+- PM2 (opcional, para operação em produção)
 
 ### 2) Instalar dependências
 
@@ -248,12 +250,18 @@ Isso permite ler `x-forwarded-for`/`x-real-ip` corretamente em rotas protegidas.
 - `npm run pm2:prod`: sobe processos PM2 (`ecosystem.prod.config.cjs`).
 - `npm run deploy`: pipeline de deploy com validações.
 - `npm run deploy:dry-run`: simula deploy sem alterar o ambiente.
+- `npm run release`: pipeline de release.
+- `npm run release:minor`: release semver minor.
+- `npm run release:major`: release semver major.
 - `npm run readme:sync-snapshot`: atualiza o bloco dinâmico do README.
 - `npm run wiki:sync`: sincroniza `docs/wiki/` com a GitHub Wiki do repositório.
 - `npm run loadtest:stickers`: load test de endpoints de sticker.
 - `npm run worker:sticker:classification`: worker dedicado de classificação.
 - `npm run worker:sticker:curation`: worker dedicado de curadoria.
 - `npm run worker:sticker:rebuild`: worker dedicado de rebuild.
+- `npm run email:broadcast:terms`: dispara broadcast operacional de termos por e-mail.
+- `npm run seo:generate:satellites`: gera páginas satélite de SEO.
+- `npm run seo:generate:satellites:phase1`: gera páginas satélite via config da fase 1.
 
 ## Rotas e endpoints principais
 
@@ -339,6 +347,25 @@ Serviços padrão:
 
 Arquivo base: [`docker-compose.yml`](./docker-compose.yml)
 
+## Governança e segurança de supply chain
+
+O projeto mantém uma esteira de segurança contínua no GitHub Actions com:
+
+- SAST com CodeQL;
+- varredura de segredos com Gitleaks;
+- auditoria de workflows com Zizmor;
+- OSSF Scorecard;
+- revisão automática de dependências em PRs;
+- varredura web com ZAP (baseline e full scan);
+- atestação de proveniência de build;
+- hardening de runner.
+
+Boas práticas já adotadas:
+
+- ações do GitHub Actions pinadas por commit SHA;
+- `Dependabot` configurado para `npm` e `github-actions`;
+- política de segurança publicada em [`SECURITY.md`](./SECURITY.md).
+
 ## Snapshot dinâmico do sistema
 
 Este bloco é alimentado automaticamente pela API (`/api/sticker-packs/readme-markdown`) via script `npm run readme:sync-snapshot`.
@@ -380,6 +407,8 @@ Este bloco é alimentado automaticamente pela API (`/api/sticker-packs/readme-ma
 
 ```text
 .
+├── .github/workflows/   # Pipelines CI/CD, segurança e release
+├── .clusterfuzzlite/    # Base para integração de fuzzing contínuo
 ├── app/                 # Bot, comandos, serviços e observabilidade de domínio
 ├── server/              # Servidor HTTP, rotas web/API, middleware e auth web
 ├── database/            # Inicialização e acesso MySQL
@@ -399,6 +428,7 @@ Este bloco é alimentado automaticamente pela API (`/api/sticker-packs/readme-ma
 - Ative proxy trust atrás de Nginx/Cloudflare para IP real (`APP_TRUST_PROXY=true`).
 - Use SMTP válido para fluxos de senha e comunicação.
 - Revise periodicamente os termos em `/termos-de-uso/`.
+- Para reporte responsável de vulnerabilidades, siga [`SECURITY.md`](./SECURITY.md).
 
 ## Contribuição
 

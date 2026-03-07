@@ -5,8 +5,10 @@ export const formatPhone = (value) => {
   if (!digits) return 'Não informado';
   if (digits.length <= 4) return digits;
   if (digits.length <= 8) return `${digits.slice(0, -4)}-${digits.slice(-4)}`;
-  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, -4)}-${digits.slice(-4)}`;
-  if (digits.length <= 13) return `+${digits.slice(0, 2)} ${digits.slice(2, -4)}-${digits.slice(-4)}`;
+  if (digits.length <= 10)
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, -4)}-${digits.slice(-4)}`;
+  if (digits.length <= 13)
+    return `+${digits.slice(0, 2)} ${digits.slice(2, -4)}-${digits.slice(-4)}`;
   return `+${digits.slice(0, 2)} ${digits.slice(2, digits.length - 4)}-${digits.slice(-4)}`;
 };
 
@@ -41,7 +43,10 @@ export const buildWhatsAppUrl = (phoneDigits, text = '/menu') => {
   return `https://api.whatsapp.com/send/?${params.toString()}`;
 };
 
-export const buildSupportWhatsAppUrl = (phoneDigits, text = 'Olá! Preciso de suporte no OmniZap.') => {
+export const buildSupportWhatsAppUrl = (
+  phoneDigits,
+  text = 'Olá! Preciso de suporte no OmniZap.',
+) => {
   const digits = normalizeDigits(phoneDigits);
   if (!digits) return '';
   const safeText = String(text || '').trim() || 'Olá! Preciso de suporte no OmniZap.';

@@ -17,7 +17,10 @@ body {
     -apple-system,
     sans-serif;
   color: var(--text);
-  background: radial-gradient(58rem 24rem at -8% -12%, #2563eb26, transparent 60%), radial-gradient(58rem 24rem at 112% -10%, #7c3aed22, transparent 58%), linear-gradient(165deg, var(--bg), var(--bg-2));
+  background:
+    radial-gradient(58rem 24rem at -8% -12%, #2563eb26, transparent 60%),
+    radial-gradient(58rem 24rem at 112% -10%, #7c3aed22, transparent 58%),
+    linear-gradient(165deg, var(--bg), var(--bg-2));
 }
 .wrap {
   width: min(960px, 92vw);

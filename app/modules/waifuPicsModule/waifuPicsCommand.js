@@ -14,7 +14,10 @@ const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
  * URL base da API Waifu.pics.
  * @type {string}
  */
-const WAIFU_PICS_BASE = (process.env.WAIFU_PICS_BASE || 'https://api.waifu.pics').replace(/\/$/, '');
+const WAIFU_PICS_BASE = (process.env.WAIFU_PICS_BASE || 'https://api.waifu.pics').replace(
+  /\/$/,
+  '',
+);
 
 /**
  * Timeout das requisições para a Waifu.pics (em ms).
@@ -32,7 +35,39 @@ const WAIFU_PICS_ALLOW_NSFW = process.env.WAIFU_PICS_ALLOW_NSFW === 'true';
  * Categorias SFW disponíveis na Waifu.pics.
  * @type {string[]}
  */
-const SFW_CATEGORIES = ['waifu', 'neko', 'shinobu', 'megumin', 'bully', 'cuddle', 'cry', 'hug', 'awoo', 'kiss', 'lick', 'pat', 'smug', 'bonk', 'yeet', 'blush', 'smile', 'wave', 'highfive', 'handhold', 'nom', 'bite', 'glomp', 'slap', 'kill', 'kick', 'happy', 'wink', 'poke', 'dance', 'cringe'];
+const SFW_CATEGORIES = [
+  'waifu',
+  'neko',
+  'shinobu',
+  'megumin',
+  'bully',
+  'cuddle',
+  'cry',
+  'hug',
+  'awoo',
+  'kiss',
+  'lick',
+  'pat',
+  'smug',
+  'bonk',
+  'yeet',
+  'blush',
+  'smile',
+  'wave',
+  'highfive',
+  'handhold',
+  'nom',
+  'bite',
+  'glomp',
+  'slap',
+  'kill',
+  'kick',
+  'happy',
+  'wink',
+  'poke',
+  'dance',
+  'cringe',
+];
 
 /**
  * Categorias NSFW disponíveis na Waifu.pics.
@@ -77,7 +112,14 @@ const formatCategoriesList = (categories) =>
  * @param {string} [commandPrefix] - Prefixo do comando.
  * @returns {Promise<void>}
  */
-const sendUsage = async (sock, remoteJid, messageInfo, expirationMessage, type, commandPrefix = DEFAULT_COMMAND_PREFIX) => {
+const sendUsage = async (
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  type,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+) => {
   const list = type === 'nsfw' ? NSFW_CATEGORIES : SFW_CATEGORIES;
   const modeLabel = type === 'nsfw' ? '🔞 NSFW (adulto)' : '📗 SFW (seguro)';
   const command = `${commandPrefix}wp${type === 'nsfw' ? 'nsfw' : ''} <categoria>`;
@@ -86,7 +128,16 @@ const sendUsage = async (sock, remoteJid, messageInfo, expirationMessage, type, 
     sock,
     remoteJid,
     {
-      text: ['🖼️ *Waifu pics*', '', `Modo: *${modeLabel}*`, `Use: *${command}*`, '', formatCategoriesList(list), '', `ℹ️ Dica: use *${commandPrefix}menu anime* para ver SFW e NSFW juntos.`].join('\n'),
+      text: [
+        '🖼️ *Waifu pics*',
+        '',
+        `Modo: *${modeLabel}*`,
+        `Use: *${command}*`,
+        '',
+        formatCategoriesList(list),
+        '',
+        `ℹ️ Dica: use *${commandPrefix}menu anime* para ver SFW e NSFW juntos.`,
+      ].join('\n'),
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
@@ -124,18 +175,38 @@ const fetchWaifuPics = async (type, category) => {
  * @param {string} [params.commandPrefix] - Prefixo do comando.
  * @returns {Promise<void>}
  */
-export async function handleWaifuPicsCommand({ sock, remoteJid, messageInfo, expirationMessage, text, type = 'sfw', commandPrefix = DEFAULT_COMMAND_PREFIX }) {
+export async function handleWaifuPicsCommand({
+  sock,
+  remoteJid,
+  messageInfo,
+  expirationMessage,
+  text,
+  type = 'sfw',
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
+}) {
   const category = (text || '').trim().toLowerCase() || 'waifu';
 
   if (type === 'nsfw' && !WAIFU_PICS_ALLOW_NSFW) {
-    await sendAndStore(sock, remoteJid, { text: '⚠️ Conteúdo NSFW desativado. Habilite WAIFU_PICS_ALLOW_NSFW=true no .env.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: '⚠️ Conteúdo NSFW desativado. Habilite WAIFU_PICS_ALLOW_NSFW=true no .env.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
     return;
   }
 
   if (type === 'nsfw') {
     const config = await groupConfigStore.getGroupConfig(remoteJid);
     if (!config?.nsfwEnabled) {
-      await sendAndStore(sock, remoteJid, { text: `🔞 NSFW está desativado neste grupo. Um admin pode ativar com ${commandPrefix}nsfw on.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sendAndStore(
+        sock,
+        remoteJid,
+        {
+          text: `🔞 NSFW está desativado neste grupo. Um admin pode ativar com ${commandPrefix}nsfw on.`,
+        },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       return;
     }
   }
@@ -149,7 +220,12 @@ export async function handleWaifuPicsCommand({ sock, remoteJid, messageInfo, exp
   try {
     const imageUrl = await fetchWaifuPics(type, category);
     if (!imageUrl) {
-      await sendAndStore(sock, remoteJid, { text: '❌ Não foi possível obter a imagem agora. Tente novamente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+      await sendAndStore(
+        sock,
+        remoteJid,
+        { text: '❌ Não foi possível obter a imagem agora. Tente novamente.' },
+        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+      );
       return;
     }
 
@@ -164,7 +240,12 @@ export async function handleWaifuPicsCommand({ sock, remoteJid, messageInfo, exp
     );
   } catch (error) {
     logger.error('handleWaifuPicsCommand: erro na Waifu.pics.', error);
-    await sendAndStore(sock, remoteJid, { text: '❌ Erro ao consultar a Waifu.pics. Tente novamente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
+    await sendAndStore(
+      sock,
+      remoteJid,
+      { text: '❌ Erro ao consultar a Waifu.pics. Tente novamente.' },
+      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
+    );
   }
 }
 
@@ -174,4 +255,17 @@ export async function handleWaifuPicsCommand({ sock, remoteJid, messageInfo, exp
  * @param {string} [commandPrefix] - Prefixo do comando.
  * @returns {string}
  */
-export const getWaifuPicsUsageText = (commandPrefix = DEFAULT_COMMAND_PREFIX) => ['🖼️ *Waifu pics — Categorias*', '', '📗 *SFW (seguro)*', `Comando: *${commandPrefix}wp* <categoria>`, formatCategoriesList(SFW_CATEGORIES), '', '🔞 *NSFW (adulto)*', `Comando: *${commandPrefix}wpnsfw* <categoria>`, formatCategoriesList(NSFW_CATEGORIES), '', `Ex.: *${commandPrefix}wp neko*`].join('\n');
+export const getWaifuPicsUsageText = (commandPrefix = DEFAULT_COMMAND_PREFIX) =>
+  [
+    '🖼️ *Waifu pics — Categorias*',
+    '',
+    '📗 *SFW (seguro)*',
+    `Comando: *${commandPrefix}wp* <categoria>`,
+    formatCategoriesList(SFW_CATEGORIES),
+    '',
+    '🔞 *NSFW (adulto)*',
+    `Comando: *${commandPrefix}wpnsfw* <categoria>`,
+    formatCategoriesList(NSFW_CATEGORIES),
+    '',
+    `Ex.: *${commandPrefix}wp neko*`,
+  ].join('\n');

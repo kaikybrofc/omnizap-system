@@ -60,7 +60,12 @@ export const createRateLimit = ({ windowMs = 60_000, max = 60, keyPrefix = 'glob
 };
 
 export const createAdminApiRateLimit = () => {
-  const windowMs = parseNumber(process.env.ADMIN_RATE_LIMIT_WINDOW_MS, 60_000, 1_000, 60 * 60 * 1000);
+  const windowMs = parseNumber(
+    process.env.ADMIN_RATE_LIMIT_WINDOW_MS,
+    60_000,
+    1_000,
+    60 * 60 * 1000,
+  );
   const max = parseNumber(process.env.ADMIN_RATE_LIMIT_MAX, 30, 1, 100_000);
   return createRateLimit({
     windowMs,

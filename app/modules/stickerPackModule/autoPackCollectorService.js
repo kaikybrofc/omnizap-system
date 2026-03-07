@@ -41,7 +41,10 @@ const removeDiacritics = (value) =>
  * @param {{ fallback?: string, maxLength?: number }} [options] Configurações de fallback/tamanho.
  * @returns {string} Nome normalizado.
  */
-const normalizeAutoPackName = (value, { fallback = 'pack', maxLength = AUTO_PACK_NAME_MAX_LENGTH } = {}) => {
+const normalizeAutoPackName = (
+  value,
+  { fallback = 'pack', maxLength = AUTO_PACK_NAME_MAX_LENGTH } = {},
+) => {
   const sanitized = sanitizeText(value, maxLength, { allowEmpty: true }) || '';
   const normalized = removeDiacritics(sanitized)
     .toLowerCase()
@@ -51,7 +54,8 @@ const normalizeAutoPackName = (value, { fallback = 'pack', maxLength = AUTO_PACK
   return normalized || fallback;
 };
 
-const buildAutoPackDescription = () => `${AUTO_PACK_DESCRIPTION_TEXT} ${AUTO_PACK_DESCRIPTION_MARKER}`.trim();
+const buildAutoPackDescription = () =>
+  `${AUTO_PACK_DESCRIPTION_TEXT} ${AUTO_PACK_DESCRIPTION_MARKER}`.trim();
 
 const isThemeCurationAutoPack = (pack) => {
   if (!pack || typeof pack !== 'object') return false;
@@ -75,10 +79,16 @@ const isAutoCollectorPack = (pack) => {
   if (description.includes(AUTO_PACK_DESCRIPTION_MARKER)) return true;
   if (description.includes('coleção automática de figurinhas criadas pelo usuário.')) return true;
 
-  const normalizedName = normalizeAutoPackName(pack.name, { fallback: '', maxLength: AUTO_PACK_NAME_MAX_LENGTH });
+  const normalizedName = normalizeAutoPackName(pack.name, {
+    fallback: '',
+    maxLength: AUTO_PACK_NAME_MAX_LENGTH,
+  });
   if (!normalizedName) return false;
 
-  const base = normalizeAutoPackName(DEFAULT_AUTO_PACK_NAME, { fallback: 'pack', maxLength: AUTO_PACK_NAME_MAX_LENGTH });
+  const base = normalizeAutoPackName(DEFAULT_AUTO_PACK_NAME, {
+    fallback: 'pack',
+    maxLength: AUTO_PACK_NAME_MAX_LENGTH,
+  });
   const matcher = new RegExp(`^${escapeRegex(base.toLowerCase())}\\d+$`, 'i');
   const looksLikeLegacyCollector = matcher.test(normalizedName);
   if (looksLikeLegacyCollector) return true;
@@ -114,10 +124,15 @@ const buildAutoPackCandidate = (base, index) => {
  * @returns {string} Nome único sugerido.
  */
 const makeAutoPackName = (packs) => {
-  const base = normalizeAutoPackName(DEFAULT_AUTO_PACK_NAME, { fallback: 'pack', maxLength: AUTO_PACK_NAME_MAX_LENGTH });
+  const base = normalizeAutoPackName(DEFAULT_AUTO_PACK_NAME, {
+    fallback: 'pack',
+    maxLength: AUTO_PACK_NAME_MAX_LENGTH,
+  });
   const normalizedBase = base.toLowerCase();
   const existingNames = packs
-    .map((pack) => normalizeAutoPackName(pack?.name, { fallback: '', maxLength: AUTO_PACK_NAME_MAX_LENGTH }))
+    .map((pack) =>
+      normalizeAutoPackName(pack?.name, { fallback: '', maxLength: AUTO_PACK_NAME_MAX_LENGTH }),
+    )
     .filter(Boolean)
     .map((name) => name.toLowerCase());
   const existingSet = new Set(existingNames);
@@ -237,7 +252,12 @@ export function createAutoPackCollector(options = {}) {
       }
 
       const managedAutoPacks = packs.filter((entry) => isAutoCollectorPack(entry));
-      const preferredPack = managedAutoPacks.find((entry) => normalizeVisibility(entry?.visibility) === AUTO_PACK_TARGET_VISIBILITY) || managedAutoPacks[0] || null;
+      const preferredPack =
+        managedAutoPacks.find(
+          (entry) => normalizeVisibility(entry?.visibility) === AUTO_PACK_TARGET_VISIBILITY,
+        ) ||
+        managedAutoPacks[0] ||
+        null;
 
       if (preferredPack) {
         const ensuredPack = await ensureAutoPackVisibility({ ownerJid, pack: preferredPack });
@@ -300,7 +320,10 @@ export function createAutoPackCollector(options = {}) {
         asset,
       };
     } catch (error) {
-      if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.DUPLICATE_STICKER) {
+      if (
+        error instanceof StickerPackError &&
+        error.code === STICKER_PACK_ERROR_CODES.DUPLICATE_STICKER
+      ) {
         return {
           status: 'duplicate',
           pack: targetPack,
@@ -308,11 +331,17 @@ export function createAutoPackCollector(options = {}) {
         };
       }
 
-      if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED) {
+      if (
+        error instanceof StickerPackError &&
+        error.code === STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED
+      ) {
         const created = await deps.stickerPackService.createPack({
           ownerJid,
           name: makeAutoPackName(packs),
-          publisher: sanitizeText(senderName, 120, { allowEmpty: true }) || targetPack.publisher || 'OmniZap',
+          publisher:
+            sanitizeText(senderName, 120, { allowEmpty: true }) ||
+            targetPack.publisher ||
+            'OmniZap',
           description: buildAutoPackDescription(),
           visibility: AUTO_PACK_TARGET_VISIBILITY,
           isAutoPack: true,

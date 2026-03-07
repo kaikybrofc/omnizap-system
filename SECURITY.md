@@ -23,11 +23,11 @@ Não fazem parte do escopo obrigatório desta política:
 
 Correções de segurança são priorizadas para o branch `main` e para a release estável mais recente.
 
-| Canal | Suporte de segurança |
-| --- | --- |
-| `main` | Suportado |
-| Última release estável publicada | Suportado |
-| Releases anteriores | Suporte limitado, sem garantia de correção |
+| Canal                            | Suporte de segurança                       |
+| -------------------------------- | ------------------------------------------ |
+| `main`                           | Suportado                                  |
+| Última release estável publicada | Suportado                                  |
+| Releases anteriores              | Suporte limitado, sem garantia de correção |
 
 ## Canal Oficial de Reporte
 
@@ -52,12 +52,12 @@ Para acelerar a análise, inclua:
 
 ## Classificação de Severidade e Meta de Resposta
 
-| Severidade | Exemplo | Meta de triagem inicial |
-| --- | --- | --- |
-| Crítica | execução remota, vazamento sensível em produção | até 24 horas |
-| Alta | bypass de autenticação/autorização, escalonamento de privilégio | até 72 horas |
-| Média | falha explorável com restrições relevantes | até 7 dias corridos |
-| Baixa | baixo impacto ou cenário de exploração limitado | conforme fila de manutenção |
+| Severidade | Exemplo                                                         | Meta de triagem inicial     |
+| ---------- | --------------------------------------------------------------- | --------------------------- |
+| Crítica    | execução remota, vazamento sensível em produção                 | até 24 horas                |
+| Alta       | bypass de autenticação/autorização, escalonamento de privilégio | até 72 horas                |
+| Média      | falha explorável com restrições relevantes                      | até 7 dias corridos         |
+| Baixa      | baixo impacto ou cenário de exploração limitado                 | conforme fila de manutenção |
 
 Os prazos acima são metas operacionais e podem variar conforme complexidade, dependências externas e disponibilidade de correção segura.
 

@@ -2,7 +2,8 @@ let emailAutomationControllerPromise = null;
 
 const loadEmailAutomationController = async () => {
   if (!emailAutomationControllerPromise) {
-    emailAutomationControllerPromise = import('../../controllers/email/emailAutomationController.js');
+    emailAutomationControllerPromise =
+      import('../../controllers/email/emailAutomationController.js');
   }
   return emailAutomationControllerPromise;
 };
@@ -10,7 +11,10 @@ const loadEmailAutomationController = async () => {
 const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
+  const withoutTrailingSlash =
+    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
+      ? withLeadingSlash.slice(0, -1)
+      : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 };
 
@@ -24,7 +28,10 @@ const DEFAULT_EMAIL_AUTOMATION_API_BASE_PATH = '/api/email';
 
 export const getEmailAutomationRouterConfig = async () => {
   const controller = await loadEmailAutomationController();
-  const routeConfig = (typeof controller?.getEmailAutomationRouteConfig === 'function' ? controller.getEmailAutomationRouteConfig() : null) || {};
+  const routeConfig =
+    (typeof controller?.getEmailAutomationRouteConfig === 'function'
+      ? controller.getEmailAutomationRouteConfig()
+      : null) || {};
 
   return {
     apiBasePath: normalizeBasePath(routeConfig.apiBasePath, DEFAULT_EMAIL_AUTOMATION_API_BASE_PATH),

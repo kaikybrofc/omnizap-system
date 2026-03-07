@@ -15,22 +15,43 @@ const parseEnvBool = (value, fallback) => {
 const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
+  const withoutTrailingSlash =
+    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
+      ? withLeadingSlash.slice(0, -1)
+      : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 };
 
-const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PATH, '/api/sticker-packs');
+const STICKER_API_BASE_PATH = normalizeBasePath(
+  process.env.STICKER_API_BASE_PATH,
+  '/api/sticker-packs',
+);
 const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stickers');
 const STICKER_ADMIN_WEB_PATH = `${STICKER_WEB_PATH}/admin`;
 const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
 const USER_SYSTEMADM_WEB_PATH = `${USER_PROFILE_WEB_PATH}/systemadm`;
-const STICKER_ADMIN_REDIRECT_TO_USER = parseEnvBool(process.env.STICKER_ADMIN_REDIRECT_TO_USER, true);
+const STICKER_ADMIN_REDIRECT_TO_USER = parseEnvBool(
+  process.env.STICKER_ADMIN_REDIRECT_TO_USER,
+  true,
+);
 const SITE_ORIGIN = String(process.env.SITE_ORIGIN || 'https://omnizap.shop')
   .trim()
   .replace(/\/+$/, '');
 
-const USER_SYSTEMADM_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'user', 'systemadm', 'index.html');
-const LEGACY_STICKER_ADMIN_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'stickers', 'admin', 'index.html');
+const USER_SYSTEMADM_TEMPLATE_PATH = path.join(
+  process.cwd(),
+  'public',
+  'user',
+  'systemadm',
+  'index.html',
+);
+const LEGACY_STICKER_ADMIN_TEMPLATE_PATH = path.join(
+  process.cwd(),
+  'public',
+  'stickers',
+  'admin',
+  'index.html',
+);
 
 let stickerCatalogControllerPromise = null;
 const loadStickerCatalogController = async () => {
@@ -131,7 +152,10 @@ export const maybeHandleSystemAdminRequest = async (req, res, { pathname, url })
     return true;
   }
 
-  if (pathname === `${STICKER_API_BASE_PATH}/admin/session` || pathname.startsWith(`${STICKER_API_BASE_PATH}/admin/`)) {
+  if (
+    pathname === `${STICKER_API_BASE_PATH}/admin/session` ||
+    pathname.startsWith(`${STICKER_API_BASE_PATH}/admin/`)
+  ) {
     const controller = await loadStickerCatalogController();
     if (typeof controller?.maybeHandleStickerCatalogRequest !== 'function') return false;
     return controller.maybeHandleStickerCatalogRequest(req, res, { pathname, url });
