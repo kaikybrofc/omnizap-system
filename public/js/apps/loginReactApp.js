@@ -1102,22 +1102,10 @@ const LoginApp = ({ config }) => {
       setStatusMessage('Login por senha concluido. Redirecionando...');
       triggerAuthenticatedRedirect();
     } catch (error) {
-      const responseCode = String(error?.payload?.code || '')
-        .trim()
-        .toUpperCase();
-      if (responseCode === 'PASSWORD_NOT_CONFIGURED') {
-        setPasswordRecoveryStep('code_request');
-        setPasswordRecoveryForm((current) => ({
-          ...current,
-          email,
-        }));
-        setPasswordRecoveryMessage(
-          'Sua conta ainda nao tem senha. Solicite o codigo para criar sua senha.',
-        );
-        setPasswordLoginError('Conta sem senha configurada. Use o fluxo de criacao abaixo.');
-      } else {
-        setPasswordLoginError(error?.message || 'Falha no login por senha.');
-      }
+      setPasswordLoginError(
+        error?.message ||
+          'Credenciais invalidas. Se precisar, use o fluxo de recuperacao/criacao de senha.',
+      );
     } finally {
       setPasswordLoginBusy(false);
     }

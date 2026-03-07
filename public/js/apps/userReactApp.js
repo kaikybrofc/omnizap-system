@@ -136,9 +136,12 @@ const createUserApi = (apiBasePath) => {
   const passwordRecoveryVerifyPath = `${apiBasePath}/auth/password/recovery/verify`;
   const passwordRecoverySessionPath = `${apiBasePath}/auth/password/recovery/session`;
   const buildSessionPath = (sessionToken, action = '') => {
-    const token = encodeURIComponent(String(sessionToken || '').trim());
-    const base = `${passwordRecoverySessionPath}/${token}`;
-    return action ? `${base}/${action}` : base;
+    const url = new URL(passwordRecoverySessionPath, window.location.origin);
+    url.searchParams.set('session_token', String(sessionToken || '').trim());
+    if (action) {
+      url.searchParams.set('action', String(action || '').trim());
+    }
+    return `${url.pathname}${url.search}`;
   };
 
   const fetchJson = async (url, init = {}) => {

@@ -5,6 +5,12 @@ import {
   verifyUserPasswordHash,
 } from './userPasswordCrypto.js';
 
+const clampInt = (value, fallback, min, max) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(numeric)));
+};
+
 const normalizeGoogleSubject = (value) =>
   String(value || '')
     .trim()
@@ -134,6 +140,28 @@ export const createUserPasswordAuthService = ({
     String(tables.STICKER_WEB_GOOGLE_USER || 'web_google_user').trim() || 'web_google_user';
   const USER_PASSWORD_TABLE =
     String(tables.STICKER_WEB_USER_PASSWORD || 'web_user_password').trim() || 'web_user_password';
+  const maxFailedAttempts = clampInt(process.env.WEB_USER_PASSWORD_MAX_FAILED_ATTEMPTS, 8, 3, 100);
+  const lockoutSeconds = clampInt(process.env.WEB_USER_PASSWORD_LOCKOUT_SECONDS, 900, 30, 86_400);
+
+  const resolveCredentialLockState = (credential) => {
+    const failures = Math.max(0, Number(credential?.failed_attempts || 0));
+    if (failures < maxFailedAttempts) {
+      return { locked: false, retryAfterSeconds: 0 };
+    }
+
+    const lastFailedAtMs = Date.parse(String(credential?.last_failed_at || ''));
+    if (!Number.isFinite(lastFailedAtMs) || lastFailedAtMs <= 0) {
+      return { locked: false, retryAfterSeconds: 0 };
+    }
+
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - lastFailedAtMs) / 1000));
+    const retryAfterSeconds = Math.max(0, lockoutSeconds - elapsedSeconds);
+    if (retryAfterSeconds <= 0) {
+      return { locked: false, retryAfterSeconds: 0 };
+    }
+
+    return { locked: true, retryAfterSeconds };
+  };
 
   const findKnownGoogleUserByIdentity = async (identity = {}, connection = null) => {
     const normalizedIdentity = normalizeIdentity(identity);
@@ -344,6 +372,16 @@ export const createUserPasswordAuthService = ({
       };
     }
 
+    const lockState = resolveCredentialLockState(credentialWithHash);
+    if (lockState.locked) {
+      return {
+        authenticated: false,
+        reason: 'ACCOUNT_LOCKED',
+        retryAfterSeconds: lockState.retryAfterSeconds,
+        credential: mapCredentialRow(credentialWithHash),
+      };
+    }
+
     const isValid = await verifyUserPasswordHash(rawPassword, credentialWithHash.password_hash);
 
     if (isValid) {
@@ -366,10 +404,12 @@ export const createUserPasswordAuthService = ({
       { includeRevoked: true },
       connection,
     );
+    const updatedLockState = resolveCredentialLockState(updatedCredential);
 
     return {
       authenticated: false,
-      reason: 'INVALID_PASSWORD',
+      reason: updatedLockState.locked ? 'ACCOUNT_LOCKED' : 'INVALID_PASSWORD',
+      retryAfterSeconds: updatedLockState.retryAfterSeconds,
       credential: updatedCredential,
     };
   };
@@ -430,8 +470,16 @@ export const createUserPasswordAuthService = ({
   };
 
   return {
-    policy: { ...resolvedPolicy },
-    getPolicy: () => ({ ...resolvedPolicy }),
+    policy: {
+      ...resolvedPolicy,
+      maxFailedAttempts,
+      lockoutSeconds,
+    },
+    getPolicy: () => ({
+      ...resolvedPolicy,
+      maxFailedAttempts,
+      lockoutSeconds,
+    }),
     validatePassword: (password) => validateUserPassword(password, resolvedPolicy),
     findKnownGoogleUserByIdentity,
     findCredentialByIdentity: (identity = {}, options = {}, connection = null) =>

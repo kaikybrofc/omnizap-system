@@ -182,6 +182,7 @@ export const createUserPasswordRecoveryService = ({
   executeQuery,
   userPasswordAuthService,
   queueAutomatedEmail = null,
+  revokeWebSessionsByIdentity = null,
   tables = {},
   logger = null,
   runSqlTransaction = null,
@@ -759,6 +760,28 @@ export const createUserPasswordRecoveryService = ({
 
       return updatedCredential;
     });
+
+    if (credential?.google_sub && typeof revokeWebSessionsByIdentity === 'function') {
+      try {
+        await revokeWebSessionsByIdentity({
+          googleSub: credential.google_sub,
+          email: credential.email || activeCode.email,
+          ownerJid: credential.owner_jid || activeCode.owner_jid,
+        });
+      } catch (error) {
+        if (logger && typeof logger.warn === 'function') {
+          logger.warn('Senha redefinida, mas falhou ao revogar sessoes web ativas.', {
+            action: 'web_user_password_recovery_session_revoke_failed',
+            google_sub: credential.google_sub,
+            error: error?.message,
+          });
+        }
+        throw buildHttpError('Senha atualizada, mas nao foi possivel revogar sessoes ativas.', {
+          statusCode: 503,
+          code: 'SESSION_REVOKE_FAILED',
+        });
+      }
+    }
 
     return {
       updated: true,

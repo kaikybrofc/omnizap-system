@@ -908,7 +908,7 @@ CREATE TABLE IF NOT EXISTS `web_admin_moderator` (
 
 CREATE TABLE IF NOT EXISTS `web_google_session` (
   `session_token` char(36) NOT NULL,
-  `session_token_hash` binary(32) DEFAULT NULL,
+  `session_token_hash` binary(32) NOT NULL,
   `google_sub` varchar(80) NOT NULL,
   `owner_jid` varchar(120) NOT NULL,
   `owner_phone` varchar(20) DEFAULT NULL,

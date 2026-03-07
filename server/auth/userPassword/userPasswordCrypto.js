@@ -18,9 +18,9 @@ const DEFAULT_BCRYPT_ROUNDS = 12;
 const MIN_BCRYPT_ROUNDS = 8;
 const MAX_BCRYPT_ROUNDS = 15;
 
-const DEFAULT_MIN_LENGTH = 8;
+const DEFAULT_MIN_LENGTH = 12;
 const DEFAULT_MAX_LENGTH = 72;
-const MIN_ALLOWED_LENGTH = 8;
+const MIN_ALLOWED_LENGTH = 10;
 const MAX_ALLOWED_LENGTH = 72;
 
 const BCRYPT_PREFIXES = ['$2a$', '$2b$', '$2y$'];
@@ -44,8 +44,8 @@ const DEFAULT_POLICY_INPUT = {
     MIN_ALLOWED_LENGTH,
     MAX_ALLOWED_LENGTH,
   ),
-  requireLetter: parseEnvBool(process.env.WEB_USER_PASSWORD_REQUIRE_LETTER, false),
-  requireNumber: parseEnvBool(process.env.WEB_USER_PASSWORD_REQUIRE_NUMBER, false),
+  requireLetter: parseEnvBool(process.env.WEB_USER_PASSWORD_REQUIRE_LETTER, true),
+  requireNumber: parseEnvBool(process.env.WEB_USER_PASSWORD_REQUIRE_NUMBER, true),
 };
 
 const normalizePolicyLength = (minLength, maxLength) => {

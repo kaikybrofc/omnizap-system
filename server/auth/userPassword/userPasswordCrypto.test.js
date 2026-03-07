@@ -16,13 +16,13 @@ test('resolveUserPasswordPolicy normaliza limites de rounds e tamanho', () => {
   });
 
   assert.equal(policy.bcryptRounds, 15);
-  assert.equal(policy.minLength, 8);
-  assert.equal(policy.maxLength, 8);
+  assert.equal(policy.minLength, 10);
+  assert.equal(policy.maxLength, 10);
 });
 
 test('validateUserPassword reprova senha curta', () => {
   const result = validateUserPassword('abc', {
-    minLength: 8,
+    minLength: 10,
     maxLength: 72,
   });
 
@@ -37,7 +37,7 @@ test('hashUserPassword + verifyUserPasswordHash validam senha correta', async ()
   const password = 'SenhaInterna123';
   const hashed = await hashUserPassword(password, {
     bcryptRounds: 8,
-    minLength: 8,
+    minLength: 10,
     maxLength: 72,
   });
 
@@ -56,7 +56,7 @@ test('hashUserPassword + verifyUserPasswordHash validam senha correta', async ()
 test('verifyUserPasswordHash retorna false para senha incorreta', async () => {
   const hashed = await hashUserPassword('SenhaCorreta123', {
     bcryptRounds: 8,
-    minLength: 8,
+    minLength: 10,
     maxLength: 72,
   });
 

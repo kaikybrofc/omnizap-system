@@ -50,6 +50,39 @@ export const handleCatalogAuthRoutes = async ({
 
   const passwordRecoverySessionBasePath = `${apiBasePath}/auth/password/recovery/session`;
   if (pathname === passwordRecoverySessionBasePath) {
+    const querySessionToken = decodePathSegment(
+      String(url?.searchParams?.get('session_token') || url?.searchParams?.get('token') || ''),
+    );
+    const queryAction = String(url?.searchParams?.get('action') || '')
+      .trim()
+      .toLowerCase();
+
+    if (querySessionToken) {
+      if (!queryAction) {
+        await handlers.handlePasswordRecoverySessionStatusRequest(req, res, {
+          sessionToken: querySessionToken,
+        });
+        return true;
+      }
+
+      if (queryAction === 'request') {
+        await handlers.handlePasswordRecoverySessionRequest(req, res, {
+          sessionToken: querySessionToken,
+        });
+        return true;
+      }
+
+      if (queryAction === 'verify') {
+        await handlers.handlePasswordRecoverySessionVerifyRequest(req, res, {
+          sessionToken: querySessionToken,
+        });
+        return true;
+      }
+
+      sendJson(req, res, 400, { error: 'Acao de sessao de redefinicao invalida.' });
+      return true;
+    }
+
     await handlers.handlePasswordRecoverySessionCreateRequest(req, res);
     return true;
   }

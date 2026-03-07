@@ -16,6 +16,24 @@ import { parseRequestUrl, normalizeRequestId } from './requestContext.js';
 let server = null;
 let serverStarted = false;
 
+const sanitizePathForLogs = (pathname) => {
+  const rawPath = String(pathname || '').trim();
+  if (!rawPath) return null;
+
+  const marker = '/auth/password/recovery/session/';
+  const lower = rawPath.toLowerCase();
+  const markerIndex = lower.indexOf(marker);
+  if (markerIndex < 0) return rawPath;
+
+  const tokenStart = markerIndex + marker.length;
+  const suffix = rawPath.slice(tokenStart);
+  const nextSlashIndex = suffix.indexOf('/');
+  if (nextSlashIndex < 0) {
+    return `${rawPath.slice(0, tokenStart)}[redacted]`;
+  }
+  return `${rawPath.slice(0, tokenStart)}[redacted]${suffix.slice(nextSlashIndex)}`;
+};
+
 export const startHttpServer = () => {
   if (!isMetricsEnabled() || serverStarted) return;
 
@@ -77,7 +95,7 @@ export const startHttpServer = () => {
       });
     } catch (error) {
       logger.error('Falha ao processar request HTTP.', {
-        path: pathname,
+        path: sanitizePathForLogs(pathname),
         method: req.method,
         error: error?.message,
       });

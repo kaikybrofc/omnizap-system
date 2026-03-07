@@ -60,9 +60,6 @@ const normalizePasswordRecoverySessionToken = (value) =>
     .trim()
     .slice(0, 4096);
 
-const buildPasswordRecoverySessionLegacyPath = (sessionToken, { userPasswordResetWebPath }) =>
-  `${userPasswordResetWebPath}/${encodeURIComponent(String(sessionToken || ''))}`;
-
 const buildPasswordRecoverySessionPath = (
   sessionToken,
   { userProfileWebPath, userPasswordRecoverySessionQueryParam },
@@ -181,6 +178,13 @@ const toObjectDetailsIfAny = (error) => {
   return undefined;
 };
 
+const buildHttpError = (message, { statusCode = 400, code = 'BAD_REQUEST' } = {}) => {
+  const error = new Error(String(message || 'Erro interno.'));
+  error.statusCode = Number(statusCode) || 400;
+  error.code = String(code || 'BAD_REQUEST');
+  return error;
+};
+
 export const createWebAccountAuthHandlers = ({
   sendJson,
   readJsonBody,
@@ -191,6 +195,7 @@ export const createWebAccountAuthHandlers = ({
   parseUserPasswordLoginPayload,
   resolveGoogleWebSessionFromRequest,
   mapGoogleSessionResponseData,
+  revokeGoogleWebSessionsByIdentity,
   createPersistedGoogleWebSessionFromIdentity,
   setGoogleWebSessionCookie,
   issueAccessTokenForSession,
@@ -205,7 +210,6 @@ export const createWebAccountAuthHandlers = ({
   verifyWebAuthJwt,
   passwordRecoverySessionAuthMethod,
   passwordRecoverySessionTtlSeconds,
-  userPasswordResetWebPath,
   userProfileWebPath,
   userPasswordRecoverySessionQueryParam,
   toSiteAbsoluteUrl,
@@ -224,6 +228,187 @@ export const createWebAccountAuthHandlers = ({
   stickerWebGoogleClientId,
   stickerWebGoogleAuthRequired,
 }) => {
+  const passwordPolicy =
+    typeof userPasswordAuthService?.getPolicy === 'function' ? userPasswordAuthService.getPolicy() : {};
+  const passwordLoginIdentityMaxAttempts = clampInt(
+    process.env.WEB_USER_PASSWORD_LOGIN_IDENTITY_MAX_ATTEMPTS,
+    Number(passwordPolicy?.maxFailedAttempts || 8) || 8,
+    3,
+    100,
+  );
+  const passwordLoginIdentityLockoutSeconds = clampInt(
+    process.env.WEB_USER_PASSWORD_LOGIN_IDENTITY_LOCKOUT_SECONDS,
+    Number(passwordPolicy?.lockoutSeconds || 900) || 900,
+    30,
+    86_400,
+  );
+  const passwordLoginIdentityBuckets = new Map();
+  let passwordLoginIdentityPruneAt = 0;
+
+  const buildPasswordLoginIdentityKey = ({ google_sub = '', email = '', owner_jid = '' } = {}) => {
+    const normalizedSub = normalizeGoogleSubject(google_sub);
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedOwnerJid = normalizeJid(owner_jid || '') || '';
+    if (normalizedSub) return `sub:${normalizedSub}`;
+    if (normalizedEmail) return `email:${normalizedEmail}`;
+    if (normalizedOwnerJid) return `owner:${normalizedOwnerJid}`;
+    return '';
+  };
+
+  const prunePasswordLoginIdentityBuckets = (nowMs = Date.now()) => {
+    if (nowMs - passwordLoginIdentityPruneAt < 60 * 1000) return;
+    passwordLoginIdentityPruneAt = nowMs;
+    const staleAfterMs = Math.max(60, passwordLoginIdentityLockoutSeconds) * 1000;
+    for (const [identityKey, bucket] of passwordLoginIdentityBuckets.entries()) {
+      if (!bucket || nowMs - Number(bucket.lastFailureAtMs || 0) > staleAfterMs) {
+        passwordLoginIdentityBuckets.delete(identityKey);
+      }
+    }
+  };
+
+  const getPasswordLoginIdentityLockState = (identityKey) => {
+    const normalizedKey = String(identityKey || '').trim();
+    if (!normalizedKey) return { locked: false, retryAfterSeconds: 0 };
+    const nowMs = Date.now();
+    prunePasswordLoginIdentityBuckets(nowMs);
+    const bucket = passwordLoginIdentityBuckets.get(normalizedKey);
+    const lockedUntilMs = Number(bucket?.lockedUntilMs || 0);
+    if (!Number.isFinite(lockedUntilMs) || lockedUntilMs <= nowMs) {
+      return { locked: false, retryAfterSeconds: 0 };
+    }
+    return {
+      locked: true,
+      retryAfterSeconds: Math.max(1, Math.ceil((lockedUntilMs - nowMs) / 1000)),
+    };
+  };
+
+  const registerPasswordLoginIdentityFailure = (identityKey) => {
+    const normalizedKey = String(identityKey || '').trim();
+    if (!normalizedKey) return { locked: false, retryAfterSeconds: 0 };
+    const nowMs = Date.now();
+    prunePasswordLoginIdentityBuckets(nowMs);
+    const current = passwordLoginIdentityBuckets.get(normalizedKey) || {
+      failures: 0,
+      lastFailureAtMs: 0,
+      lockedUntilMs: 0,
+    };
+
+    const lockedUntilMs = Number(current.lockedUntilMs || 0);
+    if (Number.isFinite(lockedUntilMs) && lockedUntilMs > nowMs) {
+      passwordLoginIdentityBuckets.set(normalizedKey, current);
+      return {
+        locked: true,
+        retryAfterSeconds: Math.max(1, Math.ceil((lockedUntilMs - nowMs) / 1000)),
+      };
+    }
+
+    const failures = Math.max(0, Number(current.failures || 0)) + 1;
+    const shouldLock = failures >= passwordLoginIdentityMaxAttempts;
+    const nextBucket = {
+      failures: shouldLock ? 0 : failures,
+      lastFailureAtMs: nowMs,
+      lockedUntilMs: shouldLock ? nowMs + passwordLoginIdentityLockoutSeconds * 1000 : 0,
+    };
+    passwordLoginIdentityBuckets.set(normalizedKey, nextBucket);
+
+    if (!shouldLock) {
+      return { locked: false, retryAfterSeconds: 0 };
+    }
+
+    return {
+      locked: true,
+      retryAfterSeconds: Math.max(1, passwordLoginIdentityLockoutSeconds),
+    };
+  };
+
+  const clearPasswordLoginIdentityState = (identityKey) => {
+    const normalizedKey = String(identityKey || '').trim();
+    if (!normalizedKey) return;
+    passwordLoginIdentityBuckets.delete(normalizedKey);
+  };
+
+  const resolvePasswordLoginFailureIdentityKey = (payload, authResult) => {
+    const credentialSub = normalizeGoogleSubject(authResult?.credential?.google_sub);
+    if (credentialSub) return `sub:${credentialSub}`;
+    return buildPasswordLoginIdentityKey(payload);
+  };
+
+  const sendPasswordLoginRateLimited = (req, res, retryAfterSeconds) => {
+    const safeRetryAfterSeconds = Math.max(1, Number(retryAfterSeconds || 0) || 1);
+    res.setHeader('Retry-After', String(safeRetryAfterSeconds));
+    sendJson(req, res, 429, {
+      error: 'Muitas tentativas de login. Aguarde alguns instantes para tentar novamente.',
+      code: 'AUTH_RATE_LIMITED',
+    });
+  };
+
+  const revokeSessionsByIdentityStrict = async (
+    { googleSub = '', email = '', ownerJid = '' } = {},
+    { reason = '' } = {},
+  ) => {
+    if (typeof revokeGoogleWebSessionsByIdentity !== 'function') return 0;
+    try {
+      return await revokeGoogleWebSessionsByIdentity({
+        googleSub,
+        email,
+        ownerJid,
+      });
+    } catch (error) {
+      logger.warn('Falha ao revogar sessoes web durante rotacao de credencial.', {
+        action: 'web_auth_session_revoke_failed',
+        reason: reason || 'unknown',
+        google_sub: normalizeGoogleSubject(googleSub),
+        owner_jid: normalizeJid(ownerJid || '') || null,
+        error: error?.message,
+      });
+      throw buildHttpError('Nao foi possivel revogar sessoes ativas da conta.', {
+        statusCode: 503,
+        code: 'SESSION_REVOKE_FAILED',
+      });
+    }
+  };
+
+  const isSessionRevokeFailure = (error) =>
+    String(error?.code || '')
+      .trim()
+      .toUpperCase() === 'SESSION_REVOKE_FAILED';
+
+  const createSessionPayloadFromCredential = async (
+    req,
+    res,
+    credential,
+    { reason = 'credential_update' } = {},
+  ) => {
+    if (!credential?.google_sub || !credential?.owner_jid) {
+      return mapGoogleSessionResponseData(null);
+    }
+
+    await revokeSessionsByIdentityStrict(
+      {
+        googleSub: credential.google_sub,
+        email: credential.email || '',
+        ownerJid: credential.owner_jid,
+      },
+      { reason },
+    );
+
+    const session = await createPersistedGoogleWebSessionFromIdentity({
+      sub: credential.google_sub,
+      email: credential.email || '',
+      name: credential.name || '',
+      picture: credential.picture || '',
+      ownerJid: credential.owner_jid,
+      requestMeta: {
+        remoteIp: resolveRequestRemoteIp(req),
+        userAgent: req.headers?.['user-agent'] || null,
+      },
+    });
+
+    setGoogleWebSessionCookie(req, res, session.token);
+    const accessToken = issueAccessTokenForSession(session);
+    return mapGoogleSessionResponseData(session, { accessToken });
+  };
+
   const handlePasswordAuthRequest = async (req, res) => {
     if (!['GET', 'HEAD', 'POST', 'DELETE'].includes(req.method || '')) {
       sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
@@ -293,10 +478,26 @@ export const createWebAccountAuthHandlers = ({
         ...identity,
         password: payload.password,
       });
+      let sessionPayload = mapGoogleSessionResponseData(null);
+      try {
+        sessionPayload = await createSessionPayloadFromCredential(req, res, credential, {
+          reason: 'password_upsert',
+        });
+      } catch (sessionError) {
+        if (isSessionRevokeFailure(sessionError)) {
+          throw sessionError;
+        }
+        logger.warn('Senha atualizada, mas falhou ao rotacionar sessao.', {
+          action: 'web_password_upsert_session_rotation_failed',
+          error: sessionError?.message,
+          google_sub: credential?.google_sub || null,
+        });
+      }
+
       sendJson(req, res, 200, {
         data: {
           updated: true,
-          session: mapGoogleSessionResponseData(googleSession),
+          session: sessionPayload,
           password: toUserPasswordStatePayload(credential),
         },
       });
@@ -420,21 +621,18 @@ export const createWebAccountAuthHandlers = ({
       let sessionPayload = mapGoogleSessionResponseData(null);
       if (recoveryResult?.credential?.google_sub && recoveryResult?.credential?.owner_jid) {
         try {
-          const session = await createPersistedGoogleWebSessionFromIdentity({
-            sub: recoveryResult.credential.google_sub,
-            email: recoveryResult.credential.email || '',
-            name: recoveryResult.credential.name || '',
-            picture: recoveryResult.credential.picture || '',
-            ownerJid: recoveryResult.credential.owner_jid,
-            requestMeta: {
-              remoteIp: resolveRequestRemoteIp(req),
-              userAgent: req.headers?.['user-agent'] || null,
+          sessionPayload = await createSessionPayloadFromCredential(
+            req,
+            res,
+            recoveryResult.credential,
+            {
+              reason: 'password_recovery_verify',
             },
-          });
-          setGoogleWebSessionCookie(req, res, session.token);
-          const accessToken = issueAccessTokenForSession(session);
-          sessionPayload = mapGoogleSessionResponseData(session, { accessToken });
+          );
         } catch (sessionError) {
+          if (isSessionRevokeFailure(sessionError)) {
+            throw sessionError;
+          }
           logger.warn('Senha redefinida, mas sessao automatica nao foi criada.', {
             action: 'web_password_recovery_session_create_failed',
             error: sessionError?.message,
@@ -515,10 +713,6 @@ export const createWebAccountAuthHandlers = ({
       userPasswordRecoverySessionQueryParam,
     });
     const sessionUrl = toSiteAbsoluteUrl(sessionPath);
-    const sessionPathLegacy = buildPasswordRecoverySessionLegacyPath(sessionToken, {
-      userPasswordResetWebPath,
-    });
-    const sessionUrlLegacy = toSiteAbsoluteUrl(sessionPathLegacy);
 
     sendJson(req, res, 200, {
       data: {
@@ -526,8 +720,8 @@ export const createWebAccountAuthHandlers = ({
         purpose: 'reset',
         session_path: sessionPath,
         session_url: sessionUrl,
-        session_path_legacy: sessionPathLegacy,
-        session_url_legacy: sessionUrlLegacy,
+        session_path_legacy: null,
+        session_url_legacy: null,
         masked_email: maskEmailForResponse(normalizedEmail, {
           normalizeEmail,
         }),
@@ -715,21 +909,18 @@ export const createWebAccountAuthHandlers = ({
       let sessionPayload = mapGoogleSessionResponseData(null);
       if (recoveryResult?.credential?.google_sub && recoveryResult?.credential?.owner_jid) {
         try {
-          const session = await createPersistedGoogleWebSessionFromIdentity({
-            sub: recoveryResult.credential.google_sub,
-            email: recoveryResult.credential.email || '',
-            name: recoveryResult.credential.name || '',
-            picture: recoveryResult.credential.picture || '',
-            ownerJid: recoveryResult.credential.owner_jid,
-            requestMeta: {
-              remoteIp: resolveRequestRemoteIp(req),
-              userAgent: req.headers?.['user-agent'] || null,
+          sessionPayload = await createSessionPayloadFromCredential(
+            req,
+            res,
+            recoveryResult.credential,
+            {
+              reason: 'password_recovery_session_verify',
             },
-          });
-          setGoogleWebSessionCookie(req, res, session.token);
-          const accessToken = issueAccessTokenForSession(session);
-          sessionPayload = mapGoogleSessionResponseData(session, { accessToken });
+          );
         } catch (sessionError) {
+          if (isSessionRevokeFailure(sessionError)) {
+            throw sessionError;
+          }
           logger.warn('Senha redefinida por sessao, mas login automatico nao foi criado.', {
             action: 'web_password_recovery_session_login_create_failed',
             error: sessionError?.message,
@@ -788,6 +979,13 @@ export const createWebAccountAuthHandlers = ({
       return;
     }
 
+    const loginIdentityKey = buildPasswordLoginIdentityKey(payload);
+    const localLockState = getPasswordLoginIdentityLockState(loginIdentityKey);
+    if (localLockState.locked) {
+      sendPasswordLoginRateLimited(req, res, localLockState.retryAfterSeconds);
+      return;
+    }
+
     const authResult = await userPasswordAuthService.verifyPasswordForIdentity({
       googleSub: payload.google_sub,
       email: payload.email,
@@ -800,40 +998,30 @@ export const createWebAccountAuthHandlers = ({
       !authResult?.credential?.google_sub ||
       !authResult?.credential?.owner_jid
     ) {
-      let errorCode = authResult?.reason || 'INVALID_PASSWORD';
-      let passwordSetupRequired = false;
-      let suggestedMaskedEmail = null;
-
-      if (errorCode === 'CREDENTIAL_NOT_FOUND') {
-        const knownUser = await userPasswordAuthService.findKnownGoogleUserByIdentity({
-          googleSub: payload.google_sub,
-          email: payload.email,
-          ownerJid: payload.owner_jid,
-        });
-
-        if (knownUser?.google_sub) {
-          errorCode = 'PASSWORD_NOT_CONFIGURED';
-          passwordSetupRequired = true;
-          suggestedMaskedEmail = maskEmailForResponse(knownUser.email || payload.email, {
-            normalizeEmail,
-          });
-        }
+      const failedIdentityKey = resolvePasswordLoginFailureIdentityKey(payload, authResult);
+      const failedLockState = registerPasswordLoginIdentityFailure(failedIdentityKey);
+      const retryAfterSeconds = Math.max(
+        Number(authResult?.retryAfterSeconds || 0),
+        Number(failedLockState.retryAfterSeconds || 0),
+      );
+      if (retryAfterSeconds > 0) {
+        sendPasswordLoginRateLimited(req, res, retryAfterSeconds);
+        return;
       }
-
       sendJson(req, res, 401, {
         error: 'Credenciais invalidas.',
-        code: errorCode,
-        data: {
-          password: toUserPasswordStatePayload(authResult?.credential || null),
-          password_setup_required: passwordSetupRequired,
-          masked_email: suggestedMaskedEmail,
-        },
+        code: 'INVALID_CREDENTIALS',
       });
       return;
     }
 
     try {
       const credential = authResult.credential;
+      clearPasswordLoginIdentityState(loginIdentityKey);
+      const credentialSubKey = normalizeGoogleSubject(credential.google_sub);
+      if (credentialSubKey) {
+        clearPasswordLoginIdentityState(`sub:${credentialSubKey}`);
+      }
       const session = await createPersistedGoogleWebSessionFromIdentity({
         sub: credential.google_sub,
         email: credential.email || '',
