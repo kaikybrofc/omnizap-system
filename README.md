@@ -321,28 +321,30 @@ Arquivo base: [`docker-compose.yml`](./docker-compose.yml)
 Este bloco é alimentado automaticamente pela API (`/api/sticker-packs/readme-markdown`) via script `npm run readme:sync-snapshot`.
 
 <!-- README_SNAPSHOT:START -->
+
 ### Snapshot do Sistema
 
 > Atualizado em `2026-03-07T01:43:25.547Z` | cache `1800s`
 
-| Métrica | Valor |
-| --- | ---: |
-| Usuários (lid_map) | 5.616 |
-| Grupos | 120 |
-| Packs | 370 |
-| Stickers | 11.334 |
+| Métrica               |   Valor |
+| --------------------- | ------: |
+| Usuários (lid_map)    |   5.616 |
+| Grupos                |     120 |
+| Packs                 |     370 |
+| Stickers              |  11.334 |
 | Mensagens registradas | 490.529 |
 
 #### Tipos de mensagem mais usados (amostra: 25.000)
-| Tipo | Total |
-| --- | ---: |
-| `texto` | 15.482 |
-| `figurinha` | 4.826 |
-| `imagem` | 1.676 |
-| `outros` | 1.431 |
-| `reacao` | 1.188 |
-| `video` | 232 |
-| `audio` | 165 |
+
+| Tipo        |  Total |
+| ----------- | -----: |
+| `texto`     | 15.482 |
+| `figurinha` |  4.826 |
+| `imagem`    |  1.676 |
+| `outros`    |  1.431 |
+| `reacao`    |  1.188 |
+| `video`     |    232 |
+| `audio`     |    165 |
 
 <details><summary>Comandos disponíveis (64)</summary>
 
