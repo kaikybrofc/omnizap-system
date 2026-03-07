@@ -26,6 +26,31 @@
     <priority>0.5</priority>
   </url>
   <url>
+    <loc>https://omnizap.shop/politica-de-privacidade/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://omnizap.shop/aup/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.45</priority>
+  </url>
+  <url>
+    <loc>https://omnizap.shop/dpa/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.45</priority>
+  </url>
+  <url>
+    <loc>https://omnizap.shop/notice-and-takedown/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.45</priority>
+  </url>
+  <url>
+    <loc>https://omnizap.shop/suboperadores/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.45</priority>
+  </url>
+  <url>
     <loc>https://omnizap.shop/licenca/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>

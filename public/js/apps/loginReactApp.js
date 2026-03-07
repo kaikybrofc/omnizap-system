@@ -5,15 +5,20 @@ import htm from 'htm';
 const html = htm.bind(React.createElement);
 
 const GOOGLE_GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
-const DEFAULT_API_BASE_PATH = '/api/sticker-packs';
+const DEFAULT_API_BASE_PATH = '/api';
 const DEFAULT_HOME_PATH = '/';
 const DEFAULT_PANEL_PATH = '/user/';
 const DEFAULT_TERMS_URL = '/termos-de-uso/';
-const DEFAULT_PRIVACY_URL = '/termos-de-uso/#politica-de-privacidade';
+const DEFAULT_PRIVACY_URL = '/politica-de-privacidade/';
 const DEFAULT_BRAND_NAME = 'OmniZap System';
 const DEFAULT_BRAND_LOGO = '/assets/images/brand-logo-128.webp';
 const LOGIN_CONSENT_STORAGE_KEY = 'omnizap_login_terms_consent_v1';
+const LOGIN_CONSENT_RECEIPT_STORAGE_KEY = 'omnizap_login_terms_consent_receipt_v1';
 const LOGIN_CONSENT_HINT = 'Aceite os Termos de Uso e a Politica de Privacidade para continuar.';
+const LEGAL_ACCEPTANCE_DOCUMENTS = Object.freeze([
+  { document_key: 'termos_de_uso', document_version: '2026-03-07' },
+  { document_key: 'politica_de_privacidade', document_version: '2026-03-07' },
+]);
 const DEFAULT_SUCCESS_CHAT_LABEL = 'Abrir WhatsApp do bot';
 const DEFAULT_SUCCESS_HOME_LABEL = 'Ir para o painel';
 const ALREADY_LOGGED_HINT_TEXT =
@@ -69,6 +74,74 @@ const persistConsentState = (accepted) => {
     // Ignore storage errors.
   }
 };
+
+const normalizeConsentDocument = (value) => {
+  const documentKey = String(value?.document_key || '')
+    .trim()
+    .toLowerCase();
+  const documentVersion = String(value?.document_version || '').trim();
+  if (!documentKey || !documentVersion) return null;
+  return {
+    document_key: documentKey,
+    document_version: documentVersion,
+  };
+};
+
+const normalizeConsentReceipt = (value) => {
+  const acceptedDocuments = Array.isArray(value?.accepted_documents)
+    ? value.accepted_documents.map(normalizeConsentDocument).filter(Boolean)
+    : [];
+  const acceptedAt = String(value?.accepted_at || '').trim();
+  if (!acceptedDocuments.length || !acceptedAt) return null;
+  return {
+    accepted_documents: acceptedDocuments,
+    accepted_at: acceptedAt,
+  };
+};
+
+const persistConsentReceiptState = (receipt) => {
+  try {
+    if (!receipt) {
+      window.localStorage.removeItem(LOGIN_CONSENT_RECEIPT_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(LOGIN_CONSENT_RECEIPT_STORAGE_KEY, JSON.stringify(receipt));
+  } catch {
+    // Ignore storage errors.
+  }
+};
+
+const readConsentReceiptState = () => {
+  try {
+    const raw = window.localStorage.getItem(LOGIN_CONSENT_RECEIPT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return normalizeConsentReceipt(parsed);
+  } catch {
+    return null;
+  }
+};
+
+const buildConsentDocumentKey = (doc) => `${doc.document_key}:${doc.document_version}`;
+
+const hasRequiredConsentReceipt = (receipt) => {
+  const normalizedReceipt = normalizeConsentReceipt(receipt);
+  if (!normalizedReceipt) return false;
+  const expected = new Set(LEGAL_ACCEPTANCE_DOCUMENTS.map(buildConsentDocumentKey));
+  const informed = new Set(normalizedReceipt.accepted_documents.map(buildConsentDocumentKey));
+  if (informed.size < expected.size) return false;
+  for (const requiredKey of expected) {
+    if (!informed.has(requiredKey)) return false;
+  }
+  return true;
+};
+
+const buildTermsAcceptancePayload = () => ({
+  accepted: true,
+  accepted_at: new Date().toISOString(),
+  source: 'login_web',
+  documents: LEGAL_ACCEPTANCE_DOCUMENTS,
+});
 
 const isAuthenticatedFlagEnabled = (value) => {
   if (value === true || value === 1) return true;
@@ -276,6 +349,7 @@ const toSafeEmail = (value) => {
 
 const createLoginApi = (apiBasePath) => {
   const sessionPath = `${apiBasePath}/auth/google/session`;
+  const termsAcceptancePath = `${apiBasePath}/auth/terms/acceptance`;
   const passwordLoginPath = `${apiBasePath}/auth/login`;
   const passwordPath = `${apiBasePath}/auth/password`;
   const passwordRecoveryRequestPath = `${apiBasePath}/auth/password/recovery/request`;
@@ -317,6 +391,14 @@ const createLoginApi = (apiBasePath) => {
           'Content-Type': 'application/json; charset=utf-8',
         },
         body: JSON.stringify(body),
+      }),
+    recordTermsAcceptance: (body) =>
+      fetchJson(termsAcceptancePath, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: JSON.stringify(body || {}),
       }),
     loginWithPassword: (body) =>
       fetchJson(passwordLoginPath, {
@@ -390,11 +472,14 @@ const LoginApp = ({ config }) => {
   const resizeObserverRef = useRef(null);
   const resizeListenerRef = useRef(null);
   const redirectingRef = useRef(false);
+  const autoConsentSyncAttemptRef = useRef(false);
 
   const [statusMessage, setStatusMessage] = useState('Verificando conta Google...');
   const [errorMessage, setErrorMessage] = useState('');
   const [consentErrorMessage, setConsentErrorMessage] = useState('');
   const [consentAccepted, setConsentAccepted] = useState(() => readConsentState());
+  const [consentReceipt, setConsentReceipt] = useState(() => readConsentReceiptState());
+  const [consentSaving, setConsentSaving] = useState(false);
   const [isBusy, setBusy] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [alreadyLoggedVisible, setAlreadyLoggedVisible] = useState(false);
@@ -441,15 +526,29 @@ const LoginApp = ({ config }) => {
   );
 
   const hintMessage = useMemo(() => resolveHintMessage(hint), [hint]);
+  const hasConsentReceipt = useMemo(
+    () => hasRequiredConsentReceipt(consentReceipt),
+    [consentReceipt],
+  );
 
   const googleStateMessage = useMemo(() => {
     if (!canUseGoogleLogin) return '';
     if (!googleEnabled || !googleClientId) return 'Login Google desabilitado neste ambiente.';
-    if (isBusy) return 'Finalizando login...';
+    if (isBusy || consentSaving) return 'Finalizando login...';
     if (!consentAccepted) return LOGIN_CONSENT_HINT;
+    if (!hasConsentReceipt) return 'Registrando aceite juridico...';
     if (!googleReady) return 'Carregando login Google...';
     return '';
-  }, [canUseGoogleLogin, consentAccepted, googleClientId, googleEnabled, googleReady, isBusy]);
+  }, [
+    canUseGoogleLogin,
+    consentAccepted,
+    consentSaving,
+    googleClientId,
+    googleEnabled,
+    googleReady,
+    hasConsentReceipt,
+    isBusy,
+  ]);
 
   const whatsappCtaVisible = useMemo(() => {
     if (canUseGoogleLogin) return false;
@@ -548,10 +647,52 @@ const LoginApp = ({ config }) => {
     }
   }, [api]);
 
+  const registerConsentReceipt = useCallback(async () => {
+    const payload = await api.recordTermsAcceptance(buildTermsAcceptancePayload());
+    const receipt = normalizeConsentReceipt(payload?.data || {});
+    if (!receipt) {
+      throw new Error('Nao foi possivel validar o registro de aceite juridico.');
+    }
+    setConsentReceipt(receipt);
+    persistConsentReceiptState(receipt);
+    return receipt;
+  }, [api]);
+
+  const ensureConsentReceipt = useCallback(async () => {
+    if (!consentAccepted) {
+      setConsentErrorMessage(LOGIN_CONSENT_HINT);
+      return false;
+    }
+
+    if (hasRequiredConsentReceipt(consentReceipt)) {
+      return true;
+    }
+
+    setConsentSaving(true);
+    setConsentErrorMessage('');
+    try {
+      await registerConsentReceipt();
+      return true;
+    } catch (error) {
+      setConsentErrorMessage(
+        error?.message || 'Falha ao registrar aceite juridico. Tente novamente.',
+      );
+      return false;
+    } finally {
+      setConsentSaving(false);
+    }
+  }, [consentAccepted, consentReceipt, registerConsentReceipt]);
+
   const handleGoogleCredential = useCallback(
     async (credential) => {
       if (!consentAccepted) {
         setConsentErrorMessage(LOGIN_CONSENT_HINT);
+        setBusy(false);
+        return;
+      }
+
+      const consentReady = await ensureConsentReceipt();
+      if (!consentReady) {
         setBusy(false);
         return;
       }
@@ -596,7 +737,14 @@ const LoginApp = ({ config }) => {
         setBusy(false);
       }
     },
-    [api, consentAccepted, hint, playSuccessCelebration, refreshPasswordSetupState],
+    [
+      api,
+      consentAccepted,
+      ensureConsentReceipt,
+      hint,
+      playSuccessCelebration,
+      refreshPasswordSetupState,
+    ],
   );
 
   useEffect(() => {
@@ -604,6 +752,33 @@ const LoginApp = ({ config }) => {
     setGoogleReady(false);
     clearResizeBinding();
   }, [clearResizeBinding, googleClientId]);
+
+  useEffect(() => {
+    if (autoConsentSyncAttemptRef.current) return;
+    if (authenticated) return;
+    if (!consentAccepted) return;
+    if (hasConsentReceipt) return;
+    autoConsentSyncAttemptRef.current = true;
+
+    let active = true;
+    setConsentSaving(true);
+    setConsentErrorMessage('');
+    void registerConsentReceipt()
+      .catch((error) => {
+        if (!active) return;
+        setConsentErrorMessage(
+          error?.message || 'Falha ao registrar aceite juridico. Tente novamente.',
+        );
+      })
+      .finally(() => {
+        if (!active) return;
+        setConsentSaving(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [authenticated, consentAccepted, hasConsentReceipt, registerConsentReceipt]);
 
   useEffect(() => {
     let active = true;
@@ -732,7 +907,7 @@ const LoginApp = ({ config }) => {
         setGoogleReady(false);
         return;
       }
-      if (!consentAccepted) {
+      if (!consentAccepted || consentSaving || !hasConsentReceipt) {
         setGoogleReady(false);
         return;
       }
@@ -797,9 +972,11 @@ const LoginApp = ({ config }) => {
     canUseGoogleLogin,
     clearResizeBinding,
     consentAccepted,
+    consentSaving,
     googleClientId,
     googleEnabled,
     handleGoogleCredential,
+    hasConsentReceipt,
     renderGoogleButton,
   ]);
 
@@ -820,11 +997,34 @@ const LoginApp = ({ config }) => {
     [clearResizeBinding],
   );
 
-  const onConsentChange = (event) => {
+  const onConsentChange = async (event) => {
     const accepted = Boolean(event.currentTarget?.checked);
     setConsentAccepted(accepted);
     persistConsentState(accepted);
-    if (accepted) setConsentErrorMessage('');
+    if (!accepted) {
+      setConsentErrorMessage('');
+      setConsentReceipt(null);
+      persistConsentReceiptState(null);
+      autoConsentSyncAttemptRef.current = false;
+      return;
+    }
+
+    autoConsentSyncAttemptRef.current = true;
+    setConsentSaving(true);
+    setConsentErrorMessage('');
+    try {
+      await registerConsentReceipt();
+    } catch (error) {
+      setConsentAccepted(false);
+      persistConsentState(false);
+      setConsentReceipt(null);
+      persistConsentReceiptState(null);
+      setConsentErrorMessage(
+        error?.message || 'Falha ao registrar aceite juridico. Tente novamente.',
+      );
+    } finally {
+      setConsentSaving(false);
+    }
   };
 
   const handlePasswordSetupSubmit = async () => {
@@ -868,6 +1068,9 @@ const LoginApp = ({ config }) => {
       setPasswordLoginError('Informe e-mail e senha para continuar.');
       return;
     }
+
+    const consentReady = await ensureConsentReceipt();
+    if (!consentReady) return;
 
     setPasswordLoginBusy(true);
     setPasswordLoginError('');
@@ -1086,7 +1289,7 @@ const LoginApp = ({ config }) => {
                     ${!authenticated
                       ? html`
                           <div
-                            className=${`rounded-xl border border-base-300/80 bg-white p-2 transition-opacity ${isBusy ? 'pointer-events-none opacity-60' : 'opacity-100'} ${consentAccepted ? '' : 'hidden'}`}
+                            className=${`rounded-xl border border-base-300/80 bg-white p-2 transition-opacity ${isBusy || consentSaving ? 'pointer-events-none opacity-60' : 'opacity-100'} ${consentAccepted ? '' : 'hidden'}`}
                           >
                             <div ref=${googleButtonRef}></div>
                           </div>
@@ -1094,48 +1297,50 @@ const LoginApp = ({ config }) => {
                       : null}
 
                     <p className="text-xs text-base-content/70">${googleStateMessage}</p>
-
-                    ${!authenticated
-                      ? html`
-                          <div
-                            className=${`rounded-xl border p-3 transition-colors ${consentAccepted ? 'border-success/60 bg-success/10' : 'border-base-300/80 bg-base-100/45'}`}
-                          >
-                            <label
-                              className="grid cursor-pointer grid-cols-[20px_minmax(0,1fr)] items-start gap-2 text-sm leading-relaxed text-base-content/90"
-                            >
-                              <input
-                                type="checkbox"
-                                className="checkbox checkbox-success checkbox-sm mt-0.5"
-                                checked=${consentAccepted}
-                                disabled=${isBusy}
-                                onChange=${onConsentChange}
-                              />
-                              <span>
-                                Li e aceito os
-                                <a
-                                  className="link link-info ml-1"
-                                  href=${config.termsUrl}
-                                  target="_blank"
-                                  rel="noreferrer noopener"
-                                  >Termos de Uso</a
-                                >
-                                e a
-                                <a
-                                  className="link link-info ml-1"
-                                  href=${config.privacyUrl}
-                                  target="_blank"
-                                  rel="noreferrer noopener"
-                                  >Politica de Privacidade</a
-                                >.
-                              </span>
-                            </label>
-                            ${consentErrorMessage
-                              ? html`<p className="mt-2 text-xs text-error">
-                                  ${consentErrorMessage}
-                                </p>`
-                              : null}
-                          </div>
-                        `
+                  </div>
+                `
+              : null}
+            ${!authenticated
+              ? html`
+                  <div
+                    className=${`rounded-xl border p-3 transition-colors ${consentAccepted ? 'border-success/60 bg-success/10' : 'border-base-300/80 bg-base-100/45'}`}
+                  >
+                    <label
+                      className="grid cursor-pointer grid-cols-[20px_minmax(0,1fr)] items-start gap-2 text-sm leading-relaxed text-base-content/90"
+                    >
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-success checkbox-sm mt-0.5"
+                        checked=${consentAccepted}
+                        disabled=${isBusy || consentSaving || passwordLoginBusy}
+                        onChange=${onConsentChange}
+                      />
+                      <span>
+                        Li e aceito os
+                        <a
+                          className="link link-info ml-1"
+                          href=${config.termsUrl}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          >Termos de Uso</a
+                        >
+                        e a
+                        <a
+                          className="link link-info ml-1"
+                          href=${config.privacyUrl}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          >Politica de Privacidade</a
+                        >.
+                      </span>
+                    </label>
+                    ${consentAccepted && hasConsentReceipt
+                      ? html`<p className="mt-2 text-xs text-success">
+                          Aceite juridico registrado com hash de versao.
+                        </p>`
+                      : null}
+                    ${consentErrorMessage
+                      ? html`<p className="mt-2 text-xs text-error">${consentErrorMessage}</p>`
                       : null}
                   </div>
                 `
@@ -1258,7 +1463,7 @@ const LoginApp = ({ config }) => {
                     <button
                       type="button"
                       className="btn btn-secondary w-full sm:w-auto"
-                      disabled=${passwordLoginBusy}
+                      disabled=${passwordLoginBusy || consentSaving}
                       onClick=${handlePasswordLoginSubmit}
                     >
                       ${passwordLoginBusy ? 'Entrando...' : 'Entrar com senha'}

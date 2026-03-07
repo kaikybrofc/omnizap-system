@@ -4,7 +4,7 @@ if (!root) {
   throw new Error('stickers-admin-root nao encontrado.');
 }
 
-const apiBasePath = root.dataset.apiBasePath || '/api/sticker-packs';
+const apiBasePath = root.dataset.apiBasePath || '/api';
 const webPath = root.dataset.webPath || '/stickers';
 const adminApiBase = `${apiBasePath}/admin`;
 const googleSessionApiPath = `${apiBasePath}/auth/google/session`;

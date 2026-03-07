@@ -56,6 +56,11 @@ Plataforma open source de automação para WhatsApp, com foco em figurinhas, cat
 - Criar pack (web): https://omnizap.shop/stickers/create/
 - API Docs: https://omnizap.shop/api-docs/
 - Termos de uso: https://omnizap.shop/termos-de-uso/
+- Política de privacidade: https://omnizap.shop/politica-de-privacidade/
+- AUP: https://omnizap.shop/aup/
+- DPA (B2B): https://omnizap.shop/dpa/
+- Notice-and-takedown: https://omnizap.shop/notice-and-takedown/
+- Suboperadores: https://omnizap.shop/suboperadores/
 - Licença: https://omnizap.shop/licenca/
 - Repositório: https://github.com/kaikybrofc/omnizap-system
 
@@ -274,10 +279,16 @@ Isso permite ler `x-forwarded-for`/`x-real-ip` corretamente em rotas protegidas.
 - `/stickers/`: catálogo de packs
 - `/api-docs/`: documentação funcional de API
 - `/termos-de-uso/`: termos de uso
+- `/politica-de-privacidade/`: política de privacidade (separada)
+- `/aup/`: política de uso aceitável
+- `/dpa/`: DPA padrão para clientes B2B
+- `/notice-and-takedown/`: canal formal de notice-and-takedown
+- `/suboperadores/`: inventário público de suboperadores
 
 ### API/serviços
 
 - `/api/sticker-packs`: API principal de packs/stickers
+- `/api/sticker-packs/auth/terms/acceptance`: registro versionado de aceite jurídico
 - `/api/sticker-packs/admin`: operações administrativas
 - `/api/marketplace/stats`: resumo público de marketplace
 - `/api/email`: automação e outbox de e-mail
@@ -448,7 +459,12 @@ Este bloco é alimentado automaticamente pela API (`/api/sticker-packs/readme-ma
 - Ative proxy trust atrás de Nginx/Cloudflare para IP real (`APP_TRUST_PROXY=true`).
 - Use SMTP válido para fluxos de senha e comunicação.
 - Revise periodicamente os termos em `/termos-de-uso/`.
+- Mantenha a política de privacidade separada em `/politica-de-privacidade/`.
 - Para reporte responsável de vulnerabilidades, siga [`SECURITY.md`](./SECURITY.md).
+- Para hardening de rede, use [`docs/security/network-hardening-runbook-2026-03-07.md`](./docs/security/network-hardening-runbook-2026-03-07.md).
+- Para resposta a incidentes com critério LGPD/ANPD, use [`docs/security/incident-response-lgpd-anpd-runbook-2026-03-07.md`](./docs/security/incident-response-lgpd-anpd-runbook-2026-03-07.md).
+- Para checklist mensal de compliance (branding, DPA, takedown e governança de dados), use [`docs/compliance/monthly-compliance-checklist-2026-03-07.md`](./docs/compliance/monthly-compliance-checklist-2026-03-07.md).
+- Para DSAR/LGPD (acesso, correção, exclusão, oposição e portabilidade), use [`docs/security/dsar-lgpd-runbook-2026-03-07.md`](./docs/security/dsar-lgpd-runbook-2026-03-07.md).
 
 ## Contribuição
 

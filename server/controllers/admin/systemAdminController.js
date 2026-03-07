@@ -22,10 +22,22 @@ const normalizeBasePath = (value, fallback) => {
   return withoutTrailingSlash || fallback;
 };
 
-const STICKER_API_BASE_PATH = normalizeBasePath(
+const LEGACY_STICKER_API_BASE_PATH = normalizeBasePath(
   process.env.STICKER_API_BASE_PATH,
   '/api/sticker-packs',
 );
+const USER_API_BASE_PATH = normalizeBasePath(
+  process.env.USER_API_BASE_PATH || process.env.AUTH_API_BASE_PATH,
+  '/api',
+);
+const SYSTEM_ADMIN_API_BASE_PATH = normalizeBasePath(
+  process.env.SYSTEM_ADMIN_API_BASE_PATH || `${USER_API_BASE_PATH}/admin`,
+  `${USER_API_BASE_PATH}/admin`,
+);
+const SYSTEM_ADMIN_API_SESSION_PATH = `${SYSTEM_ADMIN_API_BASE_PATH}/session`;
+const LEGACY_SYSTEM_ADMIN_API_BASE_PATH = `${LEGACY_STICKER_API_BASE_PATH}/admin`;
+const LEGACY_SYSTEM_ADMIN_API_SESSION_PATH = `${LEGACY_SYSTEM_ADMIN_API_BASE_PATH}/session`;
+const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
 const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stickers');
 const STICKER_ADMIN_WEB_PATH = `${STICKER_WEB_PATH}/admin`;
 const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
@@ -93,11 +105,64 @@ const sendRedirect = (res, location) => {
   res.end();
 };
 
+const hasPathPrefix = (pathname, prefix) =>
+  pathname === prefix || pathname.startsWith(`${prefix}/`);
+const escapeHtmlAttribute = (value) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+const replaceDataAttribute = (html, attributeName, value) =>
+  String(html || '').replace(
+    new RegExp(`(${attributeName}=")([^"]*)(")`, 'i'),
+    `$1${escapeHtmlAttribute(value)}$3`,
+  );
+const remapUrlPathname = (url, pathname) => {
+  if (!url || !pathname) return url;
+  try {
+    const remappedUrl = new URL(String(url?.href || url));
+    remappedUrl.pathname = pathname;
+    return remappedUrl;
+  } catch {
+    return url;
+  }
+};
+
+const mapAdminApiPathToLegacy = (pathname) => {
+  if (hasPathPrefix(pathname, SYSTEM_ADMIN_API_BASE_PATH)) {
+    const suffix = pathname.slice(SYSTEM_ADMIN_API_BASE_PATH.length);
+    return `${LEGACY_SYSTEM_ADMIN_API_BASE_PATH}${suffix || ''}`;
+  }
+  if (hasPathPrefix(pathname, LEGACY_SYSTEM_ADMIN_API_BASE_PATH)) {
+    return pathname;
+  }
+  return null;
+};
+
+const renderUserSystemAdminHtml = async () => {
+  const template = await fs.readFile(USER_SYSTEMADM_TEMPLATE_PATH, 'utf8');
+  const dataAttributes = {
+    'data-api-base-path': USER_API_BASE_PATH,
+    'data-login-path': STICKER_LOGIN_WEB_PATH,
+    'data-stickers-path': STICKER_WEB_PATH,
+  };
+
+  let html = template;
+  for (const [attributeName, value] of Object.entries(dataAttributes)) {
+    html = replaceDataAttribute(html, attributeName, value);
+  }
+
+  return html;
+};
+
 export const getSystemAdminRouteConfig = () => ({
   webPath: USER_SYSTEMADM_WEB_PATH,
   legacyWebPath: STICKER_ADMIN_WEB_PATH,
-  apiAdminBasePath: `${STICKER_API_BASE_PATH}/admin`,
-  apiAdminSessionPath: `${STICKER_API_BASE_PATH}/admin/session`,
+  apiAdminBasePath: SYSTEM_ADMIN_API_BASE_PATH,
+  apiAdminSessionPath: SYSTEM_ADMIN_API_SESSION_PATH,
+  legacyApiAdminBasePath: LEGACY_SYSTEM_ADMIN_API_BASE_PATH,
+  legacyApiAdminSessionPath: LEGACY_SYSTEM_ADMIN_API_SESSION_PATH,
 });
 
 export const maybeHandleSystemAdminRequest = async (req, res, { pathname, url }) => {
@@ -106,7 +171,7 @@ export const maybeHandleSystemAdminRequest = async (req, res, { pathname, url })
   if (pathname === USER_SYSTEMADM_WEB_PATH || pathname === `${USER_SYSTEMADM_WEB_PATH}/`) {
     if (!['GET', 'HEAD'].includes(req.method || '')) return false;
     try {
-      const html = await fs.readFile(USER_SYSTEMADM_TEMPLATE_PATH, 'utf8');
+      const html = await renderUserSystemAdminHtml();
       sendHtml(req, res, html);
     } catch (error) {
       if (error?.code === 'ENOENT') {
@@ -153,12 +218,18 @@ export const maybeHandleSystemAdminRequest = async (req, res, { pathname, url })
   }
 
   if (
-    pathname === `${STICKER_API_BASE_PATH}/admin/session` ||
-    pathname.startsWith(`${STICKER_API_BASE_PATH}/admin/`)
+    hasPathPrefix(pathname, SYSTEM_ADMIN_API_BASE_PATH) ||
+    hasPathPrefix(pathname, LEGACY_SYSTEM_ADMIN_API_BASE_PATH)
   ) {
+    const legacyPathname = mapAdminApiPathToLegacy(pathname);
+    if (!legacyPathname) return false;
+
     const controller = await loadStickerCatalogController();
     if (typeof controller?.maybeHandleStickerCatalogRequest !== 'function') return false;
-    return controller.maybeHandleStickerCatalogRequest(req, res, { pathname, url });
+    return controller.maybeHandleStickerCatalogRequest(req, res, {
+      pathname: legacyPathname,
+      url: remapUrlPathname(url, legacyPathname),
+    });
   }
 
   return false;

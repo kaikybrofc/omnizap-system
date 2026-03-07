@@ -82,6 +82,9 @@ Páginas recomendadas para criar/expandir em seguida:
 
 - README principal: `README.md`
 - Runbook de evolução de banco: `docs/database/production-db-evolution-runbook-2026q1.md`
+- Runbook de hardening de rede: `docs/security/network-hardening-runbook-2026-03-07.md`
+- Runbook de incidentes LGPD/ANPD: `docs/security/incident-response-lgpd-anpd-runbook-2026-03-07.md`
+- Checklist mensal de compliance: `docs/compliance/monthly-compliance-checklist-2026-03-07.md`
 - Playbook SEO BR: `docs/seo/omnizap-seo-playbook-br-2026-02-28.md`
 - Template de páginas satélite: `docs/seo/satellite-page-template.md`
 

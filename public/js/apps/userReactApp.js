@@ -13,10 +13,10 @@ import {
 
 const html = htm.bind(React.createElement);
 
-const DEFAULT_API_BASE_PATH = '/api/sticker-packs';
+const DEFAULT_API_BASE_PATH = '/api';
 const DEFAULT_LOGIN_PATH = '/login';
 const DEFAULT_TERMS_URL = '/termos-de-uso/';
-const DEFAULT_PRIVACY_URL = '/termos-de-uso/#politica-de-privacidade';
+const DEFAULT_PRIVACY_URL = '/politica-de-privacidade/';
 const DEFAULT_FALLBACK_AVATAR = '/assets/images/brand-logo-128.webp';
 const DEFAULT_PASSWORD_RESET_WEB_PATH = '/user/password-reset';
 const DEFAULT_SUPPORT_TEXT = 'Ol\u00e1! Preciso de suporte no OmniZap.';

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notice-and-Takedown | OmniZap</title>
+    <meta
+      name="description"
+      content="Canal formal de notice-and-takedown com formulario, requisitos minimos de prova e SLA publico."
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://omnizap.shop/notice-and-takedown/" />
+    <style>
+      body { margin: 0; background: #0a1120; color: #eff4ff; font-family: "Trebuchet MS", sans-serif; }
+      main { width: min(980px, 92vw); margin: 0 auto; padding: 24px 0 48px; }
+      .card { background: #111d36; border: 1px solid #2d4165; border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+      label { display: block; font-weight: 700; margin-bottom: 6px; }
+      input, textarea { width: 100%; border: 1px solid #3a5482; background: #0f1a31; color: #f1f6ff; border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+      button { border: 1px solid #2d906f; background: #1d5e49; color: #d9ffee; border-radius: 999px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
+      li, p { color: #c3d2ee; }
+      .sla { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+      .sla div { border: 1px solid #2d4165; border-radius: 12px; padding: 10px; background: #0d1830; }
+      a { color: #66d4ff; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <h1>Notice-and-Takedown</h1>
+        <p>
+          Canal formal para denuncias de conteudo ilicito, violacao de direitos autorais, marca,
+          imagem e privacidade.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Requisitos minimos de prova</h2>
+        <ul>
+          <li>Identificacao e contato valido do notificante.</li>
+          <li>URL/ID do conteudo denunciado.</li>
+          <li>Fundamentacao juridica objetiva.</li>
+          <li>Evidencia minima (captura, hash, documento de titularidade, quando aplicavel).</li>
+          <li>Declaracao de boa-fe e veracidade.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>SLA publico</h2>
+        <div class="sla">
+          <div><strong>Recebimento</strong><br />ate 24h uteis</div>
+          <div><strong>Triagem inicial</strong><br />ate 48h uteis</div>
+          <div><strong>Decisao cautelar</strong><br />ate 72h uteis</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Formulario de notificacao</h2>
+        <form
+          method="post"
+          action="mailto:kaikybritoribeiro@gmail.com?subject=Notice-and-Takedown%20OmniZap"
+          enctype="text/plain"
+        >
+          <label for="name">Nome do notificante</label>
+          <input id="name" name="name" required />
+
+          <label for="email">E-mail de contato</label>
+          <input id="email" name="email" type="email" required />
+
+          <label for="evidence_url">URL/ID do conteudo denunciado</label>
+          <input id="evidence_url" name="evidence_url" required />
+
+          <label for="legal_basis">Fundamentacao juridica</label>
+          <textarea id="legal_basis" name="legal_basis" rows="3" required></textarea>
+
+          <label for="proof">Prova minima (descricao)</label>
+          <textarea id="proof" name="proof" rows="3" required></textarea>
+
+          <label for="declaration">Declaracao de boa-fe</label>
+          <textarea id="declaration" name="declaration" rows="2" required>
+Declaro, sob boa-fe, que as informacoes acima sao verdadeiras.
+          </textarea>
+
+          <button type="submit">Enviar notificacao</button>
+        </form>
+        <p>
+          Alternativa: envie pelo WhatsApp oficial
+          <a href="https://wa.me/559591122954">+55 95 9112-2954</a>.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

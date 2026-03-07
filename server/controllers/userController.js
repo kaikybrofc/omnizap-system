@@ -2,20 +2,21 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import logger from '../../utils/logger/loggerModule.js';
+import {
+  DEFAULT_LEGACY_STICKER_API_BASE_PATH,
+  DEFAULT_USER_API_BASE_PATH,
+  isUserApiPath,
+  normalizeBasePath,
+  resolveLegacyUserApiPath,
+} from '../routes/user/userApiPaths.js';
 
-const normalizeBasePath = (value, fallback) => {
-  const raw = String(value || '').trim() || fallback;
-  const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash =
-    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
-      ? withLeadingSlash.slice(0, -1)
-      : withLeadingSlash;
-  return withoutTrailingSlash || fallback;
-};
-
-const STICKER_API_BASE_PATH = normalizeBasePath(
+const LEGACY_STICKER_API_BASE_PATH = normalizeBasePath(
   process.env.STICKER_API_BASE_PATH,
-  '/api/sticker-packs',
+  DEFAULT_LEGACY_STICKER_API_BASE_PATH,
+);
+const USER_API_BASE_PATH = normalizeBasePath(
+  process.env.USER_API_BASE_PATH || process.env.AUTH_API_BASE_PATH,
+  DEFAULT_USER_API_BASE_PATH,
 );
 const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
 const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
@@ -25,12 +26,6 @@ const USER_PASSWORD_RESET_WEB_PATH = normalizeBasePath(
 );
 const USER_DASHBOARD_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'user', 'index.html');
 
-const USER_API_PATHS = new Set([
-  `${STICKER_API_BASE_PATH}/auth/google/session`,
-  `${STICKER_API_BASE_PATH}/me`,
-  `${STICKER_API_BASE_PATH}/bot-contact`,
-  `${STICKER_API_BASE_PATH}/support`,
-]);
 const hasPathPrefix = (pathname, prefix) =>
   pathname === prefix || pathname.startsWith(`${prefix}/`);
 const escapeHtmlAttribute = (value) =>
@@ -45,10 +40,35 @@ const replaceDataAttribute = (html, attributeName, value) =>
     `$1${escapeHtmlAttribute(value)}$3`,
   );
 
+const remapUrlPathname = (url, pathname) => {
+  if (!url || !pathname) return url;
+  try {
+    const remappedUrl = new URL(String(url?.href || url));
+    remappedUrl.pathname = pathname;
+    return remappedUrl;
+  } catch {
+    return url;
+  }
+};
+
+const isSupportedUserApiPath = (pathname) =>
+  isUserApiPath(pathname, USER_API_BASE_PATH) ||
+  isUserApiPath(pathname, LEGACY_STICKER_API_BASE_PATH);
+
+const mapUserApiPathToLegacy = (pathname) =>
+  resolveLegacyUserApiPath(pathname, {
+    apiBasePath: USER_API_BASE_PATH,
+    legacyApiBasePath: LEGACY_STICKER_API_BASE_PATH,
+  }) ||
+  resolveLegacyUserApiPath(pathname, {
+    apiBasePath: LEGACY_STICKER_API_BASE_PATH,
+    legacyApiBasePath: LEGACY_STICKER_API_BASE_PATH,
+  });
+
 const renderUserDashboardHtml = async () => {
   const template = await fs.readFile(USER_DASHBOARD_TEMPLATE_PATH, 'utf8');
   const dataAttributes = {
-    'data-api-base-path': STICKER_API_BASE_PATH,
+    'data-api-base-path': USER_API_BASE_PATH,
     'data-login-path': STICKER_LOGIN_WEB_PATH,
     'data-password-reset-web-path': USER_PASSWORD_RESET_WEB_PATH,
   };
@@ -98,7 +118,8 @@ export const getUserRouteConfig = () => ({
   webPath: USER_PROFILE_WEB_PATH,
   loginPath: STICKER_LOGIN_WEB_PATH,
   passwordResetWebPath: USER_PASSWORD_RESET_WEB_PATH,
-  apiBasePath: STICKER_API_BASE_PATH,
+  apiBasePath: USER_API_BASE_PATH,
+  legacyApiBasePath: LEGACY_STICKER_API_BASE_PATH,
 });
 
 export const maybeHandleUserRequest = async (req, res, { pathname, url }) => {
@@ -128,10 +149,16 @@ export const maybeHandleUserRequest = async (req, res, { pathname, url }) => {
     return true;
   }
 
-  if (USER_API_PATHS.has(pathname)) {
+  if (isSupportedUserApiPath(pathname)) {
+    const legacyPathname = mapUserApiPathToLegacy(pathname);
+    if (!legacyPathname) return false;
+
     const controller = await loadStickerCatalogController();
     if (typeof controller?.maybeHandleStickerCatalogRequest !== 'function') return false;
-    return controller.maybeHandleStickerCatalogRequest(req, res, { pathname, url });
+    return controller.maybeHandleStickerCatalogRequest(req, res, {
+      pathname: legacyPathname,
+      url: remapUrlPathname(url, legacyPathname),
+    });
   }
 
   return false;

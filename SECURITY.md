@@ -96,3 +96,15 @@ Reportes realizados de boa-fé, com respeito a esta política, serão tratados c
 Para hardening de rede e redução de superfície exposta (portas públicas, SSH e Nginx), consulte:
 
 - [`docs/security/network-hardening-runbook-2026-03-07.md`](./docs/security/network-hardening-runbook-2026-03-07.md)
+
+## Resposta a Incidentes com Critério LGPD/ANPD
+
+Para resposta formal a incidentes com avaliação de gatilho de notificação regulatória, consulte:
+
+- [`docs/security/incident-response-lgpd-anpd-runbook-2026-03-07.md`](./docs/security/incident-response-lgpd-anpd-runbook-2026-03-07.md)
+
+## Compliance Operacional Mensal
+
+Para acompanhamento mensal de conteúdo regulado, branding, contratos (DPA), governança de dados, notice-and-takedown e separação patrimonial, consulte:
+
+- [`docs/compliance/monthly-compliance-checklist-2026-03-07.md`](./docs/compliance/monthly-compliance-checklist-2026-03-07.md)

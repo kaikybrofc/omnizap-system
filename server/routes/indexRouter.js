@@ -71,7 +71,8 @@ const loadUserConfigSafe = async () => {
     return {
       webPath: '/user',
       passwordResetWebPath: '/user/password-reset',
-      apiBasePath: '/api/sticker-packs',
+      apiBasePath: '/api',
+      legacyApiBasePath: '/api/sticker-packs',
     };
   }
 };
@@ -83,8 +84,10 @@ const loadSystemAdminConfigSafe = async () => {
     return {
       webPath: '/user/systemadm',
       legacyWebPath: '/stickers/admin',
-      apiAdminBasePath: '/api/sticker-packs/admin',
-      apiAdminSessionPath: '/api/sticker-packs/admin/session',
+      apiAdminBasePath: '/api/admin',
+      apiAdminSessionPath: '/api/admin/session',
+      legacyApiAdminBasePath: '/api/sticker-packs/admin',
+      legacyApiAdminSessionPath: '/api/sticker-packs/admin/session',
     };
   }
 };
@@ -263,6 +266,11 @@ export const routeRequest = async (
 };
 
 export const getUserApiPathsFromConfig = (userConfig = null) => {
-  const apiBasePath = userConfig?.apiBasePath || '/api/sticker-packs';
-  return buildUserApiPaths(apiBasePath);
+  const apiBasePath = userConfig?.apiBasePath || '/api';
+  const paths = new Set(buildUserApiPaths(apiBasePath));
+  const legacyApiBasePath = userConfig?.legacyApiBasePath || '/api/sticker-packs';
+  for (const path of buildUserApiPaths(legacyApiBasePath)) {
+    paths.add(path);
+  }
+  return paths;
 };

@@ -28,6 +28,11 @@ export const handleCatalogAuthRoutes = async ({
     return true;
   }
 
+  if (pathname === `${apiBasePath}/auth/terms/acceptance`) {
+    await handlers.handleTermsAcceptanceRequest(req, res);
+    return true;
+  }
+
   if (pathname === `${apiBasePath}/auth/password`) {
     await handlers.handlePasswordAuthRequest(req, res);
     return true;

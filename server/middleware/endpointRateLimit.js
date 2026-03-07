@@ -137,6 +137,10 @@ const isSensitivePostPath = (pathname) => {
     return 'auth_login';
   }
 
+  if (safePath.endsWith('/auth/terms/acceptance')) {
+    return 'auth_login';
+  }
+
   if (safePath.endsWith('/auth/password')) {
     return 'auth_password';
   }

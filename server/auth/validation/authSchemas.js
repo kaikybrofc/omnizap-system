@@ -40,6 +40,11 @@ const optionalSignature = z.preprocess((value) => {
   return String(value).trim();
 }, z.string().max(256).optional());
 
+const optionalIsoDatetime = z.preprocess((value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  return String(value).trim();
+}, z.string().datetime({ offset: true }).optional());
+
 const googleAuthSessionPayloadSchema = z
   .object({
     google_id_token: optionalTrimmedString(4096),
@@ -221,6 +226,55 @@ const userPasswordRecoveryVerifyPayloadSchema = z
     }
   });
 
+const termsAcceptanceDocumentSchema = z.object({
+  document_key: z.preprocess(
+    (value) => String(value || '').trim().toLowerCase(),
+    z
+      .string()
+      .min(3)
+      .max(64)
+      .regex(/^[a-z0-9_-]+$/, 'document_key invalido.'),
+  ),
+  document_version: z.preprocess(
+    (value) => String(value || '').trim(),
+    z.string().min(1).max(64),
+  ),
+});
+
+const termsAcceptancePayloadSchema = z
+  .object({
+    accepted: z.preprocess((value) => {
+      if (typeof value === 'boolean') return value;
+      if (value === 1 || value === '1') return true;
+      if (value === 0 || value === '0') return false;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', 'yes', 'on'].includes(normalized)) return true;
+        if (['false', 'no', 'off'].includes(normalized)) return false;
+      }
+      return value;
+    }, z.boolean()),
+    accepted_at: optionalIsoDatetime,
+    source: optionalTrimmedString(32),
+    documents: z.array(termsAcceptanceDocumentSchema).min(1).max(8),
+    context: z
+      .object({
+        login_hint_phone: optionalTrimmedString(32),
+        login_hint_ts: optionalTimestamp,
+      })
+      .partial()
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.accepted) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['accepted'],
+        message: 'Aceite deve ser verdadeiro.',
+      });
+    }
+  });
+
 const parseWithSchema = (schema, payload, fallbackMessage) => {
   const parsed = schema.safeParse(ensureObject(payload));
   if (!parsed.success) {
@@ -256,4 +310,11 @@ export const parseUserPasswordRecoveryVerifyPayload = (payload) =>
     userPasswordRecoveryVerifyPayloadSchema,
     payload,
     'Payload de verificacao de codigo invalido.',
+  );
+
+export const parseTermsAcceptancePayload = (payload) =>
+  parseWithSchema(
+    termsAcceptancePayloadSchema,
+    payload,
+    'Payload de aceite juridico invalido.',
   );

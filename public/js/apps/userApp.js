@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE_PATH = '/api/sticker-packs';
+const DEFAULT_API_BASE_PATH = '/api';
 const DEFAULT_STICKERS_PATH = '/stickers';
 const DEFAULT_LOGIN_PATH = '/login';
 const FALLBACK_AVATAR = 'https://iili.io/FC3FABe.jpg';

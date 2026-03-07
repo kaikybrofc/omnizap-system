@@ -990,6 +990,31 @@ CREATE TABLE IF NOT EXISTS `web_user_password_recovery_code` (
   CONSTRAINT `fk_web_user_password_recovery_google_user` FOREIGN KEY (`google_sub`) REFERENCES `web_google_user` (`google_sub`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `web_terms_acceptance_event` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `event_id` char(36) NOT NULL,
+  `document_key` varchar(64) NOT NULL,
+  `document_version` varchar(64) NOT NULL,
+  `document_version_hash` char(64) NOT NULL,
+  `accepted_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `accepted_at_client` timestamp NULL DEFAULT NULL,
+  `source` varchar(32) NOT NULL DEFAULT 'web_login',
+  `google_sub` varchar(80) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `owner_jid` varchar(120) DEFAULT NULL,
+  `session_key` varchar(80) DEFAULT NULL,
+  `ip_address` varchar(64) DEFAULT NULL,
+  `user_agent` varchar(512) DEFAULT NULL,
+  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_web_terms_acceptance_event_id` (`event_id`),
+  KEY `idx_web_terms_acceptance_doc_version` (`document_key`,`document_version`,`accepted_at`),
+  KEY `idx_web_terms_acceptance_identity` (`google_sub`,`email`,`owner_jid`,`accepted_at`),
+  KEY `idx_web_terms_acceptance_source_created` (`source`,`created_at`),
+  KEY `idx_web_terms_acceptance_session_created` (`session_key`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `web_visit_event` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `visitor_key` varchar(80) NOT NULL,

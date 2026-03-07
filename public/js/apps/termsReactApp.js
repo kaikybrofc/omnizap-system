@@ -9,6 +9,7 @@ const TERMS_CONTENT_HTML = String.raw`
         <a href="/">Início</a>
         <a href="/stickers/">Stickers</a>
         <a href="/api-docs/">API</a>
+        <a href="/politica-de-privacidade/">Privacidade</a>
         <a href="/licenca/">Licença</a>
       </nav>
 
@@ -22,7 +23,7 @@ const TERMS_CONTENT_HTML = String.raw`
         </div>
         <p class="note"><strong>Aviso institucional:</strong> o OmniZap System é um <strong>projeto independente e não oficial</strong>, sem autorização, afiliação ou endosso da Meta Platforms, Inc.</p>
         <p>Este instrumento regula o acesso e uso do site, API, painel e funcionalidades de automação disponibilizadas pelo OmniZap System.</p>
-        <p>Ao utilizar a plataforma, o usuário declara ciência e concordância integral com estes Termos de Uso e com a seção de privacidade constante neste documento.</p>
+        <p>Ao utilizar a plataforma, o usuário declara ciência e concordância integral com estes Termos de Uso e com a Política de Privacidade publicada em página própria.</p>
       </section>
 
       <section class="card">
@@ -87,7 +88,9 @@ const TERMS_CONTENT_HTML = String.raw`
         <ul>
           <li>É permitido utilizar a plataforma para automação e integração, desde que observadas a legislação aplicável e as políticas de terceiros integrados.</li>
           <li>É vedado o uso para spam, fraude, phishing, engenharia social, assédio, malware, invasão de sistemas ou qualquer prática ilícita.</li>
+          <li>É vedado burlar controles técnicos, limitações comerciais, políticas de uso ou termos de plataformas terceiras (incluindo provedores de mensageria) por engenharia reversa, mascaramento indevido de origem ou automações não autorizadas.</li>
           <li>É vedada a coleta, o tratamento ou o compartilhamento de dados de terceiros sem base legal adequada.</li>
+          <li>É vedado o uso para monitoramento clandestino de comunicações sem ciência dos envolvidos ou sem base legal aplicável.</li>
           <li>É vedado testar vulnerabilidades, realizar varreduras agressivas ou provocar degradação de serviço sem autorização formal prévia.</li>
           <li>O usuário responderá civil, administrativa e criminalmente por conteúdo e operações executadas por sua conta.</li>
         </ul>
@@ -106,14 +109,38 @@ const TERMS_CONTENT_HTML = String.raw`
       </section>
 
       <section class="card">
-        <h2 id="politica-de-privacidade">8. Política de Privacidade (termos complementares)</h2>
+        <h2 id="politica-de-privacidade">8. Política de Privacidade (resumo contratual)</h2>
+        <p>Esta cláusula é complementar. A versão principal e separada está em <a href="/politica-de-privacidade/">/politica-de-privacidade/</a>.</p>
         <ul>
           <li><strong>Finalidade:</strong> dados são tratados para operação da plataforma, autenticação, segurança, suporte e evolução técnica do serviço.</li>
           <li><strong>Necessidade:</strong> coleta limitada ao mínimo necessário para execução das funcionalidades contratadas/ativadas.</li>
           <li><strong>Transparência:</strong> este documento descreve categorias de dados, finalidades e hipóteses de compartilhamento.</li>
           <li><strong>Qualidade dos dados:</strong> o titular poderá solicitar correções de dados incompletos, inexatos ou desatualizados.</li>
           <li><strong>Segurança:</strong> são adotadas medidas técnicas e administrativas razoáveis para redução de risco de acesso indevido ou vazamento.</li>
+          <li><strong>Governança:</strong> são observados controles de minimização, retenção por prazo, controle de acesso por perfil e registro de acesso a conteúdo sensível, quando tecnicamente aplicável.</li>
           <li><strong>Não comercialização:</strong> dados pessoais não são comercializados como produto.</li>
+        </ul>
+        <h3>8.1 Coleta integral de mensagens (quando habilitada)</h3>
+        <p>Para execução de funcionalidades de automação, suporte técnico, auditoria, segurança e prevenção de abuso, a plataforma poderá coletar e tratar mensagens de forma integral no contexto conectado pelo usuário.</p>
+        <ul>
+          <li>Podem ser tratados conteúdo textual, áudios, imagens, vídeos, documentos, links e metadados técnicos relacionados às mensagens.</li>
+          <li>Em ambientes de grupo/comunidade, o usuário que adiciona e opera o bot declara ser responsável por informar participantes e garantir base legal adequada para o tratamento.</li>
+          <li>Quando exigido pela legislação aplicável, o usuário deverá obter consentimento válido ou adotar outra hipótese legal legítima antes da coleta.</li>
+          <li>Dados podem ser usados para evidências de segurança, mitigação de fraude, investigação de abuso e exercício regular de direitos.</li>
+        </ul>
+        <h3>8.2 Compromisso de sigilo e confidencialidade</h3>
+        <ul>
+          <li>O OmniZap System compromete-se a observar o sigilo e a confidencialidade das informações tratadas, nos limites legais e técnicos aplicáveis.</li>
+          <li>O acesso interno ao conteúdo é restrito por necessidade operacional (need-to-know), com controles de acesso e trilha de auditoria.</li>
+          <li>Operadores e fornecedores contratados para apoiar o serviço devem observar obrigações contratuais de confidencialidade e proteção de dados.</li>
+          <li>A divulgação de conteúdo a terceiros somente ocorrerá mediante obrigação legal, ordem judicial/requisição válida de autoridade competente ou autorização do usuário, quando cabível.</li>
+        </ul>
+        <h3>8.3 Dever de sigilo profissional e penalidade contratual</h3>
+        <ul>
+          <li>O usuário, seus prepostos, colaboradores e terceiros por ele autorizados assumem dever de sigilo profissional sobre dados, mensagens, credenciais e informações confidenciais acessadas por meio da plataforma.</li>
+          <li>É vedada a divulgação, cópia, compartilhamento, comercialização, publicação ou uso para finalidade diversa daquela legitimamente autorizada.</li>
+          <li>A violação comprovada do dever de sigilo, por ação ou omissão, sujeitará o infrator ao pagamento de multa contratual não compensatória de <strong>R$ 10.000,00 (dez mil reais) por incidente comprovado</strong>, sem prejuízo de perdas e danos, lucros cessantes, medidas inibitórias e demais cominações legais cabíveis.</li>
+          <li>Quando aplicável, a multa prevista nesta cláusula será interpretada e executada em conformidade com normas de ordem pública e legislação protetiva do consumidor.</li>
         </ul>
       </section>
 
@@ -139,6 +166,7 @@ const TERMS_CONTENT_HTML = String.raw`
         <ul>
           <li>Poderá haver compartilhamento com operadores e fornecedores de infraestrutura, monitoramento, autenticação, comunicação e suporte.</li>
           <li>Compartilhamentos com terceiros ocorrerão no limite necessário para execução das finalidades legítimas da plataforma.</li>
+          <li>Operadores que tratem conteúdo de mensagens deverão observar dever de confidencialidade, segurança da informação e uso restrito à finalidade contratada.</li>
           <li>Dados poderão ser fornecidos a autoridades públicas mediante obrigação legal, ordem judicial ou requisição válida.</li>
           <li>Em transferências internacionais, serão adotadas salvaguardas compatíveis com a legislação brasileira de proteção de dados.</li>
         </ul>
@@ -148,6 +176,7 @@ const TERMS_CONTENT_HTML = String.raw`
         <h2>11. Retenção, registros e evidências digitais</h2>
         <ul>
           <li>Dados e logs podem ser armazenados pelo período necessário para cumprimento de finalidades contratuais, segurança e obrigações legais.</li>
+          <li>Quando tecnicamente viável, registros de acesso a mensagens poderão conter identificador do agente, data/hora, tipo de operação e justificativa operacional.</li>
           <li>Quando aplicável ao modelo operacional da plataforma, registros de acesso a aplicações poderão ser mantidos nos termos do Marco Civil da Internet.</li>
           <li>Backups e registros de auditoria podem subsistir por prazo adicional para continuidade, recuperação e integridade probatória.</li>
           <li>Após o término da finalidade, os dados poderão ser eliminados, bloqueados ou anonimizados, ressalvadas hipóteses legais de retenção.</li>
@@ -158,8 +187,10 @@ const TERMS_CONTENT_HTML = String.raw`
         <h2>12. Segurança da informação e resposta a incidentes</h2>
         <ul>
           <li>São adotadas práticas de hardening, controle de acesso, limitação de taxa, segregação de ambientes e monitoramento de eventos críticos.</li>
+          <li>São adotadas salvaguardas de criptografia em trânsito e, quando aplicável ao cenário técnico, em repouso para dados e backups sensíveis.</li>
           <li>Nenhum ambiente computacional é integralmente imune a falhas; por isso, não há garantia de invulnerabilidade absoluta.</li>
           <li>Na hipótese de incidente relevante envolvendo dados pessoais, serão adotadas as medidas técnicas, administrativas e legais cabíveis.</li>
+          <li>O plano formal de resposta a incidentes poderá incluir comitê de crise, análise de impacto, preservação de evidências e gatilho para comunicação à ANPD e aos titulares, quando exigido pela legislação aplicável.</li>
           <li>Quando exigido em lei, serão realizadas comunicações às autoridades competentes e aos titulares afetados.</li>
         </ul>
       </section>
@@ -248,6 +279,10 @@ const TERMS_CONTENT_HTML = String.raw`
           <li>Lei nº 9.610/1998 (Direitos Autorais): <a href="https://www.planalto.gov.br/ccivil_03/leis/l9610.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
           <li>Lei nº 9.609/1998 (Lei de Software): <a href="https://www.planalto.gov.br/ccivil_03/leis/l9609.htm" target="_blank" rel="noreferrer noopener">Planalto</a>.</li>
           <li>ANPD - direitos do titular e canais institucionais: <a href="https://www.gov.br/anpd/pt-br" target="_blank" rel="noreferrer noopener">gov.br/anpd</a>.</li>
+          <li>ANPD - comunicação de incidente de segurança (CIS): <a href="https://www.gov.br/anpd/pt-br/canais_atendimento/agente-de-tratamento/comunicado-de-incidente-de-seguranca-cis" target="_blank" rel="noreferrer noopener">gov.br/anpd/cis</a>.</li>
+          <li>WhatsApp Business Terms: <a href="https://www.whatsapp.com/legal/business-terms/" target="_blank" rel="noreferrer noopener">whatsapp.com/legal/business-terms</a>.</li>
+          <li>WhatsApp Business Messaging Policy: <a href="https://business.whatsapp.com/policy" target="_blank" rel="noreferrer noopener">business.whatsapp.com/policy</a>.</li>
+          <li>WhatsApp Brand Guidelines: <a href="https://about.meta.com/brand/resources/whatsapp/whatsapp-brand/" target="_blank" rel="noreferrer noopener">about.meta.com/brand/resources</a>.</li>
         </ul>
       </section>
 
@@ -262,9 +297,121 @@ const TERMS_CONTENT_HTML = String.raw`
       </section>
 
       <section class="card">
-        <h2>23. Histórico de alterações</h2>
+        <h2>23. Cláusulas adicionais de proteção jurídica</h2>
+        <h3>23.1 Papéis LGPD entre as partes</h3>
         <ul>
-          <li><strong>07/03/2026:</strong> revisão integral em tom jurídico, inclusão de cláusulas de validade eletrônica, indenização regressiva, disposições gerais e seção de referências legais oficiais (Planalto/ANPD).</li>
+          <li>Conforme o fluxo operacional, o OmniZap System poderá atuar como controlador ou operador de dados pessoais, nos termos da LGPD.</li>
+          <li>Quando o tratamento decorrer de instruções do cliente/usuário, este permanecerá responsável pela legalidade da instrução e pela definição de finalidade.</li>
+        </ul>
+        <h3>23.2 Declaração de base legal pelo usuário/cliente</h3>
+        <ul>
+          <li>Ao ativar integrações e automações, o usuário declara possuir base legal válida para tratamento dos dados e mensagens envolvidas.</li>
+          <li>A ausência de base legal caracteriza infração contratual grave, sem prejuízo das medidas legais cabíveis.</li>
+        </ul>
+        <h3>23.3 Transparência com participantes e terceiros</h3>
+        <ul>
+          <li>O usuário compromete-se a informar participantes dos grupos/comunidades sobre a atuação do bot e sobre o tratamento de mensagens.</li>
+          <li>Quando exigido por lei, deverá manter aviso de privacidade acessível e atualizado no contexto de uso.</li>
+        </ul>
+        <h3>23.4 Cooperação obrigatória em incidentes</h3>
+        <ul>
+          <li>Na hipótese de incidente de segurança, o usuário deverá cooperar com investigação, contenção e mitigação, fornecendo informações técnicas úteis em prazo razoável.</li>
+          <li>A omissão injustificada poderá ensejar suspensão cautelar de acesso.</li>
+        </ul>
+        <h3>23.5 Retenção e descarte com parâmetros objetivos</h3>
+        <ul>
+          <li>Mensagens tratadas: retenção conforme finalidade operacional e base legal do tratamento.</li>
+          <li>Logs técnicos e trilhas de auditoria: retenção pelo prazo necessário a segurança, prova e cumprimento legal.</li>
+          <li>Backups: retenção cíclica por janela técnica definida em política interna de continuidade.</li>
+        </ul>
+        <h3>23.6 Limite global de responsabilidade financeira</h3>
+        <ul>
+          <li>Ressalvadas hipóteses de dolo, violação de sigilo, danos morais, danos à personalidade e demais limites legais inderrogáveis, a responsabilidade total do OmniZap System, por evento ou série de eventos relacionados, fica limitada ao montante efetivamente pago pelo usuário nos 12 (doze) meses anteriores ao fato gerador.</li>
+        </ul>
+        <h3>23.7 Cláusula penal calibrada e revisão judicial</h3>
+        <ul>
+          <li>As multas contratuais previstas neste instrumento possuem natureza não compensatória e não afastam perdas e danos adicionais quando cabíveis.</li>
+          <li>Sem prejuízo da exigibilidade, o valor poderá ser revisto judicialmente nas hipóteses legalmente previstas.</li>
+        </ul>
+        <h3>23.8 Suspensão imediata por risco jurídico ou técnico</h3>
+        <ul>
+          <li>O OmniZap System poderá suspender imediatamente contas, tokens, integrações ou endpoints em caso de risco iminente à segurança, fraude, abuso, decisão de autoridade ou potencial dano relevante a terceiros.</li>
+        </ul>
+        <h3>23.9 Procedimento de notice-and-takedown</h3>
+        <ul>
+          <li>Denúncias de conteúdo ilícito, violação autoral, violação de privacidade ou uso indevido poderão resultar em remoção preventiva, bloqueio cautelar e preservação de evidências para apuração.</li>
+          <li>Quando houver evidência inicial mínima, a triagem ocorrerá em até 24 (vinte e quatro) horas e a decisão cautelar inicial em até 72 (setenta e duas) horas, ressalvados casos tecnicamente complexos ou de força maior.</li>
+        </ul>
+        <h3>23.10 Prova eletrônica e integridade de registros</h3>
+        <ul>
+          <li>Logs, carimbos de data/hora, identificadores técnicos, trilhas de auditoria e registros de API poderão ser utilizados como elementos probatórios em processos judiciais ou administrativos, observada a legislação aplicável.</li>
+        </ul>
+        <h3>23.11 Ordem de prevalência documental</h3>
+        <ul>
+          <li>Em caso de conflito interpretativo, prevalecerá a seguinte ordem: (i) instrumento contratual específico assinado entre as partes, (ii) aditivo de proteção de dados (quando houver), (iii) estes Termos de Uso, (iv) política complementar de privacidade e documentos operacionais públicos.</li>
+        </ul>
+        <h3>23.12 Não renúncia, separabilidade e cessão</h3>
+        <ul>
+          <li>A não exigência imediata de direito contratual não implicará renúncia.</li>
+          <li>Se qualquer cláusula for considerada inválida, as demais permanecerão eficazes.</li>
+          <li>É vedada a cessão de posição contratual pelo usuário sem anuência prévia e expressa do OmniZap System, ressalvadas hipóteses legais obrigatórias.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>24. Programa reforçado de conformidade e governança</h2>
+        <h3>24.1 Política de conteúdo e categorias reguladas</h3>
+        <ul>
+          <li>O usuário declara que somente utilizará a plataforma em atividades permitidas por lei e por políticas das plataformas integradas.</li>
+          <li>Em verticais reguladas (ex.: saúde, crédito, apostas, criptoativos, educação, publicidade para menores ou outras de risco regulatório), o usuário deverá manter licenças, autorizações e avisos legais exigidos para o país, estado e município de atuação.</li>
+          <li>O usuário deve observar classificação etária aplicável, restrições de faixa etária e limitações territoriais/jurisdicionais para oferta de produtos e serviços.</li>
+        </ul>
+        <h3>24.2 Branding e uso de marcas de terceiros</h3>
+        <ul>
+          <li>É vedado apresentar o OmniZap System como serviço oficial, parceiro certificado, afiliado ou endossado pela Meta/WhatsApp sem autorização formal e verificável.</li>
+          <li>É vedado utilizar logotipos, nomes comerciais, ícones ou identidade visual de terceiros fora das diretrizes oficiais de marca e sem o licenciamento pertinente.</li>
+          <li>Quando houver referência nominativa a marcas de terceiros, ela deverá ser estritamente descritiva, sem sugerir patrocínio, apoio institucional ou vínculo societário inexistente.</li>
+        </ul>
+        <h3>24.3 Contratação corporativa, DPA e alocação de risco</h3>
+        <ul>
+          <li>Para operação corporativa em escala, o OmniZap System poderá exigir contrato específico com cláusulas de proteção de dados, incluindo DPA (Data Processing Addendum).</li>
+          <li>O contrato poderá prever garantias expressas de base legal, dever de cooperação regulatória, indenização regressiva e limitação de responsabilidade em parâmetros economicamente proporcionais.</li>
+          <li>A recusa em firmar os instrumentos jurídicos mínimos poderá ensejar suspensão de funcionalidades de alto risco até regularização contratual.</li>
+        </ul>
+        <h3>24.4 Governança de dados e sigilo de mensagens</h3>
+        <ul>
+          <li>O tratamento observará princípios de minimização, necessidade, limitação de finalidade e retenção por prazo definido em política interna.</li>
+          <li>Serão adotadas medidas de proteção como criptografia em trânsito, controle de acesso por privilégio mínimo, segregação de funções e trilhas de auditoria.</li>
+          <li>O acesso a conteúdo integral de mensagens deverá ocorrer com justificativa operacional legítima, registro de evidência e controle de responsabilidade.</li>
+        </ul>
+        <h3>24.5 Plano formal de incidentes e gatilho ANPD/titulares</h3>
+        <ul>
+          <li>O OmniZap System manterá plano formal de resposta a incidentes com etapas de detecção, contenção, erradicação, recuperação e lições aprendidas.</li>
+          <li>Quando houver risco ou dano relevante aos titulares, poderá ser acionado fluxo de comunicação à ANPD e aos titulares potencialmente afetados, nos termos da legislação vigente.</li>
+          <li>Quando aplicável ao controlador, a comunicação regulatória observará os prazos legais vigentes, incluindo o prazo de 3 (três) dias úteis previsto no regulamento da ANPD, ressalvada legislação específica superveniente.</li>
+        </ul>
+        <h3>24.6 Separação patrimonial e seguro de riscos cibernéticos</h3>
+        <ul>
+          <li>A operação do serviço será estruturada por pessoa jurídica, com segregação patrimonial e contábil em relação à pessoa física dos sócios/administradores, conforme legislação aplicável.</li>
+          <li>Poderão ser contratadas coberturas de seguro cibernético e/ou Errors and Omissions (E&O), sem prejuízo das limitações contratuais de responsabilidade.</li>
+        </ul>
+        <h3>24.7 Canal de notice-and-takedown com SLA</h3>
+        <ul>
+          <li>Fica instituído canal de notificação para denúncias de conteúdo ilícito, uso irregular, violação de direitos autorais, marca, imagem ou privacidade.</li>
+          <li>As notificações deverão conter identificação mínima do notificante, URL/ID do conteúdo, fundamento jurídico e elemento probatório mínimo para triagem.</li>
+          <li>A confirmação de recebimento ocorrerá, preferencialmente, em até 24 (vinte e quatro) horas úteis, com medidas cautelares conforme nível de risco.</li>
+        </ul>
+        <h3>24.8 Comitê mensal de compliance</h3>
+        <ul>
+          <li>Será mantido comitê mensal de compliance com representantes de jurídico, produto e segurança da informação, com ata e plano de ação.</li>
+          <li>O comitê revisará aderência regulatória, termos de terceiros, incidentes, métricas de segurança, solicitações de takedown e pendências contratuais.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>25. Histórico de alterações</h2>
+        <ul>
+          <li><strong>07/03/2026:</strong> revisão integral em tom jurídico, inclusão de cláusulas de validade eletrônica, indenização regressiva, disposições gerais, referências legais oficiais (Planalto/ANPD), cláusulas específicas sobre coleta integral de mensagens e compromisso de sigilo/confidencialidade, cláusula autônoma de dever de sigilo profissional com penalidade contratual, 12 cláusulas adicionais de proteção jurídica e programa reforçado de compliance (conteúdo regulado, branding, DPA, governança de dados, incidentes com gatilho ANPD/titulares, separação patrimonial, seguro cyber/E&O, canal de notice-and-takedown com SLA, inventário público de suboperadores e separação da política de privacidade).</li>
           <li><strong>06/03/2026:</strong> inclusão de cláusulas sobre autenticação por senha, redefinição por e-mail com controles antiabuso, filosofia open source, comunidade e reforço das diretrizes de segurança de dados.</li>
           <li><strong>05/03/2026:</strong> inclusão de cláusula sobre uso do e-mail de login para envio de informações do projeto, comunicados operacionais e avisos de segurança.</li>
           <li><strong>28/02/2026:</strong> inclusão de contatos explícitos, aviso de projeto não oficial, termos complementares de privacidade, exemplos práticos de uso proibido e linguagem simplificada em seções jurídicas.</li>

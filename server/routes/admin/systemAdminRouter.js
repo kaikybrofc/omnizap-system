@@ -25,8 +25,10 @@ const startsWithPath = (pathname, prefix) => {
 
 const DEFAULT_USER_SYSTEM_ADMIN_WEB_PATH = '/user/systemadm';
 const DEFAULT_LEGACY_STICKER_ADMIN_WEB_PATH = '/stickers/admin';
-const DEFAULT_STICKER_ADMIN_API_BASE_PATH = '/api/sticker-packs/admin';
-const DEFAULT_STICKER_ADMIN_API_SESSION_PATH = '/api/sticker-packs/admin/session';
+const DEFAULT_SYSTEM_ADMIN_API_BASE_PATH = '/api/admin';
+const DEFAULT_SYSTEM_ADMIN_API_SESSION_PATH = '/api/admin/session';
+const DEFAULT_LEGACY_STICKER_ADMIN_API_BASE_PATH = '/api/sticker-packs/admin';
+const DEFAULT_LEGACY_STICKER_ADMIN_API_SESSION_PATH = '/api/sticker-packs/admin/session';
 
 export const getSystemAdminRouterConfig = async () => {
   const controller = await loadSystemAdminController();
@@ -42,11 +44,19 @@ export const getSystemAdminRouterConfig = async () => {
     ),
     apiAdminBasePath: normalizeBasePath(
       legacyConfig.apiAdminBasePath,
-      DEFAULT_STICKER_ADMIN_API_BASE_PATH,
+      DEFAULT_SYSTEM_ADMIN_API_BASE_PATH,
     ),
     apiAdminSessionPath: normalizeBasePath(
       legacyConfig.apiAdminSessionPath,
-      DEFAULT_STICKER_ADMIN_API_SESSION_PATH,
+      DEFAULT_SYSTEM_ADMIN_API_SESSION_PATH,
+    ),
+    legacyApiAdminBasePath: normalizeBasePath(
+      legacyConfig.legacyApiAdminBasePath,
+      DEFAULT_LEGACY_STICKER_ADMIN_API_BASE_PATH,
+    ),
+    legacyApiAdminSessionPath: normalizeBasePath(
+      legacyConfig.legacyApiAdminSessionPath,
+      DEFAULT_LEGACY_STICKER_ADMIN_API_SESSION_PATH,
     ),
   };
 };
@@ -55,12 +65,16 @@ export const shouldHandleSystemAdminPath = (pathname, systemAdminConfig = null) 
   const resolvedConfig = systemAdminConfig || {
     webPath: DEFAULT_USER_SYSTEM_ADMIN_WEB_PATH,
     legacyWebPath: DEFAULT_LEGACY_STICKER_ADMIN_WEB_PATH,
-    apiAdminBasePath: DEFAULT_STICKER_ADMIN_API_BASE_PATH,
-    apiAdminSessionPath: DEFAULT_STICKER_ADMIN_API_SESSION_PATH,
+    apiAdminBasePath: DEFAULT_SYSTEM_ADMIN_API_BASE_PATH,
+    apiAdminSessionPath: DEFAULT_SYSTEM_ADMIN_API_SESSION_PATH,
+    legacyApiAdminBasePath: DEFAULT_LEGACY_STICKER_ADMIN_API_BASE_PATH,
+    legacyApiAdminSessionPath: DEFAULT_LEGACY_STICKER_ADMIN_API_SESSION_PATH,
   };
 
   if (startsWithPath(pathname, resolvedConfig.webPath)) return true;
   if (startsWithPath(pathname, resolvedConfig.legacyWebPath)) return true;
+  if (startsWithPath(pathname, resolvedConfig.apiAdminBasePath)) return true;
+  if (startsWithPath(pathname, resolvedConfig.legacyApiAdminBasePath)) return true;
   return false;
 };
 
