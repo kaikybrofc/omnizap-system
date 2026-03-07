@@ -1,6 +1,27 @@
 import { resolveClientIp } from './clientIp.js';
 import { resolveCookieDomainForRequest } from './siteRoutingUtils.js';
 
+const parseEnvBool = (value, fallback = false) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+  return fallback;
+};
+
+const LOOPBACK_IPS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+const shouldTrustForwardedProtoHeader = (req) => {
+  const trustProxyHeaders = parseEnvBool(
+    process.env.APP_TRUST_PROXY,
+    parseEnvBool(process.env.RATE_LIMIT_TRUST_PROXY, false),
+  );
+  if (trustProxyHeaders) return true;
+
+  const socketIp = resolveClientIp(req, { fallback: '', trustProxy: false });
+  return LOOPBACK_IPS.has(socketIp);
+};
+
 export const sendJson = (req, res, statusCode, payload) => {
   const body = JSON.stringify(payload);
   res.statusCode = statusCode;
@@ -71,12 +92,15 @@ export const getCookieValuesFromRequest = (req, cookieName) => {
 };
 
 export const isRequestSecure = (req) => {
+  const socketEncrypted = Boolean(req?.socket?.encrypted);
   const proto = String(req?.headers?.['x-forwarded-proto'] || '')
     .split(',')[0]
     .trim()
     .toLowerCase();
-  if (proto) return proto === 'https';
-  return Boolean(req?.socket?.encrypted);
+  if (proto && shouldTrustForwardedProtoHeader(req)) {
+    return proto === 'https';
+  }
+  return socketEncrypted;
 };
 
 export const resolveRequestRemoteIp = (req) => resolveClientIp(req, { fallback: null });

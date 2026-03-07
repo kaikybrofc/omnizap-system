@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { URL, URLSearchParams } from 'node:url';
 
@@ -314,6 +314,25 @@ const GITHUB_PROJECT_CACHE_SECONDS = clampInt(
   30,
   3600,
 );
+const USER_INTERNAL_API_TOKEN = String(
+  process.env.USER_INTERNAL_API_TOKEN || process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '',
+).trim();
+const USER_INTERNAL_READ_REQUIRE_AUTH = parseEnvBool(
+  process.env.USER_INTERNAL_READ_REQUIRE_AUTH,
+  true,
+);
+const USER_CONTACT_ENDPOINT_REQUIRE_AUTH = parseEnvBool(
+  process.env.USER_CONTACT_ENDPOINT_REQUIRE_AUTH,
+  true,
+);
+const HOME_BOOTSTRAP_EXPOSE_CONTACT = parseEnvBool(
+  process.env.HOME_BOOTSTRAP_EXPOSE_CONTACT,
+  false,
+);
+const ADMIN_PANEL_EMAIL =
+  String(process.env.ADM_EMAIL || '')
+    .trim()
+    .toLowerCase() || '';
 const GLOBAL_RANK_REFRESH_SECONDS = clampInt(
   process.env.GLOBAL_RANK_REFRESH_SECONDS,
   600,
@@ -598,6 +617,109 @@ const normalizeEmail = (value) =>
     .trim()
     .toLowerCase()
     .slice(0, 255);
+const constantTimeStringEqual = (left, right) => {
+  const leftBuffer = Buffer.from(String(left || ''), 'utf8');
+  const rightBuffer = Buffer.from(String(right || ''), 'utf8');
+  if (!leftBuffer.length || leftBuffer.length !== rightBuffer.length) return false;
+  try {
+    return timingSafeEqual(leftBuffer, rightBuffer);
+  } catch {
+    return false;
+  }
+};
+
+const extractBearerTokenFromRequest = (req) => {
+  const authHeader = String(req?.headers?.authorization || '').trim();
+  if (!authHeader.toLowerCase().startsWith('bearer ')) return '';
+  return authHeader.slice(7).trim();
+};
+
+const resolveInternalApiTokenFromRequest = (req) => {
+  const explicit = String(req?.headers?.['x-internal-api-token'] || '').trim();
+  if (explicit) return explicit;
+  const adminHeader = String(req?.headers?.['x-admin-token'] || '').trim();
+  if (adminHeader) return adminHeader;
+  return extractBearerTokenFromRequest(req);
+};
+
+const hasValidInternalApiToken = (req) => {
+  if (!USER_INTERNAL_API_TOKEN) return false;
+  const requestToken = resolveInternalApiTokenFromRequest(req);
+  if (!requestToken) return false;
+  return constantTimeStringEqual(requestToken, USER_INTERNAL_API_TOKEN);
+};
+
+const isAuthenticatedGoogleSession = (session) =>
+  Boolean(session?.sub && (session?.ownerJid || session?.ownerPhone || session?.email));
+
+const isAdminGoogleSession = async (session) => {
+  if (!isAuthenticatedGoogleSession(session)) return false;
+
+  const sessionEmail = normalizeEmail(session?.email || '');
+  if (ADMIN_PANEL_EMAIL && sessionEmail && sessionEmail === ADMIN_PANEL_EMAIL) {
+    return true;
+  }
+
+  const adminPhone = await resolveSupportAdminPhone().catch(() => '');
+  if (!adminPhone) return false;
+  return (
+    toWhatsAppPhoneDigits(session?.ownerPhone || session?.ownerJid || '') === adminPhone ||
+    toWhatsAppPhoneDigits(session?.ownerJid || '') === adminPhone
+  );
+};
+
+const sanitizeBootstrapSystemSummary = (summary) => {
+  if (!summary || typeof summary !== 'object') return null;
+  const normalizedStatus =
+    String(summary?.system_status || '')
+      .trim()
+      .toLowerCase() || 'unknown';
+  const normalizedConnection =
+    String(summary?.bot?.connection_status || '')
+      .trim()
+      .toLowerCase() || 'unknown';
+  const statusReasons = Array.isArray(summary?.status_reasons)
+    ? summary.status_reasons
+        .map((entry) =>
+          String(entry || '')
+            .trim()
+            .toLowerCase()
+            .slice(0, 48),
+        )
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
+
+  return {
+    system_status: normalizedStatus,
+    status_reasons: statusReasons,
+    bot: {
+      connected: Boolean(summary?.bot?.connected),
+      connection_status: normalizedConnection,
+    },
+    updated_at: toIsoOrNull(summary?.updated_at) || new Date().toISOString(),
+  };
+};
+
+const requireInternalUserApiReadAccess = async (req, res) => {
+  if (!USER_INTERNAL_READ_REQUIRE_AUTH) return true;
+
+  if (hasValidInternalApiToken(req)) return true;
+
+  const session = await resolveGoogleWebSessionFromRequest(req).catch(() => null);
+  if (await isAdminGoogleSession(session)) return true;
+
+  sendJson(req, res, 401, { error: 'Nao autorizado.' });
+  return false;
+};
+
+const requireContactUserApiReadAccess = async (req, res, session = null) => {
+  if (!USER_CONTACT_ENDPOINT_REQUIRE_AUTH) return true;
+  if (hasValidInternalApiToken(req)) return true;
+  if (isAuthenticatedGoogleSession(session)) return true;
+  sendJson(req, res, 401, { error: 'Sessao obrigatoria para consultar contato.' });
+  return false;
+};
 
 const clampUploadErrorMessage = (message) =>
   String(message || '')
@@ -2947,8 +3069,18 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
       withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary),
     ]);
 
-  const support = supportResult.status === 'fulfilled' ? supportResult.value || null : null;
-  if (supportResult.status !== 'fulfilled') {
+  const session = sessionResult.status === 'fulfilled' ? sessionResult.value || null : null;
+  if (sessionResult.status !== 'fulfilled') {
+    errors.push({
+      source: 'session',
+      message: sessionResult.reason?.message || 'session_unavailable',
+    });
+  }
+  const canExposeContactData = HOME_BOOTSTRAP_EXPOSE_CONTACT || isAuthenticatedGoogleSession(session);
+
+  const support =
+    canExposeContactData && supportResult.status === 'fulfilled' ? supportResult.value || null : null;
+  if (canExposeContactData && supportResult.status !== 'fulfilled') {
     errors.push({
       source: 'support',
       message: supportResult.reason?.message || 'support_unavailable',
@@ -2956,19 +3088,13 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
   }
 
   const botContact =
-    botContactResult.status === 'fulfilled' ? botContactResult.value || null : null;
-  if (botContactResult.status !== 'fulfilled') {
+    canExposeContactData && botContactResult.status === 'fulfilled'
+      ? botContactResult.value || null
+      : null;
+  if (canExposeContactData && botContactResult.status !== 'fulfilled') {
     errors.push({
       source: 'bot_contact',
       message: botContactResult.reason?.message || 'bot_contact_unavailable',
-    });
-  }
-
-  const session = sessionResult.status === 'fulfilled' ? sessionResult.value || null : null;
-  if (sessionResult.status !== 'fulfilled') {
-    errors.push({
-      source: 'session',
-      message: sessionResult.reason?.message || 'session_unavailable',
     });
   }
 
@@ -3009,7 +3135,7 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
       session: mapGoogleSessionResponseData(session),
       stats: statsPayload?.data || null,
       stats_filters: statsPayload?.filters || null,
-      system_summary: systemSummaryPayload?.data || null,
+      system_summary: sanitizeBootstrapSystemSummary(systemSummaryPayload?.data || null),
       home_realtime: homeRealtimePayload,
     },
     meta: {
@@ -5590,7 +5716,6 @@ const {
   marketplaceGlobalStatsCacheSeconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
   marketplaceGlobalStatsCache: MARKETPLACE_GLOBAL_STATS_CACHE,
   githubRepoInfo: GITHUB_REPO_INFO,
-  githubToken: GITHUB_TOKEN,
   githubProjectCacheSeconds: GITHUB_PROJECT_CACHE_SECONDS,
   fetchGitHubProjectSummary,
   buildSupportInfo,
@@ -6254,13 +6379,24 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
     return true;
   }
 
-  const handleUserApiReadRoute = async (handler, action) => {
+  const handleUserApiReadRoute = async (handler, action, { access = 'public' } = {}) => {
     if (!['GET', 'HEAD'].includes(req.method || '')) {
       sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
       return true;
     }
+
+    let resolvedSession = null;
+    if (access === 'internal') {
+      const allowed = await requireInternalUserApiReadAccess(req, res);
+      if (!allowed) return true;
+    } else if (access === 'contact') {
+      resolvedSession = await resolveGoogleWebSessionFromRequest(req).catch(() => null);
+      const allowed = await requireContactUserApiReadAccess(req, res, resolvedSession);
+      if (!allowed) return true;
+    }
+
     try {
-      await handler();
+      await handler({ session: resolvedSession });
     } catch (error) {
       logger.error('Erro ao processar rota utilitaria da API de usuario.', {
         action,
@@ -6283,6 +6419,7 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
     return handleUserApiReadRoute(
       () => handleSystemSummaryRequest(req, res),
       'user_system_summary_api_error',
+      { access: 'internal' },
     );
   }
 
@@ -6290,6 +6427,7 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
     return handleUserApiReadRoute(
       () => handleGitHubProjectSummaryRequest(req, res),
       'user_project_summary_api_error',
+      { access: 'internal' },
     );
   }
 
@@ -6304,6 +6442,7 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
     return handleUserApiReadRoute(
       () => handleReadmeMarkdownRequest(req, res),
       'user_readme_markdown_api_error',
+      { access: 'internal' },
     );
   }
 
@@ -6311,6 +6450,7 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
     return handleUserApiReadRoute(
       () => handleSupportInfoRequest(req, res),
       'user_support_api_error',
+      { access: 'contact' },
     );
   }
 
@@ -6318,6 +6458,7 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
     return handleUserApiReadRoute(
       () => handleBotContactInfoRequest(req, res),
       'user_bot_contact_api_error',
+      { access: 'contact' },
     );
   }
 

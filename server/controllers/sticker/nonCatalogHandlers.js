@@ -18,7 +18,6 @@ export const createStickerCatalogNonCatalogHandlers = ({
   marketplaceGlobalStatsCacheSeconds,
   marketplaceGlobalStatsCache,
   githubRepoInfo,
-  githubToken,
   githubProjectCacheSeconds,
   fetchGitHubProjectSummary,
   buildSupportInfo,
@@ -175,7 +174,6 @@ export const createStickerCatalogNonCatalogHandlers = ({
         data,
         meta: {
           repository: githubRepoInfo.fullName,
-          token_configured: Boolean(githubToken),
           cache_seconds: githubProjectCacheSeconds,
         },
       });

@@ -39,6 +39,10 @@ const EMAIL_AUTOMATION_REQUIRE_API_KEY = parseEnvBool(
   process.env.EMAIL_AUTOMATION_REQUIRE_API_KEY,
   true,
 );
+const EMAIL_AUTOMATION_HEALTH_PUBLIC = parseEnvBool(
+  process.env.EMAIL_AUTOMATION_HEALTH_PUBLIC,
+  false,
+);
 
 const sendJson = (req, res, statusCode, payload) => {
   if (res.writableEnded) return true;
@@ -136,11 +140,23 @@ export const maybeHandleEmailAutomationRequest = async (req, res, { pathname }) 
         return sendJson(req, res, 405, { error: 'Method Not Allowed' });
       }
 
-      return sendJson(req, res, 200, {
+      if (!EMAIL_AUTOMATION_HEALTH_PUBLIC) {
+        assertAuthorized(req);
+      }
+
+      const basePayload = {
         ok: true,
         runtime_enabled: isEmailAutomationRuntimeEnabled(),
         runtime_running: isEmailAutomationRuntimeRunning(),
         api_key_required: EMAIL_AUTOMATION_REQUIRE_API_KEY,
+      };
+
+      if (EMAIL_AUTOMATION_HEALTH_PUBLIC) {
+        return sendJson(req, res, 200, basePayload);
+      }
+
+      return sendJson(req, res, 200, {
+        ...basePayload,
         api_base_path: EMAIL_AUTOMATION_API_BASE_PATH,
         transport: getEmailTransportMetadata(),
       });
