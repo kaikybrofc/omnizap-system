@@ -513,6 +513,7 @@ const LoginApp = ({ config }) => {
     password: '',
     confirm: '',
   });
+  const [activeAuthMethod, setActiveAuthMethod] = useState('whatsapp');
 
   const summary = useMemo(
     () =>
@@ -550,12 +551,16 @@ const LoginApp = ({ config }) => {
     isBusy,
   ]);
 
-  const whatsappCtaVisible = useMemo(() => {
-    if (canUseGoogleLogin) return false;
-    if (authenticated) return false;
-    if (sessionOwnerPhone) return false;
-    return true;
-  }, [authenticated, canUseGoogleLogin, sessionOwnerPhone]);
+  useEffect(() => {
+    if (authenticated) return;
+    if (activeAuthMethod === 'google' && !canUseGoogleLogin) {
+      setActiveAuthMethod('password');
+    }
+  }, [activeAuthMethod, authenticated, canUseGoogleLogin]);
+
+  const showPasswordMethod = !authenticated && activeAuthMethod === 'password';
+  const showWhatsappMethod = !authenticated && activeAuthMethod === 'whatsapp';
+  const showGoogleMethod = !authenticated && activeAuthMethod === 'google';
 
   const whatsappMeta = botPhone
     ? `Bot detectado: +${formatPhone(botPhone)}.`
@@ -1210,271 +1215,232 @@ const LoginApp = ({ config }) => {
   };
 
   return html`
-    <div
-      className="login-page-container relative min-h-screen overflow-hidden px-3 py-6 text-base-content sm:px-4 sm:py-10"
-    >
-      <main
-        className="mx-auto w-full max-w-3xl overflow-hidden rounded-3xl border border-base-300/70 bg-base-100/75 shadow-2xl backdrop-blur-md"
-      >
-        <header className="border-b border-base-300/70 px-4 py-4 sm:px-6">
-          <a
-            href=${config.homePath}
-            className="inline-flex items-center gap-3 text-base-content no-underline"
-          >
-            <img
-              src=${config.brandLogo}
-              alt=${config.brandName}
-              className="h-9 w-9 rounded-full border border-base-300/80 object-cover"
-              loading="lazy"
-              decoding="async"
-            />
-            <span className="text-base font-extrabold tracking-wide sm:text-lg"
-              >${config.brandName}</span
-            >
-          </a>
-        </header>
+    <div className="login-page-container">
+      <div className="login-bg-grid" aria-hidden="true"></div>
+      <div className="login-bg-orb login-bg-orb-a" aria-hidden="true"></div>
+      <div className="login-bg-orb login-bg-orb-b" aria-hidden="true"></div>
+      <div className="login-bg-noise" aria-hidden="true"></div>
 
-        <section className="grid gap-4 px-4 py-5 sm:px-6 sm:py-7">
-          <p
-            className="badge badge-info badge-outline w-fit px-3 py-3 font-semibold uppercase tracking-wider"
-          >
-            Login seguro OmniZap
-          </p>
-          <h1 className="text-balance text-3xl font-black leading-tight sm:text-4xl">
-            Acesse sua conta
-          </h1>
-          <p className="text-sm text-base-content/80 sm:text-base">
-            Vincule seu WhatsApp e libere os recursos do OmniZap.
-          </p>
+      <main className="login-shell">
+        <section className="login-card">
+          <header className="login-card-header">
+            <a href=${config.homePath} className="login-brand" aria-label="Voltar para a home">
+              <img
+                src=${config.brandLogo}
+                alt=${config.brandName}
+                className="login-brand-logo"
+                loading="lazy"
+                decoding="async"
+              />
+              <span className="login-brand-name">${config.brandName}</span>
+            </a>
+          </header>
 
-          <article
-            className="grid gap-3 rounded-2xl border border-base-300/80 bg-base-200/50 p-4 sm:p-5"
-          >
-            <p
-              className="inline-flex w-fit items-center gap-2 rounded-full border border-info/50 bg-info/15 px-3 py-1 text-sm font-semibold text-info"
-            >
-              <span
-                className="h-2.5 w-2.5 rounded-full bg-info shadow-[0_0_0_4px_rgba(56,189,248,0.2)]"
-              ></span>
-              ${statusMessage}
+          <section className="login-card-body">
+            <p className="login-badge">Login Seguro OmniZap</p>
+            <h1 className="login-title">Acesse sua conta</h1>
+            <p className="login-subtitle">
+              Vincule seu WhatsApp e libere os recursos do OmniZap.
             </p>
 
-            <p className="text-sm leading-relaxed text-base-content/75">${hintMessage}</p>
+            <article className="login-status-card">
+              <p className="login-status-chip">
+                <span className="login-status-dot"></span>
+                ${statusMessage}
+              </p>
+              <p className="login-helper-text">${hintMessage}</p>
 
-            ${errorMessage
-              ? html`
-                  <div role="alert" className="alert alert-error py-2 text-sm">
-                    <span>${errorMessage}</span>
-                  </div>
-                `
-              : null}
-            ${alreadyLoggedVisible
-              ? html`
-                  <div className="rounded-xl border border-success/45 bg-success/15 p-3">
-                    <p className="text-sm font-bold text-success">
-                      Voce ja esta logado neste navegador.
-                    </p>
-                    <p className="mt-1 text-sm leading-relaxed text-success/90">
-                      ${alreadyLoggedDetail}
-                    </p>
-                  </div>
-                `
-              : null}
-            ${canUseGoogleLogin
-              ? html`
-                  <div
-                    ref=${googleAreaRef}
-                    className="grid gap-3 rounded-xl border border-base-300/80 bg-base-100/60 p-3"
-                  >
-                    ${!authenticated
-                      ? html`
-                          <div
-                            className=${`rounded-xl border border-base-300/80 bg-white p-2 transition-opacity ${isBusy || consentSaving ? 'pointer-events-none opacity-60' : 'opacity-100'} ${consentAccepted ? '' : 'hidden'}`}
-                          >
-                            <div ref=${googleButtonRef}></div>
-                          </div>
-                        `
-                      : null}
+              ${errorMessage
+                ? html`<p role="alert" className="login-inline-message is-error">${errorMessage}</p>`
+                : null}
+              ${alreadyLoggedVisible
+                ? html`
+                    <div className="login-inline-message is-success">
+                      <p className="font-semibold">Voce ja esta logado neste navegador.</p>
+                      <p>${alreadyLoggedDetail}</p>
+                    </div>
+                  `
+                : null}
+            </article>
 
-                    <p className="text-xs text-base-content/70">${googleStateMessage}</p>
-                  </div>
-                `
-              : null}
             ${!authenticated
               ? html`
-                  <div
-                    className=${`rounded-xl border p-3 transition-colors ${consentAccepted ? 'border-success/60 bg-success/10' : 'border-base-300/80 bg-base-100/45'}`}
-                  >
-                    <label
-                      className="grid cursor-pointer grid-cols-[20px_minmax(0,1fr)] items-start gap-2 text-sm leading-relaxed text-base-content/90"
+                  <nav className="login-method-switch" role="tablist" aria-label="Métodos de login">
+                    <button
+                      type="button"
+                      role="tab"
+                      className=${`login-method-tab${activeAuthMethod === 'password' ? ' is-active' : ''}`}
+                      aria-selected=${activeAuthMethod === 'password' ? 'true' : 'false'}
+                      onClick=${() => setActiveAuthMethod('password')}
                     >
+                      Email e senha
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      className=${`login-method-tab${activeAuthMethod === 'whatsapp' ? ' is-active' : ''}`}
+                      aria-selected=${activeAuthMethod === 'whatsapp' ? 'true' : 'false'}
+                      onClick=${() => setActiveAuthMethod('whatsapp')}
+                    >
+                      Login via WhatsApp
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      className=${`login-method-tab${activeAuthMethod === 'google' ? ' is-active' : ''}`}
+                      aria-selected=${activeAuthMethod === 'google' ? 'true' : 'false'}
+                      disabled=${!canUseGoogleLogin}
+                      onClick=${() => setActiveAuthMethod('google')}
+                    >
+                      Login Google
+                    </button>
+                  </nav>
+                `
+              : null}
+
+            ${!authenticated
+              ? html`
+                  <article
+                    className=${`login-consent-card${consentAccepted ? ' is-accepted' : ''}`}
+                  >
+                    <label className="login-consent-label">
                       <input
                         type="checkbox"
-                        className="checkbox checkbox-success checkbox-sm mt-0.5"
+                        className="login-consent-checkbox"
                         checked=${consentAccepted}
                         disabled=${isBusy || consentSaving || passwordLoginBusy}
                         onChange=${onConsentChange}
                       />
                       <span>
                         Li e aceito os
-                        <a
-                          className="link link-info ml-1"
-                          href=${config.termsUrl}
-                          target="_blank"
-                          rel="noreferrer noopener"
+                        <a href=${config.termsUrl} target="_blank" rel="noreferrer noopener"
                           >Termos de Uso</a
                         >
                         e a
-                        <a
-                          className="link link-info ml-1"
-                          href=${config.privacyUrl}
-                          target="_blank"
-                          rel="noreferrer noopener"
+                        <a href=${config.privacyUrl} target="_blank" rel="noreferrer noopener"
                           >Politica de Privacidade</a
                         >.
                       </span>
                     </label>
                     ${consentAccepted && hasConsentReceipt
-                      ? html`<p className="mt-2 text-xs text-success">
+                      ? html`<p className="login-consent-meta">
                           Aceite juridico registrado com hash de versao.
                         </p>`
                       : null}
                     ${consentErrorMessage
-                      ? html`<p className="mt-2 text-xs text-error">${consentErrorMessage}</p>`
+                      ? html`<p className="login-field-error">${consentErrorMessage}</p>`
                       : null}
-                  </div>
+                  </article>
                 `
               : null}
-          </article>
 
-          ${authenticated && passwordSetupRequired
-            ? html`
-                <section
-                  className="grid gap-3 rounded-2xl border border-warning/45 bg-warning/10 p-4 sm:p-5"
-                >
-                  <p className="text-sm font-bold text-warning-content">
-                    Senha ainda nao configurada
-                  </p>
-                  <p className="text-sm text-base-content/80">
-                    Para concluir o primeiro acesso, crie sua senha agora. Nos proximos logins voce
-                    pode entrar direto por e-mail e senha.
-                  </p>
-                  ${passwordSetupError
-                    ? html`
-                        <div role="alert" className="alert alert-error text-sm">
-                          <span>${passwordSetupError}</span>
-                        </div>
-                      `
-                    : null}
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <label className="form-control">
-                      <span className="label-text text-xs">Nova senha</span>
-                      <input
-                        type="password"
-                        className="input input-bordered w-full"
-                        name="new_password"
-                        value=${passwordSetupForm.password}
-                        onInput=${(event) => {
-                          const nextValue = String(event.currentTarget?.value || '');
-                          setPasswordSetupForm((current) => ({ ...current, password: nextValue }));
-                        }}
-                        autocomplete="new-password"
-                      />
-                    </label>
-                    <label className="form-control">
-                      <span className="label-text text-xs">Confirmar senha</span>
-                      <input
-                        type="password"
-                        className="input input-bordered w-full"
-                        name="new_password_confirm"
-                        value=${passwordSetupForm.confirm}
-                        onInput=${(event) => {
-                          const nextValue = String(event.currentTarget?.value || '');
-                          setPasswordSetupForm((current) => ({ ...current, confirm: nextValue }));
-                        }}
-                        autocomplete="new-password"
-                      />
-                    </label>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary w-full sm:w-auto"
-                    disabled=${passwordSetupBusy}
-                    onClick=${handlePasswordSetupSubmit}
-                  >
-                    ${passwordSetupBusy ? 'Salvando...' : 'Criar senha agora'}
-                  </button>
-                </section>
-              `
-            : null}
-          ${!authenticated
-            ? html`
-                <section
-                  className="grid gap-3 rounded-2xl border border-base-300/80 bg-base-100/55 p-4 sm:p-5"
-                >
-                  <p className="text-sm font-bold">Entrar com senha</p>
-                  <p className="text-sm text-base-content/75">
-                    Use e-mail + senha se sua conta ja estiver configurada.
-                  </p>
-                  ${passwordLoginError
-                    ? html`
-                        <div role="alert" className="alert alert-error text-sm">
-                          <span>${passwordLoginError}</span>
-                        </div>
-                      `
-                    : null}
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <label className="form-control">
-                      <span className="label-text text-xs">E-mail</span>
-                      <input
-                        type="email"
-                        className="input input-bordered w-full"
-                        name="username"
-                        value=${passwordLoginForm.email}
-                        onInput=${(event) => {
-                          const nextValue = String(event.currentTarget?.value || '');
-                          setPasswordLoginForm((current) => ({
-                            ...current,
-                            email: nextValue,
-                          }));
-                        }}
-                        autocomplete="email"
-                      />
-                    </label>
-                    <label className="form-control">
-                      <span className="label-text text-xs">Senha</span>
-                      <input
-                        type="password"
-                        className="input input-bordered w-full"
-                        name="password"
-                        value=${passwordLoginForm.password}
-                        onInput=${(event) => {
-                          const nextValue = String(event.currentTarget?.value || '');
-                          setPasswordLoginForm((current) => ({
-                            ...current,
-                            password: nextValue,
-                          }));
-                        }}
-                        autocomplete="current-password"
-                      />
-                    </label>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-secondary w-full sm:w-auto"
-                      disabled=${passwordLoginBusy || consentSaving}
-                      onClick=${handlePasswordLoginSubmit}
+            ${showGoogleMethod
+              ? html`
+                  <section className="login-method-panel" data-method="google">
+                    <div className="login-method-head">
+                      <h2>Login Google</h2>
+                      <p>Ideal para validar o vínculo do WhatsApp com sessão segura.</p>
+                    </div>
+
+                    ${canUseGoogleLogin
+                      ? html`
+                          <div ref=${googleAreaRef} className="login-google-area">
+                            <div
+                              className=${`login-google-slot ${isBusy || consentSaving ? 'is-busy' : ''} ${consentAccepted ? '' : 'is-hidden'}`}
+                            >
+                              <div ref=${googleButtonRef}></div>
+                            </div>
+                            <p className="login-helper-text">
+                              ${googleStateMessage || 'Continue com sua conta Google para entrar.'}
+                            </p>
+                          </div>
+                        `
+                      : html`
+                          <div className="login-inline-message is-warning">
+                            <p>Este navegador não recebeu um link válido do WhatsApp para Google.</p>
+                          </div>
+                        `}
+                  </section>
+                `
+              : null}
+
+            ${showPasswordMethod
+              ? html`
+                  <section className="login-method-panel" data-method="password">
+                    <div className="login-method-head">
+                      <h2>Email e senha</h2>
+                      <p>Acesse rápido com sua credencial já configurada.</p>
+                    </div>
+
+                    <form
+                      className="login-form-grid"
+                      onSubmit=${(event) => {
+                        event.preventDefault();
+                        void handlePasswordLoginSubmit();
+                      }}
                     >
-                      ${passwordLoginBusy ? 'Entrando...' : 'Entrar com senha'}
-                    </button>
+                      <label className="login-field-group">
+                        <span className="login-field-label">Email</span>
+                        <span className="login-input-wrap">
+                          <span className="login-input-icon" aria-hidden="true">@</span>
+                          <input
+                            type="email"
+                            className="login-input-control"
+                            name="username"
+                            value=${passwordLoginForm.email}
+                            onInput=${(event) => {
+                              const nextValue = String(event.currentTarget?.value || '');
+                              setPasswordLoginForm((current) => ({
+                                ...current,
+                                email: nextValue,
+                              }));
+                            }}
+                            autocomplete="email"
+                            placeholder="voce@empresa.com"
+                          />
+                        </span>
+                      </label>
+
+                      <label className="login-field-group">
+                        <span className="login-field-label">Senha</span>
+                        <span className="login-input-wrap">
+                          <span className="login-input-icon" aria-hidden="true">•</span>
+                          <input
+                            type="password"
+                            className="login-input-control"
+                            name="password"
+                            value=${passwordLoginForm.password}
+                            onInput=${(event) => {
+                              const nextValue = String(event.currentTarget?.value || '');
+                              setPasswordLoginForm((current) => ({
+                                ...current,
+                                password: nextValue,
+                              }));
+                            }}
+                            autocomplete="current-password"
+                            placeholder="Sua senha"
+                          />
+                        </span>
+                      </label>
+
+                      ${passwordLoginError
+                        ? html`<p role="alert" className="login-field-error">${passwordLoginError}</p>`
+                        : null}
+
+                      <button
+                        type="submit"
+                        className="login-btn-primary"
+                        disabled=${passwordLoginBusy || consentSaving}
+                      >
+                        ${passwordLoginBusy ? 'Entrando...' : 'Entrar na conta'}
+                      </button>
+                    </form>
+
                     <button
                       type="button"
-                      className="btn btn-ghost btn-sm"
+                      className="login-link-button"
                       onClick=${() => {
-                        setPasswordRecoveryStep((step) =>
-                          step === 'idle' ? 'code_request' : 'idle',
-                        );
+                        setPasswordRecoveryStep((step) => (step === 'idle' ? 'code_request' : 'idle'));
                         setPasswordRecoveryError('');
                         setPasswordRecoveryMessage('');
                         setPasswordRecoveryForm((current) => ({
@@ -1483,179 +1449,273 @@ const LoginApp = ({ config }) => {
                         }));
                       }}
                     >
-                      Esqueci / criar senha
+                      Esqueci minha senha
                     </button>
-                  </div>
 
-                  ${passwordRecoveryStep !== 'idle'
-                    ? html`
-                        <div
-                          className="grid gap-3 rounded-xl border border-base-300/80 bg-base-200/55 p-3"
-                        >
-                          <p
-                            className="text-xs font-bold uppercase tracking-wider text-base-content/70"
-                          >
-                            Recuperacao por codigo (6 digitos)
+                    <div className="login-divider"><span>ou</span></div>
+                    <a
+                      className="login-btn-whatsapp"
+                      href=${whatsappCtaHref}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      Gerar link de login no WhatsApp
+                    </a>
+                    <p className="login-helper-text">${whatsappMeta}</p>
+
+                    ${passwordRecoveryStep !== 'idle'
+                      ? html`
+                          <div className="login-recovery-card">
+                            <p className="login-recovery-title">Recuperação por código (6 dígitos)</p>
+                            ${passwordRecoveryMessage
+                              ? html`<p className="login-inline-message is-success">
+                                  ${passwordRecoveryMessage}
+                                </p>`
+                              : null}
+                            ${passwordRecoveryError
+                              ? html`<p role="alert" className="login-field-error">${passwordRecoveryError}</p>`
+                              : null}
+
+                            <div className="login-recovery-grid">
+                              <label className="login-field-group">
+                                <span className="login-field-label">Email da conta</span>
+                                <span className="login-input-wrap">
+                                  <span className="login-input-icon" aria-hidden="true">@</span>
+                                  <input
+                                    type="email"
+                                    className="login-input-control"
+                                    name="username"
+                                    value=${passwordRecoveryForm.email}
+                                    onInput=${(event) => {
+                                      const nextValue = String(event.currentTarget?.value || '');
+                                      setPasswordRecoveryForm((current) => ({
+                                        ...current,
+                                        email: nextValue,
+                                      }));
+                                    }}
+                                    autocomplete="email"
+                                    placeholder="voce@empresa.com"
+                                  />
+                                </span>
+                              </label>
+
+                              <label className="login-field-group">
+                                <span className="login-field-label">Código</span>
+                                <span className="login-input-wrap">
+                                  <span className="login-input-icon" aria-hidden="true">#</span>
+                                  <input
+                                    type="text"
+                                    inputmode="numeric"
+                                    className="login-input-control"
+                                    name="verification_code"
+                                    value=${passwordRecoveryForm.code}
+                                    onInput=${(event) => {
+                                      const nextValue = String(event.currentTarget?.value || '')
+                                        .replace(/\D+/g, '')
+                                        .slice(0, 6);
+                                      setPasswordRecoveryForm((current) => ({
+                                        ...current,
+                                        code: nextValue,
+                                      }));
+                                    }}
+                                    autocomplete="one-time-code"
+                                    placeholder="000000"
+                                  />
+                                </span>
+                              </label>
+
+                              <label className="login-field-group">
+                                <span className="login-field-label">Nova senha</span>
+                                <span className="login-input-wrap">
+                                  <span className="login-input-icon" aria-hidden="true">•</span>
+                                  <input
+                                    type="password"
+                                    className="login-input-control"
+                                    name="new_password"
+                                    value=${passwordRecoveryForm.password}
+                                    onInput=${(event) => {
+                                      const nextValue = String(event.currentTarget?.value || '');
+                                      setPasswordRecoveryForm((current) => ({
+                                        ...current,
+                                        password: nextValue,
+                                      }));
+                                    }}
+                                    autocomplete="new-password"
+                                    placeholder="Nova senha"
+                                  />
+                                </span>
+                              </label>
+
+                              <label className="login-field-group">
+                                <span className="login-field-label">Confirmar senha</span>
+                                <span className="login-input-wrap">
+                                  <span className="login-input-icon" aria-hidden="true">•</span>
+                                  <input
+                                    type="password"
+                                    className="login-input-control"
+                                    name="new_password_confirm"
+                                    value=${passwordRecoveryForm.confirm}
+                                    onInput=${(event) => {
+                                      const nextValue = String(event.currentTarget?.value || '');
+                                      setPasswordRecoveryForm((current) => ({
+                                        ...current,
+                                        confirm: nextValue,
+                                      }));
+                                    }}
+                                    autocomplete="new-password"
+                                    placeholder="Repita a senha"
+                                  />
+                                </span>
+                              </label>
+                            </div>
+
+                            <div className="login-recovery-actions">
+                              <button
+                                type="button"
+                                className="login-btn-secondary"
+                                disabled=${passwordRecoveryBusy}
+                                onClick=${handleRecoveryRequestSubmit}
+                              >
+                                ${passwordRecoveryBusy ? 'Enviando...' : 'Enviar código por email'}
+                              </button>
+                              <button
+                                type="button"
+                                className="login-btn-primary"
+                                disabled=${passwordRecoveryBusy}
+                                onClick=${handleRecoveryVerifySubmit}
+                              >
+                                ${passwordRecoveryBusy ? 'Validando...' : 'Validar código e criar senha'}
+                              </button>
+                            </div>
+                          </div>
+                        `
+                      : null}
+                  </section>
+                `
+              : null}
+
+            ${showWhatsappMethod
+              ? html`
+                  <section className="login-method-panel" data-method="whatsapp">
+                    <div className="login-method-head">
+                      <h2>Login via WhatsApp</h2>
+                      <p>Gere seu link seguro e volte para concluir o acesso.</p>
+                    </div>
+                    <a
+                      className="login-btn-whatsapp"
+                      href=${whatsappCtaHref}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      Gerar link de login no WhatsApp
+                    </a>
+                    <p className="login-helper-text">${whatsappMeta}</p>
+                    ${canUseGoogleLogin
+                      ? html`
+                          <p className="login-inline-message is-info">
+                            Link detectado. Se preferir, volte para a aba "Login Google".
                           </p>
-                          ${passwordRecoveryMessage
-                            ? html`
-                                <div role="status" className="alert alert-success text-sm">
-                                  <span>${passwordRecoveryMessage}</span>
-                                </div>
-                              `
-                            : null}
-                          ${passwordRecoveryError
-                            ? html`
-                                <div role="alert" className="alert alert-error text-sm">
-                                  <span>${passwordRecoveryError}</span>
-                                </div>
-                              `
-                            : null}
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            <label className="form-control">
-                              <span className="label-text text-xs">E-mail da conta</span>
-                              <input
-                                type="email"
-                                className="input input-bordered w-full"
-                                name="username"
-                                value=${passwordRecoveryForm.email}
-                                onInput=${(event) => {
-                                  const nextValue = String(event.currentTarget?.value || '');
-                                  setPasswordRecoveryForm((current) => ({
-                                    ...current,
-                                    email: nextValue,
-                                  }));
-                                }}
-                                autocomplete="email"
-                              />
-                            </label>
-                            <label className="form-control">
-                              <span className="label-text text-xs">Codigo</span>
-                              <input
-                                type="text"
-                                inputmode="numeric"
-                                className="input input-bordered w-full"
-                                name="verification_code"
-                                value=${passwordRecoveryForm.code}
-                                onInput=${(event) => {
-                                  const nextValue = String(event.currentTarget?.value || '')
-                                    .replace(/\D+/g, '')
-                                    .slice(0, 6);
-                                  setPasswordRecoveryForm((current) => ({
-                                    ...current,
-                                    code: nextValue,
-                                  }));
-                                }}
-                                autocomplete="one-time-code"
-                              />
-                            </label>
-                            <label className="form-control">
-                              <span className="label-text text-xs">Nova senha</span>
-                              <input
-                                type="password"
-                                className="input input-bordered w-full"
-                                name="new_password"
-                                value=${passwordRecoveryForm.password}
-                                onInput=${(event) => {
-                                  const nextValue = String(event.currentTarget?.value || '');
-                                  setPasswordRecoveryForm((current) => ({
-                                    ...current,
-                                    password: nextValue,
-                                  }));
-                                }}
-                                autocomplete="new-password"
-                              />
-                            </label>
-                            <label className="form-control">
-                              <span className="label-text text-xs">Confirmar senha</span>
-                              <input
-                                type="password"
-                                className="input input-bordered w-full"
-                                name="new_password_confirm"
-                                value=${passwordRecoveryForm.confirm}
-                                onInput=${(event) => {
-                                  const nextValue = String(event.currentTarget?.value || '');
-                                  setPasswordRecoveryForm((current) => ({
-                                    ...current,
-                                    confirm: nextValue,
-                                  }));
-                                }}
-                                autocomplete="new-password"
-                              />
-                            </label>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              className="btn btn-outline w-full sm:w-auto"
-                              disabled=${passwordRecoveryBusy}
-                              onClick=${handleRecoveryRequestSubmit}
-                            >
-                              ${passwordRecoveryBusy ? 'Enviando...' : 'Enviar codigo por e-mail'}
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-primary w-full sm:w-auto"
-                              disabled=${passwordRecoveryBusy}
-                              onClick=${handleRecoveryVerifySubmit}
-                            >
-                              ${passwordRecoveryBusy
-                                ? 'Validando...'
-                                : 'Validar codigo e criar senha'}
-                            </button>
-                          </div>
-                        </div>
-                      `
-                    : null}
-                </section>
-              `
-            : null}
-          ${summary.visible
-            ? html`
-                <div
-                  className=${`rounded-xl border p-3 ${summary.state === 'pending' ? 'border-warning/45 bg-warning/15 text-warning-content' : 'border-success/45 bg-success/15 text-success-content'}`}
-                >
-                  <p className="text-xs font-bold uppercase tracking-wider">${summary.title}</p>
-                  <p className="mt-1 text-sm font-semibold">${summary.owner}</p>
-                </div>
-              `
-            : null}
-          ${whatsappCtaVisible
-            ? html`
-                <div
-                  className="grid gap-3 rounded-xl border border-base-300/80 bg-base-100/55 p-3 sm:p-4"
-                >
-                  <p className="text-sm leading-relaxed text-base-content/85">
-                    Para liberar o login neste navegador, inicie no WhatsApp e gere seu link seguro.
-                  </p>
-                  <a
-                    className="btn btn-outline w-full justify-center sm:w-auto sm:justify-start"
-                    href=${whatsappCtaHref}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                  >
-                    Gerar link de login no WhatsApp
-                  </a>
-                  <p className="text-xs text-base-content/70">${whatsappMeta}</p>
-                </div>
-              `
-            : null}
-          ${authenticated
-            ? html`
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <a className="btn btn-primary w-full" href=${successHomeHref}
-                    >${DEFAULT_SUCCESS_HOME_LABEL}</a
-                  >
-                  <a
-                    className="btn btn-outline w-full"
-                    href=${successChatHref}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    >${DEFAULT_SUCCESS_CHAT_LABEL}</a
-                  >
-                </div>
-              `
-            : null}
+                        `
+                      : null}
+                  </section>
+                `
+              : null}
+
+            ${authenticated && passwordSetupRequired
+              ? html`
+                  <section className="login-method-panel is-warning">
+                    <div className="login-method-head">
+                      <h2>Senha ainda não configurada</h2>
+                      <p>
+                        Para concluir o primeiro acesso, crie sua senha agora. Nos próximos logins
+                        você pode entrar direto por email e senha.
+                      </p>
+                    </div>
+                    ${passwordSetupError
+                      ? html`<p role="alert" className="login-field-error">${passwordSetupError}</p>`
+                      : null}
+                    <div className="login-recovery-grid">
+                      <label className="login-field-group">
+                        <span className="login-field-label">Nova senha</span>
+                        <span className="login-input-wrap">
+                          <span className="login-input-icon" aria-hidden="true">•</span>
+                          <input
+                            type="password"
+                            className="login-input-control"
+                            name="new_password"
+                            value=${passwordSetupForm.password}
+                            onInput=${(event) => {
+                              const nextValue = String(event.currentTarget?.value || '');
+                              setPasswordSetupForm((current) => ({ ...current, password: nextValue }));
+                            }}
+                            autocomplete="new-password"
+                            placeholder="Nova senha"
+                          />
+                        </span>
+                      </label>
+                      <label className="login-field-group">
+                        <span className="login-field-label">Confirmar senha</span>
+                        <span className="login-input-wrap">
+                          <span className="login-input-icon" aria-hidden="true">•</span>
+                          <input
+                            type="password"
+                            className="login-input-control"
+                            name="new_password_confirm"
+                            value=${passwordSetupForm.confirm}
+                            onInput=${(event) => {
+                              const nextValue = String(event.currentTarget?.value || '');
+                              setPasswordSetupForm((current) => ({ ...current, confirm: nextValue }));
+                            }}
+                            autocomplete="new-password"
+                            placeholder="Repita a senha"
+                          />
+                        </span>
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      className="login-btn-primary"
+                      disabled=${passwordSetupBusy}
+                      onClick=${handlePasswordSetupSubmit}
+                    >
+                      ${passwordSetupBusy ? 'Salvando...' : 'Criar senha agora'}
+                    </button>
+                  </section>
+                `
+              : null}
+
+            ${summary.visible
+              ? html`
+                  <div className=${`login-inline-message ${summary.state === 'pending' ? 'is-warning' : 'is-success'}`}>
+                    <p className="font-semibold">${summary.title}</p>
+                    <p>${summary.owner}</p>
+                  </div>
+                `
+              : null}
+
+            ${authenticated
+              ? html`
+                  <div className="login-success-actions">
+                    <a className="login-btn-primary" href=${successHomeHref}
+                      >${DEFAULT_SUCCESS_HOME_LABEL}</a
+                    >
+                    <a
+                      className="login-btn-secondary"
+                      href=${successChatHref}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      >${DEFAULT_SUCCESS_CHAT_LABEL}</a
+                    >
+                  </div>
+                `
+              : null}
+
+            <footer className="login-trust-footer">
+              <p>🔒 Conexão segura</p>
+              <p>Privacidade protegida</p>
+              <p>Login criptografado</p>
+            </footer>
+          </section>
         </section>
       </main>
 
