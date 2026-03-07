@@ -1,0 +1,40 @@
+name: Security - ZAP Baseline
+
+on:
+  schedule:
+    - cron: '30 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Target URL for baseline scan'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: security-zap-baseline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline-scan:
+    name: DAST Baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TARGET_URL: ${{ inputs.target_url || vars.SECURITY_SCAN_TARGET_URL || 'https://omnizap.shop/' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.9.0
+        with:
+          target: ${{ env.TARGET_URL }}
+          fail_action: false
+          cmd_options: '-a'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
