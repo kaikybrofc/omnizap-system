@@ -194,9 +194,24 @@ SET @exists := (
 );
 SET @bad := (SELECT COUNT(*) FROM rpg_social_link WHERE user_a_jid = user_b_jid);
 SET @is_mariadb := (SELECT IF(VERSION() LIKE '%MariaDB%', 1, 0));
-CALL __exec_when(@exists = 0 AND @bad = 0 AND @is_mariadb = 0,
+SET @has_fk_referential_actions := (
+  SELECT COUNT(*)
+    FROM information_schema.key_column_usage kcu
+    JOIN information_schema.referential_constraints rc
+      ON rc.constraint_schema = kcu.constraint_schema
+     AND rc.table_name = kcu.table_name
+     AND rc.constraint_name = kcu.constraint_name
+   WHERE kcu.table_schema = DATABASE()
+     AND kcu.table_name = 'rpg_social_link'
+     AND kcu.column_name IN ('user_a_jid', 'user_b_jid')
+     AND (
+       rc.update_rule NOT IN ('RESTRICT', 'NO ACTION')
+       OR rc.delete_rule NOT IN ('RESTRICT', 'NO ACTION')
+     )
+);
+CALL __exec_when(@exists = 0 AND @bad = 0 AND @is_mariadb = 0 AND @has_fk_referential_actions = 0,
   'ALTER TABLE rpg_social_link ADD CONSTRAINT chk_rpg_social_link_distinct_users CHECK (user_a_jid <> user_b_jid)',
-  'rpg_social_link distinct user check not applied (MariaDB compatibility or dirty data)');
+  'rpg_social_link distinct user check not applied (MariaDB/FK actions compatibility or dirty data)');
 
 -- 4) Automatic rollup and retention events
 -- Note: requires EVENT_SCHEDULER=ON at server level.

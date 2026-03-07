@@ -1,0 +1,12 @@
+title = "OmniZap Gitleaks Config"
+
+[allowlist]
+description = "Ignore runtime/generated artifacts that are not source secrets."
+paths = [
+  '''^logs/''',
+  '''^backups/''',
+]
+regexes = [
+  '''(?i)SET\s+@migration_key\s*:=\s*'[0-9]{8}_[a-z0-9_]+';''',
+  '''(?i)WHERE\s+migration_key\s*=\s*'[0-9]{8}_[a-z0-9_]+';''',
+]
