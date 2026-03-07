@@ -23,7 +23,12 @@ const shouldTrustForwardedProtoHeader = (req) => {
 };
 
 export const sendJson = (req, res, statusCode, payload) => {
-  const body = JSON.stringify(payload);
+  const body = JSON.stringify(payload)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');

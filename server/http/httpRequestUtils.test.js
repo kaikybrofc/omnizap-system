@@ -6,7 +6,10 @@ import { isRequestSecure } from './httpRequestUtils.js';
 const withEnv = (overrides, fn) => {
   const previous = new Map();
   for (const [key, value] of Object.entries(overrides)) {
-    previous.set(key, Object.prototype.hasOwnProperty.call(process.env, key) ? process.env[key] : null);
+    previous.set(
+      key,
+      Object.prototype.hasOwnProperty.call(process.env, key) ? process.env[key] : null,
+    );
     if (value === undefined || value === null) {
       delete process.env[key];
     } else {
@@ -27,7 +30,11 @@ const withEnv = (overrides, fn) => {
   }
 };
 
-const buildReq = ({ forwardedProto = '', remoteAddress = '203.0.113.10', encrypted = false } = {}) => ({
+const buildReq = ({
+  forwardedProto = '',
+  remoteAddress = '203.0.113.10',
+  encrypted = false,
+} = {}) => ({
   headers: forwardedProto ? { 'x-forwarded-proto': forwardedProto } : {},
   socket: {
     remoteAddress,

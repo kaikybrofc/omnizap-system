@@ -210,10 +210,15 @@
       chip.className = 'category-chip';
       chip.dataset.value = value;
       chip.setAttribute('aria-label', 'Remover categoria ' + (entry?.label || value));
-      chip.innerHTML =
-        '<span class="category-chip-label">' +
-        (entry?.label || value) +
-        '</span><i class="fa-solid fa-xmark category-chip-remove" aria-hidden="true"></i>';
+      const label = document.createElement('span');
+      label.className = 'category-chip-label';
+      label.textContent = entry?.label || value;
+
+      const removeIcon = document.createElement('i');
+      removeIcon.className = 'fa-solid fa-xmark category-chip-remove';
+      removeIcon.setAttribute('aria-hidden', 'true');
+
+      chip.append(label, removeIcon);
       els.categoriesChips.appendChild(chip);
     });
   };
@@ -245,10 +250,16 @@
       button.type = 'button';
       button.className = 'category-option' + (selected.has(entry.value) ? ' selected' : '');
       button.dataset.value = entry.value;
-      button.innerHTML =
-        '<span class="category-option-label">' +
-        entry.label +
-        '</span><i class="fa-solid fa-check category-option-check" aria-hidden="true"></i>';
+
+      const label = document.createElement('span');
+      label.className = 'category-option-label';
+      label.textContent = entry.label;
+
+      const checkIcon = document.createElement('i');
+      checkIcon.className = 'fa-solid fa-check category-option-check';
+      checkIcon.setAttribute('aria-hidden', 'true');
+
+      button.append(label, checkIcon);
       els.categoriesOptions.appendChild(button);
     });
   };

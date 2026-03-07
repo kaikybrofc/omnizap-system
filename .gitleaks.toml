@@ -1,5 +1,8 @@
 title = "OmniZap Gitleaks Config"
 
+[extend]
+useDefault = true
+
 [allowlist]
 description = "Ignore runtime/generated artifacts that are not source secrets."
 paths = [

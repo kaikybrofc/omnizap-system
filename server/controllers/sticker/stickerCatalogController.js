@@ -315,7 +315,10 @@ const GITHUB_PROJECT_CACHE_SECONDS = clampInt(
   3600,
 );
 const USER_INTERNAL_API_TOKEN = String(
-  process.env.USER_INTERNAL_API_TOKEN || process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '',
+  process.env.USER_INTERNAL_API_TOKEN ||
+    process.env.ADMIN_TOKEN ||
+    process.env.ADMIN_API_TOKEN ||
+    '',
 ).trim();
 const USER_INTERNAL_READ_REQUIRE_AUTH = parseEnvBool(
   process.env.USER_INTERNAL_READ_REQUIRE_AUTH,
@@ -3076,10 +3079,13 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
       message: sessionResult.reason?.message || 'session_unavailable',
     });
   }
-  const canExposeContactData = HOME_BOOTSTRAP_EXPOSE_CONTACT || isAuthenticatedGoogleSession(session);
+  const canExposeContactData =
+    HOME_BOOTSTRAP_EXPOSE_CONTACT || isAuthenticatedGoogleSession(session);
 
   const support =
-    canExposeContactData && supportResult.status === 'fulfilled' ? supportResult.value || null : null;
+    canExposeContactData && supportResult.status === 'fulfilled'
+      ? supportResult.value || null
+      : null;
   if (canExposeContactData && supportResult.status !== 'fulfilled') {
     errors.push({
       source: 'support',
