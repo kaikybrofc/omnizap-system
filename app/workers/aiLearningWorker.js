@@ -331,7 +331,6 @@ export const startAiLearningWorker = () => {
     logger.info('Worker de aprendizado IA desativado ou sem API key.', {
       action: 'ai_learning_worker_disabled',
       enabled: AI_LEARNING_WORKER_ENABLED,
-      has_api_key: Boolean(process.env.OPENAI_API_KEY),
     });
     return;
   }
