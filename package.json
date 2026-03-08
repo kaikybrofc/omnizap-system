@@ -71,7 +71,8 @@
     "check": "npm run format:check && npm run lint && npm test",
     "ci": "npm run check && npm run build",
     "security:audit": "npm audit --audit-level=high",
-    "security:audit:fix": "npm audit fix"
+    "security:audit:fix": "npm audit fix",
+    "security:codeql": "bash ./scripts/run-codeql-local.sh"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
