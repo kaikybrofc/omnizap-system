@@ -1,28 +1,154 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "2.0.0",
   "module": "tiktokModule",
   "enabled": true,
-  "source_files": [
-    "tiktokCommand.js"
-  ],
+  "source_files": ["tiktokCommand.js"],
+  "defaults": {
+    "inheritance_mode": "deep_merge_with_command_overrides",
+    "compatibility_mode": "legacy_and_v2_fields",
+    "legacy_field_aliases": {
+      "descricao": "description",
+      "metodos_de_uso": "usage",
+      "permissao_necessaria": "permission",
+      "local_de_uso": "contexts",
+      "informacoes_coletadas": "collected_data",
+      "pre_condicoes": "requirements",
+      "dependencias_externas": "dependencies",
+      "efeitos_colaterais": "side_effects",
+      "observabilidade": "observability",
+      "privacidade": "privacy",
+      "limite_uso_por_plano": "plan_limits",
+      "argumentos": "arguments",
+      "acesso": "access"
+    },
+    "command": {
+      "enabled": true,
+      "category": "midia",
+      "version": "1.0.0",
+      "stability": "stable",
+      "deprecated": false,
+      "replaced_by": null,
+      "risk_level": "medium"
+    },
+    "requirements": {
+      "require_group": false,
+      "require_group_admin": false,
+      "require_bot_owner": false,
+      "require_google_login": true,
+      "require_nsfw_enabled": false,
+      "require_media": false,
+      "require_reply_message": false,
+      "legacy": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      }
+    },
+    "pre_condicoes": {
+      "requer_grupo": false,
+      "requer_admin": false,
+      "requer_admin_principal": false,
+      "requer_google_login": true,
+      "requer_nsfw": false,
+      "requer_midia": false,
+      "requer_mensagem_respondida": false
+    },
+    "rate_limit": {
+      "max": 5,
+      "janela_ms": null,
+      "escopo": "por_execucao"
+    },
+    "dependencies": ["serviço extractor de TikTok"],
+    "dependencias_externas": ["serviço extractor de TikTok"],
+    "responses": {
+      "success": "Comando executado com sucesso.",
+      "usage_error": "Formato de uso inválido. Consulte metodos_de_uso.",
+      "permission_error": "Permissão insuficiente para executar este comando."
+    },
+    "respostas_padrao": {
+      "sucesso": "Comando executado com sucesso.",
+      "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+      "erro_permissao": "Permissão insuficiente para executar este comando."
+    },
+    "observability": {
+      "event_name": "command.executed",
+      "log_level": "info",
+      "tags": ["whatsapp", "command", "tiktokModule"]
+    },
+    "privacy": {
+      "data_categories": ["chat_identifier", "sender_identifier", "command_content"],
+      "retention_policy": "standard_app_logs",
+      "legal_basis": "service_execution_and_legitimate_interest"
+    },
+    "access": {
+      "premium_only": false,
+      "allowed_plans": ["comum", "premium"]
+    },
+    "acesso": {
+      "somente_premium": false,
+      "planos_permitidos": ["comum", "premium"]
+    },
+    "plan_limits": {
+      "comum": {
+        "max": 4,
+        "janela_ms": 600000,
+        "escopo": "usuario"
+      },
+      "premium": {
+        "max": 15,
+        "janela_ms": 600000,
+        "escopo": "usuario"
+      }
+    },
+    "limite_uso_por_plano": {
+      "comum": {
+        "max": 4,
+        "janela_ms": 600000,
+        "escopo": "usuario"
+      },
+      "premium": {
+        "max": 15,
+        "janela_ms": 600000,
+        "escopo": "usuario"
+      }
+    },
+    "behavior_templates": {
+      "toggle_on_off_status": {
+        "type": "toggle",
+        "allowed_actions": ["on", "off", "status"],
+        "action_argument": "acao"
+      },
+      "add_remove_list": {
+        "type": "list_management",
+        "allowed_actions": ["add", "remove", "list"],
+        "action_argument": "acao"
+      },
+      "approve_reject": {
+        "type": "moderation_decision",
+        "allowed_actions": ["approve", "reject"],
+        "action_argument": "acao",
+        "requires_targets": true
+      },
+      "set_status_reset": {
+        "type": "configuration_window",
+        "allowed_actions": ["set", "status", "reset"],
+        "action_argument": "valor"
+      }
+    }
+  },
   "commands": [
     {
       "name": "baixartiktok",
-      "aliases": [
-        "tt",
-        "tiktok"
-      ],
+      "aliases": ["tt", "tiktok"],
       "descricao": "Baixa midia do TikTok sem marca d'agua.",
-      "metodos_de_uso": [
-        "<prefix>baixartiktok <url>",
-        "<prefix>tt <url1> <url2>"
-      ],
+      "metodos_de_uso": ["<prefix>baixartiktok <url>", "<prefix>tt <url1> <url2>"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "ate 5 URLs por comando e ate 80 MB por arquivo (padrao)",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -58,13 +184,8 @@
         "janela_ms": null,
         "escopo": "por_execucao"
       },
-      "dependencias_externas": [
-        "serviço extractor de TikTok"
-      ],
-      "efeitos_colaterais": [
-        "baixa mídia temporária",
-        "envia vídeo/imagens no chat"
-      ],
+      "dependencias_externas": ["serviço extractor de TikTok"],
+      "efeitos_colaterais": ["baixa mídia temporária", "envia vídeo/imagens no chat"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -72,12 +193,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_tiktok",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "tiktokModule",
-          "tiktok"
-        ],
+        "tags_log": ["whatsapp", "command", "tiktokModule", "tiktok"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -89,18 +205,8 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": [
-        "baixartiktok",
-        "tt",
-        "midia",
-        "privado",
-        "grupo"
-      ],
-      "faq_patterns": [
-        "como usar baixartiktok",
-        "o que faz baixartiktok",
-        "comando baixartiktok"
-      ],
+      "capability_keywords": ["baixartiktok", "tt", "midia", "privado", "grupo"],
+      "faq_patterns": ["como usar baixartiktok", "o que faz baixartiktok", "comando baixartiktok"],
       "user_phrasings": [
         "quero usar baixartiktok",
         "me ajuda com baixartiktok",
@@ -109,10 +215,7 @@
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": [
-          "comum",
-          "premium"
-        ]
+        "planos_permitidos": ["comum", "premium"]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -133,6 +236,184 @@
           "Uso: *<prefix>baixartiktok <link1> [link2 ...]*",
           "",
           "Exemplo: *<prefix>baixartiktok https://www.baixartiktok.com/@usuario/video/123*"
+        ]
+      },
+      "id": "tiktok.baixartiktok",
+      "description": "Baixa midia do TikTok sem marca d'agua.",
+      "usage": ["<prefix>baixartiktok <url>", "<prefix>tt <url1> <url2>"],
+      "docs": {
+        "summary": "Baixa midia do TikTok sem marca d'agua.",
+        "usage_examples": ["<prefix>baixartiktok <url>", "<prefix>tt <url1> <url2>"],
+        "usage_variants": {
+          "default": [
+            "🎬 *Baixartiktok Downloader*",
+            "",
+            "Uso: *<prefix>baixartiktok <link1> [link2 ...]*",
+            "",
+            "Exemplo: *<prefix>baixartiktok https://www.baixartiktok.com/@usuario/video/123*"
+          ]
+        }
+      },
+      "permission": "usuario comum",
+      "contexts": ["privado", "grupo"],
+      "collected_data": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "URLs do TikTok extraidas do texto",
+        "metadados do post (autor, descricao, estatisticas)",
+        "tamanho dos arquivos para enforce de limite"
+      ],
+      "requirements": {
+        "require_group": false,
+        "require_group_admin": false,
+        "require_bot_owner": false,
+        "require_google_login": true,
+        "require_nsfw_enabled": false,
+        "require_media": false,
+        "require_reply_message": false,
+        "legacy": {
+          "requer_grupo": false,
+          "requer_admin": false,
+          "requer_admin_principal": false,
+          "requer_google_login": true,
+          "requer_nsfw": false,
+          "requer_midia": false,
+          "requer_mensagem_respondida": false
+        }
+      },
+      "arguments": [
+        {
+          "name": "urls",
+          "type": "array",
+          "required": true,
+          "default": [],
+          "enum": null,
+          "description": "1 a 5 URLs do TikTok",
+          "position": 0,
+          "accepts_mentions": false,
+          "accepts_reply_target": false,
+          "greedy": false,
+          "validation": "1 a 5 URLs do TikTok"
+        }
+      ],
+      "behavior": {
+        "type": "argument_driven",
+        "allowed_actions": []
+      },
+      "limits": {
+        "usage_description": "ate 5 URLs por comando e ate 80 MB por arquivo (padrao)",
+        "rate_limit": {
+          "max": 5,
+          "janela_ms": null,
+          "escopo": "por_execucao"
+        },
+        "access": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        },
+        "plan_limits": {
+          "comum": {
+            "max": 4,
+            "janela_ms": 600000,
+            "escopo": "usuario"
+          },
+          "premium": {
+            "max": 15,
+            "janela_ms": 600000,
+            "escopo": "usuario"
+          }
+        }
+      },
+      "dependencies": ["serviço extractor de TikTok"],
+      "side_effects": ["baixa mídia temporária", "envia vídeo/imagens no chat"],
+      "observability": {
+        "event_name": "command.executed",
+        "event_key": "tiktok.baixartiktok",
+        "analytics_event": "whatsapp_command_tiktok",
+        "log_level": "info",
+        "tags": ["whatsapp", "command", "tiktokModule", "tiktok"],
+        "legacy": {
+          "evento_analytics": "whatsapp_command_tiktok",
+          "tags_log": ["whatsapp", "command", "tiktokModule", "tiktok"],
+          "nivel_log": "info"
+        }
+      },
+      "privacy": {
+        "data_categories": ["chat_identifier", "sender_identifier", "command_content"],
+        "sensitive_fields": ["remoteJid", "senderJid", "text", "args"],
+        "retention_policy": "standard_app_logs",
+        "retention_notes": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "legal_basis": "service_execution_and_legitimate_interest",
+        "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
+        "legacy": {
+          "dados_sensiveis": [
+            "identificador do chat",
+            "identificador do remetente",
+            "conteudo textual do comando"
+          ],
+          "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+          "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+        }
+      },
+      "discovery": {
+        "keywords": ["baixartiktok", "tt", "midia", "privado", "grupo"],
+        "faq_queries": ["como usar baixartiktok", "o que faz baixartiktok", "comando baixartiktok"],
+        "user_phrasings": [
+          "quero usar baixartiktok",
+          "me ajuda com baixartiktok",
+          "baixa midia do baixartiktok"
+        ],
+        "suggestion_priority": 100
+      },
+      "access": {
+        "premium_only": false,
+        "allowed_plans": ["comum", "premium"],
+        "legacy": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        }
+      },
+      "plan_limits": {
+        "comum": {
+          "max": 4,
+          "janela_ms": 600000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 15,
+          "janela_ms": 600000,
+          "escopo": "usuario"
+        }
+      },
+      "version": "1.0.0",
+      "stability": "stable",
+      "deprecated": false,
+      "replaced_by": null,
+      "risk_level": "low",
+      "handler": {
+        "file": "tiktokCommand.js",
+        "method": "handleTikTokCommand",
+        "command_case": "baixartiktok"
+      },
+      "compatibility": {
+        "schema": "legacy_v1_and_v2",
+        "legacy_name": "baixartiktok",
+        "legacy_fields_present": [
+          "descricao",
+          "metodos_de_uso",
+          "permissao_necessaria",
+          "local_de_uso",
+          "informacoes_coletadas",
+          "argumentos",
+          "pre_condicoes",
+          "dependencias_externas",
+          "efeitos_colaterais",
+          "observabilidade",
+          "privacidade",
+          "acesso",
+          "limite_uso_por_plano"
         ]
       }
     }

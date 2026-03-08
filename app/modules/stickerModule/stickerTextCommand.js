@@ -435,7 +435,10 @@ export async function processTextSticker({
   commandName = 'stickertext',
 }) {
   const stickerText = text.trim();
-  const isWhiteCommand = String(commandName || '').trim().toLowerCase() === 'stickertextwhite';
+  const isWhiteCommand =
+    String(commandName || '')
+      .trim()
+      .toLowerCase() === 'stickertextwhite';
   const fallbackUsageAlias = isWhiteCommand ? 'stw' : 'st';
   const usageText =
     getStickerUsageText(commandName, { commandPrefix }) ||

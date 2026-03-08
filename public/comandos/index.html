@@ -609,7 +609,9 @@
         };
 
         const renderCategories = (categories, filter = '') => {
-          const normalizedFilter = String(filter || '').trim().toLowerCase();
+          const normalizedFilter = String(filter || '')
+            .trim()
+            .toLowerCase();
           let matchedCommands = 0;
 
           const categoryCards = [];

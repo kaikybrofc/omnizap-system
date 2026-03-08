@@ -288,7 +288,10 @@ test('add normaliza alvos e executa atualização de participantes', async () =>
     participants: [TARGET_JID],
     action: 'add',
   });
-  assert.equal(messages[messages.length - 1].content.text, 'Participantes adicionados com sucesso.');
+  assert.equal(
+    messages[messages.length - 1].content.text,
+    'Participantes adicionados com sucesso.',
+  );
 });
 
 test('ban bloqueia tentativa de remover o próprio bot', async () => {
@@ -303,7 +306,10 @@ test('ban bloqueia tentativa de remover o próprio bot', async () => {
 
   assert.equal(participantUpdates.length, 0);
   assert.equal(messages.length, 1);
-  assert.equal(messages[0].content.text, 'Operação cancelada: o bot não pode remover a própria conta.');
+  assert.equal(
+    messages[0].content.text,
+    'Operação cancelada: o bot não pode remover a própria conta.',
+  );
 });
 
 test('premium exige admin principal e lista usuários quando autorizado', async () => {

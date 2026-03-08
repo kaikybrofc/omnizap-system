@@ -56,6 +56,10 @@ import {
   startCommandConfigEnrichmentWorker,
   stopCommandConfigEnrichmentWorker,
 } from './app/workers/commandConfigEnrichmentWorker.js';
+import {
+  formatCommandConfigValidationReport,
+  validateAllCommandConfigs,
+} from './app/services/commandConfigValidationService.js';
 
 /**
  * Timeout máximo para inicialização do banco (criar/verificar DB + tabelas).
@@ -220,6 +224,25 @@ async function closeDatabasePool() {
 async function startApp() {
   try {
     logger.info('Iniciando OmniZap System...');
+
+    const shouldValidateCommandConfigs = process.env.COMMAND_CONFIG_VALIDATE_ON_BOOT !== 'false';
+    if (shouldValidateCommandConfigs) {
+      logger.info('Validando commandConfig dos modulos...');
+      const validation = validateAllCommandConfigs();
+      if (!validation.ok) {
+        const report = formatCommandConfigValidationReport(validation, { maxErrors: 60 });
+        logger.error('Validacao de commandConfig falhou.', { report });
+        throw new Error('commandConfig validation failed');
+      }
+      logger.info('Validacao de commandConfig concluida com sucesso.', {
+        modules: validation.modulesValidated,
+        commands: validation.commandsValidated,
+      });
+    } else {
+      logger.warn('Validacao de commandConfig no boot desativada via env.', {
+        env: 'COMMAND_CONFIG_VALIDATE_ON_BOOT=false',
+      });
+    }
 
     logger.info('Iniciando banco de dados...');
     await withTimeout(initializeDatabase(), DB_INIT_TIMEOUT_MS, 'Inicializacao do banco');

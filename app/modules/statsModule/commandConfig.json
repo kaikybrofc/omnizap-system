@@ -1,30 +1,154 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "2.0.0",
   "module": "statsModule",
   "enabled": true,
-  "source_files": [
-    "rankingCommand.js",
-    "globalRankingCommand.js"
-  ],
+  "source_files": ["rankingCommand.js", "globalRankingCommand.js"],
+  "defaults": {
+    "inheritance_mode": "deep_merge_with_command_overrides",
+    "compatibility_mode": "legacy_and_v2_fields",
+    "legacy_field_aliases": {
+      "descricao": "description",
+      "metodos_de_uso": "usage",
+      "permissao_necessaria": "permission",
+      "local_de_uso": "contexts",
+      "informacoes_coletadas": "collected_data",
+      "pre_condicoes": "requirements",
+      "dependencias_externas": "dependencies",
+      "efeitos_colaterais": "side_effects",
+      "observabilidade": "observability",
+      "privacidade": "privacy",
+      "limite_uso_por_plano": "plan_limits",
+      "argumentos": "arguments",
+      "acesso": "access"
+    },
+    "command": {
+      "enabled": true,
+      "category": "estatisticas",
+      "version": "1.0.0",
+      "stability": "stable",
+      "deprecated": false,
+      "replaced_by": null,
+      "risk_level": "medium"
+    },
+    "requirements": {
+      "require_group": true,
+      "require_group_admin": false,
+      "require_bot_owner": false,
+      "require_google_login": true,
+      "require_nsfw_enabled": false,
+      "require_media": false,
+      "require_reply_message": false,
+      "legacy": {
+        "requer_grupo": true,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      }
+    },
+    "pre_condicoes": {
+      "requer_grupo": true,
+      "requer_admin": false,
+      "requer_admin_principal": false,
+      "requer_google_login": true,
+      "requer_nsfw": false,
+      "requer_midia": false,
+      "requer_mensagem_respondida": false
+    },
+    "rate_limit": {
+      "max": null,
+      "janela_ms": null,
+      "escopo": "sem_rate_limit_explicito"
+    },
+    "dependencies": ["banco de dados de mensagens"],
+    "dependencias_externas": ["banco de dados de mensagens"],
+    "responses": {
+      "success": "Comando executado com sucesso.",
+      "usage_error": "Formato de uso inválido. Consulte metodos_de_uso.",
+      "permission_error": "Permissão insuficiente para executar este comando."
+    },
+    "respostas_padrao": {
+      "sucesso": "Comando executado com sucesso.",
+      "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+      "erro_permissao": "Permissão insuficiente para executar este comando."
+    },
+    "observability": {
+      "event_name": "command.executed",
+      "log_level": "info",
+      "tags": ["whatsapp", "command", "statsModule"]
+    },
+    "privacy": {
+      "data_categories": ["chat_identifier", "sender_identifier", "command_content"],
+      "retention_policy": "standard_app_logs",
+      "legal_basis": "service_execution_and_legitimate_interest"
+    },
+    "access": {
+      "premium_only": false,
+      "allowed_plans": ["comum", "premium"]
+    },
+    "acesso": {
+      "somente_premium": false,
+      "planos_permitidos": ["comum", "premium"]
+    },
+    "plan_limits": {
+      "comum": {
+        "max": 25,
+        "janela_ms": 60000,
+        "escopo": "usuario"
+      },
+      "premium": {
+        "max": 120,
+        "janela_ms": 60000,
+        "escopo": "usuario"
+      }
+    },
+    "limite_uso_por_plano": {
+      "comum": {
+        "max": 25,
+        "janela_ms": 60000,
+        "escopo": "usuario"
+      },
+      "premium": {
+        "max": 120,
+        "janela_ms": 60000,
+        "escopo": "usuario"
+      }
+    },
+    "behavior_templates": {
+      "toggle_on_off_status": {
+        "type": "toggle",
+        "allowed_actions": ["on", "off", "status"],
+        "action_argument": "acao"
+      },
+      "add_remove_list": {
+        "type": "list_management",
+        "allowed_actions": ["add", "remove", "list"],
+        "action_argument": "acao"
+      },
+      "approve_reject": {
+        "type": "moderation_decision",
+        "allowed_actions": ["approve", "reject"],
+        "action_argument": "acao",
+        "requires_targets": true
+      },
+      "set_status_reset": {
+        "type": "configuration_window",
+        "allowed_actions": ["set", "status", "reset"],
+        "action_argument": "valor"
+      }
+    }
+  },
   "commands": [
     {
       "name": "classificacao",
-      "aliases": [
-        "rank",
-        "top5",
-        "ranking"
-      ],
+      "aliases": ["rank", "top5", "ranking"],
       "descricao": "Mostra top 5 mais ativos do grupo.",
-      "metodos_de_uso": [
-        "<prefix>classificacao",
-        "<prefix>rank",
-        "<prefix>top5"
-      ],
+      "metodos_de_uso": ["<prefix>classificacao", "<prefix>rank", "<prefix>top5"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "retorna top 5",
-      "local_de_uso": [
-        "grupo"
-      ],
+      "local_de_uso": ["grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -52,13 +176,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "banco de dados de mensagens"
-      ],
-      "efeitos_colaterais": [
-        "consulta agregações no banco",
-        "envia ranking"
-      ],
+      "dependencias_externas": ["banco de dados de mensagens"],
+      "efeitos_colaterais": ["consulta agregações no banco", "envia ranking"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -66,12 +185,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_ranking",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "statsModule",
-          "ranking"
-        ],
+        "tags_log": ["whatsapp", "command", "statsModule", "ranking"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -83,13 +197,7 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": [
-        "classificacao",
-        "rank",
-        "top5",
-        "estatisticas",
-        "grupo"
-      ],
+      "capability_keywords": ["classificacao", "rank", "top5", "estatisticas", "grupo"],
       "faq_patterns": [
         "como usar classificacao",
         "o que faz classificacao",
@@ -103,10 +211,7 @@
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": [
-          "comum",
-          "premium"
-        ]
+        "planos_permitidos": ["comum", "premium"]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -121,32 +226,179 @@
         }
       },
       "mensagens_uso": {
-        "default": [
-          "<prefix>classificacao",
-          "<prefix>rank",
-          "<prefix>top5"
+        "default": ["<prefix>classificacao", "<prefix>rank", "<prefix>top5"]
+      },
+      "id": "stats.classificacao",
+      "description": "Mostra top 5 mais ativos do grupo.",
+      "usage": ["<prefix>classificacao", "<prefix>rank", "<prefix>top5"],
+      "docs": {
+        "summary": "Mostra top 5 mais ativos do grupo.",
+        "usage_examples": ["<prefix>classificacao", "<prefix>rank", "<prefix>top5"],
+        "usage_variants": {
+          "default": ["<prefix>classificacao", "<prefix>rank", "<prefix>top5"]
+        }
+      },
+      "permission": "usuario comum",
+      "contexts": ["grupo"],
+      "collected_data": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "escopo do grupo (group id)",
+        "estatisticas de mensagens agregadas no banco",
+        "nomes de exibicao para composicao do ranking"
+      ],
+      "requirements": {
+        "require_group": true,
+        "require_group_admin": false,
+        "require_bot_owner": false,
+        "require_google_login": true,
+        "require_nsfw_enabled": false,
+        "require_media": false,
+        "require_reply_message": false,
+        "legacy": {
+          "requer_grupo": true,
+          "requer_admin": false,
+          "requer_admin_principal": false,
+          "requer_google_login": true,
+          "requer_nsfw": false,
+          "requer_midia": false,
+          "requer_mensagem_respondida": false
+        }
+      },
+      "arguments": [],
+      "behavior": {
+        "type": "simple_action",
+        "allowed_actions": []
+      },
+      "limits": {
+        "usage_description": "retorna top 5",
+        "rate_limit": {
+          "max": null,
+          "janela_ms": null,
+          "escopo": "sem_rate_limit_explicito"
+        },
+        "access": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        },
+        "plan_limits": {
+          "comum": {
+            "max": 25,
+            "janela_ms": 60000,
+            "escopo": "usuario"
+          },
+          "premium": {
+            "max": 120,
+            "janela_ms": 60000,
+            "escopo": "usuario"
+          }
+        }
+      },
+      "dependencies": ["banco de dados de mensagens"],
+      "side_effects": ["consulta agregações no banco", "envia ranking"],
+      "observability": {
+        "event_name": "command.executed",
+        "event_key": "stats.classificacao",
+        "analytics_event": "whatsapp_command_ranking",
+        "log_level": "info",
+        "tags": ["whatsapp", "command", "statsModule", "ranking"],
+        "legacy": {
+          "evento_analytics": "whatsapp_command_ranking",
+          "tags_log": ["whatsapp", "command", "statsModule", "ranking"],
+          "nivel_log": "info"
+        }
+      },
+      "privacy": {
+        "data_categories": ["chat_identifier", "sender_identifier", "command_content"],
+        "sensitive_fields": ["remoteJid", "senderJid", "text", "args"],
+        "retention_policy": "standard_app_logs",
+        "retention_notes": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "legal_basis": "service_execution_and_legitimate_interest",
+        "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
+        "legacy": {
+          "dados_sensiveis": [
+            "identificador do chat",
+            "identificador do remetente",
+            "conteudo textual do comando"
+          ],
+          "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+          "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+        }
+      },
+      "discovery": {
+        "keywords": ["classificacao", "rank", "top5", "estatisticas", "grupo"],
+        "faq_queries": [
+          "como usar classificacao",
+          "o que faz classificacao",
+          "comando classificacao"
+        ],
+        "user_phrasings": [
+          "quero usar classificacao",
+          "me ajuda com classificacao",
+          "mostra top 5 mais"
+        ],
+        "suggestion_priority": 100
+      },
+      "access": {
+        "premium_only": false,
+        "allowed_plans": ["comum", "premium"],
+        "legacy": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        }
+      },
+      "plan_limits": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      },
+      "version": "1.0.0",
+      "stability": "stable",
+      "deprecated": false,
+      "replaced_by": null,
+      "risk_level": "low",
+      "handler": {
+        "file": "rankingCommand.js",
+        "method": "handleRankingCommand",
+        "command_case": "classificacao"
+      },
+      "compatibility": {
+        "schema": "legacy_v1_and_v2",
+        "legacy_name": "classificacao",
+        "legacy_fields_present": [
+          "descricao",
+          "metodos_de_uso",
+          "permissao_necessaria",
+          "local_de_uso",
+          "informacoes_coletadas",
+          "argumentos",
+          "pre_condicoes",
+          "dependencias_externas",
+          "efeitos_colaterais",
+          "observabilidade",
+          "privacidade",
+          "acesso",
+          "limite_uso_por_plano"
         ]
       }
     },
     {
       "name": "classificacaoglobal",
-      "aliases": [
-        "rankglobal",
-        "globalrank",
-        "globalranking",
-        "rankingglobal"
-      ],
+      "aliases": ["rankglobal", "globalrank", "globalranking", "rankingglobal"],
       "descricao": "Mostra top 5 global de atividade.",
-      "metodos_de_uso": [
-        "<prefix>classificacaoglobal",
-        "<prefix>globalrank"
-      ],
+      "metodos_de_uso": ["<prefix>classificacaoglobal", "<prefix>globalrank"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "retorna top 5",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -173,13 +425,8 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "banco de dados de mensagens"
-      ],
-      "efeitos_colaterais": [
-        "consulta agregações no banco",
-        "envia ranking"
-      ],
+      "dependencias_externas": ["banco de dados de mensagens"],
+      "efeitos_colaterais": ["consulta agregações no banco", "envia ranking"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -187,12 +434,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_rankingglobal",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "statsModule",
-          "rankingglobal"
-        ],
+        "tags_log": ["whatsapp", "command", "statsModule", "rankingglobal"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -226,10 +468,7 @@
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": [
-          "comum",
-          "premium"
-        ]
+        "planos_permitidos": ["comum", "premium"]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -244,9 +483,175 @@
         }
       },
       "mensagens_uso": {
-        "default": [
-          "<prefix>classificacaoglobal",
-          "<prefix>globalrank"
+        "default": ["<prefix>classificacaoglobal", "<prefix>globalrank"]
+      },
+      "id": "stats.classificacaoglobal",
+      "description": "Mostra top 5 global de atividade.",
+      "usage": ["<prefix>classificacaoglobal", "<prefix>globalrank"],
+      "docs": {
+        "summary": "Mostra top 5 global de atividade.",
+        "usage_examples": ["<prefix>classificacaoglobal", "<prefix>globalrank"],
+        "usage_variants": {
+          "default": ["<prefix>classificacaoglobal", "<prefix>globalrank"]
+        }
+      },
+      "permission": "usuario comum",
+      "contexts": ["privado", "grupo"],
+      "collected_data": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "estatisticas globais de mensagens agregadas no banco",
+        "nomes de exibicao para composicao do ranking"
+      ],
+      "requirements": {
+        "require_group": false,
+        "require_group_admin": false,
+        "require_bot_owner": false,
+        "require_google_login": true,
+        "require_nsfw_enabled": false,
+        "require_media": false,
+        "require_reply_message": false,
+        "legacy": {
+          "requer_grupo": false,
+          "requer_admin": false,
+          "requer_admin_principal": false,
+          "requer_google_login": true,
+          "requer_nsfw": false,
+          "requer_midia": false,
+          "requer_mensagem_respondida": false
+        }
+      },
+      "arguments": [],
+      "behavior": {
+        "type": "simple_action",
+        "allowed_actions": []
+      },
+      "limits": {
+        "usage_description": "retorna top 5",
+        "rate_limit": {
+          "max": null,
+          "janela_ms": null,
+          "escopo": "sem_rate_limit_explicito"
+        },
+        "access": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        },
+        "plan_limits": {
+          "comum": {
+            "max": 25,
+            "janela_ms": 60000,
+            "escopo": "usuario"
+          },
+          "premium": {
+            "max": 120,
+            "janela_ms": 60000,
+            "escopo": "usuario"
+          }
+        }
+      },
+      "dependencies": ["banco de dados de mensagens"],
+      "side_effects": ["consulta agregações no banco", "envia ranking"],
+      "observability": {
+        "event_name": "command.executed",
+        "event_key": "stats.classificacaoglobal",
+        "analytics_event": "whatsapp_command_rankingglobal",
+        "log_level": "info",
+        "tags": ["whatsapp", "command", "statsModule", "rankingglobal"],
+        "legacy": {
+          "evento_analytics": "whatsapp_command_rankingglobal",
+          "tags_log": ["whatsapp", "command", "statsModule", "rankingglobal"],
+          "nivel_log": "info"
+        }
+      },
+      "privacy": {
+        "data_categories": ["chat_identifier", "sender_identifier", "command_content"],
+        "sensitive_fields": ["remoteJid", "senderJid", "text", "args"],
+        "retention_policy": "standard_app_logs",
+        "retention_notes": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "legal_basis": "service_execution_and_legitimate_interest",
+        "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
+        "legacy": {
+          "dados_sensiveis": [
+            "identificador do chat",
+            "identificador do remetente",
+            "conteudo textual do comando"
+          ],
+          "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+          "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+        }
+      },
+      "discovery": {
+        "keywords": [
+          "classificacaoglobal",
+          "rankglobal",
+          "globalrank",
+          "globalranking",
+          "estatisticas",
+          "privado",
+          "grupo"
+        ],
+        "faq_queries": [
+          "como usar classificacaoglobal",
+          "o que faz classificacaoglobal",
+          "comando classificacaoglobal"
+        ],
+        "user_phrasings": [
+          "quero usar classificacaoglobal",
+          "me ajuda com classificacaoglobal",
+          "mostra top 5 global"
+        ],
+        "suggestion_priority": 100
+      },
+      "access": {
+        "premium_only": false,
+        "allowed_plans": ["comum", "premium"],
+        "legacy": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        }
+      },
+      "plan_limits": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      },
+      "version": "1.0.0",
+      "stability": "stable",
+      "deprecated": false,
+      "replaced_by": null,
+      "risk_level": "low",
+      "handler": {
+        "file": "globalRankingCommand.js",
+        "method": "handleGlobalRankingCommand",
+        "command_case": "classificacaoglobal"
+      },
+      "compatibility": {
+        "schema": "legacy_v1_and_v2",
+        "legacy_name": "classificacaoglobal",
+        "legacy_fields_present": [
+          "descricao",
+          "metodos_de_uso",
+          "permissao_necessaria",
+          "local_de_uso",
+          "informacoes_coletadas",
+          "argumentos",
+          "pre_condicoes",
+          "dependencias_externas",
+          "efeitos_colaterais",
+          "observabilidade",
+          "privacidade",
+          "acesso",
+          "limite_uso_por_plano"
         ]
       }
     }

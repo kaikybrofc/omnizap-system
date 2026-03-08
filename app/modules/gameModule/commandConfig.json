@@ -1,28 +1,154 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "2.0.0",
   "module": "gameModule",
   "enabled": true,
-  "source_files": [
-    "diceCommand.js"
-  ],
+  "source_files": ["diceCommand.js"],
+  "defaults": {
+    "inheritance_mode": "deep_merge_with_command_overrides",
+    "compatibility_mode": "legacy_and_v2_fields",
+    "legacy_field_aliases": {
+      "descricao": "description",
+      "metodos_de_uso": "usage",
+      "permissao_necessaria": "permission",
+      "local_de_uso": "contexts",
+      "informacoes_coletadas": "collected_data",
+      "pre_condicoes": "requirements",
+      "dependencias_externas": "dependencies",
+      "efeitos_colaterais": "side_effects",
+      "observabilidade": "observability",
+      "privacidade": "privacy",
+      "limite_uso_por_plano": "plan_limits",
+      "argumentos": "arguments",
+      "acesso": "access"
+    },
+    "command": {
+      "enabled": true,
+      "category": "jogos",
+      "version": "1.0.0",
+      "stability": "stable",
+      "deprecated": false,
+      "replaced_by": null,
+      "risk_level": "medium"
+    },
+    "requirements": {
+      "require_group": false,
+      "require_group_admin": false,
+      "require_bot_owner": false,
+      "require_google_login": true,
+      "require_nsfw_enabled": false,
+      "require_media": false,
+      "require_reply_message": false,
+      "legacy": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      }
+    },
+    "pre_condicoes": {
+      "requer_grupo": false,
+      "requer_admin": false,
+      "requer_admin_principal": false,
+      "requer_google_login": true,
+      "requer_nsfw": false,
+      "requer_midia": false,
+      "requer_mensagem_respondida": false
+    },
+    "rate_limit": {
+      "max": null,
+      "janela_ms": null,
+      "escopo": "sem_rate_limit_explicito"
+    },
+    "dependencies": [],
+    "dependencias_externas": [],
+    "responses": {
+      "success": "Comando executado com sucesso.",
+      "usage_error": "Formato de uso inválido. Consulte metodos_de_uso.",
+      "permission_error": "Permissão insuficiente para executar este comando."
+    },
+    "respostas_padrao": {
+      "sucesso": "Comando executado com sucesso.",
+      "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+      "erro_permissao": "Permissão insuficiente para executar este comando."
+    },
+    "observability": {
+      "event_name": "command.executed",
+      "log_level": "info",
+      "tags": ["whatsapp", "command", "gameModule"]
+    },
+    "privacy": {
+      "data_categories": ["chat_identifier", "sender_identifier", "command_content"],
+      "retention_policy": "standard_app_logs",
+      "legal_basis": "service_execution_and_legitimate_interest"
+    },
+    "access": {
+      "premium_only": false,
+      "allowed_plans": ["comum", "premium"]
+    },
+    "acesso": {
+      "somente_premium": false,
+      "planos_permitidos": ["comum", "premium"]
+    },
+    "plan_limits": {
+      "comum": {
+        "max": 20,
+        "janela_ms": 300000,
+        "escopo": "usuario"
+      },
+      "premium": {
+        "max": 75,
+        "janela_ms": 300000,
+        "escopo": "usuario"
+      }
+    },
+    "limite_uso_por_plano": {
+      "comum": {
+        "max": 20,
+        "janela_ms": 300000,
+        "escopo": "usuario"
+      },
+      "premium": {
+        "max": 75,
+        "janela_ms": 300000,
+        "escopo": "usuario"
+      }
+    },
+    "behavior_templates": {
+      "toggle_on_off_status": {
+        "type": "toggle",
+        "allowed_actions": ["on", "off", "status"],
+        "action_argument": "acao"
+      },
+      "add_remove_list": {
+        "type": "list_management",
+        "allowed_actions": ["add", "remove", "list"],
+        "action_argument": "acao"
+      },
+      "approve_reject": {
+        "type": "moderation_decision",
+        "allowed_actions": ["approve", "reject"],
+        "action_argument": "acao",
+        "requires_targets": true
+      },
+      "set_status_reset": {
+        "type": "configuration_window",
+        "allowed_actions": ["set", "status", "reset"],
+        "action_argument": "valor"
+      }
+    }
+  },
   "commands": [
     {
       "name": "dado",
-      "aliases": [
-        "dice"
-      ],
+      "aliases": ["dice"],
       "descricao": "Rola um dado com numero de lados opcional.",
-      "metodos_de_uso": [
-        "<prefix>dado",
-        "<prefix>dado 20",
-        "<prefix>dice 100"
-      ],
+      "metodos_de_uso": ["<prefix>dado", "<prefix>dado 20", "<prefix>dice 100"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "lados entre 2 e 1000",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -57,10 +183,7 @@
         "escopo": "sem_rate_limit_explicito"
       },
       "dependencias_externas": [],
-      "efeitos_colaterais": [
-        "gera número aleatório",
-        "envia resultado no chat"
-      ],
+      "efeitos_colaterais": ["gera número aleatório", "envia resultado no chat"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -68,12 +191,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_dado",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "gameModule",
-          "dado"
-        ],
+        "tags_log": ["whatsapp", "command", "gameModule", "dado"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -85,30 +203,13 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": [
-        "dado",
-        "dice",
-        "jogos",
-        "privado",
-        "grupo"
-      ],
-      "faq_patterns": [
-        "como usar dado",
-        "o que faz dado",
-        "comando dado"
-      ],
-      "user_phrasings": [
-        "quero usar dado",
-        "me ajuda com dado",
-        "rola um dado com"
-      ],
+      "capability_keywords": ["dado", "dice", "jogos", "privado", "grupo"],
+      "faq_patterns": ["como usar dado", "o que faz dado", "comando dado"],
+      "user_phrasings": ["quero usar dado", "me ajuda com dado", "rola um dado com"],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": [
-          "comum",
-          "premium"
-        ]
+        "planos_permitidos": ["comum", "premium"]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -128,6 +229,177 @@
           "<prefix>dado",
           "<prefix>dado <lados (2-1000)>",
           "<prefix>dice <lados (2-1000)>"
+        ]
+      },
+      "id": "game.dado",
+      "description": "Rola um dado com numero de lados opcional.",
+      "usage": ["<prefix>dado", "<prefix>dado 20", "<prefix>dice 100"],
+      "docs": {
+        "summary": "Rola um dado com numero de lados opcional.",
+        "usage_examples": ["<prefix>dado", "<prefix>dado 20", "<prefix>dice 100"],
+        "usage_variants": {
+          "default": [
+            "Formato de uso:",
+            "<prefix>dado",
+            "<prefix>dado <lados (2-1000)>",
+            "<prefix>dice <lados (2-1000)>"
+          ]
+        }
+      },
+      "permission": "usuario comum",
+      "contexts": ["privado", "grupo"],
+      "collected_data": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "numero de lados informado no argumento (quando houver)"
+      ],
+      "requirements": {
+        "require_group": false,
+        "require_group_admin": false,
+        "require_bot_owner": false,
+        "require_google_login": true,
+        "require_nsfw_enabled": false,
+        "require_media": false,
+        "require_reply_message": false,
+        "legacy": {
+          "requer_grupo": false,
+          "requer_admin": false,
+          "requer_admin_principal": false,
+          "requer_google_login": true,
+          "requer_nsfw": false,
+          "requer_midia": false,
+          "requer_mensagem_respondida": false
+        }
+      },
+      "arguments": [
+        {
+          "name": "lados",
+          "type": "integer",
+          "required": false,
+          "default": 6,
+          "enum": null,
+          "description": "2 a 1000",
+          "position": 0,
+          "accepts_mentions": false,
+          "accepts_reply_target": false,
+          "greedy": false,
+          "validation": "2 a 1000"
+        }
+      ],
+      "behavior": {
+        "type": "argument_driven",
+        "allowed_actions": []
+      },
+      "limits": {
+        "usage_description": "lados entre 2 e 1000",
+        "rate_limit": {
+          "max": null,
+          "janela_ms": null,
+          "escopo": "sem_rate_limit_explicito"
+        },
+        "access": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        },
+        "plan_limits": {
+          "comum": {
+            "max": 20,
+            "janela_ms": 300000,
+            "escopo": "usuario"
+          },
+          "premium": {
+            "max": 75,
+            "janela_ms": 300000,
+            "escopo": "usuario"
+          }
+        }
+      },
+      "dependencies": [],
+      "side_effects": ["gera número aleatório", "envia resultado no chat"],
+      "observability": {
+        "event_name": "command.executed",
+        "event_key": "game.dado",
+        "analytics_event": "whatsapp_command_dado",
+        "log_level": "info",
+        "tags": ["whatsapp", "command", "gameModule", "dado"],
+        "legacy": {
+          "evento_analytics": "whatsapp_command_dado",
+          "tags_log": ["whatsapp", "command", "gameModule", "dado"],
+          "nivel_log": "info"
+        }
+      },
+      "privacy": {
+        "data_categories": ["chat_identifier", "sender_identifier", "command_content"],
+        "sensitive_fields": ["remoteJid", "senderJid", "text", "args"],
+        "retention_policy": "standard_app_logs",
+        "retention_notes": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "legal_basis": "service_execution_and_legitimate_interest",
+        "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
+        "legacy": {
+          "dados_sensiveis": [
+            "identificador do chat",
+            "identificador do remetente",
+            "conteudo textual do comando"
+          ],
+          "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+          "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+        }
+      },
+      "discovery": {
+        "keywords": ["dado", "dice", "jogos", "privado", "grupo"],
+        "faq_queries": ["como usar dado", "o que faz dado", "comando dado"],
+        "user_phrasings": ["quero usar dado", "me ajuda com dado", "rola um dado com"],
+        "suggestion_priority": 100
+      },
+      "access": {
+        "premium_only": false,
+        "allowed_plans": ["comum", "premium"],
+        "legacy": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        }
+      },
+      "plan_limits": {
+        "comum": {
+          "max": 20,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 75,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      },
+      "version": "1.0.0",
+      "stability": "stable",
+      "deprecated": false,
+      "replaced_by": null,
+      "risk_level": "low",
+      "handler": {
+        "file": "diceCommand.js",
+        "method": "handleDiceCommand",
+        "command_case": "dado"
+      },
+      "compatibility": {
+        "schema": "legacy_v1_and_v2",
+        "legacy_name": "dado",
+        "legacy_fields_present": [
+          "descricao",
+          "metodos_de_uso",
+          "permissao_necessaria",
+          "local_de_uso",
+          "informacoes_coletadas",
+          "argumentos",
+          "pre_condicoes",
+          "dependencias_externas",
+          "efeitos_colaterais",
+          "observabilidade",
+          "privacidade",
+          "acesso",
+          "limite_uso_por_plano"
         ]
       }
     }

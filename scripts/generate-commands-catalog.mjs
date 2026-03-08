@@ -99,18 +99,19 @@ const sanitizeCommand = ({ command, moduleDirName, moduleName }) => {
       String(method).replaceAll('<prefix>', '/').trim(),
     ),
   );
-  const usageVariants = command?.mensagens_uso && typeof command.mensagens_uso === 'object'
-    ? Object.entries(command.mensagens_uso).reduce((acc, [variantKey, methods]) => {
-        const normalizedVariantKey = String(variantKey || '').trim();
-        const normalizedMethods = unique(
-          ensureArray(methods).map((method) => String(method).replaceAll('<prefix>', '/').trim()),
-        );
-        if (normalizedVariantKey && normalizedMethods.length) {
-          acc[normalizedVariantKey] = normalizedMethods;
-        }
-        return acc;
-      }, {})
-    : {};
+  const usageVariants =
+    command?.mensagens_uso && typeof command.mensagens_uso === 'object'
+      ? Object.entries(command.mensagens_uso).reduce((acc, [variantKey, methods]) => {
+          const normalizedVariantKey = String(variantKey || '').trim();
+          const normalizedMethods = unique(
+            ensureArray(methods).map((method) => String(method).replaceAll('<prefix>', '/').trim()),
+          );
+          if (normalizedVariantKey && normalizedMethods.length) {
+            acc[normalizedVariantKey] = normalizedMethods;
+          }
+          return acc;
+        }, {})
+      : {};
 
   return {
     key: `${moduleDirName}:${commandName}`,
@@ -183,13 +184,18 @@ const buildCatalog = async () => {
       const leftOrder = knownOrderMap.has(left.key) ? knownOrderMap.get(left.key) : 999;
       const rightOrder = knownOrderMap.has(right.key) ? knownOrderMap.get(right.key) : 999;
       if (leftOrder !== rightOrder) return leftOrder - rightOrder;
-      if (left.command_count !== right.command_count) return right.command_count - left.command_count;
+      if (left.command_count !== right.command_count)
+        return right.command_count - left.command_count;
       return left.label.localeCompare(right.label, 'pt-BR');
     })
     .map((category) => ({
       ...category,
-      modules: Array.from(category.modules).sort((left, right) => left.localeCompare(right, 'pt-BR')),
-      commands: category.commands.sort((left, right) => left.name.localeCompare(right.name, 'pt-BR')),
+      modules: Array.from(category.modules).sort((left, right) =>
+        left.localeCompare(right, 'pt-BR'),
+      ),
+      commands: category.commands.sort((left, right) =>
+        left.name.localeCompare(right.name, 'pt-BR'),
+      ),
     }));
 
   const sortedModules = modules.sort((left, right) => {

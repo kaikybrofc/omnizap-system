@@ -1,18 +1,149 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "2.0.0",
   "module": "stickerPackModule",
   "enabled": true,
-  "source_files": [
-    "stickerPackCommandHandlers.js"
-  ],
+  "source_files": ["stickerPackCommandHandlers.js"],
+  "defaults": {
+    "inheritance_mode": "deep_merge_with_command_overrides",
+    "compatibility_mode": "legacy_and_v2_fields",
+    "legacy_field_aliases": {
+      "descricao": "description",
+      "metodos_de_uso": "usage",
+      "permissao_necessaria": "permission",
+      "local_de_uso": "contexts",
+      "informacoes_coletadas": "collected_data",
+      "pre_condicoes": "requirements",
+      "dependencias_externas": "dependencies",
+      "efeitos_colaterais": "side_effects",
+      "observabilidade": "observability",
+      "privacidade": "privacy",
+      "limite_uso_por_plano": "plan_limits",
+      "argumentos": "arguments",
+      "acesso": "access"
+    },
+    "command": {
+      "enabled": true,
+      "category": "figurinhas",
+      "version": "1.0.0",
+      "stability": "stable",
+      "deprecated": false,
+      "replaced_by": null,
+      "risk_level": "medium"
+    },
+    "requirements": {
+      "require_group": false,
+      "require_group_admin": false,
+      "require_bot_owner": false,
+      "require_google_login": true,
+      "require_nsfw_enabled": false,
+      "require_media": false,
+      "require_reply_message": false,
+      "legacy": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      }
+    },
+    "pre_condicoes": {
+      "requer_grupo": false,
+      "requer_admin": false,
+      "requer_admin_principal": false,
+      "requer_google_login": true,
+      "requer_nsfw": false,
+      "requer_midia": false,
+      "requer_mensagem_respondida": false
+    },
+    "rate_limit": {
+      "max": 20,
+      "janela_ms": 60000,
+      "escopo": "usuario"
+    },
+    "dependencies": ["banco de dados de packs", "armazenamento de assets de figurinha"],
+    "dependencias_externas": ["banco de dados de packs", "armazenamento de assets de figurinha"],
+    "responses": {
+      "success": "Comando executado com sucesso.",
+      "usage_error": "Formato de uso inválido. Consulte metodos_de_uso.",
+      "permission_error": "Permissão insuficiente para executar este comando."
+    },
+    "respostas_padrao": {
+      "sucesso": "Comando executado com sucesso.",
+      "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+      "erro_permissao": "Permissão insuficiente para executar este comando."
+    },
+    "observability": {
+      "event_name": "command.executed",
+      "log_level": "info",
+      "tags": ["whatsapp", "command", "stickerPackModule"]
+    },
+    "privacy": {
+      "data_categories": ["chat_identifier", "sender_identifier", "command_content"],
+      "retention_policy": "standard_app_logs",
+      "legal_basis": "service_execution_and_legitimate_interest"
+    },
+    "access": {
+      "premium_only": false,
+      "allowed_plans": ["comum", "premium"]
+    },
+    "acesso": {
+      "somente_premium": false,
+      "planos_permitidos": ["comum", "premium"]
+    },
+    "plan_limits": {
+      "comum": {
+        "max": 12,
+        "janela_ms": 300000,
+        "escopo": "usuario"
+      },
+      "premium": {
+        "max": 45,
+        "janela_ms": 300000,
+        "escopo": "usuario"
+      }
+    },
+    "limite_uso_por_plano": {
+      "comum": {
+        "max": 12,
+        "janela_ms": 300000,
+        "escopo": "usuario"
+      },
+      "premium": {
+        "max": 45,
+        "janela_ms": 300000,
+        "escopo": "usuario"
+      }
+    },
+    "behavior_templates": {
+      "toggle_on_off_status": {
+        "type": "toggle",
+        "allowed_actions": ["on", "off", "status"],
+        "action_argument": "acao"
+      },
+      "add_remove_list": {
+        "type": "list_management",
+        "allowed_actions": ["add", "remove", "list"],
+        "action_argument": "acao"
+      },
+      "approve_reject": {
+        "type": "moderation_decision",
+        "allowed_actions": ["approve", "reject"],
+        "action_argument": "acao",
+        "requires_targets": true
+      },
+      "set_status_reset": {
+        "type": "configuration_window",
+        "allowed_actions": ["set", "status", "reset"],
+        "action_argument": "valor"
+      }
+    }
+  },
   "commands": [
     {
       "name": "pacote",
-      "aliases": [
-        "packs",
-        "pacotes",
-        "pack"
-      ],
+      "aliases": ["packs", "pacotes", "pack"],
       "descricao": "Gerencia packs de figurinhas (criar, listar, adicionar, enviar).",
       "metodos_de_uso": [
         "<prefix>pacote help",
@@ -23,10 +154,7 @@
       ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "rate limit por janela e limite de itens por pack",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -84,10 +212,7 @@
         "janela_ms": 60000,
         "escopo": "usuario"
       },
-      "dependencias_externas": [
-        "banco de dados de packs",
-        "armazenamento de assets de figurinha"
-      ],
+      "dependencias_externas": ["banco de dados de packs", "armazenamento de assets de figurinha"],
       "efeitos_colaterais": [
         "cria/atualiza packs no banco",
         "pode armazenar/remover assets de figurinha"
@@ -99,12 +224,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_pack",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "stickerPackModule",
-          "pack"
-        ],
+        "tags_log": ["whatsapp", "command", "stickerPackModule", "pack"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -116,18 +236,8 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": [
-        "pacote",
-        "packs",
-        "figurinhas",
-        "privado",
-        "grupo"
-      ],
-      "faq_patterns": [
-        "como usar pacote",
-        "o que faz pacote",
-        "comando pacote"
-      ],
+      "capability_keywords": ["pacote", "packs", "figurinhas", "privado", "grupo"],
+      "faq_patterns": ["como usar pacote", "o que faz pacote", "comando pacote"],
       "user_phrasings": [
         "quero usar pacote",
         "me ajuda com pacote",
@@ -136,10 +246,7 @@
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": [
-          "comum",
-          "premium"
-        ]
+        "planos_permitidos": ["comum", "premium"]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -160,6 +267,214 @@
           "<prefix>pacote list",
           "<prefix>pacote add <pacote>",
           "<prefix>pacote send <pacote>"
+        ]
+      },
+      "id": "stickerpack.pacote",
+      "description": "Gerencia packs de figurinhas (criar, listar, adicionar, enviar).",
+      "usage": [
+        "<prefix>pacote help",
+        "<prefix>pacote create meupack",
+        "<prefix>pacote list",
+        "<prefix>pacote add <pacote>",
+        "<prefix>pacote send <pacote>"
+      ],
+      "docs": {
+        "summary": "Gerencia packs de figurinhas (criar, listar, adicionar, enviar).",
+        "usage_examples": [
+          "<prefix>pacote help",
+          "<prefix>pacote create meupack",
+          "<prefix>pacote list",
+          "<prefix>pacote add <pacote>",
+          "<prefix>pacote send <pacote>"
+        ],
+        "usage_variants": {
+          "default": [
+            "<prefix>pacote help",
+            "<prefix>pacote create meupack",
+            "<prefix>pacote list",
+            "<prefix>pacote add <pacote>",
+            "<prefix>pacote send <pacote>"
+          ]
+        }
+      },
+      "permission": "usuario comum",
+      "contexts": ["privado", "grupo"],
+      "collected_data": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "subcomando e argumentos do pack",
+        "figurinha da mensagem atual/citada (para add/setcover)",
+        "estado de rate limit por usuario",
+        "dados de packs do usuario no armazenamento interno"
+      ],
+      "requirements": {
+        "require_group": false,
+        "require_group_admin": false,
+        "require_bot_owner": false,
+        "require_google_login": true,
+        "require_nsfw_enabled": false,
+        "require_media": false,
+        "require_reply_message": false,
+        "legacy": {
+          "requer_grupo": false,
+          "requer_admin": false,
+          "requer_admin_principal": false,
+          "requer_google_login": true,
+          "requer_nsfw": false,
+          "requer_midia": false,
+          "requer_mensagem_respondida": false
+        }
+      },
+      "arguments": [
+        {
+          "name": "subcomando",
+          "type": "string",
+          "required": true,
+          "default": null,
+          "enum": null,
+          "description": "ação de gerenciamento de pack",
+          "position": 0,
+          "accepts_mentions": false,
+          "accepts_reply_target": false,
+          "greedy": false,
+          "validation": "ação de gerenciamento de pack"
+        },
+        {
+          "name": "parametros",
+          "type": "array",
+          "required": false,
+          "default": [],
+          "enum": null,
+          "description": "dependente do subcomando",
+          "position": 1,
+          "accepts_mentions": false,
+          "accepts_reply_target": false,
+          "greedy": false,
+          "validation": "dependente do subcomando"
+        }
+      ],
+      "behavior": {
+        "type": "list_management",
+        "allowed_actions": ["add", "remove", "list"],
+        "action_argument": "acao"
+      },
+      "limits": {
+        "usage_description": "rate limit por janela e limite de itens por pack",
+        "rate_limit": {
+          "max": 20,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "access": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        },
+        "plan_limits": {
+          "comum": {
+            "max": 12,
+            "janela_ms": 300000,
+            "escopo": "usuario"
+          },
+          "premium": {
+            "max": 45,
+            "janela_ms": 300000,
+            "escopo": "usuario"
+          }
+        }
+      },
+      "dependencies": ["banco de dados de packs", "armazenamento de assets de figurinha"],
+      "side_effects": [
+        "cria/atualiza packs no banco",
+        "pode armazenar/remover assets de figurinha"
+      ],
+      "observability": {
+        "event_name": "command.executed",
+        "event_key": "stickerpack.pacote",
+        "analytics_event": "whatsapp_command_pack",
+        "log_level": "info",
+        "tags": ["whatsapp", "command", "stickerPackModule", "pack"],
+        "legacy": {
+          "evento_analytics": "whatsapp_command_pack",
+          "tags_log": ["whatsapp", "command", "stickerPackModule", "pack"],
+          "nivel_log": "info"
+        }
+      },
+      "privacy": {
+        "data_categories": ["sender_identifier"],
+        "sensitive_fields": ["senderJid"],
+        "retention_policy": "standard_app_logs",
+        "retention_notes": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "legal_basis": "service_execution_and_legitimate_interest",
+        "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
+        "legacy": {
+          "dados_sensiveis": [
+            "identificador do remetente",
+            "conteúdo de figurinhas adicionadas ao pack",
+            "metadados de packs do usuário"
+          ],
+          "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+          "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+        }
+      },
+      "discovery": {
+        "keywords": ["pacote", "packs", "figurinhas", "privado", "grupo"],
+        "faq_queries": ["como usar pacote", "o que faz pacote", "comando pacote"],
+        "user_phrasings": [
+          "quero usar pacote",
+          "me ajuda com pacote",
+          "gerencia packs de figurinhas"
+        ],
+        "suggestion_priority": 100
+      },
+      "access": {
+        "premium_only": false,
+        "allowed_plans": ["comum", "premium"],
+        "legacy": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        }
+      },
+      "plan_limits": {
+        "comum": {
+          "max": 12,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 45,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      },
+      "version": "1.0.0",
+      "stability": "stable",
+      "deprecated": false,
+      "replaced_by": null,
+      "risk_level": "low",
+      "handler": {
+        "file": "stickerPackCommandHandlers.js",
+        "method": "handlePackCommand",
+        "command_case": "pacote"
+      },
+      "compatibility": {
+        "schema": "legacy_v1_and_v2",
+        "legacy_name": "pacote",
+        "legacy_fields_present": [
+          "descricao",
+          "metodos_de_uso",
+          "permissao_necessaria",
+          "local_de_uso",
+          "informacoes_coletadas",
+          "argumentos",
+          "pre_condicoes",
+          "dependencias_externas",
+          "efeitos_colaterais",
+          "observabilidade",
+          "privacidade",
+          "acesso",
+          "limite_uso_por_plano"
         ]
       }
     }

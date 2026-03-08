@@ -59,7 +59,10 @@ export const getSystemMetricsTextConfig = () => {
   };
 };
 
-export const getSystemMetricsUsageText = (command, { commandPrefix = '/', header, variant } = {}) => {
+export const getSystemMetricsUsageText = (
+  command,
+  { commandPrefix = '/', header, variant } = {},
+) => {
   const entry = getSystemMetricsCommandEntry(command);
   const methods = resolveUsageLines(entry, variant);
   if (!methods.length) return '';

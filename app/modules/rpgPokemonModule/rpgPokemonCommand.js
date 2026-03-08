@@ -129,7 +129,8 @@ export const handleRpgPokemonCommand = async ({
   }
 
   if (!ALLOWED_ACTIONS.has(action)) {
-    const usageText = getRpgPokemonUsageText('rpg', { commandPrefix }) || buildUsageText(commandPrefix);
+    const usageText =
+      getRpgPokemonUsageText('rpg', { commandPrefix }) || buildUsageText(commandPrefix);
     await sendAndStore(
       sock,
       remoteJid,

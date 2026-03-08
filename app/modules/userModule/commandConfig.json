@@ -1,17 +1,152 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "2.0.0",
   "module": "userModule",
   "enabled": true,
-  "source_files": [
-    "userCommand.js"
-  ],
+  "source_files": ["userCommand.js"],
+  "defaults": {
+    "inheritance_mode": "deep_merge_with_command_overrides",
+    "compatibility_mode": "legacy_and_v2_fields",
+    "legacy_field_aliases": {
+      "descricao": "description",
+      "metodos_de_uso": "usage",
+      "permissao_necessaria": "permission",
+      "local_de_uso": "contexts",
+      "informacoes_coletadas": "collected_data",
+      "pre_condicoes": "requirements",
+      "dependencias_externas": "dependencies",
+      "efeitos_colaterais": "side_effects",
+      "observabilidade": "observability",
+      "privacidade": "privacy",
+      "limite_uso_por_plano": "plan_limits",
+      "argumentos": "arguments",
+      "acesso": "access"
+    },
+    "command": {
+      "enabled": true,
+      "category": "usuario",
+      "version": "1.0.0",
+      "stability": "stable",
+      "deprecated": false,
+      "replaced_by": null,
+      "risk_level": "medium"
+    },
+    "requirements": {
+      "require_group": false,
+      "require_group_admin": false,
+      "require_bot_owner": false,
+      "require_google_login": true,
+      "require_nsfw_enabled": false,
+      "require_media": false,
+      "require_reply_message": false,
+      "legacy": {
+        "requer_grupo": false,
+        "requer_admin": false,
+        "requer_admin_principal": false,
+        "requer_google_login": true,
+        "requer_nsfw": false,
+        "requer_midia": false,
+        "requer_mensagem_respondida": false
+      }
+    },
+    "pre_condicoes": {
+      "requer_grupo": false,
+      "requer_admin": false,
+      "requer_admin_principal": false,
+      "requer_google_login": true,
+      "requer_nsfw": false,
+      "requer_midia": false,
+      "requer_mensagem_respondida": false
+    },
+    "rate_limit": {
+      "max": null,
+      "janela_ms": null,
+      "escopo": "sem_rate_limit_explicito"
+    },
+    "dependencies": ["banco de dados de mensagens/perfil", "stores internas de premium/blocklist"],
+    "dependencias_externas": [
+      "banco de dados de mensagens/perfil",
+      "stores internas de premium/blocklist"
+    ],
+    "responses": {
+      "success": "Comando executado com sucesso.",
+      "usage_error": "Formato de uso inválido. Consulte metodos_de_uso.",
+      "permission_error": "Permissão insuficiente para executar este comando."
+    },
+    "respostas_padrao": {
+      "sucesso": "Comando executado com sucesso.",
+      "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
+      "erro_permissao": "Permissão insuficiente para executar este comando."
+    },
+    "observability": {
+      "event_name": "command.executed",
+      "log_level": "info",
+      "tags": ["whatsapp", "command", "userModule"]
+    },
+    "privacy": {
+      "data_categories": ["chat_identifier", "sender_identifier", "command_content"],
+      "retention_policy": "standard_app_logs",
+      "legal_basis": "service_execution_and_legitimate_interest"
+    },
+    "access": {
+      "premium_only": false,
+      "allowed_plans": ["comum", "premium"]
+    },
+    "acesso": {
+      "somente_premium": false,
+      "planos_permitidos": ["comum", "premium"]
+    },
+    "plan_limits": {
+      "comum": {
+        "max": 30,
+        "janela_ms": 60000,
+        "escopo": "usuario"
+      },
+      "premium": {
+        "max": 120,
+        "janela_ms": 60000,
+        "escopo": "usuario"
+      }
+    },
+    "limite_uso_por_plano": {
+      "comum": {
+        "max": 30,
+        "janela_ms": 60000,
+        "escopo": "usuario"
+      },
+      "premium": {
+        "max": 120,
+        "janela_ms": 60000,
+        "escopo": "usuario"
+      }
+    },
+    "behavior_templates": {
+      "toggle_on_off_status": {
+        "type": "toggle",
+        "allowed_actions": ["on", "off", "status"],
+        "action_argument": "acao"
+      },
+      "add_remove_list": {
+        "type": "list_management",
+        "allowed_actions": ["add", "remove", "list"],
+        "action_argument": "acao"
+      },
+      "approve_reject": {
+        "type": "moderation_decision",
+        "allowed_actions": ["approve", "reject"],
+        "action_argument": "acao",
+        "requires_targets": true
+      },
+      "set_status_reset": {
+        "type": "configuration_window",
+        "allowed_actions": ["set", "status", "reset"],
+        "action_argument": "valor"
+      }
+    }
+  },
   "commands": [
     {
       "name": "perfil",
-      "aliases": [
-        "usuario",
-        "user"
-      ],
+      "aliases": ["usuario", "user"],
       "descricao": "Consulta perfil e estatisticas de um usuario.",
       "metodos_de_uso": [
         "<prefix>perfil perfil",
@@ -20,10 +155,7 @@
       ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "consulta por um alvo por comando",
-      "local_de_uso": [
-        "privado",
-        "grupo"
-      ],
+      "local_de_uso": ["privado", "grupo"],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -35,10 +167,7 @@
       ],
       "enabled": true,
       "categoria": "usuario",
-      "subcomandos": [
-        "perfil",
-        "profile"
-      ],
+      "subcomandos": ["perfil", "profile"],
       "argumentos": [
         {
           "nome": "subcomando",
@@ -73,10 +202,7 @@
         "banco de dados de mensagens/perfil",
         "stores internas de premium/blocklist"
       ],
-      "efeitos_colaterais": [
-        "consulta perfil/estatísticas no banco",
-        "envia painel de usuário"
-      ],
+      "efeitos_colaterais": ["consulta perfil/estatísticas no banco", "envia painel de usuário"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -84,12 +210,7 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_user",
-        "tags_log": [
-          "whatsapp",
-          "command",
-          "userModule",
-          "user"
-        ],
+        "tags_log": ["whatsapp", "command", "userModule", "user"],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -101,17 +222,8 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": [
-        "perfil",
-        "usuario",
-        "privado",
-        "grupo"
-      ],
-      "faq_patterns": [
-        "como usar perfil",
-        "o que faz perfil",
-        "comando perfil"
-      ],
+      "capability_keywords": ["perfil", "usuario", "privado", "grupo"],
+      "faq_patterns": ["como usar perfil", "o que faz perfil", "comando perfil"],
       "user_phrasings": [
         "quero usar perfil",
         "me ajuda com perfil",
@@ -120,10 +232,7 @@
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": [
-          "comum",
-          "premium"
-        ]
+        "planos_permitidos": ["comum", "premium"]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -145,6 +254,209 @@
           "Dica:",
           "• Você pode mencionar alguém.",
           "• Ou responder a mensagem do usuário desejado."
+        ]
+      },
+      "id": "user.perfil",
+      "description": "Consulta perfil e estatisticas de um usuario.",
+      "usage": [
+        "<prefix>perfil perfil",
+        "<prefix>perfil perfil <id|telefone>",
+        "<prefix>usuario perfil @contato"
+      ],
+      "docs": {
+        "summary": "Consulta perfil e estatisticas de um usuario.",
+        "usage_examples": [
+          "<prefix>perfil perfil",
+          "<prefix>perfil perfil <id|telefone>",
+          "<prefix>usuario perfil @contato"
+        ],
+        "usage_variants": {
+          "default": [
+            "Formato de uso:",
+            "<prefix>perfil perfil <id|telefone>",
+            "",
+            "Dica:",
+            "• Você pode mencionar alguém.",
+            "• Ou responder a mensagem do usuário desejado."
+          ]
+        }
+      },
+      "permission": "usuario comum",
+      "contexts": ["privado", "grupo"],
+      "collected_data": [
+        "identificador do chat (remoteJid)",
+        "identificador do remetente (senderJid)",
+        "texto do comando e argumentos",
+        "contexto da mensagem (citacao e mencoes, quando existir)",
+        "alvo do perfil (mencao, resposta, id ou telefone)",
+        "mapeamento de identidade jid/lid para usuario canonico",
+        "dados de perfil/atividade/premium/bloqueio no banco e stores"
+      ],
+      "requirements": {
+        "require_group": false,
+        "require_group_admin": false,
+        "require_bot_owner": false,
+        "require_google_login": true,
+        "require_nsfw_enabled": false,
+        "require_media": false,
+        "require_reply_message": false,
+        "legacy": {
+          "requer_grupo": false,
+          "requer_admin": false,
+          "requer_admin_principal": false,
+          "requer_google_login": true,
+          "requer_nsfw": false,
+          "requer_midia": false,
+          "requer_mensagem_respondida": false
+        }
+      },
+      "arguments": [
+        {
+          "name": "subcomando",
+          "type": "string",
+          "required": true,
+          "default": null,
+          "enum": ["perfil", "profile"],
+          "description": "perfil|profile",
+          "position": 0,
+          "accepts_mentions": false,
+          "accepts_reply_target": true,
+          "greedy": false,
+          "validation": "perfil|profile"
+        },
+        {
+          "name": "alvo",
+          "type": "string",
+          "required": false,
+          "default": null,
+          "enum": null,
+          "description": "id, telefone, menção ou reply",
+          "position": 1,
+          "accepts_mentions": true,
+          "accepts_reply_target": true,
+          "greedy": false,
+          "validation": "id, telefone, menção ou reply"
+        }
+      ],
+      "behavior": {
+        "type": "subcommand",
+        "allowed_actions": ["perfil", "profile"]
+      },
+      "limits": {
+        "usage_description": "consulta por um alvo por comando",
+        "rate_limit": {
+          "max": null,
+          "janela_ms": null,
+          "escopo": "sem_rate_limit_explicito"
+        },
+        "access": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        },
+        "plan_limits": {
+          "comum": {
+            "max": 30,
+            "janela_ms": 60000,
+            "escopo": "usuario"
+          },
+          "premium": {
+            "max": 120,
+            "janela_ms": 60000,
+            "escopo": "usuario"
+          }
+        }
+      },
+      "dependencies": [
+        "banco de dados de mensagens/perfil",
+        "stores internas de premium/blocklist"
+      ],
+      "side_effects": ["consulta perfil/estatísticas no banco", "envia painel de usuário"],
+      "observability": {
+        "event_name": "command.executed",
+        "event_key": "user.perfil",
+        "analytics_event": "whatsapp_command_user",
+        "log_level": "info",
+        "tags": ["whatsapp", "command", "userModule", "user"],
+        "legacy": {
+          "evento_analytics": "whatsapp_command_user",
+          "tags_log": ["whatsapp", "command", "userModule", "user"],
+          "nivel_log": "info"
+        }
+      },
+      "privacy": {
+        "data_categories": ["sender_identifier"],
+        "sensitive_fields": ["senderJid"],
+        "retention_policy": "standard_app_logs",
+        "retention_notes": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+        "legal_basis": "service_execution_and_legitimate_interest",
+        "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
+        "legacy": {
+          "dados_sensiveis": [
+            "identificador do remetente",
+            "telefone/ID alvo informado ou mencionado",
+            "métricas de atividade e perfil consultadas"
+          ],
+          "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
+          "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
+        }
+      },
+      "discovery": {
+        "keywords": ["perfil", "usuario", "privado", "grupo"],
+        "faq_queries": ["como usar perfil", "o que faz perfil", "comando perfil"],
+        "user_phrasings": [
+          "quero usar perfil",
+          "me ajuda com perfil",
+          "consulta perfil e estatisticas"
+        ],
+        "suggestion_priority": 100
+      },
+      "access": {
+        "premium_only": false,
+        "allowed_plans": ["comum", "premium"],
+        "legacy": {
+          "somente_premium": false,
+          "planos_permitidos": ["comum", "premium"]
+        }
+      },
+      "plan_limits": {
+        "comum": {
+          "max": 30,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      },
+      "version": "1.0.0",
+      "stability": "stable",
+      "deprecated": false,
+      "replaced_by": null,
+      "risk_level": "low",
+      "handler": {
+        "file": "userCommand.js",
+        "method": "handleUserCommand",
+        "command_case": "perfil"
+      },
+      "compatibility": {
+        "schema": "legacy_v1_and_v2",
+        "legacy_name": "perfil",
+        "legacy_fields_present": [
+          "descricao",
+          "metodos_de_uso",
+          "permissao_necessaria",
+          "local_de_uso",
+          "informacoes_coletadas",
+          "argumentos",
+          "pre_condicoes",
+          "dependencias_externas",
+          "efeitos_colaterais",
+          "observabilidade",
+          "privacidade",
+          "acesso",
+          "limite_uso_por_plano"
         ]
       }
     }

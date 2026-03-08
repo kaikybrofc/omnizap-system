@@ -3,12 +3,14 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
+
 - arquivo_base: `app/modules/waifuPicsModule/commandConfig.json`
 - schema_version: `1.1.0`
 - module_enabled: `true`
 - generated_at: `2026-03-08T08:14:27.803Z`
 
 ## Escopo do Modulo
+
 - module: `waifuPicsModule`
 - source_files:
 - waifuPicsCommand.js
@@ -16,6 +18,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `3`
 
 ## Protocolo de Resposta para IA
+
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -24,13 +27,16 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
+
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
+
 ### wp
+
 - aliases: waifupics
 - enabled: true
 - categoria: anime
@@ -104,6 +110,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### wpnsfw
+
 - aliases: waifupicsnsfw
 - enabled: true
 - categoria: anime
@@ -178,6 +185,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### wppicshelp
+
 - aliases: (nenhum)
 - enabled: true
 - categoria: anime

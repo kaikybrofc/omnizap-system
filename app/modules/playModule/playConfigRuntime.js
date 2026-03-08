@@ -65,7 +65,9 @@ export const getPlayUsageText = (command, { commandPrefix = '/', header, variant
   if (!methods.length) return '';
 
   const prefixHeader =
-    typeof header === 'string' ? header : getPlayTextConfig().usage_header || DEFAULT_TEXTS.usage_header;
+    typeof header === 'string'
+      ? header
+      : getPlayTextConfig().usage_header || DEFAULT_TEXTS.usage_header;
   const lines = methods.map((method) => renderUsageMethod(method, commandPrefix));
   return prefixHeader ? [prefixHeader, ...lines].join('\n') : lines.join('\n');
 };
