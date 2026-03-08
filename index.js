@@ -52,6 +52,10 @@ import {
   stopStickerDomainEventConsumer,
 } from './app/modules/stickerPackModule/stickerDomainEventConsumerRuntime.js';
 import { startAiLearningWorker, stopAiLearningWorker } from './app/workers/aiLearningWorker.js';
+import {
+  startCommandConfigEnrichmentWorker,
+  stopCommandConfigEnrichmentWorker,
+} from './app/workers/commandConfigEnrichmentWorker.js';
 
 /**
  * Timeout máximo para inicialização do banco (criar/verificar DB + tabelas).
@@ -233,6 +237,7 @@ async function startApp() {
     startStickerPackScoreSnapshotRuntime();
     startStickerDomainEventConsumer();
     startAiLearningWorker();
+    startCommandConfigEnrichmentWorker();
 
     // Backfill é opcional, rodando em background.
     const shouldBackfill = process.env.LID_BACKFILL_ON_START !== 'false';
@@ -401,6 +406,14 @@ async function shutdown(signal, error) {
     } catch (learningWorkerError) {
       logger.warn('Falha ao encerrar worker de aprendizado de IA.', {
         error: learningWorkerError?.message,
+      });
+    }
+
+    try {
+      stopCommandConfigEnrichmentWorker();
+    } catch (commandConfigWorkerError) {
+      logger.warn('Falha ao encerrar worker de enriquecimento de commandConfig.', {
+        error: commandConfigWorkerError?.message,
       });
     }
 

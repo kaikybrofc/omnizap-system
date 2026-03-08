@@ -184,6 +184,35 @@ const resolveLearningQuestion = (context = {}) =>
       '',
   ).trim();
 
+const persistLearningEventSafe = async ({
+  context,
+  toolSuggested,
+  toolExecuted,
+  success,
+  confidence,
+}) => {
+  const question = resolveLearningQuestion(context);
+  if (!question) return;
+
+  try {
+    await saveLearningEvent({
+      question,
+      toolSuggested,
+      toolExecuted,
+      success,
+      confidence,
+    });
+  } catch (error) {
+    logger.warn('Falha ao salvar evento de aprendizado de tool.', {
+      action: 'ai_learning_event_save_failed',
+      toolSuggested,
+      toolExecuted,
+      success: Boolean(success),
+      error: error?.message,
+    });
+  }
+};
+
 const normalizePermissionText = (value) => String(value || 'nao definido').trim();
 
 const normalizeWhereLabel = (local = []) => {
@@ -337,6 +366,14 @@ export const executeTool = async (toolName, toolArgs, context = {}) => {
   });
 
   if (!argsValidation.ok) {
+    await persistLearningEventSafe({
+      context,
+      toolSuggested: normalizedToolName,
+      toolExecuted: record.toolName,
+      success: false,
+      confidence: resolveLearningConfidence({ context, toolName: record.toolName }),
+    });
+
     return {
       ok: false,
       handled: true,
@@ -357,6 +394,14 @@ export const executeTool = async (toolName, toolArgs, context = {}) => {
   });
 
   if (!securityValidation.ok) {
+    await persistLearningEventSafe({
+      context,
+      toolSuggested: normalizedToolName,
+      toolExecuted: record.toolName,
+      success: false,
+      confidence: resolveLearningConfidence({ context, toolName: record.toolName }),
+    });
+
     return {
       ok: false,
       handled: true,
@@ -418,6 +463,14 @@ export const executeTool = async (toolName, toolArgs, context = {}) => {
   });
 
   if (!executionResult?.ok) {
+    await persistLearningEventSafe({
+      context,
+      toolSuggested: normalizedToolName,
+      toolExecuted: record.toolName,
+      success: false,
+      confidence: resolveLearningConfidence({ context, toolName: record.toolName }),
+    });
+
     return {
       ok: false,
       handled: true,
@@ -435,24 +488,13 @@ export const executeTool = async (toolName, toolArgs, context = {}) => {
     };
   }
 
-  const learningQuestion = resolveLearningQuestion(context);
-  if (learningQuestion) {
-    try {
-      await saveLearningEvent({
-        question: learningQuestion,
-        toolSuggested: normalizedToolName,
-        toolExecuted: record.toolName,
-        success: true,
-        confidence: resolveLearningConfidence({ context, toolName: record.toolName }),
-      });
-    } catch (error) {
-      logger.warn('Falha ao salvar evento de aprendizado apos tool executada.', {
-        action: 'ai_learning_event_save_after_tool_failed',
-        toolName: record.toolName,
-        error: error?.message,
-      });
-    }
-  }
+  await persistLearningEventSafe({
+    context,
+    toolSuggested: normalizedToolName,
+    toolExecuted: record.toolName,
+    success: true,
+    confidence: resolveLearningConfidence({ context, toolName: record.toolName }),
+  });
 
   return {
     ok: true,

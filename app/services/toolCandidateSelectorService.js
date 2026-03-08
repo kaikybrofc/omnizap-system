@@ -7,6 +7,10 @@ import {
   listLearnedKeywords,
   listLearnedPatterns,
 } from './aiLearningRepository.js';
+import {
+  getCommandConfigEnrichmentVersion,
+  listAppliedCommandConfigEnrichmentStates,
+} from './commandConfigEnrichmentRepository.js';
 
 const DEFAULT_TOOL_SELECTION_MAX_CANDIDATES = 8;
 const DEFAULT_TOOL_SELECTION_MIN_SCORE = 0.2;
@@ -15,6 +19,8 @@ const DEFAULT_TOOL_SELECTION_CACHE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_TOOL_SELECTION_CACHE_MAX_ENTRIES = 800;
 const DEFAULT_TOOL_SELECTION_LEARNED_REFRESH_MS = 60_000;
 const DEFAULT_TOOL_SELECTION_LEARNED_MAX_ROWS = 10_000;
+const DEFAULT_TOOL_SELECTION_ENRICHMENT_REFRESH_MS = 120_000;
+const DEFAULT_TOOL_SELECTION_ENRICHMENT_MAX_ROWS = 10_000;
 const MIN_BM25_DOCS = 3;
 
 const BM25_WEIGHT = 0.35;
@@ -75,6 +81,7 @@ const STOPWORDS = new Set([
 let cachedIndexSnapshot = null;
 let cachedIndexSignature = '';
 let learnedRefreshPromise = null;
+let commandConfigRefreshPromise = null;
 
 let learnedKnowledgeCache = {
   loaded: false,
@@ -83,6 +90,14 @@ let learnedKnowledgeCache = {
   nextRefreshAt: 0,
   keywordsByTool: new Map(),
   patternsByTool: new Map(),
+};
+
+let commandConfigEnrichmentCache = {
+  loaded: false,
+  version: '0:0:0',
+  lastLoadedAt: 0,
+  nextRefreshAt: 0,
+  overlayByModuleCommand: new Map(),
 };
 
 const parseEnvInt = (value, fallback, min, max) => {
@@ -136,6 +151,18 @@ const TOOL_SELECTION_LEARNED_REFRESH_MS = parseEnvInt(
 const TOOL_SELECTION_LEARNED_MAX_ROWS = parseEnvInt(
   process.env.TOOL_SELECTION_LEARNED_MAX_ROWS,
   DEFAULT_TOOL_SELECTION_LEARNED_MAX_ROWS,
+  100,
+  50_000,
+);
+const TOOL_SELECTION_ENRICHMENT_REFRESH_MS = parseEnvInt(
+  process.env.TOOL_SELECTION_ENRICHMENT_REFRESH_MS,
+  DEFAULT_TOOL_SELECTION_ENRICHMENT_REFRESH_MS,
+  5_000,
+  30 * 60 * 1000,
+);
+const TOOL_SELECTION_ENRICHMENT_MAX_ROWS = parseEnvInt(
+  process.env.TOOL_SELECTION_ENRICHMENT_MAX_ROWS,
+  DEFAULT_TOOL_SELECTION_ENRICHMENT_MAX_ROWS,
   100,
   50_000,
 );
@@ -275,8 +302,15 @@ const pruneCache = (nowMs = Date.now()) => {
   }
 };
 
-const buildCacheKey = ({ message, limit, minScore, signature, learnedVersion }) =>
-  `${signature}|${learnedVersion}|${limit}|${roundScore(minScore)}|${normalizeText(message)}`;
+const buildCacheKey = ({
+  message,
+  limit,
+  minScore,
+  signature,
+  learnedVersion,
+  commandConfigVersion,
+}) =>
+  `${signature}|${learnedVersion}|${commandConfigVersion}|${limit}|${roundScore(minScore)}|${normalizeText(message)}`;
 
 const extractBm25Scores = (bm25Engine, queryText) => {
   const rawResults = bm25Engine?.search?.(queryText);
@@ -488,6 +522,53 @@ const buildLearnedKnowledgeMaps = ({ patterns = [], keywords = [] }) => {
   };
 };
 
+const buildModuleCommandKey = (moduleKey, commandName) =>
+  `${normalizeText(moduleKey)}:${normalizeText(commandName)}`;
+
+const buildCommandConfigOverlayMaps = (states = []) => {
+  const overlayByModuleCommand = new Map();
+  for (const state of states) {
+    const key = buildModuleCommandKey(state?.module_key, state?.command_name);
+    if (!key || key === ':') continue;
+
+    const overlay = state?.overlay && typeof state.overlay === 'object' ? state.overlay : {};
+    const capabilityKeywords = unique(overlay?.capability_keywords || []);
+    const faqPatterns = unique(overlay?.faq_patterns || []);
+    const userPhrasings = unique(overlay?.user_phrasings || []);
+    const methodHints = unique(overlay?.metodos_de_uso_sugeridos || []);
+    const descricaoSugerida = String(overlay?.descricao_sugerida || '').trim();
+
+    const overlayKeywordTokens = new Set(
+      tokenizeText(
+        [capabilityKeywords.join(' '), faqPatterns.join(' '), userPhrasings.join(' ')].join(' '),
+      ),
+    );
+    const overlayMatchPhrases = unique([
+      descricaoSugerida,
+      ...capabilityKeywords,
+      ...faqPatterns,
+      ...userPhrasings,
+      ...methodHints,
+    ]);
+
+    overlayByModuleCommand.set(key, {
+      capabilityKeywords,
+      faqPatterns,
+      userPhrasings,
+      methodHints,
+      descricaoSugerida,
+      overlayKeywordTokens,
+      overlayMatchPhrases,
+      version: Number(state?.version || 0),
+      confidence: clamp01(state?.confidence),
+    });
+  }
+
+  return {
+    overlayByModuleCommand,
+  };
+};
+
 const refreshLearnedKnowledgeCache = async ({ force = false } = {}) => {
   const nowMs = Date.now();
   if (
@@ -549,6 +630,67 @@ const refreshLearnedKnowledgeCache = async ({ force = false } = {}) => {
   }
 };
 
+const refreshCommandConfigEnrichmentCache = async ({ force = false } = {}) => {
+  const nowMs = Date.now();
+  if (
+    !force &&
+    commandConfigEnrichmentCache.loaded &&
+    commandConfigEnrichmentCache.nextRefreshAt > nowMs &&
+    commandConfigEnrichmentCache.version
+  ) {
+    return commandConfigEnrichmentCache;
+  }
+
+  if (commandConfigRefreshPromise) {
+    return commandConfigRefreshPromise;
+  }
+
+  commandConfigRefreshPromise = (async () => {
+    const versionInfo = await getCommandConfigEnrichmentVersion();
+    const nextVersion = String(versionInfo?.version || '0:0:0');
+
+    if (
+      !force &&
+      commandConfigEnrichmentCache.loaded &&
+      commandConfigEnrichmentCache.version === nextVersion
+    ) {
+      commandConfigEnrichmentCache = {
+        ...commandConfigEnrichmentCache,
+        nextRefreshAt: nowMs + TOOL_SELECTION_ENRICHMENT_REFRESH_MS,
+      };
+      return commandConfigEnrichmentCache;
+    }
+
+    const states = await listAppliedCommandConfigEnrichmentStates({
+      limit: TOOL_SELECTION_ENRICHMENT_MAX_ROWS,
+    });
+    const maps = buildCommandConfigOverlayMaps(states);
+
+    commandConfigEnrichmentCache = {
+      loaded: true,
+      version: nextVersion,
+      lastLoadedAt: nowMs,
+      nextRefreshAt: nowMs + TOOL_SELECTION_ENRICHMENT_REFRESH_MS,
+      overlayByModuleCommand: maps.overlayByModuleCommand,
+    };
+
+    logger.info('Cache de enriquecimento aplicado de commandConfig atualizado.', {
+      action: 'tool_candidate_command_config_cache_refreshed',
+      version: nextVersion,
+      state_count: states.length,
+      enriched_commands: maps.overlayByModuleCommand.size,
+    });
+
+    return commandConfigEnrichmentCache;
+  })();
+
+  try {
+    return await commandConfigRefreshPromise;
+  } finally {
+    commandConfigRefreshPromise = null;
+  }
+};
+
 const buildSelectionFromEntries = ({
   rankedEntries = [],
   fallbackUsed = false,
@@ -573,6 +715,7 @@ const buildSelectionFromEntries = ({
       learnedPatternsScore: roundScore(entry.learnedPatternsScore),
       fuzzyScore: roundScore(entry.fuzzyScore),
       popularityScore: roundScore(entry.popularityScore),
+      commandConfigOverlayVersion: Number(entry.commandConfigOverlayVersion || 0),
       usageCount: Number(entry.learningSignals?.usageCount || 0),
       successRate: roundScore(entry.learningSignals?.successRate),
     })),
@@ -584,7 +727,10 @@ export const selectCandidateTools = async (userMessage, limit = TOOL_SELECTION_M
   const safeLimit = Math.max(1, Math.min(32, Number(limit) || TOOL_SELECTION_MAX_CANDIDATES));
   const minScore = TOOL_SELECTION_MIN_SCORE;
   const snapshot = buildOrGetIndexSnapshot();
-  const learnedKnowledge = await refreshLearnedKnowledgeCache();
+  const [learnedKnowledge, commandConfigKnowledge] = await Promise.all([
+    refreshLearnedKnowledgeCache(),
+    refreshCommandConfigEnrichmentCache(),
+  ]);
 
   if (!snapshot.entries.length) {
     return {
@@ -606,6 +752,7 @@ export const selectCandidateTools = async (userMessage, limit = TOOL_SELECTION_M
     minScore,
     signature: snapshot.signature,
     learnedVersion: learnedKnowledge.version,
+    commandConfigVersion: commandConfigKnowledge.version,
   });
 
   const cached = queryCache.get(cacheKey);
@@ -637,9 +784,20 @@ export const selectCandidateTools = async (userMessage, limit = TOOL_SELECTION_M
       const bm25Score = bm25Scores.get(entry.toolName) || 0;
       const learnedKeywordMap = learnedKnowledge.keywordsByTool.get(entry.toolName) || new Map();
       const learnedPatterns = learnedKnowledge.patternsByTool.get(entry.toolName) || [];
+      const moduleCommandKey = buildModuleCommandKey(entry.moduleKey, entry.commandName);
+      const commandConfigOverlay =
+        commandConfigKnowledge.overlayByModuleCommand.get(moduleCommandKey) || null;
+
+      const effectiveStaticKeywordTokens = commandConfigOverlay
+        ? new Set([...entry.staticKeywordTokens, ...commandConfigOverlay.overlayKeywordTokens])
+        : entry.staticKeywordTokens;
+      const effectiveMatchPhrases = commandConfigOverlay
+        ? unique([...entry.matchPhrases, ...commandConfigOverlay.overlayMatchPhrases])
+        : entry.matchPhrases;
+
       const keywordMatchScore = computeKeywordMatchScore({
         queryTokens,
-        staticKeywordTokens: entry.staticKeywordTokens,
+        staticKeywordTokens: effectiveStaticKeywordTokens,
         learnedKeywordMap,
       });
       const learnedPatternsScore = computeLearnedPatternsScore({
@@ -647,7 +805,7 @@ export const selectCandidateTools = async (userMessage, limit = TOOL_SELECTION_M
         queryTokens,
         learnedPatterns,
       });
-      const fuzzyScore = computeFuzzyScore(normalizedMessage, entry.matchPhrases);
+      const fuzzyScore = computeFuzzyScore(normalizedMessage, effectiveMatchPhrases);
       const finalScore = clamp01(
         bm25Score * BM25_WEIGHT +
           keywordMatchScore * KEYWORD_MATCH_WEIGHT +
@@ -661,6 +819,7 @@ export const selectCandidateTools = async (userMessage, limit = TOOL_SELECTION_M
         keywordMatchScore,
         learnedPatternsScore,
         fuzzyScore,
+        commandConfigOverlayVersion: Number(commandConfigOverlay?.version || 0),
         finalScore,
       };
     })
@@ -729,6 +888,8 @@ export const getToolCandidateSelectorConfig = () => ({
   cacheMaxEntries: TOOL_SELECTION_CACHE_MAX_ENTRIES,
   learnedRefreshMs: TOOL_SELECTION_LEARNED_REFRESH_MS,
   learnedMaxRows: TOOL_SELECTION_LEARNED_MAX_ROWS,
+  commandConfigRefreshMs: TOOL_SELECTION_ENRICHMENT_REFRESH_MS,
+  commandConfigMaxRows: TOOL_SELECTION_ENRICHMENT_MAX_ROWS,
   scoreWeights: {
     bm25: BM25_WEIGHT,
     keywordMatch: KEYWORD_MATCH_WEIGHT,
@@ -740,12 +901,27 @@ export const getToolCandidateSelectorConfig = () => ({
 
 export const warmupToolCandidateSelector = async () => {
   buildOrGetIndexSnapshot();
-  await refreshLearnedKnowledgeCache({ force: true });
+  await Promise.all([
+    refreshLearnedKnowledgeCache({ force: true }),
+    refreshCommandConfigEnrichmentCache({ force: true }),
+  ]);
 };
 
 export const markToolCandidateLearningCacheDirty = () => {
   learnedKnowledgeCache = {
     ...learnedKnowledgeCache,
+    nextRefreshAt: 0,
+  };
+  commandConfigEnrichmentCache = {
+    ...commandConfigEnrichmentCache,
+    nextRefreshAt: 0,
+  };
+  queryCache.clear();
+};
+
+export const markToolCandidateCommandConfigCacheDirty = () => {
+  commandConfigEnrichmentCache = {
+    ...commandConfigEnrichmentCache,
     nextRefreshAt: 0,
   };
   queryCache.clear();
@@ -763,5 +939,13 @@ export const resetToolCandidateSelectorCacheForTests = () => {
     keywordsByTool: new Map(),
     patternsByTool: new Map(),
   };
+  commandConfigEnrichmentCache = {
+    loaded: false,
+    version: '0:0:0',
+    lastLoadedAt: 0,
+    nextRefreshAt: 0,
+    overlayByModuleCommand: new Map(),
+  };
   learnedRefreshPromise = null;
+  commandConfigRefreshPromise = null;
 };
