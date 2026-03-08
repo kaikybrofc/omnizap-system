@@ -93,21 +93,13 @@ const ensurePageConfig = (page) => {
 
 const renderSection = (section) => {
   const title = String(section?.title || '').trim();
-  const paragraphs = Array.isArray(section?.paragraphs)
-    ? section.paragraphs.map((item) => String(item || '').trim()).filter(Boolean)
-    : [];
-  const bullets = Array.isArray(section?.bullets)
-    ? section.bullets.map((item) => String(item || '').trim()).filter(Boolean)
-    : [];
+  const paragraphs = Array.isArray(section?.paragraphs) ? section.paragraphs.map((item) => String(item || '').trim()).filter(Boolean) : [];
+  const bullets = Array.isArray(section?.bullets) ? section.bullets.map((item) => String(item || '').trim()).filter(Boolean) : [];
 
   if (!title && paragraphs.length === 0 && bullets.length === 0) return '';
 
-  const paragraphsHtml = paragraphs
-    .map((paragraph) => `        <p>${escapeHtml(paragraph)}</p>`)
-    .join('\n');
-  const bulletsHtml = bullets.length
-    ? `\n        <ul>\n${bullets.map((bullet) => `          <li>${escapeHtml(bullet)}</li>`).join('\n')}\n        </ul>`
-    : '';
+  const paragraphsHtml = paragraphs.map((paragraph) => `        <p>${escapeHtml(paragraph)}</p>`).join('\n');
+  const bulletsHtml = bullets.length ? `\n        <ul>\n${bullets.map((bullet) => `          <li>${escapeHtml(bullet)}</li>`).join('\n')}\n        </ul>` : '';
 
   return `<section class="card">\n      ${title ? `<h2>${escapeHtml(title)}</h2>` : ''}\n${paragraphsHtml}${bulletsHtml}\n    </section>`;
 };
@@ -434,9 +426,7 @@ const run = async () => {
   const rawConfig = await fs.readFile(absoluteConfigPath, 'utf8');
   const parsedConfig = JSON.parse(rawConfig);
   const pages = Array.isArray(parsedConfig?.pages) ? parsedConfig.pages : [];
-  const generatedAt = String(
-    parsedConfig?.generated_at || new Date().toISOString().slice(0, 10),
-  ).trim();
+  const generatedAt = String(parsedConfig?.generated_at || new Date().toISOString().slice(0, 10)).trim();
 
   if (!pages.length) {
     throw new Error('config sem paginas');

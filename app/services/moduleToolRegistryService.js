@@ -23,9 +23,7 @@ const discoverCommandConfigFiles = () => {
 
   let moduleDirs = [];
   try {
-    moduleDirs = fs
-      .readdirSync(MODULES_DIR, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory());
+    moduleDirs = fs.readdirSync(MODULES_DIR, { withFileTypes: true }).filter((entry) => entry.isDirectory());
   } catch {
     return entries;
   }
@@ -54,8 +52,7 @@ const discoverCommandConfigFiles = () => {
   return entries.sort((a, b) => a.configPath.localeCompare(b.configPath));
 };
 
-const buildSignature = (files = []) =>
-  files.map((entry) => `${entry.configPath}:${entry.mtimeMs}`).join('|');
+const buildSignature = (files = []) => files.map((entry) => `${entry.configPath}:${entry.mtimeMs}`).join('|');
 
 let cachedRegistry = null;
 let cachedSignature = '';
@@ -115,9 +112,7 @@ const buildRegistrySnapshot = () => {
         toolName,
         moduleKey,
         commandName: normalizeText(commandEntry.name),
-        aliases: Array.isArray(commandEntry.aliases)
-          ? commandEntry.aliases.map((alias) => normalizeText(alias)).filter(Boolean)
-          : [],
+        aliases: Array.isArray(commandEntry.aliases) ? commandEntry.aliases.map((alias) => normalizeText(alias)).filter(Boolean) : [],
         commandEntry,
         argumentSpecs: Array.isArray(built.argumentSpecs) ? built.argumentSpecs : [],
         tool: built.tool,

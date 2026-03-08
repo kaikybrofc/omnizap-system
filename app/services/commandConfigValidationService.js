@@ -64,15 +64,7 @@ const validateLegacyPreConditions = (preCondicoes, errors, context) => {
     errors.push(`${context}: pre_condicoes ausente/invalido`);
     return;
   }
-  const requiredBooleans = [
-    'requer_grupo',
-    'requer_admin',
-    'requer_admin_principal',
-    'requer_google_login',
-    'requer_nsfw',
-    'requer_midia',
-    'requer_mensagem_respondida',
-  ];
+  const requiredBooleans = ['requer_grupo', 'requer_admin', 'requer_admin_principal', 'requer_google_login', 'requer_nsfw', 'requer_midia', 'requer_mensagem_respondida'];
   for (const field of requiredBooleans) {
     ensureBooleanField(preCondicoes, field, errors, `${context}.pre_condicoes`);
   }
@@ -103,15 +95,7 @@ const validateV2RequirementsShape = (requirements, errors, context) => {
     errors.push(`${context}: requirements ausente/invalido`);
     return;
   }
-  const requiredBooleans = [
-    'require_group',
-    'require_group_admin',
-    'require_bot_owner',
-    'require_google_login',
-    'require_nsfw_enabled',
-    'require_media',
-    'require_reply_message',
-  ];
+  const requiredBooleans = ['require_group', 'require_group_admin', 'require_bot_owner', 'require_google_login', 'require_nsfw_enabled', 'require_media', 'require_reply_message'];
   for (const field of requiredBooleans) {
     ensureBooleanField(requirements, field, errors, `${context}.requirements`);
   }
@@ -130,14 +114,7 @@ const validateV2CommandShape = (command, { moduleDir, moduleKey }) => {
   const errors = [];
   const context = `${moduleDir}.${String(command?.name || 'command')}`;
 
-  const requiredStringFields = [
-    'id',
-    'description',
-    'permission',
-    'version',
-    'stability',
-    'risk_level',
-  ];
+  const requiredStringFields = ['id', 'description', 'permission', 'version', 'stability', 'risk_level'];
   for (const field of requiredStringFields) {
     ensureStringField(command, field, errors, context);
   }
@@ -180,14 +157,8 @@ const validateV2CommandShape = (command, { moduleDir, moduleKey }) => {
   validateV2HandlerShape(command.handler, errors, context);
 
   const expectedPrefix = `${moduleKey}.`;
-  if (
-    typeof command.id === 'string' &&
-    command.id.trim() &&
-    !command.id.startsWith(expectedPrefix)
-  ) {
-    errors.push(
-      `${context}: id fora do prefixo esperado '${expectedPrefix}' (recebido: ${command.id})`,
-    );
+  if (typeof command.id === 'string' && command.id.trim() && !command.id.startsWith(expectedPrefix)) {
+    errors.push(`${context}: id fora do prefixo esperado '${expectedPrefix}' (recebido: ${command.id})`);
   }
 
   return errors;
@@ -239,9 +210,7 @@ const validateStructuralShapes = ({ modules }) => {
     for (const command of commands) {
       errors.push(...validateLegacyCommandShape(command, moduleEntry));
       if (Number.isFinite(major) && major >= 2) {
-        errors.push(
-          ...validateV2CommandShape(command, { moduleDir: moduleEntry.moduleDir, moduleKey }),
-        );
+        errors.push(...validateV2CommandShape(command, { moduleDir: moduleEntry.moduleDir, moduleKey }));
       }
     }
 
@@ -252,19 +221,11 @@ const validateStructuralShapes = ({ modules }) => {
   return { errors, validatedModules, validatedCommands };
 };
 
-const buildCommandRef = ({ moduleName, commandName }) =>
-  `${String(moduleName || '').trim() || 'module'}.${String(commandName || '').trim() || 'command'}`;
+const buildCommandRef = ({ moduleName, commandName }) => `${String(moduleName || '').trim() || 'module'}.${String(commandName || '').trim() || 'command'}`;
 
 const methodExistsInSource = (source, methodName) => {
   const escaped = escapeRegExp(methodName);
-  const patterns = [
-    new RegExp(`export\\s+(?:async\\s+)?function\\s+${escaped}\\b`),
-    new RegExp(`export\\s+const\\s+${escaped}\\b`),
-    new RegExp(`export\\s+\\{[^}]*\\b${escaped}\\b[^}]*\\}`, 's'),
-    new RegExp(`\\bfunction\\s+${escaped}\\b`),
-    new RegExp(`\\b${escaped}\\s*:\\s*(?:async\\s*)?\\(`),
-    new RegExp(`^\\s*(?:async\\s+)?${escaped}\\s*\\(`, 'm'),
-  ];
+  const patterns = [new RegExp(`export\\s+(?:async\\s+)?function\\s+${escaped}\\b`), new RegExp(`export\\s+const\\s+${escaped}\\b`), new RegExp(`export\\s+\\{[^}]*\\b${escaped}\\b[^}]*\\}`, 's'), new RegExp(`\\bfunction\\s+${escaped}\\b`), new RegExp(`\\b${escaped}\\s*:\\s*(?:async\\s*)?\\(`), new RegExp(`^\\s*(?:async\\s+)?${escaped}\\s*\\(`, 'm')];
   return patterns.some((regex) => regex.test(source));
 };
 
@@ -273,10 +234,7 @@ const validateHandlerReferences = ({ modules }) => {
   const sourceCache = new Map();
 
   for (const moduleEntry of modules) {
-    const major = Number.parseInt(
-      String(moduleEntry.config?.schema_version || '').split('.')[0],
-      10,
-    );
+    const major = Number.parseInt(String(moduleEntry.config?.schema_version || '').split('.')[0], 10);
     const requireHandler = Number.isFinite(major) && major >= 2;
     const commands = Array.isArray(moduleEntry.config?.commands) ? moduleEntry.config.commands : [];
     const moduleName = moduleEntry.config?.module || moduleEntry.moduleDir;
@@ -303,14 +261,9 @@ const validateHandlerReferences = ({ modules }) => {
       }
 
       const absoluteHandlerPath = path.resolve(moduleEntry.modulePath, file);
-      const modulePathWithSep = moduleEntry.modulePath.endsWith(path.sep)
-        ? moduleEntry.modulePath
-        : `${moduleEntry.modulePath}${path.sep}`;
+      const modulePathWithSep = moduleEntry.modulePath.endsWith(path.sep) ? moduleEntry.modulePath : `${moduleEntry.modulePath}${path.sep}`;
 
-      if (
-        absoluteHandlerPath !== moduleEntry.modulePath &&
-        !absoluteHandlerPath.startsWith(modulePathWithSep)
-      ) {
+      if (absoluteHandlerPath !== moduleEntry.modulePath && !absoluteHandlerPath.startsWith(modulePathWithSep)) {
         errors.push(`${commandRef}: handler.file aponta para fora do modulo (${file})`);
         continue;
       }
@@ -395,9 +348,7 @@ const validateGlobalCollisions = ({ modules }) => {
   for (const [token, entries] of tokenMap.entries()) {
     const distinctCommands = new Map(entries.map((entry) => [entry.commandRef, entry]));
     if (distinctCommands.size <= 1) continue;
-    const entryList = [...distinctCommands.values()]
-      .map((entry) => `${entry.commandRef} (${entry.source}:${entry.token})`)
-      .join(' | ');
+    const entryList = [...distinctCommands.values()].map((entry) => `${entry.commandRef} (${entry.source}:${entry.token})`).join(' | ');
     errors.push(`colisao de comando/alias '${token}': ${entryList}`);
   }
 
@@ -425,9 +376,7 @@ export const validateAllCommandConfigs = () => {
         config,
       });
     } catch (error) {
-      errors.push(
-        `${entry.moduleDir}: falha ao ler/parsear commandConfig.json (${error?.message})`,
-      );
+      errors.push(`${entry.moduleDir}: falha ao ler/parsear commandConfig.json (${error?.message})`);
     }
   }
 
@@ -463,9 +412,7 @@ export const formatCommandConfigValidationReport = (report, { maxErrors = 40 } =
   if (!report || typeof report !== 'object') return 'Relatorio de validacao indisponivel.';
 
   const lines = [];
-  lines.push(
-    `modules_validated=${report.modulesValidated ?? 0} commands_validated=${report.commandsValidated ?? 0}`,
-  );
+  lines.push(`modules_validated=${report.modulesValidated ?? 0} commands_validated=${report.commandsValidated ?? 0}`);
 
   const warnings = Array.isArray(report.warnings) ? report.warnings : [];
   const errors = Array.isArray(report.errors) ? report.errors : [];

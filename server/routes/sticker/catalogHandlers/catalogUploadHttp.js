@@ -2,16 +2,7 @@ const METHOD_NOT_ALLOWED_BODY = { error: 'Metodo nao permitido.' };
 
 const isPublishStateMethod = (method) => method === 'GET' || method === 'HEAD' || method === 'POST';
 
-export const handleCatalogUploadRoutes = async ({
-  req,
-  res,
-  pathname,
-  url,
-  segments,
-  apiBasePath,
-  handlers,
-  sendJson,
-}) => {
+export const handleCatalogUploadRoutes = async ({ req, res, pathname, url, segments, apiBasePath, handlers, sendJson }) => {
   if (pathname === `${apiBasePath}/create`) {
     if (req.method !== 'POST') {
       sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);
@@ -56,12 +47,7 @@ export const handleCatalogUploadRoutes = async ({
     return true;
   }
 
-  if (
-    segments.length === 5 &&
-    segments[1] === 'manage' &&
-    segments[2] === 'stickers' &&
-    segments[4] === 'replace'
-  ) {
+  if (segments.length === 5 && segments[1] === 'manage' && segments[2] === 'stickers' && segments[4] === 'replace') {
     await handlers.handleManagedPackStickerReplaceRequest(req, res, segments[0], segments[3]);
     return true;
   }

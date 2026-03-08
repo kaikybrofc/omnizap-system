@@ -37,8 +37,7 @@ const parseAcceptedAtClientDate = (value) => {
   return new Date(parsedAt);
 };
 
-const buildLegalDocumentVersionHash = (documentKey, documentVersion) =>
-  createHash('sha256').update(`${documentKey}:${documentVersion}`).digest('hex');
+const buildLegalDocumentVersionHash = (documentKey, documentVersion) => createHash('sha256').update(`${documentKey}:${documentVersion}`).digest('hex');
 
 const defaultSanitizeText = (value, maxLength, { allowEmpty = true } = {}) => {
   const normalized = String(value || '')
@@ -48,22 +47,7 @@ const defaultSanitizeText = (value, maxLength, { allowEmpty = true } = {}) => {
   return normalized;
 };
 
-export const createTermsAcceptanceHandler = ({
-  executeQuery,
-  tables,
-  logger,
-  sendJson,
-  readJsonBody,
-  parseTermsAcceptancePayload,
-  parseCookies,
-  resolveGoogleWebSessionFromRequest,
-  normalizeGoogleSubject,
-  normalizeEmail,
-  normalizeJid,
-  resolveRequestRemoteIp,
-  sanitizeText,
-  webSessionCookieName = 'omnizap_sid',
-}) => {
+export const createTermsAcceptanceHandler = ({ executeQuery, tables, logger, sendJson, readJsonBody, parseTermsAcceptancePayload, parseCookies, resolveGoogleWebSessionFromRequest, normalizeGoogleSubject, normalizeEmail, normalizeJid, resolveRequestRemoteIp, sanitizeText, webSessionCookieName = 'omnizap_sid' }) => {
   const sanitize = typeof sanitizeText === 'function' ? sanitizeText : defaultSanitizeText;
 
   const legalTermsVersion =
@@ -94,8 +78,7 @@ export const createTermsAcceptanceHandler = ({
       const documentKey = normalizeLegalDocumentKey(doc?.document_key);
       if (!documentKey) continue;
       const fallbackVersion = legalDocumentRegistry[documentKey] || '';
-      const documentVersion =
-        normalizeLegalDocumentVersion(doc?.document_version) || fallbackVersion;
+      const documentVersion = normalizeLegalDocumentVersion(doc?.document_version) || fallbackVersion;
       if (!documentVersion) continue;
       const uniqueKey = `${documentKey}:${documentVersion}`;
       if (uniqueByVersion.has(uniqueKey)) continue;
@@ -163,27 +146,10 @@ export const createTermsAcceptanceHandler = ({
       legal_document_registry: legalDocumentRegistry,
     });
 
-    const valueRows = acceptedDocuments
-      .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .join(', ');
+    const valueRows = acceptedDocuments.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
     const params = [];
     for (const doc of acceptedDocuments) {
-      params.push(
-        randomUUID(),
-        doc.documentKey,
-        doc.documentVersion,
-        doc.documentVersionHash,
-        acceptedAt,
-        acceptedAtClient,
-        source,
-        normalizedGoogleSub || null,
-        normalizedEmail || null,
-        normalizedOwnerJid || null,
-        sessionKey || null,
-        remoteIp || null,
-        userAgent,
-        metadata,
-      );
+      params.push(randomUUID(), doc.documentKey, doc.documentVersion, doc.documentVersionHash, acceptedAt, acceptedAtClient, source, normalizedGoogleSub || null, normalizedEmail || null, normalizedOwnerJid || null, sessionKey || null, remoteIp || null, userAgent, metadata);
     }
 
     try {

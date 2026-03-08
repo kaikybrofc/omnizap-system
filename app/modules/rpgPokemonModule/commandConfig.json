@@ -145,58 +145,14 @@
       "name": "pokemon",
       "aliases": ["rpg"],
       "descricao": "Comando principal do RPG Pokemon (exploracao, batalha, loja e social).",
-      "metodos_de_uso": [
-        "<prefix>pokemon help",
-        "<prefix>pokemon start",
-        "<prefix>pokemon explorar",
-        "<prefix>pokemon atacar 1"
-      ],
+      "metodos_de_uso": ["<prefix>pokemon help", "<prefix>pokemon start", "<prefix>pokemon explorar", "<prefix>pokemon atacar 1"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "subcomandos permitidos pelo modulo",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "acao/subcomando do RPG e argumentos complementares",
-        "mencoes usadas em interacoes sociais/PvP",
-        "estado do jogador e da sessao RPG no backend"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "acao/subcomando do RPG e argumentos complementares", "mencoes usadas em interacoes sociais/PvP", "estado do jogador e da sessao RPG no backend"],
       "enabled": true,
       "categoria": "jogos",
-      "subcomandos": [
-        "help",
-        "ajuda",
-        "start",
-        "perfil",
-        "explorar",
-        "atacar",
-        "capturar",
-        "fugir",
-        "time",
-        "escolher",
-        "loja",
-        "comprar",
-        "usar",
-        "bolsa",
-        "pokedex",
-        "evolucao",
-        "missoes",
-        "viajar",
-        "tm",
-        "berry",
-        "raid",
-        "desafiar",
-        "pvp",
-        "ginasio",
-        "trade",
-        "coop",
-        "evento",
-        "social",
-        "karma",
-        "engajamento"
-      ],
+      "subcomandos": ["help", "ajuda", "start", "perfil", "explorar", "atacar", "capturar", "fugir", "time", "escolher", "loja", "comprar", "usar", "bolsa", "pokedex", "evolucao", "missoes", "viajar", "tm", "berry", "raid", "desafiar", "pvp", "ginasio", "trade", "coop", "evento", "social", "karma", "engajamento"],
       "argumentos": [
         {
           "nome": "acao",
@@ -240,21 +196,13 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do chat",
-          "identificador do remetente",
-          "conteudo textual do comando"
-        ],
+        "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": ["pokemon", "jogos", "privado", "grupo"],
       "faq_patterns": ["como usar pokemon", "o que faz pokemon", "comando pokemon"],
-      "user_phrasings": [
-        "quero usar pokemon",
-        "me ajuda com pokemon",
-        "comando principal do pokemon"
-      ],
+      "user_phrasings": ["quero usar pokemon", "me ajuda com pokemon", "comando principal do pokemon"],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
@@ -273,49 +221,21 @@
         }
       },
       "mensagens_uso": {
-        "default": [
-          "<prefix>pokemon help",
-          "<prefix>pokemon start",
-          "<prefix>pokemon explorar",
-          "<prefix>pokemon atacar 1"
-        ]
+        "default": ["<prefix>pokemon help", "<prefix>pokemon start", "<prefix>pokemon explorar", "<prefix>pokemon atacar 1"]
       },
       "id": "rpgpokemon.pokemon",
       "description": "Comando principal do RPG Pokemon (exploracao, batalha, loja e social).",
-      "usage": [
-        "<prefix>pokemon help",
-        "<prefix>pokemon start",
-        "<prefix>pokemon explorar",
-        "<prefix>pokemon atacar 1"
-      ],
+      "usage": ["<prefix>pokemon help", "<prefix>pokemon start", "<prefix>pokemon explorar", "<prefix>pokemon atacar 1"],
       "docs": {
         "summary": "Comando principal do RPG Pokemon (exploracao, batalha, loja e social).",
-        "usage_examples": [
-          "<prefix>pokemon help",
-          "<prefix>pokemon start",
-          "<prefix>pokemon explorar",
-          "<prefix>pokemon atacar 1"
-        ],
+        "usage_examples": ["<prefix>pokemon help", "<prefix>pokemon start", "<prefix>pokemon explorar", "<prefix>pokemon atacar 1"],
         "usage_variants": {
-          "default": [
-            "<prefix>pokemon help",
-            "<prefix>pokemon start",
-            "<prefix>pokemon explorar",
-            "<prefix>pokemon atacar 1"
-          ]
+          "default": ["<prefix>pokemon help", "<prefix>pokemon start", "<prefix>pokemon explorar", "<prefix>pokemon atacar 1"]
         }
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "acao/subcomando do RPG e argumentos complementares",
-        "mencoes usadas em interacoes sociais/PvP",
-        "estado do jogador e da sessao RPG no backend"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "acao/subcomando do RPG e argumentos complementares", "mencoes usadas em interacoes sociais/PvP", "estado do jogador e da sessao RPG no backend"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -364,38 +284,7 @@
       ],
       "behavior": {
         "type": "subcommand",
-        "allowed_actions": [
-          "help",
-          "ajuda",
-          "start",
-          "perfil",
-          "explorar",
-          "atacar",
-          "capturar",
-          "fugir",
-          "time",
-          "escolher",
-          "loja",
-          "comprar",
-          "usar",
-          "bolsa",
-          "pokedex",
-          "evolucao",
-          "missoes",
-          "viajar",
-          "tm",
-          "berry",
-          "raid",
-          "desafiar",
-          "pvp",
-          "ginasio",
-          "trade",
-          "coop",
-          "evento",
-          "social",
-          "karma",
-          "engajamento"
-        ]
+        "allowed_actions": ["help", "ajuda", "start", "perfil", "explorar", "atacar", "capturar", "fugir", "time", "escolher", "loja", "comprar", "usar", "bolsa", "pokedex", "evolucao", "missoes", "viajar", "tm", "berry", "raid", "desafiar", "pvp", "ginasio", "trade", "coop", "evento", "social", "karma", "engajamento"]
       },
       "limits": {
         "usage_description": "subcomandos permitidos pelo modulo",
@@ -443,11 +332,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do chat",
-            "identificador do remetente",
-            "conteudo textual do comando"
-          ],
+          "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -455,11 +340,7 @@
       "discovery": {
         "keywords": ["pokemon", "jogos", "privado", "grupo"],
         "faq_queries": ["como usar pokemon", "o que faz pokemon", "comando pokemon"],
-        "user_phrasings": [
-          "quero usar pokemon",
-          "me ajuda com pokemon",
-          "comando principal do pokemon"
-        ],
+        "user_phrasings": ["quero usar pokemon", "me ajuda com pokemon", "comando principal do pokemon"],
         "suggestion_priority": 100
       },
       "access": {
@@ -495,21 +376,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "pokemon",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     }
   ],

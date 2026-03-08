@@ -45,10 +45,7 @@ export const getSystemMetrics = () => {
   const uptime = formatDuration(processUptimeSeconds);
   const systemUptime = formatDuration(systemUptimeSeconds);
   const loadAverage = os.loadavg();
-  const cpuSpeedAverage =
-    totalCpus > 0
-      ? Math.round(cpus.reduce((sum, cpu) => sum + (cpu.speed || 0), 0) / totalCpus)
-      : 0;
+  const cpuSpeedAverage = totalCpus > 0 ? Math.round(cpus.reduce((sum, cpu) => sum + (cpu.speed || 0), 0) / totalCpus) : 0;
   const memoryUsage = process.memoryUsage();
 
   return {

@@ -4,13 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
-const BASE_URL = String(process.env.SECURITY_TEST_BASE_URL || 'http://127.0.0.1:9102').replace(
-  /\/+$/,
-  '',
-);
-const REPORT_PATH = String(
-  process.env.SECURITY_TEST_REPORT_PATH || './temp/security-smoketest-report.json',
-).trim();
+const BASE_URL = String(process.env.SECURITY_TEST_BASE_URL || 'http://127.0.0.1:9102').replace(/\/+$/, '');
+const REPORT_PATH = String(process.env.SECURITY_TEST_REPORT_PATH || './temp/security-smoketest-report.json').trim();
 const REQUEST_TIMEOUT_MS = Math.max(1_000, Number(process.env.SECURITY_TEST_TIMEOUT_MS || 10_000));
 
 const PASS = 'PASS';
@@ -18,8 +13,7 @@ const WARN = 'WARN';
 const FAIL = 'FAIL';
 const MANUAL = 'MANUAL';
 
-const sqlErrorRegex =
-  /(sql syntax|syntax error|mysql|sqlite|postgres|odbc|query failed|unclosed quotation|ORA-\d+)/i;
+const sqlErrorRegex = /(sql syntax|syntax error|mysql|sqlite|postgres|odbc|query failed|unclosed quotation|ORA-\d+)/i;
 
 const nowIso = () => new Date().toISOString();
 
@@ -77,11 +71,7 @@ const summarizeStatuses = (items) =>
 
 const testSqlInjection = async () => {
   const payloads = ["' OR 1=1--", '" OR "1"="1', '1;DROP TABLE users;--'];
-  const routes = [
-    '/api/sticker-packs?q=',
-    '/api/sticker-packs/creators?q=',
-    '/api/sticker-packs/recommendations?q=',
-  ];
+  const routes = ['/api/sticker-packs?q=', '/api/sticker-packs/creators?q=', '/api/sticker-packs/recommendations?q='];
   const evidence = [];
   let hasFailure = false;
 
@@ -105,20 +95,14 @@ const testSqlInjection = async () => {
     id: 1,
     name: 'SQL Injection',
     status: hasFailure ? FAIL : PASS,
-    note: hasFailure
-      ? 'Há indícios de falha/erro SQL em payload de injeção.'
-      : 'Payloads SQLi não causaram erro SQL nem 5xx.',
+    note: hasFailure ? 'Há indícios de falha/erro SQL em payload de injeção.' : 'Payloads SQLi não causaram erro SQL nem 5xx.',
     evidence,
   };
 };
 
 const testXss = async () => {
   const payload = '<svg/onload=alert(1)>';
-  const routes = [
-    `/stickers?q=${encodeURIComponent(payload)}`,
-    `/user?q=${encodeURIComponent(payload)}`,
-    `/api/sticker-packs?q=${encodeURIComponent(payload)}`,
-  ];
+  const routes = [`/stickers?q=${encodeURIComponent(payload)}`, `/user?q=${encodeURIComponent(payload)}`, `/api/sticker-packs?q=${encodeURIComponent(payload)}`];
   const evidence = [];
   let htmlRawReflected = false;
   let apiRawReflected = false;
@@ -145,12 +129,7 @@ const testXss = async () => {
     id: 2,
     name: 'Cross-Site Scripting (XSS)',
     status,
-    note:
-      status === FAIL
-        ? 'Payload XSS refletido em resposta HTML.'
-        : status === WARN
-          ? 'Payload refletido em API JSON; revisar sanitização no frontend consumidor.'
-          : 'Sem reflexão bruta do payload XSS nas rotas testadas.',
+    note: status === FAIL ? 'Payload XSS refletido em resposta HTML.' : status === WARN ? 'Payload refletido em API JSON; revisar sanitização no frontend consumidor.' : 'Sem reflexão bruta do payload XSS nas rotas testadas.',
     evidence,
   };
 };
@@ -182,10 +161,7 @@ const testCsrf = async () => {
     id: 3,
     name: 'Cross-Site Request Forgery (CSRF)',
     status,
-    note:
-      status === PASS
-        ? 'Fluxo testado bloqueou mutação não autenticada e cookies possuem flags de proteção.'
-        : 'Validação parcial: revisar proteção CSRF em rotas autenticadas com sessão ativa.',
+    note: status === PASS ? 'Fluxo testado bloqueou mutação não autenticada e cookies possuem flags de proteção.' : 'Validação parcial: revisar proteção CSRF em rotas autenticadas com sessão ativa.',
     evidence: [
       {
         path: '/api/sticker-packs/admin/session',
@@ -234,10 +210,7 @@ const testDdosSafe = async () => {
     id: 4,
     name: 'Distributed Denial-of-Service (safe simulation)',
     status,
-    note:
-      status === PASS
-        ? 'Serviço permaneceu estável em burst controlado local.'
-        : 'Houve instabilidade em burst local; revisar capacidade e limites.',
+    note: status === PASS ? 'Serviço permaneceu estável em burst controlado local.' : 'Houve instabilidade em burst local; revisar capacidade e limites.',
     evidence: [
       {
         total,
@@ -266,9 +239,7 @@ const testBruteForce = async () => {
     id: 5,
     name: 'Brute Force Attack',
     status: has429 ? PASS : WARN,
-    note: has429
-      ? 'Rate limiting acionado para tentativas repetidas.'
-      : 'Não foi observado 429 no cenário simulado de força bruta.',
+    note: has429 ? 'Rate limiting acionado para tentativas repetidas.' : 'Não foi observado 429 no cenário simulado de força bruta.',
     evidence: [{ codes }],
   };
 };
@@ -290,20 +261,13 @@ const testCredentialStuffing = async () => {
     id: 6,
     name: 'Credential Stuffing',
     status: has429 ? PASS : WARN,
-    note: has429
-      ? 'Rate limiting também mitigou tentativas com credenciais variadas.'
-      : 'Sem 429 no padrão simulado de credential stuffing.',
+    note: has429 ? 'Rate limiting também mitigou tentativas com credenciais variadas.' : 'Sem 429 no padrão simulado de credential stuffing.',
     evidence: [{ codes }],
   };
 };
 
 const testDirectoryTraversal = async () => {
-  const paths = [
-    '/.env',
-    '/data/../../.env',
-    '/data/%2e%2e/%2e%2e/.env',
-    '/data/%252e%252e/%252e%252e/.env',
-  ];
+  const paths = ['/.env', '/data/../../.env', '/data/%2e%2e/%2e%2e/.env', '/data/%252e%252e/%252e%252e/.env'];
   const evidence = [];
   let leaked = false;
 
@@ -319,9 +283,7 @@ const testDirectoryTraversal = async () => {
     id: 7,
     name: 'Directory Traversal',
     status: leaked ? FAIL : PASS,
-    note: leaked
-      ? 'Há indício de leitura indevida de arquivo sensível.'
-      : 'Tentativas de traversal foram bloqueadas.',
+    note: leaked ? 'Há indício de leitura indevida de arquivo sensível.' : 'Tentativas de traversal foram bloqueadas.',
     evidence,
   };
 };
@@ -338,16 +300,13 @@ const testFileUploadAttack = async () => {
     headers: { 'Content-Type': 'application/octet-stream' },
     body: binaryPayload,
   });
-  const blocked =
-    ![200, 201, 202].includes(resCreate.status) && ![200, 201, 202].includes(resUpload.status);
+  const blocked = ![200, 201, 202].includes(resCreate.status) && ![200, 201, 202].includes(resUpload.status);
 
   return {
     id: 8,
     name: 'File Upload Attack',
     status: blocked ? PASS : WARN,
-    note: blocked
-      ? 'Uploads malformados/suspeitos não foram aceitos no cenário sem autenticação.'
-      : 'Algum upload suspeito retornou sucesso; revisar validações.',
+    note: blocked ? 'Uploads malformados/suspeitos não foram aceitos no cenário sem autenticação.' : 'Algum upload suspeito retornou sucesso; revisar validações.',
     evidence: [
       { path: '/api/sticker-packs/create', status: resCreate.status },
       { path: '/api/sticker-packs/fake-pack/manage/stickers-upload', status: resUpload.status },
@@ -376,14 +335,8 @@ const testSessionHijacking = async () => {
     id: 9,
     name: 'Session Hijacking',
     status,
-    note:
-      status === PASS
-        ? 'Cookie protegido e sessão forjada bloqueada no endpoint admin.'
-        : 'Validação parcial: revisar sessão/cookie para evitar hijacking.',
-    evidence: [
-      { forged_request_status: resForged.status },
-      { cookie_flags: { http_only: hasHttpOnly, same_site: hasSameSite, secure: hasSecure } },
-    ],
+    note: status === PASS ? 'Cookie protegido e sessão forjada bloqueada no endpoint admin.' : 'Validação parcial: revisar sessão/cookie para evitar hijacking.',
+    evidence: [{ forged_request_status: resForged.status }, { cookie_flags: { http_only: hasHttpOnly, same_site: hasSameSite, secure: hasSecure } }],
   };
 };
 
@@ -397,9 +350,7 @@ const testClickjacking = async () => {
     id: 10,
     name: 'Clickjacking',
     status: ok ? PASS : WARN,
-    note: ok
-      ? 'Proteções anti-frame detectadas (X-Frame-Options + frame-ancestors).'
-      : 'Cabeçalhos anti-clickjacking incompletos.',
+    note: ok ? 'Proteções anti-frame detectadas (X-Frame-Options + frame-ancestors).' : 'Cabeçalhos anti-clickjacking incompletos.',
     evidence: [
       {
         status: res.status,
@@ -418,9 +369,7 @@ const testMitm = async () => {
     id: 11,
     name: 'Man-in-the-Middle (header posture)',
     status: hasHsts ? PASS : WARN,
-    note: hasHsts
-      ? 'HSTS presente. Teste MITM real ainda requer ambiente de rede controlado.'
-      : 'HSTS ausente; reforçar proteção em tráfego HTTPS.',
+    note: hasHsts ? 'HSTS presente. Teste MITM real ainda requer ambiente de rede controlado.' : 'HSTS ausente; reforçar proteção em tráfego HTTPS.',
     evidence: [{ status: res.status, hsts: hsts || null }],
   };
 };
@@ -437,9 +386,7 @@ const testSsrf = async () => {
     id: 12,
     name: 'Server-Side Request Forgery (SSRF)',
     status: blocked ? PASS : MANUAL,
-    note: blocked
-      ? 'Payload SSRF não foi processado no cenário testado sem autenticação.'
-      : 'Necessário teste autenticado em endpoint que realmente consome URLs.',
+    note: blocked ? 'Payload SSRF não foi processado no cenário testado sem autenticação.' : 'Necessário teste autenticado em endpoint que realmente consome URLs.',
     evidence: [{ path: '/api/sticker-packs/create', status: res.status }],
   };
 };
@@ -453,9 +400,7 @@ const testRce = async () => {
     id: 13,
     name: 'Remote Code Execution (RCE)',
     status: failed ? WARN : PASS,
-    note: failed
-      ? 'Houve erro/indício que merece investigação manual de RCE.'
-      : 'Sem indício de execução remota nos payloads de smoke test.',
+    note: failed ? 'Houve erro/indício que merece investigação manual de RCE.' : 'Sem indício de execução remota nos payloads de smoke test.',
     evidence: [{ status: res.status, execution_pattern_found: hasExecutionEvidence }],
   };
 };
@@ -469,9 +414,7 @@ const testCommandInjection = async () => {
     id: 14,
     name: 'Command Injection',
     status: failed ? WARN : PASS,
-    note: failed
-      ? 'Houve erro/indício de injeção de comando a investigar.'
-      : 'Sem indício de command injection nos payloads aplicados.',
+    note: failed ? 'Houve erro/indício de injeção de comando a investigar.' : 'Sem indício de command injection nos payloads aplicados.',
     evidence: [{ status: res.status, passwd_pattern_found: leaked }],
   };
 };
@@ -489,9 +432,7 @@ const testXxe = async () => {
     id: 15,
     name: 'XML External Entity (XXE)',
     status: blocked ? PASS : WARN,
-    note: blocked
-      ? 'Payload XXE bloqueado/não processado.'
-      : 'Comportamento inesperado para payload XXE.',
+    note: blocked ? 'Payload XXE bloqueado/não processado.' : 'Comportamento inesperado para payload XXE.',
     evidence: [{ status: res.status, passwd_pattern_found: leaked }],
   };
 };
@@ -510,9 +451,7 @@ const testBrokenAuth = async () => {
     id: 16,
     name: 'Broken Authentication',
     status: allBlocked ? PASS : FAIL,
-    note: allBlocked
-      ? 'Endpoints protegidos bloquearam acesso sem credenciais.'
-      : 'Algum endpoint protegido respondeu sem bloqueio esperado.',
+    note: allBlocked ? 'Endpoints protegidos bloquearam acesso sem credenciais.' : 'Algum endpoint protegido respondeu sem bloqueio esperado.',
     evidence,
   };
 };
@@ -522,15 +461,12 @@ const testBrokenAccessControl = async () => {
     headers: { 'x-admin-token': 'fake-token' },
   });
   const resContact = await request('/api/support');
-  const blocked =
-    [401, 403].includes(resAdminFake.status) && [401, 403].includes(resContact.status);
+  const blocked = [401, 403].includes(resAdminFake.status) && [401, 403].includes(resContact.status);
   return {
     id: 17,
     name: 'Broken Access Control',
     status: blocked ? PASS : FAIL,
-    note: blocked
-      ? 'Acesso privilegiado foi negado sem autorização válida.'
-      : 'Há rota sensível sem bloqueio consistente.',
+    note: blocked ? 'Acesso privilegiado foi negado sem autorização válida.' : 'Há rota sensível sem bloqueio consistente.',
     evidence: [
       { path: '/api/sticker-packs/admin/users', status: resAdminFake.status },
       { path: '/api/support', status: resContact.status },
@@ -539,17 +475,13 @@ const testBrokenAccessControl = async () => {
 };
 
 const testOpenRedirect = async () => {
-  const probes = [
-    '/stickers/create?next=https://evil.example',
-    '/stickers/admin?next=//evil.example',
-  ];
+  const probes = ['/stickers/create?next=https://evil.example', '/stickers/admin?next=//evil.example'];
   const evidence = [];
   let vulnerable = false;
   for (const path of probes) {
     const res = await request(path);
     const location = String(res.headers.location || '');
-    const open =
-      /^https?:\/\/evil\.example/i.test(location) || /^\/\/evil\.example/i.test(location);
+    const open = /^https?:\/\/evil\.example/i.test(location) || /^\/\/evil\.example/i.test(location);
     if (open) vulnerable = true;
     evidence.push({ path, status: res.status, location: location || null, open_redirect: open });
   }
@@ -557,19 +489,13 @@ const testOpenRedirect = async () => {
     id: 18,
     name: 'Open Redirect',
     status: vulnerable ? FAIL : PASS,
-    note: vulnerable
-      ? 'Foi observada possibilidade de redirecionamento aberto.'
-      : 'Não houve redirecionamento aberto nas rotas testadas.',
+    note: vulnerable ? 'Foi observada possibilidade de redirecionamento aberto.' : 'Não houve redirecionamento aberto nas rotas testadas.',
     evidence,
   };
 };
 
 const testParameterTampering = async () => {
-  const probes = [
-    '/api/sticker-packs?limit=-1000&page=-1',
-    '/api/sticker-packs?limit=1000000&page=999999',
-    '/api/sticker-packs/creators?limit=999999',
-  ];
+  const probes = ['/api/sticker-packs?limit=-1000&page=-1', '/api/sticker-packs?limit=1000000&page=999999', '/api/sticker-packs/creators?limit=999999'];
   const evidence = [];
   let failed = false;
   for (const path of probes) {
@@ -582,20 +508,13 @@ const testParameterTampering = async () => {
     id: 19,
     name: 'Parameter Tampering',
     status: failed ? WARN : PASS,
-    note: failed
-      ? 'Algum parâmetro adulterado gerou falha de servidor.'
-      : 'Parâmetros adulterados não causaram erro crítico no smoke test.',
+    note: failed ? 'Algum parâmetro adulterado gerou falha de servidor.' : 'Parâmetros adulterados não causaram erro crítico no smoke test.',
     evidence,
   };
 };
 
 const testPathManipulation = async () => {
-  const probes = [
-    '/api/sticker-packs/%2e%2e/admin/overview',
-    '/api/sticker-packs/..%2Fadmin%2Foverview',
-    '/api/sticker-packs/%2e%2e/%2e%2e/.env',
-    '/api/sticker-packs/%252e%252e/%252e%252e/.env',
-  ];
+  const probes = ['/api/sticker-packs/%2e%2e/admin/overview', '/api/sticker-packs/..%2Fadmin%2Foverview', '/api/sticker-packs/%2e%2e/%2e%2e/.env', '/api/sticker-packs/%252e%252e/%252e%252e/.env'];
   const evidence = [];
   let bypass = false;
   for (const path of probes) {
@@ -608,46 +527,21 @@ const testPathManipulation = async () => {
     id: 20,
     name: 'Path Manipulation',
     status: bypass ? FAIL : PASS,
-    note: bypass
-      ? 'Payload de manipulação de caminho obteve sucesso inesperado.'
-      : 'Manipulações de caminho foram bloqueadas.',
+    note: bypass ? 'Payload de manipulação de caminho obteve sucesso inesperado.' : 'Manipulações de caminho foram bloqueadas.',
     evidence,
   };
 };
 
 const run = async () => {
   const startedAt = nowIso();
-  const tests = [
-    testSqlInjection,
-    testXss,
-    testCsrf,
-    testDdosSafe,
-    testBruteForce,
-    testCredentialStuffing,
-    testDirectoryTraversal,
-    testFileUploadAttack,
-    testSessionHijacking,
-    testClickjacking,
-    testMitm,
-    testSsrf,
-    testRce,
-    testCommandInjection,
-    testXxe,
-    testBrokenAuth,
-    testBrokenAccessControl,
-    testOpenRedirect,
-    testParameterTampering,
-    testPathManipulation,
-  ];
+  const tests = [testSqlInjection, testXss, testCsrf, testDdosSafe, testBruteForce, testCredentialStuffing, testDirectoryTraversal, testFileUploadAttack, testSessionHijacking, testClickjacking, testMitm, testSsrf, testRce, testCommandInjection, testXxe, testBrokenAuth, testBrokenAccessControl, testOpenRedirect, testParameterTampering, testPathManipulation];
 
   const results = [];
   for (const testFn of tests) {
     try {
       const result = await testFn();
       results.push(result);
-      console.log(
-        `[security-smoketest] ${String(result.id).padStart(2, '0')} ${result.name}: ${result.status}`,
-      );
+      console.log(`[security-smoketest] ${String(result.id).padStart(2, '0')} ${result.name}: ${result.status}`);
     } catch (error) {
       const fallbackResult = {
         id: results.length + 1,
@@ -657,9 +551,7 @@ const run = async () => {
         evidence: [],
       };
       results.push(fallbackResult);
-      console.log(
-        `[security-smoketest] ${String(fallbackResult.id).padStart(2, '0')} ${fallbackResult.name}: ${fallbackResult.status}`,
-      );
+      console.log(`[security-smoketest] ${String(fallbackResult.id).padStart(2, '0')} ${fallbackResult.name}: ${fallbackResult.status}`);
     }
   }
 

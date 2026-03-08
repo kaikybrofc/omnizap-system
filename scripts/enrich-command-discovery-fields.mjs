@@ -19,8 +19,7 @@ const normalizeText = (value) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const ensureStringArray = (value) =>
-  Array.isArray(value) ? value.map((item) => String(item || '')).filter(Boolean) : [];
+const ensureStringArray = (value) => (Array.isArray(value) ? value.map((item) => String(item || '')).filter(Boolean) : []);
 
 const unique = (values = []) => {
   const output = [];
@@ -108,8 +107,7 @@ const resolveDefaultAccessProfile = (command) => {
   const category = normalizeCategory(command?.categoria);
   const commandName = normalizeCommand(command?.name);
   const profile = LIMIT_PROFILES_BY_CATEGORY[category] || LIMIT_PROFILES_BY_CATEGORY.default;
-  const premiumOnly =
-    PREMIUM_ONLY_EXACT_COMMANDS.has(commandName) || /nsfw/.test(commandName || '');
+  const premiumOnly = PREMIUM_ONLY_EXACT_COMMANDS.has(commandName) || /nsfw/.test(commandName || '');
 
   return {
     premiumOnly,
@@ -123,10 +121,7 @@ const sanitizeLimitEntry = (entry, fallback = {}) => {
   const escopo = String(entry?.escopo || fallback?.escopo || 'usuario').trim() || 'usuario';
   return {
     max: Number.isFinite(max) && max > 0 ? Math.floor(max) : Number(fallback?.max ?? 12),
-    janela_ms:
-      Number.isFinite(janelaMs) && janelaMs > 0
-        ? Math.floor(janelaMs)
-        : Number(fallback?.janela_ms ?? 300000),
+    janela_ms: Number.isFinite(janelaMs) && janelaMs > 0 ? Math.floor(janelaMs) : Number(fallback?.janela_ms ?? 300000),
     escopo,
   };
 };
@@ -134,21 +129,10 @@ const sanitizeLimitEntry = (entry, fallback = {}) => {
 const ensureAccessAndLimits = (command) => {
   const defaults = resolveDefaultAccessProfile(command);
 
-  const existingAccess =
-    command?.acesso && typeof command.acesso === 'object' && !Array.isArray(command.acesso)
-      ? command.acesso
-      : {};
-  const existingLimits =
-    command?.limite_uso_por_plano &&
-    typeof command.limite_uso_por_plano === 'object' &&
-    !Array.isArray(command.limite_uso_por_plano)
-      ? command.limite_uso_por_plano
-      : {};
+  const existingAccess = command?.acesso && typeof command.acesso === 'object' && !Array.isArray(command.acesso) ? command.acesso : {};
+  const existingLimits = command?.limite_uso_por_plano && typeof command.limite_uso_por_plano === 'object' && !Array.isArray(command.limite_uso_por_plano) ? command.limite_uso_por_plano : {};
 
-  const somentePremium =
-    typeof existingAccess.somente_premium === 'boolean'
-      ? existingAccess.somente_premium
-      : defaults.premiumOnly;
+  const somentePremium = typeof existingAccess.somente_premium === 'boolean' ? existingAccess.somente_premium : defaults.premiumOnly;
   const planosPermitidosInput = Array.isArray(existingAccess.planos_permitidos)
     ? existingAccess.planos_permitidos.map((item) =>
         String(item || '')

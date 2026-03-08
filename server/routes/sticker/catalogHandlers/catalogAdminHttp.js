@@ -70,12 +70,7 @@ export const handleCatalogAdminRoutes = async ({ req, res, url, segments, handle
     return true;
   }
 
-  if (
-    segments.length === 6 &&
-    segments[1] === 'packs' &&
-    segments[3] === 'stickers' &&
-    segments[5] === 'delete'
-  ) {
+  if (segments.length === 6 && segments[1] === 'packs' && segments[3] === 'stickers' && segments[5] === 'delete') {
     await handlers.handleAdminPackStickerDeleteRequest(req, res, segments[2], segments[4]);
     return true;
   }

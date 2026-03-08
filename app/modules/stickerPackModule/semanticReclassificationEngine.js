@@ -10,28 +10,11 @@ const parseEnvBool = (value, fallback) => {
 
 const clampNumber = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
 
-const RECLASSIFICATION_ENABLED = parseEnvBool(
-  process.env.STICKER_SEMANTIC_RECLASSIFICATION_ENABLED,
-  true,
-);
-const RECLASSIFICATION_BATCH_SIZE = Math.max(
-  50,
-  Math.min(2000, Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_BATCH_SIZE) || 400),
-);
-const RECLASSIFICATION_MAX_PER_CYCLE = Math.max(
-  100,
-  Math.min(20_000, Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_MAX_PER_CYCLE) || 2000),
-);
-const RECLASSIFICATION_ENTROPY_THRESHOLD = Number.isFinite(
-  Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_ENTROPY_THRESHOLD),
-)
-  ? Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_ENTROPY_THRESHOLD)
-  : 0.8;
-const RECLASSIFICATION_AFFINITY_THRESHOLD = Number.isFinite(
-  Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_AFFINITY_THRESHOLD),
-)
-  ? Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_AFFINITY_THRESHOLD)
-  : 0.3;
+const RECLASSIFICATION_ENABLED = parseEnvBool(process.env.STICKER_SEMANTIC_RECLASSIFICATION_ENABLED, true);
+const RECLASSIFICATION_BATCH_SIZE = Math.max(50, Math.min(2000, Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_BATCH_SIZE) || 400));
+const RECLASSIFICATION_MAX_PER_CYCLE = Math.max(100, Math.min(20_000, Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_MAX_PER_CYCLE) || 2000));
+const RECLASSIFICATION_ENTROPY_THRESHOLD = Number.isFinite(Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_ENTROPY_THRESHOLD)) ? Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_ENTROPY_THRESHOLD) : 0.8;
+const RECLASSIFICATION_AFFINITY_THRESHOLD = Number.isFinite(Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_AFFINITY_THRESHOLD)) ? Number(process.env.STICKER_SEMANTIC_RECLASSIFICATION_AFFINITY_THRESHOLD) : 0.3;
 
 const STOPWORDS = ['image', 'sticker', 'wallpaper', 'social_media', 'internet', 'picture'];
 const GENERIC_TERMS = ['cool', 'nice', 'funny', 'random', 'art'];
@@ -137,24 +120,16 @@ export const normalizeTokens = (classification = {}) => {
   for (const label of extractTopLabelTokens(classification?.top_labels)) {
     pushToken(label);
   }
-  for (const value of Array.isArray(classification?.llm_subtags)
-    ? classification.llm_subtags
-    : []) {
+  for (const value of Array.isArray(classification?.llm_subtags) ? classification.llm_subtags : []) {
     pushToken(value);
   }
-  for (const value of Array.isArray(classification?.llm_style_traits)
-    ? classification.llm_style_traits
-    : []) {
+  for (const value of Array.isArray(classification?.llm_style_traits) ? classification.llm_style_traits : []) {
     pushToken(value);
   }
-  for (const value of Array.isArray(classification?.llm_emotions)
-    ? classification.llm_emotions
-    : []) {
+  for (const value of Array.isArray(classification?.llm_emotions) ? classification.llm_emotions : []) {
     pushToken(value);
   }
-  for (const value of Array.isArray(classification?.llm_pack_suggestions)
-    ? classification.llm_pack_suggestions
-    : []) {
+  for (const value of Array.isArray(classification?.llm_pack_suggestions) ? classification.llm_pack_suggestions : []) {
     pushToken(value);
   }
 
@@ -332,21 +307,15 @@ export const reclassify = (classification = {}) => {
     themeWeights: dominant.theme_weights_map,
     totalWeight: dominant.total_weight,
   });
-  const cohesionScore = Number(
-    clampNumber(rawCohesion - Number(conflict.penalty_points || 0), 0, 100).toFixed(6),
-  );
+  const cohesionScore = Number(clampNumber(rawCohesion - Number(conflict.penalty_points || 0), 0, 100).toFixed(6));
   const dominantTheme = dominant.dominant_theme || 'other';
 
-  let dominantTokens = mappedTokens.filter(
-    (entry) => resolveSemanticGroup(entry.token) === dominantTheme,
-  );
+  let dominantTokens = mappedTokens.filter((entry) => resolveSemanticGroup(entry.token) === dominantTheme);
   if (!dominantTokens.length) {
     dominantTokens = mappedTokens.slice();
   }
 
-  const normalizedSubtags = dominantTokens
-    .map((entry) => normalizeTokenValue(entry.token))
-    .filter(Boolean);
+  const normalizedSubtags = dominantTokens.map((entry) => normalizeTokenValue(entry.token)).filter(Boolean);
 
   const outputSubtags = Array.from(new Set(normalizedSubtags));
   const updatedAffinityWeight = Number(clampNumber(cohesionScore / 100, 0, 1).toFixed(6));
@@ -360,20 +329,9 @@ export const reclassify = (classification = {}) => {
   };
 };
 
-export const batchReprocess = async ({
-  maxItems = RECLASSIFICATION_MAX_PER_CYCLE,
-  batchSize = RECLASSIFICATION_BATCH_SIZE,
-  entropyThreshold = RECLASSIFICATION_ENTROPY_THRESHOLD,
-  affinityThreshold = RECLASSIFICATION_AFFINITY_THRESHOLD,
-} = {}) => {
-  const safeMaxItems = Math.max(
-    0,
-    Math.min(50_000, Number(maxItems) || RECLASSIFICATION_MAX_PER_CYCLE),
-  );
-  const safeBatchSize = Math.max(
-    1,
-    Math.min(2000, Number(batchSize) || RECLASSIFICATION_BATCH_SIZE),
-  );
+export const batchReprocess = async ({ maxItems = RECLASSIFICATION_MAX_PER_CYCLE, batchSize = RECLASSIFICATION_BATCH_SIZE, entropyThreshold = RECLASSIFICATION_ENTROPY_THRESHOLD, affinityThreshold = RECLASSIFICATION_AFFINITY_THRESHOLD } = {}) => {
+  const safeMaxItems = Math.max(0, Math.min(50_000, Number(maxItems) || RECLASSIFICATION_MAX_PER_CYCLE));
+  const safeBatchSize = Math.max(1, Math.min(2000, Number(batchSize) || RECLASSIFICATION_BATCH_SIZE));
 
   const stats = {
     enabled: RECLASSIFICATION_ENABLED,
@@ -425,10 +383,7 @@ export const batchReprocess = async ({
         const currentAmbiguous = row?.ambiguous ? 1 : 0;
         const nextAmbiguous = output.ambiguous ? 1 : 0;
 
-        const shouldUpdate =
-          currentAmbiguous !== nextAmbiguous ||
-          hasNumericDifference(currentAffinity, nextAffinity) ||
-          !areListsEqual(currentSubtags, nextSubtags);
+        const shouldUpdate = currentAmbiguous !== nextAmbiguous || hasNumericDifference(currentAffinity, nextAffinity) || !areListsEqual(currentSubtags, nextSubtags);
 
         if (!shouldUpdate) {
           stats.skipped += 1;

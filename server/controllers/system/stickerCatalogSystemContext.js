@@ -1,36 +1,4 @@
-export const createStickerCatalogSystemContext = ({
-  executeQuery,
-  tables,
-  logger,
-  getSystemMetrics,
-  getActiveSocket,
-  resolveSocketReadyState,
-  resolveActiveSocketBotJid,
-  resolveCatalogBotPhone,
-  fetchPrometheusSummary,
-  metricsEndpoint,
-  systemSummaryCache,
-  systemSummaryCacheSeconds,
-  readmeSummaryCache,
-  readmeSummaryCacheSeconds,
-  readmeMessageTypeSampleLimit,
-  readmeCommandPrefix,
-  buildMenuCaption,
-  buildStickerMenu,
-  buildMediaMenu,
-  buildQuoteMenu,
-  buildAnimeMenu,
-  buildAiMenu,
-  buildStatsMenu,
-  buildAdminMenu,
-  profilePictureUrlFromActiveSocket,
-  normalizeJid,
-  getJidUser,
-  globalRankCache,
-  globalRankRefreshSeconds,
-  marketplaceGlobalStatsCache,
-  marketplaceGlobalStatsCacheSeconds,
-}) => {
+export const createStickerCatalogSystemContext = ({ executeQuery, tables, logger, getSystemMetrics, getActiveSocket, resolveSocketReadyState, resolveActiveSocketBotJid, resolveCatalogBotPhone, fetchPrometheusSummary, metricsEndpoint, systemSummaryCache, systemSummaryCacheSeconds, readmeSummaryCache, readmeSummaryCacheSeconds, readmeMessageTypeSampleLimit, readmeCommandPrefix, buildMenuCaption, buildStickerMenu, buildMediaMenu, buildQuoteMenu, buildAnimeMenu, buildAiMenu, buildStatsMenu, buildAdminMenu, profilePictureUrlFromActiveSocket, normalizeJid, getJidUser, globalRankCache, globalRankRefreshSeconds, marketplaceGlobalStatsCache, marketplaceGlobalStatsCacheSeconds }) => {
   let globalRankRefreshTimer = null;
 
   const withTimeout = (promise, timeoutMs) =>
@@ -53,11 +21,7 @@ export const createStickerCatalogSystemContext = ({
     const botJid = resolveActiveSocketBotJid(activeSocket) || null;
     const botPhone = String(resolveCatalogBotPhone() || '').replace(/\D+/g, '') || null;
     const botConnected = socketReadyState === 1 || (socketReadyState === null && Boolean(botJid));
-    const botConnectionStatus = botConnected
-      ? 'online'
-      : socketReadyState === 0
-        ? 'connecting'
-        : 'offline';
+    const botConnectionStatus = botConnected ? 'online' : socketReadyState === 0 ? 'connecting' : 'offline';
 
     let platform = {
       total_users: null,
@@ -131,10 +95,8 @@ export const createStickerCatalogSystemContext = ({
     const statusReasons = [];
     if (!botConnected) statusReasons.push('bot_disconnected');
     if (!prometheus) statusReasons.push('metrics_unavailable');
-    if (Number.isFinite(hostCpuPercent) && hostCpuPercent >= 90)
-      statusReasons.push('host_cpu_high');
-    if (Number.isFinite(hostMemoryPercent) && hostMemoryPercent >= 90)
-      statusReasons.push('host_memory_high');
+    if (Number.isFinite(hostCpuPercent) && hostCpuPercent >= 90) statusReasons.push('host_cpu_high');
+    if (Number.isFinite(hostMemoryPercent) && hostMemoryPercent >= 90) statusReasons.push('host_memory_high');
     const systemStatus = statusReasons.length ? 'degraded' : 'online';
 
     return {
@@ -253,16 +215,7 @@ export const createStickerCatalogSystemContext = ({
   };
 
   const collectAvailableMenuCommands = (commandPrefix = readmeCommandPrefix) => {
-    const sections = [
-      buildMenuCaption('OmniZap', commandPrefix),
-      buildStickerMenu(commandPrefix),
-      buildMediaMenu(commandPrefix),
-      buildQuoteMenu(commandPrefix),
-      buildAnimeMenu(commandPrefix),
-      buildAiMenu(commandPrefix),
-      buildStatsMenu(commandPrefix),
-      buildAdminMenu(commandPrefix),
-    ];
+    const sections = [buildMenuCaption('OmniZap', commandPrefix), buildStickerMenu(commandPrefix), buildMediaMenu(commandPrefix), buildQuoteMenu(commandPrefix), buildAnimeMenu(commandPrefix), buildAiMenu(commandPrefix), buildStatsMenu(commandPrefix), buildAdminMenu(commandPrefix)];
 
     const commands = new Set();
     for (const section of sections) {
@@ -278,51 +231,15 @@ export const createStickerCatalogSystemContext = ({
   };
 
   const renderReadmeSnapshotMarkdown = ({ generatedAt, totals, topMessageTypes, commands }) => {
-    const typeRows = topMessageTypes.length
-      ? topMessageTypes.map((entry) => `| \`${entry.type}\` | ${formatPtBrInteger(entry.total)} |`)
-      : ['| `outros` | 0 |'];
+    const typeRows = topMessageTypes.length ? topMessageTypes.map((entry) => `| \`${entry.type}\` | ${formatPtBrInteger(entry.total)} |`) : ['| `outros` | 0 |'];
 
-    const commandInline = commands.length
-      ? commands.map((command) => `\`${command}\``).join(' · ')
-      : 'Nenhum comando identificado no menu atual.';
+    const commandInline = commands.length ? commands.map((command) => `\`${command}\``).join(' · ') : 'Nenhum comando identificado no menu atual.';
 
-    return [
-      '### Snapshot do Sistema',
-      '',
-      `> Atualizado em \`${generatedAt}\` | cache \`${readmeSummaryCacheSeconds}s\``,
-      '',
-      '| Métrica | Valor |',
-      '| --- | ---: |',
-      `| Usuários (lid_map) | ${formatPtBrInteger(totals.total_users)} |`,
-      `| Grupos | ${formatPtBrInteger(totals.total_groups)} |`,
-      `| Packs | ${formatPtBrInteger(totals.total_packs)} |`,
-      `| Stickers | ${formatPtBrInteger(totals.total_stickers)} |`,
-      `| Mensagens registradas | ${formatPtBrInteger(totals.total_messages)} |`,
-      '',
-      `#### Tipos de mensagem mais usados (amostra: ${formatPtBrInteger(totals.message_types_sample_size)})`,
-      '| Tipo | Total |',
-      '| --- | ---: |',
-      ...typeRows,
-      '',
-      `<details><summary>Comandos disponíveis (${formatPtBrInteger(commands.length)})</summary>`,
-      '',
-      commandInline,
-      '',
-      '</details>',
-      '',
-    ].join('\n');
+    return ['### Snapshot do Sistema', '', `> Atualizado em \`${generatedAt}\` | cache \`${readmeSummaryCacheSeconds}s\``, '', '| Métrica | Valor |', '| --- | ---: |', `| Usuários (lid_map) | ${formatPtBrInteger(totals.total_users)} |`, `| Grupos | ${formatPtBrInteger(totals.total_groups)} |`, `| Packs | ${formatPtBrInteger(totals.total_packs)} |`, `| Stickers | ${formatPtBrInteger(totals.total_stickers)} |`, `| Mensagens registradas | ${formatPtBrInteger(totals.total_messages)} |`, '', `#### Tipos de mensagem mais usados (amostra: ${formatPtBrInteger(totals.message_types_sample_size)})`, '| Tipo | Total |', '| --- | ---: |', ...typeRows, '', `<details><summary>Comandos disponíveis (${formatPtBrInteger(commands.length)})</summary>`, '', commandInline, '', '</details>', ''].join('\n');
   };
 
   const buildReadmeSummarySnapshot = async () => {
-    const [
-      lidMapTotalsRows,
-      chatsTotalsRows,
-      groupsMetadataTotalsRows,
-      packTotalsRows,
-      stickerTotalsRows,
-      messageTotalsRows,
-      messageTypeRows,
-    ] = await Promise.all([
+    const [lidMapTotalsRows, chatsTotalsRows, groupsMetadataTotalsRows, packTotalsRows, stickerTotalsRows, messageTotalsRows, messageTypeRows] = await Promise.all([
       executeQuery(`SELECT COUNT(*) AS total_users FROM ${tables.LID_MAP}`),
       executeQuery(
         `SELECT
@@ -331,9 +248,7 @@ export const createStickerCatalogSystemContext = ({
          FROM ${tables.CHATS}`,
       ),
       executeQuery(`SELECT COUNT(*) AS total_groups FROM ${tables.GROUPS_METADATA}`),
-      executeQuery(
-        `SELECT COUNT(*) AS total_packs FROM ${tables.STICKER_PACK} WHERE deleted_at IS NULL`,
-      ),
+      executeQuery(`SELECT COUNT(*) AS total_packs FROM ${tables.STICKER_PACK} WHERE deleted_at IS NULL`),
       executeQuery(`SELECT COUNT(*) AS total_stickers FROM ${tables.STICKER_ASSET}`),
       executeQuery(`SELECT COUNT(*) AS total_messages FROM ${tables.MESSAGES}`),
       executeQuery(
@@ -381,8 +296,7 @@ export const createStickerCatalogSystemContext = ({
       total_stickers: Number(stickerTotals?.total_stickers || 0),
       total_messages: totalMessages,
       message_types_sample_size: sampledMessages,
-      message_types_total_coverage_percent:
-        totalMessages > 0 ? Number(((sampledMessages / totalMessages) * 100).toFixed(2)) : 0,
+      message_types_total_coverage_percent: totalMessages > 0 ? Number(((sampledMessages / totalMessages) * 100).toFixed(2)) : 0,
     };
 
     const markdown = renderReadmeSnapshotMarkdown({
@@ -437,12 +351,7 @@ export const createStickerCatalogSystemContext = ({
     const botPhoneFromCatalog = String(resolveCatalogBotPhone() || '').replace(/\D+/g, '');
     if (botPhoneFromCatalog) candidates.add(botPhoneFromCatalog);
 
-    const envCandidates = [
-      process.env.WHATSAPP_BOT_NUMBER,
-      process.env.BOT_NUMBER,
-      process.env.PHONE_NUMBER,
-      process.env.BOT_PHONE_NUMBER,
-    ];
+    const envCandidates = [process.env.WHATSAPP_BOT_NUMBER, process.env.BOT_NUMBER, process.env.PHONE_NUMBER, process.env.BOT_PHONE_NUMBER];
 
     for (const candidate of envCandidates) {
       const digits = String(candidate || '').replace(/\D+/g, '');
@@ -458,19 +367,13 @@ export const createStickerCatalogSystemContext = ({
     return botUsers.some((botUser) => {
       const safe = String(botUser || '').trim();
       if (!safe) return false;
-      return (
-        normalizedSender === `${safe}@s.whatsapp.net` ||
-        normalizedSender.startsWith(`${safe}:`) ||
-        normalizedSender.startsWith(`${safe}@`)
-      );
+      return normalizedSender === `${safe}@s.whatsapp.net` || normalizedSender.startsWith(`${safe}:`) || normalizedSender.startsWith(`${safe}@`);
     });
   };
 
   const sanitizeRankingPayloadByBot = (payload, botUsers) => {
     const sourceRows = Array.isArray(payload?.rows) ? payload.rows : [];
-    const filteredRows = sourceRows.filter(
-      (row) => !isSenderFromAnyBotUser(row?.sender_id, botUsers),
-    );
+    const filteredRows = sourceRows.filter((row) => !isSenderFromAnyBotUser(row?.sender_id, botUsers));
     const normalizedRows = filteredRows.slice(0, Number(payload?.limit || 5)).map((row, index) => ({
       ...row,
       position: index + 1,
@@ -492,9 +395,7 @@ export const createStickerCatalogSystemContext = ({
       const direct = String(parsed?.pushName || '').trim();
       if (direct) return direct;
 
-      const nested = String(
-        parsed?.message?.extendedTextMessage?.contextInfo?.participantName || '',
-      ).trim();
+      const nested = String(parsed?.message?.extendedTextMessage?.contextInfo?.participantName || '').trim();
       if (nested) return nested;
     } catch {
       return '';
@@ -554,10 +455,7 @@ export const createStickerCatalogSystemContext = ({
     const where = whereClauses.join(' AND ');
     const recentScopeSql = `SELECT id, sender_id, timestamp, raw_message FROM ${tables.MESSAGES} WHERE ${where} ORDER BY id DESC LIMIT ${sampleLimit}`;
 
-    const [totalRow] = await executeQuery(
-      `SELECT COUNT(*) AS total FROM (${recentScopeSql}) recent_scope`,
-      params,
-    );
+    const [totalRow] = await executeQuery(`SELECT COUNT(*) AS total FROM (${recentScopeSql}) recent_scope`, params);
     const totalMessages = Number(totalRow?.total || 0);
 
     const rows = await executeQuery(
@@ -600,9 +498,7 @@ export const createStickerCatalogSystemContext = ({
     const topTotal = rows.reduce((acc, row) => acc + Number(row?.total_messages || 0), 0);
     const topShare = totalMessages > 0 ? Number(((topTotal / totalMessages) * 100).toFixed(2)) : 0;
 
-    const rowsWithoutBot = rows
-      .filter((row) => !isSenderFromAnyBotUser(row?.sender_id, botUsers))
-      .slice(0, limit);
+    const rowsWithoutBot = rows.filter((row) => !isSenderFromAnyBotUser(row?.sender_id, botUsers)).slice(0, limit);
 
     const rowsEnriched = await Promise.all(
       rowsWithoutBot.map(async (row, index) => {
@@ -722,15 +618,7 @@ export const createStickerCatalogSystemContext = ({
     const dayKeys = buildLastSevenUtcDateKeys();
     const dayFilterSql = `UTC_DATE() - INTERVAL 6 DAY`;
 
-    const [
-      packTotalsRows,
-      stickerTotalsRows,
-      stickersWithoutPackRows,
-      engagementTotalsRows,
-      dailyPacksRows,
-      dailyStickersRows,
-      dailyInteractionRows,
-    ] = await Promise.all([
+    const [packTotalsRows, stickerTotalsRows, stickersWithoutPackRows, engagementTotalsRows, dailyPacksRows, dailyStickersRows, dailyInteractionRows] = await Promise.all([
       executeQuery(
         `SELECT
            COUNT(*) AS total_packs,
@@ -851,8 +739,7 @@ export const createStickerCatalogSystemContext = ({
       marketplaceGlobalStatsCache.pending = withTimeout(buildMarketplaceGlobalStatsSnapshot(), 5000)
         .then((data) => {
           marketplaceGlobalStatsCache.value = data;
-          marketplaceGlobalStatsCache.expiresAt =
-            Date.now() + marketplaceGlobalStatsCacheSeconds * 1000;
+          marketplaceGlobalStatsCache.expiresAt = Date.now() + marketplaceGlobalStatsCacheSeconds * 1000;
           return data;
         })
         .finally(() => {

@@ -23,22 +23,13 @@ const normalizeTemplateKey = (value) =>
     .replace(/[^a-z0-9_:-]/g, '')
     .slice(0, 64);
 
-const normalizePayloadObject = (value) =>
-  value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+const normalizePayloadObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
 
-const resolveEmailBodyFromPayload = ({
-  templateKey = '',
-  templateData = {},
-  subject = '',
-  text = '',
-  html = '',
-} = {}) => {
+const resolveEmailBodyFromPayload = ({ templateKey = '', templateData = {}, subject = '', text = '', html = '' } = {}) => {
   const normalizedTemplateKey = normalizeTemplateKey(templateKey);
   const normalizedTemplateData = normalizePayloadObject(templateData);
 
-  const renderedTemplate = normalizedTemplateKey
-    ? renderEmailTemplate(normalizedTemplateKey, normalizedTemplateData)
-    : null;
+  const renderedTemplate = normalizedTemplateKey ? renderEmailTemplate(normalizedTemplateKey, normalizedTemplateData) : null;
 
   const normalizedSubject = normalizeOptionalText(subject, 180) || renderedTemplate?.subject || '';
   const normalizedText = normalizeOptionalText(text, 120_000) || renderedTemplate?.text || null;
@@ -65,20 +56,7 @@ const resolveEmailBodyFromPayload = ({
   };
 };
 
-export const queueAutomatedEmail = async ({
-  to,
-  name = '',
-  templateKey = '',
-  templateData = {},
-  subject = '',
-  text = '',
-  html = '',
-  metadata = {},
-  priority = 50,
-  scheduledAt = null,
-  maxAttempts = 5,
-  idempotencyKey = '',
-} = {}) => {
+export const queueAutomatedEmail = async ({ to, name = '', templateKey = '', templateData = {}, subject = '', text = '', html = '', metadata = {}, priority = 50, scheduledAt = null, maxAttempts = 5, idempotencyKey = '' } = {}) => {
   const normalizedEmail = normalizeEmail(to);
   if (!normalizedEmail || !normalizedEmail.includes('@')) {
     const error = new Error('Destinatário de e-mail inválido.');
@@ -123,15 +101,7 @@ export const queueAutomatedEmail = async ({
   };
 };
 
-export const queueWelcomeEmail = async ({
-  to,
-  name = '',
-  loginUrl = '',
-  redirectUrl = '',
-  homeUrl = '',
-  metadata = {},
-  idempotencyKey = '',
-} = {}) =>
+export const queueWelcomeEmail = async ({ to, name = '', loginUrl = '', redirectUrl = '', homeUrl = '', metadata = {}, idempotencyKey = '' } = {}) =>
   queueAutomatedEmail({
     to,
     name,

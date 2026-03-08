@@ -88,26 +88,15 @@ const normalizeLearningEventRow = (row = {}) => ({
 
 export const isAiLearningTableAvailable = () => tableAvailabilityState.available;
 
-export async function saveLearningEvent({
-  question,
-  normalizedQuestion,
-  toolSuggested,
-  toolExecuted,
-  success = true,
-  confidence = null,
-} = {}) {
+export async function saveLearningEvent({ question, normalizedQuestion, toolSuggested, toolExecuted, success = true, confidence = null } = {}) {
   if (!isAiLearningTableAvailable()) return false;
 
   const safeQuestion = sanitizeShortText(question, MAX_QUESTION_LENGTH);
-  const safeNormalizedQuestion = sanitizeShortText(
-    normalizedQuestion || normalizeText(question),
-    MAX_QUESTION_LENGTH,
-  );
+  const safeNormalizedQuestion = sanitizeShortText(normalizedQuestion || normalizeText(question), MAX_QUESTION_LENGTH);
   const safeToolSuggested = normalizeToolName(toolSuggested);
   const safeToolExecuted = normalizeToolName(toolExecuted || toolSuggested);
   const safeSuccess = success ? 1 : 0;
-  const safeConfidence =
-    confidence === null || confidence === undefined ? null : clamp01(confidence);
+  const safeConfidence = confidence === null || confidence === undefined ? null : clamp01(confidence);
 
   if (!safeQuestion || !safeNormalizedQuestion || !safeToolSuggested || !safeToolExecuted) {
     return false;
@@ -118,14 +107,7 @@ export async function saveLearningEvent({
       `INSERT INTO ${TABLES.AI_LEARNING_EVENTS}
         (user_question, normalized_question, tool_suggested, tool_executed, success, confidence, processed)
        VALUES (?, ?, ?, ?, ?, ?, 0)`,
-      [
-        safeQuestion,
-        safeNormalizedQuestion,
-        safeToolSuggested,
-        safeToolExecuted,
-        safeSuccess,
-        safeConfidence,
-      ],
+      [safeQuestion, safeNormalizedQuestion, safeToolSuggested, safeToolExecuted, safeSuccess, safeConfidence],
     );
     return true;
   } catch (error) {
@@ -182,9 +164,7 @@ export async function listPendingLearningEvents({ limit = DEFAULT_PENDING_LIMIT 
 export async function markLearningEventsProcessed(eventIds = []) {
   if (!isAiLearningTableAvailable()) return 0;
 
-  const ids = (Array.isArray(eventIds) ? eventIds : [])
-    .map((value) => Number.parseInt(String(value), 10))
-    .filter((value) => Number.isFinite(value) && value > 0);
+  const ids = (Array.isArray(eventIds) ? eventIds : []).map((value) => Number.parseInt(String(value), 10)).filter((value) => Number.isFinite(value) && value > 0);
 
   if (!ids.length) return 0;
 
@@ -222,20 +202,12 @@ export async function insertLearnedPatterns(rows = []) {
       confidence: clamp01(row?.confidence),
       sourceEventId: Number.parseInt(String(row?.sourceEventId), 10),
     }))
-    .filter(
-      (row) =>
-        row.pattern && row.tool && Number.isFinite(row.sourceEventId) && row.sourceEventId > 0,
-    );
+    .filter((row) => row.pattern && row.tool && Number.isFinite(row.sourceEventId) && row.sourceEventId > 0);
 
   if (!sanitizedRows.length) return 0;
 
   const placeholders = sanitizedRows.map(() => '(?, ?, ?, ?)').join(', ');
-  const params = sanitizedRows.flatMap((row) => [
-    row.pattern,
-    row.tool,
-    Number(row.confidence.toFixed(4)),
-    row.sourceEventId,
-  ]);
+  const params = sanitizedRows.flatMap((row) => [row.pattern, row.tool, Number(row.confidence.toFixed(4)), row.sourceEventId]);
 
   try {
     const result = await executeQuery(
@@ -269,20 +241,12 @@ export async function insertLearnedKeywords(rows = []) {
       weight: clamp01(row?.weight) || 0.5,
       sourceEventId: Number.parseInt(String(row?.sourceEventId), 10),
     }))
-    .filter(
-      (row) =>
-        row.keyword && row.tool && Number.isFinite(row.sourceEventId) && row.sourceEventId > 0,
-    );
+    .filter((row) => row.keyword && row.tool && Number.isFinite(row.sourceEventId) && row.sourceEventId > 0);
 
   if (!sanitizedRows.length) return 0;
 
   const placeholders = sanitizedRows.map(() => '(?, ?, ?, ?)').join(', ');
-  const params = sanitizedRows.flatMap((row) => [
-    row.keyword,
-    row.tool,
-    Number(row.weight.toFixed(4)),
-    row.sourceEventId,
-  ]);
+  const params = sanitizedRows.flatMap((row) => [row.keyword, row.tool, Number(row.weight.toFixed(4)), row.sourceEventId]);
 
   try {
     const result = await executeQuery(

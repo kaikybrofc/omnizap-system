@@ -10,12 +10,7 @@ const clampInt = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, Math.floor(numeric)));
 };
 
-const CLAIM_LOCK_TIMEOUT_SECONDS = clampInt(
-  process.env.EMAIL_OUTBOX_LOCK_TIMEOUT_SECONDS,
-  15 * 60,
-  30,
-  24 * 60 * 60,
-);
+const CLAIM_LOCK_TIMEOUT_SECONDS = clampInt(process.env.EMAIL_OUTBOX_LOCK_TIMEOUT_SECONDS, 15 * 60, 30, 24 * 60 * 60);
 
 const normalizeStatus = (value) => {
   const normalized = String(value || '')
@@ -108,23 +103,7 @@ const normalizeRow = (row) => {
   };
 };
 
-export async function enqueueEmailOutbox(
-  {
-    recipientEmail,
-    recipientName = '',
-    subject,
-    textBody = null,
-    htmlBody = null,
-    templateKey = '',
-    templatePayload = {},
-    metadata = {},
-    priority = 50,
-    scheduledAt = null,
-    maxAttempts = 5,
-    idempotencyKey = '',
-  } = {},
-  connection = null,
-) {
+export async function enqueueEmailOutbox({ recipientEmail, recipientName = '', subject, textBody = null, htmlBody = null, templateKey = '', templatePayload = {}, metadata = {}, priority = 50, scheduledAt = null, maxAttempts = 5, idempotencyKey = '' } = {}, connection = null) {
   const normalizedRecipientEmail = normalizeEmail(recipientEmail);
   const normalizedSubject = normalizeSubject(subject);
   const normalizedTextBody = normalizeNullableText(textBody, 120_000);
@@ -139,17 +118,12 @@ export async function enqueueEmailOutbox(
       .trim()
       .slice(0, 120) || null;
   const normalizedTemplateKey = normalizeTemplateKey(templateKey) || null;
-  const normalizedTemplatePayload =
-    templatePayload && typeof templatePayload === 'object' && !Array.isArray(templatePayload)
-      ? templatePayload
-      : {};
-  const normalizedMetadata =
-    metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
+  const normalizedTemplatePayload = templatePayload && typeof templatePayload === 'object' && !Array.isArray(templatePayload) ? templatePayload : {};
+  const normalizedMetadata = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
   const safePriority = clampInt(priority, 50, 1, 100);
   const safeMaxAttempts = clampInt(maxAttempts, 5, 1, 20);
   const safeScheduledAt = scheduledAt ? new Date(scheduledAt) : null;
-  const scheduledValue =
-    safeScheduledAt && Number.isFinite(safeScheduledAt.valueOf()) ? safeScheduledAt : null;
+  const scheduledValue = safeScheduledAt && Number.isFinite(safeScheduledAt.valueOf()) ? safeScheduledAt : null;
   const normalizedIdempotencyKey = normalizeIdempotencyKey(idempotencyKey) || null;
 
   const result = await executeQuery(
@@ -168,20 +142,7 @@ export async function enqueueEmailOutbox(
       available_at = LEAST(available_at, VALUES(available_at)),
       status = IF(status = 'failed' AND attempts < max_attempts, 'pending', status),
       updated_at = UTC_TIMESTAMP()`,
-    [
-      normalizedRecipientEmail,
-      normalizedRecipientName,
-      normalizedSubject,
-      normalizedTextBody,
-      normalizedHtmlBody,
-      normalizedTemplateKey,
-      JSON.stringify(normalizedTemplatePayload),
-      JSON.stringify(normalizedMetadata),
-      safePriority,
-      normalizedIdempotencyKey,
-      scheduledValue,
-      safeMaxAttempts,
-    ],
+    [normalizedRecipientEmail, normalizedRecipientName, normalizedSubject, normalizedTextBody, normalizedHtmlBody, normalizedTemplateKey, JSON.stringify(normalizedTemplatePayload), JSON.stringify(normalizedMetadata), safePriority, normalizedIdempotencyKey, scheduledValue, safeMaxAttempts],
     connection,
   );
 
@@ -233,11 +194,7 @@ export async function claimEmailOutboxTask({ allowRetryFailed = true } = {}, con
   return normalizeRow(rows?.[0] || null);
 }
 
-export async function completeEmailOutboxTask(
-  taskId,
-  { providerMessageId = '' } = {},
-  connection = null,
-) {
+export async function completeEmailOutboxTask(taskId, { providerMessageId = '' } = {}, connection = null) {
   if (!taskId) return false;
   const normalizedProviderMessageId =
     String(providerMessageId || '')
@@ -261,11 +218,7 @@ export async function completeEmailOutboxTask(
   return true;
 }
 
-export async function failEmailOutboxTask(
-  taskId,
-  { error = null, retryDelaySeconds = 0 } = {},
-  connection = null,
-) {
+export async function failEmailOutboxTask(taskId, { error = null, retryDelaySeconds = 0 } = {}, connection = null) {
   if (!taskId) return false;
 
   const safeDelay = clampInt(retryDelaySeconds, 0, 0, 86400 * 7);

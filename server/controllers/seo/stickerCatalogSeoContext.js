@@ -1,41 +1,7 @@
 import fs from 'node:fs/promises';
 
-export const createStickerCatalogSeoContext = ({
-  executeQuery,
-  tables,
-  listStickerPacksForCatalog,
-  logger,
-  sendJson,
-  toSiteAbsoluteUrl,
-  isPackPubliclyVisible,
-  buildPackWebUrl,
-  config,
-}) => {
-  const {
-    stickerWebPath,
-    stickerApiBasePath,
-    stickerOrphanApiPath,
-    stickerLoginWebPath,
-    stickerCreateWebPath,
-    stickerDataPublicPath,
-    defaultListLimit,
-    defaultOrphanListLimit,
-    catalogTemplatePath,
-    createPackTemplatePath,
-    catalogStylesFilePath,
-    catalogScriptFilePath,
-    stickerWebAssetVersion,
-    catalogStylesWebPath,
-    catalogScriptWebPath,
-    nsfwStickerPlaceholderUrl,
-    packCommandPrefix,
-    staticTextCacheSeconds,
-    immutableAssetCacheSeconds,
-    sitemapMaxPacks,
-    sitemapCacheSeconds,
-    seoDiscoveryLinkLimit,
-    seoDiscoveryCacheSeconds,
-  } = config;
+export const createStickerCatalogSeoContext = ({ executeQuery, tables, listStickerPacksForCatalog, logger, sendJson, toSiteAbsoluteUrl, isPackPubliclyVisible, buildPackWebUrl, config }) => {
+  const { stickerWebPath, stickerApiBasePath, stickerOrphanApiPath, stickerLoginWebPath, stickerCreateWebPath, stickerDataPublicPath, defaultListLimit, defaultOrphanListLimit, catalogTemplatePath, createPackTemplatePath, catalogStylesFilePath, catalogScriptFilePath, stickerWebAssetVersion, catalogStylesWebPath, catalogScriptWebPath, nsfwStickerPlaceholderUrl, packCommandPrefix, staticTextCacheSeconds, immutableAssetCacheSeconds, sitemapMaxPacks, sitemapCacheSeconds, seoDiscoveryLinkLimit, seoDiscoveryCacheSeconds } = config;
 
   const SITEMAP_CACHE = {
     expiresAt: 0,
@@ -80,14 +46,10 @@ export const createStickerCatalogSeoContext = ({
     return date.toISOString().slice(0, 10);
   };
 
-  const appendAssetVersionQuery = (assetPath) =>
-    stickerWebAssetVersion
-      ? `${assetPath}?v=${encodeURIComponent(stickerWebAssetVersion)}`
-      : assetPath;
+  const appendAssetVersionQuery = (assetPath) => (stickerWebAssetVersion ? `${assetPath}?v=${encodeURIComponent(stickerWebAssetVersion)}` : assetPath);
   const buildCatalogStylesUrl = () => appendAssetVersionQuery(catalogStylesWebPath);
   const buildCatalogScriptUrl = () => appendAssetVersionQuery(catalogScriptWebPath);
-  const buildStickersReactBundleUrl = () =>
-    appendAssetVersionQuery('/assets/js/stickers-react.bundle.js');
+  const buildStickersReactBundleUrl = () => appendAssetVersionQuery('/assets/js/stickers-react.bundle.js');
 
   const buildCatalogDiscoveryLinksHtml = async () => {
     if (SEO_DISCOVERY_CACHE.expiresAt > Date.now() && SEO_DISCOVERY_CACHE.html) {
@@ -102,9 +64,7 @@ export const createStickerCatalogSeoContext = ({
         offset: 0,
       });
 
-      const links = (Array.isArray(packs) ? packs : [])
-        .filter((pack) => pack?.pack_key && isPackPubliclyVisible(pack))
-        .slice(0, seoDiscoveryLinkLimit);
+      const links = (Array.isArray(packs) ? packs : []).filter((pack) => pack?.pack_key && isPackPubliclyVisible(pack)).slice(0, seoDiscoveryLinkLimit);
 
       if (!links.length) {
         SEO_DISCOVERY_CACHE.expiresAt = Date.now() + seoDiscoveryCacheSeconds * 1000;
@@ -168,10 +128,7 @@ export const createStickerCatalogSeoContext = ({
     html = html.replace(/data-initial-pack-key="[^"]*"/i, initialPackKeyAttr);
 
     if (!/rel="canonical"/i.test(html)) {
-      html = html.replace(
-        '</head>',
-        `  <link rel="canonical" href="${escapeHtmlAttribute(toSiteAbsoluteUrl(`${stickerWebPath}/`))}" />\n</head>`,
-      );
+      html = html.replace('</head>', `  <link rel="canonical" href="${escapeHtmlAttribute(toSiteAbsoluteUrl(`${stickerWebPath}/`))}" />\n</head>`);
     }
 
     const discoveryLinks = await buildCatalogDiscoveryLinksHtml();
@@ -184,23 +141,16 @@ export const createStickerCatalogSeoContext = ({
 
   const renderPackSeoHtml = ({ packSummary }) => {
     const packName = truncateText(packSummary?.name || packSummary?.pack_key || 'Pack', 95);
-    const packDescription = truncateText(
-      packSummary?.description ||
-        `Pack de stickers "${packName}" disponível no catálogo OmniZap para uso em bots e automações WhatsApp via API.`,
-      180,
-    );
+    const packDescription = truncateText(packSummary?.description || `Pack de stickers "${packName}" disponível no catálogo OmniZap para uso em bots e automações WhatsApp via API.`, 180);
     const canonicalUrl = toSiteAbsoluteUrl(buildPackWebUrl(packSummary?.pack_key || ''));
     const catalogUrl = toSiteAbsoluteUrl(`${stickerWebPath}/`);
     const homeUrl = toSiteAbsoluteUrl('/');
     const apiDocsUrl = toSiteAbsoluteUrl('/api-docs/');
-    const fallbackCoverUrl = packSummary?.is_nsfw
-      ? nsfwStickerPlaceholderUrl
-      : 'https://iili.io/fSNGag2.png';
+    const fallbackCoverUrl = packSummary?.is_nsfw ? nsfwStickerPlaceholderUrl : 'https://iili.io/fSNGag2.png';
     const coverUrl = toSiteAbsoluteUrl(packSummary?.cover_url || fallbackCoverUrl);
     const publisher = truncateText(packSummary?.publisher || 'Criador OmniZap', 80);
     const stickerCount = Math.max(0, Number(packSummary?.sticker_count || 0));
-    const updatedAt =
-      packSummary?.updated_at || packSummary?.created_at || new Date().toISOString();
+    const updatedAt = packSummary?.updated_at || packSummary?.created_at || new Date().toISOString();
     const schemaJson = JSON.stringify(
       {
         '@context': 'https://schema.org',
@@ -484,12 +434,8 @@ export const createStickerCatalogSeoContext = ({
     const xmlItems = [...staticUrls, ...packUrls]
       .map((entry) => {
         const lastmod = entry.lastmod ? `\n    <lastmod>${escapeXml(entry.lastmod)}</lastmod>` : '';
-        const changefreq = entry.changefreq
-          ? `\n    <changefreq>${escapeXml(entry.changefreq)}</changefreq>`
-          : '';
-        const priority = entry.priority
-          ? `\n    <priority>${escapeXml(entry.priority)}</priority>`
-          : '';
+        const changefreq = entry.changefreq ? `\n    <changefreq>${escapeXml(entry.changefreq)}</changefreq>` : '';
+        const priority = entry.priority ? `\n    <priority>${escapeXml(entry.priority)}</priority>` : '';
         return `  <url>\n    <loc>${escapeXml(entry.loc)}</loc>${lastmod}${changefreq}${priority}\n  </url>`;
       })
       .join('\n');
@@ -517,9 +463,7 @@ export const createStickerCatalogSeoContext = ({
     try {
       const body = await fs.readFile(filePath, 'utf8');
       const hasVersionQuery = /(?:\?|&)v=/.test(String(req.url || ''));
-      const cacheControl = hasVersionQuery
-        ? `public, max-age=${immutableAssetCacheSeconds}, immutable`
-        : `public, max-age=${staticTextCacheSeconds}, stale-while-revalidate=${Math.min(86400, staticTextCacheSeconds * 4)}`;
+      const cacheControl = hasVersionQuery ? `public, max-age=${immutableAssetCacheSeconds}, immutable` : `public, max-age=${staticTextCacheSeconds}, stale-while-revalidate=${Math.min(86400, staticTextCacheSeconds * 4)}`;
       res.statusCode = 200;
       res.setHeader('Content-Type', contentType);
       res.setHeader('Cache-Control', cacheControl);
@@ -551,12 +495,7 @@ export const createStickerCatalogSeoContext = ({
     }
 
     if (pathname === catalogScriptWebPath) {
-      return sendStaticTextFile(
-        req,
-        res,
-        catalogScriptFilePath,
-        'application/javascript; charset=utf-8',
-      );
+      return sendStaticTextFile(req, res, catalogScriptFilePath, 'application/javascript; charset=utf-8');
     }
 
     return false;

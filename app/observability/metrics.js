@@ -57,13 +57,7 @@ const toStatusClass = (statusCode) => {
   return `${head}xx`;
 };
 
-export const resolveRouteGroup = ({
-  pathname,
-  metricsPath,
-  catalogConfig = null,
-  userConfig = null,
-  systemAdminConfig = null,
-} = {}) => {
+export const resolveRouteGroup = ({ pathname, metricsPath, catalogConfig = null, userConfig = null, systemAdminConfig = null } = {}) => {
   if (pathname?.startsWith(metricsPath)) return 'metrics';
   if (pathname === '/healthz' || pathname === '/readyz') return 'health';
   if (pathname === '/sitemap.xml') return 'sitemap';
@@ -76,30 +70,19 @@ export const resolveRouteGroup = ({
   const systemAdminPath = systemAdminConfig?.webPath || '';
 
   if (apiBasePath && (pathname === apiBasePath || pathname?.startsWith(`${apiBasePath}/`))) {
-    if (
-      pathname === `${apiBasePath}/auth/google/session` ||
-      pathname === `${apiBasePath}/me` ||
-      pathname === `${apiBasePath}/admin/session`
-    ) {
+    if (pathname === `${apiBasePath}/auth/google/session` || pathname === `${apiBasePath}/me` || pathname === `${apiBasePath}/admin/session`) {
       return 'catalog_api_auth';
     }
-    if (
-      pathname === `${apiBasePath}/create` ||
-      /\/(manage|finalize|stickers-upload|publish-state)(\/|$)/.test(pathname || '')
-    ) {
+    if (pathname === `${apiBasePath}/create` || /\/(manage|finalize|stickers-upload|publish-state)(\/|$)/.test(pathname || '')) {
       return 'catalog_api_upload';
     }
     if (pathname?.startsWith(`${apiBasePath}/admin`)) return 'catalog_api_admin';
     return 'catalog_api_public';
   }
-  if (dataPublicPath && (pathname === dataPublicPath || pathname?.startsWith(`${dataPublicPath}/`)))
-    return 'catalog_data_asset';
-  if (systemAdminPath && (pathname === systemAdminPath || pathname === `${systemAdminPath}/`))
-    return 'system_admin_web';
-  if (userProfilePath && (pathname === userProfilePath || pathname === `${userProfilePath}/`))
-    return 'catalog_user_profile';
-  if (webPath && (pathname === webPath || pathname?.startsWith(`${webPath}/`)))
-    return 'catalog_web';
+  if (dataPublicPath && (pathname === dataPublicPath || pathname?.startsWith(`${dataPublicPath}/`))) return 'catalog_data_asset';
+  if (systemAdminPath && (pathname === systemAdminPath || pathname === `${systemAdminPath}/`)) return 'system_admin_web';
+  if (userProfilePath && (pathname === userProfilePath || pathname === `${userProfilePath}/`)) return 'catalog_user_profile';
+  if (webPath && (pathname === webPath || pathname?.startsWith(`${webPath}/`))) return 'catalog_web';
 
   return 'other';
 };
@@ -722,14 +705,7 @@ export const recordSocialXpCapHit = ({ scope = 'earn' } = {}) => {
   m.socialXpCapHitsTotal.inc({ scope: normalizeLabel(scope, 'earn') });
 };
 
-export const recordStickerAutoPackCycle = ({
-  durationMs,
-  assetsScanned = 0,
-  assetsAdded = 0,
-  duplicateRate = null,
-  rejectionRate = null,
-  fillRate = null,
-} = {}) => {
+export const recordStickerAutoPackCycle = ({ durationMs, assetsScanned = 0, assetsAdded = 0, duplicateRate = null, rejectionRate = null, fillRate = null } = {}) => {
   const m = ensureMetrics();
   if (!m) return;
 
@@ -764,13 +740,7 @@ export const recordStickerAutoPackCycle = ({
   }
 };
 
-export const recordStickerClassificationCycle = ({
-  status = 'ok',
-  durationMs,
-  processed = 0,
-  classified = 0,
-  failed = 0,
-} = {}) => {
+export const recordStickerClassificationCycle = ({ status = 'ok', durationMs, processed = 0, classified = 0, failed = 0 } = {}) => {
   const m = ensureMetrics();
   if (!m) return;
 

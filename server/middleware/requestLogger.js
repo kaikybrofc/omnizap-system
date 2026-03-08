@@ -30,11 +30,7 @@ const sanitizePathForLogs = (pathname) => {
   }, rawPath);
 };
 
-export const attachRequestLogger = (
-  req,
-  res,
-  { pathname = '', requestId = '', startedAt = Date.now() } = {},
-) => {
+export const attachRequestLogger = (req, res, { pathname = '', requestId = '', startedAt = Date.now() } = {}) => {
   if (req.__requestLoggerAttached) return;
   req.__requestLoggerAttached = true;
 

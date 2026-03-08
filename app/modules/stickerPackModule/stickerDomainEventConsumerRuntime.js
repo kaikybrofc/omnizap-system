@@ -1,12 +1,7 @@
 import logger from '../../../utils/logger/loggerModule.js';
 import { setQueueDepth } from '../../observability/metrics.js';
 import { isFeatureEnabled } from '../../services/featureFlagService.js';
-import {
-  claimDomainEvent,
-  completeDomainEvent,
-  countDomainEventsByStatus,
-  failDomainEvent,
-} from './domainEventOutboxRepository.js';
+import { claimDomainEvent, completeDomainEvent, countDomainEventsByStatus, failDomainEvent } from './domainEventOutboxRepository.js';
 import { STICKER_DOMAIN_EVENTS } from './domainEvents.js';
 import { enqueueWorkerTask } from './stickerWorkerTaskQueueRepository.js';
 import { enqueuePackScoreSnapshotRefresh } from './stickerPackScoreSnapshotRuntime.js';
@@ -21,48 +16,20 @@ const parseEnvBool = (value, fallback) => {
 };
 
 const CONSUMER_ENABLED = parseEnvBool(process.env.STICKER_DOMAIN_EVENT_CONSUMER_ENABLED, true);
-const STARTUP_DELAY_MS = Math.max(
-  1_000,
-  Number(process.env.STICKER_DOMAIN_EVENT_CONSUMER_STARTUP_DELAY_MS) || 8_000,
-);
-const POLLER_INTERVAL_MS = Math.max(
-  1_000,
-  Number(process.env.STICKER_DOMAIN_EVENT_CONSUMER_POLLER_INTERVAL_MS) || 2_000,
-);
-const RETRY_DELAY_SECONDS = Math.max(
-  5,
-  Math.min(3600, Number(process.env.STICKER_DOMAIN_EVENT_CONSUMER_RETRY_DELAY_SECONDS) || 45),
-);
-const CLASSIFICATION_COALESCE_WINDOW_SECONDS = Math.max(
-  30,
-  Math.min(
-    3600,
-    Number(process.env.STICKER_DOMAIN_EVENT_CLASSIFICATION_COALESCE_WINDOW_SECONDS) || 60,
-  ),
-);
-const CURATION_COALESCE_WINDOW_SECONDS = Math.max(
-  30,
-  Math.min(3600, Number(process.env.STICKER_DOMAIN_EVENT_CURATION_COALESCE_WINDOW_SECONDS) || 60),
-);
-const REBUILD_COALESCE_WINDOW_SECONDS = Math.max(
-  30,
-  Math.min(3600, Number(process.env.STICKER_DOMAIN_EVENT_REBUILD_COALESCE_WINDOW_SECONDS) || 120),
-);
-const CONSUMER_COHORT_KEY =
-  String(
-    process.env.STICKER_DOMAIN_EVENT_CONSUMER_COHORT_KEY || process.env.HOSTNAME || process.pid,
-  ).trim() || 'consumer';
+const STARTUP_DELAY_MS = Math.max(1_000, Number(process.env.STICKER_DOMAIN_EVENT_CONSUMER_STARTUP_DELAY_MS) || 8_000);
+const POLLER_INTERVAL_MS = Math.max(1_000, Number(process.env.STICKER_DOMAIN_EVENT_CONSUMER_POLLER_INTERVAL_MS) || 2_000);
+const RETRY_DELAY_SECONDS = Math.max(5, Math.min(3600, Number(process.env.STICKER_DOMAIN_EVENT_CONSUMER_RETRY_DELAY_SECONDS) || 45));
+const CLASSIFICATION_COALESCE_WINDOW_SECONDS = Math.max(30, Math.min(3600, Number(process.env.STICKER_DOMAIN_EVENT_CLASSIFICATION_COALESCE_WINDOW_SECONDS) || 60));
+const CURATION_COALESCE_WINDOW_SECONDS = Math.max(30, Math.min(3600, Number(process.env.STICKER_DOMAIN_EVENT_CURATION_COALESCE_WINDOW_SECONDS) || 60));
+const REBUILD_COALESCE_WINDOW_SECONDS = Math.max(30, Math.min(3600, Number(process.env.STICKER_DOMAIN_EVENT_REBUILD_COALESCE_WINDOW_SECONDS) || 120));
+const CONSUMER_COHORT_KEY = String(process.env.STICKER_DOMAIN_EVENT_CONSUMER_COHORT_KEY || process.env.HOSTNAME || process.pid).trim() || 'consumer';
 
 let startupHandle = null;
 let pollerHandle = null;
 let running = false;
 
 const refreshOutboxDepthMetrics = async () => {
-  const [pending, processing, failed] = await Promise.all([
-    countDomainEventsByStatus('pending'),
-    countDomainEventsByStatus('processing'),
-    countDomainEventsByStatus('failed'),
-  ]);
+  const [pending, processing, failed] = await Promise.all([countDomainEventsByStatus('pending'), countDomainEventsByStatus('processing'), countDomainEventsByStatus('failed')]);
   setQueueDepth('domain_event_outbox_pending', pending);
   setQueueDepth('domain_event_outbox_processing', processing);
   setQueueDepth('domain_event_outbox_failed', failed);
@@ -103,10 +70,7 @@ const handleDomainEvent = async (event) => {
   const payload = event?.payload && typeof event.payload === 'object' ? event.payload : {};
 
   if (eventType === STICKER_DOMAIN_EVENTS.STICKER_ASSET_CREATED) {
-    const coalesceBucket = toWindowBucket(
-      event?.created_at,
-      CLASSIFICATION_COALESCE_WINDOW_SECONDS,
-    );
+    const coalesceBucket = toWindowBucket(event?.created_at, CLASSIFICATION_COALESCE_WINDOW_SECONDS);
     await enqueueTaskSafely({
       taskType: 'classification_cycle',
       payload: {
@@ -149,9 +113,7 @@ const handleDomainEvent = async (event) => {
     if (packId) {
       enqueuePackScoreSnapshotRefresh([packId]);
     }
-    const rebuildIdempotency = packId
-      ? `evt:${eventType}:${packId}:${coalesceBucket}:rebuild_cycle`
-      : `evt:${eventType}:${coalesceBucket}:rebuild_cycle`;
+    const rebuildIdempotency = packId ? `evt:${eventType}:${packId}:${coalesceBucket}:rebuild_cycle` : `evt:${eventType}:${coalesceBucket}:rebuild_cycle`;
     await enqueueTaskSafely({
       taskType: 'rebuild_cycle',
       payload: {

@@ -3,12 +3,14 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
+
 - arquivo_base: `app/modules/stickerModule/commandConfig.json`
 - schema_version: `2.0.0`
 - module_enabled: `true`
 - generated_at: `2026-03-08T10:59:41.156Z`
 
 ## Escopo do Modulo
+
 - module: `stickerModule`
 - source_files:
 - stickerCommand.js
@@ -18,6 +20,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `5`
 
 ## Protocolo de Resposta para IA
+
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -26,13 +29,16 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
+
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
+
 ### figurinha
+
 - aliases: s, sticker
 - enabled: true
 - categoria: figurinhas
@@ -106,6 +112,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### paraimagem
+
 - aliases: tovideo, tovid, toimg
 - enabled: true
 - categoria: figurinhas
@@ -180,6 +187,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### figurinhatexto
+
 - aliases: st, stickertext
 - enabled: true
 - categoria: figurinhas
@@ -254,6 +262,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### figurinhatextobranco
+
 - aliases: stw, stickertextwhite
 - enabled: true
 - categoria: figurinhas
@@ -328,6 +337,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### figurinhatextopisca
+
 - aliases: stb, stickertextblink
 - enabled: true
 - categoria: figurinhas

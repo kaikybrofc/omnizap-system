@@ -107,23 +107,16 @@ function resolveTimeoutMs(mediaType, timeoutMsByType, explicitTimeoutMs) {
 function resolveMaxOutputLimit(mediaType, explicitMaxOutputSizeBytes, maxOutputSizeBytesByType) {
   const directLimit = Number(explicitMaxOutputSizeBytes);
   if (Number.isFinite(directLimit) && directLimit > 0) {
-    return Math.trunc(
-      clampNumber(directLimit, 1, 20 * MB, DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE.image),
-    );
+    return Math.trunc(clampNumber(directLimit, 1, 20 * MB, DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE.image));
   }
 
   const typedLimit = Number(maxOutputSizeBytesByType?.[mediaType]);
   if (Number.isFinite(typedLimit) && typedLimit > 0) {
-    return Math.trunc(
-      clampNumber(typedLimit, 1, 20 * MB, DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE.image),
-    );
+    return Math.trunc(clampNumber(typedLimit, 1, 20 * MB, DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE.image));
   }
 
-  const fallbackLimit =
-    DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE[mediaType] || DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE.image;
-  return Math.trunc(
-    clampNumber(fallbackLimit, 1, 20 * MB, DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE.image),
-  );
+  const fallbackLimit = DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE[mediaType] || DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE.image;
+  return Math.trunc(clampNumber(fallbackLimit, 1, 20 * MB, DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE.image));
 }
 
 /**
@@ -231,9 +224,7 @@ function runProcess(command, args, { timeoutMs }) {
       }
 
       if (code !== 0) {
-        const processError = new Error(
-          `${command} finalizou com código ${code}${signal ? ` (sinal: ${signal})` : ''}.`,
-        );
+        const processError = new Error(`${command} finalizou com código ${code}${signal ? ` (sinal: ${signal})` : ''}.`);
         processError.code = code;
         processError.signal = signal;
         processError.stderr = stderr;
@@ -284,22 +275,8 @@ export async function convertToWebp(inputPath, mediaType, userId, uniqueId, opti
   const sanitizedUserId = String(userId || 'anon').replace(/[^a-zA-Z0-9._-]/g, '_');
   const userStickerDir = path.join(TEMP_DIR, sanitizedUserId);
   const outputPath = path.join(userStickerDir, `sticker_${uniqueId}.webp`);
-  const {
-    stretch = true,
-    videoMaxDurationSeconds = DEFAULT_VIDEO_MAX_DURATION_SECONDS,
-    videoFps = DEFAULT_VIDEO_FPS,
-    videoQuality = DEFAULT_VIDEO_QUALITY,
-    videoCompressionLevel = DEFAULT_VIDEO_COMPRESSION_LEVEL,
-    maxOutputSizeBytes,
-    maxOutputSizeBytesByType = DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE,
-    timeoutMsByType = DEFAULT_TIMEOUT_MS_BY_TYPE,
-    timeoutMs,
-  } = options;
-  const maxOutputLimit = resolveMaxOutputLimit(
-    mediaType,
-    maxOutputSizeBytes,
-    maxOutputSizeBytesByType,
-  );
+  const { stretch = true, videoMaxDurationSeconds = DEFAULT_VIDEO_MAX_DURATION_SECONDS, videoFps = DEFAULT_VIDEO_FPS, videoQuality = DEFAULT_VIDEO_QUALITY, videoCompressionLevel = DEFAULT_VIDEO_COMPRESSION_LEVEL, maxOutputSizeBytes, maxOutputSizeBytesByType = DEFAULT_MAX_OUTPUT_SIZE_BYTES_BY_TYPE, timeoutMsByType = DEFAULT_TIMEOUT_MS_BY_TYPE, timeoutMs } = options;
+  const maxOutputLimit = resolveMaxOutputLimit(mediaType, maxOutputSizeBytes, maxOutputSizeBytesByType);
 
   try {
     await fs.mkdir(userStickerDir, { recursive: true });
@@ -320,14 +297,10 @@ export async function convertToWebp(inputPath, mediaType, userId, uniqueId, opti
       return outputPath;
     }
 
-    const normalizedDuration = Math.trunc(
-      clampNumber(videoMaxDurationSeconds, 1, 30, DEFAULT_VIDEO_MAX_DURATION_SECONDS),
-    );
+    const normalizedDuration = Math.trunc(clampNumber(videoMaxDurationSeconds, 1, 30, DEFAULT_VIDEO_MAX_DURATION_SECONDS));
     const normalizedFps = Math.trunc(clampNumber(videoFps, 1, 30, DEFAULT_VIDEO_FPS));
     const normalizedQuality = Math.trunc(clampNumber(videoQuality, 0, 100, DEFAULT_VIDEO_QUALITY));
-    const normalizedCompression = Math.trunc(
-      clampNumber(videoCompressionLevel, 0, 6, DEFAULT_VIDEO_COMPRESSION_LEVEL),
-    );
+    const normalizedCompression = Math.trunc(clampNumber(videoCompressionLevel, 0, 6, DEFAULT_VIDEO_COMPRESSION_LEVEL));
 
     const stretchFilter = 'scale=512:512';
     const scaleFilter = 'scale=512:512:force_original_aspect_ratio=decrease';
@@ -344,16 +317,7 @@ export async function convertToWebp(inputPath, mediaType, userId, uniqueId, opti
     ffmpegArgs.push('-vcodec', 'libwebp', '-loop', '0', '-preset', 'default', '-an');
 
     if (mediaType === 'video') {
-      ffmpegArgs.push(
-        '-vsync',
-        '0',
-        '-lossless',
-        '0',
-        '-q:v',
-        String(normalizedQuality),
-        '-compression_level',
-        String(normalizedCompression),
-      );
+      ffmpegArgs.push('-vsync', '0', '-lossless', '0', '-q:v', String(normalizedQuality), '-compression_level', String(normalizedCompression));
     } else {
       ffmpegArgs.push('-lossless', '1');
     }

@@ -5,15 +5,7 @@ import { createModuleCommandConfigRuntime } from './moduleCommandConfigRuntimeSe
 
 const normalizeText = (value) => String(value || '').trim();
 
-export const createModuleAiHelpWrapper = ({
-  moduleKey,
-  moduleLabel,
-  envPrefix,
-  moduleDirPath,
-  moduleNameFallback = null,
-  guidance = undefined,
-  customLogger = logger,
-}) => {
+export const createModuleAiHelpWrapper = ({ moduleKey, moduleLabel, envPrefix, moduleDirPath, moduleNameFallback = null, guidance = undefined, customLogger = logger }) => {
   const safeModuleKey = normalizeText(moduleKey);
   const safeModuleLabel = normalizeText(moduleLabel);
   const safeEnvPrefix = normalizeText(envPrefix);

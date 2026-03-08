@@ -128,10 +128,7 @@
           "subcomandos": [],
           "metodos_de_uso": ["/adicionar @participante"],
           "mensagens_uso": {
-            "missing_targets": [
-              "/adicionar @participante1 @participante2 ...",
-              "Também é possível informar os JIDs dos participantes."
-            ]
+            "missing_targets": ["/adicionar @participante1 @participante2 ...", "Também é possível informar os JIDs dos participantes."]
           }
         },
         {
@@ -146,15 +143,7 @@
           "permissao_necessaria": "admin do grupo",
           "local_de_uso": ["grupo"],
           "subcomandos": ["on", "off", "list", "allow", "disallow", "add", "remove"],
-          "metodos_de_uso": [
-            "/antilink on",
-            "/antilink off",
-            "/antilink list",
-            "/antilink allow <rede>",
-            "/antilink disallow <rede>",
-            "/antilink add <dominio>",
-            "/antilink remove <dominio>"
-          ],
+          "metodos_de_uso": ["/antilink on", "/antilink off", "/antilink list", "/antilink allow <rede>", "/antilink disallow <rede>", "/antilink add <dominio>", "/antilink remove <dominio>"],
           "mensagens_uso": {
             "allow": ["/antilink allow <rede>"],
             "disallow": ["/antilink disallow <rede>"],
@@ -191,16 +180,10 @@
           "permissao_necessaria": "admin do grupo",
           "local_de_uso": ["grupo"],
           "subcomandos": ["approve", "reject"],
-          "metodos_de_uso": [
-            "/atualizarsolicitacoes approve @participante",
-            "/atualizarsolicitacoes reject @participante"
-          ],
+          "metodos_de_uso": ["/atualizarsolicitacoes approve @participante", "/atualizarsolicitacoes reject @participante"],
           "mensagens_uso": {
             "invalid_action": ["/atualizarsolicitacoes <approve|reject> @participante1 ..."],
-            "missing_targets": [
-              "/atualizarsolicitacoes <approve|reject> @participante1 ...",
-              "Mencione os usuários que devem ser aprovados ou rejeitados."
-            ]
+            "missing_targets": ["/atualizarsolicitacoes <approve|reject> @participante1 ...", "Mencione os usuários que devem ser aprovados ou rejeitados."]
           }
         },
         {
@@ -230,11 +213,7 @@
           "permissao_necessaria": "admin do grupo",
           "local_de_uso": ["grupo"],
           "subcomandos": ["on", "off", "status"],
-          "metodos_de_uso": [
-            "/autosolicitacoes on",
-            "/autosolicitacoes off",
-            "/autosolicitacoes status"
-          ],
+          "metodos_de_uso": ["/autosolicitacoes on", "/autosolicitacoes off", "/autosolicitacoes status"],
           "mensagens_uso": {}
         },
         {
@@ -251,10 +230,7 @@
           "subcomandos": [],
           "metodos_de_uso": ["/banir @participante"],
           "mensagens_uso": {
-            "missing_targets": [
-              "/banir @participante1 @participante2 ...",
-              "Também é possível responder à mensagem do participante desejado."
-            ]
+            "missing_targets": ["/banir @participante1 @participante2 ...", "Também é possível responder à mensagem do participante desejado."]
           }
         },
         {
@@ -269,16 +245,9 @@
           "permissao_necessaria": "admin do grupo",
           "local_de_uso": ["grupo"],
           "subcomandos": ["on", "off", "set"],
-          "metodos_de_uso": [
-            "/boasvindas on",
-            "/boasvindas off",
-            "/boasvindas set <mensagem_ou_midia>"
-          ],
+          "metodos_de_uso": ["/boasvindas on", "/boasvindas off", "/boasvindas set <mensagem_ou_midia>"],
           "mensagens_uso": {
-            "missing_content": [
-              "/boasvindas set <mensagem ou caminho da midia>",
-              "Também é possível enviar uma mídia junto ao comando."
-            ]
+            "missing_content": ["/boasvindas set <mensagem ou caminho da midia>", "Também é possível enviar uma mídia junto ao comando."]
           }
         },
         {
@@ -308,12 +277,7 @@
           "permissao_necessaria": "admin do grupo",
           "local_de_uso": ["grupo"],
           "subcomandos": ["announcement", "not_announcement", "locked", "unlocked"],
-          "metodos_de_uso": [
-            "/configgrupo announcement",
-            "/configgrupo not_announcement",
-            "/configgrupo locked",
-            "/configgrupo unlocked"
-          ],
+          "metodos_de_uso": ["/configgrupo announcement", "/configgrupo not_announcement", "/configgrupo locked", "/configgrupo unlocked"],
           "mensagens_uso": {
             "default": ["/configgrupo <announcement|not_announcement|locked|unlocked>"]
           }
@@ -362,16 +326,9 @@
           "permissao_necessaria": "admin do grupo",
           "local_de_uso": ["grupo"],
           "subcomandos": ["on", "off", "set"],
-          "metodos_de_uso": [
-            "/despedida on",
-            "/despedida off",
-            "/despedida set <mensagem_ou_midia>"
-          ],
+          "metodos_de_uso": ["/despedida on", "/despedida off", "/despedida set <mensagem_ou_midia>"],
           "mensagens_uso": {
-            "missing_content": [
-              "/despedida set <mensagem ou caminho da midia>",
-              "Também é possível enviar uma mídia junto ao comando."
-            ]
+            "missing_content": ["/despedida set <mensagem ou caminho da midia>", "Também é possível enviar uma mídia junto ao comando."]
           }
         },
         {
@@ -416,12 +373,7 @@
           "permissao_necessaria": "admin do grupo",
           "local_de_uso": ["grupo"],
           "subcomandos": ["on", "off", "status"],
-          "metodos_de_uso": [
-            "/janelachat on",
-            "/janelachat off",
-            "/janelachat status",
-            "/janelachat on 15"
-          ],
+          "metodos_de_uso": ["/janelachat on", "/janelachat off", "/janelachat status", "/janelachat on 15"],
           "mensagens_uso": {}
         },
         {
@@ -436,11 +388,7 @@
           "permissao_necessaria": "admin do grupo",
           "local_de_uso": ["grupo"],
           "subcomandos": ["<minutos>", "status", "reset"],
-          "metodos_de_uso": [
-            "/limitefigurinha 5",
-            "/limitefigurinha status",
-            "/limitefigurinha reset"
-          ],
+          "metodos_de_uso": ["/limitefigurinha 5", "/limitefigurinha status", "/limitefigurinha reset"],
           "mensagens_uso": {}
         },
         {
@@ -455,19 +403,9 @@
           "permissao_necessaria": "admin do grupo",
           "local_de_uso": ["grupo"],
           "subcomandos": ["ajuda", "faq", "perguntar"],
-          "metodos_de_uso": [
-            "/menuadmin",
-            "/menuadmin ajuda <comando>",
-            "/menuadmin faq",
-            "/menuadmin perguntar <pergunta>"
-          ],
+          "metodos_de_uso": ["/menuadmin", "/menuadmin ajuda <comando>", "/menuadmin faq", "/menuadmin perguntar <pergunta>"],
           "mensagens_uso": {
-            "default": [
-              "/menuadmin",
-              "/menuadmin ajuda <comando>",
-              "/menuadmin faq",
-              "/menuadmin perguntar <pergunta>"
-            ],
+            "default": ["/menuadmin", "/menuadmin ajuda <comando>", "/menuadmin faq", "/menuadmin perguntar <pergunta>"],
             "help": ["/menuadmin ajuda <comando>"],
             "ask": ["/menuadmin perguntar <pergunta>"]
           }
@@ -574,11 +512,7 @@
           "permissao_necessaria": "admin do grupo",
           "local_de_uso": ["grupo"],
           "subcomandos": ["<novo_prefixo>", "status", "reset"],
-          "metodos_de_uso": [
-            "<prefixo>prefixo <novo_prefixo>",
-            "<prefixo>prefixo status",
-            "<prefixo>prefixo reset"
-          ],
+          "metodos_de_uso": ["<prefixo>prefixo <novo_prefixo>", "<prefixo>prefixo status", "<prefixo>prefixo reset"],
           "mensagens_uso": {}
         },
         {
@@ -596,10 +530,7 @@
           "metodos_de_uso": ["/premium list", "/premium add @usuario", "/premium remove @usuario"],
           "mensagens_uso": {
             "invalid_action": ["/premium <add|remove|list> @usuario1 @usuario2 ..."],
-            "missing_targets": [
-              "/premium <add|remove> @usuario1 @usuario2 ...",
-              "Também é possível responder à mensagem do usuário desejado."
-            ]
+            "missing_targets": ["/premium <add|remove> @usuario1 @usuario2 ...", "Também é possível responder à mensagem do usuário desejado."]
           }
         },
         {
@@ -616,10 +547,7 @@
           "subcomandos": [],
           "metodos_de_uso": ["/promover @participante"],
           "mensagens_uso": {
-            "missing_targets": [
-              "/promover @participante1 @participante2 ...",
-              "Também é possível informar os JIDs dos participantes."
-            ]
+            "missing_targets": ["/promover @participante1 @participante2 ...", "Também é possível informar os JIDs dos participantes."]
           }
         },
         {
@@ -636,10 +564,7 @@
           "subcomandos": [],
           "metodos_de_uso": ["/rebaixar @participante"],
           "mensagens_uso": {
-            "missing_targets": [
-              "/rebaixar @participante1 @participante2 ...",
-              "Também é possível informar os JIDs dos participantes."
-            ]
+            "missing_targets": ["/rebaixar @participante1 @participante2 ...", "Também é possível informar os JIDs dos participantes."]
           }
         },
         {
@@ -759,10 +684,7 @@
           "subcomandos": [],
           "metodos_de_uso": ["/figurinhatextobranco seu texto", "/stw seu texto"],
           "mensagens_uso": {
-            "default": [
-              "📌 Use: /figurinhatextobranco seu texto",
-              "💡 Exemplo: /stw bom dia seus lindos"
-            ]
+            "default": ["📌 Use: /figurinhatextobranco seu texto", "💡 Exemplo: /stw bom dia seus lindos"]
           }
         },
         {
@@ -779,10 +701,7 @@
           "subcomandos": [],
           "metodos_de_uso": ["/figurinhatextopisca seu texto", "/stb seu texto"],
           "mensagens_uso": {
-            "default": [
-              "📌 Use: /figurinhatextopisca seu texto",
-              "💡 Exemplo: /stb bom dia seus lindos -verde"
-            ]
+            "default": ["📌 Use: /figurinhatextopisca seu texto", "💡 Exemplo: /stb bom dia seus lindos -verde"]
           }
         },
         {
@@ -796,36 +715,10 @@
           "descricao": "Gerencia packs de figurinhas (criar, listar, adicionar, enviar).",
           "permissao_necessaria": "usuario comum",
           "local_de_uso": ["privado", "grupo"],
-          "subcomandos": [
-            "help",
-            "create",
-            "list",
-            "info",
-            "add",
-            "setcover",
-            "setdesc",
-            "setpublisher",
-            "send",
-            "rename",
-            "remove",
-            "delete",
-            "reorder"
-          ],
-          "metodos_de_uso": [
-            "/pacote help",
-            "/pacote create meupack",
-            "/pacote list",
-            "/pacote add <pacote>",
-            "/pacote send <pacote>"
-          ],
+          "subcomandos": ["help", "create", "list", "info", "add", "setcover", "setdesc", "setpublisher", "send", "rename", "remove", "delete", "reorder"],
+          "metodos_de_uso": ["/pacote help", "/pacote create meupack", "/pacote list", "/pacote add <pacote>", "/pacote send <pacote>"],
           "mensagens_uso": {
-            "default": [
-              "/pacote help",
-              "/pacote create meupack",
-              "/pacote list",
-              "/pacote add <pacote>",
-              "/pacote send <pacote>"
-            ]
+            "default": ["/pacote help", "/pacote create meupack", "/pacote list", "/pacote add <pacote>", "/pacote send <pacote>"]
           }
         },
         {
@@ -868,11 +761,7 @@
           "subcomandos": [],
           "metodos_de_uso": ["/baixartiktok <url>", "/tt <url1> <url2>"],
           "mensagens_uso": {
-            "default": [
-              "🎬 *Baixartiktok Downloader*",
-              "Uso: */baixartiktok <link1> [link2 ...]*",
-              "Exemplo: */baixartiktok https://www.baixartiktok.com/@usuario/video/123*"
-            ]
+            "default": ["🎬 *Baixartiktok Downloader*", "Uso: */baixartiktok <link1> [link2 ...]*", "Exemplo: */baixartiktok https://www.baixartiktok.com/@usuario/video/123*"]
           }
         },
         {
@@ -889,13 +778,7 @@
           "subcomandos": [],
           "metodos_de_uso": ["/citar seu texto", "/qc @usuario texto"],
           "mensagens_uso": {
-            "default": [
-              "🖼️ *Citar*",
-              "Use assim:",
-              "*/citar* sua mensagem",
-              "Ou responda uma mensagem com:",
-              "*/citar*"
-            ]
+            "default": ["🖼️ *Citar*", "Use assim:", "*/citar* sua mensagem", "Ou responda uma mensagem com:", "*/citar*"]
           }
         },
         {
@@ -955,16 +838,7 @@
           "subcomandos": [],
           "metodos_de_uso": ["/ia sua pergunta", "/ia --audio sua pergunta"],
           "mensagens_uso": {
-            "default": [
-              "*/ia* [--audio] sua pergunta",
-              "*/ia* (responda ou envie uma imagem com legenda)",
-              "Opções:",
-              "--audio | --texto",
-              "--detail low | high | auto",
-              "Exemplo:",
-              "*/ia* Explique como funciona a fotossíntese.",
-              "*/ia* --audio Resuma a imagem."
-            ]
+            "default": ["*/ia* [--audio] sua pergunta", "*/ia* (responda ou envie uma imagem com legenda)", "Opções:", "--audio | --texto", "--detail low | high | auto", "Exemplo:", "*/ia* Explique como funciona a fotossíntese.", "*/ia* --audio Resuma a imagem."]
           }
         },
         {
@@ -981,18 +855,7 @@
           "subcomandos": [],
           "metodos_de_uso": ["/iaimagem seu prompt", "/iaimagem --size 1536x1024 seu prompt"],
           "mensagens_uso": {
-            "default": [
-              "*/iaimagem* seu prompt",
-              "*/iaimagem* (responda uma imagem com legenda para editar)",
-              "Opções:",
-              "--size 1024x1024 | 1024x1536 | 1536x1024 | auto",
-              "--quality low | medium | high | auto",
-              "--format png | jpeg | webp",
-              "--background transparent | opaque | auto",
-              "--compression 0-100",
-              "Exemplo:",
-              "*/iaimagem* --size 1536x1024 Um gato astronauta em aquarela."
-            ]
+            "default": ["*/iaimagem* seu prompt", "*/iaimagem* (responda uma imagem com legenda para editar)", "Opções:", "--size 1024x1024 | 1024x1536 | 1536x1024 | auto", "--quality low | medium | high | auto", "--format png | jpeg | webp", "--background transparent | opaque | auto", "--compression 0-100", "Exemplo:", "*/iaimagem* --size 1536x1024 Um gato astronauta em aquarela."]
           }
         },
         {
@@ -1009,11 +872,7 @@
           "subcomandos": ["reset"],
           "metodos_de_uso": ["/pergunteia novo prompt", "/pergunteia reset"],
           "mensagens_uso": {
-            "default": [
-              "*/pergunteia* seu novo prompt",
-              "Para voltar ao padrão:",
-              "*/pergunteia reset*"
-            ]
+            "default": ["*/pergunteia* seu novo prompt", "Para voltar ao padrão:", "*/pergunteia reset*"]
           }
         }
       ]
@@ -1039,12 +898,7 @@
           "subcomandos": [],
           "metodos_de_uso": ["/dado", "/dado 20", "/dice 100"],
           "mensagens_uso": {
-            "default": [
-              "Formato de uso:",
-              "/dado",
-              "/dado <lados (2-1000)>",
-              "/dice <lados (2-1000)>"
-            ]
+            "default": ["Formato de uso:", "/dado", "/dado <lados (2-1000)>", "/dice <lados (2-1000)>"]
           }
         },
         {
@@ -1058,44 +912,8 @@
           "descricao": "Comando principal do RPG Pokemon (exploracao, batalha, loja e social).",
           "permissao_necessaria": "usuario comum",
           "local_de_uso": ["privado", "grupo"],
-          "subcomandos": [
-            "help",
-            "ajuda",
-            "start",
-            "perfil",
-            "explorar",
-            "atacar",
-            "capturar",
-            "fugir",
-            "time",
-            "escolher",
-            "loja",
-            "comprar",
-            "usar",
-            "bolsa",
-            "pokedex",
-            "evolucao",
-            "missoes",
-            "viajar",
-            "tm",
-            "berry",
-            "raid",
-            "desafiar",
-            "pvp",
-            "ginasio",
-            "trade",
-            "coop",
-            "evento",
-            "social",
-            "karma",
-            "engajamento"
-          ],
-          "metodos_de_uso": [
-            "/pokemon help",
-            "/pokemon start",
-            "/pokemon explorar",
-            "/pokemon atacar 1"
-          ],
+          "subcomandos": ["help", "ajuda", "start", "perfil", "explorar", "atacar", "capturar", "fugir", "time", "escolher", "loja", "comprar", "usar", "bolsa", "pokedex", "evolucao", "missoes", "viajar", "tm", "berry", "raid", "desafiar", "pvp", "ginasio", "trade", "coop", "evento", "social", "karma", "engajamento"],
+          "metodos_de_uso": ["/pokemon help", "/pokemon start", "/pokemon explorar", "/pokemon atacar 1"],
           "mensagens_uso": {
             "default": ["/pokemon help", "/pokemon start", "/pokemon explorar", "/pokemon atacar 1"]
           }
@@ -1224,19 +1042,9 @@
           "permissao_necessaria": "usuario comum",
           "local_de_uso": ["privado", "grupo"],
           "subcomandos": ["perfil", "profile"],
-          "metodos_de_uso": [
-            "/perfil perfil",
-            "/perfil perfil <id|telefone>",
-            "/usuario perfil @contato"
-          ],
+          "metodos_de_uso": ["/perfil perfil", "/perfil perfil <id|telefone>", "/usuario perfil @contato"],
           "mensagens_uso": {
-            "default": [
-              "Formato de uso:",
-              "/perfil perfil <id|telefone>",
-              "Dica:",
-              "• Você pode mencionar alguém.",
-              "• Ou responder a mensagem do usuário desejado."
-            ]
+            "default": ["Formato de uso:", "/perfil perfil <id|telefone>", "Dica:", "• Você pode mencionar alguém.", "• Ou responder a mensagem do usuário desejado."]
           }
         }
       ]
@@ -1259,20 +1067,7 @@
           "descricao": "Exibe o menu principal ou um menu por categoria.",
           "permissao_necessaria": "usuario comum",
           "local_de_uso": ["privado", "grupo"],
-          "subcomandos": [
-            "figurinhas",
-            "sticker",
-            "stickers",
-            "midia",
-            "media",
-            "quote",
-            "quotes",
-            "ia",
-            "ai",
-            "stats",
-            "estatisticas",
-            "anime"
-          ],
+          "subcomandos": ["figurinhas", "sticker", "stickers", "midia", "media", "quote", "quotes", "ia", "ai", "stats", "estatisticas", "anime"],
           "metodos_de_uso": ["/menu", "/menu anime", "/menu stats"],
           "mensagens_uso": {
             "default": ["/menu", "/menu anime", "/menu stats"]

@@ -1,10 +1,7 @@
 export const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash =
-    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
-      ? withLeadingSlash.slice(0, -1)
-      : withLeadingSlash;
+  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 };
 
@@ -24,56 +21,17 @@ const hasPathPrefix = (pathname, prefix) => {
 export const DEFAULT_USER_API_BASE_PATH = '/api';
 export const DEFAULT_LEGACY_STICKER_API_BASE_PATH = '/api/sticker-packs';
 
-const USER_API_EXACT_ROUTE_SUFFIXES = Object.freeze([
-  '',
-  '/auth/google/session',
-  '/auth/login',
-  '/auth/terms/acceptance',
-  '/auth/password',
-  '/auth/password/recovery/request',
-  '/auth/password/recovery/verify',
-  '/auth/password/recovery/session',
-  '/auth/password/recovery/session/request',
-  '/auth/password/recovery/session/verify',
-  '/me',
-  '/bot-contact',
-  '/support',
-  '/create-config',
-  '/system-summary',
-  '/project-summary',
-  '/global-ranking-summary',
-  '/readme-summary',
-  '/readme-markdown',
-  '/intents',
-  '/creators',
-  '/recommendations',
-  '/stats',
-  '/home-bootstrap',
-]);
+const USER_API_EXACT_ROUTE_SUFFIXES = Object.freeze(['', '/auth/google/session', '/auth/login', '/auth/terms/acceptance', '/auth/password', '/auth/password/recovery/request', '/auth/password/recovery/verify', '/auth/password/recovery/session', '/auth/password/recovery/session/request', '/auth/password/recovery/session/verify', '/me', '/bot-contact', '/support', '/create-config', '/system-summary', '/project-summary', '/global-ranking-summary', '/readme-summary', '/readme-markdown', '/intents', '/creators', '/recommendations', '/stats', '/home-bootstrap']);
 
-const USER_API_PRIMARY_ONLY_ROUTE_SUFFIXES = Object.freeze([
-  '/home-bootstrap',
-  '/system-summary',
-  '/project-summary',
-  '/global-ranking-summary',
-  '/readme-markdown',
-  '/support',
-  '/bot-contact',
-]);
+const USER_API_PRIMARY_ONLY_ROUTE_SUFFIXES = Object.freeze(['/home-bootstrap', '/system-summary', '/project-summary', '/global-ranking-summary', '/readme-markdown', '/support', '/bot-contact']);
 const USER_API_PRIMARY_ONLY_ROUTE_SUFFIX_SET = new Set(USER_API_PRIMARY_ONLY_ROUTE_SUFFIXES);
 
-const USER_API_LEGACY_EXACT_ROUTE_SUFFIXES = Object.freeze(
-  USER_API_EXACT_ROUTE_SUFFIXES.filter(
-    (suffix) => !USER_API_PRIMARY_ONLY_ROUTE_SUFFIX_SET.has(suffix),
-  ),
-);
+const USER_API_LEGACY_EXACT_ROUTE_SUFFIXES = Object.freeze(USER_API_EXACT_ROUTE_SUFFIXES.filter((suffix) => !USER_API_PRIMARY_ONLY_ROUTE_SUFFIX_SET.has(suffix)));
 
 const USER_API_PREFIX_ROUTE_SUFFIXES = Object.freeze([]);
 
 const buildUserApiMatcher = (apiBasePath, { legacyCompatible = false } = {}) => {
-  const exactRouteSuffixes = legacyCompatible
-    ? USER_API_LEGACY_EXACT_ROUTE_SUFFIXES
-    : USER_API_EXACT_ROUTE_SUFFIXES;
+  const exactRouteSuffixes = legacyCompatible ? USER_API_LEGACY_EXACT_ROUTE_SUFFIXES : USER_API_EXACT_ROUTE_SUFFIXES;
   const basePath = normalizeBasePath(apiBasePath, DEFAULT_USER_API_BASE_PATH);
   const exactPaths = new Set(exactRouteSuffixes.map((suffix) => `${basePath}${suffix}`));
   const prefixPaths = USER_API_PREFIX_ROUTE_SUFFIXES.map((suffix) => `${basePath}${suffix}`);
@@ -84,8 +42,7 @@ const buildUserApiMatcher = (apiBasePath, { legacyCompatible = false } = {}) => 
   };
 };
 
-export const buildUserApiPaths = (apiBasePath, options = {}) =>
-  buildUserApiMatcher(apiBasePath, options).exactPaths;
+export const buildUserApiPaths = (apiBasePath, options = {}) => buildUserApiMatcher(apiBasePath, options).exactPaths;
 
 export const isUserApiPath = (pathname, apiBasePath, options = {}) => {
   const normalizedPathname = normalizePathname(pathname);
@@ -94,20 +51,10 @@ export const isUserApiPath = (pathname, apiBasePath, options = {}) => {
   return matcher.prefixPaths.some((prefixPath) => hasPathPrefix(normalizedPathname, prefixPath));
 };
 
-export const resolveLegacyUserApiPath = (
-  pathname,
-  {
-    apiBasePath = DEFAULT_USER_API_BASE_PATH,
-    legacyApiBasePath = DEFAULT_LEGACY_STICKER_API_BASE_PATH,
-    legacyCompatible = false,
-  } = {},
-) => {
+export const resolveLegacyUserApiPath = (pathname, { apiBasePath = DEFAULT_USER_API_BASE_PATH, legacyApiBasePath = DEFAULT_LEGACY_STICKER_API_BASE_PATH, legacyCompatible = false } = {}) => {
   const normalizedPathname = normalizePathname(pathname);
   const resolvedApiBasePath = normalizeBasePath(apiBasePath, DEFAULT_USER_API_BASE_PATH);
-  const resolvedLegacyBasePath = normalizeBasePath(
-    legacyApiBasePath,
-    DEFAULT_LEGACY_STICKER_API_BASE_PATH,
-  );
+  const resolvedLegacyBasePath = normalizeBasePath(legacyApiBasePath, DEFAULT_LEGACY_STICKER_API_BASE_PATH);
 
   if (!isUserApiPath(normalizedPathname, resolvedApiBasePath, { legacyCompatible })) return null;
   if (resolvedApiBasePath === resolvedLegacyBasePath) return normalizedPathname;

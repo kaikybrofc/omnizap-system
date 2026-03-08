@@ -3,12 +3,7 @@ import { createStickerCatalogAdminHandlers } from './adminPanelHandlers.js';
 
 export const createStickerCatalogAdminBanContext = (dependencies = {}) => {
   const service = createStickerCatalogAdminBanService(dependencies);
-  const {
-    listAdminBans,
-    createAdminBanRecord,
-    revokeAdminBanRecord,
-    assertGoogleIdentityNotBanned,
-  } = service;
+  const { listAdminBans, createAdminBanRecord, revokeAdminBanRecord, assertGoogleIdentityNotBanned } = service;
 
   return {
     service,
@@ -19,5 +14,4 @@ export const createStickerCatalogAdminBanContext = (dependencies = {}) => {
   };
 };
 
-export const createStickerCatalogAdminHandlersContext = (dependencies = {}) =>
-  createStickerCatalogAdminHandlers(dependencies);
+export const createStickerCatalogAdminHandlersContext = (dependencies = {}) => createStickerCatalogAdminHandlers(dependencies);

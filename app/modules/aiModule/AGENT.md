@@ -3,12 +3,14 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
+
 - arquivo_base: `app/modules/aiModule/commandConfig.json`
 - schema_version: `2.0.0`
 - module_enabled: `true`
 - generated_at: `2026-03-08T10:59:41.156Z`
 
 ## Escopo do Modulo
+
 - module: `aiModule`
 - source_files:
 - catCommand.js
@@ -16,6 +18,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `3`
 
 ## Protocolo de Resposta para IA
+
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -24,13 +27,16 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
+
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
+
 ### ia
+
 - aliases: cat
 - enabled: true
 - categoria: ia
@@ -45,14 +51,14 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - <prefix>ia --audio sua pergunta
 - mensagens_uso (variantes):
 - default:
-- *<prefix>ia* [--audio] sua pergunta
-- *<prefix>ia* (responda ou envie uma imagem com legenda)
+- _<prefix>ia_ [--audio] sua pergunta
+- _<prefix>ia_ (responda ou envie uma imagem com legenda)
 - Opções:
 - --audio | --texto
 - --detail low | high | auto
 - Exemplo:
-- *<prefix>ia* Explique como funciona a fotossíntese.
-- *<prefix>ia* --audio Resuma a imagem.
+- _<prefix>ia_ Explique como funciona a fotossíntese.
+- _<prefix>ia_ --audio Resuma a imagem.
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -94,20 +100,22 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
 - mensagens_sistema:
-- premium_only: ⭐ *Comando Premium*
+- premium_only: ⭐ _Comando Premium_
 
 Este comando é exclusivo para usuários premium.
 Fale com o administrador para liberar o acesso.
-- openai_nao_configurada: ⚠️ *OpenAI não configurada*
 
-Defina a variável *OPENAI_API_KEY* no `.env` para usar o comando *cat*.
+- openai_nao_configurada: ⚠️ _OpenAI não configurada_
+
+Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _cat_.
+
 - imagem_muito_grande: ⚠️ A imagem enviada ultrapassa o limite de {{limite_mb}} MB. Envie uma imagem menor.
 - imagem_download_falhou: ⚠️ Não consegui baixar a imagem. Tente reenviar.
 - resposta_vazia: ⚠️ Não consegui gerar uma resposta agora. Tente novamente.
 - audio_muito_longo: ⚠️ A resposta ficou longa demais para áudio. Enviando em texto.
 - audio_falhou: ⚠️ Não consegui gerar o áudio agora. Enviando texto.
-- erro_openai: ❌ *Erro ao falar com a IA*
-Tente novamente em alguns instantes.
+- erro_openai: ❌ _Erro ao falar com a IA_
+  Tente novamente em alguns instantes.
 - limites_operacionais:
 - (nao informado)
 - opcoes:
@@ -136,6 +144,7 @@ Tente novamente em alguns instantes.
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### iaimagem
+
 - aliases: catimage, catimg
 - enabled: true
 - categoria: ia
@@ -150,8 +159,8 @@ Tente novamente em alguns instantes.
 - <prefix>iaimagem --size 1536x1024 seu prompt
 - mensagens_uso (variantes):
 - default:
-- *<prefix>iaimagem* seu prompt
-- *<prefix>iaimagem* (responda uma imagem com legenda para editar)
+- _<prefix>iaimagem_ seu prompt
+- _<prefix>iaimagem_ (responda uma imagem com legenda para editar)
 - Opções:
 - --size 1024x1024 | 1024x1536 | 1536x1024 | auto
 - --quality low | medium | high | auto
@@ -159,7 +168,7 @@ Tente novamente em alguns instantes.
 - --background transparent | opaque | auto
 - --compression 0-100
 - Exemplo:
-- *<prefix>iaimagem* --size 1536x1024 Um gato astronauta em aquarela.
+- _<prefix>iaimagem_ --size 1536x1024 Um gato astronauta em aquarela.
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -202,22 +211,25 @@ Tente novamente em alguns instantes.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
 - mensagens_sistema:
-- premium_only: ⭐ *Comando Premium*
+- premium_only: ⭐ _Comando Premium_
 
 Este comando é exclusivo para usuários premium.
 Fale com o administrador para liberar o acesso.
-- openai_nao_configurada: ⚠️ *OpenAI não configurada*
 
-Defina a variável *OPENAI_API_KEY* no `.env` para usar o comando *catimg*.
+- openai_nao_configurada: ⚠️ _OpenAI não configurada_
+
+Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _catimg_.
+
 - imagem_muito_grande: ⚠️ A imagem enviada ultrapassa o limite de {{limite_mb}} MB. Envie uma imagem menor.
 - imagem_download_falhou: ⚠️ Não consegui baixar a imagem. Tente reenviar.
 - opcoes_invalidas: ⚠️ Opções inválidas no comando.
-Detalhes: {{detalhes}}
+  Detalhes: {{detalhes}}
 
-Use *{{prefix}}catimg* sem opções para ver o formato correto.
+Use _{{prefix}}catimg_ sem opções para ver o formato correto.
+
 - resposta_vazia: ⚠️ Não consegui gerar a imagem agora. Tente novamente.
-- erro_openai: ❌ *Erro ao falar com a IA*
-Tente novamente em alguns instantes.
+- erro_openai: ❌ _Erro ao falar com a IA_
+  Tente novamente em alguns instantes.
 - limites_operacionais:
 - (nao informado)
 - opcoes:
@@ -273,6 +285,7 @@ Tente novamente em alguns instantes.
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### pergunteia
+
 - aliases: iaprompt, promptia, catprompt
 - enabled: true
 - categoria: ia
@@ -287,9 +300,9 @@ Tente novamente em alguns instantes.
 - <prefix>pergunteia reset
 - mensagens_uso (variantes):
 - default:
-- *<prefix>pergunteia* seu novo prompt
+- _<prefix>pergunteia_ seu novo prompt
 - Para voltar ao padrão:
-- *<prefix>pergunteia reset*
+- _<prefix>pergunteia reset_
 - subcomandos:
 - reset
 - argumentos:
@@ -328,10 +341,11 @@ Tente novamente em alguns instantes.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
 - mensagens_sistema:
-- premium_only: ⭐ *Comando Premium*
+- premium_only: ⭐ _Comando Premium_
 
 Este comando é exclusivo para usuários premium.
 Fale com o administrador para liberar o acesso.
+
 - prompt_muito_longo: ⚠️ Prompt muito longo. Limite: {{max_chars}} caracteres.
 - prompt_reset_sucesso: ✅ Prompt da IA restaurado para o padrão.
 - prompt_update_sucesso: ✅ Prompt da IA atualizado para você.

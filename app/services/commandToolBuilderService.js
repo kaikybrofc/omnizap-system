@@ -92,9 +92,7 @@ const buildArgumentSpecs = (commandEntry = {}) => {
         schema: {
           ...typeSchema,
           description: buildArgumentDescription(argument),
-          ...(argument.default !== undefined && argument.default !== null
-            ? { default: argument.default }
-            : {}),
+          ...(argument.default !== undefined && argument.default !== null ? { default: argument.default } : {}),
         },
         required: isRequired,
         defaultValue: argument.default,
@@ -112,9 +110,7 @@ const sanitizeToolName = (value) => {
 const buildCommandDescription = (commandEntry = {}) => {
   const description = String(commandEntry.descricao || '').trim() || 'Executa um comando do bot.';
   const permission = String(commandEntry.permissao_necessaria || '').trim();
-  const where = Array.isArray(commandEntry.local_de_uso)
-    ? commandEntry.local_de_uso.filter(Boolean).join(', ')
-    : '';
+  const where = Array.isArray(commandEntry.local_de_uso) ? commandEntry.local_de_uso.filter(Boolean).join(', ') : '';
 
   const extra = [];
   if (permission) extra.push(`Permissao: ${permission}.`);
@@ -168,10 +164,7 @@ export const mapToolArgsToCommandText = (argumentSpecs = [], argsObject = {}) =>
   for (const spec of argumentSpecs) {
     let value = safeArgsObject[spec.key];
 
-    if (
-      (value === undefined || value === null || value === '') &&
-      spec.defaultValue !== undefined
-    ) {
+    if ((value === undefined || value === null || value === '') && spec.defaultValue !== undefined) {
       value = spec.defaultValue;
     }
 

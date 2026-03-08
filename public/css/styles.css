@@ -16,10 +16,7 @@
 body.catalog-body {
   font-family: 'Manrope', 'Bricolage Grotesque', sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(58rem 24rem at -8% -12%, rgba(37, 99, 235, 0.14), transparent 60%),
-    radial-gradient(58rem 24rem at 112% -10%, rgba(124, 58, 237, 0.14), transparent 58%),
-    linear-gradient(165deg, var(--bg), var(--bg-2));
+  background: radial-gradient(58rem 24rem at -8% -12%, rgba(37, 99, 235, 0.14), transparent 60%), radial-gradient(58rem 24rem at 112% -10%, rgba(124, 58, 237, 0.14), transparent 58%), linear-gradient(165deg, var(--bg), var(--bg-2));
   min-height: 100vh;
   background-attachment: fixed;
 }
@@ -29,9 +26,7 @@ body.catalog-body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+  background: linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
   background-size: 26px 26px;
   opacity: 0.2;
   z-index: -1;
@@ -544,12 +539,7 @@ body.catalog-body::before {
 
 .skeleton {
   border-radius: 0.55rem;
-  background: linear-gradient(
-    90deg,
-    rgba(61, 85, 127, 0.26),
-    rgba(104, 137, 189, 0.28),
-    rgba(61, 85, 127, 0.26)
-  );
+  background: linear-gradient(90deg, rgba(61, 85, 127, 0.26), rgba(104, 137, 189, 0.28), rgba(61, 85, 127, 0.26));
   background-size: 220% 100%;
   animation: shimmer 1.2s linear infinite;
 }

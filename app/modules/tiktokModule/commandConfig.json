@@ -149,15 +149,7 @@
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "ate 5 URLs por comando e ate 80 MB por arquivo (padrao)",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "URLs do TikTok extraidas do texto",
-        "metadados do post (autor, descricao, estatisticas)",
-        "tamanho dos arquivos para enforce de limite"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "URLs do TikTok extraidas do texto", "metadados do post (autor, descricao, estatisticas)", "tamanho dos arquivos para enforce de limite"],
       "enabled": true,
       "categoria": "midia",
       "subcomandos": [],
@@ -197,21 +189,13 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do chat",
-          "identificador do remetente",
-          "conteudo textual do comando"
-        ],
+        "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": ["baixartiktok", "tt", "midia", "privado", "grupo"],
       "faq_patterns": ["como usar baixartiktok", "o que faz baixartiktok", "comando baixartiktok"],
-      "user_phrasings": [
-        "quero usar baixartiktok",
-        "me ajuda com baixartiktok",
-        "baixa midia do baixartiktok"
-      ],
+      "user_phrasings": ["quero usar baixartiktok", "me ajuda com baixartiktok", "baixa midia do baixartiktok"],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
@@ -230,13 +214,7 @@
         }
       },
       "mensagens_uso": {
-        "default": [
-          "🎬 *Baixartiktok Downloader*",
-          "",
-          "Uso: *<prefix>baixartiktok <link1> [link2 ...]*",
-          "",
-          "Exemplo: *<prefix>baixartiktok https://www.baixartiktok.com/@usuario/video/123*"
-        ]
+        "default": ["🎬 *Baixartiktok Downloader*", "", "Uso: *<prefix>baixartiktok <link1> [link2 ...]*", "", "Exemplo: *<prefix>baixartiktok https://www.baixartiktok.com/@usuario/video/123*"]
       },
       "id": "tiktok.baixartiktok",
       "description": "Baixa midia do TikTok sem marca d'agua.",
@@ -245,26 +223,12 @@
         "summary": "Baixa midia do TikTok sem marca d'agua.",
         "usage_examples": ["<prefix>baixartiktok <url>", "<prefix>tt <url1> <url2>"],
         "usage_variants": {
-          "default": [
-            "🎬 *Baixartiktok Downloader*",
-            "",
-            "Uso: *<prefix>baixartiktok <link1> [link2 ...]*",
-            "",
-            "Exemplo: *<prefix>baixartiktok https://www.baixartiktok.com/@usuario/video/123*"
-          ]
+          "default": ["🎬 *Baixartiktok Downloader*", "", "Uso: *<prefix>baixartiktok <link1> [link2 ...]*", "", "Exemplo: *<prefix>baixartiktok https://www.baixartiktok.com/@usuario/video/123*"]
         }
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "URLs do TikTok extraidas do texto",
-        "metadados do post (autor, descricao, estatisticas)",
-        "tamanho dos arquivos para enforce de limite"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "URLs do TikTok extraidas do texto", "metadados do post (autor, descricao, estatisticas)", "tamanho dos arquivos para enforce de limite"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -348,11 +312,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do chat",
-            "identificador do remetente",
-            "conteudo textual do comando"
-          ],
+          "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -360,11 +320,7 @@
       "discovery": {
         "keywords": ["baixartiktok", "tt", "midia", "privado", "grupo"],
         "faq_queries": ["como usar baixartiktok", "o que faz baixartiktok", "comando baixartiktok"],
-        "user_phrasings": [
-          "quero usar baixartiktok",
-          "me ajuda com baixartiktok",
-          "baixa midia do baixartiktok"
-        ],
+        "user_phrasings": ["quero usar baixartiktok", "me ajuda com baixartiktok", "baixa midia do baixartiktok"],
         "suggestion_priority": 100
       },
       "access": {
@@ -400,21 +356,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "baixartiktok",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     }
   ],

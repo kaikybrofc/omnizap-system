@@ -6,20 +6,9 @@ import { sendAndStore } from '../../services/messagePersistenceService.js';
 
 const RANKING_LIMIT = 5;
 
-export async function handleRankingCommand({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  isGroupMessage,
-}) {
+export async function handleRankingCommand({ sock, remoteJid, messageInfo, expirationMessage, isGroupMessage }) {
   if (!isGroupMessage) {
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: 'Este comando so pode ser usado em grupos.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: 'Este comando so pode ser usado em grupos.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
@@ -33,9 +22,7 @@ export async function handleRankingCommand({
       enrichRows: true,
     });
     const text = buildRankingMessage({ scope: 'group', limit: RANKING_LIMIT, ...report });
-    const mentions = report.rows
-      .map((row) => row.mention_id)
-      .filter((jid) => isWhatsAppUserId(jid));
+    const mentions = report.rows.map((row) => row.mention_id).filter((jid) => isWhatsAppUserId(jid));
 
     const imageBuffer = await renderRankingImage({
       sock,
@@ -46,19 +33,9 @@ export async function handleRankingCommand({
       scope: 'group',
       limit: RANKING_LIMIT,
     });
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { image: imageBuffer, caption: text, ...(mentions.length ? { mentions } : {}) },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { image: imageBuffer, caption: text, ...(mentions.length ? { mentions } : {}) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   } catch (error) {
     logger.error('Erro ao gerar ranking do grupo:', { error: error.message });
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: `Erro ao gerar ranking: ${error.message}` },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: `Erro ao gerar ranking: ${error.message}` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   }
 }

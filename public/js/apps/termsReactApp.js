@@ -436,9 +436,7 @@ const TERMS_CONTENT_HTML = String.raw`
       </section>
 `;
 
-const TermsReactApp = () => html`
-  <main className="wrap" dangerouslySetInnerHTML=${{ __html: TERMS_CONTENT_HTML }}></main>
-`;
+const TermsReactApp = () => html` <main className="wrap" dangerouslySetInnerHTML=${{ __html: TERMS_CONTENT_HTML }}></main> `;
 
 const useHashAnchorSync = () => {
   React.useEffect(() => {

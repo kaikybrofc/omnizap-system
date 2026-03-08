@@ -4,17 +4,11 @@ import logger from '../../../utils/logger/loggerModule.js';
 
 const CANVAS_SIZE = 1024;
 const PANEL_RADIUS = 24;
-const IMAGE_CACHE_TTL_MS = Math.max(
-  2 * 60 * 1000,
-  Number(process.env.RPG_BATTLE_CANVAS_CACHE_TTL_MS) || 10 * 60 * 1000,
-);
+const IMAGE_CACHE_TTL_MS = Math.max(2 * 60 * 1000, Number(process.env.RPG_BATTLE_CANVAS_CACHE_TTL_MS) || 10 * 60 * 1000);
 const IMAGE_CACHE_LIMIT = Math.max(20, Number(process.env.RPG_BATTLE_CANVAS_CACHE_LIMIT) || 120);
 const IMAGE_TIMEOUT_MS = Math.max(2_000, Number(process.env.RPG_BATTLE_CANVAS_TIMEOUT_MS) || 7_000);
 
-const imageCache =
-  globalThis.__omnizapBattleCanvasImageCache instanceof Map
-    ? globalThis.__omnizapBattleCanvasImageCache
-    : new Map();
+const imageCache = globalThis.__omnizapBattleCanvasImageCache instanceof Map ? globalThis.__omnizapBattleCanvasImageCache : new Map();
 globalThis.__omnizapBattleCanvasImageCache = imageCache;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -253,15 +247,7 @@ const normalizeTypeList = (types) => {
 };
 
 const normalizeStatuses = (pokemon = {}) => {
-  const candidates = [
-    pokemon?.status,
-    pokemon?.nonVolatileStatus,
-    pokemon?.condition,
-    pokemon?.statusCondition,
-    ...(Array.isArray(pokemon?.statusEffects) ? pokemon.statusEffects : []),
-    ...(Array.isArray(pokemon?.conditions) ? pokemon.conditions : []),
-    ...(Array.isArray(pokemon?.statuses) ? pokemon.statuses : []),
-  ];
+  const candidates = [pokemon?.status, pokemon?.nonVolatileStatus, pokemon?.condition, pokemon?.statusCondition, ...(Array.isArray(pokemon?.statusEffects) ? pokemon.statusEffects : []), ...(Array.isArray(pokemon?.conditions) ? pokemon.conditions : []), ...(Array.isArray(pokemon?.statuses) ? pokemon.statuses : [])];
   const found = [];
   for (const candidate of candidates) {
     const key = String(candidate || '')
@@ -289,14 +275,7 @@ const drawBackground = (ctx, biomeLabel, enemyTypes = []) => {
   const enemyType = normalizeTypeList(enemyTypes)[0];
   const enemyTypeColor = TYPE_COLORS.get(enemyType);
   if (enemyTypeColor) {
-    const typeAura = ctx.createRadialGradient(
-      CANVAS_SIZE * 0.74,
-      CANVAS_SIZE * 0.3,
-      50,
-      CANVAS_SIZE * 0.74,
-      CANVAS_SIZE * 0.3,
-      360,
-    );
+    const typeAura = ctx.createRadialGradient(CANVAS_SIZE * 0.74, CANVAS_SIZE * 0.3, 50, CANVAS_SIZE * 0.74, CANVAS_SIZE * 0.3, 360);
     typeAura.addColorStop(0, toRgba(enemyTypeColor, 0.35));
     typeAura.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = typeAura;
@@ -314,14 +293,7 @@ const drawBackground = (ctx, biomeLabel, enemyTypes = []) => {
   }
   ctx.globalAlpha = 1;
 
-  const vignette = ctx.createRadialGradient(
-    CANVAS_SIZE / 2,
-    CANVAS_SIZE / 2,
-    CANVAS_SIZE * 0.2,
-    CANVAS_SIZE / 2,
-    CANVAS_SIZE / 2,
-    CANVAS_SIZE * 0.65,
-  );
+  const vignette = ctx.createRadialGradient(CANVAS_SIZE / 2, CANVAS_SIZE / 2, CANVAS_SIZE * 0.2, CANVAS_SIZE / 2, CANVAS_SIZE / 2, CANVAS_SIZE * 0.65);
   vignette.addColorStop(0, 'rgba(255,255,255,0)');
   vignette.addColorStop(1, 'rgba(0,0,0,0.45)');
   ctx.fillStyle = vignette;
@@ -346,18 +318,8 @@ const drawShinyAura = (ctx, x, y, width, height) => {
   ctx.fill();
 };
 
-const drawCombatAura = (
-  ctx,
-  { centerX, centerY, width, height, accent = '#ffffff', alpha = 0.2 },
-) => {
-  const gradient = ctx.createRadialGradient(
-    centerX,
-    centerY + 18,
-    24,
-    centerX,
-    centerY + 18,
-    Math.max(width, height) * 0.65,
-  );
+const drawCombatAura = (ctx, { centerX, centerY, width, height, accent = '#ffffff', alpha = 0.2 }) => {
+  const gradient = ctx.createRadialGradient(centerX, centerY + 18, 24, centerX, centerY + 18, Math.max(width, height) * 0.65);
   gradient.addColorStop(0, `${accent}55`);
   gradient.addColorStop(0.5, `${accent}20`);
   gradient.addColorStop(1, 'rgba(255,255,255,0)');
@@ -370,19 +332,7 @@ const drawCombatAura = (
 };
 
 const drawPokemon = async (ctx, pokemon = {}, opts = {}) => {
-  const {
-    centerX = 0,
-    centerY = 0,
-    maxWidth = 260,
-    maxHeight = 260,
-    facing = 'right',
-    isPrimary = false,
-    role = 'player',
-    isActive = false,
-    offsetX = 0,
-    offsetY = 0,
-    turn = 1,
-  } = opts;
+  const { centerX = 0, centerY = 0, maxWidth = 260, maxHeight = 260, facing = 'right', isPrimary = false, role = 'player', isActive = false, offsetX = 0, offsetY = 0, turn = 1 } = opts;
   const finalCenterX = centerX + toInt(offsetX, 0);
   const finalCenterY = centerY + toInt(offsetY, 0);
   const image = await resolveImage(pokemon?.imageUrl || pokemon?.sprite);
@@ -448,43 +398,17 @@ const drawPokemon = async (ctx, pokemon = {}, opts = {}) => {
     ctx.strokeStyle = roleTheme.accent;
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.ellipse(
-      finalCenterX,
-      finalCenterY + 8,
-      fallbackW * 0.48,
-      fallbackH * 0.4,
-      0,
-      0,
-      Math.PI * 2,
-    );
+    ctx.ellipse(finalCenterX, finalCenterY + 8, fallbackW * 0.48, fallbackH * 0.4, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
   ctx.fillStyle = 'rgba(255,255,255,0.14)';
-  drawRoundRect(
-    ctx,
-    finalCenterX - fallbackW / 2,
-    finalCenterY - fallbackH / 2,
-    fallbackW,
-    fallbackH,
-    28,
-    'rgba(255,255,255,0.14)',
-  );
+  drawRoundRect(ctx, finalCenterX - fallbackW / 2, finalCenterY - fallbackH / 2, fallbackW, fallbackH, 28, 'rgba(255,255,255,0.14)');
   ctx.fillStyle = '#ffffff';
-  fitText(
-    ctx,
-    trimText(pokemon?.displayName || pokemon?.name || 'Pokemon', 18),
-    fallbackW - 28,
-    30,
-    700,
-  );
+  fitText(ctx, trimText(pokemon?.displayName || pokemon?.name || 'Pokemon', 18), fallbackW - 28, 30, 700);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(
-    trimText(pokemon?.displayName || pokemon?.name || 'Pokemon', 18),
-    finalCenterX,
-    finalCenterY,
-  );
+  ctx.fillText(trimText(pokemon?.displayName || pokemon?.name || 'Pokemon', 18), finalCenterX, finalCenterY);
 };
 
 const drawTypeBadges = (ctx, types = [], x, y) => {
@@ -529,16 +453,7 @@ const drawStatusBadges = (ctx, statuses = [], x, y) => {
 };
 
 const drawStatusPanel = (ctx, pokemon = {}, opts = {}) => {
-  const {
-    x = 0,
-    y = 0,
-    width = 360,
-    height = 150,
-    align = 'left',
-    role = 'player',
-    turn = 1,
-    isActive = false,
-  } = opts;
+  const { x = 0, y = 0, width = 360, height = 150, align = 'left', role = 'player', turn = 1, isActive = false } = opts;
   const roleTheme = ROLE_THEMES[role] || ROLE_THEMES.player;
 
   drawRoundRect(ctx, x, y, width, height, PANEL_RADIUS, roleTheme.panelBg);
@@ -625,12 +540,7 @@ const drawStatusPanel = (ctx, pokemon = {}, opts = {}) => {
 const resolveActionTone = (actionText) => {
   const raw = String(actionText || '').trim();
   const normalized = normalizeText(raw);
-  if (
-    normalized.includes('vitoria') ||
-    normalized.includes('venceu') ||
-    normalized.includes('desmaiou') ||
-    normalized.includes('derrot')
-  ) {
+  if (normalized.includes('vitoria') || normalized.includes('venceu') || normalized.includes('desmaiou') || normalized.includes('derrot')) {
     return {
       icon: '🏆',
       color: '#fde68a',
@@ -639,11 +549,7 @@ const resolveActionTone = (actionText) => {
       weight: 'high',
     };
   }
-  if (
-    normalized.includes('captur') ||
-    normalized.includes('poke bola') ||
-    normalized.includes('pokebola')
-  ) {
+  if (normalized.includes('captur') || normalized.includes('poke bola') || normalized.includes('pokebola')) {
     return { icon: '🎯', color: '#fbcfe8', subline: null, badge: 'CAPTURA', weight: 'medium' };
   }
   if (normalized.includes('dano') || normalized.includes('causou') || normalized.includes('atac')) {
@@ -666,12 +572,7 @@ const resolveSecondaryAction = ({ logLines = [], primaryAction = '' }) => {
     const normalized = normalizeText(line);
     if (!line || !normalized) continue;
     if (primary && (normalized === primary || primary.includes(normalized))) continue;
-    if (
-      normalized.includes('turno') ||
-      normalized.includes('use /rpg') ||
-      normalized.includes('hp:')
-    )
-      continue;
+    if (normalized.includes('turno') || normalized.includes('use /rpg') || normalized.includes('hp:')) continue;
     return line;
   }
   return null;
@@ -685,22 +586,15 @@ const inferActiveRole = ({ actionText = '', turn = 1, leftPokemon = {}, rightPok
 
   if (leftName && normalized.includes(leftName) && actionHint) return 'player';
   if (rightName && normalized.includes(rightName) && actionHint) return 'enemy';
-  if (normalized.includes('seu ') || normalized.includes('jogador') || normalized.includes('voce'))
-    return 'player';
-  if (
-    normalized.includes('inimigo') ||
-    normalized.includes('adversario') ||
-    normalized.includes('oponente')
-  )
-    return 'enemy';
+  if (normalized.includes('seu ') || normalized.includes('jogador') || normalized.includes('voce')) return 'player';
+  if (normalized.includes('inimigo') || normalized.includes('adversario') || normalized.includes('oponente')) return 'enemy';
 
   return Math.max(1, toInt(turn, 1)) % 2 === 1 ? 'player' : 'enemy';
 };
 
 const resolveImpactOffsets = ({ activeRole, actionText, turn = 1 }) => {
   const normalized = normalizeText(actionText);
-  const isImpact =
-    normalized.includes('dano') || normalized.includes('causou') || normalized.includes('atac');
+  const isImpact = normalized.includes('dano') || normalized.includes('causou') || normalized.includes('atac');
   if (!isImpact) return { player: { x: 0, y: 0 }, enemy: { x: 0, y: 0 } };
 
   const shake = Math.max(2, toInt(turn, 1) % 2 === 0 ? 8 : 6);
@@ -710,20 +604,12 @@ const resolveImpactOffsets = ({ activeRole, actionText, turn = 1 }) => {
   return { player: { x: shake, y: 2 }, enemy: { x: 0, y: 0 } };
 };
 
-const drawActiveTurnIndicator = (
-  ctx,
-  { activeRole = 'player', leftPokemon = {}, rightPokemon = {}, turn = 1 },
-) => {
+const drawActiveTurnIndicator = (ctx, { activeRole = 'player', leftPokemon = {}, rightPokemon = {}, turn = 1 }) => {
   const role = activeRole === 'enemy' ? 'enemy' : 'player';
   const roleTheme = ROLE_THEMES[role] || ROLE_THEMES.player;
   const isPlayer = role === 'player';
   const anchor = isPlayer ? { x: 300, y: 352, labelY: 252 } : { x: 726, y: 176, labelY: 74 };
-  const actorName = trimText(
-    isPlayer
-      ? leftPokemon?.displayName || leftPokemon?.name || 'Seu Pokémon'
-      : rightPokemon?.displayName || rightPokemon?.name || 'Inimigo',
-    18,
-  );
+  const actorName = trimText(isPlayer ? leftPokemon?.displayName || leftPokemon?.name || 'Seu Pokémon' : rightPokemon?.displayName || rightPokemon?.name || 'Inimigo', 18);
   const label = `👉 ${actorName} age agora`;
   ctx.font = '700 17px Sans';
   const labelWidth = clamp(Math.round(ctx.measureText(label).width) + 28, 180, 320);
@@ -746,10 +632,7 @@ const drawActiveTurnIndicator = (
   ctx.globalAlpha = 1;
 };
 
-const drawOverlay = (
-  ctx,
-  { turn = 1, modeLabel = 'Batalha', actionText = '', effectTag = null, logLines = [] },
-) => {
+const drawOverlay = (ctx, { turn = 1, modeLabel = 'Batalha', actionText = '', effectTag = null, logLines = [] }) => {
   const panelX = 88;
   const panelY = 770;
   const panelW = CANVAS_SIZE - 176;
@@ -769,37 +652,16 @@ const drawOverlay = (
   const tone = resolveActionTone(action);
   const actionStartsWithIcon = /^([^\w\s]|\p{Extended_Pictographic})/u.test(action);
   const decoratedAction = actionStartsWithIcon ? action : `${tone.icon} ${action}`;
-  drawRoundRect(
-    ctx,
-    panelX + 12,
-    panelY + 16,
-    8,
-    panelH - 32,
-    4,
-    toRgba(String(tone.color || '#bfdbfe'), 0.95),
-  );
+  drawRoundRect(ctx, panelX + 12, panelY + 16, 8, panelH - 32, 4, toRgba(String(tone.color || '#bfdbfe'), 0.95));
   const eventBadgeW = 116;
-  drawRoundRect(
-    ctx,
-    panelX + panelW - eventBadgeW - 20,
-    panelY + 16,
-    eventBadgeW,
-    30,
-    15,
-    toRgba(String(tone.color || '#bfdbfe'), 0.84),
-  );
+  drawRoundRect(ctx, panelX + panelW - eventBadgeW - 20, panelY + 16, eventBadgeW, 30, 15, toRgba(String(tone.color || '#bfdbfe'), 0.84));
   ctx.fillStyle = '#0f172a';
   ctx.font = '700 14px Sans';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(String(tone.badge || 'ACAO'), panelX + panelW - eventBadgeW / 2 - 20, panelY + 31);
   ctx.fillStyle = tone.color;
-  ctx.font =
-    tone.weight === 'high'
-      ? '700 25px Sans'
-      : tone.weight === 'medium'
-        ? '700 24px Sans'
-        : '600 23px Sans';
+  ctx.font = tone.weight === 'high' ? '700 25px Sans' : tone.weight === 'medium' ? '700 24px Sans' : '600 23px Sans';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(decoratedAction, panelX + 22, panelY + 92);
@@ -816,14 +678,7 @@ const drawOverlay = (
   }
 
   if (!effectTag) return;
-  const palette =
-    effectTag === 'super'
-      ? { label: 'SUPER EFETIVO', color: '#ef4444' }
-      : effectTag === 'weak'
-        ? { label: 'POUCO EFETIVO', color: '#f59e0b' }
-        : effectTag === 'none'
-          ? { label: 'SEM EFEITO', color: '#64748b' }
-          : null;
+  const palette = effectTag === 'super' ? { label: 'SUPER EFETIVO', color: '#ef4444' } : effectTag === 'weak' ? { label: 'POUCO EFETIVO', color: '#f59e0b' } : effectTag === 'none' ? { label: 'SEM EFEITO', color: '#64748b' } : null;
   if (!palette) return;
   const badgeW = 220;
   drawRoundRect(ctx, CANVAS_SIZE / 2 - badgeW / 2, 38, badgeW, 44, 22, palette.color);
@@ -838,14 +693,7 @@ const drawTurnImpact = (ctx, { effectTag = null, turn = 1 }) => {
   const intensity = effectTag === 'super' ? 0.28 : effectTag === 'weak' ? 0.16 : 0.1;
   const pulse = (Math.max(1, toInt(turn, 1)) % 2 === 0 ? 1 : 0.8) * intensity;
   ctx.globalAlpha = pulse;
-  const flash = ctx.createRadialGradient(
-    CANVAS_SIZE / 2,
-    CANVAS_SIZE / 2,
-    40,
-    CANVAS_SIZE / 2,
-    CANVAS_SIZE / 2,
-    360,
-  );
+  const flash = ctx.createRadialGradient(CANVAS_SIZE / 2, CANVAS_SIZE / 2, 40, CANVAS_SIZE / 2, CANVAS_SIZE / 2, 360);
   flash.addColorStop(0, effectTag === 'super' ? '#fca5a5' : '#f8fafc');
   flash.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = flash;
@@ -861,17 +709,7 @@ export const inferEffectTagFromLogs = (logs = []) => {
   return null;
 };
 
-export const renderBattleFrameCanvas = async ({
-  leftPokemon = {},
-  rightPokemon = {},
-  turn = 1,
-  biomeLabel = '',
-  modeLabel = 'Batalha Pokemon',
-  actionText = '',
-  effectTag = null,
-  activeRole = null,
-  logLines = [],
-}) => {
+export const renderBattleFrameCanvas = async ({ leftPokemon = {}, rightPokemon = {}, turn = 1, biomeLabel = '', modeLabel = 'Batalha Pokemon', actionText = '', effectTag = null, activeRole = null, logLines = [] }) => {
   const resolvedActiveRole =
     activeRole === 'player' || activeRole === 'enemy'
       ? activeRole

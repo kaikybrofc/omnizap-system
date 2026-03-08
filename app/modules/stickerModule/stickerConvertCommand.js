@@ -4,11 +4,7 @@ import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 
 import logger from '../../../utils/logger/loggerModule.js';
-import {
-  downloadMediaMessage,
-  extractMediaDetails,
-  getJidUser,
-} from '../../config/baileysConfig.js';
+import { downloadMediaMessage, extractMediaDetails, getJidUser } from '../../config/baileysConfig.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { getStickerUsageText } from './stickerConfigRuntime.js';
 
@@ -67,22 +63,12 @@ const ensureDir = async (dirPath) => {
   await fs.mkdir(dirPath, { recursive: true });
 };
 
-const pickConverterClass = (moduleRef) =>
-  moduleRef?.default || moduleRef?.Converter || moduleRef?.WebpConv || moduleRef?.webpconv || null;
+const pickConverterClass = (moduleRef) => moduleRef?.default || moduleRef?.Converter || moduleRef?.WebpConv || moduleRef?.webpconv || null;
 
-export async function handleStickerConvertCommand({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  senderJid,
-  commandPrefix = DEFAULT_COMMAND_PREFIX,
-}) {
+export async function handleStickerConvertCommand({ sock, remoteJid, messageInfo, expirationMessage, senderJid, commandPrefix = DEFAULT_COMMAND_PREFIX }) {
   const resolved = resolveStickerMessage(messageInfo);
   if (!resolved) {
-    const usageText =
-      getStickerUsageText('toimg', { commandPrefix }) ||
-      `Use *${commandPrefix}toimg* (ou *${commandPrefix}tovideo*/*${commandPrefix}tovid*) respondendo a uma figurinha.`;
+    const usageText = getStickerUsageText('toimg', { commandPrefix }) || `Use *${commandPrefix}toimg* (ou *${commandPrefix}tovideo*/*${commandPrefix}tovid*) respondendo a uma figurinha.`;
     await sendAndStore(
       sock,
       remoteJid,
@@ -98,12 +84,7 @@ export async function handleStickerConvertCommand({
   const fileLength = details?.fileLength || sticker?.fileLength || 0;
   if (fileLength > MAX_FILE_SIZE) {
     const sizeMb = (fileLength / (1024 * 1024)).toFixed(2);
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: `❌ Figurinha muito grande (${sizeMb} MB). Envie uma menor.` },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: `❌ Figurinha muito grande (${sizeMb} MB). Envie uma menor.` }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
@@ -121,12 +102,7 @@ export async function handleStickerConvertCommand({
 
     downloadedPath = await downloadMediaMessage(sticker, 'sticker', userDir);
     if (!downloadedPath) {
-      await sendAndStore(
-        sock,
-        remoteJid,
-        { text: '❌ Não foi possível baixar a figurinha. Tente novamente.' },
-        { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-      );
+      await sendAndStore(sock, remoteJid, { text: '❌ Não foi possível baixar a figurinha. Tente novamente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
       return;
     }
 
@@ -173,20 +149,11 @@ export async function handleStickerConvertCommand({
     logger.error(`handleStickerConvertCommand: erro ao converter figurinha: ${error.message}`, {
       error: error.stack,
     });
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: '❌ Não foi possível converter a figurinha agora. Tente novamente.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: '❌ Não foi possível converter a figurinha agora. Tente novamente.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   } finally {
     const cleanupFiles = [downloadedPath, webpPath, convertedPath].filter(Boolean);
     for (const file of cleanupFiles) {
-      await fs
-        .unlink(file)
-        .catch((err) =>
-          logger.warn(`handleStickerConvertCommand: falha ao limpar ${file}: ${err.message}`),
-        );
+      await fs.unlink(file).catch((err) => logger.warn(`handleStickerConvertCommand: falha ao limpar ${file}: ${err.message}`));
     }
   }
 }

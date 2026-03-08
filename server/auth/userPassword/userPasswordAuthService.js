@@ -1,9 +1,4 @@
-import {
-  hashUserPassword,
-  resolveUserPasswordPolicy,
-  validateUserPassword,
-  verifyUserPasswordHash,
-} from './userPasswordCrypto.js';
+import { hashUserPassword, resolveUserPasswordPolicy, validateUserPassword, verifyUserPasswordHash } from './userPasswordCrypto.js';
 
 const clampInt = (value, fallback, min, max) => {
   const numeric = Number(value);
@@ -59,10 +54,7 @@ const normalizeIdentity = ({ googleSub = '', email = '', ownerJid = '' } = {}) =
   };
 };
 
-const buildIdentityFilterClause = (
-  { googleSub = '', email = '', ownerJid = '' } = {},
-  tableAlias = 'u',
-) => {
+const buildIdentityFilterClause = ({ googleSub = '', email = '', ownerJid = '' } = {}, tableAlias = 'u') => {
   const clauses = [];
   const params = [];
 
@@ -124,22 +116,15 @@ const mapCredentialRow = (row, { includeHash = false } = {}) => {
   return payload;
 };
 
-export const createUserPasswordAuthService = ({
-  executeQuery,
-  tables = {},
-  logger = null,
-  policy = {},
-} = {}) => {
+export const createUserPasswordAuthService = ({ executeQuery, tables = {}, logger = null, policy = {} } = {}) => {
   if (typeof executeQuery !== 'function') {
     throw new TypeError('createUserPasswordAuthService requer executeQuery valido.');
   }
 
   const resolvedPolicy = resolveUserPasswordPolicy(policy);
 
-  const GOOGLE_USER_TABLE =
-    String(tables.STICKER_WEB_GOOGLE_USER || 'web_google_user').trim() || 'web_google_user';
-  const USER_PASSWORD_TABLE =
-    String(tables.STICKER_WEB_USER_PASSWORD || 'web_user_password').trim() || 'web_user_password';
+  const GOOGLE_USER_TABLE = String(tables.STICKER_WEB_GOOGLE_USER || 'web_google_user').trim() || 'web_google_user';
+  const USER_PASSWORD_TABLE = String(tables.STICKER_WEB_USER_PASSWORD || 'web_user_password').trim() || 'web_user_password';
   const maxFailedAttempts = clampInt(process.env.WEB_USER_PASSWORD_MAX_FAILED_ATTEMPTS, 8, 3, 100);
   const lockoutSeconds = clampInt(process.env.WEB_USER_PASSWORD_LOCKOUT_SECONDS, 900, 30, 86_400);
 
@@ -199,11 +184,7 @@ export const createUserPasswordAuthService = ({
     };
   };
 
-  const findCredentialByIdentityInternal = async (
-    identity = {},
-    { includeRevoked = false, includeHash = false } = {},
-    connection = null,
-  ) => {
+  const findCredentialByIdentityInternal = async (identity = {}, { includeRevoked = false, includeHash = false } = {}, connection = null) => {
     const normalizedIdentity = normalizeIdentity(identity);
     if (!normalizedIdentity.hasIdentity) return null;
 
@@ -279,22 +260,13 @@ export const createUserPasswordAuthService = ({
     return Number(result?.affectedRows || 0);
   };
 
-  const setPasswordForIdentity = async (
-    { googleSub = '', email = '', ownerJid = '', password = '' } = {},
-    connection = null,
-  ) => {
-    const knownUser = await findKnownGoogleUserByIdentity(
-      { googleSub, email, ownerJid },
-      connection,
-    );
+  const setPasswordForIdentity = async ({ googleSub = '', email = '', ownerJid = '', password = '' } = {}, connection = null) => {
+    const knownUser = await findKnownGoogleUserByIdentity({ googleSub, email, ownerJid }, connection);
     if (!knownUser?.google_sub) {
-      throw buildHttpError(
-        'Usuario web nao encontrado. O usuario precisa autenticar no site antes de cadastrar senha.',
-        {
-          statusCode: 404,
-          code: 'USER_NOT_FOUND',
-        },
-      );
+      throw buildHttpError('Usuario web nao encontrado. O usuario precisa autenticar no site antes de cadastrar senha.', {
+        statusCode: 404,
+        code: 'USER_NOT_FOUND',
+      });
     }
 
     const hashData = await hashUserPassword(password, resolvedPolicy);
@@ -316,11 +288,7 @@ export const createUserPasswordAuthService = ({
       connection,
     );
 
-    const credential = await findCredentialByIdentityInternal(
-      { googleSub: knownUser.google_sub },
-      { includeRevoked: true },
-      connection,
-    );
+    const credential = await findCredentialByIdentityInternal({ googleSub: knownUser.google_sub }, { includeRevoked: true }, connection);
     if (!credential) {
       throw buildHttpError('Falha ao salvar credencial de senha do usuario.', {
         statusCode: 500,
@@ -338,10 +306,7 @@ export const createUserPasswordAuthService = ({
     return credential;
   };
 
-  const verifyPasswordForIdentity = async (
-    { googleSub = '', email = '', ownerJid = '', password = '' } = {},
-    connection = null,
-  ) => {
+  const verifyPasswordForIdentity = async ({ googleSub = '', email = '', ownerJid = '', password = '' } = {}, connection = null) => {
     const rawPassword = typeof password === 'string' ? password : '';
     if (!rawPassword) {
       return {
@@ -351,11 +316,7 @@ export const createUserPasswordAuthService = ({
       };
     }
 
-    const credentialWithHash = await findCredentialByIdentityInternal(
-      { googleSub, email, ownerJid },
-      { includeRevoked: true, includeHash: true },
-      connection,
-    );
+    const credentialWithHash = await findCredentialByIdentityInternal({ googleSub, email, ownerJid }, { includeRevoked: true, includeHash: true }, connection);
     if (!credentialWithHash?.google_sub) {
       return {
         authenticated: false,
@@ -386,11 +347,7 @@ export const createUserPasswordAuthService = ({
 
     if (isValid) {
       await touchCredentialSuccess(credentialWithHash.google_sub, connection);
-      const updatedCredential = await findCredentialByIdentityInternal(
-        { googleSub: credentialWithHash.google_sub },
-        { includeRevoked: true },
-        connection,
-      );
+      const updatedCredential = await findCredentialByIdentityInternal({ googleSub: credentialWithHash.google_sub }, { includeRevoked: true }, connection);
       return {
         authenticated: true,
         reason: null,
@@ -399,11 +356,7 @@ export const createUserPasswordAuthService = ({
     }
 
     await touchCredentialFailure(credentialWithHash.google_sub, connection);
-    const updatedCredential = await findCredentialByIdentityInternal(
-      { googleSub: credentialWithHash.google_sub },
-      { includeRevoked: true },
-      connection,
-    );
+    const updatedCredential = await findCredentialByIdentityInternal({ googleSub: credentialWithHash.google_sub }, { includeRevoked: true }, connection);
     const updatedLockState = resolveCredentialLockState(updatedCredential);
 
     return {
@@ -414,15 +367,8 @@ export const createUserPasswordAuthService = ({
     };
   };
 
-  const revokePasswordForIdentity = async (
-    { googleSub = '', email = '', ownerJid = '' } = {},
-    connection = null,
-  ) => {
-    const existing = await findCredentialByIdentityInternal(
-      { googleSub, email, ownerJid },
-      { includeRevoked: true },
-      connection,
-    );
+  const revokePasswordForIdentity = async ({ googleSub = '', email = '', ownerJid = '' } = {}, connection = null) => {
+    const existing = await findCredentialByIdentityInternal({ googleSub, email, ownerJid }, { includeRevoked: true }, connection);
     if (!existing?.google_sub) return null;
 
     await executeQuery(
@@ -434,22 +380,11 @@ export const createUserPasswordAuthService = ({
       connection,
     );
 
-    return findCredentialByIdentityInternal(
-      { googleSub: existing.google_sub },
-      { includeRevoked: true },
-      connection,
-    );
+    return findCredentialByIdentityInternal({ googleSub: existing.google_sub }, { includeRevoked: true }, connection);
   };
 
-  const clearFailuresForIdentity = async (
-    { googleSub = '', email = '', ownerJid = '' } = {},
-    connection = null,
-  ) => {
-    const existing = await findCredentialByIdentityInternal(
-      { googleSub, email, ownerJid },
-      { includeRevoked: true },
-      connection,
-    );
+  const clearFailuresForIdentity = async ({ googleSub = '', email = '', ownerJid = '' } = {}, connection = null) => {
+    const existing = await findCredentialByIdentityInternal({ googleSub, email, ownerJid }, { includeRevoked: true }, connection);
     if (!existing?.google_sub) return null;
 
     await executeQuery(
@@ -462,11 +397,7 @@ export const createUserPasswordAuthService = ({
       connection,
     );
 
-    return findCredentialByIdentityInternal(
-      { googleSub: existing.google_sub },
-      { includeRevoked: true },
-      connection,
-    );
+    return findCredentialByIdentityInternal({ googleSub: existing.google_sub }, { includeRevoked: true }, connection);
   };
 
   return {
@@ -482,8 +413,7 @@ export const createUserPasswordAuthService = ({
     }),
     validatePassword: (password) => validateUserPassword(password, resolvedPolicy),
     findKnownGoogleUserByIdentity,
-    findCredentialByIdentity: (identity = {}, options = {}, connection = null) =>
-      findCredentialByIdentityInternal(identity, options, connection),
+    findCredentialByIdentity: (identity = {}, options = {}, connection = null) => findCredentialByIdentityInternal(identity, options, connection),
     setPasswordForIdentity,
     verifyPasswordForIdentity,
     revokePasswordForIdentity,

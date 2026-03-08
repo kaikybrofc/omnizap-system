@@ -36,9 +36,7 @@
 
   body {
     color: hsl(var(--bc));
-    background:
-      radial-gradient(70rem 40rem at -10% -10%, rgb(37 99 235 / 0.2), transparent 62%),
-      radial-gradient(60rem 30rem at 110% -10%, rgb(124 58 237 / 0.18), transparent 60%), #020617;
+    background: radial-gradient(70rem 40rem at -10% -10%, rgb(37 99 235 / 0.2), transparent 62%), radial-gradient(60rem 30rem at 110% -10%, rgb(124 58 237 / 0.18), transparent 60%), #020617;
   }
 
   #home-react-root {

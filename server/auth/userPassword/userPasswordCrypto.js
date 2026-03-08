@@ -26,24 +26,9 @@ const MAX_ALLOWED_LENGTH = 72;
 const BCRYPT_PREFIXES = ['$2a$', '$2b$', '$2y$'];
 
 const DEFAULT_POLICY_INPUT = {
-  bcryptRounds: clampInt(
-    process.env.WEB_USER_PASSWORD_BCRYPT_ROUNDS,
-    DEFAULT_BCRYPT_ROUNDS,
-    MIN_BCRYPT_ROUNDS,
-    MAX_BCRYPT_ROUNDS,
-  ),
-  minLength: clampInt(
-    process.env.WEB_USER_PASSWORD_MIN_LENGTH,
-    DEFAULT_MIN_LENGTH,
-    MIN_ALLOWED_LENGTH,
-    MAX_ALLOWED_LENGTH,
-  ),
-  maxLength: clampInt(
-    process.env.WEB_USER_PASSWORD_MAX_LENGTH,
-    DEFAULT_MAX_LENGTH,
-    MIN_ALLOWED_LENGTH,
-    MAX_ALLOWED_LENGTH,
-  ),
+  bcryptRounds: clampInt(process.env.WEB_USER_PASSWORD_BCRYPT_ROUNDS, DEFAULT_BCRYPT_ROUNDS, MIN_BCRYPT_ROUNDS, MAX_BCRYPT_ROUNDS),
+  minLength: clampInt(process.env.WEB_USER_PASSWORD_MIN_LENGTH, DEFAULT_MIN_LENGTH, MIN_ALLOWED_LENGTH, MAX_ALLOWED_LENGTH),
+  maxLength: clampInt(process.env.WEB_USER_PASSWORD_MAX_LENGTH, DEFAULT_MAX_LENGTH, MIN_ALLOWED_LENGTH, MAX_ALLOWED_LENGTH),
   requireLetter: parseEnvBool(process.env.WEB_USER_PASSWORD_REQUIRE_LETTER, true),
   requireNumber: parseEnvBool(process.env.WEB_USER_PASSWORD_REQUIRE_NUMBER, true),
 };
@@ -74,12 +59,7 @@ export const resolveUserPasswordPolicy = (overrides = {}) => {
   const lengthPolicy = normalizePolicyLength(merged.minLength, merged.maxLength);
 
   return {
-    bcryptRounds: clampInt(
-      merged.bcryptRounds,
-      DEFAULT_POLICY_INPUT.bcryptRounds,
-      MIN_BCRYPT_ROUNDS,
-      MAX_BCRYPT_ROUNDS,
-    ),
+    bcryptRounds: clampInt(merged.bcryptRounds, DEFAULT_POLICY_INPUT.bcryptRounds, MIN_BCRYPT_ROUNDS, MAX_BCRYPT_ROUNDS),
     minLength: lengthPolicy.minLength,
     maxLength: lengthPolicy.maxLength,
     requireLetter: Boolean(merged.requireLetter),

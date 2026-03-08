@@ -6,133 +6,39 @@ import { URL, URLSearchParams } from 'node:url';
 
 import { executeQuery, pool, TABLES } from '../../../database/index.js';
 import { getJidUser, normalizeJid, resolveBotJid } from '../../../app/config/baileysConfig.js';
-import {
-  getAdminPhone,
-  getAdminRawValue,
-  resolveAdminJid,
-} from '../../../app/config/adminIdentity.js';
-import {
-  getActiveSocket,
-  profilePictureUrlFromActiveSocket,
-} from '../../../app/services/socketState.js';
+import { getAdminPhone, getAdminRawValue, resolveAdminJid } from '../../../app/config/adminIdentity.js';
+import { getActiveSocket, profilePictureUrlFromActiveSocket } from '../../../app/services/socketState.js';
 import { extractUserIdInfo, resolveUserId } from '../../../app/services/lidMapService.js';
-import {
-  resolveWhatsAppOwnerJidFromLoginPayload,
-  toWhatsAppOwnerJid,
-  toWhatsAppPhoneDigits,
-} from '../../../app/services/whatsappLoginLinkService.js';
+import { resolveWhatsAppOwnerJidFromLoginPayload, toWhatsAppOwnerJid, toWhatsAppPhoneDigits } from '../../../app/services/whatsappLoginLinkService.js';
 import logger from '../../../utils/logger/loggerModule.js';
 import { getSystemMetrics } from '../../../app/utils/systemMetrics/systemMetricsModule.js';
-import {
-  listStickerPacksForCatalog,
-  findStickerPackByPackKey,
-  listStickerPacksByOwner,
-  bumpStickerPackVersion,
-  findStickerPackByOwnerAndIdentifier,
-  softDeleteStickerPack,
-  updateStickerPackFields,
-} from '../../../app/modules/stickerPackModule/stickerPackRepository.js';
-import {
-  listStickerPackItems,
-  countStickerPackItemRefsByStickerId,
-  createStickerPackItem,
-  getStickerPackItemByStickerId,
-  removeStickerPackItemByStickerId,
-  removeStickerPackItemsByPackId,
-} from '../../../app/modules/stickerPackModule/stickerPackItemRepository.js';
-import {
-  listClassifiedStickerAssetsWithoutPack,
-  listStickerAssetsWithoutPack,
-  deleteStickerAssetById,
-  findStickerAssetsByIds,
-} from '../../../app/modules/stickerPackModule/stickerAssetRepository.js';
-import {
-  deleteStickerAssetClassificationByAssetId,
-  findStickerClassificationByAssetId,
-  listStickerClassificationsByAssetIds,
-} from '../../../app/modules/stickerPackModule/stickerAssetClassificationRepository.js';
-import {
-  decoratePackClassificationSummary,
-  decorateStickerClassification,
-  getPackClassificationSummaryByAssetIds,
-} from '../../../app/modules/stickerPackModule/stickerClassificationService.js';
-import {
-  getEmptyStickerPackEngagement,
-  getStickerPackEngagementByPackId,
-  incrementStickerPackDislike,
-  incrementStickerPackLike,
-  incrementStickerPackOpen,
-  listStickerPackEngagementByPackIds,
-} from '../../../app/modules/stickerPackModule/stickerPackEngagementRepository.js';
-import {
-  createStickerPackInteractionEvent,
-  listStickerPackInteractionStatsByPackIds,
-  listViewerRecentPackIds,
-} from '../../../app/modules/stickerPackModule/stickerPackInteractionEventRepository.js';
-import {
-  buildCreatorRanking,
-  buildIntentCollections,
-  buildPersonalizedRecommendations,
-  buildViewerTagAffinity,
-  computePackSignals,
-} from '../../../app/modules/stickerPackModule/stickerPackMarketplaceService.js';
+import { listStickerPacksForCatalog, findStickerPackByPackKey, listStickerPacksByOwner, bumpStickerPackVersion, findStickerPackByOwnerAndIdentifier, softDeleteStickerPack, updateStickerPackFields } from '../../../app/modules/stickerPackModule/stickerPackRepository.js';
+import { listStickerPackItems, countStickerPackItemRefsByStickerId, createStickerPackItem, getStickerPackItemByStickerId, removeStickerPackItemByStickerId, removeStickerPackItemsByPackId } from '../../../app/modules/stickerPackModule/stickerPackItemRepository.js';
+import { listClassifiedStickerAssetsWithoutPack, listStickerAssetsWithoutPack, deleteStickerAssetById, findStickerAssetsByIds } from '../../../app/modules/stickerPackModule/stickerAssetRepository.js';
+import { deleteStickerAssetClassificationByAssetId, findStickerClassificationByAssetId, listStickerClassificationsByAssetIds } from '../../../app/modules/stickerPackModule/stickerAssetClassificationRepository.js';
+import { decoratePackClassificationSummary, decorateStickerClassification, getPackClassificationSummaryByAssetIds } from '../../../app/modules/stickerPackModule/stickerClassificationService.js';
+import { getEmptyStickerPackEngagement, getStickerPackEngagementByPackId, incrementStickerPackDislike, incrementStickerPackLike, incrementStickerPackOpen, listStickerPackEngagementByPackIds } from '../../../app/modules/stickerPackModule/stickerPackEngagementRepository.js';
+import { createStickerPackInteractionEvent, listStickerPackInteractionStatsByPackIds, listViewerRecentPackIds } from '../../../app/modules/stickerPackModule/stickerPackInteractionEventRepository.js';
+import { buildCreatorRanking, buildIntentCollections, buildPersonalizedRecommendations, buildViewerTagAffinity, computePackSignals } from '../../../app/modules/stickerPackModule/stickerPackMarketplaceService.js';
 import { listStickerPackScoreSnapshotsByPackIds } from '../../../app/modules/stickerPackModule/stickerPackScoreSnapshotRepository.js';
 import { createCatalogApiRouter } from '../../routes/sticker/catalogRouter.js';
 import { createStickerCatalogNonCatalogHandlers } from './nonCatalogHandlers.js';
 import { normalizeGoogleSubject } from '../../auth/googleWebAuth/googleWebAuthRuntime.js';
-import {
-  appendSetCookie,
-  buildCookieString,
-  getCookieValuesFromRequest,
-  parseCookies,
-  readJsonBody,
-  resolveRequestRemoteIp,
-  sendJson,
-  sendText,
-} from '../../http/httpRequestUtils.js';
-import {
-  getSiteRoutingConfig,
-  maybeRedirectToCanonicalHost,
-  toRequestHost,
-  toSiteAbsoluteUrl,
-} from '../../http/siteRoutingUtils.js';
+import { appendSetCookie, buildCookieString, getCookieValuesFromRequest, parseCookies, readJsonBody, resolveRequestRemoteIp, sendJson, sendText } from '../../http/httpRequestUtils.js';
+import { getSiteRoutingConfig, maybeRedirectToCanonicalHost, toRequestHost, toSiteAbsoluteUrl } from '../../http/siteRoutingUtils.js';
 import { createStickerCatalogAuthContext } from '../../auth/stickerCatalogAuthContext.js';
 import { queueAutomatedEmail, queueWelcomeEmail } from '../../email/emailAutomationService.js';
-import {
-  createStickerCatalogAdminBanContext,
-  createStickerCatalogAdminHandlersContext,
-} from '../admin/stickerCatalogAdminContext.js';
+import { createStickerCatalogAdminBanContext, createStickerCatalogAdminHandlersContext } from '../admin/stickerCatalogAdminContext.js';
 import { createStickerCatalogSeoContext } from '../seo/stickerCatalogSeoContext.js';
 import { createStickerCatalogSystemContext } from '../system/stickerCatalogSystemContext.js';
-import {
-  buildAdminMenu,
-  buildAiMenu,
-  buildAnimeMenu,
-  buildMediaMenu,
-  buildMenuCaption,
-  buildQuoteMenu,
-  buildStatsMenu,
-  buildStickerMenu,
-} from '../../../app/modules/menuModule/common.js';
+import { buildAdminMenu, buildAiMenu, buildAnimeMenu, buildMediaMenu, buildMenuCaption, buildQuoteMenu, buildStatsMenu, buildStickerMenu } from '../../../app/modules/menuModule/common.js';
 import { getMarketplaceDriftSnapshot } from '../../../app/modules/stickerPackModule/stickerMarketplaceDriftService.js';
-import {
-  getStickerAssetExternalUrl,
-  getStickerStorageConfig,
-  readStickerAssetBuffer,
-  saveStickerAssetFromBuffer,
-} from '../../../app/modules/stickerPackModule/stickerStorageService.js';
+import { getStickerAssetExternalUrl, getStickerStorageConfig, readStickerAssetBuffer, saveStickerAssetFromBuffer } from '../../../app/modules/stickerPackModule/stickerStorageService.js';
 import { convertToWebp } from '../../../app/modules/stickerModule/convertToWebp.js';
 import { sanitizeText } from '../../../app/modules/stickerPackModule/stickerPackUtils.js';
 import stickerPackService from '../../../app/modules/stickerPackModule/stickerPackServiceRuntime.js';
-import {
-  STICKER_PACK_ERROR_CODES,
-  StickerPackError,
-} from '../../../app/modules/stickerPackModule/stickerPackErrors.js';
-import {
-  getFeatureFlagsSnapshot,
-  isFeatureEnabled,
-  refreshFeatureFlags,
-} from '../../../app/services/featureFlagService.js';
+import { STICKER_PACK_ERROR_CODES, StickerPackError } from '../../../app/modules/stickerPackModule/stickerPackErrors.js';
+import { getFeatureFlagsSnapshot, isFeatureEnabled, refreshFeatureFlags } from '../../../app/services/featureFlagService.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -145,10 +51,7 @@ const parseEnvBool = (value, fallback) => {
 export const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash =
-    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
-      ? withLeadingSlash.slice(0, -1)
-      : withLeadingSlash;
+  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 };
 
@@ -168,8 +71,7 @@ const normalizeCatalogSortParam = (value) => {
   if (normalized === 'new') return 'recent';
   if (normalized === 'liked') return 'likes';
   if (normalized === 'popular') return 'trending';
-  if (['recent', 'likes', 'downloads', 'trending', 'comments'].includes(normalized))
-    return normalized;
+  if (['recent', 'likes', 'downloads', 'trending', 'comments'].includes(normalized)) return normalized;
   return 'popular';
 };
 
@@ -197,38 +99,21 @@ const parseMaxPacksPerOwnerLimit = (value, fallback = 50) => {
   }
   return Math.max(1, Number(fallback) || 50);
 };
-const serializePackOwnerLimit = (value) =>
-  Number.isFinite(value) ? Math.max(1, Number(value) || 1) : null;
+const serializePackOwnerLimit = (value) => (Number.isFinite(value) ? Math.max(1, Number(value) || 1) : null);
 
 const STICKER_CATALOG_ENABLED = parseEnvBool(process.env.STICKER_CATALOG_ENABLED, true);
 const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stickers');
-const STICKER_API_BASE_PATH = normalizeBasePath(
-  process.env.STICKER_API_BASE_PATH,
-  '/api/sticker-packs',
-);
-const USER_API_BASE_PATH = normalizeBasePath(
-  process.env.USER_API_BASE_PATH || process.env.AUTH_API_BASE_PATH,
-  '/api',
-);
+const STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PATH, '/api/sticker-packs');
+const USER_API_BASE_PATH = normalizeBasePath(process.env.USER_API_BASE_PATH || process.env.AUTH_API_BASE_PATH, '/api');
 const STICKER_ORPHAN_API_PATH = `${STICKER_API_BASE_PATH}/orphan-stickers`;
 const STICKER_CREATE_WEB_PATH = `${STICKER_WEB_PATH}/create`;
 const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
 const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
-const USER_PASSWORD_RESET_WEB_PATH = normalizeBasePath(
-  process.env.USER_PASSWORD_RESET_WEB_PATH,
-  '/user/password-reset',
-);
+const USER_PASSWORD_RESET_WEB_PATH = normalizeBasePath(process.env.USER_PASSWORD_RESET_WEB_PATH, '/user/password-reset');
 const PASSWORD_RECOVERY_SESSION_AUTH_METHOD = 'password_recovery_session';
-const PASSWORD_RECOVERY_SESSION_TTL_SECONDS = clampInt(
-  process.env.WEB_PASSWORD_RECOVERY_SESSION_TTL_SECONDS,
-  15 * 60,
-  60,
-  24 * 60 * 60,
-);
+const PASSWORD_RECOVERY_SESSION_TTL_SECONDS = clampInt(process.env.WEB_PASSWORD_RECOVERY_SESSION_TTL_SECONDS, 15 * 60, 60, 24 * 60 * 60);
 const STICKER_DATA_PUBLIC_PATH = normalizeBasePath(process.env.STICKER_DATA_PUBLIC_PATH, '/data');
-const STICKER_DATA_PUBLIC_DIR = path.resolve(
-  process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'),
-);
+const STICKER_DATA_PUBLIC_DIR = path.resolve(process.env.STICKER_DATA_PUBLIC_DIR || path.join(process.cwd(), 'data'));
 const STICKER_WEB_ASSET_VERSION =
   sanitizeText(process.env.STICKER_WEB_ASSET_VERSION || process.env.OMNIZAP_BUILD_ID || '', 64, {
     allowEmpty: true,
@@ -245,235 +130,81 @@ const MAX_ORPHAN_LIST_LIMIT = clampInt(process.env.STICKER_ORPHAN_LIST_MAX_LIMIT
 const DEFAULT_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_LIMIT, 50, 1, 200);
 const MAX_DATA_LIST_LIMIT = clampInt(process.env.STICKER_DATA_LIST_MAX_LIMIT, 200, 1, 500);
 const MAX_DATA_SCAN_FILES = clampInt(process.env.STICKER_DATA_SCAN_MAX_FILES, 10000, 100, 50000);
-const ASSET_CACHE_SECONDS = clampInt(
-  process.env.STICKER_WEB_ASSET_CACHE_SECONDS,
-  60 * 60 * 24 * 30,
-  60 * 60,
-  60 * 60 * 24 * 365,
-);
-const STATIC_TEXT_CACHE_SECONDS = clampInt(
-  process.env.STICKER_WEB_STATIC_TEXT_CACHE_SECONDS,
-  60 * 60,
-  60,
-  60 * 60 * 24 * 30,
-);
-const IMMUTABLE_ASSET_CACHE_SECONDS = clampInt(
-  process.env.STICKER_WEB_IMMUTABLE_ASSET_CACHE_SECONDS,
-  60 * 60 * 24 * 365,
-  60 * 60,
-  60 * 60 * 24 * 365,
-);
-const STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE =
-  String(process.env.STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE || '/pack send {{pack_key}}').trim() ||
-  '/pack send {{pack_key}}';
+const ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_ASSET_CACHE_SECONDS, 60 * 60 * 24 * 30, 60 * 60, 60 * 60 * 24 * 365);
+const STATIC_TEXT_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_STATIC_TEXT_CACHE_SECONDS, 60 * 60, 60, 60 * 60 * 24 * 30);
+const IMMUTABLE_ASSET_CACHE_SECONDS = clampInt(process.env.STICKER_WEB_IMMUTABLE_ASSET_CACHE_SECONDS, 60 * 60 * 24 * 365, 60 * 60, 60 * 60 * 24 * 365);
+const STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE = String(process.env.STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE || '/pack send {{pack_key}}').trim() || '/pack send {{pack_key}}';
 const PACK_COMMAND_PREFIX = String(process.env.COMMAND_PREFIX || '/').trim() || '/';
 const PACK_CREATE_NAME_REGEX = '^[\\s\\S]+$';
 const PACK_CREATE_MAX_NAME_LENGTH = 120;
 const PACK_CREATE_MAX_PUBLISHER_LENGTH = 120;
 const PACK_CREATE_MAX_DESCRIPTION_LENGTH = 1024;
 const PACK_CREATE_MAX_ITEMS = Math.max(1, Number(process.env.STICKER_PACK_MAX_ITEMS) || 30);
-const PACK_CREATE_MAX_PACKS_PER_OWNER = parseMaxPacksPerOwnerLimit(
-  process.env.STICKER_PACK_MAX_PACKS_PER_OWNER,
-  50,
-);
-const PACK_WEB_EDIT_TOKEN_TTL_MS = Math.max(
-  60_000,
-  Number(process.env.STICKER_WEB_EDIT_TOKEN_TTL_MS) || 6 * 60 * 60 * 1000,
-);
+const PACK_CREATE_MAX_PACKS_PER_OWNER = parseMaxPacksPerOwnerLimit(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER, 50);
+const PACK_WEB_EDIT_TOKEN_TTL_MS = Math.max(60_000, Number(process.env.STICKER_WEB_EDIT_TOKEN_TTL_MS) || 6 * 60 * 60 * 1000);
 const STICKER_WEB_GOOGLE_CLIENT_ID = String(process.env.STICKER_WEB_GOOGLE_CLIENT_ID || '').trim();
-const STICKER_WEB_GOOGLE_AUTH_REQUIRED = parseEnvBool(
-  process.env.STICKER_WEB_GOOGLE_AUTH_REQUIRED,
-  Boolean(STICKER_WEB_GOOGLE_CLIENT_ID),
-);
-const STICKER_WEB_GOOGLE_SESSION_TTL_MS = Math.max(
-  5 * 60 * 1000,
-  Number(process.env.STICKER_WEB_GOOGLE_SESSION_TTL_MS) || 7 * 24 * 60 * 60 * 1000,
-);
-const STICKER_CATALOG_ONLY_CLASSIFIED = parseEnvBool(
-  process.env.STICKER_CATALOG_ONLY_CLASSIFIED,
-  true,
-);
-const METRICS_ENDPOINT =
-  process.env.METRICS_ENDPOINT ||
-  `http://127.0.0.1:${process.env.METRICS_PORT || 9102}${process.env.METRICS_PATH || '/metrics'}`;
-const METRICS_SUMMARY_TIMEOUT_MS = clampInt(
-  process.env.STICKER_SYSTEM_METRICS_TIMEOUT_MS,
-  1200,
-  300,
-  5000,
-);
+const STICKER_WEB_GOOGLE_AUTH_REQUIRED = parseEnvBool(process.env.STICKER_WEB_GOOGLE_AUTH_REQUIRED, Boolean(STICKER_WEB_GOOGLE_CLIENT_ID));
+const STICKER_WEB_GOOGLE_SESSION_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.STICKER_WEB_GOOGLE_SESSION_TTL_MS) || 7 * 24 * 60 * 60 * 1000);
+const STICKER_CATALOG_ONLY_CLASSIFIED = parseEnvBool(process.env.STICKER_CATALOG_ONLY_CLASSIFIED, true);
+const METRICS_ENDPOINT = process.env.METRICS_ENDPOINT || `http://127.0.0.1:${process.env.METRICS_PORT || 9102}${process.env.METRICS_PATH || '/metrics'}`;
+const METRICS_SUMMARY_TIMEOUT_MS = clampInt(process.env.STICKER_SYSTEM_METRICS_TIMEOUT_MS, 1200, 300, 5000);
 const GITHUB_REPOSITORY = String(process.env.GITHUB_REPOSITORY || 'Kaikygr/omnizap-system').trim();
 const GITHUB_TOKEN = String(process.env.GITHUB_TOKEN || '').trim();
-const GITHUB_PROJECT_CACHE_SECONDS = clampInt(
-  process.env.GITHUB_PROJECT_CACHE_SECONDS,
-  300,
-  30,
-  3600,
-);
-const USER_INTERNAL_API_TOKEN = String(
-  process.env.USER_INTERNAL_API_TOKEN ||
-    process.env.ADMIN_TOKEN ||
-    process.env.ADMIN_API_TOKEN ||
-    '',
-).trim();
-const USER_INTERNAL_READ_REQUIRE_AUTH = parseEnvBool(
-  process.env.USER_INTERNAL_READ_REQUIRE_AUTH,
-  true,
-);
-const USER_CONTACT_ENDPOINT_REQUIRE_AUTH = parseEnvBool(
-  process.env.USER_CONTACT_ENDPOINT_REQUIRE_AUTH,
-  true,
-);
-const HOME_BOOTSTRAP_EXPOSE_CONTACT = parseEnvBool(
-  process.env.HOME_BOOTSTRAP_EXPOSE_CONTACT,
-  false,
-);
+const GITHUB_PROJECT_CACHE_SECONDS = clampInt(process.env.GITHUB_PROJECT_CACHE_SECONDS, 300, 30, 3600);
+const USER_INTERNAL_API_TOKEN = String(process.env.USER_INTERNAL_API_TOKEN || process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '').trim();
+const USER_INTERNAL_READ_REQUIRE_AUTH = parseEnvBool(process.env.USER_INTERNAL_READ_REQUIRE_AUTH, true);
+const USER_CONTACT_ENDPOINT_REQUIRE_AUTH = parseEnvBool(process.env.USER_CONTACT_ENDPOINT_REQUIRE_AUTH, true);
+const HOME_BOOTSTRAP_EXPOSE_CONTACT = parseEnvBool(process.env.HOME_BOOTSTRAP_EXPOSE_CONTACT, false);
 const ADMIN_PANEL_EMAIL =
   String(process.env.ADM_EMAIL || '')
     .trim()
     .toLowerCase() || '';
-const GLOBAL_RANK_REFRESH_SECONDS = clampInt(
-  process.env.GLOBAL_RANK_REFRESH_SECONDS,
-  600,
-  60,
-  3600,
-);
-const CATALOG_LIST_CACHE_SECONDS = clampInt(
-  process.env.STICKER_CATALOG_LIST_CACHE_SECONDS,
-  90,
-  15,
-  900,
-);
-const CATALOG_CREATOR_RANKING_CACHE_SECONDS = clampInt(
-  process.env.STICKER_CATALOG_CREATOR_RANKING_CACHE_SECONDS,
-  120,
-  15,
-  900,
-);
-const CATALOG_PACK_PAYLOAD_CACHE_SECONDS = clampInt(
-  process.env.STICKER_CATALOG_PACK_PAYLOAD_CACHE_SECONDS,
-  300,
-  30,
-  1800,
-);
+const GLOBAL_RANK_REFRESH_SECONDS = clampInt(process.env.GLOBAL_RANK_REFRESH_SECONDS, 600, 60, 3600);
+const CATALOG_LIST_CACHE_SECONDS = clampInt(process.env.STICKER_CATALOG_LIST_CACHE_SECONDS, 90, 15, 900);
+const CATALOG_CREATOR_RANKING_CACHE_SECONDS = clampInt(process.env.STICKER_CATALOG_CREATOR_RANKING_CACHE_SECONDS, 120, 15, 900);
+const CATALOG_PACK_PAYLOAD_CACHE_SECONDS = clampInt(process.env.STICKER_CATALOG_PACK_PAYLOAD_CACHE_SECONDS, 300, 30, 1800);
 const MARKETPLACE_GLOBAL_STATS_API_PATH = '/api/marketplace/stats';
-const MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS = clampInt(
-  process.env.MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
-  45,
-  30,
-  60,
-);
-const HOME_MARKETPLACE_STATS_CACHE_SECONDS = clampInt(
-  process.env.HOME_MARKETPLACE_STATS_CACHE_SECONDS,
-  45,
-  10,
-  300,
-);
+const MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS = clampInt(process.env.MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS, 45, 30, 60);
+const HOME_MARKETPLACE_STATS_CACHE_SECONDS = clampInt(process.env.HOME_MARKETPLACE_STATS_CACHE_SECONDS, 45, 10, 300);
 const SYSTEM_SUMMARY_CACHE_SECONDS = clampInt(process.env.SYSTEM_SUMMARY_CACHE_SECONDS, 20, 5, 120);
-const README_SUMMARY_CACHE_SECONDS = clampInt(
-  process.env.README_SUMMARY_CACHE_SECONDS,
-  60 * 30,
-  60,
-  60 * 60 * 6,
-);
-const README_MESSAGE_TYPE_SAMPLE_LIMIT = clampInt(
-  process.env.README_MESSAGE_TYPE_SAMPLE_LIMIT,
-  25000,
-  500,
-  250000,
-);
-const README_COMMAND_PREFIX =
-  String(process.env.README_COMMAND_PREFIX || PACK_COMMAND_PREFIX).trim() || PACK_COMMAND_PREFIX;
+const README_SUMMARY_CACHE_SECONDS = clampInt(process.env.README_SUMMARY_CACHE_SECONDS, 60 * 30, 60, 60 * 60 * 6);
+const README_MESSAGE_TYPE_SAMPLE_LIMIT = clampInt(process.env.README_MESSAGE_TYPE_SAMPLE_LIMIT, 25000, 500, 250000);
+const README_COMMAND_PREFIX = String(process.env.README_COMMAND_PREFIX || PACK_COMMAND_PREFIX).trim() || PACK_COMMAND_PREFIX;
 const SITE_ORIGIN = getSiteRoutingConfig().origin;
 const SITEMAP_MAX_PACKS = clampInt(process.env.STICKER_SITEMAP_MAX_PACKS, 45000, 100, 50000);
 const SITEMAP_CACHE_SECONDS = clampInt(process.env.STICKER_SITEMAP_CACHE_SECONDS, 180, 30, 3600);
-const SEO_DISCOVERY_LINK_LIMIT = clampInt(
-  process.env.STICKER_SEO_DISCOVERY_LINK_LIMIT,
-  60,
-  10,
-  200,
-);
-const SEO_DISCOVERY_CACHE_SECONDS = clampInt(
-  process.env.STICKER_SEO_DISCOVERY_CACHE_SECONDS,
-  180,
-  30,
-  3600,
-);
+const SEO_DISCOVERY_LINK_LIMIT = clampInt(process.env.STICKER_SEO_DISCOVERY_LINK_LIMIT, 60, 10, 200);
+const SEO_DISCOVERY_CACHE_SECONDS = clampInt(process.env.STICKER_SEO_DISCOVERY_CACHE_SECONDS, 180, 30, 3600);
 const PACK_PAGE_ROUTE_EXCLUSIONS = new Set(['profile', 'perfil', 'creators', 'criadores']);
-const NSFW_STICKER_PLACEHOLDER_URL = String(
-  process.env.NSFW_STICKER_PLACEHOLDER_URL || 'https://iili.io/qfhwS6u.jpg',
-).trim();
+const NSFW_STICKER_PLACEHOLDER_URL = String(process.env.NSFW_STICKER_PLACEHOLDER_URL || 'https://iili.io/qfhwS6u.jpg').trim();
 const DATA_IMAGE_EXTENSIONS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.bmp']);
 const { maxStickerBytes: MAX_STICKER_UPLOAD_BYTES } = getStickerStorageConfig();
-const MAX_STICKER_SOURCE_UPLOAD_BYTES = Math.max(
-  MAX_STICKER_UPLOAD_BYTES,
-  Number(process.env.STICKER_WEB_UPLOAD_SOURCE_MAX_BYTES) || 20 * 1024 * 1024,
-);
-const ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES = new Set([
-  'video/mp4',
-  'video/webm',
-  'video/quicktime',
-  'video/x-m4v',
-]);
+const MAX_STICKER_SOURCE_UPLOAD_BYTES = Math.max(MAX_STICKER_UPLOAD_BYTES, Number(process.env.STICKER_WEB_UPLOAD_SOURCE_MAX_BYTES) || 20 * 1024 * 1024);
+const ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v']);
 const webPackEditTokenMap = new Map();
 const WEB_VISITOR_COOKIE_NAME = 'omnizap_vid';
 const WEB_SESSION_COOKIE_NAME = 'omnizap_sid';
 const PACK_WEB_STATUS_VALUES = new Set(['draft', 'uploading', 'processing', 'published', 'failed']);
 const PACK_WEB_UPLOAD_STATUS_VALUES = new Set(['pending', 'processing', 'done', 'failed']);
 const WEB_UPLOAD_ERROR_MESSAGE_MAX = 255;
-const WEB_UPLOAD_MAX_CONCURRENCY = Math.max(
-  1,
-  Math.min(6, Number(process.env.STICKER_WEB_UPLOAD_CONCURRENCY) || 3),
-);
-const WEB_DRAFT_CLEANUP_TTL_MS = Math.max(
-  60 * 60 * 1000,
-  Number(process.env.STICKER_WEB_DRAFT_CLEANUP_TTL_MS) || 24 * 60 * 60 * 1000,
-);
-const WEB_DRAFT_CLEANUP_RUN_INTERVAL_MS = Math.max(
-  60 * 1000,
-  Number(process.env.STICKER_WEB_DRAFT_CLEANUP_RUN_INTERVAL_MS) || 15 * 60 * 1000,
-);
+const WEB_UPLOAD_MAX_CONCURRENCY = Math.max(1, Math.min(6, Number(process.env.STICKER_WEB_UPLOAD_CONCURRENCY) || 3));
+const WEB_DRAFT_CLEANUP_TTL_MS = Math.max(60 * 60 * 1000, Number(process.env.STICKER_WEB_DRAFT_CLEANUP_TTL_MS) || 24 * 60 * 60 * 1000);
+const WEB_DRAFT_CLEANUP_RUN_INTERVAL_MS = Math.max(60 * 1000, Number(process.env.STICKER_WEB_DRAFT_CLEANUP_RUN_INTERVAL_MS) || 15 * 60 * 1000);
 const WEB_UPLOAD_ID_MAX_LENGTH = 120;
-const WEB_VISITOR_COOKIE_TTL_SECONDS = clampInt(
-  process.env.WEB_VISITOR_COOKIE_TTL_SECONDS,
-  60 * 60 * 24 * 365,
-  60 * 60,
-  60 * 60 * 24 * 3650,
-);
-const WEB_SESSION_COOKIE_TTL_SECONDS = clampInt(
-  process.env.WEB_SESSION_COOKIE_TTL_SECONDS,
-  60 * 60 * 24 * 30,
-  30 * 60,
-  60 * 60 * 24 * 365,
-);
+const WEB_VISITOR_COOKIE_TTL_SECONDS = clampInt(process.env.WEB_VISITOR_COOKIE_TTL_SECONDS, 60 * 60 * 24 * 365, 60 * 60, 60 * 60 * 24 * 3650);
+const WEB_SESSION_COOKIE_TTL_SECONDS = clampInt(process.env.WEB_SESSION_COOKIE_TTL_SECONDS, 60 * 60 * 24 * 30, 30 * 60, 60 * 60 * 24 * 365);
 const STICKER_PREVIEW_SIDE_PX = clampInt(process.env.STICKER_PREVIEW_SIDE_PX, 112, 96, 512);
 const STICKER_PREVIEW_QUALITY = clampInt(process.env.STICKER_PREVIEW_QUALITY, 20, 10, 80);
-const STICKER_PREVIEW_TIMEOUT_MS = clampInt(
-  process.env.STICKER_PREVIEW_TIMEOUT_MS,
-  2500,
-  500,
-  12000,
-);
-const STICKER_PREVIEW_CACHE_TTL_MS = clampInt(
-  process.env.STICKER_PREVIEW_CACHE_TTL_MS,
-  6 * 60 * 60 * 1000,
-  60 * 1000,
-  7 * 24 * 60 * 60 * 1000,
-);
-const STICKER_PREVIEW_CACHE_MAX_ITEMS = clampInt(
-  process.env.STICKER_PREVIEW_CACHE_MAX_ITEMS,
-  2000,
-  100,
-  20000,
-);
+const STICKER_PREVIEW_TIMEOUT_MS = clampInt(process.env.STICKER_PREVIEW_TIMEOUT_MS, 2500, 500, 12000);
+const STICKER_PREVIEW_CACHE_TTL_MS = clampInt(process.env.STICKER_PREVIEW_CACHE_TTL_MS, 6 * 60 * 60 * 1000, 60 * 1000, 7 * 24 * 60 * 60 * 1000);
+const STICKER_PREVIEW_CACHE_MAX_ITEMS = clampInt(process.env.STICKER_PREVIEW_CACHE_MAX_ITEMS, 2000, 100, 20000);
 const STICKER_PREVIEW_TEMP_DIR = path.join(process.cwd(), 'temp', 'stickers', 'web-preview');
 const staleDraftCleanupState = {
   running: false,
   lastRunAt: 0,
 };
 
-const hasPathPrefix = (pathname, prefix) =>
-  pathname === prefix || pathname.startsWith(`${prefix}/`);
+const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 const isPackPubliclyVisible = (pack) => {
   const visibility = String(pack?.visibility || '').toLowerCase();
   if (visibility !== 'public' && visibility !== 'unlisted') return false;
@@ -538,14 +269,7 @@ const getCacheBucket = (cacheMap, key) => {
   return bucket;
 };
 
-const getCachedSnapshot = async ({
-  cacheMap,
-  key,
-  ttlSeconds,
-  staleWhileRefresh = true,
-  staleOnError = true,
-  load,
-}) => {
+const getCachedSnapshot = async ({ cacheMap, key, ttlSeconds, staleWhileRefresh = true, staleOnError = true, load }) => {
   const bucket = getCacheBucket(cacheMap, key);
   const now = Date.now();
   const hasValue = bucket.value !== null;
@@ -587,8 +311,7 @@ const canUseRankingSnapshotRead = async (subjectKey = 'catalog') =>
   });
 
 const logPackWebFlow = (level, phase, payload = {}) => {
-  const method =
-    typeof logger?.[level] === 'function' ? logger[level].bind(logger) : logger.info.bind(logger);
+  const method = typeof logger?.[level] === 'function' ? logger[level].bind(logger) : logger.info.bind(logger);
   method(`Fluxo web de criação/publicação de pack: ${phase}`, {
     action: `sticker_pack_web_${phase}`,
     phase,
@@ -648,8 +371,7 @@ const hasValidInternalApiToken = (req) => {
   return constantTimeStringEqual(requestToken, USER_INTERNAL_API_TOKEN);
 };
 
-const isAuthenticatedGoogleSession = (session) =>
-  Boolean(session?.sub && (session?.ownerJid || session?.ownerPhone || session?.email));
+const isAuthenticatedGoogleSession = (session) => Boolean(session?.sub && (session?.ownerJid || session?.ownerPhone || session?.email));
 
 const isAdminGoogleSession = async (session) => {
   if (!isAuthenticatedGoogleSession(session)) return false;
@@ -661,10 +383,7 @@ const isAdminGoogleSession = async (session) => {
 
   const adminPhone = await resolveSupportAdminPhone().catch(() => '');
   if (!adminPhone) return false;
-  return (
-    toWhatsAppPhoneDigits(session?.ownerPhone || session?.ownerJid || '') === adminPhone ||
-    toWhatsAppPhoneDigits(session?.ownerJid || '') === adminPhone
-  );
+  return toWhatsAppPhoneDigits(session?.ownerPhone || session?.ownerJid || '') === adminPhone || toWhatsAppPhoneDigits(session?.ownerJid || '') === adminPhone;
 };
 
 const sanitizeBootstrapSystemSummary = (summary) => {
@@ -816,19 +535,7 @@ const createPackWebUpload = async (entry, connection = null) => {
     `INSERT INTO ${TABLES.STICKER_PACK_WEB_UPLOAD}
       (id, pack_id, upload_id, sticker_hash, source_mimetype, upload_status, sticker_id, error_code, error_message, attempt_count, last_attempt_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      entry.id,
-      entry.pack_id,
-      entry.upload_id,
-      entry.sticker_hash,
-      entry.source_mimetype ?? null,
-      normalizePackWebUploadStatus(entry.upload_status, 'pending'),
-      entry.sticker_id ?? null,
-      entry.error_code ?? null,
-      clampUploadErrorMessage(entry.error_message),
-      Math.max(0, Number(entry.attempt_count || 0)),
-      entry.last_attempt_at ?? null,
-    ],
+    [entry.id, entry.pack_id, entry.upload_id, entry.sticker_hash, entry.source_mimetype ?? null, normalizePackWebUploadStatus(entry.upload_status, 'pending'), entry.sticker_id ?? null, entry.error_code ?? null, clampUploadErrorMessage(entry.error_message), Math.max(0, Number(entry.attempt_count || 0)), entry.last_attempt_at ?? null],
     connection,
   );
   return findPackWebUploadByUploadId(entry.pack_id, entry.upload_id, connection);
@@ -864,11 +571,7 @@ const updatePackWebUpload = async (uploadIdPk, fields, connection = null) => {
     connection,
   );
 
-  const rows = await executeQuery(
-    `SELECT * FROM ${TABLES.STICKER_PACK_WEB_UPLOAD} WHERE id = ? LIMIT 1`,
-    [uploadIdPk],
-    connection,
-  );
+  const rows = await executeQuery(`SELECT * FROM ${TABLES.STICKER_PACK_WEB_UPLOAD} WHERE id = ? LIMIT 1`, [uploadIdPk], connection);
   return normalizePackWebUploadRow(rows?.[0] || null);
 };
 
@@ -935,10 +638,7 @@ const getPackConsistencySnapshot = async (packId, coverStickerId = null, connect
   };
 };
 
-const buildPackPublishStateData = async (
-  pack,
-  { includeUploads = true, connection = null } = {},
-) => {
+const buildPackPublishStateData = async (pack, { includeUploads = true, connection = null } = {}) => {
   const snapshot = await getPackConsistencySnapshot(pack.id, pack.cover_sticker_id, connection);
   const uploads = includeUploads ? await listPackWebUploads(pack.id, connection) : [];
 
@@ -956,12 +656,7 @@ const buildPackPublishStateData = async (
       failed_uploads: snapshot.failed_uploads,
       processing_uploads: snapshot.processing_uploads,
       pending_uploads: snapshot.pending_uploads,
-      can_publish:
-        snapshot.sticker_count >= 1 &&
-        snapshot.failed_uploads === 0 &&
-        snapshot.processing_uploads === 0 &&
-        snapshot.pending_uploads === 0 &&
-        snapshot.cover_valid,
+      can_publish: snapshot.sticker_count >= 1 && snapshot.failed_uploads === 0 && snapshot.processing_uploads === 0 && snapshot.pending_uploads === 0 && snapshot.cover_valid,
     },
     uploads: uploads.map((entry) => ({
       upload_id: entry.upload_id,
@@ -1040,8 +735,7 @@ const adminBanContext = createStickerCatalogAdminBanContext({
   revokeGoogleWebSessionsByIdentity: (payload) => revokeGoogleWebSessionsByIdentityBridge(payload),
 });
 
-const { listAdminBans, createAdminBanRecord, revokeAdminBanRecord, assertGoogleIdentityNotBanned } =
-  adminBanContext;
+const { listAdminBans, createAdminBanRecord, revokeAdminBanRecord, assertGoogleIdentityNotBanned } = adminBanContext;
 
 const sendAsset = (req, res, buffer, mimetype = 'image/webp', cacheControlOverride = '') => {
   const maxAgeSeconds = Math.max(60 * 60 * 24, ASSET_CACHE_SECONDS);
@@ -1049,11 +743,7 @@ const sendAsset = (req, res, buffer, mimetype = 'image/webp', cacheControlOverri
   res.statusCode = 200;
   res.setHeader('Content-Type', mimetype);
   res.setHeader('Content-Length', String(buffer.length));
-  res.setHeader(
-    'Cache-Control',
-    cacheControlOverride ||
-      `public, max-age=${maxAgeSeconds}, stale-while-revalidate=${staleWhileRevalidateSeconds}`,
-  );
+  res.setHeader('Cache-Control', cacheControlOverride || `public, max-age=${maxAgeSeconds}, stale-while-revalidate=${staleWhileRevalidateSeconds}`);
   if (req.method === 'HEAD') {
     res.end();
     return;
@@ -1109,18 +799,9 @@ const githubFetchJsonSafe = async (url, fallbackValue) => {
   }
 };
 
-const mapGitHubProjectSummary = (
-  repoData,
-  latestReleaseData,
-  releasesData = [],
-  commitsData = [],
-  languagesData = {},
-  openPrs = null,
-) => ({
+const mapGitHubProjectSummary = (repoData, latestReleaseData, releasesData = [], commitsData = [], languagesData = {}, openPrs = null) => ({
   repository: repoData?.full_name || GITHUB_REPO_INFO?.fullName || null,
-  html_url:
-    repoData?.html_url ||
-    (GITHUB_REPO_INFO ? `https://github.com/${GITHUB_REPO_INFO.fullName}` : null),
+  html_url: repoData?.html_url || (GITHUB_REPO_INFO ? `https://github.com/${GITHUB_REPO_INFO.fullName}` : null),
   description: repoData?.description || null,
   stars: Number(repoData?.stargazers_count || 0),
   forks: Number(repoData?.forks_count || 0),
@@ -1181,22 +862,10 @@ const fetchGitHubProjectSummary = async () => {
   const openPrsUrl = `https://api.github.com/search/issues?q=${encodeURIComponent(`repo:${GITHUB_REPO_INFO.fullName} is:pr is:open`)}&per_page=1`;
 
   const repoData = await githubFetchJson(repoUrl);
-  const [releasesData, commitsData, languagesData, openPrsData] = await Promise.all([
-    githubFetchJsonSafe(releasesUrl, []),
-    githubFetchJsonSafe(commitsUrl, []),
-    githubFetchJsonSafe(languagesUrl, {}),
-    githubFetchJsonSafe(openPrsUrl, { total_count: null }),
-  ]);
+  const [releasesData, commitsData, languagesData, openPrsData] = await Promise.all([githubFetchJsonSafe(releasesUrl, []), githubFetchJsonSafe(commitsUrl, []), githubFetchJsonSafe(languagesUrl, {}), githubFetchJsonSafe(openPrsUrl, { total_count: null })]);
 
   const latestReleaseData = Array.isArray(releasesData) ? releasesData[0] || null : null;
-  const summary = mapGitHubProjectSummary(
-    repoData,
-    latestReleaseData,
-    releasesData,
-    commitsData,
-    languagesData,
-    openPrsData?.total_count,
-  );
+  const summary = mapGitHubProjectSummary(repoData, latestReleaseData, releasesData, commitsData, languagesData, openPrsData?.total_count);
   GITHUB_PROJECT_CACHE.value = summary;
   GITHUB_PROJECT_CACHE.expiresAt = now + GITHUB_PROJECT_CACHE_SECONDS * 1000;
   return summary;
@@ -1297,15 +966,11 @@ const fetchPrometheusSummary = async () => {
     throw new Error('fetch indisponivel');
   }
 
-  const controller =
-    typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null;
+  const controller = typeof globalThis.AbortController === 'function' ? new globalThis.AbortController() : null;
   const timeout = setTimeout(() => controller?.abort(), METRICS_SUMMARY_TIMEOUT_MS);
 
   try {
-    const response = await globalThis.fetch(
-      METRICS_ENDPOINT,
-      controller ? { signal: controller.signal } : {},
-    );
+    const response = await globalThis.fetch(METRICS_ENDPOINT, controller ? { signal: controller.signal } : {});
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -1315,9 +980,7 @@ const fetchPrometheusSummary = async () => {
 
     const processStart = pickMetricValue(series, 'omnizap_process_start_time_seconds');
     const nowSeconds = Date.now() / 1000;
-    const processUptimeSeconds = Number.isFinite(processStart)
-      ? Math.max(0, nowSeconds - processStart)
-      : null;
+    const processUptimeSeconds = Number.isFinite(processStart) ? Math.max(0, nowSeconds - processStart) : null;
 
     const lagP99 = pickMetricValue(series, 'omnizap_nodejs_eventloop_lag_p99_seconds');
     const dbTotal = sumMetricValues(series, 'omnizap_db_query_total');
@@ -1325,11 +988,7 @@ const fetchPrometheusSummary = async () => {
     const http5xx = sumMetricValuesByLabel(series, 'omnizap_http_requests_total', {
       status_class: '5xx',
     });
-    const httpLatencyP95 = estimateHistogramQuantileMs(
-      series,
-      'omnizap_http_request_duration_ms',
-      0.95,
-    );
+    const httpLatencyP95 = estimateHistogramQuantileMs(series, 'omnizap_http_request_duration_ms', 0.95);
 
     const queueDepthSeries = series.get('omnizap_queue_depth') || [];
     const queuePeak = queueDepthSeries.reduce((max, entry) => {
@@ -1353,8 +1012,7 @@ const fetchPrometheusSummary = async () => {
 
 const buildPackApiUrl = (packKey) => `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}`;
 const buildPackWebUrl = (packKey) => `${STICKER_WEB_PATH}/${encodeURIComponent(packKey)}`;
-const buildStickerAssetUrl = (packKey, stickerId) =>
-  `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}.webp`;
+const buildStickerAssetUrl = (packKey, stickerId) => `${STICKER_API_BASE_PATH}/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}.webp`;
 const buildStickerAssetPreviewUrl = (packKey, stickerId, versionToken = '') => {
   const params = new URLSearchParams();
   params.set('variant', 'preview');
@@ -1378,11 +1036,8 @@ const normalizeRelativePath = (value) =>
     .split(path.sep)
     .join('/')
     .replace(/^\/+/, '');
-const isAllowedDataImageFile = (filePath) =>
-  DATA_IMAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
-const isInsideDataPublicRoot = (targetPath) =>
-  targetPath === STICKER_DATA_PUBLIC_DIR ||
-  targetPath.startsWith(`${STICKER_DATA_PUBLIC_DIR}${path.sep}`);
+const isAllowedDataImageFile = (filePath) => DATA_IMAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+const isInsideDataPublicRoot = (targetPath) => targetPath === STICKER_DATA_PUBLIC_DIR || targetPath.startsWith(`${STICKER_DATA_PUBLIC_DIR}${path.sep}`);
 
 const toPublicDataUrlFromStoragePath = (storagePath) => {
   if (!storagePath) return null;
@@ -1407,11 +1062,7 @@ const toImageMimeType = (filePath) => {
 const normalizePhoneDigits = (value) => String(value || '').replace(/\D+/g, '');
 const resolveActiveSocketBotJid = (activeSocket) => {
   if (!activeSocket) return '';
-  const candidates = [
-    activeSocket?.user?.id,
-    activeSocket?.authState?.creds?.me?.id,
-    activeSocket?.authState?.creds?.me?.lid,
-  ];
+  const candidates = [activeSocket?.user?.id, activeSocket?.authState?.creds?.me?.id, activeSocket?.authState?.creds?.me?.lid];
   for (const candidate of candidates) {
     const resolved = resolveBotJid(candidate) || '';
     if (resolved) return resolved;
@@ -1438,12 +1089,7 @@ const resolveCatalogBotPhone = () => {
   const fromSocket = normalizePhoneDigits(jidUser);
   if (fromSocket) return fromSocket;
 
-  const envCandidates = [
-    process.env.WHATSAPP_BOT_NUMBER,
-    process.env.BOT_NUMBER,
-    process.env.PHONE_NUMBER,
-    process.env.BOT_PHONE_NUMBER,
-  ];
+  const envCandidates = [process.env.WHATSAPP_BOT_NUMBER, process.env.BOT_NUMBER, process.env.PHONE_NUMBER, process.env.BOT_PHONE_NUMBER];
 
   for (const candidate of envCandidates) {
     const normalized = normalizePhoneDigits(candidate);
@@ -1453,11 +1099,7 @@ const resolveCatalogBotPhone = () => {
   return '';
 };
 
-const buildPackWhatsAppText = (pack) =>
-  STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE.replaceAll(
-    '{{pack_key}}',
-    String(pack?.pack_key || ''),
-  ).replaceAll('{{pack_name}}', String(pack?.name || ''));
+const buildPackWhatsAppText = (pack) => STICKER_WEB_WHATSAPP_MESSAGE_TEMPLATE.replaceAll('{{pack_key}}', String(pack?.pack_key || '')).replaceAll('{{pack_name}}', String(pack?.name || ''));
 
 const buildPackWhatsAppInfo = (pack) => {
   const phone = resolveCatalogBotPhone();
@@ -1506,12 +1148,7 @@ const _resolveWebCreateOwnerJid = async (explicitOwner = '') => {
     // Ignore fallback errors while resolving owner identity.
   }
 
-  const adminCandidates = [
-    getAdminRawValue(),
-    getAdminPhone(),
-    process.env.USER_ADMIN,
-    process.env.WHATSAPP_SUPPORT_NUMBER,
-  ];
+  const adminCandidates = [getAdminRawValue(), getAdminPhone(), process.env.USER_ADMIN, process.env.WHATSAPP_SUPPORT_NUMBER];
   for (const candidate of adminCandidates) {
     const normalized = toOwnerJid(candidate);
     if (normalized) return normalized;
@@ -1565,11 +1202,7 @@ const decodeStickerBase64Payload = (value) => {
   };
 };
 
-const isLikelyWebpBuffer = (buffer) =>
-  Buffer.isBuffer(buffer) &&
-  buffer.length >= 16 &&
-  buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
-  buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+const isLikelyWebpBuffer = (buffer) => Buffer.isBuffer(buffer) && buffer.length >= 16 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP';
 
 const resolveExtensionFromMimetype = (mimetype) => {
   const normalized = String(mimetype || '')
@@ -1686,11 +1319,7 @@ const runPreviewFfmpeg = (args, timeoutMs = STICKER_PREVIEW_TIMEOUT_MS) =>
     });
   });
 
-const generateStickerPreviewBuffer = async ({
-  sourceBuffer,
-  mimetype = 'image/webp',
-  cacheKey = '',
-} = {}) => {
+const generateStickerPreviewBuffer = async ({ sourceBuffer, mimetype = 'image/webp', cacheKey = '' } = {}) => {
   if (!Buffer.isBuffer(sourceBuffer) || !sourceBuffer.length) return null;
   if (cacheKey) {
     const cached = getStickerPreviewFromCache(cacheKey);
@@ -1708,30 +1337,7 @@ const generateStickerPreviewBuffer = async ({
     const side = Math.max(96, Math.min(512, Number(STICKER_PREVIEW_SIDE_PX || 112)));
     const quality = Math.max(10, Math.min(80, Number(STICKER_PREVIEW_QUALITY || 20)));
     const filter = `scale=if(gte(iw,ih),${side},-1):if(gte(iw,ih),-1,${side}):flags=lanczos`;
-    await runPreviewFfmpeg(
-      [
-        '-y',
-        '-i',
-        inputPath,
-        '-vf',
-        filter,
-        '-frames:v',
-        '1',
-        '-vcodec',
-        'libwebp',
-        '-lossless',
-        '0',
-        '-q:v',
-        String(quality),
-        '-compression_level',
-        '6',
-        '-preset',
-        'picture',
-        '-an',
-        outputPath,
-      ],
-      STICKER_PREVIEW_TIMEOUT_MS,
-    );
+    await runPreviewFfmpeg(['-y', '-i', inputPath, '-vf', filter, '-frames:v', '1', '-vcodec', 'libwebp', '-lossless', '0', '-q:v', String(quality), '-compression_level', '6', '-preset', 'picture', '-an', outputPath], STICKER_PREVIEW_TIMEOUT_MS);
     const previewBuffer = await fs.readFile(outputPath);
     if (cacheKey && previewBuffer.length) {
       saveStickerPreviewToCache(cacheKey, previewBuffer);
@@ -1752,35 +1358,19 @@ const convertUploadMediaToWebp = async ({ ownerJid, buffer, mimetype }) => {
   const isImage = normalizedMimetype.startsWith('image/');
 
   if (!isVideo && !isImage) {
-    throw new StickerPackError(
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Formato não suportado. Envie imagem ou vídeo.',
-    );
+    throw new StickerPackError(STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Formato não suportado. Envie imagem ou vídeo.');
   }
 
   if (isLikelyWebpBuffer(buffer) && buffer.length <= MAX_STICKER_UPLOAD_BYTES) {
     return { buffer, mimetype: 'image/webp' };
   }
 
-  if (
-    isVideo &&
-    !ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES.has(normalizedMimetype) &&
-    normalizedMimetype !== 'video/mp4'
-  ) {
-    throw new StickerPackError(
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Formato de vídeo não suportado. Use mp4/webm/mov/m4v.',
-    );
+  if (isVideo && !ALLOWED_WEB_UPLOAD_VIDEO_MIMETYPES.has(normalizedMimetype) && normalizedMimetype !== 'video/mp4') {
+    throw new StickerPackError(STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Formato de vídeo não suportado. Use mp4/webm/mov/m4v.');
   }
 
   const uniqueId = randomUUID();
-  const inputPath = path.join(
-    process.cwd(),
-    'temp',
-    'stickers',
-    'web-create',
-    `${uniqueId}.${resolveExtensionFromMimetype(normalizedMimetype)}`,
-  );
+  const inputPath = path.join(process.cwd(), 'temp', 'stickers', 'web-create', `${uniqueId}.${resolveExtensionFromMimetype(normalizedMimetype)}`);
 
   await fs.mkdir(path.dirname(inputPath), { recursive: true });
   await fs.writeFile(inputPath, buffer);
@@ -1801,16 +1391,10 @@ const convertUploadMediaToWebp = async ({ ownerJid, buffer, mimetype }) => {
     for (const profile of conversionProfiles) {
       let outputPath = null;
       try {
-        outputPath = await convertToWebp(
-          inputPath,
-          isVideo ? 'video' : 'image',
-          ownerJid,
-          randomUUID(),
-          {
-            ...profile,
-            maxOutputSizeBytes: MAX_STICKER_UPLOAD_BYTES,
-          },
-        );
+        outputPath = await convertToWebp(inputPath, isVideo ? 'video' : 'image', ownerJid, randomUUID(), {
+          ...profile,
+          maxOutputSizeBytes: MAX_STICKER_UPLOAD_BYTES,
+        });
         const converted = await fs.readFile(outputPath);
         if (!isLikelyWebpBuffer(converted) || converted.length > MAX_STICKER_UPLOAD_BYTES) {
           throw new Error('WEBP convertido excedeu o limite final.');
@@ -1828,11 +1412,7 @@ const convertUploadMediaToWebp = async ({ ownerJid, buffer, mimetype }) => {
     await fs.unlink(inputPath).catch(() => {});
   }
 
-  throw new StickerPackError(
-    STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-    `Não foi possível converter a mídia para sticker no limite de ${Math.round(MAX_STICKER_UPLOAD_BYTES / 1024)}KB.`,
-    lastError,
-  );
+  throw new StickerPackError(STICKER_PACK_ERROR_CODES.INVALID_INPUT, `Não foi possível converter a mídia para sticker no limite de ${Math.round(MAX_STICKER_UPLOAD_BYTES / 1024)}KB.`, lastError);
 };
 
 const resolveSupportAdminPhone = async () => {
@@ -1841,9 +1421,7 @@ const resolveSupportAdminPhone = async () => {
   if (adminRaw) {
     try {
       const resolvedFromLidMap = await resolveUserId(extractUserIdInfo(adminRaw));
-      const resolvedPhoneFromLidMap = isPlausibleWhatsAppPhone(
-        getJidUser(resolvedFromLidMap || ''),
-      );
+      const resolvedPhoneFromLidMap = isPlausibleWhatsAppPhone(getJidUser(resolvedFromLidMap || ''));
       if (resolvedPhoneFromLidMap) return resolvedPhoneFromLidMap;
     } catch {
       // Ignore and fallback to other admin sources.
@@ -1864,11 +1442,7 @@ const resolveSupportAdminPhone = async () => {
   const adminPhone = isPlausibleWhatsAppPhone(getAdminPhone() || '');
   if (adminPhone) return adminPhone;
 
-  const candidates = [
-    process.env.WHATSAPP_SUPPORT_NUMBER,
-    process.env.OWNER_NUMBER,
-    process.env.USER_ADMIN,
-  ];
+  const candidates = [process.env.WHATSAPP_SUPPORT_NUMBER, process.env.OWNER_NUMBER, process.env.USER_ADMIN];
 
   for (const candidate of candidates) {
     const digits = isPlausibleWhatsAppPhone(getJidUser(candidate || '') || candidate);
@@ -1881,9 +1455,7 @@ const resolveSupportAdminPhone = async () => {
 const buildSupportInfo = async () => {
   const phone = await resolveSupportAdminPhone();
   if (!phone) return null;
-  const text = String(
-    process.env.STICKER_SUPPORT_WHATSAPP_TEXT || 'Olá! Preciso de suporte no catálogo OmniZap.',
-  ).trim();
+  const text = String(process.env.STICKER_SUPPORT_WHATSAPP_TEXT || 'Olá! Preciso de suporte no catálogo OmniZap.').trim();
   return {
     phone,
     text,
@@ -1896,8 +1468,7 @@ const buildBotContactInfo = () => {
   if (!phone) return null;
   const loginText = String(process.env.WHATSAPP_LOGIN_TRIGGER || 'iniciar').trim() || 'iniciar';
   const menuText = `${PACK_COMMAND_PREFIX}menu`;
-  const buildUrl = (text) =>
-    `https://api.whatsapp.com/send/?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(String(text || '').trim())}&type=custom_url&app_absent=0`;
+  const buildUrl = (text) => `https://api.whatsapp.com/send/?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(String(text || '').trim())}&type=custom_url&app_absent=0`;
 
   return {
     phone,
@@ -1936,9 +1507,7 @@ const listDataImageFiles = async () => {
       if (!entry.isFile()) continue;
       if (!isAllowedDataImageFile(entry.name)) continue;
 
-      const relativePath = normalizeRelativePath(
-        path.relative(STICKER_DATA_PUBLIC_DIR, absolutePath),
-      );
+      const relativePath = normalizeRelativePath(path.relative(STICKER_DATA_PUBLIC_DIR, absolutePath));
       if (!relativePath || relativePath.startsWith('..')) continue;
 
       let stat = null;
@@ -1975,8 +1544,7 @@ const AUTO_PACK_MARKER_REGEX = /\[(?:auto-theme|auto-tag):[^\]]+\]/gi;
 const AUTO_PACK_MARKER_TEST_REGEX = /\[(?:auto-theme|auto-tag):[^\]]+\]/i;
 const AUTO_PACK_COLLECTOR_MARKER = '[auto-pack:collector]';
 const AUTO_PACK_COLLECTOR_LEGACY_TEXT = 'coleção automática de figurinhas criadas pelo usuário.';
-const AUTO_PACK_DESCRIPTION_PREFIX_REGEX =
-  /^curadoria automática por tema\.\s*tema:\s*[^.]+\.?\s*(?:score\s*=\s*-?\d+(?:\.\d+)?\.?\s*)?/i;
+const AUTO_PACK_DESCRIPTION_PREFIX_REGEX = /^curadoria automática por tema\.\s*tema:\s*[^.]+\.?\s*(?:score\s*=\s*-?\d+(?:\.\d+)?\.?\s*)?/i;
 const AUTO_PACK_SCORE_FRAGMENT_REGEX = /\bscore\s*=\s*-?\d+(?:\.\d+)?\.?/gi;
 const normalizePackTag = (value) =>
   String(value || '')
@@ -2037,10 +1605,7 @@ const parsePackDescriptionMetadata = (description) => {
 const isCollectorAutoPack = (pack) => {
   if (!pack || typeof pack !== 'object') return false;
   const description = String(pack.description || '').toLowerCase();
-  return (
-    description.includes(AUTO_PACK_COLLECTOR_MARKER) ||
-    description.includes(AUTO_PACK_COLLECTOR_LEGACY_TEXT)
-  );
+  return description.includes(AUTO_PACK_COLLECTOR_MARKER) || description.includes(AUTO_PACK_COLLECTOR_LEGACY_TEXT);
 };
 
 const isThemeCurationAutoPack = (pack) => {
@@ -2063,8 +1628,7 @@ const shouldHidePackFromMyProfileDefault = (pack, { includeAutoPacks = false } =
 };
 
 const buildPackDescriptionWithTags = (description, tags = []) => {
-  const cleanDescription =
-    sanitizeText(description || '', PACK_CREATE_MAX_DESCRIPTION_LENGTH, { allowEmpty: true }) || '';
+  const cleanDescription = sanitizeText(description || '', PACK_CREATE_MAX_DESCRIPTION_LENGTH, { allowEmpty: true }) || '';
   const normalizedTags = mergeUniqueTags(tags).slice(0, 8);
   const marker = normalizedTags.length ? `[pack-tags:${normalizedTags.join(',')}]` : '';
   const combined = `${marker}${marker && cleanDescription ? ' ' : ''}${cleanDescription}`.trim();
@@ -2087,12 +1651,8 @@ const mapPackSummary = (pack, engagement = null, signals = null) => {
     sticker_count: stickerCount,
     is_complete: stickerCount >= PACK_CREATE_MAX_ITEMS,
     cover_sticker_id: pack.cover_sticker_id || null,
-    cover_url: pack.cover_sticker_id
-      ? buildStickerAssetUrl(pack.pack_key, pack.cover_sticker_id)
-      : null,
-    cover_preview_url: pack.cover_sticker_id
-      ? buildStickerAssetPreviewUrl(pack.pack_key, pack.cover_sticker_id, coverVersionToken)
-      : null,
+    cover_url: pack.cover_sticker_id ? buildStickerAssetUrl(pack.pack_key, pack.cover_sticker_id) : null,
+    cover_preview_url: pack.cover_sticker_id ? buildStickerAssetPreviewUrl(pack.pack_key, pack.cover_sticker_id, coverVersionToken) : null,
     api_url: buildPackApiUrl(pack.pack_key),
     web_url: buildPackWebUrl(pack.pack_key),
     whatsapp: buildPackWhatsAppInfo(pack),
@@ -2102,9 +1662,7 @@ const mapPackSummary = (pack, engagement = null, signals = null) => {
       open_count: Number(safeEngagement.open_count || 0),
       like_count: Number(safeEngagement.like_count || 0),
       dislike_count: Number(safeEngagement.dislike_count || 0),
-      score:
-        Number(safeEngagement.score || 0) ||
-        Number(safeEngagement.like_count || 0) - Number(safeEngagement.dislike_count || 0),
+      score: Number(safeEngagement.score || 0) || Number(safeEngagement.like_count || 0) - Number(safeEngagement.dislike_count || 0),
       updated_at: toIsoOrNull(safeEngagement.updated_at),
     },
     signals: signals || null,
@@ -2112,21 +1670,7 @@ const mapPackSummary = (pack, engagement = null, signals = null) => {
   };
 };
 
-const NSFW_HINT_TOKENS = [
-  'nsfw',
-  'adult',
-  'explicit',
-  'suggestive',
-  'sexual',
-  'porn',
-  'nud',
-  'gore',
-  '18',
-  'bikini',
-  'lingerie',
-  'underwear',
-  'swimsuit',
-];
+const NSFW_HINT_TOKENS = ['nsfw', 'adult', 'explicit', 'suggestive', 'sexual', 'porn', 'nud', 'gore', '18', 'bikini', 'lingerie', 'underwear', 'swimsuit'];
 const normalizeNsfwToken = (value) =>
   String(value || '')
     .trim()
@@ -2176,22 +1720,11 @@ const isPackSummaryMarkedNsfw = (packSummary) => {
   if (isClassificationMarkedNsfw(packSummary.classification)) return true;
   if (hasNsfwHint(packSummary.name || '')) return true;
   if (hasNsfwHint(packSummary.description || '')) return true;
-  if (hasNsfwHintsInList(packSummary.tags) || hasNsfwHintsInList(packSummary.manual_tags))
-    return true;
+  if (hasNsfwHintsInList(packSummary.tags) || hasNsfwHintsInList(packSummary.manual_tags)) return true;
   return false;
 };
 
-const mapPackDetails = (
-  pack,
-  items,
-  {
-    byAssetClassification = new Map(),
-    packClassification = null,
-    engagement = null,
-    signals = null,
-    hideSensitiveAssets = false,
-  } = {},
-) => {
+const mapPackDetails = (pack, items, { byAssetClassification = new Map(), packClassification = null, engagement = null, signals = null, hideSensitiveAssets = false } = {}) => {
   const coverStickerId = pack.cover_sticker_id || items[0]?.sticker_id || null;
   const metadata = parsePackDescriptionMetadata(pack.description);
   const decoratedClassification = decoratePackClassificationSummary(packClassification);
@@ -2215,23 +1748,16 @@ const mapPackDetails = (
     tags: mergedTags,
   };
   const packIsNsfw = isPackSummaryMarkedNsfw(packPreview);
-  const safeSummary =
-    hideSensitiveAssets && packIsNsfw
-      ? { ...summary, cover_url: null, cover_preview_url: null }
-      : summary;
+  const safeSummary = hideSensitiveAssets && packIsNsfw ? { ...summary, cover_url: null, cover_preview_url: null } : summary;
 
   return {
     ...safeSummary,
     is_nsfw: packIsNsfw,
     items: items.map((item) => {
-      const decoratedItemClassification = decorateStickerClassification(
-        byAssetClassification.get(item.sticker_id) || null,
-      );
+      const decoratedItemClassification = decorateStickerClassification(byAssetClassification.get(item.sticker_id) || null);
       const itemIsNsfw = isClassificationMarkedNsfw(decoratedItemClassification);
       const hideAsset = hideSensitiveAssets && (packIsNsfw || itemIsNsfw);
-      const previewVersionToken = String(
-        item?.asset?.id || item?.asset?.size_bytes || item?.created_at || pack?.updated_at || '',
-      ).trim();
+      const previewVersionToken = String(item?.asset?.id || item?.asset?.size_bytes || item?.created_at || pack?.updated_at || '').trim();
       return {
         // `tags` facilita renderização direta no front sem precisar reprocessar score.
         id: item.id,
@@ -2241,9 +1767,7 @@ const mapPackDetails = (
         accessibility_label: item.accessibility_label || null,
         created_at: toIsoOrNull(item.created_at),
         asset_url: hideAsset ? null : buildStickerAssetUrl(pack.pack_key, item.sticker_id),
-        asset_preview_url: hideAsset
-          ? null
-          : buildStickerAssetPreviewUrl(pack.pack_key, item.sticker_id, previewVersionToken),
+        asset_preview_url: hideAsset ? null : buildStickerAssetPreviewUrl(pack.pack_key, item.sticker_id, previewVersionToken),
         tags: decoratedItemClassification?.tags || [],
         is_nsfw: itemIsNsfw,
         asset: item.asset
@@ -2251,18 +1775,9 @@ const mapPackDetails = (
               id: item.asset.id,
               mimetype: item.asset.mimetype || 'image/webp',
               is_animated: Boolean(item.asset.is_animated),
-              width:
-                item.asset.width !== null && item.asset.width !== undefined
-                  ? Number(item.asset.width)
-                  : null,
-              height:
-                item.asset.height !== null && item.asset.height !== undefined
-                  ? Number(item.asset.height)
-                  : null,
-              size_bytes:
-                item.asset.size_bytes !== null && item.asset.size_bytes !== undefined
-                  ? Number(item.asset.size_bytes)
-                  : 0,
+              width: item.asset.width !== null && item.asset.width !== undefined ? Number(item.asset.width) : null,
+              height: item.asset.height !== null && item.asset.height !== undefined ? Number(item.asset.height) : null,
+              size_bytes: item.asset.size_bytes !== null && item.asset.size_bytes !== undefined ? Number(item.asset.size_bytes) : 0,
               classification: decoratedItemClassification,
             }
           : null,
@@ -2276,11 +1791,7 @@ const mapPackDetails = (
   };
 };
 
-const mapOrphanStickerAsset = (
-  asset,
-  classification = null,
-  { hideSensitiveAssets = false } = {},
-) => {
+const mapOrphanStickerAsset = (asset, classification = null, { hideSensitiveAssets = false } = {}) => {
   const decoratedClassification = decorateStickerClassification(classification || null);
   const isNsfw = isClassificationMarkedNsfw(decoratedClassification);
   return {
@@ -2291,8 +1802,7 @@ const mapOrphanStickerAsset = (
     is_animated: Boolean(asset.is_animated),
     width: asset.width !== null && asset.width !== undefined ? Number(asset.width) : null,
     height: asset.height !== null && asset.height !== undefined ? Number(asset.height) : null,
-    size_bytes:
-      asset.size_bytes !== null && asset.size_bytes !== undefined ? Number(asset.size_bytes) : 0,
+    size_bytes: asset.size_bytes !== null && asset.size_bytes !== undefined ? Number(asset.size_bytes) : 0,
     created_at: toIsoOrNull(asset.created_at),
     url: hideSensitiveAssets && isNsfw ? null : toPublicDataUrlFromStoragePath(asset.storage_path),
     classification: decoratedClassification,
@@ -2305,16 +1815,10 @@ const toSummaryEntry = (entry, { hideSensitiveCover = false } = {}) => {
   const summary = {
     ...mapPackSummary(entry.pack, entry.engagement, entry.signals),
     classification: entry.packClassification,
-    tags: mergeUniqueTags(
-      entry.packClassification?.tags || [],
-      parsePackDescriptionMetadata(entry.pack?.description).tags,
-    ),
+    tags: mergeUniqueTags(entry.packClassification?.tags || [], parsePackDescriptionMetadata(entry.pack?.description).tags),
   };
   const isNsfw = isPackSummaryMarkedNsfw(summary);
-  const safeSummary =
-    hideSensitiveCover && isNsfw
-      ? { ...summary, cover_url: null, cover_preview_url: null }
-      : summary;
+  const safeSummary = hideSensitiveCover && isNsfw ? { ...summary, cover_url: null, cover_preview_url: null } : summary;
   return {
     ...safeSummary,
     is_nsfw: isNsfw,
@@ -2372,8 +1876,7 @@ const resolveVisitPathFromReferrer = (req) => {
   try {
     const parsed = new URL(rawReferrer);
     const requestHost = toRequestHost(req);
-    if (requestHost && parsed.host && parsed.host.toLowerCase() !== requestHost.toLowerCase())
-      return '/';
+    if (requestHost && parsed.host && parsed.host.toLowerCase() !== requestHost.toLowerCase()) return '/';
     return normalizeVisitPath(parsed.pathname || '/');
   } catch {
     return '/';
@@ -2411,9 +1914,7 @@ const trackWebVisitMetric = (req, res, { pagePath = '/', source = 'web' } = {}) 
   const { visitorKey, sessionKey } = ensureWebVisitCookies(req, res);
   const safePath = normalizeVisitPath(pagePath || resolveVisitPathFromReferrer(req));
   const safeSource = normalizeVisitSource(source);
-  const safeReferrer = normalizeVisitReferrer(
-    req?.headers?.referer || req?.headers?.referrer || '',
-  );
+  const safeReferrer = normalizeVisitReferrer(req?.headers?.referer || req?.headers?.referrer || '');
   const safeUserAgent = normalizeVisitUserAgent(req?.headers?.['user-agent'] || '');
 
   return executeQuery(
@@ -2441,19 +1942,12 @@ const resolveActorKeysFromRequest = (req, url) => {
   };
 };
 
-const hydrateMarketplaceEntries = async (
-  packs,
-  { includeItems = true, driftSnapshot = null } = {},
-) => {
+const hydrateMarketplaceEntries = async (packs, { includeItems = true, driftSnapshot = null } = {}) => {
   const packIds = packs.map((pack) => pack.id);
   const engagementByPackId = await listStickerPackEngagementByPackIds(packIds);
   const interactionStatsByPackId = await listStickerPackInteractionStatsByPackIds(packIds);
-  const useSnapshot = await canUseRankingSnapshotRead(
-    `hydrate:${packIds.length}:${includeItems ? 1 : 0}`,
-  );
-  const snapshotByPackId = useSnapshot
-    ? await listStickerPackScoreSnapshotsByPackIds(packIds).catch(() => new Map())
-    : new Map();
+  const useSnapshot = await canUseRankingSnapshotRead(`hydrate:${packIds.length}:${includeItems ? 1 : 0}`);
+  const snapshotByPackId = useSnapshot ? await listStickerPackScoreSnapshotsByPackIds(packIds).catch(() => new Map()) : new Map();
 
   const entries = [];
   const packClassificationById = new Map();
@@ -2461,16 +1955,9 @@ const hydrateMarketplaceEntries = async (
   for (const pack of packs) {
     const items = includeItems ? await listStickerPackItems(pack.id) : [];
     const stickerIds = items.map((item) => item.sticker_id);
-    const [packClassification, itemClassifications] = await Promise.all([
-      getPackClassificationSummaryByAssetIds(stickerIds),
-      stickerIds.length ? listStickerClassificationsByAssetIds(stickerIds) : Promise.resolve([]),
-    ]);
-    const byAssetClassification = new Map(
-      itemClassifications.map((classification) => [classification.asset_id, classification]),
-    );
-    const orderedClassifications = stickerIds
-      .map((stickerId) => byAssetClassification.get(stickerId))
-      .filter(Boolean);
+    const [packClassification, itemClassifications] = await Promise.all([getPackClassificationSummaryByAssetIds(stickerIds), stickerIds.length ? listStickerClassificationsByAssetIds(stickerIds) : Promise.resolve([])]);
+    const byAssetClassification = new Map(itemClassifications.map((classification) => [classification.asset_id, classification]));
+    const orderedClassifications = stickerIds.map((stickerId) => byAssetClassification.get(stickerId)).filter(Boolean);
     const engagement = engagementByPackId.get(pack.id) || getEmptyStickerPackEngagement();
     const interactionStats = interactionStatsByPackId.get(pack.id) || null;
     const packMetadata = parsePackDescriptionMetadata(pack.description);
@@ -2521,8 +2008,7 @@ const isStickerClassified = (classification) => {
   return false;
 };
 
-const isPackClassified = (classificationSummary) =>
-  Boolean(classificationSummary && Number(classificationSummary.classified_items || 0) > 0);
+const isPackClassified = (classificationSummary) => Boolean(classificationSummary && Number(classificationSummary.classified_items || 0) > 0);
 
 const normalizeCategoryToken = (value) =>
   String(value || '')
@@ -2548,9 +2034,7 @@ const parseCategoryFilters = (rawValue) => {
 
 const hasAnyCategory = (tags, categories) => {
   if (!Array.isArray(categories) || !categories.length) return true;
-  const normalized = new Set(
-    (Array.isArray(tags) ? tags : []).map((entry) => normalizeCategoryToken(entry)),
-  );
+  const normalized = new Set((Array.isArray(tags) ? tags : []).map((entry) => normalizeCategoryToken(entry)));
   return categories.some((category) => normalized.has(category));
 };
 
@@ -2567,19 +2051,10 @@ const compareEntriesByPackCompleteness = (left, right) => {
   return rightHasCover - leftHasCover;
 };
 
-const resolveClassificationTags = (classification) =>
-  decorateStickerClassification(classification || null)?.tags || [];
+const resolveClassificationTags = (classification) => decorateStickerClassification(classification || null)?.tags || [];
 
-const listClassifiedOrphanAssetsByCategories = async ({
-  search = '',
-  categories = [],
-  limit = 120,
-  offset = 0,
-}) => {
-  const safeLimit = Math.max(
-    1,
-    Math.min(MAX_ORPHAN_LIST_LIMIT, Number(limit) || DEFAULT_ORPHAN_LIST_LIMIT),
-  );
+const listClassifiedOrphanAssetsByCategories = async ({ search = '', categories = [], limit = 120, offset = 0 }) => {
+  const safeLimit = Math.max(1, Math.min(MAX_ORPHAN_LIST_LIMIT, Number(limit) || DEFAULT_ORPHAN_LIST_LIMIT));
   const safeOffset = Math.max(0, Number(offset) || 0);
   const normalizedCategories = Array.isArray(categories) ? categories.filter(Boolean) : [];
   const scanBatchSize = Math.max(safeLimit, 180);
@@ -2597,9 +2072,7 @@ const listClassifiedOrphanAssetsByCategories = async ({
 
     if (!assets.length) break;
 
-    const classifications = await listStickerClassificationsByAssetIds(
-      assets.map((asset) => asset.id),
-    );
+    const classifications = await listStickerClassificationsByAssetIds(assets.map((asset) => asset.id));
     const byAssetId = new Map(classifications.map((entry) => [entry.asset_id, entry]));
 
     for (const asset of assets) {
@@ -2677,16 +2150,7 @@ const seoContext = createStickerCatalogSeoContext({
   },
 });
 
-const {
-  buildCatalogStylesUrl,
-  buildCatalogScriptUrl,
-  handleCatalogStaticAssetRequest,
-  renderCatalogHtml,
-  renderPackSeoHtml,
-  renderPackNotFoundHtml,
-  renderCreatePackHtml,
-  handleSitemapRequest,
-} = seoContext;
+const { buildCatalogStylesUrl, buildCatalogScriptUrl, handleCatalogStaticAssetRequest, renderCatalogHtml, renderPackSeoHtml, renderPackNotFoundHtml, renderCreatePackHtml, handleSitemapRequest } = seoContext;
 const handleListRequest = async (req, res, url) => {
   const q = sanitizeText(url.searchParams.get('q') || '', 120, { allowEmpty: true }) || '';
   const visibility = normalizeCatalogVisibility(url.searchParams.get('visibility'));
@@ -2699,18 +2163,7 @@ const handleListRequest = async (req, res, url) => {
   const normalizedIntent = normalizeCategoryToken(intent).replace(/-/g, '_');
   const googleSession = await resolveGoogleWebSessionFromRequest(req);
   const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
-  const cacheKey = buildCacheKey([
-    'list',
-    q,
-    visibility,
-    sort,
-    categories.join(','),
-    normalizedIntent,
-    includeSensitive ? 1 : 0,
-    limit,
-    offset,
-    hasNsfwAccess ? 1 : 0,
-  ]);
+  const cacheKey = buildCacheKey(['list', q, visibility, sort, categories.join(','), normalizedIntent, includeSensitive ? 1 : 0, limit, offset, hasNsfwAccess ? 1 : 0]);
   const payload = await getCachedSnapshot({
     cacheMap: CATALOG_LIST_CACHE,
     key: cacheKey,
@@ -2740,51 +2193,29 @@ const handleListRequest = async (req, res, url) => {
         if (!packs.length) break;
 
         const { entries } = await hydrateMarketplaceEntries(packs, { driftSnapshot });
-        const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED
-          ? entries.filter((entry) => isPackClassified(entry.packClassification))
-          : entries;
-        const entriesByCategory = categories.length
-          ? entriesClassified.filter((entry) =>
-              hasAnyCategory(entry.packClassification?.tags || [], categories),
-            )
-          : entriesClassified;
-        const entriesBySensitivity = includeSensitive
-          ? entriesByCategory
-          : entriesByCategory.filter((entry) => entry.signals?.nsfw_level === 'safe');
-        const entriesByIntent = intent
-          ? entriesBySensitivity.filter((entry) => classifyPackIntent(entry) === normalizedIntent)
-          : entriesBySensitivity;
+        const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED ? entries.filter((entry) => isPackClassified(entry.packClassification)) : entries;
+        const entriesByCategory = categories.length ? entriesClassified.filter((entry) => hasAnyCategory(entry.packClassification?.tags || [], categories)) : entriesClassified;
+        const entriesBySensitivity = includeSensitive ? entriesByCategory : entriesByCategory.filter((entry) => entry.signals?.nsfw_level === 'safe');
+        const entriesByIntent = intent ? entriesBySensitivity.filter((entry) => classifyPackIntent(entry) === normalizedIntent) : entriesBySensitivity;
         const sortedEntries = [...entriesByIntent].sort((left, right) => {
           const completenessDelta = compareEntriesByPackCompleteness(left, right);
           if (completenessDelta !== 0) return completenessDelta;
           if (sort === 'recent') {
-            return (
-              Date.parse(right?.pack?.created_at || right?.pack?.updated_at || 0) -
-              Date.parse(left?.pack?.created_at || left?.pack?.updated_at || 0)
-            );
+            return Date.parse(right?.pack?.created_at || right?.pack?.updated_at || 0) - Date.parse(left?.pack?.created_at || left?.pack?.updated_at || 0);
           }
           if (sort === 'likes') {
-            return (
-              Number(right?.engagement?.like_count || 0) - Number(left?.engagement?.like_count || 0)
-            );
+            return Number(right?.engagement?.like_count || 0) - Number(left?.engagement?.like_count || 0);
           }
           if (sort === 'downloads') {
-            return (
-              Number(right?.engagement?.open_count || 0) - Number(left?.engagement?.open_count || 0)
-            );
+            return Number(right?.engagement?.open_count || 0) - Number(left?.engagement?.open_count || 0);
           }
           if (sort === 'comments') {
-            const commentDelta =
-              Number(right?.engagement?.comment_count || 0) -
-              Number(left?.engagement?.comment_count || 0);
+            const commentDelta = Number(right?.engagement?.comment_count || 0) - Number(left?.engagement?.comment_count || 0);
             if (commentDelta !== 0) return commentDelta;
-            return (
-              Number(right?.engagement?.like_count || 0) - Number(left?.engagement?.like_count || 0)
-            );
+            return Number(right?.engagement?.like_count || 0) - Number(left?.engagement?.like_count || 0);
           }
           if (sort === 'trending') {
-            const trendDelta =
-              Number(right?.signals?.trend_score || 0) - Number(left?.signals?.trend_score || 0);
+            const trendDelta = Number(right?.signals?.trend_score || 0) - Number(left?.signals?.trend_score || 0);
             if (trendDelta !== 0) return trendDelta;
           }
           const leftScore = Number(left?.signals?.ranking_score || 0);
@@ -2803,9 +2234,7 @@ const handleListRequest = async (req, res, url) => {
       }
 
       return {
-        data: collectedEntries.map((entry) =>
-          toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess }),
-        ),
+        data: collectedEntries.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
         pagination: {
           limit,
           offset,
@@ -2843,33 +2272,17 @@ const handleIntentCollectionsRequest = async (req, res, url) => {
   });
   const driftSnapshot = await getMarketplaceDriftSnapshot();
   const { entries } = await hydrateMarketplaceEntries(packs, { driftSnapshot });
-  const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED
-    ? entries.filter((entry) => isPackClassified(entry.packClassification))
-    : entries;
-  const entriesByCategory = categories.length
-    ? entriesClassified.filter((entry) =>
-        hasAnyCategory(entry.packClassification?.tags || [], categories),
-      )
-    : entriesClassified;
+  const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED ? entries.filter((entry) => isPackClassified(entry.packClassification)) : entries;
+  const entriesByCategory = categories.length ? entriesClassified.filter((entry) => hasAnyCategory(entry.packClassification?.tags || [], categories)) : entriesClassified;
   const intents = buildIntentCollections(entriesByCategory, { limit });
 
   sendJson(req, res, 200, {
     data: {
-      em_alta: intents.em_alta.map((entry) =>
-        toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess }),
-      ),
-      novos: intents.novos.map((entry) =>
-        toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess }),
-      ),
-      crescendo_agora: intents.crescendo_agora.map((entry) =>
-        toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess }),
-      ),
-      mais_curtidos: intents.mais_curtidos.map((entry) =>
-        toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess }),
-      ),
-      melhor_avaliados: intents.melhor_avaliados.map((entry) =>
-        toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess }),
-      ),
+      em_alta: intents.em_alta.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
+      novos: intents.novos.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
+      crescendo_agora: intents.crescendo_agora.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
+      mais_curtidos: intents.mais_curtidos.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
+      melhor_avaliados: intents.melhor_avaliados.map((entry) => toSummaryEntry(entry, { hideSensitiveCover: !hasNsfwAccess })),
     },
     filters: {
       visibility,
@@ -2880,12 +2293,7 @@ const handleIntentCollectionsRequest = async (req, res, url) => {
   });
 };
 
-const resolveMarketplaceVisibilityValues = (visibility) =>
-  visibility === 'all'
-    ? ['public', 'unlisted']
-    : visibility === 'unlisted'
-      ? ['unlisted']
-      : ['public'];
+const resolveMarketplaceVisibilityValues = (visibility) => (visibility === 'all' ? ['public', 'unlisted'] : visibility === 'unlisted' ? ['unlisted'] : ['public']);
 
 const getHomeMarketplaceStatsCacheBucket = (visibility) => {
   const key = normalizeCatalogVisibility(visibility);
@@ -3008,22 +2416,12 @@ const buildHomeRealtimeSnapshot = async ({ systemSummary = null } = {}) => {
   const totalCommandsRaw = Number(systemSummary?.usage?.total_commands);
   const httpLatencyP95Ms = Number(systemSummary?.observability?.http_latency_p95_ms);
   const lagP99Ms = Number(systemSummary?.observability?.lag_p99_ms);
-  const resolvedLatencyMs = Number.isFinite(httpLatencyP95Ms)
-    ? httpLatencyP95Ms
-    : Number.isFinite(lagP99Ms)
-      ? lagP99Ms
-      : null;
+  const resolvedLatencyMs = Number.isFinite(httpLatencyP95Ms) ? httpLatencyP95Ms : Number.isFinite(lagP99Ms) ? lagP99Ms : null;
 
   const totalUsers = Number.isFinite(totalUsersRaw) ? Math.max(0, Math.round(totalUsersRaw)) : null;
-  const totalMessages = Number.isFinite(totalMessagesRaw)
-    ? Math.max(0, Math.round(totalMessagesRaw))
-    : null;
-  const totalCommands = Number.isFinite(totalCommandsRaw)
-    ? Math.max(0, Math.round(totalCommandsRaw))
-    : null;
-  const systemLatencyMs = Number.isFinite(resolvedLatencyMs)
-    ? Math.max(0, Number(resolvedLatencyMs.toFixed(2)))
-    : null;
+  const totalMessages = Number.isFinite(totalMessagesRaw) ? Math.max(0, Math.round(totalMessagesRaw)) : null;
+  const totalCommands = Number.isFinite(totalCommandsRaw) ? Math.max(0, Math.round(totalCommandsRaw)) : null;
+  const systemLatencyMs = Number.isFinite(resolvedLatencyMs) ? Math.max(0, Number(resolvedLatencyMs.toFixed(2))) : null;
 
   return {
     total_users: totalUsers,
@@ -3047,26 +2445,15 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
   const errors = [];
 
   const visitPath = resolveVisitPathFromReferrer(req);
-  void trackWebVisitMetric(req, res, { pagePath: visitPath, source: 'home_bootstrap' }).catch(
-    (error) => {
-      logger.warn('Falha ao registrar visita da home bootstrap.', {
-        action: 'web_visit_track_home_bootstrap_failed',
-        error: error?.message,
-        page_path: visitPath,
-      });
-    },
-  );
+  void trackWebVisitMetric(req, res, { pagePath: visitPath, source: 'home_bootstrap' }).catch((error) => {
+    logger.warn('Falha ao registrar visita da home bootstrap.', {
+      action: 'web_visit_track_home_bootstrap_failed',
+      error: error?.message,
+      page_path: visitPath,
+    });
+  });
 
-  const [supportResult, botContactResult, sessionResult, statsResult, systemSummaryResult] =
-    await Promise.allSettled([
-      withTimeout(buildSupportInfo(), fetchTimeoutMs.support),
-      withTimeout(Promise.resolve(buildBotContactInfo()), fetchTimeoutMs.bot_contact),
-      STICKER_WEB_GOOGLE_CLIENT_ID
-        ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session)
-        : Promise.resolve(null),
-      withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats),
-      withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary),
-    ]);
+  const [supportResult, botContactResult, sessionResult, statsResult, systemSummaryResult] = await Promise.allSettled([withTimeout(buildSupportInfo(), fetchTimeoutMs.support), withTimeout(Promise.resolve(buildBotContactInfo()), fetchTimeoutMs.bot_contact), STICKER_WEB_GOOGLE_CLIENT_ID ? withTimeout(resolveGoogleWebSessionFromRequest(req), fetchTimeoutMs.session) : Promise.resolve(null), withTimeout(getMarketplaceStatsCached(visibility), fetchTimeoutMs.stats), withTimeout(getSystemSummaryCached(), fetchTimeoutMs.system_summary)]);
 
   const session = sessionResult.status === 'fulfilled' ? sessionResult.value || null : null;
   if (sessionResult.status !== 'fulfilled') {
@@ -3075,13 +2462,9 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
       message: sessionResult.reason?.message || 'session_unavailable',
     });
   }
-  const canExposeContactData =
-    HOME_BOOTSTRAP_EXPOSE_CONTACT || isAuthenticatedGoogleSession(session);
+  const canExposeContactData = HOME_BOOTSTRAP_EXPOSE_CONTACT || isAuthenticatedGoogleSession(session);
 
-  const support =
-    canExposeContactData && supportResult.status === 'fulfilled'
-      ? supportResult.value || null
-      : null;
+  const support = canExposeContactData && supportResult.status === 'fulfilled' ? supportResult.value || null : null;
   if (canExposeContactData && supportResult.status !== 'fulfilled') {
     errors.push({
       source: 'support',
@@ -3089,10 +2472,7 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
     });
   }
 
-  const botContact =
-    canExposeContactData && botContactResult.status === 'fulfilled'
-      ? botContactResult.value || null
-      : null;
+  const botContact = canExposeContactData && botContactResult.status === 'fulfilled' ? botContactResult.value || null : null;
   if (canExposeContactData && botContactResult.status !== 'fulfilled') {
     errors.push({
       source: 'bot_contact',
@@ -3108,8 +2488,7 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
     });
   }
 
-  const systemSummaryPayload =
-    systemSummaryResult.status === 'fulfilled' ? systemSummaryResult.value || null : null;
+  const systemSummaryPayload = systemSummaryResult.status === 'fulfilled' ? systemSummaryResult.value || null : null;
   if (systemSummaryResult.status !== 'fulfilled') {
     errors.push({
       source: 'system_summary',
@@ -3119,10 +2498,7 @@ const handleHomeBootstrapRequest = async (req, res, url) => {
 
   let homeRealtimePayload = null;
   try {
-    homeRealtimePayload = await withTimeout(
-      buildHomeRealtimeSnapshot({ systemSummary: systemSummaryPayload?.data || null }),
-      fetchTimeoutMs.home_realtime,
-    );
+    homeRealtimePayload = await withTimeout(buildHomeRealtimeSnapshot({ systemSummary: systemSummaryPayload?.data || null }), fetchTimeoutMs.home_realtime);
   } catch (error) {
     errors.push({
       source: 'home_realtime',
@@ -3173,20 +2549,8 @@ const handleCreatePackConfigRequest = async (req, res) => {
         pack_name_hint: 'Nome livre (espaços e emojis são permitidos).',
         visibility_values: ['public', 'unlisted', 'private'],
         owner_phone_required: !STICKER_WEB_GOOGLE_AUTH_REQUIRED,
-        owner_phone_hint: STICKER_WEB_GOOGLE_AUTH_REQUIRED
-          ? 'Login Google obrigatório para criar packs nesta página.'
-          : 'Informe o número de celular com DDD para vincular o pack ao criador.',
-        suggested_tags: [
-          'anime',
-          'meme',
-          'game',
-          'texto',
-          'nsfw',
-          'dark',
-          'cartoon',
-          'foto-real',
-          'cyberpunk',
-        ],
+        owner_phone_hint: STICKER_WEB_GOOGLE_AUTH_REQUIRED ? 'Login Google obrigatório para criar packs nesta página.' : 'Informe o número de celular com DDD para vincular o pack ao criador.',
+        suggested_tags: ['anime', 'meme', 'game', 'texto', 'nsfw', 'dark', 'cartoon', 'foto-real', 'cyberpunk'],
       },
       auth: {
         google: {
@@ -3270,8 +2634,7 @@ const resolveMyProfileOwnerCandidates = async (session) => {
   const normalizedSub = normalizeGoogleSubject(session?.sub);
   const normalizedEmail = normalizeEmail(session?.email);
   const normalizedSessionOwnerJid = normalizeJid(session?.ownerJid || '') || '';
-  const normalizedSessionOwnerPhone =
-    toWhatsAppPhoneDigits(session?.ownerPhone || session?.ownerJid) || '';
+  const normalizedSessionOwnerPhone = toWhatsAppPhoneDigits(session?.ownerPhone || session?.ownerJid) || '';
 
   appendCandidate(session?.ownerJid);
   appendCandidate(toWhatsAppOwnerJid(session?.ownerPhone || session?.ownerJid));
@@ -3291,9 +2654,7 @@ const resolveMyProfileOwnerCandidates = async (session) => {
   const legacyGoogleOwner = buildGoogleOwnerJid(session?.sub);
   if (legacyGoogleOwner) appendCandidate(legacyGoogleOwner);
 
-  const sessionResolved = await resolveUserId(
-    extractUserIdInfo(session?.ownerJid || session?.ownerPhone || null),
-  ).catch(() => null);
+  const sessionResolved = await resolveUserId(extractUserIdInfo(session?.ownerJid || session?.ownerPhone || null)).catch(() => null);
   if (sessionResolved) {
     appendCandidate(sessionResolved);
     for (const phone of buildPhoneSet(sessionResolved)) {
@@ -3337,9 +2698,7 @@ const resolveMyProfileOwnerCandidates = async (session) => {
         for (const phone of buildPhoneSet(row?.owner_jid, row?.owner_phone)) {
           trustedPhones.add(phone);
         }
-        const mappedResolved = await resolveUserId(
-          extractUserIdInfo(row?.owner_jid || row?.owner_phone || null),
-        ).catch(() => null);
+        const mappedResolved = await resolveUserId(extractUserIdInfo(row?.owner_jid || row?.owner_phone || null)).catch(() => null);
         if (mappedResolved) appendCandidate(mappedResolved);
       }
 
@@ -3516,24 +2875,7 @@ const authContext = createStickerCatalogAuthContext({
   siteOrigin: SITE_ORIGIN,
 });
 
-const {
-  upsertGoogleWebUserRecord,
-  resolveGoogleWebSessionFromRequest,
-  mapGoogleSessionResponseData,
-  handleGoogleAuthSessionRequest,
-  revokeGoogleWebSessionsByIdentity,
-  buildGoogleOwnerJid,
-  handleTermsAcceptanceRequest,
-  handlePasswordAuthRequest,
-  handlePasswordRecoveryRequest,
-  handlePasswordRecoveryVerifyRequest,
-  handlePasswordRecoverySessionCreateRequest,
-  handlePasswordRecoverySessionStatusRequest,
-  handlePasswordRecoverySessionRequest,
-  handlePasswordRecoverySessionVerifyRequest,
-  handlePasswordLoginRequest,
-  handleMyProfileRequest,
-} = authContext;
+const { upsertGoogleWebUserRecord, resolveGoogleWebSessionFromRequest, mapGoogleSessionResponseData, handleGoogleAuthSessionRequest, revokeGoogleWebSessionsByIdentity, buildGoogleOwnerJid, handleTermsAcceptanceRequest, handlePasswordAuthRequest, handlePasswordRecoveryRequest, handlePasswordRecoveryVerifyRequest, handlePasswordRecoverySessionCreateRequest, handlePasswordRecoverySessionStatusRequest, handlePasswordRecoverySessionRequest, handlePasswordRecoverySessionVerifyRequest, handlePasswordLoginRequest, handleMyProfileRequest } = authContext;
 revokeGoogleWebSessionsByIdentityBridge = revokeGoogleWebSessionsByIdentity;
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
@@ -3564,14 +2906,7 @@ const sendManagedMutationStatus = (req, res, status, extra = {}, statusCode = 20
   });
 };
 
-const sendManagedPackMutationStatus = async (
-  req,
-  res,
-  status,
-  pack,
-  extra = {},
-  statusCode = 200,
-) => {
+const sendManagedPackMutationStatus = async (req, res, status, pack, extra = {}, statusCode = 200) => {
   if (!pack) {
     sendManagedMutationStatus(req, res, status, extra, statusCode);
     return;
@@ -3588,13 +2923,7 @@ const sendManagedPackMutationStatus = async (
 };
 
 const cleanupOrphanStickerAssets = async (assetIds, { reason = 'manage_mutation' } = {}) => {
-  const normalizedIds = Array.from(
-    new Set(
-      (Array.isArray(assetIds) ? assetIds : [])
-        .map((id) => String(id || '').trim())
-        .filter(Boolean),
-    ),
-  );
+  const normalizedIds = Array.from(new Set((Array.isArray(assetIds) ? assetIds : []).map((id) => String(id || '').trim()).filter(Boolean)));
   if (!normalizedIds.length) return { checked: 0, deleted: 0, skipped: 0, errors: 0 };
 
   const assets = await findStickerAssetsByIds(normalizedIds).catch(() => []);
@@ -3650,10 +2979,7 @@ const deleteManagedPackWithCleanup = async ({ ownerJid, identifier, fallbackPack
     const pack =
       (await findStickerPackByOwnerAndIdentifier(ownerJid, fallbackPack?.id || identifier, {
         connection,
-      })) ||
-      (fallbackPack?.pack_key && fallbackPack?.pack_key !== identifier
-        ? await findStickerPackByOwnerAndIdentifier(ownerJid, identifier, { connection })
-        : null);
+      })) || (fallbackPack?.pack_key && fallbackPack?.pack_key !== identifier ? await findStickerPackByOwnerAndIdentifier(ownerJid, identifier, { connection }) : null);
 
     if (!pack) {
       return {
@@ -3756,9 +3082,7 @@ const loadOwnedPackForWebManagement = async (req, res, packKey, { allowMissing =
   }
 
   const ownerCandidatesRaw = await resolveMyProfileOwnerCandidates(session).catch(() => []);
-  const ownerCandidates = Array.from(
-    new Set([normalizeJid(session.ownerJid) || '', ...ownerCandidatesRaw].filter(Boolean)),
-  );
+  const ownerCandidates = Array.from(new Set([normalizeJid(session.ownerJid) || '', ...ownerCandidatesRaw].filter(Boolean)));
   const fallbackOwnerJid = ownerCandidates[0] || normalizeJid(session.ownerJid) || '';
 
   for (const ownerJid of ownerCandidates) {
@@ -3769,10 +3093,7 @@ const loadOwnedPackForWebManagement = async (req, res, packKey, { allowMissing =
       });
       return { session, ownerJid, ownerCandidates, packKey: normalizedPackKey, pack };
     } catch (error) {
-      if (
-        error instanceof StickerPackError &&
-        error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND
-      ) {
+      if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND) {
         continue;
       }
       const mapped = mapStickerPackWebManageError(error);
@@ -3817,9 +3138,7 @@ const buildManagedPackAnalytics = async (pack) => {
     downloads: Number(engagement?.open_count || 0),
     likes: Number(engagement?.like_count || 0),
     dislikes: Number(engagement?.dislike_count || 0),
-    score:
-      Number(engagement?.score || 0) ||
-      Number(engagement?.like_count || 0) - Number(engagement?.dislike_count || 0),
+    score: Number(engagement?.score || 0) || Number(engagement?.like_count || 0) - Number(engagement?.dislike_count || 0),
     engagement: {
       open_count: Number(engagement?.open_count || 0),
       like_count: Number(engagement?.like_count || 0),
@@ -3841,19 +3160,9 @@ const buildManagedPackResponseData = async (pack) => {
   const items = Array.isArray(pack?.items) ? pack.items : [];
   const stickerIds = items.map((item) => item.sticker_id).filter(Boolean);
 
-  const [classifications, packClassification, analytics, publishState] = await Promise.all([
-    stickerIds.length ? listStickerClassificationsByAssetIds(stickerIds) : Promise.resolve([]),
-    pack?.classification ||
-      (stickerIds.length
-        ? getPackClassificationSummaryByAssetIds(stickerIds).catch(() => null)
-        : null),
-    buildManagedPackAnalytics(pack),
-    buildPackPublishStateData(pack, { includeUploads: true }),
-  ]);
+  const [classifications, packClassification, analytics, publishState] = await Promise.all([stickerIds.length ? listStickerClassificationsByAssetIds(stickerIds) : Promise.resolve([]), pack?.classification || (stickerIds.length ? getPackClassificationSummaryByAssetIds(stickerIds).catch(() => null) : null), buildManagedPackAnalytics(pack), buildPackPublishStateData(pack, { includeUploads: true })]);
 
-  const byAssetClassification = new Map(
-    (Array.isArray(classifications) ? classifications : []).map((entry) => [entry.asset_id, entry]),
-  );
+  const byAssetClassification = new Map((Array.isArray(classifications) ? classifications : []).map((entry) => [entry.asset_id, entry]));
 
   return {
     pack: mapPackDetails(pack, items, {
@@ -3982,11 +3291,7 @@ const handleManagedPackRequest = async (req, res, packKey) => {
       const nextPublisher = sanitizeText(payload?.publisher, PACK_CREATE_MAX_PUBLISHER_LENGTH, {
         allowEmpty: false,
       });
-      const currentPublisher = sanitizeText(
-        updatedPack?.publisher,
-        PACK_CREATE_MAX_PUBLISHER_LENGTH,
-        { allowEmpty: false },
-      );
+      const currentPublisher = sanitizeText(updatedPack?.publisher, PACK_CREATE_MAX_PUBLISHER_LENGTH, { allowEmpty: false });
       if (!nextPublisher) {
         updatedPack = await stickerPackService.setPackPublisher({
           ownerJid: context.ownerJid,
@@ -4028,17 +3333,10 @@ const handleManagedPackRequest = async (req, res, packKey) => {
 
     if (hasOwn(payload, 'description') || hasOwn(payload, 'tags')) {
       const currentMeta = parsePackDescriptionMetadata(updatedPack?.description);
-      const nextDescription = hasOwn(payload, 'description')
-        ? String(payload?.description || '')
-        : String(currentMeta.cleanDescription || '');
-      const nextTags = hasOwn(payload, 'tags')
-        ? parseTagListInput(payload?.tags)
-        : currentMeta.tags;
+      const nextDescription = hasOwn(payload, 'description') ? String(payload?.description || '') : String(currentMeta.cleanDescription || '');
+      const nextTags = hasOwn(payload, 'tags') ? parseTagListInput(payload?.tags) : currentMeta.tags;
       const descriptionWithTags = buildPackDescriptionWithTags(nextDescription, nextTags);
-      const currentDescriptionWithTags = buildPackDescriptionWithTags(
-        currentMeta.cleanDescription || '',
-        currentMeta.tags,
-      );
+      const currentDescriptionWithTags = buildPackDescriptionWithTags(currentMeta.cleanDescription || '', currentMeta.tags);
       if (String(descriptionWithTags || '') !== String(currentDescriptionWithTags || '')) {
         updatedPack = await stickerPackService.setPackDescription({
           ownerJid: context.ownerJid,
@@ -4055,10 +3353,7 @@ const handleManagedPackRequest = async (req, res, packKey) => {
       pack_key: normalizedPackKey,
     });
   } catch (error) {
-    if (
-      error instanceof StickerPackError &&
-      error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND
-    ) {
+    if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND) {
       sendManagedMutationStatus(req, res, 'already_deleted', {
         updated: false,
         pack_key: normalizedPackKey,
@@ -4150,20 +3445,12 @@ const handleManagedPackCoverRequest = async (req, res, packKey) => {
       pack_key: context.packKey,
     });
   } catch (error) {
-    if (
-      error instanceof StickerPackError &&
-      error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND
-    ) {
+    if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND) {
       sendManagedMutationStatus(req, res, 'already_deleted', { pack_key: context.packKey });
       return;
     }
-    if (
-      error instanceof StickerPackError &&
-      error.code === STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND
-    ) {
-      const fresh = await stickerPackService
-        .getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey })
-        .catch(() => context.pack);
+    if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND) {
+      const fresh = await stickerPackService.getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey }).catch(() => context.pack);
       await sendManagedPackMutationStatus(req, res, 'already_deleted', fresh, {
         pack_key: context.packKey,
         sticker_id: sanitizeText(payload?.sticker_id, 36, { allowEmpty: true }) || null,
@@ -4199,9 +3486,7 @@ const handleManagedPackReorderRequest = async (req, res, packKey) => {
     return;
   }
 
-  const requestedOrderIds = Array.isArray(payload?.order_sticker_ids)
-    ? payload.order_sticker_ids
-    : [];
+  const requestedOrderIds = Array.isArray(payload?.order_sticker_ids) ? payload.order_sticker_ids : [];
   const currentItems = Array.isArray(context.pack?.items) ? context.pack.items : [];
   if (currentItems.length < 2) {
     await sendManagedPackMutationStatus(req, res, 'noop', context.pack, {
@@ -4229,20 +3514,12 @@ const handleManagedPackReorderRequest = async (req, res, packKey) => {
       pack_key: context.packKey,
     });
   } catch (error) {
-    if (
-      error instanceof StickerPackError &&
-      error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND
-    ) {
+    if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND) {
       sendManagedMutationStatus(req, res, 'already_deleted', { pack_key: context.packKey });
       return;
     }
-    if (
-      error instanceof StickerPackError &&
-      error.code === STICKER_PACK_ERROR_CODES.INVALID_INPUT
-    ) {
-      const fresh = await stickerPackService
-        .getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey })
-        .catch(() => context.pack);
+    if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.INVALID_INPUT) {
+      const fresh = await stickerPackService.getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey }).catch(() => context.pack);
       await sendManagedPackMutationStatus(req, res, 'noop', fresh, {
         pack_key: context.packKey,
         reason: 'invalid_or_stale_order',
@@ -4276,8 +3553,7 @@ const handleManagedPackStickerDeleteRequest = async (req, res, packKey, stickerI
       selector: stickerId,
     });
     invalidateStickerCatalogDerivedCaches();
-    const removedStickerId =
-      result?.removed?.sticker_id || sanitizeText(stickerId, 36, { allowEmpty: true }) || null;
+    const removedStickerId = result?.removed?.sticker_id || sanitizeText(stickerId, 36, { allowEmpty: true }) || null;
     if (removedStickerId) {
       await cleanupOrphanStickerAssets([removedStickerId], { reason: 'remove_sticker' });
     }
@@ -4286,23 +3562,15 @@ const handleManagedPackStickerDeleteRequest = async (req, res, packKey, stickerI
       removed_sticker_id: removedStickerId,
     });
   } catch (error) {
-    if (
-      error instanceof StickerPackError &&
-      error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND
-    ) {
+    if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND) {
       sendManagedMutationStatus(req, res, 'already_deleted', {
         pack_key: context.packKey,
         sticker_id: sanitizeText(stickerId, 36, { allowEmpty: true }) || null,
       });
       return;
     }
-    if (
-      error instanceof StickerPackError &&
-      error.code === STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND
-    ) {
-      const fresh = await stickerPackService
-        .getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey })
-        .catch(() => context.pack);
+    if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND) {
+      const fresh = await stickerPackService.getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey }).catch(() => context.pack);
       await sendManagedPackMutationStatus(req, res, 'already_deleted', fresh, {
         pack_key: context.packKey,
         sticker_id: sanitizeText(stickerId, 36, { allowEmpty: true }) || null,
@@ -4340,9 +3608,7 @@ const handleManagedPackStickerCreateRequest = async (req, res, packKey) => {
     return;
   }
 
-  const decoded = decodeStickerBase64Payload(
-    payload?.sticker_base64 || payload?.sticker_data_url || '',
-  );
+  const decoded = decodeStickerBase64Payload(payload?.sticker_base64 || payload?.sticker_data_url || '');
   if (!decoded?.buffer) {
     sendJson(req, res, 400, {
       error: 'Envie sticker_base64 ou sticker_data_url.',
@@ -4399,10 +3665,7 @@ const handleManagedPackStickerCreateRequest = async (req, res, packKey) => {
       },
     });
   } catch (error) {
-    if (
-      error instanceof StickerPackError &&
-      error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND
-    ) {
+    if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND) {
       sendManagedMutationStatus(req, res, 'already_deleted', { pack_key: context.packKey });
       return;
     }
@@ -4443,9 +3706,7 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
     return;
   }
 
-  const decoded = decodeStickerBase64Payload(
-    payload?.sticker_base64 || payload?.sticker_data_url || '',
-  );
+  const decoded = decodeStickerBase64Payload(payload?.sticker_base64 || payload?.sticker_data_url || '');
   if (!decoded?.buffer) {
     sendJson(req, res, 400, {
       error: 'Envie sticker_base64 ou sticker_data_url.',
@@ -4513,25 +3774,15 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
       });
       if (!packRow) return { status: 'pack_missing' };
 
-      const liveOldItem = await getStickerPackItemByStickerId(
-        packRow.id,
-        normalizedStickerId,
-        connection,
-      );
+      const liveOldItem = await getStickerPackItemByStickerId(packRow.id, normalizedStickerId, connection);
       if (!liveOldItem) return { status: 'old_sticker_missing' };
 
-      const duplicateTarget = uploadedAssetId
-        ? await getStickerPackItemByStickerId(packRow.id, uploadedAssetId, connection)
-        : null;
+      const duplicateTarget = uploadedAssetId ? await getStickerPackItemByStickerId(packRow.id, uploadedAssetId, connection) : null;
       if (duplicateTarget) {
         return { status: 'duplicate_target' };
       }
 
-      const removed = await removeStickerPackItemByStickerId(
-        packRow.id,
-        normalizedStickerId,
-        connection,
-      );
+      const removed = await removeStickerPackItemByStickerId(packRow.id, normalizedStickerId, connection);
       if (!removed) return { status: 'old_sticker_missing' };
 
       await createStickerPackItem(
@@ -4540,13 +3791,8 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
           pack_id: packRow.id,
           sticker_id: uploadedAssetId,
           position: Number(removed.position || liveOldItem.position || oldItem.position || 1),
-          emojis: Array.isArray(liveOldItem.emojis)
-            ? liveOldItem.emojis
-            : Array.isArray(oldItem.emojis)
-              ? oldItem.emojis
-              : [],
-          accessibility_label:
-            liveOldItem.accessibility_label ?? oldItem.accessibility_label ?? null,
+          emojis: Array.isArray(liveOldItem.emojis) ? liveOldItem.emojis : Array.isArray(oldItem.emojis) ? oldItem.emojis : [],
+          accessibility_label: liveOldItem.accessibility_label ?? oldItem.accessibility_label ?? null,
         },
         connection,
       );
@@ -4578,9 +3824,7 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
     }
 
     if (swapResult?.status === 'old_sticker_missing') {
-      const fresh = await stickerPackService
-        .getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey })
-        .catch(() => originalPack);
+      const fresh = await stickerPackService.getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey }).catch(() => originalPack);
       await cleanupOrphanStickerAssets(uploadedAssetId ? [uploadedAssetId] : [], {
         reason: 'replace_sticker_old_missing',
       });
@@ -4592,9 +3836,7 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
     }
 
     if (swapResult?.status === 'duplicate_target') {
-      const fresh = await stickerPackService
-        .getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey })
-        .catch(() => originalPack);
+      const fresh = await stickerPackService.getPackInfo({ ownerJid: context.ownerJid, identifier: context.packKey }).catch(() => originalPack);
       await sendManagedPackMutationStatus(req, res, 'noop', fresh, {
         pack_key: context.packKey,
         reason: 'duplicate_target_sticker',
@@ -4622,10 +3864,7 @@ const handleManagedPackStickerReplaceRequest = async (req, res, packKey, sticker
       },
     });
   } catch (error) {
-    if (
-      error instanceof StickerPackError &&
-      error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND
-    ) {
+    if (error instanceof StickerPackError && error.code === STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND) {
       sendManagedMutationStatus(req, res, 'already_deleted', {
         pack_key: context.packKey,
         sticker_id: normalizedStickerId,
@@ -4666,8 +3905,7 @@ const handleManagedPackAnalyticsRequest = async (req, res, packKey) => {
   }
 };
 
-const normalizeCreatePackName = (value) =>
-  sanitizeText(value, PACK_CREATE_MAX_NAME_LENGTH, { allowEmpty: true }) || '';
+const normalizeCreatePackName = (value) => sanitizeText(value, PACK_CREATE_MAX_NAME_LENGTH, { allowEmpty: true }) || '';
 
 const mapStickerPackCreateError = (error) => {
   if (!(error instanceof StickerPackError)) {
@@ -4721,11 +3959,7 @@ const handleCreatePackRequest = async (req, res) => {
     return;
   }
 
-  const publisher = sanitizeText(
-    payload?.publisher || 'OmniZap Creator',
-    PACK_CREATE_MAX_PUBLISHER_LENGTH,
-    { allowEmpty: false },
-  );
+  const publisher = sanitizeText(payload?.publisher || 'OmniZap Creator', PACK_CREATE_MAX_PUBLISHER_LENGTH, { allowEmpty: false });
   const description = sanitizeText(payload?.description || '', PACK_CREATE_MAX_DESCRIPTION_LENGTH, {
     allowEmpty: true,
   });
@@ -4882,9 +4116,7 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
     return;
   }
 
-  const decoded = decodeStickerBase64Payload(
-    payload?.sticker_base64 || payload?.sticker_data_url || '',
-  );
+  const decoded = decodeStickerBase64Payload(payload?.sticker_base64 || payload?.sticker_data_url || '');
   if (!decoded?.buffer) {
     sendJson(req, res, 400, {
       error: 'Envie sticker_base64 ou sticker_data_url no payload.',
@@ -4911,8 +4143,7 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
     return;
   }
 
-  const uploadId =
-    normalizeWebUploadId(payload?.upload_id) || `h-${computedStickerHash.slice(0, 24)}`;
+  const uploadId = normalizeWebUploadId(payload?.upload_id) || `h-${computedStickerHash.slice(0, 24)}`;
   const stickerHash = payloadStickerHash || computedStickerHash;
 
   logPackWebFlow('info', 'upload_start', {
@@ -4935,22 +4166,13 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
       if (!lockedPackRow) {
         throw new StickerPackError(STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND, 'Pack nao encontrado.');
       }
-      if (
-        String(lockedPackRow.id) !== String(pack.id) ||
-        String(lockedPackRow.owner_jid) !== String(pack.owner_jid)
-      ) {
-        throw new StickerPackError(
-          STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
-          'Pack inválido para edição.',
-        );
+      if (String(lockedPackRow.id) !== String(pack.id) || String(lockedPackRow.owner_jid) !== String(pack.owner_jid)) {
+        throw new StickerPackError(STICKER_PACK_ERROR_CODES.NOT_ALLOWED, 'Pack inválido para edição.');
       }
 
       let existingUpload = await findPackWebUploadByUploadId(pack.id, uploadId, connection);
       if (existingUpload && existingUpload.sticker_hash !== stickerHash) {
-        throw new StickerPackError(
-          STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-          'upload_id já foi usado para outro arquivo neste pack.',
-        );
+        throw new StickerPackError(STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'upload_id já foi usado para outro arquivo neste pack.');
       }
 
       if (!existingUpload) {
@@ -4959,11 +4181,7 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
 
       const currentPackStatus = normalizePackWebStatus(lockedPackRow.status, 'draft');
       if (existingUpload?.upload_status === 'done' && existingUpload.sticker_id) {
-        const snapshot = await getPackConsistencySnapshot(
-          pack.id,
-          lockedPackRow.cover_sticker_id,
-          connection,
-        );
+        const snapshot = await getPackConsistencySnapshot(pack.id, lockedPackRow.cover_sticker_id, connection);
         idempotentDoneResponse = {
           data: {
             pack_key: pack.pack_key,
@@ -4980,17 +4198,11 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
       }
 
       if (currentPackStatus === 'published') {
-        throw new StickerPackError(
-          STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
-          'Pack já foi publicado. Crie um novo pack para enviar novos stickers.',
-        );
+        throw new StickerPackError(STICKER_PACK_ERROR_CODES.NOT_ALLOWED, 'Pack já foi publicado. Crie um novo pack para enviar novos stickers.');
       }
 
       if (currentPackStatus === 'processing') {
-        throw new StickerPackError(
-          STICKER_PACK_ERROR_CODES.NOT_ALLOWED,
-          'Pack está em finalização. Aguarde e tente novamente.',
-        );
+        throw new StickerPackError(STICKER_PACK_ERROR_CODES.NOT_ALLOWED, 'Pack está em finalização. Aguarde e tente novamente.');
       }
 
       if (!existingUpload) {
@@ -5087,25 +4299,10 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
         throw new StickerPackError(STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND, 'Pack nao encontrado.');
       }
 
-      const uploadRow =
-        (reservedUpload?.id &&
-          normalizePackWebUploadRow(
-            (
-              await executeQuery(
-                `SELECT * FROM ${TABLES.STICKER_PACK_WEB_UPLOAD} WHERE id = ? LIMIT 1`,
-                [reservedUpload.id],
-                connection,
-              )
-            )?.[0],
-          )) ||
-        (await findPackWebUploadByUploadId(pack.id, uploadId, connection)) ||
-        (await findPackWebUploadByStickerHash(pack.id, stickerHash, connection));
+      const uploadRow = (reservedUpload?.id && normalizePackWebUploadRow((await executeQuery(`SELECT * FROM ${TABLES.STICKER_PACK_WEB_UPLOAD} WHERE id = ? LIMIT 1`, [reservedUpload.id], connection))?.[0])) || (await findPackWebUploadByUploadId(pack.id, uploadId, connection)) || (await findPackWebUploadByStickerHash(pack.id, stickerHash, connection));
 
       if (!uploadRow) {
-        throw new StickerPackError(
-          STICKER_PACK_ERROR_CODES.INTERNAL_ERROR,
-          'Registro de upload não encontrado para finalizar.',
-        );
+        throw new StickerPackError(STICKER_PACK_ERROR_CODES.INTERNAL_ERROR, 'Registro de upload não encontrado para finalizar.');
       }
 
       await updatePackWebUpload(
@@ -5127,11 +4324,7 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
         packStatusForResponse = 'published';
       }
 
-      const snapshot = await getPackConsistencySnapshot(
-        pack.id,
-        payload?.set_cover === true ? asset.id : lockedPackRow.cover_sticker_id,
-        connection,
-      );
+      const snapshot = await getPackConsistencySnapshot(pack.id, payload?.set_cover === true ? asset.id : lockedPackRow.cover_sticker_id, connection);
       responseStickerCount = snapshot.sticker_count;
     });
 
@@ -5160,9 +4353,7 @@ const handleUploadStickerToPackRequest = async (req, res, packKey) => {
   } catch (error) {
     if (reservedUpload?.id) {
       await runSqlTransaction(async (connection) => {
-        const currentUpload =
-          (await findPackWebUploadByUploadId(pack.id, uploadId, connection)) ||
-          (await findPackWebUploadByStickerHash(pack.id, stickerHash, connection));
+        const currentUpload = (await findPackWebUploadByUploadId(pack.id, uploadId, connection)) || (await findPackWebUploadByStickerHash(pack.id, stickerHash, connection));
         if (currentUpload) {
           await updatePackWebUpload(
             currentUpload.id,
@@ -5227,10 +4418,7 @@ const handlePackPublishStateRequest = async (req, res, packKey, url = null) => {
     }
   }
 
-  const editTokenValue =
-    (req.method === 'GET' || req.method === 'HEAD'
-      ? String(url?.searchParams?.get('edit_token') || '')
-      : '') || String(payload?.edit_token || '');
+  const editTokenValue = (req.method === 'GET' || req.method === 'HEAD' ? String(url?.searchParams?.get('edit_token') || '') : '') || String(payload?.edit_token || '');
   const editToken = resolveWebPackEditToken(editTokenValue);
   if (!editToken || editToken.packId !== pack.id || editToken.ownerJid !== pack.owner_jid) {
     sendJson(req, res, 403, {
@@ -5309,17 +4497,8 @@ const handleFinalizePackRequest = async (req, res, packKey) => {
 
       await setStickerPackStatus(pack.id, 'processing', connection);
 
-      const snapshot = await getPackConsistencySnapshot(
-        pack.id,
-        lockedPackRow.cover_sticker_id,
-        connection,
-      );
-      const canPublish =
-        snapshot.sticker_count >= 1 &&
-        snapshot.failed_uploads === 0 &&
-        snapshot.processing_uploads === 0 &&
-        snapshot.pending_uploads === 0 &&
-        snapshot.cover_valid;
+      const snapshot = await getPackConsistencySnapshot(pack.id, lockedPackRow.cover_sticker_id, connection);
+      const canPublish = snapshot.sticker_count >= 1 && snapshot.failed_uploads === 0 && snapshot.processing_uploads === 0 && snapshot.pending_uploads === 0 && snapshot.cover_valid;
 
       if (canPublish) {
         await setStickerPackStatus(pack.id, 'published', connection);
@@ -5335,25 +4514,12 @@ const handleFinalizePackRequest = async (req, res, packKey) => {
       finalizeResult = {
         canPublish: false,
         packStatus: 'draft',
-        reason:
-          snapshot.failed_uploads > 0
-            ? 'failed_uploads'
-            : snapshot.processing_uploads > 0
-              ? 'uploads_processing'
-              : snapshot.pending_uploads > 0
-                ? 'uploads_pending'
-                : !snapshot.cover_valid
-                  ? 'cover_missing'
-                  : snapshot.sticker_count < 1
-                    ? 'not_enough_stickers'
-                    : 'inconsistent',
+        reason: snapshot.failed_uploads > 0 ? 'failed_uploads' : snapshot.processing_uploads > 0 ? 'uploads_processing' : snapshot.pending_uploads > 0 ? 'uploads_pending' : !snapshot.cover_valid ? 'cover_missing' : snapshot.sticker_count < 1 ? 'not_enough_stickers' : 'inconsistent',
       };
     });
   } catch (error) {
     await runSqlTransaction(async (connection) => {
-      const lockedPackRow = await lockStickerPackByPackKey(pack.pack_key, connection).catch(
-        () => null,
-      );
+      const lockedPackRow = await lockStickerPackByPackKey(pack.pack_key, connection).catch(() => null);
       if (lockedPackRow) {
         await setStickerPackStatus(pack.id, 'failed', connection);
       }
@@ -5435,22 +4601,11 @@ const handleCreatorRankingRequest = async (req, res, url) => {
       });
       const driftSnapshot = await getMarketplaceDriftSnapshot();
       const { entries } = await hydrateMarketplaceEntries(packs, { driftSnapshot });
-      const ranking = buildCreatorRanking(
-        STICKER_CATALOG_ONLY_CLASSIFIED
-          ? entries.filter((entry) => isPackClassified(entry.packClassification))
-          : entries,
-        { limit },
-      );
+      const ranking = buildCreatorRanking(STICKER_CATALOG_ONLY_CLASSIFIED ? entries.filter((entry) => isPackClassified(entry.packClassification)) : entries, { limit });
 
       return {
         data: ranking.map((creator) => ({
-          creator_score: Number(
-            (
-              Number(creator.avg_pack_score || 0) * 0.45 +
-              Number(creator.total_likes || 0) * 0.0008 +
-              Number(creator.total_opens || 0) * 0.00015
-            ).toFixed(6),
-          ),
+          creator_score: Number((Number(creator.avg_pack_score || 0) * 0.45 + Number(creator.total_likes || 0) * 0.0008 + Number(creator.total_opens || 0) * 0.00015).toFixed(6)),
           publisher: creator.publisher,
           verified: Boolean(creator.verified),
           badges: creator.verified ? ['verified_creator'] : [],
@@ -5460,9 +4615,7 @@ const handleCreatorRankingRequest = async (req, res, url) => {
             total_opens: Number(creator.total_opens || 0),
             avg_pack_score: Number(creator.avg_pack_score || 0),
           },
-          top_pack: creator.top_pack
-            ? toSummaryEntry(creator.top_pack, { hideSensitiveCover: !hasNsfwAccess })
-            : null,
+          top_pack: creator.top_pack ? toSummaryEntry(creator.top_pack, { hideSensitiveCover: !hasNsfwAccess }) : null,
         })),
         filters: {
           visibility,
@@ -5495,18 +4648,10 @@ const handleRecommendationsRequest = async (req, res, url) => {
   const { entries, packClassificationById } = await hydrateMarketplaceEntries(packs, {
     driftSnapshot,
   });
-  const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED
-    ? entries.filter((entry) => isPackClassified(entry.packClassification))
-    : entries;
-  const entriesByCategory = categories.length
-    ? entriesClassified.filter((entry) =>
-        hasAnyCategory(entry.packClassification?.tags || [], categories),
-      )
-    : entriesClassified;
+  const entriesClassified = STICKER_CATALOG_ONLY_CLASSIFIED ? entries.filter((entry) => isPackClassified(entry.packClassification)) : entries;
+  const entriesByCategory = categories.length ? entriesClassified.filter((entry) => hasAnyCategory(entry.packClassification?.tags || [], categories)) : entriesClassified;
 
-  const viewerRecentPackIds = viewerKey
-    ? await listViewerRecentPackIds(viewerKey, { days: 45, limit: 160 })
-    : [];
+  const viewerRecentPackIds = viewerKey ? await listViewerRecentPackIds(viewerKey, { days: 45, limit: 160 }) : [];
   const viewerAffinity = buildViewerTagAffinity({
     viewerEntries: viewerRecentPackIds,
     packClassificationById,
@@ -5542,39 +4687,22 @@ const handleRecommendationsRequest = async (req, res, url) => {
 const handleOrphanStickerListRequest = async (req, res, url) => {
   const q = sanitizeText(url.searchParams.get('q') || '', 140, { allowEmpty: true }) || '';
   const categories = parseCategoryFilters(url.searchParams.get('categories'));
-  const limit = clampInt(
-    url.searchParams.get('limit'),
-    DEFAULT_ORPHAN_LIST_LIMIT,
-    1,
-    MAX_ORPHAN_LIST_LIMIT,
-  );
+  const limit = clampInt(url.searchParams.get('limit'), DEFAULT_ORPHAN_LIST_LIMIT, 1, MAX_ORPHAN_LIST_LIMIT);
   const offset = clampInt(url.searchParams.get('offset'), 0, 0, 1_000_000);
   const googleSession = await resolveGoogleWebSessionFromRequest(req);
   const hasNsfwAccess = Boolean(googleSession?.sub && googleSession?.ownerJid);
 
   const { assets, hasMore, total } = categories.length
     ? await listClassifiedOrphanAssetsByCategories({ search: q, categories, limit, offset })
-    : await (
-        STICKER_CATALOG_ONLY_CLASSIFIED
-          ? listClassifiedStickerAssetsWithoutPack
-          : listStickerAssetsWithoutPack
-      )({
+    : await (STICKER_CATALOG_ONLY_CLASSIFIED ? listClassifiedStickerAssetsWithoutPack : listStickerAssetsWithoutPack)({
         search: q,
         limit,
         offset,
       });
-  const classifications = await listStickerClassificationsByAssetIds(
-    assets.map((asset) => asset.id),
-  );
+  const classifications = await listStickerClassificationsByAssetIds(assets.map((asset) => asset.id));
   const byAssetId = new Map(classifications.map((entry) => [entry.asset_id, entry]));
-  const filteredAssets = STICKER_CATALOG_ONLY_CLASSIFIED
-    ? assets.filter((asset) => isStickerClassified(byAssetId.get(asset.id)))
-    : assets;
-  const filteredByCategories = categories.length
-    ? filteredAssets.filter((asset) =>
-        hasAnyCategory(resolveClassificationTags(byAssetId.get(asset.id)), categories),
-      )
-    : filteredAssets;
+  const filteredAssets = STICKER_CATALOG_ONLY_CLASSIFIED ? assets.filter((asset) => isStickerClassified(byAssetId.get(asset.id))) : assets;
+  const filteredByCategories = categories.length ? filteredAssets.filter((asset) => hasAnyCategory(resolveClassificationTags(byAssetId.get(asset.id)), categories)) : filteredAssets;
   const currentPage = Math.floor(offset / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -5602,23 +4730,12 @@ const handleOrphanStickerListRequest = async (req, res, url) => {
 
 const handleDataFileListRequest = async (req, res, url) => {
   const q = sanitizeText(url.searchParams.get('q') || '', 140, { allowEmpty: true }) || '';
-  const limit = clampInt(
-    url.searchParams.get('limit'),
-    DEFAULT_DATA_LIST_LIMIT,
-    1,
-    MAX_DATA_LIST_LIMIT,
-  );
+  const limit = clampInt(url.searchParams.get('limit'), DEFAULT_DATA_LIST_LIMIT, 1, MAX_DATA_LIST_LIMIT);
   const offset = clampInt(url.searchParams.get('offset'), 0, 0, 1_000_000);
   const normalizedQuery = q.toLowerCase();
 
   const allFiles = await listDataImageFiles();
-  const filteredFiles = normalizedQuery
-    ? allFiles.filter(
-        (item) =>
-          item.name.toLowerCase().includes(normalizedQuery) ||
-          item.relative_path.toLowerCase().includes(normalizedQuery),
-      )
-    : allFiles;
+  const filteredFiles = normalizedQuery ? allFiles.filter((item) => item.name.toLowerCase().includes(normalizedQuery) || item.relative_path.toLowerCase().includes(normalizedQuery)) : allFiles;
 
   const page = filteredFiles.slice(offset, offset + limit);
   const hasMore = offset + limit < filteredFiles.length;
@@ -5677,27 +4794,9 @@ const systemContext = createStickerCatalogSystemContext({
   marketplaceGlobalStatsCacheSeconds: MARKETPLACE_GLOBAL_STATS_CACHE_SECONDS,
 });
 
-const {
-  withTimeout,
-  getSystemSummaryCached,
-  getReadmeSummaryCached,
-  resolveBotUserCandidates,
-  sanitizeRankingPayloadByBot,
-  getGlobalRankingSummaryCached,
-  scheduleGlobalRankingPreload,
-  getMarketplaceGlobalStatsCached,
-} = systemContext;
+const { withTimeout, getSystemSummaryCached, getReadmeSummaryCached, resolveBotUserCandidates, sanitizeRankingPayloadByBot, getGlobalRankingSummaryCached, scheduleGlobalRankingPreload, getMarketplaceGlobalStatsCached } = systemContext;
 
-const {
-  handleSystemSummaryRequest,
-  handleReadmeSummaryRequest,
-  handleReadmeMarkdownRequest,
-  handleGlobalRankingSummaryRequest,
-  handleMarketplaceGlobalStatsRequest,
-  handleGitHubProjectSummaryRequest,
-  handleSupportInfoRequest,
-  handleBotContactInfoRequest,
-} = createStickerCatalogNonCatalogHandlers({
+const { handleSystemSummaryRequest, handleReadmeSummaryRequest, handleReadmeMarkdownRequest, handleGlobalRankingSummaryRequest, handleMarketplaceGlobalStatsRequest, handleGitHubProjectSummaryRequest, handleSupportInfoRequest, handleBotContactInfoRequest } = createStickerCatalogNonCatalogHandlers({
   sendJson,
   sendText,
   logger,
@@ -5789,11 +4888,7 @@ const fetchPublicPackPayload = async (normalizedPackKey) => {
 
       const items = await listStickerPackItems(pack.id);
       const stickerIds = items.map((item) => item.sticker_id);
-      const [classifications, packClassification, engagement] = await Promise.all([
-        listStickerClassificationsByAssetIds(stickerIds),
-        getPackClassificationSummaryByAssetIds(stickerIds),
-        getStickerPackEngagementByPackId(pack.id),
-      ]);
+      const [classifications, packClassification, engagement] = await Promise.all([listStickerClassificationsByAssetIds(stickerIds), getPackClassificationSummaryByAssetIds(stickerIds), getStickerPackEngagementByPackId(pack.id)]);
 
       if (STICKER_CATALOG_ONLY_CLASSIFIED && !isPackClassified(packClassification)) {
         return null;
@@ -5803,17 +4898,11 @@ const fetchPublicPackPayload = async (normalizedPackKey) => {
         listStickerPackInteractionStatsByPackIds([pack.id]),
         getMarketplaceDriftSnapshot(),
         canUseRankingSnapshotRead(`pack_payload:${pack.id}`)
-          .then((enabled) =>
-            enabled ? listStickerPackScoreSnapshotsByPackIds([pack.id]) : new Map(),
-          )
+          .then((enabled) => (enabled ? listStickerPackScoreSnapshotsByPackIds([pack.id]) : new Map()))
           .catch(() => new Map()),
       ]);
-      const byAssetClassification = new Map(
-        classifications.map((entry) => [entry.asset_id, entry]),
-      );
-      const orderedClassifications = stickerIds
-        .map((stickerId) => byAssetClassification.get(stickerId))
-        .filter(Boolean);
+      const byAssetClassification = new Map(classifications.map((entry) => [entry.asset_id, entry]));
+      const orderedClassifications = stickerIds.map((stickerId) => byAssetClassification.get(stickerId)).filter(Boolean);
       const snapshot = snapshotByPackId.get(pack.id);
       const signals = snapshot?.signals
         ? snapshot.signals
@@ -5854,19 +4943,9 @@ const handleDetailsRequest = async (req, res, packKey, url) => {
     return;
   }
 
-  const { pack, items, byAssetClassification, packClassification, engagement, signals } =
-    packPayload;
-  const visibleItems = STICKER_CATALOG_ONLY_CLASSIFIED
-    ? items.filter((item) => isStickerClassified(byAssetClassification.get(item.sticker_id)))
-    : items;
-  const visibleItemsByCategories = categories.length
-    ? visibleItems.filter((item) =>
-        hasAnyCategory(
-          resolveClassificationTags(byAssetClassification.get(item.sticker_id)),
-          categories,
-        ),
-      )
-    : visibleItems;
+  const { pack, items, byAssetClassification, packClassification, engagement, signals } = packPayload;
+  const visibleItems = STICKER_CATALOG_ONLY_CLASSIFIED ? items.filter((item) => isStickerClassified(byAssetClassification.get(item.sticker_id))) : items;
+  const visibleItemsByCategories = categories.length ? visibleItems.filter((item) => hasAnyCategory(resolveClassificationTags(byAssetClassification.get(item.sticker_id)), categories)) : visibleItems;
 
   sendJson(req, res, 200, {
     data: mapPackDetails(pack, visibleItemsByCategories, {
@@ -5908,12 +4987,8 @@ const handleAssetRequest = async (req, res, packKey, stickerToken, url) => {
 
   try {
     const buffer = await readStickerAssetBuffer(item.asset);
-    const classification = await findStickerClassificationByAssetId(normalizedStickerId).catch(
-      () => null,
-    );
-    const packClassification = stickerIds.length
-      ? await getPackClassificationSummaryByAssetIds(stickerIds).catch(() => null)
-      : null;
+    const classification = await findStickerClassificationByAssetId(normalizedStickerId).catch(() => null);
+    const packClassification = stickerIds.length ? await getPackClassificationSummaryByAssetIds(stickerIds).catch(() => null) : null;
     if (STICKER_CATALOG_ONLY_CLASSIFIED && !isStickerClassified(classification)) {
       sendJson(req, res, 404, { error: 'Sticker nao encontrado.' });
       return;
@@ -5944,13 +5019,7 @@ const handleAssetRequest = async (req, res, packKey, stickerToken, url) => {
       ? null
       : await getStickerAssetExternalUrl(item.asset, {
           secure: true,
-          expiresInSeconds: Math.max(
-            60,
-            Math.min(
-              3600,
-              Number(process.env.STICKER_OBJECT_STORAGE_SIGNED_URL_TTL_SECONDS) || 300,
-            ),
-          ),
+          expiresInSeconds: Math.max(60, Math.min(3600, Number(process.env.STICKER_OBJECT_STORAGE_SIGNED_URL_TTL_SECONDS) || 300)),
         }).catch(() => null);
     if (!previewVariant && externalAssetUrl) {
       res.statusCode = 302;
@@ -5972,13 +5041,7 @@ const handleAssetRequest = async (req, res, packKey, stickerToken, url) => {
       }
     }
     if (previewVariant) {
-      const previewCacheKey = [
-        normalizedPackKey,
-        normalizedStickerId,
-        Number(item.asset?.size_bytes || 0),
-        STICKER_PREVIEW_SIDE_PX,
-        STICKER_PREVIEW_QUALITY,
-      ].join(':');
+      const previewCacheKey = [normalizedPackKey, normalizedStickerId, Number(item.asset?.size_bytes || 0), STICKER_PREVIEW_SIDE_PX, STICKER_PREVIEW_QUALITY].join(':');
       const previewBuffer = await generateStickerPreviewBuffer({
         sourceBuffer: buffer,
         mimetype: item.asset?.mimetype || 'image/webp',
@@ -5994,13 +5057,7 @@ const handleAssetRequest = async (req, res, packKey, stickerToken, url) => {
       });
       if (previewBuffer && previewBuffer.length) {
         res.setHeader('X-Sticker-Preview', '1');
-        sendAsset(
-          req,
-          res,
-          previewBuffer,
-          'image/webp',
-          `public, max-age=${IMMUTABLE_ASSET_CACHE_SECONDS}, immutable`,
-        );
+        sendAsset(req, res, previewBuffer, 'image/webp', `public, max-age=${IMMUTABLE_ASSET_CACHE_SECONDS}, immutable`);
         return;
       }
     }
@@ -6067,25 +5124,7 @@ const handlePackInteractionRequest = async (req, res, packKey, interaction, url)
   });
 };
 
-const {
-  handleAdminPanelSessionRequest,
-  handleAdminOverviewRequest,
-  handleAdminUsersRequest,
-  handleAdminForceLogoutRequest,
-  handleAdminFeatureFlagsRequest,
-  handleAdminOpsActionRequest,
-  handleAdminSearchRequest,
-  handleAdminExportRequest,
-  handleAdminModeratorsRequest,
-  handleAdminModeratorDeleteRequest,
-  handleAdminPacksRequest,
-  handleAdminPackDetailsRequest,
-  handleAdminPackDeleteRequest,
-  handleAdminPackStickerDeleteRequest,
-  handleAdminGlobalStickerDeleteRequest,
-  handleAdminBansRequest,
-  handleAdminBanRevokeRequest,
-} = createStickerCatalogAdminHandlersContext({
+const { handleAdminPanelSessionRequest, handleAdminOverviewRequest, handleAdminUsersRequest, handleAdminForceLogoutRequest, handleAdminFeatureFlagsRequest, handleAdminOpsActionRequest, handleAdminSearchRequest, handleAdminExportRequest, handleAdminModeratorsRequest, handleAdminModeratorDeleteRequest, handleAdminPacksRequest, handleAdminPackDetailsRequest, handleAdminPackDeleteRequest, handleAdminPackStickerDeleteRequest, handleAdminGlobalStickerDeleteRequest, handleAdminBansRequest, handleAdminBanRevokeRequest } = createStickerCatalogAdminHandlersContext({
   executeQuery,
   tables: TABLES,
   logger,
@@ -6191,8 +5230,7 @@ const catalogApiRouter = createCatalogApiRouter({
   },
 });
 
-const handleCatalogApiRequest = async (req, res, pathname, url) =>
-  catalogApiRouter({ req, res, pathname, url });
+const handleCatalogApiRequest = async (req, res, pathname, url) => catalogApiRouter({ req, res, pathname, url });
 
 const handleCatalogPageRequest = async (req, res, pathname) => {
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
@@ -6245,9 +5283,7 @@ const handleCatalogPageRequest = async (req, res, pathname) => {
   const initialPackKeyNormalized = String(initialPackKey || '')
     .trim()
     .toLowerCase();
-  const shouldRenderPackSeoPage = Boolean(
-    initialPackKey && !PACK_PAGE_ROUTE_EXCLUSIONS.has(initialPackKeyNormalized),
-  );
+  const shouldRenderPackSeoPage = Boolean(initialPackKey && !PACK_PAGE_ROUTE_EXCLUSIONS.has(initialPackKeyNormalized));
 
   if (shouldRenderPackSeoPage) {
     const safePackKey = sanitizeText(initialPackKey, 160, { allowEmpty: false });
@@ -6410,57 +5446,31 @@ export async function maybeHandleStickerCatalogRequest(req, res, { pathname, url
   };
 
   if (pathname === `${USER_API_BASE_PATH}/home-bootstrap`) {
-    return handleUserApiReadRoute(
-      () => handleHomeBootstrapRequest(req, res, url),
-      'user_home_bootstrap_api_error',
-    );
+    return handleUserApiReadRoute(() => handleHomeBootstrapRequest(req, res, url), 'user_home_bootstrap_api_error');
   }
 
   if (pathname === `${USER_API_BASE_PATH}/system-summary`) {
-    return handleUserApiReadRoute(
-      () => handleSystemSummaryRequest(req, res),
-      'user_system_summary_api_error',
-      { access: 'internal' },
-    );
+    return handleUserApiReadRoute(() => handleSystemSummaryRequest(req, res), 'user_system_summary_api_error', { access: 'internal' });
   }
 
   if (pathname === `${USER_API_BASE_PATH}/project-summary`) {
-    return handleUserApiReadRoute(
-      () => handleGitHubProjectSummaryRequest(req, res),
-      'user_project_summary_api_error',
-      { access: 'internal' },
-    );
+    return handleUserApiReadRoute(() => handleGitHubProjectSummaryRequest(req, res), 'user_project_summary_api_error', { access: 'internal' });
   }
 
   if (pathname === `${USER_API_BASE_PATH}/global-ranking-summary`) {
-    return handleUserApiReadRoute(
-      () => handleGlobalRankingSummaryRequest(req, res),
-      'user_global_ranking_summary_api_error',
-    );
+    return handleUserApiReadRoute(() => handleGlobalRankingSummaryRequest(req, res), 'user_global_ranking_summary_api_error');
   }
 
   if (pathname === `${USER_API_BASE_PATH}/readme-markdown`) {
-    return handleUserApiReadRoute(
-      () => handleReadmeMarkdownRequest(req, res),
-      'user_readme_markdown_api_error',
-      { access: 'internal' },
-    );
+    return handleUserApiReadRoute(() => handleReadmeMarkdownRequest(req, res), 'user_readme_markdown_api_error', { access: 'internal' });
   }
 
   if (pathname === `${USER_API_BASE_PATH}/support`) {
-    return handleUserApiReadRoute(
-      () => handleSupportInfoRequest(req, res),
-      'user_support_api_error',
-      { access: 'contact' },
-    );
+    return handleUserApiReadRoute(() => handleSupportInfoRequest(req, res), 'user_support_api_error', { access: 'contact' });
   }
 
   if (pathname === `${USER_API_BASE_PATH}/bot-contact`) {
-    return handleUserApiReadRoute(
-      () => handleBotContactInfoRequest(req, res),
-      'user_bot_contact_api_error',
-      { access: 'contact' },
-    );
+    return handleUserApiReadRoute(() => handleBotContactInfoRequest(req, res), 'user_bot_contact_api_error', { access: 'contact' });
   }
 
   if (hasPathPrefix(pathname, STICKER_API_BASE_PATH)) {

@@ -79,16 +79,7 @@ export const getConversationSession = ({ chatId, userId, scope = 'private', ttlM
   return cloneSession(session);
 };
 
-export const appendConversationSessionMessage = ({
-  chatId,
-  userId,
-  scope = 'private',
-  role = 'user',
-  text = '',
-  metadata = null,
-  ttlMs,
-  historyLimit = DEFAULT_HISTORY_LIMIT,
-} = {}) => {
+export const appendConversationSessionMessage = ({ chatId, userId, scope = 'private', role = 'user', text = '', metadata = null, ttlMs, historyLimit = DEFAULT_HISTORY_LIMIT } = {}) => {
   const session = getOrCreateSession({ chatId, userId, scope, ttlMs });
   if (!session) return null;
 
@@ -111,13 +102,7 @@ export const appendConversationSessionMessage = ({
   return cloneSession(session);
 };
 
-export const setConversationSessionIntent = ({
-  chatId,
-  userId,
-  scope = 'private',
-  intent = null,
-  ttlMs,
-} = {}) => {
+export const setConversationSessionIntent = ({ chatId, userId, scope = 'private', intent = null, ttlMs } = {}) => {
   const session = getOrCreateSession({ chatId, userId, scope, ttlMs });
   if (!session) return null;
 

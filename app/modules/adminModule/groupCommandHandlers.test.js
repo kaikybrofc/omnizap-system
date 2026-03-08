@@ -21,10 +21,7 @@ const ENV_OVERRIDES = {
 
 const previousEnv = new Map();
 for (const [key, value] of Object.entries(ENV_OVERRIDES)) {
-  previousEnv.set(
-    key,
-    Object.prototype.hasOwnProperty.call(process.env, key) ? process.env[key] : null,
-  );
+  previousEnv.set(key, Object.prototype.hasOwnProperty.call(process.env, key) ? process.env[key] : null);
   process.env[key] = value;
 }
 
@@ -78,12 +75,7 @@ const createDbHarness = () => {
       return [{ affectedRows: 1 }, []];
     }
 
-    if (
-      normalized.includes('from lid_map') ||
-      normalized.includes('from `lid_map`') ||
-      normalized.includes('into `lid_map`') ||
-      normalized.startsWith('update `messages`')
-    ) {
+    if (normalized.includes('from lid_map') || normalized.includes('from `lid_map`') || normalized.includes('into `lid_map`') || normalized.startsWith('update `messages`')) {
       return [[], []];
     }
 
@@ -147,17 +139,7 @@ const buildMessageInfo = (participant = OWNER_JID) => ({
   message: {},
 });
 
-const runAdminCommand = async ({
-  command,
-  args = [],
-  text = args.join(' '),
-  sock,
-  senderJid = OWNER_JID,
-  remoteJid = GROUP_JID,
-  isGroupMessage = true,
-  messageInfo,
-  botJid = BOT_JID,
-}) =>
+const runAdminCommand = async ({ command, args = [], text = args.join(' '), sock, senderJid = OWNER_JID, remoteJid = GROUP_JID, isGroupMessage = true, messageInfo, botJid = BOT_JID }) =>
   handleAdminCommand({
     command,
     args,
@@ -288,10 +270,7 @@ test('add normaliza alvos e executa atualização de participantes', async () =>
     participants: [TARGET_JID],
     action: 'add',
   });
-  assert.equal(
-    messages[messages.length - 1].content.text,
-    'Participantes adicionados com sucesso.',
-  );
+  assert.equal(messages[messages.length - 1].content.text, 'Participantes adicionados com sucesso.');
 });
 
 test('ban bloqueia tentativa de remover o próprio bot', async () => {
@@ -306,10 +285,7 @@ test('ban bloqueia tentativa de remover o próprio bot', async () => {
 
   assert.equal(participantUpdates.length, 0);
   assert.equal(messages.length, 1);
-  assert.equal(
-    messages[0].content.text,
-    'Operação cancelada: o bot não pode remover a própria conta.',
-  );
+  assert.equal(messages[0].content.text, 'Operação cancelada: o bot não pode remover a própria conta.');
 });
 
 test('premium exige admin principal e lista usuários quando autorizado', async () => {

@@ -15,25 +15,13 @@ const parseEnvBool = (value, fallback) => {
 const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash =
-    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
-      ? withLeadingSlash.slice(0, -1)
-      : withLeadingSlash;
+  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 };
 
-const LEGACY_STICKER_API_BASE_PATH = normalizeBasePath(
-  process.env.STICKER_API_BASE_PATH,
-  '/api/sticker-packs',
-);
-const USER_API_BASE_PATH = normalizeBasePath(
-  process.env.USER_API_BASE_PATH || process.env.AUTH_API_BASE_PATH,
-  '/api',
-);
-const SYSTEM_ADMIN_API_BASE_PATH = normalizeBasePath(
-  process.env.SYSTEM_ADMIN_API_BASE_PATH || `${USER_API_BASE_PATH}/admin`,
-  `${USER_API_BASE_PATH}/admin`,
-);
+const LEGACY_STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PATH, '/api/sticker-packs');
+const USER_API_BASE_PATH = normalizeBasePath(process.env.USER_API_BASE_PATH || process.env.AUTH_API_BASE_PATH, '/api');
+const SYSTEM_ADMIN_API_BASE_PATH = normalizeBasePath(process.env.SYSTEM_ADMIN_API_BASE_PATH || `${USER_API_BASE_PATH}/admin`, `${USER_API_BASE_PATH}/admin`);
 const SYSTEM_ADMIN_API_SESSION_PATH = `${SYSTEM_ADMIN_API_BASE_PATH}/session`;
 const LEGACY_SYSTEM_ADMIN_API_BASE_PATH = `${LEGACY_STICKER_API_BASE_PATH}/admin`;
 const LEGACY_SYSTEM_ADMIN_API_SESSION_PATH = `${LEGACY_SYSTEM_ADMIN_API_BASE_PATH}/session`;
@@ -42,28 +30,13 @@ const STICKER_WEB_PATH = normalizeBasePath(process.env.STICKER_WEB_PATH, '/stick
 const STICKER_ADMIN_WEB_PATH = `${STICKER_WEB_PATH}/admin`;
 const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
 const USER_SYSTEMADM_WEB_PATH = `${USER_PROFILE_WEB_PATH}/systemadm`;
-const STICKER_ADMIN_REDIRECT_TO_USER = parseEnvBool(
-  process.env.STICKER_ADMIN_REDIRECT_TO_USER,
-  true,
-);
+const STICKER_ADMIN_REDIRECT_TO_USER = parseEnvBool(process.env.STICKER_ADMIN_REDIRECT_TO_USER, true);
 const SITE_ORIGIN = String(process.env.SITE_ORIGIN || 'https://omnizap.shop')
   .trim()
   .replace(/\/+$/, '');
 
-const USER_SYSTEMADM_TEMPLATE_PATH = path.join(
-  process.cwd(),
-  'public',
-  'user',
-  'systemadm',
-  'index.html',
-);
-const LEGACY_STICKER_ADMIN_TEMPLATE_PATH = path.join(
-  process.cwd(),
-  'public',
-  'stickers',
-  'admin',
-  'index.html',
-);
+const USER_SYSTEMADM_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'user', 'systemadm', 'index.html');
+const LEGACY_STICKER_ADMIN_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'stickers', 'admin', 'index.html');
 
 let stickerCatalogControllerPromise = null;
 const loadStickerCatalogController = async () => {
@@ -105,19 +78,14 @@ const sendRedirect = (res, location) => {
   res.end();
 };
 
-const hasPathPrefix = (pathname, prefix) =>
-  pathname === prefix || pathname.startsWith(`${prefix}/`);
+const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 const escapeHtmlAttribute = (value) =>
   String(value || '')
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-const replaceDataAttribute = (html, attributeName, value) =>
-  String(html || '').replace(
-    new RegExp(`(${attributeName}=")([^"]*)(")`, 'i'),
-    `$1${escapeHtmlAttribute(value)}$3`,
-  );
+const replaceDataAttribute = (html, attributeName, value) => String(html || '').replace(new RegExp(`(${attributeName}=")([^"]*)(")`, 'i'), `$1${escapeHtmlAttribute(value)}$3`);
 const remapUrlPathname = (url, pathname) => {
   if (!url || !pathname) return url;
   try {
@@ -217,10 +185,7 @@ export const maybeHandleSystemAdminRequest = async (req, res, { pathname, url })
     return true;
   }
 
-  if (
-    hasPathPrefix(pathname, SYSTEM_ADMIN_API_BASE_PATH) ||
-    hasPathPrefix(pathname, LEGACY_SYSTEM_ADMIN_API_BASE_PATH)
-  ) {
+  if (hasPathPrefix(pathname, SYSTEM_ADMIN_API_BASE_PATH) || hasPathPrefix(pathname, LEGACY_SYSTEM_ADMIN_API_BASE_PATH)) {
     const legacyPathname = mapAdminApiPathToLegacy(pathname);
     if (!legacyPathname) return false;
 

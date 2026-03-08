@@ -10,8 +10,7 @@ const CONFIG_PATH = path.join(__dirname, 'commandConfig.json');
 const DEFAULT_TEXTS = {
   usage_header: 'Use assim:',
   premium_only: '⭐ *Comando Premium*\n\nEste comando é exclusivo para usuários premium.',
-  openai_not_configured:
-    '⚠️ *OpenAI não configurada*\n\nDefina a variável *OPENAI_API_KEY* no `.env` para usar este comando.',
+  openai_not_configured: '⚠️ *OpenAI não configurada*\n\nDefina a variável *OPENAI_API_KEY* no `.env` para usar este comando.',
   generic_error: '❌ *Erro ao falar com a IA*\nTente novamente em alguns instantes.',
 };
 
@@ -29,14 +28,12 @@ const normalizeText = (value) =>
     .trim()
     .toLowerCase();
 
-const renderUsageMethod = (method, commandPrefix) =>
-  String(method || '').replaceAll('<prefix>', String(commandPrefix || '/'));
+const renderUsageMethod = (method, commandPrefix) => String(method || '').replaceAll('<prefix>', String(commandPrefix || '/'));
 
 const resolveUsageLines = (entry, variant) => {
   if (!entry || typeof entry !== 'object') return [];
 
-  const usageMessages =
-    entry?.mensagens_uso && typeof entry.mensagens_uso === 'object' ? entry.mensagens_uso : null;
+  const usageMessages = entry?.mensagens_uso && typeof entry.mensagens_uso === 'object' ? entry.mensagens_uso : null;
 
   if (usageMessages) {
     const variantKey = typeof variant === 'string' ? variant.trim() : '';
@@ -73,10 +70,7 @@ export const getAiUsageText = (command, { commandPrefix = '/', header, variant }
   const methods = resolveUsageLines(entry, variant);
   if (!methods.length) return '';
 
-  const prefixHeader =
-    typeof header === 'string'
-      ? header
-      : getAiTextConfig().usage_header || DEFAULT_TEXTS.usage_header;
+  const prefixHeader = typeof header === 'string' ? header : getAiTextConfig().usage_header || DEFAULT_TEXTS.usage_header;
   const lines = methods.map((method) => renderUsageMethod(method, commandPrefix));
   return [prefixHeader, ...lines].join('\n');
 };
@@ -88,19 +82,13 @@ export const isAiCommandPremiumOnly = (command) => {
 
 export const getAiCommandSystemMessages = (command) => {
   const entry = getAiCommandEntry(command);
-  const raw =
-    entry?.mensagens_sistema && typeof entry.mensagens_sistema === 'object'
-      ? entry.mensagens_sistema
-      : {};
+  const raw = entry?.mensagens_sistema && typeof entry.mensagens_sistema === 'object' ? entry.mensagens_sistema : {};
   return raw;
 };
 
 export const getAiCommandOperationalLimits = (command) => {
   const entry = getAiCommandEntry(command);
-  const raw =
-    entry?.limites_operacionais && typeof entry.limites_operacionais === 'object'
-      ? entry.limites_operacionais
-      : {};
+  const raw = entry?.limites_operacionais && typeof entry.limites_operacionais === 'object' ? entry.limites_operacionais : {};
   return raw;
 };
 
@@ -120,49 +108,24 @@ export const getAiCommandOptionConfig = (command) => {
   const options = entry?.opcoes && typeof entry.opcoes === 'object' ? entry.opcoes : {};
 
   const parse = options?.parse && typeof options.parse === 'object' ? options.parse : {};
-  const generation =
-    options?.geracao_imagem && typeof options.geracao_imagem === 'object'
-      ? options.geracao_imagem
-      : {};
+  const generation = options?.geracao_imagem && typeof options.geracao_imagem === 'object' ? options.geracao_imagem : {};
 
   return {
     parse: {
-      audio_flags: Array.isArray(parse.audio_flags)
-        ? parse.audio_flags.map((item) => String(item || '')).filter(Boolean)
-        : [],
-      text_flags: Array.isArray(parse.text_flags)
-        ? parse.text_flags.map((item) => String(item || '')).filter(Boolean)
-        : [],
+      audio_flags: Array.isArray(parse.audio_flags) ? parse.audio_flags.map((item) => String(item || '')).filter(Boolean) : [],
+      text_flags: Array.isArray(parse.text_flags) ? parse.text_flags.map((item) => String(item || '')).filter(Boolean) : [],
       image_detail_aliases: normalizeMapKeys(parse.image_detail_aliases || {}),
     },
     geracao_imagem: {
-      size_options: Array.isArray(generation.size_options)
-        ? generation.size_options.map((item) => normalizeText(item)).filter(Boolean)
-        : [],
+      size_options: Array.isArray(generation.size_options) ? generation.size_options.map((item) => normalizeText(item)).filter(Boolean) : [],
       size_aliases: normalizeMapKeys(generation.size_aliases || {}),
-      quality_options: Array.isArray(generation.quality_options)
-        ? generation.quality_options.map((item) => normalizeText(item)).filter(Boolean)
-        : [],
+      quality_options: Array.isArray(generation.quality_options) ? generation.quality_options.map((item) => normalizeText(item)).filter(Boolean) : [],
       quality_aliases: normalizeMapKeys(generation.quality_aliases || {}),
-      format_options: Array.isArray(generation.format_options)
-        ? generation.format_options.map((item) => normalizeText(item)).filter(Boolean)
-        : [],
+      format_options: Array.isArray(generation.format_options) ? generation.format_options.map((item) => normalizeText(item)).filter(Boolean) : [],
       format_aliases: normalizeMapKeys(generation.format_aliases || {}),
-      background_options: Array.isArray(generation.background_options)
-        ? generation.background_options.map((item) => normalizeText(item)).filter(Boolean)
-        : [],
+      background_options: Array.isArray(generation.background_options) ? generation.background_options.map((item) => normalizeText(item)).filter(Boolean) : [],
       background_aliases: normalizeMapKeys(generation.background_aliases || {}),
-      flag_aliases:
-        generation.flag_aliases && typeof generation.flag_aliases === 'object'
-          ? Object.fromEntries(
-              Object.entries(generation.flag_aliases).map(([key, value]) => [
-                normalizeText(key),
-                Array.isArray(value)
-                  ? value.map((item) => normalizeText(item)).filter(Boolean)
-                  : [],
-              ]),
-            )
-          : {},
+      flag_aliases: generation.flag_aliases && typeof generation.flag_aliases === 'object' ? Object.fromEntries(Object.entries(generation.flag_aliases).map(([key, value]) => [normalizeText(key), Array.isArray(value) ? value.map((item) => normalizeText(item)).filter(Boolean) : []])) : {},
       compression: {
         min: Number(generation?.compression?.min ?? 0),
         max: Number(generation?.compression?.max ?? 100),

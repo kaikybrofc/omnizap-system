@@ -5,41 +5,7 @@ import { buildRpgHelpText, buildUsageText } from './rpgPokemonMessages.js';
 import { executeRpgPokemonAction } from './rpgPokemonService.js';
 import { getRpgPokemonUsageText } from './rpgPokemonConfigRuntime.js';
 
-const ALLOWED_ACTIONS = new Set([
-  'help',
-  'ajuda',
-  'start',
-  'perfil',
-  'explorar',
-  'atacar',
-  'capturar',
-  'fugir',
-  'time',
-  'escolher',
-  'loja',
-  'comprar',
-  'usar',
-  'bolsa',
-  'pokedex',
-  'evolucao',
-  'evolução',
-  'missoes',
-  'missões',
-  'viajar',
-  'tm',
-  'berry',
-  'raid',
-  'desafiar',
-  'pvp',
-  'ginasio',
-  'ginásio',
-  'trade',
-  'coop',
-  'evento',
-  'social',
-  'karma',
-  'engajamento',
-]);
+const ALLOWED_ACTIONS = new Set(['help', 'ajuda', 'start', 'perfil', 'explorar', 'atacar', 'capturar', 'fugir', 'time', 'escolher', 'loja', 'comprar', 'usar', 'bolsa', 'pokedex', 'evolucao', 'evolução', 'missoes', 'missões', 'viajar', 'tm', 'berry', 'raid', 'desafiar', 'pvp', 'ginasio', 'ginásio', 'trade', 'coop', 'evento', 'social', 'karma', 'engajamento']);
 const HELP_ACTIONS = new Set(['help', 'ajuda']);
 
 const getContextInfo = (messageInfo) => {
@@ -65,9 +31,7 @@ const getContextInfo = (messageInfo) => {
 const extractMentionedJids = (messageInfo) => {
   const contextInfo = getContextInfo(messageInfo);
   if (!Array.isArray(contextInfo?.mentionedJid)) return [];
-  return Array.from(
-    new Set(contextInfo.mentionedJid.filter((jid) => typeof jid === 'string' && jid.trim())),
-  );
+  return Array.from(new Set(contextInfo.mentionedJid.filter((jid) => typeof jid === 'string' && jid.trim())));
 };
 
 const resolveOwnerJid = ({ senderJid, senderIdentity }) => {
@@ -94,43 +58,23 @@ const resolveOwnerJid = ({ senderJid, senderIdentity }) => {
   return null;
 };
 
-export const handleRpgPokemonCommand = async ({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  senderJid,
-  senderIdentity = null,
-  args = [],
-  commandPrefix = '/',
-}) => {
+export const handleRpgPokemonCommand = async ({ sock, remoteJid, messageInfo, expirationMessage, senderJid, senderIdentity = null, args = [], commandPrefix = '/' }) => {
   const action = String(args?.[0] || '')
     .trim()
     .toLowerCase();
 
   if (!action) {
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: buildRpgHelpText(commandPrefix) },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: buildRpgHelpText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   if (HELP_ACTIONS.has(action)) {
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: buildRpgHelpText(commandPrefix) },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: buildRpgHelpText(commandPrefix) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
   if (!ALLOWED_ACTIONS.has(action)) {
-    const usageText =
-      getRpgPokemonUsageText('rpg', { commandPrefix }) || buildUsageText(commandPrefix);
+    const usageText = getRpgPokemonUsageText('rpg', { commandPrefix }) || buildUsageText(commandPrefix);
     await sendAndStore(
       sock,
       remoteJid,
@@ -144,12 +88,7 @@ export const handleRpgPokemonCommand = async ({
 
   const ownerJid = resolveOwnerJid({ senderJid, senderIdentity });
   if (!ownerJid) {
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: '❌ Não foi possível identificar o jogador para o RPG.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: '❌ Não foi possível identificar o jogador para o RPG.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
     return;
   }
 
@@ -166,12 +105,8 @@ export const handleRpgPokemonCommand = async ({
     const responseText = result?.text || '❌ Não foi possível processar o comando RPG agora.';
     const mentions = Array.isArray(result?.mentions) ? result.mentions.filter(Boolean) : [];
     const imageBuffer = Buffer.isBuffer(result?.imageBuffer) ? result.imageBuffer : null;
-    const imageUrl =
-      typeof result?.imageUrl === 'string' && result.imageUrl.trim()
-        ? result.imageUrl.trim()
-        : null;
-    const resultCaption =
-      typeof result?.caption === 'string' && result.caption.trim() ? result.caption.trim() : null;
+    const imageUrl = typeof result?.imageUrl === 'string' && result.imageUrl.trim() ? result.imageUrl.trim() : null;
+    const resultCaption = typeof result?.caption === 'string' && result.caption.trim() ? result.caption.trim() : null;
     const caption = result?.preferResultCaption && resultCaption ? resultCaption : responseText;
     const sendTextAfterImage = Boolean(result?.sendTextAfterImage);
 
@@ -188,23 +123,15 @@ export const handleRpgPokemonCommand = async ({
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         if (sendTextAfterImage && responseText && responseText !== caption) {
-          await sendAndStore(
-            sock,
-            remoteJid,
-            { text: responseText, ...(mentions.length ? { mentions } : {}) },
-            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-          );
+          await sendAndStore(sock, remoteJid, { text: responseText, ...(mentions.length ? { mentions } : {}) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         }
         return;
       } catch (error) {
-        logger.warn(
-          'Falha ao enviar frame canvas do RPG Pokemon. Fallback para imagem URL/texto.',
-          {
-            ownerJid,
-            action,
-            error: error.message,
-          },
-        );
+        logger.warn('Falha ao enviar frame canvas do RPG Pokemon. Fallback para imagem URL/texto.', {
+          ownerJid,
+          action,
+          error: error.message,
+        });
       }
     }
 
@@ -221,12 +148,7 @@ export const handleRpgPokemonCommand = async ({
           { quoted: messageInfo, ephemeralExpiration: expirationMessage },
         );
         if (sendTextAfterImage && responseText && responseText !== caption) {
-          await sendAndStore(
-            sock,
-            remoteJid,
-            { text: responseText, ...(mentions.length ? { mentions } : {}) },
-            { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-          );
+          await sendAndStore(sock, remoteJid, { text: responseText, ...(mentions.length ? { mentions } : {}) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
         }
         return;
       } catch (error) {
@@ -239,12 +161,7 @@ export const handleRpgPokemonCommand = async ({
       }
     }
 
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: responseText, ...(mentions.length ? { mentions } : {}) },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: responseText, ...(mentions.length ? { mentions } : {}) }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   } catch (error) {
     logger.error('Erro no comando RPG Pokemon.', {
       ownerJid,
@@ -252,11 +169,6 @@ export const handleRpgPokemonCommand = async ({
       error: error.message,
     });
 
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { text: '❌ Erro ao executar comando RPG. Tente novamente em instantes.' },
-      { quoted: messageInfo, ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { text: '❌ Erro ao executar comando RPG. Tente novamente em instantes.' }, { quoted: messageInfo, ephemeralExpiration: expirationMessage });
   }
 };

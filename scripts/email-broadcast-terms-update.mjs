@@ -58,29 +58,12 @@ const args = parseCliArgs(process.argv.slice(2));
 
 const dryRun = parseBoolArg(args.get('--dry-run'), false);
 const limit = parsePositiveInt(args.get('--limit'), 0);
-const termsUrlArg = normalizeText(
-  args.get('--terms-url') || process.env.EMAIL_TERMS_URL || 'https://omnizap.shop/termos-de-uso/',
-  2048,
-);
-const subjectArg = normalizeText(
-  args.get('--subject') || 'Atualização dos Termos de Serviço do OmniZap',
-  180,
-);
-const broadcastTag =
-  normalizeTag(args.get('--tag') || process.env.EMAIL_TERMS_BROADCAST_TAG, nowIsoDate) ||
-  nowIsoDate;
+const termsUrlArg = normalizeText(args.get('--terms-url') || process.env.EMAIL_TERMS_URL || 'https://omnizap.shop/termos-de-uso/', 2048);
+const subjectArg = normalizeText(args.get('--subject') || 'Atualização dos Termos de Serviço do OmniZap', 180);
+const broadcastTag = normalizeTag(args.get('--tag') || process.env.EMAIL_TERMS_BROADCAST_TAG, nowIsoDate) || nowIsoDate;
 
 const fetchRecipients = async ({ maxRows = 0 } = {}) => {
-  const sqlParts = [
-    `SELECT LOWER(TRIM(email)) AS recipient_email,`,
-    `       MAX(COALESCE(NULLIF(TRIM(name), ''), '')) AS recipient_name,`,
-    `       MAX(COALESCE(last_seen_at, last_login_at, updated_at, created_at)) AS activity_at`,
-    `  FROM ${TABLES.STICKER_WEB_GOOGLE_USER}`,
-    ` WHERE email IS NOT NULL`,
-    `   AND TRIM(email) <> ''`,
-    ` GROUP BY LOWER(TRIM(email))`,
-    ` ORDER BY activity_at DESC`,
-  ];
+  const sqlParts = [`SELECT LOWER(TRIM(email)) AS recipient_email,`, `       MAX(COALESCE(NULLIF(TRIM(name), ''), '')) AS recipient_name,`, `       MAX(COALESCE(last_seen_at, last_login_at, updated_at, created_at)) AS activity_at`, `  FROM ${TABLES.STICKER_WEB_GOOGLE_USER}`, ` WHERE email IS NOT NULL`, `   AND TRIM(email) <> ''`, ` GROUP BY LOWER(TRIM(email))`, ` ORDER BY activity_at DESC`];
 
   const params = [];
   if (maxRows > 0) {
@@ -118,9 +101,7 @@ const run = async () => {
   }
 
   if (dryRun) {
-    const preview = recipients
-      .slice(0, 10)
-      .map((item) => `${item.email}${item.name ? ` (${item.name})` : ''}`);
+    const preview = recipients.slice(0, 10).map((item) => `${item.email}${item.name ? ` (${item.name})` : ''}`);
     console.log('[terms-broadcast] Preview (até 10):');
     preview.forEach((line) => console.log(` - ${line}`));
     return {
@@ -165,9 +146,7 @@ const run = async () => {
       console.warn(`[terms-broadcast] Falha ao enfileirar: ${recipient.email}`);
     } catch (error) {
       failed += 1;
-      console.warn(
-        `[terms-broadcast] Erro para ${recipient.email}: ${error?.message || 'enqueue_failed'}`,
-      );
+      console.warn(`[terms-broadcast] Erro para ${recipient.email}: ${error?.message || 'enqueue_failed'}`);
     }
   }
 
@@ -180,9 +159,7 @@ const run = async () => {
 
 run()
   .then((summary) => {
-    console.log(
-      `[terms-broadcast] Resumo: total=${summary.total} queued=${summary.queued} failed=${summary.failed}`,
-    );
+    console.log(`[terms-broadcast] Resumo: total=${summary.total} queued=${summary.queued} failed=${summary.failed}`);
   })
   .catch((error) => {
     console.error(`[terms-broadcast] Falha fatal: ${error?.message || error}`);

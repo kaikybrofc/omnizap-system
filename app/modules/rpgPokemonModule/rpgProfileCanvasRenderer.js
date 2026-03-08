@@ -5,20 +5,11 @@ import logger from '../../../utils/logger/loggerModule.js';
 const WIDTH = 1600;
 const HEIGHT = 1200;
 const PANEL_RADIUS = 26;
-const IMAGE_TIMEOUT_MS = Math.max(
-  2_000,
-  Number(process.env.RPG_PROFILE_CANVAS_TIMEOUT_MS) || 6_000,
-);
-const IMAGE_CACHE_TTL_MS = Math.max(
-  2 * 60 * 1000,
-  Number(process.env.RPG_PROFILE_CANVAS_CACHE_TTL_MS) || 10 * 60 * 1000,
-);
+const IMAGE_TIMEOUT_MS = Math.max(2_000, Number(process.env.RPG_PROFILE_CANVAS_TIMEOUT_MS) || 6_000);
+const IMAGE_CACHE_TTL_MS = Math.max(2 * 60 * 1000, Number(process.env.RPG_PROFILE_CANVAS_CACHE_TTL_MS) || 10 * 60 * 1000);
 const IMAGE_CACHE_LIMIT = Math.max(20, Number(process.env.RPG_PROFILE_CANVAS_CACHE_LIMIT) || 80);
 
-const imageCache =
-  globalThis.__omnizapProfileCanvasImageCache instanceof Map
-    ? globalThis.__omnizapProfileCanvasImageCache
-    : new Map();
+const imageCache = globalThis.__omnizapProfileCanvasImageCache instanceof Map ? globalThis.__omnizapProfileCanvasImageCache : new Map();
 globalThis.__omnizapProfileCanvasImageCache = imageCache;
 
 const TYPE_COLORS = new Map([
@@ -123,28 +114,11 @@ const resolveImage = async (url) => {
   }
 };
 
-const drawProgressBar = ({
-  ctx,
-  x,
-  y,
-  width,
-  height,
-  progressPct = 0,
-  color = '#22d3ee',
-  background = 'rgba(15,23,42,0.75)',
-}) => {
+const drawProgressBar = ({ ctx, x, y, width, height, progressPct = 0, color = '#22d3ee', background = 'rgba(15,23,42,0.75)' }) => {
   drawRoundRect(ctx, x, y, width, height, Math.min(14, Math.round(height / 2)), background);
   const ratio = clamp(Number(progressPct) / 100, 0, 1);
   if (ratio <= 0) return;
-  drawRoundRect(
-    ctx,
-    x + 2,
-    y + 2,
-    Math.max(0, (width - 4) * ratio),
-    Math.max(0, height - 4),
-    Math.min(12, Math.round((height - 4) / 2)),
-    color,
-  );
+  drawRoundRect(ctx, x + 2, y + 2, Math.max(0, (width - 4) * ratio), Math.max(0, height - 4), Math.min(12, Math.round((height - 4) / 2)), color);
 };
 
 const sanitizeProfileText = (text) => {
@@ -181,10 +155,7 @@ const wrapLine = (ctx, line, maxWidth) => {
 
     let chunk = word;
     while (chunk.length > 1 && ctx.measureText(chunk).width > maxWidth) {
-      const safeSize = Math.max(
-        1,
-        Math.floor((maxWidth / Math.max(1, ctx.measureText(chunk).width)) * chunk.length),
-      );
+      const safeSize = Math.max(1, Math.floor((maxWidth / Math.max(1, ctx.measureText(chunk).width)) * chunk.length));
       const part = chunk.slice(0, safeSize);
       wrapped.push(`${part}…`);
       chunk = chunk.slice(safeSize);
@@ -204,13 +175,7 @@ const isHeaderLine = (line) => {
   return value.length <= 36;
 };
 
-export const renderProfileCanvasCard = async ({
-  trainerLabel = 'Treinador',
-  generatedAtLabel = null,
-  activePokemon = null,
-  summary = {},
-  profileText = '',
-}) => {
+export const renderProfileCanvasCard = async ({ trainerLabel = 'Treinador', generatedAtLabel = null, activePokemon = null, summary = {}, profileText = '' }) => {
   const canvas = createCanvas(WIDTH, HEIGHT);
   const ctx = canvas.getContext('2d');
 
@@ -261,9 +226,7 @@ export const renderProfileCanvasCard = async ({
 
   ctx.fillStyle = '#94a3b8';
   ctx.font = '500 20px Sans';
-  const rankText = Number.isFinite(Number(summary?.pvpWeeklyRank))
-    ? `Rank PvP: #${toInt(summary?.pvpWeeklyRank, 0)}`
-    : 'Rank PvP: sem rank';
+  const rankText = Number.isFinite(Number(summary?.pvpWeeklyRank)) ? `Rank PvP: #${toInt(summary?.pvpWeeklyRank, 0)}` : 'Rank PvP: sem rank';
   const streakText = `Streak: ${toText(summary?.streakLabel, 'Sem historico')}`;
   ctx.fillText(trimText(rankText, 34), leftX + 30, leftY + 220);
   ctx.fillText(trimText(streakText, 34), leftX + 30, leftY + 248);
@@ -283,11 +246,7 @@ export const renderProfileCanvasCard = async ({
   ctx.font = '600 18px Sans';
   ctx.fillText(`XP: ${toInt(summary?.xp, 0)} (${xpProgressPct}%)`, leftX + 30, leftY + 325);
   if (toInt(summary?.xpToNextLevel, 0) > 0) {
-    ctx.fillText(
-      `Faltam ${toInt(summary?.xpToNextLevel, 0)} XP para o nivel ${toInt(summary?.nextLevel, toInt(summary?.level, 1) + 1)}`,
-      leftX + 30,
-      leftY + 350,
-    );
+    ctx.fillText(`Faltam ${toInt(summary?.xpToNextLevel, 0)} XP para o nivel ${toInt(summary?.nextLevel, toInt(summary?.level, 1) + 1)}`, leftX + 30, leftY + 350);
   } else {
     ctx.fillText('Nivel maximo alcancado', leftX + 30, leftY + 350);
   }
@@ -306,15 +265,7 @@ export const renderProfileCanvasCard = async ({
     ctx.drawImage(image, drawX, drawY, size, size);
   } else {
     ctx.fillStyle = 'rgba(148, 163, 184, 0.2)';
-    drawRoundRect(
-      ctx,
-      spriteX + 18,
-      spriteY + 18,
-      spriteW - 36,
-      spriteH - 36,
-      18,
-      'rgba(148, 163, 184, 0.14)',
-    );
+    drawRoundRect(ctx, spriteX + 18, spriteY + 18, spriteW - 36, spriteH - 36, 18, 'rgba(148, 163, 184, 0.14)');
     ctx.fillStyle = '#94a3b8';
     ctx.font = '600 22px Sans';
     ctx.textAlign = 'center';
@@ -322,27 +273,17 @@ export const renderProfileCanvasCard = async ({
     ctx.textAlign = 'start';
   }
 
-  const pokemonName = trimText(
-    activePokemon?.displayName || activePokemon?.name || 'Sem Pokemon ativo',
-    28,
-  );
+  const pokemonName = trimText(activePokemon?.displayName || activePokemon?.name || 'Sem Pokemon ativo', 28);
   ctx.fillStyle = '#f8fafc';
   ctx.font = '700 26px Sans';
   ctx.fillText(pokemonName, leftX + 30, leftY + 748);
 
   const hpCurrent = Math.max(0, toInt(activePokemon?.currentHp, 0));
   const hpMax = Math.max(1, toInt(activePokemon?.maxHp, 1));
-  const typeText =
-    Array.isArray(activePokemon?.types) && activePokemon.types.length
-      ? activePokemon.types.join(', ')
-      : 'tipo indefinido';
+  const typeText = Array.isArray(activePokemon?.types) && activePokemon.types.length ? activePokemon.types.join(', ') : 'tipo indefinido';
   ctx.fillStyle = '#94a3b8';
   ctx.font = '500 20px Sans';
-  ctx.fillText(
-    `Lv.${Math.max(1, toInt(activePokemon?.level, 1))}  |  HP ${hpCurrent}/${hpMax}`,
-    leftX + 30,
-    leftY + 782,
-  );
+  ctx.fillText(`Lv.${Math.max(1, toInt(activePokemon?.level, 1))}  |  HP ${hpCurrent}/${hpMax}`, leftX + 30, leftY + 782);
   ctx.fillText(trimText(`Tipos: ${typeText}`, 36), leftX + 30, leftY + 812);
 
   if (generatedAtLabel) {

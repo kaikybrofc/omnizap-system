@@ -1,12 +1,6 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { getToolRecord } from '../services/moduleToolRegistryService.js';
-import {
-  applyCommandConfigEnrichmentSuggestion,
-  getCommandConfigEnrichmentCursor,
-  listLearningEventsForCommandConfigEnrichment,
-  saveCommandConfigEnrichmentSuggestion,
-  updateCommandConfigEnrichmentCursor,
-} from '../services/commandConfigEnrichmentRepository.js';
+import { applyCommandConfigEnrichmentSuggestion, getCommandConfigEnrichmentCursor, listLearningEventsForCommandConfigEnrichment, saveCommandConfigEnrichmentSuggestion, updateCommandConfigEnrichmentCursor } from '../services/commandConfigEnrichmentRepository.js';
 import { generateCommandConfigEnrichmentSuggestion } from '../services/commandConfigEnrichmentService.js';
 import { markToolCandidateCommandConfigCacheDirty } from '../services/toolCandidateSelectorService.js';
 
@@ -34,28 +28,10 @@ const parseEnvFloat = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, parsed));
 };
 
-const COMMAND_CONFIG_ENRICHMENT_WORKER_ENABLED = parseEnvBool(
-  process.env.COMMAND_CONFIG_ENRICHMENT_WORKER_ENABLED,
-  true,
-);
-const COMMAND_CONFIG_ENRICHMENT_WORKER_INTERVAL_MS = parseEnvInt(
-  process.env.COMMAND_CONFIG_ENRICHMENT_WORKER_INTERVAL_MS,
-  DEFAULT_INTERVAL_MS,
-  60_000,
-  24 * 60 * 60 * 1000,
-);
-const COMMAND_CONFIG_ENRICHMENT_WORKER_BATCH_SIZE = parseEnvInt(
-  process.env.COMMAND_CONFIG_ENRICHMENT_WORKER_BATCH_SIZE,
-  DEFAULT_BATCH_SIZE,
-  1,
-  200,
-);
-const COMMAND_CONFIG_ENRICHMENT_MIN_AUTO_APPLY_CONFIDENCE = parseEnvFloat(
-  process.env.COMMAND_CONFIG_ENRICHMENT_MIN_AUTO_APPLY_CONFIDENCE,
-  DEFAULT_MIN_AUTO_APPLY_CONFIDENCE,
-  0.1,
-  0.99,
-);
+const COMMAND_CONFIG_ENRICHMENT_WORKER_ENABLED = parseEnvBool(process.env.COMMAND_CONFIG_ENRICHMENT_WORKER_ENABLED, true);
+const COMMAND_CONFIG_ENRICHMENT_WORKER_INTERVAL_MS = parseEnvInt(process.env.COMMAND_CONFIG_ENRICHMENT_WORKER_INTERVAL_MS, DEFAULT_INTERVAL_MS, 60_000, 24 * 60 * 60 * 1000);
+const COMMAND_CONFIG_ENRICHMENT_WORKER_BATCH_SIZE = parseEnvInt(process.env.COMMAND_CONFIG_ENRICHMENT_WORKER_BATCH_SIZE, DEFAULT_BATCH_SIZE, 1, 200);
+const COMMAND_CONFIG_ENRICHMENT_MIN_AUTO_APPLY_CONFIDENCE = parseEnvFloat(process.env.COMMAND_CONFIG_ENRICHMENT_MIN_AUTO_APPLY_CONFIDENCE, DEFAULT_MIN_AUTO_APPLY_CONFIDENCE, 0.1, 0.99);
 
 let schedulerHandle = null;
 let schedulerStarted = false;
@@ -162,9 +138,7 @@ const processEnrichmentBatch = async ({ reason = 'scheduler' } = {}) => {
           success_signal: Boolean(event.success),
         });
 
-        const shouldAutoApply =
-          savedSuggestion.confidence >= COMMAND_CONFIG_ENRICHMENT_MIN_AUTO_APPLY_CONFIDENCE &&
-          (event.success || savedSuggestion.source !== 'heuristic');
+        const shouldAutoApply = savedSuggestion.confidence >= COMMAND_CONFIG_ENRICHMENT_MIN_AUTO_APPLY_CONFIDENCE && (event.success || savedSuggestion.source !== 'heuristic');
 
         if (!shouldAutoApply) continue;
 

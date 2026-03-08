@@ -80,10 +80,7 @@ export const getMarketplaceDriftSnapshot = async ({ force = false } = {}) => {
     return cache;
   }
 
-  const [distribution7d, distribution30d] = await Promise.all([
-    listClassificationCategoryDistribution({ days: 7 }),
-    listClassificationCategoryDistribution({ days: 30 }),
-  ]);
+  const [distribution7d, distribution30d] = await Promise.all([listClassificationCategoryDistribution({ days: 7 }), listClassificationCategoryDistribution({ days: 30 })]);
 
   const probability7d = toProbabilityMap(distribution7d);
   const probability30d = toProbabilityMap(distribution30d);

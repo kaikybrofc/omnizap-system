@@ -1,10 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import OpenAI from 'openai';
-import {
-  getAiHelpCachedResponse,
-  upsertAiHelpCachedResponse,
-} from './aiHelpResponseCacheRepository.js';
+import { getAiHelpCachedResponse, upsertAiHelpCachedResponse } from './aiHelpResponseCacheRepository.js';
 
 const DEFAULT_FAQ_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_MAX_RESPONSE_CHARS = 3400;
@@ -53,8 +50,7 @@ const formatWhereLabel = (contexts = []) => {
   return contexts.join(', ');
 };
 
-const readEntryDescription = (entry = {}) =>
-  pickFirstText(entry?.description, entry?.docs?.summary, entry?.descricao);
+const readEntryDescription = (entry = {}) => pickFirstText(entry?.description, entry?.docs?.summary, entry?.descricao);
 
 const readEntryUsage = (entry = {}) => {
   const usageV2 = ensureArray(entry?.usage);
@@ -64,8 +60,7 @@ const readEntryUsage = (entry = {}) => {
   return ensureArray(entry?.metodos_de_uso);
 };
 
-const readEntryPermission = (entry = {}) =>
-  pickFirstText(entry?.permission, entry?.permissao_necessaria);
+const readEntryPermission = (entry = {}) => pickFirstText(entry?.permission, entry?.permissao_necessaria);
 
 const readEntryContexts = (entry = {}) => {
   const contextsV2 = ensureArray(entry?.contexts);
@@ -73,8 +68,7 @@ const readEntryContexts = (entry = {}) => {
   return ensureArray(entry?.local_de_uso);
 };
 
-const readEntryUsageLimit = (entry = {}) =>
-  pickFirstText(entry?.limits?.usage_description, entry?.limite_de_uso);
+const readEntryUsageLimit = (entry = {}) => pickFirstText(entry?.limits?.usage_description, entry?.limite_de_uso);
 
 const readEntryRequirements = (entry = {}) => {
   const requirements = ensureObject(entry?.requirements);
@@ -82,55 +76,13 @@ const readEntryRequirements = (entry = {}) => {
   const preConditions = ensureObject(entry?.pre_condicoes);
 
   return {
-    require_group: pickFirstBoolean(
-      requirements.require_group,
-      requirements.requer_grupo,
-      requirementsLegacy.require_group,
-      requirementsLegacy.requer_grupo,
-      preConditions.requer_grupo,
-    ),
-    require_group_admin: pickFirstBoolean(
-      requirements.require_group_admin,
-      requirements.requer_admin,
-      requirementsLegacy.require_group_admin,
-      requirementsLegacy.requer_admin,
-      preConditions.requer_admin,
-    ),
-    require_bot_owner: pickFirstBoolean(
-      requirements.require_bot_owner,
-      requirements.requer_admin_principal,
-      requirementsLegacy.require_bot_owner,
-      requirementsLegacy.requer_admin_principal,
-      preConditions.requer_admin_principal,
-    ),
-    require_google_login: pickFirstBoolean(
-      requirements.require_google_login,
-      requirements.requer_google_login,
-      requirementsLegacy.require_google_login,
-      requirementsLegacy.requer_google_login,
-      preConditions.requer_google_login,
-    ),
-    require_nsfw_enabled: pickFirstBoolean(
-      requirements.require_nsfw_enabled,
-      requirements.requer_nsfw,
-      requirementsLegacy.require_nsfw_enabled,
-      requirementsLegacy.requer_nsfw,
-      preConditions.requer_nsfw,
-    ),
-    require_media: pickFirstBoolean(
-      requirements.require_media,
-      requirements.requer_midia,
-      requirementsLegacy.require_media,
-      requirementsLegacy.requer_midia,
-      preConditions.requer_midia,
-    ),
-    require_reply_message: pickFirstBoolean(
-      requirements.require_reply_message,
-      requirements.requer_mensagem_respondida,
-      requirementsLegacy.require_reply_message,
-      requirementsLegacy.requer_mensagem_respondida,
-      preConditions.requer_mensagem_respondida,
-    ),
+    require_group: pickFirstBoolean(requirements.require_group, requirements.requer_grupo, requirementsLegacy.require_group, requirementsLegacy.requer_grupo, preConditions.requer_grupo),
+    require_group_admin: pickFirstBoolean(requirements.require_group_admin, requirements.requer_admin, requirementsLegacy.require_group_admin, requirementsLegacy.requer_admin, preConditions.requer_admin),
+    require_bot_owner: pickFirstBoolean(requirements.require_bot_owner, requirements.requer_admin_principal, requirementsLegacy.require_bot_owner, requirementsLegacy.requer_admin_principal, preConditions.requer_admin_principal),
+    require_google_login: pickFirstBoolean(requirements.require_google_login, requirements.requer_google_login, requirementsLegacy.require_google_login, requirementsLegacy.requer_google_login, preConditions.requer_google_login),
+    require_nsfw_enabled: pickFirstBoolean(requirements.require_nsfw_enabled, requirements.requer_nsfw, requirementsLegacy.require_nsfw_enabled, requirementsLegacy.requer_nsfw, preConditions.requer_nsfw),
+    require_media: pickFirstBoolean(requirements.require_media, requirements.requer_midia, requirementsLegacy.require_media, requirementsLegacy.requer_midia, preConditions.requer_midia),
+    require_reply_message: pickFirstBoolean(requirements.require_reply_message, requirements.requer_mensagem_respondida, requirementsLegacy.require_reply_message, requirementsLegacy.requer_mensagem_respondida, preConditions.requer_mensagem_respondida),
   };
 };
 
@@ -142,8 +94,7 @@ const formatPreConditions = (requirements = {}) => {
   if (requirements.require_google_login) lines.push('- Pode requerer login vinculado ao site.');
   if (requirements.require_nsfw_enabled) lines.push('- Requer NSFW ativo quando aplicavel.');
   if (requirements.require_media) lines.push('- Requer midia anexada/citada quando aplicavel.');
-  if (requirements.require_reply_message)
-    lines.push('- Requer resposta/citacao de mensagem quando aplicavel.');
+  if (requirements.require_reply_message) lines.push('- Requer resposta/citacao de mensagem quando aplicavel.');
   if (lines.length === 0) lines.push('- Sem pre-condicoes explicitas no modulo.');
   return lines;
 };
@@ -184,19 +135,14 @@ const levenshteinDistance = (left, right) => {
   for (let i = 1; i <= a.length; i += 1) {
     for (let j = 1; j <= b.length; j += 1) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,
-        matrix[i][j - 1] + 1,
-        matrix[i - 1][j - 1] + cost,
-      );
+      matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
     }
   }
 
   return matrix[a.length][b.length];
 };
 
-const renderUsage = (method, commandPrefix = '/') =>
-  String(method || '').replaceAll('<prefix>', String(commandPrefix || '/'));
+const renderUsage = (method, commandPrefix = '/') => String(method || '').replaceAll('<prefix>', String(commandPrefix || '/'));
 
 const toPositiveInt = (value, fallback, min = 1) => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
@@ -223,57 +169,23 @@ const normalizeCacheSource = (value) => {
   return (base || 'deterministic').slice(0, 32);
 };
 
-const buildCommandExplainCacheKey = (commandName) =>
-  `explicar comando ${normalizeText(commandName).replace(/^\/+/, '')}`;
+const buildCommandExplainCacheKey = (commandName) => `explicar comando ${normalizeText(commandName).replace(/^\/+/, '')}`;
 
 const defaultGuidance = {
-  faqSummary: ({ commandCount, faqCount, commandPrefix }) =>
-    [
-      '🤖 FAQ atualizada.',
-      `Comandos analisados: ${commandCount}.`,
-      `Perguntas geradas: ${faqCount}.`,
-      '',
-      `Use ${commandPrefix}help <comando> para explicacao detalhada.`,
-      `Use ${commandPrefix}ask <pergunta> para consulta livre.`,
-    ].join('\n'),
+  faqSummary: ({ commandCount, faqCount, commandPrefix }) => ['🤖 FAQ atualizada.', `Comandos analisados: ${commandCount}.`, `Perguntas geradas: ${faqCount}.`, '', `Use ${commandPrefix}help <comando> para explicacao detalhada.`, `Use ${commandPrefix}ask <pergunta> para consulta livre.`].join('\n'),
   helpUsage: ({ commandPrefix }) => `Use ${commandPrefix}help <comando>.`,
   askUsage: ({ commandPrefix }) => `Use ${commandPrefix}ask <pergunta>.`,
-  unknownCommand: ({ rawCommand, suggestions, commandPrefix }) =>
-    [
-      `❓ O comando *${rawCommand}* nao foi encontrado.`,
-      suggestions ? `Talvez voce quis usar: ${suggestions}.` : '',
-      `Use ${commandPrefix}help <comando> ou ${commandPrefix}faq para listar opcoes.`,
-    ]
-      .filter(Boolean)
-      .join('\n'),
-  missingCommandText: ({ commandPrefix }) =>
-    `Nao encontrei esse comando. Use ${commandPrefix}faq para listar opcoes.`,
+  unknownCommand: ({ rawCommand, suggestions, commandPrefix }) => [`❓ O comando *${rawCommand}* nao foi encontrado.`, suggestions ? `Talvez voce quis usar: ${suggestions}.` : '', `Use ${commandPrefix}help <comando> ou ${commandPrefix}faq para listar opcoes.`].filter(Boolean).join('\n'),
+  missingCommandText: ({ commandPrefix }) => `Nao encontrei esse comando. Use ${commandPrefix}faq para listar opcoes.`,
   questionFallback: ({ commandPrefix, detectedCommand, suggestions }) => {
     if (detectedCommand) {
       return `Posso te ajudar com ${commandPrefix}${detectedCommand}. Tente: ${commandPrefix}help ${detectedCommand}`;
     }
-    return [
-      'Nao encontrei resposta pronta para essa pergunta no FAQ.',
-      `Tente ${commandPrefix}ask "como usar <comando>" ou ${commandPrefix}help <comando>.`,
-      suggestions ? `Sugestoes rapidas: ${suggestions}.` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
+    return ['Nao encontrei resposta pronta para essa pergunta no FAQ.', `Tente ${commandPrefix}ask "como usar <comando>" ou ${commandPrefix}help <comando>.`, suggestions ? `Sugestoes rapidas: ${suggestions}.` : ''].filter(Boolean).join('\n');
   },
 };
 
-export const createModuleAiHelpService = ({
-  moduleKey,
-  moduleLabel = 'modulo',
-  envPrefix = 'MODULE_AI_HELP',
-  getModuleConfig,
-  resolveCommandName,
-  getCommandEntry,
-  listEnabledCommands,
-  agentMdPath,
-  logger = defaultLogger,
-  guidance = {},
-}) => {
+export const createModuleAiHelpService = ({ moduleKey, moduleLabel = 'modulo', envPrefix = 'MODULE_AI_HELP', getModuleConfig, resolveCommandName, getCommandEntry, listEnabledCommands, agentMdPath, logger = defaultLogger, guidance = {} }) => {
   if (typeof getModuleConfig !== 'function') {
     throw new Error('createModuleAiHelpService: getModuleConfig e obrigatorio');
   }
@@ -296,32 +208,19 @@ export const createModuleAiHelpService = ({
 
   const getAiHelpConfig = () => {
     const moduleConfig = getModuleConfig();
-    const aiHelp =
-      moduleConfig?.ai_help && typeof moduleConfig.ai_help === 'object' ? moduleConfig.ai_help : {};
+    const aiHelp = moduleConfig?.ai_help && typeof moduleConfig.ai_help === 'object' ? moduleConfig.ai_help : {};
     const faq = aiHelp?.faq && typeof aiHelp.faq === 'object' ? aiHelp.faq : {};
     const llm = aiHelp?.llm && typeof aiHelp.llm === 'object' ? aiHelp.llm : {};
 
     const cachePathValue = String(faq.cache_file || '').trim();
-    const cachePath = cachePathValue
-      ? path.resolve(process.cwd(), cachePathValue)
-      : path.join(process.cwd(), 'data', 'cache', `${moduleKey}-ai-faq-cache.json`);
+    const cachePath = cachePathValue ? path.resolve(process.cwd(), cachePathValue) : path.join(process.cwd(), 'data', 'cache', `${moduleKey}-ai-faq-cache.json`);
 
     return {
       enabled: aiHelp.enabled !== false,
       faq: {
-        intervalMs: Math.max(
-          60_000,
-          toPositiveInt(
-            envValue('FAQ_INTERVAL_MS') || faq.interval_ms,
-            DEFAULT_FAQ_INTERVAL_MS,
-            60_000,
-          ),
-        ),
+        intervalMs: Math.max(60_000, toPositiveInt(envValue('FAQ_INTERVAL_MS') || faq.interval_ms, DEFAULT_FAQ_INTERVAL_MS, 60_000)),
         autoGenerateOnStart:
-          String(
-            envValue('SCHEDULER_ENABLED') ||
-              (faq.auto_generate_on_start === false ? 'false' : 'true'),
-          )
+          String(envValue('SCHEDULER_ENABLED') || (faq.auto_generate_on_start === false ? 'false' : 'true'))
             .trim()
             .toLowerCase() !== 'false',
         cachePath,
@@ -332,30 +231,10 @@ export const createModuleAiHelpService = ({
           String(envValue('ENABLE_LLM') || 'true')
             .trim()
             .toLowerCase() !== 'false',
-        model:
-          String(
-            envValue('MODEL') || llm.model || process.env.OPENAI_MODEL || 'gpt-5-nano',
-          ).trim() || 'gpt-5-nano',
-        maxResponseChars: Math.max(
-          400,
-          toPositiveInt(
-            envValue('MAX_RESPONSE_CHARS') || llm.max_response_chars,
-            DEFAULT_MAX_RESPONSE_CHARS,
-            400,
-          ),
-        ),
-        maxAgentContextChars: Math.max(
-          2_000,
-          toPositiveInt(
-            envValue('MAX_AGENT_CONTEXT_CHARS') || llm.max_agent_context_chars,
-            DEFAULT_MAX_AGENT_CONTEXT_CHARS,
-            2_000,
-          ),
-        ),
-        timeoutMs: Math.max(
-          1_000,
-          toPositiveInt(envValue('TIMEOUT_MS') || llm.timeout_ms, DEFAULT_TIMEOUT_MS, 1_000),
-        ),
+        model: String(envValue('MODEL') || llm.model || process.env.OPENAI_MODEL || 'gpt-5-nano').trim() || 'gpt-5-nano',
+        maxResponseChars: Math.max(400, toPositiveInt(envValue('MAX_RESPONSE_CHARS') || llm.max_response_chars, DEFAULT_MAX_RESPONSE_CHARS, 400)),
+        maxAgentContextChars: Math.max(2_000, toPositiveInt(envValue('MAX_AGENT_CONTEXT_CHARS') || llm.max_agent_context_chars, DEFAULT_MAX_AGENT_CONTEXT_CHARS, 2_000)),
+        timeoutMs: Math.max(1_000, toPositiveInt(envValue('TIMEOUT_MS') || llm.timeout_ms, DEFAULT_TIMEOUT_MS, 1_000)),
       },
     };
   };
@@ -414,16 +293,9 @@ export const createModuleAiHelpService = ({
       return {
         ...createEmptyCache(),
         ...parsed,
-        faqByCommand:
-          parsed.faqByCommand && typeof parsed.faqByCommand === 'object' ? parsed.faqByCommand : {},
-        questionCache:
-          parsed.questionCache && typeof parsed.questionCache === 'object'
-            ? parsed.questionCache
-            : {},
-        metrics:
-          parsed.metrics && typeof parsed.metrics === 'object'
-            ? { ...createEmptyCache().metrics, ...parsed.metrics }
-            : createEmptyCache().metrics,
+        faqByCommand: parsed.faqByCommand && typeof parsed.faqByCommand === 'object' ? parsed.faqByCommand : {},
+        questionCache: parsed.questionCache && typeof parsed.questionCache === 'object' ? parsed.questionCache : {},
+        metrics: parsed.metrics && typeof parsed.metrics === 'object' ? { ...createEmptyCache().metrics, ...parsed.metrics } : createEmptyCache().metrics,
       };
     } catch {
       return createEmptyCache();
@@ -465,42 +337,23 @@ export const createModuleAiHelpService = ({
     return [
       {
         question: `Como usar ${commandToken}?`,
-        answer: [
-          `Use ${commandToken} desta forma:`,
-          ...usageLines.map((line) => `- ${line}`),
-          '',
-          `Permissao: ${permissionLabel}.`,
-          `Local de uso: ${whereLabel}.`,
-          'A IA apenas orienta; nao executa comando.',
-        ].join('\n'),
+        answer: [`Use ${commandToken} desta forma:`, ...usageLines.map((line) => `- ${line}`), '', `Permissao: ${permissionLabel}.`, `Local de uso: ${whereLabel}.`, 'A IA apenas orienta; nao executa comando.'].join('\n'),
         source: 'deterministic',
       },
       {
         question: `Quem pode usar ${commandToken}?`,
-        answer: [
-          `${commandToken} exige: ${permissionLabel}.`,
-          `Onde pode ser usado: ${whereLabel}.`,
-          `Uso base: ${firstUsage}.`,
-        ].join('\n'),
+        answer: [`${commandToken} exige: ${permissionLabel}.`, `Onde pode ser usado: ${whereLabel}.`, `Uso base: ${firstUsage}.`].join('\n'),
         source: 'deterministic',
       },
       {
         question: `Onde posso usar ${commandToken}?`,
-        answer: [
-          `Local permitido para ${commandToken}: ${whereLabel}.`,
-          `Permissao necessaria: ${permissionLabel}.`,
-        ].join('\n'),
+        answer: [`Local permitido para ${commandToken}: ${whereLabel}.`, `Permissao necessaria: ${permissionLabel}.`].join('\n'),
         source: 'deterministic',
       },
     ];
   };
 
-  const buildDeterministicCommandExplanation = ({
-    entry,
-    commandPrefix = '/',
-    context = {},
-    includeSecurity = true,
-  }) => {
+  const buildDeterministicCommandExplanation = ({ entry, commandPrefix = '/', context = {}, includeSecurity = true }) => {
     const { llm } = getAiHelpConfig();
     const commandToken = `${commandPrefix}${entry.name}`;
     const usage = readEntryUsage(entry).map((method) => renderUsage(method, commandPrefix));
@@ -509,20 +362,7 @@ export const createModuleAiHelpService = ({
     const whereLabel = formatWhereLabel(readEntryContexts(entry));
     const permissionLabel = formatPermissionLabel(readEntryPermission(entry));
 
-    const lines = [
-      `📘 *Comando:* ${commandToken}`,
-      `📝 ${readEntryDescription(entry) || 'Sem descricao cadastrada.'}`,
-      '',
-      `👤 *Quem pode usar:* ${permissionLabel}`,
-      `📍 *Onde pode usar:* ${whereLabel}`,
-      `⏱️ *Limite:* ${readEntryUsageLimit(entry) || 'nao informado'}`,
-      '',
-      '*Como usar:*',
-      ...(usage.length ? usage.map((line) => `- ${line}`) : ['- Uso nao configurado no JSON.']),
-      '',
-      '*Pre-condicoes:*',
-      ...preconditions,
-    ];
+    const lines = [`📘 *Comando:* ${commandToken}`, `📝 ${readEntryDescription(entry) || 'Sem descricao cadastrada.'}`, '', `👤 *Quem pode usar:* ${permissionLabel}`, `📍 *Onde pode usar:* ${whereLabel}`, `⏱️ *Limite:* ${readEntryUsageLimit(entry) || 'nao informado'}`, '', '*Como usar:*', ...(usage.length ? usage.map((line) => `- ${line}`) : ['- Uso nao configurado no JSON.']), '', '*Pre-condicoes:*', ...preconditions];
 
     if (!gate.allowed) {
       lines.push('');
@@ -532,9 +372,7 @@ export const createModuleAiHelpService = ({
 
     if (includeSecurity) {
       lines.push('');
-      lines.push(
-        '🔒 A IA apenas orienta. Nenhuma acao administrativa foi executada automaticamente.',
-      );
+      lines.push('🔒 A IA apenas orienta. Nenhuma acao administrativa foi executada automaticamente.');
     }
 
     return clampText(lines.join('\n'), llm.maxResponseChars);
@@ -578,52 +416,17 @@ export const createModuleAiHelpService = ({
     return cachedOpenAIClient;
   };
 
-  const askLLM = async ({
-    mode,
-    question,
-    commandName,
-    commandPrefix = '/',
-    context = {},
-    deterministicDraft,
-  }) => {
+  const askLLM = async ({ mode, question, commandName, commandPrefix = '/', context = {}, deterministicDraft }) => {
     const config = getAiHelpConfig();
     if (!canUseLLM()) return null;
 
     const agentExcerpt = await readAgentExcerpt();
     const configSummary = summarizeConfigForPrompt();
-    const contextSummary = [
-      `is_group_message=${Boolean(context.isGroupMessage)}`,
-      `is_sender_admin=${Boolean(context.isSenderAdmin)}`,
-      `is_sender_owner=${Boolean(context.isSenderOwner)}`,
-      `command_prefix=${commandPrefix}`,
-    ].join(' | ');
+    const contextSummary = [`is_group_message=${Boolean(context.isGroupMessage)}`, `is_sender_admin=${Boolean(context.isSenderAdmin)}`, `is_sender_owner=${Boolean(context.isSenderOwner)}`, `command_prefix=${commandPrefix}`].join(' | ');
 
-    const instructions = [
-      `Voce e um assistente de ajuda para comandos do modulo ${moduleLabel}.`,
-      'Responda em PT-BR, de forma objetiva e acionavel.',
-      'Nunca execute acao; apenas explique.',
-      'Sempre informe quem pode usar e onde pode usar o comando.',
-      'Se houver restricao de pre-condicao, destaque no texto.',
-      'Nao invente comandos que nao estao no contexto.',
-    ].join(' ');
+    const instructions = [`Voce e um assistente de ajuda para comandos do modulo ${moduleLabel}.`, 'Responda em PT-BR, de forma objetiva e acionavel.', 'Nunca execute acao; apenas explique.', 'Sempre informe quem pode usar e onde pode usar o comando.', 'Se houver restricao de pre-condicao, destaque no texto.', 'Nao invente comandos que nao estao no contexto.'].join(' ');
 
-    const userPrompt = [
-      `Modo: ${mode}`,
-      commandName ? `Comando alvo: ${commandName}` : '',
-      question ? `Pergunta: ${question}` : '',
-      `Contexto: ${contextSummary}`,
-      '',
-      'Rascunho deterministico:',
-      deterministicDraft || '(vazio)',
-      '',
-      'Resumo de comandos:',
-      configSummary,
-      '',
-      'Trecho do AGENT.md:',
-      agentExcerpt,
-    ]
-      .filter(Boolean)
-      .join('\n');
+    const userPrompt = [`Modo: ${mode}`, commandName ? `Comando alvo: ${commandName}` : '', question ? `Pergunta: ${question}` : '', `Contexto: ${contextSummary}`, '', 'Rascunho deterministico:', deterministicDraft || '(vazio)', '', 'Resumo de comandos:', configSummary, '', 'Trecho do AGENT.md:', agentExcerpt].filter(Boolean).join('\n');
 
     try {
       const client = getOpenAIClient();
@@ -661,21 +464,11 @@ export const createModuleAiHelpService = ({
     await writeCache(cache);
   };
 
-  const saveQuestionCacheEntry = async ({
-    question,
-    answer,
-    source = 'deterministic',
-    command = null,
-    scope = CACHE_SCOPE_QUESTION,
-    modelName = null,
-    metadata = null,
-    persistDb = true,
-  }) => {
+  const saveQuestionCacheEntry = async ({ question, answer, source = 'deterministic', command = null, scope = CACHE_SCOPE_QUESTION, modelName = null, metadata = null, persistDb = true }) => {
     const config = getAiHelpConfig();
     const key = normalizeText(question);
     if (!key) return;
-    const safeScope =
-      scope === CACHE_SCOPE_COMMAND_EXPLAIN ? CACHE_SCOPE_COMMAND_EXPLAIN : CACHE_SCOPE_QUESTION;
+    const safeScope = scope === CACHE_SCOPE_COMMAND_EXPLAIN ? CACHE_SCOPE_COMMAND_EXPLAIN : CACHE_SCOPE_QUESTION;
     const normalizedSource = normalizeCacheSource(source);
     const normalizedAnswer = clampText(answer, config.llm.maxResponseChars);
     if (!normalizedAnswer) return;
@@ -744,8 +537,7 @@ export const createModuleAiHelpService = ({
       return { answer: null, source: 'none', commandName: null };
     }
 
-    const safeScope =
-      scope === CACHE_SCOPE_COMMAND_EXPLAIN ? CACHE_SCOPE_COMMAND_EXPLAIN : CACHE_SCOPE_QUESTION;
+    const safeScope = scope === CACHE_SCOPE_COMMAND_EXPLAIN ? CACHE_SCOPE_COMMAND_EXPLAIN : CACHE_SCOPE_QUESTION;
 
     const dbCached = await getAiHelpCachedResponse({
       moduleKey,
@@ -758,8 +550,7 @@ export const createModuleAiHelpService = ({
     if (dbCached?.answer_text) {
       return {
         answer: dbCached.answer_text,
-        source:
-          safeScope === CACHE_SCOPE_COMMAND_EXPLAIN ? 'db_command_cache' : 'db_question_cache',
+        source: safeScope === CACHE_SCOPE_COMMAND_EXPLAIN ? 'db_command_cache' : 'db_question_cache',
         commandName: dbCached.command_name || null,
       };
     }
@@ -835,10 +626,7 @@ export const createModuleAiHelpService = ({
         const ageMs = Date.now() - new Date(cache.generatedAt).getTime();
         if (Number.isFinite(ageMs) && ageMs >= 0 && ageMs < config.faq.intervalMs) {
           const commandCount = Object.keys(cache.faqByCommand || {}).length;
-          const faqCount = Object.values(cache.faqByCommand || {}).reduce(
-            (acc, list) => acc + (Array.isArray(list) ? list.length : 0),
-            0,
-          );
+          const faqCount = Object.values(cache.faqByCommand || {}).reduce((acc, list) => acc + (Array.isArray(list) ? list.length : 0), 0);
           return {
             ok: true,
             commandCount,
@@ -1027,11 +815,7 @@ export const createModuleAiHelpService = ({
 
     const faqLookup = await lookupFaqAnswer(rawQuestion);
     if (faqLookup.answer) {
-      const isQuestionCacheSource = [
-        'question_cache',
-        'db_question_cache',
-        'db_command_cache',
-      ].includes(faqLookup.source);
+      const isQuestionCacheSource = ['question_cache', 'db_question_cache', 'db_command_cache'].includes(faqLookup.source);
       await incrementCacheMetric(isQuestionCacheSource ? 'question_hits' : 'faq_hits');
       return {
         ok: true,

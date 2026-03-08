@@ -4,10 +4,7 @@ import { handleAdminCommand } from '../modules/adminModule/groupCommandHandlers.
 import { buildGlobalUnknownCommandSuggestion } from './globalModuleAiHelpService.js';
 import { processSticker } from '../modules/stickerModule/stickerCommand.js';
 import { resolveStickerCommandName } from '../modules/stickerModule/stickerConfigRuntime.js';
-import {
-  processBlinkingTextSticker,
-  processTextSticker,
-} from '../modules/stickerModule/stickerTextCommand.js';
+import { processBlinkingTextSticker, processTextSticker } from '../modules/stickerModule/stickerTextCommand.js';
 import { handlePlayCommand, handlePlayVidCommand } from '../modules/playModule/playCommand.js';
 import { resolvePlayCommandName } from '../modules/playModule/playConfigRuntime.js';
 import { handleRankingCommand } from '../modules/statsModule/rankingCommand.js';
@@ -15,19 +12,12 @@ import { handleGlobalRankingCommand } from '../modules/statsModule/globalRanking
 import { resolveStatsCommandName } from '../modules/statsModule/statsConfigRuntime.js';
 import { handlePingCommand } from '../modules/systemMetricsModule/pingCommand.js';
 import { resolveSystemMetricsCommandName } from '../modules/systemMetricsModule/systemMetricsConfigRuntime.js';
-import {
-  handleCatCommand,
-  handleCatImageCommand,
-  handleCatPromptCommand,
-} from '../modules/aiModule/catCommand.js';
+import { handleCatCommand, handleCatImageCommand, handleCatPromptCommand } from '../modules/aiModule/catCommand.js';
 import { resolveAiCommandName } from '../modules/aiModule/aiConfigRuntime.js';
 import { handleQuoteCommand } from '../modules/quoteModule/quoteCommand.js';
 import { resolveQuoteCommandName } from '../modules/quoteModule/quoteConfigRuntime.js';
 import { handleStickerConvertCommand } from '../modules/stickerModule/stickerConvertCommand.js';
-import {
-  handleWaifuPicsCommand,
-  getWaifuPicsUsageText,
-} from '../modules/waifuPicsModule/waifuPicsCommand.js';
+import { handleWaifuPicsCommand, getWaifuPicsUsageText } from '../modules/waifuPicsModule/waifuPicsCommand.js';
 import { resolveWaifuPicsCommandName } from '../modules/waifuPicsModule/waifuPicsConfigRuntime.js';
 import { handlePackCommand } from '../modules/stickerPackModule/stickerPackCommandHandlers.js';
 import { resolveStickerPackCommandName } from '../modules/stickerPackModule/stickerPackConfigRuntime.js';
@@ -46,21 +36,7 @@ const normalizeCommand = (value) =>
     .trim()
     .toLowerCase();
 
-const NON_ADMIN_COMMAND_RESOLVERS = [
-  resolveMenuCommandName,
-  resolveStickerCommandName,
-  resolveStickerPackCommandName,
-  resolvePlayCommandName,
-  resolveTikTokCommandName,
-  resolveAiCommandName,
-  resolveQuoteCommandName,
-  resolveWaifuPicsCommandName,
-  resolveStatsCommandName,
-  resolveSystemMetricsCommandName,
-  resolveGameCommandName,
-  resolveUserCommandName,
-  resolveRpgPokemonCommandName,
-];
+const NON_ADMIN_COMMAND_RESOLVERS = [resolveMenuCommandName, resolveStickerCommandName, resolveStickerPackCommandName, resolvePlayCommandName, resolveTikTokCommandName, resolveAiCommandName, resolveQuoteCommandName, resolveWaifuPicsCommandName, resolveStatsCommandName, resolveSystemMetricsCommandName, resolveGameCommandName, resolveUserCommandName, resolveRpgPokemonCommandName];
 
 const LEGACY_NON_ADMIN_ROUTE_BY_CANONICAL = {
   ia: 'cat',
@@ -100,24 +76,7 @@ export const resolveNonAdminCommandName = (command) => {
 
 export const isKnownNonAdminCommand = (command) => Boolean(resolveNonAdminCommandName(command));
 
-export const executeMessageCommandRoute = async ({
-  command,
-  args = [],
-  text = '',
-  isAdminCommandRoute = false,
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  senderJid,
-  senderName,
-  senderIdentity,
-  botJid,
-  isGroupMessage,
-  commandPrefix = '/',
-  runCommand,
-  sendReply,
-} = {}) => {
+export const executeMessageCommandRoute = async ({ command, args = [], text = '', isAdminCommandRoute = false, sock, remoteJid, messageInfo, expirationMessage, senderJid, senderName, senderIdentity, botJid, isGroupMessage, commandPrefix = '/', runCommand, sendReply } = {}) => {
   if (typeof runCommand !== 'function') {
     throw new Error('executeMessageCommandRoute: runCommand e obrigatorio');
   }
@@ -137,31 +96,10 @@ export const executeMessageCommandRoute = async ({
 
   switch (routeCommand) {
     case 'menu':
-      commandResult = await runCommand('menu', () =>
-        handleMenuCommand(
-          sock,
-          remoteJid,
-          messageInfo,
-          expirationMessage,
-          senderName,
-          commandPrefix,
-          safeArgs,
-        ),
-      );
+      commandResult = await runCommand('menu', () => handleMenuCommand(sock, remoteJid, messageInfo, expirationMessage, senderName, commandPrefix, safeArgs));
       break;
     case 'sticker':
-      commandResult = await runCommand('sticker', () =>
-        processSticker(
-          sock,
-          messageInfo,
-          senderJid,
-          remoteJid,
-          expirationMessage,
-          senderName,
-          safeArgs.join(' '),
-          { commandPrefix },
-        ),
-      );
+      commandResult = await runCommand('sticker', () => processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, safeArgs.join(' '), { commandPrefix }));
       break;
     case 'pack':
       commandResult = await runCommand('pack', () =>
@@ -190,21 +128,10 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'play':
-      commandResult = await runCommand('play', () =>
-        handlePlayCommand(sock, remoteJid, messageInfo, expirationMessage, safeText, commandPrefix),
-      );
+      commandResult = await runCommand('play', () => handlePlayCommand(sock, remoteJid, messageInfo, expirationMessage, safeText, commandPrefix));
       break;
     case 'playvid':
-      commandResult = await runCommand('playvid', () =>
-        handlePlayVidCommand(
-          sock,
-          remoteJid,
-          messageInfo,
-          expirationMessage,
-          safeText,
-          commandPrefix,
-        ),
-      );
+      commandResult = await runCommand('playvid', () => handlePlayVidCommand(sock, remoteJid, messageInfo, expirationMessage, safeText, commandPrefix));
       break;
     case 'tiktok':
       commandResult = await runCommand('tiktok', () =>
@@ -378,9 +305,7 @@ export const executeMessageCommandRoute = async ({
       );
       break;
     case 'ping':
-      commandResult = await runCommand('ping', () =>
-        handlePingCommand({ sock, remoteJid, messageInfo, expirationMessage }),
-      );
+      commandResult = await runCommand('ping', () => handlePingCommand({ sock, remoteJid, messageInfo, expirationMessage }));
       break;
     case 'dado':
       commandResult = await runCommand('dado', () =>
@@ -450,9 +375,7 @@ export const executeMessageCommandRoute = async ({
       });
       commandResult = await runCommand('unknown', () =>
         sendReply(sock, remoteJid, messageInfo, expirationMessage, {
-          text: globalSuggestion
-            ? `❌ *Comando não reconhecido*\n\nO comando *${normalizedCommand}* não está configurado ou ainda não existe.\n\n${globalSuggestion}\n\nℹ️ *Dica:*  \nDigite *${commandPrefix}menu* para ver a lista geral de comandos.\n\n🚧 *Fase Beta*  \nO omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.`
-            : `❌ *Comando não reconhecido*\n\nO comando *${normalizedCommand}* não está configurado ou ainda não existe.\n\nℹ️ *Dica:*  \nDigite *${commandPrefix}menu* para ver a lista de comandos disponíveis.\n\n🚧 *Fase Beta*  \nO omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.`,
+          text: globalSuggestion ? `❌ *Comando não reconhecido*\n\nO comando *${normalizedCommand}* não está configurado ou ainda não existe.\n\n${globalSuggestion}\n\nℹ️ *Dica:*  \nDigite *${commandPrefix}menu* para ver a lista geral de comandos.\n\n🚧 *Fase Beta*  \nO omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.` : `❌ *Comando não reconhecido*\n\nO comando *${normalizedCommand}* não está configurado ou ainda não existe.\n\nℹ️ *Dica:*  \nDigite *${commandPrefix}menu* para ver a lista de comandos disponíveis.\n\n🚧 *Fase Beta*  \nO omnizap-system ainda está em desenvolvimento e novos comandos estão sendo adicionados constantemente.`,
         }),
       );
       break;

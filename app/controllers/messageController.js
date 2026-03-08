@@ -1,27 +1,9 @@
 import 'dotenv/config';
 
 import { isAdminCommand } from '../modules/adminModule/groupCommandHandlers.js';
-import {
-  explicarComandoGlobal,
-  registerGlobalHelpCommandExecution,
-} from '../services/globalModuleAiHelpService.js';
-import {
-  extractSupportedStickerMediaDetails,
-  processSticker,
-} from '../modules/stickerModule/stickerCommand.js';
-import {
-  detectAllMediaTypes,
-  extractMessageContent,
-  getExpiration,
-  getJidServer,
-  getJidUser,
-  isGroupJid,
-  isLidJid,
-  isSameJidUser,
-  isWhatsAppJid,
-  normalizeJid,
-  resolveBotJid,
-} from '../config/baileysConfig.js';
+import { explicarComandoGlobal, registerGlobalHelpCommandExecution } from '../services/globalModuleAiHelpService.js';
+import { extractSupportedStickerMediaDetails, processSticker } from '../modules/stickerModule/stickerCommand.js';
+import { detectAllMediaTypes, extractMessageContent, getExpiration, getJidServer, getJidUser, isGroupJid, isLidJid, isSameJidUser, isWhatsAppJid, normalizeJid, resolveBotJid } from '../config/baileysConfig.js';
 import { isUserAdmin } from '../config/groupUtils.js';
 import { isAdminSenderAsync } from '../config/adminIdentity.js';
 import logger from '../../utils/logger/loggerModule.js';
@@ -35,17 +17,8 @@ import { buildWhatsAppGoogleLoginUrl } from '../services/whatsappLoginLinkServic
 import { isWhatsAppUserLinkedToGoogleWebAccount } from '../services/googleWebLinkService.js';
 import { createMessageAnalysisEvent } from '../modules/analyticsModule/messageAnalysisEventRepository.js';
 import { routeConversationMessage } from '../services/conversationRouterService.js';
-import {
-  executeMessageCommandRoute,
-  isKnownNonAdminCommand,
-} from '../services/messageCommandExecutionService.js';
-import {
-  canSendMessageInStickerFocus,
-  registerMessageUsageInStickerFocus,
-  resolveStickerFocusMessageClassification,
-  resolveStickerFocusState,
-  shouldSendStickerFocusWarning,
-} from '../services/stickerFocusService.js';
+import { executeMessageCommandRoute, isKnownNonAdminCommand } from '../services/messageCommandExecutionService.js';
+import { canSendMessageInStickerFocus, registerMessageUsageInStickerFocus, resolveStickerFocusMessageClassification, resolveStickerFocusState, shouldSendStickerFocusWarning } from '../services/stickerFocusService.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const COMMAND_REACT_EMOJI = process.env.COMMAND_REACT_EMOJI || '🤖';
@@ -70,16 +43,8 @@ const MESSAGE_ANALYTICS_SOURCE =
   String(process.env.MESSAGE_ANALYTICS_SOURCE || 'whatsapp')
     .trim()
     .slice(0, 32) || 'whatsapp';
-const MESSAGE_COMMAND_DEDUPE_TTL_MS = parseEnvInt(
-  process.env.MESSAGE_COMMAND_DEDUPE_TTL_MS,
-  120_000,
-  15_000,
-  30 * 60 * 1000,
-);
-const WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN = parseEnvBool(
-  process.env.WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN,
-  true,
-);
+const MESSAGE_COMMAND_DEDUPE_TTL_MS = parseEnvInt(process.env.MESSAGE_COMMAND_DEDUPE_TTL_MS, 120_000, 15_000, 30 * 60 * 1000);
+const WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN = parseEnvBool(process.env.WHATSAPP_COMMAND_REQUIRES_GOOGLE_LOGIN, true);
 const SITE_ORIGIN =
   String(process.env.SITE_ORIGIN || process.env.WHATSAPP_LOGIN_BASE_URL || 'https://omnizap.shop')
     .trim()
@@ -153,26 +118,11 @@ const resolveCanonicalWhatsAppJid = (...candidates) => {
 const resolveCanonicalSenderJidFromMessage = async ({ messageInfo, senderJid }) => {
   const key = messageInfo?.key || {};
   const senderInfo = extractSenderInfoFromMessage(messageInfo);
-  let canonicalUserId = resolveCanonicalWhatsAppJid(
-    senderInfo?.jid,
-    senderInfo?.remoteJidAlt,
-    senderInfo?.participantAlt,
-    key.remoteJidAlt,
-    key.participantAlt,
-    key.participant,
-    key.remoteJid,
-    senderJid,
-  );
+  let canonicalUserId = resolveCanonicalWhatsAppJid(senderInfo?.jid, senderInfo?.remoteJidAlt, senderInfo?.participantAlt, key.remoteJidAlt, key.participantAlt, key.participant, key.remoteJid, senderJid);
 
   try {
     const resolvedUserId = await resolveUserId(senderInfo);
-    canonicalUserId = resolveCanonicalWhatsAppJid(
-      resolvedUserId,
-      canonicalUserId,
-      senderInfo?.jid,
-      senderInfo?.remoteJidAlt,
-      senderInfo?.participantAlt,
-    );
+    canonicalUserId = resolveCanonicalWhatsAppJid(resolvedUserId, canonicalUserId, senderInfo?.jid, senderInfo?.remoteJidAlt, senderInfo?.participantAlt);
   } catch (error) {
     logger.warn('Falha ao resolver ID canonico do remetente.', {
       action: 'resolve_sender_canonical_id_failed',
@@ -190,13 +140,7 @@ const resolveAddressingModeFromMessageKey = (key = {}, senderInfo = {}) => {
   if (explicit === 'lid') return 'lid';
   if (explicit === 'pn') return 'pn';
 
-  const candidates = [
-    senderInfo?.lid,
-    key?.participant,
-    key?.participantAlt,
-    key?.remoteJid,
-    key?.remoteJidAlt,
-  ];
+  const candidates = [senderInfo?.lid, key?.participant, key?.participantAlt, key?.remoteJid, key?.remoteJidAlt];
   for (const candidate of candidates) {
     const normalized = normalizeJid(String(candidate || '').trim());
     if (!normalized) continue;
@@ -222,28 +166,10 @@ const resolveSenderContext = async ({ messageInfo, isGroupMessage, remoteJid }) 
     });
   }
 
-  const senderJidCandidates = isGroupMessage
-    ? [
-        resolvedUserId,
-        senderInfo?.jid,
-        senderInfo?.participantAlt,
-        key.participantAlt,
-        key.participant,
-        key.remoteJidAlt,
-        remoteJid,
-      ]
-    : [
-        resolvedUserId,
-        senderInfo?.jid,
-        senderInfo?.participantAlt,
-        key.remoteJidAlt,
-        key.remoteJid,
-        remoteJid,
-      ];
+  const senderJidCandidates = isGroupMessage ? [resolvedUserId, senderInfo?.jid, senderInfo?.participantAlt, key.participantAlt, key.participant, key.remoteJidAlt, remoteJid] : [resolvedUserId, senderInfo?.jid, senderInfo?.participantAlt, key.remoteJidAlt, key.remoteJid, remoteJid];
 
   const canonicalSender = resolveCanonicalWhatsAppJid(...senderJidCandidates);
-  const fallbackSender =
-    senderJidCandidates.find((candidate) => String(candidate || '').trim()) || '';
+  const fallbackSender = senderJidCandidates.find((candidate) => String(candidate || '').trim()) || '';
   const senderJid = canonicalSender || String(fallbackSender || '').trim();
   const addressingMode = resolveAddressingModeFromMessageKey(key, senderInfo);
 
@@ -271,17 +197,7 @@ const sendReply = (sock, remoteJid, messageInfo, expirationMessage, content, opt
     ...(options || {}),
   });
 
-const maybeHandleStartLoginMessage = async ({
-  sock,
-  messageInfo,
-  extractedText,
-  senderName,
-  senderJid,
-  remoteJid,
-  expirationMessage,
-  isMessageFromBot,
-  isGroupMessage,
-}) => {
+const maybeHandleStartLoginMessage = async ({ sock, messageInfo, extractedText, senderName, senderJid, remoteJid, expirationMessage, isMessageFromBot, isGroupMessage }) => {
   if (isMessageFromBot || !isStartLoginTrigger(extractedText)) return false;
 
   if (isGroupMessage) {
@@ -315,11 +231,7 @@ const maybeHandleStartLoginMessage = async ({
   const safeName = String(senderName || '').trim();
   const greeting = safeName ? `Oi, *${safeName}*!` : 'Oi!';
   await sendReply(sock, remoteJid, messageInfo, expirationMessage, {
-    text:
-      `${greeting}\n\n` +
-      'Para continuar no OmniZap, faca login com Google neste link:\n' +
-      `${loginUrl}\n\n` +
-      'Seu numero do WhatsApp sera vinculado automaticamente a conta logada.',
+    text: `${greeting}\n\n` + 'Para continuar no OmniZap, faca login com Google neste link:\n' + `${loginUrl}\n\n` + 'Seu numero do WhatsApp sera vinculado automaticamente a conta logada.',
   });
 
   return true;
@@ -410,14 +322,7 @@ const normalizeAnalysisErrorCode = (error) =>
     .replace(/[^a-z0-9_-]/g, '_')
     .slice(0, 96) || 'processing_error';
 
-const buildCommandErrorHelpText = async ({
-  command,
-  commandRoute,
-  commandPrefix,
-  isGroupMessage,
-  isSenderAdmin,
-  isSenderOwner,
-}) => {
+const buildCommandErrorHelpText = async ({ command, commandRoute, commandPrefix, isGroupMessage, isSenderAdmin, isSenderOwner }) => {
   const normalizedCommand = String(command || '')
     .trim()
     .toLowerCase();
@@ -452,12 +357,9 @@ const persistMessageAnalysisEvent = (payload) => {
     if (error?.code === 'ER_NO_SUCH_TABLE') {
       if (messageAnalyticsTableMissingLogged) return;
       messageAnalyticsTableMissingLogged = true;
-      logger.warn(
-        'Tabela de analytics de mensagens ainda não existe. Execute a migracao 20260301_0028.',
-        {
-          action: 'message_analysis_table_missing',
-        },
-      );
+      logger.warn('Tabela de analytics de mensagens ainda não existe. Execute a migracao 20260301_0028.', {
+        action: 'message_analysis_table_missing',
+      });
       return;
     }
 
@@ -468,17 +370,9 @@ const persistMessageAnalysisEvent = (payload) => {
   });
 };
 
-const buildSiteLoginUrlForUser = (canonicalUserId) =>
-  buildWhatsAppGoogleLoginUrl({ userId: canonicalUserId }) || SITE_LOGIN_URL;
+const buildSiteLoginUrlForUser = (canonicalUserId) => buildWhatsAppGoogleLoginUrl({ userId: canonicalUserId }) || SITE_LOGIN_URL;
 
-const ensureUserHasGoogleWebLoginForCommand = async ({
-  sock,
-  messageInfo,
-  senderJid,
-  remoteJid,
-  expirationMessage,
-  commandPrefix,
-}) => {
+const ensureUserHasGoogleWebLoginForCommand = async ({ sock, messageInfo, senderJid, remoteJid, expirationMessage, commandPrefix }) => {
   const isGroupMessage = isGroupJid(remoteJid);
   const canonicalUserId = await resolveCanonicalSenderJidFromMessage({ messageInfo, senderJid });
   let linked = false;
@@ -487,13 +381,10 @@ const ensureUserHasGoogleWebLoginForCommand = async ({
       ownerJid: canonicalUserId || senderJid,
     });
   } catch (error) {
-    logger.warn(
-      'Falha ao validar vínculo Google Web para comando do WhatsApp. Comando liberado por fallback.',
-      {
-        action: 'whatsapp_command_google_link_check_failed',
-        error: error?.message,
-      },
-    );
+    logger.warn('Falha ao validar vínculo Google Web para comando do WhatsApp. Comando liberado por fallback.', {
+      action: 'whatsapp_command_google_link_check_failed',
+      error: error?.message,
+    });
     return {
       allowed: true,
       canonicalUserId,
@@ -509,12 +400,8 @@ const ensureUserHasGoogleWebLoginForCommand = async ({
     };
   }
 
-  const loginUrl = isGroupMessage
-    ? SITE_GROUP_LOGIN_URL
-    : buildSiteLoginUrlForUser(canonicalUserId || senderJid);
-  const loginMessage = isGroupMessage
-    ? `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nAcesse:\n${loginUrl}`
-    : `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nCadastre-se / faça login em:\n${loginUrl}\n\nDepois volte aqui e envie o comando novamente (ex.: ${commandPrefix}menu).`;
+  const loginUrl = isGroupMessage ? SITE_GROUP_LOGIN_URL : buildSiteLoginUrlForUser(canonicalUserId || senderJid);
+  const loginMessage = isGroupMessage ? `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nAcesse:\n${loginUrl}` : `Para usar os comandos do bot, você precisa estar logado no site com sua conta Google.\n\nCadastre-se / faça login em:\n${loginUrl}\n\nDepois volte aqui e envie o comando novamente (ex.: ${commandPrefix}menu).`;
 
   await sendReply(sock, remoteJid, messageInfo, expirationMessage, {
     text: loginMessage,
@@ -555,9 +442,7 @@ export const handleMessages = async (update, sock) => {
         const expirationMessage = getExpiration(messageInfo);
         const botJidCandidates = resolveBotIdentityCandidates(sock?.user || {});
         const botJid = botJidCandidates[0] || null;
-        const isMessageFromBot =
-          Boolean(key?.fromMe) ||
-          botJidCandidates.some((candidate) => isSameJidUser(senderJid, candidate));
+        const isMessageFromBot = Boolean(key?.fromMe) || botJidCandidates.some((candidate) => isSameJidUser(senderJid, candidate));
         let commandPrefix = DEFAULT_COMMAND_PREFIX;
         let groupConfig = null;
         const mediaEntries = detectAllMediaTypes(messageInfo?.message, false);
@@ -612,13 +497,7 @@ export const handleMessages = async (update, sock) => {
             analysisPayload.processingResult = 'ignored_unprocessable';
             analysisPayload.metadata = {
               ...analysisPayload.metadata,
-              ignored_reason: isStatusBroadcast
-                ? 'status_broadcast'
-                : isStubMessage
-                  ? 'stub_message'
-                  : isProtocolMessage
-                    ? 'protocol_message'
-                    : 'missing_message_node',
+              ignored_reason: isStatusBroadcast ? 'status_broadcast' : isStubMessage ? 'stub_message' : isProtocolMessage ? 'protocol_message' : 'missing_message_node',
             };
             continue;
           }
@@ -694,8 +573,7 @@ export const handleMessages = async (update, sock) => {
           }
 
           if (isGroupMessage && !isCommandMessage && !isMessageFromBot) {
-            const activeGroupConfig =
-              groupConfig || (await groupConfigStore.getGroupConfig(remoteJid));
+            const activeGroupConfig = groupConfig || (await groupConfigStore.getGroupConfig(remoteJid));
             groupConfig = activeGroupConfig;
             const stickerFocusState = resolveStickerFocusState(activeGroupConfig);
 
@@ -722,24 +600,16 @@ export const handleMessages = async (update, sock) => {
                       ...analysisPayload.metadata,
                       blocked_by: 'sticker_focus_mode',
                       sticker_focus_message_type: messageClassification.messageType,
-                      sticker_focus_message_allowance_count:
-                        stickerFocusState.messageAllowanceCount,
-                      sticker_focus_message_cooldown_minutes:
-                        stickerFocusState.messageCooldownMinutes,
-                      sticker_focus_remaining_minutes: formatRemainingMinutesLabel(
-                        messageGate.remainingMs,
-                      ),
+                      sticker_focus_message_allowance_count: stickerFocusState.messageAllowanceCount,
+                      sticker_focus_message_cooldown_minutes: stickerFocusState.messageCooldownMinutes,
+                      sticker_focus_remaining_minutes: formatRemainingMinutesLabel(messageGate.remainingMs),
                       sticker_focus_alert_only: true,
                     };
 
                     if (shouldSendStickerFocusWarning({ groupId: remoteJid, senderJid })) {
                       try {
                         await sendReply(sock, remoteJid, messageInfo, expirationMessage, {
-                          text:
-                            '🖼️ Este chat está com *foco em sticker* ativo.\n' +
-                            'Siga o padrão: envie apenas *imagens* ou *vídeos* para criação automática, ou compartilhe seus *stickers*.\n' +
-                            `Mensagens como texto e áudio seguem uma janela de tempo: *${formatStickerFocusRuleLabel(stickerFocusState)}*.\n` +
-                            `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${commandPrefix}chatwindow on*.`,
+                          text: '🖼️ Este chat está com *foco em sticker* ativo.\n' + 'Siga o padrão: envie apenas *imagens* ou *vídeos* para criação automática, ou compartilhe seus *stickers*.\n' + `Mensagens como texto e áudio seguem uma janela de tempo: *${formatStickerFocusRuleLabel(stickerFocusState)}*.\n` + `Tente novamente em ~${formatRemainingMinutesLabel(messageGate.remainingMs)} min ou peça para um admin abrir a janela com *${commandPrefix}chatwindow on*.`,
                         });
                       } catch (error) {
                         logger.warn('Falha ao enviar aviso de sticker focus.', {
@@ -824,11 +694,7 @@ export const handleMessages = async (update, sock) => {
             return cachedToolSecurityContext;
           };
 
-          const executeToolCommandFromConversation = async ({
-            commandName,
-            args = [],
-            text = '',
-          } = {}) => {
+          const executeToolCommandFromConversation = async ({ commandName, args = [], text = '' } = {}) => {
             const normalizedCommand = String(commandName || '')
               .trim()
               .toLowerCase();
@@ -922,9 +788,7 @@ export const handleMessages = async (update, sock) => {
                   conversation_intent_type: conversationResult?.metadata?.intent_type || null,
                   conversation_module_key: conversationResult?.metadata?.module_key || null,
                   conversation_command_name: conversationResult?.metadata?.command_name || null,
-                  conversation_suppress_reply: Boolean(
-                    conversationResult?.metadata?.suppress_reply,
-                  ),
+                  conversation_suppress_reply: Boolean(conversationResult?.metadata?.suppress_reply),
                 };
                 continue;
               }
@@ -1027,9 +891,7 @@ export const handleMessages = async (update, sock) => {
             };
 
             if (analysisPayload.processingResult === 'processed') {
-              analysisPayload.processingResult = commandResult.ok
-                ? 'command_executed'
-                : 'command_error';
+              analysisPayload.processingResult = commandResult.ok ? 'command_executed' : 'command_error';
             }
 
             if (commandResult.ok && commandRoute !== 'unknown') {
@@ -1077,9 +939,7 @@ export const handleMessages = async (update, sock) => {
                 isSenderAdmin: senderIsAdminForHelp,
               });
 
-              const fallbackErrorText = commandErrorHelpText
-                ? `❌ Houve um erro ao processar *${commandPrefix}${command}*.\n\n${commandErrorHelpText}`
-                : `❌ Houve um erro ao processar *${commandPrefix}${command}*.\n\nTente novamente ou use *${commandPrefix}menu* para validar o formato de uso.`;
+              const fallbackErrorText = commandErrorHelpText ? `❌ Houve um erro ao processar *${commandPrefix}${command}*.\n\n${commandErrorHelpText}` : `❌ Houve um erro ao processar *${commandPrefix}${command}*.\n\nTente novamente ou use *${commandPrefix}menu* para validar o formato de uso.`;
 
               await runCommand('command-error-help', () =>
                 sendReply(sock, remoteJid, messageInfo, expirationMessage, {
@@ -1105,8 +965,7 @@ export const handleMessages = async (update, sock) => {
             });
 
             if (autoStickerMedia && autoStickerMedia.mediaType !== 'sticker') {
-              const activeGroupConfig =
-                groupConfig || (await groupConfigStore.getGroupConfig(remoteJid));
+              const activeGroupConfig = groupConfig || (await groupConfigStore.getGroupConfig(remoteJid));
               groupConfig = activeGroupConfig;
               if (activeGroupConfig.autoStickerEnabled) {
                 analysisPayload.processingResult = 'autosticker_triggered';
@@ -1115,20 +974,11 @@ export const handleMessages = async (update, sock) => {
                   auto_sticker_media_type: autoStickerMedia.mediaType || null,
                 };
                 const autoStickerResult = await runCommand('autosticker', () =>
-                  processSticker(
-                    sock,
-                    messageInfo,
-                    senderJid,
-                    remoteJid,
-                    expirationMessage,
-                    senderName,
-                    '',
-                    {
-                      includeQuotedMedia: false,
-                      showAutoPackNotice: false,
-                      commandPrefix,
-                    },
-                  ),
+                  processSticker(sock, messageInfo, senderJid, remoteJid, expirationMessage, senderName, '', {
+                    includeQuotedMedia: false,
+                    showAutoPackNotice: false,
+                    commandPrefix,
+                  }),
                 );
 
                 if (!autoStickerResult.ok) {

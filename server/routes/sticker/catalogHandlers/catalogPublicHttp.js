@@ -1,27 +1,9 @@
 const METHOD_NOT_ALLOWED_BODY = { error: 'Metodo nao permitido.' };
 
 const isReadMethod = (method) => method === 'GET' || method === 'HEAD';
-const RESERVED_NON_STICKER_SEGMENTS = new Set([
-  'home-bootstrap',
-  'system-summary',
-  'project-summary',
-  'global-ranking-summary',
-  'readme-markdown',
-  'support',
-  'bot-contact',
-]);
+const RESERVED_NON_STICKER_SEGMENTS = new Set(['home-bootstrap', 'system-summary', 'project-summary', 'global-ranking-summary', 'readme-markdown', 'support', 'bot-contact']);
 
-export const handleCatalogPublicRoutes = async ({
-  req,
-  res,
-  pathname,
-  url,
-  segments,
-  apiBasePath,
-  orphanApiPath,
-  handlers,
-  sendJson,
-}) => {
+export const handleCatalogPublicRoutes = async ({ req, res, pathname, url, segments, apiBasePath, orphanApiPath, handlers, sendJson }) => {
   if (pathname === apiBasePath) {
     if (!isReadMethod(req.method || '')) {
       sendJson(req, res, 405, METHOD_NOT_ALLOWED_BODY);

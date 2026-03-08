@@ -46,21 +46,7 @@ const browserGlobals = {
 
 export default [
   {
-    ignores: [
-      'node_modules/**',
-      '.tmp_tools/**',
-      'logs/**',
-      'temp/**',
-      '.eslintcache',
-      '*.log',
-      '**/*.min.js',
-      'coverage/**',
-      'dist/**',
-      'build/**',
-      '**/.venv/**',
-      'ml/**/.venv/**',
-      'public/assets/js/**',
-    ],
+    ignores: ['node_modules/**', '.tmp_tools/**', 'logs/**', 'temp/**', '.eslintcache', '*.log', '**/*.min.js', 'coverage/**', 'dist/**', 'build/**', '**/.venv/**', 'ml/**/.venv/**', 'public/assets/js/**'],
   },
   js.configs.recommended,
   {
@@ -76,10 +62,7 @@ export default [
     rules: {
       'no-var': 'error',
       'prefer-const': 'warn',
-      'no-unused-vars': [
-        'warn',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
-      ],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }],
       'no-console': 'off',
     },
   },

@@ -4,10 +4,7 @@ import OpenAI from 'openai';
 
 import { executeQuery, TABLES } from '../../../database/index.js';
 import logger from '../../../utils/logger/loggerModule.js';
-import {
-  findStickerClassificationByAssetId,
-  updateStickerClassificationSemanticCluster,
-} from './stickerAssetClassificationRepository.js';
+import { findStickerClassificationByAssetId, updateStickerClassificationSemanticCluster } from './stickerAssetClassificationRepository.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -18,40 +15,15 @@ const parseEnvBool = (value, fallback) => {
 };
 
 const ENABLE_SEMANTIC_CLUSTERING = parseEnvBool(process.env.ENABLE_SEMANTIC_CLUSTERING, false);
-const OPENAI_TIMEOUT_MS = Math.max(
-  1_000,
-  Number(process.env.SEMANTIC_CLUSTER_OPENAI_TIMEOUT_MS) || 10_000,
-);
-const EMBEDDING_MODEL =
-  String(process.env.SEMANTIC_CLUSTER_EMBEDDING_MODEL || 'text-embedding-3-small').trim() ||
-  'text-embedding-3-small';
-const SLUG_MODEL =
-  String(process.env.SEMANTIC_CLUSTER_SLUG_MODEL || 'gpt-4o-mini').trim() || 'gpt-4o-mini';
-const SIMILARITY_THRESHOLD = Number.isFinite(
-  Number(process.env.SEMANTIC_CLUSTER_SIMILARITY_THRESHOLD),
-)
-  ? Math.max(0.5, Math.min(0.99, Number(process.env.SEMANTIC_CLUSTER_SIMILARITY_THRESHOLD)))
-  : 0.87;
-const MAX_CLUSTER_SCAN = Math.max(
-  100,
-  Math.min(20_000, Number(process.env.SEMANTIC_CLUSTER_MAX_SCAN) || 5_000),
-);
-const MAX_SUGGESTIONS_PER_ASSET = Math.max(
-  1,
-  Math.min(20, Number(process.env.SEMANTIC_CLUSTER_MAX_SUGGESTIONS_PER_ASSET) || 8),
-);
-const CLUSTERING_CONCURRENCY = Math.max(
-  1,
-  Math.min(8, Number(process.env.SEMANTIC_CLUSTER_CONCURRENCY) || 2),
-);
-const RESOLUTION_CACHE_TTL_MS = Math.max(
-  5_000,
-  Number(process.env.SEMANTIC_CLUSTER_MEMORY_CACHE_TTL_MS) || 5 * 60 * 1000,
-);
-const SEMANTIC_CLUSTER_REPROCESS_EXISTING = parseEnvBool(
-  process.env.SEMANTIC_CLUSTER_REPROCESS_EXISTING,
-  false,
-);
+const OPENAI_TIMEOUT_MS = Math.max(1_000, Number(process.env.SEMANTIC_CLUSTER_OPENAI_TIMEOUT_MS) || 10_000);
+const EMBEDDING_MODEL = String(process.env.SEMANTIC_CLUSTER_EMBEDDING_MODEL || 'text-embedding-3-small').trim() || 'text-embedding-3-small';
+const SLUG_MODEL = String(process.env.SEMANTIC_CLUSTER_SLUG_MODEL || 'gpt-4o-mini').trim() || 'gpt-4o-mini';
+const SIMILARITY_THRESHOLD = Number.isFinite(Number(process.env.SEMANTIC_CLUSTER_SIMILARITY_THRESHOLD)) ? Math.max(0.5, Math.min(0.99, Number(process.env.SEMANTIC_CLUSTER_SIMILARITY_THRESHOLD))) : 0.87;
+const MAX_CLUSTER_SCAN = Math.max(100, Math.min(20_000, Number(process.env.SEMANTIC_CLUSTER_MAX_SCAN) || 5_000));
+const MAX_SUGGESTIONS_PER_ASSET = Math.max(1, Math.min(20, Number(process.env.SEMANTIC_CLUSTER_MAX_SUGGESTIONS_PER_ASSET) || 8));
+const CLUSTERING_CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.SEMANTIC_CLUSTER_CONCURRENCY) || 2));
+const RESOLUTION_CACHE_TTL_MS = Math.max(5_000, Number(process.env.SEMANTIC_CLUSTER_MEMORY_CACHE_TTL_MS) || 5 * 60 * 1000);
+const SEMANTIC_CLUSTER_REPROCESS_EXISTING = parseEnvBool(process.env.SEMANTIC_CLUSTER_REPROCESS_EXISTING, false);
 
 let cachedClient = null;
 const inMemorySuggestionCache = new Map();
@@ -153,8 +125,7 @@ const resolveOpenAIClient = () => {
   return cachedClient;
 };
 
-const shouldRunSemanticClustering = () =>
-  ENABLE_SEMANTIC_CLUSTERING && Boolean(resolveOpenAIClient());
+const shouldRunSemanticClustering = () => ENABLE_SEMANTIC_CLUSTERING && Boolean(resolveOpenAIClient());
 
 const getSuggestionCacheRow = async (normalizedSuggestion) => {
   const normalized = normalizeSuggestion(normalizedSuggestion);
@@ -176,20 +147,11 @@ const getSuggestionCacheRow = async (normalizedSuggestion) => {
     semantic_cluster_id: Number(row.semantic_cluster_id || 0) || null,
     canonical_slug: row.canonical_slug || null,
     embedding: parseEmbedding(row.embedding, Number(row.embedding_dim || 0)),
-    last_similarity: Number.isFinite(Number(row.last_similarity))
-      ? Number(row.last_similarity)
-      : null,
+    last_similarity: Number.isFinite(Number(row.last_similarity)) ? Number(row.last_similarity) : null,
   };
 };
 
-const upsertSuggestionCacheRow = async ({
-  suggestionText,
-  normalizedText,
-  semanticClusterId,
-  canonicalSlug,
-  embedding = [],
-  similarity = null,
-}) => {
+const upsertSuggestionCacheRow = async ({ suggestionText, normalizedText, semanticClusterId, canonicalSlug, embedding = [], similarity = null }) => {
   const normalized = normalizeSuggestion(normalizedText || suggestionText);
   if (!normalized || !semanticClusterId) return false;
   const suggestionHash = hashSuggestion(normalized);
@@ -209,18 +171,7 @@ const upsertSuggestionCacheRow = async ({
       embedding = VALUES(embedding),
       last_similarity = VALUES(last_similarity),
       updated_at = CURRENT_TIMESTAMP`,
-    [
-      suggestionHash,
-      String(suggestionText || normalized).slice(0, 512),
-      normalized,
-      semanticClusterId,
-      canonicalSlug || null,
-      dim,
-      buffer,
-      similarity !== null && Number.isFinite(Number(similarity))
-        ? Number(Number(similarity).toFixed(6))
-        : null,
-    ],
+    [suggestionHash, String(suggestionText || normalized).slice(0, 512), normalized, semanticClusterId, canonicalSlug || null, dim, buffer, similarity !== null && Number.isFinite(Number(similarity)) ? Number(Number(similarity).toFixed(6)) : null],
   );
   return true;
 };
@@ -322,8 +273,7 @@ const generateCanonicalSlug = async (suggestionText) => {
       messages: [
         {
           role: 'system',
-          content:
-            'Normalize short theme phrases into a canonical 1-2 word lowercase slug with underscores. Return JSON: {"slug":"..."}',
+          content: 'Normalize short theme phrases into a canonical 1-2 word lowercase slug with underscores. Return JSON: {"slug":"..."}',
         },
         {
           role: 'user',
@@ -466,8 +416,7 @@ const pickPrimaryCluster = (matches) => {
 
   const ranked = Array.from(tally.values()).sort((left, right) => {
     if (right.count !== left.count) return right.count - left.count;
-    if (right.best_similarity !== left.best_similarity)
-      return right.best_similarity - left.best_similarity;
+    if (right.best_similarity !== left.best_similarity) return right.best_similarity - left.best_similarity;
     return left.semantic_cluster_id - right.semantic_cluster_id;
   });
   return ranked[0] || null;
@@ -507,8 +456,7 @@ const resolveSuggestionsToPrimaryCluster = async ({ suggestions = [], fallbackTe
 
   return {
     semantic_cluster_id: primary.semantic_cluster_id,
-    semantic_cluster_slug:
-      primary.semantic_cluster_slug || fallbackSlugFromSuggestion(normalizedSuggestions[0] || ''),
+    semantic_cluster_slug: primary.semantic_cluster_slug || fallbackSlugFromSuggestion(normalizedSuggestions[0] || ''),
     matches,
   };
 };
@@ -568,12 +516,7 @@ const drainSemanticClusterQueue = async () => {
   }
 };
 
-export const enqueueSemanticClusterResolution = ({
-  assetId,
-  suggestions = [],
-  fallbackText = '',
-  force = false,
-} = {}) => {
+export const enqueueSemanticClusterResolution = ({ assetId, suggestions = [], fallbackText = '', force = false } = {}) => {
   const normalizedAssetId = String(assetId || '').trim();
   if (!normalizedAssetId || !ENABLE_SEMANTIC_CLUSTERING) return false;
 

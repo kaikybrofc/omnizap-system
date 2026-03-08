@@ -145,43 +145,14 @@
       "name": "pacote",
       "aliases": ["packs", "pacotes", "pack"],
       "descricao": "Gerencia packs de figurinhas (criar, listar, adicionar, enviar).",
-      "metodos_de_uso": [
-        "<prefix>pacote help",
-        "<prefix>pacote create meupack",
-        "<prefix>pacote list",
-        "<prefix>pacote add <pacote>",
-        "<prefix>pacote send <pacote>"
-      ],
+      "metodos_de_uso": ["<prefix>pacote help", "<prefix>pacote create meupack", "<prefix>pacote list", "<prefix>pacote add <pacote>", "<prefix>pacote send <pacote>"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "rate limit por janela e limite de itens por pack",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "subcomando e argumentos do pack",
-        "figurinha da mensagem atual/citada (para add/setcover)",
-        "estado de rate limit por usuario",
-        "dados de packs do usuario no armazenamento interno"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "subcomando e argumentos do pack", "figurinha da mensagem atual/citada (para add/setcover)", "estado de rate limit por usuario", "dados de packs do usuario no armazenamento interno"],
       "enabled": true,
       "categoria": "figurinhas",
-      "subcomandos": [
-        "help",
-        "create",
-        "list",
-        "info",
-        "add",
-        "setcover",
-        "setdesc",
-        "setpublisher",
-        "send",
-        "rename",
-        "remove",
-        "delete",
-        "reorder"
-      ],
+      "subcomandos": ["help", "create", "list", "info", "add", "setcover", "setdesc", "setpublisher", "send", "rename", "remove", "delete", "reorder"],
       "argumentos": [
         {
           "nome": "subcomando",
@@ -213,10 +184,7 @@
         "escopo": "usuario"
       },
       "dependencias_externas": ["banco de dados de packs", "armazenamento de assets de figurinha"],
-      "efeitos_colaterais": [
-        "cria/atualiza packs no banco",
-        "pode armazenar/remover assets de figurinha"
-      ],
+      "efeitos_colaterais": ["cria/atualiza packs no banco", "pode armazenar/remover assets de figurinha"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -228,21 +196,13 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do remetente",
-          "conteúdo de figurinhas adicionadas ao pack",
-          "metadados de packs do usuário"
-        ],
+        "dados_sensiveis": ["identificador do remetente", "conteúdo de figurinhas adicionadas ao pack", "metadados de packs do usuário"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": ["pacote", "packs", "figurinhas", "privado", "grupo"],
       "faq_patterns": ["como usar pacote", "o que faz pacote", "comando pacote"],
-      "user_phrasings": [
-        "quero usar pacote",
-        "me ajuda com pacote",
-        "gerencia packs de figurinhas"
-      ],
+      "user_phrasings": ["quero usar pacote", "me ajuda com pacote", "gerencia packs de figurinhas"],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
@@ -261,54 +221,21 @@
         }
       },
       "mensagens_uso": {
-        "default": [
-          "<prefix>pacote help",
-          "<prefix>pacote create meupack",
-          "<prefix>pacote list",
-          "<prefix>pacote add <pacote>",
-          "<prefix>pacote send <pacote>"
-        ]
+        "default": ["<prefix>pacote help", "<prefix>pacote create meupack", "<prefix>pacote list", "<prefix>pacote add <pacote>", "<prefix>pacote send <pacote>"]
       },
       "id": "stickerpack.pacote",
       "description": "Gerencia packs de figurinhas (criar, listar, adicionar, enviar).",
-      "usage": [
-        "<prefix>pacote help",
-        "<prefix>pacote create meupack",
-        "<prefix>pacote list",
-        "<prefix>pacote add <pacote>",
-        "<prefix>pacote send <pacote>"
-      ],
+      "usage": ["<prefix>pacote help", "<prefix>pacote create meupack", "<prefix>pacote list", "<prefix>pacote add <pacote>", "<prefix>pacote send <pacote>"],
       "docs": {
         "summary": "Gerencia packs de figurinhas (criar, listar, adicionar, enviar).",
-        "usage_examples": [
-          "<prefix>pacote help",
-          "<prefix>pacote create meupack",
-          "<prefix>pacote list",
-          "<prefix>pacote add <pacote>",
-          "<prefix>pacote send <pacote>"
-        ],
+        "usage_examples": ["<prefix>pacote help", "<prefix>pacote create meupack", "<prefix>pacote list", "<prefix>pacote add <pacote>", "<prefix>pacote send <pacote>"],
         "usage_variants": {
-          "default": [
-            "<prefix>pacote help",
-            "<prefix>pacote create meupack",
-            "<prefix>pacote list",
-            "<prefix>pacote add <pacote>",
-            "<prefix>pacote send <pacote>"
-          ]
+          "default": ["<prefix>pacote help", "<prefix>pacote create meupack", "<prefix>pacote list", "<prefix>pacote add <pacote>", "<prefix>pacote send <pacote>"]
         }
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "subcomando e argumentos do pack",
-        "figurinha da mensagem atual/citada (para add/setcover)",
-        "estado de rate limit por usuario",
-        "dados de packs do usuario no armazenamento interno"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "subcomando e argumentos do pack", "figurinha da mensagem atual/citada (para add/setcover)", "estado de rate limit por usuario", "dados de packs do usuario no armazenamento interno"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -385,10 +312,7 @@
         }
       },
       "dependencies": ["banco de dados de packs", "armazenamento de assets de figurinha"],
-      "side_effects": [
-        "cria/atualiza packs no banco",
-        "pode armazenar/remover assets de figurinha"
-      ],
+      "side_effects": ["cria/atualiza packs no banco", "pode armazenar/remover assets de figurinha"],
       "observability": {
         "event_name": "command.executed",
         "event_key": "stickerpack.pacote",
@@ -409,11 +333,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do remetente",
-            "conteúdo de figurinhas adicionadas ao pack",
-            "metadados de packs do usuário"
-          ],
+          "dados_sensiveis": ["identificador do remetente", "conteúdo de figurinhas adicionadas ao pack", "metadados de packs do usuário"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -421,11 +341,7 @@
       "discovery": {
         "keywords": ["pacote", "packs", "figurinhas", "privado", "grupo"],
         "faq_queries": ["como usar pacote", "o que faz pacote", "comando pacote"],
-        "user_phrasings": [
-          "quero usar pacote",
-          "me ajuda com pacote",
-          "gerencia packs de figurinhas"
-        ],
+        "user_phrasings": ["quero usar pacote", "me ajuda com pacote", "gerencia packs de figurinhas"],
         "suggestion_priority": 100
       },
       "access": {
@@ -461,21 +377,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "pacote",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     }
   ],

@@ -8,47 +8,12 @@ const parseEnvInt = (value, fallback, min, max) => {
 };
 
 const BAILEYS_SEND_RETRY_ATTEMPTS = parseEnvInt(process.env.BAILEYS_SEND_RETRY_ATTEMPTS, 2, 1, 5);
-const BAILEYS_SEND_RETRY_BASE_DELAY_MS = parseEnvInt(
-  process.env.BAILEYS_SEND_RETRY_BASE_DELAY_MS,
-  600,
-  100,
-  10_000,
-);
-const BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS = parseEnvInt(
-  process.env.BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS,
-  0,
-  0,
-  120_000,
-);
+const BAILEYS_SEND_RETRY_BASE_DELAY_MS = parseEnvInt(process.env.BAILEYS_SEND_RETRY_BASE_DELAY_MS, 600, 100, 10_000);
+const BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS = parseEnvInt(process.env.BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS, 0, 0, 120_000);
 
 const isPlainObject = (value) => Object.prototype.toString.call(value) === '[object Object]';
 
-const ANY_MESSAGE_CONTENT_PRIMARY_KEYS = new Set([
-  'text',
-  'image',
-  'video',
-  'audio',
-  'sticker',
-  'stickerPack',
-  'stickerPackMessage',
-  'document',
-  'event',
-  'poll',
-  'contacts',
-  'location',
-  'react',
-  'buttonReply',
-  'groupInvite',
-  'listReply',
-  'pin',
-  'product',
-  'sharePhoneNumber',
-  'requestPhoneNumber',
-  'forward',
-  'delete',
-  'disappearingMessagesInChat',
-  'limitSharing',
-]);
+const ANY_MESSAGE_CONTENT_PRIMARY_KEYS = new Set(['text', 'image', 'video', 'audio', 'sticker', 'stickerPack', 'stickerPackMessage', 'document', 'event', 'poll', 'contacts', 'location', 'react', 'buttonReply', 'groupInvite', 'listReply', 'pin', 'product', 'sharePhoneNumber', 'requestPhoneNumber', 'forward', 'delete', 'disappearingMessagesInChat', 'limitSharing']);
 
 /**
  * Verifica se o payload se parece com AnyMessageContent do Baileys.
@@ -79,10 +44,7 @@ const normalizeSendOptions = (options) => {
     }
   }
 
-  if (
-    typeof normalized.mediaUploadTimeoutMs !== 'number' &&
-    BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS > 0
-  ) {
+  if (typeof normalized.mediaUploadTimeoutMs !== 'number' && BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS > 0) {
     normalized.mediaUploadTimeoutMs = BAILEYS_SEND_MEDIA_UPLOAD_TIMEOUT_MS;
   }
 
@@ -133,42 +95,18 @@ const isTransientSendError = (error) => {
   const code = String(error?.code || '')
     .trim()
     .toUpperCase();
-  if (
-    [
-      'ETIMEDOUT',
-      'ECONNRESET',
-      'ECONNABORTED',
-      'EAI_AGAIN',
-      'ENOTFOUND',
-      'ERR_SOCKET_CLOSED',
-      'ERR_NETWORK',
-    ].includes(code)
-  ) {
+  if (['ETIMEDOUT', 'ECONNRESET', 'ECONNABORTED', 'EAI_AGAIN', 'ENOTFOUND', 'ERR_SOCKET_CLOSED', 'ERR_NETWORK'].includes(code)) {
     return true;
   }
 
   const rawMessage = `${error?.message || ''} ${error?.data?.message || ''}`.toLowerCase();
-  const transientFragments = [
-    'timeout',
-    'timed out',
-    'connection closed',
-    'socket closed',
-    'media conn',
-    'media_conn',
-    'fetch failed',
-    'temporarily unavailable',
-    'network',
-  ];
+  const transientFragments = ['timeout', 'timed out', 'connection closed', 'socket closed', 'media conn', 'media_conn', 'fetch failed', 'temporarily unavailable', 'network'];
   return transientFragments.some((fragment) => rawMessage.includes(fragment));
 };
 
 const shouldRefreshMediaConnection = (error) => {
   const rawMessage = `${error?.message || ''} ${error?.data?.message || ''}`.toLowerCase();
-  return (
-    rawMessage.includes('media') ||
-    rawMessage.includes('directpath') ||
-    rawMessage.includes('upload')
-  );
+  return rawMessage.includes('media') || rawMessage.includes('directpath') || rawMessage.includes('upload');
 };
 
 /**
@@ -190,9 +128,7 @@ export async function sendAndStore(sock, jid, content, options) {
 
   if (!hasKnownAnyMessageContentShape(content)) {
     const payloadKeys = isPlainObject(content) ? Object.keys(content).slice(0, 10) : [];
-    throw new TypeError(
-      `Payload de mensagem inválido. Chaves recebidas: ${payloadKeys.join(', ') || 'nenhuma'}`,
-    );
+    throw new TypeError(`Payload de mensagem inválido. Chaves recebidas: ${payloadKeys.join(', ') || 'nenhuma'}`);
   }
 
   const normalizedOptions = normalizeSendOptions(options);

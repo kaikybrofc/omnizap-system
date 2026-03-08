@@ -17,9 +17,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   color: var(--text-main);
-  background:
-    radial-gradient(44rem 22rem at 8% -16%, rgba(72, 132, 220, 0.2), transparent 65%),
-    linear-gradient(180deg, #070d18 0%, #081122 100%);
+  background: radial-gradient(44rem 22rem at 8% -16%, rgba(72, 132, 220, 0.2), transparent 65%), linear-gradient(180deg, #070d18 0%, #081122 100%);
 }
 
 [hidden] {

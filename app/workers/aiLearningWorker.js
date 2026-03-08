@@ -1,11 +1,6 @@
 import OpenAI from 'openai';
 import logger from '../../utils/logger/loggerModule.js';
-import {
-  insertLearnedKeywords,
-  insertLearnedPatterns,
-  listPendingLearningEvents,
-  markLearningEventsProcessed,
-} from '../services/aiLearningRepository.js';
+import { insertLearnedKeywords, insertLearnedPatterns, listPendingLearningEvents, markLearningEventsProcessed } from '../services/aiLearningRepository.js';
 import { markToolCandidateLearningCacheDirty } from '../services/toolCandidateSelectorService.js';
 
 const DEFAULT_INTERVAL_MS = 10 * 60 * 1000;
@@ -30,38 +25,12 @@ const parseEnvInt = (value, fallback, min, max) => {
 };
 
 const AI_LEARNING_WORKER_ENABLED = parseEnvBool(process.env.AI_LEARNING_WORKER_ENABLED, true);
-const AI_LEARNING_WORKER_INTERVAL_MS = parseEnvInt(
-  process.env.AI_LEARNING_WORKER_INTERVAL_MS,
-  DEFAULT_INTERVAL_MS,
-  60_000,
-  24 * 60 * 60 * 1000,
-);
-const AI_LEARNING_WORKER_BATCH_SIZE = parseEnvInt(
-  process.env.AI_LEARNING_WORKER_BATCH_SIZE,
-  DEFAULT_BATCH_SIZE,
-  1,
-  200,
-);
-const AI_LEARNING_WORKER_TIMEOUT_MS = parseEnvInt(
-  process.env.AI_LEARNING_WORKER_TIMEOUT_MS,
-  DEFAULT_TIMEOUT_MS,
-  5_000,
-  60_000,
-);
-const AI_LEARNING_WORKER_MODEL =
-  String(process.env.AI_LEARNING_WORKER_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
-const AI_LEARNING_WORKER_MAX_PATTERNS = parseEnvInt(
-  process.env.AI_LEARNING_WORKER_MAX_PATTERNS,
-  DEFAULT_MAX_PATTERNS_PER_EVENT,
-  1,
-  12,
-);
-const AI_LEARNING_WORKER_MAX_KEYWORDS = parseEnvInt(
-  process.env.AI_LEARNING_WORKER_MAX_KEYWORDS,
-  DEFAULT_MAX_KEYWORDS_PER_EVENT,
-  3,
-  30,
-);
+const AI_LEARNING_WORKER_INTERVAL_MS = parseEnvInt(process.env.AI_LEARNING_WORKER_INTERVAL_MS, DEFAULT_INTERVAL_MS, 60_000, 24 * 60 * 60 * 1000);
+const AI_LEARNING_WORKER_BATCH_SIZE = parseEnvInt(process.env.AI_LEARNING_WORKER_BATCH_SIZE, DEFAULT_BATCH_SIZE, 1, 200);
+const AI_LEARNING_WORKER_TIMEOUT_MS = parseEnvInt(process.env.AI_LEARNING_WORKER_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, 5_000, 60_000);
+const AI_LEARNING_WORKER_MODEL = String(process.env.AI_LEARNING_WORKER_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+const AI_LEARNING_WORKER_MAX_PATTERNS = parseEnvInt(process.env.AI_LEARNING_WORKER_MAX_PATTERNS, DEFAULT_MAX_PATTERNS_PER_EVENT, 1, 12);
+const AI_LEARNING_WORKER_MAX_KEYWORDS = parseEnvInt(process.env.AI_LEARNING_WORKER_MAX_KEYWORDS, DEFAULT_MAX_KEYWORDS_PER_EVENT, 3, 30);
 
 let schedulerHandle = null;
 let schedulerStarted = false;
@@ -144,18 +113,7 @@ const isWorkerReady = () => {
   return true;
 };
 
-const buildWorkerSystemPrompt = () =>
-  [
-    'Voce recebe um comando existente e a pergunta real do usuario.',
-    'Sua tarefa e minerar variacoes semanticas para aprendizado.',
-    'Nunca invente novos comandos, nomes de tools ou parametros de execucao.',
-    'Retorne SOMENTE JSON valido no formato:',
-    '{"alternative_phrases":[],"semantic_keywords":[],"intent_description":"","possible_intents":[],"confidence":0.0}',
-    'alternative_phrases: frases curtas no idioma do usuario.',
-    'semantic_keywords: termos importantes (sem comandos).',
-    'possible_intents: intencoes curtas e genericas.',
-    'confidence: numero de 0.0 a 1.0 para qualidade do aprendizado.',
-  ].join(' ');
+const buildWorkerSystemPrompt = () => ['Voce recebe um comando existente e a pergunta real do usuario.', 'Sua tarefa e minerar variacoes semanticas para aprendizado.', 'Nunca invente novos comandos, nomes de tools ou parametros de execucao.', 'Retorne SOMENTE JSON valido no formato:', '{"alternative_phrases":[],"semantic_keywords":[],"intent_description":"","possible_intents":[],"confidence":0.0}', 'alternative_phrases: frases curtas no idioma do usuario.', 'semantic_keywords: termos importantes (sem comandos).', 'possible_intents: intencoes curtas e genericas.', 'confidence: numero de 0.0 a 1.0 para qualidade do aprendizado.'].join(' ');
 
 const generateLearningArtifacts = async (event) => {
   const client = getOpenAIClient();
@@ -170,15 +128,7 @@ const generateLearningArtifacts = async (event) => {
       },
       {
         role: 'user',
-        content: [
-          `Command: ${event.tool_executed}`,
-          `User question: "${event.user_question}"`,
-          `Normalized question: "${event.normalized_question}"`,
-          '',
-          `Generate up to ${AI_LEARNING_WORKER_MAX_PATTERNS} alternative user phrases,`,
-          `up to ${AI_LEARNING_WORKER_MAX_KEYWORDS} semantic keywords,`,
-          'and a short intent description.',
-        ].join('\n'),
+        content: [`Command: ${event.tool_executed}`, `User question: "${event.user_question}"`, `Normalized question: "${event.normalized_question}"`, '', `Generate up to ${AI_LEARNING_WORKER_MAX_PATTERNS} alternative user phrases,`, `up to ${AI_LEARNING_WORKER_MAX_KEYWORDS} semantic keywords,`, 'and a short intent description.'].join('\n'),
       },
     ],
   });
@@ -187,14 +137,8 @@ const generateLearningArtifacts = async (event) => {
   const rawJson = extractTextFromAssistantMessage(message);
   const parsed = parseJsonSafe(rawJson) || {};
 
-  const rawPatterns = uniqueList(parsed?.alternative_phrases || []).slice(
-    0,
-    AI_LEARNING_WORKER_MAX_PATTERNS,
-  );
-  const rawKeywords = uniqueList(parsed?.semantic_keywords || []).slice(
-    0,
-    AI_LEARNING_WORKER_MAX_KEYWORDS,
-  );
+  const rawPatterns = uniqueList(parsed?.alternative_phrases || []).slice(0, AI_LEARNING_WORKER_MAX_PATTERNS);
+  const rawKeywords = uniqueList(parsed?.semantic_keywords || []).slice(0, AI_LEARNING_WORKER_MAX_KEYWORDS);
 
   const patterns = rawPatterns.map((value) => sanitizePattern(value)).filter(Boolean);
   const keywords = rawKeywords.map((value) => sanitizeKeyword(value)).filter(Boolean);

@@ -1,67 +1,19 @@
 import { randomUUID, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { URLSearchParams } from 'node:url';
 
-import {
-  parseAdminModeratorUpsertPayload,
-  parseAdminSessionPasswordPayload,
-} from '../../auth/validation/authSchemas.js';
+import { parseAdminModeratorUpsertPayload, parseAdminSessionPasswordPayload } from '../../auth/validation/authSchemas.js';
 
-export const createStickerCatalogAdminHandlers = ({
-  executeQuery,
-  tables,
-  logger,
-  sendJson,
-  readJsonBody,
-  parseCookies,
-  getCookieValuesFromRequest,
-  appendSetCookie,
-  buildCookieString,
-  sanitizeText,
-  normalizeGoogleSubject,
-  normalizeEmail,
-  normalizeJid,
-  toIsoOrNull,
-  toWhatsAppPhoneDigits,
-  mapGoogleSessionResponseData,
-  resolveGoogleWebSessionFromRequest,
-  revokeGoogleWebSessionsByIdentity,
-  getMarketplaceGlobalStatsCached,
-  getSystemSummaryCached,
-  getFeatureFlagsSnapshot,
-  refreshFeatureFlags,
-  listAdminBans,
-  createAdminBanRecord,
-  revokeAdminBanRecord,
-  normalizeVisitPath,
-  stickerWebPath,
-  findStickerPackByPackKey,
-  stickerPackService,
-  buildManagedPackResponseData,
-  sendManagedMutationStatus,
-  sendManagedPackMutationStatus,
-  deleteManagedPackWithCleanup,
-  mapStickerPackWebManageError,
-  cleanupOrphanStickerAssets,
-  invalidateStickerCatalogDerivedCaches,
-}) => {
+export const createStickerCatalogAdminHandlers = ({ executeQuery, tables, logger, sendJson, readJsonBody, parseCookies, getCookieValuesFromRequest, appendSetCookie, buildCookieString, sanitizeText, normalizeGoogleSubject, normalizeEmail, normalizeJid, toIsoOrNull, toWhatsAppPhoneDigits, mapGoogleSessionResponseData, resolveGoogleWebSessionFromRequest, revokeGoogleWebSessionsByIdentity, getMarketplaceGlobalStatsCached, getSystemSummaryCached, getFeatureFlagsSnapshot, refreshFeatureFlags, listAdminBans, createAdminBanRecord, revokeAdminBanRecord, normalizeVisitPath, stickerWebPath, findStickerPackByPackKey, stickerPackService, buildManagedPackResponseData, sendManagedMutationStatus, sendManagedPackMutationStatus, deleteManagedPackWithCleanup, mapStickerPackWebManageError, cleanupOrphanStickerAssets, invalidateStickerCatalogDerivedCaches }) => {
   const TABLES = tables;
   const STICKER_WEB_PATH = String(stickerWebPath || '/stickers').trim() || '/stickers';
 
   const ADMIN_PANEL_EMAIL = String(process.env.ADM_EMAIL || '')
     .trim()
     .toLowerCase();
-  const ADMIN_PANEL_PASSWORD = String(
-    process.env.ADM_PANEL_PASSWORD || process.env.ADM_PANEL || '',
-  ).trim();
+  const ADMIN_PANEL_PASSWORD = String(process.env.ADM_PANEL_PASSWORD || process.env.ADM_PANEL || '').trim();
   const ADMIN_PANEL_ENABLED = Boolean(ADMIN_PANEL_EMAIL && ADMIN_PANEL_PASSWORD);
-  const ADMIN_PANEL_SESSION_TTL_MS = Math.max(
-    10 * 60 * 1000,
-    Number(process.env.ADM_PANEL_SESSION_TTL_MS) || 12 * 60 * 60 * 1000,
-  );
-  const ADMIN_MODERATOR_PASSWORD_MIN_LENGTH = Math.max(
-    6,
-    Number(process.env.ADM_MODERATOR_PASSWORD_MIN_LENGTH) || 8,
-  );
+  const ADMIN_PANEL_SESSION_TTL_MS = Math.max(10 * 60 * 1000, Number(process.env.ADM_PANEL_SESSION_TTL_MS) || 12 * 60 * 60 * 1000);
+  const ADMIN_MODERATOR_PASSWORD_MIN_LENGTH = Math.max(6, Number(process.env.ADM_MODERATOR_PASSWORD_MIN_LENGTH) || 8);
   const ADMIN_PANEL_SESSION_COOKIE_NAME = 'omnizap_admin_panel_session';
 
   const adminPanelSessionMap = new Map();
@@ -159,11 +111,7 @@ export const createStickerCatalogAdminHandlers = ({
     return Array.isArray(rows) && rows[0] ? rows[0] : null;
   };
 
-  const resolveKnownGoogleUserForModerator = async ({
-    googleSub = '',
-    email = '',
-    ownerJid = '',
-  } = {}) => {
+  const resolveKnownGoogleUserForModerator = async ({ googleSub = '', email = '', ownerJid = '' } = {}) => {
     const normalizedSub = normalizeGoogleSubject(googleSub);
     const normalizedEmail = normalizeEmail(email);
     const normalizedOwnerJid = normalizeJid(ownerJid) || '';
@@ -206,11 +154,7 @@ export const createStickerCatalogAdminHandlers = ({
     };
   };
 
-  const findActiveAdminModeratorForIdentity = async ({
-    googleSub = '',
-    email = '',
-    ownerJid = '',
-  } = {}) => {
+  const findActiveAdminModeratorForIdentity = async ({ googleSub = '', email = '', ownerJid = '' } = {}) => {
     const normalizedSub = normalizeGoogleSubject(googleSub);
     const normalizedEmail = normalizeEmail(email);
     const normalizedOwnerJid = normalizeJid(ownerJid) || '';
@@ -253,28 +197,16 @@ export const createStickerCatalogAdminHandlers = ({
       const sessionSub = normalizeGoogleSubject(session.googleSub);
       const sessionEmail = normalizeEmail(session.email);
       const sessionOwner = normalizeJid(session.ownerJid) || '';
-      if (
-        (normalizedSub && sessionSub === normalizedSub) ||
-        (normalizedEmail && sessionEmail === normalizedEmail) ||
-        (normalizedOwnerJid && sessionOwner === normalizedOwnerJid)
-      ) {
+      if ((normalizedSub && sessionSub === normalizedSub) || (normalizedEmail && sessionEmail === normalizedEmail) || (normalizedOwnerJid && sessionOwner === normalizedOwnerJid)) {
         adminPanelSessionMap.delete(token);
       }
     }
   };
 
-  const upsertAdminModeratorRecord = async ({
-    googleSub = '',
-    email = '',
-    ownerJid = '',
-    password = '',
-    adminSession = null,
-  }) => {
+  const upsertAdminModeratorRecord = async ({ googleSub = '', email = '', ownerJid = '', password = '', adminSession = null }) => {
     const cleanPassword = String(password || '').trim();
     if (cleanPassword.length < ADMIN_MODERATOR_PASSWORD_MIN_LENGTH) {
-      const error = new Error(
-        `Senha do moderador deve ter no minimo ${ADMIN_MODERATOR_PASSWORD_MIN_LENGTH} caracteres.`,
-      );
+      const error = new Error(`Senha do moderador deve ter no minimo ${ADMIN_MODERATOR_PASSWORD_MIN_LENGTH} caracteres.`);
       error.statusCode = 400;
       throw error;
     }
@@ -300,17 +232,7 @@ export const createStickerCatalogAdminHandlers = ({
       updated_by_google_sub = VALUES(updated_by_google_sub),
       updated_by_email = VALUES(updated_by_email),
       revoked_at = NULL`,
-      [
-        knownUser.google_sub,
-        knownUser.email,
-        knownUser.owner_jid,
-        knownUser.name || null,
-        passwordHash,
-        normalizeGoogleSubject(adminSession?.googleSub) || null,
-        normalizeEmail(adminSession?.email) || null,
-        normalizeGoogleSubject(adminSession?.googleSub) || null,
-        normalizeEmail(adminSession?.email) || null,
-      ],
+      [knownUser.google_sub, knownUser.email, knownUser.owner_jid, knownUser.name || null, passwordHash, normalizeGoogleSubject(adminSession?.googleSub) || null, normalizeEmail(adminSession?.email) || null, normalizeGoogleSubject(adminSession?.googleSub) || null, normalizeEmail(adminSession?.email) || null],
     );
 
     pruneModeratorAdminPanelSessions({
@@ -340,11 +262,7 @@ export const createStickerCatalogAdminHandlers = ({
             updated_by_google_sub = ?,
             updated_by_email = ?
       WHERE google_sub = ?`,
-      [
-        normalizeGoogleSubject(adminSession?.googleSub) || null,
-        normalizeEmail(adminSession?.email) || null,
-        normalizedSub,
-      ],
+      [normalizeGoogleSubject(adminSession?.googleSub) || null, normalizeEmail(adminSession?.email) || null, normalizedSub],
     );
 
     const fresh = await findAdminModeratorByGoogleSub(normalizedSub);
@@ -375,15 +293,7 @@ export const createStickerCatalogAdminHandlers = ({
             updated_by_google_sub = ?,
             updated_by_email = ?
       WHERE google_sub = ?`,
-      [
-        normalizeEmail(googleSession?.email || moderatorRow?.email) || null,
-        normalizeJid(googleSession?.ownerJid || moderatorRow?.owner_jid) || null,
-        sanitizeText(googleSession?.name || moderatorRow?.name || '', 120, { allowEmpty: true }) ||
-          null,
-        normalizeGoogleSubject(googleSession?.sub || moderatorRow?.google_sub) || null,
-        normalizeEmail(googleSession?.email || moderatorRow?.email) || null,
-        normalizedSub,
-      ],
+      [normalizeEmail(googleSession?.email || moderatorRow?.email) || null, normalizeJid(googleSession?.ownerJid || moderatorRow?.owner_jid) || null, sanitizeText(googleSession?.name || moderatorRow?.name || '', 120, { allowEmpty: true }) || null, normalizeGoogleSubject(googleSession?.sub || moderatorRow?.google_sub) || null, normalizeEmail(googleSession?.email || moderatorRow?.email) || null, normalizedSub],
     ).catch(() => {});
   };
 
@@ -546,14 +456,7 @@ export const createStickerCatalogAdminHandlers = ({
       .replace(/[^a-z0-9_:-]/g, '_')
       .slice(0, max);
 
-  const createAdminActionAuditEvent = async ({
-    adminSession = null,
-    action = '',
-    targetType = '',
-    targetId = '',
-    status = 'success',
-    details = null,
-  } = {}) => {
+  const createAdminActionAuditEvent = async ({ adminSession = null, action = '', targetType = '', targetId = '', status = 'success', details = null } = {}) => {
     const normalizedAction = sanitizeAuditActionText(action, 96);
     if (!normalizedAction) return false;
     const normalizedTargetType = sanitizeAuditActionText(targetType, 64) || null;
@@ -580,18 +483,7 @@ export const createStickerCatalogAdminHandlers = ({
           details
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          randomUUID(),
-          adminRole,
-          adminGoogleSub,
-          adminEmail,
-          adminOwnerJid,
-          normalizedAction,
-          normalizedTargetType,
-          sanitizeText(targetId || '', 255, { allowEmpty: true }) || null,
-          normalizedStatus,
-          detailsJson,
-        ],
+        [randomUUID(), adminRole, adminGoogleSub, adminEmail, adminOwnerJid, normalizedAction, normalizedTargetType, sanitizeText(targetId || '', 255, { allowEmpty: true }) || null, normalizedStatus, detailsJson],
       );
       return true;
     } catch (error) {
@@ -684,13 +576,7 @@ export const createStickerCatalogAdminHandlers = ({
     }
   };
 
-  const upsertAdminFeatureFlagRecord = async ({
-    adminSession = null,
-    flagName = '',
-    isEnabled = false,
-    rolloutPercent = 100,
-    description = '',
-  } = {}) => {
+  const upsertAdminFeatureFlagRecord = async ({ adminSession = null, flagName = '', isEnabled = false, rolloutPercent = 100, description = '' } = {}) => {
     const normalizedFlagName = sanitizeAuditActionText(flagName, 120);
     if (!normalizedFlagName) {
       const error = new Error('flag_name invalido.');
@@ -699,12 +585,8 @@ export const createStickerCatalogAdminHandlers = ({
     }
     const normalizedRollout = Math.max(0, Math.min(100, Math.floor(Number(rolloutPercent) || 0)));
     const normalizedEnabled = isEnabled ? 1 : 0;
-    const normalizedDescription =
-      sanitizeText(description || '', 255, { allowEmpty: true }) || null;
-    const updatedBy =
-      normalizeEmail(adminSession?.email) ||
-      normalizeGoogleSubject(adminSession?.googleSub) ||
-      'admin';
+    const normalizedDescription = sanitizeText(description || '', 255, { allowEmpty: true }) || null;
+    const updatedBy = normalizeEmail(adminSession?.email) || normalizeGoogleSubject(adminSession?.googleSub) || 'admin';
 
     await executeQuery(
       `INSERT INTO ${TABLES.FEATURE_FLAG}
@@ -716,13 +598,7 @@ export const createStickerCatalogAdminHandlers = ({
       description = COALESCE(VALUES(description), description),
       updated_by = VALUES(updated_by),
       updated_at = CURRENT_TIMESTAMP`,
-      [
-        normalizedFlagName,
-        normalizedEnabled,
-        normalizedRollout,
-        normalizedDescription,
-        sanitizeText(updatedBy, 120, { allowEmpty: true }) || null,
-      ],
+      [normalizedFlagName, normalizedEnabled, normalizedRollout, normalizedDescription, sanitizeText(updatedBy, 120, { allowEmpty: true }) || null],
     );
 
     await refreshFeatureFlags({ force: true }).catch(() => {});
@@ -735,14 +611,9 @@ export const createStickerCatalogAdminHandlers = ({
     );
     const row = Array.isArray(rows) ? rows[0] : null;
     return {
-      flag_name:
-        sanitizeText(row?.flag_name || normalizedFlagName, 120, { allowEmpty: false }) ||
-        normalizedFlagName,
+      flag_name: sanitizeText(row?.flag_name || normalizedFlagName, 120, { allowEmpty: false }) || normalizedFlagName,
       is_enabled: Number(row?.is_enabled || 0) === 1,
-      rollout_percent: Math.max(
-        0,
-        Math.min(100, Number(row?.rollout_percent ?? normalizedRollout)),
-      ),
+      rollout_percent: Math.max(0, Math.min(100, Number(row?.rollout_percent ?? normalizedRollout))),
       description: sanitizeText(row?.description || '', 255, { allowEmpty: true }) || null,
       updated_by: sanitizeText(row?.updated_by || '', 120, { allowEmpty: true }) || null,
       updated_at: toIsoOrNull(row?.updated_at) || new Date().toISOString(),
@@ -807,10 +678,7 @@ export const createStickerCatalogAdminHandlers = ({
         const isAntiLink = processingResult === 'blocked_antilink';
         const title = isAntiLink ? 'Anti-link bloqueou mensagem' : 'Tentativa suspeita detectada';
         const severity = isAntiLink ? 'medium' : 'high';
-        const sender =
-          sanitizeText(row?.sender_name || row?.sender_id || '', 120, { allowEmpty: true }) ||
-          String(row?.sender_id || '').trim() ||
-          'desconhecido';
+        const sender = sanitizeText(row?.sender_name || row?.sender_id || '', 120, { allowEmpty: true }) || String(row?.sender_id || '').trim() || 'desconhecido';
         const chatId = String(row?.chat_id || '').trim() || 'chat_desconhecido';
         return {
           id: `mae:${row?.id || ''}`,
@@ -836,10 +704,7 @@ export const createStickerCatalogAdminHandlers = ({
   };
 
   const buildModerationQueueSnapshot = async ({ limit = 50 } = {}) => {
-    const [analysisEvents, bans] = await Promise.all([
-      listRecentModerationEvents({ limit: Math.max(10, limit) }),
-      listAdminBans({ activeOnly: false, limit: Math.max(10, Math.floor(limit / 2)) }),
-    ]);
+    const [analysisEvents, bans] = await Promise.all([listRecentModerationEvents({ limit: Math.max(10, limit) }), listAdminBans({ activeOnly: false, limit: Math.max(10, Math.floor(limit / 2)) })]);
 
     const banEvents = (Array.isArray(bans) ? bans : []).map((ban) => ({
       id: `ban:${ban?.id || ''}`,
@@ -892,12 +757,7 @@ export const createStickerCatalogAdminHandlers = ({
     };
   };
 
-  const buildAdminAlertSnapshot = ({
-    dashboardQuick = null,
-    systemHealth = null,
-    systemSummary = null,
-    systemMeta = null,
-  } = {}) => {
+  const buildAdminAlertSnapshot = ({ dashboardQuick = null, systemHealth = null, systemSummary = null, systemMeta = null } = {}) => {
     const alerts = [];
     const updatedAt = toIsoOrNull(systemSummary?.updated_at) || new Date().toISOString();
     const pushAlert = (severity, code, title, message) => {
@@ -917,52 +777,22 @@ export const createStickerCatalogAdminHandlers = ({
     }
 
     if (Number.isFinite(systemHealth?.cpu_percent) && systemHealth.cpu_percent >= 90) {
-      pushAlert(
-        'high',
-        'cpu_high',
-        'CPU alta',
-        `Uso de CPU em ${systemHealth.cpu_percent.toFixed(1)}%.`,
-      );
+      pushAlert('high', 'cpu_high', 'CPU alta', `Uso de CPU em ${systemHealth.cpu_percent.toFixed(1)}%.`);
     }
     if (Number.isFinite(systemHealth?.ram_percent) && systemHealth.ram_percent >= 90) {
-      pushAlert(
-        'high',
-        'ram_high',
-        'RAM alta',
-        `Uso de RAM em ${systemHealth.ram_percent.toFixed(1)}%.`,
-      );
+      pushAlert('high', 'ram_high', 'RAM alta', `Uso de RAM em ${systemHealth.ram_percent.toFixed(1)}%.`);
     }
     if (Number.isFinite(systemHealth?.queue_pending) && systemHealth.queue_pending >= 100) {
-      pushAlert(
-        'medium',
-        'queue_high',
-        'Fila pendente alta',
-        `Backlog detectado (${Math.round(systemHealth.queue_pending)}).`,
-      );
+      pushAlert('medium', 'queue_high', 'Fila pendente alta', `Backlog detectado (${Math.round(systemHealth.queue_pending)}).`);
     }
     if (Number.isFinite(dashboardQuick?.errors_5xx) && dashboardQuick.errors_5xx > 0) {
-      pushAlert(
-        'medium',
-        'http_5xx',
-        'Erros HTTP 5xx detectados',
-        `${Math.round(dashboardQuick.errors_5xx)} eventos 5xx desde o boot de métricas.`,
-      );
+      pushAlert('medium', 'http_5xx', 'Erros HTTP 5xx detectados', `${Math.round(dashboardQuick.errors_5xx)} eventos 5xx desde o boot de métricas.`);
     }
     if (systemMeta?.platform_error) {
-      pushAlert(
-        'high',
-        'db_platform_error',
-        'Erro de banco/plataforma',
-        String(systemMeta.platform_error).slice(0, 200),
-      );
+      pushAlert('high', 'db_platform_error', 'Erro de banco/plataforma', String(systemMeta.platform_error).slice(0, 200));
     }
     if (systemMeta?.metrics_error) {
-      pushAlert(
-        'low',
-        'metrics_unavailable',
-        'Métricas indisponíveis',
-        String(systemMeta.metrics_error).slice(0, 200),
-      );
+      pushAlert('low', 'metrics_unavailable', 'Métricas indisponíveis', String(systemMeta.metrics_error).slice(0, 200));
     }
 
     return alerts;
@@ -1067,9 +897,7 @@ export const createStickerCatalogAdminHandlers = ({
     const params = [];
     const where = ['p.deleted_at IS NULL'];
     if (q) {
-      where.push(
-        '(p.pack_key LIKE ? OR p.name LIKE ? OR p.publisher LIKE ? OR p.owner_jid LIKE ?)',
-      );
+      where.push('(p.pack_key LIKE ? OR p.name LIKE ? OR p.publisher LIKE ? OR p.owner_jid LIKE ?)');
       const like = `%${q}%`;
       params.push(like, like, like, like);
     }
@@ -1128,21 +956,7 @@ export const createStickerCatalogAdminHandlers = ({
   };
 
   const buildAdminOverviewPayload = async ({ adminSession = null } = {}) => {
-    const [
-      marketplaceStats,
-      activeSessions,
-      knownUsers,
-      bans,
-      packsCountRows,
-      stickersCountRows,
-      recentPacks,
-      visitSummary,
-      systemSummaryPayload,
-      messageFlowDaily,
-      moderationQueue,
-      auditLog,
-      featureFlags,
-    ] = await Promise.all([
+    const [marketplaceStats, activeSessions, knownUsers, bans, packsCountRows, stickersCountRows, recentPacks, visitSummary, systemSummaryPayload, messageFlowDaily, moderationQueue, auditLog, featureFlags] = await Promise.all([
       getMarketplaceGlobalStatsCached().catch(() => null),
       listAdminActiveGoogleWebSessions({ limit: 80 }),
       listAdminKnownGoogleUsers({ limit: 120 }),
@@ -1381,10 +1195,7 @@ export const createStickerCatalogAdminHandlers = ({
       return;
     }
     const limit = Math.max(1, Math.min(500, Number(url?.searchParams?.get('limit') || 200)));
-    const [activeSessions, users] = await Promise.all([
-      listAdminActiveGoogleWebSessions({ limit }),
-      listAdminKnownGoogleUsers({ limit }),
-    ]);
+    const [activeSessions, users] = await Promise.all([listAdminActiveGoogleWebSessions({ limit }), listAdminKnownGoogleUsers({ limit })]);
     sendJson(req, res, 200, { data: { active_sessions: activeSessions, users } });
   };
 
@@ -1579,8 +1390,7 @@ export const createStickerCatalogAdminHandlers = ({
           ).catch(() => ({ affectedRows: 0 })),
         ]);
 
-        const released =
-          Number(tasksResult?.affectedRows || 0) + Number(reprocessResult?.affectedRows || 0);
+        const released = Number(tasksResult?.affectedRows || 0) + Number(reprocessResult?.affectedRows || 0);
         await createAdminActionAuditEvent({
           adminSession,
           action: 'ops_restart_worker',
@@ -1597,10 +1407,7 @@ export const createStickerCatalogAdminHandlers = ({
             action,
             success: true,
             released_processing_items: released,
-            message:
-              released > 0
-                ? 'Itens em processamento foram recolocados em pending.'
-                : 'Nenhum item travado encontrado nas filas.',
+            message: released > 0 ? 'Itens em processamento foram recolocados em pending.' : 'Nenhum item travado encontrado nas filas.',
             updated_at: new Date().toISOString(),
           },
         });
@@ -1610,10 +1417,7 @@ export const createStickerCatalogAdminHandlers = ({
       if (action === 'reprocess_jobs') {
         const payloadJson = JSON.stringify({
           source: 'admin_panel',
-          requested_by:
-            normalizeEmail(adminSession?.email) ||
-            normalizeGoogleSubject(adminSession?.googleSub) ||
-            'admin',
+          requested_by: normalizeEmail(adminSession?.email) || normalizeGoogleSubject(adminSession?.googleSub) || 'admin',
           requested_at: new Date().toISOString(),
         });
         await executeQuery(
@@ -1734,9 +1538,7 @@ export const createStickerCatalogAdminHandlers = ({
 
     const groups = (Array.isArray(groupsRows) ? groupsRows : []).map((row) => ({
       id: String(row?.id || '').trim(),
-      subject:
-        sanitizeText(row?.subject || row?.id || '', 255, { allowEmpty: true }) ||
-        String(row?.id || '').trim(),
+      subject: sanitizeText(row?.subject || row?.id || '', 255, { allowEmpty: true }) || String(row?.id || '').trim(),
       owner_jid: normalizeJid(row?.owner_jid) || null,
       updated_at: toIsoOrNull(row?.updated_at),
     }));
@@ -1841,29 +1643,18 @@ export const createStickerCatalogAdminHandlers = ({
     let rows = [];
 
     if (type === 'events') {
-      headers = [
-        'section',
-        'id',
-        'event_type',
-        'severity',
-        'title',
-        'subtitle',
-        'status',
-        'created_at',
-      ];
+      headers = ['section', 'id', 'event_type', 'severity', 'title', 'subtitle', 'status', 'created_at'];
       rows = [
-        ...(Array.isArray(exportData?.moderation_queue) ? exportData.moderation_queue : []).map(
-          (item) => ({
-            section: 'moderation_queue',
-            id: item?.id || '',
-            event_type: item?.event_type || '',
-            severity: item?.severity || '',
-            title: item?.title || '',
-            subtitle: item?.subtitle || '',
-            status: item?.revoked_at ? 'revoked' : item?.status || '',
-            created_at: item?.created_at || item?.revoked_at || '',
-          }),
-        ),
+        ...(Array.isArray(exportData?.moderation_queue) ? exportData.moderation_queue : []).map((item) => ({
+          section: 'moderation_queue',
+          id: item?.id || '',
+          event_type: item?.event_type || '',
+          severity: item?.severity || '',
+          title: item?.title || '',
+          subtitle: item?.subtitle || '',
+          status: item?.revoked_at ? 'revoked' : item?.status || '',
+          created_at: item?.created_at || item?.revoked_at || '',
+        })),
         ...(Array.isArray(exportData?.audit_log) ? exportData.audit_log : []).map((item) => ({
           section: 'audit_log',
           id: item?.id || '',
@@ -1874,18 +1665,16 @@ export const createStickerCatalogAdminHandlers = ({
           status: item?.status || '',
           created_at: item?.created_at || '',
         })),
-        ...(Array.isArray(exportData?.blocked_accounts) ? exportData.blocked_accounts : []).map(
-          (item) => ({
-            section: 'blocked_accounts',
-            id: item?.id || '',
-            event_type: 'ban',
-            severity: item?.revoked_at ? 'low' : 'critical',
-            title: item?.email || item?.owner_jid || item?.google_sub || '',
-            subtitle: item?.reason || '',
-            status: item?.revoked_at ? 'revoked' : 'active',
-            created_at: item?.created_at || '',
-          }),
-        ),
+        ...(Array.isArray(exportData?.blocked_accounts) ? exportData.blocked_accounts : []).map((item) => ({
+          section: 'blocked_accounts',
+          id: item?.id || '',
+          event_type: 'ban',
+          severity: item?.revoked_at ? 'low' : 'critical',
+          title: item?.email || item?.owner_jid || item?.google_sub || '',
+          subtitle: item?.reason || '',
+          status: item?.revoked_at ? 'revoked' : 'active',
+          created_at: item?.created_at || '',
+        })),
       ];
     } else {
       headers = ['section', 'key', 'value'];
@@ -2044,8 +1833,7 @@ export const createStickerCatalogAdminHandlers = ({
       return;
     }
     const context = await findAdminPackContextByKey(packKey);
-    const normalizedPackKey =
-      sanitizeText(packKey, 160, { allowEmpty: false }) || String(packKey || '');
+    const normalizedPackKey = sanitizeText(packKey, 160, { allowEmpty: false }) || String(packKey || '');
     if (!context?.fullPack) {
       sendManagedMutationStatus(req, res, 'already_deleted', {
         deleted: false,

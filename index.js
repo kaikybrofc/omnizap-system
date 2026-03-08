@@ -20,46 +20,18 @@ import 'dotenv/config';
 import logger from './utils/logger/loggerModule.js';
 import { connectToWhatsApp, getActiveSocket } from './app/connection/socketController.js';
 import { backfillLidMapFromMessagesOnce } from './app/services/lidMapService.js';
-import {
-  initializeNewsBroadcastService,
-  stopNewsBroadcastService,
-} from './app/services/newsBroadcastService.js';
+import { initializeNewsBroadcastService, stopNewsBroadcastService } from './app/services/newsBroadcastService.js';
 import initializeDatabase from './database/init.js';
 import { startHttpServer, stopHttpServer } from './server/index.js';
-import {
-  startEmailAutomationRuntime,
-  stopEmailAutomationRuntime,
-} from './server/email/emailAutomationRuntime.js';
-import {
-  startStickerClassificationBackground,
-  stopStickerClassificationBackground,
-} from './app/modules/stickerPackModule/stickerClassificationBackgroundRuntime.js';
-import {
-  startStickerAutoPackByTagsBackground,
-  stopStickerAutoPackByTagsBackground,
-} from './app/modules/stickerPackModule/stickerAutoPackByTagsRuntime.js';
-import {
-  isStickerWorkerPipelineEnabled,
-  startStickerWorkerPipeline,
-  stopStickerWorkerPipeline,
-} from './app/modules/stickerPackModule/stickerWorkerPipelineRuntime.js';
-import {
-  startStickerPackScoreSnapshotRuntime,
-  stopStickerPackScoreSnapshotRuntime,
-} from './app/modules/stickerPackModule/stickerPackScoreSnapshotRuntime.js';
-import {
-  startStickerDomainEventConsumer,
-  stopStickerDomainEventConsumer,
-} from './app/modules/stickerPackModule/stickerDomainEventConsumerRuntime.js';
+import { startEmailAutomationRuntime, stopEmailAutomationRuntime } from './server/email/emailAutomationRuntime.js';
+import { startStickerClassificationBackground, stopStickerClassificationBackground } from './app/modules/stickerPackModule/stickerClassificationBackgroundRuntime.js';
+import { startStickerAutoPackByTagsBackground, stopStickerAutoPackByTagsBackground } from './app/modules/stickerPackModule/stickerAutoPackByTagsRuntime.js';
+import { isStickerWorkerPipelineEnabled, startStickerWorkerPipeline, stopStickerWorkerPipeline } from './app/modules/stickerPackModule/stickerWorkerPipelineRuntime.js';
+import { startStickerPackScoreSnapshotRuntime, stopStickerPackScoreSnapshotRuntime } from './app/modules/stickerPackModule/stickerPackScoreSnapshotRuntime.js';
+import { startStickerDomainEventConsumer, stopStickerDomainEventConsumer } from './app/modules/stickerPackModule/stickerDomainEventConsumerRuntime.js';
 import { startAiLearningWorker, stopAiLearningWorker } from './app/workers/aiLearningWorker.js';
-import {
-  startCommandConfigEnrichmentWorker,
-  stopCommandConfigEnrichmentWorker,
-} from './app/workers/commandConfigEnrichmentWorker.js';
-import {
-  formatCommandConfigValidationReport,
-  validateAllCommandConfigs,
-} from './app/services/commandConfigValidationService.js';
+import { startCommandConfigEnrichmentWorker, stopCommandConfigEnrichmentWorker } from './app/workers/commandConfigEnrichmentWorker.js';
+import { formatCommandConfigValidationReport, validateAllCommandConfigs } from './app/services/commandConfigValidationService.js';
 
 /**
  * Timeout máximo para inicialização do banco (criar/verificar DB + tabelas).
@@ -110,21 +82,12 @@ let backfillPromise = null;
  * @returns {boolean}
  */
 const isTransientUnhandledRejection = (reason) => {
-  const message =
-    reason instanceof Error
-      ? String(reason.message || '')
-      : typeof reason === 'string'
-        ? reason
-        : String(reason || '');
+  const message = reason instanceof Error ? String(reason.message || '') : typeof reason === 'string' ? reason : String(reason || '');
 
   const normalized = message.trim().toLowerCase();
   if (!normalized) return false;
 
-  return (
-    normalized.includes('rate-overlimit') ||
-    normalized.includes('connection closed') ||
-    normalized.includes('timed out')
-  );
+  return normalized.includes('rate-overlimit') || normalized.includes('connection closed') || normalized.includes('timed out');
 };
 
 /**

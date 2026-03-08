@@ -22,10 +22,7 @@ const sanitizeKey = (value, maxLength = 120) => {
   return normalized || null;
 };
 
-export async function createStickerPackInteractionEvent(
-  { packId, interaction, actorKey = null, sessionKey = null, source = null },
-  connection = null,
-) {
+export async function createStickerPackInteractionEvent({ packId, interaction, actorKey = null, sessionKey = null, source = null }, connection = null) {
   const normalizedInteraction = normalizeInteraction(interaction);
   if (!packId || !normalizedInteraction) return false;
 
@@ -33,23 +30,13 @@ export async function createStickerPackInteractionEvent(
     `INSERT INTO ${TABLES.STICKER_PACK_INTERACTION_EVENT}
       (pack_id, interaction, actor_key, session_key, source)
      VALUES (?, ?, ?, ?, ?)`,
-    [
-      packId,
-      normalizedInteraction,
-      sanitizeKey(actorKey),
-      sanitizeKey(sessionKey),
-      sanitizeKey(source, 32),
-    ],
+    [packId, normalizedInteraction, sanitizeKey(actorKey), sanitizeKey(sessionKey), sanitizeKey(source, 32)],
     connection,
   );
   return true;
 }
 
-export async function listStickerPackInteractionStatsByPackIds(
-  packIds,
-  { horizonHours = 24, baselineDays = 7 } = {},
-  connection = null,
-) {
+export async function listStickerPackInteractionStatsByPackIds(packIds, { horizonHours = 24, baselineDays = 7 } = {}, connection = null) {
   const ids = Array.from(new Set((Array.isArray(packIds) ? packIds : []).filter(Boolean)));
   if (!ids.length) return new Map();
 
@@ -88,11 +75,7 @@ export async function listStickerPackInteractionStatsByPackIds(
   return byPackId;
 }
 
-export async function listViewerRecentPackIds(
-  viewerKey,
-  { days = 30, limit = 120 } = {},
-  connection = null,
-) {
+export async function listViewerRecentPackIds(viewerKey, { days = 30, limit = 120 } = {}, connection = null) {
   const normalizedViewer = sanitizeKey(viewerKey);
   if (!normalizedViewer) return [];
 

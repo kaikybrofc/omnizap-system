@@ -152,15 +152,7 @@
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "arquivo ate PLAY_MAX_MB (padrao 100 MB)",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "link ou termo de busca enviado no comando",
-        "metadados de fila/download retornados pelo servico de midia",
-        "informacoes de tamanho do arquivo para validacao de limite"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "link ou termo de busca enviado no comando", "metadados de fila/download retornados pelo servico de midia", "informacoes de tamanho do arquivo para validacao de limite"],
       "enabled": true,
       "categoria": "midia",
       "subcomandos": [],
@@ -200,11 +192,7 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do chat",
-          "identificador do remetente",
-          "conteudo textual do comando"
-        ],
+        "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
@@ -240,15 +228,7 @@
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "link ou termo de busca enviado no comando",
-        "metadados de fila/download retornados pelo servico de midia",
-        "informacoes de tamanho do arquivo para validacao de limite"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "link ou termo de busca enviado no comando", "metadados de fila/download retornados pelo servico de midia", "informacoes de tamanho do arquivo para validacao de limite"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -332,11 +312,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do chat",
-            "identificador do remetente",
-            "conteudo textual do comando"
-          ],
+          "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -380,21 +356,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "tocar",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     },
     {
@@ -408,15 +370,7 @@
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "arquivo ate PLAY_MAX_MB (padrao 100 MB)",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "link ou termo de busca enviado no comando",
-        "metadados de fila/download retornados pelo servico de midia",
-        "informacoes de tamanho e formato de video para validacao"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "link ou termo de busca enviado no comando", "metadados de fila/download retornados pelo servico de midia", "informacoes de tamanho e formato de video para validacao"],
       "enabled": true,
       "categoria": "midia",
       "subcomandos": [],
@@ -456,21 +410,13 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do chat",
-          "identificador do remetente",
-          "conteudo textual do comando"
-        ],
+        "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": ["tocarvideo", "midia", "privado", "grupo"],
       "faq_patterns": ["como usar tocarvideo", "o que faz tocarvideo", "comando tocarvideo"],
-      "user_phrasings": [
-        "quero usar tocarvideo",
-        "me ajuda com tocarvideo",
-        "baixa video a partir"
-      ],
+      "user_phrasings": ["quero usar tocarvideo", "me ajuda com tocarvideo", "baixa video a partir"],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": true,
@@ -500,15 +446,7 @@
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "link ou termo de busca enviado no comando",
-        "metadados de fila/download retornados pelo servico de midia",
-        "informacoes de tamanho e formato de video para validacao"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "link ou termo de busca enviado no comando", "metadados de fila/download retornados pelo servico de midia", "informacoes de tamanho e formato de video para validacao"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -592,11 +530,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do chat",
-            "identificador do remetente",
-            "conteudo textual do comando"
-          ],
+          "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -604,11 +538,7 @@
       "discovery": {
         "keywords": ["tocarvideo", "midia", "privado", "grupo"],
         "faq_queries": ["como usar tocarvideo", "o que faz tocarvideo", "comando tocarvideo"],
-        "user_phrasings": [
-          "quero usar tocarvideo",
-          "me ajuda com tocarvideo",
-          "baixa video a partir"
-        ],
+        "user_phrasings": ["quero usar tocarvideo", "me ajuda com tocarvideo", "baixa video a partir"],
         "suggestion_priority": 100
       },
       "access": {
@@ -644,21 +574,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "tocarvideo",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     }
   ],

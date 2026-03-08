@@ -22,10 +22,7 @@ const buildLimiter = ({ keyPrefix, windowMs, max }) => {
     handler: (req, res, _next, options) => {
       if (res.writableEnded) return;
       req.__endpointRateLimitBlocked = true;
-      const retryAfterSeconds = Math.max(
-        1,
-        Math.ceil(Number(options?.windowMs || safeWindowMs) / 1000),
-      );
+      const retryAfterSeconds = Math.max(1, Math.ceil(Number(options?.windowMs || safeWindowMs) / 1000));
       res.statusCode = Number(options?.statusCode || 429);
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.setHeader('Retry-After', String(retryAfterSeconds));
@@ -51,34 +48,19 @@ const authLoginLimiter = buildLimiter({
 
 const authPasswordLimiter = buildLimiter({
   keyPrefix: 'auth_password',
-  windowMs: parseNumber(
-    process.env.AUTH_PASSWORD_RATE_LIMIT_WINDOW_MS,
-    60_000,
-    1_000,
-    60 * 60 * 1000,
-  ),
+  windowMs: parseNumber(process.env.AUTH_PASSWORD_RATE_LIMIT_WINDOW_MS, 60_000, 1_000, 60 * 60 * 1000),
   max: parseNumber(process.env.AUTH_PASSWORD_RATE_LIMIT_MAX, 8, 1, 100_000),
 });
 
 const authPasswordRecoveryRequestLimiter = buildLimiter({
   keyPrefix: 'auth_password_recovery_request',
-  windowMs: parseNumber(
-    process.env.AUTH_PASSWORD_RECOVERY_RATE_LIMIT_WINDOW_MS,
-    60_000,
-    1_000,
-    60 * 60 * 1000,
-  ),
+  windowMs: parseNumber(process.env.AUTH_PASSWORD_RECOVERY_RATE_LIMIT_WINDOW_MS, 60_000, 1_000, 60 * 60 * 1000),
   max: parseNumber(process.env.AUTH_PASSWORD_RECOVERY_RATE_LIMIT_MAX, 4, 1, 100_000),
 });
 
 const adminSessionLimiter = buildLimiter({
   keyPrefix: 'admin_session',
-  windowMs: parseNumber(
-    process.env.AUTH_ADMIN_SESSION_RATE_LIMIT_WINDOW_MS,
-    60_000,
-    1_000,
-    60 * 60 * 1000,
-  ),
+  windowMs: parseNumber(process.env.AUTH_ADMIN_SESSION_RATE_LIMIT_WINDOW_MS, 60_000, 1_000, 60 * 60 * 1000),
   max: parseNumber(process.env.AUTH_ADMIN_SESSION_RATE_LIMIT_MAX, 6, 1, 100_000),
 });
 

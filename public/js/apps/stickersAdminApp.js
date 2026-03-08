@@ -68,10 +68,7 @@ const escapeHtml = (value) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const fmtNum = (value) =>
-  new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(
-    Math.max(0, Number(value || 0)),
-  );
+const fmtNum = (value) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(Math.max(0, Number(value || 0)));
 
 const fmtDate = (value) => {
   const raw = String(value || '').trim();
@@ -99,10 +96,7 @@ const getAdminRole = () =>
   String(state.adminStatus?.session?.role || '')
     .trim()
     .toLowerCase();
-const canManageModerators = () =>
-  Boolean(
-    state.adminStatus?.session?.capabilities?.can_manage_moderators || getAdminRole() === 'owner',
-  );
+const canManageModerators = () => Boolean(state.adminStatus?.session?.capabilities?.can_manage_moderators || getAdminRole() === 'owner');
 
 function setToast(type, message, timeoutMs = 3200) {
   const clean = String(message || '').trim();
@@ -175,11 +169,7 @@ function loadScript(src) {
         return;
       }
       existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener(
-        'error',
-        () => reject(new Error(`Falha ao carregar script: ${src}`)),
-        { once: true },
-      );
+      existing.addEventListener('error', () => reject(new Error(`Falha ao carregar script: ${src}`)), { once: true });
       return;
     }
 
@@ -226,10 +216,7 @@ const getOverviewData = () => {
   const overview = state.overview || {};
   return {
     counters: overview?.counters && typeof overview.counters === 'object' ? overview.counters : {},
-    marketplace:
-      overview?.marketplace_stats && typeof overview.marketplace_stats === 'object'
-        ? overview.marketplace_stats
-        : {},
+    marketplace: overview?.marketplace_stats && typeof overview.marketplace_stats === 'object' ? overview.marketplace_stats : {},
     activeSessions: Array.isArray(overview?.active_sessions) ? overview.active_sessions : [],
     users: Array.isArray(overview?.users) ? overview.users : [],
     bans: Array.isArray(overview?.bans) ? overview.bans : [],
@@ -269,8 +256,7 @@ function toneClassForStatus(status) {
   const normalized = String(status || '')
     .trim()
     .toLowerCase();
-  if (['published', 'ready', 'done', 'online', 'active'].includes(normalized))
-    return 'status-success';
+  if (['published', 'ready', 'done', 'online', 'active'].includes(normalized)) return 'status-success';
   if (['failed', 'error', 'deleted'].includes(normalized)) return 'status-danger';
   if (['uploading', 'processing', 'pending', 'draft'].includes(normalized)) return 'status-warning';
   return 'status-neutral';
@@ -282,9 +268,7 @@ function renderStatusBadge(label, tone = '') {
 }
 
 function isRowMenuOpen(kind, id) {
-  return Boolean(
-    state.rowMenu && state.rowMenu.kind === kind && String(state.rowMenu.id) === String(id),
-  );
+  return Boolean(state.rowMenu && state.rowMenu.kind === kind && String(state.rowMenu.id) === String(id));
 }
 
 function renderMenuWrap(kind, id, content) {
@@ -298,10 +282,7 @@ function renderMenuWrap(kind, id, content) {
 }
 
 function renderSparkline(values) {
-  const source =
-    Array.isArray(values) && values.length
-      ? values.map((entry) => Math.max(0, Number(entry || 0)))
-      : [0, 0, 0, 0, 0, 0, 0];
+  const source = Array.isArray(values) && values.length ? values.map((entry) => Math.max(0, Number(entry || 0))) : [0, 0, 0, 0, 0, 0, 0];
   const max = Math.max(...source, 1);
   const bars = source
     .map((value) => {
@@ -314,9 +295,7 @@ function renderSparkline(values) {
 
 function buildMetricCards() {
   const { counters, marketplace, activeSessions } = getOverviewData();
-  const series = Array.isArray(marketplace?.series_last_7_days)
-    ? marketplace.series_last_7_days
-    : [];
+  const series = Array.isArray(marketplace?.series_last_7_days) ? marketplace.series_last_7_days : [];
 
   const clicksSeries = series.map((row) => Number(row?.clicks || 0));
   const packsSeries = series.map((row) => Number(row?.packs_published || 0));
@@ -399,23 +378,15 @@ function renderUsersTab() {
   const { activeSessions, users } = getOverviewData();
   const token = normalizeToken(state.usersQuery);
 
-  const filteredSessions = activeSessions.filter((row) =>
-    includesToken([row?.name, row?.email, row?.owner_jid, row?.google_sub], token),
-  );
-  const filteredUsers = users.filter((row) =>
-    includesToken([row?.name, row?.email, row?.owner_jid, row?.google_sub], token),
-  );
+  const filteredSessions = activeSessions.filter((row) => includesToken([row?.name, row?.email, row?.owner_jid, row?.google_sub], token));
+  const filteredUsers = users.filter((row) => includesToken([row?.name, row?.email, row?.owner_jid, row?.google_sub], token));
 
   const sessionsPage = paginate(filteredSessions, 'sessions');
   const usersPage = paginate(filteredUsers, 'users');
 
   const sessionRowsDesktop = sessionsPage.items
     .map((row) => {
-      const menu = renderMenuWrap(
-        'session',
-        row?.session_token || row?.google_sub || row?.email || Math.random(),
-        `<button class="row-menu-item danger" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(row?.google_sub || '')}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir usuario</button>`,
-      );
+      const menu = renderMenuWrap('session', row?.session_token || row?.google_sub || row?.email || Math.random(), `<button class="row-menu-item danger" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(row?.google_sub || '')}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir usuario</button>`);
       return `
         <tr>
           <td>
@@ -432,11 +403,7 @@ function renderUsersTab() {
 
   const usersRowsDesktop = usersPage.items
     .map((row) => {
-      const menu = renderMenuWrap(
-        'user',
-        row?.google_sub || row?.email || row?.owner_jid || Math.random(),
-        `<button class="row-menu-item danger" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(row?.google_sub || '')}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir usuario</button>`,
-      );
+      const menu = renderMenuWrap('user', row?.google_sub || row?.email || row?.owner_jid || Math.random(), `<button class="row-menu-item danger" data-action="ban-user" data-email="${escapeHtml(row?.email || '')}" data-sub="${escapeHtml(row?.google_sub || '')}" data-owner="${escapeHtml(row?.owner_jid || '')}">Banir usuario</button>`);
       return `
         <tr>
           <td>
@@ -543,19 +510,13 @@ function renderUsersTab() {
 
 function renderPacksTab() {
   const packsPage = paginate(state.packs, 'packs');
-  const selectedData = state.selectedPack?.pack
-    ? state.selectedPack
-    : state.selectedPack?.data || state.selectedPack;
+  const selectedData = state.selectedPack?.pack ? state.selectedPack : state.selectedPack?.data || state.selectedPack;
   const selectedPack = selectedData?.pack || null;
   const selectedItems = Array.isArray(selectedPack?.items) ? selectedPack.items : [];
 
   const packRowsDesktop = packsPage.items
     .map((pack) => {
-      const statusBadges = [
-        renderStatusBadge(pack?.visibility || 'n/a'),
-        renderStatusBadge(pack?.status || 'n/a'),
-        renderStatusBadge(pack?.pack_status || 'ready'),
-      ].join('');
+      const statusBadges = [renderStatusBadge(pack?.visibility || 'n/a'), renderStatusBadge(pack?.status || 'n/a'), renderStatusBadge(pack?.pack_status || 'ready')].join('');
 
       const menu = renderMenuWrap(
         'pack',
@@ -688,21 +649,13 @@ function renderPacksTab() {
 function renderLogsTab() {
   const { bans } = getOverviewData();
   const token = normalizeToken(state.logsQuery);
-  const filteredBans = bans.filter((ban) =>
-    includesToken([ban?.email, ban?.owner_jid, ban?.google_sub, ban?.reason], token),
-  );
+  const filteredBans = bans.filter((ban) => includesToken([ban?.email, ban?.owner_jid, ban?.google_sub, ban?.reason], token));
   const page = paginate(filteredBans, 'bans');
 
   const rowsDesktop = page.items
     .map((ban) => {
       const revoked = Boolean(ban?.revoked_at);
-      const menu = revoked
-        ? ''
-        : renderMenuWrap(
-            'ban',
-            ban?.id || Math.random(),
-            `<button class="row-menu-item" data-action="revoke-ban" data-ban-id="${escapeHtml(ban?.id || '')}">Revogar banimento</button>`,
-          );
+      const menu = revoked ? '' : renderMenuWrap('ban', ban?.id || Math.random(), `<button class="row-menu-item" data-action="revoke-ban" data-ban-id="${escapeHtml(ban?.id || '')}">Revogar banimento</button>`);
 
       return `
         <tr>
@@ -908,12 +861,9 @@ function renderSystemTab() {
       const owner = String(row?.owner_jid || '').trim();
       const name = String(row?.name || '').trim();
       const entries = [];
-      if (email)
-        entries.push(`<option value="${escapeHtml(email)}">${escapeHtml(name || email)}</option>`);
-      if (sub)
-        entries.push(`<option value="${escapeHtml(sub)}">${escapeHtml(name || sub)}</option>`);
-      if (owner)
-        entries.push(`<option value="${escapeHtml(owner)}">${escapeHtml(name || owner)}</option>`);
+      if (email) entries.push(`<option value="${escapeHtml(email)}">${escapeHtml(name || email)}</option>`);
+      if (sub) entries.push(`<option value="${escapeHtml(sub)}">${escapeHtml(name || sub)}</option>`);
+      if (owner) entries.push(`<option value="${escapeHtml(owner)}">${escapeHtml(name || owner)}</option>`);
       return entries.join('');
     })
     .join('');
@@ -1110,9 +1060,7 @@ function renderUnlockView() {
   const googleSession = google?.user ? google : { authenticated: false };
   const localGoogleCache = readLocalGoogleAuthCache();
   const hasLocalCache = Boolean(localGoogleCache?.user?.sub);
-  const googleConfigEnabled = Boolean(
-    state.googleAuthConfig?.enabled && state.googleAuthConfig?.clientId,
-  );
+  const googleConfigEnabled = Boolean(state.googleAuthConfig?.enabled && state.googleAuthConfig?.clientId);
 
   return `
     <section class="stack">
@@ -1372,9 +1320,7 @@ async function unlockAdmin(password) {
         if (!google?.authenticated) {
           const local = readLocalGoogleAuthCache();
           if (local?.user?.email) {
-            throw new Error(
-              `Sua sessao Google do servidor expirou. Renove o login Google (${local.user.email}) e tente novamente.`,
-            );
+            throw new Error(`Sua sessao Google do servidor expirou. Renove o login Google (${local.user.email}) e tente novamente.`);
           }
           throw new Error('Faca login Google no site com o email admin antes de digitar a senha.');
         }
@@ -1445,12 +1391,9 @@ async function removeStickerFromPackAdmin(packKey, stickerId) {
   if (!window.confirm(`Remover sticker ${stickerId} do pack ${packKey}?`)) return;
   await runTask(
     async () => {
-      await fetchJson(
-        `${adminApiBase}/packs/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}/delete`,
-        {
-          method: 'DELETE',
-        },
-      );
+      await fetchJson(`${adminApiBase}/packs/${encodeURIComponent(packKey)}/stickers/${encodeURIComponent(stickerId)}/delete`, {
+        method: 'DELETE',
+      });
       await loadSelectedPack(packKey);
       await loadPacks(state.packsQuery || '');
       if (state.overview) await loadOverview();
@@ -1689,11 +1632,7 @@ root.addEventListener('click', async (event) => {
   const actionEl = target.closest('[data-action]');
   const clickedInsideMenu = Boolean(target.closest('[data-row-menu]'));
 
-  if (
-    !clickedInsideMenu &&
-    (!actionEl || actionEl.dataset.action !== 'toggle-row-menu') &&
-    state.rowMenu
-  ) {
+  if (!clickedInsideMenu && (!actionEl || actionEl.dataset.action !== 'toggle-row-menu') && state.rowMenu) {
     state.rowMenu = null;
     render();
     return;
@@ -1778,10 +1717,7 @@ root.addEventListener('click', async (event) => {
 
   if (action === 'remove-pack-sticker') {
     state.rowMenu = null;
-    await removeStickerFromPackAdmin(
-      actionEl.dataset.packKey || '',
-      actionEl.dataset.stickerId || '',
-    );
+    await removeStickerFromPackAdmin(actionEl.dataset.packKey || '', actionEl.dataset.stickerId || '');
     return;
   }
 
@@ -1793,8 +1729,7 @@ root.addEventListener('click', async (event) => {
 
   if (action === 'ban-user') {
     state.rowMenu = null;
-    const reason =
-      window.prompt('Motivo do banimento (opcional):', 'Violacao das regras do marketplace') || '';
+    const reason = window.prompt('Motivo do banimento (opcional):', 'Violacao das regras do marketplace') || '';
     await createBanAdmin({
       email: actionEl.dataset.email || '',
       google_sub: actionEl.dataset.sub || '',

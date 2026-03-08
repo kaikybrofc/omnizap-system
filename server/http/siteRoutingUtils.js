@@ -33,13 +33,8 @@ const SITE_CANONICAL_SCHEME =
     .toLowerCase() === 'http'
     ? 'http'
     : 'https';
-const SITE_CANONICAL_REDIRECT_ENABLED = parseEnvBool(
-  process.env.SITE_CANONICAL_REDIRECT_ENABLED,
-  true,
-);
-const SITE_ORIGIN = String(
-  process.env.SITE_ORIGIN || `${SITE_CANONICAL_SCHEME}://${SITE_CANONICAL_HOST}`,
-)
+const SITE_CANONICAL_REDIRECT_ENABLED = parseEnvBool(process.env.SITE_CANONICAL_REDIRECT_ENABLED, true);
+const SITE_ORIGIN = String(process.env.SITE_ORIGIN || `${SITE_CANONICAL_SCHEME}://${SITE_CANONICAL_HOST}`)
   .trim()
   .replace(/\/+$/, '');
 const SITE_COOKIE_DOMAIN = String(process.env.SITE_COOKIE_DOMAIN || SITE_CANONICAL_HOST)

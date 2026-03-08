@@ -1,28 +1,4 @@
-export const createStickerCatalogNonCatalogHandlers = ({
-  sendJson,
-  sendText,
-  logger,
-  getSystemSummaryCached,
-  systemSummaryCache,
-  systemSummaryCacheSeconds,
-  getReadmeSummaryCached,
-  readmeSummaryCache,
-  readmeSummaryCacheSeconds,
-  getGlobalRankingSummaryCached,
-  globalRankRefreshSeconds,
-  globalRankCache,
-  sanitizeRankingPayloadByBot,
-  getActiveSocket,
-  resolveBotUserCandidates,
-  getMarketplaceGlobalStatsCached,
-  marketplaceGlobalStatsCacheSeconds,
-  marketplaceGlobalStatsCache,
-  githubRepoInfo,
-  githubProjectCacheSeconds,
-  fetchGitHubProjectSummary,
-  buildSupportInfo,
-  buildBotContactInfo,
-}) => {
+export const createStickerCatalogNonCatalogHandlers = ({ sendJson, sendText, logger, getSystemSummaryCached, systemSummaryCache, systemSummaryCacheSeconds, getReadmeSummaryCached, readmeSummaryCache, readmeSummaryCacheSeconds, getGlobalRankingSummaryCached, globalRankRefreshSeconds, globalRankCache, sanitizeRankingPayloadByBot, getActiveSocket, resolveBotUserCandidates, getMarketplaceGlobalStatsCached, marketplaceGlobalStatsCacheSeconds, marketplaceGlobalStatsCache, githubRepoInfo, githubProjectCacheSeconds, fetchGitHubProjectSummary, buildSupportInfo, buildBotContactInfo }) => {
   const handleSystemSummaryRequest = async (req, res) => {
     try {
       const payload = await getSystemSummaryCached();
@@ -93,21 +69,12 @@ export const createStickerCatalogNonCatalogHandlers = ({
       if (readmeSummaryCache.value) {
         const markdown = String(readmeSummaryCache.value?.data?.markdown || '').trim();
         res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-        res.setHeader(
-          'Cache-Control',
-          `public, max-age=${Math.min(readmeSummaryCacheSeconds, 300)}`,
-        );
+        res.setHeader('Cache-Control', `public, max-age=${Math.min(readmeSummaryCacheSeconds, 300)}`);
         res.setHeader('X-Cache-Seconds', String(readmeSummaryCacheSeconds));
         sendText(req, res, 200, markdown ? `${markdown}\n` : '', 'text/markdown; charset=utf-8');
         return;
       }
-      sendText(
-        req,
-        res,
-        503,
-        'Resumo markdown indisponivel no momento.\n',
-        'text/plain; charset=utf-8',
-      );
+      sendText(req, res, 503, 'Resumo markdown indisponivel no momento.\n', 'text/plain; charset=utf-8');
     }
   };
 

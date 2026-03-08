@@ -2,15 +2,8 @@ import natural from 'natural';
 import winkBm25TextSearch from 'wink-bm25-text-search';
 import logger from '../../utils/logger/loggerModule.js';
 import { getAllToolRecords, getToolRegistryStats } from './moduleToolRegistryService.js';
-import {
-  getLearnedKnowledgeVersion,
-  listLearnedKeywords,
-  listLearnedPatterns,
-} from './aiLearningRepository.js';
-import {
-  getCommandConfigEnrichmentVersion,
-  listAppliedCommandConfigEnrichmentStates,
-} from './commandConfigEnrichmentRepository.js';
+import { getLearnedKnowledgeVersion, listLearnedKeywords, listLearnedPatterns } from './aiLearningRepository.js';
+import { getCommandConfigEnrichmentVersion, listAppliedCommandConfigEnrichmentStates } from './commandConfigEnrichmentRepository.js';
 
 const DEFAULT_TOOL_SELECTION_MAX_CANDIDATES = 8;
 const DEFAULT_TOOL_SELECTION_MIN_SCORE = 0.2;
@@ -38,45 +31,7 @@ const BM25_FIELD_WEIGHTS = {
 
 const tokenizer = new natural.WordTokenizer();
 const queryCache = new Map();
-const STOPWORDS = new Set([
-  'a',
-  'as',
-  'o',
-  'os',
-  'ao',
-  'aos',
-  'de',
-  'do',
-  'da',
-  'dos',
-  'das',
-  'em',
-  'no',
-  'na',
-  'nos',
-  'nas',
-  'para',
-  'por',
-  'com',
-  'sem',
-  'e',
-  'ou',
-  'um',
-  'uma',
-  'uns',
-  'umas',
-  'que',
-  'como',
-  'me',
-  'te',
-  'se',
-  'eu',
-  'voce',
-  'vc',
-  'bot',
-  'ajuda',
-  'help',
-]);
+const STOPWORDS = new Set(['a', 'as', 'o', 'os', 'ao', 'aos', 'de', 'do', 'da', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas', 'para', 'por', 'com', 'sem', 'e', 'ou', 'um', 'uma', 'uns', 'umas', 'que', 'como', 'me', 'te', 'se', 'eu', 'voce', 'vc', 'bot', 'ajuda', 'help']);
 
 let cachedIndexSnapshot = null;
 let cachedIndexSignature = '';
@@ -112,60 +67,15 @@ const parseEnvFloat = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, parsed));
 };
 
-const TOOL_SELECTION_MAX_CANDIDATES = parseEnvInt(
-  process.env.TOOL_SELECTION_MAX_CANDIDATES,
-  DEFAULT_TOOL_SELECTION_MAX_CANDIDATES,
-  1,
-  32,
-);
-const TOOL_SELECTION_MIN_SCORE = parseEnvFloat(
-  process.env.TOOL_SELECTION_MIN_SCORE,
-  DEFAULT_TOOL_SELECTION_MIN_SCORE,
-  0,
-  1,
-);
-const TOOL_SELECTION_FALLBACK_POPULAR_LIMIT = parseEnvInt(
-  process.env.TOOL_SELECTION_FALLBACK_POPULAR_LIMIT,
-  DEFAULT_TOOL_SELECTION_FALLBACK_POPULAR_LIMIT,
-  1,
-  20,
-);
-const TOOL_SELECTION_CACHE_TTL_MS = parseEnvInt(
-  process.env.TOOL_SELECTION_CACHE_TTL_MS,
-  DEFAULT_TOOL_SELECTION_CACHE_TTL_MS,
-  5_000,
-  24 * 60 * 60 * 1000,
-);
-const TOOL_SELECTION_CACHE_MAX_ENTRIES = parseEnvInt(
-  process.env.TOOL_SELECTION_CACHE_MAX_ENTRIES,
-  DEFAULT_TOOL_SELECTION_CACHE_MAX_ENTRIES,
-  50,
-  10_000,
-);
-const TOOL_SELECTION_LEARNED_REFRESH_MS = parseEnvInt(
-  process.env.TOOL_SELECTION_LEARNED_REFRESH_MS,
-  DEFAULT_TOOL_SELECTION_LEARNED_REFRESH_MS,
-  5_000,
-  30 * 60 * 1000,
-);
-const TOOL_SELECTION_LEARNED_MAX_ROWS = parseEnvInt(
-  process.env.TOOL_SELECTION_LEARNED_MAX_ROWS,
-  DEFAULT_TOOL_SELECTION_LEARNED_MAX_ROWS,
-  100,
-  50_000,
-);
-const TOOL_SELECTION_ENRICHMENT_REFRESH_MS = parseEnvInt(
-  process.env.TOOL_SELECTION_ENRICHMENT_REFRESH_MS,
-  DEFAULT_TOOL_SELECTION_ENRICHMENT_REFRESH_MS,
-  5_000,
-  30 * 60 * 1000,
-);
-const TOOL_SELECTION_ENRICHMENT_MAX_ROWS = parseEnvInt(
-  process.env.TOOL_SELECTION_ENRICHMENT_MAX_ROWS,
-  DEFAULT_TOOL_SELECTION_ENRICHMENT_MAX_ROWS,
-  100,
-  50_000,
-);
+const TOOL_SELECTION_MAX_CANDIDATES = parseEnvInt(process.env.TOOL_SELECTION_MAX_CANDIDATES, DEFAULT_TOOL_SELECTION_MAX_CANDIDATES, 1, 32);
+const TOOL_SELECTION_MIN_SCORE = parseEnvFloat(process.env.TOOL_SELECTION_MIN_SCORE, DEFAULT_TOOL_SELECTION_MIN_SCORE, 0, 1);
+const TOOL_SELECTION_FALLBACK_POPULAR_LIMIT = parseEnvInt(process.env.TOOL_SELECTION_FALLBACK_POPULAR_LIMIT, DEFAULT_TOOL_SELECTION_FALLBACK_POPULAR_LIMIT, 1, 20);
+const TOOL_SELECTION_CACHE_TTL_MS = parseEnvInt(process.env.TOOL_SELECTION_CACHE_TTL_MS, DEFAULT_TOOL_SELECTION_CACHE_TTL_MS, 5_000, 24 * 60 * 60 * 1000);
+const TOOL_SELECTION_CACHE_MAX_ENTRIES = parseEnvInt(process.env.TOOL_SELECTION_CACHE_MAX_ENTRIES, DEFAULT_TOOL_SELECTION_CACHE_MAX_ENTRIES, 50, 10_000);
+const TOOL_SELECTION_LEARNED_REFRESH_MS = parseEnvInt(process.env.TOOL_SELECTION_LEARNED_REFRESH_MS, DEFAULT_TOOL_SELECTION_LEARNED_REFRESH_MS, 5_000, 30 * 60 * 1000);
+const TOOL_SELECTION_LEARNED_MAX_ROWS = parseEnvInt(process.env.TOOL_SELECTION_LEARNED_MAX_ROWS, DEFAULT_TOOL_SELECTION_LEARNED_MAX_ROWS, 100, 50_000);
+const TOOL_SELECTION_ENRICHMENT_REFRESH_MS = parseEnvInt(process.env.TOOL_SELECTION_ENRICHMENT_REFRESH_MS, DEFAULT_TOOL_SELECTION_ENRICHMENT_REFRESH_MS, 5_000, 30 * 60 * 1000);
+const TOOL_SELECTION_ENRICHMENT_MAX_ROWS = parseEnvInt(process.env.TOOL_SELECTION_ENRICHMENT_MAX_ROWS, DEFAULT_TOOL_SELECTION_ENRICHMENT_MAX_ROWS, 100, 50_000);
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
@@ -179,8 +89,7 @@ const normalizeText = (value) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const unique = (items = []) =>
-  Array.from(new Set((Array.isArray(items) ? items : []).filter(Boolean)));
+const unique = (items = []) => Array.from(new Set((Array.isArray(items) ? items : []).filter(Boolean)));
 
 const tokenizeText = (value) => {
   const normalized = normalizeText(value);
@@ -189,9 +98,7 @@ const tokenizeText = (value) => {
   try {
     const tokens = tokenizer.tokenize(normalized);
     if (Array.isArray(tokens) && tokens.length > 0) {
-      return tokens
-        .map((token) => normalizeText(token))
-        .filter((token) => token.length >= 2 && !STOPWORDS.has(token));
+      return tokens.map((token) => normalizeText(token)).filter((token) => token.length >= 2 && !STOPWORDS.has(token));
     }
   } catch {
     // Fallback simples quando tokenizacao da lib falha.
@@ -261,17 +168,9 @@ const buildDocumentFields = (record) => {
 
   const aliases = unique(record?.aliases || []);
   const commandTerms = unique([record?.commandName, ...aliases]).join(' ');
-  const staticKeywordText = normalizeText(
-    [capabilityKeywords, commandTerms, faqPatterns].join(' '),
-  );
+  const staticKeywordText = normalizeText([capabilityKeywords, commandTerms, faqPatterns].join(' '));
   const staticKeywordTokens = new Set(tokenizeText(staticKeywordText));
-  const matchPhrases = unique([
-    record?.commandName,
-    ...aliases,
-    commandEntry?.descricao,
-    ...(Array.isArray(commandEntry?.user_phrasings) ? commandEntry.user_phrasings : []),
-    ...(Array.isArray(commandEntry?.faq_patterns) ? commandEntry.faq_patterns : []),
-  ]);
+  const matchPhrases = unique([record?.commandName, ...aliases, commandEntry?.descricao, ...(Array.isArray(commandEntry?.user_phrasings) ? commandEntry.user_phrasings : []), ...(Array.isArray(commandEntry?.faq_patterns) ? commandEntry.faq_patterns : [])]);
 
   return {
     descricao,
@@ -302,15 +201,7 @@ const pruneCache = (nowMs = Date.now()) => {
   }
 };
 
-const buildCacheKey = ({
-  message,
-  limit,
-  minScore,
-  signature,
-  learnedVersion,
-  commandConfigVersion,
-}) =>
-  `${signature}|${learnedVersion}|${commandConfigVersion}|${limit}|${roundScore(minScore)}|${normalizeText(message)}`;
+const buildCacheKey = ({ message, limit, minScore, signature, learnedVersion, commandConfigVersion }) => `${signature}|${learnedVersion}|${commandConfigVersion}|${limit}|${roundScore(minScore)}|${normalizeText(message)}`;
 
 const extractBm25Scores = (bm25Engine, queryText) => {
   const rawResults = bm25Engine?.search?.(queryText);
@@ -418,11 +309,7 @@ const buildOrGetIndexSnapshot = () => {
   return cachedIndexSnapshot;
 };
 
-const computeKeywordMatchScore = ({
-  queryTokens = [],
-  staticKeywordTokens = new Set(),
-  learnedKeywordMap = new Map(),
-}) => {
+const computeKeywordMatchScore = ({ queryTokens = [], staticKeywordTokens = new Set(), learnedKeywordMap = new Map() }) => {
   const staticOverlap = computeTokenOverlapScore(queryTokens, staticKeywordTokens);
 
   let learnedScore = 0;
@@ -451,8 +338,7 @@ const computeLearnedPatternsScore = ({ queryText, queryTokens = [], learnedPatte
     if (!pattern) continue;
 
     const confidence = clamp01(item?.confidence);
-    const patternTokens =
-      item?.tokens instanceof Set ? item.tokens : new Set(tokenizeText(pattern));
+    const patternTokens = item?.tokens instanceof Set ? item.tokens : new Set(tokenizeText(pattern));
     const fuzzy = Number(natural.JaroWinklerDistance(normalizeText(queryText), pattern)) || 0;
     const overlap = computeTokenOverlapScore(queryTokens, patternTokens);
     const raw = clamp01(fuzzy * 0.7 + overlap * 0.3);
@@ -522,8 +408,7 @@ const buildLearnedKnowledgeMaps = ({ patterns = [], keywords = [] }) => {
   };
 };
 
-const buildModuleCommandKey = (moduleKey, commandName) =>
-  `${normalizeText(moduleKey)}:${normalizeText(commandName)}`;
+const buildModuleCommandKey = (moduleKey, commandName) => `${normalizeText(moduleKey)}:${normalizeText(commandName)}`;
 
 const buildCommandConfigOverlayMaps = (states = []) => {
   const overlayByModuleCommand = new Map();
@@ -538,18 +423,8 @@ const buildCommandConfigOverlayMaps = (states = []) => {
     const methodHints = unique(overlay?.metodos_de_uso_sugeridos || []);
     const descricaoSugerida = String(overlay?.descricao_sugerida || '').trim();
 
-    const overlayKeywordTokens = new Set(
-      tokenizeText(
-        [capabilityKeywords.join(' '), faqPatterns.join(' '), userPhrasings.join(' ')].join(' '),
-      ),
-    );
-    const overlayMatchPhrases = unique([
-      descricaoSugerida,
-      ...capabilityKeywords,
-      ...faqPatterns,
-      ...userPhrasings,
-      ...methodHints,
-    ]);
+    const overlayKeywordTokens = new Set(tokenizeText([capabilityKeywords.join(' '), faqPatterns.join(' '), userPhrasings.join(' ')].join(' ')));
+    const overlayMatchPhrases = unique([descricaoSugerida, ...capabilityKeywords, ...faqPatterns, ...userPhrasings, ...methodHints]);
 
     overlayByModuleCommand.set(key, {
       capabilityKeywords,
@@ -571,12 +446,7 @@ const buildCommandConfigOverlayMaps = (states = []) => {
 
 const refreshLearnedKnowledgeCache = async ({ force = false } = {}) => {
   const nowMs = Date.now();
-  if (
-    !force &&
-    learnedKnowledgeCache.loaded &&
-    learnedKnowledgeCache.nextRefreshAt > nowMs &&
-    learnedKnowledgeCache.version
-  ) {
+  if (!force && learnedKnowledgeCache.loaded && learnedKnowledgeCache.nextRefreshAt > nowMs && learnedKnowledgeCache.version) {
     return learnedKnowledgeCache;
   }
 
@@ -596,10 +466,7 @@ const refreshLearnedKnowledgeCache = async ({ force = false } = {}) => {
       return learnedKnowledgeCache;
     }
 
-    const [patterns, keywords] = await Promise.all([
-      listLearnedPatterns({ limit: TOOL_SELECTION_LEARNED_MAX_ROWS }),
-      listLearnedKeywords({ limit: TOOL_SELECTION_LEARNED_MAX_ROWS }),
-    ]);
+    const [patterns, keywords] = await Promise.all([listLearnedPatterns({ limit: TOOL_SELECTION_LEARNED_MAX_ROWS }), listLearnedKeywords({ limit: TOOL_SELECTION_LEARNED_MAX_ROWS })]);
 
     const maps = buildLearnedKnowledgeMaps({ patterns, keywords });
     learnedKnowledgeCache = {
@@ -632,12 +499,7 @@ const refreshLearnedKnowledgeCache = async ({ force = false } = {}) => {
 
 const refreshCommandConfigEnrichmentCache = async ({ force = false } = {}) => {
   const nowMs = Date.now();
-  if (
-    !force &&
-    commandConfigEnrichmentCache.loaded &&
-    commandConfigEnrichmentCache.nextRefreshAt > nowMs &&
-    commandConfigEnrichmentCache.version
-  ) {
+  if (!force && commandConfigEnrichmentCache.loaded && commandConfigEnrichmentCache.nextRefreshAt > nowMs && commandConfigEnrichmentCache.version) {
     return commandConfigEnrichmentCache;
   }
 
@@ -649,11 +511,7 @@ const refreshCommandConfigEnrichmentCache = async ({ force = false } = {}) => {
     const versionInfo = await getCommandConfigEnrichmentVersion();
     const nextVersion = String(versionInfo?.version || '0:0:0');
 
-    if (
-      !force &&
-      commandConfigEnrichmentCache.loaded &&
-      commandConfigEnrichmentCache.version === nextVersion
-    ) {
+    if (!force && commandConfigEnrichmentCache.loaded && commandConfigEnrichmentCache.version === nextVersion) {
       commandConfigEnrichmentCache = {
         ...commandConfigEnrichmentCache,
         nextRefreshAt: nowMs + TOOL_SELECTION_ENRICHMENT_REFRESH_MS,
@@ -691,13 +549,7 @@ const refreshCommandConfigEnrichmentCache = async ({ force = false } = {}) => {
   }
 };
 
-const buildSelectionFromEntries = ({
-  rankedEntries = [],
-  fallbackUsed = false,
-  selectionTimeMs = 0,
-  cacheHit = false,
-  limit = TOOL_SELECTION_MAX_CANDIDATES,
-}) => {
+const buildSelectionFromEntries = ({ rankedEntries = [], fallbackUsed = false, selectionTimeMs = 0, cacheHit = false, limit = TOOL_SELECTION_MAX_CANDIDATES }) => {
   const limited = rankedEntries.slice(0, Math.max(1, limit));
   return {
     tools: limited.map((entry) => entry.tool),
@@ -727,10 +579,7 @@ export const selectCandidateTools = async (userMessage, limit = TOOL_SELECTION_M
   const safeLimit = Math.max(1, Math.min(32, Number(limit) || TOOL_SELECTION_MAX_CANDIDATES));
   const minScore = TOOL_SELECTION_MIN_SCORE;
   const snapshot = buildOrGetIndexSnapshot();
-  const [learnedKnowledge, commandConfigKnowledge] = await Promise.all([
-    refreshLearnedKnowledgeCache(),
-    refreshCommandConfigEnrichmentCache(),
-  ]);
+  const [learnedKnowledge, commandConfigKnowledge] = await Promise.all([refreshLearnedKnowledgeCache(), refreshCommandConfigEnrichmentCache()]);
 
   if (!snapshot.entries.length) {
     return {
@@ -774,10 +623,7 @@ export const selectCandidateTools = async (userMessage, limit = TOOL_SELECTION_M
   }
 
   const queryTokens = tokenizeText(normalizedMessage);
-  const bm25Scores =
-    snapshot.bm25Ready && normalizedMessage
-      ? extractBm25Scores(snapshot.bm25Engine, normalizedMessage)
-      : new Map();
+  const bm25Scores = snapshot.bm25Ready && normalizedMessage ? extractBm25Scores(snapshot.bm25Engine, normalizedMessage) : new Map();
 
   const ranked = snapshot.entries
     .map((entry) => {
@@ -785,15 +631,10 @@ export const selectCandidateTools = async (userMessage, limit = TOOL_SELECTION_M
       const learnedKeywordMap = learnedKnowledge.keywordsByTool.get(entry.toolName) || new Map();
       const learnedPatterns = learnedKnowledge.patternsByTool.get(entry.toolName) || [];
       const moduleCommandKey = buildModuleCommandKey(entry.moduleKey, entry.commandName);
-      const commandConfigOverlay =
-        commandConfigKnowledge.overlayByModuleCommand.get(moduleCommandKey) || null;
+      const commandConfigOverlay = commandConfigKnowledge.overlayByModuleCommand.get(moduleCommandKey) || null;
 
-      const effectiveStaticKeywordTokens = commandConfigOverlay
-        ? new Set([...entry.staticKeywordTokens, ...commandConfigOverlay.overlayKeywordTokens])
-        : entry.staticKeywordTokens;
-      const effectiveMatchPhrases = commandConfigOverlay
-        ? unique([...entry.matchPhrases, ...commandConfigOverlay.overlayMatchPhrases])
-        : entry.matchPhrases;
+      const effectiveStaticKeywordTokens = commandConfigOverlay ? new Set([...entry.staticKeywordTokens, ...commandConfigOverlay.overlayKeywordTokens]) : entry.staticKeywordTokens;
+      const effectiveMatchPhrases = commandConfigOverlay ? unique([...entry.matchPhrases, ...commandConfigOverlay.overlayMatchPhrases]) : entry.matchPhrases;
 
       const keywordMatchScore = computeKeywordMatchScore({
         queryTokens,
@@ -806,13 +647,7 @@ export const selectCandidateTools = async (userMessage, limit = TOOL_SELECTION_M
         learnedPatterns,
       });
       const fuzzyScore = computeFuzzyScore(normalizedMessage, effectiveMatchPhrases);
-      const finalScore = clamp01(
-        bm25Score * BM25_WEIGHT +
-          keywordMatchScore * KEYWORD_MATCH_WEIGHT +
-          learnedPatternsScore * LEARNED_PATTERNS_WEIGHT +
-          fuzzyScore * FUZZY_MATCH_WEIGHT +
-          entry.popularityScore * TOOL_POPULARITY_WEIGHT,
-      );
+      const finalScore = clamp01(bm25Score * BM25_WEIGHT + keywordMatchScore * KEYWORD_MATCH_WEIGHT + learnedPatternsScore * LEARNED_PATTERNS_WEIGHT + fuzzyScore * FUZZY_MATCH_WEIGHT + entry.popularityScore * TOOL_POPULARITY_WEIGHT);
       return {
         ...entry,
         bm25Score,
@@ -834,16 +669,14 @@ export const selectCandidateTools = async (userMessage, limit = TOOL_SELECTION_M
   const aboveThreshold = ranked.filter((entry) => entry.finalScore >= minScore);
   const fallbackUsed = aboveThreshold.length === 0;
   const selectedEntries = fallbackUsed
-    ? snapshot.popularEntries
-        .slice(0, Math.min(safeLimit, TOOL_SELECTION_FALLBACK_POPULAR_LIMIT))
-        .map((entry) => ({
-          ...entry,
-          bm25Score: 0,
-          keywordMatchScore: 0,
-          learnedPatternsScore: 0,
-          fuzzyScore: 0,
-          finalScore: entry.popularityScore,
-        }))
+    ? snapshot.popularEntries.slice(0, Math.min(safeLimit, TOOL_SELECTION_FALLBACK_POPULAR_LIMIT)).map((entry) => ({
+        ...entry,
+        bm25Score: 0,
+        keywordMatchScore: 0,
+        learnedPatternsScore: 0,
+        fuzzyScore: 0,
+        finalScore: entry.popularityScore,
+      }))
     : aboveThreshold.slice(0, safeLimit);
 
   const elapsedMs = Number(process.hrtime.bigint() - startNs) / 1e6;
@@ -901,10 +734,7 @@ export const getToolCandidateSelectorConfig = () => ({
 
 export const warmupToolCandidateSelector = async () => {
   buildOrGetIndexSnapshot();
-  await Promise.all([
-    refreshLearnedKnowledgeCache({ force: true }),
-    refreshCommandConfigEnrichmentCache({ force: true }),
-  ]);
+  await Promise.all([refreshLearnedKnowledgeCache({ force: true }), refreshCommandConfigEnrichmentCache({ force: true })]);
 };
 
 export const markToolCandidateLearningCacheDirty = () => {

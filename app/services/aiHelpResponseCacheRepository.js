@@ -78,8 +78,7 @@ const normalizeListLimit = (value) => {
   return Math.max(1, Math.min(MAX_LIST_LIMIT, parsed));
 };
 
-const buildQuestionHash = ({ moduleKey, scope, normalizedQuestion }) =>
-  createHash('sha256').update(`${moduleKey}:${scope}:${normalizedQuestion}`).digest('hex');
+const buildQuestionHash = ({ moduleKey, scope, normalizedQuestion }) => createHash('sha256').update(`${moduleKey}:${scope}:${normalizedQuestion}`).digest('hex');
 
 const handleTableError = (error, action, context = {}) => {
   if (error?.code === 'ER_NO_SUCH_TABLE') {
@@ -119,13 +118,7 @@ const normalizeRow = (row) => ({
   created_at: row?.created_at || null,
 });
 
-export async function getAiHelpCachedResponse({
-  moduleKey,
-  scope = 'question',
-  question,
-  normalizedQuestion,
-  updateUsage = true,
-} = {}) {
+export async function getAiHelpCachedResponse({ moduleKey, scope = 'question', question, normalizedQuestion, updateUsage = true } = {}) {
   if (!isTableAvailable()) return null;
 
   const safeModuleKey = normalizeModuleKey(moduleKey);
@@ -165,9 +158,7 @@ export async function getAiHelpCachedResponse({
 
     return normalizeRow(row);
   } catch (error) {
-    if (
-      handleTableError(error, 'ai_help_cache_read', { moduleKey: safeModuleKey, scope: safeScope })
-    ) {
+    if (handleTableError(error, 'ai_help_cache_read', { moduleKey: safeModuleKey, scope: safeScope })) {
       return null;
     }
     logger.warn('Falha ao ler cache de resposta IA no banco.', {
@@ -180,11 +171,7 @@ export async function getAiHelpCachedResponse({
   }
 }
 
-export async function listAiHelpCachedResponses({
-  moduleKey,
-  scope = 'question',
-  limit = DEFAULT_LIST_LIMIT,
-} = {}) {
+export async function listAiHelpCachedResponses({ moduleKey, scope = 'question', limit = DEFAULT_LIST_LIMIT } = {}) {
   if (!isTableAvailable()) return [];
 
   const safeModuleKey = normalizeModuleKey(moduleKey);
@@ -224,26 +211,13 @@ export async function listAiHelpCachedResponses({
   }
 }
 
-export async function upsertAiHelpCachedResponse({
-  moduleKey,
-  scope = 'question',
-  question,
-  normalizedQuestion,
-  answer,
-  source = 'deterministic',
-  commandName = null,
-  modelName = null,
-  metadata = null,
-} = {}) {
+export async function upsertAiHelpCachedResponse({ moduleKey, scope = 'question', question, normalizedQuestion, answer, source = 'deterministic', commandName = null, modelName = null, metadata = null } = {}) {
   if (!isTableAvailable()) return false;
 
   const safeModuleKey = normalizeModuleKey(moduleKey);
   const safeScope = normalizeScope(scope);
   const safeNormalizedQuestion = normalizeQuestion(normalizedQuestion || question);
-  const safeOriginalQuestion = sanitizeShortText(
-    question || normalizedQuestion,
-    MAX_QUESTION_LENGTH,
-  );
+  const safeOriginalQuestion = sanitizeShortText(question || normalizedQuestion, MAX_QUESTION_LENGTH);
   const safeAnswer = String(answer || '').trim();
   const safeSource = sanitizeShortText(source, MAX_SOURCE_LENGTH) || 'deterministic';
   const safeCommandName = sanitizeShortText(commandName, MAX_COMMAND_NAME_LENGTH);
@@ -276,18 +250,7 @@ export async function upsertAiHelpCachedResponse({
          metadata = VALUES(metadata),
          hit_count = hit_count + 1,
          last_used_at = CURRENT_TIMESTAMP()`,
-      [
-        safeModuleKey,
-        safeScope,
-        questionHash,
-        safeNormalizedQuestion,
-        safeOriginalQuestion,
-        safeCommandName,
-        safeAnswer,
-        safeSource,
-        safeModelName,
-        safeMetadata,
-      ],
+      [safeModuleKey, safeScope, questionHash, safeNormalizedQuestion, safeOriginalQuestion, safeCommandName, safeAnswer, safeSource, safeModelName, safeMetadata],
     );
     return true;
   } catch (error) {

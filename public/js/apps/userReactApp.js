@@ -1,15 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import htm from 'htm';
-import {
-  buildLoginRedirectPath,
-  buildSupportWhatsAppUrl,
-  buildWhatsAppUrl,
-  formatDateTime,
-  formatPhone,
-  getSessionStatusLabel,
-  normalizeDigits,
-} from './userProfile/actions.js';
+import { buildLoginRedirectPath, buildSupportWhatsAppUrl, buildWhatsAppUrl, formatDateTime, formatPhone, getSessionStatusLabel, normalizeDigits } from './userProfile/actions.js';
 
 const html = htm.bind(React.createElement);
 
@@ -20,12 +12,7 @@ const DEFAULT_PRIVACY_URL = '/politica-de-privacidade/';
 const DEFAULT_FALLBACK_AVATAR = '/assets/images/brand-logo-128.webp';
 const DEFAULT_PASSWORD_RESET_WEB_PATH = '/user/password-reset';
 const DEFAULT_SUPPORT_TEXT = 'Ol\u00e1! Preciso de suporte no OmniZap.';
-const LEGACY_PASSWORD_RECOVERY_QUERY_KEYS = [
-  'password_recovery_session',
-  'recovery_session',
-  'reset_session',
-  'session_token',
-];
+const LEGACY_PASSWORD_RECOVERY_QUERY_KEYS = ['password_recovery_session', 'recovery_session', 'reset_session', 'session_token'];
 const PASSWORD_RECOVERY_HASH_KEY = 'password_recovery_session';
 
 const TABS = [
@@ -52,8 +39,7 @@ const normalizeRoutePath = (value, fallback = '/') => {
   const raw = String(value || '').trim();
   if (!raw) return fallback;
   const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const normalized =
-    withSlash.length > 1 && withSlash.endsWith('/') ? withSlash.slice(0, -1) : withSlash;
+  const normalized = withSlash.length > 1 && withSlash.endsWith('/') ? withSlash.slice(0, -1) : withSlash;
   return normalized || fallback;
 };
 
@@ -96,9 +82,7 @@ const readRecoverySessionTokenFromHash = (hash = '') => {
   const hashPayload = normalizedHash.startsWith('#') ? normalizedHash.slice(1) : normalizedHash;
   if (!hashPayload) return '';
 
-  const params = new URLSearchParams(
-    hashPayload.startsWith('?') ? hashPayload.slice(1) : hashPayload,
-  );
+  const params = new URLSearchParams(hashPayload.startsWith('?') ? hashPayload.slice(1) : hashPayload);
   const tokenFromPrimaryKey = normalizeRecoverySessionToken(params.get(PASSWORD_RECOVERY_HASH_KEY));
   if (tokenFromPrimaryKey) return tokenFromPrimaryKey;
 
@@ -137,9 +121,7 @@ const stripRecoverySessionTokenFromHash = (hash = '') => {
   const hashPayload = normalizedHash.startsWith('#') ? normalizedHash.slice(1) : normalizedHash;
   if (!hashPayload) return { changed: false, hash: '' };
 
-  const params = new URLSearchParams(
-    hashPayload.startsWith('?') ? hashPayload.slice(1) : hashPayload,
-  );
+  const params = new URLSearchParams(hashPayload.startsWith('?') ? hashPayload.slice(1) : hashPayload);
   let changed = false;
   if (params.has(PASSWORD_RECOVERY_HASH_KEY)) {
     params.delete(PASSWORD_RECOVERY_HASH_KEY);
@@ -166,11 +148,7 @@ const stripRecoverySessionTokenFromHash = (hash = '') => {
 };
 
 const sanitizeRecoverySessionUrl = ({ normalizedPath = '', shouldNormalizePath = false } = {}) => {
-  if (
-    typeof window === 'undefined' ||
-    typeof window.location?.href !== 'string' ||
-    typeof window.history?.replaceState !== 'function'
-  ) {
+  if (typeof window === 'undefined' || typeof window.location?.href !== 'string' || typeof window.history?.replaceState !== 'function') {
     return;
   }
 
@@ -198,11 +176,7 @@ const sanitizeRecoverySessionUrl = ({ normalizedPath = '', shouldNormalizePath =
   }
 
   if (changed) {
-    window.history.replaceState(
-      {},
-      '',
-      `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
-    );
+    window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
   }
 };
 
@@ -215,11 +189,7 @@ const buildRecoverySessionDestinationUrl = (destination, sessionToken) => {
     throw new Error('Destino de redefinicao invalido.');
   }
 
-  const hashParams = new URLSearchParams(
-    parsedDestination.hash.startsWith('#')
-      ? parsedDestination.hash.slice(1)
-      : String(parsedDestination.hash || ''),
-  );
+  const hashParams = new URLSearchParams(parsedDestination.hash.startsWith('#') ? parsedDestination.hash.slice(1) : String(parsedDestination.hash || ''));
   hashParams.set(PASSWORD_RECOVERY_HASH_KEY, token);
   parsedDestination.hash = hashParams.toString();
 
@@ -377,11 +347,7 @@ const resolveSummaryView = (payload, fallbackAvatar) => {
     avatar: String(user?.picture || '').trim() || fallbackAvatar,
     name: String(user?.name || '').trim() || 'Conta Google',
     email: String(user?.email || '').trim() || 'E-mail n\u00e3o dispon\u00edvel',
-    whatsapp: ownerPhone
-      ? `WhatsApp vinculado: +${formatPhone(ownerPhone)}`
-      : ownerJid
-        ? `Owner vinculado: ${ownerJid}`
-        : 'WhatsApp ainda n\u00e3o vinculado.',
+    whatsapp: ownerPhone ? `WhatsApp vinculado: +${formatPhone(ownerPhone)}` : ownerJid ? `Owner vinculado: ${ownerJid}` : 'WhatsApp ainda n\u00e3o vinculado.',
     plan: account?.plan_label || 'Conta padr\u00e3o',
     status: account?.status === 'active' ? 'Ativa' : 'Pendente',
     lastLogin: formatDateTime(account?.last_login_at || account?.last_seen_at),
@@ -399,24 +365,12 @@ const toneClassMap = {
 
 const UserApp = ({ config }) => {
   const api = useMemo(() => createUserApi(config.apiBasePath), [config.apiBasePath]);
-  const recoveryRoute = useMemo(
-    () =>
-      resolvePasswordRecoveryRoute(
-        window.location.pathname,
-        window.location.search,
-        config.passwordResetWebPath,
-      ),
-    [config.passwordResetWebPath],
-  );
+  const recoveryRoute = useMemo(() => resolvePasswordRecoveryRoute(window.location.pathname, window.location.search, config.passwordResetWebPath), [config.passwordResetWebPath]);
   const isRecoveryRoute = recoveryRoute.active;
-  const [recoverySessionToken, setRecoverySessionToken] = useState(() =>
-    isRecoveryRoute ? resolveRecoverySessionTokenFromLocation(window.location) : '',
-  );
+  const [recoverySessionToken, setRecoverySessionToken] = useState(() => (isRecoveryRoute ? resolveRecoverySessionTokenFromLocation(window.location) : ''));
 
   const [activeTab, setActiveTab] = useState('account');
-  const [isMobile, setMobile] = useState(
-    Boolean(window.matchMedia?.('(max-width: 1020px)')?.matches),
-  );
+  const [isMobile, setMobile] = useState(Boolean(window.matchMedia?.('(max-width: 1020px)')?.matches));
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isLoadingSummary, setLoadingSummary] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
@@ -535,18 +489,10 @@ const UserApp = ({ config }) => {
     const locationToken = resolveRecoverySessionTokenFromLocation(window.location);
     setRecoverySessionToken(locationToken);
     sanitizeRecoverySessionUrl({
-      normalizedPath: normalizeRoutePath(
-        recoveryRoute.normalizedPath,
-        normalizeRoutePath(config.passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH),
-      ),
+      normalizedPath: normalizeRoutePath(recoveryRoute.normalizedPath, normalizeRoutePath(config.passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH)),
       shouldNormalizePath: recoveryRoute.shouldNormalizeUrl,
     });
-  }, [
-    config.passwordResetWebPath,
-    isRecoveryRoute,
-    recoveryRoute.normalizedPath,
-    recoveryRoute.shouldNormalizeUrl,
-  ]);
+  }, [config.passwordResetWebPath, isRecoveryRoute, recoveryRoute.normalizedPath, recoveryRoute.shouldNormalizeUrl]);
 
   useEffect(() => {
     if (isRecoveryRoute) {
@@ -590,10 +536,7 @@ const UserApp = ({ config }) => {
           message: 'Resumo da conta carregado com sucesso.',
         });
 
-        const [botResult, supportResult] = await Promise.allSettled([
-          api.fetchBotContact(),
-          api.fetchSupport(),
-        ]);
+        const [botResult, supportResult] = await Promise.allSettled([api.fetchBotContact(), api.fetchSupport()]);
         if (!active) return;
 
         let botUrl = buildWhatsAppUrl('', '/menu');
@@ -612,10 +555,7 @@ const UserApp = ({ config }) => {
           supportPhone = normalizeDigits(supportData?.phone || '');
           supportText = String(supportData?.text || '').trim() || DEFAULT_SUPPORT_TEXT;
           const preferredSupportUrl = String(supportData?.url || '').trim();
-          supportUrl =
-            preferredSupportUrl ||
-            buildSupportWhatsAppUrl(supportPhone, supportText) ||
-            config.termsUrl;
+          supportUrl = preferredSupportUrl || buildSupportWhatsAppUrl(supportPhone, supportText) || config.termsUrl;
         } else {
           supportText = 'Contato de suporte indispon\u00edvel no momento.';
         }
@@ -676,9 +616,7 @@ const UserApp = ({ config }) => {
           expiresAt: 'Nao informado',
           expiresInSeconds: null,
         });
-        setRecoverySessionError(
-          'Sessao de redefinicao ausente ou expirada. Solicite uma nova sessao.',
-        );
+        setRecoverySessionError('Sessao de redefinicao ausente ou expirada. Solicite uma nova sessao.');
         setRecoverySessionLoading(false);
         return;
       }
@@ -796,10 +734,7 @@ const UserApp = ({ config }) => {
       const sessionToken = String(payload?.data?.session_token || '').trim();
       const sessionPath = String(payload?.data?.session_path || '').trim();
       const sessionUrl = String(payload?.data?.session_url || '').trim();
-      const destination =
-        sessionPath ||
-        sessionUrl ||
-        normalizeRoutePath(config.passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH);
+      const destination = sessionPath || sessionUrl || normalizeRoutePath(config.passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH);
 
       if (!sessionToken || !destination) {
         throw new Error('Nao foi possivel abrir a sessao de redefinicao.');
@@ -831,8 +766,7 @@ const UserApp = ({ config }) => {
 
     try {
       const payload = await api.requestPasswordRecoveryCodeBySession(recoverySessionToken);
-      const masked =
-        String(payload?.data?.masked_email || '').trim() || recoverySessionState.maskedEmail;
+      const masked = String(payload?.data?.masked_email || '').trim() || recoverySessionState.maskedEmail;
       setRecoveryFeedback(masked ? `Codigo enviado para ${masked}.` : 'Codigo enviado por e-mail.');
     } catch (error) {
       setRecoveryError(error?.message || 'Falha ao enviar codigo de verificacao.');
@@ -844,9 +778,7 @@ const UserApp = ({ config }) => {
   const handleVerifyRecoveryCodeBySession = async (event) => {
     event?.preventDefault?.();
     const formElement = event?.currentTarget || null;
-    const resolvedCode = readNamedInputValue(formElement, 'verification_code')
-      .replace(/\D+/g, '')
-      .slice(0, 6);
+    const resolvedCode = readNamedInputValue(formElement, 'verification_code').replace(/\D+/g, '').slice(0, 6);
     const resolvedPassword = readNamedInputValue(formElement, 'new_password');
     const resolvedConfirm = readNamedInputValue(formElement, 'new_password_confirm');
 
@@ -897,51 +829,24 @@ const UserApp = ({ config }) => {
   if (isRecoveryRoute) {
     return html`
       <div className="relative min-h-screen text-base-content">
-        <header
-          className="sticky top-0 z-40 border-b border-base-300 bg-base-100/90 backdrop-blur-md"
-        >
-          <div
-            className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-3 py-2 sm:px-4 lg:px-6"
-          >
-            <a
-              className="btn btn-ghost h-10 min-h-0 justify-start gap-2 px-2 text-sm normal-case"
-              href="/"
-            >
-              <img
-                src="/assets/images/brand-logo-128.webp"
-                alt="OmniZap"
-                className="h-8 w-8 rounded-full border border-base-300 object-cover"
-                loading="lazy"
-                decoding="async"
-              />
+        <header className="sticky top-0 z-40 border-b border-base-300 bg-base-100/90 backdrop-blur-md">
+          <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-3 py-2 sm:px-4 lg:px-6">
+            <a className="btn btn-ghost h-10 min-h-0 justify-start gap-2 px-2 text-sm normal-case" href="/">
+              <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" className="h-8 w-8 rounded-full border border-base-300 object-cover" loading="lazy" decoding="async" />
               <span className="truncate font-bold tracking-wide">OmniZap System</span>
             </a>
             <div className="flex items-center gap-2">
               <a className="btn btn-ghost btn-sm" href="/user/">Minha conta</a>
-              <button
-                type="button"
-                className="btn btn-error btn-sm"
-                onClick=${handleLogout}
-                disabled=${isLogoutBusy}
-              >
-                ${isLogoutBusy ? 'Encerrando...' : 'Encerrar sessao'}
-              </button>
+              <button type="button" className="btn btn-error btn-sm" onClick=${handleLogout} disabled=${isLogoutBusy}>${isLogoutBusy ? 'Encerrando...' : 'Encerrar sessao'}</button>
             </div>
           </div>
         </header>
 
         <main className="mx-auto w-full max-w-4xl px-3 pb-16 pt-6 sm:px-4 lg:px-6">
-          <section
-            className="rounded-2xl border border-base-300 bg-base-100/80 p-4 shadow-xl sm:p-6"
-          >
-            <p className="text-xs font-bold uppercase tracking-widest text-error">
-              Sessao temporaria
-            </p>
+          <section className="rounded-2xl border border-base-300 bg-base-100/80 p-4 shadow-xl sm:p-6">
+            <p className="text-xs font-bold uppercase tracking-widest text-error">Sessao temporaria</p>
             <h1 className="mt-1 text-2xl font-black sm:text-3xl">Redefinir senha</h1>
-            <p className="mt-2 text-sm text-base-content/75">
-              Esta rota expira automaticamente. Envie o codigo de 6 digitos para confirmar a
-              redefinicao.
-            </p>
+            <p className="mt-2 text-sm text-base-content/75">Esta rota expira automaticamente. Envie o codigo de 6 digitos para confirmar a redefinicao.</p>
 
             <div className="mt-4 grid gap-2">
               ${recoveryFeedback
@@ -969,93 +874,46 @@ const UserApp = ({ config }) => {
 
             <div className="mt-4 grid gap-3 min-[520px]:grid-cols-2">
               <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                  Destino do codigo
-                </p>
-                <p className="mt-1 text-base font-semibold">
-                  ${recoverySessionLoading
-                    ? 'Carregando...'
-                    : recoverySessionState.maskedEmail || 'Nao informado'}
-                </p>
+                <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Destino do codigo</p>
+                <p className="mt-1 text-base font-semibold">${recoverySessionLoading ? 'Carregando...' : recoverySessionState.maskedEmail || 'Nao informado'}</p>
               </article>
               <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                  Expira em
-                </p>
-                <p className="mt-1 text-base font-semibold">
-                  ${recoverySessionLoading
-                    ? 'Carregando...'
-                    : recoverySessionState.expiresAt || 'Nao informado'}
-                </p>
+                <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Expira em</p>
+                <p className="mt-1 text-base font-semibold">${recoverySessionLoading ? 'Carregando...' : recoverySessionState.expiresAt || 'Nao informado'}</p>
               </article>
             </div>
 
             ${recoverySessionState.valid
               ? html`
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-error w-full sm:w-auto"
-                      disabled=${recoveryBusy}
-                      onClick=${handleRequestRecoveryCodeBySession}
-                    >
-                      ${recoveryBusy ? 'Enviando...' : 'Enviar codigo por e-mail'}
-                    </button>
-                    <a className="btn btn-outline w-full sm:w-auto" href="/user/"
-                      >Voltar para minha conta</a
-                    >
+                    <button type="button" className="btn btn-error w-full sm:w-auto" disabled=${recoveryBusy} onClick=${handleRequestRecoveryCodeBySession}>${recoveryBusy ? 'Enviando...' : 'Enviar codigo por e-mail'}</button>
+                    <a className="btn btn-outline w-full sm:w-auto" href="/user/">Voltar para minha conta</a>
                   </div>
 
                   <form className="mt-4" onSubmit=${handleVerifyRecoveryCodeBySession}>
                     <div className="grid gap-2 sm:grid-cols-3">
                       <label className="form-control">
                         <span className="label-text text-xs">Codigo (6 digitos)</span>
-                        <input
-                          type="text"
-                          inputmode="numeric"
-                          pattern="[0-9]*"
-                          maxlength="6"
-                          className="input input-bordered w-full"
-                          name="verification_code"
-                          autocomplete="one-time-code"
-                        />
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" className="input input-bordered w-full" name="verification_code" autocomplete="one-time-code" />
                       </label>
                       <label className="form-control">
                         <span className="label-text text-xs">Nova senha</span>
-                        <input
-                          type="password"
-                          className="input input-bordered w-full"
-                          name="new_password"
-                          autocomplete="new-password"
-                        />
+                        <input type="password" className="input input-bordered w-full" name="new_password" autocomplete="new-password" />
                       </label>
                       <label className="form-control">
                         <span className="label-text text-xs">Confirmar senha</span>
-                        <input
-                          type="password"
-                          className="input input-bordered w-full"
-                          name="new_password_confirm"
-                          autocomplete="new-password"
-                        />
+                        <input type="password" className="input input-bordered w-full" name="new_password_confirm" autocomplete="new-password" />
                       </label>
                     </div>
 
                     <div className="mt-3">
-                      <button
-                        type="submit"
-                        className="btn btn-primary w-full sm:w-auto"
-                        disabled=${recoveryBusy}
-                      >
-                        ${recoveryBusy ? 'Validando...' : 'Validar codigo e redefinir'}
-                      </button>
+                      <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled=${recoveryBusy}>${recoveryBusy ? 'Validando...' : 'Validar codigo e redefinir'}</button>
                     </div>
                   </form>
                 `
               : html`
                   <div className="mt-4">
-                    <a className="btn btn-outline w-full sm:w-auto" href="/user/"
-                      >Voltar para minha conta</a
-                    >
+                    <a className="btn btn-outline w-full sm:w-auto" href="/user/">Voltar para minha conta</a>
                   </div>
                 `}
           </section>
@@ -1066,93 +924,35 @@ const UserApp = ({ config }) => {
 
   return html`
     <div className="relative min-h-screen text-base-content">
-      <header
-        className="sticky top-0 z-50 border-b border-base-300 bg-base-100/90 backdrop-blur-md"
-      >
-        <div
-          className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-3 py-2 sm:px-4 lg:px-6"
-        >
+      <header className="sticky top-0 z-50 border-b border-base-300 bg-base-100/90 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-3 py-2 sm:px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              className="btn btn-square h-10 min-h-0 border border-base-300 bg-base-200/70"
-              aria-label=${isSidebarOpen ? 'Fechar barra lateral' : 'Abrir barra lateral'}
-              aria-expanded=${isSidebarOpen ? 'true' : 'false'}
-              onClick=${toggleSidebar}
-            >
-              ${isSidebarOpen ? '\u2715' : '\u2630'}
-            </button>
-            <a
-              className="btn btn-ghost h-10 min-h-0 max-w-[74vw] justify-start gap-2 px-2 text-sm normal-case sm:max-w-none"
-              href="/"
-            >
-              <img
-                src="/assets/images/brand-logo-128.webp"
-                alt="OmniZap"
-                className="h-8 w-8 rounded-full border border-base-300 object-cover"
-                loading="lazy"
-                decoding="async"
-              />
+            <button type="button" className="btn btn-square h-10 min-h-0 border border-base-300 bg-base-200/70" aria-label=${isSidebarOpen ? 'Fechar barra lateral' : 'Abrir barra lateral'} aria-expanded=${isSidebarOpen ? 'true' : 'false'} onClick=${toggleSidebar}>${isSidebarOpen ? '\u2715' : '\u2630'}</button>
+            <a className="btn btn-ghost h-10 min-h-0 max-w-[74vw] justify-start gap-2 px-2 text-sm normal-case sm:max-w-none" href="/">
+              <img src="/assets/images/brand-logo-128.webp" alt="OmniZap" className="h-8 w-8 rounded-full border border-base-300 object-cover" loading="lazy" decoding="async" />
               <span className="truncate font-bold tracking-wide">OmniZap System</span>
             </a>
           </div>
 
           <div className="lg:hidden">
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick=${handleLogout}
-              disabled=${isLogoutBusy}
-            >
-              ${isLogoutBusy ? 'Saindo...' : 'Sair'}
-            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick=${handleLogout} disabled=${isLogoutBusy}>${isLogoutBusy ? 'Saindo...' : 'Sair'}</button>
           </div>
 
           <nav className="hidden items-center gap-2 lg:flex" aria-label="Navegação da conta">
             <a className="btn btn-ghost btn-sm" href="/user/">Área do Usuário</a>
-            <a
-              className="btn btn-ghost btn-sm"
-              href=${config.termsUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              >Termos</a
-            >
-            <a
-              className="btn btn-ghost btn-sm"
-              href=${config.privacyUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              >Privacidade</a
-            >
-            <button
-              type="button"
-              className="btn btn-error btn-sm"
-              onClick=${handleLogout}
-              disabled=${isLogoutBusy}
-            >
-              ${isLogoutBusy ? 'Encerrando...' : 'Encerrar sess\u00e3o'}
-            </button>
+            <a className="btn btn-ghost btn-sm" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Termos</a>
+            <a className="btn btn-ghost btn-sm" href=${config.privacyUrl} target="_blank" rel="noreferrer noopener">Privacidade</a>
+            <button type="button" className="btn btn-error btn-sm" onClick=${handleLogout} disabled=${isLogoutBusy}>${isLogoutBusy ? 'Encerrando...' : 'Encerrar sess\u00e3o'}</button>
           </nav>
         </div>
       </header>
 
-      <main
-        className=${`mx-auto w-full max-w-[min(96vw,1740px)] px-2 pb-20 pt-3 transition-[padding-left] duration-300 sm:px-4 sm:pb-14 sm:pt-6 lg:px-6 xl:px-8 ${!isMobile && isSidebarOpen ? 'lg:pl-[372px]' : 'lg:pl-0'}`}
-      >
-        <aside
-          className=${`fixed left-0 top-16 z-[60] h-[calc(100dvh-4rem)] w-[min(88vw,340px)] lg:w-[360px] px-2 pb-3 transition-transform duration-300 ease-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-[108%]'}`}
-          aria-hidden=${isSidebarOpen ? 'false' : 'true'}
-        >
-          <div
-            className=${`h-full overflow-y-auto rounded-r-2xl border border-base-300 bg-base-100/95 shadow-2xl backdrop-blur ${isMobile ? 'border-base-300/70 p-3' : 'p-5'}`}
-          >
+      <main className=${`mx-auto w-full max-w-[min(96vw,1740px)] px-2 pb-20 pt-3 transition-[padding-left] duration-300 sm:px-4 sm:pb-14 sm:pt-6 lg:px-6 xl:px-8 ${!isMobile && isSidebarOpen ? 'lg:pl-[372px]' : 'lg:pl-0'}`}>
+        <aside className=${`fixed left-0 top-16 z-[60] h-[calc(100dvh-4rem)] w-[min(88vw,340px)] lg:w-[360px] px-2 pb-3 transition-transform duration-300 ease-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-[108%]'}`} aria-hidden=${isSidebarOpen ? 'false' : 'true'}>
+          <div className=${`h-full overflow-y-auto rounded-r-2xl border border-base-300 bg-base-100/95 shadow-2xl backdrop-blur ${isMobile ? 'border-base-300/70 p-3' : 'p-5'}`}>
             <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-xs font-bold uppercase tracking-wide text-base-content/70">
-                Navegação
-              </p>
-              <button type="button" className="btn btn-ghost btn-xs" onClick=${closeSidebar}>
-                Fechar
-              </button>
+              <p className="text-xs font-bold uppercase tracking-wide text-base-content/70">Navegação</p>
+              <button type="button" className="btn btn-ghost btn-xs" onClick=${closeSidebar}>Fechar</button>
             </div>
 
             ${!isMobile
@@ -1169,135 +969,52 @@ const UserApp = ({ config }) => {
                         }}
                       />
                       <div className="min-w-0">
-                        <p
-                          className=${`truncate text-sm font-bold ${isLoadingSummary ? 'skeleton h-5 w-32 text-transparent' : ''}`}
-                        >
-                          ${isLoadingSummary ? 'Carregando...' : summary.name}
-                        </p>
-                        <p
-                          className=${`truncate text-xs text-base-content/70 ${isLoadingSummary ? 'skeleton mt-1 h-4 w-40 text-transparent' : ''}`}
-                        >
-                          ${isLoadingSummary ? 'email@exemplo.com' : summary.email}
-                        </p>
+                        <p className=${`truncate text-sm font-bold ${isLoadingSummary ? 'skeleton h-5 w-32 text-transparent' : ''}`}>${isLoadingSummary ? 'Carregando...' : summary.name}</p>
+                        <p className=${`truncate text-xs text-base-content/70 ${isLoadingSummary ? 'skeleton mt-1 h-4 w-40 text-transparent' : ''}`}>${isLoadingSummary ? 'email@exemplo.com' : summary.email}</p>
                       </div>
                     </div>
                   </div>
                 `
               : null}
 
-            <div className="space-y-2">
-              ${TABS.map(
-                (tab) => html`
-                  <button
-                    type="button"
-                    className=${`btn w-full justify-start ${activeTab === tab.key ? 'btn-primary' : 'btn-outline'}`}
-                    aria-selected=${activeTab === tab.key ? 'true' : 'false'}
-                    onClick=${() => handleTabSelect(tab.key)}
-                  >
-                    ${tab.label}
-                  </button>
-                `,
-              )}
-            </div>
+            <div className="space-y-2">${TABS.map((tab) => html` <button type="button" className=${`btn w-full justify-start ${activeTab === tab.key ? 'btn-primary' : 'btn-outline'}`} aria-selected=${activeTab === tab.key ? 'true' : 'false'} onClick=${() => handleTabSelect(tab.key)}>${tab.label}</button> `)}</div>
 
             <div className="divider my-3"></div>
             <div className="grid gap-2">
-              <a
-                className="btn btn-success w-full justify-start"
-                href=${links.botUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                onClick=${closeSidebar}
-                >Abrir bot no WhatsApp</a
-              >
-              <a
-                className="btn btn-outline w-full justify-start"
-                href=${links.supportUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                onClick=${closeSidebar}
-                >Falar com suporte</a
-              >
+              <a className="btn btn-success w-full justify-start" href=${links.botUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Abrir bot no WhatsApp</a>
+              <a className="btn btn-outline w-full justify-start" href=${links.supportUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Falar com suporte</a>
             </div>
 
             <div className="divider my-3"></div>
-            <p className="text-xs leading-relaxed text-base-content/65">
-              Use os atalhos para abrir o bot ou falar com o suporte quando precisar.
-            </p>
+            <p className="text-xs leading-relaxed text-base-content/65">Use os atalhos para abrir o bot ou falar com o suporte quando precisar.</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <a
-                className="link link-info text-xs"
-                href=${config.termsUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                onClick=${closeSidebar}
-                >Termos de Serviço</a
-              >
-              <a
-                className="link link-info text-xs"
-                href=${config.privacyUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                onClick=${closeSidebar}
-                >Política de Privacidade</a
-              >
+              <a className="link link-info text-xs" href=${config.termsUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Termos de Serviço</a>
+              <a className="link link-info text-xs" href=${config.privacyUrl} target="_blank" rel="noreferrer noopener" onClick=${closeSidebar}>Política de Privacidade</a>
             </div>
           </div>
         </aside>
 
-        ${isMobile && isSidebarOpen
-          ? html`<button
-              type="button"
-              className="fixed inset-0 z-50 bg-slate-950/55"
-              aria-label="Fechar barra lateral"
-              onClick=${closeSidebar}
-            ></button>`
-          : null}
+        ${isMobile && isSidebarOpen ? html`<button type="button" className="fixed inset-0 z-50 bg-slate-950/55" aria-label="Fechar barra lateral" onClick=${closeSidebar}></button>` : null}
 
-        <section
-          className="rounded-2xl border border-base-300 bg-base-100/80 p-2.5 shadow-xl sm:p-5 lg:p-7"
-        >
+        <section className="rounded-2xl border border-base-300 bg-base-100/80 p-2.5 shadow-xl sm:p-5 lg:p-7">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-4">
             <div>
-              ${!isMobile
-                ? html`<p className="text-xs font-bold uppercase tracking-widest text-info">
-                    Painel do usuário
-                  </p>`
-                : null}
+              ${!isMobile ? html`<p className="text-xs font-bold uppercase tracking-widest text-info">Painel do usuário</p>` : null}
               <h1 className="mt-1 text-xl font-black sm:text-3xl lg:text-4xl">Minha Conta</h1>
-              ${!isMobile
-                ? html`<p className="mt-1 text-sm text-base-content/70">
-                    Resumo da sua conta e canais diretos de suporte.
-                  </p>`
-                : null}
+              ${!isMobile ? html`<p className="mt-1 text-sm text-base-content/70">Resumo da sua conta e canais diretos de suporte.</p>` : null}
             </div>
             ${!isMobile
               ? html`
                   <div className="hidden lg:flex items-center gap-2">
-                    <a
-                      className="btn btn-success"
-                      href=${links.botUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      >Abrir bot</a
-                    >
-                    <a
-                      className="btn btn-outline"
-                      href=${links.supportUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      >Suporte</a
-                    >
+                    <a className="btn btn-success" href=${links.botUrl} target="_blank" rel="noreferrer noopener">Abrir bot</a>
+                    <a className="btn btn-outline" href=${links.supportUrl} target="_blank" rel="noreferrer noopener">Suporte</a>
                   </div>
                 `
               : null}
           </div>
 
           <div className="mb-4 grid gap-2">
-            <div
-              role="status"
-              className=${`alert ${toneClassMap[status.tone] || 'alert-info'} text-sm`}
-            >
+            <div role="status" className=${`alert ${toneClassMap[status.tone] || 'alert-info'} text-sm`}>
               <span>${status.message}</span>
             </div>
             ${errorMessage
@@ -1305,13 +1022,7 @@ const UserApp = ({ config }) => {
                   <div role="alert" className="alert alert-error text-sm">
                     <span>${errorMessage}</span>
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-outline w-full sm:w-auto"
-                    onClick=${handleRetry}
-                  >
-                    Tentar novamente
-                  </button>
+                  <button type="button" className="btn btn-outline w-full sm:w-auto" onClick=${handleRetry}>Tentar novamente</button>
                 `
               : null}
           </div>
@@ -1320,9 +1031,7 @@ const UserApp = ({ config }) => {
             ? html`
                 <div className="space-y-4">
                   <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
-                    <div
-                      className="flex flex-col items-start gap-3 min-[520px]:flex-row min-[520px]:items-center"
-                    >
+                    <div className="flex flex-col items-start gap-3 min-[520px]:flex-row min-[520px]:items-center">
                       <img
                         src=${summary.avatar}
                         alt="Avatar do usuário"
@@ -1333,65 +1042,29 @@ const UserApp = ({ config }) => {
                         }}
                       />
                       <div className="min-w-0 space-y-1">
-                        <p
-                          className=${`text-xl font-black sm:text-2xl ${isLoadingSummary ? 'skeleton h-7 w-44 text-transparent' : ''}`}
-                        >
-                          ${isLoadingSummary ? 'Carregando' : summary.name}
-                        </p>
-                        <p
-                          className=${`text-sm text-base-content/75 ${isLoadingSummary ? 'skeleton h-5 w-56 text-transparent' : ''}`}
-                        >
-                          ${isLoadingSummary ? 'email@exemplo.com' : summary.email}
-                        </p>
-                        <p
-                          className=${`text-sm text-base-content/75 ${isLoadingSummary ? 'skeleton h-5 w-64 text-transparent' : ''}`}
-                        >
-                          ${isLoadingSummary ? 'WhatsApp vinculado' : summary.whatsapp}
-                        </p>
+                        <p className=${`text-xl font-black sm:text-2xl ${isLoadingSummary ? 'skeleton h-7 w-44 text-transparent' : ''}`}>${isLoadingSummary ? 'Carregando' : summary.name}</p>
+                        <p className=${`text-sm text-base-content/75 ${isLoadingSummary ? 'skeleton h-5 w-56 text-transparent' : ''}`}>${isLoadingSummary ? 'email@exemplo.com' : summary.email}</p>
+                        <p className=${`text-sm text-base-content/75 ${isLoadingSummary ? 'skeleton h-5 w-64 text-transparent' : ''}`}>${isLoadingSummary ? 'WhatsApp vinculado' : summary.whatsapp}</p>
                       </div>
                     </div>
                   </section>
 
                   <div className="grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
                     <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                        Plano
-                      </p>
-                      <p
-                        className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-32 text-transparent' : ''}`}
-                      >
-                        ${isLoadingSummary ? '--' : summary.plan}
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Plano</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-32 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.plan}</p>
                     </article>
                     <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                        Status
-                      </p>
-                      <p
-                        className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-24 text-transparent' : ''}`}
-                      >
-                        ${isLoadingSummary ? '--' : summary.status}
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Status</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-24 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.status}</p>
                     </article>
                     <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                        Último login
-                      </p>
-                      <p
-                        className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}
-                      >
-                        ${isLoadingSummary ? '--' : summary.lastLogin}
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Último login</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.lastLogin}</p>
                     </article>
                     <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                        Sessão expira em
-                      </p>
-                      <p
-                        className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}
-                      >
-                        ${isLoadingSummary ? '--' : summary.expiresAt}
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Sessão expira em</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.expiresAt}</p>
                     </article>
                   </div>
                 </div>
@@ -1402,90 +1075,40 @@ const UserApp = ({ config }) => {
                 <div className="space-y-4">
                   <div className="grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
                     <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                        Status da sessão
-                      </p>
-                      <p
-                        className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}
-                      >
-                        ${isLoadingSummary ? '--' : summary.sessionStatus}
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Status da sessão</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.sessionStatus}</p>
                     </article>
                     <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                        Owner vinculado
-                      </p>
-                      <p
-                        className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-40 text-transparent' : ''}`}
-                      >
-                        ${isLoadingSummary ? '--' : summary.ownerJid}
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Owner vinculado</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-40 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.ownerJid}</p>
                     </article>
                     <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                        Último login
-                      </p>
-                      <p
-                        className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}
-                      >
-                        ${isLoadingSummary ? '--' : summary.lastLogin}
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Último login</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.lastLogin}</p>
                     </article>
                     <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                        Expiração da sessão
-                      </p>
-                      <p
-                        className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}
-                      >
-                        ${isLoadingSummary ? '--' : summary.expiresAt}
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Expiração da sessão</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : summary.expiresAt}</p>
                     </article>
                   </div>
 
                   <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
-                    <p className="text-xs font-bold uppercase tracking-widest text-base-content/60">
-                      Seguranca da senha
-                    </p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-base-content/60">Seguranca da senha</p>
                     <div className="mt-3 grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-4">
                       <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
-                        <p
-                          className="text-xs font-bold uppercase tracking-wide text-base-content/60"
-                        >
-                          Status
-                        </p>
-                        <p className="mt-1 text-base font-semibold">
-                          ${passwordState.configured
-                            ? 'Senha configurada'
-                            : 'Senha nao configurada'}
-                        </p>
+                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Status</p>
+                        <p className="mt-1 text-base font-semibold">${passwordState.configured ? 'Senha configurada' : 'Senha nao configurada'}</p>
                       </article>
                       <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
-                        <p
-                          className="text-xs font-bold uppercase tracking-wide text-base-content/60"
-                        >
-                          Ultima alteracao
-                        </p>
-                        <p className="mt-1 text-base font-semibold">
-                          ${passwordState.passwordChangedAt}
-                        </p>
+                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Ultima alteracao</p>
+                        <p className="mt-1 text-base font-semibold">${passwordState.passwordChangedAt}</p>
                       </article>
                       <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
-                        <p
-                          className="text-xs font-bold uppercase tracking-wide text-base-content/60"
-                        >
-                          Falhas recentes
-                        </p>
-                        <p className="mt-1 text-base font-semibold">
-                          ${String(passwordState.failedAttempts)}
-                        </p>
+                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Falhas recentes</p>
+                        <p className="mt-1 text-base font-semibold">${String(passwordState.failedAttempts)}</p>
                       </article>
                       <article className="rounded-lg border border-base-300 bg-base-100/70 p-3">
-                        <p
-                          className="text-xs font-bold uppercase tracking-wide text-base-content/60"
-                        >
-                          Ultimo login por senha
-                        </p>
+                        <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Ultimo login por senha</p>
                         <p className="mt-1 text-base font-semibold">${passwordState.lastLoginAt}</p>
                       </article>
                     </div>
@@ -1510,62 +1133,29 @@ const UserApp = ({ config }) => {
                     ${!passwordState.configured
                       ? html`
                           <form className="mt-3" onSubmit=${handlePasswordUpdate}>
-                            <input
-                              type="email"
-                              className="hidden"
-                              name="username"
-                              autocomplete="username"
-                              value=${accountEmail}
-                              readonly
-                            />
+                            <input type="email" className="hidden" name="username" autocomplete="username" value=${accountEmail} readonly />
                             <div className="grid gap-2 min-[520px]:grid-cols-2">
                               <label className="form-control">
                                 <span className="label-text text-xs">Nova senha</span>
-                                <input
-                                  type="password"
-                                  className="input input-bordered w-full"
-                                  name="new_password"
-                                  autocomplete="new-password"
-                                />
+                                <input type="password" className="input input-bordered w-full" name="new_password" autocomplete="new-password" />
                               </label>
                               <label className="form-control">
                                 <span className="label-text text-xs">Confirmar senha</span>
-                                <input
-                                  type="password"
-                                  className="input input-bordered w-full"
-                                  name="new_password_confirm"
-                                  autocomplete="new-password"
-                                />
+                                <input type="password" className="input input-bordered w-full" name="new_password_confirm" autocomplete="new-password" />
                               </label>
                             </div>
 
                             <div className="mt-3">
-                              <button
-                                type="submit"
-                                className="btn btn-primary w-full sm:w-auto"
-                                disabled=${passwordBusy}
-                              >
-                                ${passwordBusy ? 'Salvando...' : 'Criar senha'}
-                              </button>
+                              <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled=${passwordBusy}>${passwordBusy ? 'Salvando...' : 'Criar senha'}</button>
                             </div>
                           </form>
                         `
-                      : html`
-                          <p className="mt-3 text-sm text-base-content/75">
-                            Para alterar sua senha, use a sessao segura de redefinicao por e-mail
-                            abaixo.
-                          </p>
-                        `}
+                      : html` <p className="mt-3 text-sm text-base-content/75">Para alterar sua senha, use a sessao segura de redefinicao por e-mail abaixo.</p> `}
                   </section>
 
                   <section className="rounded-xl border border-base-300 bg-base-200/70 p-3 sm:p-4">
-                    <p className="text-xs font-bold uppercase tracking-widest text-base-content/60">
-                      Redefinicao por e-mail
-                    </p>
-                    <p className="mt-1 text-sm text-base-content/75">
-                      Abra uma sessao temporaria com expiracao automatica para redefinir sua senha
-                      com codigo de 6 digitos.
-                    </p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-base-content/60">Redefinicao por e-mail</p>
+                    <p className="mt-1 text-sm text-base-content/75">Abra uma sessao temporaria com expiracao automatica para redefinir sua senha com codigo de 6 digitos.</p>
 
                     <div className="mt-3 grid gap-2">
                       ${recoveryFeedback
@@ -1585,46 +1175,15 @@ const UserApp = ({ config }) => {
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="btn btn-error"
-                        disabled=${recoveryBusy || !passwordState.configured || !accountEmail}
-                        onClick=${handleOpenRecoverySession}
-                      >
-                        ${recoveryBusy ? 'Abrindo...' : 'Redefinir senha em sessao segura'}
-                      </button>
-                      ${!passwordState.configured
-                        ? html`<span className="text-xs text-base-content/65 self-center"
-                            >Disponivel apos configurar a senha inicial.</span
-                          >`
-                        : accountEmail
-                          ? html`<span className="text-xs text-base-content/65 self-center"
-                              >Destino: ${accountEmail}</span
-                            >`
-                          : html`<span className="text-xs text-warning self-center"
-                              >Conta sem e-mail valido para recuperacao.</span
-                            >`}
+                      <button type="button" className="btn btn-error" disabled=${recoveryBusy || !passwordState.configured || !accountEmail} onClick=${handleOpenRecoverySession}>${recoveryBusy ? 'Abrindo...' : 'Redefinir senha em sessao segura'}</button>
+                      ${!passwordState.configured ? html`<span className="text-xs text-base-content/65 self-center">Disponivel apos configurar a senha inicial.</span>` : accountEmail ? html`<span className="text-xs text-base-content/65 self-center">Destino: ${accountEmail}</span>` : html`<span className="text-xs text-warning self-center">Conta sem e-mail valido para recuperacao.</span>`}
                     </div>
                   </section>
 
-                  <p className="text-sm text-base-content/70">
-                    Ao usar o login você concorda com os termos e regras de privacidade do projeto.
-                  </p>
+                  <p className="text-sm text-base-content/70">Ao usar o login você concorda com os termos e regras de privacidade do projeto.</p>
                   <div className="flex flex-wrap gap-3 text-sm">
-                    <a
-                      className="link link-info"
-                      href=${config.termsUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      >Termos de Serviço</a
-                    >
-                    <a
-                      className="link link-info"
-                      href=${config.privacyUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      >Política de Privacidade</a
-                    >
+                    <a className="link link-info" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Termos de Serviço</a>
+                    <a className="link link-info" href=${config.privacyUrl} target="_blank" rel="noreferrer noopener">Política de Privacidade</a>
                   </div>
                 </div>
               `
@@ -1632,60 +1191,28 @@ const UserApp = ({ config }) => {
           ${activeTab === 'support'
             ? html`
                 <div className="space-y-4">
-                  <p className="text-sm text-base-content/70">
-                    Canal oficial para dúvidas sobre login e uso geral do OmniZap.
-                  </p>
+                  <p className="text-sm text-base-content/70">Canal oficial para dúvidas sobre login e uso geral do OmniZap.</p>
 
                   <div className="grid gap-3 min-[520px]:grid-cols-2">
                     <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                        Contato
-                      </p>
-                      <p
-                        className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}
-                      >
-                        ${isLoadingSummary
-                          ? '--'
-                          : support.phone
-                            ? `+${formatPhone(support.phone)}`
-                            : 'N\u00e3o informado'}
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Contato</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-36 text-transparent' : ''}`}>${isLoadingSummary ? '--' : support.phone ? `+${formatPhone(support.phone)}` : 'N\u00e3o informado'}</p>
                     </article>
                     <article className="rounded-xl border border-base-300 bg-base-200/70 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">
-                        Mensagem padrão
-                      </p>
-                      <p
-                        className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-40 text-transparent' : ''}`}
-                      >
-                        ${isLoadingSummary ? '--' : support.text}
-                      </p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-base-content/60">Mensagem padrão</p>
+                      <p className=${`mt-1 text-base font-semibold ${isLoadingSummary ? 'skeleton h-6 w-40 text-transparent' : ''}`}>${isLoadingSummary ? '--' : support.text}</p>
                     </article>
                   </div>
 
                   <div className="grid gap-2 min-[520px]:grid-cols-2">
-                    <a
-                      className="btn btn-success w-full"
-                      href=${links.supportUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      >Abrir suporte no WhatsApp</a
-                    >
-                    <a
-                      className="btn btn-outline w-full"
-                      href=${config.termsUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      >Ver novos Termos</a
-                    >
+                    <a className="btn btn-success w-full" href=${links.supportUrl} target="_blank" rel="noreferrer noopener">Abrir suporte no WhatsApp</a>
+                    <a className="btn btn-outline w-full" href=${config.termsUrl} target="_blank" rel="noreferrer noopener">Ver novos Termos</a>
                   </div>
                 </div>
               `
             : null}
 
-          <p className="mt-5 text-center text-xs text-base-content/60">
-            OmniZap System · ${String(new Date().getFullYear())}
-          </p>
+          <p className="mt-5 text-center text-xs text-base-content/60">OmniZap System · ${String(new Date().getFullYear())}</p>
         </section>
       </main>
     </div>
@@ -1698,10 +1225,7 @@ if (rootElement) {
   const config = {
     apiBasePath: normalizeBasePath(rootElement.dataset.apiBasePath, DEFAULT_API_BASE_PATH),
     loginPath: normalizeBasePath(rootElement.dataset.loginPath, DEFAULT_LOGIN_PATH),
-    passwordResetWebPath: normalizeBasePath(
-      rootElement.dataset.passwordResetWebPath,
-      DEFAULT_PASSWORD_RESET_WEB_PATH,
-    ),
+    passwordResetWebPath: normalizeBasePath(rootElement.dataset.passwordResetWebPath, DEFAULT_PASSWORD_RESET_WEB_PATH),
     termsUrl: normalizeUrlPath(rootElement.dataset.termsUrl, DEFAULT_TERMS_URL),
     privacyUrl: normalizeUrlPath(rootElement.dataset.privacyUrl, DEFAULT_PRIVACY_URL),
     fallbackAvatar: normalizeUrlPath(rootElement.dataset.fallbackAvatar, DEFAULT_FALLBACK_AVATAR),

@@ -149,14 +149,7 @@
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "sem limite especifico",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "categoria solicitada na API waifu.pics",
-        "configuracao do grupo para validar politicas de conteudo"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "categoria solicitada na API waifu.pics", "configuracao do grupo para validar politicas de conteudo"],
       "enabled": true,
       "categoria": "anime",
       "subcomandos": [],
@@ -196,11 +189,7 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do chat",
-          "identificador do remetente",
-          "conteudo textual do comando"
-        ],
+        "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
@@ -239,14 +228,7 @@
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "categoria solicitada na API waifu.pics",
-        "configuracao do grupo para validar politicas de conteudo"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "categoria solicitada na API waifu.pics", "configuracao do grupo para validar politicas de conteudo"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -330,11 +312,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do chat",
-            "identificador do remetente",
-            "conteudo textual do comando"
-          ],
+          "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -378,21 +356,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "waifu",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     },
     {
@@ -403,14 +367,7 @@
       "permissao_necessaria": "usuario comum com NSFW habilitado no grupo",
       "limite_de_uso": "depende de configuracao global e do grupo",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "categoria NSFW solicitada na API waifu.pics",
-        "status NSFW global e por grupo para permitir bloqueio/liberacao"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "categoria NSFW solicitada na API waifu.pics", "status NSFW global e por grupo para permitir bloqueio/liberacao"],
       "enabled": true,
       "categoria": "anime",
       "subcomandos": [],
@@ -450,11 +407,7 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do chat",
-          "identificador do remetente",
-          "conteudo textual do comando"
-        ],
+        "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
@@ -493,14 +446,7 @@
       },
       "permission": "usuario comum com NSFW habilitado no grupo",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "categoria NSFW solicitada na API waifu.pics",
-        "status NSFW global e por grupo para permitir bloqueio/liberacao"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "categoria NSFW solicitada na API waifu.pics", "status NSFW global e por grupo para permitir bloqueio/liberacao"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -584,11 +530,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do chat",
-            "identificador do remetente",
-            "conteudo textual do comando"
-          ],
+          "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -596,11 +538,7 @@
       "discovery": {
         "keywords": ["waifunsfw", "waifupicsnsfw", "anime", "privado", "grupo"],
         "faq_queries": ["como usar waifunsfw", "o que faz waifunsfw", "comando waifunsfw"],
-        "user_phrasings": [
-          "quero usar waifunsfw",
-          "me ajuda com waifunsfw",
-          "envia imagem nsfw da"
-        ],
+        "user_phrasings": ["quero usar waifunsfw", "me ajuda com waifunsfw", "envia imagem nsfw da"],
         "suggestion_priority": 100
       },
       "access": {
@@ -636,21 +574,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "waifunsfw",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     },
     {
@@ -661,13 +585,7 @@
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "sem limite especifico",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "prefixo/categoria para montar texto de ajuda dinamico"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "prefixo/categoria para montar texto de ajuda dinamico"],
       "enabled": true,
       "categoria": "anime",
       "subcomandos": [],
@@ -699,21 +617,13 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do chat",
-          "identificador do remetente",
-          "conteudo textual do comando"
-        ],
+        "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": ["waifuajuda", "anime", "privado", "grupo"],
       "faq_patterns": ["como usar waifuajuda", "o que faz waifuajuda", "comando waifuajuda"],
-      "user_phrasings": [
-        "quero usar waifuajuda",
-        "me ajuda com waifuajuda",
-        "mostra ajuda e categorias"
-      ],
+      "user_phrasings": ["quero usar waifuajuda", "me ajuda com waifuajuda", "mostra ajuda e categorias"],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
@@ -746,13 +656,7 @@
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "prefixo/categoria para montar texto de ajuda dinamico"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "prefixo/categoria para montar texto de ajuda dinamico"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -822,11 +726,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do chat",
-            "identificador do remetente",
-            "conteudo textual do comando"
-          ],
+          "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -834,11 +734,7 @@
       "discovery": {
         "keywords": ["waifuajuda", "anime", "privado", "grupo"],
         "faq_queries": ["como usar waifuajuda", "o que faz waifuajuda", "comando waifuajuda"],
-        "user_phrasings": [
-          "quero usar waifuajuda",
-          "me ajuda com waifuajuda",
-          "mostra ajuda e categorias"
-        ],
+        "user_phrasings": ["quero usar waifuajuda", "me ajuda com waifuajuda", "mostra ajuda e categorias"],
         "suggestion_priority": 100
       },
       "access": {
@@ -874,21 +770,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "waifuajuda",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     }
   ],

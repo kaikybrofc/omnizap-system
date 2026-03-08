@@ -39,9 +39,7 @@ const printObjectPairsDeep = (obj, prefix = '') => {
       if (!value.length) {
         lines.push(`- ${nextKey}: (nenhum)`);
       } else {
-        const serialized = value
-          .map((item) => (typeof item === 'object' ? JSON.stringify(item) : String(item)))
-          .join(', ');
+        const serialized = value.map((item) => (typeof item === 'object' ? JSON.stringify(item) : String(item))).join(', ');
         lines.push(`- ${nextKey}: ${serialized}`);
       }
       continue;
@@ -79,9 +77,7 @@ const buildCommandSection = (command = {}) => {
   lines.push(`- enabled: ${command.enabled !== false}`);
   lines.push(`- categoria: ${String(command.categoria || '(nao informado)')}`);
   lines.push(`- descricao: ${String(command.descricao || 'Sem descricao cadastrada.')}`);
-  lines.push(
-    `- permissao_necessaria: ${String(command.permissao_necessaria || '(nao informado)')}`,
-  );
+  lines.push(`- permissao_necessaria: ${String(command.permissao_necessaria || '(nao informado)')}`);
   lines.push(`- limite_de_uso: ${String(command.limite_de_uso || '(nao informado)')}`);
 
   lines.push('- local_de_uso:');
@@ -115,22 +111,16 @@ const buildCommandSection = (command = {}) => {
   }
 
   lines.push('- pre_condicoes:');
-  const pre =
-    command.pre_condicoes && typeof command.pre_condicoes === 'object' ? command.pre_condicoes : {};
+  const pre = command.pre_condicoes && typeof command.pre_condicoes === 'object' ? command.pre_condicoes : {};
   lines.push(`- requer_grupo: ${normalizeBoolLabel(Boolean(pre.requer_grupo))}`);
   lines.push(`- requer_admin: ${normalizeBoolLabel(Boolean(pre.requer_admin))}`);
-  lines.push(
-    `- requer_admin_principal: ${normalizeBoolLabel(Boolean(pre.requer_admin_principal))}`,
-  );
+  lines.push(`- requer_admin_principal: ${normalizeBoolLabel(Boolean(pre.requer_admin_principal))}`);
   lines.push(`- requer_google_login: ${normalizeBoolLabel(Boolean(pre.requer_google_login))}`);
   lines.push(`- requer_nsfw: ${normalizeBoolLabel(Boolean(pre.requer_nsfw))}`);
   lines.push(`- requer_midia: ${normalizeBoolLabel(Boolean(pre.requer_midia))}`);
-  lines.push(
-    `- requer_mensagem_respondida: ${normalizeBoolLabel(Boolean(pre.requer_mensagem_respondida))}`,
-  );
+  lines.push(`- requer_mensagem_respondida: ${normalizeBoolLabel(Boolean(pre.requer_mensagem_respondida))}`);
 
-  const rateLimit =
-    command.rate_limit && typeof command.rate_limit === 'object' ? command.rate_limit : {};
+  const rateLimit = command.rate_limit && typeof command.rate_limit === 'object' ? command.rate_limit : {};
   lines.push('- rate_limit:');
   lines.push(`- max: ${rateLimit.max ?? 'null'}`);
   lines.push(`- janela_ms: ${rateLimit.janela_ms ?? 'null'}`);
@@ -140,9 +130,7 @@ const buildCommandSection = (command = {}) => {
   if (command.acesso && typeof command.acesso === 'object') {
     const acesso = command.acesso;
     lines.push(`- somente_premium: ${normalizeBoolLabel(Boolean(acesso.somente_premium))}`);
-    lines.push(
-      `- planos_permitidos: ${Array.isArray(acesso.planos_permitidos) && acesso.planos_permitidos.length ? acesso.planos_permitidos.join(', ') : '(nao informado)'}`,
-    );
+    lines.push(`- planos_permitidos: ${Array.isArray(acesso.planos_permitidos) && acesso.planos_permitidos.length ? acesso.planos_permitidos.join(', ') : '(nao informado)'}`);
   } else {
     lines.push('- (nao informado)');
   }
@@ -156,14 +144,10 @@ const buildCommandSection = (command = {}) => {
       lines.push('- (nao informado)');
     } else {
       if (comum) {
-        lines.push(
-          `- comum: max=${comum.max ?? 'null'}, janela_ms=${comum.janela_ms ?? 'null'}, escopo=${comum.escopo ?? '(nao informado)'}`,
-        );
+        lines.push(`- comum: max=${comum.max ?? 'null'}, janela_ms=${comum.janela_ms ?? 'null'}, escopo=${comum.escopo ?? '(nao informado)'}`);
       }
       if (premium) {
-        lines.push(
-          `- premium: max=${premium.max ?? 'null'}, janela_ms=${premium.janela_ms ?? 'null'}, escopo=${premium.escopo ?? '(nao informado)'}`,
-        );
+        lines.push(`- premium: max=${premium.max ?? 'null'}, janela_ms=${premium.janela_ms ?? 'null'}, escopo=${premium.escopo ?? '(nao informado)'}`);
       }
     }
   } else {
@@ -183,10 +167,7 @@ const buildCommandSection = (command = {}) => {
   lines.push(...printObjectPairs(command.respostas_padrao));
 
   lines.push('- mensagens_sistema:');
-  const mensagensSistema =
-    command.mensagens_sistema && typeof command.mensagens_sistema === 'object'
-      ? command.mensagens_sistema
-      : null;
+  const mensagensSistema = command.mensagens_sistema && typeof command.mensagens_sistema === 'object' ? command.mensagens_sistema : null;
   if (!mensagensSistema) {
     lines.push('- (nao informado)');
   } else {
@@ -194,10 +175,7 @@ const buildCommandSection = (command = {}) => {
   }
 
   lines.push('- limites_operacionais:');
-  const limitesOperacionais =
-    command.limites_operacionais && typeof command.limites_operacionais === 'object'
-      ? command.limites_operacionais
-      : null;
+  const limitesOperacionais = command.limites_operacionais && typeof command.limites_operacionais === 'object' ? command.limites_operacionais : null;
   if (!limitesOperacionais) {
     lines.push('- (nao informado)');
   } else {
@@ -218,9 +196,7 @@ const buildCommandSection = (command = {}) => {
   if (command.observabilidade && typeof command.observabilidade === 'object') {
     const obs = command.observabilidade;
     lines.push(`- evento_analytics: ${obs.evento_analytics ?? '(nao informado)'}`);
-    lines.push(
-      `- tags_log: ${Array.isArray(obs.tags_log) && obs.tags_log.length ? obs.tags_log.join(', ') : '(nenhum)'}`,
-    );
+    lines.push(`- tags_log: ${Array.isArray(obs.tags_log) && obs.tags_log.length ? obs.tags_log.join(', ') : '(nenhum)'}`);
     lines.push(`- nivel_log: ${obs.nivel_log ?? '(nao informado)'}`);
   } else {
     lines.push('- (nao informado)');
@@ -251,9 +227,7 @@ const buildAgentMarkdown = ({ moduleDirName, config }) => {
   const lines = [];
   lines.push(`# ${resolveGuideTitle(moduleName)}`);
   lines.push('');
-  lines.push(
-    'Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.',
-  );
+  lines.push('Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.');
   lines.push('');
   lines.push('## Fonte de Verdade');
   lines.push(`- arquivo_base: \`app/modules/${moduleDirName}/commandConfig.json\``);
@@ -283,9 +257,7 @@ const buildAgentMarkdown = ({ moduleDirName, config }) => {
     lines.push(`- faq.auto_generate_on_start: ${faq.auto_generate_on_start ?? '(nao informado)'}`);
     lines.push(`- llm.enabled: ${llm.enabled ?? '(nao informado)'}`);
     lines.push(`- llm.model: ${llm.model ?? '(nao informado)'}`);
-    lines.push(
-      `- llm.max_agent_context_chars: ${llm.max_agent_context_chars ?? '(nao informado)'}`,
-    );
+    lines.push(`- llm.max_agent_context_chars: ${llm.max_agent_context_chars ?? '(nao informado)'}`);
     lines.push(`- llm.max_response_chars: ${llm.max_response_chars ?? '(nao informado)'}`);
     lines.push(`- llm.timeout_ms: ${llm.timeout_ms ?? '(nao informado)'}`);
   }
@@ -295,13 +267,9 @@ const buildAgentMarkdown = ({ moduleDirName, config }) => {
   lines.push('- Passo 1: identificar comando pelo token apos o prefixo.');
   lines.push('- Passo 2: resolver alias para nome canonico usando campo `aliases`.');
   lines.push('- Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.');
-  lines.push(
-    '- Passo 4: se houver erro de uso, responder com `mensagens_uso` (quando existir) ou `metodos_de_uso`.',
-  );
+  lines.push('- Passo 4: se houver erro de uso, responder com `mensagens_uso` (quando existir) ou `metodos_de_uso`.');
   lines.push('- Passo 5: seguir `respostas_padrao` como fallback de texto.');
-  lines.push(
-    '- Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.',
-  );
+  lines.push('- Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.');
 
   lines.push('');
   lines.push('## Regras de Seguranca para IA');

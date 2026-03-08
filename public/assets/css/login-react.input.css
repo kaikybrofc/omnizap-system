@@ -27,10 +27,7 @@
     min-height: 100vh;
     color: var(--login-text);
     font-family: 'Space Grotesk', 'Sora', 'Manrope', 'Segoe UI', sans-serif;
-    background:
-      radial-gradient(70rem 44rem at -14% -22%, rgb(30 64 175 / 0.38), transparent 64%),
-      radial-gradient(66rem 38rem at 112% -18%, rgb(124 58 237 / 0.34), transparent 60%),
-      linear-gradient(145deg, #0f172a 0%, #1e1b4b 52%, #4c1d95 100%);
+    background: radial-gradient(70rem 44rem at -14% -22%, rgb(30 64 175 / 0.38), transparent 64%), radial-gradient(66rem 38rem at 112% -18%, rgb(124 58 237 / 0.34), transparent 60%), linear-gradient(145deg, #0f172a 0%, #1e1b4b 52%, #4c1d95 100%);
   }
 
   #login-react-root {
@@ -66,9 +63,7 @@
 
   .login-bg-grid {
     opacity: 0.26;
-    background-image:
-      linear-gradient(rgb(56 189 248 / 0.09) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(56 189 248 / 0.09) 1px, transparent 1px);
+    background-image: linear-gradient(rgb(56 189 248 / 0.09) 1px, transparent 1px), linear-gradient(90deg, rgb(56 189 248 / 0.09) 1px, transparent 1px);
     background-size: 54px 54px;
     mask-image: radial-gradient(circle at 50% 35%, black 34%, transparent 90%);
   }
@@ -90,9 +85,7 @@
 
   .login-bg-noise {
     opacity: 0.16;
-    background-image:
-      radial-gradient(rgb(226 232 240 / 0.26) 0.7px, transparent 0.7px),
-      radial-gradient(rgb(56 189 248 / 0.22) 0.7px, transparent 0.7px);
+    background-image: radial-gradient(rgb(226 232 240 / 0.26) 0.7px, transparent 0.7px), radial-gradient(rgb(56 189 248 / 0.22) 0.7px, transparent 0.7px);
     background-position:
       0 0,
       18px 18px;

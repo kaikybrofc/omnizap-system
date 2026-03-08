@@ -34,10 +34,7 @@ const STICKER_WEB_ORIGIN = resolveStickerWebOrigin();
 function normalizeBasePath(value, fallback) {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash =
-    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
-      ? withLeadingSlash.slice(0, -1)
-      : withLeadingSlash;
+  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 }
 
@@ -55,15 +52,7 @@ function normalizeOrigin(value) {
 }
 
 function resolveStickerWebOrigin() {
-  const candidates = [
-    process.env.STICKER_WEB_ORIGIN,
-    process.env.APP_BASE_URL,
-    process.env.PUBLIC_BASE_URL,
-    process.env.SITE_URL,
-    process.env.WEB_URL,
-    process.env.BASE_URL,
-    process.env.STICKER_DEFAULT_PACK_NAME,
-  ];
+  const candidates = [process.env.STICKER_WEB_ORIGIN, process.env.APP_BASE_URL, process.env.PUBLIC_BASE_URL, process.env.SITE_URL, process.env.WEB_URL, process.env.BASE_URL, process.env.STICKER_DEFAULT_PACK_NAME];
 
   for (const candidate of candidates) {
     const normalized = normalizeOrigin(candidate);
@@ -90,11 +79,7 @@ function isPackPubliclyVisible(pack) {
   const packStatus = String(pack?.pack_status || 'ready')
     .trim()
     .toLowerCase();
-  return (
-    (visibility === 'public' || visibility === 'unlisted') &&
-    status === 'published' &&
-    packStatus === 'ready'
-  );
+  return (visibility === 'public' || visibility === 'unlisted') && status === 'published' && packStatus === 'ready';
 }
 
 const execProm = promisify(exec);
@@ -157,10 +142,7 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
   const countLabel = itemCount > 0 ? ` (${itemCount}/${AUTO_PACK_MAX_ITEMS})` : '';
 
   if (result.status === 'duplicate') {
-    const duplicateLines = [
-      `ℹ️ Essa figurinha já estava no pack automático *${packName}*.`,
-      `Use *${commandPrefix}pack info ${packIdentifier}* para ver o pack ou *${commandPrefix}pack send ${packIdentifier}* para enviar.`,
-    ];
+    const duplicateLines = [`ℹ️ Essa figurinha já estava no pack automático *${packName}*.`, `Use *${commandPrefix}pack info ${packIdentifier}* para ver o pack ou *${commandPrefix}pack send ${packIdentifier}* para enviar.`];
     if (packWebUrl) {
       duplicateLines.push(`🌐 Link do pack no site: ${packWebUrl}`);
     } else {
@@ -169,12 +151,7 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
     return duplicateLines.join('\n');
   }
 
-  const savedLines = [
-    `✅ Figurinha adicionada ao pack *${packName}*${countLabel}.`,
-    '',
-    `📋 Gerencie seus packs com *${commandPrefix}pack list*.`,
-    `🚀 Envie agora com *${commandPrefix}pack send ${packCommandTarget}*.`,
-  ];
+  const savedLines = [`✅ Figurinha adicionada ao pack *${packName}*${countLabel}.`, '', `📋 Gerencie seus packs com *${commandPrefix}pack list*.`, `🚀 Envie agora com *${commandPrefix}pack send ${packCommandTarget}*.`];
   if (packWebUrl) {
     savedLines.push(`🌐 Veja no site: ${packWebUrl}`);
   } else {
@@ -183,14 +160,7 @@ function buildAutoPackNoticeText(result, commandPrefix = DEFAULT_COMMAND_PREFIX)
   return savedLines.join('\n');
 }
 
-async function notifyAutoPackCollection({
-  sock,
-  remoteJid,
-  messageInfo,
-  expirationMessage,
-  result,
-  commandPrefix,
-}) {
+async function notifyAutoPackCollection({ sock, remoteJid, messageInfo, expirationMessage, result, commandPrefix }) {
   if (!AUTO_PACK_NOTICE_ENABLED) return;
 
   const noticeText = buildAutoPackNoticeText(result, commandPrefix);
@@ -282,10 +252,7 @@ function drawTextOnCanvas(ctx, text, color, { glow = false } = {}) {
   };
 
   let lines = wrapText();
-  while (
-    lines.length * fontSize > height - 40 ||
-    lines.some((line) => ctx.measureText(line).width > maxWidth)
-  ) {
+  while (lines.length * fontSize > height - 40 || lines.some((line) => ctx.measureText(line).width > maxWidth)) {
     fontSize -= 4;
     ctx.font = `bold ${fontSize}px Arial`;
     lines = wrapText();
@@ -421,28 +388,14 @@ async function generateBlinkingTextWebp(text, outputDir, fileName, color = 'whit
  * @param {string} [params.commandPrefix='/']
  * @returns {Promise<void>}
  */
-export async function processTextSticker({
-  sock,
-  messageInfo,
-  remoteJid,
-  senderJid,
-  senderName,
-  text,
-  expirationMessage,
-  extraText = '',
-  color = 'black',
-  commandPrefix = DEFAULT_COMMAND_PREFIX,
-  commandName = 'stickertext',
-}) {
+export async function processTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, expirationMessage, extraText = '', color = 'black', commandPrefix = DEFAULT_COMMAND_PREFIX, commandName = 'stickertext' }) {
   const stickerText = text.trim();
   const isWhiteCommand =
     String(commandName || '')
       .trim()
       .toLowerCase() === 'stickertextwhite';
   const fallbackUsageAlias = isWhiteCommand ? 'stw' : 'st';
-  const usageText =
-    getStickerUsageText(commandName, { commandPrefix }) ||
-    `Use *${commandPrefix}${fallbackUsageAlias}* com o texto da figurinha.`;
+  const usageText = getStickerUsageText(commandName, { commandPrefix }) || `Use *${commandPrefix}${fallbackUsageAlias}* com o texto da figurinha.`;
 
   if (!stickerText) {
     await sendAndStore(
@@ -462,9 +415,7 @@ export async function processTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          `❌ Texto muito longo: *${stickerText.length}* caracteres.\n` +
-          `Limite atual: *${MAX_CHARACTERS}* caracteres.`,
+        text: `❌ Texto muito longo: *${stickerText.length}* caracteres.\n` + `Limite atual: *${MAX_CHARACTERS}* caracteres.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -479,9 +430,7 @@ export async function processTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          `❌ Texto com muitas linhas: *${stickerLines.length}*.\n` +
-          `Limite atual: *${MAX_LINES}* linhas.`,
+        text: `❌ Texto com muitas linhas: *${stickerLines.length}*.\n` + `Limite atual: *${MAX_LINES}* linhas.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -526,12 +475,7 @@ export async function processTextSticker({
 
     const stickerBuffer = await fs.readFile(stickerPath);
 
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { sticker: stickerBuffer },
-      { ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { sticker: stickerBuffer }, { ephemeralExpiration: expirationMessage });
 
     setImmediate(() => {
       addStickerToAutoPack({
@@ -550,9 +494,7 @@ export async function processTextSticker({
           }),
         )
         .catch((collectError) => {
-          logger.warn(
-            `processTextSticker Falha ao coletar figurinha automática: ${collectError.message}`,
-          );
+          logger.warn(`processTextSticker Falha ao coletar figurinha automática: ${collectError.message}`);
         });
     });
   } catch (error) {
@@ -561,9 +503,7 @@ export async function processTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          '*❌ Não foi possível criar a figurinha de texto.*\n\n' +
-          `Tente novamente com outro texto ou use *${commandPrefix}${fallbackUsageAlias}* com uma frase menor.`,
+        text: '*❌ Não foi possível criar a figurinha de texto.*\n\n' + `Tente novamente com outro texto ou use *${commandPrefix}${fallbackUsageAlias}* com uma frase menor.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -591,25 +531,11 @@ export async function processTextSticker({
  * @param {string} [params.commandPrefix='/']
  * @returns {Promise<void>}
  */
-export async function processBlinkingTextSticker({
-  sock,
-  messageInfo,
-  remoteJid,
-  senderJid,
-  senderName,
-  text,
-  expirationMessage,
-  extraText = '',
-  color = 'white',
-  commandPrefix = DEFAULT_COMMAND_PREFIX,
-  commandName = 'stickertextblink',
-}) {
+export async function processBlinkingTextSticker({ sock, messageInfo, remoteJid, senderJid, senderName, text, expirationMessage, extraText = '', color = 'white', commandPrefix = DEFAULT_COMMAND_PREFIX, commandName = 'stickertextblink' }) {
   const parsed = parseColorFlag(text, color);
   const stickerText = parsed.text.trim();
   const resolvedColor = parsed.color;
-  const usageText =
-    getStickerUsageText(commandName, { commandPrefix }) ||
-    `Use *${commandPrefix}stb* com o texto da figurinha piscante.`;
+  const usageText = getStickerUsageText(commandName, { commandPrefix }) || `Use *${commandPrefix}stb* com o texto da figurinha piscante.`;
 
   if (!stickerText) {
     await sendAndStore(
@@ -629,9 +555,7 @@ export async function processBlinkingTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          `❌ Texto muito longo: *${stickerText.length}* caracteres.\n` +
-          `Limite atual: *${MAX_CHARACTERS}* caracteres.`,
+        text: `❌ Texto muito longo: *${stickerText.length}* caracteres.\n` + `Limite atual: *${MAX_CHARACTERS}* caracteres.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -646,9 +570,7 @@ export async function processBlinkingTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          `❌ Texto com muitas linhas: *${stickerLines.length}*.\n` +
-          `Limite atual: *${MAX_LINES}* linhas.`,
+        text: `❌ Texto com muitas linhas: *${stickerLines.length}*.\n` + `Limite atual: *${MAX_LINES}* linhas.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -667,12 +589,7 @@ export async function processBlinkingTextSticker({
     const userDir = path.join(TEMP_DIR, sanitizedUserId);
     await fs.mkdir(userDir, { recursive: true });
 
-    webpPath = await generateBlinkingTextWebp(
-      stickerText,
-      userDir,
-      `text_blink_${uniqueId}`,
-      resolvedColor,
-    );
+    webpPath = await generateBlinkingTextWebp(stickerText, userDir, `text_blink_${uniqueId}`, resolvedColor);
 
     const { packName, packAuthor } = (() => {
       if (!extraText) {
@@ -695,12 +612,7 @@ export async function processBlinkingTextSticker({
 
     const stickerBuffer = await fs.readFile(stickerPath);
 
-    await sendAndStore(
-      sock,
-      remoteJid,
-      { sticker: stickerBuffer },
-      { ephemeralExpiration: expirationMessage },
-    );
+    await sendAndStore(sock, remoteJid, { sticker: stickerBuffer }, { ephemeralExpiration: expirationMessage });
 
     setImmediate(() => {
       addStickerToAutoPack({
@@ -719,9 +631,7 @@ export async function processBlinkingTextSticker({
           }),
         )
         .catch((collectError) => {
-          logger.warn(
-            `processBlinkingTextSticker Falha ao coletar figurinha automática: ${collectError.message}`,
-          );
+          logger.warn(`processBlinkingTextSticker Falha ao coletar figurinha automática: ${collectError.message}`);
         });
     });
   } catch (error) {
@@ -730,9 +640,7 @@ export async function processBlinkingTextSticker({
       sock,
       remoteJid,
       {
-        text:
-          '*❌ Não foi possível criar a figurinha piscante.*\n\n' +
-          `Tente novamente com outro texto ou use *${commandPrefix}stb* com uma frase menor.`,
+        text: '*❌ Não foi possível criar a figurinha piscante.*\n\n' + `Tente novamente com outro texto ou use *${commandPrefix}stb* com uma frase menor.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );

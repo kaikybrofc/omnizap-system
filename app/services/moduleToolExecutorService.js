@@ -14,12 +14,7 @@ const parseEnvInt = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, parsed));
 };
 
-const MAX_TOOL_ARGS_LOG_LENGTH = parseEnvInt(
-  process.env.GLOBAL_TOOL_EXECUTOR_ARGS_LOG_MAX_LEN,
-  900,
-  120,
-  4_000,
-);
+const MAX_TOOL_ARGS_LOG_LENGTH = parseEnvInt(process.env.GLOBAL_TOOL_EXECUTOR_ARGS_LOG_MAX_LEN, 900, 120, 4_000);
 
 const safeJson = (value) => {
   try {
@@ -108,10 +103,7 @@ const validateAndNormalizeArgs = ({ record, inputArgs }) => {
   for (const spec of record.argumentSpecs) {
     let value = safeInput[spec.key];
 
-    if (
-      (value === undefined || value === null || value === '') &&
-      spec.defaultValue !== undefined
-    ) {
+    if ((value === undefined || value === null || value === '') && spec.defaultValue !== undefined) {
       value = spec.defaultValue;
     }
 
@@ -162,35 +154,16 @@ const resolveLearningConfidence = ({ context, toolName }) => {
     return Math.max(0, Math.min(1, direct));
   }
 
-  const candidates = Array.isArray(context?.toolSelectionCandidates)
-    ? context.toolSelectionCandidates
-    : [];
-  const found = candidates.find(
-    (candidate) =>
-      normalizeText(candidate?.toolName) === normalizeText(toolName) ||
-      normalizeText(candidate?.commandName) === normalizeText(toolName),
-  );
+  const candidates = Array.isArray(context?.toolSelectionCandidates) ? context.toolSelectionCandidates : [];
+  const found = candidates.find((candidate) => normalizeText(candidate?.toolName) === normalizeText(toolName) || normalizeText(candidate?.commandName) === normalizeText(toolName));
   const score = Number(found?.score);
   if (Number.isFinite(score)) return Math.max(0, Math.min(1, score));
   return null;
 };
 
-const resolveLearningQuestion = (context = {}) =>
-  String(
-    context?.userQuestion ||
-      context?.question ||
-      context?.rawQuestion ||
-      context?.originalQuestion ||
-      '',
-  ).trim();
+const resolveLearningQuestion = (context = {}) => String(context?.userQuestion || context?.question || context?.rawQuestion || context?.originalQuestion || '').trim();
 
-const persistLearningEventSafe = async ({
-  context,
-  toolSuggested,
-  toolExecuted,
-  success,
-  confidence,
-}) => {
+const persistLearningEventSafe = async ({ context, toolSuggested, toolExecuted, success, confidence }) => {
   const question = resolveLearningQuestion(context);
   if (!question) return;
 
@@ -225,21 +198,13 @@ const buildPermissionErrorText = ({ record, reason }) => {
   const permission = normalizePermissionText(record.commandEntry?.permissao_necessaria);
   const where = normalizeWhereLabel(record.commandEntry?.local_de_uso).join(', ') || 'nao definido';
 
-  const details = [
-    `Nao posso executar automaticamente *${command}* neste contexto.`,
-    `Motivo: ${reason}.`,
-    `Permissao necessaria: ${permission}.`,
-    `Local permitido: ${where}.`,
-  ];
+  const details = [`Nao posso executar automaticamente *${command}* neste contexto.`, `Motivo: ${reason}.`, `Permissao necessaria: ${permission}.`, `Local permitido: ${where}.`];
 
   return details.join('\n');
 };
 
 const resolveSecurityContext = async (context = {}) => {
-  const resolver =
-    typeof context.resolveToolSecurityContext === 'function'
-      ? context.resolveToolSecurityContext
-      : null;
+  const resolver = typeof context.resolveToolSecurityContext === 'function' ? context.resolveToolSecurityContext : null;
 
   if (!resolver) {
     return {
@@ -275,10 +240,7 @@ const resolveSecurityContext = async (context = {}) => {
 
 const validateSecurityPreconditions = ({ record, securityContext }) => {
   const commandEntry = record.commandEntry || {};
-  const pre =
-    commandEntry.pre_condicoes && typeof commandEntry.pre_condicoes === 'object'
-      ? commandEntry.pre_condicoes
-      : {};
+  const pre = commandEntry.pre_condicoes && typeof commandEntry.pre_condicoes === 'object' ? commandEntry.pre_condicoes : {};
   const isGroupMessage = Boolean(securityContext?.isGroupMessage);
 
   const localList = normalizeWhereLabel(commandEntry.local_de_uso);
@@ -380,10 +342,7 @@ export const executeTool = async (toolName, toolArgs, context = {}) => {
       status: 'invalid_arguments',
       moduleKey: record.moduleKey,
       commandName: record.commandName,
-      text: [
-        `Nao consegui executar *${record.commandName}* por argumentos invalidos.`,
-        ...argsValidation.errors.map((error) => `- ${error}`),
-      ].join('\n'),
+      text: [`Nao consegui executar *${record.commandName}* por argumentos invalidos.`, ...argsValidation.errors.map((error) => `- ${error}`)].join('\n'),
     };
   }
 
@@ -415,8 +374,7 @@ export const executeTool = async (toolName, toolArgs, context = {}) => {
     };
   }
 
-  const executeCommand =
-    typeof context.executeCommand === 'function' ? context.executeCommand : null;
+  const executeCommand = typeof context.executeCommand === 'function' ? context.executeCommand : null;
 
   if (!executeCommand) {
     return {
@@ -480,11 +438,7 @@ export const executeTool = async (toolName, toolArgs, context = {}) => {
       toolName: record.toolName,
       executionTimeMs,
       suppressReply: executionResult?.alreadyResponded === true,
-      text:
-        executionResult?.alreadyResponded === true
-          ? ''
-          : String(executionResult?.text || '').trim() ||
-            `Nao consegui executar ${record.commandName}. Tente o comando manualmente.`,
+      text: executionResult?.alreadyResponded === true ? '' : String(executionResult?.text || '').trim() || `Nao consegui executar ${record.commandName}. Tente o comando manualmente.`,
     };
   }
 

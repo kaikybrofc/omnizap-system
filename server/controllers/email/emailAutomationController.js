@@ -1,12 +1,6 @@
 import logger from '../../../utils/logger/loggerModule.js';
-import {
-  getEmailAutomationStatusSnapshot,
-  queueAutomatedEmail,
-} from '../../email/emailAutomationService.js';
-import {
-  isEmailAutomationRuntimeEnabled,
-  isEmailAutomationRuntimeRunning,
-} from '../../email/emailAutomationRuntime.js';
+import { getEmailAutomationStatusSnapshot, queueAutomatedEmail } from '../../email/emailAutomationService.js';
+import { isEmailAutomationRuntimeEnabled, isEmailAutomationRuntimeRunning } from '../../email/emailAutomationRuntime.js';
 import { getEmailTransportMetadata } from '../../email/emailTransportService.js';
 
 const parseEnvBool = (value, fallback) => {
@@ -20,29 +14,17 @@ const parseEnvBool = (value, fallback) => {
 const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash =
-    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
-      ? withLeadingSlash.slice(0, -1)
-      : withLeadingSlash;
+  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 };
 
-const EMAIL_AUTOMATION_API_BASE_PATH = normalizeBasePath(
-  process.env.EMAIL_AUTOMATION_API_BASE_PATH,
-  '/api/email',
-);
+const EMAIL_AUTOMATION_API_BASE_PATH = normalizeBasePath(process.env.EMAIL_AUTOMATION_API_BASE_PATH, '/api/email');
 const EMAIL_AUTOMATION_API_KEY =
   String(process.env.EMAIL_AUTOMATION_API_KEY || '')
     .trim()
     .slice(0, 255) || '';
-const EMAIL_AUTOMATION_REQUIRE_API_KEY = parseEnvBool(
-  process.env.EMAIL_AUTOMATION_REQUIRE_API_KEY,
-  true,
-);
-const EMAIL_AUTOMATION_HEALTH_PUBLIC = parseEnvBool(
-  process.env.EMAIL_AUTOMATION_HEALTH_PUBLIC,
-  false,
-);
+const EMAIL_AUTOMATION_REQUIRE_API_KEY = parseEnvBool(process.env.EMAIL_AUTOMATION_REQUIRE_API_KEY, true);
+const EMAIL_AUTOMATION_HEALTH_PUBLIC = parseEnvBool(process.env.EMAIL_AUTOMATION_HEALTH_PUBLIC, false);
 
 const sendJson = (req, res, statusCode, payload) => {
   if (res.writableEnded) return true;

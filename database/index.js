@@ -22,13 +22,7 @@ import { once } from 'node:events';
 import path from 'node:path';
 import { promises as fsPromises } from 'node:fs';
 import logger from '../utils/logger/loggerModule.js';
-import {
-  isMetricsEnabled,
-  recordDbQuery,
-  recordDbWrite,
-  recordError,
-  setDbInFlight,
-} from '../app/observability/metrics.js';
+import { isMetricsEnabled, recordDbQuery, recordDbWrite, recordError, setDbInFlight } from '../app/observability/metrics.js';
 
 const { NODE_ENV } = process.env;
 const { DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_POOL_LIMIT = 10 } = process.env;
@@ -42,9 +36,7 @@ const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
-  logger.error(
-    `Variáveis de ambiente de banco de dados necessárias não encontradas: ${missingEnvVars.join(', ')}`,
-  );
+  logger.error(`Variáveis de ambiente de banco de dados necessárias não encontradas: ${missingEnvVars.join(', ')}`);
   process.exit(1);
 }
 
@@ -278,28 +270,13 @@ const DB_MONITOR_ENABLED = parseEnvBool(process.env.DB_MONITOR_ENABLED, DB_MONIT
 const DB_SLOW_QUERY_MS = parseEnvNumber(process.env.DB_SLOW_QUERY_MS, 250);
 const DB_LOG_EVERY_QUERY = parseEnvBool(process.env.DB_LOG_EVERY_QUERY, false);
 const DB_STATS_TOP_N = Math.max(1, Math.floor(parseEnvNumber(process.env.DB_STATS_TOP_N, 10)));
-const DB_STATS_SAMPLE_SIZE = Math.max(
-  0,
-  Math.floor(parseEnvNumber(process.env.DB_STATS_SAMPLE_SIZE, 2000)),
-);
+const DB_STATS_SAMPLE_SIZE = Math.max(0, Math.floor(parseEnvNumber(process.env.DB_STATS_SAMPLE_SIZE, 2000)));
 const DB_SLOW_EXPLAIN = parseEnvBool(process.env.DB_SLOW_EXPLAIN, false);
 const rawMonitorLogPath = process.env.DB_MONITOR_LOG_PATH;
-const DB_MONITOR_LOG_PATH =
-  rawMonitorLogPath && rawMonitorLogPath.trim() !== ''
-    ? path.resolve(rawMonitorLogPath)
-    : path.resolve('logs', 'db-monitor.log');
-const DB_MONITOR_LOG_ROTATE_MB = Math.max(
-  0,
-  parseEnvNumber(process.env.DB_MONITOR_LOG_ROTATE_MB, 20),
-);
-const DB_MONITOR_LOG_KEEP = Math.max(
-  0,
-  Math.floor(parseEnvNumber(process.env.DB_MONITOR_LOG_KEEP, 5)),
-);
-const DB_MONITOR_SNAPSHOT_EVERY_MS = Math.max(
-  0,
-  Math.floor(parseEnvNumber(process.env.DB_MONITOR_SNAPSHOT_EVERY_MS, 0)),
-);
+const DB_MONITOR_LOG_PATH = rawMonitorLogPath && rawMonitorLogPath.trim() !== '' ? path.resolve(rawMonitorLogPath) : path.resolve('logs', 'db-monitor.log');
+const DB_MONITOR_LOG_ROTATE_MB = Math.max(0, parseEnvNumber(process.env.DB_MONITOR_LOG_ROTATE_MB, 20));
+const DB_MONITOR_LOG_KEEP = Math.max(0, Math.floor(parseEnvNumber(process.env.DB_MONITOR_LOG_KEEP, 5)));
+const DB_MONITOR_SNAPSHOT_EVERY_MS = Math.max(0, Math.floor(parseEnvNumber(process.env.DB_MONITOR_SNAPSHOT_EVERY_MS, 0)));
 
 /**
  * Ativa warning sobre assinatura antiga de executeQuery() quando options vierem no 3º parâmetro.
@@ -822,10 +799,7 @@ function calculatePercentiles() {
       if (cumulative >= item.target) {
         if (i < buckets.length) results[item.key] = buckets[i];
         else {
-          results[item.key] =
-            dbStats.durationMax !== null
-              ? Number(dbStats.durationMax.toFixed(2))
-              : buckets[buckets.length - 1];
+          results[item.key] = dbStats.durationMax !== null ? Number(dbStats.durationMax.toFixed(2)) : buckets[buckets.length - 1];
         }
       }
     }
@@ -885,10 +859,7 @@ function normalizeSql(sql) {
   normalized = normalized.replace(/'(?:\\'|''|[^'])*'/g, '?');
   normalized = normalized.replace(/"(?:\\"|""|[^"])*"/g, '?');
   normalized = normalized.replace(/\b0x[0-9a-f]+\b/gi, '?');
-  normalized = normalized.replace(
-    /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
-    '?',
-  );
+  normalized = normalized.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, '?');
   normalized = normalized.replace(/\b\d+(\.\d+)?\b/g, '?');
   normalized = normalized.replace(/\s+/g, ' ').trim();
   return normalized.toUpperCase();
@@ -1125,12 +1096,7 @@ function extractResultStats(result) {
   }
 
   let rows = result;
-  const looksLikeFields =
-    Array.isArray(result) &&
-    result.length === 2 &&
-    ((Array.isArray(result[1]) && (result[1].length === 0 || typeof result[1][0] === 'object')) ||
-      result[1] === undefined ||
-      result[1] === null);
+  const looksLikeFields = Array.isArray(result) && result.length === 2 && ((Array.isArray(result[1]) && (result[1].length === 0 || typeof result[1][0] === 'object')) || result[1] === undefined || result[1] === null);
 
   if (looksLikeFields) {
     rows = result[0];
@@ -1188,9 +1154,7 @@ function recordHistogram(durationMs) {
 function maybePruneFingerprints() {
   if (dbStats.fingerprints.size <= MAX_FINGERPRINTS) return;
 
-  const entries = Array.from(dbStats.fingerprints.values()).sort(
-    (a, b) => a.lastSeenAt - b.lastSeenAt,
-  );
+  const entries = Array.from(dbStats.fingerprints.values()).sort((a, b) => a.lastSeenAt - b.lastSeenAt);
   const removeCount = Math.max(1, Math.ceil(entries.length * 0.1));
   for (let i = 0; i < removeCount; i += 1) {
     dbStats.fingerprints.delete(entries[i].fingerprint);
@@ -1211,27 +1175,15 @@ function maybePruneFingerprints() {
  *  isSlow: boolean
  * }} payload
  */
-function recordStats({
-  fingerprint,
-  normalizedSql,
-  type,
-  table,
-  durationMs,
-  ok,
-  rowCount,
-  affectedRows,
-  isSlow,
-}) {
+function recordStats({ fingerprint, normalizedSql, type, table, durationMs, ok, rowCount, affectedRows, isSlow }) {
   dbStats.counters.total += 1;
   if (!ok) dbStats.counters.error += 1;
   if (isSlow) dbStats.counters.slow += 1;
 
   dbStats.durationCount += 1;
   dbStats.durationTotal += durationMs;
-  dbStats.durationMin =
-    dbStats.durationMin === null ? durationMs : Math.min(dbStats.durationMin, durationMs);
-  dbStats.durationMax =
-    dbStats.durationMax === null ? durationMs : Math.max(dbStats.durationMax, durationMs);
+  dbStats.durationMin = dbStats.durationMin === null ? durationMs : Math.min(dbStats.durationMin, durationMs);
+  dbStats.durationMax = dbStats.durationMax === null ? durationMs : Math.max(dbStats.durationMax, durationMs);
 
   recordSample(durationMs);
   recordHistogram(durationMs);
@@ -1277,25 +1229,11 @@ function recordStats({
  * @param {object} payload
  * @returns {object}
  */
-function buildMonitorLogEntry({
-  event,
-  durationMs,
-  type,
-  table,
-  fingerprint,
-  normalizedSql,
-  sql,
-  rowCount,
-  affectedRows,
-  traceId,
-  error,
-  params,
-}) {
+function buildMonitorLogEntry({ event, durationMs, type, table, fingerprint, normalizedSql, sql, rowCount, affectedRows, traceId, error, params }) {
   const entry = {
     ts: new Date().toISOString(),
     event,
-    durationMs:
-      durationMs !== undefined && durationMs !== null ? Number(durationMs.toFixed(2)) : null,
+    durationMs: durationMs !== undefined && durationMs !== null ? Number(durationMs.toFixed(2)) : null,
     type: type ?? null,
     table: table ?? null,
     fingerprint: fingerprint ?? null,
@@ -1494,9 +1432,7 @@ async function runMonitored({ executor, originalFn, args, traceId, allowExplain 
         affectedRows,
         traceId,
       });
-      dbMonitorLogger.log(
-        buildMonitorLogEntry({ event: 'query', ...baseLogData, params: maskedParams }),
-      );
+      dbMonitorLogger.log(buildMonitorLogEntry({ event: 'query', ...baseLogData, params: maskedParams }));
     }
 
     // Slow query
@@ -1605,8 +1541,7 @@ const poolMonitorState = pool[MONITOR_TAG];
 if (poolMonitorState?.wrapped) {
   poolExecuteOriginal = poolMonitorState.originalExecute || pool.execute.bind(pool);
   poolQueryOriginal = poolMonitorState.originalQuery || pool.query.bind(pool);
-  poolGetConnectionOriginal =
-    poolMonitorState.originalGetConnection || pool.getConnection.bind(pool);
+  poolGetConnectionOriginal = poolMonitorState.originalGetConnection || pool.getConnection.bind(pool);
 } else {
   // Primeira vez: salva originais e faz wrap
   poolExecuteOriginal = pool.execute.bind(pool);
@@ -1791,9 +1726,7 @@ export async function executeQuery(sql, params = [], connection = null, options 
   // Compat: options no 3º parâmetro (depreciado)
   if (connection && !options && isValidExecuteOptions(connection)) {
     if (DEPRECATION_WARN_EXECUTEQUERY_OPTIONS_IN_3RD_PARAM) {
-      logger.warn(
-        'executeQuery(): assinatura com options no 3º parâmetro está depreciada. Use executeQuery(sql, params, connection, options).',
-      );
+      logger.warn('executeQuery(): assinatura com options no 3º parâmetro está depreciada. Use executeQuery(sql, params, connection, options).');
     }
     options = connection;
     connection = null;
@@ -1802,18 +1735,14 @@ export async function executeQuery(sql, params = [], connection = null, options 
   let executor = pool;
   let traceId = options && typeof options === 'object' ? options.traceId : undefined;
 
-  const isConnection =
-    connection &&
-    (typeof connection.execute === 'function' || typeof connection.query === 'function');
+  const isConnection = connection && (typeof connection.execute === 'function' || typeof connection.query === 'function');
 
   if (connection) {
     if (isConnection) {
       executor = connection;
       traceId = traceId || connection.__traceId;
     } else {
-      throw new Error(
-        'Parâmetro connection inválido em executeQuery. Informe uma conexão MySQL2 válida ou passe options no 4º parâmetro.',
-      );
+      throw new Error('Parâmetro connection inválido em executeQuery. Informe uma conexão MySQL2 válida ou passe options no 4º parâmetro.');
     }
   }
 
@@ -2100,9 +2029,7 @@ export async function upsert(tableName, data) {
   if (updateData.id) delete updateData.id;
 
   if (Object.keys(updateData).length === 0) {
-    throw new Error(
-      'Não é possível fazer upsert apenas com id. Informe campos adicionais para atualizar.',
-    );
+    throw new Error('Não é possível fazer upsert apenas com id. Informe campos adicionais para atualizar.');
   }
 
   const insertKeys = keys.map(mysql.escapeId).join(', ');

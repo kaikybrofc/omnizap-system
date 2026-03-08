@@ -40,9 +40,7 @@ body {
     -apple-system,
     'Segoe UI',
     sans-serif;
-  background:
-    radial-gradient(1300px 660px at 12% -12%, rgba(37, 99, 235, 0.14), transparent 52%),
-    radial-gradient(900px 500px at 92% -18%, rgba(59, 130, 246, 0.1), transparent 55%), var(--bg);
+  background: radial-gradient(1300px 660px at 12% -12%, rgba(37, 99, 235, 0.14), transparent 52%), radial-gradient(900px 500px at 92% -18%, rgba(59, 130, 246, 0.1), transparent 55%), var(--bg);
   color: var(--text);
   line-height: 1.4;
 }
@@ -736,9 +734,7 @@ a[aria-disabled='true'] {
 }
 
 .mono {
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
 .muted {

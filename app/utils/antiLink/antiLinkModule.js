@@ -1,12 +1,6 @@
 import { URL } from 'node:url';
 import { isUserAdmin, updateGroupParticipants } from '../../config/groupUtils.js';
-import {
-  getJidUser,
-  isLidJid,
-  isSameJidUser,
-  isWhatsAppJid,
-  normalizeJid,
-} from '../../config/baileysConfig.js';
+import { getJidUser, isLidJid, isSameJidUser, isWhatsAppJid, normalizeJid } from '../../config/baileysConfig.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
@@ -17,14 +11,7 @@ import { extractSenderInfoFromMessage, resolveUserId } from '../../services/lidM
  * @type {Record<string, string[]>}
  */
 export const KNOWN_NETWORKS = {
-  youtube: [
-    'youtube.com',
-    'youtu.be',
-    'music.youtube.com',
-    'm.youtube.com',
-    'shorts.youtube.com',
-    'youtube-nocookie.com',
-  ],
+  youtube: ['youtube.com', 'youtu.be', 'music.youtube.com', 'm.youtube.com', 'shorts.youtube.com', 'youtube-nocookie.com'],
   instagram: ['instagram.com', 'instagr.am'],
   facebook: ['facebook.com', 'fb.com', 'fb.watch', 'm.facebook.com', 'l.facebook.com'],
   tiktok: ['tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com'],
@@ -126,259 +113,12 @@ export const KNOWN_NETWORKS = {
  * Delimitadores básicos para tokenização manual (sem regex).
  */
 const WHITESPACE_CHARS = new Set([' ', '\n', '\r', '\t', '\f', '\v']);
-const EDGE_PUNCTUATION_CHARS = new Set([
-  ',',
-  '!',
-  '?',
-  ';',
-  ':',
-  ')',
-  '(',
-  '[',
-  ']',
-  '{',
-  '}',
-  '<',
-  '>',
-  '"',
-  "'",
-  '`',
-  '…',
-]);
+const EDGE_PUNCTUATION_CHARS = new Set([',', '!', '?', ';', ':', ')', '(', '[', ']', '{', '}', '<', '>', '"', "'", '`', '…']);
 const TOKEN_SEPARATOR_CHARS = new Set([',', ';', '|']);
 const HOST_TERMINATORS = new Set(['/', '?', '#', ':', '\\', ',', ';']);
 const URL_HINTS = ['https://', 'http://', 'www.'];
-const STRICT_TLD_SUFFIXES = new Set([
-  'com',
-  'net',
-  'org',
-  'edu',
-  'gov',
-  'mil',
-  'io',
-  'me',
-  'tv',
-  'co',
-  'cc',
-  'gg',
-  'gl',
-  'ly',
-  'so',
-  'br',
-  'us',
-  'uk',
-  'eu',
-  'de',
-  'fr',
-  'es',
-  'pt',
-  'it',
-  'nl',
-  'be',
-  'ch',
-  'at',
-  'se',
-  'no',
-  'fi',
-  'dk',
-  'ie',
-  'pl',
-  'cz',
-  'sk',
-  'hu',
-  'ro',
-  'bg',
-  'gr',
-  'ru',
-  'ua',
-  'tr',
-  'il',
-  'ae',
-  'sa',
-  'qa',
-  'eg',
-  'ma',
-  'tn',
-  'dz',
-  'za',
-  'ng',
-  'ke',
-  'gh',
-  'in',
-  'pk',
-  'bd',
-  'lk',
-  'cn',
-  'jp',
-  'kr',
-  'tw',
-  'hk',
-  'sg',
-  'my',
-  'th',
-  'vn',
-  'ph',
-  'id',
-  'au',
-  'nz',
-  'ca',
-  'mx',
-  'ar',
-  'cl',
-  'pe',
-  'uy',
-  'py',
-  'bo',
-  'ec',
-  've',
-  'do',
-  'cu',
-  'pa',
-  'cr',
-  'gt',
-  'hn',
-  'ni',
-  'sv',
-  'pr',
-  'com.br',
-  'net.br',
-  'org.br',
-  'gov.br',
-  'edu.br',
-  'jus.br',
-  'mil.br',
-  'co.uk',
-  'org.uk',
-  'gov.uk',
-  'ac.uk',
-  'co.jp',
-  'ne.jp',
-  'or.jp',
-  'go.jp',
-  'ac.jp',
-  'com.au',
-  'net.au',
-  'org.au',
-  'edu.au',
-  'gov.au',
-  'com.mx',
-  'com.ar',
-  'com.co',
-  'com.pe',
-  'com.tr',
-  'com.sg',
-  'com.my',
-  'com.ph',
-  'co.in',
-  'firm.in',
-  'net.in',
-  'org.in',
-  'gen.in',
-  'ind.in',
-  'co.id',
-  'or.id',
-  'go.id',
-  'web.id',
-  'co.za',
-  'org.za',
-  'net.za',
-  'com.ng',
-  'com.gh',
-  'com.eg',
-  'com.sa',
-  'com.qa',
-  'com.ae',
-  'page.link',
-  'g.page',
-]);
-const EXTRA_TLD_SUFFIXES = new Set([
-  'ai',
-  'app',
-  'dev',
-  'xyz',
-  'site',
-  'online',
-  'store',
-  'shop',
-  'blog',
-  'tech',
-  'cloud',
-  'digital',
-  'live',
-  'media',
-  'news',
-  'one',
-  'top',
-  'club',
-  'vip',
-  'fun',
-  'games',
-  'game',
-  'space',
-  'world',
-  'today',
-  'agency',
-  'email',
-  'center',
-  'company',
-  'group',
-  'solutions',
-  'systems',
-  'services',
-  'network',
-  'social',
-  'design',
-  'studio',
-  'photo',
-  'video',
-  'audio',
-  'music',
-  'art',
-  'wiki',
-  'finance',
-  'capital',
-  'money',
-  'loans',
-  'insurance',
-  'legal',
-  'law',
-  'health',
-  'care',
-  'clinic',
-  'dental',
-  'academy',
-  'school',
-  'college',
-  'university',
-  'education',
-  'training',
-  'support',
-  'chat',
-  'forum',
-  'community',
-  'events',
-  'travel',
-  'tours',
-  'hotel',
-  'homes',
-  'house',
-  'auto',
-  'cars',
-  'bike',
-  'food',
-  'restaurant',
-  'cafe',
-  'bar',
-  'pizza',
-  'delivery',
-  'fashion',
-  'beauty',
-  'style',
-  'fit',
-  'fitness',
-  'sports',
-  'download',
-]);
+const STRICT_TLD_SUFFIXES = new Set(['com', 'net', 'org', 'edu', 'gov', 'mil', 'io', 'me', 'tv', 'co', 'cc', 'gg', 'gl', 'ly', 'so', 'br', 'us', 'uk', 'eu', 'de', 'fr', 'es', 'pt', 'it', 'nl', 'be', 'ch', 'at', 'se', 'no', 'fi', 'dk', 'ie', 'pl', 'cz', 'sk', 'hu', 'ro', 'bg', 'gr', 'ru', 'ua', 'tr', 'il', 'ae', 'sa', 'qa', 'eg', 'ma', 'tn', 'dz', 'za', 'ng', 'ke', 'gh', 'in', 'pk', 'bd', 'lk', 'cn', 'jp', 'kr', 'tw', 'hk', 'sg', 'my', 'th', 'vn', 'ph', 'id', 'au', 'nz', 'ca', 'mx', 'ar', 'cl', 'pe', 'uy', 'py', 'bo', 'ec', 've', 'do', 'cu', 'pa', 'cr', 'gt', 'hn', 'ni', 'sv', 'pr', 'com.br', 'net.br', 'org.br', 'gov.br', 'edu.br', 'jus.br', 'mil.br', 'co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'co.jp', 'ne.jp', 'or.jp', 'go.jp', 'ac.jp', 'com.au', 'net.au', 'org.au', 'edu.au', 'gov.au', 'com.mx', 'com.ar', 'com.co', 'com.pe', 'com.tr', 'com.sg', 'com.my', 'com.ph', 'co.in', 'firm.in', 'net.in', 'org.in', 'gen.in', 'ind.in', 'co.id', 'or.id', 'go.id', 'web.id', 'co.za', 'org.za', 'net.za', 'com.ng', 'com.gh', 'com.eg', 'com.sa', 'com.qa', 'com.ae', 'page.link', 'g.page']);
+const EXTRA_TLD_SUFFIXES = new Set(['ai', 'app', 'dev', 'xyz', 'site', 'online', 'store', 'shop', 'blog', 'tech', 'cloud', 'digital', 'live', 'media', 'news', 'one', 'top', 'club', 'vip', 'fun', 'games', 'game', 'space', 'world', 'today', 'agency', 'email', 'center', 'company', 'group', 'solutions', 'systems', 'services', 'network', 'social', 'design', 'studio', 'photo', 'video', 'audio', 'music', 'art', 'wiki', 'finance', 'capital', 'money', 'loans', 'insurance', 'legal', 'law', 'health', 'care', 'clinic', 'dental', 'academy', 'school', 'college', 'university', 'education', 'training', 'support', 'chat', 'forum', 'community', 'events', 'travel', 'tours', 'hotel', 'homes', 'house', 'auto', 'cars', 'bike', 'food', 'restaurant', 'cafe', 'bar', 'pizza', 'delivery', 'fashion', 'beauty', 'style', 'fit', 'fitness', 'sports', 'download']);
 const ANY_TLD_SUFFIXES = new Set([...STRICT_TLD_SUFFIXES, ...EXTRA_TLD_SUFFIXES]);
 
 /**
@@ -589,11 +329,7 @@ const isKnownNetworkDomain = (domain) => {
   if (KNOWN_NETWORK_EXACT_DOMAINS.has(normalizedDomain)) return true;
 
   const rootDomain = getStrictRegistrableRootDomain(normalizedDomain);
-  if (
-    rootDomain &&
-    rootDomain !== normalizedDomain &&
-    KNOWN_NETWORK_SUBDOMAIN_ROOTS.has(rootDomain)
-  ) {
+  if (rootDomain && rootDomain !== normalizedDomain && KNOWN_NETWORK_SUBDOMAIN_ROOTS.has(rootDomain)) {
     return true;
   }
 
@@ -733,10 +469,7 @@ const normalizeAllowedDomains = (allowedDomains = []) => {
  * @param {string[]} normalizedAllowedDomains
  * @returns {boolean}
  */
-const isDomainAllowed = (domain, normalizedAllowedDomains) =>
-  normalizedAllowedDomains.some(
-    (allowedDomain) => domain === allowedDomain || domain.endsWith(`.${allowedDomain}`),
-  );
+const isDomainAllowed = (domain, normalizedAllowedDomains) => normalizedAllowedDomains.some((allowedDomain) => domain === allowedDomain || domain.endsWith(`.${allowedDomain}`));
 
 /**
  * Monta a lista final de domínios permitidos (redes conhecidas + personalizados).
@@ -803,8 +536,7 @@ const resolveSenderContextForAntiLink = async ({ messageInfo, senderJid, senderI
   const key = messageInfo?.key || {};
   const senderInfo = extractSenderInfoFromMessage(messageInfo);
   const resolvedByMessage = normalizeOptionalJid(await resolveUserId(senderInfo).catch(() => ''));
-  const identityRaw =
-    typeof senderIdentity === 'string' ? normalizeOptionalJid(senderIdentity) : '';
+  const identityRaw = typeof senderIdentity === 'string' ? normalizeOptionalJid(senderIdentity) : '';
   const keyParticipant = normalizeOptionalJid(key?.participant);
   const keyParticipantAlt = normalizeOptionalJid(key?.participantAlt);
   const keyRemoteAlt = normalizeOptionalJid(key?.remoteJidAlt);
@@ -816,20 +548,7 @@ const resolveSenderContextForAntiLink = async ({ messageInfo, senderJid, senderI
   const senderInfoLid = normalizeOptionalJid(senderInfo?.lid);
   const senderInfoAlt = normalizeOptionalJid(senderInfo?.participantAlt);
 
-  const senderCandidates = uniqueNormalizedJids([
-    explicitSender,
-    resolvedByMessage,
-    keyParticipant,
-    keyParticipantAlt,
-    keyRemoteAlt,
-    senderInfoJid,
-    senderInfoLid,
-    senderInfoAlt,
-    identityParticipant,
-    identityParticipantAlt,
-    identityJid,
-    identityRaw,
-  ]);
+  const senderCandidates = uniqueNormalizedJids([explicitSender, resolvedByMessage, keyParticipant, keyParticipantAlt, keyRemoteAlt, senderInfoJid, senderInfoLid, senderInfoAlt, identityParticipant, identityParticipantAlt, identityJid, identityRaw]);
 
   const removalCandidates = [];
   const lidCandidates = [];
@@ -841,13 +560,7 @@ const resolveSenderContextForAntiLink = async ({ messageInfo, senderJid, senderI
   removalCandidates.push(...lidCandidates, ...pnCandidates);
 
   const mentionJid = pnCandidates[0] || removalCandidates[0] || senderCandidates[0] || '';
-  const primarySenderId =
-    resolvedByMessage ||
-    explicitSender ||
-    senderInfoJid ||
-    senderInfoLid ||
-    senderCandidates[0] ||
-    '';
+  const primarySenderId = resolvedByMessage || explicitSender || senderInfoJid || senderInfoLid || senderCandidates[0] || '';
 
   return {
     senderInfo,
@@ -890,22 +603,11 @@ const removeParticipantWithFallback = async (sock, remoteJid, candidates = []) =
  * @param {string} params.botJid
  * @returns {Promise<boolean>}
  */
-export const handleAntiLink = async ({
-  sock,
-  messageInfo,
-  extractedText,
-  remoteJid,
-  senderJid,
-  senderIdentity,
-  botJid,
-}) => {
+export const handleAntiLink = async ({ sock, messageInfo, extractedText, remoteJid, senderJid, senderIdentity, botJid }) => {
   const groupConfig = await groupConfigStore.getGroupConfig(remoteJid);
   if (!groupConfig || !groupConfig.antilinkEnabled) return false;
 
-  const allowedDomains = getAllowedDomains(
-    groupConfig.antilinkAllowedNetworks || [],
-    groupConfig.antilinkAllowedDomains || [],
-  );
+  const allowedDomains = getAllowedDomains(groupConfig.antilinkAllowedNetworks || [], groupConfig.antilinkAllowedDomains || []);
   const normalizedAllowedDomains = normalizeAllowedDomains(allowedDomains);
   if (!isLinkDetected(extractedText, normalizedAllowedDomains)) return false;
 
@@ -942,16 +644,11 @@ export const handleAntiLink = async ({
     }
 
     try {
-      const removedParticipantId = await removeParticipantWithFallback(
-        sock,
-        remoteJid,
-        senderContext.removalCandidates,
-      );
+      const removedParticipantId = await removeParticipantWithFallback(sock, remoteJid, senderContext.removalCandidates);
       if (!removedParticipantId) {
         throw new Error('Nenhum candidato de participante pôde ser removido.');
       }
-      const senderMention =
-        senderContext.mentionJid || removedParticipantId || senderContext.primarySenderId;
+      const senderMention = senderContext.mentionJid || removedParticipantId || senderContext.primarySenderId;
       const senderUser = getJidUser(senderMention);
       await sendAndStore(sock, remoteJid, {
         text: `🚫 @${senderUser || 'usuario'} foi removido por enviar um link.`,
@@ -959,15 +656,12 @@ export const handleAntiLink = async ({
       });
       await sendAndStore(sock, remoteJid, { delete: messageInfo.key });
 
-      logger.info(
-        `Usuário ${removedParticipantId || senderContext.primarySenderId} removido do grupo ${remoteJid} por enviar link.`,
-        {
-          action: 'antilink_remove',
-          groupId: remoteJid,
-          userId: removedParticipantId || senderContext.primarySenderId,
-          senderCandidates: senderContext.senderCandidates,
-        },
-      );
+      logger.info(`Usuário ${removedParticipantId || senderContext.primarySenderId} removido do grupo ${remoteJid} por enviar link.`, {
+        action: 'antilink_remove',
+        groupId: remoteJid,
+        userId: removedParticipantId || senderContext.primarySenderId,
+        senderCandidates: senderContext.senderCandidates,
+      });
 
       return true;
     } catch (error) {
@@ -987,14 +681,11 @@ export const handleAntiLink = async ({
         text: `ⓘ @${senderUser || 'admin'} (admin) enviou um link.`,
         mentions: senderMention ? [senderMention] : [],
       });
-      logger.info(
-        `Admin ${senderContext.primarySenderId} enviou um link no grupo ${remoteJid} (aviso enviado).`,
-        {
-          action: 'antilink_admin_link_detected',
-          groupId: remoteJid,
-          userId: senderContext.primarySenderId,
-        },
-      );
+      logger.info(`Admin ${senderContext.primarySenderId} enviou um link no grupo ${remoteJid} (aviso enviado).`, {
+        action: 'antilink_admin_link_detected',
+        groupId: remoteJid,
+        userId: senderContext.primarySenderId,
+      });
     } catch (error) {
       logger.error(`Falha ao enviar aviso de link de admin: ${error.message}`, {
         action: 'antilink_admin_warning_error',

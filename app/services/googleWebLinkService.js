@@ -8,12 +8,7 @@ const parseEnvInt = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, Math.floor(numeric)));
 };
 
-const GOOGLE_LINK_CHECK_CACHE_TTL_MS = parseEnvInt(
-  process.env.WHATSAPP_GOOGLE_LINK_CHECK_CACHE_TTL_MS,
-  60_000,
-  1_000,
-  10 * 60_000,
-);
+const GOOGLE_LINK_CHECK_CACHE_TTL_MS = parseEnvInt(process.env.WHATSAPP_GOOGLE_LINK_CHECK_CACHE_TTL_MS, 60_000, 1_000, 10 * 60_000);
 const googleLinkCheckCache = new Map();
 let googleLinkTableMissingLogged = false;
 
@@ -40,10 +35,7 @@ const setCachedGoogleLinkStatus = (cacheKey, linked) => {
   });
 };
 
-export const isWhatsAppUserLinkedToGoogleWebAccount = async ({
-  ownerJid = '',
-  ownerPhone = '',
-} = {}) => {
+export const isWhatsAppUserLinkedToGoogleWebAccount = async ({ ownerJid = '', ownerPhone = '' } = {}) => {
   const normalizedOwnerJid = normalizeJid(ownerJid) || '';
   const normalizedOwnerPhone = toWhatsAppPhoneDigits(ownerPhone || ownerJid) || '';
   if (!normalizedOwnerJid && !normalizedOwnerPhone) return false;

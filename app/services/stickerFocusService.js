@@ -8,76 +8,23 @@ const parseEnvInt = (value, fallback, min, max) => {
 
 export const MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES = 1;
 export const MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES = 24 * 60;
-export const DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES = parseEnvInt(
-  process.env.STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES ??
-    process.env.STICKER_FOCUS_TEXT_COOLDOWN_MINUTES,
-  60,
-  MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES,
-  MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES,
-);
+export const DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES = parseEnvInt(process.env.STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES ?? process.env.STICKER_FOCUS_TEXT_COOLDOWN_MINUTES, 60, MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES, MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES);
 export const MIN_STICKER_FOCUS_MESSAGE_ALLOWANCE = 1;
 export const MAX_STICKER_FOCUS_MESSAGE_ALLOWANCE = 10;
-export const DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE = parseEnvInt(
-  process.env.STICKER_FOCUS_MESSAGE_ALLOWANCE,
-  2,
-  MIN_STICKER_FOCUS_MESSAGE_ALLOWANCE,
-  MAX_STICKER_FOCUS_MESSAGE_ALLOWANCE,
-);
+export const DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE = parseEnvInt(process.env.STICKER_FOCUS_MESSAGE_ALLOWANCE, 2, MIN_STICKER_FOCUS_MESSAGE_ALLOWANCE, MAX_STICKER_FOCUS_MESSAGE_ALLOWANCE);
 
 export const MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES = 1;
 export const MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES = 6 * 60;
-export const DEFAULT_STICKER_FOCUS_CHAT_WINDOW_MINUTES = parseEnvInt(
-  process.env.STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-  15,
-  MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-  MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-);
+export const DEFAULT_STICKER_FOCUS_CHAT_WINDOW_MINUTES = parseEnvInt(process.env.STICKER_FOCUS_CHAT_WINDOW_MINUTES, 15, MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES, MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES);
 
-const STICKER_FOCUS_WARNING_COOLDOWN_MS = parseEnvInt(
-  process.env.STICKER_FOCUS_WARNING_COOLDOWN_MS,
-  45_000,
-  10_000,
-  5 * 60_000,
-);
-const NON_HUMAN_PLACEHOLDERS = new Set([
-  'Mensagem vazia',
-  'Tipo de mensagem não suportado ou sem conteúdo.',
-]);
-const IGNORED_MESSAGE_TYPES = new Set([
-  'messagehistorybundle',
-  'messagehistorynotice',
-  'keydistribution',
-  'senderkeydistribution',
-  'reaction',
-  'devicesent',
-  'contextinfo',
-  'protocol',
-  'botinvoke',
-]);
-const NON_THROTTLED_MESSAGE_TYPES = new Set([
-  'sticker',
-  'image',
-  'video',
-  'stickerpack',
-  'stickerpackmessage',
-]);
-const MESSAGE_WRAPPER_KEYS = [
-  'ephemeralMessage',
-  'viewOnceMessage',
-  'viewOnceMessageV2',
-  'viewOnceMessageV2Extension',
-  'deviceSentMessage',
-  'editedMessage',
-];
+const STICKER_FOCUS_WARNING_COOLDOWN_MS = parseEnvInt(process.env.STICKER_FOCUS_WARNING_COOLDOWN_MS, 45_000, 10_000, 5 * 60_000);
+const NON_HUMAN_PLACEHOLDERS = new Set(['Mensagem vazia', 'Tipo de mensagem não suportado ou sem conteúdo.']);
+const IGNORED_MESSAGE_TYPES = new Set(['messagehistorybundle', 'messagehistorynotice', 'keydistribution', 'senderkeydistribution', 'reaction', 'devicesent', 'contextinfo', 'protocol', 'botinvoke']);
+const NON_THROTTLED_MESSAGE_TYPES = new Set(['sticker', 'image', 'video', 'stickerpack', 'stickerpackmessage']);
+const MESSAGE_WRAPPER_KEYS = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'deviceSentMessage', 'editedMessage'];
 
-const sharedMessageAllowance =
-  globalThis.__omnizapStickerFocusMessageAllowance instanceof Map
-    ? globalThis.__omnizapStickerFocusMessageAllowance
-    : new Map();
-const sharedWarningThrottle =
-  globalThis.__omnizapStickerFocusWarningThrottle instanceof Map
-    ? globalThis.__omnizapStickerFocusWarningThrottle
-    : new Map();
+const sharedMessageAllowance = globalThis.__omnizapStickerFocusMessageAllowance instanceof Map ? globalThis.__omnizapStickerFocusMessageAllowance : new Map();
+const sharedWarningThrottle = globalThis.__omnizapStickerFocusWarningThrottle instanceof Map ? globalThis.__omnizapStickerFocusWarningThrottle : new Map();
 
 globalThis.__omnizapStickerFocusMessageAllowance = sharedMessageAllowance;
 globalThis.__omnizapStickerFocusWarningThrottle = sharedWarningThrottle;
@@ -112,14 +59,10 @@ const hasExplicitTextPayload = (messagePayload) => {
     const current = queue.shift();
     if (!current || typeof current !== 'object') continue;
 
-    const conversationText =
-      typeof current.conversation === 'string' ? current.conversation.trim() : '';
+    const conversationText = typeof current.conversation === 'string' ? current.conversation.trim() : '';
     if (conversationText) return true;
 
-    const extendedText =
-      typeof current.extendedTextMessage?.text === 'string'
-        ? current.extendedTextMessage.text.trim()
-        : '';
+    const extendedText = typeof current.extendedTextMessage?.text === 'string' ? current.extendedTextMessage.text.trim() : '';
     if (extendedText) return true;
 
     for (const wrapperKey of MESSAGE_WRAPPER_KEYS) {
@@ -186,46 +129,17 @@ const isIgnoredSystemMessageType = (type) => {
   return false;
 };
 
-export const clampStickerFocusMessageCooldownMinutes = (
-  value,
-  fallback = DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES,
-) =>
-  normalizeMinutes(
-    value,
-    fallback,
-    MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES,
-    MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES,
-  );
-export const clampStickerFocusMessageAllowance = (
-  value,
-  fallback = DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE,
-) =>
-  normalizeMinutes(
-    value,
-    fallback,
-    MIN_STICKER_FOCUS_MESSAGE_ALLOWANCE,
-    MAX_STICKER_FOCUS_MESSAGE_ALLOWANCE,
-  );
+export const clampStickerFocusMessageCooldownMinutes = (value, fallback = DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES) => normalizeMinutes(value, fallback, MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES, MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES);
+export const clampStickerFocusMessageAllowance = (value, fallback = DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE) => normalizeMinutes(value, fallback, MIN_STICKER_FOCUS_MESSAGE_ALLOWANCE, MAX_STICKER_FOCUS_MESSAGE_ALLOWANCE);
 
-export const clampStickerFocusChatWindowMinutes = (
-  value,
-  fallback = DEFAULT_STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-) =>
-  normalizeMinutes(
-    value,
-    fallback,
-    MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-    MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES,
-  );
+export const clampStickerFocusChatWindowMinutes = (value, fallback = DEFAULT_STICKER_FOCUS_CHAT_WINDOW_MINUTES) => normalizeMinutes(value, fallback, MIN_STICKER_FOCUS_CHAT_WINDOW_MINUTES, MAX_STICKER_FOCUS_CHAT_WINDOW_MINUTES);
 
 export const minutesToMs = (minutes) => Math.max(0, Math.floor(Number(minutes) || 0) * 60 * 1000);
 
 export const resolveStickerFocusState = (groupConfig = {}, now = Date.now()) => {
-  const rawCooldown =
-    groupConfig?.stickerFocusMessageCooldownMinutes ?? groupConfig?.stickerFocusTextCooldownMinutes;
+  const rawCooldown = groupConfig?.stickerFocusMessageCooldownMinutes ?? groupConfig?.stickerFocusTextCooldownMinutes;
   const messageCooldownMinutes = clampStickerFocusMessageCooldownMinutes(rawCooldown);
-  const rawAllowance =
-    groupConfig?.stickerFocusMessageAllowance ?? groupConfig?.stickerFocusMessageAllowanceCount;
+  const rawAllowance = groupConfig?.stickerFocusMessageAllowance ?? groupConfig?.stickerFocusMessageAllowanceCount;
   const messageAllowanceCount = clampStickerFocusMessageAllowance(rawAllowance);
   const messageCooldownMs = minutesToMs(messageCooldownMinutes);
   const chatWindowUntilMs = parseTimestampMs(groupConfig?.stickerFocusChatWindowUntilMs);
@@ -247,11 +161,7 @@ export const resolveStickerFocusState = (groupConfig = {}, now = Date.now()) => 
   };
 };
 
-export const resolveStickerFocusMessageClassification = ({
-  messageInfo,
-  extractedText,
-  mediaEntries = [],
-}) => {
+export const resolveStickerFocusMessageClassification = ({ messageInfo, extractedText, mediaEntries = [] }) => {
   if (messageInfo?.messageStubType !== undefined && messageInfo?.messageStubType !== null) {
     return {
       isThrottleCandidate: false,
@@ -275,8 +185,7 @@ export const resolveStickerFocusMessageClassification = ({
   if (filteredTypes.some((type) => NON_THROTTLED_MESSAGE_TYPES.has(type))) {
     return {
       isThrottleCandidate: false,
-      messageType:
-        filteredTypes.find((type) => NON_THROTTLED_MESSAGE_TYPES.has(type)) || primaryType,
+      messageType: filteredTypes.find((type) => NON_THROTTLED_MESSAGE_TYPES.has(type)) || primaryType,
       reason: 'sticker_flow_media',
     };
   }
@@ -321,13 +230,7 @@ const normalizeAllowanceHistory = (historyValue) => {
   return [];
 };
 
-export const canSendMessageInStickerFocus = ({
-  groupId,
-  senderJid,
-  messageCooldownMs,
-  messageAllowanceCount = DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE,
-  now = Date.now(),
-}) => {
+export const canSendMessageInStickerFocus = ({ groupId, senderJid, messageCooldownMs, messageAllowanceCount = DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE, now = Date.now() }) => {
   const senderKey = buildSenderKey({ groupId, senderJid });
   if (!senderKey) {
     return {
@@ -351,9 +254,7 @@ export const canSendMessageInStickerFocus = ({
   }
 
   const safeNow = Number.isFinite(now) ? now : Date.now();
-  const history = normalizeAllowanceHistory(sharedMessageAllowance.get(senderKey)).filter(
-    (timestamp) => safeNow - timestamp < normalizedCooldownMs,
-  );
+  const history = normalizeAllowanceHistory(sharedMessageAllowance.get(senderKey)).filter((timestamp) => safeNow - timestamp < normalizedCooldownMs);
   if (history.length > 0) {
     sharedMessageAllowance.set(senderKey, history);
   } else {
@@ -378,23 +279,14 @@ export const canSendMessageInStickerFocus = ({
   };
 };
 
-export const registerMessageUsageInStickerFocus = ({
-  groupId,
-  senderJid,
-  messageCooldownMs = minutesToMs(DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES),
-  messageAllowanceCount = DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE,
-  now = Date.now(),
-}) => {
+export const registerMessageUsageInStickerFocus = ({ groupId, senderJid, messageCooldownMs = minutesToMs(DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES), messageAllowanceCount = DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE, now = Date.now() }) => {
   const senderKey = buildSenderKey({ groupId, senderJid });
   if (!senderKey) return;
   const normalizedCooldownMs = Math.max(0, Math.floor(Number(messageCooldownMs) || 0));
   const normalizedAllowanceCount = clampStickerFocusMessageAllowance(messageAllowanceCount);
   const safeNow = Number.isFinite(now) ? now : Date.now();
   const history = normalizeAllowanceHistory(sharedMessageAllowance.get(senderKey));
-  const recentHistory =
-    normalizedCooldownMs > 0
-      ? history.filter((timestamp) => safeNow - timestamp < normalizedCooldownMs)
-      : history;
+  const recentHistory = normalizedCooldownMs > 0 ? history.filter((timestamp) => safeNow - timestamp < normalizedCooldownMs) : history;
   recentHistory.push(safeNow);
   const trimmedHistory = recentHistory.slice(-normalizedAllowanceCount);
   sharedMessageAllowance.set(senderKey, trimmedHistory);
@@ -415,27 +307,14 @@ export const shouldSendStickerFocusWarning = ({ groupId, senderJid, now = Date.n
 // Backward compatibility aliases
 export const MIN_STICKER_FOCUS_TEXT_COOLDOWN_MINUTES = MIN_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES;
 export const MAX_STICKER_FOCUS_TEXT_COOLDOWN_MINUTES = MAX_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES;
-export const DEFAULT_STICKER_FOCUS_TEXT_COOLDOWN_MINUTES =
-  DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES;
+export const DEFAULT_STICKER_FOCUS_TEXT_COOLDOWN_MINUTES = DEFAULT_STICKER_FOCUS_MESSAGE_COOLDOWN_MINUTES;
 export const clampStickerFocusTextCooldownMinutes = clampStickerFocusMessageCooldownMinutes;
 export const MIN_STICKER_FOCUS_TEXT_ALLOWANCE = MIN_STICKER_FOCUS_MESSAGE_ALLOWANCE;
 export const MAX_STICKER_FOCUS_TEXT_ALLOWANCE = MAX_STICKER_FOCUS_MESSAGE_ALLOWANCE;
 export const DEFAULT_STICKER_FOCUS_TEXT_ALLOWANCE = DEFAULT_STICKER_FOCUS_MESSAGE_ALLOWANCE;
 export const clampStickerFocusTextAllowance = clampStickerFocusMessageAllowance;
-export const isPlainTextMessageForStickerFocus = ({
-  messageInfo,
-  extractedText,
-  mediaEntries = [],
-}) =>
-  resolveStickerFocusMessageClassification({ messageInfo, extractedText, mediaEntries })
-    .messageType === 'text';
-export const canSendTextInStickerFocus = ({
-  groupId,
-  senderJid,
-  textCooldownMs,
-  textAllowanceCount,
-  now = Date.now(),
-}) =>
+export const isPlainTextMessageForStickerFocus = ({ messageInfo, extractedText, mediaEntries = [] }) => resolveStickerFocusMessageClassification({ messageInfo, extractedText, mediaEntries }).messageType === 'text';
+export const canSendTextInStickerFocus = ({ groupId, senderJid, textCooldownMs, textAllowanceCount, now = Date.now() }) =>
   canSendMessageInStickerFocus({
     groupId,
     senderJid,
@@ -443,13 +322,7 @@ export const canSendTextInStickerFocus = ({
     messageAllowanceCount: textAllowanceCount,
     now,
   });
-export const registerTextUsageInStickerFocus = ({
-  groupId,
-  senderJid,
-  textCooldownMs,
-  textAllowanceCount,
-  now = Date.now(),
-}) =>
+export const registerTextUsageInStickerFocus = ({ groupId, senderJid, textCooldownMs, textAllowanceCount, now = Date.now() }) =>
   registerMessageUsageInStickerFocus({
     groupId,
     senderJid,

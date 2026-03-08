@@ -23,20 +23,14 @@ const parseNumber = (value, fallback) => {
  *
  * @type {number}
  */
-const FLUSH_INTERVAL_MS = Math.min(
-  3000,
-  Math.max(1000, parseNumber(process.env.DB_WRITE_FLUSH_MS, 1500)),
-);
+const FLUSH_INTERVAL_MS = Math.min(3000, Math.max(1000, parseNumber(process.env.DB_WRITE_FLUSH_MS, 1500)));
 
 /**
  * Tamanho máximo do batch de mensagens por INSERT.
  *
  * @type {number}
  */
-const MESSAGE_BATCH_SIZE = Math.max(
-  1,
-  Math.floor(parseNumber(process.env.DB_MESSAGE_BATCH_SIZE, 200)),
-);
+const MESSAGE_BATCH_SIZE = Math.max(1, Math.floor(parseNumber(process.env.DB_MESSAGE_BATCH_SIZE, 200)));
 
 /**
  * Tamanho máximo do batch de chats por INSERT/UPSERT.
@@ -51,10 +45,7 @@ const CHAT_BATCH_SIZE = Math.max(1, Math.floor(parseNumber(process.env.DB_CHAT_B
  *
  * @type {number}
  */
-const CHAT_COOLDOWN_MS = Math.max(
-  1000,
-  Math.floor(parseNumber(process.env.DB_CHAT_COOLDOWN_MS, 45000)),
-);
+const CHAT_COOLDOWN_MS = Math.max(1000, Math.floor(parseNumber(process.env.DB_CHAT_COOLDOWN_MS, 45000)));
 
 /**
  * Capacidade máxima da fila de mensagens.
@@ -62,55 +53,37 @@ const CHAT_COOLDOWN_MS = Math.max(
  *
  * @type {number}
  */
-const MESSAGE_QUEUE_MAX = Math.max(
-  MESSAGE_BATCH_SIZE * 5,
-  Math.floor(parseNumber(process.env.DB_MESSAGE_QUEUE_MAX, 5000)),
-);
+const MESSAGE_QUEUE_MAX = Math.max(MESSAGE_BATCH_SIZE * 5, Math.floor(parseNumber(process.env.DB_MESSAGE_QUEUE_MAX, 5000)));
 
 /**
  * Tamanho máximo do batch de eventos do Baileys por INSERT.
  * @type {number}
  */
-const BAILEYS_EVENT_BATCH_SIZE = Math.max(
-  1,
-  Math.floor(parseNumber(process.env.BAILEYS_EVENT_BATCH_SIZE, 100)),
-);
+const BAILEYS_EVENT_BATCH_SIZE = Math.max(1, Math.floor(parseNumber(process.env.BAILEYS_EVENT_BATCH_SIZE, 100)));
 
 /**
  * Capacidade máxima da fila de eventos do Baileys.
  * @type {number}
  */
-const BAILEYS_EVENT_QUEUE_MAX = Math.max(
-  BAILEYS_EVENT_BATCH_SIZE * 5,
-  Math.floor(parseNumber(process.env.BAILEYS_EVENT_QUEUE_MAX, 4000)),
-);
+const BAILEYS_EVENT_QUEUE_MAX = Math.max(BAILEYS_EVENT_BATCH_SIZE * 5, Math.floor(parseNumber(process.env.BAILEYS_EVENT_QUEUE_MAX, 4000)));
 
 /**
  * Retenção do journal de eventos em dias (0 desativa prune).
  * @type {number}
  */
-const BAILEYS_EVENT_JOURNAL_RETENTION_DAYS = Math.max(
-  0,
-  Math.floor(parseNumber(process.env.BAILEYS_EVENT_JOURNAL_RETENTION_DAYS, 14)),
-);
+const BAILEYS_EVENT_JOURNAL_RETENTION_DAYS = Math.max(0, Math.floor(parseNumber(process.env.BAILEYS_EVENT_JOURNAL_RETENTION_DAYS, 14)));
 
 /**
  * Intervalo entre execuções de prune do journal de eventos.
  * @type {number}
  */
-const BAILEYS_EVENT_JOURNAL_PRUNE_INTERVAL_MS = Math.max(
-  60_000,
-  Math.floor(parseNumber(process.env.BAILEYS_EVENT_JOURNAL_PRUNE_INTERVAL_MS, 6 * 60 * 60 * 1000)),
-);
+const BAILEYS_EVENT_JOURNAL_PRUNE_INTERVAL_MS = Math.max(60_000, Math.floor(parseNumber(process.env.BAILEYS_EVENT_JOURNAL_PRUNE_INTERVAL_MS, 6 * 60 * 60 * 1000)));
 
 /**
  * Limite de deleções por rodada de prune (protege lock longo).
  * @type {number}
  */
-const BAILEYS_EVENT_JOURNAL_PRUNE_DELETE_LIMIT = Math.max(
-  500,
-  Math.floor(parseNumber(process.env.BAILEYS_EVENT_JOURNAL_PRUNE_DELETE_LIMIT, 10_000)),
-);
+const BAILEYS_EVENT_JOURNAL_PRUNE_DELETE_LIMIT = Math.max(500, Math.floor(parseNumber(process.env.BAILEYS_EVENT_JOURNAL_PRUNE_DELETE_LIMIT, 10_000)));
 
 /**
  * Regex de erro para payload JSON inválido no MySQL.
@@ -242,9 +215,7 @@ const stableStringify = (value, depth = 0, seen = new WeakSet()) => {
     return `[${items.join(',')}]`;
   }
   const keys = Object.keys(value).sort();
-  const items = keys.map(
-    (key) => `${JSON.stringify(key)}:${stableStringify(value[key], depth + 1, seen)}`,
-  );
+  const items = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key], depth + 1, seen)}`);
   return `{${items.join(',')}}`;
 };
 
@@ -312,10 +283,7 @@ const normalizeMessageForQueue = (messageData) => {
       ...messageData,
       sender_id: senderId,
     }),
-    content:
-      typeof messageData?.content === 'string'
-        ? sanitizeUnicodeString(messageData.content)
-        : messageData?.content,
+    content: typeof messageData?.content === 'string' ? sanitizeUnicodeString(messageData.content) : messageData?.content,
     raw_message: toSafeJsonColumnValue(messageData?.raw_message),
   };
 };
@@ -335,9 +303,7 @@ const normalizeTimestampForColumn = (value) => {
 
 const normalizeBaileysEventForQueue = (eventData) => ({
   event_name: normalizeTextForColumn(eventData?.event_name, 64),
-  socket_generation: Number.isFinite(Number(eventData?.socket_generation))
-    ? Math.max(0, Math.floor(Number(eventData.socket_generation)))
-    : null,
+  socket_generation: Number.isFinite(Number(eventData?.socket_generation)) ? Math.max(0, Math.floor(Number(eventData.socket_generation))) : null,
   chat_id: normalizeTextForColumn(eventData?.chat_id, 255),
   message_id: normalizeTextForColumn(eventData?.message_id, 255),
   participant_id: normalizeTextForColumn(eventData?.participant_id, 255),
@@ -349,15 +315,7 @@ const insertBaileysEventBatch = async (batch) => {
   const placeholders = buildPlaceholders(batch.length, 7);
   const params = [];
   for (const entry of batch) {
-    params.push(
-      entry.event_name,
-      entry.socket_generation,
-      entry.chat_id,
-      entry.message_id,
-      entry.participant_id,
-      entry.payload_summary,
-      entry.event_timestamp,
-    );
+    params.push(entry.event_name, entry.socket_generation, entry.chat_id, entry.message_id, entry.participant_id, entry.payload_summary, entry.event_timestamp);
   }
 
   const sql = `INSERT INTO ${TABLES.BAILEYS_EVENT_JOURNAL}
@@ -377,15 +335,7 @@ const insertMessageBatch = async (batch) => {
   const placeholders = buildPlaceholders(batch.length, 7);
   const params = [];
   for (const message of batch) {
-    params.push(
-      message.message_id,
-      message.chat_id,
-      message.sender_id,
-      message.canonical_sender_id,
-      message.content,
-      message.raw_message,
-      message.timestamp,
-    );
+    params.push(message.message_id, message.chat_id, message.sender_id, message.canonical_sender_id, message.content, message.raw_message, message.timestamp);
   }
 
   const sql = `INSERT IGNORE INTO ${TABLES.MESSAGES}
@@ -406,10 +356,7 @@ const buildMessageActivityDailyKeys = (batch) => {
   for (const message of batch) {
     const dayRefDate = toUtcDateKey(message?.timestamp);
     const chatId = normalizeUserIdForColumn(message?.chat_id, 255);
-    const canonicalSenderId = normalizeUserIdForColumn(
-      message?.canonical_sender_id || message?.sender_id,
-      255,
-    );
+    const canonicalSenderId = normalizeUserIdForColumn(message?.canonical_sender_id || message?.sender_id, 255);
     if (!dayRefDate || !chatId || !canonicalSenderId) continue;
 
     const key = `${dayRefDate}\u001f${chatId}\u001f${canonicalSenderId}`;
@@ -435,13 +382,7 @@ const refreshMessageActivityDailyForBatch = async (batch) => {
   const keys = buildMessageActivityDailyKeys(batch);
   if (!keys.length) return;
 
-  const keyRowsSql = keys
-    .map((_, index) =>
-      index === 0
-        ? 'SELECT ? AS day_ref_date, ? AS chat_id, ? AS canonical_sender_id'
-        : 'UNION ALL SELECT ?, ?, ?',
-    )
-    .join('\n');
+  const keyRowsSql = keys.map((_, index) => (index === 0 ? 'SELECT ? AS day_ref_date, ? AS chat_id, ? AS canonical_sender_id' : 'UNION ALL SELECT ?, ?, ?')).join('\n');
   const params = [];
   for (const keyRow of keys) {
     params.push(keyRow.dayRefDate, keyRow.chatId, keyRow.canonicalSenderId);
@@ -675,12 +616,9 @@ const flushBaileysEventQueueCore = async () => {
       if (error?.code === 'ER_NO_SUCH_TABLE') {
         if (!baileysEventTableMissingLogged) {
           baileysEventTableMissingLogged = true;
-          logger.warn(
-            'Tabela baileys_event_journal não encontrada. Execute db:init para habilitar o journal.',
-            {
-              action: 'baileys_event_journal_table_missing',
-            },
-          );
+          logger.warn('Tabela baileys_event_journal não encontrada. Execute db:init para habilitar o journal.', {
+            action: 'baileys_event_journal_table_missing',
+          });
         }
         continue;
       }
@@ -908,12 +846,7 @@ async function flushBaileysEventQueue() {
  * @returns {Promise<void>}
  */
 export async function flushQueues() {
-  await Promise.allSettled([
-    flushMessageQueue(),
-    flushChatQueue(),
-    flushBaileysEventQueue(),
-    flushLidQueue(),
-  ]);
+  await Promise.allSettled([flushMessageQueue(), flushChatQueue(), flushBaileysEventQueue(), flushLidQueue()]);
 }
 
 updateQueueMetrics();

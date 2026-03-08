@@ -7,12 +7,9 @@ const __dirname = path.dirname(__filename);
 const CONFIG_PATH = path.join(__dirname, 'commandConfig.json');
 
 const DEFAULT_TEXTS = {
-  group_only_command_message:
-    'Este comando está disponível apenas em conversas de grupo. Execute-o em um grupo para continuar.',
-  no_permission_command_message:
-    'Permissão insuficiente para executar este comando. Solicite suporte a um administrador do grupo.',
-  owner_only_command_message:
-    'Você não possui permissão para executar este comando. Este recurso é exclusivo do administrador principal do bot.',
+  group_only_command_message: 'Este comando está disponível apenas em conversas de grupo. Execute-o em um grupo para continuar.',
+  no_permission_command_message: 'Permissão insuficiente para executar este comando. Solicite suporte a um administrador do grupo.',
+  owner_only_command_message: 'Você não possui permissão para executar este comando. Este recurso é exclusivo do administrador principal do bot.',
   usage_header: 'Formato de uso:',
 };
 
@@ -21,25 +18,13 @@ const DEFAULT_EVENT_MESSAGES = {
   farewell: '😥 Adeus, @user! Sentiremos sua falta.',
   promote: 'O usuário @{{participant}} foi promovido a administrador do grupo. 🎉',
   demote: 'O usuário @{{participant}} não é mais um administrador do grupo. ⬇️',
-  captcha_line:
-    '\n🤖 *Verificação humana*\n@{{participant}}, reaja a esta mensagem ou envie qualquer mensagem em até *{{captcha_timeout_min}} minutos* para continuar no grupo.\n\n',
+  captcha_line: '\n🤖 *Verificação humana*\n@{{participant}}, reaja a esta mensagem ou envie qualquer mensagem em até *{{captcha_timeout_min}} minutos* para continuar no grupo.\n\n',
 };
 
 const DEFAULT_EVENT_CONFIG = {
   placeholders_suportados: [],
   mensagens_padrao: DEFAULT_EVENT_MESSAGES,
-  auto_approve_skip_actions: [
-    'reject',
-    'rejected',
-    'cancel',
-    'canceled',
-    'approve',
-    'approved',
-    'accept',
-    'accepted',
-    'remove',
-    'removed',
-  ],
+  auto_approve_skip_actions: ['reject', 'rejected', 'cancel', 'canceled', 'approve', 'approved', 'accept', 'accepted', 'remove', 'removed'],
 };
 
 let cachedConfig = null;
@@ -128,14 +113,12 @@ export const getAdminCommandEntry = (command) => {
   return commandEntryByCanonical.get(canonical) || null;
 };
 
-const renderUsageMethod = (method, commandPrefix) =>
-  String(method || '').replaceAll('<prefix>', String(commandPrefix || '/'));
+const renderUsageMethod = (method, commandPrefix) => String(method || '').replaceAll('<prefix>', String(commandPrefix || '/'));
 
 const resolveUsageLines = (entry, variant) => {
   if (!entry || typeof entry !== 'object') return [];
 
-  const usageMessages =
-    entry?.mensagens_uso && typeof entry.mensagens_uso === 'object' ? entry.mensagens_uso : null;
+  const usageMessages = entry?.mensagens_uso && typeof entry.mensagens_uso === 'object' ? entry.mensagens_uso : null;
 
   if (usageMessages) {
     const variantKey = typeof variant === 'string' ? variant.trim() : '';
@@ -157,10 +140,7 @@ export const getAdminUsageText = (command, { commandPrefix = '/', header, varian
   const methods = resolveUsageLines(entry, variant);
   if (!methods.length) return '';
 
-  const prefixHeader =
-    typeof header === 'string'
-      ? header
-      : getAdminTextConfig().usage_header || DEFAULT_TEXTS.usage_header;
+  const prefixHeader = typeof header === 'string' ? header : getAdminTextConfig().usage_header || DEFAULT_TEXTS.usage_header;
   const lines = methods.map((method) => renderUsageMethod(method, commandPrefix));
   return [prefixHeader, ...lines].join('\n');
 };
@@ -177,8 +157,7 @@ export const getAdminTextConfig = () => {
 export const getAdminEventConfig = () => {
   const config = getAdminModuleConfig();
   const raw = config?.events && typeof config.events === 'object' ? config.events : {};
-  const rawMessages =
-    raw?.mensagens_padrao && typeof raw.mensagens_padrao === 'object' ? raw.mensagens_padrao : {};
+  const rawMessages = raw?.mensagens_padrao && typeof raw.mensagens_padrao === 'object' ? raw.mensagens_padrao : {};
 
   return {
     ...DEFAULT_EVENT_CONFIG,
@@ -187,11 +166,7 @@ export const getAdminEventConfig = () => {
       ...DEFAULT_EVENT_MESSAGES,
       ...rawMessages,
     },
-    auto_approve_skip_actions: Array.isArray(raw.auto_approve_skip_actions)
-      ? raw.auto_approve_skip_actions.map((value) => normalizeCommandToken(value)).filter(Boolean)
-      : DEFAULT_EVENT_CONFIG.auto_approve_skip_actions,
-    placeholders_suportados: Array.isArray(raw.placeholders_suportados)
-      ? raw.placeholders_suportados.filter(Boolean)
-      : DEFAULT_EVENT_CONFIG.placeholders_suportados,
+    auto_approve_skip_actions: Array.isArray(raw.auto_approve_skip_actions) ? raw.auto_approve_skip_actions.map((value) => normalizeCommandToken(value)).filter(Boolean) : DEFAULT_EVENT_CONFIG.auto_approve_skip_actions,
+    placeholders_suportados: Array.isArray(raw.placeholders_suportados) ? raw.placeholders_suportados.filter(Boolean) : DEFAULT_EVENT_CONFIG.placeholders_suportados,
   };
 };

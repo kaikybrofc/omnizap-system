@@ -14,45 +14,7 @@ const DEFAULT_SOURCE_FILE_MAX_CHARS = 1_700;
 const DEFAULT_MAX_SOURCE_FILES = 3;
 const DEFAULT_MAX_LIST_ITEMS = 24;
 
-const STOPWORDS = new Set([
-  'a',
-  'as',
-  'o',
-  'os',
-  'ao',
-  'aos',
-  'de',
-  'da',
-  'do',
-  'dos',
-  'das',
-  'e',
-  'ou',
-  'para',
-  'por',
-  'com',
-  'sem',
-  'que',
-  'como',
-  'qual',
-  'quais',
-  'quando',
-  'onde',
-  'bot',
-  'omnizap',
-  'ajuda',
-  'help',
-  'comando',
-  'usar',
-  'quero',
-  'fazer',
-  'isso',
-  'esta',
-  'esse',
-  'essa',
-  'funciona',
-  'funcionar',
-]);
+const STOPWORDS = new Set(['a', 'as', 'o', 'os', 'ao', 'aos', 'de', 'da', 'do', 'dos', 'das', 'e', 'ou', 'para', 'por', 'com', 'sem', 'que', 'como', 'qual', 'quais', 'quando', 'onde', 'bot', 'omnizap', 'ajuda', 'help', 'comando', 'usar', 'quero', 'fazer', 'isso', 'esta', 'esse', 'essa', 'funciona', 'funcionar']);
 
 const parseEnvInt = (value, fallback, min, max) => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
@@ -66,45 +28,13 @@ const parseEnvFloat = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, parsed));
 };
 
-const COMMAND_CONFIG_ENRICHMENT_MODEL =
-  String(process.env.COMMAND_CONFIG_ENRICHMENT_WORKER_MODEL || DEFAULT_MODEL).trim() ||
-  DEFAULT_MODEL;
-const COMMAND_CONFIG_ENRICHMENT_TIMEOUT_MS = parseEnvInt(
-  process.env.COMMAND_CONFIG_ENRICHMENT_WORKER_TIMEOUT_MS,
-  DEFAULT_TIMEOUT_MS,
-  5_000,
-  90_000,
-);
-const COMMAND_CONFIG_ENRICHMENT_CONTEXT_MAX_CHARS = parseEnvInt(
-  process.env.COMMAND_CONFIG_ENRICHMENT_CONTEXT_MAX_CHARS,
-  DEFAULT_CONTEXT_MAX_CHARS,
-  1_500,
-  16_000,
-);
-const COMMAND_CONFIG_ENRICHMENT_AGENT_MAX_CHARS = parseEnvInt(
-  process.env.COMMAND_CONFIG_ENRICHMENT_AGENT_MAX_CHARS,
-  DEFAULT_AGENT_MAX_CHARS,
-  600,
-  8_000,
-);
-const COMMAND_CONFIG_ENRICHMENT_SOURCE_FILE_MAX_CHARS = parseEnvInt(
-  process.env.COMMAND_CONFIG_ENRICHMENT_SOURCE_FILE_MAX_CHARS,
-  DEFAULT_SOURCE_FILE_MAX_CHARS,
-  400,
-  5_000,
-);
-const COMMAND_CONFIG_ENRICHMENT_MAX_SOURCE_FILES = parseEnvInt(
-  process.env.COMMAND_CONFIG_ENRICHMENT_MAX_SOURCE_FILES,
-  DEFAULT_MAX_SOURCE_FILES,
-  1,
-  8,
-);
-const COMMAND_CONFIG_ENRICHMENT_BASE_CONFIDENCE = parseEnvFloat(
-  process.env.COMMAND_CONFIG_ENRICHMENT_BASE_CONFIDENCE,
-  0.55,
-  0.1,
-  1,
-);
+const COMMAND_CONFIG_ENRICHMENT_MODEL = String(process.env.COMMAND_CONFIG_ENRICHMENT_WORKER_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+const COMMAND_CONFIG_ENRICHMENT_TIMEOUT_MS = parseEnvInt(process.env.COMMAND_CONFIG_ENRICHMENT_WORKER_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, 5_000, 90_000);
+const COMMAND_CONFIG_ENRICHMENT_CONTEXT_MAX_CHARS = parseEnvInt(process.env.COMMAND_CONFIG_ENRICHMENT_CONTEXT_MAX_CHARS, DEFAULT_CONTEXT_MAX_CHARS, 1_500, 16_000);
+const COMMAND_CONFIG_ENRICHMENT_AGENT_MAX_CHARS = parseEnvInt(process.env.COMMAND_CONFIG_ENRICHMENT_AGENT_MAX_CHARS, DEFAULT_AGENT_MAX_CHARS, 600, 8_000);
+const COMMAND_CONFIG_ENRICHMENT_SOURCE_FILE_MAX_CHARS = parseEnvInt(process.env.COMMAND_CONFIG_ENRICHMENT_SOURCE_FILE_MAX_CHARS, DEFAULT_SOURCE_FILE_MAX_CHARS, 400, 5_000);
+const COMMAND_CONFIG_ENRICHMENT_MAX_SOURCE_FILES = parseEnvInt(process.env.COMMAND_CONFIG_ENRICHMENT_MAX_SOURCE_FILES, DEFAULT_MAX_SOURCE_FILES, 1, 8);
+const COMMAND_CONFIG_ENRICHMENT_BASE_CONFIDENCE = parseEnvFloat(process.env.COMMAND_CONFIG_ENRICHMENT_BASE_CONFIDENCE, 0.55, 0.1, 1);
 
 const AI_ENRICHMENT_OUTPUT_SCHEMA = z
   .object({
@@ -175,10 +105,7 @@ const parseJsonSafe = (value) => {
   }
 };
 
-const uniqueList = (
-  values = [],
-  { maxItems = DEFAULT_MAX_LIST_ITEMS, maxLength = 200, normalizeMode = 'display' } = {},
-) => {
+const uniqueList = (values = [], { maxItems = DEFAULT_MAX_LIST_ITEMS, maxLength = 200, normalizeMode = 'display' } = {}) => {
   const source = Array.isArray(values) ? values : [];
   const output = [];
   const seen = new Set();
@@ -187,10 +114,7 @@ const uniqueList = (
     const display = normalizeDisplayText(item);
     if (!display) continue;
 
-    const normalized =
-      normalizeMode === 'keyword'
-        ? normalizeText(display).slice(0, maxLength)
-        : display.slice(0, maxLength);
+    const normalized = normalizeMode === 'keyword' ? normalizeText(display).slice(0, maxLength) : display.slice(0, maxLength);
     if (!normalized) continue;
 
     const key = normalizeText(normalized);
@@ -254,10 +178,7 @@ const getOpenAIClient = () => {
 const isFilePathInside = (baseDir, candidatePath) => {
   const normalizedBase = path.resolve(baseDir);
   const normalizedCandidate = path.resolve(candidatePath);
-  return (
-    normalizedCandidate.startsWith(`${normalizedBase}${path.sep}`) ||
-    normalizedCandidate === normalizedBase
-  );
+  return normalizedCandidate.startsWith(`${normalizedBase}${path.sep}`) || normalizedCandidate === normalizedBase;
 };
 
 const readJsonFileCached = async (filePath) => {
@@ -341,20 +262,7 @@ const resolveModuleSourceFiles = async (toolRecord) => {
   return resolved.slice(0, COMMAND_CONFIG_ENRICHMENT_MAX_SOURCE_FILES);
 };
 
-const buildSystemPrompt = () =>
-  [
-    'Voce enriquece metadata de descoberta para comandos JA existentes de um bot WhatsApp.',
-    'Voce NAO cria comandos novos.',
-    'Voce NAO altera permissao, local_de_uso, pre_condicoes, limite_de_uso nem nome do comando.',
-    'Responda SOMENTE JSON valido com as chaves exatas:',
-    '{"capability_keywords":[],"faq_patterns":[],"user_phrasings":[],"metodos_de_uso_sugeridos":[],"descricao_sugerida":"","confidence":0.0}',
-    'capability_keywords: termos curtos (sem repetir o nome do comando em todas as entradas).',
-    'faq_patterns: perguntas que usuarios realmente fariam.',
-    'user_phrasings: frases naturais de usuario.',
-    'metodos_de_uso_sugeridos: exemplos de uso opcionais.',
-    'descricao_sugerida: opcional, curta e objetiva.',
-    'confidence: numero de 0.0 a 1.0.',
-  ].join(' ');
+const buildSystemPrompt = () => ['Voce enriquece metadata de descoberta para comandos JA existentes de um bot WhatsApp.', 'Voce NAO cria comandos novos.', 'Voce NAO altera permissao, local_de_uso, pre_condicoes, limite_de_uso nem nome do comando.', 'Responda SOMENTE JSON valido com as chaves exatas:', '{"capability_keywords":[],"faq_patterns":[],"user_phrasings":[],"metodos_de_uso_sugeridos":[],"descricao_sugerida":"","confidence":0.0}', 'capability_keywords: termos curtos (sem repetir o nome do comando em todas as entradas).', 'faq_patterns: perguntas que usuarios realmente fariam.', 'user_phrasings: frases naturais de usuario.', 'metodos_de_uso_sugeridos: exemplos de uso opcionais.', 'descricao_sugerida: opcional, curta e objetiva.', 'confidence: numero de 0.0 a 1.0.'].join(' ');
 
 const buildCommandContextPayload = async ({ learningEvent, toolRecord }) => {
   const commandEntry = toolRecord?.commandEntry || {};
@@ -365,10 +273,7 @@ const buildCommandContextPayload = async ({ learningEvent, toolRecord }) => {
   const sourceFiles = await resolveModuleSourceFiles(toolRecord);
   const sourceSnippets = [];
   for (const sourceFilePath of sourceFiles) {
-    const content = await readTextFileCached(
-      sourceFilePath,
-      COMMAND_CONFIG_ENRICHMENT_SOURCE_FILE_MAX_CHARS,
-    );
+    const content = await readTextFileCached(sourceFilePath, COMMAND_CONFIG_ENRICHMENT_SOURCE_FILE_MAX_CHARS);
     if (!content) continue;
     sourceSnippets.push({
       file: path.relative(process.cwd(), sourceFilePath),
@@ -376,9 +281,7 @@ const buildCommandContextPayload = async ({ learningEvent, toolRecord }) => {
     });
   }
 
-  const agentContent = agentPath
-    ? await readTextFileCached(agentPath, COMMAND_CONFIG_ENRICHMENT_AGENT_MAX_CHARS)
-    : '';
+  const agentContent = agentPath ? await readTextFileCached(agentPath, COMMAND_CONFIG_ENRICHMENT_AGENT_MAX_CHARS) : '';
 
   const commandSummary = {
     module: toolRecord?.moduleKey || null,
@@ -396,13 +299,8 @@ const buildCommandContextPayload = async ({ learningEvent, toolRecord }) => {
       : [],
     local_de_uso: Array.isArray(commandEntry?.local_de_uso) ? commandEntry.local_de_uso : [],
     permissao_necessaria: commandEntry?.permissao_necessaria || null,
-    pre_condicoes:
-      commandEntry?.pre_condicoes && typeof commandEntry.pre_condicoes === 'object'
-        ? commandEntry.pre_condicoes
-        : {},
-    capability_keywords: Array.isArray(commandEntry?.capability_keywords)
-      ? commandEntry.capability_keywords
-      : [],
+    pre_condicoes: commandEntry?.pre_condicoes && typeof commandEntry.pre_condicoes === 'object' ? commandEntry.pre_condicoes : {},
+    capability_keywords: Array.isArray(commandEntry?.capability_keywords) ? commandEntry.capability_keywords : [],
     faq_patterns: Array.isArray(commandEntry?.faq_patterns) ? commandEntry.faq_patterns : [],
     user_phrasings: Array.isArray(commandEntry?.user_phrasings) ? commandEntry.user_phrasings : [],
   };
@@ -441,15 +339,11 @@ const parseAndSanitizeOutput = (rawJson) => {
 };
 
 const buildHeuristicSuggestion = ({ learningEvent, toolRecord }) => {
-  const question = String(
-    learningEvent?.normalized_question || learningEvent?.user_question || '',
-  ).trim();
+  const question = String(learningEvent?.normalized_question || learningEvent?.user_question || '').trim();
   const tokens = tokenize(question);
 
   const commandName = normalizeText(toolRecord?.commandName || '');
-  const aliases = Array.isArray(toolRecord?.aliases)
-    ? toolRecord.aliases.map((alias) => normalizeText(alias)).filter(Boolean)
-    : [];
+  const aliases = Array.isArray(toolRecord?.aliases) ? toolRecord.aliases.map((alias) => normalizeText(alias)).filter(Boolean) : [];
   const blocked = new Set([commandName, ...aliases].filter(Boolean));
   const keywordCandidates = tokens.filter((token) => !blocked.has(token)).slice(0, 8);
 
@@ -457,9 +351,7 @@ const buildHeuristicSuggestion = ({ learningEvent, toolRecord }) => {
     capability_keywords: keywordCandidates,
     faq_patterns: commandName ? [`como usar ${commandName}`, `o que faz ${commandName}`] : [],
     user_phrasings: question ? [normalizeDisplayText(question)] : [],
-    metodos_de_uso_sugeridos: Array.isArray(toolRecord?.commandEntry?.metodos_de_uso)
-      ? toolRecord.commandEntry.metodos_de_uso.slice(0, 3)
-      : [],
+    metodos_de_uso_sugeridos: Array.isArray(toolRecord?.commandEntry?.metodos_de_uso) ? toolRecord.commandEntry.metodos_de_uso.slice(0, 3) : [],
     descricao_sugerida: toolRecord?.commandEntry?.descricao || '',
   });
 
@@ -479,10 +371,7 @@ const buildHeuristicSuggestion = ({ learningEvent, toolRecord }) => {
 
 const isLlmReady = () => Boolean(process.env.OPENAI_API_KEY);
 
-export const generateCommandConfigEnrichmentSuggestion = async ({
-  learningEvent,
-  toolRecord,
-} = {}) => {
+export const generateCommandConfigEnrichmentSuggestion = async ({ learningEvent, toolRecord } = {}) => {
   if (!learningEvent || !toolRecord) return null;
 
   const fallbackSuggestion = buildHeuristicSuggestion({ learningEvent, toolRecord });
@@ -531,9 +420,7 @@ export const generateCommandConfigEnrichmentSuggestion = async ({
 
   const eventConfidence = clamp01(learningEvent?.confidence);
   const successSignal = learningEvent?.success ? 0.12 : 0.03;
-  const finalConfidence = clamp01(
-    parsed.modelConfidence * 0.72 + eventConfidence * 0.18 + successSignal,
-  );
+  const finalConfidence = clamp01(parsed.modelConfidence * 0.72 + eventConfidence * 0.18 + successSignal);
 
   return {
     suggestion: parsed.suggestion,

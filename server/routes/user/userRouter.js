@@ -1,10 +1,4 @@
-import {
-  DEFAULT_LEGACY_STICKER_API_BASE_PATH,
-  DEFAULT_USER_API_BASE_PATH,
-  buildUserApiPaths,
-  isUserApiPath,
-  normalizeBasePath,
-} from './userApiPaths.js';
+import { DEFAULT_LEGACY_STICKER_API_BASE_PATH, DEFAULT_USER_API_BASE_PATH, buildUserApiPaths, isUserApiPath, normalizeBasePath } from './userApiPaths.js';
 export { buildUserApiPaths };
 
 let userControllerPromise = null;
@@ -28,31 +22,19 @@ const DEFAULT_USER_PASSWORD_RESET_WEB_PATH = `${DEFAULT_USER_WEB_PATH}/password-
 const resolveDefaultPasswordResetWebPath = (webPath) => {
   const normalizedWebPath = normalizeBasePath(webPath, DEFAULT_USER_WEB_PATH);
   if (normalizedWebPath === '/') return DEFAULT_USER_PASSWORD_RESET_WEB_PATH;
-  return normalizeBasePath(
-    `${normalizedWebPath}/password-reset`,
-    DEFAULT_USER_PASSWORD_RESET_WEB_PATH,
-  );
+  return normalizeBasePath(`${normalizedWebPath}/password-reset`, DEFAULT_USER_PASSWORD_RESET_WEB_PATH);
 };
 
 export const getUserRouterConfig = async () => {
   const controller = await loadUserController();
-  const legacyConfig =
-    (typeof controller?.getUserRouteConfig === 'function'
-      ? controller.getUserRouteConfig()
-      : null) || {};
+  const legacyConfig = (typeof controller?.getUserRouteConfig === 'function' ? controller.getUserRouteConfig() : null) || {};
   const webPath = normalizeBasePath(legacyConfig.webPath, DEFAULT_USER_WEB_PATH);
   const fallbackPasswordResetWebPath = resolveDefaultPasswordResetWebPath(webPath);
   return {
     webPath,
-    passwordResetWebPath: normalizeBasePath(
-      legacyConfig.passwordResetWebPath,
-      fallbackPasswordResetWebPath,
-    ),
+    passwordResetWebPath: normalizeBasePath(legacyConfig.passwordResetWebPath, fallbackPasswordResetWebPath),
     apiBasePath: normalizeBasePath(legacyConfig.apiBasePath, DEFAULT_USER_API_BASE_PATH),
-    legacyApiBasePath: normalizeBasePath(
-      legacyConfig.legacyApiBasePath,
-      DEFAULT_USER_LEGACY_API_BASE_PATH,
-    ),
+    legacyApiBasePath: normalizeBasePath(legacyConfig.legacyApiBasePath, DEFAULT_USER_LEGACY_API_BASE_PATH),
   };
 };
 
@@ -65,21 +47,14 @@ export const shouldHandleUserPath = (pathname, userConfig = null) => {
   };
   const webPath = normalizeBasePath(resolvedConfig.webPath, DEFAULT_USER_WEB_PATH);
   const fallbackPasswordResetWebPath = resolveDefaultPasswordResetWebPath(webPath);
-  const passwordResetWebPath = normalizeBasePath(
-    resolvedConfig.passwordResetWebPath,
-    fallbackPasswordResetWebPath,
-  );
+  const passwordResetWebPath = normalizeBasePath(resolvedConfig.passwordResetWebPath, fallbackPasswordResetWebPath);
 
-  if (startsWithPath(pathname, webPath) || startsWithPath(pathname, passwordResetWebPath))
-    return true;
+  if (startsWithPath(pathname, webPath) || startsWithPath(pathname, passwordResetWebPath)) return true;
 
   const apiBasePath = normalizeBasePath(resolvedConfig.apiBasePath, DEFAULT_USER_API_BASE_PATH);
   if (isUserApiPath(pathname, apiBasePath)) return true;
 
-  const legacyApiBasePath = normalizeBasePath(
-    resolvedConfig.legacyApiBasePath,
-    DEFAULT_USER_LEGACY_API_BASE_PATH,
-  );
+  const legacyApiBasePath = normalizeBasePath(resolvedConfig.legacyApiBasePath, DEFAULT_USER_LEGACY_API_BASE_PATH);
   return isUserApiPath(pathname, legacyApiBasePath, { legacyCompatible: true });
 };
 

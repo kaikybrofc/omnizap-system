@@ -1,11 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import axios from 'axios';
 
-import {
-  signWebAuthJwt,
-  verifyWebAuthJwt,
-  extractBearerTokenFromRequest,
-} from '../jwt/webJwtService.js';
+import { signWebAuthJwt, verifyWebAuthJwt, extractBearerTokenFromRequest } from '../jwt/webJwtService.js';
 import { parseGoogleAuthSessionPayload } from '../validation/authSchemas.js';
 import { resolveClientIp } from '../../http/clientIp.js';
 
@@ -31,47 +27,12 @@ const normalizeCookiePath = (value, fallback = '/') => {
   return withSlash || '/';
 };
 
-export const createGoogleWebAuthService = ({
-  executeQuery,
-  runSqlTransaction,
-  tables,
-  logger,
-  sendJson,
-  readJsonBody,
-  parseCookies,
-  getCookieValuesFromRequest,
-  appendSetCookie,
-  buildCookieString,
-  normalizeGoogleSubject,
-  normalizeEmail,
-  normalizeJid,
-  sanitizeText,
-  toIsoOrNull,
-  toWhatsAppPhoneDigits,
-  resolveWhatsAppOwnerJidFromLoginPayload,
-  buildGoogleOwnerJid,
-  assertGoogleIdentityNotBanned,
-  googleClientId,
-  sessionTtlMs,
-  sessionDbTouchIntervalMs,
-  sessionDbPruneIntervalMs,
-  notAllowedErrorCode,
-  onGoogleWebSessionCreated = null,
-  sessionCookiePath = '/',
-  legacyCookiePaths = [],
-}) => {
+export const createGoogleWebAuthService = ({ executeQuery, runSqlTransaction, tables, logger, sendJson, readJsonBody, parseCookies, getCookieValuesFromRequest, appendSetCookie, buildCookieString, normalizeGoogleSubject, normalizeEmail, normalizeJid, sanitizeText, toIsoOrNull, toWhatsAppPhoneDigits, resolveWhatsAppOwnerJidFromLoginPayload, buildGoogleOwnerJid, assertGoogleIdentityNotBanned, googleClientId, sessionTtlMs, sessionDbTouchIntervalMs, sessionDbPruneIntervalMs, notAllowedErrorCode, onGoogleWebSessionCreated = null, sessionCookiePath = '/', legacyCookiePaths = [] }) => {
   const webGoogleSessionMap = new Map();
   let googleWebSessionDbPruneAt = 0;
   const normalizedSessionCookiePath = normalizeCookiePath(sessionCookiePath, '/');
-  const normalizedLegacyCookiePaths = Array.from(
-    new Set(
-      ['/', normalizedSessionCookiePath, ...legacyCookiePaths]
-        .map((pathValue) => normalizeCookiePath(pathValue, '/'))
-        .filter(Boolean),
-    ),
-  );
-  const USER_PASSWORD_TABLE =
-    String(tables.STICKER_WEB_USER_PASSWORD || 'web_user_password').trim() || 'web_user_password';
+  const normalizedLegacyCookiePaths = Array.from(new Set(['/', normalizedSessionCookiePath, ...legacyCookiePaths].map((pathValue) => normalizeCookiePath(pathValue, '/')).filter(Boolean)));
+  const USER_PASSWORD_TABLE = String(tables.STICKER_WEB_USER_PASSWORD || 'web_user_password').trim() || 'web_user_password';
 
   const pruneExpiredGoogleSessions = () => {
     const now = Date.now();
@@ -105,9 +66,7 @@ export const createGoogleWebAuthService = ({
     }
 
     if (response.status < 200 || response.status >= 300) {
-      const reason = String(
-        response?.data?.error_description || response?.data?.error || '',
-      ).trim();
+      const reason = String(response?.data?.error_description || response?.data?.error || '').trim();
       const error = new Error(reason || 'Token Google inválido.');
       error.statusCode = 401;
       throw error;
@@ -281,16 +240,7 @@ export const createGoogleWebAuthService = ({
     const ownerJid = normalizeJid(session?.ownerJid) || '';
     const ownerPhone = toWhatsAppPhoneDigits(session?.ownerPhone || ownerJid) || null;
     const expiresAt = Number(session?.expiresAt || 0);
-    if (
-      !token ||
-      !tokenHash ||
-      !sessionRowKey ||
-      !sub ||
-      !ownerJid ||
-      !Number.isFinite(expiresAt) ||
-      expiresAt <= 0
-    )
-      return;
+    if (!token || !tokenHash || !sessionRowKey || !sub || !ownerJid || !Number.isFinite(expiresAt) || expiresAt <= 0) return;
     const email =
       String(session?.email || '')
         .trim()
@@ -444,10 +394,7 @@ export const createGoogleWebAuthService = ({
 
   const issueAccessTokenForSession = (session) => {
     if (!session?.sub) return '';
-    const expiresInSeconds = Math.max(
-      60,
-      Math.floor((Number(session.expiresAt || 0) - Date.now()) / 1000),
-    );
+    const expiresInSeconds = Math.max(60, Math.floor((Number(session.expiresAt || 0) - Date.now()) / 1000));
     return (
       signWebAuthJwt(
         {
@@ -464,12 +411,7 @@ export const createGoogleWebAuthService = ({
     );
   };
 
-  const setGoogleWebSessionCookie = (
-    req,
-    res,
-    sessionToken,
-    maxAgeSeconds = Math.floor(sessionTtlMs / 1000),
-  ) => {
+  const setGoogleWebSessionCookie = (req, res, sessionToken, maxAgeSeconds = Math.floor(sessionTtlMs / 1000)) => {
     const token = String(sessionToken || '').trim();
     if (!token) return;
     appendSetCookie(
@@ -481,14 +423,7 @@ export const createGoogleWebAuthService = ({
     );
   };
 
-  const createPersistedGoogleWebSessionFromIdentity = async ({
-    sub = '',
-    email = '',
-    name = '',
-    picture = '',
-    ownerJid = '',
-    requestMeta = null,
-  } = {}) => {
+  const createPersistedGoogleWebSessionFromIdentity = async ({ sub = '', email = '', name = '', picture = '', ownerJid = '', requestMeta = null } = {}) => {
     const normalizedSub = normalizeGoogleSubject(sub);
     const normalizedOwnerJid = normalizeJid(ownerJid) || '';
     if (!normalizedSub || !normalizedOwnerJid) {
@@ -575,10 +510,7 @@ export const createGoogleWebAuthService = ({
     void touchGoogleWebUserSeenInDb(session.sub).catch(() => {});
   };
 
-  const resolvePersistedGoogleWebSessionByToken = async (
-    sessionToken,
-    { expectedSub = '' } = {},
-  ) => {
+  const resolvePersistedGoogleWebSessionByToken = async (sessionToken, { expectedSub = '' } = {}) => {
     const token = String(sessionToken || '').trim();
     if (!token) return null;
     const normalizedExpectedSub = normalizeGoogleSubject(expectedSub);
@@ -599,10 +531,7 @@ export const createGoogleWebAuthService = ({
       return null;
     }
 
-    if (
-      normalizedExpectedSub &&
-      normalizeGoogleSubject(persistedSession.sub) !== normalizedExpectedSub
-    ) {
+    if (normalizedExpectedSub && normalizeGoogleSubject(persistedSession.sub) !== normalizedExpectedSub) {
       return null;
     }
 
@@ -693,11 +622,7 @@ export const createGoogleWebAuthService = ({
     return payload;
   };
 
-  const revokeGoogleWebSessionsByIdentity = async ({
-    googleSub = '',
-    email = '',
-    ownerJid = '',
-  } = {}) => {
+  const revokeGoogleWebSessionsByIdentity = async ({ googleSub = '', email = '', ownerJid = '' } = {}) => {
     const normalizedSub = normalizeGoogleSubject(googleSub);
     const normalizedEmail = normalizeEmail(email);
     const normalizedOwnerJid = normalizeJid(ownerJid) || '';
@@ -724,11 +649,7 @@ export const createGoogleWebAuthService = ({
       const sessionSub = normalizeGoogleSubject(session.sub);
       const sessionEmail = normalizeEmail(session.email);
       const sessionOwner = normalizeJid(session.ownerJid) || '';
-      if (
-        (normalizedSub && sessionSub === normalizedSub) ||
-        (normalizedEmail && sessionEmail === normalizedEmail) ||
-        (normalizedOwnerJid && sessionOwner === normalizedOwnerJid)
-      ) {
+      if ((normalizedSub && sessionSub === normalizedSub) || (normalizedEmail && sessionEmail === normalizedEmail) || (normalizedOwnerJid && sessionOwner === normalizedOwnerJid)) {
         webGoogleSessionMap.delete(token);
         removed += 1;
       }
@@ -813,8 +734,7 @@ export const createGoogleWebAuthService = ({
       if (!linkedOwner.ownerJid) {
         if (!linkedOwner.hasPayload) {
           sendJson(req, res, 400, {
-            error:
-              'Abra esta pagina pelo link enviado no WhatsApp. Envie "iniciar" no bot para gerar o link de login.',
+            error: 'Abra esta pagina pelo link enviado no WhatsApp. Envie "iniciar" no bot para gerar o link de login.',
             code: 'WHATSAPP_LOGIN_LINK_REQUIRED',
             reason: 'missing_link',
           });
@@ -826,12 +746,7 @@ export const createGoogleWebAuthService = ({
           .toLowerCase();
         const isUnauthorizedAttempt = ['invalid_signature', 'missing_signature'].includes(reason);
         const statusCode = isUnauthorizedAttempt ? 403 : 400;
-        const errorMessage =
-          reason === 'expired'
-            ? 'Link de login expirado. Envie "iniciar" novamente no WhatsApp.'
-            : isUnauthorizedAttempt
-              ? 'Tentativa de login sem permissao detectada. Gere um novo link enviando "iniciar" no privado do bot.'
-              : 'Link de login invalido. Envie "iniciar" novamente no WhatsApp.';
+        const errorMessage = reason === 'expired' ? 'Link de login expirado. Envie "iniciar" novamente no WhatsApp.' : isUnauthorizedAttempt ? 'Tentativa de login sem permissao detectada. Gere um novo link enviando "iniciar" no privado do bot.' : 'Link de login invalido. Envie "iniciar" novamente no WhatsApp.';
 
         logger.warn('Tentativa de login web bloqueada por validacao do link WhatsApp.', {
           action: 'sticker_pack_google_web_login_link_blocked',

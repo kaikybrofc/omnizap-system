@@ -149,15 +149,7 @@
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "retorna top 5",
       "local_de_uso": ["grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "escopo do grupo (group id)",
-        "estatisticas de mensagens agregadas no banco",
-        "nomes de exibicao para composicao do ranking"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "escopo do grupo (group id)", "estatisticas de mensagens agregadas no banco", "nomes de exibicao para composicao do ranking"],
       "enabled": true,
       "categoria": "estatisticas",
       "subcomandos": [],
@@ -189,25 +181,13 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do chat",
-          "identificador do remetente",
-          "conteudo textual do comando"
-        ],
+        "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": ["classificacao", "rank", "top5", "estatisticas", "grupo"],
-      "faq_patterns": [
-        "como usar classificacao",
-        "o que faz classificacao",
-        "comando classificacao"
-      ],
-      "user_phrasings": [
-        "quero usar classificacao",
-        "me ajuda com classificacao",
-        "mostra top 5 mais"
-      ],
+      "faq_patterns": ["como usar classificacao", "o que faz classificacao", "comando classificacao"],
+      "user_phrasings": ["quero usar classificacao", "me ajuda com classificacao", "mostra top 5 mais"],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
@@ -240,15 +220,7 @@
       },
       "permission": "usuario comum",
       "contexts": ["grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "escopo do grupo (group id)",
-        "estatisticas de mensagens agregadas no banco",
-        "nomes de exibicao para composicao do ranking"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "escopo do grupo (group id)", "estatisticas de mensagens agregadas no banco", "nomes de exibicao para composicao do ranking"],
       "requirements": {
         "require_group": true,
         "require_group_admin": false,
@@ -318,27 +290,15 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do chat",
-            "identificador do remetente",
-            "conteudo textual do comando"
-          ],
+          "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
       },
       "discovery": {
         "keywords": ["classificacao", "rank", "top5", "estatisticas", "grupo"],
-        "faq_queries": [
-          "como usar classificacao",
-          "o que faz classificacao",
-          "comando classificacao"
-        ],
-        "user_phrasings": [
-          "quero usar classificacao",
-          "me ajuda com classificacao",
-          "mostra top 5 mais"
-        ],
+        "faq_queries": ["como usar classificacao", "o que faz classificacao", "comando classificacao"],
+        "user_phrasings": ["quero usar classificacao", "me ajuda com classificacao", "mostra top 5 mais"],
         "suggestion_priority": 100
       },
       "access": {
@@ -374,21 +334,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "classificacao",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     },
     {
@@ -399,14 +345,7 @@
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "retorna top 5",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "estatisticas globais de mensagens agregadas no banco",
-        "nomes de exibicao para composicao do ranking"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "estatisticas globais de mensagens agregadas no banco", "nomes de exibicao para composicao do ranking"],
       "enabled": true,
       "categoria": "estatisticas",
       "subcomandos": [],
@@ -438,33 +377,13 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do chat",
-          "identificador do remetente",
-          "conteudo textual do comando"
-        ],
+        "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": [
-        "classificacaoglobal",
-        "rankglobal",
-        "globalrank",
-        "globalranking",
-        "estatisticas",
-        "privado",
-        "grupo"
-      ],
-      "faq_patterns": [
-        "como usar classificacaoglobal",
-        "o que faz classificacaoglobal",
-        "comando classificacaoglobal"
-      ],
-      "user_phrasings": [
-        "quero usar classificacaoglobal",
-        "me ajuda com classificacaoglobal",
-        "mostra top 5 global"
-      ],
+      "capability_keywords": ["classificacaoglobal", "rankglobal", "globalrank", "globalranking", "estatisticas", "privado", "grupo"],
+      "faq_patterns": ["como usar classificacaoglobal", "o que faz classificacaoglobal", "comando classificacaoglobal"],
+      "user_phrasings": ["quero usar classificacaoglobal", "me ajuda com classificacaoglobal", "mostra top 5 global"],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
@@ -497,14 +416,7 @@
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "estatisticas globais de mensagens agregadas no banco",
-        "nomes de exibicao para composicao do ranking"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "estatisticas globais de mensagens agregadas no banco", "nomes de exibicao para composicao do ranking"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -574,35 +486,15 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do chat",
-            "identificador do remetente",
-            "conteudo textual do comando"
-          ],
+          "dados_sensiveis": ["identificador do chat", "identificador do remetente", "conteudo textual do comando"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
       },
       "discovery": {
-        "keywords": [
-          "classificacaoglobal",
-          "rankglobal",
-          "globalrank",
-          "globalranking",
-          "estatisticas",
-          "privado",
-          "grupo"
-        ],
-        "faq_queries": [
-          "como usar classificacaoglobal",
-          "o que faz classificacaoglobal",
-          "comando classificacaoglobal"
-        ],
-        "user_phrasings": [
-          "quero usar classificacaoglobal",
-          "me ajuda com classificacaoglobal",
-          "mostra top 5 global"
-        ],
+        "keywords": ["classificacaoglobal", "rankglobal", "globalrank", "globalranking", "estatisticas", "privado", "grupo"],
+        "faq_queries": ["como usar classificacaoglobal", "o que faz classificacaoglobal", "comando classificacaoglobal"],
+        "user_phrasings": ["quero usar classificacaoglobal", "me ajuda com classificacaoglobal", "mostra top 5 global"],
         "suggestion_priority": 100
       },
       "access": {
@@ -638,21 +530,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "classificacaoglobal",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     }
   ],

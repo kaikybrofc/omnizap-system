@@ -5,8 +5,7 @@ let stickerCatalogControllerPromise = null;
 
 const loadStickerCatalogController = async () => {
   if (!stickerCatalogControllerPromise) {
-    stickerCatalogControllerPromise =
-      import('../../controllers/sticker/stickerCatalogController.js');
+    stickerCatalogControllerPromise = import('../../controllers/sticker/stickerCatalogController.js');
   }
   return stickerCatalogControllerPromise;
 };
@@ -14,10 +13,7 @@ const loadStickerCatalogController = async () => {
 const normalizeBasePath = (value, fallback) => {
   const raw = String(value || '').trim() || fallback;
   const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  const withoutTrailingSlash =
-    withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')
-      ? withLeadingSlash.slice(0, -1)
-      : withLeadingSlash;
+  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
   return withoutTrailingSlash || fallback;
 };
 
@@ -45,10 +41,7 @@ const sendMethodNotAllowed = (req, res) => {
 
 export const getStickerApiRouterConfig = async () => {
   const controller = await loadStickerCatalogController();
-  const legacyConfig =
-    (typeof controller?.getStickerCatalogConfig === 'function'
-      ? controller.getStickerCatalogConfig()
-      : null) || {};
+  const legacyConfig = (typeof controller?.getStickerCatalogConfig === 'function' ? controller.getStickerCatalogConfig() : null) || {};
   return {
     apiBasePath: normalizeBasePath(legacyConfig.apiBasePath, DEFAULT_STICKER_API_BASE_PATH),
     marketplaceStatsPath: DEFAULT_MARKETPLACE_STATS_PATH,
@@ -57,10 +50,7 @@ export const getStickerApiRouterConfig = async () => {
 
 export const shouldHandleStickerApiPath = (pathname, stickerConfig = null) => {
   const apiBasePath = normalizeBasePath(stickerConfig?.apiBasePath, DEFAULT_STICKER_API_BASE_PATH);
-  const marketplaceStatsPath = normalizeBasePath(
-    stickerConfig?.marketplaceStatsPath,
-    DEFAULT_MARKETPLACE_STATS_PATH,
-  );
+  const marketplaceStatsPath = normalizeBasePath(stickerConfig?.marketplaceStatsPath, DEFAULT_MARKETPLACE_STATS_PATH);
   return startsWithPath(pathname, apiBasePath) || startsWithPath(pathname, marketplaceStatsPath);
 };
 

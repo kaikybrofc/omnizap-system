@@ -149,16 +149,7 @@
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "texto sujeito a limites da API",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "prompt textual enviado ao modelo de IA",
-        "flags de resposta (ex.: audio/voz)",
-        "midia anexada/citada para analise multimodal (quando houver)",
-        "identidade do usuario para sessao e contexto de conversa"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "prompt textual enviado ao modelo de IA", "flags de resposta (ex.: audio/voz)", "midia anexada/citada para analise multimodal (quando houver)", "identidade do usuario para sessao e contexto de conversa"],
       "enabled": true,
       "categoria": "ia",
       "subcomandos": [],
@@ -205,12 +196,7 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do chat",
-          "identificador do remetente",
-          "prompt textual enviado",
-          "conteúdo de mídia anexada/citada (quando houver)"
-        ],
+        "dados_sensiveis": ["identificador do chat", "identificador do remetente", "prompt textual enviado", "conteúdo de mídia anexada/citada (quando houver)"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
@@ -235,18 +221,7 @@
         }
       },
       "mensagens_uso": {
-        "default": [
-          "*<prefix>ia* [--audio] sua pergunta",
-          "*<prefix>ia* (responda ou envie uma imagem com legenda)",
-          "",
-          "Opções:",
-          "--audio | --texto",
-          "--detail low | high | auto",
-          "",
-          "Exemplo:",
-          "*<prefix>ia* Explique como funciona a fotossíntese.",
-          "*<prefix>ia* --audio Resuma a imagem."
-        ]
+        "default": ["*<prefix>ia* [--audio] sua pergunta", "*<prefix>ia* (responda ou envie uma imagem com legenda)", "", "Opções:", "--audio | --texto", "--detail low | high | auto", "", "Exemplo:", "*<prefix>ia* Explique como funciona a fotossíntese.", "*<prefix>ia* --audio Resuma a imagem."]
       },
       "mensagens_sistema": {
         "premium_only": "⭐ *Comando Premium*\n\nEste comando é exclusivo para usuários premium.\nFale com o administrador para liberar o acesso.",
@@ -282,32 +257,12 @@
         "summary": "Perguntas para IA com suporte opcional a resposta em audio.",
         "usage_examples": ["<prefix>ia sua pergunta", "<prefix>ia --audio sua pergunta"],
         "usage_variants": {
-          "default": [
-            "*<prefix>ia* [--audio] sua pergunta",
-            "*<prefix>ia* (responda ou envie uma imagem com legenda)",
-            "",
-            "Opções:",
-            "--audio | --texto",
-            "--detail low | high | auto",
-            "",
-            "Exemplo:",
-            "*<prefix>ia* Explique como funciona a fotossíntese.",
-            "*<prefix>ia* --audio Resuma a imagem."
-          ]
+          "default": ["*<prefix>ia* [--audio] sua pergunta", "*<prefix>ia* (responda ou envie uma imagem com legenda)", "", "Opções:", "--audio | --texto", "--detail low | high | auto", "", "Exemplo:", "*<prefix>ia* Explique como funciona a fotossíntese.", "*<prefix>ia* --audio Resuma a imagem."]
         }
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "prompt textual enviado ao modelo de IA",
-        "flags de resposta (ex.: audio/voz)",
-        "midia anexada/citada para analise multimodal (quando houver)",
-        "identidade do usuario para sessao e contexto de conversa"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "prompt textual enviado ao modelo de IA", "flags de resposta (ex.: audio/voz)", "midia anexada/citada para analise multimodal (quando houver)", "identidade do usuario para sessao e contexto de conversa"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -404,12 +359,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do chat",
-            "identificador do remetente",
-            "prompt textual enviado",
-            "conteúdo de mídia anexada/citada (quando houver)"
-          ],
+          "dados_sensiveis": ["identificador do chat", "identificador do remetente", "prompt textual enviado", "conteúdo de mídia anexada/citada (quando houver)"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -453,43 +403,18 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "ia",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     },
     {
       "name": "iaimagem",
       "aliases": ["catimage", "catimg"],
       "descricao": "Gera/edita imagem com IA por prompt.",
-      "metodos_de_uso": [
-        "<prefix>iaimagem seu prompt",
-        "<prefix>iaimagem --size 1536x1024 seu prompt"
-      ],
+      "metodos_de_uso": ["<prefix>iaimagem seu prompt", "<prefix>iaimagem --size 1536x1024 seu prompt"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "imagem de entrada ate OPENAI_MAX_IMAGE_MB (padrao 50 MB)",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "prompt de geracao/edicao de imagem",
-        "opcoes de geracao (size, quality, format, background)",
-        "imagem enviada/citada para edicao (quando houver)"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "prompt de geracao/edicao de imagem", "opcoes de geracao (size, quality, format, background)", "imagem enviada/citada para edicao (quando houver)"],
       "enabled": true,
       "categoria": "ia",
       "subcomandos": [],
@@ -550,22 +475,13 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do chat",
-          "identificador do remetente",
-          "prompt de imagem",
-          "imagem anexada/citada (quando houver)"
-        ],
+        "dados_sensiveis": ["identificador do chat", "identificador do remetente", "prompt de imagem", "imagem anexada/citada (quando houver)"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": ["iaimagem", "catimage", "ia", "privado", "grupo"],
       "faq_patterns": ["como usar iaimagem", "o que faz iaimagem", "comando iaimagem"],
-      "user_phrasings": [
-        "quero usar iaimagem",
-        "me ajuda com iaimagem",
-        "gera/edita imagem com ia"
-      ],
+      "user_phrasings": ["quero usar iaimagem", "me ajuda com iaimagem", "gera/edita imagem com ia"],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": true,
@@ -584,20 +500,7 @@
         }
       },
       "mensagens_uso": {
-        "default": [
-          "*<prefix>iaimagem* seu prompt",
-          "*<prefix>iaimagem* (responda uma imagem com legenda para editar)",
-          "",
-          "Opções:",
-          "--size 1024x1024 | 1024x1536 | 1536x1024 | auto",
-          "--quality low | medium | high | auto",
-          "--format png | jpeg | webp",
-          "--background transparent | opaque | auto",
-          "--compression 0-100",
-          "",
-          "Exemplo:",
-          "*<prefix>iaimagem* --size 1536x1024 Um gato astronauta em aquarela."
-        ]
+        "default": ["*<prefix>iaimagem* seu prompt", "*<prefix>iaimagem* (responda uma imagem com legenda para editar)", "", "Opções:", "--size 1024x1024 | 1024x1536 | 1536x1024 | auto", "--quality low | medium | high | auto", "--format png | jpeg | webp", "--background transparent | opaque | auto", "--compression 0-100", "", "Exemplo:", "*<prefix>iaimagem* --size 1536x1024 Um gato astronauta em aquarela."]
       },
       "mensagens_sistema": {
         "premium_only": "⭐ *Comando Premium*\n\nEste comando é exclusivo para usuários premium.\nFale com o administrador para liberar o acesso.",
@@ -667,38 +570,14 @@
       "usage": ["<prefix>iaimagem seu prompt", "<prefix>iaimagem --size 1536x1024 seu prompt"],
       "docs": {
         "summary": "Gera/edita imagem com IA por prompt.",
-        "usage_examples": [
-          "<prefix>iaimagem seu prompt",
-          "<prefix>iaimagem --size 1536x1024 seu prompt"
-        ],
+        "usage_examples": ["<prefix>iaimagem seu prompt", "<prefix>iaimagem --size 1536x1024 seu prompt"],
         "usage_variants": {
-          "default": [
-            "*<prefix>iaimagem* seu prompt",
-            "*<prefix>iaimagem* (responda uma imagem com legenda para editar)",
-            "",
-            "Opções:",
-            "--size 1024x1024 | 1024x1536 | 1536x1024 | auto",
-            "--quality low | medium | high | auto",
-            "--format png | jpeg | webp",
-            "--background transparent | opaque | auto",
-            "--compression 0-100",
-            "",
-            "Exemplo:",
-            "*<prefix>iaimagem* --size 1536x1024 Um gato astronauta em aquarela."
-          ]
+          "default": ["*<prefix>iaimagem* seu prompt", "*<prefix>iaimagem* (responda uma imagem com legenda para editar)", "", "Opções:", "--size 1024x1024 | 1024x1536 | 1536x1024 | auto", "--quality low | medium | high | auto", "--format png | jpeg | webp", "--background transparent | opaque | auto", "--compression 0-100", "", "Exemplo:", "*<prefix>iaimagem* --size 1536x1024 Um gato astronauta em aquarela."]
         }
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "prompt de geracao/edicao de imagem",
-        "opcoes de geracao (size, quality, format, background)",
-        "imagem enviada/citada para edicao (quando houver)"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "prompt de geracao/edicao de imagem", "opcoes de geracao (size, quality, format, background)", "imagem enviada/citada para edicao (quando houver)"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -821,12 +700,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do chat",
-            "identificador do remetente",
-            "prompt de imagem",
-            "imagem anexada/citada (quando houver)"
-          ],
+          "dados_sensiveis": ["identificador do chat", "identificador do remetente", "prompt de imagem", "imagem anexada/citada (quando houver)"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -834,11 +708,7 @@
       "discovery": {
         "keywords": ["iaimagem", "catimage", "ia", "privado", "grupo"],
         "faq_queries": ["como usar iaimagem", "o que faz iaimagem", "comando iaimagem"],
-        "user_phrasings": [
-          "quero usar iaimagem",
-          "me ajuda com iaimagem",
-          "gera/edita imagem com ia"
-        ],
+        "user_phrasings": ["quero usar iaimagem", "me ajuda com iaimagem", "gera/edita imagem com ia"],
         "suggestion_priority": 100
       },
       "access": {
@@ -874,21 +744,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "iaimagem",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     },
     {
@@ -899,14 +755,7 @@
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "1 prompt por usuario (atualizavel)",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "prompt personalizado informado pelo usuario",
-        "identidade do usuario para salvar/atualizar preferencia"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "prompt personalizado informado pelo usuario", "identidade do usuario para salvar/atualizar preferencia"],
       "enabled": true,
       "categoria": "ia",
       "subcomandos": ["reset"],
@@ -946,10 +795,7 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do remetente",
-          "prompt personalizado salvo pelo usuário"
-        ],
+        "dados_sensiveis": ["identificador do remetente", "prompt personalizado salvo pelo usuário"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
@@ -974,12 +820,7 @@
         }
       },
       "mensagens_uso": {
-        "default": [
-          "*<prefix>pergunteia* seu novo prompt",
-          "",
-          "Para voltar ao padrão:",
-          "*<prefix>pergunteia reset*"
-        ]
+        "default": ["*<prefix>pergunteia* seu novo prompt", "", "Para voltar ao padrão:", "*<prefix>pergunteia reset*"]
       },
       "mensagens_sistema": {
         "premium_only": "⭐ *Comando Premium*\n\nEste comando é exclusivo para usuários premium.\nFale com o administrador para liberar o acesso.",
@@ -997,24 +838,12 @@
         "summary": "Define ou reseta o prompt personalizado da IA para o usuario.",
         "usage_examples": ["<prefix>pergunteia novo prompt", "<prefix>pergunteia reset"],
         "usage_variants": {
-          "default": [
-            "*<prefix>pergunteia* seu novo prompt",
-            "",
-            "Para voltar ao padrão:",
-            "*<prefix>pergunteia reset*"
-          ]
+          "default": ["*<prefix>pergunteia* seu novo prompt", "", "Para voltar ao padrão:", "*<prefix>pergunteia reset*"]
         }
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "prompt personalizado informado pelo usuario",
-        "identidade do usuario para salvar/atualizar preferencia"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "prompt personalizado informado pelo usuario", "identidade do usuario para salvar/atualizar preferencia"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -1098,10 +927,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do remetente",
-            "prompt personalizado salvo pelo usuário"
-          ],
+          "dados_sensiveis": ["identificador do remetente", "prompt personalizado salvo pelo usuário"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -1109,11 +935,7 @@
       "discovery": {
         "keywords": ["pergunteia", "iaprompt", "promptia", "ia", "privado", "grupo"],
         "faq_queries": ["como usar pergunteia", "o que faz pergunteia", "comando pergunteia"],
-        "user_phrasings": [
-          "quero usar pergunteia",
-          "me ajuda com pergunteia",
-          "define ou reseta o"
-        ],
+        "user_phrasings": ["quero usar pergunteia", "me ajuda com pergunteia", "define ou reseta o"],
         "suggestion_priority": 100
       },
       "access": {
@@ -1149,21 +971,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "pergunteia",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     }
   ],

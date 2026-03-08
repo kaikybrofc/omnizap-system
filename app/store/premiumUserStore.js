@@ -16,8 +16,7 @@ const normalizeList = (list) => {
   for (const value of values) {
     const normalized = normalizePremiumEntry(value);
     if (!normalized) continue;
-    if (normalizedList.some((entry) => entry === normalized || isSameJidUser(entry, normalized)))
-      continue;
+    if (normalizedList.some((entry) => entry === normalized || isSameJidUser(entry, normalized))) continue;
     normalizedList.push(normalized);
   }
 
@@ -46,9 +45,7 @@ const premiumUserStore = {
   removePremiumUsers: async function (usersToRemove) {
     const current = await this.getPremiumUsers();
     const normalizedTargets = normalizeList(usersToRemove);
-    const updated = current.filter(
-      (jid) => !normalizedTargets.some((target) => target === jid || isSameJidUser(target, jid)),
-    );
+    const updated = current.filter((jid) => !normalizedTargets.some((target) => target === jid || isSameJidUser(target, jid)));
     await groupConfigStore.updateGroupConfig(PREMIUM_CONFIG_ID, { premiumUsers: updated });
     return updated;
   },

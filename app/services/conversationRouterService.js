@@ -1,11 +1,7 @@
 import logger from '../../utils/logger/loggerModule.js';
 import { isSameJidUser } from '../config/baileysConfig.js';
 import { responderPerguntaGlobal } from './globalModuleAiHelpService.js';
-import {
-  appendConversationSessionMessage,
-  getConversationSession,
-  setConversationSessionIntent,
-} from '../store/conversationSessionStore.js';
+import { appendConversationSessionMessage, getConversationSession, setConversationSessionIntent } from '../store/conversationSessionStore.js';
 
 const parseEnvBool = (value, fallback) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -24,24 +20,9 @@ const parseEnvInt = (value, fallback, min, max) => {
 const ROUTER_ENABLED = parseEnvBool(process.env.CONVERSATIONAL_ROUTER_ENABLED, true);
 const PRIVATE_ENABLED = parseEnvBool(process.env.CONVERSATIONAL_PRIVATE_ENABLED, true);
 const GROUP_ENABLED = parseEnvBool(process.env.CONVERSATIONAL_GROUP_ENABLED, true);
-const GROUP_COOLDOWN_MS = parseEnvInt(
-  process.env.CONVERSATIONAL_GROUP_COOLDOWN_MS,
-  90_000,
-  10_000,
-  30 * 60 * 1000,
-);
-const SESSION_TTL_MS = parseEnvInt(
-  process.env.CONVERSATIONAL_SESSION_TTL_MS,
-  15 * 60 * 1000,
-  60_000,
-  12 * 60 * 60 * 1000,
-);
-const SESSION_HISTORY_LIMIT = parseEnvInt(
-  process.env.CONVERSATIONAL_SESSION_HISTORY_LIMIT,
-  8,
-  2,
-  20,
-);
+const GROUP_COOLDOWN_MS = parseEnvInt(process.env.CONVERSATIONAL_GROUP_COOLDOWN_MS, 90_000, 10_000, 30 * 60 * 1000);
+const SESSION_TTL_MS = parseEnvInt(process.env.CONVERSATIONAL_SESSION_TTL_MS, 15 * 60 * 1000, 60_000, 12 * 60 * 60 * 1000);
+const SESSION_HISTORY_LIMIT = parseEnvInt(process.env.CONVERSATIONAL_SESSION_HISTORY_LIMIT, 8, 2, 20);
 
 const groupCooldownCache = new Map();
 const routerMetrics = {
@@ -108,30 +89,22 @@ const resolveBotIdentityCandidates = ({ botJid, botJidCandidates }) => {
   return Array.from(candidates);
 };
 
-const isLikelyFollowUp = (text) =>
-  /^(e|tambem|tamb[eé]m|isso|como|explica|detalha|detalhe|funciona|e em|e no|e na)\b/i.test(
-    String(text || '').trim(),
-  );
+const isLikelyFollowUp = (text) => /^(e|tambem|tamb[eé]m|isso|como|explica|detalha|detalhe|funciona|e em|e no|e na)\b/i.test(String(text || '').trim());
 
 const hasExplicitQuestionIntent = (text) => {
   const normalized = normalizeText(text);
   if (!normalized) return false;
 
   const hasQuestionMark = String(text || '').includes('?');
-  const asksCapability =
-    /\b(comando|comandos|ajuda|pode|consegue|faz|sabe|funciona|tem|usar|menu)\b/.test(normalized);
+  const asksCapability = /\b(comando|comandos|ajuda|pode|consegue|faz|sabe|funciona|tem|usar|menu)\b/.test(normalized);
   const addressesBot = /\b(bot|omnizap|voce|vc)\b/.test(normalized);
-  const hasAskPattern =
-    /\b(qual comando|me ajuda|me explique|como usar|o que voce faz|o que o bot faz)\b/.test(
-      normalized,
-    );
+  const hasAskPattern = /\b(qual comando|me ajuda|me explique|como usar|o que voce faz|o que o bot faz)\b/.test(normalized);
 
   return hasAskPattern || ((hasQuestionMark || asksCapability) && (addressesBot || asksCapability));
 };
 
 const BOT_NAME_PATTERN = /\bomni\s*-?\s*zap\b|\bomnizap+\b|\bomnzap\b/i;
-const BOT_CALL_WORD_PATTERN =
-  /\b(bot|ajuda|help|comando|comandos|menu|faz|sabe|funciona|como|usar|usa|consegue|pode)\b/i;
+const BOT_CALL_WORD_PATTERN = /\b(bot|ajuda|help|comando|comandos|menu|faz|sabe|funciona|como|usar|usa|consegue|pode)\b/i;
 const BOT_KEYWORD_ONLY_PATTERN = /^(bot\s*)?(omni\s*-?\s*zap|omnizap+|omnzap)(\s*bot)?$/i;
 
 const hasBotKeywordTrigger = (text) => {
@@ -160,9 +133,7 @@ const incrementMetric = (metricKey) => {
 
 const collectContextInfos = (rootNodes) => {
   const contextInfos = [];
-  const queue = (Array.isArray(rootNodes) ? rootNodes : [rootNodes]).filter(
-    (node) => node && typeof node === 'object',
-  );
+  const queue = (Array.isArray(rootNodes) ? rootNodes : [rootNodes]).filter((node) => node && typeof node === 'object');
   const visited = new Set();
 
   while (queue.length) {
@@ -189,10 +160,7 @@ const collectContextInfos = (rootNodes) => {
 };
 
 const resolveMessageInteractionContext = ({ messageInfo, botJid, botJidCandidates = [] }) => {
-  const contextInfos = collectContextInfos([
-    messageInfo?.message || {},
-    messageInfo?.messageContextInfo || {},
-  ]);
+  const contextInfos = collectContextInfos([messageInfo?.message || {}, messageInfo?.messageContextInfo || {}]);
   const botIdentityCandidates = resolveBotIdentityCandidates({ botJid, botJidCandidates });
   const mentioned = [];
   const replyParticipants = [];
@@ -202,20 +170,10 @@ const resolveMessageInteractionContext = ({ messageInfo, botJid, botJidCandidate
     const mentionedJids = Array.isArray(contextInfo?.mentionedJid) ? contextInfo.mentionedJid : [];
     mentioned.push(...mentionedJids);
 
-    const participants = [
-      contextInfo?.participant,
-      contextInfo?.participantAlt,
-      contextInfo?.quotedMessageKey?.participant,
-      contextInfo?.quotedMessageKey?.participantAlt,
-      contextInfo?.remoteJid,
-      contextInfo?.stanzaId ? contextInfo?.participant : null,
-    ].filter(Boolean);
+    const participants = [contextInfo?.participant, contextInfo?.participantAlt, contextInfo?.quotedMessageKey?.participant, contextInfo?.quotedMessageKey?.participantAlt, contextInfo?.remoteJid, contextInfo?.stanzaId ? contextInfo?.participant : null].filter(Boolean);
     replyParticipants.push(...participants);
 
-    if (
-      contextInfo?.quotedMessageKey?.fromMe === true ||
-      contextInfo?.quotedMessage?.key?.fromMe === true
-    ) {
+    if (contextInfo?.quotedMessageKey?.fromMe === true || contextInfo?.quotedMessage?.key?.fromMe === true) {
       repliedToOwnQuotedMessage = true;
     }
   }
@@ -359,20 +317,7 @@ const resolvePrivatePromptFromMessage = ({ extractedText, mediaEntries, commandP
   };
 };
 
-export const routeConversationMessage = async ({
-  messageInfo,
-  extractedText,
-  isCommandMessage,
-  mediaEntries,
-  isGroupMessage,
-  remoteJid,
-  senderJid,
-  botJid,
-  botJidCandidates = [],
-  commandPrefix = '/',
-  toolCommandExecutor = null,
-  resolveToolSecurityContext = null,
-} = {}) => {
+export const routeConversationMessage = async ({ messageInfo, extractedText, isCommandMessage, mediaEntries, isGroupMessage, remoteJid, senderJid, botJid, botJidCandidates = [], commandPrefix = '/', toolCommandExecutor = null, resolveToolSecurityContext = null } = {}) => {
   if (!ROUTER_ENABLED) return { handled: false, reason: 'router_disabled' };
   if (isCommandMessage) return { handled: false, reason: 'command_message' };
 
@@ -387,15 +332,7 @@ export const routeConversationMessage = async ({
     });
     const explicitQuestion = hasExplicitQuestionIntent(text);
     const hasKeywordTrigger = hasBotKeywordTrigger(text);
-    const triggerKind = interaction.isReplyToBot
-      ? 'reply_to_bot'
-      : interaction.mentionsBot
-        ? 'mention_bot'
-        : hasKeywordTrigger
-          ? 'bot_keyword'
-          : explicitQuestion
-            ? 'explicit_question'
-            : null;
+    const triggerKind = interaction.isReplyToBot ? 'reply_to_bot' : interaction.mentionsBot ? 'mention_bot' : hasKeywordTrigger ? 'bot_keyword' : explicitQuestion ? 'explicit_question' : null;
 
     const hasDirectBotInteraction = interaction.isReplyToBot || interaction.mentionsBot;
     if (!canHandleGroupConversation({ extractedText, mediaEntries }) && !hasDirectBotInteraction) {
@@ -477,12 +414,7 @@ export const routeConversationMessage = async ({
     ttlMs: SESSION_TTL_MS,
   });
   const previousIntent = previousSession?.lastIntent || null;
-  const forcedCommandName =
-    privatePrompt.triggerKind === 'private_text' &&
-    isLikelyFollowUp(privatePrompt.prompt) &&
-    previousIntent?.commandName
-      ? previousIntent.commandName
-      : null;
+  const forcedCommandName = privatePrompt.triggerKind === 'private_text' && isLikelyFollowUp(privatePrompt.prompt) && previousIntent?.commandName ? previousIntent.commandName : null;
 
   let answer = null;
   try {
@@ -505,9 +437,7 @@ export const routeConversationMessage = async ({
     });
   }
 
-  const fallbackText =
-    `Recebi sua mensagem. Para manter o foco do sistema, posso te orientar em comandos do bot.\n\n` +
-    `Use ${commandPrefix}menu para ver as opcoes ou me diga o que voce quer fazer (ex.: sticker, play, ranking, cat).`;
+  const fallbackText = `Recebi sua mensagem. Para manter o foco do sistema, posso te orientar em comandos do bot.\n\n` + `Use ${commandPrefix}menu para ver as opcoes ou me diga o que voce quer fazer (ex.: sticker, play, ranking, cat).`;
   const suppressReply = answer?.suppressReply === true;
   const explicitAnswerText = String(answer?.text || '').trim();
   const answerText = suppressReply ? explicitAnswerText : explicitAnswerText || fallbackText;

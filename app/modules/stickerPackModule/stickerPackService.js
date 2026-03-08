@@ -3,13 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import logger from '../../../utils/logger/loggerModule.js';
 import { STICKER_PACK_ERROR_CODES, StickerPackError } from './stickerPackErrors.js';
 import { getPackClassificationSummaryByAssetIds } from './stickerClassificationService.js';
-import {
-  normalizeOwnerJid,
-  parseEmojiList,
-  sanitizeText,
-  slugify,
-  toVisibility,
-} from './stickerPackUtils.js';
+import { normalizeOwnerJid, parseEmojiList, sanitizeText, slugify, toVisibility } from './stickerPackUtils.js';
 
 /**
  * Serviço de domínio para operações de packs e itens de figurinha.
@@ -36,10 +30,7 @@ const parseMaxPacksPerOwnerLimit = (value, fallback = 50) => {
 
   return Math.max(1, Number(fallback) || 50);
 };
-const DEFAULT_MAX_PACKS_PER_OWNER = parseMaxPacksPerOwnerLimit(
-  process.env.STICKER_PACK_MAX_PACKS_PER_OWNER,
-  50,
-);
+const DEFAULT_MAX_PACKS_PER_OWNER = parseMaxPacksPerOwnerLimit(process.env.STICKER_PACK_MAX_PACKS_PER_OWNER, 50);
 const PACK_KEY_BASE_MAX_LENGTH = 32;
 const PACK_KEY_SUFFIX_LENGTH = 5;
 const PACK_KEY_SUFFIX_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -79,8 +70,7 @@ const ensureValue = (condition, code, message, details = null) => {
   }
 };
 
-const normalizePackIdentifier = (identifier) =>
-  sanitizeText(identifier, 180, { allowEmpty: false });
+const normalizePackIdentifier = (identifier) => sanitizeText(identifier, 180, { allowEmpty: false });
 
 const normalizeCandidate = (value) => {
   const raw = String(value || '')
@@ -133,8 +123,7 @@ const buildIdentifierCandidates = (identifier) => {
   return Array.from(set).filter(Boolean);
 };
 
-const isShareableVisibility = (visibility) =>
-  ['public', 'unlisted'].includes(String(visibility || '').toLowerCase());
+const isShareableVisibility = (visibility) => ['public', 'unlisted'].includes(String(visibility || '').toLowerCase());
 
 const areArraysEqual = (left, right) => {
   if (left.length !== right.length) return false;
@@ -193,63 +182,30 @@ export function createStickerPackService(options = {}) {
     },
   };
 
-  const maxStickersPerPack = Math.max(
-    1,
-    Number(options.maxStickersPerPack) || DEFAULT_MAX_STICKERS_PER_PACK,
-  );
-  const maxPacksPerOwner = parseMaxPacksPerOwnerLimit(
-    options.maxPacksPerOwner,
-    DEFAULT_MAX_PACKS_PER_OWNER,
-  );
+  const maxStickersPerPack = Math.max(1, Number(options.maxStickersPerPack) || DEFAULT_MAX_STICKERS_PER_PACK);
+  const maxPacksPerOwner = parseMaxPacksPerOwnerLimit(options.maxPacksPerOwner, DEFAULT_MAX_PACKS_PER_OWNER);
   const hasOwnerPackLimit = Number.isFinite(maxPacksPerOwner);
   const runInTransaction = options.runInTransaction || withTransaction;
 
-  const requiredPackMethods = [
-    'createStickerPack',
-    'listStickerPacksByOwner',
-    'findStickerPackByOwnerAndIdentifier',
-    'findStickerPackByPackKey',
-    'updateStickerPackFields',
-    'softDeleteStickerPack',
-    'ensureUniquePackKey',
-    'bumpStickerPackVersion',
-  ];
+  const requiredPackMethods = ['createStickerPack', 'listStickerPacksByOwner', 'findStickerPackByOwnerAndIdentifier', 'findStickerPackByPackKey', 'updateStickerPackFields', 'softDeleteStickerPack', 'ensureUniquePackKey', 'bumpStickerPackVersion'];
 
-  const requiredItemMethods = [
-    'listStickerPackItems',
-    'countStickerPackItems',
-    'getMaxStickerPackPosition',
-    'createStickerPackItem',
-    'getStickerPackItemByStickerId',
-    'getStickerPackItemByPosition',
-    'removeStickerPackItemByStickerId',
-    'shiftStickerPackPositionsAfter',
-    'bulkUpdateStickerPackPositions',
-  ];
+  const requiredItemMethods = ['listStickerPackItems', 'countStickerPackItems', 'getMaxStickerPackPosition', 'createStickerPackItem', 'getStickerPackItemByStickerId', 'getStickerPackItemByPosition', 'removeStickerPackItemByStickerId', 'shiftStickerPackPositionsAfter', 'bulkUpdateStickerPackPositions'];
 
   for (const methodName of requiredPackMethods) {
     if (typeof deps.packRepository[methodName] !== 'function') {
-      throw new Error(
-        `packRepository.${methodName} é obrigatório para createStickerPackService().`,
-      );
+      throw new Error(`packRepository.${methodName} é obrigatório para createStickerPackService().`);
     }
   }
 
   for (const methodName of requiredItemMethods) {
     if (typeof deps.itemRepository[methodName] !== 'function') {
-      throw new Error(
-        `itemRepository.${methodName} é obrigatório para createStickerPackService().`,
-      );
+      throw new Error(`itemRepository.${methodName} é obrigatório para createStickerPackService().`);
     }
   }
 
   const runAction = async (action, context, handler, { expectedErrorCodes = [] } = {}) => {
     const start = process.hrtime.bigint();
-    const expectedCodesSet = new Set(
-      Array.isArray(expectedErrorCodes)
-        ? expectedErrorCodes.map((code) => String(code || '').trim()).filter(Boolean)
-        : [],
-    );
+    const expectedCodesSet = new Set(Array.isArray(expectedErrorCodes) ? expectedErrorCodes.map((code) => String(code || '').trim()).filter(Boolean) : []);
 
     try {
       const result = await handler();
@@ -309,19 +265,12 @@ export function createStickerPackService(options = {}) {
       if (available) return candidate;
     }
 
-    throw buildError(
-      STICKER_PACK_ERROR_CODES.INTERNAL_ERROR,
-      'Não foi possível gerar um packId único.',
-    );
+    throw buildError(STICKER_PACK_ERROR_CODES.INTERNAL_ERROR, 'Não foi possível gerar um packId único.');
   };
 
   const resolveOwner = (ownerJid) => {
     const normalized = normalizeOwnerJid(ownerJid);
-    ensureValue(
-      normalized,
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'owner_jid inválido para operação do pack.',
-    );
+    ensureValue(normalized, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'owner_jid inválido para operação do pack.');
     return normalized;
   };
 
@@ -329,47 +278,28 @@ export function createStickerPackService(options = {}) {
     const normalizedOwner = resolveOwner(ownerJid);
     const candidates = buildIdentifierCandidates(identifier);
 
-    ensureValue(
-      candidates.length > 0,
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Informe o pack para continuar.',
-    );
+    ensureValue(candidates.length > 0, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Informe o pack para continuar.');
 
     for (const candidate of candidates) {
-      const pack = await deps.packRepository.findStickerPackByOwnerAndIdentifier(
-        normalizedOwner,
-        candidate,
-        {
-          connection,
-        },
-      );
+      const pack = await deps.packRepository.findStickerPackByOwnerAndIdentifier(normalizedOwner, candidate, {
+        connection,
+      });
       if (pack) return pack;
     }
 
-    throw buildError(
-      STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND,
-      'Pack não encontrado para este usuário.',
-    );
+    throw buildError(STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND, 'Pack não encontrado para este usuário.');
   };
 
   const resolvePackForSend = async (ownerJid, identifier, { connection = null } = {}) => {
     const normalizedOwner = resolveOwner(ownerJid);
     const candidates = buildIdentifierCandidates(identifier);
 
-    ensureValue(
-      candidates.length > 0,
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Informe o pack para continuar.',
-    );
+    ensureValue(candidates.length > 0, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Informe o pack para continuar.');
 
     for (const candidate of candidates) {
-      const owned = await deps.packRepository.findStickerPackByOwnerAndIdentifier(
-        normalizedOwner,
-        candidate,
-        {
-          connection,
-        },
-      );
+      const owned = await deps.packRepository.findStickerPackByOwnerAndIdentifier(normalizedOwner, candidate, {
+        connection,
+      });
       if (owned) return owned;
     }
 
@@ -384,18 +314,13 @@ export function createStickerPackService(options = {}) {
       }
     }
 
-    throw buildError(
-      STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND,
-      'Pack não encontrado para este usuário.',
-    );
+    throw buildError(STICKER_PACK_ERROR_CODES.PACK_NOT_FOUND, 'Pack não encontrado para este usuário.');
   };
 
   const loadPackDetails = async (pack, { connection = null } = {}) => {
     const items = await deps.itemRepository.listStickerPackItems(pack.id, connection);
     const coverItem = items.find((item) => item.sticker_id === pack.cover_sticker_id);
-    const packClassification = await getPackClassificationSummaryByAssetIds(
-      items.map((item) => item.sticker_id),
-    ).catch(() => null);
+    const packClassification = await getPackClassificationSummaryByAssetIds(items.map((item) => item.sticker_id)).catch(() => null);
 
     return {
       ...pack,
@@ -416,16 +341,8 @@ export function createStickerPackService(options = {}) {
     });
     const normalizedVisibility = toVisibility(visibility, 'public');
 
-    ensureValue(
-      normalizedName,
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Nome do pack é obrigatório.',
-    );
-    ensureValue(
-      normalizedPublisher,
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Publisher do pack é obrigatório.',
-    );
+    ensureValue(normalizedName, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Nome do pack é obrigatório.');
+    ensureValue(normalizedPublisher, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Publisher do pack é obrigatório.');
 
     return {
       name: normalizedName,
@@ -435,23 +352,9 @@ export function createStickerPackService(options = {}) {
     };
   };
 
-  const createPack = async ({
-    ownerJid,
-    name,
-    publisher,
-    description,
-    visibility = 'public',
-    status = 'published',
-    packStatus = undefined,
-    packThemeKey = undefined,
-    packVolume = undefined,
-    isAutoPack = undefined,
-    lastRebalancedAt = undefined,
-  }) => {
+  const createPack = async ({ ownerJid, name, publisher, description, visibility = 'public', status = 'published', packStatus = undefined, packThemeKey = undefined, packVolume = undefined, isAutoPack = undefined, lastRebalancedAt = undefined }) => {
     const owner = resolveOwner(ownerJid);
-    const normalizedStatus = PACK_STATUS_VALUES.has(String(status || '').toLowerCase())
-      ? String(status).toLowerCase()
-      : 'published';
+    const normalizedStatus = PACK_STATUS_VALUES.has(String(status || '').toLowerCase()) ? String(status).toLowerCase() : 'published';
 
     return runAction('create_pack', { owner_jid: owner }, async () => {
       return runInTransaction(async (connection) => {
@@ -462,11 +365,7 @@ export function createStickerPackService(options = {}) {
             connection,
           });
 
-          ensureValue(
-            existing.length < maxPacksPerOwner,
-            STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED,
-            `Limite de packs atingido (${maxPacksPerOwner}).`,
-          );
+          ensureValue(existing.length < maxPacksPerOwner, STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED, `Limite de packs atingido (${maxPacksPerOwner}).`);
         }
 
         const packKey = await ensurePackKey(owner, metadata.name, connection);
@@ -575,11 +474,7 @@ export function createStickerPackService(options = {}) {
     const owner = resolveOwner(ownerJid);
     const normalizedVisibility = toVisibility(visibility, null);
 
-    ensureValue(
-      normalizedVisibility,
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Visibilidade inválida. Use: private, public ou unlisted.',
-    );
+    ensureValue(normalizedVisibility, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Visibilidade inválida. Use: private, public ou unlisted.');
 
     return runAction('set_visibility', { owner_jid: owner }, async () => {
       const pack = await resolveOwnedPack(owner, identifier);
@@ -594,24 +489,13 @@ export function createStickerPackService(options = {}) {
     const owner = resolveOwner(ownerJid);
     const normalizedStickerId = sanitizeText(stickerId, 36, { allowEmpty: false });
 
-    ensureValue(
-      normalizedStickerId,
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Sticker inválido para capa.',
-    );
+    ensureValue(normalizedStickerId, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Sticker inválido para capa.');
 
     return runAction('set_cover', { owner_jid: owner }, async () => {
       const pack = await resolveOwnedPack(owner, identifier);
-      const item = await deps.itemRepository.getStickerPackItemByStickerId(
-        pack.id,
-        normalizedStickerId,
-      );
+      const item = await deps.itemRepository.getStickerPackItemByStickerId(pack.id, normalizedStickerId);
 
-      ensureValue(
-        item,
-        STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND,
-        'Essa figurinha não está no pack.',
-      );
+      ensureValue(item, STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND, 'Essa figurinha não está no pack.');
 
       const updated = await deps.packRepository.updateStickerPackFields(pack.id, {
         cover_sticker_id: item.sticker_id,
@@ -621,21 +505,10 @@ export function createStickerPackService(options = {}) {
     });
   };
 
-  const addStickerToPack = async ({
-    ownerJid,
-    identifier,
-    asset,
-    emojis = [],
-    accessibilityLabel = null,
-    expectedErrorCodes = [],
-  }) => {
+  const addStickerToPack = async ({ ownerJid, identifier, asset, emojis = [], accessibilityLabel = null, expectedErrorCodes = [] }) => {
     const owner = resolveOwner(ownerJid);
 
-    ensureValue(
-      asset?.id,
-      STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND,
-      'Nenhuma figurinha válida foi encontrada.',
-    );
+    ensureValue(asset?.id, STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND, 'Nenhuma figurinha válida foi encontrada.');
 
     const normalizedLabel = sanitizeText(accessibilityLabel, MAX_ACCESSIBILITY_LABEL_LENGTH, {
       allowEmpty: true,
@@ -648,28 +521,13 @@ export function createStickerPackService(options = {}) {
         const pack = await resolveOwnedPack(owner, identifier);
 
         return runInTransaction(async (connection) => {
-          const existingItem = await deps.itemRepository.getStickerPackItemByStickerId(
-            pack.id,
-            asset.id,
-            connection,
-          );
-          ensureValue(
-            !existingItem,
-            STICKER_PACK_ERROR_CODES.DUPLICATE_STICKER,
-            'Essa figurinha já está no pack.',
-          );
+          const existingItem = await deps.itemRepository.getStickerPackItemByStickerId(pack.id, asset.id, connection);
+          ensureValue(!existingItem, STICKER_PACK_ERROR_CODES.DUPLICATE_STICKER, 'Essa figurinha já está no pack.');
 
           const total = await deps.itemRepository.countStickerPackItems(pack.id, connection);
-          ensureValue(
-            total < maxStickersPerPack,
-            STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED,
-            `O pack atingiu o limite de ${maxStickersPerPack} figurinhas.`,
-          );
+          ensureValue(total < maxStickersPerPack, STICKER_PACK_ERROR_CODES.PACK_LIMIT_REACHED, `O pack atingiu o limite de ${maxStickersPerPack} figurinhas.`);
 
-          const maxPosition = await deps.itemRepository.getMaxStickerPackPosition(
-            pack.id,
-            connection,
-          );
+          const maxPosition = await deps.itemRepository.getMaxStickerPackPosition(pack.id, connection);
 
           await deps.itemRepository.createStickerPackItem(
             {
@@ -695,13 +553,9 @@ export function createStickerPackService(options = {}) {
             await deps.packRepository.bumpStickerPackVersion(pack.id, connection);
           }
 
-          const reloaded = await deps.packRepository.findStickerPackByOwnerAndIdentifier(
-            owner,
-            pack.id,
-            {
-              connection,
-            },
-          );
+          const reloaded = await deps.packRepository.findStickerPackByOwnerAndIdentifier(owner, pack.id, {
+            connection,
+          });
 
           return loadPackDetails(reloaded, { connection });
         });
@@ -721,43 +575,19 @@ export function createStickerPackService(options = {}) {
         const asNumber = Number(selector);
 
         if (Number.isInteger(asNumber) && asNumber > 0) {
-          item = await deps.itemRepository.getStickerPackItemByPosition(
-            pack.id,
-            asNumber,
-            connection,
-          );
+          item = await deps.itemRepository.getStickerPackItemByPosition(pack.id, asNumber, connection);
         }
 
         if (!item) {
           const stickerId = sanitizeText(selector, 36, { allowEmpty: false });
-          ensureValue(
-            stickerId,
-            STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-            'Informe o índice ou ID da figurinha.',
-          );
-          item = await deps.itemRepository.getStickerPackItemByStickerId(
-            pack.id,
-            stickerId,
-            connection,
-          );
+          ensureValue(stickerId, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Informe o índice ou ID da figurinha.');
+          item = await deps.itemRepository.getStickerPackItemByStickerId(pack.id, stickerId, connection);
         }
 
-        ensureValue(
-          item,
-          STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND,
-          'Figurinha não encontrada no pack.',
-        );
+        ensureValue(item, STICKER_PACK_ERROR_CODES.STICKER_NOT_FOUND, 'Figurinha não encontrada no pack.');
 
-        await deps.itemRepository.removeStickerPackItemByStickerId(
-          pack.id,
-          item.sticker_id,
-          connection,
-        );
-        await deps.itemRepository.shiftStickerPackPositionsAfter(
-          pack.id,
-          item.position,
-          connection,
-        );
+        await deps.itemRepository.removeStickerPackItemByStickerId(pack.id, item.sticker_id, connection);
+        await deps.itemRepository.shiftStickerPackPositionsAfter(pack.id, item.position, connection);
 
         if (pack.cover_sticker_id === item.sticker_id) {
           const remaining = await deps.itemRepository.listStickerPackItems(pack.id, connection);
@@ -774,13 +604,9 @@ export function createStickerPackService(options = {}) {
           await deps.packRepository.bumpStickerPackVersion(pack.id, connection);
         }
 
-        const reloaded = await deps.packRepository.findStickerPackByOwnerAndIdentifier(
-          owner,
-          pack.id,
-          {
-            connection,
-          },
-        );
+        const reloaded = await deps.packRepository.findStickerPackByOwnerAndIdentifier(owner, pack.id, {
+          connection,
+        });
 
         return {
           removed: item,
@@ -792,22 +618,14 @@ export function createStickerPackService(options = {}) {
 
   const reorderPackItems = async ({ ownerJid, identifier, orderStickerIds }) => {
     const owner = resolveOwner(ownerJid);
-    ensureValue(
-      Array.isArray(orderStickerIds) && orderStickerIds.length > 0,
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Envie a nova ordem de figurinhas.',
-    );
+    ensureValue(Array.isArray(orderStickerIds) && orderStickerIds.length > 0, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Envie a nova ordem de figurinhas.');
 
     return runAction('reorder_pack', { owner_jid: owner }, async () => {
       const pack = await resolveOwnedPack(owner, identifier);
 
       return runInTransaction(async (connection) => {
         const currentItems = await deps.itemRepository.listStickerPackItems(pack.id, connection);
-        ensureValue(
-          currentItems.length > 1,
-          STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-          'O pack precisa de 2+ figurinhas para reordenar.',
-        );
+        ensureValue(currentItems.length > 1, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'O pack precisa de 2+ figurinhas para reordenar.');
 
         const currentIds = currentItems.map((item) => item.sticker_id);
         const currentSet = new Set(currentIds);
@@ -821,11 +639,7 @@ export function createStickerPackService(options = {}) {
           seen.add(id);
         }
 
-        ensureValue(
-          requestedIds.length > 0,
-          STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-          'A ordem enviada não corresponde às figurinhas do pack.',
-        );
+        ensureValue(requestedIds.length > 0, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'A ordem enviada não corresponde às figurinhas do pack.');
 
         const finalOrder = [...requestedIds, ...currentIds.filter((id) => !seen.has(id))];
 
@@ -834,13 +648,9 @@ export function createStickerPackService(options = {}) {
           await deps.packRepository.bumpStickerPackVersion(pack.id, connection);
         }
 
-        const reloaded = await deps.packRepository.findStickerPackByOwnerAndIdentifier(
-          owner,
-          pack.id,
-          {
-            connection,
-          },
-        );
+        const reloaded = await deps.packRepository.findStickerPackByOwnerAndIdentifier(owner, pack.id, {
+          connection,
+        });
 
         return loadPackDetails(reloaded, { connection });
       });
@@ -851,11 +661,7 @@ export function createStickerPackService(options = {}) {
     const owner = resolveOwner(ownerJid);
     const normalizedName = sanitizeText(newName, MAX_NAME_LENGTH, { allowEmpty: false });
 
-    ensureValue(
-      normalizedName,
-      STICKER_PACK_ERROR_CODES.INVALID_INPUT,
-      'Novo nome do clone é obrigatório.',
-    );
+    ensureValue(normalizedName, STICKER_PACK_ERROR_CODES.INVALID_INPUT, 'Novo nome do clone é obrigatório.');
 
     return runAction('clone_pack', { owner_jid: owner }, async () => {
       const source = await resolveOwnedPack(owner, identifier);

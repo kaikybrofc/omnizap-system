@@ -2,43 +2,23 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import logger from '../../utils/logger/loggerModule.js';
-import {
-  DEFAULT_LEGACY_STICKER_API_BASE_PATH,
-  DEFAULT_USER_API_BASE_PATH,
-  isUserApiPath,
-  normalizeBasePath,
-  resolveLegacyUserApiPath,
-} from '../routes/user/userApiPaths.js';
+import { DEFAULT_LEGACY_STICKER_API_BASE_PATH, DEFAULT_USER_API_BASE_PATH, isUserApiPath, normalizeBasePath, resolveLegacyUserApiPath } from '../routes/user/userApiPaths.js';
 
-const LEGACY_STICKER_API_BASE_PATH = normalizeBasePath(
-  process.env.STICKER_API_BASE_PATH,
-  DEFAULT_LEGACY_STICKER_API_BASE_PATH,
-);
-const USER_API_BASE_PATH = normalizeBasePath(
-  process.env.USER_API_BASE_PATH || process.env.AUTH_API_BASE_PATH,
-  DEFAULT_USER_API_BASE_PATH,
-);
+const LEGACY_STICKER_API_BASE_PATH = normalizeBasePath(process.env.STICKER_API_BASE_PATH, DEFAULT_LEGACY_STICKER_API_BASE_PATH);
+const USER_API_BASE_PATH = normalizeBasePath(process.env.USER_API_BASE_PATH || process.env.AUTH_API_BASE_PATH, DEFAULT_USER_API_BASE_PATH);
 const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
 const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
-const USER_PASSWORD_RESET_WEB_PATH = normalizeBasePath(
-  process.env.USER_PASSWORD_RESET_WEB_PATH,
-  '/user/password-reset',
-);
+const USER_PASSWORD_RESET_WEB_PATH = normalizeBasePath(process.env.USER_PASSWORD_RESET_WEB_PATH, '/user/password-reset');
 const USER_DASHBOARD_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'user', 'index.html');
 
-const hasPathPrefix = (pathname, prefix) =>
-  pathname === prefix || pathname.startsWith(`${prefix}/`);
+const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 const escapeHtmlAttribute = (value) =>
   String(value || '')
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-const replaceDataAttribute = (html, attributeName, value) =>
-  String(html || '').replace(
-    new RegExp(`(${attributeName}=")([^"]*)(")`, 'i'),
-    `$1${escapeHtmlAttribute(value)}$3`,
-  );
+const replaceDataAttribute = (html, attributeName, value) => String(html || '').replace(new RegExp(`(${attributeName}=")([^"]*)(")`, 'i'), `$1${escapeHtmlAttribute(value)}$3`);
 
 const remapUrlPathname = (url, pathname) => {
   if (!url || !pathname) return url;
@@ -51,9 +31,7 @@ const remapUrlPathname = (url, pathname) => {
   }
 };
 
-const isSupportedUserApiPath = (pathname) =>
-  isUserApiPath(pathname, USER_API_BASE_PATH) ||
-  isUserApiPath(pathname, LEGACY_STICKER_API_BASE_PATH, { legacyCompatible: true });
+const isSupportedUserApiPath = (pathname) => isUserApiPath(pathname, USER_API_BASE_PATH) || isUserApiPath(pathname, LEGACY_STICKER_API_BASE_PATH, { legacyCompatible: true });
 
 const mapUserApiPathToLegacy = (pathname) =>
   resolveLegacyUserApiPath(pathname, {
@@ -127,8 +105,7 @@ export const getUserRouteConfig = () => ({
 export const maybeHandleUserRequest = async (req, res, { pathname, url }) => {
   if (!['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'].includes(req.method || '')) return false;
 
-  const isUserHomePath =
-    pathname === USER_PROFILE_WEB_PATH || pathname === `${USER_PROFILE_WEB_PATH}/`;
+  const isUserHomePath = pathname === USER_PROFILE_WEB_PATH || pathname === `${USER_PROFILE_WEB_PATH}/`;
   const isPasswordResetPath = hasPathPrefix(pathname, USER_PASSWORD_RESET_WEB_PATH);
 
   if (isUserHomePath || isPasswordResetPath) {

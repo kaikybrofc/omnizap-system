@@ -32,16 +32,7 @@ const normalizeIdempotencyKey = (value) =>
     .replace(/[^a-zA-Z0-9_:-]/g, '')
     .slice(0, 180);
 
-export const normalizeDomainEventPayload = ({
-  eventType,
-  aggregateType,
-  aggregateId,
-  payload = null,
-  priority = 50,
-  availableAt = null,
-  idempotencyKey = '',
-  maxAttempts = 10,
-} = {}) => {
+export const normalizeDomainEventPayload = ({ eventType, aggregateType, aggregateId, payload = null, priority = 50, availableAt = null, idempotencyKey = '', maxAttempts = 10 } = {}) => {
   const normalizedType = normalizeType(eventType);
   if (!normalizedType) return null;
   const normalizedAggregateType = normalizeAggregateType(aggregateType);

@@ -25,18 +25,14 @@ const normalizeStickerPackRow = (row) => {
     status: row.status || 'published',
     pack_status: row.pack_status || 'ready',
     pack_theme_key: row.pack_theme_key || null,
-    pack_volume:
-      row.pack_volume !== null && row.pack_volume !== undefined ? Number(row.pack_volume) : null,
+    pack_volume: row.pack_volume !== null && row.pack_volume !== undefined ? Number(row.pack_volume) : null,
     is_auto_pack: row.is_auto_pack === 1 || row.is_auto_pack === true,
     last_rebalanced_at: row.last_rebalanced_at || null,
     version: Number(row.version || 1),
     created_at: row.created_at,
     updated_at: row.updated_at,
     deleted_at: row.deleted_at,
-    sticker_count:
-      row.sticker_count !== null && row.sticker_count !== undefined
-        ? Number(row.sticker_count)
-        : undefined,
+    sticker_count: row.sticker_count !== null && row.sticker_count !== undefined ? Number(row.sticker_count) : undefined,
   };
 };
 
@@ -47,10 +43,7 @@ const normalizeStickerPackRow = (row) => {
  * @param {{ includeDeleted?: boolean, connection?: import('mysql2/promise').PoolConnection|null }} [options]
  * @returns {Promise<object|null>} Pack encontrado.
  */
-export async function findStickerPackById(
-  packId,
-  { includeDeleted = false, connection = null } = {},
-) {
+export async function findStickerPackById(packId, { includeDeleted = false, connection = null } = {}) {
   const rows = await executeQuery(
     `SELECT p.*,
       (SELECT COUNT(*) FROM ${TABLES.STICKER_PACK_ITEM} i WHERE i.pack_id = p.id) AS sticker_count
@@ -71,10 +64,7 @@ export async function findStickerPackById(
  * @param {{ includeDeleted?: boolean, connection?: import('mysql2/promise').PoolConnection|null }} [options]
  * @returns {Promise<object|null>} Pack encontrado.
  */
-export async function findStickerPackByPackKey(
-  packKey,
-  { includeDeleted = false, connection = null } = {},
-) {
+export async function findStickerPackByPackKey(packKey, { includeDeleted = false, connection = null } = {}) {
   const rows = await executeQuery(
     `SELECT p.*,
       (SELECT COUNT(*) FROM ${TABLES.STICKER_PACK_ITEM} i WHERE i.pack_id = p.id) AS sticker_count
@@ -96,11 +86,7 @@ export async function findStickerPackByPackKey(
  * @param {{ includeDeleted?: boolean, connection?: import('mysql2/promise').PoolConnection|null }} [options]
  * @returns {Promise<object|null>} Pack encontrado.
  */
-export async function findStickerPackByOwnerAndIdentifier(
-  ownerJid,
-  identifier,
-  { includeDeleted = false, connection = null } = {},
-) {
+export async function findStickerPackByOwnerAndIdentifier(ownerJid, identifier, { includeDeleted = false, connection = null } = {}) {
   if (!identifier) return null;
 
   const idOrPack = await executeQuery(
@@ -143,10 +129,7 @@ export async function findStickerPackByOwnerAndIdentifier(
  * @param {{ includeDeleted?: boolean, limit?: number, offset?: number, connection?: import('mysql2/promise').PoolConnection|null }} [options]
  * @returns {Promise<object[]>} Lista de packs.
  */
-export async function listStickerPacksByOwner(
-  ownerJid,
-  { includeDeleted = false, limit = 50, offset = 0, connection = null } = {},
-) {
+export async function listStickerPacksByOwner(ownerJid, { includeDeleted = false, limit = 50, offset = 0, connection = null } = {}) {
   const safeLimit = Math.max(1, Number(limit) || 50);
   const safeOffset = Math.max(0, Number(offset) || 0);
 
@@ -177,15 +160,7 @@ export async function listStickerPacksByOwner(
  * }} [options]
  * @returns {Promise<object[]>}
  */
-export async function listStickerAutoPacksForCuration({
-  ownerJids = [],
-  includeArchived = true,
-  themeKey = '',
-  includeLegacyMarkers = true,
-  limit = 2000,
-  offset = 0,
-  connection = null,
-} = {}) {
+export async function listStickerAutoPacksForCuration({ ownerJids = [], includeArchived = true, themeKey = '', includeLegacyMarkers = true, limit = 2000, offset = 0, connection = null } = {}) {
   const owners = Array.from(new Set((Array.isArray(ownerJids) ? ownerJids : []).filter(Boolean)));
   if (!owners.length) return [];
 
@@ -197,9 +172,7 @@ export async function listStickerAutoPacksForCuration({
   const params = [...owners];
 
   if (includeLegacyMarkers) {
-    whereClauses.push(
-      "(p.is_auto_pack = 1 OR p.description LIKE '%[auto-theme:%' OR p.description LIKE '%[auto-tag:%')",
-    );
+    whereClauses.push("(p.is_auto_pack = 1 OR p.description LIKE '%[auto-theme:%' OR p.description LIKE '%[auto-tag:%')");
   } else {
     whereClauses.push('p.is_auto_pack = 1');
   }
@@ -245,13 +218,7 @@ export async function listStickerAutoPacksForCuration({
  * }} [options] Filtros de listagem.
  * @returns {Promise<{ packs: object[], hasMore: boolean }>} Resultado paginado.
  */
-export async function listStickerPacksForCatalog({
-  visibility = 'public',
-  search = '',
-  limit = 24,
-  offset = 0,
-  connection = null,
-} = {}) {
+export async function listStickerPacksForCatalog({ visibility = 'public', search = '', limit = 24, offset = 0, connection = null } = {}) {
   const safeLimit = Math.max(1, Math.min(60, Number(limit) || 24));
   const safeOffset = Math.max(0, Number(offset) || 0);
   const safeLimitWithSentinel = safeLimit + 1;
@@ -259,30 +226,18 @@ export async function listStickerPacksForCatalog({
   const normalizedVisibility = String(visibility || 'public')
     .trim()
     .toLowerCase();
-  const visibilityValues =
-    normalizedVisibility === 'all'
-      ? ['public', 'unlisted']
-      : normalizedVisibility === 'unlisted'
-        ? ['unlisted']
-        : ['public'];
+  const visibilityValues = normalizedVisibility === 'all' ? ['public', 'unlisted'] : normalizedVisibility === 'unlisted' ? ['unlisted'] : ['public'];
 
   const normalizedSearch = String(search || '')
     .trim()
     .toLowerCase()
     .slice(0, 120);
   const params = [...visibilityValues];
-  const whereClauses = [
-    'p.deleted_at IS NULL',
-    "p.status = 'published'",
-    "COALESCE(p.pack_status, 'ready') = 'ready'",
-    `p.visibility IN (${visibilityValues.map(() => '?').join(', ')})`,
-  ];
+  const whereClauses = ['p.deleted_at IS NULL', "p.status = 'published'", "COALESCE(p.pack_status, 'ready') = 'ready'", `p.visibility IN (${visibilityValues.map(() => '?').join(', ')})`];
 
   if (normalizedSearch) {
     const like = `%${normalizedSearch}%`;
-    whereClauses.push(
-      "(LOWER(p.name) LIKE ? OR LOWER(p.publisher) LIKE ? OR LOWER(COALESCE(p.description, '')) LIKE ? OR LOWER(p.pack_key) LIKE ?)",
-    );
+    whereClauses.push("(LOWER(p.name) LIKE ? OR LOWER(p.publisher) LIKE ? OR LOWER(COALESCE(p.description, '')) LIKE ? OR LOWER(p.pack_key) LIKE ?)");
     params.push(like, like, like, like);
   }
 
@@ -335,23 +290,7 @@ export async function createStickerPack(pack, connection = null) {
         version
       )
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      pack.id,
-      pack.owner_jid,
-      pack.name,
-      pack.publisher,
-      pack.description ?? null,
-      pack.pack_key,
-      pack.cover_sticker_id ?? null,
-      pack.visibility,
-      pack.status ?? 'published',
-      pack.pack_status ?? 'ready',
-      pack.pack_theme_key ?? null,
-      pack.pack_volume ?? null,
-      pack.is_auto_pack ? 1 : 0,
-      pack.last_rebalanced_at ?? null,
-      pack.version ?? 1,
-    ],
+    [pack.id, pack.owner_jid, pack.name, pack.publisher, pack.description ?? null, pack.pack_key, pack.cover_sticker_id ?? null, pack.visibility, pack.status ?? 'published', pack.pack_status ?? 'ready', pack.pack_theme_key ?? null, pack.pack_volume ?? null, pack.is_auto_pack ? 1 : 0, pack.last_rebalanced_at ?? null, pack.version ?? 1],
     connection,
   );
 

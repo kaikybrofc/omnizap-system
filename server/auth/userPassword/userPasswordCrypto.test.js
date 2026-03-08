@@ -1,12 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-  hashUserPassword,
-  resolveUserPasswordPolicy,
-  validateUserPassword,
-  verifyUserPasswordHash,
-} from './userPasswordCrypto.js';
+import { hashUserPassword, resolveUserPasswordPolicy, validateUserPassword, verifyUserPasswordHash } from './userPasswordCrypto.js';
 
 test('resolveUserPasswordPolicy normaliza limites de rounds e tamanho', () => {
   const policy = resolveUserPasswordPolicy({
@@ -42,12 +37,7 @@ test('hashUserPassword + verifyUserPasswordHash validam senha correta', async ()
   });
 
   assert.equal(typeof hashed.hash, 'string');
-  assert.equal(
-    hashed.hash.startsWith('$2b$') ||
-      hashed.hash.startsWith('$2a$') ||
-      hashed.hash.startsWith('$2y$'),
-    true,
-  );
+  assert.equal(hashed.hash.startsWith('$2b$') || hashed.hash.startsWith('$2a$') || hashed.hash.startsWith('$2y$'), true);
 
   const valid = await verifyUserPasswordHash(password, hashed.hash);
   assert.equal(valid, true);

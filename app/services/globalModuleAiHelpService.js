@@ -16,33 +16,11 @@ import { systemMetricsAiHelpWrapper } from '../modules/systemMetricsModule/syste
 import { tiktokAiHelpWrapper } from '../modules/tiktokModule/tiktokAiHelpService.js';
 import { userAiHelpWrapper } from '../modules/userModule/userAiHelpService.js';
 import { waifuPicsAiHelpWrapper } from '../modules/waifuPicsModule/waifuPicsAiHelpService.js';
-import {
-  getAiHelpCachedResponse,
-  listAiHelpCachedResponses,
-  upsertAiHelpCachedResponse,
-} from './aiHelpResponseCacheRepository.js';
+import { getAiHelpCachedResponse, listAiHelpCachedResponses, upsertAiHelpCachedResponse } from './aiHelpResponseCacheRepository.js';
 import { maybeResolveAndExecuteToolCall } from './globalToolCallingService.js';
-import {
-  getConversationSession,
-  setConversationSessionIntent,
-} from '../store/conversationSessionStore.js';
+import { getConversationSession, setConversationSessionIntent } from '../store/conversationSessionStore.js';
 
-const GLOBAL_HELP_WRAPPERS = [
-  menuAiHelpWrapper,
-  stickerAiHelpWrapper,
-  stickerPackAiHelpWrapper,
-  playAiHelpWrapper,
-  aiAiHelpWrapper,
-  quoteAiHelpWrapper,
-  waifuPicsAiHelpWrapper,
-  statsAiHelpWrapper,
-  systemMetricsAiHelpWrapper,
-  gameAiHelpWrapper,
-  userAiHelpWrapper,
-  rpgPokemonAiHelpWrapper,
-  tiktokAiHelpWrapper,
-  adminAiHelpWrapper,
-];
+const GLOBAL_HELP_WRAPPERS = [menuAiHelpWrapper, stickerAiHelpWrapper, stickerPackAiHelpWrapper, playAiHelpWrapper, aiAiHelpWrapper, quoteAiHelpWrapper, waifuPicsAiHelpWrapper, statsAiHelpWrapper, systemMetricsAiHelpWrapper, gameAiHelpWrapper, userAiHelpWrapper, rpgPokemonAiHelpWrapper, tiktokAiHelpWrapper, adminAiHelpWrapper];
 
 const GLOBAL_HELP_CACHE_MODULE_KEY = 'global';
 const GLOBAL_HELP_CACHE_SCOPE_QUESTION = 'question';
@@ -81,54 +59,15 @@ const parseEnvFloat = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, parsed));
 };
 
-const GLOBAL_HELP_DB_CACHE_FUZZY_LIMIT = parseEnvInt(
-  process.env.GLOBAL_HELP_DB_CACHE_FUZZY_LIMIT,
-  DEFAULT_GLOBAL_DB_CACHE_FUZZY_LIMIT,
-  20,
-  400,
-);
-const GLOBAL_HELP_DB_CACHE_FUZZY_THRESHOLD = parseEnvFloat(
-  process.env.GLOBAL_HELP_DB_CACHE_FUZZY_THRESHOLD,
-  DEFAULT_GLOBAL_DB_CACHE_FUZZY_THRESHOLD,
-  0.5,
-  0.99,
-);
-const GLOBAL_HELP_CONFIDENCE_THRESHOLD = parseEnvFloat(
-  process.env.GLOBAL_HELP_CONFIDENCE_THRESHOLD,
-  DEFAULT_GLOBAL_HELP_CONFIDENCE_THRESHOLD,
-  0.2,
-  0.95,
-);
-const GLOBAL_HELP_LLM_FALLBACK_THRESHOLD = parseEnvFloat(
-  process.env.GLOBAL_HELP_LLM_FALLBACK_THRESHOLD,
-  DEFAULT_GLOBAL_HELP_LLM_FALLBACK_THRESHOLD,
-  0.1,
-  0.9,
-);
-const GLOBAL_HELP_ENABLE_WRAPPER_LLM_FALLBACK = parseEnvBool(
-  process.env.GLOBAL_HELP_ENABLE_WRAPPER_LLM_FALLBACK,
-  true,
-);
-const GLOBAL_HELP_FEEDBACK_FILE_PATH = path.resolve(
-  process.cwd(),
-  String(process.env.GLOBAL_HELP_FEEDBACK_FILE || 'data/cache/global-ai-feedback.json'),
-);
-const GLOBAL_HELP_FEEDBACK_SESSION_TTL_MS = parseEnvInt(
-  process.env.GLOBAL_HELP_FEEDBACK_SESSION_TTL_MS,
-  DEFAULT_GLOBAL_HELP_FEEDBACK_SESSION_TTL_MS,
-  60_000,
-  12 * 60 * 60 * 1000,
-);
-const GLOBAL_HELP_OFFLINE_FAQ_ENABLED = parseEnvBool(
-  process.env.GLOBAL_HELP_OFFLINE_FAQ_ENABLED,
-  true,
-);
-const GLOBAL_HELP_OFFLINE_FAQ_INTERVAL_MS = parseEnvInt(
-  process.env.GLOBAL_HELP_OFFLINE_FAQ_INTERVAL_MS,
-  DEFAULT_GLOBAL_HELP_OFFLINE_FAQ_INTERVAL_MS,
-  30 * 60 * 1000,
-  72 * 60 * 60 * 1000,
-);
+const GLOBAL_HELP_DB_CACHE_FUZZY_LIMIT = parseEnvInt(process.env.GLOBAL_HELP_DB_CACHE_FUZZY_LIMIT, DEFAULT_GLOBAL_DB_CACHE_FUZZY_LIMIT, 20, 400);
+const GLOBAL_HELP_DB_CACHE_FUZZY_THRESHOLD = parseEnvFloat(process.env.GLOBAL_HELP_DB_CACHE_FUZZY_THRESHOLD, DEFAULT_GLOBAL_DB_CACHE_FUZZY_THRESHOLD, 0.5, 0.99);
+const GLOBAL_HELP_CONFIDENCE_THRESHOLD = parseEnvFloat(process.env.GLOBAL_HELP_CONFIDENCE_THRESHOLD, DEFAULT_GLOBAL_HELP_CONFIDENCE_THRESHOLD, 0.2, 0.95);
+const GLOBAL_HELP_LLM_FALLBACK_THRESHOLD = parseEnvFloat(process.env.GLOBAL_HELP_LLM_FALLBACK_THRESHOLD, DEFAULT_GLOBAL_HELP_LLM_FALLBACK_THRESHOLD, 0.1, 0.9);
+const GLOBAL_HELP_ENABLE_WRAPPER_LLM_FALLBACK = parseEnvBool(process.env.GLOBAL_HELP_ENABLE_WRAPPER_LLM_FALLBACK, true);
+const GLOBAL_HELP_FEEDBACK_FILE_PATH = path.resolve(process.cwd(), String(process.env.GLOBAL_HELP_FEEDBACK_FILE || 'data/cache/global-ai-feedback.json'));
+const GLOBAL_HELP_FEEDBACK_SESSION_TTL_MS = parseEnvInt(process.env.GLOBAL_HELP_FEEDBACK_SESSION_TTL_MS, DEFAULT_GLOBAL_HELP_FEEDBACK_SESSION_TTL_MS, 60_000, 12 * 60 * 60 * 1000);
+const GLOBAL_HELP_OFFLINE_FAQ_ENABLED = parseEnvBool(process.env.GLOBAL_HELP_OFFLINE_FAQ_ENABLED, true);
+const GLOBAL_HELP_OFFLINE_FAQ_INTERVAL_MS = parseEnvInt(process.env.GLOBAL_HELP_OFFLINE_FAQ_INTERVAL_MS, DEFAULT_GLOBAL_HELP_OFFLINE_FAQ_INTERVAL_MS, 30 * 60 * 1000, 72 * 60 * 60 * 1000);
 
 const normalizeText = (value) =>
   String(value || '')
@@ -148,8 +87,7 @@ const toFiniteNumber = (value, fallback = 0) => {
   return parsed;
 };
 
-const limitArray = (value, size = 6) =>
-  (Array.isArray(value) ? value : []).filter(Boolean).slice(0, Math.max(0, size));
+const limitArray = (value, size = 6) => (Array.isArray(value) ? value : []).filter(Boolean).slice(0, Math.max(0, size));
 
 const ensureArray = (value) => (Array.isArray(value) ? value.filter(Boolean) : []);
 const ensureObject = (value) => (value && typeof value === 'object' ? value : {});
@@ -167,8 +105,7 @@ const pickFirstBoolean = (...values) => {
   return false;
 };
 
-const readEntryDescription = (entry = {}) =>
-  pickFirstText(entry?.description, entry?.docs?.summary, entry?.descricao);
+const readEntryDescription = (entry = {}) => pickFirstText(entry?.description, entry?.docs?.summary, entry?.descricao);
 
 const readEntryUsage = (entry = {}) => {
   const usageV2 = ensureArray(entry?.usage);
@@ -178,8 +115,7 @@ const readEntryUsage = (entry = {}) => {
   return ensureArray(entry?.metodos_de_uso);
 };
 
-const readEntryPermission = (entry = {}) =>
-  pickFirstText(entry?.permission, entry?.permissao_necessaria);
+const readEntryPermission = (entry = {}) => pickFirstText(entry?.permission, entry?.permissao_necessaria);
 
 const readEntryContexts = (entry = {}) => {
   const contextsV2 = ensureArray(entry?.contexts);
@@ -187,8 +123,7 @@ const readEntryContexts = (entry = {}) => {
   return ensureArray(entry?.local_de_uso);
 };
 
-const readEntryUsageLimit = (entry = {}) =>
-  pickFirstText(entry?.limits?.usage_description, entry?.limite_de_uso);
+const readEntryUsageLimit = (entry = {}) => pickFirstText(entry?.limits?.usage_description, entry?.limite_de_uso);
 
 const readEntryCategory = (entry = {}) => pickFirstText(entry?.category, entry?.categoria);
 
@@ -214,10 +149,7 @@ const readEntryUserPhrasings = (entry = {}) => {
 
 const readEntrySuggestionPriority = (entry = {}) => {
   const discovery = readEntryDiscovery(entry);
-  const raw =
-    discovery.suggestion_priority !== undefined
-      ? discovery.suggestion_priority
-      : entry?.suggestion_priority;
+  const raw = discovery.suggestion_priority !== undefined ? discovery.suggestion_priority : entry?.suggestion_priority;
   return toFiniteNumber(raw, 100);
 };
 
@@ -227,55 +159,13 @@ const readEntryRequirements = (entry = {}) => {
   const preConditions = ensureObject(entry?.pre_condicoes);
 
   return {
-    require_group: pickFirstBoolean(
-      requirements.require_group,
-      requirements.requer_grupo,
-      requirementsLegacy.require_group,
-      requirementsLegacy.requer_grupo,
-      preConditions.requer_grupo,
-    ),
-    require_group_admin: pickFirstBoolean(
-      requirements.require_group_admin,
-      requirements.requer_admin,
-      requirementsLegacy.require_group_admin,
-      requirementsLegacy.requer_admin,
-      preConditions.requer_admin,
-    ),
-    require_bot_owner: pickFirstBoolean(
-      requirements.require_bot_owner,
-      requirements.requer_admin_principal,
-      requirementsLegacy.require_bot_owner,
-      requirementsLegacy.requer_admin_principal,
-      preConditions.requer_admin_principal,
-    ),
-    require_google_login: pickFirstBoolean(
-      requirements.require_google_login,
-      requirements.requer_google_login,
-      requirementsLegacy.require_google_login,
-      requirementsLegacy.requer_google_login,
-      preConditions.requer_google_login,
-    ),
-    require_nsfw_enabled: pickFirstBoolean(
-      requirements.require_nsfw_enabled,
-      requirements.requer_nsfw,
-      requirementsLegacy.require_nsfw_enabled,
-      requirementsLegacy.requer_nsfw,
-      preConditions.requer_nsfw,
-    ),
-    require_media: pickFirstBoolean(
-      requirements.require_media,
-      requirements.requer_midia,
-      requirementsLegacy.require_media,
-      requirementsLegacy.requer_midia,
-      preConditions.requer_midia,
-    ),
-    require_reply_message: pickFirstBoolean(
-      requirements.require_reply_message,
-      requirements.requer_mensagem_respondida,
-      requirementsLegacy.require_reply_message,
-      requirementsLegacy.requer_mensagem_respondida,
-      preConditions.requer_mensagem_respondida,
-    ),
+    require_group: pickFirstBoolean(requirements.require_group, requirements.requer_grupo, requirementsLegacy.require_group, requirementsLegacy.requer_grupo, preConditions.requer_grupo),
+    require_group_admin: pickFirstBoolean(requirements.require_group_admin, requirements.requer_admin, requirementsLegacy.require_group_admin, requirementsLegacy.requer_admin, preConditions.requer_admin),
+    require_bot_owner: pickFirstBoolean(requirements.require_bot_owner, requirements.requer_admin_principal, requirementsLegacy.require_bot_owner, requirementsLegacy.requer_admin_principal, preConditions.requer_admin_principal),
+    require_google_login: pickFirstBoolean(requirements.require_google_login, requirements.requer_google_login, requirementsLegacy.require_google_login, requirementsLegacy.requer_google_login, preConditions.requer_google_login),
+    require_nsfw_enabled: pickFirstBoolean(requirements.require_nsfw_enabled, requirements.requer_nsfw, requirementsLegacy.require_nsfw_enabled, requirementsLegacy.requer_nsfw, preConditions.requer_nsfw),
+    require_media: pickFirstBoolean(requirements.require_media, requirements.requer_midia, requirementsLegacy.require_media, requirementsLegacy.requer_midia, preConditions.requer_midia),
+    require_reply_message: pickFirstBoolean(requirements.require_reply_message, requirements.requer_mensagem_respondida, requirementsLegacy.require_reply_message, requirementsLegacy.requer_mensagem_respondida, preConditions.requer_mensagem_respondida),
   };
 };
 
@@ -286,8 +176,7 @@ const formatWhereLabel = (contexts = []) => {
   return contexts.join(', ');
 };
 
-const renderUsage = (method, commandPrefix = '/') =>
-  String(method || '').replaceAll('<prefix>', String(commandPrefix || '/'));
+const renderUsage = (method, commandPrefix = '/') => String(method || '').replaceAll('<prefix>', String(commandPrefix || '/'));
 
 const levenshteinDistance = (left, right) => {
   const a = normalizeText(left);
@@ -302,11 +191,7 @@ const levenshteinDistance = (left, right) => {
   for (let i = 1; i <= a.length; i += 1) {
     for (let j = 1; j <= b.length; j += 1) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,
-        matrix[i][j - 1] + 1,
-        matrix[i - 1][j - 1] + cost,
-      );
+      matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
     }
   }
 
@@ -315,8 +200,7 @@ const levenshteinDistance = (left, right) => {
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
-const uniqueTokens = (tokens = []) =>
-  Array.from(new Set((Array.isArray(tokens) ? tokens : []).filter(Boolean)));
+const uniqueTokens = (tokens = []) => Array.from(new Set((Array.isArray(tokens) ? tokens : []).filter(Boolean)));
 
 const computeStringSimilarity = (left, right) => {
   const a = normalizeText(left);
@@ -401,21 +285,14 @@ const persistFeedbackStore = async () => {
   const store = await ensureFeedbackStoreLoaded();
   store.updatedAt = new Date().toISOString();
   await withFeedbackWrite(async () => {
-    await fs.writeFile(
-      GLOBAL_HELP_FEEDBACK_FILE_PATH,
-      `${JSON.stringify(store, null, 2)}\n`,
-      'utf8',
-    );
+    await fs.writeFile(GLOBAL_HELP_FEEDBACK_FILE_PATH, `${JSON.stringify(store, null, 2)}\n`, 'utf8');
   });
 };
 
 const ensureFeedbackCommandEntry = (store, commandName) => {
   const safeName = stringifyFeedbackCommand(commandName);
   if (!safeName) return null;
-  const current =
-    store.byCommand[safeName] && typeof store.byCommand[safeName] === 'object'
-      ? store.byCommand[safeName]
-      : null;
+  const current = store.byCommand[safeName] && typeof store.byCommand[safeName] === 'object' ? store.byCommand[safeName] : null;
 
   if (current) {
     current.success_count = Number(current.success_count || 0);
@@ -435,8 +312,7 @@ const ensureFeedbackCommandEntry = (store, commandName) => {
 
 const computeFeedbackScore = (feedbackStore, commandName) => {
   const safeName = stringifyFeedbackCommand(commandName);
-  if (!safeName || !feedbackStore?.byCommand || typeof feedbackStore.byCommand !== 'object')
-    return 0;
+  if (!safeName || !feedbackStore?.byCommand || typeof feedbackStore.byCommand !== 'object') return 0;
 
   const stats = feedbackStore.byCommand[safeName];
   if (!stats || typeof stats !== 'object') return 0;
@@ -459,13 +335,11 @@ const formatPreConditions = (requirements = {}) => {
   if (requirements.require_google_login) lines.push('- Pode requerer login vinculado ao site.');
   if (requirements.require_nsfw_enabled) lines.push('- Requer NSFW ativo quando aplicavel.');
   if (requirements.require_media) lines.push('- Requer midia anexada/citada quando aplicavel.');
-  if (requirements.require_reply_message)
-    lines.push('- Requer resposta/citacao de mensagem quando aplicavel.');
+  if (requirements.require_reply_message) lines.push('- Requer resposta/citacao de mensagem quando aplicavel.');
   return lines;
 };
 
-const buildGlobalCommandCacheKey = (commandName) =>
-  `explicar comando ${stringifyFeedbackCommand(commandName)}`;
+const buildGlobalCommandCacheKey = (commandName) => `explicar comando ${stringifyFeedbackCommand(commandName)}`;
 
 const computeCachedQuestionMatchScore = (questionNormalized, candidateQuestion) => {
   const left = normalizeText(questionNormalized);
@@ -481,10 +355,7 @@ const computeCachedQuestionMatchScore = (questionNormalized, candidateQuestion) 
   return clamp01(contains * 0.45 + overlap * 0.35 + similarity * 0.2);
 };
 
-const isLikelyGenericBotQuestion = (normalizedQuestion) =>
-  /\b(o que (voce|vc|o bot) faz|como funciona|me ajuda|quais comandos|menu)\b/.test(
-    String(normalizedQuestion || ''),
-  );
+const isLikelyGenericBotQuestion = (normalizedQuestion) => /\b(o que (voce|vc|o bot) faz|como funciona|me ajuda|quais comandos|menu)\b/.test(String(normalizedQuestion || ''));
 
 const resolveGlobalCommandTarget = (command) => {
   const normalized = String(command || '')
@@ -665,8 +536,7 @@ const computeBm25Score = (doc, queryTokens, searchIndex) => {
     if (!tf) continue;
     const df = Number(searchIndex.docFrequency.get(token) || 0);
     const idf = Math.log(1 + (searchIndex.docCount - df + 0.5) / (df + 0.5));
-    const denominator =
-      tf + BM25_K1 * (1 - BM25_B + BM25_B * (doc.docLength / searchIndex.avgDocLength));
+    const denominator = tf + BM25_K1 * (1 - BM25_B + BM25_B * (doc.docLength / searchIndex.avgDocLength));
     score += idf * ((tf * (BM25_K1 + 1)) / Math.max(1e-9, denominator));
   }
 
@@ -683,15 +553,9 @@ const computeOverlapScore = (doc, questionNormalized, queryTokens, commandPrefix
 
 const computeFuzzyScore = (doc, questionNormalized, queryTokens) => {
   const commandSimilarity = computeStringSimilarity(questionNormalized, doc.commandName);
-  const aliasSimilarity = doc.aliases.reduce(
-    (best, alias) => Math.max(best, computeStringSimilarity(questionNormalized, alias)),
-    0,
-  );
+  const aliasSimilarity = doc.aliases.reduce((best, alias) => Math.max(best, computeStringSimilarity(questionNormalized, alias)), 0);
 
-  const commandTokens = uniqueTokens([
-    ...tokenizeText(doc.commandName),
-    ...doc.aliases.flatMap((alias) => tokenizeText(alias)),
-  ]);
+  const commandTokens = uniqueTokens([...tokenizeText(doc.commandName), ...doc.aliases.flatMap((alias) => tokenizeText(alias))]);
   const tokenSimilarities = [];
   for (const qToken of uniqueTokens(queryTokens)) {
     let best = 0;
@@ -701,9 +565,7 @@ const computeFuzzyScore = (doc, questionNormalized, queryTokens) => {
     }
     tokenSimilarities.push(best);
   }
-  const tokenAverage = tokenSimilarities.length
-    ? tokenSimilarities.reduce((acc, value) => acc + value, 0) / tokenSimilarities.length
-    : 0;
+  const tokenAverage = tokenSimilarities.length ? tokenSimilarities.reduce((acc, value) => acc + value, 0) / tokenSimilarities.length : 0;
 
   return clamp01(Math.max(commandSimilarity, aliasSimilarity, tokenAverage));
 };
@@ -729,11 +591,7 @@ const rankCommandRecords = async ({ questionNormalized, commandPrefix = '/' } = 
   return rankedRaw
     .map((item) => {
       const bm25Score = clamp01(item.bm25Raw / maxBm25);
-      const finalScore =
-        BM25_WEIGHT * bm25Score +
-        OVERLAP_WEIGHT * item.overlapScore +
-        FUZZY_WEIGHT * item.fuzzyScore +
-        FEEDBACK_WEIGHT * item.feedbackScore;
+      const finalScore = BM25_WEIGHT * bm25Score + OVERLAP_WEIGHT * item.overlapScore + FUZZY_WEIGHT * item.fuzzyScore + FEEDBACK_WEIGHT * item.feedbackScore;
 
       return {
         ...item,
@@ -744,8 +602,7 @@ const rankCommandRecords = async ({ questionNormalized, commandPrefix = '/' } = 
     .sort((a, b) => {
       if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
       if (b.legacyScore !== a.legacyScore) return b.legacyScore - a.legacyScore;
-      if (b.suggestionPriority !== a.suggestionPriority)
-        return b.suggestionPriority - a.suggestionPriority;
+      if (b.suggestionPriority !== a.suggestionPriority) return b.suggestionPriority - a.suggestionPriority;
       return a.commandName.localeCompare(b.commandName);
     });
 };
@@ -786,9 +643,7 @@ const scoreCommandRecord = (record, questionNormalized, questionTokens, commandP
   }
   score += Math.min(48, phrasingHits * 16);
 
-  const descriptionOverlap = record.descriptionTokens.filter((token) =>
-    questionTokens.includes(token),
-  );
+  const descriptionOverlap = record.descriptionTokens.filter((token) => questionTokens.includes(token));
   score += Math.min(12, descriptionOverlap.length * 2);
 
   if (record.category && questionTokens.includes(record.category)) {
@@ -801,13 +656,7 @@ const scoreCommandRecord = (record, questionNormalized, questionTokens, commandP
   return score;
 };
 
-const buildDeterministicCommandAnswer = ({
-  entry,
-  commandName,
-  commandPrefix = '/',
-  suggestions = [],
-  intro,
-}) => {
+const buildDeterministicCommandAnswer = ({ entry, commandName, commandPrefix = '/', suggestions = [], intro }) => {
   const usage = readEntryUsage(entry).map((method) => renderUsage(method, commandPrefix));
   const description = readEntryDescription(entry) || 'Sem descricao cadastrada.';
   const permissionLabel = formatPermissionLabel(readEntryPermission(entry));
@@ -815,25 +664,10 @@ const buildDeterministicCommandAnswer = ({
   const limitLabel = readEntryUsageLimit(entry) || 'nao informado';
   const preconditions = formatPreConditions(readEntryRequirements(entry));
 
-  const lines = [
-    intro || `🤖 Posso te orientar sobre *${commandPrefix}${commandName}*.`,
-    `📝 ${description}`,
-    '',
-    `👤 *Quem pode usar:* ${permissionLabel}`,
-    `📍 *Onde pode usar:* ${whereLabel}`,
-    `⏱️ *Limite:* ${limitLabel}`,
-    '',
-    '*Como usar:*',
-    ...(usage.length ? usage.map((line) => `- ${line}`) : [`- ${commandPrefix}${commandName}`]),
-    ...(preconditions.length ? ['', '*Pre-condicoes:*', ...preconditions] : []),
-    '',
-    '🔒 Esta resposta e apenas orientacao; nenhum comando foi executado.',
-  ];
+  const lines = [intro || `🤖 Posso te orientar sobre *${commandPrefix}${commandName}*.`, `📝 ${description}`, '', `👤 *Quem pode usar:* ${permissionLabel}`, `📍 *Onde pode usar:* ${whereLabel}`, `⏱️ *Limite:* ${limitLabel}`, '', '*Como usar:*', ...(usage.length ? usage.map((line) => `- ${line}`) : [`- ${commandPrefix}${commandName}`]), ...(preconditions.length ? ['', '*Pre-condicoes:*', ...preconditions] : []), '', '🔒 Esta resposta e apenas orientacao; nenhum comando foi executado.'];
 
   const normalizedSuggestions = limitArray(
-    suggestions
-      .map((value) => String(value || '').trim())
-      .filter((value) => value && value !== `${commandPrefix}${commandName}`),
+    suggestions.map((value) => String(value || '').trim()).filter((value) => value && value !== `${commandPrefix}${commandName}`),
     3,
   );
   if (normalizedSuggestions.length) {
@@ -846,10 +680,7 @@ const buildDeterministicCommandAnswer = ({
 
 const explainTargetWithFallback = async ({ target, context = {}, intro, suggestions = [] }) => {
   const commandPrefix = context.commandPrefix || '/';
-  const entry =
-    typeof target?.wrapper?.getCommandEntry === 'function'
-      ? target.wrapper.getCommandEntry(target.commandName)
-      : null;
+  const entry = typeof target?.wrapper?.getCommandEntry === 'function' ? target.wrapper.getCommandEntry(target.commandName) : null;
 
   if (entry) {
     return {
@@ -876,9 +707,7 @@ const explainTargetWithFallback = async ({ target, context = {}, intro, suggesti
         source: explanation?.source || 'module',
         moduleKey: target.moduleKey,
         commandName: explanation?.commandName || target.commandName,
-        text:
-          String(explanation?.text || '').trim() ||
-          `Nao consegui montar a explicacao para ${commandPrefix}${target.commandName}.`,
+        text: String(explanation?.text || '').trim() || `Nao consegui montar a explicacao para ${commandPrefix}${target.commandName}.`,
       };
     } catch (error) {
       logger.warn('Falha ao explicar comando pelo wrapper global.', {
@@ -908,21 +737,10 @@ const buildConversationFallbackText = ({ commandPrefix = '/', suggestions = [] }
     5,
   );
 
-  return [
-    'Ainda nao identifiquei exatamente o comando que voce precisa.',
-    `Voce pode perguntar direto, por exemplo: "${commandPrefix}help <comando>" ou "como usar sticker".`,
-    normalizedSuggestions.length
-      ? `Sugestoes rapidas: ${normalizedSuggestions.join(', ')}`
-      : `Use ${commandPrefix}menu para ver os comandos gerais e ${commandPrefix}menuadm para comandos administrativos.`,
-  ].join('\n');
+  return ['Ainda nao identifiquei exatamente o comando que voce precisa.', `Voce pode perguntar direto, por exemplo: "${commandPrefix}help <comando>" ou "como usar sticker".`, normalizedSuggestions.length ? `Sugestoes rapidas: ${normalizedSuggestions.join(', ')}` : `Use ${commandPrefix}menu para ver os comandos gerais e ${commandPrefix}menuadm para comandos administrativos.`].join('\n');
 };
 
-const buildCachedGlobalResponse = ({
-  row,
-  intentType = 'cached',
-  sourceOverride = null,
-  suggestions = [],
-} = {}) => {
+const buildCachedGlobalResponse = ({ row, intentType = 'cached', sourceOverride = null, suggestions = [] } = {}) => {
   const safeText = String(row?.answer_text || '').trim();
   if (!safeText) return null;
 
@@ -977,17 +795,7 @@ const lookupGlobalCacheByQuestion = async ({ rawQuestion, normalizedQuestion, sc
   };
 };
 
-const saveGlobalCacheAnswer = async ({
-  scope = GLOBAL_HELP_CACHE_SCOPE_QUESTION,
-  question,
-  answer,
-  commandName = null,
-  source = 'deterministic',
-  intentType = null,
-  confidence = null,
-  suggestions = [],
-  metadata = null,
-} = {}) => {
+const saveGlobalCacheAnswer = async ({ scope = GLOBAL_HELP_CACHE_SCOPE_QUESTION, question, answer, commandName = null, source = 'deterministic', intentType = null, confidence = null, suggestions = [], metadata = null } = {}) => {
   const rawQuestion = String(question || '').trim();
   const rawAnswer = String(answer || '').trim();
   if (!rawQuestion || !rawAnswer) return false;
@@ -1094,11 +902,7 @@ const ensureGlobalOfflineFaqScheduler = () => {
   }
 };
 
-const getTopDiscoverySuggestions = async ({
-  questionNormalized = '',
-  commandPrefix = '/',
-  limit = 5,
-} = {}) => {
+const getTopDiscoverySuggestions = async ({ questionNormalized = '', commandPrefix = '/', limit = 5 } = {}) => {
   const ranked = await rankCommandRecords({
     questionNormalized,
     commandPrefix,
@@ -1160,11 +964,7 @@ export const buildGlobalUnknownCommandSuggestion = (rawCommand, { commandPrefix 
     return buildFallbackUnknownSuggestion(rawCommand, { commandPrefix });
   }
 
-  return [
-    `❓ O comando *${rawCommand}* nao foi encontrado.`,
-    `Talvez voce quis usar: ${suggestions.join(', ')}.`,
-    `Use ${commandPrefix}menu para comandos gerais e ${commandPrefix}menuadm para comandos administrativos.`,
-  ].join('\n');
+  return [`❓ O comando *${rawCommand}* nao foi encontrado.`, `Talvez voce quis usar: ${suggestions.join(', ')}.`, `Use ${commandPrefix}menu para comandos gerais e ${commandPrefix}menuadm para comandos administrativos.`].join('\n');
 };
 
 export const explicarComandoGlobal = async (command, context = {}) => {
@@ -1178,9 +978,7 @@ export const explicarComandoGlobal = async (command, context = {}) => {
       moduleKey: null,
       commandName: null,
       source: 'none',
-      text:
-        buildGlobalUnknownCommandSuggestion(command, { commandPrefix }) ||
-        `Nao encontrei esse comando. Use ${commandPrefix}menu para listar comandos.`,
+      text: buildGlobalUnknownCommandSuggestion(command, { commandPrefix }) || `Nao encontrei esse comando. Use ${commandPrefix}menu para listar comandos.`,
     };
   }
 
@@ -1195,10 +993,7 @@ export const explicarComandoGlobal = async (command, context = {}) => {
     const fromCache = buildCachedGlobalResponse({
       row: cachedCommandAnswer.row,
       intentType: 'cached_command_explain',
-      sourceOverride:
-        cachedCommandAnswer.cacheKind === 'exact'
-          ? 'db_global_command_exact'
-          : 'db_global_command_fuzzy',
+      sourceOverride: cachedCommandAnswer.cacheKind === 'exact' ? 'db_global_command_exact' : 'db_global_command_fuzzy',
     });
     if (fromCache) return fromCache;
   }
@@ -1251,10 +1046,7 @@ export const responderPerguntaGlobal = async (question, context = {}) => {
     const fromCache = buildCachedGlobalResponse({
       row: cachedQuestionAnswer.row,
       intentType: 'cached_question',
-      sourceOverride:
-        cachedQuestionAnswer.cacheKind === 'exact'
-          ? 'db_global_question_exact'
-          : 'db_global_question_fuzzy',
+      sourceOverride: cachedQuestionAnswer.cacheKind === 'exact' ? 'db_global_question_exact' : 'db_global_question_fuzzy',
     });
     if (fromCache) return fromCache;
   }
@@ -1324,13 +1116,8 @@ export const responderPerguntaGlobal = async (question, context = {}) => {
     commandPrefix,
   });
   const topMatch = ranked[0] || null;
-  const followupHintPattern =
-    /^(e|tambem|tambem\?|tamb[eé]m|isso|como|explica|detalha|detalhe|funciona)\b/i;
-  if (
-    (!topMatch || topMatch.finalScore < GLOBAL_HELP_LLM_FALLBACK_THRESHOLD) &&
-    context.previousCommandName &&
-    followupHintPattern.test(rawQuestion)
-  ) {
+  const followupHintPattern = /^(e|tambem|tambem\?|tamb[eé]m|isso|como|explica|detalha|detalhe|funciona)\b/i;
+  if ((!topMatch || topMatch.finalScore < GLOBAL_HELP_LLM_FALLBACK_THRESHOLD) && context.previousCommandName && followupHintPattern.test(rawQuestion)) {
     const previousTarget = resolveGlobalCommandTarget(context.previousCommandName);
     if (previousTarget) {
       const previousAnswer = await explainTargetWithFallback({
@@ -1429,10 +1216,7 @@ export const responderPerguntaGlobal = async (question, context = {}) => {
       suggestions: [],
       suppressReply: Boolean(toolCallOutcome.suppressReply),
       text: String(toolCallOutcome.text || '').trim(),
-      metadata:
-        toolCallOutcome.metadata && typeof toolCallOutcome.metadata === 'object'
-          ? toolCallOutcome.metadata
-          : {},
+      metadata: toolCallOutcome.metadata && typeof toolCallOutcome.metadata === 'object' ? toolCallOutcome.metadata : {},
     };
   }
 
@@ -1531,12 +1315,7 @@ export const responderPerguntaGlobal = async (question, context = {}) => {
   return fallbackResult;
 };
 
-export const registerGlobalHelpCommandExecution = async ({
-  chatId,
-  userId,
-  isGroupMessage = false,
-  executedCommand = '',
-} = {}) => {
+export const registerGlobalHelpCommandExecution = async ({ chatId, userId, isGroupMessage = false, executedCommand = '' } = {}) => {
   const safeExecutedCommand = stringifyFeedbackCommand(executedCommand);
   if (!safeExecutedCommand) return { ok: false, reason: 'invalid_command' };
 

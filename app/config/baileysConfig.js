@@ -1,28 +1,6 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-useless-escape */
-import {
-  fetchLatestBaileysVersion,
-  downloadContentFromMessage,
-  jidNormalizedUser,
-  jidEncode,
-  jidDecode,
-  areJidsSameUser,
-  normalizeMessageContent,
-  isJidMetaAI,
-  isPnUser,
-  isLidUser,
-  isJidBroadcast,
-  isJidGroup,
-  isJidStatusBroadcast,
-  isJidNewsletter,
-  isHostedPnUser,
-  isHostedLidUser,
-  isJidBot,
-  SERVER_JID,
-  PSA_WID,
-  STORIES_JID,
-  META_AI_JID,
-} from '@whiskeysockets/baileys';
+import { fetchLatestBaileysVersion, downloadContentFromMessage, jidNormalizedUser, jidEncode, jidDecode, areJidsSameUser, normalizeMessageContent, isJidMetaAI, isPnUser, isLidUser, isJidBroadcast, isJidGroup, isJidStatusBroadcast, isJidNewsletter, isHostedPnUser, isHostedLidUser, isJidBot, SERVER_JID, PSA_WID, STORIES_JID, META_AI_JID } from '@whiskeysockets/baileys';
 
 import logger from '../../utils/logger/loggerModule.js';
 import { runSocketMethod } from '../services/socketState.js';
@@ -130,29 +108,11 @@ export const MEDIA_TYPE_MAPPING = {
 /**
  * Tipos de midia que contem conteudo binario/arquivo
  */
-export const BINARY_MEDIA_TYPES = new Set([
-  'image',
-  'video',
-  'videoNote',
-  'audio',
-  'voice',
-  'document',
-  'sticker',
-]);
+export const BINARY_MEDIA_TYPES = new Set(['image', 'video', 'videoNote', 'audio', 'voice', 'document', 'sticker']);
 
 const normalizeMessage = (message) => normalizeMessageContent(message) || message;
 
-const MESSAGE_CONTENT_WRAPPER_KEYS = [
-  'ephemeralMessage',
-  'viewOnceMessage',
-  'viewOnceMessageV2',
-  'viewOnceMessageV2Extension',
-  'deviceSentMessage',
-  'documentWithCaptionMessage',
-  'botInvokeMessage',
-  'editedMessage',
-  'keepInChatMessage',
-];
+const MESSAGE_CONTENT_WRAPPER_KEYS = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'deviceSentMessage', 'documentWithCaptionMessage', 'botInvokeMessage', 'editedMessage', 'keepInChatMessage'];
 
 const resolveSingleWrapperMessage = (node) => {
   if (!node || typeof node !== 'object') return null;
@@ -161,12 +121,7 @@ const resolveSingleWrapperMessage = (node) => {
   if (keys.length !== 1) return null;
 
   const wrapperValue = node[keys[0]];
-  if (
-    wrapperValue &&
-    typeof wrapperValue === 'object' &&
-    wrapperValue.message &&
-    typeof wrapperValue.message === 'object'
-  ) {
+  if (wrapperValue && typeof wrapperValue === 'object' && wrapperValue.message && typeof wrapperValue.message === 'object') {
     return wrapperValue.message;
   }
 
@@ -318,15 +273,9 @@ const isBadDecryptError = (error) => {
 
   const message = String(error.message || '').toLowerCase();
   const reason = String(error.reason || '').toLowerCase();
-  const opensslStack = Array.isArray(error.opensslErrorStack)
-    ? error.opensslErrorStack.join(' ').toLowerCase()
-    : '';
+  const opensslStack = Array.isArray(error.opensslErrorStack) ? error.opensslErrorStack.join(' ').toLowerCase() : '';
 
-  return (
-    message.includes('bad decrypt') ||
-    reason.includes('bad decrypt') ||
-    opensslStack.includes('bad decrypt')
-  );
+  return message.includes('bad decrypt') || reason.includes('bad decrypt') || opensslStack.includes('bad decrypt');
 };
 
 /**
@@ -438,9 +387,7 @@ export function isSameJidUser(jid1, jid2) {
  * @returns {boolean} `true` quando for JID de usuário.
  */
 export function isUserJid(jid) {
-  return Boolean(
-    jid && (isPnUser(jid) || isHostedPnUser(jid) || isLidUser(jid) || isHostedLidUser(jid)),
-  );
+  return Boolean(jid && (isPnUser(jid) || isHostedPnUser(jid) || isLidUser(jid) || isHostedLidUser(jid)));
 }
 
 /**
@@ -594,8 +541,7 @@ export const extractMessageContent = ({ message }) => {
   const normalizedMessage = unwrapMessageContent(message);
   if (!normalizedMessage) return 'Mensagem vazia';
 
-  const text =
-    normalizedMessage.conversation?.trim() || normalizedMessage.extendedTextMessage?.text;
+  const text = normalizedMessage.conversation?.trim() || normalizedMessage.extendedTextMessage?.text;
 
   if (text) return text;
 
@@ -605,40 +551,19 @@ export const extractMessageContent = ({ message }) => {
     [normalizedMessage.documentMessage, (m) => m.fileName || '[Documento]'],
     [normalizedMessage.audioMessage, (m) => (m.ptt ? '[Áudio] (voz)' : '[Áudio]')],
     [normalizedMessage.stickerMessage, () => '[Figurinha]'],
-    [
-      normalizedMessage.locationMessage,
-      (m) => `[Localização] Lat: ${m.degreesLatitude}, Long: ${m.degreesLongitude}`,
-    ],
+    [normalizedMessage.locationMessage, (m) => `[Localização] Lat: ${m.degreesLatitude}, Long: ${m.degreesLongitude}`],
     [normalizedMessage.contactMessage, (m) => `[Contato] ${m.displayName}`],
-    [
-      normalizedMessage.contactsArrayMessage,
-      (m) => `[Contatos] ${m.contacts.map((c) => c.displayName).join(', ')}`,
-    ],
+    [normalizedMessage.contactsArrayMessage, (m) => `[Contatos] ${m.contacts.map((c) => c.displayName).join(', ')}`],
     [normalizedMessage.listMessage, (m) => m.description || '[Mensagem de Lista]'],
-    [
-      normalizedMessage.listResponseMessage,
-      (m) => `[Lista] ${m.singleSelectReply?.selectedRowId || m.title || ''}`.trim(),
-    ],
+    [normalizedMessage.listResponseMessage, (m) => `[Lista] ${m.singleSelectReply?.selectedRowId || m.title || ''}`.trim()],
     [normalizedMessage.buttonsMessage, (m) => m.contentText || '[Mensagem de Botões]'],
-    [
-      normalizedMessage.buttonsResponseMessage,
-      (m) => `[Botão] ${m.selectedDisplayText || m.selectedButtonId || ''}`.trim(),
-    ],
-    [
-      normalizedMessage.templateButtonReplyMessage,
-      (m) => `[Resposta de Botão] ${m.selectedDisplayText || ''}`.trim(),
-    ],
-    [
-      normalizedMessage.interactiveResponseMessage,
-      (m) => `[Interativo] ${m.body?.text || m.nativeFlowResponseMessage?.name || ''}`.trim(),
-    ],
+    [normalizedMessage.buttonsResponseMessage, (m) => `[Botão] ${m.selectedDisplayText || m.selectedButtonId || ''}`.trim()],
+    [normalizedMessage.templateButtonReplyMessage, (m) => `[Resposta de Botão] ${m.selectedDisplayText || ''}`.trim()],
+    [normalizedMessage.interactiveResponseMessage, (m) => `[Interativo] ${m.body?.text || m.nativeFlowResponseMessage?.name || ''}`.trim()],
     [normalizedMessage.productMessage, (m) => m.product?.title || '[Mensagem de Produto]'],
     [normalizedMessage.reactionMessage, (m) => `[Reação] ${m.text || ''}`.trim()],
     [normalizedMessage.pollCreationMessage, (m) => `[Enquete] ${m.name}`],
-    [
-      normalizedMessage.pollResultSnapshotMessage,
-      (m) => `[Resultado de Enquete] ${m.name || ''}`.trim(),
-    ],
+    [normalizedMessage.pollResultSnapshotMessage, (m) => `[Resultado de Enquete] ${m.name || ''}`.trim()],
     [normalizedMessage.requestPhoneNumberMessage, () => '[Solicitação de telefone]'],
     [normalizedMessage.groupInviteMessage, (m) => `[Convite de grupo] ${m.groupName || ''}`.trim()],
     [normalizedMessage.eventMessage, (m) => `[Evento] ${m.name || ''}`.trim()],

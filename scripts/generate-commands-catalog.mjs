@@ -23,18 +23,7 @@ const CATEGORY_META = {
   usuario: { label: 'Perfil de Usuario', icon: '👤' },
 };
 
-const CATEGORY_ORDER = [
-  'admin',
-  'figurinhas',
-  'midia',
-  'ia',
-  'jogos',
-  'estatisticas',
-  'anime',
-  'usuario',
-  'menu',
-  'sistema',
-];
+const CATEGORY_ORDER = ['admin', 'figurinhas', 'midia', 'ia', 'jogos', 'estatisticas', 'anime', 'usuario', 'menu', 'sistema'];
 
 const normalizeText = (value) =>
   String(value || '')
@@ -94,18 +83,12 @@ const sanitizeCommand = ({ command, moduleDirName, moduleName }) => {
 
   const category = normalizeCategoryKey(command?.categoria);
   const aliases = unique(ensureArray(command?.aliases).map((alias) => String(alias)));
-  const usageMethods = unique(
-    ensureArray(command?.metodos_de_uso).map((method) =>
-      String(method).replaceAll('<prefix>', '/').trim(),
-    ),
-  );
+  const usageMethods = unique(ensureArray(command?.metodos_de_uso).map((method) => String(method).replaceAll('<prefix>', '/').trim()));
   const usageVariants =
     command?.mensagens_uso && typeof command.mensagens_uso === 'object'
       ? Object.entries(command.mensagens_uso).reduce((acc, [variantKey, methods]) => {
           const normalizedVariantKey = String(variantKey || '').trim();
-          const normalizedMethods = unique(
-            ensureArray(methods).map((method) => String(method).replaceAll('<prefix>', '/').trim()),
-          );
+          const normalizedMethods = unique(ensureArray(methods).map((method) => String(method).replaceAll('<prefix>', '/').trim()));
           if (normalizedVariantKey && normalizedMethods.length) {
             acc[normalizedVariantKey] = normalizedMethods;
           }
@@ -184,18 +167,13 @@ const buildCatalog = async () => {
       const leftOrder = knownOrderMap.has(left.key) ? knownOrderMap.get(left.key) : 999;
       const rightOrder = knownOrderMap.has(right.key) ? knownOrderMap.get(right.key) : 999;
       if (leftOrder !== rightOrder) return leftOrder - rightOrder;
-      if (left.command_count !== right.command_count)
-        return right.command_count - left.command_count;
+      if (left.command_count !== right.command_count) return right.command_count - left.command_count;
       return left.label.localeCompare(right.label, 'pt-BR');
     })
     .map((category) => ({
       ...category,
-      modules: Array.from(category.modules).sort((left, right) =>
-        left.localeCompare(right, 'pt-BR'),
-      ),
-      commands: category.commands.sort((left, right) =>
-        left.name.localeCompare(right.name, 'pt-BR'),
-      ),
+      modules: Array.from(category.modules).sort((left, right) => left.localeCompare(right, 'pt-BR')),
+      commands: category.commands.sort((left, right) => left.name.localeCompare(right.name, 'pt-BR')),
     }));
 
   const sortedModules = modules.sort((left, right) => {
@@ -221,9 +199,7 @@ const writeCatalog = async () => {
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 
-  console.log(
-    `Catalogo de comandos atualizado: ${path.relative(repoRoot, outputPath)} (${payload.totals.commands} comandos)`,
-  );
+  console.log(`Catalogo de comandos atualizado: ${path.relative(repoRoot, outputPath)} (${payload.totals.commands} comandos)`);
 };
 
 writeCatalog().catch((error) => {

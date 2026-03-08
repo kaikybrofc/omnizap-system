@@ -1,15 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-export const createStickerCatalogAdminBanService = ({
-  executeQuery,
-  tables,
-  sanitizeText,
-  normalizeGoogleSubject,
-  normalizeEmail,
-  normalizeJid,
-  toIsoOrNull,
-  revokeGoogleWebSessionsByIdentity = async () => 0,
-}) => {
+export const createStickerCatalogAdminBanService = ({ executeQuery, tables, sanitizeText, normalizeGoogleSubject, normalizeEmail, normalizeJid, toIsoOrNull, revokeGoogleWebSessionsByIdentity = async () => 0 }) => {
   const TABLES = tables;
 
   const mapAdminBanRow = (row) => {
@@ -28,11 +19,7 @@ export const createStickerCatalogAdminBanService = ({
     };
   };
 
-  const findActiveAdminBanForIdentity = async ({
-    googleSub = '',
-    email = '',
-    ownerJid = '',
-  } = {}) => {
+  const findActiveAdminBanForIdentity = async ({ googleSub = '', email = '', ownerJid = '' } = {}) => {
     const normalizedSub = normalizeGoogleSubject(googleSub);
     const normalizedEmail = normalizeEmail(email);
     const normalizedOwnerJid = normalizeJid(ownerJid) || '';
@@ -76,13 +63,7 @@ export const createStickerCatalogAdminBanService = ({
     return (Array.isArray(rows) ? rows : []).map(mapAdminBanRow).filter(Boolean);
   };
 
-  const createAdminBanRecord = async ({
-    googleSub = '',
-    email = '',
-    ownerJid = '',
-    reason = '',
-    adminSession = null,
-  }) => {
+  const createAdminBanRecord = async ({ googleSub = '', email = '', ownerJid = '', reason = '', adminSession = null }) => {
     const normalizedSub = normalizeGoogleSubject(googleSub);
     const normalizedEmail = normalizeEmail(email);
     const normalizedOwnerJid = normalizeJid(ownerJid) || '';
@@ -104,15 +85,7 @@ export const createStickerCatalogAdminBanService = ({
       `INSERT INTO ${TABLES.STICKER_WEB_ADMIN_BAN}
         (id, google_sub, email, owner_jid, reason, created_by_google_sub, created_by_email)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        banId,
-        normalizedSub || null,
-        normalizedEmail || null,
-        normalizedOwnerJid || null,
-        sanitizeText(reason || '', 255, { allowEmpty: true }) || null,
-        normalizeGoogleSubject(adminSession?.googleSub) || null,
-        normalizeEmail(adminSession?.email) || null,
-      ],
+      [banId, normalizedSub || null, normalizedEmail || null, normalizedOwnerJid || null, sanitizeText(reason || '', 255, { allowEmpty: true }) || null, normalizeGoogleSubject(adminSession?.googleSub) || null, normalizeEmail(adminSession?.email) || null],
     );
 
     if (normalizedSub || normalizedEmail || normalizedOwnerJid) {
@@ -123,10 +96,7 @@ export const createStickerCatalogAdminBanService = ({
       }).catch(() => {});
     }
 
-    const rows = await executeQuery(
-      `SELECT * FROM ${TABLES.STICKER_WEB_ADMIN_BAN} WHERE id = ? LIMIT 1`,
-      [banId],
-    );
+    const rows = await executeQuery(`SELECT * FROM ${TABLES.STICKER_WEB_ADMIN_BAN} WHERE id = ? LIMIT 1`, [banId]);
     return { created: true, ban: mapAdminBanRow(Array.isArray(rows) ? rows[0] : null) };
   };
 
@@ -143,10 +113,7 @@ export const createStickerCatalogAdminBanService = ({
         WHERE id = ?`,
       [normalizedId],
     );
-    const rows = await executeQuery(
-      `SELECT * FROM ${TABLES.STICKER_WEB_ADMIN_BAN} WHERE id = ? LIMIT 1`,
-      [normalizedId],
-    );
+    const rows = await executeQuery(`SELECT * FROM ${TABLES.STICKER_WEB_ADMIN_BAN} WHERE id = ? LIMIT 1`, [normalizedId]);
     return mapAdminBanRow(Array.isArray(rows) ? rows[0] : null);
   };
 

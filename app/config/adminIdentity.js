@@ -1,9 +1,5 @@
 import { encodeJid, getJidUser, isSameJidUser, normalizeJid } from './baileysConfig.js';
-import {
-  extractUserIdInfo,
-  resolveUserId,
-  resolveUserIdCached,
-} from '../services/lidMapService.js';
+import { extractUserIdInfo, resolveUserId, resolveUserIdCached } from '../services/lidMapService.js';
 
 const ADMIN_ENV_KEY = 'USER_ADMIN';
 
@@ -66,8 +62,7 @@ export const isAdminSender = (senderJid) => {
 
 export const isAdminSenderAsync = async (senderIdentity) => {
   const senderInfo = extractUserIdInfo(senderIdentity);
-  if (!senderInfo.raw && !senderInfo.jid && !senderInfo.lid && !senderInfo.participantAlt)
-    return false;
+  if (!senderInfo.raw && !senderInfo.jid && !senderInfo.lid && !senderInfo.participantAlt) return false;
 
   const normalizedSender = normalizeJid(senderInfo.jid || senderInfo.raw || '');
   const cachedSender = resolveUserIdCached(senderInfo);
@@ -76,28 +71,14 @@ export const isAdminSenderAsync = async (senderIdentity) => {
   const normalizedResolvedSender = normalizeJid(resolvedSender || '');
   const normalizedSenderLid = normalizeJid(senderInfo.lid || '');
   const normalizedSenderAlt = normalizeJid(senderInfo.participantAlt || '');
-  const senderCandidates = new Set(
-    [
-      normalizedSender,
-      normalizedCachedSender,
-      normalizedResolvedSender,
-      normalizedSenderLid,
-      normalizedSenderAlt,
-    ].filter(Boolean),
-  );
+  const senderCandidates = new Set([normalizedSender, normalizedCachedSender, normalizedResolvedSender, normalizedSenderLid, normalizedSenderAlt].filter(Boolean));
   if (!senderCandidates.size) return false;
 
   const rawAdminValue = getAdminRawValue();
   const adminJid = getAdminJid();
   const resolvedAdminJid = await resolveAdminJid();
-  const normalizedRawAdmin = rawAdminValue.includes('@')
-    ? normalizeJid(rawAdminValue) || rawAdminValue
-    : '';
-  const adminCandidates = new Set(
-    [adminJid, resolvedAdminJid, normalizedRawAdmin]
-      .filter(Boolean)
-      .map((candidate) => normalizeJid(candidate) || candidate),
-  );
+  const normalizedRawAdmin = rawAdminValue.includes('@') ? normalizeJid(rawAdminValue) || rawAdminValue : '';
+  const adminCandidates = new Set([adminJid, resolvedAdminJid, normalizedRawAdmin].filter(Boolean).map((candidate) => normalizeJid(candidate) || candidate));
   if (!adminCandidates.size) return false;
 
   for (const senderCandidate of senderCandidates) {

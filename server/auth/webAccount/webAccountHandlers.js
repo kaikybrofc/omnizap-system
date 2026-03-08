@@ -47,12 +47,10 @@ const maskEmailForResponse = (value, { normalizeEmail }) => {
   if (!normalized || !normalized.includes('@')) return null;
   const [localPart, domainPart] = normalized.split('@');
   if (!localPart || !domainPart) return null;
-  const safeLocal =
-    localPart.length <= 2 ? `${localPart.charAt(0) || '*'}*` : `${localPart.slice(0, 2)}***`;
+  const safeLocal = localPart.length <= 2 ? `${localPart.charAt(0) || '*'}*` : `${localPart.slice(0, 2)}***`;
   const domainSegments = domainPart.split('.');
   const domainHead = String(domainSegments.shift() || '');
-  const safeDomainHead =
-    domainHead.length <= 2 ? `${domainHead.charAt(0) || '*'}*` : `${domainHead.slice(0, 2)}***`;
+  const safeDomainHead = domainHead.length <= 2 ? `${domainHead.charAt(0) || '*'}*` : `${domainHead.slice(0, 2)}***`;
   const suffix = domainSegments.length ? `.${domainSegments.join('.')}` : '';
   return `${safeLocal}@${safeDomainHead}${suffix}`;
 };
@@ -62,16 +60,9 @@ const normalizePasswordRecoverySessionToken = (value) =>
     .trim()
     .slice(0, 4096);
 
-const PASSWORD_RECOVERY_SESSION_HEADER_KEYS = Object.freeze([
-  'x-password-recovery-session',
-  'x-recovery-session-token',
-]);
+const PASSWORD_RECOVERY_SESSION_HEADER_KEYS = Object.freeze(['x-password-recovery-session', 'x-recovery-session-token']);
 
-const PASSWORD_RECOVERY_SESSION_BODY_KEYS = Object.freeze([
-  'session_token',
-  'recovery_session_token',
-  'password_recovery_session',
-]);
+const PASSWORD_RECOVERY_SESSION_BODY_KEYS = Object.freeze(['session_token', 'recovery_session_token', 'password_recovery_session']);
 
 const PASSWORD_LOGIN_IDENTITY_HASH_NAMESPACE = 'web_user_password_login_identity';
 const PASSWORD_LOGIN_IDENTITY_KDF_SALT = 'web_user_password_login_identity_salt_v1';
@@ -85,18 +76,10 @@ const PASSWORD_LOGIN_IDENTITY_KDF_OPTIONS = Object.freeze({
 const hashPasswordLoginIdentityKey = (identityKey) => {
   const normalizedKey = String(identityKey || '').trim();
   if (!normalizedKey) return null;
-  return scryptSync(
-    `${PASSWORD_LOGIN_IDENTITY_HASH_NAMESPACE}|${normalizedKey}`,
-    PASSWORD_LOGIN_IDENTITY_KDF_SALT,
-    32,
-    PASSWORD_LOGIN_IDENTITY_KDF_OPTIONS,
-  );
+  return scryptSync(`${PASSWORD_LOGIN_IDENTITY_HASH_NAMESPACE}|${normalizedKey}`, PASSWORD_LOGIN_IDENTITY_KDF_SALT, 32, PASSWORD_LOGIN_IDENTITY_KDF_OPTIONS);
 };
 
-const buildPasswordRecoverySessionPath = ({
-  userPasswordResetWebPath = '',
-  userProfileWebPath = '',
-}) => {
+const buildPasswordRecoverySessionPath = ({ userPasswordResetWebPath = '', userProfileWebPath = '' }) => {
   const safeResetPath = String(userPasswordResetWebPath || '').trim();
   if (safeResetPath) return safeResetPath;
   const safeProfilePath = String(userProfileWebPath || '').trim();
@@ -139,15 +122,7 @@ const toPasswordRecoverySessionExpiresIn = (claims) => {
   return Math.max(0, Math.floor(expUnix - Date.now() / 1000));
 };
 
-const signPasswordRecoverySessionToken = (
-  { sub = '', email = '', ownerJid = '' } = {},
-  {
-    isWebAuthJwtEnabled,
-    signWebAuthJwt,
-    passwordRecoverySessionAuthMethod,
-    passwordRecoverySessionTtlSeconds,
-  },
-) => {
+const signPasswordRecoverySessionToken = ({ sub = '', email = '', ownerJid = '' } = {}, { isWebAuthJwtEnabled, signWebAuthJwt, passwordRecoverySessionAuthMethod, passwordRecoverySessionTtlSeconds }) => {
   if (!isWebAuthJwtEnabled()) return '';
   return signWebAuthJwt(
     {
@@ -162,16 +137,7 @@ const signPasswordRecoverySessionToken = (
   );
 };
 
-const resolvePasswordRecoverySessionClaims = (
-  sessionToken,
-  {
-    isWebAuthJwtEnabled,
-    verifyWebAuthJwt,
-    passwordRecoverySessionAuthMethod,
-    normalizeJid,
-    normalizeEmail,
-  },
-) => {
+const resolvePasswordRecoverySessionClaims = (sessionToken, { isWebAuthJwtEnabled, verifyWebAuthJwt, passwordRecoverySessionAuthMethod, normalizeJid, normalizeEmail }) => {
   if (!isWebAuthJwtEnabled()) {
     return {
       ok: false,
@@ -237,69 +203,11 @@ const buildHttpError = (message, { statusCode = 400, code = 'BAD_REQUEST' } = {}
   return error;
 };
 
-export const createWebAccountAuthHandlers = ({
-  sendJson,
-  readJsonBody,
-  logger,
-  parseUserPasswordUpsertPayload,
-  parseUserPasswordRecoveryRequestPayload,
-  parseUserPasswordRecoveryVerifyPayload,
-  parseUserPasswordLoginPayload,
-  resolveGoogleWebSessionFromRequest,
-  mapGoogleSessionResponseData,
-  revokeGoogleWebSessionsByIdentity,
-  createPersistedGoogleWebSessionFromIdentity,
-  setGoogleWebSessionCookie,
-  issueAccessTokenForSession,
-  userPasswordAuthService,
-  userPasswordRecoveryService,
-  resolveRequestRemoteIp,
-  normalizeEmail,
-  normalizeGoogleSubject,
-  normalizeJid,
-  isWebAuthJwtEnabled,
-  signWebAuthJwt,
-  verifyWebAuthJwt,
-  passwordRecoverySessionAuthMethod,
-  passwordRecoverySessionTtlSeconds,
-  userProfileWebPath,
-  userPasswordResetWebPath,
-  toSiteAbsoluteUrl,
-  executeQuery,
-  tables,
-  toIsoOrNull,
-  sanitizeText,
-  listStickerPacksByOwner,
-  listStickerPackEngagementByPackIds,
-  mapPackSummary,
-  isPackPubliclyVisible,
-  resolveMyProfileOwnerCandidates,
-  shouldHidePackFromMyProfileDefault,
-  parseEnvBool,
-  clampInt,
-  stickerWebGoogleClientId,
-  stickerWebGoogleAuthRequired,
-}) => {
-  const passwordPolicy =
-    typeof userPasswordAuthService?.getPolicy === 'function'
-      ? userPasswordAuthService.getPolicy()
-      : {};
-  const passwordLoginIdentityMaxAttempts = clampInt(
-    process.env.WEB_USER_PASSWORD_LOGIN_IDENTITY_MAX_ATTEMPTS,
-    Number(passwordPolicy?.maxFailedAttempts || 8) || 8,
-    3,
-    100,
-  );
-  const passwordLoginIdentityLockoutSeconds = clampInt(
-    process.env.WEB_USER_PASSWORD_LOGIN_IDENTITY_LOCKOUT_SECONDS,
-    Number(passwordPolicy?.lockoutSeconds || 900) || 900,
-    30,
-    86_400,
-  );
-  const passwordLoginIdentityThrottleTable =
-    String(
-      tables.STICKER_WEB_USER_PASSWORD_LOGIN_THROTTLE || 'web_user_password_login_throttle',
-    ).trim() || 'web_user_password_login_throttle';
+export const createWebAccountAuthHandlers = ({ sendJson, readJsonBody, logger, parseUserPasswordUpsertPayload, parseUserPasswordRecoveryRequestPayload, parseUserPasswordRecoveryVerifyPayload, parseUserPasswordLoginPayload, resolveGoogleWebSessionFromRequest, mapGoogleSessionResponseData, revokeGoogleWebSessionsByIdentity, createPersistedGoogleWebSessionFromIdentity, setGoogleWebSessionCookie, issueAccessTokenForSession, userPasswordAuthService, userPasswordRecoveryService, resolveRequestRemoteIp, normalizeEmail, normalizeGoogleSubject, normalizeJid, isWebAuthJwtEnabled, signWebAuthJwt, verifyWebAuthJwt, passwordRecoverySessionAuthMethod, passwordRecoverySessionTtlSeconds, userProfileWebPath, userPasswordResetWebPath, toSiteAbsoluteUrl, executeQuery, tables, toIsoOrNull, sanitizeText, listStickerPacksByOwner, listStickerPackEngagementByPackIds, mapPackSummary, isPackPubliclyVisible, resolveMyProfileOwnerCandidates, shouldHidePackFromMyProfileDefault, parseEnvBool, clampInt, stickerWebGoogleClientId, stickerWebGoogleAuthRequired }) => {
+  const passwordPolicy = typeof userPasswordAuthService?.getPolicy === 'function' ? userPasswordAuthService.getPolicy() : {};
+  const passwordLoginIdentityMaxAttempts = clampInt(process.env.WEB_USER_PASSWORD_LOGIN_IDENTITY_MAX_ATTEMPTS, Number(passwordPolicy?.maxFailedAttempts || 8) || 8, 3, 100);
+  const passwordLoginIdentityLockoutSeconds = clampInt(process.env.WEB_USER_PASSWORD_LOGIN_IDENTITY_LOCKOUT_SECONDS, Number(passwordPolicy?.lockoutSeconds || 900) || 900, 30, 86_400);
+  const passwordLoginIdentityThrottleTable = String(tables.STICKER_WEB_USER_PASSWORD_LOGIN_THROTTLE || 'web_user_password_login_throttle').trim() || 'web_user_password_login_throttle';
   let passwordLoginIdentityPruneAt = 0;
 
   const buildPasswordLoginIdentityKey = ({ google_sub = '', email = '', owner_jid = '' } = {}) => {
@@ -408,13 +316,10 @@ export const createWebAccountAuthHandlers = ({
         retryAfterSeconds: Math.max(1, Math.ceil((lockedUntilMs - Date.now()) / 1000)),
       };
     } catch (error) {
-      logger?.warn?.(
-        'Falha ao registrar tentativa no throttle distribuido de login por identidade.',
-        {
-          action: 'web_user_password_login_identity_write_failed',
-          error: error?.message,
-        },
-      );
+      logger?.warn?.('Falha ao registrar tentativa no throttle distribuido de login por identidade.', {
+        action: 'web_user_password_login_identity_write_failed',
+        error: error?.message,
+      });
       return { locked: false, retryAfterSeconds: 0 };
     }
   };
@@ -449,10 +354,7 @@ export const createWebAccountAuthHandlers = ({
     });
   };
 
-  const revokeSessionsByIdentityStrict = async (
-    { googleSub = '', email = '', ownerJid = '' } = {},
-    { reason = '' } = {},
-  ) => {
+  const revokeSessionsByIdentityStrict = async ({ googleSub = '', email = '', ownerJid = '' } = {}, { reason = '' } = {}) => {
     if (typeof revokeGoogleWebSessionsByIdentity !== 'function') return 0;
     try {
       return await revokeGoogleWebSessionsByIdentity({
@@ -480,12 +382,7 @@ export const createWebAccountAuthHandlers = ({
       .trim()
       .toUpperCase() === 'SESSION_REVOKE_FAILED';
 
-  const createSessionPayloadFromCredential = async (
-    req,
-    res,
-    credential,
-    { reason = 'credential_update' } = {},
-  ) => {
+  const createSessionPayloadFromCredential = async (req, res, credential, { reason = 'credential_update' } = {}) => {
     if (!credential?.google_sub || !credential?.owner_jid) {
       return mapGoogleSessionResponseData(null);
     }
@@ -728,14 +625,9 @@ export const createWebAccountAuthHandlers = ({
       let sessionPayload = mapGoogleSessionResponseData(null);
       if (recoveryResult?.credential?.google_sub && recoveryResult?.credential?.owner_jid) {
         try {
-          sessionPayload = await createSessionPayloadFromCredential(
-            req,
-            res,
-            recoveryResult.credential,
-            {
-              reason: 'password_recovery_verify',
-            },
-          );
+          sessionPayload = await createSessionPayloadFromCredential(req, res, recoveryResult.credential, {
+            reason: 'password_recovery_verify',
+          });
         } catch (sessionError) {
           if (isSessionRevokeFailure(sessionError)) {
             throw sessionError;
@@ -839,19 +731,13 @@ export const createWebAccountAuthHandlers = ({
     });
   };
 
-  const handlePasswordRecoverySessionStatusRequest = async (
-    req,
-    res,
-    { sessionToken = '' } = {},
-  ) => {
+  const handlePasswordRecoverySessionStatusRequest = async (req, res, { sessionToken = '' } = {}) => {
     if (!['GET', 'HEAD'].includes(req.method || '')) {
       sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
       return;
     }
 
-    const resolvedSessionToken =
-      normalizePasswordRecoverySessionToken(sessionToken) ||
-      resolvePasswordRecoverySessionTokenFromRequest(req);
+    const resolvedSessionToken = normalizePasswordRecoverySessionToken(sessionToken) || resolvePasswordRecoverySessionTokenFromRequest(req);
     if (!resolvedSessionToken) {
       sendJson(req, res, 400, {
         error: 'Sessao de redefinicao invalida.',
@@ -904,9 +790,7 @@ export const createWebAccountAuthHandlers = ({
       return;
     }
 
-    let resolvedSessionToken =
-      normalizePasswordRecoverySessionToken(sessionToken) ||
-      resolvePasswordRecoverySessionTokenFromRequest(req);
+    let resolvedSessionToken = normalizePasswordRecoverySessionToken(sessionToken) || resolvePasswordRecoverySessionTokenFromRequest(req);
     if (!resolvedSessionToken) {
       try {
         const payload = await readJsonBody(req);
@@ -982,11 +866,7 @@ export const createWebAccountAuthHandlers = ({
     }
   };
 
-  const handlePasswordRecoverySessionVerifyRequest = async (
-    req,
-    res,
-    { sessionToken = '' } = {},
-  ) => {
+  const handlePasswordRecoverySessionVerifyRequest = async (req, res, { sessionToken = '' } = {}) => {
     if (req.method !== 'POST') {
       sendJson(req, res, 405, { error: 'Metodo nao permitido.' });
       return;
@@ -1002,9 +882,7 @@ export const createWebAccountAuthHandlers = ({
       return;
     }
 
-    const resolvedSessionToken =
-      normalizePasswordRecoverySessionToken(sessionToken) ||
-      resolvePasswordRecoverySessionTokenFromRequest(req, payload);
+    const resolvedSessionToken = normalizePasswordRecoverySessionToken(sessionToken) || resolvePasswordRecoverySessionTokenFromRequest(req, payload);
     if (!resolvedSessionToken) {
       sendJson(req, res, 400, {
         error: 'Sessao de redefinicao invalida.',
@@ -1062,14 +940,9 @@ export const createWebAccountAuthHandlers = ({
       let sessionPayload = mapGoogleSessionResponseData(null);
       if (recoveryResult?.credential?.google_sub && recoveryResult?.credential?.owner_jid) {
         try {
-          sessionPayload = await createSessionPayloadFromCredential(
-            req,
-            res,
-            recoveryResult.credential,
-            {
-              reason: 'password_recovery_session_verify',
-            },
-          );
+          sessionPayload = await createSessionPayloadFromCredential(req, res, recoveryResult.credential, {
+            reason: 'password_recovery_session_verify',
+          });
         } catch (sessionError) {
           if (isSessionRevokeFailure(sessionError)) {
             throw sessionError;
@@ -1146,17 +1019,10 @@ export const createWebAccountAuthHandlers = ({
       password: payload.password,
     });
 
-    if (
-      !authResult?.authenticated ||
-      !authResult?.credential?.google_sub ||
-      !authResult?.credential?.owner_jid
-    ) {
+    if (!authResult?.authenticated || !authResult?.credential?.google_sub || !authResult?.credential?.owner_jid) {
       const failedIdentityKey = resolvePasswordLoginFailureIdentityKey(payload, authResult);
       const failedLockState = await registerPasswordLoginIdentityFailure(failedIdentityKey);
-      const retryAfterSeconds = Math.max(
-        Number(authResult?.retryAfterSeconds || 0),
-        Number(failedLockState.retryAfterSeconds || 0),
-      );
+      const retryAfterSeconds = Math.max(Number(authResult?.retryAfterSeconds || 0), Number(failedLockState.retryAfterSeconds || 0));
       if (retryAfterSeconds > 0) {
         sendPasswordLoginRateLimited(req, res, retryAfterSeconds);
         return;
@@ -1207,9 +1073,7 @@ export const createWebAccountAuthHandlers = ({
   const resolveMyProfileAccountSummary = async (session) => {
     if (!session) return null;
 
-    const planLabel =
-      sanitizeText(process.env.STICKER_WEB_USER_PLAN_LABEL || '', 80, { allowEmpty: true }) ||
-      'Conta padrao';
+    const planLabel = sanitizeText(process.env.STICKER_WEB_USER_PLAN_LABEL || '', 80, { allowEmpty: true }) || 'Conta padrao';
     const normalizedSub = normalizeGoogleSubject(session?.sub);
     const normalizedEmail = normalizeEmail(session?.email);
     const normalizedOwnerJid = normalizeJid(session?.ownerJid || '') || '';
@@ -1280,12 +1144,7 @@ export const createWebAccountAuthHandlers = ({
       email: normalizeEmail(session?.email),
       ownerJid: normalizeJid(session?.ownerJid || ''),
     };
-    const credential =
-      sessionIdentity.googleSub || sessionIdentity.email || sessionIdentity.ownerJid
-        ? await userPasswordAuthService
-            .findCredentialByIdentity(sessionIdentity, { includeRevoked: true })
-            .catch(() => null)
-        : null;
+    const credential = sessionIdentity.googleSub || sessionIdentity.email || sessionIdentity.ownerJid ? await userPasswordAuthService.findCredentialByIdentity(sessionIdentity, { includeRevoked: true }).catch(() => null) : null;
     const passwordState = toUserPasswordStatePayload(credential);
     const view = normalizeMyProfileView(url?.searchParams?.get('view'));
     const shouldIncludePacks = view !== 'summary';
@@ -1354,21 +1213,9 @@ export const createWebAccountAuthHandlers = ({
       return;
     }
 
-    const packLimit = clampInt(
-      url?.searchParams?.get('limit'),
-      view === 'packs' ? 120 : 300,
-      1,
-      300,
-    );
-    const ownerPacks = await Promise.all(
-      ownerCandidates.map((ownerJid) =>
-        listStickerPacksByOwner(ownerJid, { limit: 200, offset: 0 }),
-      ),
-    );
-    const includeAutoPacks = parseEnvBool(
-      url?.searchParams?.get('include_auto'),
-      parseEnvBool(process.env.STICKER_WEB_MY_PROFILE_INCLUDE_AUTO_PACKS, false),
-    );
+    const packLimit = clampInt(url?.searchParams?.get('limit'), view === 'packs' ? 120 : 300, 1, 300);
+    const ownerPacks = await Promise.all(ownerCandidates.map((ownerJid) => listStickerPacksByOwner(ownerJid, { limit: 200, offset: 0 })));
+    const includeAutoPacks = parseEnvBool(url?.searchParams?.get('include_auto'), parseEnvBool(process.env.STICKER_WEB_MY_PROFILE_INCLUDE_AUTO_PACKS, false));
 
     const dedupPacks = new Map();
     for (const packList of ownerPacks) {
@@ -1381,13 +1228,8 @@ export const createWebAccountAuthHandlers = ({
           continue;
         }
         const currentUpdatedAt = Date.parse(String(pack.updated_at || pack.created_at || ''));
-        const existingUpdatedAt = Date.parse(
-          String(existing.updated_at || existing.created_at || ''),
-        );
-        if (
-          Number.isFinite(currentUpdatedAt) &&
-          (!Number.isFinite(existingUpdatedAt) || currentUpdatedAt > existingUpdatedAt)
-        ) {
+        const existingUpdatedAt = Date.parse(String(existing.updated_at || existing.created_at || ''));
+        if (Number.isFinite(currentUpdatedAt) && (!Number.isFinite(existingUpdatedAt) || currentUpdatedAt > existingUpdatedAt)) {
           dedupPacks.set(pack.id, pack);
         }
       }
@@ -1404,9 +1246,7 @@ export const createWebAccountAuthHandlers = ({
       })
       .slice(0, packLimit);
 
-    const engagementByPackId = await listStickerPackEngagementByPackIds(
-      packs.map((pack) => pack.id),
-    );
+    const engagementByPackId = await listStickerPackEngagementByPackIds(packs.map((pack) => pack.id));
 
     const mappedPacks = packs.map((pack) => {
       const safeSummary = mapPackSummary(pack, engagementByPackId.get(pack.id) || null, null);

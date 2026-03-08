@@ -63,10 +63,7 @@
       "escopo": "sem_rate_limit_explicito"
     },
     "dependencies": ["banco de dados de mensagens/perfil", "stores internas de premium/blocklist"],
-    "dependencias_externas": [
-      "banco de dados de mensagens/perfil",
-      "stores internas de premium/blocklist"
-    ],
+    "dependencias_externas": ["banco de dados de mensagens/perfil", "stores internas de premium/blocklist"],
     "responses": {
       "success": "Comando executado com sucesso.",
       "usage_error": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -148,23 +145,11 @@
       "name": "perfil",
       "aliases": ["usuario", "user"],
       "descricao": "Consulta perfil e estatisticas de um usuario.",
-      "metodos_de_uso": [
-        "<prefix>perfil perfil",
-        "<prefix>perfil perfil <id|telefone>",
-        "<prefix>usuario perfil @contato"
-      ],
+      "metodos_de_uso": ["<prefix>perfil perfil", "<prefix>perfil perfil <id|telefone>", "<prefix>usuario perfil @contato"],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "consulta por um alvo por comando",
       "local_de_uso": ["privado", "grupo"],
-      "informacoes_coletadas": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "alvo do perfil (mencao, resposta, id ou telefone)",
-        "mapeamento de identidade jid/lid para usuario canonico",
-        "dados de perfil/atividade/premium/bloqueio no banco e stores"
-      ],
+      "informacoes_coletadas": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "alvo do perfil (mencao, resposta, id ou telefone)", "mapeamento de identidade jid/lid para usuario canonico", "dados de perfil/atividade/premium/bloqueio no banco e stores"],
       "enabled": true,
       "categoria": "usuario",
       "subcomandos": ["perfil", "profile"],
@@ -198,10 +183,7 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": [
-        "banco de dados de mensagens/perfil",
-        "stores internas de premium/blocklist"
-      ],
+      "dependencias_externas": ["banco de dados de mensagens/perfil", "stores internas de premium/blocklist"],
       "efeitos_colaterais": ["consulta perfil/estatísticas no banco", "envia painel de usuário"],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
@@ -214,21 +196,13 @@
         "nivel_log": "info"
       },
       "privacidade": {
-        "dados_sensiveis": [
-          "identificador do remetente",
-          "telefone/ID alvo informado ou mencionado",
-          "métricas de atividade e perfil consultadas"
-        ],
+        "dados_sensiveis": ["identificador do remetente", "telefone/ID alvo informado ou mencionado", "métricas de atividade e perfil consultadas"],
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
       "capability_keywords": ["perfil", "usuario", "privado", "grupo"],
       "faq_patterns": ["como usar perfil", "o que faz perfil", "comando perfil"],
-      "user_phrasings": [
-        "quero usar perfil",
-        "me ajuda com perfil",
-        "consulta perfil e estatisticas"
-      ],
+      "user_phrasings": ["quero usar perfil", "me ajuda com perfil", "consulta perfil e estatisticas"],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
@@ -247,51 +221,21 @@
         }
       },
       "mensagens_uso": {
-        "default": [
-          "Formato de uso:",
-          "<prefix>perfil perfil <id|telefone>",
-          "",
-          "Dica:",
-          "• Você pode mencionar alguém.",
-          "• Ou responder a mensagem do usuário desejado."
-        ]
+        "default": ["Formato de uso:", "<prefix>perfil perfil <id|telefone>", "", "Dica:", "• Você pode mencionar alguém.", "• Ou responder a mensagem do usuário desejado."]
       },
       "id": "user.perfil",
       "description": "Consulta perfil e estatisticas de um usuario.",
-      "usage": [
-        "<prefix>perfil perfil",
-        "<prefix>perfil perfil <id|telefone>",
-        "<prefix>usuario perfil @contato"
-      ],
+      "usage": ["<prefix>perfil perfil", "<prefix>perfil perfil <id|telefone>", "<prefix>usuario perfil @contato"],
       "docs": {
         "summary": "Consulta perfil e estatisticas de um usuario.",
-        "usage_examples": [
-          "<prefix>perfil perfil",
-          "<prefix>perfil perfil <id|telefone>",
-          "<prefix>usuario perfil @contato"
-        ],
+        "usage_examples": ["<prefix>perfil perfil", "<prefix>perfil perfil <id|telefone>", "<prefix>usuario perfil @contato"],
         "usage_variants": {
-          "default": [
-            "Formato de uso:",
-            "<prefix>perfil perfil <id|telefone>",
-            "",
-            "Dica:",
-            "• Você pode mencionar alguém.",
-            "• Ou responder a mensagem do usuário desejado."
-          ]
+          "default": ["Formato de uso:", "<prefix>perfil perfil <id|telefone>", "", "Dica:", "• Você pode mencionar alguém.", "• Ou responder a mensagem do usuário desejado."]
         }
       },
       "permission": "usuario comum",
       "contexts": ["privado", "grupo"],
-      "collected_data": [
-        "identificador do chat (remoteJid)",
-        "identificador do remetente (senderJid)",
-        "texto do comando e argumentos",
-        "contexto da mensagem (citacao e mencoes, quando existir)",
-        "alvo do perfil (mencao, resposta, id ou telefone)",
-        "mapeamento de identidade jid/lid para usuario canonico",
-        "dados de perfil/atividade/premium/bloqueio no banco e stores"
-      ],
+      "collected_data": ["identificador do chat (remoteJid)", "identificador do remetente (senderJid)", "texto do comando e argumentos", "contexto da mensagem (citacao e mencoes, quando existir)", "alvo do perfil (mencao, resposta, id ou telefone)", "mapeamento de identidade jid/lid para usuario canonico", "dados de perfil/atividade/premium/bloqueio no banco e stores"],
       "requirements": {
         "require_group": false,
         "require_group_admin": false,
@@ -366,10 +310,7 @@
           }
         }
       },
-      "dependencies": [
-        "banco de dados de mensagens/perfil",
-        "stores internas de premium/blocklist"
-      ],
+      "dependencies": ["banco de dados de mensagens/perfil", "stores internas de premium/blocklist"],
       "side_effects": ["consulta perfil/estatísticas no banco", "envia painel de usuário"],
       "observability": {
         "event_name": "command.executed",
@@ -391,11 +332,7 @@
         "legal_basis": "service_execution_and_legitimate_interest",
         "legal_basis_notes": "execução do serviço solicitado e legítimo interesse operacional",
         "legacy": {
-          "dados_sensiveis": [
-            "identificador do remetente",
-            "telefone/ID alvo informado ou mencionado",
-            "métricas de atividade e perfil consultadas"
-          ],
+          "dados_sensiveis": ["identificador do remetente", "telefone/ID alvo informado ou mencionado", "métricas de atividade e perfil consultadas"],
           "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
           "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
         }
@@ -403,11 +340,7 @@
       "discovery": {
         "keywords": ["perfil", "usuario", "privado", "grupo"],
         "faq_queries": ["como usar perfil", "o que faz perfil", "comando perfil"],
-        "user_phrasings": [
-          "quero usar perfil",
-          "me ajuda com perfil",
-          "consulta perfil e estatisticas"
-        ],
+        "user_phrasings": ["quero usar perfil", "me ajuda com perfil", "consulta perfil e estatisticas"],
         "suggestion_priority": 100
       },
       "access": {
@@ -443,21 +376,7 @@
       "compatibility": {
         "schema": "legacy_v1_and_v2",
         "legacy_name": "perfil",
-        "legacy_fields_present": [
-          "descricao",
-          "metodos_de_uso",
-          "permissao_necessaria",
-          "local_de_uso",
-          "informacoes_coletadas",
-          "argumentos",
-          "pre_condicoes",
-          "dependencias_externas",
-          "efeitos_colaterais",
-          "observabilidade",
-          "privacidade",
-          "acesso",
-          "limite_uso_por_plano"
-        ]
+        "legacy_fields_present": ["descricao", "metodos_de_uso", "permissao_necessaria", "local_de_uso", "informacoes_coletadas", "argumentos", "pre_condicoes", "dependencias_externas", "efeitos_colaterais", "observabilidade", "privacidade", "acesso", "limite_uso_por_plano"]
       }
     }
   ],

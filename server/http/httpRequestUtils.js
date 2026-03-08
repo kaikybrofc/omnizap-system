@@ -12,10 +12,7 @@ const parseEnvBool = (value, fallback = false) => {
 const LOOPBACK_IPS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
 const shouldTrustForwardedProtoHeader = (req) => {
-  const trustProxyHeaders = parseEnvBool(
-    process.env.APP_TRUST_PROXY,
-    parseEnvBool(process.env.RATE_LIMIT_TRUST_PROXY, false),
-  );
+  const trustProxyHeaders = parseEnvBool(process.env.APP_TRUST_PROXY, parseEnvBool(process.env.RATE_LIMIT_TRUST_PROXY, false));
   if (trustProxyHeaders) return true;
 
   const socketIp = resolveClientIp(req, { fallback: '', trustProxy: false });
@@ -126,16 +123,12 @@ export const appendSetCookie = (res, cookieValue) => {
 export const buildCookieString = (name, value, req, options = {}) => {
   const parts = [`${name}=${encodeURIComponent(String(value ?? ''))}`];
   parts.push(`Path=${options.path || '/'}`);
-  const cookieDomain =
-    options.domain === false
-      ? ''
-      : String(options.domain || resolveCookieDomainForRequest(req)).trim();
+  const cookieDomain = options.domain === false ? '' : String(options.domain || resolveCookieDomainForRequest(req)).trim();
   if (cookieDomain) parts.push(`Domain=${cookieDomain}`);
   if (options.httpOnly !== false) parts.push('HttpOnly');
   parts.push(`SameSite=${options.sameSite || 'Lax'}`);
   if (isRequestSecure(req)) parts.push('Secure');
-  if (Number.isFinite(options.maxAgeSeconds))
-    parts.push(`Max-Age=${Math.max(0, Math.floor(options.maxAgeSeconds))}`);
+  if (Number.isFinite(options.maxAgeSeconds)) parts.push(`Max-Age=${Math.max(0, Math.floor(options.maxAgeSeconds))}`);
   return parts.join('; ');
 };
 

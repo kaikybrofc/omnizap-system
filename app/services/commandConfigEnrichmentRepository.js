@@ -22,13 +22,7 @@ const MAX_STATE_LIMIT = 50_000;
 
 const ALLOWED_SUGGESTION_STATUS = new Set(['pending', 'applied', 'rejected']);
 
-const SUGGESTION_FIELDS = [
-  'capability_keywords',
-  'faq_patterns',
-  'user_phrasings',
-  'metodos_de_uso_sugeridos',
-  'descricao_sugerida',
-];
+const SUGGESTION_FIELDS = ['capability_keywords', 'faq_patterns', 'user_phrasings', 'metodos_de_uso_sugeridos', 'descricao_sugerida'];
 
 let tableAvailabilityState = {
   available: true,
@@ -110,10 +104,7 @@ const serializeJsonSafe = (value) => {
   }
 };
 
-const uniqueNormalizedList = (
-  items = [],
-  { maxItems = 12, maxLength = 120, kind = 'text' } = {},
-) => {
+const uniqueNormalizedList = (items = [], { maxItems = 12, maxLength = 120, kind = 'text' } = {}) => {
   const source = Array.isArray(items) ? items : [];
   const output = [];
   const seen = new Set();
@@ -122,8 +113,7 @@ const uniqueNormalizedList = (
     const display = normalizeDisplayText(rawItem);
     if (!display) continue;
 
-    const normalized =
-      kind === 'keyword' ? normalizeText(display).slice(0, maxLength) : display.slice(0, maxLength);
+    const normalized = kind === 'keyword' ? normalizeText(display).slice(0, maxLength) : display.slice(0, maxLength);
     if (!normalized) continue;
 
     const dedupKey = normalizeText(normalized);
@@ -156,10 +146,7 @@ const normalizeSuggestionPayload = (payload) => {
     maxItems: 16,
     maxLength: MAX_METHOD_LENGTH,
   });
-  const descricaoSugerida = sanitizeShortText(
-    safePayload.descricao_sugerida,
-    MAX_DESCRIPTION_LENGTH,
-  );
+  const descricaoSugerida = sanitizeShortText(safePayload.descricao_sugerida, MAX_DESCRIPTION_LENGTH);
 
   return {
     capability_keywords: capabilityKeywords,
@@ -183,9 +170,7 @@ const hasMeaningfulSuggestion = (payload) => {
 const buildSuggestionHash = ({ moduleKey, commandName, payload }) => {
   const canonicalJson = JSON.stringify(normalizeSuggestionPayload(payload));
   return createHash('sha256')
-    .update(
-      `${normalizeModuleKey(moduleKey)}:${normalizeCommandName(commandName)}:${canonicalJson}`,
-    )
+    .update(`${normalizeModuleKey(moduleKey)}:${normalizeCommandName(commandName)}:${canonicalJson}`)
     .digest('hex');
 };
 
@@ -262,9 +247,7 @@ const normalizeCursorValue = (value) => {
   return Math.max(0, parsed);
 };
 
-const suggestionsPayloadEquals = (left, right) =>
-  JSON.stringify(normalizeSuggestionPayload(left)) ===
-  JSON.stringify(normalizeSuggestionPayload(right));
+const suggestionsPayloadEquals = (left, right) => JSON.stringify(normalizeSuggestionPayload(left)) === JSON.stringify(normalizeSuggestionPayload(right));
 
 export const isCommandConfigEnrichmentTableAvailable = () => tableAvailabilityState.available;
 
@@ -325,10 +308,7 @@ export async function updateCommandConfigEnrichmentCursor(lastLearningEventId) {
   }
 }
 
-export async function listLearningEventsForCommandConfigEnrichment({
-  afterId = 0,
-  limit = DEFAULT_EVENT_LIMIT,
-} = {}) {
+export async function listLearningEventsForCommandConfigEnrichment({ afterId = 0, limit = DEFAULT_EVENT_LIMIT } = {}) {
   if (!isCommandConfigEnrichmentTableAvailable()) return [];
 
   const safeAfterId = normalizeCursorValue(afterId);
@@ -366,19 +346,7 @@ export async function listLearningEventsForCommandConfigEnrichment({
   }
 }
 
-export async function saveCommandConfigEnrichmentSuggestion({
-  moduleKey,
-  commandName,
-  sourceTool = null,
-  sourceEventId = null,
-  question = null,
-  normalizedQuestion = null,
-  suggestion = {},
-  confidence = 0.5,
-  modelName = null,
-  source = 'llm',
-  status = 'pending',
-} = {}) {
+export async function saveCommandConfigEnrichmentSuggestion({ moduleKey, commandName, sourceTool = null, sourceEventId = null, question = null, normalizedQuestion = null, suggestion = {}, confidence = 0.5, modelName = null, source = 'llm', status = 'pending' } = {}) {
   if (!isCommandConfigEnrichmentTableAvailable()) return null;
 
   const safeModuleKey = normalizeModuleKey(moduleKey);
@@ -421,20 +389,7 @@ export async function saveCommandConfigEnrichmentSuggestion({
          END,
          updated_at = CURRENT_TIMESTAMP(),
          id = LAST_INSERT_ID(id)`,
-      [
-        safeModuleKey,
-        safeCommandName,
-        safeSourceTool || null,
-        Number.isFinite(safeSourceEventId) && safeSourceEventId > 0 ? safeSourceEventId : null,
-        safeQuestion,
-        safeNormalizedQuestion,
-        suggestionJson,
-        Number(safeConfidence.toFixed(4)),
-        safeModelName,
-        safeSource,
-        safeStatus,
-        suggestionHash,
-      ],
+      [safeModuleKey, safeCommandName, safeSourceTool || null, Number.isFinite(safeSourceEventId) && safeSourceEventId > 0 ? safeSourceEventId : null, safeQuestion, safeNormalizedQuestion, suggestionJson, Number(safeConfidence.toFixed(4)), safeModelName, safeSource, safeStatus, suggestionHash],
     );
 
     const rows = await executeQuery(
@@ -474,10 +429,7 @@ export const mergeCommandConfigEnrichmentPayload = (basePayload = {}, patchPaylo
   const patch = normalizeSuggestionPayload(patchPayload);
 
   const merged = {
-    capability_keywords: uniqueNormalizedList(
-      [...base.capability_keywords, ...patch.capability_keywords],
-      { maxItems: 28, maxLength: MAX_KEYWORD_LENGTH, kind: 'keyword' },
-    ),
+    capability_keywords: uniqueNormalizedList([...base.capability_keywords, ...patch.capability_keywords], { maxItems: 28, maxLength: MAX_KEYWORD_LENGTH, kind: 'keyword' }),
     faq_patterns: uniqueNormalizedList([...base.faq_patterns, ...patch.faq_patterns], {
       maxItems: 30,
       maxLength: MAX_PATTERN_LENGTH,
@@ -486,14 +438,8 @@ export const mergeCommandConfigEnrichmentPayload = (basePayload = {}, patchPaylo
       maxItems: 36,
       maxLength: MAX_PATTERN_LENGTH,
     }),
-    metodos_de_uso_sugeridos: uniqueNormalizedList(
-      [...base.metodos_de_uso_sugeridos, ...patch.metodos_de_uso_sugeridos],
-      { maxItems: 18, maxLength: MAX_METHOD_LENGTH },
-    ),
-    descricao_sugerida:
-      sanitizeShortText(base.descricao_sugerida, MAX_DESCRIPTION_LENGTH) ||
-      sanitizeShortText(patch.descricao_sugerida, MAX_DESCRIPTION_LENGTH) ||
-      null,
+    metodos_de_uso_sugeridos: uniqueNormalizedList([...base.metodos_de_uso_sugeridos, ...patch.metodos_de_uso_sugeridos], { maxItems: 18, maxLength: MAX_METHOD_LENGTH }),
+    descricao_sugerida: sanitizeShortText(base.descricao_sugerida, MAX_DESCRIPTION_LENGTH) || sanitizeShortText(patch.descricao_sugerida, MAX_DESCRIPTION_LENGTH) || null,
   };
 
   return normalizeSuggestionPayload(merged);
@@ -517,13 +463,7 @@ const getSuggestionById = async (suggestionId) => {
   return row ? normalizeSuggestionRow(row) : null;
 };
 
-const upsertCommandConfigEnrichmentState = async ({
-  moduleKey,
-  commandName,
-  overlayPatch = {},
-  confidence = 0.5,
-  lastSuggestionId = null,
-} = {}) => {
+const upsertCommandConfigEnrichmentState = async ({ moduleKey, commandName, overlayPatch = {}, confidence = 0.5, lastSuggestionId = null } = {}) => {
   const safeModuleKey = normalizeModuleKey(moduleKey);
   const safeCommandName = normalizeCommandName(commandName);
   const safeConfidence = clamp01(confidence);
@@ -564,13 +504,7 @@ const upsertCommandConfigEnrichmentState = async ({
       `INSERT INTO ${TABLES.AI_COMMAND_CONFIG_ENRICHMENT_STATE}
         (module_key, command_name, overlay_json, version, confidence, last_suggestion_id)
        VALUES (?, ?, ?, 1, ?, ?)`,
-      [
-        safeModuleKey,
-        safeCommandName,
-        mergedJson,
-        Number(safeConfidence.toFixed(4)),
-        Number.isFinite(safeSuggestionId) && safeSuggestionId > 0 ? safeSuggestionId : null,
-      ],
+      [safeModuleKey, safeCommandName, mergedJson, Number(safeConfidence.toFixed(4)), Number.isFinite(safeSuggestionId) && safeSuggestionId > 0 ? safeSuggestionId : null],
     );
   } else if (changed) {
     await executeQuery(
@@ -581,12 +515,7 @@ const upsertCommandConfigEnrichmentState = async ({
            last_suggestion_id = ?,
            updated_at = CURRENT_TIMESTAMP()
        WHERE id = ?`,
-      [
-        mergedJson,
-        Number(safeConfidence.toFixed(4)),
-        Number.isFinite(safeSuggestionId) && safeSuggestionId > 0 ? safeSuggestionId : null,
-        existing.id,
-      ],
+      [mergedJson, Number(safeConfidence.toFixed(4)), Number.isFinite(safeSuggestionId) && safeSuggestionId > 0 ? safeSuggestionId : null, existing.id],
     );
   } else {
     await executeQuery(
@@ -595,11 +524,7 @@ const upsertCommandConfigEnrichmentState = async ({
            last_suggestion_id = ?,
            updated_at = CURRENT_TIMESTAMP()
        WHERE id = ?`,
-      [
-        Number(safeConfidence.toFixed(4)),
-        Number.isFinite(safeSuggestionId) && safeSuggestionId > 0 ? safeSuggestionId : null,
-        existing.id,
-      ],
+      [Number(safeConfidence.toFixed(4)), Number.isFinite(safeSuggestionId) && safeSuggestionId > 0 ? safeSuggestionId : null, existing.id],
     );
   }
 
@@ -621,11 +546,7 @@ const upsertCommandConfigEnrichmentState = async ({
   };
 };
 
-export async function markCommandConfigEnrichmentSuggestionStatus({
-  suggestionId,
-  status,
-  reviewNotes = null,
-} = {}) {
+export async function markCommandConfigEnrichmentSuggestionStatus({ suggestionId, status, reviewNotes = null } = {}) {
   if (!isCommandConfigEnrichmentTableAvailable()) return false;
 
   const safeId = Number.parseInt(String(suggestionId ?? ''), 10);
@@ -665,10 +586,7 @@ export async function markCommandConfigEnrichmentSuggestionStatus({
   }
 }
 
-export async function applyCommandConfigEnrichmentSuggestion({
-  suggestionId,
-  reviewNotes = null,
-} = {}) {
+export async function applyCommandConfigEnrichmentSuggestion({ suggestionId, reviewNotes = null } = {}) {
   if (!isCommandConfigEnrichmentTableAvailable()) {
     return {
       applied: false,
@@ -762,9 +680,7 @@ export async function applyCommandConfigEnrichmentSuggestion({
   }
 }
 
-export async function listAppliedCommandConfigEnrichmentStates({
-  limit = DEFAULT_STATE_LIMIT,
-} = {}) {
+export async function listAppliedCommandConfigEnrichmentStates({ limit = DEFAULT_STATE_LIMIT } = {}) {
   if (!isCommandConfigEnrichmentTableAvailable()) return [];
 
   const safeLimit = normalizeListLimit(limit, DEFAULT_STATE_LIMIT, MAX_STATE_LIMIT);
@@ -778,9 +694,7 @@ export async function listAppliedCommandConfigEnrichmentStates({
       [safeLimit],
     );
     if (!Array.isArray(rows) || rows.length === 0) return [];
-    return rows
-      .map((row) => normalizeStateRow(row))
-      .filter((row) => row.id > 0 && row.module_key && row.command_name);
+    return rows.map((row) => normalizeStateRow(row)).filter((row) => row.id > 0 && row.module_key && row.command_name);
   } catch (error) {
     if (handleTableError(error, 'command_config_enrichment_state_list', { limit: safeLimit })) {
       return [];

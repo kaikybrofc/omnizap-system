@@ -3,12 +3,14 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
+
 - arquivo_base: `app/modules/adminModule/commandConfig.json`
 - schema_version: `2.0.0`
 - module_enabled: `true`
 - generated_at: `2026-03-08T10:59:41.156Z`
 
 ## Escopo do Modulo
+
 - module: `adminModule`
 - source_files:
 - groupCommandHandlers.js
@@ -18,6 +20,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `32`
 
 ## Configuracao AI Help
+
 - enabled: true
 - mode: hybrid_rag
 - rag_sources:
@@ -33,6 +36,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - llm.timeout_ms: 25000
 
 ## Protocolo de Resposta para IA
+
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -41,13 +45,16 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
+
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
+
 ### menuadmin
+
 - aliases: adm, menuadm
 - enabled: true
 - categoria: admin
@@ -130,6 +137,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### premium
+
 - aliases: vip
 - enabled: true
 - categoria: admin
@@ -210,6 +218,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### nsfw
+
 - aliases: (nenhum)
 - enabled: true
 - categoria: admin
@@ -282,6 +291,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### autofigurinha
+
 - aliases: autosticker
 - enabled: true
 - categoria: admin
@@ -354,6 +364,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### modofigurinha
+
 - aliases: smode, stickermode
 - enabled: true
 - categoria: admin
@@ -426,6 +437,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### janelachat
+
 - aliases: chat, chatwindow
 - enabled: true
 - categoria: admin
@@ -500,6 +512,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### limitefigurinha
+
 - aliases: smsglimit, stickertextlimit, stextlimit, stickermsglimit
 - enabled: true
 - categoria: admin
@@ -572,6 +585,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### novogrupo
+
 - aliases: newgroup
 - enabled: true
 - categoria: admin
@@ -642,6 +656,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### adicionar
+
 - aliases: add
 - enabled: true
 - categoria: admin
@@ -713,6 +728,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### banir
+
 - aliases: remover, ban
 - enabled: true
 - categoria: admin
@@ -784,6 +800,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### promover
+
 - aliases: up
 - enabled: true
 - categoria: admin
@@ -855,6 +872,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### rebaixar
+
 - aliases: down
 - enabled: true
 - categoria: admin
@@ -926,6 +944,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### assunto
+
 - aliases: setsubject
 - enabled: true
 - categoria: admin
@@ -996,6 +1015,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### descricao
+
 - aliases: setdesc
 - enabled: true
 - categoria: admin
@@ -1066,6 +1086,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### configgrupo
+
 - aliases: setgroup
 - enabled: true
 - categoria: admin
@@ -1142,6 +1163,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### sair
+
 - aliases: leave
 - enabled: true
 - categoria: admin
@@ -1209,6 +1231,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### convite
+
 - aliases: invite
 - enabled: true
 - categoria: admin
@@ -1276,6 +1299,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### revogarconvite
+
 - aliases: revoke
 - enabled: true
 - categoria: admin
@@ -1343,6 +1367,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### entrar
+
 - aliases: join
 - enabled: true
 - categoria: admin
@@ -1411,6 +1436,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### infoconvite
+
 - aliases: infofrominvite
 - enabled: true
 - categoria: admin
@@ -1479,6 +1505,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### metadados
+
 - aliases: metadata
 - enabled: true
 - categoria: admin
@@ -1549,6 +1576,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### solicitacoes
+
 - aliases: requests
 - enabled: true
 - categoria: admin
@@ -1616,6 +1644,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### atualizarsolicitacoes
+
 - aliases: updaterequests
 - enabled: true
 - categoria: admin
@@ -1693,6 +1722,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### autosolicitacoes
+
 - aliases: autorequests
 - enabled: true
 - categoria: admin
@@ -1765,6 +1795,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### temporarias
+
 - aliases: temp
 - enabled: true
 - categoria: admin
@@ -1832,6 +1863,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### modoadicao
+
 - aliases: addmode
 - enabled: true
 - categoria: admin
@@ -1900,6 +1932,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### prefixo
+
 - aliases: prefix
 - enabled: true
 - categoria: admin
@@ -1972,6 +2005,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### boasvindas
+
 - aliases: welcome
 - enabled: true
 - categoria: admin
@@ -2050,6 +2084,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### despedida
+
 - aliases: farewell
 - enabled: true
 - categoria: admin
@@ -2128,6 +2163,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### captcha
+
 - aliases: (nenhum)
 - enabled: true
 - categoria: admin
@@ -2200,6 +2236,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### antilink
+
 - aliases: (nenhum)
 - enabled: true
 - categoria: admin
@@ -2290,6 +2327,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### noticias
+
 - aliases: news, noticia
 - enabled: true
 - categoria: admin

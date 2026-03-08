@@ -20,14 +20,12 @@ const runtime = createModuleCommandConfigRuntime({
   },
 });
 
-const renderUsageMethod = (method, commandPrefix) =>
-  String(method || '').replaceAll('<prefix>', String(commandPrefix || '/'));
+const renderUsageMethod = (method, commandPrefix) => String(method || '').replaceAll('<prefix>', String(commandPrefix || '/'));
 
 const resolveUsageLines = (entry, variant) => {
   if (!entry || typeof entry !== 'object') return [];
 
-  const usageMessages =
-    entry?.mensagens_uso && typeof entry.mensagens_uso === 'object' ? entry.mensagens_uso : null;
+  const usageMessages = entry?.mensagens_uso && typeof entry.mensagens_uso === 'object' ? entry.mensagens_uso : null;
 
   if (usageMessages) {
     const variantKey = typeof variant === 'string' ? variant.trim() : '';
@@ -59,18 +57,12 @@ export const getSystemMetricsTextConfig = () => {
   };
 };
 
-export const getSystemMetricsUsageText = (
-  command,
-  { commandPrefix = '/', header, variant } = {},
-) => {
+export const getSystemMetricsUsageText = (command, { commandPrefix = '/', header, variant } = {}) => {
   const entry = getSystemMetricsCommandEntry(command);
   const methods = resolveUsageLines(entry, variant);
   if (!methods.length) return '';
 
-  const prefixHeader =
-    typeof header === 'string'
-      ? header
-      : getSystemMetricsTextConfig().usage_header || DEFAULT_TEXTS.usage_header;
+  const prefixHeader = typeof header === 'string' ? header : getSystemMetricsTextConfig().usage_header || DEFAULT_TEXTS.usage_header;
   const lines = methods.map((method) => renderUsageMethod(method, commandPrefix));
   return prefixHeader ? [prefixHeader, ...lines].join('\n') : lines.join('\n');
 };

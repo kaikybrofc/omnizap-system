@@ -11,18 +11,11 @@ const CAPTCHA_OK_EMOJI = process.env.CAPTCHA_OK_EMOJI || '✅';
 
 const pendingCaptchas = new Map();
 const captchaMessageState = new Map();
-const NON_HUMAN_CAPTCHA_MESSAGE_TEXTS = new Set([
-  'Mensagem vazia',
-  'Tipo de mensagem não suportado ou sem conteúdo.',
-  '[Histórico de mensagens]',
-  '[Aviso de histórico de mensagens]',
-]);
+const NON_HUMAN_CAPTCHA_MESSAGE_TEXTS = new Set(['Mensagem vazia', 'Tipo de mensagem não suportado ou sem conteúdo.', '[Histórico de mensagens]', '[Aviso de histórico de mensagens]']);
 
 const buildMessageStateKey = (groupId, messageId) => `${groupId}:${messageId}`;
-const normalizeMessageText = (messageText) =>
-  typeof messageText === 'string' ? messageText.trim() : '';
-const hasMessageStubType = (messageInfo) =>
-  messageInfo?.messageStubType !== undefined && messageInfo?.messageStubType !== null;
+const normalizeMessageText = (messageText) => (typeof messageText === 'string' ? messageText.trim() : '');
+const hasMessageStubType = (messageInfo) => messageInfo?.messageStubType !== undefined && messageInfo?.messageStubType !== null;
 
 const resolveMessagePayload = (messageInfo) => {
   const payload = messageInfo?.message;
@@ -48,12 +41,7 @@ const isHumanCaptchaMessage = ({ messageInfo, extractedText }) => {
   const payload = resolveMessagePayload(messageInfo);
   if (!payload) return false;
 
-  if (
-    payload.protocolMessage ||
-    payload.messageHistoryBundle ||
-    payload.messageHistoryNotice ||
-    payload.fastRatchetKeySenderKeyDistributionMessage
-  ) {
+  if (payload.protocolMessage || payload.messageHistoryBundle || payload.messageHistoryNotice || payload.fastRatchetKeySenderKeyDistributionMessage) {
     return false;
   }
 
@@ -156,9 +144,7 @@ const findPendingEntryAsync = async (groupId, ...identitySources) => {
   for (const source of identitySources) {
     if (!source) continue;
     const info = extractUserIdInfo(source);
-    const hasLidLikeIdentity = Boolean(
-      info.lid || (typeof info.raw === 'string' && info.raw.includes('@lid')),
-    );
+    const hasLidLikeIdentity = Boolean(info.lid || (typeof info.raw === 'string' && info.raw.includes('@lid')));
     if (!hasLidLikeIdentity) continue;
 
     try {
@@ -299,9 +285,7 @@ const sendCaptchaApprovalEdit = async ({ groupId, entry, messageState }) => {
   const userLabel = getJidUser(mentionId) || 'usuario';
   const approvalLine = `✅ @${userLabel} passou na verificação.`;
   const baseText = normalizeMessageText(messageState?.text);
-  const updatedText = baseText.includes(approvalLine)
-    ? baseText
-    : `${baseText}${baseText ? '\n' : ''}${approvalLine}`;
+  const updatedText = baseText.includes(approvalLine) ? baseText : `${baseText}${baseText ? '\n' : ''}${approvalLine}`;
 
   const mentionsSet = new Set(Array.isArray(messageState?.mentions) ? messageState.mentions : []);
   if (mentionId) {
@@ -376,13 +360,7 @@ const sendCaptchaApprovalNotice = async ({ groupId, entry, method }) => {
   }
 };
 
-export const registerCaptchaChallenge = ({
-  groupId,
-  participantJid,
-  messageKey,
-  messageText,
-  messageMentions,
-}) => {
+export const registerCaptchaChallenge = ({ groupId, participantJid, messageKey, messageText, messageMentions }) => {
   if (!groupId) return;
   const userIdCandidates = buildUserIdCandidates(participantJid);
   const userId = userIdCandidates[0] || null;
@@ -402,13 +380,10 @@ export const registerCaptchaChallenge = ({
   const expiresAt = Date.now() + CAPTCHA_TIMEOUT_MS;
   const messageId = messageKey?.id || null;
   const normalizedText = normalizeMessageText(messageText);
-  const messageStateKey =
-    messageId && normalizedText ? buildMessageStateKey(groupId, messageId) : null;
+  const messageStateKey = messageId && normalizedText ? buildMessageStateKey(groupId, messageId) : null;
 
   if (messageStateKey) {
-    const mentions = Array.isArray(messageMentions)
-      ? Array.from(new Set(messageMentions.filter(Boolean)))
-      : [];
+    const mentions = Array.isArray(messageMentions) ? Array.from(new Set(messageMentions.filter(Boolean))) : [];
     const existingState = captchaMessageState.get(messageStateKey);
     if (existingState) {
       existingState.pendingCount = (existingState.pendingCount || 0) + 1;
@@ -479,14 +454,7 @@ export const clearCaptchasForGroup = (groupId, reason = 'manual') => {
   });
 };
 
-export const resolveCaptchaByMessage = async ({
-  groupId,
-  senderJid,
-  senderIdentity,
-  messageKey,
-  messageInfo,
-  extractedText,
-}) => {
+export const resolveCaptchaByMessage = async ({ groupId, senderJid, senderIdentity, messageKey, messageInfo, extractedText }) => {
   if (!groupId) return false;
   if (!isHumanCaptchaMessage({ messageInfo, extractedText })) return false;
   const match = await findPendingEntryAsync(groupId, senderIdentity, senderJid);
@@ -504,13 +472,7 @@ export const resolveCaptchaByMessage = async ({
   return true;
 };
 
-export const resolveCaptchaByReaction = async ({
-  groupId,
-  senderJid,
-  senderIdentity,
-  reactedMessageId,
-  reactionText,
-}) => {
+export const resolveCaptchaByReaction = async ({ groupId, senderJid, senderIdentity, reactedMessageId, reactionText }) => {
   if (!groupId) return false;
   if (!normalizeMessageText(reactionText)) return false;
   const match = await findPendingEntryAsync(groupId, senderIdentity, senderJid);

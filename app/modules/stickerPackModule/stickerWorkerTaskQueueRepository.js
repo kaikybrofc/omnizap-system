@@ -6,8 +6,7 @@ const normalizeTaskType = (value) => {
   const normalized = String(value || '')
     .trim()
     .toLowerCase();
-  if (['classification_cycle', 'curation_cycle', 'rebuild_cycle'].includes(normalized))
-    return normalized;
+  if (['classification_cycle', 'curation_cycle', 'rebuild_cycle'].includes(normalized)) return normalized;
   return null;
 };
 
@@ -25,12 +24,7 @@ const clampInt = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, Math.floor(numeric)));
 };
 
-const CLAIM_LOCK_TIMEOUT_SECONDS = clampInt(
-  process.env.STICKER_WORKER_TASK_LOCK_TIMEOUT_SECONDS,
-  15 * 60,
-  30,
-  24 * 60 * 60,
-);
+const CLAIM_LOCK_TIMEOUT_SECONDS = clampInt(process.env.STICKER_WORKER_TASK_LOCK_TIMEOUT_SECONDS, 15 * 60, 30, 24 * 60 * 60);
 
 const normalizeIdempotencyKey = (value) =>
   String(value || '')
@@ -81,25 +75,14 @@ const normalizeRow = (row) => {
   };
 };
 
-export async function enqueueWorkerTask(
-  {
-    taskType,
-    payload = {},
-    priority = 50,
-    scheduledAt = null,
-    maxAttempts = 5,
-    idempotencyKey = '',
-  },
-  connection = null,
-) {
+export async function enqueueWorkerTask({ taskType, payload = {}, priority = 50, scheduledAt = null, maxAttempts = 5, idempotencyKey = '' }, connection = null) {
   const normalizedTaskType = normalizeTaskType(taskType);
   if (!normalizedTaskType) return false;
 
   const safePriority = clampInt(priority, 50, 1, 100);
   const safeMaxAttempts = clampInt(maxAttempts, 5, 1, 20);
   const safeScheduledAt = scheduledAt ? new Date(scheduledAt) : null;
-  const scheduledValue =
-    safeScheduledAt && Number.isFinite(safeScheduledAt.valueOf()) ? safeScheduledAt : null;
+  const scheduledValue = safeScheduledAt && Number.isFinite(safeScheduledAt.valueOf()) ? safeScheduledAt : null;
   const normalizedIdempotencyKey = normalizeIdempotencyKey(idempotencyKey) || null;
 
   await executeQuery(
@@ -112,14 +95,7 @@ export async function enqueueWorkerTask(
       scheduled_at = LEAST(scheduled_at, VALUES(scheduled_at)),
       status = IF(status = 'failed' AND attempts < max_attempts, 'pending', status),
       updated_at = UTC_TIMESTAMP()`,
-    [
-      normalizedTaskType,
-      normalizedIdempotencyKey,
-      JSON.stringify(payload || {}),
-      safePriority,
-      scheduledValue,
-      safeMaxAttempts,
-    ],
+    [normalizedTaskType, normalizedIdempotencyKey, JSON.stringify(payload || {}), safePriority, scheduledValue, safeMaxAttempts],
     connection,
   );
   return true;
@@ -144,10 +120,7 @@ export async function hasPendingWorkerTask(taskType, connection = null) {
   return rows.length > 0;
 }
 
-export async function claimWorkerTask(
-  { taskType, allowRetryFailed = true } = {},
-  connection = null,
-) {
+export async function claimWorkerTask({ taskType, allowRetryFailed = true } = {}, connection = null) {
   const normalizedTaskType = normalizeTaskType(taskType);
   if (!normalizedTaskType) return null;
 
@@ -212,11 +185,7 @@ export async function completeWorkerTask(taskId, connection = null) {
   return true;
 }
 
-export async function failWorkerTask(
-  taskId,
-  { error = null, retryDelaySeconds = 0 } = {},
-  connection = null,
-) {
+export async function failWorkerTask(taskId, { error = null, retryDelaySeconds = 0 } = {}, connection = null) {
   if (!taskId) return false;
   const safeDelay = clampInt(retryDelaySeconds, 0, 0, 86400 * 7);
   const message =

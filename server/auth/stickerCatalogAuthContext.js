@@ -1,64 +1,12 @@
-import {
-  createGoogleWebAuthRuntime,
-  normalizeGoogleSubject,
-} from './googleWebAuth/googleWebAuthRuntime.js';
+import { createGoogleWebAuthRuntime, normalizeGoogleSubject } from './googleWebAuth/googleWebAuthRuntime.js';
 import { isWebAuthJwtEnabled, signWebAuthJwt, verifyWebAuthJwt } from './jwt/webJwtService.js';
 import userPasswordAuthService from './userPassword/index.js';
 import { createUserPasswordRecoveryService } from './userPassword/userPasswordRecoveryService.js';
 import { createTermsAcceptanceHandler } from './termsAcceptance/termsAcceptanceHandler.js';
 import { createWebAccountAuthHandlers } from './webAccount/webAccountHandlers.js';
-import {
-  parseTermsAcceptancePayload,
-  parseUserPasswordLoginPayload,
-  parseUserPasswordRecoveryRequestPayload,
-  parseUserPasswordRecoveryVerifyPayload,
-  parseUserPasswordUpsertPayload,
-} from './validation/authSchemas.js';
+import { parseTermsAcceptancePayload, parseUserPasswordLoginPayload, parseUserPasswordRecoveryRequestPayload, parseUserPasswordRecoveryVerifyPayload, parseUserPasswordUpsertPayload } from './validation/authSchemas.js';
 
-export const createStickerCatalogAuthContext = ({
-  executeQuery,
-  runSqlTransaction,
-  tables,
-  logger,
-  sendJson,
-  readJsonBody,
-  parseCookies,
-  getCookieValuesFromRequest,
-  appendSetCookie,
-  buildCookieString,
-  normalizeEmail,
-  normalizeJid,
-  sanitizeText,
-  toIsoOrNull,
-  toWhatsAppPhoneDigits,
-  resolveWhatsAppOwnerJidFromLoginPayload,
-  assertGoogleIdentityNotBanned,
-  queueAutomatedEmail,
-  queueWelcomeEmail,
-  resolveRequestRemoteIp,
-  toSiteAbsoluteUrl,
-  listStickerPacksByOwner,
-  listStickerPackEngagementByPackIds,
-  mapPackSummary,
-  isPackPubliclyVisible,
-  resolveMyProfileOwnerCandidates,
-  shouldHidePackFromMyProfileDefault,
-  parseEnvBool,
-  clampInt,
-  userProfileWebPath,
-  userPasswordResetWebPath,
-  passwordRecoverySessionAuthMethod,
-  passwordRecoverySessionTtlSeconds,
-  webSessionCookieName,
-  notAllowedErrorCode,
-  stickerWebGoogleClientId,
-  stickerWebGoogleAuthRequired,
-  stickerWebGoogleSessionTtlMs,
-  stickerApiBasePath,
-  stickerWebPath,
-  stickerLoginWebPath,
-  siteOrigin,
-}) => {
+export const createStickerCatalogAuthContext = ({ executeQuery, runSqlTransaction, tables, logger, sendJson, readJsonBody, parseCookies, getCookieValuesFromRequest, appendSetCookie, buildCookieString, normalizeEmail, normalizeJid, sanitizeText, toIsoOrNull, toWhatsAppPhoneDigits, resolveWhatsAppOwnerJidFromLoginPayload, assertGoogleIdentityNotBanned, queueAutomatedEmail, queueWelcomeEmail, resolveRequestRemoteIp, toSiteAbsoluteUrl, listStickerPacksByOwner, listStickerPackEngagementByPackIds, mapPackSummary, isPackPubliclyVisible, resolveMyProfileOwnerCandidates, shouldHidePackFromMyProfileDefault, parseEnvBool, clampInt, userProfileWebPath, userPasswordResetWebPath, passwordRecoverySessionAuthMethod, passwordRecoverySessionTtlSeconds, webSessionCookieName, notAllowedErrorCode, stickerWebGoogleClientId, stickerWebGoogleAuthRequired, stickerWebGoogleSessionTtlMs, stickerApiBasePath, stickerWebPath, stickerLoginWebPath, siteOrigin }) => {
   const enqueueGoogleWebWelcomeEmail = ({ email, name, ownerJid }) => {
     const normalizedEmail = normalizeEmail(email);
     if (!normalizedEmail || !normalizedEmail.includes('@')) return;
@@ -117,17 +65,7 @@ export const createStickerCatalogAuthContext = ({
     },
   });
 
-  const {
-    upsertGoogleWebUserRecord,
-    resolveGoogleWebSessionFromRequest,
-    mapGoogleSessionResponseData,
-    setGoogleWebSessionCookie,
-    issueAccessTokenForSession,
-    createPersistedGoogleWebSessionFromIdentity,
-    handleGoogleAuthSessionRequest,
-    revokeGoogleWebSessionsByIdentity,
-    buildGoogleOwnerJid,
-  } = googleWebAuth;
+  const { upsertGoogleWebUserRecord, resolveGoogleWebSessionFromRequest, mapGoogleSessionResponseData, setGoogleWebSessionCookie, issueAccessTokenForSession, createPersistedGoogleWebSessionFromIdentity, handleGoogleAuthSessionRequest, revokeGoogleWebSessionsByIdentity, buildGoogleOwnerJid } = googleWebAuth;
 
   const userPasswordRecoveryService = createUserPasswordRecoveryService({
     executeQuery,
@@ -156,17 +94,7 @@ export const createStickerCatalogAuthContext = ({
     webSessionCookieName,
   });
 
-  const {
-    handlePasswordAuthRequest,
-    handlePasswordRecoveryRequest,
-    handlePasswordRecoveryVerifyRequest,
-    handlePasswordRecoverySessionCreateRequest,
-    handlePasswordRecoverySessionStatusRequest,
-    handlePasswordRecoverySessionRequest,
-    handlePasswordRecoverySessionVerifyRequest,
-    handlePasswordLoginRequest,
-    handleMyProfileRequest,
-  } = createWebAccountAuthHandlers({
+  const { handlePasswordAuthRequest, handlePasswordRecoveryRequest, handlePasswordRecoveryVerifyRequest, handlePasswordRecoverySessionCreateRequest, handlePasswordRecoverySessionStatusRequest, handlePasswordRecoverySessionRequest, handlePasswordRecoverySessionVerifyRequest, handlePasswordLoginRequest, handleMyProfileRequest } = createWebAccountAuthHandlers({
     sendJson,
     readJsonBody,
     logger,

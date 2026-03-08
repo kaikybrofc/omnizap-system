@@ -2,11 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import logger from '../../../utils/logger/loggerModule.js';
 import { createModuleAiHelpService } from '../../services/moduleAiHelpCoreService.js';
-import {
-  getAdminCommandEntry,
-  getAdminModuleConfig,
-  resolveAdminCommandName,
-} from './adminConfigRuntime.js';
+import { getAdminCommandEntry, getAdminModuleConfig, resolveAdminCommandName } from './adminConfigRuntime.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,37 +25,15 @@ const adminAiHelpCore = createModuleAiHelpService({
   agentMdPath: AGENT_MD_PATH,
   logger,
   guidance: {
-    faqSummary: ({ commandCount, faqCount, commandPrefix }) =>
-      [
-        '🤖 FAQ administrativa atualizada.',
-        `Comandos analisados: ${commandCount}.`,
-        `Perguntas geradas: ${faqCount}.`,
-        '',
-        `Use ${commandPrefix}menuadm ajuda <comando> para explicacao detalhada.`,
-        `Use ${commandPrefix}menuadm perguntar <pergunta> para consulta livre.`,
-      ].join('\n'),
+    faqSummary: ({ commandCount, faqCount, commandPrefix }) => ['🤖 FAQ administrativa atualizada.', `Comandos analisados: ${commandCount}.`, `Perguntas geradas: ${faqCount}.`, '', `Use ${commandPrefix}menuadm ajuda <comando> para explicacao detalhada.`, `Use ${commandPrefix}menuadm perguntar <pergunta> para consulta livre.`].join('\n'),
     askUsage: ({ commandPrefix }) => `Use ${commandPrefix}menuadm perguntar <pergunta>.`,
-    unknownCommand: ({ rawCommand, suggestions, commandPrefix }) =>
-      [
-        `❓ O comando *${rawCommand}* nao foi encontrado entre os comandos administrativos.`,
-        suggestions ? `Talvez voce quis usar: ${suggestions}.` : '',
-        `Use ${commandPrefix}menuadm faq para ver perguntas frequentes ou ${commandPrefix}menuadm ajuda <comando>.`,
-      ]
-        .filter(Boolean)
-        .join('\n'),
-    missingCommandText: ({ commandPrefix }) =>
-      `Nao encontrei esse comando administrativo. Use ${commandPrefix}menuadm ou ${commandPrefix}menuadm faq para listar opcoes.`,
+    unknownCommand: ({ rawCommand, suggestions, commandPrefix }) => [`❓ O comando *${rawCommand}* nao foi encontrado entre os comandos administrativos.`, suggestions ? `Talvez voce quis usar: ${suggestions}.` : '', `Use ${commandPrefix}menuadm faq para ver perguntas frequentes ou ${commandPrefix}menuadm ajuda <comando>.`].filter(Boolean).join('\n'),
+    missingCommandText: ({ commandPrefix }) => `Nao encontrei esse comando administrativo. Use ${commandPrefix}menuadm ou ${commandPrefix}menuadm faq para listar opcoes.`,
     questionFallback: ({ commandPrefix, detectedCommand, suggestions }) => {
       if (detectedCommand) {
         return `Posso te ajudar com ${commandPrefix}${detectedCommand}. Tente: ${commandPrefix}menuadm ajuda ${detectedCommand}`;
       }
-      return [
-        'Nao encontrei resposta pronta para essa pergunta no FAQ.',
-        `Tente ${commandPrefix}menuadm perguntar "como usar <comando>" ou ${commandPrefix}menuadm ajuda <comando>.`,
-        suggestions ? `Sugestoes rapidas: ${suggestions}.` : '',
-      ]
-        .filter(Boolean)
-        .join('\n');
+      return ['Nao encontrei resposta pronta para essa pergunta no FAQ.', `Tente ${commandPrefix}menuadm perguntar "como usar <comando>" ou ${commandPrefix}menuadm ajuda <comando>.`, suggestions ? `Sugestoes rapidas: ${suggestions}.` : ''].filter(Boolean).join('\n');
     },
   },
 });
