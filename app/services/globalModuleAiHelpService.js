@@ -21,6 +21,7 @@ import {
   listAiHelpCachedResponses,
   upsertAiHelpCachedResponse,
 } from './aiHelpResponseCacheRepository.js';
+import { maybeResolveAndExecuteToolCall } from './globalToolCallingService.js';
 import {
   getConversationSession,
   setConversationSessionIntent,
@@ -1279,6 +1280,35 @@ export const responderPerguntaGlobal = async (question, context = {}) => {
       },
     });
     return result;
+  }
+
+  const toolCallOutcome = await maybeResolveAndExecuteToolCall({
+    question: rawQuestion,
+    context: {
+      ...context,
+      commandPrefix,
+      suggestions: ranked
+        .slice(0, 5)
+        .map((item) => `${commandPrefix}${item.commandName}`)
+        .filter((value, index, array) => array.indexOf(value) === index),
+      topMatchScore: topMatch?.finalScore || 0,
+    },
+  });
+  if (toolCallOutcome?.handled) {
+    return {
+      ok: Boolean(toolCallOutcome.ok),
+      source: toolCallOutcome.source || 'tool_call',
+      moduleKey: toolCallOutcome.moduleKey || null,
+      commandName: toolCallOutcome.commandName || null,
+      intentType: toolCallOutcome.intentType || 'tool_call',
+      suggestions: [],
+      suppressReply: Boolean(toolCallOutcome.suppressReply),
+      text: String(toolCallOutcome.text || '').trim(),
+      metadata:
+        toolCallOutcome.metadata && typeof toolCallOutcome.metadata === 'object'
+          ? toolCallOutcome.metadata
+          : {},
+    };
   }
 
   if (topMatch && topMatch.finalScore >= GLOBAL_HELP_LLM_FALLBACK_THRESHOLD) {

@@ -142,6 +142,70 @@ export const BINARY_MEDIA_TYPES = new Set([
 
 const normalizeMessage = (message) => normalizeMessageContent(message) || message;
 
+const MESSAGE_CONTENT_WRAPPER_KEYS = [
+  'ephemeralMessage',
+  'viewOnceMessage',
+  'viewOnceMessageV2',
+  'viewOnceMessageV2Extension',
+  'deviceSentMessage',
+  'documentWithCaptionMessage',
+  'botInvokeMessage',
+  'editedMessage',
+  'keepInChatMessage',
+];
+
+const resolveSingleWrapperMessage = (node) => {
+  if (!node || typeof node !== 'object') return null;
+
+  const keys = Object.keys(node);
+  if (keys.length !== 1) return null;
+
+  const wrapperValue = node[keys[0]];
+  if (
+    wrapperValue &&
+    typeof wrapperValue === 'object' &&
+    wrapperValue.message &&
+    typeof wrapperValue.message === 'object'
+  ) {
+    return wrapperValue.message;
+  }
+
+  return null;
+};
+
+const unwrapMessageContent = (message, maxDepth = 8) => {
+  let current = normalizeMessage(message);
+  const visited = new Set();
+
+  for (let depth = 0; depth < maxDepth; depth += 1) {
+    if (!current || typeof current !== 'object') break;
+    if (visited.has(current)) break;
+    visited.add(current);
+
+    let next = null;
+    for (const wrapperKey of MESSAGE_CONTENT_WRAPPER_KEYS) {
+      const wrapperMessage = current?.[wrapperKey]?.message;
+      if (wrapperMessage && typeof wrapperMessage === 'object') {
+        next = wrapperMessage;
+        break;
+      }
+    }
+
+    if (!next && current.message && typeof current.message === 'object') {
+      next = current.message;
+    }
+
+    if (!next) {
+      next = resolveSingleWrapperMessage(current);
+    }
+
+    if (!next || next === current) break;
+    current = normalizeMessage(next);
+  }
+
+  return current || message;
+};
+
 const hasNonEmptyMediaKey = (mediaKey) => {
   if (!mediaKey) return false;
 
@@ -527,7 +591,7 @@ export function getExpiration(sock) {
 export const extractMessageContent = ({ message }) => {
   if (!message) return 'Mensagem vazia';
 
-  const normalizedMessage = normalizeMessage(message);
+  const normalizedMessage = unwrapMessageContent(message);
   if (!normalizedMessage) return 'Mensagem vazia';
 
   const text =
@@ -662,7 +726,7 @@ export function detectAllMediaTypes(messageContent, isQuoted = false) {
     return [];
   }
 
-  const normalizedMessage = normalizeMessage(messageContent);
+  const normalizedMessage = unwrapMessageContent(messageContent);
   if (!normalizedMessage || typeof normalizedMessage !== 'object') {
     return [];
   }

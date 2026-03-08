@@ -61,6 +61,53 @@ const normalizeText = (value) =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ');
 
+const BOT_STYLE_JID_PATTERN = /@bot$/i;
+
+const resolveJidUserPart = (jid) =>
+  String(jid || '')
+    .trim()
+    .toLowerCase()
+    .split('@')[0]
+    .split(':')[0]
+    .trim();
+
+const isBotStyleJid = (jid) => BOT_STYLE_JID_PATTERN.test(String(jid || '').trim());
+
+const isSameJidUserLoose = (jidA, jidB) => {
+  const safeA = String(jidA || '').trim();
+  const safeB = String(jidB || '').trim();
+  if (!safeA || !safeB) return false;
+
+  try {
+    if (isSameJidUser(safeA, safeB)) return true;
+  } catch {
+    // Ignora erro de normalizacao e usa fallback por user part.
+  }
+
+  const userA = resolveJidUserPart(safeA);
+  const userB = resolveJidUserPart(safeB);
+  if (!userA || !userB) return false;
+  return userA === userB;
+};
+
+const resolveBotIdentityCandidates = ({ botJid, botJidCandidates }) => {
+  const candidates = new Set();
+  const addCandidate = (value) => {
+    const safeValue = String(value || '').trim();
+    if (!safeValue) return;
+    candidates.add(safeValue);
+  };
+
+  addCandidate(botJid);
+  if (Array.isArray(botJidCandidates)) {
+    for (const candidate of botJidCandidates) {
+      addCandidate(candidate);
+    }
+  }
+
+  return Array.from(candidates);
+};
+
 const isLikelyFollowUp = (text) =>
   /^(e|tambem|tamb[eé]m|isso|como|explica|detalha|detalhe|funciona|e em|e no|e na)\b/i.test(
     String(text || '').trim(),
@@ -111,9 +158,11 @@ const incrementMetric = (metricKey) => {
   routerMetrics[metricKey] = Number(routerMetrics[metricKey] || 0) + 1;
 };
 
-const collectContextInfos = (rootNode) => {
+const collectContextInfos = (rootNodes) => {
   const contextInfos = [];
-  const queue = [rootNode];
+  const queue = (Array.isArray(rootNodes) ? rootNodes : [rootNodes]).filter(
+    (node) => node && typeof node === 'object',
+  );
   const visited = new Set();
 
   while (queue.length) {
@@ -124,6 +173,9 @@ const collectContextInfos = (rootNode) => {
 
     if (node.contextInfo && typeof node.contextInfo === 'object') {
       contextInfos.push(node.contextInfo);
+    }
+    if (node.messageContextInfo && typeof node.messageContextInfo === 'object') {
+      contextInfos.push(node.messageContextInfo);
     }
 
     for (const value of Object.values(node)) {
@@ -136,8 +188,12 @@ const collectContextInfos = (rootNode) => {
   return contextInfos;
 };
 
-const resolveMessageInteractionContext = ({ messageInfo, botJid }) => {
-  const contextInfos = collectContextInfos(messageInfo?.message || {});
+const resolveMessageInteractionContext = ({ messageInfo, botJid, botJidCandidates = [] }) => {
+  const contextInfos = collectContextInfos([
+    messageInfo?.message || {},
+    messageInfo?.messageContextInfo || {},
+  ]);
+  const botIdentityCandidates = resolveBotIdentityCandidates({ botJid, botJidCandidates });
   const mentioned = [];
   const replyParticipants = [];
   let repliedToOwnQuotedMessage = false;
@@ -164,12 +220,14 @@ const resolveMessageInteractionContext = ({ messageInfo, botJid }) => {
     }
   }
 
-  const mentionsBot = mentioned.some((jid) =>
-    botJid ? isSameJidUser(String(jid || ''), String(botJid || '')) : false,
-  );
-  const repliedToBotParticipant = replyParticipants.some((jid) =>
-    botJid ? isSameJidUser(String(jid || ''), String(botJid || '')) : false,
-  );
+  const mentionsBot = mentioned.some((jid) => {
+    if (isBotStyleJid(jid)) return true;
+    return botIdentityCandidates.some((candidate) => isSameJidUserLoose(jid, candidate));
+  });
+  const repliedToBotParticipant = replyParticipants.some((jid) => {
+    if (isBotStyleJid(jid)) return true;
+    return botIdentityCandidates.some((candidate) => isSameJidUserLoose(jid, candidate));
+  });
   const isReplyToBot = repliedToBotParticipant || repliedToOwnQuotedMessage;
 
   return {
@@ -310,7 +368,10 @@ export const routeConversationMessage = async ({
   remoteJid,
   senderJid,
   botJid,
+  botJidCandidates = [],
   commandPrefix = '/',
+  toolCommandExecutor = null,
+  resolveToolSecurityContext = null,
 } = {}) => {
   if (!ROUTER_ENABLED) return { handled: false, reason: 'router_disabled' };
   if (isCommandMessage) return { handled: false, reason: 'command_message' };
@@ -319,7 +380,11 @@ export const routeConversationMessage = async ({
 
   if (isGroupMessage) {
     if (!GROUP_ENABLED) return { handled: false, reason: 'group_disabled' };
-    const interaction = resolveMessageInteractionContext({ messageInfo, botJid });
+    const interaction = resolveMessageInteractionContext({
+      messageInfo,
+      botJid,
+      botJidCandidates,
+    });
     const explicitQuestion = hasExplicitQuestionIntent(text);
     const hasKeywordTrigger = hasBotKeywordTrigger(text);
     const triggerKind = interaction.isReplyToBot
@@ -347,7 +412,8 @@ export const routeConversationMessage = async ({
     });
     if (!normalizeText(groupPrompt)) return { handled: false, reason: 'group_empty_text' };
 
-    if (shouldSkipForGroupCooldown({ chatId: remoteJid, senderJid })) {
+    const shouldBypassCooldown = triggerKind === 'mention_bot';
+    if (!shouldBypassCooldown && shouldSkipForGroupCooldown({ chatId: remoteJid, senderJid })) {
       incrementMetric('cooldown_skip');
       return { handled: false, reason: 'group_cooldown' };
     }
@@ -355,8 +421,16 @@ export const routeConversationMessage = async ({
     const answer = await responderPerguntaGlobal(groupPrompt, {
       commandPrefix,
       isGroupMessage: true,
+      remoteJid,
+      senderJid,
+      toolCommandExecutor,
+      resolveToolSecurityContext,
     });
-    if (!answer?.text) return { handled: false, reason: 'empty_answer' };
+    if (!answer) return { handled: false, reason: 'empty_answer' };
+
+    const suppressReply = answer?.suppressReply === true;
+    const answerText = String(answer?.text || '').trim();
+    if (!answerText && !suppressReply) return { handled: false, reason: 'empty_answer' };
 
     incrementMetric('intent_detected');
     incrementMetric('group_reply_sent');
@@ -377,13 +451,14 @@ export const routeConversationMessage = async ({
 
     return {
       handled: true,
-      text: answer.text,
+      text: suppressReply ? '' : answerText,
       reason: 'group_conversation',
       metadata: {
         trigger_kind: triggerKind,
         intent_type: answer.intentType || null,
         module_key: answer.moduleKey || null,
         command_name: answer.commandName || null,
+        suppress_reply: suppressReply,
       },
     };
   }
@@ -416,6 +491,10 @@ export const routeConversationMessage = async ({
       isGroupMessage: false,
       previousCommandName: previousIntent?.commandName || null,
       forceCommandName: forcedCommandName,
+      remoteJid,
+      senderJid,
+      toolCommandExecutor,
+      resolveToolSecurityContext,
     });
   } catch (error) {
     logger.warn('Falha ao gerar resposta conversacional privada.', {
@@ -429,7 +508,9 @@ export const routeConversationMessage = async ({
   const fallbackText =
     `Recebi sua mensagem. Para manter o foco do sistema, posso te orientar em comandos do bot.\n\n` +
     `Use ${commandPrefix}menu para ver as opcoes ou me diga o que voce quer fazer (ex.: sticker, play, ranking, cat).`;
-  const answerText = String(answer?.text || '').trim() || fallbackText;
+  const suppressReply = answer?.suppressReply === true;
+  const explicitAnswerText = String(answer?.text || '').trim();
+  const answerText = suppressReply ? explicitAnswerText : explicitAnswerText || fallbackText;
 
   appendConversationSessionMessage({
     ...scopeContext,
@@ -438,19 +519,21 @@ export const routeConversationMessage = async ({
     ttlMs: SESSION_TTL_MS,
     historyLimit: SESSION_HISTORY_LIMIT,
   });
-  appendConversationSessionMessage({
-    ...scopeContext,
-    role: 'assistant',
-    text: answerText,
-    ttlMs: SESSION_TTL_MS,
-    historyLimit: SESSION_HISTORY_LIMIT,
-    metadata: {
-      intentType: answer?.intentType || null,
-      moduleKey: answer?.moduleKey || null,
-      commandName: answer?.commandName || null,
-      triggerKind: privatePrompt.triggerKind,
-    },
-  });
+  if (answerText) {
+    appendConversationSessionMessage({
+      ...scopeContext,
+      role: 'assistant',
+      text: answerText,
+      ttlMs: SESSION_TTL_MS,
+      historyLimit: SESSION_HISTORY_LIMIT,
+      metadata: {
+        intentType: answer?.intentType || null,
+        moduleKey: answer?.moduleKey || null,
+        commandName: answer?.commandName || null,
+        triggerKind: privatePrompt.triggerKind,
+      },
+    });
+  }
   setConversationSessionIntent({
     ...scopeContext,
     intent: buildIntentFromAnswer(answer),
@@ -474,6 +557,7 @@ export const routeConversationMessage = async ({
       intent_type: answer?.intentType || null,
       module_key: answer?.moduleKey || null,
       command_name: answer?.commandName || null,
+      suppress_reply: suppressReply,
     },
   };
 };
