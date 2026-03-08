@@ -100,12 +100,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
 - mensagens_sistema:
-- premium_only: ⭐ _Comando Premium_
+- premium*only: ⭐ \_Comando Premium*
 
 Este comando é exclusivo para usuários premium.
 Fale com o administrador para liberar o acesso.
 
-- openai_nao_configurada: ⚠️ _OpenAI não configurada_
+- openai*nao_configurada: ⚠️ \_OpenAI não configurada*
 
 Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _cat_.
 
@@ -114,7 +114,7 @@ Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _cat_.
 - resposta_vazia: ⚠️ Não consegui gerar uma resposta agora. Tente novamente.
 - audio_muito_longo: ⚠️ A resposta ficou longa demais para áudio. Enviando em texto.
 - audio_falhou: ⚠️ Não consegui gerar o áudio agora. Enviando texto.
-- erro_openai: ❌ _Erro ao falar com a IA_
+- erro*openai: ❌ \_Erro ao falar com a IA*
   Tente novamente em alguns instantes.
 - limites_operacionais:
 - (nao informado)
@@ -211,12 +211,12 @@ Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _cat_.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
 - mensagens_sistema:
-- premium_only: ⭐ _Comando Premium_
+- premium*only: ⭐ \_Comando Premium*
 
 Este comando é exclusivo para usuários premium.
 Fale com o administrador para liberar o acesso.
 
-- openai_nao_configurada: ⚠️ _OpenAI não configurada_
+- openai*nao_configurada: ⚠️ \_OpenAI não configurada*
 
 Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _catimg_.
 
@@ -228,7 +228,7 @@ Defina a variável _OPENAI_API_KEY_ no `.env` para usar o comando _catimg_.
 Use _{{prefix}}catimg_ sem opções para ver o formato correto.
 
 - resposta_vazia: ⚠️ Não consegui gerar a imagem agora. Tente novamente.
-- erro_openai: ❌ _Erro ao falar com a IA_
+- erro*openai: ❌ \_Erro ao falar com a IA*
   Tente novamente em alguns instantes.
 - limites_operacionais:
 - (nao informado)
@@ -341,7 +341,7 @@ Use _{{prefix}}catimg_ sem opções para ver o formato correto.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
 - mensagens_sistema:
-- premium_only: ⭐ _Comando Premium_
+- premium*only: ⭐ \_Comando Premium*
 
 Este comando é exclusivo para usuários premium.
 Fale com o administrador para liberar o acesso.
