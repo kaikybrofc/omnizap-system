@@ -141,11 +141,7 @@ const buildCommandSection = (command = {}) => {
     const acesso = command.acesso;
     lines.push(`- somente_premium: ${normalizeBoolLabel(Boolean(acesso.somente_premium))}`);
     lines.push(
-      `- planos_permitidos: ${
-        Array.isArray(acesso.planos_permitidos) && acesso.planos_permitidos.length
-          ? acesso.planos_permitidos.join(', ')
-          : '(nao informado)'
-      }`,
+      `- planos_permitidos: ${Array.isArray(acesso.planos_permitidos) && acesso.planos_permitidos.length ? acesso.planos_permitidos.join(', ') : '(nao informado)'}`,
     );
   } else {
     lines.push('- (nao informado)');
@@ -223,9 +219,7 @@ const buildCommandSection = (command = {}) => {
     const obs = command.observabilidade;
     lines.push(`- evento_analytics: ${obs.evento_analytics ?? '(nao informado)'}`);
     lines.push(
-      `- tags_log: ${
-        Array.isArray(obs.tags_log) && obs.tags_log.length ? obs.tags_log.join(', ') : '(nenhum)'
-      }`,
+      `- tags_log: ${Array.isArray(obs.tags_log) && obs.tags_log.length ? obs.tags_log.join(', ') : '(nenhum)'}`,
     );
     lines.push(`- nivel_log: ${obs.nivel_log ?? '(nao informado)'}`);
   } else {

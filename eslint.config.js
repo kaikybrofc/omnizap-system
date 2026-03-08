@@ -48,6 +48,7 @@ export default [
   {
     ignores: [
       'node_modules/**',
+      '.tmp_tools/**',
       'logs/**',
       'temp/**',
       '.eslintcache',

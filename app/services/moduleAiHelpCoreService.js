@@ -463,9 +463,7 @@ export const createModuleAiHelpService = ({
         const methods = Array.isArray(entry.metodos_de_uso)
           ? entry.metodos_de_uso.slice(0, 2).join(' | ')
           : '';
-        return `- ${entry.name} | permissao=${entry.permissao_necessaria || 'n/a'} | local=${formatWhereLabel(
-          entry.local_de_uso,
-        )} | uso=${methods}`;
+        return `- ${entry.name} | permissao=${entry.permissao_necessaria || 'n/a'} | local=${formatWhereLabel(entry.local_de_uso)} | uso=${methods}`;
       })
       .join('\n');
   };
