@@ -950,8 +950,8 @@ CREATE TABLE IF NOT EXISTS `web_google_user` (
 CREATE TABLE IF NOT EXISTS `web_user_password` (
   `google_sub` varchar(80) NOT NULL,
   `password_hash` varchar(255) NOT NULL,
-  `password_algo` varchar(24) NOT NULL DEFAULT 'bcrypt',
-  `password_cost` tinyint(3) unsigned NOT NULL DEFAULT 12,
+  `password_algo` varchar(24) NOT NULL DEFAULT 'argon2id',
+  `password_cost` tinyint(3) unsigned NOT NULL DEFAULT 3,
   `failed_attempts` smallint(5) unsigned NOT NULL DEFAULT 0,
   `last_failed_at` timestamp NULL DEFAULT NULL,
   `last_login_at` timestamp NULL DEFAULT NULL,

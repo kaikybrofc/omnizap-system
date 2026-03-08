@@ -96,7 +96,7 @@ const mapCredentialRow = (row, { includeHash = false } = {}) => {
     password_algo:
       String(row.password_algo || '')
         .trim()
-        .toLowerCase() || 'bcrypt',
+        .toLowerCase() || 'argon2id',
     password_cost: Math.max(0, Number(row.password_cost || 0)),
     failed_attempts: Math.max(0, Number(row.failed_attempts || 0)),
     last_failed_at: toIsoOrNull(row.last_failed_at),
