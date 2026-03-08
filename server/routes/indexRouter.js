@@ -8,6 +8,7 @@ import { getSystemAdminRouterConfig, maybeHandleSystemAdminRequest, shouldHandle
 import { getStickerSiteRouterConfig, maybeHandleStickerSiteRequest, shouldHandleStickerSitePath } from './sticker/stickerSiteRouter.js';
 import { getStickerDataRouterConfig, maybeHandleStickerDataRequest, shouldHandleStickerDataPath } from './sticker/stickerDataRouter.js';
 import { getStickerApiRouterConfig, maybeHandleStickerApiRequest, shouldHandleStickerApiPath } from './sticker/stickerApiRouter.js';
+import { maybeHandleStaticPageRequest, shouldHandleStaticPagePath } from './static/staticPageRouter.js';
 
 const startsWithPath = (pathname, prefix) => {
   if (!pathname || !prefix) return false;
@@ -211,7 +212,14 @@ export const routeRequest = async (req, res, { pathname, url, metricsPath = '/me
     return sendNotFound(req, res);
   }
 
-  // 7) 404 global
+  // 7) Paginas estaticas (templates em public/pages)
+  if (shouldHandleStaticPagePath(pathname)) {
+    const handled = await maybeHandleStaticPageRequest(req, res, { pathname });
+    if (handled) return true;
+    return sendNotFound(req, res);
+  }
+
+  // 8) 404 global
   return sendNotFound(req, res);
 };
 

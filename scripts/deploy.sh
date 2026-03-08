@@ -698,16 +698,16 @@ verify_post_sync_cache_bust() {
 
   log "Validando cache-bust em páginas-chave no diretório de deploy"
   local sample_files=(
-    "index.html"
-    "login/index.html"
-    "user/index.html"
-    "user/password-reset/index.html"
-    "termos-de-uso/index.html"
-    "stickers/index.html"
-    "stickers/create/index.html"
-    "stickers/admin/index.html"
-    "api-docs/index.html"
-    "user/systemadm/index.html"
+    "pages/home.html"
+    "pages/login.html"
+    "pages/user.html"
+    "pages/user-password-reset.html"
+    "pages/termos-de-uso.html"
+    "pages/stickers.html"
+    "pages/stickers-create.html"
+    "pages/stickers-admin.html"
+    "pages/api-docs.html"
+    "pages/user-systemadm.html"
   )
   local missing_samples=()
 
@@ -829,11 +829,11 @@ if [ "$RESTART_PM2" = "1" ] && command -v pm2 >/dev/null 2>&1; then
   fi
 fi
 
-if [ -f "$DEPLOY_DIR/index.html" ]; then
+if [ -f "$DEPLOY_DIR/pages/home.html" ]; then
   if command -v rg >/dev/null 2>&1; then
-    DEPLOYED_REF="$(rg -o '/assets/js/home-react\\.bundle\\.js\\?v=[^"]+' "$DEPLOY_DIR/index.html" -m 1 || true)"
+    DEPLOYED_REF="$(rg -o '/assets/js/home-react\\.bundle\\.js\\?v=[^"]+' "$DEPLOY_DIR/pages/home.html" -m 1 || true)"
   else
-    DEPLOYED_REF="$(grep -oE '/assets/js/home-react\\.bundle\\.js\\?v=[^"]+' "$DEPLOY_DIR/index.html" | head -n 1 || true)"
+    DEPLOYED_REF="$(grep -oE '/assets/js/home-react\\.bundle\\.js\\?v=[^"]+' "$DEPLOY_DIR/pages/home.html" | head -n 1 || true)"
   fi
   if [ -n "$DEPLOYED_REF" ]; then
     log "Cache-bust aplicado: $DEPLOYED_REF"

@@ -1,0 +1,119 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+import logger from '../../../utils/logger/loggerModule.js';
+
+const normalizeBasePath = (value, fallback) => {
+  const raw = String(value || '').trim() || fallback;
+  const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  const withoutTrailingSlash = withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
+  return withoutTrailingSlash || fallback;
+};
+
+const normalizeRoutePath = (pathname) => {
+  const rawPath = String(pathname || '').trim();
+  if (!rawPath || rawPath === '/') return '/';
+  return rawPath.endsWith('/') ? rawPath.slice(0, -1) : rawPath;
+};
+
+const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
+const PUBLIC_PAGES_DIR = path.join(process.cwd(), 'public', 'pages');
+const SEO_ROUTE_PREFIX = '/seo/';
+const SEO_SLUG_REGEX = /^[a-z0-9-]+$/;
+const INDEX_FILE_SUFFIX = '/index.html';
+
+const STATIC_PAGE_ROUTE_TO_FILE = new Map(
+  [
+    ['/', 'home.html'],
+    ['/api-docs', 'api-docs.html'],
+    ['/aup', 'aup.html'],
+    ['/comandos', 'comandos.html'],
+    ['/dpa', 'dpa.html'],
+    ['/licenca', 'licenca.html'],
+    ['/notice-and-takedown', 'notice-and-takedown.html'],
+    ['/politica-de-privacidade', 'politica-de-privacidade.html'],
+    ['/suboperadores', 'suboperadores.html'],
+    ['/termos-de-uso', 'termos-de-uso.html'],
+    ['/termos-de-uso/texto-integral', 'termos-de-uso-texto-integral.html'],
+    ['/termos-de-uso/texto-integral.html', 'termos-de-uso-texto-integral.html'],
+    [STICKER_LOGIN_WEB_PATH, 'login.html'],
+  ].map(([routePath, fileName]) => [normalizeRoutePath(routePath), fileName]),
+);
+
+const resolveMappedTemplateName = (normalizedPath) => {
+  const mappedTemplate = STATIC_PAGE_ROUTE_TO_FILE.get(normalizedPath);
+  if (mappedTemplate) return mappedTemplate;
+
+  if (normalizedPath.startsWith(SEO_ROUTE_PREFIX)) {
+    const seoSlug = normalizedPath.slice(SEO_ROUTE_PREFIX.length);
+    if (seoSlug && SEO_SLUG_REGEX.test(seoSlug)) {
+      return `seo-${seoSlug}.html`;
+    }
+  }
+
+  return null;
+};
+
+const resolveStaticTemplateName = (pathname) => {
+  const normalizedPath = normalizeRoutePath(pathname);
+  const mappedTemplate = resolveMappedTemplateName(normalizedPath);
+  if (mappedTemplate) return mappedTemplate;
+
+  if (normalizedPath.endsWith(INDEX_FILE_SUFFIX)) {
+    const withoutIndex = normalizedPath.slice(0, -INDEX_FILE_SUFFIX.length);
+    const aliasPath = withoutIndex || '/';
+    return resolveMappedTemplateName(aliasPath);
+  }
+
+  return null;
+};
+
+const sendHtml = (req, res, html) => {
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  res.end(html);
+};
+
+const sendJson = (req, res, statusCode, payload) => {
+  const body = JSON.stringify(payload);
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  res.end(body);
+};
+
+export const shouldHandleStaticPagePath = (pathname) => Boolean(resolveStaticTemplateName(pathname));
+
+export const maybeHandleStaticPageRequest = async (req, res, { pathname } = {}) => {
+  if (!['GET', 'HEAD'].includes(req.method || '')) return false;
+
+  const normalizedPath = normalizeRoutePath(pathname);
+  const templateName = resolveStaticTemplateName(normalizedPath);
+  if (!templateName) return false;
+
+  const templatePath = path.join(PUBLIC_PAGES_DIR, templateName);
+  try {
+    const html = await fs.readFile(templatePath, 'utf8');
+    sendHtml(req, res, html);
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      sendJson(req, res, 404, { error: 'Template da pagina nao encontrado.' });
+      return true;
+    }
+    logger.error('Falha ao renderizar pagina estatica.', {
+      action: 'static_page_render_failed',
+      path: normalizedPath,
+      template: templateName,
+      error: error?.message,
+    });
+    sendJson(req, res, 500, { error: 'Falha interna ao renderizar pagina.' });
+  }
+  return true;
+};

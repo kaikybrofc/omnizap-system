@@ -9,7 +9,8 @@ const USER_API_BASE_PATH = normalizeBasePath(process.env.USER_API_BASE_PATH || p
 const STICKER_LOGIN_WEB_PATH = normalizeBasePath(process.env.STICKER_LOGIN_WEB_PATH, '/login');
 const USER_PROFILE_WEB_PATH = normalizeBasePath(process.env.USER_PROFILE_WEB_PATH, '/user');
 const USER_PASSWORD_RESET_WEB_PATH = normalizeBasePath(process.env.USER_PASSWORD_RESET_WEB_PATH, '/user/password-reset');
-const USER_DASHBOARD_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'user', 'index.html');
+const USER_DASHBOARD_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'pages', 'user.html');
+const USER_PASSWORD_RESET_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'pages', 'user-password-reset.html');
 
 const hasPathPrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 const escapeHtmlAttribute = (value) =>
@@ -45,8 +46,9 @@ const mapUserApiPathToLegacy = (pathname) =>
     legacyCompatible: true,
   });
 
-const renderUserDashboardHtml = async () => {
-  const template = await fs.readFile(USER_DASHBOARD_TEMPLATE_PATH, 'utf8');
+const renderUserDashboardHtml = async ({ passwordReset = false } = {}) => {
+  const templatePath = passwordReset ? USER_PASSWORD_RESET_TEMPLATE_PATH : USER_DASHBOARD_TEMPLATE_PATH;
+  const template = await fs.readFile(templatePath, 'utf8');
   const dataAttributes = {
     'data-api-base-path': USER_API_BASE_PATH,
     'data-login-path': STICKER_LOGIN_WEB_PATH,
@@ -111,7 +113,7 @@ export const maybeHandleUserRequest = async (req, res, { pathname, url }) => {
   if (isUserHomePath || isPasswordResetPath) {
     if (!['GET', 'HEAD'].includes(req.method || '')) return false;
     try {
-      const html = await renderUserDashboardHtml();
+      const html = await renderUserDashboardHtml({ passwordReset: isPasswordResetPath });
       sendHtml(req, res, html);
     } catch (error) {
       if (error?.code === 'ENOENT') {

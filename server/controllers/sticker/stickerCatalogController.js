@@ -119,8 +119,8 @@ const STICKER_WEB_ASSET_VERSION =
     allowEmpty: true,
   }) || '';
 const CATALOG_PUBLIC_DIR = path.resolve(process.cwd(), 'public');
-const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'index.html');
-const CREATE_PACK_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'stickers', 'create', 'index.html');
+const CATALOG_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'pages', 'stickers.html');
+const CREATE_PACK_TEMPLATE_PATH = path.join(CATALOG_PUBLIC_DIR, 'pages', 'stickers-create.html');
 const CATALOG_STYLES_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'css', 'styles.css');
 const CATALOG_SCRIPT_FILE_PATH = path.join(CATALOG_PUBLIC_DIR, 'js', 'catalog.js');
 const DEFAULT_LIST_LIMIT = clampInt(process.env.STICKER_WEB_LIST_LIMIT, 16, 1, 60);

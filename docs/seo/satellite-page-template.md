@@ -11,7 +11,7 @@ Objetivo: publicar páginas satélite com estrutura consistente (SEO on-page, in
 2. Execute o gerador:
 
 ```bash
-node scripts/generate-seo-satellite-pages.mjs --config docs/seo/satellite-pages-phase1.json --out public/seo --route-prefix /seo
+node scripts/generate-seo-satellite-pages.mjs --config docs/seo/satellite-pages-phase1.json --out public/pages --route-prefix /seo
 ```
 
 Opção via script npm:
@@ -22,7 +22,7 @@ npm run seo:generate:satellites:phase1
 
 3. Verifique os arquivos criados em:
 
-- `public/seo/<slug>/index.html`
+- `public/pages/seo-<slug>.html`
 
 ## Campos do template (por página)
 

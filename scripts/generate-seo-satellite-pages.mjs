@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const DEFAULT_CONFIG_PATH = 'docs/seo/satellite-pages-phase1.json';
-const DEFAULT_OUTPUT_DIR = 'public/seo';
+const DEFAULT_OUTPUT_DIR = 'public/pages';
 const DEFAULT_ROUTE_PREFIX = '/seo';
 const SITE_ORIGIN = 'https://omnizap.shop';
 
@@ -441,10 +441,9 @@ const run = async () => {
       slugSet,
       prefix: normalizedRoutePrefix,
     });
-    const targetDir = path.join(absoluteOutputDir, page.slug);
-    const targetFile = path.join(targetDir, 'index.html');
+    const targetFile = path.join(absoluteOutputDir, `seo-${page.slug}.html`);
 
-    await fs.mkdir(targetDir, { recursive: true });
+    await fs.mkdir(absoluteOutputDir, { recursive: true });
     await fs.writeFile(targetFile, html, 'utf8');
     generatedFiles.push(targetFile);
   }

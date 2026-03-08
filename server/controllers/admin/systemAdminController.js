@@ -35,8 +35,8 @@ const SITE_ORIGIN = String(process.env.SITE_ORIGIN || 'https://omnizap.shop')
   .trim()
   .replace(/\/+$/, '');
 
-const USER_SYSTEMADM_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'user', 'systemadm', 'index.html');
-const LEGACY_STICKER_ADMIN_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'stickers', 'admin', 'index.html');
+const USER_SYSTEMADM_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'pages', 'user-systemadm.html');
+const LEGACY_STICKER_ADMIN_TEMPLATE_PATH = path.join(process.cwd(), 'public', 'pages', 'stickers-admin.html');
 
 let stickerCatalogControllerPromise = null;
 const loadStickerCatalogController = async () => {
