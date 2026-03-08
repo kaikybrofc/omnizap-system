@@ -114,7 +114,23 @@
       "capability_keywords": ["rpg", "jogos", "privado", "grupo"],
       "faq_patterns": ["como usar rpg", "o que faz rpg", "comando rpg"],
       "user_phrasings": ["quero usar rpg", "me ajuda com rpg", "comando principal do rpg"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 20,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 75,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     }
   ]
 }

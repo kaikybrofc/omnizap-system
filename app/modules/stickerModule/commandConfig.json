@@ -74,7 +74,23 @@
         "me ajuda com sticker",
         "converte imagem/video em figurinha."
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 12,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 45,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "toimg",
@@ -141,7 +157,23 @@
         "me ajuda com toimg",
         "converte figurinha para imagem"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 12,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 45,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "stickertext",
@@ -213,7 +245,23 @@
         "me ajuda com stickertext",
         "gera figurinha com texto"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 12,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 45,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "stickertextwhite",
@@ -289,7 +337,23 @@
         "me ajuda com stickertextwhite",
         "gera figurinha com texto"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 12,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 45,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "stickertextblink",
@@ -365,7 +429,23 @@
         "me ajuda com stickertextblink",
         "gera figurinha animada de"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 12,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 45,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     }
   ]
 }

@@ -1,13 +1,13 @@
 # AdminModule Agent Guide
 
-Este arquivo e destinado a agentes de IA para gerar respostas no contexto de comandos administrativos do WhatsApp.
+Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
 
 - arquivo_base: `app/modules/adminModule/commandConfig.json`
 - schema_version: `1.4.0`
 - module_enabled: `true`
-- generated_at: `2026-03-08T00:10:27.289Z`
+- generated_at: `2026-03-08T03:38:51.150Z`
 
 ## Escopo do Modulo
 
@@ -44,48 +44,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - Passo 5: seguir `respostas_padrao` como fallback de texto.
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
-## Textos Globais
+## Regras de Seguranca para IA
 
-- group_only_command_message: Este comando está disponível apenas em conversas de grupo. Execute-o em um grupo para continuar.
-- no_permission_command_message: Permissão insuficiente para executar este comando. Solicite suporte a um administrador do grupo.
-- owner_only_command_message: Você não possui permissão para executar este comando. Este recurso é exclusivo do administrador principal do bot.
-- usage_header: Formato de uso:
-
-## Eventos de Grupo (groupEventHandlers)
-
-- mensagens_padrao:
-  - welcome: 👋 Bem-vindo(a) ao grupo @groupname, @user! 🎉
-  - farewell: 😥 Adeus, @user! Sentiremos sua falta.
-  - promote: O usuário @{{participant}} foi promovido a administrador do grupo. 🎉
-  - demote: O usuário @{{participant}} não é mais um administrador do grupo. ⬇️
-  - captcha*line:
-    🤖 \_Verificação humana*
-    @{{participant}}, reaja a esta mensagem ou envie qualquer mensagem em até _{{captcha_timeout_min}} minutos_ para continuar no grupo.
-
-- placeholders_suportados:
-- @date
-- @desc
-- @admins
-- @groupname
-- @membercount
-- @owner
-- @creationtime
-- @invitecode
-- @isrestricted
-- @isannounceonly
-- @user
-- {participant}
-- auto_approve_skip_actions:
-- reject
-- rejected
-- cancel
-- canceled
-- approve
-- approved
-- accept
-- accepted
-- remove
-- removed
+- A IA orienta, mas nao executa acao administrativa automaticamente.
+- Nao inventar comandos, subcomandos ou permissao fora do JSON.
+- Sempre informar onde pode usar (grupo/privado) e quem pode usar.
+- Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
 
@@ -105,15 +69,15 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - <prefix>menuadm faq
 - <prefix>menuadm perguntar <pergunta>
 - mensagens_uso (variantes):
-  - default:
-    - <prefix>menuadm
-    - <prefix>menuadm ajuda <comando>
-    - <prefix>menuadm faq
-    - <prefix>menuadm perguntar <pergunta>
-  - help:
-    - <prefix>menuadm ajuda <comando>
-  - ask:
-    - <prefix>menuadm perguntar <pergunta>
+- default:
+- <prefix>menuadm
+- <prefix>menuadm ajuda <comando>
+- <prefix>menuadm faq
+- <prefix>menuadm perguntar <pergunta>
+- help:
+- <prefix>menuadm ajuda <comando>
+- ask:
+- <prefix>menuadm perguntar <pergunta>
 - subcomandos:
 - ajuda
 - faq
@@ -132,6 +96,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -154,9 +124,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -176,11 +146,11 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - <prefix>premium add @usuario
 - <prefix>premium remove @usuario
 - mensagens_uso (variantes):
-  - invalid_action:
-    - <prefix>premium <add|remove|list> @usuario1 @usuario2 ...
-  - missing_targets:
-    - <prefix>premium <add|remove> @usuario1 @usuario2 ...
-    - Também é possível responder à mensagem do usuário desejado.
+- invalid_action:
+- <prefix>premium <add|remove|list> @usuario1 @usuario2 ...
+- missing_targets:
+- <prefix>premium <add|remove> @usuario1 @usuario2 ...
+- Também é possível responder à mensagem do usuário desejado.
 - subcomandos:
 - add
 - remove
@@ -200,6 +170,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -224,8 +200,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do remetente administrador
-  - identificadores dos usuários premium gerenciados
+- identificador do remetente administrador
+- identificadores dos usuários premium gerenciados
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -261,6 +237,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: sim
+- planos_permitidos: premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -284,9 +266,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -322,6 +304,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -345,9 +333,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -383,6 +371,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -406,9 +400,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -446,6 +440,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -469,9 +469,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -507,6 +507,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -530,9 +536,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -566,6 +572,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -589,9 +601,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -608,9 +620,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - metodos_de_uso:
 - <prefix>add @participante
 - mensagens_uso (variantes):
-  - missing_targets:
-    - <prefix>add @participante1 @participante2 ...
-    - Também é possível informar os JIDs dos participantes.
+- missing_targets:
+- <prefix>add @participante1 @participante2 ...
+- Também é possível informar os JIDs dos participantes.
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -627,6 +639,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -649,9 +667,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -668,9 +686,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - metodos_de_uso:
 - <prefix>ban @participante
 - mensagens_uso (variantes):
-  - missing_targets:
-    - <prefix>ban @participante1 @participante2 ...
-    - Também é possível responder à mensagem do participante desejado.
+- missing_targets:
+- <prefix>ban @participante1 @participante2 ...
+- Também é possível responder à mensagem do participante desejado.
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -687,6 +705,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -709,9 +733,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -728,9 +752,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - metodos_de_uso:
 - <prefix>up @participante
 - mensagens_uso (variantes):
-  - missing_targets:
-    - <prefix>up @participante1 @participante2 ...
-    - Também é possível informar os JIDs dos participantes.
+- missing_targets:
+- <prefix>up @participante1 @participante2 ...
+- Também é possível informar os JIDs dos participantes.
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -747,6 +771,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -769,9 +799,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -788,9 +818,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - metodos_de_uso:
 - <prefix>down @participante
 - mensagens_uso (variantes):
-  - missing_targets:
-    - <prefix>down @participante1 @participante2 ...
-    - Também é possível informar os JIDs dos participantes.
+- missing_targets:
+- <prefix>down @participante1 @participante2 ...
+- Também é possível informar os JIDs dos participantes.
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -807,6 +837,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -829,9 +865,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -848,8 +884,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - metodos_de_uso:
 - <prefix>setsubject novo assunto
 - mensagens_uso (variantes):
-  - default:
-    - <prefix>setsubject <novo_assunto>
+- default:
+- <prefix>setsubject <novo_assunto>
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -866,6 +902,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -888,9 +930,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -907,8 +949,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - metodos_de_uso:
 - <prefix>setdesc nova descricao
 - mensagens_uso (variantes):
-  - default:
-    - <prefix>setdesc <nova_descricao>
+- default:
+- <prefix>setdesc <nova_descricao>
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -925,6 +967,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -947,9 +995,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -969,8 +1017,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - <prefix>setgroup locked
 - <prefix>setgroup unlocked
 - mensagens_uso (variantes):
-  - default:
-    - <prefix>setgroup <announcement|not_announcement|locked|unlocked>
+- default:
+- <prefix>setgroup <announcement|not_announcement|locked|unlocked>
 - subcomandos:
 - announcement
 - not_announcement
@@ -990,6 +1038,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1012,9 +1066,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1046,6 +1100,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1068,9 +1128,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1102,6 +1162,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1124,9 +1190,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1158,6 +1224,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1180,9 +1252,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1215,6 +1287,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1237,9 +1315,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1272,6 +1350,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1294,9 +1378,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1330,6 +1414,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1353,9 +1443,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1387,6 +1477,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1409,9 +1505,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1429,11 +1525,11 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - <prefix>updaterequests approve @participante
 - <prefix>updaterequests reject @participante
 - mensagens_uso (variantes):
-  - invalid_action:
-    - <prefix>updaterequests <approve|reject> @participante1 ...
-  - missing_targets:
-    - <prefix>updaterequests <approve|reject> @participante1 ...
-    - Mencione os usuários que devem ser aprovados ou rejeitados.
+- invalid_action:
+- <prefix>updaterequests <approve|reject> @participante1 ...
+- missing_targets:
+- <prefix>updaterequests <approve|reject> @participante1 ...
+- Mencione os usuários que devem ser aprovados ou rejeitados.
 - subcomandos:
 - approve
 - reject
@@ -1452,6 +1548,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1475,9 +1577,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1513,6 +1615,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1536,9 +1644,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1570,6 +1678,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1592,9 +1706,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1627,6 +1741,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1649,9 +1769,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1687,6 +1807,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1710,9 +1836,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1731,9 +1857,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - <prefix>welcome off
 - <prefix>welcome set <mensagem_ou_midia>
 - mensagens_uso (variantes):
-  - missing_content:
-    - <prefix>welcome set <mensagem ou caminho da midia>
-    - Também é possível enviar uma mídia junto ao comando.
+- missing_content:
+- <prefix>welcome set <mensagem ou caminho da midia>
+- Também é possível enviar uma mídia junto ao comando.
 - subcomandos:
 - on
 - off
@@ -1753,6 +1879,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1777,9 +1909,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1798,9 +1930,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - <prefix>farewell off
 - <prefix>farewell set <mensagem_ou_midia>
 - mensagens_uso (variantes):
-  - missing_content:
-    - <prefix>farewell set <mensagem ou caminho da midia>
-    - Também é possível enviar uma mídia junto ao comando.
+- missing_content:
+- <prefix>farewell set <mensagem ou caminho da midia>
+- Também é possível enviar uma mídia junto ao comando.
 - subcomandos:
 - on
 - off
@@ -1820,6 +1952,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1844,9 +1982,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1882,6 +2020,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1905,9 +2049,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -1930,14 +2074,14 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - <prefix>antilink add <dominio>
 - <prefix>antilink remove <dominio>
 - mensagens_uso (variantes):
-  - allow:
-    - <prefix>antilink allow <rede>
-  - disallow:
-    - <prefix>antilink disallow <rede>
-  - add:
-    - <prefix>antilink add <dominio>
-  - remove:
-    - <prefix>antilink remove <dominio>
+- allow:
+- <prefix>antilink allow <rede>
+- disallow:
+- <prefix>antilink disallow <rede>
+- add:
+- <prefix>antilink add <dominio>
+- remove:
+- <prefix>antilink remove <dominio>
 - subcomandos:
 - on
 - off
@@ -1961,6 +2105,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -1984,9 +2134,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
@@ -2023,6 +2173,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=25, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)
@@ -2046,15 +2202,8 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto de com
 - nivel_log: info
 - privacidade:
 - dados_sensiveis:
-  - identificador do chat
-  - identificador do remetente
-  - conteudo textual do comando
+- identificador do chat
+- identificador do remetente
+- conteudo textual do comando
 - retencao: conforme políticas de logs, banco de dados e arquivos temporários da aplicação
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
-
-## Regras de Consistencia para IA
-
-- Nunca inventar subcomando fora de `subcomandos`/`argumentos.validacao`.
-- Sempre usar os textos de erro/permissao definidos neste guia.
-- Quando houver ambiguidades, priorizar o nome canonico do comando.
-- Respeitar politicas de privacidade: responder sem expor dados sensiveis desnecessarios.

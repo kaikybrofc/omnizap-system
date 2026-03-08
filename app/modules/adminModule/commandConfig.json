@@ -83,7 +83,23 @@
         "me ajuda com menuadm",
         "exibe menu administrativo do"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "premium",
@@ -176,7 +192,23 @@
         "me ajuda com premium",
         "gerencia usuarios premium do"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "nsfw",
@@ -247,7 +279,23 @@
       "capability_keywords": ["nsfw", "admin", "grupo"],
       "faq_patterns": ["como usar nsfw", "o que faz nsfw", "comando nsfw"],
       "user_phrasings": ["quero usar nsfw", "me ajuda com nsfw", "ativa/desativa status de nsfw"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": true,
+        "planos_permitidos": ["premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "autosticker",
@@ -326,7 +374,23 @@
         "me ajuda com autosticker",
         "ativa/desativa a geracao automatica"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "stickermode",
@@ -405,7 +469,23 @@
         "me ajuda com stickermode",
         "controla modo foco em"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "chatwindow",
@@ -492,7 +572,23 @@
         "me ajuda com chatwindow",
         "abre/fecha janela temporaria de"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "stickermsglimit",
@@ -582,7 +678,23 @@
         "me ajuda com stickermsglimit",
         "define limite de mensagens"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "newgroup",
@@ -660,7 +772,23 @@
       "capability_keywords": ["newgroup", "admin", "privado", "grupo"],
       "faq_patterns": ["como usar newgroup", "o que faz newgroup", "comando newgroup"],
       "user_phrasings": ["quero usar newgroup", "me ajuda com newgroup", "cria um novo grupo"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "add",
@@ -736,7 +864,23 @@
       "capability_keywords": ["add", "admin", "grupo"],
       "faq_patterns": ["como usar add", "o que faz add", "comando add"],
       "user_phrasings": ["quero usar add", "me ajuda com add", "adiciona participantes ao grupo"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "ban",
@@ -812,7 +956,23 @@
       "capability_keywords": ["ban", "admin", "grupo"],
       "faq_patterns": ["como usar ban", "o que faz ban", "comando ban"],
       "user_phrasings": ["quero usar ban", "me ajuda com ban", "remove participantes do grupo"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "up",
@@ -892,7 +1052,23 @@
         "me ajuda com up",
         "promove participantes a administradores"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "down",
@@ -972,7 +1148,23 @@
         "me ajuda com down",
         "rebaixa administradores para membros"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "setsubject",
@@ -1049,7 +1241,23 @@
         "me ajuda com setsubject",
         "altera assunto do grupo."
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "setdesc",
@@ -1126,7 +1334,23 @@
         "me ajuda com setdesc",
         "altera descricao do grupo."
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "setgroup",
@@ -1204,7 +1428,23 @@
       "capability_keywords": ["setgroup", "admin", "grupo"],
       "faq_patterns": ["como usar setgroup", "o que faz setgroup", "comando setgroup"],
       "user_phrasings": ["quero usar setgroup", "me ajuda com setgroup", "define estado do grupo"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "leave",
@@ -1266,7 +1506,23 @@
       "capability_keywords": ["leave", "admin", "grupo"],
       "faq_patterns": ["como usar leave", "o que faz leave", "comando leave"],
       "user_phrasings": ["quero usar leave", "me ajuda com leave", "faz o bot sair"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "invite",
@@ -1328,7 +1584,23 @@
       "capability_keywords": ["invite", "admin", "grupo"],
       "faq_patterns": ["como usar invite", "o que faz invite", "comando invite"],
       "user_phrasings": ["quero usar invite", "me ajuda com invite", "mostra codigo de convite"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "revoke",
@@ -1390,7 +1662,23 @@
       "capability_keywords": ["revoke", "admin", "grupo"],
       "faq_patterns": ["como usar revoke", "o que faz revoke", "comando revoke"],
       "user_phrasings": ["quero usar revoke", "me ajuda com revoke", "revoga o codigo de"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "join",
@@ -1460,7 +1748,23 @@
       "capability_keywords": ["join", "admin", "privado", "grupo"],
       "faq_patterns": ["como usar join", "o que faz join", "comando join"],
       "user_phrasings": ["quero usar join", "me ajuda com join", "faz o bot entrar"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "infofrominvite",
@@ -1538,7 +1842,23 @@
         "me ajuda com infofrominvite",
         "consulta dados de um"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "metadata",
@@ -1609,7 +1929,23 @@
       "capability_keywords": ["metadata", "admin", "privado", "grupo"],
       "faq_patterns": ["como usar metadata", "o que faz metadata", "comando metadata"],
       "user_phrasings": ["quero usar metadata", "me ajuda com metadata", "retorna metadados de um"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "requests",
@@ -1675,7 +2011,23 @@
         "me ajuda com requests",
         "lista solicitacoes pendentes para"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "updaterequests",
@@ -1771,7 +2123,23 @@
         "me ajuda com updaterequests",
         "aprova ou rejeita solicitacoes"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "autorequests",
@@ -1850,7 +2218,23 @@
         "me ajuda com autorequests",
         "ativa/desativa auto aprovacao de"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "temp",
@@ -1920,7 +2304,23 @@
       "capability_keywords": ["temp", "admin", "grupo"],
       "faq_patterns": ["como usar temp", "o que faz temp", "comando temp"],
       "user_phrasings": ["quero usar temp", "me ajuda com temp", "define tempo de mensagens"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "addmode",
@@ -1994,7 +2394,23 @@
         "me ajuda com addmode",
         "define quem pode adicionar"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "prefix",
@@ -2073,7 +2489,23 @@
         "me ajuda com prefix",
         "define prefixo personalizado de"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "welcome",
@@ -2166,7 +2598,23 @@
         "me ajuda com welcome",
         "configura mensagens/midia de boas-vindas"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "farewell",
@@ -2259,7 +2707,23 @@
         "me ajuda com farewell",
         "configura mensagens/midia de despedida"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "captcha",
@@ -2334,7 +2798,23 @@
         "me ajuda com captcha",
         "ativa/desativa captcha para novos"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "antilink",
@@ -2430,7 +2910,23 @@
         "me ajuda com antilink",
         "gerencia bloqueio de links"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "noticias",
@@ -2510,7 +3006,23 @@
         "me ajuda com noticias",
         "ativa/desativa envio automatico de"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 25,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 120,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     }
   ],
   "textos": {

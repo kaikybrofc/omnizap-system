@@ -102,7 +102,23 @@
       "capability_keywords": ["pack", "packs", "figurinhas", "privado", "grupo"],
       "faq_patterns": ["como usar pack", "o que faz pack", "comando pack"],
       "user_phrasings": ["quero usar pack", "me ajuda com pack", "gerencia packs de figurinhas"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 12,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 45,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     }
   ]
 }

@@ -69,7 +69,23 @@
       "capability_keywords": ["dado", "dice", "jogos", "privado", "grupo"],
       "faq_patterns": ["como usar dado", "o que faz dado", "comando dado"],
       "user_phrasings": ["quero usar dado", "me ajuda com dado", "rola um dado com"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 20,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 75,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     }
   ]
 }

@@ -80,7 +80,23 @@
       "capability_keywords": ["cat", "ia", "privado", "grupo"],
       "faq_patterns": ["como usar cat", "o que faz cat", "comando cat"],
       "user_phrasings": ["quero usar cat", "me ajuda com cat", "perguntas para ia com"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 8,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 40,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "catimg",
@@ -171,7 +187,23 @@
       "capability_keywords": ["catimg", "catimage", "ia", "privado", "grupo"],
       "faq_patterns": ["como usar catimg", "o que faz catimg", "comando catimg"],
       "user_phrasings": ["quero usar catimg", "me ajuda com catimg", "gera/edita imagem com ia"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": true,
+        "planos_permitidos": ["premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 8,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 40,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "catprompt",
@@ -238,7 +270,23 @@
       "capability_keywords": ["catprompt", "iaprompt", "promptia", "ia", "privado", "grupo"],
       "faq_patterns": ["como usar catprompt", "o que faz catprompt", "comando catprompt"],
       "user_phrasings": ["quero usar catprompt", "me ajuda com catprompt", "define ou reseta o"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 8,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 40,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     }
   ]
 }

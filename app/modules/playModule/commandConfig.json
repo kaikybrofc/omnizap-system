@@ -71,7 +71,23 @@
       "capability_keywords": ["play", "midia", "privado", "grupo"],
       "faq_patterns": ["como usar play", "o que faz play", "comando play"],
       "user_phrasings": ["quero usar play", "me ajuda com play", "baixa/gera audio a partir"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 4,
+          "janela_ms": 600000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 15,
+          "janela_ms": 600000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "playvid",
@@ -140,7 +156,23 @@
       "capability_keywords": ["playvid", "midia", "privado", "grupo"],
       "faq_patterns": ["como usar playvid", "o que faz playvid", "comando playvid"],
       "user_phrasings": ["quero usar playvid", "me ajuda com playvid", "baixa video a partir"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": true,
+        "planos_permitidos": ["premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 4,
+          "janela_ms": 600000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 15,
+          "janela_ms": 600000,
+          "escopo": "usuario"
+        }
+      }
     }
   ]
 }

@@ -7,7 +7,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - arquivo_base: `app/modules/tiktokModule/commandConfig.json`
 - schema_version: `1.1.0`
 - module_enabled: `true`
-- generated_at: `2026-03-08T00:30:28.504Z`
+- generated_at: `2026-03-08T03:38:51.150Z`
 
 ## Escopo do Modulo
 
@@ -65,6 +65,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - max: 5
 - janela_ms: null
 - escopo: por_execucao
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=4, janela_ms=600000, escopo=usuario
+- premium: max=15, janela_ms=600000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)

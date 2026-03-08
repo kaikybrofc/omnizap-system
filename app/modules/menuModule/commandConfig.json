@@ -82,7 +82,23 @@
       "capability_keywords": ["menu", "privado", "grupo"],
       "faq_patterns": ["como usar menu", "o que faz menu", "comando menu"],
       "user_phrasings": ["quero usar menu", "me ajuda com menu", "exibe o menu principal"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 40,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 160,
+          "janela_ms": 60000,
+          "escopo": "usuario"
+        }
+      }
     }
   ]
 }

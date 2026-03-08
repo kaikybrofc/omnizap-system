@@ -108,6 +108,44 @@ const buildCommandSection = (command = {}) => {
   lines.push(`- janela_ms: ${rateLimit.janela_ms ?? 'null'}`);
   lines.push(`- escopo: ${rateLimit.escopo ?? '(nao informado)'}`);
 
+  lines.push('- acesso:');
+  if (command.acesso && typeof command.acesso === 'object') {
+    const acesso = command.acesso;
+    lines.push(`- somente_premium: ${normalizeBoolLabel(Boolean(acesso.somente_premium))}`);
+    lines.push(
+      `- planos_permitidos: ${
+        Array.isArray(acesso.planos_permitidos) && acesso.planos_permitidos.length
+          ? acesso.planos_permitidos.join(', ')
+          : '(nao informado)'
+      }`,
+    );
+  } else {
+    lines.push('- (nao informado)');
+  }
+
+  lines.push('- limite_uso_por_plano:');
+  if (command.limite_uso_por_plano && typeof command.limite_uso_por_plano === 'object') {
+    const planos = command.limite_uso_por_plano;
+    const comum = planos.comum && typeof planos.comum === 'object' ? planos.comum : null;
+    const premium = planos.premium && typeof planos.premium === 'object' ? planos.premium : null;
+    if (!comum && !premium) {
+      lines.push('- (nao informado)');
+    } else {
+      if (comum) {
+        lines.push(
+          `- comum: max=${comum.max ?? 'null'}, janela_ms=${comum.janela_ms ?? 'null'}, escopo=${comum.escopo ?? '(nao informado)'}`,
+        );
+      }
+      if (premium) {
+        lines.push(
+          `- premium: max=${premium.max ?? 'null'}, janela_ms=${premium.janela_ms ?? 'null'}, escopo=${premium.escopo ?? '(nao informado)'}`,
+        );
+      }
+    }
+  } else {
+    lines.push('- (nao informado)');
+  }
+
   lines.push('- informacoes_coletadas:');
   lines.push(...printList(command.informacoes_coletadas));
 

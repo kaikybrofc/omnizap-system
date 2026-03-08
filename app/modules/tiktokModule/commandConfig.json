@@ -71,7 +71,23 @@
       "capability_keywords": ["tiktok", "tt", "midia", "privado", "grupo"],
       "faq_patterns": ["como usar tiktok", "o que faz tiktok", "comando tiktok"],
       "user_phrasings": ["quero usar tiktok", "me ajuda com tiktok", "baixa midia do tiktok"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 4,
+          "janela_ms": 600000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 15,
+          "janela_ms": 600000,
+          "escopo": "usuario"
+        }
+      }
     }
   ]
 }

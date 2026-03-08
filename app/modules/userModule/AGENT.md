@@ -7,7 +7,7 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - arquivo_base: `app/modules/userModule/commandConfig.json`
 - schema_version: `1.1.0`
 - module_enabled: `true`
-- generated_at: `2026-03-08T00:30:28.504Z`
+- generated_at: `2026-03-08T03:38:51.150Z`
 
 ## Escopo do Modulo
 
@@ -68,6 +68,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - max: null
 - janela_ms: null
 - escopo: sem_rate_limit_explicito
+- acesso:
+- somente_premium: nao
+- planos_permitidos: comum, premium
+- limite_uso_por_plano:
+- comum: max=30, janela_ms=60000, escopo=usuario
+- premium: max=120, janela_ms=60000, escopo=usuario
 - informacoes_coletadas:
 - identificador do chat (remoteJid)
 - identificador do remetente (senderJid)

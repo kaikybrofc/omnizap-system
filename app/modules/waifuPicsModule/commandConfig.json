@@ -70,7 +70,23 @@
       "capability_keywords": ["wp", "waifupics", "anime", "privado", "grupo"],
       "faq_patterns": ["como usar wp", "o que faz wp", "comando wp"],
       "user_phrasings": ["quero usar wp", "me ajuda com wp", "envia imagem sfw da"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 10,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 35,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "wpnsfw",
@@ -138,7 +154,23 @@
       "capability_keywords": ["wpnsfw", "waifupicsnsfw", "anime", "privado", "grupo"],
       "faq_patterns": ["como usar wpnsfw", "o que faz wpnsfw", "comando wpnsfw"],
       "user_phrasings": ["quero usar wpnsfw", "me ajuda com wpnsfw", "envia imagem nsfw da"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": true,
+        "planos_permitidos": ["premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 10,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 35,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     },
     {
       "name": "wppicshelp",
@@ -201,7 +233,23 @@
         "me ajuda com wppicshelp",
         "mostra ajuda e categorias"
       ],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 10,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 35,
+          "janela_ms": 300000,
+          "escopo": "usuario"
+        }
+      }
     }
   ]
 }

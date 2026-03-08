@@ -71,7 +71,23 @@
       "capability_keywords": ["quote", "qc", "midia", "privado", "grupo"],
       "faq_patterns": ["como usar quote", "o que faz quote", "comando quote"],
       "user_phrasings": ["quero usar quote", "me ajuda com quote", "transforma texto em figurinha"],
-      "suggestion_priority": 100
+      "suggestion_priority": 100,
+      "acesso": {
+        "somente_premium": false,
+        "planos_permitidos": ["comum", "premium"]
+      },
+      "limite_uso_por_plano": {
+        "comum": {
+          "max": 4,
+          "janela_ms": 600000,
+          "escopo": "usuario"
+        },
+        "premium": {
+          "max": 15,
+          "janela_ms": 600000,
+          "escopo": "usuario"
+        }
+      }
     }
   ]
 }
