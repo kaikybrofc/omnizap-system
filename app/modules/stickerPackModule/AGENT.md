@@ -3,14 +3,12 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
-
 - arquivo_base: `app/modules/stickerPackModule/commandConfig.json`
 - schema_version: `1.1.0`
 - module_enabled: `true`
-- generated_at: `2026-03-08T03:38:51.150Z`
+- generated_at: `2026-03-08T08:14:27.803Z`
 
 ## Escopo do Modulo
-
 - module: `stickerPackModule`
 - source_files:
 - stickerPackCommandHandlers.js
@@ -18,7 +16,6 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `1`
 
 ## Protocolo de Resposta para IA
-
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -27,16 +24,13 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
-
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
-
 ### pack
-
 - aliases: packs
 - enabled: true
 - categoria: figurinhas
@@ -47,6 +41,13 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - privado
 - grupo
 - metodos_de_uso:
+- <prefix>pack help
+- <prefix>pack create meupack
+- <prefix>pack list
+- <prefix>pack add <pack>
+- <prefix>pack send <pack>
+- mensagens_uso (variantes):
+- default:
 - <prefix>pack help
 - <prefix>pack create meupack
 - <prefix>pack list
@@ -106,6 +107,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
+- mensagens_sistema:
+- (nao informado)
+- limites_operacionais:
+- (nao informado)
+- opcoes:
+- (nao informado)
 - observabilidade:
 - evento_analytics: whatsapp_command_pack
 - tags_log: whatsapp, command, stickerPackModule, pack

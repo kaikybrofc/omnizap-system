@@ -2,16 +2,27 @@
   "schema_version": "1.1.0",
   "module": "gameModule",
   "enabled": true,
-  "source_files": ["diceCommand.js"],
+  "source_files": [
+    "diceCommand.js"
+  ],
   "commands": [
     {
       "name": "dado",
-      "aliases": ["dice"],
+      "aliases": [
+        "dice"
+      ],
       "descricao": "Rola um dado com numero de lados opcional.",
-      "metodos_de_uso": ["<prefix>dado", "<prefix>dado 20", "<prefix>dice 100"],
+      "metodos_de_uso": [
+        "<prefix>dado",
+        "<prefix>dado 20",
+        "<prefix>dice 100"
+      ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "lados entre 2 e 1000",
-      "local_de_uso": ["privado", "grupo"],
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -46,7 +57,10 @@
         "escopo": "sem_rate_limit_explicito"
       },
       "dependencias_externas": [],
-      "efeitos_colaterais": ["gera número aleatório", "envia resultado no chat"],
+      "efeitos_colaterais": [
+        "gera número aleatório",
+        "envia resultado no chat"
+      ],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -54,7 +68,12 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_dado",
-        "tags_log": ["whatsapp", "command", "gameModule", "dado"],
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "gameModule",
+          "dado"
+        ],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -66,13 +85,30 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": ["dado", "dice", "jogos", "privado", "grupo"],
-      "faq_patterns": ["como usar dado", "o que faz dado", "comando dado"],
-      "user_phrasings": ["quero usar dado", "me ajuda com dado", "rola um dado com"],
+      "capability_keywords": [
+        "dado",
+        "dice",
+        "jogos",
+        "privado",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar dado",
+        "o que faz dado",
+        "comando dado"
+      ],
+      "user_phrasings": [
+        "quero usar dado",
+        "me ajuda com dado",
+        "rola um dado com"
+      ],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": ["comum", "premium"]
+        "planos_permitidos": [
+          "comum",
+          "premium"
+        ]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -85,7 +121,18 @@
           "janela_ms": 300000,
           "escopo": "usuario"
         }
+      },
+      "mensagens_uso": {
+        "default": [
+          "Formato de uso:",
+          "<prefix>dado",
+          "<prefix>dado <lados (2-1000)>",
+          "<prefix>dice <lados (2-1000)>"
+        ]
       }
     }
-  ]
+  ],
+  "textos": {
+    "usage_header": ""
+  }
 }

@@ -13,6 +13,7 @@ import premiumUserStore from '../../store/premiumUserStore.js';
 import logger from '../../../utils/logger/loggerModule.js';
 import { MESSAGE_TYPE_SQL, TIMESTAMP_TO_DATETIME_SQL } from '../statsModule/rankingCommon.js';
 import { getAdminJid } from '../../config/adminIdentity.js';
+import { getUserUsageText } from './userConfigRuntime.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const ACTIVE_DAYS_WINDOW = Number.parseInt(process.env.USER_PROFILE_ACTIVE_DAYS || '30', 10);
@@ -40,6 +41,7 @@ const SOCIAL_DST_EXPR = `JSON_UNQUOTE(
  * @returns {string} Texto de instruções para o usuário.
  */
 const buildUsageText = (commandPrefix = DEFAULT_COMMAND_PREFIX) =>
+  getUserUsageText('user', { commandPrefix }) ||
   [
     'Formato de uso:',
     `${commandPrefix}user perfil <id|telefone>`,

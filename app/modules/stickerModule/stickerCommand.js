@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { addStickerToAutoPack } from '../stickerPackModule/autoPackCollectorRuntime.js';
 import { getAdminJid } from '../../config/adminIdentity.js';
+import { getStickerUsageText } from './stickerConfigRuntime.js';
 
 const adminJid = getAdminJid();
 
@@ -342,6 +343,9 @@ export async function processSticker(
     const mediaDetails = extractMediaDetails(message, { includeQuoted: includeQuotedMedia });
     if (!mediaDetails) {
       const maxSizeLabel = `${(MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)} MB`;
+      const usageText =
+        getStickerUsageText('sticker', { commandPrefix }) ||
+        `Use *${commandPrefix}sticker* (ou *${commandPrefix}s*) respondendo a uma imagem, video ou figurinha.`;
       await sendAndStore(sock, senderJid, { react: { text: '❓', key: messageInfo.key } });
       await sendAndStore(
         sock,
@@ -350,7 +354,8 @@ export async function processSticker(
           text:
             `Olá ${senderName} \n\n*❌ Não foi possível processar sua solicitação.*\n\n` +
             '> Você não enviou nem marcou nenhuma mídia.\n\n' +
-            `📌 Por favor, envie ou marque um arquivo de mídia com *tamanho máximo de ${maxSizeLabel}*.\n\n` +
+            `📌 ${usageText}\n\n` +
+            `📦 Tamanho máximo permitido: *${maxSizeLabel}*.\n\n` +
             '> _*💡 Dica: desative o modo HD antes de enviar para reduzir o tamanho do arquivo e evitar falhas.*_',
         },
         { quoted: message, ephemeralExpiration: expirationMessage },
@@ -360,6 +365,9 @@ export async function processSticker(
 
     const { mediaType, mediaKey } = mediaDetails;
     if (!isSupportedStickerMediaType(mediaType)) {
+      const usageText =
+        getStickerUsageText('sticker', { commandPrefix }) ||
+        `Use *${commandPrefix}sticker* (ou *${commandPrefix}s*) respondendo a uma imagem, video ou figurinha.`;
       await sendAndStore(sock, senderJid, { react: { text: '❓', key: messageInfo.key } });
       await sendAndStore(
         sock,
@@ -368,7 +376,7 @@ export async function processSticker(
           text:
             '*❌ Tipo de mídia não suportado para criar sticker.*' +
             '\n\n- Tipos aceitos: *imagem, vídeo ou figurinha*.' +
-            '\n\n- 📌 Envie a mídia novamente em um desses formatos.',
+            `\n\n- 📌 ${usageText}`,
         },
         { quoted: message, ephemeralExpiration: expirationMessage },
       );

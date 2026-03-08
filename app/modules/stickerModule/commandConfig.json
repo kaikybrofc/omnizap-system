@@ -9,6 +9,11 @@
       "aliases": ["s"],
       "descricao": "Converte imagem/video em figurinha.",
       "metodos_de_uso": ["<prefix>sticker", "<prefix>s"],
+      "mensagens_uso": {
+        "default": [
+          "📌 Use: <prefix>sticker (ou <prefix>s) respondendo a uma imagem, vídeo ou figurinha."
+        ]
+      },
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "midia ate 1 MB",
       "local_de_uso": ["privado", "grupo"],
@@ -97,6 +102,11 @@
       "aliases": ["tovideo", "tovid"],
       "descricao": "Converte figurinha para imagem ou video quando aplicavel.",
       "metodos_de_uso": ["<prefix>toimg", "<prefix>tovideo", "<prefix>tovid"],
+      "mensagens_uso": {
+        "default": [
+          "📌 Use: <prefix>toimg (ou <prefix>tovideo / <prefix>tovid) respondendo a uma figurinha."
+        ]
+      },
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "figurinha ate 2 MB",
       "local_de_uso": ["privado", "grupo"],
@@ -180,6 +190,12 @@
       "aliases": ["st"],
       "descricao": "Gera figurinha com texto (tema escuro).",
       "metodos_de_uso": ["<prefix>stickertext seu texto", "<prefix>st seu texto"],
+      "mensagens_uso": {
+        "default": [
+          "📌 Use: <prefix>stickertext seu texto",
+          "💡 Exemplo: <prefix>st bom dia seus lindos"
+        ]
+      },
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "ate 80 caracteres e 4 linhas",
       "local_de_uso": ["privado", "grupo"],
@@ -268,6 +284,12 @@
       "aliases": ["stw"],
       "descricao": "Gera figurinha com texto (tema claro).",
       "metodos_de_uso": ["<prefix>stickertextwhite seu texto", "<prefix>stw seu texto"],
+      "mensagens_uso": {
+        "default": [
+          "📌 Use: <prefix>stickertextwhite seu texto",
+          "💡 Exemplo: <prefix>stw bom dia seus lindos"
+        ]
+      },
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "ate 80 caracteres e 4 linhas",
       "local_de_uso": ["privado", "grupo"],
@@ -360,6 +382,12 @@
       "aliases": ["stb"],
       "descricao": "Gera figurinha animada de texto piscante.",
       "metodos_de_uso": ["<prefix>stickertextblink seu texto", "<prefix>stb seu texto"],
+      "mensagens_uso": {
+        "default": [
+          "📌 Use: <prefix>stickertextblink seu texto",
+          "💡 Exemplo: <prefix>stb bom dia seus lindos -verde"
+        ]
+      },
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "ate 80 caracteres e 4 linhas",
       "local_de_uso": ["privado", "grupo"],
@@ -447,5 +475,8 @@
         }
       }
     }
-  ]
+  ],
+  "textos": {
+    "usage_header": ""
+  }
 }

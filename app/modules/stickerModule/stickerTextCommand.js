@@ -13,6 +13,7 @@ import { addStickerMetadata } from './addStickerMetadata.js';
 import { getJidUser } from '../../config/baileysConfig.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
 import { addStickerToAutoPack } from '../stickerPackModule/autoPackCollectorRuntime.js';
+import { getStickerUsageText } from './stickerConfigRuntime.js';
 
 /**
  * Constantes limitadoras
@@ -431,17 +432,21 @@ export async function processTextSticker({
   extraText = '',
   color = 'black',
   commandPrefix = DEFAULT_COMMAND_PREFIX,
+  commandName = 'stickertext',
 }) {
   const stickerText = text.trim();
+  const isWhiteCommand = String(commandName || '').trim().toLowerCase() === 'stickertextwhite';
+  const fallbackUsageAlias = isWhiteCommand ? 'stw' : 'st';
+  const usageText =
+    getStickerUsageText(commandName, { commandPrefix }) ||
+    `Use *${commandPrefix}${fallbackUsageAlias}* com o texto da figurinha.`;
 
   if (!stickerText) {
     await sendAndStore(
       sock,
       remoteJid,
       {
-        text:
-          '❌ Você precisa informar um texto para criar a figurinha.\n\n' +
-          `Exemplo:\n*${commandPrefix}st bom dia seus lindos*`,
+        text: `❌ Você precisa informar um texto para criar a figurinha.\n\n${usageText}`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -555,7 +560,7 @@ export async function processTextSticker({
       {
         text:
           '*❌ Não foi possível criar a figurinha de texto.*\n\n' +
-          `Tente novamente com outro texto ou use *${commandPrefix}st* com uma frase menor.`,
+          `Tente novamente com outro texto ou use *${commandPrefix}${fallbackUsageAlias}* com uma frase menor.`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
@@ -594,19 +599,21 @@ export async function processBlinkingTextSticker({
   extraText = '',
   color = 'white',
   commandPrefix = DEFAULT_COMMAND_PREFIX,
+  commandName = 'stickertextblink',
 }) {
   const parsed = parseColorFlag(text, color);
   const stickerText = parsed.text.trim();
   const resolvedColor = parsed.color;
+  const usageText =
+    getStickerUsageText(commandName, { commandPrefix }) ||
+    `Use *${commandPrefix}stb* com o texto da figurinha piscante.`;
 
   if (!stickerText) {
     await sendAndStore(
       sock,
       remoteJid,
       {
-        text:
-          '❌ Você precisa informar um texto para criar a figurinha piscante.\n\n' +
-          `Exemplo:\n*${commandPrefix}stb bom dia seus lindos -verde*`,
+        text: `❌ Você precisa informar um texto para criar a figurinha piscante.\n\n${usageText}`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );

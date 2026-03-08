@@ -8,6 +8,7 @@ import { URL } from 'node:url';
 
 import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { getTikTokUsageText } from './tiktokConfigRuntime.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const TIKTOK_EXTRACT_BASE_URL = (
@@ -547,14 +548,12 @@ const sendUsage = async ({ sock, remoteJid, messageInfo, expirationMessage, comm
     remoteJid,
     {
       text: [
-        '🎬 *TikTok Downloader*',
-        '',
-        `Uso: *${commandPrefix}tiktok <link1> [link2 ...]*`,
-        '',
-        `Exemplo: *${commandPrefix}tiktok https://www.tiktok.com/@usuario/video/123*`,
+        getTikTokUsageText('tiktok', { commandPrefix }) || '',
         '',
         '✅ Suporta múltiplos links e posts de imagem (carrossel).',
-      ].join('\n'),
+      ]
+        .filter(Boolean)
+        .join('\n'),
     },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );

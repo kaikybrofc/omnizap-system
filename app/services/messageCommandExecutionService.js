@@ -119,6 +119,7 @@ export const executeMessageCommandRoute = async ({
           messageInfo,
           expirationMessage,
           senderJid,
+          commandPrefix,
         }),
       );
       break;
@@ -258,6 +259,7 @@ export const executeMessageCommandRoute = async ({
           expirationMessage,
           color: 'black',
           commandPrefix,
+          commandName: 'stickertext',
         }),
       );
       break;
@@ -275,6 +277,7 @@ export const executeMessageCommandRoute = async ({
           expirationMessage,
           color: 'white',
           commandPrefix,
+          commandName: 'stickertextwhite',
         }),
       );
       break;
@@ -292,6 +295,7 @@ export const executeMessageCommandRoute = async ({
           expirationMessage,
           color: 'white',
           commandPrefix,
+          commandName: 'stickertextblink',
         }),
       );
       break;

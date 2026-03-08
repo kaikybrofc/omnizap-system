@@ -3,14 +3,12 @@
 Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos comandos deste modulo.
 
 ## Fonte de Verdade
-
 - arquivo_base: `app/modules/stickerModule/commandConfig.json`
 - schema_version: `1.1.0`
 - module_enabled: `true`
-- generated_at: `2026-03-08T03:38:51.150Z`
+- generated_at: `2026-03-08T08:14:27.803Z`
 
 ## Escopo do Modulo
-
 - module: `stickerModule`
 - source_files:
 - stickerCommand.js
@@ -20,7 +18,6 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - total_enabled_commands: `5`
 
 ## Protocolo de Resposta para IA
-
 - Passo 1: identificar comando pelo token apos o prefixo.
 - Passo 2: resolver alias para nome canonico usando campo `aliases`.
 - Passo 3: validar `enabled`, `pre_condicoes`, permissao e local de uso.
@@ -29,16 +26,13 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - Passo 6: considerar `informacoes_coletadas`, `privacidade` e `observabilidade` ao elaborar resposta.
 
 ## Regras de Seguranca para IA
-
 - A IA orienta, mas nao executa acao administrativa automaticamente.
 - Nao inventar comandos, subcomandos ou permissao fora do JSON.
 - Sempre informar onde pode usar (grupo/privado) e quem pode usar.
 - Em duvida de permissao, responder com orientacao conservadora.
 
 ## Catalogo de Comandos
-
 ### sticker
-
 - aliases: s
 - enabled: true
 - categoria: figurinhas
@@ -51,6 +45,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - metodos_de_uso:
 - <prefix>sticker
 - <prefix>s
+- mensagens_uso (variantes):
+- default:
+- 📌 Use: <prefix>sticker (ou <prefix>s) respondendo a uma imagem, vídeo ou figurinha.
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -90,6 +87,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
+- mensagens_sistema:
+- (nao informado)
+- limites_operacionais:
+- (nao informado)
+- opcoes:
+- (nao informado)
 - observabilidade:
 - evento_analytics: whatsapp_command_sticker
 - tags_log: whatsapp, command, stickerModule, sticker
@@ -103,7 +106,6 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### toimg
-
 - aliases: tovideo, tovid
 - enabled: true
 - categoria: figurinhas
@@ -117,6 +119,9 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - <prefix>toimg
 - <prefix>tovideo
 - <prefix>tovid
+- mensagens_uso (variantes):
+- default:
+- 📌 Use: <prefix>toimg (ou <prefix>tovideo / <prefix>tovid) respondendo a uma figurinha.
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -156,6 +161,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
+- mensagens_sistema:
+- (nao informado)
+- limites_operacionais:
+- (nao informado)
+- opcoes:
+- (nao informado)
 - observabilidade:
 - evento_analytics: whatsapp_command_toimg
 - tags_log: whatsapp, command, stickerModule, toimg
@@ -169,7 +180,6 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### stickertext
-
 - aliases: st
 - enabled: true
 - categoria: figurinhas
@@ -182,6 +192,10 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - metodos_de_uso:
 - <prefix>stickertext seu texto
 - <prefix>st seu texto
+- mensagens_uso (variantes):
+- default:
+- 📌 Use: <prefix>stickertext seu texto
+- 💡 Exemplo: <prefix>st bom dia seus lindos
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -221,6 +235,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
+- mensagens_sistema:
+- (nao informado)
+- limites_operacionais:
+- (nao informado)
+- opcoes:
+- (nao informado)
 - observabilidade:
 - evento_analytics: whatsapp_command_stickertext
 - tags_log: whatsapp, command, stickerModule, stickertext
@@ -234,7 +254,6 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### stickertextwhite
-
 - aliases: stw
 - enabled: true
 - categoria: figurinhas
@@ -247,6 +266,10 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - metodos_de_uso:
 - <prefix>stickertextwhite seu texto
 - <prefix>stw seu texto
+- mensagens_uso (variantes):
+- default:
+- 📌 Use: <prefix>stickertextwhite seu texto
+- 💡 Exemplo: <prefix>stw bom dia seus lindos
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -286,6 +309,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
+- mensagens_sistema:
+- (nao informado)
+- limites_operacionais:
+- (nao informado)
+- opcoes:
+- (nao informado)
 - observabilidade:
 - evento_analytics: whatsapp_command_stickertextwhite
 - tags_log: whatsapp, command, stickerModule, stickertextwhite
@@ -299,7 +328,6 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - base_legal: execução do serviço solicitado e legítimo interesse operacional
 
 ### stickertextblink
-
 - aliases: stb
 - enabled: true
 - categoria: figurinhas
@@ -312,6 +340,10 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - metodos_de_uso:
 - <prefix>stickertextblink seu texto
 - <prefix>stb seu texto
+- mensagens_uso (variantes):
+- default:
+- 📌 Use: <prefix>stickertextblink seu texto
+- 💡 Exemplo: <prefix>stb bom dia seus lindos -verde
 - subcomandos:
 - (nenhum)
 - argumentos:
@@ -351,6 +383,12 @@ Este arquivo e destinado a agentes de IA para gerar respostas no contexto dos co
 - sucesso: Comando executado com sucesso.
 - erro_uso: Formato de uso inválido. Consulte metodos_de_uso.
 - erro_permissao: Permissão insuficiente para executar este comando.
+- mensagens_sistema:
+- (nao informado)
+- limites_operacionais:
+- (nao informado)
+- opcoes:
+- (nao informado)
 - observabilidade:
 - evento_analytics: whatsapp_command_stickertextblink
 - tags_log: whatsapp, command, stickerModule, stickertextblink

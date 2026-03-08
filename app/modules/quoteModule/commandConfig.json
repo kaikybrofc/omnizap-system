@@ -2,16 +2,26 @@
   "schema_version": "1.1.0",
   "module": "quoteModule",
   "enabled": true,
-  "source_files": ["quoteCommand.js"],
+  "source_files": [
+    "quoteCommand.js"
+  ],
   "commands": [
     {
       "name": "quote",
-      "aliases": ["qc"],
+      "aliases": [
+        "qc"
+      ],
       "descricao": "Transforma texto em figurinha estilo quote.",
-      "metodos_de_uso": ["<prefix>quote seu texto", "<prefix>qc @usuario texto"],
+      "metodos_de_uso": [
+        "<prefix>quote seu texto",
+        "<prefix>qc @usuario texto"
+      ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "sujeito a timeouts internos de renderizacao",
-      "local_de_uso": ["privado", "grupo"],
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -47,8 +57,14 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": ["canvas", "assets de emoji remotos"],
-      "efeitos_colaterais": ["renderiza imagem temporária", "envia figurinha quote"],
+      "dependencias_externas": [
+        "canvas",
+        "assets de emoji remotos"
+      ],
+      "efeitos_colaterais": [
+        "renderiza imagem temporária",
+        "envia figurinha quote"
+      ],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -56,7 +72,12 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_quote",
-        "tags_log": ["whatsapp", "command", "quoteModule", "quote"],
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "quoteModule",
+          "quote"
+        ],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -68,13 +89,30 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": ["quote", "qc", "midia", "privado", "grupo"],
-      "faq_patterns": ["como usar quote", "o que faz quote", "comando quote"],
-      "user_phrasings": ["quero usar quote", "me ajuda com quote", "transforma texto em figurinha"],
+      "capability_keywords": [
+        "quote",
+        "qc",
+        "midia",
+        "privado",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar quote",
+        "o que faz quote",
+        "comando quote"
+      ],
+      "user_phrasings": [
+        "quero usar quote",
+        "me ajuda com quote",
+        "transforma texto em figurinha"
+      ],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": ["comum", "premium"]
+        "planos_permitidos": [
+          "comum",
+          "premium"
+        ]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -87,7 +125,21 @@
           "janela_ms": 600000,
           "escopo": "usuario"
         }
+      },
+      "mensagens_uso": {
+        "default": [
+          "🖼️ *Quote*",
+          "",
+          "Use assim:",
+          "*<prefix>quote* sua mensagem",
+          "",
+          "Ou responda uma mensagem com:",
+          "*<prefix>quote*"
+        ]
       }
     }
-  ]
+  ],
+  "textos": {
+    "usage_header": ""
+  }
 }

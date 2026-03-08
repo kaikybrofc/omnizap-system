@@ -3,6 +3,7 @@ import axios from 'axios';
 import logger from '../../../utils/logger/loggerModule.js';
 import groupConfigStore from '../../store/groupConfigStore.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { getWaifuPicsUsageText as getWaifuPicsRuntimeUsageText } from './waifuPicsConfigRuntime.js';
 
 /**
  * Prefixo padrão de comandos do bot.
@@ -122,7 +123,12 @@ const sendUsage = async (
 ) => {
   const list = type === 'nsfw' ? NSFW_CATEGORIES : SFW_CATEGORIES;
   const modeLabel = type === 'nsfw' ? '🔞 NSFW (adulto)' : '📗 SFW (seguro)';
+  const commandName = type === 'nsfw' ? 'wpnsfw' : 'wp';
+  const runtimeUsage = getWaifuPicsRuntimeUsageText(commandName, { commandPrefix });
   const command = `${commandPrefix}wp${type === 'nsfw' ? 'nsfw' : ''} <categoria>`;
+  const commandLine = runtimeUsage
+    ? `Use: *${runtimeUsage.split('\n')[0].replace(/^\*\s*|\s*\*$/g, '')}*`
+    : `Use: *${command}*`;
 
   await sendAndStore(
     sock,
@@ -132,7 +138,7 @@ const sendUsage = async (
         '🖼️ *Waifu pics*',
         '',
         `Modo: *${modeLabel}*`,
-        `Use: *${command}*`,
+        commandLine,
         '',
         formatCategoriesList(list),
         '',

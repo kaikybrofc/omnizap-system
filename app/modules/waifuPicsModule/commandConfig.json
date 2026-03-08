@@ -2,16 +2,26 @@
   "schema_version": "1.1.0",
   "module": "waifuPicsModule",
   "enabled": true,
-  "source_files": ["waifuPicsCommand.js"],
+  "source_files": [
+    "waifuPicsCommand.js"
+  ],
   "commands": [
     {
       "name": "wp",
-      "aliases": ["waifupics"],
+      "aliases": [
+        "waifupics"
+      ],
       "descricao": "Envia imagem SFW da API Waifu.pics por categoria.",
-      "metodos_de_uso": ["<prefix>wp <categoria>", "<prefix>waifupics neko"],
+      "metodos_de_uso": [
+        "<prefix>wp <categoria>",
+        "<prefix>waifupics neko"
+      ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": ["privado", "grupo"],
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -46,8 +56,13 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": ["Waifu.pics API"],
-      "efeitos_colaterais": ["consulta API externa", "envia imagem no chat"],
+      "dependencias_externas": [
+        "Waifu.pics API"
+      ],
+      "efeitos_colaterais": [
+        "consulta API externa",
+        "envia imagem no chat"
+      ],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -55,7 +70,12 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_wp",
-        "tags_log": ["whatsapp", "command", "waifuPicsModule", "wp"],
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "waifuPicsModule",
+          "wp"
+        ],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -67,13 +87,30 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": ["wp", "waifupics", "anime", "privado", "grupo"],
-      "faq_patterns": ["como usar wp", "o que faz wp", "comando wp"],
-      "user_phrasings": ["quero usar wp", "me ajuda com wp", "envia imagem sfw da"],
+      "capability_keywords": [
+        "wp",
+        "waifupics",
+        "anime",
+        "privado",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar wp",
+        "o que faz wp",
+        "comando wp"
+      ],
+      "user_phrasings": [
+        "quero usar wp",
+        "me ajuda com wp",
+        "envia imagem sfw da"
+      ],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": ["comum", "premium"]
+        "planos_permitidos": [
+          "comum",
+          "premium"
+        ]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -86,16 +123,30 @@
           "janela_ms": 300000,
           "escopo": "usuario"
         }
+      },
+      "mensagens_uso": {
+        "default": [
+          "<prefix>wp <categoria>",
+          "<prefix>waifupics neko"
+        ]
       }
     },
     {
       "name": "wpnsfw",
-      "aliases": ["waifupicsnsfw"],
+      "aliases": [
+        "waifupicsnsfw"
+      ],
       "descricao": "Envia imagem NSFW da API Waifu.pics por categoria.",
-      "metodos_de_uso": ["<prefix>wpnsfw <categoria>", "<prefix>waifupicsnsfw waifu"],
+      "metodos_de_uso": [
+        "<prefix>wpnsfw <categoria>",
+        "<prefix>waifupicsnsfw waifu"
+      ],
       "permissao_necessaria": "usuario comum com NSFW habilitado no grupo",
       "limite_de_uso": "depende de configuracao global e do grupo",
-      "local_de_uso": ["privado", "grupo"],
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -130,8 +181,14 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": ["Waifu.pics API", "configuração de NSFW por grupo"],
-      "efeitos_colaterais": ["consulta API externa", "envia imagem NSFW no chat"],
+      "dependencias_externas": [
+        "Waifu.pics API",
+        "configuração de NSFW por grupo"
+      ],
+      "efeitos_colaterais": [
+        "consulta API externa",
+        "envia imagem NSFW no chat"
+      ],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -139,7 +196,12 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_wpnsfw",
-        "tags_log": ["whatsapp", "command", "waifuPicsModule", "wpnsfw"],
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "waifuPicsModule",
+          "wpnsfw"
+        ],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -151,13 +213,29 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": ["wpnsfw", "waifupicsnsfw", "anime", "privado", "grupo"],
-      "faq_patterns": ["como usar wpnsfw", "o que faz wpnsfw", "comando wpnsfw"],
-      "user_phrasings": ["quero usar wpnsfw", "me ajuda com wpnsfw", "envia imagem nsfw da"],
+      "capability_keywords": [
+        "wpnsfw",
+        "waifupicsnsfw",
+        "anime",
+        "privado",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar wpnsfw",
+        "o que faz wpnsfw",
+        "comando wpnsfw"
+      ],
+      "user_phrasings": [
+        "quero usar wpnsfw",
+        "me ajuda com wpnsfw",
+        "envia imagem nsfw da"
+      ],
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": true,
-        "planos_permitidos": ["premium"]
+        "planos_permitidos": [
+          "premium"
+        ]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -170,16 +248,27 @@
           "janela_ms": 300000,
           "escopo": "usuario"
         }
+      },
+      "mensagens_uso": {
+        "default": [
+          "<prefix>wpnsfw <categoria>",
+          "<prefix>waifupicsnsfw waifu"
+        ]
       }
     },
     {
       "name": "wppicshelp",
       "aliases": [],
       "descricao": "Mostra ajuda e categorias disponiveis de Waifu.pics.",
-      "metodos_de_uso": ["<prefix>wppicshelp"],
+      "metodos_de_uso": [
+        "<prefix>wppicshelp"
+      ],
       "permissao_necessaria": "usuario comum",
       "limite_de_uso": "sem limite especifico",
-      "local_de_uso": ["privado", "grupo"],
+      "local_de_uso": [
+        "privado",
+        "grupo"
+      ],
       "informacoes_coletadas": [
         "identificador do chat (remoteJid)",
         "identificador do remetente (senderJid)",
@@ -205,8 +294,12 @@
         "janela_ms": null,
         "escopo": "sem_rate_limit_explicito"
       },
-      "dependencias_externas": ["Waifu.pics API"],
-      "efeitos_colaterais": ["envia mensagem de ajuda"],
+      "dependencias_externas": [
+        "Waifu.pics API"
+      ],
+      "efeitos_colaterais": [
+        "envia mensagem de ajuda"
+      ],
       "respostas_padrao": {
         "sucesso": "Comando executado com sucesso.",
         "erro_uso": "Formato de uso inválido. Consulte metodos_de_uso.",
@@ -214,7 +307,12 @@
       },
       "observabilidade": {
         "evento_analytics": "whatsapp_command_wppicshelp",
-        "tags_log": ["whatsapp", "command", "waifuPicsModule", "wppicshelp"],
+        "tags_log": [
+          "whatsapp",
+          "command",
+          "waifuPicsModule",
+          "wppicshelp"
+        ],
         "nivel_log": "info"
       },
       "privacidade": {
@@ -226,8 +324,17 @@
         "retencao": "conforme políticas de logs, banco de dados e arquivos temporários da aplicação",
         "base_legal": "execução do serviço solicitado e legítimo interesse operacional"
       },
-      "capability_keywords": ["wppicshelp", "anime", "privado", "grupo"],
-      "faq_patterns": ["como usar wppicshelp", "o que faz wppicshelp", "comando wppicshelp"],
+      "capability_keywords": [
+        "wppicshelp",
+        "anime",
+        "privado",
+        "grupo"
+      ],
+      "faq_patterns": [
+        "como usar wppicshelp",
+        "o que faz wppicshelp",
+        "comando wppicshelp"
+      ],
       "user_phrasings": [
         "quero usar wppicshelp",
         "me ajuda com wppicshelp",
@@ -236,7 +343,10 @@
       "suggestion_priority": 100,
       "acesso": {
         "somente_premium": false,
-        "planos_permitidos": ["comum", "premium"]
+        "planos_permitidos": [
+          "comum",
+          "premium"
+        ]
       },
       "limite_uso_por_plano": {
         "comum": {
@@ -249,7 +359,15 @@
           "janela_ms": 300000,
           "escopo": "usuario"
         }
+      },
+      "mensagens_uso": {
+        "default": [
+          "<prefix>wppicshelp"
+        ]
       }
     }
-  ]
+  ],
+  "textos": {
+    "usage_header": ""
+  }
 }

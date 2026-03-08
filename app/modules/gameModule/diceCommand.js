@@ -1,5 +1,6 @@
 import logger from '../../../utils/logger/loggerModule.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { getGameUsageText } from './gameConfigRuntime.js';
 
 const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 const MAX_SIDES = 1000;
@@ -15,6 +16,7 @@ const parseSidesArgument = (rawArg) => {
 const rollDice = (sides) => Math.floor(Math.random() * sides) + 1;
 
 const buildUsageText = (commandPrefix) =>
+  getGameUsageText('dado', { commandPrefix }) ||
   [
     `Formato de uso:`,
     `${commandPrefix}dado`,

@@ -3,6 +3,7 @@ import { resolveUserIdCached } from '../../services/lidMapService.js';
 import logger from '../../../utils/logger/loggerModule.js';
 import { buildRpgHelpText, buildUsageText } from './rpgPokemonMessages.js';
 import { executeRpgPokemonAction } from './rpgPokemonService.js';
+import { getRpgPokemonUsageText } from './rpgPokemonConfigRuntime.js';
 
 const ALLOWED_ACTIONS = new Set([
   'help',
@@ -128,11 +129,12 @@ export const handleRpgPokemonCommand = async ({
   }
 
   if (!ALLOWED_ACTIONS.has(action)) {
+    const usageText = getRpgPokemonUsageText('rpg', { commandPrefix }) || buildUsageText(commandPrefix);
     await sendAndStore(
       sock,
       remoteJid,
       {
-        text: `${buildUsageText(commandPrefix)}\n\nUse um subcomando válido depois de ${commandPrefix}rpg.\nGuia completo: ${commandPrefix}rpg help`,
+        text: `${usageText}\n\nUse um subcomando válido depois de ${commandPrefix}rpg.\nGuia completo: ${commandPrefix}rpg help`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );

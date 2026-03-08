@@ -11,6 +11,7 @@ import { convertToWebp } from '../stickerModule/convertToWebp.js';
 import { addStickerMetadata } from '../stickerModule/addStickerMetadata.js';
 import { fetchLatestPushNames } from '../statsModule/rankingCommon.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { getQuoteUsageText } from './quoteConfigRuntime.js';
 
 const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 const QUOTE_BUBBLE_COLOR = process.env.QUOTE_BG_COLOR || '#144d37';
@@ -816,20 +817,22 @@ const sendUsage = async (
   expirationMessage,
   commandPrefix = DEFAULT_COMMAND_PREFIX,
 ) => {
+  const usageText =
+    getQuoteUsageText('quote', { commandPrefix }) ||
+    [
+      '🖼️ *Quote*',
+      '',
+      'Use assim:',
+      `*${commandPrefix}quote* sua mensagem`,
+      '',
+      'Ou responda uma mensagem com:',
+      `*${commandPrefix}quote*`,
+    ].join('\n');
+
   await sendAndStore(
     sock,
     remoteJid,
-    {
-      text: [
-        '🖼️ *Quote*',
-        '',
-        'Use assim:',
-        `*${commandPrefix}quote* sua mensagem`,
-        '',
-        'Ou responda uma mensagem com:',
-        `*${commandPrefix}quote*`,
-      ].join('\n'),
-    },
+    { text: usageText },
     { quoted: messageInfo, ephemeralExpiration: expirationMessage },
   );
 };

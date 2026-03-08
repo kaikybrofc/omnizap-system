@@ -10,9 +10,11 @@ import {
   getJidUser,
 } from '../../config/baileysConfig.js';
 import { sendAndStore } from '../../services/messagePersistenceService.js';
+import { getStickerUsageText } from './stickerConfigRuntime.js';
 
 const TEMP_DIR = path.join(process.cwd(), 'temp', 'sticker-convert');
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const DEFAULT_COMMAND_PREFIX = process.env.COMMAND_PREFIX || '/';
 
 const isAnimatedSticker = async (sticker, inputPath) => {
   if (sticker?.isAnimated === true) return true;
@@ -74,14 +76,18 @@ export async function handleStickerConvertCommand({
   messageInfo,
   expirationMessage,
   senderJid,
+  commandPrefix = DEFAULT_COMMAND_PREFIX,
 }) {
   const resolved = resolveStickerMessage(messageInfo);
   if (!resolved) {
+    const usageText =
+      getStickerUsageText('toimg', { commandPrefix }) ||
+      `Use *${commandPrefix}toimg* (ou *${commandPrefix}tovideo*/*${commandPrefix}tovid*) respondendo a uma figurinha.`;
     await sendAndStore(
       sock,
       remoteJid,
       {
-        text: '❌ Envie ou responda a uma figurinha para converter.\n\nDica: use o comando respondendo a um sticker.',
+        text: `❌ Envie ou responda a uma figurinha para converter.\n\n${usageText}`,
       },
       { quoted: messageInfo, ephemeralExpiration: expirationMessage },
     );
