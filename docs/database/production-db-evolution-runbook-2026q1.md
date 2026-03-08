@@ -1,67 +1,77 @@
-# Runbook de Evolução de Banco em Produção (2026 Q1)
+# Runbook de Evolucao de Banco em Producao (2026 Q1-Q2)
 
-Escopo: hardening e evolução gradual de esquema em MySQL/InnoDB, com foco em mudanças não destrutivas nas fases iniciais.
+Escopo: hardening e evolucao gradual de schema MySQL/InnoDB com foco em rollout online, validacao objetiva e rollback logico por fase.
 
 ## Objetivo
 
-Este runbook define o processo operacional para aplicar, validar e, se necessário, reverter as migrações planejadas para o ciclo 2026 Q1, minimizando risco de indisponibilidade e regressão de desempenho.
+Definir o processo para aplicar, validar e (quando necessario) reverter as migracoes do ciclo `d0` ate `d34`, minimizando risco de indisponibilidade e regressao de desempenho.
 
-## Arquivos alvo
+## Arquivos alvo (ordem recomendada)
 
 - `database/migrations/20260307_d0_hardening_up.sql`
 - `database/migrations/20260307_d0_hardening_down.sql`
+- `database/migrations/20260307_d1_terms_acceptance_up.sql`
+- `database/migrations/20260307_d1_terms_acceptance_down.sql`
+- `database/migrations/20260307_d2_auth_hardening_up.sql`
+- `database/migrations/20260307_d2_auth_hardening_down.sql`
 - `database/migrations/20260314_d7_canonical_sender_up.sql`
 - `database/migrations/20260314_d7_canonical_sender_down.sql`
 - `database/migrations/20260406_d30_security_analytics_up.sql`
 - `database/migrations/20260406_d30_security_analytics_down.sql`
+- `database/migrations/20260407_d31_web_google_session_token_hardening_up.sql`
+- `database/migrations/20260407_d31_web_google_session_token_hardening_down.sql`
+- `database/migrations/20260408_d32_ai_help_response_cache_up.sql`
+- `database/migrations/20260408_d32_ai_help_response_cache_down.sql`
+- `database/migrations/20260409_d33_ai_learning_tables_up.sql`
+- `database/migrations/20260409_d33_ai_learning_tables_down.sql`
+- `database/migrations/20260410_d34_command_config_enrichment_up.sql`
+- `database/migrations/20260410_d34_command_config_enrichment_down.sql`
 
-## 1) Pré-requisitos
+## 1) Pre-requisitos
 
-1. Confirmar engine e versão do MySQL:
+1. Confirmar versao e engine:
 
 ```sql
 SELECT VERSION() AS mysql_version;
 ```
 
-Recomendado: MySQL 8.0.16+ (suporte consistente a `CHECK` e `DROP CHECK`).
+Recomendado: MySQL `8.0.16+`.
 
-2. Confirmar política de scheduler de eventos:
+2. Confirmar politica de scheduler:
 
 ```sql
 SHOW VARIABLES LIKE 'event_scheduler';
 ```
 
-Se a política do ambiente permitir jobs de retenção/rollup no banco, mantenha `event_scheduler=ON` em nível de servidor.
+3. Garantir backup e recuperacao:
 
-3. Garantir estratégia de backup antes de cada fase:
-
-- backup lógico do schema de destino;
-- cadeia de recuperação point-in-time (binlog + snapshots);
-- teste de restauração em ambiente de homologação.
+- backup logico do schema alvo;
+- cadeia PITR (binlog + snapshots);
+- restore testado em homologacao.
 
 4. Postura operacional:
 
-- executar em janelas de menor pressão de escrita;
-- manter a aplicação online na D0;
-- D+7 e D+30 podem ser online, com monitoramento ativo de latência.
+- aplicar em janela de menor pressao de escrita;
+- manter aplicacao online quando possivel;
+- monitorar p95/p99 e lock waits durante e apos cada fase.
 
-## 2) Comando padrão de execução
-
-Uso recomendado via `mysql` CLI:
+## 2) Comando padrao de execucao
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/<arquivo>.sql
 ```
 
-## 3) Fase D0 - Hardening não disruptivo
+## 3) Fases de rollout
 
-### Aplicar
+### Fase D0 - Hardening nao disruptivo
+
+Aplicar:
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260307_d0_hardening_up.sql
 ```
 
-### Validar
+Validar:
 
 ```sql
 SELECT migration_key, phase, status, updated_at
@@ -75,21 +85,74 @@ SHOW INDEX FROM sticker_worker_task_queue;
 SHOW INDEX FROM sticker_asset_reprocess_queue;
 ```
 
-### Rollback lógico
+Rollback:
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260307_d0_hardening_down.sql
 ```
 
-## 4) Fase D+7 - Migração para remetente canônico
+### Fase D1 - Aceite de termos versionado
 
-### Aplicar
+Aplicar:
+
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260307_d1_terms_acceptance_up.sql
+```
+
+Validar:
+
+```sql
+SELECT migration_key, phase, status, updated_at
+  FROM schema_change_log
+ WHERE migration_key = '20260307_d1_terms_acceptance';
+
+SHOW TABLES LIKE 'web_terms_acceptance_event';
+SHOW INDEX FROM web_terms_acceptance_event;
+```
+
+Rollback:
+
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260307_d1_terms_acceptance_down.sql
+```
+
+### Fase D2 - Auth hardening
+
+Aplicar:
+
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260307_d2_auth_hardening_up.sql
+```
+
+Validar:
+
+```sql
+SELECT migration_key, phase, status, updated_at
+  FROM schema_change_log
+ WHERE migration_key = '20260307_d2_auth_hardening';
+
+SHOW TABLES LIKE 'web_user_password_login_throttle';
+SHOW COLUMNS FROM web_user_password_recovery_code LIKE 'email_hash';
+SHOW COLUMNS FROM web_user_password_recovery_code LIKE 'requested_ip_hash';
+SHOW COLUMNS FROM web_user_password_recovery_code LIKE 'requested_user_agent_hash';
+SHOW INDEX FROM web_user_password_recovery_code;
+```
+
+Rollback:
+
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260307_d2_auth_hardening_down.sql
+```
+
+### Fase D+7 - Canonical sender
+
+Aplicar:
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260314_d7_canonical_sender_up.sql
 ```
 
-### Validar
+Validar:
 
 ```sql
 SELECT migration_key, phase, status, updated_at
@@ -104,25 +167,21 @@ SELECT COUNT(*) AS null_canonical_sender
  WHERE canonical_sender_id IS NULL;
 ```
 
-### Checkpoint de rollout da aplicação
-
-Após D+7, publicar ajustes de aplicação/queries que priorizem `messages.canonical_sender_id` em caminhos de ranking e analytics.
-
-### Rollback lógico
+Rollback:
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260314_d7_canonical_sender_down.sql
 ```
 
-## 5) Fase D+30 - Segurança, analytics e retenção
+### Fase D+30 - Security analytics e retencao
 
-### Aplicar
+Aplicar:
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260406_d30_security_analytics_up.sql
 ```
 
-### Validar
+Validar:
 
 ```sql
 SELECT migration_key, phase, status, updated_at
@@ -136,9 +195,6 @@ SELECT COUNT(*) AS null_session_hash
   FROM web_google_session
  WHERE session_token_hash IS NULL;
 
-SELECT COUNT(*) AS message_activity_daily_rows
-  FROM message_activity_daily;
-
 SHOW EVENTS
  WHERE Db = DATABASE()
    AND Name IN (
@@ -150,29 +206,120 @@ SHOW EVENTS
    );
 ```
 
-### Pós-checagem de constraints
-
-Se alguma `CHECK` for ignorada, o script emitirá mensagens `SKIPPED`. Nesse caso:
-
-1. corrigir os dados violadores;
-2. reexecutar a migração D+30 (`up`);
-3. repetir as validações da fase.
-
-### Rollback lógico
+Rollback:
 
 ```bash
 mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260406_d30_security_analytics_down.sql
 ```
 
-## 6) Checklist de monitoramento (todas as fases)
+### Fase D+31 - Hardening de token de sessao web
 
-Monitorar por 30-60 minutos após cada fase:
+Aplicar:
 
-- `Threads_running`, waits de lock InnoDB e latência p95/p99;
-- profundidade de filas e workers presos (`status='processing'` com `locked_at` obsoleto);
-- picos em slow query log para `messages` e tabelas de fila.
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260407_d31_web_google_session_token_hardening_up.sql
+```
 
-Consultas rápidas recomendadas:
+Validar:
+
+```sql
+SHOW COLUMNS FROM web_google_session LIKE 'session_token_hash';
+
+SELECT COUNT(*) AS inconsistent_rows
+  FROM web_google_session
+ WHERE session_token_hash IS NULL
+    OR session_token <> LOWER(SUBSTRING(HEX(session_token_hash), 1, 36));
+```
+
+Rollback:
+
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260407_d31_web_google_session_token_hardening_down.sql
+```
+
+### Fase D+32 - Cache de respostas de AI Help
+
+Aplicar:
+
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260408_d32_ai_help_response_cache_up.sql
+```
+
+Validar:
+
+```sql
+SHOW TABLES LIKE 'ai_help_response_cache';
+SHOW INDEX FROM ai_help_response_cache;
+```
+
+Rollback:
+
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260408_d32_ai_help_response_cache_down.sql
+```
+
+### Fase D+33 - Tabelas de aprendizado de IA
+
+Aplicar:
+
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260409_d33_ai_learning_tables_up.sql
+```
+
+Validar:
+
+```sql
+SHOW TABLES LIKE 'ai_learning_events';
+SHOW TABLES LIKE 'ai_learned_patterns';
+SHOW TABLES LIKE 'ai_learned_keywords';
+SHOW TABLES LIKE 'ai_question_embeddings';
+
+SHOW INDEX FROM ai_learning_events;
+SHOW INDEX FROM ai_learned_patterns;
+SHOW INDEX FROM ai_learned_keywords;
+SHOW INDEX FROM ai_question_embeddings;
+```
+
+Rollback:
+
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260409_d33_ai_learning_tables_down.sql
+```
+
+### Fase D+34 - Enriquecimento de command config
+
+Aplicar:
+
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260410_d34_command_config_enrichment_up.sql
+```
+
+Validar:
+
+```sql
+SHOW TABLES LIKE 'ai_command_config_enrichment_cursor';
+SHOW TABLES LIKE 'ai_command_config_enrichment_suggestion';
+SHOW TABLES LIKE 'ai_command_config_enrichment_state';
+
+SHOW INDEX FROM ai_command_config_enrichment_suggestion;
+SHOW INDEX FROM ai_command_config_enrichment_state;
+```
+
+Rollback:
+
+```bash
+mysql -u"$DB_USER" -p"$DB_PASSWORD" -h"$DB_HOST" "$DB_NAME" < database/migrations/20260410_d34_command_config_enrichment_down.sql
+```
+
+## 4) Checklist de monitoramento (todas as fases)
+
+Monitorar por 30-60 minutos apos cada fase:
+
+- `Threads_running`, lock waits InnoDB, latencia p95/p99;
+- profundidade de filas (`domain_event_outbox`, `email_outbox`, `sticker_worker_task_queue`);
+- falhas em workers e jobs/event scheduler.
+
+Consultas rapidas:
 
 ```sql
 SELECT status, COUNT(*) FROM domain_event_outbox GROUP BY status;
@@ -180,39 +327,39 @@ SELECT status, COUNT(*) FROM email_outbox GROUP BY status;
 SELECT status, COUNT(*) FROM sticker_worker_task_queue GROUP BY status;
 ```
 
-## 7) Critério de avanço (go/no-go)
+## 5) Criterio de avance (go/no-go)
 
-Prosseguir para a próxima fase somente se:
+Avancar somente se:
 
-- status da migração atual estiver `applied` em `schema_change_log`;
-- validações obrigatórias estiverem consistentes;
-- não houver degradação sustentada de latência/erros.
+- migracao atual estiver `applied` (quando registrada em `schema_change_log`);
+- validacoes estruturais e de indice estiverem consistentes;
+- sem degradacao sustentada de erro/latencia.
 
-Suspender avanço se houver:
+Suspender se houver:
 
-- aumento persistente de lock waits;
-- crescimento anômalo de filas sem drenagem;
-- erros de aplicação relacionados às colunas/índices alterados.
+- lock waits persistentes;
+- crescimento anomalo de filas sem drenagem;
+- erro de aplicacao relacionado a novas colunas/tabelas.
 
-## 8) Política de roll-forward
+## 6) Politica de roll-forward
 
-Quando rollback não for estritamente necessário e os dados estiverem íntegros:
+Quando rollback nao for necessario e dados estiverem integros:
 
 1. manter a fase aplicada;
-2. ajustar queries da aplicação para os novos índices/colunas;
-3. repetir validações;
-4. registrar postmortem e observações em `schema_change_log.notes`.
+2. ajustar query/indice no codigo;
+3. repetir validacoes;
+4. registrar observacoes em `schema_change_log.notes`.
 
-## 9) Notas de segurança operacional
+## 7) Notas de seguranca operacional
 
-- DDL no MySQL faz auto-commit. Scripts de `down` são rollbacks lógicos, não undo transacional.
-- Não usar `db:init` como mecanismo de migração em produção, pois ele aplica schema consolidado e pode mascarar drift.
-- Após execução em produção, tratar arquivos de migração como imutáveis. Mudanças devem entrar em novos arquivos/versionamentos.
+- DDL no MySQL faz auto-commit. `down` e rollback logico, nao undo transacional.
+- Nao usar `db:init` para migracao em producao.
+- Migracoes aplicadas em producao devem permanecer imutaveis.
 
-## 10) Referências
+## 8) Referencias
 
-- MySQL 8.0 Reference Manual (DDL): https://dev.mysql.com/doc/refman/8.0/en/sql-data-definition-statements.html
-- MySQL `CHECK` constraints: https://dev.mysql.com/doc/refman/8.0/en/create-table-check-constraints.html
+- MySQL 8.0 DDL: https://dev.mysql.com/doc/refman/8.0/en/sql-data-definition-statements.html
+- MySQL CHECK constraints: https://dev.mysql.com/doc/refman/8.0/en/create-table-check-constraints.html
 - MySQL Event Scheduler: https://dev.mysql.com/doc/refman/8.0/en/event-scheduler.html
-- InnoDB locking e monitoramento: https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html
-- Guia interno de banco (projeto): `database/` e `docs/database/`
+- InnoDB locking: https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html
+- Referencia interna: `database/` e `docs/database/`

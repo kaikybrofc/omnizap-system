@@ -4,6 +4,12 @@ Bem-vindo à wiki oficial do **OmniZap System**.
 
 Esta página é o ponto de entrada para entender o projeto, subir o ambiente local e navegar pelos principais fluxos técnicos e operacionais.
 
+## Status Atual
+
+- Versao do projeto: `2.5.6`
+- Snapshot desta wiki: `2026-03-08`
+- Roadmap tecnico recente: consolidacao de config/runtime do bot e reducao de duplicacao entre controller/socket.
+
 ## Links rápidos
 
 - Repositório: https://github.com/kaikybrofc/omnizap-system
@@ -55,6 +61,17 @@ Operação
   -> observability/ (Prometheus, Grafana, Loki)
 ```
 
+## Mudancas Recentes
+
+- Refactor de config: entrada unificada em `app/config/index.js` com reexport de `app/configParts/*`.
+- Consolidacao de estado/socket/LID no `baileysConfig` e sincronizacao de consumo em:
+  - `app/connection/socketController.js`
+  - `app/controllers/messageController.js`
+- Remocao de arquivo orfao de middleware HTTP:
+  - `server/middleware/requestLogger.js`
+- Atualizacao dos audits de `stickerCatalogController` para novo snapshot.
+- Atualizacao do runbook de banco para incluir migracoes `d31` a `d34`.
+
 ## Navegação da wiki
 
 Páginas recomendadas para criar/expandir em seguida:
@@ -87,6 +104,9 @@ Páginas recomendadas para criar/expandir em seguida:
 - Checklist mensal de compliance: `docs/compliance/monthly-compliance-checklist-2026-03-07.md`
 - Playbook SEO BR: `docs/seo/omnizap-seo-playbook-br-2026-02-28.md`
 - Template de páginas satélite: `docs/seo/satellite-page-template.md`
+- Mudancas recentes (detalhado): `docs/wiki/recent-changes-2026-03-08.md`
+- Audit (escopo): `docs/audits/stickerCatalogController-out-of-scope.md`
+- Audit (simbolos): `docs/audits/stickerCatalogController-symbols.md`
 
 ## Referências externas úteis
 
@@ -97,4 +117,4 @@ Páginas recomendadas para criar/expandir em seguida:
 
 ---
 
-Última atualização: `2026-03-07`
+Última atualização: `2026-03-08`
